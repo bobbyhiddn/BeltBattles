@@ -40,8 +40,9 @@
 //   SPEED       a belt "60% FASTER", "3 TIMES AS FAST", "AT HALF SPEED" or "40% SLOWER", from the tile a speed rig hits
 //               on. METRONOME's belts are locked at normal speed: speed rigs add damage there instead.
 //   COPIES      SPLITTER and SORTING ARM make more payloads from one.
-//   LOADS       a turret's chamber holds loads. It fires when the chamber is full or its LOAD TIME ends (1.5 seconds
-//               after the first load, WINDOW_TIME). A turret with 4 payloads backed up at its intakes JAMS.
+//   LOADS       a turret's chamber holds loads. It fires when the chamber is full or soon after the first load (WINDOW_TIME,
+//               1.5 seconds, a hidden timer; Y7b2: the word LOAD TIME retired, glossary.ts RETIRED). A turret with 4
+//               payloads backed up at its intakes JAMS.
 //   FIRE RATE   "THE TURRET FIRES 33% FASTER": the rate, from the fire interval (x0.75 fires 1 / 0.75 = 33% faster).
 //   HARASSMENT  any STUN, wreck or rip that lands on an enemy machine (NUM-3: no freeze or slow any more).
 //   MARKS       SAP, the one mark left (2 less damage; no piece gives it yet). NUM-3: CHILL and SNAG are gone.
@@ -73,7 +74,6 @@ import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion"; // 0.8.0 H1: BASTION's WARDWORKS; P1: the plating cap
 import { scaleCore } from "../sim/cores";
 import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
-import * as stars from "../sim/stars"; // 0.8.0 B1 M2: OVERDRIVE's text reads the star's named perk
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
 
 /**
@@ -378,7 +378,7 @@ const ENTRIES: Record<string, Entry> = {
     // Y3 (release Y; DESIGN-Y row 27): ★2/★3 slow the belt to 40% / 30% and add no damage
     text: (e) => [`SLOWS ${belts(e)} PAST IT TO ${brakeSpeed(g(e).speed!)}.`, S.locked(g(e).lockedFlat!)],
     gist: (e) => brakeSpeed(g(e).speed!),
-    card: () => "SLOWS BELTS TO HALF SPEED",
+    card: (e) => `SLOWS BELTS TO ${brakeSpeed(g(e).speed!)}`, // Y7b2 (the words): from the data, as OVERDRIVE's (★1: the same words)
   },
   longhaul: {
     // Battle.applyHit: flat += perPriorGate x prior (at most priorCap from ★2); every applied hit counts (prior++)
@@ -425,9 +425,11 @@ const ENTRIES: Record<string, Entry> = {
     },
     // ★2 REDLINE names the chain guard (the second sentence); ★3 AFTERBURNER its added damage (the opening). 0.8.0 B1 M2
     // (oracle 1cd5224fab866da2 (A)): REDLINE now adds +1 too, so the highlight and the gist follow the star's named perk
-    // (stars.ts perkAt), not its flat
-    perkAt: (e, x) => (stars.perkAt("overdrive", x.stars) === "REDLINE" ? 1 : 0),
-    gist: (e, x) => `${speedText(g(e).speed!)}${stars.perkAt("overdrive", x.stars) === "REDLINE" ? ", SAFE FROM CHAINS" : g(e).flat ? `, ADDS ${damage(g(e).flat!)}` : ""}`,
+    // (stars.ts perkAt), not its flat. Y7b2 (the words): REDLINE's chain guard and both flats left with the flip (no data
+    // holds `guard` or `flat`), so both perks name the opening sentence (perkAt's default) and the gist reads the data: its
+    // speed, and a flat only where its data holds one, as ★1's and ★3's (was "4 TIMES AS FAST, SAFE FROM CHAINS" at ★2,
+    // from REDLINE's name)
+    gist: (e) => `${speedText(g(e).speed!)}${g(e).flat ? `, ADDS ${damage(g(e).flat!)}` : ""}`,
     card: (e) => `MAKES BELTS ${speedText(g(e).speed!)}`,
   },
   tollbooth: {
@@ -905,9 +907,13 @@ const ENTRIES: Record<string, Entry> = {
   },
   salvo: {
     // cores.ts ROUTINES.salvo: waits for a full chamber (or twice the load time), fires it all, reloads x reloadMul
+    // Y7b2 (the words; LOAD TIME retires): the wait in seconds. Its ready reads loadTimer >= 2 x windowTime; Battle.chambers
+    // runs loadTimer from the chamber's first load (reset to 0 when a volley empties it; a STUN pauses it, as every timer);
+    // makeTurret gives a SALVO turret WINDOW_TIME (its core sets none, only ROTARY's does, and no gear holds a windowTime),
+    // so 2 x 1.5 = 3 s on every gun (was "OR TWICE ITS LOAD TIME.")
     text: (e, x) => [
       `FIRES A FULL CHAMBER AT ONCE, EACH SHELL DEALING ${moreDamage(c(e, x).volleyFlat!)}.`,
-      `IT WAITS FOR A FULL CHAMBER, OR ${times(SIM.salvoWait)} ITS LOAD TIME.`,
+      `IT WAITS FOR A FULL CHAMBER, OR ${seconds(SIM.salvoWait * WINDOW_TIME)} AFTER ITS FIRST LOAD.`,
       `AFTER A VOLLEY ITS RELOAD TAKES ${percent(c(e, x).reloadMul! - 1)} LONGER.`,
     ],
     gist: (e, x) => `${moreDamage(c(e, x).volleyFlat!)} FOR EACH SHELL`,
@@ -1399,7 +1405,8 @@ export type BeltKind = "free" | "locked" | "slag";
 /**
  * 0.6.2t (0b.4): a belt timeline entry, one rig hit, from the walk's real values (deck.ts walkRoute). A labelled stat
  * row (T2's exception: short labels are fine). On a SLAG belt a speed hit changes nothing and pays no locked bonus, so
- * a speed-only rig reads "NO EFFECT ON SLAG"; a rig that also adds damage there (HOT SHOE, AFTERBURNER) shows that part.
+ * a speed-only rig reads "NO EFFECT ON SLAG"; a rig that also adds damage there shows that part (none since release Y:
+ * HOT SHOE's, RED-HOT SHOE's and AFTERBURNER's flats left with the flip, Y7b2).
  * Y3: SURGE VALVE's pulse row is the same on every belt (Battle.surgeTick pays slag too). On a METRONOME (locked) belt a
  * speed rig reads its damage and "(LOCKED)".
  */
@@ -1416,15 +1423,19 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   // Y7A-R3d) puts its plating back, so its row is the base's, below
   // Y5 (DESIGN-Y row 46): POWDER KEG re-arms (Battle.kegTick), with no BURN
   if (e.keg) return `${name} +${damage(e.keg.flat)} EVERY ${fmtSec(e.keg.fuse)} SEC`;
-  // Y6 (DESIGN-Y 4.1): VENOM DRIP lengthens the slug's BURN (Battle.impact), no POISON
-  if (e.burnPlus) return `${name}: ITS BURN LASTS +${fmtSec(e.burnPlus)} SEC`;
+  // Y6 (DESIGN-Y 4.1): VENOM DRIP lengthens the slug's BURN (Battle.impact), no POISON. Y7b2 (the words): in the other
+  // rows' form, "<NAME> +<amount> <what>", no colon (was "VENOM DRIP: ITS BURN LASTS +3 SEC")
+  if (e.burnPlus) return `${name} +${fmtSec(e.burnPlus)} SEC TO EACH BURN`;
   if (e.speed !== undefined) {
     if (belt === "locked") return `${name} +${damage(h.flat ?? 0)} (LOCKED)`;
     if (belt === "slag") {
       const flat = h.flat ?? 0;
       return flat > 1e-9 ? `${name} +${damage(flat)}, NO SPEED CHANGE ON SLAG` : `${name}: NO EFFECT ON SLAG`;
     }
-    return `${name} ${speedText(e.speed!)}${h.flat ? `, +${damage(h.flat)}` : ""}${h.won === false ? " (BEATEN)" : ""}`;
+    // Y7b2 (the words): a slowing rig (BRAKE SHOE, the one) reads its belt speed as its kept sentence, gist and face do,
+    // "AT 40% SPEED" (brakeSpeed; ★1's "AT HALF SPEED" as before; was "60% SLOWER" at ★2, "70% SLOWER" at ★3)
+    const sp = e.speed! < 1 ? `AT ${brakeSpeed(e.speed!)}` : speedText(e.speed!);
+    return `${name} ${sp}${h.flat ? `, +${damage(h.flat)}` : ""}${h.won === false ? " (BEATEN)" : ""}`;
   }
   if (e.perPriorGate) {
     const cap = h.capped !== undefined ? ` (UP TO ${h.capped} HITS)` : ` (${plural(h.prior ?? 0, "HIT")} BEFORE)`;

@@ -205,6 +205,31 @@ hero brings warlords of its own at Easy, Medium and Hard, built like today's cap
 - **Music.** Four loops from the existing WebAudio synth: caravan (96 bpm, 64 bars), battle for days 1-5 (112 bpm), days 6-10 (120 bpm, minor) and the Iron Matriarch (126 bpm, adds the kiln-roar drone). Each loop is 60-90 s, crossfades over 0.5 s and ducks under KO stingers.
 - **By-ear SFX pass.** Loudness-match every event against `fire` (heavy) = 0 dB. A split has its own chirp; burn ticks are quieter than hits (-9 dB); shock gets a crackle tail; the dawn and dusk banners get a gong. A 6-voice cap per event type stops 4x playback from mashing.
 
+### Release Y (bb-0.9.3): the one-line rules, and the caps that stay (REQ-BFG-056)
+
+- **The rules.** Release Y (STAR-D's DESIGN-Y, jobs Y2-Y6, tuned by Y7b1, flipped for good by Y7b2) gives every piece one
+  ability line with one trigger and one effect; a star changes a number, never adds a rule. The floors and caps went
+  (REVIEW-STARD answer 4): a payoff piece does nothing without its engine (VENOM DRIP without BURN, QUENCH TANK, TWIN GAUGE
+  off a matched belt, PINCER alone, PLATE BREAKER and STEAM BREECH without PLATE, DRAKE NOZZLE below its bonus damage).
+  POISON and HARASSMENT retired: VENOM DRIP lengthens BURN, and every stop is a STUN.
+- **REQ-BFG-056: a cap only where a mechanic would break the game's systems, each one justified here.**
+  - **STOKER's cap (ruling Y7A-R1, REVIEW-Y7A section 7; Y7b1 built it, Y7b2 kept it in the flip).** A stoked factory never
+    stamps faster than the gun its belt feeds can take (battle.ts `stokedPace`; the bots' rating follows it,
+    deckRating.ts `rateDeck`). Its stars stay 20% / 44% / 70% faster, and its face says the cap in its one line: "ITS
+    FACTORIES WORK UP TO 20% FASTER."
+  - **Why it qualifies.** Without the cap a stoked factory overfeeds its own gun: the queue passes JAM_THRESHOLD and the
+    gun skips shots, so buying or starring STOKER makes the deck weaker. Y7a measured it with the cap lifted: FURNACE's
+    start deck dealt none 3034, ★1 3626, ★2 2738 and ★3 2664 with 14-15 jams, and both shared-gun rows read under none at
+    every star, ★1 included (3708 / 3730 against 3955). A star that deals less than none breaks DESIGN-Y's star promise, and
+    no number fixes it.
+  - **What the cap does not take.** It removes a trap, not late-game power: on a gun with room the stars keep rising (an
+    8-tile KILN 3444 / 3780 / 4116 / 4284). With the cap, FURNACE's start deck reads 3034 / 3626 / 3700 / 3700 with 0 jams,
+    and the shared-gun rows 3955 at every star (Y7b1, B2).
+  - **What stays open (design list after Y).** The rating doesn't price a gun's overfeed from other sources (BASTION's
+    ROTARY RAMPART deck jams about 3.4 a battle; cap's ruling Y7B1-Q4): it rides with the next regeneration.
+- **Caps kept as data, not rules.** EXT. CHAMBER fires at most what its gun's chamber holds (Battle.chambers): that is
+  the chamber's own size, not a cap on the piece, and its ★2/★3 faces say UP TO (ruling Y7A-R2).
+
 ## 1.0 release
 
 - **Performance on a mid-range phone** (Pixel 6a / iPhone 11 class):

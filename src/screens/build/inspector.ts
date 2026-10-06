@@ -5,7 +5,8 @@
 // 0.6.2t (REQ-BFG-032): the body is blocks of whole sentences from the glossary (src/ui/abilityText.ts), wrapped by the
 // one helper (src/ui/richText.ts) at draw time (T4):
 // - the ability text: bone, numbers white, BURN / SHOCK / FREEZE / POISON / FASTER / SLOWER in their battle colours, and
-//   a perk's name right after the sentence it names, in the perk colour, never split;
+//   a perk's name right after the sentence it names, in the perk colour, never split (Y7b2, ruling R-1 for every piece: no
+//   panel body draws a perk's name now; the ⓘ view's LEVELS do);
 // - the next-star line ("NEXT STAR: FEEDS 3 BELTS."), its own line (U2e: no merge progress; the ⓘ view holds it);
 // - stat rows with aligned values (a belt's timeline and gun-end readout, a turret's rows);
 // - then, set apart by a rule, the flavour (dimmer, the small face) and the action hint (dimmer again).
@@ -187,16 +188,16 @@ const ruledRole = (role: Role): boolean => ROLE[role].small && role !== "reminde
 /** A stat label's colour. */
 const LABEL = C.slate4;
 
-/** The ability text as blocks: the opening sentence and the perk's sentence keep; the others give way first, from the
- *  last (a chain: a later sentence never shows without the ones before it). */
+/** The ability text as blocks: the opening sentence keeps; the others give way first, from the last (a chain: a later
+ *  sentence never shows without the ones before it). Y7b2 (the words; ruling R-1 for every piece): a faceless piece
+ *  (SIFTER; the signature CLOCKWORKS and SUMP have no stars) no longer draws its star's perk name after the sentence it
+ *  names, nor keeps that sentence for it (was "★2 POLISH" after its opening): the name shows in the ⓘ LEVELS view only
+ *  (levels.ts levelLines), as every face's (faceBlocks.ts perkInfoOnly). */
 function abilityBlocks(def: string, stars: number, o: TextOpts): Block[] {
   const face = faceBlocks(def, stars, o); // U2a (REQ-BFG-046): a piece with a new face draws it
   if (face) return face;
   const at = abilityText(def, stars, o);
-  return at.sentences.map((text, i): Block => ({
-    role: "ability", text, keep: i === 0 || i === at.perk?.after, rank: 2, chain: "ability",
-    ...(at.perk && i === at.perk.after ? { perk: `★${at.perk.stars} ${at.perk.name}` } : {}),
-  }));
+  return at.sentences.map((text, i): Block => ({ role: "ability", text, keep: i === 0, rank: 2, chain: "ability" }));
 }
 
 /** 0.6.2t (T6): a compact form of a panel for a short band (the phone), fullest first: its body; a header sub line in
@@ -812,9 +813,9 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
     // U2a (REQ-BFG-046): a core with a new face shows its rule line(s) under its row, as its own panel reads them
     const face = faceBlocks(def, stars, o(k));
     if (face) return face.filter((x) => x.role === "ability"); // its reminder stays on the core's own panel
+    // Y7b2 (the words; ruling R-1 for every piece): no perk name after a faceless part's opening sentence (the ⓘ view's)
     const at = abilityText(def, stars, o(k));
-    const perk = at.perk && at.perk.after === 0 ? { perk: `★${at.perk.stars} ${at.perk.name}` } : {};
-    return at.sentences.length ? [{ role: "ability", text: at.sentences[0], keep: true, ...perk }] : [];
+    return at.sentences.length ? [{ role: "ability", text: at.sentences[0], keep: true }] : [];
   };
   const coreGist = tc.bought ? faceGist(tc.def, tc.stars, o(tc.k)) ?? gist(tc.def, tc.stars, o(tc.k)) : ""; // U2a: a face's rule
   const warn = (short: boolean) => deadEndLines(b, index, short).map((text): Block => ({ role: "warn", text, keep: true }));

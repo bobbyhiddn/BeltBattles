@@ -117,7 +117,7 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "SPEED", aliases: ["AS FAST", "HALF SPEED", "SPEED RIG", "SPEED RIGS"], colour: KEYWORD_COLOUR.faster, def: "SPEED: A SPEED RIG CHANGES ITS BELT FROM THE TILE IT HITS ON.", scope: "text" },
     { word: "LOCKED", aliases: ["LOCKED BELT", "LOCKED BELTS"], colour: PLAIN, def: "LOCKED: METRONOME'S BELTS KEEP THEIR SPEED; SPEED RIGS ADD DAMAGE INSTEAD.", scope: "text" },
     { word: "COPIES", aliases: ["COPY", "COPIED"], colour: PLAIN, def: "COPIES: SPLITTER AND SORTING ARM TURN A SLUG INTO MORE SLUGS.", scope: "text" },
-    { word: "LOAD TIME", aliases: [], colour: PLAIN, def: "LOAD TIME: A GUN FIRES A FULL CHAMBER, OR SOON AFTER ITS FIRST LOAD.", scope: "text" },
+    // Y7b2 (the words): the LOAD TIME row is gone (no text names it; RETIRED below)
     // JAM keeps one meaning: an over-fed gun skipping a shot (battle.ts: JAM_THRESHOLD loads backed up)
     { word: "JAM", aliases: ["JAMS", "JAMMED"], colour: PLAIN, def: `JAM: A GUN WITH ${fmtCount(JAM_THRESHOLD)} LOADS BACKED UP AT ITS INTAKES SKIPS A SHOT.`, scope: "text" },
     // Y7b2 (the flip): the HARASSMENT row is gone (Y2 retired it: harassment is a STUN; RETIRED below)
@@ -151,6 +151,10 @@ export function glossaryRows(): GlossaryRow[] {
  * content.ts's catalogue descs. POISON (Y6; its alias POISONED with it): VENOM DRIP lengthens BURN instead, and POISON's
  * payload, pool, tick, event, colour and VENOM's desc left with the flip. MATCHED (TWIN GAUGE's face) and BONUS DAMAGE (DRAKE
  * NOZZLE's face) are rows. No word joined.
+ * LOAD TIME (Y7b2, the words): no gear holds a load time since Y4 (HOPPER's and TWIN TRIGGER's went; ROTARY's texts say
+ * SOONER), so no text names it any more: SALVO RACK's kept sentence names its wait in seconds (abilityText.ts salvo: 2 x
+ * WINDOW_TIME after its first load) and TEMPO's family line says HOW LONG A GUN WAITS TO FIRE (families.ts). The catalogue
+ * descs that still say it (HOPPER's, ROTARY BREECH's, TWIN TRIGGER's) are never drawn (flavour.ts KEPT_FLAVOUR).
  */
 
 /** The table, in order: the face keywords, the rune keywords, the kept texts' words, the trigger labels. */

@@ -450,10 +450,11 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR RIGS", "COME ONLINE SOONER."], tags: ["TEMPO", "SWARM"], // beltside-062c: RIG (DESIGN §1)
     factory: { ammo: "plain", speed: 17, commission: 0.5 },
     // Y3 (release Y; DESIGN-Y row 32; folded at the flip, Y7b2): ★3 HOT START goes (no hotStart); it keeps the global speed-up, commission
-    // 0.5/0.25/0 (rigs start 50%/75%/100% sooner), and its own belts' rigs take the same factor (battle.ts makeSide)
+    // 0.5/0.25/0 (rigs start 50%/75%/100% sooner), and its own belts' rigs take the same factor (battle.ts makeSide).
+    // Y7b2 (the words): its perk name (★3 HOT START) left with its rule, with no rename
     levels: {
       2: { factory: { speed: 17, commission: 0.25, base: 45 } },
-      3: { factory: { speed: 17, commission: 0, base: 60 }, perk: "HOT START" },
+      3: { factory: { speed: 17, commission: 0, base: 60 } },
     },
   },
   gantry: {
@@ -471,15 +472,18 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "scrapper", name: "SCRAPPER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "scrapper",
     desc: ["STAMPS SCRAP SLUGS", "WHEN HARASSMENT HITS", "FOE, OR EVERY 3S."], tags: ["HARASS", "SWARM"],
     factory: { ammo: "plain", speed: 10, trigger: "harass", scrapFlat: 30 },
-    levels: { 2: { factory: { speed: 12, scrapFlat: 65 } }, 3: { factory: { speed: 15, scrapFlat: 105, bigHaul: true }, perk: "BIG HAUL" } },
+    // Y7b2 (the words): ★3's perk name (BIG HAUL) left with its rule (Y2, DESIGN-Y row 9: the sim reads no bigHaul), with no
+    // rename
+    levels: { 2: { factory: { speed: 12, scrapFlat: 65 } }, 3: { factory: { speed: 15, scrapFlat: 105, bigHaul: true } } },
   },
   sabot: {
     id: "sabot", name: "SABOT FOUNDRY", kind: "factory", rarity: "epic", price: 9, size: 2, merchant: "quartermaster",
     desc: ["TELEGRAPHED ROUNDS", "WRECK RIGS OR STUN", "OTHER MACHINERY."], tags: ["HARASS", "BURST"],
     // NUM-3 (R1's STUN fold): the stalls 5 / 4 / 3 s (belt tile / factory / turret) became one STUN 4 s; the bare-hull +60 is gone
     factory: { ammo: "sabot", speed: 5, round: { kind: "sabot", seconds: 4 } },
-    // Y2 (release Y; DESIGN-Y row 11; folded at the flip, Y7b2): ★3 SHRAPNEL's tile STUNs go (no `shrapnel`), and its RATE goes 16 -> 20
-    levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 20 }, perk: "SHRAPNEL" } },
+    // Y2 (release Y; DESIGN-Y row 11; folded at the flip, Y7b2): ★3 SHRAPNEL's tile STUNs go (no `shrapnel`), and its RATE goes 16 -> 20.
+    // Y7b2 (the words): its perk name (★3 SHRAPNEL) left with its rule, with no rename
+    levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 20 } } },
   },
   frostbite: {
     id: "frostbite", name: "FROSTBITE FOUNDRY", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "arcane",
@@ -542,10 +546,11 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["HALF SPEED FROM HIT.", "LOCKED BELTS GAIN", "DAMAGE INSTEAD."], tags: ["FORGE", "TEMPO"],
     gate: { speed: 0.5, lockedFlat: 20 },
     // Y3 (release Y; DESIGN-Y row 27; folded at the flip, Y7b2): ★2/★3 lose their flats (HOT SHOE +20, RED-HOT SHOE +50) and slow the belt
-    // to 40% / 30% (was 50% at every star); METRONOME's locked-belt flat (lockedFlat) stays, as OVERDRIVE's does
+    // to 40% / 30% (was 50% at every star); METRONOME's locked-belt flat (lockedFlat) stays, as OVERDRIVE's does.
+    // Y7b2 (the words): their perk names (★2 HOT SHOE, ★3 RED-HOT SHOE) left with their flats, with no rename
     levels: {
-      2: { gate: { speed: 0.4, lockedFlat: 40 }, perk: "HOT SHOE" },
-      3: { gate: { speed: 0.3, lockedFlat: 70 }, perk: "RED-HOT SHOE" },
+      2: { gate: { speed: 0.4, lockedFlat: 40 } },
+      3: { gate: { speed: 0.3, lockedFlat: 70 } },
     },
   },
   longhaul: {
@@ -586,7 +591,9 @@ export const ITEMS: Record<string, ItemDef> = {
   tollbooth: {
     id: "tollbooth", name: "TOLLBOOTH", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "ironmonger",
     desc: ["GUARDS ITS BELT", "FROM THE FIRST 2", "HARASSMENT HITS."], tags: ["HARASS", "PLATE"],
-    gate: { toll: 2 }, levels: { 2: { gate: { toll: 4 } }, 3: { gate: { toll: 7, tollFactory: true }, perk: "FACTORY GUARD" } },
+    // Y7b2 (the words): ★3's perk name (FACTORY GUARD) left with its rule (Y2, DESIGN-Y row 8: its belts' factories are
+    // guarded from ★1; the sim reads no tollFactory), with no rename
+    gate: { toll: 2 }, levels: { 2: { gate: { toll: 4 } }, 3: { gate: { toll: 7, tollFactory: true } } },
   },
   sifter: {
     id: "sifter", name: "SIFTER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
@@ -643,9 +650,10 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["BLOWS AT 12S:", "PAYLOADS ON ITS BELT", "GAIN DAMAGE AND BURN."], tags: ["FORGE", "BURST", "TEMPO"],
     // Y5 (release Y; DESIGN-Y row 46; folded at the flip, Y7b2): it re-arms on a timer: every 12/10/8 s from the battle's start (a STUN or a
     // wreck pauses the fuse) it blasts +60/+130/+210 onto the slugs on its belts (battle.ts kegTick); its BURN (1/2/3) and
-    // ★3 WIDE BLAST's every belt beside it go
+    // ★3 WIDE BLAST's every belt beside it go. Y7b2 (the words): its perk name (★3 WIDE BLAST) left with its rule, with no
+    // rename
     gate: { keg: { fuse: 12, flat: 60 } },
-    levels: { 2: { gate: { keg: { fuse: 10, flat: 130 } } }, 3: { gate: { keg: { fuse: 8, flat: 210 } }, perk: "WIDE BLAST" } },
+    levels: { 2: { gate: { keg: { fuse: 10, flat: 130 } } }, 3: { gate: { keg: { fuse: 8, flat: 210 } } } },
   },
   bellows: {
     id: "bellows", name: "BELLOWS", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
@@ -679,8 +687,8 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "barbed", name: "BARBED SPOOL", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "quartermaster",
     desc: ["HITS ADD 1 FRAY.", "LATER HITS DEAL", "+2 FOR EACH STACK."], tags: ["SWARM", "FORGE"],
     // Y3 (release Y; DESIGN-Y row 25; folded at the flip, Y7b2): frayCap goes (★2/★3 RAZOR WIRE raised the hull's MAX to 18/21); the hull
-    // keeps FRAY's own MAX 15
-    gate: { fray: 1 }, levels: { 2: { gate: { fray: 2 }, perk: "RAZOR WIRE" }, 3: { gate: { fray: 3 }, perk: "RAZOR WIRE" } },
+    // keeps FRAY's own MAX 15. Y7b2 (the words): their perk name (★2/★3 RAZOR WIRE) left with that rule, with no rename
+    gate: { fray: 1 }, levels: { 2: { gate: { fray: 2 } }, 3: { gate: { fray: 3 } } },
   },
   counterweight: {
     id: "counterweight", name: "COUNTERWEIGHT", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "scrapper",
@@ -696,8 +704,9 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["TURRET FIRES TWO", "PAYLOADS PER SHOT.", "DROP ON A TURRET."], tags: ["BURST", "TWIN"],
     mod: { perShot: 2 },
     // Y4 (release Y; DESIGN-Y row 36; folded at the flip, Y7b2): the +1 slot goes (★2 WIDE BREECH's, ★3 TRIPLE BREECH's window); it fires
-    // 2/3/4 loads a shot, at most what the chamber holds (Battle.chambers; ruling Y7A-R2)
-    levels: { 2: { mod: { perShot: 3 }, perk: "WIDE BREECH" }, 3: { mod: { perShot: 4 }, perk: "TRIPLE BREECH" } },
+    // 2/3/4 loads a shot, at most what the chamber holds (Battle.chambers; ruling Y7A-R2). Y7b2 (the words): their perk names
+    // (★2 WIDE BREECH, ★3 TRIPLE BREECH) left with the slot, with no rename
+    levels: { 2: { mod: { perShot: 3 } }, 3: { mod: { perShot: 4 } } },
   },
   calibrate: {
     id: "calibrate", name: "CALIBRATION", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
@@ -714,8 +723,9 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "spotter", name: "SPOTTER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
     desc: ["TURRET REROLLS A", "BARE-HULL TARGET", "TOWARD MACHINERY."], tags: ["HARASS"],
     // Y2 (release Y; DESIGN-Y row 17; folded at the flip, Y7b2): ★2 FACTORY SPOT's factory weighting and ★3 EAGLE EYE's "always a part" go;
-    // it re-aims 1/2/3 times
-    mod: { rerolls: 1 }, levels: { 2: { mod: { rerolls: 2 }, perk: "FACTORY SPOT" }, 3: { mod: { rerolls: 3 }, perk: "EAGLE EYE" } },
+    // it re-aims 1/2/3 times. Y7b2 (the words): their perk names (★2 FACTORY SPOT, ★3 EAGLE EYE) left with those rules, with
+    // no rename
+    mod: { rerolls: 1 }, levels: { 2: { mod: { rerolls: 2 } }, 3: { mod: { rerolls: 3 } } },
   },
   // --- 0.6.1p: the wave-1 turret mods (catalogue.json hopper, mantlet, ram; ARSENAL.md §3.3 Mods) ---
   // HOPPER: the first Quartermaster stock (0.6.1d brought the merchant; its own parts are a later job).
@@ -724,8 +734,9 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "hopper", name: "HOPPER", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "quartermaster",
     desc: ["CHAMBER HOLDS 1 MORE", "LOAD; ITS LOAD TIME", "RUNS LONGER."], tags: ["BURST", "TEMPO"],
     // Y4 (release Y; DESIGN-Y row 33; folded at the flip, Y7b2): the +0.5 s load time, the ★2/★3 store and ★3's no-jam go (0.6.2 FB-B's); its
-    // chamber holds +1/+2/+3 (window)
-    mod: { window: 1 }, levels: { 2: { mod: { window: 2 } }, 3: { mod: { window: 3 }, perk: "BOTTOMLESS" } },
+    // chamber holds +1/+2/+3 (window). Y7b2 (the words): its perk name (★3 BOTTOMLESS) left with its no-jam, with no rename:
+    // no name promises fewer jams
+    mod: { window: 1 }, levels: { 2: { mod: { window: 2 } }, 3: { mod: { window: 3 } } },
   },
   mantlet: {
     id: "mantlet", name: "MANTLET", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "ironmonger",
@@ -756,8 +767,10 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["FIRES THE OLDEST", "LOAD FIRST. LOAD", "TIME 50% SHORTER."], tags: ["TEMPO"],
     core: { routine: "rotary", order: "FIFO", windowTime: 0.75 }, // NUM-3 (N1 2.2): LOAD 50% SHORTER, WINDOW_TIME 1.5 s x 50% (was 0.8 s)
     // Y4 (release Y; DESIGN-Y row 37; folded at the flip, Y7b2): ★2 GREASED RACE's and ★3 CLEAN FEED's fire rate and ★3's no-jam go; its
-    // load time is 0.75 / 0.525 / 0.3 s, 50% / 65% / 80% sooner than WINDOW_TIME's 1.5 s (cap's ruling e91c08dd12466357)
-    levels: { 2: { core: { windowTime: 0.525 }, perk: "GREASED RACE" }, 3: { core: { windowTime: 0.3 }, perk: "CLEAN FEED" } },
+    // load time is 0.75 / 0.525 / 0.3 s, 50% / 65% / 80% sooner than WINDOW_TIME's 1.5 s (cap's ruling e91c08dd12466357).
+    // Y7b2 (the words): their perk names (★2 GREASED RACE, ★3 CLEAN FEED) left with the fire rate and the no-jam, with no
+    // rename: no name promises fewer jams
+    levels: { 2: { core: { windowTime: 0.525 } }, 3: { core: { windowTime: 0.3 } } },
   },
   pressure: {
     // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
@@ -805,8 +818,10 @@ export const ITEMS: Record<string, ItemDef> = {
   grapnel: {
     id: "grapnel", name: "GRAPNEL GUN", kind: "core", rarity: "rare", price: 5, size: 1, merchant: "scrapper",
     desc: ["BELT HITS RIP THE", "NEAREST ENEMY SLUG", "OFF THAT ROUTE."], tags: ["HARASS"],
+    // Y7b2 (the words): ★3's perk name (SALVAGE LINE) left with its rule (Y2, DESIGN-Y row 19: no next-shot damage), with no
+    // rename
     core: { routine: "grapnel", rip: 1, reach: 1 }, levels: { 2: { core: { rip: 2, reach: 2 } },
-      3: { core: { rip: 3, reach: 3 }, perk: "SALVAGE LINE" } },
+      3: { core: { rip: 3, reach: 3 } } },
   },
   tesla: {
     id: "tesla", name: "TESLA ARC", kind: "core", rarity: "epic", price: 8, size: 1, merchant: "arcane",

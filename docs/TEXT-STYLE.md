@@ -76,14 +76,15 @@ U2f (0.8.9) adds three rules: the ⓘ view's size (5.8), the owned marker (9.5) 
    list it, with a suggested one-line rule, for the rules job, which also owns "engines that build incrementally". A text job never changes a rule.
 5. Interim perk clauses (U2b F6: `★2 SPARK JUMP: {*STUN} HITS 2 PARTS.`) and interim caveats (U2b F5: `INNER COLUMN ONLY.`) keep only what the
    sim does that the face would otherwise hide: a face never says less than the sim. One line each, caveats last; R4 (the STAR batch) and U4
-   (the board cues) delete their rows.
+   (the board cues) delete their rows. **Release Y (Y7b2):** R4 is done: every interim perk clause left with its perk rule, and of the caveats
+   only `INNER COLUMN ONLY.` is left (section 13).
 6. **Evidence.** The Bazaar: "A line is one trigger + one effect; items have 1 line at Bronze and 2-3 short lines at Gold+, never one long
    chained sentence" (`ref-sustain/r1/research/bazaar-bpb.md` Q2). Batomon's developer cut Petrirex's "Shield and Damage" to "Shield only"
    (`ref-sustain/r1/research/batomon-tft.md` Q2).
 
 ## 4. What the always-on face shows
-1. **Shown**, top to bottom: the title with its star badge; the header (kind, families); the stat row(s); the ability lines; the current
-   star's perk name with its line (`★2 SPARK JUMP: ...`); the interim caveats; then, where room is left, the hint and the flavour. With it:
+1. **Shown**, top to bottom: the title with its star badge; the header (kind, families); the stat row(s); the ability lines; the interim
+   caveats; then, where room is left, the hint and the flavour (release Y, R-1: a perk's name is never on the face; section 13.1). With it:
    the shop card's stat chip (section 9), keyword taps and the desk's hover tooltip.
 2. **Not shown:** NEXT★ (faceNextBlock and the legacy next block), MERGES INTO (faceMergeBlock), merge progress, the dim keyword REMINDER
    lines, any copy count. The level detail is one tap away, in the ⓘ view (section 5).
@@ -106,7 +107,8 @@ U2f (0.8.9) adds three rules: the ⓘ view's size (5.8), the owned marker (9.5) 
      star the number isn't there yet (`-/2/2 PARTS`). The separator is `/` because font.ts has no `»` and Batomon writes "Shield:
      450/900/1350"; a `/` joins numbers only (before a letter it is still T2's banned slash rate, `/S`);
    - the current star's value drawn in yellow (in text dumps, `[+2]`);
-   - each star's perk: `★2 SPARK JUMP: {*STUN} HITS 2 PARTS.`, `★3 ...`;
+   - each star's perk name, where the star has one: `★2 SPARK JUMP`, `★3 ...` (release Y: the name alone; the interim clauses are gone, and
+     the ⓘ view is the only place a perk's name shows, section 13.1);
    - what merging gives, in the NEXT★ form (faceNext): `NEXT ★2: +2 {BURN}`. Never a copy count; none at the top star.
 4. **No LEVELS** for a piece without stars (a hero's signature factory, a pack). A RULES piece that keeps today's sentences shows its legacy
    `NEXT STAR: ...` line there.
@@ -162,10 +164,10 @@ At ★2 the `+2` is yellow and the line reads `NEXT ★3: +4 {BURN}`; at ★3 th
 4. Name a keyword; never define it inline. Its reminder (faces.ts `REMINDER`, at most 10 words, MEMO C1), with the piece's own number,
    shows on a tap, in the desk's hover tooltip and in the ⓘ KEYWORDS list; never on the face (MEMO C4's dim reminder line is gone).
 5. Other colours: numbers white; trigger labels, `★n` and perk names brass (a perk name never splits); the RATE and GOLD icons yellow; the kept
-   texts' POISON lime, FASTER yellow, SLOWER blue (richText.ts `KEYWORD_COLOUR`). Each tappable word has a dotted underline in its colour.
+   texts' FASTER yellow, SLOWER blue (richText.ts `KEYWORD_COLOUR`). Each tappable word has a dotted underline in its colour.
    FLIP-X2: FREEZE's ice is gone with the mechanic (NUM-3: frost rounds STUN). FROST names a round, as CHAIN does, so both draw in the
-   text's own colour (bone); the clause's own `{*STUN}` carries STUN's cyan: OVERDRIVE ★3's `ENEMY CHAIN AND FROST ROUNDS CAN'T {*STUN} ITS
-   BELTS.` (tests/flipx2.text.test.ts pins it).
+   text's own colour (bone). Release Y (Y7b2): POISON's lime is gone with POISON, and OVERDRIVE ★3's chain-and-frost clause left with its
+   guard (section 13).
 6. A glossary row (glossary.ts, in T1 2.4's form) is `{ word, aliases, colour, def, kw?, extra?, scope }`. Its definition leads with its word
    (`{*BURN}: ...`, `JAM: ...`) and fits 2 lines of 5x7 at `GLOSSARY_WRAP_W`; a keyword's is its reminder plus at most one sentence the face
    dropped. `TAP_NOTES` hold what only a piece's own panel can say: PRESSURE BREECH's `SHOT: IT COUNTS UP TO 5 WAITING LOADS, AND IT NEVER JAMS.`
@@ -238,3 +240,32 @@ At ★2 the `+2` is yellow and the line reads `NEXT ★3: +4 {BURN}`; at ★3 th
 | 2.5 SEC, DAMAGE and BURN as words; stat glyphs never in ability lines | superseded: icons everywhere (`{DMG}`, `n{SEC}`, `{*BURN}`; U1, U2a) |
 | 2.5 `UP TO n`, never MAX | superseded: a cap names its unit, `MAX 15 {FRAY}.` (U2b F3) |
 | 2.5 star scaling: the current star only, no ladder, no slash | split: the face keeps the current star; the ⓘ view shows the ladder with `/` (5.3) |
+
+## 13. Release Y's text rules (REQ-BFG-070, REQ-BFG-046; DESIGN-Y, REVIEW-STARD R-1, rulings Y7A-R1..R6; Y7b2 FLIP-Y, bb-0.9.3)
+1. **Perk names live in the ⓘ view only, on every piece (R-1).** A star's perk name (`★2 OVERPRESSURE`) shows in the LEVELS list of the ⓘ
+   view and nowhere else: not after a face line, not after a kept sentence, not on a NEXT★ line on the face. A star changes a number; the
+   ⓘ ladder carries the number, the name is flavour.
+2. **A perk name stays only if it still names what its star does; otherwise it goes, with no rename.** Release Y dropped the names whose
+   rule left (Y7b2 3a): TOLLBOOTH's FACTORY GUARD, SCRAPPER's BIG HAUL, SABOT's SHRAPNEL, SPOTTER's FACTORY SPOT and EAGLE EYE, GRAPNEL's
+   SALVAGE LINE, BRAKE SHOE's HOT SHOE and RED-HOT SHOE, BARBED SPOOL's RAZOR WIRE, ASSEMBLY LINE's HOT START, HOPPER's BOTTOMLESS, EXT.
+   CHAMBER's WIDE BREECH and TRIPLE BREECH, ROTARY BREECH's GREASED RACE and CLEAN FEED, POWDER KEG's WIDE BLAST. Kept, because they still
+   name the star's change: SURGE VALVE's OVERPRESSURE (a stronger pulse) and HAMMER VALVE (a faster, harder pulse), OVERDRIVE's REDLINE and
+   AFTERBURNER (more speed), MANTLET's FULL GUARD and BULWARK SKIRT (more guarded tiles), LONGCASE's DEEP WIND and FULL WIND.
+3. **No text promises what the sim doesn't do.** No face, ⓘ line, perk name or gist may promise fewer jams where the rule has no no-jam
+   (Y7A-R6: HOPPER, ROTARY BREECH), a guard that left (OVERDRIVE's chains and frost) or a flat that left (BRAKE SHOE's HOT SHOE).
+4. **A number capped by something else says UP TO.** Where a piece's number is capped by another part's size or pace, the face says `UP TO
+   n` and the tap note on `UP TO` names the cap: EXT. CHAMBER `EACH SHOT FIRES UP TO 3 {SLUG}.` (a shot never fires more than its gun's
+   chamber holds, Y7A-R2), STOKER `ITS FACTORIES WORK UP TO 20% FASTER.` (a stoke never outruns its gun, Y7A-R1). A piece's own cap still
+   names its unit (`MAX 15 {FRAY}.`, section 12).
+5. **A payoff names its engine as its condition.** A piece that does nothing without an engine names it in its one line, so the face says
+   when it acts: QUENCH TANK `HIT: TURNS EACH {*BURN} INTO +30 {DMG}.`, VENOM DRIP `HIT: ITS {*BURN} LASTS +3{SEC}.`, PLATE BREAKER `HIT: SPENDS
+   10 {*PLATE} FOR +40 {DMG}.`, TWIN GAUGE `... ON A MATCHED BELT.`
+6. **Retired words** (no face, ⓘ, sentence, tap or rune line may use them; the glossary has no row for them): HARASSMENT (every stop is a
+   STUN), ONLINE (rigs START), POISON (VENOM DRIP lengthens BURN), LOAD TIME (a gun's wait is said as what it is: SALVO RACK `IT WAITS FOR
+   A FULL CHAMBER, OR 3 SECONDS AFTER ITS FIRST LOAD.`; ROTARY BREECH `FIRES PART-FULL CHAMBERS 50% SOONER.`).
+7. **The same rule reads the same on every piece.** The locked-belt flats of the speed rigs (OVERDRIVE, BRAKE SHOE, GREASE WORKS) use one
+   sentence, `ON METRONOME'S LOCKED BELTS IT ADDS 30 DAMAGE INSTEAD.`; a belt-timeline row is `<NAME> +<amount> <what>` with no colon
+   (`VENOM DRIP +3 SEC TO EACH BURN`), a colon only for a notice (`TWIN GAUGE: NO EFFECT ON AN UNMATCHED BELT`).
+8. **A rune states its own exception to a keyword.** A keyword's line stays general (`{*SHIELD}: BLOCKS ONE HIT'S DAMAGE.`; no SHIELD line
+   says it blocks everything); a rune whose rule breaks it says so in its own reminder (glossary.ts `RUNE_NOTE`: SHATTER SHOT `SHIELD: IT
+   BREAKS; THE HIT STILL LANDS.`).

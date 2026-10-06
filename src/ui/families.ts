@@ -43,7 +43,9 @@ export const FAMILY: Readonly<Record<ModuleTag, Family>> = {
   },
   TEMPO: {
     tag: "TEMPO", colour: C.yellow, mark: ["xxx", ".x.", "xxx"], // an hourglass
-    glossary: "WHEN THINGS HAPPEN: BELT SPEED, FIRE RATE, LOAD TIME, COMMISSIONING, PULSES AND FUSES.",
+    // Y7b2 (the words): LOAD TIME retires (glossary.ts RETIRED) and COMMISSION is an engine word, so the line says what each
+    // is (was "..., FIRE RATE, LOAD TIME, COMMISSIONING, PULSES AND FUSES.")
+    glossary: "WHEN THINGS HAPPEN: BELT SPEED, FIRE RATE, HOW LONG A GUN WAITS TO FIRE, WHEN RIGS START, PULSES AND FUSES.",
   },
   TWIN: {
     tag: "TWIN", colour: C.blue, mark: ["x.x", "x.x", "x.x"], // two belts

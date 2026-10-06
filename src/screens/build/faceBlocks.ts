@@ -9,11 +9,6 @@ import type { Block } from "./inspector";
 import { faceLines, faceMerge, faceNext, hasFace } from "../../ui/faces";
 import type { TextOpts } from "../../ui/abilityText";
 import { livePerk } from "../../ui/abilityText";
-import { Y2_PIECES } from "../../ui/faces"; // Y2 (release Y): the STUN pieces whose perk names go to the ⓘ view
-import { Y3_PIECES } from "../../ui/faces"; // Y3 (release Y): the 13 rigs whose perk names go to the ⓘ view
-import { Y4_PIECES } from "../../ui/faces"; // Y4 (release Y): the 4 gear and 4 cores whose perk names go to the ⓘ view
-import { Y5_PIECES } from "../../ui/faces"; // Y5 (release Y): the crit-free one-liners whose perk names go to the ⓘ view
-import { Y6_PIECES } from "../../ui/faces"; // Y6 (release Y): VENOM DRIP (no perk names; listed as the others are)
 
 /** The reminder's rank among a panel's optional blocks: after an ability's later sentences (2) and a turret's notes'
  *  first rank (1), before the turret notes (4), the hint (6) and the flavour (7). */
@@ -30,21 +25,17 @@ export const PERK_INFO_ONLY: readonly string[] = ["coil", "frostbite", "mimic", 
 
 /** Y2 (release Y; ruling R-1, DESIGN-Y rows 8-19): PERK_INFO_ONLY, and the 12 STUN pieces too (faces.ts Y2_PIECES): their
  *  star changes are ladder numbers, so a perk's name (BIG HAUL, FULL GUARD, REDLINE, ...) shows in the ⓘ LEVELS view only,
- *  never after the face line (behind the star switch until the flip, Y7b2). */
-export function perkInfoOnly(def: string): boolean {
-  // Y3 (release Y; ruling R-1, DESIGN-Y rows 20-32): and the 13 rigs (faces.ts Y3_PIECES: HOT SHOE, RED-HOT SHOE, RAZOR
-  // WIRE, OVERPRESSURE, HAMMER VALVE, HOT START). Y4 (DESIGN-Y rows 33-40): and the 4 gear and 4 cores (faces.ts Y4_PIECES:
-  // BOTTOMLESS, WIDE BREECH, TRIPLE BREECH, GREASED RACE, CLEAN FEED). Y5 (DESIGN-Y rows 41-47): and the crit-free
-  // one-liners (faces.ts Y5_PIECES: LONGCASE's DEEP WIND and FULL WIND, POWDER KEG's WIDE BLAST). Y6 (DESIGN-Y row 48): and
-  // VENOM DRIP (faces.ts Y6_PIECES; it has no perk names)
-  return PERK_INFO_ONLY.includes(def) || Y2_PIECES.includes(def) || Y3_PIECES.includes(def) || Y4_PIECES.includes(def) ||
-    Y5_PIECES.includes(def) || Y6_PIECES.includes(def);
+ *  never after the face line (behind the star switch until the flip, Y7b2). Y3-Y6 added faces.ts Y3_PIECES .. Y6_PIECES.
+ *  Y7b2 (the words; R-1 for every piece): true for every piece, so no face draws a perk's name: it shows in the ⓘ LEVELS
+ *  view only (levels.ts levelLines: "★2 OVERPRESSURE"). PERK_INFO_ONLY stays Y1's list (the four whose perk was a number). */
+export function perkInfoOnly(_def: string): boolean {
+  return true;
 }
 
 /** The face's blocks at `stars`, or null for a piece that keeps today's text. A star's perk name follows the last rule
  *  line (or the stat row, on a face without one), as today's perk follows the sentence it names (not for PERK_INFO_ONLY's
- *  pieces). U2b: then the star's interim perk clause (F6, kept; it names its perk itself) and the interim caveats (F5,
- *  kept, 3x5). U2e step 4: no reminders (they were F4's optional blocks). */
+ *  pieces; Y7b2: perkInfoOnly holds for every piece, so none). U2b: then the star's interim perk clause (F6, kept; it names
+ *  its perk itself) and the interim caveats (F5, kept, 3x5). U2e step 4: no reminders (they were F4's optional blocks). */
 export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | null {
   const fl = faceLines(def, stars, o);
   if (!fl) return null;
