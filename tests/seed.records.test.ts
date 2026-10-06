@@ -155,12 +155,16 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // 9006765), so the sample and floor decks drawn from it moved (were 9 and 24, 4 and 10)
   // REDO-X step 2 (4.1): the stand-in pool regenerated once more on FIX-ABE's offers (09ce97c; the pools changed, the
   // regeneration), so the sample and floor decks drawn from it moved (were 5 and 21, 5 and 13)
-  it("keeps its turret and join decks: the sample ghosts' 4 and 25, plus the floor ghosts' 4 and 16 (each a deck of its own)", () => {
+  // Y7b2 (the pools): the stand-in pool regenerated once on bb-0.9.3 (4d772e4), so the sample and floor decks drawn from it
+  // moved; title "the sample ghosts' 4 and 25, plus the floor ghosts' 4 and 16" -> 6 and 26, 3 and 15
+  it("keeps its turret and join decks: the sample ghosts' 6 and 26, plus the floor ghosts' 3 and 15 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
     // BAL-2 (c5e4780, the pools changed): [3, 24] -> [4, 25]
-    expect(carry(SAMPLE)).toEqual([4, 25]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
+    // Y7b2 (the pools): was [4, 25] (4d772e4, the pool regenerated on bb-0.9.3)
+    expect(carry(SAMPLE)).toEqual([6, 26]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
     // BAL-2 (c5e4780, the pools changed): [2, 14] -> [4, 16]
-    expect(carry(FLOOR)).toEqual([4, 16]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
+    // Y7b2 (the pools): was [4, 16] (4d772e4, the pool regenerated on bb-0.9.3)
+    expect(carry(FLOOR)).toEqual([3, 15]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
     for (const f of FLOOR) {
       const same = SAMPLE.filter((s) => s.day === f.day && s.hero === f.hero).map((s) => encodeStarred(s.build));
       expect(same).toHaveLength(2);

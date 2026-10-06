@@ -231,7 +231,11 @@ describe("M2: turrets and joins pass through the generator (a faked playerBuild 
       expect(back.turrets).toEqual(f.build.turrets);
       expect(back.routes.map((r) => r.join)).toEqual(f.build.routes.map((r) => r.join));
       expect(validateBuild(back, day).errors).toEqual([]);
-      expect(w.cost).toBe(buildCost(faked).total);
+      // Y7b2 (the flip): was buildCost(faked).total. The written cost is the scored one, the bought deck's value (caravanCand:
+      // boughtCost, the runes' HULL and BELT out, as FLIP-X2 reads every candidate above). The par player's decks moved with
+      // release Y's rules, so WEAVER's faked deck is now seed 22's day-4 deck (was seed 14's), which holds TAR BARREL (BELT
+      // +8): 52, its buildCost 56 (FURNACE seed 3: 55 = 55; before the flip FURNACE 52 = 52, WEAVER 53 = 53, no HULL or BELT rune)
+      expect(w.cost).toBe(boughtCost(faked));
     }
   });
 });

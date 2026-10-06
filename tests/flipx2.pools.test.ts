@@ -19,11 +19,13 @@ const exact = (b: Build, day: number, hero: string) => runeProblem(b.runes, day,
 const noDormant = (b: Build) => (b.runes ?? []).filter((q) => DORMANT_RUNES.has(q.id)).map((q) => q.id);
 
 describe("FLIP-X2: the regenerated pools hold their runes", () => {
-  it("the rules: bb-0.9.1, nothing carried; the stand-in pool was written under it (POOL_RULES, #350)", () => {
+  // Y7b2 (the bump, the pools): title bb-0.9.1 -> bb-0.9.3
+  it("the rules: bb-0.9.3, nothing carried; the stand-in pool was written under it (POOL_RULES, #350)", () => {
     expect(RULES_VERSION).toBe("bb-0.9.3"); // Y7b2: the bump (was bb-0.9.1; BAL-2: was bb-0.9.0)
     expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(RULES_VERSION);
-    expect(STAND_IN_DATA.rules).toBe("bb-0.9.1"); // BAL-2: the pool regenerated under the bump (c5e4780; was bb-0.9.0)
+    // Y7b2 (the pools): the pool regenerated under the bump (4d772e4): was bb-0.9.1
+    expect(STAND_IN_DATA.rules).toBe("bb-0.9.3"); // BAL-2: the pool regenerated under the bump (c5e4780; was bb-0.9.0)
   });
 
   it("every stand-in pool deck holds exactly `day` runes, none dormant", () => {

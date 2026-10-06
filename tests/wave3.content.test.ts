@@ -253,7 +253,9 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
   // holds at least one of the 15 wave-3 modules tagged TWIN or PLATE (a tag alone is too loose: the v2 guards carry PLATE
   // too); their prizes may be wave-3 parts and are not pinned.
   const SIX = new Set(["brasswick", "voss", "grimhold", "karsk", "lockjaw", "thistlemail"]);
-  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds the 14 pinned below, and the switch off refuses each such deck for them alone", () => {
+  // Y7b2 (the pools): title "the regrown stand-in pool holds the 14 pinned below" -> 13 (the set pinned below holds 13 since
+  // BAL-2, and 13 again after the regeneration at 4d772e4)
+  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds the 13 pinned below, and the switch off refuses each such deck for them alone", () => {
     const parts = (b: Build) => [...b.items.map((p) => p.def), ...b.mods.map((m) => m.def), ...(b.turrets ?? []).map((t) => t.def)];
     const family = (b: Build) => parts(b).filter((d) => isWave3(d) && (ITEMS[d].tags ?? []).some((t) => t === "TWIN" || t === "PLATE"));
     for (const id of RIVAL_IDS) for (const day of rivalDays(id)) {
@@ -294,9 +296,13 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
     // stand-in pick on FIX-ABE's offers (it is still sold in the shops) (was all 15)
     // BAL-2 step 5 (4.1, c5e4780; the pools changed, the regeneration): 13 of the 15; SHIELD WALL no longer reaches a
     // stand-in pick on bb-0.9.1 (it is still sold in the shops) (was the 14 with it)
+    // Y7b2 (the pools): step 5 (4.1, 4d772e4; the regeneration on bb-0.9.3): 13 of the 15, another 13: STEAM BREECH and
+    // TWIN LATCH no longer reach a stand-in pick, SHIELD WALL (IRON WALL) and TWIN TRIGGER reach one again (all four are
+    // still sold in the shops) (was "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller",
+    // "seamwelder", "spallcatcher", "steambreech", "stoker", "twingauge", "twinlatch", "twinmould")
     expect([...inPool].sort()).toEqual([
-      "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder", "spallcatcher",
-      "steambreech", "stoker", "twingauge", "twinlatch", "twinmould",
+      "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder", "shieldwall",
+      "spallcatcher", "stoker", "twingauge", "twinmould", "twintrigger",
     ]);
     expect(inPool.has("stoker")).toBe(true);
     expect(decks).toBeGreaterThan(0);
