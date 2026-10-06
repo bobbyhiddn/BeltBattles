@@ -3,7 +3,7 @@
 // card's line. The pixels are in L/output-lc1/shots (scripts/shot.mjs).
 import { describe, expect, it } from "vitest";
 import { textWidth } from "../src/render/font";
-import { LAST_CHANCE_HULL, lastChanceOffer } from "../src/sim/lastChance";
+import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts } from "../src/sim/lastChance";
 import { ITEMS } from "../src/sim/content";
 import { RUNES } from "../src/sim/runes";
 import { LC_HULL_SUB, LC_LINE, LC_STOP, LC_TAKE, LC_TITLE, hullName, lastChanceTag, lcHint, lcLayout, lcPartSub, lcToast } from "../src/screens/lastChancePicker";
@@ -30,12 +30,14 @@ describe("LC-1: the LAST CHANCE screen", () => {
       expect(w).not.toMatch(/HARASSMENT|ONLINE|POISON|LOAD TIME/);
     }
     expect([LC_TITLE, LC_LINE, lcHint(6), lcPartSub("epic")]).toEqual(["LAST CHANCE", "+1 LIFE. PICK ONE. FREE.", "DUSK OF DAY 6 · TAP TO READ", "EPIC PART · TO CARGO · FREE"]);
-    expect(hullName(1000)).toMatch(/^\+1000 .$/); // "+1000" and the HULL glyph
+    expect(hullName(LAST_CHANCE_HULL)).toMatch(new RegExp(`^\\+${LAST_CHANCE_HULL} .$`)); // "+500" and the HULL glyph
+    expect(hullName(LAST_CHANCE_HULL).startsWith("+500 ")).toBe(true); // Z-PREP: the card's words follow LAST_CHANCE_HULL
   });
 
   it("the summary row's mark names the card taken; the STOP cell fits the column's widest label", () => {
     expect(lastChanceTag({ boon: "rune", id: "twin_suns" })).toBe(RUNES.twin_suns.name);
-    expect(lastChanceTag({ boon: "part", id: "siege" in ITEMS ? "siege" : "salvo" })).toBe(ITEMS["siege" in ITEMS ? "siege" : "salvo"].name);
+    const part = lastChanceParts()[0].id; // Z-PREP: a part the PART card can offer (no core since its reshape)
+    expect(lastChanceTag({ boon: "part", id: part })).toBe(ITEMS[part].name);
     expect(lastChanceTag({ boon: "hull" })).toBe(hullName(LAST_CHANCE_HULL));
     expect(lastChanceTag({})).toBe("PICK");
     expect(textWidth(LC_STOP, "3")).toBeLessThanOrEqual(textWidth("SMUGGLER", "3"));

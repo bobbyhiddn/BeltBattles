@@ -2,10 +2,10 @@
 // behind its switch. Every test that turns the switch on does it inside withLastChance, which puts it back even on a throw.
 import { afterEach, describe, expect, it } from "vitest";
 import type { SideStats } from "../src/sim/battle";
-import { RUN_DAYS, START_LIVES, type HeroId } from "../src/sim/content";
+import { HEROES, ITEMS, RUN_DAYS, START_LIVES, buyableModules, type HeroId } from "../src/sim/content";
 import {
-  BOONS, LAST_CHANCE, LAST_CHANCE_HULL, lastChanceFires, lastChanceOffer, lastChanceParts, lastChanceRules, runeDawnOf,
-  setLastChance, withLastChance, type Boon,
+  BOONS, LAST_CHANCE, LAST_CHANCE_HULL, LAST_CHANCE_PART_KINDS, lastChanceFires, lastChanceOffer, lastChanceParts, lastChanceRules,
+  runeDawnOf, setLastChance, withLastChance, type Boon,
 } from "../src/sim/lastChance";
 import { RUNES, runeFits, runeGrants, runeList, runeMods, runeOffer, runeProblem } from "../src/sim/runes";
 import { finishDay, lastChanceCardLine, ghostOf } from "../src/game/day";
@@ -119,7 +119,7 @@ describe("LC-1: the offer (switch on)", () => {
     expect(a).toEqual(lastChanceOffer(run.seed, 5, "weaver", (run.build.runes ?? []).map((q) => q.id)));
     expect(pendingLastChance(reload(run))).toEqual(a);
     expect(reload(run).lastChance).toEqual({ day: 5 });
-    // the cards: an epic rune that fits WEAVER and isn't held; an epic part of the catalogue; +1000 hull
+    // the cards: an epic rune that fits WEAVER and isn't held; an epic part of the catalogue; +LAST_CHANCE_HULL hull
     const d = RUNES[a.rune!.id];
     expect([d.tier, a.rune!.tier, runeFits(d, "weaver"), (run.build.runes ?? []).some((q) => q.id === d.id)]).toEqual(["epic", "epic", true, false]);
     expect(lastChanceParts().map((p) => p.id)).toContain(a.part);
@@ -165,6 +165,55 @@ describe("LC-1: the offer (switch on)", () => {
   });
 });
 
+describe("Z-PREP (REQ-BFG-073): the PART card draws rigs, turrets and gear only (cap's answer to LC-1 Q3)", () => {
+  const SEVEN = ["chamber", "hailgun", "platebreaker", "railgun", "siegegun", "sorting", "splitter"];
+
+  it("the catalogue is exactly the 7 epic rigs, turrets and gear at this tip; by kind, so the 9 left out are the factories and cores", () => {
+    const parts = lastChanceParts();
+    expect(parts.map((p) => p.id).sort()).toEqual(SEVEN);
+    expect(parts.map((p) => p.name).sort()).toEqual(["EXT. CHAMBER", "HAIL GUN", "PLATE BREAKER", "RAIL GUN", "SIEGE GUN", "SORTING ARM", "SPLITTER"]);
+    expect(LAST_CHANCE_PART_KINDS).toEqual(["gate", "turret", "mod"]);
+    for (const p of parts) expect([LAST_CHANCE_PART_KINDS.includes(p.kind), p.rarity, p.price > 0, !!p.merchant]).toEqual([true, "epic", true, true]);
+    // the rule is the kind: every buyable epic part of those kinds is in, whatever its id (a later one joins by itself) ...
+    const signatures = Object.values(HEROES).map((h) => h.factory);
+    const epic = buyableModules().filter((d) => d.rarity === "epic" && !signatures.includes(d.id));
+    expect(parts).toEqual(epic.filter((d) => LAST_CHANCE_PART_KINDS.includes(d.kind)));
+    // ... and LC-1's other 9 epic parts are exactly the 5 factories and 4 cores
+    const out = epic.filter((d) => !parts.includes(d));
+    expect(out.map((d) => d.kind).sort()).toEqual(["core", "core", "core", "core", "factory", "factory", "factory", "factory", "factory"]);
+  });
+
+  it("over many seeds, days and heroes no factory or core is ever offered, and the draw covers the 7", () => withLastChance(() => {
+    const seen = new Map<string, number>();
+    for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
+      for (let day = 1; day < RUN_DAYS; day++) {
+        for (let s = 1; s <= 150; s++) {
+          const part = lastChanceOffer(s * 7919 + day, day, hero, []).part!;
+          const k = ITEMS[part].kind;
+          expect(k === "factory" || k === "core", `${hero} d${day} seed ${s}: ${part} (${k})`).toBe(false);
+          seen.set(part, (seen.get(part) ?? 0) + 1);
+        }
+      }
+    }
+    expect([...seen.keys()].sort()).toEqual(SEVEN);
+    for (const n of seen.values()) expect(n).toBeGreaterThan(5400 / 7 / 2); // an even draw: each part near 1/7 of 5,400
+  }));
+
+  it("still deterministic, and a PART pick still moves no other stream: the next dawn's shop and rune offer are the switch-off run's", () => {
+    for (let s = 1; s <= 30; s++) expect(withLastChance(() => lastChanceOffer(s, 7, "furnace", []))).toEqual(withLastChance(() => lastChanceOffer(s, 7, "furnace", [])));
+    for (const [hero, seed] of [["foundry", 5], ["weaver", 12], ["bastion", 3], ["furnace", 8]] as [HeroId, number][]) {
+      const off = play("LLLLL", hero, seed);
+      const on = withLastChance(() => play("LLLLL", hero, seed));
+      expect(JSON.stringify(on.shop)).toBe(JSON.stringify(off.shop));
+      const offer = withLastChance(() => pendingLastChance(on))!;
+      expect(withLastChance(() => takeLastChance(on, "part")).ok).toBe(true);
+      expect(on.lastChance).toEqual({ day: 5, boon: "part", id: offer.part });
+      expect(LAST_CHANCE_PART_KINDS).toContain(ITEMS[offer.part!].kind);
+      expect(pendingRune(on)).toEqual(pendingRune(off));
+    }
+  });
+});
+
 describe("LC-1: the pick (switch on)", () => {
   it("is pending until taken: the dawn rune waits, a fight is refused, and a pick is refused when none is pending", () => withLastChance(() => {
     const run = play("LLLLL");
@@ -181,7 +230,8 @@ describe("LC-1: the pick (switch on)", () => {
     expect(run.lastChance).toEqual({ day: 5 }); // still pending in play()'s run (no dusk after day 5)
   }));
 
-  it("HULL: +1000 max hull for the rest of the run, recorded on the run and the day's row", () => withLastChance(() => {
+  it(`HULL: +${LAST_CHANCE_HULL} max hull for the rest of the run, recorded on the run and the day's row`, () => withLastChance(() => {
+    expect(LAST_CHANCE_HULL).toBe(500); // Z-PREP: cap's answer to LC-1 Q1 (was 1000)
     const run = play("LLLLL");
     const hull = run.build.hullBonus;
     expect(takeLastChance(run, "hull").ok).toBe(true);

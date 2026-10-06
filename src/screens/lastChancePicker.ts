@@ -1,7 +1,8 @@
 // LC-1 (REQ-BFG-073): the LAST CHANCE screen. After a dusk loss to 1 life (before day 10, once a run) the life comes back
 // (the dusk card says "LAST CHANCE: +1 LIFE") and, at the next dawn, before the dawn's rune pick, this modal shows over the
 // build screen: the title, "+1 LIFE. PICK ONE. FREE." and three cards, all free: the RUNE (runeBar.ts drawRuneCard), the
-// PART's face (faces.ts, as the shop's panel reads it: the stat row as icons, then its rule lines) and +1000 HULL. The
+// PART's face (faces.ts, as the shop's panel reads it: the stat row as icons, then its rule lines) and +500 HULL
+// (LAST_CHANCE_HULL; every word below reads the constant). The
 // offer is re-derived from the run (run.ts pendingLastChance), never stored, so a reload or CONTINUE shows the same cards.
 // The rune picker's interaction: a tap opens a card (a yellow ring and "TAP AGAIN TO TAKE IT"), a tap on the open card
 // takes it (run.ts takeLastChance); no skip, no close; it takes every press while it is up. Each card's ⓘ (REQ-BFG-070's
@@ -34,11 +35,11 @@ export const lcHint = (day: number): string => `DUSK OF DAY ${day} · TAP TO REA
 /** The PART card's sub line ("EPIC PART · TO CARGO · FREE": its tier, where it goes) and the HULL card's. */
 export const lcPartSub = (rarity: Rarity): string => `${tierWord(rarity)} PART · TO CARGO · FREE`;
 export const LC_HULL_SUB = "MAX HULL · KEPT ALL RUN";
-/** The HULL card's name: "+1000 ♥" (the HULL icon). */
+/** The HULL card's name: "+500 ♥" for LAST_CHANCE_HULL (the HULL icon). */
 export const hullName = (n: number): string => icons(`+${n} {HULL}`);
 /** The summary's STOP cell on the dusk that fired LAST CHANCE (STOP_W holds it: "WARLORD"-wide labels). */
 export const LC_STOP = "+1 LIFE";
-/** The summary row's mark: the card taken (the rune's or part's name, or "+1000 ♥"); "PICK" while it is pending. */
+/** The summary row's mark: the card taken (the rune's or part's name, or "+500 ♥"); "PICK" while it is pending. */
 export function lastChanceTag(lc: { boon?: Boon; id?: string }): string {
   if (lc.boon === "rune" && lc.id && RUNES[lc.id]) return RUNES[lc.id].name;
   if (lc.boon === "part" && lc.id && ITEMS[lc.id]) return ITEMS[lc.id].name;

@@ -21,7 +21,7 @@ describe("LC-1: botLastChancePick", () => {
       const b = botLastChancePick(offer, hero, board, day);
       expect(b).toEqual(a);
       expect(a.rating.base).toBeCloseTo(rateOn(board, day), 9);
-      expect(a.rating.hull).toBeGreaterThan(a.rating.base); // +1000 hull: more defense
+      expect(a.rating.hull).toBeGreaterThan(a.rating.base); // +LAST_CHANCE_HULL hull: more defense
       expect(a.rating.part).toBeGreaterThanOrEqual(a.rating.base); // placed where it gains, else cargo (unchanged)
       const best = Math.max(a.rating.rune, a.rating.part, a.rating.hull);
       expect(a.rating[a.boon]).toBe(best);
@@ -42,7 +42,7 @@ describe("LC-1: botLastChancePick", () => {
 });
 
 describe("LC-1: the par player's LAST CHANCE card (opts.lastChance)", () => {
-  it("absent, the run is exactly as before; HULL adds 1000 at the next dawn; RUNE sits after the day's dawn pick", () => withLastChance(() => {
+  it(`absent, the run is exactly as before; HULL adds ${LAST_CHANCE_HULL} at the next dawn; RUNE sits after the day's dawn pick`, () => withLastChance(() => {
     const hero: HeroId = "bastion", seed = 5, day = 6;
     const plain = playerRun(hero, 10, seed);
     const hull = playerRun(hero, 10, seed, { lastChance: { day, boon: "hull" } });

@@ -1,5 +1,5 @@
 // LC-1 (REQ-BFG-073): the server's upload check of a LAST CHANCE (src/net/snapshot.ts lastChanceField and rulesGate.ts
-// lastChanceGateProblem; src/net/validate.ts lastChanceProblem, runeProblem's place, the +1000 grant and the free part;
+// lastChanceGateProblem; src/net/validate.ts lastChanceProblem, runeProblem's place, the +LAST_CHANCE_HULL grant and the free part;
 // src/net/records.ts isReachable's LAST CHANCE; server/app.ts). Honest runs are the par player's own runs with each card
 // (player.ts playerRun's opts.lastChance), on the par run's seed; every forgery is refused with its own error line. Tests
 // that turn the switch on put it back (afterEach). The server's data dir is under os.tmpdir() (run with TMPDIR set).
@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
-import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceRules, setLastChance, type Boon, type LastChanceOffer } from "../src/sim/lastChance";
+import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRules, setLastChance, type Boon, type LastChanceOffer } from "../src/sim/lastChance";
 import { RUNES, runeFits, runeList } from "../src/sim/runes";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { checkSnapshot, decodeSnapshot, encodeSnapshot, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
@@ -99,7 +99,7 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
 });
 
 describe("LC-1: honest LAST CHANCE runs pass the upload check", () => {
-  it("each card: the rune at its place, the free part's price once, the +1000 as a grant; the record knows the life", () => {
+  it(`each card: the rune at its place, the free part's price once, the +${LAST_CHANCE_HULL} as a grant; the record knows the life`, () => {
     setLastChance(true);
     for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
       for (const boon of ["rune", "part", "hull"] as Boon[]) {
@@ -122,7 +122,7 @@ describe("LC-1: honest LAST CHANCE runs pass the upload check", () => {
     expect(reachableRecords(6, { lastChance: 5 })).toEqual(reachableRecords(6));
   });
 
-  it("the +1000 counts once toward the reachable hull; the free part's price comes out of the budget once", () => {
+  it(`the +${LAST_CHANCE_HULL} counts once toward the reachable hull; the free part's price comes out of the budget once`, () => {
     setLastChance(true);
     // at its budget's edge (plates added while the check takes them), each honest deck still passes ...
     const hull = fillPlates(honest("hull").s), part = fillPlates(honest("part").s);
@@ -164,9 +164,13 @@ describe("LC-1: forgeries are refused, each with its own error line", () => {
     const swapped = { ...s, build: { ...s.build, runes }, lastChance: { day: D, boon: "rune" as Boon, id: other.id } };
     expect(check(swapped).errors).toEqual([`lastChance: rune ${other.id} was not in the LAST CHANCE offer of day ${D} (it offered ${offer.rune!.id})`]);
     const p = honest("part");
-    const wrong = Object.keys(ITEMS).find((id) => ITEMS[id].rarity === "epic" && !!ITEMS[id].merchant && ITEMS[id].price > 0 && ITEMS[id].kind !== "supply" && id !== p.offer.part)!;
+    const wrong = lastChanceParts().find((d) => d.id !== p.offer.part)!.id; // Z-PREP: another part of the 7 the card draws from
     expect(check({ ...p.s, lastChance: { day: D, boon: "part", id: wrong } }).errors).toEqual([`lastChance: part ${wrong} was not in the LAST CHANCE offer of day ${D} (it offered ${p.offer.part})`]);
-    expect(check({ ...p.s, lastChance: { day: D, boon: "part", id: "kiln" } }).errors).toEqual(["lastChance: kiln is no LAST CHANCE part (an epic part of the shop's catalogue)"]);
+    // a hero's factory, and since Z-PREP every epic factory and core (STAMP PRESS, SALVO RACK), is no LAST CHANCE part
+    for (const id of ["kiln", "press", "salvo"]) {
+      expect(ITEMS[id].kind).toMatch(/^(factory|core)$/);
+      expect(check({ ...p.s, lastChance: { day: D, boon: "part", id } }).errors).toEqual([`lastChance: ${id} is no LAST CHANCE part (an epic rig, turret or gear of the shop's catalogue)`]);
+    }
   });
 
   it("a rune claimed free without a lastChance; a part claimed free without one", () => {
@@ -177,7 +181,7 @@ describe("LC-1: forgeries are refused, each with its own error line", () => {
     expect(check(part).errors.join()).toMatch(/^budget: build costs \d+ gold/);
   });
 
-  it("+1000 claimed twice", () => {
+  it(`+${LAST_CHANCE_HULL} claimed twice`, () => {
     setLastChance(true);
     const s = fillPlates(honest("hull").s);
     const twice = { ...s, build: { ...s.build, hullBonus: s.build.hullBonus + LAST_CHANCE_HULL } };

@@ -15,7 +15,7 @@
 // seed (validate.ts). Shared, pure and dependency-light (no DOM), like runes.ts.
 
 import { hashSeed, Rng } from "../core/rng";
-import { HEROES, RARITIES, RUN_DAYS, buyableModules, type HeroId, type ItemDef, type Rarity } from "./content";
+import { HEROES, RARITIES, RUN_DAYS, buyableModules, type HeroId, type ItemDef, type ItemKind, type Rarity } from "./content";
 import { RUNES, runeFits, runeList, runeWeight } from "./runes";
 
 /** THE switch (REQ-BFG-073), off in this rules version (bb-0.9.3). */
@@ -50,8 +50,11 @@ setLastChance(LAST_CHANCE);
 export const LAST_CHANCE_AT = 1;
 /** The lives it gives back, at once. */
 export const LAST_CHANCE_LIVES = 1;
-/** The HULL card: max hull for the rest of the run (build.hullBonus), on the x10 scale (NUM-1). */
-export const LAST_CHANCE_HULL = 1000;
+/** The HULL card: max hull for the rest of the run (build.hullBonus), on the x10 scale (NUM-1). Every reader takes this
+ *  constant: the rule (run.ts takeLastChance), the offer, the bots' pick, the server's hull ceiling (validate.ts), the
+ *  card's words and the toasts. Z-PREP (cap's answer to LC-1 Q1): +500, two ARMOR PACKs; at +1000 the bots took the
+ *  hull 80.9% of the time, over the 15-60% band. */
+export const LAST_CHANCE_HULL = 500;
 /** The RUNE and PART cards' tier. */
 export const LAST_CHANCE_TIER: Rarity = "epic";
 
@@ -79,7 +82,7 @@ export interface LastChanceOffer {
   /** One specific rune of tier LAST_CHANCE_TIER that fits the hero, isn't held and isn't dormant (or the fallback tier's;
    *  `tier` says which); null when no rune at all is left. */
   rune: { id: string; tier: Rarity } | null;
-  /** One specific epic part of the buyable catalogue (lastChanceParts); null if the catalogue had none. */
+  /** One specific epic rig, turret or gear of the buyable catalogue (lastChanceParts); null if the catalogue had none. */
   part: string | null;
   /** The HULL card's amount (always offered). */
   hull: number;
@@ -93,10 +96,16 @@ export function lastChanceFires(day: number, outcome: "win" | "loss" | "draw", l
 
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
 
+/** The kinds the PART card draws from: rigs, turrets and gear. Z-PREP (cap's answer to LC-1 Q3): never a factory (a day
+ *  5-9 deck rarely has the room and intake for one and its belts) and never a core (it replaces a filled socket). A
+ *  filter by kind, not a list of ids, so a later epic rig, turret or gear joins by itself. */
+export const LAST_CHANCE_PART_KINDS: readonly ItemKind[] = ["gate", "turret", "mod"];
+
 /** The PART card's catalogue: the buyable catalogue's epic parts (content.ts buyableModules: sold by a merchant, priced,
- *  no supply, nothing dormant; switch-off pieces are not enumerable), never a hero's own factory. ITEMS order. */
+ *  no supply, nothing dormant; switch-off pieces are not enumerable) of LAST_CHANCE_PART_KINDS, never a hero's own
+ *  factory. ITEMS order. At bb-0.9.3: SPLITTER, SORTING ARM, EXT. CHAMBER, HAIL GUN, RAIL GUN, SIEGE GUN, PLATE BREAKER. */
 export function lastChanceParts(): ItemDef[] {
-  return buyableModules().filter((d) => d.rarity === LAST_CHANCE_TIER && !SIGNATURES.has(d.id));
+  return buyableModules().filter((d) => d.rarity === LAST_CHANCE_TIER && LAST_CHANCE_PART_KINDS.includes(d.kind) && !SIGNATURES.has(d.id));
 }
 
 /**
@@ -105,7 +114,7 @@ export function lastChanceParts(): ItemDef[] {
  * 1. The rune: among the runes the dawn offers now (runes.ts runeList: never a dormant one) that fit the hero (runeFits)
  *    and aren't held, those of LAST_CHANCE_TIER; with none, runeOffer's tier fallback (each lower tier, then each higher
  *    one): the first tier with one left. One weighted draw by runeWeight (the hero's style x3, a generic theme x2).
- * 2. The part: one even draw from lastChanceParts().
+ * 2. The part: one even draw from lastChanceParts() (one rng.int, whatever the catalogue's size, so no later draw moves).
  * 3. The hull: LAST_CHANCE_HULL.
  */
 export function lastChanceOffer(seed: number, day: number, hero: HeroId, held: readonly string[]): LastChanceOffer {

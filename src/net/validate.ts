@@ -49,7 +49,7 @@ export function lastChanceProblem(lc: TakenLastChance, b: Build, day: number, se
   if (lc.day >= day) return `lastChance: day ${lc.day} is not before the deck's day ${day}`;
   const runes = (b.runes ?? []).map((q) => q.id);
   if (lc.boon === "rune" && runes[lc.day] !== lc.id) return `lastChance: the LAST CHANCE rune ${String(lc.id)} is not at runes[${lc.day}] (after the dawn pick of day ${lc.day})`;
-  if (lc.boon === "part" && !lastChanceParts().some((d) => d.id === lc.id)) return `lastChance: ${String(lc.id)} is no LAST CHANCE part (an epic part of the shop's catalogue)`;
+  if (lc.boon === "part" && !lastChanceParts().some((d) => d.id === lc.id)) return `lastChance: ${String(lc.id)} is no LAST CHANCE part (an epic rig, turret or gear of the shop's catalogue)`;
   if (lc.boon === "hull" && lc.id !== undefined) return "lastChance: a hull boon names no id";
   if (seed === undefined) return null;
   const offer = lastChanceOffer(seed, lc.day, b.hero, runes.slice(0, lc.day));
