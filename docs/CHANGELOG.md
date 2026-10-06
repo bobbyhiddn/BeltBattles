@@ -3,6 +3,21 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.4: the captains' pass
+
+Same battle rules as 0.9.3 (bb-0.9.3), so 0.9.3's ghosts and uploads still meet 0.9.4 players.
+- **MASTER VOSS** no longer opens with TWIN NAILS on day 1: he takes OILED COGS that day and TWIN NAILS on day 2, and on
+  day 8 IRON SKIN instead of SEAM RIVETS. He buys his early armor sooner (below).
+- **The IRON MATRIARCH** no longer takes IRON SKIN (she takes BULWARK WARD on day 5 and FINAL NAIL on day 6), so strong
+  decks can beat her on day 8 again.
+- **HIGHSPIRE** buys her two day-9 ARMOR PACKs on day 10.
+- **More road armor on the days they fell behind:** LONGTOOTH on days 9 and 10, MASTER VOSS on days 6 to 10,
+  THANE KARSK on days 4, 5 and 8 to 10, and the MOTH QUEEN on days 7 and 10.
+- **A day sooner on the road:** LONGTOOTH brings his LONG HAUL on day 4 and his TEMPER on day 5, HIGHSPIRE's TEMPER
+  gets its second star on day 4, and OLD BULWARK brings his STATIC BRUSH on day 8.
+- **Armor sooner, as dusk stand-ins and on the road:** MASTER VOSS buys two ARMOR PACKs on day 4 (was day 8), and
+  LONGTOOTH one (was day 6). LOCKJAW, who meets you only at dusk, buys his on day 4 too (was day 8).
+
 ## 0.9.3: one rule for each part, and easier taps on phones
 
 New battle rules: bb-0.9.3. Ghosts and uploads from 0.9.2 no longer meet 0.9.3 players. You'll fight a fresh pool of 120
