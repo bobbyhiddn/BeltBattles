@@ -13,7 +13,7 @@
 // committed here is a belt the build screen could always commit (commitRoute).
 import { describe, expect, it } from "vitest";
 import { newRun, type Run } from "../src/game/run";
-import { key as K, rotField, routesOf, type Build, type Placed } from "../src/sim/deck";
+import { key as K, rotField, routesOf, turretSlots, type Build, type Placed } from "../src/sim/deck";
 import { outputsAt } from "../src/sim/stars";
 import { frame as deckFrame } from "../src/render/frame";
 import { computeView } from "../src/core/io";
@@ -440,5 +440,135 @@ describe("the decks these gestures leave are decks the build screen always made"
     drag(ed, [at(4, 5), at(3, 5), at(3, 4), at(3, 3), at(3, 2), at(3, 1), at(3, 0)], "touch");
     const b: Build = run.build;
     expect(b.routes[1]).toEqual({ factory: 1, cells: [K(3, 6), K(3, 5), K(3, 4), K(3, 3), K(3, 2), K(3, 1), K(3, 0)] });
+  });
+});
+
+// HOLD-363 (backlog #363, REQ-BFG-040): the hold that lifts a factory, or a turret with nothing picked for tap-to-place,
+// takes 0.38 s of game time. The game steps the editor once a frame with dt = min(0.05, the frame's gap) (game.ts loop):
+// 1/60 at 60 fps, 0.05 on a slow frame. Editor.update added dt twice a frame on those two presses, so the hold lifted
+// after about 0.2 s (frame 12 at 60 fps, frame 5 at the cap), and a finger resting on the KILN before its drag lifted it.
+describe("HOLD-363: a factory or turret hold takes 0.38 s, at 60 fps and at the 0.05 s dt cap", () => {
+  /** [the rate, its dt, the frame the hold lifts on: the first past 0.38 s (23 / 60 = 0.383 s; 8 x 0.05 = 0.40 s)] */
+  const RATES = [["60 fps", 1 / 60, 23], ["the 0.05 s dt cap", 0.05, 8]] as const;
+  const KINDS: PointerKind[] = ["touch", "mouse"];
+  /** `s` seconds of frames of `dt`, one update a frame, as the game steps the editor. */
+  const hold = (ed: Editor, s: number, dt: number): void => {
+    for (let i = Math.round(s / dt); i > 0; i--) ed.update(dt);
+  };
+  const fresh = (run: Run) => {
+    const { h, log } = host(run);
+    return { h, log, ed: new Editor(h) };
+  };
+  const KILN = at(5, 7); // the KILN at (4,6) is 2x2: its lower right cell
+  const OUT = [at(6, 7), at(6, 6), at(6, 5), at(6, 4), at(6, 3), at(6, 2), at(6, 1), at(6, 0)];
+  /** FURNACE with the HOPPER (turret gear) fitted to its starting turret in slot 0. */
+  const geared = (): Run => {
+    const run = furnace();
+    run.build.mods = [{ uid: 951, def: "hopper", turret: 0 }];
+    return run;
+  };
+
+  it("a factory press held 0.30 s does not lift the factory, and a drag after it still draws a belt; held 0.40 s, it lifts", () => {
+    for (const kind of KINDS) {
+      for (const [rate, dt] of RATES) {
+        const tag = `${kind}, ${rate}`;
+        const run = furnace();
+        const a = fresh(run);
+        a.ed.down(...KILN, kind);
+        hold(a.ed, 0.3, dt);
+        expect([a.ed.carry, !!a.ed.press], tag).toEqual([null, true]);
+        for (const p of OUT) a.ed.move(...p);
+        a.ed.up(...OUT[OUT.length - 1]);
+        // the KILN's second belt (bb-0.8.3: two slots at level 1), the first kept
+        expect([a.ed.carry, run.build.routes], tag).toEqual([null, [
+          { factory: 1, cells: SHORT }, { factory: 1, cells: [K(6, 7), K(6, 6), K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(6, 0)] },
+        ]]);
+        const b = fresh(furnace());
+        b.ed.down(...KILN, kind);
+        hold(b.ed, 0.4, dt);
+        expect([b.ed.press, b.ed.draw, b.ed.carry?.def, b.ed.carry?.src, b.h.sel], tag)
+          .toEqual([null, null, "kiln", { from: "deck", uid: 1 }, { kind: "item", uid: 1 }]);
+      }
+    }
+  });
+
+  it("a turret press with nothing picked: held 0.30 s it does not lift (released, a tap selects it; a drag lifts its gear first); held 0.40 s, it lifts the turret itself", () => {
+    for (const kind of KINDS) {
+      for (const [rate, dt] of RATES) {
+        const tag = `${kind}, ${rate}`;
+        const run = geared(), before = state(run);
+        const a = fresh(run);
+        a.ed.down(...TURRET, kind);
+        hold(a.ed, 0.3, dt);
+        expect([a.ed.carry, !!a.ed.press], tag).toEqual([null, true]);
+        a.ed.up(...TURRET);
+        expect([a.ed.carry, a.h.sel, state(run), a.log.includes("sound:pickup")], tag).toEqual([null, { kind: "turret", index: 0 }, before, false]);
+        // 0.6.2s (REQ-BFG-031 S5): a drag lifts its gear first
+        const b = fresh(geared());
+        b.ed.down(...TURRET, kind);
+        hold(b.ed, 0.3, dt);
+        b.ed.move(TURRET[0] + 20, TURRET[1] + 20);
+        expect(b.ed.carry?.src, tag).toEqual({ from: "mod", uid: 951 });
+        // the hold lifts the turret itself (a carry from its mount), and selects it
+        const run2 = geared(), t = turretSlots(run2.build)[0].turret!;
+        const c = fresh(run2);
+        c.ed.down(...TURRET, kind);
+        hold(c.ed, 0.4, dt);
+        expect([c.ed.press, c.ed.carry?.src, c.ed.carry?.def, c.ed.carry?.uid, c.h.sel], tag)
+          .toEqual([null, { from: "mount", index: 0 }, t.def, t.uid, { kind: "turret", index: 0 }]);
+      }
+    }
+  });
+
+  it("a turret press while a card or cargo part is picked never lifts the turret (held 2 s); the slow tap still fits the part (the mouse) or reads the turret (a finger)", () => {
+    for (const kind of KINDS) {
+      for (const [rate, dt] of RATES) {
+        for (const picked of ["card", "cargo"] as const) {
+          const tag = `${kind}, ${rate}, a ${picked} picked`;
+          const run = furnace();
+          // the HOPPER (turret gear): the shop's first card (3 gold of 5), or a cargo part
+          if (picked === "card") run.shop.wagons = [{ merchant: "alchemist", offers: [{ def: "hopper", price: 3, sold: false }, { def: "press", price: 8, sold: false }] }] as Run["shop"]["wagons"];
+          else run.inventory = [{ uid: 60, def: "hopper" }];
+          const { h, ed } = fresh(run);
+          tap(ed, picked === "card" ? CARD0 : [10, 310], kind);
+          expect(h.sel, tag).toEqual(picked === "card" ? { kind: "offer", wagon: 0, slot: 0 } : { kind: "cargo", uid: 60 });
+          const before = state(run);
+          ed.down(...TURRET, kind);
+          hold(ed, 2, dt);
+          expect([ed.carry, !!ed.press], tag).toEqual([null, true]);
+          ed.up(...TURRET);
+          expect(ed.carry, tag).toBeNull();
+          if (kind === "touch") expect([h.sel, state(run)], tag).toEqual([{ kind: "turret", index: 0 }, before]); // shoptap D2: a tap reads
+          else expect([h.sel, run.build.mods.filter((m) => m.turret === 0).map((m) => m.def), run.gold], tag) // tap-to-place
+            .toEqual([{ kind: "turret", index: 0 }, ["hopper"], picked === "card" ? 2 : 5]);
+        }
+      }
+    }
+  });
+
+  it("tap or hold: a factory or turret press released on the frame before the lift is a tap; the lift comes on the first frame past 0.38 s", () => {
+    const presses = [["the KILN", KILN, { kind: "item", uid: 1 }], ["the turret", TURRET, { kind: "turret", index: 0 }]] as const;
+    for (const kind of KINDS) {
+      for (const [rate, dt, frame] of RATES) {
+        for (const [what, p, sel] of presses) {
+          const tag = `${kind}, ${rate}, ${what}`;
+          const a = fresh(furnace());
+          a.ed.down(p[0], p[1], kind);
+          let n = 0;
+          while (!a.ed.carry && n < 200) {
+            a.ed.update(dt);
+            n++;
+          }
+          expect(n, tag).toBe(frame);
+          // released on frame `frame` - 1 (0.367 s at 60 fps, 0.35 s at the cap): a tap selects it, nothing lifted
+          const run = furnace(), before = state(run);
+          const b = fresh(run);
+          b.ed.down(p[0], p[1], kind);
+          for (let i = 1; i < frame; i++) b.ed.update(dt);
+          b.ed.up(p[0], p[1]);
+          expect([b.ed.carry, b.h.sel, state(run), b.log.includes("sound:pickup")], tag).toEqual([null, sel, before, false]);
+        }
+      }
+    }
   });
 });

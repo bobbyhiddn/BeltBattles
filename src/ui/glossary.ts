@@ -257,7 +257,17 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
     text: (e) => `EVERY ${fmtSec(e.gate!.pulse!.period)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.`,
   },
   // cores.ts salvo: it waits for a full chamber (or twice its load time); after a volley its reload x reloadMul
-  salvo: { word: "SHOT", text: (e, x) => `SHOT: IT WAITS FOR A FULL CHAMBER, AND ITS NEXT RELOAD TAKES ${fmtPct(core(e, x).reloadMul! - 1)} LONGER.` },
+  // TXT-095 (REQ-BFG-070, REQ-BFG-046; ACCEPT-093 7 (b)): the tap says the fallback too, in the {SEC} form COMPOUND's note
+  // uses: SIM.salvoWait x WINDOW_TIME (2 x 1.5 = 3 s; makeTurret gives every SALVO gun WINDOW_TIME, abilityText.ts salvo),
+  // as its kept sentence and 0.9.3's notes say it. All three facts in 2 lines of 5x7 at GLOSSARY_WRAP_W (225 + 215 px): the
+  // brief's long form ("..., AND ITS NEXT RELOAD TAKES 60% LONGER.") and short form ("SHOT: FIRES AT A FULL CHAMBER OR
+  // 3{SEC} AFTER ITS FIRST LOAD. ITS NEXT RELOAD TAKES 60% LONGER.") each take 3 lines, so this is option A, chosen by the
+  // Prime (oracle eca9983506b0133c). Was "SHOT: IT WAITS FOR A FULL CHAMBER, AND ITS NEXT RELOAD TAKES 60% LONGER.".
+  // tests/txt095.text.test.ts reads the wait off the sim's own ready (cores.ts ROUTINES.salvo, on makeTurret's gun)
+  salvo: {
+    word: "SHOT",
+    text: (e, x) => `SHOT: FIRES AT A FULL CHAMBER OR ${fmtSec(SIM.salvoWait * WINDOW_TIME)}{SEC} AFTER ITS FIRST LOAD. NEXT RELOAD: ${fmtPct(core(e, x).reloadMul! - 1)} LONGER.`,
+  },
   // battle.ts rip: a hit on an enemy belt tile or rig rips the nearest payloads within reach. Y2 (release Y; DESIGN-Y row
   // 19): a hit POWDER KEG is no longer disarmed, so the tap doesn't say it
   grapnel: {

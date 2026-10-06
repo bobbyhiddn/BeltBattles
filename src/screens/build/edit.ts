@@ -168,18 +168,21 @@ export class Editor {
     this.warnT = Math.max(0, this.warnT - dt);
     if (this.carry) this.carryT += dt;
     const p = this.press;
-    if (p && p.src.from === "factory" && (p.t += dt) > 0.38) {
+    // HOLD-363 (backlog #363, REQ-BFG-040): `t` is the seconds the press has been held, counted once a frame (a factory
+    // press, and a turret press with nothing picked, added dt twice a frame, so their 0.38 s hold lifted after ~0.2 s)
+    if (p) p.t += dt;
+    if (p && p.src.from === "factory" && p.t > 0.38) {
       const f = itemByUid(this.h.run.build, p.src.uid);
       this.press = null;
       if (f) this.lift({ src: { from: "deck", uid: f.uid }, def: f.def, uid: f.uid });
       if (f) this.h.select({ kind: "item", uid: f.uid });
-    } else if (p && p.src.from === "turret" && !this.selectedCarry() && (p.t += dt) > 0.38) {
+    } else if (p && p.src.from === "turret" && !this.selectedCarry() && p.t > 0.38) {
       // 0.6.2s (REQ-BFG-031 S5): hold an installed turret to lift the turret itself (a drag lifts its gear first);
       // not while a card or cargo part is picked for tap-to-place (a slow tap still fits it)
       const index = p.src.index;
       this.press = null;
       this.liftMount(index);
-    } else if (p) p.t += dt;
+    }
   }
 
   private lift(c: Carry): void {
