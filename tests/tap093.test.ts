@@ -97,6 +97,57 @@ describe("TAP-093: the phone's top bar (backlog #340)", () => {
     }
   });
 
+  it("over phone sizes 320-430 x 548-932 at DPR 2, 2.625 and 3, with 0 and 3 runes: the band never shrinks; a lifted bar is a finger's target tall; else the corner MENU's target holds a finger's square, or an L a finger's target tall and wide where a chip or card cuts the square; nothing touches a target under the bar", () => {
+    const menuR = { x: 2, y: 1, w: 27, h: 12 };
+    const seen: { views: number; lifted: number; square: number; ell: number; minSq?: number } = { views: 0, lifted: 0, square: 0, ell: 0 };
+    for (const dpr of [2, 2.625, 3]) {
+      for (let w = 320; w <= 430; w += 10) {
+        for (let h = 548; h <= 932; h += 16) {
+          const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr);
+          if (!phoneScreen(pw, ph, dpr)) continue;
+          const v = view(w, h, dpr);
+          seen.views++;
+          if (v.lift) seen.lifted++;
+          for (const n of [0, 3]) {
+            const row = runeRowH({ scale: v.k * dpr, dpr }, n);
+            // a rune row the screen can't hold steps the game's scale down (runeRowFits); those frames aren't this one
+            const base = shiftLayout(buildLayout(v.W, v.H - row, true, OFFERS, true, v.tap), row, v.H);
+            if (n && base.info.h < 24) continue;
+            const { L, chips } = v.at(n);
+            const tag = `${w}x${h}@${dpr}, ${n} runes`;
+            expect(L.info.h, `${tag}: the band keeps its height`).toBe(base.info.h);
+            if (v.lift) {
+              expect(L.bar.h * v.k, tag).toBeGreaterThanOrEqual(TAP_CSS);
+              expect(Math.min(...L.cards.map((c) => c.y), L.reroll.y), tag).toBeGreaterThan(L.bar.h + row);
+              continue;
+            }
+            const others = [...L.cards, L.reroll, ...L.packs, ...chips];
+            const t = cornerTarget(menuR, v.tap, others);
+            for (const r of t) for (const o of others) expect(hit(r, o), `${tag}: ${JSON.stringify(r)} vs ${JSON.stringify(o)}`).toBe(false);
+            expect(Math.max(...t.map((r) => r.h)) * v.k, tag).toBeGreaterThanOrEqual(TAP_CSS);
+            expect(Math.max(...t.map((r) => r.w)) * v.k, tag).toBeGreaterThanOrEqual(TAP_CSS);
+            if (Math.min(t[0].w, t[0].h) * v.k >= TAP_CSS) seen.square++;
+            else {
+              // an L where a target under the bar cuts the corner's square: with runes the first chip (28 px in) where a
+              // finger's target is over 27 px (an art pixel under 1.63 CSS px: x4 @3, x3 @2, x4 @2.625); with no rune the
+              // first card on the narrowest x5 screens (320-330 CSS px @3: the row starts 24-27 px in). Both arms a
+              // finger's target: the column tap px tall, the strip in the bar tap px wide
+              seen.ell++;
+              expect([t.length, t[0].h >= v.tap, t[1].w >= v.tap], `${tag}: an L`).toEqual([2, true, true]);
+              expect(n > 0 ? v.tap > 27 : Math.min(...L.cards.map((c) => c.x)) - 1 < v.tap, `${tag}: what cuts the square`).toBe(true);
+              seen.minSq = Math.min(seen.minSq ?? Infinity, Math.min(t[0].w, t[0].h) * v.k);
+            }
+          }
+        }
+      }
+    }
+    expect(seen.views).toBeGreaterThan(500);
+    expect(seen.lifted).toBeGreaterThan(0);
+    expect(seen.ell).toBeGreaterThan(0);
+    // the narrowest L's column: 27 px at x4 @3 with runes, 36 CSS px (REPORT section 2 lists the views and the options)
+    expect(seen.minSq).toBeCloseTo(36, 5);
+  });
+
   it("the corner MENU's target stops above a details panel grown over the shop", () => {
     const v = view(390, 660, 3);
     const { L } = v.at(3);
