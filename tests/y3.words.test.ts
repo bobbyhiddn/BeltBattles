@@ -88,7 +88,7 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
       expect(abilityText("overclocker", 1).sentences.slice(1)).toEqual(["THE NEXT RIG IS THE FIRST LATER RIG ON ITS BELT, WHATEVER IT IS.", "A RIG WITH NOTHING TO DOUBLE USES UP THE CHARGE."]);
       expect(abilityText("twinlatch", 2).sentences).toHaveLength(3);
       expect(abilityText("twinlatch", 2).sentences[1]).toBe("IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST 2 SECONDS, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.");
-      expect(abilityText("stoker", 1).sentences[1]).toBe("A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT.");
+      expect(abilityText("stoker", 1).sentences[1]).toBe("IT NEVER MAKES A FACTORY OUTRUN ITS GUN."); // Y7b1 (Y7A-R1): was "A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT."
       expect(abilityText("assembly", 1).sentences[0]).toBe("WHILE IT FEEDS A TURRET, YOUR RIGS START WORKING 50% SOONER, THOSE ON ITS OWN BELT TOO.");
       expect(abilityText("assembly", 3).sentences[0]).toBe("WHILE IT FEEDS A TURRET, ALL YOUR RIGS START WORKING AT ONCE, THOSE ON ITS OWN BELT TOO.");
       expect(abilityText("assembly", 3).perk).toEqual({ name: "HOT START", stars: 3, after: 0 }); // the name stays (R-1: the ⓘ view and the desk's)
@@ -151,12 +151,14 @@ describe("Y3 the bots' deck rating prices each new rule (switch on; off as befor
     expect(offense(whetNext, true)).toBeCloseTo(offense(whetNext, false), 9); // before a damage rig: the same price
   });
 
-  it("STOKER: on, no cap: the inspector's capped line (stokeKeep) is gone and the stoked feed arrives in full (off: held to its gun)", () => {
+  // Y7b1 (ruling Y7A-R1): was "STOKER: on, no cap: the inspector's capped line (stokeKeep) is gone and the stoked feed arrives
+  // in full (off: held to its gun)", with on stokeKeep size 0 and the on offense not close to off's
+  it("STOKER: on, the cap holds as off (Y7A-R1): the inspector's capped line (stokeKeep) is there and the stoked feed is held to its gun", () => {
     const stoked = (s: number) => withItem(heroStartBuild("furnace", 1), item(70, "stoker", 6, 6, 0, s));
     for (const s of [2, 3]) {
-      expect(on(() => stokeKeep(stoked(s)).size), `★${s}`).toBe(0);
+      expect(on(() => stokeKeep(stoked(s)).size), `★${s}`).toBe(1);
       expect(stokeKeep(stoked(s)).size, `★${s} off`).toBe(1);
-      expect(offense(stoked(s), true), `★${s}`).not.toBeCloseTo(offense(stoked(s), false), 6);
+      expect(offense(stoked(s), true), `★${s}`).toBeCloseTo(offense(stoked(s), false), 6);
     }
   });
 

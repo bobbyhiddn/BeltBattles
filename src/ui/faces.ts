@@ -844,8 +844,8 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const cut = fmtPct(1 - gt(e).brace!.mul);
     return rules([{ text: `ENEMY {*STUN} ON ITS TILES: ${cut} SHORTER.` }], [["cut", `${cut} SHORTER`]]);
   },
-  // ---- Y3 (DESIGN-Y rows 20-32): the rigs whose line changes; LONG HAUL, BARBED SPOOL, BRAKE SHOE and STOKER keep today's
-  // line (FACES), every number from the switch's data, their clauses and caveats gone
+  // ---- Y3 (DESIGN-Y rows 20-32): the rigs whose line changes; LONG HAUL, BARBED SPOOL and BRAKE SHOE keep today's line
+  // (FACES), every number from the switch's data, their clauses and caveats gone (STOKER kept it too until Y7b1, below)
   pincer: (e) => {
     // DESIGN-Y row 20: Battle.applyHit: + each for each other working rig on its tile (crossfire: a STUNned rig stops, so it
     // doesn't count), no floor, no cap (content.ts STAR_DIFF). Was the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS,
@@ -901,6 +901,14 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER." and 3 more sentences (its 1 s, both arrows, +10, two guns)
     const t = fmtSec(gt(e).latch!.hold);
     return rules([hit(`HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}.`)], [["hold", `UP TO ${t}{SEC}`]], [REMINDER.PAIR()]);
+  },
+  stoker: (e) => {
+    // Y7b1 (release Y; ruling Y7A-R1; DESIGN-Y row 31): Battle.stokedPace: the factories its arrows point at work up to
+    // stoke faster, never past the gun their belts feed (its cap holds with the switch on, as at 0.9.2). UP TO says the cap
+    // on the face's one line (the interim caveat "A FACTORY NEVER OUTRUNS ITS GUN." stays off: STAR_GONE_CAVEATS; its ⓘ
+    // sentence names the gun). Was today's line "ITS FACTORIES WORK 20% FASTER." with no cap
+    const up = fmtPct(gt(e).stoke!);
+    return rules([{ text: `ITS FACTORIES WORK UP TO ${up} FASTER.` }], [["stoke", `${up} FASTER`]]);
   },
   assembly: (e) => {
     // DESIGN-Y row 32 (its stats factoryStats': RATE, its slugs' DMG, BELT): Battle.makeSide: while it feeds a turret every
@@ -1038,8 +1046,9 @@ const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "gr
  *  SCRAPPER's uncapped queue, FLAK SCREEN's screens rolling on their own) or is the face's own words now (TOLLBOOTH's
  *  PARTS). */
 const STAR_GONE_CAVEATS: ReadonlySet<string> = new Set(["tollreach", "harass", "scrapqueue", "flakshots", "flakbest",
-  // Y3 (DESIGN-Y rows 29, 31): the OVERCLOCKER skips no rig any more (it charges the next one, whatever it is), and STOKER's
-  // cap is gone from the sim (a stoked factory may overfeed its gun)
+  // Y3 (DESIGN-Y rows 29, 31): the OVERCLOCKER skips no rig any more (it charges the next one, whatever it is). STOKER: Y3
+  // lifted its cap; Y7b1 (ruling Y7A-R1) puts the cap back, and its switch-on face says it in its one line (UP TO), so the
+  // caveat stays off
   "overclocker", "stoker",
   // Y5 (DESIGN-Y row 47): SPALL CATCHER's plating counts once and its cap is gone from the sim
   "spallcatcher"]);

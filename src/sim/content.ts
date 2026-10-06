@@ -1287,7 +1287,9 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   // row 30, TWIN LATCH: the flat goes (flat 0; was +10/+22/+35 on each payload it hits) and the hold grows to 1/2/3 s (was
   // 1 s at every star; battle.ts latchTick reads `hold`)
   twinlatch: { gate: { latch: { hold: 1, flat: 0 } }, levels: { 2: { gate: { latch: { hold: 2, flat: 0 } } }, 3: { gate: { latch: { hold: 3, flat: 0 } } } } },
-  // row 31, STOKER: no data change; its cap goes in battle.ts stokedPace (a stoked factory may overfeed its gun)
+  // row 31, STOKER: no data change (stoke 0.2 / 0.44 / 0.7). Y7b1 (ruling Y7A-R1): its cap stays with the switch on, as
+  // at 0.9.2 (battle.ts stokedPace, deckRating.ts rateDeck): a stoke never outruns its gun (Y3 had lifted it: the overfeed
+  // trap, REVIEW-Y7A section 6)
   // row 32, ASSEMBLY LINE: ★3 HOT START goes (no hotStart); it keeps the global speed-up, commission 0.5/0.25/0 (rigs start
   // 50%/75%/100% sooner), and its own belts' rigs take the same factor (battle.ts makeSide: no instant start). The perk's
   // name stays (ⓘ only)

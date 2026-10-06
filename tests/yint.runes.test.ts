@@ -7,8 +7,8 @@
 // - SHATTER SHOT's +n% sits in runeMul's % sum, so every Y rule's shot meets it as the other % runes' (WARLORD'S DUE);
 //   its broken SHIELD lets the hit land on PLATE, then HULL: a foe's SPALL CATCHER charges by Y5's rule, and the PLATE it
 //   eats can stop the foe's IRON WALL (Y5: 120 PLATE or more, its own plating gone).
-// - COAL CHUTE and HEAT SINK (+n% HEAT) read the slug's ride, never a factory's pace or a rig's start: Y3's STOKER (the
-//   full stoke) and ASSEMBLY LINE (no HOT START) change neither the rune's % nor what it multiplies; BELLOWS (Y3, the
+// - COAL CHUTE and HEAT SINK (+n% HEAT) read the slug's ride, never a factory's pace or a rig's start: Y3's STOKER (Y7b1,
+//   ruling Y7A-R1: its cap holds on too) and ASSEMBLY LINE (no HOT START) change neither the rune's % nor what it multiplies; BELLOWS (Y3, the
 //   seconds ridden, uncapped) reads the ride, which the rune does not lengthen.
 // - Their texts with the switch on: as off (no STAR_RUNE_TEXT), no retired word, each drawn line in the 225 px band.
 import { describe, expect, it } from "vitest";
@@ -143,15 +143,20 @@ describe("Y-INT: SHATTER SHOT (shatterPct 14) under the star switch", () => {
 describe("Y-INT: COAL CHUTE (heatPct 15) and HEAT SINK (heatPct 25) under the star switch", () => {
   type RideProbe = { rideOf(s: SideState, p: Payload): number };
 
-  it("they meet Y3's STOKER: on, a ★3 STOKER's KILN stamps at the full +70% with either rune as without; the KILN slug's damage ride is +15% / +25% (rideOf), the stoke not in it", () => {
-    const stoked = (runes: string[]) => withStarRules(() => {
+  // Y7b1 (ruling Y7A-R1): was "on, a ★3 STOKER's KILN stamps at the full +70% with either rune as without", with the pace
+  // 1.7 in each row (Y3's lifted cap); the cap holds on too now, so the KILN is held to the +25% its gun takes, as off
+  it("they meet Y3's STOKER: on, a ★3 STOKER's KILN is held to its gun's pace with either rune as without, as off (Y7A-R1); the KILN slug's damage ride is +15% / +25% (rideOf), the stoke not in it", () => {
+    const stoked = (runes: string[], star = true) => withStarRules(() => {
       const bt = new Battle(W(withItem(heroStartBuild("furnace", 1), item(70, "stoker", 6, 6, 0, 3)), ...runes), barge(), 1), s = bt.sides[0], f = s.factories[0];
       while (bt.t < 3) { bt.step(); bt.events.length = 0; }
       return [Math.round((f.curPace! / f.pace) * 1000) / 1000, (bt as unknown as RideProbe).rideOf(s, { ...payload(), ammo: "cinder", ride: 2 })];
-    });
-    expect(stoked([])).toEqual([1.7, 2]);
-    expect(stoked(["coal_chute"])).toEqual([1.7, 2 * 1.15]);
-    expect(stoked(["heat_sink"])).toEqual([1.7, 2 * 1.25]);
+    }, star);
+    for (const [runes, mul] of [[[], 1], [["coal_chute"], 1.15], [["heat_sink"], 1.25]] as [string[], number][]) {
+      const [pace, ride] = stoked(runes);
+      expect(pace, runes.join()).toBe(stoked(runes, false)[0]);
+      expect(pace, runes.join()).toBeCloseTo(1.25, 2);
+      expect(ride, runes.join()).toBe(2 * mul);
+    }
     expect([n("coal_chute"), n("heat_sink")]).toEqual([15, 25]);
   });
 

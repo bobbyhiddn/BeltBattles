@@ -1249,10 +1249,11 @@ const ENTRIES: Record<string, Entry> = {
   stoker: {
     // E3: its arrows work factories (deck.ts stokeHits), never belts. Battle.stokedPace: the factory's timers x (1 + its
     // stokes), the stamping capped so it never outruns the turret its belt feeds (oracle a0e94bc69949561f)
-    // Y3 (release Y; DESIGN-Y row 31): with the star switch on the cap is gone, so the sentence says it may overfeed
+    // Y7b1 (release Y; ruling Y7A-R1): the cap holds with the star switch on too, so the sentence says it on and off (Y3's
+    // switch-on "A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT." left with the overfeed trap)
     text: (e) => [
       `EACH FACTORY ITS ARROWS POINT AT WORKS ${percent(g(e).stoke!)} FASTER.`,
-      starRules() ? "A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT." : "IT NEVER MAKES A FACTORY OUTRUN ITS GUN.",
+      "IT NEVER MAKES A FACTORY OUTRUN ITS GUN.",
       S.worksFaster,
       "ITS ARROWS DO NOTHING TO BELTS.",
     ],

@@ -117,7 +117,8 @@ export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40
  * Y3 (release Y; DESIGN-Y rows 20-32), also read only with the switch on; no new constant:
  * - OVERCLOCKER: EQ.overclock / its rest only when the rig it charges, the next one whatever it is, has something to double
  *   (chargeGains; a speed rig, a STOKER or a flat-less TWIN LATCH next: 0).
- * - STOKER: no cap (rateDeck skips it): the stoked feed arrives in full and firedShare prices the overfed gun's jams.
+ * - STOKER: Y7b1 (ruling Y7A-R1): its cap holds with the switch on too (rateDeck caps the stoked feed as off; Y3 had
+ *   skipped it, so the stoked feed arrived in full and firedShare priced the overfed gun's jams).
  * - The walk (deck.ts walkRoute) carries the rest from the switch's data and rules: PINCER, TWIN GAUGE, QUENCH TANK and PLATE
  *   BREAKER without their floors, BELLOWS for each whole 2 s uncapped, QUENCH without its stack cap, LONG HAUL uncapped,
  *   BRAKE SHOE's slower ★2/★3 belts without their flats, TWIN LATCH without its flat, SURGE VALVE's pulses for the seconds
@@ -512,9 +513,9 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     // 0.8.0 P1 (STOKER's cap, as Battle.stokedPace): a stoke never feeds a turret past its pace (SHARED_HEADROOM of it
     // kept free when several factories share it); the stoked feeds give their extra back, never below unstoked
     const stokedFs = fs.filter((f) => f.base !== undefined);
-    // Y3 (release Y; DESIGN-Y row 31): with the star switch on the cap is gone (Battle.stokedPace): a stoked feed arrives in
-    // full, and what the gun can't take is priced by firedShare (the jams of an overfed gun); no stokeKeep line either
-    if (stokedFs.length && !starRules()) {
+    // Y7b1 (release Y; ruling Y7A-R1): the cap holds with the star switch on too, as Battle.stokedPace plays it (Y3 had
+    // lifted it, DESIGN-Y row 31); the inspector's stokeKeep line follows
+    if (stokedFs.length) {
       const room = cap * (new Set(fs.map((f) => f.factory)).size > 1 ? 1 - SHARED_HEADROOM : 1);
       const total = fs.reduce((s, f) => s + f.arrival, 0), extra = stokedFs.reduce((s, f) => s + f.arrival - f.base!, 0);
       if (total > room && extra > 0) {

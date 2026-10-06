@@ -382,7 +382,7 @@ describe("Y3 row 30: TWIN LATCH holds a slug up to 1/2/3 s to make a PAIR; no fl
 });
 
 // ------------------------------------------------------------------------------------------------ row 31: STOKER
-describe("Y3 row 31: STOKER's factories work 20%/44%/70% faster; no cap", () => {
+describe("Y3 row 31: STOKER's factories work 20%/44%/70% faster; Y7b1 (ruling Y7A-R1): the cap holds on too", () => { // Y7b1 (Y7A-R1): was "...faster; no cap"
   /** FURNACE's start deck with a ★`s` STOKER at (6,6) on its Kiln (tests/stokerCap.test.ts): the Kiln's stamp pace over
    *  its own after 3 s (the stoker online). */
   const paceUp = (s: number, star: boolean): number => withStarRules(() => {
@@ -391,16 +391,20 @@ describe("Y3 row 31: STOKER's factories work 20%/44%/70% faster; no cap", () => 
     return f.curPace! / f.pace;
   }, star);
 
-  it("battle: on, a ★2/★3 STOKER's Kiln stamps at the full +44% / +70% though its gun takes only +25% (off: held to +25%)", () => {
-    expect(paceUp(2, true)).toBeCloseTo(1.44, 9);
-    expect(paceUp(3, true)).toBeCloseTo(1.7, 9);
+  // Y7b1 (ruling Y7A-R1): was "on, a ★2/★3 STOKER's Kiln stamps at the full +44% / +70% though its gun takes only +25%",
+  // with paceUp(2, true) 1.44 and paceUp(3, true) 1.7 (the overfeed trap)
+  it("battle: on, a ★2/★3 STOKER's Kiln is held to the +25% its gun takes, as off (Y7A-R1)", () => {
+    expect(paceUp(2, true)).toBeCloseTo(1.25, 2);
+    expect(paceUp(3, true)).toBeCloseTo(1.25, 2);
+    expect([2, 3].map((s) => paceUp(s, true))).toEqual([2, 3].map((s) => paceUp(s, false)));
     expect(paceUp(2, false)).toBeCloseTo(1.25, 2);
     expect(paceUp(3, false)).toBeCloseTo(1.25, 2);
     expect([paceUp(1, true), paceUp(1, false)].map((v) => Math.round(v * 100) / 100)).toEqual([1.2, 1.2]); // ★1 fits under the gun either way
   });
 
-  it("face: today's line ITS FACTORIES WORK 20%/44%/70% FASTER, no caveat; ladder 20%/44%/70% FASTER", () => {
-    expect(lines("stoker")).toEqual(["20%", "44%", "70%"].map((p) => [`ITS FACTORIES WORK ${p} FASTER.`]));
+  it("face: ITS FACTORIES WORK UP TO 20%/44%/70% FASTER (Y7A-R1: the cap in its line), no caveat; ladder 20%/44%/70% FASTER", () => {
+    expect(lines("stoker")).toEqual(["20%", "44%", "70%"].map((p) => [`ITS FACTORIES WORK UP TO ${p} FASTER.`])); // Y7b1 (Y7A-R1): was `ITS FACTORIES WORK ${p} FASTER.`
+    expect(lines("stoker", false)).toEqual(["20%", "44%", "70%"].map((p) => [`ITS FACTORIES WORK ${p} FASTER.`])); // off: today's line
     oneLine("stoker");
     expect(levels("stoker", 1)).toEqual(["[20%]/44%/70% FASTER", next(2, "44% FASTER")]);
     expect(withStarRules(() => faceAt("stoker", 1)!.caveats, false)).toEqual(["A FACTORY NEVER OUTRUNS ITS GUN."]);

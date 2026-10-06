@@ -1517,9 +1517,10 @@ export class Battle {
   private stokedPace(s: SideState, f: FactoryState, dt: number): number {
     const k = this.stokeOf(f);
     let pace = f.pace * (1 + k);
-    // Y3 (release Y; DESIGN-Y row 31; REVIEW-STARD answer 4): with the star switch on the cap is gone: the full stoke, so a
-    // stoked factory may overfeed its gun (and jam it); off, capped as before
-    if (k > 0 && f.stokeCap?.length && !starRules()) {
+    // Y7b1 (release Y; ruling Y7A-R1, REVIEW-Y7A section 7): the cap holds with the star switch on too, at every star, as at
+    // 0.9.2: a stoke never outruns its gun (Y3 had lifted it, DESIGN-Y row 31, and a ★2/★3 STOKER on a full gun then dealt
+    // less than none: the overfeed trap). The stoke numbers stay 0.2 / 0.44 / 0.7
+    if (k > 0 && f.stokeCap?.length) {
       const i0 = secPer(f.def.factory!.speed) / f.pace; // NUM-2: 30 / speed
       let imin = 0;
       for (const c of f.stokeCap) {
