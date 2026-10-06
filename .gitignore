@@ -6,3 +6,4 @@ shots/
 .vite/
 deploy/public/
 dist-motion/
+dist-knobs/
