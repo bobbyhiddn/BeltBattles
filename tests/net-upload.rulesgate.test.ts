@@ -9,6 +9,7 @@ import { STAND_IN_POOL_HEROES, standInPool } from "../src/sim/standInPool";
 import { TURRETS_JOINS_RULES, parseRules, rulesAtLeast, rulesFeatures, rulesGateProblem, sustainFeatures } from "../src/net/rulesGate";
 import { SNAPSHOT_V3, checkSnapshot, type GhostSnapshot } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate";
+import { floorRecord } from "../src/net/records"; // Y7b2 (the pools): a record the deck's day can carry
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { loadGhostPool } from "../src/net/fallback";
 import { battleRecordFor, replay, RulesMismatchError } from "../src/net/replay";
@@ -66,7 +67,12 @@ const PATTERN = "snapshot.rules: expected a string matching /^[A-Za-z0-9._-]{1,3
  *  rune-less deck in v2, as before (old). */
 function snapOf(d: Deck, rules: string, who = "x"): GhostSnapshot {
   const now = rules === RULES_VERSION;
-  return { v: now ? SNAPSHOT_V3 : 2, rules, hero: d.hero, day: d.day, wins: 0, lives: 3, build: now ? up(d) : old(d), runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
+  // Y7b2 (the pools): under this build's rules the record is the deck's day's floor record (records.ts floorRecord), a record a
+  // run carries into that dusk. Was 0 wins and 3 lives at every day, which the regenerated pool's first deck with turrets and
+  // joins (a day-3 deck) can't carry ("record: 0W 3 lives is no record a run carries into dusk 3"); older rules are refused
+  // before the record check, so their record stays as it was
+  const rec = now ? floorRecord(d.day) : { wins: 0, lives: 3 };
+  return { v: now ? SNAPSHOT_V3 : 2, rules, hero: d.hero, day: d.day, wins: rec.wins, lives: rec.lives, build: now ? up(d) : old(d), runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
 }
 
 describe("v070-rel M2 (b): the helper", () => {
@@ -167,7 +173,9 @@ describe("v070-rel M2 (b): every accepting path", () => {
     const a = srv.address();
     const url = `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}`;
     const ask = (who: string) => {
-      const req: GhostRequest = { rules: RULES_VERSION, day: served[who].day, wins: 0, lives: 3, playerId: who, seen: [], hero: "furnace", seed: 7 };
+      // Y7b2 (the pools): the request carries the served day's floor record, as snapOf's ghost does (was 0 wins, 3 lives)
+      const rec = floorRecord(served[who].day);
+      const req: GhostRequest = { rules: RULES_VERSION, day: served[who].day, wins: rec.wins, lives: rec.lives, playerId: who, seen: [], hero: "furnace", seed: 7 };
       return fetchGhost(url, req, 2000);
     };
     try {

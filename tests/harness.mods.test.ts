@@ -44,8 +44,10 @@ describe("the wave-1 mods and the star perks (0.6.1p)", () => {
       expect(JSON.stringify(effectAt(def, 3)), `${def} 3 stars`).not.toBe(one);
     }
     // 0.6.1f M1: SPLITTER's 3-star perk is PERFECT CUT {copies 2, mult 0.85}; THREE-WAY is retired
+    // Y7b2 (the words): EXT. CHAMBER ★2 WIDE BREECH and HOPPER ★3 BOTTOMLESS left with their rules, no rename (was
+    // "WIDE BREECH" and "BOTTOMLESS")
     expect([perkAt("coil", 2), perkAt("splitter", 3), perkAt("chamber", 2), perkAt("press", 3), perkAt("overdrive", 3), perkAt("hopper", 3)])
-      .toEqual(["SPARK JUMP", "PERFECT CUT", "WIDE BREECH", "MASTER DIES", "AFTERBURNER", "BOTTOMLESS"]);
+      .toEqual(["SPARK JUMP", "PERFECT CUT", undefined, "MASTER DIES", "AFTERBURNER", undefined]);
   });
 
   it("the harness copies no star value: no file in src/sim/harness reads ItemDef.levels, a pending value or a perk field, or names a perk", () => {

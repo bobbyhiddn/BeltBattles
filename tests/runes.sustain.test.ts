@@ -64,7 +64,8 @@ describe("SUS-D: the sustain runes in the catalogue", () => {
     expect([new Set(all.map((d) => d.id)).size, new Set(all.map((d) => d.name)).size]).toEqual([65, 65]);
     // WARD STONE's line is in runes.ts (SUS-B's runeText.ts RUNE_TEXT row is gone); rare, armor, startShield 3 as before
     expect([RUNES.ward_stone.text, RUNES.ward_stone.tier, RUNES.ward_stone.theme, RUNES.ward_stone.amount.n]).toEqual(["START: +{N} {*SHIELD}.", "rare", "armor", 3]);
-    expect(RUNE_TEXT).toEqual({});
+    // Y7b2 (the flip): the star switch's STAR_RUNE_TEXT row (QUICK LATCH's START, Y5) folded into RUNE_TEXT (was {})
+    expect(RUNE_TEXT).toEqual({ quick_latch: "YOUR {BELT} RIGS: START {N} SOONER." });
   });
 
   it("each is a kind of its own, but BULWARK WARD shares WARD STONE's startShield (their SHIELD adds; MAX 3 holds)", () => {
