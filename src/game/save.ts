@@ -28,6 +28,7 @@ import { ID_PATTERN, toId } from "./ghostSnapshot";
 import { fuseAll } from "./fuse";
 import { readoutOk } from "./raceReadout"; // 0.8.0 H1 M3
 import { waresOk } from "./wares"; // 0.8.0 I1 M3
+import { lastChanceShapeOk } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import type { Run } from "./run";
 
 export const SAVE_KEY = "beltbattles.run.v7";
@@ -233,6 +234,13 @@ export function migrateRun(raw: unknown): Run | null {
   // else is dropped, so no load trips over it (a run from before runes has neither and never gets a pick). Save v7, no bump.
   if (r.runeDay !== undefined && !(typeof r.runeDay === "number" && Number.isInteger(r.runeDay))) delete r.runeDay;
   if (r.build.runes !== undefined && !(Array.isArray(r.build.runes) && r.build.runes.every((q: unknown) => !!q && typeof (q as Raw).id === "string"))) delete r.build.runes;
+  // LC-1 (REQ-BFG-073): the run's LAST CHANCE ({ day } pending, { day, boon, id? } taken) and a history row's record of
+  // it ({ lives, boon?, id? }) stay when well formed and are dropped otherwise, so no load trips over them; a save
+  // without them (every save before LC-1, every switch-off run) loads exactly as before. Save v8, no bump.
+  if (r.lastChance !== undefined && !lastChanceShapeOk(r.lastChance)) delete r.lastChance;
+  for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {
+    if (h && typeof h === "object" && h.lastChance !== undefined && !(h.lastChance && typeof h.lastChance === "object" && typeof h.lastChance.lives === "number")) delete h.lastChance;
+  }
   // 0.8.0 H1 M3: a dusk's FOUNDRY/BASTION readout (DayResult.race) stays when well formed and is dropped otherwise, so
   // no load trips over it. Save v7, no bump: a Furnace or Weaver result never has one.
   for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {
