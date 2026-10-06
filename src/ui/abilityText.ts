@@ -287,8 +287,8 @@ const immunities = (e: ItemDef): string => {
   return STUN_CAUSES.every((k) => im.includes(k)) ? "EVERY STUN" : `${list(im.map((k) => STALL_WORD[k]))} STUNS`;
 };
 /** 0.6.2 FB-B: MANTLET ★2 FULL GUARD (NUM-3: was FULL PLATE) shields the last tile of each belt into its turret, ★3 BULWARK SKIRT the last 3
- *  (battle.ts makeSide: the last intakeGuard tiles of every connected route into it); a rig with an arrow on a shielded
- *  tile is shielded too (Battle.skirted), against the turret's own list. */
+ *  (battle.ts makeSide: the last intakeGuard tiles of every connected route into it). Y7b2 (the flip): the rigs working
+ *  those tiles are not guarded (was "a rig with an arrow on a shielded tile is shielded too (Battle.skirted)"). */
 const shielded = (n: number): string => (n === 1 // Y2 (release Y; DESIGN-Y row 14): not their rigs
   ? "SO DOES THE LAST TILE OF EACH BELT IN."
   : `SO DO THE LAST ${n} TILES OF EACH BELT IN.`);
@@ -305,7 +305,9 @@ function mantletGist(e: ItemDef, stars: number): string {
 /** 0.6.2 FB-B (DESIGN §11 P6): the turret panel's sentence for a turret whose MANTLET ★2/★3 shields `n` belt tiles. */
 export function shieldText(n: number): string {
   // NUM-4 (REVIEW-SUSB F3): MANTLET's word is GUARD (NUM-3's FULL GUARD); SHIELD is the sustain keyword (was SHIELDED)
-  return `GUARDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT IN, AND THE RIGS WORKING ${n === 1 ? "IT" : "THEM"}.`;
+  // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): the rig guard left with the switch's off branch (battle.ts
+  // acceptHarassment), so the line names the tiles only (was "..., AND THE RIGS WORKING IT/THEM.")
+  return `GUARDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT IN.`;
 }
 
 /**
@@ -862,7 +864,9 @@ const ENTRIES: Record<string, Entry> = {
     },
     perkAt: (e, x) => (c(e, x).fireRate ? 1 : 0),
     gist: (e, x) => `PART-FULL CHAMBERS ${loadCut(c(e, x))} SOONER`, // Y4
-    card: (e, x) => `PART-FULL CHAMBERS ${loadCut(c(e, x))} SOONER`, // Y4
+    // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): LONG RIDES's colon form, two card lines at every width 430-480
+    // (was Y4's "PART-FULL CHAMBERS ... SOONER", three lines); the gist, face and info view keep PART-FULL CHAMBER(S)
+    card: (e, x) => `PART-FULL: FIRES ${loadCut(c(e, x))} SOONER`,
   },
   pressure: {
     // cores.ts pressureBonus: waiting at its intakes plus in its chamber, this load included, up to maxCount
@@ -1034,7 +1038,7 @@ const ENTRIES: Record<string, Entry> = {
   mantlet: {
     // Battle.acceptHarassment: the turret ignores its immune causes; NUM-3 (R1's STUN fold): every STUN source from ★1
     // (was SHOCK, STATIC, ARC and CHAIN, ★2 FULL PLATE + FROST and SABOT); ★2 FULL GUARD shields the last tile of each belt
-    // into the turret, ★3 BULWARK SKIRT the last 3, and the rigs working them
+    // into the turret, ★3 BULWARK SKIRT the last 3 (Y7b2, the flip: not the rigs working them)
     text: (e) => [
       `THE TURRET IGNORES ${immunities(e)}.`,
       ...(m(e).intakeGuard ? [shielded(m(e).intakeGuard!)] : []),

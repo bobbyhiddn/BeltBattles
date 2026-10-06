@@ -228,9 +228,12 @@ describe("FB-B MANTLET: FULL GUARD (NUM-3: was FULL PLATE) shields the belt tile
       "GUARDS THE LAST 2 TILES OF EACH BELT IN",
       "GUARDS THE LAST 3 TILES OF EACH BELT IN",
     ]);
+    // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): the rig guard left with the switch's off branch, so the turret
+    // panel's line names the tiles only (was "GUARDED: THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT." and
+    // "GUARDED: THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM.")
     expect([shieldLine(1), shieldLine(3)]).toEqual([
-      "GUARDED: THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.",
-      "GUARDED: THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM.",
+      "GUARDED: THE LAST TILE OF EACH BELT IN.",
+      "GUARDED: THE LAST 3 TILES OF EACH BELT IN.",
     ]);
   });
 });

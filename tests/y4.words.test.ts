@@ -94,7 +94,9 @@ describe("Y4 words: no new keyword; BONUS DAMAGE stays; Y7b2: LOAD TIME retires"
     // Y7b1 (Y7A-R2): was [["THE TURRET FIRES 4 LOADS EACH SHOT."], "FIRES 3 LOADS A SHOT"] (false on a 2-load gun)
     expect([abilityText("chamber", 3).sentences, gist("chamber", 2)]).toEqual([["THE TURRET FIRES UP TO 4 LOADS EACH SHOT.", "A SHOT NEVER FIRES MORE THAN ITS GUN'S CHAMBER HOLDS."], "FIRES UP TO 3 LOADS A SHOT"]);
     expect(abilityText("rotary", 2, { k: 1 }).sentences).toEqual(["IT FIRES A PART-FULL CHAMBER 65% SOONER, THE OLDEST LOAD FIRST."]);
-    expect([gist("rotary", 3, { k: 1 }), cardText("rotary", { k: 1 })]).toEqual(["PART-FULL CHAMBERS 80% SOONER", "PART-FULL CHAMBERS 50% SOONER."]);
+    // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): the card takes LONG RIDES's colon form, two lines on the wide card
+    // (was "PART-FULL CHAMBERS 50% SOONER.", three); the gist is unchanged
+    expect([gist("rotary", 3, { k: 1 }), cardText("rotary", { k: 1 })]).toEqual(["PART-FULL CHAMBERS 80% SOONER", "PART-FULL: FIRES 50% SOONER."]);
     // Y7b1 (Y7A-R3c): was "EACH SHOT DEALS 438% OF THE PLATING ON YOUR HULL AS MORE DAMAGE." and "125% OF YOUR PLATING AS DAMAGE"
     expect(abilityText("anvil", 3, { k: 1 }).sentences[0]).toBe("EACH SHOT DEALS 88 MORE DAMAGE, PLUS 350% OF THE PLATING ON YOUR HULL.");
     expect(gist("anvil", 1, { k: 1 })).toBe("25 MORE DAMAGE, PLUS 100% OF YOUR PLATING");

@@ -862,7 +862,10 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // rotary ★3" and "turret steambreech ★3" with release Y's faces; seven "installed ... gear3" turrets and
     // "installed compound-hopper1-ram", HOPPER's load-time clash gone) and "installed gatling-hopper1" no longer does (the
     // words move none)
-    expect([withHint, missing.length]).toEqual([1952, 53]);
+    // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): 50 missing (was 53): on the last desk rungs the optional shield ranks
+    // after the hint, so "installed thunderer3-six-gatling" and "installed thunderer-shot" show it; the shorter shield line
+    // ("GUARDED: THE LAST 2 TILES OF EACH BELT IN.", no rigs) leaves "installed mantlet2" room for it
+    expect([withHint, missing.length]).toEqual([1952, 50]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 

@@ -785,7 +785,7 @@ export function gatlingClash(b: Build, t: number, routine: string, short = false
 }
 
 /** 0.6.2 FB-B (DESIGN §11 P6): the turret panel's sentence for a MANTLET ★2/★3 that shields `n` tiles: the last tile(s)
- *  of every belt into this turret, and each rig working a shielded tile (the glossary's shieldText). Exported for tests. */
+ *  of every belt into this turret (the glossary's shieldText; Y7b2, the flip: not the rigs working them). Exported for tests. */
 export const shieldLine = (n: number): string => shieldText(n);
 
 /**
@@ -892,10 +892,13 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   // leaves no room for the whole clash sentences: that list with each clash's short line; then the gear as a count of
   // its pieces with the short lines (the names give way before the warning); the shield in each only if it fits. Last,
   // a safety net no desk panel should need: the list with nothing kept but its rows. The phone never reaches these.
+  // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): on these rungs the optional shield ranks 2, after the hint (deskRank
+  // 1.5), so the hint comes right after the kept blocks (0.6.2t2 F4) and the shield shows where it fits (was rank 1: with
+  // HOPPER's short line gone it took the room first and dropped the hint on two six-gear THUNDERERs)
   const optional = (bs: Block[]): Block[] => bs.map(({ deskKeep, ...x }) => x);
   if (rest.some((x) => x.deskKeep)) {
     const short = gatlingClash(b, index, tc.routine, true).map((text): Block => ({ role: "warn", text, rank: 1, deskKeep: true }));
-    const after = [...(tu.intakeGuard > 0 ? [{ role: "ability", text: shieldLine(tu.intakeGuard), rank: 1 } as Block] : []), ...rest.filter((x) => !x.deskKeep)];
+    const after = [...(tu.intakeGuard > 0 ? [{ role: "ability", text: shieldLine(tu.intakeGuard), rank: 2 } as Block] : []), ...rest.filter((x) => !x.deskKeep)];
     const pieces = gearOn(b, index).slice(0, turretSlots(b)[index]?.gearSlots ?? 0).length;
     forms.push([...warn(true), ...statsLast, ...list, ...short, ...after]);
     if (short.length) forms.push([...warn(true), ...statsLast, list[0], rowOf({ label: "GEAR", text: plural(pieces, "PIECE") }), ...short, ...after]);
