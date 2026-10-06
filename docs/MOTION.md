@@ -16,8 +16,12 @@ replays are unchanged.
 | Build screen | the player's ship held still around the board's own rectangle, on the day's sea held still | `BuildScreen.draw` -> `drawStillCarrier` |
 | Run summary | the ship held still on the run's last day's sea (a lost run's wreck dimmed as before) | `SummaryScreen.draw` -> `drawStillCarrier` |
 | Hero preview | the hero's ship held still on day 1's sea (CALM SEA); its belts, slugs and turrets still run | `HeroScreen` -> `ArenaMotion` with `held` |
+| Road event and fork (CUSTOM-2a, REVIEW-MOTION2 Q1) | no carrier: the day's sea held still behind their cards (one cached blit each); no layout or touch target moved | `EventScreen.draw`, `ForkScreen.draw` -> `SeaBackdrop.drawStill` |
 
-The road event and fork screens draw no carrier and keep 0.9.4's floor (`ArenaBg`).
+CUSTOM-2a (REVIEW-MOTION2 Q2) deleted 0.9.4's floor (`render/arenaBg.ts`), the tracked hull (`cruiser.ts drawHull` and
+`drawDim`, `hull.ts` `hullFlash`, `hullRim`, `hullShade` and `treadStrip`), `arenaDraw.ts drawArena` and the test builds'
+`?motion=0` knob. `drawArena`'s cracks and shells stay in arenaDraw.ts for the motion code. The deck has one drawing
+path: the deck sprite (`hull.ts hullSprite`) cut into the board plate (render/ship.ts).
 
 The build screen's board keeps 0.9.4's deck frame (`BuildLayout.frame`): its tile size, position, taps and drags are
 unchanged; only what is drawn under the board changed. Its sea is one cached blit a frame and never moves (REDUCED MOTION
@@ -125,9 +129,9 @@ or not). The still screens draw no bank and no drift (tests/motion.test.ts).
   (`VITE_MOTION_KNOBS=1 vite build --outDir dist-knobs`: the scripts' pages). Vite replaces both at build time, so a
   player build (`npm run build`, `build:online`) never calls the URL parser: it is not in the player bundle, and neither
   is the `?perf=1` overlay.
-- Knobs: `?motion=0` (0.9.4's floor and tracked hulls on every screen, for comparisons), `?sway=N`,
-  `?sea=calm|storm|ember` and `?perf=1` (a frame-time overlay in battle, and running per-layer totals in battle, on the
+- Knobs: `?sway=N`, `?sea=calm|storm|ember` and `?perf=1` (a frame-time overlay in battle, and running per-layer totals in battle, on the
   title and on the build screen, read through `bb.motion()`).
+- `?motion=0` (0.9.4's floor and tracked hulls) is gone with their code (CUSTOM-2a, REVIEW-MOTION2 Q2).
 - Tooling in every build (window.bb): `bb.motion()` (the knobs, the options, and on a battle, title or replay its sea,
   clock, poses and last tap), `bb.motionTile(side, cx, cy)` and `bb.openReplay(o)` (a dusk replayed, for stills).
 

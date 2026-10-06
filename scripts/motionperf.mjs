@@ -52,7 +52,7 @@ async function one(browser, page0, scene, reduced, rate, query) {
   const load0 = loadavg()[0];
   const res = await page.evaluate(async (secs) => {
     const bb = window.bb;
-    const tot = () => { const m = bb.motion(); return m.perfTotals ?? m.offPerf ?? null; };
+    const tot = () => { const m = bb.motion(); return m.perfTotals ?? null; }; // CUSTOM-2a: no ?motion=0 split any more
     const a = tot();
     const gaps = [];
     let last = performance.now(), stop = false;

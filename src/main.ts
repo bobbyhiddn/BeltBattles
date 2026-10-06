@@ -253,7 +253,6 @@ game.start();
     const m = s instanceof BattleScreen ? s.motion : null;
     const base = {
       knobs: MOTION_KNOBS, opts: { ...MOTION }, on: !!m, phase: s instanceof BattleScreen ? s.phase : null,
-      offPerf: s instanceof BattleScreen && s.offPerf ? s.offPerf.totals() : null,
     };
     if (s instanceof BuildScreen && s.perf) return { ...base, perf: s.perf.mean(), perfTotals: s.perf.totals() };
     const om = s instanceof TitleScreen || s instanceof ReplayScreen ? s.motion : null;

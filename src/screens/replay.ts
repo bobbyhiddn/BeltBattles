@@ -8,17 +8,15 @@
 
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
-import { drawArena } from "../game/arenaDraw";
 import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
 import { ArenaMotion } from "../game/arenaMotion";
-import { MOTION, MOTION_KNOBS } from "../render/motion";
+import { MOTION } from "../render/motion";
 import { settings } from "../core/settings";
 import type { Battle } from "../sim/battle";
 import { HEROES, RUN_DAYS } from "../sim/content";
 import { C } from "../render/palette";
 import type { G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
-import { ArenaBg } from "../render/arenaBg";
 import { banner } from "../ui/hud";
 import { fmtClock, fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock and the hull, whole
 import { button, panel } from "../ui/ui";
@@ -62,14 +60,12 @@ export class ReplayScreen implements Screen {
   over = false;
   private pt = 0;
   private left = false;
-  private bg = new ArenaBg();
   private bar: BarState;
-  private bgSpec = { hulls: [] as { x: number; y: number; w: number; h: number }[], vertical: false, gapLine: true };
   private plateR = [{ x: 0, y: 0, w: 0, h: 0 }, { x: 0, y: 0, w: 0, h: 0 }];
   private hp: [string, string] = ["", ""];
   private readonly heroName: string;
-  /** MOTION-2 (REQ-BFG-071): the replay in motion (null only with the test builds' ?motion=0 knob). */
-  readonly motion: ArenaMotion | null;
+  /** MOTION-2 (REQ-BFG-071): the replay in motion. CUSTOM-2a (REVIEW-MOTION2 Q2): always (no ?motion=0). */
+  readonly motion: ArenaMotion;
   private readonly seed: number;
 
   constructor(private game: Game, private back: Screen, battle: Battle, private label: { day: number; foe: string }) {
@@ -78,7 +74,7 @@ export class ReplayScreen implements Screen {
     this.arena = new Arena(mine, theirs, battle.record.seed, game.audio, battle);
     this.arena.off = [0, 0];
     this.heroName = HEROES[mine.hero].name;
-    this.motion = !MOTION_KNOBS || MOTION.on ? new ArenaMotion(this.seed, label.day, MOTION, settings.reducedMotion) : null;
+    this.motion = new ArenaMotion(this.seed, label.day, MOTION, settings.reducedMotion);
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
@@ -101,15 +97,10 @@ export class ReplayScreen implements Screen {
   private relayout(): void {
     const { W, H, portrait } = this.game;
     if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait) return;
-    this.L = battleLayout(W, H, portrait);
-    if (this.motion) {
-      // MOTION-2: the battle's lanes (portrait as 0.9.4; landscape's enemy lane raised and a little ahead)
-      this.L = laneLayout(this.L);
-      this.motion.setLanes(this.L, minGap(portrait ? H : W));
-    }
+    // MOTION-2: the battle's lanes (portrait as 0.9.4; landscape's enemy lane raised and a little ahead)
+    this.L = laneLayout(battleLayout(W, H, portrait));
+    this.motion.setLanes(this.L, minGap(portrait ? H : W));
     this.arena.setFrames(this.L.frames, this.L.enter);
-    this.bgSpec.hulls = this.L.hulls;
-    this.bgSpec.vertical = portrait;
   }
 
   setSpeed(i: number): void {
@@ -146,7 +137,7 @@ export class ReplayScreen implements Screen {
     this.relayout();
     this.pt += dt;
     if (this.arena.paused) return;
-    this.motion?.update(dt, settings.reducedMotion); // MOTION-2: the display clock (frame time; never the sim's)
+    this.motion.update(dt, settings.reducedMotion); // MOTION-2: the display clock (frame time; never the sim's)
     if (!this.over) {
       const ev = this.arena.update(dt);
       for (let i = 0; i < ev.length; i++) if (ev[i].type === "end" && !this.over) this.end();
@@ -158,15 +149,9 @@ export class ReplayScreen implements Screen {
     const { W, H, ui } = this.game;
     const a = this.arena, b = a.b;
     const m = this.motion;
-    if (m) {
-      // MOTION-2: the day's sea, then the carriers, boards, shots and effects in motion
-      m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed);
-      m.draw(g, a, W, H, settings.reducedMotion);
-    } else if (MOTION_KNOBS) {
-      // ?motion=0 (test builds only): 0.9.4's floor and tracked hulls
-      this.bg.draw(g, W, H, this.bgSpec, this.game.t, a.fx.shakeX, a.fx.shakeY);
-      drawArena(g, a, W, H);
-    }
+    // MOTION-2: the day's sea, then the carriers, boards, shots and effects in motion
+    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed);
+    m.draw(g, a, W, H, settings.reducedMotion);
     for (let s = 0; s < 2; s++) {
       this.hp[s] = fmtDmg(Math.max(0, b.sides[s].hull.hp)); // NUM-4: the hull is whole (NUM-1); was Math.ceil
       const p = this.L.plates[s], r = this.plateR[s];

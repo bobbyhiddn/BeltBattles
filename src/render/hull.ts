@@ -5,7 +5,7 @@
 import { cellNoise } from "../core/rng";
 import { GRID, HEROES, type HeroId } from "../sim/content";
 import { C, FACTION, type FactionPalette } from "./palette";
-import { bevel, disc, makeCanvas, rect, ring, silhouette, type G } from "./pixel";
+import { bevel, disc, makeCanvas, rect, ring, type G } from "./pixel";
 import { BOW, HULL_A, HULL_L, SIDE, STERN, type Facing } from "./frame";
 import { hullDeco } from "./hullDeco";
 import { RACE_DECK_SALT, isArtRace, raceInside } from "./raceArt"; // 0.8.0 H1: the human and dwarf hulls
@@ -87,7 +87,7 @@ function inside(hero: HeroId, hx: number, hy: number): boolean {
   return true;
 }
 
-/** Tread channel extents (hull-local); the animated track is drawn at runtime. */
+/** Tread channel extents (hull-local), in the deck sprite's art (the board plate cuts inside them). */
 export const TREAD_HX = [3, A - 14];
 export const TREAD_W = 11;
 export const TREAD_HY0 = 6;
@@ -159,55 +159,6 @@ export function heroPalette(hero: HeroId): FactionPalette {
   return FACTION[HEROES[hero].faction];
 }
 
-export function hullFlash(hero: HeroId, facing: Facing): Cv {
-  return cached(`hullF:${hero}:${facing}`, () => silhouette(hullSprite(hero, facing), C.white));
-}
-
-/** 2px white rim around the hull silhouette: the hit flash (a full white-out is too much at this scale). */
-export function hullRim(hero: HeroId, facing: Facing): Cv {
-  return cached(`hullR:${hero}:${facing}`, () => {
-    const src = hullSprite(hero, facing);
-    const w = src.width, h = src.height;
-    const d = src.getContext("2d")!.getImageData(0, 0, w, h).data;
-    const [c, g] = makeCanvas(w, h);
-    const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 0;
-    g.fillStyle = C.white;
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        if (!solid(x, y)) continue;
-        let edge = false;
-        for (let k = 1; k <= 2 && !edge; k++) edge = !solid(x - k, y) || !solid(x + k, y) || !solid(x, y - k) || !solid(x, y + k);
-        if (edge) g.fillRect(x, y, 1, 1);
-      }
-    }
-    return c;
-  });
-}
-
-export function hullShade(hero: HeroId, facing: Facing): Cv {
-  return cached(`hullS:${hero}:${facing}`, () => silhouette(hullSprite(hero, facing), C.ink));
-}
-
-/** Pre-rendered track strip (period 4) so each tread is one blit per frame. */
-export function treadStrip(vertical: boolean): Cv {
-  return cached(`tread:${vertical ? 1 : 0}`, () => {
-    const len = TREAD_LEN + 4;
-    const [c, g] = makeCanvas(vertical ? TREAD_W - 2 : len, vertical ? len : TREAD_W - 2);
-    const cols = [C.steel3, C.steel2, C.steel1, C.ink];
-    for (let k = 0; k < len; k++) {
-      const col = cols[k % 4];
-      if (vertical) {
-        rect(g, 0, k, TREAD_W - 2, 1, col);
-        if (k % 4 !== 3) rect(g, 0, k, 1, 1, C.steel0);
-        if (k % 4 !== 3) rect(g, TREAD_W - 3, k, 1, 1, C.steel0);
-        rect(g, 4, k, 1, 1, k % 4 === 0 ? C.steel1 : C.ink);
-      } else {
-        rect(g, k, 0, 1, TREAD_W - 2, col);
-        if (k % 4 !== 3) rect(g, k, 0, 1, 1, C.steel0);
-        if (k % 4 !== 3) rect(g, k, TREAD_W - 3, 1, 1, C.steel0);
-        rect(g, k, 4, 1, 1, k % 4 === 0 ? C.steel1 : C.ink);
-      }
-    }
-    return c;
-  });
-}
+// CUSTOM-2a (REVIEW-MOTION2 Q2): the tracked hull's runtime sprites (hullFlash, hullRim, hullShade: the hit flash, its
+// rim and the ink shade; treadStrip: the animated track) are gone with drawHull. The deck sprite above stays: it feeds
+// the board plate on every screen (render/ship.ts heroPlate). The tread channels stay in its art (TREAD_*).

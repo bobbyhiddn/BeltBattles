@@ -23,7 +23,8 @@
 
 import { makeCanvas, type G } from "../src/render/pixel";
 import { frameForHull, type Facing } from "../src/render/frame";
-import { HULL_M, hullFlash, hullRim, hullShade, hullSprite, treadStrip } from "../src/render/hull";
+import { HULL_M, hullSprite } from "../src/render/hull";
+import { drawArenaStill, drawDeckHull } from "./stillDraw"; // CUSTOM-2a: the tracked hull's drawing is gone
 import {
   beltCorner, beltIcon, beltStopper, beltStraight, boltIcon, coinIcon, explosion, factoryFlashSil, factorySprite, gateSil,
   gateSprite, heartIcon, itemIcon, rigNozzle, rigTip, sparkStar, turntable, wrenchIcon, type ArrowState, type BeltTint,
@@ -39,11 +40,10 @@ import { PORTRAIT_KEYS, portraitImage, portraitPixels } from "../src/render/port
 import { gemColor } from "../src/render/coreArt";
 import { C } from "../src/render/palette";
 import { drawPlatingStrip, fuseFlash, platingClank, syncIcon } from "../src/render/raceFx";
-import { cruiserModel, drawHull, drawTurrets, type CruiserView } from "../src/render/cruiser";
+import { cruiserModel, drawTurrets, type CruiserView } from "../src/render/cruiser";
 import { drawMachinery } from "../src/render/machinery";
 import { itemSlot } from "../src/ui/ui";
 import { Arena } from "../src/game/arena";
-import { drawArena } from "../src/game/arenaDraw";
 import { drawPlate } from "../src/screens/battleHud";
 import type { Game } from "../src/game/game";
 import { EVENT_IDS } from "../src/game/events";
@@ -120,12 +120,8 @@ function modules(): void {
 function hullsTurretsAmmo(): void {
   for (const h of HERO_IDS) for (let f = 0; f < 4; f++) {
     put(`hull/${h}/${f}`, hullSprite(h, f as Facing));
-    put(`hullFlash/${h}/${f}`, hullFlash(h, f as Facing));
-    put(`hullRim/${h}/${f}`, hullRim(h, f as Facing));
-    put(`hullShade/${h}/${f}`, hullShade(h, f as Facing));
+    // CUSTOM-2a (REVIEW-MOTION2 Q2): hullFlash, hullRim, hullShade and the tread strips are gone with the tracked hull
   }
-  put("tread/v", treadStrip(true));
-  put("tread/h", treadStrip(false));
   for (const kind of ["heavy", "light", "medium", "adaptable"] as TurretKind[]) for (const fac of FACTIONS) for (let f = 0; f < 4; f++) {
     const a = turretArt(kind, fac, f as Facing);
     put(`turret/${kind}/${fac}/${f}/base`, a.base);
@@ -219,7 +215,7 @@ function deckView(name: string, b: Build, facing: 0 | 2, times: number[] = [0.4]
     const [cv, g] = makeCanvas(176, 184);
     const f = facing === 0 ? frameForHull(0, 10, 32) : frameForHull(2, 10, 12);
     const v: CruiserView = { side: facing === 0 ? 0 : 1, build: b, model, frame: f, t, tread: Math.floor(t * 20) };
-    drawHull(g as G, v);
+    drawDeckHull(g as G, v);
     drawMachinery(g as G, v);
     drawTurrets(g as G, v);
     put(`deck/${name}/${facing}/${t}`, cv);
@@ -319,7 +315,7 @@ function battles(): void {
     for (const at of [2.5, 6, 11]) {
       while (t < at) { arena.update(1 / 60); t += 1 / 60; }
       const [cv, g] = makeCanvas(W, H);
-      drawArena(g as G, arena, W, H);
+      drawArenaStill(g as G, arena, W, H);
       put(`arena/${name}/${landscape ? "land" : "port"}/${at}`, cv);
       const [pc, pg] = makeCanvas(140, 26);
       const game = { t: arena.clock } as unknown as Game;
