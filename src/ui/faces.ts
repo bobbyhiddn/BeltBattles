@@ -30,6 +30,7 @@ import { colourize, PERK_COLOUR, type Span } from "./richText";
 import { statRow, type Stat } from "./icons";
 import { fmtCount, fmtDmg, fmtPct, fmtSec, fmtSpeed } from "./statFormat";
 import { livePerk, type TextOpts } from "./abilityText";
+import { upToLoads } from "./abilityText"; // Y7b1 (release Y; ruling Y7A-R2): EXT. CHAMBER's UP TO n with the star switch on
 import { SIM } from "./abilityText"; // NUM-3: SCRAPPER's queue cap and SABOT's SHRAPNEL STUN (each checked against battle.ts)
 import {
   AMMO, BURN_TIME, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, type HeroId, type ItemDef, type PayloadPreset,
@@ -917,8 +918,17 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const soon = fmtPct(1 - f(e).commission!);
     return rules([{ text: `YOUR RIGS START ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
   },
-  // ---- Y4 (DESIGN-Y rows 33-40): the gear and cores whose line changes; EXT. CHAMBER keeps today's line (FACES), its
-  // number from the switch's data (FIRES 2/3/4), its WIDE BREECH clause gone
+  // ---- Y4 (DESIGN-Y rows 33-40): the gear and cores whose line changes (EXT. CHAMBER kept today's line until Y7b1, below)
+  chamber: (e) => {
+    // Y7b1 (release Y; ruling Y7A-R2: the rule as built, the face true; text only): Battle.chambers: a shot fires perShot
+    // loads (2/3/4), at most what its gun's chamber holds. The smallest chamber holds 2 (abilityText.ts fewestLoads), so ★1's
+    // FIRES 2 is exact on every gun and ★2/★3 read UP TO 3 / UP TO 4 (upToLoads). Its ⓘ: the tap note on UP TO
+    // (glossary.ts STAR_TAP_NOTES chamber) says a shot never fires more than its gun's chamber holds. The ladder keeps one
+    // template (FIRES UP TO 2/3/4 {SLUG}: a shot's most at each star). Was today's line "EACH SHOT FIRES 3 {SLUG}." at ★2 (4 at
+    // ★3), false on a 2-load gun (and ★3's on a 3-load gun: REVIEW-Y7A section 6)
+    const n = md(e).perShot!, c = fmtCount(n);
+    return rules([{ text: `EACH SHOT FIRES ${upToLoads(n)}${c} {SLUG}.` }], [["shot", `FIRES UP TO ${c} {SLUG}`]]);
+  },
   hopper: (e) => {
     // DESIGN-Y row 33: makeTurret: its turret's chamber holds `window` more loads (+1/+2/+3); the +0.5 s load time, the
     // store and ★3's no-jam are gone (content.ts STAR_DIFF). Was the RULES text "THE CHAMBER HOLDS 1 MORE LOAD, AND THE LOAD

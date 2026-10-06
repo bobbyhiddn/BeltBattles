@@ -8,17 +8,20 @@
 //   on one line.
 // - Y7A-R4 / R5, the numbers on: DRAKE NOZZLE flatPerBurn 38 / 27 / 19, COUNTERWEIGHT perTile.each 2 / 5 / 7, VENOM DRIP
 //   burnPlus 2 / 3 / 5 s (guarded).
+// - Y7A-R2, EXT. CHAMBER (text only): the rule stays (perShot 2 / 3 / 4, a shot fires at most what the chamber holds); with
+//   the switch on its face is true for every gun and star: ★1 FIRES 2 (exact), ★2/★3 UP TO 3 / UP TO 4; its ⓘ says why.
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { ITEMS, STAR_ITEMS, withStarRules } from "../src/sim/content";
 import { type Build, type TimelineHit } from "../src/sim/deck";
 import { rateDeck, stokeKeep } from "../src/sim/deckRating";
-import { effectAt } from "../src/sim/stars";
+import { effectAt, starField } from "../src/sim/stars";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { S, S_PLATING, abilityText, cardText, gist, hitText } from "../src/ui/abilityText";
 import { faceAt } from "../src/ui/faces";
+import { glossaryText } from "../src/ui/glossary";
 import { STARS, levels, lines, next, on, oneLine, rigBench } from "./y3.helpers";
-import { K, item, withItem, withMod } from "./wave3.helpers";
+import { K, barge, furnaceBench, item, withItem, withMod } from "./wave3.helpers";
 
 const SEEDS = [1, 2, 3, 4, 5]; // wave3.decks' capRows: both sides +3000 hull, 120 s
 
@@ -144,5 +147,47 @@ describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read thei
     expect(levels("venom", 1)).toEqual(["[+2]/+3/+5{SEC}", next(2, "+3{SEC}")]);
     expect(on(() => abilityText("venom", 3).sentences[0])).toBe("EACH BURN ON THE PAYLOADS IT HITS LASTS 5 SECONDS LONGER.");
     expect(on(() => hitText({ def: "venom", stars: 2 } as TimelineHit, "free"))).toBe("VENOM DRIP: ITS BURN LASTS +3 SEC");
+  });
+});
+
+// ------------------------------------------------------------- Y7A-R2: EXT. CHAMBER's face is true for every gun and star
+describe("Y7b1 Y7A-R2: EXT. CHAMBER's switch-on face is true for every gun and star (text only)", () => {
+  const GUNS = Object.values(ITEMS).filter((d) => d.kind === "turret" && d.turret).map((d) => d.id);
+  /** The face's n at `stars` (the number after FIRES / UP TO) and whether it says UP TO, with the switch on. */
+  const face = (stars: number) => { const t = on(() => faceAt("chamber", stars)!.rules[0].text); return { t, n: Number(/FIRES (?:UP TO )?(\d+)/.exec(t)![1]), upTo: / UP TO /.test(t) }; };
+  /** The most loads one shot of gun `gun` (its own chamber, at ★`gs`) fires with a ★`cs` EXT. CHAMBER, as the battle builds the
+   *  turret (makeTurret: perShot, window) and fires it (Battle.chambers: rt.count = perShot loads, each from the chamber's stack). */
+  const most = (gun: string, gs: number, cs: number) => on(() => {
+    const b = withMod({ ...furnaceBench(), turrets: [{ slot: 0, def: gun, uid: 900, ...starField(gs) }] }, 60, "chamber", 0, cs);
+    const tu = new Battle(b, barge(), 8).sides[0].turrets[0];
+    expect(tu.window, `${gun} ★${gs}: its own chamber`).toBe(effectAt(gun, gs).turret!.window);
+    return Math.min(tu.perShot, tu.window);
+  });
+
+  it("the rule is unchanged: on, perShot 2 / 3 / 4 and no slot (Y4's data)", () => {
+    expect(on(() => STARS.map((s) => effectAt("chamber", s).mod))).toEqual([2, 3, 4].map((perShot) => ({ perShot })));
+  });
+
+  it("every gun at every star: the shot's real count <= the face's n; ★1's 2 is exact on every gun; UP TO exactly where some gun fires fewer", () => {
+    expect(GUNS.length).toBeGreaterThanOrEqual(13);
+    for (const cs of STARS) {
+      const f = face(cs);
+      const counts = GUNS.flatMap((g) => STARS.map((gs) => most(g, gs, cs)));
+      expect(Math.max(...counts), `★${cs}: ${f.t}`).toBeLessThanOrEqual(f.n);
+      expect(f.upTo, `★${cs}: UP TO iff some gun fires fewer than ${f.n}`).toBe(Math.min(...counts) < f.n);
+      if (cs === 1) expect(counts.every((c) => c === 2), "★1: FIRES 2 on every gun").toBe(true);
+    }
+    expect([1, 2, 3].map((s) => face(s).t)).toEqual(["EACH SHOT FIRES 2 {SLUG}.", "EACH SHOT FIRES UP TO 3 {SLUG}.", "EACH SHOT FIRES UP TO 4 {SLUG}."]);
+    // a 4-load gun fires the face's 4 at ★3 (BOMBARD), a 2-load gun 2 (DART): UP TO is the shortest true wording
+    expect([most("bombard", 1, 3), most("dartgun", 1, 3)]).toEqual([4, 2]);
+  });
+
+  it("its ⓘ: the tap on UP TO says a shot never fires more than its gun's chamber holds; the kept sentences, gist and card say UP TO; off, every text as before", () => {
+    expect(on(() => glossaryText("UP TO", { def: "chamber", stars: 2 }))).toBe("UP TO: A SHOT NEVER FIRES MORE THAN ITS GUN'S CHAMBER HOLDS.");
+    expect(glossaryText("UP TO", { def: "chamber", stars: 2 })).toBeUndefined();
+    expect(on(() => abilityText("chamber", 2).sentences)).toEqual(["THE TURRET FIRES UP TO 3 LOADS EACH SHOT.", "A SHOT NEVER FIRES MORE THAN ITS GUN'S CHAMBER HOLDS."]);
+    expect(on(() => [gist("chamber", 1), gist("chamber", 3), cardText("chamber")])).toEqual(["FIRES 2 LOADS A SHOT", "FIRES UP TO 4 LOADS A SHOT", "FIRES 2 LOADS A SHOT."]);
+    expect(abilityText("chamber", 2).sentences).toEqual(["THE TURRET FIRES 2 LOADS EACH SHOT, AND ITS CHAMBER HOLDS 1 MORE LOAD."]);
+    expect(lines("chamber", false)).toEqual([["EACH SHOT FIRES 2 {SLUG}."], ["EACH SHOT FIRES 2 {SLUG}."], ["EACH SHOT FIRES 3 {SLUG}."]]);
   });
 });

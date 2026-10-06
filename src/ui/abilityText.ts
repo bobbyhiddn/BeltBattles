@@ -278,6 +278,19 @@ export const S_PLATING = `PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO 
 /** Y6: PLATING's sentence as the switch has it (S_PLATING on; S.plating off, as before). */
 const plating = (): string => (starRules() ? S_PLATING : S.plating);
 
+/** Y7b1 (release Y; ruling Y7A-R2): the fewest loads any gun's chamber holds (TurretSpec.window at each of its stars; 2: DART,
+ *  SPIKE, CARRONADE, TWIN NEEDLE). With the star switch on EXT. CHAMBER fires perShot loads a shot, at most what the chamber
+ *  holds (Battle.chambers: rt.count from the stack), so a perShot above it reads UP TO n (true on every gun). */
+export function fewestLoads(): number {
+  let least = Infinity;
+  for (const d of Object.values(ITEMS)) if (d.kind === "turret" && d.turret) for (let s = 1; s <= FUSE_MAX; s++) least = Math.min(least, effectAt(d.id, s).turret!.window);
+  return least;
+}
+/** Y7b1 (ruling Y7A-R2): "UP TO " where a shot of `perShot` loads can fire fewer on some gun, else "" (★1's 2: every gun). */
+export const upToLoads = (perShot: number): string => (perShot > fewestLoads() ? "UP TO " : "");
+/** Y7b1 (ruling Y7A-R2): EXT. CHAMBER's rule as its ⓘ says it, with the star switch on. */
+export const S_CHAMBER = "A SHOT NEVER FIRES MORE THAN ITS GUN'S CHAMBER HOLDS.";
+
 /** 0.8.0 P1: a small count as a word ("TWO PLAIN SLUGS"), as DESIGN-wave3.md 3.3 writes TWIN MOULD's. */
 const COUNT = ["NO", "ONE", "TWO", "THREE", "FOUR", "FIVE"];
 const countWord = (n: number): string => COUNT[n] ?? String(n);
@@ -1081,11 +1094,16 @@ const ENTRIES: Record<string, Entry> = {
   },
   // --------------------------------------------------------------------------------------------------- turret gear
   chamber: {
-    text: (e) => [`THE TURRET FIRES ${m(e).perShot} LOADS EACH SHOT${m(e).window ? `, AND ITS CHAMBER HOLDS ${plural(m(e).window!, "MORE LOAD")}` : ""}.`],
+    // Y7b1 (release Y; ruling Y7A-R2: the rule as built, the words true): with the star switch on a shot fires perShot loads,
+    // at most what its gun's chamber holds (Battle.chambers), so ★2/★3's 3/4 read UP TO (upToLoads; ★1's 2 is every gun's)
+    // and a second sentence says the rule (S_CHAMBER). Y4's "THE TURRET FIRES 3 LOADS EACH SHOT." and gist / card "FIRES 3
+    // LOADS A SHOT" were false on a 2-load gun. Off, as before
+    text: (e) => (starRules() ? [`THE TURRET FIRES ${upToLoads(m(e).perShot!)}${m(e).perShot} LOADS EACH SHOT.`, S_CHAMBER]
+      : [`THE TURRET FIRES ${m(e).perShot} LOADS EACH SHOT${m(e).window ? `, AND ITS CHAMBER HOLDS ${plural(m(e).window!, "MORE LOAD")}` : ""}.`]),
     // Y4 (release Y; DESIGN-Y row 36): with the star switch on, its one number at every star (no slot)
-    gist: (e, x) => (starRules() ? `FIRES ${m(e).perShot} LOADS A SHOT`
+    gist: (e, x) => (starRules() ? `FIRES ${upToLoads(m(e).perShot!)}${m(e).perShot} LOADS A SHOT`
       : x.stars >= 3 ? `FIRES ${m(e).perShot} LOADS EACH SHOT` : m(e).window ? `HOLDS ${plural(m(e).window!, "MORE LOAD")}` : `FIRES ${m(e).perShot} LOADS`),
-    card: (e) => `FIRES ${m(e).perShot} LOADS A SHOT`,
+    card: (e) => (starRules() ? `FIRES ${upToLoads(m(e).perShot!)}${m(e).perShot} LOADS A SHOT` : `FIRES ${m(e).perShot} LOADS A SHOT`),
   },
   calibrate: {
     text: (e) => [`THE TURRET FIRES ${rateText(imul(m(e).fireRate))}.`],

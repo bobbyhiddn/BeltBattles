@@ -200,10 +200,12 @@ describe("Y4 row 36: EXT. CHAMBER: it fires 2/3/4 loads a shot; the +1 slot goes
     expect([mostPerShot(three, true), mostPerShot(three, false)]).toEqual([4, 3]);
   });
 
-  it("face: EACH SHOT FIRES 2/3/4 SLUG (today's line), no WIDE BREECH clause; ladder FIRES 2/3/4 SLUG; the perk names in the ⓘ view only", () => {
-    expect(lines("chamber")).toEqual([2, 3, 4].map((n) => [`EACH SHOT FIRES ${n} {SLUG}.`]));
+  // Y7b1 (ruling Y7A-R2): was "face: EACH SHOT FIRES 2/3/4 SLUG (today's line), ...; ladder FIRES 2/3/4 SLUG", with the lines
+  // EACH SHOT FIRES 2/3/4 {SLUG}. and the ladder FIRES [2]/3/4 {SLUG} (NEXT ★2: FIRES 3 {SLUG})
+  it("face: EACH SHOT FIRES 2 / UP TO 3 / UP TO 4 SLUG (Y7A-R2: true on every gun), no WIDE BREECH clause; ladder FIRES UP TO 2/3/4 SLUG; the perk names in the ⓘ view only", () => {
+    expect(lines("chamber")).toEqual([["EACH SHOT FIRES 2 {SLUG}."], ["EACH SHOT FIRES UP TO 3 {SLUG}."], ["EACH SHOT FIRES UP TO 4 {SLUG}."]]);
     oneLine("chamber");
-    expect(levels("chamber", 1)).toEqual(["FIRES [2]/3/4 {SLUG}", "★2 WIDE BREECH", "★3 TRIPLE BREECH", `${next(2, "FIRES 3 {SLUG}")} ★2 WIDE BREECH`]);
+    expect(levels("chamber", 1)).toEqual(["FIRES UP TO [2]/3/4 {SLUG}", "★2 WIDE BREECH", "★3 TRIPLE BREECH", `${next(2, "FIRES UP TO 3 {SLUG}")} ★2 WIDE BREECH`]);
     // off: ★2's clause (identity); on: none
     expect([withStarRules(() => faceAt("chamber", 2)!.clause?.text, false), on(() => faceAt("chamber", 2)!.clause)])
       .toEqual(["★2 WIDE BREECH: HOLDS +1 {SLUG}.", undefined]);

@@ -315,6 +315,9 @@ export const STAR_TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // Y6 (release Y; DESIGN-Y 4.1): with the switch on POISON is retired, so SPLITTER's tap (TAP_NOTES') names the two a copy
   // keeps (Battle.applyHit's spread: its BURN, with VENOM's seconds, and its STUN)
   splitter: { word: "HIT", text: () => "HIT: EACH COPY KEEPS THE SLUG'S {*BURN} AND {*STUN}." },
+  // Y7b1 (release Y; ruling Y7A-R2): EXT. CHAMBER's ★2/★3 face reads UP TO 3 / UP TO 4 (faces.ts STAR_FACES chamber); its ⓘ
+  // (this tap, on UP TO) says why: Battle.chambers fires at most what the gun's chamber holds
+  chamber: { word: "UP TO", text: () => "UP TO: A SHOT NEVER FIRES MORE THAN ITS GUN'S CHAMBER HOLDS." },
 };
 
 /** The tap note of piece `def` for `word` (a trigger label's word or a rule's word), else undefined. Y4: with the star

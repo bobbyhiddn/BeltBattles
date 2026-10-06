@@ -89,7 +89,8 @@ describe("Y4 words: no new keyword; LOAD TIME and BONUS DAMAGE stay", () => {
       expect(gist("twintrigger", 2)).toBe("PAIRS DEAL 60% MORE");
       expect(abilityText("seamwelder", 1).sentences[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL.");
       expect(gist("seamwelder", 3)).toBe("35 PLATING A PAIR");
-      expect([abilityText("chamber", 3).sentences, gist("chamber", 2)]).toEqual([["THE TURRET FIRES 4 LOADS EACH SHOT."], "FIRES 3 LOADS A SHOT"]);
+      // Y7b1 (Y7A-R2): was [["THE TURRET FIRES 4 LOADS EACH SHOT."], "FIRES 3 LOADS A SHOT"] (false on a 2-load gun)
+      expect([abilityText("chamber", 3).sentences, gist("chamber", 2)]).toEqual([["THE TURRET FIRES UP TO 4 LOADS EACH SHOT.", "A SHOT NEVER FIRES MORE THAN ITS GUN'S CHAMBER HOLDS."], "FIRES UP TO 3 LOADS A SHOT"]);
       expect(abilityText("rotary", 2, { k: 1 }).sentences).toEqual(["IT FIRES A PART-FULL CHAMBER 65% SOONER, THE OLDEST LOAD FIRST."]);
       expect([gist("rotary", 3, { k: 1 }), cardText("rotary", { k: 1 })]).toEqual(["PART-FULL CHAMBERS 80% SOONER", "PART-FULL CHAMBERS 50% SOONER."]);
       // Y7b1 (Y7A-R3c): was "EACH SHOT DEALS 438% OF THE PLATING ON YOUR HULL AS MORE DAMAGE." and "125% OF YOUR PLATING AS DAMAGE"

@@ -175,9 +175,10 @@ function matches(text: string, l: PLine, first: boolean, piece: Piece | null): {
   return out;
 }
 
-/** The word a piece's tap note sits on, else null. */
+/** The word a piece's tap note sits on, else null. Y7b1 (release Y; ruling Y7A-R2): UP TO too, EXT. CHAMBER's with the star
+ *  switch on (glossary.ts STAR_TAP_NOTES; off no tap note sits on it, so nothing changes). */
 function noteWord(def: string): string | null {
-  for (const w of ["AIM", "FASTER"]) if (tapNote(def, w)) return w;
+  for (const w of ["AIM", "FASTER", "UP TO"]) if (tapNote(def, w)) return w;
   return null;
 }
 
