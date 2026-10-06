@@ -29,6 +29,9 @@
 // 0.9.3 is release Y (REQ-BFG-070, REQ-BFG-046) with the phone finger targets (REQ-BFG-040): one-line part rules (the
 // star switch flipped for good), POISON folded into VENOM DRIP's longer BURN, and FOUNDRY's fuse change battles, the
 // pools and the upload check, so Y7b2 moved the rules once to bb-0.9.3 (nothing carried), and the label moves to 0.9.3.
+// 0.9.4 is the captains' pass on 0.9.3's rules (REQ-BFG-024, REQ-BFG-058, REQ-BFG-051) with the touch check's fix
+// (REQ-BFG-040): only captain plans, captain runes and a test script change, so the rules stay bb-0.9.3 and the label
+// moves to 0.9.4.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version";
@@ -36,10 +39,10 @@ import { RULES_VERSION } from "../src/sim/content";
 
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
-describe("the 0.9.3 label", () => {
-  it("is 0.9.3 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are Y7b2's bb-0.9.3 (BAL-2's were bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
+describe("the 0.9.4 label", () => {
+  it("is 0.9.4 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are Y7b2's bb-0.9.3 (BAL-2's were bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
-    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.3", "0.9.3", "0.9.3", "0.9.3"]);
+    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.4", "0.9.4", "0.9.4", "0.9.4"]);
     expect(RULES_VERSION).toBe("bb-0.9.3") /* Y7b2: the bump (was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
   });
 });
