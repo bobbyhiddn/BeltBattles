@@ -9,6 +9,7 @@ import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): a Burn stack's dam
 import { factorySpeed, rateMul, secPer } from "./content"; // NUM-2 (REQ-BFG-047): SPEED, whole rate %s
 import { WIND_START, sustainLive } from "./content"; // BOTS-X (SUS-C, REQ-BFG-069): the bots' sustain value
 import { AMMO, SHAPE_ARROWS, rigShape } from "./content"; // Y2 (release Y): release Y's prices (STAR_EQ)
+import { JAM_COOLDOWN, JAM_THRESHOLD } from "./content"; // the overfeed (ruling Y7B1-Q4): a jammed gun's lost shots
 import { roundHalfUp } from "./pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
 import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
@@ -572,8 +573,15 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       const spallShare = md.spall && platedDeck(b) ? STAR_EQ.spallPlated : 1;
       if (!md.fireRate && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m)) * seamShare * spallShare;
     }
-    offense += thr * eq * mult;
-    out?.turretDmg?.set(t, thr * eq * mult); // BOTS-X: read only
+    // The overfeed (ruling Y7B1-Q4; it rides with the next rules bump and its regeneration): fed past its rate, a gun's
+    // queue grows (arrival - cap) loads a second; once JAM_THRESHOLD of them wait at its busy chamber it skips a shot
+    // (battle.ts turret loop), at most one every JAM_COOLDOWN s, for the rest of the fight. So from the queue's fill (its
+    // first shot + JAM_THRESHOLD / (arrival - cap)) it fires (1 - interval / JAM_COOLDOWN) of its shots. firedShare's
+    // curve stands for the loading window and the stalls; a noJam gun never jams.
+    const fill = arrival > cap && !noJam ? start + JAM_THRESHOLD / (arrival - cap) : Infinity;
+    const jamKeep = 1 - (Math.min(1, interval / JAM_COOLDOWN) * Math.max(0, fight - fill)) / fight;
+    offense += thr * eq * mult * jamKeep;
+    out?.turretDmg?.set(t, thr * eq * mult * jamKeep); // BOTS-X: read only
   }
   // 0.8.0 P1: ARMOR PRESS plating a second joins the repair rate (half a fight's worth, as RIVETER's)
   let defense = h.hull + b.hullBonus + (repair + plating) * fight * 0.5;
