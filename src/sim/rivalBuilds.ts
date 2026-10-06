@@ -372,20 +372,36 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs on his three plates, 4/5/6/7 in all on
       // days 7-10 (the FURNACE par field's count), as his stand-in's gold allows; his good-luck road deck pays for them
       // with its TURRET SPEED level 2 (day 8 before; no later day's gold holds it)
-      soon(5, G(6, "longhaul", 5, 1)), P(7),
       // Y7b2 (the regenerated caps, bb-0.9.3): at ordinary luck the flak 7 -> 8 (FURNACE ordinary rare+ d7, cap 5 -> 4: stand-in
-      // 5 > 4; the part that arrives on day 7, non-synergy); soon() keeps the warlord's day 6; right after P(7), the last entry
-      // with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
-      soon(6, M(8, "flak", 0)), P(8), soon(7, G(9, "counterweight", 1, 2)),
+      // 5 > 4; the part that arrives on day 7, non-synergy); right after P(7), the last entry with an earlier day; re-placed in
+      // day order (cap's ruling 1cfdc5fff106d58f)
       // CATCHUP-093 (the Hard band on release Y's field; cap's ruling HB 678fb328359e02f1 (B): one part one day earlier at
       // good luck only; his paid packs already meet the par count, so fallback 2 has no room): the static brush (rare,
       // good luck only) on day 8 (was 9). His day-8 road deck 17 -> 25%, walls 97 / 100 -> 85 / 100; value 78 -> 73 g (his
       // levels give way, captainLevels' own room rule; FURNACE good cap 97, R1 97), rare+ 7 of 7
-      M2(9, "scatter", 0), ...good(soon(8, G(9, "staticbrush", 5, 2))), P(9),
       // REDO-X (cap's ruling 97e639e5813acb37): at ordinary luck the grease on day 10 (was 9; FURNACE's ordinary value cap
-      // is 103 on day 9, his stand-in 104 with it; the day's cheapest non-synergy part); soon() keeps the warlord's day 7;
-      // right after P(9), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
-      soon(7, G(10, "grease", 1, 4, 1)), P(10),
+      // is 103 on day 9, his stand-in 104 with it; the day's cheapest non-synergy part); right after P(9), the last entry
+      // with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
+      // CATCHUP-097 (BRIEF-CATCHUP-097 target 2: the re-plan of OLD BULWARK's good-luck road deck for release Z's field,
+      // authorized by the brief; REVIEW-CATCHUP093 ruling 1, BULWARK first). His road deck read 40 / 29 / 17 / 21 / 24 / 42 /
+      // 38% against the four par fields on days 4-10 at zbump-accepted, his paid packs over the par count. kit097 capsearch
+      // grow (--tier good --from 5, rated against all four par fields, his prize held at or under today's best Hard prize)
+      // regrew his good-luck parts from day 5; that overshot the walls on days 6-10, so the plan keeps the grow's day-5 and
+      // day-6 buys and one of its later ones, each placement measured (kit097 tqprobe, K 24 on parBench's seeds), all good
+      // luck only: the BELLOWS (rare) and the quench's second star on day 5, paid by the long haul's good day 5 -> 6 (its
+      // ordinary day; day 5 holds value 50 of R1 50, rare+ 4 of 4); the grease 7 -> 6; the flak 6 -> 8 and the counterweight
+      // 7 -> 9 (their ordinary days: the bellows holds a rare slot, FURNACE good rare+ 5 / 6 / 7 on days 6-8); the scatter's
+      // second star on day 7 (ordinary 9); the static brush stays on day 8 at a new cell, (3,3) (the bellows holds (5,2));
+      // and a SWIVEL GUN in his empty second slot with a DRAG CHAIN FOUNDRY feeding it on day 10 (good turrets 1 of 1). His
+      // road deck reads 52 / 55 / 53 / 64 / 57 / 61% on days 5-10 (was 29 / 17 / 21 / 24 / 42 / 38), his walls (FURNACE /
+      // WEAVER P75) at least 90 / 99, 57 / 100, 59 / 100, 44 / 90, 63 / 94, 61 / 82. capsearch: check ok, the pays column
+      // unchanged (his prize 4-5 g). The ordinary plan (his stand-in deck) is unchanged: every untagged entry keeps its day
+      // and its place, so the stand-in deck changes only its later uids
+      ...good(G(5, "bellows", 5, 2), G2(5, "quench", 3, 1)),
+      G(6, "longhaul", 5, 1), P(7),
+      M(8, "flak", 0), P(8), G(9, "counterweight", 1, 2),
+      soon(7, M2(9, "scatter", 0)), P(9), ...good(soon(8, G(9, "staticbrush", 3, 3))),
+      ...good(T(10, "swivel", 1), X(10, F("dragchain", 6, 1, [8, 1, "U"]))), soon(6, G(10, "grease", 1, 4, 1)), P(10),
     ],
   },
   // ---------------------------------------------------------------- Hard (tier 3)
@@ -442,7 +458,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // day 5, each only while every wall holds): her road deck read 38% on day 4 and 31% on day 5 with none of the WEAVER
     // par field's 2 packs; one PvE plate each day (51% and 38%; day-4 FURNACE walls 59 -> 41, day 5 57 -> 43; two plates
     // read 31 and 28)
-    pve: { 4: 1, 5: 1, 8: 2 },
+    // CATCHUP-097 (the walls on release Z's field, RULINGS-C089 rule 5 and cap's ruling Q2 f77489ebe2e11698 rule 4; Q1
+    // e2ca295ce9dcd60a rule 5: fallback 2 is trimmed first): the day-5 plate goes (1 -> 0). With it the par field's top
+    // quartile beat her day-5 road deck 38% of the time (FURNACE; 44% at 1210ee8, 44 at 0.9.4); without it 51%
+    pve: { 4: 1, 8: 2 },
   },
   // RIG CHAIN: one long cinder belt. Synergy: a WHETSTONE from day 1 (2 stars from day 7) heads a chain of rigs
   // (venom, a counterweight, a hullbreaker core) that a LONG HAUL cashes in from day 5 (+2 damage per hit already
@@ -478,7 +497,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // unchanged). His day-5 road deck 13 -> 42% (walls 100 / 100); value 27 -> 30 g (FURNACE good cap 51, R1 50), rare+ 4
       // of 4. The counterweight stays on day 6 (target 7): a day earlier at good luck its rare reads 5 over day 5's good
       // rare+ cap of 4, and no non-synergy rare of his can leave day 5 (the LONG HAUL there is a synergy part)
-      G(6, "counterweight", 4, 4, 1), soon(5, G(6, "temper", 1, 4, 1)),
+      // CATCHUP-097 (the Hard band on release Z's field; HB 678fb328359e02f1 (B), REVIEW-CATCHUP093 ruling 1: LONGTOOTH's
+      // early days after BULWARK): the temper (common) on day 4 at good luck (was 5; ordinary day 6 unchanged). capsearch
+      // bmoves: value 27 -> 30 g (FURNACE good cap 38, R1 38), rare+ 4 of 4, roadCap unchanged
+      G(6, "counterweight", 4, 4, 1), soon(4, G(6, "temper", 1, 4, 1)),
       // bb-0.8.3 (job BELTS run 4): the RAILGUN at good luck only (the warlord's day 9 kept): the regenerated caps give the
       // stand-in no bought turret on any day and one epic+ on day 9 (its OVERDRIVE)
       // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 0/0/1/3/3/3/3/5 on days 3-10 (the FURNACE
@@ -488,7 +510,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // one on day 5 (61%), the other two on day 6
       // CATCHUP-093: one of the two day-6 packs is his day-4 pack (above), so days 6-10 hold what they held (a third pack
       // from day 4 on read his day-8 stand-in at 91 g, over the ordinary value cap of 90)
-      G2(6, "whetstone", 2, 2), P(6), M(7, "mantlet", 0), G(8, "overdrive", 7, 6), ...good(T(9, "railgun", 0)), P(10, 2),
+      // CATCHUP-097 (HB 678fb328359e02f1 (B), LONGTOOTH's early days): the whetstone's second star (common, synergy) on day 5
+      // at good luck (ordinary day 6 unchanged). capsearch bmoves: value 35 -> 38 g (FURNACE good cap 52, R1 50), star2 1 of 2
+      soon(5, G2(6, "whetstone", 2, 2)), P(6), M(7, "mantlet", 0), G(8, "overdrive", 7, 6), ...good(T(9, "railgun", 0)), P(10, 2),
     ],
     // CATCHUP-093 fallback 2 (cap's ruling Q1 e2ca295ce9dcd60a rule 4 and HB 678fb328359e02f1: a Hard captain under 0.55 on
     // release Y's field, up to the FURNACE par field's count 1 / 2 / 6 / 7 less his paid packs 0 / 1 / 3 / 5): his road deck
@@ -574,9 +598,15 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // 0.8.9 (CATCHUP-089, cap's ruling Q2 f77489ebe2e11698, the walls): no ARMOR PACKs beside her three plates. With the
       // 1/3/4 more her gold allowed on days 8-10 the par field's top decile beat her day-10 deck 3% of the time (4% with
       // 3 more), against 18% at 1210ee8, the floor; her plan stays 1210ee8's
+      // CATCHUP-097 (BRIEF-CATCHUP-097 target 5, the Iron Matriarch the hardest on days 8-10; her plates the brief's lever,
+      // walls first, ruling 3c58471c74bdc4ed Q3): one ARMOR PACK more on each of days 8, 9 and 10 (P(8), P(9), P(10), each
+      // at the end of its day), so she holds 4 / 5 / 6 plates on days 8-10, the FURNACE par field's count 4 / 6 / 6 at most.
+      // Her ladder margins -0.478 / -0.345 / -0.336 -> -0.509 / -0.416 / -0.424; her walls (P90 FURNACE / WEAVER) day 8
+      // 68 / 100 -> 48 / 100, day 9 85 / 100 -> 82 / 95, day 10 92 / 100 -> 78 / 96 (floor 18); value 72 / 77 / 80 ->
+      // 77 / 87 / 95 g, within R1
       ...stars(
         P(8), P(8), P(8), G(8, "brake", 3, 0, 1), G(8, "longhaul", 6, 0), M(8, "lance", 0), G(8, "temper", 4, 2, 1),
-        G(8, "whetstone", 6, 1, 3), G2(8, "temper", 4, 2), M(9, "flak", 0), G(10, "temper", 6, 2, 3),
+        G(8, "whetstone", 6, 1, 3), G2(8, "temper", 4, 2), P(8), M(9, "flak", 0), P(9), G(10, "temper", 6, 2, 3), P(10),
       ),
     ],
   },
@@ -776,7 +806,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // release Y's field, up to the BASTION par field's count 2 / 2 / 6 / 7 / 8 less his paid packs 0 / 0 / 3 / 3 / 5 on days
     // 4 / 5 / 8 / 9 / 10; day 7's plate as before): his road deck read 44 / 32 / 35 / 45 / 38%; with the plates
     // 58 / 49 / 54 / 70 / 59%, his walls (FURNACE / WEAVER) 68 / 97, 45 / 92, 79 / 92, 73 / 76, 87 / 76
-    pve: { 4: 2, 5: 2, 7: 1, 8: 3, 9: 4, 10: 3 },
+    // CATCHUP-097 (the walls on release Z's field, RULINGS-C089 rule 5 and cap's ruling Q2 f77489ebe2e11698 rule 4; Q1
+    // e2ca295ce9dcd60a rule 5: fallback 2 is trimmed first): one day-5 plate goes (2 -> 1). With both the par field's top
+    // quartile beat his day-5 road deck 38% of the time (FURNACE; 91% at 1210ee8, 45 at 0.9.4); with one 44%, with none 53
+    pve: { 4: 2, 5: 1, 7: 1, 8: 3, 9: 4, 10: 3 },
   },
   // ---------------------------------------------------------------- dusk stand-ins only (standInOnly), FURNACE and WEAVER
   // TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into connector 5 (day 2, 2 stars from
