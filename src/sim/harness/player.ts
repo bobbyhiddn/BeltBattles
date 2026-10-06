@@ -73,6 +73,8 @@ import { MAX_TILES, Shopper } from "./shopper";
 import { blockedCells, freeConnectors, randomPath, shortestTiles, startCells } from "./path";
 import { syncOf, syncedTurrets } from "../syncEstimate"; // 0.8.0 B1 M1: FOUNDRY's sync guard (syncKeeper)
 import { BOT_RUNES, botTakeRune, runeGrants } from "../runes"; // RUNES-2a (REQ-BFG-058): the bots' dawn rune, behind BOT_RUNES
+import { lastChanceOffer, lastChanceRuneAt, type Boon } from "../lastChance"; // LC-1 (REQ-BFG-073)
+import { lcRunes, takeLastChance } from "../../game/run"; // LC-1: the game's own pick
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
 
@@ -133,6 +135,11 @@ export interface PlayerOpts {
   // RUNES-2a (REQ-BFG-058): the player takes a rune at every dawn, before the shop (runes.ts botTakeRune on the run's own
   // seed). Absent: runes.ts BOT_RUNES, THE switch (off in this rules version, so every run plays exactly as before).
   botRunes?: boolean;
+  // LC-1 (REQ-BFG-073): the run's LAST CHANCE (the bench, the stand-ins' and captains' modeled runs): at the dawn after
+  // `day`, before that dawn's rune, the player takes card `boon` of lastChance.ts lastChanceOffer on its own seed (a part
+  // where the bots would put it: placeFreePart). The par run pays a win every day, so it never fires one itself. Absent:
+  // none (every run and cache key exactly as before).
+  lastChance?: { day: number; boon: Boon };
 }
 
 /** An offer as the player judged it (diagnostics): its def, price, kind and the rating change it would make; a turret's
@@ -1578,7 +1585,8 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
  * the purse, no pick pending). finishDay's runeDawn pays the held dawn-gold runes at every later dawn.
  */
 function dawnRune(run: Run): void {
-  const got = botTakeRune(run.build, run.seed, run.day, run.hero, true, run.history[run.history.length - 1]?.outcome === "win");
+  // LC-1: a LAST CHANCE rune is held but no dawn's pick (lcRunes: 0 for every run without one)
+  const got = botTakeRune(run.build, run.seed, run.day, run.hero, true, run.history[run.history.length - 1]?.outcome === "win", lcRunes(run));
   if (!got) return;
   run.gold += got.gold;
   delete run.runeDay;
@@ -1597,7 +1605,8 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   const traced = !!(opts.trace || opts.onReroll || opts.onDecide);
   const runes = opts.botRunes ?? BOT_RUNES; // RUNES-2a: THE switch (off: the cache key and the run exactly as before)
   // BOTS-X: the sustain switch too (on: another run; off: the key exactly as before)
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}`;
+  const lc = opts.lastChance; // LC-1 (REQ-BFG-073): absent, the key exactly as before
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}` : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
@@ -1609,9 +1618,10 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
     if (persona.beltTiles > 0) drawKilnBelt(run, rng, persona.beltTiles);
     for (let day = 1; day <= PLAYER_DAYS; day++) {
       if (day > 1) nextDawn(run);
+      if (lc && day === lc.day + 1) lastChanceCard(run, lc.day, lc.boon, pol); // LC-1: before the dawn's rune, as the game
       if (runes && day > 1) dawnRune(run);
       const { buys, rolls } = shopDay(run, pol, maxStars, rng, spent, opts);
-      full.push({ day, build: cloneBuild(run.build), value: buildCost(run.build).total, budget: maxGoldByDay(day) + runeGrants(run.build.runes, day).gold, gold: run.gold, rerolls: rolls, rerollGold: spent.reroll, soldLoss: spent.sold, buys });
+      full.push({ day, build: cloneBuild(run.build), value: buildCost(run.build).total, budget: maxGoldByDay(day) + runeGrants(run.build.runes, day, lastChanceRuneAt(run.lastChance)).gold, gold: run.gold, rerolls: rolls, rerollGold: spent.reroll, soldLoss: spent.sold, buys });
       if (traced && day >= days) break;
     }
     if (!traced) CACHE.set(key, full);
@@ -1623,6 +1633,50 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
 export function playerBuild(hero: HeroId, day: number, seed: number, opts: PlayerOpts = {}): Build {
   const d = Math.max(1, Math.min(PLAYER_DAYS, Math.floor(day)));
   return playerRun(hero, d, seed, opts)[d - 1].build;
+}
+
+// ---------------------------------------------------------------- LC-1 (REQ-BFG-073): LAST CHANCE's cards for the bots
+
+/**
+ * LC-1: where the bots put a FREE part (LAST CHANCE's PART card): the par player's own judgment of an offer (candidates:
+ * the best spot by the rating's gain, a merge, a rig beside a belt, gear in a free gear slot, a factory with its belts, a
+ * turret's plan), on the run with a caravan of that one part at price 0, then taken through buy() as a shop buy is (the run's
+ * caravan comes back after). A part that rates no gain anywhere goes to cargo (gainModule). `rng`: the caller's own stream
+ * (never the policy's). Mutates `run`; returns the rating gain and whether it was placed.
+ */
+export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs = knobsOf("typical")): { rel: number; placed: boolean } {
+  const shop = run.shop, merchant = ITEMS[def]?.merchant;
+  if (!merchant) throw new Error(`placeFreePart: ${def} is not a shop part`);
+  run.shop = { wagons: [{ merchant, offers: [{ def, price: 0, sold: false }] }], rerolls: 0, discount: 0, free: 0 };
+  try {
+    let best: Cand | null = null;
+    for (const c of allowed(candidates(run, FUSE_MAX, rng, pol))) {
+      if (c.wagon !== 0 || c.slot !== 0 || c.def !== def) continue;
+      if (!best || c.rel > best.rel) best = c;
+    }
+    if (best && best.rel > 0) {
+      buy(run, best, "best", 0, []);
+      return { rel: best.rel, placed: true };
+    }
+    gainModule(run, def);
+    return { rel: 0, placed: false };
+  } finally {
+    run.shop = shop;
+  }
+}
+
+/** LC-1: the par run's LAST CHANCE card at the dawn after `day` (playerRun's opts.lastChance): the game's takeLastChance
+ *  for the rune and the hull; the part placed by placeFreePart (on its own stream), recorded as the game records it. */
+function lastChanceCard(run: Run, day: number, boon: Boon, pol: PolicyKnobs): void {
+  run.lastChance = { day };
+  if (boon !== "part") {
+    if (!takeLastChance(run, boon).ok) throw new Error(`par player: LAST CHANCE ${boon} on day ${day} was refused`);
+    return;
+  }
+  const id = lastChanceOffer(run.seed, day, run.hero, (run.build.runes ?? []).map((q) => q.id)).part;
+  if (!id) throw new Error(`par player: no LAST CHANCE part on day ${day}`);
+  placeFreePart(run, id, new Rng(hashSeed("lastchance-place", run.hero, run.seed, day)), pol);
+  run.lastChance = { day, boon, id };
 }
 
 // ---------------------------------------------------------------- bench helper (CAND-A: parBench's ablations)
