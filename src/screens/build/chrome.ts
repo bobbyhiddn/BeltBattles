@@ -19,7 +19,7 @@ import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
 import type { BuildScreen } from "./build";
-import { drawCard, drawPack, drawReroll, drawTag, drawTooltip } from "./shop";
+import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
 import { drawDetails, drawFoe, hasDetails, textOpts } from "./inspector";
 import { abilityText, cardText } from "../../ui/abilityText"; // 0.6.2t (T5): the card's one-line effect, the tooltip's
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
@@ -249,8 +249,10 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   if (s.hover && !c && s.caravan.ready) {
     const idx = s.offers().findIndex((q) => q.wagon === s.hover!.wagon && q.slot === s.hover!.slot);
     const o = s.run.shop.wagons[s.hover.wagon]?.offers[s.hover.slot];
-    // 0.6.2t (T5): the offer's opening sentence, as its panel and card read it
-    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, abilityText(o.def, 1, textOpts(s.run)).sentences[0] ?? "");
+    // 0.6.2t (T5): the offer's opening sentence, as its panel and card read it. TXT-095 (REQ-BFG-070, REQ-BFG-046): faces
+    // first, as the pack tooltip below: the face's first rule line (with the run's TextOpts), else that sentence
+    // (shop.ts offerTooltip; was that opening sentence alone)
+    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerTooltip(o.def, textOpts(s.run)));
   }
   // bb-0.8.6 (REQ-BFG-051, PACKS P5): a mouse over a pack slot: its name and one-line text, as an offer's tooltip reads
   const ph = s.refit || c ? -1 : PACK_IDS.findIndex((id) => ui.hover === `pack-${id}`);

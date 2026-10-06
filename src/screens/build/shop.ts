@@ -11,6 +11,8 @@ import { coinIcon, itemIcon } from "../../render/sprites";
 import type { Rect } from "../../ui/ui";
 import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
 import { drawFamilyMarks, familiesText, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
+import { faceLines } from "../../ui/faces"; // TXT-095: the offer's tooltip, faces first (offerTooltip)
+import { abilityText, type TextOpts } from "../../ui/abilityText"; // TXT-095: its fallback, the kept opening sentence
 import { CARD_W } from "./layout";
 
 export const MERCHANT_COLOR: Record<MerchantId, string> = {
@@ -246,8 +248,17 @@ export function tooltipLines(text: string): RichLine[] {
   return text ? wrapRich(colourize(text, C.bone), TOOLTIP_TEXT_W, "3") : [];
 }
 
+/** TXT-095 (REQ-BFG-070, REQ-BFG-046; ACCEPT-093's tooltip finding): a shop offer's hover tooltip text (chrome.ts), faces
+ *  first, as the pack tooltip reads it: the piece's face's first rule line at ★1 (faceLines, with the run's TextOpts, as
+ *  its panel draws the face, so a core's number is the run's gun's), else its kept text's opening sentence (abilityText;
+ *  a piece without a face: the 4 faceless factories and the 13 guns), else "". Was abilityText(...).sentences[0] alone. */
+export function offerTooltip(def: string, o: TextOpts = {}): string {
+  return faceLines(def, 1, o)?.rules[0]?.text ?? abilityText(def, 1, o).sentences[0] ?? "";
+}
+
 /** Floating hover tooltip under a card (mouse only). 0.6.2t (T5): `text` is the offer's opening sentence from the
- *  glossary (abilityText.ts, at 1 star and the hero's class factor), wrapped by the one helper, as its panel reads it. */
+ *  glossary (abilityText.ts, at 1 star and the hero's class factor), wrapped by the one helper, as its panel reads it.
+ *  TXT-095: an offer's `text` is offerTooltip's (its face's first rule line first), as a pack's is (chrome.ts). */
 export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text = ""): void {
   const lines = tooltipLines(text);
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families, named in their colours under its kind (none: no line)
