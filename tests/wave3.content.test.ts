@@ -255,7 +255,9 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
   const SIX = new Set(["brasswick", "voss", "grimhold", "karsk", "lockjaw", "thistlemail"]);
   // Y7b2 (the pools): title "the regrown stand-in pool holds the 14 pinned below" -> 13 (the set pinned below holds 13 since
   // BAL-2, and 13 again after the regeneration at 4d772e4)
-  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds the 13 pinned below, and the switch off refuses each such deck for them alone", () => {
+  // Z-BUMP (the pools): title "the regrown stand-in pool holds the 13 pinned below" -> 12 (SHIELD WALL went out at the
+  // regeneration at 2c4ba76; "the 13" before it are BASE's captains and stay)
+  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds the 12 pinned below, and the switch off refuses each such deck for them alone", () => {
     const parts = (b: Build) => [...b.items.map((p) => p.def), ...b.mods.map((m) => m.def), ...(b.turrets ?? []).map((t) => t.def)];
     const family = (b: Build) => parts(b).filter((d) => isWave3(d) && (ITEMS[d].tags ?? []).some((t) => t === "TWIN" || t === "PLATE"));
     for (const id of RIVAL_IDS) for (const day of rivalDays(id)) {
@@ -300,8 +302,11 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
     // TWIN LATCH no longer reach a stand-in pick, SHIELD WALL (IRON WALL) and TWIN TRIGGER reach one again (all four are
     // still sold in the shops) (was "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller",
     // "seamwelder", "spallcatcher", "steambreech", "stoker", "twingauge", "twinlatch", "twinmould")
+    // Z-BUMP (the pools): S6 lane 1 (2c4ba76; the regeneration on bb-0.9.7, the only file it changed): 12 of the 15, the
+    // regrown set: SHIELD WALL (IRON WALL) no longer reaches a stand-in pick (it is still sold in the shops); none came in
+    // (was the 13 with "shieldwall")
     expect([...inPool].sort()).toEqual([
-      "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder", "shieldwall",
+      "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder",
       "spallcatcher", "stoker", "twingauge", "twinmould", "twintrigger",
     ]);
     expect(inPool.has("stoker")).toBe(true);
