@@ -461,7 +461,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // CATCHUP-093 (the Hard band on release Y's field; cap's ruling HB 678fb328359e02f1 (B): one part one day earlier at
       // good luck only, after fallback 2): the LONG HAUL (rare, synergy) on day 4 at good luck (ordinary day 5 unchanged).
       // His day-4 road deck 9 -> 24% (walls 100 / 100); value 17 -> 22 g (FURNACE good cap 39, R1 38), rare+ 4 of 4
-      ...good(soon(3, G(4, "riveter", 3, 1))), M(4, "hullbreaker", 0), soon(4, G(5, "longhaul", 5, 3)), P(5),
+      // CATCHUP-093 (the named stand-ins on release Y's field; cap's ruling Q1 e2ca295ce9dcd60a rule 1: an untagged ARMOR PACK
+      // within the par count and the stand-in deck's gold): a pack on day 4 (P(4), at the end of the day; one of his day-6
+      // pair), so his decks hold 1 / 2 packs on days 4 / 5 (were 0 / 1) and the same from day 6; fallback 2 gives way on days
+      // 4-5 (paid + PvE within the count)
+      ...good(soon(3, G(4, "riveter", 3, 1))), M(4, "hullbreaker", 0), P(4), soon(4, G(5, "longhaul", 5, 3)), P(5),
       // CATCHUP-091 (the Hard band on day 4, cap's ruling 3c58471c74bdc4ed Q5 (1); FLIP-X2's candidate move, REDO-X section 4
       // and BAL-2 section 7: it fits day 4 again): the counterweight back on day 4 at ordinary luck (was 6), re-placed in day
       // order right after the hullbreaker; soon() keeps the warlord's day 3
@@ -482,13 +486,15 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // leave again). The walls (cap's ruling Q2 f77489ebe2e11698): the gold allowed 1/1/2 on days 3-5, and with them the
       // par field's top quartile beat his road deck only 11-39% of the time (66-84% at 1210ee8): none before day 5 and
       // one on day 5 (61%), the other two on day 6
-      G2(6, "whetstone", 2, 2), P(6, 2), M(7, "mantlet", 0), G(8, "overdrive", 7, 6), ...good(T(9, "railgun", 0)), P(10, 2),
+      // CATCHUP-093: one of the two day-6 packs is his day-4 pack (above), so days 6-10 hold what they held (a third pack
+      // from day 4 on read his day-8 stand-in at 91 g, over the ordinary value cap of 90)
+      G2(6, "whetstone", 2, 2), P(6), M(7, "mantlet", 0), G(8, "overdrive", 7, 6), ...good(T(9, "railgun", 0)), P(10, 2),
     ],
     // CATCHUP-093 fallback 2 (cap's ruling Q1 e2ca295ce9dcd60a rule 4 and HB 678fb328359e02f1: a Hard captain under 0.55 on
     // release Y's field, up to the FURNACE par field's count 1 / 2 / 6 / 7 less his paid packs 0 / 1 / 3 / 5): his road deck
     // read 5 / 9 / 38 / 32% on days 4 / 5 / 9 / 10; with the plates 9 / 13 / 54 / 45%, his walls 100 / 100, 100 / 100,
-    // 75 / 95, 84 / 98
-    pve: { 4: 1, 5: 1, 9: 3, 10: 2 },
+    // 75 / 95, 84 / 98. With his day-4 pack (the stand-ins, above) paid + PvE stays within the count: days 4-5 1 -> 0
+    pve: { 9: 3, 10: 2 },
   },
   // TRIPLE THREAT: synergy: burn left (a TEMPER on the left belt from day 1, 2 stars from day 6), a LONG HAUL on the
   // right from day 4 (2 stars the same day) and a SPLITTER in the centre from day 5 (an epic: ordinary luck owns none
@@ -629,7 +635,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // on day 8 instead (P(8, 3) -> P(8, 4); 1210ee8, the floor, had none on days 3-7). With it the par field's top
       // quartile beat his road deck only 31 / 23% (FURNACE / WEAVER) on day 3 and 36 / 27% on day 4; without it 69 / 43
       // and 49 / 68, and day 6 FURNACE 42 (with the rune rule's TWIN SUNS skip)
-      soon(2, G(4, "twinlatch", 3, 2)), M2(4, "twintrigger", 0),
+      // CATCHUP-093 (the named stand-ins on release Y's field; cap's ruling Q1 e2ca295ce9dcd60a rule 1: untagged ARMOR PACKs
+      // within the FOUNDRY par field's count 2 and the stand-in deck's gold): two packs on day 4 (P(4, 2), at the end of the
+      // day; two of his day-8 four), so his decks hold 2 packs on days 4-7 (were 0) and the same from day 8; fallback 2 gives
+      // way below (paid + PvE within the count)
+      soon(2, G(4, "twinlatch", 3, 2)), M2(4, "twintrigger", 0), P(4, 2),
       // BAL-2 step 6 (cap's ruling 97e639e5813acb37): the counterweight (rare, non-synergy) on day 5 at ordinary luck (was
       // 3; FOUNDRY's ordinary rare+ cap fell 3 -> 2 on day 4, where the TWIN LATCH and TWIN TRIGGER hold both); soon()
       // keeps the warlord's day 3; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
@@ -644,7 +654,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // CATCHUP-091 (the walls; lever d, cap's ruling 3c58471c74bdc4ed Q1): the good-luck flak on day 8 (was 7, PACKS M4's
       // ladder move). With it on day 7 the par field's top quartile beat his day-7 road deck 19% of the time (FURNACE; 72%
       // at 1210ee8); a day later 49%
-      M2(7, "compound", 0), ...good(M(8, "flak", 1)), P(8, 4), ...good(G2(9, "twinlatch", 3, 2)),
+      // CATCHUP-093: two of the four day-8 packs are the day-4 pair (above), so days 8-10 hold what they held (with all six his
+      // dusk deck's TURRET SPEED level 2 left day 8)
+      M2(7, "compound", 0), ...good(M(8, "flak", 1)), P(8, 2), ...good(G2(9, "twinlatch", 3, 2)),
       ...good(G(10, "whetstone", 5, 2, 3)), P(10),
     ],
     // CATCHUP-091 fallback 2 (cap's ruling Q1 e2ca295ce9dcd60a rule 4; ruling 3c58471c74bdc4ed Q1: the Hard band on day 5,
@@ -654,7 +666,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // release Y's field, up to the FOUNDRY par field's count 2 / 2 / 3 / 4 / 6 / 7 / 8 less his paid packs 0 / 0 / 0 / 0 /
     // 4 / 4 / 5 on days 4-10): with his rune rule (TWIN NAILS from day 2) his road deck read 44 / 38 / 34 / 35 / 48 / 30 / 28%;
     // with the plates 64 / 49 / 64 / 60 / 56 / 46 / 37%, his walls (FURNACE / WEAVER) at least 48 / 71 (day 6)
-    pve: { 4: 2, 5: 2, 6: 3, 7: 4, 8: 2, 9: 3, 10: 3 },
+    // With his day-4 packs (the stand-ins, above) paid + PvE stays within the count: days 4-7 2 / 2 / 3 / 4 -> 0 / 0 / 1 / 2
+    pve: { 6: 1, 7: 2, 8: 2, 9: 3, 10: 3 },
   },
   // ---------------------------------------------------------------- Medium (tier 2), BASTION
   // ANVIL WALL: the Wardworks' bulwark belt plates the hull as it fires, and plating makes every shot hit harder. Synergy:
@@ -766,7 +779,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     upgrades: [
       G(1, "twingauge", 3, 0, 1), G(1, "whetstone", 2, 1, 1), X(2, F("twinmould", 6, 6, [7, 5, "L2U5"]), 1),
       // bb-0.8.6 (job PACKS M4): the gauge's second star on day 4 (was 3; FURNACE's ordinary 2-star cap is 0 on day 3)
-      G(3, "twinlatch", 4, 5), G2(4, "twingauge", 3, 0), G(4, "temper", 2, 2, 1), G(4, "bellows", 6, 0),
+      // CATCHUP-093 (the named stand-ins on release Y's field; cap's ruling Q1 e2ca295ce9dcd60a rule 1): an untagged ARMOR PACK
+      // on day 4 (P(4), at the end of the day; the FURNACE par field's count 1; his day-8 pack, below), within his dusk deck's
+      // gold
+      G(3, "twinlatch", 4, 5), G2(4, "twingauge", 3, 0), G(4, "temper", 2, 2, 1), G(4, "bellows", 6, 0), P(4),
       // FLIP-X2 step 4.4 (cap's ruling 97e639e5813acb37): at ordinary luck the twin trigger on day 6 (was 5; FURNACE's
       // ordinary rare cap is 3 on day 5); soon() keeps day 5 at good luck
       // ... re-placed in day order (cap's ruling 1cfdc5fff106d58f): right after the last entry with an earlier day
@@ -778,7 +794,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // Y7b2 (the regenerated caps, bb-0.9.3): at ordinary luck the counterweight 7 -> 8 (FURNACE ordinary rare+ d7, cap 5 -> 4:
       // stand-in 5 > 4; the part that arrives on day 7, non-synergy); soon() keeps day 7 at good luck; right after
       // G(6, twingauge), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
-      soon(7, G(8, "counterweight", 4, 3)), P(8), G(9, "quench", 4, 2), G(9, "grease", 2, 4, 2),
+      // CATCHUP-093: his day-8 pack is the day-4 one now (above), so days 8-10 hold what they held (with both, his dusk deck's
+      // TURRET SPEED level 2 left days 8 and 10)
+      soon(7, G(8, "counterweight", 4, 3)), G(9, "quench", 4, 2), G(9, "grease", 2, 4, 2),
       // REDO-X (cap's rulings 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the temper's second star on day 10 (was
       // 9; FURNACE's ordinary star2 cap is 2 on day 9; a non-synergy part); soon() keeps day 9 at good luck; right after
       // G(9, grease), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
