@@ -41,11 +41,6 @@ function cached(k: string, make: () => Cv): Cv {
   return c;
 }
 
-/** Drop every cached carrier canvas (a resize or a DPR change rebuilds them lazily; they are size-independent). */
-export function clearCarrierCache(): void {
-  cache.clear();
-}
-
 /** Half the beam at x along the hull (0 stern .. L-1 bow): a broad, flared stern with rounded quarters, straight sides
  *  under the board, and a long pointed bow. */
 export function halfBeam(x: number): number {
