@@ -256,24 +256,33 @@ export function invertAffine(m: Affine, x: number, y: number, out: number[]): nu
   return out;
 }
 
-/** Per-frame ms split for ?perf=1 (and the frame-time runs): backdrop, hulls, boards, shots, effects. */
+/** Per-frame ms split for ?perf=1 (and the frame-time runs): backdrop, hulls, boards, shots, effects; "world" is the
+ *  whole of today's drawArena when motion is off (?motion=0&perf=1), which has no finer split. */
 export class MotionPerf {
   static readonly N = 240;
-  readonly keys = ["backdrop", "hulls", "boards", "shots", "effects"] as const;
+  readonly keys = ["backdrop", "hulls", "boards", "shots", "effects", "world"] as const;
   readonly ms: Float32Array[] = this.keys.map(() => new Float32Array(MotionPerf.N));
   n = 0;
-  private cur = new Float32Array(5);
+  /** Running totals since the page loaded (the frame-time runs difference two readings). */
+  readonly sum = new Float64Array(6);
+  private cur = new Float32Array(6);
   add(k: number, ms: number): void {
     this.cur[k] += ms;
   }
   /** Close a frame. */
   frame(): void {
     const i = this.n % MotionPerf.N;
-    for (let k = 0; k < 5; k++) {
+    for (let k = 0; k < 6; k++) {
       this.ms[k][i] = this.cur[k];
+      this.sum[k] += this.cur[k];
       this.cur[k] = 0;
     }
     this.n++;
+  }
+  totals(): { frames: number; ms: Record<string, number> } {
+    const ms: Record<string, number> = {};
+    this.keys.forEach((key, k) => { ms[key] = this.sum[k]; });
+    return { frames: this.n, ms };
   }
   /** Mean ms per frame of each pass over the last `n` frames. */
   mean(n = MotionPerf.N): Record<string, number> {

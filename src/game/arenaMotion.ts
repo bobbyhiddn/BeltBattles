@@ -39,8 +39,11 @@ export class ArenaMotion implements ShotMap {
   readonly sea = new SeaBackdrop();
   readonly perf: MotionPerf | null;
   readonly kind: SeaKind;
-  /** Each board's map from rest-screen space to the screen, this frame (the shake included). */
+  /** Each board's map from rest-screen space to the screen, this frame (the camera shake included: what is drawn). */
   readonly aff: [Affine, Affine] = [{ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }];
+  /** The same without the camera shake: carrier x board alone, what a tap hit-tests through (a hit's shake, a few px for a
+   *  frame or two, must not move the tile under a finger). */
+  readonly hitAff: [Affine, Affine] = [{ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }];
   /** Each carrier's pivot on screen this frame (logical px), and its drawn heading (whole degrees). */
   readonly pivot: [number, number][] = [[0, 0], [0, 0]];
   readonly bankDrawn: [number, number] = [0, 0];
@@ -79,7 +82,8 @@ export class ArenaMotion implements ShotMap {
       const cx = hb.x + hb.w / 2, cy = hb.y + hb.h / 2;
       const p = this.model.pose(s, this.model.t, this.pose);
       const dx = Math.round(p.x), dy = Math.round(p.y);
-      boardAffine(cx, cy, dx + ox, dy + oy, p.bank, p.gimbal, this.aff[s]);
+      const H = boardAffine(cx, cy, dx, dy, p.bank, p.gimbal, this.hitAff[s]), A = this.aff[s];
+      A.a = H.a; A.b = H.b; A.c = H.c; A.d = H.d; A.e = H.e + ox; A.f = H.f + oy; // the shake: one whole-pixel translate on top
       this.pivot[s][0] = cx + dx + ox;
       this.pivot[s][1] = cy + dy + oy;
       this.bankDrawn[s] = Math.max(-BANK_MAX_DEG, Math.min(BANK_MAX_DEG, Math.round(p.bank)));
@@ -95,7 +99,7 @@ export class ArenaMotion implements ShotMap {
   hit(a: Arena, x: number, y: number): TileHit | null {
     for (const s of [0, 1] as Side[]) {
       if (!a.show[s]) continue;
-      invertAffine(this.aff[s], x, y, this.tmp);
+      invertAffine(this.hitAff[s], x, y, this.tmp);
       const f = a.drawn[s];
       const lx = localX(f, this.tmp[0], this.tmp[1]), ly = localY(f, this.tmp[0], this.tmp[1]);
       const cx = Math.floor(lx / TILE), cy = Math.floor(ly / TILE);
@@ -104,11 +108,11 @@ export class ArenaMotion implements ShotMap {
     return null;
   }
 
-  /** A tile's centre on screen now (logical px): what a tap must hit. */
+  /** A tile's centre on screen now (logical px, without the camera shake): what a tap must hit. */
   tileCentre(a: Arena, side: Side, cx: number, cy: number): [number, number] {
     const f = a.drawn[side];
     const lx = (cx + 0.5) * TILE, ly = (cy + 0.5) * TILE;
-    applyAffine(this.aff[side], sx(f, lx, ly), sy(f, lx, ly), this.tmp);
+    applyAffine(this.hitAff[side], sx(f, lx, ly), sy(f, lx, ly), this.tmp);
     return [this.tmp[0], this.tmp[1]];
   }
 

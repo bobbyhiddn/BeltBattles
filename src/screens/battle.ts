@@ -9,7 +9,7 @@ import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
 import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
 import { ArenaMotion } from "../game/arenaMotion"; // MOTION-1 (REQ-BFG-071): battles in motion (VITE_MOTION builds)
-import { MOTION, MOTION_BUILD } from "../render/motion";
+import { MOTION, MOTION_BUILD, MotionPerf } from "../render/motion";
 import { settings } from "../core/settings";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
 import { finishDay, foeTitle, ghostOf, startDusk, storedFoe } from "../game/day";
@@ -76,6 +76,8 @@ export class BattleScreen implements Screen {
   readonly motion: ArenaMotion | null = null;
   /** The drive-in distances (px) each side starts at: today's, or (motion) far enough left to sail in from off screen. */
   private driveIn: [number, number] = [60, 260];
+  /** MOTION-1: the frame-time split with motion off (?motion=0&perf=1 in a motion build only; null otherwise). */
+  readonly offPerf: MotionPerf | null = MOTION_BUILD && !MOTION.on && MOTION.perf ? new MotionPerf() : null;
 
   constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
@@ -347,6 +349,16 @@ export class BattleScreen implements Screen {
       // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion
       m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed);
       m.draw(g, a, W, H, settings.reducedMotion);
+    } else if (this.offPerf) {
+      // MOTION-1 (?motion=0&perf=1 in a motion build): the motion-base look, timed (the floor, then all of drawArena)
+      const P = this.offPerf;
+      const t0 = performance.now();
+      this.bg.draw(g, W, H, this.bgSpec, this.game.t, a.fx.shakeX, a.fx.shakeY);
+      const t1 = performance.now();
+      drawArena(g, a, W, H);
+      P.add(0, t1 - t0);
+      P.add(5, performance.now() - t1);
+      P.frame();
     } else {
       this.bg.draw(g, W, H, this.bgSpec, this.game.t, a.fx.shakeX, a.fx.shakeY);
       drawArena(g, a, W, H);

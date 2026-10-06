@@ -235,12 +235,16 @@ game.start();
   motion() {
     const s = game.screen;
     const m = s instanceof BattleScreen ? s.motion : null;
-    const base = { build: MOTION_BUILD, opts: { ...MOTION }, on: !!m };
+    const base = {
+      build: MOTION_BUILD, opts: { ...MOTION }, on: !!m, phase: s instanceof BattleScreen ? s.phase : null,
+      offPerf: s instanceof BattleScreen && s.offPerf ? s.offPerf.totals() : null,
+    };
     if (!m || !(s instanceof BattleScreen)) return base;
     return {
-      ...base, t: m.model.t, sea: m.kind, reduced: m.model.reduced, phase: s.phase, spec: m.model.spec, gap: m.model.gapAt(),
+      ...base, t: m.model.t, sea: m.kind, reduced: m.model.reduced, spec: m.model.spec, gap: m.model.gapAt(),
       poses: [m.model.pose(0), m.model.pose(1)], drawnBank: [...m.bankDrawn], lastTap: m.lastTap, taps: m.taps,
-      perf: m.perf ? m.perf.mean() : null, seaBuilds: m.sea.builds, shots: s.arena.b.projectiles.length, over: s.arena.b.over,
+      perf: m.perf ? m.perf.mean() : null, perfTotals: m.perf ? m.perf.totals() : null, seaBuilds: m.sea.builds,
+      shots: s.arena.b.projectiles.length, over: s.arena.b.over, shake: [s.arena.fx.shakeX, s.arena.fx.shakeY],
     };
   },
   /** MOTION-1 tooling: board `side`'s tile (cx, cy) centre where it is drawn now, in CSS client px (null: no motion). */
