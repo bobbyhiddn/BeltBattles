@@ -163,11 +163,17 @@ function cardRow(n: number, x0: number, y: number, perRow: number, step: number)
  * U2d (REQ-BFG-046; re-measured with the new faces, the stat-row turret panel and the notices): the tallest is still the
  * THUNDERER ★3 with a core and gear (a RAIL GUN ★3 at 316-319), 7 to 14 px shorter: 155 / 148 / 141 / 134 / 129 (was
  * 169 / 162 / 155 / 148 / 141 / 136; the step at 278 is gone); without its flavour and hint a panel needs at most 130.
+ * Y7b2 (the words, the new faces; cap's ruling e66379fbf3184e56, TEXT-STYLE 11.5: a display number, no rule), re-measured
+ * at every W 186-340: the tallest is still the THUNDERER ★3 with a core and gear (a RAIL GUN ★3 at 316-319), 7 px shorter
+ * at W 186-236: 148 at 186-193 (was 155), 141 at 194-315 (was 148 at 194-236, 141 at 237-315: the step at 237 is gone),
+ * 134 at 316-319 and 129 at 320-340 (unchanged): 148 / 141 / 134 / 129 (was 155 / 148 / 141 / 134 / 129).
  */
 export function phoneBand(W: number): number {
   // NUM-4 (REQ-BFG-047), re-measured (tests/zoom.test.ts): the turret panels' whole RATE numbers are narrower than the
   // decimal intervals, so the THUNDERER ★3 with a core and gear needs 141 from W 237 (was from 281); every other step holds
-  return W < 194 ? 155 : W < 237 ? 148 : W < 316 ? 141 : W < 320 ? 134 : 129;
+  // Y7b2 (the words; cap's ruling e66379fbf3184e56), re-measured at every W 186-340: 148 below 194 (was 155) and 141 from
+  // 194 (was 148 at 194-236); 134 and 129 hold. Was: W < 194 ? 155 : W < 237 ? 148 : W < 316 ? 141 : W < 320 ? 134 : 129
+  return W < 194 ? 148 : W < 316 ? 141 : W < 320 ? 134 : 129;
 }
 
 /** The build screen's layout. zoom (REQ-BFG-040, D2): `phone`, a portrait phone's (phoneScreen): the shop's slots in

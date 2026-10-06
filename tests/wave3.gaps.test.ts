@@ -64,8 +64,9 @@ function crossings(b: Build, route: number, tile: number, secs: number, from: nu
   return out;
 }
 
-/** One load entering side 0's heavy gun: from its belt, or from a HOPPER's store when it drops in. */
-interface Entry { tick: number; t: number; p: Payload; route: number; stored: boolean }
+/** One load entering side 0's heavy gun: from its belt, or from a HOPPER's store when it drops in.
+ *  Y7b2 (the flip): no HOPPER has a store, so `stored` (and the store's watch in chamber) is gone (switch-off only). */
+interface Entry { tick: number; t: number; p: Payload; route: number }
 interface Chamber {
   entries: Entry[]; // in the order they entered
   pairs: Map<number, number>; // pair events, by tick
@@ -80,11 +81,11 @@ function chamber(b: Build, secs: number): Chamber {
   const bt = new Battle(b, barge(), SEED);
   const routeOf = new Map(b.routes.map((r, i) => [r.factory, i] as const));
   const c: Chamber = { entries: [], pairs: new Map(), plates: new Map(), shots: [] };
-  const seen = new Set<Payload>(), stored = new Set<Payload>();
+  const seen = new Set<Payload>();
   const enter = (p: Payload) => {
     if (seen.has(p)) return;
     seen.add(p);
-    c.entries.push({ tick: bt.ticks, t: bt.t, p, route: routeOf.get(p.factory)!, stored: stored.has(p) });
+    c.entries.push({ tick: bt.ticks, t: bt.t, p, route: routeOf.get(p.factory)! });
   };
   while (bt.t < secs && !bt.over) {
     bt.step();
@@ -99,7 +100,6 @@ function chamber(b: Build, secs: number): Chamber {
         for (const q of [p.compound, p]) if (q) enter(q);
       }
     }
-    for (const x of tu.store) stored.add(x.p);
   }
   return c;
 }
@@ -111,8 +111,8 @@ const note = (line: string) => { if (process.env.BB_TABLES) console.log(`G1 ${li
 // ------------------------------------------------------------------------------------------------------------ E2
 
 describe("E2: a pair is two loads (DESIGN-wave3.md 3.2, the Prime's Q5)", () => {
-  const { pair, lone } = effectAt("seamwelder", 1).mod!.seam!;
-
+  // Y7b2 (the flip): SEAM WELDER's lone plating is 0 (DESIGN-Y row 35), so a lone load rolls no plating and fires no plate
+  // event (Battle.loaded's addPlate of 0); its pair plating is C-E2-store's, deleted below
   it("C-E2-repair: a load that already paired never pairs again: three loads into one gun inside one window, from both intakes, make one pair, not two", () => {
     // the Kiln and a STAMP PRESS keep FURNACE's heavy gun busy: when its chamber opens, the load waiting at each intake
     // enters on one tick (a pair), and the next load reaches its intake AMMO_SPACING later (0.233 s, inside SYNC_WINDOW)
@@ -134,7 +134,8 @@ describe("E2: a pair is two loads (DESIGN-wave3.md 3.2, the Prime's Q5)", () => 
       expect([x.p.paired, y.p.paired, !!z.p.paired], at).toEqual([true, true, false]);
       expect(c.pairs.get(x.tick), at).toBe(1);
       expect(c.pairs.get(z.tick), at).toBeUndefined(); // the third load pairs with neither of them
-      expect(c.plates.get(z.tick), at).toEqual([lone]); // so SEAM WELDER rolls it as a lone load
+      // so SEAM WELDER rolls it as a lone load: no plating (Y7b2, the flip: was [lone], the lone roll; lone is 0 now)
+      expect(c.plates.get(z.tick), at).toBeUndefined();
     }
     // over the battle: every pair marks two loads, and no load is in two pairs
     const pairs = sum(c.pairs.values());
@@ -143,46 +144,8 @@ describe("E2: a pair is two loads (DESIGN-wave3.md 3.2, the Prime's Q5)", () => 
     note(`E2-repair | ${c.entries.length} loads in 20 s, ${pairs} pairs, ${c.entries.filter((x) => x.p.paired).length} paired loads; ${triples.length} windows take a third load ${triples.map(([x, , z]) => (z.t - x.t).toFixed(3)).join("/")} s after a pair, none paired`);
   });
 
-  it("C-E2-store: a load a HOPPER held in its store pairs when it drops into the chamber, as if it reached its intake then", () => {
-    // the heavy gun at 2 stars (two gear slots: SEAM WELDER and HOPPER), kept busy by the Kiln and a STAMP PRESS: while it
-    // fires, its store takes loads off its intakes (1 at 2 stars, 2 at 3), and they drop in when its chamber empties
-    const deck = (hopper: number) => withMod(withMod(cannon2(kilnAnd("press")), 50, "seamwelder"), 51, "hopper", 0, hopper);
-    const c3 = chamber(deck(3), 20), c2 = chamber(deck(2), 40);
-    legal(deck(3), "HOPPER ★3");
-    legal(deck(2), "HOPPER ★2");
-    // HOPPER ★3: two stored loads, one from each intake, drop in on one tick and pair (SEAM WELDER rolls the first as a lone
-    // load and the second as a pair); two from one intake never pair
-    const drops = new Map<number, Entry[]>();
-    for (const x of c3.entries) if (x.stored) drops.set(x.tick, [...(drops.get(x.tick) ?? []), x]);
-    const both = [...drops.values()].filter((d) => d.length === 2 && d[0].route !== d[1].route);
-    const one = [...drops.values()].filter((d) => d.length === 2 && d[0].route === d[1].route);
-    expect(both.length, "drops of a stored load from each intake").toBeGreaterThanOrEqual(2);
-    for (const [x, y] of both) {
-      const at = `t ${x.t.toFixed(3)}`;
-      expect([x.p.paired, y.p.paired], at).toEqual([true, true]);
-      expect(c3.pairs.get(x.tick), at).toBe(1);
-      expect(c3.plates.get(x.tick), at).toEqual([lone, pair]);
-    }
-    for (const [x] of one) {
-      expect(c3.pairs.get(x.tick), `t ${x.t.toFixed(3)}`).toBeUndefined();
-      expect(c3.plates.get(x.tick), `t ${x.t.toFixed(3)}`).toEqual([lone, lone]);
-    }
-    // HOPPER ★2: a stored load dropped in alone pairs with the next load, when that one comes from the other intake within
-    // SYNC_WINDOW
-    const next = c2.entries.map((x, i) => [x, c2.entries[i + 1]] as const)
-      .filter(([x, y]) => x.stored && y && !y.stored && y.route !== x.route && y.t - x.t <= SYNC_WINDOW + 1e-9);
-    expect(next.length, "a dropped load, then a load from the other intake").toBeGreaterThanOrEqual(1);
-    for (const [x, y] of next) expect([x.p.paired, y.p.paired], `t ${x.t.toFixed(3)}`).toEqual([true, true]);
-    // and every load that enters the chamber, from a belt or from the store, rolls SEAM WELDER's plating once (the hull
-    // stays under the cap here, so each roll lands)
-    for (const c of [c3, c2]) {
-      expect(c.entries.filter((x) => x.stored).length).toBeGreaterThan(3);
-      expect(sum([...c.plates.values()].flat())).toBeLessThan(PLATE_CAP);
-      expect([...c.plates.values()].flat().length).toBe(c.entries.length);
-      expect(c.entries.filter((x) => x.p.paired).length).toBe(2 * sum(c.pairs.values()));
-    }
-    note(`E2-store | HOPPER ★3, 20 s: ${c3.entries.length} loads (${c3.entries.filter((x) => x.stored).length} from the store), ${both.length} drops of one load from each intake, all paired; ${one.length} drops from one intake, unpaired | HOPPER ★2, 40 s: ${c2.entries.length} loads (${c2.entries.filter((x) => x.stored).length} from the store), ${next.length} dropped loads paired with the next load from the other intake`);
-  });
+  // Y7b2 (the flip): "C-E2-store: a load a HOPPER held in its store pairs when it drops into the chamber, as if it reached
+  // its intake then" is deleted: no HOPPER has a store (DESIGN-Y row 33; switch-off only)
 });
 
 // ------------------------------------------------------------------------------------------------------------ E3
@@ -429,9 +392,12 @@ describe("PLATE BREAKER", () => {
 describe("TWIN TRIGGER", () => {
   it("C-trigger-compound: TWIN TRIGGER's bonus applies to a COMPOUND BREECH shell that packs a paired load", () => {
     // the heavy gun at 2 stars with a COMPOUND BREECH, a HOPPER ★3 and TWIN TRIGGER, fed by the Kiln and a SHOT TOWER: a
-    // shell packs the top two loads of the chamber, and some pack a paired load under an unpaired one (a stored pair drops
-    // in, then a lone load enters). COMPOUND's window ignores the load time, so the deck without TWIN TRIGGER fires the
-    // same shells on the same ticks: TWIN TRIGGER multiplies exactly the shells that carry a paired load.
+    // shell packs the top two loads of the chamber, and one packs a paired load under an unpaired one. COMPOUND's window
+    // ignores the load time, so the deck without TWIN TRIGGER fires the same shells on the same ticks: TWIN TRIGGER
+    // multiplies exactly the shells that carry a paired load.
+    // Y7b2 (the flip; cap's ruling e66379fbf3184e56): the stored pair that made these shells (a stored pair dropped in, then
+    // a lone load entered) left with HOPPER's store at the flip, so 1 such shell is left in 40 s at every star (was >= 5);
+    // it keeps its exact bonus check below with every other shell, and a count of 0 still fails
     const base = withMod(withMod(cannon2(kilnAnd("shottower")), 51, "hopper", 0, 3), 52, "compound", 0);
     const o = chamber(base, 40).shots;
     for (const s of [1, 2, 3]) {
@@ -440,7 +406,8 @@ describe("TWIN TRIGGER", () => {
       const w = chamber(b, 40).shots, bonus = effectAt("twintrigger", s).mod!.pairBonus!;
       expect(w.map((x) => x.tick), `★${s}: the same shells`).toEqual(o.map((x) => x.tick));
       const under = w.filter((x) => !x.p.paired && x.p.compound?.paired);
-      expect(under.length, `★${s}: shells packing a paired load under an unpaired one`).toBeGreaterThanOrEqual(5);
+      // Y7b2 (the flip; cap's ruling e66379fbf3184e56): was >= 5
+      expect(under.length, `★${s}: shells packing a paired load under an unpaired one`).toBe(1);
       w.forEach((x, i) => {
         const paired = !!x.p.paired || !!x.p.compound?.paired;
         // NUM-1 (REQ-BFG-047): TWIN TRIGGER's % rounds half up once (pct), so a shell is whole (was toBeCloseTo(o[i].dmg x
@@ -456,11 +423,14 @@ describe("TWIN TRIGGER", () => {
 // ------------------------------------------------------------------------------------------------------------ SPALL CATCHER
 
 describe("SPALL CATCHER", () => {
-  it("C-spall-burn: burn that lands on the hull charges SPALL CATCHER, and burn the plating soaks counts twice", () => {
+  // Y7b2 (the flip; DESIGN-Y row 47, battle.ts spallCharge): a PLATE soak counts once and there is no cap. Was "...,
+  // and burn the plating soaks counts twice"
+  it("C-spall-burn: burn that lands on the hull charges SPALL CATCHER, and burn the plating soaks counts once", () => {
     // a FURNACE whose Kiln belt carries a TEMPER ★3 (4 Burn on each slug) shoots at our FURNACE, which has SPALL CATCHER on its
     // heavy gun and a PLATE ROLLER ★3 plating its hull. Each tick, before the dark wind: the charge is what it was (0 after a
     // shot) plus add x (the hull's loss + twice what the plating soaked) / 40 (NUM-1: was / 4), up to its max, burn ticks
     // included.
+    // Y7b2 (the flip): add x (the hull's loss + what the plating soaked) / 40, no max (was twice the soak, up to max)
     const foe = withItem({ ...heroStartBuild("furnace", 101), hullBonus: 5000 }, rig(150, "temper", 3, 3, 1, 3));
     legal(foe, "the foe");
     for (const s of [1, 2, 3]) {
@@ -475,7 +445,7 @@ describe("SPALL CATCHER", () => {
         const ev = bt.drainEvents();
         const lost = hp - side.hull.hp, soaked = side.plate.absorbed - soakedSoFar;
         const shot = ev.some((e) => e.type === "fire" && e.side === 0), hit = ev.some((e) => e.type === "impact" && e.side === 0);
-        const want = Math.min(sp.max, (shot ? 0 : charge) + (sp.add * (lost + 2 * soaked)) / sp.every);
+        const want = (shot ? 0 : charge) + (sp.add * (lost + soaked)) / sp.every; // Y7b2 (the flip): was Math.min(sp.max, ... (lost + 2 * soaked) ...)
         expect(tu.spallCharge!, `★${s} t ${bt.t.toFixed(3)}: lost ${lost}, soaked ${soaked}, hit ${hit}`).toBeCloseTo(want, 6);
         if (!hit && lost + soaked > 0) { // nothing landed but burn
           burnTicks++;

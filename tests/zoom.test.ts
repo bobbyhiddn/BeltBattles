@@ -228,7 +228,10 @@ describe("zoom D1: the build screen's scale on a phone is capped at 1.75 CSS px 
       "390x664: 234x398 x5 (1.67 CSS px), band 106",
       "402x690: 241x414 x5 (1.67 CSS px), band 122",
       // U2d (phoneBand re-measured with the new faces, 162 -> 148 at W 194-280): 390x844 band 162 -> 148, 430x739 151 -> 148
-      "390x844: 234x506 x5 (1.67 CSS px), band 148",
+      // Y7b2 (the words, the new faces; cap's ruling e66379fbf3184e56): phoneBand re-measured at every W 186-340, 148 -> 141
+      // at W 194-236: 390x844 (W 234) band 148 -> 141, every one of the 899 panels still in the band in its fullest form
+      // (the D3 test below); the other four views unchanged (their room, or W 258's 141)
+      "390x844: 234x506 x5 (1.67 CSS px), band 141",
       // NUM-4 (phoneBand re-measured: 141 from W 237): 430x739 (W 258) band 148 -> 141, every one of the 885 panels still in
       // the band in its fullest form (the D3 test below); the op view (W 241) keeps its 122 (its room, not phoneBand)
       "430x739: 258x443 x5 (1.67 CSS px), band 141",
@@ -408,11 +411,16 @@ describe("U2d: phoneBand(W) is what the tallest touch panel needs at W, and no m
     // NUM-4 (REQ-BFG-047), re-measured at every W 194-241: the 148 -> 141 step moved from 281 to 237 (the turret panels'
     // whole RATE numbers are narrower than their decimal intervals); the widths keep each step and either side of it
     // (236 / 237 added; 241, 280 and 281 kept as samples, now all 141)
+    // Y7b2 (the words, the new faces; cap's ruling e66379fbf3184e56, TEXT-STYLE 11.5), re-measured at every W 186-340 (not
+    // only these 13): the THUNDERER ★3 with a core and gear (a RAIL GUN ★3 at 316-319) needs 148 at 186-193 (was 155), 141
+    // at 194-315 (was 148 at 194-236), 134 at 316-319 and 129 at 320-340 (unchanged); the step at 237 is gone (236 and 237
+    // kept as samples), the other steps keep either side of them
     const widths = [186, 193, 194, 236, 237, 241, 280, 281, 315, 316, 319, 320, 340], tallest: string[] = [];
     const got = widths.map((W) => { const [n, who] = need(W); tallest.push(`${W}: ${n} ${who}`); return [W, n]; });
     console.log(`U2d phoneBand: ${tallest.join(" | ")}`);
     expect(got).toEqual(widths.map((W) => [W, phoneBand(W)]));
-    expect(widths.map(phoneBand)).toEqual([155, 155, 148, 148, 141, 141, 141, 141, 141, 134, 134, 129, 129]); // was 169, 169, 162, 162, 155, 148, 148, 141, 141, 136, 136; x1: 148 at 241-280
+    // Y7b2 (the words; cap's ruling e66379fbf3184e56): was 155, 155, 148, 148, 141, 141, 141, 141, 141, 134, 134, 129, 129
+    expect(widths.map(phoneBand)).toEqual([148, 148, 141, 141, 141, 141, 141, 141, 141, 134, 134, 129, 129]); // was 169, 169, 162, 162, 155, 148, 148, 141, 141, 136, 136; x1: 148 at 241-280
   }, 120_000);
 });
 
@@ -487,7 +495,13 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069), measured on flipx2: 899 panels (SIFTER's 13 out, the sustain pieces'
         // 27 in), the 14 more all in the band in their fullest form at every view; the bands and the grown panels unchanged
         // (was 390x660 [104, 842, 868], 390x664 [106, 846, 868], 402x690 [122, 873, 884], 430x739 and 390x844 [.., 885, 885])
-        "390x660": [104, 856, 882], "390x664": [106, 860, 882], "402x690": [122, 887, 898], "430x739": [141, 899, 899], "390x844": [148, 899, 899],
+        // Y7b2 (the flip), measured (and the same after the words, 9e0fb21): the turret panels' HOPPER (its store and load
+        // time sentences gone) and the flip's other shorter texts put 9 more panels in the band at the two shortest views,
+        // 390x660 [104, 856, 882] -> [104, 860, 891] and 390x664 [106, 860, 882] -> [106, 866, 891] (grown 17 -> 8: 8
+        // turrets with a core and gear); the other three views unchanged
+        // Y7b2 (the words, the new faces; cap's ruling e66379fbf3184e56): phoneBand re-measured (148 -> 141 at W 194-236):
+        // 390x844's band 148 -> 141, still holding all 899 panels in their fullest form; the other four views unchanged
+        "390x660": [104, 860, 891], "390x664": [106, 866, 891], "402x690": [122, 887, 898], "430x739": [141, 899, 899], "390x844": [141, 899, 899],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

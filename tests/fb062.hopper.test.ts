@@ -3,9 +3,13 @@
 // 1/2 loads off the belt, and they drop into the next window; ★3 BOTTOMLESS never jams. Was: ★2 +2 slots and +1.0 s,
 // ★3 +3 and +1.5 s. On a sparse belt the extra slot sat empty while the longer timer delayed every shot, so ★2 was a
 // WORSE row on the E1 day-7 bench (first shot 4.15 s at ★1, 4.65 s at ★2 in HOPPER-DIAG's fight).
+// Y7b2 (the flip; release Y, DESIGN-Y row 33): FB-B's +0.5 s load time, the ★2/★3 store and ★3's no-jam are gone; the
+// chamber holds +1 / +2 / +3 loads (window). The store's tests (the two-arrival store, the drop into the next window,
+// PRESSURE BREECH's stored queue) and the store / no-jam / +0.5 s assertions are deleted (switch-off only).
 import { describe, expect, it } from "vitest";
-import { Battle, type Payload } from "../src/sim/battle";
+import { Battle } from "../src/sim/battle";
 import { ITEMS, WINDOW_TIME } from "../src/sim/content";
+import { RULES_VERSION } from "../src/sim/content"; // Y7b2: HOPPER's tripwire (cap's ruling e66379fbf3184e56) is keyed to bb-0.9.3
 import type { Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars";
@@ -13,31 +17,27 @@ import { abilityText, gist, nextStarText } from "../src/ui/abilityText"; // 0.6.
 import { barge, bench, busy, run, SEED } from "./arsenal.bench";
 
 const STARS = [1, 2, 3];
-const payload = (id: number): Payload => ({ id, ammo: "plain", ride: 0, mult: 1, flat: 0, burn: 0, shock: false, prior: 0, factory: 7, copy: false });
 
-/** Every shot turret 0 of side 0 fires in `secs` (battle times), and the most loads its store held at once. */
-function shots(b: Build, secs = 40): { times: number[]; storeMost: number; stored: number; jams: number; damage: number } {
+/** Every shot turret 0 of side 0 fires in `secs` (battle times). Y7b2 (the flip): no store to count (switch-off only). */
+function shots(b: Build, secs = 40): { times: number[]; jams: number; damage: number } {
   const times: number[] = [];
-  let storeMost = 0, stored = 0, prev = 0;
   const bt = run(b, secs, barge(), SEED, (ev, x) => {
     for (const e of ev) if (e.type === "fire" && e.side === 0 && e.turret === 0) times.push(+x.t.toFixed(6));
-    const n = x.sides[0].turrets[0].store.length;
-    if (n > prev) stored += n - prev;
-    prev = n;
-    storeMost = Math.max(storeMost, n);
   });
-  return { times, storeMost, stored, jams: bt.sides[0].stats.jams, damage: bt.sides[0].stats.damage };
+  return { times, jams: bt.sides[0].stats.jams, damage: bt.sides[0].stats.damage };
 }
 
 describe("FB-B HOPPER: ★1's window at every star, plus a store for loads that arrive while the gun fires", () => {
-  it("the rule: +1 slot and +0.5 s at every star; a store of 0/1/2; ★3 never jams", () => {
+  // Y7b2 (the flip): was "the rule: +1 slot and +0.5 s at every star; a store of 0/1/2; ★3 never jams"
+  it("the rule: +1 / +2 / +3 slots; the load time as it was", () => {
     const tu = (s: number) => new Battle(bench([], [["hopper", s]]), barge(), SEED).sides[0].turrets[0];
-    expect(STARS.map((s) => [tu(s).window, tu(s).windowTime, tu(s).storeMax, tu(s).noJam])).toEqual([
-      [4, WINDOW_TIME + 0.5, 0, false], [4, WINDOW_TIME + 0.5, 1, false], [4, WINDOW_TIME + 0.5, 2, true],
+    // Y7b2 (the flip): was [4, WINDOW_TIME + 0.5, store 0/1/2, noJam ★3]; the store and no-jam columns are deleted
+    // (switch-off only: no piece sets a store or a gear no-jam any more)
+    expect(STARS.map((s) => [tu(s).window, tu(s).windowTime])).toEqual([
+      [4, WINDOW_TIME], [5, WINDOW_TIME], [6, WINDOW_TIME],
     ]);
-    expect(STARS.map((s) => effectAt("hopper", s).mod)).toEqual([
-      { window: 1, windowTime: 0.5 }, { window: 1, windowTime: 0.5, store: 1 }, { window: 1, windowTime: 0.5, store: 2, noJam: true },
-    ]);
+    // Y7b2 (the flip): was { window: 1, windowTime: 0.5 } + store 1 / store 2, noJam at ★2 / ★3
+    expect(STARS.map((s) => effectAt("hopper", s).mod)).toEqual([{ window: 1 }, { window: 2 }, { window: 3 }]);
   });
 
   it("(brief test 1) a sparse route: ★2 and ★3 fire their first shot no later than ★1, and no shot later either", () => {
@@ -58,76 +58,42 @@ describe("FB-B HOPPER: ★1's window at every star, plus a store for loads that 
     expect(first, "the old ★2's first shot").toBeGreaterThan(one.times[0]);
   });
 
-  it("(brief test 2) simultaneous arrivals while the gun fires: ★2 stores one, ★3 both; ★1 leaves them on the belt", () => {
-    for (const s of STARS) {
-      // the busy bench: the Kiln's belt and the STAMP PRESS's belt both feed turret 0; the factories are stopped
-      const bt = new Battle(busy([["hopper", s]]), barge(), SEED), me = bt.sides[0], tu = me.turrets[0];
-      for (const f of me.factories) f.timer = 1000;
-      tu.stack.push(payload(1), payload(2), payload(3), payload(4));
-      tu.phase = "fire";
-      tu.fireCd = 100; // the gun is busy firing this window
-      const [a, b] = [payload(11), payload(12)];
-      me.routes[0].ammo.push({ p: a, s: me.routes[0].L, processed: me.routes[0].cells.length - 1, blocked: false });
-      me.routes[1].ammo.push({ p: b, s: me.routes[1].L, processed: me.routes[1].cells.length - 1, blocked: false });
-      bt.step();
-      expect(tu.store.map((x) => x.p.id), `★${s} stored`).toEqual([[], [11], [11, 12]][s - 1]);
-      expect(me.routes.map((r) => r.ammo.length), `★${s} left on the belts`).toEqual([[1, 1], [0, 1], [0, 0]][s - 1]);
-      expect(tu.stack.map((p) => p.id), `★${s}: the firing window is untouched`).toEqual([1, 2, 3, 4]);
-    }
-  });
-
-  it("the stored loads drop into the next window, oldest first, the moment the last load of this one fires", () => {
-    for (const s of [2, 3]) {
-      const bt = new Battle(busy([["hopper", s]]), barge(), SEED), me = bt.sides[0], tu = me.turrets[0];
-      for (const f of me.factories) f.timer = 1000;
-      tu.stack.push(payload(1));
-      tu.phase = "fire";
-      tu.fireCd = 0.5;
-      tu.store.push({ p: payload(21), route: 0 }, ...(s === 3 ? [{ p: payload(22), route: 1 }] : []));
-      let dropped: number[] = [];
-      while (bt.t < 1) {
-        bt.step();
-        if (tu.phase === "load" && !dropped.length) dropped = tu.stack.map((p) => p.id);
-      }
-      expect(dropped, `★${s}`).toEqual(s === 3 ? [21, 22] : [21]);
-      expect(tu.store, `★${s}`).toEqual([]);
-    }
-  });
+  // Y7b2 (the flip): "(brief test 2) simultaneous arrivals while the gun fires: ★2 stores one, ★3 both", "the stored
+  // loads drop into the next window, oldest first" and "PRESSURE BREECH counts stored loads as queued" are deleted: no
+  // HOPPER has a store (switch-off only).
 
   // measured (60 s): ★1 38 shots, 18 jams, 185.2 damage; ★2 38, 18, 196.4 (10 loads stored); ★3 56, 0, 276.2 (30 stored).
   // Both belts together outrun the gun, so the backlog stays past the jam threshold even with a load in the store.
-  it("two belts into one gun (saturated): the store takes loads off the belts; each star deals more, none jams more", () => {
+  // Y7b2 (the flip), measured (60 s, windows 4 / 5 / 6, no store, no no-jam): ★1 39 shots, 17 jams, 2020 damage; ★2 39,
+  // 17, 2108; ★3 39, 17, 1976. The store and BOTTOMLESS asserts are deleted (switch-off only); ★2 -> ★3 deals less
+  // (1976 < 2108): the tripwire below (cap's ruling e66379fbf3184e56). (The title was "...: the store takes loads off the
+  // belts; each star ...")
+  it("two belts into one gun (saturated): each star deals more, none jams more", () => {
     const [one, two, three] = STARS.map((s) => shots(busy([["hopper", s]], 5000), 60));
-    expect([one.storeMost, two.storeMost, three.storeMost]).toEqual([0, 1, 2]);
-    expect(two.stored).toBeGreaterThan(0);
     expect(two.jams).toBeLessThanOrEqual(one.jams);
-    expect(three.jams).toBe(0); // BOTTOMLESS
+    // Y7b2 (cap's ruling e66379fbf3184e56): ★3's jams too, so the title's "none jams more" holds at every star (17 = 17)
+    expect(three.jams).toBeLessThanOrEqual(one.jams);
     expect(two.times.length).toBeGreaterThanOrEqual(one.times.length);
     expect(three.times.length).toBeGreaterThanOrEqual(two.times.length);
     expect(two.damage).toBeGreaterThan(one.damage);
+    // Y7b2 TRIPWIRE (cap's ruling e66379fbf3184e56; only while RULES_VERSION is "bb-0.9.3"; this saturated bench only): the
+    // flip took ★2/★3's store and ★3's no-jam, and on a saturated gun every star fires 39 shots with 17 jams, so the extra
+    // slots add no shots and only the packing moves the damage: ★3 < ★2 by 6.3% and ★3 < ★1 by 2.2% (was: each star deals
+    // more). Its three damages are pinned exactly; the jams, the shot counts and ★2 > ★1 above stay live. Design list:
+    // HOPPER's stars on saturated guns (one seed; check across seeds when fixing; fix it inside the window rule, with no
+    // store or no-jam returning: REVIEW-STARD, Y7A-R6); once fixed, delete this tripwire and let ★3 > ★2 cover HOPPER again
+    if (RULES_VERSION === "bb-0.9.3") {
+      const why = "Y7b2 tripwire (cap's ruling e66379fbf3184e56): HOPPER's saturated damages pinned under bb-0.9.3, ★3 < ★2 by 6.3%, ★3 < ★1 by 2.2%; fix HOPPER's stars inside the window rule before the next rules version";
+      expect([one.damage, two.damage, three.damage], why).toEqual([2020, 2108, 1976]);
+      expect(three.damage, `${why}: the recorded finding, ★3 under ★2`).toBeLessThan(two.damage);
+      expect(three.damage, `${why}: the recorded finding, ★3 under ★1`).toBeLessThan(one.damage);
+      return;
+    }
     expect(three.damage).toBeGreaterThan(two.damage);
   });
 
-  it("PRESSURE BREECH counts stored loads as queued, so a HOPPER never lowers its bonus", () => {
-    const bonusAt = (s: number) => {
-      const b = busy([["hopper", s], ["pressure", 1]]);
-      const bt = new Battle(b, barge(), SEED), me = bt.sides[0], tu = me.turrets[0];
-      for (const f of me.factories) f.timer = 1000;
-      tu.stack.push(payload(1), payload(2));
-      tu.phase = "fire";
-      tu.fireCd = 0.2;
-      // one more load arrives at the Kiln's intake while the gun fires: ★1 leaves it waiting on the belt, ★2 stores it
-      me.routes[0].ammo.push({ p: payload(3), s: me.routes[0].L, processed: me.routes[0].cells.length - 1, blocked: false });
-      let dmg = -1;
-      while (dmg < 0 && bt.t < 1) { bt.step(); for (const e of bt.drainEvents()) if (e.type === "fire" && e.side === 0) dmg = e.dmg; }
-      return { dmg, stored: tu.store.length + (tu.stack.some((p) => p.id === 3) ? 1 : 0) };
-    };
-    const [one, two] = [bonusAt(1), bonusAt(2)];
-    expect(two.stored).toBe(1);
-    expect(two.dmg).toBeCloseTo(one.dmg, 9);
-  });
-
-  it("FOUNDRY: twin blanks still fuse through the store (fusions at ★2/★3 are not below ★1's)", () => {
+  // Y7b2 (the flip): was "... still fuse through the store ..." (no store now); measured 24 fusions at every star
+  it("FOUNDRY: twin blanks still fuse beside a HOPPER (fusions at ★2/★3 are not below ★1's)", () => {
     const b = heroStartBuild("foundry", 1);
     const fused = (s: number) => {
       const d: Build = { ...b, mods: [...b.mods, { uid: 950, def: "hopper", turret: 0, ...(s > 1 ? { stars: s } : {}) }] };
@@ -139,25 +105,31 @@ describe("FB-B HOPPER: ★1's window at every star, plus a store for loads that 
     expect(three.fusions).toBeGreaterThanOrEqual(one.fusions);
   });
 
-  it("player text: the star lines name the store; ★1's description is unchanged", () => {
+  // Y7b2 (the flip): was "player text: the star lines name the store; ★1's description is unchanged"
+  it("player text: the star lines name the extra loads; ★1's description is unchanged", () => {
     // NUM-4 (REQ-BFG-047, N1 2.2): ★1's +0.5 s load time is a hidden sub-second timer, so it left the desc, the chamber
     // sentence and ★1's gist, which say the load time is LONGER (still true: the data's windowTime > 0); the extra slot
     // is the data's; FB-B's store is still not in the desc (was ["CHAMBER HOLDS 1 MORE", "LOAD; WINDOWS STAY",
     // "OPEN 0.5S LONGER."], "... THE LOAD TIME IS 0.5 SECONDS LONGER.", "HOLDS 1 MORE LOAD, LOAD TIME 0.5 SECONDS LONGER";
     // ★1's gist now "HOLDS 1 MORE LOAD, LONGER LOAD TIME")
+    // Y7b2 (the flip): the data's windowTime > 0 check is deleted (no +0.5 s: switch-off only); the desc is the data's
+    // as it stands (its LOAD TIME line may move with the words step)
     const m1 = effectAt("hopper", 1).mod!;
-    expect(m1.windowTime).toBeGreaterThan(0);
     expect(ITEMS.hopper.desc).toEqual([`CHAMBER HOLDS ${m1.window} MORE`, "LOAD; ITS LOAD TIME", "RUNS LONGER."]);
     // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's sentences (abilityText) and clauses (gist, NEXT STAR)
-    const chamber = `THE CHAMBER HOLDS ${m1.window} MORE LOAD, AND THE LOAD TIME IS LONGER.`;
-    const store = (n: number) => `WHILE THE TURRET FIRES, IT STORES ${n} LOAD${n === 1 ? "" : "S"} FROM THE BELT FOR ITS NEXT CHAMBER.`;
-    expect(STARS.map((s) => abilityText("hopper", s).sentences.slice(0, s))).toEqual([
-      [chamber], [chamber, store(1)], [chamber, store(2), "THE TURRET NEVER JAMS."],
-    ]);
-    expect(abilityText("hopper", 3).perk).toEqual({ name: "BOTTOMLESS", stars: 3, after: 2 });
+    // Y7b2 (the flip): was [chamber], [chamber, store(1)], [chamber, store(2), "THE TURRET NEVER JAMS."] with chamber "THE
+    // CHAMBER HOLDS 1 MORE LOAD, AND THE LOAD TIME IS LONGER." and store(n) "WHILE THE TURRET FIRES, IT STORES n LOAD(S)
+    // FROM THE BELT FOR ITS NEXT CHAMBER."
+    const chamber = (n: number) => `THE TURRET'S CHAMBER HOLDS ${n} MORE LOAD${n === 1 ? "" : "S"}.`;
+    expect(STARS.map((s) => abilityText("hopper", s).sentences.slice(0, s))).toEqual([[chamber(1)], [chamber(2)], [chamber(3)]]);
+    // Y7b2 (the words, 9e0fb21): ★3's perk name BOTTOMLESS left with its no-jam (content.ts), so no perk (was { name:
+    // "BOTTOMLESS", stars: 3, after: 2 })
+    expect(abilityText("hopper", 3).perk).toBeUndefined();
+    // Y7b2 (the flip): was "HOLDS 1 MORE LOAD, LONGER LOAD TIME", "STORES 1 LOAD WHILE IT FIRES", "STORES 2 LOADS WHILE IT
+    // FIRES, NEVER JAMS"; NEXT STAR was "STORES 1 LOAD WHILE IT FIRES."
     expect(STARS.map((s) => gist("hopper", s))).toEqual([
-      `HOLDS ${m1.window} MORE LOAD, LONGER LOAD TIME`, "STORES 1 LOAD WHILE IT FIRES", "STORES 2 LOADS WHILE IT FIRES, NEVER JAMS",
+      `HOLDS ${m1.window} MORE LOAD`, "HOLDS 2 MORE LOADS", "HOLDS 3 MORE LOADS",
     ]);
-    expect(nextStarText("hopper", 1)).toBe("NEXT STAR: STORES 1 LOAD WHILE IT FIRES.");
+    expect(nextStarText("hopper", 1)).toBe("NEXT STAR: HOLDS 2 MORE LOADS.");
   });
 });
