@@ -623,8 +623,9 @@ async function singlePages() {
 const M1_VIEWS = [
   ["phone", VIEWS.phone, true, "plate"], // 390x844 @3, the browser check's iPhone: the plate at the top edge
   ["phone-land", { viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }, true, "plate"],
-  ["small-land", { viewport: { width: 640, height: 360 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, true, "above"],
-  ["desk", VIEWS.desk, false, "above"], // 1920x1080
+  // MOTION-1 laneLayout lifts the enemy lane so plate.y < NOTE_ROW; notePlace() plate-strip form accepted (Prime ruling, STAGE-096)
+  ["small-land", { viewport: { width: 640, height: 360 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, true, "plate"],
+  ["desk", VIEWS.desk, false, "plate"], // 1920x1080
 ];
 
 main().catch((e) => {
