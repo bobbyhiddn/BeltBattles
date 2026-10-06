@@ -5,6 +5,8 @@
 // MOTION-2 (REQ-BFG-071, REVIEW-MOTION1 Q5): the attract fight sails in motion, as a battle does, over the three seas
 // in turn (CALM SEA, STORM, EMBER SEA, one per round).
 
+import { CustomizeScreen } from "./customize"; // CUSTOM-2a (REQ-BFG-072): the styles screen
+import { loadProfile, unseen } from "../game/profile"; // CUSTOM-2a: the CUSTOMIZE button's NEW dot
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { loadRun } from "../game/run";
@@ -56,6 +58,8 @@ export class TitleScreen implements Screen {
   /** intro: the frame (titleLayout) and the buttons' size factor, the menu scale over this screen's (pickScale). */
   private L!: TitleLayout;
   private k = 1;
+  /** CUSTOM-2a (REQ-BFG-072): a style unlocked and not yet seen in CUSTOMIZE (its button's NEW dot). */
+  newStyle = false;
   /** MOTION-2 (REQ-BFG-071): the attract fight in motion. CUSTOM-2a (REVIEW-MOTION2 Q2): always (no ?motion=0). */
   motion!: ArenaMotion;
 
@@ -88,6 +92,7 @@ export class TitleScreen implements Screen {
   enter(): void {
     this.game.audio.music(null);
     this.save = loadRun();
+    this.newStyle = unseen(loadProfile()).length > 0; // CUSTOM-2a: the NEW dot (read once; CUSTOMIZE marks them seen)
   }
 
   private place(): void {
@@ -168,6 +173,9 @@ export class TitleScreen implements Screen {
       font: "3", active: this.help, onTap: () => this.gate(() => { this.help = !this.help; }),
     });
     button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => this.gate(() => { this.menu = true; }) });
+    // CUSTOM-2a (REQ-BFG-072, Q5): CUSTOMIZE, the third button of the row, with a NEW dot while an unlocked style is unseen
+    button(ui, g, "customize", b.customize, "CUSTOMIZE", { font: "3", onTap: () => this.gate(() => game.go(new CustomizeScreen(game))) });
+    if (this.newStyle) newDot(g, b.customize);
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
     if (this.help) this.drawHelp(g);
@@ -219,4 +227,10 @@ export class TitleScreen implements Screen {
     else if (k === "c" || k === "C") this.gate(() => this.continueRun());
     else if (k === "h" || k === "H" || k === "?") this.gate(() => { this.help = !this.help; });
   }
+}
+
+/** CUSTOM-2a (REQ-BFG-072): the NEW dot on a button's top right corner: a lime dot in an ink rim. */
+export function newDot(g: G, r: { x: number; y: number; w: number; h: number }): void {
+  rect(g, r.x + r.w - 7, r.y + 2, 5, 5, C.ink);
+  rect(g, r.x + r.w - 6, r.y + 3, 3, 3, C.lime);
 }

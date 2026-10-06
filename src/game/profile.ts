@@ -227,6 +227,7 @@ export function loadProfile(s?: Store | null): Profile {
   }
   if (p) {
     frozen = p.v > PROFILE_V;
+    evaluateUnlocks(p); // a catalogue that grew since the last save opens what the counters already earn
     return p;
   }
   frozen = false;
