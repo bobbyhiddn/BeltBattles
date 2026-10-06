@@ -3,12 +3,14 @@
 // 3.3's six-hero line puts it, in that hero's starting deck (heroStartBuild) or the smallest deck the line needs, and a
 // real battle shows it doing something: a stat or a sim event it causes is nonzero, or the battle moves against the same
 // deck without it. Each pair names its evidence; none is inert. BB_TABLES=1 prints the table (REPORT.md).
+// Y7b2 (the flip; DESIGN-Y: no floors): a payoff piece that lost its floor gets its engine in both decks (MODULES), as
+// tests/sharedPool.effects.test.ts's decks() gives it; only the audited piece differs.
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
-import { withWave3, type HeroId } from "../src/sim/content";
+import { HEROES as HERO_DEFS, ITEMS, withWave3, type HeroId } from "../src/sim/content";
 import { validateBuild } from "../src/net/validate";
-import { routeInfo, type Build } from "../src/sim/deck";
-import { bestSpot, stokeSpots } from "../src/sim/beltside";
+import { cloneBuild, hullSlots, installTurret, rigHits, routeInfo, turretList, type Build } from "../src/sim/deck";
+import { bestSpot, spotForTile, stokeSpots } from "../src/sim/beltside";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { K, SEED, barge, item, withItem, withMod } from "./wave3.helpers";
 
@@ -71,10 +73,61 @@ const start = (hero: HeroId): Build => ({ ...heroStartBuild(hero), hullBonus: 50
 const gun = (b: Build): number => routeInfo(b, 0).turret;
 
 /** A rig where the par player would put it (beltside.ts bestSpot; a STOKER beside the most factories, stokeSpots). */
-function withRig(b: Build, def: string): Build {
+function withRig(b: Build, def: string, uid = UID): Build {
   const s = def === "stoker" ? stokeSpots(b, def)[0] : bestSpot(b, def);
   if (!s) throw new Error(`no spot for ${def} on ${b.hero}`);
-  return withItem(b, item(UID, def, s.x, s.y, s.rot));
+  return withItem(b, item(uid, def, s.x, s.y, s.rot));
+}
+
+/** Y7b2: the uid of an engine piece both decks own (no start deck uses it). */
+const ENGINE = 61;
+
+/** Y7b2: stand a rig whose live arrow hits the first fitting tile of `tiles` on the first belt (the editor's placement
+ *  search, as tests/sharedPool.effects.test.ts's rigAt); returns that tile. */
+function rigAt(b: Build, def: string, uid: number, tiles: number[]): number {
+  for (const ti of tiles) {
+    const s = spotForTile(b, def, 0, ti);
+    if (!s) continue;
+    b.items.push(item(uid, def, s.x, s.y, s.rot));
+    if ((rigHits(b)[0]?.[ti] ?? []).some((hit) => hit.uid === uid)) return ti;
+    b.items.pop();
+  }
+  throw new Error(`${b.hero}: no active spot for ${def} on tiles ${tiles.join(",")}`);
+}
+/** Y7b2: first-belt tiles downstream of `t`, the longest ride first. */
+const later = (b: Build, t: number): number[] => b.routes[0].cells.map((_, i) => i).filter((i) => i > t).reverse();
+
+/**
+ * Y7b2 (the flip; DESIGN-Y: no floors): the TWIN pieces' engine (tests/sharedPool.effects.test.ts's twinBelts), two belts
+ * of equal tiles (a matched pair) into the two intakes of one gun, with a free cell between them. The gun is the one in
+ * the slot at the hero's factory's columns: FURNACE's, BASTION's and METRONOME's own, FOUNDRY's left gun; WEAVER's gun
+ * there takes one belt and SIPHON's slot there is empty, so each buys a TWIN NEEDLE for it. Belt A leaves the factory's
+ * top-left corner, steps one column out, runs up and steps back into the left intake at row 1; belt B leaves the
+ * factory's right side, steps up and back over its top-right corner, then runs up into the right intake. A II rig in the
+ * cell between them hits both (a TWIN LATCH). Every other belt goes (the factory's belt slots), and a BELT CRATE is
+ * bought where the belt runs short. `pour`: the factory puts a slug on both belts at once, so the gun takes them as a
+ * PAIR (two loads by two intakes): FOUNDRY's CRUCIBLE pours already; any other signature factory parks off the belts for
+ * a TWIN MOULD. `late`: belt B leaves the factory's side one cell lower, one tile longer, so a pour's two slugs reach
+ * the gun 0.4 s apart (no PAIR) unless something holds the first for the second.
+ */
+function twinBelts(b: Build, pour = false, late = false): void {
+  const sig = b.items.find((p) => p.def === HERO_DEFS[b.hero].factory)!;
+  const { x, y } = sig;
+  const up = (col: number, from: number, to: number) => Array.from({ length: from - to + 1 }, (_, i) => K(col, from - i));
+  const a = [K(x, y - 1), ...up(x - 1, y - 1, 1), K(x, 1), K(x, 0)];
+  const c = [...(late ? [K(x + 2, y + 1)] : []), K(x + 2, y), K(x + 2, y - 1), ...up(x + 1, y - 1, 0)];
+  let factory = sig.uid;
+  if (pour && !ITEMS[sig.def].factory!.pour) {
+    sig.x = 0;
+    sig.y = 8;
+    b.items.push(item(906, "twinmould", x, y));
+    factory = 906;
+  }
+  b.routes = [{ factory, cells: a }, { factory, cells: c }];
+  const slot = hullSlots(b.hero).findIndex((s) => s.col0 === x);
+  const g = turretList(b).find((t) => t.slot === slot);
+  if (!g || ITEMS[g.def].turret!.intake !== "both") installTurret(b, { uid: 905, def: "twinneedle" }, slot);
+  while (b.beltCap < a.length + c.length) b.beltCap += ITEMS.beltcrate.supply!.belt!;
 }
 
 /**
@@ -128,21 +181,32 @@ const shooter = (): Build => start("furnace");
 interface Pair { deck: Build; base: Build; foe: Build; turret: number }
 interface Check { what: string; ok: (w: Tally, o: Tally, p: Pair) => boolean; show: (w: Tally, o: Tally) => string }
 
-const rig = (hero: HeroId, def: string, foe = barge()): Pair => {
+/** Y7b2: `engine`, when given, builds the payoff piece's engine into the starting deck first (both decks own it). */
+const rig = (hero: HeroId, def: string, foe = barge(), engine?: (b: Build) => void): Pair => {
   const base = start(hero);
+  engine?.(base);
   return { deck: withRig(base, def), base, foe, turret: gun(base) };
 };
-const fitted = (hero: HeroId, def: string, foe = barge()): Pair => {
+const fitted = (hero: HeroId, def: string, foe = barge(), engine?: (b: Build) => void): Pair => {
   const base = start(hero);
+  engine?.(base);
   return { deck: withMod(base, UID, def, gun(base)), base, foe, turret: gun(base) };
+};
+/** Y7b2: a rig on the first-belt tiles `engine` returns (rigAt) once it has built the engine into the starting deck. */
+const rigOnTiles = (hero: HeroId, def: string, engine: (b: Build) => number[]): Pair => {
+  const base = start(hero);
+  const tiles = engine(base);
+  const deck = cloneBuild(base);
+  rigAt(deck, def, UID, tiles);
+  return { deck, base, foe: barge(), turret: gun(base) };
 };
 const placed = (hero: HeroId, def: string): Pair => {
   const deck = withFactory(hero, def);
   return { deck, base: start(hero), foe: barge(), turret: gun(deck) };
 };
-/** A turret part on the gun a SHOT TOWER keeps busy (towerFed). */
-const busy = (hero: HeroId, def: string): Pair => {
-  const base = towerFed(hero);
+/** A turret part on the gun a SHOT TOWER keeps busy (towerFed); Y7b2: `engine` adds what both decks need around it. */
+const busy = (hero: HeroId, def: string, engine: (b: Build) => Build = (b) => b): Pair => {
+  const base = engine(towerFed(hero));
   return { deck: withMod(base, UID, def, gun(base)), base, foe: barge(), turret: gun(base) };
 };
 const firstShot = (t: Tally) => t.fires[0]?.t ?? Infinity;
@@ -161,13 +225,37 @@ const plates: Check = {
 
 const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
   { id: "plateroller", pair: (h) => rig(h, "plateroller"), check: plates },
-  { id: "twingauge", pair: (h) => rig(h, "twingauge"), check: hitsHarder },
-  { id: "pincer", pair: (h) => rig(h, "pincer"), check: hitsHarder },
+  // Y7b2 (the flip; DESIGN-Y: no floors): TWIN GAUGE needs a matched belt to act (another belt of as many tiles into its
+  // gun): twinBelts; was audited on the bare deck (it had a floor: +10 off a matched belt)
+  { id: "twingauge", pair: (h) => rig(h, "twingauge", barge(), (b) => twinBelts(b)), check: hitsHarder },
+  {
+    // Y7b2 (the flip; DESIGN-Y: no floors): PINCER needs another working rig hitting its tile to act: a WHETSTONE, the
+    // PINCER on the tile's other free side (FOUNDRY's two belts run side by side, leaving each tile one free side, so they
+    // are laid apart: twinBelts); was audited on the bare deck (it had a floor: +10)
+    id: "pincer",
+    pair: (h) => rigOnTiles(h, "pincer", (b) => {
+      if (h === "foundry") twinBelts(b);
+      return [rigAt(b, "whetstone", ENGINE, [2, 3, 1])];
+    }),
+    check: hitsHarder,
+  },
   {
     id: "braceframe", pair: (h) => rig(h, "braceframe", harasser()),
     check: { what: "it shortens the enemy's stalls on its tiles (brace events, seconds saved)", ok: (w) => w.braced > 0, show: (w) => `${w.braced.toFixed(1)} s of stalls saved` },
   },
-  { id: "twinlatch", pair: (h) => rig(h, "twinlatch"), check: hitsHarder },
+  {
+    // Y7b2 (the flip; DESIGN-Y: no floors): TWIN LATCH needs a second belt into its gun to act (it holds only with both
+    // arrows on belts, to make a PAIR), and a pair reader for that PAIR to hit harder: twinBelts fed by a pour (a TWIN
+    // MOULD; FOUNDRY's CRUCIBLE) with belt B one tile late, so each pour's two slugs reach the gun 0.4 s apart until the
+    // latch, in the cell between the belts, holds the first for the second, and a TWIN TRIGGER on the gun; was audited on
+    // the bare deck (it had a flat: +10 on each payload it hits)
+    id: "twinlatch",
+    pair: (h) => rig(h, "twinlatch", barge(), (b) => {
+      twinBelts(b, true, true);
+      b.mods = [...b.mods, { uid: ENGINE, def: "twintrigger", turret: gun(b) }];
+    }),
+    check: hitsHarder,
+  },
   {
     id: "stoker", pair: (h) => rig(h, "stoker"),
     check: {
@@ -177,7 +265,9 @@ const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
     },
   },
   {
-    id: "platebreaker", pair: (h) => rig(h, "platebreaker"),
+    // Y7b2 (the flip; DESIGN-Y: no floors): PLATE BREAKER needs 10 PLATE on the hull to act: a PLATE ROLLER before it
+    // (BASTION's slugs plate too); was audited on the bare deck (it had a floor: +10 without PLATE)
+    id: "platebreaker", pair: (h) => rigOnTiles(h, "platebreaker", (b) => later(b, rigAt(b, "plateroller", ENGINE, [1, 2, 0]))),
     check: { ...hitsHarder, show: (w, o) => `${hitsHarder.show(w, o)}; ${w.spent.toFixed(0)} plating spent` },
   },
   { id: "shieldwall", pair: (h) => rig(h, "shieldwall"), check: plates },
@@ -192,8 +282,10 @@ const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
   { id: "armorpress", pair: (h) => placed(h, "armorpress"), check: plates },
   { id: "anvil", pair: (h) => fitted(h, "anvil"), check: { ...hitsHarder, ok: (w, o) => meanDmg(w) > meanDmg(o) + 0.1, what: "every shot deals more" } },
   {
-    // a fire-rate core, audited as REQ-BFG-021 audits CALIBRATION: on a gun with more loads than it fires (towerFed)
-    id: "steambreech", pair: (h) => busy(h, "steambreech"),
+    // a fire-rate core, audited as REQ-BFG-021 audits CALIBRATION: on a gun with more loads than it fires (towerFed).
+    // Y7b2 (the flip; DESIGN-Y: no floors): STEAM BREECH needs PLATE on the hull to act (it fires faster only while
+    // plated): a PLATE ROLLER on the tower's belt; was audited on the bare deck (it had a floor: 10% faster without PLATE)
+    id: "steambreech", pair: (h) => busy(h, "steambreech", (b) => withRig(b, "plateroller", ENGINE)),
     check: {
       what: "on a busy gun (a SHOT TOWER feeds it, as REQ-BFG-021's audit feeds CALIBRATION) it fires more shots and deals more damage",
       ok: (w, o) => w.fires.length > o.fires.length && w.dealt > o.dealt,
@@ -201,10 +293,15 @@ const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
     },
   },
   {
-    id: "twintrigger", pair: (h) => fitted(h, "twintrigger"),
+    // Y7b2 (the flip; DESIGN-Y: no floors): TWIN TRIGGER needs PAIRs to act (two loads by two intakes at once): twinBelts
+    // fed by a factory that pours both at once (FOUNDRY's CRUCIBLE, else a TWIN MOULD); was audited on the bare deck (it
+    // had a floor: a shorter load time). That load-time cut is gone (switch-off only), so the evidence is its live rule:
+    // was "its load time is shorter, so the gun's first shot comes sooner (and FOUNDRY's fusions are pairs that hit
+    // harder)", ok: w.window < o.window && firstShot(w) < firstShot(o) - 0.1
+    id: "twintrigger", pair: (h) => fitted(h, "twintrigger", barge(), (b) => twinBelts(b, true)),
     check: {
-      what: "its load time is shorter, so the gun's first shot comes sooner (and FOUNDRY's fusions are pairs that hit harder)",
-      ok: (w, o) => w.window < o.window && firstShot(w) < firstShot(o) - 0.1,
+      what: "its paired loads hit harder: the gun fires paired shots, and the mean shot deals more than without it",
+      ok: (w, o) => w.fires.some((f) => f.paired) && meanDmg(w) > meanDmg(o) + 0.1,
       show: (w, o) => `load time ${o.window} -> ${w.window} s; first shot at ${firstShot(o).toFixed(2)} -> ${firstShot(w).toFixed(2)} s; ${w.fires.filter((f) => f.paired).length} paired shots; mean shot ${meanDmg(o).toFixed(2)} -> ${meanDmg(w).toFixed(2)}`,
     },
   },
@@ -216,7 +313,10 @@ const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
       show: (w, o) => `charge up to ${w.spallMax.toFixed(1)}; mean shot ${meanDmg(o).toFixed(2)} -> ${meanDmg(w).toFixed(2)}`,
     },
   },
-  { id: "seamwelder", pair: (h) => fitted(h, "seamwelder"), check: plates },
+  // Y7b2 (the flip; DESIGN-Y: no floors): SEAM WELDER needs PAIRs to act (two loads by two intakes at once): twinBelts fed
+  // by a factory that pours both at once (FOUNDRY's CRUCIBLE, else a TWIN MOULD); was audited on the bare deck (it had a
+  // floor: 2 PLATE a lone load)
+  { id: "seamwelder", pair: (h) => fitted(h, "seamwelder", barge(), (b) => twinBelts(b, true)), check: plates },
 ];
 
 const TABLE: string[] = [];
@@ -284,7 +384,11 @@ describe("fire-rate parts on a starting deck: STEAM BREECH as CALIBRATION (the e
       }
       if (hero === "weaver" || hero === "foundry" || hero === "siphon") expect(why, hero).toEqual([STARVED, STARVED]);
       // on the busy gun both add shots, and plated STEAM BREECH more than bare
-      expect(tSteam.fires.length > tNone.fires.length && tCal.fires.length > tNone.fires.length, hero).toBe(true);
+      // Y7b2 (the flip; DESIGN-Y: no floors): STEAM BREECH needs PLATE on the hull to act (it fires faster only while
+      // plated): it is measured on the busy deck with 24 plating, against that plated deck without it (tPlatedNone); was
+      // audited bare (tSteam > tNone: it had a floor, 10% faster without PLATE). Bare it now adds no shot (tSteam fires
+      // tNone's), so below every hero takes the first branch: plated fires more shots than bare
+      expect(tPlated.fires.length > tPlatedNone.fires.length && tCal.fires.length > tNone.fires.length, hero).toBe(true);
       // NUM-2 (REQ-BFG-047), an equivalent check (was: plated fires more shots than bare on every hero): the shot timer
       // carries its remainder and the speed is whole, so bare STEAM ★1 on WEAVER's tower-fed light gun (55 x 1.1 = 60.5
       // -> 61, 0.49 s; was 0.5 s, its timer reset each shot: 64 shots) already fires every load the tower brings: 74, as
