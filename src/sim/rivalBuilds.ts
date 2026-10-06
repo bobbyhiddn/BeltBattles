@@ -377,7 +377,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // 5 > 4; the part that arrives on day 7, non-synergy); soon() keeps the warlord's day 6; right after P(7), the last entry
       // with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
       soon(6, M(8, "flak", 0)), P(8), soon(7, G(9, "counterweight", 1, 2)),
-      M2(9, "scatter", 0), ...good(G(9, "staticbrush", 5, 2)), P(9),
+      // CATCHUP-093 (the Hard band on release Y's field; cap's ruling HB 678fb328359e02f1 (B): one part one day earlier at
+      // good luck only; his paid packs already meet the par count, so fallback 2 has no room): the static brush (rare,
+      // good luck only) on day 8 (was 9). His day-8 road deck 17 -> 25%, walls 97 / 100 -> 85 / 100; value 78 -> 73 g (his
+      // levels give way, captainLevels' own room rule; FURNACE good cap 97, R1 97), rare+ 7 of 7
+      M2(9, "scatter", 0), ...good(soon(8, G(9, "staticbrush", 5, 2))), P(9),
       // REDO-X (cap's ruling 97e639e5813acb37): at ordinary luck the grease on day 10 (was 9; FURNACE's ordinary value cap
       // is 103 on day 9, his stand-in 104 with it; the day's cheapest non-synergy part); soon() keeps the warlord's day 7;
       // right after P(9), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
@@ -454,7 +458,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // ordinary rare cap is 3 on day 5); soon() keeps the warlord's day 3
       // ... re-placed in day order (cap's ruling 1cfdc5fff106d58f): right after the last entry with an earlier day
       soon(1, G(2, "whetstone", 2, 2, 2)), soon(2, G(3, "venom", 3, 4, 1)),
-      ...good(soon(3, G(4, "riveter", 3, 1))), M(4, "hullbreaker", 0), G(5, "longhaul", 5, 3), P(5),
+      // CATCHUP-093 (the Hard band on release Y's field; cap's ruling HB 678fb328359e02f1 (B): one part one day earlier at
+      // good luck only, after fallback 2): the LONG HAUL (rare, synergy) on day 4 at good luck (ordinary day 5 unchanged).
+      // His day-4 road deck 9 -> 24% (walls 100 / 100); value 17 -> 22 g (FURNACE good cap 39, R1 38), rare+ 4 of 4
+      ...good(soon(3, G(4, "riveter", 3, 1))), M(4, "hullbreaker", 0), soon(4, G(5, "longhaul", 5, 3)), P(5),
       // CATCHUP-091 (the Hard band on day 4, cap's ruling 3c58471c74bdc4ed Q5 (1); FLIP-X2's candidate move, REDO-X section 4
       // and BAL-2 section 7: it fits day 4 again): the counterweight back on day 4 at ordinary luck (was 6), re-placed in day
       // order right after the hullbreaker; soon() keeps the warlord's day 3
@@ -463,7 +470,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // and 3 -> 6 at good luck (FURNACE good rare+ d5, cap 5 -> 4: his road deck 5 > 4; at good luck only the fewest part-days,
       // the riveter's 3 -> 6 ties, and the counterweight is the later bought); right after P(5), the last entry with an earlier
       // day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
-      G(6, "counterweight", 4, 4, 1), G(6, "temper", 1, 4, 1),
+      // CATCHUP-093 (cap's ruling HB 678fb328359e02f1 (B)): the temper (common) on day 5 at good luck (ordinary day 6
+      // unchanged). His day-5 road deck 13 -> 42% (walls 100 / 100); value 27 -> 30 g (FURNACE good cap 51, R1 50), rare+ 4
+      // of 4. The counterweight stays on day 6 (target 7): a day earlier at good luck its rare reads 5 over day 5's good
+      // rare+ cap of 4, and no non-synergy rare of his can leave day 5 (the LONG HAUL there is a synergy part)
+      G(6, "counterweight", 4, 4, 1), soon(5, G(6, "temper", 1, 4, 1)),
       // bb-0.8.3 (job BELTS run 4): the RAILGUN at good luck only (the warlord's day 9 kept): the regenerated caps give the
       // stand-in no bought turret on any day and one epic+ on day 9 (its OVERDRIVE)
       // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 0/0/1/3/3/3/3/5 on days 3-10 (the FURNACE
@@ -502,7 +513,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // CATCHUP-091 (the Hard band on day 5; cap's ruling 3c58471c74bdc4ed Q5 (3): one part one day earlier at good luck
       // only): the temper's second star at good luck on day 5 (ordinary day 6 unchanged). Her day-5 road deck 46 -> 61%,
       // its walls 99 / 100 -> 79 / 53
-      soon(5, G2(6, "temper", 0, 2)),
+      // CATCHUP-093 (the Hard band on release Y's field; cap's ruling HB 678fb328359e02f1 (B): one part one day earlier at
+      // good luck only, after fallback 2): the temper's second star (common, synergy) on day 4 at good luck (was 5; ordinary
+      // day 6 unchanged). Her day-4 road deck 28 -> 60%, walls 100 / 100 -> 80 / 99; value 32 -> 35 g (WEAVER good cap 38,
+      // R1 38), star2 2 of 2
+      soon(4, G2(6, "temper", 0, 2)),
       // REDO-X (cap's rulings 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the SPLITTER (synergy; captains.synergy
       // still passes) on day 7 (was 6; WEAVER's ordinary epic+ cap is 0 on day 6); soon() keeps the warlord's day 5; right
       // after G2(6, temper), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
