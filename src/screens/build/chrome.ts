@@ -14,7 +14,7 @@ import { beltIcon, coinIcon } from "../../render/sprites";
 import { button, inside, itemSlot, panel, tapRect } from "../../ui/ui";
 import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { heroCardRect } from "./layout"; // zoom (D2)
-import { BAR_H, cornerTarget } from "./layout"; // TAP-093 (backlog #340): the phone's bar and its corner MENU
+import { BAR_H, cornerTap, cornerTarget } from "./layout"; // TAP-093 (backlog #340): the phone's bar and its corner MENU
 import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
@@ -42,8 +42,9 @@ function drawTopBar(g: G, s: BuildScreen): void {
   ui.add({ id: "bar", r: { x: 0, y: 0, w: W, h: bh }, block: true });
   const tap = s.L.phone ? tapPx(s.game.view) : 0;
   // TAP-093: a portrait phone's bar too short for a finger's target puts one MENU in its top-left corner, its target the
-  // corner's dead space (cornerTarget); the sound setting is in MENU's card (SOUND: MUSIC + SFX / SFX ONLY / OFF)
-  const corner = tap > 0 && bh < tap;
+  // corner's dead space (cornerTarget); the sound setting is in MENU's card (SOUND: MUSIC + SFX / SFX ONLY / OFF).
+  // TAP-093b: layout.ts cornerTap, the test the rune bar's chips use to start right of MENU's finger square
+  const corner = cornerTap(s.L, tap) > 0;
   const narrow = W < 200;
   const sndW = narrow ? 19 : 25, menuW = narrow ? 21 : 27;
   const sndX = W - 2 - sndW, menuX = corner ? 2 : sndX - 1 - menuW;

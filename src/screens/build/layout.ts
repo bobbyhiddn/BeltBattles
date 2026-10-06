@@ -315,12 +315,25 @@ export function phoneBarLift(W: number, H: number, offers: number, tap: number, 
 }
 
 /**
+ * TAP-093b (backlog #340, REQ-BFG-040): the side of the corner MENU's finger square on the layout `L` (`tap`, tapPx of
+ * the view) where chrome.ts drawTopBar puts MENU in the bar's top-left corner: a portrait phone's layout whose bar is
+ * shorter than a finger's target (not lifted, phoneBarLift). 0 elsewhere: a lifted bar keeps SND and MENU at its right
+ * end; landscape and the desktop have no `phone` layout. The rune bar's chips start right of it (runeBar.ts runeChipX0).
+ * Pure.
+ */
+export function cornerTap(L: Pick<BuildLayout, "phone" | "bar">, tap: number): number {
+  return L.phone && tap > 0 && L.bar.h < tap ? tap : 0;
+}
+
+/**
  * TAP-093 (the brief's means 2): the corner MENU's target on a portrait phone whose bar doesn't lift: from the screen's
  * top-left corner, `tap` px tall (stopping at `floor`, a grown details panel's top) and at least `tap` wide (past the drawn
  * button `r`), on dead space only: kept 1 px clear of every target under the bar (`others`: the shop cards, REROLL, the
- * packs, the rune chips). Where one of them cuts into that rect (a rune chip at DPR 2, where the chips start 28 px in and a
- * finger's target is 30), an L: the full width down to that target's top, and the full height left of it (every point
- * one button's). The first rect is the tallest. Pure (tests).
+ * packs, the rune chips). Where one of them cuts into that rect, an L: the full width down to that target's top, and the
+ * full height left of it (every point one button's). The first rect is the tallest. TAP-093b: the rune chips start at
+ * tap + 1 while the corner MENU is up (runeBar.ts runeChipX0), so with runes held the column left of them is a full
+ * finger's square (before, at DPR 2 the first chip 28 px in cut a finger's 30 to 27); the first card still cuts it with
+ * no rune held on the narrowest x5 screens (320-330 CSS px @3: the card row starts 24-27 px in). Pure (tests).
  */
 export function cornerTarget(r: Rect, tap: number, others: Rect[], floor = Infinity): Rect[] {
   const w = Math.max(tap, r.x + r.w + 2), h = Math.max(r.y + r.h + 1, Math.min(tap, floor));

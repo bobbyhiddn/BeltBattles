@@ -23,6 +23,7 @@ import {
   RUNE_KEYWORD_COLOUR, KEYWORD_WORD, runeInitials, runeKeyword, runeReminderSpans, runeSentenceSpans, runeTaken, tierColour,
 } from "./runeText";
 import { buildLayout, FOE_H, phoneScreen, type BuildLayout } from "../screens/build/layout";
+import { cornerTap } from "../screens/build/layout"; // TAP-093b (backlog #340): the corner MENU's finger square
 import { OFFERS } from "../sim/content";
 import type { BuildScreen } from "../screens/build/build";
 
@@ -33,6 +34,12 @@ export const RUNE_CHIP_MIN = 22;
 /** The bar's label column ("RUNES" over the count). */
 const LABEL_W = 26;
 const PITCH_GAP = 3;
+
+/** TAP-093b (backlog #340, REQ-BFG-040): where the bar's first chip starts while the build screen's corner MENU is up,
+ *  its finger target a `tap` px square from the screen's top-left corner (layout.ts cornerTap, cornerTarget): 1 px right
+ *  of that square (tap + 1: 31 at x3 @2, 30 at x4 @2.625, 34 at x4 @3), never left of the label column's 28 (x5 @3's
+ *  27 px square already ends left of it: 28, as before). Pure. */
+export const runeChipX0 = (tap: number): number => Math.max(LABEL_W + 2, tap + 1);
 
 /** A chip's side in art px for a view: a finger's TAP_CSS CSS px (tapPx), at least RUNE_CHIP_MIN. */
 export const runeChip = (v: Pick<View, "scale" | "dpr">): number => Math.max(RUNE_CHIP_MIN, tapPx(v));
@@ -52,10 +59,12 @@ export interface RuneBarLayout {
 /** The bar for `n` runes on a screen `W` wide, its row's top at `top`, chips `chip` art px tall. Pure (tests).
  *  FLIP-X2 (REVIEW-FLIPX1 answer 3): `ws[i]`, rune i's chip width (runeChipW: at least `chip`, wider when its keyword word
  *  needs it, SHIELD's 26 on the desk's 22 px chips); absent, every chip is `chip` wide and the row is exactly as before
- *  (the same fit: chips while the last one ends inside W - 3, else a "+k" chip, `chip` wide, in the last place that fits). */
-export function runeBarLayout(W: number, top: number, n: number, chip: number, ws: readonly number[] = []): RuneBarLayout {
+ *  (the same fit: chips while the last one ends inside W - 3, else a "+k" chip, `chip` wide, in the last place that fits).
+ *  TAP-093b (backlog #340, REQ-BFG-040): `x0`, where the first chip starts (runeChipX0: right of the build screen's corner
+ *  MENU's finger square); absent, LABEL_W + 2 = 28, right of the label column, exactly as before. */
+export function runeBarLayout(W: number, top: number, n: number, chip: number, ws: readonly number[] = [], x0 = LABEL_W + 2): RuneBarLayout {
   const bar = { x: 0, y: top, w: W, h: chip + 6 };
-  const x0 = LABEL_W + 2, right = W - 3;
+  const right = W - 3;
   const wOf = (i: number): number => Math.max(chip, ws[i] ?? chip);
   const xs: number[] = [];
   for (let i = 0, x = x0; i < n; x += wOf(i) + PITCH_GAP, i++) xs.push(x);
@@ -222,7 +231,11 @@ export class RuneBar {
     const side = runeChip(s.game.view);
     // FLIP-X2 (REVIEW-FLIPX1 answer 3): each chip sized from its word (runeChipW; SHIELD's 26 on the desk's 22 px chips)
     const ws = (s.run.build.runes ?? []).map((q) => (q && isRune(q.id) ? runeChipW(RUNES[q.id], side) : side));
-    return runeBarLayout(s.game.W, s.L.bar.y + s.L.bar.h, n, side, ws);
+    // TAP-093b (backlog #340): while the corner MENU is up (a portrait phone's bar shorter than a finger's target), the
+    // chips start right of its finger's square (runeChipX0), so its target is a full square with runes held; elsewhere
+    // (a lifted bar, landscape, the desktop) at 28, as before
+    const corner = cornerTap(s.L, tapPx(s.game.view));
+    return runeBarLayout(s.game.W, s.L.bar.y + s.L.bar.h, n, side, ws, corner ? runeChipX0(corner) : undefined);
   }
 
   /** Under the chrome (a grown details panel, the options card and a drag draw over it): the strip and its chips. */
