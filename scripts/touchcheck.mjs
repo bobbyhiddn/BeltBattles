@@ -56,8 +56,22 @@
 //         and the longest; it fails when p95 is over 200 ms (or a tap was not one touch press), and each tap over 200 ms
 //         is a WARN line with the 1-min load then. LOAD lines: the 1-min load at the start and end of the run and of each
 //         view.
-// Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names,bar] [--tag after]
-//        [--name touchcheck] [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
+// CUSTOM-2b (REQ-BFG-072) customize, newstyle, roadfork: the styles' screens by real touch (a click on the desk), on every
+//         phone above plus the 360x640 @2 and 375x667 @2 phones and the desk (--cviews), with the run's --profile
+//         written before each page loads (none, or mixed: open and locked styles in every tab, two unlocks unseen):
+//         customize: the title's CUSTOMIZE, the third button of the HOW TO PLAY / OPTIONS row (HOW TO PLAY and OPTIONS
+//           keep their size and still open their cards; NEW RUN spans the wider row) and its NEW dot (read back off the
+//           canvas: on exactly while an unlock is unseen, gone after the visit); CUSTOMIZE at its own scale
+//           (customizeScale), BACK, the three tabs and the five rows a tab as the targets bb.profile().customize.L names,
+//           44 CSS px tall on a phone; a tap on an open row wears and saves it, on a locked row previews it only (PREVIEW:
+//           NOT YOURS YET. in its band), a tab brings back what you wear; BACK and ESC leave without wearing a preview;
+//           a reload keeps the choice;
+//         newstyle: a 10-0 summary with and without NEW STYLE lines: NEW RUN and TITLE the same targets either way;
+//         roadfork: the road fork and event (over the sea since CUSTOM-2a): a tap through each, and every target's region
+//           in <name>-roadfork.json for a comparison with 8fbba9d's build.
+// Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names,bar,customize,
+//        newstyle,roadfork] [--tag after] [--name touchcheck] [--profile none|mixed] [--cviews phone,...,desk]
+//        [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json, <name>-mouse.json and the screenshots.
 
 import { chromium, devices, webkit } from "playwright-core";
@@ -76,9 +90,36 @@ const opt = (name, fallback) => {
 };
 const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "touchcheck"));
-const ONLY = opt("only", "touch,mouse,319,names,bar").split(",").map((s) => s.trim()); // PACKS M2: + names; TAP-093b: + bar
+// PACKS M2: + names; TAP-093b: + bar; CUSTOM-2b (REQ-BFG-072): + customize, newstyle, roadfork
+const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork").split(",").map((s) => s.trim());
 const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
+/** CUSTOM-2b (REQ-BFG-072): --profile: the player profile (beltbattles.profile.v1) every page of the run starts with,
+ *  written before the page loads (as scripts/customshots.mjs profile() does): "none" (the default: no key, a fresh
+ *  player, which the game seeds) or "mixed" (CUSTOM-1's mock player: open and locked styles in every tab, two unlocks not
+ *  yet seen, so the title shows CUSTOMIZE's NEW dot; it wears TIMBER DECK, BLUED STEEL and BRASSBOUND). "allopen" (every
+ *  style open and seen) is the newstyle check's own. */
+const PROFILE_KEY = "beltbattles.profile.v1";
+const MIXED_UNLOCKED = ["style:floor.timber", "style:floor.tread", "style:floor.checker", "style:belt.verdigris", "style:belt.blued", "style:panel.brass", "style:panel.timber"];
+const CATALOGUE = {
+  floor: ["plate", "timber", "tread", "checker", "rune"], belt: ["iron", "verdigris", "blued", "timber", "rune"], panel: ["slate", "brass", "verdigris", "timber", "plum"],
+};
+const ALL_STYLES = Object.entries(CATALOGUE).flatMap(([s, ids]) => ids.slice(1).map((id) => `style:${s}.${id}`));
+const PROFILES = {
+  none: null,
+  mixed: {
+    v: 1, counters: { runs: 4, runsFinished: 1, flawless: 0, duskWins: 9, bestDay: 10, warlordWins: 2, matriarchWins: 0, mostBelts: 3 },
+    heroesWon: ["furnace"], heroesFinished: ["furnace"], unlocked: MIXED_UNLOCKED, chosen: { floor: "timber", belt: "blued", panel: "brass" },
+    seen: MIXED_UNLOCKED.slice(0, 5), folded: [], runNew: null, updatedAt: 1,
+  },
+  allopen: {
+    v: 1, counters: { runs: 99, runsFinished: 9, flawless: 1, duskWins: 99, bestDay: 10, warlordWins: 9, matriarchWins: 9, mostBelts: 9 },
+    heroesWon: ["furnace", "weaver", "foundry"], heroesFinished: ["furnace", "weaver", "foundry"], unlocked: ALL_STYLES,
+    chosen: { floor: "plate", belt: "iron", panel: "slate" }, seen: ALL_STYLES, folded: [], runNew: null, updatedAt: 1,
+  },
+};
+const PROFILE = opt("profile", "none");
+if (!(PROFILE in PROFILES)) throw new Error(`--profile ${PROFILE}: one of ${Object.keys(PROFILES).join(", ")}`);
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png" };
 
 /** shoptap2: Playwright's iPhone descriptors (Safari's user agent, DPR 3, isMobile, hasTouch; viewport: Safari's visible
@@ -190,11 +231,21 @@ async function touchSession(ctx, page, engine) {
   };
 }
 
-async function openPage(browsers, origin, vname) {
+/** CUSTOM-2b (REQ-BFG-072): `init.profile`: the player profile the page starts with (undefined: the run's --profile;
+ *  null: none), written before the game loads and only while the key is absent (a reload keeps what the game saved);
+ *  `init.name`: a player name stored the same way (the title's buttons open the name screen first without one). */
+async function openPage(browsers, origin, vname, init = {}) {
   const engine = ENGINE(vname), browser = browsers[engine];
   if (!browser) throw new Error(`${vname}: ${engine} is not running`);
   const ctx = await browser.newContext(VIEW[vname]);
   const page = await ctx.newPage();
+  const prof = init.profile === undefined ? PROFILES[PROFILE] : init.profile;
+  if (prof || init.name) {
+    await page.addInitScript(([pk, p, nk, n]) => {
+      if (p && localStorage.getItem(pk) === null) localStorage.setItem(pk, p);
+      if (n && localStorage.getItem(nk) === null) localStorage.setItem(nk, n);
+    }, [PROFILE_KEY, prof ? JSON.stringify(prof) : null, "beltbattles.name.v1", init.name ?? null]);
+  }
   // each touch press's length as the page saw it: pointerdown to pointerup, timed in the page (performance.now)
   await page.addInitScript(() => {
     window.__taps = [];
@@ -1320,12 +1371,333 @@ async function namesSection(browsers, origin) {
   }
 }
 
+// ------------------------------------------------------------------------------------ CUSTOM-2b: CUSTOMIZE and the title
+/** CUSTOM-2b (REQ-BFG-072): the views the CUSTOMIZE, NEW STYLE and road/fork checks run on: every touchcheck phone (the
+ *  touch views, the 360x640 @2 phone and the DPR 2 375x667 phone) and the desk (the mouse). --cviews narrows it. */
+const CUSTOM_VIEWS = opt("cviews", "phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm,wk-op-690,small,bar-667,desk").split(",").map((s) => s.trim());
+/** customize.ts customizeScale (CUSTOM-2a), with core/io.ts defaultScale: the menu scale where the portrait layout has
+ *  WANT_H (494) logical px, else the largest smaller scale that does, never under one CSS px per logical px; landscape
+ *  keeps the menu scale. pw, ph: device px. */
+const menuScale = (pw, ph, portrait) => Math.max(1, Math.floor(Math.min(pw / (portrait ? 200 : 440), ph / (portrait ? 400 : 346))));
+function customizeScaleOf(pw, ph, portrait, dpr) {
+  const menu = menuScale(pw, ph, portrait);
+  if (!portrait) return menu;
+  const least = Math.min(menu, Math.max(1, Math.ceil(dpr - 1e-6)));
+  for (let s = menu; s > least; s--) if (Math.floor(ph / s) >= 494) return s;
+  return least;
+}
+/** CUSTOM-2a REPORT section 11: customizeScale 5 at 390x844 @3, 4 at 390x660 @3, 2 at 360x640 @2. */
+const SCALE_PINS = { phone: 5, "wk-phone": 5, "phone-660": 4, "wk-phone-660": 4, small: 2 };
+const LIME = [40, 255, 100], AMBER = [243, 143, 50];
+/** The game's canvas (one canvas px per logical px) read back in a scratch canvas, as marksOf does (the game's own canvas
+ *  is never read back): how many pixels of the logical rect are within 3 of `rgb`, after a fresh frame. */
+const countPx = (page, r, rgb) => page.evaluate(([q, c]) => {
+  const g = window.bb.game;
+  g.step(1 / 60);
+  g.render();
+  const sc = document.createElement("canvas");
+  sc.width = g.canvas.width;
+  sc.height = g.canvas.height;
+  const cx = sc.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(g.canvas, 0, 0);
+  const d = cx.getImageData(Math.round(q.x), Math.round(q.y), Math.max(1, Math.round(q.w)), Math.max(1, Math.round(q.h))).data;
+  let n = 0;
+  for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - c[0]) <= 3 && Math.abs(d[i + 1] - c[1]) <= 3 && Math.abs(d[i + 2] - c[2]) <= 3) n++;
+  return n;
+}, [r, rgb]);
+const stored = (page) => page.evaluate((k) => { const s = localStorage.getItem(k); return s ? JSON.parse(s) : null; }, PROFILE_KEY);
+const cinfo = (page) => page.evaluate(() => window.bb.profile().customize);
+const box = (r) => (r ? `${r.w.toFixed(1)}x${r.h.toFixed(1)} at (${r.x.toFixed(1)}, ${r.y.toFixed(1)})` : "MISSING");
+const overlap = (a, b) => a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.h - 0.01 && b.y < a.y + a.h - 0.01;
+const near = (a, b, e = 0.05) => Math.abs(a - b) <= e;
+
+/**
+ * CUSTOM-2b (REQ-BFG-072): the title's way in and the CUSTOMIZE screen, on one view, by real touch (a click on the desk):
+ *  - the title (CUSTOM-2a REPORT section 11): CUSTOMIZE is the third button of the HOW TO PLAY / OPTIONS row (one row,
+ *    4 px apart, at least 40 px wide); HOW TO PLAY and OPTIONS keep 0350e5f's halves; NEW RUN spans the wider row; the
+ *    panel holds them all on the screen; a tap on HOW TO PLAY and on OPTIONS still opens its card; the NEW dot (a 3x3 lime
+ *    dot, read back off the canvas) shows exactly while an unlocked style is unseen;
+ *  - CUSTOMIZE: its scale (customizeScale), rows of 46 px in portrait above the footer, BACK, the three tabs and the five
+ *    rows each a finger's target (44 CSS px tall on a phone) inside the visible viewport and apart, matching
+ *    bb.profile().customize.L; the NEW tags; each tab by a tap; each of the five rows of each tab by a tap: an open style
+ *    is worn and saved at once, a locked one previews only (PREVIEW: NOT YOURS YET. drawn in its band, nothing worn or
+ *    saved) and a tab brings back what you wear; BACK and ESC leave without wearing a previewed style; the NEW dot is gone
+ *    after the visit; a reload keeps what was worn.
+ */
+async function customizeView(browsers, origin, vname) {
+  const V = `customize ${vname}`;
+  viewNow = V;
+  loadLine(`${V}: start`);
+  const touch = !!VIEW[vname].hasTouch;
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname, { name: "TOUCH" });
+  let n = 0;
+  const press = async (p) => {
+    if (touch) { const [d, deg] = DRIFTS[n++ % DRIFTS.length]; await tap(cdp, p, d, deg); } else { await page.mouse.click(p.x, p.y); await sleep(150); }
+  };
+  const verb = touch ? "a tap" : "a click";
+  try {
+    await settle(page, "title");
+    for (const id of ["new", "help", "options", "customize"]) await regionDrawn(page, id);
+    await nextFrame(page);
+    const T = await page.evaluate(() => {
+      const s = window.bb.game.screen, v = window.bb.game.view, info = s.layoutInfo();
+      return { k: info.k, panel: info.panel, b: s.L.buttons, newStyle: s.newStyle, W: v.W, H: v.H, scale: v.scale, dpr: v.dpr, unseen: window.bb.profile().unseen };
+    });
+    const c = T.scale / T.dpr; // CSS px per logical px
+    const R = {};
+    for (const id of ["new", "cont", "help", "options", "customize"]) R[id] = await region(page, id);
+    const [h, o, cu, nw] = [R.help, R.options, R.customize, R.new];
+    log(`[${at()}] ${V}: title ${T.W}x${T.H} at x${T.scale} (dpr ${T.dpr}, k ${T.k}); NEW RUN ${box(nw)}, HOW TO PLAY ${box(h)}, OPTIONS ${box(o)}, CUSTOMIZE ${box(cu)} CSS px; unseen ${JSON.stringify(T.unseen)}`);
+    const row = !!(h && o && cu) && near(h.y, o.y) && near(o.y, cu.y) && near(h.h, o.h) && near(o.h, cu.h)
+      && near(o.x, h.x + h.w + 4 * c) && near(cu.x, o.x + o.w + 4 * c) && cu.w >= 40 * c - 0.05 && !overlap(h, o) && !overlap(o, cu);
+    check(row, `${V}: CUSTOMIZE is the third button of the HOW TO PLAY / OPTIONS row (one row ${h ? h.h.toFixed(1) : "?"} CSS px tall, 4 px apart, left to right), ${cu ? (cu.w / c).toFixed(0) : "?"} px wide (at least 40: its word and the NEW dot)`);
+    const u = (x) => Math.ceil(x * T.k - 1e-9), bw0 = Math.min(T.W - 24, Math.max(u(132), 2 * u(64) + 4)), hw = Math.floor((bw0 - 4) / 2);
+    const P = T.panel, inside = (b) => b.x >= P.x && b.y >= P.y && b.x + b.w <= P.x + P.w && b.y + b.h <= P.y + P.h;
+    const wide = !!(h && o && cu && nw) && near(h.w, hw * c) && near(o.w, hw * c) && near(nw.x, h.x) && near(nw.x + nw.w, cu.x + cu.w)
+      && ["new", "help", "options", "customize"].every((id) => inside(T.b[id])) && (!T.b.cont || inside(T.b.cont)) && P.x >= 0 && P.x + P.w <= T.W && P.y >= 0 && P.y + P.h <= T.H;
+    check(wide, `${V}: HOW TO PLAY and OPTIONS keep 0350e5f's halves (${hw} px each: ${h ? (h.w / c).toFixed(1) : "?"}, ${o ? (o.w / c).toFixed(1) : "?"}); NEW RUN spans the wider row (${nw ? (nw.w / c).toFixed(1) : "?"} px = the halves + CUSTOMIZE's ${cu ? (cu.w / c).toFixed(1) : "?"} + 8); the panel (${P.w}x${P.h} px at ${P.x}, ${P.y}) holds every button, on the screen`);
+    // the NEW dot: newDot draws a 3x3 lime dot at the button's top right, in a 5x5 ink rim
+    const dotAt = (b) => ({ x: b.x + b.w - 6, y: b.y + 3, w: 3, h: 3 });
+    const want = T.unseen.length > 0;
+    const dot0 = await countPx(page, dotAt(T.b.customize), LIME);
+    check(T.newStyle === want && dot0 === (want ? 9 : 0), `${V}: the NEW dot ${want ? "shows" : "is off"} with ${T.unseen.length} unlocked style(s) unseen (newStyle ${T.newStyle}; ${dot0}/9 lime px at its place as drawn)`);
+    if (want) await shot(page, `${TAG}-customize-${vname}-title-newdot.png`);
+    // HOW TO PLAY and OPTIONS moved left by none (the panel grew to the right and re-centred): each still opens its card
+    if (h) await press(centre(h));
+    const help = await page.evaluate(() => window.bb.game.screen.help === true);
+    await page.keyboard.press("Escape");
+    await sleep(100);
+    if (o) await press(centre(o));
+    const menu = await page.evaluate(() => window.bb.game.screen.menu === true);
+    await page.keyboard.press("Escape");
+    await sleep(100);
+    const shut = await page.evaluate(() => !window.bb.game.screen.help && !window.bb.game.screen.menu);
+    check(help && menu && shut, `${V}: ${verb} on HOW TO PLAY opens its card (${help}), on OPTIONS the options card (${menu}); ESC shuts each (${shut})`);
+
+    // ---- CUSTOMIZE: in by the title's button
+    if (cu) await press(centre(cu));
+    await settle(page, "customize");
+    await regionDrawn(page, "back");
+    await nextFrame(page);
+    const env = await page.evaluate(() => ({ iw: innerWidth, ih: innerHeight, dpr: devicePixelRatio, v: { ...window.bb.game.view } }));
+    let ci = await cinfo(page);
+    const L = ci.L, cc = env.v.scale / env.v.dpr;
+    const pw = Math.floor(env.iw * env.dpr), ph = Math.floor(env.ih * env.dpr), portrait = ph > pw * 1.05;
+    const wantScale = customizeScaleOf(pw, ph, portrait, env.dpr), pin = SCALE_PINS[vname];
+    check(env.v.scale === wantScale && (pin === undefined || env.v.scale === pin),
+      `${V}: ${verb} on CUSTOMIZE opens it at its own scale x${env.v.scale} (customizeScale for ${pw}x${ph} device px, ${portrait ? "portrait" : "landscape"}: x${wantScale}${pin !== undefined ? `; CUSTOM-2a's pin x${pin}` : ""}): ${L.W}x${L.H} logical px, ${cc.toFixed(3)} CSS px each`);
+    const rowsOk = L.rows.length === 5 && L.rows.every((r, i) => (!L.portrait || r.h === 46) && (i === 0 || r.y >= L.rows[i - 1].y + L.rows[i - 1].h)) && L.rows[4].y + L.rows[4].h <= L.footY;
+    check(rowsOk, `${V}: five rows ${L.portrait ? "of 46 px (a finger's height)" : `${L.rows[0].h} px tall (the landscape column)`}, top to bottom, above the footer (rows ${L.rows.map((r) => `${r.y}+${r.h}`).join(", ")}; footer at ${L.footY})`);
+    const ids = ["back", "tab-floor", "tab-belt", "tab-panel", ...CATALOGUE[ci.tab].map((id) => `style-${ci.tab}-${id}`)];
+    const regs = await page.evaluate((list) => list.map((i) => window.bb.regions().filter((q) => q.id === i).pop() ?? null), ids);
+    const want2 = [L.backHit, ...L.tabHits, ...L.rows].map((r) => { const p = { x: r.x * cc, y: r.y * cc, w: r.w * cc, h: r.h * cc }; return p; });
+    const canvasAt = await page.evaluate(() => { const r = window.bb.game.canvas.getBoundingClientRect(); return { x: r.left, y: r.top }; });
+    const l0 = await lookVis(page);
+    const match = regs.every((r, i) => !!r && near(r.x, canvasAt.x + want2[i].x, 0.02) && near(r.y, canvasAt.y + want2[i].y, 0.02) && near(r.w, want2[i].w, 0.02) && near(r.h, want2[i].h, 0.02));
+    const big = regs.every((r) => !!r && (!touch || r.h >= TAP_CSS - 0.01)) && (!touch || (regs[0] && regs[0].w >= TAP_CSS - 0.01));
+    const apart = regs.every((r, i) => regs.every((q, j) => j <= i || !r || !q || !overlap(r, q)));
+    const vis = regs.every((r) => inView(r, l0));
+    check(match && big && apart && vis, `${V}: BACK, the three tabs and the five rows are the targets bb.profile().customize.L names (${match ? "each drawn region matches" : "a region DIFFERS"}), ${touch ? `each at least 44 CSS px tall (BACK 44 wide too: ${box(regs[0])})` : "the desk's own sizes"}, ${apart ? "apart" : "OVERLAPPING"}, ${vis ? "inside" : "NOT inside"} the visible viewport (heights ${regs.map((r) => (r ? r.h.toFixed(1) : "-")).join(", ")} CSS px)`);
+    // the NEW tags: the unlocks unseen when the screen opened show NEW, and the visit marks them seen (saved)
+    const freshWant = T.unseen.slice().sort();
+    const fresh = [];
+    for (const s of ["floor", "belt", "panel"]) {
+      await page.evaluate((t) => window.bb.game.screen.state.tapTab(t), s);
+      for (const r of (await cinfo(page)).rows) if (r.fresh) fresh.push(`style:${s}.${r.id}`);
+    }
+    await page.evaluate(() => window.bb.game.screen.state.tapTab("floor"));
+    const unseenAfter = (await page.evaluate(() => window.bb.profile().unseen)).length;
+    check(same(fresh.sort(), freshWant) && unseenAfter === 0, `${V}: the rows tagged NEW are the unlocks unseen at the title (${JSON.stringify(fresh)}); the visit marks them seen (${unseenAfter} unseen now, saved)`);
+    // each tab, then each of its five rows, by a tap (a click on the desk)
+    let lockedShot = false;
+    const tabOrder = ["belt", "panel", "floor"];
+    for (const t of tabOrder) {
+      await press(centre(await region(page, `tab-${t}`)));
+      ci = await cinfo(page);
+      const ok = ci.tab === t && same(ci.rows.map((r) => r.id), CATALOGUE[t]) && ci.pick === ci.worn[t] && !ci.locked;
+      check(ok, `${V}: ${verb} on the ${t.toUpperCase()} tab opens it (tab ${ci.tab}; rows ${ci.rows.map((r) => `${r.id}${r.open ? "" : " (locked)"}`).join(", ")}); the preview shows what you wear (${ci.pick})`);
+      for (const id of CATALOGUE[t]) {
+        const before = await cinfo(page), st0 = await stored(page), rowSt = before.rows.find((r) => r.id === id);
+        const rr = await region(page, `style-${t}-${id}`);
+        if (!rr) { check(false, `${V}: the ${t} row ${id} has no target`); continue; }
+        await press(centre(rr));
+        const after = await cinfo(page), st1 = await stored(page);
+        if (rowSt.open) {
+          check(after.worn[t] === id && st1?.chosen?.[t] === id && after.pick === id && !after.locked,
+            `${V}: ${verb} on the open ${t} row ${id} wears it and saves it at once (worn ${after.worn[t]}, stored ${st1?.chosen?.[t]}); no PREVIEW band`);
+        } else {
+          const band = await countPx(page, after.L.band, AMBER);
+          check(after.pick === id && after.locked && after.worn[t] === before.worn[t] && st1?.chosen?.[t] === st0?.chosen?.[t] && band > 0,
+            `${V}: ${verb} on the locked ${t} row ${id} (${rowSt.progress ? rowSt.progress.join("/") : "?"}) previews it only: PREVIEW: NOT YOURS YET. drawn in its band (${band} amber px), still wearing ${after.worn[t]} (stored ${st1?.chosen?.[t]})`);
+          if (!lockedShot) { lockedShot = true; await shot(page, `${TAG}-customize-${vname}-locked-${t}-${id}.png`); }
+          await press(centre(await region(page, `tab-${t}`)));
+          const back = await cinfo(page);
+          check(back.pick === back.worn[t] && !back.locked, `${V}: ${verb} on the ${t.toUpperCase()} tab after it brings back what you wear (${back.pick})`);
+        }
+      }
+    }
+    await shot(page, `${TAG}-customize-${vname}-floor.png`);
+    // BACK leaves without wearing a previewed locked style; the NEW dot is gone
+    const locked = (await cinfo(page)).rows.find((r) => !r.open);
+    const st2 = await stored(page);
+    if (locked) await press(centre(await region(page, `style-floor-${locked.id}`)));
+    const pv = await cinfo(page);
+    await press(centre(await region(page, "back")));
+    await settle(page, "title");
+    await regionDrawn(page, "customize");
+    const st3 = await stored(page);
+    const T2 = await page.evaluate(() => ({ b: window.bb.game.screen.L.buttons.customize, newStyle: window.bb.game.screen.newStyle }));
+    const dot1 = await countPx(page, dotAt(T2.b), LIME);
+    check(!!locked && pv.locked && same(st3?.chosen, st2?.chosen) && T2.newStyle === false && dot1 === 0,
+      `${V}: BACK from a locked preview (${locked ? locked.id : "none"}) goes to the title wearing what was saved (${JSON.stringify(st3?.chosen)}); no NEW dot now (newStyle ${T2.newStyle}, ${dot1} lime px)`);
+    // ESC leaves too, again without wearing a previewed style
+    await press(centre(await region(page, "customize")));
+    await settle(page, "customize");
+    await regionDrawn(page, "back");
+    const re = await cinfo(page);
+    if (locked) await press(centre(await region(page, `style-floor-${locked.id}`)));
+    const pv2 = await cinfo(page);
+    await page.keyboard.press("Escape");
+    await settle(page, "title");
+    const st4 = await stored(page);
+    check(re.pick === re.worn.floor && !re.locked && pv2.locked && same(st4?.chosen, st2?.chosen),
+      `${V}: back in CUSTOMIZE the preview shows what you wear (${re.pick}); ESC from a locked preview goes to the title, nothing worn (${JSON.stringify(st4?.chosen)})`);
+    // the choice persists over a reload
+    await page.reload();
+    await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
+    await settle(page, "title");
+    const wears = await page.evaluate(() => window.bb.profile().wears);
+    check(same(wears, st4?.chosen), `${V}: after a reload the player wears what was saved (${JSON.stringify(wears)})`);
+  } catch (e) {
+    check(false, `${V}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+  }
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors[0]}` : ""})`);
+  await ctx.close();
+  loadLine(`${V}: end`);
+}
+/** The visible viewport (CSS px) as lookNow measures it, for inView, on any screen. */
+const lookVis = (page) => page.evaluate(() => {
+  const vv = window.visualViewport;
+  const vis = { x: vv ? vv.offsetLeft : 0, y: vv ? vv.offsetTop : 0, w: vv ? vv.width : innerWidth, h: vv ? vv.height : innerHeight };
+  const x0 = Math.max(0, vis.x), y0 = Math.max(0, vis.y), x1 = Math.min(innerWidth, vis.x + vis.w), y1 = Math.min(innerHeight, vis.y + vis.h);
+  return { vis: { x: x0, y: y0, w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+});
+
+async function customizeSection(browsers, origin) {
+  log("");
+  log(`## CUSTOM-2b (REQ-BFG-072): the title's way in and CUSTOMIZE (profile: ${PROFILE}): the third button, the NEW dot, customizeScale, BACK, the tabs, the five rows a tab, a locked row's preview, ESC`);
+  for (const v of CUSTOM_VIEWS) {
+    if (!browsers[ENGINE(v)]) continue;
+    await customizeView(browsers, origin, v);
+  }
+}
+
+/**
+ * CUSTOM-2b (REQ-BFG-072): the summary's NEW STYLE lines (CUSTOM-2a db7ead0): a 10-0 run's summary for a player with every
+ * style open (no line) and for a new player (the run's end unlocks four: two lines). The lines sit in the card's own gap:
+ * NEW RUN and TITLE are the same targets with and without them, on the screen, 44 CSS px tall on a phone.
+ */
+async function newStyleSection(browsers, origin) {
+  log("");
+  log("## CUSTOM-2b (REQ-BFG-072): the summary's NEW STYLE lines: the card doesn't move, its buttons are unchanged");
+  for (const vname of CUSTOM_VIEWS) {
+    if (!browsers[ENGINE(vname)]) continue;
+    const V = `newstyle ${vname}`;
+    loadLine(`${V}: start`);
+    const seen = [];
+    try {
+      for (const [label, prof] of [["every style open", PROFILES.allopen], ["a new player", null]]) {
+        const { ctx, page, errors } = await openPage(browsers, origin, vname, { profile: prof });
+        try {
+          await settle(page, "title");
+          await page.evaluate(() => window.bb.openEnd({ hero: "furnace", seed: 12345, results: "WWWWWWWWWW" }));
+          await settle(page, "summary");
+          await regionDrawn(page, "again");
+          await nextFrame(page);
+          const m = await page.evaluate(() => {
+            const s = window.bb.game.screen, v = window.bb.game.view, reg = (id) => window.bb.regions().filter((q) => q.id === id).pop() ?? null;
+            return { lines: s.noteLines(), again: reg("again"), title: reg("title"), k: v.scale / v.dpr, ids: window.bb.regions().map((q) => q.id) };
+          });
+          seen.push({ label, ...m, errors: errors.length });
+          if (m.lines.length) await shot(page, `${TAG}-newstyle-${vname}-summary.png`);
+        } finally {
+          await ctx.close();
+        }
+      }
+      const [a, b] = seen, vp = VIEW[vname].viewport, touch = !!VIEW[vname].hasTouch;
+      const sameBtn = !!(a.again && b.again && a.title && b.title) && ["x", "y", "w", "h"].every((q) => near(a.again[q], b.again[q], 0.01) && near(a.title[q], b.title[q], 0.01));
+      const bottom = b.again ? b.again.y + b.again.h + 6 * b.k : Infinity;
+      check(a.lines.length === 0 && b.lines.length === 2 && b.lines.every((t) => /^NEW STYLES?: /.test(t)) && sameBtn && bottom <= vp.height && (!touch || (b.again.h >= TAP_CSS && b.title.h >= TAP_CSS)) && same(a.ids, b.ids),
+        `${V}: a 10-0 summary: ${JSON.stringify(a.lines)} for a player with every style open, ${JSON.stringify(b.lines)} for a new player; NEW RUN (${box(b.again)}) and TITLE (${box(b.title)}) are the same targets either way (${sameBtn ? "yes" : "NO"}), the card ends on the screen (${bottom.toFixed(1)} <= ${vp.height})${touch ? ", both at least 44 CSS px tall" : ""}`);
+      check(a.errors + b.errors === 0, `${V}: 0 console errors (${a.errors + b.errors})`);
+    } catch (e) {
+      check(false, `${V}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    loadLine(`${V}: end`);
+  }
+}
+
+/**
+ * CUSTOM-2b (REQ-BFG-072): the road fork and the road event draw the day's sea (CUSTOM-2a P1); their targets stay. On each
+ * view: the fork (day 3) and the day-1 event, every target's region (CSS px) written to <name>-roadfork.json, so a run
+ * on 8fbba9d's build (no sea) can be compared with it; a tap (a click on the desk) on the fork's ROAD EVENT card picks
+ * it (in portrait the first tap inspects, as 0.6.0b's touch rule) and the event opens; a tap on its first choice picks it.
+ */
+async function roadForkSection(browsers, origin) {
+  log("");
+  log("## CUSTOM-2b (REQ-BFG-072): the road fork and the road event over the sea: their targets, and a tap through each");
+  const dump = {};
+  for (const vname of CUSTOM_VIEWS) {
+    if (!browsers[ENGINE(vname)]) continue;
+    const V = `roadfork ${vname}`;
+    viewNow = V;
+    loadLine(`${V}: start`);
+    const touch = !!VIEW[vname].hasTouch;
+    const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname, { name: "TOUCH" });
+    const press = async (p) => { if (touch) await tap(cdp, p, 3, 0); else { await page.mouse.click(p.x, p.y); await sleep(150); } };
+    const regsNow = () => page.evaluate(() => window.bb.regions().map((q) => ({ id: q.id, x: +q.x.toFixed(2), y: +q.y.toFixed(2), w: +q.w.toFixed(2), h: +q.h.toFixed(2) })));
+    try {
+      await settle(page, "title");
+      await page.evaluate(() => window.bb.openFork({ hero: "furnace", day: 3, seed: 12345 }));
+      await settle(page, "fork");
+      await regionDrawn(page, "fork0");
+      await nextFrame(page);
+      const fork = await regsNow();
+      const portrait = await page.evaluate(() => window.bb.game.portrait);
+      await press(centre(await region(page, "fork0")));
+      const sel = await page.evaluate(() => ({ screen: window.bb.screen(), sel: window.bb.game.screen.sel ?? null }));
+      if (portrait && sel.screen === "fork") await press(centre(await region(page, "fork0")));
+      await settle(page, "event");
+      check(!portrait || sel.sel === 0, `${V}: ${touch ? "a tap" : "a click"} on the fork's ROAD EVENT card ${portrait ? `inspects it first (sel ${sel.sel}), a second picks it` : "picks it"}: the road event opens (${await page.evaluate(() => window.bb.screen())})`);
+      await page.evaluate(() => { window.bb.game.run = null; window.bb.open("event"); }); // a new run's day-1 event
+      await settle(page, "event");
+      await regionDrawn(page, "choice0");
+      await nextFrame(page);
+      const event = await regsNow();
+      await press(centre(await region(page, "choice0")));
+      const phase = await page.evaluate(() => window.bb.game.screen.phase);
+      check(phase === "result", `${V}: ${touch ? "a tap" : "a click"} on the day-1 event's first choice picks it (phase ${phase}); fork targets ${fork.length}, event targets ${event.length} (in ${NAME}-roadfork.json)`);
+      dump[vname] = { fork, event };
+      await shot(page, `${TAG}-roadfork-${vname}-event.png`);
+    } catch (e) {
+      check(false, `${V}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors[0]}` : ""})`);
+    await ctx.close();
+    loadLine(`${V}: end`);
+  }
+  writeFileSync(join(OUT, `${NAME}-roadfork.json`), JSON.stringify(dump, null, 1) + "\n");
+}
+
 async function main() {
   const browsers = { chromium: await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] }) };
   const views = ONLY.includes("touch") ? TOUCH_VIEWS : [];
   for (const v of views) if (!VIEW[v]?.hasTouch) throw new Error(`--views: ${v} is not a touch view (${Object.keys(VIEW).join(", ")})`);
-  // shoptap2: WebKit (Playwright's build of it, with the iPhone descriptors) for the wk- views (PACKS M2: and the names section's)
-  if (views.some((v) => ENGINE(v) === "webkit") || ONLY.includes("names")) {
+  for (const v of CUSTOM_VIEWS) if (!VIEW[v]) throw new Error(`--cviews: no view ${v} (${Object.keys(VIEW).join(", ")})`);
+  const custom = ["customize", "newstyle", "roadfork"].some((s) => ONLY.includes(s)); // CUSTOM-2b (REQ-BFG-072)
+  // shoptap2: WebKit (Playwright's build of it, with the iPhone descriptors) for the wk- views (PACKS M2: and the names
+  // section's; CUSTOM-2b: and the CUSTOMIZE sections' wk- views)
+  if (views.some((v) => ENGINE(v) === "webkit") || ONLY.includes("names") || (custom && CUSTOM_VIEWS.some((v) => ENGINE(v) === "webkit"))) {
     try {
       browsers.webkit = await webkit.launch();
     } catch (e) {
@@ -1333,7 +1705,7 @@ async function main() {
     }
   }
   const site = await pageServer();
-  log(`# touchcheck ${ONLY.join(", ")}: ${DIST} served at ${site.origin}; Chromium ${browsers.chromium.version()}${browsers.webkit ? `, WebKit ${browsers.webkit.version()}` : ""}; touch views ${views.join(", ") || "none"}; ${new Date().toISOString()}`);
+  log(`# touchcheck ${ONLY.join(", ")}: ${DIST} served at ${site.origin}; Chromium ${browsers.chromium.version()}${browsers.webkit ? `, WebKit ${browsers.webkit.version()}` : ""}; touch views ${views.join(", ") || "none"}; profile ${PROFILE}${custom ? `; CUSTOMIZE views ${CUSTOM_VIEWS.join(", ")}` : ""}; ${new Date().toISOString()}`);
   loadLine("the run: start");
   try {
     for (const v of views) {
@@ -1348,6 +1720,9 @@ async function main() {
     if (ONLY.includes("319")) await summarySection(browsers, site.origin);
     if (ONLY.includes("names")) await namesSection(browsers, site.origin); // PACKS M2 (REQ-BFG-063)
     if (ONLY.includes("bar")) await barSection(browsers, site.origin); // TAP-093b (backlog #340): the bar on a DPR 2 phone
+    if (ONLY.includes("customize")) await customizeSection(browsers, site.origin); // CUSTOM-2b (REQ-BFG-072)
+    if (ONLY.includes("newstyle")) await newStyleSection(browsers, site.origin);
+    if (ONLY.includes("roadfork")) await roadForkSection(browsers, site.origin);
   } finally {
     for (const b of Object.values(browsers)) await b.close();
     site.srv.close();
