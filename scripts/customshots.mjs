@@ -9,7 +9,8 @@
 //  - battle:           a dusk in motion with the player's deck in BRASS CHECKER, VERDIGRIS belts and the BRASSBOUND plate,
 //                      shots in flight (R10), the foe in today's look;
 //  - build:            the build screen in TIMBER DECK, BLUED STEEL and BRASSBOUND, a factory's part panel open;
-//  - summary:          a 10-0 run's summary with its NEW STYLE line (an empty profile: the run's end unlocks four).
+//  - summary:          a 10-0 run's summary with its NEW STYLE line (an empty profile: the run's end unlocks four);
+//  - customize-land, customize-desk: the two-column CUSTOMIZE at 844x390 DPR 3 and 1280x720 DPR 1.
 // Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/customshots.mjs <page.html> <outDir> [--only a,b]
 import { chromium } from "playwright-core";
 import { mkdir, stat } from "node:fs/promises";
@@ -44,13 +45,17 @@ const SHOTS = [
   { name: "battle", prof: profile({ floor: "checker", belt: "verdigris", panel: "brass" }, true), scene: "dusk", hero: "furnace", day: 5, seed: 7 },
   { name: "build", prof: profile({ floor: "timber", belt: "blued", panel: "brass" }, true), scene: "dawn", hero: "furnace", day: 5, seed: 7, secs: 1.2 },
   { name: "summary", prof: null, scene: "end", hero: "furnace", seed: 7, secs: 1.2 },
+  // landscape and desktop: the two-column CUSTOMIZE (not in the brief's list; for the frame's check)
+  { name: "customize-land", view: "land", prof: profile({ floor: "timber", belt: "blued", panel: "brass" }, true), scene: "customize", tab: "belt", pick: "rune", secs: 1.2 },
+  { name: "customize-desk", view: "desk", prof: profile({ floor: "timber", belt: "blued", panel: "brass" }, true), scene: "customize", tab: "floor", secs: 1.2 },
 ];
+const VIEWS = { phone: PHONE, land: { viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }, desk: { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 } };
 
 const lines = [];
 const log = (s) => { lines.push(s); console.log(s); };
 
 async function shot(browser, s) {
-  const ctx = await browser.newContext(PHONE);
+  const ctx = await browser.newContext(VIEWS[s.view ?? "phone"]);
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
