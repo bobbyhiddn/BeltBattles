@@ -100,7 +100,8 @@ if (process.env.BB_RUNES_PARITY_WRITE) {
     const F: Fixture = {
       // CATCHUP-091: re-written at 36e7214 (cap's ruling 3c58471c74bdc4ed Q5 (1): LONGTOOTH's counterweight back on day 4,
       // re-placed in day order, moves his day-7 dusk stand-in's part ids); the seed pool and the battle plan as BAL-2 left them
-      about: "CATCHUP-091 (REQ-BFG-024): the parity record re-written at 36e7214 under bb-0.9.1 after the captains' plan moves (LONGTOOTH's day-7 dusk stand-in); BAL-2's seed pool (the one regeneration of 0.9.1) and RUNES-1's battle plan (kinds, pairs, seeds), as FLIP-X2 re-based it on release X. tests/runes.parity.test.ts replays it exactly.",
+      // Y7b2: was "CATCHUP-091 (REQ-BFG-024): the parity record re-written at 36e7214 under bb-0.9.1 after the captains' plan moves (LONGTO..."
+      about: "Y7b2 (REQ-BFG-070, REQ-BFG-046): the parity record re-written at 4d772e4 under bb-0.9.3, release Y's rules (the flip, the fuse rule, the bump), from its one regeneration's seed pool and the captain fit's dusk stand-ins; the battle plan (kinds, pairs, seeds) kept",
       base: process.env.BB_RUNES_PARITY_WRITE, rules: RULES_VERSION, salt: old.salt, standInRun: old.standInRun,
       decksCount: Object.keys(decks).length, battlesCount: battles.length, decks, battles,
     };
@@ -112,7 +113,7 @@ describe("release X parity: the record and its decks", () => {
   it("was written on flipx2 under this build's rules, the rules its pools were generated under (POOL_RULES; nothing carried)", () => {
     const F = JSON.parse(readFileSync(X_PATH, "utf8")) as Fixture;
     expect(F.rules).toBe(RULES_VERSION);
-    expect(RULES_VERSION).toBe("bb-0.9.1"); // BAL-2: the bump and the fixture re-written under it (was bb-0.9.0)
+    expect(RULES_VERSION).toBe("bb-0.9.3"); // Y7b2: the bump and the fixture re-written under it (was bb-0.9.1; BAL-2: was bb-0.9.0)
     expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(F.rules);
     expect([Object.keys(F.decks).length, F.battles.length]).toEqual([F.decksCount, F.battlesCount]);

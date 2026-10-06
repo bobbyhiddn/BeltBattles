@@ -49,7 +49,10 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // BAL-2 step 5 (4.1): the stand-in pool regenerated once on bb-0.9.1 (c5e4780; the pools changed, the regeneration), so
 // POOL_DIGEST is that pool's reads, taken on bal2 dc73c60 (was
 // ff8fb68494a75e02959db00fa37194612fa53f807946c7d232b38d17312c603a on redox 9e62dd4)
-const POOL_DIGEST = "c4dc69bfa66141ab71fce66a20bd762ec111db1cc0b5f720699f2a3dc3137578";
+// Y7b2 step 5 (4.1): the stand-in pool regenerated once on bb-0.9.3, release Y's rules (4d772e4; the pools changed, the
+// regeneration), so POOL_DIGEST is that pool's reads, taken on y7b2 4d772e4 (was
+// c4dc69bfa66141ab71fce66a20bd762ec111db1cc0b5f720699f2a3dc3137578 on bal2 dc73c60)
+const POOL_DIGEST = "fbc8bdf3bbde0518069a21e68daa84a78a09c03e8a384b50043889b2b6093276";
 const V11_DIGEST = "89b371a4b0720d4686dc934273c9033448b239bc5dc8f99d68b1fddd3abe15a2";
 /** Rune-less codes the encoders wrote on bx e1e1004 (see "a rune-less deck encodes byte for byte as on bx"). */
 const RICH_CODE = "18 0 u23/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1";
