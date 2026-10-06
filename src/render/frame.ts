@@ -16,6 +16,9 @@ export interface DeckFrame {
 }
 
 export const DECK = GRID * CELL; // 120
+/** MOTION-1 (REQ-BFG-071): the deck's tile size and count for render code that imports no sim value (the tap's hit test). */
+export const TILE = CELL;
+export const TILES = GRID;
 
 /** Hull geometry around the deck (hull-local: hx across 0..A-1, hy bow edge 0 .. stern L-1). */
 export const SIDE = 18; // skirt + tread + walkway on each side of the deck
