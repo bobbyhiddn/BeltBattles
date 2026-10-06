@@ -128,7 +128,7 @@ export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40
  *   paired loads (pairShare, as TWIN TRIGGER's bonus): a turret with no pairs rates it at nothing.
  * - EXT. CHAMBER: it fires 2/3/4 loads a shot, at most what the chamber holds (its +1 slot is gone): the turret's shot is
  *   min(perShot, its chamber) loads (Battle.chambers).
- * - DRAKE NOZZLE: each flatPerBurn (10/7/5) of a shot's bonus damage is a BURN (worth BURN_TIME x BURN_DPS) in place of that
+ * - DRAKE NOZZLE: each flatPerBurn (38/27/19: Y7b1, ruling Y7A-R4; Y4's 10/7/5) of a shot's bonus damage is a BURN (worth BURN_TIME x BURN_DPS) in place of that
  *   damage (cores.ts drakeConvert on the walk's flat, deck.ts RouteEstimate.flat), its free BURN gone: computed, so no NOMINAL.
  * - The rest comes from the switch's own data: HOPPER's window +1/+2/+3 with no load time, store or no-jam (`start`, the
  *   finisher's split, firedShare), TWIN TRIGGER's pairBonus 30/60/95 with no load-time cut (`start`), ROTARY BREECH's load

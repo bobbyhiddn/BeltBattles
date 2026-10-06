@@ -98,7 +98,7 @@ describe("Y4 words: no new keyword; LOAD TIME and BONUS DAMAGE stay", () => {
       expect(abilityText("steambreech", 1, { k: 1 }).sentences).toEqual(["THE TURRET FIRES 40% FASTER WHILE YOUR HULL HOLDS PLATING."]);
       expect(gist("steambreech", 3, { k: 1 })).toBe("120% FASTER PLATED");
       expect(abilityText("drake", 2, { k: 1 }).sentences).toEqual([
-        "TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY 7 DAMAGE.", "BONUS DAMAGE IS WHAT RIGS AND SCRAP ADD TO A PAYLOAD."]);
+        "TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY 27 DAMAGE.", "BONUS DAMAGE IS WHAT RIGS AND SCRAP ADD TO A PAYLOAD."]); // Y7b1 (Y7A-R4): was EVERY 7 DAMAGE
     });
     // off: as before
     expect(abilityText("drake", 1, { k: 1 }).sentences).toHaveLength(4);
@@ -172,12 +172,17 @@ describe("Y4: the bots' deck rating prices each new rule (behind the switch)", (
 
   it("DRAKE NOZZLE: on, its BURN for each flatPerBurn of bonus damage (drakeGain), no NOMINAL: nothing without bonus damage", () => {
     const spec = (s: number) => on(() => effectAt("drake", s).core!);
-    expect(STARS.map((s) => drakeGain(spec(s), 20))).toEqual([2 * 30 - 20, 2 * 30 - 14, 4 * 30 - 20]);
+    // Y7b1 (Y7A-R4: 38/27/19): was [2 * 30 - 20, 2 * 30 - 14, 4 * 30 - 20] at 10/7/5. A BURN stack is worth BURN_TIME x
+    // BURN_DPS = 30, so at ★1 each stack costs 38 for 30 (drakeGain 30 - 38 = -8 on 38 bonus damage)
+    expect(STARS.map((s) => drakeGain(spec(s), 20))).toEqual([0, 0, 30 - 19]);
+    expect(STARS.map((s) => drakeGain(spec(s), 76))).toEqual([2 * 30 - 76, 2 * 30 - 54, 4 * 30 - 76]);
     const bare = (core: boolean) => (core ? withMod(furnaceBench(), 60, "drake") : furnaceBench());
     expect(rate(bare(true), true)).toBe(rate(bare(false), true));
     expect(rate(bare(true), false)).toBeGreaterThan(rate(bare(false), false)); // off: NOMINAL
-    const whet = (core: boolean) => (core ? withMod(rigBench([["whetstone", 4, 3, 1]]), 60, "drake") : rigBench([["whetstone", 4, 3, 1]]));
+    // Y7b1 (Y7A-R4): a ★3 DRAKE (19) past the +20 WHETSTONE (was ★1 at 10, whose 38 now turns none of the 20 into BURN)
+    const whet = (core: boolean, s = 3) => (core ? withMod(rigBench([["whetstone", 4, 3, 1]]), 60, "drake", 0, s) : rigBench([["whetstone", 4, 3, 1]]));
     expect(rate(whet(true), true)).toBeGreaterThan(rate(whet(false), true));
+    expect(rate(whet(true, 1), true)).toBe(rate(whet(false), true));
   });
 
   it("HOPPER, ROTARY, ANVIL and STEAM from the switch's data: no no-jam, no fire rate, the folded flat, no bare speed", () => {

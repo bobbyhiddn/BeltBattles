@@ -118,3 +118,14 @@ describe("Y7b1 Y7A-R3c / R3d: ANVIL BREECH and IRON WALL read their base defs wi
     expect(levels("shieldwall", 3)).toEqual(["{PLATE} +10/+22/[+35]", "{DMG} +30/+66/[+105]"]);
   });
 });
+
+// ------------------------------------------------------------------- Y7A-R4 / R5: the new numbers, with the switch on
+describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read their new numbers with the switch on", () => {
+  it("DRAKE NOZZLE (Y7A-R4): flatPerBurn 38 / 27 / 19 on (Y4's 10 / 7 / 5); its face and ⓘ ladder say them; off, 0.9.2's 20 / 15 / 10", () => {
+    expect(on(() => STARS.map((s) => effectAt("drake", s).core!.flatPerBurn))).toEqual([38, 27, 19]);
+    expect(STARS.map((s) => effectAt("drake", s).core!.flatPerBurn)).toEqual([20, 15, 10]);
+    expect(lines("drake")).toEqual([38, 27, 19].map((d) => [`SHOT: EACH ${d} BONUS DAMAGE IS 1 {*BURN}.`]));
+    expect(levels("drake", 2)).toEqual(["EACH 38/[27]/19", next(3, "EACH 19")]);
+    expect(on(() => gist("drake", 3, { k: 1 }))).toBe("1 BURN FOR EVERY 19 DAMAGE");
+  });
+});
