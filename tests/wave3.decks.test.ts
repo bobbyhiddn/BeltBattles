@@ -219,8 +219,11 @@ describe("STOKER's cap (the Prime's call, oracle a0e94bc69949561f): a stoke neve
       // exactly, with ★3 < ★2 recorded; the rest of the row as written. Under any other rules version the original
       // assertions apply again: whoever bumps fixes the measure (the hull bonus or the seeds) or STOKER's share rule, or
       // asks cap.
-      if (RULES_VERSION === "bb-0.9.1" && r.id === "shared gun with room, STOKER on the mould") {
-        const why = "BAL-2 tripwire (cap's oracle 42da94243f43feef): STOKER's 'shared gun with room' row pinned under bb-0.9.1; resolve the measure or STOKER's share rule before the next rules version";
+      // Y7b2 (the bump to bb-0.9.3): re-keyed from bb-0.9.1 by cap's ruling Y7A-R1 (REVIEW-Y7A section 7: "The tripwire row
+      // stays under ruling 42da94243f43feef"); measured on y7b2 after the flip, the same four means (Y7b1's B2 read them on
+      // and off alike), so the pins are unchanged
+      if (RULES_VERSION === "bb-0.9.3" && r.id === "shared gun with room, STOKER on the mould") {
+        const why = "BAL-2 tripwire (cap's oracle 42da94243f43feef; kept by ruling Y7A-R1, re-keyed at Y7b2): STOKER's 'shared gun with room' row pinned under bb-0.9.3; resolve the measure or STOKER's share rule before the next rules version";
         expect(rows.map((x) => x.dmg), why).toEqual([3918, 3954, 4104, 4086]);
         expect(rows[3].dmg, `${why}: the recorded finding, ★3 under ★2`).toBeLessThan(rows[2].dmg);
         for (let s = 1; s <= 3; s++) expect(rows[s].jams, `${r.id} ★${s} jams`).toBeLessThanOrEqual(rows[0].jams);

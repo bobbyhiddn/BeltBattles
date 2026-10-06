@@ -140,10 +140,14 @@ describe("P12: SPLITTER after the retune (PERFECT CUT): one split, one extra cop
 
 // ---------------------------------------------------------------- P13: BRAKE SHOE ★2/★3 is a mixed effect
 
-const HEAT: Record<number, number> = { 1: 0, 2: 20, 3: 50 }; // BRAKE ★1 / ★2 HOT SHOE / ★3 RED-HOT SHOE flat (NUM-1: x10, was 0 / 2 / 5)
+// Y7b2 (the flip; DESIGN-Y row 27): HOT SHOE's and RED-HOT SHOE's flats are gone, so BRAKE SHOE is a pure speed rig at every
+// star, its belt at 50% / 40% / 30% (was the half speed and a flat 0 / 20 / 50 at ★1 / ★2 / ★3, the mixed effect P13 checked)
+const HEAT: Record<number, number> = { 1: 0, 2: 0, 3: 0 }; // Y7b2 (the flip): was { 1: 0, 2: 20, 3: 50 }
+const SPEED: Record<number, number> = { 1: 0.5, 2: 0.4, 3: 0.3 }; // Y7b2 (the flip): was 0.5 at every star
+const SLOW: Record<number, string> = { 1: "HALF SPEED", 2: "40% SPEED", 3: "30% SPEED" }; // Y7b2: the label's speed in words
 
-describe("P13: BRAKE SHOE ★2/★3 (HOT SHOE, RED-HOT SHOE): the flat at tier 1, the half speed through speedWinner", () => {
-  it("★2 and ★3 add +2 and +5 flat at tier 1 (a SPLITTER on the same tile scales it) and run the belt at 0.5x; the label names the flat", () => {
+describe("P13: BRAKE SHOE (Y7b2, the flip: a pure speed rig at every star, no flat; was ★2/★3's HOT SHOE flat at tier 1)", () => {
+  it("every star is a speed hit at tier 4 (after a SPLITTER on the same tile), no flat, the belt at 0.5x / 0.4x / 0.3x; the label names the speed", () => {
     for (const s of [1, 2, 3]) {
       // the BRAKE from the west and a ★1 SPLITTER from the east, both on the bench's tile 2 (4,3)
       const b = bench([["brake", 4, 3, s]]);
@@ -152,23 +156,23 @@ describe("P13: BRAKE SHOE ★2/★3 (HOT SHOE, RED-HOT SHOE): the flat at tier 1
       const w = walkRoute(b, 0);
       const row = w.timeline[0];
       const brake = row.hits.find((h) => h.uid === 10)!;
-      // R7: ★1 is a pure speed hit (tier 4, after the split); ★2/★3's flat puts the whole hit at tier 1 (P1)
-      expect(row.hits.map((h) => h.uid), `★${s}`).toEqual(s === 1 ? [11, 10] : [10, 11]);
-      expect([brake.tier, brake.flat ?? 0, brake.speed, brake.won], `★${s}`).toEqual([s === 1 ? 4 : 1, HEAT[s], 0.5, true]);
-      expect([row.speed, w.speedEnd]).toEqual([0.5, 0.5]);
-      // 0.6.2t: the speed in words (was 0.5X), and the heat with its unit
-      expect(hitLabel(brake, "free"), `★${s}`).toBe(s === 1 ? "BRAKE SHOE AT HALF SPEED" : `BRAKE SHOE AT HALF SPEED, +${HEAT[s]} DAMAGE`);
-      // the battle: both payloads of the split carry the heat scaled by the SPLITTER (60%), and the tile runs at 0.5x
+      // R7: a pure speed hit is tier 4, after the split, at every star (Y7b2, the flip: was [10, 11] at ★2/★3, the flat's tier 1)
+      expect(row.hits.map((h) => h.uid), `★${s}`).toEqual([11, 10]);
+      expect([brake.tier, brake.flat ?? 0, brake.speed, brake.won], `★${s}`).toEqual([4, HEAT[s], SPEED[s], true]); // Y7b2: was [1, 20/50, 0.5] at ★2/★3
+      expect([row.speed, w.speedEnd]).toEqual([SPEED[s], SPEED[s]]); // Y7b2: was [0.5, 0.5]
+      // 0.6.2t: the speed in words (was 0.5X). Y7b2 (the flip): no flat, so no damage in it (was "..., +20 DAMAGE" at ★2)
+      expect(hitLabel(brake, "free"), `★${s}`).toBe(`BRAKE SHOE AT ${SLOW[s]}`);
+      // the battle: both payloads of the split carry no flat (Y7b2: was the heat scaled by the SPLITTER, 60%), and the tile runs at the star's speed
       const fam = family(b, 2);
       expect(fam).toHaveLength(2);
       for (const p of fam) expect([+p.flat.toFixed(12), +p.mult.toFixed(12)], `★${s}`).toEqual([+(HEAT[s] * 0.6).toFixed(12), 0.6]);
       const bt = new Battle(b, barge(), SEED);
       for (let i = 0; i < 60 * 5; i++) bt.step();
-      expect(bt.sides[0].routes[0].speedAt.slice(2), `★${s}`).toEqual([0.5, 0.5, 0.5, 0.5]);
+      expect(bt.sides[0].routes[0].speedAt.slice(2), `★${s}`).toEqual([SPEED[s], SPEED[s], SPEED[s], SPEED[s]]); // Y7b2: was 0.5 at every star
     }
-    // the half speed is the same at every star: the same seconds from stamp to chamber
+    // Y7b2 (the flip): each star slows the belt more, so stamp to chamber takes longer (was: the same seconds at every star)
     const t = [1, 2, 3].map((s) => walkRoute(bench([["brake", 4, 3, s]]), 0).estimate.time);
-    expect([t[1], t[2]]).toEqual([t[0], t[0]]);
+    expect(t.map((x) => +x.toFixed(9))).toEqual([4.2, 5, 6.333333333]);
   });
 
   it("the walk and the battle agree: stamp-to-chamber time and damage at load, ★1-★3", () => {
@@ -177,19 +181,22 @@ describe("P13: BRAKE SHOE ★2/★3 (HOT SHOE, RED-HOT SHOE): the flat at tier 1
       const w = walkRoute(b, 0).estimate;
       const f = firstLoad(b, 1);
       expect(f.flat, `★${s}`).toBe(HEAT[s]);
-      expect(f.time, `★${s}: stamp to chamber`).toBeCloseTo(w.time, 1);
-      // BAL-2 TRIPWIRE (cap's oracles 42da94243f43feef and d306b1b196dbab38; only while RULES_VERSION is "bb-0.9.1"): with
-      // the KILN's HEAT 13 (0.9.1's line) every star's first load deals 1 less in the battle than in the walk (battle / walk
-      // ★1 94 / 95, ★2 114 / 115, ★3 144 / 145). The battle's ride is 251 ticks (4.1833 s), the walk's 252 (4.2000 s); x12
-      // rounded both to the same damage, x13 doesn't. Pinned as measured; the time check above stays as written. No code
-      // fix in BAL-2: the walk feeds rateDeck and the bots, so the next release that regenerates fixes the gap at its
-      // source, for every ride-based estimate (the battle is the reference). Under any other rules version the original
-      // agreement applies again: whoever bumps fixes it or asks cap.
-      if (RULES_VERSION === "bb-0.9.1") {
-        const pin: Record<number, [number, number]> = { 1: [94, 95], 2: [114, 115], 3: [144, 145] };
-        expect([f.dmg, w.dmg], `BAL-2 tripwire (cap's oracles 42da94243f43feef, d306b1b196dbab38): BRAKE SHOE ★${s}'s damage at load, battle vs walk, pinned under bb-0.9.1 (the battle's ride 251 ticks, the walk's 252); resolve the walk's ride gap at its source, for every ride-based estimate, before the next rules version`).toEqual(pin[s]);
+      // Y7b2 (the bump to bb-0.9.3): the BAL-2 tripwire below, re-keyed from bb-0.9.1 with the re-measured pairs. The ride gap
+      // (the battle's ride 2-3 ticks shorter than the walk's) is unresolved: d306b1b196dbab38 sent its fix to the next release
+      // that regenerates, but Y7b2's brief allows no rule or number change beyond the flip and the fuse rule (the walk feeds the
+      // bots' rating), so it stays a tripwire and goes to cap. With the flip's 30% belt at ★3 it now shows in the time too
+      // (battle 6.2833 s, walk 6.3333 s: 3 ticks, just past the time check's 0.05), so the pin holds both, at every star
+      if (RULES_VERSION === "bb-0.9.3") {
+        const pin: Record<number, [number, number, number, number]> = { 1: [94, 95, 4.1667, 4.2], 2: [105, 105, 4.9667, 5], 3: [122, 122, 6.2833, 6.3333] };
+        expect([f.dmg, w.dmg, +f.time.toFixed(4), +w.time.toFixed(4)], `BAL-2 tripwire (cap's oracles 42da94243f43feef, d306b1b196dbab38), re-keyed at Y7b2: BRAKE SHOE ★${s}'s damage at load and stamp-to-chamber time, battle vs walk, pinned under bb-0.9.3; resolve the walk's ride gap at its source, for every ride-based estimate, before the next rules version`).toEqual(pin[s]);
         continue;
       }
+      expect(f.time, `★${s}: stamp to chamber`).toBeCloseTo(w.time, 1);
+      // BAL-2 TRIPWIRE (cap's oracles 42da94243f43feef and d306b1b196dbab38), as BAL-2 wrote it under bb-0.9.1: with the KILN's
+      // HEAT 13 every star's first load dealt 1 less in the battle than in the walk (battle / walk ★1 94 / 95, ★2 114 / 115,
+      // ★3 144 / 145, ★2/★3 with their old flats); the battle's ride is 251 ticks (4.1833 s), the walk's 252 (4.2000 s). Y7b2
+      // re-keyed it to bb-0.9.3 above. Under any other rules version the original agreement applies again: whoever bumps fixes
+      // it or asks cap.
       expect(f.dmg, `★${s}: damage`).toBeCloseTo(w.dmg, 1);
     }
   });
@@ -209,9 +216,10 @@ describe("P13: BRAKE SHOE ★2/★3 (HOT SHOE, RED-HOT SHOE): the flat at tier 1
       const w = walkRoute(b, 0);
       const h = w.timeline[0].hits[0];
       expect([w.fixed, w.speedEnd, w.timeline[0].speed], `★${s}`).toEqual([0.75, 0.75, 0.75]);
-      expect([h.tier, h.flat ?? 0, h.speed, h.won], `★${s}`).toEqual([s === 1 ? 4 : 1, HEAT[s], 0.5, false]);
-      // 0.6.2t (0b.4): slag pays no locked bonus and ignores the speed, so ★1 does nothing there (it read "(LOCKED)")
-      expect(hitLabel(h, beltKind(w)), `★${s}`).toBe(s === 1 ? "BRAKE SHOE: NO EFFECT ON SLAG" : `BRAKE SHOE +${HEAT[s]} DAMAGE, NO SPEED CHANGE ON SLAG`);
+      expect([h.tier, h.flat ?? 0, h.speed, h.won], `★${s}`).toEqual([4, HEAT[s], SPEED[s], false]); // Y7b2 (the flip): was [1, 20/50, 0.5] at ★2/★3
+      // 0.6.2t (0b.4): slag pays no locked bonus and ignores the speed, so a pure speed rig does nothing there (it read
+      // "(LOCKED)"); Y7b2 (the flip): every star now (was "BRAKE SHOE +20 DAMAGE, NO SPEED CHANGE ON SLAG" at ★2)
+      expect(hitLabel(h, beltKind(w)), `★${s}`).toBe("BRAKE SHOE: NO EFFECT ON SLAG");
       expect(w.estimate.time, `★${s}: no slower`).toBeCloseTo(none.estimate.time, 12);
       expect(w.estimate.dmg, `★${s}: + the heat`).toBeCloseTo(none.estimate.dmg + HEAT[s], 9);
       const f = firstLoad(b, 7);

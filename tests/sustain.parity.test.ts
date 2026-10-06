@@ -15,6 +15,10 @@
 // back, all 288 replay as recorded); 12 winners flipped. So the record is re-made on bal2 under bb-0.9.1 with the same
 // decks, pairs, placements and seeds: tests/fixtures/bal2-wardstone.json (W/output-bal2/parity/bal2WardGen.ts, NUM-3's
 // generator; was num3-wardstone.json, rules bb-0.8.7). The checks are unchanged.
+// Y7b2 (REQ-BFG-070, REQ-BFG-046; release Y's flip, bb-0.9.3): release Y's one-line rules move 132 of the 288 battles (the
+// decks hold pieces whose rules the flip changed), 12 winners flipped. So the record is re-made on y7b2 under bb-0.9.3 with
+// the same decks, pairs, placements and seeds: tests/fixtures/y7b2-wardstone.json (T/output-y7b2/parity/zz-y7b2-ward.test.ts,
+// a one-run scratch generator in BAL-2's generator's form; was bal2-wardstone.json, rules bb-0.9.1). The checks are unchanged.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { Battle } from "../src/sim/battle";
@@ -22,13 +26,13 @@ import { SUSTAIN_IDS } from "../src/sim/content";
 import { cloneBuild, type Build } from "../src/sim/deck";
 
 interface Row { a: number; b: number; ward: [boolean, boolean]; seed: number; winner: number | null; ticks: number; t: number; sides: unknown[] }
-const fx = JSON.parse(readFileSync(new URL("./fixtures/bal2-wardstone.json", import.meta.url), "utf8")) as // BAL-2 (was num3-wardstone.json)
+const fx = JSON.parse(readFileSync(new URL("./fixtures/y7b2-wardstone.json", import.meta.url), "utf8")) as // Y7b2 (was bal2-wardstone.json; BAL-2: was num3-wardstone.json)
   { rules: string; decks: { hero: string; kind: string; build: Build }[]; rows: Row[] };
 const ward = (b: Build): Build => ({ ...cloneBuild(b), runes: [...(b.runes ?? []), { id: "ward_stone" }] });
 
 describe("SUS-A parity: WARD STONE as SHIELD battles as recorded (num2's blockHits at susa; re-recorded on num3)", () => {
-  it("the record: 288 battles under bb-0.9.1; no deck holds a RIVETER or any other SHIELD, HEAL or REGEN piece", () => {
-    expect([fx.rules, fx.rows.length, fx.decks.length]).toEqual(["bb-0.9.1", 288, 8]); // BAL-2: re-recorded under bb-0.9.1 (was bb-0.8.7, NUM-3's)
+  it("the record: 288 battles under bb-0.9.3; no deck holds a RIVETER or any other SHIELD, HEAL or REGEN piece", () => {
+    expect([fx.rules, fx.rows.length, fx.decks.length]).toEqual(["bb-0.9.3", 288, 8]); // Y7b2: re-recorded under bb-0.9.3 (was bb-0.9.1, BAL-2's; bb-0.8.7, NUM-3's)
     for (const d of fx.decks) for (const p of [...d.build.items, ...d.build.mods]) expect(["riveter", ...SUSTAIN_IDS], `${d.hero} ${d.kind}`).not.toContain(p.def);
     expect(fx.rows.filter((r) => r.ward[0] || r.ward[1]).length).toBe(288);
   });

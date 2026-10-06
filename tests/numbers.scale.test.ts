@@ -86,6 +86,19 @@ const NUM3_MOVED: Record<string, Num3Row> = {
   "ITEMS.tesla.levels.3.core.stall": { was: 0.93, kind: "time", now: 1 },
 };
 const NUM3_ADDED: Record<string, number> = { "ITEMS.sabot.factory.round.seconds": 4, "ITEMS.sabot.levels.3.factory.round.seconds": 4 };
+// Y7b2 (the flip): NUM-3's rows and fields release Y moved again: HOT SWAP ★2/★3's spark STUN 2/3 -> 3/4 s (DESIGN-Y row 12),
+// LIMPET ★3's stall gone (row 13), BELLOWS' burn/per 4/10, 9/10, 14/10 -> 1/2, 2/2, 3/2 (row 22), SABOT ★3's own round gone
+// (row 11: ★3 inherits ★1's 4 s round). Each is checked at its release-Y value (undefined: no field). Cause: the flip
+const Y7B2_NUM3: Record<string, number | undefined> = {
+  "ITEMS.hotswap.levels.2.factory.cycle.1.shockTime": 3, "ITEMS.hotswap.levels.3.factory.cycle.1.shockTime": 4,
+  "ITEMS.limpet.levels.3.factory.round.stall": undefined,
+  "ITEMS.bellows.gate.burnPerRide.burn": 1, "ITEMS.bellows.gate.burnPerRide.per": 2,
+  "ITEMS.bellows.levels.2.gate.burnPerRide.burn": 2, "ITEMS.bellows.levels.2.gate.burnPerRide.per": 2,
+  "ITEMS.bellows.levels.3.gate.burnPerRide.burn": 3, "ITEMS.bellows.levels.3.gate.burnPerRide.per": 2,
+  "ITEMS.sabot.levels.3.factory.round.seconds": undefined,
+};
+/** Y7b2: NUM-3's value at `id`, or its release-Y value where the flip moved it again (Y7B2_NUM3). */
+const y3 = (id: string, v: number): number | undefined => (id in Y7B2_NUM3 ? Y7B2_NUM3[id] : v);
 /** The id of the field `name` beside fixture id `id` (BELLOWS' burnPerRide.seconds -> burnPerRide.burn). */
 const sibling = (id: string, name: string): string => [...id.split(".").slice(0, -1), name].join(".");
 /** NUM-3's new numeric fields (no NUM-1 row), id -> its value: the reshaped rows' new fields and the added ones. */
@@ -130,6 +143,132 @@ const BAL2_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: numbe
   "AMMO.cinder.rideScale": { rule: "x10", was: 12, now: 13 }, // the KILN's HEAT (row 7)
   "HEROES.furnace.hull": { rule: "x10", was: 2000, now: 2100 }, // FURNACE's hull (row 8)
   "HEROES.weaver.hull": { rule: "x10", was: 1800, now: 1700 }, // WEAVER's hull (row 1)
+};
+
+// Y7b2 (release Y; REQ-BFG-070, REQ-BFG-046; BRIEF-Y7B2 steps 1 and 7): the flip folded release Y's one-line rules (the star
+// switch's STAR_DIFF) into the base defs, which moved 98 rows after NUM-1's record: 39 to a release-Y value and 59 gone with
+// their field (POISON, the floors and caps, the perk rules; EQ.poison and EQ.perStalled with the rating's off path), the
+// fixture untouched. Each is checked at its release-Y value (`now`; undefined: no field), as BAL2_MOVED's are; every other
+// row keeps its check. Measured on y7b2 (T/output-y7b2/diag/numscale-bad.json). Cause: the flip
+const Y7B2_MOVED: Record<string, { was: number; now: number | undefined }> = {
+  "ITEMS.hotswap.levels.2.factory.cycle.0.burn": { was: 4, now: 5 },
+  "ITEMS.hotswap.levels.2.factory.cycle.1.jump": { was: 1, now: undefined },
+  "ITEMS.hotswap.levels.3.factory.cycle.0.burn": { was: 7, now: 9 },
+  "ITEMS.hotswap.levels.3.factory.cycle.1.jump": { was: 1, now: undefined },
+  "ITEMS.assembly.levels.3.factory.hotStart": { was: 4, now: undefined },
+  "ITEMS.limpet.factory.round.blast": { was: 80, now: 100 },
+  "ITEMS.limpet.levels.2.factory.round.blast": { was: 180, now: 230 },
+  "ITEMS.limpet.levels.2.factory.round.stall": { was: 1, now: undefined },
+  "ITEMS.limpet.levels.3.factory.round.blast": { was: 280, now: 360 },
+  "ITEMS.brake.levels.2.gate.speed": { was: 0.5, now: 0.4 },
+  "ITEMS.brake.levels.2.gate.flat": { was: 20, now: undefined },
+  "ITEMS.brake.levels.3.gate.speed": { was: 0.5, now: 0.3 },
+  "ITEMS.brake.levels.3.gate.flat": { was: 50, now: undefined },
+  "ITEMS.longhaul.levels.2.gate.priorCap": { was: 6, now: undefined },
+  "ITEMS.longhaul.levels.3.gate.priorCap": { was: 6, now: undefined },
+  "ITEMS.overdrive.levels.2.gate.flat": { was: 10, now: undefined },
+  "ITEMS.overdrive.levels.3.gate.flat": { was: 30, now: undefined },
+  "ITEMS.surge.gate.lockedFlat": { was: 30, now: undefined },
+  "ITEMS.surge.levels.2.gate.lockedFlat": { was: 60, now: undefined },
+  "ITEMS.surge.levels.3.gate.lockedFlat": { was: 100, now: undefined },
+  "ITEMS.venom.gate.poison": { was: 2, now: undefined },
+  "ITEMS.venom.levels.2.gate.poison": { was: 4, now: undefined },
+  "ITEMS.venom.levels.3.gate.poison": { was: 7, now: undefined },
+  "ITEMS.keg.gate.keg.burn": { was: 1, now: undefined },
+  "ITEMS.keg.levels.2.gate.keg.burn": { was: 2, now: undefined },
+  "ITEMS.keg.levels.3.gate.keg.burn": { was: 3, now: undefined },
+  "ITEMS.bellows.gate.burnPerRide.max": { was: 4, now: undefined },
+  "ITEMS.bellows.levels.2.gate.burnPerRide.max": { was: 9, now: undefined },
+  "ITEMS.bellows.levels.3.gate.burnPerRide.max": { was: 14, now: undefined },
+  "ITEMS.quench.gate.quench.flat": { was: 10, now: 0 },
+  "ITEMS.quench.gate.quench.stacks": { was: 4, now: undefined },
+  "ITEMS.quench.levels.2.gate.quench.flat": { was: 20, now: 0 },
+  "ITEMS.quench.levels.2.gate.quench.stacks": { was: 5, now: undefined },
+  "ITEMS.quench.levels.3.gate.quench.flat": { was: 30, now: 0 },
+  "ITEMS.quench.levels.3.gate.quench.stacks": { was: 6, now: undefined },
+  "ITEMS.lodestone.gate.flat": { was: 10, now: undefined },
+  "ITEMS.lodestone.levels.2.gate.flat": { was: 20, now: undefined },
+  "ITEMS.lodestone.levels.3.gate.flat": { was: 30, now: undefined },
+  "ITEMS.barbed.levels.2.gate.frayCap": { was: 3, now: undefined },
+  "ITEMS.barbed.levels.3.gate.frayCap": { was: 6, now: undefined },
+  "ITEMS.counterweight.gate.perTile.each": { was: 5, now: 3 },
+  "ITEMS.counterweight.gate.perTile.max": { was: 60, now: undefined },
+  "ITEMS.counterweight.levels.2.gate.perTile.each": { was: 11, now: 7 },
+  "ITEMS.counterweight.levels.2.gate.perTile.max": { was: 130, now: undefined },
+  "ITEMS.counterweight.levels.3.gate.perTile.each": { was: 18, now: 11 },
+  "ITEMS.counterweight.levels.3.gate.perTile.max": { was: 210, now: undefined },
+  "ITEMS.chamber.levels.2.mod.perShot": { was: 2, now: 3 },
+  "ITEMS.chamber.levels.2.mod.window": { was: 1, now: undefined },
+  "ITEMS.chamber.levels.3.mod.perShot": { was: 3, now: 4 },
+  "ITEMS.chamber.levels.3.mod.window": { was: 1, now: undefined },
+  "ITEMS.spotter.levels.2.mod.factoryWeight": { was: 2, now: undefined },
+  "ITEMS.spotter.levels.3.mod.factoryWeight": { was: 3, now: undefined },
+  "ITEMS.hopper.mod.windowTime": { was: 0.5, now: undefined },
+  "ITEMS.hopper.levels.2.mod.store": { was: 1, now: undefined },
+  "ITEMS.hopper.levels.3.mod.store": { was: 2, now: undefined },
+  "ITEMS.mantlet.levels.2.mod.intakeGuard": { was: 1, now: 2 },
+  "ITEMS.drake.core.flatPerBurn": { was: 20, now: 25 },
+  "ITEMS.drake.core.addBurn": { was: 1, now: undefined },
+  "ITEMS.drake.core.burnTime": { was: 4, now: undefined },
+  "ITEMS.drake.core.flightMul": { was: 0.7, now: undefined },
+  "ITEMS.drake.levels.2.core.flatPerBurn": { was: 15, now: 18 },
+  "ITEMS.drake.levels.2.core.addBurn": { was: 2, now: undefined },
+  "ITEMS.drake.levels.2.core.burnTime": { was: 5, now: undefined },
+  "ITEMS.drake.levels.3.core.flatPerBurn": { was: 10, now: 13 },
+  "ITEMS.drake.levels.3.core.addBurn": { was: 3, now: undefined },
+  "ITEMS.drake.levels.3.core.burnTime": { was: 6, now: undefined },
+  "ITEMS.capacitor.core.maxSeconds": { was: 5, now: undefined },
+  "WAVE3_ITEMS.twingauge.gate.gauge.flat": { was: 10, now: 0 },
+  "WAVE3_ITEMS.twingauge.levels.2.gate.gauge.flat": { was: 22, now: 0 },
+  "WAVE3_ITEMS.twingauge.levels.3.gate.gauge.flat": { was: 35, now: 0 },
+  "WAVE3_ITEMS.pincer.gate.pincer.flat": { was: 10, now: 0 },
+  "WAVE3_ITEMS.pincer.gate.pincer.max": { was: 3, now: undefined },
+  "WAVE3_ITEMS.pincer.levels.2.gate.pincer.flat": { was: 22, now: 0 },
+  "WAVE3_ITEMS.pincer.levels.2.gate.pincer.max": { was: 3, now: undefined },
+  "WAVE3_ITEMS.pincer.levels.3.gate.pincer.flat": { was: 35, now: 0 },
+  "WAVE3_ITEMS.pincer.levels.3.gate.pincer.max": { was: 3, now: undefined },
+  "WAVE3_ITEMS.twinlatch.gate.latch.flat": { was: 10, now: 0 },
+  "WAVE3_ITEMS.twinlatch.levels.2.gate.latch.hold": { was: 1, now: 2 },
+  "WAVE3_ITEMS.twinlatch.levels.2.gate.latch.flat": { was: 22, now: 0 },
+  "WAVE3_ITEMS.twinlatch.levels.3.gate.latch.hold": { was: 1, now: 3 },
+  "WAVE3_ITEMS.twinlatch.levels.3.gate.latch.flat": { was: 35, now: 0 },
+  "WAVE3_ITEMS.platebreaker.gate.breaker.floor": { was: 10, now: 0 },
+  "WAVE3_ITEMS.platebreaker.levels.2.gate.breaker.floor": { was: 22, now: 0 },
+  "WAVE3_ITEMS.platebreaker.levels.3.gate.breaker.floor": { was: 35, now: 0 },
+  "WAVE3_ITEMS.twintrigger.mod.pairBonus": { was: 0.25, now: 0.3 },
+  "WAVE3_ITEMS.twintrigger.mod.windowTime": { was: -0.25, now: undefined },
+  "WAVE3_ITEMS.twintrigger.levels.2.mod.pairBonus": { was: 0.55, now: 0.6 },
+  "WAVE3_ITEMS.twintrigger.levels.2.mod.windowTime": { was: -0.4, now: undefined },
+  "WAVE3_ITEMS.twintrigger.levels.3.mod.pairBonus": { was: 0.88, now: 0.95 },
+  "WAVE3_ITEMS.twintrigger.levels.3.mod.windowTime": { was: -0.55, now: undefined },
+  "WAVE3_ITEMS.spallcatcher.mod.spall.max": { was: 80, now: undefined },
+  "WAVE3_ITEMS.spallcatcher.levels.2.mod.spall.max": { was: 176, now: undefined },
+  "WAVE3_ITEMS.spallcatcher.levels.3.mod.spall.max": { was: 280, now: undefined },
+  "WAVE3_ITEMS.seamwelder.mod.seam.lone": { was: 2, now: 0 },
+  "WAVE3_ITEMS.seamwelder.levels.2.mod.seam.lone": { was: 4, now: 0 },
+  "WAVE3_ITEMS.seamwelder.levels.3.mod.seam.lone": { was: 7, now: 0 },
+  "EQ.poison": { was: 30, now: undefined },
+  "EQ.perStalled": { was: 1.5, now: undefined },
+};
+// Y7b2: NUM-2's live fields the flip moved (NUM-2's record untouched): SABOT ★3's SPEED 16 -> 20 (a handed-off NUM-1 row, so
+// the hand-off check reads it here), ROTARY ★2/★3's fireRate gone (its load time is the star's number), STEAM BREECH's
+// steamBare gone and its steamPlated 35/70/110 -> 40/80/120 (NUM-2's checkers check those values). Cause: the flip
+const Y7B2_NUM2: Record<string, { was: number; now: number | undefined }> = {
+  "ITEMS.sabot.levels.3.factory.speed": { was: 16, now: 20 },
+  "ITEMS.rotary.levels.2.core.fireRate": { was: 18, now: undefined },
+  "ITEMS.rotary.levels.3.core.fireRate": { was: 43, now: undefined },
+  "WAVE3_ITEMS.steambreech.core.steamPlated": { was: 35, now: 40 },
+  "WAVE3_ITEMS.steambreech.levels.2.core.steamPlated": { was: 70, now: 80 },
+  "WAVE3_ITEMS.steambreech.levels.3.core.steamPlated": { was: 110, now: 120 },
+  "WAVE3_ITEMS.steambreech.core.steamBare": { was: 10, now: undefined },
+  "WAVE3_ITEMS.steambreech.levels.2.core.steamBare": { was: 20, now: undefined },
+  "WAVE3_ITEMS.steambreech.levels.3.core.steamBare": { was: 30, now: undefined },
+};
+// Y7b2: the numeric fields the flip added that NUM-1's script never met, each classified and checked live below: LIMPET
+// WORKS' factory.base 0 (its charge's 20 joined the blast: a damage field, whole on the x10 scale as built) and VENOM DRIP's
+// gate.burnPlus +3/+6/+9 s (a time, N1-native). Cause: the flip
+const Y7B2_ADDED: Record<string, number> = {
+  "ITEMS.limpet.factory.base": 0, "ITEMS.venom.gate.burnPlus": 3, "ITEMS.venom.levels.2.gate.burnPlus": 6, "ITEMS.venom.levels.3.gate.burnPlus": 9,
 };
 
 // FLIP-X2 (REQ-BFG-069, the sustain switch on): ITEMS lists WARD BELL, MEND PRESS and MENDING LOOM now, so the walk meets
@@ -219,7 +358,8 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     for (const r of handed) {
       const q = num2At.get(r.id)!;
       expect([r.rule, r.file, r.base], r.id).toEqual(["same", q.file, q.base]);
-      expect(live(toPath(q)), toPath(q)).toBe(q.value);
+      // Y7b2: a NUM-2 field the flip moved reads its release-Y value (Y7B2_NUM2: SABOT ★3 20; ROTARY ★2/★3's fireRate gone)
+      expect(live(toPath(q)), toPath(q)).toBe(toPath(q) in Y7B2_NUM2 ? Y7B2_NUM2[toPath(q)].now : q.value);
     }
     // NUM-2 (REQ-BFG-047): measured, 129 rows handed off: NUM-2's 114 speeds and 15 of its 27 rate %s (the other 12,
     // STEAM BREECH's steamPlated / steamBare, were never NUM-1 rows: 1 / 1.35 is not a literal; the scan below)
@@ -229,8 +369,17 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // Y-FURN: and a row FURN-Y moved (YFURN_MOVED, COAL CHUTE and HEAT SINK) at its release-Y value below (was each live at
     // its recorded value, 25 and 50)
     // BAL-2: and a row BAL-2 moved (BAL2_MOVED: the KILN's HEAT and the two hulls) at its 0.9.1 value below
-    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && !(r.id in BAL2_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
+    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && !(r.id in BAL2_MOVED) && !(r.id in Y7B2_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
     expect(bad).toEqual([]);
+    // Y7b2 (the flip): the 98 moved rows, every one a fixture row recorded at the map's `was`, each live at its release-Y
+    // value (39) or gone with its field (59)
+    const y7b2 = rows.filter((r) => r.id in Y7B2_MOVED);
+    expect(y7b2.map((r) => r.id).sort()).toEqual(Object.keys(Y7B2_MOVED).sort());
+    expect([y7b2.length, y7b2.filter((r) => Y7B2_MOVED[r.id].now === undefined).length]).toEqual([98, 59]);
+    for (const r of y7b2) {
+      expect(r.now, r.id).toBe(Y7B2_MOVED[r.id].was);
+      expect(live(r.id), r.id).toBe(Y7B2_MOVED[r.id].now);
+    }
     // BAL-2: the 3 moved content.ts rows, every one a fixture row recorded at the map's `was` under the map's rule, each
     // live at its 0.9.1 value (was each live at its recorded value)
     const bal2 = rows.filter((r) => r.id in BAL2_MOVED);
@@ -265,9 +414,9 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     for (const r of moved) {
       const m = NUM3_MOVED[r.id];
       expect([r.file, r.rule, r.base, r.now], r.id).toEqual(["src/sim/content.ts", "same", m.was, m.was]);
-      if (m.kind === "time") expect(live(r.id), r.id).toBe(m.now);
+      if (m.kind === "time") expect(live(r.id), r.id).toBe(y3(r.id, m.now)); // Y7b2: Y7B2_NUM3's where the flip moved it
       else expect(live(r.id), r.id).toBeUndefined();
-      if (m.kind === "reshaped") for (const [k, v] of Object.entries(m.now)) expect(live(sibling(r.id, k)), sibling(r.id, k)).toBe(v);
+      if (m.kind === "reshaped") for (const [k, v] of Object.entries(m.now)) expect(live(sibling(r.id, k)), sibling(r.id, k)).toBe(y3(sibling(r.id, k), v));
     }
     // SUS-A: the renamed rows (RIVETER ★1-★3), measured: 3, each live at its new path only
     const renamed = rows.filter((r) => susaNew(r.id) !== r.id);
@@ -323,6 +472,7 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
       && !num3New.has(id) // NUM-3: a field NUM-3 added (num3New, classified above) counts as NUM-3's, checked below
       && !n1Native.has(id) // FLIP-X1 (F-d): a sustain rune's amount is N1-native (n1Native), checked below
       && !sustainNative.has(id) // FLIP-X2: a sustain piece's field is N1-native (SUSTAIN_N1), checked below
+      && !(id in Y7B2_ADDED) // Y7b2: a field the flip added (Y7B2_ADDED), checked below
       && (ruleOf(id, NUM2_RULES) === N2 ? !num2To.has(id) : ruleOf(id) !== "same"));
     expect(missing).toEqual([]);
     // FLIP-X1 (F-d), the sustain-on pins: two-sided, the scan meets the 8 and none is a fixture row (under either name)
@@ -334,26 +484,33 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     expect(ids.filter((id) => sustainNative.has(id)).sort()).toEqual([...sustainNative.keys()].sort());
     expect([sustainNative.size, [...sustainNative.keys()].filter((id) => byId.has(id) || num2To.has(id)).length]).toEqual([18, 0]);
     for (const [id, v] of sustainNative) expect(live(id), id).toBe(v);
+    // Y7b2 (the flip): two-sided: the scan meets the 4 fields Y7B2_ADDED names, none is a fixture row, each live at its value
+    expect(ids.filter((id) => id in Y7B2_ADDED).sort()).toEqual(Object.keys(Y7B2_ADDED).sort());
+    for (const [id, v] of Object.entries(Y7B2_ADDED)) expect([byId.has(id), live(id)], id).toEqual([false, v]);
     // NUM-3 (R1's STUN fold, N1 2.2): two-sided: the scan meets every field of num3New and none is a fixture row; measured
     // 8 (BELLOWS' burn and per at ★1-★3, SABOT's round.seconds at ★1 and ★3), each live at its value. Unclassified, SABOT's
     // two would pass the line above as "same" (factory.round.seconds is FROSTBITE's and DRAG CHAIN's rule).
-    expect(ids.filter((id) => num3New.has(id)).sort()).toEqual([...num3New.keys()].sort());
+    // Y7b2 (the flip): SABOT ★3's own round left (Y7B2_NUM3), so the scan meets 7 of the 8
+    expect(ids.filter((id) => num3New.has(id)).sort()).toEqual([...num3New.keys()].filter((id) => !(id in Y7B2_NUM3 && Y7B2_NUM3[id] === undefined)).sort());
     expect([num3New.size, [...num3New.keys()].filter((id) => byId.has(id)).length]).toEqual([8, 0]);
-    for (const [id, v] of num3New) expect(live(id), id).toBe(v);
+    for (const [id, v] of num3New) expect(live(id), id).toBe(y3(id, v)); // Y7b2: Y7B2_NUM3's where the flip moved it
     // NUM-2 (REQ-BFG-047): two-sided: every NUM-2 field the scan meets is a NUM-2 row under its new name and every NUM-2
     // row is a live numeric field the scan meets; measured 141 (114 speeds, 27 rate %s), 140 of them not in this fixture
     // (128 renamed, STEAM BREECH's 12) and 1 in it (GATLING's core.start, handed off above). And every field NUM-2
     // converted was a NUM-1 "same" one at its old path: NUM-2 converted no damage-family value.
     // FLIP-X2: MEND PRESS's 3 speeds are NUM-2-native too (SUSTAIN_N1, born whole after NUM-2's script), so not NUM-2's rows
     const met = ids.filter((id) => ruleOf(id, NUM2_RULES) === N2 && !sustainNative.has(id));
-    expect([...met].sort()).toEqual([...num2To.keys()].sort());
-    expect([met.length, met.filter((id) => !byId.has(id)).length]).toEqual([141, 140]);
+    // Y7b2 (the flip): ROTARY ★2/★3's fireRate and STEAM BREECH's 3 steamBare left with their fields (Y7B2_NUM2's gone rows),
+    // so the scan meets 136, 135 not in this fixture (was [141, 140])
+    expect([...met].sort()).toEqual([...num2To.keys()].filter((p) => !(p in Y7B2_NUM2 && Y7B2_NUM2[p].now === undefined)).sort());
+    expect([met.length, met.filter((id) => !byId.has(id)).length]).toEqual([136, 135]);
     for (const q of num2) expect(ruleOf(q.path), q.path).toBe("same");
     for (const [id, of] of Object.entries(derived)) expect(live(id), id).toBe(live(of));
   });
 
   it("the damage family is whole at x10 and its sizes are N1's (hulls 1700-2250, plating cap 240, FRAY 2 a stack)", () => {
-    for (const r of rows) if (r.rule === "x10") expect(Number.isInteger(live(susaNew(r.id))), r.id).toBe(true); // SUS-A: at its new path
+    // Y7b2 (the flip): a row gone with its field (Y7B2_MOVED's now undefined) has no live value to check
+    for (const r of rows) if (r.rule === "x10" && !(r.id in Y7B2_MOVED && Y7B2_MOVED[r.id].now === undefined)) expect(Number.isInteger(live(susaNew(r.id))), r.id).toBe(true); // SUS-A: at its new path
     expect(FRAY_BONUS).toBe(2);
     expect(PLATE_CAP).toBe(240);
     expect(PLATE_PER_SLUG).toBe(20);
