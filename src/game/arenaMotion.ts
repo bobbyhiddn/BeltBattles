@@ -34,6 +34,15 @@ export interface TileHit { side: Side; cx: number; cy: number }
 
 const now = (): number => (typeof performance !== "undefined" ? performance.now() : 0);
 
+/** The ?perf=1 overlay's ms readings (a dev tool, never player text): a non-negative number with 1 or 2 decimals.
+ *  numbers.lint (NUM-4) keeps decimal formatting out of render code, so this is spelled out. */
+function decimals(x: number, d: 1 | 2): string {
+  const k = d === 1 ? 10 : 100;
+  const r = Math.round(Math.max(0, x) * k);
+  const frac = String(r % k);
+  return `${Math.floor(r / k)}.${d === 2 && frac.length < 2 ? `0${frac}` : frac}`;
+}
+
 export class ArenaMotion implements ShotMap {
   readonly model: MotionModel;
   readonly sea = new SeaBackdrop();
@@ -251,9 +260,9 @@ export class ArenaMotion implements ShotMap {
     a.sort((x, y) => x - y);
     const q = (p: number) => (a.length ? a[Math.min(a.length - 1, Math.ceil(p * a.length) - 1)] : 0);
     const s = P.mean(120);
-    const f = (x: number) => x.toFixed(2);
+    const f = (x: number) => decimals(x, 2);
     const lines = [
-      `FRAME P50 ${q(0.5).toFixed(1)} P95 ${q(0.95).toFixed(1)} MS`,
+      `FRAME P50 ${decimals(q(0.5), 1)} P95 ${decimals(q(0.95), 1)} MS`,
       `BG ${f(s.backdrop)} HULL ${f(s.hulls)} BOARD ${f(s.boards)}`,
       `SHOT ${f(s.shots)} FX ${f(s.effects)} SEA ${this.kind.toUpperCase()}`,
     ];
