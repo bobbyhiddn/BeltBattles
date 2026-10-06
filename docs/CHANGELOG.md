@@ -3,6 +3,18 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.6: battles in motion
+
+Same battle rules as 0.9.5 (bb-0.9.3), so 0.9.5's ghosts and uploads still meet 0.9.6 players.
+- **Battles in motion:** both carriers sail left to right side by side over the sea, drifting, turning and bobbing, while
+  their boards stay level and parallel, so tiles, belts and numbers read as before. Shots fly between the moving boards.
+- **Three seas by day:** CALM SEA on days 1-3, STORM (with rain) on days 4-7 and EMBER SEA on days 8-10.
+- **One ship everywhere:** your carrier is now a ship with a long bow and a tall stern under your board, in battle, on
+  the title, in replays, and held still on the build screen, the run summary and the hero select. The build screen's
+  board, taps and drags are where they were.
+- **REDUCED MOTION** (OPTIONS) sails straight: no turning, drifting or bobbing, a slower sea and no rain. Fights last
+  just as long either way.
+
 ## 0.9.5: small fixes
 
 Same battle rules as 0.9.4 (bb-0.9.3), so 0.9.4's ghosts and uploads still meet 0.9.5 players.

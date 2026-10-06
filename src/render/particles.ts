@@ -57,6 +57,10 @@ export class Particles {
   readonly c0: Uint16Array;
   readonly c1: Uint16Array;
   readonly size: Uint8Array;
+  /** MOTION-1 (REQ-BFG-071, display only): the board a particle belongs to (-1: none), from `tag` when it spawned, so a
+   *  motion build draws it riding with that board. Without motion, draw() is called for every side, as before. */
+  readonly side: Int8Array;
+  tag = -1;
 
   constructor(cap = 1400) {
     this.cap = cap;
@@ -74,6 +78,7 @@ export class Particles {
     this.c0 = new Uint16Array(cap);
     this.c1 = new Uint16Array(cap);
     this.size = new Uint8Array(cap);
+    this.side = new Int8Array(cap);
   }
 
   clear(): void {
@@ -99,6 +104,7 @@ export class Particles {
     this.c0[i] = c0;
     this.c1[i] = c1;
     this.size[i] = size;
+    this.side[i] = this.tag;
     return i;
   }
 
@@ -119,6 +125,7 @@ export class Particles {
     this.c0[i] = this.c0[j];
     this.c1[i] = this.c1[j];
     this.size[i] = this.size[j];
+    this.side[i] = this.side[j];
   }
 
   update(dt: number): void {
@@ -152,8 +159,10 @@ export class Particles {
     }
   }
 
-  draw(g: G, ox: number, oy: number): void {
+  /** MOTION-1: `only` (>= -1) draws one board's particles (-1: those of none); absent, every particle, as before. */
+  draw(g: G, ox: number, oy: number, only = -2): void {
     for (let i = 0; i < this.n; i++) {
+      if (only !== -2 && this.side[i] !== only) continue;
       const x = Math.round(this.x[i] + ox), y = Math.round(this.y[i] + oy);
       const t = this.life[i] / this.max[i];
       const col = COLORS[t > 0.5 ? this.c0[i] : this.c1[i]];

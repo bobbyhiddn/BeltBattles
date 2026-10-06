@@ -5,3 +5,5 @@ shots/
 *.log
 .vite/
 deploy/public/
+dist-motion/
+dist-knobs/

@@ -105,9 +105,19 @@ function machinePoint(a: Arena, side: Side, kind: TargetKind, ref: number, cell:
  *  applyHit right before that blow's `process` event; a hit's plating soak (absorb) is a separate event of the impacts). */
 const spendOf = (e: SimEvent | null, side: Side): boolean => !!e && e.type === "plate" && !("turret" in e) && e.side === side && e.amount < 0;
 
+/** MOTION-1 (REQ-BFG-071, display only): the board an event's effects belong to: its side's, the marked side's for a
+ *  telegraph, the loser's for the end; -1 for none. A motion build draws each board's effects with that board's
+ *  transform (they ride with it); every other build draws them all, as before. */
+export function anchorOf(e: SimEvent): number {
+  if (e.type === "telegraph") return e.side === 0 ? 1 : 0;
+  if (e.type === "end") return e.winner === 0 ? 1 : e.winner === 1 ? 0 : -1;
+  return "side" in e ? e.side : -1;
+}
+
 /** `prev`: the event before `e` in the same step (null for the step's first): PLATE BREAKER's blow reads it. */
 export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void {
   const fx = a.fx;
+  fx.anchor = anchorOf(e); // MOTION-1: the board these effects ride with
   const snd = a.quiet ? null : a.sound;
   const fast = a.speed > 2;
   switch (e.type) {
@@ -312,6 +322,7 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       return;
     case "wind":
       for (const side of [0, 1] as Side[]) {
+        fx.anchor = side; // MOTION-1: each hull's number rides with it
         fx.popup(hullCx(a, side) + (fx.rnd() - 0.5) * 50, hullCy(a, side), fmtDmg(e.dmg), C.plum4); // NUM-4: was Math.round
       }
       snd?.play("whoosh");
@@ -344,6 +355,7 @@ export function damageFx(a: Arena, side: Side, dt: number): void {
   const pts = crit && fx.rnd() < 0.6 ? SMOKE_25 : SMOKE_50;
   const i = Math.floor(fx.rnd() * (pts.length / 2)) * 2;
   const fr = a.drawn[side];
+  fx.anchor = side; // MOTION-1: the smoke rides with its hull
   const x = hullX(fr, pts[i], pts[i + 1]), y = hullY(fr, pts[i], pts[i + 1]);
   fx.smoke(x, y, 1, crit, crit ? 16 : 10);
   if (crit && fx.rnd() < 0.5) fx.embers(x, y, 2);
@@ -356,6 +368,7 @@ function ko(a: Arena, winner: Side | -1): void {
   const loser: Side | -1 = winner === 0 ? 1 : winner === 1 ? 0 : -1;
   a.loser = loser;
   a.koT = 0;
+  fx.anchor = loser; // MOTION-1: the KO's blasts ride with the losing hull
   if (loser === -1) return;
   const b = hullBox(a.drawn[loser]);
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2;

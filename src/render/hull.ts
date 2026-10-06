@@ -154,6 +154,11 @@ function drawDeck(p: HullPainter, hero: HeroId, P: FactionPalette): void {
   }
 }
 
+/** MOTION-1 (REQ-BFG-071): a hero's hull colours (its faction's palette), for the carrier art. */
+export function heroPalette(hero: HeroId): FactionPalette {
+  return FACTION[HEROES[hero].faction];
+}
+
 export function hullFlash(hero: HeroId, facing: Facing): Cv {
   return cached(`hullF:${hero}:${facing}`, () => silhouette(hullSprite(hero, facing), C.white));
 }

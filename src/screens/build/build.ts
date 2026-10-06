@@ -29,6 +29,9 @@ import { cruiserModel, drawHull, drawTurrets, turretPivotX, turretPivotY, type C
 import { drawMachinery } from "../../render/machinery";
 import { drawLevelMark, levelMarks, type LevelMark } from "../../render/levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks
 import { ArenaBg } from "../../render/arenaBg";
+import { SeaBackdrop } from "../../render/backdrop"; // MOTION-2 (REQ-BFG-071): the day's sea behind the build screen
+import { MOTION, MOTION_KNOBS, MotionPerf, seaForDay, stillSeaSeed } from "../../render/motion";
+import { drawStillCarrier } from "../../render/ship"; // MOTION-2: the player's ship around the board
 import { inside, tapRect, type Rect } from "../../ui/ui";
 import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { TAP_CSS } from "../../ui/tap"; // bb-0.8.6 (REQ-BFG-051 P5): the pack slots' finger target
@@ -96,6 +99,11 @@ export class BuildScreen implements Screen, EditHost {
   private model: CruiserModel;
   private view: CruiserView;
   private bg = new ArenaBg();
+  /** MOTION-2 (REQ-BFG-071): the day's sea, held still (one cached blit a frame). */
+  private sea = new SeaBackdrop();
+  /** MOTION-2 (?perf=1, test builds only): the frame-time split (backdrop, hulls: the ship and plate, boards: machinery,
+   *  turrets and marks, effects: the chrome and the rest, world: the whole draw); null in a player build. */
+  readonly perf: MotionPerf | null = MOTION_KNOBS && MOTION.perf ? new MotionPerf() : null;
 
   constructor(public game: Game) {
     if (!game.run) throw new Error("BuildScreen needs a run");
@@ -406,7 +414,16 @@ export class BuildScreen implements Screen, EditHost {
     const L = (this.L = this.layout());
     const { W, H, portrait } = this.game;
     ({ block: this.block, broken: this.broken } = routeCheck(this.run.build));
-    this.bg.draw(g, W, H, { hulls: [L.hull], vertical: portrait, gapLine: false, pad: L.pad }, this.t);
+    // MOTION-2 (REQ-BFG-071): one world on every screen. The day's sea, held still (still under REDUCED MOTION too), and
+    // the player's own ship drawn around the board's rectangle: the board's tile size, position, taps and drags are
+    // 0.9.4's (L.frame), only the hull under it changed. ?motion=0 (test builds only) draws 0.9.4's floor and tracked hull.
+    const still = !MOTION_KNOBS || MOTION.on;
+    const P = MOTION_KNOBS ? this.perf : null; // ?perf=1 (test builds only): the frame-time split
+    const tw = P ? performance.now() : 0;
+    let t0 = tw;
+    if (still) this.sea.drawStill(g, { W, H, kind: seaForDay(this.run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(this.run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
+    else this.bg.draw(g, W, H, { hulls: [L.hull], vertical: portrait, gapLine: false, pad: L.pad }, this.t);
+    if (P) { const t1 = performance.now(); P.add(0, t1 - t0); t0 = t1; }
     const ghost = this.ed.ghost();
     // free connectors glow while drawing, with no belt fed, or when a belt goes nowhere
     const guide = !!this.ed.draw || connectedRouteCount(this.run.build) === 0 || this.block === NOWHERE;
@@ -425,7 +442,10 @@ export class BuildScreen implements Screen, EditHost {
     v.fuseAnimStars = fd?.showStars;
     const bump = this.thunkT > 0.07 ? 1 : 0;
     if (bump) g.translate(0, bump);
-    drawHull(g, v);
+    if (P) t0 = performance.now();
+    if (still) drawStillCarrier(g, v.model.hero, L.frame);
+    else if (MOTION_KNOBS) drawHull(g, v);
+    if (P) { const t1 = performance.now(); P.add(1, t1 - t0); t0 = t1; }
     drawMachinery(g, v);
     this.drawBroken(g);
     drawTurrets(g, v);
@@ -435,6 +455,7 @@ export class BuildScreen implements Screen, EditHost {
     for (const m of levelMarks(this.run.build, L.frame, v.hideItem ?? -1)) drawLevelMark(g, m);
     this.drawFuseAnim(g);
     if (bump) g.translate(0, -bump);
+    if (P) { const t1 = performance.now(); P.add(2, t1 - t0); t0 = t1; }
     this.wfx.draw(g, 0, 0);
     this.runeBar.drawUnder(g, this); // RUNES-1: the rune bar (a grown panel, the options card and a drag draw over it)
     drawBuildChrome(g, this);
@@ -448,6 +469,7 @@ export class BuildScreen implements Screen, EditHost {
       if (this.cornerMenu && !this.menu) for (const r of this.cornerMenu) this.game.ui.add({ id: "menu", r, onTap: () => { this.menu = true; }, block: true });
     }
     this.runePicker.draw(g, this); // RUNES-1: the dawn rune picker over everything (its regions take every press)
+    if (P) { const t1 = performance.now(); P.add(4, t1 - t0); P.add(5, t1 - tw); P.frame(); }
   }
 
   /** Belts that block FIGHT: a pulsing red tint and outline on every cell (brighter after a press). */
