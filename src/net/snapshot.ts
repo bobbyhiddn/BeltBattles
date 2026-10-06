@@ -359,6 +359,7 @@ function lastChanceField(o: Obj, version: number, rules: string, day: number): {
     if (has(lc, "id") && lc.id !== undefined) throw new SnapshotError(`${at}.id: a hull boon names no id`);
     return { lastChance: { day: d, boon } };
   }
+  if (!has(lc, "id") || lc.id === undefined) throw new SnapshotError(`${at}.id: missing (a ${boon} boon names its ${boon})`);
   return { lastChance: { day: d, boon, id: str(lc.id, `${at}.id`, DEF_PATTERN) } };
 }
 

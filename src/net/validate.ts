@@ -26,11 +26,36 @@ import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } 
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
 import { runeGrants, runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with the client's check
+import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRuneAt, lastChanceRules, type TakenLastChance } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 
 /** RUNES-1: what a deck's check knows beside the deck: its snapshot's run `seed` (absent on a served ghost, FIX-6, and
  *  on stand-ins and pool decks), so the rune offer rule runs only when the uploader's seed is known. */
 export interface ValidateContext {
   seed?: number;
+  /** LC-1 (REQ-BFG-073): the snapshot's taken LAST CHANCE (absent: none, every switch-off deck): where its rune sits, the
+   *  +LAST_CHANCE_HULL grant, the free part's price, and (with the seed) its offer. */
+  lastChance?: TakenLastChance;
+}
+
+/**
+ * LC-1 (REQ-BFG-073): why a deck's LAST CHANCE can't stand, or null: the switch must be on; the day before RUN_DAYS and
+ * before the deck's own day (the decoder's lines, again for a caller without a snapshot); a rune boon's rune at its place
+ * (right after its day's dawn pick, runeProblem's lcAt); a part boon's part one of the PART card's catalogue; and, with the
+ * uploader's seed, the boon must be the card the seed's offer gave (lastChanceOffer on the runes held before it).
+ */
+export function lastChanceProblem(lc: TakenLastChance, b: Build, day: number, seed?: number): string | null {
+  if (!lastChanceRules()) return "lastChance: LAST CHANCE is not in this rules version yet";
+  if (!Number.isInteger(lc.day) || lc.day < 1 || lc.day >= MAX_DAY) return `lastChance: day ${lc.day}: LAST CHANCE comes only before day ${MAX_DAY}`;
+  if (lc.day >= day) return `lastChance: day ${lc.day} is not before the deck's day ${day}`;
+  const runes = (b.runes ?? []).map((q) => q.id);
+  if (lc.boon === "rune" && runes[lc.day] !== lc.id) return `lastChance: the LAST CHANCE rune ${String(lc.id)} is not at runes[${lc.day}] (after the dawn pick of day ${lc.day})`;
+  if (lc.boon === "part" && !lastChanceParts().some((d) => d.id === lc.id)) return `lastChance: ${String(lc.id)} is no LAST CHANCE part (an epic part of the shop's catalogue)`;
+  if (lc.boon === "hull" && lc.id !== undefined) return "lastChance: a hull boon names no id";
+  if (seed === undefined) return null;
+  const offer = lastChanceOffer(seed, lc.day, b.hero, runes.slice(0, lc.day));
+  if (lc.boon === "rune" && offer.rune?.id !== lc.id) return `lastChance: rune ${String(lc.id)} was not in the LAST CHANCE offer of day ${lc.day} (it offered ${offer.rune?.id ?? "no rune"})`;
+  if (lc.boon === "part" && offer.part !== lc.id) return `lastChance: part ${String(lc.id)} was not in the LAST CHANCE offer of day ${lc.day} (it offered ${offer.part ?? "no part"})`;
+  return null;
 }
 
 export { maxHonestSpend, roadCap } from "./roadCap";
@@ -186,11 +211,22 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   // each in its dawn's re-derived offer. FLIP-X2 (cap's ruling 5d6d83ef57d1494c): the count comes from the mode, so no
   // upload caller can forget it: exact for uploads (validateUpload's player mode, client and server: one a dawn, `day`
   // runes, an absent field counting as 0); at most `day` for strict content checks (and the client's local pool)
-  const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost");
+  // LC-1 (REQ-BFG-073): a deck's LAST CHANCE first (its rune's place, its card, with the seed its offer); without one
+  // (every switch-off deck) nothing below changes: lcAt -1, no hull, no free part
+  const lc = ctx.lastChance;
+  if (lc) {
+    const lp = lastChanceProblem(lc, b, day, ctx.seed);
+    if (lp) return { ok: false, errors: [lp] };
+  }
+  const lcAt = lastChanceRuneAt(lc);
+  const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost", false, lcAt);
   if (rp) return { ok: false, errors: [`rune: ${rp}`] };
   // what the runes gave: HULL and BELT runes sit in hullBonus / beltCap (run.ts takeRune), so the supply and budget
-  // blocks below read the bought hull and belt (`bought`); dawn-gold runes add their gold to the day's budget
-  const grant = runeGrants(b.runes, day);
+  // blocks below read the bought hull and belt (`bought`); dawn-gold runes add their gold to the day's budget. LC-1: the
+  // LAST CHANCE HULL card is a grant like a HULL rune (once), and its PART's price is free (once: freeGold)
+  const runeGrant = runeGrants(b.runes, day, lcAt);
+  const freeGold = lc?.boon === "part" && lc.id !== undefined && itemDef(lc.id) ? ITEMS[lc.id].price : 0;
+  const grant = lc?.boon === "hull" || freeGold ? { ...runeGrant, hull: runeGrant.hull + (lc?.boon === "hull" ? LAST_CHANCE_HULL : 0), gold: runeGrant.gold + freeGold } : runeGrant;
   const bought: Build = grant.hull || grant.belt ? { ...b, hullBonus: b.hullBonus - grant.hull, beltCap: b.beltCap - grant.belt } : b;
   const errors: string[] = [];
   const h = HEROES[b.hero];
