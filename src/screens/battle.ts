@@ -12,6 +12,7 @@ import { MOTION, MOTION_KNOBS } from "../render/motion";
 import { settings } from "../core/settings";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
 import { finishDay, foeTitle, ghostOf, startDusk, storedFoe } from "../game/day";
+import { foldDuskResult, foldWarlordResult } from "../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072): the profile's folds
 import { raceReadout } from "../game/raceReadout"; // 0.8.0 H1 M3: the card's FOUNDRY and BASTION rows
 import { loadPool, saveGhost } from "../game/ghosts";
 import { FINDING_GHOST, foeNote, online, onlineMode } from "../game/session"; // 0.7.0a: online play (none: offline, as 0.6.2)
@@ -236,6 +237,7 @@ export class BattleScreen implements Screen {
       const r = finishWarlord(run, (b.winner ?? -1) as 0 | 1 | -1, b.t);
       this.wOutcome = r?.outcome ?? "draw";
       saveRun(run);
+      if (r) foldWarlordResult(run, run.day, r.outcome, this.warlord.id); // CUSTOM-2a: warlord wins, the Iron Matriarch
       this.phase = "outro";
       this.pt = 0;
       this.arena.speed = 1;
@@ -257,6 +259,7 @@ export class BattleScreen implements Screen {
     }
     saveGhost(mine);
     saveRun(run);
+    foldDuskResult(run, this.result); // CUSTOM-2a (REQ-BFG-072): the dusk (and the run's end when it ended the run), once
     this.phase = "outro";
     this.pt = 0;
     this.arena.speed = 1;

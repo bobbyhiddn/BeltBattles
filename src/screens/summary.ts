@@ -21,6 +21,8 @@ import { button, panel } from "../ui/ui";
 import { TIER_COLOR, TIER_LABEL, nameColor } from "../ui/captain";
 import type { BattleRecord } from "../sim/battle";
 import { openReplay, replayAt } from "../game/replays";
+import { foldRunEnd } from "../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072): the run's end, folded once
+import { loadProfile, runUnlockNames } from "../game/profile"; // CUSTOM-2a: the summary's NEW STYLE line
 import { PHONE_CSS, TAP_CSS, isPhone, tapPx } from "../ui/tap"; // shoptap (D5): R1's rule, shared
 import { HeroScreen } from "./hero";
 import { ReplayScreen } from "./replay";
@@ -133,6 +135,8 @@ export class SummaryScreen implements Screen {
   private sea = new SeaBackdrop();
   private view: CruiserView;
   private entered = false;
+  /** CUSTOM-2a (REQ-BFG-072): the styles this run unlocked (the NEW STYLE line), read once on entering. */
+  newStyles: string[] = [];
   /** 0.7.0a M4: per history index, the stored dusk record's replay (online runs only: offline dusks store none). */
   private readonly replays = new Map<number, RowReplay>();
 
@@ -157,6 +161,8 @@ export class SummaryScreen implements Screen {
   enter(): void {
     if (this.entered) return this.game.audio.music(null); // back from a replay: nothing to save or announce again
     this.entered = true;
+    foldRunEnd(this.run); // CUSTOM-2a (REQ-BFG-072): once per run (the battle may have folded it already)
+    this.newStyles = runUnlockNames(loadProfile(), this.run.runId);
     saveRun(null);
     this.game.audio.music(null);
     this.game.audio.play(this.complete ? "win" : "lose");

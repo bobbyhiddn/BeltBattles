@@ -1,6 +1,7 @@
 // Build-screen chrome: status bar, shop card row, cargo tray, FIGHT with its cue, the
 // next-battle card, the details panel, drag feedback and the pause/options menu.
 
+import { foldRunEnd } from "../../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072)
 import { packPrice, saveRun, shopBadge } from "../../game/run";
 import { record } from "../../game/day";
 import { ITEMS, PACK_IDS, PACK_ITEM, REROLL_COST, RUN_DAYS } from "../../sim/content";
@@ -267,7 +268,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     optionsCard(s.game, g, "PAUSED", [
       { id: "resume", label: "RESUME", primary: true, onTap: () => { s.menu = false; } },
       { id: "quit", label: "SAVE & QUIT", onTap: () => { saveRun(s.run); s.game.go(new TitleScreen(s.game)); } },
-      { id: "abandon", label: "ABANDON RUN", danger: true, onTap: () => { saveRun(null); s.game.run = null; s.game.go(new TitleScreen(s.game)); } },
+      { id: "abandon", label: "ABANDON RUN", danger: true, onTap: () => { foldRunEnd(s.run); saveRun(null); s.game.run = null; s.game.go(new TitleScreen(s.game)); } }, // CUSTOM-2a: ABANDON counts as a run
     ], () => { s.menu = false; }, k);
   }
 }
