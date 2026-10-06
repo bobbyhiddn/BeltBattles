@@ -246,31 +246,38 @@ describe("Y4 row 37: ROTARY BREECH: part-full chambers fire 50/65/80% sooner; no
 });
 
 // --------------------------------------------------------------------------------------------- row 38: ANVIL BREECH
-describe("Y4 row 38: ANVIL BREECH: +125/+275/+438% of your PLATE as damage; the flat folds in", () => {
-  it("data: on, perPlate 1.25 / 2.75 / 4.38 and no anvilFlat: the base's perPlate + anvilFlat / 100 (REVIEW-STARD's spot-check)", () => {
+// Y7b1 (ruling Y7A-R3c): ANVIL's STAR_DIFF row is deleted, so with the switch on it reads its base def (0.9.2's two parts).
+// Was "Y4 row 38: ANVIL BREECH: +125/+275/+438% of your PLATE as damage; the flat folds in", with on perPlate 1.25 / 2.75 /
+// 4.38 and no anvilFlat, the shot pct(PLATE, 125/275/438%) and the face "SHOT: +125% OF YOUR {*PLATE} AS {DMG}."
+describe("Y4 row 38: ANVIL BREECH: Y7b1 (Y7A-R3c): +25/+55/+88 and +100/+220/+350% of your PLATE, on as off", () => {
+  it("data: on, the base def: anvilFlat 25/55/88 + perPlate 1 / 2.2 / 3.5, the same object as off", () => {
     for (const s of STARS) {
-      const off = effectAt("anvil", s).core!;
-      expect(on(() => effectAt("anvil", s).core), `★${s}`).toEqual({ routine: "anvil", perPlate: [1.25, 2.75, 4.38][s - 1] });
-      expect(off.perPlate! + off.anvilFlat! / 100).toBeCloseTo([1.25, 2.75, 4.38][s - 1], 12);
+      expect(on(() => effectAt("anvil", s).core), `★${s}`).toEqual({ routine: "anvil", anvilFlat: [25, 55, 88][s - 1], perPlate: [1, 2.2, 3.5][s - 1] });
+      expect(on(() => effectAt("anvil", s).core), `★${s}`).toEqual(effectAt("anvil", s).core);
     }
+    expect(on(() => ITEMS.anvil)).toBe(ITEMS.anvil);
   });
 
-  it("battle: on, the first shot gains pct(PLATE, 125/275/438%) (off: 25/55/88 + 100/220/350%): equal at 100 PLATE, nothing at 0", () => {
+  it("battle: on, the first shot gains 25/55/88 + pct(PLATE, 100/220/350%), as off (Y4's fold: 125/275/438% and no flat)", () => {
     // the shot's gain over the same shot without a core (the barge never fires, so the hull keeps the plating it starts with)
     const gain = (s: number, plate: number, star: boolean): number => {
       const first = (b: Build) => typed(fight(b, star, 6, (bt) => { bt.sides[0].plate.plate = plate; }).ev, "fire")[0].e.dmg;
       return first(withMod(furnaceBench(), 60, "anvil", 0, s)) - first(furnaceBench());
     };
+    // Y7b1 (Y7A-R3c): on was [[125, 125], [275, 275], [438, 438]] / [[0, 25], [0, 55], [0, 88]] / [50, 65] / [250, 225]
     expect(STARS.map((s) => [gain(s, 100, true), gain(s, 100, false)])).toEqual([[125, 125], [275, 275], [438, 438]]);
-    expect(STARS.map((s) => [gain(s, 0, true), gain(s, 0, false)])).toEqual([[0, 25], [0, 55], [0, 88]]);
-    expect([gain(1, 40, true), gain(1, 40, false)]).toEqual([50, 65]); // below 100: DOWN
-    expect([gain(1, 200, true), gain(1, 200, false)]).toEqual([250, 225]); // above: UP
+    expect(STARS.map((s) => [gain(s, 0, true), gain(s, 0, false)])).toEqual([[25, 25], [55, 55], [88, 88]]);
+    expect([gain(1, 40, true), gain(1, 40, false)]).toEqual([65, 65]);
+    expect([gain(1, 200, true), gain(1, 200, false)]).toEqual([225, 225]);
   });
 
-  it("face: SHOT: +125/+275/+438% OF YOUR PLATE AS DMG; ladder +125%/+275%/+438% OF PLATE", () => {
-    expect(lines("anvil")).toEqual([125, 275, 438].map((p) => [`SHOT: +${p}% OF YOUR {*PLATE} AS {DMG}.`]));
+  // Y7b1 (Y7A-R3c): was "face: SHOT: +125/+275/+438% OF YOUR PLATE AS DMG; ladder +125%/+275%/+438% OF PLATE"
+  it("face: SHOT: +25 DMG, +100% OF YOUR PLATE (both parts, one line, as off); ladders {DMG} +25/+55/+88 and +100%/+220%/+350% OF PLATE", () => {
+    expect(lines("anvil")).toEqual([[25, 100], [55, 220], [88, 350]].map(([d, p]) => [`SHOT: +${d} {DMG}, +${p}% OF YOUR {*PLATE}.`]));
+    expect(lines("anvil")).toEqual(lines("anvil", false));
     oneLine("anvil");
-    expect(levels("anvil", 1)).toEqual(["[+125%]/+275%/+438% OF {PLATE}", next(2, "+275% OF {PLATE}")]);
+    expect(levels("anvil", 1)).toEqual(["{DMG} [+25]/+55/+88", "[+100%]/+220%/+350% OF {PLATE}", next(2, "+55 {DMG}, +220% OF {PLATE}")]);
+    expect(levels("anvil", 2)).toEqual(levels("anvil", 2, false));
   });
 });
 

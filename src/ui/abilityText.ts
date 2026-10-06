@@ -1323,13 +1323,11 @@ const ENTRIES: Record<string, Entry> = {
   anvil: {
     // Battle.fireCore (anvil): + anvilFlat + perPlate x the hull's plating at fire time, both x k (cores.ts CORE_ABSOLUTE)
     // NUM-4: perPlate as the sim keeps it, a whole % of the hull's plating (was "2.2 MORE FOR EACH PLATING")
-    // Y4 (release Y; DESIGN-Y row 38): with the star switch on the flat folds into the share (no anvilFlat): its share of
-    // your plating alone, as damage
-    text: (e, x) => (starRules()
-      ? [`EACH SHOT DEALS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL AS MORE DAMAGE.`, S_PLATING] // Y6: on here
-      : [`EACH SHOT DEALS ${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL.`, S.plating]),
-    gist: (e, x) => (starRules() ? `${percent(c(e, x).perPlate!)} OF YOUR PLATING AS DAMAGE`
-      : `${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF YOUR PLATING`),
+    // Y7b1 (release Y; ruling Y7A-R3c): with the star switch on it reads its base def too (its STAR_DIFF row is deleted), so
+    // its sentences are the base's, PLATING's sentence as the switch has it (plating(): no POISON on). Y4's fold ("EACH SHOT
+    // DEALS 125% OF THE PLATING ON YOUR HULL AS MORE DAMAGE."; gist "125% OF YOUR PLATING AS DAMAGE") left with it
+    text: (e, x) => [`EACH SHOT DEALS ${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL.`, plating()],
+    gist: (e, x) => `${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF YOUR PLATING`,
     card: () => "MORE DAMAGE THE MORE PLATING",
   },
   steambreech: {

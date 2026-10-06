@@ -24,7 +24,7 @@ describe("Y-INT cache audit: the caches that read the catalogue or the glossary 
   it("no switch-on def moves a catalogue field a cache reads (name, kind, price, rarity, merchant, size, tags, desc)", () => {
     const cat = (id: string) => { const d = ITEMS[id]; return [d.name, d.kind, d.price, d.rarity, d.merchant, d.size, d.tags, d.desc]; };
     const ids = Object.keys(STAR_ITEMS);
-    expect(ids.length).toBe(32); // STAR_DIFF's Y2-Y6 rows at the Y-INT tip (the other Y pieces change only the sim's reading)
+    expect(ids.length).toBe(31); // STAR_DIFF's Y2-Y6 rows at the Y-INT tip (the other Y pieces change only the sim's reading). Y7b1 (Y7A-R3c: ANVIL's row deleted): was 32
     for (const id of ids) expect(on(() => cat(id)), id).toEqual(cat(id));
   });
 

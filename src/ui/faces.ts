@@ -949,11 +949,13 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `FIRES PART-FULL CHAMBERS ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
   },
   anvil: (e, x) => {
-    // DESIGN-Y row 38 (REVIEW-STARD's spot-check): Battle.fireCore: + pct(plate, 100 x perPlate), the flat folded in (125% /
-    // 275% / 438% at k 1, a whole % of the hull's plating x the class %: cores.ts scaleCore). Was "SHOT: +25 {DMG}, +100% OF
-    // YOUR {*PLATE}."
-    const per = fmtPct(c(e, x).perPlate!);
-    return rules([shot(`+${per} OF YOUR {*PLATE} AS {DMG}.`)], [["per", `+${per} OF {PLATE}`]], [REMINDER.PLATE()]);
+    // Y7b1 (release Y; ruling Y7A-R3c): its STAR_DIFF row is deleted, so with the switch on it reads its base def, 0.9.2's
+    // two parts: Battle.fireCore: + anvilFlat + pct(plate, 100 x perPlate) (x the class %: cores.ts scaleCore), both on one
+    // line (180 px at ★3, k 1), each on its own ⓘ ladder. Was Y4's fold (DESIGN-Y row 38) "SHOT: +125% OF YOUR {*PLATE} AS
+    // {DMG}." (125% / 275% / 438%, no flat)
+    const flat = fmtDmg(c(e, x).anvilFlat!), per = fmtPct(c(e, x).perPlate!);
+    return rules([shot(`+${flat} {DMG}, +${per} OF YOUR {*PLATE}.`)], [["flat", `+${flat} {DMG}`], ["per", `+${per} OF {PLATE}`]],
+      [REMINDER.PLATE()]);
   },
   steambreech: (e, x) => {
     // DESIGN-Y row 39: cores.ts steamInterval: while your hull holds plating it fires steamPlated% faster, without it at its

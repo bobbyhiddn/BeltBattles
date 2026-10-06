@@ -1322,9 +1322,9 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
     core: { routine: "rotary", order: "FIFO", windowTime: 0.75 },
     levels: { 2: { core: { windowTime: 0.525 }, perk: "GREASED RACE" }, 3: { core: { windowTime: 0.3 }, perk: "CLEAN FEED" } },
   },
-  // row 38, ANVIL BREECH: anvilFlat folds into perPlate (+ flat / 100): 1 + 25 / 100 = 1.25, 2.2 + 0.55 = 2.75, 3.5 + 0.88 =
-  // 4.38 (125% / 275% / 438% of your PLATE, REVIEW-STARD's spot-check), equal to the base at 100 PLATE; no flat
-  anvil: { core: { routine: "anvil", perPlate: 1.25 }, levels: { 2: { core: { perPlate: 2.75 } }, 3: { core: { perPlate: 4.38 } } } },
+  // row 38, ANVIL BREECH: Y7b1 (ruling Y7A-R3c): its row is deleted, so with the switch on it is 0.9.2's two-part rule, its
+  // base def: anvilFlat 25/55/88 + perPlate 1/2.2/3.5. Y4's fold (perPlate 1.25/2.75/4.38, no flat) assumed 100 PLATE, but
+  // BASTION's decks hold about 15 when its guns fire (MEAN_PLATE), and its switch-on uptake fell to 0 (REVIEW-Y7A F2)
   // row 39, STEAM BREECH: steamBare goes (no plating, no speed-up); steamPlated gains 5/10/10 points: 40/80/120% faster. It
   // stays common (DESIGN-Y's note under the Y4 table)
   steambreech: { core: { routine: "steam", steamPlated: 40 }, levels: { 2: { core: { steamPlated: 80 } }, 3: { core: { steamPlated: 120 } } } },

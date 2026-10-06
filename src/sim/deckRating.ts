@@ -132,8 +132,10 @@ export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40
  *   damage (cores.ts drakeConvert on the walk's flat, deck.ts RouteEstimate.flat), its free BURN gone: computed, so no NOMINAL.
  * - The rest comes from the switch's own data: HOPPER's window +1/+2/+3 with no load time, store or no-jam (`start`, the
  *   finisher's split, firedShare), TWIN TRIGGER's pairBonus 30/60/95 with no load-time cut (`start`), ROTARY BREECH's load
- *   time with no fire rate or no-jam (`start`, the cadence, firedShare), ANVIL BREECH's fold (perPlate 1.25/2.75/4.38 x
- *   meanPlate, no flat) and STEAM BREECH's plated-only speed (bare: its own rate). SALVO RACK's pace was never read here.
+ *   time with no fire rate or no-jam (`start`, the cadence, firedShare) and STEAM BREECH's plated-only speed (bare: its own
+ *   rate). SALVO RACK's pace was never read here. ANVIL BREECH: Y7b1 (ruling Y7A-R3c) deletes its row, so on it rates as
+ *   off (anvilFlat + perPlate x meanPlate); Y4's fold (perPlate 1.25/2.75/4.38 x meanPlate, no flat) priced it at about
+ *   nothing on BASTION (18.75 against 40).
  * Y5 (release Y; DESIGN-Y rows 41-47), also read only with the switch on:
  * - COUNTERWEIGHT uncapped: the walk counts every tile ridden (deck.ts walkRoute reads no max), as Battle.applyHit does.
  * - CAPACITOR BANK uncapped: NOMINAL priced it with its 5 s cap (capacitorPaid, the base's maxSeconds); the charge past that

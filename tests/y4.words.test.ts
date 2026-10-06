@@ -52,23 +52,28 @@ describe("Y4 words: no new keyword; LOAD TIME and BONUS DAMAGE stay", () => {
   it("on, no text of the 8 names a rule that left: faces, ⓘ lines, kept sentences, gists, cards, merge lines, GATLING clashes", () => {
     // (EXT. CHAMBER's slot was its clause "★2 WIDE BREECH: HOLDS +1 {SLUG}.": the clause labels below)
     const GONE = /LOAD TIME|STORES?\b|NEVER JAMS|FLOOR|ANY OTHER LOAD|WITHOUT IT|, \d+% WITHOUT|MORE BURN|LASTS|LAND \d+% SOONER|SHORTER|\bPLUS\b|GREASED RACE:|CLEAN FEED:|WIDE BREECH:|TRIPLE BREECH:|BOTTOMLESS:/;
-    const texts: string[] = [];
+    // Y7b1 (ruling Y7A-R3c): ANVIL's flat is back with the switch on (its base def), so its "..., PLUS n% OF ..." names its
+    // rule again: ANVIL's texts are read against GONE without \bPLUS\b (every other piece's against GONE, as before)
+    const GONE_ANVIL = new RegExp(GONE.source.replace("|\\bPLUS\\b", ""));
+    const texts: string[] = [], anvil: string[] = [];
     on(() => {
       for (const def of Y4_PIECES) {
-        const o = k1(def);
-        texts.push(cardText(def, o));
+        const o = k1(def), out = def === "anvil" ? anvil : texts;
+        out.push(cardText(def, o));
         for (const s of STARS) {
           const f = faceAt(def, s, o)!;
-          texts.push(...f.rules.map((r) => r.text), ...(f.clause ? [f.clause.text] : []), ...(f.caveats ?? []));
-          texts.push(...levelLines(def, s, o)!.map((l) => levelText(l, (v) => v)));
-          texts.push(...abilityText(def, s, o).sentences, gist(def, s, o));
-          if (s > 1) texts.push(faceMerge(def, s, o) ?? "");
-          for (const r of ["gatling", "compound"]) texts.push(gatlingClashText(def, s, r) ?? "", clashShortText(def, r) ?? "");
+          out.push(...f.rules.map((r) => r.text), ...(f.clause ? [f.clause.text] : []), ...(f.caveats ?? []));
+          out.push(...levelLines(def, s, o)!.map((l) => levelText(l, (v) => v)));
+          out.push(...abilityText(def, s, o).sentences, gist(def, s, o));
+          if (s > 1) out.push(faceMerge(def, s, o) ?? "");
+          for (const r of ["gatling", "compound"]) out.push(gatlingClashText(def, s, r) ?? "", clashShortText(def, r) ?? "");
         }
       }
     });
-    expect(texts.length).toBeGreaterThan(150);
+    expect(texts.length + anvil.length).toBeGreaterThan(150);
     expect(texts.filter((t) => GONE.test(t))).toEqual([]);
+    expect(GONE_ANVIL.source).not.toMatch(/PLUS/);
+    expect(anvil.filter((t) => GONE_ANVIL.test(t))).toEqual([]);
     // off: the clashes and the rules that left are there (identity)
     expect(gatlingClashText("hopper", 1)).toBe("GATLING SPOOL: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE.");
     expect(clashShortText("twintrigger", "compound")).toBe("TWIN TRIGGER: ITS SHORTER LOAD TIME DOES NOTHING HERE.");
@@ -87,8 +92,9 @@ describe("Y4 words: no new keyword; LOAD TIME and BONUS DAMAGE stay", () => {
       expect([abilityText("chamber", 3).sentences, gist("chamber", 2)]).toEqual([["THE TURRET FIRES 4 LOADS EACH SHOT."], "FIRES 3 LOADS A SHOT"]);
       expect(abilityText("rotary", 2, { k: 1 }).sentences).toEqual(["IT FIRES A PART-FULL CHAMBER 65% SOONER, THE OLDEST LOAD FIRST."]);
       expect([gist("rotary", 3, { k: 1 }), cardText("rotary", { k: 1 })]).toEqual(["PART-FULL CHAMBERS 80% SOONER", "PART-FULL CHAMBERS 50% SOONER."]);
-      expect(abilityText("anvil", 3, { k: 1 }).sentences[0]).toBe("EACH SHOT DEALS 438% OF THE PLATING ON YOUR HULL AS MORE DAMAGE.");
-      expect(gist("anvil", 1, { k: 1 })).toBe("125% OF YOUR PLATING AS DAMAGE");
+      // Y7b1 (Y7A-R3c): was "EACH SHOT DEALS 438% OF THE PLATING ON YOUR HULL AS MORE DAMAGE." and "125% OF YOUR PLATING AS DAMAGE"
+      expect(abilityText("anvil", 3, { k: 1 }).sentences[0]).toBe("EACH SHOT DEALS 88 MORE DAMAGE, PLUS 350% OF THE PLATING ON YOUR HULL.");
+      expect(gist("anvil", 1, { k: 1 })).toBe("25 MORE DAMAGE, PLUS 100% OF YOUR PLATING");
       expect(abilityText("steambreech", 1, { k: 1 }).sentences).toEqual(["THE TURRET FIRES 40% FASTER WHILE YOUR HULL HOLDS PLATING."]);
       expect(gist("steambreech", 3, { k: 1 })).toBe("120% FASTER PLATED");
       expect(abilityText("drake", 2, { k: 1 }).sentences).toEqual([
@@ -181,9 +187,9 @@ describe("Y4: the bots' deck rating prices each new rule (behind the switch)", (
     // ROTARY ★3: no 43% fire rate, no no-jam
     const rot = withMod(twoPress(), 60, "rotary", 0, 3);
     expect(rate(rot, true)).toBeLessThan(rate(rot, false));
-    // ANVIL ★1 on BASTION (its mean plate 15): 125% of it (18.75) against 25 + 15 = 40 off
+    // ANVIL ★1 on BASTION (its mean plate 15): Y7b1 (Y7A-R3c): 25 + 15 = 40, on as off (was on 125% of it, 18.75: toBeLessThan)
     const anv = withMod(heroStartBuild("bastion", 1), 70, "anvil", 0, 1);
-    expect(rate(anv, true)).toBeLessThan(rate(anv, false));
+    expect(rate(anv, true)).toBe(rate(anv, false));
     // STEAM ★1 on an unplated deck: its own rate (no bare 10%) and no NOMINAL: as no core
     const steam = withMod(furnaceBench(), 60, "steambreech");
     expect(rate(steam, true)).toBe(rate(furnaceBench(), true));
