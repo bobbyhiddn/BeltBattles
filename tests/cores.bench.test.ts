@@ -20,6 +20,39 @@ const busy = (): Build => ({
   items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 6, y: 6 }, { uid: 3, def: "splitter", x: 3, y: 4, rot: 1 }, { uid: 4, def: "splitter", x: 6, y: 3 }],
   routes: [{ factory: 1, cells: SHORT }, { factory: 2, cells: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }],
 });
+// Y7b2 (the flip; DESIGN-Y: no floors): DRAKE needs bonus damage on its belt to act; was benched on the bare deck (it had
+// addBurn). It turns each 25 / 18 / 13 of a shot's bonus into 1 BURN, and the busy deck's slugs carry none (640.0 at every
+// star): the busy deck plus a ★2 WHETSTONE (+40) on the KILN's belt at (4,3), after its SPLITTER, so each copy keeps the
+// whole +40 (1 / 2 / 3 BURN), as tests/sharedPool.effects.test.ts audits DRAKE
+const whetted = (): Build => {
+  const b = busy();
+  b.items.push({ uid: 5, def: "whetstone", x: 3, y: 3, rot: 1, stars: 2 });
+  return b;
+};
+// Y7b2 (the flip; DESIGN-Y: no floors): ROTARY needs a part-full chamber to act; was benched on the bare deck (it had a
+// fire rate). Its star only shortens its load time (0.75 / 0.525 / 0.3 s), which the chamber the busy deck keeps full
+// never waits out (640.0 at every star): the busy deck's two belts with no SPLITTERs and a SLAG POT (a slug every 30 / 11
+// = 2.73 s) for the STAMP PRESS (30 / 21 = 1.43 s), so about 1.17 slugs a second reach a gun that fires 1. Its first
+// windows close part-full (first shot 3.68 / 3.47 / 3.23 s), and the sooner they close, the later its queue reaches 4
+// and jams (first jam 18.7 / 21.2 / 25.0 s; 4 / 3 / 2 jams, 23 / 24 / 25 shots). A lone KILN belt (the starting deck)
+// moves no star (1554.0 at each: every shot only comes sooner)
+const sparse = (): Build => {
+  const b = busy();
+  b.items = b.items.filter((p) => p.def !== "splitter");
+  b.items.find((p) => p.def === "press")!.def = "slagpot";
+  return b;
+};
+// Y7b2 (the flip; DESIGN-Y: no floors): DRAKE needs bonus damage on its belts to act; was benched on the bare deck (it had
+// addBurn). The WEAVER deck with two ★2 WHETSTONEs on each belt (+80 a slug: 3 BURN at ★1, 5 left), in both decks of its
+// dead-offer check; one ★2 a belt (+40: 1 BURN) moves it 3.2%, one ★3 (+70: 2 BURN) 4.8%, since a ★1 DRAKE makes each 25
+// of bonus 30 dealt over 3 s and the last 3 s' BURN runs past the 30 s. The tiles they work: the par WEAVER's (1,4), (4,2)
+// and (8,3) (ai.ts warlordLayout), and the tile next to each on the same belt, (1,3), (4,1) and (8,4)
+const whetWeaver = (): Build => {
+  const b = startingBuild("weaver", 1);
+  const at: [number, number][] = [[0, 4], [3, 2], [7, 3], [0, 3], [3, 1], [7, 4]];
+  at.forEach(([x, y], j) => b.items.push({ uid: 920 + j, def: "whetstone", x, y, rot: 1, stars: 2 }));
+  return b;
+};
 // NUM-1 (REQ-BFG-047): the barge's extra hull x10 with every hull (was 2000). At 2000 a 2000-hull FURNACE barge (4000 in
 // all) died inside 30 s to PRESSURE ★2 and ★3, so the bench stopped measuring their damage (4050 and 4028, not ~4195 and
 // ~6227, x10 of the base's 419.5 and 622.7)
@@ -38,22 +71,27 @@ function in30(b: Build, seed = 3): { dmg: number; shots: number; jams: number } 
 const pct = (a: number, b: number) => `${((a / b - 1) * 100).toFixed(1)}%`;
 
 describe("core benches", () => {
-  it("PRESSURE BREECH and a 3-star ROTARY BREECH never jam on the over-production deck (the signature core does)", () => {
+  // Y7b2 (the flip): ROTARY ★3's no-jam is gone (Y4: ROTARY's fire rate and no-jam go), so its part of this check is
+  // deleted (was: "PRESSURE BREECH and a 3-star ROTARY BREECH never jam ...", and the 3-star ROTARY's jams toBe(0))
+  it("PRESSURE BREECH never jams on the over-production deck (the signature core does)", () => {
     expect(in30(busy()).jams).toBeGreaterThan(0);
     expect(in30(fit(busy(), "pressure", [0])).jams).toBe(0);
-    expect(in30(fit(busy(), "rotary", [0], 3)).jams).toBe(0);
   });
 
   it("each core's headline metric rises 1 < 2 < 3 stars on heavy, medium and light turrets", () => {
     const headline: Record<string, (s: ReturnType<typeof resolveCore>["spec"]) => number> = {
       scatter: (c) => c.pellets! * c.share!, // total damage per shot
-      // NUM-2 (REQ-BFG-047): EQUIVALENT of 1 / intervalMul and 1 / floor, the fire-rate factors in the new form: the whole
-      // rate %s fireRate (ROTARY ★2 18, ★3 43) and top (GATLING 67 / 150 / 245) as (100 + X) / 100
-      rotary: (c) => rateMul(c.fireRate), // fire rate
+      // NUM-2 (REQ-BFG-047): EQUIVALENT of 1 / floor, the fire-rate factor in the new form: the whole rate % top (GATLING
+      // 67 / 150 / 245) as (100 + X) / 100
+      // Y7b2 (the flip): ROTARY's fire rate is gone (was rateMul(c.fireRate), ★2 18, ★3 43); its star number is its load
+      // time, windowTime 0.75 / 0.525 / 0.3 s, so the headline is how often its window closes, 1 / windowTime
+      rotary: (c) => 1 / c.windowTime!, // load pace (was the fire rate)
       pressure: (c) => c.perQueued!, // flat per queued payload
       gatling: (c) => rateMul(c.top), // spun-up fire rate
       hullbreaker: (c) => c.hullMul!,
-      drake: (c) => c.addBurn! * c.burnTime!, // Burn damage it adds per shot
+      // Y7b2 (the flip): DRAKE's addBurn and burnTime are gone (was c.addBurn! * c.burnTime!, the Burn damage it added per
+      // shot); its star number is flatPerBurn 25 / 18 / 13, so the headline is the BURN it makes per bonus damage
+      drake: (c) => 1 / c.flatPerBurn!, // BURN per bonus damage (was the Burn damage it added per shot)
       salvo: (c) => c.volleyFlat!, // flat per volley shell
     };
     const tds: [string, TurretDef][] = [["heavy", HEROES.furnace.turrets[0]], ["medium", MEDIUM], ["light", HEROES.weaver.turrets[0]]];
@@ -67,8 +105,11 @@ describe("core benches", () => {
     const rows: string[] = [];
     const base = in30(busy());
     for (const id of CORES) {
-      const r = [1, 2, 3].map((s) => in30(fit(busy(), id, [0], s)));
-      rows.push(`${id.padEnd(11)} ${r.map((x) => `${x.dmg.toFixed(1)} dmg / ${x.shots} shots`).join("  |  ")}`);
+      // Y7b2 (the flip; DESIGN-Y: no floors): DRAKE and ROTARY are benched with their engines (whetted, sparse)
+      const deck = id === "drake" ? whetted : id === "rotary" ? sparse : busy;
+      const r = [1, 2, 3].map((s) => in30(fit(deck(), id, [0], s)));
+      const own = deck === busy ? "" : `  (${id === "drake" ? "+ a ★2 WHETSTONE" : "no SPLITTERs, a SLAG POT"}, no core ${in30(deck()).dmg.toFixed(1)} dmg)`;
+      rows.push(`${id.padEnd(11)} ${r.map((x) => `${x.dmg.toFixed(1)} dmg / ${x.shots} shots`).join("  |  ")}${own}`);
       expect(r[0].dmg < r[1].dmg && r[1].dmg < r[2].dmg, `${id}: ${r.map((x) => x.dmg.toFixed(1)).join(" < ")}`).toBe(true);
     }
     console.log(`bench busy FURNACE (no core ${base.dmg.toFixed(1)} dmg / ${base.shots} shots), 1-3 stars:\n${rows.join("\n")}`);
@@ -80,10 +121,15 @@ describe("core benches", () => {
     const base = sum(() => startingBuild("weaver", 1));
     const rows: string[] = [];
     for (const id of CORES) {
-      const all = sum(() => fit(startingBuild("weaver", 1), id, [0, 1, 2]));
-      const one = sum(() => fit(startingBuild("weaver", 1), id, [1]));
-      rows.push(`${id.padEnd(11)} all three: dmg ${pct(all.dmg, base.dmg)} shots ${pct(all.shots, base.shots)} · one (middle): dmg ${pct(one.dmg, base.dmg)} shots ${pct(one.shots, base.shots)}`);
-      const moved = Math.max(Math.abs(all.dmg / base.dmg - 1), Math.abs(all.shots / base.shots - 1));
+      // Y7b2 (the flip; DESIGN-Y: no floors): DRAKE is checked with its engine (whetWeaver) in both decks, so `ref` is that
+      // deck with no core; every other core's is the default deck (`base`)
+      const deck = id === "drake" ? whetWeaver : () => startingBuild("weaver", 1);
+      const ref = id === "drake" ? sum(deck) : base;
+      const all = sum(() => fit(deck(), id, [0, 1, 2]));
+      const one = sum(() => fit(deck(), id, [1]));
+      const own = id === "drake" ? " (two ★2 WHETSTONEs a belt, both decks)" : "";
+      rows.push(`${id.padEnd(11)} all three: dmg ${pct(all.dmg, ref.dmg)} shots ${pct(all.shots, ref.shots)} · one (middle): dmg ${pct(one.dmg, ref.dmg)} shots ${pct(one.shots, ref.shots)}${own}`);
+      const moved = Math.max(Math.abs(all.dmg / ref.dmg - 1), Math.abs(all.shots / ref.shots - 1));
       expect(moved, id).toBeGreaterThanOrEqual(0.05);
     }
     console.log(`dead-offer check, WEAVER default deck, 8 seeds (no core: ${(base.dmg / 8).toFixed(1)} dmg, ${base.shots / 8} shots per seed):\n${rows.join("\n")}`);
