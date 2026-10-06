@@ -16,7 +16,7 @@ import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on 
 import { panel, type Rect } from "../ui/ui";
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
 import { faceLines } from "../ui/faces";
-import { HEROES, ITEMS } from "../sim/content";
+import { HEROES, ITEMS, type Rarity } from "../sim/content";
 import { RUNES } from "../sim/runes";
 import { BOONS, LAST_CHANCE_HULL, type Boon, type LastChanceOffer } from "../sim/lastChance";
 import { pendingLastChance, takeLastChance, type Run } from "../game/run";
@@ -31,8 +31,8 @@ export const LC_LINE = "+1 LIFE. PICK ONE. FREE.";
 export const LC_TAKE = "TAP AGAIN TO TAKE IT";
 /** "DUSK OF DAY 6 · TAP TO READ" */
 export const lcHint = (day: number): string => `DUSK OF DAY ${day} · TAP TO READ`;
-/** The PART card's sub line and the HULL card's. */
-export const LC_PART_SUB = "EPIC PART · TO CARGO";
+/** The PART card's sub line ("EPIC PART · TO CARGO · FREE": its tier, where it goes) and the HULL card's. */
+export const lcPartSub = (rarity: Rarity): string => `${tierWord(rarity)} PART · TO CARGO · FREE`;
 export const LC_HULL_SUB = "MAX HULL · KEPT ALL RUN";
 /** The HULL card's name: "+1000 ♥" (the HULL icon). */
 export const hullName = (n: number): string => icons(`+${n} {HULL}`);
@@ -259,7 +259,7 @@ export class LastChancePicker {
         drawBody(g, { ...r, y: r.y + base - HEAD }, [], t.info, hint);
       } else if (t.boon === "part") {
         const def = ITEMS[o.part!];
-        drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], `${tierWord(def.rarity)} PART · TO CARGO · FREE`, open);
+        drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity), open);
         drawBody(g, r, t.lines, t.info, hint);
       } else {
         drawHead(g, r, C.lime, icons("{HULL}"), hullName(o.hull), C.lime, LC_HULL_SUB, open);

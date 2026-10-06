@@ -6,7 +6,7 @@ import { textWidth } from "../src/render/font";
 import { LAST_CHANCE_HULL, lastChanceOffer } from "../src/sim/lastChance";
 import { ITEMS } from "../src/sim/content";
 import { RUNES } from "../src/sim/runes";
-import { LC_HULL_SUB, LC_LINE, LC_STOP, LC_TAKE, LC_TITLE, hullName, lastChanceTag, lcHint, lcLayout, lcToast } from "../src/screens/lastChancePicker";
+import { LC_HULL_SUB, LC_LINE, LC_STOP, LC_TAKE, LC_TITLE, hullName, lastChanceTag, lcHint, lcLayout, lcPartSub, lcToast } from "../src/screens/lastChancePicker";
 import { lastChanceCardLine } from "../src/game/day";
 
 describe("LC-1: the LAST CHANCE screen", () => {
@@ -24,12 +24,12 @@ describe("LC-1: the LAST CHANCE screen", () => {
   });
 
   it("its words: capitals, no retired word (TEXT-STYLE 13.6), the HULL card names its amount with the HULL icon", () => {
-    const words = [LC_TITLE, LC_LINE, LC_TAKE, LC_HULL_SUB, LC_STOP, lcHint(6), hullName(LAST_CHANCE_HULL)];
+    const words = [LC_TITLE, LC_LINE, LC_TAKE, LC_HULL_SUB, LC_STOP, lcHint(6), hullName(LAST_CHANCE_HULL), lcPartSub("epic")];
     for (const w of words) {
       expect(w).toBe(w.toUpperCase());
       expect(w).not.toMatch(/HARASSMENT|ONLINE|POISON|LOAD TIME/);
     }
-    expect([LC_TITLE, LC_LINE, lcHint(6)]).toEqual(["LAST CHANCE", "+1 LIFE. PICK ONE. FREE.", "DUSK OF DAY 6 · TAP TO READ"]);
+    expect([LC_TITLE, LC_LINE, lcHint(6), lcPartSub("epic")]).toEqual(["LAST CHANCE", "+1 LIFE. PICK ONE. FREE.", "DUSK OF DAY 6 · TAP TO READ", "EPIC PART · TO CARGO · FREE"]);
     expect(hullName(1000)).toMatch(/^\+1000 .$/); // "+1000" and the HULL glyph
   });
 
