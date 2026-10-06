@@ -34,6 +34,7 @@ import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { TAP_CSS } from "../../ui/tap"; // bb-0.8.6 (REQ-BFG-051 P5): the pack slots' finger target
 import { Editor, direct, type BeltX, type EditHost } from "./edit";
 import { buildLayout, buildScale, Caravan, panelArea as panelAreaOf, phoneScreen, type BuildLayout, type Sel } from "./layout";
+import { phoneBarLift } from "./layout"; // TAP-093 (backlog #340): a portrait phone's taller top bar
 import { deleteRoute, rotate, sell, store, storeFitted } from "./actions";
 import { cssPerPx as cssScale, type PointerKind } from "../../core/io"; // shoptap (D1)
 import { beltXSide, placeBeltX } from "./beltx"; // shoptap (D3)
@@ -198,8 +199,16 @@ export class BuildScreen implements Screen, EditHost {
   private layout(): BuildLayout {
     // RUNES-1 (REQ-BFG-058): the rune bar's row under the top bar (0 with no rune held: exactly as before)
     const row = runeRowH(this.game.view, this.run.build.runes?.length ?? 0);
-    return shiftLayout(buildLayout(this.game.W, this.game.H - row, this.game.portrait, this.refit ? OFFERS : this.offers().length, this.phone && this.game.portrait, this.packTap), row, this.game.H);
+    const offers = this.refit ? OFFERS : this.offers().length, phone = this.phone && this.game.portrait;
+    // TAP-093 (backlog #340): a portrait phone's top bar grows to a finger's target where the screen spares it with a rune
+    // row (layout.ts phoneBarLift: the same with or without a rune held); 0 elsewhere, as before
+    const lift = phone ? phoneBarLift(this.game.W, this.game.H, offers, this.packTap, runeRowH(this.game.view, 1)) : 0;
+    return shiftLayout(buildLayout(this.game.W, this.game.H - row, this.game.portrait, offers, phone, this.packTap, lift), row, this.game.H);
   }
+
+  /** TAP-093 (backlog #340): the corner MENU's target this frame (chrome.ts drawTopBar; layout.ts cornerTarget), or null
+   *  where the bar keeps SND and MENU at its right end. */
+  cornerMenu: Rect[] | null = null;
 
   /** RUNES-1 (REQ-BFG-058): the rune bar (under the top bar, with a rune held) and the dawn rune picker (a modal over the
    *  screen while today's pick is pending: it takes every press and key). */
@@ -432,7 +441,12 @@ export class BuildScreen implements Screen, EditHost {
     this.wfx.drawPops(g, 0, 0);
     this.ufx.draw(g, 0, 0);
     this.ufx.drawPops(g, 0, 0);
-    if (!this.runePicker.up(this)) this.runeBar.drawOver(g, this); // RUNES-1: the chips' targets and the open read-out
+    if (!this.runePicker.up(this)) {
+      this.runeBar.drawOver(g, this); // RUNES-1: the chips' targets and the open read-out
+      // TAP-093: the corner MENU's target over the rune bar's strip, where it covers only the strip's label column (no chip:
+      // layout.ts cornerTarget keeps it clear of them); not while the options card is up
+      if (this.cornerMenu && !this.menu) for (const r of this.cornerMenu) this.game.ui.add({ id: "menu", r, onTap: () => { this.menu = true; }, block: true });
+    }
     this.runePicker.draw(g, this); // RUNES-1: the dawn rune picker over everything (its regions take every press)
   }
 

@@ -14,6 +14,7 @@ import { beltIcon, coinIcon } from "../../render/sprites";
 import { button, inside, itemSlot, panel, tapRect } from "../../ui/ui";
 import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { heroCardRect } from "./layout"; // zoom (D2)
+import { BAR_H, cornerTarget } from "./layout"; // TAP-093 (backlog #340): the phone's bar and its corner MENU
 import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
@@ -32,40 +33,64 @@ import { shopChipGlyphs } from "../../ui/chips"; // U2c (C4): the shop cards' st
 function drawTopBar(g: G, s: BuildScreen): void {
   const { W, ui } = s.game;
   const run = s.run;
-  rect(g, 0, 0, W, 14, C.ink);
-  rect(g, 0, 13, W, 1, C.slate1);
-  rect(g, 0, 12, W, 1, C.navy);
-  ui.add({ id: "bar", r: { x: 0, y: 0, w: W, h: 14 }, block: true });
+  // TAP-093 (backlog #340, REQ-BFG-040): a portrait phone's bar is L.bar.h tall: BAR_H, or a finger's target where the
+  // screen spares it (layout.ts phoneBarLift), its contents centred in it. Elsewhere 14 px, exactly as before.
+  const bh = s.L.bar.h, oy = Math.floor((bh - BAR_H) / 2);
+  rect(g, 0, 0, W, bh, C.ink);
+  rect(g, 0, bh - 1, W, 1, C.slate1);
+  rect(g, 0, bh - 2, W, 1, C.navy);
+  ui.add({ id: "bar", r: { x: 0, y: 0, w: W, h: bh }, block: true });
+  const tap = s.L.phone ? tapPx(s.game.view) : 0;
+  // TAP-093: a portrait phone's bar too short for a finger's target puts one MENU in its top-left corner, its target the
+  // corner's dead space (cornerTarget); the sound setting is in MENU's card (SOUND: MUSIC + SFX / SFX ONLY / OFF)
+  const corner = tap > 0 && bh < tap;
   const narrow = W < 200;
   const sndW = narrow ? 19 : 25, menuW = narrow ? 21 : 27;
-  const sndX = W - 2 - sndW, menuX = sndX - 1 - menuW;
-  let x = 4;
-  x += drawText(g, "DAWN", x, 5, C.amber, { font: "3" });
-  x += drawText(g, ` · DAY ${run.day}/${RUN_DAYS}`, x, 5, C.bone, { font: "3" }) + 5;
-  g.drawImage(coinIcon(), x, 4);
+  const sndX = W - 2 - sndW, menuX = corner ? 2 : sndX - 1 - menuW;
+  const end = corner ? W - 1 : menuX; // where the status line stops
+  let x = corner ? menuX + menuW + 4 : 4;
+  x += drawText(g, "DAWN", x, 5 + oy, C.amber, { font: "3" });
+  x += drawText(g, ` · DAY ${run.day}/${RUN_DAYS}`, x, 5 + oy, C.bone, { font: "3" }) + 5;
+  g.drawImage(coinIcon(), x, 4 + oy);
   s.coinX = x + 5;
-  x += 7 + drawText(g, String(run.gold), x + 7, 4, C.yellow, { outline: C.ink }) + 5;
-  x += drawHearts(g, x, 4, run.lives) + 5;
+  x += 7 + drawText(g, String(run.gold), x + 7, 4 + oy, C.yellow, { outline: C.ink }) + 5;
+  x += drawHearts(g, x, 4 + oy, run.lives) + 5;
   // the W-L record: labelled where it fits, bare beside the hearts on narrow portrait bars (the
   // phone's bar has no room, so its hero card below the shop carries the record)
   const wl = record(run);
-  if (x + textWidth(`W-L ${wl}`, "3") <= menuX - 4) {
-    x += drawText(g, "W-L", x, 5, C.slate4, { font: "3" }) + 3;
-    x += drawText(g, wl, x, 5, C.white, { font: "3" }) + 7;
-  } else if (x + textWidth(wl, "3") <= menuX - 4) x += drawText(g, wl, x, 5, C.white, { font: "3" }) + 7;
+  if (x + textWidth(`W-L ${wl}`, "3") <= end - 4) {
+    x += drawText(g, "W-L", x, 5 + oy, C.slate4, { font: "3" }) + 3;
+    x += drawText(g, wl, x, 5 + oy, C.white, { font: "3" }) + 7;
+  } else if (x + textWidth(wl, "3") <= end - 4) x += drawText(g, wl, x, 5 + oy, C.white, { font: "3" }) + 7;
   const used = beltUsed(run.build), cap = run.build.beltCap;
   const bt = `${used}/${cap}`;
-  if (x + 9 + textWidth(bt, "3") <= menuX - 3) {
-    g.drawImage(beltIcon(), x, 6);
-    drawText(g, bt, x + 9, 5, used >= cap ? C.amber : C.bone, { font: "3" });
+  if (x + 9 + textWidth(bt, "3") <= end - 3) {
+    g.drawImage(beltIcon(), x, 6 + oy);
+    drawText(g, bt, x + 9, 5 + oy, used >= cap ? C.amber : C.bone, { font: "3" });
   }
+  const open = () => { s.menu = true; };
+  const menuR = { x: menuX, y: 1 + oy, w: menuW, h: 12 };
+  if (corner) {
+    // TAP-093: tap px tall from the corner, at least tap wide, clear of every target under the bar (the shop cards,
+    // REROLL, the packs, the rune chips) and above a details panel grown over the shop (whose words take taps)
+    const B = s.runeBar.layout(s), area = s.panelArea();
+    const others = [...s.L.cards, s.L.reroll, ...s.L.packs, ...(B ? [...B.chips, ...(B.more ? [B.more] : [])] : [])];
+    const hit = cornerTarget(menuR, tap, others, area !== s.L.info ? area.y : Infinity);
+    s.cornerMenu = hit;
+    button(ui, g, "menu", menuR, "MENU", { font: "3", onTap: open, hit: hit[0] });
+    for (const r of hit.slice(1)) ui.add({ id: "menu", r, onTap: open, block: true });
+    return;
+  }
+  s.cornerMenu = null;
   // zoom (REQ-BFG-040, D4): on a phone's layout SND and MENU take the bar and the gap above the shop as their targets
-  // (down to 1 px above the first card row: lower, they would take a card's or a grown panel's presses)
-  const tap = s.L.phone ? tapPx(s.game.view) : 0;
-  const room = { x: 0, y: 0, w: W, h: Math.min(...s.L.cards.map((c) => c.y), s.L.reroll.y) - 1 };
-  const sndR = { x: sndX, y: 1, w: sndW, h: 12 }, menuR = { x: menuX, y: 1, w: menuW, h: 12 };
-  s.game.soundButton(g, sndR, tap ? tapRect(sndR, tap, room) : undefined);
-  button(ui, g, "menu", menuR, "MENU", { font: "3", onTap: () => { s.menu = true; }, ...(tap ? { hit: tapRect(menuR, tap, room) } : {}) });
+  // (down to 1 px above the first card row: lower, they would take a card's or a grown panel's presses). TAP-093: the
+  // lifted bar is a finger's target tall, so each takes the bar's height, and SND (25 px) a finger's width too, MENU's
+  // kept left of SND's
+  const room = { x: 0, y: 0, w: W, h: Math.min(Math.min(...s.L.cards.map((c) => c.y), s.L.reroll.y) - 1, tap ? Math.max(bh, BAR_H + 2) : Infinity) };
+  const sndR = { x: sndX, y: 1 + oy, w: sndW, h: 12 };
+  const sndHit = tap ? tapRect(sndR, tap, room, tap) : undefined;
+  s.game.soundButton(g, sndR, sndHit);
+  button(ui, g, "menu", menuR, "MENU", { font: "3", onTap: open, ...(sndHit ? { hit: tapRect(menuR, tap, { ...room, w: sndHit.x }, tap) } : {}) });
 }
 
 function drawShop(g: G, s: BuildScreen): void {
@@ -235,10 +260,13 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     drawTooltip(g, packRects(L)[ph], ITEMS[def], L.W, faceLines(def, 1)?.rules[0]?.text ?? abilityText(def, 1, textOpts(s.run)).sentences[0] ?? "");
   }
   if (s.menu) {
+    // TAP-093 (backlog #340): with the corner MENU (sound lives in its card) the card's buttons are a finger's target tall,
+    // its SOUND toggle among them (optionsCard's k: its 19 px buttons k times as tall); elsewhere k = 1, as before
+    const k = s.cornerMenu ? tapPx(s.game.view) / 19 : 1;
     optionsCard(s.game, g, "PAUSED", [
       { id: "resume", label: "RESUME", primary: true, onTap: () => { s.menu = false; } },
       { id: "quit", label: "SAVE & QUIT", onTap: () => { saveRun(s.run); s.game.go(new TitleScreen(s.game)); } },
       { id: "abandon", label: "ABANDON RUN", danger: true, onTap: () => { saveRun(null); s.game.run = null; s.game.go(new TitleScreen(s.game)); } },
-    ], () => { s.menu = false; });
+    ], () => { s.menu = false; }, k);
   }
 }

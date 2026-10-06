@@ -27,7 +27,8 @@ export const CARD_H = 42;
 export const WIDE_CARD_MAX_W = 70;
 export const WIDE_CARD_H = 46;
 const GAP = 3;
-const BAR_H = 14;
+/** The top bar's height (TAP-093: a portrait phone's grows where the screen spares it, phoneBarLift). */
+export const BAR_H = 14;
 const CARGO_H = 22;
 /** Portrait: how far the bow turrets' barrels reach past the hull's bow edge (heavy: tip 20 px
  *  ahead of a pivot 9 px into the 14 px bow band), so no panel covers them. */
@@ -179,9 +180,13 @@ export function phoneBand(W: number): number {
 /** The build screen's layout. zoom (REQ-BFG-040, D2): `phone`, a portrait phone's (phoneScreen): the shop's slots in
  *  balanced rows (five offers and the reroll 3 + 3, not 4 + 2: perRow = ceil(slots / rows)); the details band takes the
  *  room the zoom frees, up to phoneBand(W), the hull centred in what is left as before; the idle hero card and NEXT
- *  BATTLE (PORT_BAND tall together) centred in a taller band. Landscape, and `phone` false, exactly as before. */
-export function buildLayout(W: number, H: number, portrait: boolean, offers: number, phone = false, tap = 0): BuildLayout {
-  const bar: Rect = { x: 0, y: 0, w: W, h: BAR_H };
+ *  BATTLE (PORT_BAND tall together) centred in a taller band. Landscape, and `phone` false, exactly as before.
+ *  TAP-093 (backlog #340, REQ-BFG-040): `lift`, on a portrait phone's layout, the px the top bar grows (phoneBarLift: so
+ *  its buttons' targets are a finger's tall); the shop and everything under it move down by it and the band keeps its
+ *  height (the caller lifts only where the screen spares that much). 0, the default, is exactly as before. */
+export function buildLayout(W: number, H: number, portrait: boolean, offers: number, phone = false, tap = 0, lift = 0): BuildLayout {
+  const up = portrait && phone ? Math.max(0, lift) : 0;
+  const bar: Rect = { x: 0, y: 0, w: W, h: BAR_H + up };
   const slots = offers + 1; // + reroll
   if (!portrait) {
     const tags = true;
@@ -237,7 +242,7 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
   const perRow = phone ? Math.ceil(slots / Math.ceil(slots / fit)) : fit; // zoom (D2): a phone's rows balanced
   const rows = Math.ceil(slots / perRow);
   const tags = rows === 1;
-  const cy = BAR_H + 3 + (tags ? 6 : 0);
+  const cy = BAR_H + up + 3 + (tags ? 6 : 0);
   const used = Math.min(perRow, slots);
   const rowW = used * CARD_W + (used - 1) * GAP;
   const cards = cardRow(slots, Math.round(W / 2 - rowW / 2), cy, perRow, CARD_W + GAP);
@@ -266,7 +271,7 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
       : [{ x: rowX, y: rowY, w: packW, h: packH }, { x: rowX + packW + GAP, y: rowY, w: packW, h: packH }];
   // Band between the shop and the bow turrets' barrel tips: idle it holds the hero card over
   // the NEXT BATTLE panel; a selection or hover shows the details panel across all of it.
-  const fixedBelow = 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
+  const fixedBelow = PORT_BELOW;
   const spare = Math.max(0, H - shopBottom - fixedBelow);
   // zoom (D2): a phone's band takes the room the zoom frees, up to what its tallest panel needs (phoneBand)
   const band = Math.min(phone ? phoneBand(W) : PORT_BAND, spare);
@@ -288,6 +293,41 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
     ...(phone ? { phone: true as const } : {}),
     packs,
   };
+}
+
+/** A portrait layout's fixed height under the shop, the band aside: the band's 2 px, the barrels, the hull, the cargo. */
+const PORT_BELOW = 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
+
+/**
+ * TAP-093 (backlog #340, REQ-BFG-040; the brief's means 1): how far a portrait phone's top bar grows (buildLayout's `lift`)
+ * so the whole bar is a finger's target tall (`tap`, tapPx: 27 px at x5 @3) and SND and MENU take it, the shop moved down
+ * by as much: only where the screen `W` x `H` spares that height beyond the band's full height (phoneBand) with a rune
+ * row held (`row`, runeRowH for one rune: a run holds one from its first dawn), so the band never shrinks and the bar
+ * doesn't change when the first rune is taken. 0 elsewhere (those screens put one MENU in the bar's corner, chrome.ts):
+ * of the views measured only 390x844 @3 lifts (13 px, of the 33 it spares with a rune row; 66 without). Pure (tests).
+ */
+export function phoneBarLift(W: number, H: number, offers: number, tap: number, row: number): number {
+  const need = Math.max(0, tap - BAR_H);
+  if (!need) return 0;
+  const L = buildLayout(W, H - row, true, offers, true, tap);
+  const left = H - row - (L.info.y - 2) - PORT_BELOW - L.info.h; // what the hull is centred in, under a full band
+  return L.info.h >= phoneBand(W) && left >= need ? need : 0;
+}
+
+/**
+ * TAP-093 (the brief's means 2): the corner MENU's target on a portrait phone whose bar doesn't lift: from the screen's
+ * top-left corner, `tap` px tall (stopping at `floor`, a grown details panel's top) and at least `tap` wide (past the drawn
+ * button `r`), on dead space only: kept 1 px clear of every target under the bar (`others`: the shop cards, REROLL, the
+ * packs, the rune chips). Where one of them cuts into that rect (a rune chip at DPR 2, where the chips start 28 px in and a
+ * finger's target is 30), an L: the full width down to that target's top, and the full height left of it (every point
+ * one button's). The first rect is the tallest. Pure (tests).
+ */
+export function cornerTarget(r: Rect, tap: number, others: Rect[], floor = Infinity): Rect[] {
+  const w = Math.max(tap, r.x + r.w + 2), h = Math.max(r.y + r.h + 1, Math.min(tap, floor));
+  const cut = others.filter((o) => o.w > 0 && o.h > 0 && o.x < w + 1 && o.y < h + 1 && o.x + o.w > 0 && o.y + o.h > 0);
+  if (!cut.length) return [{ x: 0, y: 0, w, h }];
+  const left = Math.min(...cut.map((o) => o.x)) - 1, top = Math.max(r.y + r.h + 1, Math.min(...cut.map((o) => o.y)) - 1);
+  return left > 0 ? [{ x: 0, y: 0, w: left, h }, { x: 0, y: 0, w, h: top }] : [{ x: 0, y: 0, w, h: top }];
 }
 
 /** bb-0.8.6 (PACKS P5): two slots stacked in a column at (x, y), each half of `h` (a 2 px gap between). */
