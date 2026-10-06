@@ -771,8 +771,93 @@ async function touchSection(browsers, origin, vname) {
     check(r4.build.items.some((p) => p.uid === 60) && !r4.inventory.some((i) => i.uid === 60), `${V}: a drag from cargo places the GALVANIC COIL on the deck`);
   }
 
+  await barChecks(page, cdp, V);
+
   check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
   await ctx.close();
+}
+
+/**
+ * TAP-093 (backlog #340, REQ-BFG-040): the top bar's SND and MENU as a finger meets them, with no rune held and with 3
+ * held (the rune strip under the bar). Each one's target as the game routes a press (every logical px of the top rows
+ * hit-tested: the last region wins), in CSS px. On a portrait phone view: MENU's target holds a 44 x 44 CSS px square and
+ * touches no shop card, REROLL, pack or rune chip; SND's the same where the bar keeps it (a lifted bar), else MENU's card
+ * has a SOUND toggle at least 44 CSS px tall. A real tap low in MENU's target opens the card; SOUND (or SND, low in its
+ * target) cycles the setting, saved, and two more taps bring it back; RESUME closes the card. Landscape: both as drawn
+ * (12 logical px tall), as in 0.9.2.
+ */
+async function barChecks(page, cdp, V) {
+  const ids = ["coal_chute", "quick_latch", "tar_barrel"];
+  for (const n of [0, 3]) {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.evaluate((list) => {
+      const g = window.bb.game, s = g.screen;
+      window.bb.holdRunes(list);
+      delete g.run.runeDay;
+      s.select({ kind: "none" });
+      s.menu = false;
+      for (let i = 0; i < 3; i++) g.step(1 / 60);
+      g.render();
+    }, ids.slice(0, n));
+    await nextFrame(page);
+    const m = await page.evaluate(() => {
+      const g = window.bb.game, s = g.screen, L = s.L, k = g.view.scale / g.view.dpr, W = g.W, H0 = Math.min(g.H, 80);
+      const B = s.runeBar.layout(s);
+      const others = [...L.cards, L.reroll, ...L.packs, ...(B ? [...B.chips, ...(B.more ? [B.more] : [])] : [])];
+      const area = (id) => {
+        const m = Array.from({ length: H0 }, () => new Uint8Array(W));
+        let n = 0, best = 0, x0 = W, y0 = H0, x1 = -1, y1 = -1, over = 0, bx = 0, by = 0;
+        const dp = Array.from({ length: H0 }, () => new Uint16Array(W));
+        for (let y = 0; y < H0; y++) for (let x = 0; x < W; x++) {
+          if (g.ui.hit(x + 0.5, y + 0.5)?.id !== id) continue;
+          m[y][x] = 1; n++;
+          x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+          dp[y][x] = 1 + (x && y ? Math.min(dp[y - 1][x], dp[y][x - 1], dp[y - 1][x - 1]) : 0);
+          if (dp[y][x] > best) { best = dp[y][x]; bx = x; by = y; }
+          if (others.some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h)) over++;
+        }
+        if (!n) return null;
+        // the largest square's lowest point (a press there proves the grown part routes to the button), client px
+        const low = window.bb.toClient(bx - best / 2 + 0.5, by - 1);
+        return { w: (x1 - x0 + 1) * k, h: (y1 - y0 + 1) * k, square: best * k, over, low };
+      };
+      return { phone: !!L.phone, k, bar: L.bar.h, band: L.portrait ? L.info.h : null, runes: B ? B.chips.length : 0, menu: area("menu"), sound: area("sound"), mode: g.audio.mode };
+    });
+    const tag = `${V}, ${n ? `${n} runes held (the rune strip under the bar)` : "no rune held"}`;
+    const d = (a) => (a ? `${a.w.toFixed(1)}x${a.h.toFixed(1)} CSS px (its largest square ${a.square.toFixed(1)})${a.over ? `, OVER ${a.over} px of a card, REROLL, pack or rune chip` : ", clear of every card, REROLL, pack and rune chip"}` : "none");
+    if (!m.phone) {
+      check(m.menu && m.sound && Math.abs(m.menu.h - 12 * m.k) < 0.01 && Math.abs(m.sound.h - 12 * m.k) < 0.01,
+        `${tag}: TAP-093 landscape: MENU ${d(m.menu)} and SND ${d(m.sound)}, as drawn (12 px tall), as in 0.9.2`);
+      continue;
+    }
+    check(m.menu && m.menu.square >= TAP_CSS && m.menu.over === 0, `${tag}: TAP-093: MENU's target is ${d(m.menu)}, at least 44x44 (bar ${m.bar} px, band ${m.band} px)`);
+    if (m.sound) check(m.sound.square >= TAP_CSS && m.sound.over === 0, `${tag}: TAP-093: SND's target is ${d(m.sound)}, at least 44x44 (the lifted bar)`);
+    if (!m.menu) continue;
+    const mode0 = m.mode;
+    const state = () => page.evaluate(() => ({ menu: window.bb.game.screen.menu, mode: window.bb.game.audio.mode, saved: localStorage.getItem("beltbattles.sound") }));
+    await tap(cdp, m.menu.low);
+    await nextFrame(page);
+    const s1 = await state();
+    const snd = await region(page, "opt-snd"), res = await region(page, "resume");
+    check(s1.menu && (m.sound || (snd && snd.h >= TAP_CSS)), `${tag}: TAP-093: a tap low in MENU's target (${m.menu.low.x.toFixed(0)}, ${m.menu.low.y.toFixed(0)}) opens its card${m.sound ? "" : `, its SOUND toggle a ${snd ? `${snd.w.toFixed(1)}x${snd.h.toFixed(1)}` : "MISSING"} CSS px target (at least 44 tall)`}`);
+    if (!s1.menu) continue;
+    const cycle = async () => {
+      if (m.sound) await tap(cdp, m.sound.low);
+      else await tap(cdp, centre(await region(page, "opt-snd")));
+      await nextFrame(page);
+      return state();
+    };
+    if (m.sound) { await tap(cdp, centre(res)); await nextFrame(page); }
+    const c1 = await cycle();
+    check(c1.mode === (mode0 + 1) % 3 && c1.saved === String(c1.mode), `${tag}: TAP-093: a tap on ${m.sound ? "SND, low in its target," : "the card's SOUND"} cycles the sound ${mode0} -> ${c1.mode}, saved (${c1.saved})`);
+    await cycle();
+    const c3 = await cycle();
+    check(c3.mode === mode0 && c3.saved === String(mode0), `${tag}: TAP-093: two more taps bring it back to ${c3.mode} (saved ${c3.saved})`);
+    if (!m.sound) { await tap(cdp, centre(await region(page, "resume"))); await nextFrame(page); }
+    const s4 = await state();
+    check(!s4.menu, `${tag}: TAP-093: RESUME closes the card`);
+  }
+  await page.evaluate(() => { const g = window.bb.game; window.bb.holdRunes([]); g.step(1 / 60); g.render(); });
 }
 
 // ------------------------------------------------------------------------------------------------------------ A2 mouse
