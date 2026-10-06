@@ -19,13 +19,14 @@ import { SEED, barge, furnaceBench, withMod } from "./wave3.helpers";
 type SpallProbe = { spallCharge(s: SideState, hull: number, plate: number): void };
 
 // -------------------------------------------------------------------------------------------- row 41: COUNTERWEIGHT
-// Y7b1 (ruling Y7A-R5): on, perTile.each 5/11/18 -> 2/5/7 (EACH; off keeps 5/11/18 with its cap: EACH_OFF). Was "Y5 row 41:
+// Y7b1 (ruling Y7A-R5, then its guard's fallback): on, perTile.each 5/11/18 -> 3/7/11 (EACH; off keeps 5/11/18 with its cap:
+// EACH_OFF; 2/5/7 read x0.28 of the rare median in B1, so 3/7/11). Was "Y5 row 41:
 // COUNTERWEIGHT: +5/+11/+18 for each tile ridden, no cap", with EACH = [5, 11, 18] for both states and the face's widths
 // [165, 171, 171]
-describe("Y5 row 41: COUNTERWEIGHT: +2/+5/+7 for each tile ridden (Y7A-R5), no cap", () => {
-  const EACH = [2, 5, 7], EACH_OFF = [5, 11, 18], MAX = [60, 130, 210];
+describe("Y5 row 41: COUNTERWEIGHT: +3/+7/+11 for each tile ridden (Y7A-R5, its fallback), no cap", () => {
+  const EACH = [3, 7, 11], EACH_OFF = [5, 11, 18], MAX = [60, 130, 210];
 
-  it("data: on, perTile { each 2/5/7 } with no max (off: each 5/11/18, max 60/130/210)", () => {
+  it("data: on, perTile { each 3/7/11 } with no max (off: each 5/11/18, max 60/130/210)", () => {
     for (const s of STARS) {
       expect(on(() => effectAt("counterweight", s).gate), `★${s}`).toEqual({ perTile: { each: EACH[s - 1] } });
       expect(effectAt("counterweight", s).gate, `★${s} off`).toEqual({ perTile: { each: EACH_OFF[s - 1], max: MAX[s - 1] } });
@@ -45,20 +46,20 @@ describe("Y5 row 41: COUNTERWEIGHT: +2/+5/+7 for each tile ridden (Y7A-R5), no c
   });
 
   // Y7b1 (Y7A-R5): was "under the cap both are the same (each x the tiles ridden)", on = off = tile x 5
-  it("hook: under the cap each state pays its own each x the tiles ridden (on 2, off 5 at ★1)", () => {
+  it("hook: under the cap each state pays its own each x the tiles ridden (on 3, off 5 at ★1)", () => {
     const b = rigBench([["counterweight", 4, 3, 1]]);
     let tile = -1;
     const pOn = hitOnce(b, true, (p, h) => { tile = h.tile; });
-    expect(pOn.flat).toBe(tile * 2);
+    expect(pOn.flat).toBe(tile * 3);
     expect(hitOnce(b, false).flat).toBe(tile * 5);
   });
 
-  it("face: one line, HIT: +2 {DMG} FOR EACH TILE RIDDEN.; ladder +2/+5/+7 {DMG} EACH (Y7A-R5; was +5/+11/+18)", () => {
+  it("face: one line, HIT: +3 {DMG} FOR EACH TILE RIDDEN.; ladder +3/+7/+11 {DMG} EACH (Y7A-R5's fallback; was +5/+11/+18)", () => {
     oneLine("counterweight");
     expect(lines("counterweight")).toEqual(EACH.map((d) => [`HIT: +${d} {DMG} FOR EACH TILE RIDDEN.`]));
-    expect(lines("counterweight").map((l) => px(l[0]))).toEqual([165, 165, 165]); // Y7b1 (Y7A-R5): was [165, 171, 171]
-    expect(levels("counterweight", 1)).toEqual(["[+2]/+5/+7 {DMG} EACH", next(2, "+5 {DMG} EACH")]);
-    expect(levels("counterweight", 3)).toEqual(["+2/+5/[+7] {DMG} EACH"]);
+    expect(lines("counterweight").map((l) => px(l[0]))).toEqual([165, 165, 171]); // Y7b1 (Y7A-R5): was [165, 171, 171]
+    expect(levels("counterweight", 1)).toEqual(["[+3]/+7/+11 {DMG} EACH", next(2, "+7 {DMG} EACH")]);
+    expect(levels("counterweight", 3)).toEqual(["+3/+7/[+11] {DMG} EACH"]);
     // off: a RULES piece, no face (identity)
     expect([hasFace("counterweight"), on(() => hasFace("counterweight"))]).toEqual([false, true]);
   });

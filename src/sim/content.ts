@@ -1334,9 +1334,11 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   drake: { core: { routine: "drake", flatPerBurn: 38 }, levels: { 2: { core: { flatPerBurn: 27 } }, 3: { core: { flatPerBurn: 19 } } } },
   // ---- Y5 (DESIGN-Y section 3, rows 41-47: the crit-free one-liners, one number each; REVIEW-STARD answer 2: no crit or
   // ramp; answer 4: the caps go). LONGCASE (row 43) and FINISHER RAM (row 44) change no data
-  // row 41, COUNTERWEIGHT: the cap goes (no `max`; was 60/130/210); +2/+5/+7 for each tile the slug has ridden. Y7b1 (ruling
-  // Y7A-R5): was +5/+11/+18, 2.4x the rare median lift per gold on (REVIEW-Y7A F1); the bench's fallback, under 0.5x, is 3/7/11
-  counterweight: { gate: { perTile: { each: 2 } }, levels: { 2: { gate: { perTile: { each: 5 } } }, 3: { gate: { perTile: { each: 7 } } } } },
+  // row 41, COUNTERWEIGHT: the cap goes (no `max`; was 60/130/210); +3/+7/+11 for each tile the slug has ridden. Y7b1 (ruling
+  // Y7A-R5): was +5/+11/+18, 2.4x the rare median lift per gold on (REVIEW-Y7A F1). 2/5/7 was tried and its guard tripped:
+  // its lift on read +1.7 [-5.7, +9.2] n 3 at 4.0 G, 0.43/G, x0.28 of the rare median 1.58 (BRIEF-Y7B1 B1), under 0.5x, so
+  // the fallback 3/7/11 (no third point)
+  counterweight: { gate: { perTile: { each: 3 } }, levels: { 2: { gate: { perTile: { each: 7 } } }, 3: { gate: { perTile: { each: 11 } } } } },
   // row 42, CAPACITOR BANK: the 5 s cap goes (no `maxSeconds`; battle.ts chambers charges for as long as the chamber sits
   // empty); +20/+44/+70 for each second
   capacitor: { core: { routine: "capacitor", perSecond: 20 } },

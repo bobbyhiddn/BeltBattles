@@ -8,7 +8,7 @@
 //   on one line.
 // - Y7A-R4 / R5, the numbers on: DRAKE NOZZLE flatPerBurn 38 / 27 / 19, COUNTERWEIGHT perTile.each 2 / 5 / 7, VENOM DRIP
 //   burnPlus 2 / 3 / 5 s (guarded). The bench's guards (BRIEF-Y7B1 B1): VENOM's uptake on read 9.0% (< 12.0%), so it is back
-//   at Y6's 3 / 6 / 9 s.
+//   at Y6's 3 / 6 / 9 s; COUNTERWEIGHT read x0.28 of the rare median (< 0.5x), so its fallback 3 / 7 / 11.
 // - Y7A-R2, EXT. CHAMBER (text only): the rule stays (perShot 2 / 3 / 4, a shot fires at most what the chamber holds); with
 //   the switch on its face is true for every gun and star: ★1 FIRES 2 (exact), ★2/★3 UP TO 3 / UP TO 4; its ⓘ says why.
 import { describe, expect, it } from "vitest";
@@ -134,12 +134,14 @@ describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read thei
     expect(levels("drake", 2)).toEqual(["EACH 38/[27]/19", next(3, "EACH 19")]);
     expect(on(() => gist("drake", 3, { k: 1 }))).toBe("1 BURN FOR EVERY 19 DAMAGE");
   });
-  it("COUNTERWEIGHT (Y7A-R5): perTile.each 2 / 5 / 7 on, no cap (Y5's 5 / 11 / 18); its face and ⓘ ladder say them; off, 0.9.2's 5 / 11 / 18 up to 60 / 130 / 210", () => {
-    expect(on(() => STARS.map((s) => effectAt("counterweight", s).gate!.perTile))).toEqual([2, 5, 7].map((each) => ({ each })));
+  // the guard (BRIEF-Y7B1 B1): at 2 / 5 / 7 its lift on read +1.7 [-5.7, +9.2] n 3 at 4.0 G (0.43/G, x0.28 of the rare median
+  // 1.58), under 0.5x, so the ruling's fallback 3 / 7 / 11
+  it("COUNTERWEIGHT (Y7A-R5, its fallback): perTile.each 3 / 7 / 11 on, no cap (Y5's 5 / 11 / 18); its face and ⓘ ladder say them; off, 0.9.2's 5 / 11 / 18 up to 60 / 130 / 210", () => {
+    expect(on(() => STARS.map((s) => effectAt("counterweight", s).gate!.perTile))).toEqual([3, 7, 11].map((each) => ({ each })));
     expect(STARS.map((s) => effectAt("counterweight", s).gate!.perTile)).toEqual([[5, 60], [11, 130], [18, 210]].map(([each, max]) => ({ each, max })));
-    expect(lines("counterweight")).toEqual([2, 5, 7].map((d) => [`HIT: +${d} {DMG} FOR EACH TILE RIDDEN.`]));
-    expect(levels("counterweight", 2)).toEqual(["+2/[+5]/+7 {DMG} EACH", next(3, "+7 {DMG} EACH")]);
-    expect(on(() => gist("counterweight", 1))).toBe("2 DAMAGE FOR EACH TILE");
+    expect(lines("counterweight")).toEqual([3, 7, 11].map((d) => [`HIT: +${d} {DMG} FOR EACH TILE RIDDEN.`]));
+    expect(levels("counterweight", 2)).toEqual(["+3/[+7]/+11 {DMG} EACH", next(3, "+11 {DMG} EACH")]);
+    expect(on(() => gist("counterweight", 1))).toBe("3 DAMAGE FOR EACH TILE");
   });
   // the guard (BRIEF-Y7B1 B1): at 2 / 3 / 5 s VENOM's uptake on read 9.0% (43 of 480 deck-days), under 12.0% (a third of
   // Y7a's off 36.0%), so it is back at Y6's 3 / 6 / 9 s (the 2 / 3 / 5 commit's re-pins reverted with it)

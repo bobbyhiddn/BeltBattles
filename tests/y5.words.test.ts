@@ -128,8 +128,8 @@ describe("Y5 words: the 7's kept sentences, gists, cards and timeline rows say t
 
   it("on, the exact new sentences, gists and cards (off: as before)", () => {
     on(() => {
-      expect(abilityText("counterweight", 3).sentences).toEqual(["ADDS 7 DAMAGE FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN."]); // Y7b1 (Y7A-R5): was ADDS 18
-      expect(gist("counterweight", 3)).toBe("7 DAMAGE FOR EACH TILE"); // Y7b1 (Y7A-R5): was 18
+      expect(abilityText("counterweight", 3).sentences).toEqual(["ADDS 11 DAMAGE FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN."]); // Y7b1 (Y7A-R5, its fallback 3/7/11): was ADDS 18
+      expect(gist("counterweight", 3)).toBe("11 DAMAGE FOR EACH TILE"); // Y7b1 (Y7A-R5, its fallback): was 18
       expect(abilityText("capacitor", 1, { k: 1 }).sentences).toEqual(["CHARGES ITS NEXT SHOT 20 DAMAGE FOR EACH SECOND ITS CHAMBER SITS EMPTY."]);
       expect(abilityText("spallcatcher", 1).sentences).toEqual([
         "EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 10 DAMAGE TO THIS TURRET'S NEXT SHOT.",
@@ -229,7 +229,7 @@ describe("Y5 rating: each new rule priced behind the switch", () => {
       const th = (star: boolean) => withStarRules(() => walkRoute(b, 0).timeline.flatMap((r) => r.hits.map((h) => ({ tile: r.tile, h }))).find((x) => x.h.def === "counterweight")!, star);
       const onT = th(true), offT = th(false);
       expect(onT.tile, `★${s}`).toBe(12);
-      expect(onT.h.flat, `★${s} on`).toBe(12 * [2, 5, 7][s - 1]); // Y7b1 (Y7A-R5): was 12 * [5, 11, 18]
+      expect(onT.h.flat, `★${s} on`).toBe(12 * [3, 7, 11][s - 1]); // Y7b1 (Y7A-R5, its fallback 3/7/11): was 12 * [5, 11, 18]
       expect(offT.h.flat, `★${s} off`).toBe([60, 130, 210][s - 1]);
     }
   });
