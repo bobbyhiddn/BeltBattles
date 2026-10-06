@@ -135,8 +135,12 @@ describe("harness cores (0.6.1b): legality", () => {
     // 779366749 -> 2599201197 and 2993301734 -> 1712223641. With SIFTER taken out of DORMANT_ITEMS for the call both read
     // their old values again; the sustain switch moves neither (the random builder buys no sustain piece; measured both
     // ways on flipx2 94cc87d)
-    expect(hash32(a.join("|"))).toBe(2599201197);
-    expect(hash32(b.join("|"))).toBe(1712223641);
+    // Y7b2 (the flip): release Y's star data folded into the base defs (STAR_DIFF), so the stars-on builds buy and merge by the
+    // new star numbers: 2599201197 -> 299861875 and 1712223641 -> 2353056724, measured on y7b2 after the flip (the first is
+    // also Y7b1's switch-on reading at 455944c, T/output-y7b2/diag/flip-on.json; the harness reads none of step 5's
+    // regenerated data, and step 3's words are text only)
+    expect(hash32(a.join("|"))).toBe(299861875);
+    expect(hash32(b.join("|"))).toBe(2353056724);
   }, 60_000);
 });
 

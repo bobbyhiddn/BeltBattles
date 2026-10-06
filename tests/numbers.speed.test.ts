@@ -31,6 +31,11 @@ function live(r: Row): unknown {
   return o;
 }
 const speeds = FIX.rows.filter((r) => r.kind === "speed" && r.base > 0);
+// Y7b2 (the flip): SABOT FOUNDRY ★3's speed is Y2's 20 (SHRAPNEL's tile STUNs went and its RATE 16 -> 20; content.ts sabot),
+// a design change after this script, not its conversion of the recorded 1.9 s (the fixture is history and stays). Its row is
+// pinned here exactly (was roundHalfUp(30 / 1.9) = 16), as FLIP-X2 pins MEND PRESS's native speeds below, and the 5% check of
+// the conversion skips it
+const MOVED: Record<string, number> = { "ITEMS.sabot.levels.3.factory.interval": 20 };
 
 describe("NUM-2 SPEED: the stored value (scripts/num2-speed.mjs, K = 30)", () => {
   it("records 114 speeds and 27 rate %s, K 30", () => {
@@ -43,6 +48,7 @@ describe("NUM-2 SPEED: the stored value (scripts/num2-speed.mjs, K = 30)", () =>
       const v = live(r);
       expect(Number.isInteger(v), r.path).toBe(true);
       if (r.track) continue; // a signature factory's levels 2-4: whole steps of 25% of level 1 (tests/belts.numbers.test.ts)
+      if (r.path in MOVED) { expect(v, r.path).toBe(MOVED[r.path]); continue; } // Y7b2 (the flip): was roundHalfUp(30 / r.base), 16
       expect(v, r.path).toBe(roundHalfUp(30 / r.base));
     }
   });
@@ -50,6 +56,7 @@ describe("NUM-2 SPEED: the stored value (scripts/num2-speed.mjs, K = 30)", () =>
   it("no rate moves more than 5% (N1: worst 4%); every speed 5-89; SABOT ★1 is 5", () => {
     let worst = 0, at = "";
     for (const r of speeds) {
+      if (r.path in MOVED) continue; // Y7b2 (the flip): a design change (+26.7% on 30 / 1.9), pinned exactly above; not the conversion's move
       const move = Math.abs((live(r) as number) / (30 / r.base) - 1);
       if (move > worst) { worst = move; at = r.path; }
       expect(move, r.path).toBeLessThanOrEqual(0.05);

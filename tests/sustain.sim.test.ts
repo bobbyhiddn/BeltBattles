@@ -92,33 +92,37 @@ describe("SUS-A: SHIELD", () => {
     expect(bt.events.filter((e) => e.type === "shield")).toHaveLength(1);
   });
 
-  it("a stopped hit's BURN, FRAY, STUN and poison still land", () => {
+  // Y7b2 (the flip): POISON is gone (Payload.poison, HullState.poison deleted), so the thread hit carries none and its
+  // stacks check is deleted (switch-off only). Was "a stopped hit's BURN, FRAY, STUN and poison still land"
+  it("a stopped hit's BURN, FRAY and STUN still land", () => {
     const bt = new Battle(FOE, FOE, 1), def = bt.sides[1];
     bt.gainShield(def, 3);
     const hp = def.hull.hp;
     land(bt, 0, 50, { burn: 2 });
-    land(bt, 0, 50, { ammo: "thread", poison: 3 });
+    land(bt, 0, 50, { ammo: "thread" }); // Y7b2 (the flip): was { ammo: "thread", poison: 3 }
     const f = def.factories[0], ft = def.targets.find((t) => t.kind === "factory" && t.ref === f.uid)!;
     land(bt, 0, 50, { shock: true }, ft);
     expect([def.hull.hp, def.shield, def.blocked]).toEqual([hp, 0, 3]);
     expect(def.hull.burns.map((b) => b.dps)).toEqual([2]);
-    expect([def.hull.fray, def.hull.poison.stacks]).toEqual([1, 3]);
+    expect([def.hull.fray]).toEqual([1]); // Y7b2 (the flip): was [fray, poison.stacks] = [1, 3]
     expect(f.disrupted).toBeGreaterThan(0);
   });
 
-  it("BURN ticks, poison ticks, limpet blasts and the dark wind go past it (they are not hits)", () => {
+  // Y7b2 (the flip): POISON is gone, so its pool and its tick left this test (switch-off only). Was "BURN ticks, poison
+  // ticks, limpet blasts and the dark wind go past it (they are not hits)"
+  it("BURN ticks, limpet blasts and the dark wind go past it (they are not hits)", () => {
     const bt = new Battle(FOE, FOE, 1), s = bt.sides[1];
     bt.gainShield(s, 3);
     s.hull.burns.push({ dps: 1, t: 3 });
-    s.hull.poison = { stacks: 2, t: 6 };
+    // Y7b2 (the flip): the poison pool (s.hull.poison = { stacks: 2, t: 6 }) is deleted with POISON
     s.limpets.push({ at: 0, target: s.targets[0], from: 0, blast: 50, stall: 0 });
     const hp = s.hull.hp;
-    for (let i = 0; i < 60; i++) hullEffects(bt); // 1 s: the blast, one BURN tick (10), one poison tick (8)
-    expect([hp - s.hull.hp, s.shield]).toEqual([50 + 10 + 8, 3]);
+    for (let i = 0; i < 60; i++) hullEffects(bt); // 1 s: the blast, one BURN tick (10) (Y7b2: no poison tick, was 8)
+    expect([hp - s.hull.hp, s.shield]).toEqual([50 + 10, 3]); // Y7b2 (the flip): was 50 + 10 + 8
     bt.t = WIND_START + 1;
     const before = s.hull.hp;
     for (let i = 0; i < 60; i++) hullEffects(bt);
-    expect(s.hull.hp).toBeLessThan(before - 10 - 8 + 1); // the wind's 10 came too
+    expect(s.hull.hp).toBeLessThan(before - 10 + 1); // the wind's 10 came too (Y7b2, the flip: was before - 10 - 8 + 1)
     expect(s.shield).toBe(3);
   });
 

@@ -165,10 +165,28 @@ function wellDrawn(c: RasterCanvas, w: number, h: number, min: number, what: str
 const DEFS = Object.values(ITEMS).filter((d) => !isWave3(d.id));
 const EXISTING = (kind: string): string[] => DEFS.filter((d) => d.kind === kind).map((d) => d.id);
 
+/** Y7b2 (the flip): 8 wave-3 defs took release Y's rules (content.ts's STAR_DIFF rows, folded at the flip; DESIGN-Y rows
+ *  21, 20, 30, 26, 39, 34, 47, 35): TWIN GAUGE's and PINCER's floors go (flat 0; PINCER's dead max 3 too), TWIN LATCH's
+ *  flat goes and its hold is 1 / 2 / 3 s, PLATE BREAKER's floor goes, STEAM BREECH is 40 / 80 / 120% plated with no bare
+ *  rate, TWIN TRIGGER pairs at 30 / 60 / 95% with no load-time cut, SPALL CATCHER has no cap, SEAM WELDER's lone plating
+ *  is 0. A1's copy (tools/wave3Defs.ts) keeps 0.9.2's numbers, so each of these is A1's copy with the flip's fields over
+ *  it (every other field, and the other 7 defs, A1's copy as before). */
+const FLIPPED: Record<string, Record<string, unknown>> = {
+  twingauge: { gate: { gauge: { flat: 0, matched: 30 } }, levels: { 2: { gate: { gauge: { flat: 0, matched: 66 } } }, 3: { gate: { gauge: { flat: 0, matched: 105 } } } } },
+  pincer: { gate: { pincer: { flat: 0, each: 20 } }, levels: { 2: { gate: { pincer: { flat: 0, each: 44 } } }, 3: { gate: { pincer: { flat: 0, each: 70 } } } } },
+  twinlatch: { gate: { latch: { hold: 1, flat: 0 } }, levels: { 2: { gate: { latch: { hold: 2, flat: 0 } } }, 3: { gate: { latch: { hold: 3, flat: 0 } } } } },
+  platebreaker: { gate: { breaker: { flat: 40, floor: 0 } }, levels: { 2: { gate: { breaker: { flat: 88, floor: 0 } } }, 3: { gate: { breaker: { flat: 140, floor: 0 } } } } },
+  steambreech: { core: { routine: "steam", steamPlated: 40 }, levels: { 2: { core: { steamPlated: 80 } }, 3: { core: { steamPlated: 120 } } } },
+  twintrigger: { mod: { pairBonus: 0.3 }, levels: { 2: { mod: { pairBonus: 0.6 } }, 3: { mod: { pairBonus: 0.95 } } } },
+  spallcatcher: { mod: { spall: { every: 40, add: 10 } }, levels: { 2: { mod: { spall: { every: 40, add: 22 } } }, 3: { mod: { spall: { every: 40, add: 35 } } } } },
+  seamwelder: { mod: { seam: { pair: 10, lone: 0 } }, levels: { 2: { mod: { seam: { pair: 22, lone: 0 } } }, 3: { mod: { seam: { pair: 35, lone: 0 } } } } },
+};
+
 // ======================================================================================================= this branch
 
 describe("wave 3's 15 modules: P1's ids, drawn at the game's entry points (P1's real defs, merged at I1)", () => {
-  it("the ids are P1's, by kind; every ITEMS entry of wave 3 is P1's def, equal to A1's copy (tools/wave3Defs.ts)", () => {
+  // Y7b2 (the flip): was "...; every ITEMS entry of wave 3 is P1's def, equal to A1's copy (tools/wave3Defs.ts)"
+  it("the ids are P1's, by kind; every ITEMS entry of wave 3 is P1's def: A1's copy (tools/wave3Defs.ts), with the flip's numbers on 8", () => {
     expect([...WAVE3_ART_IDS]).toEqual([...P1_WAVE3_IDS]);
     expect([...WAVE3_ART_IDS]).toEqual([...WAVE3_IDS]); // 0.8.0 I1: the real ids, in P1's order
     expect(WAVE3_ART_IDS).toHaveLength(15);
@@ -178,7 +196,7 @@ describe("wave 3's 15 modules: P1's ids, drawn at the game's entry points (P1's 
     expect(WAVE3_RIGS.map((id) => ITEMS[id].shape)).toEqual(["I", "I", "I", "L", "II", "II", "T", "X"]);
     for (const id of WAVE3_ART_IDS) {
       expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true); // 0.8.0 I1: flipped (the real defs)
-      expect(ITEMS[id], id).toEqual(P1_WAVE3_ITEMS[id]);
+      expect(ITEMS[id], id).toEqual({ ...P1_WAVE3_ITEMS[id], ...FLIPPED[id] }); // Y7b2 (the flip): was P1_WAVE3_ITEMS[id]
       expect(isWave3Art(id), id).toBe(true);
     }
     for (const id of [...DEFS.map((d) => d.id), "zz-none", "constructor", "toString"]) expect(isWave3Art(id), id).toBe(false);

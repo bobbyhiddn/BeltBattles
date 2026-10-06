@@ -54,10 +54,13 @@ describe("stars.ts", () => {
     // bb-0.8.3 (REQ-BFG-042 D1): a bought factory states no outputs; its belt slots grow with its stars (outputsAt)
     // NUM-2 (REQ-BFG-047): speed 30 = roundHalfUp(30 / 1 s), the ★3 level's stored speed merged over the ★1 spec's 21 (was interval: 1)
     expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", speed: 30, base: 10 * 7.5 }); // NUM-1: x10 (was 7.5)
-    expect(effectAt("chamber", 3).mod).toEqual({ perShot: 3, window: 1 });
+    // Y7b2 (the flip): Y4's EXT. CHAMBER ★3 fires 4 a shot and its +1 slot is gone (was { perShot: 3, window: 1 })
+    expect(effectAt("chamber", 3).mod).toEqual({ perShot: 4 });
     expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 2, mult: 0.85 } });
     // NUM-1: flat and lockedFlat x10 (was 2 / 4 and 5 / 7); the speed is unchanged
-    expect([2, 3].map((s) => effectAt("brake", s).gate)).toEqual([{ speed: 0.5, flat: 10 * 2, lockedFlat: 10 * 4 }, { speed: 0.5, flat: 10 * 5, lockedFlat: 10 * 7 }]);
+    // Y7b2 (the flip): Y3's BRAKE SHOE ★2 / ★3: no flat, speed 0.4 / 0.3 (was { speed: 0.5, flat: 10 * 2, lockedFlat: 10 * 4 },
+    // { speed: 0.5, flat: 10 * 5, lockedFlat: 10 * 7 })
+    expect([2, 3].map((s) => effectAt("brake", s).gate)).toEqual([{ speed: 0.4, lockedFlat: 10 * 4 }, { speed: 0.3, lockedFlat: 10 * 7 }]);
     expect(ITEMS.temper.gate).toEqual({ burn: 1 }); // the 1-star spec is untouched
     expect(() => effectAt("nope", 2)).toThrow();
   });
@@ -96,14 +99,15 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
     expect(down(at3((s) => est(bench([["grease", 4, 4, s]])).time))).toBe(true);
   });
   // 0.6.1f: the deeper slow (0.31/0.22) starved the turret; the merge now pays in friction heat, not belt time
-  it("BRAKE speed 0.5 at every star (the same seconds on the belt); HOT SHOE +2 and RED-HOT SHOE +5 flat; damage in 30 s", () => {
+  // Y7b2 (the flip): Y3's BRAKE SHOE: no HOT SHOE / RED-HOT SHOE flat, and a deeper slow at each star, 0.5 / 0.4 / 0.3, so the
+  // seconds on the belt rise (was the same at every star: [t[1], t[2]] toEqual([t[0], t[0]])) and the two flat checks (d[1] -
+  // d[0] = 20, d[2] - d[0] = 50) are deleted. Was "BRAKE speed 0.5 at every star (the same seconds on the belt); HOT SHOE +2 and
+  // RED-HOT SHOE +5 flat; damage in 30 s"
+  it("BRAKE speed 0.5/0.4/0.3: more seconds on the belt at each star; damage in 30 s", () => {
     const t = at3((s) => est(bench([["brake", 4, 4, s]])).time);
-    expect([t[1], t[2]]).toEqual([t[0], t[0]]);
+    // Y7b2 (the flip): the measured seconds, 5 tiles at 0.4 s each taking x2 / x2.5 / x3.33 (was [t[1], t[2]] toEqual([t[0], t[0]]))
+    expect(t).toEqual([4.6, 5.6, 7.266666666666667]);
     expect(t[0]).toBeGreaterThan(est(bench([])).time); // still a slow
-    const d = at3((s) => est(bench([["brake", 4, 4, s]])).dmg);
-    // NUM-1: x10, and the estimate is whole (payloadDamage rounds half up once), so the gaps are exact (was toBeCloseTo 2 / 5)
-    expect(d[1] - d[0]).toBe(10 * 2);
-    expect(d[2] - d[0]).toBe(10 * 5);
     expect(up(at3((s) => run(bench([["brake", 4, 4, s]])).sides[0].stats.damage))).toBe(true);
   });
   it("OVERDRIVE speed 3/4/5 (AFTERBURNER's +3 flat: arsenal.modules.test.ts)", () => {
@@ -137,9 +141,11 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
     });
     expect(up(made)).toBe(true);
   });
-  it("EXT. CHAMBER per shot 2/2/3 (WIDE BREECH's window: arsenal.modules.test.ts)", () => {
+  // Y7b2 (the flip): Y4's EXT. CHAMBER fires 2 / 3 / 4 a shot (at most the chamber, Battle.chambers) and its +1 slot (WIDE
+  // BREECH's window) is gone. Was "EXT. CHAMBER per shot 2/2/3 (WIDE BREECH's window: arsenal.modules.test.ts)"
+  it("EXT. CHAMBER per shot 2/3/4", () => {
     const per = at3((s) => new Battle(bench([], [["chamber", s]]), barge(), 1).sides[0].turrets[0].perShot);
-    expect(per).toEqual([2, 2, 3]);
+    expect(per).toEqual([2, 3, 4]); // Y7b2 (the flip): was [2, 2, 3]
   });
   it("CALIBRATION fire interval x0.75/x0.58/x0.46", () => {
     // NUM-2 (REQ-BFG-047, N1 2.3): CALIBRATION is a whole rate % (+33 / +72 / +117; was the interval x0.75 / x0.58 / x0.46),

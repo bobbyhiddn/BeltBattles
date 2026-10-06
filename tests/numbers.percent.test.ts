@@ -49,25 +49,22 @@ describe("NUM-2: whole rate %s (N1 2.3), each shown % exact against the sim's mu
     }
   });
 
-  it("ROTARY ★2 +18, ★3 +43 (★1 none): the clause's % and the battle's speed", () => {
-    expect(effectAt("rotary", 1).core!.fireRate).toBeUndefined();
-    for (const [s, want] of [[2, 18], [3, 43]]) {
-      expect(effectAt("rotary", s).core!.fireRate).toBe(want);
-      expect(shownPcts("rotary", s), `rotary ★${s}`).toContain(want);
-      const { tu, base } = fitted("rotary", s);
-      expect([tu.speedRaw, tu.speed], `rotary ★${s}`).toEqual([base * ((100 + want) / 100), roundHalfUp(base * ((100 + want) / 100))]);
-    }
-  });
+  // Y7b2 (the flip): the test "ROTARY ★2 +18, ★3 +43 (★1 none): the clause's % and the battle's speed" is deleted: ROTARY's
+  // fire rate is gone (Y4: its star number is its load time, 50% / 65% / 80% sooner)
 
-  it("STEAM BREECH +35 / +70 / +110 plated, +10 / +20 / +30 bare: its text's %s and its cadence (cores.ts steamInterval)", () => {
-    const plated = [35, 70, 110], bare = [10, 20, 30];
+  // Y7b2 (the flip): Y4's STEAM BREECH: +40 / +80 / +120 plated and no bare speed-up (was +35 / +70 / +110 plated, +10 / +20 /
+  // +30 bare), so bare it fires at the turret's own pace (its bare cadence re-pinned to +0). Was "STEAM BREECH +35 / +70 / +110
+  // plated, +10 / +20 / +30 bare: its text's %s and its cadence (cores.ts steamInterval)"
+  it("STEAM BREECH +40 / +80 / +120 plated, nothing bare: its text's %s and its cadence (cores.ts steamInterval)", () => {
+    const plated = [40, 80, 120]; // Y7b2 (the flip): was [35, 70, 110], and bare [10, 20, 30]
     for (const s of [1, 2, 3]) {
       const c = effectAt("steambreech", s).core!;
-      expect([c.steamPlated, c.steamBare], `★${s}`).toEqual([plated[s - 1], bare[s - 1]]);
+      expect([c.steamPlated, c.steamBare], `★${s}`).toEqual([plated[s - 1], undefined]); // Y7b2 (the flip): was [plated, bare]
       const shown = textPcts(abilityText("steambreech", s).sentences.join(" "));
-      expect(shown, `★${s}: ${abilityText("steambreech", s).sentences.join(" ")}`).toEqual([plated[s - 1], bare[s - 1]]);
+      // Y7b2 (the flip): the text names the plated % only (was [plated, bare])
+      expect(shown, `★${s}: ${abilityText("steambreech", s).sentences.join(" ")}`).toEqual([plated[s - 1]]);
       const { tu } = fitted("steambreech", s);
-      for (const [on, x] of [[true, shown[0]], [false, shown[1]]] as [boolean, number][]) {
+      for (const [on, x] of [[true, shown[0]], [false, 0]] as [boolean, number][]) { // Y7b2 (the flip): bare was shown[1]
         tu.plated = on;
         expect(steamInterval(tu), `★${s} plated ${on}`).toBe(secPer(Math.max(1, roundHalfUp(tu.speedRaw * ((100 + x) / 100)))));
       }
@@ -112,14 +109,16 @@ describe("NUM-2: whole rate %s (N1 2.3), each shown % exact against the sim's mu
     expect(rateMul(FURNACE_LONG_BELT)).toBe((100 + 39) / 100);
   });
 
-  it("belt states: GREASE +60 / +130 / +210%, BRAKE 50%, OVERDRIVE x3 / x4 / x5; STOKER +20 / +44 / +70% (already rates)", () => {
-    const grease = [60, 130, 210], stoke = [20, 44, 70];
+  // Y7b2 (the flip): Y3's BRAKE SHOE slows to 50% / 40% / 30% (was 50% at every star). Was "belt states: GREASE +60 / +130 /
+  // +210%, BRAKE 50%, OVERDRIVE x3 / x4 / x5; STOKER +20 / +44 / +70% (already rates)"
+  it("belt states: GREASE +60 / +130 / +210%, BRAKE 50% / 40% / 30%, OVERDRIVE x3 / x4 / x5; STOKER +20 / +44 / +70% (already rates)", () => {
+    const grease = [60, 130, 210], brake = [50, 40, 30], stoke = [20, 44, 70];
     for (const s of [1, 2, 3]) {
       const g = effectAt("grease", s).gate!.speed!;
       expect(shownPcts("grease", s), `GREASE ★${s}`).toEqual([grease[s - 1]]);
       expect(g, `GREASE ★${s}`).toBe((100 + grease[s - 1]) / 100);
-      expect(effectAt("brake", s).gate!.speed).toBe(50 / 100);
-      expect(shownPcts("brake", s)[0], `BRAKE ★${s}`).toBe(50);
+      expect(effectAt("brake", s).gate!.speed).toBe(brake[s - 1] / 100); // Y7b2 (the flip): was 50 / 100
+      expect(shownPcts("brake", s)[0], `BRAKE ★${s}`).toBe(brake[s - 1]); // Y7b2 (the flip): was 50
       expect(effectAt("overdrive", s).gate!.speed).toBe(s + 2);
       const k = effectAt("stoker", s).gate!.stoke!;
       expect(shownPcts("stoker", s), `STOKER ★${s}`).toEqual([stoke[s - 1]]);

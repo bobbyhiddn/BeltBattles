@@ -114,7 +114,8 @@ describe("wave-2 stock and live star data", () => {
     expect(read("heatjacket", (s) => effectAt("heatjacket", s).gate?.heat)).toEqual([4, 9, 14]); // NUM-1: x10 (was [0.4, 0.9, 1.4])
     expect(read("scrapper", (s) => effectAt("scrapper", s).factory?.scrapFlat)).toEqual([30, 65, 105]); // NUM-1: x10 (was [3, 6.5, 10.5])
     // NUM-2 (REQ-BFG-047): slugs per 30 s, roundHalfUp(30 / interval) (was interval [6, 2.8, 1.9]; the fixture's rows)
-    expect(read("sabot", (s) => effectAt("sabot", s).factory?.speed)).toEqual([5, 11, 16]);
+    // Y7b2 (the flip): Y2's ★3 RATE 20 (SHRAPNEL's tile STUNs gone; was [5, 11, 16])
+    expect(read("sabot", (s) => effectAt("sabot", s).factory?.speed)).toEqual([5, 11, 20]);
     // NUM-3 (N1 2.2): FROSTBITE's STUN 2 / 3 / 3 s (was 2.5 / 2.75 / 3); HOARFROST's spread 0 / 1 / 2 as before
     expect(read("frostbite", (s) => effectAt("frostbite", s).factory?.round)).toEqual([
       { kind: "frost", seconds: 2, spread: 0 }, { kind: "frost", seconds: 3, spread: 1 }, { kind: "frost", seconds: 3, spread: 2 }]);
@@ -125,7 +126,9 @@ describe("wave-2 stock and live star data", () => {
       { kind: "drag", seconds: 1 }, { kind: "drag", seconds: 2 }, { kind: "drag", seconds: 3 }]);
     // NUM-2 (REQ-BFG-047): a whole rate %, roundHalfUp(100 / mul - 100) (was intervalMul [1.4, 1, 0.8]: -28.6 -> -29, 0, 25)
     expect(read("mimic", (s) => effectAt("mimic", s).factory?.rate)).toEqual([-29, 0, 25]);
-    expect(read("limpet", (s) => effectAt("limpet", s).factory?.round?.kind === "limpet" ? effectAt("limpet", s).factory!.round!.blast : 0)).toEqual([80, 180, 280]); // NUM-1: x10 (was [8, 18, 28])
+    // NUM-1: x10 (was [8, 18, 28]). Y7b2 (the flip): Y2's blast 100 / 230 / 360 (the charge's 20 joins it, the stall's +30 a
+    // second; was [80, 180, 280])
+    expect(read("limpet", (s) => effectAt("limpet", s).factory?.round?.kind === "limpet" ? effectAt("limpet", s).factory!.round!.blast : 0)).toEqual([100, 230, 360]);
     expect(read("mortar", (s) => effectAt("mortar", s).core?.splash)).toEqual([1, 2, 3]);
     expect(read("grapnel", (s) => effectAt("grapnel", s).core?.rip)).toEqual([1, 2, 3]);
     expect(read("tesla", (s) => effectAt("tesla", s).core?.arcs)).toEqual([1, 2, 3]);
@@ -133,23 +136,27 @@ describe("wave-2 stock and live star data", () => {
     expect(read("compound", (s) => effectAt("compound", s).core?.mult)).toEqual([1.15, 1.33, 1.52]);
     expect(read("lance", (s) => effectAt("lance", s).core?.columns)).toEqual([1, 2, 3]);
     expect(read("flak", (s) => effectAt("flak", s).mod?.intercept)).toEqual([0.25, 0.55, 0.85]);
-    expect(read("spotter", (s) => effectAt("spotter", s).mod?.factoryWeight)).toEqual([undefined, 2, 3]);
+    // Y7b2 (the flip): SPOTTER's factory weight is gone (Y2; factoryWeight was [undefined, 2, 3]); its live star number is
+    // rerolls 1 / 2 / 3
+    expect(read("spotter", (s) => effectAt("spotter", s).mod?.rerolls)).toEqual([1, 2, 3]);
     const light: Build = { ...barge(), mods: [{ uid: 99, def: "capacitor", turret: 0, stars: 3 }] };
     // NUM-1: scaleCore's whole % (k 0.55 -> 55%): pct(70, 55) = 38.5, rounded half up once at install (was toBeCloseTo(7 * 0.55))
     expect(resolveCore(light, 0).spec.perSecond).toBe(39);
-    expect(resolveCore(light, 0).spec.maxSeconds).toBe(5);
+    // Y7b2 (the flip): CAPACITOR's 5 s cap is gone (Y5), so its check (spec.maxSeconds toBe(5)) is deleted
   });
 });
 
 describe("wave-2 rigs through BELTSIDE arrows", () => {
-  it("TOLLBOOTH guards its reached route and at star 3 its factory", () => {
+  // Y7b2 (the flip): Y2's TOLLBOOTH covers its belt's factory from ★1 (was ★3 FACTORY GUARD only). Was "TOLLBOOTH guards its
+  // reached route and at star 3 its factory"
+  it("TOLLBOOTH guards its reached route and its factory", () => {
     for (const stars of [1, 2, 3]) {
       const { bt } = rig("tollbooth", stars);
       const s = bt.sides[0], g = s.gates[0];
       const hit = (t: Target) => (bt as any).disrupt(s, t, 1, "shock") as boolean;
       const belt = target(s, "belt", 0, 2), factory = target(s, "factory", 1);
-      expect(hit(factory)).toBe(stars < 3);
-      if (stars < 3) s.factories[0].disrupted = 0;
+      // Y7b2 (the flip): was toBe(stars < 3), with the factory's STUN cleared after a landed hit (if (stars < 3) disrupted = 0)
+      expect(hit(factory)).toBe(false);
       const before = g.tolls;
       expect(hit(belt)).toBe(false);
       expect(g.tolls).toBe(before - 1);
@@ -181,14 +188,14 @@ describe("wave-2 rigs through BELTSIDE arrows", () => {
     expect(rig("sifter", 3).a.p.flat).toBe(ITEMS.sifter.levels![3]!.gate!.siftClean); // NUM-1: siftClean is flat damage, x10 (was 1)
     expect(ITEMS.sifter.levels![3]!.gate!.siftClean).toBe(10);
   });
-  it("SURGE pulses route speed and every star pays for a ridden pulse (0.6.2 FB-B: +1/+2/+3, was 0/1/2)", () => {
+  // Y7b2 (the flip): SURGE VALVE's speed pulse is gone (Y3: it sets no belt state; its damage pulse pays every slug on its
+  // belts once a period), so the two belt-speed checks are deleted (speedAt[3] toBe the pulse's speed, then 1 after it).
+  // Was "SURGE pulses route speed and every star pays for a ridden pulse (0.6.2 FB-B: +1/+2/+3, was 0/1/2)"
+  it("SURGE pays every slug on its belt +10 / +20 / +30 a pulse", () => {
     for (const stars of [1, 2, 3]) {
       const { bt, a } = rig("surge", stars);
-      const speed = effectAt("surge", stars).gate!.pulse!.speed;
-      expect(bt.sides[0].routes[0].speedAt[3]).toBe(speed);
       until(bt, 1.3);
-      expect(bt.sides[0].routes[0].speedAt[3]).toBe(1);
-      expect(a.p.flat).toBe(10 * stars); // one pulse ridden (NUM-1: x10, was stars)
+      expect(a.p.flat).toBe(10 * stars); // one pulse (NUM-1: x10, was stars)
     }
   });
   it("SORTING ARM copies every Nth full-strength slug", () => {
@@ -254,23 +261,10 @@ describe("wave-2 factories and cores", () => {
     expect(bt.sides[0].factories.find((f) => f.def.id === "mimic")!.routes).toHaveLength(2);
     expect(bt.sides[0].routes.every((r) => r.ammo.length > 0)).toBe(true);
   });
-  it("SCRAPPER banks accepted effects only, and BIG HAUL pays twice for a wreck", () => {
-    for (const stars of [1, 3]) {
-      const atk = factoryBench("scrapper", stars, { only: true });
-      const def = bench([["tollbooth", 4, 3, 1]]);
-      const bt = new Battle(atk, def, 4);
-      const s = bt.sides[1], g = s.gates[0], f = bt.sides[0].factories.find((x) => x.def.id === "scrapper")!;
-      g.online = true;
-      const t = target(s, "gate", g.uid);
-      (bt as any).roundImpact(s, t, { kind: "sabot" }, 0);
-      expect(bt.sides[0].harassAccepted).toBe(0);
-      g.tolls = 0;
-      (bt as any).roundImpact(s, t, { kind: "sabot" }, 0);
-      expect(bt.sides[0].harassAccepted).toBe(1);
-      bt.step();
-      expect(f.triggerQueue + f.produced).toBe(stars === 3 ? 2 : 1);
-    }
-  });
+  // Y7b2 (the flip): the test "SCRAPPER banks accepted effects only, and BIG HAUL pays twice for a wreck" is deleted: it banked
+  // SABOT wrecks, and harassment is a STUN only now (a wreck is no STUN: TOLLBOOTH spends no toll on it and SCRAPPER doesn't
+  // count it), and ★3 BIG HAUL is gone (Y2). SCRAPPER's count of accepted STUNs only: tests/harassment.engine.test.ts ("Toll
+  // spends exactly two charges before any stall, and Scrapper sees only the accepted hit")
   // NUM-3 (R1's STUN fold): a FROSTBITE round and a DRAG CHAIN round STUN the part they hit (Battle.disrupt, causes
   // "freeze" and "drag"). Was: a freeze (cellFrozen[2] 2.5 / 2.75 / 3 s, one "freeze" event per frozen part) and a chain
   // slow over the rig-to-rig segment (cellSlow[2] { mul 0.6 / 0.4 / 0.3, t 3 / 4.4 / 6 }). Now the frost round STUNs the
@@ -306,7 +300,10 @@ describe("wave-2 factories and cores", () => {
     expect(stamps[0]).toBeLessThan(stamps[1]);
     expect(stamps[1]).toBeLessThan(stamps[2]);
   });
-  it("LIMPET detonations deal each star's blast and gain timed stalls at stars 2 and 3", () => {
+  // Y7b2 (the flip): Y2's LIMPET: blast 100 / 230 / 360 and no stall, so the three stall checks (the data's stall > 0 at
+  // stars 2 and 3, the factory's STUN within 0.1 s under it) are deleted. Was "LIMPET detonations deal each star's blast and
+  // gain timed stalls at stars 2 and 3"
+  it("LIMPET detonations deal each star's blast", () => {
     for (const stars of [1, 2, 3]) {
       const bt = new Battle(bench(), barge(), 12);
       bt.sides[0].factories[0].timer = 1000;
@@ -316,13 +313,7 @@ describe("wave-2 factories and cores", () => {
       until(bt, 2.95);
       expect(foe.hull.hp).toBe(hp);
       until(bt, 3.05);
-      expect(hp - foe.hull.hp).toBe([80, 180, 280][stars - 1]); // NUM-1: x10 (was [8, 18, 28])
-      // NUM-3 (N1 2.2): the stall read from the data, - / 1 / 2 s (was the literals: at least [0, 0.9, 1.5], at most
-      // [0, 1, 1.6], for - / 1 / 1.6 s); read 0.05 s after the detonation, so within 0.1 s under it
-      const stall = (effectAt("limpet", stars).factory!.round! as { stall?: number }).stall ?? 0;
-      expect(stall > 0, `★${stars} stall`).toBe(stars > 1); // the timed stalls at stars 2 and 3
-      expect(foe.factories[0].disrupted).toBeGreaterThanOrEqual(stall > 0 ? stall - 0.1 : 0);
-      expect(foe.factories[0].disrupted).toBeLessThanOrEqual(stall);
+      expect(hp - foe.hull.hp).toBe([100, 230, 360][stars - 1]); // NUM-1: x10 (was [8, 18, 28]). Y7b2 (the flip): was [80, 180, 280]
     }
   });
   // NUM-3 (R1's STUN fold): the frost and chain shots STUN the tile they land on (cellDisrupt), as the sabot shot does
@@ -377,7 +368,9 @@ describe("wave-2 factories and cores", () => {
       expect(lance.events.some((e) => e.type === "lance")).toBe(true);
     }
   });
-  it("GRAPNEL rips one, two or three real belt loads and ★3 banks its salvage perk", () => {
+  // Y7b2 (the flip): GRAPNEL ★3's salvage is gone (TurretState.salvage deleted), so its check (salvage toBe(stars === 3 ? 30 :
+  // 0)) is deleted. Was "GRAPNEL rips one, two or three real belt loads and ★3 banks its salvage perk"
+  it("GRAPNEL rips one, two or three real belt loads", () => {
     for (const stars of [1, 2, 3]) {
       const bt = fitted("grapnel", stars, bench());
       const foe = bt.sides[1], route = foe.routes[0];
@@ -387,27 +380,27 @@ describe("wave-2 factories and cores", () => {
       const shot = bt.projectiles[0], hit = target(foe, "belt", 0, 2);
       (bt as any).impact({ ...shot, target: hit, tx: hit.x, ty: hit.y });
       expect(route.ammo.map((a) => a.p.id)).toEqual([1, 2, 3, 4].slice(stars));
-      expect(bt.sides[0].turrets[0].salvage).toBe(stars === 3 ? 30 : 0); // NUM-1: pct(10 x 3 ripped, 100% at k 1) (was 3)
     }
   });
-  it("COMPOUND keeps both loads' Burn and Poison in its one shell", () => {
+  // Y7b2 (the flip): POISON is gone (Payload.poison and HullState.poison deleted), so the loads' poison 3 and 5 and the two
+  // poison checks (the shell's payload.poison toBe(8), the hull's poison.stacks toBe(8)) are deleted. Was "COMPOUND keeps both
+  // loads' Burn and Poison in its one shell"
+  it("COMPOUND keeps both loads' Burn in its one shell", () => {
     for (const stars of [1, 2, 3]) {
       const bt = new Battle(bench([], [["compound", stars]]), barge(), 8);
       bt.sides[0].factories[0].timer = 1000;
       const first = p(1), second = p(2);
-      first.burn = 2; first.poison = 3; first.shock = true;
-      second.burn = 4; second.poison = 5; second.static = true; second.staticTime = 1.2;
+      first.burn = 2; first.shock = true;
+      second.burn = 4; second.static = true; second.staticTime = 1.2;
       const tu = bt.sides[0].turrets[0]; tu.stack.push(first, second);
       bt.step();
       const shot = bt.projectiles[0];
       expect(bt.projectiles).toHaveLength(1);
       expect(shot.burn).toBe(6);
-      expect(shot.payload.poison).toBe(8);
       expect(shot.payload.shock).toBe(true);
       expect(shot.payload.staticTime).toBe(1.2);
       const hull = bt.sides[1].hull;
       (bt as any).impact({ ...shot, target: { kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 } });
-      expect(hull.poison.stacks).toBe(8);
       expect(hull.burns.at(-1)?.dps).toBe(6);
     }
   });
@@ -432,33 +425,21 @@ describe("wave-2 factories and cores", () => {
     expect(counts[0]).toBeLessThan(counts[1]);
     expect(counts[1]).toBeLessThan(counts[2]);
   });
-  it("TOLLBOOTH blocks GRAPNEL from fizzling a keg before any rip is accepted", () => {
-    const foe = bench([["tollbooth", 4, 4, 1], ["keg", 4, 3, 1]]);
-    const bt = fitted("grapnel", 1, foe);
-    const s = bt.sides[1], toll = s.gates.find((g) => g.def.id === "tollbooth")!;
-    const keg = s.gates.find((g) => g.def.id === "keg")!;
-    toll.online = keg.online = true;
-    s.routes[0].ammo.length = 0;
-    const hit = target(s, "gate", keg.uid), shot = bt.projectiles[0];
-    (bt as any).impact({ ...shot, target: hit, tx: hit.x, ty: hit.y });
-    expect(toll.tolls).toBe(1);
-    expect(keg.consumed).toBe(false);
-    expect(bt.sides[0].harassAccepted).toBe(0);
-    toll.tolls = 0;
-    (bt as any).impact({ ...shot, target: hit, tx: hit.x, ty: hit.y });
-    expect(keg.consumed).toBe(true);
-    expect(bt.sides[0].harassAccepted).toBe(1);
-  });
+  // Y7b2 (the flip): the test "TOLLBOOTH blocks GRAPNEL from fizzling a keg before any rip is accepted" is deleted: a rip is no
+  // STUN now (TOLLBOOTH spends no toll on it and no SCRAPPER counts it), and a GRAPNEL hit no longer disarms a POWDER KEG (Y2)
 });
 
 describe("wave-2 gear and stability", () => {
+  // Y7b2 (the flip): SideState.flak is deleted (each FLAK SCREEN rolls on its own: SideState.flaks, Y2), so the checks point
+  // at flaks; and a GRAPNEL shot carries no STUN, so no FLAK rolls for it now (harassment is a STUN only): the round is a
+  // TESLA shot (its arc STUNs), was a GRAPNEL shot
   it("FLAK resolves from fitted stars and intercepts one real special round", () => {
     for (const stars of [1, 2, 3]) {
       const foe = bench([], [["flak", stars]]);
       const bt = new Battle(bench(), foe, 8);
-      expect(bt.sides[1].flak).toBe([0.25, 0.55, 0.85][stars - 1]);
-      bt.sides[1].flak = 1;
-      const pr = fitted("grapnel", 1, foe).projectiles[0];
+      expect(bt.sides[1].flaks).toEqual([[0.25, 0.55, 0.85][stars - 1]]); // Y7b2 (the flip): was flak toBe([0.25, 0.55, 0.85][stars - 1])
+      bt.sides[1].flaks = [1]; // Y7b2 (the flip): was flak = 1
+      const pr = fitted("tesla", 1, foe).projectiles[0]; // Y7b2 (the flip): was fitted("grapnel", 1, foe)
       bt.projectiles.push({ ...pr, from: 0, t: 0, flakChecked: false });
       const hp = bt.sides[1].hull.hp;
       until(bt, pr.flight + 0.05);
@@ -466,11 +447,13 @@ describe("wave-2 gear and stability", () => {
       expect(bt.sides[1].hull.hp).toBe(hp);
     }
   });
+  // Y7b2 (the flip): a GRAPNEL shot carries no STUN, so no FLAK rolls for it now (harassment is a STUN only): the incoming
+  // round is a TESLA shot (its arc STUNs), was a GRAPNEL shot
   it("FLAK's seeded intercept rate rises at each star, one roll per incoming round", () => {
     for (const stars of [1, 2, 3]) {
       let stopped = 0;
       for (let seed = 1; seed <= 400; seed++) {
-        const bt = new Battle(bench([], [["grapnel", 1]]), bench([], [["flak", stars]]), seed);
+        const bt = new Battle(bench([], [["tesla", 1]]), bench([], [["flak", stars]]), seed); // Y7b2 (the flip): was [["grapnel", 1]]
         bt.sides[0].factories[0].timer = bt.sides[1].factories[0].timer = 1000;
         const turret = bt.sides[0].turrets[0]; turret.stack.push(p()); turret.phase = "fire";
         bt.step();
@@ -485,16 +468,22 @@ describe("wave-2 gear and stability", () => {
       expect(stopped / 400).toBeLessThan([0.32, 0.62, 0.92][stars - 1]);
     }
   });
-  it("SPOTTER changes only its fitted turret's targeting, with EAGLE EYE never picking bare hull", () => {
+  // Y7b2 (the flip): SPOTTER's ★2 factory weight and ★3 EAGLE EYE's "always a part" are gone (Y2); it re-aims 1 / 2 / 3
+  // times. ★2's and ★3's checks point at rerolls (were factoryWeight toBe(2) and alwaysMachine toBe(true)); EAGLE EYE's (the
+  // ★3 shot's target is not bare hull) is deleted. Was "SPOTTER changes only its fitted turret's targeting, with EAGLE EYE
+  // never picking bare hull"
+  it("SPOTTER changes only its fitted turret's targeting", () => {
     const first = fitted("spotter", 1);
     const second = fitted("spotter", 2);
     const third = fitted("spotter", 3);
     expect(first.sides[0].turrets[0].rerolls).toBe(1);
-    expect(second.sides[0].turrets[0].factoryWeight).toBe(2);
-    expect(third.sides[0].turrets[0].alwaysMachine).toBe(true);
-    expect(third.projectiles[0].target.kind).not.toBe("hull");
+    expect(second.sides[0].turrets[0].rerolls).toBe(2); // Y7b2 (the flip): was factoryWeight toBe(2)
+    expect(third.sides[0].turrets[0].rerolls).toBe(3); // Y7b2 (the flip): was alwaysMachine toBe(true)
   });
-  it("SPOTTER's second reroll and factory weights produce distinct seeded target counts", () => {
+  // Y7b2 (the flip): ★3 EAGLE EYE's "always a part" is gone (Y2), so its check (counts[2].hull toBe(0)) is deleted; the counts
+  // come from the 1 / 2 / 3 rerolls (the factory weights are gone). Was "SPOTTER's second reroll and factory weights produce
+  // distinct seeded target counts"
+  it("SPOTTER's rerolls produce distinct seeded target counts", () => {
     const counts: { hull: number; factory: number }[] = [];
     for (const stars of [1, 2, 3]) {
       const count = { hull: 0, factory: 0 };
@@ -507,7 +496,6 @@ describe("wave-2 gear and stability", () => {
     }
     expect(counts[0].hull).toBeGreaterThan(counts[1].hull);
     expect(counts[1].hull).toBeGreaterThan(counts[2].hull);
-    expect(counts[2].hull).toBe(0);
     expect(counts[2].factory).toBeGreaterThan(counts[1].factory);
     expect(counts[1].factory).toBeGreaterThan(counts[0].factory);
   });

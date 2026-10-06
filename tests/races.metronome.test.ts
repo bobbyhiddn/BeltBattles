@@ -145,7 +145,9 @@ describe("METRONOME pendulum curve", () => {
 describe("METRONOME speed lock", () => {
   const gates: [string, number, number][] = [["grease", 2, 4], ["brake", 2, 3], ["overdrive", 2, 2]];
   // 0.6.2: SURGE VALVE's pulse is a speed change too, so a locked belt takes its locked flat instead (REQ-BFG-021)
-  const speedRigs: [string, number, number][] = [...gates, ["surge", 3, 2]];
+  // Y7b2 (the flip; DESIGN-Y row 28): SURGE VALVE has no speed pulse and no locked flat (its damage pulse pays locked belts
+  // as any), so it left the speed rigs (was [...gates, ["surge", 3, 2]]; switch-off only)
+  const speedRigs: [string, number, number][] = [...gates];
 
   it("Grease, Brake and Overdrive leave ride at exactly 0.4n + 0.2 s, and still count as gates", () => {
     const b = metro(10, gates);

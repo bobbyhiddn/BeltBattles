@@ -5,6 +5,10 @@
 // Metronome's lockedFlat 3/6/10 was reviewed against the star bench and stays (MODS-REPORT.md).
 // NUM-1 (REQ-BFG-047): the damage family x10, so the per-pulse flat is now 10/20/30 and the locked-belt flat 30/60/100
 // (the test titles keep FB-B's units).
+// Y7b2 (the flip; release Y, DESIGN-Y row 28): the speed pulse and the locked-belt flat are gone; every period (3 / 3 / 2 s)
+// the valve pays +10/+20/+30 once to every slug on its belts (Battle.surgeTick, from the battle's first tick), and the walk
+// counts flat x the seconds a slug rides there / the period. The speed and locked-flat asserts are deleted (switch-off
+// only); the pays, the timing and the walk are re-pinned.
 import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { spotForTile } from "../src/sim/beltside";
@@ -37,22 +41,23 @@ function valve(stars: number): { bt: Battle; a: BeltAmmo } {
 describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
   // NUM-3 (N1 2.2): the title's "timing unchanged" was FB-B's (FB-B moved only the flat); NUM-3 made the period whole
   // seconds, 3 / 3 / 2 s (was 3 / 2.5 / 2), so the title names it. The 1 s on-time, the speed and the flats are unchanged.
-  it("the rule: per-pulse flat 1/2/3 (was 0/1/2); speed, on-time and the locked-belt flat unchanged; period 3/3/2 s (NUM-3)", () => {
+  // Y7b2 (the flip): was "...; speed, on-time and the locked-belt flat unchanged; ..." (the locked-belt flat is gone)
+  it("the rule: per-pulse flat 1/2/3 (was 0/1/2); speed and on-time unchanged in the data; period 3/3/2 s (NUM-3)", () => {
     // NUM-1: the per-pulse flat x10 (was 1/2/3), the locked-belt flat x10 (was 3/6/10); speed and timing unchanged
     // NUM-3 (N1 2.2): was ★2 period 2.5; now ★2 period 3 (whole seconds; the one row NUM-3 moved)
     expect(STARS.map((s) => effectAt("surge", s).gate?.pulse)).toEqual([
       { speed: 3, on: 1, period: 3, flat: 10 }, { speed: 4, on: 1, period: 3, flat: 20 }, { speed: 5, on: 1, period: 2, flat: 30 },
     ]);
-    expect(STARS.map((s) => effectAt("surge", s).gate?.lockedFlat)).toEqual([30, 60, 100]);
+    // Y7b2 (the flip): the lockedFlat 30/60/100 check is deleted (no locked-belt flat; switch-off only)
   });
 
-  it("a payload riding one pulse past the valve gains exactly +1/+2/+3, and rides it at 3x/4x/5x", () => {
+  // Y7b2 (the flip): was "a payload riding one pulse past the valve gains exactly +1/+2/+3, and rides it at 3x/4x/5x";
+  // the speed checks (speedAt 3/4/5 in the pulse, 1 after it) are deleted: no speed pulse (switch-off only). The first
+  // pulse pays every slug on the valve's belt on the battle's first tick, before its tile or past it
+  it("a payload on the valve's belt gains exactly +1/+2/+3 from one pulse", () => {
     for (const s of STARS) {
       const { bt, a } = valve(s);
-      until(bt, 0.12);
-      expect(bt.sides[0].routes[0].speedAt[3], `★${s} pulse`).toBe([3, 4, 5][s - 1]);
       until(bt, 1.3); // the first pulse is over at every star (on for 1 s of each 3 / 3 / 2 s; NUM-3: was 3 / 2.5 / 2)
-      expect(bt.sides[0].routes[0].speedAt[3], `★${s} between pulses`).toBe(1);
       expect(a.p.flat, `★${s}`).toBe(FLAT[s - 1]);
     }
   });
@@ -68,7 +73,8 @@ describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
       const bt = new Battle(b, barge(), 17);
       bt.sides[0].factories[0].timer = 1000;
       bt.sides[0].gates[0].online = true;
-      until(bt, 0.9); // late in the first pulse (every star's pulse is on for the first second of its period)
+      // Y7b2 (the flip): the payload goes on before the first tick, when the first pulse pays every slug on the belt (was
+      // until(bt, 0.9), late in the first pulse's on-second, when a pulse paid each payload riding past the valve)
       const a: BeltAmmo = { p: payload(), s: CELL, processed: 0, blocked: false }; // just past the valve's tile
       bt.sides[0].routes[0].ammo.push(a);
       until(bt, 0.99);
@@ -84,10 +90,12 @@ describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
     }
   });
 
-  it("the walk (inspector estimate) counts one pulse's flat off a locked belt, and the timeline shows it", () => {
+  // Y7b2 (the flip): was "the walk (inspector estimate) counts one pulse's flat off a locked belt, and the timeline shows it"
+  it("the walk (inspector estimate) counts flat x the seconds ridden on the valve's belt / the period, and the timeline shows it", () => {
     for (const s of STARS) {
       const hit = walkRoute(bench([["surge", 4, 3, s]]), 0).timeline[0].hits[0];
-      expect([hit.def, hit.flat], `★${s}`).toEqual(["surge", FLAT[s - 1]]);
+      // Y7b2 (the flip): 10 x 2.6 s / 3, 20 x 2.6 / 3, 30 x 2.6 / 2 (the bench's ride, as the walk sums it; was FLAT[s - 1])
+      expect([hit.def, hit.flat], `★${s}`).toEqual(["surge", [8.666666666666666, 17.333333333333332, 38.99999999999999][s - 1]]);
     }
   });
 
@@ -103,12 +111,15 @@ describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
     // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's opening sentence (abilityText) and clause (gist)
     // NUM-1: the per-pulse damage x10 (was 1/2/3 DAMAGE)
     // NUM-3 (N1 2.2): was "EVERY 2.5 SECONDS" at ★2; now ★2's period read from ITEMS (effectAt: 3 s)
+    // Y7b2 (the flip): no speed pulse, so the sentences and gists name the damage and the period only (were "PULSES ITS
+    // BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE." ... and "3 TIMES AS FAST, 10
+    // DAMAGE A PULSE" ...)
     expect(STARS.map((s) => abilityText("surge", s).sentences[0])).toEqual([
-      "PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE.",
-      `PULSES ITS BELTS 4 TIMES AS FAST FOR 1 SECOND EVERY ${effectAt("surge", 2).gate!.pulse!.period} SECONDS, EACH PULSE ADDING 20 DAMAGE.`,
-      "PULSES ITS BELTS 5 TIMES AS FAST FOR 1 SECOND EVERY 2 SECONDS, EACH PULSE ADDING 30 DAMAGE.",
+      "EVERY 3 SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 10 DAMAGE.",
+      `EVERY ${effectAt("surge", 2).gate!.pulse!.period} SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 20 DAMAGE.`,
+      "EVERY 2 SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 30 DAMAGE.",
     ]);
-    expect(STARS.map((s) => gist("surge", s))).toEqual(["3 TIMES AS FAST, 10 DAMAGE A PULSE", "4 TIMES AS FAST, 20 DAMAGE A PULSE", "5 TIMES AS FAST, 30 DAMAGE A PULSE"]);
+    expect(STARS.map((s) => gist("surge", s))).toEqual(["10 DAMAGE EVERY 3 SECONDS", "20 DAMAGE EVERY 3 SECONDS", "30 DAMAGE EVERY 2 SECONDS"]);
     expect(abilityText("surge", 2).perk).toEqual({ name: "OVERPRESSURE", stars: 2, after: 0 });
   });
 });

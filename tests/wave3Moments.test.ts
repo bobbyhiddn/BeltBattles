@@ -20,7 +20,7 @@ import { cruiserModel, drawTurrets, muzzleX, muzzleY, turretPivotX, turretPivotY
 import { factoryFlashSil, factorySprite, gateSprite } from "../src/render/sprites";
 import { anvilSparks, stokeFlare, wave3FactoryArt, wave3GateSprite, wave3GearFace, wave3Gem, type Wave3RigState } from "../src/render/wave3Art";
 import {
-  ANVIL_TIME, RELEASE_TIME, SHRUG_TIME, crowdOf, factoryMoment, gearMoment, holdsPlating, rigMoment, steamPlated, stokedNow,
+  ANVIL_TIME, RELEASE_TIME, SHRUG_TIME, SPALL_GAUGE_ADDS, crowdOf, factoryMoment, gearMoment, holdsPlating, rigMoment, steamPlated, stokedNow,
 } from "../src/render/wave3Moments";
 import { plated } from "../src/screens/battleHud";
 import { C } from "../src/render/palette";
@@ -406,12 +406,16 @@ describe("A1's battle moments on the guns", () => {
     expect(plain.sfx[0].w3.pairAge[0]).toBe(Infinity);
   });
 
-  it("SPALL CATCHER: its face heats with its charge (TurretState.spall / its cap), against a gun shooting at us", () => {
+  // Y7b2 (the flip; DESIGN-Y row 47): SPALL CATCHER has no cap, so its face reads its charge over the gauge's full mark,
+  // SPALL_GAUGE_ADDS x add (80 at ★1, where the cap was), and stays full past it (wave3Moments.ts gearMoment). Was "...
+  // (TurretState.spall / its cap) ..."
+  it("SPALL CATCHER: its face heats with its charge (TurretState.spall / its gauge's full mark), against a gun shooting at us", () => {
     // FURNACE's heavy gun with no belt (it never fires, so it never spends the charge), under the shooter's fire
     const b: Build = { hero: "furnace", items: [{ uid: 1, def: "kiln", x: 0, y: 8 }], routes: [], mods: [{ uid: 50, def: "spallcatcher", turret: 0 }], beltCap: 30, hullBonus: 5000 };
     const faces = new Set<string>();
     const a = play(b, shooter(), (x) => {
-      const tu = turret(x, 0), q = (tu.spallCharge ?? 0) / tu.spall!.max;
+      // Y7b2 (the flip): was (tu.spallCharge ?? 0) / tu.spall!.max (the cap; no max now)
+      const tu = turret(x, 0), q = Math.min(1, (tu.spallCharge ?? 0) / (SPALL_GAUGE_ADDS * tu.spall!.add));
       const st = gearMoment("spallcatcher", 0, tu, x.sfx[0].w3);
       expect(st).toEqual({ charge: q }); // in battle always its charge (0: the cold face, as the build view's {})
       expect(wave3GearFace("spallcatcher", { charge: 0 })).toEqual(wave3GearFace("spallcatcher"));
@@ -420,7 +424,9 @@ describe("A1's battle moments on the guns", () => {
       faces.add(face.join());
       return q >= 1;
     }, 120);
-    expect(turret(a, 0).spallCharge).toBe(turret(a, 0).spall!.max);
+    // Y7b2 (the flip): the charge on the tick the face first reads full, measured 92.5 (past the full mark, 80: no cap; was
+    // spall.max, the cap, 80, where the charge stopped)
+    expect(turret(a, 0).spallCharge).toBe(92.5);
     expect(faces.size, "the face heats through its steps").toBeGreaterThanOrEqual(4);
     // the build view (no sim) shows the cold face
     expect(gearMoment("spallcatcher", 0, undefined, undefined)).toEqual({});

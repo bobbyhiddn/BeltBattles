@@ -3,6 +3,8 @@
 // whole CI above +10). Its damage per earlier hit is halved at every star, band-keeping: +1 / +2 / +3.5 (was +2 / +4 / +7;
 // ★2/★1 = 2.0 and ★3/★1 = 3.5 as before, inside tests/arsenal.modules.test.ts's band). Price (5 g), rarity, shape (II)
 // and the ★2/★3 cap (6 earlier hits) are unchanged. After: +16.0, no DOMINANT day.
+// Y7b2 (the flip; release Y, DESIGN-Y row 24): priorCap is gone (★2/★3 counted at most 6 earlier hits); +10/+20/+35 for
+// each rig hit before it, as before. The cap's data and words are re-pinned without it (switch-off only).
 import { describe, expect, it } from "vitest";
 import { ITEMS, rigShape } from "../src/sim/content";
 import { walkRoute, type Build } from "../src/sim/deck";
@@ -21,9 +23,11 @@ const PER_HIT = [10, 20, 35], WAS = [20, 40, 70];
 const haul = (stars: number): Build => bench([["whetstone", 4, 4, 1], ["longhaul", 4, 2, stars]]);
 
 describe("TUNE LONGHAUL: +1 / +2 / +3.5 damage per earlier hit (was +2 / +4 / +7)", () => {
-  it("the rule at 1/2/3 stars; price, rarity, shape and the ★2/★3 cap of 6 hits unchanged; the band kept", () => {
+  // Y7b2 (the flip): was "the rule at 1/2/3 stars; price, rarity, shape and the ★2/★3 cap of 6 hits unchanged; the band kept"
+  it("the rule at 1/2/3 stars; price, rarity and shape unchanged, no cap; the band kept", () => {
     expect(STARS.map((s) => effectAt("longhaul", s).gate)).toEqual([ // NUM-1: x10 (was 1 / 2 / 3.5)
-      { perPriorGate: 10 }, { perPriorGate: 20, priorCap: 6 }, { perPriorGate: 35, priorCap: 6 },
+      // Y7b2 (the flip): no priorCap (was priorCap: 6 at ★2 and ★3)
+      { perPriorGate: 10 }, { perPriorGate: 20 }, { perPriorGate: 35 },
     ]);
     expect([ITEMS.longhaul.price, ITEMS.longhaul.rarity, rigShape("longhaul")]).toEqual([5, "rare", "II"]);
     // band-keeping (REQ-BFG-019): every star halved, so ★2/★1 and ★3/★1 stay 2.0 and 3.5
@@ -61,11 +65,12 @@ describe("TUNE LONGHAUL: +1 / +2 / +3.5 damage per earlier hit (was +2 / +4 / +7
     expect(ITEMS.longhaul.desc).toEqual(["MORE DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."]);
     // 0.6.2rel3: REQ-BFG-032's glossary (src/ui/abilityText.ts) replaced the star flavour and the level shorthand (and the star flavour's ★3 re-flow: the glossary wraps whole words)
     // NUM-1: the damage numbers x10 (was 1 / 2 / 3.5); the 6 hits are a count, unchanged
+    // Y7b2 (the flip): no cap, so no ", UP TO 6 HITS" at ★2 / ★3 in the sentences, gists and NEXT STAR lines
     expect(STARS.map((s) => abilityText("longhaul", s).sentences[0])).toEqual([
-      "ADDS 10 DAMAGE FOR EACH EARLIER RIG HIT.", "ADDS 20 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.", "ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.",
+      "ADDS 10 DAMAGE FOR EACH EARLIER RIG HIT.", "ADDS 20 DAMAGE FOR EACH EARLIER RIG HIT.", "ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT.",
     ]);
-    expect(STARS.map((s) => gist("longhaul", s))).toEqual(["10 DAMAGE FOR EACH EARLIER HIT", "20 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS", "35 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS"]);
-    expect([nextStarText("longhaul", 1), nextStarText("longhaul", 2)]).toEqual(["NEXT STAR: 20 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS.", "NEXT STAR: 35 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS."]);
+    expect(STARS.map((s) => gist("longhaul", s))).toEqual(["10 DAMAGE FOR EACH EARLIER HIT", "20 DAMAGE FOR EACH EARLIER HIT", "35 DAMAGE FOR EACH EARLIER HIT"]);
+    expect([nextStarText("longhaul", 1), nextStarText("longhaul", 2)]).toEqual(["NEXT STAR: 20 DAMAGE FOR EACH EARLIER HIT.", "NEXT STAR: 35 DAMAGE FOR EACH EARLIER HIT."]);
     for (const s of STARS) expect(wrap(gist("longhaul", s), 151, "3").length, `★${s} on a phone`).toBeLessThanOrEqual(2);
     const hit = (s: number) => walkRoute(haul(s), 0).timeline.flatMap((row) => row.hits).find((h) => h.def === "longhaul")!;
     expect(STARS.map((s) => hitText(hit(s), "free"))).toEqual(["LONG HAUL +10 DAMAGE (1 HIT BEFORE)", "LONG HAUL +20 DAMAGE (1 HIT BEFORE)", "LONG HAUL +35 DAMAGE (1 HIT BEFORE)"]);

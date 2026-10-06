@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { Battle } from "../src/sim/battle";
-import { AMMO, BELT_SPEED, GUARD_FREEZE, GUARD_SLOW, ITEMS, RULES_VERSION, TICK, withWave3 } from "../src/sim/content";
+import { AMMO, BELT_SPEED, ITEMS, RULES_VERSION, TICK, withWave3 } from "../src/sim/content"; // Y7b2 (the flip): GUARD_FREEZE, GUARD_SLOW dropped with P8's guard flags
 import { withSustain } from "../src/sim/content"; // FLIP-X2: the 062b history check runs with the sustain pieces out
 import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: ... and with SIFTER not dormant (in062b below)
 import { hitsOfRig, key as K, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
@@ -53,7 +53,11 @@ function p7(f: string, stars: number): Build {
 const commission = (b: Build) => new Battle(b, barge(), SEED).sides[0].gates.map((g) => [g.uid, +g.commissionAt.toFixed(9), g.hotUntil]);
 
 describe("P7: ASSEMBLY LINE and rigs", () => {
-  it("one arrow on an Assembly Line's belt brings the rig online at 0 s; a Kiln-only rig at its scaled time; an IDLE rig never", () => {
+  // Y7b2 (the flip): Y3's ASSEMBLY LINE: its own belt's rigs take the same factor as every rig (they were online at 0 s, so
+  // one arrow there brought a rig online at 0 s) and ★3 HOT START is gone (no hotUntil: was 4 on the LONG HAUL and the
+  // Assembly's WHETSTONE). Was "one arrow on an Assembly Line's belt brings the rig online at 0 s; a Kiln-only rig at its
+  // scaled time; an IDLE rig never"
+  it("every rig on an Assembly Line's deck comes online at its scaled time, on its belt too; an IDLE rig never", () => {
     const b = p7("assembly", 1);
     expect(routeProblems(b)).toEqual([]);
     expect(hitsOfRig(b, 10).map((h) => [h.route, h.cell])).toEqual([[0, K(4, 3)], [1, K(6, 3)]]);
@@ -63,19 +67,24 @@ describe("P7: ASSEMBLY LINE and rigs", () => {
     expect(commission(p7("press", 1))).toEqual([[10, 1.8, undefined], [11, 1.2, undefined], [12, 1.2, undefined], [13, Infinity, undefined]]);
     // ASSEMBLY LINE x0.5 / x0.25 / x0 (catalogue): the LONG HAUL is online at 0 s (one arrow on its belt; the Kiln's
     // belt alone would give it 1.8 x f), the Kiln-only WHETSTONE at 1.2 x f; ★3 HOT START (4 s) on the whole rig
-    expect(commission(p7("assembly", 1))).toEqual([[10, 0, undefined], [11, 0.6, undefined], [12, 0, undefined], [13, Infinity, undefined]]);
-    expect(commission(p7("assembly", 2))).toEqual([[10, 0, undefined], [11, 0.3, undefined], [12, 0, undefined], [13, Infinity, undefined]]);
-    expect(commission(p7("assembly", 3))).toEqual([[10, 0, 4], [11, 0, undefined], [12, 0, 4], [13, Infinity, undefined]]);
+    // Y7b2 (the flip): the LONG HAUL (second rig on both belts) at 1.8 x f and each WHETSTONE (first on its belt) at 1.2 x f;
+    // no hotUntil. Were [[10, 0, undefined], [11, 0.6, undefined], [12, 0, undefined], ...], [[10, 0, undefined], [11, 0.3,
+    // undefined], [12, 0, undefined], ...] and [[10, 0, 4], [11, 0, undefined], [12, 0, 4], ...]
+    expect(commission(p7("assembly", 1))).toEqual([[10, 0.9, undefined], [11, 0.6, undefined], [12, 0.6, undefined], [13, Infinity, undefined]]);
+    expect(commission(p7("assembly", 2))).toEqual([[10, 0.45, undefined], [11, 0.3, undefined], [12, 0.3, undefined], [13, Infinity, undefined]]);
+    expect(commission(p7("assembly", 3))).toEqual([[10, 0, undefined], [11, 0, undefined], [12, 0, undefined], [13, Infinity, undefined]]);
     // in the battle: the time of each rig's "commission" event; the IDLE rig never has one
-    for (const [s, whet] of [[1, 0.6], [2, 0.3], [3, 0]] as const) {
+    // Y7b2 (the flip): `haul` is the LONG HAUL's time, 1.8 x f (was 0)
+    for (const [s, whet, haul] of [[1, 0.6, 0.9], [2, 0.3, 0.45], [3, 0, 0]] as const) {
       const bt = new Battle(p7("assembly", s), barge(), SEED);
       const on = new Map<number, number>();
       while (bt.t < 20 && !bt.over) {
         bt.step();
         for (const e of bt.drainEvents()) if (e.type === "commission" && e.side === 0) on.set(e.gate, bt.t);
       }
-      expect(on.get(10), `${s}`).toBeCloseTo(TICK, 9); // the first tick
-      expect(on.get(12), `${s}`).toBeCloseTo(TICK, 9);
+      // Y7b2 (the flip): each on the tick of its scaled time (the first tick at ★3); both were toBeCloseTo(TICK, 9)
+      expect(on.get(10), `${s}`).toBeCloseTo(Math.max(haul, TICK), 9);
+      expect(on.get(12), `${s}`).toBeCloseTo(Math.max(whet, TICK), 9);
       const late = on.get(11)! - Math.max(whet, TICK);
       expect(late >= -1e-9 && late < TICK + 1e-9, `${s}: ${on.get(11)}`).toBe(true);
       expect(on.has(13), `${s}`).toBe(false);
@@ -83,40 +92,8 @@ describe("P7: ASSEMBLY LINE and rigs", () => {
     }
   });
 
-  it("★3 HOT START overclocks both arrows of the rig (on either belt) for the first 4 s, then not; never at ★1/★2", () => {
-    for (const s of [1, 2, 3]) {
-      const bt = new Battle(p7("assembly", s), barge(), SEED);
-      const side = bt.sides[0];
-      const before = new Map<number, number>(); // payload -> its flat after the WHETSTONE tile (tile 1)
-      const seen = new Set<number>();
-      const rows: [number, number, number, number][] = []; // [route, t past the LONG HAUL, WHETSTONE gain, LONG HAUL gain]
-      while (bt.t < 12 && !bt.over) {
-        bt.step();
-        bt.drainEvents();
-        for (const r of side.routes) for (const a of r.ammo) {
-          if (a.processed === 1) before.set(a.p.id, a.p.flat);
-          else if (a.processed >= 2 && before.has(a.p.id) && !seen.has(a.p.id)) {
-            seen.add(a.p.id);
-            rows.push([r.index, bt.t, before.get(a.p.id)!, a.p.flat - before.get(a.p.id)!]);
-          }
-        }
-      }
-      const hot = (t: number) => s === 3 && t < 4 - 1e-6;
-      for (const [route, t, whet, haul] of rows) {
-        if (s === 3 && Math.abs(t - 4) < 1e-6) continue; // the tick that ends HOT START
-        // LONG HAUL ★1: its +10 per prior hit (1: the WHETSTONE), overclocked +20, on the Kiln's belt as on the Assembly's
-        expect(haul, `★${s} route ${route} at ${t.toFixed(3)}`).toBe((hot(t) ? 2 : 1) * effectAt("longhaul", 1).gate!.perPriorGate!);
-        // the Kiln-only WHETSTONE is never hot; the Assembly's own is, while HOT START lasts (it hit earlier than t).
-        // NUM-1: the WHETSTONE ★1 flat from the catalogue, x10: 20 (was 2), overclocked 40 (was 4)
-        if (route === 0) expect(whet, `★${s} Kiln WHETSTONE`).toBe(effectAt("whetstone", 1).gate!.flat!);
-        else if (hot(t)) expect(whet, `★${s} Assembly WHETSTONE`).toBe(2 * effectAt("whetstone", 1).gate!.flat!);
-      }
-      for (const route of [0, 1]) {
-        expect(rows.filter((r) => r[0] === route && hot(r[1])).length > 0, `★${s} route ${route}: hot hits`).toBe(s === 3);
-        expect(rows.filter((r) => r[0] === route && r[1] > 4 + 1e-6).length, `★${s} route ${route}: later hits`).toBeGreaterThan(2);
-      }
-    }
-  });
+  // Y7b2 (the flip): the test "★3 HOT START overclocks both arrows of the rig (on either belt) for the first 4 s, then not;
+  // never at ★1/★2" is deleted: ★3 HOT START is gone (Y3)
 });
 
 // ---------------------------------------------------------------- P8: SLAG rides at its fixed speed
@@ -135,7 +112,9 @@ const SPEEDS: [string, number][] = [1, 2, 3].flatMap((s) => [["brake", s], ["gre
  *  P13): 0.6.1f's BRAKE ★2 HOT SHOE +20 and ★3 RED-HOT SHOE +50, mixed effects like AFTERBURNER. The rest have none. */
 // 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): REDLINE (OVERDRIVE ★2) adds +10, which slag keeps as it keeps AFTERBURNER's +30
 // NUM-1 (REQ-BFG-047): the damage family x10 (was 1, 3, 2, 5)
-const FLAT: Record<string, number> = { "overdrive 2": 10, "overdrive 3": 30, "brake 2": 20, "brake 3": 50 };
+// Y7b2 (the flip): no speed rig has a flat part now (OVERDRIVE ★2/★3's REDLINE and AFTERBURNER flats are gone, Y2, and BRAKE
+// ★2/★3's HOT SHOE and RED-HOT SHOE flats, Y3): was { "overdrive 2": 10, "overdrive 3": 30, "brake 2": 20, "brake 3": 50 }
+const FLAT: Record<string, number> = {};
 const flatOf = (def: string, s: number): number => FLAT[`${def} ${s}`] ?? 0;
 
 describe("P8: SLAG rides at its fixed 0.75x", () => {
@@ -185,9 +164,11 @@ describe("P8: SLAG rides at its fixed 0.75x", () => {
       expect(o.processed, `${def} ★${s}: the rig still processes slag`).toBeGreaterThan(0);
       expect(o.burn, `${def} ★${s}: the TEMPER's Burn`).toEqual([effectAt("temper", 1).gate!.burn]);
       // beltside-062-on-061 (P13): BRAKE ★2/★3's flat applies to slag too (P8: only the speed part does nothing)
-      expect(o.flat, `${def} ★${s}: a flat part applies (AFTERBURNER +30, HOT SHOE +20, RED-HOT SHOE +50)`).toEqual([flatOf(def, s)]);
-      const g = def === "overdrive" ? [0, GUARD_SLOW, GUARD_SLOW | GUARD_FREEZE][s - 1] : 0; // REDLINE / AFTERBURNER flags
-      expect(o.guard, `${def} ★${s}: guard flags from tile 3 on`).toEqual([0, 0, 0, g, g, g, g]);
+      // Y7b2 (the flip): no speed rig has a flat part (FLAT is empty), so 0 for each (the message named AFTERBURNER +30, HOT
+      // SHOE +20, RED-HOT SHOE +50)
+      expect(o.flat, `${def} ★${s}: no flat part`).toEqual([flatOf(def, s)]);
+      // Y7b2 (the flip): no guard flags (was REDLINE's GUARD_SLOW and AFTERBURNER's GUARD_SLOW | GUARD_FREEZE from tile 3 on)
+      expect(o.guard, `${def} ★${s}: no guard flags`).toEqual([0, 0, 0, 0, 0, 0, 0]);
     }
   });
 

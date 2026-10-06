@@ -53,17 +53,19 @@ describe("E1: plating on every hull (SideState.plate, the Prime's Q4)", () => {
     expect(bt.sides[1].stats.damage).toBe(140); // the attacker dealt the whole of both hits
   });
 
-  it("plating soaks burn, poison and limpet ticks; the dark wind goes straight through it", () => {
+  // Y7b2 (the flip): POISON is gone (HullState.poison deleted), so its tick left this test (switch-off only). Was "plating
+  // soaks burn, poison and limpet ticks; ..."
+  it("plating soaks burn and limpet ticks; the dark wind goes straight through it", () => {
     const bt = new Battle(furnaceBench(), barge(), SEED);
     const s = bt.sides[0], hp = s.hull.hp;
     // NUM-1 (REQ-BFG-047): plating, Burn, poison and the blast x10, in whole ticks (was plating 20; 2 + 2 + 5 soaked)
     bt.addPlate(s, 200);
     s.hull.burns.push({ dps: 2, t: 1 }); // 2 stacks: 2 x BURN_DPS (10) = 20, dealt at 1 s
-    s.hull.poison = { stacks: 5, t: 1 }; // 20 a second (4 a stack), dealt at 1 s
+    // Y7b2 (the flip): the poison pool (s.hull.poison = { stacks: 5, t: 1 }, 20 at 1 s) is deleted with POISON
     s.limpets.push({ at: bt.t + 0.5, target: { kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 }, from: 1, blast: 50, stall: 0 });
     for (let i = 0; i < 70; i++) bt.step();
     expect(s.hull.hp).toBe(hp); // NUM-1: whole (was toBeCloseTo(hp, 9))
-    expect(s.plate.plate).toBe(200 - 20 - 20 - 50); // NUM-1: whole (was toBeCloseTo(20 - 2 - 2 - 5, 6))
+    expect(s.plate.plate).toBe(200 - 20 - 50); // NUM-1: whole (was toBeCloseTo(20 - 2 - 2 - 5, 6)). Y7b2 (the flip): was 200 - 20 - 20 - 50 (the poison's 20)
     // the wind: past WIND_START it hits the hull, and plating doesn't move
     bt.t = 26;
     const plate = s.plate.plate, before = s.hull.hp;

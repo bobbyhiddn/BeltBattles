@@ -5,7 +5,7 @@
 // and SABOT's bare-hull +60 are gone. The checks that drove them drive the real rounds (read from the data) instead.
 import { describe, expect, it } from "vitest";
 import { Battle, type Payload, type SideState, type Target } from "../src/sim/battle";
-import { CELL, DISRUPT_TIME, GUARD_FREEZE, GUARD_SLOW, STUN_CAUSES, TICK, type HarassCause } from "../src/sim/content";
+import { CELL, DISRUPT_TIME, STUN_CAUSES, TICK, type HarassCause } from "../src/sim/content"; // Y7b2 (the flip): GUARD_SLOW, GUARD_FREEZE dropped with the OVERDRIVE guard test
 import { key as K, type Build } from "../src/sim/deck";
 import { debuffedDamage, siftDebuffs, type HarassRound } from "../src/sim/harassment";
 import { effectAt } from "../src/sim/stars";
@@ -88,7 +88,9 @@ describe("harassment rounds and projectile gate", () => {
 
   it("Flak intercepts once at mid-flight before damage or machinery effects", () => {
     const bt = fireOne({ kind: "frost", seconds: 2.5 });
-    bt.sides[1].flak = 1; // future FLAK mod's resolved value
+    // future FLAK mod's resolved value. Y7b2 (the flip): SideState.flak is deleted; each screen rolls on its own
+    // (SideState.flaks, Y2), so one sure screen (was flak = 1)
+    bt.sides[1].flaks = [1];
     const hp = bt.sides[1].hull.hp;
     const impactAt = bt.projectiles[0].flight;
     advance(bt, impactAt + TICK);
@@ -169,7 +171,10 @@ describe("machine and route effects", () => {
     expect(r.cells).not.toContain(K(3, 3)); // the rig stands beside the route
   });
 
-  it("a two-arrow rig is one part on both belts, while MANTLET checks every hit", () => {
+  // Y7b2 (the flip): MANTLET's guarded tiles no longer share its immunity with their rigs (Y2), so the checks that the frost
+  // and chain rounds' STUNs on the rig are refused (its second hit skirted by a MANTLET ★3: [disrupted, frozen] [0, 0],
+  // disrupted 0, harassAccepted 0) are deleted. Was "a two-arrow rig is one part on both belts, while MANTLET checks every hit"
+  it("a two-arrow rig is one part on both belts", () => {
     const b: Build = {
       hero: "furnace", beltCap: 30, hullBonus: 5000,
       items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 6, y: 6 },
@@ -180,13 +185,6 @@ describe("machine and route effects", () => {
     };
     const bt = quiet(b), s = bt.sides[1], g = s.gates[0];
     expect(g.hits.map((h) => [h.route, h.tile])).toEqual([[0, 4], [1, 4]]);
-    // NUM-3 (R1's STUN fold): was freeze(rig) false and slowSegment(rig) false; now the frost and the chain rounds' STUNs
-    // on the rig are refused alike: its second hit is skirted (MANTLET ★3 is immune to every STUN source)
-    probe(bt).roundImpact(s, target(s, "gate", 10), FROST, 0); // second hit is skirted
-    expect([g.disrupted, g.frozen]).toEqual([0, 0]);
-    probe(bt).roundImpact(s, target(s, "gate", 10), CHAIN, 0); // drag is also skirted
-    expect(g.disrupted).toBe(0);
-    expect(bt.sides[0].harassAccepted).toBe(0);
     expect(s.routes[0].cells).not.toContain(K(g.x, g.y));
     expect(s.routes[1].cells).not.toContain(K(g.x, g.y));
     // NUM-3: was (with the immunities cleared) slowSegment(rig) true, slowing tile 4 of both belts; now the chain round
@@ -210,37 +208,8 @@ describe("machine and route effects", () => {
     expect(worked(true)).toEqual([]);
   });
 
-  it("REDLINE and AFTERBURNER protect their downstream route tiles (NUM-3: from chain and frost rounds' STUNs)", () => {
-    const two = quiet(bench([["overdrive", 4, 3, 2]])), three = quiet(bench([["overdrive", 4, 3, 3]]));
-    for (const bt of [two, three]) {
-      const s = bt.sides[1], r = s.routes[0], t = target(s, "belt", 0, 3);
-      s.gates[0].online = true;
-      expect(r.guard[1] & GUARD_SLOW).toBe(0);
-      expect(r.guard[3] & GUARD_SLOW).toBeTruthy();
-      // NUM-3 (R1's STUN fold): was slowSegment(tile 3) false and cellSlow[3].t 0; now the chain round's STUN is refused
-      // on the guarded tile 3 (cause "drag" against GUARD_SLOW) and lands on the unguarded tile 1
-      probe(bt).roundImpact(s, t, CHAIN, 0);
-      expect(r.cellDisrupt[3]).toBe(0);
-      probe(bt).roundImpact(s, target(s, "belt", 0, 1), CHAIN, 0);
-      expect(r.cellDisrupt[1]).toBeCloseTo(CHAIN.seconds, 9);
-    }
-    // NUM-3: was freeze(tile 3) true at ★2, false at ★3, true once the OVERDRIVE is wrecked; now the frost round's STUN
-    // (cause "freeze" against GUARD_FREEZE) lands, is refused, and lands
-    const stunned = (bt: Battle): number => {
-      probe(bt).roundImpact(bt.sides[1], target(bt.sides[1], "belt", 0, 3), FROST, 0);
-      return bt.sides[1].routes[0].cellDisrupt[3];
-    };
-    expect(two.sides[1].routes[0].guard[3] & GUARD_FREEZE).toBe(0);
-    expect(stunned(two)).toBeCloseTo(FROST.seconds, 9);
-    expect(three.sides[1].routes[0].guard[3] & GUARD_FREEZE).toBeTruthy();
-    expect(stunned(three)).toBe(0);
-    three.sides[1].gates[0].wrecked = true;
-    expect(stunned(three)).toBeCloseTo(FROST.seconds, 9);
-    // NUM-3: the guard is by cause: any other STUN (a shock) still lands on an AFTERBURNER tile
-    const shock = quiet(bench([["overdrive", 4, 3, 3]])), ss = shock.sides[1];
-    ss.gates[0].online = true;
-    expect(probe(shock).disrupt(ss, target(ss, "belt", 0, 3), DISRUPT_TIME, "shock")).toBe(true);
-  });
+  // Y7b2 (the flip): the test "REDLINE and AFTERBURNER protect their downstream route tiles (NUM-3: from chain and frost
+  // rounds' STUNs)" is deleted: OVERDRIVE ★2/★3's guards are gone (Y2)
 
   it("Sabot wrecks the whole rig without removing its arrow or changing route length; other machines stall", () => {
     const bt = quiet(bench([["whetstone", 4, 3, 1]])), s = bt.sides[1], r = s.routes[0], g = s.gates[0];
@@ -395,17 +364,18 @@ describe("carried debuffs and guard order", () => {
     }
   });
 
-  it("SAP travels on a payload and obeys Toll before being applied", () => {
+  // Y7b2 (the flip): harassment is a STUN only (Y2), so a SAP mark is no longer tolled or counted: the checks that the toll
+  // refuses the first mark (applyPayloadDebuff toBe(false), no sap yet) and that the accepted mark counts (harassAccepted
+  // toBe(1)) are deleted; the mark lands at once with the toll in place. Was "SAP travels on a payload and obeys Toll before
+  // being applied"
+  it("SAP travels on a payload; a toll doesn't stop it", () => {
     const bt = quiet(bench([["whetstone", 4, 3, 1]])), s = bt.sides[1], g = s.gates[0];
     g.online = true; g.tolls = 1;
     const a = { p: payload(), s: 2 * CELL + 6, processed: 2, blocked: false };
     s.routes[0].ammo.push(a);
     const t = target(s, "belt", 0, 2);
-    expect(bt.applyPayloadDebuff(s, t, "sap")).toBe(false);
-    expect(a.p.debuffs?.sap).toBeUndefined();
     expect(bt.applyPayloadDebuff(s, t, "sap")).toBe(true);
     expect(a.p.debuffs?.sap).toBe(true);
-    expect(bt.sides[0].harassAccepted).toBe(1);
   });
 
   it("marks remain on the payload when it crosses from its route into the turret chamber", () => {

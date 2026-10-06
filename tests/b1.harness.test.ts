@@ -115,7 +115,9 @@ describe("B1 M2: the par player's rating reads plating as battles hold it (deckR
     const bas = withBreaker(heroStartBuild("bastion", 1));
     expect(platedDeck(bas)).toBe(true);
     const lo = walkRoute(bas, 0, undefined, { unplated: true }).estimate.dmg, hi = walkRoute(bas, 0).estimate.dmg;
-    expect(hi - lo).toBe(30); // +40 against +10 at 1 star (NUM-1: x10, was toBeCloseTo(3, 9): +4 against +1; whole now, so exact)
+    // NUM-1: x10, was toBeCloseTo(3, 9): +4 against +1; whole now, so exact. Y7b2 (the flip): PLATE BREAKER's floor is gone
+    // (Y3: flat 0, floor 0), so +40 against 0 at 1 star (was 30: +40 against +10)
+    expect(hi - lo).toBe(40);
     // the rated damage per payload on that belt: rateDeck's offense with the breaker, against offense with the walk's
     // big number counted in full (BREAKER_SHARE 1) and with its floor (0): the share it reads is BREAKER_SHARE
     const off = (share: number) => rateDeck(bas, RATING_CURVE, FIGHT_T, undefined, share).offense;

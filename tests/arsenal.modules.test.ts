@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
-import { DISRUPT_TIME, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, STUN_CAUSES, WINDOW_TIME, type HarassCause } from "../src/sim/content";
+import { DISRUPT_TIME, GUARD_SKIRT, STUN_CAUSES, WINDOW_TIME, type HarassCause } from "../src/sim/content"; // Y7b2 (the flip): GUARD_SLOW, GUARD_FREEZE dropped with OVERDRIVE's guard test
 import { arrowCell, arrowsOf, hitsOfRig, key, kx, ky, rigHits, rotField, type Build } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { barge, bench, busy, coilStall, est, finishers, pressDps, pressOnly, rawDamage, run, SEED, turretStall } from "./arsenal.bench";
@@ -34,8 +34,9 @@ export const LIVE_ROWS: Row[] = [
   { id: "whetstone", headline: "Flat damage", band: [2.0, 3.5], at: (s) => est(bench([["whetstone", 4, 3, s]])).dmg - est(bench()).dmg },
   { id: "grease", headline: "Speed above 1x", band: [2.2, 3.5], at: (s) => run(bench([["grease", 4, 4, s]]), 5).sides[0].routes[0].speedAt[3] - 1 },
   // 60 px (5 tiles) of belt follow the gate's centre on this route. 0.6.1f: HALF SPEED at every star, so the seconds
-  // are equal and the heat rises (a tuple: no part falls, the flat rises); no band, since 1 star adds no flat. The
-  // equality and the flat's 0 / 2 / 5 are asserted exactly below.
+  // are equal and the heat rises (a tuple: no part falls, the flat rises); no band, since 1 star adds no flat.
+  // Y7b2 (the flip): HOT SHOE's and RED-HOT SHOE's flats are gone and the belt runs 50% / 40% / 30%, so the seconds rise
+  // and the flat stays 0 (its exact checks, the "0.6.1f: BRAKE SHOE merges into heat" block below, are deleted)
   { id: "brake", headline: "Seconds added per tile vs 1x; flat damage per payload", at: (s) => [
     (est(bench([["brake", 4, 4, s]])).time - est(bench()).time) / 5,
     +(est(bench([["brake", 4, 4, s]])).dmg - est(bench([["brake", 4, 4, 1]])).dmg).toFixed(6),
@@ -86,7 +87,8 @@ export const FACTORY_ROWS: Row[] = [
   { id: "doublestamp", headline: "Output dps (batch x base / interval)", band: [2.3, 3.5], at: (s) => factoryOut("doublestamp", s).dps },
   { id: "shottower", headline: "Output dps (3 shots x base / interval)", band: [2.2, 3.5], at: (s) => factoryOut("shottower", s).dps },
   // the headline's Burn 2 / 4 / 7 on each ember slug (interval and spark stall have their own asserts below)
-  { id: "hotswap", headline: "Burn per ember slug", band: [2.0, 3.5], at: (s) => est(factoryBench("hotswap", s, { only: true }), 0).burn },
+  // Y7b2 (the flip): Y2's ember BURN 2 / 5 / 9 (content.ts hotswap), so 2/1 and 3/1 are 2.5 and 4.5: band [2.5, 4.5] (was [2.0, 3.5])
+  { id: "hotswap", headline: "Burn per ember slug", band: [2.5, 4.5], at: (s) => est(factoryBench("hotswap", s, { only: true }), 0).burn },
   { id: "slagpot", headline: "Output dps (base / interval)", band: [2.2, 3.4], at: (s) => factoryOut("slagpot", s).dps },
   // x0.5 / x0.25 / x0: the share of commissioning time saved, read off the Kiln route's two gates
   { id: "assembly", headline: "Commissioning time saved (1 - factor)", band: [1.5, 2.0], at: (s) => commissionSaved(s) },
@@ -108,7 +110,9 @@ describe("per-module benches: the headline metric rises 1 < 2 < 3 stars, within 
 });
 
 describe("0.6.1p: the six pending perks, each applied", () => {
-  it("LONG HAUL: priorCap 6 at 2 and 3 stars (1 star counts all 8 prior gates), in estimateRoute and the sim", () => {
+  // Y7b2 (the flip): LONG HAUL's priorCap is gone (★2/★3 counted at most 6 earlier hits), so every star counts all 8 (was
+  // "LONG HAUL: priorCap 6 at 2 and 3 stars (1 star counts all 8 prior gates), in estimateRoute and the sim")
+  it("LONG HAUL: every star counts all 8 prior gates (no priorCap), in estimateRoute and the sim", () => {
     // a 12-tile snake route: 8 WHETSTONES, then LONG HAUL on the 9th tile
     // 0.6.2 BELTSIDE merge: by hand, each rig beside its old tile with its one arrow on it: [x, y, facing] per tile
     // 0-7 (tile 0 from the east, 1-3 from below, 4 from the west, 5-6 from above, 7 from the east); the LONG HAUL
@@ -129,13 +133,13 @@ describe("0.6.1p: the six pending perks, each applied", () => {
     // NUM-1 (REQ-BFG-047): the damage is whole (payloadDamage rounds once), so the estimates and the flat are exact (toBe)
     const d = [1, 2, 3].map((s) => est(snake(s)).dmg - est(snake(s, false)).dmg);
     expect(d[0]).toBe(effectAt("longhaul", 1).gate!.perPriorGate! * 8);
-    expect(d[1]).toBe(effectAt("longhaul", 2).gate!.perPriorGate! * 6); // not ★2 x 8
-    expect(d[2]).toBe(effectAt("longhaul", 3).gate!.perPriorGate! * 6);
+    expect(d[1]).toBe(effectAt("longhaul", 2).gate!.perPriorGate! * 8); // Y7b2 (the flip): was x 6 (priorCap; "not ★2 x 8")
+    expect(d[2]).toBe(effectAt("longhaul", 3).gate!.perPriorGate! * 8); // Y7b2 (the flip): was x 6 (priorCap)
     const bt = run(snake(2), 14);
     const past = bt.sides[0].routes[0].ammo.filter((a) => a.processed >= 8);
     expect(past.length).toBeGreaterThan(0);
-    // NUM-1: 8 WHETSTONES at ★1's flat (x10: was the literal 8 * 2)
-    for (const a of past) expect(a.p.flat).toBe(8 * effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 2).gate!.perPriorGate! * 6);
+    // NUM-1: 8 WHETSTONES at ★1's flat (x10: was the literal 8 * 2). Y7b2 (the flip): LONG HAUL ★2 x 8 (was x 6, priorCap)
+    for (const a of past) expect(a.p.flat).toBe(8 * effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 2).gate!.perPriorGate! * 8);
   });
 
   // NUM-3 (N1 2.2): whole-second STUNs: DISRUPT_TIME 2 at ★1, shockTime 2 / 3 at ★2 / ★3 (was 1.6, 1.8 and 2.8 s). The
@@ -176,34 +180,12 @@ describe("0.6.1p: the six pending perks, each applied", () => {
     expect(n).toBe(2);
     for (const m of mults) expect(m).toBeCloseTo(0.85);
     expect(s[0] > s[1]).toBe(true); // front first, the belt order kept
-    // the generic loop still makes copies - 1: under ASSEMBLY LINE ★3 HOT START's overclock a 1-star splitter cuts 3
-    const [hn, hm, hs] = firstCut(factoryBench("assembly", 3, { only: true, gates: [["splitter", 5, 3, 1]] }), 4);
-    expect(hn).toBe(3);
-    for (const m of hm) expect(m).toBeCloseTo(0.6);
-    expect(hs[0] > hs[1] && hs[1] > hs[2]).toBe(true);
+    // Y7b2 (the flip): ASSEMBLY LINE ★3 HOT START is gone, so its check is deleted (was: under HOT START's overclock a 1-star
+    // splitter cuts 3, the generic loop's copies - 1: n 3, mults 0.6, front first)
   });
 
-  // 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): REDLINE (★2) adds +1 flat (flat 0 / 1 / 3), so its faster belt is no loss
-  it("OVERDRIVE: REDLINE +1 and AFTERBURNER +3 flat at 2 and 3 stars; REDLINE/AFTERBURNER guard flags set downstream, with no effect in wave 1", () => {
-    const flatAt = (s: number) => {
-      const bt = run(bench([["overdrive", 4, 4, s]]), 6);
-      const past = bt.sides[0].routes[0].ammo.filter((a) => a.processed >= 1);
-      expect(past.length).toBeGreaterThan(0);
-      return past[0].p.flat;
-    };
-    expect([1, 2, 3].map(flatAt)).toEqual([0, 1, 3].map((v) => 10 * v)); // NUM-1: x10 (was 0 / 1 / 3)
-    const guard = (s: number) => new Battle(bench([["overdrive", 4, 4, s]]), barge(), SEED).sides[0].routes[0].guard;
-    expect(guard(1)).toEqual([0, 0, 0, 0, 0, 0]);
-    expect(guard(2)).toEqual([0, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW]);
-    expect(guard(3)).toEqual([0, 3, 3, 3, 3, 3].map((v) => (v ? GUARD_SLOW | GUARD_FREEZE : 0)));
-    // the flags do nothing yet: clearing them fights identically
-    const a = new Battle(bench([["overdrive", 4, 4, 3]]), busy(), SEED);
-    const b = new Battle(bench([["overdrive", 4, 4, 3]]), busy(), SEED);
-    b.sides[0].routes[0].guard.fill(0);
-    for (let i = 0; i < 60 * 30; i++) { a.step(); b.step(); }
-    expect(a.sides[0].stats.damage).toBe(b.sides[0].stats.damage);
-    expect(a.sides[1].stats.damage).toBe(b.sides[1].stats.damage);
-  });
+  // Y7b2 (the flip): the test "OVERDRIVE: REDLINE +1 and AFTERBURNER +3 flat at 2 and 3 stars; REDLINE/AFTERBURNER guard
+  // flags set downstream, with no effect in wave 1" is deleted: OVERDRIVE ★2/★3's flats and guards are gone (Y2)
 
   it("STAMP PRESS: HARDENED DIES 5 and MASTER DIES 7.5 through Payload.base (estimate and every fired slug)", () => {
     const dies = [3, 5, 7.5].map((v) => 10 * v); // NUM-1: x10 (was 3 / 5 / 7.5)
@@ -216,37 +198,13 @@ describe("0.6.1p: the six pending perks, each applied", () => {
     }
   });
 
-  it("EXT. CHAMBER: WIDE BREECH window +1 at 2 and 3 stars; a busy SALVO turret then fires volleys of 4", () => {
-    expect([1, 2, 3].map((s) => tu0(bench([], [["chamber", s]])).window)).toEqual([3, 4, 4]);
-    // SALVO RACK waits for a full window (or 2x the window time), so the window's size shows as the volley
-    const most = (s: number) => { // the largest volley: shots turret 0 fires in one tick
-      let m = 0;
-      run(busy([["chamber", s], ["salvo", 1]]), 30, barge(), SEED, (ev) => {
-        m = Math.max(m, ev.filter((e) => e.type === "fire" && e.side === 0 && e.turret === 0).length);
-      });
-      return m;
-    };
-    expect([1, 2, 3].map(most)).toEqual([3, 4, 4]);
-  });
+  // Y7b2 (the flip): the test "EXT. CHAMBER: WIDE BREECH window +1 at 2 and 3 stars; a busy SALVO turret then fires volleys
+  // of 4" is deleted: EXT. CHAMBER's +1 slot is gone (Y4: it fires 2 / 3 / 4 loads a shot, at most the chamber)
 });
 
-describe("0.6.1f: BRAKE SHOE merges into heat, not a deeper slow (HOT SHOE, RED-HOT SHOE)", () => {
-  it("the seconds added per tile are equal at every star; the flat damage per payload is 0 / 2 / 5 exactly", () => {
-    const perTile = [1, 2, 3].map((s) => (est(bench([["brake", 4, 4, s]])).time - est(bench()).time) / 5);
-    expect(perTile[0]).toBeGreaterThan(0); // still a slow
-    expect([perTile[1], perTile[2]]).toEqual([perTile[0], perTile[0]]);
-    expect([1, 2, 3].map((s) => run(bench([["brake", 4, 4, s]]), 5).sides[0].routes[0].speedAt[3])).toEqual([0.5, 0.5, 0.5]);
-    // every payload past the shoe (cell 1) carries its heat, read off the sim (AFTERBURNER's probe)
-    const flats = (s: number) => {
-      const past = run(bench([["brake", 4, 4, s]]), 8).sides[0].routes[0].ammo.filter((a) => a.processed >= 1);
-      expect(past.length, `${s}`).toBeGreaterThan(0);
-      return [...new Set(past.map((a) => a.p.flat))];
-    };
-    const heat = [0, 2, 5].map((v) => 10 * v); // NUM-1: x10 (was 0 / 2 / 5)
-    expect([1, 2, 3].map(flats)).toEqual(heat.map((v) => [v]));
-    expect([1, 2, 3].map((s) => est(bench([["brake", 4, 4, s]])).dmg - est(bench([["brake", 4, 4, 1]])).dmg).map((d) => +d.toFixed(9))).toEqual(heat);
-  });
-});
+// Y7b2 (the flip): the block "0.6.1f: BRAKE SHOE merges into heat, not a deeper slow (HOT SHOE, RED-HOT SHOE)" and its one
+// test ("the seconds added per tile are equal at every star; the flat damage per payload is 0 / 2 / 5 exactly") are deleted:
+// BRAKE SHOE ★2/★3's flats are gone and it slows the belt to 40% / 30% (Y3)
 
 /** A private Battle.disrupt call on side 0 (the probe for MANTLET's immunities). */
 type Disrupt = { disrupt(s: unknown, t: { kind: string; ref: number; cell: number; x: number; y: number; weight: number }, secs: number, cause: HarassCause): boolean };
@@ -263,39 +221,34 @@ const coilDeck = (): Build => {
 describe("0.6.1p: HOPPER, MANTLET and FINISHER RAM", () => {
   // 0.6.2 FB-B (tests/fb062.hopper.test.ts): every star keeps ★1's +1 slot and +0.5 s (was +1/+2/+3 and +0.5/+1.0/+1.5)
   // and ★2/★3 add a store of 1/2 loads taken while the gun fires
-  it("HOPPER: window +1 slot and +0.5 s at every star, a store of 0/1/2; BOTTOMLESS never jams on a jamming deck", () => {
-    expect([1, 2, 3].map((s) => tu0(bench([], [["hopper", s]])).window)).toEqual([4, 4, 4]);
-    expect([1, 2, 3].map((s) => tu0(bench([], [["hopper", s]])).windowTime)).toEqual([2, 2, 2]);
-    expect([1, 2, 3].map((s) => tu0(bench([], [["hopper", s]])).storeMax)).toEqual([0, 1, 2]);
-    const jams = (mods: [string, number][]) => run(busy(mods), 60).sides[0].stats.jams;
-    expect(jams([])).toBeGreaterThan(0);
-    expect(jams([["hopper", 3]])).toBe(0);
+  // Y7b2 (the flip): HOPPER's +0.5 s load time, its ★2/★3 store and ★3 BOTTOMLESS's no-jam are gone, and its chamber holds
+  // +1 / +2 / +3 (Y4). Its window is re-pinned; the checks of the three removed rules are deleted (windowTime [2, 2, 2],
+  // storeMax [0, 1, 2], and the jamming busy deck: jams > 0 without it, 0 with a 3-star HOPPER). Was "HOPPER: window +1 slot
+  // and +0.5 s at every star, a store of 0/1/2; BOTTOMLESS never jams on a jamming deck"
+  it("HOPPER: window +1 / +2 / +3 slots", () => {
+    expect([1, 2, 3].map((s) => tu0(bench([], [["hopper", s]])).window)).toEqual([4, 5, 6]); // Y7b2 (the flip): was [4, 4, 4]
   });
 
-  it("HOPPER on a GATLING SPOOL: its slot counts, its seconds do nothing (the Prime's call)", () => {
-    const b = busy([["gatling", 1], ["hopper", 1]]);
-    const a = new Battle(b, barge(), SEED), c = new Battle(b, barge(), SEED);
+  // Y7b2 (the flip): HOPPER's +0.5 s is gone, so the checks that its seconds do nothing on a GATLING SPOOL (shots and damage
+  // with windowTime set back to WINDOW_TIME) and that they change a fight on the identity routine are deleted; its slot still
+  // counts there. Was "HOPPER on a GATLING SPOOL: its slot counts, its seconds do nothing (the Prime's call)"
+  it("HOPPER on a GATLING SPOOL: its slot counts (the Prime's call)", () => {
+    const a = new Battle(busy([["gatling", 1], ["hopper", 1]]), barge(), SEED);
     expect(a.sides[0].turrets[0].window).toBe(4);
-    c.sides[0].turrets[0].windowTime = WINDOW_TIME; // HOPPER's +0.5 s taken back
-    for (let i = 0; i < 60 * 30; i++) { a.step(); c.step(); }
-    expect(a.sides[0].stats.shots).toBe(c.sides[0].stats.shots);
-    expect(a.sides[0].stats.damage).toBe(c.sides[0].stats.damage);
-    // on the identity routine the same +0.5 s does change the fight
-    const d = new Battle(bench([], [["hopper", 1]]), barge(), SEED), e = new Battle(bench([], [["hopper", 1]]), barge(), SEED);
-    e.sides[0].turrets[0].windowTime = WINDOW_TIME;
-    for (let i = 0; i < 60 * 30; i++) { d.step(); e.step(); }
-    expect(d.sides[0].stats.damage).not.toBe(e.sides[0].stats.damage);
   });
 
   // 0.6.2 FB-B (tests/fb062.mantlet.test.ts): FULL PLATE also shields the intake tile (intakeGuard 1; was 0)
   // NUM-3 (R1's STUN fold): immune to every STUN source from ★1 (content.ts STUN_CAUSES; was shock/static/arc/drag at ★1,
   // + freeze and sabot at ★2, and LIMPET's stall in no star's list); ★2's perk is FULL GUARD (was FULL PLATE), the same tile
-  it("MANTLET: every STUN cause (STUN_CAUSES) at 1 star, + the intake tile (FULL GUARD), + the last 3 intake tiles (BULWARK SKIRT)", () => {
+  // Y7b2 (the flip): MANTLET guards the last 1 / 2 / 3 intake tiles from ★1 (Y2; was none, then FULL GUARD's 1 and BULWARK
+  // SKIRT's 3), and a guarded tile's rigs no longer share its immunity (Y2: the shared rig guard is gone). Was "MANTLET: every
+  // STUN cause (STUN_CAUSES) at 1 star, + the intake tile (FULL GUARD), + the last 3 intake tiles (BULWARK SKIRT)"
+  it("MANTLET: every STUN cause (STUN_CAUSES) at every star, + the last 1 / 2 / 3 intake tiles", () => {
     const tu = (s: number) => tu0(bench([], [["mantlet", s]]));
     expect(tu(1).immune).toEqual([...STUN_CAUSES]); // NUM-3: was ["shock", "static", "arc", "drag"]
     expect(tu(2).immune).toEqual(tu(1).immune); // NUM-3: was ★1's + "freeze" and "sabot"
     expect(tu(3).immune).toEqual(tu(2).immune);
-    expect([1, 2, 3].map((s) => tu(s).intakeGuard)).toEqual([0, 1, 3]);
+    expect([1, 2, 3].map((s) => tu(s).intakeGuard)).toEqual([1, 2, 3]); // Y7b2 (the flip): was [0, 1, 3]
     for (const s of [1, 2, 3]) {
       const bt = new Battle(bench([["whetstone", 4, 1, 1], ["whetstone", 4, 3, 1]], [["mantlet", s]]), barge(), SEED);
       expect(hit(bt, "turret", 0, -1), `${s} shock`).toBe(false);
@@ -304,13 +257,16 @@ describe("0.6.1p: HOPPER, MANTLET and FINISHER RAM", () => {
       for (const cause of STUN_CAUSES) expect(hit(bt, "turret", 0, -1, cause), `${s} ${cause}`).toBe(false);
       expect(bt.sides[0].turrets[0].disrupted).toBe(0);
       const skirt = bt.sides[0].routes[0].guard.map((g) => (g & GUARD_SKIRT ? 1 : 0));
-      expect(skirt).toEqual(s === 3 ? [0, 0, 0, 1, 1, 1] : s === 2 ? [0, 0, 0, 0, 0, 1] : [0, 0, 0, 0, 0, 0]);
-      expect(hit(bt, "belt", 0, 5), `${s} belt 5`).toBe(s === 1); // the intake tile
+      // Y7b2 (the flip): was s === 3 ? [0, 0, 0, 1, 1, 1] : s === 2 ? [0, 0, 0, 0, 0, 1] : [0, 0, 0, 0, 0, 0]
+      expect(skirt).toEqual(s === 3 ? [0, 0, 0, 1, 1, 1] : s === 2 ? [0, 0, 0, 0, 1, 1] : [0, 0, 0, 0, 0, 1]);
+      expect(hit(bt, "belt", 0, 5), `${s} belt 5`).toBe(false); // the intake tile, guarded from ★1 (Y7b2, the flip: was toBe(s === 1))
       // NUM-3: the intake tile (FULL GUARD, BULWARK SKIRT) shares the turret's immunity to every STUN cause
-      for (const cause of STUN_CAUSES) expect(hit(bt, "belt", 0, 5, cause), `${s} belt 5 ${cause}`).toBe(s === 1);
+      for (const cause of STUN_CAUSES) expect(hit(bt, "belt", 0, 5, cause), `${s} belt 5 ${cause}`).toBe(false); // Y7b2 (the flip): was toBe(s === 1)
       expect(hit(bt, "belt", 0, 0), `${s} belt 0`).toBe(true); // outside the skirt
       // 0.6.2 BELTSIDE merge: the rigs stand at (3,1) and (3,3), each with its one arrow on its old tile (P6)
-      expect(hit(bt, "gate", 10, -1), `${s} gate on tile 4`).toBe(s !== 3); // uid 10: the WHETSTONE working (4,1)
+      // Y7b2 (the flip): was toBe(s !== 3): BULWARK SKIRT's tiles shared its immunity with their rigs; a rig stalls now at
+      // every star, guarded tile or not (tile 4 is guarded at ★2 and ★3)
+      expect(hit(bt, "gate", 10, -1), `${s} gate on tile 4`).toBe(true); // uid 10: the WHETSTONE working (4,1)
       expect(hit(bt, "gate", 11, -1), `${s} gate on tile 2`).toBe(true); // uid 11: the WHETSTONE working (4,3)
       expect(hit(bt, "factory", 1, -1)).toBe(true);
     }
@@ -408,9 +364,11 @@ describe("0.6.1c: the six factories' special rules", () => {
 
   // NUM-3 (N1 2.2): the spark's STUN is 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8): DISRUPT_TIME at ★1 (no shockTime), and the
   // ★2 / ★3 shockTime read from the data (was the literals 1.8 / 2.8)
-  it("HOT SWAP: EMBER then SPARK in turn at 1.5 / 1.3 / 1.1 s; Burn 2 / 4 / 7; Shock 2 s (DISRUPT_TIME), 2 s + jump, 3 s + jump", () => {
+  // Y7b2 (the flip): Y2's HOT SWAP: ember BURN 2 / 5 / 9 (was 2 / 4 / 7), spark STUN 2 / 3 / 4 s, and SPARK JUMP is gone (no
+  // `jump` on any spark: was [undefined, 1, 1]). Was "...; Burn 2 / 4 / 7; Shock 2 s (DISRUPT_TIME), 2 s + jump, 3 s + jump"
+  it("HOT SWAP: EMBER then SPARK in turn at 1.5 / 1.3 / 1.1 s; Burn 2 / 5 / 9; Shock 2 s (DISRUPT_TIME), 3 s, 4 s", () => {
     const spark = (s: number) => effectAt("hotswap", s).factory!.cycle!.find((c) => c.tint === "spark")!;
-    const burn = [2, 4, 7], stall = [1, 2, 3].map((s) => spark(s).shockTime), jump = [undefined, 1, 1];
+    const burn = [2, 5, 9], stall = [1, 2, 3].map((s) => spark(s).shockTime), jump = [undefined, undefined, undefined]; // Y7b2 (the flip): burn was [2, 4, 7], jump [undefined, 1, 1]
     expect(stall[0]).toBeUndefined(); // ★1: no shockTime, so DISRUPT_TIME applies
     for (const x of stall.slice(1)) expect(x).toBeGreaterThan(0); // ★2 / ★3 name their own
     for (const s of [1, 2, 3]) {
@@ -434,25 +392,23 @@ describe("0.6.1c: the six factories' special rules", () => {
   });
 
   // NUM-3 (N1 2.2): 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8), read from the data: the spark's shockTime, else DISRUPT_TIME
-  it("HOT SWAP: its sparks stall the machine they hit for 2 / 2 / 3 s, and at 2-3 stars SPARK JUMP stalls a second one", () => {
+  // Y7b2 (the flip): Y2's spark STUN 2 / 3 / 4 s (read from the data as before); SPARK JUMP is gone, so its check (two
+  // disrupts in one tick at 2-3 stars: maxPerTick >= 2 toBe(s > 1)) is deleted. Was "HOT SWAP: its sparks stall the machine
+  // they hit for 2 / 2 / 3 s, and at 2-3 stars SPARK JUMP stalls a second one"
+  it("HOT SWAP: its sparks stall the machine they hit for 2 / 3 / 4 s", () => {
     const sparkStall = (s: number) => effectAt("hotswap", s).factory!.cycle!.find((c) => c.tint === "spark")!.shockTime ?? DISRUPT_TIME;
     for (const s of [1, 2, 3]) {
       const stalls = new Set<number>();
-      let maxPerTick = 0;
       run(factoryLight("hotswap", s), 30, barge(), SEED, (ev, bt) => {
-        let n = 0;
         for (const e of ev) {
           if (e.type !== "disrupt" || e.side !== 1) continue;
           const f = bt.sides[1];
           const secs = e.kind === "gate" ? f.gates.find((g) => g.uid === e.ref)?.disrupted : e.kind === "factory" ? f.factories.find((x) => x.uid === e.ref)?.disrupted
             : e.kind === "turret" ? f.turrets[e.ref]?.disrupted : f.routes[e.ref]?.cellDisrupt[e.cell];
           stalls.add(+(secs ?? 0).toFixed(3));
-          n++;
         }
-        maxPerTick = Math.max(maxPerTick, n);
       });
       expect([...stalls], `${s}`).toEqual([sparkStall(s)]); // NUM-3: was [[1.6, 1.8, 2.8][s - 1]]
-      expect(maxPerTick >= 2, `${s} jump`).toBe(s > 1);
     }
   });
 
@@ -490,11 +446,15 @@ describe("0.6.1c: the six factories' special rules", () => {
     return [kx(k), ky(k), +g.commissionAt.toFixed(9), g.hotUntil];
   });
 
-  it("ASSEMBLY LINE: every gate's commissionAt x0.5 / x0.25 / x0, its own belt's gates online at 0 s; without one, as before", () => {
+  // Y7b2 (the flip): Y3's ASSEMBLY LINE: its own belt's gates take the same factor as every gate (was online at 0 s) and ★3
+  // HOT START is gone (no hotUntil: was 4 at ★3). Was "ASSEMBLY LINE: every gate's commissionAt x0.5 / x0.25 / x0, its own
+  // belt's gates online at 0 s; without one, as before"
+  it("ASSEMBLY LINE: every gate's commissionAt x0.5 / x0.25 / x0, its own belt's gates too; without one, as before", () => {
     expect(gatesOf(factoryBench("press", 1, { gates: GATES }))).toEqual([[4, 4, 1.2, undefined], [4, 2, 1.8, undefined], [5, 3, 1.2, undefined]]);
     [0.5, 0.25, 0].forEach((f, i) => {
       expect(gatesOf(factoryBench("assembly", i + 1, { gates: GATES }))).toEqual([
-        [4, 4, +(1.2 * f).toFixed(9), undefined], [4, 2, +(1.8 * f).toFixed(9), undefined], [5, 3, 0, i === 2 ? 4 : undefined],
+        // Y7b2 (the flip): the own belt's gate was [5, 3, 0, i === 2 ? 4 : undefined]
+        [4, 4, +(1.2 * f).toFixed(9), undefined], [4, 2, +(1.8 * f).toFixed(9), undefined], [5, 3, +(1.2 * f).toFixed(9), undefined],
       ]);
     });
     // an Assembly Line off any belt runs nothing, so it changes nothing
@@ -523,18 +483,8 @@ describe("0.6.1c: the six factories' special rules", () => {
     expect(gatesOf(b)).toEqual([[1, 3, 0.3, undefined]]);
   });
 
-  it("ASSEMBLY LINE ★3 HOT START: its belt's gates apply twice for the first 4 s (WHETSTONE +4, then +2); never at 1-2 stars", () => {
-    for (const s of [1, 2, 3]) {
-      const flats: [number, number][] = [];
-      const done = new Set<number>();
-      run(factoryBench("assembly", s, { only: true, gates: [["whetstone", 5, 3, 1]] }), 10, barge(), SEED, (_ev, bt) => {
-        for (const a of bt.sides[0].routes[0].ammo) if (a.processed >= 3 && !done.has(a.p.id)) { done.add(a.p.id); flats.push([bt.t, a.p.flat]); }
-      });
-      expect(flats.length).toBeGreaterThan(3);
-      for (const [t, f] of flats) expect(f, `${s} at ${t}`).toBe(10 * (s === 3 && t < 4 ? 4 : 2)); // NUM-1: x10 (was 4 / 2)
-      if (s === 3) expect(flats.filter(([t]) => t < 4).length).toBeGreaterThan(0);
-    }
-  });
+  // Y7b2 (the flip): the test "ASSEMBLY LINE ★3 HOT START: its belt's gates apply twice for the first 4 s (WHETSTONE +4, then
+  // +2); never at 1-2 stars" is deleted: ★3 HOT START is gone (Y3)
 
   it("overclock.ts (ARSENAL.md §3.4): Burn, flat and per-prior-gate double; a SPLITTER makes one extra copy; speed gates and Shock unchanged", () => {
     expect(overclocked({ burn: 2 })).toEqual({ burn: 4 });

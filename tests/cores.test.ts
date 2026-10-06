@@ -158,16 +158,18 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
     });
 
     // NUM-3 (N1 2.2): the title's "windows close in 0.8 s" is 0.75 s now (LOAD 50% SHORTER, WINDOW_TIME 1.5 s x 50%)
-    it(`ROTARY BREECH, ${c.name}: oldest load first, windows close in 0.75 s, intervalMul, no jam at 3 stars`, () => {
+    // Y7b2 (the flip): ROTARY's fire rate and ★3's no-jam are gone; its windows close in 0.75 / 0.525 / 0.3 s (was "windows
+    // close in 0.75 s, intervalMul, no jam at 3 stars", and the no-jam check noJam(tu) toBe(s === 3), deleted)
+    it(`ROTARY BREECH, ${c.name}: oldest load first, windows close in 0.75 / 0.525 / 0.3 s`, () => {
       for (const s of STARS) {
         const lv = effectAt("rotary", s).core!;
         const { bt, tu } = bench(c, "rotary", s);
-        // NUM-3 (N1 2.2): was toBe(0.8); now the core's windowTime read from ITEMS (effectAt: 0.75 s at every star)
+        // NUM-3 (N1 2.2): was toBe(0.8); now the core's windowTime read from ITEMS (effectAt; Y7b2: 0.75 / 0.525 / 0.3 s)
         expect(tu.windowTime).toBe(lv.windowTime);
-        // NUM-2 (REQ-BFG-047; was the interval x intervalMul 0.85 / 0.7): ★2 / ★3 fire a whole 18% / 43% faster, the
-        // speed x (100 + fireRate) / 100 rounded half up once (battle.ts makeTurret), and the interval is 30 / that speed
+        // NUM-2 (REQ-BFG-047; was the interval x intervalMul 0.85 / 0.7): the speed x (100 + fireRate) / 100 rounded half up
+        // once (battle.ts makeTurret), and the interval is 30 / that speed. Y7b2 (the flip): no star holds a fireRate now, so
+        // this is the turret's own interval (★2 / ★3 fired a whole 18% / 43% faster)
         expect(tu.interval).toBe(secPer(Math.max(1, half(tu.def.speed * rateMul(lv.fireRate)))));
-        expect(ROUTINES.rotary.noJam(tu)).toBe(s === 3);
         const ps = loads(tu.window);
         chamber(tu, ps, "fire");
         const shots = run(bt, 5);
@@ -259,22 +261,19 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
       expect(kinds.some((k) => k !== "hull")).toBe(true);
     });
 
-    it(`DRAKE NOZZLE, ${c.name}: flat becomes Burn (1 per flatPerBurn), + addBurn x k, burning burnTime, a short spout`, () => {
+    // Y7b2 (the flip): DRAKE's addBurn, burnTime and flightMul are gone (no free BURN, its BURN lasts BURN_TIME, the shot
+    // flies as any shot), so their checks are deleted: spec.addBurn toBe(add), pr.burnTime toBe(lv.burnTime), the short
+    // spout (flight <= x0.7 + 0.22) and the hull's BURN lasting burnTime (was "..., + addBurn x k, burning burnTime, a short
+    // spout"). Each flatPerBurn (25 / 18 / 13) of the shot's bonus damage is 1 BURN
+    it(`DRAKE NOZZLE, ${c.name}: flat becomes Burn (1 per flatPerBurn)`, () => {
       for (const s of STARS) {
         const lv = effectAt("drake", s).core!;
         const { bt, tu } = bench(c, "drake", s);
-        const add = Math.max(1, Math.floor(lv.addBurn! * c.k + 0.5));
-        expect(tu.core.spec.addBurn).toBe(add);
-        chamber(tu, [load({ flat: 40, burn: 1 })], "fire"); // NUM-1: a flat of 40 (x10 of 4), as flatPerBurn 20 / 15 / 10
+        chamber(tu, [load({ flat: 40, burn: 1 })], "fire"); // NUM-1: a flat of 40 (x10 of 4)
         const [{ pr }] = run(bt, 1, 1);
-        const stacks = Math.floor(40 / lv.flatPerBurn!); // 2 / 2 / 4, as before
-        expect(pr.burn).toBe(1 + stacks + add);
-        expect(pr.dmg).toBe(PLAIN + 40 - stacks * lv.flatPerBurn!); // NUM-1: 30 / 40 / 30 (was 3 / 4 / 3)
-        expect(pr.burnTime).toBe(lv.burnTime);
-        expect(pr.flight).toBeLessThanOrEqual(tu.def.flight * 0.7 + 0.22 + 1e-9);
-        while (bt.projectiles.length) bt.step();
-        const burn = bt.sides[1].hull.burns.find((b) => b.dps === pr.burn)!;
-        expect(burn.t).toBeCloseTo(lv.burnTime! - TICK, 9); // lasts burnTime, not BURN_TIME 3 s
+        const stacks = Math.floor(40 / lv.flatPerBurn!); // Y7b2 (the flip): 1 / 2 / 3 at flatPerBurn 25 / 18 / 13 (was 2 / 2 / 4)
+        expect(pr.burn).toBe(1 + stacks); // Y7b2 (the flip): was 1 + stacks + add (addBurn x k)
+        expect(pr.dmg).toBe(PLAIN + 40 - stacks * lv.flatPerBurn!); // NUM-1: whole; Y7b2 (the flip): 45 / 34 / 31 (was 30 / 40 / 30)
       }
     });
 
@@ -289,7 +288,10 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         expect(vol.map((p) => p.payload.id)).toEqual([...ps].reverse().map((p) => p.id)); // all of it, LIFO
         // NUM-1: volleyFlat x kp, whole at install (heavy +20 / 44 / 70, medium +15 / 33 / 53, light +11 / 24 / 39)
         vol.forEach((p) => expect(p.dmg).toBe(PLAIN + scaled(lv.volleyFlat!, c.k)));
-        expect(tu.fireCd).toBeCloseTo(tu.interval * lv.reloadMul!, 12);
+        // Y7b2 (the flip): the reload is the turret's interval at its volley pace, its whole SPEED over reloadMul rounded half
+        // up once (cores.ts salvoSpeed / salvoReload: heavy 30 / 1.6 = 18.75 -> 19, 1.5789 s; medium 25, 1.2 s; light 55 / 1.6
+        // = 34.4 -> 34, 0.8824 s); was tu.interval x reloadMul (1.6 / 1.2 / 0.8727 s), the switch-off cadence
+        expect(tu.fireCd).toBeCloseTo(secPer(Math.max(1, half(tu.speed / lv.reloadMul!))), 12);
         const b2 = bench(c, "salvo", s); // one load: the window stays open twice the window time
         chamber(b2.tu, [load()], "load");
         expect(run(b2.bt, 5, 1)[0].t).toBeCloseTo(2 * WINDOW_TIME, 1);

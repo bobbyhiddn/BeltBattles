@@ -11,7 +11,7 @@ import { Battle, type SimEvent, type Target } from "../src/sim/battle";
 import {
   AMMO, BURN_TIME, DISRUPT_TIME, HEROES, ITEMS, STUN_CAUSES, TICK, WIND_START, WIND_WARN, type HarassCause, type ItemDef,
 } from "../src/sim/content";
-import { arrowCell, cloneBuild, installedTurrets, occupancy, rigArrows, type Build } from "../src/sim/deck";
+import { cloneBuild, installedTurrets, type Build } from "../src/sim/deck"; // Y7b2 (the flip): arrowCell, occupancy, rigArrows went with withRig
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars";
 import { debuffedDamage, siftDebuffs } from "../src/sim/harassment";
@@ -36,19 +36,8 @@ function withFactory(b0: Build, def: string, stars = 1): Build {
   return b;
 }
 
-/** b with rig `def` on the first free cell (off the forward row) whose arrow hits a belt tile (SUS-A's withRiveter). */
-function withRig(b0: Build, def: string): Build {
-  const b = cloneBuild(b0), occ = occupancy(b);
-  for (let k = 10; k < 100; k++) {
-    if (occ[k].item >= 0 || occ[k].route >= 0) continue;
-    for (let rot = 0; rot < 4; rot++) {
-      if (!rigArrows(def, rot).some((d) => { const c = arrowCell(k % 10, Math.floor(k / 10), d); return c >= 0 && occ[c].route >= 0; })) continue;
-      b.items.push({ uid: 950, def, x: k % 10, y: Math.floor(k / 10), ...(rot ? { rot } : {}) });
-      return b;
-    }
-  }
-  throw new Error(`no cell for a ${def}`);
-}
+// Y7b2 (the flip): withRig (b with a rig on the first free cell whose arrow hits a belt tile) is deleted with its one caller,
+// the SURGE VALVE speed-pulse test below
 
 /** The battle's private hooks these tests drive (as SUS-A's tests drive impact and hullEffects). */
 interface Hooks {
@@ -200,20 +189,24 @@ describe("NUM-3 step 2: whole-second durations", () => {
   it("N1's picks, star by star", () => {
     const at = (f: (e: ItemDef) => number | undefined, def: string) => [1, 2, 3].map((s) => f(effectAt(def, s)));
     expect([DISRUPT_TIME, ...at((e) => e.gate!.shockTime, "coil").slice(1)]).toEqual([2, 2, 3]);
-    expect(at((e) => e.factory!.cycle!.find((p) => p.tint === "spark")!.shockTime ?? DISRUPT_TIME, "hotswap")).toEqual([2, 2, 3]);
+    // Y7b2 (the flip): Y2's HOT SWAP spark STUN 2 / 3 / 4 s (was [2, 2, 3])
+    expect(at((e) => e.factory!.cycle!.find((p) => p.tint === "spark")!.shockTime ?? DISRUPT_TIME, "hotswap")).toEqual([2, 3, 4]);
     expect(at((e) => e.gate!.staticTime, "staticbrush")).toEqual([1, 2, 3]);
     expect(at((e) => e.core!.stall, "tesla")).toEqual([1, 1, 1]);
     expect(at((e) => (e.factory!.round as { seconds: number }).seconds, "frostbite")).toEqual([2, 3, 3]);
     // FLIP-X2 (REVIEW-NUM3 F1): ★3 STUNs 3 s (was [1, 2, 2]: ★3 the same as ★2)
     expect(at((e) => (e.factory!.round as { seconds: number }).seconds, "dragchain")).toEqual([1, 2, 3]);
     expect(at((e) => (e.factory!.round as { seconds: number }).seconds, "sabot")).toEqual([4, 4, 4]);
-    expect(at((e) => (e.factory!.round as { stall?: number }).stall, "limpet")).toEqual([undefined, 1, 2]);
+    // Y7b2 (the flip): LIMPET's stall is gone (Y2), so its row (stall [undefined, 1, 2]) is deleted
     expect(at((e) => e.gate!.overclockCooldown, "overclocker")).toEqual([4, 2, 1]);
     expect(at((e) => e.gate!.pulse!.period, "surge")).toEqual([3, 3, 2]);
-    expect(at((e) => e.gate!.latch!.hold, "twinlatch")).toEqual([1, 1, 1]); // today's 1 s (N1's 1 / 2 / 2 reads R1's unbuilt 1 / 1.5 / 2)
-    expect(at((e) => e.gate!.burnPerRide!.burn, "bellows")).toEqual([4, 9, 14]);
-    expect(at((e) => e.gate!.burnPerRide!.per, "bellows")).toEqual([10, 10, 10]);
-    expect(at((e) => e.core!.windowTime, "rotary")).toEqual([0.75, 0.75, 0.75]); // LOAD 50% SHORTER: 1.5 s x 50%
+    // today's 1 s (N1's 1 / 2 / 2 reads R1's unbuilt 1 / 1.5 / 2). Y7b2 (the flip): Y3's TWIN LATCH holds 1 / 2 / 3 s (was [1, 1, 1])
+    expect(at((e) => e.gate!.latch!.hold, "twinlatch")).toEqual([1, 2, 3]);
+    // Y7b2 (the flip): Y3's BELLOWS, +1 / +2 / +3 BURN for each whole 2 s ridden (was burn [4, 9, 14] per [10, 10, 10])
+    expect(at((e) => e.gate!.burnPerRide!.burn, "bellows")).toEqual([1, 2, 3]);
+    expect(at((e) => e.gate!.burnPerRide!.per, "bellows")).toEqual([2, 2, 2]);
+    // LOAD 50% SHORTER: 1.5 s x 50%. Y7b2 (the flip): Y4's 0.75 / 0.525 / 0.3 s, 50% / 65% / 80% sooner (was [0.75, 0.75, 0.75])
+    expect(at((e) => e.core!.windowTime, "rotary")).toEqual([0.75, 0.525, 0.3]);
   });
 
   it("a STUN starts and ends on the integer tick count: n whole ticks, after BRACE FRAME's or STEADY IRON's cut, no float drift", () => {
@@ -269,23 +262,8 @@ describe("NUM-3 step 3: the cadence carry", () => {
     expect(starts).toEqual([61, 122, 182, 243]); // a reset timer would drift a tick a beat: 61, 122, 183, 244
   });
 
-  it("SURGE VALVE in a battle: its belt runs fast exactly on the pulse's ticks once the rig is online", () => {
-    // a WEAVER start deck with a ★1 SURGE VALVE on the first free cell whose arrow hits a belt tile
-    const b = withRig(heroStartBuild("weaver"), "surge");
-    const bt = new Battle(b, FOE, 1);
-    const g = bt.sides[0].gates.find((x) => x.def.id === "surge");
-    expect(g?.hits.length).toBeGreaterThan(0);
-    if (!g || !g.hits.length) return;
-    const h = g.hits[0], r = bt.sides[0].routes[h.route];
-    const fast: number[] = [];
-    for (let i = 0; i < 400 && !bt.over; i++) {
-      bt.step(); bt.drainEvents();
-      if (g.online && g.disrupted <= 0 && r.speedAt[h.tile] > 1 && bt.ticks >= 180 && bt.ticks < 420) fast.push(bt.ticks);
-    }
-    expect(fast.length).toBeGreaterThan(0);
-    // only ticks inside the pulses [180, 240) and [360, 420)
-    expect(fast.every((n) => (n >= 180 && n < 240) || (n >= 360 && n < 420))).toBe(true);
-  });
+  // Y7b2 (the flip): the test "SURGE VALVE in a battle: its belt runs fast exactly on the pulse's ticks once the rig is online"
+  // is deleted: SURGE VALVE's speed pulse is gone (Y3: it sets no belt state; its damage pulse keeps the cadence above)
 
   it("ARMOR PRESS's plate timer carries its remainder at an off-grid pace (x1.1: 164, 328, 491, 655; a reset gives 492, 656)", () => {
     const bt = new Battle(withFactory(heroStartBuild("furnace"), "armorpress"), FOE, 3);

@@ -10,6 +10,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "../src/sim/content";
+import { RULES_VERSION } from "../src/sim/content"; // Y7b2: OVERDRIVE's tripwire (cap's ruling 171ac18e8a707ab5) is keyed to bb-0.9.3
 import { hitsOfRig, rigHits, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates } from "../src/sim/beltside";
 import { bench, busy, factoryBench, gantryBench } from "./arsenal.bench";
@@ -138,6 +139,17 @@ describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of the da
       const fall = KNOWN_FALLS.find((k) => k.id === c.id);
       if (fall) console.log(`KNOWN FALL (oracle ${fall.oracle}, ${fall.steps.join(", ")}: ${fall.cause}) ${line(c, r)}`);
       else if (process.env.BB_TABLES) console.log(`DECK ${line(c, r)}`);
+      // Y7b2 TRIPWIRE (cap's ruling 171ac18e8a707ab5; only while RULES_VERSION is "bb-0.9.3"; OVERDRIVE on this bench deck
+      // only): the flip removed REDLINE's +10 and AFTERBURNER's +30 flat, and 4x / 5x speed cuts ride-scaled damage on this
+      // deck, so ★2 < ★1 by 6.3% and ★3 < ★1 by 9.1% (was: every step an upgrade). Its three means are pinned exactly; the 3%
+      // check stays live for every other card and deck, and KNOWN_FALLS stays empty. Design list: OVERDRIVE's speed ladder (no
+      // flat returns, REVIEW-STARD); once fixed, delete this tripwire and let the 3% check cover OVERDRIVE again
+      if (RULES_VERSION === "bb-0.9.3" && c.id === "overdrive" && c.deck === "bench" && c.opp === WEAVER) {
+        const why = "Y7b2 tripwire (cap's ruling 171ac18e8a707ab5): OVERDRIVE's bench means pinned under bb-0.9.3, ★2 < ★1 by 6.3%, ★3 < ★1 by 9.1%; fix OVERDRIVE's speed ladder before the next rules version";
+        expect(r.map((x) => x.dmg), why).toEqual([941.4, 882, 856.05]);
+        expect(r[1].dmg, `${why}: the recorded finding, ★2 under ★1`).toBeLessThan(r[0].dmg);
+        return;
+      }
       if (!known(c.id, "1->2")) expect(r[1].dmg, `${c.id} 1->2`).toBeGreaterThanOrEqual(r[0].dmg * 0.97);
       if (!known(c.id, "2->3")) expect(r[2].dmg, `${c.id} 2->3`).toBeGreaterThanOrEqual(r[1].dmg * 0.97);
       if (!fall) expect(r[2].dmg, `${c.id} 1->3`).toBeGreaterThanOrEqual(r[0].dmg * 0.97);
