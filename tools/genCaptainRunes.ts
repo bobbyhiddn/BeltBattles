@@ -57,12 +57,20 @@ export const runeInertFor = (rune: string, hero: HeroId): boolean => RUNES[rune]
  *   par field's top decile (P90) against her road deck: day 8 23 / 12 -> 48 / 57, day 9 35 / 68 -> 72 / 98, day 10 30 / 58
  *   -> 80 / 89 (PYRE HEART is not in her day-10 offer once the earlier picks move, so her day-10 set is not the tip's).
  * A skip is a rune id (never taken) or [rune, day]: not taken before that day.
+ * CATCHUP-093 (REQ-BFG-024, REQ-BFG-058; the walls on release Y's field, bb-0.9.3; cap's ruling Q2 f77489ebe2e11698 rule 4,
+ * BRIEF-CATCHUP-093 lever b; readings from W/output-c093/probe, the tip 63d4ab5 -> with the skip):
+ * - MASTER VOSS: TWIN NAILS not before day 2 (day 1 OILED COGS; TWIN NAILS comes on day 2, and day 8 takes IRON SKIN for
+ *   SEAM RIVETS): the par field's top quartile against his day-1 road deck, WEAVER 37 -> 47 (85 at 1210ee8); his road deck
+ *   reads higher on days 4-10 (all 4 fields: day 4 35 -> 44, day 8 41 -> 48) and every walls reading of his stays 69 or more.
+ * - the Iron Matriarch: IRON SKIN never (day 5 BULWARK WARD, day 6 FINAL NAIL): the par field's top decile against her
+ *   day-8 road deck, FURNACE 7 -> 47 (90 at 1210ee8); days 9 / 10 FURNACE 67 / 58, WEAVER 100 / 100 (the walls first,
+ *   cap's ruling 3c58471c74bdc4ed Q3).
  */
 export type RuneSkip = string | readonly [rune: string, from: number];
 export const CAPTAIN_RUNE_SKIP: Readonly<Partial<Record<RivalId, readonly RuneSkip[]>>> = {
-  voss: ["twin_suns", "molten_vows"],
+  voss: ["twin_suns", "molten_vows", ["twin_nails", 2]],
   longtooth: ["scrap_saint"],
-  matriarch: [["pyre_heart", 10]],
+  matriarch: [["pyre_heart", 10], "iron_skin"],
 };
 /** Whether a CAPTAIN_RUNE_SKIP list keeps `rune` out of the pick at the dawn of `day`. */
 export const runeSkipped = (skip: readonly RuneSkip[], rune: string, day: number): boolean =>
