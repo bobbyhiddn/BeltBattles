@@ -18,7 +18,7 @@ import { Battle, simulate } from "../src/sim/battle";
 import { HEROES, RUN_DAYS, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
-import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, setLastChance, withLastChance, type Boon } from "../src/sim/lastChance";
+import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { RUNES } from "../src/sim/runes";
 import { ITEMS } from "../src/sim/content";
 import { parRunSeed, playerRun, rateOn } from "../src/sim/harness/player";
@@ -75,26 +75,30 @@ function fight(build: Build, runSeed: number, day: number): number {
   return b.winner ?? -1;
 }
 
-/** The ledger: the game's finishDay on a run with this seed, fed `res` (all 10 days), the switch as given. With the
- *  switch on, `after(d)` gives the results of days d+1..10 once LAST CHANCE fires on day d (else the plain ones go on). */
+/** The ledger: the game's finishDay on a run with this seed, fed `res` (all 10 days), LAST CHANCE on or off. On,
+ *  `after(d)` gives the results of days d+1..10 once LAST CHANCE fires on day d (else the plain ones go on).
+ *  Z-BUMP (REQ-BFG-073): the game's switch is gone, so "off" (the game before LAST CHANCE: section 3's off columns and the
+ *  exact model's) is a bench-only path: when finishDay fires LAST CHANCE, the bench takes its life straight back
+ *  (res.lastChance.lives) and leaves the run's one LAST CHANCE spent, so it never fires again. A LAST CHANCE fires only on
+ *  a loss that leaves 1 life before day 10 (never on days 1-3, so never across the day-3 refund), and only lives decide
+ *  the ledger, so every "off" outcome is the switch-off game's (pre500 v flip500, line for line). */
 function ledger(hero: HeroId, runSeed: number, res: readonly number[], on: boolean, after?: (d: number) => readonly number[]): Outcome {
-  return withLastChance(() => {
-    const run = newRun(hero, runSeed, `lcb-${hero}-${runSeed}`);
-    let cur = res.slice(), wins = 0, reached = 0, lcDay = 0;
-    for (let day = 1; day <= RUN_DAYS && !run.over; day++) {
-      startDusk(run, []);
-      const r = cur[day - 1];
-      finishDay(run, r as 0 | 1 | -1, 20, { ...ZERO }, { ...ZERO });
-      reached = day;
-      if (r === 0) wins++;
-      if (!lcDay && run.lastChance) {
-        lcDay = run.lastChance.day;
-        if (after) cur = [...cur.slice(0, day), ...after(day)];
-        delete run.runeDay;
-      }
+  const run = newRun(hero, runSeed, `lcb-${hero}-${runSeed}`);
+  let cur = res.slice(), wins = 0, reached = 0, lcDay = 0;
+  for (let day = 1; day <= RUN_DAYS && !run.over; day++) {
+    startDusk(run, []);
+    const r = cur[day - 1];
+    const dr = finishDay(run, r as 0 | 1 | -1, 20, { ...ZERO }, { ...ZERO });
+    if (!on && dr.lastChance) run.lives -= dr.lastChance.lives; // Z-BUMP: the bench-only off path (above)
+    reached = day;
+    if (r === 0) wins++;
+    if (on && !lcDay && run.lastChance) {
+      lcDay = run.lastChance.day;
+      if (after) cur = [...cur.slice(0, day), ...after(day)];
+      delete run.runeDay;
     }
-    return { complete: run.over === "complete", endDay: run.over === "lost" ? reached : 0, reached, wins, lcDay };
-  }, on);
+  }
+  return { complete: run.over === "complete", endDay: run.over === "lost" ? reached : 0, reached, wins, lcDay };
 }
 
 function job(hero: HeroId, seed: number, hull: number, forced: boolean): JobOut {
@@ -303,7 +307,7 @@ function main(): void {
     console.log(md);
     return;
   }
-  setLastChance(true); // the player's runs use the switch (the ledger sets its own per run)
+  // Z-BUMP: no switch to set (the player's runs and the bots' pick are the game's own; the ledger's off path is bench-only)
   const heroes = (arg("heroes") ?? PLAYABLE_HEROES.join(",")).split(",") as HeroId[];
   const seeds = range(arg("seeds") ?? "1-24");
   const forced = new Set(range(arg("forced") ?? "1-24"));

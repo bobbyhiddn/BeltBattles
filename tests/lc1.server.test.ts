@@ -1,14 +1,15 @@
 // LC-1 (REQ-BFG-073): the server's upload check of a LAST CHANCE (src/net/snapshot.ts lastChanceField and rulesGate.ts
 // lastChanceGateProblem; src/net/validate.ts lastChanceProblem, runeProblem's place, the +LAST_CHANCE_HULL grant and the free part;
 // src/net/records.ts isReachable's LAST CHANCE; server/app.ts). Honest runs are the par player's own runs with each card
-// (player.ts playerRun's opts.lastChance), on the par run's seed; every forgery is refused with its own error line. Tests
-// that turn the switch on put it back (afterEach). The server's data dir is under os.tmpdir() (run with TMPDIR set).
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+// (player.ts playerRun's opts.lastChance), on the par run's seed; every forgery is refused with its own error line. Z-BUMP
+// (the flip): LAST CHANCE is the game's rule, its switch deleted; a record under rules before LAST_CHANCE_RULES (OLD_RULES,
+// bb-0.9.1) is read by the rules gate, without it. The server's data dir is under os.tmpdir() (run with TMPDIR set).
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
-import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRules, setLastChance, type Boon, type LastChanceOffer } from "../src/sim/lastChance";
+import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, type Boon, type LastChanceOffer } from "../src/sim/lastChance";
 import { RUNES, runeFits, runeList } from "../src/sim/runes";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { checkSnapshot, decodeSnapshot, encodeSnapshot, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
@@ -23,6 +24,11 @@ import type { Build } from "../src/sim/deck";
 
 const D = 5; // the LAST CHANCE day: five losses (the early-loss refund lifts day 3) leave 1 life at dusk 5
 const PLATE = ITEMS.plating.supply!.hull!;
+/** Z-BUMP (the flip): a rules version before LAST_CHANCE_RULES (it stays older after the bump): where the switch off
+ *  refused the field or modelled no LAST CHANCE, a record under these rules is read without it, by the rules gate. */
+const OLD_RULES = "bb-0.9.1";
+/** The rules gate's reason for a LAST CHANCE under OLD_RULES (rulesGate.ts lastChanceGateProblem's words). */
+const OLD_GATE = `rules ${OLD_RULES} predate ${LAST_CHANCE_RULES}: LAST CHANCE (snapshot.lastChance) needs ${LAST_CHANCE_RULES} or later`;
 
 /** An honest upload at the dusk after a LAST CHANCE on day D: the par player's deck that took card `boon` at the dawn of
  *  day D + 1, its seed and lastChance; the record of a run that lost days 1-5 (0 wins, 2 lives at dusk 6). */
@@ -52,20 +58,20 @@ function fillPlates(s: GhostSnapshot): GhostSnapshot {
   return at(k);
 }
 
-afterEach(() => setLastChance(false));
-
 describe("LC-1: the decoder (snapshot.lastChance)", () => {
-  it("refuses the field with the switch off (rules bb-0.9.3), as V3_LIVE's off fields", () => {
-    const { s } = (() => { setLastChance(true); try { return honest("hull"); } finally { setLastChance(false); } })();
-    expect(lastChanceRules()).toBe(false);
-    expect(() => checkSnapshot(s)).toThrow("snapshot.lastChance: not in this rules version yet");
-    expect(isSnapshot(s)).toBe(false);
-    const { lastChance: _lc, ...plain } = s;
+  // Z-BUMP (the flip): was "refuses the field with the switch off (rules bb-0.9.3)"; the switch is gone, so the field is
+  // refused under rules before LAST_CHANCE_RULES, with the rules gate's words
+  it(`refuses the field under rules before LAST_CHANCE_RULES (${OLD_RULES}), with the rules gate's words, as V3_LIVE's off fields`, () => {
+    const { s } = honest("hull");
+    const old = { ...s, rules: OLD_RULES };
+    expect(() => checkSnapshot(old)).toThrow(`snapshot.lastChance: ${OLD_GATE}`);
+    expect(isSnapshot(old)).toBe(false);
+    const { lastChance: _lc, ...plain } = old;
     expect(checkSnapshot(plain).lastChance).toBeUndefined(); // the same snapshot without it decodes
+    expect(isSnapshot(plain)).toBe(true); // ... and the client's check takes it: only the field is refused
   });
 
-  it("with the switch on: accepted under LAST_CHANCE_RULES (RULES_VERSION until the flip), refused under older rules", () => {
-    setLastChance(true);
+  it("accepted under LAST_CHANCE_RULES (RULES_VERSION until the bump), refused under older rules", () => {
     const { s } = honest("hull");
     expect(LAST_CHANCE_RULES).toBe(RULES_VERSION);
     expect(checkSnapshot(s).lastChance).toEqual({ day: D, boon: "hull" });
@@ -79,7 +85,6 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
   });
 
   it("refuses a malformed one, each with its own line", () => {
-    setLastChance(true);
     const { s } = honest("rune");
     const bad = (lc: unknown) => () => checkSnapshot({ ...s, lastChance: lc } as unknown as GhostSnapshot);
     // a second LAST CHANCE: a run has one
@@ -100,7 +105,6 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
 
 describe("LC-1: honest LAST CHANCE runs pass the upload check", () => {
   it(`each card: the rune at its place, the free part's price once, the +${LAST_CHANCE_HULL} as a grant; the record knows the life`, () => {
-    setLastChance(true);
     for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
       for (const boon of ["rune", "part", "hull"] as Boon[]) {
         const { s } = honest(boon, hero);
@@ -115,15 +119,15 @@ describe("LC-1: honest LAST CHANCE runs pass the upload check", () => {
     expect(isReachable(6, 0, 1, { lastChance: null })).toBe(false);
     expect(isReachable(8, 2, 1, { lastChance: null })).toBe(false);
     expect(isReachable(8, 1, 1, { lastChance: 6 })).toBe(true);
-    expect(reachableRecords(6).some((r) => r.lives === 1)).toBe(false); // the switch on: no 1-life record at dusk 6
-    // switch off: the records are today's (0W 1 life at dusk 6 is reachable, 0W 2 lives too, with no LAST CHANCE)
-    setLastChance(false);
-    expect([isReachable(6, 0, 1), isReachable(6, 0, 2)]).toEqual([true, true]);
-    expect(reachableRecords(6, { lastChance: 5 })).toEqual(reachableRecords(6));
+    expect(reachableRecords(6).some((r) => r.lives === 1)).toBe(false); // LAST CHANCE: no 1-life record at dusk 6
+    // Z-BUMP (the flip): was "switch off: the records are today's"; a record under rules before LAST_CHANCE_RULES is read
+    // without LAST CHANCE (0W 1 life at dusk 6 is reachable, 0W 2 lives too), and its lastChance changes nothing
+    const old = { rules: OLD_RULES };
+    expect([isReachable(6, 0, 1, old), isReachable(6, 0, 2, old)]).toEqual([true, true]);
+    expect(reachableRecords(6, { ...old, lastChance: 5 })).toEqual(reachableRecords(6, old));
   });
 
   it(`the +${LAST_CHANCE_HULL} counts once toward the reachable hull; the free part's price comes out of the budget once`, () => {
-    setLastChance(true);
     // at its budget's edge (plates added while the check takes them), each honest deck still passes ...
     const hull = fillPlates(honest("hull").s), part = fillPlates(honest("part").s);
     expect(check(hull).ok).toBe(true);
@@ -138,7 +142,6 @@ describe("LC-1: honest LAST CHANCE runs pass the upload check", () => {
 
 describe("LC-1: forgeries are refused, each with its own error line", () => {
   it("a second LAST CHANCE (two LAST CHANCE runes)", () => {
-    setLastChance(true);
     const { s } = honest("rune");
     const runes = s.build.runes!;
     const spare = runeList().find((d) => runeFits(d, s.hero) && !runes.some((q) => q.id === d.id))!;
@@ -147,7 +150,6 @@ describe("LC-1: forgeries are refused, each with its own error line", () => {
   });
 
   it("a lastChance whose day can't be a loss to 1 life: its record isn't reachable", () => {
-    setLastChance(true);
     const { s } = honest("hull");
     const early = { ...s, lastChance: { day: 3, boon: "hull" as Boon } };
     expect(check(early).ok).toBe(true); // the deck itself is honest (the HULL card is always offered) ...
@@ -157,7 +159,6 @@ describe("LC-1: forgeries are refused, each with its own error line", () => {
   });
 
   it("a boon that isn't in the offer the seed gives", () => {
-    setLastChance(true);
     const { s, offer } = honest("rune");
     const other = runeList().find((d) => d.tier === "epic" && runeFits(d, s.hero) && d.id !== offer.rune!.id && !s.build.runes!.some((q) => q.id === d.id))!;
     const runes = s.build.runes!.map((q, i) => (i === D ? { id: other.id } : q));
@@ -174,7 +175,6 @@ describe("LC-1: forgeries are refused, each with its own error line", () => {
   });
 
   it("a rune claimed free without a lastChance; a part claimed free without one", () => {
-    setLastChance(true);
     const { lastChance: _r, ...rune } = honest("rune").s;
     expect(check(rune).errors).toEqual([`rune: runes: ${D + 2} held on day 6, at most one a dawn`]);
     const { lastChance: _p, ...part } = fillPlates(honest("part").s);
@@ -182,19 +182,18 @@ describe("LC-1: forgeries are refused, each with its own error line", () => {
   });
 
   it(`+${LAST_CHANCE_HULL} claimed twice`, () => {
-    setLastChance(true);
     const s = fillPlates(honest("hull").s);
     const twice = { ...s, build: { ...s.build, hullBonus: s.build.hullBonus + LAST_CHANCE_HULL } };
     expect(check(twice).errors.join()).toMatch(/^(budget|supply): /);
   });
 
   it("a LAST CHANCE on day 10 or not before the deck's day, through validateUpload too (a caller without the decoder)", () => {
-    setLastChance(true);
     const { s } = honest("hull");
     expect(check({ ...s, lastChance: { day: 10, boon: "hull" } }).errors).toEqual(["lastChance: day 10: LAST CHANCE comes only before day 10"]);
     expect(check({ ...s, lastChance: { day: 6, boon: "hull" } }).errors).toEqual(["lastChance: day 6 is not before the deck's day 6"]);
-    setLastChance(false);
-    expect(check(s).errors).toEqual(["lastChance: LAST CHANCE is not in this rules version yet"]);
+    // Z-BUMP (the flip): was "switch off: not in this rules version yet"; under rules before LAST_CHANCE_RULES validateUpload
+    // refuses the field with the rules gate's words
+    expect(check({ ...s, rules: OLD_RULES }).errors).toEqual([`lastChance: ${OLD_GATE}`]);
   });
 });
 
@@ -212,8 +211,8 @@ describe("LC-1: an honest LAST CHANCE run uploads through the server, each card"
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("POST /v1/ghosts stores the rune, part and hull runs; refuses a forged record and the field with the switch off", async () => {
-    setLastChance(true);
+  // Z-BUMP (the flip): title's end was "and the field with the switch off"
+  it(`POST /v1/ghosts stores the rune, part and hull runs; refuses a forged record and the field under older rules (${OLD_RULES})`, async () => {
     const me = await testIdentity(0);
     for (const boon of ["rune", "part", "hull"] as Boon[]) {
       const { s } = honest(boon, "weaver", 7);
@@ -227,17 +226,16 @@ describe("LC-1: an honest LAST CHANCE run uploads through the server, each card"
     const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
     expect(r.status).toBe(422);
     expect(((await r.json()) as { error: string }).error).toBe("record: 0W 2 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 3");
-    // the switch off: the field is refused by the decoder (400)
-    setLastChance(false);
-    const off = JSON.stringify(ownedBy({ ...s, runId: "lc1-off" }, me));
-    const q = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, off), body: off });
+    // Z-BUMP (the flip): was "the switch off: the field is refused by the decoder (400)"; under rules before
+    // LAST_CHANCE_RULES the decoder refuses it (400, before POST's own rules check), with the rules gate's words
+    const old = JSON.stringify(ownedBy({ ...s, rules: OLD_RULES, runId: "lc1-old" }, me));
+    const q = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, old), body: old });
     expect(q.status).toBe(400);
-    expect(JSON.stringify(await q.json())).toContain("snapshot.lastChance: not in this rules version yet");
+    expect(JSON.stringify(await q.json())).toContain(`snapshot.lastChance: ${OLD_GATE}`);
     expect(app.store.size).toBe(3);
   });
 
   it("decodeSnapshot round-trips an honest LAST CHANCE snapshot (the served form keeps it)", () => {
-    setLastChance(true);
     const { s } = honest("part", "bastion", 9);
     expect(decodeSnapshot(encodeSnapshot(s))).toEqual(checkSnapshot(s));
   });

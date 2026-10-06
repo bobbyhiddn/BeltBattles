@@ -14,13 +14,14 @@
 //   hero-METRONOME, hero-SIPHON: the same, for the two heroes bb-0.9.3 does not take (FLIP-X2: release X adds no hero; BAL-2: nor does 0.9.1; Y7b2: nor does release Y). The game's encoder
 //                       refuses them, so their bytes are the canonical text built by hand     -> 400, the strict decode's
 //                       hero gate naming bb-0.8.3 and the hero
-// Z-PREP (REQ-BFG-073; LC-1 REPORT 9.3), only while LAST CHANCE is on (lastChanceRules(): the flip), two more rows:
+// Z-PREP (REQ-BFG-073; LC-1 REPORT 9.3), two more rows, under PROBE_RULES with LAST CHANCE (Z-BUMP: the switch is gone;
+// the rules gate decides, rulesGate.ts lastChanceGateProblem(PROBE_RULES), as for any record):
 //   lastchance-signed   FURNACE's start deck with its six dawn runes and the HULL card (+LAST_CHANCE_HULL), dusk 6 at 0 wins
 //                       and 2 lives after a LAST CHANCE on day 5, with its seed                -> 201 and its ghost id
 //   lastchance-day3     the same with its LAST CHANCE on day 3, which no run carries           -> 422, the record error
-// With the switch off the plan is exactly the nine rows above, in that order, byte for byte.
-// Exactly four decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY and BASTION (with
-// LAST CHANCE on, five: FURNACE's LAST CHANCE deck too).
+// Under rules before LAST_CHANCE_RULES the plan would be exactly the nine rows above, in that order, byte for byte.
+// Exactly five decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION and
+// FURNACE's LAST CHANCE deck (four under rules without LAST CHANCE).
 // Built by `npm run build:server` beside ghost-admin.mjs:  node server/dist/ghost-probe.mjs <base-url> <id-file>
 // It writes the probe's player id to <id-file> before the first POST, so the clean-up (ghost-admin.mjs remove-player)
 // always has it, and it refuses an <id-file> that already holds an id (that earlier probe's player is not cleaned up yet).
@@ -36,7 +37,8 @@ import { checkBuildShape, encodeSnapshot, ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { botTakeRune } from "../src/sim/runes"; // FLIP-X2 (cap's ruling 5d6d83ef57d1494c): the honest decks' dawn runes
-import { LAST_CHANCE_HULL, lastChanceRules } from "../src/sim/lastChance"; // Z-PREP (REQ-BFG-073): the flip's two rows
+import { LAST_CHANCE_HULL } from "../src/sim/lastChance"; // Z-PREP (REQ-BFG-073): the flip's two rows
+import { lastChanceGateProblem } from "../src/net/rulesGate"; // Z-BUMP (REQ-BFG-073): the two rows by PROBE_RULES, through the rules gate
 
 /** The rules this probe's expectations are written for: release Y's (bb-0.9.3, Y7b2's bump; BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6, BELTS's bb-0.8.3 and 0.8.0's bb-0.8.0 before, the same heroes). */
 export const PROBE_RULES = "bb-0.9.3"; // Y7b2: the bump (was bb-0.9.1; BAL-2: was bb-0.9.0)
@@ -69,8 +71,11 @@ export const PROBE_STORED = 1 + STORED_HEROES.length;
 export const LC_DUSK = { day: 6, wins: 0, lives: 2 } as const;
 export const LC_DAY = 5;
 export const LC_FORGED_DAY = 3;
-/** The decks the probe stores when every check passes: PROBE_STORED, and the honest LAST CHANCE deck while the switch is on. */
-export const probeStored = (): number => PROBE_STORED + (lastChanceRules() ? 1 : 0);
+/** Z-BUMP (REQ-BFG-073): does the probe's rules version have LAST CHANCE (the rules gate: PROBE_RULES at or after
+ *  LAST_CHANCE_RULES)? The switch is gone; this asks what the switch asked. */
+export const probeHasLastChance = (): boolean => lastChanceGateProblem(PROBE_RULES) === null;
+/** The decks the probe stores when every check passes: PROBE_STORED, and the honest LAST CHANCE deck under rules with it. */
+export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0);
 export const PROBE_TIMEOUT_MS = 15_000;
 export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file>   (base url: http(s)://host[:port], no path; an id file that holds no id yet)";
 /** The server's answer to a POST without the signing headers (identity.ts uploadHeaderError). */
@@ -155,6 +160,9 @@ export function canonicalText(s: GhostSnapshot): string {
     build: checkBuildShape(s.build, "snapshot.build", s.v), runId: s.runId, playerId: s.playerId, createdAt: s.createdAt,
     ...(s.name !== undefined ? { name: s.name } : {}), // PACKS M2: the player's name
     ...(s.seed !== undefined ? { seed: s.seed } : {}), // FLIP-X2: the v3 run seed, after the name (snapshot.ts V3_SNAPSHOT_FIELDS)
+    // Z-BUMP (REQ-BFG-073, the flip): the taken LAST CHANCE, last of all { day, boon, id? } (snapshot.ts lastChanceField), so
+    // the probe's own canonical bytes cover its two LAST CHANCE rows as the encoder writes them
+    ...(s.lastChance !== undefined ? { lastChance: { day: s.lastChance.day, boon: s.lastChance.boon, ...(s.lastChance.id !== undefined ? { id: s.lastChance.id } : {}) } } : {}),
   });
 }
 
@@ -215,8 +223,8 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
     const want = heroError(hero);
     plan.push({ name: `hero-${hero.toUpperCase()}`, snapshot: s, text: canonicalText(s), signed: true, expected: `400 ${want}`, pass: (a) => a.status === 400 && a.error === want });
   }
-  // 10-11. Z-PREP (REQ-BFG-073): LAST CHANCE's rows, only while the switch is on (with it off the plan ends here)
-  if (lastChanceRules()) {
+  // 10-11. Z-PREP (REQ-BFG-073): LAST CHANCE's rows, under rules with LAST CHANCE (Z-BUMP: the rules gate, not the switch)
+  if (probeHasLastChance()) {
     const lc = lastChanceDusk(playerId, LC_DAY, `${run}-lastchance`, now);
     const lid = ghostId(lc);
     plan.push({ name: "lastchance-signed", snapshot: lc, text: encodeSnapshot(lc), signed: true, expected: `201 {"id":"${lid}"}`, pass: (a) => a.status === 201 && a.id === lid });

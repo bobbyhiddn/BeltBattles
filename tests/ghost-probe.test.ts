@@ -6,6 +6,9 @@
 // still written first. A bad command line exits 2 and sends nothing; a dead port fails every check with "no answer",
 // exit 1. The plan's decks: each row from an honest deck, the bytes the encoder's. Network-free (127.0.0.1 only).
 // BELTS (REQ-BFG-043, REQ-BFG-044): the probe's rules are bb-0.8.3 (PROBE_RULES), since PACKS bb-0.8.6 and since RUNES-1 bb-0.8.7, the same four heroes and nine checks. FLIP-X2: bb-0.9.0 (the one bump), each deck with its dawn runes. BAL-2: bb-0.9.1 (the bump).
+// Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule, so the plan has eleven rows: lastchance-signed (201) and
+// lastchance-day3 (422) after hero-SIPHON (REPORT-ZPREP section 6 item 4): eleven checks, 14 lines, and five decks stored
+// (FURNACE's LAST CHANCE deck, d6 0W 2L, too).
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -20,8 +23,9 @@ import { validateBuild, validateUpload } from "../src/net/validate";
 import type { FakeS3 } from "../tools/fakeS3";
 import { startFake, tigrisFor } from "./netStores";
 
-const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON"];
-const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400"];
+// Z-BUMP: the flip (was the nine rows, without lastchance-signed and lastchance-day3)
+const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON", "lastchance-signed", "lastchance-day3"];
+const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400", "201", "422"]; // Z-BUMP: the flip (was nine, without the last 201 and 422)
 const ACCEPTS = "rules bb-0.9.3 accept only FURNACE, WEAVER, FOUNDRY, BASTION"; // Y7b2: the bump (was bb-0.9.1)
 const KINDS = ["jsonl", "tigris"] as const;
 
@@ -88,7 +92,7 @@ const posts = (log: string[]) => log.filter((l) => / POST \/v1\/ghosts /.test(l)
 const checkLines = (lines: string[]) => lines.filter((l) => /^(PASS|FAIL) {2}/.test(l));
 
 describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (kind) => {
-  it("uploads open: nine checks, each as expected, exit 0; the store holds exactly the four decks, each its own record, under the id file's player", async () => {
+  it("uploads open: eleven checks, each as expected, exit 0; the store holds exactly the five decks, each its own record, under the id file's player", async () => {
     const { base, idFile, log, idAtPost, held } = await serve(kind, "open");
     const lines: string[] = [];
     expect(await probeMain([base, idFile], (l) => lines.push(l))).toBe(0);
@@ -107,20 +111,23 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     for (const i of [4, 5, 6]) expect(checks[i]).toMatch(/expected: 201 \{"id":"(g[0-9a-f]{14})"\} \| got: 201 \{"id":"\1"\}$/);
     expect(checks[7]).toContain(`| got: 400 snapshot.hero: ${ACCEPTS}, not METRONOME`);
     expect(checks[8]).toContain(`| got: 400 snapshot.hero: ${ACCEPTS}, not SIPHON`);
-    expect(lines[lines.indexOf(checks[8]) + 1]).toBe(`probe player: ${player}`);
-    expect(lines.at(-1)).toBe(`probe: 9 of 9 checks as expected; the server stored 4 deck(s) for this player (expected 4); the player id is in ${idFile}`);
-    expect(lines).toHaveLength(12);
+    // Z-BUMP (the flip): the two LAST CHANCE rows, pinned as rows 0 and 3 are
+    expect(checks[9]).toMatch(/^PASS {2}lastchance-signed {2}expected: 201 \{"id":"(g[0-9a-f]{14})"\} \| got: 201 \{"id":"\1"\}$/);
+    expect(checks[10]).toContain("| got: 422 record: 0W 2 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 3");
+    expect(lines[lines.indexOf(checks[10]) + 1]).toBe(`probe player: ${player}`); // Z-BUMP: the flip (was checks[8], then the last check)
+    expect(lines.at(-1)).toBe(`probe: 11 of 11 checks as expected; the server stored 5 deck(s) for this player (expected 5); the player id is in ${idFile}`); // Z-BUMP: the flip (was 9 of 9, stored 4, expected 4)
+    expect(lines).toHaveLength(14); // Z-BUMP: the flip (was 12)
     // the server's side: one POST per check, in order; the id file was written before the first one
     expect(posts(log)).toEqual(STATUSES);
-    expect(idAtPost).toEqual(Array(9).fill(true));
-    // the store: exactly the four 201 decks, each its own record, all under the id file's player
+    expect(idAtPost).toEqual(Array(11).fill(true)); // Z-BUMP: the flip (was 9)
+    // the store: exactly the five 201 decks, each its own record, all under the id file's player
     const recs = held();
-    expect(recs).toHaveLength(4);
+    expect(recs).toHaveLength(5); // Z-BUMP: the flip (was 4)
     const printed = checks.map((l) => /\| got: 201 \{"id":"(g[0-9a-f]{14})"\}$/.exec(l)?.[1]).filter((x): x is string => x !== undefined);
-    expect(printed).toHaveLength(4);
+    expect(printed).toHaveLength(5); // Z-BUMP: the flip (was 4)
     expect(recs.map((r) => r.id).sort()).toEqual([...printed].sort());
     expect(recs.map((r) => `${r.snapshot.hero} d${r.snapshot.day} ${r.snapshot.wins}W ${r.snapshot.lives}L ${r.snapshot.rules}`).sort())
-      .toEqual(["bastion d3 1W 5L bb-0.9.3", "foundry d3 1W 5L bb-0.9.3", "furnace d1 0W 5L bb-0.9.3", "weaver d3 1W 5L bb-0.9.3"]); // Y7b2: the bump (was bb-0.9.1)
+      .toEqual(["bastion d3 1W 5L bb-0.9.3", "foundry d3 1W 5L bb-0.9.3", "furnace d1 0W 5L bb-0.9.3", "furnace d6 0W 2L bb-0.9.3", "weaver d3 1W 5L bb-0.9.3"]); // Y7b2: the bump (was bb-0.9.1). Z-BUMP: the flip (was without "furnace d6 0W 2L")
     for (const r of recs) {
       expect(r.snapshot.playerId).toBe(player);
       expect(ghostId(decodeSnapshot(JSON.stringify(r.snapshot)))).toBe(r.id);
@@ -137,12 +144,12 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     const checks = checkLines(lines);
     expect(checks.map((l) => l.split(/\s+/)[1])).toEqual(NAMES);
     for (const l of checks) expect(l).toMatch(/^FAIL {2}\S+ +expected: .+ \| got: 403 uploads are not open yet$/);
-    expect(posts(log)).toEqual(Array(9).fill("403"));
-    expect(idAtPost).toEqual(Array(9).fill(true));
+    expect(posts(log)).toEqual(Array(11).fill("403")); // Z-BUMP: the flip (was 9)
+    expect(idAtPost).toEqual(Array(11).fill(true)); // Z-BUMP: the flip (was 9)
     expect(held()).toEqual([]);
     if (fake) expect(fake.requests).toHaveLength(0); // closed answers before the store is touched
     expect(readFileSync(idFile, "utf8")).toMatch(/^[A-Za-z0-9_-]{43}\n$/);
-    expect(lines.at(-1)).toBe(`probe: 0 of 9 checks as expected; the server stored 0 deck(s) for this player (expected 4); the player id is in ${idFile}`);
+    expect(lines.at(-1)).toBe(`probe: 0 of 11 checks as expected; the server stored 0 deck(s) for this player (expected 5); the player id is in ${idFile}`); // Z-BUMP: the flip (was 0 of 9, expected 4)
   }, 60_000);
 });
 
@@ -177,13 +184,13 @@ describe("the uploads step's probe: refusals and its decks", () => {
     expect(checks.map((l) => l.split(/\s+/)[1])).toEqual(NAMES);
     for (const l of checks) expect(l).toMatch(/^FAIL {2}\S+ +expected: .+ \| got: no answer \(.+\)$/);
     expect(readFileSync(idFile, "utf8")).toMatch(/^[A-Za-z0-9_-]{43}\n$/);
-    expect(lines.at(-1)).toBe(`probe: 0 of 9 checks as expected; the server stored 0 deck(s) for this player (expected 4); the player id is in ${idFile}`);
+    expect(lines.at(-1)).toBe(`probe: 0 of 11 checks as expected; the server stored 0 deck(s) for this player (expected 5); the player id is in ${idFile}`); // Z-BUMP: the flip (was 0 of 9, expected 4)
   }, 60_000);
 
   it("its decks: every row is an honest deck but the dishonest one, on a reachable record but the unreachable one, as the encoder's canonical bytes", () => {
     const plan = probePlan("probe-plan-player", 1_790_000_000_000);
     expect(plan.map((p) => p.name)).toEqual(NAMES);
-    expect(plan.map((p) => p.signed)).toEqual([true, false, true, true, true, true, true, true, true]);
+    expect(plan.map((p) => p.signed)).toEqual([true, false, true, true, true, true, true, true, true, true, true]); // Z-BUMP: the flip (was nine, without the last two)
     for (const p of plan) {
       const s = p.snapshot;
       // FLIP-X2 (cap's ruling 5d6d83ef57d1494c): every deck holds its `day` dawn runes (the bots' picks on PROBE_SEED), so

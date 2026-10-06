@@ -1,9 +1,10 @@
 // Z-PREP (REQ-BFG-073; REVIEW-LC1, carried to the flip): the player mode's budget line (src/net/roadCap.ts
 // playerSupplyBudget, fed by src/net/validate.ts) names a free LAST CHANCE part's price on its own ("+ free part M"); before,
-// it sat inside "+ rune gold N". Without a LAST CHANCE part (every switch-off deck) the line is byte for byte today's.
-import { afterEach, describe, expect, it } from "vitest";
+// it sat inside "+ rune gold N". Without a LAST CHANCE part (every deck with no LAST CHANCE) the line is byte for byte
+// today's. Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule and its switch is gone, so these tests are plain.
+import { describe, expect, it } from "vitest";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
-import { lastChanceOffer, setLastChance, type Boon } from "../src/sim/lastChance";
+import { lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { runeGrants } from "../src/sim/runes";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
@@ -36,11 +37,8 @@ function overEdge(s: GhostSnapshot): GhostSnapshot {
 }
 const LINE = /^budget: build costs (\d+) gold \(.*\) but a player's day (\d+) allows at most (\d+) \(maxGoldByDay (\d+) \+ roadCap (\d+)( \+ rune gold (\d+))?( \+ free part (\d+))?\)$/;
 
-afterEach(() => setLastChance(false));
-
 describe("Z-PREP: the budget line names a free LAST CHANCE part", () => {
   it("with a LAST CHANCE part the allowance names it on its own: + rune gold N + free part M (M its price)", () => {
-    setLastChance(true);
     for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
       const s = honest("part", hero);
       const over = overEdge(s);
@@ -56,16 +54,15 @@ describe("Z-PREP: the budget line names a free LAST CHANCE part", () => {
     }
   });
 
-  it("without a LAST CHANCE part (the rune and hull cards, and every switch-off deck) the line is today's: no free part", () => {
-    setLastChance(true);
+  it("without a LAST CHANCE part (the rune and hull cards, and every deck with no LAST CHANCE) the line is today's: no free part", () => {
     for (const boon of ["rune", "hull"] as Boon[]) {
       const e = check(overEdge(honest(boon))).errors;
       expect(e).toHaveLength(1);
       expect(LINE.test(e[0]), e[0]).toBe(true);
       expect(e[0]).not.toContain("free part");
     }
-    setLastChance(false);
-    // the switch off: a par deck one plate over, through validateUpload's player mode (its seed, no LAST CHANCE)
+    // a deck with no LAST CHANCE (Z-BUMP, the flip; was: the switch off): a par deck one plate over, through
+    // validateUpload's player mode (its seed, no LAST CHANCE)
     const b = playerRun("weaver", 6, 9)[5].build;
     const s: GhostSnapshot = { v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "weaver", day: 6, wins: 3, lives: 4, build: b, runId: "z", playerId: "p", createdAt: 1, seed: parRunSeed("weaver", 9) };
     const e = check(overEdge(s)).errors;

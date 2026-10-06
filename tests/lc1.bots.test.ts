@@ -1,19 +1,18 @@
 // LC-1 (REQ-BFG-073): the bots' LAST CHANCE pick (src/sim/harness/lastChance.ts botLastChancePick) and the par player's
-// LAST CHANCE card (player.ts playerRun's opts.lastChance, placeFreePart). Switch-on tests restore the switch.
-import { afterEach, describe, expect, it } from "vitest";
-import { LAST_CHANCE_HULL, lastChanceOffer, setLastChance, withLastChance } from "../src/sim/lastChance";
+// LAST CHANCE card (player.ts playerRun's opts.lastChance, placeFreePart). Z-BUMP (the flip): LAST CHANCE is the game's
+// rule and its switch is deleted, so the switch-on tests are plain tests.
+import { describe, expect, it } from "vitest";
+import { LAST_CHANCE_HULL, lastChanceOffer } from "../src/sim/lastChance";
 import { botLastChancePick, runeDuelFactor, FACTOR_MAX, FACTOR_MIN } from "../src/sim/harness/lastChance";
 import { parRunSeed, playerRun, rateOn } from "../src/sim/harness/player";
 import { botTakeRune, runeProblem } from "../src/sim/runes";
 import { lastChanceRuneAt } from "../src/sim/lastChance";
 import type { HeroId } from "../src/sim/content";
 
-afterEach(() => setLastChance(false));
-
 const boardOf = (hero: HeroId, seed: number, day: number) => playerRun(hero, day, seed)[day - 1].build;
 
 describe("LC-1: botLastChancePick", () => {
-  it("rates each card with the bots' rating and takes the best; deterministic", () => withLastChance(() => {
+  it("rates each card with the bots' rating and takes the best; deterministic", () => {
     for (const hero of ["furnace", "weaver"] as HeroId[]) {
       const day = 6, seed = 3, board = boardOf(hero, seed, day);
       const offer = lastChanceOffer(parRunSeed(hero, seed), day, hero, (board.runes ?? []).map((q) => q.id));
@@ -30,7 +29,7 @@ describe("LC-1: botLastChancePick", () => {
         expect(a.rating.factor).toBeLessThanOrEqual(FACTOR_MAX);
       }
     }
-  }));
+  });
 
   it("the rune's duel factor is 1 for no change and moves with a battle rune", () => {
     const board = boardOf("foundry", 2, 7);
@@ -42,7 +41,7 @@ describe("LC-1: botLastChancePick", () => {
 });
 
 describe("LC-1: the par player's LAST CHANCE card (opts.lastChance)", () => {
-  it(`absent, the run is exactly as before; HULL adds ${LAST_CHANCE_HULL} at the next dawn; RUNE sits after the day's dawn pick`, () => withLastChance(() => {
+  it(`absent, the run is exactly as before; HULL adds ${LAST_CHANCE_HULL} at the next dawn; RUNE sits after the day's dawn pick`, () => {
     const hero: HeroId = "bastion", seed = 5, day = 6;
     const plain = playerRun(hero, 10, seed);
     const hull = playerRun(hero, 10, seed, { lastChance: { day, boon: "hull" } });
@@ -56,7 +55,7 @@ describe("LC-1: the par player's LAST CHANCE card (opts.lastChance)", () => {
     expect(runeProblem(rune[9].build.runes, 10, hero, parRunSeed(hero, seed), "exact", false, lastChanceRuneAt({ day, boon: "rune" }))).toBeNull();
     const part = playerRun(hero, 10, seed, { lastChance: { day, boon: "part" } });
     expect(part.slice(0, day)).toEqual(plain.slice(0, day));
-  }));
+  });
 
   it("botTakeRune counts a LAST CHANCE rune out of the dawns (lcRunes)", () => {
     const b = boardOf("weaver", 4, 6);

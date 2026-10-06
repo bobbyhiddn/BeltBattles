@@ -1,15 +1,18 @@
 // Z-PREP (REQ-BFG-073; REVIEW-LC1, carried to the flip): ghosts:admin revalidate (server/ghostAdmin.ts uploadProblems,
 // the check it runs on every stored upload) checks a LAST CHANCE upload as POST /v1/ghosts checked it: validateUpload
-// told its seed and its card, and while the switch is on the record check told its LAST CHANCE day (or none). Honest
-// uploads are the par player's own LAST CHANCE runs (as tests/lc1.server.test.ts makes them), each at its budget's edge.
-// Switch off, today's revalidation tests (tests/ghost-admin.test.ts) run unchanged. Tests that turn the switch on put it back.
-import { afterEach, describe, expect, it } from "vitest";
+// told its seed and its card, and the record check told its LAST CHANCE day (or none). Honest uploads are the par
+// player's own LAST CHANCE runs (as tests/lc1.server.test.ts makes them), each at its budget's edge.
+// Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule and its switch is gone, so these tests are plain. What
+// the switch's off side showed is read now from a record stored under older rules (bb-0.9.1, before LAST_CHANCE_RULES),
+// which the rules gate reads without LAST CHANCE (rulesGate.ts lastChanceGateProblem, records.ts recordHasLastChance).
+import { describe, expect, it } from "vitest";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
-import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRules, setLastChance, type Boon } from "../src/sim/lastChance";
+import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, type Boon } from "../src/sim/lastChance";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { ghostId, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import { isReachable } from "../src/net/records";
+import { LAST_CHANCE_RULES } from "../src/net/rulesGate"; // Z-BUMP: the gate's words for a record under older rules
 import { uploadProblems, type StoredRecord } from "../server/ghostAdmin";
 import { encodeRecord } from "../server/store";
 import { TEST_NAME } from "./netIdentity";
@@ -47,11 +50,11 @@ const stored = (s: GhostSnapshot, id = ghostId(s)): StoredRecord => ({
   ref: "ghosts.jsonl:1", kind: "upload", day: s.day, id, playerId: s.playerId, text: encodeRecord(id, 5, s), keyed: false,
 });
 
-afterEach(() => setLastChance(false));
+/** Z-BUMP: a rules version before LAST_CHANCE_RULES (it stays older after the bump too). */
+const OLDER = "bb-0.9.1";
 
 describe("Z-PREP: ghosts:admin revalidate and a stored LAST CHANCE upload", () => {
-  it("switch on: an honest LAST CHANCE upload at its budget's edge revalidates clean, each card; the old call refused each one", () => {
-    setLastChance(true);
+  it("an honest LAST CHANCE upload at its budget's edge revalidates clean, each card; the old call refused each one", () => {
     for (const hero of ["furnace", "bastion"] as HeroId[]) {
       for (const boon of ["rune", "part", "hull"] as Boon[]) {
         const s = fillPlates(honest(boon, hero));
@@ -68,8 +71,7 @@ describe("Z-PREP: ghosts:admin revalidate and a stored LAST CHANCE upload", () =
     expect([isReachable(6, 0, 2, { lastChance: D }), isReachable(6, 0, 2, { lastChance: 3 })]).toEqual([true, false]);
   });
 
-  it("switch on: a forged one fails, each with POST's line: a LAST CHANCE on day 3, a part not on offer, the hull twice, 1 life with none", () => {
-    setLastChance(true);
+  it("a forged one fails, each with POST's line: a LAST CHANCE on day 3, a part not on offer, the hull twice, 1 life with none", () => {
     const h = honest("hull");
     expect(uploadProblems(stored({ ...h, lastChance: { day: 3, boon: "hull" } }), RULES_VERSION))
       .toEqual(["record: 0W 2 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 3"]);
@@ -88,17 +90,22 @@ describe("Z-PREP: ghosts:admin revalidate and a stored LAST CHANCE upload", () =
       runId: "zprep-plain", playerId: "p-zprep", createdAt: 1_790_000_000_000, name: TEST_NAME, seed: parRunSeed("furnace", 5),
     };
     expect(uploadProblems(stored(par), RULES_VERSION)).toEqual(["record: 0W 1 lives is no record a run carries into dusk 6"]);
-    setLastChance(false);
-    expect(uploadProblems(stored(par), RULES_VERSION)).toEqual([]); // off: today's record model carries 1 life into dusk 6
+    // Z-BUMP (the flip; was: the switch off, the same call clean): the same upload stored under older rules is read by
+    // those rules, without LAST CHANCE: their record model carries 1 life into dusk 6, so it revalidates clean under its
+    // own rules version (an honest record: the encoder writes it and gives its id; older rules are asked no name)
+    const older: GhostSnapshot = { ...par, rules: OLDER };
+    expect(uploadProblems(stored(older), OLDER)).toEqual([]);
   });
 
-  it("switch off: a stored LAST CHANCE upload is refused by the strict decoder (as POST refuses it); without the field, as before", () => {
-    setLastChance(true);
+  it("under older rules (bb-0.9.1): a stored LAST CHANCE upload is refused by the strict decoder in the rules gate's words (as POST refuses it); without the field, as before", () => {
     const s = honest("rune");
-    const rec = stored(s); // written while the switch was on (its id needs the encoder, which refuses the field off)
-    setLastChance(false);
-    expect(lastChanceRules()).toBe(false);
-    expect(uploadProblems(rec, RULES_VERSION)).toEqual(["strict decode: snapshot.lastChance: not in this rules version yet"]);
+    // Z-BUMP (the flip; was: written with the switch on, read with it off): the same upload stamped with rules before
+    // LAST_CHANCE_RULES. No encoder writes it (the gate refuses the field there: the point), so it keeps the id of the
+    // upload under this build's rules; the decoder refuses it before any id is read
+    const rec = stored({ ...s, rules: OLDER }, ghostId(s));
+    expect(uploadProblems(rec, OLDER)).toEqual([
+      `strict decode: snapshot.lastChance: rules ${OLDER} predate ${LAST_CHANCE_RULES}: LAST CHANCE (snapshot.lastChance) needs ${LAST_CHANCE_RULES} or later`,
+    ]);
     // the same deck without its lastChance: today's checks, today's words (one rune too many for its day)
     const { lastChance: _lc, ...plain } = s;
     expect(uploadProblems(stored(plain), RULES_VERSION)).toEqual([`validateUpload: ${validateUpload(plain.build, plain.day, plain.rules).errors.join("; ")}`]);

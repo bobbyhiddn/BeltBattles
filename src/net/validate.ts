@@ -24,9 +24,9 @@ import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
-import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
+import { heroGateProblem, lastChanceGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules; Z-BUMP: LAST CHANCE by the rules
 import { runeGrants, runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with the client's check
-import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRuneAt, lastChanceRules, type TakenLastChance } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
+import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRuneAt, type TakenLastChance } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 
 /** RUNES-1: what a deck's check knows beside the deck: its snapshot's run `seed` (absent on a served ghost, FIX-6, and
  *  on stand-ins and pool decks), so the rune offer rule runs only when the uploader's seed is known. */
@@ -38,13 +38,13 @@ export interface ValidateContext {
 }
 
 /**
- * LC-1 (REQ-BFG-073): why a deck's LAST CHANCE can't stand, or null: the switch must be on; the day before RUN_DAYS and
- * before the deck's own day (the decoder's lines, again for a caller without a snapshot); a rune boon's rune at its place
- * (right after its day's dawn pick, runeProblem's lcAt); a part boon's part one of the PART card's catalogue; and, with the
- * uploader's seed, the boon must be the card the seed's offer gave (lastChanceOffer on the runes held before it).
+ * LC-1 (REQ-BFG-073): why a deck's LAST CHANCE can't stand, or null: the day before RUN_DAYS and before the deck's own
+ * day (the decoder's lines, again for a caller without a snapshot); a rune boon's rune at its place (right after its
+ * day's dawn pick, runeProblem's lcAt); a part boon's part one of the PART card's catalogue; and, with the uploader's
+ * seed, the boon must be the card the seed's offer gave (lastChanceOffer on the runes held before it). Z-BUMP: the
+ * switch's line is gone; a deck under older rules is validateUpload's rules gate (lastChanceGateProblem).
  */
 export function lastChanceProblem(lc: TakenLastChance, b: Build, day: number, seed?: number): string | null {
-  if (!lastChanceRules()) return "lastChance: LAST CHANCE is not in this rules version yet";
   if (!Number.isInteger(lc.day) || lc.day < 1 || lc.day >= MAX_DAY) return `lastChance: day ${lc.day}: LAST CHANCE comes only before day ${MAX_DAY}`;
   if (lc.day >= day) return `lastChance: day ${lc.day} is not before the deck's day ${day}`;
   const runes = (b.runes ?? []).map((q) => q.id);
@@ -81,6 +81,10 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // 0.8.0 H1 (REQ-BFG-009): the deck's hero must be one its rules accept (rulesGate.ts RULES_HEROES)
   const hero = heroGateProblem(rules, (build as { hero?: unknown } | null)?.hero);
   if (hero) return { ok: false, errors: [`rules: ${hero}`] };
+  // Z-BUMP (REQ-BFG-073): a LAST CHANCE travels only under rules that have it (rulesGate.ts lastChanceGateProblem, as the
+  // strict decoder asks it), so given an older snapshot's rules one is refused; before the flip the switch refused it
+  const lcGate = ctx.lastChance ? lastChanceGateProblem(rules) : null;
+  if (lcGate) return { ok: false, errors: [`lastChance: ${lcGate}`] };
   return validateBuild(build, day, "player", ctx);
 }
 

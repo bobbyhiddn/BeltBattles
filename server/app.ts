@@ -40,7 +40,6 @@ import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, Nam
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { isReachable } from "../src/net/records";
 import { validateUpload } from "../src/net/validate";
-import { lastChanceRules } from "../src/sim/lastChance"; // LC-1 (REQ-BFG-073): the record check's LAST CHANCE
 import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
 
@@ -332,9 +331,10 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         // and ghosts:admin revalidate already check (same words as revalidate's). Otherwise an honest deck could carry a
         // fake low record and be matched more often (D1 serves only ghosts with no better record). The decoder bounds day
         // 1..10, wins 0..day-1 and lives 1..9, so this stays cheap; a record it refuses keeps its 400.
-        // LC-1 (REQ-BFG-073): with LAST CHANCE on, the record must be reachable with the snapshot's LAST CHANCE (its day, or
-        // none): a lastChance whose day can't be a loss to 1 life, or a run at 1 life that never had one, is refused
-        const lcDay = lastChanceRules() ? { lastChance: snap.lastChance?.day ?? null } : {};
+        // LC-1 (REQ-BFG-073): the record must be reachable with the snapshot's LAST CHANCE (its day, or none): a lastChance
+        // whose day can't be a loss to 1 life, or a run at 1 life that never had one, is refused. Z-BUMP: the switch is
+        // gone (this was its on side); POST takes RULES_VERSION only, so the record is read by this build's rules
+        const lcDay = { lastChance: snap.lastChance?.day ?? null };
         if (!isReachable(snap.day, snap.wins, snap.lives, lcDay)) {
           const after = snap.lastChance ? ` after a LAST CHANCE on day ${snap.lastChance.day}` : "";
           throw new HttpError(422, `record: ${snap.wins}W ${snap.lives} lives is no record a run carries into dusk ${snap.day}${after}`);

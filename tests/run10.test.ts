@@ -70,13 +70,18 @@ describe("the 10-day run", () => {
   it("at 0 lives the run is lost on that day, even on day 10", () => {
     // 0.6.2 RULE EARLY-LOSS REFUND: day 3's dawn gives back one of the lives lost on days 1-2, so this run needs a
     // sixth loss (it was [L, L, W, L, L, L, W, W], lost on day 6 with 5 losses), and the day-10 run loses no early life
-    const lost = play([L, L, W, L, L, L, L, W]);
+    // Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE gives a life back at the first loss to 1 life before day 10, so each run
+    // needs one more loss: [L, L, W, L, L, L, L, W] (lost on day 7 with 6 losses) now ends day 8 at 1 life, so day 8 is a
+    // loss too; the day-10 run [W, W, L, W, L, L, W, L, W, L] now completes at 1 life, so day 9 is a loss too
+    const lost = play([L, L, W, L, L, L, L, L]);
     expect(lost.over).toBe("lost");
-    expect([lost.day, lost.lives, lost.losses]).toEqual([7, 0, 6]);
-    expect(lost.history.length).toBe(7);
-    const late = play([W, W, L, W, L, L, W, L, W, L]);
+    expect([lost.day, lost.lives, lost.losses]).toEqual([8, 0, 7]); // Z-BUMP: the flip (was [7, 0, 6])
+    expect(lost.history.length).toBe(8); // Z-BUMP: the flip (was 7)
+    expect(lost.lastChance).toEqual({ day: 6 }); // its LAST CHANCE fired at dusk 6 (1 -> 2 lives); 0 lives still ends it
+    const late = play([W, W, L, W, L, L, W, L, L, L]);
     expect(late.over).toBe("lost");
     expect(late.day).toBe(10);
+    expect(late.lastChance).toEqual({ day: 8 }); // its LAST CHANCE fired at dusk 8
   });
 
   it("no 12-round cap and no 7-win finish: a run is exactly as long as its days", () => {

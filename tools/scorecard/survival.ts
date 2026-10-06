@@ -40,7 +40,7 @@ import { meanCI, wilson, type Rate } from "../../src/sim/harness/stats";
 import { mdTable, type Row, type Section } from "./report";
 import { fmt } from "./targets";
 import { runJobs } from "./pool";
-import { LAST_CHANCE_LIVES, lastChanceRules } from "../../src/sim/lastChance"; // LC-1 (REQ-BFG-073)
+import { LAST_CHANCE_LIVES } from "../../src/sim/lastChance"; // LC-1 (REQ-BFG-073)
 
 // ---------------------------------------------------------------- the model (pure: tests check it by hand)
 
@@ -228,7 +228,7 @@ export function lifeAudit(hero: HeroId, seed: number): Audit {
   }
   const gains = choices.filter((c) => c.gainLives > 0);
   // LC-1 (REQ-BFG-073): read LAST CHANCE off the run code: five losses (the refund lifts day 3) leave 1 life at dusk 5,
-  // and with the switch on the life comes straight back; the model takes LAST_CHANCE_LIVES only then
+  // and the life comes straight back; the model takes LAST_CHANCE_LIVES (Z-BUMP: the switch is gone, this was its on side)
   const lcRun = fresh();
   for (let i = 0; i < 5; i++) dusk(lcRun, LOSS);
   const lcBack = lcRun.lives - 1;
@@ -239,11 +239,11 @@ export function lifeAudit(hero: HeroId, seed: number): Audit {
     ...(gains.length > 1 ? [`more than one choice gives lives: ${gains.map((c) => `${c.event} ${c.choice}`).join(", ")}`] : []),
     ...gains.filter((c) => c.gamble).map((c) => `${c.event} ${c.choice} gives lives on a gamble`),
     ...warlords.filter((w) => w.delta !== 0).map((w) => `a ${w.tier} warlord ${w.outcome} moves lives by ${w.delta}`),
-    ...(lcBack !== (lastChanceRules() ? LAST_CHANCE_LIVES : 0) ? [`a loss to 1 life gives ${lcBack} back (LAST CHANCE ${lastChanceRules() ? "on" : "off"})`] : []),
+    ...(lcBack !== LAST_CHANCE_LIVES ? [`a loss to 1 life gives ${lcBack} back (LAST CHANCE)`] : []),
   ];
   if (problems.length) throw new Error(`--survival: the model doesn't cover these rules: ${problems.join("; ")}`);
   return {
-    rules: { startLives: START_LIVES, days: RUN_DAYS, lossLives: -d.loss, refundDay: REFUND_DAY, refundLives: REFUND_LIVES, dockLives: gains[0]?.gainLives ?? 0, ...(lastChanceRules() ? { lastChance: LAST_CHANCE_LIVES } : {}) },
+    rules: { startLives: START_LIVES, days: RUN_DAYS, lossLives: -d.loss, refundDay: REFUND_DAY, refundLives: REFUND_LIVES, dockLives: gains[0]?.gainLives ?? 0, lastChance: LAST_CHANCE_LIVES },
     dusk: d, refund: { day: REFUND_DAY, lives: REFUND_LIVES, dawns }, choices, dock: gains[0]?.event ?? null, warlords, throwing,
   };
 }

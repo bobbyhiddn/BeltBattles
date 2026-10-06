@@ -73,7 +73,7 @@ export interface DayResult {
   // 0.7.0a (online play only, src/game/online.ts; absent offline, so an offline save is 0.6.2's), save v7, no bump:
   record?: BattleRecord; // battleRecordFor(your deck, the foe's, battleSeed): the summary's REPLAY plays it (read-only)
   hulls?: [number, number]; // both hulls when the fight ended (you, foe): what a replay must reproduce
-  // LC-1 (REQ-BFG-073, behind lastChance.ts LAST_CHANCE): this dusk's loss fired LAST CHANCE: the lives it gave back at
+  // LC-1 (REQ-BFG-073; Z-BUMP: no switch): this dusk's loss fired LAST CHANCE: the lives it gave back at
   // once (the dusk card's "LAST CHANCE: +1 LIFE"), then the card taken and its id (the summary's row). Absent otherwise,
   // so every switch-off result is saved as before. Save v8, no bump (a new optional field, as refund was).
   lastChance?: { lives: number; boon?: Boon; id?: string };
@@ -156,7 +156,7 @@ export interface Run {
   // before it (runes.length === day - 1); a save from before runes never gets one. The held runes live in build.runes
   // (in pick order), so the snapshot, the battle and a reload carry them. Save v7, no bump (a new optional field).
   runeDay?: number;
-  // LC-1 (REQ-BFG-073, behind lastChance.ts LAST_CHANCE): the run's LAST CHANCE, once a run: set by finishDay when it fires
+  // LC-1 (REQ-BFG-073; Z-BUMP: no switch): the run's LAST CHANCE, once a run: set by finishDay when it fires
   // ({ day }: the pick is pending; the picker shows before that dawn's rune pick), then { day, boon, id } once a card is
   // taken (takeLastChance). A LAST CHANCE rune sits in build.runes right after its day's dawn pick (index `day`). Absent:
   // it never fired (every switch-off run). Save v8, no bump (a new optional field, as refund and runeDay were).
@@ -241,7 +241,7 @@ export function runeDawn(run: Run): void {
   else delete run.runeDay;
 }
 
-// ---- LC-1 (REQ-BFG-073): LAST CHANCE (src/sim/lastChance.ts; behind its switch, LAST_CHANCE) ---------------------------
+// ---- LC-1 (REQ-BFG-073): LAST CHANCE (src/sim/lastChance.ts; Z-BUMP: the game's rule, its switch deleted) --------------
 
 /** What a refused fight says while the LAST CHANCE pick is pending. */
 export const LAST_CHANCE_FIRST = "TAKE YOUR LAST CHANCE FIRST";

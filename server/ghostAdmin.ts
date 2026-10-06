@@ -26,7 +26,6 @@ import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
 import { isReachable } from "../src/net/records";
-import { lastChanceRules } from "../src/sim/lastChance"; // Z-PREP (REQ-BFG-073): revalidate checks a LAST CHANCE as POST does
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { parseRules, rulesGateProblem } from "../src/net/rulesGate";
 import { decodeSnapshot, ghostId, ID_PATTERN, type GhostSnapshot } from "../src/net/snapshot";
@@ -248,13 +247,16 @@ export function uploadProblems(r: StoredRecord, rules: string): string[] {
   if (gate) out.push(`rules gate: ${gate}`);
   // Z-PREP (REQ-BFG-073; REVIEW-LC1, carried to the flip): an upload that carries a LAST CHANCE is checked with it, as POST
   // /v1/ghosts checked it (server/app.ts): validateUpload told its seed and its card (the rune's place, the free part's
-  // price, the +LAST_CHANCE_HULL grant, the card the seed's offer gave), and while the switch is on the record check is
-  // told its LAST CHANCE day, or none (a run at 1 life that never had one carries no record). The decoder refuses the
-  // field while the switch is off, so off, both calls are exactly today's.
+  // price, the +LAST_CHANCE_HULL grant, the card the seed's offer gave), and the record check is told its LAST CHANCE day,
+  // or none (a run at 1 life that never had one carries no record). Z-BUMP (REQ-BFG-073; REVIEW-ZPREP F1): the switch is
+  // gone, and the record check asks the record's own rules through the rules gate, as the decoder does (records.ts
+  // recordHasLastChance: rulesGate.ts lastChanceGateProblem): a record under rules before LAST_CHANCE_RULES is read
+  // without LAST CHANCE (today's isReachable before the flip; `revalidate --rules <older>`), so an honest older record at
+  // 1 life is never flagged. A snapshot without the field is validated as before (no seed: REVIEW-ZPREP ruling 3).
   const lc = s.lastChance;
   const v = lc ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, lastChance: lc }) : validateUpload(s.build, s.day, s.rules);
   if (!v.ok) out.push(`validateUpload: ${v.errors.join("; ")}`);
-  const reachable = lastChanceRules() ? isReachable(s.day, s.wins, s.lives, { lastChance: lc?.day ?? null }) : isReachable(s.day, s.wins, s.lives);
+  const reachable = isReachable(s.day, s.wins, s.lives, { rules: s.rules, lastChance: lc?.day ?? null });
   if (!reachable) out.push(`record: ${s.wins}W ${s.lives} lives is no record a run carries into dusk ${s.day}${lc ? ` after a LAST CHANCE on day ${lc.day}` : ""}`);
   // PACKS M2 (REQ-BFG-063): POST /v1/ghosts takes an upload under RULES_VERSION only with its player's name (a bad name
   // is already the strict decode's refusal above); uploads stored under older rules never carried one

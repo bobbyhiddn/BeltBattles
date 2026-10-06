@@ -3,11 +3,11 @@
 // seeded epic RUNE that fits the hero, a seeded epic PART (to cargo, at 1 star) or +LAST_CHANCE_HULL max hull. A win or a
 // draw never fires it, nor a loss on day 10 (the run completes anyway), nor a second loss to 1 life.
 //
-// THE SWITCH: LAST_CHANCE (false), built as release Y's STAR_RULES was (git show 3e901d7): lastChanceRules(),
-// setLastChance(on) and withLastChance(fn, on = true), which puts the switch back even on a throw. While it is off nothing
-// reads past the switch: day.ts finishDay never fires it, the snapshot decoder refuses the field, records.ts models no
-// extra life, and every pool, offer, par run, captain, fingerprint and page is the base's (bb-0.9.3). The flip turns it
-// on (or deletes the off paths), bumps the rules and regenerates once.
+// Z-BUMP (REQ-BFG-073, release Z): LAST CHANCE is the game's rule. The switch LC-1 built it behind (LAST_CHANCE,
+// lastChanceRules(), setLastChance, withLastChance) is deleted with its off paths, as Y7b2 flipped STAR_RULES. What reads a
+// STORED record (the snapshot decoder, validateUpload given a snapshot's rules, ghosts:admin revalidate, the ghost probe,
+// the record model) asks the record's rules through the rules gate instead (rulesGate.ts LAST_CHANCE_RULES,
+// lastChanceGateProblem), so a record played under older rules is read by those rules, without LAST CHANCE.
 //
 // THE OFFER is a pure function of (run seed, LAST CHANCE day, hero, runes held at that moment), drawn on its own stream,
 // hashSeed(seed, "lastchance", day): never the shop's, the rune's, the road's or an event's, so a run that never fires it
@@ -17,34 +17,6 @@
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, RARITIES, RUN_DAYS, buyableModules, type HeroId, type ItemDef, type ItemKind, type Rarity } from "./content";
 import { RUNES, runeFits, runeList, runeWeight } from "./runes";
-
-/** THE switch (REQ-BFG-073), off in this rules version (bb-0.9.3). */
-export const LAST_CHANCE: boolean = false;
-
-let lcOn = false;
-
-/** Is LAST CHANCE in the game now (LAST_CHANCE, or a withLastChance call)? */
-export function lastChanceRules(): boolean {
-  return lcOn;
-}
-
-/** Turn LAST CHANCE on or off (no content to swap: the rule reads the switch where it acts). */
-export function setLastChance(on: boolean): void {
-  lcOn = on;
-}
-
-/** Run `fn` with LAST CHANCE on (or off), then put the switch back as it was, even if `fn` throws (withStarRules' form). */
-export function withLastChance<T>(fn: () => T, on = true): T {
-  const was = lcOn;
-  setLastChance(on);
-  try {
-    return fn();
-  } finally {
-    setLastChance(was);
-  }
-}
-
-setLastChance(LAST_CHANCE);
 
 /** The lives a dusk loss must leave for LAST CHANCE to fire. */
 export const LAST_CHANCE_AT = 1;
@@ -89,9 +61,9 @@ export interface LastChanceOffer {
 }
 
 /** Does a dusk with this result fire LAST CHANCE? The loss has already taken its life (`livesLeft` is after it); `used`:
- *  the run already had its LAST CHANCE. Only with the switch on. */
+ *  the run already had its LAST CHANCE. (Z-BUMP: the switch is gone; this was the switch-on side.) */
 export function lastChanceFires(day: number, outcome: "win" | "loss" | "draw", livesLeft: number, used: boolean): boolean {
-  return lastChanceRules() && outcome === "loss" && livesLeft === LAST_CHANCE_AT && day < RUN_DAYS && !used;
+  return outcome === "loss" && livesLeft === LAST_CHANCE_AT && day < RUN_DAYS && !used;
 }
 
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));

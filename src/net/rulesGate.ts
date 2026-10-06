@@ -23,8 +23,7 @@
 
 import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
-import { RULES_VERSION } from "../sim/content"; // LC-1 (REQ-BFG-073): LAST_CHANCE_RULES until the flip
-import { lastChanceRules } from "../sim/lastChance"; // LC-1: the switch
+import { RULES_VERSION } from "../sim/content"; // LC-1 (REQ-BFG-073): LAST_CHANCE_RULES until the bump writes it
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
@@ -147,18 +146,17 @@ export function furnaceRuneFeatures(build: unknown): string[] {
 }
 
 /**
- * LC-1 (REQ-BFG-073): the first rules version with LAST CHANCE (a snapshot's `lastChance`). THE ONE CONSTANT the flip sets:
- * until then it reads RULES_VERSION, so that with the switch on (lastChance.ts withLastChance, the flip's rules in a test)
- * an honest snapshot under this build's rules passes; the flip writes its new version here as a literal (e.g. "bb-0.9.5"),
- * after which every older rules version (bb-0.9.3 among them) is refused the field. While the switch is off the field is
- * refused under every rules version (lastChanceGateProblem's first line), as V3_LIVE refuses an off field.
+ * LC-1 (REQ-BFG-073): the first rules version with LAST CHANCE (a snapshot's `lastChance`). THE ONE CONSTANT the bump sets:
+ * until then it reads RULES_VERSION, so an honest snapshot under this build's rules passes; the bump writes its new version
+ * here as a literal, after which every older rules version (bb-0.9.3 among them) is refused the field. Z-BUMP (the flip):
+ * the switch is gone; every reader of a stored record asks this gate for the record's rules (the decoder, validateUpload,
+ * the record model records.ts, ghosts:admin revalidate, the ghost probe).
  */
 export const LAST_CHANCE_RULES: string = RULES_VERSION;
 
-/** Why a snapshot under `rules` can't carry a LAST CHANCE, or null: the switch off (every rules version), or rules before
- *  LAST_CHANCE_RULES (or unreadable). The reason names both, as rulesGateProblem's do. */
+/** Why a snapshot under `rules` can't carry a LAST CHANCE, or null: rules before LAST_CHANCE_RULES (or unreadable). The
+ *  reason names both, as rulesGateProblem's do. (Z-BUMP: the switch-off line is gone with the switch.) */
 export function lastChanceGateProblem(rules: unknown): string | null {
-  if (!lastChanceRules()) return "not in this rules version yet";
   if (rulesAtLeast(rules, LAST_CHANCE_RULES)) return null;
   const what = `LAST CHANCE (snapshot.lastChance) needs ${LAST_CHANCE_RULES} or later`;
   return parseRules(rules) ? `rules ${String(rules)} predate ${LAST_CHANCE_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;

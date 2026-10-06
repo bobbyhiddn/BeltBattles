@@ -13,13 +13,21 @@
 // At every dusk the snapshot's record must pass isReachable, and the deck validateUpload (the game uploads only then).
 // Every reachable record of every dusk 1-10 must be met at least once. Then one snapshot per record met (all four heroes
 // among them) goes up, signed, to the in-process server on both stores: 201 each.
+// Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule. A run that loses to 1 life before day 10 has a pending
+// LAST CHANCE pick at the next dawn: the dawn's rune waits for it (pendingRune is null) and FIGHT is refused until a card is
+// taken (run.ts fightRefusal), so the runs take it first, as the picker does (takeLastChance; a card the offer holds, drawn
+// from the run's own stream, so all three cards are played). Each dusk is checked with POST's own calls (server/app.ts):
+// validateUpload with the snapshot's seed and its lastChance, isReachable with its LAST CHANCE day (null when it has none).
+// The record model now gives 172 records over dusks 1-10 (was 178), 13 of them only after a LAST CHANCE; the sample goes up
+// as the game uploads it, with its lastChance.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
 import { Rng, hashSeed } from "../src/core/rng";
 import { RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import type { SideStats } from "../src/sim/battle";
-import { buyOffer, newRun, pendingRune, takeRune, type Run } from "../src/game/run";
+import { buyOffer, fightRefusal, newRun, pendingLastChance, pendingRune, takeLastChance, takeRune, type Run } from "../src/game/run";
+import { BOONS, offeredId } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): LAST CHANCE's pick
 import { finishWarlord, leaveCaravan, pickPending, pickRoad, ROAD_PICKS, takePart, todaysWarlord } from "../src/game/road";
 import { choicesFor, eventFor, pickChoice } from "../src/game/events";
 import { finishDay, ghostOf, startDusk } from "../src/game/day";
@@ -47,6 +55,7 @@ interface Played {
   patchUps: number; // PATCH UPs bought (the DOCK's lives choice)
   dockMet: number; // days the road event was the DOCK
   refunds: number; // early-loss refunds given at dawn 3
+  lastChance: string | null; // Z-BUMP: the LAST CHANCE card the run took (null: it never fired)
   lastDay: number;
   over: Run["over"];
 }
@@ -58,8 +67,16 @@ function playRun(hero: HeroId, i: number, player: string): Played {
   // this run's dusk odds (win, loss, draw): each may be 0, so streaks of every kind happen
   const odds = [rng.chance(0.2) ? 0 : rng.next(), rng.chance(0.2) ? 0 : rng.next(), rng.chance(0.3) ? 0 : rng.next() * 0.7];
   if (odds.every((o) => o === 0)) odds[0] = 1;
-  const out: Played = { snaps: [], unreachable: [], refused: [], patchUps: 0, dockMet: 0, refunds: 0, lastDay: 1, over: null };
+  const out: Played = { snaps: [], unreachable: [], refused: [], patchUps: 0, dockMet: 0, refunds: 0, lastChance: null, lastDay: 1, over: null };
   while (!run.over) {
+    // Z-BUMP (the flip): a pending LAST CHANCE comes before the dawn's rune, as the picker requires (pendingRune waits for it
+    // and FIGHT is refused while it is pending): a card its offer holds, drawn from this run's stream
+    const lc = pendingLastChance(run);
+    if (lc) {
+      const boon = rng.pick(BOONS.filter((b) => offeredId(lc, b) !== null));
+      expect(takeLastChance(run, boon).ok, `${hero} #${i} dawn ${run.day}: LAST CHANCE ${boon}`).toBe(true);
+      out.lastChance = boon;
+    }
     // FLIP-X2: the dawn's rune first (the first card: it draws nothing from this run's stream), as a run must before its
     // dusk (run.ts fightRefusal); a dawn-gold rune's gold is the caravan's
     const offer = pendingRune(run);
@@ -94,13 +111,17 @@ function playRun(hero: HeroId, i: number, player: string): Played {
       expect(run.lives).toBe(before); // warlords never move lives
     }
     expect(fightBlock(run.build), `${hero} #${i} day ${run.day}: FIGHT open`).toBeFalsy(); // nothing here draws a belt
+    expect(fightRefusal(run), `${hero} #${i} day ${run.day}: no pick pending`).toBeNull(); // Z-BUMP: FIGHT's own refusal
     // the dusk: the snapshot the game uploads as the dusk starts, then the fight's result
     startDusk(run, []);
     const s = ghostOf(run, 1_790_300_000_000 + i * 100 + run.day, player);
     out.snaps.push(s);
-    if (!isReachable(s.day, s.wins, s.lives)) out.unreachable.push(`${hero} #${i} d${s.day} ${s.wins}W ${s.lives}L`);
-    const v = validateUpload(s.build, s.day);
-    if (!v.ok) out.refused.push(`${hero} #${i} d${s.day}: ${v.errors[0]}`);
+    // Z-BUMP (the flip): POST's own calls (server/app.ts): the record with the snapshot's LAST CHANCE day (null: none), the
+    // deck with its seed and its lastChance. Were isReachable(s.day, s.wins, s.lives) and validateUpload(s.build, s.day)
+    const lcAt = s.lastChance ? ` (LAST CHANCE ${s.lastChance.day})` : "";
+    if (!isReachable(s.day, s.wins, s.lives, { lastChance: s.lastChance?.day ?? null })) out.unreachable.push(`${hero} #${i} d${s.day} ${s.wins}W ${s.lives}L${lcAt}`);
+    const v = validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(s.lastChance ? { lastChance: s.lastChance } : {}) });
+    if (!v.ok) out.refused.push(`${hero} #${i} d${s.day}${lcAt}: ${v.errors[0]}`);
     out.lastDay = run.day;
     const r = rng.next() * (odds[0] + odds[1] + odds[2]);
     const winner = r < odds[0] ? 0 : r < odds[0] + odds[1] ? 1 : -1;
@@ -140,6 +161,8 @@ describe("H2: real runs through the run code only ever upload records POST /v1/g
       complete: runs.filter((p) => p.over === "complete").length, lost: runs.filter((p) => p.over === "lost").length,
       patchUps: runs.reduce((a, p) => a + p.patchUps, 0), dockMet: runs.reduce((a, p) => a + p.dockMet, 0),
       refunds: runs.reduce((a, p) => a + p.refunds, 0),
+      // Z-BUMP: the runs that took each LAST CHANCE card
+      lastChance: Object.fromEntries(BOONS.map((b) => [b, runs.filter((p) => p.lastChance === b).length])),
       perHero: Object.fromEntries(PLAYABLE_HEROES.map((h) => [h, runs.filter((p) => p.snaps[0].hero === h).length])),
       recordsMet: met.size, samplePerHero: Object.fromEntries(PLAYABLE_HEROES.map((h) => [h, sample.filter((s) => s.hero === h).length])),
       lastDay: Object.fromEntries(Array.from({ length: MAX_DAY }, (_, d) => [d + 1, runs.filter((p) => p.lastDay === d + 1).length])),
@@ -152,19 +175,28 @@ describe("H2: real runs through the run code only ever upload records POST /v1/g
     expect(summary.lost).toBeGreaterThan(0);
     expect(summary.patchUps).toBeGreaterThan(0); // the DOCK's PATCH UP was bought
     expect(summary.refunds).toBeGreaterThan(0); // the early-loss refund was given
+    for (const b of BOONS) expect(summary.lastChance[b], `LAST CHANCE ${b}`).toBeGreaterThan(0); // Z-BUMP: each card was taken
     for (const p of runs) expect(p.snaps[0]).toMatchObject({ rules: RULES_VERSION, day: 1, wins: 0, lives: START_LIVES });
   });
 
-  it("they meet every reachable record of every dusk 1-10 (178), each at least once", () => {
+  // Z-BUMP (the flip): 172 (was 178): the record model with LAST CHANCE (reachableRecords: either, with or without one)
+  it("they meet every reachable record of every dusk 1-10 (172), each at least once", () => {
     const missing: string[] = [];
     for (let day = 1; day <= MAX_DAY; day++) {
       for (const { wins, lives } of reachableRecords(day)) if (!met.has(key(day, wins, lives))) missing.push(`d${day} ${wins}W ${lives}L`);
     }
     expect(missing).toEqual([]);
-    expect(met.size).toBe(178);
-    expect(sample).toHaveLength(178);
+    expect(met.size).toBe(172);
+    expect(sample).toHaveLength(172);
     const perHero = Object.fromEntries(PLAYABLE_HEROES.map((h) => [h, sample.filter((s) => s.hero === h).length]));
     for (const h of PLAYABLE_HEROES) expect(perHero[h], `${h} in the sample`).toBeGreaterThanOrEqual(30);
+    // Z-BUMP: 13 of them only a run that had its LAST CHANCE carries (1 life at dusks 7-10): their snapshots carry it
+    const lcOnly = sample.filter((s) => !isReachable(s.day, s.wins, s.lives, { lastChance: null }));
+    expect(lcOnly.map((s) => `d${s.day} ${s.wins}W ${s.lives}L`)).toEqual([
+      "d10 0W 1L", "d10 1W 1L", "d10 2W 1L", "d10 3W 1L", "d10 4W 1L", "d7 0W 1L", "d8 0W 1L", "d8 1W 1L", "d8 2W 1L",
+      "d9 0W 1L", "d9 1W 1L", "d9 2W 1L", "d9 3W 1L",
+    ]);
+    for (const s of lcOnly) expect(s.lastChance, `d${s.day} ${s.wins}W ${s.lives}L`).toBeDefined();
   });
 
   describe.each(storeBackends())("posted to the in-process server on the $name store (uploads open)", (backend) => {
@@ -179,15 +211,17 @@ describe("H2: real runs through the run code only ever upload records POST /v1/g
       await backend.teardown();
     });
 
-    it("one snapshot per record met (178, all four heroes), signed as the game signs them: 201 each, all stored", async () => {
-      expect(sample).toHaveLength(178);
+    // Z-BUMP (the flip): 172 (was 178); each snapshot goes up as the game uploads it, with its lastChance where it has one
+    it("one snapshot per record met (172, all four heroes), signed as the game signs them: 201 each, all stored", async () => {
+      expect(sample).toHaveLength(172);
       for (const s of sample) {
         const body = encodeSnapshot(s);
+        const lc = s.lastChance ? ` LAST CHANCE ${s.lastChance.day} ${s.lastChance.boon}` : "";
         const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
-        expect([r.status, await r.json()], `${s.hero} d${s.day} ${s.wins}W ${s.lives}L`).toEqual([201, { id: ghostId(s) }]);
+        expect([r.status, await r.json()], `${s.hero} d${s.day} ${s.wins}W ${s.lives}L${lc}`).toEqual([201, { id: ghostId(s) }]);
       }
-      expect(backend.storedRecords()).toBe(178);
-      expect(app.store.size).toBe(178);
+      expect(backend.storedRecords()).toBe(172);
+      expect(app.store.size).toBe(172);
     }, 60_000);
   });
 });

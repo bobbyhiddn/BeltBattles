@@ -75,7 +75,8 @@ const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
 // (was a7ba169fcadaed6a6ac9787ac14856c1970f6fc2eace1d5c0021306e7a8f2b13 at REDO-X)
 // Y7b2 (the pools): the stand-in pool regenerated once on bb-0.9.3 (4d772e4), so its sample and floor ghosts moved, each
 // under bb-0.9.3: was 92b20ff61667399981a3f2069a4b48c327e7fc68d516ac66bfd8633391a980af at BAL-2
-const STANDIN_PART_SHA256 = "f36cd6ead97a3847a436cc823ec02a87ab404f798acf21f55aefdf1233c88125"; // FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
+// Z-BUMP (the flip: the runtime seed pool's six labels follow LAST CHANCE (LC-1's six: the four day-6 floor ghosts 0W 1L -> 0W 2L, FURNACE d10 5W 1L -> 5W 2L; decks and ids unchanged); proved by records under bb-0.9.1 rebuilding the old digest (flip-T2.md). The pools move it again (S6)): was f36cd6ea...
+const STANDIN_PART_SHA256 = "3bbf3b3273c6297bfb74d93cf6fe8ac21d01aba88e84330598a51f7092940d36"; // FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
 /** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it.
  *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). PACKS (bb-0.8.6): it buys BELT and ARMOR PACKs. */
 // REDO-X (cap's ruling on FIX-ABE, REVIEW-FIXABE: rc.seedpool :98 re-pinned after the regeneration): the race ghosts are

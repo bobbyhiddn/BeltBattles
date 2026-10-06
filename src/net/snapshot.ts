@@ -8,8 +8,8 @@ import { GRID, HEROES, UPGRADE_MAX, UPGRADE_TRACKS, type HeroId, type Upgrades }
 import type { Build, BuildTurret, ModPlacement, Placed, RouteDef } from "../sim/deck";
 import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
 import { nameProblem, type NameProblem } from "./names"; // PACKS M2 (REQ-BFG-063): the one set of name rules
-import { lastChanceGateProblem } from "./rulesGate"; // LC-1 (REQ-BFG-073): LAST CHANCE by the switch and the rules
-import { BOONS, lastChanceRules, type Boon, type TakenLastChance } from "../sim/lastChance"; // LC-1
+import { lastChanceGateProblem } from "./rulesGate"; // LC-1 (REQ-BFG-073): LAST CHANCE by the rules (Z-BUMP: the switch is gone)
+import { BOONS, type Boon, type TakenLastChance } from "../sim/lastChance"; // LC-1
 import { RUN_DAYS } from "../sim/content"; // LC-1: LAST CHANCE comes before the last day
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
@@ -53,9 +53,10 @@ export const V3_LIVE: Readonly<Record<string, boolean>> = {
 };
 export const MAX_SEED = 2 ** 32 - 1; // RUNES-1: a run seed (run.ts newRun), 1..2^32-1 (0 is left out)
 export const MAX_RUNES = 10; // RUNES-1: one a dawn (= MAX_DAY; runes.ts runeProblem holds the day's own bound)
-/** LC-1 (REQ-BFG-073): the most runes a build may list: MAX_RUNES, and one more (a LAST CHANCE rune) only while its switch
- *  is on (runes.ts runeProblem holds the day's own bound: one a dawn and one LAST CHANCE). Off: MAX_RUNES, as before. */
-export const maxRunes = (): number => MAX_RUNES + (lastChanceRules() ? 1 : 0);
+/** LC-1 (REQ-BFG-073): the most runes a build may list: MAX_RUNES, and one more (a LAST CHANCE rune). A shape bound only:
+ *  runes.ts runeProblem holds the day's own bound (one a dawn, and one LAST CHANCE only with the snapshot's lastChance,
+ *  which the rules gate refuses under older rules). Z-BUMP: the switch is gone; this was its on side. */
+export const maxRunes = (): number => MAX_RUNES + 1;
 export const MAX_STARS = 3; // = stars.ts FUSE_MAX
 export const MAX_ROT = 3; // 0.6.2: a rig's rotation in quarter turns
 export const MAX_SNAPSHOT_BYTES = 16 * 1024; // encoded UTF-8 size cap (client, server, pool)

@@ -10,7 +10,7 @@ import { currentName, playerId, SNAPSHOT_V3 } from "./ghostSnapshot";
 import { displayName, nameProblem, WANDERER } from "../net/names"; // PACKS M2 (REQ-BFG-063)
 import { rollShop, runeDawn, type DayResult, type DuskFoe, type Run } from "./run";
 import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (type only)
-import { LAST_CHANCE_LIVES, lastChanceFires } from "../sim/lastChance"; // LC-1 (REQ-BFG-073), behind its switch
+import { LAST_CHANCE_LIVES, lastChanceFires } from "../sim/lastChance"; // LC-1 (REQ-BFG-073); Z-BUMP: no switch
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -168,7 +168,7 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
     run.losses++;
     run.lives = Math.max(0, run.lives - 1);
   }
-  // LC-1 (REQ-BFG-073), RULE LAST CHANCE (lastChance.ts; only with its switch on): a loss that leaves exactly 1 life on a
+  // LC-1 (REQ-BFG-073), RULE LAST CHANCE (lastChance.ts; Z-BUMP: the game's rule, no switch): a loss that leaves exactly 1 life on a
   // day before RUN_DAYS gives one back at once, once a run; the card pick waits for the next dawn's screen
   if (lastChanceFires(run.day, outcome, run.lives, run.lastChance !== undefined)) {
     run.lives += LAST_CHANCE_LIVES;

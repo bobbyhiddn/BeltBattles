@@ -15,8 +15,16 @@
 //    this check) gets the record 422 on a resend, and the store keeps its one copy;
 //  - all 120 seed ghosts of this build's rules (generateSamplePool(): the RC's bb-0.8.0 pool, bb-0.8.3 since BELTS),
 //    posted as one player's signed dusks, get 201 (ported from the Prime's RC check, output-RC/verify-cap/zz-caprc.test.ts).
+// Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule. A loss to 1 life before day 10 gives a life back (1 -> 2,
+// once a run), so the record model (records.ts) gives 172 records over dusks 1-10 (was 178; under rules before LAST CHANCE,
+// "bb-0.9.1", still 178). 13 of them only a run that had its LAST CHANCE carries (1 life at dusks 7-10); POST reads an
+// upload's record with its lastChance (its day, null when it has none), so such a record goes up with an honest LAST CHANCE
+// (a day the model accepts for it, the HULL card on the deck) and gets 201, and plainly gets the record 422. The seed pool
+// carries the model's labels too (server/seed.ts checkPool reads them with or without one), but a seed ghost never carries
+// a lastChance: the 22 whose label only a LAST CHANCE reaches get the record 422 as plain uploads, the other 98 get 201.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION } from "../src/sim/content";
+import { LAST_CHANCE_HULL } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): the HULL card
 import { floorRecord, isReachable, reachableRecords } from "../src/net/records";
 import { decodeSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
@@ -43,6 +51,26 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
 }
 const recordError = (day: number, wins: number, lives: number) => `record: ${wins}W ${lives} lives is no record a run carries into dusk ${day}`;
 
+/** Z-BUMP (the flip): a record of dusk `day` that only a run which had its LAST CHANCE carries (reachable, but not with
+ *  lastChance null): the first day whose LAST CHANCE the record model accepts for it; null for a record a plain run carries. */
+const lastChanceDayFor = (day: number, wins: number, lives: number): number | null => {
+  if (isReachable(day, wins, lives, { lastChance: null })) return null;
+  return Array.from({ length: MAX_DAY - 1 }, (_, i) => i + 1).find((d) => isReachable(day, wins, lives, { lastChance: d })) ?? null;
+};
+/** Z-BUMP: the records only a LAST CHANCE reaches, with the LAST CHANCE day each goes up with (the model's first). */
+const LAST_CHANCE_RECORDS = [
+  "d7 0W 1L @5", "d8 0W 1L @5", "d8 1W 1L @5", "d8 2W 1L @6", "d9 0W 1L @5", "d9 1W 1L @5", "d9 2W 1L @5", "d9 3W 1L @6",
+  "d10 0W 1L @5", "d10 1W 1L @5", "d10 2W 1L @5", "d10 3W 1L @5", "d10 4W 1L @6",
+];
+/** Z-BUMP: the seed ghosts (hero, day, wins, lives) whose label only a LAST CHANCE reaches: a plain upload of each gets the
+ *  record 422 (generateSamplePool() at this commit; sorted). */
+const LAST_CHANCE_SEEDS = [
+  "bastion d10 0W 1L", "bastion d10 0W 1L", "bastion d7 0W 1L", "bastion d8 0W 1L", "bastion d9 0W 1L",
+  "foundry d10 0W 1L", "foundry d7 0W 1L", "foundry d8 0W 1L", "foundry d9 0W 1L",
+  "furnace d10 0W 1L", "furnace d7 0W 1L", "furnace d7 0W 1L", "furnace d8 0W 1L", "furnace d8 2W 1L", "furnace d9 0W 1L", "furnace d9 0W 1L",
+  "weaver d10 0W 1L", "weaver d10 3W 1L", "weaver d7 0W 1L", "weaver d7 0W 1L", "weaver d8 0W 1L", "weaver d9 0W 1L",
+];
+
 /** The brief's unreachable records the decoder takes: [day, wins, lives]. The first is backlog 325's example. */
 const UNREACHABLE: readonly [number, number, number][] = [
   [1, 0, 1], [1, 0, 4], [2, 1, 4], [3, 0, 3], [3, 1, 4], [2, 0, 6], [10, 9, 1],
@@ -59,12 +87,25 @@ describe("H2: the records the check refuses and takes (pure)", () => {
     expect(recordError(1, 0, 1)).toBe("record: 0W 1 lives is no record a run carries into dusk 1");
   });
 
-  it("each day's floorRecord is reachable; 178 reachable records over days 1-10", () => {
+  // Z-BUMP (the flip): 172 (was 178, the model without LAST CHANCE, which rules before it still read: 178)
+  it("each day's floorRecord is reachable; 172 reachable records over days 1-10", () => {
     for (let day = 1; day <= MAX_DAY; day++) {
       const f = floorRecord(day);
       expect(isReachable(day, f.wins, f.lives), `d${day}`).toBe(true);
     }
-    expect(Array.from({ length: MAX_DAY }, (_, i) => reachableRecords(i + 1).length).reduce((a, b) => a + b)).toBe(178);
+    const count = (opts: Parameters<typeof reachableRecords>[1]) => Array.from({ length: MAX_DAY }, (_, i) => reachableRecords(i + 1, opts).length).reduce((a, b) => a + b);
+    expect(count({})).toBe(172);
+    expect(count({ rules: "bb-0.9.1" })).toBe(178); // a record under rules before LAST CHANCE: the model before the flip
+    // the 13 only a LAST CHANCE reaches (a plain run, lastChance null, carries the other 159), each with the model's first day
+    expect(count({ lastChance: null })).toBe(159);
+    const only: string[] = [];
+    for (let day = 1; day <= MAX_DAY; day++) {
+      for (const { wins, lives } of reachableRecords(day)) {
+        const lc = lastChanceDayFor(day, wins, lives);
+        if (lc !== null) only.push(`d${day} ${wins}W ${lives}L @${lc}`);
+      }
+    }
+    expect(only).toEqual(LAST_CHANCE_RECORDS);
   });
 });
 
@@ -123,16 +164,29 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     expect(await state()).toEqual(before);
   });
 
+  // Z-BUMP (the flip): 172 (was 178). A record only a LAST CHANCE reaches (13, LAST_CHANCE_RECORDS; the floorRecord of
+  // dusks 7-10 among them) goes up as the run that carries it uploads it: with its LAST CHANCE (the model's first day for
+  // it, the HULL card: always offered, its LAST_CHANCE_HULL on the deck as takeLastChance puts it there): 201. Plainly it
+  // gets the record 422, word for word, and nothing is stored
   it("takes every reachable record of every day 1-10 (each day's floorRecord included): 201, stored once each", async () => {
     let n = 0;
+    const withLastChance: string[] = [];
     for (let day = 1; day <= MAX_DAY; day++) {
       const recs = reachableRecords(day);
       expect(recs).toContainEqual(floorRecord(day));
       for (const { wins, lives } of recs) {
         const before = await state();
-        const s = mine({ ...deckOf(day), wins, lives });
+        const deck = deckOf(day);
+        const lcDay = lastChanceDayFor(day, wins, lives);
+        let s = mine({ ...deck, wins, lives });
+        if (lcDay !== null) {
+          expect(await post(s), `d${day} ${wins}W ${lives}L plain`).toEqual({ status: 422, body: { error: recordError(day, wins, lives) } });
+          expect(await state(), `d${day} ${wins}W ${lives}L plain: the store is unchanged`).toEqual(before);
+          s = mine({ ...deck, wins, lives, build: { ...deck.build, hullBonus: deck.build.hullBonus + LAST_CHANCE_HULL }, lastChance: { day: lcDay, boon: "hull" } });
+          withLastChance.push(`d${day} ${wins}W ${lives}L @${lcDay}`);
+        }
         const r = await post(s);
-        expect(r, `d${day} ${wins}W ${lives}L`).toEqual({ status: 201, body: { id: ghostId(s) } });
+        expect(r, `d${day} ${wins}W ${lives}L${lcDay !== null ? ` LAST CHANCE ${lcDay}` : ""}`).toEqual({ status: 201, body: { id: ghostId(s) } });
         const after = await state();
         expect([after.ghosts, after.size, after.records], `d${day} ${wins}W ${lives}L`).toEqual([before.ghosts + 1, before.size + 1, before.records + 1]);
         expect(after.listing).toEqual([...before.listing, ghostId(s)].sort());
@@ -140,7 +194,8 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
         n++;
       }
     }
-    expect(n).toBe(178);
+    expect(n).toBe(172);
+    expect(withLastChance).toEqual(LAST_CHANCE_RECORDS);
   }, 120_000);
 
   it("keeps the order: closed 403, signing 401, decode 400, playerId 403, rules 422, deck 422, then the record 422", async () => {
@@ -198,17 +253,29 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     expect(await state()).toEqual(held);
   });
 
-  it("all 120 bb-0.8.3 seed ghosts (generateSamplePool(), the RC's pool's composition), posted as one player's signed dusks, are taken (201) and stored", async () => {
+  // Z-BUMP (the flip): the pool's labels are the record model's with LAST CHANCE (all 120 reachable with or without one, as
+  // server/seed.ts checkPool reads them), but a seed ghost carries no lastChance, so POST reads each as a plain run's: the
+  // 98 a plain run carries are taken (201) and stored (was all 120); the 22 whose label only a LAST CHANCE reaches
+  // (LAST_CHANCE_SEEDS: 1 life at dusks 7-10) get the record 422, word for word, and are not stored
+  it("all 120 bb-0.8.3 seed ghosts (generateSamplePool(), the RC's pool's composition), posted as one player's signed dusks: the 98 a plain upload carries are taken (201) and stored, the 22 only a LAST CHANCE reaches get the record 422", async () => {
     expect(POOL).toHaveLength(120);
+    expect(POOL.filter((s) => !isReachable(s.day, s.wins, s.lives)).map((s) => `${s.hero} d${s.day} ${s.wins}W ${s.lives}L`)).toEqual([]);
     const before = await state();
     const statuses: Record<number, number> = {};
+    const refused: string[] = [];
     for (const s of POOL) {
       const r = await post(mine(s));
       statuses[r.status] = (statuses[r.status] ?? 0) + 1;
-      expect(r.status, `${s.hero} d${s.day} ${s.wins}W ${s.lives}L: ${JSON.stringify(r.body)}`).toBe(201);
+      const what = `${s.hero} d${s.day} ${s.wins}W ${s.lives}L`;
+      if (isReachable(s.day, s.wins, s.lives, { lastChance: null })) expect(r.status, `${what}: ${JSON.stringify(r.body)}`).toBe(201);
+      else {
+        expect(r, what).toEqual({ status: 422, body: { error: recordError(s.day, s.wins, s.lives) } });
+        refused.push(what);
+      }
     }
-    expect(statuses).toEqual({ 201: 120 });
+    expect(refused.sort()).toEqual(LAST_CHANCE_SEEDS);
+    expect(statuses).toEqual({ 201: 98, 422: 22 });
     const after = await state();
-    expect([after.ghosts - before.ghosts, after.records - before.records]).toEqual([120, 120]);
+    expect([after.ghosts - before.ghosts, after.records - before.records]).toEqual([98, 98]);
   }, 120_000);
 });

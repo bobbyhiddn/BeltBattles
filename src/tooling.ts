@@ -1,6 +1,6 @@
 // Tooling helpers behind window.bb (shots, metrics, scripted runs). The game never calls these.
 
-import { newRun, pendingRune, rollShop, takeRune, type Run } from "./game/run";
+import { newRun, pendingLastChance, pendingRune, rollShop, takeLastChance, takeRune, type Run } from "./game/run"; // Z-BUMP: LAST CHANCE's pick
 import { finishDay, startDusk } from "./game/day";
 import { GHOST_KEY, loadPool, saveGhost, type GhostSnapshot } from "./game/ghosts";
 import { beginRoad, choicesFor, pickChoice } from "./game/events";
@@ -12,7 +12,7 @@ import { finishWarlord, pickPending, pickRoad, takePart } from "./game/road";
 import { gainModule } from "./game/fuse";
 import type { Difficulty } from "./sim/rivals";
 import { key as K, rotField, type Build, type Placed } from "./sim/deck";
-import { LAST_CHANCE_AT, LAST_CHANCE_LIVES, lastChanceRules } from "./sim/lastChance"; // LC-1 (REQ-BFG-073): a tooling ghost's lives
+import { LAST_CHANCE_AT, LAST_CHANCE_LIVES } from "./sim/lastChance"; // LC-1 (REQ-BFG-073): a tooling ghost's lives
 
 // ------------------------------------------------------------------ 0.6.2 BELTSIDE showcase decks (shots)
 
@@ -130,8 +130,8 @@ export function makeGhost(s: GhostSpec): GhostSnapshot {
   const losses = s.losses ?? 0;
   return {
     // 0.6.2 BELTSIDE: rigs carrying `rot` need v2 (DESIGN-beltside D1)
-    // LC-1 (REQ-BFG-073): with LAST CHANCE on, a ghost whose losses brought it to 1 life (or past it) had its life back
-    v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero, day: s.day, wins: s.wins ?? 0, lives: Math.max(1, START_LIVES - losses + (lastChanceRules() && START_LIVES - losses <= LAST_CHANCE_AT ? LAST_CHANCE_LIVES : 0)),
+    // LC-1 (REQ-BFG-073): a ghost whose losses brought it to 1 life (or past it) had its life back (Z-BUMP: no switch)
+    v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero, day: s.day, wins: s.wins ?? 0, lives: Math.max(1, START_LIVES - losses + (START_LIVES - losses <= LAST_CHANCE_AT ? LAST_CHANCE_LIVES : 0)),
     build, runId: s.runId ?? "tool-pool", playerId: "tool-player", createdAt: Date.now(),
   };
 }
@@ -193,6 +193,10 @@ export function playOut(o: RunSpec & { results: string; roads?: string }): Run {
   let i = 0;
   for (const ch of o.results) {
     if (run.over) break;
+    // Z-BUMP (REQ-BFG-073, the flip): a pending LAST CHANCE comes first, as the picker requires (the dawn rune waits and a
+    // fight is refused while it is pending): this skips the picker, so it takes the HULL card (main.ts openLastChance's
+    // card for a LAST CHANCE that isn't the shot's own); before the flip none ever fired
+    if (pendingLastChance(run)) takeLastChance(run, "hull");
     // RUNES-2a (REQ-BFG-058, RUNES-1 gap 6): this skips the picker, so it takes the dawn rune first (the first card), as
     // a fight is refused while a pick is pending (run.ts fightRefusal)
     const offer = pendingRune(run);

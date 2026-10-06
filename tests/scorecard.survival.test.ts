@@ -1,6 +1,8 @@
 // SC-TOOL --survival (REQ-BFG-026 item 7, job S1): the exact model on hand-computed cases, the refund's effect, the
 // model against the run code on scripted loss sequences, the DOCK's day odds against eventSequence, the rules audit
 // and one par run's dusks. About 10 s (two full pattern tables through the day loop and one par run).
+// Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule, so the run code's rules are GAME (RULES plus LAST CHANCE's
+// life) and every check against the run code reads them; RULES stays the 0.6.2 rules of the hand-computed cases.
 import { describe, expect, it } from "vitest";
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { standInFoe } from "../src/game/ghosts";
@@ -12,6 +14,8 @@ import { BAG_IDS } from "../src/game/events";
 import { WARLORD_EVENT_IDS } from "../src/game/eventDefs";
 
 const RULES: LifeRules = { startLives: 5, days: 10, lossLives: 1, refundDay: 3, refundLives: 1, dockLives: 1 };
+/** Z-BUMP (the flip): the game's rules now, as lifeAudit reads them off the run code: RULES and LAST CHANCE's 1 life. */
+const GAME: LifeRules = { ...RULES, lastChance: 1 };
 const choose = (n: number, k: number): number => (k < 0 || k > n ? 0 : k === 0 ? 1 : (choose(n - 1, k - 1) * n) / k);
 
 describe("--survival: the exact model on hand-computed cases", () => {
@@ -74,7 +78,7 @@ describe("--survival: the exact model on hand-computed cases", () => {
 describe("--survival: the model against the run code (newRun + startDusk + finishDay)", () => {
   it("reads the rules off the run code, and no build gains from losing days 1-2", () => {
     const a = lifeAudit("furnace", 20260926);
-    expect(a.rules).toEqual(RULES);
+    expect(a.rules).toEqual(GAME); // Z-BUMP: the flip (was RULES: the audit now reads LAST CHANCE's life off the run code too)
     expect(a.dusk).toEqual({ win: 0, loss: -1, draw: 0 });
     expect(a.refund.dawns).toEqual([5, 4, 5, 5]); // L, W, W: the day-1 loss comes back at the dawn of day 3
     expect(a.choices.map((c) => [c.event, c.choice, c.gainLives, c.costLives, c.costGold])).toEqual([["dock", "PATCH UP", 1, 0, 4]]);
@@ -88,20 +92,26 @@ describe("--survival: the model against the run code (newRun + startDusk + finis
 
   it("every loss pattern completes in the run code exactly when the model says so (no DOCK)", () => {
     const run = patternTable("weaver", 7);
-    expect(run.complete).toEqual(modelTable(RULES));
-    expect(survivalFrom(run.complete, constLoss(0.5))).toBe(582 / 1024);
+    expect(run.complete).toEqual(modelTable(GAME)); // Z-BUMP: the flip (was modelTable(RULES))
+    // Z-BUMP: the flip (was 582 / 1024, the 0.6.2 rules' above). With LAST CHANCE a run survives at most 5 losses (638
+    // patterns), or exactly 6 with one on day 1 or 2 (C(10, 6) - C(8, 6) = 182): 820
+    expect(survivalFrom(run.complete, constLoss(0.5))).toBe(820 / 1024);
   });
 
-  it("the refund decides scripted sequences: losing days 1-5 survives with it, the no-refund model would end the run", () => {
-    const m = 0b11111; // lose days 1-5, win 6-10: 5 -> 4 -> 3 -> (refund) 4 -> 3 -> 2
+  // Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE gives back the life of the first loss to 1 life, so the no-refund model
+  // now survives losing days 1-5 too (5 -> 4 -> 3 -> 2 -> 1 (LAST CHANCE) 2 -> 1); one more loss keeps each sequence's point:
+  // days 1-6 (was days 1-5, lives [4, 4, 3, 2, 1, 1, 1, 1, 1, 1]) and days 3-8 (was days 3-7, lost after 7 dusks)
+  it("the refund decides scripted sequences: losing days 1-6 survives with it, the no-refund model would end the run", () => {
+    const m = 0b111111; // lose days 1-6, win 7-10: 5 -> 4 -> 3 -> (refund) 4 -> 3 -> 2 -> 1 (LAST CHANCE) 2 -> 1
     const r = runPattern("furnace", 11, m);
     expect(r.complete).toBe(true);
-    expect(r.lives).toEqual([4, 4, 3, 2, 1, 1, 1, 1, 1, 1]); // after each dusk (the refund lands at dawn 3, after day 2's dusk)
-    expect(modelCompletes({ ...RULES, refundLives: 0 }, lostOf(m, 10))).toBe(false);
-    // lose days 3-7: no early loss, no refund, five lives gone
-    const late = runPattern("furnace", 11, 0b1111100);
+    expect(r.lives).toEqual([4, 4, 3, 2, 2, 1, 1, 1, 1, 1]); // after each dusk (the refund lands at dawn 3, after day 2's dusk)
+    expect(modelCompletes({ ...GAME, refundLives: 0 }, lostOf(m, 10))).toBe(false);
+    expect(modelCompletes({ ...GAME, refundLives: 0 }, lostOf(0b11111, 10))).toBe(true); // days 1-5: LAST CHANCE alone saves it
+    // lose days 3-8: no early loss, no refund, five lives and LAST CHANCE's one gone
+    const late = runPattern("furnace", 11, 0b11111100);
     expect([late.complete, late.lives[late.lives.length - 1]]).toEqual([false, 0]);
-    expect(late.lives.length).toBe(7);
+    expect(late.lives.length).toBe(8);
   });
 
   it("draws keep lives like wins; PATCH UP through the road event matches the model on its DOCK day", () => {
@@ -110,7 +120,7 @@ describe("--survival: the model against the run code (newRun + startDusk + finis
     }
     const day = 4, seed = seedWithEvent("dock", day);
     const t = patternTable("furnace", seed, day);
-    expect(t.complete).toEqual(modelTable(RULES, day));
+    expect(t.complete).toEqual(modelTable(GAME, day)); // Z-BUMP: the flip (was modelTable(RULES, day))
     // below 5 lives at day 4's road: 5 of the 8 day 1-3 patterns (LLW, WWL, LWL, WLL, LLL; LWW and WLW are refilled by
     // the refund at dawn 3), so 5/8 of the 1024
     expect(t.patched).toBe(640);
@@ -142,7 +152,7 @@ describe("--survival: one par run's dusks are the game's own", () => {
     expect(r.res.length).toBe(RUN_DAYS);
     expect(r.foes).toEqual(Array.from({ length: RUN_DAYS }, (_, i) => standInFoe(r.runSeed, i + 1).name));
     const mask = r.res.reduce((m, x, i) => m | (x === 1 ? 1 << i : 0), 0);
-    expect(r.complete).toBe(modelCompletes(RULES, lostOf(mask, RUN_DAYS)));
+    expect(r.complete).toBe(modelCompletes(GAME, lostOf(mask, RUN_DAYS))); // Z-BUMP: the flip (was RULES)
     expect(r.lives[0]).toBe(START_LIVES - (r.res[0] === 1 ? 1 : 0));
     expect(survJob({ hero: "furnace", seed: 3 })).toEqual(r); // deterministic
   });

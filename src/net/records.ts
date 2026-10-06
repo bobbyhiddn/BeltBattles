@@ -21,10 +21,13 @@
 
 import { RUN_DAYS, START_LIVES } from "../sim/content";
 import { REFUND_DAY, REFUND_LIVES } from "../game/day";
-// LC-1 (REQ-BFG-073): LAST CHANCE, a fourth rule that moves lives (only with its switch on): a dusk loss that leaves
-// LAST_CHANCE_AT (1) life on a day before RUN_DAYS gives LAST_CHANCE_LIVES back at once, once a run. It is not a choice:
-// such a loss always fires it, so with the switch on no run carries 1 life past a loss before it has had its LAST CHANCE.
-import { LAST_CHANCE_AT, LAST_CHANCE_LIVES, lastChanceRules } from "../sim/lastChance";
+// LC-1 (REQ-BFG-073): LAST CHANCE, a fourth rule that moves lives: a dusk loss that leaves LAST_CHANCE_AT (1) life on a
+// day before RUN_DAYS gives LAST_CHANCE_LIVES back at once, once a run. It is not a choice: such a loss always fires it, so
+// no run carries 1 life past a loss before it has had its LAST CHANCE. Z-BUMP (release Z): the switch is gone and the rule
+// is modelled, except for a record whose rules (opts.rules) predate it: the rules gate (rulesGate.ts lastChanceGateProblem,
+// LAST_CHANCE_RULES) reads such a record by its own rules, with no LAST CHANCE (the model before the flip).
+import { LAST_CHANCE_AT, LAST_CHANCE_LIVES } from "../sim/lastChance";
+import { lastChanceGateProblem } from "./rulesGate";
 
 /** The DOCK's PATCH UP: the one road choice that moves lives (tests check it against the event definitions). */
 export const PATCH_UP_LIVES = 1;
@@ -39,21 +42,27 @@ interface State {
   l: number;
   early: boolean; // a life lost at dusk before REFUND_DAY
   dock: boolean; // PATCH UP already bought
-  lc: number; // LC-1: the day LAST CHANCE fired (0: not yet; always 0 with the switch off)
+  lc: number; // LC-1: the day LAST CHANCE fired (0: not yet; always 0 under rules without it)
 }
 
 /** LC-1 (REQ-BFG-073): `lastChance` in the options: the day the run's LAST CHANCE fired (a snapshot's lastChance.day), or
- *  null for a run that never had one; absent: either (every path). Only read with the switch on. */
+ *  null for a run that never had one; absent: either (every path). Read only under rules with LAST CHANCE. */
 export type LastChanceDay = number | null;
+
+/** Z-BUMP (REQ-BFG-073): does a record under `rules` follow LAST CHANCE? Absent: this build's rules (yes). A rules version
+ *  before LAST_CHANCE_RULES (or one that can't be read) asks the rules gate and is read without it, as before the flip. */
+export const recordHasLastChance = (rules?: unknown): boolean => rules === undefined || lastChanceGateProblem(rules) === null;
 
 /**
  * Every (wins, lives) a player can carry into day `day`'s dusk, sorted by wins, then lives. `draws` and `patchUp`
  * (both on by default) let the model drop a draw or the DOCK, for tests and for labels a run reaches without them.
+ * Z-BUMP: `rules`, the record's rules version (a stored snapshot's): LAST CHANCE is modelled only under rules that have it
+ * (recordHasLastChance); absent: this build's rules.
  */
-export function reachableRecords(day: number, opts: { draws?: boolean; patchUp?: boolean; dockDay?: number; lastChance?: LastChanceDay } = {}): DuskRecord[] {
+export function reachableRecords(day: number, opts: { draws?: boolean; patchUp?: boolean; dockDay?: number; lastChance?: LastChanceDay; rules?: unknown } = {}): DuskRecord[] {
   // dockDay (tests): PATCH UP only on that day's road, as a run whose DOCK comes that day (absent: any day)
   const draws = opts.draws ?? true, patchUp = opts.patchUp ?? true, dockDay = opts.dockDay;
-  const lcOn = lastChanceRules(); // LC-1: off, no state ever fires it (lc stays 0) and every record is as before
+  const lcOn = recordHasLastChance(opts.rules); // Z-BUMP: under older rules no state fires it (lc stays 0): today's records before the flip
   let states: State[] = [{ w: 0, l: START_LIVES, early: false, dock: false, lc: 0 }];
   for (let d = 1; d < day; d++) {
     const next = new Map<string, State>();
@@ -80,14 +89,14 @@ export function reachableRecords(day: number, opts: { draws?: boolean; patchUp?:
     states = [...next.values()];
   }
   const seen = new Map<string, DuskRecord>();
-  // LC-1: with the switch on and `lastChance` given, only the runs whose LAST CHANCE fired that day (null: never)
+  // LC-1: under rules with LAST CHANCE and `lastChance` given, only the runs whose LAST CHANCE fired that day (null: never)
   const fired = opts.lastChance === undefined || !lcOn ? states : states.filter((s) => s.lc === (opts.lastChance ?? 0));
   for (const s of fired) seen.set(`${s.w}|${s.l}`, { wins: s.w, lives: s.l });
   return [...seen.values()].sort((a, b) => a.wins - b.wins || a.lives - b.lives);
 }
 
-/** Can a player carry (wins, lives) into day `day`'s dusk? */
-export function isReachable(day: number, wins: number, lives: number, opts: { draws?: boolean; patchUp?: boolean; lastChance?: LastChanceDay } = {}): boolean {
+/** Can a player carry (wins, lives) into day `day`'s dusk? (Z-BUMP: `rules`, the record's rules, as reachableRecords.) */
+export function isReachable(day: number, wins: number, lives: number, opts: { draws?: boolean; patchUp?: boolean; lastChance?: LastChanceDay; rules?: unknown } = {}): boolean {
   return reachableRecords(day, opts).some((r) => r.wins === wins && r.lives === lives);
 }
 
