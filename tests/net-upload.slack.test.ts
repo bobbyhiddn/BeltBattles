@@ -359,4 +359,8 @@ const MISMATCH: number[] = [0, 0, 0, 1, 2, 0, 3, 1, 2, 2];
 /** of which: the Hard rotation, free - rot (062m: 0 on every day). 0.8.0 N1 (BASE 9855129: 0 0 0 1 1 1 2 2 2 2). */
 const ROTATION: number[] = [0, 0, 0, 0, 0, 1, 0, 1, 1, 2];
 /** Hard captains whose day-before deck (SABOTAGE) offers a pricier part than their own (062m: none). */
-const SABOTAGE_PRICIER: string[] = ["bulwark d9: 4 -> 5"];
+// CATCHUP-097 (REQ-BFG-024; OLD BULWARK's re-planned good-luck road deck, BRIEF-CATCHUP-097 target 2): was
+// ["bulwark d9: 4 -> 5"]. His day-5 BELLOWS and the long haul's good day 5 -> 6 make his day-4 deck the pricier one on day 5
+// (4 -> 5 g), and his day-9 deck now offers his day-8 part itself. No best pay moves: roadCap and the slack rows above are
+// unchanged (capsearch pays: today's best Hard prize 5 6 6 6 7 7 7 10 10 10, as at zbump-accepted).
+const SABOTAGE_PRICIER: string[] = ["bulwark d5: 4 -> 5"];
