@@ -47,6 +47,12 @@
 // TAP-093b (backlog #340) bar: the top bar's checks alone (barChecks, no other touch check) on a DPR 2 phone, 375x667 @2 in
 //         Chromium (isMobile, hasTouch; x3, a finger's target 30 px; every touch view is DPR 3), with 0, 1, 3 and 10 runes:
 //         the corner MENU's target a full finger's square, 1 px clear of the rune chips, which start at tapPx + 1.
+// TCH-360 (backlog #360) on a busy host: a drag's finger is down and past the touch slop at once (its touchStart and its
+//         moves to the second point go back to back: sent one by one, a starved page met the first move after the game's
+//         0.38 s hold, which lifts a factory, so the drag carried the KILN or the LOOM instead of drawing a belt); a check
+//         reads the board once the game has registered the drag (each frame, up to about 1 s); a drag that registered
+//         nothing at all is made once more (a RETRY line); after a failed check, the rest of that board's checks are SKIP
+//         lines ("skipped after a failed drag"), not failures on a wrong board.
 // Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names,bar] [--tag after]
 //        [--name touchcheck] [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json, <name>-mouse.json and the screenshots.
@@ -54,6 +60,7 @@
 import { chromium, devices, webkit } from "playwright-core";
 import { createServer } from "node:http";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { loadavg } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
 import { VIEWS } from "./shots-list.mjs";
 import { settle, sleep } from "./playthrough.mjs";
@@ -112,6 +119,26 @@ const check = (ok, what) => { checks.push({ ok: !!ok, what }); log(`${ok ? "PASS
 const shots = [];
 const tapMs = [];
 const mouseSeen = [];
+/** TCH-360: the host's 1-min load (os.loadavg). */
+const load1 = () => loadavg()[0].toFixed(2);
+/**
+ * TCH-360 (2c): no cascade after a failed drag. Each board (openDeck) starts clean; once a check on it fails, the rest of
+ * that board's checks (bcheck: the drag blocks and the upgrades between their drags) are SKIP lines, "skipped after a
+ * failed drag", instead of failures read off a wrong board. The failed check still fails the run; a SKIP line is no
+ * check (TOUCH CHECKS counts it apart), so the count of real failures stays honest.
+ */
+let boardFail = null;
+const skips = [];
+const retries = [];
+const bcheck = (ok, what) => {
+  if (boardFail !== null) {
+    skips.push({ what, after: boardFail });
+    log(`SKIP  ${what}: skipped after a failed drag on this board ("${boardFail.slice(0, 120)}")`);
+    return;
+  }
+  check(ok, what);
+  if (!ok) boardFail = what;
+};
 
 /** dist/ on 127.0.0.1. */
 function pageServer() {
@@ -226,6 +253,7 @@ const YELLOW = [246, 207, 72], INK = [5, 11, 18];
 
 /** Open the build screen on `deck` (bb.openDawn, then the deck set on the run in place and the screen told). */
 async function openDeck(page, deck) {
+  boardFail = null; // TCH-360 (2c): a fresh board
   await page.keyboard.press("Escape").catch(() => {});
   await page.evaluate((d) => window.bb.openDawn({ hero: d.hero, day: d.day, gold: d.gold, seed: 12345 }), deck);
   await settle(page, "build");
@@ -373,18 +401,81 @@ async function tap(cdp, p, css = 0, deg = 0) {
   await sleep(150);
 }
 
-/** A finger's drag through `pts` (client points), a move every 6 CSS px; `release` false leaves it down (call up()). */
+/** A finger's drag through `pts` (client points), a move every 6 CSS px; `release` false leaves it down (call up()).
+ *  TCH-360: the finger is down and past the 10 CSS px touch slop at once: the touchStart and the moves up to the first one
+ *  11 CSS px from it go back to back, queued in order on one CDP session as a tap's are; the rest as before, one by one.
+ *  Sent one by one (each awaited), a starved page met the first move past the slop over 0.38 s after the press, the
+ *  game's hold that lifts a factory (edit.ts Editor.update), so the drag carried the KILN or the LOOM instead of drawing
+ *  a belt (TAP-093b runs 1 and 2). A release sends touchEnd alone: dragStep waits for the game to register the drag. */
 async function drag(cdp, pts, release = true) {
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [tp(pts[0])] });
+  const moves = [];
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6));
-    for (let k = 1; k <= n; k++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [tp({ x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n })] });
-    await sleep(25);
+    for (let k = 1; k <= n; k++) moves.push({ p: { x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n }, end: k === n });
+  }
+  const j = moves.findIndex((m) => Math.hypot(m.p.x - pts[0].x, m.p.y - pts[0].y) >= 11);
+  const lead = moves.slice(0, j < 0 ? 1 : j + 1);
+  await Promise.all([{ type: "touchStart", touchPoints: [tp(pts[0])] }, ...lead.map((m) => ({ type: "touchMove", touchPoints: [tp(m.p)] }))].map((e) => cdp.send("Input.dispatchTouchEvent", e)));
+  if (lead[lead.length - 1].end) await sleep(25);
+  for (const m of moves.slice(lead.length)) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [tp(m.p)] });
+    if (m.end) await sleep(25);
   }
   await sleep(120);
-  if (release) await up(cdp);
+  if (release) await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 const up = async (cdp) => { await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); await sleep(150); };
+
+/** TCH-360: what a drag can change, read in the page: the run (gold, the build, cargo, the shop, as snap), the toasts so
+ *  far and the editor's gesture (a press, a draw, a carry); `frame`: read after the game's next animation frame. */
+const dragState = (page, frame) => page.evaluate(async (fr) => {
+  if (fr) await new Promise((ok) => requestAnimationFrame(() => ok()));
+  const g = window.bb.game, r = g.run, e = g.screen.ed;
+  return {
+    run: JSON.stringify({ gold: r.gold, build: r.build, inventory: r.inventory, offers: r.shop.wagons.map((w) => w.offers.map((o) => [o.def, o.price, !!o.sold])) }),
+    toasts: g.toastLog.length, press: !!e.press, draw: e.draw ? e.draw.cells.length : null, carry: e.carry ? e.carry.def : null,
+  };
+}, frame);
+
+/**
+ * TCH-360 (2a, 2b): a drag (drag()) the game must register before its check reads the board. After the finger lifts it
+ * reads, each frame for up to about 1 s, until the editor is idle (no press, draw or carry) and the run or the toasts
+ * changed; a drag left down (`release` false) until the press reads as a drag (a draw, a carry or a new toast). One that
+ * registered nothing at all (the editor idle, the run and the toasts as before the drag) is made once more, with a RETRY
+ * line naming the view and the step; a retry that registers nothing again fails its check as before. A drag that
+ * registered anything, right or wrong, is never made again. A drag left down is waited for, never made again (the finger
+ * is still down for its check).
+ */
+async function dragStep(page, cdp, V, step, pts, release = true) {
+  for (let attempt = 1; ; attempt++) {
+    const s0 = await dragState(page, false), t1 = Date.now();
+    await drag(cdp, pts, release);
+    const t2 = Date.now();
+    let s = s0, frames = 0, ok = false;
+    do {
+      s = await dragState(page, true);
+      frames++;
+      const changed = s.run !== s0.run || s.toasts > s0.toasts;
+      ok = release ? !s.press && s.draw === null && s.carry === null && changed : !s.press && (s.draw !== null || s.carry !== null || changed);
+    } while (!ok && Date.now() - t2 < 1000);
+    const nothing = !ok && !s.press && s.draw === null && s.carry === null && s.run === s0.run && s.toasts === s0.toasts;
+    const how = `${Date.now() - t2} ms and ${frames} frames after the finger ${release ? "lifted" : "stopped"} (the drag took ${t2 - t1} ms); the editor ${s.press ? "still holds the press" : s.draw !== null ? `still draws (${s.draw} tiles)` : s.carry !== null ? `still carries the ${s.carry}` : "idle"}; 1-min load ${load1()}`;
+    if (ok) {
+      if (attempt > 1) log(`RETRY  ${V}: ${step}: the retry registered (${how})`);
+      return true;
+    }
+    if (nothing && release && attempt > 1) {
+      log(`RETRY  ${V}: ${step}: the retry registered nothing either (${how}); its check fails as before`);
+      return false;
+    }
+    if (!nothing || !release) {
+      log(`[${at()}] ${V}: ${step}: the drag wasn't registered as expected (${how}); its check reads the board as it is`);
+      return false;
+    }
+    retries.push({ view: V, step });
+    log(`RETRY  ${V}: ${step}: the drag registered nothing (the run and the toasts unchanged ${how}); once more`);
+  }
+}
 const cells = (page, list) => Promise.all(list.map(([x, y]) => cell(page, x, y)));
 const dist = (pts) => pts.slice(1).reduce((s, p, i) => s + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0);
 
@@ -401,7 +492,7 @@ async function upgradeTouch(page, cdp, V, { what, where, track, title, key }) {
   await tap(cdp, await where(), 5, 90);
   const l0 = await look(page), r = await region(page, `upgrade-${track}`), s0 = JSON.parse(await snap(page)), m0 = await marksOf(page, track);
   const lead = l0.panel?.labels?.[0] ?? null;
-  check(!!r && shown(l0, title) && lead === "UPGRADE 10G" && r.h >= TAP_CSS && inView(r, l0) && m0.length === 0,
+  bcheck(!!r && shown(l0, title) && lead === "UPGRADE 10G" && r.h >= TAP_CSS && inView(r, l0) && m0.length === 0,
     `${V}: a tap on ${what} opens its panel (${pdesc(l0)}; buttons ${JSON.stringify(l0.panel?.labels ?? null)}), its UPGRADE 10G ${r ? `a ${r.w.toFixed(1)}x${r.h.toFixed(1)} CSS px target ${inView(r, l0) ? "inside" : "NOT inside"} the visible viewport` : "MISSING"}; level 1: no mark on the board (${mdesc(m0)})`);
   if (!r) return { s0, s1: s0 };
   await tap(cdp, centre(r), 3, 0);
@@ -409,7 +500,7 @@ async function upgradeTouch(page, cdp, V, { what, where, track, title, key }) {
   const { upgrades: u0, ...b0 } = s0.build, { upgrades: u1, ...b1 } = s1.build;
   const text = l1.panel ? l1.panel.lines.join(" ") : "";
   const marked = m1.length === 1 && m1[0].level === 2 && m1[0].text === "2" && m1[0].px === 15 && m1[0][track === "factory" ? "uid" : "slot"] === key;
-  check(s1.gold === s0.gold - 10 && !u0?.[track] && u1?.[track] === 2 && same(b1, b0) && same(s1.inventory, s0.inventory) && same(s1.offers, s0.offers)
+  bcheck(s1.gold === s0.gold - 10 && !u0?.[track] && u1?.[track] === 2 && same(b1, b0) && same(s1.inventory, s0.inventory) && same(s1.offers, s0.offers)
     && l1.panel?.labels?.[0] === "UPGRADE 20G" && (track !== "factory" || /LEVEL 2\/4/.test(text)) && shown(l1, title) && marked,
     `${V}: its UPGRADE 10G buys ${track === "factory" ? "FACTORY" : "TURRET SPEED"} level 2: gold ${s0.gold} -> ${s1.gold}, upgrades ${JSON.stringify(u0 ?? {})} -> ${JSON.stringify(u1 ?? {})}, the rest of the build, cargo and the shop unchanged; the panel now offers ${JSON.stringify(l1.panel?.labels?.[0] ?? null)}${track === "factory" ? ` and says ${JSON.stringify(text.match(/[A-Z ]*LEVEL \d\/\d/)?.[0] ?? null)}` : ""}; the board's mark: ${mdesc(m1)}`);
   return { s0, s1 };
@@ -680,41 +771,43 @@ async function touchSection(browsers, origin, vname) {
   // KILN copy bought from the caravan merged it to ★2): its FACTORY UPGRADE buys level 2 for 10 gold, its belts kept, the
   // board marks it, and a drag draws its third belt at once; then the starting SCRAP CANNON's TURRET SPEED UPGRADE
   {
+    // TCH-360: each drag through dragStep (registered before its check; one retry if it registered nothing), each check
+    // here a bcheck (after a failed one, the rest of this board's are SKIP lines)
     await openDeck(page, KILN_DECK);
     const s0 = JSON.parse(await snap(page));
     const p1 = await cells(page, [[5, 6], [5, 5], [5, 4], [5, 3], [5, 2], [5, 1], [5, 0]]);
-    await drag(cdp, p1);
+    await dragStep(page, cdp, V, "the KILN's second belt", p1);
     const b1 = JSON.parse(await snap(page)).build;
     await shot(page, `${TAG}-${vname}-kiln-second-belt.png`);
-    check(b1.routes.length === 2 && same(b1.routes[0], s0.build.routes[0]) && b1.routes[1].factory === 1 && same(b1.routes[1].cells, KILN_SECOND) && dist(p1) >= 40,
+    bcheck(b1.routes.length === 2 && same(b1.routes[0], s0.build.routes[0]) && b1.routes[1].factory === 1 && same(b1.routes[1].cells, KILN_SECOND) && dist(p1) >= 40,
       `${V}: a ${dist(p1).toFixed(0)} CSS px drag out of the level-1 KILN (2 belt slots, 1 used) draws a second belt into column 5 (${JSON.stringify(b1.routes[1]?.cells)}) and keeps the first`);
     const s1 = await snap(page), n0 = (await look(page)).toasts;
     const pts = await cells(page, [[4, 7], [3, 7], [2, 7], [2, 6], [2, 5]]);
-    await drag(cdp, pts, false);
+    await dragStep(page, cdp, V, "the full KILN's drag (held down)", pts, false);
     await page.evaluate(() => { const g = window.bb.game; g.step(1 / 60); g.render(); });
     const mid = await page.evaluate(() => { const s = window.bb.game.screen; return { draw: s.ed.draw && { ...s.ed.draw }, hide: s.view.hideRoute }; });
     const news = await toastsSince(page, n0);
     await shot(page, `${TAG}-${vname}-kiln-notice.png`);
-    check(news.includes(FULL_KILN) && !mid.draw && mid.hide === -1,
+    bcheck(news.includes(FULL_KILN) && !mid.draw && mid.hide === -1,
       `${V}: a drag out of the full level-1 KILN (2 of 2 belts) says "${FULL_KILN}" and draws nothing (draw ${JSON.stringify(mid.draw)}; hidden route ${mid.hide})`);
     const back = await cells(page, [[2, 5], [2, 6], [2, 7], [3, 7], [4, 7]]);
     for (let i = 1; i < back.length; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [tp(back[i])] });
     await sleep(80);
     await up(cdp);
-    check((await snap(page)) === s1, `${V}: that drag ended back on the KILN: the serialized build is identical`);
+    bcheck((await snap(page)) === s1, `${V}: that drag ended back on the KILN: the serialized build is identical`);
     await tap(cdp, await cell(page, 4, 7), 8, 45);
-    check((await snap(page)) === s1, `${V}: a tap on the KILN changes nothing`);
+    bcheck((await snap(page)) === s1, `${V}: a tap on the KILN changes nothing`);
     // bb-0.8.3 (REQ-BFG-043 D10, D11): the KILN's FACTORY UPGRADE (25 gold -> 15), its two belts kept, then its third belt
     const { s1: r2 } = await upgradeTouch(page, cdp, V, { what: "the KILN", where: () => cell(page, 4, 7), track: "factory", title: "KILN", key: 1 });
     const b2 = r2.build;
     await shot(page, `${TAG}-${vname}-kiln-upgraded.png`);
-    check(same(b2.routes, b1.routes) && b2.items.filter((p) => p.def === "kiln").length === 1 && !b2.items.find((p) => p.uid === 1)?.stars,
+    bcheck(same(b2.routes, b1.routes) && b2.items.filter((p) => p.def === "kiln").length === 1 && !b2.items.find((p) => p.uid === 1)?.stars,
       `${V}: the KILN at FACTORY level 2 keeps its two belts and stays one KILN, with no stars`);
     const p3 = await cells(page, [[5, 6], [6, 6], [7, 6], [8, 6], [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0]]);
-    await drag(cdp, p3);
+    await dragStep(page, cdp, V, "the KILN's third belt", p3);
     const b3 = JSON.parse(await snap(page)).build;
     await shot(page, `${TAG}-${vname}-kiln-third-belt.png`);
-    check(b3.routes.length === 3 && same(b3.routes.slice(0, 2), b2.routes) && b3.routes[2].factory === 1 && same(b3.routes[2].cells, KILN_THIRD),
+    bcheck(b3.routes.length === 3 && same(b3.routes.slice(0, 2), b2.routes) && b3.routes[2].factory === 1 && same(b3.routes[2].cells, KILN_THIRD),
       `${V}: a drag out of the level-2 KILN (3 belt slots, 2 used) draws its third belt into column 8 at once: ${JSON.stringify(b3.routes[2]?.cells)}`);
     // the starting SCRAP CANNON (TURRET SLOT 1, the free copy): its TURRET SPEED UPGRADE (15 gold -> 5)
     await upgradeTouch(page, cdp, V, { what: "the starting SCRAP CANNON (TURRET SLOT 1, the free copy)", where: () => turret(page, 0), track: "turret", title: "SCRAP CANNON", key: 0 });
@@ -724,31 +817,31 @@ async function touchSection(browsers, origin, vname) {
     await openDeck(page, WEAVER);
     const s0 = JSON.parse(await snap(page));
     const p1 = await cells(page, [[5, 6], [6, 6], [7, 6], [8, 6], [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0]]);
-    await drag(cdp, p1);
+    await dragStep(page, cdp, V, "the LOOM's second belt", p1);
     const b1 = JSON.parse(await snap(page)).build;
     await shot(page, `${TAG}-${vname}-loom-second-belt.png`);
-    check(b1.routes.length === 2 && same(b1.routes[0], s0.build.routes[0]) && b1.routes[1].factory === 1 && dist(p1) >= 40,
+    bcheck(b1.routes.length === 2 && same(b1.routes[0], s0.build.routes[0]) && b1.routes[1].factory === 1 && dist(p1) >= 40,
       `${V}: a ${dist(p1).toFixed(0)} CSS px drag out of the LOOM (three outputs, one used) adds a second belt (${b1.routes[1]?.cells.length} tiles) and keeps the first`);
     const p2 = await cells(page, [[4, 5], [3, 5], [2, 5], [1, 5], [1, 4], [1, 3], [1, 2], [1, 1], [1, 0]]);
-    await drag(cdp, p2);
+    await dragStep(page, cdp, V, "the LOOM's third belt (from its first belt tile)", p2);
     const b2 = JSON.parse(await snap(page)).build;
-    check(b2.routes.length === 3 && same(b2.routes.slice(0, 2), b1.routes) && b2.routes[2].factory === 1 && !b2.routes[2].cells.includes(K(4, 5)),
+    bcheck(b2.routes.length === 3 && same(b2.routes.slice(0, 2), b1.routes) && b2.routes[2].factory === 1 && !b2.routes[2].cells.includes(K(4, 5)),
       `${V}: a drag that starts on the LOOM's own first belt tile (ambiguous with the LOOM) draws a third belt and keeps both: ${JSON.stringify(b2.routes[2]?.cells)}`);
     const n0 = (await look(page)).toasts;
     const p4 = await cells(page, [[5, 7], [6, 7], [7, 7], [7, 8]]);
-    await drag(cdp, p4);
+    await dragStep(page, cdp, V, "the full LOOM's drag (its warning)", p4);
     const news = await toastsSince(page, n0), b3 = JSON.parse(await snap(page)).build;
     // the warning tells the truth in fullNotice's words (0.8.0: "ALL 3 LOOM OUTPUTS USED - DRAG A BELT TO REROUTE"; bb-0.8.3
     // REQ-BFG-043 D11: the hero's own factory points at its FACTORY upgrade, was "· ★2 OPENS A 4TH")
     const FULL_LOOM = "LOOM'S 3 BELTS ARE IN USE · UPGRADE FOR A 4TH";
-    check(news.includes(FULL_LOOM) && same(b3, b2), `${V}: with every output used, a drag out of the LOOM warns ("${FULL_LOOM}") and changes nothing`);
+    bcheck(news.includes(FULL_LOOM) && same(b3, b2), `${V}: with every output used, a drag out of the LOOM warns ("${FULL_LOOM}") and changes nothing`);
     // bb-0.8.3 (REQ-BFG-043 D10, D11; REQ-BFG-044): the LOOM's FACTORY UPGRADE (15 gold -> 5) opens a fourth slot (3/4/5/6),
     // and the same drag now draws its fourth belt
     const { s1: r4 } = await upgradeTouch(page, cdp, V, { what: "the full LOOM", where: () => cell(page, 4, 7), track: "factory", title: "LOOM", key: 1 });
-    await drag(cdp, p4);
+    await dragStep(page, cdp, V, "the LOOM's fourth belt", p4);
     const b4 = JSON.parse(await snap(page)).build;
     await shot(page, `${TAG}-${vname}-loom-fourth-belt.png`);
-    check(b4.routes.length === 4 && same(b4.routes.slice(0, 3), r4.build.routes) && b4.routes[3].factory === 1 && same(b4.routes[3].cells, LOOM_FOURTH) && dist(p4) >= 40,
+    bcheck(b4.routes.length === 4 && same(b4.routes.slice(0, 3), r4.build.routes) && b4.routes[3].factory === 1 && same(b4.routes[3].cells, LOOM_FOURTH) && dist(p4) >= 40,
       `${V}: a ${dist(p4).toFixed(0)} CSS px drag out of the level-2 LOOM (4 belt slots, 3 used) draws its fourth belt: ${JSON.stringify(b4.routes[3]?.cells)}`);
   }
 
@@ -756,24 +849,24 @@ async function touchSection(browsers, origin, vname) {
   {
     await openDeck(page, FURNACE);
     const from = await card(page, 0), to = await cell(page, 3, 4);
-    await drag(cdp, [from, to]);
+    await dragStep(page, cdp, V, "the GREASE WORKS card dragged onto the deck", [from, to]);
     const r = JSON.parse(await snap(page));
-    check(r.gold === 2 && r.build.items.some((p) => p.def === "grease" && p.x === 3 && p.y === 4) && dist([from, to]) >= 40,
+    bcheck(r.gold === 2 && r.build.items.some((p) => p.def === "grease" && p.x === 3 && p.y === 4) && dist([from, to]) >= 40,
       `${V}: a ${dist([from, to]).toFixed(0)} CSS px drag buys the GREASE WORKS card and places it on (3,4) (gold 5 -> ${r.gold})`);
     const m = await cells(page, [[3, 3], [3, 2], [3, 1], [2, 1]]);
-    await drag(cdp, m);
+    await dragStep(page, cdp, V, "the TEMPER moved", m);
     const r2 = JSON.parse(await snap(page)).build;
-    check(r2.items.some((p) => p.uid === 3 && p.x === 2 && p.y === 1) && dist(m) >= 40, `${V}: a ${dist(m).toFixed(0)} CSS px drag moves the TEMPER from (3,3) to (2,1)`);
+    bcheck(r2.items.some((p) => p.uid === 3 && p.x === 2 && p.y === 1) && dist(m) >= 40, `${V}: a ${dist(m).toFixed(0)} CSS px drag moves the TEMPER from (3,3) to (2,1)`);
     const rr = await cells(page, [[6, 3], [7, 3], [7, 2], [7, 1], [7, 0]]);
-    await drag(cdp, rr);
+    await dragStep(page, cdp, V, "the STAMP PRESS belt rerouted", rr);
     const r3 = JSON.parse(await snap(page)).build;
     const press = r3.routes.find((q) => q.factory === 2);
-    check(press && same(press.cells.slice(0, 3), [K(6, 5), K(6, 4), K(6, 3)]) && press.cells.includes(K(7, 3)) && dist(rr) >= 40,
+    bcheck(press && same(press.cells.slice(0, 3), [K(6, 5), K(6, 4), K(6, 3)]) && press.cells.includes(K(7, 3)) && dist(rr) >= 40,
       `${V}: a ${dist(rr).toFixed(0)} CSS px drag from the STAMP PRESS belt's tile 3 reroutes it: ${JSON.stringify(press?.cells)}`);
     const sl = await slot(page, 0), dc = await cell(page, 8, 7);
-    await drag(cdp, [sl, dc]);
+    await dragStep(page, cdp, V, "the GALVANIC COIL dragged from cargo", [sl, dc]);
     const r4 = JSON.parse(await snap(page));
-    check(r4.build.items.some((p) => p.uid === 60) && !r4.inventory.some((i) => i.uid === 60), `${V}: a drag from cargo places the GALVANIC COIL on the deck`);
+    bcheck(r4.build.items.some((p) => p.uid === 60) && !r4.inventory.some((i) => i.uid === 60), `${V}: a drag from cargo places the GALVANIC COIL on the deck`);
   }
 
   await barChecks(page, cdp, V);
@@ -1242,10 +1335,12 @@ async function main() {
   }
   const failed = checks.filter((c) => !c.ok);
   log("");
-  log(failed.length ? `TOUCH CHECKS FAILED: ${failed.length} of ${checks.length}` : `TOUCH CHECKS PASSED: ${checks.length} of ${checks.length}`);
+  // TCH-360 (2b, 2c): the retries and the skipped checks, counted apart (a SKIP line is no check)
+  log(`drags made twice (RETRY lines): ${retries.length}${retries.length ? ` (${retries.map((r) => `${r.view}: ${r.step}`).join("; ")})` : ""}; checks skipped after a failed drag (SKIP lines): ${skips.length}`);
+  log(failed.length ? `TOUCH CHECKS FAILED: ${failed.length} of ${checks.length}${skips.length ? `; ${skips.length} skipped after a failed drag` : ""}` : `TOUCH CHECKS PASSED: ${checks.length} of ${checks.length}`);
   log(`screenshots: ${shots.join(", ")}`);
   writeFileSync(join(OUT, `${NAME}.log`), lines.join("\n") + "\n");
-  writeFileSync(join(OUT, `${NAME}.json`), JSON.stringify({ checks, tapMs }, null, 1) + "\n");
+  writeFileSync(join(OUT, `${NAME}.json`), JSON.stringify({ checks, skips, retries, tapMs }, null, 1) + "\n");
   if (mouseSeen.length) writeFileSync(join(OUT, `${NAME}-mouse.json`), JSON.stringify(mouseSeen, null, 1) + "\n");
   if (failed.length) process.exitCode = 1;
 }
