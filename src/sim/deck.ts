@@ -8,7 +8,6 @@ import {
   factorySpeed, levelSpeed, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake, type Upgrades,
 } from "./content";
-import { starRules } from "./content"; // Y2 (release Y): the star switch (LODESTONE's timeline note)
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
@@ -504,14 +503,14 @@ export function routeDirs(b: Build, r: RouteDef, connected: boolean, join?: Join
 export function payloadDamage(base: number, rideScale: number, ride: number, mult: number, flat: number, floor = 10): number {
   // NUM-1 (REQ-BFG-047, N1 2.1): whole, rounded half up once when the slug is fired (its HEAT for the seconds ridden, the
   // HEAT it gained on the belt in `flat`, the split share); at least 10 (x10 of 1). Y2: `floor` (shotFloor), 10 but for a
-  // LIMPET charge with the star switch on
+  // LIMPET charge
   return Math.max(floor, roundHalfUp((base + rideScale * ride) * mult + flat));
 }
 
 /** Y2 (release Y; DESIGN-Y row 13): the least a slug of `ammo` deals when fired (payloadDamage's floor): 10 (x10 of 1),
- *  but with the star switch on a LIMPET charge's damage is its blast (content.ts STAR_DIFF limpet: base 0, its 20 on
- *  impact joined the blast), so its impact deals only what rigs added to it, from 0. Off, always 10. */
-export const shotFloor = (ammo: string): number => (ammo === "limpet" && starRules() ? 0 : 10);
+ *  but a LIMPET charge's damage is its blast (content.ts limpet: base 0, its 20 on impact joined the blast), so its
+ *  impact deals only what rigs added to it, from 0. */
+export const shotFloor = (ammo: string): number => (ammo === "limpet" ? 0 : 10);
 
 export interface RouteEstimate {
   time: number; // seconds from stamp to chamber for the first payload (all gates online)
@@ -520,7 +519,7 @@ export interface RouteEstimate {
   copies: number;
   burn: number;
   shock: boolean;
-  flat?: number; // Y4 (release Y): with the star switch on, the payload's bonus damage (rigs, splits, pulses; not HEAT)
+  flat?: number; // Y4 (release Y): the payload's bonus damage (rigs, splits, pulses; not HEAT)
 }
 
 /** 0.6.2 BELTSIDE (V4): what one hit did to the payload in the single-payload walk (walkRoute). */
@@ -535,8 +534,7 @@ export interface TimelineHit {
   capped?: number; // beltside-062 (P3): LONG HAUL ★2/★3 saw more earlier hits than its priorCap; the cap ("MAX 6 HITS")
   burn?: number;
   quenched?: number; // 0.6.2 FB-B QUENCH TANK: the Burn stacks this hit spent (its flat above includes their value)
-  poison?: number;
-  burnPlus?: number; // Y6 (release Y; DESIGN-Y 4.1): VENOM DRIP with the star switch on, the seconds it adds to each BURN stack
+  burnPlus?: number; // Y6 (release Y; DESIGN-Y 4.1): VENOM DRIP, the seconds it adds to each BURN stack
   fray?: number;
   staticTime?: number;
   timed?: string;
@@ -638,20 +636,14 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     for (let t = leg.from; t < b.routes[leg.route].cells.length; t++) path.push({ route: leg.route, tile: t });
   }
   const joins: WalkJoin[] = [];
-  // 0.6.2 CAND-A: the SURGE valves whose per-pulse flat this walk has counted. A valve pays a payload once per pulse
-  // (Battle.transport's pulseSeen, which the payload carries through a join), so a joined walk doesn't count the main
-  // belt's pulse again when the same valve (a two-belt spot: an arrow on this belt and one on the main belt before the
-  // join tile) already paid on an earlier leg. A walk with no join is unchanged.
-  const pulsed = new Set<number>();
   // 0.8.0 P1 (E6): which belts are matched, read only when a TWIN GAUGE hits one of the walk's tiles; whether the deck
   // plates its hull, read only when a PLATE BREAKER does
   let matched: boolean[] | undefined;
   let plates: boolean | undefined = o.unplated ? false : undefined; // 0.8.0 B1 M2: WalkOpts.unplated
-  // Y3 (release Y; DESIGN-Y row 28): with the star switch on a SURGE VALVE pays every slug on its belts once a period
-  // (Battle.surgeTick), so the walk counts the seconds the slug spends on each belt (timeOn) and, after it, each valve's
-  // flat x those seconds / its period on every belt it hits: the pulses the slug rides through, as an expected count
-  // (surgeHits: its timeline hit, which shows that damage). Off, none of this runs.
-  const star = starRules();
+  // Y3 (release Y; DESIGN-Y row 28): a SURGE VALVE pays every slug on its belts once a period (Battle.surgeTick), so the
+  // walk counts the seconds the slug spends on each belt (timeOn) and, after it, each valve's flat x those seconds / its
+  // period on every belt it hits: the pulses the slug rides through, as an expected count (surgeHits: its timeline hit,
+  // which shows that damage)
   const timeOn = new Map<number, number>(), surgeHits = new Map<number, TimelineHit>();
   const n = path.length;
   for (let i = 0; i < n; i++) {
@@ -660,17 +652,14 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     if (i > 0 && path[i - 1].route !== ri) { // 0.6.2j: the join tile of main belt ri
       joins.push({ route: ri, tile, cell: cells[tile], row: timeline.length });
       if (fixed === undefined && !locked) { // J4, J15: from here on the main belt's speed state (slag keeps `fixed`)
-        const st = beltStateAt(b, ri, tile, hits);
-        speed = st.speed;
-        // its SURGE pulse, once, as that belt's own walk counts it (not again for a valve already counted)
-        if (st.pulseFlat && !pulsed.has(st.pulseUid)) { flat += st.pulseFlat; pulsed.add(st.pulseUid); }
+        speed = beltStateAt(b, ri, tile, hits).speed;
       }
     }
     const inHalf = CELL / 2 / (BELT_SPEED * speed);
     time += inHalf;
     ride += inHalf;
     heatBonus += heat * inHalf;
-    if (star) timeOn.set(ri, (timeOn.get(ri) ?? 0) + inHalf); // Y3: the seconds on belt ri (SURGE's pulses)
+    timeOn.set(ri, (timeOn.get(ri) ?? 0) + inHalf); // Y3: the seconds on belt ri (SURGE's pulses)
     const speeds: number[] = [];
     const row: TimelineHit[] = [];
     for (const h of hits[ri]?.[tile] ?? []) {
@@ -699,17 +688,16 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         burn += e.burn;
         th.burn = e.burn;
       }
-      if (e.poison) th.poison = e.poison;
-      if (e.burnPlus) th.burnPlus = e.burnPlus; // Y6: VENOM DRIP with the star switch on (no damage; the rating prices it)
+      if (e.burnPlus) th.burnPlus = e.burnPlus; // Y6: VENOM DRIP (no damage; the rating prices it)
       if (e.burnPerRide) {
-        // Y3 (release Y; DESIGN-Y row 22): as Battle.applyHit, with the star switch on + burn for each whole `per` s, no cap
+        // Y3 (release Y; DESIGN-Y row 22): as Battle.applyHit, + burn for each whole `per` s, no cap
         const br = e.burnPerRide;
-        const amount = starRules() ? br.burn * Math.floor(ride / br.per) : Math.min(br.max ?? Infinity, Math.floor((ride * br.burn) / br.per)); // NUM-3: n per 10 s
+        const amount = br.burn * Math.floor(ride / br.per);
         burn += amount;
         th.burn = (th.burn ?? 0) + amount;
       }
       if (e.quench) { // 0.6.2 FB-B: as Battle.applyHit (+ flat; up to `stacks` Burn at perBurn each; the rest stays Burn)
-        const spent = Math.min(burn, e.quench.stacks ?? Infinity); // Y3 (DESIGN-Y row 23): no `stacks` with the star switch on
+        const spent = Math.min(burn, e.quench.stacks ?? Infinity); // Y3 (DESIGN-Y row 23): no `stacks`
         const amount = e.quench.flat + spent * e.quench.perBurn;
         flat += amount;
         th.flat = (th.flat ?? 0) + amount;
@@ -718,16 +706,16 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       }
       if (e.staticTime) th.staticTime = e.staticTime;
       if (e.fray) th.fray = e.fray;
-      if (e.perTile) { // Y5 (release Y; DESIGN-Y row 41): as Battle.applyHit, no cap with the star switch on (its def has no max)
+      if (e.perTile) { // Y5 (release Y; DESIGN-Y row 41): as Battle.applyHit, no cap (its def has no max)
         const amount = Math.min(e.perTile.max ?? Infinity, i * e.perTile.each);
         flat += amount;
         th.flat = (th.flat ?? 0) + amount;
       }
       if (e.overclockCooldown) th.timed = `X2 EVERY ${e.overclockCooldown}S`;
-      // Y5 (release Y; DESIGN-Y row 46): with the star switch on the keg blasts every fuse s (Battle.kegTick)
-      if (e.keg) th.timed = starRules() ? `BLAST +${e.keg.flat} EVERY ${e.keg.fuse}S` : `BLAST +${e.keg.flat} AT ${e.keg.fuse}S`;
-      // Y2 (release Y; DESIGN-Y row 15): with the star switch on LODESTONE has no cap
-      if (e.perStalled) th.timed = starRules() ? `+${e.perStalled.each}/STALLED` : `+${e.perStalled.each}/STALLED, MAX ${e.perStalled.max}`;
+      // Y5 (release Y; DESIGN-Y row 46): the keg blasts every fuse s (Battle.kegTick)
+      if (e.keg) th.timed = `BLAST +${e.keg.flat} EVERY ${e.keg.fuse}S`;
+      // Y2 (release Y; DESIGN-Y row 15): LODESTONE has no cap
+      if (e.perStalled) th.timed = `+${e.perStalled.each}/STALLED`;
       if (e.shock) {
         shock = true;
         th.shock = true;
@@ -741,7 +729,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         th.flat = (th.flat ?? 0) + amount;
         th.matched = m;
       }
-      if (e.pincer) { // E5: every other rig's hit on this tile, up to its max (Y3, DESIGN-Y row 20: no max with the star switch on)
+      if (e.pincer) { // E5: every other rig's hit on this tile (Y3, DESIGN-Y row 20: its def has no max)
         const others = Math.min(e.pincer.max ?? Infinity, (hits[ri]?.[tile] ?? []).filter((o) => o.uid !== h.uid).length);
         const amount = e.pincer.flat + e.pincer.each * others;
         flat += amount;
@@ -765,13 +753,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       if (e.brace) th.brace = { ...e.brace };
       if (e.heat) heat += e.heat;
       if (e.sort) copies *= 1 + (e.sort.copies - 1) / e.sort.every;
-      if (e.pulse && star) surgeHits.set(h.uid, th); // Y3 (DESIGN-Y row 28): no speed; its pulses are counted after the walk
-      else if (e.pulse) {
-        speeds.push(1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period);
-        th.speed = 1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period;
-        // 0.6.2: a tempo-locked belt ignores the pulse and its per-pulse flat, as Battle.transport does (lockedFlat pays)
-        if (e.pulse.flat && !locked) { flat += e.pulse.flat; th.flat = (th.flat ?? 0) + e.pulse.flat; pulsed.add(h.uid); }
-      }
+      if (e.pulse) surgeHits.set(h.uid, th); // Y3 (DESIGN-Y row 28): no speed; its pulses are counted after the walk
       if (e.split) {
         copies *= e.split.copies;
         mult *= e.split.mult;
@@ -797,30 +779,28 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     time += outT;
     ride += outT;
     heatBonus += heat * outT;
-    if (star) timeOn.set(ri, (timeOn.get(ri) ?? 0) + outT);
+    timeOn.set(ri, (timeOn.get(ri) ?? 0) + outT);
   }
-  // Y3 (DESIGN-Y row 28): with the star switch on, each SURGE VALVE with an arrow on a belt the slug rides (any tile, before
-  // or after the slug's own way onto it) pays flat x the seconds it rides there / the period, once for each such belt
-  if (star) {
-    for (const [ri, secs] of timeOn) {
-      const seen = new Set<number>();
-      for (const tileHits of hits[ri] ?? []) for (const h of tileHits) {
-        const pulse = seen.has(h.uid) ? undefined : effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate?.pulse;
-        if (!pulse) continue;
-        seen.add(h.uid);
-        const amount = (pulse.flat * secs) / pulse.period;
-        flat += amount;
-        const th = surgeHits.get(h.uid);
-        if (th) th.flat = (th.flat ?? 0) + amount;
-      }
+  // Y3 (DESIGN-Y row 28): each SURGE VALVE with an arrow on a belt the slug rides (any tile, before or after the slug's own
+  // way onto it) pays flat x the seconds it rides there / the period, once for each such belt
+  for (const [ri, secs] of timeOn) {
+    const seen = new Set<number>();
+    for (const tileHits of hits[ri] ?? []) for (const h of tileHits) {
+      const pulse = seen.has(h.uid) ? undefined : effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate?.pulse;
+      if (!pulse) continue;
+      seen.add(h.uid);
+      const amount = (pulse.flat * secs) / pulse.period;
+      flat += amount;
+      const th = surgeHits.get(h.uid);
+      if (th) th.flat = (th.flat ?? 0) + amount;
     }
   }
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
     ? curveDamage(ammo, ride, mult, flat + heatBonus, pendulumShift(b, info.turret)) // 0.6.2: HEAT JACKET on the curve too
     : payloadDamage(base, ammo.rideScale, ride, mult, flat + heatBonus, shotFloor(fs?.ammo ?? "plain")); // includes HEAT JACKET's downstream ride (Y2: shotFloor)
-  // Y4 (release Y; DESIGN-Y row 40): with the star switch on the estimate also carries the payload's bonus damage, `flat`
-  // (what a DRAKE NOZZLE turns into BURN at fire: Battle.fireCore's drakeConvert(p.flat)), for the bots' rating; off, as before
-  const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock, ...(star ? { flat } : {}) }, timeline, speedEnd: speed, locked };
+  // Y4 (release Y; DESIGN-Y row 40): the estimate also carries the payload's bonus damage, `flat` (what a DRAKE NOZZLE
+  // turns into BURN at fire: Battle.fireCore's drakeConvert(p.flat)), for the bots' rating
+  const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock, flat }, timeline, speedEnd: speed, locked };
   if (fixed !== undefined) walk.fixed = fixed; // beltside-062c (P8)
   if (joins.length) walk.joins = joins; // 0.6.2j
   return walk;
@@ -1535,30 +1515,23 @@ export function joinersOf(b: Build, m: number, occ = occupancy(b)): number[] {
 
 /**
  * 0.6.2j (J4, J15): the speed state belt m's tiles before tile j hand on to tile j (walkRoute's per-tile
- * speedWinner, every rig online), and the per-pulse flat of a SURGE pulse that holds there (Battle.pulseAt: the last
- * pulse, cleared by a later speed hit). What a normal payload joining at tile j rides, whatever belt m's own ammo.
+ * speedWinner, every rig online). What a normal payload joining at tile j rides, whatever belt m's own ammo.
+ * Y3 (release Y; DESIGN-Y row 28): a SURGE pulse sets no speed and holds no per-ride flat (the walk counts its pulses by
+ * the seconds on its belts).
  */
-export function beltStateAt(b: Build, m: number, j: number, hits = rigHits(b)): { speed: number; pulseFlat: number; pulseUid: number } {
-  let speed = 1, pulseFlat = 0, pulseUid = -1; // 0.6.2 CAND-A: pulseUid, the valve whose pulse holds there (-1: none)
+export function beltStateAt(b: Build, m: number, j: number, hits = rigHits(b)): { speed: number } {
+  let speed = 1;
   for (let i = 0; i < j; i++) {
     const speeds: number[] = [];
     for (const h of hits[m]?.[i] ?? []) {
       const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate;
       if (!e) continue;
-      if (e.speed !== undefined) { pulseFlat = 0; pulseUid = -1; }
-      // Y3 (release Y; DESIGN-Y row 28): with the star switch on a SURGE pulse sets no speed and holds no per-ride flat (the
-      // walk counts its pulses by the seconds on its belts)
-      if (e.pulse && !starRules()) {
-        speeds.push(1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period);
-        pulseFlat = e.pulse.flat;
-        pulseUid = h.uid;
-      }
       if (e.speed) speeds.push(e.speed);
     }
     const won = speedWinner(speeds);
     if (won !== undefined) speed = won;
   }
-  return { speed, pulseFlat, pulseUid };
+  return { speed };
 }
 
 export interface JoinCheck {

@@ -25,7 +25,6 @@
 import { COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, WINDOW_TIME, type ItemDef } from "../sim/content";
 import { WIND_START } from "../sim/content"; // SUS-B (REQ-BFG-069): the DARK WIND row
 import { SPEED_K } from "../sim/content"; // NUM-4 (REQ-BFG-047): the RATE row's 30 seconds
-import { starRules } from "../sim/content"; // Y2 (release Y): the star switch (HARASSMENT retires; GRAPNEL's tap)
 import { SYNC_WINDOW } from "../sim/races/foundry";
 import { scaleCore } from "../sim/cores";
 import { effectAt } from "../sim/stars";
@@ -113,29 +112,22 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "DMG", aliases: [], colour: C.white, def: "DMG: DAMAGE, TO A PART OR TO THE HULL.", scope: "rune" },
     // ------------------------------------------------- the words the kept texts still name (T2a's rows, T1 2.4's form)
     { word: "PART", aliases: ["PARTS", "MACHINE", "MACHINES"], colour: PLAIN, def: "PART: A RIG, FACTORY, TURRET OR BELT TILE.", scope: "text" },
-    // NUM-3 (R1's STUN fold, REQ-BFG-046): the FREEZE row is gone: a FROSTBITE round STUNs (the STUN row); nothing freezes
-    {
-      word: "POISON", aliases: ["POISONED"], colour: KEYWORD_COLOUR.poison,
-      def: `EACH POISON: ${fmtDmg(SIM.poisonTick)} HULL DAMAGE A SEC, MAX ${fmtCount(SIM.poisonMax)}, UNTIL ${fmtSec(SIM.poisonTime)}{SEC} PASS WITH NO POISONED HIT.`, scope: "text",
-    },
+    // NUM-3 (R1's STUN fold, REQ-BFG-046): the FREEZE row is gone: a FROSTBITE round STUNs (the STUN row); nothing freezes.
+    // Y7b2 (the flip): the POISON row is gone too (Y6 retired it; RETIRED below)
     { word: "SPEED", aliases: ["AS FAST", "HALF SPEED", "SPEED RIG", "SPEED RIGS"], colour: KEYWORD_COLOUR.faster, def: "SPEED: A SPEED RIG CHANGES ITS BELT FROM THE TILE IT HITS ON.", scope: "text" },
     { word: "LOCKED", aliases: ["LOCKED BELT", "LOCKED BELTS"], colour: PLAIN, def: "LOCKED: METRONOME'S BELTS KEEP THEIR SPEED; SPEED RIGS ADD DAMAGE INSTEAD.", scope: "text" },
     { word: "COPIES", aliases: ["COPY", "COPIED"], colour: PLAIN, def: "COPIES: SPLITTER AND SORTING ARM TURN A SLUG INTO MORE SLUGS.", scope: "text" },
     { word: "LOAD TIME", aliases: [], colour: PLAIN, def: "LOAD TIME: A GUN FIRES A FULL CHAMBER, OR SOON AFTER ITS FIRST LOAD.", scope: "text" },
     // JAM keeps one meaning: an over-fed gun skipping a shot (battle.ts: JAM_THRESHOLD loads backed up)
     { word: "JAM", aliases: ["JAMS", "JAMMED"], colour: PLAIN, def: `JAM: A GUN WITH ${fmtCount(JAM_THRESHOLD)} LOADS BACKED UP AT ITS INTAKES SKIPS A SHOT.`, scope: "text" },
-    // NUM-3 (R1's STUN fold): no FREEZE or SLOW any more (battle.ts acceptHarassment: a STUN, a SABOT wreck, a GRAPNEL rip)
-    { word: "HARASSMENT", aliases: [], colour: PLAIN, def: "HARASSMENT: ANY {*STUN}, WRECK OR RIP ON AN ENEMY PART.", scope: "text" },
+    // Y7b2 (the flip): the HARASSMENT row is gone (Y2 retired it: harassment is a STUN; RETIRED below)
     {
       // NUM-3: CHILL and SNAG are gone (harassment.ts PayloadDebuffs); SAP is the one mark left, and no piece gives it yet
       word: "MARKS", aliases: ["MARK", "SAP"], colour: PLAIN,
       def: `MARKS: SAP, THE ONE MARK: ITS SLUG DEALS ${fmtDmg(SIM.sap)} LESS {DMG}. NO PIECE GIVES IT YET.`, scope: "text",
     },
     { word: "MATCHED", aliases: ["MATCHED BELT"], colour: PLAIN, def: "MATCHED: A BELT WITH AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.", scope: "text" },
-    {
-      word: "ONLINE", aliases: ["COME ONLINE", "COMES ONLINE"], colour: PLAIN,
-      def: "ONLINE: A RIG WORKS SOON AFTER THE START, LATER FOR EACH EARLIER RIG ON ITS BELT.", scope: "text",
-    },
+    // Y7b2 (the flip): the ONLINE row is gone (Y5 retired it: the texts say START; RETIRED below)
     { word: "BONUS DAMAGE", aliases: [], colour: PLAIN, def: "BONUS DAMAGE: WHAT RIGS AND SCRAP ADD TO A SLUG.", scope: "text" },
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1): the dark wind's text row, no icon (battle.ts: WIND_START, nothing heals from then;
     // 4.1's "NOTHING HEALS IN IT." names HEAL in panel style, as every text a tap shows does)
@@ -146,39 +138,20 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "LOAD", aliases: [], colour: C.brass3, def: "LOAD: A SLUG ENTERS THIS TURRET'S CHAMBER.", scope: "label" },
     { word: "EVERY", aliases: [], colour: C.brass3, def: "EVERY: A TIMER, AGAIN AND AGAIN FOR THE WHOLE FIGHT.", scope: "label" },
   ];
-  // Y2 (release Y): with the star switch on, the rows it retires are gone (STAR_RETIRED); off, every row as before
-  return starRules() ? rows.filter((r) => !retired(r)) : rows;
+  return rows;
 }
 
-/**
- * Y2 (release Y; DESIGN-Y 1.2, REVIEW-STARD rule 6): the rows the star switch (content.ts starRules) retires. HARASSMENT:
- * with the switch on harassment is a STUN (battle.ts acceptHarassment), so no face or kept text names it (the STUN row
- * says it). PART stays a glossary word, no colour of its own and no token: TOLLBOOTH's face names it. No new keyword.
- * Y3 (release Y; DESIGN-Y section 5, column g): ONLINE would retire if no switch-on text named it. ASSEMBLY LINE's texts
- * say START now (abilityText.ts startIn, S_STARTS), but POWDER KEG's kept sentence ("12 SECONDS AFTER IT COMES ONLINE",
- * Y5's piece) and the QUICK LATCH rune ("YOUR {BELT} RIGS: ONLINE {N} SOONER.") still do, so ONLINE stays; no word joins.
- * MATCHED (TWIN GAUGE's face) is a row already.
- * Y4 (release Y; DESIGN-Y section 5, column g): LOAD TIME would retire if no switch-on text named it. The texts of the 8 gear
- * and cores never say it with the switch on (HOPPER's, TWIN TRIGGER's and ROTARY BREECH's say CHAMBER and SOONER; their
- * GATLING clashes are gone), but SALVO RACK's kept sentence ("IT WAITS FOR A FULL CHAMBER, OR TWICE ITS LOAD TIME.") and
- * the TEMPO family's glossary line (families.ts: "... FIRE RATE, LOAD TIME, COMMISSIONING ...") still do, so LOAD TIME
- * stays; BONUS DAMAGE stays (DRAKE NOZZLE's face taps it). No word joins.
- * Y5 (release Y; BRIEF-Y5; DESIGN-Y section 5, column g; cap's ruling 882ecc7750f6dd37): ONLINE retires. With the switch on
- * no text names it any more: POWDER KEG's kept sentence says its fuse runs from the start (abilityText.ts keg), and the
- * QUICK LATCH rune's line says START (runeText.ts STAR_RUNE_TEXT; its RuneDef.text is unchanged), as ASSEMBLY LINE's texts
- * do since Y3; tests/y5.words sweeps every switch-on text for it. Two ONLINEs are not this word and stay: the battle
- * plate's network tag (session.ts SOURCE_ONLINE, "ONLINE GHOST") and content.ts's catalogue descs, which no panel draws for
- * a piece with ability text. No word joins.
- * Y6 (release Y; DESIGN-Y section 4.1, R1's R2; REVIEW-STARD rule 6; BRIEF-Y6 words): POISON retires (its alias POISONED
- * with it). With the switch on VENOM DRIP lengthens BURN instead (no def holds poison, so no hull pool, tick or event), and
- * no text names it: VENOM's texts say BURN's seconds (abilityText.ts venom, faces.ts STAR_FACES), the PLATE sentences drop
- * "AND POISON" (abilityText.ts S_PLATING), SPLITTER's tap (STAR_TAP_NOTES), SPLITTER's, COMPOUND BREECH's and WARD BELL's
- * sentences and the FORGE family's line (families.ts) drop it; tests/y6.words sweeps every switch-on text with a plain
- * /\bPOISON\b/. The POISON colour (richText.ts) and VENOM's catalogue desc stay for the off path. No word joins.
+/*
+ * Y2-Y6 (release Y; DESIGN-Y 1.2 and section 5 column g, REVIEW-STARD rule 6), RETIRED at the flip (Y7b2): the three rows
+ * the star switch retired (its STAR_RETIRED) left the table. HARASSMENT (Y2): harassment is a STUN (battle.ts
+ * acceptHarassment), so no face or kept text names it (the STUN row says it); PART stays a glossary word, no colour and no
+ * token (TOLLBOOTH's face names it). ONLINE (Y5, cap's ruling 882ecc7750f6dd37): POWDER KEG's kept sentence says its fuse
+ * runs from the start, the QUICK LATCH rune's line says START (runeText.ts RUNE_TEXT), as ASSEMBLY LINE's texts do since Y3;
+ * two ONLINEs are not this word and stay: the battle plate's network tag (session.ts SOURCE_ONLINE, "ONLINE GHOST") and
+ * content.ts's catalogue descs. POISON (Y6; its alias POISONED with it): VENOM DRIP lengthens BURN instead, and POISON's
+ * payload, pool, tick, event, colour and VENOM's desc left with the flip. MATCHED (TWIN GAUGE's face) and BONUS DAMAGE (DRAKE
+ * NOZZLE's face) are rows. No word joined.
  */
-export const STAR_RETIRED: readonly string[] = ["HARASSMENT", "ONLINE", "POISON"];
-/** Y2: is `r` a row the star switch retires, while it is on? */
-const retired = (r: GlossaryRow): boolean => starRules() && STAR_RETIRED.includes(r.word);
 
 /** The table, in order: the face keywords, the rune keywords, the kept texts' words, the trigger labels. */
 export const GLOSSARY: readonly GlossaryRow[] = glossaryRows();
@@ -216,7 +189,7 @@ const FORMS: readonly [string, GlossaryRow][] = GLOSSARY
 /** The row for a word or an alias (case-blind), else undefined. */
 export function glossaryEntry(word: string): GlossaryRow | undefined {
   const w = word.trim().toUpperCase();
-  return FORMS.find(([f, r]) => f === w && !retired(r))?.[1]; // Y2: a row the star switch retires names nothing
+  return FORMS.find(([f]) => f === w)?.[1];
 }
 
 /** A form as a pattern over a cleaned text: its words with single spaces, and a two-word form may hold a value between
@@ -230,7 +203,7 @@ export function glossaryHits(text: string): { at: number; end: number; row: Glos
   const t = ` ${text.toUpperCase().replace(/[^A-Z0-9'%+\-.-]/g, " ").replace(/\.(?=\s|$)/g, " ")} `;
   const hits: { at: number; end: number; row: GlossaryRow }[] = [];
   for (const [form, row] of FORMS) {
-    if (row.scope !== "text" || retired(row)) continue; // Y2: a row the star switch retires is no tap
+    if (row.scope !== "text") continue;
     for (const m of t.matchAll(formPattern(form))) {
       const at = m.index!, end = at + m[1].length; // in `text` (t has one leading space; m.index is the space before)
       if (!hits.some((h) => at < h.end && h.at < end)) hits.push({ at, end, row });
@@ -269,30 +242,25 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   sorting: { word: "HIT", text: () => "HIT: ONE COUNT FOR THE SLUGS IT HITS ON EVERY BELT ITS ARROWS REACH." },
   // battle.ts applyHit: perPriorGate x every rig hit before it on the payload, speed rigs too
   longhaul: { word: "HIT", text: () => "HIT: EVERY RIG HIT BEFORE IT COUNTS, SPEED RIGS TOO." },
-  // battle.ts split: each copy keeps the payload's burn, poison and shock
-  splitter: { word: "HIT", text: () => "HIT: EACH COPY KEEPS THE SLUG'S {*BURN}, POISON AND {*STUN}." },
-  // battle.ts transport: for pulse.on s of every pulse.period its belts run x pulse.speed, then at their own speed; a payload
-  // the pulse speeds up gains pulse.flat once a pulse (pulseSeen)
+  // battle.ts split: each copy keeps the payload's burn and shock. Y6 (release Y; DESIGN-Y 4.1; folded at the flip, Y7b2):
+  // POISON is retired, so it names the two a copy keeps (Battle.applyHit's spread: its BURN, with VENOM's seconds, and its
+  // STUN); was "... {*BURN}, POISON AND {*STUN}."
+  splitter: { word: "HIT", text: () => "HIT: EACH COPY KEEPS THE SLUG'S {*BURN} AND {*STUN}." },
+  // Y3 (release Y; DESIGN-Y row 28): there is no speed pulse (Battle.surgeTick: every slug on its belts gains the {DMG} once
+  // a period, wherever it is)
   surge: {
     word: "EVERY",
-    text: (e) => {
-      const p = e.gate!.pulse!;
-      // Y3 (release Y; DESIGN-Y row 28): with the star switch on there is no speed pulse (Battle.surgeTick: every slug on
-      // its belts gains the {DMG} once a period, wherever it is)
-      if (starRules()) return `EVERY ${fmtSec(p.period)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.`;
-      return `EVERY ${fmtSec(p.period)}{SEC}: ITS BELT RUNS FAST FOR ${fmtSec(p.on)}{SEC}, THEN AS BEFORE; A SLUG GETS THE {DMG} ONCE.`;
-    },
+    text: (e) => `EVERY ${fmtSec(e.gate!.pulse!.period)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.`,
   },
   // cores.ts salvo: it waits for a full chamber (or twice its load time); after a volley its reload x reloadMul
   salvo: { word: "SHOT", text: (e, x) => `SHOT: IT WAITS FOR A FULL CHAMBER, AND ITS NEXT RELOAD TAKES ${fmtPct(core(e, x).reloadMul! - 1)} LONGER.` },
-  // battle.ts rip: a hit on an enemy belt tile or rig rips the nearest payloads within reach; a hit on a powder keg disarms it
+  // battle.ts rip: a hit on an enemy belt tile or rig rips the nearest payloads within reach. Y2 (release Y; DESIGN-Y row
+  // 19): a hit POWDER KEG is no longer disarmed, so the tap doesn't say it
   grapnel: {
     word: "SHOT",
     text: (e, x) => {
       const n = core(e, x).reach!;
-      // Y2 (release Y; DESIGN-Y row 19): with the star switch on a hit POWDER KEG is no longer disarmed, so the tap drops it
-      if (starRules()) return `SHOT: IT RIPS THE NEAREST SLUGS WITHIN ${fmtCount(n)} TILE${n === 1 ? "" : "S"} OF A HIT.`;
-      return `SHOT: IT RIPS THE NEAREST SLUGS WITHIN ${fmtCount(n)} TILE${n === 1 ? "" : "S"} OF A HIT; A HIT KEG IS DISARMED.`;
+      return `SHOT: IT RIPS THE NEAREST SLUGS WITHIN ${fmtCount(n)} TILE${n === 1 ? "" : "S"} OF A HIT.`;
     },
   },
   // battle.ts impact: each pellet picks its own target; a burn splits between them
@@ -303,28 +271,18 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   crucible: { word: "PAIR", text: () => "{*PAIR}: TWO BLANKS BY TWO INTAKES AT ONCE FUSE; A LONE ONE FIRES ON ITS OWN." }, // NUM-4: no 0.25 s
   // battle.ts stokedPace: a stoked factory's other timers (ARMOR PRESS's plating) run faster too
   stoker: { word: "FASTER", text: () => "FASTER: IT STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO." },
-};
-
-/**
- * Y4 (release Y; REVIEW-Y1 ruling 3; BRIEF-Y4 S2): the tap notes the star switch adds, beside TAP_NOTES (read only with it
- * on; off, every tap as before). TESLA ARC's face keeps its lone {DMG}25% stat (faces.ts coreStats); its SHOT label's tap
- * says what that share is: Battle.impact: each arc deals tesla.share of the shot's damage (25% / 25% / 30%, its data's).
- */
-export const STAR_TAP_NOTES: Readonly<Record<string, TapNote>> = {
+  // Y4 (release Y; REVIEW-Y1 ruling 3; BRIEF-Y4 S2; folded at the flip, Y7b2): TESLA ARC's face keeps its lone {DMG}25% stat
+  // (faces.ts coreStats); its SHOT label's tap says what that share is: Battle.impact: each arc deals tesla.share of the
+  // shot's damage (25% / 25% / 30%, its data's)
   tesla: { word: "SHOT", text: (e, x) => `SHOT: EACH ARC DEALS ${fmtPct(core(e, x).share!)} OF THE SHOT'S {DMG}.` },
-  // Y6 (release Y; DESIGN-Y 4.1): with the switch on POISON is retired, so SPLITTER's tap (TAP_NOTES') names the two a copy
-  // keeps (Battle.applyHit's spread: its BURN, with VENOM's seconds, and its STUN)
-  splitter: { word: "HIT", text: () => "HIT: EACH COPY KEEPS THE SLUG'S {*BURN} AND {*STUN}." },
-  // Y7b1 (release Y; ruling Y7A-R2): EXT. CHAMBER's ★2/★3 face reads UP TO 3 / UP TO 4 (faces.ts STAR_FACES chamber); its ⓘ
-  // (this tap, on UP TO) says why: Battle.chambers fires at most what the gun's chamber holds
+  // Y7b1 (release Y; ruling Y7A-R2; folded at the flip, Y7b2): EXT. CHAMBER's ★2/★3 face reads UP TO 3 / UP TO 4 (faces.ts
+  // chamber); its ⓘ (this tap, on UP TO) says why: Battle.chambers fires at most what the gun's chamber holds
   chamber: { word: "UP TO", text: () => "UP TO: A SHOT NEVER FIRES MORE THAN ITS GUN'S CHAMBER HOLDS." },
 };
 
-/** The tap note of piece `def` for `word` (a trigger label's word or a rule's word), else undefined. Y4: with the star
- *  switch on, STAR_TAP_NOTES' too. Y6: with the switch on a STAR_TAP_NOTES note goes first (SPLITTER's replaces its
- *  TAP_NOTES one); off, TAP_NOTES' alone, as before. */
+/** The tap note of piece `def` for `word` (a trigger label's word or a rule's word), else undefined. */
 export function tapNote(def: string, word: string): TapNote | undefined {
-  const n = (starRules() ? STAR_TAP_NOTES[def] : undefined) ?? TAP_NOTES[def];
+  const n = TAP_NOTES[def];
   return n && n.word === word.toUpperCase().replace(/:$/, "") ? n : undefined;
 }
 

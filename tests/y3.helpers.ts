@@ -3,7 +3,7 @@
 // a rig [def, x, y, stars] stands west of belt tile (x, y) and hits it.
 import { expect } from "vitest";
 import { Battle, type Payload, type SideState, type TileHit } from "../src/sim/battle";
-import { CELL, withStarRules } from "../src/sim/content";
+import { CELL } from "../src/sim/content";
 import { key, rotField, type Build } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
 import { starField } from "../src/sim/stars";
@@ -16,34 +16,29 @@ import { barge, bench } from "./arsenal.bench";
 export const BAND = 225; // TEXT-STYLE 11.1-11.2: one line of 5x7 on the op view's band (NEXT_LINE_W, GLOSSARY_WRAP_W)
 export const STARS = [1, 2, 3] as const;
 
-export const on = <T>(fn: () => T): T => withStarRules(fn);
-/** The face's rule lines (markup) at each star, with the switch on (or off). */
-export const lines = (def: string, star = true): string[][] =>
-  withStarRules(() => STARS.map((s) => faceAt(def, s)!.rules.map((r) => r.text)), star);
+/** The face's rule lines (markup) at each star. */
+export const lines = (def: string): string[][] => STARS.map((s) => faceAt(def, s)!.rules.map((r) => r.text));
 export const px = (markup: string): number => textWidth(icons(markup));
 /** The ⓘ LEVELS lines at `stars` in text form (levels.ts levelText: the current value [marked]). */
-export const levels = (def: string, stars = 1, star = true): string[] =>
-  withStarRules(() => levelLines(def, stars)!.map((l) => levelText(l)), star);
+export const levels = (def: string, stars = 1): string[] => levelLines(def, stars)!.map((l) => levelText(l));
 /** A NEXT★ line as levelText draws it: its numbers in glyphs (faces.ts faceDiff: icons(v, "alone")). */
 export const next = (to: number, markup: string): string => `NEXT ★${to}: ${icons(markup, "alone")}`;
 
-/** The checks every Y3 face passes with the switch on: one line at each star inside the band; no clause, no caveat; no
- *  perk name on the face blocks (R-1); and every ⓘ LEVELS line inside the band too. */
+/** The checks every Y3 face passes: one line at each star inside the band; no clause, no caveat; no perk name on the face
+ *  blocks (R-1); and every ⓘ LEVELS line inside the band too. */
 export function oneLine(def: string): void {
-  on(() => {
-    for (const s of STARS) {
-      const f = faceAt(def, s)!;
-      expect(f.rules, `${def} ★${s}`).toHaveLength(1);
-      expect(px(f.rules[0].text), `${def} ★${s}: ${f.rules[0].text}`).toBeLessThanOrEqual(BAND);
-      expect(f.clause, `${def} ★${s} clause`).toBeUndefined();
-      expect(f.caveats, `${def} ★${s} caveats`).toBeUndefined();
-      expect(faceBlocks(def, s, {})!.some((b) => b.perk), `${def} ★${s} perk on the face`).toBe(false);
-      for (const l of levelLines(def, s)!) {
-        const t = levelText(l, (v) => v);
-        expect(textWidth(icons(t)), `${def} ★${s} ⓘ: ${t}`).toBeLessThanOrEqual(BAND);
-      }
+  for (const s of STARS) {
+    const f = faceAt(def, s)!;
+    expect(f.rules, `${def} ★${s}`).toHaveLength(1);
+    expect(px(f.rules[0].text), `${def} ★${s}: ${f.rules[0].text}`).toBeLessThanOrEqual(BAND);
+    expect(f.clause, `${def} ★${s} clause`).toBeUndefined();
+    expect(f.caveats, `${def} ★${s} caveats`).toBeUndefined();
+    expect(faceBlocks(def, s, {})!.some((b) => b.perk), `${def} ★${s} perk on the face`).toBe(false);
+    for (const l of levelLines(def, s)!) {
+      const t = levelText(l, (v) => v);
+      expect(textWidth(icons(t)), `${def} ★${s} ⓘ: ${t}`).toBeLessThanOrEqual(BAND);
     }
-  });
+  }
 }
 
 /** A plain slug of the KILN's side (side 0), as Battle.stamp writes one. */
@@ -63,15 +58,13 @@ export function east(b: Build, def: string, x: number, y: number, stars = 1, uid
  * by `setup`), in a battle of `b` against the barge, every gate of side 0 online; returns the payload after the hit.
  * `side`: a further setup of the side (its plating, ...); the hit's TileHit is handed to `setup` too (its `matched`).
  */
-export function hitOnce(b: Build, star: boolean, setup: (p: Payload, h: TileHit, s: SideState) => void = () => {}): Payload {
-  return withStarRules(() => {
-    const bt = new Battle(b, barge(), 8), s = bt.sides[0];
-    for (const g of s.gates) { g.online = true; g.commissionAt = 0; }
-    const g = s.gates[0], h = g.hits[0], p = payload();
-    setup(p, h, s);
-    probe(bt).applyHit(s, { p, s: h.tile * CELL + CELL / 2, processed: h.tile, blocked: false }, h);
-    return p;
-  }, star);
+export function hitOnce(b: Build, setup: (p: Payload, h: TileHit, s: SideState) => void = () => {}): Payload {
+  const bt = new Battle(b, barge(), 8), s = bt.sides[0];
+  for (const g of s.gates) { g.online = true; g.commissionAt = 0; }
+  const g = s.gates[0], h = g.hits[0], p = payload();
+  setup(p, h, s);
+  probe(bt).applyHit(s, { p, s: h.tile * CELL + CELL / 2, processed: h.tile, blocked: false }, h);
+  return p;
 }
 
 /** The bench with rigs (arsenal.bench's form). */

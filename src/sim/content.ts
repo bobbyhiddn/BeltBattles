@@ -131,37 +131,33 @@ export interface GateEffect {
   sort?: { every: number; copies: number };
   heal?: number; // SUS-A (REQ-BFG-069; was `repair`): RIVETER, HEAL this much for each payload it hits (Battle.heal)
   heat?: number;
-  poison?: number;
-  // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP with the star switch on (STAR_DIFF), in place of its poison: each BURN
-  // stack of the hits of the payloads it hits lasts this many seconds longer (Battle.impact: BURN_TIME + burnPlus, then
-  // SLOW EMBERS' %); it rides the payload as poison does (two add up, an OVERCLOCKER doubles it, copies keep it, a COMPOUND
-  // shell adds both loads'). Absent on every def with the switch off
+  // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP, in place of its poison (POISON's payload, pool, tick and event left
+  // at the flip, Y7b2): each BURN stack of the hits of the payloads it hits lasts this many seconds longer (Battle.impact:
+  // BURN_TIME + burnPlus, then SLOW EMBERS' %); it rides the payload (two add up, an OVERCLOCKER doubles it, copies keep
+  // it, a COMPOUND shell adds both loads')
   burnPlus?: number;
   overclockCooldown?: number;
-  // POWDER KEG: once, `fuse` s after it comes online, + flat and burn to every payload on its belts (★3 WIDE BLAST: every
-  // belt beside it). Y5 (release Y; DESIGN-Y row 46): with the star switch on no `burn` and no `wide`: every `fuse` s from
-  // the battle's start it blasts + flat onto its belts (battle.ts kegTick)
+  // POWDER KEG. Y5 (release Y; DESIGN-Y row 46): every `fuse` s from the battle's start it blasts + flat onto its belts
+  // (battle.ts kegTick); `burn` and `wide` (0.9.2's one blast, its BURN and ★3 WIDE BLAST) are held by no def since the flip
   keg?: { fuse: number; flat: number; burn?: number; wide?: boolean };
-  // NUM-3 (REQ-BFG-047, N1 2.2): BELLOWS, + `burn` BURN for each `per` s the payload has ridden, at most `max` (was 1 BURN
-  // every `seconds`: 2.5 / 1.15 / 0.7 s; now 4 / 9 / 14 BURN for each 10 s, exact at ★1, +3.5% at ★2, -2% at ★3)
-  // Y3 (release Y; DESIGN-Y row 22): with the star switch on, + `burn` for each whole `per` s ridden and no `max` (STAR_DIFF)
+  // NUM-3 (REQ-BFG-047, N1 2.2): BELLOWS, + `burn` BURN for each `per` s the payload has ridden. Y3 (release Y; DESIGN-Y
+  // row 22): + `burn` for each whole `per` s ridden, no `max` (held by no def since the flip, Y7b2)
   burnPerRide?: { burn: number; per: number; max?: number };
-  // QUENCH TANK (0.6.2 FB-B): `flat` on every payload it hits, then up to `stacks` Burn stacks become `perBurn` each;
-  // Burn past `stacks` stays Burn (Battle.applyHit, deck.ts walkRoute)
-  // Y3 (DESIGN-Y row 23): with the star switch on no `stacks` (every BURN turns) and `flat` 0 (STAR_DIFF)
+  // QUENCH TANK. Y3 (DESIGN-Y row 23): each BURN on the payload turns into `perBurn` (`flat` 0, no `stacks` since the flip;
+  // Battle.applyHit, deck.ts walkRoute)
   quench?: { flat: number; perBurn: number; stacks?: number };
   staticTime?: number;
   perStalled?: { each: number; max: number };
   fray?: number;
   frayCap?: number;
-  // COUNTERWEIGHT: + each for each tile the payload has ridden, at most max. Y5 (release Y; DESIGN-Y row 41): with the star
-  // switch on no `max` (STAR_DIFF): the cap goes
+  // COUNTERWEIGHT: + each for each tile the payload has ridden. Y5 (release Y; DESIGN-Y row 41): no `max`, the cap goes
+  // (held by no def since the flip, Y7b2)
   perTile?: { each: number; max?: number };
   // 0.8.0 P1, wave 3 (output-D1/DESIGN-wave3.md 3.3; absent on every older rig, so they fight exactly as before):
   plate?: number; // PLATE ROLLER, SHIELD WALL: plating onto your hull for each payload it hits (E1, Battle.addPlate)
   plated?: { min: number; flat: number }; // SHIELD WALL: + flat on those payloads while your hull holds `min` plating or more
   gauge?: { flat: number; matched: number }; // TWIN GAUGE: + flat, or + matched on a matched belt (E6)
-  // Y3 (DESIGN-Y row 20; REVIEW-STARD: "PINCER's dead `max: 3`: Y3 deletes it"): the switch-on def has no max and flat 0
+  // Y3 (DESIGN-Y row 20; REVIEW-STARD: "PINCER's dead `max: 3`: Y3 deletes it"): its def has no max and flat 0 (the flip)
   pincer?: { flat: number; each: number; max?: number }; // PINCER: + flat, + each for every other active rig on its tile (E5)
   brace?: { mul: number; plated: number }; // BRACE FRAME: enemy STUNs on its tiles and itself x mul (x plated while plated; NUM-3: every STUN)
   latch?: { hold: number; flat: number }; // TWIN LATCH: holds a payload at most `hold` s for its other belt (E4); + flat on each payload it hits
@@ -170,8 +166,9 @@ export interface GateEffect {
 }
 
 /**
- * 0.6.1p: RouteState.guard flags. OVERDRIVE ★2 REDLINE sets GUARD_SLOW downstream and ★3 AFTERBURNER adds
- * GUARD_FREEZE (NUM-3, R1's STUN fold: they keep enemy CHAIN and FROST rounds' STUNs off those tiles). GUARD_SKIRT
+ * 0.6.1p: RouteState.guard flags. OVERDRIVE ★2 REDLINE set GUARD_SLOW downstream and ★3 AFTERBURNER added
+ * GUARD_FREEZE (NUM-3, R1's STUN fold: they kept enemy CHAIN and FROST rounds' STUNs off those tiles); since Y2's
+ * OVERDRIVE (folded at the flip, Y7b2) no def sets either, and Battle.disrupt still reads them. GUARD_SKIRT
  * marks a tile a MANTLET shields (★2 FULL GUARD, was FULL PLATE: the last tile, 0.6.2 FB-B; ★3 BULWARK SKIRT: the last 3): the fed
  * turret's immunities cover it (Battle.disrupt).
  */
@@ -182,9 +179,8 @@ export const GUARD_SKIRT = 4;
 /** 0.6.1p: what stalls a machine (MANTLET immunities). Only "shock" exists in wave 1; wave 2 adds the rest.
  *  NUM-3 (R1's STUN fold, REQ-BFG-046): a cause names the SOURCE; every one but "rip" and "sap" is a STUN now (Battle.disrupt):
  *  "freeze" is a FROSTBITE round, "drag" a DRAG CHAIN round, "sabot" a SABOT's STUN on a part that isn't a rig. */
-/** Y2 (release Y; DESIGN-Y section 3, the shared rule): "wreck" is a SABOT round's wreck of a rig while the star switch is
- *  on (starRules; off, a wreck's cause stays "sabot"). Like "rip" and "sap" it is no STUN, so with the switch on it isn't
- *  harassment: TOLLBOOTH doesn't block it and an enemy SCRAPPER doesn't count it. */
+/** Y2 (release Y; DESIGN-Y section 3, the shared rule): "wreck" is a SABOT round's wreck of a rig. Like "rip" and "sap" it
+ *  is no STUN, so it isn't harassment: TOLLBOOTH doesn't block it and an enemy SCRAPPER doesn't count it. */
 export type HarassCause = "shock" | "static" | "arc" | "drag" | "freeze" | "sabot" | "rip" | "limpet" | "sap" | "wreck";
 /** NUM-3 (R1's STUN fold): every source of a STUN. MANTLET is immune to all of them from ★1 (R1: "IMMUNE TO STUN"). */
 export const STUN_CAUSES: readonly HarassCause[] = ["shock", "static", "arc", "drag", "freeze", "sabot", "limpet"];
@@ -432,9 +428,11 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "quartermaster",
     desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["FORGE", "HARASS"],
     factory: { ammo: "plain", speed: 20, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
-    levels: { // NUM-3 (N1 2.2): STUN 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8). The spark tracks GALVANIC COIL: its ★2 / ★3 shockTime with SPARK JUMP (0.6.1p's shockTime and jump)
-      2: { factory: { speed: 23, cycle: [{ tint: "ember", burn: 4 }, { tint: "spark", shock: true, shockTime: 2, jump: 1 }] } },
-      3: { factory: { speed: 27, cycle: [{ tint: "ember", burn: 7 }, { tint: "spark", shock: true, shockTime: 3, jump: 1 }] } },
+    // Y2 (release Y; DESIGN-Y row 12; folded at the flip, Y7b2): the spark's SPARK JUMP goes (no `jump`); ★2 STUN 3 and BURN 5, ★3 STUN
+    // 4 and BURN 9 (was 2 + a jump and 4; 3 + a jump and 7)
+    levels: {
+      2: { factory: { speed: 23, cycle: [{ tint: "ember", burn: 5 }, { tint: "spark", shock: true, shockTime: 3 }] } },
+      3: { factory: { speed: 27, cycle: [{ tint: "ember", burn: 9 }, { tint: "spark", shock: true, shockTime: 4 }] } },
     },
   },
   slagpot: {
@@ -447,9 +445,11 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "assembly", name: "ASSEMBLY LINE", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "ironmonger",
     desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR RIGS", "COME ONLINE SOONER."], tags: ["TEMPO", "SWARM"], // beltside-062c: RIG (DESIGN §1)
     factory: { ammo: "plain", speed: 17, commission: 0.5 },
+    // Y3 (release Y; DESIGN-Y row 32; folded at the flip, Y7b2): ★3 HOT START goes (no hotStart); it keeps the global speed-up, commission
+    // 0.5/0.25/0 (rigs start 50%/75%/100% sooner), and its own belts' rigs take the same factor (battle.ts makeSide)
     levels: {
       2: { factory: { speed: 17, commission: 0.25, base: 45 } },
-      3: { factory: { speed: 17, commission: 0, hotStart: 4, base: 60 }, perk: "HOT START" },
+      3: { factory: { speed: 17, commission: 0, base: 60 }, perk: "HOT START" },
     },
   },
   gantry: {
@@ -474,7 +474,8 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["TELEGRAPHED ROUNDS", "WRECK RIGS OR STUN", "OTHER MACHINERY."], tags: ["HARASS", "BURST"],
     // NUM-3 (R1's STUN fold): the stalls 5 / 4 / 3 s (belt tile / factory / turret) became one STUN 4 s; the bare-hull +60 is gone
     factory: { ammo: "sabot", speed: 5, round: { kind: "sabot", seconds: 4 } },
-    levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 16, round: { kind: "sabot", seconds: 4, shrapnel: true } }, perk: "SHRAPNEL" } },
+    // Y2 (release Y; DESIGN-Y row 11; folded at the flip, Y7b2): ★3 SHRAPNEL's tile STUNs go (no `shrapnel`), and its RATE goes 16 -> 20
+    levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 20 }, perk: "SHRAPNEL" } },
   },
   frostbite: {
     id: "frostbite", name: "FROSTBITE FOUNDRY", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "arcane",
@@ -507,9 +508,11 @@ export const ITEMS: Record<string, ItemDef> = {
   limpet: {
     id: "limpet", name: "LIMPET WORKS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "scrapper",
     desc: ["STICKY CHARGES BLOW", "3 SECONDS LATER FOR", "HULL DAMAGE."], tags: ["HARASS", "BURST"], // 0.6.2t 0b.1: no stall at 1 star
-    factory: { ammo: "limpet", speed: 13, round: { kind: "limpet", delay: 3, blast: 80 } },
-    levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 180, stall: 1 } } },
-      3: { factory: { round: { kind: "limpet", delay: 3, blast: 280, stall: 2 } } } }, // NUM-3 (N1 2.2): the stall 1 / 2 s (was 1 / 1.6)
+    // Y2 (release Y; DESIGN-Y row 13; folded at the flip, Y7b2): the charge's 20 on impact (AMMO.limpet's base) joins its blast (`base` 0),
+    // and the ★2/★3 stall becomes +30 for each STUN second: blast 80 + 20 = 100, 180 + 20 + 30 x 1 = 230, 280 + 20 + 30 x 2 =
+    // 360; no stall
+    factory: { ammo: "limpet", speed: 13, base: 0, round: { kind: "limpet", delay: 3, blast: 100 } },
+    levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 230 } } }, 3: { factory: { round: { kind: "limpet", delay: 3, blast: 360 } } } },
   },
   // --- processing gates ---
   temper: {
@@ -534,19 +537,20 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "brake", name: "BRAKE SHOE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
     desc: ["HALF SPEED FROM HIT.", "LOCKED BELTS GAIN", "DAMAGE INSTEAD."], tags: ["FORGE", "TEMPO"],
     gate: { speed: 0.5, lockedFlat: 20 },
-    levels: { // 0.6.1f: the slow stays at half speed (a deeper one starved the turret); the merge pays in friction heat
-      2: { gate: { speed: 0.5, flat: 20, lockedFlat: 40 }, perk: "HOT SHOE" },
-      3: { gate: { speed: 0.5, flat: 50, lockedFlat: 70 }, perk: "RED-HOT SHOE" },
+    // Y3 (release Y; DESIGN-Y row 27; folded at the flip, Y7b2): ★2/★3 lose their flats (HOT SHOE +20, RED-HOT SHOE +50) and slow the belt
+    // to 40% / 30% (was 50% at every star); METRONOME's locked-belt flat (lockedFlat) stays, as OVERDRIVE's does
+    levels: {
+      2: { gate: { speed: 0.4, lockedFlat: 40 }, perk: "HOT SHOE" },
+      3: { gate: { speed: 0.3, lockedFlat: 70 }, perk: "RED-HOT SHOE" },
     },
   },
   longhaul: {
     id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker", shape: "II",
     desc: ["MORE DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."], tags: ["FORGE", "BURST"],
     gate: { perPriorGate: 10 },
-    levels: { // 0.6.1p: priorCap applied (1 star counts every prior gate, as in 0.6.0)
-      2: { gate: { perPriorGate: 20, priorCap: 6 } },
-      3: { gate: { perPriorGate: 35, priorCap: 6 } },
-    },
+    // Y3 (release Y; DESIGN-Y row 24; folded at the flip, Y7b2): priorCap goes (★2/★3 counted at most 6 earlier hits); +10/+20/+35 for each
+    // rig hit before it
+    levels: { 2: { gate: { perPriorGate: 20 } }, 3: { gate: { perPriorGate: 35 } } },
   },
   coil: {
     id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
@@ -571,10 +575,9 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker", shape: "X",
     desc: ["4 ARROWS: 3 TIMES THE", "SPEED; LOCKED BELTS", "GAIN DAMAGE."], tags: ["TEMPO"],
     gate: { speed: 3, lockedFlat: 30 },
-    levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; NUM-3: the guard flags keep enemy CHAIN / FROST rounds' STUNs off its tiles
-      2: { gate: { speed: 4, flat: 10, lockedFlat: 50, guard: GUARD_SLOW }, perk: "REDLINE" },
-      3: { gate: { speed: 5, flat: 30, lockedFlat: 110, guard: GUARD_SLOW | GUARD_FREEZE }, perk: "AFTERBURNER" },
-    },
+    // Y2 (release Y; DESIGN-Y row 18; folded at the flip, Y7b2): ★2/★3 lose their +10/+30 flat and their guards (REDLINE's GUARD_SLOW,
+    // AFTERBURNER's GUARD_FREEZE); 3/4/5 times as fast
+    levels: { 2: { gate: { speed: 4, lockedFlat: 50 }, perk: "REDLINE" }, 3: { gate: { speed: 5, lockedFlat: 110 }, perk: "AFTERBURNER" } },
   },
   tollbooth: {
     id: "tollbooth", name: "TOLLBOOTH", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "ironmonger",
@@ -592,14 +595,13 @@ export const ITEMS: Record<string, ItemDef> = {
   surge: {
     id: "surge", name: "SURGE VALVE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker",
     desc: ["PULSES 3 TIMES SPEED", "FOR 1S EVERY 3S, AND", "EACH PULSE RIDDEN", "ADDS DAMAGE."], tags: ["TEMPO", "BURST", "FORGE"],
-    // 0.6.2 (REQ-BFG-021): a tempo-locked belt ignores the pulse and its per-pulse flat, so, like every other speed rig,
-    // SURGE pays locked belts damage instead: a rare's 3/6/10 (between BRAKE SHOE's 2/4/7 and OVERDRIVE's 3/6/11)
-    // 0.6.2 FB-B (oracle 16085a6430e4cc6a): the per-pulse flat is 1/2/3 (was 0/1/2). At ★1 the pulse cut ride time on
-    // ride-scaled ammo and added nothing when the turret was the bottleneck (Furnace's audit cell: 78.3 -> 71.5)
-    gate: { pulse: { speed: 3, on: 1, period: 3, flat: 10 }, lockedFlat: 30 },
-    // NUM-3 (N1 2.2): the period 3 / 3 / 2 s (was 3 / 2.5 / 2)
-    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 3, flat: 20 }, lockedFlat: 60 }, perk: "OVERPRESSURE" },
-      3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 30 }, lockedFlat: 100 }, perk: "HAMMER VALVE" } },
+    // Y3 (release Y; DESIGN-Y row 28, REVIEW-STARD answer 5: the damage pulse; folded at the flip, Y7b2): its period 3/3/2 s (NUM-3) and its
+    // flat +10/+20/+30 stay; the speed pulse goes (battle.ts tileSpeedAt reads no pulse speed, so its `speed` and `on` set
+    // no belt state; surgeTick pays every slug on its belts once a period). lockedFlat goes too (0.6.2's 30/60/100 paid
+    // METRONOME's locked belts instead of the pulse they ignored; the damage pulse lands on them now)
+    gate: { pulse: { speed: 3, on: 1, period: 3, flat: 10 } },
+    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 3, flat: 20 } }, perk: "OVERPRESSURE" },
+      3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 30 } }, perk: "HAMMER VALVE" } },
   },
   sorting: {
     id: "sorting", name: "SORTING ARM", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker",
@@ -619,8 +621,13 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   venom: {
     id: "venom", name: "VENOM DRIP", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "alchemist",
-    desc: ["ADDS 2 POISON.", "POOL TICKS AND", "REFRESHES ON HIT."], tags: ["SWARM", "FORGE"],
-    gate: { poison: 2 }, levels: { 2: { gate: { poison: 4 } }, 3: { gate: { poison: 7 } } },
+    // Y6 (release Y; DESIGN-Y row 48 and section 4.1; folded at the flip, Y7b2): its poison (2/4/7) goes with POISON: each slug it hits gains
+    // burnPlus +3/+6/+9 s, and each BURN stack of that slug's hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %); alone
+    // it deals nothing. Y7b1 (ruling Y7A-R5, guarded): 2/3/5 was tried and its uptake guard tripped, so +3/+6/+9 s stays.
+    // Its catalogue desc ("ADDS 2 POISON. POOL TICKS AND REFRESHES ON HIT.") is deleted with POISON (no panel drew it:
+    // flavour.ts KEPT_FLAVOUR venom [])
+    desc: [], tags: ["SWARM", "FORGE"],
+    gate: { burnPlus: 3 }, levels: { 2: { gate: { burnPlus: 6 } }, 3: { gate: { burnPlus: 9 } } },
   },
   overclocker: {
     id: "overclocker", name: "OVERCLOCKER", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker",
@@ -630,24 +637,26 @@ export const ITEMS: Record<string, ItemDef> = {
   keg: {
     id: "keg", name: "POWDER KEG", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "scrapper",
     desc: ["BLOWS AT 12S:", "PAYLOADS ON ITS BELT", "GAIN DAMAGE AND BURN."], tags: ["FORGE", "BURST", "TEMPO"],
-    gate: { keg: { fuse: 12, flat: 60, burn: 1 } }, levels: { 2: { gate: { keg: { fuse: 10, flat: 130, burn: 2 } } },
-      3: { gate: { keg: { fuse: 8, flat: 210, burn: 3, wide: true } }, perk: "WIDE BLAST" } },
+    // Y5 (release Y; DESIGN-Y row 46; folded at the flip, Y7b2): it re-arms on a timer: every 12/10/8 s from the battle's start (a STUN or a
+    // wreck pauses the fuse) it blasts +60/+130/+210 onto the slugs on its belts (battle.ts kegTick); its BURN (1/2/3) and
+    // ★3 WIDE BLAST's every belt beside it go
+    gate: { keg: { fuse: 12, flat: 60 } },
+    levels: { 2: { gate: { keg: { fuse: 10, flat: 130 } } }, 3: { gate: { keg: { fuse: 8, flat: 210 } }, perk: "WIDE BLAST" } },
   },
   bellows: {
     id: "bellows", name: "BELLOWS", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
     desc: ["ADDS BURN FROM", "RIDE TIME SO FAR,", "UP TO 4 STACKS."], tags: ["FORGE"],
-    gate: { burnPerRide: { burn: 4, per: 10, max: 4 } }, levels: { 2: { gate: { burnPerRide: { burn: 9, per: 10, max: 9 } } },
-      3: { gate: { burnPerRide: { burn: 14, per: 10, max: 14 } } } },
+    // Y3 (release Y; DESIGN-Y row 22; folded at the flip, Y7b2): +1/+2/+3 BURN for each whole 2 s ridden, no cap (no `max`; battle.ts
+    // applyHit reads burn x floor(ride / per)). Was 4/9/14 for each 10 s, up to 4/9/14
+    gate: { burnPerRide: { burn: 1, per: 2 } },
+    levels: { 2: { gate: { burnPerRide: { burn: 2, per: 2 } } }, 3: { gate: { burnPerRide: { burn: 3, per: 2 } } } },
   },
   quench: {
     id: "quench", name: "QUENCH TANK", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "alchemist",
     desc: ["MORE DAMAGE TO EVERY", "PAYLOAD; TURNS UP TO", "4 BURN INTO DAMAGE."], tags: ["FORGE"],
-    // 0.6.2 FB-B (oracle 16085a6430e4cc6a): a Burn stack deals 1 dmg/s for BURN_TIME (3 s), so each stack QUENCH spends
-    // pays at least that (+3/+5/+7), and it spends only the 4/5/6 it pays for (more stays Burn). Every payload it hits
-    // also hardens +1/+2/+3 (EDGE), below WHETSTONE's 2/4/7, so a QUENCH with no Burn to spend isn't dead but stays a
-    // Burn payoff. Was: all Burn at +2/+4/+6 each, capped at +12/+26/+42 (★1 turned 2 Burn, 6 damage, into +4).
-    gate: { quench: { flat: 10, perBurn: 30, stacks: 4 } }, levels: { 2: { gate: { quench: { flat: 20, perBurn: 50, stacks: 5 } } },
-      3: { gate: { quench: { flat: 30, perBurn: 70, stacks: 6 } } } },
+    // Y3 (release Y; DESIGN-Y row 23; folded at the flip, Y7b2): the floor goes (flat 0; 0.6.2 FB-B's +10/+20/+30 on every payload) and so
+    // does the 4/5/6-stack cap (no `stacks`): each BURN on the slug turns into +30/+50/+70 (a BURN payoff, ruling Y7A-R3a)
+    gate: { quench: { flat: 0, perBurn: 30 } }, levels: { 2: { gate: { quench: { flat: 0, perBurn: 50 } } }, 3: { gate: { quench: { flat: 0, perBurn: 70 } } } },
   },
   staticbrush: {
     id: "staticbrush", name: "STATIC BRUSH", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
@@ -657,34 +666,34 @@ export const ITEMS: Record<string, ItemDef> = {
   lodestone: {
     id: "lodestone", name: "LODESTONE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "arcane",
     desc: ["MORE DAMAGE ALWAYS,", "MORE FOR EACH ENEMY", "MACHINE STUNNED."], tags: ["HARASS", "FORGE"],
-    // 0.6.2 TUNE-M T2 (the Prime's decision, as QUENCH TANK's oracle 16085a6430e4cc6a): a floor, +1/+2/+3 flat on every
-    // payload it hits (below WHETSTONE's 2/4/7), with the per-stalled bonus on top. Was the per-stalled bonus alone, so
-    // a deck with no stall source got nothing from it at any star (NO EFFECT on FB-A and RB; CAND-A ablation FURNACE
-    // d10 -5.4).
-    gate: { flat: 10, perStalled: { each: 10, max: 60 } }, levels: { 2: { gate: { flat: 20, perStalled: { each: 22, max: 130 } } },
-      3: { gate: { flat: 30, perStalled: { each: 35, max: 210 } } } },
+    // Y2 (release Y; DESIGN-Y row 15; folded at the flip, Y7b2): the floor goes (no `flat`; 0.6.2 TUNE-M T2's +10/+20/+30); +10/+22/+35 for
+    // each STUN on the foe, a stunned belt tile counted and a wrecked rig not, with no cap (battle.ts applyHit reads no `max`)
+    gate: { perStalled: { each: 10, max: 60 } },
+    levels: { 2: { gate: { perStalled: { each: 22, max: 130 } } }, 3: { gate: { perStalled: { each: 35, max: 210 } } } },
   },
   barbed: {
     id: "barbed", name: "BARBED SPOOL", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "quartermaster",
     desc: ["HITS ADD 1 FRAY.", "LATER HITS DEAL", "+2 FOR EACH STACK."], tags: ["SWARM", "FORGE"],
-    gate: { fray: 1 }, levels: { 2: { gate: { fray: 2, frayCap: 3 }, perk: "RAZOR WIRE" },
-      3: { gate: { fray: 3, frayCap: 6 }, perk: "RAZOR WIRE" } },
+    // Y3 (release Y; DESIGN-Y row 25; folded at the flip, Y7b2): frayCap goes (★2/★3 RAZOR WIRE raised the hull's MAX to 18/21); the hull
+    // keeps FRAY's own MAX 15
+    gate: { fray: 1 }, levels: { 2: { gate: { fray: 2 }, perk: "RAZOR WIRE" }, 3: { gate: { fray: 3 }, perk: "RAZOR WIRE" } },
   },
   counterweight: {
     id: "counterweight", name: "COUNTERWEIGHT", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "scrapper",
     desc: ["+5 DAMAGE FOR EACH", "BELT TILE ALREADY", "RIDDEN, MAX +60."], tags: ["FORGE"],
-    gate: { perTile: { each: 5, max: 60 } }, levels: { 2: { gate: { perTile: { each: 11, max: 130 } } },
-      3: { gate: { perTile: { each: 18, max: 210 } } } },
+    // Y5 (release Y; DESIGN-Y row 41; folded at the flip, Y7b2): the cap goes (no `max`; was 60/130/210); +3/+7/+11 for each tile the slug
+    // has ridden. Y7b1 (ruling Y7A-R5): was +5/+11/+18, 2.4x the rare median lift per gold (REVIEW-Y7A F1); 2/5/7 tripped
+    // its guard (x0.28 of the rare median, under 0.5x), so the fallback 3/7/11
+    gate: { perTile: { each: 3 } }, levels: { 2: { gate: { perTile: { each: 7 } } }, 3: { gate: { perTile: { each: 11 } } } },
   },
   // --- turret equipment ---
   chamber: {
     id: "chamber", name: "EXT. CHAMBER", kind: "mod", rarity: "epic", price: 7, size: 1, merchant: "gunsmith",
     desc: ["TURRET FIRES TWO", "PAYLOADS PER SHOT.", "DROP ON A TURRET."], tags: ["BURST", "TWIN"],
     mod: { perShot: 2 },
-    levels: { // 0.6.1p: WIDE BREECH's window +1 applied (TurretState.window)
-      2: { mod: { perShot: 2, window: 1 }, perk: "WIDE BREECH" },
-      3: { mod: { perShot: 3, window: 1 }, perk: "TRIPLE BREECH" },
-    },
+    // Y4 (release Y; DESIGN-Y row 36; folded at the flip, Y7b2): the +1 slot goes (★2 WIDE BREECH's, ★3 TRIPLE BREECH's window); it fires
+    // 2/3/4 loads a shot, at most what the chamber holds (Battle.chambers; ruling Y7A-R2)
+    levels: { 2: { mod: { perShot: 3 }, perk: "WIDE BREECH" }, 3: { mod: { perShot: 4 }, perk: "TRIPLE BREECH" } },
   },
   calibrate: {
     id: "calibrate", name: "CALIBRATION", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
@@ -700,8 +709,9 @@ export const ITEMS: Record<string, ItemDef> = {
   spotter: {
     id: "spotter", name: "SPOTTER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
     desc: ["TURRET REROLLS A", "BARE-HULL TARGET", "TOWARD MACHINERY."], tags: ["HARASS"],
-    mod: { rerolls: 1 }, levels: { 2: { mod: { rerolls: 2, factoryWeight: 2 }, perk: "FACTORY SPOT" },
-      3: { mod: { alwaysMachine: true, factoryWeight: 3 }, perk: "EAGLE EYE" } },
+    // Y2 (release Y; DESIGN-Y row 17; folded at the flip, Y7b2): ★2 FACTORY SPOT's factory weighting and ★3 EAGLE EYE's "always a part" go;
+    // it re-aims 1/2/3 times
+    mod: { rerolls: 1 }, levels: { 2: { mod: { rerolls: 2 }, perk: "FACTORY SPOT" }, 3: { mod: { rerolls: 3 }, perk: "EAGLE EYE" } },
   },
   // --- 0.6.1p: the wave-1 turret mods (catalogue.json hopper, mantlet, ram; ARSENAL.md §3.3 Mods) ---
   // HOPPER: the first Quartermaster stock (0.6.1d brought the merchant; its own parts are a later job).
@@ -709,31 +719,19 @@ export const ITEMS: Record<string, ItemDef> = {
   hopper: {
     id: "hopper", name: "HOPPER", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "quartermaster",
     desc: ["CHAMBER HOLDS 1 MORE", "LOAD; ITS LOAD TIME", "RUNS LONGER."], tags: ["BURST", "TEMPO"],
-    mod: { window: 1, windowTime: 0.5 },
-    // 0.6.2 FB-B (oracle 16085a6430e4cc6a): every star keeps ★1's window (+1 slot, +0.5 s). ★2/★3 add a store: while the
-    // gun fires it takes 1/2 loads off the belt, and they drop into the next window. On a sparse belt nothing waits, so
-    // ★2 fires exactly as ★1; loads arriving together (two belts, a split) no longer wait or jam. Was: ★2 +2 slots and
-    // +1.0 s, ★3 +3 and +1.5 s, whose extra slot sat empty on a sparse belt while the longer timer delayed each shot
-    // (E1 seed 1 day 7: HOPPER ★2 WORSE).
-    levels: {
-      2: { mod: { store: 1 } },
-      3: { mod: { store: 2, noJam: true }, perk: "BOTTOMLESS" },
-    },
+    // Y4 (release Y; DESIGN-Y row 33; folded at the flip, Y7b2): the +0.5 s load time, the ★2/★3 store and ★3's no-jam go (0.6.2 FB-B's); its
+    // chamber holds +1/+2/+3 (window)
+    mod: { window: 1 }, levels: { 2: { mod: { window: 2 } }, 3: { mod: { window: 3 }, perk: "BOTTOMLESS" } },
   },
   mantlet: {
     id: "mantlet", name: "MANTLET", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "ironmonger",
     desc: ["ARMORED TURRET:", "NO STUN CAN", "STOP IT."], tags: ["HARASS", "PLATE"],
     // NUM-3 (R1's STUN fold): immune to every STUN source from ★1 (was shock, static, arc and chain; ★2 added frost and
     // sabot; LIMPET's stall was in no star's list)
-    mod: { immune: [...STUN_CAUSES] },
-    levels: {
-      // 0.6.2 FB-B (oracle 16085a6430e4cc6a): FULL PLATE also shields the belt tile feeding its turret (intakeGuard 1),
-      // and the rigs working it (DESIGN §11 P6), against the same stalls. Freeze and sabot rounds almost never strike
-      // the turret itself, so FULL PLATE alone changed no star-bench fight (the MANTLET ★2 NO EFFECT rows).
-      // NUM-3: the perk is FULL GUARD (the sustain design's rename; was FULL PLATE); ★2 and ★3 keep only the tile shield
-      2: { mod: { intakeGuard: 1 }, perk: "FULL GUARD" },
-      3: { mod: { intakeGuard: 3 }, perk: "BULWARK SKIRT" },
-    },
+    // Y2 (release Y; DESIGN-Y row 14; folded at the flip, Y7b2): its tile guard is 1/2/3 from ★1 (was none, then FULL GUARD's 1 and BULWARK
+    // SKIRT's 3); the guarded tiles' rigs no longer share it (battle.ts acceptHarassment)
+    mod: { immune: [...STUN_CAUSES], intakeGuard: 1 },
+    levels: { 2: { mod: { intakeGuard: 2 }, perk: "FULL GUARD" }, 3: { mod: { intakeGuard: 3 }, perk: "BULWARK SKIRT" } },
   },
   ram: {
     id: "ram", name: "FINISHER RAM", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "tinker",
@@ -753,10 +751,9 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "rotary", name: "ROTARY BREECH", kind: "core", rarity: "common", price: 3, size: 1, merchant: "gunsmith",
     desc: ["FIRES THE OLDEST", "LOAD FIRST. LOAD", "TIME 50% SHORTER."], tags: ["TEMPO"],
     core: { routine: "rotary", order: "FIFO", windowTime: 0.75 }, // NUM-3 (N1 2.2): LOAD 50% SHORTER, WINDOW_TIME 1.5 s x 50% (was 0.8 s)
-    levels: {
-      2: { core: { fireRate: 18 }, perk: "GREASED RACE" },
-      3: { core: { fireRate: 43, noJam: true }, perk: "CLEAN FEED" },
-    },
+    // Y4 (release Y; DESIGN-Y row 37; folded at the flip, Y7b2): ★2 GREASED RACE's and ★3 CLEAN FEED's fire rate and ★3's no-jam go; its
+    // load time is 0.75 / 0.525 / 0.3 s, 50% / 65% / 80% sooner than WINDOW_TIME's 1.5 s (cap's ruling e91c08dd12466357)
+    levels: { 2: { core: { windowTime: 0.525 }, perk: "GREASED RACE" }, 3: { core: { windowTime: 0.3 }, perk: "CLEAN FEED" } },
   },
   pressure: {
     // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
@@ -782,11 +779,11 @@ export const ITEMS: Record<string, ItemDef> = {
     // 0.6.2m (REQ-BFG-033): sold by the ARCANE DEALER (was the ALCHEMIST; see MERCHANTS)
     id: "drake", name: "DRAKE NOZZLE", kind: "core", rarity: "rare", price: 5, size: 1, merchant: "arcane",
     desc: ["TURNS FLAT DAMAGE", "INTO BURN. ITS FIRES", "BURN 4S, NOT 3."], tags: ["FORGE"],
-    core: { routine: "drake", flatPerBurn: 20, addBurn: 1, burnTime: 4, flightMul: 0.7 },
-    levels: {
-      2: { core: { flatPerBurn: 15, addBurn: 2, burnTime: 5 } },
-      3: { core: { flatPerBurn: 10, addBurn: 3, burnTime: 6 } },
-    },
+    // Y4 (release Y; DESIGN-Y row 40; folded at the flip, Y7b2): addBurn, burnTime and flightMul go (no free BURN, the BURN lasts BURN_TIME,
+    // the shot flies as any); each 25/18/13 of a shot's bonus damage is 1 BURN (flatPerBurn). Y7b1 (ruling Y7A-R4): was
+    // 10/7/5; 38/27/19 gave no reading (no par deck took it), so the fallback 25/18/13 (no third point; cap's Y7B1-Q1)
+    core: { routine: "drake", flatPerBurn: 25 },
+    levels: { 2: { core: { flatPerBurn: 18 } }, 3: { core: { flatPerBurn: 13 } } },
   },
   // The catalogue's merchant is the Quartermaster, who arrives with job 0.6.1d; the Gunsmith sells it until then.
   salvo: {
@@ -816,7 +813,9 @@ export const ITEMS: Record<string, ItemDef> = {
   capacitor: {
     id: "capacitor", name: "CAPACITOR BANK", kind: "core", rarity: "epic", price: 7, size: 1, merchant: "arcane",
     desc: ["IDLE TIME CHARGES", "ITS NEXT SHOT, FOR", "UP TO 5S."], tags: ["BURST", "TEMPO"],
-    core: { routine: "capacitor", perSecond: 20, maxSeconds: 5 },
+    // Y5 (release Y; DESIGN-Y row 42; folded at the flip, Y7b2): the 5 s cap goes (no `maxSeconds`; battle.ts chambers charges for as long
+    // as the chamber sits empty); +20/+44/+70 for each second
+    core: { routine: "capacitor", perSecond: 20 },
     levels: { 2: { core: { perSecond: 44 } }, 3: { core: { perSecond: 70 } } },
   },
   compound: {
@@ -976,14 +975,17 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   twingauge: {
     id: "twingauge", name: "TWIN GAUGE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker", shape: "I",
     desc: ["ADDS DAMAGE, MORE", "ON A BELT MATCHED", "TO ITS TWIN."], tags: ["TWIN", "FORGE"],
-    gate: { gauge: { flat: 10, matched: 30 } },
-    levels: { 2: { gate: { gauge: { flat: 22, matched: 66 } } }, 3: { gate: { gauge: { flat: 35, matched: 105 } } } },
+    // Y3 (release Y; DESIGN-Y row 21; folded at the flip, Y7b2): the unmatched floor goes (flat 0); +30/+66/+105 on a matched belt
+    gate: { gauge: { flat: 0, matched: 30 } },
+    levels: { 2: { gate: { gauge: { flat: 0, matched: 66 } } }, 3: { gate: { gauge: { flat: 0, matched: 105 } } } },
   },
   pincer: {
     id: "pincer", name: "PINCER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist", shape: "I",
     desc: ["ADDS DAMAGE, MORE", "FOR EACH RIG ON", "ITS TILE."], tags: ["FORGE"],
-    gate: { pincer: { flat: 10, each: 20, max: 3 } },
-    levels: { 2: { gate: { pincer: { flat: 22, each: 44, max: 3 } } }, 3: { gate: { pincer: { flat: 35, each: 70, max: 3 } } } },
+    // Y3 (release Y; DESIGN-Y row 20; folded at the flip, Y7b2): the floor goes (flat 0) and so does the dead `max: 3` (a tile has at most 2
+    // other rigs); +20/+44/+70 for each other working rig on its tile (battle.ts applyHit, deck.ts walkRoute: no cap)
+    gate: { pincer: { flat: 0, each: 20 } },
+    levels: { 2: { gate: { pincer: { flat: 0, each: 44 } } }, 3: { gate: { pincer: { flat: 0, each: 70 } } } },
   },
   braceframe: {
     id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", shape: "L",
@@ -994,20 +996,25 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   twinlatch: {
     id: "twinlatch", name: "TWIN LATCH", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker", shape: "II",
     desc: ["HOLDS A PAYLOAD FOR", "ITS OTHER BELT, THEN", "LETS BOTH GO."], tags: ["TWIN", "TEMPO"],
-    gate: { latch: { hold: 1, flat: 10 } },
-    levels: { 2: { gate: { latch: { hold: 1, flat: 22 } } }, 3: { gate: { latch: { hold: 1, flat: 35 } } } },
+    // Y3 (release Y; DESIGN-Y row 30; folded at the flip, Y7b2): the flat goes (flat 0; was +10/+22/+35 on each payload it hits) and the hold
+    // grows to 1/2/3 s (was 1 s at every star; battle.ts latchTick reads `hold`)
+    gate: { latch: { hold: 1, flat: 0 } },
+    levels: { 2: { gate: { latch: { hold: 2, flat: 0 } } }, 3: { gate: { latch: { hold: 3, flat: 0 } } } },
   },
   stoker: {
     id: "stoker", name: "STOKER", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "scrapper", shape: "II",
     desc: ["FACTORIES ITS ARROWS", "POINT AT WORK", "FASTER."], tags: ["TEMPO", "SWARM"],
+    // Y3 (release Y; DESIGN-Y row 31) and Y7b1 (ruling Y7A-R1): no data change (stoke 0.2 / 0.44 / 0.7). Its cap stays, as
+    // at 0.9.2 (battle.ts stokedPace, deckRating.ts rateDeck): a stoke never outruns its gun (no overfeed trap)
     gate: { stoke: 0.2 },
     levels: { 2: { gate: { stoke: 0.44 } }, 3: { gate: { stoke: 0.7 } } },
   },
   platebreaker: {
     id: "platebreaker", name: "PLATE BREAKER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "scrapper", shape: "T",
     desc: ["TURNS YOUR HULL'S", "PLATING INTO", "PAYLOAD DAMAGE."], tags: ["PLATE", "FORGE"],
-    gate: { breaker: { flat: 40, floor: 10 } },
-    levels: { 2: { gate: { breaker: { flat: 88, floor: 22 } } }, 3: { gate: { breaker: { flat: 140, floor: 35 } } } },
+    // Y3 (release Y; DESIGN-Y row 26; folded at the flip, Y7b2): the ELSE floor goes (floor 0); it spends 10 PLATE for +40/+88/+140
+    gate: { breaker: { flat: 40, floor: 0 } },
+    levels: { 2: { gate: { breaker: { flat: 88, floor: 0 } } }, 3: { gate: { breaker: { flat: 140, floor: 0 } } } },
   },
   shieldwall: { // SUS-B (cap's answer 3 to SUSTAIN-1): IRON WALL, so no name says SHIELD where it means PLATE (the id stays)
     id: "shieldwall", name: "IRON WALL", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "ironmonger", shape: "X",
@@ -1038,26 +1045,34 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   steambreech: {
     id: "steambreech", name: "STEAM BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
     desc: ["THE TURRET FIRES", "FASTER WHILE YOUR", "HULL IS PLATED."], tags: ["PLATE", "TEMPO"],
-    core: { routine: "steam", steamPlated: 35, steamBare: 10 },
-    levels: { 2: { core: { steamPlated: 70, steamBare: 20 } }, 3: { core: { steamPlated: 110, steamBare: 30 } } },
+    // Y4 (release Y; DESIGN-Y row 39; folded at the flip, Y7b2): steamBare goes (no plating, no speed-up); steamPlated gains 5/10/10 points:
+    // 40/80/120% faster. It stays common
+    core: { routine: "steam", steamPlated: 40 },
+    levels: { 2: { core: { steamPlated: 80 } }, 3: { core: { steamPlated: 120 } } },
   },
   twintrigger: {
     id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
     desc: ["PAIRED LOADS HIT", "HARDER; A SHORTER", "LOAD TIME."], tags: ["TWIN", "TEMPO"],
-    mod: { pairBonus: 0.25, windowTime: -0.25 },
-    levels: { 2: { mod: { pairBonus: 0.55, windowTime: -0.4 } }, 3: { mod: { pairBonus: 0.88, windowTime: -0.55 } } },
+    // Y4 (release Y; DESIGN-Y row 34; folded at the flip, Y7b2): the shorter load time goes (no windowTime, so no LOAD_FLOOR); pairBonus
+    // 30/60/95 (was 25/55/88; the ladder's numbers, cap's ruling e91c08dd12466357)
+    mod: { pairBonus: 0.3 },
+    levels: { 2: { mod: { pairBonus: 0.6 } }, 3: { mod: { pairBonus: 0.95 } } },
   },
   spallcatcher: {
     id: "spallcatcher", name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "quartermaster",
     desc: ["HITS YOUR SHIP TAKES", "CHARGE THIS TURRET'S", "NEXT SHOT."], tags: ["PLATE", "BURST"],
-    mod: { spall: { every: 40, add: 10, max: 80 } },
-    levels: { 2: { mod: { spall: { every: 40, add: 22, max: 176 } } }, 3: { mod: { spall: { every: 40, add: 35, max: 280 } } } },
+    // Y5 (release Y; DESIGN-Y row 47; folded at the flip, Y7b2): the cap goes (no `max`; was 80/176/280); a PLATE soak counts once
+    // (battle.ts spallCharge)
+    mod: { spall: { every: 40, add: 10 } },
+    levels: { 2: { mod: { spall: { every: 40, add: 22 } } }, 3: { mod: { spall: { every: 40, add: 35 } } } },
   },
   seamwelder: {
     id: "seamwelder", name: "SEAM WELDER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "arcane",
     desc: ["PAIRS THIS TURRET", "TAKES PLATE YOUR", "HULL."], tags: ["TWIN", "PLATE"],
-    mod: { seam: { pair: 10, lone: 2 } },
-    levels: { 2: { mod: { seam: { pair: 22, lone: 4 } } }, 3: { mod: { seam: { pair: 35, lone: 7 } } } },
+    // Y4 (release Y; DESIGN-Y row 35; folded at the flip, Y7b2): a lone load's plating goes (lone 0; Battle.loaded's addPlate of 0 does
+    // nothing); +10/+22/+35 a pair
+    mod: { seam: { pair: 10, lone: 0 } },
+    levels: { 2: { mod: { seam: { pair: 22, lone: 0 } } }, 3: { mod: { seam: { pair: 35, lone: 0 } } } },
   },
 };
 
@@ -1193,222 +1208,15 @@ export function withSustain<T>(fn: () => T, on = true): T {
 
 setSustain(SUSTAIN_LIVE);
 
-// ------------------------------------------------------------------------------------ Y2 (release Y): the star switch
+// ------------------------------------------------------------------------------------ Y7b2 (release Y): the flip
 
-/**
- * Y2 (release Y; REQ-BFG-070, REQ-BFG-046; REVIEW-STARD ruling R-2): THE STAR SWITCH. Release Y's one-line rules (STAR-D's
- * DESIGN-Y; jobs Y2-Y6) ship behind it, the way release X's sustain pieces shipped behind SUSTAIN_LIVE: every sim change
- * (battle.ts, the content numbers, harassment, overclock.ts, cores.ts, the bots' deckRating) and every face and ladder
- * change reads starRules(). While it is false, every pool, offer, par run, captain, digest, face and text is the base's
- * (bb-0.9.0), so each job's gate equals the base; each job's own tests run with it on (withStarRules). Y7b flips it once,
- * deletes the off paths and regenerates the pools.
- * The content numbers: STAR_DIFF holds the fields each piece's def changes under the switch; setStarRules puts the piece's
- * switch-on def (STAR_ITEMS: its base def with those fields over it) into ITEMS[id] in place (its base def back when off),
- * so ITEMS keeps its order and every reader (the sim, stars.ts effectAt, the faces, the rating) sees the switch's numbers.
+/*
+ * Y7b2 (release Y; REQ-BFG-070, REQ-BFG-046; BRIEF-Y7B2 step 1): release Y's one-line rules (STAR-D's DESIGN-Y; jobs Y2-Y6,
+ * tuned by Y7b1) are the game. They shipped behind the STAR_RULES switch (REVIEW-STARD ruling R-2); the flip folded its
+ * STAR_DIFF rows into the base defs above (each marked "folded at the flip, Y7b2") and deleted STAR_RULES, STAR_ITEMS,
+ * starRules, setStarRules, withStarRules and every switch-off branch. ANVIL BREECH and IRON WALL had no row (rulings
+ * Y7A-R3c/d: their 0.9.2 rules), and STOKER changes no data (Y7A-R1: its cap stays).
  */
-export const STAR_RULES: boolean = false;
-
-/** Y2: the ItemDef fields each piece takes with the switch on, over its base def (a top-level field replaces the base's
- *  whole field: `levels`, `factory`, `gate`, `mod`). Each job adds its own pieces' rows. */
-const STAR_DIFF: Record<string, Partial<ItemDef>> = {
-  // ---- Y2 (DESIGN-Y section 3, rows 8-19: the STUN pieces; their perks' names stay, shown in the ⓘ view only, ruling R-1)
-  // row 11, SABOT FOUNDRY: ★3 SHRAPNEL's tile STUNs go (no `shrapnel`), and its RATE goes 16 -> 20
-  sabot: { levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 20 }, perk: "SHRAPNEL" } } },
-  // row 12, HOT SWAP: the spark's SPARK JUMP goes (no `jump`); ★2 STUN 3 and BURN 5, ★3 STUN 4 and BURN 9 (was 2 + a jump
-  // and 4; 3 + a jump and 7)
-  hotswap: {
-    levels: {
-      2: { factory: { speed: 23, cycle: [{ tint: "ember", burn: 5 }, { tint: "spark", shock: true, shockTime: 3 }] } },
-      3: { factory: { speed: 27, cycle: [{ tint: "ember", burn: 9 }, { tint: "spark", shock: true, shockTime: 4 }] } },
-    },
-  },
-  // row 13, LIMPET WORKS: the charge's 20 on impact (AMMO.limpet's base) joins its blast (`base` 0), and the ★2/★3 stall
-  // becomes +30 for each STUN second: blast 80 + 20 = 100, 180 + 20 + 30 x 1 = 230, 280 + 20 + 30 x 2 = 360; no stall
-  limpet: {
-    factory: { ammo: "limpet", speed: 13, base: 0, round: { kind: "limpet", delay: 3, blast: 100 } },
-    levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 230 } } }, 3: { factory: { round: { kind: "limpet", delay: 3, blast: 360 } } } },
-  },
-  // row 14, MANTLET: its tile guard is 1/2/3 from ★1 (was none, then FULL GUARD's 1 and BULWARK SKIRT's 3); the guarded
-  // tiles' rigs no longer share it (battle.ts acceptHarassment)
-  mantlet: {
-    mod: { immune: [...STUN_CAUSES], intakeGuard: 1 },
-    levels: { 2: { mod: { intakeGuard: 2 }, perk: "FULL GUARD" }, 3: { mod: { intakeGuard: 3 }, perk: "BULWARK SKIRT" } },
-  },
-  // row 15, LODESTONE: the floor goes (no `flat`); +10/+22/+35 for each STUN on the foe, a stunned belt tile counted and a
-  // wrecked rig not, with no cap (battle.ts applyHit reads no `max` with the switch on)
-  lodestone: {
-    gate: { perStalled: { each: 10, max: 60 } },
-    levels: { 2: { gate: { perStalled: { each: 22, max: 130 } } }, 3: { gate: { perStalled: { each: 35, max: 210 } } } },
-  },
-  // row 17, SPOTTER: ★2 FACTORY SPOT's factory weighting and ★3 EAGLE EYE's "always a part" go; it re-aims 1/2/3 times
-  spotter: { mod: { rerolls: 1 }, levels: { 2: { mod: { rerolls: 2 }, perk: "FACTORY SPOT" }, 3: { mod: { rerolls: 3 }, perk: "EAGLE EYE" } } },
-  // row 18, OVERDRIVE: ★2/★3 lose their +10/+30 flat and their guards (REDLINE's, AFTERBURNER's); 3/4/5 times as fast
-  overdrive: {
-    gate: { speed: 3, lockedFlat: 30 },
-    levels: { 2: { gate: { speed: 4, lockedFlat: 50 }, perk: "REDLINE" }, 3: { gate: { speed: 5, lockedFlat: 110 }, perk: "AFTERBURNER" } },
-  },
-  // ---- Y3 (DESIGN-Y section 3, rows 20-32: the rigs, one number each; REVIEW-STARD answer 4: the floors and caps go)
-  // row 20, PINCER: the floor goes (flat 0) and so does the dead `max: 3` (a tile has at most 2 other rigs); +20/+44/+70
-  // for each other working rig on its tile (battle.ts applyHit, deck.ts walkRoute: no max, no cap)
-  pincer: { gate: { pincer: { flat: 0, each: 20 } }, levels: { 2: { gate: { pincer: { flat: 0, each: 44 } } }, 3: { gate: { pincer: { flat: 0, each: 70 } } } } },
-  // row 21, TWIN GAUGE: the unmatched floor goes (flat 0); +30/+66/+105 on a matched belt
-  twingauge: { gate: { gauge: { flat: 0, matched: 30 } }, levels: { 2: { gate: { gauge: { flat: 0, matched: 66 } } }, 3: { gate: { gauge: { flat: 0, matched: 105 } } } } },
-  // row 22, BELLOWS: +1/+2/+3 BURN for each whole 2 s ridden, no cap (no `max`; battle.ts applyHit reads burn x floor(ride /
-  // per) with the switch on). Was 4/9/14 for each 10 s, up to 4/9/14
-  bellows: {
-    gate: { burnPerRide: { burn: 1, per: 2 } },
-    levels: { 2: { gate: { burnPerRide: { burn: 2, per: 2 } } }, 3: { gate: { burnPerRide: { burn: 3, per: 2 } } } },
-  },
-  // row 23, QUENCH TANK: the floor goes (flat 0) and so does the 4/5/6-stack cap (no `stacks`): each BURN on the slug turns
-  // into +30/+50/+70
-  quench: { gate: { quench: { flat: 0, perBurn: 30 } }, levels: { 2: { gate: { quench: { flat: 0, perBurn: 50 } } }, 3: { gate: { quench: { flat: 0, perBurn: 70 } } } } },
-  // row 24, LONG HAUL: priorCap goes (★2/★3 counted at most 6 earlier hits); +10/+20/+35 for each rig hit before it
-  longhaul: { levels: { 2: { gate: { perPriorGate: 20 } }, 3: { gate: { perPriorGate: 35 } } } },
-  // row 25, BARBED SPOOL: frayCap goes (★2/★3 RAZOR WIRE raised the hull's MAX to 18/21); the hull keeps FRAY's own MAX 15.
-  // The perk's name stays (ⓘ only, R-1), though its rule is gone
-  barbed: { levels: { 2: { gate: { fray: 2 }, perk: "RAZOR WIRE" }, 3: { gate: { fray: 3 }, perk: "RAZOR WIRE" } } },
-  // row 26, PLATE BREAKER: the ELSE floor goes (floor 0); it spends 10 PLATE for +40/+88/+140
-  platebreaker: {
-    gate: { breaker: { flat: 40, floor: 0 } },
-    levels: { 2: { gate: { breaker: { flat: 88, floor: 0 } } }, 3: { gate: { breaker: { flat: 140, floor: 0 } } } },
-  },
-  // row 27, BRAKE SHOE: ★2/★3 lose their flats (HOT SHOE +20, RED-HOT SHOE +50) and slow the belt to 40% / 30% (was 50% at
-  // every star); METRONOME's locked-belt flat (lockedFlat) stays, as OVERDRIVE's did in Y2. The perks' names stay (ⓘ only)
-  brake: { levels: { 2: { gate: { speed: 0.4, lockedFlat: 40 }, perk: "HOT SHOE" }, 3: { gate: { speed: 0.3, lockedFlat: 70 }, perk: "RED-HOT SHOE" } } },
-  // row 28, SURGE VALVE (REVIEW-STARD answer 5: the damage pulse): its period 3/3/2 s and flat +10/+20/+30 stay; the speed
-  // pulse goes (battle.ts tileSpeedAt reads no pulse speed with the switch on, so its `speed` and `on` set no belt state;
-  // surgeTick pays every slug on its belts once a period). lockedFlat goes too: it paid METRONOME's locked belts instead of
-  // the pulse they ignored, and the damage pulse lands on them now. The perks' names stay (ⓘ only)
-  surge: {
-    gate: { pulse: { speed: 3, on: 1, period: 3, flat: 10 } },
-    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 3, flat: 20 } }, perk: "OVERPRESSURE" },
-      3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 30 } }, perk: "HAMMER VALVE" } },
-  },
-  // row 30, TWIN LATCH: the flat goes (flat 0; was +10/+22/+35 on each payload it hits) and the hold grows to 1/2/3 s (was
-  // 1 s at every star; battle.ts latchTick reads `hold`)
-  twinlatch: { gate: { latch: { hold: 1, flat: 0 } }, levels: { 2: { gate: { latch: { hold: 2, flat: 0 } } }, 3: { gate: { latch: { hold: 3, flat: 0 } } } } },
-  // row 31, STOKER: no data change (stoke 0.2 / 0.44 / 0.7). Y7b1 (ruling Y7A-R1): its cap stays with the switch on, as
-  // at 0.9.2 (battle.ts stokedPace, deckRating.ts rateDeck): a stoke never outruns its gun (Y3 had lifted it: the overfeed
-  // trap, REVIEW-Y7A section 6)
-  // row 32, ASSEMBLY LINE: ★3 HOT START goes (no hotStart); it keeps the global speed-up, commission 0.5/0.25/0 (rigs start
-  // 50%/75%/100% sooner), and its own belts' rigs take the same factor (battle.ts makeSide: no instant start). The perk's
-  // name stays (ⓘ only)
-  assembly: {
-    levels: {
-      2: { factory: { speed: 17, commission: 0.25, base: 45 } },
-      3: { factory: { speed: 17, commission: 0, base: 60 }, perk: "HOT START" },
-    },
-  },
-  // ---- Y4 (DESIGN-Y section 3, rows 33-40: gear and cores, one number each; REVIEW-STARD rule 3: no star adds a rule). No
-  // gear holds a load time any more (HOPPER's +0.5 s and TWIN TRIGGER's cut go), so makeTurret never reaches LOAD_FLOOR
-  // row 33, HOPPER: the +0.5 s load time, the ★2/★3 store and ★3's no-jam go; its chamber holds +1/+2/+3 (window). The
-  // perk's name (★3 BOTTOMLESS) stays (ⓘ only)
-  hopper: { mod: { window: 1 }, levels: { 2: { mod: { window: 2 } }, 3: { mod: { window: 3 }, perk: "BOTTOMLESS" } } },
-  // row 34, TWIN TRIGGER: the shorter load time goes (no windowTime, so no LOAD_FLOOR); pairBonus 30/60/95 (was 25/55/88:
-  // +5/+5/+7, the ladder's numbers, cap's ruling e91c08dd12466357)
-  twintrigger: { mod: { pairBonus: 0.3 }, levels: { 2: { mod: { pairBonus: 0.6 } }, 3: { mod: { pairBonus: 0.95 } } } },
-  // row 35, SEAM WELDER: a lone load's plating goes (lone 0; Battle.loaded's addPlate of 0 does nothing); +10/+22/+35 a pair
-  seamwelder: {
-    mod: { seam: { pair: 10, lone: 0 } },
-    levels: { 2: { mod: { seam: { pair: 22, lone: 0 } } }, 3: { mod: { seam: { pair: 35, lone: 0 } } } },
-  },
-  // row 36, EXT. CHAMBER: the +1 slot goes (★2 WIDE BREECH's, ★3 TRIPLE BREECH's window); it fires 2/3/4 loads a shot (at
-  // most what the chamber holds: Battle.chambers). The perks' names stay (ⓘ only)
-  chamber: { mod: { perShot: 2 }, levels: { 2: { mod: { perShot: 3 }, perk: "WIDE BREECH" }, 3: { mod: { perShot: 4 }, perk: "TRIPLE BREECH" } } },
-  // row 37, ROTARY BREECH: ★2 GREASED RACE's and ★3 CLEAN FEED's fire rate and ★3's no-jam go; its load time is 0.75 /
-  // 0.525 / 0.3 s, 50% / 65% / 80% sooner than WINDOW_TIME's 1.5 s (DESIGN-Y's 0.53 is 0.525 rounded: cap's ruling
-  // e91c08dd12466357). The perks' names stay (ⓘ only)
-  rotary: {
-    core: { routine: "rotary", order: "FIFO", windowTime: 0.75 },
-    levels: { 2: { core: { windowTime: 0.525 }, perk: "GREASED RACE" }, 3: { core: { windowTime: 0.3 }, perk: "CLEAN FEED" } },
-  },
-  // row 38, ANVIL BREECH: Y7b1 (ruling Y7A-R3c): its row is deleted, so with the switch on it is 0.9.2's two-part rule, its
-  // base def: anvilFlat 25/55/88 + perPlate 1/2.2/3.5. Y4's fold (perPlate 1.25/2.75/4.38, no flat) assumed 100 PLATE, but
-  // BASTION's decks hold about 15 when its guns fire (MEAN_PLATE), and its switch-on uptake fell to 0 (REVIEW-Y7A F2)
-  // row 39, STEAM BREECH: steamBare goes (no plating, no speed-up); steamPlated gains 5/10/10 points: 40/80/120% faster. It
-  // stays common (DESIGN-Y's note under the Y4 table)
-  steambreech: { core: { routine: "steam", steamPlated: 40 }, levels: { 2: { core: { steamPlated: 80 } }, 3: { core: { steamPlated: 120 } } } },
-  // row 40, DRAKE NOZZLE: addBurn, burnTime and flightMul go (no free BURN, the BURN lasts BURN_TIME, the shot flies as any);
-  // each 25/18/13 of a shot's bonus damage is 1 BURN (flatPerBurn). Y7b1 (ruling Y7A-R4): was 10/7/5, 3.8x the rare median
-  // lift per gold on (REVIEW-Y7A F1/F4). Linear first, 38/27/19, was tried and gave no reading in 0.5-1.5x: no par deck took
-  // it (uptake on 0 of 480 deck-days, so no lift; BRIEF-Y7B1 B1), its ★1 turning each 38 bonus damage into one BURN worth 30
-  // (BURN_TIME x BURN_DPS), so the ruling's fallback 25/18/13 (no third point)
-  drake: { core: { routine: "drake", flatPerBurn: 25 }, levels: { 2: { core: { flatPerBurn: 18 } }, 3: { core: { flatPerBurn: 13 } } } },
-  // ---- Y5 (DESIGN-Y section 3, rows 41-47: the crit-free one-liners, one number each; REVIEW-STARD answer 2: no crit or
-  // ramp; answer 4: the caps go). LONGCASE (row 43) and FINISHER RAM (row 44) change no data
-  // row 41, COUNTERWEIGHT: the cap goes (no `max`; was 60/130/210); +3/+7/+11 for each tile the slug has ridden. Y7b1 (ruling
-  // Y7A-R5): was +5/+11/+18, 2.4x the rare median lift per gold on (REVIEW-Y7A F1). 2/5/7 was tried and its guard tripped:
-  // its lift on read +1.7 [-5.7, +9.2] n 3 at 4.0 G, 0.43/G, x0.28 of the rare median 1.58 (BRIEF-Y7B1 B1), under 0.5x, so
-  // the fallback 3/7/11 (no third point)
-  counterweight: { gate: { perTile: { each: 3 } }, levels: { 2: { gate: { perTile: { each: 7 } } }, 3: { gate: { perTile: { each: 11 } } } } },
-  // row 42, CAPACITOR BANK: the 5 s cap goes (no `maxSeconds`; battle.ts chambers charges for as long as the chamber sits
-  // empty); +20/+44/+70 for each second
-  capacitor: { core: { routine: "capacitor", perSecond: 20 } },
-  // row 45, IRON WALL: Y7b1 (ruling Y7A-R3d): its row is deleted, so with the switch on it is 0.9.2's rule, its base def:
-  // plate 10/22/35 for each slug it hits, plus plated { min 120, flat 30/66/105 }. This reverses REVIEW-STARD's note "its own
-  // plating doesn't return": without it no switch-on par deck held IRON WALL (REVIEW-Y7A F2), and no stat can size a lower
-  // threshold yet (a one-rule IRON WALL waits for a PLATE-at-hit stat: the design list)
-  // row 46, POWDER KEG: it re-arms on a timer: every 12/10/8 s from the battle's start (a STUN or a wreck pauses the fuse)
-  // it blasts +60/+130/+210 onto the slugs on its belts (battle.ts kegTick); its BURN (1/2/3) and ★3 WIDE BLAST's every
-  // belt beside it go. The perk's name stays (ⓘ only)
-  keg: {
-    gate: { keg: { fuse: 12, flat: 60 } },
-    levels: { 2: { gate: { keg: { fuse: 10, flat: 130 } } }, 3: { gate: { keg: { fuse: 8, flat: 210 } }, perk: "WIDE BLAST" } },
-  },
-  // row 47, SPALL CATCHER: the cap goes (no `max`; was 80/176/280); a PLATE soak counts once (battle.ts spallCharge)
-  spallcatcher: {
-    mod: { spall: { every: 40, add: 10 } },
-    levels: { 2: { mod: { spall: { every: 40, add: 22 } } }, 3: { mod: { spall: { every: 40, add: 35 } } } },
-  },
-  // ---- Y6 (DESIGN-Y section 3 row 48 and section 4.1, R1's R2; REVIEW-STARD point 4: VENOM feeds BURN length)
-  // row 48, VENOM DRIP: its poison (2/4/7) goes, so POISON leaves the switch-on game (no payload or hull pool, no tick, no
-  // event: Battle.impact adds none); each slug it hits gains burnPlus +3/+6/+9 s instead, and each BURN stack of that slug's
-  // hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %). Alone it deals nothing. Its catalogue desc stays (no panel draws
-  // it: flavour.ts KEPT_FLAVOUR venom []). Y7b1 (ruling Y7A-R5, guarded): 2/3/5 was tried and its guard tripped: its
-  // switch-on uptake read 9.0% (43 of 480 par deck-days), under 12.0% (a third of Y7a's off 36.0%), so it stays +3/+6/+9 s
-  venom: { gate: { burnPlus: 3 }, levels: { 2: { gate: { burnPlus: 6 } }, 3: { gate: { burnPlus: 9 } } } },
-};
-
-/** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */
-const STAR_BASE: Readonly<Record<string, ItemDef>> = Object.fromEntries(Object.keys(STAR_DIFF).map((id) => [id, ITEMS[id]]));
-
-/** Y2: those pieces' defs with the switch on (built once, from the base defs). */
-export const STAR_ITEMS: Readonly<Record<string, ItemDef>> = Object.fromEntries(
-  Object.keys(STAR_DIFF).map((id) => [id, { ...ITEMS[id], ...STAR_DIFF[id] } as ItemDef]),
-);
-
-let starOn = false;
-
-/** Y2: are release Y's one-line rules on now (STAR_RULES, or a withStarRules call)? */
-export function starRules(): boolean {
-  return starOn;
-}
-
-/** Y2: turn release Y's rules on or off: each STAR_ITEMS def into ITEMS (or its base def back), in place; each keeps its
- *  enumerability (setSustain's and setWave3's switches own that) and its place in ITEMS order. */
-export function setStarRules(on: boolean): void {
-  if (on !== starOn) {
-    for (const id of Object.keys(STAR_ITEMS)) {
-      const enumerable = Object.getOwnPropertyDescriptor(ITEMS, id)?.enumerable ?? true;
-      Object.defineProperty(ITEMS, id, { value: on ? STAR_ITEMS[id] : STAR_BASE[id], enumerable, writable: true, configurable: true });
-    }
-  }
-  starOn = on;
-}
-
-/** Y2: run `fn` with release Y's rules on (or off), then put the switch back as it was, even if `fn` throws (withSustain's
- *  form). */
-export function withStarRules<T>(fn: () => T, on = true): T {
-  const was = starOn;
-  setStarRules(on);
-  try {
-    return fn();
-  } finally {
-    setStarRules(was);
-  }
-}
-
-setStarRules(STAR_RULES);
 
 export interface AmmoDef {
   name: string;

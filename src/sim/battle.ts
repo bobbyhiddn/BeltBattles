@@ -17,21 +17,20 @@ import {
   routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier, type RigHit,
 } from "./deck";
 import { journeyTiles, type JoinLink } from "./deck"; // 0.6.2j: belt joins
-import { shotFloor } from "./deck"; // Y2 (release Y): a LIMPET charge's shot floor with the star switch on
+import { shotFloor } from "./deck"; // Y2 (release Y): a LIMPET charge's shot floor
 import { matchedRoutes, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's E3 (stokers) and E6 (matched belts)
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
 import { mergedPieces, runeMods, type RuneMods } from "./runes"; // RUNES-1 (REQ-BFG-058); RUNES-2a: merged pieces
 import { inSync, pourAll } from "./races/foundry"; // 0.8.0 P1: E2's pair rule (Foundry's sync rule); TWIN MOULD's pour
 import { effectAt, gradeOf, starsOf } from "./stars";
-// Y3 (release Y): chargeable (was boostable), the OVERCLOCKER's target: with the star switch off it is boostable itself
-import { chargeable, overclocked } from "./overclock";
+import { overclocked } from "./overclock";
 import { debuffedDamage, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): BURN per stack each second
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047, N1 2.1): the integer damage pipeline's one rounding
 import { SHIELD_CAP } from "./content"; // SUS-A (REQ-BFG-069): SHIELD's MAX
-import { STUN_CAUSES, starRules } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-046): the star switch; harassment is a STUN
+import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-046): harassment is a STUN
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -83,9 +82,8 @@ export interface Payload {
   heatBonus?: number;
   pulseSeen?: Record<number, number>;
   compound?: Payload;
-  poison?: number;
-  // Y6 (release Y; DESIGN-Y section 4.1): with the star switch on, the seconds VENOM DRIPs add to each BURN stack of this
-  // payload's hit (Battle.impact); copies keep it (the spread), a COMPOUND shell adds both loads'. Absent with the switch off
+  // Y6 (release Y; DESIGN-Y section 4.1): the seconds VENOM DRIPs add to each BURN stack of this payload's hit
+  // (Battle.impact); copies keep it (the spread), a COMPOUND shell adds both loads'
   burnPlus?: number;
   fray?: number;
   frayCap?: number;
@@ -151,7 +149,7 @@ export interface GateState {
   // 0.8.0 P1, wave 3 (set only on the wave-3 rig that needs it):
   factoryHits?: number[]; // E3 STOKER: the factories its arrows point at (one uid per arrow); they count for its online test
   latch?: LatchState; // E4 TWIN LATCH, when both its arrows hit belts: the payload each arrow holds and since when
-  // Y3 (release Y; DESIGN-Y row 28): a SURGE VALVE's last pulse (its pulsePhase cycle), set only with the star switch on
+  // Y3 (release Y; DESIGN-Y row 28): a SURGE VALVE's last pulse (its pulsePhase cycle)
   surged?: number;
 }
 
@@ -217,7 +215,6 @@ export interface FactoryState {
   pending: number; // DOUBLE STAMP, SHOT TOWER: slugs of this cycle still waiting in the mouth for AMMO_SPACING
   cycleIdx: number; // HOT SWAP: the preset the next stamp writes
   seenHarass: number;
-  seenWreck: number;
   triggerQueue: number;
   triggerCooldown: number;
   // 0.6.2 TUNE-M, RULE JOIN PACE: the pace its timers run at (produce: the stamping timer and a trigger's cooldown):
@@ -273,19 +270,18 @@ export interface TurretState {
   immune: HarassCause[]; // MANTLET: stalls Battle.disrupt ignores on this turret
   intakeGuard: number; // MANTLET ★2 FULL GUARD (1, 0.6.2 FB-B; NUM-3: was FULL PLATE), ★3 BULWARK SKIRT (3): the last n tiles of each route into it share `immune`
   finisher: number; // FINISHER RAM: + this share of damage on the payload that empties the window (never on a GATLING)
-  intercept: number; // Flak mod's chance; the side takes the maximum across its turrets
+  intercept: number; // FLAK SCREEN's chance (Y2: each screen rolls on its own, SideState.flaks)
   rerolls: number;
   factoryWeight: number;
   alwaysMachine: boolean;
   charge: number;
-  salvage: number;
   longRideFlat: number; // LONGCASE: damage on other ammo after its belt-ride threshold
   longRideMin: number;
   // 0.8.0 P1, wave 3 (from its gear and core; absent without them, so the turret fires exactly as before):
   pairing?: boolean; // E2: it holds a pair reader (TWIN TRIGGER, SEAM WELDER), so its loads are marked as pairs
   pairBonus?: number; // TWIN TRIGGER: a paired load deals this share more damage
   seam?: { pair: number; lone: number }; // SEAM WELDER: plating for each pairing load, and for each other load
-  spall?: { every: number; add: number; max?: number }; // SPALL CATCHER (Y5: no max with the star switch on)
+  spall?: { every: number; add: number; max?: number }; // SPALL CATCHER (Y5: no max)
   spallCharge?: number; // SPALL CATCHER: damage waiting for its next shot
   plated?: boolean; // STEAM BREECH: your hull holds plating this tick (Battle.chambers)
   runeFired?: boolean; // RUNES-1: it has fired this battle (SHARP SCRAP's first shot); set only on a side with runes
@@ -300,8 +296,7 @@ export interface HullState {
   max: number;
   fray: number;
   frayMax: number;
-  // NUM-1 (REQ-BFG-047): `acc`, the seconds since the last whole tick (poison and each Burn deal once a second)
-  poison: { stacks: number; t: number; acc?: number };
+  // NUM-1 (REQ-BFG-047): `acc`, the seconds since the last whole tick (each Burn deals once a second)
   burns: { dps: number; t: number; acc?: number }[]; // dps: the Burn stacks (each deals BURN_DPS a second)
   burnShown: number;
   windShown: number;
@@ -345,12 +340,10 @@ export interface SideState {
   routes: RouteState[];
   turrets: TurretState[];
   targets: Target[];
-  flak: number;
-  /** Y2 (release Y, DESIGN-Y row 10): with the star switch on, each FLAK SCREEN's share, in turret order (each rolls on its
-   *  own, Battle.flight); absent off, and without a screen. */
+  /** Y2 (release Y, DESIGN-Y row 10): each FLAK SCREEN's share, in turret order (each rolls on its own, Battle.flight);
+   *  absent without a screen. */
   flaks?: number[];
   harassAccepted: number; // future Scrapper consumes accepted enemy effects from this side
-  wreckAccepted: number;
   limpets: { at: number; target: Target; from: Side; blast: number; stall: number }[];
   stats: SideStats;
   race?: RaceSide; // races: race mechanics state; undefined for Furnace and Weaver
@@ -362,7 +355,7 @@ export interface SideState {
   // 0.8.0 P1, wave 3 (set only when the side holds the part that needs it):
   pairs?: WeakMap<Payload, { at: number; route: number }>; // E2: when and through which route each chamber load entered
   latches?: GateState[]; // E4: its TWIN LATCHes whose two arrows hit belts
-  surges?: GateState[]; // Y3 (DESIGN-Y row 28): with the star switch on, its SURGE VALVEs with an arrow on a belt (surgeTick)
+  surges?: GateState[]; // Y3 (DESIGN-Y row 28): its SURGE VALVEs with an arrow on a belt (surgeTick)
   spall?: TurretState[]; // SPALL CATCHER: its turrets carrying one
   braced?: boolean; // BRACE FRAME: the side holds one
   rune?: RuneMods; // RUNES-1 (REQ-BFG-058): what this side's runes do (runes.ts runeMods); absent without runes
@@ -430,7 +423,6 @@ export type SimEvent =
   | { type: "arc" | "lance" | "splash"; side: Side; x: number; y: number }
   | { type: "wreck" | "rip" | "limpet"; side: Side; kind: TargetKind; ref: number; cell: number; payload?: number }
   | { type: "burn"; side: Side; dmg: number }
-  | { type: "poison"; side: Side; dmg: number }
   | { type: "keg"; side: Side; gate: number }
   // 0.8.0 P1, wave 3: fired only by wave-3 parts (a race hero fires what it fired before)
   | { type: "plate"; side: Side; amount: number; plate: number } // E1: plating added (+) or spent (-); `plate`: the pool after
@@ -653,7 +645,7 @@ export class Battle {
     const claims = connectorClaims(b);
     const hull: HullState = {
       hp: h.hull + b.hullBonus, max: h.hull + b.hullBonus, fray: 0, frayMax: FRAY_MAX,
-      poison: { stacks: 0, t: 0 }, burns: [], burnShown: 0, windShown: 0, flash: 0,
+      burns: [], burnShown: 0, windShown: 0, flash: 0,
     };
     const gates: GateState[] = [];
     const gateByUid = new Map<number, GateState>();
@@ -674,9 +666,8 @@ export class Battle {
     // there: the k-th rig on a route comes online at COMMISSION_BASE + COMMISSION_STEP x k, and a rig on
     // several routes comes online at the earliest of those times. An IDLE rig never comes online.
     // beltside-062c (DESIGN §12 P7): 0.6.1c's ASSEMBLY LINE rule, per route. With a running Assembly Line, a
-    // route's time is scaled by the best factor, except on an Assembly Line's own belt, where it is 0 s (and
-    // ★3 HOT START overclocks the whole rig until hotUntil). The earliest time over the rig's routes still wins,
-    // so one arrow on an Assembly Line's belt brings the rig online at 0 s.
+    // route's time is scaled by the best factor (Y3, DESIGN-Y row 32: on its own belts too; they were 0 s, and ★3
+    // HOT START overclocked the whole rig until hotUntil). The earliest time over the rig's routes still wins.
     const hits = rigHits(b);
     const asm = assemblyLines(b, claims, occ, hits); // 0.6.1c ASSEMBLY LINE (empty without one: commissioning as before)
     const links: { link: JoinLink; feeds: number }[] = []; // 0.6.2j: the joining belts' legal joins, by route index
@@ -692,11 +683,11 @@ export class Battle {
         if (!rank.has(g.uid)) {
           rank.set(g.uid, rank.size);
           let at = COMMISSION_BASE + COMMISSION_STEP * (rank.size - 1);
-          if (asm.own.size) { // 0.6.1c: x the best factor; online at 0 s on an Assembly Line's own belt (+ HOT START)
+          if (asm.own.size) { // 0.6.1c: x the best factor
             const hot = asm.own.get(i);
-            // Y3 (release Y; DESIGN-Y row 32): with the star switch on its own belts' rigs take the same factor as every
-            // rig (no instant start), and HOT START is gone (its data holds no hotStart, so `hot` is 0 and sets nothing)
-            at = hot === undefined || starRules() ? at * asm.factor : 0;
+            // Y3 (release Y; DESIGN-Y row 32): its own belts' rigs take the same factor as every rig (no instant start), and
+            // HOT START is gone (its data holds no hotStart, so `hot` is 0 and sets nothing)
+            at = at * asm.factor;
             if (hot) g.hotUntil = Math.max(g.hotUntil ?? 0, hot);
           }
           g.commissionAt = Math.min(g.commissionAt, at);
@@ -743,9 +734,9 @@ export class Battle {
       for (let i = 0; i < own.length; i++) {
         const booster = ordered[i].g;
         if (!booster.def.gate?.overclockCooldown) continue;
-        // Y3 (release Y; DESIGN-Y row 29): with the star switch on the first later rig, whatever it is (overclock.ts
-        // chargeable); off, the first boostable one, as before
-        const target = ordered.slice(i + 1).find((h) => h.g !== booster && chargeable(h.g.def.gate!));
+        // Y3 (release Y; DESIGN-Y row 29): the first later rig, whatever it is; a rig with nothing to double spends the
+        // charge (overclocked hands its effect back unchanged)
+        const target = ordered.slice(i + 1).find((h) => h.g !== booster);
         if (target && (target.route === r.index || !booster.hits.some((h) => mains.includes(h.route)))) {
           target.g.boostedBy.push({ booster, route: target.route });
         }
@@ -758,7 +749,7 @@ export class Battle {
         uid: p.uid, def: this.factoryDef(effectAt(p.def, gradeOf(b, p)), h), x: p.x, y: p.y,
         routes: routes.filter((r) => r.factory === p.uid).map((r) => r.index),
         timer: 0.35, rr: 0, disrupted: 0, frozen: 0, flash: 0, stalled: false, produced: 0,
-        pending: 0, cycleIdx: 0, seenHarass: 0, seenWreck: 0, triggerQueue: 0, triggerCooldown: 0,
+        pending: 0, cycleIdx: 0, seenHarass: 0, triggerQueue: 0, triggerCooldown: 0,
         // 0.6.2 TUNE-M, RULE JOIN PACE: one of its belts joins another (a legal join: joinStates set RouteState.join)
         pace: routes.some((r) => r.factory === p.uid && r.join) ? JOIN_PACE : 1,
       }));
@@ -857,9 +848,9 @@ export class Battle {
     if (rune?.pairHeal) for (const tu of turrets) tu.pairing = true; // SUS-D: TWIN SALVE reads PAIRs too
     return {
       side, build: b, hero: h, hull, factories, gates, routes, turrets, targets,
-      flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, wreckAccepted: 0,
-      // Y2 (DESIGN-Y row 10): with the switch on, every FLAK SCREEN's own share (absent without a screen, and off)
-      ...(starRules() && turrets.some((tu) => tu.intercept > 0) ? { flaks: turrets.map((tu) => tu.intercept).filter((v) => v > 0) } : {}),
+      harassAccepted: 0,
+      // Y2 (DESIGN-Y row 10): every FLAK SCREEN's own share (absent without a screen)
+      ...(turrets.some((tu) => tu.intercept > 0) ? { flaks: turrets.map((tu) => tu.intercept).filter((v) => v > 0) } : {}),
       limpets: [], stats: emptyStats(),
       race: makeRaceSide(b, plate), // races:
       ...(joiners.length ? { joiners } : {}), // 0.6.2j
@@ -867,8 +858,8 @@ export class Battle {
       // 0.8.0 P1, wave 3: E2's pair record only with a pair reader on board; E4's latches; SPALL CATCHER's turrets
       ...(turrets.some((tu) => tu.pairing) ? { pairs: new WeakMap<Payload, { at: number; route: number }>() } : {}),
       ...(latches.length ? { latches } : {}),
-      // Y3 (DESIGN-Y row 28): with the star switch on, the SURGE VALVEs whose damage pulse surgeTick runs (absent off)
-      ...(starRules() && gates.some((g) => g.def.gate?.pulse && g.hits.length) ? { surges: gates.filter((g) => g.def.gate?.pulse && g.hits.length) } : {}),
+      // Y3 (DESIGN-Y row 28): the SURGE VALVEs whose damage pulse surgeTick runs
+      ...(gates.some((g) => g.def.gate?.pulse && g.hits.length) ? { surges: gates.filter((g) => g.def.gate?.pulse && g.hits.length) } : {}),
       ...(spall.length ? { spall } : {}),
       ...(gates.some((g) => g.def.gate?.brace) ? { braced: true } : {}),
       ...(rune ? { rune } : {}), // RUNES-1
@@ -932,16 +923,11 @@ export class Battle {
       }
       if (!stopped && !g.wrecked && g.online) {
         if (g.cooldown > 0) g.cooldown = Math.max(0, g.cooldown - dt);
-        // Y5 (release Y; DESIGN-Y row 46): with the star switch on POWDER KEG's fuse is kegTick's (below); off, as before
-        if (g.def.gate?.keg && !g.consumed && !starRules()) {
-          g.fuse -= dt;
-          if (g.fuse <= 0) this.detonateKeg(s, g);
-        }
       }
-      if (g.def.gate?.keg && starRules()) this.kegTick(s, g, dt, stopped); // Y5: the re-arming keg (star switch on)
+      if (g.def.gate?.keg) this.kegTick(s, g, dt, stopped); // Y5 (release Y; DESIGN-Y row 46): the re-arming keg
     }
     if (s.latches) for (const g of s.latches) this.latchTick(s, g); // 0.8.0 P1 (E4): releases, before this tick's transport
-    if (s.surges) for (const g of s.surges) this.surgeTick(s, g); // Y3 (DESIGN-Y row 28): the damage pulses (star switch on)
+    if (s.surges) for (const g of s.surges) this.surgeTick(s, g); // Y3 (DESIGN-Y row 28): the damage pulses
     for (const r of s.routes) {
       for (let i = 0; i < r.cellDisrupt.length; i++) {
         const stopped = r.cellDisrupt[i] > 0;
@@ -984,29 +970,14 @@ export class Battle {
     if (s.hull.flash > 0) s.hull.flash = Math.max(0, s.hull.flash - dt);
   }
 
-  private detonateKeg(s: SideState, g: GateState): void {
-    const keg = g.def.gate!.keg!;
-    g.consumed = true;
-    g.online = false;
-    const routes = new Set(g.hits.map((h) => h.route));
-    if (keg.wide) for (const r of s.routes) {
-      if (r.cells.some((k) => Math.abs(kx(k) - g.x) + Math.abs(ky(k) - g.y) === 1)) routes.add(r.index);
-    }
-    for (const id of routes) for (const a of s.routes[id].ammo) {
-      a.p.flat += keg.flat;
-      a.p.burn += keg.burn!; // Y5: every keg's def holds a burn while the star switch is off (detonateKeg's only case)
-    }
-    this.events.push({ type: "keg", side: s.side, gate: g.uid });
-  }
-
   /**
-   * Y5 (release Y; DESIGN-Y row 46; BRIEF-Y5: "the fuse counts battle time from the start"), each tick with the star switch
-   * on: POWDER KEG's fuse (GateState.fuse, the keg's own timer, keg.fuse at the start) runs from the battle's start, not from
+   * Y5 (release Y; DESIGN-Y row 46; BRIEF-Y5: "the fuse counts battle time from the start"), each tick: POWDER KEG's fuse
+   * (GateState.fuse, the keg's own timer, keg.fuse at the start) runs from the battle's start, not from
    * its coming online, and pauses while the keg is stopped (`stopped`: STUNned or frozen this tick, as a stopped part's
    * timers do) or wrecked. Each time it runs out (to within 1e-9 s of the tick: the 1/60 s steps don't sum to a whole
    * second exactly) it re-arms for keg.fuse (12/10/8 s), the remainder carried, and the keg blasts if it works (online):
    * keg.flat onto every slug on the belts its arrows hit (beltPulse, SURGE VALVE's walk). No BURN and no WIDE BLAST, and a
-   * GRAPNEL rip never disarms it (Battle.rip reads no keg with the switch on), so it is never consumed.
+   * GRAPNEL rip never disarms it (Battle.rip reads no keg), so it is never consumed.
    */
   private kegTick(s: SideState, g: GateState, dt: number, stopped: boolean): void {
     if (stopped || g.wrecked) return;
@@ -1042,13 +1013,10 @@ export class Battle {
     for (const f of s.factories) {
       const spec = f.def.factory!;
       if (spec.trigger === "harass") {
-        // Y2 (DESIGN-Y row 9, SCRAPPER): with the switch on it counts only STUNs (harassAccepted: the shared rule), ★3 BIG
-        // HAUL's wreck stamp goes, and its queue has no cap (the belt's room still paces its stamps: Battle.stamp)
-        const star = starRules();
-        const gained = s.harassAccepted - f.seenHarass + (spec.bigHaul && !star ? s.wreckAccepted - f.seenWreck : 0);
-        f.triggerQueue = star ? f.triggerQueue + gained : Math.min(3, f.triggerQueue + gained);
+        // Y2 (DESIGN-Y row 9, SCRAPPER): it counts only STUNs (harassAccepted: the shared rule), ★3 BIG HAUL's wreck stamp
+        // is gone, and its queue has no cap (the belt's room still paces its stamps: Battle.stamp)
+        f.triggerQueue += s.harassAccepted - f.seenHarass;
         f.seenHarass = s.harassAccepted;
-        f.seenWreck = s.wreckAccepted;
       }
       if (!f.routes.length || f.disrupted > 0 || f.frozen > 0) continue;
       // 0.8.0 P1 (E3): a stoked factory's stamp timer and trigger cooldown run at pace x (1 + its active stokes), capped
@@ -1150,15 +1118,14 @@ export class Battle {
       if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
       const e = g.def.gate!;
       if (e.speed !== undefined) speeds.push(e.speed);
-      // Y3 (release Y; DESIGN-Y row 28; REVIEW-STARD answer 5): with the star switch on SURGE VALVE's speed pulse is gone
-      // (its damage pulse is surgeTick's), so it sets no speed state; off, as before
-      if (e.pulse && !starRules()) speeds.push(this.pulsePhase(e.pulse).on ? e.pulse.speed : 1);
+      // Y3 (release Y; DESIGN-Y row 28; REVIEW-STARD answer 5): SURGE VALVE's speed pulse is gone (its damage pulse is
+      // surgeTick's), so it sets no speed state
     }
     return speedWinner(speeds);
   }
 
   /**
-   * Y3 (release Y; DESIGN-Y row 28; REVIEW-STARD answer 5: the damage pulse), each tick with the star switch on: once each
+   * Y3 (release Y; DESIGN-Y row 28; REVIEW-STARD answer 5: the damage pulse), each tick: once each
    * pulse period (pulsePhase's cycle on the battle's tick count, the speed pulse's own timing), in the first tick of its
    * `on` window that the valve works (online, not STUNned, frozen or wrecked), every slug on each belt its arrows hit gains
    * pulse.flat once: before or after its tile, on slag and on a locked belt alike (no speed in it any more). A valve that
@@ -1172,9 +1139,9 @@ export class Battle {
     this.beltPulse(s, g, p.flat);
   }
 
-  /** Y3's damage-pulse walk (surgeTick), shared with Y5's POWDER KEG (kegTick; DESIGN-Y row 46), both read only with the
-   *  star switch on: every slug on each belt rig g's arrows hit gains `flat` once (before or after its tile, on slag and on
-   *  a locked belt alike), and the rig and its arrows flash. */
+  /** Y3's damage-pulse walk (surgeTick), shared with Y5's POWDER KEG (kegTick; DESIGN-Y row 46): every slug on each belt
+   *  rig g's arrows hit gains `flat` once (before or after its tile, on slag and on a locked belt alike), and the rig and
+   *  its arrows flash. */
   private beltPulse(s: SideState, g: GateState, flat: number): void {
     for (const ri of new Set(g.hits.map((h) => h.route))) for (const a of s.routes[ri].ammo) a.p.flat += flat;
     g.flash = 0.22;
@@ -1195,18 +1162,9 @@ export class Battle {
     return { on: this.ticks - start < Math.round(p.on * TICKS_PER_SEC), cycle };
   }
 
-  private pulseAt(r: RouteState, pos: number): GateState | undefined {
-    if (starRules()) return undefined; // Y3 (release Y; DESIGN-Y row 28): no per-ride pulse with the star switch on (surgeTick)
-    let pulse: GateState | undefined;
-    for (let i = 0; i < r.cells.length && i * CELL + CELL / 2 < pos; i++) {
-      for (const h of r.gateAt[i]) {
-        const g = h.g;
-        if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
-        if (g.def.gate?.speed !== undefined) pulse = undefined;
-        if (g.def.gate?.pulse) pulse = g;
-      }
-    }
-    return pulse;
+  /** Y3 (release Y; DESIGN-Y row 28): no per-ride pulse (SURGE VALVE pays every slug on its belts: surgeTick). */
+  private pulseAt(_r: RouteState, _pos: number): GateState | undefined {
+    return undefined;
   }
 
   private transport(s: SideState, dt: number): void {
@@ -1240,8 +1198,8 @@ export class Battle {
             // RUNES-1: COAL CHUTE / HEAT SINK, +pct% HEAT (a side without them gains exactly as before)
             a.p.heatBonus = (a.p.heatBonus ?? 0) + (s.rune?.heatPct ? a.p.heat * ride * (1 + s.rune.heatPct / 100) : a.p.heat * ride);
           }
-          // Y3 (DESIGN-Y row 28): with the star switch on pulseAt finds no valve, so no per-ride pulse flat (surgeTick pays
-          // every slug on the belt instead)
+          // Y3 (DESIGN-Y row 28): pulseAt finds no valve, so no per-ride pulse flat (surgeTick pays every slug on the belt
+          // instead)
           const surge = fixed === undefined && !s.race?.speedLock ? this.pulseAt(r, a.s) : undefined;
           const pulse = surge?.def.gate?.pulse;
           const phase = surge && pulse && pulse.flat > 0 ? this.pulsePhase(pulse) : undefined; // NUM-3: the integer tick count
@@ -1517,7 +1475,7 @@ export class Battle {
   private stokedPace(s: SideState, f: FactoryState, dt: number): number {
     const k = this.stokeOf(f);
     let pace = f.pace * (1 + k);
-    // Y7b1 (release Y; ruling Y7A-R1, REVIEW-Y7A section 7): the cap holds with the star switch on too, at every star, as at
+    // Y7b1 (release Y; ruling Y7A-R1, REVIEW-Y7A section 7): the cap holds, at every star, as at
     // 0.9.2: a stoke never outruns its gun (Y3 had lifted it, DESIGN-Y row 31, and a ★2/★3 STOKER on a full gun then dealt
     // less than none: the overfeed trap). The stoke numbers stay 0.2 / 0.44 / 0.7
     if (k > 0 && f.stokeCap?.length) {
@@ -1589,12 +1547,11 @@ export class Battle {
     return paired;
   }
 
-  /** SPALL CATCHER: damage that lands on side s charges each of its turrets carrying one: add x (the hull's part + twice
-   *  what plating soaked) / every, up to max. The dark wind never comes through here (hullEffects' wind line).
-   *  Y5 (release Y; DESIGN-Y row 47): with the star switch on a PLATE soak counts once, and there is no cap (its def holds no
-   *  max: content.ts STAR_DIFF); off, as before. */
+  /** SPALL CATCHER: damage that lands on side s charges each of its turrets carrying one: add x (the hull's part + what
+   *  plating soaked) / every. The dark wind never comes through here (hullEffects' wind line).
+   *  Y5 (release Y; DESIGN-Y row 47): a PLATE soak counts once (was twice), and there is no cap (its def holds no max). */
   private spallCharge(s: SideState, hull: number, plate: number): void {
-    const taken = hull + (starRules() ? 1 : 2) * plate;
+    const taken = hull + plate;
     if (!(taken > 0)) return;
     for (const tu of s.spall!) {
       const sp = tu.spall!;
@@ -1661,8 +1618,7 @@ export class Battle {
     if (s.race?.speedLock && e.lockedFlat) p.flat += e.lockedFlat;
     // 0.8.0 P1, wave 3 (R7 tier 1, additive; each field exists only on its wave-3 rig):
     if (e.gauge) p.flat += h.matched ? e.gauge.matched : e.gauge.flat; // E6 TWIN GAUGE: more on a matched belt
-    // E5 PINCER. Y3 (release Y; DESIGN-Y row 20): with the star switch on its def has no `max` (and flat 0: content.ts
-    // STAR_DIFF), so every other working rig counts; off, max 3, as before
+    // E5 PINCER. Y3 (release Y; DESIGN-Y row 20): its def has no `max` (and flat 0), so every other working rig counts
     if (e.pincer) p.flat += e.pincer.flat + e.pincer.each * Math.min(e.pincer.max ?? Infinity, this.crossfire(s, h));
     if (e.latch) p.flat += e.latch.flat; // TWIN LATCH: each payload it hits (its hold is E4, after the tile's hits)
     if (e.plate) this.addPlate(s, e.plate); // PLATE ROLLER, SHIELD WALL: plating for each payload it hits (E1)
@@ -1676,40 +1632,33 @@ export class Battle {
     // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap)
     if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
     if (e.burn) p.burn += e.burn;
-    if (e.poison) p.poison = (p.poison ?? 0) + e.poison;
-    // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP with the star switch on (its only source: content.ts STAR_DIFF), on
-    // poison's path: two add up, and a doubled hit (overclocked) adds twice
+    // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP (its only source), on poison's old path: two add up, and a doubled
+    // hit (overclocked) adds twice
     if (e.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + e.burnPlus;
     if (e.burnPerRide) {
       const original = g.def.gate!.burnPerRide!;
-      // Y3 (release Y; DESIGN-Y row 22): with the star switch on, + burn for each whole `per` s ridden (1/2/3 for each 2 s),
-      // no cap; off, floor(ride x burn / per) up to max, as before (NUM-3: n per 10 s)
-      const n = starRules() ? original.burn * Math.floor(p.ride / original.per) : Math.min(original.max ?? Infinity, Math.floor((p.ride * original.burn) / original.per));
+      // Y3 (release Y; DESIGN-Y row 22): + burn for each whole `per` s ridden (1/2/3 for each 2 s), no cap
+      const n = original.burn * Math.floor(p.ride / original.per);
       p.burn += (doubled ? 2 : 1) * n;
     }
     if (e.quench) { // 0.6.2 FB-B: + flat on every payload; up to `stacks` Burn stacks at perBurn each, the rest stays Burn
-      // Y3 (DESIGN-Y row 23): with the star switch on its def has no `stacks` (and flat 0), so every BURN stack turns
+      // Y3 (DESIGN-Y row 23): its def has no `stacks` (and flat 0), so every BURN stack turns
       const spent = Math.min(p.burn, e.quench.stacks ?? Infinity);
       p.flat += e.quench.flat + spent * e.quench.perBurn;
       p.burn -= spent;
     }
     if (e.staticTime) { p.static = true; p.staticTime = Math.max(p.staticTime ?? 0, e.staticTime); }
-    if (e.perStalled && starRules()) {
-      // Y2 (DESIGN-Y row 15, LODESTONE): with the switch on, +each for each enemy part a STUN holds now: its rigs, factories,
-      // turrets and belt tiles; a wrecked rig is no STUN; no cap (its floor is gone from its data: content.ts STAR_DIFF)
+    if (e.perStalled) {
+      // Y2 (DESIGN-Y row 15, LODESTONE): +each for each enemy part a STUN holds now: its rigs, factories, turrets and belt
+      // tiles; a wrecked rig is no STUN; no cap (its floor is gone from its data)
       const foe = this.sides[s.side === 0 ? 1 : 0];
       const stunned = [...foe.gates.filter((g) => !g.wrecked), ...foe.factories, ...foe.turrets].filter((m) => m.disrupted > 0 || m.frozen > 0).length +
         foe.routes.reduce((n, r) => n + r.cellDisrupt.filter((t) => t > 0).length, 0);
       p.flat += stunned * e.perStalled.each;
-    } else if (e.perStalled) {
-      const foe = this.sides[s.side === 0 ? 1 : 0];
-      const stalled = [...foe.gates, ...foe.factories, ...foe.turrets]
-        .filter((m) => m.disrupted > 0 || m.frozen > 0 || ("wrecked" in m && m.wrecked)).length;
-      p.flat += Math.min(e.perStalled.max, stalled * e.perStalled.each);
     }
     if (e.fray) { p.fray = (p.fray ?? 0) + e.fray; p.frayCap = Math.max(p.frayCap ?? 0, e.frayCap ?? 0); }
     // 0.6.2j (J14 (a)): COUNTERWEIGHT counts the tiles ridden on the payload's own journey. Y5 (release Y; DESIGN-Y row 41):
-    // with the star switch on its def has no `max` (content.ts STAR_DIFF), so every tile counts; off, its cap, as before
+    // its def has no `max`, so every tile counts
     if (e.perTile) p.flat += Math.min(e.perTile.max ?? Infinity, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each);
     if (e.shock) {
       p.shock = true;
@@ -1791,10 +1740,10 @@ export class Battle {
       tu.waiting = waiting;
       if (waiting > s.stats.maxQueue) s.stats.maxQueue = waiting;
       if (tu.disrupted > 0 || tu.frozen > 0) continue;
-      // Y5 (release Y; DESIGN-Y row 42): with the star switch on CAPACITOR BANK's def has no maxSeconds (content.ts STAR_DIFF):
-      // it charges for as long as its chamber sits empty; off, up to maxSeconds (5 s), as before
+      // Y5 (release Y; DESIGN-Y row 42): CAPACITOR BANK's def has no maxSeconds: it charges for as long as its chamber sits
+      // empty
       if (tu.core.routine === "capacitor" && tu.stack.length === 0)
-        tu.charge = Math.min(tu.core.spec.maxSeconds ?? (starRules() ? Infinity : 5), tu.charge + dt);
+        tu.charge = Math.min(tu.core.spec.maxSeconds ?? Infinity, tu.charge + dt);
       // NUM-2 (REQ-BFG-047, N1 2.2): the shot timer carries its remainder (it stops within a tick below 0, and a shot adds
       // the next interval to it), so an over-fed turret's long-run rate is exactly speed / 30 a second (was a clamp at 0)
       if (tu.fireCd > 0) tu.fireCd -= dt;
@@ -1974,8 +1923,7 @@ export class Battle {
       dmg = pct(debuffedDamage(dmg, p.debuffs) + debuffedDamage(qd, q.debuffs), 100 * (c.mult ?? 1));
       p.burn += q.burn;
       burn += q.burn;
-      p.poison = (p.poison ?? 0) + (q.poison ?? 0);
-      if (q.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + q.burnPlus; // Y6 (DESIGN-Y 4.1): the shell keeps both loads' (switch on only)
+      if (q.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + q.burnPlus; // Y6 (DESIGN-Y 4.1): the shell keeps both loads'
       p.shock ||= q.shock;
       p.static ||= q.static;
       p.staticTime = Math.max(p.staticTime ?? 0, q.staticTime ?? 0) || undefined;
@@ -1993,7 +1941,6 @@ export class Battle {
     // 0.8.0 P1: TWIN TRIGGER on a paired load (E2; a COMPOUND shell packing one counts), before the RAM
     if (tu.pairBonus && (p.paired || p.compound?.paired)) dmg = pct(dmg, 100 * (1 + tu.pairBonus));
     if (fin) dmg = pct(dmg, 100 * (1 + tu.finisher)); // 0.6.1p: FINISHER RAM, after the core's own bonus (never set on a GATLING)
-    if (tu.salvage) { dmg += tu.salvage; tu.salvage = 0; }
     if (tu.spallCharge) { dmg += roundHalfUp(tu.spallCharge); tu.spallCharge = 0; } // 0.8.0 P1: SPALL CATCHER's charge, this shot (NUM-1: whole)
     const paired = !!(p.paired || p.compound?.paired);
     const open = s.rune ? this.volleyOpen(tu) : false; // RUNES-2a: the volley's first shot (FIRST BLOOD, EMBER SHOT)
@@ -2065,15 +2012,12 @@ export class Battle {
 
   private isHarassingProjectile(pr: Projectile): boolean {
     const p = pr.payload;
-    // Y2 (release Y; DESIGN-Y section 3, the shared rule): with the switch on, harassment is a STUN, so FLAK SCREEN rolls
-    // only for a shot that carries one: a shock, a static or arc slug, a TESLA shot, a SABOT, FROST or CHAIN round, a
-    // LIMPET charge with a stall. A GRAPNEL rip, a LANCE shot and a stall-less LIMPET charge carry none
-    if (starRules()) {
-      const h = p.harass;
-      return !!(p.shock || p.static || p.arc || pr.tesla ||
-        (h && (h.kind === "sabot" || h.kind === "frost" || h.kind === "drag" || (h.kind === "limpet" && (h.stall ?? 0) > 0))));
-    }
-    return !!(p.harass || p.shock || p.static || p.arc || p.rip || pr.tesla || pr.lance);
+    // Y2 (release Y; DESIGN-Y section 3, the shared rule): harassment is a STUN, so FLAK SCREEN rolls only for a shot that
+    // carries one: a shock, a static or arc slug, a TESLA shot, a SABOT, FROST or CHAIN round, a LIMPET charge with a
+    // stall. A GRAPNEL rip, a LANCE shot and a stall-less LIMPET charge carry none
+    const h = p.harass;
+    return !!(p.shock || p.static || p.arc || pr.tesla ||
+      (h && (h.kind === "sabot" || h.kind === "frost" || h.kind === "drag" || (h.kind === "limpet" && (h.stall ?? 0) > 0))));
   }
 
   private flight(dt: number): void {
@@ -2083,9 +2027,9 @@ export class Battle {
       if (!pr.flakChecked && this.isHarassingProjectile(pr) && pr.t >= pr.flight / 2) {
         pr.flakChecked = true;
         const defender = this.sides[pr.from === 0 ? 1 : 0];
-        // Y2 (DESIGN-Y row 10, FLAK SCREEN): with the switch on each screen rolls on its own (SideState.flaks, in turret
-        // order) until one downs the shot; off, one roll at the side's best screen, as before
-        if (defender.flaks ? defender.flaks.some((f) => this.rng.next() < f) : defender.flak > 0 && this.rng.next() < defender.flak) {
+        // Y2 (DESIGN-Y row 10, FLAK SCREEN): each screen rolls on its own (SideState.flaks, in turret order) until one
+        // downs the shot
+        if (defender.flaks?.some((f) => this.rng.next() < f)) {
           this.events.push({ type: "flak", side: defender.side, proj: pr.id });
           continue;
         }
@@ -2111,7 +2055,7 @@ export class Battle {
     let total = pr.dmg + bonus; // NUM-3 (R1's STUN fold): SABOT's bare-hull +60 is gone
     if (atk.rune || def.rune) total = this.runeHit(atk, def, hit, total); // RUNES-2a: SCRAP BITER, SNARE KNOT, IRON HIDE, WARD STONE
     // SUS-A (REQ-BFG-069): SHIELD, then PLATE, then HULL. A SHIELD stops this whole hit (0, its FRAY bonus included), where
-    // WARD STONE's blockHits stopped it: after IRON HIDE, on any impact; its BURN, FRAY, STUN and poison still land below
+    // WARD STONE's blockHits stopped it: after IRON HIDE, on any impact; its BURN, FRAY and STUN still land below
     if (def.shield) total = atk.rune?.shieldPierce || atk.rune?.shatterPct ? this.shieldShatter(def, total) : this.shieldHit(def); // SUS-D: SHATTER SHOT (FURN-Y: shatterPct keeps it)
     // races: bulwark plating soaks first. 0.8.0 P1 (E1): every hull's plating (0 without a source: the damage unchanged)
     const hullPart = absorb(def.plate, total);
@@ -2127,14 +2071,10 @@ export class Battle {
     } else if (!pr.noFray && atk.rune?.otherFray) { // RUNES-2a: THREAD STORM, a hit that adds no FRAY adds n
       def.hull.fray = Math.min(def.hull.frayMax, def.hull.fray + atk.rune.otherFray);
     }
-    if (pr.payload.poison) {
-      def.hull.poison.stacks = Math.min(24, def.hull.poison.stacks + pr.payload.poison);
-      def.hull.poison.t = 6;
-    }
     let burn = pr.burn ?? pr.payload.burn; // 0.6.1b: a core's Burn (SCATTER split, DRAKE added), else the payload's
-    // Y6 (release Y; DESIGN-Y section 4.1): with the star switch on, VENOM DRIP's seconds: each BURN stack of this hit lasts
-    // BURN_TIME + plus, and only then SLOW EMBERS' % applies (burnTime). 0 without a VENOM (every stack as before); a slug
-    // with plus and no BURN adds nothing
+    // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP's seconds: each BURN stack of this hit lasts BURN_TIME + plus, and
+    // only then SLOW EMBERS' % applies (burnTime). 0 without a VENOM (every stack as before); a slug with plus and no BURN
+    // adds nothing
     const plus = pr.payload.burnPlus ?? 0;
     // RUNES-2a: SLOW EMBERS (your BURN lasts longer)
     if (burn > 0) def.hull.burns.push({ dps: burn, t: this.burnTime(atk, (pr.burnTime ?? BURN_TIME) + plus) });
@@ -2157,13 +2097,8 @@ export class Battle {
       this.disrupt(def, def.targets.find((t) => t.kind === "turret" && t.ref === turret.index)!, pr.payload.staticTime ?? DISRUPT_TIME, "static");
     }
     if (pr.payload.arc && hit.kind !== "hull") this.sparkJump(def, hit, DISRUPT_TIME, pr.payload.arc, "arc");
-    if (pr.payload.rip) {
-      const ripped = this.rip(def, hit, pr.payload.rip.count, pr.payload.rip.reach);
-      const gun = turretAt(atk, pr.turret); // 0.6.2s: by slot
-      // NUM-1: 10 a ripped load (x10 of 1) x the class's whole %, rounded half up once
-      // Y2 (DESIGN-Y row 19, GRAPNEL GUN ★3): with the switch on SALVAGE LINE's next-shot damage goes (its name stays, ⓘ only)
-      if (ripped && pr.core === "grapnel" && gun && gun.core.stars >= 3 && !starRules()) gun.salvage += pct(10 * ripped, roundHalfUp(100 * gun.core.k));
-    }
+    // Y2 (DESIGN-Y row 19, GRAPNEL GUN ★3): SALVAGE LINE's next-shot damage is gone (its name stays, ⓘ only)
+    if (pr.payload.rip) this.rip(def, hit, pr.payload.rip.count, pr.payload.rip.reach);
     if (pr.payload.harass) this.roundImpact(def, hit, pr.payload.harass, pr.from, pr.payload.debuffs);
     if (atk.race || def.race) raceImpact(this, atk, def, pr); // races: SIPHON echo memory and Drag
     this.events.push({
@@ -2217,19 +2152,17 @@ export class Battle {
     if (t.kind === "belt" && (!r || t.cell < 0 || t.cell >= r.cells.length)) return false;
     if (t.kind === "gate" && !g || t.kind === "factory" && !f || t.kind === "turret" && !tu) return false;
     if (g?.wrecked && cause !== "rip") return false;
-    // Y2 (release Y; DESIGN-Y section 3, the shared rule): with the switch on, harassment is a STUN. A SABOT wreck (cause
-    // "wreck") and a GRAPNEL rip ("rip") still land, but TOLLBOOTH spends no toll on them and an enemy SCRAPPER doesn't
-    // count them. With it off every cause is harassment, as before
-    const stun = !starRules() || STUN_CAUSES.includes(cause);
+    // Y2 (release Y; DESIGN-Y section 3, the shared rule): harassment is a STUN. A SABOT wreck (cause "wreck") and a GRAPNEL
+    // rip ("rip") still land, but TOLLBOOTH spends no toll on them and an enemy SCRAPPER doesn't count them
+    const stun = STUN_CAUSES.includes(cause);
 
     const routeIds = t.kind === "belt" ? [t.ref]
       : t.kind === "gate" ? [...new Set(g!.hits.map((h) => h.route))]
       : t.kind === "factory" ? f!.routes
       : t.kind === "turret" ? s.routes.filter((route) => route.connected && route.turret === t.ref).map((route) => route.index) : [];
-    // Y2 (DESIGN-Y row 8, TOLLBOOTH): with the switch on its belt's factory is covered from ★1 (off: ★3 FACTORY GUARD only)
+    // Y2 (DESIGN-Y row 8, TOLLBOOTH): its belt's factory is covered from ★1
     const toll = stun && s.gates.find((gate) => gate.online && !gate.wrecked && gate.disrupted <= 0 && gate.frozen <= 0 && gate.tolls > 0 &&
-      gate.hits.some((h) => routeIds.includes(h.route)) &&
-      (t.kind !== "factory" || starRules() || gate.def.gate?.tollFactory));
+      gate.hits.some((h) => routeIds.includes(h.route)));
     if (toll) {
       toll.tolls--;
       this.events.push({ type: "toll", side: s.side, gate: toll.uid, remaining: toll.tolls, cause });
@@ -2241,28 +2174,24 @@ export class Battle {
       if (cause === "drag" && this.routeGuardActive(r!, t.cell, GUARD_SLOW)) return false;
       if (cause === "freeze" && this.routeGuardActive(r!, t.cell, GUARD_FREEZE)) return false;
     }
-    // Y2 (DESIGN-Y row 14, MANTLET): with the switch on a guarded tile's rigs no longer share its turret's immunity
-    if (g && !starRules() && g.hits.some((h) => this.skirted(s, s.routes[h.route], h.tile, cause))) return false;
-    if (stun) this.sides[s.side === 0 ? 1 : 0].harassAccepted++; // Y2: with the switch on, a STUN only
-    if ((cause === "sabot" || cause === "wreck") && t.kind === "gate") this.sides[s.side === 0 ? 1 : 0].wreckAccepted++;
+    // Y2 (DESIGN-Y row 14, MANTLET): a guarded tile's rigs don't share its turret's immunity
+    if (stun) this.sides[s.side === 0 ? 1 : 0].harassAccepted++; // Y2: a STUN only
     this.events.push({ type: "harass", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell, cause });
     return true;
   }
 
   /**
-   * 0.8.0 P1, BRACE FRAME: the seconds an enemy STUN (NUM-3: every source) lasts on a tile working braces `list` hit (or
-   * on a brace itself): x the best working brace's multiplier there, its plated one while the hull holds plating. A
-   * `brace` event names the brace and the seconds it saved. The harassment is accepted first, so it still counts
-   * (an enemy SCRAPPER's stamp). Only a side holding a brace comes here.
+   * 0.8.0 P1, BRACE FRAME: the seconds an enemy STUN (NUM-3: every source) lasts on a tile working braces `list` hit: x the
+   * best working brace's multiplier there. A `brace` event names the brace and the seconds it saved. The harassment is
+   * accepted first, so it still counts (an enemy SCRAPPER's stamp). Only a side holding a brace comes here.
    */
   private braceCut(s: SideState, list: readonly GateState[] | undefined, secs: number): number {
     if (!list?.length) return secs;
-    // Y2 (DESIGN-Y row 16, BRACE FRAME): with the switch on the plated multiplier goes: its `mul` whatever the hull holds
-    const plated = s.plate.plate > 0 && !starRules();
+    // Y2 (DESIGN-Y row 16, BRACE FRAME): the plated multiplier is gone: its `mul` whatever the hull holds
     let best: GateState | undefined, mul = 1;
     for (const g of list) {
       if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
-      const m = plated ? g.def.gate!.brace!.plated : g.def.gate!.brace!.mul;
+      const m = g.def.gate!.brace!.mul;
       if (m < mul) { mul = m; best = g; }
     }
     if (!best) return secs;
@@ -2270,14 +2199,10 @@ export class Battle {
     return secs * mul;
   }
 
-  /** BRACE FRAME: the braces covering target t (a belt tile's, or t itself when it is a brace); undefined for none. */
+  /** BRACE FRAME: the braces covering target t (a belt tile's); undefined for none. Y2 (DESIGN-Y row 16): a frame no
+   *  longer braces itself. */
   private bracesAt(s: SideState, t: Target): readonly GateState[] | undefined {
     if (t.kind === "belt") return s.routes[t.ref]?.braces?.[t.cell];
-    if (t.kind === "gate") {
-      if (starRules()) return undefined; // Y2 (DESIGN-Y row 16): with the switch on a frame no longer braces itself
-      const g = s.gates.find((x) => x.uid === t.ref);
-      return g?.def.gate?.brace ? [g] : undefined;
-    }
     return undefined;
   }
 
@@ -2305,8 +2230,8 @@ export class Battle {
     if (round.kind === "sabot") {
       let landed = false;
       if (t.kind === "gate") {
-        // Y2 (release Y; the shared rule): with the switch on, a wreck is its own cause, "wreck", never a STUN
-        if (!this.acceptHarassment(s, t, starRules() ? "wreck" : "sabot")) return;
+        // Y2 (release Y; the shared rule): a wreck is its own cause, "wreck", never a STUN
+        if (!this.acceptHarassment(s, t, "wreck")) return;
         s.gates.find((g) => g.uid === t.ref)!.wrecked = true;
         landed = true;
       } else if (t.kind === "belt") {
@@ -2340,9 +2265,8 @@ export class Battle {
   /** Grapnel candidates use route distance, then route index and payload id for stable ties. */
   private rip(s: SideState, t: Target, count: number, reach: number): number {
     if (count <= 0 || reach < 0 || (t.kind !== "belt" && t.kind !== "gate")) return 0;
-    // Y2 (DESIGN-Y row 19): with the switch on a hit POWDER KEG is no longer disarmed (a rig like any other: the slugs by
-    // its arrows' tiles are ripped)
-    const keg = t.kind === "gate" && !starRules() ? s.gates.find((g) => g.uid === t.ref && !!g.def.gate?.keg) : undefined;
+    // Y2 (DESIGN-Y row 19): a hit POWDER KEG is no longer disarmed (a rig like any other: the slugs by its arrows' tiles
+    // are ripped)
     const hits = t.kind === "belt" ? [{ route: t.ref, tile: t.cell }]
       : s.gates.find((g) => g.uid === t.ref)?.hits ?? [];
     const candidates = new Map<number, { route: number; ammo: BeltAmmo; distance: number }>();
@@ -2357,8 +2281,7 @@ export class Battle {
         if (!old || distance < old.distance) candidates.set(a.p.id, { route: h.route, ammo: a, distance });
       }
     }
-    if ((!candidates.size && !keg) || !this.acceptHarassment(s, t, "rip")) return 0;
-    if (keg) { keg.consumed = true; keg.online = false; }
+    if (!candidates.size || !this.acceptHarassment(s, t, "rip")) return 0;
     const picked = [...candidates.values()].sort((a, b) => a.distance - b.distance || a.route - b.route || a.ammo.p.id - b.ammo.p.id).slice(0, count);
     for (const c of picked) {
       const r = s.routes[c.route];
@@ -2457,27 +2380,6 @@ export class Battle {
           s.hull.burnShown -= shown;
           this.events.push({ type: "burn", side: s.side, dmg: shown });
         }
-      }
-      if (s.hull.poison.t > 0) {
-        // NUM-1 (REQ-BFG-047): poison ticks once a second, 4 a stack (x10 of 0.4 a stack each second; was x dt every tick);
-        // the part-second left when it runs out is dealt then, rounded half up once
-        const po = s.hull.poison;
-        po.acc = (po.acc ?? 0) + Math.min(dt, po.t);
-        let damage = 0;
-        if (po.acc >= 1 - 1e-9) {
-          damage = po.stacks * 4;
-          po.acc -= 1;
-        } else if (po.t - dt <= 0 && po.acc > 1e-6) {
-          damage = roundHalfUp(po.stacks * 4 * po.acc);
-          po.acc = 0;
-        }
-        s.hull.poison.t = Math.max(0, s.hull.poison.t - dt);
-        const poisoned = absorb(s.plate, damage); // 0.8.0 P1 (E1): plating soaks poison ticks on every hull
-        s.hull.hp -= poisoned;
-        if (s.spall) this.spallCharge(s, poisoned, damage - poisoned); // SPALL CATCHER
-        foe.stats.damage += damage;
-        if (damage > 0) this.events.push({ type: "poison", side: s.side, dmg: damage });
-        if (s.hull.poison.t === 0) { s.hull.poison.stacks = 0; po.acc = 0; }
       }
     }
     if (!this.windWarned && this.t >= WIND_WARN) {
@@ -2625,7 +2527,7 @@ function journeyRoutes(routes: RouteState[], r: RouteState): number[] {
 }
 
 /** 0.6.2j (J14 (a)): the hits a payload from joining belt r meets past its join: each main belt's from its join tile
- *  on, tile by tile in R7 order (the Overclocker's "next boostable rig" on the payload's journey). */
+ *  on, tile by tile in R7 order (the Overclocker's "next rig" on the payload's journey). */
 function journeyHits(routes: RouteState[], r: RouteState): TileHit[] {
   const out: TileHit[] = [];
   for (let cur = r, n = 0; cur.join && n < routes.length; n++) {
@@ -2677,7 +2579,7 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     spin: 1 / rateMul(c.start), lastShot: -1, // NUM-2: GATLING's first spin, its whole rate % as an interval share
     store: [], storeMax: g.store, // 0.6.2 FB-B: HOPPER ★2/★3
     noJam: g.noJam, immune: g.immune, intakeGuard: g.intakeGuard, finisher: g.finisher, intercept: g.intercept,
-    rerolls: g.rerolls, factoryWeight: g.factoryWeight, alwaysMachine: g.alwaysMachine, charge: 0, salvage: 0,
+    rerolls: g.rerolls, factoryWeight: g.factoryWeight, alwaysMachine: g.alwaysMachine, charge: 0,
     longRideFlat: g.longRideFlat, longRideMin: g.longRideMin,
     // 0.8.0 P1, wave 3's gear (absent without it): E2's pair reader, TWIN TRIGGER, SEAM WELDER, SPALL CATCHER
     ...(g.pairBonus || g.seam ? { pairing: true } : {}),
@@ -2703,7 +2605,7 @@ export const SHARED_HEADROOM = 0.1;
  */
 export function loadPace(tu: TurretState): number {
   const routine = tu.core.routine;
-  if (routine === "salvo") return salvoReload(tu) / Math.max(1, tu.window); // Y4 (S1): cores.ts salvoReload (off: interval x reloadMul)
+  if (routine === "salvo") return salvoReload(tu) / Math.max(1, tu.window); // Y4 (S1): cores.ts salvoReload
   let cd = tu.interval;
   if (routine === "steam") cd = steamInterval(tu); // NUM-2: 30 / its whole speed now (cores.ts)
   else if (routine === "gatling") cd = spinInterval(tu);
@@ -2730,7 +2632,7 @@ export interface GearStats {
   // 0.8.0 P1, wave 3's gear (pairBonus 0 and the rest absent without it):
   pairBonus: number; // TWIN TRIGGER
   seam?: { pair: number; lone: number }; // SEAM WELDER
-  spall?: { every: number; add: number; max?: number }; // SPALL CATCHER (Y5: no max with the star switch on)
+  spall?: { every: number; add: number; max?: number }; // SPALL CATCHER (Y5: no max)
   // SUS-A (REQ-BFG-069; absent without them):
   shield?: { every: number; amount: number }; // WARD BELL
   regen?: number; // MENDING LOOM

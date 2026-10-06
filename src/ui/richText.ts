@@ -8,7 +8,7 @@
 //   - 0b.2: a paragraph never ends on one short word (4 letters or fewer, or a lone number) alone on its last line, or
 //     on a stub of a few words with 4 letters and digits in all ("TO 6."), when pulling the word before it down still
 //     fits the width.
-// - colourize(s, base): numbers in white (emphasised), BURN, SHOCK, POISON and speed (FASTER, SLOWER) in their battle
+// - colourize(s, base): numbers in white (emphasised), BURN, SHOCK and speed (FASTER, SLOWER) in their battle
 //   colours (abilityText.ts KEYWORD), everything else in `base`. FLIP-X2 (REVIEW-FLIPX1 answer 2): FREEZE and its words
 //   left with the mechanic (NUM-3: frost rounds STUN), so FROST, a round's name like CHAIN, draws in `base`.
 // - drawRich(g, line, x, y, font): draws one wrapped line (the 5x7 or 3x5 pixel face, as drawText).
@@ -33,13 +33,13 @@ export interface Span {
 export type RichLine = Span[];
 
 /** The battle colours of the keywords (T4), also exported by abilityText.ts as KEYWORD. Speed: fast chevrons are
- *  yellow and slow ones blue (render/sprites.ts speedTint); Burn's popups fire3; Poison's lime; Shock's sparks cyan and
- *  ice (game/arenaReact.ts). FLIP-X2 (REVIEW-FLIPX1 answer 2): `freeze` (ice) is dropped: freeze is no mechanic since
- *  NUM-3 (frost rounds STUN), and a keyword colour on FROST suggested a keyword that doesn't exist. */
+ *  yellow and slow ones blue (render/sprites.ts speedTint); Burn's popups fire3; Shock's sparks cyan and ice
+ *  (game/arenaReact.ts). FLIP-X2 (REVIEW-FLIPX1 answer 2): `freeze` (ice) is dropped: freeze is no mechanic since NUM-3
+ *  (frost rounds STUN), and a keyword colour on FROST suggested a keyword that doesn't exist. Y7b2 (the flip): `poison`
+ *  (lime) is dropped with POISON (Y6 retired it; its payload, pool, tick and event left at the flip). */
 export const KEYWORD_COLOUR = {
   burn: C.fire3,
   shock: C.cyan,
-  poison: C.lime,
   faster: C.yellow,
   slower: C.blue,
 } as const;
@@ -52,7 +52,6 @@ export const PERK_COLOUR = C.brass3;
 const WORD_KEYWORDS: Record<string, string> = {
   BURN: KEYWORD_COLOUR.burn, BURNS: KEYWORD_COLOUR.burn, BURNING: KEYWORD_COLOUR.burn,
   SHOCK: KEYWORD_COLOUR.shock, SHOCKED: KEYWORD_COLOUR.shock, SHOCKS: KEYWORD_COLOUR.shock,
-  POISON: KEYWORD_COLOUR.poison, POISONED: KEYWORD_COLOUR.poison,
   FASTER: KEYWORD_COLOUR.faster, SLOWER: KEYWORD_COLOUR.slower,
 };
 /** Speed phrases, longest first: "HALF SPEED" is slower; "TWICE AS FAST" and "3 TIMES AS FAST" are faster (the number

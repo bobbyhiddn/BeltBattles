@@ -6,46 +6,44 @@
 // ruling R-1); and its ⓘ LEVELS ladder, every line inside the band. Two numbers follow cap's ruling e91c08dd12466357: TWIN
 // TRIGGER ★3's pairBonus 95 (the ladder's) and ROTARY BREECH ★2's load time 0.525 s (exactly 65% sooner).
 import { describe, expect, it } from "vitest";
-import { Battle, LOAD_FLOOR, type SimEvent, type TurretState } from "../src/sim/battle";
-import { ITEMS, WINDOW_TIME, secPer, withStarRules } from "../src/sim/content";
+import { Battle, type SimEvent, type TurretState } from "../src/sim/battle";
+import { ITEMS, WINDOW_TIME, secPer } from "../src/sim/content";
 import { key, type Build } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
 import { steamInterval } from "../src/sim/cores";
 import { faceAt, hasFace } from "../src/ui/faces";
-import { STARS, levels, lines, next, on, oneLine, rigBench } from "./y3.helpers";
+import { STARS, levels, lines, next, oneLine, rigBench } from "./y3.helpers";
 import { SEED, barge, furnaceBench, twoPress, withMod } from "./wave3.helpers";
 
-/** Side 0's turret 0 as the battle builds it (makeTurret), with the switch on or off. */
-const turret = (b: Build, star: boolean): TurretState => withStarRules(() => new Battle(b, barge(), SEED).sides[0].turrets[0], star);
+/** Side 0's turret 0 as the battle builds it (makeTurret). */
+const turret = (b: Build): TurretState => new Battle(b, barge(), SEED).sides[0].turrets[0];
 
-/** A battle of `b` against the barge for `secs`, every rig of side 0 online from the start, with the switch on or off:
- *  each tick's events of side 0 with the tick's time, and the battle at its end. */
-function fight(b: Build, star: boolean, secs = 20, setup: (bt: Battle) => void = () => {}): { ev: { t: number; e: SimEvent }[]; bt: Battle; maxStore: number } {
-  return withStarRules(() => {
-    const bt = new Battle(b, barge(), SEED), s = bt.sides[0];
-    for (const g of s.gates) { g.online = true; g.commissionAt = 0; }
-    setup(bt);
-    const ev: { t: number; e: SimEvent }[] = [];
-    let maxStore = 0;
-    while (bt.t < secs && !bt.over) {
-      bt.step();
-      for (const e of bt.drainEvents()) if ((e as { side?: number }).side === 0) ev.push({ t: bt.t, e });
-      maxStore = Math.max(maxStore, s.turrets[0].store.length);
-    }
-    return { ev, bt, maxStore };
-  }, star);
+/** A battle of `b` against the barge for `secs`, every rig of side 0 online from the start: each tick's events of side 0
+ *  with the tick's time, and the battle at its end. */
+function fight(b: Build, secs = 20, setup: (bt: Battle) => void = () => {}): { ev: { t: number; e: SimEvent }[]; bt: Battle; maxStore: number } {
+  const bt = new Battle(b, barge(), SEED), s = bt.sides[0];
+  for (const g of s.gates) { g.online = true; g.commissionAt = 0; }
+  setup(bt);
+  const ev: { t: number; e: SimEvent }[] = [];
+  let maxStore = 0;
+  while (bt.t < secs && !bt.over) {
+    bt.step();
+    for (const e of bt.drainEvents()) if ((e as { side?: number }).side === 0) ev.push({ t: bt.t, e });
+    maxStore = Math.max(maxStore, s.turrets[0].store.length);
+  }
+  return { ev, bt, maxStore };
 }
 const typed = <T extends SimEvent["type"]>(ev: { t: number; e: SimEvent }[], type: T) =>
   ev.filter((x) => x.e.type === type) as { t: number; e: Extract<SimEvent, { type: T }> }[];
 /** The seconds from side 0's first load to its first shot. */
-const firstWait = (b: Build, star: boolean): number => {
-  const { ev } = fight(b, star, 8);
+const firstWait = (b: Build): number => {
+  const { ev } = fight(b, 8);
   return typed(ev, "fire")[0].t - typed(ev, "load")[0].t;
 };
 /** The most loads side 0's turret fired on one tick (one shot). */
-const mostPerShot = (b: Build, star: boolean): number => {
+const mostPerShot = (b: Build): number => {
   const per = new Map<number, number>();
-  for (const x of typed(fight(b, star, 20).ev, "fire")) per.set(x.t, (per.get(x.t) ?? 0) + 1);
+  for (const x of typed(fight(b, 20).ev, "fire")) per.set(x.t, (per.get(x.t) ?? 0) + 1);
   return Math.max(...per.values());
 };
 const TICK_S = 1 / 60;
@@ -54,8 +52,7 @@ const TICK_S = 1 / 60;
 describe("Y4 row 33: HOPPER: its chamber holds +1/+2/+3; no load time, store or no-jam", () => {
   it("data: on, mod { window: 1/2/3 } only (off: +1 slot and +0.5 s at every star, ★2/★3 a store of 1/2, ★3 no-jam)", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("hopper", s).mod), `★${s}`).toEqual({ window: s });
-      expect(effectAt("hopper", s).mod).toEqual({ window: 1, windowTime: 0.5, ...(s > 1 ? { store: s - 1 } : {}), ...(s === 3 ? { noJam: true } : {}) });
+      expect(effectAt("hopper", s).mod, `★${s}`).toEqual({ window: s });
     }
   });
 
@@ -63,23 +60,20 @@ describe("Y4 row 33: HOPPER: its chamber holds +1/+2/+3; no load time, store or 
     for (const s of STARS) {
       const b = withMod(furnaceBench(), 60, "hopper", 0, s);
       const pick = (tu: TurretState) => [tu.window, tu.windowTime, tu.storeMax, tu.noJam];
-      expect(pick(turret(b, true)), `on ★${s}`).toEqual([3 + s, WINDOW_TIME, 0, false]);
-      expect(pick(turret(b, false)), `off ★${s}`).toEqual([4, WINDOW_TIME + 0.5, s - 1, s === 3]);
+      expect(pick(turret(b)), `★${s}`).toEqual([3 + s, WINDOW_TIME, 0, false]);
     }
   });
 
   it("battle: on, a sparse gun's first shot leaves WINDOW_TIME after its first load (off: 0.5 s later)", () => {
     // the KILN stamps every 1.25 s, so a 4-load chamber is never full before its load time ends
     const b = withMod(furnaceBench(), 60, "hopper", 0, 1);
-    expect(Math.abs(firstWait(b, true) - WINDOW_TIME)).toBeLessThanOrEqual(2 * TICK_S);
-    expect(Math.abs(firstWait(b, false) - (WINDOW_TIME + 0.5))).toBeLessThanOrEqual(2 * TICK_S);
+    expect(Math.abs(firstWait(b) - WINDOW_TIME)).toBeLessThanOrEqual(2 * TICK_S);
   });
 
   it("battle: on, a busy ★3 gun (two STAMP PRESSes) stores no load and jams (off: it stores 2 and never jams)", () => {
     const b = withMod(twoPress(), 60, "hopper", 0, 3);
-    const runOn = fight(b, true, 25), runOff = fight(b, false, 25);
+    const runOn = fight(b, 25);
     expect([runOn.maxStore, typed(runOn.ev, "jam").length > 0]).toEqual([0, true]);
-    expect([runOff.maxStore, typed(runOff.ev, "jam").length]).toEqual([2, 0]);
   });
 
   it("face: ITS CHAMBER HOLDS +1/+2/+3 SLUG, one line in the band; ladder SLUG +1/+2/+3; BOTTOMLESS in the ⓘ view only", () => {
@@ -87,8 +81,7 @@ describe("Y4 row 33: HOPPER: its chamber holds +1/+2/+3; no load time, store or 
     oneLine("hopper");
     expect(levels("hopper", 1)).toEqual(["{SLUG} [+1]/+2/+3", "★3 BOTTOMLESS", next(2, "+2 {SLUG}")]);
     expect(levels("hopper", 3)).toEqual(["{SLUG} +1/+2/[+3]", "★3 BOTTOMLESS"]);
-    // off: a RULES piece, no face (identity)
-    expect([hasFace("hopper"), on(() => hasFace("hopper"))]).toEqual([false, true]);
+    expect(hasFace("hopper")).toBe(true);
   });
 });
 
@@ -96,39 +89,35 @@ describe("Y4 row 33: HOPPER: its chamber holds +1/+2/+3; no load time, store or 
 describe("Y4 row 34: TWIN TRIGGER: PAIR +30/+60/+95% damage; no shorter load time, no LOAD_FLOOR", () => {
   it("data: on, pairBonus 0.3/0.6/0.95 and no windowTime (off: 0.25/0.55/0.88 and -0.25/-0.4/-0.55 s)", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("twintrigger", s).mod), `★${s}`).toEqual({ pairBonus: [0.3, 0.6, 0.95][s - 1] });
-      expect(effectAt("twintrigger", s).mod).toEqual({ pairBonus: [0.25, 0.55, 0.88][s - 1], windowTime: [-0.25, -0.4, -0.55][s - 1] });
+      expect(effectAt("twintrigger", s).mod, `★${s}`).toEqual({ pairBonus: [0.3, 0.6, 0.95][s - 1] });
     }
   });
 
   it("turret: on, the load time is WINDOW_TIME at every star (off: 1.25 / 1.1 / 0.95 s, never under LOAD_FLOOR)", () => {
     for (const s of STARS) {
       const b = withMod(furnaceBench(), 60, "twintrigger", 0, s);
-      expect([turret(b, true).windowTime, turret(b, true).pairBonus], `on ★${s}`).toEqual([WINDOW_TIME, [0.3, 0.6, 0.95][s - 1]]);
-      expect(turret(b, false).windowTime, `off ★${s}`).toBeCloseTo(Math.max(LOAD_FLOOR, WINDOW_TIME + [-0.25, -0.4, -0.55][s - 1]), 9);
+      expect([turret(b).windowTime, turret(b).pairBonus], `★${s}`).toEqual([WINDOW_TIME, [0.3, 0.6, 0.95][s - 1]]);
     }
   });
 
   it("LOAD_FLOOR goes: on, no gear holds a load time at any star, so makeTurret never reaches the floor (off: HOPPER and TWIN TRIGGER do)", () => {
-    const timed = (star: boolean) => withStarRules(() => Object.values(ITEMS).filter((d) => d.kind === "mod")
-      .filter((d) => STARS.some((s) => effectAt(d.id, s).mod?.windowTime)).map((d) => d.id), star);
-    expect(timed(true)).toEqual([]);
-    expect(timed(false).sort()).toEqual(["hopper", "twintrigger"]);
+    const timed = Object.values(ITEMS).filter((d) => d.kind === "mod")
+      .filter((d) => STARS.some((s) => effectAt(d.id, s).mod?.windowTime)).map((d) => d.id);
+    expect(timed).toEqual([]);
   });
 
   it("battle: on, paired STAMP PRESS slugs (30) hit for 39 / 48 / 59 (off 38 / 47 / 56); lone ones for 30", () => {
     // two equal belts into one gun, CALIBRATION ★3 so nothing waits at the intakes: their loads pair (wave3.engine's E2 scene)
     for (const s of STARS) {
       const b = withMod(withMod(twoPress(), 60, "twintrigger", 0, s), 61, "calibrate", 0, 3);
-      const dmgs = (star: boolean) => [...new Set(typed(fight(b, star, 20).ev, "fire").map((x) => x.e.dmg))].sort((x, y) => x - y);
+      const dmgs = () => [...new Set(typed(fight(b, 20).ev, "fire").map((x) => x.e.dmg))].sort((x, y) => x - y);
       // every shot is a lone 30 or a paired load at the star's bonus (off ★3's shorter load time pairs every load)
-      const shots = (star: boolean, paired: number) => {
-        const d = dmgs(star);
-        expect(d[d.length - 1], `${star ? "on" : "off"} ★${s}`).toBe(paired);
-        expect(d.every((v) => v === 30 || v === paired), `${star ? "on" : "off"} ★${s}: ${d}`).toBe(true);
+      const shots = (paired: number) => {
+        const d = dmgs();
+        expect(d[d.length - 1], `★${s}`).toBe(paired);
+        expect(d.every((v) => v === 30 || v === paired), `★${s}: ${d}`).toBe(true);
       };
-      shots(true, [39, 48, 59][s - 1]);
-      shots(false, [38, 47, 56][s - 1]);
+      shots([39, 48, 59][s - 1]);
     }
   });
 
@@ -136,7 +125,7 @@ describe("Y4 row 34: TWIN TRIGGER: PAIR +30/+60/+95% damage; no shorter load tim
     expect(lines("twintrigger")).toEqual([30, 60, 95].map((p) => [`{*PAIR}: +${p}% {DMG}.`]));
     oneLine("twintrigger");
     expect(levels("twintrigger", 1)).toEqual(["{DMG} [+30%]/+60%/+95%", next(2, "+60% {DMG}")]);
-    expect([hasFace("twintrigger"), on(() => hasFace("twintrigger"))]).toEqual([false, true]);
+    expect(hasFace("twintrigger")).toBe(true);
   });
 });
 
@@ -144,34 +133,29 @@ describe("Y4 row 34: TWIN TRIGGER: PAIR +30/+60/+95% damage; no shorter load tim
 describe("Y4 row 35: SEAM WELDER: PAIR +10/+22/+35 PLATE; a lone load's plating goes", () => {
   it("data: on, seam { pair: 10/22/35, lone: 0 } (off: lone 2/4/7)", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("seamwelder", s).mod!.seam), `★${s}`).toEqual({ pair: [10, 22, 35][s - 1], lone: 0 });
-      expect(effectAt("seamwelder", s).mod!.seam).toEqual({ pair: [10, 22, 35][s - 1], lone: [2, 4, 7][s - 1] });
+      expect(effectAt("seamwelder", s).mod!.seam, `★${s}`).toEqual({ pair: [10, 22, 35][s - 1], lone: 0 });
     }
   });
 
   it("battle: on, a one-belt gun (no pairs) rolls no plating in 15 s (off: a lone load's 2/4/7 each)", () => {
     for (const s of STARS) {
       const b = withMod(furnaceBench(), 60, "seamwelder", 0, s);
-      const off = fight(b, false, 15), loads = typed(off.ev, "load").length;
-      expect(fight(b, true, 15).bt.sides[0].plate.gained, `on ★${s}`).toBe(0);
-      expect(off.bt.sides[0].plate.gained, `off ★${s}`).toBe([2, 4, 7][s - 1] * loads);
+      expect(fight(b, 15).bt.sides[0].plate.gained, `★${s}`).toBe(0);
     }
   });
 
   it("battle: on, two equal belts' pairs roll exactly 10 PLATE each (off: 10 a pair plus 2 for every other load)", () => {
     const b = withMod(withMod(twoPress(), 60, "seamwelder", 0, 1), 61, "calibrate", 0, 3);
-    const runOn = fight(b, true, 20), pairs = typed(runOn.ev, "pair").length;
+    const runOn = fight(b, 20), pairs = typed(runOn.ev, "pair").length;
     expect(pairs).toBeGreaterThan(5);
     expect(runOn.bt.sides[0].plate.gained).toBe(10 * pairs);
-    const runOff = fight(b, false, 20), pairsOff = typed(runOff.ev, "pair").length, loadsOff = typed(runOff.ev, "load").length;
-    expect(runOff.bt.sides[0].plate.gained).toBe(10 * pairsOff + 2 * (loadsOff - pairsOff));
   });
 
   it("face: PAIR: +10/+22/+35 PLATE, one line in the band; ladder PLATE +10/+22/+35", () => {
     expect(lines("seamwelder")).toEqual([10, 22, 35].map((d) => [`{*PAIR}: +${d} {*PLATE}.`]));
     oneLine("seamwelder");
     expect(levels("seamwelder", 1)).toEqual(["{PLATE} [+10]/+22/+35", next(2, "+22 {PLATE}")]);
-    expect([hasFace("seamwelder"), on(() => hasFace("seamwelder"))]).toEqual([false, true]);
+    expect(hasFace("seamwelder")).toBe(true);
   });
 });
 
@@ -179,25 +163,23 @@ describe("Y4 row 35: SEAM WELDER: PAIR +10/+22/+35 PLATE; a lone load's plating 
 describe("Y4 row 36: EXT. CHAMBER: it fires 2/3/4 loads a shot; the +1 slot goes", () => {
   it("data: on, mod { perShot: 2/3/4 } (off: 2/2/3, ★2/★3 + 1 slot); WIDE BREECH and TRIPLE BREECH stay names", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("chamber", s).mod), `★${s}`).toEqual({ perShot: s + 1 });
-      expect(effectAt("chamber", s).mod).toEqual({ perShot: [2, 2, 3][s - 1], ...(s > 1 ? { window: 1 } : {}) });
+      expect(effectAt("chamber", s).mod, `★${s}`).toEqual({ perShot: s + 1 });
     }
-    expect(on(() => [2, 3].map((s) => ITEMS.chamber.levels![s as 2 | 3]!.perk))).toEqual(["WIDE BREECH", "TRIPLE BREECH"]);
+    expect([2, 3].map((s) => ITEMS.chamber.levels![s as 2 | 3]!.perk)).toEqual(["WIDE BREECH", "TRIPLE BREECH"]);
   });
 
   it("turret: on, a SCRAP CANNON fires 2/3/4 a shot from its own 3 loads (off: 2/2/3 from 3/4/4)", () => {
     for (const s of STARS) {
       const b = withMod(furnaceBench(), 60, "chamber", 0, s);
-      expect([turret(b, true).perShot, turret(b, true).window], `on ★${s}`).toEqual([s + 1, 3]);
-      expect([turret(b, false).perShot, turret(b, false).window], `off ★${s}`).toEqual([[2, 2, 3][s - 1], s > 1 ? 4 : 3]);
+      expect([turret(b).perShot, turret(b).window], `★${s}`).toEqual([s + 1, 3]);
     }
   });
 
   it("battle: on, a busy gun's shot fires 3 at ★2 (off 2), and 4 at ★3 where a HOPPER gives the chamber 4 (off 3)", () => {
     const two = withMod(twoPress(), 60, "chamber", 0, 2);
-    expect([mostPerShot(two, true), mostPerShot(two, false)]).toEqual([3, 2]);
+    expect(mostPerShot(two)).toBe(3);
     const three = withMod(withMod(twoPress(), 60, "chamber", 0, 3), 61, "hopper", 0, 1);
-    expect([mostPerShot(three, true), mostPerShot(three, false)]).toEqual([4, 3]);
+    expect(mostPerShot(three)).toBe(4);
   });
 
   // Y7b1 (ruling Y7A-R2): was "face: EACH SHOT FIRES 2/3/4 SLUG (today's line), ...; ladder FIRES 2/3/4 SLUG", with the lines
@@ -206,9 +188,7 @@ describe("Y4 row 36: EXT. CHAMBER: it fires 2/3/4 loads a shot; the +1 slot goes
     expect(lines("chamber")).toEqual([["EACH SHOT FIRES 2 {SLUG}."], ["EACH SHOT FIRES UP TO 3 {SLUG}."], ["EACH SHOT FIRES UP TO 4 {SLUG}."]]);
     oneLine("chamber");
     expect(levels("chamber", 1)).toEqual(["FIRES UP TO [2]/3/4 {SLUG}", "★2 WIDE BREECH", "★3 TRIPLE BREECH", `${next(2, "FIRES UP TO 3 {SLUG}")} ★2 WIDE BREECH`]);
-    // off: ★2's clause (identity); on: none
-    expect([withStarRules(() => faceAt("chamber", 2)!.clause?.text, false), on(() => faceAt("chamber", 2)!.clause)])
-      .toEqual(["★2 WIDE BREECH: HOLDS +1 {SLUG}.", undefined]);
+    expect(faceAt("chamber", 2)!.clause).toBeUndefined(); // ★2: no clause
   });
 });
 
@@ -216,8 +196,7 @@ describe("Y4 row 36: EXT. CHAMBER: it fires 2/3/4 loads a shot; the +1 slot goes
 describe("Y4 row 37: ROTARY BREECH: part-full chambers fire 50/65/80% sooner; no fire rate, no no-jam", () => {
   it("data: on, core { routine rotary, FIFO, windowTime 0.75 / 0.525 / 0.3 } (off: 0.75 at every star, fireRate 18/43, ★3 noJam)", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("rotary", s).core), `★${s}`).toEqual({ routine: "rotary", order: "FIFO", windowTime: [0.75, 0.525, 0.3][s - 1] });
-      expect(effectAt("rotary", s).core).toEqual({ routine: "rotary", order: "FIFO", windowTime: 0.75, ...(s > 1 ? { fireRate: [18, 43][s - 2] } : {}), ...(s === 3 ? { noJam: true } : {}) });
+      expect(effectAt("rotary", s).core, `★${s}`).toEqual({ routine: "rotary", order: "FIFO", windowTime: [0.75, 0.525, 0.3][s - 1] });
     }
     // 0.525 s is exactly 65% sooner than WINDOW_TIME (cap's ruling e91c08dd12466357; DESIGN-Y's 0.53, rounded)
     expect(WINDOW_TIME * (1 - 0.65)).toBeCloseTo(0.525, 12);
@@ -227,16 +206,14 @@ describe("Y4 row 37: ROTARY BREECH: part-full chambers fire 50/65/80% sooner; no
     for (const s of STARS) {
       const b = withMod(furnaceBench(), 60, "rotary", 0, s);
       const pick = (tu: TurretState) => [tu.speed, tu.windowTime, tu.core.spec.noJam === true];
-      expect(pick(turret(b, true)), `on ★${s}`).toEqual([30, [0.75, 0.525, 0.3][s - 1], false]);
-      expect(pick(turret(b, false)), `off ★${s}`).toEqual([[30, 35, 43][s - 1], 0.75, s === 3]);
+      expect(pick(turret(b)), `★${s}`).toEqual([30, [0.75, 0.525, 0.3][s - 1], false]);
     }
   });
 
   it("battle: on, a sparse gun's first shot leaves its load time after its first load: ★2 0.525 s, ★3 0.3 s (off 0.75 s)", () => {
     for (const s of [2, 3]) {
       const b = withMod(furnaceBench(), 60, "rotary", 0, s);
-      expect(Math.abs(firstWait(b, true) - [0.525, 0.3][s - 2]), `on ★${s}`).toBeLessThanOrEqual(2 * TICK_S);
-      expect(Math.abs(firstWait(b, false) - 0.75), `off ★${s}`).toBeLessThanOrEqual(2 * TICK_S);
+      expect(Math.abs(firstWait(b) - [0.525, 0.3][s - 2]), `★${s}`).toBeLessThanOrEqual(2 * TICK_S);
     }
   });
 
@@ -254,32 +231,28 @@ describe("Y4 row 37: ROTARY BREECH: part-full chambers fire 50/65/80% sooner; no
 describe("Y4 row 38: ANVIL BREECH: Y7b1 (Y7A-R3c): +25/+55/+88 and +100/+220/+350% of your PLATE, on as off", () => {
   it("data: on, the base def: anvilFlat 25/55/88 + perPlate 1 / 2.2 / 3.5, the same object as off", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("anvil", s).core), `★${s}`).toEqual({ routine: "anvil", anvilFlat: [25, 55, 88][s - 1], perPlate: [1, 2.2, 3.5][s - 1] });
-      expect(on(() => effectAt("anvil", s).core), `★${s}`).toEqual(effectAt("anvil", s).core);
+      expect(effectAt("anvil", s).core, `★${s}`).toEqual({ routine: "anvil", anvilFlat: [25, 55, 88][s - 1], perPlate: [1, 2.2, 3.5][s - 1] });
     }
-    expect(on(() => ITEMS.anvil)).toBe(ITEMS.anvil);
   });
 
   it("battle: on, the first shot gains 25/55/88 + pct(PLATE, 100/220/350%), as off (Y4's fold: 125/275/438% and no flat)", () => {
     // the shot's gain over the same shot without a core (the barge never fires, so the hull keeps the plating it starts with)
-    const gain = (s: number, plate: number, star: boolean): number => {
-      const first = (b: Build) => typed(fight(b, star, 6, (bt) => { bt.sides[0].plate.plate = plate; }).ev, "fire")[0].e.dmg;
+    const gain = (s: number, plate: number): number => {
+      const first = (b: Build) => typed(fight(b, 6, (bt) => { bt.sides[0].plate.plate = plate; }).ev, "fire")[0].e.dmg;
       return first(withMod(furnaceBench(), 60, "anvil", 0, s)) - first(furnaceBench());
     };
     // Y7b1 (Y7A-R3c): on was [[125, 125], [275, 275], [438, 438]] / [[0, 25], [0, 55], [0, 88]] / [50, 65] / [250, 225]
-    expect(STARS.map((s) => [gain(s, 100, true), gain(s, 100, false)])).toEqual([[125, 125], [275, 275], [438, 438]]);
-    expect(STARS.map((s) => [gain(s, 0, true), gain(s, 0, false)])).toEqual([[25, 25], [55, 55], [88, 88]]);
-    expect([gain(1, 40, true), gain(1, 40, false)]).toEqual([65, 65]);
-    expect([gain(1, 200, true), gain(1, 200, false)]).toEqual([225, 225]);
+    expect(STARS.map((s) => gain(s, 100))).toEqual([125, 275, 438]);
+    expect(STARS.map((s) => gain(s, 0))).toEqual([25, 55, 88]);
+    expect(gain(1, 40)).toBe(65);
+    expect(gain(1, 200)).toBe(225);
   });
 
   // Y7b1 (Y7A-R3c): was "face: SHOT: +125/+275/+438% OF YOUR PLATE AS DMG; ladder +125%/+275%/+438% OF PLATE"
   it("face: SHOT: +25 DMG, +100% OF YOUR PLATE (both parts, one line, as off); ladders {DMG} +25/+55/+88 and +100%/+220%/+350% OF PLATE", () => {
     expect(lines("anvil")).toEqual([[25, 100], [55, 220], [88, 350]].map(([d, p]) => [`SHOT: +${d} {DMG}, +${p}% OF YOUR {*PLATE}.`]));
-    expect(lines("anvil")).toEqual(lines("anvil", false));
     oneLine("anvil");
     expect(levels("anvil", 1)).toEqual(["{DMG} [+25]/+55/+88", "[+100%]/+220%/+350% OF {PLATE}", next(2, "+55 {DMG}, +220% OF {PLATE}")]);
-    expect(levels("anvil", 2)).toEqual(levels("anvil", 2, false));
   });
 });
 
@@ -287,33 +260,30 @@ describe("Y4 row 38: ANVIL BREECH: Y7b1 (Y7A-R3c): +25/+55/+88 and +100/+220/+35
 describe("Y4 row 39: STEAM BREECH: 40/80/120% faster if you have PLATE; nothing bare", () => {
   it("data: on, steamPlated 40/80/120 and no steamBare (off: 35/70/110 and 10/20/30); it stays common", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("steambreech", s).core), `★${s}`).toEqual({ routine: "steam", steamPlated: [40, 80, 120][s - 1] });
-      expect(effectAt("steambreech", s).core).toEqual({ routine: "steam", steamPlated: [35, 70, 110][s - 1], steamBare: [10, 20, 30][s - 1] });
+      expect(effectAt("steambreech", s).core, `★${s}`).toEqual({ routine: "steam", steamPlated: [40, 80, 120][s - 1] });
     }
-    expect(on(() => ITEMS.steambreech.rarity)).toBe("common");
+    expect(ITEMS.steambreech.rarity).toBe("common");
   });
 
   it("cadence: on, a SCRAP CANNON (30) fires at SPEED 42/54/66 plated and 30 bare (off: 41/51/63 plated, 33/36/39 bare)", () => {
     for (const s of STARS) {
       const b = withMod(furnaceBench(), 60, "steambreech", 0, s);
-      const at = (star: boolean, plated: boolean) => withStarRules(() => steamInterval({ ...turret(b, star), plated }), star);
-      expect([at(true, true), at(true, false)], `on ★${s}`).toEqual([secPer([42, 54, 66][s - 1]), secPer(30)]);
-      expect([at(false, true), at(false, false)], `off ★${s}`).toEqual([secPer([41, 51, 63][s - 1]), secPer([33, 36, 39][s - 1])]);
+      const at = (plated: boolean) => steamInterval({ ...turret(b), plated });
+      expect([at(true), at(false)], `★${s}`).toEqual([secPer([42, 54, 66][s - 1]), secPer(30)]);
     }
   });
 
   it("battle: on, a bare busy gun fires as one without the core (off: 10% faster)", () => {
-    const shots = (b: Build, star: boolean) => typed(fight(b, star, 20).ev, "fire").length;
+    const shots = (b: Build) => typed(fight(b, 20).ev, "fire").length;
     const steam = withMod(twoPress(), 60, "steambreech", 0, 1);
-    expect(shots(steam, true)).toBe(shots(twoPress(), true));
-    expect(shots(steam, false)).toBeGreaterThan(shots(twoPress(), false));
+    expect(shots(steam)).toBe(shots(twoPress()));
   });
 
   it("face: FIRES 40/80/120% FASTER IF YOU HAVE PLATE; ladder 40%/80%/120% FASTER", () => {
     expect(lines("steambreech")).toEqual([40, 80, 120].map((p) => [`FIRES ${p}% FASTER IF YOU HAVE {*PLATE}.`]));
     oneLine("steambreech");
     expect(levels("steambreech", 1)).toEqual(["[40%]/80%/120% FASTER", next(2, "80% FASTER")]);
-    expect([hasFace("steambreech"), on(() => hasFace("steambreech"))]).toEqual([false, true]);
+    expect(hasFace("steambreech")).toBe(true);
   });
 });
 
@@ -324,13 +294,12 @@ describe("Y4 row 39: STEAM BREECH: 40/80/120% faster if you have PLATE; nothing 
 describe("Y4 row 40: DRAKE NOZZLE: each 25/18/13 bonus damage is 1 BURN (Y7A-R4's fallback); no free BURN, longer BURN or quicker shot", () => {
   it("data: on, flatPerBurn 25/18/13 only (off: 20/15/10, addBurn 1/2/3, burnTime 4/5/6 s, flightMul 0.7)", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("drake", s).core), `★${s}`).toEqual({ routine: "drake", flatPerBurn: [25, 18, 13][s - 1] });
-      expect(effectAt("drake", s).core).toEqual({ routine: "drake", flatPerBurn: [20, 15, 10][s - 1], addBurn: s, burnTime: 3 + s, flightMul: 0.7 });
+      expect(effectAt("drake", s).core, `★${s}`).toEqual({ routine: "drake", flatPerBurn: [25, 18, 13][s - 1] });
     }
   });
 
   it("battle: on, a slug past a WHETSTONE (+20) shoots 0 / 1 / 1 BURN of BURN_TIME (Y7A-R4's fallback: 20 < 25; 20 >= 18, 13) (off: 1 + 1, 1 + 2, 2 + 3 BURN lasting 4/5/6 s)", () => {
-    const first = (b: Build, star: boolean) => withStarRules(() => {
+    const first = (b: Build) => {
       const bt = new Battle(b, barge(), SEED), s = bt.sides[0];
       for (const g of s.gates) { g.online = true; g.commissionAt = 0; }
       for (let i = 0; i < 60 * 10; i++) {
@@ -340,20 +309,18 @@ describe("Y4 row 40: DRAKE NOZZLE: each 25/18/13 bonus damage is 1 BURN (Y7A-R4'
         if (p) return { burn: p.burn ?? 0, burnTime: p.burnTime, flight: p.flight };
       }
       throw new Error("no shot");
-    }, star);
-    const plain = (star: boolean) => first(rigBench([["whetstone", 4, 3, 1]]), star);
+    };
+    const plain = () => first(rigBench([["whetstone", 4, 3, 1]]));
     for (const s of STARS) {
       const b = withMod(rigBench([["whetstone", 4, 3, 1]]), 60, "drake", 0, s);
-      const a = first(b, true), o = first(b, false);
-      expect([a.burn, a.burnTime], `on ★${s}`).toEqual([[0, 1, 1][s - 1], undefined]); // Y7b1 (Y7A-R4's fallback): was [2, 2, 4]
-      expect([o.burn, o.burnTime], `off ★${s}`).toEqual([[2, 3, 5][s - 1], 3 + s]);
-      expect(a.flight, `on ★${s}: no quicker shot`).toBeCloseTo(plain(true).flight, 9);
-      expect(o.flight, `off ★${s}: x0.7`).toBeLessThan(plain(false).flight);
+      const a = first(b);
+      expect([a.burn, a.burnTime], `★${s}`).toEqual([[0, 1, 1][s - 1], undefined]); // Y7b1 (Y7A-R4's fallback): was [2, 2, 4]
+      expect(a.flight, `★${s}: no quicker shot`).toBeCloseTo(plain().flight, 9);
     }
     // no bonus damage: no BURN at all (off: the free 1/2/3)
     for (const s of STARS) {
       const b = withMod(furnaceBench(), 60, "drake", 0, s);
-      expect([first(b, true).burn, first(b, false).burn], `bare ★${s}`).toEqual([0, s]);
+      expect(first(b).burn, `bare ★${s}`).toBe(0);
     }
   });
 
@@ -361,25 +328,16 @@ describe("Y4 row 40: DRAKE NOZZLE: each 25/18/13 bonus damage is 1 BURN (Y7A-R4'
     expect(lines("drake")).toEqual([25, 18, 13].map((d) => [`SHOT: EACH ${d} BONUS DAMAGE IS 1 {*BURN}.`]));
     oneLine("drake");
     expect(levels("drake", 1)).toEqual(["EACH [25]/18/13", next(2, "EACH 18")]);
-    expect([hasFace("drake"), on(() => hasFace("drake"))]).toEqual([false, true]);
+    expect(hasFace("drake")).toBe(true);
   });
 });
 
 // ------------------------------------------------------------------------------------------- the 8 together (R-1, R-2)
-describe("Y4: the 8 with the switch on and off", () => {
-  it("off: every def is the base's object (STAR_DIFF puts it back), and the 8 that have no face keep none", () => {
-    const ids = ["hopper", "twintrigger", "seamwelder", "chamber", "rotary", "anvil", "steambreech", "drake"];
-    const before = ids.map((id) => ITEMS[id]);
-    on(() => expect(ids.map((id) => ITEMS[id])).not.toEqual(before));
-    expect(ids.map((id) => ITEMS[id])).toEqual(before);
-    for (const [i, id] of ids.entries()) expect(ITEMS[id], id).toBe(before[i]);
-    expect(["hopper", "twintrigger", "seamwelder", "steambreech", "drake"].map(hasFace)).toEqual([false, false, false, false, false]);
-  });
-
+describe("Y4: the 8 together", () => {
   it("a FURNACE long belt and K: the 8 cores' and gear's switch-on numbers don't depend on the turret's cells", () => {
     // the long belt (8 tiles, tests/furnace.cadence's) changes only the SPEED; ROTARY's load time stays its own
     const long = withMod(furnaceBench(), 60, "rotary", 0, 3);
     long.routes[0].cells = [key(4, 5), key(3, 5), key(3, 4), key(3, 3), key(3, 2), key(4, 2), key(4, 1), key(4, 0)];
-    expect([turret(long, true).speed, turret(long, true).windowTime]).toEqual([42, 0.3]);
+    expect([turret(long).speed, turret(long).windowTime]).toEqual([42, 0.3]);
   });
 });

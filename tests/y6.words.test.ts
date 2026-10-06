@@ -12,26 +12,27 @@
 // - The rating (deckRating.ts, behind the switch): EQ.poison's term becomes burnPlusGain, its seconds x BURN_DPS x the BURN
 //   stacks the belt's slugs carry (the walk's estimate.burn); with no BURN, VENOM rates as nothing.
 import { describe, expect, it } from "vitest";
-import { BURN_DPS, ITEMS, withStarRules } from "../src/sim/content";
+import { BURN_DPS, ITEMS } from "../src/sim/content";
 import type { Build, TimelineHit } from "../src/sim/deck";
-import { burnPlusGain, chargeGains, EQ, rateDeck, type RateOut } from "../src/sim/deckRating";
+import { burnPlusGain, chargeGains, rateDeck, type RateOut } from "../src/sim/deckRating";
 import { rigHits } from "../src/sim/deck";
 import { effectAt, fusible } from "../src/sim/stars";
 import { RUNES } from "../src/sim/runes";
 import { faceAt } from "../src/ui/faces";
-import { abilityText, cardText, clashShortText, gatlingClashText, gist, hasAbilityText, hitText, S, S_PLATING } from "../src/ui/abilityText";
-import { GLOSSARY, GLOSSARY_WRAP_W, STAR_RETIRED, STAR_TAP_NOTES, TAP_NOTES, glossaryEntry, glossaryRows, glossaryText, glossaryWordsIn, tapNote } from "../src/ui/glossary";
+import { abilityText, cardText, clashShortText, gatlingClashText, gist, hasAbilityText, hitText, S } from "../src/ui/abilityText";
+import { GLOSSARY, GLOSSARY_WRAP_W, TAP_NOTES, glossaryEntry, glossaryRows, glossaryText, glossaryWordsIn, tapNote } from "../src/ui/glossary";
 import { FAMILY } from "../src/ui/families";
 import { runeLine, runeReminder, runeTextOf } from "../src/ui/runeText";
-import { colourize, KEYWORD_COLOUR, wrapRich } from "../src/ui/richText";
+import { colourize, wrapRich } from "../src/ui/richText";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { KEYWORDS, icons, textWidth } from "../src/render/font";
 import { C } from "../src/render/palette";
-import { STARS, on, rigBench } from "./y3.helpers";
+import { STARS, rigBench } from "./y3.helpers";
 
 const POISON = /\bPOISON\b/;
 const k1 = (def: string) => (ITEMS[def].kind === "core" ? { k: 1 } : {});
-const off = <T>(fn: () => T): T => withStarRules(fn, false);
+/** The rows the star switch retired (glossary.ts STAR_RETIRED until the flip, Y7b2, which deleted them from the table). */
+const RETIRED = ["HARASSMENT", "ONLINE", "POISON"];
 
 /** Every text the game can show for piece `def` at ★`s` with the switch as it is: its face (rules, clause, caveats,
  *  reminders), its ⓘ LEVELS lines, its kept sentences, gist and card, its GATLING/COMPOUND clashes, and, for a rig, its
@@ -47,15 +48,13 @@ function pieceTexts(def: string, s: number): string[] {
   return out;
 }
 
-/** Every tap note as tapNote hands it out (with the switch on a STAR_TAP_NOTES note goes first), for each piece and word
- *  either table holds, at ★`s`. */
+/** Every tap note as tapNote hands it out, for each piece and word TAP_NOTES holds (STAR_TAP_NOTES folded in at the flip,
+ *  Y7b2), at ★`s`. */
 function tapTexts(s: number): [string, string][] {
   const out: [string, string][] = [];
-  for (const def of new Set([...Object.keys(TAP_NOTES), ...Object.keys(STAR_TAP_NOTES)])) {
-    for (const word of new Set([TAP_NOTES[def]?.word, STAR_TAP_NOTES[def]?.word].filter((w): w is string => !!w))) {
-      const n = tapNote(def, word);
-      if (n) out.push([def, n.text(effectAt(def, s), { stars: s, k: 1 })]);
-    }
+  for (const def of Object.keys(TAP_NOTES)) {
+    const n = tapNote(def, TAP_NOTES[def].word);
+    if (n) out.push([def, n.text(effectAt(def, s), { stars: s, k: 1 })]);
   }
   return out;
 }
@@ -76,35 +75,24 @@ function sweep(): { hits: string[]; n: number } {
 
 // ---------------------------------------------------------------------------------------------- the words
 describe("Y6 words: POISON retires; no new keyword", () => {
-  it("STAR_RETIRED holds POISON (after HARASSMENT and ONLINE); on, no POISON row, entry, alias or tap (off: as before)", () => {
-    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]);
-    on(() => {
-      expect(glossaryRows().map((r) => r.word)).not.toContain("POISON");
-      for (const w of ["POISON", "POISONED"]) expect(glossaryEntry(w), w).toBeUndefined();
-      expect(glossaryWordsIn("THE POISON CLEARS AFTER THE LAST POISONED HIT.")).toEqual([]);
-      expect(glossaryText("POISON")).toBeUndefined();
-      // every other row stays, in order
-      expect(glossaryRows().map((r) => r.word)).toEqual(GLOSSARY.map((r) => r.word).filter((w) => !STAR_RETIRED.includes(w)));
-    });
-    // off: as before
-    expect(glossaryRows().map((r) => r.word)).toContain("POISON");
-    for (const w of ["POISON", "POISONED"]) expect(glossaryEntry(w)?.word, w).toBe("POISON");
-    expect(glossaryText("POISON")).toBe("EACH POISON: 4 HULL DAMAGE A SEC, MAX 24, UNTIL 6{SEC} PASS WITH NO POISONED HIT.");
-    // no keyword joins: the 9, as before; the POISON colour stays for the off path's kept texts
+  it("RETIRED holds POISON (after HARASSMENT and ONLINE); on, no POISON row, entry, alias or tap (off: as before)", () => {
+    // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
+    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
+    for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
+    expect(glossaryRows().map((r) => r.word)).not.toContain("POISON");
+    for (const w of ["POISON", "POISONED"]) expect(glossaryEntry(w), w).toBeUndefined();
+    expect(glossaryWordsIn("THE POISON CLEARS AFTER THE LAST POISONED HIT.")).toEqual([]);
+    expect(glossaryText("POISON")).toBeUndefined();
+    // every other row stays, in order
+    expect(glossaryRows().map((r) => r.word)).toEqual(GLOSSARY.map((r) => r.word).filter((w) => !RETIRED.includes(w)));
+    // no keyword joins: the 9, as before
     expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]);
-    expect(colourize("ADDS 2 POISON.", C.bone).some((sp) => sp.c === KEYWORD_COLOUR.poison)).toBe(true);
   });
 
   it("the sweep: on, no text names POISON (faces, ⓘ, kept sentences, gists, cards, clashes, timeline rows at ★1-★3; runes; taps; family lines; rows)", () => {
-    const onS = on(sweep);
+    const onS = sweep();
     expect(onS.hits).toEqual([]);
     expect(onS.n).toBeGreaterThan(2000);
-    // the same sweep finds it with the switch off: VENOM, the five PLATE pieces, SPLITTER, COMPOUND, WARD BELL, SPLITTER's
-    // tap, the FORGE line and the POISON row
-    const offS = off(sweep);
-    const where = [...new Set(offS.hits.map((h) => h.split(":")[0].replace(/ ★\d$/, "")))].sort();
-    expect(where).toEqual(["anvil", "armorpress", "compound", "family FORGE", "plateroller", "row POISON", "seamwelder", "shieldwall", "splitter",
-      "tap splitter", "venom", "wardbell"].sort());
   });
 });
 
@@ -113,86 +101,63 @@ describe("Y6 texts: VENOM says BURN's seconds; the lines that named POISON drop 
   it("VENOM: its kept sentences, gist, card and belt-timeline row (off: its POISON texts)", () => {
     for (const s of STARS) {
       const n = [3, 6, 9][s - 1];
-      expect(on(() => abilityText("venom", s).sentences)).toEqual([
+      expect(abilityText("venom", s).sentences).toEqual([
         `EACH BURN ON THE PAYLOADS IT HITS LASTS ${n} SECONDS LONGER.`, "IT ADDS NO BURN OF ITS OWN.", S.burn,
       ]);
-      expect(on(() => gist("venom", s))).toBe(`BURN LASTS ${n} SECONDS LONGER`);
-      expect(on(() => [hitText({ def: "venom", stars: s } as TimelineHit, "free"), hitText({ def: "venom", stars: s } as TimelineHit, "locked")]))
+      expect(gist("venom", s)).toBe(`BURN LASTS ${n} SECONDS LONGER`);
+      expect([hitText({ def: "venom", stars: s } as TimelineHit, "free"), hitText({ def: "venom", stars: s } as TimelineHit, "locked")])
         .toEqual([`VENOM DRIP: ITS BURN LASTS +${n} SEC`, `VENOM DRIP: ITS BURN LASTS +${n} SEC`]);
-      // off: as before
-      const p = [2, 4, 7][s - 1];
-      expect(abilityText("venom", s).sentences).toEqual([`ADDS ${p} POISON TO EACH PAYLOAD IT HITS.`, S.poison, S.poisonTime]);
-      expect(gist("venom", s)).toBe(`ADDS ${p} POISON`);
-      expect(hitText({ def: "venom", stars: s, poison: p } as TimelineHit, "free")).toBe(`VENOM DRIP +${p} POISON`);
     }
-    expect([on(() => cardText("venom")), cardText("venom")]).toEqual(["BURN LASTS 3 SECONDS LONGER.", "ADDS 2 POISON."]);
+    expect(cardText("venom")).toBe("BURN LASTS 3 SECONDS LONGER.");
     expect(S.burn).toBe("EACH BURN DEALS THE ENEMY HULL 10 DAMAGE A SECOND FOR 3 SECONDS.");
   });
 
-  it("the PLATE sentence drops AND POISON (S_PLATING) in all five pieces that say it; off, S.plating as before", () => {
-    expect(S_PLATING).toBe("PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO 240 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.");
-    expect(S.plating).toBe("PLATING TAKES DAMAGE, BURN AND POISON BEFORE YOUR HULL, UP TO 240 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.");
+  it("the PLATE sentence drops AND POISON (S.plating) in all five pieces that say it", () => {
+    expect(S.plating).toBe("PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO 240 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT."); // Y7b2 (the flip): was S_PLATING
     for (const def of ["plateroller", "shieldwall", "armorpress", "seamwelder", "anvil"]) for (const s of STARS) {
-      const onT = on(() => abilityText(def, s, k1(def)).sentences), offT = abilityText(def, s, k1(def)).sentences;
-      expect(onT, `${def} ★${s} on`).toContain(S_PLATING);
-      expect(onT, `${def} ★${s} on`).not.toContain(S.plating);
-      expect(offT, `${def} ★${s} off`).toContain(S.plating);
-      expect(offT, `${def} ★${s} off`).not.toContain(S_PLATING);
+      const onT = abilityText(def, s, k1(def)).sentences;
+      expect(onT, `${def} ★${s}`).toContain(S.plating);
     }
   });
 
   it("SPLITTER, COMPOUND BREECH and WARD BELL drop POISON from their sentences (off: as before)", () => {
-    expect(on(() => abilityText("splitter", 1).sentences[1])).toBe("EACH COPY KEEPS ALL OF THE BURN AND SHOCK.");
-    expect(abilityText("splitter", 1).sentences[1]).toBe("EACH COPY KEEPS ALL OF THE BURN, POISON AND SHOCK.");
-    expect(on(() => abilityText("compound", 1, { k: 1 }).sentences[1])).toBe("BOTH LOADS' BURN AND SHOCK RIDE ALONG.");
-    expect(abilityText("compound", 1, { k: 1 }).sentences[1]).toBe("BOTH LOADS' BURN, POISON AND SHOCK RIDE ALONG.");
-    expect(on(() => abilityText("wardbell", 1).sentences.slice(1, 3))).toEqual([
+    expect(abilityText("splitter", 1).sentences[1]).toBe("EACH COPY KEEPS ALL OF THE BURN AND SHOCK.");
+    expect(abilityText("compound", 1, { k: 1 }).sentences[1]).toBe("BOTH LOADS' BURN AND SHOCK RIDE ALONG.");
+    expect(abilityText("wardbell", 1).sentences.slice(1, 3)).toEqual([
       "EACH SHIELD BLOCKS ONE HIT'S DAMAGE, THEN BREAKS; THAT HIT'S BURN, FRAY AND STUN STILL LAND.",
       "BURN AND THE DARK WIND DEAL THEIR DAMAGE PAST IT.",
     ]);
-    expect(abilityText("wardbell", 1).sentences.slice(1, 3)).toEqual([
-      "EACH SHIELD BLOCKS ONE HIT'S DAMAGE, THEN BREAKS; THAT HIT'S BURN, FRAY, STUN AND POISON STILL LAND.",
-      "BURN, POISON AND THE DARK WIND DEAL THEIR DAMAGE PAST IT.",
-    ]);
-    // their other sentences are the switch-off ones
-    for (const [def, o] of [["splitter", {}], ["compound", { k: 1 }], ["wardbell", {}]] as const) {
-      const a = on(() => abilityText(def, 1, o).sentences), b = abilityText(def, 1, o).sentences;
-      expect(a.filter((t, i) => t !== b[i]).length, def).toBe(def === "wardbell" ? 2 : 1);
-    }
   });
 
-  it("SPLITTER's tap: on, STAR_TAP_NOTES' HIT: note, no POISON, 2 lines at the band, each line inside 225 px; off, TAP_NOTES' as before", () => {
-    const tap = (star: boolean) => withStarRules(() => glossaryText("HIT", { def: "splitter", stars: 1 }), star);
-    expect(tap(true)).toBe("HIT: EACH COPY KEEPS THE SLUG'S {*BURN} AND {*STUN}.");
-    expect(tap(false)).toBe("HIT: EACH COPY KEEPS THE SLUG'S {*BURN}, POISON AND {*STUN}.");
+  it("SPLITTER's tap: TAP_NOTES' HIT: note, no POISON, 2 lines at the band, each line inside 225 px", () => {
+    const tap = () => glossaryText("HIT", { def: "splitter", stars: 1 });
+    expect(tap()).toBe("HIT: EACH COPY KEEPS THE SLUG'S {*BURN} AND {*STUN}.");
     expect(GLOSSARY_WRAP_W).toBe(225);
-    const wrapped = on(() => wrapRich(colourize(icons(tap(true)!), C.bone), GLOSSARY_WRAP_W, "5"));
+    const wrapped = wrapRich(colourize(icons(tap()!), C.bone), GLOSSARY_WRAP_W, "5");
     expect(wrapped.length).toBe(2);
     for (const l of wrapped) expect(textWidth(l.map((sp) => sp.t).join(""))).toBeLessThanOrEqual(225);
-    expect(textWidth(icons(tap(true)!))).toBe(259);
+    expect(textWidth(icons(tap()!))).toBe(259);
     // every other piece's tap is as before, on and off (TESLA's switch-on note is Y4's)
     for (const def of Object.keys(TAP_NOTES)) if (def !== "splitter") {
       const w = TAP_NOTES[def].word;
-      expect(on(() => tapNote(def, w)), def).toBe(TAP_NOTES[def]);
+      expect(tapNote(def, w), def).toBe(TAP_NOTES[def]);
     }
-    expect([tapNote("tesla", "SHOT"), on(() => tapNote("tesla", "SHOT"))]).toEqual([undefined, STAR_TAP_NOTES.tesla]);
+    expect(tapNote("tesla", "SHOT")).toEqual(TAP_NOTES.tesla); // Y7b2 (the flip): was STAR_TAP_NOTES.tesla
   });
 
   it("the FORGE family's line drops POISON (on); off, the base's line byte for byte; every other family's line as before", () => {
-    expect(on(() => FAMILY.FORGE.glossary)).toBe("ADDS DAMAGE, BURN OR FRAY TO EACH PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES.");
-    expect(FAMILY.FORGE.glossary).toBe("ADDS DAMAGE, BURN, POISON OR FRAY TO EACH PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES.");
-    for (const fam of Object.values(FAMILY)) if (fam.tag !== "FORGE") expect(on(() => fam.glossary), fam.tag).toBe(fam.glossary);
+    expect(FAMILY.FORGE.glossary).toBe("ADDS DAMAGE, BURN OR FRAY TO EACH PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES.");
   });
 });
 
 // ------------------------------------------------------------------------------------------- the deck rating
 describe("Y6 rating: VENOM's burnPlus priced by the belt's BURN, behind the switch", () => {
   /** Turret 0's rated damage a second (rateDeck's turretDmg: its throughput x the payload's damage-equivalent). */
-  const dmg = (b: Build, star: boolean) => withStarRules(() => {
+  const dmg = (b: Build) => {
     const out: RateOut = { stokeKeep: new Map(), turretDmg: new Map() };
     rateDeck(b, undefined, undefined, out);
     return out.turretDmg!.get(0)!;
-  }, star);
+  };
 
   it("burnPlusGain: its seconds x BURN_DPS x the BURN stacks (DESIGN-Y's TEMPER ★3: 4 BURN, +3 s = 120 more); no BURN, nothing", () => {
     expect(burnPlusGain(3, 4)).toBe(3 * BURN_DPS * 4);
@@ -203,28 +168,23 @@ describe("Y6 rating: VENOM's burnPlus priced by the belt's BURN, behind the swit
   it("on a BURN belt it adds +3/+6/+9 s x the belt's BURN: linear in its seconds and in the stacks (off: EQ.poison's 30 a poison)", () => {
     const belt = (temper: number, venom?: number) => rigBench([["temper", 4, 4, temper], ...(venom ? [["venom", 4, 3, venom] as [string, number, number, number]] : [])]);
     // the gain over the same belt without it, at each star: 1 : 2 : 3, the seconds 3 : 6 : 9
-    const none = dmg(belt(3), true), gain = STARS.map((s) => dmg(belt(3, s), true) - none);
+    const none = dmg(belt(3)), gain = STARS.map((s) => dmg(belt(3, s)) - none);
     expect(gain[0]).toBeGreaterThan(0);
     expect(gain[1] / gain[0]).toBeCloseTo(2, 9);
     expect(gain[2] / gain[0]).toBeCloseTo(3, 9);
     // the BURN stacks: TEMPER ★3 (4 BURN) against ★1 (1 BURN): 4 times the gain
-    expect(gain[0] / (dmg(belt(1, 1), true) - dmg(belt(1), true))).toBeCloseTo(4, 9);
-    // off: its poison's price, the same whatever the belt's BURN (EQ.poison x 2 at ★1)
-    const offGain = dmg(belt(3, 1), false) - dmg(belt(3), false), offGain1 = dmg(belt(1, 1), false) - dmg(belt(1), false);
-    expect(offGain / offGain1).toBeCloseTo(1, 9);
-    expect(EQ.poison).toBe(30);
+    expect(gain[0] / (dmg(belt(1, 1)) - dmg(belt(1)))).toBeCloseTo(4, 9);
   });
 
   it("with no BURN on the belt VENOM rates as nothing (off: its poison rates)", () => {
     const venom = rigBench([["venom", 4, 3, 3]]), bare = rigBench([]);
-    expect(dmg(venom, true)).toBe(dmg(bare, true));
-    expect(withStarRules(() => rateDeck(venom).value)).toBe(withStarRules(() => rateDeck(bare).value));
-    expect(dmg(venom, false)).toBeGreaterThan(dmg(bare, false));
+    expect(dmg(venom)).toBe(dmg(bare));
+    expect(rateDeck(venom).value).toBe(rateDeck(bare).value);
   });
 
   it("an OVERCLOCKER before it: its charge doubles VENOM's seconds, so it counts (chargeGains; overclock.ts doubles burnPlus)", () => {
     const b = rigBench([["overclocker", 4, 4, 1], ["venom", 4, 3, 1]]);
     const hits = rigHits(b), h = hits[0].flat().find((x) => x.def === "overclocker")!;
-    expect(on(() => chargeGains(b, hits[0], h))).toBe(true);
+    expect(chargeGains(b, hits[0], h)).toBe(true);
   });
 });

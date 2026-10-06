@@ -4,7 +4,6 @@
 // gold on average and none of them wins a run by itself.
 
 import { ITEMS, buyableModules, type GateEffect, type ItemDef, type Rarity } from "../sim/content";
-import { starRules } from "../sim/content"; // Y4 (release Y; BRIEF-Y4 S3): the star switch (the SMUGGLER card's NONE ON OFFER line)
 import { fusible, starField, starsOf, valueOf } from "../sim/stars";
 import { mergePreview } from "./fuse";
 import type { Run } from "./run";
@@ -199,13 +198,13 @@ function partChoice(label: string, cost: Delta[], def: string | undefined, note?
 
 /**
  * Y4 (release Y; REVIEW-REDOX answer 3; BRIEF-Y4 S3): a SMUGGLER choice. Since FIX-ABE the ALCHEMIST's rare tier always holds
- * 4+ BURN and SHOCK wares, so no real run reaches its NONE ON OFFER case. With the star switch on that line leaves the card
- * (`quiet`: cards.ts drawChoiceCard draws no line for it); the guard stays: the choice is still blocked (an old save without
- * such a ware can't pick it; events.ts pickChoice). The pools are untouched. Off, partChoice's choice exactly as before.
+ * 4+ BURN and SHOCK wares, so no real run reaches its NONE ON OFFER case. That line leaves the card (`quiet`: cards.ts
+ * drawChoiceCard draws no line for it); the guard stays: the choice is still blocked (an old save without such a ware
+ * can't pick it; events.ts pickChoice). The pools are untouched.
  */
 function smugglerChoice(label: string, cost: Delta[], def: string | undefined): Choice {
   const c = partChoice(label, cost, def);
-  if (c.blocked && starRules()) c.quiet = true;
+  if (c.blocked) c.quiet = true;
   return c;
 }
 

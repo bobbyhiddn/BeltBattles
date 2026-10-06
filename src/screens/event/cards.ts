@@ -86,7 +86,7 @@ export interface CardView {
 }
 
 /** The line at the foot of a choice card: why it is blocked, else its note. Y4 (release Y; BRIEF-Y4 S3): a quiet block (the
- *  SMUGGLER's NONE ON OFFER with the star switch on: eventDefs.ts smugglerChoice) draws no line; off, none is quiet. */
+ *  SMUGGLER's NONE ON OFFER: eventDefs.ts smugglerChoice) draws no line. */
 export const cardNote = (c: Choice): string | undefined => (c.quiet ? c.note : c.blocked ?? c.note);
 
 export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView): void {

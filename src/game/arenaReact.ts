@@ -310,10 +310,6 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
     case "burn":
       fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.fire3); // NUM-4
       return;
-    case "poison":
-      // NUM-4 (REQ-BFG-047): poison ticks whole damage once a second (NUM-1), printed as it is (was toFixed(1), from 0.1)
-      if (!fast && e.dmg > 0) fx.popup(hullCx(a, e.side), hullCy(a, e.side), fmtDmg(e.dmg), C.lime);
-      return;
     case "wind":
       for (const side of [0, 1] as Side[]) {
         fx.popup(hullCx(a, side) + (fx.rnd() - 0.5) * 50, hullCy(a, side), fmtDmg(e.dmg), C.plum4); // NUM-4: was Math.round

@@ -49,7 +49,6 @@ import { effectAt, FUSE_MAX, fusible, outputsAt } from "../sim/stars";
 import { perkAt } from "../sim/stars"; // U2b F6: HOT SWAP's spark carries GALVANIC COIL's SPARK JUMP (content.ts hotswap)
 import { pourAt } from "../sim/stars"; // Y1: a factory's pour as a {SLUG} stat (carryStats)
 import { gearSlotsOf } from "../sim/deck";
-import { starRules } from "../sim/content"; // Y2 (release Y): the star switch (STAR_FACES, the interim lines it retires)
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 
 /**
@@ -94,8 +93,9 @@ export interface Face {
   rules: FaceRule[];
   reminders: string[];
   nums: [string, string][];
-  /** U2b F6: the star's interim perk clause (INTERIM_CLAUSES), its label "★2 SPARK JUMP:" in brass; kept, outside the
-   *  budget. */
+  /** U2b F6: the star's interim perk clause, its label "★2 SPARK JUMP:" in brass; kept, outside the budget. Y7b2 (the
+   *  flip): no face has one any more (every interim clause left with the star switch's rules); the field stays for its
+   *  readers. */
   clause?: FaceRule;
   /** U2b F5: the interim caveats (INTERIM_CAVEATS): kept, 3x5, in the reminder's colour, outside the budget. */
   caveats?: string[];
@@ -129,9 +129,9 @@ export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
     speed = factorySpeed(def, fs, hero!); // NUM-2: the hero factory's speed x its rate %, rounded once
     dmg = AMMO[h.ammo].base;
   }
-  // Y2 (release Y; DESIGN-Y row 13): with the star switch on a LIMPET WORKS' DMG is its charge's blast (its base is 0: the
-  // 20 on impact joined the blast)
-  if (starRules() && fs.round?.kind === "limpet") dmg += fs.round.blast;
+  // Y2 (release Y; DESIGN-Y row 13): a LIMPET WORKS' DMG is its charge's blast (its base is 0: the 20 on impact joined the
+  // blast)
+  if (fs.round?.kind === "limpet") dmg += fs.round.blast;
   return [speedPair(speed), ["DMG", fmtDmg(dmg)], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
 }
 
@@ -271,12 +271,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   gantry: () => rules([]),
   mimic: () => rules([{ text: "STAMPS YOUR HERO'S SLUGS." }]),
   limpet: (e) => {
-    const r = f(e).round as { delay: number; blast: number };
-    const blast = fmtDmg(r.blast), delay = fmtSec(r.delay);
-    // U2e step 3 (one short line): "ITS " goes, so ★2's and ★3's line fits one line of the op band (was 230 px of 225);
-    // its two numbers stay (a rules-redesign candidate: U2e REPORT section 5)
-    return rules([{ text: `CHARGES BLAST THE HULL: ${blast} {DMG}, ${delay}{SEC} LATER.` }],
-      [["blast", `${blast} {DMG}`], ["delay", `${delay}{SEC}`]]);
+    // DESIGN-Y row 13: its charges' blast is its DMG stat (factoryStats: the charge's 20 joined it, content.ts STAR_DIFF);
+    // Battle.hullEffects: each charge blasts the enemy hull round.delay s after it hits. Was "CHARGES BLAST THE HULL: 80
+    // {DMG}, 3{SEC} LATER." and ★2/★3's clause "ITS BLAST GIVES THE PART {*STUN} 1."
+    const delay = fmtSec((f(e).round as { delay: number }).delay);
+    return rules([{ text: `ITS {SLUG} BLAST THE HULL ${delay}{SEC} AFTER THEY HIT.` }], [["delay", `${delay}{SEC}`]]);
   },
   // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
   // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
@@ -317,6 +316,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const label = `EVERY ${every}{SEC}:`;
     return rules([{ text: `${label} {*HEAL} ${amount}.`, label }], [["every", `EVERY ${every}{SEC}`], ["heal", `{*HEAL} ${amount}`]], [REMINDER.HEAL()]);
   },
+  // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
+  assembly: (e) => {
+    // DESIGN-Y row 32 (its stats factoryStats': RATE, its slugs' DMG, BELT): Battle.makeSide: while it feeds a turret every
+    // rig on your side comes online at x commission of its time, its own belts' rigs too (no instant start); HOT START is
+    // gone. Was the RULES text "WHILE IT FEEDS A TURRET, YOUR RIGS COME ONLINE IN HALF THE TIME." and 3 more sentences
+    const soon = fmtPct(1 - f(e).commission!);
+    return rules([{ text: `YOUR RIGS START ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
+  },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
   // sentence (were "ITS SLUGS HAVE {*HEAT} 1.2." and "ITS SLUGS HAVE {*FRAY} 1."); the reminder stays for the tap
@@ -336,7 +343,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const n = fmtCount(c(e, x).pellets!), share = fmtPct(c(e, x).share!);
     return rules([shot(`BURSTS INTO ${n} PELLETS, ${share} {DMG} EACH.`)], [["pellets", `${n} PELLETS`], ["share", `${share} {DMG}`]]);
   },
-  rotary: () => rules([{ text: "FIRES PART-FULL CHAMBERS SOONER." }]),
+  rotary: (e, x) => {
+    // DESIGN-Y row 37: cores.ts ROUTINES.rotary: its chamber's load time is windowTime (0.75 / 0.525 / 0.3 s), so a part-full
+    // chamber fires that much sooner than WINDOW_TIME's (50% / 65% / 80%); ★2/★3's fire rate and ★3's no-jam are gone. Was
+    // "FIRES PART-FULL CHAMBERS SOONER." and the clauses "★2 GREASED RACE: FIRES 18% FASTER." and "★3 CLEAN FEED: FIRES 43%
+    // FASTER, NEVER JAMS."
+    const soon = fmtPct(1 - (c(e, x).windowTime ?? WINDOW_TIME) / WINDOW_TIME);
+    return rules([{ text: `FIRES PART-FULL CHAMBERS ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
+  },
   pressure: (e, x) => {
     const per = fmtDmg(c(e, x).perQueued!);
     return rules([shot(`+${per} {DMG} FOR EACH LOAD WAITING.`)], [["per", `+${per} {DMG}`]]);
@@ -392,11 +406,35 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
       [["columns", `${cols} COLUMN${s(n)}`], ["share", `${share} {DMG}`]]);
   },
   anvil: (e, x) => {
-    // NUM-4 (REQ-BFG-047): perPlate is a ratio of two damage-family numbers, kept by the sim as a whole % of the hull's
-    // plating (cores.ts scaleCore; Battle.fireCore: pct(plate, 100 x perPlate)), so the face prints that % (was "+2.2 EACH")
+    // Y7b1 (release Y; ruling Y7A-R3c): its STAR_DIFF row is deleted, so with the switch on it reads its base def, 0.9.2's
+    // two parts: Battle.fireCore: + anvilFlat + pct(plate, 100 x perPlate) (x the class %: cores.ts scaleCore), both on one
+    // line (180 px at ★3, k 1), each on its own ⓘ ladder. Was Y4's fold (DESIGN-Y row 38) "SHOT: +125% OF YOUR {*PLATE} AS
+    // {DMG}." (125% / 275% / 438%, no flat)
     const flat = fmtDmg(c(e, x).anvilFlat!), per = fmtPct(c(e, x).perPlate!);
     return rules([shot(`+${flat} {DMG}, +${per} OF YOUR {*PLATE}.`)], [["flat", `+${flat} {DMG}`], ["per", `+${per} OF {PLATE}`]],
       [REMINDER.PLATE()]);
+  },
+  // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
+  steambreech: (e, x) => {
+    // DESIGN-Y row 39: cores.ts steamInterval: while your hull holds plating it fires steamPlated% faster, without it at its
+    // own rate (steamBare is gone). Was the RULES text "THE TURRET FIRES 35% FASTER WHILE YOUR HULL HOLDS PLATING, AND 10%
+    // FASTER WITHOUT IT."
+    const up = fmtPct(c(e, x).steamPlated! / 100);
+    return rules([{ text: `FIRES ${up} FASTER IF YOU HAVE {*PLATE}.` }], [["rate", `${up} FASTER`]], [REMINDER.PLATE()]);
+  },
+  drake: (e, x) => {
+    // DESIGN-Y row 40: Battle.fireCore (cores.ts drakeConvert): each flatPerBurn of the shot's bonus damage (BONUS DAMAGE: its
+    // glossary tap) becomes FACE_SIM.drakeStacks BURN; the free BURN, its longer BURN and its quicker flight are gone. Was the
+    // RULES text "TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY 20 DAMAGE." and 3 more sentences
+    const d = fmtDmg(c(e, x).flatPerBurn!), n = fmtCount(FACE_SIM.drakeStacks);
+    return rules([shot(`EACH ${d} BONUS DAMAGE IS ${n} {*BURN}.`)], [["per", `EACH ${d}`]], [REMINDER.BURN()]);
+  },
+  capacitor: (e, x) => {
+    // DESIGN-Y row 42: Battle.chambers / fireCore: + perSecond (x the class %: cores.ts scaleCore) for each second the chamber
+    // sat empty before the shot, no cap (content.ts STAR_DIFF). Was the RULES text "CHARGES ITS NEXT SHOT 20 DAMAGE FOR EACH
+    // SECOND ITS CHAMBER SITS EMPTY." with "IT CHARGES FOR UP TO 5 SECONDS."
+    const d = fmtDmg(c(e, x).perSecond!);
+    return rules([shot(`+${d} {DMG} FOR EACH SEC IT SAT EMPTY.`)], [["per", `+${d} {DMG}`]]);
   },
   // ------------------------------------------------------------------- U2b: the TEXT rigs (HIT: in brass; no stat row)
   // IRON WALL (SHIELD WALL until SUS-B; N1 3.3's crit piece) keeps today's text, as every RULES rig does. NUM-3: TOLLBOOTH
@@ -446,17 +484,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
       [["speed", `${n} TIMES`], ...(flat ? [["flat", `+${d} {DMG}`] as [string, string]] : [])]);
   },
   surge: (e) => {
-    // Battle: every period its belts pulse (speed x pulse.speed for pulse.on s; the belt shows it) and each payload the
-    // pulse speeds up gains pulse.flat
-    // U2c group 0 fix 1 (U2b question 3): the pulse is its main effect, so the face says it: its speed (as OVERDRIVE's
-    // "n TIMES AS FAST") and its length; NEXT★ shows the next speed; the tap text (glossary SURGE) explains the pulse
-    const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(p.flat), n = fmtCount(p.speed), on = fmtSec(p.on);
+    // DESIGN-Y row 28 (REVIEW-STARD answer 5: the damage pulse): Battle.surgeTick: once each pulse period every slug on its
+    // belts gains pulse.flat; the speed pulse is gone. Was "EVERY 3{SEC}: ITS BELTS SURGE 3 TIMES AS FAST FOR 1{SEC}, +10
+    // {DMG}." (two effects; it wrapped at ★2)
+    const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(p.flat);
     const label = `EVERY ${every}{SEC}:`;
-    // U2d F1 (cap's U2c question 1): its period changes with its stars (content.ts surge), so it is keyed too and NEXT★
-    // shows it ("NEXT ★2: EVERY 2.5{SEC}, 4 TIMES, +2 {DMG}"); where the line and the star's perk name would pass the band,
-    // the name gives way (faceNext)
-    return rules([{ text: `${label} ${itsBelts(e)} ${oneBelt(e) ? "SURGES" : "SURGE"} ${n} TIMES AS FAST FOR ${on}{SEC}, +${d} {DMG}.`, label }],
-      [["every", `EVERY ${every}{SEC}`], ["speed", `${n} TIMES`], ["flat", `+${d} {DMG}`]]);
+    return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
   },
   sorting: (e) => {
     // Battle.applyHit: every `every`th payload it hits becomes `copies` payloads at full strength
@@ -465,11 +498,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([hit(`OF EVERY ${every} {SLUG}, ONE BECOMES ${n}.`)], [["every", `OF EVERY ${every}`], ["copies", `BECOMES ${n}`]]);
   },
   tollbooth: (e) => {
-    // NUM-3 (R1's STUN fold): Battle.acceptHarassment: while it works, the first `toll` harassments (a STUN, a SABOT wreck, a
-    // GRAPNEL rip) on its belts, the rigs working them and the turrets they feed are blocked; the wrecks and rips and the
-    // rigs and gun are interim caveats, ★3 FACTORY GUARD (tollFactory) a clause. (No chip: its count is no STUN's.)
+    // DESIGN-Y row 8: Battle.acceptHarassment: while it works, its first `toll` enemy STUNs on its belt's parts (its belt's
+    // tiles, the rigs working them, the gun they feed and, from ★1, the belt's factory: PART, a glossary word) are
+    // blocked; a wreck or a rip is no STUN (the shared rule). Was "BLOCKS THE FIRST 2 {*STUN} HITS ON ITS BELT." with two
+    // caveats and ★3 FACTORY GUARD's clause
     const n = fmtCount(gt(e).toll!);
-    return rules([{ text: `BLOCKS THE FIRST ${n} {*STUN} HITS ON ${itsBelts(e)}.` }], [["toll", `BLOCKS ${n}`]]);
+    return rules([{ text: `BLOCKS ${n} {*STUN} ON ${oneBelt(e) ? "ITS BELT'S" : "ITS BELTS'"} PARTS.` }], [["toll", `BLOCKS ${n}`]]);
   },
   riveter: (e) => {
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.9): its repair is HEAL, the same numbers (battle.ts heal(): never past your full hull,
@@ -493,32 +527,125 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([hit(`+${n} {*FRAY}.`)], [["fray", `+${n} {*FRAY}`]], [REMINDER.FRAY()]);
   },
   overclocker: (e) => {
-    // Battle.makeSide / applyHit: it doubles the first later rig on its belt that can be doubled (overclock.ts boostable),
-    // then recharges for overclockCooldown; the rigs it skips are an interim caveat (call 7)
+    // DESIGN-Y row 29: Battle.makeSide / applyHit: it charges the first later rig on its belt, whatever it is (overclock.ts
+    // chargeable), which doubles its hit, then rests overclockCooldown; a rig with nothing to double spends the charge. Was
+    // "DOUBLES THE NEXT RIG'S HIT, RESTS 4{SEC}." with the caveat "IT SKIPS RIGS IT CAN'T DOUBLE."
     const t = fmtSec(gt(e).overclockCooldown!);
-    // U2f step 3 (REQ-BFG-046): one line of the op band (was ", THEN RESTS", 226-240 px; the comma keeps the order)
-    return rules([{ text: `DOUBLES THE NEXT RIG'S HIT, RESTS ${t}{SEC}.` }], [["rest", `RESTS ${t}{SEC}`]]);
+    const label = `EVERY ${t}{SEC}:`;
+    return rules([{ text: `${label} DOUBLES THE NEXT RIG'S HIT.`, label }], [["every", `EVERY ${t}{SEC}`]]);
   },
   plateroller: (e) => {
     const d = fmtDmg(gt(e).plate!);
     return rules([hit(`+${d} {*PLATE}.`)], [["plate", `+${d} {*PLATE}`]], [REMINDER.PLATE()]);
   },
   stoker: (e) => {
-    // Battle.stokedPace: the factories its arrows point at work stoke faster (capped by their gun: a caveat, call 7)
+    // Y7b1 (release Y; ruling Y7A-R1; DESIGN-Y row 31): Battle.stokedPace: the factories its arrows point at work up to
+    // stoke faster, never past the gun their belts feed (its cap holds with the switch on, as at 0.9.2). UP TO says the cap
+    // on the face's one line (the interim caveat "A FACTORY NEVER OUTRUNS ITS GUN." stays off: STAR_GONE_CAVEATS; its ⓘ
+    // sentence names the gun). Was today's line "ITS FACTORIES WORK 20% FASTER." with no cap
     const up = fmtPct(gt(e).stoke!);
-    return rules([{ text: `ITS FACTORIES WORK ${up} FASTER.` }], [["stoke", `${up} FASTER`]]);
+    return rules([{ text: `ITS FACTORIES WORK UP TO ${up} FASTER.` }], [["stoke", `${up} FASTER`]]);
   },
   platebreaker: (e) => {
-    const b = gt(e).breaker!, spend = fmtDmg(FACE_SIM.breakerPlate), flat = fmtDmg(b.flat), floor = fmtDmg(b.floor);
-    return rules([hit(`SPENDS ${spend} {*PLATE} FOR +${flat} {DMG}.`), { text: `ELSE: +${floor} {DMG}.` }],
-      [["flat", `+${flat} {DMG}`], ["floor", `ELSE +${floor}`]], [REMINDER.PLATE()]);
+    // DESIGN-Y row 26: Battle.applyHit: with FACE_SIM.breakerPlate plating on your hull it spends that much for + flat;
+    // with less, nothing (the ELSE floor is gone: content.ts STAR_DIFF). Was the same line and "ELSE: +10 {DMG}."
+    const spend = fmtDmg(FACE_SIM.breakerPlate), flat = fmtDmg(gt(e).breaker!.flat);
+    return rules([hit(`SPENDS ${spend} {*PLATE} FOR +${flat} {DMG}.`)], [["flat", `+${flat} {DMG}`]], [REMINDER.PLATE()]);
   },
+  // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
+  lodestone: (e) => {
+    // DESIGN-Y row 15: Battle.applyHit: + each for each enemy part a STUN holds when it hits (rigs, factories, turrets, belt
+    // tiles; a wrecked rig is no STUN), no floor, no cap. Was the RULES text "ADDS 10 DAMAGE, AND 10 FOR EACH ENEMY MACHINE
+    // STUNNED, UP TO 60 DAMAGE." with "WRECKED MACHINES COUNT TOO; BELT TILES DON'T."
+    const d = fmtDmg(gt(e).perStalled!.each);
+    return rules([hit(`+${d} {DMG} FOR EACH {*STUN} ON THE FOE.`)], [["each", `{DMG} +${d} EACH`]]);
+  },
+  braceframe: (e) => {
+    // DESIGN-Y row 16: Battle.braceCut: an enemy STUN on a belt tile its arrows hit lasts x brace.mul (the plated multiplier
+    // and its brace of itself are gone). Was the RULES text "ENEMY STUNS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST 50%
+    // SHORTER." with "WHILE YOUR HULL HOLDS PLATING THEY LAST 75% SHORTER."
+    const cut = fmtPct(1 - gt(e).brace!.mul);
+    return rules([{ text: `ENEMY {*STUN} ON ITS TILES: ${cut} SHORTER.` }], [["cut", `${cut} SHORTER`]]);
+  },
+  pincer: (e) => {
+    // DESIGN-Y row 20: Battle.applyHit: + each for each other working rig on its tile (crossfire: a STUNned rig stops, so it
+    // doesn't count), no floor, no cap (content.ts STAR_DIFF). Was the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS,
+    // AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE." with "STUNNED AND WRECKED RIGS DON'T COUNT."
+    const d = fmtDmg(gt(e).pincer!.each);
+    return rules([hit(`+${d} {DMG} FOR EACH OTHER RIG ON ITS TILE.`)], [["each", `+${d} {DMG} EACH`]]);
+  },
+  twingauge: (e) => {
+    // DESIGN-Y row 21: Battle.applyHit: + matched on a matched belt (MATCHED: its glossary tap), nothing off one. Was the
+    // RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, OR 30 DAMAGE ON A MATCHED BELT." with MATCHED's definition
+    const d = fmtDmg(gt(e).gauge!.matched);
+    return rules([hit(`+${d} {DMG} ON A MATCHED BELT.`)], [["matched", `+${d} {DMG}`]]);
+  },
+  bellows: (e) => {
+    // DESIGN-Y row 22: Battle.applyHit: + burn BURN for each whole `per` s the slug has ridden, no cap. Was the RULES text
+    // "ADDS 4 BURN FOR EACH 10 SECONDS THE PAYLOAD HAS RIDDEN, UP TO 4 BURN." with BURN's definition
+    const br = gt(e).burnPerRide!, n = fmtCount(br.burn);
+    return rules([hit(`+${n} {*BURN} FOR EACH ${fmtSec(br.per)}{SEC} RIDDEN.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);
+  },
+  quench: (e) => {
+    // DESIGN-Y row 23: Battle.applyHit: every BURN stack on the slug turns into perBurn damage (no floor, no stack cap). Was
+    // the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH." with
+    // "ANY MORE BURN STAYS ON THE PAYLOAD." and BURN's definition
+    const d = fmtDmg(gt(e).quench!.perBurn);
+    return rules([hit(`TURNS EACH {*BURN} INTO +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
+  },
+  twinlatch: (e) => {
+    // DESIGN-Y row 30: Battle.latchTick: while both its arrows hit belts it holds a slug at most `hold` s for its other belt,
+    // so the two reach the gun together (a PAIR); no flat any more. The header's "n/2 ARROWS ON BELTS" shows the both-arrows
+    // rule; belts into two guns have no pair to make. Was the RULES text "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE,
+    // THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER." and 3 more sentences (its 1 s, both arrows, +10, two guns)
+    const t = fmtSec(gt(e).latch!.hold);
+    return rules([hit(`HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}.`)], [["hold", `UP TO ${t}{SEC}`]], [REMINDER.PAIR()]);
+  },
+  counterweight: (e) => {
+    // DESIGN-Y row 41: Battle.applyHit: + each for each tile the slug has ridden on its journey, no cap (content.ts
+    // STAR_DIFF). Was the RULES text "ADDS 5 DAMAGE FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN, UP TO 60 DAMAGE."
+    const d = fmtDmg(gt(e).perTile!.each);
+    return rules([hit(`+${d} {DMG} FOR EACH TILE RIDDEN.`)], [["each", `+${d} {DMG} EACH`]]);
+  },
+  shieldwall: (e) => {
+    // Y7b1 (release Y; ruling Y7A-R3d): its STAR_DIFF row is deleted, so with the switch on it reads its base def, 0.9.2's
+    // rule: Battle.applyHit: addPlate(plate) for each slug it hits, then + plated.flat while your hull holds plated.min PLATE
+    // or more (120+, as FURNACE's "8+ TILE BELTS"), both parts on one line (208 px at ★3), each on its own ⓘ ladder. Was
+    // Y5's "HIT: +30 {DMG} AT 120 {*PLATE} OR MORE." (DESIGN-Y row 45: its own plating gone). Off it has no face (the RULES
+    // text: "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS." with the 120 sentence and PLATING's definition)
+    const pl = gt(e).plated!, d = fmtDmg(pl.flat), plate = fmtDmg(gt(e).plate!);
+    return rules([hit(`+${plate} {*PLATE}, +${d} {DMG} AT ${fmtDmg(pl.min)}+ {*PLATE}.`)], [["plate", `+${plate} {*PLATE}`], ["flat", `+${d} {DMG}`]],
+      [REMINDER.PLATE()]);
+  },
+  keg: (e) => {
+    // DESIGN-Y row 46: Battle.kegTick: its fuse runs from the battle's start (a STUN or a wreck pauses it); each keg.fuse s it
+    // blasts + flat onto every slug on its belts (beltPulse, SURGE VALVE's walk) and re-arms; its BURN and ★3 WIDE BLAST's
+    // reach are gone (content.ts STAR_DIFF). Was the RULES text "ADDS 60 DAMAGE AND 1 BURN TO EVERY PAYLOAD ON ITS BELTS WHEN
+    // IT BLOWS UP." with "IT BLOWS ONCE, 12 SECONDS AFTER IT COMES ONLINE; A STUN PAUSES THE FUSE." and BURN's definition
+    const k = gt(e).keg!, every = fmtSec(k.fuse), d = fmtDmg(k.flat);
+    const label = `EVERY ${every}{SEC}:`;
+    return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
+  },
+  venom: (e) => {
+    // DESIGN-Y row 48: Battle.applyHit gives each slug it hits burnPlus seconds; Battle.impact: each BURN stack of that slug's
+    // hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %). It adds no BURN of its own. Was the RULES text "ADDS 2 POISON TO
+    // EACH PAYLOAD IT HITS." with POISON's two sentences (its pool, its clock)
+    const t = fmtSec(gt(e).burnPlus!);
+    return rules([hit(`ITS {*BURN} LASTS +${t}{SEC}.`)], [["plus", `+${t}{SEC}`]], [REMINDER.BURN()]);
+  },
+
   // ------------------------------------------------- U2b: the TEXT turret gear (it describes the turret it sits on)
   // LONGCASE and FINISHER RAM (N1 3.3's crit pieces) keep today's text, as every RULES gear does. NUM-3: FLAK SCREEN and
   // MANTLET (STUN-fold faces) have theirs (below SPALL CATCHER).
   chamber: (e) => {
-    const n = fmtCount(md(e).perShot!); // ★2 WIDE BREECH / ★3 TRIPLE BREECH: + window (a clause)
-    return rules([{ text: `EACH SHOT FIRES ${n} {SLUG}.` }], [["shot", `FIRES ${n} {SLUG}`]]);
+    // Y7b1 (release Y; ruling Y7A-R2: the rule as built, the face true; text only): Battle.chambers: a shot fires perShot
+    // loads (2/3/4), at most what its gun's chamber holds. The smallest chamber holds 2 (abilityText.ts fewestLoads), so ★1's
+    // FIRES 2 is exact on every gun and ★2/★3 read UP TO 3 / UP TO 4 (upToLoads). Its ⓘ: the tap note on UP TO
+    // (glossary.ts STAR_TAP_NOTES chamber) says a shot never fires more than its gun's chamber holds. The ladder keeps one
+    // template (FIRES UP TO 2/3/4 {SLUG}: a shot's most at each star). Was today's line "EACH SHOT FIRES 3 {SLUG}." at ★2 (4 at
+    // ★3), false on a 2-load gun (and ★3's on a 3-load gun: REVIEW-Y7A section 6)
+    const n = md(e).perShot!, c = fmtCount(n);
+    return rules([{ text: `EACH SHOT FIRES ${upToLoads(n)}${c} {SLUG}.` }], [["shot", `FIRES UP TO ${c} {SLUG}`]]);
   },
   calibrate: (e) => {
     const up = fmtPct(md(e).fireRate! / 100); // rateText's rule: an interval x0.75 fires 33% faster (N1 2.3); NUM-2: stored
@@ -534,11 +661,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `FIRES ${up} FASTER.` }], [["rate", `${up} FASTER`]]);
   },
   spallcatcher: (e) => {
-    // Battle.spallCharge: + add for every `every` damage your ship takes, on this turret's next shot (its cap and
-    // plating's double count are an interim caveat, call 7)
+    // DESIGN-Y row 47: Battle.spallCharge: + add for every `every` damage your ship takes (a PLATE soak counted once, not
+    // twice), on this turret's next shot, no cap. Today's line; its cap's number (NEXT★'s MAX) and its caveat go
     const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
-    // U2d F1: its cap (the interim caveat's MAX, INTERIM_CAVEATS spallcatcher) changes with its stars: keyed, so NEXT★ shows it
-    return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`], ["max", `MAX ${fmtDmg(sp.max!)} {DMG}`]]);
+    return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`]]);
   },
   flak: (e) => {
     // NUM-3 (R1's STUN fold): Battle.flight: one roll at mid-flight for each enemy harassing shot (isHarassingProjectile),
@@ -548,10 +674,49 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `SHOOTS DOWN ${p} OF ENEMY {*STUN} SHOTS.` }], [["intercept", `SHOOTS DOWN ${p}`]]);
   },
   mantlet: (e) => {
-    // NUM-3 (R1's STUN fold): Battle.acceptHarassment: its turret ignores every cause in mod.immune, from ★1 every STUN
-    // source (content.ts STUN_CAUSES); ★2 FULL GUARD and ★3 BULWARK SKIRT's tiles are a clause
-    const all = STUN_CAUSES.every((cause) => (md(e).immune ?? []).includes(cause));
-    return rules([{ text: all ? "IMMUNE TO {*STUN}." : "IMMUNE TO SOME {*STUN}." }]);
+    // DESIGN-Y row 14 (REVIEW-STARD rule 1: one zone, the gun end of its belts): Battle.acceptHarassment: its turret ignores
+    // every STUN source (content.ts STUN_CAUSES), and so do the last intakeGuard tiles of each belt into it (1/2/3 from ★1;
+    // their rigs no longer share it). Was "IMMUNE TO {*STUN}." and ★2 FULL GUARD's and ★3 BULWARK SKIRT's clauses
+    const n = md(e).intakeGuard ?? 0, tiles = `${fmtCount(n)} TILE${s(n)}`;
+    return rules([{ text: `{*STUN} CAN'T STOP ITS GUN OR LAST ${tiles}.` }], [["guard", `LAST ${tiles}`]]);
+  },
+  // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
+  hopper: (e) => {
+    // DESIGN-Y row 33: makeTurret: its turret's chamber holds `window` more loads (+1/+2/+3); the +0.5 s load time, the
+    // store and ★3's no-jam are gone (content.ts STAR_DIFF). Was the RULES text "THE CHAMBER HOLDS 1 MORE LOAD, AND THE LOAD
+    // TIME IS LONGER." with the chamber's rule, the GATLING/COMPOUND line, ★2/★3's store and ★3's "THE TURRET NEVER JAMS."
+    const n = fmtCount(md(e).window!);
+    return rules([{ text: `ITS CHAMBER HOLDS +${n} {SLUG}.` }], [["window", `+${n} {SLUG}`]]);
+  },
+  twintrigger: (e) => {
+    // DESIGN-Y row 34: Battle.fire / fireCore: a paired load (E2; a COMPOUND shell packing one) deals x (1 + pairBonus); its
+    // shorter load time is gone. Was the RULES text "PAIRED LOADS IN THIS TURRET DEAL 25% MORE DAMAGE." with PAIR's
+    // definition, "ITS LOAD TIME IS SHORTER, DOWN TO A FLOOR." and the GATLING/COMPOUND line
+    const more = fmtPct(md(e).pairBonus!), label = "{*PAIR}:";
+    return rules([{ text: `${label} +${more} {DMG}.`, label }], [["bonus", `+${more} {DMG}`]], [REMINDER.PAIR()]);
+  },
+  seamwelder: (e) => {
+    // DESIGN-Y row 35: Battle.loaded / fusionPair: each pair this turret takes rolls seam.pair plating onto your hull; a lone
+    // load's is gone (lone 0). Was the RULES text "EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL, AND ANY OTHER
+    // LOAD ROLLS 2." with PAIR's and PLATING's definitions
+    const d = fmtDmg(md(e).seam!.pair), label = "{*PAIR}:";
+    return rules([{ text: `${label} +${d} {*PLATE}.`, label }], [["plate", `+${d} {*PLATE}`]], [REMINDER.PAIR(), REMINDER.PLATE()]);
+  },
+  longcase: (e) => {
+    // DESIGN-Y row 43: Battle.fire / fireCore: a shot from a slug that rode longRideMin s or more deals + longRideFlat (no
+    // sim change). The METRONOME sentence leaves the face: a pendulum slug is an unplayable hero's, and races/data.ts
+    // PEAK_SHIFT stays for METRONOME's bots. Was the RULES text "SHOTS FROM PAYLOADS THAT RODE 2 SECONDS OR MORE DEAL 15 MORE
+    // DAMAGE." with "PENDULUM SLUGS DON'T GET IT; ON METRONOME THEY PEAK LATER ON THIS TURRET, AFTER 13 TILES."
+    const d = fmtDmg(md(e).longRideFlat!), t = fmtSec(md(e).longRideMin!);
+    return rules([shot(`+${d} {DMG} IF ITS {SLUG} RODE ${t}{SEC}.`)], [["flat", `+${d} {DMG}`]]);
+  },
+  ram: (e) => {
+    // DESIGN-Y row 44: Battle.chambers / fire: the load that empties the chamber deals x (1 + finisher) (no sim change). Its
+    // GATLING sentence leaves the face; the cue takes its place (REVIEW-STARD rule 7): on a GATLING SPOOL's turret its gear
+    // row says IDLE (turretPanel.ts socketLines, abilityText.ts gearIdle). Was the RULES text "THE LOAD THAT EMPTIES THE
+    // CHAMBER DEALS 40% MORE DAMAGE." with "IT DOES NOTHING ON A GATLING SPOOL, WHICH NEVER WAITS FOR A FULL CHAMBER."
+    const more = fmtPct(md(e).finisher!);
+    return rules([shot(`THE CHAMBER'S LAST {SLUG} +${more} {DMG}.`)], [["more", `+${more} {DMG}`]]);
   },
   // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): the sustain gear. Each gives your hull its effect: an ability line
   wardbell: (e) => {
@@ -593,161 +758,8 @@ export interface InterimCaveat {
  */
 export const INTERIM_CAVEATS: readonly InterimCaveat[] = [
   { id: "inner", until: "the board cues job: the turret's intake marks", applies: (e) => e.turret?.intake === "inner", text: () => "INNER COLUMN ONLY." },
-  // Battle.stokedPace: the stamping is capped so it never outruns the gun its belt feeds (deckRating stokeKeep)
-  { id: "stoker", until: "the board cues job: the factory's real interval with a MAX badge", applies: (e) => !!e.gate?.stoke, text: () => "A FACTORY NEVER OUTRUNS ITS GUN." },
-  // Battle.spallCharge: taken = hull + 2 x plating's part; the charge is capped at spall.max
-  {
-    id: "spallcatcher", until: "the board cues job: the turret's charge gauge", applies: (e) => !!e.mod?.spall,
-    text: (e) => `{*PLATE} SOAKS COUNT TWICE. MAX ${fmtDmg(e.mod!.spall!.max!)} {DMG}.`,
-  },
-  // overclock.ts boostable: no speed rig (speed, pulse), TOLLBOOTH, SIFTER, RIVETER, POWDER KEG, OVERCLOCKER, nor a rig
-  // that acts on no payload (STOKER, BRACE FRAME); U2c's tap text can list them
-  { id: "overclocker", until: "the board cues job: the link to the rig it will double", applies: (e) => !!e.gate?.overclockCooldown, text: () => "IT SKIPS RIGS IT CAN'T DOUBLE." },
-  // NUM-3 (R1's STUN fold): Battle.acceptHarassment: a toll also covers the rigs whose arrows hit its belts and the turrets
-  // those belts feed
-  {
-    id: "tollreach", until: "the board cues job: the parts a toll covers", applies: (e) => !!e.gate?.toll,
-    text: (e) => (oneBelt(e) ? "IT GUARDS ITS BELT'S RIGS AND GUN TOO." : "IT GUARDS ITS BELTS' RIGS AND GUNS TOO."),
-  },
-  // NUM-3: Battle.acceptHarassment counts every harassment alike: a STUN, a SABOT wreck of a rig and a GRAPNEL rip
-  // (TOLLBOOTH blocks them, SCRAPPER's queue counts them); the face's line names the STUN only
-  {
-    id: "harass", until: "the STAR batch or a rules job: one word for what TOLLBOOTH and SCRAPPER count",
-    applies: (e) => !!e.gate?.toll || e.factory?.trigger === "harass", text: () => "WRECKS AND RIPS COUNT TOO.",
-  },
-  // battle.ts produce: the triggered stamps wait, at most SIM.scrapQueue of them
-  {
-    id: "scrapqueue", until: "the board cues job: the factory's waiting slugs", applies: (e) => e.factory?.trigger === "harass",
-    text: () => `MAX ${fmtCount(SIM.scrapQueue)} SLUGS WAITING.`,
-  },
-  // Battle.isHarassingProjectile: GRAPNEL rips, LANCE shots and LIMPET charges are harassing shots too, and Battle.flight
-  // rolls at the side's best screen (makeSide: the maximum intercept of its turrets)
-  { id: "flakshots", until: "a rules job: one word for the shots FLAK SCREEN downs", applies: (e) => !!e.mod?.intercept, text: () => "ALSO GRAPNEL, LANCE AND LIMPET SHOTS." },
-  { id: "flakbest", until: "the board cues job: the side's screen", applies: (e) => !!e.mod?.intercept, text: () => "ONLY YOUR BEST FLAK SCREEN COUNTS." },
 ];
 
-/** One interim perk clause (U2b F6): its text, its numbers keyed for NEXT★, any keyword reminder, and a perk name where
- *  the star's data names none of its own. */
-interface Clause {
-  text: string;
-  nums: [string, string][];
-  reminders?: string[];
-  perk?: string;
-}
-
-/**
- * U2b F6: a face never says less than the sim when it ships. Until R4 (the STAR batch) turns these perks into numbers,
- * the star that has one shows a short clause after its perk name ("★2 SPARK JUMP: {STUN} HITS 2 PARTS."), written from
- * the sim, every number through a formatter. Cap's 4 (HOT SWAP, LIMPET WORKS, ROTARY BREECH, GRAPNEL GUN), then the
- * TEXT rigs' and gear's own STAR-batch perks (R1 redesign.json "-> STAR batch"). R4 deletes this table.
- */
-const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
-  hotswap: (e) => {
-    // Battle.impact: a spark slug with jump also stalls the `jump` nearest other parts (sparkJump); content.ts: the
-    // spark tracks GALVANIC COIL, whose ★2 perk names it SPARK JUMP
-    const j = cyc(e, "spark").jump;
-    if (!j) return null;
-    const n = fmtCount(1 + j);
-    return { text: `{*STUN} HITS ${n} PARTS.`, nums: [["jump", `${n} PARTS`]], perk: perkAt("coil", FUSE_MAX) };
-  },
-  limpet: (e) => {
-    // Battle.hullEffects: a charge with a stall stalls the part it stuck to when it blasts (disrupt "limpet")
-    const t = (f(e).round as { stall?: number }).stall;
-    if (!t) return null;
-    const stun = fmtSec(t);
-    // (a keyword never takes a suffix: "{*STUN}S" would draw its word in the base colour, REQ-BFG-032 rule 3)
-    return { text: `ITS BLAST GIVES THE PART {*STUN} ${stun}.`, nums: [["stall", `{*STUN} ${stun}`]], reminders: [REMINDER.STUN(t)] };
-  },
-  rotary: (e, x) => {
-    // cores.ts ROUTINES.rotary: ★2 GREASED RACE / ★3 CLEAN FEED: the interval x intervalMul (rateText), ★3 noJam
-    const cs = c(e, x);
-    if (!cs.fireRate) return null;
-    const up = fmtPct(cs.fireRate / 100); // NUM-2 (REQ-BFG-047): the stored whole rate %
-    return { text: `FIRES ${up} FASTER${cs.noJam ? ", NEVER JAMS" : ""}.`, nums: [["rate", `${up} FASTER`]] }; // (NEVER JAMS is the clause's: NEXT★ stays one line)
-  },
-  grapnel: (e, x) => {
-    // battle.ts impact: the salvage needs a ★3 core (gun.core.stars >= 3, FUSE_MAX); it pays on the next shot
-    if (x.stars < FUSE_MAX) return null;
-    const d = fmtDmg(pct(FACE_SIM.salvagePerRip, roundHalfUp(100 * x.k))); // NUM-4: the sim's own pct(10, k%) (battle.ts impact)
-    // U2d F1: its number is keyed, so NEXT★ shows it ("RIPS 3, +1 {DMG} EACH"); the perk name gives way past the band
-    return { text: `NEXT SHOT +${d} {DMG} FOR EACH SLUG IT RIPS.`, nums: [["salvage", `+${d} {DMG} EACH`]] };
-  },
-  // the TEXT rigs' own STAR-batch perks
-  brake: (e) => {
-    const flat = gt(e).flat; // ★2 HOT SHOE / ★3 RED-HOT SHOE: friction heat (0.6.1f)
-    if (!flat) return null;
-    const d = fmtDmg(flat);
-    return { text: `+${d} {DMG} ON EACH HIT.`, nums: [["flat", `+${d} {DMG}`]] };
-  },
-  longhaul: (e) => {
-    const cap = gt(e).priorCap; // Battle.applyHit: at most priorCap rig hits count (from ★2)
-    if (cap === undefined) return null;
-    const n = fmtCount(cap);
-    return { text: `MAX ${n} RIGS.`, nums: [["cap", `MAX ${n} RIGS`]] };
-  },
-  // Y1: GALVANIC COIL's SPARK JUMP clause is its face line's part count now (FACES coil)
-  overdrive: (e) => {
-    // Battle.acceptHarassment / routeGuardActive: from its tiles on, GUARD_SLOW keeps enemy CHAIN rounds' STUNs (cause
-    // "drag") off its belts, GUARD_FREEZE FROST rounds' (cause "freeze"). NUM-3 (R1's STUN fold): no SLOW or FREEZE any more
-    const guard = gt(e).guard ?? 0;
-    const kinds = [...(guard & GUARD_SLOW ? ["CHAIN"] : []), ...(guard & GUARD_FREEZE ? ["FROST"] : [])];
-    if (!kinds.length) return null;
-    // (no NEXT★ number: the line names the perk, and the clause says it at that star)
-    return { text: `ENEMY ${kinds.join(" AND ")} ROUNDS CAN'T {*STUN} ${itsBelts(e)}.`, nums: [] };
-  },
-  // NUM-3 (R1's STUN fold): the STUN-fold pieces' own STAR-batch perks
-  // Y1: FROSTBITE FOUNDRY's HOARFROST clause is its face line's part count now (FACES frostbite)
-  sabot: (e) => {
-    // Battle.roundImpact: ★3 SHRAPNEL: a round on a belt tile or a rig also STUNs the belt tiles either side of that tile (or
-    // of the rig's arrow tiles) for SIM.shrapnel s
-    if (!rnd(e).shrapnel) return null;
-    const t = fmtSec(SIM.shrapnel);
-    return { text: `ON A TILE OR RIG, {*STUN} ${t} TO THE TILES EITHER SIDE.`, nums: [["shrapnel", `{*STUN} ${t} EITHER SIDE`]] };
-  },
-  scrapper: (e) => {
-    if (!f(e).bigHaul) return null; // Battle.produce: ★3 BIG HAUL: each wreck its side lands queues one more stamp
-    const n = fmtCount(FACE_SIM.scrapPerWreck);
-    return { text: `+${n} MORE {SLUG} FOR EACH WRECK.`, nums: [["haul", `+${n} A WRECK`]] };
-  },
-  tollbooth: (e) => {
-    if (!gt(e).tollFactory) return null; // Battle.acceptHarassment: ★3 FACTORY GUARD: a factory feeding its belts too
-    // (the 3x5 line fits the narrowest build screen's panel, 144 px at W 160: \"ITS BELT'S FACTORY TOO.\" was 151 px)
-    return { text: oneBelt(e) ? "THE BELT'S FACTORY." : "THE BELTS' FACTORIES.", nums: [] };
-  },
-  barbed: (e) => {
-    const cap = gt(e).frayCap; // Battle.impact: the hull's FRAY cap is FRAY_MAX + frayCap
-    if (!cap) return null;
-    const n = fmtCount(FRAY_MAX + cap);
-    return { text: `MAX ${n} {FRAY}.`, nums: [["cap", `MAX ${n} {FRAY}`]] };
-  },
-  // the TEXT gear's own STAR-batch perks
-  chamber: (e) => {
-    const w = md(e).window; // TurretState.window: the chamber holds `window` more loads (★2 WIDE BREECH)
-    if (!w) return null;
-    const n = fmtCount(w);
-    return { text: `HOLDS +${n} {SLUG}.`, nums: [["window", `HOLDS +${n} {SLUG}`]] };
-  },
-  spotter: (e) => {
-    // Battle.pickTarget: factories weigh factoryWeight x; ★3 EAGLE EYE (alwaysMachine) never picks bare hull
-    const m = md(e);
-    if (!m.factoryWeight) return null;
-    const n = fmtCount(m.factoryWeight);
-    return {
-      text: `${m.alwaysMachine ? "ALWAYS AIMS AT A PART, AND " : ""}PICKS FACTORIES ${n} TIMES AS OFTEN.`,
-      // U2d F1: its number changes with its stars (FACTORY SPOT, EAGLE EYE): keyed, so NEXT★ shows it; the perk name gives
-      // way where the line would pass the band (meaning before names)
-      nums: [["weight", `FACTORIES ${n} TIMES`]],
-    };
-  },
-  mantlet: (e) => {
-    // NUM-3: ★2 FULL GUARD / ★3 BULWARK SKIRT: the last intakeGuard tiles of each belt into its turret, and the rigs whose
-    // arrows hit them, share its immunity (Battle.makeSide's GUARD_SKIRT tiles, Battle.skirted)
-    const n = md(e).intakeGuard;
-    if (!n) return null;
-    const tiles = n === 1 ? "LAST TILE" : `LAST ${fmtCount(n)} TILES`;
-    return { text: `SO ARE ITS BELTS' ${tiles} AND THEIR RIGS.`, nums: [["guard", `LAST ${fmtCount(n)} TILE${s(n)}`]] };
-  },
-};
 
 /** The turrets: a stat row only (R1 C3: a turret carries no rules text). */
 const TURRET_FACE = (): Rules => rules([]);
@@ -806,266 +818,7 @@ export const Y5_PIECES: readonly string[] = [
  */
 export const Y6_PIECES: readonly string[] = ["venom"];
 
-/** Y2: the faces the star switch puts in place of today's line (TOLLBOOTH, LIMPET WORKS, MANTLET) or gives a RULES piece
- *  (LODESTONE, BRACE FRAME); the other seven keep today's line, every number from the switch's data. */
-const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
-  tollbooth: (e) => {
-    // DESIGN-Y row 8: Battle.acceptHarassment: while it works, its first `toll` enemy STUNs on its belt's parts (its belt's
-    // tiles, the rigs working them, the gun they feed and, from ★1, the belt's factory: PART, a glossary word) are
-    // blocked; a wreck or a rip is no STUN (the shared rule). Was "BLOCKS THE FIRST 2 {*STUN} HITS ON ITS BELT." with two
-    // caveats and ★3 FACTORY GUARD's clause
-    const n = fmtCount(gt(e).toll!);
-    return rules([{ text: `BLOCKS ${n} {*STUN} ON ${oneBelt(e) ? "ITS BELT'S" : "ITS BELTS'"} PARTS.` }], [["toll", `BLOCKS ${n}`]]);
-  },
-  limpet: (e) => {
-    // DESIGN-Y row 13: its charges' blast is its DMG stat (factoryStats: the charge's 20 joined it, content.ts STAR_DIFF);
-    // Battle.hullEffects: each charge blasts the enemy hull round.delay s after it hits. Was "CHARGES BLAST THE HULL: 80
-    // {DMG}, 3{SEC} LATER." and ★2/★3's clause "ITS BLAST GIVES THE PART {*STUN} 1."
-    const delay = fmtSec((f(e).round as { delay: number }).delay);
-    return rules([{ text: `ITS {SLUG} BLAST THE HULL ${delay}{SEC} AFTER THEY HIT.` }], [["delay", `${delay}{SEC}`]]);
-  },
-  mantlet: (e) => {
-    // DESIGN-Y row 14 (REVIEW-STARD rule 1: one zone, the gun end of its belts): Battle.acceptHarassment: its turret ignores
-    // every STUN source (content.ts STUN_CAUSES), and so do the last intakeGuard tiles of each belt into it (1/2/3 from ★1;
-    // their rigs no longer share it). Was "IMMUNE TO {*STUN}." and ★2 FULL GUARD's and ★3 BULWARK SKIRT's clauses
-    const n = md(e).intakeGuard ?? 0, tiles = `${fmtCount(n)} TILE${s(n)}`;
-    return rules([{ text: `{*STUN} CAN'T STOP ITS GUN OR LAST ${tiles}.` }], [["guard", `LAST ${tiles}`]]);
-  },
-  lodestone: (e) => {
-    // DESIGN-Y row 15: Battle.applyHit: + each for each enemy part a STUN holds when it hits (rigs, factories, turrets, belt
-    // tiles; a wrecked rig is no STUN), no floor, no cap. Was the RULES text "ADDS 10 DAMAGE, AND 10 FOR EACH ENEMY MACHINE
-    // STUNNED, UP TO 60 DAMAGE." with "WRECKED MACHINES COUNT TOO; BELT TILES DON'T."
-    const d = fmtDmg(gt(e).perStalled!.each);
-    return rules([hit(`+${d} {DMG} FOR EACH {*STUN} ON THE FOE.`)], [["each", `{DMG} +${d} EACH`]]);
-  },
-  braceframe: (e) => {
-    // DESIGN-Y row 16: Battle.braceCut: an enemy STUN on a belt tile its arrows hit lasts x brace.mul (the plated multiplier
-    // and its brace of itself are gone). Was the RULES text "ENEMY STUNS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST 50%
-    // SHORTER." with "WHILE YOUR HULL HOLDS PLATING THEY LAST 75% SHORTER."
-    const cut = fmtPct(1 - gt(e).brace!.mul);
-    return rules([{ text: `ENEMY {*STUN} ON ITS TILES: ${cut} SHORTER.` }], [["cut", `${cut} SHORTER`]]);
-  },
-  // ---- Y3 (DESIGN-Y rows 20-32): the rigs whose line changes; LONG HAUL, BARBED SPOOL and BRAKE SHOE keep today's line
-  // (FACES), every number from the switch's data, their clauses and caveats gone (STOKER kept it too until Y7b1, below)
-  pincer: (e) => {
-    // DESIGN-Y row 20: Battle.applyHit: + each for each other working rig on its tile (crossfire: a STUNned rig stops, so it
-    // doesn't count), no floor, no cap (content.ts STAR_DIFF). Was the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS,
-    // AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE." with "STUNNED AND WRECKED RIGS DON'T COUNT."
-    const d = fmtDmg(gt(e).pincer!.each);
-    return rules([hit(`+${d} {DMG} FOR EACH OTHER RIG ON ITS TILE.`)], [["each", `+${d} {DMG} EACH`]]);
-  },
-  twingauge: (e) => {
-    // DESIGN-Y row 21: Battle.applyHit: + matched on a matched belt (MATCHED: its glossary tap), nothing off one. Was the
-    // RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, OR 30 DAMAGE ON A MATCHED BELT." with MATCHED's definition
-    const d = fmtDmg(gt(e).gauge!.matched);
-    return rules([hit(`+${d} {DMG} ON A MATCHED BELT.`)], [["matched", `+${d} {DMG}`]]);
-  },
-  bellows: (e) => {
-    // DESIGN-Y row 22: Battle.applyHit: + burn BURN for each whole `per` s the slug has ridden, no cap. Was the RULES text
-    // "ADDS 4 BURN FOR EACH 10 SECONDS THE PAYLOAD HAS RIDDEN, UP TO 4 BURN." with BURN's definition
-    const br = gt(e).burnPerRide!, n = fmtCount(br.burn);
-    return rules([hit(`+${n} {*BURN} FOR EACH ${fmtSec(br.per)}{SEC} RIDDEN.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);
-  },
-  quench: (e) => {
-    // DESIGN-Y row 23: Battle.applyHit: every BURN stack on the slug turns into perBurn damage (no floor, no stack cap). Was
-    // the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH." with
-    // "ANY MORE BURN STAYS ON THE PAYLOAD." and BURN's definition
-    const d = fmtDmg(gt(e).quench!.perBurn);
-    return rules([hit(`TURNS EACH {*BURN} INTO +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
-  },
-  platebreaker: (e) => {
-    // DESIGN-Y row 26: Battle.applyHit: with FACE_SIM.breakerPlate plating on your hull it spends that much for + flat;
-    // with less, nothing (the ELSE floor is gone: content.ts STAR_DIFF). Was the same line and "ELSE: +10 {DMG}."
-    const spend = fmtDmg(FACE_SIM.breakerPlate), flat = fmtDmg(gt(e).breaker!.flat);
-    return rules([hit(`SPENDS ${spend} {*PLATE} FOR +${flat} {DMG}.`)], [["flat", `+${flat} {DMG}`]], [REMINDER.PLATE()]);
-  },
-  surge: (e) => {
-    // DESIGN-Y row 28 (REVIEW-STARD answer 5: the damage pulse): Battle.surgeTick: once each pulse period every slug on its
-    // belts gains pulse.flat; the speed pulse is gone. Was "EVERY 3{SEC}: ITS BELTS SURGE 3 TIMES AS FAST FOR 1{SEC}, +10
-    // {DMG}." (two effects; it wrapped at ★2)
-    const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(p.flat);
-    const label = `EVERY ${every}{SEC}:`;
-    return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
-  },
-  overclocker: (e) => {
-    // DESIGN-Y row 29: Battle.makeSide / applyHit: it charges the first later rig on its belt, whatever it is (overclock.ts
-    // chargeable), which doubles its hit, then rests overclockCooldown; a rig with nothing to double spends the charge. Was
-    // "DOUBLES THE NEXT RIG'S HIT, RESTS 4{SEC}." with the caveat "IT SKIPS RIGS IT CAN'T DOUBLE."
-    const t = fmtSec(gt(e).overclockCooldown!);
-    const label = `EVERY ${t}{SEC}:`;
-    return rules([{ text: `${label} DOUBLES THE NEXT RIG'S HIT.`, label }], [["every", `EVERY ${t}{SEC}`]]);
-  },
-  twinlatch: (e) => {
-    // DESIGN-Y row 30: Battle.latchTick: while both its arrows hit belts it holds a slug at most `hold` s for its other belt,
-    // so the two reach the gun together (a PAIR); no flat any more. The header's "n/2 ARROWS ON BELTS" shows the both-arrows
-    // rule; belts into two guns have no pair to make. Was the RULES text "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE,
-    // THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER." and 3 more sentences (its 1 s, both arrows, +10, two guns)
-    const t = fmtSec(gt(e).latch!.hold);
-    return rules([hit(`HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}.`)], [["hold", `UP TO ${t}{SEC}`]], [REMINDER.PAIR()]);
-  },
-  stoker: (e) => {
-    // Y7b1 (release Y; ruling Y7A-R1; DESIGN-Y row 31): Battle.stokedPace: the factories its arrows point at work up to
-    // stoke faster, never past the gun their belts feed (its cap holds with the switch on, as at 0.9.2). UP TO says the cap
-    // on the face's one line (the interim caveat "A FACTORY NEVER OUTRUNS ITS GUN." stays off: STAR_GONE_CAVEATS; its ⓘ
-    // sentence names the gun). Was today's line "ITS FACTORIES WORK 20% FASTER." with no cap
-    const up = fmtPct(gt(e).stoke!);
-    return rules([{ text: `ITS FACTORIES WORK UP TO ${up} FASTER.` }], [["stoke", `${up} FASTER`]]);
-  },
-  assembly: (e) => {
-    // DESIGN-Y row 32 (its stats factoryStats': RATE, its slugs' DMG, BELT): Battle.makeSide: while it feeds a turret every
-    // rig on your side comes online at x commission of its time, its own belts' rigs too (no instant start); HOT START is
-    // gone. Was the RULES text "WHILE IT FEEDS A TURRET, YOUR RIGS COME ONLINE IN HALF THE TIME." and 3 more sentences
-    const soon = fmtPct(1 - f(e).commission!);
-    return rules([{ text: `YOUR RIGS START ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
-  },
-  // ---- Y4 (DESIGN-Y rows 33-40): the gear and cores whose line changes (EXT. CHAMBER kept today's line until Y7b1, below)
-  chamber: (e) => {
-    // Y7b1 (release Y; ruling Y7A-R2: the rule as built, the face true; text only): Battle.chambers: a shot fires perShot
-    // loads (2/3/4), at most what its gun's chamber holds. The smallest chamber holds 2 (abilityText.ts fewestLoads), so ★1's
-    // FIRES 2 is exact on every gun and ★2/★3 read UP TO 3 / UP TO 4 (upToLoads). Its ⓘ: the tap note on UP TO
-    // (glossary.ts STAR_TAP_NOTES chamber) says a shot never fires more than its gun's chamber holds. The ladder keeps one
-    // template (FIRES UP TO 2/3/4 {SLUG}: a shot's most at each star). Was today's line "EACH SHOT FIRES 3 {SLUG}." at ★2 (4 at
-    // ★3), false on a 2-load gun (and ★3's on a 3-load gun: REVIEW-Y7A section 6)
-    const n = md(e).perShot!, c = fmtCount(n);
-    return rules([{ text: `EACH SHOT FIRES ${upToLoads(n)}${c} {SLUG}.` }], [["shot", `FIRES UP TO ${c} {SLUG}`]]);
-  },
-  hopper: (e) => {
-    // DESIGN-Y row 33: makeTurret: its turret's chamber holds `window` more loads (+1/+2/+3); the +0.5 s load time, the
-    // store and ★3's no-jam are gone (content.ts STAR_DIFF). Was the RULES text "THE CHAMBER HOLDS 1 MORE LOAD, AND THE LOAD
-    // TIME IS LONGER." with the chamber's rule, the GATLING/COMPOUND line, ★2/★3's store and ★3's "THE TURRET NEVER JAMS."
-    const n = fmtCount(md(e).window!);
-    return rules([{ text: `ITS CHAMBER HOLDS +${n} {SLUG}.` }], [["window", `+${n} {SLUG}`]]);
-  },
-  twintrigger: (e) => {
-    // DESIGN-Y row 34: Battle.fire / fireCore: a paired load (E2; a COMPOUND shell packing one) deals x (1 + pairBonus); its
-    // shorter load time is gone. Was the RULES text "PAIRED LOADS IN THIS TURRET DEAL 25% MORE DAMAGE." with PAIR's
-    // definition, "ITS LOAD TIME IS SHORTER, DOWN TO A FLOOR." and the GATLING/COMPOUND line
-    const more = fmtPct(md(e).pairBonus!), label = "{*PAIR}:";
-    return rules([{ text: `${label} +${more} {DMG}.`, label }], [["bonus", `+${more} {DMG}`]], [REMINDER.PAIR()]);
-  },
-  seamwelder: (e) => {
-    // DESIGN-Y row 35: Battle.loaded / fusionPair: each pair this turret takes rolls seam.pair plating onto your hull; a lone
-    // load's is gone (lone 0). Was the RULES text "EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL, AND ANY OTHER
-    // LOAD ROLLS 2." with PAIR's and PLATING's definitions
-    const d = fmtDmg(md(e).seam!.pair), label = "{*PAIR}:";
-    return rules([{ text: `${label} +${d} {*PLATE}.`, label }], [["plate", `+${d} {*PLATE}`]], [REMINDER.PAIR(), REMINDER.PLATE()]);
-  },
-  rotary: (e, x) => {
-    // DESIGN-Y row 37: cores.ts ROUTINES.rotary: its chamber's load time is windowTime (0.75 / 0.525 / 0.3 s), so a part-full
-    // chamber fires that much sooner than WINDOW_TIME's (50% / 65% / 80%); ★2/★3's fire rate and ★3's no-jam are gone. Was
-    // "FIRES PART-FULL CHAMBERS SOONER." and the clauses "★2 GREASED RACE: FIRES 18% FASTER." and "★3 CLEAN FEED: FIRES 43%
-    // FASTER, NEVER JAMS."
-    const soon = fmtPct(1 - (c(e, x).windowTime ?? WINDOW_TIME) / WINDOW_TIME);
-    return rules([{ text: `FIRES PART-FULL CHAMBERS ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
-  },
-  anvil: (e, x) => {
-    // Y7b1 (release Y; ruling Y7A-R3c): its STAR_DIFF row is deleted, so with the switch on it reads its base def, 0.9.2's
-    // two parts: Battle.fireCore: + anvilFlat + pct(plate, 100 x perPlate) (x the class %: cores.ts scaleCore), both on one
-    // line (180 px at ★3, k 1), each on its own ⓘ ladder. Was Y4's fold (DESIGN-Y row 38) "SHOT: +125% OF YOUR {*PLATE} AS
-    // {DMG}." (125% / 275% / 438%, no flat)
-    const flat = fmtDmg(c(e, x).anvilFlat!), per = fmtPct(c(e, x).perPlate!);
-    return rules([shot(`+${flat} {DMG}, +${per} OF YOUR {*PLATE}.`)], [["flat", `+${flat} {DMG}`], ["per", `+${per} OF {PLATE}`]],
-      [REMINDER.PLATE()]);
-  },
-  steambreech: (e, x) => {
-    // DESIGN-Y row 39: cores.ts steamInterval: while your hull holds plating it fires steamPlated% faster, without it at its
-    // own rate (steamBare is gone). Was the RULES text "THE TURRET FIRES 35% FASTER WHILE YOUR HULL HOLDS PLATING, AND 10%
-    // FASTER WITHOUT IT."
-    const up = fmtPct(c(e, x).steamPlated! / 100);
-    return rules([{ text: `FIRES ${up} FASTER IF YOU HAVE {*PLATE}.` }], [["rate", `${up} FASTER`]], [REMINDER.PLATE()]);
-  },
-  drake: (e, x) => {
-    // DESIGN-Y row 40: Battle.fireCore (cores.ts drakeConvert): each flatPerBurn of the shot's bonus damage (BONUS DAMAGE: its
-    // glossary tap) becomes FACE_SIM.drakeStacks BURN; the free BURN, its longer BURN and its quicker flight are gone. Was the
-    // RULES text "TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY 20 DAMAGE." and 3 more sentences
-    const d = fmtDmg(c(e, x).flatPerBurn!), n = fmtCount(FACE_SIM.drakeStacks);
-    return rules([shot(`EACH ${d} BONUS DAMAGE IS ${n} {*BURN}.`)], [["per", `EACH ${d}`]], [REMINDER.BURN()]);
-  },
-  // ---- Y5 (DESIGN-Y rows 41-47): the crit-free one-liners (REVIEW-STARD answer 2); SPALL CATCHER keeps today's line, its
-  // cap's number gone with the cap
-  counterweight: (e) => {
-    // DESIGN-Y row 41: Battle.applyHit: + each for each tile the slug has ridden on its journey, no cap (content.ts
-    // STAR_DIFF). Was the RULES text "ADDS 5 DAMAGE FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN, UP TO 60 DAMAGE."
-    const d = fmtDmg(gt(e).perTile!.each);
-    return rules([hit(`+${d} {DMG} FOR EACH TILE RIDDEN.`)], [["each", `+${d} {DMG} EACH`]]);
-  },
-  capacitor: (e, x) => {
-    // DESIGN-Y row 42: Battle.chambers / fireCore: + perSecond (x the class %: cores.ts scaleCore) for each second the chamber
-    // sat empty before the shot, no cap (content.ts STAR_DIFF). Was the RULES text "CHARGES ITS NEXT SHOT 20 DAMAGE FOR EACH
-    // SECOND ITS CHAMBER SITS EMPTY." with "IT CHARGES FOR UP TO 5 SECONDS."
-    const d = fmtDmg(c(e, x).perSecond!);
-    return rules([shot(`+${d} {DMG} FOR EACH SEC IT SAT EMPTY.`)], [["per", `+${d} {DMG}`]]);
-  },
-  longcase: (e) => {
-    // DESIGN-Y row 43: Battle.fire / fireCore: a shot from a slug that rode longRideMin s or more deals + longRideFlat (no
-    // sim change). The METRONOME sentence leaves the face: a pendulum slug is an unplayable hero's, and races/data.ts
-    // PEAK_SHIFT stays for METRONOME's bots. Was the RULES text "SHOTS FROM PAYLOADS THAT RODE 2 SECONDS OR MORE DEAL 15 MORE
-    // DAMAGE." with "PENDULUM SLUGS DON'T GET IT; ON METRONOME THEY PEAK LATER ON THIS TURRET, AFTER 13 TILES."
-    const d = fmtDmg(md(e).longRideFlat!), t = fmtSec(md(e).longRideMin!);
-    return rules([shot(`+${d} {DMG} IF ITS {SLUG} RODE ${t}{SEC}.`)], [["flat", `+${d} {DMG}`]]);
-  },
-  ram: (e) => {
-    // DESIGN-Y row 44: Battle.chambers / fire: the load that empties the chamber deals x (1 + finisher) (no sim change). Its
-    // GATLING sentence leaves the face; the cue takes its place (REVIEW-STARD rule 7): on a GATLING SPOOL's turret its gear
-    // row says IDLE (turretPanel.ts socketLines, abilityText.ts gearIdle). Was the RULES text "THE LOAD THAT EMPTIES THE
-    // CHAMBER DEALS 40% MORE DAMAGE." with "IT DOES NOTHING ON A GATLING SPOOL, WHICH NEVER WAITS FOR A FULL CHAMBER."
-    const more = fmtPct(md(e).finisher!);
-    return rules([shot(`THE CHAMBER'S LAST {SLUG} +${more} {DMG}.`)], [["more", `+${more} {DMG}`]]);
-  },
-  shieldwall: (e) => {
-    // Y7b1 (release Y; ruling Y7A-R3d): its STAR_DIFF row is deleted, so with the switch on it reads its base def, 0.9.2's
-    // rule: Battle.applyHit: addPlate(plate) for each slug it hits, then + plated.flat while your hull holds plated.min PLATE
-    // or more (120+, as FURNACE's "8+ TILE BELTS"), both parts on one line (208 px at ★3), each on its own ⓘ ladder. Was
-    // Y5's "HIT: +30 {DMG} AT 120 {*PLATE} OR MORE." (DESIGN-Y row 45: its own plating gone). Off it has no face (the RULES
-    // text: "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS." with the 120 sentence and PLATING's definition)
-    const pl = gt(e).plated!, d = fmtDmg(pl.flat), plate = fmtDmg(gt(e).plate!);
-    return rules([hit(`+${plate} {*PLATE}, +${d} {DMG} AT ${fmtDmg(pl.min)}+ {*PLATE}.`)], [["plate", `+${plate} {*PLATE}`], ["flat", `+${d} {DMG}`]],
-      [REMINDER.PLATE()]);
-  },
-  keg: (e) => {
-    // DESIGN-Y row 46: Battle.kegTick: its fuse runs from the battle's start (a STUN or a wreck pauses it); each keg.fuse s it
-    // blasts + flat onto every slug on its belts (beltPulse, SURGE VALVE's walk) and re-arms; its BURN and ★3 WIDE BLAST's
-    // reach are gone (content.ts STAR_DIFF). Was the RULES text "ADDS 60 DAMAGE AND 1 BURN TO EVERY PAYLOAD ON ITS BELTS WHEN
-    // IT BLOWS UP." with "IT BLOWS ONCE, 12 SECONDS AFTER IT COMES ONLINE; A STUN PAUSES THE FUSE." and BURN's definition
-    const k = gt(e).keg!, every = fmtSec(k.fuse), d = fmtDmg(k.flat);
-    const label = `EVERY ${every}{SEC}:`;
-    return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
-  },
-  spallcatcher: (e) => {
-    // DESIGN-Y row 47: Battle.spallCharge: + add for every `every` damage your ship takes (a PLATE soak counted once, not
-    // twice), on this turret's next shot, no cap. Today's line; its cap's number (NEXT★'s MAX) and its caveat go
-    const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
-    return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`]]);
-  },
-  // ---- Y6 (DESIGN-Y section 3 row 48 and section 4.1, R1's R2)
-  venom: (e) => {
-    // DESIGN-Y row 48: Battle.applyHit gives each slug it hits burnPlus seconds; Battle.impact: each BURN stack of that slug's
-    // hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %). It adds no BURN of its own. Was the RULES text "ADDS 2 POISON TO
-    // EACH PAYLOAD IT HITS." with POISON's two sentences (its pool, its clock)
-    const t = fmtSec(gt(e).burnPlus!);
-    return rules([hit(`ITS {*BURN} LASTS +${t}{SEC}.`)], [["plus", `+${t}{SEC}`]], [REMINDER.BURN()]);
-  },
-};
 
-/** Y2: the interim perk clauses (INTERIM_CLAUSES) that leave the face with the switch on: their perks are numbers on the
- *  ladder now, or gone from the sim (DESIGN-Y rows 8-19). */
-const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "grapnel", "overdrive", "sabot", "scrapper", "tollbooth", "spotter", "mantlet",
-  // Y3 (DESIGN-Y rows 24, 25, 27): LONG HAUL's MAX 6 RIGS, BARBED SPOOL's RAZOR WIRE MAX and BRAKE SHOE's HOT SHOE flats are
-  // gone from the sim (their data hold none with the switch on, so the clauses would say nothing; listed so none returns)
-  "longhaul", "barbed", "brake",
-  // Y4 (DESIGN-Y rows 36, 37): EXT. CHAMBER's WIDE BREECH slot and ROTARY BREECH's GREASED RACE / CLEAN FEED fire rate are
-  // gone from the sim (the same: their data hold none with the switch on; listed so none returns)
-  "chamber", "rotary"]);
-/** Y2: the interim caveats (INTERIM_CAVEATS ids) that leave with the switch on: each rule left the sim (the shared rule,
- *  SCRAPPER's uncapped queue, FLAK SCREEN's screens rolling on their own) or is the face's own words now (TOLLBOOTH's
- *  PARTS). */
-const STAR_GONE_CAVEATS: ReadonlySet<string> = new Set(["tollreach", "harass", "scrapqueue", "flakshots", "flakbest",
-  // Y3 (DESIGN-Y rows 29, 31): the OVERCLOCKER skips no rig any more (it charges the next one, whatever it is). STOKER: Y3
-  // lifted its cap; Y7b1 (ruling Y7A-R1) puts the cap back, and its switch-on face says it in its one line (UP TO), so the
-  // caveat stays off
-  "overclocker", "stoker",
-  // Y5 (DESIGN-Y row 47): SPALL CATCHER's plating counts once and its cap is gone from the sim
-  "spallcatcher"]);
 
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [
@@ -1073,32 +826,27 @@ export const FACE_IDS: readonly string[] = [
   ...Object.values(ITEMS).filter((d) => d.kind === "turret").map((d) => d.id),
 ];
 
-/** True for a piece that draws its new face (every other piece keeps today's text). Y2: with the star switch on, also a
- *  piece the switch gives a face (STAR_FACES: LODESTONE, BRACE FRAME). */
+/** True for a piece that draws its new face (every other piece keeps today's text). */
 export function hasFace(def: string): boolean {
-  return FACE_IDS.includes(def) || (starRules() && Object.prototype.hasOwnProperty.call(STAR_FACES, def));
+  return FACE_IDS.includes(def);
 }
 
-/** A piece's face at `stars` as data (o: the turret class factor k for a core, the run's hero for MIMIC FORGE). */
+/** A piece's face at `stars` as data (o: the turret class factor k for a core, the run's hero for MIMIC FORGE). Y7b2 (the
+ *  flip): the interim perk clauses (U2b F6) are gone, every one with the star switch's rules (R4, the STAR batch), so a face
+ *  has no clause; the interim caveats keep their one table (INNER COLUMN ONLY is the one row left). */
 export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
   if (!hasFace(def)) return null;
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero };
-  const star = starRules(); // Y2: the switch's face, clauses and caveats
-  const body = e.kind === "turret" ? TURRET_FACE() : (star && STAR_FACES[def] ? STAR_FACES[def] : FACES[def])(e, x);
+  const body = e.kind === "turret" ? TURRET_FACE() : FACES[def](e, x);
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
     : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)
     : supplyStats(def); // U2b: the rig, gear and supply kinds' data functions
-  // U2b F6: the star's interim perk clause, after its perk name; its numbers join the face's (NEXT★ diffs them)
-  const cl = star && STAR_GONE_CLAUSES.has(def) ? null : INTERIM_CLAUSES[def]?.(e, x) ?? null;
-  const perk = cl ? cl.perk ?? livePerk(def, stars) : undefined;
-  const label = `★${stars}${perk ? ` ${perk}` : ""}:`;
   // U2b F5: the interim caveats (one table)
-  const caveats = INTERIM_CAVEATS.filter((cv) => !(star && STAR_GONE_CAVEATS.has(cv.id)) && cv.applies(e)).map((cv) => cv.text(e));
+  const caveats = INTERIM_CAVEATS.filter((cv) => cv.applies(e)).map((cv) => cv.text(e));
   // U2e step 2: a factory's own payloads' stats, its second stat row
   const stats2 = e.kind === "factory" ? carryStats(def, stars, o.hero) : null;
   return {
     stats, ...(stats2 ? { stats2 } : {}), ...body,
-    ...(cl ? { nums: [...body.nums, ...cl.nums], reminders: [...body.reminders, ...(cl.reminders ?? [])], clause: { text: `${label} ${cl.text}`, label } } : {}),
     ...(caveats.length ? { caveats } : {}),
   };
 }

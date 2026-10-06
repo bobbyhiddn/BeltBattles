@@ -8,7 +8,6 @@
 import { C, RARITY_COLOR } from "../render/palette";
 import { ICON } from "../render/font"; // SUS-D (REQ-BFG-069): the SEC icon after a whole number of seconds
 import type { Rarity } from "../sim/content";
-import { starRules } from "../sim/content"; // Y5 (release Y): the star switch (STAR_RUNE_TEXT)
 import type { RuneDef, RuneTheme, RuneUnit } from "../sim/runes";
 import { NUMBER_COLOUR, type Span } from "./richText";
 import { RUNE_REMINDER, glossaryEntry } from "./glossary"; // U2c: the keyword colours and reminders, one source
@@ -49,20 +48,15 @@ export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
  * RuneDef.text (src/sim/runes.ts, which a display job leaves alone). SUS-D moved its one row (WARD STONE's "START: +{N}
  * {*SHIELD}.") into runes.ts with the sustain runes, so it is empty: every card reads RuneDef.text. Kept, with
  * runeTextOf, as the place a later display job overrides a line without touching the rules file.
+ * Y5 (release Y; BRIEF-Y5; REVIEW-Y3: ONLINE retires once no text names it; folded at the flip, Y7b2, from the star switch's
+ * STAR_RUNE_TEXT): QUICK LATCH says START, the word ASSEMBLY LINE's face uses (abilityText.ts startIn), where it said
+ * ONLINE; text only: the rune's rule, id and amount are unchanged, and RuneDef.text (src/sim/runes.ts) stays.
  */
-export const RUNE_TEXT: Readonly<Record<string, string>> = {};
-/**
- * Y5 (release Y; BRIEF-Y5; REVIEW-Y3: ONLINE retires once no switch-on text names it): the rune lines the star switch
- * (content.ts starRules) rewords, text only: each rune's rule, id and amount are unchanged, and RuneDef.text (src/sim/
- * runes.ts) stays the base's. QUICK LATCH says START, the word ASSEMBLY LINE's face uses (abilityText.ts startIn), where it
- * said ONLINE. Read only with the switch on; off, every line is the base's byte for byte.
- */
-export const STAR_RUNE_TEXT: Readonly<Record<string, string>> = {
+export const RUNE_TEXT: Readonly<Record<string, string>> = {
   quick_latch: "YOUR {BELT} RIGS: START {N} SOONER.",
 };
-/** A rune's effect line in R1b-2's tokens: its RUNE_TEXT row, else RuneDef.text. Y5: with the star switch on, its
- *  STAR_RUNE_TEXT row first. */
-export const runeTextOf = (def: RuneDef): string => (starRules() ? STAR_RUNE_TEXT[def.id] : undefined) ?? RUNE_TEXT[def.id] ?? def.text;
+/** A rune's effect line in R1b-2's tokens: its RUNE_TEXT row, else RuneDef.text. */
+export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? def.text;
 /** Each keyword's colour (render/palette.ts C): the hull's red, gold's yellow, the belts' brass, damage white, speed's yellow
  *  (richText.ts KEYWORD_COLOUR.faster), BASTION's plating, FOUNDRY's pair cyan, FURNACE's fire, WEAVER's plum. RUNES-2a:
  *  BURN in richText's burn colour (fire, as HEAT), RIDE in the belts' wood, STUN in shock's cyan (was the STALL token).

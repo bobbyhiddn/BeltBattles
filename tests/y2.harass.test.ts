@@ -5,7 +5,7 @@
 // base's rule holds (every accepted effect is harassment).
 import { describe, expect, it } from "vitest";
 import { Battle, type Payload, type Projectile, type SideState, type Target } from "../src/sim/battle";
-import { CELL, DISRUPT_TIME, withStarRules, type HarassCause } from "../src/sim/content";
+import { CELL, DISRUPT_TIME, type HarassCause } from "../src/sim/content";
 import { type HarassRound } from "../src/sim/harassment";
 import { effectAt } from "../src/sim/stars";
 import { barge, bench } from "./arsenal.bench";
@@ -42,21 +42,15 @@ const causes = (bt: Battle) => bt.events.filter((e) => e.type === "harass").map(
 
 describe("Y2 shared rule: a SABOT wreck is cause \"wreck\", and neither a wreck nor a rip is harassment (switch on)", () => {
   it("a wreck on a rig: on, it lands past the toll as \"wreck\" and an enemy SCRAPPER doesn't count it; off, the toll blocks it (\"sabot\")", () => {
-    withStarRules(() => {
-      const { bt, s } = tolled();
-      probe(bt).roundImpact(s, target(s, "gate", whet(s).uid), SABOT, 0);
-      expect(whet(s).wrecked).toBe(true);
-      expect(toll(s).tolls).toBe(2);
-      expect(causes(bt)).toEqual(["wreck"]);
-      expect(bt.sides[0].harassAccepted).toBe(0);
-      expect(bt.sides[0].wreckAccepted).toBe(1);
-      expect(bt.events.some((e) => e.type === "toll")).toBe(false);
-    });
     const { bt, s } = tolled();
     probe(bt).roundImpact(s, target(s, "gate", whet(s).uid), SABOT, 0);
-    expect(whet(s).wrecked).toBe(false);
-    expect(toll(s).tolls).toBe(1);
-    expect(bt.events.find((e) => e.type === "toll")).toMatchObject({ cause: "sabot" });
+    expect(whet(s).wrecked).toBe(true);
+    expect(toll(s).tolls).toBe(2);
+    expect(causes(bt)).toEqual(["wreck"]);
+    expect(bt.sides[0].harassAccepted).toBe(0);
+    // Y7b2 (the flip): was expect(bt.sides[0].wreckAccepted).toBe(1); the flip deleted SideState.wreckAccepted (BIG HAUL's
+    // wreck count, switch-off only)
+    expect(bt.events.some((e) => e.type === "toll")).toBe(false);
   });
 
   it("a rip: on, it lands past the toll as \"rip\", uncounted; off, the toll blocks it", () => {
@@ -65,39 +59,29 @@ describe("Y2 shared rule: a SABOT wreck is cause \"wreck\", and neither a wreck 
       s.routes[0].ammo.push({ p: payload(11), s: 2 * CELL + 5, processed: 1, blocked: false });
       return { bt, s, n: probe(bt).rip(s, target(s, "belt", 0, 2), 1, 1) };
     };
-    withStarRules(() => {
-      const { bt, s, n } = go();
-      expect(n).toBe(1);
-      expect(s.routes[0].ammo).toHaveLength(0);
-      expect(toll(s).tolls).toBe(2);
-      expect(causes(bt)).toEqual(["rip"]);
-      expect(bt.sides[0].harassAccepted).toBe(0);
-    });
-    const { s, n } = go();
-    expect(n).toBe(0);
-    expect(s.routes[0].ammo).toHaveLength(1);
-    expect(toll(s).tolls).toBe(1);
+    const { bt, s, n } = go();
+    expect(n).toBe(1);
+    expect(s.routes[0].ammo).toHaveLength(0);
+    expect(toll(s).tolls).toBe(2);
+    expect(causes(bt)).toEqual(["rip"]);
+    expect(bt.sides[0].harassAccepted).toBe(0);
   });
 
   it("a STUN is still harassment: on, the toll blocks the first 2 and the third lands and counts, as off", () => {
-    for (const on of [true, false]) withStarRules(() => {
-      const { bt, s } = tolled(), t = target(s, "belt", 0, 3);
-      expect(probe(bt).disrupt(s, t, DISRUPT_TIME, "shock")).toBe(false);
-      expect(probe(bt).disrupt(s, t, DISRUPT_TIME, "freeze")).toBe(false);
-      expect(toll(s).tolls).toBe(0);
-      expect(probe(bt).disrupt(s, t, DISRUPT_TIME, "sabot")).toBe(true); // a SABOT round's STUN on a tile is a STUN
-      expect(bt.sides[0].harassAccepted).toBe(1);
-      expect(causes(bt)).toEqual(["sabot"]);
-    }, on);
+    const { bt, s } = tolled(), t = target(s, "belt", 0, 3);
+    expect(probe(bt).disrupt(s, t, DISRUPT_TIME, "shock")).toBe(false);
+    expect(probe(bt).disrupt(s, t, DISRUPT_TIME, "freeze")).toBe(false);
+    expect(toll(s).tolls).toBe(0);
+    expect(probe(bt).disrupt(s, t, DISRUPT_TIME, "sabot")).toBe(true); // a SABOT round's STUN on a tile is a STUN
+    expect(bt.sides[0].harassAccepted).toBe(1);
+    expect(causes(bt)).toEqual(["sabot"]);
   });
 
   it("SAP is no STUN: on, it marks past the toll, uncounted; off, the toll blocks it", () => {
-    for (const on of [true, false]) withStarRules(() => {
-      const { bt, s } = tolled();
-      s.routes[0].ammo.push({ p: payload(11), s: 3 * CELL + 5, processed: 2, blocked: false });
-      const marked = bt.applyPayloadDebuff(s, target(s, "belt", 0, 3), "sap");
-      expect([marked, toll(s).tolls, bt.sides[0].harassAccepted]).toEqual(on ? [true, 2, 0] : [false, 1, 0]);
-    }, on);
+    const { bt, s } = tolled();
+    s.routes[0].ammo.push({ p: payload(11), s: 3 * CELL + 5, processed: 2, blocked: false });
+    const marked = bt.applyPayloadDebuff(s, target(s, "belt", 0, 3), "sap");
+    expect([marked, toll(s).tolls, bt.sides[0].harassAccepted]).toEqual([true, 2, 0]);
   });
 });
 
@@ -114,39 +98,38 @@ describe("Y2 shared rule: FLAK SCREEN rolls only for a shot that carries a STUN 
     bt.step();
     return { bt, pr: bt.projectiles[0] };
   }
-  const cases: [string, (p: Payload) => void, string | undefined, boolean, boolean][] = [
-    // name, payload, core, harassing with the switch on, off
-    ["a plain slug", () => {}, undefined, false, false],
-    ["a shock slug", (p) => { p.shock = true; }, undefined, true, true],
-    ["a static slug", (p) => { p.static = true; }, undefined, true, true],
-    ["a FROST round", (p) => { p.harass = { kind: "frost", seconds: 2 }; }, undefined, true, true],
-    ["a CHAIN round", (p) => { p.harass = { kind: "drag", seconds: 1 }; }, undefined, true, true],
-    ["a SABOT round", (p) => { p.harass = SABOT; }, undefined, true, true],
-    ["a LIMPET charge with a stall", (p) => { p.harass = { kind: "limpet", delay: 3, blast: 80, stall: 1 }; }, undefined, true, true],
-    ["a LIMPET charge without one", (p) => { p.harass = { kind: "limpet", delay: 3, blast: 80 }; }, undefined, false, true],
-    ["a GRAPNEL rip", (p) => { p.rip = { count: 1, reach: 1 }; }, undefined, false, true],
-    ["a LANCE shot", () => {}, "lance", false, true],
-    ["a TESLA shot", () => {}, "tesla", true, true],
+  const cases: [string, (p: Payload) => void, string | undefined, boolean][] = [
+    // name, payload, core, harassing
+    ["a plain slug", () => {}, undefined, false],
+    ["a shock slug", (p) => { p.shock = true; }, undefined, true],
+    ["a static slug", (p) => { p.static = true; }, undefined, true],
+    ["a FROST round", (p) => { p.harass = { kind: "frost", seconds: 2 }; }, undefined, true],
+    ["a CHAIN round", (p) => { p.harass = { kind: "drag", seconds: 1 }; }, undefined, true],
+    ["a SABOT round", (p) => { p.harass = SABOT; }, undefined, true],
+    ["a LIMPET charge with a stall", (p) => { p.harass = { kind: "limpet", delay: 3, blast: 80, stall: 1 }; }, undefined, true],
+    ["a LIMPET charge without one", (p) => { p.harass = { kind: "limpet", delay: 3, blast: 80 }; }, undefined, false],
+    ["a GRAPNEL rip", (p) => { p.rip = { count: 1, reach: 1 }; }, undefined, false],
+    ["a LANCE shot", () => {}, "lance", false],
+    ["a TESLA shot", () => {}, "tesla", true],
   ];
-  for (const [name, edit, core, on, off] of cases) {
-    it(`${name}: ${on ? "rolled" : "not rolled"} with the switch on, ${off ? "rolled" : "not rolled"} off`, () => {
-      expect(withStarRules(() => { const { bt, pr } = shot(edit, core); return probe(bt).isHarassingProjectile(pr); })).toBe(on);
+  for (const [name, edit, core, rolled] of cases) {
+    it(`${name}: ${rolled ? "rolled" : "not rolled"}`, () => {
       const { bt, pr } = shot(edit, core);
-      expect(probe(bt).isHarassingProjectile(pr)).toBe(off);
+      expect(probe(bt).isHarassingProjectile(pr)).toBe(rolled);
     });
   }
 
   it("on: a sure screen downs a FROST round but lets a stall-less LIMPET charge land", () => {
-    withStarRules(() => {
-      const frost = shot((p) => { p.harass = { kind: "frost", seconds: 2 }; });
-      frost.bt.sides[1].flak = 1;
-      while (frost.bt.projectiles.length) frost.bt.step();
-      expect(frost.bt.events.filter((e) => e.type === "flak")).toHaveLength(1);
-      const limpet = shot((p) => { p.harass = { kind: "limpet", delay: 3, blast: 80 }; });
-      limpet.bt.sides[1].flak = 1;
-      while (limpet.bt.projectiles.length) limpet.bt.step();
-      expect(limpet.bt.events.some((e) => e.type === "flak")).toBe(false);
-      expect(limpet.bt.sides[1].limpets).toHaveLength(1);
-    });
+    // Y7b2 (the flip): was sides[1].flak = 1 (the switch-on roll fell back to it with no screen listed); the flip deleted
+    // SideState.flak, and a sure screen is flaks [1]: the same one roll
+    const frost = shot((p) => { p.harass = { kind: "frost", seconds: 2 }; });
+    frost.bt.sides[1].flaks = [1];
+    while (frost.bt.projectiles.length) frost.bt.step();
+    expect(frost.bt.events.filter((e) => e.type === "flak")).toHaveLength(1);
+    const limpet = shot((p) => { p.harass = { kind: "limpet", delay: 3, blast: 80 }; });
+    limpet.bt.sides[1].flaks = [1];
+    while (limpet.bt.projectiles.length) limpet.bt.step();
+    expect(limpet.bt.events.some((e) => e.type === "flak")).toBe(false);
+    expect(limpet.bt.sides[1].limpets).toHaveLength(1);
   });
 });

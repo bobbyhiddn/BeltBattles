@@ -8,7 +8,6 @@
 // HULLBREAKER skips the target draw.
 
 import { HEROES, classFactor, rateMul, secPer, type CoreRoutine, type CoreSpec, type TurretDef } from "./content";
-import { starRules } from "./content"; // Y4 (release Y; BRIEF-Y4 S1): the star switch (SALVO RACK's exact volley pace)
 import { coreFor, turretSlots, type Build } from "./deck";
 import { effectAt, starsOf } from "./stars";
 import type { TurretState } from "./battle";
@@ -134,18 +133,17 @@ export function steamInterval(tu: Pick<TurretState, "speedRaw" | "plated" | "cor
 /**
  * Y4 (release Y; REQ-BFG-047; BRIEF-Y4 S1): SALVO RACK's VOLLEY PACE, the one helper the sim and the turret row share: its
  * turret's whole SPEED over reloadMul, rounded half up once as makeTurret rounds a SPEED (30 / 1.6 = 18.75 is 19). The
- * turret row's RATE (screens/build/inspector.ts turretPanel) is this whatever the switch (as Y1 made it).
+ * turret row's RATE (screens/build/inspector.ts turretPanel) is this (as Y1 made it).
  */
 export function salvoSpeed(speed: number, reloadMul: number): number {
   return Math.max(1, roundHalfUp(speed / reloadMul));
 }
 
-/** Y4 (BRIEF-Y4 S1): a SALVO RACK's reload after a volley (ROUTINES.salvo cadence; battle.ts loadPace). With the star switch
- *  on, the interval of a turret at its volley pace (secPer(salvoSpeed)), so the row's RATE is the sim's own value; off, the
- *  interval x reloadMul, exactly as before. */
-export function salvoReload(tu: Pick<TurretState, "interval" | "speed" | "core">): number {
+/** Y4 (BRIEF-Y4 S1): a SALVO RACK's reload after a volley (ROUTINES.salvo cadence; battle.ts loadPace): the interval of a
+ *  turret at its volley pace (secPer(salvoSpeed)), so the row's RATE is the sim's own value. */
+export function salvoReload(tu: Pick<TurretState, "speed" | "core">): number {
   const mul = tu.core.spec.reloadMul ?? 1;
-  return starRules() ? secPer(salvoSpeed(tu.speed, mul)) : tu.interval * mul;
+  return secPer(salvoSpeed(tu.speed, mul));
 }
 
 /**
@@ -168,7 +166,7 @@ export const ROUTINES: Record<CoreRoutine, Routine> = {
   drake: IDENTITY, // shape: flat to Burn, + addBurn, burnTime, flightMul
   salvo: {
     ...IDENTITY,
-    // waits for a full window (or twice the window time), fires all of it, then reloads for interval x reloadMul
+    // waits for a full window (or twice the window time), fires all of it, then reloads at its volley pace (salvoReload)
     ready: (tu) => tu.stack.length >= tu.window || (tu.stack.length > 0 && tu.loadTimer >= 2 * tu.windowTime),
     count: (tu) => tu.stack.length,
     cadence: (tu) => salvoReload(tu),

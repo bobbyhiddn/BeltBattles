@@ -8,7 +8,7 @@ import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME, type F
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): a Burn stack's damage a second
 import { factorySpeed, rateMul, secPer } from "./content"; // NUM-2 (REQ-BFG-047): SPEED, whole rate %s
 import { WIND_START, sustainLive } from "./content"; // BOTS-X (SUS-C, REQ-BFG-069): the bots' sustain value
-import { AMMO, SHAPE_ARROWS, rigShape, starRules } from "./content"; // Y2 (release Y): the star switch's prices (STAR_EQ)
+import { AMMO, SHAPE_ARROWS, rigShape } from "./content"; // Y2 (release Y): release Y's prices (STAR_EQ)
 import { roundHalfUp } from "./pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
 import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
@@ -17,9 +17,9 @@ import {
 import { platedDeck, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's plating and stokers
 import { FURNACE_LONG_BELT, SHARED_HEADROOM, gearStats } from "./battle";
 import { resolveCore } from "./cores";
-import { drakeConvert } from "./cores"; // Y4 (release Y): DRAKE NOZZLE's price with the star switch on (drakeGain)
+import { drakeConvert } from "./cores"; // Y4 (release Y): DRAKE NOZZLE's price (drakeGain)
 import type { CoreSpec } from "./content"; // Y4
-import { doubles } from "./overclock"; // Y3 (release Y): the OVERCLOCKER's price with the star switch on (chargeGains)
+import { doubles } from "./overclock"; // Y3 (release Y): the OVERCLOCKER's price (chargeGains)
 import { effectAt, gradeOf, starsOf, valueOf } from "./stars";
 
 /** Seconds in a typical dusk fight (the desk run's fights last 17-29 s): damage is weighed by how much of it lands. */
@@ -92,65 +92,62 @@ export function sustainKeyword(def: string): SustainKw | undefined {
 export interface SustainHull { shield: number; heal: number; regen: number; total: number }
 
 /**
- * Damage-equivalents per payload of the effects the route walk doesn't turn into damage, read off the cards:
- * Poison ticks 0.4/s per stack for up to 6 s (~3 per stack), a Fray stack adds 0.2 to each later hit (~3), a
- * shocked payload stalls a machine for DISRUPT_TIME (NUM-3: 2 s; was 1.6 s), a static stall per second, LODESTONE's +1 per stalled machine, an
- * OVERCLOCKER doubling a rig every few seconds, TOLLBOOTH and SIFTER guards.
+ * Damage-equivalents per payload of the effects the route walk doesn't turn into damage, read off the cards: a Fray
+ * stack adds 0.2 to each later hit (~3), a shocked payload stalls a machine for DISRUPT_TIME (NUM-3: 2 s; was 1.6 s), a
+ * static stall per second, an OVERCLOCKER doubling a rig every few seconds, TOLLBOOTH and SIFTER guards.
  */
-export const EQ = { poison: 30, fray: 30, shock: 30, static: 40, perStalled: 1.5, overclock: 80, toll: 5, sift: 5 } as const;
+export const EQ = { fray: 30, shock: 30, static: 40, overclock: 80, toll: 5, sift: 5 } as const;
 /** A harassment round's damage-equivalent per payload (content.ts FactorySpec.round), from its card. */
 export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40, drag: 30, limpet: 80 };
 
 /**
  * Y2 (release Y; DESIGN-Y rows 8, 13, 15, 16; REVIEW-STARD: "each job prices its own rule, behind STAR_RULES"): the
- * rating's prices of the STUN pieces' new rules, read only with the star switch on (content.ts starRules); off, every
- * rating is exactly as before. Each is read off the cards, as EQ's are (Y7a benches them):
+ * rating's prices of the STUN pieces' new rules. Each is read off the cards, as EQ's are (Y7a benches them):
  * - perStun: LODESTONE pays for each STUN on the foe, its floor and cap gone, so it is rated by your own STUN pieces
- *   (stunSources): each holds 0.75 enemy parts stunned as it hits (two of them: EQ.perStalled's 1.5 machines); none, 0.
+ *   (stunSources): each holds 0.75 enemy parts stunned as it hits (two of them: the old price's 1.5 machines); none, 0.
  * - tollFactory: TOLLBOOTH's tolls guard its belt's factory from ★1 and spend on STUNs only: x1.25 its EQ.toll guard.
  * - LIMPET WORKS' 20 on impact joined its blast, so the walk counts no base: its round takes AMMO.limpet.base back (the
  *   same power, the same rating at every star).
  * - BRACE FRAME guards the tiles its arrows hit, no longer itself: its guard x arrows / (arrows + 1) (2/3 for its L).
- * The rest comes from the switch's own data: the walk drops LODESTONE's floor and OVERDRIVE's flats and counts HOT SWAP's
+ * The rest comes from the data: the walk drops LODESTONE's floor and OVERDRIVE's flats and counts HOT SWAP's
  * BURN 5 / 9; the cadence reads SABOT ★3's RATE 20. MANTLET, FLAK SCREEN, SPOTTER and GRAPNEL GUN stay rated by price
  * (NOMINAL), and SCRAPPER's trigger stamps were never rated: unchanged.
- * Y3 (release Y; DESIGN-Y rows 20-32), also read only with the switch on; no new constant:
+ * Y3 (release Y; DESIGN-Y rows 20-32); no new constant:
  * - OVERCLOCKER: EQ.overclock / its rest only when the rig it charges, the next one whatever it is, has something to double
  *   (chargeGains; a speed rig, a STOKER or a flat-less TWIN LATCH next: 0).
- * - STOKER: Y7b1 (ruling Y7A-R1): its cap holds with the switch on too (rateDeck caps the stoked feed as off; Y3 had
- *   skipped it, so the stoked feed arrived in full and firedShare priced the overfed gun's jams).
- * - The walk (deck.ts walkRoute) carries the rest from the switch's data and rules: PINCER, TWIN GAUGE, QUENCH TANK and PLATE
+ * - STOKER: Y7b1 (ruling Y7A-R1): its cap holds (rateDeck caps the stoked feed; Y3 had skipped it, so the stoked feed
+ *   arrived in full and firedShare priced the overfed gun's jams).
+ * - The walk (deck.ts walkRoute) carries the rest from the data and rules: PINCER, TWIN GAUGE, QUENCH TANK and PLATE
  *   BREAKER without their floors, BELLOWS for each whole 2 s uncapped, QUENCH without its stack cap, LONG HAUL uncapped,
  *   BRAKE SHOE's slower ★2/★3 belts without their flats, TWIN LATCH without its flat, SURGE VALVE's pulses for the seconds
  *   a slug rides its belts (no speed). BARBED SPOOL's FRAY cap and ASSEMBLY LINE's start times were never rated: unchanged.
- * Y4 (release Y; DESIGN-Y rows 33-40), also read only with the switch on; no new constant:
+ * Y4 (release Y; DESIGN-Y rows 33-40); no new constant:
  * - SEAM WELDER: its plating is pairs only (a lone load rolls none), so its NOMINAL credit counts on the turret's share of
  *   paired loads (pairShare, as TWIN TRIGGER's bonus): a turret with no pairs rates it at nothing.
  * - EXT. CHAMBER: it fires 2/3/4 loads a shot, at most what the chamber holds (its +1 slot is gone): the turret's shot is
  *   min(perShot, its chamber) loads (Battle.chambers).
  * - DRAKE NOZZLE: each flatPerBurn (25/18/13: Y7b1, ruling Y7A-R4's fallback; Y4's 10/7/5) of a shot's bonus damage is a BURN (worth BURN_TIME x BURN_DPS) in place of that
  *   damage (cores.ts drakeConvert on the walk's flat, deck.ts RouteEstimate.flat), its free BURN gone: computed, so no NOMINAL.
- * - The rest comes from the switch's own data: HOPPER's window +1/+2/+3 with no load time, store or no-jam (`start`, the
+ * - The rest comes from the data: HOPPER's window +1/+2/+3 with no load time, store or no-jam (`start`, the
  *   finisher's split, firedShare), TWIN TRIGGER's pairBonus 30/60/95 with no load-time cut (`start`), ROTARY BREECH's load
  *   time with no fire rate or no-jam (`start`, the cadence, firedShare) and STEAM BREECH's plated-only speed (bare: its own
- *   rate). SALVO RACK's pace was never read here. ANVIL BREECH: Y7b1 (ruling Y7A-R3c) deletes its row, so on it rates as
- *   off (anvilFlat + perPlate x meanPlate); Y4's fold (perPlate 1.25/2.75/4.38 x meanPlate, no flat) priced it at about
+ *   rate). SALVO RACK's pace was never read here. ANVIL BREECH: Y7b1 (ruling Y7A-R3c) deletes its row, so it rates as at
+ *   0.9.2 (anvilFlat + perPlate x meanPlate); Y4's fold (perPlate 1.25/2.75/4.38 x meanPlate, no flat) priced it at about
  *   nothing on BASTION (18.75 against 40).
- * Y5 (release Y; DESIGN-Y rows 41-47), also read only with the switch on:
+ * Y5 (release Y; DESIGN-Y rows 41-47):
  * - COUNTERWEIGHT uncapped: the walk counts every tile ridden (deck.ts walkRoute reads no max), as Battle.applyHit does.
  * - CAPACITOR BANK uncapped: NOMINAL priced it with its 5 s cap (capacitorPaid, the base's maxSeconds); the charge past that
  *   is priced on top (capacitorTail): on a gun fed a load every more than its load time + 5 s, each shot's extra seconds,
  *   and the first shot's past 5 s when its first load comes later than that.
- * - IRON WALL: Y7b1 (ruling Y7A-R3d) deletes its row, so on it rates as off: its plating as repair and its bonus at 120
+ * - IRON WALL: Y7b1 (ruling Y7A-R3d) deletes its row, so it rates as at 0.9.2: its plating as repair and its bonus at 120
  *   PLATE for half the fight. (Y5 had it roll none, no repair, and counted its bonus only on a deck that plates its hull.)
  * - POWDER KEG's repeating pulse without BURN (kegGain: a blast at every multiple of its fuse).
  * - SPALL CATCHER's single-count soak: on a deck that plates its hull its NOMINAL credit counts spallPlated of it (a soak is
  *   about a quarter of what such a hull takes, so its charge falls from 1.25 to 1 for each damage taken: 1 / 1.25 = 0.8);
  *   elsewhere as before. Its cap was never rated (NOMINAL), so its going changes nothing here.
  * - LONGCASE and FINISHER RAM change no rule: rated as before.
- * Y6 (release Y; DESIGN-Y section 4.1), also read only with the switch on (VENOM's switch-on def is burnPlus's one source);
- * no new constant:
- * - VENOM DRIP: EQ.poison's term becomes a burnPlus term (burnPlusGain): its extra BURN seconds x BURN_DPS x the BURN stacks
+ * Y6 (release Y; DESIGN-Y section 4.1; VENOM's def is burnPlus's one source); no new constant:
+ * - VENOM DRIP: a burnPlus term (burnPlusGain), in place of its poison's: its extra BURN seconds x BURN_DPS x the BURN stacks
  *   a slug of its belt carries (the walk's estimate.burn, after any QUENCH), on each payload it hits. With no BURN on the
  *   belt it rates as nothing. An OVERCLOCKER's charge on it counts as on any rig whose number doubling changes (chargeGains:
  *   overclock.ts doubles burnPlus). The core's and the runes' BURN (DRAKE NOZZLE, EMBER SHOT, HOT SEAM) and SLOW EMBERS'
@@ -158,14 +155,14 @@ export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40
  */
 export const STAR_EQ = { perStun: 0.75, tollFactory: 1.25, capacitorPaid: 5, spallPlated: 0.8 } as const;
 
-/** Y6 (release Y; DESIGN-Y section 4.1): with the star switch on, what a VENOM DRIP hit of `burnPlus` seconds adds to each
+/** Y6 (release Y; DESIGN-Y section 4.1): what a VENOM DRIP hit of `burnPlus` seconds adds to each
  *  payload of a belt whose slugs carry `burn` BURN stacks (deck.ts walkRoute's estimate): each stack lasts burnPlus s
  *  longer at BURN_DPS a second (Battle.impact). No BURN, nothing. */
 export function burnPlusGain(burnPlus: number, burn: number): number {
   return burnPlus * BURN_DPS * burn;
 }
 
-/** Y5 (release Y; DESIGN-Y row 42): with the star switch on, a CAPACITOR BANK's charge past the base's cap (capacitorPaid
+/** Y5 (release Y; DESIGN-Y row 42): a CAPACITOR BANK's charge past its old cap (capacitorPaid
  *  seconds), for each load a turret fires: a gun whose loads come `gap` s apart, each fired alone after its `loadTime`,
  *  sits empty gap - loadTime s before each shot; and before its first shot it sat empty from the start to its first load
  *  (`first` s), once in the fight's `loads` loads. Each second past the cap is perSecond (spec: at the turret's class %). */
@@ -174,27 +171,27 @@ export function capacitorTail(spec: CoreSpec, gap: number, loadTime: number, fir
   return per * Math.max(0, gap - loadTime - cap) + (per * Math.max(0, first - cap)) / Math.max(1, loads);
 }
 
-/** Y4 (release Y; DESIGN-Y row 40): with the star switch on, what a DRAKE NOZZLE adds to a shot of bonus damage `flat`: each
+/** Y4 (release Y; DESIGN-Y row 40): what a DRAKE NOZZLE adds to a shot of bonus damage `flat`: each
  *  flatPerBurn of it is one BURN stack (cores.ts drakeConvert) worth BURN_TIME x BURN_DPS, in place of the damage it used. */
 export function drakeGain(spec: CoreSpec, flat: number): number {
   const { stacks, used } = drakeConvert(spec, flat);
   return stacks * BURN_TIME * BURN_DPS - used;
 }
 
-/** Y5 (release Y; DESIGN-Y row 46): with the star switch on, a POWDER KEG's worth for each payload of a route whose first
+/** Y5 (release Y; DESIGN-Y row 46): a POWDER KEG's worth for each payload of a route whose first
  *  payload rides `time` s, in a fight of `fight` s. It blasts `flat` at every multiple of its fuse while the fight lasts
  *  (Battle.kegTick: its fuse runs from the start), each blast onto the payloads then on its belts: about `time` s of the
  *  route's payloads (clipped at the fight's end; a belt longer than a fuse holds slugs two blasts reach), of the
- *  (fight - time) it fires. Its BURN is gone. The base's one blast is this sum's first term, with its BURN. */
+ *  (fight - time) it fires. Its BURN is gone. 0.9.2's one blast was this sum's first term, with its BURN. */
 export function kegGain(keg: { fuse: number; flat: number }, fight: number, time: number): number {
   let buffed = 0;
   for (let t = keg.fuse; t < fight; t += keg.fuse) buffed += Math.min(fight, t + time) - t;
   return (keg.flat * buffed) / Math.max(1, fight - time);
 }
 
-/** Y2: the pieces of `b` that land a STUN (the star switch's LODESTONE price): a shock or static rig (GALVANIC COIL,
+/** Y2: the pieces of `b` that land a STUN (LODESTONE's price): a shock or static rig (GALVANIC COIL,
  *  STATIC BRUSH), a factory stamping shock slugs (HOT SWAP) or STUN rounds (SABOT, FROSTBITE, DRAG CHAIN; a LIMPET WORKS
- *  only with a stall, none with the switch on), and a TESLA ARC core; each at its own stars. */
+ *  only with a stall, which none holds), and a TESLA ARC core; each at its own stars. */
 export function stunSources(b: Build): number {
   let n = 0;
   for (const p of b.items) {
@@ -206,7 +203,7 @@ export function stunSources(b: Build): number {
   return n;
 }
 
-/** Y3 (release Y; DESIGN-Y row 29): with the star switch on, the rig an OVERCLOCKER's hit `h` charges on belt `tiles` (its
+/** Y3 (release Y; DESIGN-Y row 29): the rig an OVERCLOCKER's hit `h` charges on belt `tiles` (its
  *  hits by tile, R7 order, as Battle.makeSide reads them): the first later hit of another rig, whatever it is; does
  *  doubling it change anything (overclock.ts doubles)? false with no later rig on the belt. */
 export function chargeGains(b: Build, tiles: readonly (readonly RigHit[])[], h: RigHit): boolean {
@@ -220,7 +217,7 @@ export function chargeGains(b: Build, tiles: readonly (readonly RigHit[])[], h: 
   return false;
 }
 
-/** Y2: BRACE FRAME's share of its old guard with the star switch on: the tiles its arrows hit, not itself. */
+/** Y2: BRACE FRAME's share of its old guard: the tiles its arrows hit, not itself. */
 const braceShare = (def: string): number => {
   const arrows = SHAPE_ARROWS[rigShape(ITEMS[def]) ?? "I"]?.length ?? 1;
   return arrows / (arrows + 1);
@@ -261,50 +258,45 @@ export const firedShare = (rho: number, noJam = false, m: Readonly<RatingModel> 
 
 interface Feed {
   route: number; arrival: number; eq: number; first: number; ride: number;
-  flat?: number; // Y4 (release Y): with the star switch on, the walk's bonus damage a payload carries (DRAKE NOZZLE's price)
+  flat?: number; // Y4 (release Y): the walk's bonus damage a payload carries (DRAKE NOZZLE's price)
   factory?: number; // 0.8.0 P1: the feeding factory (STOKER's cap counts the factories sharing a turret)
   base?: number; // 0.8.0 P1: a stoked feed's arrival without the stoke
 }
 
 /** Per payload, the rig effects the walk leaves out (EQ), and the hull a RIVETER repairs per passing payload.
  *  `fight`: the fight's length; `time`: the route's first payload's ride to its turret (walkRoute's estimate). Y6: `burn`,
- *  the BURN stacks its slugs carry (walkRoute's estimate), read only by a switch-on VENOM DRIP (burnPlusGain). */
+ *  the BURN stacks its slugs carry (walkRoute's estimate), read only by a VENOM DRIP (burnPlusGain). */
 function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time: number, burn = 0): { eq: number; repair: number; heal: number } {
   let eq = 0, repair = 0, heal = 0; // BOTS-X: `heal`, RIVETER's part of `repair` (read only with the switch on)
   for (const tile of hits[ri] ?? []) {
     for (const h of tile) {
       const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate;
       if (!e) continue;
-      if (e.poison) eq += EQ.poison * e.poison;
-      // Y6 (release Y; DESIGN-Y 4.1): with the star switch on VENOM DRIP holds burnPlus in place of its poison (STAR_EQ's note)
+      // Y6 (release Y; DESIGN-Y 4.1): VENOM DRIP holds burnPlus in place of its poison (STAR_EQ's note)
       if (e.burnPlus) eq += burnPlusGain(e.burnPlus, burn);
       if (e.fray) eq += EQ.fray * e.fray;
       if (e.staticTime) eq += EQ.static * e.staticTime;
-      // Y2 (release Y): with the star switch on, LODESTONE by your STUN pieces (STAR_EQ.perStun)
-      if (e.perStalled) eq += starRules() ? STAR_EQ.perStun * stunSources(b) * e.perStalled.each : EQ.perStalled * e.perStalled.each;
-      // POWDER KEG (battle.ts detonateKeg): `fuse` seconds into the fight it buffs the payloads then on its belt, once:
-      // about `time` seconds of the route's payloads, of the (fight - time) it fires, and none when the fight is over
-      // first. CAND-A (the skill-ladder fix): the rating read half the buff on every payload, whatever the fight; its
-      // ablation lift on the par field was +0.1 points on day 10 (fights of 9.5 s; fuses 12/10/8 s at 1/2/3 stars).
-      // Y5 (release Y; DESIGN-Y row 46): with the star switch on it blasts at every multiple of its fuse, with no BURN (kegGain)
-      if (e.keg) eq += starRules() ? kegGain(e.keg, fight, time)
-        : ((e.keg.flat + BURN_TIME * BURN_DPS * e.keg.burn!) * Math.max(0, Math.min(fight, e.keg.fuse + time) - e.keg.fuse)) / Math.max(1, fight - time); // NUM-1: a Burn stack's BURN_DPS a second
-      // Y3 (release Y; DESIGN-Y row 29): with the star switch on it charges the next rig whatever it is, so it is worth its
-      // EQ only when that rig has something to double (chargeGains); off, as before
-      if (e.overclockCooldown) eq += !starRules() || chargeGains(b, hits[ri] ?? [], h) ? EQ.overclock / e.overclockCooldown : 0;
-      if (e.toll) eq += starRules() ? EQ.toll * e.toll * STAR_EQ.tollFactory : EQ.toll * e.toll; // Y2: its factory from ★1
+      // Y2 (release Y): LODESTONE by your STUN pieces (STAR_EQ.perStun)
+      if (e.perStalled) eq += STAR_EQ.perStun * stunSources(b) * e.perStalled.each;
+      // POWDER KEG. Y5 (release Y; DESIGN-Y row 46): it blasts at every multiple of its fuse, with no BURN (kegGain;
+      // battle.ts kegTick). CAND-A's one blast, `fuse` s into the fight, is kegGain's first term
+      if (e.keg) eq += kegGain(e.keg, fight, time);
+      // Y3 (release Y; DESIGN-Y row 29): it charges the next rig whatever it is, so it is worth its EQ only when that rig
+      // has something to double (chargeGains)
+      if (e.overclockCooldown) eq += chargeGains(b, hits[ri] ?? [], h) ? EQ.overclock / e.overclockCooldown : 0;
+      if (e.toll) eq += EQ.toll * e.toll * STAR_EQ.tollFactory; // Y2: its factory from ★1
       if (e.sift) eq += EQ.sift;
       if (e.heal) repair += e.heal; // SUS-A (REQ-BFG-069): RIVETER's heal (was repair), rated as before (the valuation is SUS-C's)
       if (e.heal) heal += e.heal; // BOTS-X (SUS-C): with the switch on, rateDeck values it as effective hull instead
       // 0.8.0 P1, wave 3 (D1's proxies, tools/wave3.ts): plating per payload rated as RIVETER's repair; SHIELD WALL's
       // damage at 12+ plating for half the fight; BRACE FRAME as a guard like TOLLBOOTH's (1, 1.4, 1.7 at its stars)
       if (e.plate) repair += e.plate;
-      // Y7b1 (release Y; ruling Y7A-R3d): IRON WALL reads its base def with the switch on too (its own plating, `plate`
-      // above, is back), so its bonus is rated as off. Y5's switch-on rule (DESIGN-Y row 45: no plating of its own, so the
-      // bonus counted only on a deck that plates its hull, platedDeck) left with its STAR_DIFF row
+      // Y7b1 (release Y; ruling Y7A-R3d): IRON WALL keeps its 0.9.2 def (its own plating, `plate` above, is back), so its
+      // bonus is rated as at 0.9.2. Y5's rule (DESIGN-Y row 45: no plating of its own, so the bonus counted only on a deck
+      // that plates its hull, platedDeck) left with its deleted row
       if (e.plated) eq += e.plated.flat * 0.5;
-      // Y2 (release Y): with the star switch on, BRACE FRAME guards its arrows' tiles only (braceShare)
-      if (e.brace) eq += starRules() ? ((EQ.toll * (1 - e.brace.mul)) / 0.25) * braceShare(h.def) : (EQ.toll * (1 - e.brace.mul)) / 0.25;
+      // Y2 (release Y): BRACE FRAME guards its arrows' tiles only (braceShare)
+      if (e.brace) eq += ((EQ.toll * (1 - e.brace.mul)) / 0.25) * braceShare(h.def);
     }
   }
   return { eq, repair, heal };
@@ -441,7 +433,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const low = walk.timeline.some((row) => row.hits.some((th) => th.breaker)) && platedDeck(b)
       ? walkRoute(b, ri, hits, { unplated: true }).estimate : undefined;
     const dmg = low ? low.dmg + breakerShare * (est.dmg - low.dmg) : est.dmg;
-    const x = hitExtras(b, hits, ri, fight, est.time, est.burn); // Y6: est.burn, read only by a switch-on VENOM DRIP
+    const x = hitExtras(b, hits, ri, fight, est.time, est.burn); // Y6: est.burn, read only by a VENOM DRIP
     // 0.8.0 P1: a TWIN MOULD casts onto each of its belts at once (each belt a slug a cast, as a CRUCIBLE pours); a stoked
     // factory works x (1 + stoke); an ARMOR PRESS with a belt to a turret plates every `every` s (counted once).
     // bb-0.8.3 (REQ-BFG-042 D4): beltShare, the pour size included
@@ -456,10 +448,10 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     }
     const arrival = (est.copies * (spec.batch ?? 1) * (pace.get(r.factory) ?? 1) * stoked) / (Math.max(0.1, interval) * shared);
     const eq = dmg + (spec.scrapFlat ?? 0) + BURN_TIME * BURN_DPS * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0) + // NUM-1: BURN_DPS
-      (starRules() && spec.round?.kind === "limpet" ? AMMO.limpet.base : 0); // Y2: LIMPET's 20 on impact is in its blast now
+      (spec.round?.kind === "limpet" ? AMMO.limpet.base : 0); // Y2: LIMPET's 20 on impact is in its blast now
     const list = feeds.get(info.turret) ?? [];
     list.push({ route: ri, arrival, eq, first: est.time, ride: est.ride, ...(stoked > 1 ? { factory: r.factory, base: arrival / stoked } : stoke.size ? { factory: r.factory } : {}),
-      ...(est.flat !== undefined ? { flat: est.flat } : {}) }); // Y4: the walk's flat, set only with the star switch on
+      ...(est.flat !== undefined ? { flat: est.flat } : {}) }); // Y4: the walk's flat
     feeds.set(info.turret, list);
     const tiles = info.join ? journeyTiles(b, ri, occ) : r.cells.length; // E1 (battle.ts makeTurret): its journey
     longest.set(info.turret, Math.max(longest.get(info.turret) ?? 0, tiles));
@@ -511,13 +503,13 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       const plated = at(raw * rateMul(core.spec.steamPlated)), bare = at(raw * rateMul(core.spec.steamBare)); // NUM-2: cores.ts steamInterval
       interval = platedDeck(b) ? PLATED_SHARE * plated + (1 - PLATED_SHARE) * bare : bare;
     }
-    // Y4 (release Y; DESIGN-Y row 36): with the star switch on EXT. CHAMBER's 3/4 loads a shot fire at most the chamber
-    const cap = (starRules() ? Math.min(g.perShot, td.window + g.window) : g.perShot) / interval;
+    // Y4 (release Y; DESIGN-Y row 36): EXT. CHAMBER's 3/4 loads a shot fire at most the chamber
+    const cap = Math.min(g.perShot, td.window + g.window) / interval;
     // 0.8.0 P1 (STOKER's cap, as Battle.stokedPace): a stoke never feeds a turret past its pace (SHARED_HEADROOM of it
     // kept free when several factories share it); the stoked feeds give their extra back, never below unstoked
     const stokedFs = fs.filter((f) => f.base !== undefined);
-    // Y7b1 (release Y; ruling Y7A-R1): the cap holds with the star switch on too, as Battle.stokedPace plays it (Y3 had
-    // lifted it, DESIGN-Y row 31); the inspector's stokeKeep line follows
+    // Y7b1 (release Y; ruling Y7A-R1): the cap holds, as Battle.stokedPace plays it (Y3 had lifted it, DESIGN-Y row 31);
+    // the inspector's stokeKeep line follows
     if (stokedFs.length) {
       const room = cap * (new Set(fs.map((f) => f.factory)).size > 1 ? 1 - SHARED_HEADROOM : 1);
       const total = fs.reduce((s, f) => s + f.arrival, 0), extra = stokedFs.reduce((s, f) => s + f.arrival - f.base!, 0);
@@ -549,13 +541,13 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     if (g.longRideFlat) eq += g.longRideFlat * fs.reduce((s, f, i) => s + (f.ride >= g.longRideMin ? flows[i] * left(f) : 0), 0) / inflow;
     // 0.8.0 P1: ANVIL BREECH's flat on each shot, and its per-plating damage at MEAN_PLATE on a deck that plates its hull
     if (core.routine === "anvil") eq += (core.spec.anvilFlat ?? 0) + (core.spec.perPlate ?? 0) * (platedDeck(b) ? meanPlate(b.hero) : 0);
-    // Y4 (release Y; DESIGN-Y row 40): with the star switch on, a DRAKE NOZZLE's BURN for each flatPerBurn of each belt's
-    // bonus damage (drakeGain), weighed as the belts' damage is (computed: no NOMINAL below)
-    const drake = starRules() && core.routine === "drake";
+    // Y4 (release Y; DESIGN-Y row 40): a DRAKE NOZZLE's BURN for each flatPerBurn of each belt's bonus damage (drakeGain),
+    // weighed as the belts' damage is (computed: no NOMINAL below)
+    const drake = core.routine === "drake";
     if (drake) eq += fs.reduce((s, f, i) => s + flows[i] * drakeGain(core.spec, f.flat ?? 0) * left(f), 0) / inflow;
-    // Y5 (release Y; DESIGN-Y row 42): with the star switch on a CAPACITOR BANK charges past its old 5 s cap (capacitorTail),
-    // on top of its NOMINAL credit below
-    if (starRules() && core.routine === "capacitor") {
+    // Y5 (release Y; DESIGN-Y row 42): a CAPACITOR BANK charges past its old 5 s cap (capacitorTail), on top of its NOMINAL
+    // credit below
+    if (core.routine === "capacitor") {
       const loadTime = (core.spec.windowTime ?? WINDOW_TIME) + g.windowTime;
       eq += capacitorTail(core.spec, 1 / inflow, loadTime, Math.min(...fs.map((f) => f.first)), thr * fight);
     }
@@ -572,12 +564,12 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       // the first shot; the finisher's split; ★3's noJam in firedShare), so it takes no NOMINAL credit on top. It took
       // +12% / +24% / +48% of the turret's damage at ★1/★2/★3 (0.03 x 4/8/16 g), while its battle lift is negative
       // (flag 3: -2 to -9; its control -12 to -32), so the par player bought it where it costs damage
-      // Y4 (release Y; DESIGN-Y row 35): with the star switch on SEAM WELDER plates pairs only: its credit x the turret's
-      // share of paired loads (pairShare); off, x 1
-      const seamShare = starRules() && md.seam ? pairShare(b, fs) : 1;
-      // Y5 (release Y; DESIGN-Y row 47): with the star switch on SPALL CATCHER counts a PLATE soak once: on a deck that plates
-      // its hull its credit is STAR_EQ.spallPlated of it; off, x 1
-      const spallShare = starRules() && md.spall && platedDeck(b) ? STAR_EQ.spallPlated : 1;
+      // Y4 (release Y; DESIGN-Y row 35): SEAM WELDER plates pairs only: its credit x the turret's share of paired loads
+      // (pairShare)
+      const seamShare = md.seam ? pairShare(b, fs) : 1;
+      // Y5 (release Y; DESIGN-Y row 47): SPALL CATCHER counts a PLATE soak once: on a deck that plates its hull its credit
+      // is STAR_EQ.spallPlated of it
+      const spallShare = md.spall && platedDeck(b) ? STAR_EQ.spallPlated : 1;
       if (!md.fireRate && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m)) * seamShare * spallShare;
     }
     offense += thr * eq * mult;

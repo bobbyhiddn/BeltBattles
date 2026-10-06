@@ -102,7 +102,7 @@ export class Arena {
   }
 
   /** 0.8.0 H1 M3 (display only): per side, plating soaked in the step being played that no impact has shown yet. Within
-   *  a step, plating takes the step's hits before Burn and Poison (Battle: impacts, then hullEffects), so the step's
+   *  a step, plating takes the step's hits before Burn (Battle: impacts, then hullEffects), so the step's
    *  impacts take it in order (takeSoak). 0 for every hull without plating: Furnace and Weaver never have any. */
   private readonly soakLeft: [number, number] = [0, 0];
   private readonly soakSeen: [number, number] = [0, 0];

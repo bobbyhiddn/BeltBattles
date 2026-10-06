@@ -5,7 +5,6 @@
 // ModuleTag). The shop card shows the marks (shop.ts drawCard), the desk's hover tooltip the names, and each module's
 // panel the names in its header, or the marks where the names have no room (inspector.ts planPanel).
 import { ITEMS, type ModuleTag } from "../sim/content";
-import { starRules } from "../sim/content"; // Y6 (release Y): the star switch (the FORGE line without POISON)
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import type { Span } from "./richText";
@@ -25,13 +24,9 @@ export const FAMILY_ORDER: readonly ModuleTag[] = ["FORGE", "HARASS", "SWARM", "
 export const FAMILY: Readonly<Record<ModuleTag, Family>> = {
   FORGE: {
     tag: "FORGE", colour: C.fire3, mark: [".x.", "xxx", "xxx"], // a flame
-    // Y6 (release Y; DESIGN-Y 4.1; BRIEF-Y6 words): with the star switch on POISON is retired (glossary.ts STAR_RETIRED), so
-    // the line drops it; off, the base's line byte for byte
-    get glossary(): string {
-      return starRules()
-        ? "ADDS DAMAGE, BURN OR FRAY TO EACH PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES."
-        : "ADDS DAMAGE, BURN, POISON OR FRAY TO EACH PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES.";
-    },
+    // Y6 (release Y; DESIGN-Y 4.1; BRIEF-Y6 words): POISON is retired (glossary.ts), so the line drops it (was "ADDS
+    // DAMAGE, BURN, POISON OR FRAY ..."; a getter behind the star switch until the flip, Y7b2)
+    glossary: "ADDS DAMAGE, BURN OR FRAY TO EACH PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES.",
   },
   HARASS: {
     tag: "HARASS", colour: C.ice, mark: ["xx.", ".x.", ".xx"], // a bolt

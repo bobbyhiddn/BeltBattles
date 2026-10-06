@@ -7,148 +7,129 @@
 // - The rating prices each new rule (deckRating.ts, behind the switch): the OVERCLOCKER by the rig it charges, STOKER with
 //   no cap, and the walk's floors, caps and pulses; off, every rating as before.
 import { describe, expect, it } from "vitest";
-import { ITEMS, withStarRules } from "../src/sim/content";
+import { ITEMS } from "../src/sim/content";
 import { rigHits, type Build } from "../src/sim/deck";
 import { chargeGains, rateDeck, stokeKeep } from "../src/sim/deckRating";
 import { doubles } from "../src/sim/overclock";
 import { effectAt } from "../src/sim/stars";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { RUNES } from "../src/sim/runes";
-import { GLOSSARY, STAR_RETIRED, glossaryEntry, glossaryRows, glossaryText, glossaryWordsIn, GLOSSARY_WRAP_W } from "../src/ui/glossary";
+import { GLOSSARY, glossaryEntry, glossaryRows, glossaryText, glossaryWordsIn, GLOSSARY_WRAP_W } from "../src/ui/glossary";
 import { abilityText, cardText, gist, hitText, mergesWithText } from "../src/ui/abilityText";
 import { faceAt, Y3_PIECES } from "../src/ui/faces";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { KEYWORDS, icons, textWidth } from "../src/render/font";
 import { C } from "../src/render/palette";
 import { colourize, wrapRich } from "../src/ui/richText";
-import { STARS, on, rigBench } from "./y3.helpers";
+import { STARS, rigBench } from "./y3.helpers";
 import { item, withItem } from "./wave3.helpers";
 
 /** The words a switch-on text of the 13 may never say: each names a floor, cap, caveat, clause or rule that left. */
 const GONE = /UP TO \d+ BURN|UP TO \d+ HITS|MAX \d+ RIGS|MAX \d+ \{?FRAY|HOLD \d+ FRAY|ELSE|NEVER OUTRUN|CAN'T DOUBLE|THAT CAN BE DOUBLED|SIFTER|SURGE \d|TIMES AS FAST|PULSES ITS BELTS|SPEEDS UP|LETS GO GAINS|TWICE AS HARD|ONLINE|TO EACH PAYLOAD IT HITS, (OR|AND)|UP TO \d+ OF ITS BURN|ANY MORE BURN STAYS|NO PLATING TO TAKE|RAZOR WIRE:|HOT SHOE:|HOT START:|FOR \d+\{SEC\}, \+/;
+/** The rows the star switch retired (glossary.ts STAR_RETIRED until the flip, Y7b2, which deleted them from the table). */
+const RETIRED = ["HARASSMENT", "ONLINE", "POISON"];
 
 describe("Y3 words: no new keyword; ONLINE stays (KEG, QUICK LATCH; Y5: it retires); MATCHED is a row", () => {
   it("on, the glossary is Y2's: only HARASSMENT retires (Y5: and ONLINE; Y6: and POISON); MATCHED stays, and no keyword joins", () => {
-    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); // Y6 (BRIEF-Y6): was ["HARASSMENT", "ONLINE"]; Y5 (ruling 882ecc77): was ["HARASSMENT"]
-    expect(on(() => glossaryRows().map((r) => r.word))).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE" && w !== "POISON")); // Y6 (BRIEF-Y6): was .filter((w) => w !== "HARASSMENT" && w !== "ONLINE"); Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
-    expect(on(() => glossaryEntry("ONLINE"))).toBeUndefined(); // Y5 (ruling 882ecc77): was ?.word).toBe("ONLINE")
-    expect(on(() => glossaryEntry("MATCHED BELT"))?.word).toBe("MATCHED");
-    expect(on(() => glossaryRows().filter((r) => r.kw).map((r) => r.word))).toEqual(GLOSSARY.filter((r) => r.kw).map((r) => r.word));
+    // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
+    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
+    for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
+    expect(glossaryRows().map((r) => r.word)).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE" && w !== "POISON")); // Y6 (BRIEF-Y6): was .filter((w) => w !== "HARASSMENT" && w !== "ONLINE"); Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
+    expect(glossaryEntry("ONLINE")).toBeUndefined(); // Y5 (ruling 882ecc77): was ?.word).toBe("ONLINE")
+    expect(glossaryEntry("MATCHED BELT")?.word).toBe("MATCHED");
+    expect(glossaryRows().filter((r) => r.kw).map((r) => r.word)).toEqual(GLOSSARY.filter((r) => r.kw).map((r) => r.word));
     expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]); // the 9, as before
   });
 
   it("why ONLINE stayed (Y5: it retires): with the switch on neither POWDER KEG's kept sentence nor the QUICK LATCH rune's line names it (Y5; the rune's def text still does); none of the 13's texts do", () => {
-    expect(on(() => abilityText("keg", 1).sentences.some((t) => glossaryWordsIn(t).some((r) => r.word === "ONLINE")))).toBe(false); // Y5 (ruling 882ecc77): was toBe(true)
+    expect(abilityText("keg", 1).sentences.some((t) => glossaryWordsIn(t).some((r) => r.word === "ONLINE"))).toBe(false); // Y5 (ruling 882ecc77): was toBe(true)
     expect(JSON.stringify(RUNES.quick_latch)).toMatch(/ONLINE/); // its text: "YOUR {BELT} RIGS: ONLINE {N} SOONER."
-    on(() => {
-      for (const def of Y3_PIECES) for (const s of STARS) {
-        const texts = [...abilityText(def, s).sentences, gist(def, s), cardText(def), ...faceAt(def, s)!.rules.map((r) => r.text)];
-        for (const t of texts) expect(glossaryWordsIn(t).map((r) => r.word), `${def} ★${s}: ${t}`).not.toContain("ONLINE");
-      }
-    });
-    // off: ASSEMBLY LINE's kept sentences say ONLINE, as before
-    expect(abilityText("assembly", 1).sentences[0]).toBe("WHILE IT FEEDS A TURRET, YOUR RIGS COME ONLINE IN HALF THE TIME.");
+    for (const def of Y3_PIECES) for (const s of STARS) {
+      const texts = [...abilityText(def, s).sentences, gist(def, s), cardText(def), ...faceAt(def, s)!.rules.map((r) => r.text)];
+      for (const t of texts) expect(glossaryWordsIn(t).map((r) => r.word), `${def} ★${s}: ${t}`).not.toContain("ONLINE");
+    }
   });
 
   it("TWIN GAUGE's face taps MATCHED; the faces' keywords are the existing ones", () => {
-    expect(on(() => glossaryWordsIn(faceAt("twingauge", 1)!.rules[0].text).map((r) => r.word))).toContain("MATCHED");
-    on(() => {
-      for (const def of Y3_PIECES) for (const s of STARS) {
-        for (const r of faceAt(def, s)!.rules) for (const m of r.text.matchAll(/\{\*([A-Z]+)\}/g)) expect(KEYWORDS as readonly string[], `${def}: ${m[1]}`).toContain(m[1]);
-      }
-    });
+    expect(glossaryWordsIn(faceAt("twingauge", 1)!.rules[0].text).map((r) => r.word)).toContain("MATCHED");
+    for (const def of Y3_PIECES) for (const s of STARS) {
+      for (const r of faceAt(def, s)!.rules) for (const m of r.text.matchAll(/\{\*([A-Z]+)\}/g)) expect(KEYWORDS as readonly string[], `${def}: ${m[1]}`).toContain(m[1]);
+    }
   });
 });
 
 describe("Y3 words: the 13's texts say the new rules with the switch on", () => {
   it("on, no face, ⓘ line, kept sentence, gist, merge line or card of the 13 names a rule that left", () => {
-    on(() => {
-      for (const def of Y3_PIECES) for (const s of STARS) {
-        const texts = [...faceAt(def, s)!.rules.map((r) => r.text), ...levelLines(def, s)!.map((l) => levelText(l)), ...abilityText(def, s).sentences,
-          gist(def, s), cardText(def), ...(s > 1 ? [mergesWithText(def, s)] : [])];
-        for (const t of texts) expect(t, `${def} ★${s}`).not.toMatch(GONE);
-      }
-    });
-    // off, the base's words name them (identity: the same texts, so GONE finds them)
-    expect(abilityText("bellows", 1).sentences[0]).toMatch(GONE);
-    expect(abilityText("overclocker", 1).sentences[2]).toMatch(/SIFTERS/);
+    for (const def of Y3_PIECES) for (const s of STARS) {
+      const texts = [...faceAt(def, s)!.rules.map((r) => r.text), ...levelLines(def, s)!.map((l) => levelText(l)), ...abilityText(def, s).sentences,
+        gist(def, s), cardText(def), ...(s > 1 ? [mergesWithText(def, s)] : [])];
+      for (const t of texts) expect(t, `${def} ★${s}`).not.toMatch(GONE);
+    }
   });
 
   it("on, the new kept sentences, gists and cards", () => {
-    on(() => {
-      expect(abilityText("pincer", 1).sentences[0]).toBe("ADDS 20 DAMAGE TO EACH PAYLOAD IT HITS FOR EACH OTHER RIG HITTING THAT TILE.");
-      expect(abilityText("twingauge", 2).sentences[0]).toBe("ADDS 66 DAMAGE TO EACH PAYLOAD IT HITS ON A MATCHED BELT.");
-      expect(abilityText("bellows", 3).sentences[0]).toBe("ADDS 3 BURN FOR EACH 2 SECONDS THE PAYLOAD HAS RIDDEN.");
-      expect(abilityText("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
-      expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT.");
-      expect(abilityText("barbed", 3).sentences[0]).toBe("ADDS 3 FRAY TO EACH PAYLOAD IT HITS.");
-      expect(abilityText("platebreaker", 1).sentences).toEqual(["EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS 40 DAMAGE.", "WITH LESS PLATING THAN THAT, IT ADDS NOTHING."]);
-      expect(abilityText("brake", 2).sentences[0]).toBe("SLOWS THE BELT PAST IT TO 40% SPEED.");
-      expect(abilityText("surge", 3).sentences).toEqual(["EVERY 2 SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 30 DAMAGE.", "PAYLOADS BEFORE ITS TILE GET IT TOO."]);
-      expect(abilityText("overclocker", 1).sentences.slice(1)).toEqual(["THE NEXT RIG IS THE FIRST LATER RIG ON ITS BELT, WHATEVER IT IS.", "A RIG WITH NOTHING TO DOUBLE USES UP THE CHARGE."]);
-      expect(abilityText("twinlatch", 2).sentences).toHaveLength(3);
-      expect(abilityText("twinlatch", 2).sentences[1]).toBe("IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST 2 SECONDS, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.");
-      expect(abilityText("stoker", 1).sentences[1]).toBe("IT NEVER MAKES A FACTORY OUTRUN ITS GUN."); // Y7b1 (Y7A-R1): was "A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT."
-      expect(abilityText("assembly", 1).sentences[0]).toBe("WHILE IT FEEDS A TURRET, YOUR RIGS START WORKING 50% SOONER, THOSE ON ITS OWN BELT TOO.");
-      expect(abilityText("assembly", 3).sentences[0]).toBe("WHILE IT FEEDS A TURRET, ALL YOUR RIGS START WORKING AT ONCE, THOSE ON ITS OWN BELT TOO.");
-      expect(abilityText("assembly", 3).perk).toEqual({ name: "HOT START", stars: 3, after: 0 }); // the name stays (R-1: the ⓘ view and the desk's)
-      expect(["pincer", "twingauge", "bellows", "surge", "assembly"].map((d) => cardText(d))).toEqual([
-        "DAMAGE FOR EACH RIG ON ITS TILE.", "DAMAGE ON A MATCHED BELT.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "RIGS START 50% SOONER."]);
-      expect(["quench", "brake", "twinlatch", "platebreaker", "surge"].map((d) => gist(d, 2))).toEqual([
-        "50 DAMAGE FOR EACH BURN", "40% SPEED", "HOLDS UP TO 2 SECONDS", "88 DAMAGE FOR 10 PLATING", "20 DAMAGE EVERY 3 SECONDS"]);
-    });
+    expect(abilityText("pincer", 1).sentences[0]).toBe("ADDS 20 DAMAGE TO EACH PAYLOAD IT HITS FOR EACH OTHER RIG HITTING THAT TILE.");
+    expect(abilityText("twingauge", 2).sentences[0]).toBe("ADDS 66 DAMAGE TO EACH PAYLOAD IT HITS ON A MATCHED BELT.");
+    expect(abilityText("bellows", 3).sentences[0]).toBe("ADDS 3 BURN FOR EACH 2 SECONDS THE PAYLOAD HAS RIDDEN.");
+    expect(abilityText("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
+    expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT.");
+    expect(abilityText("barbed", 3).sentences[0]).toBe("ADDS 3 FRAY TO EACH PAYLOAD IT HITS.");
+    expect(abilityText("platebreaker", 1).sentences).toEqual(["EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS 40 DAMAGE.", "WITH LESS PLATING THAN THAT, IT ADDS NOTHING."]);
+    expect(abilityText("brake", 2).sentences[0]).toBe("SLOWS THE BELT PAST IT TO 40% SPEED.");
+    expect(abilityText("surge", 3).sentences).toEqual(["EVERY 2 SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 30 DAMAGE.", "PAYLOADS BEFORE ITS TILE GET IT TOO."]);
+    expect(abilityText("overclocker", 1).sentences.slice(1)).toEqual(["THE NEXT RIG IS THE FIRST LATER RIG ON ITS BELT, WHATEVER IT IS.", "A RIG WITH NOTHING TO DOUBLE USES UP THE CHARGE."]);
+    expect(abilityText("twinlatch", 2).sentences).toHaveLength(3);
+    expect(abilityText("twinlatch", 2).sentences[1]).toBe("IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST 2 SECONDS, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.");
+    expect(abilityText("stoker", 1).sentences[1]).toBe("IT NEVER MAKES A FACTORY OUTRUN ITS GUN."); // Y7b1 (Y7A-R1): was "A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT."
+    expect(abilityText("assembly", 1).sentences[0]).toBe("WHILE IT FEEDS A TURRET, YOUR RIGS START WORKING 50% SOONER, THOSE ON ITS OWN BELT TOO.");
+    expect(abilityText("assembly", 3).sentences[0]).toBe("WHILE IT FEEDS A TURRET, ALL YOUR RIGS START WORKING AT ONCE, THOSE ON ITS OWN BELT TOO.");
+    expect(abilityText("assembly", 3).perk).toEqual({ name: "HOT START", stars: 3, after: 0 }); // the name stays (R-1: the ⓘ view and the desk's)
+    expect(["pincer", "twingauge", "bellows", "surge", "assembly"].map((d) => cardText(d))).toEqual([
+      "DAMAGE FOR EACH RIG ON ITS TILE.", "DAMAGE ON A MATCHED BELT.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "RIGS START 50% SOONER."]);
+    expect(["quench", "brake", "twinlatch", "platebreaker", "surge"].map((d) => gist(d, 2))).toEqual([
+      "50 DAMAGE FOR EACH BURN", "40% SPEED", "HOLDS UP TO 2 SECONDS", "88 DAMAGE FOR 10 PLATING", "20 DAMAGE EVERY 3 SECONDS"]);
   });
 
   it("on, the belt timeline says the new rules (hitText)", () => {
     const row = (def: string, stars: number, extra: object = {}) => ({ uid: 1, def, dir: 1, stars, tier: 1, ...extra }) as never;
-    on(() => {
-      expect(hitText(row("surge", 1, { flat: 8.7 }), "free")).toBe("SURGE VALVE +10 DAMAGE EVERY 3 SEC");
-      expect(hitText(row("surge", 3), "slag")).toBe("SURGE VALVE +30 DAMAGE EVERY 2 SEC");
-      expect(hitText(row("surge", 1), "locked")).toBe("SURGE VALVE +10 DAMAGE EVERY 3 SEC");
-      expect(hitText(row("twingauge", 1, { flat: 0, matched: false }), "free")).toBe("TWIN GAUGE: NO EFFECT ON AN UNMATCHED BELT");
-      expect(hitText(row("twingauge", 1, { flat: 30, matched: true }), "free")).toBe("TWIN GAUGE +30 DAMAGE ON A MATCHED BELT");
-      expect(hitText(row("pincer", 1, { flat: 0, others: 0 }), "free")).toBe("PINCER: NO OTHER RIG ON ITS TILE");
-      expect(hitText(row("pincer", 2, { flat: 44, others: 1 }), "free")).toBe("PINCER +44 DAMAGE, CROSSFIRE WITH 1 RIG");
-      expect(hitText(row("twinlatch", 3, { flat: 0 }), "free")).toBe("TWIN LATCH HOLDS UP TO 3 SEC");
-      expect(hitText(row("platebreaker", 1, { flat: 0 }), "free")).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING");
-      expect(hitText(row("brake", 3), "free")).toBe("BRAKE SHOE 70% SLOWER");
-      expect(hitText(row("longhaul", 2, { flat: 160, prior: 8 }), "free")).toBe("LONG HAUL +160 DAMAGE (8 HITS BEFORE)");
-      for (const def of Y3_PIECES.filter((d) => ITEMS[d].kind === "gate")) for (const s of STARS) {
-        expect(hitText(row(def, s, { flat: 1, others: 1, matched: true }), "free"), `${def} ★${s}`).not.toMatch(GONE);
-      }
-    });
-    // off: as before
-    expect(hitText(row("surge", 1, { flat: 10, speed: 5 / 3 }), "free")).toBe("SURGE VALVE PULSES 3 TIMES AS FAST, +10 DAMAGE");
-    expect(hitText(row("platebreaker", 1, { flat: 10 }), "free")).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING, ELSE +10 DAMAGE");
+    expect(hitText(row("surge", 1, { flat: 8.7 }), "free")).toBe("SURGE VALVE +10 DAMAGE EVERY 3 SEC");
+    expect(hitText(row("surge", 3), "slag")).toBe("SURGE VALVE +30 DAMAGE EVERY 2 SEC");
+    expect(hitText(row("surge", 1), "locked")).toBe("SURGE VALVE +10 DAMAGE EVERY 3 SEC");
+    expect(hitText(row("twingauge", 1, { flat: 0, matched: false }), "free")).toBe("TWIN GAUGE: NO EFFECT ON AN UNMATCHED BELT");
+    expect(hitText(row("twingauge", 1, { flat: 30, matched: true }), "free")).toBe("TWIN GAUGE +30 DAMAGE ON A MATCHED BELT");
+    expect(hitText(row("pincer", 1, { flat: 0, others: 0 }), "free")).toBe("PINCER: NO OTHER RIG ON ITS TILE");
+    expect(hitText(row("pincer", 2, { flat: 44, others: 1 }), "free")).toBe("PINCER +44 DAMAGE, CROSSFIRE WITH 1 RIG");
+    expect(hitText(row("twinlatch", 3, { flat: 0 }), "free")).toBe("TWIN LATCH HOLDS UP TO 3 SEC");
+    expect(hitText(row("platebreaker", 1, { flat: 0 }), "free")).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING");
+    expect(hitText(row("brake", 3), "free")).toBe("BRAKE SHOE 70% SLOWER");
+    expect(hitText(row("longhaul", 2, { flat: 160, prior: 8 }), "free")).toBe("LONG HAUL +160 DAMAGE (8 HITS BEFORE)");
+    for (const def of Y3_PIECES.filter((d) => ITEMS[d].kind === "gate")) for (const s of STARS) {
+      expect(hitText(row(def, s, { flat: 1, others: 1, matched: true }), "free"), `${def} ★${s}`).not.toMatch(GONE);
+    }
   });
 
   it("on, SURGE VALVE's tap on EVERY says the damage pulse, in 2 lines of 5x7 at 225 px (off: the speed pulse)", () => {
-    const tap = (star: boolean) => withStarRules(() => glossaryText("EVERY", { def: "surge", stars: 1 })!, star);
-    expect(tap(true)).toBe("EVERY 3{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.");
-    expect(wrapRich(colourize(icons(tap(true)), C.bone), GLOSSARY_WRAP_W, "5").length).toBeLessThanOrEqual(2);
-    expect(tap(false)).toBe("EVERY 3{SEC}: ITS BELT RUNS FAST FOR 1{SEC}, THEN AS BEFORE; A SLUG GETS THE {DMG} ONCE.");
-    expect(textWidth(icons(tap(true)))).toBeLessThanOrEqual(2 * GLOSSARY_WRAP_W);
+    const tap = () => glossaryText("EVERY", { def: "surge", stars: 1 })!;
+    expect(tap()).toBe("EVERY 3{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.");
+    expect(wrapRich(colourize(icons(tap()), C.bone), GLOSSARY_WRAP_W, "5").length).toBeLessThanOrEqual(2);
+    expect(textWidth(icons(tap()))).toBeLessThanOrEqual(2 * GLOSSARY_WRAP_W);
   });
 });
 
 describe("Y3 the bots' deck rating prices each new rule (switch on; off as before)", () => {
-  const offense = (b: Build, star: boolean) => withStarRules(() => rateDeck(b).offense, star);
+  const offense = (b: Build) => rateDeck(b).offense;
 
   it("OVERCLOCKER: on, worth its EQ only when the rig it charges (the next, whatever it is) doubles something", () => {
     const greaseNext = rigBench([["overclocker", 4, 4, 1], ["grease", 4, 3, 1], ["whetstone", 4, 2, 1]]);
     const whetNext = rigBench([["overclocker", 4, 4, 1], ["whetstone", 4, 3, 1]]);
     const hit0 = (b: Build) => { const h = rigHits(b); return { tiles: h[0], oc: h[0].flat().find((x) => x.def === "overclocker")! }; };
-    on(() => {
-      const g = hit0(greaseNext), w = hit0(whetNext);
-      expect([chargeGains(greaseNext, g.tiles, g.oc), chargeGains(whetNext, w.tiles, w.oc)]).toEqual([false, true]);
-      expect(doubles(effectAt("twinlatch", 1).gate!)).toBe(false); // the flat-less latch has nothing to double
-      expect(doubles(effectAt("pincer", 1).gate!)).toBe(true);
-    });
+    const g = hit0(greaseNext), w = hit0(whetNext);
+    expect([chargeGains(greaseNext, g.tiles, g.oc), chargeGains(whetNext, w.tiles, w.oc)]).toEqual([false, true]);
+    expect(doubles(effectAt("twinlatch", 1).gate!)).toBe(false); // the flat-less latch has nothing to double
+    expect(doubles(effectAt("pincer", 1).gate!)).toBe(true);
     // the charge spent on the GREASE WORKS is worth nothing on: the deck rates as without the OVERCLOCKER (off: more)
     const noOc = rigBench([["grease", 4, 3, 1], ["whetstone", 4, 2, 1]]);
-    expect(offense(greaseNext, true)).toBeCloseTo(offense(noOc, true), 9);
-    expect(offense(greaseNext, false)).toBeGreaterThan(offense(noOc, false));
-    expect(offense(whetNext, true)).toBeCloseTo(offense(whetNext, false), 9); // before a damage rig: the same price
+    expect(offense(greaseNext)).toBeCloseTo(offense(noOc), 9);
   });
 
   // Y7b1 (ruling Y7A-R1): was "STOKER: on, no cap: the inspector's capped line (stokeKeep) is gone and the stoked feed arrives
@@ -156,17 +137,7 @@ describe("Y3 the bots' deck rating prices each new rule (switch on; off as befor
   it("STOKER: on, the cap holds as off (Y7A-R1): the inspector's capped line (stokeKeep) is there and the stoked feed is held to its gun", () => {
     const stoked = (s: number) => withItem(heroStartBuild("furnace", 1), item(70, "stoker", 6, 6, 0, s));
     for (const s of [2, 3]) {
-      expect(on(() => stokeKeep(stoked(s)).size), `★${s}`).toBe(1);
-      expect(stokeKeep(stoked(s)).size, `★${s} off`).toBe(1);
-      expect(offense(stoked(s), true), `★${s}`).toBeCloseTo(offense(stoked(s), false), 6);
+      expect(stokeKeep(stoked(s)).size, `★${s}`).toBe(1);
     }
-  });
-
-  it("the walk carries the rest into the rating: floors gone (a lone PINCER, an unplated PLATE BREAKER, QUENCH with a TEMPER), BELLOWS uncapped on a slow belt", () => {
-    for (const b of [rigBench([["pincer", 4, 3, 1]]), rigBench([["platebreaker", 4, 3, 1]]), rigBench([["temper", 4, 4, 3], ["quench", 4, 3, 1]])]) {
-      expect(offense(b, true)).toBeLessThan(offense(b, false));
-    }
-    const slow = rigBench([["brake", 4, 5, 1], ["bellows", 4, 0, 3]]);
-    expect(offense(slow, true)).toBeGreaterThan(offense(slow, false));
   });
 });
