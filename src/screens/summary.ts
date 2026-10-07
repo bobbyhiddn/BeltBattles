@@ -241,7 +241,7 @@ export class SummaryScreen implements Screen {
     // MOTION-2 (REQ-BFG-071): one world on every screen. The run's last day's sea, held still, and the player's own
     // ship, held still under its board (a lost run's wreck dimmed as before). CUSTOM-2a (REVIEW-MOTION2 Q2): the only look.
     this.sea.drawStill(g, { W, H, kind: seaForDay(run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
-    drawStillCarrier(g, v.model.hero, v.frame, won ? 0 : 0.55, v.skin?.floor);
+    drawStillCarrier(g, v.model.hero, v.frame, won ? 0 : 0.55, v.skin?.floor, v.skin?.carrier); // CUSTOM-3: your carrier style
     drawMachinery(g, v);
     drawTurrets(g, v);
     if (!won) dimStillPlate(g, v.frame, 0.55);

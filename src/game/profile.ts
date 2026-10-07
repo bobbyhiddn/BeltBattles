@@ -13,8 +13,8 @@
 
 import type { HeroId } from "../sim/content";
 import {
-  DEFAULT_SKIN, SURFACES, earned, isStyleId, styleKey, stylesOf, type AnyStyle, type BeltId, type FloorId, type PanelId,
-  type Skin, type Surface,
+  DEFAULT_SKIN, SURFACES, earned, isStyleId, styleKey, stylesOf, type AnyStyle, type BeltId, type CarrierId, type FloorId,
+  type PanelId, type Skin, type Surface,
 } from "../render/styles";
 
 export const PROFILE_KEY = "beltbattles.profile.v1";
@@ -101,6 +101,8 @@ export function migrateProfile(raw: unknown): Profile | null {
     floor: (isStyleId("floor", ch.floor) ? ch.floor : DEFAULT_SKIN.floor) as FloorId,
     belt: (isStyleId("belt", ch.belt) ? ch.belt : DEFAULT_SKIN.belt) as BeltId,
     panel: (isStyleId("panel", ch.panel) ? ch.panel : DEFAULT_SKIN.panel) as PanelId,
+    // CUSTOM-3 (REQ-BFG-074): a profile from before carrier styles (no choice) or an unknown id wears WAR COLOURS
+    carrier: (isStyleId("carrier", ch.carrier) ? ch.carrier : DEFAULT_SKIN.carrier) as CarrierId,
   };
   const rn = isObj(raw.runNew) ? raw.runNew : null;
   p.runNew = rn && typeof rn.runId === "string" ? { runId: rn.runId, ids: strings(rn.ids) } : null;
@@ -143,6 +145,7 @@ export function chosenSkin(p: Profile): Skin {
     floor: isOpen(p, "floor", p.chosen.floor) ? p.chosen.floor : DEFAULT_SKIN.floor,
     belt: isOpen(p, "belt", p.chosen.belt) ? p.chosen.belt : DEFAULT_SKIN.belt,
     panel: isOpen(p, "panel", p.chosen.panel) ? p.chosen.panel : DEFAULT_SKIN.panel,
+    carrier: isOpen(p, "carrier", p.chosen.carrier) ? p.chosen.carrier : DEFAULT_SKIN.carrier,
   };
 }
 
@@ -153,7 +156,7 @@ export function unseen(p: Profile): string[] {
 
 /** A style id ("style:floor.timber") -> its catalogue entry. */
 export function styleByKey(key: string): { surface: Surface; style: AnyStyle } | null {
-  const m = /^style:(floor|belt|panel)\.(.+)$/.exec(key);
+  const m = /^style:(floor|belt|panel|carrier)\.(.+)$/.exec(key);
   if (!m) return null;
   const surface = m[1] as Surface;
   const style = stylesOf(surface).find((s) => s.id === m[2]);

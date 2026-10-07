@@ -10,6 +10,9 @@
 //   progress as a number and a thin bar under the line (R8: 9/60 fills 15%). Long goals carry a LONG GOAL tag; a style
 //   unlocked since the last visit a NEW tag (opening the screen marks them seen, so the title's NEW dot goes).
 // Display only: styles change looks, never rules (game/profile.ts holds the choice; the sim never reads it).
+// CUSTOM-3 (REQ-BFG-074): a fourth tab, CARRIER (the hull's styles, render/carrier.ts): its rows' swatch is the ship's bow
+// at 1:1, and a row's tap restyles the preview's carrier (the stern band and the bow show around the board). The four
+// tabs share the row the three had; on a phone each tab's target is still at least a finger tall.
 
 import type { Game, Screen } from "../game/game";
 import { loadRun } from "../game/run";
@@ -29,11 +32,12 @@ import { heroPalette, styledTiles } from "../render/hull";
 import { beltCorner, beltStraight, turntable } from "../render/sprites";
 import { SeaBackdrop } from "../render/backdrop";
 import { seaForDay, stillSeaSeed } from "../render/motion";
-import { drawStillCarrier } from "../render/ship";
+import { drawCarrierSwatch, drawStillCarrier, stillShipPoint } from "../render/ship";
+import { Fx } from "../render/fx"; // CUSTOM-3 tooling: the damage probe (the battle's own smoke and fire particles)
 import { cruiserModel, drawTurrets, type CruiserModel, type CruiserView } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
 import {
-  SURFACES, floorStyle, panelSkin, styleKey, stylesOf, type AnyStyle, type BeltStyle, type FloorStyle,
+  SURFACES, floorStyle, panelSkin, styleKey, stylesOf, type AnyStyle, type BeltStyle, type CarrierStyle, type FloorStyle,
   type PanelSkin, type Skin, type Surface,
 } from "../render/styles";
 import { hullBar } from "../ui/hud";
@@ -41,7 +45,7 @@ import { button, statsPanel, tapRect, type Rect } from "../ui/ui";
 import { isPhone, tapPx } from "../ui/tap";
 import { TitleScreen } from "./title";
 
-export const TAB_LABEL: Record<Surface, string> = { floor: "FLOOR", belt: "BELTS", panel: "PANELS" };
+export const TAB_LABEL: Record<Surface, string> = { floor: "FLOOR", belt: "BELTS", panel: "PANELS", carrier: "CARRIER" };
 /** The preview's notice (TEXT-STYLE 8.3: LABEL: TEXT.), drawn in its own band (R7). */
 export const PREVIEW_NOTE = "PREVIEW: NOT YOURS YET.";
 export const FOOTER = "STYLES CHANGE LOOKS ONLY. YOUR CHOICE IS SAVED.";
@@ -186,8 +190,10 @@ export function customizeLayout(W: number, H: number, portrait: boolean, tap = 0
   const zoneTop = portrait ? keys.y + keys.h : band.y;
   const zoneH = Math.max(TAB_H + 9, tap);
   const tabY = zoneTop + Math.floor((zoneH - TAB_H) / 2);
-  const tw = Math.floor((lw - 4) / 3);
-  const tabs = [0, 1, 2].map((i) => ({ x: lx + i * (tw + 2), y: tabY, w: i === 2 ? lw - 2 * (tw + 2) : tw, h: TAB_H }));
+  // CUSTOM-3: one tab per surface (four), 2 px apart; the last takes the remainder
+  const n = SURFACES.length;
+  const tw = Math.floor((lw - 2 * (n - 1)) / n);
+  const tabs = SURFACES.map((_, i) => ({ x: lx + i * (tw + 2), y: tabY, w: i === n - 1 ? lw - (n - 1) * (tw + 2) : tw, h: TAB_H }));
   const tabHits = tabs.map((t) => ({ x: t.x, y: zoneTop, w: t.w, h: zoneH }));
   const top = zoneTop + zoneH;
   const footY = H - 9;
@@ -272,7 +278,7 @@ export class CustomizeScreen implements Screen {
 
   key(k: string): void {
     if (k === "Escape" || k === "Backspace") this.leave();
-    else if (k === "1" || k === "2" || k === "3") this.state.tapTab(SURFACES[+k - 1]);
+    else if (k === "1" || k === "2" || k === "3" || k === "4") this.state.tapTab(SURFACES[+k - 1]);
   }
 
   /** Tooling (read only; tests and the stills): the layout as drawn and the rows' state. */
@@ -291,11 +297,12 @@ export class CustomizeScreen implements Screen {
     const s = this.state, sk = s.preview;
     // the day's sea, held still (one cached blit), as the build screen draws it
     this.sea.drawStill(g, { W, H, kind: seaForDay(this.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(this.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
-    // the preview: the player's carrier held still, in the previewed floor and belts
-    drawStillCarrier(g, this.hero, L.frame, 0, sk.floor);
+    // the preview: the player's carrier held still, in the previewed floor, belts and carrier style
+    drawStillCarrier(g, this.hero, L.frame, 0, sk.floor, sk.carrier);
     const v: CruiserView = { side: 0, build: this.build, model: this.model, frame: L.frame, t: settings.reducedMotion ? 0 : this.t, tread: 0, skin: sk };
     drawMachinery(g, v);
     drawTurrets(g, v);
+    if (this.probe) this.drawProbe(g, L.frame, this.probe);
     // R7: a locked style's preview says so in its own band, above the carrier (no machinery, turret or plate under it)
     if (s.previewLocked()) {
       rect(g, L.band.x, L.band.y, L.band.w, L.band.h, C.ink);
@@ -316,6 +323,29 @@ export class CustomizeScreen implements Screen {
     // the rows
     s.rows().forEach((row, i) => this.drawRow(g, L.rows[i], row));
     drawText(g, FOOTER, L.portrait ? W / 2 : L.rows[0].x + L.rows[0].w / 2, L.footY, C.slate3, { font: "3", align: "center" });
+  }
+
+  /** CUSTOM-3 tooling (scripts/stylecheck.mjs only; nothing sets it in play): draw the battle's damage effects over the
+   *  preview carrier's stern band and bow, as arenaReact.ts damageFx spawns them below 50% hull (light smoke, a few
+   *  sparks) and below 25% (heavy smoke, embers, sparks), with the battle's own particles (render/fx.ts), a fixed seed and
+   *  a fixed age, so the readability check measures them against each style's paint. */
+  probe: 0 | 50 | 25 = 0;
+
+  private drawProbe(g: G, f: DeckFrame, state: 50 | 25): void {
+    const fx = new Fx();
+    fx.reseed(state === 25 ? 0x2525 : 0x5050);
+    const crit = state === 25;
+    const sparky = [C.fire4, C.yellow, C.white] as const; // arenaReact.ts SPARKY
+    // the visible ship: the stern band (ship x 0..22) above and below the funnels, and the bow (ship x 153..183)
+    const pts: [number, number][] = [[3, 18], [10, 26], [16, 16], [5, 130], [12, 124], [17, 136], [157, 56], [163, 62], [157, 94], [164, 90], [170, 70]];
+    for (const [x, y] of pts) {
+      const [sx, sy] = stillShipPoint(f, x, y);
+      fx.smoke(sx, sy, 1, crit, crit ? 16 : 10);
+      if (crit) fx.embers(sx, sy, 2);
+      fx.sparks(sx, sy, crit ? 4 : 2, sparky, 45);
+    }
+    fx.update(crit ? 0.1 : 0.12);
+    fx.draw(g, 0, 0);
   }
 
   private drawPlate(g: G, r: Rect, p: PanelSkin): void {
@@ -396,6 +426,10 @@ export class CustomizeScreen implements Screen {
       for (let i = 0; i < 4; i++) g.drawImage(beltStraight(1, fr, "normal", "n", worn.belt), r.x - 4 + i * 12, r.y + 20);
     } else if (tab === "belt") {
       beltLoop(g, r.x + Math.floor((r.w - 36) / 2), r.y + Math.floor((r.h - 36) / 2), s as BeltStyle, floorStyle(worn.floor), pal, fr);
+    } else if (tab === "carrier") {
+      // CUSTOM-3: the ship's bow at 1:1 on the sea's colour (the stem, the crest, ram, eyes or laurel, the bow wave)
+      rect(g, r.x, r.y, r.w, r.h, C.night);
+      drawCarrierSwatch(g, this.hero, (s as CarrierStyle).id, r.x, r.y, r.w);
     } else {
       const ps = s as PanelSkin;
       statsPanel(g, { x: r.x, y: r.y, w: r.w + 12, h: r.h + 12 }, ps.id);

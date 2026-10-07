@@ -444,7 +444,7 @@ export class BuildScreen implements Screen, EditHost {
     const bump = this.thunkT > 0.07 ? 1 : 0;
     if (bump) g.translate(0, bump);
     if (P) t0 = performance.now();
-    drawStillCarrier(g, v.model.hero, L.frame, 0, this.skin.floor);
+    drawStillCarrier(g, v.model.hero, L.frame, 0, this.skin.floor, this.skin.carrier); // CUSTOM-3 (REQ-BFG-074): your carrier style
     if (P) { const t1 = performance.now(); P.add(1, t1 - t0); t0 = t1; }
     drawMachinery(g, v);
     this.drawBroken(g);

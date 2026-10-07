@@ -5,7 +5,7 @@
 
 import { C, FACTION } from "./palette";
 import { ICON, ICON_COLOUR } from "./font";
-import { BELTS, FLOORS, PANELS, type BeltStyle, type FloorStyle, type PanelSkin } from "./styles";
+import { BELTS, CARRIERS, FLOORS, PANELS, type BeltStyle, type CarrierStyle, type FloorStyle, type PanelSkin } from "./styles";
 
 function rgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
@@ -118,9 +118,64 @@ function ironOnTodayFloors(): number {
   return Math.min(...FLOORS.filter((f) => !f.deck).flatMap(floorTones).map((t) => contrast(iron.chev[1], t[1])));
 }
 
+// ------------------------------------------------------------------------------------- CUSTOM-3: carrier styles
+
+/** The factions a carrier can belong to (beastfolk and unaligned borrow orc's and elf's palettes). */
+export const CARRIER_FACTIONS = ["orc", "elf", "human", "dwarf"] as const;
+/** The damage effects (arenaReact.ts damageFx; render/fx.ts, particles.ts): below 50% hull the light smoke puff (slate3
+ *  body, slate4 highlight); below 25% the fire: embers (fire4) and sparks (fire4, yellow, white). */
+export const SMOKE_50 = [C.slate3, C.slate4];
+export const FIRE_25 = [C.fire4, C.yellow, C.white];
+
+/** A carrier's paint fill (the colour the visible hull shows most): the style's, or the faction's hull2 (WAR COLOURS). */
+export function carrierFill(s: CarrierStyle, faction: (typeof CARRIER_FACTIONS)[number]): string {
+  return s.paint ? s.paint[2] : FACTION[faction].hull2;
+}
+
+/** The four carrier checks on a fill: smoke and fire against it, the plate's ink rim against it (WCAG contrast). */
+export function carrierContrasts(fill: string): { smoke: number; fire: number; edge: number } {
+  return {
+    smoke: Math.min(...SMOKE_50.map((c) => contrast(c, fill))),
+    fire: Math.min(...FIRE_25.map((c) => contrast(c, fill))),
+    edge: contrast(C.ink, fill),
+  };
+}
+
+/** "Yours" against every faction's default carrier: the least CIE76 delta E between the style's fill and each faction's
+ *  default fill, and the faction it is nearest. */
+export function yoursDistance(s: CarrierStyle): { value: number; nearest: string } {
+  let value = Infinity, nearest = "";
+  for (const f of CARRIER_FACTIONS) {
+    const d = separation(carrierFill(s, f), FACTION[f].hull2);
+    if (d < value) { value = d; nearest = f; }
+  }
+  return { value, nearest };
+}
+
+/** Today's carriers (WAR COLOURS on the four factions): the weakest value of each check, the carrier thresholds. */
+function todayCarriers(): { smoke: number; fire: number; edge: number; closest: number } {
+  const v = CARRIER_FACTIONS.map((f) => carrierContrasts(FACTION[f].hull2));
+  let closest = Infinity;
+  for (const a of CARRIER_FACTIONS) for (const b of CARRIER_FACTIONS) if (a < b) closest = Math.min(closest, separation(FACTION[a].hull2, FACTION[b].hull2));
+  return { smoke: Math.min(...v.map((x) => x.smoke)), fire: Math.min(...v.map((x) => x.fire)), edge: Math.min(...v.map((x) => x.edge)), closest };
+}
+const TODAY = todayCarriers();
+/** The closest two of today's default carriers (FOUNDRY's blued steel and BASTION's granite, about 19.8): a carrier
+ *  style must stand farther than this from every default. */
+export const TODAY_CLOSEST_DEFAULTS = TODAY.closest;
+
 /** The thresholds (REPORT section 6). Each is the weakest pair today's default shows (a style may never read worse
  *  than the game reads now), or a fixed floor where today clears it by far. */
 export const THRESHOLDS = {
+  /** CUSTOM-3: smoke at 50% on the hull's fill: today's weakest carrier (WEAVER's verdigris, 1.11). */
+  carrierSmoke: TODAY.smoke,
+  /** CUSTOM-3: fire at 25% on the fill: today's weakest (WEAVER's verdigris against the yellow sparks, 4.29). */
+  carrierFire: TODAY.fire,
+  /** CUSTOM-3: the board plate's ink rim against the hull's fill around it: today's weakest (BASTION's granite, 1.91). */
+  plateEdge: TODAY.edge,
+  /** CUSTOM-3: "yours" against every faction's default carrier, CIE76 delta E: 20, the state colours' "clearly another
+   *  colour", just past the closest two of today's defaults (TODAY_CLOSEST_DEFAULTS, 19.8). */
+  yours: 20,
   /** Tile edges: the weakest seam of today's four faction decks (1.21). */
   edge: Math.min(...FLOORS.filter((f) => !f.deck).map(edgeContrast)),
   /** Chevron crest on its bed: today's iron belt (2.99; WCAG's 3:1 for UI parts, less a hair). */
@@ -136,7 +191,7 @@ export const THRESHOLDS = {
 };
 
 export interface StyleReport {
-  surface: "floor" | "belt" | "panel";
+  surface: "floor" | "belt" | "panel" | "carrier";
   id: string;
   /** Each metric, its value and whether it passes. */
   rows: { name: string; value: number; min: number; pass: boolean }[];
@@ -174,6 +229,21 @@ export function reportAll(): StyleReport[] {
         { name: `KEY ${k.worst}`, value: k.min, min: k.need, pass: k.min >= k.need - e },
       ],
     });
+  }
+  // CUSTOM-3: each carrier style on every faction (WAR COLOURS: the faction's own hull, so its rows are today's)
+  for (const s of CARRIERS) {
+    const v = CARRIER_FACTIONS.map((f) => carrierContrasts(carrierFill(s, f)));
+    const smoke = Math.min(...v.map((x) => x.smoke)), fire = Math.min(...v.map((x) => x.fire)), edge = Math.min(...v.map((x) => x.edge));
+    const rows = [
+      { name: "SMOKE 50%", value: smoke, min: T.carrierSmoke, pass: smoke >= T.carrierSmoke - e },
+      { name: "FIRE 25%", value: fire, min: T.carrierFire, pass: fire >= T.carrierFire - e },
+      { name: "PLATE EDGE", value: edge, min: T.plateEdge, pass: edge >= T.plateEdge - e },
+    ];
+    if (s.paint) {
+      const y = yoursDistance(s);
+      rows.push({ name: `YOURS (${y.nearest})`, value: y.value, min: T.yours, pass: y.value >= T.yours });
+    }
+    out.push({ surface: "carrier", id: s.id, rows });
   }
   return out;
 }

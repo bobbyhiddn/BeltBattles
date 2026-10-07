@@ -85,8 +85,8 @@ describe("CUSTOM-2a profile store (beltbattles.profile.v1)", () => {
     expect(p.folded).toEqual([]);
     expect(p.runNew).toBeNull();
     expect(p.unlocked).toEqual(["style:floor.timber"]);
-    expect(p.chosen).toEqual({ floor: "timber", belt: "iron", panel: "plum" });
-    expect(chosenSkin(p)).toEqual({ floor: "timber", belt: "iron", panel: "slate" }); // plum is not unlocked: worn as SLATE
+    expect(p.chosen).toEqual({ floor: "timber", belt: "iron", panel: "plum", carrier: "war" }); // CUSTOM-3: no carrier choice stored: WAR COLOURS
+    expect(chosenSkin(p)).toEqual({ floor: "timber", belt: "iron", panel: "slate", carrier: "war" }); // plum is not unlocked: worn as SLATE
     expect(migrateProfile({})!.v).toBe(1);
     for (const bad of [null, 42, "x", [], [1]]) expect(migrateProfile(bad)).toBeNull();
   });
@@ -206,7 +206,7 @@ describe("CUSTOM-2a profile store (beltbattles.profile.v1)", () => {
     expect(runUnlockNames(p, "a")).toEqual(["TIMBER DECK"]);
     expect(runUnlockNames(p, "b")).toEqual([]);
     expect(wear(p, "floor", "timber")).toBe(true);
-    expect(chosenSkin(p)).toEqual({ floor: "timber", belt: "iron", panel: "slate" });
+    expect(chosenSkin(p)).toEqual({ floor: "timber", belt: "iron", panel: "slate", carrier: "war" });
     expect(wear(p, "floor", "plate")).toBe(true); // the default is always open
     markSeen(p);
     expect(unseen(p)).toEqual([]);

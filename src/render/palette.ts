@@ -119,6 +119,13 @@ export const C = {
   plate1: "#4A5670",
   plate2: "#8795B4",
   plate3: "#C6D0EA",
+  // CUSTOM-3 (REQ-BFG-074): olive drab, the IRONCLAD carrier style's paint (styles.ts CARRIERS); its fill olive2 sits in
+  // today's band of hull luminance, delta E 32 or more from every faction's hull
+  olive0: "#1C220B",
+  olive1: "#2F3914",
+  olive2: "#4A5A1E",
+  olive3: "#6E8030",
+  olive4: "#9AAE52",
 };
 
 export type ColorName = keyof typeof C;

@@ -5,13 +5,17 @@
 // THRESHOLDS (no style may read worse than today's default; WCAG floors where today clears them). The rendered-pixel
 // half (sampling the drawn sprites) is scripts/stylecheck.mjs (CUSTOM-2b): the same checks on the pixels CUSTOMIZE draws
 // in the built page, against these THRESHOLDS (tools/styleRefs.ts).
+// CUSTOM-3 (REQ-BFG-074): the carrier styles join it: smoke at 50% and fire at 25% against each style's hull fill, the
+// board plate's ink rim against it, and "yours" (each style's fill against every faction's default fill, CIE76 delta E),
+// on every faction a carrier can belong to. The rendered half reads the same four off CUSTOMIZE's preview carrier.
 import { describe, expect, it } from "vitest";
-import { BELTS, DEFAULT_SKIN, FLOORS, PANELS } from "../src/render/styles";
+import { BELTS, CARRIERS, DEFAULT_SKIN, FLOORS, PANELS } from "../src/render/styles";
 import {
-  KEYWORD_COLOURS, THRESHOLDS, chevronContrast, chevronOnFloors, contrast, edgeContrast, floorTones as floorTonesOf,
-  keywordContrast, keywordMin, numberContrast, reportAll, separation, stateSeparation,
+  CARRIER_FACTIONS, KEYWORD_COLOURS, THRESHOLDS, TODAY_CLOSEST_DEFAULTS, carrierContrasts, carrierFill, chevronContrast,
+  chevronOnFloors, contrast, edgeContrast, floorTones as floorTonesOf, keywordContrast, keywordMin, numberContrast,
+  reportAll, separation, stateSeparation, yoursDistance,
 } from "../src/render/styleContrast";
-import { C } from "../src/render/palette";
+import { C, FACTION } from "../src/render/palette";
 import { readFileSync } from "node:fs";
 
 describe("CUSTOM-1 style readability (palette pairs)", () => {
@@ -23,7 +27,7 @@ describe("CUSTOM-1 style readability (palette pairs)", () => {
   });
 
   it("the catalogue: the default plus at least 3 styles per surface, each locked one saying how to earn it", () => {
-    for (const [list, def] of [[FLOORS, DEFAULT_SKIN.floor], [BELTS, DEFAULT_SKIN.belt], [PANELS, DEFAULT_SKIN.panel]] as const) {
+    for (const [list, def] of [[FLOORS, DEFAULT_SKIN.floor], [BELTS, DEFAULT_SKIN.belt], [PANELS, DEFAULT_SKIN.panel], [CARRIERS, DEFAULT_SKIN.carrier]] as const) {
       expect(list[0].id).toBe(def);
       expect(list.length).toBeGreaterThanOrEqual(4);
       expect(new Set(list.map((s) => s.id)).size).toBe(list.length);
@@ -72,6 +76,34 @@ describe("CUSTOM-1 style readability (palette pairs)", () => {
       }
       expect(keywordContrast(p).min).toBeGreaterThanOrEqual(THRESHOLDS.keyword);
     }
+  });
+
+  it("CUSTOM-3 carriers: smoke, fire and the plate's edge read on every style's fill, on every faction, as well as on today's", () => {
+    // the thresholds are today's four default carriers' weakest values
+    expect(THRESHOLDS.carrierSmoke).toBeCloseTo(Math.min(...CARRIER_FACTIONS.map((f) => carrierContrasts(FACTION[f].hull2).smoke)), 9);
+    expect(THRESHOLDS.carrierSmoke).toBeGreaterThan(1.1); // WEAVER's verdigris, 1.11
+    expect(THRESHOLDS.carrierFire).toBeGreaterThan(4.2); // WEAVER's verdigris against yellow, 4.29
+    expect(THRESHOLDS.plateEdge).toBeGreaterThan(1.9); // BASTION's granite, 1.91
+    for (const s of CARRIERS) for (const f of CARRIER_FACTIONS) {
+      const v = carrierContrasts(carrierFill(s, f));
+      expect(v.smoke, `${s.id} ${f} smoke`).toBeGreaterThanOrEqual(THRESHOLDS.carrierSmoke - 1e-9);
+      expect(v.fire, `${s.id} ${f} fire`).toBeGreaterThanOrEqual(THRESHOLDS.carrierFire - 1e-9);
+      expect(v.edge, `${s.id} ${f} plate edge`).toBeGreaterThanOrEqual(THRESHOLDS.plateEdge - 1e-9);
+    }
+  });
+
+  it("CUSTOM-3 carriers: \"yours\": every style's paint is delta E 20 or more from every faction's default, past today's closest pair", () => {
+    expect(TODAY_CLOSEST_DEFAULTS).toBeGreaterThan(19);
+    expect(TODAY_CLOSEST_DEFAULTS).toBeLessThan(THRESHOLDS.yours); // blued steel and granite, 19.8
+    for (const s of CARRIERS.slice(1)) {
+      expect(s.paint, s.id).toBeTruthy();
+      for (const f of CARRIER_FACTIONS) expect(separation(s.paint![2], FACTION[f].hull2), `${s.id} vs ${f}`).toBeGreaterThanOrEqual(THRESHOLDS.yours);
+      expect(yoursDistance(s).value, s.id).toBeGreaterThanOrEqual(THRESHOLDS.yours);
+    }
+    // and the styles stand apart from each other (a contact sheet of five different ships)
+    for (const a of CARRIERS.slice(1)) for (const b of CARRIERS.slice(1)) if (a.id < b.id) expect(separation(a.paint![2], b.paint![2]), `${a.id} vs ${b.id}`).toBeGreaterThanOrEqual(19);
+    // the default is today's hull: no paint of its own
+    expect(CARRIERS[0].paint).toBeUndefined();
   });
 
   it("prints the matrix (evidence for the report)", () => {

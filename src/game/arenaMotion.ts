@@ -160,8 +160,9 @@ export class ArenaMotion implements ShotMap {
       const hero = a.views[s].model.hero;
       const deg = this.bankDrawn[s];
       const px = this.pivot[s][0], py = this.pivot[s][1];
-      drawShip(g, hero, px, py, deg, Math.round(this.model.pose(s, this.model.t, this.pose).bob));
-      if (a.loser === s && a.koT > 0.35) dimShip(g, hero, px, py, deg, Math.min(0.62, (a.koT - 0.35) * 1.1));
+      const carrier = skinOf(a.views[s].skin).carrier; // CUSTOM-3 (REQ-BFG-074): the player's carrier style; a foe's the default
+      drawShip(g, hero, px, py, deg, Math.round(this.model.pose(s, this.model.t, this.pose).bob), carrier);
+      if (a.loser === s && a.koT > 0.35) dimShip(g, hero, px, py, deg, Math.min(0.62, (a.koT - 0.35) * 1.1), carrier);
     }
     if (P) { const t1 = now(); P.add(1, t1 - t0); t0 = t1; }
     // boards, each under its gimbal's transform: today's drawing code, at rest

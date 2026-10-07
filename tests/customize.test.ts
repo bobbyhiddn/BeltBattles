@@ -44,7 +44,7 @@ describe("CUSTOM-2a CUSTOMIZE: the choices", () => {
     expect(JSON.parse(st.getItem(PROFILE_KEY)!).chosen.floor).toBe("timber"); // saved at once
     s.tapTab("belt");
     expect(s.tapRow("verdigris")).toBe("worn");
-    expect(playerSkin(st)).toEqual({ floor: "timber", belt: "verdigris", panel: "slate" });
+    expect(playerSkin(st)).toEqual({ floor: "timber", belt: "verdigris", panel: "slate", carrier: "war" }); // CUSTOM-3: the carrier surface, WAR COLOURS by default
     s.tapTab("floor");
     expect(s.tapRow("plate")).toBe("worn");
     expect(playerSkin(st).floor).toBe("plate");
@@ -68,7 +68,7 @@ describe("CUSTOM-2a CUSTOMIZE: the choices", () => {
     s.tapRow("checker");
     expect(s.previewLocked()).toBe(true);
     s.tapTab("panel"); // another tab: its preview is what you wear
-    expect(s.preview).toEqual({ floor: "tread", belt: "iron", panel: "slate" });
+    expect(s.preview).toEqual({ floor: "tread", belt: "iron", panel: "slate", carrier: "war" });
     s.tapTab("floor");
     expect(s.pick).toBe("tread");
     s.tapRow("checker");

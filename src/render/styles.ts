@@ -1,4 +1,5 @@
-// CUSTOM-1 (REQ-BFG-072) designed, CUSTOM-2a ships: cosmetic styles for three surfaces of the player's carrier: the
+// CUSTOM-1 (REQ-BFG-072) designed, CUSTOM-2a ships: cosmetic styles for three surfaces of the player's carrier (CUSTOM-3
+// adds the fourth, the hull itself; see below): the
 // floor panels (the deck grid, hull.ts drawDeck, so also the board plate every screen cuts from it), the belts
 // (sprites.ts beltN / beltCorner / turntable) and the stats panels (ui.ts statsPanel: the player's battle plate and the
 // build screen's part panel with its idle forms). Every default entry reproduces today's colours exactly and takes
@@ -9,10 +10,17 @@
 
 import { C } from "./palette";
 
+// CUSTOM-3 (REQ-BFG-074, which replaces REQ-BFG-072 and keeps its clauses): the carrier's hull is a fourth surface
+// (render/carrier.ts): WAR COLOURS, today's ship in the faction's hull colours, is the default and the reference look;
+// four paints and dressings are earned on the prestige goals. A style changes the hull art only (the outline, the board
+// plate, the pivot, the mounts, lanes and motion stay the default's), keeps the faction's trim and glow, and is drawn on
+// the player's own carrier only: foes, ghosts and the title's attract fight keep WAR COLOURS.
+
 export type FloorId = "plate" | "timber" | "tread" | "checker" | "rune";
 export type BeltId = "iron" | "verdigris" | "blued" | "timber" | "rune";
 export type PanelId = "slate" | "brass" | "verdigris" | "timber" | "plum";
-export type Surface = "floor" | "belt" | "panel";
+export type CarrierId = "war" | "admiral" | "ironclad" | "storm" | "gold";
+export type Surface = "floor" | "belt" | "panel" | "carrier";
 
 /** How a style is earned: the one short line a locked style shows (docs/TEXT-STYLE.md: capitals, a verb first). */
 export interface Unlock {
@@ -96,28 +104,51 @@ export const PANELS: readonly PanelSkin[] = [
   { id: "plum", name: "WARLORD'S PLUM", fill: C.plum1, hi1: C.plum3, hi2: C.plum2, lo1: C.ink, lo2: C.plum0, rivet: C.plum4, trim: C.brass1, how: "WIN A RUN 10-0", counter: "flawless", need: 1, long: true },
 ];
 
+export interface CarrierStyle extends Unlock {
+  id: CarrierId;
+  name: string;
+  /** The hull paint in hull0..hull4's places (shade, low, fill, upper and deckhouse, gunwale light); undefined = the
+   *  faction's own hull ramp (today's look). The faction's trim and glow stay on every style. */
+  paint?: readonly [string, string, string, string, string];
+}
+
+/** CUSTOM-3: the carrier styles, the prestige tier (each goal is past any floor, belt or panel goal on its counter).
+ *  Each fill (paint[2]) sits in today's band of hull luminance, so the plate's rim, smoke and fire read as on today's
+ *  four hulls, and is delta E 20 or more from every faction's hull (styleContrast.ts carrierReadability). */
+export const CARRIERS: readonly CarrierStyle[] = [
+  { id: "war", name: "WAR COLOURS", how: "" },
+  { id: "admiral", name: "ADMIRAL'S BLUE", paint: [C.night, C.rune0, C.rune1, C.rune2, C.rune3], how: "FINISH 3 RUNS", counter: "runsFinished", need: 3 },
+  { id: "ironclad", name: "IRONCLAD", paint: [C.olive0, C.olive1, C.olive2, C.olive3, C.olive4], how: "BEAT 5 WARLORDS", counter: "warlordWins", need: 5 },
+  { id: "storm", name: "STORMCALLER", paint: [C.plum1, C.plum2, C.plum3, C.plum4, C.rune3], how: "WIN WITH 4 DIFFERENT HEROES", counter: "heroesWon", need: 4 }, // R6
+  // a long goal: about 5 dusk wins a run makes 100 some 20 runs
+  { id: "gold", name: "CHAMPION'S GOLD", paint: [C.soil1, C.brass0, C.brass1, C.brass2, C.brass3], how: "WIN 100 DUSK FIGHTS", counter: "duskWins", need: 100, long: true },
+];
+
 export interface Skin {
   floor: FloorId;
   belt: BeltId;
   panel: PanelId;
+  carrier: CarrierId;
 }
 
-export const DEFAULT_SKIN: Readonly<Skin> = { floor: "plate", belt: "iron", panel: "slate" };
+export const DEFAULT_SKIN: Readonly<Skin> = { floor: "plate", belt: "iron", panel: "slate", carrier: "war" };
 
 export const floorStyle = (id: FloorId): FloorStyle => FLOORS.find((s) => s.id === id) ?? FLOORS[0];
 export const beltStyle = (id: BeltId): BeltStyle => BELTS.find((s) => s.id === id) ?? BELTS[0];
 export const panelSkin = (id: PanelId): PanelSkin => PANELS.find((s) => s.id === id) ?? PANELS[0];
+export const carrierStyle = (id: CarrierId | undefined): CarrierStyle => CARRIERS.find((s) => s.id === id) ?? CARRIERS[0];
 
 /** A view's styles: its own skin, set explicitly by the screen that made it (R11), or the defaults (today's look). */
 export function skinOf(own?: Skin | null): Readonly<Skin> {
   return own ?? DEFAULT_SKIN;
 }
 
-/** The catalogue per surface, in CUSTOMIZE's order (the default first, then the four in earning order). */
-export const SURFACES: readonly Surface[] = ["floor", "belt", "panel"];
-export type AnyStyle = FloorStyle | BeltStyle | PanelSkin;
+/** The catalogue per surface, in CUSTOMIZE's order (the default first, then the four in earning order); CUSTOM-3's
+ *  CARRIER is the fourth tab. */
+export const SURFACES: readonly Surface[] = ["floor", "belt", "panel", "carrier"];
+export type AnyStyle = FloorStyle | BeltStyle | PanelSkin | CarrierStyle;
 export function stylesOf(surface: Surface): readonly AnyStyle[] {
-  return surface === "floor" ? FLOORS : surface === "belt" ? BELTS : PANELS;
+  return surface === "floor" ? FLOORS : surface === "belt" ? BELTS : surface === "panel" ? PANELS : CARRIERS;
 }
 
 /** A style's namespaced id in the profile's `unlocked` and `seen` lists (REQ-BFG-003 adds "hero:...", "parts:..."). */
