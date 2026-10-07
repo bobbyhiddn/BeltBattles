@@ -290,8 +290,8 @@ const immunities = (e: ItemDef): string => {
  *  (battle.ts makeSide: the last intakeGuard tiles of every connected route into it). Y7b2 (the flip): the rigs working
  *  those tiles are not guarded (was "a rig with an arrow on a shielded tile is shielded too (Battle.skirted)"). */
 const shielded = (n: number): string => (n === 1 // Y2 (release Y; DESIGN-Y row 14): not their rigs
-  ? "SO DOES THE LAST TILE OF EACH BELT IN."
-  : `SO DO THE LAST ${n} TILES OF EACH BELT IN.`);
+  ? ", AND SO DOES THE LAST TILE OF EACH BELT IN" // TXT-096: a clause of the opening (was its own sentence, "SO DOES ... IN.")
+  : `, AND SO DO THE LAST ${n} TILES OF EACH BELT IN`);
 /** MANTLET's clause at a star: at ★1 the stalls it ignores; above, the stalls that star adds and the tiles it shields. */
 function mantletGist(e: ItemDef, stars: number): string {
   const was = stars > 1 ? effectAt("mantlet", stars - 1).mod?.immune ?? [] : [];
@@ -1039,11 +1039,11 @@ const ENTRIES: Record<string, Entry> = {
     // Battle.acceptHarassment: the turret ignores its immune causes; NUM-3 (R1's STUN fold): every STUN source from ★1
     // (was SHOCK, STATIC, ARC and CHAIN, ★2 FULL PLATE + FROST and SABOT); ★2 FULL GUARD shields the last tile of each belt
     // into the turret, ★3 BULWARK SKIRT the last 3 (Y7b2, the flip: not the rigs working them)
-    text: (e) => [
-      `THE TURRET IGNORES ${immunities(e)}.`,
-      ...(m(e).intakeGuard ? [shielded(m(e).intakeGuard!)] : []),
-    ],
-    perkAt: (e) => (m(e).intakeGuard ? 1 : 0),
+    // TXT-096 (REQ-BFG-046; REVIEW-TXT095 Q2): the opening says its face's facts, its gun and its belts' last tiles, in one
+    // sentence, so the two agree if it is drawn again; the perk names it (was "THE TURRET IGNORES EVERY STUN." and, after it,
+    // "SO DOES THE LAST TILE OF EACH BELT IN.", the perk after that)
+    text: (e) => [`THE TURRET IGNORES ${immunities(e)}${m(e).intakeGuard ? shielded(m(e).intakeGuard!) : ""}.`],
+    perkAt: () => 0,
     gist: (e, x) => mantletGist(e, x.stars),
     card: (e) => `IGNORES ${immunities(e)}`,
   },
@@ -1115,8 +1115,11 @@ const ENTRIES: Record<string, Entry> = {
     // Y3 (release Y; DESIGN-Y row 30): it adds no damage (no flat) and holds up to 1/2/3 s
     text: (e) => [
       // T6: DESIGN 3.3's "AT THE TILE IT HITS" moves to the second sentence, so the opening fits the phone band whole
-      "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.",
-      `IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST ${seconds(g(e).latch!.hold)}, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.`,
+      // TXT-096 (REQ-BFG-046; REVIEW-TXT095 Q2): the opening says its face's hold limit, UP TO n SECONDS, so the two agree if it
+      // is drawn again, and the second sentence no longer repeats it (were "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS
+      // ONE, ..." and "..., AT MOST 1 SECOND, AND ONLY WHEN ...")
+      `HOLDS EACH PAYLOAD UP TO ${seconds(g(e).latch!.hold)} UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.`,
+      "IT HOLDS A PAYLOAD AT THE TILE IT HITS, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.",
       "ON BELTS INTO TWO GUNS, IT LETS BOTH GO AT ONCE.",
     ],
     gist: (e) => `HOLDS UP TO ${seconds(g(e).latch!.hold)}`,
@@ -1127,8 +1130,10 @@ const ENTRIES: Record<string, Entry> = {
     // stokes), the stamping capped so it never outruns the turret its belt feeds (oracle a0e94bc69949561f)
     // Y7b1 (release Y; ruling Y7A-R1): the cap holds, so the sentence says it (Y3's
     // "A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT." left with the overfeed trap)
+    // TXT-096 (REQ-BFG-046; REVIEW-TXT095 Q2): the opening says its face's UP TO (the cap the next sentence says), so the two
+    // agree if it is drawn again (was "EACH FACTORY ITS ARROWS POINT AT WORKS 20% FASTER.")
     text: (e) => [
-      `EACH FACTORY ITS ARROWS POINT AT WORKS ${percent(g(e).stoke!)} FASTER.`,
+      `EACH FACTORY ITS ARROWS POINT AT WORKS UP TO ${percent(g(e).stoke!)} FASTER.`,
       "IT NEVER MAKES A FACTORY OUTRUN ITS GUN.",
       S.worksFaster,
       "ITS ARROWS DO NOTHING TO BELTS.",
@@ -1152,9 +1157,11 @@ const ENTRIES: Record<string, Entry> = {
     // (release Y; ruling Y7A-R3d): it reads its base def (its STAR_DIFF row is deleted), so its texts are the base's. Y5's
     // texts (no plating of its own: "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH PAYLOAD IT HITS GAINS 30 DAMAGE.", gist
     // "30 DAMAGE AT 120 PLATING", card "HITS HARDER WHILE PLATED") left with it
+    // TXT-096 (REQ-BFG-046; REVIEW-TXT095 Q2): the opening says its face's both parts, the +DMG at 120+ PLATE too, in one
+    // sentence (its numbers in the same order), so the two agree if it is drawn again (were "ROLLS 10 PLATING ONTO YOUR HULL
+    // FOR EACH PAYLOAD IT HITS." and "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
     text: (e) => [
-      `ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`,
-      `WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS ${damage(g(e).plated!.flat)}.`,
+      `ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH GAINS ${damage(g(e).plated!.flat)}.`,
       S.plating,
     ],
     gist: (e) => `${fmtDmg(g(e).plate!)} PLATING A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`,
@@ -1221,8 +1228,9 @@ const ENTRIES: Record<string, Entry> = {
     card: (e) => `PAIRS HIT ${percent(m(e).pairBonus!)} HARDER`,
   },
   spallcatcher: {
-    // Battle.spallCharge: add x (the hull's part + twice plating's part) / every, up to max, from impacts, limpet blasts,
-    // burn and poison (never the dark wind); Battle.fire / fireCore add it to this turret's next shot
+    // Battle.spallCharge: add x (the hull's part + plating's part, a PLATE soak counted once) / every, with no cap (its spec
+    // holds no max since Y5), from impacts, limpet blasts and burn (never the dark wind); Battle.fire / fireCore add it to
+    // this turret's next shot. TXT-096: was "twice plating's part ..., up to max, ... burn and poison" (POISON left at Y6)
     text: (e) => {
       const sp = m(e).spall!;
       // Y5 (release Y; DESIGN-Y row 47): there is no cap, and what plating soaks counts once
@@ -1261,9 +1269,8 @@ const ENTRIES: Record<string, Entry> = {
     // its turret pauses it (Battle.sustainTick); Battle.shieldHit: a SHIELD stops one whole hit
     text: (e) => [
       `YOUR HULL GAINS ${countWord(m(e).shield!.amount)} ${SW.shield} ${every(m(e).shield!.every)}, UP TO ${SHIELD_CAP}.`,
-      // NUM-4 (REVIEW-SUSB F1): a SHIELD blocks one impact's damage; that hit's BURN, FRAY, STUN and poison still land
-      // (battle.ts impact()), and BURN, poison and the wind deal their damage past it
-      // Y6 (release Y; DESIGN-Y 4.1): no POISON (retired: no hit or hull carries any)
+      // NUM-4 (REVIEW-SUSB F1): a SHIELD blocks one impact's damage; that hit's BURN, FRAY and STUN still land (battle.ts
+      // impact()), and BURN and the wind deal their damage past it. TXT-096: POISON left at Y6 (no hit or hull carries any)
       `EACH ${SW.shield} BLOCKS ONE HIT'S DAMAGE, THEN BREAKS; THAT HIT'S BURN, FRAY AND STUN STILL LAND.`,
       "BURN AND THE DARK WIND DEAL THEIR DAMAGE PAST IT.",
       "A STUN ON ITS TURRET PAUSES IT.", // NUM-4 (REVIEW-NUM3 F2): one word for one stop (was "A STALL OR FREEZE")

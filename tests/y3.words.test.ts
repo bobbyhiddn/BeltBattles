@@ -79,7 +79,11 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(abilityText("surge", 3).sentences).toEqual(["EVERY 2 SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 30 DAMAGE.", "PAYLOADS BEFORE ITS TILE GET IT TOO."]);
     expect(abilityText("overclocker", 1).sentences.slice(1)).toEqual(["THE NEXT RIG IS THE FIRST LATER RIG ON ITS BELT, WHATEVER IT IS.", "A RIG WITH NOTHING TO DOUBLE USES UP THE CHARGE."]);
     expect(abilityText("twinlatch", 2).sentences).toHaveLength(3);
-    expect(abilityText("twinlatch", 2).sentences[1]).toBe("IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST 2 SECONDS, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.");
+    // TXT-096 (REVIEW-TXT095 Q2): the hold limit opens the first sentence (UP TO 2 SECONDS), so the second no longer repeats it
+    // (was "IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST 2 SECONDS, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.")
+    expect(abilityText("twinlatch", 2).sentences.slice(0, 2)).toEqual([
+      "HOLDS EACH PAYLOAD UP TO 2 SECONDS UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.",
+      "IT HOLDS A PAYLOAD AT THE TILE IT HITS, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS."]);
     expect(abilityText("stoker", 1).sentences[1]).toBe("IT NEVER MAKES A FACTORY OUTRUN ITS GUN."); // Y7b1 (Y7A-R1): was "A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT."
     expect(abilityText("assembly", 1).sentences[0]).toBe("WHILE IT FEEDS A TURRET, YOUR RIGS START WORKING 50% SOONER, THOSE ON ITS OWN BELT TOO.");
     expect(abilityText("assembly", 3).sentences[0]).toBe("WHILE IT FEEDS A TURRET, ALL YOUR RIGS START WORKING AT ONCE, THOSE ON ITS OWN BELT TOO.");

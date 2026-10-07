@@ -44,7 +44,7 @@ const BANDS = [
   ["laptop", buildLayout(455, 256, false, 5).info],
 ] as const;
 const STOKER = 70;
-const OPENING = /^EACH FACTORY ITS ARROWS POINT AT WORKS \d+% FASTER\.$/;
+const OPENING = /^EACH FACTORY ITS ARROWS POINT AT WORKS UP TO \d+% FASTER\.$/; // TXT-096: its face's UP TO (was "... WORKS \d+% FASTER.")
 /** U2b (REQ-BFG-046): STOKER's face opens with its rule, the N% line in the face's words (faceLines, the registry's numbers).
  *  Y7b2 (the flip): release Y's face says the cap in its one line, "ITS FACTORIES WORK UP TO 20% FASTER." (Y7b1 Y7A-R1;
  *  was /^ITS FACTORIES WORK \d+% FASTER\.$/) */
