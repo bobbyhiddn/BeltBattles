@@ -18,6 +18,7 @@ import { BAR_H, cornerTap, cornerTarget } from "./layout"; // TAP-093 (backlog #
 import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
+import { LC_HEART_S } from "../battleHud"; // LC-1 (REQ-BFG-073): the regained heart
 import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
 import { drawDetails, drawFoe, hasDetails, textOpts } from "./inspector";
@@ -55,7 +56,9 @@ function drawTopBar(g: G, s: BuildScreen): void {
   g.drawImage(coinIcon(), x, 4 + oy);
   s.coinX = x + 5;
   x += 7 + drawText(g, String(run.gold), x + 7, 4 + oy, C.yellow, { outline: C.ink }) + 5;
-  x += drawHearts(g, x, 4 + oy, run.lives) + 5;
+  // LC-1 (REQ-BFG-073): the heart LAST CHANCE gave back, lit for a few seconds after the pick (lcHeartT: Infinity, none)
+  const lcT = (s as { lcHeartT?: number }).lcHeartT ?? Infinity;
+  x += drawHearts(g, x, 4 + oy, run.lives, lcT, -1, lcT < LC_HEART_S ? run.lives - 1 : -1) + 5;
   // the W-L record: labelled where it fits, bare beside the hearts on narrow portrait bars (the
   // phone's bar has no room, so its hero card below the shop carries the record)
   const wl = record(run);

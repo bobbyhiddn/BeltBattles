@@ -21,6 +21,7 @@ import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the p
 import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold (dayPool)
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
+import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type LastChance, type LastChanceOffer } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
   type TurretOpResult,
@@ -72,6 +73,10 @@ export interface DayResult {
   // 0.7.0a (online play only, src/game/online.ts; absent offline, so an offline save is 0.6.2's), save v7, no bump:
   record?: BattleRecord; // battleRecordFor(your deck, the foe's, battleSeed): the summary's REPLAY plays it (read-only)
   hulls?: [number, number]; // both hulls when the fight ended (you, foe): what a replay must reproduce
+  // LC-1 (REQ-BFG-073; Z-BUMP: no switch): this dusk's loss fired LAST CHANCE: the lives it gave back at
+  // once (the dusk card's "LAST CHANCE: +1 LIFE"), then the card taken and its id (the summary's row). Absent otherwise,
+  // so every switch-off result is saved as before. Save v8, no bump (a new optional field, as refund was).
+  lastChance?: { lives: number; boon?: Boon; id?: string };
 }
 
 /** Where the day stands (0.6.0b): dawn caravan, the road fork, the road event or the warlord
@@ -151,6 +156,11 @@ export interface Run {
   // before it (runes.length === day - 1); a save from before runes never gets one. The held runes live in build.runes
   // (in pick order), so the snapshot, the battle and a reload carry them. Save v7, no bump (a new optional field).
   runeDay?: number;
+  // LC-1 (REQ-BFG-073; Z-BUMP: no switch): the run's LAST CHANCE, once a run: set by finishDay when it fires
+  // ({ day }: the pick is pending; the picker shows before that dawn's rune pick), then { day, boon, id } once a card is
+  // taken (takeLastChance). A LAST CHANCE rune sits in build.runes right after its day's dawn pick (index `day`). Absent:
+  // it never fired (every switch-off run). Save v8, no bump (a new optional field, as refund and runeDay were).
+  lastChance?: LastChance;
 }
 
 export const RUN_VERSION = 8; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once); NUM-1: hull x10 (save.ts v7to8, once)
@@ -180,8 +190,9 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
 
 /** Today's pending rune offer (runes.ts runeOffer on the run's own "rune" stream), or null when no pick is pending. The
  *  offer is re-derived from (seed, day, hero, held), never stored, so a reload shows the same cards. */
-export function pendingRune(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over">): RuneOffer | null {
+export function pendingRune(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over" | "lastChance">): RuneOffer | null {
   if (run.over || run.runeDay !== run.day) return null;
+  if (lastChancePending(run)) return null; // LC-1: the LAST CHANCE pick comes first (its offer reads the runes held now)
   const offer = runeOffer(run.seed, run.day, run.hero, (run.build.runes ?? []).map((q) => q.id));
   return offer.ids.length ? offer : null;
 }
@@ -216,16 +227,67 @@ export const RUNE_FIRST = "TAKE TODAY'S RUNE FIRST";
  * its dawns. The build screen's FIGHT asks it first (screens/build/build.ts fight, so tooling that calls screen.fight()
  * meets it too); tooling that skips the picker takes the rune first (takeRune, or bb.holdRunes in a browser run).
  */
-export function fightRefusal(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over">): string | null {
+export function fightRefusal(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over" | "lastChance">): string | null {
+  if (lastChancePending(run)) return LAST_CHANCE_FIRST; // LC-1: never set while the switch is off
   return pendingRune(run) ? RUNE_FIRST : null;
 }
 
 /** At a new dawn (day.ts finishDay): the held dawn-gold runes pay, then a run that took a rune at every dawn so far owes
- *  today's pick. A run from before runes (fewer runes than dawns) never owes one. */
+ *  today's pick. A run from before runes (fewer runes than dawns) never owes one. LC-1: a LAST CHANCE rune is held but is
+ *  no dawn's pick, so the count leaves it out (lcRunes: 0 for every switch-off run). */
 export function runeDawn(run: Run): void {
   run.gold += dawnGold(run.build.runes, lastWon(run)); // RUNES-2a: RUNE TITHE per rune held, SPOILS SACK after a win
-  if ((run.build.runes?.length ?? 0) === run.day - 1) run.runeDay = run.day;
+  if ((run.build.runes?.length ?? 0) - lcRunes(run) === run.day - 1) run.runeDay = run.day;
   else delete run.runeDay;
+}
+
+// ---- LC-1 (REQ-BFG-073): LAST CHANCE (src/sim/lastChance.ts; Z-BUMP: the game's rule, its switch deleted) --------------
+
+/** What a refused fight says while the LAST CHANCE pick is pending. */
+export const LAST_CHANCE_FIRST = "TAKE YOUR LAST CHANCE FIRST";
+
+/** 1 when the run holds a LAST CHANCE rune (one more rune than its dawns), else 0. */
+export const lcRunes = (run: Pick<Run, "lastChance">): number => (run.lastChance?.boon === "rune" ? 1 : 0);
+
+/** Is the LAST CHANCE pick pending (fired, no card taken yet)? */
+export const lastChancePending = (run: Pick<Run, "lastChance" | "over">): boolean => !run.over && !!run.lastChance && run.lastChance.boon === undefined;
+
+/** The pending LAST CHANCE offer, re-derived from (seed, its day, hero, the runes held now), never stored, so a reload or
+ *  CONTINUE shows the same three cards; null when no pick is pending. */
+export function pendingLastChance(run: Pick<Run, "seed" | "hero" | "build" | "lastChance" | "over">): LastChanceOffer | null {
+  if (!lastChancePending(run)) return null;
+  return lastChanceOffer(run.seed, run.lastChance!.day, run.hero, (run.build.runes ?? []).map((q) => q.id));
+}
+
+/**
+ * Take LAST CHANCE's card `boon`: the RUNE joins build.runes (right after its day's dawn pick: the pick comes before the
+ * next dawn's) with takeRune's effects (a HULL or BELT rune on the build at once, a dawn-gold rune's gold now); the PART
+ * enters cargo free at 1 star through gainModule (it merges as a bought copy would, so the fuse invariant holds); HULL adds
+ * LAST_CHANCE_HULL to build.hullBonus. The run and that day's history row record the card. Refused when no pick is
+ * pending or the offer has no such card. The caller saves the run.
+ */
+export function takeLastChance(run: Run, boon: Boon): { ok: boolean; reason?: string; gain?: Gain } {
+  const offer = pendingLastChance(run);
+  if (!offer) return { ok: false, reason: "NO LAST CHANCE TO PICK" };
+  if (!BOONS.includes(boon)) return { ok: false, reason: "NOT ON OFFER" };
+  const id = offeredId(offer, boon);
+  if (id === null) return { ok: false, reason: "NOT ON OFFER" };
+  let gain: Gain | undefined;
+  if (boon === "rune") {
+    const d = RUNES[id];
+    run.build.runes = [...(run.build.runes ?? []), { id }];
+    if (d.kind === "hull") run.build.hullBonus += d.amount.n;
+    else if (d.kind === "belt") run.build.beltCap += d.amount.n;
+    else run.gold += pickGold(d, run.build.runes.length, lastWon(run));
+  } else if (boon === "part") {
+    gain = gainModule(run, id);
+    queueFuseAnim(run, gain);
+  } else run.build.hullBonus += LAST_CHANCE_HULL;
+  const day = run.lastChance!.day;
+  run.lastChance = { day, boon, ...(boon !== "hull" ? { id } : {}) };
+  const row = run.history.find((h) => h.day === day && h.lastChance);
+  if (row) row.lastChance = { lives: row.lastChance!.lives, boon, ...(boon !== "hull" ? { id } : {}) };
+  return { ok: true, ...(gain ? { gain } : {}) };
 }
 
 export function battleSeed(run: Run): number {

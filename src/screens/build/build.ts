@@ -49,6 +49,7 @@ import { BattleScreen, duskScreen } from "../battle";
 import { EventScreen } from "../event/event";
 import { RuneBar, runeRowFits, runeRowH, shiftLayout } from "../../ui/runeBar"; // RUNES-1 (REQ-BFG-058): the rune bar
 import { RunePicker } from "../runePicker"; // RUNES-1: the dawn rune picker
+import { LastChancePicker } from "../lastChancePicker"; // LC-1 (REQ-BFG-073): the LAST CHANCE pick, before the dawn rune
 
 /** 0.6.1d2 (ARSENAL.md §8.3): 0.5s per merge step normally; reduced motion collapses lift/arc/ring/
  *  sparkle to just the flash, so its "impact" beat comes almost immediately. */
@@ -222,6 +223,15 @@ export class BuildScreen implements Screen, EditHost {
    *  screen while today's pick is pending: it takes every press and key). */
   readonly runeBar = new RuneBar();
   readonly runePicker = new RunePicker();
+  /** LC-1 (REQ-BFG-073): the LAST CHANCE picker (a modal like the rune picker, up while the run's pick is pending: never
+   *  with the switch off) and the regained heart's animation clock on the bar (seconds since the pick; Infinity: none). */
+  readonly lastChancePicker = new LastChancePicker();
+  lcHeartT = Infinity;
+
+  /** RUNES-1, LC-1: a picker is up (it takes every press and key). */
+  modalUp(): boolean {
+    return this.runePicker.up(this) || this.lastChancePicker.up(this);
+  }
 
   /** Title of the road event this refit follows (banner text). */
   refitFrom(): string {
@@ -393,6 +403,7 @@ export class BuildScreen implements Screen, EditHost {
 
   update(dt: number): void {
     this.t += dt;
+    this.lcHeartT += dt; // LC-1: the regained heart's animation
     if (onlineMode()) {
       // 0.7.0a: tonight's ghost arrived (the session stored it): the NEXT BATTLE card shows it
       const st = storedFoe(this.run);
@@ -462,13 +473,14 @@ export class BuildScreen implements Screen, EditHost {
     this.wfx.drawPops(g, 0, 0);
     this.ufx.draw(g, 0, 0);
     this.ufx.drawPops(g, 0, 0);
-    if (!this.runePicker.up(this)) {
+    if (!this.modalUp()) {
       this.runeBar.drawOver(g, this); // RUNES-1: the chips' targets and the open read-out
       // TAP-093: the corner MENU's target over the rune bar's strip, where it covers only the strip's label column (no chip:
       // layout.ts cornerTarget keeps it clear of them); not while the options card is up
       if (this.cornerMenu && !this.menu) for (const r of this.cornerMenu) this.game.ui.add({ id: "menu", r, onTap: () => { this.menu = true; }, block: true });
     }
     this.runePicker.draw(g, this); // RUNES-1: the dawn rune picker over everything (its regions take every press)
+    this.lastChancePicker.draw(g, this); // LC-1: the LAST CHANCE pick (pendingRune is null while it is up)
     if (P) { const t1 = performance.now(); P.add(4, t1 - t0); P.add(5, t1 - tw); P.frame(); }
   }
 
@@ -693,21 +705,21 @@ export class BuildScreen implements Screen, EditHost {
 
   /** shoptap (D1): `kind`, the pointer that pressed (the editor's touch rules read it). */
   down(x: number, y: number, kind: PointerKind = "mouse"): void {
-    if (this.runePicker.up(this)) return; // RUNES-1: nothing under the rune picker moves
+    if (this.modalUp()) return; // RUNES-1: nothing under the rune picker moves (LC-1: nor the LAST CHANCE picker)
     this.skipFuseAnim(); // 0.6.1d2: a tap anywhere skips the merge animation to its end
     this.ed.down(x, y, kind);
   }
 
   /** shoptap (D3): every press: one anywhere but on the belt X takes the X down (a press on a UI region included). */
   pressed(_x: number, _y: number, region: string | null): void {
-    if (this.runePicker.up(this)) return; // RUNES-1: the rune picker takes every press
+    if (this.modalUp()) return; // RUNES-1: the rune picker takes every press (LC-1: the LAST CHANCE picker too)
     if (region !== "beltx") this.ed.dropX();
     this.runeBar.pressed(region); // RUNES-1: a press off the rune bar closes its read-out
     keywordsPressed(this, region); // U2c (REQ-BFG-045): a press off a word, `?` or the KEYWORDS view closes them
   }
 
   move(x: number, y: number): void {
-    if (this.runePicker.up(this)) return; // RUNES-1: no hover or drag under the rune picker
+    if (this.modalUp()) return; // RUNES-1: no hover or drag under the rune picker (LC-1: nor the LAST CHANCE picker)
     this.ed.move(x, y);
     this.hover = this.game.ui.pointer.down ? null : this.offerAt(x, y);
   }
@@ -721,7 +733,7 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   key(k: string): void {
-    if (this.runePicker.up(this)) return; // RUNES-1: the rune picker can't be skipped (no FIGHT, reroll or Escape under it)
+    if (this.modalUp()) return; // RUNES-1: the rune picker can't be skipped (no FIGHT, reroll or Escape under it); LC-1: nor LAST CHANCE
     if (k === "Escape") {
       if (this.menu) this.menu = false;
       else if (this.ed.busy) this.ed.cancel();

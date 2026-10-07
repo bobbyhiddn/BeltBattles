@@ -245,9 +245,19 @@ export function uploadProblems(r: StoredRecord, rules: string): string[] {
   if (s.rules !== rules) out.push(`rules: the snapshot says ${s.rules}, stored under ${rules}`);
   const gate = rulesGateProblem(s.rules, s.build);
   if (gate) out.push(`rules gate: ${gate}`);
-  const v = validateUpload(s.build, s.day, s.rules);
+  // Z-PREP (REQ-BFG-073; REVIEW-LC1, carried to the flip): an upload that carries a LAST CHANCE is checked with it, as POST
+  // /v1/ghosts checked it (server/app.ts): validateUpload told its seed and its card (the rune's place, the free part's
+  // price, the +LAST_CHANCE_HULL grant, the card the seed's offer gave), and the record check is told its LAST CHANCE day,
+  // or none (a run at 1 life that never had one carries no record). Z-BUMP (REQ-BFG-073; REVIEW-ZPREP F1): the switch is
+  // gone, and the record check asks the record's own rules through the rules gate, as the decoder does (records.ts
+  // recordHasLastChance: rulesGate.ts lastChanceGateProblem): a record under rules before LAST_CHANCE_RULES is read
+  // without LAST CHANCE (today's isReachable before the flip; `revalidate --rules <older>`), so an honest older record at
+  // 1 life is never flagged. A snapshot without the field is validated as before (no seed: REVIEW-ZPREP ruling 3).
+  const lc = s.lastChance;
+  const v = lc ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, lastChance: lc }) : validateUpload(s.build, s.day, s.rules);
   if (!v.ok) out.push(`validateUpload: ${v.errors.join("; ")}`);
-  if (!isReachable(s.day, s.wins, s.lives)) out.push(`record: ${s.wins}W ${s.lives} lives is no record a run carries into dusk ${s.day}`);
+  const reachable = isReachable(s.day, s.wins, s.lives, { rules: s.rules, lastChance: lc?.day ?? null });
+  if (!reachable) out.push(`record: ${s.wins}W ${s.lives} lives is no record a run carries into dusk ${s.day}${lc ? ` after a LAST CHANCE on day ${lc.day}` : ""}`);
   // PACKS M2 (REQ-BFG-063): POST /v1/ghosts takes an upload under RULES_VERSION only with its player's name (a bad name
   // is already the strict decode's refusal above); uploads stored under older rules never carried one
   const named = s.rules === RULES_VERSION ? nameProblem(s.name) : null;

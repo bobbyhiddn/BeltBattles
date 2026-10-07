@@ -51,11 +51,13 @@ describe("par player (playerBuild): a real run through the caravan", () => {
         // exactly, FURNACE s1-s3 12 / 15 / 13 and WEAVER s1-s3 14 / 10 / 16 (at 455944c 13 / 14 / 17 and 17 / 12 / 16).
         // WEAVER s2 buys 10: out went 4 TWIN GAUGE, a ROTARY and 2 FLAK, in came SABOT, SCATTER, RAM, PLATE BREAKER,
         // LONG HAUL and plating. The floor stays live for the other five runs, and for all six under any other version.
-        if (RULES_VERSION === "bb-0.9.3") {
-          const why = "Y7b2 tripwire (cap's ruling 38ca8abc09dd2c46): the six runs' caravan buys are pinned under bb-0.9.3; at the next rules bump re-measure the six runs, and if any buys 10 or fewer, ask cap with the counts";
+        // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none, which answers this tripwire's
+        // "ask cap"): re-keyed bb-0.9.3 -> bb-0.9.7, the six runs re-measured at Z-BUMP's tip. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
+        if (RULES_VERSION === "bb-0.9.7") {
+          const why = "Y7b2 tripwire (cap's ruling 38ca8abc09dd2c46), re-ruled at Z-BUMP: the six runs' caravan buys are pinned under bb-0.9.7; accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)";
           expect(bought, `${why}: ${hero} s${seed}`).toBe(Y7B2_BOUGHT[`${hero} ${seed}`]);
         }
-        if (RULES_VERSION !== "bb-0.9.3" || !(hero === "weaver" && seed === 2)) expect(bought, `${hero} s${seed}`).toBeGreaterThan(10);
+        if (RULES_VERSION !== "bb-0.9.7" || !(hero === "weaver" && seed === 2)) expect(bought, `${hero} s${seed}`).toBeGreaterThan(10); // Z-BUMP: re-keyed (was bb-0.9.3)
         // a player rerolls a few times a run, not every dawn: the policy keeps the run's reroll gold within its
         // share of the day's gold (rerollShare; the stuck rerolls within 1 - floor), 15 g of day 10's 119
         const pol = knobsOf();

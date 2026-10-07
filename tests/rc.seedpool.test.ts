@@ -75,7 +75,9 @@ const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
 // (was a7ba169fcadaed6a6ac9787ac14856c1970f6fc2eace1d5c0021306e7a8f2b13 at REDO-X)
 // Y7b2 (the pools): the stand-in pool regenerated once on bb-0.9.3 (4d772e4), so its sample and floor ghosts moved, each
 // under bb-0.9.3: was 92b20ff61667399981a3f2069a4b48c327e7fc68d516ac66bfd8633391a980af at BAL-2
-const STANDIN_PART_SHA256 = "f36cd6ead97a3847a436cc823ec02a87ab404f798acf21f55aefdf1233c88125"; // FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
+// Z-BUMP (the flip: the runtime seed pool's six labels follow LAST CHANCE (LC-1's six: the four day-6 floor ghosts 0W 1L -> 0W 2L, FURNACE d10 5W 1L -> 5W 2L; decks and ids unchanged); proved by records under bb-0.9.1 rebuilding the old digest (flip-T2.md). The pools move it again (S6)): was f36cd6ea...
+// Z-BUMP (the pools: the seed pool regenerated once under bb-0.9.7 (2c4ba76): the stand-in pool and the par player with the overfeed; every snapshot stamped bb-0.9.7): was 3bbf3b32...
+const STANDIN_PART_SHA256 = "e6446558bf12b898cfc50e0fe027023734f16944fbf574382480716fbbac4575"; // FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
 /** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it.
  *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). PACKS (bb-0.8.6): it buys BELT and ARMOR PACKs. */
 // REDO-X (cap's ruling on FIX-ABE, REVIEW-FIXABE: rc.seedpool :98 re-pinned after the regeneration): the race ghosts are
@@ -87,10 +89,12 @@ const STANDIN_PART_SHA256 = "f36cd6ead97a3847a436cc823ec02a87ab404f798acf21f55ae
 // Y7b2 (the pools): the seed pool regenerated at step 5, each ghost under bb-0.9.3; the race ghosts are the par player's
 // FOUNDRY and BASTION dusk decks, which moved with release Y's rules (the flip: the par player's rating reads them): was
 // 0990f4bb6a957b71e68b88c6b440db82d134af80e21a9800893329ec08ccee59 at BAL-2
-const RACE_PART_SHA256 = "2285dce94a1e66ac7611a165b8e765379d837146b4b48e6e969657502076e1fa"; // FLIP-X2: the par player with its runes (was 94e26280... at PACKS; NUM-3 pinned b3c0ea31..., /10)
+// Z-BUMP (the pools: the seed pool regenerated once under bb-0.9.7 (2c4ba76): the stand-in pool and the par player with the overfeed; every snapshot stamped bb-0.9.7): was 2285dce9...
+const RACE_PART_SHA256 = "0f6dd49c07790f30a15051129a7963c8404ab35b67b397590253553dfb3b6f0e"; // FLIP-X2: the par player with its runes (was 94e26280... at PACKS; NUM-3 pinned b3c0ea31..., /10)
 
 // Y7b2 (the bump, the pools): title bb-0.9.1 -> bb-0.9.3, and Y7b2's regeneration added (was "... again at REDO-X and BAL-2; ...")
-describe("the bb-0.9.3 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, again at REDO-X, BAL-2 and Y7b2; v3 snapshots holding their runes)", () => {
+// Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7, and Z-BUMP's regeneration added (was "... again at REDO-X, BAL-2 and Y7b2; ...")
+describe("the bb-0.9.7 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, again at REDO-X, BAL-2, Y7b2 and Z-BUMP; v3 snapshots holding their runes)", () => {
   it("holds every playable hero on every day 1-10, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 120 in all", () => {
     expect([...PLAYABLE_HEROES]).toEqual(["furnace", "weaver", "foundry", "bastion"]);
     expect([...STAND_IN_HEROES]).toEqual(["furnace", "weaver"]);
@@ -108,7 +112,8 @@ describe("the bb-0.9.3 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, a
   });
 
   // Y7b2 (the bump, the pools): title bb-0.9.1 -> bb-0.9.3
-  it("FURNACE and WEAVER's 60 come first: the sample and floor ghosts of the bb-0.9.3 stand-in pool, pinned by their digest", () => {
+  // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7
+  it("FURNACE and WEAVER's 60 come first: the sample and floor ghosts of the bb-0.9.7 stand-in pool, pinned by their digest", () => {
     expect(STANDIN_PART).toEqual([...sampleGhosts(), ...floorGhosts()]);
     expect(STANDIN_PART.every((s) => s.hero === "furnace" || s.hero === "weaver")).toBe(true);
     expect(POOL_RULES).toBe(RULES_VERSION); // FLIP-X2: nothing carried (was "bb-0.8.6")
@@ -177,7 +182,8 @@ describe("the bb-0.9.3 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, a
 interface Store { name: string; store(): ReturnType<typeof tigrisFor> | JsonlStore; env(): Record<string, string>; argv(): string[] }
 
 // Y7b2 (the bump): title bb-0.9.1 -> bb-0.9.3
-describe("the seed pool on both stores: ghosts:admin list --rules bb-0.9.3", () => {
+// Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7
+describe("the seed pool on both stores: ghosts:admin list --rules bb-0.9.7", () => {
   let fake: FakeS3;
   const dirs: string[] = [];
   beforeAll(async () => {
@@ -211,7 +217,8 @@ describe("the seed pool on both stores: ghosts:admin list --rules bb-0.9.3", () 
   };
 
   // Y7b2 (the bump): title bb-0.9.1 -> bb-0.9.3
-  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.9.3, none under bb-0.6.2", async () => {
+  // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7
+  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.9.7, none under bb-0.6.2", async () => {
     for (const h of stores()) {
       expect(await seedStore(h.store()), h.name).toMatchObject({ rules: RULES_VERSION, entries: 120, written: 120, removed: 0 });
       for (const [rules, perDay, all] of [[RULES_VERSION, 12, 120], ["bb-0.6.2", 0, 0]] as const) {

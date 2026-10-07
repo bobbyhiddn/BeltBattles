@@ -8,6 +8,9 @@ import { GRID, HEROES, UPGRADE_MAX, UPGRADE_TRACKS, type HeroId, type Upgrades }
 import type { Build, BuildTurret, ModPlacement, Placed, RouteDef } from "../sim/deck";
 import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
 import { nameProblem, type NameProblem } from "./names"; // PACKS M2 (REQ-BFG-063): the one set of name rules
+import { lastChanceGateProblem } from "./rulesGate"; // LC-1 (REQ-BFG-073): LAST CHANCE by the rules (Z-BUMP: the switch is gone)
+import { BOONS, type Boon, type TakenLastChance } from "../sim/lastChance"; // LC-1
+import { RUN_DAYS } from "../sim/content"; // LC-1: LAST CHANCE comes before the last day
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -50,6 +53,10 @@ export const V3_LIVE: Readonly<Record<string, boolean>> = {
 };
 export const MAX_SEED = 2 ** 32 - 1; // RUNES-1: a run seed (run.ts newRun), 1..2^32-1 (0 is left out)
 export const MAX_RUNES = 10; // RUNES-1: one a dawn (= MAX_DAY; runes.ts runeProblem holds the day's own bound)
+/** LC-1 (REQ-BFG-073): the most runes a build may list: MAX_RUNES, and one more (a LAST CHANCE rune). A shape bound only:
+ *  runes.ts runeProblem holds the day's own bound (one a dawn, and one LAST CHANCE only with the snapshot's lastChance,
+ *  which the rules gate refuses under older rules). Z-BUMP: the switch is gone; this was its on side. */
+export const maxRunes = (): number => MAX_RUNES + 1;
 export const MAX_STARS = 3; // = stars.ts FUSE_MAX
 export const MAX_ROT = 3; // 0.6.2: a rig's rotation in quarter turns
 export const MAX_SNAPSHOT_BYTES = 16 * 1024; // encoded UTF-8 size cap (client, server, pool)
@@ -89,6 +96,10 @@ export interface GhostSnapshot {
   endlessLives?: number;
   victoryDay?: number;
   battleGold?: number;
+  /** LC-1 (REQ-BFG-073; snapshot v3, written last, only with its switch on): the run's taken LAST CHANCE { day, boon, id }
+   *  (lastChance.ts): the server re-derives its offer from the seed, finds its rune (right after the day's dawn pick),
+   *  frees its part's price once and counts its HULL as a grant. Kept on a served ghost (its runes need it). */
+  lastChance?: TakenLastChance;
 }
 
 /** A snapshot with its pool id (content hash for stored ghosts, "offline-..." for stand-ins). */
@@ -203,7 +214,7 @@ function runes(o: Obj, path: string, version: number): { runes?: { id: string }[
   if (!has(o, "runes") || o.runes === undefined) return {};
   v3Gate(`${path}.runes`, "runes", version);
   return {
-    runes: arr(o.runes, `${path}.runes`, MAX_RUNES).map((rv, i) => {
+    runes: arr(o.runes, `${path}.runes`, maxRunes()).map((rv, i) => { // LC-1: maxRunes (MAX_RUNES while the switch is off)
       const at = `${path}.runes[${i}]`;
       const e = obj(rv, at, ["id"], [V3_RUNE_COUNTER]);
       if (has(e, V3_RUNE_COUNTER) && e[V3_RUNE_COUNTER] !== undefined) v3Gate(`${at}.${V3_RUNE_COUNTER}`, V3_RUNE_COUNTER, version);
@@ -321,9 +332,42 @@ function nameField(o: Obj): { name?: string } {
   return { name: o.name };
 }
 
+/** LC-1 (REQ-BFG-073): the snapshot's key for its LAST CHANCE (after every v3 field). */
+export const LAST_CHANCE_FIELD = "lastChance";
+
+/**
+ * LC-1 (REQ-BFG-073): the optional `lastChance` { day, boon, id? }, v3 only and written last (a snapshot without it encodes
+ * byte for byte as before). Refused while the switch is off and under rules before LAST_CHANCE_RULES (rulesGate.ts
+ * lastChanceGateProblem), as V3_LIVE refuses an off field; refused as a list (a run has one LAST CHANCE), on day 10 or
+ * later, and on a day not before the snapshot's own (it fires at a dusk the snapshot is past). `boon` is rune, part or
+ * hull; `id` names the rune or part and is absent for hull. Whether its card was offered is validate.ts's check.
+ */
+function lastChanceField(o: Obj, version: number, rules: string, day: number): { lastChance?: TakenLastChance } {
+  if (!has(o, LAST_CHANCE_FIELD) || o[LAST_CHANCE_FIELD] === undefined) return {};
+  const at = `snapshot.${LAST_CHANCE_FIELD}`;
+  if (version < SNAPSHOT_V3) throw new SnapshotError(`${at}: not allowed in a v${version} snapshot`);
+  const gate = lastChanceGateProblem(rules);
+  if (gate) throw new SnapshotError(`${at}: ${gate}`);
+  const raw = o[LAST_CHANCE_FIELD];
+  if (Array.isArray(raw)) throw new SnapshotError(`${at}: a run has one LAST CHANCE, not a list of ${raw.length}`);
+  const lc = obj(raw, at, ["day", "boon"], ["id"]);
+  const d = int(lc.day, `${at}.day`, 1, MAX_DAY);
+  if (d >= RUN_DAYS) throw new SnapshotError(`${at}.day: ${d}: LAST CHANCE comes only before day ${RUN_DAYS}`);
+  if (d >= day) throw new SnapshotError(`${at}.day: ${d} is not before the snapshot's day ${day}`);
+  if (typeof lc.boon !== "string" || !BOONS.includes(lc.boon as Boon)) throw new SnapshotError(`${at}.boon: expected one of ${BOONS.join(", ")}`);
+  const boon = lc.boon as Boon;
+  if (boon === "hull") {
+    if (has(lc, "id") && lc.id !== undefined) throw new SnapshotError(`${at}.id: a hull boon names no id`);
+    return { lastChance: { day: d, boon } };
+  }
+  if (!has(lc, "id") || lc.id === undefined) throw new SnapshotError(`${at}.id: missing (a ${boon} boon names its ${boon})`);
+  return { lastChance: { day: d, boon, id: str(lc.id, `${at}.id`, DEF_PATTERN) } };
+}
+
 /** Full strict check of a decoded value. Returns a canonical copy. */
 export function checkSnapshot(v: unknown): GhostSnapshot {
-  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name", ...V3_SNAPSHOT_FIELDS]);
+  // LC-1: `lastChance` may follow the v3 fields (lastChanceField refuses it while its switch is off)
+  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name", ...V3_SNAPSHOT_FIELDS, LAST_CHANCE_FIELD]);
   if (o.v !== 1 && o.v !== 2 && o.v !== 3) throw new SnapshotError(`snapshot.v: expected 1, 2 or ${SNAPSHOT_V3}`);
   const ver: 1 | 2 | 3 = o.v;
   const rules = str(o.rules, "snapshot.rules", RULES_PATTERN);
@@ -346,6 +390,7 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
     createdAt: int(o.createdAt, "snapshot.createdAt", 0, Number.MAX_SAFE_INTEGER),
     ...nameField(o), // PACKS M2 (REQ-BFG-063): last, only when present
     ...v3Fields(o, ver), // RUNES-1 (snapshot v3): after the name, only when present
+    ...lastChanceField(o, ver, rules, day), // LC-1 (REQ-BFG-073): last of all, only when present (and the switch on)
   };
 }
 

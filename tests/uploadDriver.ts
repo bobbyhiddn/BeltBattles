@@ -21,6 +21,15 @@
 // FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): every dawn starts with the day's rune pick, as the rune picker takes it
 // (run.ts pendingRune, takeRune; the first card, as src/tooling.ts playOut does), so each dusk deck holds one rune a dawn,
 // exactly what an upload needs (validateUpload's exact count). Before, the driver skipped the pick and its decks held none.
+//
+// Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule, so a run that loses to 1 life before day 10 has a pending
+// LAST CHANCE pick at the next dawn, which comes before that dawn's rune (pendingRune waits; run.ts fightRefusal refuses a
+// fight while it is pending). The driver takes it first, as the picker does (run.ts takeLastChance): by default the HULL
+// card (always offered; src/tooling.ts playOut's card, as the driver skips the picker too), or with `card` "drawn" one of
+// the cards the offer holds, drawn from the driver's own stream (only when a pick is pending, so a run that never fires it
+// draws exactly what it drew before). Each dusk records the taken card as the upload carries it (Dusk.lastChance, as
+// day.ts ghostOf writes snapshot.lastChance). Before, the driver never took it: the pending pick held back every later
+// dawn's rune, so those decks missed runes.
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, REROLL_COST, RUN_DAYS, type HeroId } from "../src/sim/content";
@@ -33,7 +42,9 @@ import {
   buyOffer, fitCore, installFromCargo, moveInstalled, newRun, reroll, rotateRig, sellInstalled, sellInventory, storeMod,
   storePlaced, storeTurret, takeFromInventory, type Run,
   pendingRune, takeRune, // FLIP-X2: the dawn's rune pick
+  pendingLastChance, takeLastChance, // Z-BUMP: LAST CHANCE's pick
 } from "../src/game/run";
+import { BOONS, offeredId, type TakenLastChance } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073)
 import { choicesFor, eventFor, pickChoice } from "../src/game/events";
 import { finishWarlord, leaveCaravan, pickPending, pickRoad, todaysWarlord, takePart } from "../src/game/road";
 import { finishDay, startDusk } from "../src/game/day";
@@ -60,6 +71,7 @@ export interface Dusk {
   road: string; // today's road stop, e.g. "event dice: BET 6 (won)" or "hard sootjaw: win, took press"
   gold: number; // gold still held at dusk
   invariant: string[]; // unfusedInRun at dusk: must stay empty (fuse.ts invariant)
+  lastChance?: TakenLastChance; // Z-BUMP: the run's taken LAST CHANCE at this dusk, as ghostOf writes it (absent: none)
 }
 
 export interface DriverRun {
@@ -441,13 +453,21 @@ function unblock(run: Run): void {
   }
 }
 
+/** Z-BUMP: the LAST CHANCE card a run takes when its pick is pending: "hull" (always offered), or "drawn" (one of the cards
+ *  the offer holds, drawn from the driver's stream). */
+export type LastChancePick = "hull" | "drawn";
+
 /** One seeded run of `hero`, all ten days (the driver keeps a life in hand, so every run reaches day 10). */
-export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed"): DriverRun {
+export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed", card: LastChancePick = "hull"): DriverRun {
   OPS = {};
   const rng = new Rng(hashSeed("v070-driver", seed, hero, policy));
   const run = newRun(hero, hashSeed("v070-run", seed, hero), `drv-${seed}-${hero}`);
   const dusks: Dusk[] = [];
   for (let day = 1; day <= RUN_DAYS && !run.over; day++) {
+    // Z-BUMP (the flip): a pending LAST CHANCE comes before the dawn's rune, as the picker requires: a card its offer holds,
+    // from the driver's stream (drawn only when one is pending)
+    const lc = pendingLastChance(run);
+    if (lc) takeLastChance(run, card === "hull" ? "hull" : rng.pick(BOONS.filter((b) => offeredId(lc, b) !== null)));
     // FLIP-X2: the dawn's rune first (the first card; it draws nothing from the driver's stream), as a run must before its
     // dusk (run.ts fightRefusal); a dawn-gold rune's gold is in the purse for the caravan, a HULL or BELT rune on the deck
     const offer = pendingRune(run);
@@ -456,7 +476,8 @@ export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed
     const road = roadStop(run, rng, policy);
     refit(run, rng);
     unblock(run);
-    dusks.push({ seed, hero, day: run.day, build: cloneBuild(run.build), road, gold: run.gold, invariant: unfusedInRun(run) });
+    const taken = run.lastChance?.boon ? { lastChance: { day: run.lastChance.day, boon: run.lastChance.boon, ...(run.lastChance.id !== undefined ? { id: run.lastChance.id } : {}) } } : {};
+    dusks.push({ seed, hero, day: run.day, build: cloneBuild(run.build), road, gold: run.gold, invariant: unfusedInRun(run), ...taken });
     startDusk(run, []);
     const r = rng.next();
     const winner = run.lives <= 1 || r < 0.8 ? 0 : r < 0.95 ? 1 : -1;
@@ -466,9 +487,9 @@ export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed
 }
 
 /** `n` runs, heroes in turn (run i plays DRIVER_HEROES[i % 6] on seed seed0 + i). */
-export function driveRuns(n: number, seed0 = 1, heroes: readonly HeroId[] = DRIVER_HEROES, policy: RoadPolicy = "mixed"): DriverRun[] {
+export function driveRuns(n: number, seed0 = 1, heroes: readonly HeroId[] = DRIVER_HEROES, policy: RoadPolicy = "mixed", card: LastChancePick = "hull"): DriverRun[] {
   const out: DriverRun[] = [];
-  for (let i = 0; i < n; i++) out.push(driveRun(seed0 + i, heroes[i % heroes.length], policy));
+  for (let i = 0; i < n; i++) out.push(driveRun(seed0 + i, heroes[i % heroes.length], policy, card));
   return out;
 }
 

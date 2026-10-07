@@ -46,9 +46,9 @@ import { RULES_VERSION } from "../src/sim/content";
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
 describe("the 0.9.6 label", () => {
-  it("is 0.9.6 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are Y7b2's bb-0.9.3 (BAL-2's were bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
+  it("is 0.9.6 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are Z-BUMP's bb-0.9.7 (Y7b2's were bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
     expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.6", "0.9.6", "0.9.6", "0.9.6"]);
-    expect(RULES_VERSION).toBe("bb-0.9.3") /* Y7b2: the bump (was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
+    expect(RULES_VERSION).toBe("bb-0.9.7") /* Z-BUMP: the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
   });
 });

@@ -82,8 +82,10 @@ describe("FB-B HOPPER: ★1's window at every star, plus a store for loads that 
     // more). Its three damages are pinned exactly; the jams, the shot counts and ★2 > ★1 above stay live. Design list:
     // HOPPER's stars on saturated guns (one seed; check across seeds when fixing; fix it inside the window rule, with no
     // store or no-jam returning: REVIEW-STARD, Y7A-R6); once fixed, delete this tripwire and let ★3 > ★2 cover HOPPER again
-    if (RULES_VERSION === "bb-0.9.3") {
-      const why = "Y7b2 tripwire (cap's ruling e66379fbf3184e56): HOPPER's saturated damages pinned under bb-0.9.3, ★3 < ★2 by 6.3%, ★3 < ★1 by 2.2%; fix HOPPER's stars inside the window rule before the next rules version";
+    // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none): re-keyed bb-0.9.3 -> bb-0.9.7,
+    // its three damages measured at Z-BUMP's tip. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
+    if (RULES_VERSION === "bb-0.9.7") {
+      const why = "Y7b2 tripwire (cap's ruling e66379fbf3184e56): HOPPER's saturated damages pinned under bb-0.9.7 (re-ruled at Z-BUMP), ★3 < ★2 by 6.3%, ★3 < ★1 by 2.2%; accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)";
       expect([one.damage, two.damage, three.damage], why).toEqual([2020, 2108, 1976]);
       expect(three.damage, `${why}: the recorded finding, ★3 under ★2`).toBeLessThan(two.damage);
       expect(three.damage, `${why}: the recorded finding, ★3 under ★1`).toBeLessThan(one.damage);

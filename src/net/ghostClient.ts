@@ -69,7 +69,7 @@ function problem(body: unknown, req: GhostRequest): string | PoolEntry {
   // 0.7.0a D1 on the client too: never fight a ghost with a better record (a server without D1 falls back here)
   if (!noBetterRecord(s, req)) return `server returned a ghost with a better record (${s.wins}W ${s.lives} lives)`;
   // never simulate an unvalidated foreign deck; a served ghost is a player's deck: the player mode (0.7.0)
-  const v = validateUpload(s.build, s.day);
+  const v = validateUpload(s.build, s.day, undefined, s.lastChance ? { lastChance: s.lastChance } : {}); // LC-1: its LAST CHANCE (no seed: served ghosts carry none)
   if (!v.ok) return `ghost deck invalid: ${v.errors[0]}`;
   return { id, snapshot: s };
 }

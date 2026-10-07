@@ -104,7 +104,10 @@ if (process.env.BB_RUNES_PARITY_WRITE) {
       // CATCHUP-093 (REQ-BFG-024): re-written at 0a4ea7c (the named stand-ins' packs a few days earlier: LONGTOOTH's day-4 pack
       // moves his day-7 dusk stand-in's part ids); the seed pool and the battle plan as Y7b2 left them. Was "Y7b2 (REQ-BFG-070,
       // REQ-BFG-046): the parity record re-written at 4d772e4 under bb-0.9.3, release Y's rules (the flip, the fuse rule, the..."
-      about: "CATCHUP-093 (REQ-BFG-024): the parity record re-written at 0a4ea7c under bb-0.9.3 after the captains' plan moves (LONGTOOTH's day-4 pack moves his day-7 dusk stand-in's part ids); Y7b2's seed pool and the battle plan (kinds, pairs, seeds) kept",
+      // Z-BUMP (the pools): re-written at 2c4ba76, the one regeneration under bb-0.9.7 (the stand-in pool and the seed pool's
+      // FURNACE/WEAVER part read from it; the overfeed's BASTION par deck in its race part); the battle plan kept. Was
+      // "CATCHUP-093 (REQ-BFG-024): the parity record re-written at 0a4ea7c under bb-0.9.3 after the captains' plan moves (LONG..."
+      about: "Z-BUMP (REQ-BFG-073): the parity record re-written at 2c4ba76 under bb-0.9.7, release Z's rules (LAST CHANCE, the overfeed patch, the bump), from its one regeneration's seed pool and the dusk stand-ins; the battle plan (kinds, pairs, seeds) kept",
       base: process.env.BB_RUNES_PARITY_WRITE, rules: RULES_VERSION, salt: old.salt, standInRun: old.standInRun,
       decksCount: Object.keys(decks).length, battlesCount: battles.length, decks, battles,
     };
@@ -116,7 +119,7 @@ describe("release X parity: the record and its decks", () => {
   it("was written on flipx2 under this build's rules, the rules its pools were generated under (POOL_RULES; nothing carried)", () => {
     const F = JSON.parse(readFileSync(X_PATH, "utf8")) as Fixture;
     expect(F.rules).toBe(RULES_VERSION);
-    expect(RULES_VERSION).toBe("bb-0.9.3"); // Y7b2: the bump and the fixture re-written under it (was bb-0.9.1; BAL-2: was bb-0.9.0)
+    expect(RULES_VERSION).toBe("bb-0.9.7"); // Z-BUMP: the bump and the fixture re-written under it (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
     expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(F.rules);
     expect([Object.keys(F.decks).length, F.battles.length]).toEqual([F.decksCount, F.battlesCount]);

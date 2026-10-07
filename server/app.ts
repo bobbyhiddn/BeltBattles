@@ -324,14 +324,20 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         if (named) throw new HttpError(422, `name: ${named}`);
         // 0.7.0: a player's deck, the player mode (road gold, parts, hull). RUNES-1 (REQ-BFG-058): with the snapshot's run
         // seed, so validateBuild re-derives every dawn's rune offer (runes.ts runeProblem); the seed is stored, never served
-        const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed });
+        // LC-1 (REQ-BFG-073): and its LAST CHANCE (absent on every switch-off snapshot: the decoder refuses the field)
+        const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed, ...(snap.lastChance ? { lastChance: snap.lastChance } : {}) });
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
         // 0.8.0 H2 (backlog 325): the (wins, lives) record must be one a run can carry into this day's dusk, as the seed
         // and ghosts:admin revalidate already check (same words as revalidate's). Otherwise an honest deck could carry a
         // fake low record and be matched more often (D1 serves only ghosts with no better record). The decoder bounds day
         // 1..10, wins 0..day-1 and lives 1..9, so this stays cheap; a record it refuses keeps its 400.
-        if (!isReachable(snap.day, snap.wins, snap.lives)) {
-          throw new HttpError(422, `record: ${snap.wins}W ${snap.lives} lives is no record a run carries into dusk ${snap.day}`);
+        // LC-1 (REQ-BFG-073): the record must be reachable with the snapshot's LAST CHANCE (its day, or none): a lastChance
+        // whose day can't be a loss to 1 life, or a run at 1 life that never had one, is refused. Z-BUMP: the switch is
+        // gone (this was its on side); POST takes RULES_VERSION only, so the record is read by this build's rules
+        const lcDay = { lastChance: snap.lastChance?.day ?? null };
+        if (!isReachable(snap.day, snap.wins, snap.lives, lcDay)) {
+          const after = snap.lastChance ? ` after a LAST CHANCE on day ${snap.lastChance.day}` : "";
+          throw new HttpError(422, `record: ${snap.wins}W ${snap.lives} lives is no record a run carries into dusk ${snap.day}${after}`);
         }
         const { id, created } = await store.add(snap); // 201 only once the write is durable
         return send(res, created ? 201 : 200, { id });

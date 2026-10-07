@@ -10,6 +10,7 @@ import { currentName, playerId, SNAPSHOT_V3 } from "./ghostSnapshot";
 import { displayName, nameProblem, WANDERER } from "../net/names"; // PACKS M2 (REQ-BFG-063)
 import { rollShop, runeDawn, type DayResult, type DuskFoe, type Run } from "./run";
 import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (type only)
+import { LAST_CHANCE_LIVES, lastChanceFires } from "../sim/lastChance"; // LC-1 (REQ-BFG-073); Z-BUMP: no switch
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -96,6 +97,9 @@ export function ghostOf(run: Run, createdAt = Date.now(), player = playerId(), n
     // RUNES-1 (REQ-BFG-058, snapshot v3): the run seed, last (left out when zero), so the server re-derives the rune
     // offers (runes.ts runeProblem). FIX-5 (a server-issued seed) is a later job: this is the client's run seed.
     ...(seed ? { seed } : {}),
+    // LC-1 (REQ-BFG-073): a taken LAST CHANCE, after the seed (the server re-derives its offer and finds its rune); a run
+    // without one (every switch-off run) snapshots exactly as before
+    ...(run.lastChance?.boon ? { lastChance: { day: run.lastChance.day, boon: run.lastChance.boon, ...(run.lastChance.id !== undefined ? { id: run.lastChance.id } : {}) } } : {}),
   };
 }
 
@@ -138,6 +142,9 @@ export const refundNotice = (run: Pick<Run, "day" | "refund">): string | null =>
 /** The dusk card's line when the dawn it leads to gives a life back ("+1 LIFE AT DAWN"), else null. */
 export const refundCardLine = (r: Pick<DayResult, "refund">): string | null => (r.refund ? `+${r.refund} LIFE AT DAWN` : null);
 
+/** LC-1 (REQ-BFG-073): the dusk card's line when this dusk fired LAST CHANCE ("LAST CHANCE: +1 LIFE"), else null. */
+export const lastChanceCardLine = (r: Pick<DayResult, "lastChance">): string | null => (r.lastChance ? `LAST CHANCE: +${r.lastChance.lives} LIFE` : null);
+
 /** Did the run lose a life at dusk before REFUND_DAY? (Lives are only ever lost at dusk.) */
 export const lostEarly = (run: Pick<Run, "history">): boolean => run.history.some((h) => h.day < REFUND_DAY && h.outcome === "loss");
 
@@ -160,6 +167,13 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
   if (outcome === "loss") {
     run.losses++;
     run.lives = Math.max(0, run.lives - 1);
+  }
+  // LC-1 (REQ-BFG-073), RULE LAST CHANCE (lastChance.ts; Z-BUMP: the game's rule, no switch): a loss that leaves exactly 1 life on a
+  // day before RUN_DAYS gives one back at once, once a run; the card pick waits for the next dawn's screen
+  if (lastChanceFires(run.day, outcome, run.lives, run.lastChance !== undefined)) {
+    run.lives += LAST_CHANCE_LIVES;
+    run.lastChance = { day: run.day };
+    res.lastChance = { lives: LAST_CHANCE_LIVES };
   }
   run.gold += income;
   if (run.lives <= 0) run.over = "lost";

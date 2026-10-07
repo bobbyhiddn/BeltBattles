@@ -23,6 +23,7 @@ import { TIER_COLOR, TIER_LABEL, nameColor } from "../ui/captain";
 import type { BattleRecord } from "../sim/battle";
 import { openReplay, replayAt } from "../game/replays";
 import { PHONE_CSS, TAP_CSS, isPhone, tapPx } from "../ui/tap"; // shoptap (D5): R1's rule, shared
+import { lastChanceTag, LC_STOP } from "./lastChancePicker"; // LC-1 (REQ-BFG-073): the LAST CHANCE row's mark
 import { HeroScreen } from "./hero";
 import { ReplayScreen } from "./replay";
 import { TitleScreen } from "./title";
@@ -176,7 +177,7 @@ export class SummaryScreen implements Screen {
 
   /** 0.6.0b: every fight of the run in order: each day's warlord fight (if one was picked), then its dusk. 0.7.0a: a
    *  dusk row carries its history index (`at`) and, online, its replay. */
-  fights(): { day: number; stop: string; stopColor: string; foe: string; foeColor: string; outcome: "win" | "loss" | "draw"; time: number; at?: number; replay?: RowReplay }[] {
+  fights(): { day: number; stop: string; stopColor: string; foe: string; foeColor: string; outcome: "win" | "loss" | "draw"; time: number; at?: number; replay?: RowReplay; lc?: string }[] {
     const run = this.run;
     const out: ReturnType<SummaryScreen["fights"]> = [];
     run.history.forEach((d, at) => {
@@ -186,7 +187,9 @@ export class SummaryScreen implements Screen {
       const ev = run.events.find((e) => e.day === d.day);
       const warlordDay = run.warlords.some((q) => q.day === d.day);
       const stop = warlordDay ? "DUSK" : ev ? STOP_LABEL[ev.id] : "DUSK";
-      out.push({ day: d.day, stop, stopColor: warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time, at, replay: this.replays.get(at) });
+      // LC-1 (REQ-BFG-073): the dusk that fired LAST CHANCE: STOP says the life came back, and the row ends with the card taken
+      const lc = d.lastChance ? lastChanceTag(d.lastChance) : undefined;
+      out.push({ day: d.day, stop: lc ? LC_STOP : stop, stopColor: lc ? C.lime : warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time, at, replay: this.replays.get(at), ...(lc ? { lc } : {}) });
     });
     return out;
   }
@@ -294,7 +297,12 @@ export class SummaryScreen implements Screen {
     for (const f of this.fights()) {
       drawText(g, String(f.day), cDay + 8, ry, C.slate4, { font: "3", align: "right" });
       drawText(g, fit(f.stop, stopW), cStop, ry, f.stopColor, { font: "3" });
-      drawText(g, fit(f.foe, foeW), cFoe, ry, f.foeColor, { font: "3" });
+      if (f.lc) {
+        // LC-1: the card taken, in lime at the column's end; the foe's name gives way
+        const tw = textWidth(f.lc, "3");
+        drawText(g, fit(f.foe, Math.max(0, foeW - tw - 4)), cFoe, ry, f.foeColor, { font: "3" });
+        drawText(g, f.lc, cFoe + foeW - tw, ry, C.lime, { font: "3" });
+      } else drawText(g, fit(f.foe, foeW), cFoe, ry, f.foeColor, { font: "3" });
       if (cells && f.replay && f.at !== undefined) {
         // REPLAY plays the stored dusk (read-only); a record of other rules says so when tapped (D6)
         const at = f.at, ok = f.replay.why === null;

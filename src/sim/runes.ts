@@ -422,11 +422,17 @@ export type RuneCount = "exact" | "atMost";
  * - when `seed` is known (the uploader's snapshot; served ghosts carry none, FIX-6): runes[i] was in
  *   runeOffer(seed, i + 1, hero, the runes before it).
  */
-export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number, count: RuneCount = "atMost", keepDormant = false): string | null {
+export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number, count: RuneCount = "atMost", keepDormant = false, lcAt = -1): string | null {
+  // LC-1 (REQ-BFG-073): `lcAt` (>= 0 only for a snapshot whose lastChance took a rune): the LAST CHANCE rune's index, right
+  // after the dawn pick of its day (lastChance.ts lastChanceRuneAt). It is one more rune than the dawns; its own offer is
+  // validate.ts's check (lastChance.ts lastChanceOffer), and each dawn rune after it was taken at the dawn of day i, not
+  // i + 1 (runeDawnOf). At -1 (every caller but a LAST CHANCE upload) every line below reads as before.
+  const lc = lcAt >= 0 ? 1 : 0;
   if (runes === undefined) return count === "exact" ? `runes: 0 held on day ${day}, one a dawn (${day})` : null;
   if (!Array.isArray(runes)) return "runes: expected a list";
-  if (runes.length > day) return `runes: ${runes.length} held on day ${day}, at most one a dawn`;
-  if (count === "exact" && runes.length !== day) return `runes: ${runes.length} held on day ${day}, one a dawn (${day})`;
+  if (runes.length > day + lc) return lc ? `runes: ${runes.length} held on day ${day}, at most one a dawn and one LAST CHANCE` : `runes: ${runes.length} held on day ${day}, at most one a dawn`;
+  if (count === "exact" && runes.length !== day + lc) return lc ? `runes: ${runes.length} held on day ${day}, one a dawn (${day}) and one LAST CHANCE` : `runes: ${runes.length} held on day ${day}, one a dawn (${day})`;
+  if (lc && lcAt >= runes.length) return `runes: no LAST CHANCE rune at runes[${lcAt}]`;
   const held: string[] = [];
   for (let i = 0; i < runes.length; i++) {
     const q = runes[i] as Record<string, unknown> | null;
@@ -439,11 +445,14 @@ export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: nu
     if (DORMANT_RUNES.has(q.id) && !keepDormant) return `runes[${i}]: ${RUNES[q.id].name} is dormant: no dawn offers it`;
     // SUS-D (REQ-BFG-069): a sustain rune only while the sustain switch is on (no dawn offers one before), seed or none
     if (isSustainRune(q.id) && !sustainLive()) return `runes[${i}]: ${RUNES[q.id].name} is not in the game while sustain is off`;
+    // LC-1: the dawn rune i was taken at (i + 1 without a LAST CHANCE rune; runeDawnOf)
+    const dawn = lc && i > lcAt ? i : i + 1;
     // BOTS-X (REQ-BFG-069): no dawn before the first sustain day offers one; with the seed the offer check below refuses it
-    if (seed === undefined && isSustainRune(q.id) && i + 1 < SUSTAIN_FIRST_DAY) return `runes[${i}]: ${RUNES[q.id].name} is not offered before the dawn of day ${SUSTAIN_FIRST_DAY}`;
+    if (seed === undefined && isSustainRune(q.id) && dawn < SUSTAIN_FIRST_DAY) return `runes[${i}]: ${RUNES[q.id].name} is not offered before the dawn of day ${SUSTAIN_FIRST_DAY}`;
     if (held.includes(q.id)) return `runes[${i}]: ${RUNES[q.id].name} is held twice`;
-    if (seed !== undefined && !runeOffer(seed, i + 1, hero, held).ids.includes(q.id)) {
-      return `runes[${i}]: ${RUNES[q.id].name} was not offered at the dawn of day ${i + 1}`;
+    // LC-1: the LAST CHANCE rune's offer is validate.ts's (lastChance.ts lastChanceOffer), not a dawn's
+    if (seed !== undefined && i !== lcAt && !runeOffer(seed, dawn, hero, held).ids.includes(q.id)) {
+      return `runes[${i}]: ${RUNES[q.id].name} was not offered at the dawn of day ${dawn}`;
     }
     held.push(q.id);
   }
@@ -470,19 +479,26 @@ export interface RuneGrants {
  *  runes held before that dawn's pick (j - 1, at most the list's length): exact for a run that took every pick. SPOILS
  *  SACK pays at a dawn after a won dusk (never day 1's): the budget counts every such dawn from its pick (an upper bound;
  *  the server sees no day-by-day results). */
-export function runeGrants(runes: readonly RuneHeld[] | undefined, day: number): RuneGrants {
+export function runeGrants(runes: readonly RuneHeld[] | undefined, day: number, lcAt = -1): RuneGrants {
   const g: RuneGrants = { hull: 0, belt: 0, gold: 0 };
   const count = runes?.length ?? 0;
+  // LC-1 (REQ-BFG-073): `lcAt` (>= 0: a LAST CHANCE rune at that index; lastChance.ts lastChanceRuneAt). Each rune pays from
+  // the dawn it was taken at, `t` (i + 1, or i for a dawn rune after the LAST CHANCE one; the LAST CHANCE rune at the dawn
+  // after its day, before that dawn's pick), and a dawn's RUNE TITHE counts the runes taken before that dawn (the LAST
+  // CHANCE rune among them from the dawn after the one it was picked at). At -1 every amount is exactly as before.
+  const lc = lcAt >= 0;
+  const before = (j: number): number => Math.min(j - 1 + (lc && j - 1 >= lcAt + 1 ? 1 : 0), count);
   (runes ?? []).forEach((q, i) => {
     const d = q && isRune(q.id) ? RUNES[q.id] : undefined;
     if (!d) return;
+    const t = lc && i > lcAt ? i : i + 1;
     if (d.kind === "hull") g.hull += d.amount.n;
     else if (d.kind === "belt") g.belt += d.amount.n;
-    else if (d.kind === "dawnGold") g.gold += d.amount.n * Math.max(0, day - i);
-    else if (d.kind === "runeTithe" && day >= i + 1) {
+    else if (d.kind === "dawnGold") g.gold += d.amount.n * Math.max(0, day - (t - 1));
+    else if (d.kind === "runeTithe" && day >= t) {
       g.gold += d.amount.n * (i + 1);
-      for (let j = i + 2; j <= day; j++) g.gold += d.amount.n * Math.min(j - 1, count);
-    } else if (d.kind === "victorGold") g.gold += d.amount.n * Math.max(0, day - Math.max(1, i));
+      for (let j = t + 1; j <= day; j++) g.gold += d.amount.n * before(j);
+    } else if (d.kind === "victorGold") g.gold += d.amount.n * Math.max(0, day - Math.max(1, t - 1));
   });
   return g;
 }
@@ -675,10 +691,12 @@ export interface BotRune {
  * run seed (run.seed, the one a snapshot carries). Null, the build untouched, when off, when the build missed a dawn
  * (runes.length !== day - 1: one rune a dawn from day 1, as runeDawn owes a pick) or when the offer is empty.
  */
-export function botTakeRune(build: Build, seed: number, day: number, hero: HeroId = build.hero, on: boolean = BOT_RUNES, won = false): BotRune | null {
+export function botTakeRune(build: Build, seed: number, day: number, hero: HeroId = build.hero, on: boolean = BOT_RUNES, won = false, lcRunes = 0): BotRune | null {
   if (!on) return null;
   const ids = (build.runes ?? []).map((q) => q.id);
-  if (ids.length !== day - 1) return null;
+  // LC-1 (REQ-BFG-073): `lcRunes` (1 once a LAST CHANCE rune is held, else 0): it is held (the offer excludes it) but is
+  // no dawn's pick, so the dawn count leaves it out
+  if (ids.length - lcRunes !== day - 1) return null;
   const id = botRunePick(runeOffer(seed, day, hero, ids), hero, build);
   if (id === null) return null;
   const d = RUNES[id];

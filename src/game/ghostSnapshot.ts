@@ -10,7 +10,10 @@ import { NAME_KEY, nameProblem } from "../net/names"; // PACKS M2 (REQ-BFG-063):
 import { runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with validate.ts
 import { heroGateProblem, rulesGateProblem } from "../net/rulesGate"; // RUNES-2a (RUNES-1 Q4): the strict decoder's gate
 // RUNES-1 (snapshot v3): the format's constants come from the strict decoder, so the two checks can't drift apart
-import { MAX_RUNES, MAX_SEED, SNAPSHOT_V3, V3_LIVE, V3_PIECE_FIELD, V3_RUNE_COUNTER, V3_SNAPSHOT_FIELDS } from "../net/snapshot";
+import { MAX_SEED, SNAPSHOT_V3, V3_LIVE, V3_PIECE_FIELD, V3_RUNE_COUNTER, V3_SNAPSHOT_FIELDS } from "../net/snapshot";
+import { LAST_CHANCE_FIELD, maxRunes } from "../net/snapshot"; // LC-1 (REQ-BFG-073): the decoder's LAST CHANCE key and rune bound
+import { lastChanceGateProblem } from "../net/rulesGate"; // LC-1: the decoder's gate (the switch, then the rules)
+import { lastChanceRuneAt, lastChanceShapeOk, type LastChance, type TakenLastChance } from "../sim/lastChance"; // LC-1
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
 // build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
@@ -71,6 +74,7 @@ export interface GhostSnapshot {
   endlessLives?: number;
   victoryDay?: number;
   battleGold?: number;
+  lastChance?: TakenLastChance; // LC-1 (REQ-BFG-073): the run's taken LAST CHANCE, last (only with its switch on)
 }
 
 export const SNAPSHOT_KEYS = ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"] as const;
@@ -151,7 +155,7 @@ function runesOk(q: object, v: number): boolean {
   if ((q as Raw).gold !== undefined && !v3Ok("gold", v)) return false;
   const list = (q as Raw).runes;
   if (list === undefined) return true;
-  if (!v3Ok("runes", v) || !Array.isArray(list) || list.length > MAX_RUNES) return false;
+  if (!v3Ok("runes", v) || !Array.isArray(list) || list.length > maxRunes()) return false; // LC-1: maxRunes (MAX_RUNES while off)
   return list.every((e) => {
     if (!e || typeof e !== "object" || Array.isArray(e)) return false;
     const keys = Object.keys(e).filter((k) => (e as Raw)[k] !== undefined);
@@ -181,12 +185,17 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   const keys = Object.keys(q);
   // PACKS M2 (REQ-BFG-063): `name` may follow, absent or a name names.ts accepts (an in-memory `name: undefined` is
   // absent), exactly as src/net/snapshot.ts checkSnapshot takes it, so this side refuses what the server refuses
-  const extra = (k: string) => k === NAME_FIELD || (V3_SNAPSHOT_FIELDS as readonly string[]).includes(k); // RUNES-1: v3's fields
+  // LC-1 (REQ-BFG-073): `lastChance` last, as the strict decoder takes it (lastChanceOk below)
+  const extra = (k: string) => k === NAME_FIELD || (V3_SNAPSHOT_FIELDS as readonly string[]).includes(k) || k === LAST_CHANCE_FIELD; // RUNES-1: v3's fields
   if (!SNAPSHOT_KEYS.every((k) => keys.includes(k)) || keys.some((k) => !extra(k) && !(SNAPSHOT_KEYS as readonly string[]).includes(k))) return false;
   if (q.name !== undefined && nameProblem(q.name) !== null) return false;
   // RUNES-1 (snapshot v3): each present v3 field only in v3 and only while live; `seed` 1..MAX_SEED
   for (const k of V3_SNAPSHOT_FIELDS) if (q[k] !== undefined && !v3Ok(k, q.v)) return false;
   if (q.seed !== undefined && !inRange(q.seed, 1, MAX_SEED)) return false;
+  // LC-1 (REQ-BFG-073): a LAST CHANCE as src/net/snapshot.ts lastChanceField takes it: v3, the switch and rules gate, a
+  // taken card, a day before RUN_DAYS and before the snapshot's own; its rune then sits at index `day` (runeProblem's lcAt)
+  const lc = q[LAST_CHANCE_FIELD] as LastChance | undefined;
+  if (lc !== undefined && !(q.v >= SNAPSHOT_V3 && lastChanceGateProblem(q.rules) === null && lastChanceShapeOk(lc, true) && typeof q.day === "number" && lc.day < q.day)) return false;
   return (q.v === 1 || q.v === 2 || q.v === 3) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
     && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build, q.v) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
@@ -196,7 +205,7 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
     && rulesGateProblem(q.rules, q.build) === null && heroGateProblem(q.rules, q.hero) === null
     // RUNES-1: the rune rule (validate.ts validateBuild's); FLIP-X2 (ruling 5d6d83ef57d1494c): at most `day` here (the
     // local pool), exact only for uploads (validateUpload); and a dormant rune kept (an old ghost holding one survives)
-    && runeProblem(q.build.runes, q.day, q.hero, q.seed, "atMost", true) === null;
+    && runeProblem(q.build.runes, q.day, q.hero, q.seed, "atMost", true, lastChanceRuneAt(lc)) === null;
 }
 
 /** Any string made safe for ID_PATTERN (invalid characters become "_", at most 64 long). */

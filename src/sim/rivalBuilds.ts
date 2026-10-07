@@ -645,9 +645,6 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // keeps the warlord's day 3; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
       // Y7b2 (the regenerated caps, bb-0.9.3): at good luck the counterweight 3 -> 4 (FOUNDRY good rare+ d3, cap 3 -> 2: his
       // road deck 3 > 2; the part that arrives on day 3 at good luck, non-synergy; day 4's good cap of 3 holds it), at good luck
-      // only (its ordinary day 5 unchanged); right after M2(4, twintrigger), the last entry with an earlier day, as before;
-      // re-placed in day order (cap's ruling 1cfdc5fff106d58f)
-      soon(4, G(5, "counterweight", 4, 0)),
       soon(5, M(7, "compound", 0)),
       // FLIP-X2 step 4.4 (cap's ruling 97e639e5813acb37, item 2): the latch's second star at good luck only, day 9 (was
       // ordinary day 10; FOUNDRY's ordinary star2 cap is 2 on day 10 and no later day exists)
@@ -656,7 +653,22 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // at 1210ee8); a day later 49%
       // CATCHUP-093: two of the four day-8 packs are the day-4 pair (above), so days 8-10 hold what they held (with all six his
       // dusk deck's TURRET SPEED level 2 left day 8)
-      M2(7, "compound", 0), ...good(M(8, "flak", 1)), P(8, 2), ...good(G2(9, "twinlatch", 3, 2)),
+      M2(7, "compound", 0),
+      // BAL-2 step 6 (cap's ruling 97e639e5813acb37): the counterweight (rare, non-synergy) on day 5 at ordinary luck (was
+      // 3; FOUNDRY's ordinary rare+ cap fell 3 -> 2 on day 4, where the TWIN LATCH and TWIN TRIGGER hold both); soon()
+      // keeps the warlord's day 3; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
+      // Y7b2 (the regenerated caps, bb-0.9.3): at good luck the counterweight 3 -> 4 (FOUNDRY good rare+ d3, cap 3 -> 2: his
+      // road deck 3 > 2; the part that arrives on day 3 at good luck, non-synergy; day 4's good cap of 3 holds it), at good luck
+      // only (its ordinary day 5 unchanged); right after M2(4, twintrigger), the last entry with an earlier day, as before;
+      // re-placed in day order (cap's ruling 1cfdc5fff106d58f)
+      // Z-BUMP (REQ-BFG-073; the regenerated caps, bb-0.9.7, the overfeed's move): at ordinary luck the counterweight 5 -> 8
+      // (FOUNDRY ordinary value d7, cap 77 -> 76: his stand-in deck 77 > 76; the non-synergy part with the fewest part-days
+      // held on day 7 (3: days 5-7; the day-4 ARMOR PACKs 4 each, the TWIN GAUGE 7), cap's ruling 97e639e5813acb37 item 3;
+      // day 8's ordinary caps hold it, its deck unchanged there), at ordinary luck only (soon() keeps the warlord's good-luck
+      // day 4); right after M2(7, compound), the last entry with an earlier day; re-placed in day order (cap's ruling
+      // 1cfdc5fff106d58f)
+      soon(4, G(8, "counterweight", 4, 0)),
+      ...good(M(8, "flak", 1)), P(8, 2), ...good(G2(9, "twinlatch", 3, 2)),
       ...good(G(10, "whetstone", 5, 2, 3)), P(10),
     ],
     // CATCHUP-091 fallback 2 (cap's ruling Q1 e2ca295ce9dcd60a rule 4; ruling 3c58471c74bdc4ed Q1: the Hard band on day 5,

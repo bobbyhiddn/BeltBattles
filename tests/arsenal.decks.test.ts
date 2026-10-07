@@ -144,8 +144,10 @@ describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of the da
       // deck, so ★2 < ★1 by 6.3% and ★3 < ★1 by 9.1% (was: every step an upgrade). Its three means are pinned exactly; the 3%
       // check stays live for every other card and deck, and KNOWN_FALLS stays empty. Design list: OVERDRIVE's speed ladder (no
       // flat returns, REVIEW-STARD); once fixed, delete this tripwire and let the 3% check cover OVERDRIVE again
-      if (RULES_VERSION === "bb-0.9.3" && c.id === "overdrive" && c.deck === "bench" && c.opp === WEAVER) {
-        const why = "Y7b2 tripwire (cap's ruling 171ac18e8a707ab5): OVERDRIVE's bench means pinned under bb-0.9.3, ★2 < ★1 by 6.3%, ★3 < ★1 by 9.1%; fix OVERDRIVE's speed ladder before the next rules version";
+      // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none): re-keyed bb-0.9.3 -> bb-0.9.7,
+      // its three means measured at Z-BUMP's tip. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
+      if (RULES_VERSION === "bb-0.9.7" && c.id === "overdrive" && c.deck === "bench" && c.opp === WEAVER) {
+        const why = "Y7b2 tripwire (cap's ruling 171ac18e8a707ab5): OVERDRIVE's bench means pinned under bb-0.9.7 (re-ruled at Z-BUMP), ★2 < ★1 by 6.3%, ★3 < ★1 by 9.1%; accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)";
         expect(r.map((x) => x.dmg), why).toEqual([941.4, 882, 856.05]);
         expect(r[1].dmg, `${why}: the recorded finding, ★2 under ★1`).toBeLessThan(r[0].dmg);
         return;

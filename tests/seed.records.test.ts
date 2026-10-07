@@ -6,6 +6,9 @@
 //  - For every day 1-10 and every reachable (wins, lives) at that dusk, at least 4 seed ghosts are eligible under the
 //    record rule (D1): the generator's floor is 2 (MIN_ELIGIBLE), and since the 0.8.0 RC the race heroes' floor ghosts
 //    make it 4 (oracle 96e0ebe434a93f2b; it was 2). The seed pool keeps its turret and join decks.
+//  - Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule (a loss to 1 life before day 10 gives one back, once
+//    a run), so the records follow it: 172 reachable states over dusks 1-10 (was 178). The six it takes away are 1-life
+//    records it lifts to 2; a record under rules before LAST_CHANCE_RULES is still read by the model before the flip.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION, START_LIVES } from "../src/sim/content";
@@ -24,6 +27,7 @@ import type { GhostServer } from "../server/app";
 import { floorGhosts, generateSamplePool, MIN_ELIGIBLE, raceGhosts, reachableLabel, sampleGhosts, uncoveredStates } from "../tools/samplePool";
 import { lifeAudit } from "../tools/scorecard/survival";
 import { storeBackends } from "./netStores";
+import { LAST_CHANCE_AT, LAST_CHANCE_LIVES } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): the flip
 
 const POOL = generateSamplePool();
 const SAMPLE = sampleGhosts();
@@ -69,10 +73,11 @@ function dockSeed(day: number): number {
 }
 
 describe("D5: the records a run can carry into a dusk (src/net/records.ts) are the run code's", () => {
-  it("the lives rules the model encodes are the game's: 5 lives, a loss costs 1, the refund at dawn 3, PATCH UP +1 and nothing else", () => {
+  // Z-BUMP: the flip (title was "... PATCH UP +1 and nothing else"; the audit now reads LAST CHANCE off the run code too)
+  it("the lives rules the model encodes are the game's: 5 lives, a loss costs 1, the refund at dawn 3, PATCH UP +1, LAST CHANCE +1 at 1 life and nothing else", () => {
     const a = lifeAudit("furnace", 7); // S1's audit stops on any rule the model doesn't cover
-    expect(a.rules).toEqual({ startLives: START_LIVES, days: 10, lossLives: 1, refundDay: REFUND_DAY, refundLives: REFUND_LIVES, dockLives: PATCH_UP_LIVES });
-    expect([START_LIVES, REFUND_DAY, REFUND_LIVES, PATCH_UP_LIVES]).toEqual([5, 3, 1, 1]);
+    expect(a.rules).toEqual({ startLives: START_LIVES, days: 10, lossLives: 1, refundDay: REFUND_DAY, refundLives: REFUND_LIVES, dockLives: PATCH_UP_LIVES, lastChance: LAST_CHANCE_LIVES }); // Z-BUMP: the flip (was without lastChance)
+    expect([START_LIVES, REFUND_DAY, REFUND_LIVES, PATCH_UP_LIVES, LAST_CHANCE_AT, LAST_CHANCE_LIVES]).toEqual([5, 3, 1, 1, 1, 1]); // Z-BUMP: + LAST_CHANCE_AT, LAST_CHANCE_LIVES
     expect(a.dock).toBe("dock");
   });
 
@@ -94,8 +99,16 @@ describe("D5: the records a run can carry into a dusk (src/net/records.ts) are t
       const union = new Set([...keys(day, { patchUp: false }), ...Array.from({ length: 9 }, (_, k) => [...keys(day, { dockDay: k + 2 })]).flat()]);
       expect(keys(day), `day ${day}`).toEqual(union);
     }
-    expect(Array.from({ length: 10 }, (_, i) => floorRecord(i + 1).lives)).toEqual([5, 4, 4, 3, 2, 1, 1, 1, 1, 1]);
-    expect(Array.from({ length: 10 }, (_, i) => reachableRecords(i + 1).length)).toEqual([1, 3, 4, 8, 13, 19, 25, 30, 35, 40]);
+    expect(Array.from({ length: 10 }, (_, i) => floorRecord(i + 1).lives)).toEqual([5, 4, 4, 3, 2, 2, 1, 1, 1, 1]); // Z-BUMP: the flip (was [5, 4, 4, 3, 2, 1, 1, 1, 1, 1])
+    expect(Array.from({ length: 10 }, (_, i) => reachableRecords(i + 1).length)).toEqual([1, 3, 4, 8, 13, 18, 23, 29, 34, 39]); // Z-BUMP: the flip (was [.., 19, 25, 30, 35, 40], 178)
+    // Z-BUMP (the flip): LAST CHANCE takes away exactly six records, each at 1 life, and adds none; a record under rules
+    // before LAST_CHANCE_RULES is read by the model before the flip, the floor and the counts above as they were
+    const old = (day: number) => reachableRecords(day, { rules: "bb-0.9.1" });
+    const gone = Array.from({ length: 10 }, (_, i) => old(i + 1).filter((r) => !isReachable(i + 1, r.wins, r.lives)).map((r) => `d${i + 1} ${r.wins}W ${r.lives}`)).flat();
+    expect(gone).toEqual(["d6 0W 1", "d7 1W 1", "d7 2W 1", "d8 3W 1", "d9 4W 1", "d10 5W 1"]);
+    for (let day = 1; day <= 10; day++) for (const r of reachableRecords(day)) expect(isReachable(day, r.wins, r.lives, { rules: "bb-0.9.1" }), `day ${day} ${r.wins}W ${r.lives}`).toBe(true);
+    expect(Array.from({ length: 10 }, (_, i) => Math.min(...old(i + 1).filter((r) => r.wins === 0).map((r) => r.lives)))).toEqual([5, 4, 4, 3, 2, 1, 1, 1, 1, 1]);
+    expect(Array.from({ length: 10 }, (_, i) => old(i + 1).length)).toEqual([1, 3, 4, 8, 13, 19, 25, 30, 35, 40]);
     // the refund makes these impossible: a loss on day 1 or 2 is always handed back at dawn 3
     expect(isReachable(3, 1, 4)).toBe(false);
     expect(isReachable(3, 0, 3)).toBe(false);
@@ -139,7 +152,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
         least = Math.min(least, ok.length);
       }
     }
-    expect(states).toBe(178);
+    expect(states).toBe(172); // Z-BUMP: the flip (was 178: LAST CHANCE takes away six 1-life records, above)
     expect(least).toBe(4); // 0.8.0 RC: the race floor ghosts are eligible everywhere too (was 2)
     expect(uncoveredStates(POOL)).toEqual([]);
     // without the floor ghosts the sample ghosts leave states uncovered (why the floor ghosts exist)
@@ -157,14 +170,18 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // regeneration), so the sample and floor decks drawn from it moved (were 5 and 21, 5 and 13)
   // Y7b2 (the pools): the stand-in pool regenerated once on bb-0.9.3 (4d772e4), so the sample and floor decks drawn from it
   // moved; title "the sample ghosts' 4 and 25, plus the floor ghosts' 4 and 16" -> 6 and 26, 3 and 15
-  it("keeps its turret and join decks: the sample ghosts' 6 and 26, plus the floor ghosts' 3 and 15 (each a deck of its own)", () => {
+  // Z-BUMP (the pools): the stand-in pool regenerated once under bb-0.9.7 (2c4ba76), so the sample and floor decks drawn
+  // from it moved; title "the sample ghosts' 6 and 26, plus the floor ghosts' 3 and 15" -> 9 and 23, 2 and 14
+  it("keeps its turret and join decks: the sample ghosts' 9 and 23, plus the floor ghosts' 2 and 14 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
     // BAL-2 (c5e4780, the pools changed): [3, 24] -> [4, 25]
     // Y7b2 (the pools): was [4, 25] (4d772e4, the pool regenerated on bb-0.9.3)
-    expect(carry(SAMPLE)).toEqual([6, 26]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
+    // Z-BUMP (the pools): was [6, 26] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
+    expect(carry(SAMPLE)).toEqual([9, 23]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
     // BAL-2 (c5e4780, the pools changed): [2, 14] -> [4, 16]
     // Y7b2 (the pools): was [4, 16] (4d772e4, the pool regenerated on bb-0.9.3)
-    expect(carry(FLOOR)).toEqual([3, 15]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
+    // Z-BUMP (the pools): was [3, 15] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
+    expect(carry(FLOOR)).toEqual([2, 14]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
     for (const f of FLOOR) {
       const same = SAMPLE.filter((s) => s.day === f.day && s.hero === f.hero).map((s) => encodeStarred(s.build));
       expect(same).toHaveLength(2);
@@ -209,6 +226,6 @@ describe.each(storeBackends())("D5 end to end on the $name store: a new player g
         n++;
       }
     }
-    expect(n).toBe(178);
+    expect(n).toBe(172); // Z-BUMP: the flip (was 178)
   });
 });
