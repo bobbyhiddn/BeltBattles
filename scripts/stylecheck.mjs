@@ -20,6 +20,16 @@
 // A measurement is the least WCAG contrast over every pair of 4-neighbour pixels (figure, ground) found, from the RGB
 // values drawn; a check with no such pair drawn fails (the figure isn't drawn on its ground). One row per style and check:
 // the measured value, the palette value the logic half computes, and the threshold. Exit 1 on any miss.
+// CUSTOM-3 (REQ-BFG-074) adds the carrier styles, read off CUSTOMIZE's preview carrier on the CARRIER tab for each of the
+// four playable heroes (FURNACE with no saved run, then a saved run of WEAVER, FOUNDRY and BASTION), each style worn:
+//  - smoke at 50% and fire at 25%: CUSTOMIZE's tooling-only damage probe (CustomizeScreen.probe) draws the battle's own
+//    damage particles (render/fx.ts, as arenaReact.ts damageFx spawns them) over the stern band and the bow; the light
+//    puff's slate3 and slate4, and the fire's fire4, yellow and white, beside the hull's fill: >= THRESHOLDS.carrierSmoke,
+//    carrierFire (today's weakest carrier, WEAVER's verdigris);
+//  - the board plate's edge: its ink rim beside the hull's fill (the rim columns and the hull just outside them):
+//    >= THRESHOLDS.plateEdge (today's weakest, BASTION's granite);
+//  - "yours": the colour the visible hull shows most (the stern band and the bow), CIE76 delta E against the same colour
+//    on each faction's default carrier as drawn: >= THRESHOLDS.yours (20; today's closest two defaults are 19.8 apart).
 // Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/stylecheck.mjs <outDir> [--dist dist]
 //        Writes <outDir>/stylecheck.log, stylecheck.json and one PNG per tab.
 import { chromium } from "playwright-core";
@@ -46,14 +56,15 @@ execFileSync(process.execPath, [join(ROOT, "node_modules/vite/bin/vite.js"), "bu
 const mod = await import(pathToFileURL(join(REFS, "styleRefs.js")).href);
 const R = mod.THRESHOLDS ? mod : mod.default;
 const { BELTS, FLOORS, PANELS, THRESHOLDS: T, contrast, floorTones, keywordMin, KEYWORD_COLOURS, C } = R;
+const { CARRIERS, CARRIER_FACTIONS, carrierFill, carrierContrasts, yoursDistance, separation, SMOKE_50, FIRE_25, TODAY_CLOSEST_DEFAULTS } = R; // CUSTOM-3
 const KEYWORDS9 = KEYWORD_COLOURS.slice(0, 9); // the nine keywords (the strip draws these; RATE, the bars and tags elsewhere)
 
 /** Every style open and seen (no lock dims a swatch), the defaults worn. */
-const ALL = [...FLOORS.slice(1).map((s) => `style:floor.${s.id}`), ...BELTS.slice(1).map((s) => `style:belt.${s.id}`), ...PANELS.slice(1).map((s) => `style:panel.${s.id}`)];
+const ALL = [...FLOORS.slice(1).map((s) => `style:floor.${s.id}`), ...BELTS.slice(1).map((s) => `style:belt.${s.id}`), ...PANELS.slice(1).map((s) => `style:panel.${s.id}`), ...CARRIERS.slice(1).map((s) => `style:carrier.${s.id}`)];
 const PROFILE = {
   v: 1, counters: { runs: 99, runsFinished: 9, flawless: 1, duskWins: 99, bestDay: 10, warlordWins: 9, matriarchWins: 9, mostBelts: 9 },
   heroesWon: ["furnace", "weaver", "foundry"], heroesFinished: ["furnace", "weaver", "foundry"], unlocked: ALL,
-  chosen: { floor: "plate", belt: "iron", panel: "slate" }, seen: ALL, folded: [], runNew: null, updatedAt: 1,
+  chosen: { floor: "plate", belt: "iron", panel: "slate", carrier: "war" }, seen: ALL, folded: [], runNew: null, updatedAt: 1,
 };
 
 function pageServer() {
@@ -152,7 +163,7 @@ const ui = (fn, a) => page.evaluate(([f, x]) => {
   if (f === "row") { g.screen.state.tapRow(x); step(2); }
   g.render();
   const c = bb.profile().customize;
-  return { screen: bb.screen(), scale: g.view.scale, W: g.W, H: g.H, tab: c?.tab, pick: c?.pick, worn: c?.worn, preview: c?.preview, locked: c?.locked, L: c?.L, rows: c?.rows };
+  return { screen: bb.screen(), scale: g.view.scale, W: g.W, H: g.H, tab: c?.tab, pick: c?.pick, worn: c?.worn, preview: c?.preview, locked: c?.locked, L: c?.L, rows: c?.rows, ship: c?.ship, plate: c?.plate };
 }, [fn, a]);
 const swatch = (r) => { const side = Math.min(r.h - 6, 40); return { x: r.x + 3, y: r.y + 3, w: side, h: side }; };
 
@@ -259,12 +270,100 @@ for (let i = 0; i < PANELS.length; i++) {
   if (p.id === "plum") await page.screenshot({ path: join(OUT, "stylecheck-panel.png") });
 }
 
+// ---- CUSTOM-3 (REQ-BFG-074): carriers, on the CARRIER tab's preview carrier, per playable hero
+/** The most common colour in the windows (logical rects), its share and the pixels counted. */
+const modeColour = (page, wins) => page.evaluate((ws) => {
+  const g = window.bb.game;
+  g.render();
+  const sc = document.createElement("canvas");
+  sc.width = g.canvas.width;
+  sc.height = g.canvas.height;
+  const cx = sc.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(g.canvas, 0, 0);
+  const d = cx.getImageData(0, 0, sc.width, sc.height).data, counts = {};
+  let n = 0;
+  for (const w of ws) for (let y = w.y; y < w.y + w.h; y++) for (let x = w.x; x < w.x + w.w; x++) {
+    const k = 4 * (y * sc.width + x);
+    const hex = `#${[d[k], d[k + 1], d[k + 2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+    counts[hex] = (counts[hex] ?? 0) + 1;
+    n++;
+  }
+  const [hex, c] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return { hex, share: c / n, n };
+}, wins);
+/** The visible ship (logical rects from the ship's origin): the stern band (ship x 0..21, y 16..135: hull all through)
+ *  and the bow (ship x 154..169, y 56..95). */
+const shipWins = (s) => [{ x: s.ship.x, y: s.ship.y + 16, w: 22, h: 120 }, { x: s.ship.x + 154, y: s.ship.y + 56, w: 16, h: 40 }];
+/** The plate's left and right rim columns and the hull's column just outside each. */
+const rimWins = (s) => [{ x: s.plate.x - 1, y: s.plate.y, w: 2, h: s.plate.h }, { x: s.plate.x + s.plate.w - 1, y: s.plate.y, w: 2, h: s.plate.h }];
+const leastOf = async (wins, figs, ground) => {
+  let v = null, figsN = 0;
+  for (const f of figs) {
+    const m = await measure(page, wins, f, ground);
+    const x = least(m);
+    figsN += m.figs;
+    if (x !== null) v = v === null ? x : Math.min(v, x);
+  }
+  return { v, n: figsN };
+};
+const HERO4 = [["furnace", "orc"], ["weaver", "elf"], ["foundry", "human"], ["bastion", "dwarf"]];
+const cm = {}; // cm[style][hero] = { fill, mode, share, edge, smoke, fire, nEdge, nSmoke, nFire }
+await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("beltbattles.run.")) localStorage.removeItem(k); });
+for (const [hero, faction] of HERO4) {
+  if (hero !== "furnace") {
+    await page.evaluate((h) => {
+      const bb = window.bb, g = bb.game, step = (n) => { for (let i = 0; i < n; i++) g.step(1 / 60); };
+      bb.openDawn({ hero: h, day: 1, seed: 12345 });
+      step(60);
+      if (g.screen.touched) g.screen.touched(); // the build screen saves the run (CONTINUE's), as a tap would
+    }, hero);
+  }
+  s = await ui("open");
+  s = await ui("tab", "carrier");
+  if (s.tab !== "carrier" || s.rows.length !== 5) throw new Error(`no CARRIER tab: ${JSON.stringify(s.rows)}`);
+  for (const st of CARRIERS) {
+    s = await ui("row", st.id);
+    if (s.worn.carrier !== st.id) throw new Error(`${hero}: ${st.id} not worn (${JSON.stringify(s.worn)})`);
+    const fill = carrierFill(st, faction);
+    const e = await leastOf(rimWins(s), [C.ink], fill);
+    const md = await modeColour(page, shipWins(s));
+    await page.evaluate(() => { window.bb.game.screen.probe = 50; });
+    const sm = await leastOf(shipWins(s), SMOKE_50, fill);
+    if (hero === "furnace" && st.id === "storm") await page.screenshot({ path: join(OUT, "stylecheck-carrier-smoke50.png") });
+    await page.evaluate(() => { window.bb.game.screen.probe = 25; });
+    const fi = await leastOf(shipWins(s), FIRE_25, fill);
+    if (hero === "furnace" && st.id === "storm") await page.screenshot({ path: join(OUT, "stylecheck-carrier-fire25.png") });
+    await page.evaluate(() => { window.bb.game.screen.probe = 0; });
+    (cm[st.id] ??= {})[hero] = { fill, mode: md.hex, share: md.share, edge: e.v, smoke: sm.v, fire: fi.v, nEdge: e.n, nSmoke: sm.n, nFire: fi.n };
+  }
+  if (hero === "furnace") { s = await ui("row", "admiral"); await page.screenshot({ path: join(OUT, "stylecheck-carrier.png") }); }
+}
+const defaults = HERO4.map(([h]) => cm.war[h].mode); // each faction's default carrier as drawn
+let closest = Infinity;
+for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) closest = Math.min(closest, separation(defaults[i], defaults[j]));
+log(`carrier: the four default carriers' drawn fills ${HERO4.map(([h], i) => `${h} ${defaults[i]}`).join(", ")}; closest pair delta E ${r2(closest)} (palette ${r2(TODAY_CLOSEST_DEFAULTS)})`);
+const per = (st, k) => HERO4.map(([h]) => `${h} ${r2(cm[st.id][h][k])}`).join(", ");
+const lowest = (st, k) => { const v = HERO4.map(([h]) => cm[st.id][h][k]); return v.includes(null) ? null : Math.min(...v); };
+for (const st of CARRIERS) {
+  const pal = CARRIER_FACTIONS.map((f) => carrierContrasts(carrierFill(st, f)));
+  row("carrier", st.id, st.name, "smoke at 50% (probe)", lowest(st, "smoke"), Math.min(...pal.map((x) => x.smoke)), T.carrierSmoke, `slate3/slate4 beside the fill: ${per(st, "smoke")} (${HERO4.map(([h]) => cm[st.id][h].nSmoke).join("/")} px)`);
+  row("carrier", st.id, st.name, "fire at 25% (probe)", lowest(st, "fire"), Math.min(...pal.map((x) => x.fire)), T.carrierFire, `fire4/yellow/white beside the fill: ${per(st, "fire")} (${HERO4.map(([h]) => cm[st.id][h].nFire).join("/")} px)`);
+  row("carrier", st.id, st.name, "plate edge", lowest(st, "edge"), Math.min(...pal.map((x) => x.edge)), T.plateEdge, `the plate's ink rim beside the fill: ${per(st, "edge")} (${HERO4.map(([h]) => cm[st.id][h].nEdge).join("/")} px)`);
+  if (st.paint) {
+    const modes = HERO4.map(([h]) => cm[st.id][h]);
+    const bad = modes.filter((m) => m.mode.toLowerCase() !== m.fill.toLowerCase()); // the canvas reads lower-case hex
+    let d = Infinity, near = "";
+    for (const m of modes) defaults.forEach((dm, i) => { const x = separation(m.mode, dm); if (x < d) { d = x; near = HERO4[i][0]; } });
+    row("carrier", st.id, st.name, "yours (delta E)", bad.length ? null : d, yoursDistance(st).value, T.yours, `the visible hull's most common colour ${modes[0].mode} (${Math.round(100 * modes[0].share)}% of FURNACE's stern band and bow; the fill on all four heroes) against each faction's default as drawn; nearest ${near}${bad.length ? `; MODE IS NOT THE FILL for ${bad.length}` : ""}`);
+  }
+}
+
 await browser.close();
 site.srv.close();
 const failed = rows.filter((r) => !r.pass);
 log("");
 log(`console errors: ${errors.length}${errors.length ? ` (${errors.join(" | ")})` : ""}`);
-log(failed.length ? `STYLECHECK FAILED: ${failed.length} of ${rows.length} rows` : `STYLECHECK PASSED: ${rows.length} of ${rows.length} rows (${FLOORS.length + BELTS.length + PANELS.length} styles)`);
+log(failed.length ? `STYLECHECK FAILED: ${failed.length} of ${rows.length} rows` : `STYLECHECK PASSED: ${rows.length} of ${rows.length} rows (${FLOORS.length + BELTS.length + PANELS.length + CARRIERS.length} styles)`);
 writeFileSync(join(OUT, "stylecheck.log"), lines.join("\n") + "\n");
 writeFileSync(join(OUT, "stylecheck.json"), JSON.stringify({ thresholds: T, rows, errors }, null, 1) + "\n");
 process.exit(failed.length || errors.length ? 1 : 0);

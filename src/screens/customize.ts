@@ -32,7 +32,7 @@ import { heroPalette, styledTiles } from "../render/hull";
 import { beltCorner, beltStraight, turntable } from "../render/sprites";
 import { SeaBackdrop } from "../render/backdrop";
 import { seaForDay, stillSeaSeed } from "../render/motion";
-import { drawCarrierSwatch, drawStillCarrier, stillShipPoint } from "../render/ship";
+import { drawCarrierSwatch, drawStillCarrier, plateBox, stillShipPoint } from "../render/ship";
 import { Fx } from "../render/fx"; // CUSTOM-3 tooling: the damage probe (the battle's own smoke and fire particles)
 import { cruiserModel, drawTurrets, type CruiserModel, type CruiserView } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
@@ -281,11 +281,14 @@ export class CustomizeScreen implements Screen {
     else if (k === "1" || k === "2" || k === "3" || k === "4") this.state.tapTab(SURFACES[+k - 1]);
   }
 
-  /** Tooling (read only; tests and the stills): the layout as drawn and the rows' state. */
-  info(): { tab: Surface; pick: string; worn: Skin; preview: Skin; locked: boolean; L: CustomizeLayout | null; rows: { id: string; open: boolean; worn: boolean; shown: boolean; fresh: boolean; progress: [number, number] | null }[] } {
-    const s = this.state;
+  /** Tooling (read only; tests and the stills): the layout as drawn and the rows' state. CUSTOM-3: the preview carrier's
+   *  ship-local origin on screen (`ship`: ship x 0, y 0) and its board plate's box (scripts/stylecheck.mjs). */
+  info(): { tab: Surface; pick: string; worn: Skin; preview: Skin; locked: boolean; L: CustomizeLayout | null; ship: { x: number; y: number } | null; plate: Box | null; rows: { id: string; open: boolean; worn: boolean; shown: boolean; fresh: boolean; progress: [number, number] | null }[] } {
+    const s = this.state, L = this.L;
+    const o = L ? stillShipPoint(L.frame, 0, 0) : null;
     return {
-      tab: s.tab, pick: s.pick, worn: s.worn, preview: s.preview, locked: s.previewLocked(), L: this.L,
+      tab: s.tab, pick: s.pick, worn: s.worn, preview: s.preview, locked: s.previewLocked(), L,
+      ship: o ? { x: o[0], y: o[1] } : null, plate: L ? plateBox(null as unknown as G, L.frame) : null, // HullPainter.map reads no context
       rows: s.rows().map((r) => ({ id: r.style.id, open: r.open, worn: r.worn, shown: r.shown, fresh: r.fresh, progress: r.progress })),
     };
   }
