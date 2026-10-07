@@ -90,6 +90,10 @@ export interface LaneSpec {
   portrait: boolean;
   gapRest: number;
   gapMin: number;
+  /** CUSTOM-3 (REVIEW-STAGE096 R5 b): landscape only, the margin (logical px) between the boards' outer tile columns and
+   *  the screen's side edges at rest (battleLayout.ts laneSpec). The surge carries a board outward by at most this, so no
+   *  tile column leaves the screen at any surge phase. Absent: no cap (as 0.9.6). Portrait ignores it. */
+  edge?: number;
 }
 
 /** A carrier's pose at a time: its offset from its rest place (logical px, unrounded), its heading (degrees, + = bow up
@@ -163,7 +167,9 @@ export class MotionModel {
       this.surge = SURGE_MAX;
     } else {
       this.drift = DRIFT_MAX;
-      this.surge = Math.min(SURGE_LAND, spare);
+      // CUSTOM-3: inside the boards' margin too (whole px, so the rounded offset keeps the bound)
+      const edge = spec.edge === undefined ? SURGE_LAND : Math.max(0, Math.floor(spec.edge));
+      this.surge = Math.min(SURGE_LAND, spare, edge);
     }
     // the heading follows the drift: a carrier that barely drifts barely turns
     this.bankMax = BANK_MAX_DEG * Math.min(1, this.drift / DRIFT_MAX);

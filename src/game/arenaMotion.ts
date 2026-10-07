@@ -25,7 +25,7 @@ import {
 } from "../render/motion";
 import { CRACKS_25, CRACKS_50, cracks, drawShells, type ShotMap } from "./arenaDraw";
 import type { Arena } from "./arena";
-import type { BattleLayout } from "./battleLayout";
+import { laneSpec, type BattleLayout } from "./battleLayout";
 
 const DEG = Math.PI / 180;
 /** The wake: samples (one every WAKE_DT s back in time) of where the stern was, carried off by the water. */
@@ -73,9 +73,12 @@ export class ArenaMotion implements ShotMap {
     this.perf = MOTION_KNOBS && opts.perf ? new MotionPerf() : null; // ?perf=1: test builds only
   }
 
-  /** The lanes from the battle layout: the rest gap along the firing axis and its least. */
-  setLanes(L: Pick<BattleLayout, "portrait" | "gap">, gapMin: number): void {
-    this.model.setLanes({ portrait: L.portrait, gapRest: L.gap, gapMin });
+  /** The lanes from the battle layout: the rest gap along the firing axis and its least. CUSTOM-3 (REVIEW-STAGE096 R5 b):
+   *  with the whole layout (the battle, replays), landscape also keeps the surge inside the boards' margin (laneSpec);
+   *  the title's attract fight passes its gap alone and keeps 0.9.6's lanes. */
+  setLanes(L: Pick<BattleLayout, "portrait" | "gap"> & Partial<Pick<BattleLayout, "W" | "frames">>, gapMin: number): void {
+    if (L.W !== undefined && L.frames) this.model.setLanes(laneSpec({ portrait: L.portrait, gap: L.gap, W: L.W, frames: L.frames }, gapMin));
+    else this.model.setLanes({ portrait: L.portrait, gapRest: L.gap, gapMin });
   }
 
   update(dt: number, reduced: boolean): void {
