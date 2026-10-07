@@ -87,10 +87,11 @@ type Buy = { gates?: Rig[]; press?: number[]; mod?: [string, number] };
 // purchases are rigs that work the belts instead. tests/races.refdecks.test.ts pins the rule.
 const STEPS: Record<RaceHeroId, Buy[]> = {
   foundry: [ // mirror the processing on both fusing routes (A = (2,y), B = (3,y)); a Stamp Press lights gun 2
-    // (B's blank fuses into A's, which keeps B's flat damage, Burn and Shock but not its Poison or Fray: those go on A)
+    // (B's blank fuses into A's, which keeps B's flat damage, Burn, VENOM DRIP seconds and Shock but not its Fray: that goes
+    // on A; races/foundry.ts fuse. TXT-096: POISON left at Y6, VENOM DRIP's BURN seconds add up since Y7b2)
     { gates: [["whetstone", 1, 3, 1], ["counterweight", 4, 1]] }, // d1  7 g: A +2 -> (2,3); B +2 (4 tiles ridden) -> (3,1)
     { gates: [["temper", 4, 4, 3]] }, // d2 10 g: B 1 Burn -> (3,4)
-    { gates: [["venom", 1, 4]] }, // d3 14 g: A 2 Poison -> (2,4)
+    { gates: [["venom", 1, 4]] }, // d3 14 g: A, its Burn lasts +3 s (VENOM DRIP; TXT-096: was "2 Poison") -> (2,4)
     { gates: [["longhaul", 1, 2]] }, // d4 19 g: A +1 a prior hit -> (2,2)
     { gates: [["quench", 4, 2]] }, // d5 28 g: B +1, and its Burn into +3 -> (3,2)
     { gates: [["barbed", 1, 5]] }, // d6 32 g: A Fray -> (2,5) (no CALIBRATION: gun 1 waits for its fused loads)
@@ -106,7 +107,7 @@ const STEPS: Record<RaceHeroId, Buy[]> = {
     { mod: ["calibrate", 0] }, // d4 19 g
     { press: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }, // d5 32 g (13/14 belt)
     { gates: [["counterweight", 6, 2]] }, // d6 36 g: the press belt +2 (4 tiles ridden) -> (5,2)
-    { gates: [["venom", 6, 4]] }, // d7 45 g: the press belt 2 Poison -> (5,4)
+    { gates: [["venom", 6, 4]] }, // d7 45 g: the press belt, its Burn lasts +3 s (VENOM DRIP; TXT-096: was "2 Poison") -> (5,4)
     { gates: [["coil", 3, 1, 1]] }, // d8 50 g -> (4,1)
     { gates: [["quench", 7, 5]] }, // d9 54 g: the press belt's first tile ((5,5) has no free side) -> (6,5)
     { gates: [["heatjacket", 6, 3]] }, // d10 64 g: the press belt -> (5,3)

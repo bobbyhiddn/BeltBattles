@@ -168,7 +168,7 @@ export interface GateEffect {
   gauge?: { flat: number; matched: number }; // TWIN GAUGE: + flat, or + matched on a matched belt (E6)
   // Y3 (DESIGN-Y row 20; REVIEW-STARD: "PINCER's dead `max: 3`: Y3 deletes it"): its def has no max and flat 0 (the flip)
   pincer?: { flat: number; each: number; max?: number }; // PINCER: + flat, + each for every other active rig on its tile (E5)
-  brace?: { mul: number; plated: number }; // BRACE FRAME: enemy STUNs on its tiles and itself x mul (x plated while plated; NUM-3: every STUN)
+  brace?: { mul: number; plated: number }; // BRACE FRAME: enemy STUNs on its tiles x mul (NUM-3: every STUN); `plated` is unread since Y2 (Battle.braceCut)
   latch?: { hold: number; flat: number }; // TWIN LATCH: holds a payload at most `hold` s for its other belt (E4); + flat on each payload it hits
   stoke?: number; // STOKER: each factory its arrows point at works this share faster (E3); its arrows do nothing to belts
   breaker?: { flat: number; floor: number }; // PLATE BREAKER: 1 plating for + flat; with none, + floor
@@ -435,7 +435,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   hotswap: {
     id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "quartermaster",
-    desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["FORGE", "HARASS"],
+    desc: [], tags: ["FORGE", "HARASS"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "ALTERNATES EMBER SLUGS (2 BURN) AND SPARK SLUGS (SHOCK)."
     factory: { ammo: "plain", speed: 20, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
     // Y2 (release Y; DESIGN-Y row 12; folded at the flip, Y7b2): the spark's SPARK JUMP goes (no `jump`); ★2 STUN 3 and BURN 5, ★3 STUN
     // 4 and BURN 9 (was 2 + a jump and 4; 3 + a jump and 7)
@@ -475,7 +475,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   scrapper: {
     id: "scrapper", name: "SCRAPPER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "scrapper",
-    desc: ["STAMPS SCRAP SLUGS", "WHEN HARASSMENT HITS", "FOE, OR EVERY 3S."], tags: ["HARASS", "SWARM"],
+    desc: [], tags: ["HARASS", "SWARM"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "STAMPS SCRAP SLUGS WHEN HARASSMENT HITS FOE, OR EVERY 3S."
     factory: { ammo: "plain", speed: 10, trigger: "harass", scrapFlat: 30 },
     // Y7b2 (the words): ★3's perk name (BIG HAUL) left with its rule (Y2, DESIGN-Y row 9: the sim reads no bigHaul), with no
     // rename
@@ -483,7 +483,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   sabot: {
     id: "sabot", name: "SABOT FOUNDRY", kind: "factory", rarity: "epic", price: 9, size: 2, merchant: "quartermaster",
-    desc: ["TELEGRAPHED ROUNDS", "WRECK RIGS OR STUN", "OTHER MACHINERY."], tags: ["HARASS", "BURST"],
+    desc: [], tags: ["HARASS", "BURST"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "TELEGRAPHED ROUNDS WRECK RIGS OR STUN OTHER MACHINERY."
     // NUM-3 (R1's STUN fold): the stalls 5 / 4 / 3 s (belt tile / factory / turret) became one STUN 4 s; the bare-hull +60 is gone
     factory: { ammo: "sabot", speed: 5, round: { kind: "sabot", seconds: 4 } },
     // Y2 (release Y; DESIGN-Y row 11; folded at the flip, Y7b2): ★3 SHRAPNEL's tile STUNs go (no `shrapnel`), and its RATE goes 16 -> 20.
@@ -492,7 +492,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   frostbite: {
     id: "frostbite", name: "FROSTBITE FOUNDRY", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "arcane",
-    desc: ["FROST ROUNDS STUN", "THE ENEMY PART", "THEY HIT."], tags: ["HARASS"], // NUM-3 (R1's STUN fold): FREEZE became STUN
+    desc: [], tags: ["HARASS"], // NUM-3 (R1's STUN fold): FREEZE became STUN. TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "FROST ROUNDS STUN THE ENEMY PART THEY HIT."
     // NUM-3 (N1 2.2): STUN 2 / 3 / 3 s (was 2.5 / 2.75 / 3)
     factory: { ammo: "frost", speed: 11, round: { kind: "frost", seconds: 2, spread: 0 } },
     levels: { 2: { factory: { round: { kind: "frost", seconds: 3, spread: 1 } }, perk: "HOARFROST" },
@@ -500,7 +500,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   dragchain: {
     id: "dragchain", name: "DRAG CHAIN FOUNDRY", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "scrapper",
-    desc: ["CHAIN ROUNDS STUN", "THE ENEMY PART", "THEY HIT."], tags: ["HARASS", "TEMPO"],
+    desc: [], tags: ["HARASS", "TEMPO"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "CHAIN ROUNDS STUN THE ENEMY PART THEY HIT."
     // NUM-3 (R1's STUN fold): the belt slow (x0.6 / x0.4 / x0.3 for 3 / 4.4 / 6 s over a rig-to-rig stretch), SNAG and the
     // factory +0.8 s / turret +0.5 s delays became one STUN on the part it hits: R1's 1 / 1.5, and ★3 2 (today's slow
     // grows x6 / 4.4 from ★2 to ★3: 1.5 x 1.36 = 2.05)
@@ -568,7 +568,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   coil: {
     id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
-    desc: ["ADDS SHOCK. A SHOCK", "HIT STUNS THE ENEMY", "MACHINE IT STRIKES."], tags: ["HARASS"],
+    desc: [], tags: ["HARASS"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "ADDS SHOCK. A SHOCK HIT STUNS THE ENEMY MACHINE IT STRIKES."
     gate: { shock: true }, // 1 star STUNs DISRUPT_TIME (NUM-3: 2 s; was 1.6 s, catalogue star1, as in 0.6.0)
     levels: { // 0.6.1p: the stall in seconds and SPARK JUMP are applied. NUM-3 (N1 2.2): STUN 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8)
       2: { gate: { shockTime: 2, jump: 1 }, perk: "SPARK JUMP" },
@@ -595,7 +595,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   tollbooth: {
     id: "tollbooth", name: "TOLLBOOTH", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "ironmonger",
-    desc: ["GUARDS ITS BELT", "FROM THE FIRST 2", "HARASSMENT HITS."], tags: ["HARASS", "PLATE"],
+    desc: [], tags: ["HARASS", "PLATE"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "GUARDS ITS BELT FROM THE FIRST 2 HARASSMENT HITS."
     // Y7b2 (the words): ★3's perk name (FACTORY GUARD) left with its rule (Y2, DESIGN-Y row 8: its belts' factories are
     // guarded from ★1; the sim reads no tollFactory), with no rename
     gate: { toll: 2 }, levels: { 2: { gate: { toll: 4 } }, 3: { gate: { toll: 7, tollFactory: true } } },
@@ -604,7 +604,7 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "sifter", name: "SIFTER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
     // NUM-3 (R1's STUN fold): CHILL and SNAG are gone; SAP is the one mark left, and no piece gives it yet: ★1 and ★2 POLISH
     // do nothing in play, ★3 FINE MESH's siftClean lands on every payload. FLIP-X2: dormant (races/data.ts DORMANT_ITEMS)
-    desc: ["REMOVES SAP FROM", "PASSING PAYLOADS."], tags: ["HARASS", "FORGE", "PLATE"],
+    desc: [], tags: ["HARASS", "FORGE", "PLATE"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "REMOVES SAP FROM PASSING PAYLOADS."
     gate: { sift: 1 }, levels: { 2: { gate: { sift: "all", siftFlat: 10 }, perk: "POLISH" },
       3: { gate: { sift: "all", siftFlat: 20, siftClean: 10 }, perk: "FINE MESH" } },
   },
@@ -677,7 +677,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   staticbrush: {
     id: "staticbrush", name: "STATIC BRUSH", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
-    desc: ["BARE-HULL HITS", "STUN A RANDOM", "ENEMY TURRET."], tags: ["HARASS"],
+    desc: [], tags: ["HARASS"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "BARE-HULL HITS STUN A RANDOM ENEMY TURRET."
     gate: { staticTime: 1 }, levels: { 2: { gate: { staticTime: 2 } }, 3: { gate: { staticTime: 3 } } }, // NUM-3 (N1 2.2): STUN 1 / 2 / 3 s (was 0.6 / 1.3 / 2.1)
   },
   lodestone: {
@@ -721,12 +721,12 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   flak: {
     id: "flak", name: "FLAK SCREEN", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "quartermaster",
-    desc: ["INTERCEPTS 25% OF", "INCOMING HARASSMENT", "ROUNDS SIDE-WIDE."], tags: ["HARASS", "PLATE"],
+    desc: [], tags: ["HARASS", "PLATE"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "INTERCEPTS 25% OF INCOMING HARASSMENT ROUNDS SIDE-WIDE."
     mod: { intercept: 0.25 }, levels: { 2: { mod: { intercept: 0.55 } }, 3: { mod: { intercept: 0.85 } } },
   },
   spotter: {
     id: "spotter", name: "SPOTTER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
-    desc: ["TURRET REROLLS A", "BARE-HULL TARGET", "TOWARD MACHINERY."], tags: ["HARASS"],
+    desc: [], tags: ["HARASS"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "TURRET REROLLS A BARE-HULL TARGET TOWARD MACHINERY."
     // Y2 (release Y; DESIGN-Y row 17; folded at the flip, Y7b2): ★2 FACTORY SPOT's factory weighting and ★3 EAGLE EYE's "always a part" go;
     // it re-aims 1/2/3 times. Y7b2 (the words): their perk names (★2 FACTORY SPOT, ★3 EAGLE EYE) left with those rules, with
     // no rename
@@ -737,7 +737,9 @@ export const ITEMS: Record<string, ItemDef> = {
   // On a GATLING SPOOL turret its seconds do nothing (gatlingReady never reads windowTime); its slots still count.
   hopper: {
     id: "hopper", name: "HOPPER", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "quartermaster",
-    desc: ["CHAMBER HOLDS 1 MORE", "LOAD; ITS LOAD TIME", "RUNS LONGER."], tags: ["BURST", "TEMPO"],
+    // TXT-096 (Y7B2-Q5; ruling fd56a6c372070b6d step 4): no LOAD TIME (its +0.5 s left at Y7b2, so "ITS LOAD TIME RUNS LONGER"
+    // was false); a short desc of today's rule, drawn nowhere (its KEPT_FLAVOUR row; tests/fb062.hopper.test.ts pins it)
+    desc: ["CHAMBER HOLDS 1 MORE", "LOAD."], tags: ["BURST", "TEMPO"],
     // Y4 (release Y; DESIGN-Y row 33; folded at the flip, Y7b2): the +0.5 s load time, the ★2/★3 store and ★3's no-jam go (0.6.2 FB-B's); its
     // chamber holds +1/+2/+3 (window). Y7b2 (the words): its perk name (★3 BOTTOMLESS) left with its no-jam, with no rename:
     // no name promises fewer jams
@@ -745,7 +747,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   mantlet: {
     id: "mantlet", name: "MANTLET", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "ironmonger",
-    desc: ["ARMORED TURRET:", "NO STUN CAN", "STOP IT."], tags: ["HARASS", "PLATE"],
+    desc: [], tags: ["HARASS", "PLATE"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "ARMORED TURRET: NO STUN CAN STOP IT."
     // NUM-3 (R1's STUN fold): immune to every STUN source from ★1 (was shock, static, arc and chain; ★2 added frost and
     // sabot; LIMPET's stall was in no star's list)
     // Y2 (release Y; DESIGN-Y row 14; folded at the flip, Y7b2): its tile guard is 1/2/3 from ★1 (was none, then FULL GUARD's 1 and BULWARK
@@ -769,7 +771,9 @@ export const ITEMS: Record<string, ItemDef> = {
   rotary: {
     // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
     id: "rotary", name: "ROTARY BREECH", kind: "core", rarity: "common", price: 3, size: 1, merchant: "gunsmith",
-    desc: ["FIRES THE OLDEST", "LOAD FIRST. LOAD", "TIME 50% SHORTER."], tags: ["TEMPO"],
+    // TXT-096 (Y7B2-Q5; ruling fd56a6c372070b6d step 3): no LOAD TIME, its face's SOONER (cores.ts ROUTINES.rotary: FIFO and its
+    // windowTime); drawn nowhere (its KEPT_FLAVOUR row). Was "FIRES THE OLDEST LOAD FIRST. LOAD TIME 50% SHORTER."
+    desc: ["FIRES OLDEST FIRST;", "PART-FULL CHAMBERS", "FIRE 50% SOONER."], tags: ["TEMPO"],
     core: { routine: "rotary", order: "FIFO", windowTime: 0.75 }, // NUM-3 (N1 2.2): LOAD 50% SHORTER, WINDOW_TIME 1.5 s x 50% (was 0.8 s)
     // Y4 (release Y; DESIGN-Y row 37; folded at the flip, Y7b2): ★2 GREASED RACE's and ★3 CLEAN FEED's fire rate and ★3's no-jam go; its
     // load time is 0.75 / 0.525 / 0.3 s, 50% / 65% / 80% sooner than WINDOW_TIME's 1.5 s (cap's ruling e91c08dd12466357).
@@ -816,13 +820,13 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   mortar: {
     id: "mortar", name: "MORTAR TUBE", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "ironmonger",
-    desc: ["ITS LOB FLIES LONGER", "AND SPLASHES ONE", "MORE TARGET AT 50%."], tags: ["BURST", "HARASS"],
+    desc: [], tags: ["BURST", "HARASS"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "ITS LOB FLIES LONGER AND SPLASHES ONE MORE TARGET AT 50%."
     core: { routine: "mortar", flightMul: 2.2, splash: 1, share: 0.5 },
     levels: { 2: { core: { splash: 2, share: 0.55 } }, 3: { core: { splash: 3, share: 0.58 } } },
   },
   grapnel: {
     id: "grapnel", name: "GRAPNEL GUN", kind: "core", rarity: "rare", price: 5, size: 1, merchant: "scrapper",
-    desc: ["BELT HITS RIP THE", "NEAREST ENEMY SLUG", "OFF THAT ROUTE."], tags: ["HARASS"],
+    desc: [], tags: ["HARASS"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "BELT HITS RIP THE NEAREST ENEMY SLUG OFF THAT ROUTE."
     // Y7b2 (the words): ★3's perk name (SALVAGE LINE) left with its rule (Y2, DESIGN-Y row 19: no next-shot damage), with no
     // rename
     core: { routine: "grapnel", rip: 1, reach: 1 }, levels: { 2: { core: { rip: 2, reach: 2 } },
@@ -830,7 +834,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   tesla: {
     id: "tesla", name: "TESLA ARC", kind: "core", rarity: "epic", price: 8, size: 1, merchant: "arcane",
-    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% PLUS A 1S STUN."], tags: ["HARASS"],
+    desc: [], tags: ["HARASS"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "HITS ARC TO THE NEAREST MACHINE FOR 25% PLUS A 1S STUN."
     core: { routine: "tesla", arcs: 1, stall: 1, share: 0.25 }, // NUM-3 (N1 2.2): STUN 1 s at every star (was 0.8 / 0.9 / 0.93)
     levels: { 2: { core: { arcs: 2, stall: 1 } }, 3: { core: { arcs: 3, stall: 1, share: 0.3 } } },
   },
@@ -850,7 +854,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   lance: {
     id: "lance", name: "LODESTAR LANCE", kind: "core", rarity: "legendary", price: 10, size: 1, merchant: "arcane",
-    desc: ["HITS THE HULL AND", "EVERY MACHINE IN", "ONE DECK COLUMN."], tags: ["HARASS", "BURST"],
+    desc: [], tags: ["HARASS", "BURST"], // TXT-096 (ruling fd56a6c372070b6d): drawn nowhere (its KEPT_FLAVOUR row), emptied; was "HITS THE HULL AND EVERY MACHINE IN ONE DECK COLUMN."
     core: { routine: "lance", columns: 1, share: 0.2 },
     levels: { 2: { core: { columns: 2, share: 0.22 } }, 3: { core: { columns: 3, share: 0.23 } } },
   },
@@ -1013,7 +1017,9 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   },
   braceframe: {
     id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", shape: "L",
+    // TXT-096: drawn nowhere (its KEPT_FLAVOUR row) and stale (no plated cut since Y2), but kept: emptying it turns tests/wave3Art.test.ts:199 red (ITEMS = tools/wave3Defs.ts's copy; ruling fd56a6c372070b6d step 6)
     desc: ["ENEMY STUNS ON ITS", "TILES END SOONER,", "SOONER STILL PLATED."], tags: ["PLATE", "HARASS"],
+    // TXT-096 (REVIEW-STAGE093 ruling 15): brace.plated is unread since Y2 (battle.ts braceCut reads mul only), so the face is honest; it stays until a rules release (#370)
     gate: { brace: { mul: 0.5, plated: 0.25 } },
     levels: { 2: { gate: { brace: { mul: 0.3, plated: 0.15 } } }, 3: { gate: { brace: { mul: 0.15, plated: 0.05 } } } },
   },
@@ -1076,6 +1082,7 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   },
   twintrigger: {
     id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
+    // TXT-096: drawn nowhere (its KEPT_FLAVOUR row); its LOAD TIME (Y7B2-Q5) stays: any edit turns tests/wave3Art.test.ts:199 red (ITEMS = tools/wave3Defs.ts's copy; ruling fd56a6c372070b6d step 6)
     desc: ["PAIRED LOADS HIT", "HARDER; A SHORTER", "LOAD TIME."], tags: ["TWIN", "TEMPO"],
     // Y4 (release Y; DESIGN-Y row 34; folded at the flip, Y7b2): the shorter load time goes (no windowTime, so no LOAD_FLOOR); pairBonus
     // 30/60/95 (was 25/55/88; the ladder's numbers, cap's ruling e91c08dd12466357)
