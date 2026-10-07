@@ -38,7 +38,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
 import { inlineBuild } from "./inline.mjs";
-import { placePlanned, settle, sleep, takeDawnRune, tapRegion } from "./playthrough.mjs";
+import { lastChances, placePlanned, settle, sleep, takeDawnRune, tapRegion } from "./playthrough.mjs";
 import { roadStop } from "./roadstop.mjs";
 import { VIEWS } from "./shots-list.mjs";
 
@@ -184,7 +184,8 @@ async function dayOne(page, shots, tag) {
   await settle(page, "build");
   await page.waitForFunction(() => window.bb.game.screen.caravan.ready, null, { timeout: 10000 });
   // 0.8.7 staging: day 1's RUNE PICKER takes every press until the dawn rune is taken (RUNES-1), so take it before
-  // placing a part, as playthrough.mjs's scripted runs and tapRegion do
+  // placing a part, as playthrough.mjs's scripted runs and tapRegion do. REQ-BFG-073 (REVIEW-ZBUMP Q2): takeDawnRune (and
+  // so every tapRegion) first takes a pending LAST CHANCE's HULL card (playthrough.mjs takeLastChance); main() logs each
   await takeDawnRune(page, false);
   return async () => {
     const def = await placePlanned(page, false);
@@ -590,6 +591,8 @@ async function main() {
   site.srv.close();
   const failed = checks.filter((c) => !c.ok);
   log("");
+  // REQ-BFG-073 (REVIEW-ZBUMP Q2): the LAST CHANCE pickers these runs met (playthrough.mjs takeLastChance took each HULL card)
+  log(`LAST CHANCE picker: ${lastChances.length ? lastChances.map((c) => `met at dawn ${c.day} (fired by dusk ${c.dusk}, ${c.lives} lives), took the HULL card (hullBonus ${c.hullBonus})`).join("; ") : "not met (no run here lost down to its last life)"}`);
   log(failed.length ? `BROWSER CHECKS FAILED: ${failed.length} of ${checks.length}` : `BROWSER CHECKS PASSED: ${checks.length} of ${checks.length}`);
   log(`screenshots: ${shots.join(", ")}`);
   writeFileSync(join(OUT, `${NAME}.log`), lines.join("\n") + "\n");

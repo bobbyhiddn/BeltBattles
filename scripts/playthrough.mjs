@@ -61,15 +61,43 @@ export async function passName(page, touch, name = "TESTER") {
 }
 
 export async function tapRegion(page, touch, id) {
-  if (!id.startsWith("runepick")) await takeDawnRune(page, touch); // RUNES-1: the dawn RUNE PICKER takes every tap first
+  // RUNES-1: the dawn RUNE PICKER takes every tap first; REQ-BFG-073: the LAST CHANCE picker before it (takeDawnRune)
+  if (!id.startsWith("runepick") && !id.startsWith("lcpick")) await takeDawnRune(page, touch);
   await press(page, touch, await regionCenter(page, id));
   await passName(page, touch); // PACKS M2: no name stored yet: the name screen first
 }
 
+/** REQ-BFG-073 (REVIEW-ZBUMP Q2, cap's ruling): every LAST CHANCE pick this driver made, in order, so a caller can say
+ *  which run met the picker: { day (the dawn it was up), dusk (the dusk that fired it), lives, hullBonus (before -> after) }. */
+export const lastChances = [];
+
+/** REQ-BFG-073 (REVIEW-ZBUMP Q2, cap's ruling): while the LAST CHANCE picker is up (a run down to its last life: the pick
+ *  pending at the next dawn, on the build screen at the caravan, not a refit; src/screens/lastChancePicker.ts), take the
+ *  HULL card, as src/tooling.ts playOut takes it: one tap opens it, a second takes it (region lcpick-hull). The picker
+ *  takes every press while it is up and the dawn rune waits behind it (run.ts pendingRune), so takeDawnRune calls this
+ *  first. Null when no pick is pending, else the pick's record (also pushed to lastChances). */
+export async function takeLastChance(page, touch) {
+  const up = await page.evaluate(() => {
+    const g = window.bb.game, r = g.run;
+    return !!r && !r.over && !!r.lastChance && r.lastChance.boon === undefined && r.stage === "caravan" && window.bb.screen() === "build" && !g.screen.refit && !g.transitioning;
+  });
+  if (!up) return null;
+  const before = await page.evaluate(() => ({ day: window.bb.game.run.day, dusk: window.bb.game.run.lastChance.day, lives: window.bb.game.run.lives, hull: window.bb.game.run.build.hullBonus }));
+  for (let k = 0; k < 2; k++) await press(page, touch, await regionCenter(page, "lcpick-hull"));
+  await page.waitForFunction(() => window.bb.game.run.lastChance?.boon === "hull", null, { timeout: 5000 });
+  await sleep(120);
+  const hull = await page.evaluate(() => window.bb.game.run.build.hullBonus);
+  const took = { day: before.day, dusk: before.dusk, lives: before.lives, hullBonus: `${before.hull} -> ${hull}` };
+  lastChances.push(took);
+  return took;
+}
+
 /** RUNES-1 (REQ-BFG-058): while the dawn RUNE PICKER is up (a pick pending on the build screen at the caravan), take the
  *  first card: one tap opens it, a second takes it (src/screens/runePicker.ts regions runepick-<i>). False when no pick
- *  is pending. A run started before runes, or a run set up past day 1 by tooling, has none. */
+ *  is pending. A run started before runes, or a run set up past day 1 by tooling, has none. REQ-BFG-073 (REVIEW-ZBUMP
+ *  Q2): a pending LAST CHANCE comes first (takeLastChance takes its HULL card), as the game requires. */
 export async function takeDawnRune(page, touch) {
+  await takeLastChance(page, touch);
   const up = await page.evaluate(() => {
     const g = window.bb.game, r = g.run;
     return !!r && !r.over && r.runeDay === r.day && r.stage === "caravan" && window.bb.screen() === "build" && !g.transitioning;
@@ -310,6 +338,7 @@ async function restoreDeck(page, touch, log, at, parts) {
 }
 
 export async function scriptedRun(page, touch, log, opts) {
+  const lc0 = lastChances.length; // REQ-BFG-073: this run's LAST CHANCE picks are lastChances.slice(lc0)
   const t0 = Date.now();
   const at = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
   const state = {
@@ -341,6 +370,9 @@ export async function scriptedRun(page, touch, log, opts) {
   for (let day = 1; day <= 10; day++) {
     await settle(page, "build");
     await page.waitForFunction(() => window.bb.game.screen.caravan.ready, null, { timeout: 10000 });
+    // REQ-BFG-073 (REVIEW-ZBUMP Q2): a run down to its last life meets the LAST CHANCE picker at this dawn: the HULL card
+    const lc = await takeLastChance(page, touch);
+    if (lc) log(`[${at()}] LAST CHANCE (the dusk of day ${lc.dusk} left the last life): the picker was up at dawn ${lc.day} with ${lc.lives} lives; took the HULL card (hullBonus ${lc.hullBonus})`);
     if (await takeDawnRune(page, touch)) state.runes = (state.runes ?? 0) + 1; // RUNES-1: the dawn pick, before the shop
     const dawn = await page.evaluate(() => {
       const run = window.bb.game.run, s = window.bb.game.screen;
@@ -436,6 +468,10 @@ export async function scriptedRun(page, touch, log, opts) {
   } else log(`[${at()}] stopped after day ${end.day - 1 || end.day} as planned (run continues), W-L ${end.wl}, ${end.lives} lives`);
   log(`[${at()}] days: ${end.days.join(" | ")}`);
   log(`[${at()}] checks: event picks ${state.picks}, REFIT ${state.refitDone}, dusk losses ${state.losses.join("; ") || "none"}, reload kept the ghost ${state.reloadSame}, pool ghosts met ${state.ghosts}, stand-ins ${state.standins}, parts placed ${state.placed}, honest dusk decks ${state.foes - state.dishonest.length}/${state.foes}${state.dishonest.length ? ` (NOT HONEST: ${state.dishonest.join(", ")})` : ""}`);
+  // REQ-BFG-073 (REVIEW-ZBUMP Q2): whether this run met the LAST CHANCE picker, and the card it took
+  const lcs = lastChances.slice(lc0);
+  state.lastChances = lcs;
+  log(`[${at()}] LAST CHANCE picker: ${lcs.length ? lcs.map((c) => `met at dawn ${c.day} (fired by dusk ${c.dusk}, ${c.lives} lives), took the HULL card (hullBonus ${c.hullBonus})`).join("; ") : "not met in this run"}`);
   const days = end.days.length;
   const fp = state.forkPicks;
   log(`[${at()}] road: ${state.dayLog.map((d) => `D${d.day} ${d.road}`).join(" | ")}`);
