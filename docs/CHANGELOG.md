@@ -3,6 +3,32 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.7: LAST CHANCE
+
+New battle rules: bb-0.9.7. Ghosts and uploads from 0.9.6 no longer meet 0.9.7 players, and the stand-in and seed pools
+were rebuilt for the new rules. You'll fight a fresh pool of 120 ghosts at first, then other players' 0.9.7 runs as they
+come in.
+- **LAST CHANCE:** once a run, when a dusk loss before day 10 leaves you on your last life, you get that life back at
+  once, and the dusk card says LAST CHANCE: +1 LIFE. At the next dawn, before your rune, LAST CHANCE offers three free
+  cards ("+1 LIFE. PICK ONE. FREE."): a RUNE that fits your hero, an epic PART (a rig, turret or gear) that goes to
+  cargo, or +500 max HULL for the rest of the run. Tap a card to read it, then tap it again to take it; there is no
+  skip. The run summary shows +1 LIFE on that dusk's row, with the card you took. A ghost that took a LAST CHANCE
+  carries its card, and the server checks every upload that took one.
+- **The dark wind hits both hulls alike:** from 25 seconds into a fight, both ships take the same hull damage at the same
+  moment. It always did; a new check now keeps it that way (from a playtest note).
+- **Bots overfeed their guns less:** a bot now counts the shots a gun loses to jams when it is fed faster than it fires.
+  BASTION's bot decks jam about a quarter less, and they win about as often as before.
+- **OLD BULWARK** fights harder on the road from day 5: he brings BELLOWS and a stronger QUENCH TANK, his GREASE WORKS a
+  day sooner, and a SWIVEL GUN fed by a DRAG CHAIN FOUNDRY on day 10. His FLAK SCREEN and COUNTERWEIGHT come a little
+  later on the road (days 8 and 9).
+- **On the road, LONGTOOTH** brings his TEMPER on day 4 and his WHETSTONE's second star on day 5.
+- **SILKSHADE and THANE KARSK** carry a little less road armor on day 5, so strong decks can beat them there again.
+- **The IRON MATRIARCH** carries more armor on days 8, 9 and 10.
+- **Six card faces now say a rule the game already played by:** ASSEMBLY LINE works only while it feeds a gun (★3: rigs
+  start at once); HULLBREAKER hits only the hull; GATLING SPOOL fires at once; GRAPNEL GUN rips slugs from a rig as well
+  as a belt; PRESSURE BREECH counts at most 5 waiting slugs; SORTING ARM's copies keep full damage. Text clean-up: stale
+  comments and unused item descriptions.
+
 ## 0.9.6: battles in motion
 
 Same battle rules as 0.9.5 (bb-0.9.3), so 0.9.5's ghosts and uploads still meet 0.9.6 players.
