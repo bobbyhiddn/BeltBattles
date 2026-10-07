@@ -69,6 +69,11 @@
 //         newstyle: a 10-0 summary with and without NEW STYLE lines: NEW RUN and TITLE the same targets either way;
 //         roadfork: the road fork and event (over the sea since CUSTOM-2a): a tap through each, and every target's region
 //           in <name>-roadfork.json for a comparison with 8fbba9d's build.
+// CUSTOM-3 (REQ-BFG-074) customize: the fourth tab, CARRIER: its target with the other three (four tabs, each a finger's
+//         target on a phone), its five rows by a tap (open ones worn and saved, locked ones previewed with PREVIEW: NOT YOURS
+//         YET.; one screenshot of a locked carrier preview a view), BACK and ESC from a locked carrier preview leave without
+//         wearing it, and the reload keeps the carrier choice. --profile mixed adds carrier styles: ADMIRAL'S BLUE open and
+//         worn, IRONCLAD open and unseen, STORMCALLER and CHAMPION'S GOLD locked.
 // Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names,bar,customize,
 //        newstyle,roadfork] [--tag after] [--name touchcheck] [--profile none|mixed] [--cviews phone,...,desk]
 //        [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
@@ -100,22 +105,24 @@ const NAME = opt("name", "touchcheck");
  *  yet seen, so the title shows CUSTOMIZE's NEW dot; it wears TIMBER DECK, BLUED STEEL and BRASSBOUND). "allopen" (every
  *  style open and seen) is the newstyle check's own. */
 const PROFILE_KEY = "beltbattles.profile.v1";
-const MIXED_UNLOCKED = ["style:floor.timber", "style:floor.tread", "style:floor.checker", "style:belt.verdigris", "style:belt.blued", "style:panel.brass", "style:panel.timber"];
+// CUSTOM-3: + ADMIRAL'S BLUE (3 finished runs; seen) and IRONCLAD (5 warlords; unseen) in the mixed player's unlocks
+const MIXED_UNLOCKED = ["style:floor.timber", "style:floor.tread", "style:floor.checker", "style:belt.verdigris", "style:belt.blued", "style:carrier.admiral", "style:panel.brass", "style:panel.timber", "style:carrier.ironclad"];
 const CATALOGUE = {
   floor: ["plate", "timber", "tread", "checker", "rune"], belt: ["iron", "verdigris", "blued", "timber", "rune"], panel: ["slate", "brass", "verdigris", "timber", "plum"],
+  carrier: ["war", "admiral", "ironclad", "storm", "gold"], // CUSTOM-3 (REQ-BFG-074)
 };
 const ALL_STYLES = Object.entries(CATALOGUE).flatMap(([s, ids]) => ids.slice(1).map((id) => `style:${s}.${id}`));
 const PROFILES = {
   none: null,
   mixed: {
-    v: 1, counters: { runs: 4, runsFinished: 1, flawless: 0, duskWins: 9, bestDay: 10, warlordWins: 2, matriarchWins: 0, mostBelts: 3 },
-    heroesWon: ["furnace"], heroesFinished: ["furnace"], unlocked: MIXED_UNLOCKED, chosen: { floor: "timber", belt: "blued", panel: "brass" },
-    seen: MIXED_UNLOCKED.slice(0, 5), folded: [], runNew: null, updatedAt: 1,
+    v: 1, counters: { runs: 4, runsFinished: 3, flawless: 0, duskWins: 9, bestDay: 10, warlordWins: 5, matriarchWins: 0, mostBelts: 3 },
+    heroesWon: ["furnace"], heroesFinished: ["furnace"], unlocked: MIXED_UNLOCKED, chosen: { floor: "timber", belt: "blued", panel: "brass", carrier: "admiral" },
+    seen: MIXED_UNLOCKED.slice(0, 6), folded: [], runNew: null, updatedAt: 1,
   },
   allopen: {
     v: 1, counters: { runs: 99, runsFinished: 9, flawless: 1, duskWins: 99, bestDay: 10, warlordWins: 9, matriarchWins: 9, mostBelts: 9 },
     heroesWon: ["furnace", "weaver", "foundry"], heroesFinished: ["furnace", "weaver", "foundry"], unlocked: ALL_STYLES,
-    chosen: { floor: "plate", belt: "iron", panel: "slate" }, seen: ALL_STYLES, folded: [], runNew: null, updatedAt: 1,
+    chosen: { floor: "plate", belt: "iron", panel: "slate", carrier: "war" }, seen: ALL_STYLES, folded: [], runNew: null, updatedAt: 1,
   },
 };
 const PROFILE = opt("profile", "none");
@@ -1488,7 +1495,7 @@ async function customizeView(browsers, origin, vname) {
       `${V}: ${verb} on CUSTOMIZE opens it at its own scale x${env.v.scale} (customizeScale for ${pw}x${ph} device px, ${portrait ? "portrait" : "landscape"}: x${wantScale}${pin !== undefined ? `; CUSTOM-2a's pin x${pin}` : ""}): ${L.W}x${L.H} logical px, ${cc.toFixed(3)} CSS px each`);
     const rowsOk = L.rows.length === 5 && L.rows.every((r, i) => (!L.portrait || r.h === 46) && (i === 0 || r.y >= L.rows[i - 1].y + L.rows[i - 1].h)) && L.rows[4].y + L.rows[4].h <= L.footY;
     check(rowsOk, `${V}: five rows ${L.portrait ? "of 46 px (a finger's height)" : `${L.rows[0].h} px tall (the landscape column)`}, top to bottom, above the footer (rows ${L.rows.map((r) => `${r.y}+${r.h}`).join(", ")}; footer at ${L.footY})`);
-    const ids = ["back", "tab-floor", "tab-belt", "tab-panel", ...CATALOGUE[ci.tab].map((id) => `style-${ci.tab}-${id}`)];
+    const ids = ["back", "tab-floor", "tab-belt", "tab-panel", "tab-carrier", ...CATALOGUE[ci.tab].map((id) => `style-${ci.tab}-${id}`)];
     const regs = await page.evaluate((list) => list.map((i) => window.bb.regions().filter((q) => q.id === i).pop() ?? null), ids);
     const want2 = [L.backHit, ...L.tabHits, ...L.rows].map((r) => { const p = { x: r.x * cc, y: r.y * cc, w: r.w * cc, h: r.h * cc }; return p; });
     const canvasAt = await page.evaluate(() => { const r = window.bb.game.canvas.getBoundingClientRect(); return { x: r.left, y: r.top }; });
@@ -1497,11 +1504,11 @@ async function customizeView(browsers, origin, vname) {
     const big = regs.every((r) => !!r && (!touch || r.h >= TAP_CSS - 0.01)) && (!touch || (regs[0] && regs[0].w >= TAP_CSS - 0.01));
     const apart = regs.every((r, i) => regs.every((q, j) => j <= i || !r || !q || !overlap(r, q)));
     const vis = regs.every((r) => inView(r, l0));
-    check(match && big && apart && vis, `${V}: BACK, the three tabs and the five rows are the targets bb.profile().customize.L names (${match ? "each drawn region matches" : "a region DIFFERS"}), ${touch ? `each at least 44 CSS px tall (BACK 44 wide too: ${box(regs[0])})` : "the desk's own sizes"}, ${apart ? "apart" : "OVERLAPPING"}, ${vis ? "inside" : "NOT inside"} the visible viewport (heights ${regs.map((r) => (r ? r.h.toFixed(1) : "-")).join(", ")} CSS px)`);
+    check(match && big && apart && vis && L.tabHits.length === 4, `${V}: BACK, the four tabs and the five rows are the targets bb.profile().customize.L names (${match ? "each drawn region matches" : "a region DIFFERS"}), ${touch ? `each at least 44 CSS px tall (BACK 44 wide too: ${box(regs[0])})` : "the desk's own sizes"}, ${apart ? "apart" : "OVERLAPPING"}, ${vis ? "inside" : "NOT inside"} the visible viewport (heights ${regs.map((r) => (r ? r.h.toFixed(1) : "-")).join(", ")} CSS px)`);
     // the NEW tags: the unlocks unseen when the screen opened show NEW, and the visit marks them seen (saved)
     const freshWant = T.unseen.slice().sort();
     const fresh = [];
-    for (const s of ["floor", "belt", "panel"]) {
+    for (const s of ["floor", "belt", "panel", "carrier"]) {
       await page.evaluate((t) => window.bb.game.screen.state.tapTab(t), s);
       for (const r of (await cinfo(page)).rows) if (r.fresh) fresh.push(`style:${s}.${r.id}`);
     }
@@ -1509,8 +1516,8 @@ async function customizeView(browsers, origin, vname) {
     const unseenAfter = (await page.evaluate(() => window.bb.profile().unseen)).length;
     check(same(fresh.sort(), freshWant) && unseenAfter === 0, `${V}: the rows tagged NEW are the unlocks unseen at the title (${JSON.stringify(fresh)}); the visit marks them seen (${unseenAfter} unseen now, saved)`);
     // each tab, then each of its five rows, by a tap (a click on the desk)
-    let lockedShot = false;
-    const tabOrder = ["belt", "panel", "floor"];
+    let lockedShot = false, carrierShot = false;
+    const tabOrder = ["belt", "panel", "carrier", "floor"]; // CUSTOM-3: + CARRIER (the floor tab last: BACK and ESC below use it)
     for (const t of tabOrder) {
       await press(centre(await region(page, `tab-${t}`)));
       ci = await cinfo(page);
@@ -1530,6 +1537,7 @@ async function customizeView(browsers, origin, vname) {
           check(after.pick === id && after.locked && after.worn[t] === before.worn[t] && st1?.chosen?.[t] === st0?.chosen?.[t] && band > 0,
             `${V}: ${verb} on the locked ${t} row ${id} (${rowSt.progress ? rowSt.progress.join("/") : "?"}) previews it only: PREVIEW: NOT YOURS YET. drawn in its band (${band} amber px), still wearing ${after.worn[t]} (stored ${st1?.chosen?.[t]})`);
           if (!lockedShot) { lockedShot = true; await shot(page, `${TAG}-customize-${vname}-locked-${t}-${id}.png`); }
+          if (t === "carrier" && !carrierShot) { carrierShot = true; await shot(page, `${TAG}-customize-${vname}-locked-carrier-${id}.png`); }
           await press(centre(await region(page, `tab-${t}`)));
           const back = await cinfo(page);
           check(back.pick === back.worn[t] && !back.locked, `${V}: ${verb} on the ${t.toUpperCase()} tab after it brings back what you wear (${back.pick})`);
@@ -1562,6 +1570,23 @@ async function customizeView(browsers, origin, vname) {
     const st4 = await stored(page);
     check(re.pick === re.worn.floor && !re.locked && pv2.locked && same(st4?.chosen, st2?.chosen),
       `${V}: back in CUSTOMIZE the preview shows what you wear (${re.pick}); ESC from a locked preview goes to the title, nothing worn (${JSON.stringify(st4?.chosen)})`);
+    // CUSTOM-3: BACK and ESC from a locked CARRIER preview leave without wearing it either
+    for (const how of ["BACK", "ESC"]) {
+      await press(centre(await region(page, "customize")));
+      await settle(page, "customize");
+      await regionDrawn(page, "back");
+      await press(centre(await region(page, "tab-carrier")));
+      const cc0 = await cinfo(page), stc0 = await stored(page);
+      const lockedC = cc0.rows.find((r) => !r.open);
+      if (lockedC) await press(centre(await region(page, `style-carrier-${lockedC.id}`)));
+      const pvc = await cinfo(page);
+      if (how === "BACK") await press(centre(await region(page, "back")));
+      else await page.keyboard.press("Escape");
+      await settle(page, "title");
+      const stc1 = await stored(page);
+      check(!!lockedC && pvc.tab === "carrier" && pvc.locked && pvc.preview.carrier === lockedC.id && same(stc1?.chosen, stc0?.chosen) && stc1?.chosen?.carrier === cc0.worn.carrier,
+        `${V}: ${how} from a locked CARRIER preview (${lockedC ? lockedC.id : "none"}) goes to the title, the carrier worn still ${stc1?.chosen?.carrier} (${JSON.stringify(stc1?.chosen)})`);
+    }
     // the choice persists over a reload
     await page.reload();
     await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
@@ -1585,7 +1610,7 @@ const lookVis = (page) => page.evaluate(() => {
 
 async function customizeSection(browsers, origin) {
   log("");
-  log(`## CUSTOM-2b (REQ-BFG-072): the title's way in and CUSTOMIZE (profile: ${PROFILE}): the third button, the NEW dot, customizeScale, BACK, the tabs, the five rows a tab, a locked row's preview, ESC`);
+  log(`## CUSTOM-2b (REQ-BFG-072) and CUSTOM-3 (REQ-BFG-074): the title's way in and CUSTOMIZE (profile: ${PROFILE}): the third button, the NEW dot, customizeScale, BACK, the four tabs (CARRIER the fourth), the five rows a tab, a locked row's preview, BACK and ESC, a reload`);
   for (const v of CUSTOM_VIEWS) {
     if (!browsers[ENGINE(v)]) continue;
     await customizeView(browsers, origin, v);
