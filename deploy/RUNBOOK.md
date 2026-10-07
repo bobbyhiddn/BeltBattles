@@ -1,11 +1,11 @@
-# Runbook: BeltBattles on Fly + Tigris (0.9.6: battles in motion, on the rules bb-0.9.3, uploads open)
+# Runbook: BeltBattles on Fly + Tigris (0.9.7: LAST CHANCE, on the new rules bb-0.9.7, uploads open)
 
 One small Fly machine serves the game page and the ghost API from one HTTPS origin; the ghosts
 live in a Tigris bucket. Everything below is non-interactive, with every flag spelled out, and
 grouped so each numbered call is one shell call (one approval). Run every call with the repo root as
 the working directory:
 
-    /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r096/BeltBattles-r096   (branch release-096)
+    /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r097/BeltBattles-r097   (branch release-097)
 
 0.8.0 and its uploads step ran from the clone beltbattles-u080/BeltBattles-u080 (branch uploads-080), and 0.8.1 from
 beltbattles-v081/BeltBattles-v081 (branch release-081). Sections 9 and 10 are kept as they ran there: their calls name
@@ -34,11 +34,13 @@ launch as written in the clone beltbattles-r093/BeltBattles-r093 (branch release
 as written in the clone beltbattles-r094/BeltBattles-r094 (branch release-094, tip eb4c249). It ran there (release v15,
 live since 2026-10-06 at about 14:36Z, LIVE-094) and must never run again. Section 23 is 0.9.5's launch as written in
 the clone beltbattles-r095/BeltBattles-r095 (branch release-095, tip cc0acfc). It ran there (release v16, live since
-2026-10-06 at about 19:15Z, LIVE-095) and must never run again. Sections 3 to 8 now name 0.9.6's page and the rules
-bb-0.9.3, and section 24 is 0.9.6's launch, from this clone.
+2026-10-06 at about 19:15Z, LIVE-095) and must never run again. Section 24 is 0.9.6's launch as written in the clone
+beltbattles-r096/BeltBattles-r096 (branch release-096, tip 8fbba9d). It ran there (release v17, live since 2026-10-07
+at about 16:36Z, LIVE-096) and must never run again. Sections 3 to 8 now name 0.9.7's page and the rules bb-0.9.7, and
+section 25 is 0.9.7's launch, from this clone.
 
 Names used below: app `beltbattles` (URL https://beltbattles.fly.dev), org `personal`, bucket
-`beltbattles-ghosts`, rules `bb-0.9.3`, game 0.9.6. The page is 0.9.6's: 0.8.0 (the release candidate c3c84e5) with the
+`beltbattles-ghosts`, rules `bb-0.9.7`, game 0.9.7. The page is 0.9.7's: 0.8.0 (the release candidate c3c84e5) with the
 phone controls (section 10), the title screen on phones (section 11), a part's whole description on a phone tap
 (section 12), a roomier build screen on phones (section 13), BELTS (section 14: belt slots by level and by stars and
 the hero's two gold upgrades), PACKS (section 15: the belt and armor packs in every shop, and player names), RUNES
@@ -52,14 +54,16 @@ and FURNACE's hulls, the KILN's HEAT and FURNACE's four runes back in the dawn o
 captains' catch-up, the computer captains' plans and rune picks), 0.9.3 (section 21: release Y, one rule for each
 part, with the phone finger targets), 0.9.4 (section 22: the captains' pass, the computer captains' plans and rune
 picks again, with the touch check's fix, a test tool), 0.9.5 (section 23: two small fixes, SALVO RACK's SHOT note
-and the shop card's desktop hover text, and a factory or turret hold that takes its full time) and 0.9.6 (section 24:
+and the shop card's desktop hover text, and a factory or turret hold that takes its full time), 0.9.6 (section 24:
 battles in motion, both ships sailing over the day's sea while their boards stay level, and the same ship on every
-screen), on the rules bb-0.9.3 (0.9.3's; 0.9.4, 0.9.5 and 0.9.6 keep them).
+screen) and 0.9.7 (section 25: release Z's LAST CHANCE, where a run down to its last life gets a life back and one free
+pick, with the bots' overfeed fix, plus the captains' re-plan and six card faces), on the rules bb-0.9.7 (release Z's;
+0.9.3 to 0.9.6 played bb-0.9.3).
 The server is uploads-080's (H2's cef0379, v080-h2, which adds the record check to POST /v1/ghosts, with
 uploads open: section 9), built from this tip, so its strict decoder, record check, name check, rune check (one rune
-for each dawn, exactly) and seed pool are bb-0.9.3's. The seed pool is bb-0.9.3's own (120 ghosts, each holding one
-rune for each dawn), with nothing carried: src/sim/content.ts POOL_RULES_CARRIED is empty. fly.toml, the Dockerfile and
-.dockerignore are unchanged.
+for each dawn, exactly), LAST CHANCE check and seed pool are bb-0.9.7's. The seed pool is bb-0.9.7's own (120 ghosts,
+each holding one rune for each dawn), with nothing carried: src/sim/content.ts POOL_RULES_CARRIED is empty. fly.toml,
+the Dockerfile and .dockerignore are unchanged.
 
 **Branches and commits.** The live 0.8.0 deploy (release v3, 2026-10-03, uploads closed) ran calls 3-5 from branch
 deploy-080, 69fe689 (H2's cef0379 plus the deploy commit), in the staged clone beltbattles-v080/BeltBattles-v080. This
@@ -309,8 +313,8 @@ faces-088 = 11fbc6a), is 0.9.4's code plus two small fixes (section 23):
 - the release record (cc0acfc): GAME_BUILD.txt records the 0.9.5 online page built at 93f3e46, sections 3 to 8 named it
   and the rules bb-0.9.3, and section 23 is its launch. cc0acfc went live as release v16 (LIVE-095).
 
-Branch release-096, in this clone (a standalone copy of release-095 at cc0acfc; this clone holds only release-096 and
-the tags r095 = cc0acfc, motion-head = 73ddef4, merge096 = d9a89e3, r094 = eb4c249, r093 = 384ba42, txt-head =
+Branch release-096, in the clone beltbattles-r096/BeltBattles-r096 (a standalone copy of release-095 at cc0acfc; that
+clone holds only release-096 and the tags r095 = cc0acfc, motion-head = 73ddef4, merge096 = d9a89e3, r094 = eb4c249, r093 = 384ba42, txt-head =
 d1f6b65, hold-head = 7411720, c093-head = 7a4faa7, tch-head = 814bea1, tap-head = 458500b, y-head = 63d4ab5, base092 =
 5e5a131, r092 = cafe1a6 and faces-088 = 11fbc6a, and the branches above are in their own clones), is 0.9.5's code plus
 battles in motion (section 24):
@@ -323,18 +327,49 @@ battles in motion (section 24):
   src/screens, src/main.ts and src/env.d.ts, with tests/motion.test.ts, four test scripts, docs/MOTION.md and
   .gitignore. The merge's one conflict was docs/CHANGELOG.md: 0.9.5's entry stays, and the 0.9.6 entry sits above it;
 - 69c9e5b: the 0.9.6 label (VERSION, package.json, package-lock.json and the label pins);
-- the release record: GAME_BUILD.txt records the 0.9.6 online page built at 69c9e5b, sections 3 to 8 name it and the
-  rules bb-0.9.3, and section 24 is its launch. A commit can't name its own hash, so the Prime names the tip at launch.
+- the release record (1ca6151): GAME_BUILD.txt records the 0.9.6 online page built at 69c9e5b, sections 3 to 8 named it
+  and the rules bb-0.9.3, and section 24 is its launch;
+- 8fbba9d: asynccheck's M1 views expect the plate-strip source line on desk and small-land under motion's landscape
+  lanes (scripts only; the Prime's ruling 782627e17e7bc80f). 8fbba9d is section 24's tip. It went live as release v17
+  (LIVE-096).
+
+Branch release-097, in this clone (a standalone copy of release-096 at 8fbba9d; this clone holds only release-097 and
+the tags r096 = 8fbba9d, zbump-head = e0422dc, merge097 = c05acbd, c097-head = c129409, txt096-head = d99776f,
+pick-c097 = a26cc0e and pick-t096 = 9cf21b7, with the older tags that came with release-096, and the branches above
+are in their own clones), is 0.9.6's code plus LAST CHANCE, the captains' re-plan and six card faces (section 25):
+- release-096 at 8fbba9d (0.9.6 as live, above), unchanged;
+- release Z's zbump-accepted e0422dc (tag zbump-head; REQ-BFG-073: LC-1, Z-PREP, OVF-1 and Z-BUMP, 21 commits on 0.9.5's
+  cc0acfc, in 77 files), merged by the Prime's setup with `git merge --no-ff` as c05acbd (tag merge097; parents 8fbba9d
+  and e0422dc). LAST CHANCE is the game's rule: a run down to its last life gets one free pick (a rune, a part or +500
+  max hull) with a life back, the bots pick too, and the server checks a LAST CHANCE upload. A new test shows the dark
+  wind hits both hulls, the bots' deck rating prices an overfed gun's jams (OVF-1), and the rules moved once to
+  bb-0.9.7 with one regeneration of the luck caps, the stand-in pool and the seed pool. The merge's four conflicts
+  (src/main.ts's imports, the end of the build screen's draw(), and the two label tests) were each two sides adding
+  lines at the same spot, resolved by the setup's scripts;
+- CATCHUP-097's 2 commits (REQ-BFG-024, REQ-BFG-058, REQ-BFG-051), made on e0422dc and picked with -x (d289ece and
+  c129409, as 47a897c and a26cc0e; tag pick-c097): the captains' re-plan in src/sim/rivalBuilds.ts and two tests' pins
+  (LADDER_X_OPEN 121 -> 105);
+- TXT-096's 3 commits (REQ-BFG-070, REQ-BFG-046), made on e0422dc and picked with -x (e1e29b9, 0fbab26 and d99776f, as
+  9960f17, c8bfa51 and 9cf21b7; tag pick-t096): six card faces say a rule the game already played by, and a dead-text
+  and stale-comment sweep. Text, comments and tests only;
+- 73f6b2d: the browser drivers learn LAST CHANCE (REVIEW-ZBUMP Q2; scripts/playthrough.mjs and scripts/asynccheck.mjs
+  only): while the picker is up, a scripted run takes the HULL card;
+- e786a29: the 0.9.7 label (VERSION, package.json, package-lock.json and the label pins);
+- 567642b: docs/CHANGELOG.md's 0.9.7 entry;
+- the release record: GAME_BUILD.txt records the 0.9.7 online page built at 567642b, sections 3 to 8 name it and the
+  rules bb-0.9.7, and section 25 is its launch. A commit can't name its own hash, so the Prime names the tip at launch.
 
 **The page.** The image serves the ONLINE single-file page: `npm run build:online`
 (VITE_GHOST_SERVER=same-origin, into dist-online/), then `node scripts/singlefile.mjs <out.html> --dist dist-online`.
-It plays against the server that serves it, with no `?server=`. deploy/GAME_BUILD.txt records 0.9.6's:
-../output-stage096/pages/BeltBattles-0.9.6-69c9e5bdd9ea-online.html beside this clone (GAME_BUILD.txt names it from
-the repo root), 706,489 bytes, sha256 as GAME_BUILD.txt records (it begins `d3d640009943fcfe`), built at 69c9e5b. Shore
-serves the offline page of the same commit (706,478 bytes; ../output-stage096/pages/BeltBattles-0.9.6-69c9e5bdd9ea.html,
-and the same bytes as ../output-stage096/shore/index.html); it plays offline unless opened with `?server=`. Section
-24's launch stages these bytes from wherever the Prime keeps them (stage.mjs checks the size and the SHA-256 against
-GAME_BUILD.txt, not the path). Before 0.9.6, 0.9.5's release record (cc0acfc) recorded 0.9.5's page,
+It plays against the server that serves it, with no `?server=`. deploy/GAME_BUILD.txt records 0.9.7's:
+../output-stage097/pages/BeltBattles-0.9.7-567642b421f7-online.html beside this clone (GAME_BUILD.txt names it from
+the repo root), 717,904 bytes, sha256 as GAME_BUILD.txt records (it begins `ab1307f1a5a7f168`), built at 567642b. Shore
+serves the offline page of the same commit (717,893 bytes; ../output-stage097/pages/BeltBattles-0.9.7-567642b421f7.html,
+and the same bytes as ../output-stage097/shore/index.html); it plays offline unless opened with `?server=`. Section
+25's launch stages these bytes from wherever the Prime keeps them (stage.mjs checks the size and the SHA-256 against
+GAME_BUILD.txt, not the path). Before 0.9.7, 0.9.6's release record (1ca6151) recorded 0.9.6's page,
+BeltBattles-0.9.6-69c9e5bdd9ea-online.html (706,489 bytes, sha256 `d3d640009943fcfe…`, built at 69c9e5b), which release
+v17 serves. Before 0.9.6, 0.9.5's release record (cc0acfc) recorded 0.9.5's page,
 BeltBattles-0.9.5-93f3e46f4697-online.html (691,285 bytes, sha256 `cddb1dede47ea618…`, built at 93f3e46), which release
 v16 serves. Before 0.9.5, 0.9.4's release record (eb4c249) recorded 0.9.4's page,
 BeltBattles-0.9.4-f1c0a62452cf-online.html (691,202 bytes, sha256 `70473aa7ed421e69…`, built at f1c0a62), which release
@@ -429,7 +464,12 @@ and 0.9.5 pages play the same rules and meet each other's ghosts and uploads. It
 19:15Z (release v16, LIVE-095). 0.9.6, battles in motion, holds 0.9.5's battle code (section 24): both ships sail over
 the day's sea while their boards stay level, and the same ship shows on every screen. It changes only what the screens
 draw: no battle number, rune or rule changes, so the rules stay bb-0.9.3 and the pools don't move. 0.9.3, 0.9.4, 0.9.5
-and 0.9.6 pages play the same rules and meet each other's ghosts and uploads.
+and 0.9.6 pages play the same rules and meet each other's ghosts and uploads. It went live on 2026-10-07 at about
+16:36Z (release v17, LIVE-096). 0.9.7, release Z's LAST CHANCE with the captains' re-plan and six card faces, holds
+0.9.6's code and changes the battle rules again (section 25): the rules move to bb-0.9.7, with a new seed pool (120
+ghosts, 12 a day, each holding one rune for each dawn). A run down to its last life gets a life back and one free pick,
+and the bots price an overfed gun's jams. The bb-0.9.3 ghosts and uploads stay in the bucket under their own prefix and
+match only 0.9.3 to 0.9.6 pages; a 0.9.7 page asks for and uploads bb-0.9.7 ghosts only.
 
 **Fallback names** (only for a rebuild from nothing). If `beltbattles` is taken (call 2 prints "Name has already
 been taken"), use `beltbattles-game`: replace `beltbattles` with `beltbattles-game` in every `-a` flag and every
@@ -469,14 +509,14 @@ fly apps create beltbattles --org personal && set -o pipefail && fly storage cre
 ## 3. Build and stage (local only: no network)
 
 ```sh
-node deploy/stage.mjs ../output-stage096/pages/BeltBattles-0.9.6-69c9e5bdd9ea-online.html
+node deploy/stage.mjs ../output-stage097/pages/BeltBattles-0.9.7-567642b421f7-online.html
 ```
 
 Runs `npm run build:server` (type-check + vite bundle into server/dist/: ghost-server.mjs, ghost-admin.mjs,
 gen-ghost-pool.mjs, from uploads-080 on also ghost-probe.mjs, and their shared chunks), copies the page to the
 gitignored deploy/public/index.html and refuses unless its SHA-256 and size equal deploy/GAME_BUILD.txt. Expect the
 last line:
-`stage: ../output-stage096/pages/BeltBattles-0.9.6-69c9e5bdd9ea-online.html -> deploy/public/index.html (706489 bytes, sha256 matches GAME_BUILD.txt); server/dist built`.
+`stage: ../output-stage097/pages/BeltBattles-0.9.7-567642b421f7-online.html -> deploy/public/index.html (717904 bytes, sha256 matches GAME_BUILD.txt); server/dist built`.
 A byte-identical copy elsewhere (for example in /home/cap/deliveries/beltbattles/) stages the same way; the line then
 names that path.
 To ship a different build later: `node deploy/stage.mjs <file> --record`, then commit GAME_BUILD.txt.
@@ -493,16 +533,15 @@ fly deploy --ha=false --remote-only && fly status -a beltbattles
   and .dockerignore was not applied. Stop and report that.
 - The image is node:22-alpine plus those files; no npm install step appears in the build log.
 - The release command (`node /app/dist/ghost-server.mjs seed`) runs first, on a throwaway machine with the
-  secrets, and writes the bundled bb-0.9.3 pool (120 ghosts: 3 per hero per day for the four heroes; the seed pool v3,
+  secrets, and writes the bundled bb-0.9.7 pool (120 ghosts: 3 per hero per day for the four heroes; the seed pool v3,
   each ghost holding one rune for each dawn, a race ghost with its run seed). It checks all 120 first (the strict
   decoder, the rules, validateUpload in the player mode with its exact rune count, a reachable record, no duplicates)
-  and writes nothing if one fails. Expect a `seed: rules bb-0.9.3, 120 pool ghosts on tigris (...)` line with
-  `0 written, 120 unchanged, 0 removed` at 0.9.6's launch: 0.9.3's launch (section 21) wrote the bb-0.9.3 pool, 0.9.4's
-  and 0.9.5's (sections 22 and 23) re-seeded it unchanged, and 0.9.6's bundled pool is the same 120 ghosts (a re-deploy
-  of the same image reads the same). Only a bucket with no
-  bb-0.9.3 ghost yet reads `120 written, 0 unchanged, 0 removed`. The seed touches only `ghosts/bb-0.9.3/dNN/pool/`: the
-  bb-0.9.1, bb-0.9.0, bb-0.8.7, bb-0.8.6, bb-0.8.3 and bb-0.8.0 ghosts and uploads (and bb-0.6.1's) stay under their own
-  prefixes, and no player upload is touched. Pool ghosts carry no player name: the name check is POST /v1/ghosts's
+  and writes nothing if one fails. Expect a `seed: rules bb-0.9.7, 120 pool ghosts on tigris (...)` line with
+  `120 written, 0 unchanged, 0 removed` at 0.9.7's launch: the bucket holds no bb-0.9.7 ghost yet, so the release
+  command writes the whole pool for the first time. On any later start of the same image it reads `0 written, 120
+  unchanged, 0 removed`. The seed touches only `ghosts/bb-0.9.7/dNN/pool/`: the bb-0.9.3, bb-0.9.1, bb-0.9.0, bb-0.8.7,
+  bb-0.8.6, bb-0.8.3 and bb-0.8.0 ghosts and uploads (and bb-0.6.1's) stay under their own prefixes, and no player
+  upload is touched. Pool ghosts carry no player name: the name check is POST /v1/ghosts's
   alone.
   If the release command fails, the deploy stops and nothing is replaced; the output names the failing step.
 - flyctl does not print the release command's own output: the deploy log shows only `release_command <machine>
@@ -515,22 +554,22 @@ fly deploy --ha=false --remote-only && fly status -a beltbattles
 ## 5. Live checks (one call)
 
 ```sh
-curl -sS https://beltbattles.fly.dev/v1/health; echo; curl -sS -o /dev/null -w 'http -> %{http_code} %{redirect_url}\n' http://beltbattles.fly.dev/; curl -sS -D - -o /dev/null https://beltbattles.fly.dev/ | grep -i -E '^(HTTP|content-type|content-length|cache-control|x-content-type-options|referrer-policy)'; curl -fsS https://beltbattles.fly.dev/ | cmp - deploy/public/index.html && echo 'live page = the staged 0.9.6 online page (cmp)'; curl -sS -o /dev/null -w '%{url_effective} -> %{http_code}\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.9.3&day=[1-10]&wins=0&lives=5&player=runbook-check&seen=&runs=0'; curl -sS 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.9.3&day=3&wins=1&lives=5&player=runbook-check&seen=&runs=0' | head -c 300; echo; curl -sS -w ' -> %{http_code}\n' -X POST -H 'content-type: application/json' --data '{}' https://beltbattles.fly.dev/v1/ghosts; fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.9.3'
+curl -sS https://beltbattles.fly.dev/v1/health; echo; curl -sS -o /dev/null -w 'http -> %{http_code} %{redirect_url}\n' http://beltbattles.fly.dev/; curl -sS -D - -o /dev/null https://beltbattles.fly.dev/ | grep -i -E '^(HTTP|content-type|content-length|cache-control|x-content-type-options|referrer-policy)'; curl -fsS https://beltbattles.fly.dev/ | cmp - deploy/public/index.html && echo 'live page = the staged 0.9.7 online page (cmp)'; curl -sS -o /dev/null -w '%{url_effective} -> %{http_code}\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.9.7&day=[1-10]&wins=0&lives=5&player=runbook-check&seen=&runs=0'; curl -sS 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.9.7&day=3&wins=1&lives=5&player=runbook-check&seen=&runs=0' | head -c 300; echo; curl -sS -w ' -> %{http_code}\n' -X POST -H 'content-type: application/json' --data '{}' https://beltbattles.fly.dev/v1/ghosts; fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.9.7'
 ```
 
 Expect, in order:
-1. `{"ok":true,"rules":"bb-0.9.3","store":"tigris","ghosts":…,"uploads":"closed","uptimeS":…}`, and
+1. `{"ok":true,"rules":"bb-0.9.7","store":"tigris","ghosts":…,"uploads":"closed","uptimeS":…}`, and
    `"uploads":"open"` once the uploads step (section 9) is live. `ghosts` counts what the lazy bucket cache has read
    so far; 0 right after a start is normal.
 2. `http -> 301 https://beltbattles.fly.dev/` (force_https).
-3. `HTTP/2 200`, `content-type: text/html; charset=utf-8`, `content-length: 706489` (0.9.5's page: 691285; 0.9.4's: 691202; 0.9.3's: 691113; 0.9.2's: 696831; 0.9.1's: 696824; 0.9.0's: 695449; 0.8.9's: 672501; 0.8.8's: 670455; 0.8.7's: 634882; 0.8.6's: 607541; 0.8.5's: 598639; 0.8.4's: 591654; 0.8.3's: 590294; 0.8.2's: 589217; 0.8.1's: 587335; 0.8.0's: 578419),
+3. `HTTP/2 200`, `content-type: text/html; charset=utf-8`, `content-length: 717904` (0.9.6's page: 706489; 0.9.5's page: 691285; 0.9.4's: 691202; 0.9.3's: 691113; 0.9.2's: 696831; 0.9.1's: 696824; 0.9.0's: 695449; 0.8.9's: 672501; 0.8.8's: 670455; 0.8.7's: 634882; 0.8.6's: 607541; 0.8.5's: 598639; 0.8.4's: 591654; 0.8.3's: 590294; 0.8.2's: 589217; 0.8.1's: 587335; 0.8.0's: 578419),
    `cache-control: no-cache`, `x-content-type-options: nosniff`, `referrer-policy: no-referrer`.
-4. `live page = the staged 0.9.6 online page (cmp)` (no line at all means a mismatch).
+4. `live page = the staged 0.9.7 online page (cmp)` (no line at all means a mismatch).
 5. Ten lines `…day=N… -> 200`, days 1-10: a new player (`runs=0`, D2: seed ghosts only) with 0 wins and
    5 lives gets a ghost with no better record (D1: fewer wins, or as many and no more lives; here a 0-win ghost).
    Every day has 12 seed ghosts, 4 of them on the day's floor record.
-6. Day 3's body for a new player on 1 win, 5 lives: `{"id":"g…","snapshot":{"v":3,"rules":"bb-0.9.3",…,"day":3,`
-   with at most 1 win, from any of the four heroes. Under bb-0.9.3 a seed ghost holds one rune for each dawn, so it
+6. Day 3's body for a new player on 1 win, 5 lives: `{"id":"g…","snapshot":{"v":3,"rules":"bb-0.9.7",…,"day":3,`
+   with at most 1 win, from any of the four heroes. Under bb-0.9.7 a seed ghost holds one rune for each dawn, so it
    travels as v3, as a served player upload does: with its runes and without its run seed (the server never serves
    one).
 7. `{"error":"uploads are not open yet"} -> 403` while uploads are closed. Once they are open (section 9), the same
@@ -544,18 +583,18 @@ re-running any check from this machine.
 
 **Older pages.** A browser that still holds an older page (no-cache: a reload gets the live page) asks for its own rules'
 ghosts. It gets that rules' seed ghosts if the bucket still holds them, otherwise a 404, and then it fights its own
-stand-in. Its uploads are refused: 403 while uploads are closed, 422 (foreign rules) once they open. Under 0.9.6 the
-0.9.5, 0.9.4 and 0.9.3 pages are the exceptions: they play the same rules, bb-0.9.3, so they meet the same ghosts and
-their uploads are taken. The 0.9.2 page (and the 0.9.1 page) still gets the bb-0.9.1 ghosts the bucket holds, but its
-uploads answer 422, because this server validates bb-0.9.3. The 0.9.0 page gets the bb-0.9.0 ghosts, the 0.8.7, 0.8.8
-and 0.8.9 pages the bb-0.8.7 ghosts, and theirs answer 422 too.
+stand-in. Its uploads are refused: 403 while uploads are closed, 422 (foreign rules) once they open. Under 0.9.7 no
+older page plays the same rules: the 0.9.6, 0.9.5, 0.9.4 and 0.9.3 pages still get the bb-0.9.3 ghosts the bucket
+holds, but their uploads answer 422, because this server validates bb-0.9.7. The 0.9.2 page (and the 0.9.1 page) gets
+the bb-0.9.1 ghosts, the 0.9.0 page the bb-0.9.0 ghosts, the 0.8.7, 0.8.8 and 0.8.9 pages the bb-0.8.7 ghosts, and
+theirs answer 422 too.
 
 ## 6. Cold start (after the machine auto-stops)
 
 Leave the app idle for about 10 minutes (no requests), then:
 
 ```sh
-fly machine list -a beltbattles && curl -sS -o /dev/null -w 'cold health: %{http_code} in %{time_total}s\n' https://beltbattles.fly.dev/v1/health && curl -sS -o /dev/null -w 'first match after start: %{http_code} in %{time_total}s\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.9.3&day=3&wins=1&lives=5&player=runbook-cold&seen=&runs=0' && curl -sS -o /dev/null -w 'warm match: %{http_code} in %{time_total}s\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.9.3&day=3&wins=1&lives=5&player=runbook-cold&seen=&runs=0' && fly machine list -a beltbattles
+fly machine list -a beltbattles && curl -sS -o /dev/null -w 'cold health: %{http_code} in %{time_total}s\n' https://beltbattles.fly.dev/v1/health && curl -sS -o /dev/null -w 'first match after start: %{http_code} in %{time_total}s\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.9.7&day=3&wins=1&lives=5&player=runbook-cold&seen=&runs=0' && curl -sS -o /dev/null -w 'warm match: %{http_code} in %{time_total}s\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.9.7&day=3&wins=1&lives=5&player=runbook-cold&seen=&runs=0' && fly machine list -a beltbattles
 ```
 
 Expect the first list to show the machine `stopped` and the last `started`. The server listens and
@@ -570,20 +609,21 @@ The image carries it as /app/dist/ghost-admin.mjs. It reads the store exactly as
 full rules and the tests.
 
 ```sh
-fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.9.3'
-fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs revalidate --rules bb-0.9.3'
-fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.9.3'
-fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs remove-player <playerId> --rules bb-0.9.3'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.9.7'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs revalidate --rules bb-0.9.7'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.9.7'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs remove-player <playerId> --rules bb-0.9.7'
 ```
 
 - Every command but `list` is a DRY RUN unless `--apply` is added: it prints each record it would delete
   (key, kind, day, ghost id, player, reason), then `DRY RUN: nothing was deleted`. Read the plan, then run the
   same command again with `--apply`; it deletes exactly the planned records.
 - `--rules` is required; nothing of another rules version is read or touched. `revalidate` runs only for this
-  build's rules (bb-0.9.3): every upload through the strict decoder, the exact rules, the rules and hero gates,
+  build's rules (bb-0.9.7): every upload through the strict decoder, the exact rules, the rules and hero gates,
   validateUpload in the player mode (the runes' exact count, one for each dawn, their ids, repeats and dormant runes
-  too), the reachable-record check and the player name (the checks POST /v1/ghosts makes, so a bb-0.9.3 store should
-  never list a record, name or rune failure).
+  too, and a LAST CHANCE's day and card), the reachable-record check (with the record's LAST CHANCE, read by the
+  record's own rules) and the player name (the checks POST /v1/ghosts makes, so a bb-0.9.7 store should never list a
+  record, name or rune failure).
   It does not re-derive the dawn offers from the stored run seed: that rune check is POST's alone. It can't re-check
   signatures: the server keeps neither keys nor signatures.
 - The seed pool is never deleted, except by `wipe-uploads --pool` (the next deploy's release command writes it
@@ -592,7 +632,7 @@ fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs remove-player 
 - **After an `--apply` the running server keeps serving deleted ghosts** from its bucket cache until
   BB_GHOST_CACHE_TTL_S (600 s) passes or the machine restarts. To make it take effect at once:
   `fly apps restart beltbattles`, then check the match route.
-- Old pools: the bb-0.9.1, bb-0.9.0, bb-0.8.7, bb-0.8.6, bb-0.8.3 and bb-0.8.0 pools and uploads, and the bb-0.6.1
+- Old pools: the bb-0.9.3, bb-0.9.1, bb-0.9.0, bb-0.8.7, bb-0.8.6, bb-0.8.3 and bb-0.8.0 pools and uploads, and the bb-0.6.1
   pool (and bb-0.6.2's, had 0.7.0 gone live), can stay; they serve only older cached pages.
   To remove one, on the operator's word: `wipe-uploads --rules <old rules> --pool`, a dry run first, then `--apply`.
 
@@ -615,12 +655,12 @@ fly releases -a beltbattles --image
 fly deploy --ha=false --remote-only --image <IMAGE REF of the release to return to, from the list above> -e BB_GHOST_UPLOADS=closed
 ```
 
-Rolling back to the previous image (the last call's releases-before file names it; for 0.9.6 that is 0.9.5's release,
-v16, image registry.fly.io/beltbattles:deployment-01M49A6YJKWCTYPSABXK2TM40V, its page on the same rules bb-0.9.3)
-serves its page and the same pool: its release command re-seeds the bb-0.9.3 pool (`0 written, 120 unchanged, 0
-removed`). Back on 0.9.5, the bb-0.9.3 pool and every bb-0.9.3 upload stay in use, since 0.9.5 plays the same rules.
-The release before it is 0.9.4's v15 (image registry.fly.io/beltbattles:deployment-01M48T7AKR4SABBBPG50RJD9YG), on the
-same rules too.
+Rolling back to the previous image (the last call's releases-before file names it; for 0.9.7 that is 0.9.6's release,
+v17, image registry.fly.io/beltbattles:deployment-01M4BKHAMC03HP1RPN8SPEWGNT, its page on the older rules bb-0.9.3)
+serves its page and its own pool: its release command re-seeds the bb-0.9.3 pool (`0 written, 120 unchanged, 0
+removed`). Back on 0.9.6, the bb-0.9.3 pool and its uploads are in use again as 0.9.6 left them; any bb-0.9.7 uploads
+made in between stay in the bucket under their own prefix, unseen. The release before it is 0.9.5's v16 (image
+registry.fly.io/beltbattles:deployment-01M49A6YJKWCTYPSABXK2TM40V), on bb-0.9.3 too.
 
 **Never roll back by image from uploads-080.** A deploy by image takes its env from this directory's fly.toml, and
 uploads-080's fly.toml opens uploads (section 9), so the older image would run with uploads open. To undo the uploads
@@ -2603,6 +2643,167 @@ floor. The release before v16 is 0.9.4's v15 (image
 registry.fly.io/beltbattles:deployment-01M48T7AKR4SABBBPG50RJD9YG, LIVE-094; its page
 BeltBattles-0.9.4-f1c0a62452cf-online.html, 691,202 bytes), on the same rules too: the same command with v15's image
 returns it, with the same seed line.
+
+## 25. 0.9.7: LAST CHANCE (new rules bb-0.9.7; its own L4)
+
+0.9.6's launch is section 24, in the clone beltbattles-r096/BeltBattles-r096 (branch release-096, tip 8fbba9d). It ran
+there on its own L4 and must never run again: 0.9.6 is live as release v17 (image
+registry.fly.io/beltbattles:deployment-01M4BKHAMC03HP1RPN8SPEWGNT, since 2026-10-07 at about 16:36Z, LIVE-096). This
+section is 0.9.7's launch, from this clone.
+
+0.9.7 ships release Z (REQ-BFG-073: LAST CHANCE) with the captains' re-plan (REQ-BFG-024, REQ-BFG-058, REQ-BFG-051) and
+six card faces (REQ-BFG-070, REQ-BFG-046), on new battle rules, bb-0.9.7:
+- **LAST CHANCE:** once a run, a dusk loss before day 10 that leaves the player on the last life gives that life back at
+  once (the dusk card says `LAST CHANCE: +1 LIFE`). At the next dawn, before the dawn's rune, the player picks one of
+  three free cards: a RUNE that fits the hero, an epic PART (a rig, turret or gear) that goes to cargo, or +500 max
+  HULL for the rest of the run. The bots pick too, a ghost carries its card, and POST /v1/ghosts checks an upload's
+  LAST CHANCE (its day, its card and its record) from the run seed.
+- **The dark wind** hits both hulls alike; a new test keeps it so (it did before too).
+- **The overfeed:** the bots' deck rating counts the shots a gun fed past its rate loses to jams (OVF-1).
+- **The one bump and its one regeneration** (Z-BUMP): the rules move once to bb-0.9.7 (RULES_VERSION, the probe's
+  PROBE_RULES and the rules gate's LAST_CHANCE_RULES), with nothing carried (POOL_RULES_CARRIED is empty); the luck caps,
+  the stand-in pool and the seed pool v3 were made again once, under bb-0.9.7.
+- **The captains' re-plan** (CATCHUP-097): OLD BULWARK's road deck from day 5, LONGTOOTH's early days, the day-5 road
+  armor of SILKSHADE and THANE KARSK, and the IRON MATRIARCH's armor on days 8 to 10. LADDER_X_OPEN holds 105 (was 121).
+- **Six card faces** (TXT-096) now say a rule the game already played by: ASSEMBLY LINE, HULLBREAKER, GATLING SPOOL,
+  GRAPNEL GUN, PRESSURE BREECH and SORTING ARM. Text only.
+
+**What ships.** Branch release-097 at its tip, in this clone: release-096's 8fbba9d (0.9.6 as live; tag r096) merged
+with release Z's zbump-accepted e0422dc (tag zbump-head; 21 commits on 0.9.5's cc0acfc, in 77 files) by the Prime's
+setup as c05acbd (tag merge097), CATCHUP-097's 2 commits and TXT-096's 3, each picked with -x (tags pick-c097 = a26cc0e
+and pick-t096 = 9cf21b7), the drivers' LAST CHANCE fix (73f6b2d, scripts only), the 0.9.7 label (e786a29), the
+CHANGELOG commit (567642b) and the release record (GAME_BUILD.txt and this section). A commit can't name its own hash,
+so the Prime names the tip at launch.
+- The page is the 0.9.7 online page that GAME_BUILD.txt records (BeltBattles-0.9.7-567642b421f7-online.html, 717,904 bytes, sha256
+  `ab1307f1a5a7f168…`), built at 567642b; it reads V0.9.7 on the title screen. It is 11,415 bytes larger than 0.9.6's
+  page.
+- The rules move to bb-0.9.7, once, with nothing carried. The seed pool and the stand-in pool are bb-0.9.7's own, made
+  once by Z-BUMP; the stand-in check read the pool identical at 9cf21b7 (this branch's pick-t096), and nothing since
+  reaches the generator. The pinned sim fingerprint is CATCHUP-097's final pin, fp-097-final-c129409.json (848,001 bytes,
+  sha256 `21f2dab4cc4ff692…`; a copy is ../kit097/h2/ beside this clone): the merge c05acbd reads identical to Z-BUMP's
+  pin (847,924 bytes, `a79bda3268286f2b…`), and the two pick tags and the tip read identical to CATCHUP-097's.
+  parBench's fingerprint is 8cde5ed0 (0.9.6's was 1e04d09c: the overfeed moved BASTION's ten rows).
+- The server is built from the tip. POST /v1/ghosts takes snapshot v3 under bb-0.9.7 with 0.9.6's checks (exactly one
+  rune for each dawn, each one its dawn offered, no unknown or repeated rune, the record, the name), and LAST CHANCE's:
+  a LAST CHANCE comes before day 10 and before the deck's day, its rune or part must be the one its day offered (from
+  the run seed), the HULL card adds its +500 to the hull the check allows, and the record must be one a run carries into
+  that dusk after its LAST CHANCE (or, without one, a record that needs none). ghosts:admin revalidate and
+  the seed check read each stored record by its own rules. The run seed is stored, never served.
+- Its bundled seed pool is bb-0.9.7's (v3: 120 ghosts, 12 a day, each holding one rune for each dawn; 22 of them sit on
+  a record only a LAST CHANCE run reaches, mostly the floor ghosts at 0 wins and 1 life on days 7 to 10, and the seed
+  check takes them). The release command seeds it for the first time. The bb-0.9.3 ghosts and uploads stay under their
+  own prefix and match only 0.9.3 to 0.9.6 pages; a 0.9.7 page asks for and uploads bb-0.9.7 ghosts only. A browser
+  still on the 0.9.6 page keeps getting bb-0.9.3 ghosts, but its uploads answer 422 (foreign rules) until it reloads.
+- fly.toml, the Dockerfile, .dockerignore and server/config.ts are unchanged (uploads-080's, as 0.9.6's), so uploads stay
+  open. Under deploy/, only GAME_BUILD.txt and this runbook changed.
+
+**The release command** seeds the bb-0.9.7 pool for the first time: `seed: rules bb-0.9.7, 120 pool ghosts on tigris
+(...)` with `120 written, 0 unchanged, 0 removed` (on any later start of the same image, `0 written, 120 unchanged, 0
+removed`). The bb-0.9.3 pool and every bb-0.9.3 upload are not touched; 0.9.7 players no longer meet them.
+
+**The probe runs** (section 9's pattern, as in section 24), because the rules changed and LAST CHANCE adds two rows: its
+honest decks hold their dawn runes, taken as the bots take them, and travel as v3 with the run seed, and one of them
+holds a LAST CHANCE. The release checks rehearsed this whole block on a local server, the built server on a scratch
+store, the hand clean-up included (kit097/probecheck.sh; ../output-stage097/REPORT.md).
+
+**The launch call is the Prime's.** The Prime writes it at launch, on section 24's pattern, and runs it under its own
+operator approval (L4). In order, it must:
+1. set `pipefail`, enter this clone, and refuse unless HEAD is the release-097 tip named at launch and the tree is
+   clean, and unless the probe's id file (for example ../output-stage097/probe-id.txt) holds no id yet: the probe
+   refuses to overwrite an earlier probe's id, which that probe's clean-up still needs;
+2. run the version guard (backlog #341) before anything is staged or deployed. It reads the version label on the page
+   it stages and on the page Fly serves, with section 15's grep (`grep -oP '\x60\K[0-9]+\.[0-9]+\.[0-9]+(?=\x60)'`,
+   which reads `0.9.7` on both 0.9.7 pages). It refuses unless the staged label is 0.9.7 and the live one is not newer
+   (equal passes: a re-run), and it refuses when either label can't be read. 0.9.7 launches after 0.9.6 (section 24),
+   so the guard expects to read 0.9.6 live, and that passes. If it reads an older label instead, Fly is not on v17:
+   stop there and ask the Prime, because this section's seed line and rollback assume 0.9.6's release;
+3. stage the 0.9.7 online page (call 3: the size and SHA-256 GAME_BUILD.txt records), which also builds server/dist,
+   the probe included;
+4. save `fly releases -a beltbattles --image` to a releases-before file: what was live, the rollback's target;
+5. deploy (call 4) and run `fly status`;
+6. run the live checks below;
+7. run the probe block below.
+Every step after the guards is chained with `&&`, so the first failure stops the call.
+
+If the version guard refuses, the call prints `refused: Fly serves X and the staged page is Y; never deploy over a newer
+version` and stops: nothing was staged or deployed. Leave Fly as it is and report it.
+
+**The live checks** (section 5's, under bb-0.9.7). Expect:
+- health: `{"ok":true,"rules":"bb-0.9.7","store":"tigris","ghosts":…,"uploads":"open","uptimeS":…}`; it is the first
+  request after the update, so `--retry 3` covers a machine the update left stopped;
+- `live page = the staged 0.9.7 online page (cmp)`, and `content-length: 717904`;
+- a bb-0.9.7 match on each of days 1-10, as a new player with 0 wins and 5 lives: ten lines `…day=N… -> 200`;
+- day 3 with 1 win and 5 lives, as a new player: `"snapshot":{"v":3,"rules":"bb-0.9.7","hero":"…","day":3,"wins":…,
+  "lives":…`. A new player meets seed ghosts only, and under bb-0.9.7 a seed ghost holds one rune for each dawn, so it
+  travels as v3 (without its run seed); the rehearsal got WEAVER, 1 win, 5 lives;
+- an unsigned POST: `{"error":"unsigned upload: the x-bb-key and x-bb-sig headers are required"} -> 401`;
+- `ghost-admin.mjs list --rules bb-0.9.7` on the machine: ten day rows of 12 seed-pool ghosts, then `all 120 0 0` (no
+  bb-0.9.7 upload yet, unless a player uploaded since the deploy);
+- in `fly logs -a beltbattles --no-tail`: `seed: rules bb-0.9.7, 120 pool ghosts on tigris (...)` with `120 written,
+  0 unchanged, 0 removed`.
+
+**The probe block** (section 9's steps 9 to 15, under bb-0.9.7), each step chained with `&&`:
+1. `node server/dist/ghost-probe.mjs https://beltbattles.fly.dev ../output-stage097/probe-id.txt`. It writes its player
+   id to that file before its first POST. Expect 14 lines (the ids differ on every run): the header
+   `probe: POST https://beltbattles.fly.dev/v1/ghosts as a fresh device (rules bb-0.9.7); only the FURNACE, WEAVER,
+   FOUNDRY and BASTION decks may be stored`, then 11 PASS lines: furnace-signed 201, furnace-unsigned 401,
+   dishonest-signed 422 (`budget: build costs 20 gold (items 0, mods 0, 0 crates, 4 plating) but a player's day 1 allows at most 13 (maxGoldByDay 8 + roadCap 5)`), unreachable-signed 422 (`record: 0W 1 lives is no record a run carries into dusk 1`), hero-WEAVER, hero-FOUNDRY and
+   hero-BASTION 201, hero-METRONOME and hero-SIPHON 400 (`snapshot.hero: rules bb-0.9.7 accept only FURNACE, WEAVER,
+   FOUNDRY, BASTION, not …`), then the two LAST CHANCE rows: lastchance-signed 201 (FURNACE's day-6 start deck with its
+   six dawn runes and the HULL card, +500 max hull, at 0 wins and 2 lives, its LAST CHANCE on day 5) and
+   lastchance-day3 422 (`record: 0W 2 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 3`: the same deck with its LAST CHANCE on day 3); then `probe player: <43 characters>`
+   and `probe: 11 of 11 checks as expected; the server stored 5 deck(s) for this player (expected 5); the player id is
+   in ../output-stage097/probe-id.txt`. The five stored decks hold their dawn runes: FURNACE's day-1 start deck with
+   one rune, the WEAVER, FOUNDRY and BASTION day-3 reference decks with three each, and FURNACE's day-6 LAST CHANCE deck
+   with six;
+2. `fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs revalidate --rules bb-0.9.7'`, a dry run. Expect
+   `plan: delete 0 record(s) of bb-0.9.7; keep 120 seed-pool ghost(s) and 5 upload(s)` and `DRY RUN: nothing was
+   deleted. --apply deletes exactly the 0 record(s) above.` The 5 uploads are the probe's, the LAST CHANCE deck among
+   them, which revalidates clean (its run seed, its card and its LAST CHANCE day); players who uploaded since the deploy
+   add to that count, and their uploads pass too;
+3. `fly ssh console -a beltbattles -C "node /app/dist/ghost-admin.mjs remove-player $(cat ../output-stage097/probe-id.txt) --rules bb-0.9.7 --apply"`.
+   Expect `plan: delete 5 record(s) of bb-0.9.7; keep 120 seed-pool ghost(s) and …`, five `delete
+   ghosts/bb-0.9.7/dNN/player/<g…>.json` lines (one on day 1, three on day 3 and one on day 6, the five ids of the
+   probe's 201 lines), then `APPLIED: deleted 5 of 5 record(s).`;
+4. `fly apps restart beltbattles`, so the server drops its cached copies (the bucket cache lives 600 s);
+5. health again: `"rules":"bb-0.9.7"` and `"uploads":"open"`;
+6. `fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.9.7'`: ten day rows of 12, then
+   `all 120 0 0` (or `all 120 N P` if players uploaded since the deploy; never a probe upload).
+
+Who meets the probe's uploads: between the probe and the clean-up, the store holds the probe's five honest decks. A new
+player (fewer than 3 finished runs) meets only seed ghosts, so only an experienced player can meet one, and only until
+the clean-up removes them.
+
+**The hand clean-up**, if the call stops after the probe's first 201 (the probe wrote its id before its first POST):
+
+```sh
+set -o pipefail; cd /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r097/BeltBattles-r097 && [ -s ../output-stage097/probe-id.txt ] && fly ssh console -a beltbattles -C "node /app/dist/ghost-admin.mjs remove-player $(cat ../output-stage097/probe-id.txt) --rules bb-0.9.7 --apply" && fly apps restart beltbattles && sleep 5 && fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.9.7'
+```
+
+Expect `plan: delete N record(s) of bb-0.9.7`, where N is the number of 201s the probe got (at most 5), then `APPLIED:
+deleted N of N record(s).` and a list with no upload by the probe. Then move probe-id.txt away (for example to
+probe-id-1.txt) before any new probe. If a rollback follows, run the clean-up first, while the 0.9.7 image (the one
+built for bb-0.9.7) still serves.
+
+**Rollback** (its own L4 every time, after telling the operator; never part of the launch call). Back to the release
+that served before the launch, the newest release in the launch's releases-before file: 0.9.6's release v17 (image
+registry.fly.io/beltbattles:deployment-01M4BKHAMC03HP1RPN8SPEWGNT, LIVE-096), its page on the older rules bb-0.9.3.
+Check that the releases-before file lists v17 first; if it doesn't, stop and ask the Prime. Deploy that image from this
+clone. A deploy by image takes its env from this directory's fly.toml, and this fly.toml is uploads-080's byte for
+byte, as 0.9.6's clone's is, so the old image runs as it did, with uploads open:
+
+```sh
+fly deploy --ha=false --remote-only --image registry.fly.io/beltbattles:deployment-01M4BKHAMC03HP1RPN8SPEWGNT
+```
+
+Then health must say `"uploads":"open"` and `"rules":"bb-0.9.3"`, and the page must be 0.9.6's online page,
+BeltBattles-0.9.6-69c9e5bdd9ea-online.html (706,489 bytes, sha256 `d3d640009943fcfe…`). A rollback serves bb-0.9.3
+again: its release command re-seeds the bb-0.9.3 pool (`0 written, 120 unchanged, 0 removed`), and the bb-0.9.3
+partition and its uploads are as 0.9.6 left them. Any bb-0.9.7 uploads made in between stay in the bucket under their
+own prefix, unseen, ready for a roll forward; 0.9.6 pages never ask for them. The release before v17 is 0.9.5's v16
+(image registry.fly.io/beltbattles:deployment-01M49A6YJKWCTYPSABXK2TM40V, LIVE-095; its page
+BeltBattles-0.9.5-93f3e46f4697-online.html, 691,285 bytes), on bb-0.9.3 too: the same command with v16's image returns
+it, with the same seed line.
 
 ## Troubleshooting
 
