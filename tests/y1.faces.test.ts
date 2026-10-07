@@ -42,7 +42,9 @@ describe("Y1: faces only, rules unchanged", () => {
 
   it("3-5: HULLBREAKER, SALVO RACK and COMPOUND BREECH: one verb with its own amount, SHOT: in brass", () => {
     const c = (def: string, s: number) => effectAt(def, s).core!;
-    expect(STARS.map((s) => line("hullbreaker", s))).toEqual(STARS.map((s) => `SHOT: HITS THE HULL FOR +${fmtPct(c("hullbreaker", s).hullMul! - 1)} .`));
+    // TXT-096 (REVIEW-TXT095 Q2): ONLY, its sentence's NEVER A MACHINE (tests/txt096.faces.test.ts pins it to the sim); was
+    // `SHOT: HITS THE HULL FOR +${...} .`
+    expect(STARS.map((s) => line("hullbreaker", s))).toEqual(STARS.map((s) => `SHOT: HITS ONLY THE HULL, FOR +${fmtPct(c("hullbreaker", s).hullMul! - 1)} .`));
     expect(STARS.map((s) => line("salvo", s))).toEqual(STARS.map((s) => `SHOT: FIRES THE CHAMBER AT +${fmtDmg(c("salvo", s).volleyFlat!)}  EACH.`));
     expect(STARS.map((s) => line("compound", s))).toEqual(STARS.map((s) =>
       `SHOT: FUSES ${fmtCount(FACE_SIM.compoundLoads)}  INTO ${fmtCount(FACE_SIM.compoundShells)} AT +${fmtPct(c("compound", s).mult! - 1)} .`));
