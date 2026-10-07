@@ -251,7 +251,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   braceframe: (e) => [pct(1 - g(e).brace!.mul)],
   // BRINGS ONE TOO; ... INTO TWO GUNS. Y7b2 (the flip): no flat sentence (flat 0; was [1, g(e).latch!.hold,
   // g(e).latch!.flat, 2])
-  twinlatch: (e) => [1, g(e).latch!.hold, 2],
+  twinlatch: (e) => [g(e).latch!.hold, 1, 2], // TXT-096: its hold opens the first sentence (was [1, hold, 2]: ONE, AT MOST n, TWO)
   stoker: (e) => [pct(g(e).stoke!)],
   // TAKES 10 PLATING (NUM-1: battle.ts spends 10; was 1). Y7b2 (the flip): no floor, WITH LESS PLATING ... IT ADDS NOTHING
   // (was [10, g(e).breaker!.flat, g(e).breaker!.floor])
@@ -401,10 +401,12 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     // NUM-3 (R1's STUN fold): MANTLET ignores every STUN source from ★1 (was "THE TURRET IGNORES SHOCK, STATIC, ARC, CHAIN,
     // FROST AND SABOT STALLS." at ★2, FULL PLATE's list); ★2 FULL GUARD keeps its tile. Y7b2 (the flip): ★2 guards 2 tiles
     // and no rigs (the shared rig guard left; was "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.")
+    // TXT-096 (REVIEW-TXT095 Q2): one opening with its face's tiles (was ["THE TURRET IGNORES EVERY STUN.", "SO DO THE LAST 2
+    // TILES OF EACH BELT IN."] and ★1's "THE TURRET IGNORES EVERY STUN.")
     expect(at("mantlet", 2).sentences).toEqual([
-      "THE TURRET IGNORES EVERY STUN.", "SO DO THE LAST 2 TILES OF EACH BELT IN.",
+      "THE TURRET IGNORES EVERY STUN, AND SO DO THE LAST 2 TILES OF EACH BELT IN.",
     ]);
-    expect([at("mantlet", 1).sentences[0], cardText("mantlet")]).toEqual(["THE TURRET IGNORES EVERY STUN.", "IGNORES EVERY STUN."]);
+    expect([at("mantlet", 1).sentences[0], cardText("mantlet")]).toEqual(["THE TURRET IGNORES EVERY STUN, AND SO DOES THE LAST TILE OF EACH BELT IN.", "IGNORES EVERY STUN."]);
     // NUM-2 (REQ-BFG-047; was EVERY 0.9 SECONDS and 11% FASTER): BOMBARD ★2's speed is 33 (30 / 0.9 = 33.3 rounded), so it
     // fires every 30 / 33 = 0.909 -> 0.91 s, and 33 / 30 = 1.1 is 10% faster than ★1's 30 (was 1 / 0.9 = 1.11, 11%)
     // NUM-4 (REQ-BFG-047): its SPEED as it is, AT RATE 33, and the star's gain as the SPEED difference, 33 - 30 = 3 MORE
@@ -638,21 +640,26 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     ]);
     // T6: DESIGN's "AT THE TILE IT HITS" moves to the second sentence, so the opening fits the phone band whole. Y7b2 (the
     // flip): TWIN LATCH's flat left (was its third sentence "EACH PAYLOAD IT LETS GO GAINS 10 DAMAGE.")
+    // TXT-096 (REVIEW-TXT095 Q2): the opening says its face's hold limit, the second no longer repeats it (were "HOLDS EACH
+    // PAYLOAD UNTIL ..." and "..., AT MOST 1 SECOND, AND ONLY WHEN ...")
     expect(at("twinlatch")).toEqual([
-      "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.",
-      "IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST 1 SECOND, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.",
+      "HOLDS EACH PAYLOAD UP TO 1 SECOND UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.",
+      "IT HOLDS A PAYLOAD AT THE TILE IT HITS, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.",
       "ON BELTS INTO TWO GUNS, IT LETS BOTH GO AT ONCE.",
     ]);
     // Y7b2 (the flip): ★2 holds 2 seconds (hold 1/2/3), no flat (was "NEXT STAR: ADDS 22 DAMAGE.")
     expect(nextStarText("twinlatch", 1)).toBe("NEXT STAR: HOLDS UP TO 2 SECONDS.");
     // was 2.2, 4, 17.6. Y7b2 (the flip): SPALL CATCHER's cap left (was "NEXT STAR: 22 DAMAGE FOR EVERY 40, UP TO 176.")
     expect(nextStarText("spallcatcher", 1)).toBe("NEXT STAR: 22 DAMAGE FOR EVERY 40.");
-    expect(at("stoker").slice(0, 2)).toEqual(["EACH FACTORY ITS ARROWS POINT AT WORKS 20% FASTER.", "IT NEVER MAKES A FACTORY OUTRUN ITS GUN."]);
+    // TXT-096 (REVIEW-TXT095 Q2): its face's UP TO (was "EACH FACTORY ITS ARROWS POINT AT WORKS 20% FASTER.")
+    expect(at("stoker").slice(0, 2)).toEqual(["EACH FACTORY ITS ARROWS POINT AT WORKS UP TO 20% FASTER.", "IT NEVER MAKES A FACTORY OUTRUN ITS GUN."]);
     // NUM-1: was 1 PLATING, 14, 3.5. The battle spends 10 plating (battle.ts: `if (s.plate.plate >= 10) { // NUM-1: 10
     // plating (x10 of 1)`), so the text's "TAKES 1 PLATING" (abilityText.ts platebreaker) disagrees: a text bug, left red
     // Y7b2 (the flip): PLATE BREAKER's floor left (was its second sentence "WITH NO PLATING TO TAKE, IT ADDS 35 DAMAGE.")
     expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS 140 DAMAGE.", "WITH LESS PLATING THAN THAT, IT ADDS NOTHING."]);
-    expect(at("shieldwall")[1]).toBe("WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE."); // was 12, 3
+    // TXT-096 (REVIEW-TXT095 Q2): one opening with both parts (was its [1], "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF
+    // THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
+    expect(at("shieldwall")[0]).toBe("ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH GAINS 30 DAMAGE."); // was 12, 3
     // bb-0.8.3 (REQ-BFG-042 D3): the pour, not its belts: TWO (★3 THIRD SPRUE: THREE) at once, the next ones in turn
     // NUM-2 (REQ-BFG-047): the casts every 30 / speed s: ★1 speed 17, 30 / 17 = 1.76 (was 1.8); ★3 speed 21, 1.43 (was 1.4)
     // NUM-4 (REQ-BFG-047): the casts AT RATE n, n its SPEED (★1 17, ★3 21; was EVERY 1.76 / 1.43 SECONDS)

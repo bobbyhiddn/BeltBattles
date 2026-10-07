@@ -117,8 +117,10 @@ describe("Y5 words: the 7's kept sentences, gists, cards and timeline rows say t
     expect(gist("spallcatcher", 2)).toBe("22 DAMAGE FOR EVERY 40");
     // Y7b1 (Y7A-R3d): was ["WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH PAYLOAD IT HITS GAINS 30 DAMAGE."] and
     // ["66 DAMAGE AT 120 PLATING", "HITS HARDER WHILE PLATED."]: on, the base's texts (PLATE's sentence without POISON)
-    expect(abilityText("shieldwall", 1).sentences.slice(0, 2)).toEqual(["ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.",
-      "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE."]);
+    // TXT-096 (REVIEW-TXT095 Q2): one opening with both parts, as its face (were "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH
+    // PAYLOAD IT HITS." and "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
+    expect(abilityText("shieldwall", 1).sentences.slice(0, 1)).toEqual([
+      "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH GAINS 30 DAMAGE."]);
     expect([gist("shieldwall", 2), cardText("shieldwall")]).toEqual(["22 PLATING A PAYLOAD, 66 DAMAGE AT 120 PLATING", "PLATES YOUR HULL, HITS HARDER."]);
     expect(abilityText("keg", 1).sentences).toEqual([
       "EVERY 12 SECONDS IT BLOWS UP, ADDING 60 DAMAGE TO EVERY PAYLOAD ON ITS BELTS.",

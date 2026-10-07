@@ -213,13 +213,15 @@ describe("FB-B MANTLET: FULL GUARD (NUM-3: was FULL PLATE) shields the belt tile
     // PLATE); ★2's gist lost "IGNORES FROST AND SABOT TOO, " (★2 adds no cause any more)
     // Y7b2 (the flip): the tile sentence from ★1, 1 / 2 / 3 tiles, no rigs (was [every], [every, "SO DO THE LAST TILE OF
     // EACH BELT IN, AND THE RIGS WORKING IT."], [every, "SO DO THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM."])
-    const every = "THE TURRET IGNORES EVERY STUN.";
+    // TXT-096 (REVIEW-TXT095 Q2): one opening with the tiles, as its face, so the perk names that sentence (were [every, "SO DOES
+    // THE LAST TILE OF EACH BELT IN."] .. and the perks after 1)
+    const every = "THE TURRET IGNORES EVERY STUN";
     expect(STARS.map((s) => abilityText("mantlet", s).sentences)).toEqual([
-      [every, "SO DOES THE LAST TILE OF EACH BELT IN."],
-      [every, "SO DO THE LAST 2 TILES OF EACH BELT IN."],
-      [every, "SO DO THE LAST 3 TILES OF EACH BELT IN."],
+      [`${every}, AND SO DOES THE LAST TILE OF EACH BELT IN.`],
+      [`${every}, AND SO DO THE LAST 2 TILES OF EACH BELT IN.`],
+      [`${every}, AND SO DO THE LAST 3 TILES OF EACH BELT IN.`],
     ]);
-    expect([2, 3].map((s) => abilityText("mantlet", s).perk)).toEqual([{ name: "FULL GUARD", stars: 2, after: 1 }, { name: "BULWARK SKIRT", stars: 3, after: 1 }]);
+    expect([2, 3].map((s) => abilityText("mantlet", s).perk)).toEqual([{ name: "FULL GUARD", stars: 2, after: 0 }, { name: "BULWARK SKIRT", stars: 3, after: 0 }]);
     // NUM-4 (REQ-BFG-047; SUS-B F3): MANTLET's verb is FULL GUARD's, GUARDS / GUARDED: (was SHIELDS / SHIELDED:); the
     // tile counts unchanged
     // Y7b2 (the flip): was "IGNORES EVERY STUN", "GUARDS THE LAST TILE OF EACH BELT IN", "GUARDS THE LAST 3 TILES ..."
