@@ -116,8 +116,11 @@ describe("FB-B HOPPER: ★1's window at every star, plus a store for loads that 
     // ★1's gist now "HOLDS 1 MORE LOAD, LONGER LOAD TIME")
     // Y7b2 (the flip): the data's windowTime > 0 check is deleted (no +0.5 s: switch-off only); the desc is the data's
     // as it stands (its LOAD TIME line may move with the words step)
+    // TXT-096 (Y7B2-Q5; the Prime's ruling fd56a6c372070b6d step 4): the words step: no LOAD TIME (no +0.5 s since Y7b2, so
+    // "ITS LOAD TIME RUNS LONGER." was false); the chamber's extra loads stay the data's (was [..., "LOAD; ITS LOAD TIME",
+    // "RUNS LONGER."])
     const m1 = effectAt("hopper", 1).mod!;
-    expect(ITEMS.hopper.desc).toEqual([`CHAMBER HOLDS ${m1.window} MORE`, "LOAD; ITS LOAD TIME", "RUNS LONGER."]);
+    expect(ITEMS.hopper.desc).toEqual([`CHAMBER HOLDS ${m1.window} MORE`, "LOAD."]);
     // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's sentences (abilityText) and clauses (gist, NEXT STAR)
     // Y7b2 (the flip): was [chamber], [chamber, store(1)], [chamber, store(2), "THE TURRET NEVER JAMS."] with chamber "THE
     // CHAMBER HOLDS 1 MORE LOAD, AND THE LOAD TIME IS LONGER." and store(n) "WHILE THE TURRET FIRES, IT STORES n LOAD(S)

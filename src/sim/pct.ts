@@ -1,5 +1,6 @@
 // NUM-1 (REQ-BFG-047, N1 section 2.1): the integer damage pipeline's one rounding rule. The sim stores and computes every
-// damage-family amount (damage, hull, plating, burn, poison, the wind, repairs, spall) as a whole number: where a % or a
+// damage-family amount (damage, hull, plating, burn, the wind, heals, spall; TXT-096: POISON left at Y6, and RIVETER's
+// repair is a heal since SUS-A) as a whole number: where a % or a
 // share meets such an amount, the result rounds half up to a whole number, once, where the amount is made (Battle.fire and
 // fireCore, impact, the hull ticks; cores.ts scaleCore at install; deck.ts payloadDamage when the slug is fired).
 // Pure, no imports: deck.ts, harassment.ts, races/* and cores.ts use it without a cycle.

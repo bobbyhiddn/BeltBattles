@@ -153,8 +153,9 @@ export function glossaryRows(): GlossaryRow[] {
  * NOZZLE's face) are rows. No word joined.
  * LOAD TIME (Y7b2, the words): no gear holds a load time since Y4 (HOPPER's and TWIN TRIGGER's went; ROTARY's texts say
  * SOONER), so no text names it any more: SALVO RACK's kept sentence names its wait in seconds (abilityText.ts salvo: 2 x
- * WINDOW_TIME after its first load) and TEMPO's family line says HOW LONG A GUN WAITS TO FIRE (families.ts). The catalogue
- * descs that still say it (HOPPER's, ROTARY BREECH's, TWIN TRIGGER's) are never drawn (flavour.ts KEPT_FLAVOUR).
+ * WINDOW_TIME after its first load) and TEMPO's family line says HOW LONG A GUN WAITS TO FIRE (families.ts). TXT-096
+ * (Y7B2-Q5) took it out of HOPPER's and ROTARY BREECH's catalogue descs; TWIN TRIGGER's still says it (tests/wave3Art.test.ts
+ * holds that def equal to tools/wave3Defs.ts's copy). None of the three is drawn (flavour.ts KEPT_FLAVOUR).
  */
 
 /** The table, in order: the face keywords, the rune keywords, the kept texts' words, the trigger labels. */
@@ -263,7 +264,7 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // brief's long form ("..., AND ITS NEXT RELOAD TAKES 60% LONGER.") and short form ("SHOT: FIRES AT A FULL CHAMBER OR
   // 3{SEC} AFTER ITS FIRST LOAD. ITS NEXT RELOAD TAKES 60% LONGER.") each take 3 lines, so this is option A, chosen by the
   // Prime (oracle eca9983506b0133c). Was "SHOT: IT WAITS FOR A FULL CHAMBER, AND ITS NEXT RELOAD TAKES 60% LONGER.".
-  // tests/txt095.text.test.ts reads the wait off the sim's own ready (cores.ts ROUTINES.salvo, on makeTurret's gun)
+  // tests/txt095.salvo.test.ts reads the wait off the sim's own ready (cores.ts ROUTINES.salvo, on makeTurret's gun)
   salvo: {
     word: "SHOT",
     text: (e, x) => `SHOT: FIRES AT A FULL CHAMBER OR ${fmtSec(SIM.salvoWait * WINDOW_TIME)}{SEC} AFTER ITS FIRST LOAD. NEXT RELOAD: ${fmtPct(core(e, x).reloadMul! - 1)} LONGER.`,
