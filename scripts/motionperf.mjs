@@ -10,8 +10,11 @@
 // --base <page> also times the build screen on another page (BASE's player build: 0.9.4's floor and tracked hull), with
 // no split, to compare the build screen's cost. Headless has no GPU: the canvas is rasterised in software, so these are
 // CPU-side numbers, not a phone's.
+// CUSTOM-3 (REQ-BFG-074): --carrier <id> writes a player profile before each page loads (every style open, wearing that
+// carrier style and the default floor, belts and panels), so the player's carrier is styled in every scene; --seas
+// calm,storm,ember runs the battle once per sea (the test build's ?sea= knob) in place of the one STORM battle.
 // Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/motionperf.mjs <test page.html> <out.json> [--secs 20] [--base <page>]
-//          [--hero H --day D --seed N (the battle)]
+//          [--hero H --day D --seed N (the battle)] [--carrier <id>] [--seas calm,storm,ember]
 import { chromium } from "playwright-core";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -28,7 +31,16 @@ const BASE = opt("base", "");
 // the battle (scripts/motionpick.mjs finds a STORM fight that lasts the 20 s)
 const HERO = opt("hero", "bastion"), DAY = Number(opt("day", "4")), SEED = Number(opt("seed", "11"));
 
-const SCENES = [["battle", false], ["battle-reduced", true], ["build", false], ["title", false]];
+const CARRIER = opt("carrier", "");
+const SEAS = opt("seas", "") ? opt("seas", "").split(",") : [];
+/** [scene, reduced, sea knob]: one STORM battle (the day's sea), or one battle per sea with --seas. */
+const SCENES = [...(SEAS.length ? SEAS.map((sea) => [`battle-${sea}`, false, sea]) : [["battle", false, ""]]), ["battle-reduced", true, ""], ["build", false, ""], ["title", false, ""]];
+/** CUSTOM-3: every style open and seen, the player wearing carrier `c`. */
+const carrierProfile = (c) => {
+  const ids = { floor: ["timber", "tread", "checker", "rune"], belt: ["verdigris", "blued", "timber", "rune"], panel: ["brass", "verdigris", "timber", "plum"], carrier: ["admiral", "ironclad", "storm", "gold"] };
+  const unlocked = Object.entries(ids).flatMap(([k, v]) => v.map((id) => `style:${k}.${id}`));
+  return { v: 1, counters: { runs: 99, runsFinished: 9, flawless: 1, duskWins: 120, bestDay: 10, warlordWins: 9, matriarchWins: 9, mostBelts: 9 }, heroesWon: ["furnace", "weaver", "foundry", "bastion"], heroesFinished: ["furnace"], unlocked, chosen: { floor: "plate", belt: "iron", panel: "slate", carrier: c }, seen: unlocked, folded: [], runNew: null, updatedAt: 1 };
+};
 const pct = (a, p) => a[Math.min(a.length - 1, Math.max(0, Math.ceil(p * a.length) - 1))];
 
 async function one(browser, page0, scene, reduced, rate, query) {
@@ -37,6 +49,7 @@ async function one(browser, page0, scene, reduced, rate, query) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const cdp = await ctx.newCDPSession(page);
+  if (CARRIER) await page.addInitScript((prof) => localStorage.setItem("beltbattles.profile.v1", prof), JSON.stringify(carrierProfile(CARRIER)));
   await page.goto(pathToFileURL(page0).href + query);
   await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title");
   await cdp.send("Emulation.setCPUThrottlingRate", { rate });
@@ -67,7 +80,7 @@ async function one(browser, page0, scene, reduced, rate, query) {
     const split = {};
     if (b) for (const k of Object.keys(b.ms)) split[k] = frames ? (b.ms[k] - (a && !reset ? a.ms[k] : 0)) / frames : 0;
     const m = bb.motion();
-    return { gaps, frames, split, reset, work: bb.game.perfStats(Math.min(600, gaps.length)), screen: bb.screen(), phase: m.phase, over: !!m.over, sea: m.sea ?? null, reduced: bb.settings.reducedMotion };
+    return { gaps, frames, split, reset, work: bb.game.perfStats(Math.min(600, gaps.length)), screen: bb.screen(), phase: m.phase, over: !!m.over, sea: m.sea ?? null, reduced: bb.settings.reducedMotion, wears: bb.profile().wears.carrier };
   }, SECS);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
   await ctx.close();
@@ -79,18 +92,19 @@ async function one(browser, page0, scene, reduced, rate, query) {
     // the brief's two thresholds; a 60 Hz interval reads 16.6-16.8 ms in headless, so > 20 ms says a frame really slipped
     over16: +over(16.7).toFixed(2), over20: +over(20).toFixed(2), over33: +over(33.4).toFixed(2),
     split: Object.fromEntries(Object.entries(res.split).map(([k, v]) => [k, +v.toFixed(3)])), splitFrames: res.frames, splitReset: res.reset,
-    workMs: +res.work.workMs.toFixed(3), maxWorkMs: +res.work.maxWorkMs.toFixed(2), endScreen: res.screen, endPhase: res.phase, over: res.over,
+    workMs: +res.work.workMs.toFixed(3), maxWorkMs: +res.work.maxWorkMs.toFixed(2), endScreen: res.screen, endPhase: res.phase, over: res.over, carrier: res.wears,
     load: +load0.toFixed(2), errors,
   };
 }
 
 const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
 const rows = [];
-console.log(`motionperf on ${PAGE}${BASE ? ` (and the build screen on ${BASE})` : ""}, ${SECS} s per run, battle ${HERO} dusk day ${DAY} seed ${SEED}, ${new Date().toISOString()}, load ${loadavg()[0].toFixed(2)}`);
-const say = (r) => console.log(`${r.scene.padEnd(14)} ${r.page === PAGE ? "" : "BASE "}cpu x${r.rate}: ${r.frames} frames (${r.fps} fps) p50 ${r.p50} p95 ${r.p95} p99 ${r.p99} max ${r.max} ms; >16.7 ${r.over16}% >20 ${r.over20}% >33.4 ${r.over33}%; split ${JSON.stringify(r.split)} over ${r.splitFrames} frames${r.splitReset ? " (a new attract round mid-run: split since)" : ""}; game work ${r.workMs} ms/frame (max ${r.maxWorkMs}); end ${r.endScreen}/${r.endPhase}; sea ${r.sea}; load ${r.load}; errors ${r.errors.length}`);
+console.log(`motionperf on ${PAGE}${BASE ? ` (and the build screen on ${BASE})` : ""}, ${SECS} s per run, battle ${HERO} dusk day ${DAY} seed ${SEED}${SEAS.length ? ` in the seas ${SEAS.join(", ")}` : ""}, the player's carrier ${CARRIER || "as stored (none: the default)"}, ${new Date().toISOString()}, load ${loadavg()[0].toFixed(2)}`);
+const say = (r) => console.log(`${r.scene.padEnd(14)} ${r.page === PAGE ? "" : "BASE "}cpu x${r.rate}: ${r.frames} frames (${r.fps} fps) p50 ${r.p50} p95 ${r.p95} p99 ${r.p99} max ${r.max} ms; >16.7 ${r.over16}% >20 ${r.over20}% >33.4 ${r.over33}%; split ${JSON.stringify(r.split)} over ${r.splitFrames} frames${r.splitReset ? " (a new attract round mid-run: split since)" : ""}; game work ${r.workMs} ms/frame (max ${r.maxWorkMs}); end ${r.endScreen}/${r.endPhase}; sea ${r.sea}; carrier ${r.carrier}; load ${r.load}; errors ${r.errors.length}`);
 for (const rate of [4, 1]) {
-  for (const [scene, reduced] of SCENES) {
-    const r = await one(browser, PAGE, scene, reduced, rate, "?perf=1");
+  for (const [scene, reduced, sea] of SCENES) {
+    const r = await one(browser, PAGE, scene.startsWith("battle-") && !reduced ? "battle" : scene, reduced, rate, sea ? `?perf=1&sea=${sea}` : "?perf=1");
+    r.scene = scene;
     rows.push(r);
     say(r);
   }
@@ -101,4 +115,4 @@ for (const rate of [4, 1]) {
   }
 }
 await browser.close();
-await writeFile(OUT, JSON.stringify({ page: PAGE, base: BASE || null, secs: SECS, battle: { hero: HERO, day: DAY, seed: SEED }, date: new Date().toISOString(), rows }, null, 1) + "\n");
+await writeFile(OUT, JSON.stringify({ page: PAGE, base: BASE || null, secs: SECS, battle: { hero: HERO, day: DAY, seed: SEED }, seas: SEAS, carrier: CARRIER || null, date: new Date().toISOString(), rows }, null, 1) + "\n");
