@@ -32,6 +32,7 @@ import { fmtCount, fmtDmg, fmtPct, fmtSec, fmtSpeed } from "./statFormat";
 import { livePerk, type TextOpts } from "./abilityText";
 import { upToLoads } from "./abilityText"; // Y7b1 (release Y; ruling Y7A-R2): EXT. CHAMBER's UP TO n with the star switch on
 import { SIM } from "./abilityText"; // NUM-3: SCRAPPER's queue cap and SABOT's SHRAPNEL STUN (each checked against battle.ts)
+import { startIn } from "./abilityText"; // TXT-096: ASSEMBLY LINE's "50% SOONER" / "AT ONCE", its sentence's words
 import {
   AMMO, BURN_TIME, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, type HeroId, type ItemDef, type PayloadPreset,
 } from "../sim/content";
@@ -321,8 +322,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // DESIGN-Y row 32 (its stats factoryStats': RATE, its slugs' DMG, BELT): Battle.makeSide: while it feeds a turret every
     // rig on your side comes online at x commission of its time, its own belts' rigs too (no instant start); HOT START is
     // gone. Was the RULES text "WHILE IT FEEDS A TURRET, YOUR RIGS COME ONLINE IN HALF THE TIME." and 3 more sentences
-    const soon = fmtPct(1 - f(e).commission!);
-    return rules([{ text: `YOUR RIGS START ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
+    // TXT-096 (REQ-BFG-070; REVIEW-TXT095 Q2, rule 1): its condition is real, so the line says it: battle.ts assemblyLines
+    // counts an ASSEMBLY LINE only when one of its belts reaches a turret (routeInfo connected), and then every rig on your
+    // side starts at x commission (makeSide; its own belt's too, which YOUR RIGS says). ★3's commission is 0, so its rigs
+    // come online on the first tick (commissionAt 0): AT ONCE, as its sentence says (abilityText.ts startIn). 217 px of the
+    // 225 px band ("WHILE IT FEEDS A TURRET, ..." is 286). Was "YOUR RIGS START 50% SOONER." (★3: "100% SOONER.")
+    const soon = startIn(f(e).commission!);
+    return rules([{ text: `FEEDS A GUN: YOUR RIGS START ${soon}.` }], [["soon", soon]]);
   },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
@@ -352,8 +358,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `FIRES PART-FULL CHAMBERS ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
   },
   pressure: (e, x) => {
-    const per = fmtDmg(c(e, x).perQueued!);
-    return rules([shot(`+${per} {DMG} FOR EACH LOAD WAITING.`)], [["per", `+${per} {DMG}`]]);
+    // TXT-096 (REQ-BFG-070; REVIEW-TXT095 Q2, rule 3): its cap is its own (cores.ts pressureBonus: min(maxCount, queued), 5 at
+    // every star) and its SHOT tap says it (glossary.ts TAP_NOTES pressure); it fits the line in the faces' own load icon
+    // (EXT. CHAMBER's, HOPPER's {SLUG}) with a cap that names its unit (U2b F3), 210 px of the 225 px band (", UP TO 5." and
+    // "..., MAX 5 {SLUG}." after LOAD are 228; a bare "MAX 5." is T2's ban). Was "SHOT: +12 {DMG} FOR EACH LOAD WAITING."
+    const per = fmtDmg(c(e, x).perQueued!), max = fmtCount(c(e, x).maxCount!);
+    return rules([shot(`+${per} {DMG} FOR EACH {SLUG} WAITING, MAX ${max} {SLUG}.`)], [["per", `+${per} {DMG}`]]);
   },
   gatling: (e, x) => {
     // rateText's rule: the spin's floor x0.6 of the interval fires 1 / 0.6 = 67% faster (N1 2.3: X% FASTER is the rate)
@@ -363,13 +373,23 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // keyed, so the ⓘ LEVELS ladder shows it ("+6%/+9%/+12% A QUICK SHOT") and NEXT★ with it. The face line is unchanged.
     // ("EACH QUICK SHOT" would take ★2's NEXT★ line to 230 px, past NEXT_LINE_W)
     const step = fmtPct(c(e, x).step!);
-    return rules([{ text: `SPINS UP TO ${up} FASTER AS IT FIRES.` }], [["spin", `${up} FASTER`], ["step", `+${step} A QUICK SHOT`]]);
+    // TXT-096 (REQ-BFG-070; REVIEW-TXT095 Q2, rule 1): its firing rule is unlike the default turret's, so the line says it:
+    // the default (cores.ts IDENTITY ready) waits for a full chamber or windowTime after its first load; GATLING's
+    // (gatlingReady) fires a load as soon as the barrel is ready and never waits for a full chamber: FIRES AT ONCE, its
+    // shop card's words (abilityText.ts gatling card). SPINS UP keeps the spin firing builds (the ⓘ ladder's "+6% A QUICK
+    // SHOT" says how). 212 px of the 225 px band ("FIRES EACH LOAD AT ONCE, ..." is 268). Was "SPINS UP TO 67% FASTER AS IT
+    // FIRES."
+    return rules([{ text: `FIRES AT ONCE, SPINS UP TO ${up} FASTER.` }], [["spin", `${up} FASTER`], ["step", `+${step} A QUICK SHOT`]]);
   },
   hullbreaker: (e, x) => {
     const more = fmtPct(c(e, x).hullMul! - 1);
     // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 3): one verb with its own amount, its trigger SHOT: in brass (was "SHOTS
     // ALWAYS HIT THE HULL, +30% {DMG}.", two clauses); the rule is as before (content.ts hullbreaker hullMul)
-    return rules([shot(`HITS THE HULL FOR +${more} {DMG}.`)], [["more", `+${more} {DMG}`]]);
+    // TXT-096 (REQ-BFG-070; REVIEW-TXT095 Q2, rule 1): what it can't hit is a real rule: Battle.fireCore aims its shot at
+    // hullTarget() with no target draw (battle.ts fireCore), so it never hits a part (its slug's STUN lands on nothing), as its
+    // sentence's NEVER A MACHINE says. 202 px of the 225 px band ("..., NEVER A PART." is 246). Was "SHOT: HITS THE HULL FOR
+    // +30% {DMG}."
+    return rules([shot(`HITS ONLY THE HULL, FOR +${more} {DMG}.`)], [["more", `+${more} {DMG}`]]);
   },
   salvo: (e, x) => {
     const flat = fmtDmg(c(e, x).volleyFlat!);
@@ -382,8 +402,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([shot(`ALSO HITS ${more} MORE TARGET${s(n)} FOR ${share} {DMG}.`)], [["splash", `${more} MORE`], ["share", `${share} {DMG}`]]);
   },
   grapnel: (e, x) => {
+    // TXT-096 (REQ-BFG-070; REVIEW-TXT095 Q2, rule 1): what it can hit is a real rule: Battle.rip takes slugs for a hit on an
+    // enemy belt tile or an enemy rig (the slugs by that rig's tiles: battle.ts rip, t.kind "belt" or "gate"), as its
+    // sentence's OR RIG says. WITHIN n TILES stays in its SHOT tap (glossary.ts TAP_NOTES grapnel; rule 3: "... WITHIN 2
+    // TILES." is 281 px of the 225 px band). 194 px. Was "SHOT: RIPS 1 SLUG OFF AN ENEMY BELT."
     const n = c(e, x).rip!, rip = fmtCount(n);
-    return rules([shot(`RIPS ${rip} SLUG${s(n)} OFF AN ENEMY BELT.`)], [["rip", `RIPS ${rip}`]]);
+    return rules([shot(`ON A BELT OR RIG, RIPS ${rip} SLUG${s(n)}.`)], [["rip", `RIPS ${rip}`]]);
   },
   tesla: (e, x) => {
     const n = c(e, x).arcs!, arcs = fmtCount(n), t = c(e, x).stall!, stun = fmtSec(t);
@@ -494,8 +518,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   sorting: (e) => {
     // Battle.applyHit: every `every`th payload it hits becomes `copies` payloads at full strength
     // (no ordinal: T2 bans "3RD"; ONE is definitional, as U2a's "TWO LOADS FUSE")
+    // TXT-096 (REQ-BFG-070; REVIEW-TXT095 Q2): FULL {DMG} is what sets it apart: a SPLITTER's copies share the slug's x
+    // split.mult (60/72/85%: battle.ts applyHit cuts p.mult and p.flat before it copies), a SORTING ARM's copy is the slug as it
+    // is ({ ...p }). 213 px of the 225 px band ("... AT FULL {DMG}." is 226). Was "HIT: OF EVERY 3 {SLUG}, ONE BECOMES 2."
     const so = gt(e).sort!, every = fmtCount(so.every), n = fmtCount(so.copies);
-    return rules([hit(`OF EVERY ${every} {SLUG}, ONE BECOMES ${n}.`)], [["every", `OF EVERY ${every}`], ["copies", `BECOMES ${n}`]]);
+    return rules([hit(`OF EVERY ${every} {SLUG}, ONE BECOMES ${n}, FULL {DMG}.`)], [["every", `OF EVERY ${every}`], ["copies", `BECOMES ${n}`]]);
   },
   tollbooth: (e) => {
     // DESIGN-Y row 8: Battle.acceptHarassment: while it works, its first `toll` enemy STUNs on its belt's parts (its belt's

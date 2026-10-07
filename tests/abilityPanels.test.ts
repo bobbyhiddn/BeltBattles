@@ -865,7 +865,10 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): 50 missing (was 53): on the last desk rungs the optional shield ranks
     // after the hint, so "installed thunderer3-six-gatling" and "installed thunderer-shot" show it; the shorter shield line
     // ("GUARDED: THE LAST 2 TILES OF EACH BELT IN.", no rigs) leaves "installed mantlet2" room for it
-    expect([withHint, missing.length]).toEqual([1952, 50]);
+    // TXT-096 (REVIEW-TXT095 Q2): 49 missing (was 50), the two lists diffed at txt096-base and at the tip: only "installed
+    // gatling-hopper1" moves, and it shows its hint again; the text that changed on it is its GATLING SPOOL core row's line
+    // ("FIRES AT ONCE, SPINS UP TO 67% FASTER", was "SPINS UP TO 67% FASTER AS IT FIRES"), which leaves the hint room
+    expect([withHint, missing.length]).toEqual([1952, 49]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 

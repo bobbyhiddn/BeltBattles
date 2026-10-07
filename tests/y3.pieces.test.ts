@@ -403,12 +403,15 @@ describe("Y3 row 32: ASSEMBLY LINE: your rigs start 50%/75%/100% sooner, its own
   });
 
   // Y7b2 (the words): was "face: ...; ladders DMG 30/45/60, 50%/75%/100% SOONER; HOT START in the ⓘ view only"
-  it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; YOUR RIGS START 50%/75%/100% SOONER; ladders DMG 30/45/60, 50%/75%/100% SOONER; no HOT START name, the ⓘ view's too (Y7b2)", () => {
-    expect(lines("assembly")).toEqual(["50%", "75%", "100%"].map((p) => [`YOUR RIGS START ${p} SOONER.`]));
+  // TXT-096 (REVIEW-TXT095 Q2): the line says its condition, FEEDS A GUN, and ★3 says AT ONCE (commission 0: the sim test
+  // above, online(3) [0, 0, 0]; tests/txt096.faces.test.ts pins both); was "YOUR RIGS START 50%/75%/100% SOONER." with the
+  // ladder "[50%]/75%/100% SOONER" (★3's AT ONCE has no number, so the ladder lists the three forms)
+  it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; FEEDS A GUN: YOUR RIGS START 50% SOONER/75% SOONER/AT ONCE; ladders DMG 30/45/60, 50% SOONER/75% SOONER/AT ONCE; no HOT START name, the ⓘ view's too (Y7b2, TXT-096)", () => {
+    expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`FEEDS A GUN: YOUR RIGS START ${p}.`]));
     expect(faceAt("assembly", 1)!.stats).toEqual([["RATE", "17"], ["DMG", "30"], ["BELT", "2"]]);
     oneLine("assembly");
     // Y7b2 (the words): was [..., "[50%]/75%/100% SOONER", "★3 HOT START", `NEXT ★2: ...`] (the name left with its rule)
-    expect(levels("assembly", 1)).toEqual(["{DMG} [30]/45/60", "{BELT} [2]/3/4", "[50%]/75%/100% SOONER",
+    expect(levels("assembly", 1)).toEqual(["{DMG} [30]/45/60", "{BELT} [2]/3/4", "[50% SOONER]/75% SOONER/AT ONCE",
       `NEXT ★2: ${statRow([["DMG", "45"], ["BELT", "3"]])}, 75% SOONER`]);
     expect(hasFace("assembly")).toBe(true);
   });

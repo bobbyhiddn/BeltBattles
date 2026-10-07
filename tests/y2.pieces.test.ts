@@ -442,7 +442,9 @@ describe("Y2 row 19: GRAPNEL GUN ★3 drops SALVAGE, and a hit keg is no longer 
   });
 
   it("face: RIPS 1/2/3 SLUG(S), no SALVAGE LINE clause at ★3; ladder RIPS 1/2/3; the tap drops the keg", () => {
-    expect(lines("grapnel")).toEqual([["SHOT: RIPS 1 SLUG OFF AN ENEMY BELT."], ["SHOT: RIPS 2 SLUGS OFF AN ENEMY BELT."], ["SHOT: RIPS 3 SLUGS OFF AN ENEMY BELT."]]);
+    // TXT-096 (REVIEW-TXT095 Q2): a hit on a rig rips too (tests/txt096.faces.test.ts pins it to battle.ts rip); was
+    // "SHOT: RIPS 1 SLUG OFF AN ENEMY BELT." (2, 3 SLUGS)
+    expect(lines("grapnel")).toEqual([["SHOT: ON A BELT OR RIG, RIPS 1 SLUG."], ["SHOT: ON A BELT OR RIG, RIPS 2 SLUGS."], ["SHOT: ON A BELT OR RIG, RIPS 3 SLUGS."]]);
     oneLine("grapnel");
     expect(levels("grapnel", 1)).toEqual(["RIPS [1]/2/3", "NEXT ★2: RIPS 2"]); // Y7b2 (the words): was ["RIPS [1]/2/3", "★3 SALVAGE LINE", "NEXT ★2: RIPS 2"]
     expect(glossaryText("SHOT", { def: "grapnel", stars: 1 })).toBe("SHOT: IT RIPS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT.");
