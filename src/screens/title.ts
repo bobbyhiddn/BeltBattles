@@ -5,9 +5,10 @@
 // MOTION-2 (REQ-BFG-071, REVIEW-MOTION1 Q5): the attract fight sails in motion, as a battle does, over the three seas
 // in turn (CALM SEA, STORM, EMBER SEA, one per round).
 
+import { CustomizeScreen } from "./customize"; // CUSTOM-2a (REQ-BFG-072): the styles screen
+import { loadProfile, unseen } from "../game/profile"; // CUSTOM-2a: the CUSTOMIZE button's NEW dot
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
-import { drawArena } from "../game/arenaDraw";
 import { loadRun } from "../game/run";
 import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUND in the rules card
 import { startingBuild, warlordBuild } from "../sim/ai";
@@ -17,7 +18,6 @@ import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
 import { titleArt } from "../render/sprites";
-import { ArenaBg } from "../render/arenaBg";
 import { defaultScale } from "../core/io";
 import { button, panel, para } from "../ui/ui";
 import { optionsCard } from "../ui/hud";
@@ -28,7 +28,7 @@ import { EventScreen } from "./event/event";
 import { ForkScreen } from "./fork/fork";
 import { BattleScreen } from "./battle";
 import { VERSION } from "../version";
-import { MOTION, MOTION_KNOBS } from "../render/motion"; // MOTION-2 (REQ-BFG-071): the attract fight in motion
+import { MOTION } from "../render/motion"; // MOTION-2 (REQ-BFG-071): the attract fight in motion
 import { ArenaMotion } from "../game/arenaMotion";
 import { minGap } from "../game/battleLayout";
 import { settings } from "../core/settings";
@@ -53,15 +53,15 @@ export class TitleScreen implements Screen {
   help = false;
   private menu = false;
   private t = 0;
-  private bg = new ArenaBg();
   private save = loadRun();
   private layoutKey = "";
-  private hulls: { x: number; y: number; w: number; h: number }[] = [];
   /** intro: the frame (titleLayout) and the buttons' size factor, the menu scale over this screen's (pickScale). */
   private L!: TitleLayout;
   private k = 1;
-  /** MOTION-2 (REQ-BFG-071): the attract fight in motion (null only with the test builds' ?motion=0 knob). */
-  motion: ArenaMotion | null = null;
+  /** CUSTOM-2a (REQ-BFG-072): a style unlocked and not yet seen in CUSTOMIZE (its button's NEW dot). */
+  newStyle = false;
+  /** MOTION-2 (REQ-BFG-071): the attract fight in motion. CUSTOM-2a (REVIEW-MOTION2 Q2): always (no ?motion=0). */
+  motion!: ArenaMotion;
 
   constructor(private game: Game) {
     this.newArena();
@@ -83,7 +83,7 @@ export class TitleScreen implements Screen {
     this.arena.quiet = true;
     this.arena.b.sides[0].hull.hp += 60; // keep the attract fight going a while
     // MOTION-2: the round's carriers and sea (display only: the display clock and PRNG, seeded like the round)
-    this.motion = !MOTION_KNOBS || MOTION.on ? new ArenaMotion(seed, ATTRACT_DAYS[this.n % ATTRACT_DAYS.length], MOTION, settings.reducedMotion) : null;
+    this.motion = new ArenaMotion(seed, ATTRACT_DAYS[this.n % ATTRACT_DAYS.length], MOTION, settings.reducedMotion);
     this.n++;
     this.overT = 0;
     this.layoutKey = "";
@@ -92,6 +92,7 @@ export class TitleScreen implements Screen {
   enter(): void {
     this.game.audio.music(null);
     this.save = loadRun();
+    this.newStyle = unseen(loadProfile()).length > 0; // CUSTOM-2a: the NEW dot (read once; CUSTOMIZE marks them seen)
   }
 
   private place(): void {
@@ -104,9 +105,8 @@ export class TitleScreen implements Screen {
     // (titleLayout.ts; before the intro job the portrait floor was whatever the logo and the panel left over)
     this.L = titleLayout(W, H, portrait, !!this.save, this.k);
     this.arena.setFrames(this.L.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
-    this.hulls = this.L.hulls;
     // MOTION-2: the drifts never close the open floor below the battle's minimum (as in a battle)
-    this.motion?.setLanes({ portrait, gap: this.L.gap }, minGap(portrait ? H : W));
+    this.motion.setLanes({ portrait, gap: this.L.gap }, minGap(portrait ? H : W));
   }
 
   /** intro tooling (read only; scripts/introcheck.mjs): the title's frame as drawn, in logical px: its scale and the
@@ -125,7 +125,7 @@ export class TitleScreen implements Screen {
   update(dt: number): void {
     this.t += dt;
     this.place();
-    this.motion?.update(dt, settings.reducedMotion); // MOTION-2: the display clock (frame time; never the sim's)
+    this.motion.update(dt, settings.reducedMotion); // MOTION-2: the display clock (frame time; never the sim's)
     this.arena.update(dt);
     if (this.arena.b.over && (this.overT += dt) > 3.2) this.newArena();
   }
@@ -135,15 +135,9 @@ export class TitleScreen implements Screen {
     const game = this.game;
     this.place();
     const m = this.motion, a = this.arena;
-    if (m) {
-      // MOTION-2 (REQ-BFG-071): the round's sea, then the carriers, boards, shots and effects in motion
-      m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, game.view.scale, game.view.dpr, m.model.seed);
-      m.draw(g, a, W, H, settings.reducedMotion);
-    } else if (MOTION_KNOBS) {
-      // ?motion=0 (test builds only): 0.9.4's floor and tracked hulls
-      this.bg.draw(g, W, H, { hulls: this.hulls, vertical: portrait, gapLine: true }, this.t, a.fx.shakeX, a.fx.shakeY);
-      drawArena(g, a, W, H);
-    }
+    // MOTION-2 (REQ-BFG-071): the round's sea, then the carriers, boards, shots and effects in motion
+    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, game.view.scale, game.view.dpr, m.model.seed);
+    m.draw(g, a, W, H, settings.reducedMotion);
     g.globalAlpha = 0.45;
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;
@@ -179,6 +173,9 @@ export class TitleScreen implements Screen {
       font: "3", active: this.help, onTap: () => this.gate(() => { this.help = !this.help; }),
     });
     button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => this.gate(() => { this.menu = true; }) });
+    // CUSTOM-2a (REQ-BFG-072, Q5): CUSTOMIZE, the third button of the row, with a NEW dot while an unlocked style is unseen
+    button(ui, g, "customize", b.customize, "CUSTOMIZE", { font: "3", onTap: () => this.gate(() => game.go(new CustomizeScreen(game))) });
+    if (this.newStyle) newDot(g, b.customize);
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
     if (this.help) this.drawHelp(g);
@@ -230,4 +227,10 @@ export class TitleScreen implements Screen {
     else if (k === "c" || k === "C") this.gate(() => this.continueRun());
     else if (k === "h" || k === "H" || k === "?") this.gate(() => { this.help = !this.help; });
   }
+}
+
+/** CUSTOM-2a (REQ-BFG-072): the NEW dot on a button's top right corner: a lime dot in an ink rim. */
+export function newDot(g: G, r: { x: number; y: number; w: number; h: number }): void {
+  rect(g, r.x + r.w - 7, r.y + 2, 5, 5, C.ink);
+  rect(g, r.x + r.w - 6, r.y + 3, 3, 3, C.lime);
 }

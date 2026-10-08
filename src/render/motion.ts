@@ -9,7 +9,7 @@
 export type SeaKind = "calm" | "storm" | "ember";
 
 /**
- * MOTION-2: the dev knobs (?motion, ?sway, ?sea, ?perf) exist only in test and dev builds: vite's dev server and vitest
+ * MOTION-2: the dev knobs (?sway, ?sea, ?perf) exist only in test and dev builds: vite's dev server and vitest
  * (import.meta.env.DEV), or a build made with VITE_MOTION_KNOBS=1 (the scripts' pages: motionshots, motionperf,
  * motiontap). Vite replaces both at build time, so a player build (npm run build, build:online) never reads the URL for
  * them: the parser below is not in its bundle.
@@ -17,8 +17,8 @@ export type SeaKind = "calm" | "storm" | "ember";
 export const MOTION_KNOBS: boolean = import.meta.env.DEV || import.meta.env.VITE_MOTION_KNOBS === "1";
 
 export interface MotionOpts {
-  /** Motion and the seas: on in every build; ?motion=0 (test builds) draws the 0.9.4 floor and tracked hulls instead. */
-  on: boolean;
+  // CUSTOM-2a (REVIEW-MOTION2 Q2): motion and the seas are the only way the game draws; the test builds' ?motion=0 knob
+  // (0.9.4's floor and tracked hulls, for comparisons) and its `on` option are gone, with the tracked hull's code.
   /** ?sway=N (test builds): the shared board sway, in degrees (|N| <= SWAY_MAX_DEG); 0, off, otherwise. */
   sway: number;
   /** ?sea=calm|storm|ember (test builds): force a setting (else the day decides). */
@@ -41,9 +41,9 @@ export const REDUCED_SCROLL = 0.25;
 
 const DEG = Math.PI / 180;
 
-/** What every player build uses: motion on, no sway, the day's sea, no overlay. */
+/** What every player build uses: no sway, the day's sea, no overlay (motion is always on). */
 export function motionDefaults(): MotionOpts {
-  return { on: true, sway: 0, sea: null, perf: false };
+  return { sway: 0, sea: null, perf: false };
 }
 
 /** The URL's dev knobs when `knobs` (a test build); otherwise the defaults, whatever the URL says. */
@@ -53,7 +53,6 @@ export function parseMotionOpts(search: string, knobs: boolean): MotionOpts {
   const sway = Number(q.get("sway") ?? 0);
   const sea = q.get("sea");
   return {
-    on: q.get("motion") !== "0",
     sway: Number.isFinite(sway) ? Math.max(-SWAY_MAX_DEG, Math.min(SWAY_MAX_DEG, sway)) : 0,
     sea: sea === "calm" || sea === "storm" || sea === "ember" ? sea : null,
     perf: q.get("perf") === "1",
@@ -91,6 +90,10 @@ export interface LaneSpec {
   portrait: boolean;
   gapRest: number;
   gapMin: number;
+  /** CUSTOM-3 (REVIEW-STAGE096 R5 b): landscape only, the margin (logical px) between the boards' outer tile columns and
+   *  the screen's side edges at rest (battleLayout.ts laneSpec). The surge carries a board outward by at most this, so no
+   *  tile column leaves the screen at any surge phase. Absent: no cap (as 0.9.6). Portrait ignores it. */
+  edge?: number;
 }
 
 /** A carrier's pose at a time: its offset from its rest place (logical px, unrounded), its heading (degrees, + = bow up
@@ -164,7 +167,9 @@ export class MotionModel {
       this.surge = SURGE_MAX;
     } else {
       this.drift = DRIFT_MAX;
-      this.surge = Math.min(SURGE_LAND, spare);
+      // CUSTOM-3: inside the boards' margin too (whole px, so the rounded offset keeps the bound)
+      const edge = spec.edge === undefined ? SURGE_LAND : Math.max(0, Math.floor(spec.edge));
+      this.surge = Math.min(SURGE_LAND, spare, edge);
     }
     // the heading follows the drift: a carrier that barely drifts barely turns
     this.bankMax = BANK_MAX_DEG * Math.min(1, this.drift / DRIFT_MAX);
@@ -276,7 +281,7 @@ export function invertAffine(m: Affine, x: number, y: number, out: number[]): nu
 }
 
 /** Per-frame ms split for ?perf=1 (and the frame-time runs): backdrop, hulls, boards, shots, effects; "world" is the
- *  whole of today's drawArena when motion is off (?motion=0&perf=1), which has no finer split. */
+ *  build screen's whole draw (CUSTOM-2a: the ?motion=0 split that also used it is gone with the knob). */
 export class MotionPerf {
   static readonly N = 240;
   readonly keys = ["backdrop", "hulls", "boards", "shots", "effects", "world"] as const;

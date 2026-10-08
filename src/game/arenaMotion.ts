@@ -18,13 +18,14 @@ import { drawText } from "../render/font";
 import { PIVOT_X, PLATE_HX, PLATE_W, foam } from "../render/carrier";
 import { dimPlate, dimShip, drawPlate, drawShip, plateBox } from "../render/ship";
 import { SEAS, SeaBackdrop } from "../render/backdrop";
+import { skinOf } from "../render/styles"; // CUSTOM-2a (REQ-BFG-072): each board's floor style (its view's skin)
 import {
   BANK_MAX_DEG, MOTION_KNOBS, MotionModel, MotionPerf, applyAffine, boardAffine, invertAffine, seaForDay,
   type Affine, type MotionOpts, type Pose, type SeaKind,
 } from "../render/motion";
 import { CRACKS_25, CRACKS_50, cracks, drawShells, type ShotMap } from "./arenaDraw";
 import type { Arena } from "./arena";
-import type { BattleLayout } from "./battleLayout";
+import { laneSpec, type BattleLayout } from "./battleLayout";
 
 const DEG = Math.PI / 180;
 /** The wake: samples (one every WAKE_DT s back in time) of where the stern was, carried off by the water. */
@@ -72,9 +73,12 @@ export class ArenaMotion implements ShotMap {
     this.perf = MOTION_KNOBS && opts.perf ? new MotionPerf() : null; // ?perf=1: test builds only
   }
 
-  /** The lanes from the battle layout: the rest gap along the firing axis and its least. */
-  setLanes(L: Pick<BattleLayout, "portrait" | "gap">, gapMin: number): void {
-    this.model.setLanes({ portrait: L.portrait, gapRest: L.gap, gapMin });
+  /** The lanes from the battle layout: the rest gap along the firing axis and its least. CUSTOM-3 (REVIEW-STAGE096 R5 b):
+   *  with the whole layout (the battle, replays), landscape also keeps the surge inside the boards' margin (laneSpec);
+   *  the title's attract fight passes its gap alone and keeps 0.9.6's lanes. */
+  setLanes(L: Pick<BattleLayout, "portrait" | "gap"> & Partial<Pick<BattleLayout, "W" | "frames">>, gapMin: number): void {
+    if (L.W !== undefined && L.frames) this.model.setLanes(laneSpec({ portrait: L.portrait, gap: L.gap, W: L.W, frames: L.frames }, gapMin));
+    else this.model.setLanes({ portrait: L.portrait, gapRest: L.gap, gapMin });
   }
 
   update(dt: number, reduced: boolean): void {
@@ -159,8 +163,9 @@ export class ArenaMotion implements ShotMap {
       const hero = a.views[s].model.hero;
       const deg = this.bankDrawn[s];
       const px = this.pivot[s][0], py = this.pivot[s][1];
-      drawShip(g, hero, px, py, deg, Math.round(this.model.pose(s, this.model.t, this.pose).bob));
-      if (a.loser === s && a.koT > 0.35) dimShip(g, hero, px, py, deg, Math.min(0.62, (a.koT - 0.35) * 1.1));
+      const carrier = skinOf(a.views[s].skin).carrier; // CUSTOM-3 (REQ-BFG-074): the player's carrier style; a foe's the default
+      drawShip(g, hero, px, py, deg, Math.round(this.model.pose(s, this.model.t, this.pose).bob), carrier);
+      if (a.loser === s && a.koT > 0.35) dimShip(g, hero, px, py, deg, Math.min(0.62, (a.koT - 0.35) * 1.1), carrier);
     }
     if (P) { const t1 = now(); P.add(1, t1 - t0); t0 = t1; }
     // boards, each under its gimbal's transform: today's drawing code, at rest
@@ -175,7 +180,7 @@ export class ArenaMotion implements ShotMap {
       g.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
       const f = a.drawn[s];
       const r = plateBox(g, f, this.pr);
-      drawPlate(g, v.model.hero, f.facing, r);
+      drawPlate(g, v.model.hero, f.facing, r, skinOf(v.skin).floor); // CUSTOM-2a: the plate cut with this board's floor
       if (v.flash && v.flash > 0.05 && !reduced) {
         rect(g, r.x, r.y, r.w, 1, C.white); rect(g, r.x, r.y + r.h - 1, r.w, 1, C.white);
         rect(g, r.x, r.y, 1, r.h, C.white); rect(g, r.x + r.w - 1, r.y, 1, r.h, C.white);

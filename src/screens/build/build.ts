@@ -1,6 +1,8 @@
 // Build phase: shop cards -> the cruiser at centre stage -> cargo tray, FIGHT beside the
 // bow. Drag and drop or tap-to-place; contextual cues replace the old instruction text.
 
+import { playerSkin } from "../../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
+import type { Skin } from "../../render/styles"; // CUSTOM-2a
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
 import { buyPack } from "../../game/run"; // bb-0.8.6 (REQ-BFG-051 P5)
@@ -25,10 +27,9 @@ import { frame, rect, type G } from "../../render/pixel";
 import { drawText } from "../../render/font";
 import { footX, footY } from "../../render/frame";
 import { itemIcon } from "../../render/sprites";
-import { cruiserModel, drawHull, drawTurrets, turretPivotX, turretPivotY, type CruiserModel, type CruiserView } from "../../render/cruiser";
+import { cruiserModel, drawTurrets, turretPivotX, turretPivotY, type CruiserModel, type CruiserView } from "../../render/cruiser";
 import { drawMachinery } from "../../render/machinery";
 import { drawLevelMark, levelMarks, type LevelMark } from "../../render/levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks
-import { ArenaBg } from "../../render/arenaBg";
 import { SeaBackdrop } from "../../render/backdrop"; // MOTION-2 (REQ-BFG-071): the day's sea behind the build screen
 import { MOTION, MOTION_KNOBS, MotionPerf, seaForDay, stillSeaSeed } from "../../render/motion";
 import { drawStillCarrier } from "../../render/ship"; // MOTION-2: the player's ship around the board
@@ -99,7 +100,9 @@ export class BuildScreen implements Screen, EditHost {
   foe: DuskFoe;
   private model: CruiserModel;
   private view: CruiserView;
-  private bg = new ArenaBg();
+  /** CUSTOM-2a (REQ-BFG-072, R11): the player's styles, read once: the board (floor, belts) and the part panel with its
+   *  idle forms (Ctx.skin) wear them. */
+  readonly skin: Skin = playerSkin();
   /** MOTION-2 (REQ-BFG-071): the day's sea, held still (one cached blit a frame). */
   private sea = new SeaBackdrop();
   /** MOTION-2 (?perf=1, test builds only): the frame-time split (backdrop, hulls: the ship and plate, boards: machinery,
@@ -117,7 +120,7 @@ export class BuildScreen implements Screen, EditHost {
     this.L = this.layout();
     this.ed = new Editor(this);
     this.model = cruiserModel(this.run.build);
-    this.view = { side: 0, build: this.run.build, model: this.model, frame: this.L.frame, t: 0, tread: 0 };
+    this.view = { side: 0, build: this.run.build, model: this.model, frame: this.L.frame, t: 0, tread: 0, skin: this.skin };
   }
 
   /** zoom (REQ-BFG-040): a portrait phone's layout (layout.ts phoneScreen, told by the view pickScale last framed). */
@@ -427,13 +430,11 @@ export class BuildScreen implements Screen, EditHost {
     ({ block: this.block, broken: this.broken } = routeCheck(this.run.build));
     // MOTION-2 (REQ-BFG-071): one world on every screen. The day's sea, held still (still under REDUCED MOTION too), and
     // the player's own ship drawn around the board's rectangle: the board's tile size, position, taps and drags are
-    // 0.9.4's (L.frame), only the hull under it changed. ?motion=0 (test builds only) draws 0.9.4's floor and tracked hull.
-    const still = !MOTION_KNOBS || MOTION.on;
+    // 0.9.4's (L.frame), only the hull under it changed. CUSTOM-2a (REVIEW-MOTION2 Q2): the only look (no ?motion=0).
     const P = MOTION_KNOBS ? this.perf : null; // ?perf=1 (test builds only): the frame-time split
     const tw = P ? performance.now() : 0;
     let t0 = tw;
-    if (still) this.sea.drawStill(g, { W, H, kind: seaForDay(this.run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(this.run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
-    else this.bg.draw(g, W, H, { hulls: [L.hull], vertical: portrait, gapLine: false, pad: L.pad }, this.t);
+    this.sea.drawStill(g, { W, H, kind: seaForDay(this.run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(this.run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
     if (P) { const t1 = performance.now(); P.add(0, t1 - t0); t0 = t1; }
     const ghost = this.ed.ghost();
     // free connectors glow while drawing, with no belt fed, or when a belt goes nowhere
@@ -454,8 +455,7 @@ export class BuildScreen implements Screen, EditHost {
     const bump = this.thunkT > 0.07 ? 1 : 0;
     if (bump) g.translate(0, bump);
     if (P) t0 = performance.now();
-    if (still) drawStillCarrier(g, v.model.hero, L.frame);
-    else if (MOTION_KNOBS) drawHull(g, v);
+    drawStillCarrier(g, v.model.hero, L.frame, 0, this.skin.floor, this.skin.carrier); // CUSTOM-3 (REQ-BFG-074): your carrier style
     if (P) { const t1 = performance.now(); P.add(1, t1 - t0); t0 = t1; }
     drawMachinery(g, v);
     this.drawBroken(g);

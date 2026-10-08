@@ -28,6 +28,7 @@ import { battleSeed, newRun, pendingRune, saveRun, SAVE_KEY, takeRune } from "..
 import { duskFoe, finishDay, ghostOf, startDusk, storedFoe } from "../src/game/day";
 import { GHOST_KEY, loadPool, saveGhost, standInFoe } from "../src/game/ghosts";
 import { PLAYER_KEY } from "../src/game/ghostSnapshot";
+import { PROFILE_KEY } from "../src/game/profile"; // CUSTOM-2a (REQ-BFG-072): the one profile key (REVIEW-CUSTOM1 Q1, turn 9ecab1cc78e896d5)
 import { Online, resolveServerUrl, type OnlineDeps } from "../src/game/online";
 import { foeNote, online, onlineMode } from "../src/game/session";
 import type { Identity } from "../src/net/identity";
@@ -285,7 +286,8 @@ describe("offline play makes no request (no server URL)", () => {
       }
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(idb).toBe(0);
-      expect(store.keys().every((k) => [SAVE_KEY, GHOST_KEY, PLAYER_KEY].includes(k))).toBe(true);
+      // CUSTOM-2a (REQ-BFG-072): decision D3 amended for exactly one more offline key, the profile (REVIEW-CUSTOM1 Q1, turn 9ecab1cc78e896d5)
+      expect(store.keys().every((k) => [SAVE_KEY, GHOST_KEY, PLAYER_KEY, PROFILE_KEY].includes(k))).toBe(true);
     } finally {
       fetchSpy.mockRestore();
       delete (globalThis as { indexedDB?: unknown }).indexedDB;

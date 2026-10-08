@@ -3,9 +3,9 @@
 // 0.8.0 H1 (REQ-BFG-011, REQ-BFG-032): every playable hero (PLAYABLE_HEROES: FURNACE, WEAVER, FOUNDRY, BASTION), each with
 // its portrait beside its name and its trick in one plain sentence built from the real values (abilityText.ts heroTrick).
 
+import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
-import { drawArena } from "../game/arenaDraw";
 import { newRun, saveRun } from "../game/run";
 import { AMMO, HEROES, ITEMS, type HeroId } from "../sim/content";
 import { turretSlots } from "../sim/deck"; // 0.6.2s (REQ-BFG-031)
@@ -13,8 +13,7 @@ import { PLAYABLE_HEROES, heroStartBuild } from "../sim/heroBuilds";
 import { C, FACTION } from "../render/palette";
 import { frame, rect, type G } from "../render/pixel";
 import { drawText, wrap } from "../render/font";
-import { HULL_A, HULL_L, frameForHull, hullBox } from "../render/frame";
-import { ArenaBg } from "../render/arenaBg";
+import { HULL_A, HULL_L, frameForHull } from "../render/frame";
 import { portraitImage, type PortraitHero } from "../render/portraits";
 import { heroTrick } from "../ui/abilityText";
 import { heroFace, heroPlaystyle, ruleSpans } from "../ui/faces"; // U2a (REQ-BFG-046): a TEXT hero's face
@@ -23,7 +22,7 @@ import { button, panel, para } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { TitleScreen } from "./title";
 import { ArenaMotion } from "../game/arenaMotion"; // MOTION-2 (REQ-BFG-071): the hero's ship, held still on the sea
-import { MOTION, MOTION_KNOBS, stillSeaSeed } from "../render/motion";
+import { MOTION, stillSeaSeed } from "../render/motion";
 import { settings } from "../core/settings";
 
 /** The carousel's heroes, in roster order (tests and tooling read it). */
@@ -39,9 +38,8 @@ export class HeroScreen implements Screen {
   private t = 0;
   private swipe: { x: number; y: number } | null = null;
   private slide = 0; // carousel slide-in offset
-  private bg = new ArenaBg();
-  /** MOTION-2 (REQ-BFG-071): the preview's ship, held still on day 1's sea (null only with the test builds' ?motion=0). */
-  motion: ArenaMotion | null = null;
+  /** MOTION-2 (REQ-BFG-071): the preview's ship, held still on day 1's sea. CUSTOM-2a (REVIEW-MOTION2 Q2): always. */
+  motion!: ArenaMotion;
 
   constructor(private game: Game) {
     this.preview();
@@ -55,8 +53,9 @@ export class HeroScreen implements Screen {
     this.arena = new Arena(heroStartBuild(id, 1), dummy, 77 + this.i, null);
     this.arena.quiet = true;
     this.arena.show = [true, false];
+    this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): the hero preview wears your styles
     // MOTION-2: a run starts on day 1, so the preview's sea is day 1's (CALM SEA); the ship is held still
-    this.motion = !MOTION_KNOBS || MOTION.on ? new ArenaMotion(stillSeaSeed(1), 1, MOTION, settings.reducedMotion, true) : null;
+    this.motion = new ArenaMotion(stillSeaSeed(1), 1, MOTION, settings.reducedMotion, true);
   }
 
   /** Tooling (bb.hero()): the hero on show and the roster. */
@@ -93,7 +92,7 @@ export class HeroScreen implements Screen {
   update(dt: number): void {
     this.t += dt;
     this.slide *= Math.pow(0.001, dt);
-    this.motion?.update(dt, settings.reducedMotion); // MOTION-2: held still (the clock runs; nothing moves)
+    this.motion.update(dt, settings.reducedMotion); // MOTION-2: held still (the clock runs; nothing moves)
     this.arena.update(dt);
     if (this.arena.b.t > 18 || this.arena.b.over) this.preview();
   }
@@ -134,15 +133,9 @@ export class HeroScreen implements Screen {
     const pf = frameForHull(0, hx, hy);
     this.arena.setFrames([pf, frameForHull(2, hx, hy - 400)], [[0, 1], [0, -1]]);
     const m = this.motion;
-    if (m) {
-      // MOTION-2 (REQ-BFG-071): one world on every screen: the hero's own ship, held still on the sea, its board on top
-      m.drawSea(g, W, H, 0, 0, game.view.scale, game.view.dpr, m.model.seed);
-      m.draw(g, this.arena, W, H, settings.reducedMotion);
-    } else if (MOTION_KNOBS) {
-      // ?motion=0 (test builds only): 0.9.4's floor and tracked hull
-      this.bg.draw(g, W, H, { hulls: [hullBox(frameForHull(0, hx0, hy))], vertical: true, gapLine: false, pad: { x: hx0 - 6, y: hy - 6, w: HULL_A + 12, h: HULL_L + 12 } }, this.t);
-      drawArena(g, this.arena, W, H);
-    }
+    // MOTION-2 (REQ-BFG-071): one world on every screen: the hero's own ship, held still on the sea, its board on top
+    m.drawSea(g, W, H, 0, 0, game.view.scale, game.view.dpr, m.model.seed);
+    m.draw(g, this.arena, W, H, settings.reducedMotion);
     g.restore();
     button(ui, g, "prev", { x: px0 - 2, y: py0 + ph / 2 - 12, w: 16, h: 24 }, "<", { onTap: () => this.shift(-1) });
     button(ui, g, "next", { x: px0 + pw - 14, y: py0 + ph / 2 - 12, w: 16, h: 24 }, ">", { onTap: () => this.shift(1) });

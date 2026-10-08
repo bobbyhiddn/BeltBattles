@@ -21,6 +21,7 @@ import { stokeFlare, wave3ChuteMouth, wave3FactoryArt, wave3GateSprite } from ".
 import { factoryMoment, rigMoment, stokedNow } from "./wave3Moments"; // 0.8.0 I1 M4: A1's battle moments, from P1's sim
 import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the hero factory's FACTORY level
 import type { CruiserView, RigModel } from "./cruiser";
+import { skinOf, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook; CUSTOM-2a: the board's belt style (its view's skin)
 
 /** 0.6.1d2: two cosmetic, build-screen-only cues threaded through CruiserView without touching
  *  cruiser.ts (0.6.1b's custody): the survivor ring (which deck twin a hovered/selected shop offer
@@ -60,16 +61,16 @@ function pointAt(pts: { x: number; y: number }[], s: number): void {
 
 type Variant = "normal" | "warn" | "dead";
 
-function beltCell(g: G, f: DeckFrame, x: number, y: number, din: number, dout: number, phase: number, variant: Variant, tint: BeltTint = "n"): void {
+function beltCell(g: G, f: DeckFrame, x: number, y: number, din: number, dout: number, phase: number, variant: Variant, tint: BeltTint = "n", style: BeltId = "iron"): void {
   const si = sdir(f, din), so = sdir(f, dout);
   const fr = ((Math.floor(phase) % BELT_PERIOD) + BELT_PERIOD) % BELT_PERIOD;
   const a = opposite(si as Dir);
   if (a === opposite(so as Dir)) {
-    g.drawImage(beltStraight(so, fr, variant, tint), x, y);
+    g.drawImage(beltStraight(so, fr, variant, tint, style), x, y);
   } else {
-    g.drawImage(beltCorner(a, so, fr, variant, tint), x, y);
+    g.drawImage(beltCorner(a, so, fr, variant, tint, style), x, y);
     const right = so === (si + 1) % 4;
-    g.drawImage(turntable(Math.floor(phase / 6) * (right ? 1 : -1), variant), x, y);
+    g.drawImage(turntable(Math.floor(phase / 6) * (right ? 1 : -1), variant, style), x, y);
   }
 }
 
@@ -137,7 +138,7 @@ function drawBelts(g: G, v: CruiserView): void {
       // chevrons keep its own pace, neutral (chevronSpeed, chevronTint)
       const state = sr ? sr.speedAt[i] : rm.speeds[i];
       const phase = phases ? phases[i] : v.t * BELT_SPEED * chevronSpeed(rm.speeds[i], rm.fixed);
-      beltCell(g, f, x, y, rm.din[i], rm.dout[i], phase, variant, chevronTint(state, rm.fixed));
+      beltCell(g, f, x, y, rm.din[i], rm.dout[i], phase, variant, chevronTint(state, rm.fixed), skinOf(v.skin).belt);
       if (sr && sr.cellDisrupt[i] > 0) shock(g, x, y, v.t);
     }
     if (!rm.connected && !rm.join && rm.cells.length) { // 0.6.2j: a joining belt runs on into its main belt
@@ -203,7 +204,7 @@ function drawGhost(g: G, v: CruiserView): void {
   for (let i = 0; i < gh.cells.length; i++) {
     const k = gh.cells[i];
     const x = Math.round(footX(f, kx(k), ky(k))), y = Math.round(footY(f, kx(k), ky(k)));
-    beltCell(g, f, x, y, dirs[i].din, dirs[i].dout, v.t * BELT_SPEED * 1.5, gh.connected ? "normal" : "warn");
+    beltCell(g, f, x, y, dirs[i].din, dirs[i].dout, v.t * BELT_SPEED * 1.5, gh.connected ? "normal" : "warn", "n", skinOf(v.skin).belt);
     frameRect(g, x, y, 12, 12, gh.connected ? C.lime : blink ? C.yellow : C.amber);
   }
   if (link) {

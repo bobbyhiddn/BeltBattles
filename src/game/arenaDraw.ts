@@ -1,17 +1,15 @@
-// Arena drawing: cruisers, scorch decals and damage cracks, machinery and turrets, shells
-// with arcs and trails, particles, damage numbers, the dark wind and screen flashes. The
-// camera shake is one integer translate around the world layer (STUDY rule 1).
+// Arena drawing helpers: damage cracks, shells with arcs and trails, and the arena's views. game/arenaMotion.ts draws the
+// arena (carriers, boards, effects, numbers, the dark wind and screen flashes) with them.
+// CUSTOM-2a (REVIEW-MOTION2 Q2): drawArena (the tracked hulls on 0.9.4's floor, the test builds' ?motion=0 path) is gone;
+// the cracks and shells it owned stay here, for the motion code.
 
-import { settings } from "../core/settings";
 import { AMMO, HEROES } from "../sim/content";
 import { payloadDamage } from "../sim/deck";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { hullX, hullY, sx, sy, type DeckFrame } from "../render/frame";
-import { drawDim, drawHull, drawTurrets, muzzleX, muzzleY, type CruiserView } from "../render/cruiser";
-import { drawMachinery } from "../render/machinery";
+import { muzzleX, muzzleY, type CruiserView } from "../render/cruiser";
 import { flameCone, heatTier, pelletSprite, shadowDisc, shellSprite, trailColors, volleySprite } from "../render/ammo";
-import { drawWind } from "../render/world";
 import type { Side } from "../sim/battle";
 import type { Arena } from "./arena";
 
@@ -38,51 +36,6 @@ export function cracks(g: G, f: DeckFrame, list: number[][], hx0 = -Infinity, hx
         hy += c[i + 1];
       }
     }
-  }
-}
-
-export function drawArena(g: G, a: Arena, W: number, H: number): void {
-  const b = a.b;
-  const ox = a.fx.shakeX, oy = a.fx.shakeY;
-  g.translate(ox, oy);
-  const views = a.views;
-  for (let s = 0; s < 2; s++) {
-    if (!a.show[s]) continue;
-    const v = views[s];
-    v.t = a.clock;
-    v.tread = a.tread;
-    v.flash = b.sides[s].hull.flash;
-    drawHull(g, v);
-  }
-  a.fx.drawDecals(g, 0, 0);
-  for (let s = 0; s < 2; s++) {
-    if (!a.show[s]) continue;
-    const hp = b.sides[s].hull.hp / b.sides[s].hull.max;
-    if (hp < 0.5) cracks(g, a.drawn[s], CRACKS_50);
-    if (hp < 0.25) cracks(g, a.drawn[s], CRACKS_25);
-  }
-  for (let s = 0; s < 2; s++) {
-    if (!a.show[s]) continue;
-    const v = views[s];
-    drawMachinery(g, v);
-    drawTurrets(g, v);
-    if (a.loser === v.side && a.koT > 0.35) drawDim(g, v, Math.min(0.62, (a.koT - 0.35) * 1.1));
-  }
-  for (let s = 0; s < 2; s++) for (const charge of b.sides[s].limpets) {
-    const x = Math.round(sx(a.drawn[s], charge.target.x, charge.target.y));
-    const y = Math.round(sy(a.drawn[s], charge.target.x, charge.target.y));
-    const blink = Math.floor(a.clock * 8) % 2 === 0 ? C.fire4 : C.red;
-    rect(g, x - 2, y - 2, 5, 5, C.ink); rect(g, x - 1, y - 1, 3, 3, blink);
-  }
-  if (!b.over) drawShells(g, a);
-  a.fx.draw(g, 0, 0);
-  a.fx.drawPops(g, 0, 0);
-  g.translate(-ox, -oy);
-  drawWind(g, b.windLevel() * Math.max(0, 1 - a.overT / 1.2), W, H, a.clock);
-  if (a.fx.flash > 0 && !settings.reducedMotion) {
-    g.globalAlpha = Math.min(0.5, a.fx.flash);
-    rect(g, 0, 0, W, H, a.fx.flashColor);
-    g.globalAlpha = 1;
   }
 }
 

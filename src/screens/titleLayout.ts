@@ -22,6 +22,9 @@ import { VERSION } from "../version";
 export const TITLE_GAP_SHARE = 0.2;
 /** Portrait: logical px kept clear between a cruiser and the logo band or the command panel. */
 export const TITLE_CLEAR = 6;
+/** CUSTOM-2a (REQ-BFG-072): the CUSTOMIZE button's least width (logical px): its word in the 3x5 face (35 px), a margin
+ *  and room for the NEW dot. */
+export const CUSTOMIZE_MIN = 40;
 
 export interface TitleLayout {
   W: number;
@@ -35,7 +38,10 @@ export interface TitleLayout {
   logo: Box;
   sound: Box;
   panel: Box;
-  buttons: { new: Box; cont: Box | null; help: Box; options: Box };
+  /** CUSTOM-2a (REQ-BFG-072, REVIEW-CUSTOM1 Q5): `customize`, the CUSTOMIZE button, a third button in the HOW TO PLAY /
+   *  OPTIONS row (a full-width row of its own made the panel taller, and the 360x640 phone's cruisers then fit at no
+   *  scale: REPORT section 7). HOW TO PLAY and OPTIONS keep their size; the panel is wider by CUSTOMIZE's slot. */
+  buttons: { new: Box; cont: Box | null; help: Box; options: Box; customize: Box };
   /** The version line, right-aligned at the bottom right. */
   version: Box;
   frames: [DeckFrame, DeckFrame];
@@ -62,7 +68,12 @@ export function titleLayout(W: number, H: number, portrait: boolean, save: boole
   const logo = { x: 0, y: ly - 6, w: W, h: 44 };
   // the command panel: NEW RUN, CONTINUE (a saved run), then HOW TO PLAY beside OPTIONS (0350e5f: 132 wide, the two
   // half buttons 64 each; at k > 1 wide enough for two u(64) halves too, so neither half shrinks either)
-  const bw = Math.min(W - 24, Math.max(u(132), 2 * u(64) + 4)), bh = u(22), ch = u(28), hh = u(18);
+  // CUSTOM-2a (REQ-BFG-072, Q5): HOW TO PLAY and OPTIONS keep 0350e5f's halves (hw); CUSTOMIZE, a third button beside
+  // them, takes u(48) where the screen has room and never less than CUSTOMIZE_MIN (its word and the NEW dot); the panel
+  // (and NEW RUN and CONTINUE with it) is that much wider. Its height, and so the cruisers' room, is unchanged
+  const bw0 = Math.min(W - 24, Math.max(u(132), 2 * u(64) + 4)), hw = Math.floor((bw0 - 4) / 2);
+  const cw = Math.max(CUSTOMIZE_MIN, Math.min(u(48), W - 24 - (2 * hw + 8)));
+  const bw = 2 * hw + 8 + cw, bh = u(22), ch = u(28), hh = u(18);
   const ph = 8 + bh + 6 + (save ? ch + 6 : 0) + hh + 10;
   const px = Math.round(W / 2 - (bw + 16) / 2);
   const py = portrait ? H - ph - 10 : H - ph - Math.max(8, Math.round(H * 0.05));
@@ -75,8 +86,10 @@ export function titleLayout(W: number, H: number, portrait: boolean, save: boole
     bCont = { x: bx, y: by, w: bw, h: ch };
     by += ch + 6;
   }
-  const hw = Math.floor((bw - 4) / 2);
-  const buttons = { new: bNew, cont: bCont, help: { x: bx, y: by, w: hw, h: hh }, options: { x: bx + hw + 4, y: by, w: bw - hw - 4, h: hh } };
+  const buttons = {
+    new: bNew, cont: bCont, help: { x: bx, y: by, w: hw, h: hh }, options: { x: bx + hw + 4, y: by, w: hw, h: hh },
+    customize: { x: bx + 2 * (hw + 4), y: by, w: cw, h: hh },
+  };
   const panel = { x: px, y: py, w: bw + 16, h: ph };
   const vw = textWidth(`V${VERSION}`, "3");
   const version = { x: W - 4 - vw, y: H - 8, w: vw, h: 5 };

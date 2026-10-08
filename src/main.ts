@@ -26,6 +26,8 @@ import { EventScreen } from "./screens/event/event";
 import type { Arena } from "./game/arena";
 import { onlineSession, resolveServerUrl, startOnline } from "./game/online";
 import { ReplayScreen } from "./screens/replay";
+import { CustomizeScreen } from "./screens/customize"; // CUSTOM-2a (REQ-BFG-072) tooling
+import { chosenSkin, loadProfile, unseen } from "./game/profile"; // CUSTOM-2a (REQ-BFG-072) tooling (read only)
 import { currentName } from "./game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063) tooling
 import { runeGrants } from "./sim/runes"; // RUNES-1 (REQ-BFG-058) tooling
 import { MOTION, MOTION_KNOBS } from "./render/motion"; // MOTION-1 (REQ-BFG-071) tooling
@@ -59,6 +61,7 @@ game.start();
   version: VERSION,
   open(screen: string, hero: HeroId = "furnace", seed = 12345): void {
     if (screen === "title") return game.go(new TitleScreen(game));
+    if (screen === "customize") return game.go(new CustomizeScreen(game)); // CUSTOM-2a (REQ-BFG-072)
     if (screen === "hero") return game.go(new HeroScreen(game));
     game.run = game.run ?? newRun(hero, seed);
     if (screen === "build") return game.go(new BuildScreen(game));
@@ -244,13 +247,20 @@ game.start();
     const s = game.screen;
     return s instanceof HeroScreen ? s.showHero(id) : false;
   },
+  /** CUSTOM-2a (REQ-BFG-072) tooling (read only): the stored profile (seeded if absent), what the player wears, the
+   *  unlocks not yet seen, and CUSTOMIZE's state and layout when it is up. */
+  profile() {
+    const p = loadProfile();
+    const s = game.screen;
+    return { profile: p, wears: chosenSkin(p), unseen: unseen(p), customize: s instanceof CustomizeScreen ? s.info() : null };
+  },
   /** Current screen name (for harness assertions). */
   screen(): string {
     const s = game.screen;
     return s instanceof TitleScreen ? "title" : s instanceof HeroScreen ? "hero" : s instanceof BuildScreen ? "build"
       : s instanceof BattleScreen ? (s.kind === "warlord" ? "warlord" : "battle") : s instanceof SummaryScreen ? "summary"
       : s instanceof EventScreen ? "event" : s instanceof ForkScreen ? "fork" : s instanceof ReplayScreen ? "replay"
-      : s instanceof DuskWaitScreen ? "duskwait" : "?";
+      : s instanceof DuskWaitScreen ? "duskwait" : s instanceof CustomizeScreen ? "customize" : "?";
   },
   /** 0.7.0a tooling (read only): the online session, or null when offline (no server URL). No key, no signature. */
   online() {
@@ -292,7 +302,6 @@ game.start();
     const m = s instanceof BattleScreen ? s.motion : null;
     const base = {
       knobs: MOTION_KNOBS, opts: { ...MOTION }, on: !!m, phase: s instanceof BattleScreen ? s.phase : null,
-      offPerf: s instanceof BattleScreen && s.offPerf ? s.offPerf.totals() : null,
     };
     if (s instanceof BuildScreen && s.perf) return { ...base, perf: s.perf.mean(), perfTotals: s.perf.totals() };
     const om = s instanceof TitleScreen || s instanceof ReplayScreen ? s.motion : null;

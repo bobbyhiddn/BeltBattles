@@ -196,9 +196,11 @@ describe("MOTION-1 display math (REQ-BFG-071)", () => {
   it("MOTION-2: motion is the game; the player build ignores the knobs; a test build reads them", () => {
     // vitest is a dev build (import.meta.env.DEV), so the knobs exist here; a player build has neither DEV nor
     // VITE_MOTION_KNOBS=1, so MOTION_KNOBS is false there and MOTION is the defaults (the bundle grep is in the REPORT)
+    // CUSTOM-2a (REVIEW-MOTION2 Q2): the ?motion=0 knob and its `on` option are gone (motion is the only way the game
+    // draws), so no build, test builds included, can turn motion off from the URL
     expect(MOTION_KNOBS).toBe(true);
-    expect(MOTION).toEqual({ on: true, sway: 0, sea: null, perf: false }); // no location in node: the defaults
-    expect(motionDefaults()).toEqual({ on: true, sway: 0, sea: null, perf: false });
+    expect(MOTION).toEqual({ sway: 0, sea: null, perf: false }); // no location in node: the defaults
+    expect(motionDefaults()).toEqual({ sway: 0, sea: null, perf: false });
     for (const q of ["?motion=0&sway=3&sea=storm&perf=1", "?motion=0", "?sway=-3", "?sea=ember", "?perf=1", ""]) {
       expect(parseMotionOpts(q, false), q).toEqual(motionDefaults()); // the player build: the URL changes nothing
     }
@@ -207,13 +209,13 @@ describe("MOTION-1 display math (REQ-BFG-071)", () => {
     expect(src).toMatch(/export const MOTION_KNOBS: boolean = import\.meta\.env\.DEV \|\| import\.meta\.env\.VITE_MOTION_KNOBS === "1";/);
     // the page's options call the parser only behind MOTION_KNOBS, so a player bundle drops it
     expect(src).toMatch(/export const MOTION: MotionOpts = MOTION_KNOBS && [^\n]*\? parseMotionOpts\(location\.search, true\) : motionDefaults\(\);/);
-    expect(parseMotionOpts("", true)).toEqual({ on: true, sway: 0, sea: null, perf: false });
-    expect(parseMotionOpts("?motion=0", true).on).toBe(false);
-    expect(parseMotionOpts("?motion=1", true).on).toBe(true);
+    expect(parseMotionOpts("", true)).toEqual({ sway: 0, sea: null, perf: false });
+    expect(parseMotionOpts("?motion=0", true)).toEqual(motionDefaults()); // CUSTOM-2a: the knob is gone, even in a test build
+    expect(parseMotionOpts("?motion=1", true)).toEqual(motionDefaults());
     expect(parseMotionOpts("?sway=9", true).sway).toBe(3);
     expect(parseMotionOpts("?sway=-9", true).sway).toBe(-3);
     expect(parseMotionOpts("?sway=x", true).sway).toBe(0);
-    expect(parseMotionOpts("?sea=ember&perf=1", true)).toEqual({ on: true, sway: 0, sea: "ember", perf: true });
+    expect(parseMotionOpts("?sea=ember&perf=1", true)).toEqual({ sway: 0, sea: "ember", perf: true });
     expect(parseMotionOpts("?sea=lava", true).sea).toBe(null);
   });
 

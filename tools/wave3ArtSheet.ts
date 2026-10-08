@@ -19,7 +19,8 @@ import { makeCanvas, rect, type G } from "../src/render/pixel";
 import { drawText } from "../src/render/font";
 import { frameForHull } from "../src/render/frame";
 import { factoryFlashSil, factorySprite, gateSil, gateSprite, itemIcon } from "../src/render/sprites";
-import { cruiserModel, drawHull, drawTurrets, turretPivotX, turretPivotY, type CruiserView } from "../src/render/cruiser";
+import { cruiserModel, drawTurrets, turretPivotX, turretPivotY, type CruiserView } from "../src/render/cruiser";
+import { drawDeckHull } from "./stillDraw"; // CUSTOM-2a: drawHull (the tracked hull) is gone
 import { drawMachinery } from "../src/render/machinery";
 import { PORTRAIT_KEYS, WAVE3_NPC_IDS, portraitPixels, type PortraitKey } from "../src/render/portraits";
 import {
@@ -82,7 +83,7 @@ function deck(b: Build, facing: 0 | 2, t = 0.4): HTMLCanvasElement {
   rect(g, 0, 0, 176, 184, C.soil1);
   const f = facing === 0 ? frameForHull(0, 10, 32) : frameForHull(2, 10, 12);
   const v: CruiserView = { side: facing === 0 ? 0 : 1, build: b, model: cruiserModel(b), frame: f, t, tread: 0 };
-  drawHull(g, v);
+  drawDeckHull(g, v);
   drawMachinery(g, v);
   drawTurrets(g, v);
   return cv;

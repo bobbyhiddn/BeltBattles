@@ -114,7 +114,8 @@ async function ignored(browser) {
   const m = await page.evaluate(() => window.bb.motion());
   log(`\n== knobs ignored (${q}) on ${PAGE}: knobs ${m.knobs}, opts ${JSON.stringify(m.opts)}, on ${m.on}, sea ${m.sea}, perf ${JSON.stringify(m.perf)}, boards [${m.poses.map((p) => p.board)}]`);
   check(m.knobs === false, `knobs ignored: the player build has no knobs (MOTION_KNOBS false)`);
-  check(JSON.stringify(m.opts) === JSON.stringify({ on: true, sway: 0, sea: null, perf: false }), `knobs ignored: the options are the defaults whatever the URL says: ${JSON.stringify(m.opts)}`);
+  // CUSTOM-2a (REVIEW-MOTION2 Q2): the options have no `on` (the ?motion=0 knob is gone from every build)
+  check(JSON.stringify(m.opts) === JSON.stringify({ sway: 0, sea: null, perf: false }), `knobs ignored: the options are the defaults whatever the URL says: ${JSON.stringify(m.opts)}`);
   check(m.on === true && m.sea === "calm", `knobs ignored: ?motion=0 and ?sea=ember change nothing: motion on ${m.on}, day 2's sea ${m.sea}`);
   check(m.perf === null && m.poses.every((p) => p.board === 0), `knobs ignored: ?perf=1 and ?sway=3 change nothing: perf ${JSON.stringify(m.perf)}, board angles [${m.poses.map((p) => p.board)}]`);
   check(errors.length === 0, `knobs ignored: console errors ${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""}`);

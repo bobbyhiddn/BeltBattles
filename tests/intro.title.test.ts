@@ -4,7 +4,8 @@ import { GAP_SHARE, arenaIn, minGap } from "../src/game/battleLayout";
 import { HULL_L, type Box } from "../src/render/frame";
 import { wrap } from "../src/render/font";
 import { HELP } from "../src/screens/title";
-import { TITLE_GAP_SHARE, helpCard, titleLayout, titleScale } from "../src/screens/titleLayout";
+import { CUSTOMIZE_MIN, TITLE_GAP_SHARE, helpCard, titleLayout, titleScale } from "../src/screens/titleLayout";
+import { textWidth } from "../src/render/font"; // CUSTOM-2a: the CUSTOMIZE word fits its button
 
 // intro (BeltBattles 0.8.0, REQ-BFG-038): "The intro screen's battle also has the two carriers too close." The title
 // frames itself (src/screens/titleLayout.ts): the open floor between its two cruisers is at least the battle's GAP_SHARE
@@ -59,6 +60,25 @@ function oldTitle(W: number, H: number, portrait: boolean, save: boolean) {
   };
 }
 
+/** CUSTOM-2a (REQ-BFG-072, REVIEW-CUSTOM1 Q5): 0350e5f's title (k = 1) with CUSTOMIZE as a third button in the HOW TO
+ *  PLAY / OPTIONS row: HOW TO PLAY and OPTIONS keep their size and row; CUSTOMIZE takes 48 px (never under
+ *  CUSTOMIZE_MIN) beside them; the panel, NEW RUN and CONTINUE are wider by its slot and stay centred. The panel keeps its
+ *  height, so the cruisers keep their room (titleScale is unchanged on every touchcheck phone: REPORT section 7). */
+function withCustomize(o: ReturnType<typeof oldTitle>, W: number) {
+  const hw = o.buttons.help.w;
+  const cw = Math.max(CUSTOMIZE_MIN, Math.min(48, W - 24 - (2 * hw + 8)));
+  const bw = 2 * hw + 8 + cw;
+  const px = Math.round(W / 2 - (bw + 16) / 2), bx = px + 8;
+  return {
+    ly: o.ly, sound: o.sound, panel: { ...o.panel, x: px, w: bw + 16 },
+    buttons: {
+      new: { ...o.buttons.new, x: bx, w: bw }, cont: o.buttons.cont ? { ...o.buttons.cont, x: bx, w: bw } : null,
+      help: { ...o.buttons.help, x: bx }, options: { ...o.buttons.options, x: bx + hw + 4, w: hw },
+      customize: { x: bx + 2 * (hw + 4), y: o.buttons.help.y, w: cw, h: o.buttons.help.h },
+    },
+  };
+}
+
 /** 0350e5f's HOW TO PLAY card (title.ts drawHelp). */
 function oldHelp(W: number, H: number) {
   const w = Math.min(W - 16, 300);
@@ -85,7 +105,7 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
         const [hp, he] = L.hulls;
         expect(v.portrait ? hp.y - (he.y + he.h) : he.x - (hp.x + hp.w)).toBe(L.gap);
         // both cruisers on screen, clear of the logo band, the panel and every button, the sound button and the version
-        const ui = [L.logo, L.panel, L.sound, L.version, L.buttons.new, L.buttons.help, L.buttons.options, ...(L.buttons.cont ? [L.buttons.cont] : [])];
+        const ui = [L.logo, L.panel, L.sound, L.version, L.buttons.new, L.buttons.help, L.buttons.options, L.buttons.customize, ...(L.buttons.cont ? [L.buttons.cont] : [])];
         for (const h of L.hulls) {
           expect(inside(h, v.W, v.H)).toBe(true);
           for (const b of ui) expect(meets(h, b)).toBe(false);
@@ -127,8 +147,9 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
           for (const save of [false, true]) {
             const L = titleLayout(v.W, v.H, false, save, v.k), o = oldTitle(v.W, v.H, false, save);
             expect(L.k).toBe(1);
-            expect({ ly: L.ly, panel: L.panel, buttons: L.buttons, sound: L.sound }).toEqual({ ly: o.ly, panel: o.panel, buttons: o.buttons, sound: o.sound });
-            const met = o.hulls.some((hb) => meets(hb, o.panel));
+            // CUSTOM-2a: 0350e5f's frame with CUSTOMIZE beside HOW TO PLAY and OPTIONS (withCustomize)
+            expect({ ly: L.ly, panel: L.panel, buttons: L.buttons, sound: L.sound }).toEqual(withCustomize(o, v.W));
+            const met = o.hulls.some((hb) => meets(hb, withCustomize(o, v.W).panel)); // CUSTOM-2a: the panel as drawn now
             if (!met) {
               expect({ frames: L.frames, hulls: L.hulls }).toEqual({ frames: o.frames, hulls: o.hulls });
             } else {
@@ -167,7 +188,8 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
           if (!v.portrait || v.scale !== v.menu) continue;
           for (const save of [false, true]) {
             const L = titleLayout(v.W, v.H, true, save, v.k), o = oldTitle(v.W, v.H, true, save);
-            expect({ ly: L.ly, panel: L.panel, buttons: L.buttons, sound: L.sound }).toEqual({ ly: o.ly, panel: o.panel, buttons: o.buttons, sound: o.sound });
+            // CUSTOM-2a: 0350e5f's frame with CUSTOMIZE beside HOW TO PLAY and OPTIONS (withCustomize)
+            expect({ ly: L.ly, panel: L.panel, buttons: L.buttons, sound: L.sound }).toEqual(withCustomize(o, v.W));
             kept++;
           }
         }
@@ -193,6 +215,13 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
               expect(n.h * css).toBeGreaterThanOrEqual(b.h * oldCss - 1e-9);
               expect(n.w * css).toBeGreaterThanOrEqual(b.w * oldCss - 1e-9);
             }
+            // CUSTOM-2a: CUSTOMIZE, as tall as HOW TO PLAY, its word whole, in the panel, clear of HOW TO PLAY and OPTIONS
+            const c = L.buttons.customize;
+            expect(c.h).toBe(L.buttons.help.h);
+            expect(c.w).toBeGreaterThanOrEqual(Math.max(CUSTOMIZE_MIN, textWidth("CUSTOMIZE", "3") + 4));
+            expect(c.x >= L.panel.x && c.x + c.w <= L.panel.x + L.panel.w && c.y + c.h <= L.panel.y + L.panel.h).toBe(true);
+            expect(meets(c, L.buttons.help) || meets(c, L.buttons.options)).toBe(false);
+            expect(L.panel.x >= 0 && L.panel.x + L.panel.w <= v.W).toBe(true);
             checked++;
           }
         }
@@ -228,8 +257,11 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
     }
     // 1,872 views: all but the smallest portrait screens fit (those 21 are under ~540 CSS px tall at one CSS px per px,
     // e.g. 320x462, and keep the menu scale, as 0350e5f did; and 6 tiny landscape ones at scale 1)
+    // CUSTOM-2a (REQ-BFG-072, Q5): 24: CUSTOMIZE's slot widens the panel, and on three landscape windows only 320 CSS px
+    // tall at DPR 1 (765, 854 and 943 wide; scale 1, the floor) the cruisers' boxes now meet its corners (one such window,
+    // 1032 wide, fits now); every phone keeps its scale and its floor (REPORT section 7)
     expect(fits + floorOnly).toBe(1872);
-    expect(floorOnly).toBeLessThanOrEqual(21);
+    expect(floorOnly).toBeLessThanOrEqual(24);
   });
 
   it("only screens too small for any readable scale keep a floor under the battle's 17%", () => {

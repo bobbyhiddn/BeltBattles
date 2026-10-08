@@ -9,6 +9,7 @@ import { drawTurretIcon } from "./turretIcon"; // 0.6.2s (REQ-BFG-031)
 import { drawFactoryArt, drawFactoryIcon } from "./factoryArt"; // 0.6.1c: the wave-1 factories
 import { raceFactoryArt } from "./raceArt"; // 0.8.0 H1: CRUCIBLE and WARDWORKS
 import { drawWave3Gate, drawWave3Icon, wave3FactoryArt } from "./wave3Art"; // 0.8.0 A1: wave 3's 15 modules
+import { beltStyle, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook: belt styles
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
   px, rect, ring, rot90, silhouette, vline, type G,
@@ -53,18 +54,27 @@ const TINT: Record<BeltTint, [string, string, string]> = {
   s: [C.belt1, C.deepblue, C.ice],
 };
 
-function railColors(v: BeltVariant): [string, string, string, string] {
+function railColors(v: BeltVariant, style: BeltId = "iron"): [string, string, string, string] {
   // [hi, mid, lo2, lo]
   if (v === "warn") return [C.yellow, C.amber, C.fire1, C.fire0];
   if (v === "dead") return [C.steel1, C.steel0, C.maroon, C.rust0];
+  if (style !== "iron") return beltStyle(style).rails; // CUSTOM-1 (REQ-BFG-072) hook: a belt style's rails
   return [C.steel3, C.steel1, C.steel2, C.steel0];
 }
 
-function beltN(frameIdx: number, v: BeltVariant, tint: BeltTint): Cv {
-  return cached(`beltN:${frameIdx}:${v}:${tint}`, () => {
+/** CUSTOM-1 hook: the chevron ramp. A style restyles the bed and the normal-speed chevrons only; the fast, OVERDRIVE
+ *  and slow tints (and the warn and dead rails) keep their colours, which carry the belt's state. */
+function tintRamp(tint: BeltTint, style: BeltId): [string, string, string] {
+  if (style === "iron") return TINT[tint];
+  const s = beltStyle(style);
+  return tint === "n" ? [s.bed, s.chev[0], s.chev[1]] : tint === "o" ? TINT.o : [s.bed, TINT[tint][1], TINT[tint][2]];
+}
+
+function beltN(frameIdx: number, v: BeltVariant, tint: BeltTint, style: BeltId = "iron"): Cv {
+  return cached(style === "iron" ? `beltN:${frameIdx}:${v}:${tint}` : `beltN:${frameIdx}:${v}:${tint}:${style}`, () => {
     const [c, g] = makeCanvas(12, 12);
-    const [hi, mid, mid2, lo] = railColors(v);
-    const [trough, cm, crest] = TINT[tint];
+    const [hi, mid, mid2, lo] = railColors(v, style);
+    const [trough, cm, crest] = tintRamp(tint, style);
     vline(g, 0, 0, 12, C.ink);
     vline(g, 1, 0, 12, hi);
     vline(g, 2, 0, 12, mid);
@@ -91,10 +101,10 @@ function beltN(frameIdx: number, v: BeltVariant, tint: BeltTint): Cv {
 }
 
 /** Straight belt flowing toward screen dir d (0=N,1=E,2=S,3=W), its chevrons tinted by speed state. */
-export function beltStraight(d: number, frameIdx: number, v: BeltVariant = "normal", tint: BeltTint = "n"): Cv {
+export function beltStraight(d: number, frameIdx: number, v: BeltVariant = "normal", tint: BeltTint = "n", style: BeltId = "iron"): Cv {
   const f = ((frameIdx % BELT_PERIOD) + BELT_PERIOD) % BELT_PERIOD;
-  return cached(`beltS:${d}:${f}:${v}:${tint}`, () => {
-    const n = beltN(f, v, tint);
+  return cached(style === "iron" ? `beltS:${d}:${f}:${v}:${tint}` : `beltS:${d}:${f}:${v}:${tint}:${style}`, () => {
+    const n = beltN(f, v, tint, style);
     if (d === 0) return n;
     if (d === 1) return rot90(n);
     if (d === 2) return flipY(n);
@@ -113,16 +123,16 @@ const HALF_CLIP: Record<number, [number, number, number, number]> = {
  * Corner belt: enters from side `a` (screen dir of the side), leaves through side `b`.
  * Drawn as two half belts into a turntable housing.
  */
-export function beltCorner(a: number, b: number, frameIdx: number, v: BeltVariant = "normal", tint: BeltTint = "n"): Cv {
+export function beltCorner(a: number, b: number, frameIdx: number, v: BeltVariant = "normal", tint: BeltTint = "n", style: BeltId = "iron"): Cv {
   const f = ((frameIdx % BELT_PERIOD) + BELT_PERIOD) % BELT_PERIOD;
-  return cached(`beltC:${a}:${b}:${f}:${v}:${tint}`, () => {
+  return cached(style === "iron" ? `beltC:${a}:${b}:${f}:${v}:${tint}` : `beltC:${a}:${b}:${f}:${v}:${tint}:${style}`, () => {
     const [c, g] = makeCanvas(12, 12);
     // housing plate
-    const [hi, mid, , lo] = railColors(v);
+    const [hi, mid, , lo] = railColors(v, style);
     bevel(g, 0, 0, 12, 12, mid, hi, lo, C.ink);
     const inFlow = (a + 2) % 4; // moving away from side a
-    const partA = beltStraight(inFlow, f, v, tint);
-    const partB = beltStraight(b, f, v, tint);
+    const partA = beltStraight(inFlow, f, v, tint, style);
+    const partB = beltStraight(b, f, v, tint, style);
     const [ax, ay, aw, ah] = HALF_CLIP[a];
     const [bx, by, bw, bh] = HALF_CLIP[b];
     g.drawImage(partA, ax, ay, aw, ah, ax, ay, aw, ah);
@@ -132,11 +142,11 @@ export function beltCorner(a: number, b: number, frameIdx: number, v: BeltVarian
 }
 
 /** Turntable disc for corner belts; `angle` 0..7 (rotation step). */
-export function turntable(angle: number, v: BeltVariant = "normal"): Cv {
+export function turntable(angle: number, v: BeltVariant = "normal", style: BeltId = "iron"): Cv {
   const a = ((angle % 8) + 8) % 8;
-  return cached(`tt:${a}:${v}`, () => {
+  return cached(style === "iron" ? `tt:${a}:${v}` : `tt:${a}:${v}:${style}`, () => {
     const [c, g] = makeCanvas(12, 12);
-    const [hi, mid, , lo] = railColors(v);
+    const [hi, mid, , lo] = railColors(v, style);
     disc(g, 6, 6, 4.6, C.ink);
     disc(g, 6, 6, 3.8, mid);
     // top-left light
@@ -144,7 +154,7 @@ export function turntable(angle: number, v: BeltVariant = "normal"): Cv {
     px(g, 8, 9, lo); px(g, 9, 8, lo); px(g, 7, 9, lo); px(g, 9, 7, lo);
     // hub
     rect(g, 5, 5, 2, 2, C.steel0);
-    px(g, 5, 5, C.steel3);
+    px(g, 5, 5, style === "iron" ? C.steel3 : beltStyle(style).hub);
     // bolts rotating
     const th = (a / 8) * Math.PI;
     for (const k of [0, Math.PI]) {

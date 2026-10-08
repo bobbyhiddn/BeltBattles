@@ -73,7 +73,8 @@ import { beltIcon, itemIcon } from "../../render/sprites";
 import { syncIcon } from "../../render/raceFx"; // 0.8.0 H1 M3: the SYNC mark
 import { syncOf } from "../../sim/syncEstimate";
 import { SYNC_WINDOW } from "../../sim/races/foundry";
-import { button, panel, type Rect } from "../../ui/ui";
+import { button, panel, statsPanel, type Rect } from "../../ui/ui";
+import { skinOf, type PanelId } from "../../render/styles"; // CUSTOM-2a (REQ-BFG-072): the part and hero panels' style
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, upgrade, type Ctx } from "./actions";
 import { fusible, gradeOf, outputsAt, starsOf, starText, upgradeLevel } from "../../sim/stars";
@@ -1570,10 +1571,11 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // a portrait area was always under 70 px)
   const column = !ctx.L?.portrait && area.h >= 70;
   const d = detailsPlan(ctx, sel, hover, area);
-  if (!d) return drawIdle(g, ctx.run, area, column, foe, note);
+  const pid = skinOf(ctx.skin).panel; // CUSTOM-2a (REQ-BFG-072): the player's panel style (ctx.skin, set by the build screen)
+  if (!d) return drawIdle(g, ctx.run, area, column, foe, note, pid);
   const { sp, t, plan } = d;
   const r = plan.r;
-  panel(g, r, "dark");
+  statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072): the part panel
   ctx.game.ui.add({ id: "details", r, block: true });
   if (through) for (const q of overhang(r, through.band)) ctx.game.ui.add({ id: "details-over", r: q, onDown: through.press });
   rect(g, r.x + 4, r.y + 4, 16, 16, C.ink);
@@ -1663,12 +1665,12 @@ export function visibleLines(plan: PanelPlan): { line: PLine | "rule"; y: number
   return out;
 }
 
-function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, note: string | null = null): void {
+function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, note: string | null = null, pid: PanelId = "slate"): void {
   const h = HEROES[run.hero];
   const b = run.build;
   const used = beltUsed(b), cap = b.beltCap;
   if (!column && area.h < 30) {
-    panel(g, area, "dark");
+    statsPanel(g, area, pid); // CUSTOM-1 hook (REQ-BFG-072)
     drawText(g, "NEXT", area.x + 5, area.y + 5, C.slate4, { font: "3" });
     // 0.7.0a: online, until tonight's ghost is stored, the line says so instead of naming a foe
     const searching = note === FINDING_GHOST;
@@ -1676,7 +1678,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
     drawText(g, `${searching ? "" : `${foeClass(foe)} · `}BELT ${used}/${cap} · W-L ${record(run)}`, area.x + 5, area.y + 14, C.bone, { font: "3" });
     return;
   }
-  if (!column) return drawHeroStrip(g, run, area);
+  if (!column) return drawHeroStrip(g, run, area, pid);
   // landscape column: the stats in the 5x7 face when they fit (RUN split into RUN and LIVES)
   const big: [string, string, string][] = [
     ["HULL", String(h.hull + b.hullBonus), C.white],
@@ -1688,7 +1690,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
   const kw = textWidth("FEEDS") + 6;
   if (big.every(([, v]) => 10 + kw + textWidth(v) <= area.w) && 31 + big.length * 10 <= area.h) {
     const r = { ...area, h: 31 + big.length * 10 };
-    panel(g, r, "dark");
+    statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072)
     drawText(g, h.name, r.x + 5, r.y + 5, C.white, { outline: C.ink });
     drawText(g, h.factionName, r.x + r.w - 5, r.y + 6, C.slate4, { font: "3", align: "right" });
     drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, r.y + 16, C.yellow, { font: "3" });
@@ -1707,7 +1709,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
     ["RUN", `W-L ${record(run)} · ${run.lives}/${START_LIVES} LIVES`, C.white],
   ];
   const r = column ? { ...area, h: Math.min(area.h, 29 + rows.length * 8) } : area;
-  panel(g, r, "dark");
+  statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072)
   let y = r.y + 5;
   drawText(g, h.name, r.x + 5, y, C.white, { outline: C.ink });
   drawText(g, h.factionName, r.x + r.w - 5, y + 1, C.slate4, { font: "3", align: "right" });
@@ -1723,12 +1725,12 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
 }
 
 /** Portrait hero card (strip): name and faction, playstyle, then HULL · BELT · FEEDS and RUN rows. */
-function drawHeroStrip(g: G, run: Run, r: Rect): void {
+function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
   const h = HEROES[run.hero];
   const b = run.build;
   const used = beltUsed(b), cap = b.beltCap;
   const feeds = connectedRouteCount(b), intakes = intakeCount(b);
-  panel(g, r, "dark");
+  statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072)
   let y = r.y + 5;
   drawText(g, h.name, r.x + 5, y, C.white, { outline: C.ink });
   drawText(g, h.factionName, r.x + r.w - 5, y + 1, C.slate4, { font: "3", align: "right" });

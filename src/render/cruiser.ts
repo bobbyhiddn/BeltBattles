@@ -1,8 +1,7 @@
-// Cruiser renderer for any facing: hull + animated tracks, then deck machinery (belts,
-// ammunition, factories, gates) and turrets with wind-up glow and recoil. Static route
+// Cruiser renderer for any facing: the deck's machinery (belts, ammunition, factories, gates) and turrets with wind-up
+// glow and recoil (MOTION-2: the hull under them is render/ship.ts's carrier and board plate). Static route
 // geometry is precomputed once per build in a CruiserModel so drawing never allocates.
 
-import { settings } from "../core/settings";
 import { AMMO, HEROES, ITEMS, type HeroId, type TurretDef } from "../sim/content";
 import {
   adjacentToFactory, arrowsOf, hero, hitsOfRig, itemByUid, rigHits, routeDirs, routeInfo, routePolyline, speedWinner,
@@ -12,9 +11,9 @@ import type { JoinLink } from "../sim/deck"; // 0.6.2j: belt joins
 import { effectAt } from "../sim/stars"; // 0.6.2 BELTSIDE: preview speeds at the rig's stars
 import { speedLocked } from "../sim/races/metronome"; // races: METRONOME belts ignore speed states
 import { C } from "./palette";
-import { disc, type G } from "./pixel";
-import { HULL_L, TURRET_LY, hullBox, sx, sy, turnX, turnY, type Box, type DeckFrame } from "./frame";
-import { HULL_M, TREAD_HX, TREAD_HY0, TREAD_LEN, TREAD_W, hullFlash, hullRim, hullShade, hullSprite, treadStrip } from "./hull";
+import type { G } from "./pixel";
+import { TURRET_LY, sx, sy, turnX, turnY, type DeckFrame } from "./frame";
+import type { Skin } from "./styles"; // CUSTOM-2a (REQ-BFG-072): a board's styles (CruiserView.skin)
 import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./turret";
 import { RACE_PIP, isArtRace, isRaceAmmo, pipColumn, raceTurretLook } from "./raceArt"; // 0.8.0 H1: FOUNDRY's and BASTION's art
 import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): TURRET SPEED on the starting turrets
@@ -155,66 +154,14 @@ export interface CruiserView {
   ghost?: { factory: number; cells: number[]; connected: boolean; join?: number; refused?: { cell: number; reason: string } } | null;
   hideRoute?: number;
   hideItem?: number;
+  /** CUSTOM-2a (REQ-BFG-072, R11): this board's styles, set explicitly by the screen (the player's side: the profile's
+   *  chosen styles); absent: the defaults (today's look: the title's attract fight, every foe). */
+  skin?: Skin;
 }
 
-const box: Box = { x: 0, y: 0, w: 0, h: 0 };
-
-/** Hull-local rect -> screen, for a hull whose box starts at (bx, by). */
-function hrect(f: DeckFrame, bx: number, by: number, hx: number, hy: number, w: number, h: number): Box {
-  const L = HULL_L;
-  switch (f.facing) {
-    case 0: box.x = bx + hx; box.y = by + hy; box.w = w; box.h = h; break;
-    case 2: box.x = bx + hx; box.y = by + L - hy - h; box.w = w; box.h = h; break;
-    case 1: box.x = bx + L - hy - h; box.y = by + hx; box.w = h; box.h = w; break;
-    default: box.x = bx + hy; box.y = by + hx; box.w = h; box.h = w;
-  }
-  return box;
-}
-
-function sprocket(g: G, f: DeckFrame, bx: number, by: number, hx: number, hy: number, tread: number): void {
-  const s = hrect(f, bx, by, hx, hy, 1, 1);
-  disc(g, s.x + 0.5, s.y + 0.5, 3.6, C.ink);
-  disc(g, s.x + 0.5, s.y + 0.5, 2.6, C.steel1);
-  const a = tread * 0.25;
-  g.fillStyle = C.steel3;
-  g.fillRect(Math.round(s.x + Math.cos(a) * 1.5), Math.round(s.y + Math.sin(a) * 1.5), 1, 1);
-}
-
-export function drawHull(g: G, v: CruiserView): void {
-  const f = v.frame;
-  const hb = hullBox(f);
-  const bx = Math.round(hb.x), by = Math.round(hb.y);
-  g.drawImage(hullSprite(v.model.hero, f.facing), bx - HULL_M, by - HULL_M);
-  // animated tracks: one blit per track from a pre-rendered strip
-  const vertical = f.facing === 0 || f.facing === 2;
-  const strip = treadStrip(vertical);
-  const off = ((Math.floor(v.tread) % 4) + 4) % 4;
-  const so = f.facing === 0 || f.facing === 3 ? off : 3 - off;
-  for (let k = 0; k < TREAD_HX.length; k++) {
-    const tx = TREAD_HX[k];
-    const r = hrect(f, bx, by, tx + 1, TREAD_HY0, TREAD_W - 2, TREAD_LEN);
-    if (vertical) g.drawImage(strip, 0, so, r.w, r.h, r.x, r.y, r.w, r.h);
-    else g.drawImage(strip, so, 0, r.w, r.h, r.x, r.y, r.w, r.h);
-    sprocket(g, f, bx, by, tx + 5, TREAD_HY0 + 3, v.tread);
-    sprocket(g, f, bx, by, tx + 5, TREAD_HY0 + TREAD_LEN - 4, v.tread);
-  }
-  // hit flash: a white rim for the first frames after an impact, plus a faint wash
-  if (v.flash && v.flash > 0.05 && !settings.reducedMotion) {
-    g.drawImage(hullRim(v.model.hero, f.facing), bx - HULL_M, by - HULL_M);
-    g.globalAlpha = 0.12;
-    g.drawImage(hullFlash(v.model.hero, f.facing), bx - HULL_M, by - HULL_M);
-    g.globalAlpha = 1;
-  }
-}
-
-/** Darken the whole hull (wrecks, idle previews). */
-export function drawDim(g: G, v: CruiserView, k: number): void {
-  if (k <= 0) return;
-  const hb = hullBox(v.frame);
-  g.globalAlpha = Math.min(0.7, k);
-  g.drawImage(hullShade(v.model.hero, v.frame.facing), Math.round(hb.x) - HULL_M, Math.round(hb.y) - HULL_M);
-  g.globalAlpha = 1;
-}
+// CUSTOM-2a (REVIEW-MOTION2 Q2): drawHull (the tracked hull with its treads, sprockets, hit rim and flash) and drawDim
+// (its ink shade) are gone with the test builds' ?motion=0 knob. Every screen draws the carrier (render/ship.ts) and its
+// board plate; the machinery and turrets below draw on that plate.
 
 export function turretPivotX(f: DeckFrame, col0: number, width: number): number {
   return sx(f, (col0 + width / 2) * 12, TURRET_LY);

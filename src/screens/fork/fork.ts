@@ -12,7 +12,8 @@ import { RIVALS, RUN_DAYS, type Difficulty } from "../../sim/rivals";
 import { C } from "../../render/palette";
 import { type G } from "../../render/pixel";
 import { drawText, wrap } from "../../render/font";
-import { ArenaBg } from "../../render/arenaBg";
+import { SeaBackdrop } from "../../render/backdrop"; // CUSTOM-2a (REVIEW-MOTION2 Q1): the day's sea, held still
+import { seaForDay, stillSeaSeed } from "../../render/motion";
 import { button, panel, type Rect } from "../../ui/ui";
 import { optionsCard } from "../../ui/hud";
 import { drawRunBar, newAnchors, type AnchorKind } from "../../ui/runbar";
@@ -34,7 +35,9 @@ export class ForkScreen implements Screen {
   t = 0;
   menu = false;
   private leaving = false;
-  private readonly bg = new ArenaBg();
+  /** CUSTOM-2a (REVIEW-MOTION2 Q1): one world on every screen. The day's sea, held still behind the cards: one cached
+   *  blit a frame (render/backdrop.ts drawStill), as the build screen draws it. No layout or touch target moves. */
+  private readonly sea = new SeaBackdrop();
   private readonly anchors = newAnchors();
   private readonly flash: Record<AnchorKind, number> = { gold: 0, lives: 0, hull: 0, belt: 0, cargo: 0 };
   private readonly onTap = [0, 1, 2, 3].map((i) => () => this.tap(i));
@@ -122,7 +125,7 @@ export class ForkScreen implements Screen {
   draw(g: G): void {
     const { W, H, portrait, ui } = this.game;
     const run = this.run, f = this.fork;
-    this.bg.draw(g, W, H, { hulls: [], vertical: portrait, gapLine: false }, this.t);
+    this.sea.drawStill(g, { W, H, kind: seaForDay(run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
     const L = this.layout();
     drawText(g, `THE ROAD · DAY ${run.day}/${RUN_DAYS}`, W / 2, L.head, C.yellow, { align: "center", outline: C.ink });
     drawText(g, "PICK ONE STOP · WARLORDS NEVER COST A LIFE", W / 2, L.head + 9, C.slate4, { font: "3", align: "center" });
