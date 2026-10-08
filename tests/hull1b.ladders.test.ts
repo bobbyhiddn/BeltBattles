@@ -310,7 +310,7 @@ describe("HULL-1b STOKER (backlog #356; tests/wave3.decks STOKER_ROWS): the shar
   it("on: the tripwire row rises none < ★1 < ★2 < ★3; every row keeps none <= ★1 <= ★2 <= ★3 and no more jams than none", () => {
     for (const r of ROWS) {
       const off = withLadderFix(() => capRows(r), false), on = withLadderFix(() => capRows(r));
-      log(`STOKER ${r.id} | off ${off.map((x) => x.dmg.toFixed(1)).join(" / ")} | on ${on.map((x) => x.dmg.toFixed(1)).join(" / ")} (jams ${on.map((x) => x.jams).join("/")})`);
+      log(`STOKER ${r.id} | off ${off.map((x) => x.dmg.toFixed(1)).join(" / ")} (jams ${off.map((x) => x.jams).join("/")}) | on ${on.map((x) => x.dmg.toFixed(1)).join(" / ")} (jams ${on.map((x) => x.jams).join("/")})`);
       for (let s = 1; s <= 3; s++) {
         expect(on[s].dmg, `${r.id} ★${s}`).toBeGreaterThanOrEqual(on[s - 1].dmg * 0.999);
         expect(on[s].jams, `${r.id} ★${s} jams`).toBeLessThanOrEqual(on[0].jams);
@@ -319,5 +319,23 @@ describe("HULL-1b STOKER (backlog #356; tests/wave3.decks STOKER_ROWS): the shar
       // ★1 and ★2 are bb-0.9.7's numbers: only ★3 moves
       expect(on.slice(0, 3)).toEqual(off.slice(0, 3));
     }
+  });
+
+  it("the tripwire row, KO-lifted (the deck +3000, the foe's KO lifted, 120 s; AZ-BUMP's re-key): rises at every star, off and on", () => {
+    const r = ROWS[4];
+    const lifted = () => [0, 1, 2, 3].map((s) => {
+      let dmg = 0;
+      for (const seed of [1, 2, 3, 4, 5]) {
+        const b = s ? withItem(r.base(), item(70, "stoker", r.x, r.y, 0, s)) : r.base();
+        const foe = weaverStart();
+        const bt = new Battle(sturdy(b), { ...foe, hullBonus: foe.hullBonus + LIFT }, seed);
+        while (!bt.over && bt.ticks < 60 * 200) { bt.step(); bt.events.length = 0; }
+        dmg += bt.sides[0].stats.damage;
+      }
+      return dmg / 5;
+    });
+    const off = withLadderFix(lifted, false), on = withLadderFix(lifted);
+    log(`STOKER ${r.id}, KO-lifted | off ${off.map((x) => x.toFixed(1)).join(" / ")} | on ${on.map((x) => x.toFixed(1)).join(" / ")}`);
+    for (const x of [off, on]) for (let s = 1; s <= 3; s++) expect(x[s], `★${s}`).toBeGreaterThan(x[s - 1]);
   });
 });

@@ -3,7 +3,7 @@
 // on days 1-10 = gold + chance x the sum of odds x valueOf(def, the drop's star), the mean over the tier's captains
 // (warlordPool), unsabotaged, a win assumed. It prints:
 //  1. the live table (npcDay.ts DROP_CHANCE, DROP_WEIGHTS, DROP_STARS) by tier and day, checked against road.ts
-//     expectedRoadValue to 1e-9, with Hard/Medium and Medium/Easy per day;
+//     expectedRoadValue to 1e-9, with Hard/Medium and Medium/Easy per day, and 0.9.7's Hard (road.ts roadValue097);
 //  2. THE BAND (cap's ruling Q2): on every day 3-10 a Hard win is 1.25x-1.6x a Medium win: IN BAND or OUT, the worst day
 //     and its margin; Medium/Easy above 1 on days 3-10;
 //  3. the levers from NPC-1's start numbers (Hard 90%, turret/epic/rare/common 2/2/3/3, ★1), in the ruling's order:
@@ -13,7 +13,7 @@
 //   npx vite build --ssr tools/dropBand.ts --outDir tools/dist/dropband --emptyOutDir --logLevel warn
 //   node tools/dist/dropband/dropBand.js [--no-search]
 
-import { expectedRoadValue, rewardGold, warlordDeck } from "../src/game/road";
+import { expectedRoadValue, rewardGold, roadValue097, warlordDeck } from "../src/game/road";
 import { DROP_CHANCE, DROP_STARS, DROP_WEIGHTS, dropClass, dropPool, withNpcDay, type DropClass } from "../src/sim/npcDay";
 import { warlordPool, type Difficulty } from "../src/sim/rivals";
 import { valueOf } from "../src/sim/stars";
@@ -78,10 +78,11 @@ function main(): number {
       });
     }
     rows.matriarch = DAYS.map((d) => expectedRoadValue(d, "matriarch"));
+    rows["hard, 0.9.7's pick of 2"] = DAYS.map((d) => roadValue097(d, "hard"));
     console.log(`live numbers: chance ${JSON.stringify(DROP_CHANCE)}; weights t/e/r/c Easy ${wtxt(DROP_WEIGHTS.easy as W)}, Medium ${wtxt(DROP_WEIGHTS.medium as W)}, Hard ${wtxt(DROP_WEIGHTS.hard as W)}; stars ${JSON.stringify(DROP_STARS)} (each value = road.ts expectedRoadValue, to 1e-9)`);
     console.log(`| tier | ${DAYS.map((d) => `d${d}`).join(" | ")} |`);
     console.log(`|---|${DAYS.map(() => "---").join("|")}|`);
-    for (const t of ["easy", "medium", "hard", "matriarch"]) console.log(`| ${t} | ${rows[t].map((v) => v.toFixed(2)).join(" | ")} |`);
+    for (const t of ["easy", "medium", "hard", "matriarch", "hard, 0.9.7's pick of 2"]) console.log(`| ${t} | ${rows[t].map((v) => v.toFixed(2)).join(" | ")} |`);
     console.log(`| Hard/Medium | ${DAYS.map((_, i) => (rows.hard[i] / rows.medium[i]).toFixed(3)).join(" | ")} |`);
     console.log(`| Medium/Easy | ${DAYS.map((_, i) => (rows.medium[i] / rows.easy[i]).toFixed(3)).join(" | ")} |`);
     // 2. the band
