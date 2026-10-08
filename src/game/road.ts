@@ -281,7 +281,12 @@ export function finishWarlord(run: Run, winner: 0 | 1 | -1, time: number): Warlo
   }
   if (won && w.id === "matriarch") run.matriarchBeatenOn = run.day;
   w.result = { outcome, time, gold, bountyPaid, parts: won ? [...w.reward.parts] : [], took };
-  run.warlords.push({ day: run.day, tier: w.tier, id: w.id, name: w.name, outcome, time, gold, part: took });
+  run.warlords.push({
+    day: run.day, tier: w.tier, id: w.id, name: w.name, outcome, time, gold, part: took,
+    // HULL-1a (REQ-BFG-078; REVIEW-NPC1 Q3): a sabotaged fight says so (NPC_DAY on, and only when true): the road log's
+    // `sabotaged` names the one deck the server checks
+    ...(w.sabotaged && npcDayRules() ? { sabotaged: true as const } : {}),
+  });
   return w.result;
 }
 

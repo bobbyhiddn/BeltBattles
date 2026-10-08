@@ -42,10 +42,11 @@ export interface PickLayout {
 
 /** The picker on a screen W x H: `ids` the cards, `open` the opened one (-1 none), `held` the runes held. Pure (tests).
  *  FLIP-X2 (REVIEW-FLIPX1 answer 3): `heldIds`, the held runes' ids in pick order, sizes each tray chip from its keyword
- *  word (runeChipW: SHIELD's 26, every other word's 22); absent, every chip is 22 wide and the tray is exactly as before. */
-export function pickLayout(W: number, H: number, ids: readonly string[], open: number, held: number, heldIds?: readonly string[]): PickLayout {
+ *  word (runeChipW: SHIELD's 26, every other word's 22); absent, every chip is 22 wide and the tray is exactly as before.
+ *  HULL-1a (REQ-BFG-079): `day`, the dawn's day (a HULL rune's amount: the day's number with HULL_SCALE on). */
+export function pickLayout(W: number, H: number, ids: readonly string[], open: number, held: number, heldIds?: readonly string[], day?: number): PickLayout {
   const cardW = Math.min(W - 8, 300), x = Math.round(W / 2 - cardW / 2);
-  const hs = ids.map((id, i) => runeCardH(RUNES[id], cardW, i === open ? { reminder: true, hint: PICK_TAKE } : {}));
+  const hs = ids.map((id, i) => runeCardH(RUNES[id], cardW, i === open ? { reminder: true, hint: PICK_TAKE, day } : { day }));
   // the tray: "YOUR RUNES n" then the chips in rows (display only: RUNE_CHIP_MIN, not a finger's size)
   const chip = RUNE_CHIP_MIN, pitch = chip + 3;
   const x0 = x + 5 + textWidth(`${TRAY_LABEL} 10`, "3") + 5, right = x + cardW - 4;
@@ -125,7 +126,7 @@ export class RunePicker {
     }
     const { W, H, ui } = s.game;
     const held = (s.run.build.runes ?? []).map((q) => q.id).filter(isRune);
-    const L = pickLayout(W, H, o.ids, this.open, held.length, held); // FLIP-X2: the tray's chips sized from their words
+    const L = pickLayout(W, H, o.ids, this.open, held.length, held, o.day); // FLIP-X2: the tray's chips sized from their words
     g.globalAlpha = 0.86;
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;
@@ -138,7 +139,7 @@ export class RunePicker {
     drawText(g, pickHint(o.ids.length), cx, L.top + 22, C.slate4, { font: "3", align: "center" });
     o.ids.forEach((id, i) => {
       const def = RUNES[id], r = L.cards[i], open = i === this.open;
-      drawRuneCard(g, r, def, { sub: runeTag(def), open, reminder: open, hint: open ? PICK_TAKE : undefined });
+      drawRuneCard(g, r, def, { sub: runeTag(def), open, reminder: open, hint: open ? PICK_TAKE : undefined, day: o.day }); // HULL-1a
       ui.add({ id: `runepick-${i}`, r, onTap: () => this.tap(s, i, id) });
     });
     if (L.tray) {
@@ -153,6 +154,6 @@ export class RunePicker {
     const o = this.offer(s);
     if (!o) return null;
     const held = (s.run.build.runes ?? []).length;
-    return { day: o.day, tier: o.tier, ids: [...o.ids], open: this.open, layout: pickLayout(s.game.W, s.game.H, o.ids, this.open, held) };
+    return { day: o.day, tier: o.tier, ids: [...o.ids], open: this.open, layout: pickLayout(s.game.W, s.game.H, o.ids, this.open, held, undefined, o.day) };
   }
 }

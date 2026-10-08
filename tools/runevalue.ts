@@ -338,8 +338,8 @@ function bench(): void {
 
   let battles = 0;
   const score = (bt: Battle) => (bt.winner === 0 ? 1 : bt.winner === -1 ? 0.5 : 0);
-  function play(mine: Build, theirs: Build, seed: number, wins: readonly [number, number]): number {
-    const fight = () => simulate(mine, theirs, seed, undefined, wins);
+  function play(mine: Build, theirs: Build, seed: number, wins: readonly [number, number], day?: number): number {
+    const fight = () => simulate(mine, theirs, seed, undefined, wins, day); // HULL-1a (REQ-BFG-079): the day
     const bt = SUSTAIN ? withSustain(fight) : fight(); // SUS-D: --sustain on
     if (!bt.over) throw new Error("runevalue: a battle ran past simulate's tick cap");
     battles++;
@@ -370,10 +370,10 @@ function bench(): void {
         for (const foe of FOES) for (let j = 0; j < KO; j++) { // SUS-D: --foes (default the four heroes)
           const theirs = field[`${foe}:${d}`][j];
           const seed = hashSeed(13, "r1b2-rune", h, d, i, foe, j);
-          const base = play(mine, theirs, seed, wins);
+          const base = play(mine, theirs, seed, wins, d);
           baseSum += base; baseN++;
           MINE.forEach((v, vi) => {
-            perDay[v.key] = (perDay[v.key] ?? 0) + (withAmount(v, () => play(builds[vi], theirs, seed, wins)) - base);
+            perDay[v.key] = (perDay[v.key] ?? 0) + (withAmount(v, () => play(builds[vi], theirs, seed, wins, d)) - base);
           });
           nd++;
         }

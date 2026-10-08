@@ -405,8 +405,8 @@ async function main(): Promise<void> {
     run.day = day;
     const foe = onlineFoe(run, vet); // the game's DuskFoe: a kind "ghost", fought on battleSeed
     const seed = battleSeed(run);
-    const fight = simulate(run.build, foe.build, seed);
-    const again = replay(battleRecordFor(run.build, foe.build, seed));
+    const fight = simulate(run.build, foe.build, seed, undefined, undefined, run.day); // HULL-1a (REQ-BFG-079): the run's day
+    const again = replay(battleRecordFor(run.build, foe.build, seed, undefined, run.day));
     say(`  the fight: ${foe.name} (${foe.kind}, ${foe.source}) on battleSeed ${seed}: winner ${fight.winner}, ${fight.t.toFixed(1)}s; the stored record replays to winner ${again.winner}`);
     check(foe.kind === "ghost" && foe.source === "online" && fight.over && again.winner === fight.winner && again.ticks === fight.ticks
       && again.hulls[0] === fight.sides[0].hull.hp && again.hulls[1] === fight.sides[1].hull.hp, "the client fights the fetched ghost; its battle record replays to the same result");

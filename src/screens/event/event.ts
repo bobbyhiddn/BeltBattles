@@ -27,6 +27,7 @@ import { duskScreen } from "../battle"; // 0.7.0a: the dusk gate (offline: 0.6.2
 import { BuildScreen } from "../build/build";
 import { TitleScreen } from "../title";
 import { npcDayRules } from "../../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT before every dusk
+import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): a hull gain on the day's hull
 
 const AUTO = 1.9; // seconds after a pick before rolling on to the battle (no REFIT decision)
 /** NPC-1 (REQ-BFG-077; NPC_DAY on): the event's one way on, REFIT before dusk. */
@@ -75,7 +76,7 @@ export class EventScreen implements Screen {
       this.pt = 9;
       this.won = ev.won ?? true;
       const c = this.choices[ev.picked];
-      if (c) this.outcome = outcomeText(c, this.won);
+      if (c) this.outcome = outcomeText(c, this.won, this.run.day); // HULL-1a: the day's hull
       this.deckItem = ev.item;
       this.reveal = !!ev.reveal;
     }
@@ -124,14 +125,14 @@ export class EventScreen implements Screen {
     this.won = !!res.won;
     this.deckItem = res.deckItem;
     this.reveal = !!this.run.event?.reveal;
-    this.outcome = outcomeText(c, this.won);
+    this.outcome = outcomeText(c, this.won, this.run.day); // HULL-1a: the day's hull
     const r = this.L.cards[i];
     const x0 = r.x + r.w / 2, y0 = r.y + 25;
     for (const d of c.cost) if (d.k === "gold") this.ufx.popup(this.anchors.gold.x, this.anchors.gold.y + 16, `-${d.n}`, C.red);
     if (this.won) {
       for (const d of c.gain) {
         const kind: AnchorKind | null = d.k === "gold" ? "gold" : d.k === "lives" ? "lives" : d.k === "hull" ? "hull" : d.k === "belt" ? "belt" : d.k === "item" ? "cargo" : null;
-        if (kind) this.flies.push({ icon: deltaIcon(d), kind, text: d.k === "item" ? "+1" : deltaText(d, false).split(" ")[0], x0, y0, t: -0.08 * this.flies.length });
+        if (kind) this.flies.push({ icon: deltaIcon(d), kind, text: d.k === "item" ? "+1" : deltaText(d, false, this.run.day).split(" ")[0], x0, y0, t: -0.08 * this.flies.length });
       }
     }
     this.game.toast(this.outcome[0], this.outcome[1], sfxFor(c, this.won));
@@ -214,6 +215,7 @@ export class EventScreen implements Screen {
       // 0.6.1d2: the same MERGE/wait/MAX badge as the shop card, for a choice that gains an item.
       const itemGain = this.choices[i].gain.find((dl): dl is Extract<Delta, { k: "item" }> => dl.k === "item");
       cv.badge = itemGain ? shopBadge(run, itemGain.def) : null;
+      cv.day = run.day; // HULL-1a (REQ-BFG-079): a hull amount on the day's hull
       drawChoiceCard(g, r, this.choices[i], i, cv);
       if (this.phase === "choose") ui.add({ id, r, onTap: this.onPick[i], block: true });
     }
@@ -330,7 +332,8 @@ function gainItem(c: Choice | undefined): string | undefined {
   return d && d.k === "item" ? d.def : undefined;
 }
 
-export function outcomeText(c: Choice, won: boolean): [string, string] {
+/** HULL-1a (REQ-BFG-079): `day`, the run's day (a hull gain reads the day's number with HULL_SCALE on). */
+export function outcomeText(c: Choice, won: boolean, day?: number): [string, string] {
   if (c.odds !== undefined) {
     const g = c.gain.find((d) => d.k === "gold");
     return won ? [`THE DICE LOVE YOU! +${g && g.k === "gold" ? g.n : 0} GOLD`, C.lime] : ["THE DICE SAY NO", C.red];
@@ -340,7 +343,7 @@ export function outcomeText(c: Choice, won: boolean): [string, string] {
   switch (d.k) {
     case "item": return [`GOT ${itemName(d.def)}`, C.lime]; // the outcome panel adds "<PART> IS IN CARGO"
     case "gold": return [`+${d.n} GOLD`, C.yellow];
-    case "hull": return [`+${d.n} MAX HULL`, C.lime];
+    case "hull": return [`+${hullShown(d.n, day)} MAX HULL`, C.lime];
     case "lives": return [`+${d.n} LIFE`, C.lime];
     case "belt": return [`+${d.n} BELT CAPACITY`, C.lime];
     case "bounty": return [`STAKED: +${d.n} ON YOUR NEXT HARD WIN`, C.amber];

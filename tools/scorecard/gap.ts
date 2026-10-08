@@ -64,7 +64,8 @@ export function gapBattles(field: readonly Build[], j: Job): number[][] {
   const out: number[][] = [];
   for (const s of j.seeds) {
     for (const side of [0, 1] as const) {
-      const r = side === 0 ? simulate(field[j.a], field[j.b], s) : simulate(field[j.b], field[j.a], s);
+      // HULL-1a (REQ-BFG-079): the job's day
+      const r = side === 0 ? simulate(field[j.a], field[j.b], s, undefined, undefined, j.day) : simulate(field[j.b], field[j.a], s, undefined, undefined, j.day);
       const me = r.sides[side], foe = r.sides[side === 0 ? 1 : 0], t = r.t;
       const pts = r.winner === side ? 1 : r.winner === -1 || r.winner === null ? 0.5 : 0;
       out.push([
@@ -108,7 +109,7 @@ async function gapDay(day: number, o: GapOpts): Promise<GapDay> {
   const jobs: Job[] = [], tag: { e: number; o: number }[] = [];
   entries.forEach((e, ei) => opp.forEach((_, oi) => {
     const n = e.kind === "par" ? o.seeds : o.refSeeds;
-    jobs.push({ a: opp.length + ei, b: oi, seeds: Array.from({ length: n }, (_, s) => hashSeed("sc-gap", day, e.key, oi, s)) });
+    jobs.push({ a: opp.length + ei, b: oi, seeds: Array.from({ length: n }, (_, s) => hashSeed("sc-gap", day, e.key, oi, s)), day }); // HULL-1a
     tag.push({ e: ei, o: oi });
   }));
   const size = Math.max(4, Math.ceil(jobs.length / (Math.max(1, o.workers) * 8)));

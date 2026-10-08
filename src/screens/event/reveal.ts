@@ -4,6 +4,7 @@
 
 import type { DuskFoe } from "../../game/run";
 import { HEROES } from "../../sim/content";
+import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the foe's hull on the day's hull
 import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText } from "../../render/font";
@@ -22,6 +23,11 @@ export function deckParts(foe: DuskFoe): { def: string; n: number }[] {
   return out;
 }
 
+/** HULL-1a (REQ-BFG-079): the scout report's line "FURNACE · HULL 2100 · BELT 14": the foe's hull on the fight's day (the
+ *  day's number with HULL_SCALE on). */
+export const revealLine = (foe: Pick<DuskFoe, "hero" | "build" | "day">): string =>
+  `${HEROES[foe.hero].name} · HULL ${hullShown(HEROES[foe.hero].hull + foe.build.hullBonus, foe.day)} · BELT ${foe.build.beltCap}`;
+
 export function drawReveal(g: G, r: Rect, foe: DuskFoe): void {
   panel(g, r, "dark");
   drawText(g, "SCOUT REPORT · TONIGHT'S DUSK", r.x + 5, r.y + 5, C.yellow, { font: "3" });
@@ -36,7 +42,7 @@ export function drawReveal(g: G, r: Rect, foe: DuskFoe): void {
   const nw = drawText(g, foe.name, x, y + 1, foe.kind === "ghost" ? C.ice : C.red, { outline: C.ink });
   tag(g, foe.kind === "ghost" ? "GHOST" : "STAND-IN", x + nw + 4, y + 2, foe.kind === "ghost" ? C.ice : C.slate3);
   const h = HEROES[foe.hero];
-  drawText(g, `${h.name} · HULL ${h.hull + foe.build.hullBonus} · BELT ${foe.build.beltCap}`, x, y + 12, C.bone, { font: "3" });
+  drawText(g, revealLine(foe), x, y + 12, C.bone, { font: "3" }); // HULL-1a: the foe's hull on the day's hull
   // the deck: one icon per distinct part, its count beside it
   let ix = r.x + 5, iy = y + Math.max(ps, 20) + 4;
   for (const p of deckParts(foe)) {

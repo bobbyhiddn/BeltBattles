@@ -333,7 +333,7 @@ export function survJob(j: SurvJob): SurvRun {
     const alive = !run.over;
     const foe = alive ? startDusk(run, []) : standInFoe(runSeed, day);
     const seed = battleSeed(alive ? run : { ...run, day });
-    const b = simulate(days[day - 1].build, foe.build, seed);
+    const b = simulate(days[day - 1].build, foe.build, seed, undefined, undefined, day); // HULL-1a (REQ-BFG-079): the day
     const w = b.winner ?? -1;
     out.res.push(w);
     out.t.push(Math.round(b.t * 100) / 100);

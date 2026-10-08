@@ -3,6 +3,7 @@
 // selected card lifts with a drop shadow. REROLL uses the same card frame.
 
 import { ITEMS, MERCHANTS, PACK_ITEM, REROLL_COST, type ItemDef, type MerchantId, type PackId } from "../../sim/content";
+import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the ARMOR PACK's amount on the day's hull
 import type { ShopBadge } from "../../game/run";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
@@ -294,9 +295,9 @@ export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pres
  *  NUM-2 (REQ-BFG-047; NUM-1's question 1, cap's answer): the ARMOR PACK's is its number and the hull icon, "+250 ♥" (the
  *  stat form of docs/TEXT-STYLE.md; RIVETER's face draws the same icon): NUM-1's "+250 HULL" (34 px of the 3x5 font)
  *  overflowed the narrowest slots (32 and 34 px). No layout change. */
-export function packAmount(id: PackId): string {
+export function packAmount(id: PackId, day?: number): string {
   const s = ITEMS[PACK_ITEM[id]].supply!;
-  return s.belt ? `+${s.belt} BELT` : `+${s.hull} ${ICON.HULL}`;
+  return s.belt ? `+${s.belt} BELT` : `+${hullShown(s.hull!, day)} ${ICON.HULL}`; // HULL-1a (REQ-BFG-079): the day's number
 }
 
 /** bb-0.8.6 (PACKS P5): a slot this tall or taller shows the tall face (icon, two short amount lines, price inside REROLL's
@@ -311,10 +312,10 @@ export const packPriceText = (id: PackId): string => `${ITEMS[PACK_ITEM[id]].pri
  * of gold it is dimmed and still shows its price. A slot a card tall (a phone's) stacks the icon, the amount in two short
  * lines and the price; a short one (landscape: half REROLL's height) puts the price beside the icon, the amount under.
  */
-export function drawPack(g: G, r: Rect, id: PackId, enabled: boolean, hover: boolean, pressed: boolean): void {
+export function drawPack(g: G, r: Rect, id: PackId, enabled: boolean, hover: boolean, pressed: boolean, day?: number): void {
   const d = ITEMS[PACK_ITEM[id]];
   const y = r.y + (pressed ? 1 : 0), cx = r.x + r.w / 2;
-  const amount = packAmount(id), price = packPriceText(id);
+  const amount = packAmount(id, day), price = packPriceText(id); // HULL-1a (REQ-BFG-079): `day`, the run's
   const tc = enabled ? C.white : C.slate2, pc = enabled ? C.yellow : C.slate2;
   if (r.h >= PACK_TALL_H) {
     // REROLL's frame (its stripes leave y + 5 to y + h - 4 inside)

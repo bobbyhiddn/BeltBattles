@@ -58,11 +58,11 @@ const rate = (pts: number, battles: number): number => (battles > 0 ? pts / batt
 
 /**
  * Each deck's win rate against the others (a round robin, `seeds` per pairing, both sides): the field's strength.
- * `seedsOf(i, j)` (i < j) names each pairing's seeds.
+ * `seedsOf(i, j)` (i < j) names each pairing's seeds. HULL-1a (REQ-BFG-079): `day`, the day the fights are on (Job's).
  */
-export async function roundRobin(decks: Build[], seedsOf: (i: number, j: number) => number[], run: Runner): Promise<number[]> {
+export async function roundRobin(decks: Build[], seedsOf: (i: number, j: number) => number[], run: Runner, day?: number): Promise<number[]> {
   const jobs: Job[] = [];
-  for (let i = 0; i < decks.length; i++) for (let j = i + 1; j < decks.length; j++) jobs.push({ a: i, b: j, seeds: seedsOf(i, j) });
+  for (let i = 0; i < decks.length; i++) for (let j = i + 1; j < decks.length; j++) jobs.push({ a: i, b: j, seeds: seedsOf(i, j), ...(day !== undefined ? { day } : {}) });
   const pts = await run(decks, jobs);
   const got = decks.map(() => 0), n = decks.map(() => 0);
   jobs.forEach((j, x) => {
@@ -86,7 +86,7 @@ export interface ParDeck { hero: HeroId; day: number; index: number; seed: numbe
 /** The par deck of (hero, day): the field member of median strength against the field (PAR_SEEDS per pairing). */
 export async function parDeck(hero: HeroId, day: number, run: Runner, k = PAR_K, seeds = PAR_SEEDS, player: PlayerOpts = {}): Promise<ParDeck> {
   const field = parField(hero, day, k, player);
-  const strength = await roundRobin(field, (i, j) => Array.from({ length: seeds }, (_, s) => hashSeed("par-field", hero, day, i, j, s)), run);
+  const strength = await roundRobin(field, (i, j) => Array.from({ length: seeds }, (_, s) => hashSeed("par-field", hero, day, i, j, s)), run, day); // HULL-1a: the day
   const index = medianIndex(strength);
   return { hero, day, index, seed: parSeeds(k)[index], build: field[index], strength };
 }
@@ -125,7 +125,7 @@ export async function vsPar(decks: Build[], heroes: readonly HeroId[], day: numb
   for (const r of refs) { at.push(off); off += r.length; }
   const jobs: Job[] = [];
   decks.forEach((_, d) => heroes.forEach((h, hi) => refs[hi].forEach((_, m) => {
-    jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed(key, day, d, h, m, s)) });
+    jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed(key, day, d, h, m, s)), day }); // HULL-1a: the day
   })));
   const pts = await run(field, jobs);
   const out: Record<string, VsPar>[] = decks.map(() => ({}));

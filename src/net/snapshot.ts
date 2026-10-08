@@ -388,12 +388,15 @@ function roadField(o: Obj, version: number, rules: string): { road?: RoadEntry[]
   return {
     road: arr(o[ROAD_FIELD], at, MAX_DAY).map((rv, i) => {
       const p = `${at}[${i}]`;
-      const e = obj(rv, p, ["day", "tier", "outcome"], ["drop"]);
+      const e = obj(rv, p, ["day", "tier", "outcome"], ["drop", "sabotaged"]); // HULL-1a (REQ-BFG-078, Q3): `sabotaged`
       const day = int(e.day, `${p}.day`, 1, MAX_DAY);
       if (typeof e.tier !== "string" || !(["easy", "medium", "hard"] as unknown[]).includes(e.tier)) throw new SnapshotError(`${p}.tier: expected easy, medium or hard`);
       if (typeof e.outcome !== "string" || !(ROAD_OUTCOMES as readonly unknown[]).includes(e.outcome)) throw new SnapshotError(`${p}.outcome: expected ${ROAD_OUTCOMES.join(", ")}`);
       const drop = has(e, "drop") && e.drop !== undefined ? { drop: str(e.drop, `${p}.drop`, DEF_PATTERN) } : {};
-      return { day, tier: e.tier as RoadEntry["tier"], outcome: e.outcome as RoadEntry["outcome"], ...drop };
+      // HULL-1a (REQ-BFG-078; REVIEW-NPC1 Q3): the warlord fought was sabotaged: true only (absent otherwise)
+      if (has(e, "sabotaged") && e.sabotaged !== undefined && e.sabotaged !== true) throw new SnapshotError(`${p}.sabotaged: expected true (or no key)`);
+      const sab = e.sabotaged === true ? { sabotaged: true as const } : {};
+      return { day, tier: e.tier as RoadEntry["tier"], outcome: e.outcome as RoadEntry["outcome"], ...drop, ...sab };
     }),
   };
 }

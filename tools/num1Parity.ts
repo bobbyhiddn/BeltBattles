@@ -31,8 +31,8 @@ const flag = (name: string): string | undefined => {
 };
 const num = (name: string, d: number): number => (flag(name) === undefined ? d : Number(flag(name)));
 
-function play(a: Build, b: Build, seed: number): Out {
-  const bt = new Battle(a, b, seed);
+function play(a: Build, b: Build, seed: number, day?: number): Out {
+  const bt = new Battle(a, b, seed, undefined, day); // HULL-1a (REQ-BFG-079): the fight's day
   let frac = 0;
   while (!bt.over && bt.ticks < 60 * 200) { // simulate()'s loop
     bt.step();
@@ -176,6 +176,6 @@ async function main(): Promise<void> {
 
 if (!isMainThread) {
   parentPort!.on("message", (c: { id: number; fights: Fight[]; fields: Record<string, Build[]> }) => {
-    parentPort!.postMessage({ id: c.id, out: c.fights.map((f) => play(c.fields[f.day][f.a], c.fields[f.day][f.b], f.seed)) });
+    parentPort!.postMessage({ id: c.id, out: c.fights.map((f) => play(c.fields[f.day][f.a], c.fields[f.day][f.b], f.seed, f.day)) });
   });
 } else void main();

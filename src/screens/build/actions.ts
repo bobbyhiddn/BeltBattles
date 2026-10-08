@@ -7,6 +7,7 @@ import {
 } from "../../game/run";
 import { REFIT_NO_SHOP, shopShut } from "../../game/run"; // NPC-1 (REQ-BFG-077): REFIT has no shop (NPC_DAY on)
 import { CELL, GRID, ITEMS, sellValue, type UpgradeTrack } from "../../sim/content";
+import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the ARMOR PACK's toast on the day's hull
 import { starField, starsOf } from "../../sim/stars";
 import { mergePreview, type Gain, type GainAt } from "../../game/fuse";
 import { canPlaceItem, isRig, key, moveItem, occupancy, placeItem, removeRoute, rotField, setRot } from "../../sim/deck";
@@ -17,6 +18,12 @@ import { canFitGear, gearSlotsAt, turretSlots, type Build } from "../../sim/deck
 import { dropTurret } from "./turretActions"; // 0.6.2s (REQ-BFG-031 S5)
 
 /** 0.6.2s (S4): why gear can't go on turret slot t, as a player sentence. */
+/** HULL-1a (REQ-BFG-079): a supply's toast once bought ("+250 MAX HULL", "+4 BELT CAPACITY"): the hull as the day's
+ *  number with HULL_SCALE on (`day`: the run's); off, 0.9.7's. */
+export function supplyToast(d: { supply?: { belt?: number; hull?: number } }, day?: number): string {
+  return d.supply?.belt ? `+${d.supply.belt} BELT CAPACITY` : `+${hullShown(d.supply?.hull ?? 0, day)} MAX HULL`;
+}
+
 export function gearRefusal(b: Build, t: number, reason?: string): string {
   if (reason === "EMPTY TURRET SLOT") return "THIS TURRET SLOT IS EMPTY. INSTALL A TURRET FIRST.";
   if (reason === "THIS TURRET ALREADY HAS ONE") return "THIS TURRET ALREADY CARRIES ONE OF THOSE.";
@@ -106,7 +113,7 @@ export function buy(ctx: Ctx, wagon: number, slot: number, at?: GainAt): { ok: b
   ctx.game.audio.play("coin");
   if (res.consumed) {
     const d = ITEMS[res.consumed];
-    ctx.game.toast(d.supply?.belt ? `+${d.supply.belt} BELT CAPACITY` : `+${d.supply?.hull ?? 0} MAX HULL`, C.lime, "repair");
+    ctx.game.toast(supplyToast(d, ctx.run.day), C.lime, "repair"); // HULL-1a (REQ-BFG-079): the day's hull
     ctx.select({ kind: "none" });
     ctx.touched();
   }

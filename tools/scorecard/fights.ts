@@ -60,7 +60,7 @@ async function runDay(day: number, o: FightsOpts, detail: (f: Build[], j: Job[])
   const jobs: Job[] = [];
   const tagA: { d: number; hi: number; m: number }[] = [];
   decks.forEach((_, d) => heroes.forEach((h, hi) => fields[hi].forEach((_, m) => {
-    jobs.push({ a: d, b: at(hi) + m, seeds: seedsOf("standin", d, h, m) });
+    jobs.push({ a: d, b: at(hi) + m, seeds: seedsOf("standin", d, h, m), day }); // HULL-1a (REQ-BFG-079): the day
     tagA.push({ d, hi, m });
   })));
   const nA = jobs.length;
@@ -68,7 +68,7 @@ async function runDay(day: number, o: FightsOpts, detail: (f: Build[], j: Job[])
   heroes.forEach((h1, i) => heroes.forEach((h2, j) => {
     if (j < i) return;
     for (let a = 0; a < o.k; a++) for (let b = i === j ? a + 1 : 0; b < o.k; b++) {
-      jobs.push({ a: at(i) + a, b: at(j) + b, seeds: seedsOf("par", h1, h2, a, b) });
+      jobs.push({ a: at(i) + a, b: at(j) + b, seeds: seedsOf("par", h1, h2, a, b), day });
       tagB.push({ key: `${h1}-${h2}`, a, b });
     }
   }));

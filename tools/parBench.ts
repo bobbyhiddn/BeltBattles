@@ -92,9 +92,10 @@ function gauntletOf(day: number): Build[] {
 }
 
 /** Each deck's win rate against the gauntlet (SEEDS seeds x both sides per member); seeds from seedsOf(deck, member). */
-async function score(decks: Build[], gauntlet: Build[], seedsOf: (d: number, g: number) => number[], run: Runner): Promise<number[]> {
+// HULL-1a (REQ-BFG-079): `day`, the day the fights are on (Job's)
+async function score(decks: Build[], gauntlet: Build[], seedsOf: (d: number, g: number) => number[], run: Runner, day?: number): Promise<number[]> {
   const field = [...gauntlet, ...decks];
-  const jobs: Job[] = decks.flatMap((_, d) => gauntlet.map((_, g): Job => ({ a: gauntlet.length + d, b: g, seeds: seedsOf(d, g) })));
+  const jobs: Job[] = decks.flatMap((_, d) => gauntlet.map((_, g): Job => ({ a: gauntlet.length + d, b: g, seeds: seedsOf(d, g), ...(day !== undefined ? { day } : {}) })));
   const pts = await run(field, jobs);
   return decks.map((_, d) => pts.slice(d * gauntlet.length, (d + 1) * gauntlet.length).reduce((s, p) => s + p, 0) / (gauntlet.length * SEEDS * 2));
 }
@@ -106,7 +107,7 @@ async function population(hero: HeroId, day: number, gauntlet: Build[], run: Run
   if (existsSync(f)) return JSON.parse(readFileSync(f, "utf8")) as PopCache;
   const pop = Array.from({ length: STANDIN_DEFAULTS.pop }, (_, idx) => standInCandidate(hero, day, hashSeed("standin-pop", SEED, hero, day, idx), "on", "on", "on"));
   const builds = pop.map((c) => norm(c.build));
-  const scores = await score(builds, gauntlet, (d, g) => Array.from({ length: SEEDS }, (_, k) => hashSeed("standin-battle", SEED, hero, day, d, g, k)), run);
+  const scores = await score(builds, gauntlet, (d, g) => Array.from({ length: SEEDS }, (_, k) => hashSeed("standin-battle", SEED, hero, day, d, g, k)), run, day);
   const out: PopCache = { hero, day, scores, costs: pop.map((c) => c.cost) };
   writeFileSync(f, JSON.stringify(out));
   return out;
@@ -131,7 +132,7 @@ async function pctMode(days: number[], run: Runner, out: string, cache: string, 
         const v = validateBuild(d.build, day);
         if (!v.ok) throw new Error(`par ${hero} d${day}: invalid: ${v.errors.join("; ")}`);
       }
-      const sc = await score(field.map((d) => d.build), gauntlet, (d, g) => Array.from({ length: SEEDS }, (_, x) => hashSeed("par-pct", tag, hero, day, seeds[d], g, x)), run);
+      const sc = await score(field.map((d) => d.build), gauntlet, (d, g) => Array.from({ length: SEEDS }, (_, x) => hashSeed("par-pct", tag, hero, day, seeds[d], g, x)), run, day);
       const pcts = sc.map((x) => pctIn(pop.scores, x));
       rows.push({ hero, day, seeds, pct: pcts, score: sc, value: field.map((d) => d.value), rerollGold: field.map((d) => d.rerollGold), gold: field.map((d) => d.gold), popMedianScore: med(pop.scores) });
       console.log(`pct ${tag} ${hero} d${day}: median ${med(pcts).toFixed(1)} [${Math.min(...pcts).toFixed(0)}-${Math.max(...pcts).toFixed(0)}] | ${pcts.map((p) => p.toFixed(0)).join(" ")} | value% ${field.map((d) => Math.round((100 * d.value) / maxGoldByDay(day))).join(" ")} (${((performance.now() - t0) / 1000).toFixed(0)} s)`);
@@ -272,7 +273,7 @@ async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out
     if (honestOn) {
       const honest = HEROES.map((h) => honestReference(h, day));
       const hSeeds = k * seeds;
-      const hJobs: Job[] = decks.flatMap((d) => HEROES.map((h, hi): Job => ({ a: decks.indexOf(d), b: decks.length + hi, seeds: Array.from({ length: hSeeds }, (_, s) => hashSeed("par-rivals-honest", day, d.tag, h, s)) })));
+      const hJobs: Job[] = decks.flatMap((d) => HEROES.map((h, hi): Job => ({ a: decks.indexOf(d), b: decks.length + hi, seeds: Array.from({ length: hSeeds }, (_, s) => hashSeed("par-rivals-honest", day, d.tag, h, s)), day })));
       const hPts = await run([...decks.map((d) => d.build), ...honest], hJobs);
       vsHonest = decks.map((_, d) => Object.fromEntries(HEROES.map((h, hi) => [h, hPts[d * HEROES.length + hi] / (2 * hSeeds)])) as Record<HeroId, number>);
     }
@@ -287,7 +288,7 @@ async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out
     const tqPar: unknown[] = [];
     if (tqOn && hard.length) {
       const refs = HEROES.map((h) => parField(h, day, k, opts));
-      const strength = await roundRobin(refs.flat(), (i, j) => Array.from({ length: seeds }, (_, s) => hashSeed("par-tq-rank", day, i, j, s)), run);
+      const strength = await roundRobin(refs.flat(), (i, j) => Array.from({ length: seeds }, (_, s) => hashSeed("par-tq-rank", day, i, j, s)), run, day);
       for (const [hi, hero] of HEROES.entries()) {
         const st = strength.slice(hi * k, (hi + 1) * k);
         for (const q of [0.75, 0.9]) {
@@ -296,7 +297,7 @@ async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out
           const cut = nearestRank(st, q);
           const members = st.map((s, m) => ({ s, m })).filter((x) => x.s >= cut).map((x) => x.m);
           const builds = members.map((m) => refs[hi][m]);
-          const jobs: Job[] = builds.flatMap((_, b) => foes.map((id, f): Job => ({ a: b, b: builds.length + f, seeds: Array.from({ length: tqSeeds }, (_, s) => hashSeed("par-tq-field", day, hero, members[b], id, s)) })));
+          const jobs: Job[] = builds.flatMap((_, b) => foes.map((id, f): Job => ({ a: b, b: builds.length + f, seeds: Array.from({ length: tqSeeds }, (_, s) => hashSeed("par-tq-field", day, hero, members[b], id, s)), day })));
           const pts = await run([...builds, ...foes.map((id) => rivalBuild(id, day))], jobs);
           const per = foes.map((id, f) => {
             const rates = builds.map((_, b) => pts[b * foes.length + f] / (2 * tqSeeds));
@@ -320,7 +321,7 @@ async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out
           const builds = picks.map((idx) => norm(standInCandidate(hero, day, hashSeed("standin-pop", SEED, hero, day, idx), "on", "on", "on").build));
           const foes = q === 0.9 ? hard.filter((id) => id === "matriarch") : hard.filter((id) => id !== "matriarch");
           if (!foes.length) continue;
-          const jobs: Job[] = builds.flatMap((_, b) => foes.map((id, f): Job => ({ a: b, b: builds.length + f, seeds: Array.from({ length: tqSeeds }, (_, s) => hashSeed("par-tq", day, hero, q, picks[b], id, s)) })));
+          const jobs: Job[] = builds.flatMap((_, b) => foes.map((id, f): Job => ({ a: b, b: builds.length + f, seeds: Array.from({ length: tqSeeds }, (_, s) => hashSeed("par-tq", day, hero, q, picks[b], id, s)), day })));
           const pts = await run([...builds, ...foes.map((id) => rivalBuild(id, day))], jobs);
           const per = foes.map((id, f) => {
             const rates = builds.map((_, b) => pts[b * foes.length + f] / (2 * tqSeeds));
@@ -389,7 +390,7 @@ async function vsParDetail(decks: { tag: string; build: Build }[], day: number, 
   for (const r of refs) { at.push(off); off += r.length; }
   const jobs: Job[] = [], where: [number, number, number][] = [];
   decks.forEach((dk, d) => HEROES.forEach((h, hi) => refs[hi].forEach((_, m) => {
-    jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed("par-rivals", day, dk.tag, h, m, s)) });
+    jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed("par-rivals", day, dk.tag, h, m, s)), day }); // HULL-1a: the day
     where.push([d, hi, m]);
   })));
   const got = await detail(field, jobs);
@@ -663,7 +664,7 @@ function pairedJobs(rows: Row[], foes: readonly HeroId[], day: number, k: number
   const jobs: Job[] = [], where: [number, HeroId, number][] = [];
   rows.forEach((r, ri) => foes.forEach((h, hi) => refs[hi].forEach((_, m) => {
     if (h === r.hero && m === r.self) return;
-    jobs.push({ a: ri, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed(key, day, r.pair, h, m, s)) });
+    jobs.push({ a: ri, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed(key, day, r.pair, h, m, s)), day }); // HULL-1a: the day
     where.push([ri, h, m]);
   })));
   return { field, jobs, where };
@@ -1227,7 +1228,7 @@ async function joinsGauntletMode(days: number[], run: Runner, out: string, seeds
     const jobs: Job[] = [];
     decks.forEach((b, i) => {
       const src = b.hero === "furnace" ? 0 : 1;
-      foes.forEach((_, g) => { for (const s of focusSeeds(o, day, src, g, JOIN_BENCH_KEY)) jobs.push({ a: i, b: decks.length + g, seeds: [s] }); });
+      foes.forEach((_, g) => { for (const s of focusSeeds(o, day, src, g, JOIN_BENCH_KEY)) jobs.push({ a: i, b: decks.length + g, seeds: [s], day }); }); // HULL-1a
     });
     const pts = await run([...decks, ...foes], jobs);
     const per = foes.length * seeds;
@@ -1310,7 +1311,7 @@ async function synergyMode(days: number[], run: Runner, out: string, opts: Playe
     let d = 0;
     for (const g of groups) {
       for (let j = 0; j <= variants; j++, d++) {
-        FIELDS.forEach((h, hi) => refs[hi].forEach((_, m) => jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed("par-synergy", day, g.id, h, m, s)) })));
+        FIELDS.forEach((h, hi) => refs[hi].forEach((_, m) => jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed("par-synergy", day, g.id, h, m, s)), day }))); // HULL-1a
       }
     }
     const pts = await run(field, jobs);

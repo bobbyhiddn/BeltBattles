@@ -54,7 +54,9 @@ export const coresOn = (o: { stars: Stars; cores?: Cores }): boolean => o.stars 
 /** 0.6.1c: factories are bought only with stars on and factories on (the CLI defaults them to the stars flag). */
 export const factoriesOn = (o: { stars: Stars; factories?: Factories }): boolean => o.stars === "on" && o.factories === "on";
 
-export interface Job { a: number; b: number; seeds: number[] } // field indices
+// field indices. HULL-1a (REQ-BFG-079): `day`, the day the pairing's fights are on (simulate's; the day's hull with
+// HULL_SCALE on, nothing without it); every job maker with a day sets it
+export interface Job { a: number; b: number; seeds: number[]; day?: number }
 /** Plays jobs over a field; returns, per job, a's points (win 1, draw 0.5) over 2 x seeds battles. */
 export type Runner = (field: Build[], jobs: Job[]) => Promise<number[]>;
 
@@ -62,8 +64,8 @@ export type Runner = (field: Build[], jobs: Job[]) => Promise<number[]>;
 export function playJob(field: Build[], j: Job): number {
   let pts = 0;
   for (const s of j.seeds) {
-    const x = simulate(field[j.a], field[j.b], s).winner;
-    const y = simulate(field[j.b], field[j.a], s).winner;
+    const x = simulate(field[j.a], field[j.b], s, undefined, undefined, j.day).winner;
+    const y = simulate(field[j.b], field[j.a], s, undefined, undefined, j.day).winner;
     pts += (x === 0 ? 1 : x === -1 ? 0.5 : 0) + (y === 1 ? 1 : y === -1 ? 0.5 : 0);
   }
   return pts;
@@ -79,7 +81,7 @@ export type DetailRunner = (field: Build[], jobs: Job[]) => Promise<string[]>;
 export function jobDetail(field: Build[], j: Job): string {
   const out: string[] = [];
   for (const s of j.seeds) {
-    for (const r of [simulate(field[j.a], field[j.b], s), simulate(field[j.b], field[j.a], s)]) {
+    for (const r of [simulate(field[j.a], field[j.b], s, undefined, undefined, j.day), simulate(field[j.b], field[j.a], s, undefined, undefined, j.day)]) {
       out.push(`${r.winner},${r.t},${r.sides[0].hull.hp},${r.sides[1].hull.hp}`);
     }
   }
@@ -96,7 +98,7 @@ export type StatsRunner = (field: Build[], jobs: Job[]) => Promise<JobStats[]>;
 export function jobStats(field: Build[], j: Job): JobStats {
   let pts = 0, dmg = 0, jams = 0;
   for (const s of j.seeds) {
-    const x = simulate(field[j.a], field[j.b], s), y = simulate(field[j.b], field[j.a], s);
+    const x = simulate(field[j.a], field[j.b], s, undefined, undefined, j.day), y = simulate(field[j.b], field[j.a], s, undefined, undefined, j.day);
     pts += (x.winner === 0 ? 1 : x.winner === -1 ? 0.5 : 0) + (y.winner === 1 ? 1 : y.winner === -1 ? 0.5 : 0);
     dmg += x.sides[0].stats.damage + y.sides[1].stats.damage;
     jams += x.sides[0].stats.jams + y.sides[1].stats.jams;
@@ -317,7 +319,7 @@ export async function pressSlotBench(o: TourneyOpts, day: number, gauntlet: Buil
         if (unfusedPairs(v).length) { slots.push({ src, def, star, f: null }); continue; }
         slots.push({ src, def, star, f: field.length });
         field.push(v);
-        gauntlet.forEach((_, g) => jobs.push({ a: field.length - 1, b: -1 - g, seeds: focusSeeds(o, day, src, g, PRESS_SLOT_KEY) }));
+        gauntlet.forEach((_, g) => jobs.push({ a: field.length - 1, b: -1 - g, seeds: focusSeeds(o, day, src, g, PRESS_SLOT_KEY), day }));
       }
     }
   });
@@ -346,7 +348,8 @@ export function arsenalPressSlot(): ArsenalSlotRow[] {
   return FACTORY_DEFS.map((def) => {
     const row: ArsenalSlotRow = { def, dmg: [0, 0, 0], wins: [0, 0, 0], jams: [0, 0, 0] };
     for (const star of [1, 2, 3]) {
-      const fights = ARSENAL_SLOT_SEEDS.map((seed) => simulate(pressSwap(deck, def, star), JSON.parse(JSON.stringify(opp)) as Build, seed));
+      // HULL-1a (REQ-BFG-079): both decks are day 6's (heroRefBuild(..., 6)), so the fights are on day 6
+      const fights = ARSENAL_SLOT_SEEDS.map((seed) => simulate(pressSwap(deck, def, star), JSON.parse(JSON.stringify(opp)) as Build, seed, undefined, undefined, 6));
       row.dmg[star - 1] = fights.reduce((a, b) => a + b.sides[0].stats.damage, 0) / fights.length;
       row.wins[star - 1] = fights.filter((b) => b.winner === 0).length;
       row.jams[star - 1] = fights.reduce((a, b) => a + b.sides[0].stats.jams, 0) / fights.length;
@@ -428,7 +431,7 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: D
       const a = Math.min(x, y), b = Math.max(x, y), k = pk(a, b);
       if (a === b || results.has(k) || seen.has(k)) continue;
       seen.add(k);
-      jobs.push({ a, b, seeds: seedsFor(a, b) });
+      jobs.push({ a, b, seeds: seedsFor(a, b), day });
     }
     const pts = await run(builds, jobs);
     jobs.forEach((j, i) => results.set(pk(j.a, j.b), pts[i]));
@@ -572,7 +575,7 @@ export async function mirrorSplits(o: TourneyOpts, day: number, hero: HeroId, po
     const A = idx.slice(0, half), B = idx.slice(half);
     const jobs: Job[] = [];
     for (const a of A) for (const b of B) {
-      jobs.push({ a, b, seeds: Array.from({ length: o.seeds }, (_, s) => hashSeed("bb-mirror-battle", o.seed, day, hero, k, a, b, s)) });
+      jobs.push({ a, b, seeds: Array.from({ length: o.seeds }, (_, s) => hashSeed("bb-mirror-battle", o.seed, day, hero, k, a, b, s)), day });
     }
     const pts = await run(pop, jobs);
     const total = pts.reduce((s, p) => s + p, 0);
@@ -666,7 +669,7 @@ export async function starBench(o: TourneyOpts, day: number, gauntlet: Build[], 
     }
   });
   const allField = [...field, ...gauntlet];
-  const jobsOf = (fs: number[]): Job[] => fs.flatMap((f) => gauntlet.map((_, g): Job => ({ a: f, b: field.length + g, seeds: benchSeeds(o, day, fieldSrc[f], g) })));
+  const jobsOf = (fs: number[]): Job[] => fs.flatMap((f) => gauntlet.map((_, g): Job => ({ a: f, b: field.length + g, seeds: benchSeeds(o, day, fieldSrc[f], g), day })));
   const jobs = jobsOf(field.map((_, f) => f));
   const pts = field.length ? await run(allField, jobs) : [];
   const ptsOf = (f: number, g: number) => pts[f * G + g];
@@ -785,7 +788,7 @@ export async function focusBench(o: TourneyOpts, day: number, gauntlet: Build[],
       }
       slot.push(at);
       decks.push({ tag: s.tag, hero: s.hero, par: !!s.par, def: p.def, uid: p.uid, stars0: starsOf(p), valid: validateBuild(s.build, day).ok, pts: [null, null, null], n: G * per });
-      at.forEach((f) => { if (f !== null) gauntlet.forEach((_, g) => jobs.push({ a: f, b: -1 - g, seeds: focusSeeds(o, day, src, g, key) })); });
+      at.forEach((f) => { if (f !== null) gauntlet.forEach((_, g) => jobs.push({ a: f, b: -1 - g, seeds: focusSeeds(o, day, src, g, key), day })); });
     }
   });
   if (!jobs.length) return { decks, battles: 0 };

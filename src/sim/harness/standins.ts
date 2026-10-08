@@ -283,7 +283,7 @@ export async function robustReplay(o: StandInOpts, hero: HeroId, day: number, po
   const n = Math.max(1, Math.round(o.robust)) * o.refSeeds;
   const field = [...refs, ...borderline.map((c) => c.build)];
   const jobs: Job[] = borderline.flatMap((c, i) =>
-    refs.map((_, r): Job => ({ a: refs.length + i, b: r, seeds: Array.from({ length: n }, (_, k) => hashSeed("standin-robust", o.seed, hero, day, c.idx, r, k)) })));
+    refs.map((_, r): Job => ({ a: refs.length + i, b: r, seeds: Array.from({ length: n }, (_, k) => hashSeed("standin-robust", o.seed, hero, day, c.idx, r, k)), day }))); // HULL-1a: the day
   const pts = await run(field, jobs);
   // FB-C: a hero's par may be several decks (the par field): its battles are summed over its members; one deck per
   // hero (heroref, refHero = [0, 1]) is the legacy arithmetic exactly
@@ -381,8 +381,8 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
         });
         const field = [...gauntlet, ...refs, ...c.map((x) => x.build)];
         const jobs: Job[] = c.flatMap((x, i) => [
-          ...gauntlet.map((_, j): Job => ({ a: G + R + i, b: j, seeds: seedsFor(hero, day, x.idx, j) })),
-          ...refs.map((_, r): Job => ({ a: G + R + i, b: G + r, seeds: refSeeds[r] })),
+          ...gauntlet.map((_, j): Job => ({ a: G + R + i, b: j, seeds: seedsFor(hero, day, x.idx, j), day })), // HULL-1a: the day
+          ...refs.map((_, r): Job => ({ a: G + R + i, b: G + r, seeds: refSeeds[r], day })),
         ]);
         const pts = await run(field, jobs);
         battles += c.length * (G * per + R * o.refSeeds * 2);
@@ -447,7 +447,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
     // the par against that day's elites of every pool hero (report only)
     for (const hd of dayOut) {
       const elites = dayOut.flatMap((x) => x.elites.map((e) => e.build));
-      const jobs: Job[] = elites.map((_, e) => ({ a: 0, b: 1 + e, seeds: seedsFor("elite", hd.hero, day, e) }));
+      const jobs: Job[] = elites.map((_, e) => ({ a: 0, b: 1 + e, seeds: seedsFor("elite", hd.hero, day, e), day })); // HULL-1a: the day
       const pts = await run([hd.picks[hd.par].build, ...elites], jobs);
       battles += jobs.length * per;
       hd.parVsElites = winRate(pts, jobs.length * per);
@@ -470,7 +470,7 @@ export async function versus(o: StandInOpts, a: { hero: HeroId; picks: PicksOf }
   for (let day = 1; day <= 10; day++) {
     const A = a.picks(a.hero, day), B = b.picks(b.hero, day);
     const jobs: Job[] = A.flatMap((_, i) => B.map((_, j): Job => ({
-      a: i, b: A.length + j, seeds: Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-pvp", o.seed, day, i, j, k)),
+      a: i, b: A.length + j, seeds: Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-pvp", o.seed, day, i, j, k)), day, // HULL-1a
     })));
     const pts = await run([...A, ...B], jobs);
     out.push({ day, rate: winRate(pts, jobs.length * o.seeds * 2), battles: jobs.length * o.seeds * 2 });

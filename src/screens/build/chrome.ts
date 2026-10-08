@@ -134,7 +134,7 @@ function drawShop(g: G, s: BuildScreen): void {
   // bb-0.8.6 (REQ-BFG-051, PACKS P5): the two fixed packs beside REROLL; they stay put while the caravan rolls in and out
   packRects(L).forEach((r, i) => {
     const id = PACK_IDS[i];
-    drawPack(g, r, id, run.gold >= packPrice(id), s.game.ui.hover === `pack-${id}`, s.game.ui.pressed === `pack-${id}`);
+    drawPack(g, r, id, run.gold >= packPrice(id), s.game.ui.hover === `pack-${id}`, s.game.ui.pressed === `pack-${id}`, run.day); // HULL-1a
     s.game.ui.add({ id: `pack-${id}`, r, onTap: () => s.doPack(id), block: true });
   });
 }
