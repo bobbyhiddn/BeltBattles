@@ -17,6 +17,7 @@ import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on 
 import { panel, type Rect } from "../ui/ui";
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
 import { faceLines } from "../ui/faces";
+import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block on the cards' panel
 import { HEROES, ITEMS, type Rarity } from "../sim/content";
 import { RUNES } from "../sim/runes";
 import { BOONS, LAST_CHANCE_HULL, type Boon, type LastChanceOffer } from "../sim/lastChance";
@@ -246,6 +247,7 @@ export class LastChancePicker {
     g.globalAlpha = 1;
     ui.add({ id: "lcpick", r: { x: 0, y: 0, w: W, h: H }, block: true });
     const cx = Math.round(W / 2);
+    drawTitlePlate(g, W, L.top, L.cardW); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint
     drawText(g, LC_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
     drawText(g, LC_LINE, cx, L.top + 11, C.lime, { align: "center" });
     drawText(g, lcHint(o.day), cx, L.top + 22, C.slate4, { font: "3", align: "center" });
