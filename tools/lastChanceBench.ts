@@ -64,14 +64,14 @@ export interface JobOut {
   };
 }
 
-const maxHull = (b: Build): number => new Battle(b, b, 1).sides[0].hull.max;
+const maxHull = (b: Build, day?: number): number => new Battle(b, b, 1, undefined, day).sides[0].hull.max; // HULL-1a: on `day`
 /** The HULL amounts whose pick rate the bench reads from the bots' rating (the verdict's search). */
 export const SWEEP: readonly number[] = [100, 200, 250, 300, 350, 400, 500, 600, 700, 800, 1000, 1500];
 
 function fight(build: Build, runSeed: number, day: number): number {
   const foe = standInFoe(runSeed, day);
   const seed = battleSeed({ seed: runSeed, day } as Run);
-  const b = simulate(build, foe.build, seed);
+  const b = simulate(build, foe.build, seed, undefined, undefined, day); // HULL-1a (REQ-BFG-079): the day
   return b.winner ?? -1;
 }
 
@@ -105,7 +105,7 @@ function job(hero: HeroId, seed: number, hull: number, forced: boolean): JobOut 
   const plain = playerRun(hero, RUN_DAYS, seed);
   const runSeed = parRunSeed(hero, seed);
   const res = plain.map((d, i) => fight(d.build, runSeed, i + 1));
-  const hulls = { par: plain.map((d) => maxHull(d.build)), field: plain.map((_, i) => maxHull(standInFoe(runSeed, i + 1).build)) };
+  const hulls = { par: plain.map((d, i) => maxHull(d.build, i + 1)), field: plain.map((_, i) => maxHull(standInFoe(runSeed, i + 1).build, i + 1)) };
   const off = ledger(hero, runSeed, res, false);
   const onNoCard = ledger(hero, runSeed, res, true);
   const out: JobOut = { hero, seed, runSeed, res, off, onNoCard, on: onNoCard, hull: hulls, lc: null };

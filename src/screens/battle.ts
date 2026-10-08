@@ -108,7 +108,8 @@ export class BattleScreen implements Screen {
     // (DuskFoe.record), 0 for a stand-in or a warlord; the record keeps them only when a side holds it (replay.ts)
     const wins: [number, number] = [run.wins, w ? 0 : this.foe.record?.wins ?? 0];
     // 0.7.0a: the dusk's battle record (both decks as they fight, the seed) for the summary's REPLAY; online only
-    this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed, wins) : null;
+    // HULL-1a (REQ-BFG-079): the dusk and a warlord fight are on the run's day (the record keeps it with HULL_SCALE on)
+    this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed, wins, run.day) : null;
     this.note = w ? null : foeNote(run, this.foe);
     this.wact = {
       take: [0, 1].map((i) => () => this.take(i)),
@@ -116,7 +117,7 @@ export class BattleScreen implements Screen {
       fight: () => this.toDusk(),
       road: () => this.toRoad(), // NPC-1 (REQ-BFG-077): ON TO THE ROAD (NPC_DAY on)
     };
-    this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins);
+    this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins, run.day);
     this.arena.off = [60, 260];
     if (!MOTION_KNOBS || MOTION.on) this.motion = new ArenaMotion(this.seed, this.foe.day, MOTION, settings.reducedMotion);
     this.bar = {

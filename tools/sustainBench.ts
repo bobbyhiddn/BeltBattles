@@ -47,7 +47,7 @@ import { parField } from "../src/sim/harness/par";
 import { blockedCells, freeConnectors, randomPath, shortestTiles, startCells } from "../src/sim/harness/path";
 import { wilson } from "../src/sim/harness/stats";
 
-interface Fight { a: number; b: number; seed: number }
+interface Fight { a: number; b: number; seed: number; day?: number } // HULL-1a (REQ-BFG-079): the day the fight is on
 interface Chunk { id: number; field: Build[]; fights: Fight[] }
 // per fight: winner (-2 none), t, hull0, hull1, max0, max1, stopped0, stopped1, healed0, healed1, burnLost0, burnLost1,
 // windLost0, windLost1, gained0, gained1, windTaken0, windTaken1
@@ -210,7 +210,7 @@ export function baseField(setting: string, heroes: readonly HeroId[], day: numbe
 }
 
 function play(field: Build[], f: Fight): Out {
-  const bt = new Battle(field[f.a], field[f.b], f.seed);
+  const bt = new Battle(field[f.a], field[f.b], f.seed, undefined, f.day); // HULL-1a (REQ-BFG-079): the day
   while (!bt.over && bt.ticks < 60 * 200) { // simulate()'s loop
     bt.step();
     bt.events.length = 0;
@@ -275,8 +275,8 @@ async function main(): Promise<void> {
     for (let x = 0; x < H; x++) for (let y = x; y < H; y++) for (let i = 0; i < k; i++) for (let j = x === y ? i + 1 : 0; j < k; j++) {
       for (let s = 0; s < S; s++) {
         const seed = hashSeed("sustain1", day, heroes[x], heroes[y], i, j, s);
-        fights.push({ a: x * k + i, b: y * k + j, seed }); meta.push({ x, y, aIsX: true, mirror: x === y });
-        fights.push({ a: y * k + j, b: x * k + i, seed }); meta.push({ x, y, aIsX: false, mirror: x === y });
+        fights.push({ a: x * k + i, b: y * k + j, seed, day }); meta.push({ x, y, aIsX: true, mirror: x === y });
+        fights.push({ a: y * k + j, b: x * k + i, seed, day }); meta.push({ x, y, aIsX: false, mirror: x === y });
       }
     }
     const res = new Map<string, Out[]>();

@@ -125,9 +125,10 @@ export class Arena {
   }
 
   /** 0.7.0a: `battle` (a replay: replayBattle(record), fresh and unstepped) is played instead of a new Battle. RUNES-2a:
-   *  `wins`, each side's wins carried into the fight (WARLORD'S DUE; sim/battle.ts Battle). */
-  constructor(player: Build, enemy: Build, seed: number, sound: Audio | null, battle?: Battle, wins?: readonly [number, number]) {
-    this.b = battle ?? new Battle(player, enemy, seed, wins);
+   *  `wins`, each side's wins carried into the fight (WARLORD'S DUE; sim/battle.ts Battle). HULL-1a (REQ-BFG-079): `day`,
+   *  the day the fight is on (Battle's: the day's hull with HULL_SCALE on; nothing without it). */
+  constructor(player: Build, enemy: Build, seed: number, sound: Audio | null, battle?: Battle, wins?: readonly [number, number], day?: number) {
+    this.b = battle ?? new Battle(player, enemy, seed, wins, day);
     this.sound = sound;
     this.sfx = [sideFx(this.b, 0), sideFx(this.b, 1)];
     this.views = makeViews(this);

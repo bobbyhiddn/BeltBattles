@@ -24,7 +24,7 @@ import type { Build } from "../src/sim/deck";
 import { parField } from "../src/sim/harness/par";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 
-interface Fight { a: number; b: number; seed: number }
+interface Fight { a: number; b: number; seed: number; day?: number } // HULL-1a (REQ-BFG-079): the day the fight is on
 type Pair<T> = [T, T];
 /** One battle: its length (s), and per side s: the impacts s took, their dmg, the hits s's SHIELD stopped, and whether
  *  s's foe (1 - s) dealt BURN. */
@@ -37,8 +37,8 @@ const flag = (name: string): string | undefined => {
 const num = (name: string, d: number): number => (flag(name) === undefined ? d : Number(flag(name)));
 
 /** One battle, simulate()'s loop, its events read each step. */
-export function play(A: Build, B: Build, seed: number): Rec {
-  const bt = new Battle(A, B, seed);
+export function play(A: Build, B: Build, seed: number, day?: number): Rec {
+  const bt = new Battle(A, B, seed, undefined, day); // HULL-1a (REQ-BFG-079): the day
   const hits: Pair<number> = [0, 0], hitDmg: Pair<number> = [0, 0];
   while (!bt.over && bt.ticks < 60 * 200) {
     bt.step();
@@ -77,8 +77,8 @@ function main(): void {
     for (let x = 0; x < H; x++) for (let y = x; y < H; y++) for (let i = 0; i < k; i++) for (let j = x === y ? i + 1 : 0; j < k; j++) {
       for (let s = 0; s < S; s++) {
         const seed = hashSeed("botsx-foe", day, heroes[x], heroes[y], i, j, s);
-        fights.push({ a: x * k + i, b: y * k + j, seed });
-        fights.push({ a: y * k + j, b: x * k + i, seed });
+        fights.push({ a: x * k + i, b: y * k + j, seed, day });
+        fights.push({ a: y * k + j, b: x * k + i, seed, day });
         if (x === y) mirrors += 2;
       }
     }
@@ -86,7 +86,7 @@ function main(): void {
     const ts: number[] = [];
     let hits = 0, hitDmg = 0, stopped = 0, burnSides = 0;
     for (const f of fights) {
-      const r = play(field[f.a], field[f.b], f.seed);
+      const r = play(field[f.a], field[f.b], f.seed, f.day);
       ts.push(r.t);
       for (const s of [0, 1] as const) {
         hits += r.hits[s]; hitDmg += r.hitDmg[s]; stopped += r.stopped[s];

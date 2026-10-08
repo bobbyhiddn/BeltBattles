@@ -154,7 +154,7 @@ game.start();
     clearPool();
     const run = (game.run = setupRun(o));
     const foe = standInFoe(run.seed, run.day);
-    const r = openReplay(battleRecordFor(run.build, foe.build, battleSeed(run)));
+    const r = openReplay(battleRecordFor(run.build, foe.build, battleSeed(run), undefined, run.day)); // HULL-1a: the run's day
     if (!r.ok) return false;
     game.go(new ReplayScreen(game, new TitleScreen(game), r.battle, { day: run.day, foe: foe.name }));
     return true;

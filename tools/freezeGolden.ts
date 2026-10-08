@@ -44,7 +44,7 @@ for (const h of PLAYABLE_HEROES) for (const d of DAYS) par.set(`par/${h}/${d}`, 
 
 function entry(key: string, hero: HeroId, day: number, deck: Build): Entry {
   const opp = `par/${other(hero)}/${day}`;
-  const b = simulate(clone(deck), clone(par.get(opp)!), GOLDEN_SEED);
+  const b = simulate(clone(deck), clone(par.get(opp)!), GOLDEN_SEED, undefined, undefined, day); // HULL-1a (REQ-BFG-079): the day
   return {
     key, hero, day, deck: clone(deck), opp, seed: GOLDEN_SEED,
     winner: b.winner, t: b.t, ticks: b.ticks, hulls: [b.sides[0].hull.hp, b.sides[1].hull.hp],

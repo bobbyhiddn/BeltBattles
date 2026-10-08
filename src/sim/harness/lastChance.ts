@@ -67,8 +67,8 @@ const ARMOR = ITEMS[PACK_ITEM.armor];
 const hullPerGold = (): number => (ARMOR.supply?.hull ?? 0) / Math.max(1, ARMOR.price);
 
 /** Each side's hull lost to the other in one fight (the wind taken out). */
-function losses(a: Build, b: Build, seed: number, wins: number): [number, number] {
-  const bt = simulate(a, b, seed, undefined, [wins, wins]);
+function losses(a: Build, b: Build, seed: number, wins: number, day?: number): [number, number] {
+  const bt = simulate(a, b, seed, undefined, [wins, wins], day); // HULL-1a (REQ-BFG-079): the day
   return [0, 1].map((i) => {
     const s = bt.sides[i];
     return Math.max(0, s.hull.max - s.hull.hp - s.stats.windTaken);
@@ -81,8 +81,8 @@ export function runeDuelFactor(board: Build, id: string, day: number, wins = 0):
   let num = 0, den = 0;
   for (let i = 0; i < MIRROR_SEEDS; i++) {
     const seed = hashSeed("lastchance-mirror", board.hero, day, i);
-    const [w0, w1] = losses(withRune, board, seed, wins);
-    const [b0, b1] = losses(board, board, seed, wins);
+    const [w0, w1] = losses(withRune, board, seed, wins, day);
+    const [b0, b1] = losses(board, board, seed, wins, day);
     num += (w1 + LOSS_FLOOR) / (w0 + LOSS_FLOOR);
     den += (b1 + LOSS_FLOOR) / (b0 + LOSS_FLOOR);
   }

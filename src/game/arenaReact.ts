@@ -323,7 +323,8 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
     case "wind":
       for (const side of [0, 1] as Side[]) {
         fx.anchor = side; // MOTION-1: each hull's number rides with it
-        fx.popup(hullCx(a, side) + (fx.rnd() - 0.5) * 50, hullCy(a, side), fmtDmg(e.dmg), C.plum4); // NUM-4: was Math.round
+        // NUM-4: was Math.round. HULL-1a (REQ-BFG-079): with the day's hull each hull's own share (e.dmgs)
+        fx.popup(hullCx(a, side) + (fx.rnd() - 0.5) * 50, hullCy(a, side), fmtDmg(e.dmgs?.[side] ?? e.dmg), C.plum4);
       }
       snd?.play("whoosh");
       return;
