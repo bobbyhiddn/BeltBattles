@@ -8,6 +8,7 @@ import { Battle } from "../src/sim/battle";
 import { WIND_START, type HeroId } from "../src/sim/content";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import type { Build } from "../src/sim/deck";
+import { withHullScale } from "../src/sim/hullScale"; // HULL-1a (REQ-BFG-079): the switch-on twin
 
 /** A hero's starting deck with its belts cut: no turret ever loads, so nothing fires and only the wind moves a hull. */
 const silent = (hero: HeroId, uid: number): Build => ({ ...heroStartBuild(hero, uid), routes: [] });
@@ -54,5 +55,39 @@ describe("backlog #368: the dark wind hits both hulls", () => {
     expect([p.plate.plate, e.plate.plate]).toEqual(plate);
     expect([p.shield, e.shield]).toEqual(shield);
     expect([p.stats.damage, e.stats.damage]).toEqual([0, 0]);
+  });
+
+  // HULL-1a (REQ-BFG-079): the switch-on twin. With HULL_SCALE on and a day, the wind takes a share of each hull's OWN max
+  // (hullScale.ts windShareBp), so both sides lose the same share and the amounts differ when the max hulls differ
+  it("HULL_SCALE on, day 10: both sides lose the same share of their own max hull, straight to hp (the amounts differ)", () => {
+    const bt = withHullScale(() => new Battle(silent("furnace", 1), silent("weaver", 101), 7, undefined, 10));
+    const [p, e] = bt.sides;
+    expect(p.hull.max).not.toBe(e.hull.max);
+    bt.addPlate(p, 100);
+    bt.addPlate(e, 100);
+    bt.gainShield(p, 1);
+    bt.gainShield(e, 1);
+    const plate = [p.plate.plate, e.plate.plate], shield = [p.shield, e.shield];
+    bt.events.length = 0;
+    let ticks = 0;
+    while (!bt.over && bt.t < WIND_START + 12) {
+      const hp = [p.hull.hp, e.hull.hp];
+      bt.step();
+      for (const ev of bt.events) {
+        if (ev.type !== "wind") continue;
+        expect([hp[0] - p.hull.hp, hp[1] - e.hull.hp]).toEqual(ev.dmgs); // each hull its own amount, straight to hp
+        // the same share of each max (to the rounding of a whole hit point)
+        expect(Math.abs(ev.dmgs![0] / p.hull.max - ev.dmgs![1] / e.hull.max)).toBeLessThan(1 / e.hull.max);
+        ticks++;
+      }
+      bt.events.length = 0;
+    }
+    expect(ticks).toBeGreaterThanOrEqual(10);
+    expect(p.stats.windTaken).not.toBe(e.stats.windTaken);
+    expect(p.stats.windTaken / p.hull.max).toBeCloseTo(e.stats.windTaken / e.hull.max, 3);
+    expect(p.hull.max - p.hull.hp).toBe(p.stats.windTaken);
+    expect(e.hull.max - e.hull.hp).toBe(e.stats.windTaken);
+    expect([p.plate.plate, e.plate.plate]).toEqual(plate);
+    expect([p.shield, e.shield]).toEqual(shield);
   });
 });
