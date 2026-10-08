@@ -151,7 +151,11 @@ export const SHOTS = [
     ["dusk-standin", v, "title", 0, DUSK({ day: 5, wins: 3, losses: 1, lives: 4 }, [], 75)], // M3b: honest stand-in, 1 plate
     ["dusk-loss", v, "title", 0, DUSK({ day: 2, wins: 1, losses: 0, lives: 5 }, [{ day: 2, hero: "furnace", wins: 1, losses: 0, power: 6 }], 40, true)],
     ["run-complete", v, "title", 0, END({ results: "WWLWDWLWWW", seed: 777 }, POOL)],
-    ["run-lost", v, "title", 0, END({ results: "WLLWLDLL", seed: 4242, hero: "weaver" }, POOL)],
+    // REQ-BFG-073 (backlog #378, REVIEW-STAGE097 R2): was "WLLWLDLL", whose fifth loss (dusk 8) now fires LAST CHANCE, so
+    // the shot stopped at dawn 9 with the pick pending (2 lives left). Two more losses: playOut takes the HULL card at
+    // dawn 9 (run.ts takeLastChance(run, "hull"), as the picker's second tap does), then days 9 and 10 are lost: RUN LOST
+    // on day 10 with 0 lives, and day 8's row shows LAST CHANCE's +1 LIFE with the HULL card
+    ["run-lost", v, "title", 0, END({ results: "WLLWLDLLLL", seed: 4242, hero: "weaver" }, POOL)],
     ["playback", v, "battle", 7, "bb.game.screen.setSpeed(0); for (let i = 0; i < 20; i++) bb.game.step(1 / 60); bb.game.render()"],
   ]),
   // 0.6.0b the road fork: day 1 (no intro rule), day 8 with the Iron Matriarch in the Hard slot, a
