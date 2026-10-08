@@ -107,7 +107,10 @@ if (process.env.BB_RUNES_PARITY_WRITE) {
       // Z-BUMP (the pools): re-written at 2c4ba76, the one regeneration under bb-0.9.7 (the stand-in pool and the seed pool's
       // FURNACE/WEAVER part read from it; the overfeed's BASTION par deck in its race part); the battle plan kept. Was
       // "CATCHUP-093 (REQ-BFG-024): the parity record re-written at 0a4ea7c under bb-0.9.3 after the captains' plan moves (LONG..."
-      about: "Z-BUMP (REQ-BFG-073): the parity record re-written at 2c4ba76 under bb-0.9.7, release Z's rules (LAST CHANCE, the overfeed patch, the bump), from its one regeneration's seed pool and the dusk stand-ins; the battle plan (kinds, pairs, seeds) kept",
+      // CATCHUP-098 (REQ-BFG-024): re-written at 13ec8db (the named stand-ins' dusk decks re-planned, BRIEF-CATCHUP-098 target
+      // 4: NETTLE's day-6 deck and LONGTOOTH's day-7 deck are record decks); the seed pool and the battle plan as Z-BUMP left
+      // them. Was "Z-BUMP (REQ-BFG-073): the parity record re-written at 2c4ba76 under bb-0.9.7, release Z's rules (LAST CHA..."
+      about: "CATCHUP-098 (REQ-BFG-024): the parity record re-written at 13ec8db under bb-0.9.7 after the captains' plan moves (the named stand-ins' dusk decks); the seed pool and the battle plan (kinds, pairs, seeds) as Z-BUMP left them",
       base: process.env.BB_RUNES_PARITY_WRITE, rules: RULES_VERSION, salt: old.salt, standInRun: old.standInRun,
       decksCount: Object.keys(decks).length, battlesCount: battles.length, decks, battles,
     };

@@ -141,9 +141,13 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
     // offer mix, the events and the shop gold are unchanged (output-v070-rel/REPORT.md §2). 062m: 7 18 30 46 62 80 99 116 133 155.
     // bb-0.8.6 (PACKS, REQ-BFG-051 P1-P2): the packs left the rolled stock and no discount reaches them, so the discount
     // term saves less (was 5 17 29 43 59 74 90 110 127 149 and maxHonestSpend 13 34 56 81 109 137 167 201 232 268)
+    // CATCHUP-098 (REQ-BFG-024; cap's yes for roadCap, oracle bc842e7024551665): MOTH QUEEN's SPLITTER at good luck on day 4
+    // makes the day-4 Hard win pay 7 (was 6; the best Hard prize row 5 6 6 6 7 7 7 10 10 10 -> 5 6 6 7 7 7 7 10 10 10), so the
+    // ceiling loosens by 1-2 g on day 4 and days 6-10 (was 5 17 28 43 57 71 87 106 122 146 and maxHonestSpend
+    // 13 34 55 81 107 134 164 197 227 265); src/net/roadCap.ts is unchanged (it reads the captains' tables)
     const table = Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1));
-    expect(table).toEqual([5, 17, 28, 43, 57, 71, 87, 106, 122, 146]);
-    expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 34, 55, 81, 107, 134, 164, 197, 227, 265]);
+    expect(table).toEqual([5, 17, 28, 44, 57, 73, 89, 108, 124, 147]);
+    expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 34, 55, 82, 107, 136, 166, 199, 229, 266]);
     for (let d = 2; d <= RUN_DAYS; d++) expect(roadCap(d)).toBeGreaterThanOrEqual(roadCap(d - 1));
   });
 
@@ -172,7 +176,9 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
     }
     // v070-rel: gmax's liquid road plan holds less (the Hard pick pays less on days 1-7). 062m: 0 0 0 0 2 4 7 9 9 12
     // bb-0.8.6 (PACKS P1-P2): the discount reaches no pack (was 0 0 0 0 2 3 4 7 8 9)
-    expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 2, 1, 3, 3, 6, 6, 11]);
+    // CATCHUP-098 (cap's yes for roadCap, oracle bc842e7024551665): MOTH QUEEN's day-4 SPLITTER (a 7 g part, was 6) counts as
+    // gold in roadCap's liquid plan from day 6 (roadCap +2, roadCapHoard +1 on days 6-9); was 0 0 0 2 1 3 3 6 6 11
+    expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 2, 1, 4, 4, 7, 7, 11]);
   });
 });
 
