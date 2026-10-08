@@ -1017,8 +1017,8 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   },
   braceframe: {
     id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", shape: "L",
-    // TXT-096: drawn nowhere (its KEPT_FLAVOUR row) and stale (no plated cut since Y2), but kept: emptying it turns tests/wave3Art.test.ts:199 red (ITEMS = tools/wave3Defs.ts's copy; ruling fd56a6c372070b6d step 6)
-    desc: ["ENEMY STUNS ON ITS", "TILES END SOONER,", "SOONER STILL PLATED."], tags: ["PLATE", "HARASS"],
+    // TXT-096: drawn nowhere (its KEPT_FLAVOUR row). TXT-AZ (REVIEW-TXT096 Q2): it says what the piece does since Y2 (battle.ts braceCut reads mul only; was "... SOONER STILL PLATED."), edited with tools/wave3Defs.ts's copy, so tests/wave3Art.test.ts:199 (each wave-3 def equal to that copy) stays green
+    desc: ["ENEMY STUNS ON THE", "BELT TILES IT HITS", "END SOONER."], tags: ["PLATE", "HARASS"],
     // TXT-096 (REVIEW-STAGE093 ruling 15): brace.plated is unread since Y2 (battle.ts braceCut reads mul only), so the face is honest; it stays until a rules release (#370)
     gate: { brace: { mul: 0.5, plated: 0.25 } },
     levels: { 2: { gate: { brace: { mul: 0.3, plated: 0.15 } } }, 3: { gate: { brace: { mul: 0.15, plated: 0.05 } } } },
@@ -1082,8 +1082,8 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   },
   twintrigger: {
     id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
-    // TXT-096: drawn nowhere (its KEPT_FLAVOUR row); its LOAD TIME (Y7B2-Q5) stays: any edit turns tests/wave3Art.test.ts:199 red (ITEMS = tools/wave3Defs.ts's copy; ruling fd56a6c372070b6d step 6)
-    desc: ["PAIRED LOADS HIT", "HARDER; A SHORTER", "LOAD TIME."], tags: ["TWIN", "TEMPO"],
+    // TXT-096: drawn nowhere (its KEPT_FLAVOUR row). TXT-AZ (REVIEW-TXT096 Q2): no LOAD TIME (Y7B2-Q5; Y4 took the shorter load time out, the mod is pairBonus only; was "PAIRED LOADS HIT HARDER; A SHORTER LOAD TIME."), edited with tools/wave3Defs.ts's copy, so tests/wave3Art.test.ts:199 stays green
+    desc: ["PAIRED LOADS IN", "THIS TURRET HIT", "HARDER."], tags: ["TWIN", "TEMPO"],
     // Y4 (release Y; DESIGN-Y row 34; folded at the flip, Y7b2): the shorter load time goes (no windowTime, so no LOAD_FLOOR); pairBonus
     // 30/60/95 (was 25/55/88; the ladder's numbers, cap's ruling e91c08dd12466357)
     mod: { pairBonus: 0.3 },

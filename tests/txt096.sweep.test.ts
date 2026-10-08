@@ -39,8 +39,10 @@ describe("TXT-096 (b): the dead desc arrays (REQ-BFG-046; ruling fd56a6c372070b6
     }
   });
 
-  it("LOAD TIME is in no catalogue desc but TWIN TRIGGER's (Y7B2-Q5: HOPPER's, ROTARY BREECH's and TWIN TRIGGER's held it; step 6 kept TWIN TRIGGER's)", () => {
-    expect(Object.values(ITEMS).filter((d) => /LOAD\s+TIME/.test(d.desc.join(" "))).map((d) => d.id)).toEqual(["twintrigger"]);
+  // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q2): TWIN TRIGGER's desc says what it does now, with tools/wave3Defs.ts's copy, so
+  // LOAD TIME is in no desc (was: TWIN TRIGGER's alone, kept by step 6); tests/txtaz.descs.test.ts pins the two new descs
+  it("LOAD TIME is in no catalogue desc (Y7B2-Q5: HOPPER's, ROTARY BREECH's and TWIN TRIGGER's held it; TXT-AZ took the last out)", () => {
+    expect(Object.values(ITEMS).filter((d) => /LOAD\s+TIME/.test(d.desc.join(" "))).map((d) => d.id)).toEqual([]);
     expect(ITEMS.hopper.desc.join(" ")).toBe("CHAMBER HOLDS 1 MORE LOAD.");
     expect(ITEMS.rotary.desc.join(" ")).toBe("FIRES OLDEST FIRST; PART-FULL CHAMBERS FIRE 50% SOONER.");
     for (const id of ["hopper", "rotary"]) for (const line of ITEMS[id].desc) expect(line.length, `${id}: ${line}`).toBeLessThanOrEqual(20);

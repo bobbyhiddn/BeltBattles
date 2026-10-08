@@ -154,8 +154,9 @@ export function glossaryRows(): GlossaryRow[] {
  * LOAD TIME (Y7b2, the words): no gear holds a load time since Y4 (HOPPER's and TWIN TRIGGER's went; ROTARY's texts say
  * SOONER), so no text names it any more: SALVO RACK's kept sentence names its wait in seconds (abilityText.ts salvo: 2 x
  * WINDOW_TIME after its first load) and TEMPO's family line says HOW LONG A GUN WAITS TO FIRE (families.ts). TXT-096
- * (Y7B2-Q5) took it out of HOPPER's and ROTARY BREECH's catalogue descs; TWIN TRIGGER's still says it (tests/wave3Art.test.ts
- * holds that def equal to tools/wave3Defs.ts's copy). None of the three is drawn (flavour.ts KEPT_FLAVOUR).
+ * (Y7B2-Q5) took it out of HOPPER's and ROTARY BREECH's catalogue descs, and TXT-AZ (REVIEW-TXT096 Q2) out of TWIN TRIGGER's,
+ * with tools/wave3Defs.ts's copy (tests/wave3Art.test.ts holds that def equal to the copy). None of the three is drawn
+ * (flavour.ts KEPT_FLAVOUR).
  */
 
 /** The table, in order: the face keywords, the rune keywords, the kept texts' words, the trigger labels. */
