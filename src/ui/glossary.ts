@@ -293,6 +293,12 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // Y7b1 (release Y; ruling Y7A-R2; folded at the flip, Y7b2): EXT. CHAMBER's ★2/★3 face reads UP TO 3 / UP TO 4 (faces.ts
   // chamber); its ⓘ (this tap, on UP TO) says why: Battle.chambers fires at most what the gun's chamber holds
   chamber: { word: "UP TO", text: () => "UP TO: A SHOT NEVER FIRES MORE THAN ITS GUN'S CHAMBER HOLDS." },
+  // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q1): ROTARY BREECH's OLDEST FIRST. cores.ts ROUTINES.rotary's select takes stack index
+  // 0, the oldest load, while its core's order is "FIFO" (content.ts rotary: order "FIFO", at every star); every other gun's
+  // select is IDENTITY's lifo, the newest. Its face can't take it without dropping PART-FULL ... SOONER (rule 4), so its tap
+  // says it, on CHAMBERS: a word of its rule with no glossary row, as AIM, FASTER and UP TO (keywords.ts noteWord).
+  // tests/txtaz.rotary.test.ts reads the order off the sim's own select
+  rotary: { word: "CHAMBERS", text: () => "CHAMBERS: THE OLDEST LOAD IN ITS CHAMBER FIRES FIRST, NOT THE NEWEST." },
 };
 
 /** The tap note of piece `def` for `word` (a trigger label's word or a rule's word), else undefined. */
