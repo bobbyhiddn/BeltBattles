@@ -18,6 +18,10 @@ export interface WarlordReward {
   gold: number;
   parts: string[]; // item ids from the warlord's own deck (0-2)
   legendary: boolean;
+  // NPC-1 (REQ-BFG-078): with NPC_DAY on, a non-Matriarch win's drop chance (npcDay.ts DROP_CHANCE): the drop is rolled
+  // at the win (road.ts finishWarlord) and `parts` is empty (no pick). Absent while the switch is off, so every reward,
+  // save and card is 0.9.7's.
+  chance?: number;
 }
 
 /** The outcome of a warlord fight. Lives never change (a loss only forfeits the reward). */

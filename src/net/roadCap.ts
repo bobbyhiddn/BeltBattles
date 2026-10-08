@@ -79,6 +79,9 @@ const REWARD_MODEL: Record<keyof WarlordReward, string> = {
   gold: "gold on the run's day (road.ts rewardGold; 0.6.2 EASY PAY: Easy 3 from day 4, SABOTAGE or not), spendable from the next caravan",
   parts: "a Hard win takes 1 of them (a 1-star copy through takePart/gainModule)",
   legendary: "the Matriarch: parts[0] straight to cargo (a 1-star copy through gainModule)",
+  // NPC-1 (REQ-BFG-078; NPC_DAY on, absent while off): a win's drop chance. The ceiling never prices a drop from it: the
+  // drops a run got are named in its snapshot's road log and counted there at their value (validate.ts roadDropValue)
+  chance: "NPC_DAY: the drop's chance (the drop itself is counted from the snapshot's road log, validate.ts)",
 };
 export const MODELLED_REWARD_FIELDS = Object.keys(REWARD_MODEL) as readonly (keyof WarlordReward)[];
 

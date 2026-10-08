@@ -15,12 +15,22 @@ import { HEROES, ITEMS } from "../sim/content";
 import type { Build } from "../sim/deck";
 import { RIVALS, rivalBuild, rivalDays, warlordOffer, type Difficulty, type RivalId, type WarlordOffer } from "../sim/rivals";
 import { starsOf, valueOf } from "../sim/stars";
-import { beginRoad, eventFor } from "./events";
+import { beginDayEvent, beginRoad, eventFor } from "./events";
 import { gainModule } from "./fuse";
 import type { EventId } from "./eventDefs";
 import { queueFuseAnim, type Run, type RoadPick, type WarlordFight, type WarlordOutcome, type WarlordReward } from "./run";
+// NPC-1 (REQ-BFG-077, REQ-BFG-078): the NPC day and the drops, behind NPC_DAY (off: every function here is 0.9.7's)
+import { DROP_CHANCE, dropTable, expectedDropValue, npcDayRules, rollDrop, type DropTable } from "../sim/npcDay";
+import { warlordPool, MATRIARCH_DAY } from "../sim/rivals";
 
 export const ROAD_PICKS: readonly RoadPick[] = ["event", "easy", "medium", "hard"];
+/** NPC-1 (REQ-BFG-077): the fork's picks now: ROAD_PICKS, or with NPC_DAY on the three warlords only (the day's event
+ *  comes after the fight, never instead of it). */
+export function forkPicks(): readonly RoadPick[] {
+  return npcDayRules() ? ROAD_PICKS.filter((p) => p !== "event") : ROAD_PICKS;
+}
+/** NPC-1: what pickRoad("event") says with NPC_DAY on. */
+export const EVENT_AFTER_FIGHT = "THE EVENT COMES AFTER THE FIGHT";
 export const REWARD_GOLD: Record<Difficulty, number> = { easy: 2, medium: 4, hard: 3 };
 /** 0.6.2 TUNE-M, RULE EASY PAY (ROADMAP 0.6.2): the Easy warlord pays EASY_PAY_LATE gold from day EASY_PAY_FROM on;
  *  days 1-3 keep REWARD_GOLD.easy. Medium and Hard are unchanged. */
@@ -77,8 +87,18 @@ export function leaveCaravan(run: Run): "fork" | "event" | "warlord" | "battle" 
     run.stage = "warlord";
     return "warlord";
   }
+  // NPC-1 (REQ-BFG-077): with NPC_DAY on, the fight is followed by the day's event (while its choice is open)
+  if (npcDayRules() && w?.result && beginDayEvent(run)) return "event";
   run.stage = "battle";
   return "battle";
+}
+
+/** NPC-1 (REQ-BFG-077, NPC_DAY on): the warlord result's ON TO THE ROAD: the day's event (set up once; "event" while its
+ *  choice is open), else REFIT ("refit": the event is already resolved). Null before the fight has a result. */
+export function onToTheRoad(run: Run): "event" | "refit" | null {
+  const w = todaysWarlord(run);
+  if (!w?.result) return null;
+  return beginDayEvent(run) ? "event" : "refit";
 }
 
 /** The deck a warlord fights with: rivalBuild(id, day); SABOTAGE: rivalBuild(id, day - 1), or
@@ -132,7 +152,61 @@ export function hardParts(id: RivalId, deck: Build, deckDay: number, n = 2): str
  *  SABOTAGE's deck day; it defaults to deckDay for callers that have no run). */
 export function warlordReward(id: RivalId, tier: Difficulty, deck: Build, deckDay: number, day = deckDay): WarlordReward {
   if (id === "matriarch") return { gold: MATRIARCH_GOLD, parts: topParts(deck, 1), legendary: true };
+  // NPC-1 (REQ-BFG-078): with NPC_DAY on, every tier's win rolls a drop (DROP_CHANCE) instead of Hard's pick of 2: no parts
+  // on offer, the chance carried for the cards; the gold is unchanged
+  if (npcDayRules()) return { gold: rewardGold(tier, day), parts: [], legendary: false, chance: DROP_CHANCE[tier] };
   return { gold: rewardGold(tier, day), parts: tier === "hard" ? hardParts(id, deck, deckDay) : [], legendary: false };
+}
+
+/** NPC-1 (REQ-BFG-078): a warlord's drop table as the inspect panel shows it: the Matriarch's is her legendary part, always
+ *  (chance 1); every other captain's is dropTable(tier, the deck it fights with). */
+export function warlordDropTable(id: RivalId, tier: Difficulty, deck: Build): DropTable {
+  if (id === "matriarch") {
+    const p = topParts(deck, 1)[0];
+    return p ? { chance: 1, lines: [{ def: p, cls: "legendary", odds: 1 }] } : { chance: 0, lines: [] };
+  }
+  return dropTable(tier, deck);
+}
+
+/** NPC-1 (REQ-BFG-078): what today's warlord win drops (NPC_DAY on): the Matriarch's legendary part, always; else the seeded
+ *  roll (npcDay.ts rollDrop on hashSeed(seed, "warlord-drop", day)) over the deck it fought with. */
+export function warlordDrop(seed: number, day: number, id: RivalId, tier: Difficulty, deck: Build): string | null {
+  if (id === "matriarch") return topParts(deck, 1)[0] ?? null;
+  return rollDrop(seed, day, tier, deck);
+}
+
+/**
+ * NPC-1 (REQ-BFG-078), HULL-1's bench input: the expected road value of a `slot` win on `day` with NPC_DAY's drops: gold
+ * plus the expected drop value (chance x the sum of odds x valueOf at 1 star), the mean over every captain the slot can
+ * hold (warlordPool; "matriarch": her, from MATRIARCH_DAY), unsabotaged. Arithmetic, no fight: a win is assumed.
+ */
+export function expectedRoadValue(day: number, slot: Difficulty | "matriarch"): number {
+  const ids: RivalId[] = slot === "matriarch" ? (day >= MATRIARCH_DAY ? ["matriarch"] : []) : warlordPool(slot);
+  if (!ids.length) return 0;
+  const tier: Difficulty = slot === "matriarch" ? "hard" : slot;
+  let sum = 0;
+  for (const id of ids) {
+    const deck = warlordDeck(id, day);
+    const gold = id === "matriarch" ? MATRIARCH_GOLD : rewardGold(tier, day);
+    sum += gold + expectedDropValue(warlordDropTable(id, tier, deck));
+  }
+  return sum / ids.length;
+}
+
+/** NPC-1 (REQ-BFG-078): the same for 0.9.7's rewards (NPC_DAY off): gold, plus for Hard the better part of its pick of 2
+ *  (the player takes the priciest), and the Matriarch's legendary part; the mean over the slot's captains. */
+export function roadValue097(day: number, slot: Difficulty | "matriarch"): number {
+  const ids: RivalId[] = slot === "matriarch" ? (day >= MATRIARCH_DAY ? ["matriarch"] : []) : warlordPool(slot);
+  if (!ids.length) return 0;
+  const tier: Difficulty = slot === "matriarch" ? "hard" : slot;
+  let sum = 0;
+  for (const id of ids) {
+    const deck = warlordDeck(id, day);
+    const gold = id === "matriarch" ? MATRIARCH_GOLD : rewardGold(tier, day);
+    const parts = id === "matriarch" ? topParts(deck, 1) : tier === "hard" ? hardParts(id, deck, day) : [];
+    sum += gold + (parts.length ? Math.max(...parts.map((p) => valueOf(p, 1))) : 0);
+  }
+  return sum / ids.length;
 }
 
 /** The warlord of a tier on today's fork, set up for the fight. Consumes a pending SABOTAGE (the
@@ -158,6 +232,7 @@ export function warlordFight(run: Run, tier: Difficulty): WarlordFight {
 export function pickRoad(run: Run, pick: RoadPick): { ok: boolean; reason?: string } {
   if (roadChosen(run)) return { ok: false, reason: "THE ROAD IS CHOSEN" };
   if (!ROAD_PICKS.includes(pick)) return { ok: false, reason: "NO SUCH ROAD" };
+  if (!forkPicks().includes(pick)) return { ok: false, reason: EVENT_AFTER_FIGHT }; // NPC-1: no "event only" stop
   run.road = { day: run.day, pick };
   if (pick === "event") {
     beginRoad(run);
@@ -191,6 +266,11 @@ export function finishWarlord(run: Run, winner: 0 | 1 | -1, time: number): Warlo
   if (won && w.reward.legendary && w.reward.parts.length) {
     took = w.reward.parts[0];
     queueFuseAnim(run, gainModule(run, took)); // 0.6.1a: a 1-star copy to cargo, then merged
+  } else if (won && npcDayRules()) {
+    // NPC-1 (REQ-BFG-078): every other win rolls its drop once (seeded by the run and the day: a reload never re-rolls,
+    // and this result is stored, so the call is idempotent); the part goes to cargo at 1 star, then merged
+    took = warlordDrop(run.seed, run.day, w.id, w.tier, w.build);
+    if (took) queueFuseAnim(run, gainModule(run, took));
   }
   if (won && w.id === "matriarch") run.matriarchBeatenOn = run.day;
   w.result = { outcome, time, gold, bountyPaid, parts: won ? [...w.reward.parts] : [], took };

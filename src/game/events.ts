@@ -13,6 +13,7 @@ import { chooseFoe, storedFoe } from "./day";
 import { loadPool } from "./ghosts";
 import { online, onlineMode } from "./session"; // 0.7.0a: the SCOUT's reveal online
 import { gainModule } from "./fuse";
+import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): the event after the fight
 
 /** 0.6.0d: HERALD (ELITE BOUNTY) or SAPPERS (SABOTAGE) would be a dud on the last day: no warlord
  *  is left for the stake or the sabotage (blockReason's NO WARLORD LEFT). */
@@ -67,11 +68,27 @@ export function makeEvent(seed: number, day: number, id: EventId): EventState {
  *  tooling): the fork pick becomes "event" if none was made, the event is set up once. True while
  *  the player must still choose; false once resolved (or when today's pick was a warlord). */
 export function beginRoad(run: Run): boolean {
+  if (npcDayRules() && !(run.road && run.road.day === run.day && run.road.pick === "event")) {
+    // NPC-1 (REQ-BFG-077): with NPC_DAY on the event comes after the day's warlord fight, never instead of it (a save
+    // whose pick was "event" before the switch keeps today's path)
+    const w = run.warlord && run.warlord.day === run.day ? run.warlord : null;
+    return run.road?.day === run.day && !!w?.result ? beginDayEvent(run) : false;
+  }
   if (!run.road || run.road.day !== run.day) run.road = { day: run.day, pick: "event" };
   if (run.road.pick !== "event") return false;
   if (!run.event || run.event.day !== run.day) run.event = makeEvent(run.seed, run.day, eventFor(run.seed, run.day));
   const open = run.event.picked < 0;
   run.stage = open ? "event" : "battle";
+  return open;
+}
+
+/** NPC-1 (REQ-BFG-077, NPC_DAY on): the day's event after the warlord fight: eventFor(seed, day), set up once (its rolls
+ *  on its own stream, as beginRoad's), the stage "event" while its choice is open, else "refit" (REFIT before every dusk).
+ *  True while the choice is open. */
+export function beginDayEvent(run: Run): boolean {
+  if (!run.event || run.event.day !== run.day) run.event = makeEvent(run.seed, run.day, eventFor(run.seed, run.day));
+  const open = run.event.picked < 0;
+  run.stage = open ? "event" : "refit";
   return open;
 }
 

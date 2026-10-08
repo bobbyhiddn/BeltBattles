@@ -22,6 +22,7 @@ import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BF
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
 import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type LastChance, type LastChanceOffer } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
+import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT has no shop
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
   type TurretOpResult,
@@ -294,6 +295,17 @@ export function battleSeed(run: Run): number {
   return hashSeed(run.seed, "battle", run.day);
 }
 
+// ---- NPC-1 (REQ-BFG-077): REFIT before every dusk has no shop (NPC_DAY on) -------------------------------------------
+
+/** What a buy, a sale, a reroll, a pack or an upgrade says in REFIT with NPC_DAY on. */
+export const REFIT_NO_SHOP = "REFIT: THE CARAVAN HAS MOVED ON";
+
+/** NPC-1: is the shop shut? With NPC_DAY on, in REFIT (and at dusk): no buying, selling, rerolling, packs or upgrades;
+ *  moving, swapping, re-belting, fitting and placing cargo stay. Off: never (0.9.7's road REFIT keeps its sales). */
+export function shopShut(run: Pick<Run, "stage">): boolean {
+  return npcDayRules() && (run.stage === "refit" || run.stage === "battle");
+}
+
 function rollRarity(rng: Rng, day: number): Rarity {
   const w = rarityWeights(day);
   return rng.weighted(RARITIES, (r) => w[r]);
@@ -499,6 +511,7 @@ export function queueFuseAnim(run: Run, gain: Gain): void {
 
 /** Reroll the caravan: a free reroll (scout) first, else REROLL_COST gold. Same roll sequence either way. */
 export function reroll(run: Run): boolean {
+  if (shopShut(run)) return false; // NPC-1: no reroll in REFIT
   if ((run.shop.free || 0) > 0) run.shop.free--;
   else if (run.gold < REROLL_COST) return false;
   else run.gold -= REROLL_COST;
@@ -538,6 +551,7 @@ export function upgradeShown(run: Pick<Run, "build">, track: UpgradeTrack): bool
  */
 export function buyUpgrade(run: Run, track: UpgradeTrack): { ok: boolean; reason?: string; level: number; price?: number } {
   const n = nextUpgrade(run, track);
+  if (shopShut(run)) return { ok: false, reason: REFIT_NO_SHOP, level: n.level }; // NPC-1: no buying in REFIT
   if (n.next === undefined || n.price === undefined) return { ok: false, reason: "MAX LEVEL", level: n.level };
   if (!upgradeShown(run, track)) return { ok: false, reason: "NO STARTING TURRET ABOARD", level: n.level };
   if (run.gold < n.price) return { ok: false, reason: `NEED ${n.price - run.gold} MORE GOLD`, level: n.level };
@@ -570,6 +584,7 @@ export function packShort(run: Pick<Run, "gold">, id: PackId): string | undefine
  */
 export function buyPack(run: Run, id: PackId): { ok: boolean; reason?: string; price: number } {
   const d = ITEMS[PACK_ITEM[id]], price = packPrice(id);
+  if (shopShut(run)) return { ok: false, reason: REFIT_NO_SHOP, price }; // NPC-1: no buying in REFIT
   const short = packShort(run, id);
   if (short) return { ok: false, reason: short, price };
   run.gold -= price;
@@ -586,6 +601,7 @@ export function buyPack(run: Run, id: PackId): { ok: boolean; reason?: string; p
  * first and the merge lands where it was dropped.
  */
 export function buyOffer(run: Run, wagon: number, slot: number, at?: GainAt): BuyResult {
+  if (shopShut(run)) return { ok: false, reason: REFIT_NO_SHOP }; // NPC-1: no buying in REFIT
   const w = run.shop.wagons[wagon];
   const o = w?.offers[slot];
   if (!o) return { ok: false, reason: "NO SUCH OFFER" };
@@ -673,6 +689,7 @@ export function fitCore(run: Run, uid: number, turret: number): boolean {
 /** Sell a cargo copy for sellValue(def, stars) = max(1, floor(valueOf / 2)) (0.6.1a). 0.6.2s (S7): a turret sells
  *  for turretSellValue (its value counts a free starting copy as 0); a 1-star starting turret can't be sold (0, kept). */
 export function sellInventory(run: Run, uid: number): number {
+  if (shopShut(run)) return 0; // NPC-1: no selling in REFIT (nothing changes)
   const held = run.inventory.find((i) => i.uid === uid);
   if (held && isTurretDef(held.def) && !canSellTurret(held)) return 0;
   const it = takeFromInventory(run, uid);
@@ -718,6 +735,7 @@ export function storeTurret(run: Run, slot: number): TurretOpResult {
 /** Sell the turret in slot `slot` at turretSellValue; the slot's core and gear go to cargo. 0 (nothing changes) when
  *  the slot is empty or holds a 1-star starting turret. */
 export function sellInstalled(run: Run, slot: number): number {
+  if (shopShut(run)) return 0; // NPC-1: no selling in REFIT (nothing changes)
   const t = turretSlots(run.build)[slot]?.turret;
   if (!t || !canSellTurret(t)) return 0;
   const r = removeTurret(run.build, slot);
