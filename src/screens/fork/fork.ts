@@ -6,6 +6,12 @@
 
 import type { Game, Screen } from "../../game/game";
 import { forkFor, pickRoad, roadChosen, warlordReward, warlordDeck, warlordDeckDay, type Fork } from "../../game/road";
+import { forkPicks, warlordDropTable } from "../../game/road"; // NPC-1 (REQ-BFG-077, REQ-BFG-078)
+import { npcDayRules, type DropTable } from "../../sim/npcDay"; // NPC-1
+import { DROP_BOX } from "./cards"; // NPC-1: the desk card's drop box
+import { dropInfoButton, dropLine, drawDropIcons, drawDropList } from "./drops"; // NPC-1
+import { EVENTS, type EventId } from "../../game/eventDefs"; // NPC-1: AFTER THE FIGHT: <TITLE>
+import { rect } from "../../render/pixel"; // NPC-1: the inspect panel's drop rule
 import { saveRun, type Run, type RoadPick } from "../../game/run";
 import { settings } from "../../core/settings";
 import { RIVALS, RUN_DAYS, type Difficulty } from "../../sim/rivals";
@@ -24,12 +30,16 @@ import { TitleScreen } from "../title";
 import { drawRich, wrapRich, type Span } from "../../ui/richText"; // U2b: a captain's lines in rich text
 import { captainSpans } from "../../ui/captainText"; // U2b: the keyword colours
 
-const PICKS: RoadPick[] = ["event", "easy", "medium", "hard"];
 const IDS = ["fork0", "fork1", "fork2", "fork3"];
 
 export class ForkScreen implements Screen {
   readonly run: Run;
   readonly fork: Fork;
+  /** The cards, in order: road.ts forkPicks() (0.9.7: the event and the three warlords; NPC-1, NPC_DAY on: the three
+   *  warlords, the day's event an info line, AFTER THE FIGHT: <TITLE>). */
+  readonly picks: readonly RoadPick[] = forkPicks();
+  /** NPC-1 (NPC_DAY on): the warlord whose drop list (ⓘ) is open, or null. */
+  dropList: Difficulty | null = null;
   sel = -1; // portrait: the inspected card
   t = 0;
   menu = false;
@@ -77,19 +87,27 @@ export class ForkScreen implements Screen {
   layout(): { cards: Rect[]; head: number; detail: Rect | null } {
     const { W, H, portrait } = this.game;
     const top = 18;
+    // NPC-1: n cards (0.9.7: 4) and, with NPC_DAY on, a row for AFTER THE FIGHT (0.9.7: none), so 0.9.7's sums are unchanged
+    const n = this.picks.length, info = npcDayRules() ? 10 : 0, idx = Array.from({ length: n }, (_, i) => i);
     if (!portrait) {
-      const gap = 6, cw = Math.min(124, Math.floor((W - 12 - 3 * gap) / 4));
-      const ch = Math.min(170, H - top - 26 - 6);
-      const x0 = Math.round(W / 2 - (4 * cw + 3 * gap) / 2);
-      const y = top + 22 + Math.max(0, Math.floor((H - top - 22 - 6 - ch) / 2));
-      return { cards: [0, 1, 2, 3].map((i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch })), head: y - 16, detail: null };
+      const gap = 6, cw = Math.min(124, Math.floor((W - 12 - (n - 1) * gap) / n));
+      const ch = Math.min(170, H - top - 26 - 6 - info);
+      const x0 = Math.round(W / 2 - (n * cw + (n - 1) * gap) / 2);
+      const y = top + 22 + info + Math.max(0, Math.floor((H - top - 22 - info - 6 - ch) / 2));
+      return { cards: idx.map((i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch })), head: y - 16 - info, detail: null };
     }
     const gap = 4, ch = 32, cw = W - 8;
-    const detailH = 66;
-    const total = 4 * ch + 3 * gap + 8 + detailH;
-    const y0 = top + 20 + Math.max(0, Math.floor((H - top - 20 - 6 - total) / 2));
-    const cards = [0, 1, 2, 3].map((i) => ({ x: 4, y: y0 + i * (ch + gap), w: cw, h: ch }));
-    return { cards, head: y0 - 15, detail: { x: 4, y: y0 + 4 * ch + 3 * gap + 8, w: cw, h: detailH } };
+    const detailH = 66 + (info ? 26 : 0); // NPC-1: the drop's icons and odds under the warlord's lines
+    const total = n * ch + (n - 1) * gap + 8 + detailH;
+    const y0 = top + 20 + info + Math.max(0, Math.floor((H - top - 20 - info - 6 - total) / 2));
+    const cards = idx.map((i) => ({ x: 4, y: y0 + i * (ch + gap), w: cw, h: ch }));
+    return { cards, head: y0 - 15 - info, detail: { x: 4, y: y0 + n * ch + (n - 1) * gap + 8, w: cw, h: detailH } };
+  }
+
+  /** NPC-1 (REQ-BFG-078): a warlord's drop table on today's fork (the deck it would fight with: SABOTAGE's when pending). */
+  dropOf(tier: Difficulty): DropTable {
+    const run = this.run, id = this.fork.warlords[tier], sab = !!run.sabotage;
+    return warlordDropTable(id, tier, warlordDeck(id, run.day, sab));
   }
 
   /** Mouse click / key: pick at once. Touch in portrait: first tap inspects, the second picks. */
@@ -103,8 +121,8 @@ export class ForkScreen implements Screen {
   }
 
   pick(i: number): void {
-    if (this.leaving || this.menu || this.game.transitioning) return;
-    const p = PICKS[i];
+    if (this.leaving || this.menu || this.game.transitioning || this.dropList) return;
+    const p = this.picks[i];
     if (!p) return;
     if (roadChosen(this.run)) return;
     const res = pickRoad(this.run, p);
@@ -124,29 +142,40 @@ export class ForkScreen implements Screen {
     const run = this.run, f = this.fork;
     this.bg.draw(g, W, H, { hulls: [], vertical: portrait, gapLine: false }, this.t);
     const L = this.layout();
+    const npc = npcDayRules(); // NPC-1 (REQ-BFG-077): one fight to pick; the day's event comes after it
     drawText(g, `THE ROAD · DAY ${run.day}/${RUN_DAYS}`, W / 2, L.head, C.yellow, { align: "center", outline: C.ink });
-    drawText(g, "PICK ONE STOP · WARLORDS NEVER COST A LIFE", W / 2, L.head + 9, C.slate4, { font: "3", align: "center" });
+    drawText(g, npc ? "PICK ONE FIGHT · WARLORDS NEVER COST A LIFE" : "PICK ONE STOP · WARLORDS NEVER COST A LIFE", W / 2, L.head + 9, C.slate4, { font: "3", align: "center" });
+    if (npc) drawText(g, afterTheFight(f.event), W / 2, L.head + 18, C.amber, { font: "3", align: "center" });
     const v = this.v;
     v.t = this.t;
     v.calm = settings.reducedMotion;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < this.picks.length; i++) {
       const r = L.cards[i];
+      const p = this.picks[i];
       v.key = i + 1;
       v.hover = !portrait && ui.hover === IDS[i];
       v.selected = portrait && this.sel === i;
-      if (i === 0) {
+      v.drop = undefined;
+      if (p === "event") {
         v.notes = [];
         drawEventCard(g, r, f.event, run.hero, v, portrait);
       } else {
-        const tier = PICKS[i] as Difficulty;
+        const tier = p;
         const inf = this.info(tier);
         v.notes = inf.notes;
+        if (npc && !portrait) v.drop = this.dropOf(tier); // NPC-1 (REQ-BFG-078): the desk card's drop row
         drawWarlordCard(g, r, f.warlords[tier], tier, inf.reward, v, portrait);
       }
       ui.add({ id: IDS[i], r, onTap: this.onTap[i], block: true });
+      // NPC-1: the desk card's ⓘ (the full drop list), at its reward box's top right, over the card's own target
+      if (v.drop) dropInfoButton(this.game, g, `forkinfo${i}`, r.x + r.w - 15, r.y + r.h - DROP_BOX + 3, this.dropList === p, () => this.openDrops(p as Difficulty));
     }
     if (L.detail) this.drawDetail(g, L.detail);
     drawRunBar(g, this.game, run, this.flash, this.anchors, this.onMenu);
+    if (this.dropList) {
+      const id = f.warlords[this.dropList];
+      drawDropList(g, this.game, RIVALS[id].name, this.dropOf(this.dropList), () => { this.dropList = null; });
+    }
     if (this.menu) {
       optionsCard(this.game, g, "PAUSED", [
         { id: "resume", label: "RESUME", primary: true, onTap: () => { this.menu = false; } },
@@ -165,14 +194,23 @@ export class ForkScreen implements Screen {
       return;
     }
     let title: string, lines: string[];
-    if (i === 0) {
+    const p = this.picks[i];
+    if (p === "event") {
       title = "ROAD EVENT";
       lines = ["NO FIGHT. TAKE ITS CHOICES, THEN DUSK."];
     } else {
-      const tier = PICKS[i] as Difficulty, id = this.fork.warlords[tier], inf = this.info(tier);
+      const tier = p, id = this.fork.warlords[tier], inf = this.info(tier);
       title = `${RIVALS[id].name}, ${RIVALS[id].trick}`; // U2b (REQ-BFG-032 rule 1, U2a-INPUTS 2): no middle dot
       const notes = inf.notes.map((n) => (n === "SABOTAGED" ? "! SABOTAGED: YESTERDAY'S DECK" : `! ${n} ON A WIN`));
       lines = [RIVALS[id].blurb, rewardText(inf.reward), "A LOSS COSTS NO LIFE", ...notes];
+      if (npcDayRules()) {
+        // NPC-1 (REQ-BFG-078): the inspect panel's drop row: the parts as icons with their odds, and the ⓘ list
+        const t = this.dropOf(tier), dy = r.y + r.h - 26;
+        rect(g, r.x + 4, dy - 3, r.w - 8, 1, C.slate1);
+        drawText(g, dropLine(t), r.x + 5, dy + 4, C.lime, { font: "3" });
+        if (t.lines.length) drawDropIcons(g, t, r.x + 44, dy, r.w - 44 - 80);
+        dropInfoButton(this.game, g, "forkinfo", r.x + r.w - 78, dy + 2, this.dropList === tier, () => this.openDrops(tier));
+      }
     }
     drawRich(g, captainSpans(title, C.yellow), r.x + 5, r.y + 5, "3"); // U2b: a keyword in its colour (REQ-BFG-032 rule 3)
     let y = r.y + 14;
@@ -183,14 +221,26 @@ export class ForkScreen implements Screen {
       drawRich(g, ln, r.x + 5, y, "3");
       y += 7;
     }
-    button(ui, g, "forkgo", { x: r.x + r.w - 62, y: r.y + r.h - 24, w: 58, h: 20 }, i === 0 ? "TAKE IT" : "FIGHT", {
+    button(ui, g, "forkgo", { x: r.x + r.w - 62, y: r.y + r.h - 24, w: 58, h: 20 }, p === "event" ? "TAKE IT" : "FIGHT", {
       primary: true, onTap: () => this.pick(i),
     });
   }
 
-  key(k: string): void {
-    if (k === "Escape") this.menu = !this.menu;
-    else if (this.menu) return;
-    else if (k >= "1" && k <= "4" && k.length === 1) this.pick(Number(k) - 1);
+  /** NPC-1 (REQ-BFG-078): open a warlord's full drop list (ⓘ); a tap anywhere closes it. */
+  openDrops(tier: Difficulty): void {
+    this.dropList = tier;
+    this.game.audio.play("click");
   }
+
+  key(k: string): void {
+    if (k === "Escape" && this.dropList) this.dropList = null;
+    else if (k === "Escape") this.menu = !this.menu;
+    else if (this.menu) return;
+    else if (k >= "1" && k <= String(this.picks.length) && k.length === 1) this.pick(Number(k) - 1);
+  }
+}
+
+/** NPC-1 (REQ-BFG-077): the fork's info line for the day's event: "AFTER THE FIGHT: <EVENT TITLE>". */
+export function afterTheFight(event: EventId): string {
+  return `AFTER THE FIGHT: ${EVENTS[event].title}`;
 }

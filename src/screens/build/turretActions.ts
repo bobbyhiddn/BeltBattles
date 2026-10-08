@@ -5,6 +5,7 @@
 // feedback: sounds, the selection, and which belt a swap left without an intake (it blocks FIGHT until fixed).
 
 import { buyOffer, installFromCargo, moveInstalled, sellInstalled, storeTurret } from "../../game/run";
+import { REFIT_NO_SHOP, shopShut } from "../../game/run"; // NPC-1 (REQ-BFG-077)
 import { ITEMS } from "../../sim/content";
 import { deadEndsAt, turretSlots, type TurretOpResult } from "../../sim/deck";
 import { C } from "../../render/palette";
@@ -84,6 +85,10 @@ export function storeTurretAt(ctx: Ctx, t: number): boolean {
 
 /** SELL: the turret in slot t for its sell value (S7); its slot's core and gear go to cargo. */
 export function sellTurretAt(ctx: Ctx, t: number): boolean {
+  if (shopShut(ctx.run)) { // NPC-1 (REQ-BFG-077): no selling in REFIT (NPC_DAY on)
+    ctx.invalid(REFIT_NO_SHOP);
+    return false;
+  }
   const v = sellInstalled(ctx.run, t);
   if (v <= 0) {
     ctx.invalid(turretSlots(ctx.run.build)[t]?.turret ? "A STARTING TURRET AT 1 STAR CAN'T BE SOLD" : "THIS TURRET SLOT IS EMPTY");

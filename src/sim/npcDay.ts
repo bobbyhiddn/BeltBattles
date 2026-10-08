@@ -162,6 +162,46 @@ export function expectedDropValue(t: DropTable): number {
   return t.lines.reduce((s, l) => s + l.odds * valueOf(l.def, 1), 0);
 }
 
+// ------------------------------------------------------------------ the road log (the v3 snapshot's `road`)
+
+/** The outcomes a road entry may name. */
+export const ROAD_OUTCOMES = ["win", "loss", "draw"] as const;
+export type RoadOutcome = (typeof ROAD_OUTCOMES)[number];
+const TIERS: readonly Difficulty[] = ["easy", "medium", "hard"];
+
+/** One day's warlord fight as the snapshot's road log carries it (NPC_DAY on; day.ts ghostOf writes it, one entry per day
+ *  reached, in day order): the tier picked, the outcome and the drop's def (absent: no drop). The server re-derives the
+ *  warlord, its deck and the roll from the snapshot's seed (validate.ts roadProblem) and counts the drops at their value. */
+export interface RoadEntry {
+  day: number;
+  tier: Difficulty;
+  outcome: RoadOutcome;
+  drop?: string;
+}
+
+/** A run's warlord log (run.ts Run.warlords) as road entries: the part a win put in cargo is the drop. */
+export function roadLog(warlords: readonly { day: number; tier: Difficulty; outcome: RoadOutcome; part: string | null }[]): RoadEntry[] {
+  return warlords.map((w) => ({ day: w.day, tier: w.tier, outcome: w.outcome, ...(w.part ? { drop: w.part } : {}) }));
+}
+
+/** Is `road` a well-formed road log for a snapshot of `day` (the client's loose check; the strict decoder has its own
+ *  words, snapshot.ts roadField): a list of { day 1..day, tier, outcome, drop? } with no other keys. */
+export function roadShapeOk(road: unknown, day: unknown): boolean {
+  if (!Array.isArray(road) || typeof day !== "number" || road.length > Math.max(0, day)) return false;
+  return road.every((e) => {
+    if (!e || typeof e !== "object" || Array.isArray(e)) return false;
+    const o = e as Record<string, unknown>;
+    if (Object.keys(o).some((k) => k !== "day" && k !== "tier" && k !== "outcome" && k !== "drop")) return false;
+    return typeof o.day === "number" && Number.isInteger(o.day) && o.day >= 1 && o.day <= day && TIERS.includes(o.tier as Difficulty)
+      && (ROAD_OUTCOMES as readonly unknown[]).includes(o.outcome) && (o.drop === undefined || typeof o.drop === "string");
+  });
+}
+
+/** The drops a road log names, at their value (1-star copies): what the upload budget counts for them. */
+export function roadDropValue(road: readonly RoadEntry[] | undefined): number {
+  return (road ?? []).reduce((s, e) => s + (e.drop !== undefined ? valueOf(e.drop, 1) : 0), 0);
+}
+
 /** A share as the panel says it: "DROP 75%", "12%" (whole percent; under 1% reads "<1%"). */
 export function pctText(p: number): string {
   const v = Math.round(p * 100);

@@ -94,10 +94,11 @@ export function leaveCaravan(run: Run): "fork" | "event" | "warlord" | "battle" 
 }
 
 /** NPC-1 (REQ-BFG-077, NPC_DAY on): the warlord result's ON TO THE ROAD: the day's event (set up once; "event" while its
- *  choice is open), else REFIT ("refit": the event is already resolved). Null before the fight has a result. */
+ *  choice is open), else REFIT ("refit": the event is already resolved). Null before the fight has a result, and always
+ *  with the switch off (nothing changes). */
 export function onToTheRoad(run: Run): "event" | "refit" | null {
   const w = todaysWarlord(run);
-  if (!w?.result) return null;
+  if (!npcDayRules() || !w?.result) return null;
   return beginDayEvent(run) ? "event" : "refit";
 }
 

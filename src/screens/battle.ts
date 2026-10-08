@@ -19,6 +19,9 @@ import { FINDING_GHOST, foeNote, online, onlineMode } from "../game/session"; //
 import { battleRecordFor } from "../net/replay";
 import type { BattleRecord } from "../sim/battle";
 import { finishWarlord, pickPending, takePart, todaysWarlord, warlordSeed } from "../game/road";
+import { onToTheRoad } from "../game/road"; // NPC-1 (REQ-BFG-077): the event after the fight
+import { npcDayRules } from "../sim/npcDay"; // NPC-1
+import { EventScreen } from "./event/event"; // NPC-1: ON TO THE ROAD opens the day's event
 import { HEROES, RUN_DAYS } from "../sim/content";
 import { C } from "../render/palette";
 import type { G } from "../render/pixel";
@@ -111,6 +114,7 @@ export class BattleScreen implements Screen {
       take: [0, 1].map((i) => () => this.take(i)),
       refit: () => this.refitNow(),
       fight: () => this.toDusk(),
+      road: () => this.toRoad(), // NPC-1 (REQ-BFG-077): ON TO THE ROAD (NPC_DAY on)
     };
     this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins);
     this.arena.off = [60, 260];
@@ -160,6 +164,18 @@ export class BattleScreen implements Screen {
     saveRun(this.game.run);
     this.game.audio.play("go");
     this.game.go(duskScreen(this.game));
+  }
+
+  /** NPC-1 (REQ-BFG-077; NPC_DAY on): the result's ON TO THE ROAD, win or lose: the day's event (road.ts onToTheRoad sets it
+   *  up once and saves the stage), or REFIT when its choice was already made. */
+  toRoad(): void {
+    if (!this.warlord?.result || this.leaving) return;
+    const next = onToTheRoad(this.game.run!);
+    if (!next) return;
+    this.leaving = true;
+    saveRun(this.game.run);
+    this.game.audio.play("whoosh");
+    this.game.go(next === "event" ? new EventScreen(this.game) : new BuildScreen(this.game));
   }
 
   private leaving = false;
@@ -287,7 +303,7 @@ export class BattleScreen implements Screen {
   }
 
   private next(): void {
-    if (this.warlord) return this.toDusk();
+    if (this.warlord) return npcDayRules() ? this.toRoad() : this.toDusk(); // NPC-1: the event comes before dusk
     const run = this.game.run!;
     this.game.go(run.over ? new SummaryScreen(this.game) : new BuildScreen(this.game));
   }

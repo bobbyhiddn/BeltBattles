@@ -17,6 +17,8 @@ import type { HeroId } from "../../sim/content";
 import { itemName } from "../event/cards";
 import { drawRich, wrapRich } from "../../ui/richText"; // U2b: a captain's trick and blurb in rich text
 import { captainSpans } from "../../ui/captainText"; // U2b: the keyword colours
+import { pctText, type DropTable } from "../../sim/npcDay"; // NPC-1 (REQ-BFG-078): the drop on the cards
+import { drawDropIcons } from "./drops"; // NPC-1
 
 export interface ForkCardView {
   hover: boolean;
@@ -25,7 +27,12 @@ export interface ForkCardView {
   t: number;
   calm: boolean;
   notes: string[]; // e.g. SABOTAGED, +10 BOUNTY
+  /** NPC-1 (REQ-BFG-078; NPC_DAY on, else absent): the warlord's drop table, drawn in the tall card's reward box. */
+  drop?: DropTable;
 }
+
+/** NPC-1 (REQ-BFG-078): the tall card's reward box height with the drop row (the reward line, the icons and their odds). */
+export const DROP_BOX = 44;
 
 function frameCard(g: G, r: Rect, v: ForkCardView): void {
   panel(g, r, v.selected || v.hover ? "raised" : "dark");
@@ -45,6 +52,8 @@ function frameCard(g: G, r: Rect, v: ForkCardView): void {
 export function rewardText(rw: WarlordReward, bounty = 0): string {
   const b = bounty > 0 ? ` +${bounty} BOUNTY` : "";
   if (rw.legendary) return `WIN +${rw.gold}G + LEGENDARY PART${b}`;
+  // NPC-1 (REQ-BFG-078; NPC_DAY on): the drop's chance (absent while the switch is off: 0.9.7's lines below)
+  if (rw.chance !== undefined) return `WIN +${rw.gold}G · DROP ${pctText(rw.chance)}${b}`;
   if (rw.parts.length) return `WIN +${rw.gold}G + 1 OF ${rw.parts.length} PARTS${b}`;
   return `WIN +${rw.gold} GOLD${b}`;
 }
@@ -74,7 +83,8 @@ export function drawWarlordCard(g: G, r: Rect, id: RivalId, tier: Difficulty, rw
     tx += tag(g, TIER_LABEL[tier], tx, y1, TIER_COLOR[tier]) + 2;
     if (rk) tag(g, rk.text, tx, y1, rk.color, rk.text === "BOSS" ? C.white : C.ink);
     const t2 = x + drawRich(g, captainSpans(d.trick, C.yellow), x, y2, "3") + 6; // U2b: a keyword in its colour
-    const short = rw.legendary ? `+${rw.gold}G +LEGEND.` : rw.parts.length ? `+${rw.gold}G +PART` : `+${rw.gold}G`;
+    const short = rw.legendary ? `+${rw.gold}G +LEGEND.` : rw.chance !== undefined ? `+${rw.gold}G ${pctText(rw.chance)} DROP` // NPC-1
+      : rw.parts.length ? `+${rw.gold}G +PART` : `+${rw.gold}G`;
     const sw = drawText(g, short, t2, y2, C.lime, { font: "3" });
     // a pending SABOTAGE / BOUNTY: an amber "!" (spelled out in the inspect panel)
     if (v.notes.length) drawText(g, "!", t2 + sw + 3, y2, C.amber, { font: "3" });
@@ -104,6 +114,20 @@ export function drawWarlordCard(g: G, r: Rect, id: RivalId, tier: Difficulty, rw
   for (const n of v.notes) {
     drawText(g, n, r.x + 5, y + 1, C.amber, { font: "3" });
     y += 8;
+  }
+  // NPC-1 (REQ-BFG-078; NPC_DAY on): the reward box holds the reward line, then the drop's parts as icons with their odds
+  // (the ⓘ for the full list is the fork's, at the box's top right)
+  if (v.drop) {
+    const db = r.y + r.h - DROP_BOX;
+    rect(g, r.x + 4, db, r.w - 8, 1, C.slate1);
+    let dy = db + 4;
+    for (const ln of wrap(rewardText(rw), r.w - 24, "3").slice(0, 2)) {
+      drawText(g, ln, r.x + 5, dy, C.lime, { font: "3" });
+      dy += 7;
+    }
+    if (v.drop.lines.length) drawDropIcons(g, v.drop, r.x + 5, r.y + r.h - 26, r.w - 10);
+    else drawText(g, "NOTHING DROPS", r.x + 5, r.y + r.h - 20, C.slate4, { font: "3" });
+    return;
   }
   // reward box at the bottom
   const by = r.y + r.h - (rw.parts.length ? 34 : 18);

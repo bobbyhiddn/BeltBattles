@@ -11,6 +11,7 @@ import { displayName, nameProblem, WANDERER } from "../net/names"; // PACKS M2 (
 import { rollShop, runeDawn, type DayResult, type DuskFoe, type Run } from "./run";
 import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (type only)
 import { LAST_CHANCE_LIVES, lastChanceFires } from "../sim/lastChance"; // LC-1 (REQ-BFG-073); Z-BUMP: no switch
+import { npcDayRules, roadLog } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's road log
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -100,6 +101,9 @@ export function ghostOf(run: Run, createdAt = Date.now(), player = playerId(), n
     // LC-1 (REQ-BFG-073): a taken LAST CHANCE, after the seed (the server re-derives its offer and finds its rune); a run
     // without one (every switch-off run) snapshots exactly as before
     ...(run.lastChance?.boon ? { lastChance: { day: run.lastChance.day, boon: run.lastChance.boon, ...(run.lastChance.id !== undefined ? { id: run.lastChance.id } : {}) } } : {}),
+    // NPC-1 (REQ-BFG-077, REQ-BFG-078): with NPC_DAY on, the road log, last: one entry per day reached (its tier, outcome
+    // and drop), so the server re-derives each warlord and drop from the seed; off, every snapshot is as before
+    ...(npcDayRules() && run.warlords.length ? { road: roadLog(run.warlords) } : {}),
   };
 }
 

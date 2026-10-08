@@ -5,6 +5,7 @@ import type { Game } from "../../game/game";
 import {
   buyOffer, buyUpgrade, rotateRig, storeMod, storePlaced, sellInventory, takeFromInventory, type InvItem, type Run,
 } from "../../game/run";
+import { REFIT_NO_SHOP, shopShut } from "../../game/run"; // NPC-1 (REQ-BFG-077): REFIT has no shop (NPC_DAY on)
 import { CELL, GRID, ITEMS, sellValue, type UpgradeTrack } from "../../sim/content";
 import { starField, starsOf } from "../../sim/stars";
 import { mergePreview, type Gain, type GainAt } from "../../game/fuse";
@@ -143,6 +144,7 @@ export function selectGain(ctx: Ctx, g: Gain): void {
 }
 
 export function sell(ctx: Ctx, uid: number): void {
+  if (shopShut(ctx.run)) return ctx.invalid(REFIT_NO_SHOP); // NPC-1 (REQ-BFG-077): no selling in REFIT (NPC_DAY on)
   if (!ctx.run.inventory.some((i) => i.uid === uid)) return;
   const v = sellInventory(ctx.run, uid);
   const cp = ctx.coinPos();
@@ -166,6 +168,7 @@ export function store(ctx: Ctx, uid: number): void {
  *  factory's belts go with it) and sells from cargo at its cargo price (sellValue at its stars). Nothing else changes; the
  *  signature factory stays aboard. */
 export function sellPlaced(ctx: Ctx, uid: number): void {
+  if (shopShut(ctx.run)) return ctx.invalid(REFIT_NO_SHOP); // NPC-1: refused before the part leaves the deck
   if (!storePlaced(ctx.run, uid)) return ctx.invalid(STAYS_ABOARD);
   ctx.touched();
   sell(ctx, uid);
@@ -183,6 +186,7 @@ export function storeFitted(ctx: Ctx, uid: number): void {
 /** shoptap (REQ-BFG-035): SELL on a fitted core's or gear piece's panel: to cargo, then sold at its cargo price; its
  *  turret is selected again. */
 export function sellFitted(ctx: Ctx, uid: number): void {
+  if (shopShut(ctx.run)) return ctx.invalid(REFIT_NO_SHOP); // NPC-1: refused before the piece leaves its turret
   const m = ctx.run.build.mods.find((q) => q.uid === uid);
   if (!m || !storeMod(ctx.run, uid)) return;
   ctx.touched();

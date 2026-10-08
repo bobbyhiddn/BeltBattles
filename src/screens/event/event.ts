@@ -26,8 +26,11 @@ import { eventLayout, eventScale, type EventLayout } from "./layout";
 import { duskScreen } from "../battle"; // 0.7.0a: the dusk gate (offline: 0.6.2's BattleScreen at once)
 import { BuildScreen } from "../build/build";
 import { TitleScreen } from "../title";
+import { npcDayRules } from "../../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT before every dusk
 
 const AUTO = 1.9; // seconds after a pick before rolling on to the battle (no REFIT decision)
+/** NPC-1 (REQ-BFG-077; NPC_DAY on): the event's one way on, REFIT before dusk. */
+export const REFIT_LABEL = "REFIT";
 const CARD_IDS = ["choice0", "choice1", "choice2"];
 
 interface Fly { icon: HTMLCanvasElement | null; kind: AnchorKind; text: string; x0: number; y0: number; t: number }
@@ -142,13 +145,15 @@ export class EventScreen implements Screen {
   }
 
   refit(): void {
-    if (this.phase !== "result" || !(this.deckItem || this.reveal)) return;
+    // NPC-1 (REQ-BFG-077): with NPC_DAY on, REFIT comes before every dusk (0.9.7: only after a deck part or SCOUT's spy)
+    if (this.phase !== "result" || !(npcDayRules() || this.deckItem || this.reveal)) return;
     this.run.stage = "refit";
     this.go(new BuildScreen(this.game));
   }
 
   fight(): void {
     if (this.phase !== "result") return;
+    if (npcDayRules()) return this.refit(); // NPC-1: no FIGHT NOW: the one way on is REFIT, whose FIGHT goes to dusk
     this.run.stage = "battle";
     this.game.audio.play("go");
     this.go(duskScreen(this.game));
@@ -171,7 +176,8 @@ export class EventScreen implements Screen {
       }
     }
     this.ufx.update(dt);
-    if (this.phase === "result" && !this.deckItem && !this.reveal && this.pt >= AUTO) this.fight();
+    // NPC-1: with NPC_DAY on nothing rolls on by itself (REFIT is the one button)
+    if (this.phase === "result" && !npcDayRules() && !this.deckItem && !this.reveal && this.pt >= AUTO) this.fight();
   }
 
   draw(g: G): void {
@@ -281,7 +287,12 @@ export class EventScreen implements Screen {
     const by = stack ? top + blockH - bh : r.y + Math.floor((r.h - bh) / 2);
     const ty = stack ? top : r.y + Math.floor(r.h / 2) - 7;
     drawText(g, text, stack ? r.x + r.w / 2 : r.x + 8, ty, color, { outline: C.ink, align: stack ? "center" : "left" });
-    if (this.deckItem || this.reveal) {
+    if (npcDayRules()) {
+      // NPC-1 (REQ-BFG-077): REFIT before every dusk: one button (its FIGHT goes to dusk)
+      if (sub) drawText(g, sub, stack ? r.x + r.w / 2 : r.x + 8, ty + 11, C.slate4, { font: "3", align: stack ? "center" : "left" });
+      const bw = stack ? r.w - 12 : 96;
+      button(ui, g, "refit", { x: stack ? r.x + 6 : r.x + r.w - bw - 8, y: by, w: bw, h: bh }, REFIT_LABEL, { primary: true, onTap: this.onRefit });
+    } else if (this.deckItem || this.reveal) {
       drawText(g, sub, stack ? r.x + r.w / 2 : r.x + 8, ty + 11, C.slate4, { font: "3", align: stack ? "center" : "left" });
       const bw = stack ? Math.floor((r.w - 16) / 2) : 68;
       const x0 = stack ? r.x + 6 : r.x + r.w - 2 * bw - 12;

@@ -18,19 +18,26 @@ import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/capt
 import { drawHearts } from "./battleHud";
 import { itemName } from "./event/cards";
 import { drawBadge } from "./build/shop";
+import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078)
+import { drawDropCard } from "./fork/drops"; // NPC-1: the drop card
 
 export interface WarlordActions {
   take: (() => void)[];
   refit: () => void;
   fight: () => void; // FIGHT NOW / ON TO DUSK
+  road?: () => void; // NPC-1 (REQ-BFG-077; NPC_DAY on): ON TO THE ROAD, the day's event
 }
+
+/** NPC-1 (REQ-BFG-077): the result's one way on with NPC_DAY on, win or lose. */
+export const ON_TO_THE_ROAD = "ON TO THE ROAD";
 
 export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions): void {
   const { W, H, ui } = game;
   const run = game.run!;
   const r = w.result!;
+  const npc = npcDayRules(); // NPC-1 (REQ-BFG-077, REQ-BFG-078): the drop card or NO DROP, then ON TO THE ROAD
   const pick = r.outcome === "win" && !w.reward.legendary && !r.took && r.parts.length > 0;
-  const cw = Math.min(W - 10, 214), ch = 124;
+  const cw = Math.min(W - 10, 214), ch = npc ? 132 : 124;
   const x = Math.round(W / 2 - cw / 2), y = Math.round(H / 2 - ch / 2);
   const k = Math.min(1, pt / 0.25);
   g.globalAlpha = 0.55 * k;
@@ -59,7 +66,11 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
     drawText(g, `+${r.gold} GOLD${bounty}`, x + 10, ry, C.yellow, { outline: C.ink });
     if (w.sabotaged) drawText(g, "SABOTAGED", x + cw - 10, ry + 1, C.amber, { font: "3", align: "right" });
     ry += 12;
-    if (w.reward.legendary && r.took) {
+    if (npc) {
+      // NPC-1 (REQ-BFG-078): the drop as a part card going to cargo (the Matriarch's: her legendary part), or NO DROP
+      drawDropCard(g, r.took, w.reward.legendary, x + 10, ry, cw - 20);
+      ry += 24;
+    } else if (w.reward.legendary && r.took) {
       tag(g, "LEGENDARY", x + 10, ry, C.plum4, C.white);
       drawText(g, `${itemName(r.took)} IS IN CARGO`, x + 60, ry + 2, C.lime, { font: "3" });
       ry += 12;
@@ -73,6 +84,11 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
   }
   if (pt <= 0.35) return;
   const by = yy + ch - 26, bw = Math.floor((cw - 24) / 2);
+  if (npc) {
+    // NPC-1 (REQ-BFG-077): one way on, win or lose: the day's event (then REFIT, then dusk)
+    button(ui, g, "toroad", { x: x + 10, y: by, w: cw - 20, h: 20 }, ON_TO_THE_ROAD, { primary: true, onTap: a.road ?? a.fight });
+    return;
+  }
   if (pick) {
     r.parts.forEach((d, i) => {
       const bx = x + 10 + i * (bw + 4);
