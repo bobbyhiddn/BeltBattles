@@ -1,11 +1,12 @@
 // FIELD-1 (REQ-BFG-075): the battle camera (src/render/camera.ts, game/arenaMotion.ts). Two shots: CLOSE (today's
 // framing) and WIDE (the fight, zoomed out); each at rest draws an art pixel as a whole number of device pixels, on the
-// battle's finer canvas grid (core/io.ts View.sub), and the HUD keeps today's size. Taps hit-test through the camera's
+// battle's finer canvas grid (game/viewGrid.ts GameView.sub), and the HUD keeps today's size. Taps hit-test through the camera's
 // inverse at both shots, mid-move and at every motion phase. WIDE's targets: phone portrait 390x844, the two hulls span
 // at most 75% of the width at every motion phase with the setting on both sides, above the enemy lane and below yours;
 // desk and laptop about 70%, every tile column on screen at every surge phase.
 import { describe, expect, it } from "vitest";
 import { computeView } from "../src/core/io";
+import { viewWithSub } from "../src/game/viewGrid";
 import { battleGrid, battleLayout, battleScale, cameraFocus, hullSpan, laneLayout, laneSpec, minGap } from "../src/game/battleLayout";
 import { Camera, WIDE_SHARE, cameraGrid, ease, wideScale } from "../src/render/camera";
 import { BANK_MAX_DEG, MotionModel, applyAffine, type Affine } from "../src/render/motion";
@@ -19,7 +20,7 @@ const pickSub = (pw: number, ph: number, p: boolean, scale: number) => { const g
 
 /** The battle on a viewport as BattleScreen lays it out: its view (with the camera's grid), lanes and camera. */
 function battle(w: number, h: number, dpr: number) {
-  const v = computeView(w, h, dpr, (pw, ph, p) => battleScale(pw, ph, p), pickSub);
+  const v = viewWithSub(w, h, dpr, (pw, ph, p) => battleScale(pw, ph, p), pickSub);
   const v0 = computeView(w, h, dpr, (pw, ph, p) => battleScale(pw, ph, p));
   const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr);
   const grid = battleGrid(pw, ph, v.portrait);

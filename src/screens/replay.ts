@@ -95,7 +95,7 @@ export class ReplayScreen implements Screen {
 
   private gridPick: { grid: Grid; W: number; H: number; portrait: boolean } | null = null;
 
-  /** FIELD-1 (REQ-BFG-075): the battle's canvas grid (core/io.ts View.sub), as BattleScreen.pickSub. */
+  /** FIELD-1 (REQ-BFG-075): the battle's canvas grid (game/viewGrid.ts GameView.sub), as BattleScreen.pickSub. */
   pickSub(pw: number, ph: number, portrait: boolean, scale: number): number {
     const grid = battleGrid(pw, ph, portrait);
     if (grid.close !== scale) return 1;

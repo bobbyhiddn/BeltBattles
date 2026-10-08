@@ -6,9 +6,9 @@
 // Two named shots: CLOSE, today's framing (the battle's own device-pixel scale, battleLayout.ts battleScale), and WIDE,
 // the fight zoomed out so both carriers and the setting show with room to spare. At rest each shot draws one art pixel
 // as a whole number of device pixels, so the pixel art stays crisp. To show both scales whole, the battle's canvas runs on
-// a finer grid (cameraGrid): `unit` device px per canvas px, the HUD drawn at `sub` canvas px per logical px (core/io.ts
-// View.sub; the still screens keep sub 1, today's canvas). A move between the shots (easeTo) may pass through other
-// scales on the way.
+// a finer grid (cameraGrid): `unit` device px per canvas px, the HUD drawn at `sub` canvas px per logical px
+// (game/viewGrid.ts GameView.sub; the still screens keep sub 1, today's canvas). A move between the shots (easeTo) may
+// pass through other scales on the way.
 
 import type { Affine } from "./motion";
 

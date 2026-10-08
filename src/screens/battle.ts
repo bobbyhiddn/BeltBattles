@@ -171,7 +171,7 @@ export class BattleScreen implements Screen {
 
   private gridPick: { grid: Grid; W: number; H: number; portrait: boolean } | null = null;
 
-  /** FIELD-1 (REQ-BFG-075): the canvas grid the camera needs (core/io.ts View.sub): both shots' pixels whole. */
+  /** FIELD-1 (REQ-BFG-075): the canvas grid the camera needs (game/viewGrid.ts GameView.sub): both shots' pixels whole. */
   pickSub(pw: number, ph: number, portrait: boolean, scale: number): number {
     const grid = battleGrid(pw, ph, portrait);
     if (grid.close !== scale) return 1;
