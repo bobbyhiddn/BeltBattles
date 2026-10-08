@@ -43,6 +43,7 @@ import type { Build } from "../src/sim/deck";
 import { parField } from "../src/sim/harness/par";
 import { DIFFICULTIES, MATRIARCH_DAY, warlordPool, type RivalId } from "../src/sim/rivals";
 import { warlordDeck } from "../src/game/road";
+import { setLadderFix } from "../src/sim/ladderFix"; // --ladder-fix (HULL-1b, REQ-BFG-070)
 
 const HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 
@@ -270,6 +271,8 @@ async function main(): Promise<void> {
 
 // only when the built bench runs (node .../fightBench.js; its worker threads share that argv)
 const benchRun = !!process.argv[1]?.endsWith("fightBench.js");
+// --ladder-fix: LADDER_FIX on in the main thread and in every worker (they get the same argv), before any deck is built
+if (benchRun && has("ladder-fix")) setLadderFix(true);
 if (benchRun && !isMainThread) {
   parentPort!.on("message", (m: { id: number; task: Task }) => parentPort!.postMessage({ id: m.id, out: doTask(m.task) }));
 } else if (benchRun) void main();

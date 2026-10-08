@@ -71,6 +71,7 @@ import type { DetailRunner, Job, Runner } from "../src/sim/harness/tournament";
 import { DEFAULT_OPTS, focusSeeds } from "../src/sim/harness/tournament";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { flag, num, serveJobs, workerRunner } from "./workers";
+import { setLadderFix } from "../src/sim/ladderFix"; // HULL-1b (REQ-BFG-070): --ladder-fix
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
 /** 0.8.0 N1 (REQ-BFG-024, REQ-BFG-011): the par fields --rivals and --synergy measure against, `--fields a,b,...`
@@ -1389,6 +1390,10 @@ async function main(): Promise<void> {
   void buildCost;
 }
 
+// HULL-1b (REQ-BFG-070): --ladder-fix runs with LADDER_FIX on (src/sim/ladderFix.ts) in the main thread: the par decks,
+// the --fingerprint lines and every no-battle mode. Worker threads don't read the flag, so a battle mode takes --workers 1
+// (its battles then run in the main thread, localRunner).
+if (isMainThread && process.argv.includes("--ladder-fix")) setLadderFix(true);
 // the entry comes last, so every module-level constant above is initialised before main() runs
 if (!isMainThread) serveJobs();
 else {

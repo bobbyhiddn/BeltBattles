@@ -88,6 +88,12 @@ export function fusible(def: string): boolean {
 
 const cache = new Map<string, ItemDef>();
 
+/** HULL-1b (REQ-BFG-070): forget every cached star def. ladderFix.ts setLadderFix calls it when it swaps a fixed piece's
+ *  def in ITEMS (nothing else does: with LADDER_FIX off the cache lives as before). */
+export function clearStarCache(): void {
+  cache.clear();
+}
+
 /**
  * The item's def with its spec at `stars`: ItemDef.levels[2] (and then levels[3]) merged over the
  * 1-star gate/factory/mod spec. At 1 star, or for an item without levels, it is ITEMS[def] itself,
