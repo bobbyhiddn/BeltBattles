@@ -177,23 +177,31 @@ export interface RoadEntry {
   tier: Difficulty;
   outcome: RoadOutcome;
   drop?: string;
+  /** HULL-1a (REQ-BFG-078; REVIEW-NPC1 Q3): the warlord fought was sabotaged (SABOTAGE's deck, a SAPPERS hire the day
+   *  before). Present only when true; the server then checks that one deck (validate.ts roadProblem). */
+  sabotaged?: true;
 }
 
-/** A run's warlord log (run.ts Run.warlords) as road entries: the part a win put in cargo is the drop. */
-export function roadLog(warlords: readonly { day: number; tier: Difficulty; outcome: RoadOutcome; part: string | null }[]): RoadEntry[] {
-  return warlords.map((w) => ({ day: w.day, tier: w.tier, outcome: w.outcome, ...(w.part ? { drop: w.part } : {}) }));
+/** A run's warlord log (run.ts Run.warlords) as road entries: the part a win put in cargo is the drop. HULL-1a (Q3): a
+ *  sabotaged fight's entry says so, last (`sabotaged: true`; absent otherwise). */
+export function roadLog(warlords: readonly { day: number; tier: Difficulty; outcome: RoadOutcome; part: string | null; sabotaged?: boolean }[]): RoadEntry[] {
+  return warlords.map((w) => ({
+    day: w.day, tier: w.tier, outcome: w.outcome, ...(w.part ? { drop: w.part } : {}), ...(w.sabotaged ? { sabotaged: true as const } : {}),
+  }));
 }
 
 /** Is `road` a well-formed road log for a snapshot of `day` (the client's loose check; the strict decoder has its own
- *  words, snapshot.ts roadField): a list of { day 1..day, tier, outcome, drop? } with no other keys. */
+ *  words, snapshot.ts roadField): a list of { day 1..day, tier, outcome, drop?, sabotaged? } with no other keys (HULL-1a,
+ *  Q3: `sabotaged` only as true). */
 export function roadShapeOk(road: unknown, day: unknown): boolean {
   if (!Array.isArray(road) || typeof day !== "number" || road.length > Math.max(0, day)) return false;
   return road.every((e) => {
     if (!e || typeof e !== "object" || Array.isArray(e)) return false;
     const o = e as Record<string, unknown>;
-    if (Object.keys(o).some((k) => k !== "day" && k !== "tier" && k !== "outcome" && k !== "drop")) return false;
+    if (Object.keys(o).some((k) => k !== "day" && k !== "tier" && k !== "outcome" && k !== "drop" && k !== "sabotaged")) return false;
     return typeof o.day === "number" && Number.isInteger(o.day) && o.day >= 1 && o.day <= day && TIERS.includes(o.tier as Difficulty)
-      && (ROAD_OUTCOMES as readonly unknown[]).includes(o.outcome) && (o.drop === undefined || typeof o.drop === "string");
+      && (ROAD_OUTCOMES as readonly unknown[]).includes(o.outcome) && (o.drop === undefined || typeof o.drop === "string")
+      && (o.sabotaged === undefined || o.sabotaged === true);
   });
 }
 

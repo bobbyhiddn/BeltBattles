@@ -58,6 +58,9 @@ export interface WarlordResult {
   time: number;
   gold: number;
   part: string | null;
+  /** HULL-1a (REQ-BFG-078; REVIEW-NPC1 Q3): the warlord fought SABOTAGE's deck (a SAPPERS hire the day before). Kept only
+   *  with NPC_DAY on, and only when true (road.ts finishWarlord), so a switch-off run's log is 0.9.7's. */
+  sabotaged?: true;
 }
 
 export interface PendingBounty {

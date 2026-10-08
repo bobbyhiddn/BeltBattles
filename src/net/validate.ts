@@ -54,6 +54,9 @@ export interface ValidateContext {
  * comes after the fight, so its sabotage hits the next day's warlord) and its seeded drop (road.ts warlordDrop). Then a
  * legendary part outside the Matriarch's own win (a second Matriarch part), a part not in that warlord's pool, and a drop
  * (or none) the seeded roll didn't give are refused. Without the seed (a served ghost) only the first lines are checked.
+ * HULL-1a (REQ-BFG-078; REVIEW-NPC1 Q3): an entry says when its warlord was sabotaged (`sabotaged: true`), so exactly one
+ * deck is checked: SABOTAGE's with the flag, the plain one without it; and the flag stands only after a SAPPERS day (its
+ * own line), whatever the outcome.
  */
 export function roadProblem(road: readonly RoadEntry[], day: number, seed?: number): string | null {
   if (!npcDayRules()) return "road: not in this rules version yet";
@@ -69,9 +72,11 @@ export function roadProblem(road: readonly RoadEntry[], day: number, seed?: numb
   for (const e of [...road].sort((a, b) => a.day - b.day)) {
     const id = warlordOffer(seed, e.day, beaten)[e.tier];
     if (id === "matriarch" && e.outcome === "win") beaten = e.day;
+    // HULL-1a (Q3): SABOTAGE's deck only after a SAPPERS day (the event comes after the fight: it hits the next warlord)
+    const sapped = e.day > 1 && eventFor(seed, e.day - 1) === "sappers";
+    if (e.sabotaged && !sapped) return `road: day ${e.day}: sabotaged, but ${e.day > 1 ? `day ${e.day - 1} met no SAPPERS` : "no day came before it"}`;
     if (e.outcome !== "win") continue;
-    const sab = e.day > 1 && eventFor(seed, e.day - 1) === "sappers";
-    const decks = [warlordDeck(id, e.day, false), ...(sab ? [warlordDeck(id, e.day, true)] : [])];
+    const decks = [warlordDeck(id, e.day, !!e.sabotaged)]; // HULL-1a (Q3): the one deck the entry names
     const name = RIVALS[id].name;
     if (e.drop !== undefined) {
       const legendary = itemDef(e.drop)?.rarity === "legendary";
