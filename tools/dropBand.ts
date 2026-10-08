@@ -11,8 +11,12 @@
 //     operator's shape) alone and together, and the one-weight moves at ★2; and the next fallback (common 6).
 // Exit 1 when the live numbers are out of the band (HULL-1c reruns it after the warlord re-fit).
 //   npx vite build --ssr tools/dropBand.ts --outDir tools/dist/dropband --emptyOutDir --logLevel warn
-//   node tools/dist/dropband/dropBand.js [--no-search]
+//   node tools/dist/dropband/dropBand.js [--no-search] [--all-on]
+// HULL-1c (REQ-BFG-078, REQ-BFG-079): --all-on turns HULL_SCALE and LADDER_FIX on too (through their setters, before any
+// deck is built), so the warlord decks are the release's (NPC_DAY is on inside main, as before).
 
+import { setHullScale } from "../src/sim/hullScale"; // HULL-1c: --all-on
+import { setLadderFix } from "../src/sim/ladderFix"; // HULL-1c: --all-on
 import { expectedRoadValue, rewardGold, roadValue097, warlordDeck } from "../src/game/road";
 import { DROP_CHANCE, DROP_STARS, DROP_WEIGHTS, dropClass, dropPool, withNpcDay, type DropClass } from "../src/sim/npcDay";
 import { warlordPool, type Difficulty } from "../src/sim/rivals";
@@ -126,4 +130,5 @@ function main(): number {
   });
 }
 
+if (process.argv[1]?.endsWith("dropBand.js") && process.argv.includes("--all-on")) { setHullScale(true); setLadderFix(true); }
 if (process.argv[1]?.endsWith("dropBand.js")) process.exitCode = main();

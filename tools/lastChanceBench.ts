@@ -27,6 +27,9 @@ import { battleSeed, newRun, type Run } from "../src/game/run";
 import { finishDay, startDusk } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
 import type { SideStats } from "../src/sim/battle";
+import { setHullScale } from "../src/sim/hullScale"; // HULL-1c: --all-on
+import { setLadderFix } from "../src/sim/ladderFix"; // HULL-1c: --all-on
+import { setNpcDay } from "../src/sim/npcDay"; // HULL-1c: --all-on
 
 const ZERO: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 
@@ -324,4 +327,8 @@ function main(): void {
   console.log(`${heroes.join(",")} seeds ${meta.seeds.join("-")}: ${jobs.length} runs, ${jobs.filter((j) => j.lc).length} LAST CHANCE, ${(meta.ms / 1000).toFixed(1)} s`);
 }
 
+// HULL-1c (REQ-BFG-079; BRIEF-HULL1C 2 (f)): --all-on runs the bench with every switch on (HULL_SCALE: M on every hull,
+// D on every hit, the day's income; LADDER_FIX; NPC_DAY), through each module's setter, before any run is played. The
+// day already reaches maxHull and every dusk fight (HULL-1a).
+if (process.argv.includes("--all-on")) { setHullScale(true); setLadderFix(true); setNpcDay(true); }
 main();
