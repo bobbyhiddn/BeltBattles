@@ -25,6 +25,7 @@
 import { COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, WINDOW_TIME, type ItemDef } from "../sim/content";
 import { WIND_START } from "../sim/content"; // SUS-B (REQ-BFG-069): the DARK WIND row
 import { SPEED_K } from "../sim/content"; // NUM-4 (REQ-BFG-047): the RATE row's 30 seconds
+import { hullScaleRules } from "../sim/hullScale"; // HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): the DARK WIND row's share
 import { SYNC_WINDOW } from "../sim/races/foundry";
 import { scaleCore } from "../sim/cores";
 import { effectAt } from "../sim/stars";
@@ -131,7 +132,15 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "BONUS DAMAGE", aliases: [], colour: PLAIN, def: "BONUS DAMAGE: WHAT RIGS AND SCRAP ADD TO A SLUG.", scope: "text" },
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1): the dark wind's text row, no icon (battle.ts: WIND_START, nothing heals from then;
     // 4.1's "NOTHING HEALS IN IT." names HEAL in panel style, as every text a tap shows does)
-    { word: "DARK WIND", aliases: [], colour: PLAIN, def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`, scope: "text" },
+    // HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): with HULL_SCALE on the wind is a share of each hull's own max (hullScale.ts
+    // windShareBp; the battle bar's WIND n%/S), and the row says so in 2 lines (tests/hull1c.windhud); off, SUS-B's words
+    {
+      word: "DARK WIND", aliases: [], colour: PLAIN,
+      def: hullScaleRules()
+        ? `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, EACH HULL LOSES A GROWING % OF ITS MAX EACH SEC. NO {*HEAL}.`
+        : `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`,
+      scope: "text",
+    },
     // ------------------------------------------------------------------------- the trigger labels (T1 2.3), brass
     { word: "HIT", aliases: [], colour: C.brass3, def: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", scope: "label" },
     { word: "SHOT", aliases: [], colour: C.brass3, def: "SHOT: EACH SHOT THIS TURRET FIRES.", scope: "label" },

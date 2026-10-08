@@ -24,6 +24,8 @@ import { hullBar } from "../ui/hud";
 import { CLANK_TIME, STRIP_H, drawPlatingStrip } from "../render/raceFx"; // 0.8.0 H1 M3: BASTION's plating strip
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
 import { holdsPlating } from "../render/wave3Moments"; // 0.8.0 I1 M4: wave 3's plating on any hull
+import type { Battle } from "../sim/battle"; // HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): windReadout's battle
+import { windShareBp } from "../sim/hullScale"; // HULL-1c: the wind's share a second, the bar's read-out
 
 /** Playback speeds (REQ-BFG-014, spec §22): presentation only, the sim steps the same fixed ticks. */
 export const SPEEDS = [0.5, 1, 2, 4];
@@ -169,6 +171,17 @@ export interface BarState {
   onPause: () => void;
 }
 
+/** HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): a share a second in basis points (hullScale.ts windShareBp) as the bar prints
+ *  it: a percent with at most one decimal ("0.5%", "1%", "1.5%"). */
+export const windShareText = (bp: number): string => `${Math.round(bp / 10) / 10}%`;
+
+/** HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): the bar's wind read-out. On the day's hull (Battle.scaled: HULL_SCALE on and a
+ *  day) the share of its own max hull that BOTH hulls lose a second ("WIND 1%/S"; each hull's own amount pops over it,
+ *  arenaReact); otherwise 0.9.7's damage a second, windDps ("WIND 20/S"), as before. */
+export function windReadout(b: Pick<Battle, "t" | "scaled" | "windDps">): string {
+  return b.scaled ? `WIND ${windShareText(windShareBp(b.t - WIND_START))}/S` : `WIND ${b.windDps()}/S`;
+}
+
 /** Docked control bar: clock (plum once the dark wind blows) + 0.5X 1X 2X 4X SKIP + II (pause). */
 export function drawBar(g: G, game: Game, a: Arena, r: Rect, clock: string, st: BarState): void {
   const ui = game.ui;
@@ -199,7 +212,10 @@ export function drawBar(g: G, game: Game, a: Arena, r: Rect, clock: string, st: 
   const n = SPEEDS.length;
   const sw = Math.max(15, Math.min(Math.round(bh * 1.5), Math.floor((skipX - 2 - x0 - windRoom - (n - 1)) / n)));
   const first = skipX - 2 - n * (sw + 1) + 1;
-  if (wind && windRoom && first - x0 >= 38) drawText(g, `WIND ${a.b.windDps()}/S`, x0, r.y + Math.floor((r.h - 5) / 2), C.plum4, { font: "3" });
+  // HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): windReadout (the share both hulls lose, on the day's hull), only where it fits
+  // whole: a share may read wider than 38 px ("WIND 10.3%/S" is 44); 0.9.7's read-outs are 38 at most, so their 38 holds
+  const wr = wind ? windReadout(a.b) : "";
+  if (wind && windRoom && first - x0 >= Math.max(38, textWidth(wr, "3"))) drawText(g, wr, x0, r.y + Math.floor((r.h - 5) / 2), C.plum4, { font: "3" });
   for (let i = 0; i < n; i++) {
     button(ui, g, SPEED_IDS[i], { x: first + i * (sw + 1), y: by, w: sw, h: bh }, SPEED_LABELS[i], { font: "3", active: st.speed === i, onTap: st.onSpeed[i] });
   }
