@@ -13,6 +13,7 @@ import { finishDay, startDusk } from "../../src/game/day";
 import { forkFor, pickRoad, warlordDeck, warlordReward } from "../../src/game/road";
 import { finishWarlord, onToTheRoad } from "../../src/game/road"; // NPC-1 (REQ-BFG-077): the event after the fight
 import { npcDayRules } from "../../src/sim/npcDay"; // NPC-1
+import { windShareBp } from "../../src/sim/hullScale"; // HULL-1c (REQ-BFG-079; REVIEW-HULL1A Q4): windRows' share wind
 import { choicesFor } from "../../src/game/events";
 import { standInFoe } from "../../src/game/ghosts";
 import { heroCatalogue, type HeroCatalogue } from "./catalogue";
@@ -248,11 +249,14 @@ function stakesRows(targets: Target[], rows: Row[], sections: Section[]): void {
 
 // ---------------------------------------------------------------- the dark wind (the battle loop)
 
-function windRows(targets: Target[], rows: Row[], sections: Section[]): void {
+/** HULL-1c (REQ-BFG-079; REVIEW-HULL1A Q4): `day`, the fight's day (default 1, the starting deck's): with HULL_SCALE on,
+ *  the share wind on that day's hulls (Battle.scaled); off, 0.9.7's flat wind and every word as before. */
+function windRows(targets: Target[], rows: Row[], sections: Section[], day = 1): void {
   // two unarmed hulls (the starting deck with no factory, rig or belt): the only damage is the dark wind
   const b0 = cloneBuild(newRun(PLAYABLE_HEROES[0], 1, "sc-wind").build);
   const bare: Build = { ...b0, items: [], routes: [], mods: [] };
-  const bt = new Battle(bare, bare, 1);
+  const bt = new Battle(bare, bare, 1, undefined, day);
+  const max = bt.sides[0].hull.max; // HULL-1c: both hulls' (the same deck)
   let onset = NaN, warn = NaN;
   // cumulative wind damage at each whole 5 s mark; a block's dps is its damage / 5 (exact, whatever the tick phase)
   const marks: { t: number; taken: number; hp: number }[] = [{ t: 0, taken: 0, hp: bt.sides[0].hull.hp }];
@@ -268,12 +272,16 @@ function windRows(targets: Target[], rows: Row[], sections: Section[]): void {
   const blocks = marks.slice(1).map((m, i) => ({ from: marks[i].t, to: m.t, dps: (m.taken - marks[i].taken) / 5, taken: m.taken, hp: m.hp }));
   const first = blocks.find((b) => b.dps > 0);
   const onset1 = Math.round(onset * 10) / 10;
+  // HULL-1c (REQ-BFG-079; REVIEW-HULL1A Q4): the share wind (scaled) says each block's share a second at its start
+  // (hullScale.ts windShareBp) and the day's max hull; off, the words as before
+  const share = (from: number): string => (bt.scaled ? ` (${fmt(windShareBp(from - WIND_START) / 100, 1)}%)` : "");
+  const then = bt.scaled ? `: each hull loses that share of its own max hull a second (day ${day}: max hull ${max})` : ", then +1/s every 5 s";
   rows.push(row(targets, "fight-overtime-onset", onset1, "s (first wind damage, +-1 tick)",
-    [`battle.ts, two unarmed hulls: the warning at ${fmt(warn, 1)} s (WIND_WARN ${WIND_WARN}), damage from ${fmt(onset1, 1)} s (WIND_START ${WIND_START}): ${blocks.filter((b) => b.dps > 0).slice(0, 5).map((b) => `${b.from}-${b.to} s ${fmt(b.dps, 1)}/s`).join(", ")}, then +1/s every 5 s.`,
+    [`battle.ts, two unarmed hulls: the warning at ${fmt(warn, 1)} s (WIND_WARN ${WIND_WARN}), damage from ${fmt(onset1, 1)} s (WIND_START ${WIND_START}): ${blocks.filter((b) => b.dps > 0).slice(0, 5).map((b) => `${b.from}-${b.to} s ${fmt(b.dps, 1)}/s${share(b.from)}`).join(", ")}${then}.`,
       `Read as "the first escalation" (damage rising above its first step, ${first ? fmt(first.dps, 1) : "?"}/s), it is ${first ? first.to : "?"} s.`],
-    { warn, onset, blocks }, 1));
+    { warn, onset, blocks, ...(bt.scaled ? { day, maxHull: max } : {}) }, 1));
   sections.push({
-    title: "The dark wind on two unarmed hulls (battle.ts; each 5 s block's damage / 5)",
+    title: `The dark wind on two unarmed hulls (battle.ts; each 5 s block's damage / 5)${bt.scaled ? ` on day ${day} (max hull ${max}; the share wind)` : ""}`,
     lines: mdTable(["from (s)", "to (s)", "wind dps", "wind damage so far", "hull left"], blocks.map((b) => [b.from, b.to, fmt(b.dps, 1), fmt(b.taken, 1), fmt(b.hp, 1)])),
   });
 }

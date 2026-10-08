@@ -39,6 +39,7 @@ import { newRun, type Run } from "../game/run";
 import { gainModule } from "../game/fuse";
 import type { BuildCost } from "./validate"; // type only: validate.ts's buildCost is the strict mode's cost
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the NPC day's plans
+import { hullScaleRules } from "../sim/hullScale"; // HULL-1c (REQ-BFG-079): the memo keys carry the switch
 
 // ------------------------------------------------------------------ D4: the reviewed model
 
@@ -462,6 +463,8 @@ function planDP(days: number, mix: Mix, mode: "deck" | "liquid", trace = false, 
  * here, because every drop (the Matriarch's legendary part too) is named in the snapshot's road log and counted there at
  * its value (validate.ts, roadDropValue). The fight comes first, so a bounty staked at a day's event pays from the next
  * day's Hard fight on. Gold, discounts and rerolls count as in planDP.
+ * HULL-1c (REQ-BFG-078; REVIEW-HULL1A Q1): on the deck's own day the fight's gold, which can't reach the deck, pays that
+ * day's event's gold cost first (was: the cost always counted, so day 1 with the dock's PLATING read -2).
  */
 function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boolean, hoard: boolean): DpResult {
   const all = roadOptions();
@@ -489,10 +492,13 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
     const flat = Math.max(0, bestPay("easy", d, gold, false), bestPay("medium", d, gold, false));
     const hard = bestPay("hard", d, gold, false);
     const queen = d >= MATRIARCH_DAY ? bestPay("matriarch", d, gold, false) : -Infinity;
-    const today = opts.map((list) => {
+    // HULL-1c (REQ-BFG-078; REVIEW-HULL1A Q1): `fund`, the day's fight gold that pays the event's gold cost (0: none; see
+    // the deck's day below)
+    const options = (fund: number) => opts.map((list) => {
       const byClass = new Map<number, { v: number; label: string }>();
       for (const o of list) {
         let v = (gold ? o.gold : 0) - o.pay + (parts ? o.parts : Math.min(0, o.parts));
+        if (fund > 0) v += Math.min(o.pay, fund); // HULL-1c: the cost counts only past the fight's gold
         if (caravan) v += o.reroll * REROLL_COST + (o.discount > 0 ? discountGain(o.discount, gmax(d + 1, hoard)) : 0);
         const cls = o.bounty > 0 ? amounts.indexOf(o.bounty) : -1;
         const had = byClass.get(cls);
@@ -500,6 +506,21 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
       }
       return [...byClass].map(([cls, x]) => ({ cls, v: x.v, label: x.label }));
     });
+    const today = options(0);
+    const funded = new Map<number, ReturnType<typeof options>>(); // HULL-1c: the deck's day's options by fund
+    const todayAt = (fund: number): ReturnType<typeof options> => {
+      if (!funded.has(fund)) funded.set(fund, options(fund));
+      return funded.get(fund)!;
+    };
+    // HULL-1c (REQ-BFG-078; REVIEW-HULL1A Q1): the deck's own day (`gold` false: REFIT has no shop, so the fight's gold
+    // can't reach the deck). The fight still comes before the event, so its gold pays the event's gold cost (seed 9106's
+    // FOUNDRY: a Hard win's 3 gold paid the dock's PLATING, roadCap -2 before). Every fight is worth 0 to the deck that day
+    // and only the events taken count after it, so the plan fights the one that pays the most gold (a pending bounty rides
+    // on the Hard slot's win) and that gold is its fund (midFund)
+    const flatGold = gold ? 0 : Math.max(0, bestPay("easy", d, true, false), bestPay("medium", d, true, false));
+    const hardGold = gold ? 0 : bestPay("hard", d, true, false);
+    const queenGold = gold || d < MATRIARCH_DAY ? -Infinity : bestPay("matriarch", d, true, false);
+    const midFund = new Float64Array(gold ? 0 : S);
     // step 1, the fight: mid[s] with its origin and label
     const mid = new Float64Array(S).fill(-Infinity);
     const midFrom = new Int32Array(S).fill(-1);
@@ -517,6 +538,14 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
       const v = cur[s];
       if (v === -Infinity) continue;
       const b = s % B, beaten = Math.floor(s / B) % 2, mask = Math.floor(s / (2 * B));
+      if (!gold) { // HULL-1c: the deck's day (above): the state stays, the richest open fight funds the event
+        const queenSlot = d >= MATRIARCH_DAY && !beaten;
+        const top = (queenSlot ? queenGold : hardGold) + amounts[b];
+        const label = top > flatGold ? `${queenSlot ? "matriarch" : "hard"}${b ? " + bounty" : ""}` : "easy/medium (or a lost fight)";
+        putMid(s, s, v, label, 0);
+        midFund[s] = Math.max(flatGold, top);
+        continue;
+      }
       putMid(s, s, v + flat, "easy/medium (or a lost fight)", flat);
       const bounty = gold ? amounts[b] : 0;
       if (d >= MATRIARCH_DAY && !beaten) putMid(s, at(mask, 1, 0), v + queen + bounty, `matriarch${b ? " + bounty" : ""}`, queen + bounty);
@@ -542,10 +571,11 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
       if (v === -Infinity) continue;
       const b = m % B, beaten = Math.floor(m / B) % 2, mask = Math.floor(m / (2 * B));
       put(m, m, v, "", 0);
+      const list = gold ? today : todayAt(midFund[m]); // HULL-1c: the deck's day: funded by the fight's gold
       for (let i = 0; i < E; i++) {
         if (mask & (1 << i)) continue;
         const m2 = mask | (1 << i);
-        for (const o of today[i]) put(m, at(m2, beaten, o.cls >= 0 ? o.cls : b), v + o.v, `event ${events[i]}: ${o.label}`, o.v);
+        for (const o of list[i]) put(m, at(m2, beaten, o.cls >= 0 ? o.cls : b), v + o.v, `event ${events[i]}: ${o.label}`, o.v);
       }
     }
     if (trace) back.push({ from, what, val });
@@ -576,7 +606,8 @@ const liquidMemo = new Map<string, number>();
  *  trader pays a part's full value, once). `hoard` (diagnostic, REPORT.md §2 slack): road gold only, the parts
  *  stay on the deck. */
 export function gmax(c: number, hoard = false): number {
-  const k = `${c}|${hoard}|${npcDayRules()}`; // NPC-1: the NPC day's plans differ
+  // NPC-1: the NPC day's plans differ. HULL-1c (REQ-BFG-079): so may the day's gold with HULL_SCALE on
+  const k = `${c}|${hoard}|${npcDayRules()}|${hullScaleRules()}`;
   const hit = liquidMemo.get(k);
   if (hit !== undefined) return hit;
   const road = c - 2 >= 1 ? Math.max(0, planDP(c - 2, NO_MIX(), "liquid", false, hoard).value) : 0;
@@ -590,7 +621,8 @@ const capMemo = new Map<string, number>();
 /** The most extra value an honest run whose hull and belt used `mix` can have on its deck at the dusk of `day`;
  *  -Infinity when the mix's events can't all fit in `day` road stops. */
 export function roadCapFor(day: number, mix: Mix = NO_MIX()): number {
-  const k = `${day}|${mix.key}|${npcDayRules()}`; // NPC-1: the NPC day's plans differ
+  // NPC-1: the NPC day's plans differ. HULL-1c (REQ-BFG-079): so may the day's gold with HULL_SCALE on
+  const k = `${day}|${mix.key}|${npcDayRules()}|${hullScaleRules()}`;
   const hit = capMemo.get(k);
   if (hit !== undefined) return hit;
   const v = planDP(day, mix, "deck").value;

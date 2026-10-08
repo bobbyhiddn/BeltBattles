@@ -40,7 +40,8 @@ describe("HULL-1a (h): the server with both switches on", () => {
     both();
     const seen = new Set<string>();
     let n = 0;
-    // NPC-1's seeds (tests/npc1.server.test.ts: 8100 on); 9100's FOUNDRY day 1 is NPC-1's known refusal (the next test)
+    // NPC-1's seeds (tests/npc1.server.test.ts: 8100 on); 9100's FOUNDRY day 1 was NPC-1's known refusal, and passes since
+    // HULL-1c's day-1 roadCap fix (the next test; tests/hull1c.base9106.test.ts runs every 9100 dusk)
     for (const policy of ["mixed", "warlord:hard", "event:sappers:HIRE|warlord:hard"] as const) {
       for (const r of driveRuns(policy === "mixed" ? 8 : 4, 8100, HEROS, policy)) {
         for (const d of r.dusks) {
@@ -57,22 +58,24 @@ describe("HULL-1a (h): the server with both switches on", () => {
     expect(n).toBeGreaterThanOrEqual(HEROS.length * 3 * 2);
   });
 
-  it("NPC-1's one known refusal at hull1-base (FOUNDRY, driver seed 9106, day 1: a Hard win and the dock's PLATING; roadCap -2) reads the same with HULL_SCALE on and off", () => {
+  it("NPC-1's one known refusal at hull1-base (FOUNDRY, driver seed 9106, day 1: a Hard win and the dock's PLATING) passes since HULL-1c's day-1 roadCap, with HULL_SCALE on and off", () => {
     // Found by HULL-1a and checked in a worktree of hull1-base (NPC_DAY on, no HULL_SCALE): 1 of 200 driver dusks
-    // (seeds 9100-9107 and 8100-8111) refused, this one. NPC-1's road model on day 1 (REPORT, question 1); not a hull matter
+    // (seeds 9100-9107 and 8100-8111) refused, this one. NPC-1's road model on day 1 (REPORT, question 1); not a hull matter.
+    // HULL-1c (REQ-BFG-078; REVIEW-HULL1A Q1), the same test made a pass: on the deck's own day roadCap lets the fight's gold
+    // pay that day's event (the Hard win's 3 gold paid the PLATING's 2), so day 1 with the dock's PLATING is roadCap 0
+    // (was -2). Was (re-pinned at HULL-1c, cap's oracle 46fecaf0a9972ea6): "budget: build costs 14 gold (items 9, mods 5,
+    // 0 crates, 0 plating, road dock PLATING) but a player's day 1 allows at most 12 (maxGoldByDay 8 + roadCap -2 + drops 6)"
     const verdict = () => {
       const d = driveRuns(7, 9100, HEROS, "mixed")[6].dusks[0];
       expect([d.hero, d.seed, d.day]).toEqual(["foundry", 9106, 1]);
+      expect(d.road).toMatch(/^hard [a-z0-9_]+: win, took [a-z0-9_]+; event dock: PLATING$/); // a Hard win's drop, then the PLATING
+      expect(d.roadLog).toEqual([{ day: 1, tier: "hard", outcome: "win", drop: expect.any(String) }]);
       return validateUpload(d.build, d.day, RULES_VERSION, { seed: d.runSeed, road: d.roadLog }).errors;
     };
     setNpcDay(true);
-    const off = verdict();
-    // HULL-1c (REQ-BFG-078; cap's oracle 46fecaf0a9972ea6), re-pinned in place on the merged tip: HULL-1b's Hard drops count
-    // at ★2 (2088ee6), so items go 6 -> 9 (the dropped TEMPER is a ★2 copy) and drops 3 -> 6; the 2-gold excess is still
-    // roadCap -2 on day 1 (REVIEW-HULL1A Q1). Was: "... costs 11 gold (items 6, ...) ... at most 9 (... + drops 3)"
-    expect(off).toEqual(["budget: build costs 14 gold (items 9, mods 5, 0 crates, 0 plating, road dock PLATING) but a player's day 1 allows at most 12 (maxGoldByDay 8 + roadCap -2 + drops 6)"]);
+    expect(verdict()).toEqual([]);
     setHullScale(true);
-    expect(verdict()).toEqual(off);
+    expect(verdict()).toEqual([]);
   });
 
   it("an over-budget hull is refused, the same with HULL_SCALE on or off (the ceiling is hullBonus in day-1 units)", () => {
