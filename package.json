@@ -1,7 +1,7 @@
 {
   "name": "beltbattles",
   "private": true,
-  "version": "0.9.7",
+  "version": "0.9.8",
   "type": "module",
   "description": "BeltBattles — industrial-fantasy conveyor autobattler (first playable prototype).",
   "scripts": {
