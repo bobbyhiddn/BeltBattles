@@ -173,12 +173,13 @@ function freeSocket(run: Run, turret: number): void {
  *  0.6.1b: a core gained onto a turret swaps out the socket's bought core (freeSocket); gear on a turret is
  *  the caller's check. The survivor rules treat cores like mods; an absorbed core frees its socket, so that
  *  turret falls back to its signature core. */
-export function gainModule(run: Run, def: string, at?: GainAt): Gain {
+export function gainModule(run: Run, def: string, at?: GainAt, stars = 1): Gain {
   const uid = run.nextUid++;
   if (at && "turret" in at && ITEMS[def]?.kind === "core") freeSocket(run, at.turret);
   if (at && "turret" in at) run.build.mods.push({ uid, def, turret: at.turret });
   else if (at) run.build.items.push({ uid, def, x: at.x, y: at.y, ...rotField(def, at.rot ?? 0) }); // rot: rigs only, never 0
-  else run.inventory.push({ uid, def });
+  // HULL-1b (REQ-BFG-078): `stars`, a copy above 1 star into cargo (NPC_DAY's Hard drop at ★2); 1 = as before
+  else run.inventory.push({ uid, def, ...starField(stars) });
   const steps = fuseFrom(run, uid);
   const fin = find(run, steps.length ? steps[steps.length - 1].survivor : uid)!;
   return { uid, steps, survivor: fin.uid, stars: fin.stars, where: fin.where };

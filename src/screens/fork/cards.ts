@@ -18,7 +18,7 @@ import { itemName } from "../event/cards";
 import { drawRich, wrapRich } from "../../ui/richText"; // U2b: a captain's trick and blurb in rich text
 import { captainSpans } from "../../ui/captainText"; // U2b: the keyword colours
 import { pctText, type DropTable } from "../../sim/npcDay"; // NPC-1 (REQ-BFG-078): the drop on the cards
-import { drawDropIcons } from "./drops"; // NPC-1
+import { drawDropIcons, dropStarText } from "./drops"; // NPC-1; HULL-1b: dropStarText
 
 export interface ForkCardView {
   hover: boolean;
@@ -121,7 +121,7 @@ export function drawWarlordCard(g: G, r: Rect, id: RivalId, tier: Difficulty, rw
     const db = r.y + r.h - DROP_BOX;
     rect(g, r.x + 4, db, r.w - 8, 1, C.slate1);
     let dy = db + 4;
-    for (const ln of wrap(rewardText(rw), r.w - 24, "3").slice(0, 2)) {
+    for (const ln of wrap(rewardText(rw) + dropStarText(v.drop), r.w - 24, "3").slice(0, 2)) { // HULL-1b: "... DROP 90% ★2"
       drawText(g, ln, r.x + 5, dy, C.lime, { font: "3" });
       dy += 7;
     }

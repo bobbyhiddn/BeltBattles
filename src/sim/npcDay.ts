@@ -72,12 +72,23 @@ export const DROP_CLASS_LABEL: Readonly<Record<DropClass, string>> = {
 
 /** The class weights by tier: common rigs often, turrets and factories rarely; Hard starts tilted toward the big parts
  *  (HULL-1's bench settles the numbers). Within a class each part has an equal share; a class with no part in the deck
- *  drops out of the draw. */
+ *  drops out of the draw.
+ *  HULL-1b (REQ-BFG-078; REVIEW-NPC1 ruling Q2, the levers in order): no single lever put a Hard win at 1.25x-1.6x a
+ *  Medium win on days 3-10 (Hard 100%: 1.08-1.12x; Hard at ★2: 1.59-1.67x; no Hard tilt at ★1 reaches 1.25x), so Hard
+ *  drops at ★2 (DROP_STARS) AND its common rigs weigh 5 (was 3; the smallest one-weight move into the band, within the
+ *  operator's shape: turrets and factories never outweigh common rigs): Hard/Medium 1.52-1.59x on days 3-10
+ *  (W/output-hull1b/bench/drops-probe.txt). The chance stays 90%. */
 export const DROP_WEIGHTS: Readonly<Record<Difficulty, Readonly<Record<DropClass, number>>>> = {
   easy: { turret: 1, epic: 1, rare: 3, common: 6 },
   medium: { turret: 1, epic: 1, rare: 3, common: 6 },
-  hard: { turret: 2, epic: 2, rare: 3, common: 3 },
+  hard: { turret: 2, epic: 2, rare: 3, common: 5 },
 };
+
+/** HULL-1b (REQ-BFG-078; REVIEW-NPC1 Q2's second lever): the star a tier's drop goes to cargo at: Hard's at ★2, Easy's
+ *  and Medium's at ★1. (The Matriarch's legendary part is not a drop of this table: it goes to cargo at ★1.) A drop
+ *  table carries it (DropTable.stars, only when above 1); the victory card, the inspect panel, the cargo copy
+ *  (road.ts finishWarlord) and the server's budget (roadDropValue) read it. */
+export const DROP_STARS: Readonly<Record<Difficulty, number>> = { easy: 1, medium: 1, hard: 2 };
 
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
 
@@ -116,10 +127,12 @@ export interface DropLine {
 }
 
 /** A warlord's drop as the inspect panel shows it: the chance, then every part with its odds (the most likely first,
- *  ties by class order and id). The odds sum to `chance` (0 with an empty pool). */
+ *  ties by class order and id). The odds sum to `chance` (0 with an empty pool). HULL-1b: `stars`, the star the drop
+ *  goes to cargo at (DROP_STARS), only when above 1 (absent: ★1, as every NPC-1 table). */
 export interface DropTable {
   chance: number;
   lines: DropLine[];
+  stars?: number;
 }
 
 /** The deck's pool by class, the empty classes left out (DROP_CLASSES order). */
@@ -138,14 +151,16 @@ export function dropTable(tier: Difficulty, deck: Pick<Build, "hero" | "items" |
   for (const c of classes) for (const def of c.defs) lines.push({ def, cls: c.cls, odds: (chance * w[c.cls]) / total / c.defs.length });
   const rank = (c: DropLine["cls"]) => (c === "legendary" ? -1 : DROP_CLASSES.indexOf(c));
   lines.sort((a, b) => b.odds - a.odds || rank(a.cls) - rank(b.cls) || (a.def < b.def ? -1 : a.def > b.def ? 1 : 0));
-  return { chance: classes.length ? chance : 0, lines };
+  // HULL-1b (REQ-BFG-078): the drop's star rides on the table (Hard: ★2), only when above 1 and something drops
+  return { chance: classes.length ? chance : 0, lines, ...(classes.length && DROP_STARS[tier] > 1 ? { stars: DROP_STARS[tier] } : {}) };
 }
 
 /**
  * THE ROLL: what a `tier` warlord's win on `day` of the run with `seed` drops, fighting with `deck`: a part id, or null.
  * One stream, hashSeed(seed, "warlord-drop", day): the first draw is the chance (next() < DROP_CHANCE[tier]); on a hit,
  * one weighted draw picks the class among the deck's non-empty classes (DROP_WEIGHTS[tier]), then one even draw the part
- * in it (dropPool's id order). Pure: the client, a reload and the server get the same answer.
+ * in it (dropPool's id order). Pure: the client, a reload and the server get the same answer. HULL-1b: the part goes to
+ * cargo at DROP_STARS[tier] (Hard: ★2); the roll itself is unchanged.
  */
 export function rollDrop(seed: number, day: number, tier: Difficulty, deck: Pick<Build, "hero" | "items" | "mods" | "turrets">): string | null {
   const rng = new Rng(hashSeed(seed >>> 0, "warlord-drop", day));
@@ -157,9 +172,16 @@ export function rollDrop(seed: number, day: number, tier: Difficulty, deck: Pick
   return c.defs[rng.int(c.defs.length)];
 }
 
-/** The expected value of a drop table: the sum of odds x valueOf(def, 1) (the drop is a 1-star copy). */
+/** The expected value of a drop table: the sum of odds x valueOf(def, stars) (the drop is a copy at the table's star:
+ *  ★1, or HULL-1b's DROP_STARS). */
 export function expectedDropValue(t: DropTable): number {
-  return t.lines.reduce((s, l) => s + l.odds * valueOf(l.def, 1), 0);
+  return t.lines.reduce((s, l) => s + l.odds * valueOf(l.def, t.stars ?? 1), 0);
+}
+
+/** HULL-1b (REQ-BFG-078): the star a road entry's drop went to cargo at: DROP_STARS[tier], or ★1 for a part outside the
+ *  drop classes (the Matriarch's legendary part, road.ts finishWarlord). */
+export function dropStarsOf(e: Pick<RoadEntry, "tier" | "drop">): number {
+  return e.drop !== undefined && dropClass(e.drop) !== null ? DROP_STARS[e.tier] : 1;
 }
 
 // ------------------------------------------------------------------ the road log (the v3 snapshot's `road`)
@@ -197,9 +219,10 @@ export function roadShapeOk(road: unknown, day: unknown): boolean {
   });
 }
 
-/** The drops a road log names, at their value (1-star copies): what the upload budget counts for them. */
+/** The drops a road log names, at their value (copies at their star: HULL-1b's dropStarsOf, Hard's at ★2): what the
+ *  upload budget counts for them. */
 export function roadDropValue(road: readonly RoadEntry[] | undefined): number {
-  return (road ?? []).reduce((s, e) => s + (e.drop !== undefined ? valueOf(e.drop, 1) : 0), 0);
+  return (road ?? []).reduce((s, e) => s + (e.drop !== undefined ? valueOf(e.drop, dropStarsOf(e)) : 0), 0);
 }
 
 /** A share as the panel says it: "DROP 75%", "12%" (whole percent; under 1% reads "<1%"). */

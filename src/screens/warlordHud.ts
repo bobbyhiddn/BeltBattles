@@ -18,7 +18,7 @@ import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/capt
 import { drawHearts } from "./battleHud";
 import { itemName } from "./event/cards";
 import { drawBadge } from "./build/shop";
-import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078)
+import { DROP_STARS, npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078); HULL-1b: DROP_STARS
 import { drawDropCard } from "./fork/drops"; // NPC-1: the drop card
 
 export interface WarlordActions {
@@ -68,7 +68,7 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
     ry += 12;
     if (npc) {
       // NPC-1 (REQ-BFG-078): the drop as a part card going to cargo (the Matriarch's: her legendary part), or NO DROP
-      drawDropCard(g, r.took, w.reward.legendary, x + 10, ry, cw - 20);
+      drawDropCard(g, r.took, w.reward.legendary, x + 10, ry, cw - 20, w.reward.legendary ? 1 : DROP_STARS[w.tier]); // HULL-1b: Hard's ★2
       ry += 24;
     } else if (w.reward.legendary && r.took) {
       tag(g, "LEGENDARY", x + 10, ry, C.plum4, C.white);

@@ -9,7 +9,7 @@ import { forkFor, pickRoad, roadChosen, warlordReward, warlordDeck, warlordDeckD
 import { forkPicks, warlordDropTable } from "../../game/road"; // NPC-1 (REQ-BFG-077, REQ-BFG-078)
 import { npcDayRules, type DropTable } from "../../sim/npcDay"; // NPC-1
 import { DROP_BOX } from "./cards"; // NPC-1: the desk card's drop box
-import { dropInfoButton, dropLine, drawDropIcons, drawDropList } from "./drops"; // NPC-1
+import { dropInfoButton, dropLine, dropStarText, drawDropIcons, drawDropList } from "./drops"; // NPC-1; HULL-1b: dropStarText
 import { EVENTS, type EventId } from "../../game/eventDefs"; // NPC-1: AFTER THE FIGHT: <TITLE>
 import { rect } from "../../render/pixel"; // NPC-1: the inspect panel's drop rule
 import { saveRun, type Run, type RoadPick } from "../../game/run";
@@ -17,7 +17,7 @@ import { settings } from "../../core/settings";
 import { RIVALS, RUN_DAYS, type Difficulty } from "../../sim/rivals";
 import { C } from "../../render/palette";
 import { type G } from "../../render/pixel";
-import { drawText, wrap } from "../../render/font";
+import { drawText, textWidth, wrap } from "../../render/font"; // HULL-1b: textWidth (the drop row)
 import { ArenaBg } from "../../render/arenaBg";
 import { button, panel, type Rect } from "../../ui/ui";
 import { optionsCard } from "../../ui/hud";
@@ -207,8 +207,10 @@ export class ForkScreen implements Screen {
         // NPC-1 (REQ-BFG-078): the inspect panel's drop row: the parts as icons with their odds, and the ⓘ list
         const t = this.dropOf(tier), dy = r.y + r.h - 26;
         rect(g, r.x + 4, dy - 3, r.w - 8, 1, C.slate1);
-        drawText(g, dropLine(t), r.x + 5, dy + 4, C.lime, { font: "3" });
-        if (t.lines.length) drawDropIcons(g, t, r.x + 44, dy, r.w - 44 - 80);
+        // HULL-1b (REQ-BFG-078): a Hard drop's star after the chance ("DROP 90% ★2"); the icons start after the line
+        const dl = dropLine(t) + dropStarText(t), ix = Math.max(44, 9 + textWidth(dl, "3"));
+        drawText(g, dl, r.x + 5, dy + 4, C.lime, { font: "3" });
+        if (t.lines.length) drawDropIcons(g, t, r.x + ix, dy, r.w - ix - 80);
         dropInfoButton(this.game, g, "forkinfo", r.x + r.w - 78, dy + 2, this.dropList === tier, () => this.openDrops(tier));
       }
     }

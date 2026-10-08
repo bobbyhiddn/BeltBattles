@@ -55,11 +55,12 @@ describe("NPC-1 the drop table (REQ-BFG-078)", () => {
     expect(dropClass("no-such-part")).toBeNull();
   });
 
-  it("the tables: DROP_CHANCE 60/75/90; DROP_WEIGHTS 1/1/3/6 Easy and Medium, 2/2/3/3 Hard", () => {
+  // HULL-1b (REQ-BFG-078): was "... 2/2/3/3 Hard" (cap's answer 98fa8a5115ab780f: the pins of NPC-1's switch-on start numbers move in place)
+  it("the tables: DROP_CHANCE 60/75/90; DROP_WEIGHTS 1/1/3/6 Easy and Medium, 2/2/3/5 Hard", () => {
     expect(DROP_CHANCE).toEqual({ easy: 0.6, medium: 0.75, hard: 0.9 });
     expect(DROP_WEIGHTS.easy).toEqual({ turret: 1, epic: 1, rare: 3, common: 6 });
     expect(DROP_WEIGHTS.medium).toEqual({ turret: 1, epic: 1, rare: 3, common: 6 });
-    expect(DROP_WEIGHTS.hard).toEqual({ turret: 2, epic: 2, rare: 3, common: 3 });
+    expect(DROP_WEIGHTS.hard).toEqual({ turret: 2, epic: 2, rare: 3, common: 5 }); // HULL-1b (REQ-BFG-078): was { turret: 2, epic: 2, rare: 3, common: 3 }
   });
 
   it("every captain deck's pool: distinct parts of its items, mods, cores and turrets, never a signature, supply or legendary", () => {

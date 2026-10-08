@@ -20,6 +20,9 @@ export function dropLine(t: DropTable): string {
   return t.lines.length ? `DROP ${pctText(t.chance)}` : "NO DROP";
 }
 
+/** HULL-1b (REQ-BFG-078): the star a table's drop goes to cargo at, as the screens say it: " ★2" (Hard), "" at ★1. */
+export const dropStarText = (t: DropTable): string => (t.lines.length && (t.stars ?? 1) > 1 ? ` ★${t.stars}` : "");
+
 /** A line's class in the player's words. */
 export const classText = (l: DropLine): string => (l.cls === "legendary" ? "LEGENDARY" : DROP_CLASS_LABEL[l.cls]);
 
@@ -78,7 +81,7 @@ export function drawDropList(g: G, game: Game, title: string, t: DropTable, onCl
   panel(g, { x, y, w, h }, "raised");
   ui.add({ id: "droplist", r: { x: 0, y: 0, w: W, h: H }, onTap: onClose, block: true });
   drawText(g, title, x + 6, y + 5, C.yellow, { outline: C.ink });
-  drawText(g, `${dropLine(t)} ON A WIN · TO CARGO AT ★1`, x + 6, y + 17, C.lime, { font: "3" });
+  drawText(g, `${dropLine(t)} ON A WIN · TO CARGO AT ★${t.stars ?? 1}`, x + 6, y + 17, C.lime, { font: "3" }); // HULL-1b: the table's star
   let yy = y + 28;
   if (!rows) drawText(g, "NOTHING IN THIS DECK DROPS", x + 6, yy + 4, C.slate4, { font: "3" });
   for (const l of t.lines) {
@@ -95,15 +98,16 @@ export function drawDropList(g: G, game: Game, title: string, t: DropTable, onCl
   drawText(g, "TAP TO CLOSE", x + w / 2, y + h - 8, C.slate3, { font: "3", align: "center" });
 }
 
-/** What the victory screen says: no drop, NO_DROP; a drop, its name and "DROP · TO CARGO · ★1" (the Matriarch's: LEGENDARY). */
+/** What the victory screen says: no drop, NO_DROP; a drop, its name and "DROP · TO CARGO · ★1" (the Matriarch's: LEGENDARY).
+ *  HULL-1b (REQ-BFG-078): `stars`, the drop's star (npcDay.ts DROP_STARS: a Hard drop says ★2). */
 export const NO_DROP = "NO DROP";
-export function dropCardText(drop: string | null, legendary: boolean): { name: string; sub: string } | null {
-  return drop ? { name: itemName(drop), sub: legendary ? "LEGENDARY · TO CARGO" : "DROP · TO CARGO · ★1" } : null;
+export function dropCardText(drop: string | null, legendary: boolean, stars = 1): { name: string; sub: string } | null {
+  return drop ? { name: itemName(drop), sub: legendary ? "LEGENDARY · TO CARGO" : `DROP · TO CARGO · ★${stars}` } : null;
 }
 
 /** The victory screen's drop: a part card (icon, name, "TO CARGO · ★1") at (x, y), w wide and 22 tall, or NO DROP. */
-export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: number, y: number, w: number): void {
-  const t = dropCardText(drop, legendary);
+export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: number, y: number, w: number, stars = 1): void {
+  const t = dropCardText(drop, legendary, stars);
   if (!drop || !t) {
     drawText(g, NO_DROP, x + w / 2, y + 7, C.slate4, { align: "center" });
     return;

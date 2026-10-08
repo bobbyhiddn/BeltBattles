@@ -24,7 +24,7 @@ import { gainModule } from "./fuse";
 import type { EventId } from "./eventDefs";
 import { queueFuseAnim, type Run, type RoadPick, type WarlordFight, type WarlordOutcome, type WarlordReward } from "./run";
 // NPC-1 (REQ-BFG-077, REQ-BFG-078): the NPC day and the drops, behind NPC_DAY (off: every function here is 0.9.7's)
-import { DROP_CHANCE, dropTable, expectedDropValue, npcDayRules, rollDrop, type DropTable } from "../sim/npcDay";
+import { DROP_CHANCE, DROP_STARS, dropTable, expectedDropValue, npcDayRules, rollDrop, type DropTable } from "../sim/npcDay";
 import { warlordPool, MATRIARCH_DAY } from "../sim/rivals";
 
 export const ROAD_PICKS: readonly RoadPick[] = ["event", "easy", "medium", "hard"];
@@ -182,8 +182,9 @@ export function warlordDrop(seed: number, day: number, id: RivalId, tier: Diffic
 
 /**
  * NPC-1 (REQ-BFG-078), HULL-1's bench input: the expected road value of a `slot` win on `day` with NPC_DAY's drops: gold
- * plus the expected drop value (chance x the sum of odds x valueOf at 1 star), the mean over every captain the slot can
- * hold (warlordPool; "matriarch": her, from MATRIARCH_DAY), unsabotaged. Arithmetic, no fight: a win is assumed.
+ * plus the expected drop value (chance x the sum of odds x valueOf at 1 star; HULL-1b: at the drop's star, Hard's ★2),
+ * the mean over every captain the slot can hold (warlordPool; "matriarch": her, from MATRIARCH_DAY), unsabotaged.
+ * Arithmetic, no fight: a win is assumed.
  */
 export function expectedRoadValue(day: number, slot: Difficulty | "matriarch"): number {
   const ids: RivalId[] = slot === "matriarch" ? (day >= MATRIARCH_DAY ? ["matriarch"] : []) : warlordPool(slot);
@@ -275,7 +276,8 @@ export function finishWarlord(run: Run, winner: 0 | 1 | -1, time: number): Warlo
     // NPC-1 (REQ-BFG-078): every other win rolls its drop once (seeded by the run and the day: a reload never re-rolls,
     // and this result is stored, so the call is idempotent); the part goes to cargo at 1 star, then merged
     took = warlordDrop(run.seed, run.day, w.id, w.tier, w.build);
-    if (took) queueFuseAnim(run, gainModule(run, took));
+    // HULL-1b (REQ-BFG-078): at its tier's star (npcDay.ts DROP_STARS: Hard's at ★2)
+    if (took) queueFuseAnim(run, gainModule(run, took, undefined, DROP_STARS[w.tier]));
   }
   if (won && w.id === "matriarch") run.matriarchBeatenOn = run.day;
   w.result = { outcome, time, gold, bountyPaid, parts: won ? [...w.reward.parts] : [], took };
