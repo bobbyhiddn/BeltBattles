@@ -8,11 +8,17 @@
 // and writes nothing they read. docs/MOTION.md.
 
 // FIELD-1 (REQ-BFG-075): the battle's setting (render/scenery.ts: water, ground or air, picked per battle) and its
-// medium under the hulls (water: the wake and bow wave; ground: treads and dust; air: engine pods and contrails).
+// medium under the hulls (water: the wake and bow wave; ground: treads and dust; air: engine pods and contrails), and the
+// battle camera (render/camera.ts). With a camera (the battle and the replay) the world (the setting, carriers, boards,
+// shots, effects and damage numbers) is drawn into a world layer, one layer px per art px at rest, through the camera's
+// map composed with each board's affine, and the layer is blitted onto the game's finer canvas grid at a whole factor;
+// taps are hit-tested through the camera's inverse. The HUD, the dark wind and the screen flash are drawn on the canvas
+// at today's size, screen-anchored. Without a camera (the title's attract fight, the hero preview) the arena draws as it
+// did, at today's framing.
 
 import type { Side } from "../sim/battle";
 import { C } from "../render/palette";
-import { rect, type G } from "../render/pixel";
+import { makeCanvas, rect, type G } from "../render/pixel";
 import { TILE, TILES, hullBox, localX, localY, sx, sy, type Box } from "../render/frame";
 import { drawTurrets } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
@@ -22,6 +28,7 @@ import { EMIT, PIVOT_X, PLATE_HX, PLATE_W, foam } from "../render/carrier";
 import { dimPlate, dimShip, drawPlate, drawShip, plateBox } from "../render/ship";
 import { LANDS, SEAS, SeaBackdrop, isSea } from "../render/backdrop";
 import { mediumOf, type Medium } from "../render/scenery";
+import { Camera, type Grid, type Shot } from "../render/camera";
 import { skinOf } from "../render/styles"; // CUSTOM-2a (REQ-BFG-072): each board's floor style (its view's skin)
 import {
   BANK_MAX_DEG, DRIFT_MAX, MOTION_KNOBS, MotionModel, MotionPerf, applyAffine, boardAffine, invertAffine, seaForDay,
@@ -37,6 +44,15 @@ const WAKE_N = 34, WAKE_DT = 0.1;
 /** FIELD-1: the dust (ground) and the contrails (air), sampled the same way from the treads' and pods' aft ends. */
 const DUST_N = 26, TRAIL_N = 30;
 const ID: Affine = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+
+/** m1 then m2: the map p -> m1(m2(p)), into `out`. */
+export function compose(m1: Affine, m2: Affine, out: Affine): Affine {
+  const a = m1.a * m2.a + m1.c * m2.b, b = m1.b * m2.a + m1.d * m2.b;
+  const c = m1.a * m2.c + m1.c * m2.d, d = m1.b * m2.c + m1.d * m2.d;
+  const e = m1.a * m2.e + m1.c * m2.f + m1.e, f = m1.b * m2.e + m1.d * m2.f + m1.f;
+  out.a = a; out.b = b; out.c = c; out.d = d; out.e = e; out.f = f;
+  return out;
+}
 
 export interface TileHit { side: Side; cx: number; cy: number }
 
@@ -66,8 +82,20 @@ export class ArenaMotion implements ShotMap {
   /** Each carrier's pivot on screen this frame (logical px), and its drawn heading (whole degrees). */
   readonly pivot: [number, number][] = [[0, 0], [0, 0]];
   readonly bankDrawn: [number, number] = [0, 0];
+  /** FIELD-1: the battle camera (the battle and the replay; render/camera.ts). Null: today's framing (the title's attract
+   *  fight, the hero preview), drawn straight onto the canvas as before. */
+  camera: Camera | null = null;
+  /** FIELD-1: this frame's camera maps from rest-screen logical px: to the world layer's px (what is drawn), and to the
+   *  screen's logical px (what a tap is inverted through). The identity without a camera. */
+  readonly cam: Affine = { ...ID };
+  readonly scr: Affine = { ...ID };
+  private layer: HTMLCanvasElement | null = null;
+  private lg: G | null = null;
+  /** The world layer's canvas px per layer px this frame. */
+  private lf = 1;
   /** The rest-screen x of the view's left edge (with a margin): the wake, dust and contrails stop there. */
-  private readonly left = -4;
+  private left = -4;
+  private readonly cm: Affine = { ...ID };
   private readonly pose: Pose = { x: 0, y: 0, bank: 0, board: 0, gimbal: 0, bob: 0 };
   private readonly past: Pose = { x: 0, y: 0, bank: 0, board: 0, gimbal: 0, bob: 0 };
   private readonly tmp = [0, 0];
@@ -94,15 +122,47 @@ export class ArenaMotion implements ShotMap {
     else this.model.setLanes({ portrait: L.portrait, gapRest: L.gap, gapMin });
   }
 
+  /** FIELD-1: draw through the battle camera on `grid` (battleLayout.ts battleGrid), zooming about `focus` (rest-screen
+   *  logical px). A new grid (a resize) makes a new camera at the shot the old one had. */
+  useCamera(grid: Grid, focus: [number, number], shot: Shot = "wide"): Camera {
+    const c = this.camera;
+    if (!c || c.grid.close !== grid.close || c.grid.wide !== grid.wide || c.grid.unit !== grid.unit) this.camera = new Camera(grid, c ? c.shot : shot);
+    this.camera!.focus = focus;
+    this.camMaps();
+    return this.camera!;
+  }
+
   update(dt: number, reduced: boolean): void {
     this.model.reduced = reduced;
     this.model.advance(dt);
+    this.camera?.update(dt); // FIELD-1: a move between shots runs on the display clock
   }
 
   // ------------------------------------------------------------ transforms
 
+  /** FIELD-1: this frame's camera maps (the identity without a camera). */
+  private camMaps(): void {
+    const cam = this.camera;
+    if (!cam) return;
+    this.lf = cam.layerF();
+    cam.layerAffine(this.lf, this.cam);
+    cam.screenAffine(this.scr);
+    this.left = -this.cam.e / this.cam.a - 4;
+  }
+
+  /** FIELD-1: the rest-screen point under a screen point (logical px): through the camera's inverse. */
+  toRest(x: number, y: number, out: number[]): number[] {
+    if (!this.camera) {
+      out[0] = x;
+      out[1] = y;
+      return out;
+    }
+    return invertAffine(this.scr, x, y, out);
+  }
+
   /** This frame's board maps and carrier pivots (call before drawing; taps read the last frame's). */
   frame(a: Arena): void {
+    this.camMaps();
     const ox = a.fx.shakeX, oy = a.fx.shakeY;
     for (const s of [0, 1] as Side[]) {
       const hb = hullBox(a.drawn[s]);
@@ -117,16 +177,19 @@ export class ArenaMotion implements ShotMap {
     }
   }
 
-  /** ShotMap: a rest-screen point on `side`'s board -> the screen now. */
+  /** ShotMap: a rest-screen point on `side`'s board -> the screen now (before the camera: the world is drawn under it). */
   toScreen(side: Side, x: number, y: number, out: number[]): number[] {
     return applyAffine(this.aff[side], x, y, out);
   }
 
-  /** The tap's hit test: the screen point, through the inverse of (carrier x board), to a board tile (or null). */
+  /** The tap's hit test: the screen point (logical px), through the camera's inverse (FIELD-1) and the inverse of
+   *  (carrier x board), to a board tile (or null). */
   hit(a: Arena, x: number, y: number): TileHit | null {
+    this.toRest(x, y, this.tmp);
+    const rx = this.tmp[0], ry = this.tmp[1];
     for (const s of [0, 1] as Side[]) {
       if (!a.show[s]) continue;
-      invertAffine(this.hitAff[s], x, y, this.tmp);
+      invertAffine(this.hitAff[s], rx, ry, this.tmp);
       const f = a.drawn[s];
       const lx = localX(f, this.tmp[0], this.tmp[1]), ly = localY(f, this.tmp[0], this.tmp[1]);
       const cx = Math.floor(lx / TILE), cy = Math.floor(ly / TILE);
@@ -135,11 +198,13 @@ export class ArenaMotion implements ShotMap {
     return null;
   }
 
-  /** A tile's centre on screen now (logical px, without the camera shake): what a tap must hit. */
+  /** A tile's centre on screen now (logical px, without the camera shake; FIELD-1: through the camera): what a tap must
+   *  hit. */
   tileCentre(a: Arena, side: Side, cx: number, cy: number): [number, number] {
     const f = a.drawn[side];
     const lx = (cx + 0.5) * TILE, ly = (cy + 0.5) * TILE;
     applyAffine(this.hitAff[side], sx(f, lx, ly), sy(f, lx, ly), this.tmp);
+    if (this.camera) applyAffine(this.scr, this.tmp[0], this.tmp[1], this.tmp);
     return [this.tmp[0], this.tmp[1]];
   }
 
@@ -153,6 +218,22 @@ export class ArenaMotion implements ShotMap {
 
   // ------------------------------------------------------------ drawing
 
+  /** FIELD-1: the world layer for this frame (sized to cover the canvas at `lf` canvas px per layer px), reset. */
+  private worldLayer(W: number, H: number): G {
+    const gr = this.camera!.grid;
+    const lw = Math.ceil((W * gr.sub) / this.lf), lh = Math.ceil((H * gr.sub) / this.lf);
+    if (!this.layer || this.layer.width !== lw || this.layer.height !== lh) {
+      const [c, lg] = makeCanvas(lw, lh);
+      this.layer = c;
+      this.lg = lg;
+    }
+    const lg = this.lg!;
+    lg.setTransform(1, 0, 0, 1, 0, 0);
+    lg.imageSmoothingEnabled = false;
+    lg.globalAlpha = 1;
+    return lg;
+  }
+
   /** FIELD-1: the rows the boards sit in at rest (their plates, with the drift and a margin), through `m`, for the
    *  ground and air settings to keep their features out of (render/backdrop.ts SeaFrame.bands). */
   private bandsFor(g: G, a: Arena | undefined, m: Affine): number[] | undefined {
@@ -165,23 +246,45 @@ export class ArenaMotion implements ShotMap {
     return out;
   }
 
-  /** The setting, at the camera shake (as the floor was); held still in a preview. FIELD-1: `a`, the arena (the boards'
-   *  rows, for the ground and air settings). */
+  /** The setting, at the camera shake (as the floor was); held still in a preview. FIELD-1: with a camera, into the world
+   *  layer, at the camera's zoom (built once at WIDE's size, so a move between shots never rebuilds it); `a`, the arena
+   *  (the boards' rows, for the ground and air settings). */
   drawSea(g: G, W: number, H: number, ox: number, oy: number, scale: number, dpr: number, seed: number, a?: Arena): void {
     const t0 = this.perf ? now() : 0;
     const m = this.model;
-    const f = { W, H, kind: this.kind, dist: m.dist, t: m.t, reduced: m.reduced, seed, scale, dpr, bands: this.bandsFor(g, a, ID) };
-    if (m.held) this.sea.drawStill(g, f);
-    else this.sea.draw(g, f, ox, oy);
+    const cam = this.camera;
+    if (!cam) {
+      const f = { W, H, kind: this.kind, dist: m.dist, t: m.t, reduced: m.reduced, seed, scale, dpr, bands: this.bandsFor(g, a, ID) };
+      if (m.held) this.sea.drawStill(g, f);
+      else this.sea.draw(g, f, ox, oy);
+    } else {
+      this.camMaps();
+      const lg = this.worldLayer(W, H);
+      const gr = cam.grid, fw = gr.wide / gr.unit;
+      const bw = Math.ceil((W * gr.sub) / fw), bh = Math.ceil((H * gr.sub) / fw);
+      const [fx, fy] = cam.focus;
+      // the focus in backdrop px (its place in WIDE's layer at rest) and in this frame's layer
+      const bfx = fx + Math.round((gr.sub * fx) / fw - fx), bfy = fy + Math.round((gr.sub * fy) / fw - fy);
+      const k = this.cam.a, lfx = k * fx + this.cam.e, lfy = k * fy + this.cam.f;
+      let ex = lfx - k * bfx, ey = lfy - k * bfy;
+      if (!cam.moving) { ex = Math.round(ex); ey = Math.round(ey); }
+      lg.setTransform(k, 0, 0, k, ex, ey);
+      const bands = this.bandsFor(g, a, { a: 1, b: 0, c: 0, d: 1, e: bfx - fx, f: bfy - fy });
+      this.sea.draw(lg, { W: bw, H: bh, kind: this.kind, dist: m.dist, t: m.t, reduced: m.reduced, seed, scale: gr.wide, dpr, bands }, ox, oy);
+      lg.setTransform(1, 0, 0, 1, 0, 0);
+    }
     if (this.perf) this.perf.add(0, now() - t0);
   }
 
-  /** The arena in motion (drawArena's order: carriers, boards, shots, effects, numbers, the wind, the flash). */
+  /** The arena in motion (drawArena's order: carriers, boards, shots, effects, numbers, the wind, the flash). FIELD-1:
+   *  with a camera, the world into its layer (drawSea started it) through the camera, then the layer onto the canvas. */
   draw(g: G, a: Arena, W: number, H: number, reduced: boolean): void {
     const b = a.b;
     const P = this.perf;
     this.frame(a);
-    const t: G = g;
+    const cam = this.camera;
+    const t: G = cam && this.lg ? this.lg : g; // where the world is drawn
+    if (cam) t.setTransform(this.cam.a, 0, 0, this.cam.d, this.cam.e, this.cam.f);
     let t0 = P ? now() : 0;
     // carriers: their medium's trail, shadow, hull (screen space; the pivot carries the shake)
     for (const s of [0, 1] as Side[]) {
@@ -195,14 +298,14 @@ export class ArenaMotion implements ShotMap {
       if (a.loser === s && a.koT > 0.35) dimShip(t, hero, px, py, deg, Math.min(0.62, (a.koT - 0.35) * 1.1), carrier, this.medium);
     }
     if (P) { const t1 = now(); P.add(1, t1 - t0); t0 = t1; }
-    // boards, each under its gimbal's transform: today's drawing code, at rest
+    // boards, each under its gimbal's transform (FIELD-1: and the camera's): today's drawing code, at rest
     for (const s of [0, 1] as Side[]) {
       if (!a.show[s]) continue;
       const v = a.views[s];
       v.t = a.clock;
       v.tread = a.tread;
       v.flash = b.sides[s].hull.flash;
-      const A = this.aff[s];
+      const A = cam ? compose(this.cam, this.aff[s], this.cm) : this.aff[s];
       t.save();
       t.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
       const f = a.drawn[s];
@@ -232,7 +335,7 @@ export class ArenaMotion implements ShotMap {
     if (P) { const t1 = now(); P.add(3, t1 - t0); t0 = t1; }
     // effects and numbers ride with their board; the rest at the shake
     for (const s of [0, 1] as Side[]) {
-      const A = this.aff[s];
+      const A = cam ? compose(this.cam, this.aff[s], this.cm) : this.aff[s];
       t.save();
       t.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
       a.fx.draw(t, 0, 0, s);
@@ -241,7 +344,7 @@ export class ArenaMotion implements ShotMap {
     const ox = a.fx.shakeX, oy = a.fx.shakeY;
     a.fx.draw(t, ox, oy, -1);
     for (const s of [0, 1] as Side[]) {
-      const A = this.aff[s];
+      const A = cam ? compose(this.cam, this.aff[s], this.cm) : this.aff[s];
       t.save();
       t.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
       a.fx.drawPops(t, 0, 0, s);
@@ -249,6 +352,15 @@ export class ArenaMotion implements ShotMap {
     }
     a.fx.drawPops(t, ox, oy, -1);
     a.fx.drawDecals(t, ox, oy, -1);
+    if (cam && this.layer) {
+      // FIELD-1: the world layer onto the canvas, `lf` canvas px per layer px (whole: crisp), then the HUD-sized overlays
+      t.setTransform(1, 0, 0, 1, 0, 0);
+      g.save();
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.imageSmoothingEnabled = false;
+      g.drawImage(this.layer, 0, 0, this.layer.width * this.lf, this.layer.height * this.lf);
+      g.restore();
+    }
     drawWind(g, b.windLevel() * Math.max(0, 1 - a.overT / 1.2), W, H, a.clock);
     if (a.fx.flash > 0 && !reduced) {
       g.globalAlpha = Math.min(0.5, a.fx.flash);

@@ -8,7 +8,14 @@ export interface View {
   scale: number; // device pixels per logical pixel
   portrait: boolean;
   dpr: number;
+  /** FIELD-1 (REQ-BFG-075): canvas px per logical px, where a screen draws on a finer grid (the battle's camera,
+   *  render/camera.ts): the backing store is (W x H) * sub and the game draws its logical px at that scale. Absent: 1,
+   *  today's canvas (every screen but the battle and the replay). */
+  sub?: number;
 }
+
+/** FIELD-1: a screen's canvas grid (canvas px per logical px) at its scale; 1 for today's canvas. */
+export type SubPick = (pw: number, ph: number, portrait: boolean, scale: number) => number;
 
 /** Picks the integer device-pixel scale for a screen (each screen may frame itself). zoom (REQ-BFG-040): `dpr`, the
  *  device pixel ratio (computeView passes it; a screen that frames itself by device px alone ignores it). */
@@ -21,17 +28,22 @@ export function defaultScale(pw: number, ph: number, portrait: boolean): number 
   return Math.max(1, Math.floor(Math.min(pw / minW, ph / minH)));
 }
 
-export function computeView(cssW: number, cssH: number, dpr: number, pick?: ScalePick): View {
+export function computeView(cssW: number, cssH: number, dpr: number, pick?: ScalePick, pickSub?: SubPick): View {
   const pw = Math.max(1, Math.floor(cssW * dpr));
   const ph = Math.max(1, Math.floor(cssH * dpr));
   const portrait = ph > pw * 1.05;
   const scale = Math.max(1, Math.floor(pick ? pick(pw, ph, portrait, dpr) : defaultScale(pw, ph, portrait)));
-  return { W: Math.floor(pw / scale), H: Math.floor(ph / scale), scale, portrait, dpr };
+  const v: View = { W: Math.floor(pw / scale), H: Math.floor(ph / scale), scale, portrait, dpr };
+  // FIELD-1: a finer grid only where the screen asks for one (a whole divisor of the scale); otherwise today's view
+  const sub = pickSub ? Math.floor(pickSub(pw, ph, portrait, scale)) : 1;
+  if (sub > 1 && scale % sub === 0) v.sub = sub;
+  return v;
 }
 
 export function applyView(canvas: HTMLCanvasElement, v: View): void {
-  if (canvas.width !== v.W) canvas.width = v.W;
-  if (canvas.height !== v.H) canvas.height = v.H;
+  const s = v.sub ?? 1;
+  if (canvas.width !== v.W * s) canvas.width = v.W * s;
+  if (canvas.height !== v.H * s) canvas.height = v.H * s;
   canvas.style.width = `${(v.W * v.scale) / v.dpr}px`;
   canvas.style.height = `${(v.H * v.scale) / v.dpr}px`;
 }

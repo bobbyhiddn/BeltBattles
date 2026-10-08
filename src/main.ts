@@ -306,11 +306,12 @@ game.start();
     };
     if (s instanceof BuildScreen && s.perf) return { ...base, perf: s.perf.mean(), perfTotals: s.perf.totals() };
     const om = s instanceof TitleScreen || s instanceof ReplayScreen ? s.motion : null;
-    // FIELD-1: the setting (`sea`, its id) and the medium its carriers ride
-    if (om) return { ...base, on: true, t: om.model.t, sea: om.kind, medium: om.medium, reduced: om.model.reduced, poses: [om.model.pose(0), om.model.pose(1)], drawnBank: [...om.bankDrawn], perf: om.perf ? om.perf.mean() : null, perfTotals: om.perf ? om.perf.totals() : null };
+    // FIELD-1: the setting (`sea`, its id), its medium and the camera (shot, zoom, grid; null at the title's framing)
+    const cam = (x: { camera: { shot: string; zoom: number; moving: boolean; grid: object } | null }) => (x.camera ? { shot: x.camera.shot, zoom: x.camera.zoom, moving: x.camera.moving, grid: { ...x.camera.grid } } : null);
+    if (om) return { ...base, on: true, t: om.model.t, sea: om.kind, medium: om.medium, camera: cam(om), reduced: om.model.reduced, poses: [om.model.pose(0), om.model.pose(1)], drawnBank: [...om.bankDrawn], perf: om.perf ? om.perf.mean() : null, perfTotals: om.perf ? om.perf.totals() : null };
     if (!m || !(s instanceof BattleScreen)) return base;
     return {
-      ...base, t: m.model.t, sea: m.kind, medium: m.medium, reduced: m.model.reduced, spec: m.model.spec, gap: m.model.gapAt(),
+      ...base, t: m.model.t, sea: m.kind, medium: m.medium, camera: cam(m), reduced: m.model.reduced, spec: m.model.spec, gap: m.model.gapAt(),
       poses: [m.model.pose(0), m.model.pose(1)], drawnBank: [...m.bankDrawn], lastTap: m.lastTap, taps: m.taps,
       perf: m.perf ? m.perf.mean() : null, perfTotals: m.perf ? m.perf.totals() : null, seaBuilds: m.sea.builds,
       shots: s.arena.b.projectiles.length, over: s.arena.b.over, shake: [s.arena.fx.shakeX, s.arena.fx.shakeY],
@@ -322,6 +323,16 @@ game.start();
   scene(id: string | null): string | null {
     forceScene(isSceneId(id) ? id : null);
     return forcedScene();
+  },
+  /** FIELD-1 tooling (stills; SCOUT-1's API in a script's hands): ease the current battle's or replay's camera to `shot`
+   *  ("close": today's framing; "wide") over `secs` (0: cut). Returns the camera's state, or null on another screen. */
+  camera(shot?: "close" | "wide", secs = 0): { shot: string; zoom: number; moving: boolean; grid: unknown } | null {
+    const s = game.screen;
+    const m = s instanceof BattleScreen || s instanceof ReplayScreen ? s.motion : null;
+    const c = m?.camera;
+    if (!c) return null;
+    if (shot === "close" || shot === "wide") c.easeTo(shot, secs);
+    return { shot: c.shot, zoom: c.zoom, moving: c.moving, grid: { ...c.grid } };
   },
   /** MOTION-1 tooling: board `side`'s tile (cx, cy) centre where it is drawn now, in CSS client px (null: no motion). */
   motionTile(side: 0 | 1, cx: number, cy: number): { x: number; y: number } | null {

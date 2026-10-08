@@ -99,8 +99,8 @@ describe("FIELD-1 the battle settings and their pick (REQ-BFG-075)", () => {
     expect(parseMotionOpts("?sea=desert", false).sea).toBe(null); // a player build: the URL changes nothing
   });
 
-  it("the pick module imports nothing from src/sim and uses no Math.random", () => {
-    for (const f of ["src/render/scenery.ts"]) {
+  it("the pick and the camera modules import nothing from src/sim and use no Math.random", () => {
+    for (const f of ["src/render/scenery.ts", "src/render/camera.ts"]) {
       const raw = readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
       const src = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
       expect(/\/sim\//.test(src), f).toBe(false);

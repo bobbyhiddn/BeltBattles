@@ -19,6 +19,8 @@ export interface Screen {
   mergeNotice?: boolean;
   /** Integer device-pixel scale for this screen; default framing when absent. */
   pickScale?(pw: number, ph: number, portrait: boolean, dpr?: number): number;
+  /** FIELD-1 (REQ-BFG-075): canvas px per logical px (core/io.ts View.sub; the battle's camera grid); 1 when absent. */
+  pickSub?(pw: number, ph: number, portrait: boolean, scale: number): number;
   enter?(): void;
   update(dt: number): void;
   draw(g: G): void;
@@ -89,7 +91,7 @@ export class Game implements InputSink {
 
   private computeView(): View {
     const s = this.screen;
-    return computeView(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1, s.pickScale ? s.pickScale.bind(s) : undefined);
+    return computeView(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1, s.pickScale ? s.pickScale.bind(s) : undefined, s.pickSub ? s.pickSub.bind(s) : undefined);
   }
 
   resize(): void {
@@ -207,7 +209,8 @@ export class Game implements InputSink {
 
   render(): void {
     const g = this.g;
-    g.setTransform(1, 0, 0, 1, 0, 0);
+    const s = this.view.sub ?? 1; // FIELD-1: the battle's finer grid draws each logical px as s canvas px (1 elsewhere)
+    g.setTransform(s, 0, 0, s, 0, 0);
     g.imageSmoothingEnabled = false;
     g.globalAlpha = 1;
     this.ui.begin();

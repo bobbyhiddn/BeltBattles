@@ -7,10 +7,11 @@
 import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
-import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
+import { battleGrid, battleLayout, battleScale, cameraFocus, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
 import { ArenaMotion, drawMotionPerf } from "../game/arenaMotion"; // MOTION-1 (REQ-BFG-071); MOTION-2: in every build
 import { MOTION, MOTION_KNOBS } from "../render/motion";
 import { battleScene } from "../render/scenery"; // FIELD-1 (REQ-BFG-075): the battle's setting, from its seed
+import { cameraGrid, type Grid } from "../render/camera"; // FIELD-1: the battle camera's grid
 import { settings } from "../core/settings";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
 import { finishDay, foeTitle, ghostOf, startDusk, storedFoe } from "../game/day";
@@ -168,6 +169,24 @@ export class BattleScreen implements Screen {
     return battleScale(pw, ph, portrait);
   }
 
+  private gridPick: { grid: Grid; W: number; H: number; portrait: boolean } | null = null;
+
+  /** FIELD-1 (REQ-BFG-075): the canvas grid the camera needs (core/io.ts View.sub): both shots' pixels whole. */
+  pickSub(pw: number, ph: number, portrait: boolean, scale: number): number {
+    const grid = battleGrid(pw, ph, portrait);
+    if (grid.close !== scale) return 1;
+    this.gridPick = { grid, W: Math.floor(pw / scale), H: Math.floor(ph / scale), portrait };
+    return grid.sub;
+  }
+
+  /** FIELD-1: the camera grid of the view on screen (pickSub's); a view not yet the battle's gets a grid that doesn't
+   *  zoom (until enter() lays the battle out on its own view). */
+  private viewGrid(): Grid {
+    const v = this.game.view, p = this.gridPick;
+    const grid = p && p.W === v.W && p.H === v.H && p.portrait === v.portrait ? p.grid : battleGrid(v.W * v.scale, v.H * v.scale, v.portrait);
+    return grid.close === v.scale && grid.sub === (v.sub ?? 1) ? grid : cameraGrid(v.scale, v.scale);
+  }
+
   get toastY(): number {
     return Math.round(this.game.H / 2 - 8);
   }
@@ -215,15 +234,23 @@ export class BattleScreen implements Screen {
   private onNext = () => this.next();
   private openMenu = () => { this.menu = true; this.arena.paused = true; };
 
+  private subKey = 0;
+
   private relayout(): void {
     const { W, H, portrait } = this.game;
-    if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait) return;
+    const sub = this.game.view.sub ?? 1;
+    if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait && this.subKey === sub) return;
+    this.subKey = sub;
     // MOTION-1: the lanes (portrait as today; landscape's enemy lane raised and a little ahead), the sail-in from the
     // left, and the curves fitted so the gap never closes below the layout's minimum
     this.L = laneLayout(battleLayout(W, H, portrait));
     this.motion.setLanes(this.L, minGap(portrait ? H : W));
-    // MOTION-2: + SAIL_IN_PAD, so the longer bow (render/carrier.ts) starts off screen too
-    this.driveIn = [this.L.hulls[0].x + this.L.hulls[0].w + SAIL_IN_PAD, this.L.hulls[1].x + this.L.hulls[1].w + SAIL_IN_PAD + 28];
+    // FIELD-1 (REQ-BFG-075): the fight runs at WIDE, from the sail-in to the result, zoomed about the lanes' centre
+    this.motion.useCamera(this.viewGrid(), cameraFocus(this.L), "wide");
+    // MOTION-2: + SAIL_IN_PAD, so the longer bow (render/carrier.ts) starts off screen too. FIELD-1: off WIDE's screen,
+    // whose left edge sits further left in the layout's space
+    const left = Math.min(0, Math.floor(this.motion.toRest(0, 0, [0, 0])[0]));
+    this.driveIn = [this.L.hulls[0].x + this.L.hulls[0].w + SAIL_IN_PAD - left, this.L.hulls[1].x + this.L.hulls[1].w + SAIL_IN_PAD + 28 - left];
     this.src = this.placeSource();
     this.arena.setFrames(this.L.frames, this.L.enter);
   }
@@ -345,7 +372,8 @@ export class BattleScreen implements Screen {
     const { W, H } = this.game;
     const a = this.arena;
     const m = this.motion;
-    // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion. FIELD-1: the battle's setting
+    // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion. FIELD-1: the battle's setting,
+    // through the camera
     m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed, a);
     m.draw(g, a, W, H, settings.reducedMotion);
     this.drawHud(g);
@@ -418,11 +446,12 @@ export class BattleScreen implements Screen {
         this.hpText[s] = fmtDmg(hp);
       }
     }
-    // plates ride with their cruiser during the drive-in
+    // plates ride with their cruiser during the drive-in (FIELD-1: at the camera's zoom, as the cruiser moves on screen)
+    const z = this.motion.camera?.zoom ?? 1;
     for (let s = 0; s < 2; s++) {
       const p = L.plates[s], r = this.plateR[s];
-      r.x = p.x + Math.round(this.arena.enter[s][0] * this.arena.off[s]);
-      r.y = p.y + Math.round(this.arena.enter[s][1] * this.arena.off[s]);
+      r.x = p.x + Math.round(this.arena.enter[s][0] * this.arena.off[s] * z);
+      r.y = p.y + Math.round(this.arena.enter[s][1] * this.arena.off[s] * z);
       r.w = p.w;
       r.h = p.h;
     }

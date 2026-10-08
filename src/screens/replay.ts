@@ -9,10 +9,11 @@
 import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
-import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
+import { battleGrid, battleLayout, battleScale, cameraFocus, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
 import { ArenaMotion } from "../game/arenaMotion";
 import { MOTION } from "../render/motion";
 import { battleScene } from "../render/scenery"; // FIELD-1 (REQ-BFG-075): the record's seed picks the battle's setting
+import { cameraGrid, type Grid } from "../render/camera"; // FIELD-1: the battle camera, at WIDE as the dusk was
 import { settings } from "../core/settings";
 import type { Battle } from "../sim/battle";
 import { HEROES, RUN_DAYS } from "../sim/content";
@@ -92,17 +93,38 @@ export class ReplayScreen implements Screen {
     return battleScale(pw, ph, portrait);
   }
 
+  private gridPick: { grid: Grid; W: number; H: number; portrait: boolean } | null = null;
+
+  /** FIELD-1 (REQ-BFG-075): the battle's canvas grid (core/io.ts View.sub), as BattleScreen.pickSub. */
+  pickSub(pw: number, ph: number, portrait: boolean, scale: number): number {
+    const grid = battleGrid(pw, ph, portrait);
+    if (grid.close !== scale) return 1;
+    this.gridPick = { grid, W: Math.floor(pw / scale), H: Math.floor(ph / scale), portrait };
+    return grid.sub;
+  }
+
+  private viewGrid(): Grid {
+    const v = this.game.view, p = this.gridPick;
+    const grid = p && p.W === v.W && p.H === v.H && p.portrait === v.portrait ? p.grid : battleGrid(v.W * v.scale, v.H * v.scale, v.portrait);
+    return grid.close === v.scale && grid.sub === (v.sub ?? 1) ? grid : cameraGrid(v.scale, v.scale);
+  }
+
   enter(): void {
     this.relayout();
     this.game.audio.music("battle");
   }
 
+  private subKey = 0;
+
   private relayout(): void {
     const { W, H, portrait } = this.game;
-    if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait) return;
+    const sub = this.game.view.sub ?? 1;
+    if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait && this.subKey === sub) return;
+    this.subKey = sub;
     // MOTION-2: the battle's lanes (portrait as 0.9.4; landscape's enemy lane raised and a little ahead)
     this.L = laneLayout(battleLayout(W, H, portrait));
     this.motion.setLanes(this.L, minGap(portrait ? H : W));
+    this.motion.useCamera(this.viewGrid(), cameraFocus(this.L), "wide"); // FIELD-1: WIDE, as the dusk
     this.arena.setFrames(this.L.frames, this.L.enter);
   }
 
