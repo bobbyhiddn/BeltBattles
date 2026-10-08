@@ -67,7 +67,10 @@ describe("HULL-1a (h): the server with both switches on", () => {
     };
     setNpcDay(true);
     const off = verdict();
-    expect(off).toEqual(["budget: build costs 11 gold (items 6, mods 5, 0 crates, 0 plating, road dock PLATING) but a player's day 1 allows at most 9 (maxGoldByDay 8 + roadCap -2 + drops 3)"]);
+    // HULL-1c (REQ-BFG-078; cap's oracle 46fecaf0a9972ea6), re-pinned in place on the merged tip: HULL-1b's Hard drops count
+    // at ★2 (2088ee6), so items go 6 -> 9 (the dropped TEMPER is a ★2 copy) and drops 3 -> 6; the 2-gold excess is still
+    // roadCap -2 on day 1 (REVIEW-HULL1A Q1). Was: "... costs 11 gold (items 6, ...) ... at most 9 (... + drops 3)"
+    expect(off).toEqual(["budget: build costs 14 gold (items 9, mods 5, 0 crates, 0 plating, road dock PLATING) but a player's day 1 allows at most 12 (maxGoldByDay 8 + roadCap -2 + drops 6)"]);
     setHullScale(true);
     expect(verdict()).toEqual(off);
   });
