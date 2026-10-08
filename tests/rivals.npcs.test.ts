@@ -159,7 +159,9 @@ describe("the Hard prizes stay inside today's economy (0.8.0 N1, oracle 94b9559f
   };
   it("MASTER VOSS's and THANE KARSK's prizes never beat the best of the five other Hard captains on any day", () => {
     const best = DAYS.map((day) => Math.max(...BASE_HARD.flatMap((id) => [false, true].map((sab) => part(id, day, sab)))));
-    expect(best).toEqual([5, 6, 6, 6, 7, 7, 7, 10, 10, 10]);
+    // CATCHUP-098 (REQ-BFG-024; cap's yes for roadCap, oracle bc842e7024551665): MOTH QUEEN's SPLITTER (7 g) at good luck on
+    // day 4, so day 4's best is 7 (was 5 6 6 6 7 7 7 10 10 10); MASTER VOSS and THANE KARSK stay at or under it
+    expect(best).toEqual([5, 6, 6, 7, 7, 7, 7, 10, 10, 10]);
     for (const id of ["voss", "karsk"] as RivalId[]) for (const day of DAYS) for (const sab of [false, true]) {
       expect(part(id, day, sab), `${id} day ${day}${sab ? " sabotaged" : ""}`).toBeLessThanOrEqual(best[day - 1]);
       expect(warlordReward(id, "hard", warlordDeck(id, day, sab), warlordDeckDay(id, day, sab), day).parts.length, `${id} d${day}`).toBe(2);

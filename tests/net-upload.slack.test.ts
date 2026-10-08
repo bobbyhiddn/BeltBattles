@@ -351,13 +351,17 @@ describe("roadCap's slack per day (REPORT.md §2; v070-rel: re-derived on 40d2b2
 // roadCap's discount term (discountGain) and the plans it ranks moved (roadCap 5 17 28 43 57 71 87 106 122 146, was
 // 5 17 29 43 59 74 90 110 127 149); was SLACK 0 0 0 1 3 5 7 9 11 14, LIQUID 0 0 0 0 2 3 4 7 8 9, MISMATCH 0 0 0 1 1 2 2 1 2 3,
 // ROTATION 0 0 0 0 0 0 1 1 1 2.
-const SLACK: number[] = [0, 0, 0, 3, 3, 4, 6, 8, 9, 15];
+// CATCHUP-098 (REQ-BFG-024; cap's yes for roadCap, oracle bc842e7024551665): MOTH QUEEN's SPLITTER at good luck on day 4
+// makes the day-4 Hard win pay 7 (was 6), so roadCap moves (5 17 28 44 57 73 89 108 124 147, was 5 17 28 43 57 71 87 106 122
+// 146) and its plans with it: was SLACK 0 0 0 3 3 4 6 8 9 15, LIQUID 0 0 0 2 1 3 3 6 6 11, ROTATION 0 0 0 0 0 1 0 1 1 2;
+// MISMATCH and SABOTAGE_PRICIER unchanged.
+const SLACK: number[] = [0, 0, 0, 3, 3, 4, 7, 9, 10, 15];
 /** of which: road parts counted as gold in gmax, roadCap - roadCapHoard (062m: 0 0 0 0 2 4 7 9 9 12). */
-const LIQUID: number[] = [0, 0, 0, 2, 1, 3, 3, 6, 6, 11];
+const LIQUID: number[] = [0, 0, 0, 2, 1, 4, 4, 7, 7, 11];
 /** of which: gmax's separate gold plan, roadCapHoard - free (062m: 0 0 0 1 1 2 2 1 3 3). */
 const MISMATCH: number[] = [0, 0, 0, 1, 2, 0, 3, 1, 2, 2];
 /** of which: the Hard rotation, free - rot (062m: 0 on every day). 0.8.0 N1 (BASE 9855129: 0 0 0 1 1 1 2 2 2 2). */
-const ROTATION: number[] = [0, 0, 0, 0, 0, 1, 0, 1, 1, 2];
+const ROTATION: number[] = [0, 0, 0, 0, 0, 0, 0, 1, 1, 2];
 /** Hard captains whose day-before deck (SABOTAGE) offers a pricier part than their own (062m: none). */
 // CATCHUP-097 (REQ-BFG-024; OLD BULWARK's re-planned good-luck road deck, BRIEF-CATCHUP-097 target 2): was
 // ["bulwark d9: 4 -> 5"]. His day-5 BELLOWS and the long haul's good day 5 -> 6 make his day-4 deck the pricier one on day 5
