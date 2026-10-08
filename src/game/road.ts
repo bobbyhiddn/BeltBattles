@@ -274,7 +274,7 @@ export function finishWarlord(run: Run, winner: 0 | 1 | -1, time: number): Warlo
     queueFuseAnim(run, gainModule(run, took)); // 0.6.1a: a 1-star copy to cargo, then merged
   } else if (won && npcDayRules()) {
     // NPC-1 (REQ-BFG-078): every other win rolls its drop once (seeded by the run and the day: a reload never re-rolls,
-    // and this result is stored, so the call is idempotent); the part goes to cargo at 1 star, then merged
+    // and this result is stored, so the call is idempotent); the part goes to cargo at its tier's star, then merged
     took = warlordDrop(run.seed, run.day, w.id, w.tier, w.build);
     // HULL-1b (REQ-BFG-078): at its tier's star (npcDay.ts DROP_STARS: Hard's at ★2)
     if (took) queueFuseAnim(run, gainModule(run, took, undefined, DROP_STARS[w.tier]));

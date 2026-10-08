@@ -1571,12 +1571,6 @@ export function joinersOf(b: Build, m: number, occ = occupancy(b)): number[] {
   return out;
 }
 
-/**
- * 0.6.2j (J4, J15): the speed state belt m's tiles before tile j hand on to tile j (walkRoute's per-tile
- * speedWinner, every rig online). What a normal payload joining at tile j rides, whatever belt m's own ammo.
- * Y3 (release Y; DESIGN-Y row 28): a SURGE pulse sets no speed and holds no per-ride flat (the walk counts its pulses by
- * the seconds on its belts).
- */
 /** HULL-1b (REQ-BFG-070; cap's oracle 37b12cb17a536589), LADDER_FIX on: the ride-keep of a tile's winning speed (the
  *  largest ladderFix.ts rideKeepOf among its speed hits at that speed; undefined with no speed hit; every rig online, as the
  *  walk reads them), and of belt m's speed state at tile j (beltStateAt's walk). */
@@ -1594,6 +1588,12 @@ function keepStateAt(b: Build, m: number, j: number, hits = rigHits(b)): number 
   return keep;
 }
 
+/**
+ * 0.6.2j (J4, J15): the speed state belt m's tiles before tile j hand on to tile j (walkRoute's per-tile
+ * speedWinner, every rig online). What a normal payload joining at tile j rides, whatever belt m's own ammo.
+ * Y3 (release Y; DESIGN-Y row 28): a SURGE pulse sets no speed and holds no per-ride flat (the walk counts its pulses by
+ * the seconds on its belts).
+ */
 export function beltStateAt(b: Build, m: number, j: number, hits = rigHits(b)): { speed: number } {
   let speed = 1;
   for (let i = 0; i < j; i++) {

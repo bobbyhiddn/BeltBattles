@@ -172,7 +172,9 @@ function freeSocket(run: Run, turret: number): void {
 /** THE way a module enters a run: a 1-star copy in cargo, on a deck cell or on a turret, then fused.
  *  0.6.1b: a core gained onto a turret swaps out the socket's bought core (freeSocket); gear on a turret is
  *  the caller's check. The survivor rules treat cores like mods; an absorbed core frees its socket, so that
- *  turret falls back to its signature core. */
+ *  turret falls back to its signature core.
+ *  HULL-1c (REQ-BFG-078; REVIEW-HULL1B N3): `stars` counts only for a copy to cargo (no `at`); a copy put on a cell or a
+ *  turret (`at`) is ★1 whatever `stars` says. Its one caller with `stars`, road.ts finishWarlord, passes no `at`. */
 export function gainModule(run: Run, def: string, at?: GainAt, stars = 1): Gain {
   const uid = run.nextUid++;
   if (at && "turret" in at && ITEMS[def]?.kind === "core") freeSocket(run, at.turret);
