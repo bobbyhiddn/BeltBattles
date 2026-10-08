@@ -24,6 +24,7 @@ import { pendingLastChance, takeLastChance, type Run } from "../game/run";
 import { drawRuneCard, runeCardH } from "../ui/runeBar";
 import { runeReminderSpans, runeTag, tierWord } from "../ui/runeText";
 import { textOpts } from "./build/inspector";
+import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the HULL card on the day's hull
 import type { BuildScreen } from "./build/build";
 
 export const LC_TITLE = "LAST CHANCE";
@@ -47,11 +48,20 @@ export function lastChanceTag(lc: { boon?: Boon; id?: string }): string {
   return "PICK";
 }
 
-/** The toast after a pick. */
-export function lcToast(boon: Boon, offer: LastChanceOffer): string {
+/** The toast after a pick. HULL-1a (REQ-BFG-079): `day`, the run's day (the HULL card's amount on the day's hull). */
+export function lcToast(boon: Boon, offer: LastChanceOffer, day?: number): string {
   if (boon === "rune") return `RUNE TAKEN: ${RUNES[offer.rune!.id].name}`;
   if (boon === "part") return `TO CARGO: ${ITEMS[offer.part!].name}`;
-  return `MAX HULL ${hullName(offer.hull)}`;
+  return `MAX HULL ${hullName(hullShown(offer.hull, day))}`;
+}
+
+/** HULL-1a (REQ-BFG-079): the HULL card's name on `day` ("+500 ♥"; with HULL_SCALE on, M(d) x 500: "+3000 ♥" on day 10). */
+export const lcHullName = (offer: LastChanceOffer, day?: number): string => hullName(hullShown(offer.hull, day));
+
+/** HULL-1a: the HULL card's line's two numbers on `day`: the hull now and with the card (each the day's number). */
+export function lcHullNow(run: Pick<Run, "hero" | "build">, n: number, day?: number): [number, number] {
+  const base = HEROES[run.hero].hull + run.build.hullBonus;
+  return [hullShown(base, day), hullShown(base + n, day)];
 }
 
 const GAP = 7;
@@ -199,7 +209,7 @@ export class LastChancePicker {
     s.lcHeartT = 0; // the regained heart's animation on the bar
     s.touched();
     s.game.resize();
-    s.game.toast(lcToast(boon, o), C.lime, "pickup");
+    s.game.toast(lcToast(boon, o, s.run.day), C.lime, "pickup");
   }
 
   /** Each card's lines and details at width `w` (pure on the run). */
@@ -209,8 +219,8 @@ export class LastChancePicker {
       const shown = this.info.has(i);
       if (boon === "rune") return { boon, lines: [], info: shown ? wrapRich(runeReminderSpans(RUNES[o.rune!.id]), tw, "3") : [] };
       if (boon === "part") return { boon, lines: partLines(o.part!, tw, run), info: shown ? partInfo(o.part!, tw, run) : [] };
-      const now = HEROES[run.hero].hull + run.build.hullBonus;
-      return { boon, lines: hullLines(now, o.hull, tw), info: shown ? hullInfo(tw) : [] };
+      const [now, next] = lcHullNow(run, o.hull, run.day); // HULL-1a: the day's numbers
+      return { boon, lines: hullLines(now, next - now, tw), info: shown ? hullInfo(tw) : [] };
     });
   }
 
@@ -218,7 +228,7 @@ export class LastChancePicker {
     const { W, H } = s.game;
     const w = Math.min(W - 8, 300);
     const hs = this.texts(s.run, o, w).map((t, i) => (t.boon === "rune"
-      ? runeCardH(RUNES[o.rune!.id], w, i === this.open ? { hint: LC_TAKE } : {}) + (t.info.length ? 1 + t.info.length * 7 : 0)
+      ? runeCardH(RUNES[o.rune!.id], w, i === this.open ? { hint: LC_TAKE, day: s.run.day } : { day: s.run.day }) + (t.info.length ? 1 + t.info.length * 7 : 0)
       : cardH(t.lines.length, t.info.length, i === this.open)));
     return lcLayout(W, H, hs);
   }
@@ -254,16 +264,16 @@ export class LastChancePicker {
       const r = L.cards[i], open = i === this.open, hint = open ? LC_TAKE : null;
       if (t.boon === "rune") {
         const def = RUNES[o.rune!.id];
-        drawRuneCard(g, r, def, { sub: `${runeTag(def)} · FREE`, open, hint: undefined });
+        drawRuneCard(g, r, def, { sub: `${runeTag(def)} · FREE`, open, hint: undefined, day: s.run.day }); // HULL-1a
         // the rune card's own body is drawRuneCard's; its details and the take bar follow its text
-        const base = runeCardH(def, r.w, {}) - 4;
+        const base = runeCardH(def, r.w, { day: s.run.day }) - 4;
         drawBody(g, { ...r, y: r.y + base - HEAD }, [], t.info, hint);
       } else if (t.boon === "part") {
         const def = ITEMS[o.part!];
         drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity), open);
         drawBody(g, r, t.lines, t.info, hint);
       } else {
-        drawHead(g, r, C.lime, icons("{HULL}"), hullName(o.hull), C.lime, LC_HULL_SUB, open);
+        drawHead(g, r, C.lime, icons("{HULL}"), lcHullName(o, s.run.day), C.lime, LC_HULL_SUB, open); // HULL-1a: the day's
         drawBody(g, r, t.lines, t.info, hint);
       }
       ui.add({ id: `lcpick-${t.boon}`, r, onTap: () => this.tap(s, i, t.boon, o) });

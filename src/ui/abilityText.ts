@@ -72,6 +72,7 @@ import { fmtCount, fmtDmg, fmtPct, fmtSec, fmtSpeed } from "./statFormat"; // NU
 import { FUSE_MULT, SYNC_WINDOW } from "../sim/races/foundry"; // 0.8.0 H1: FOUNDRY's CRUCIBLE; P1: the pair window
 import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero select's FURNACE sentence; P1: TWIN TRIGGER's floor
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion"; // 0.8.0 H1: BASTION's WARDWORKS; P1: the plating cap
+import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the ARMOR PACK's hull on the day's hull
 import { scaleCore } from "../sim/cores";
 import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
@@ -174,12 +175,15 @@ const brakeSpeed = (r: number): string => (Math.abs(r - 0.5) < 1e-9 ? "HALF SPEE
 export interface TextOpts {
   k?: number;
   hero?: HeroId;
+  /** HULL-1a (REQ-BFG-079): the run's day: the ARMOR PACK's hull reads the day's number with HULL_SCALE on (hullShown). */
+  day?: number;
 }
 
 interface X {
   k: number;
   hero?: HeroId;
   stars: number;
+  day?: number; // HULL-1a: TextOpts.day
 }
 
 /** A module's text at a star: whole sentences, the opening one first; `perk`: the star's perk, its star and the index
@@ -1259,9 +1263,9 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => [`LETS YOU LAY ${e.supply!.belt} MORE BELT TILES FOR THE REST OF THE RUN.`],
     gist: (e) => `${e.supply!.belt} MORE BELT TILES`,
   },
-  plating: {
-    text: (e) => [`ADDS ${e.supply!.hull} TO YOUR HULL FOR THE REST OF THE RUN.`],
-    gist: (e) => `ADDS ${e.supply!.hull} HULL`,
+  plating: { // HULL-1a (REQ-BFG-079): the day's number with HULL_SCALE on (x.day); off, the pack's own
+    text: (e, x) => [`ADDS ${hullShown(e.supply!.hull!, x.day)} TO YOUR HULL FOR THE REST OF THE RUN.`],
+    gist: (e, x) => `ADDS ${hullShown(e.supply!.hull!, x.day)} HULL`,
   },
   // ------------------------------------------------------------- SUS-B (REQ-BFG-069): the sustain pieces (SUS-A's rules)
   wardbell: {
@@ -1337,7 +1341,7 @@ export function hasAbilityText(def: string): boolean {
 }
 
 function ctxOf(stars: number, o: TextOpts = {}): X {
-  return { k: o.k ?? 1, hero: o.hero, stars };
+  return { k: o.k ?? 1, hero: o.hero, stars, day: o.day }; // HULL-1a: the day (only the ARMOR PACK reads it)
 }
 
 /** The perk named at `stars`, unless the sim doesn't apply its values yet (levels[n].pending; 0.6.1r F5). */

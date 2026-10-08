@@ -12,6 +12,7 @@ import type { RuneDef, RuneTheme, RuneUnit } from "../sim/runes";
 import { NUMBER_COLOUR, type Span } from "./richText";
 import { RUNE_REMINDER, glossaryEntry } from "./glossary"; // U2c: the keyword colours and reminders, one source
 import { RUNE_NOTE } from "./glossary"; // Y-FURN: a rune's own reminder (SHATTER SHOT's)
+import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): a max-hull amount on the day's hull
 
 /** A whole number as the game writes it. No rounding here: a rune whose amount is not whole shows it, and
  *  tests/runes.ui.test.ts (every number in every rune text is whole) catches it. */
@@ -71,16 +72,23 @@ export const RUNE_TEXT_COLOUR = C.bone;
 const TOKEN = /\{(\*?)([A-Z]+)\}/g;
 const isKeyword = (k: string): k is RuneKeyword => Object.prototype.hasOwnProperty.call(KEYWORD_WORD, k);
 
-/** The rune's amount as its text shows it ("15", "25%"). */
-export const runeAmountText = (def: RuneDef): string => RUNE_UNIT_TEXT[def.amount.unit](def.amount.n);
+/** HULL-1a (REQ-BFG-079): the rune kinds whose amount is max hull (IRON SKIN, SPARE HULL into hullBonus; BULKHEADS and
+ *  SCRAP HALO per unit at the battle's start). With HULL_SCALE on and a day, their {N} reads that day's number (hullScale.ts
+ *  hullShown); HEAL and REGEN amounts don't scale. */
+const MAX_HULL_KINDS: ReadonlySet<string> = new Set(["hull", "perTurretHull", "mergedHull"]);
+
+/** The rune's amount as its text shows it ("15", "25%"). HULL-1a: `day`, the day it is read on (a max-hull amount shows
+ *  the day's number with the switch on; off, or no day, 0.9.7's). */
+export const runeAmountText = (def: RuneDef, day?: number): string =>
+  RUNE_UNIT_TEXT[def.amount.unit](MAX_HULL_KINDS.has(def.kind) ? hullShown(def.amount.n, day) : def.amount.n);
 
 /**
  * RuneDef.text as rich-text spans (richText.ts Span): {N} filled from def.amount through its unit's formatter, in the
  * number colour (a "+" or "-" right before it joins the number, as colourize colours "+15"); each keyword token as its
  * word in its colour; the rest in RUNE_TEXT_COLOUR. An unknown token shows as its bare name (a test pins that none is).
  */
-export function runeSpans(def: RuneDef, base: string = RUNE_TEXT_COLOUR): Span[] {
-  return spansOf(def, runeTextOf(def), base); // SUS-B: WARD STONE's SHIELD line (RUNE_TEXT)
+export function runeSpans(def: RuneDef, base: string = RUNE_TEXT_COLOUR, day?: number): Span[] {
+  return spansOf(def, runeTextOf(def), base, day); // SUS-B: WARD STONE's SHIELD line (RUNE_TEXT); HULL-1a: `day`
 }
 
 /** Y-FURN (REQ-BFG-070; TEXT-STYLE 3.1): a rune text's sentences, in order. One ability line is one trigger and one
@@ -90,11 +98,12 @@ export function runeSpans(def: RuneDef, base: string = RUNE_TEXT_COLOUR): Span[]
 export const runeSentences = (def: RuneDef): string[] => runeTextOf(def).replace(/\.\s+(?=\S)/g, ".\n").split("\n");
 
 /** Y-FURN: each sentence of the rune's text as rich-text spans, as runeSpans makes the whole text's. */
-export const runeSentenceSpans = (def: RuneDef, base: string = RUNE_TEXT_COLOUR): Span[][] =>
-  runeSentences(def).map((t) => spansOf(def, t, base));
+export const runeSentenceSpans = (def: RuneDef, base: string = RUNE_TEXT_COLOUR, day?: number): Span[][] =>
+  runeSentences(def).map((t) => spansOf(def, t, base, day));
 
-/** RuneDef.text's tokens in `text` (the whole text or one sentence of it) as spans: runeSpans' rule. */
-function spansOf(def: RuneDef, text: string, base: string): Span[] {
+/** RuneDef.text's tokens in `text` (the whole text or one sentence of it) as spans: runeSpans' rule. HULL-1a: `day`, the
+ *  day its amount is read on (runeAmountText). */
+function spansOf(def: RuneDef, text: string, base: string, day?: number): Span[] {
   const out: Span[] = [];
   const push = (t: string, c: string) => {
     if (!t) return;
@@ -111,7 +120,7 @@ function spansOf(def: RuneDef, text: string, base: string): Span[] {
       const sign = /[+-]$/.exec(plain)?.[0] ?? "";
       plain = sign ? plain.slice(0, -1) : plain;
       push(plain, base);
-      push(sign + runeAmountText(def), NUMBER_COLOUR);
+      push(sign + runeAmountText(def, day), NUMBER_COLOUR);
     } else {
       push(plain, base);
       push(isKeyword(name) ? KEYWORD_WORD[name] : name, isKeyword(name) ? RUNE_KEYWORD_COLOUR[name] : base);
@@ -121,8 +130,8 @@ function spansOf(def: RuneDef, text: string, base: string): Span[] {
   return out;
 }
 
-/** The effect line's plain text ("+15 HULL."). */
-export const runeLine = (def: RuneDef): string => runeSpans(def).map((s) => s.t).join("");
+/** The effect line's plain text ("+15 HULL."). HULL-1a: on `day` (a max-hull amount: the day's number with the switch on). */
+export const runeLine = (def: RuneDef, day?: number): string => runeSpans(def, undefined, day).map((s) => s.t).join("");
 
 /** The keywords a rune's text names, in order (the starred ones first: they carry a reminder). */
 export function runeKeywords(def: RuneDef): RuneKeyword[] {

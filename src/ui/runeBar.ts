@@ -138,6 +138,8 @@ export interface RuneCardOpts {
   reminder?: boolean;
   /** A yellow bar under the text ("TAP AGAIN TO TAKE IT"). */
   hint?: string;
+  /** HULL-1a (REQ-BFG-079): the day the card is read on (a HULL rune's amount: the day's number with HULL_SCALE on). */
+  day?: number;
 }
 
 const CARD_TEXT_Y = 31;
@@ -165,14 +167,14 @@ export function runeChipW(def: RuneDef, side: number): number {
 /** Y-FURN (REQ-BFG-070; TEXT-STYLE 3.1): a card's effect lines at text width `tw`: each sentence of the rune's text
  *  (runeText.ts runeSentences: one trigger and one effect each) starts a line, and wrapRich wraps it where the card is
  *  narrow. A one-sentence text, every rune's but SEARING's and SHATTER SHOT's, wraps as before. Pure (tests). */
-export function runeTextLines(def: RuneDef, tw: number): RichLine[] {
-  return runeSentenceSpans(def).flatMap((s) => wrapRich(s, tw, "5"));
+export function runeTextLines(def: RuneDef, tw: number, day?: number): RichLine[] {
+  return runeSentenceSpans(def, undefined, day).flatMap((s) => wrapRich(s, tw, "5")); // HULL-1a: `day` (runeAmountText)
 }
 
 /** A rune card's height at width `w` (R1b-2's mock: a 31 px head, 9 px per effect line, 7 per reminder line, the hint
  *  bar 13, 4 at the foot). Pure (tests). */
 export function runeCardH(def: RuneDef, w: number, o: Omit<RuneCardOpts, "sub">): number {
-  let h = CARD_TEXT_Y + runeTextLines(def, runeCardTextW(w)).length * 9;
+  let h = CARD_TEXT_Y + runeTextLines(def, runeCardTextW(w), o.day).length * 9;
   if (o.reminder) h += 1 + wrapRich(runeReminderSpans(def), runeCardTextW(w), "3").length * 7;
   if (o.hint) h += 13;
   return h + 4;
@@ -193,7 +195,7 @@ export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void
   drawText(g, o.sub, tx, r.y + 18, C.slate4, { font: "3" });
   const tw = runeCardTextW(r.w);
   let y = r.y + CARD_TEXT_Y;
-  for (const l of runeTextLines(def, tw)) { // Y-FURN: each sentence starts a line
+  for (const l of runeTextLines(def, tw, o.day)) { // Y-FURN: each sentence starts a line
     drawRich(g, l, r.x + 5, y, "5");
     y += 9;
   }
@@ -269,8 +271,8 @@ export class RuneBar {
     const W = s.game.W, w = readoutW(W), x = Math.round(W / 2 - w / 2), y = B.bar.y + B.bar.h + 2;
     if (this.open >= 0 && defs[this.open]) {
       const def = defs[this.open];
-      const r = { x, y, w, h: runeCardH(def, w, { reminder: true }) };
-      drawRuneCard(g, r, def, { sub: runeTaken(def, this.open + 1), reminder: true });
+      const r = { x, y, w, h: runeCardH(def, w, { reminder: true, day: s.run.day }) }; // HULL-1a: on the run's day
+      drawRuneCard(g, r, def, { sub: runeTaken(def, this.open + 1), reminder: true, day: s.run.day });
       ui.add({ id: "rune-readout", r, onTap: () => { this.open = -1; } });
     } else if (this.list) {
       const r = { x, y, w, h: runeListH(defs.length) };
@@ -280,7 +282,7 @@ export class RuneBar {
         const ry = r.y + 16 + i * 19;
         drawText(g, d.name, r.x + 5, ry, tierColour(d.tier));
         drawText(g, `DAY ${i + 1}`, r.x + r.w - 5, ry + 1, C.slate4, { font: "3", align: "right" });
-        const line = runeTextLines(d, runeCardTextW(r.w))[0] ?? []; // Y-FURN: a two-line rune's first sentence, whole
+        const line = runeTextLines(d, runeCardTextW(r.w), s.run.day)[0] ?? []; // Y-FURN: a two-line rune's first sentence, whole
         drawRich(g, line, r.x + 5, ry + 9, "5");
       });
       ui.add({ id: "rune-readout", r, onTap: () => { this.list = false; } });

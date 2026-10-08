@@ -30,6 +30,7 @@ import { colourize, PERK_COLOUR, type Span } from "./richText";
 import { statRow, type Stat } from "./icons";
 import { fmtCount, fmtDmg, fmtPct, fmtSec, fmtSpeed } from "./statFormat";
 import { livePerk, type TextOpts } from "./abilityText";
+import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the ARMOR PACK's face on the day's hull
 import { upToLoads } from "./abilityText"; // Y7b1 (release Y; ruling Y7A-R2): EXT. CHAMBER's UP TO n with the star switch on
 import { SIM } from "./abilityText"; // NUM-3: SCRAPPER's queue cap and SABOT's SHRAPNEL STUN (each checked against battle.ts)
 import { startIn } from "./abilityText"; // TXT-096: ASSEMBLY LINE's "50% SOONER" / "AT ONCE", its sentence's words
@@ -106,6 +107,7 @@ interface X {
   stars: number;
   k: number;
   hero?: HeroId;
+  day?: number; // HULL-1a (REQ-BFG-079): TextOpts.day (only the ARMOR PACK's face reads it)
 }
 
 // ------------------------------------------------------------------------------------------------- the stat pairs
@@ -763,7 +765,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // U2c group 0 fix 2: {BELT} means belts, a count (a factory's {BELT}3); belt capacity is tiles, in words (hero select's
   // "BELT 24 TILES")
   beltcrate: (e) => rules([{ text: `+${fmtCount(e.supply!.belt!)} BELT TILES FOR THE RUN.` }]),
-  plating: (e) => rules([{ text: `+${fmtDmg(e.supply!.hull!)} {HULL} FOR THE RUN.` }]),
+  // HULL-1a (REQ-BFG-079): the day's number with HULL_SCALE on (x.day: the run's day); off, the pack's own
+  plating: (e, x) => rules([{ text: `+${fmtDmg(hullShown(e.supply!.hull!, x.day))} {HULL} FOR THE RUN.` }]),
 };
 
 // ------------------------------------------------------------------------------- U2b: the interim lines (F5, F6)
@@ -863,7 +866,7 @@ export function hasFace(def: string): boolean {
  *  has no clause; the interim caveats keep their one table (INNER COLUMN ONLY is the one row left). */
 export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
   if (!hasFace(def)) return null;
-  const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero };
+  const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero, day: o.day }; // HULL-1a: the day
   const body = e.kind === "turret" ? TURRET_FACE() : FACES[def](e, x);
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
     : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)

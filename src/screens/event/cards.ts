@@ -5,6 +5,7 @@
 import type { Choice, Delta } from "../../game/eventDefs";
 import type { ShopBadge } from "../../game/run";
 import { ITEMS } from "../../sim/content";
+import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): an event's hull amount on the day's hull
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
 import { drawText, textWidth } from "../../render/font";
@@ -34,11 +35,11 @@ export function itemName(def: string): string {
 }
 
 /** Chip text: numbers carry their sign; items their name. */
-export function deltaText(d: Delta, cost: boolean): string {
+export function deltaText(d: Delta, cost: boolean, day?: number): string {
   const s = cost ? "-" : "+";
   switch (d.k) {
     case "gold": case "lives": return `${s}${d.n}`;
-    case "hull": return `${s}${d.n} HULL`;
+    case "hull": return `${s}${hullShown(d.n, day)} HULL`; // HULL-1a (REQ-BFG-079): the day's number (`day`: the run's)
     case "belt": return `${s}${d.n} BELT`;
     case "item": return itemName(d.def);
     case "bounty": return `+${d.n} ON A HARD WIN`;
@@ -49,9 +50,9 @@ export function deltaText(d: Delta, cost: boolean): string {
   }
 }
 
-function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean, right: number): number {
+function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean, right: number, day?: number): number {
   const icon = deltaIcon(d);
-  let text = deltaText(d, cost);
+  let text = deltaText(d, cost, day); // HULL-1a: `day`
   let w = icon.width + 2 + textWidth(text, "3");
   // 0.6.1c: road items draw from the whole catalogue, so a long part name can meet a long good on a
   // narrow card; with no room for its name the part still shows its icon (the card never hides a gain)
@@ -63,15 +64,15 @@ function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean
 }
 
 /** "pay -> get" line centred on row cy (icons centred, 3x5 text). */
-export function exchange(g: G, x: number, cy: number, w: number, c: Choice, dim: boolean): void {
+export function exchange(g: G, x: number, cy: number, w: number, c: Choice, dim: boolean, day?: number): void {
   const right = x + w;
   let cx = x;
   if (!c.cost.length) cx += drawText(g, "FREE", cx, cy - 2, dim ? C.slate3 : C.lime, { font: "3" }) + 4;
-  else for (const d of c.cost) cx = chip(g, cx, cy, d, true, dim, right);
+  else for (const d of c.cost) cx = chip(g, cx, cy, d, true, dim, right, day);
   drawText(g, "→", cx, cy - 2, dim ? C.slate2 : C.slate4, { font: "3" });
   cx += 7;
   if (!c.gain.length) drawText(g, "NOTHING", cx, cy - 2, C.slate3, { font: "3" });
-  else for (const d of c.gain) cx = chip(g, cx, cy, d, false, dim, right);
+  else for (const d of c.gain) cx = chip(g, cx, cy, d, false, dim, right, day);
 }
 
 export interface CardView {
@@ -83,6 +84,7 @@ export interface CardView {
   t: number;
   flash: boolean; // chosen-card blink (off with Reduced Motion)
   badge?: ShopBadge | null; // 0.6.1d2: live from run.ts:shopBadge, for a choice that gains an item
+  day?: number; // HULL-1a (REQ-BFG-079): the run's day (a hull amount: the day's number with HULL_SCALE on)
 }
 
 /** The line at the foot of a choice card: why it is blocked, else its note. Y4 (release Y; BRIEF-Y4 S3): a quiet block (the
@@ -116,7 +118,7 @@ export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView)
     const bw = Math.min(50, r.w - 24);
     drawBadge(g, x + r.w - bw - 4, y + 6, bw, v.badge, v.t);
   }
-  exchange(g, x + 5, y + 25, r.w - 10, c, dim);
+  exchange(g, x + 5, y + 25, r.w - 10, c, dim, v.day);
   const note = cardNote(c);
   if (note) drawText(g, note, x + 5, y + r.h - 9, c.blocked ? C.red : C.slate4, { font: "3" });
   if (v.state === "chosen") {

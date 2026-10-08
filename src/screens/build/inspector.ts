@@ -81,6 +81,7 @@ import { factoryNext, levelLine, turretSpeedRow, upgradeLabel } from "../../ui/u
 import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
 import type { UpgradeTrack } from "../../sim/content"; // bb-0.8.3 (D11)
 import { UPGRADE_MAX } from "../../sim/content"; // NUM-4: the starting turret's next TURRET SPEED level
+import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the hero card's and the foe's hull on the day's hull
 import { mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
@@ -118,7 +119,7 @@ export function heroK(run: Run): number {
 
 /** 0.6.2t: the glossary's options for a run: its hero's class factor (a core's numbers) and its hero (MIMIC FORGE). */
 export function textOpts(run: Run): TextOpts {
-  return { k: heroK(run), hero: run.hero as HeroId };
+  return { k: heroK(run), hero: run.hero as HeroId, day: run.day }; // HULL-1a (REQ-BFG-079): the day (the ARMOR PACK's hull)
 }
 
 // -------------------------------------------------------------------------------------------------------- the blocks
@@ -1679,7 +1680,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
   if (!column) return drawHeroStrip(g, run, area);
   // landscape column: the stats in the 5x7 face when they fit (RUN split into RUN and LIVES)
   const big: [string, string, string][] = [
-    ["HULL", String(h.hull + b.hullBonus), C.white],
+    ["HULL", heroHullText(run), C.white],
     ["BELT", `${used}/${cap} TILES`, used >= cap ? C.amber : C.white],
     ["FEEDS", `${connectedRouteCount(b)}/${intakeCount(b)} INTAKES`, connectedRouteCount(b) ? C.lime : C.red],
     ["RUN", `W-L ${record(run)}`, C.white],
@@ -1701,7 +1702,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
     return;
   }
   const rows: [string, string, string][] = [
-    ["HULL", String(h.hull + b.hullBonus), C.white],
+    ["HULL", heroHullText(run), C.white],
     ["BELT", `${used}/${cap} TILES`, used >= cap ? C.amber : C.white],
     ["FEEDS", `${connectedRouteCount(b)}/${intakeCount(b)} INTAKES`, connectedRouteCount(b) ? C.lime : C.red],
     ["RUN", `W-L ${record(run)} · ${run.lives}/${START_LIVES} LIVES`, C.white],
@@ -1736,7 +1737,7 @@ function drawHeroStrip(g: G, run: Run, r: Rect): void {
   drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, y, C.yellow, { font: "3" });
   y += 9;
   const stats: [string, string, string][] = [
-    ["HULL", String(h.hull + b.hullBonus), C.white],
+    ["HULL", heroHullText(run), C.white],
     ["BELT", `${used}/${cap}`, used >= cap ? C.amber : C.white],
     ["FEEDS", `${feeds}/${intakes}`, feeds ? C.lime : C.red],
   ];
@@ -1752,10 +1753,16 @@ function drawHeroStrip(g: G, run: Run, r: Rect): void {
   }
 }
 
-/** The opponent's hero and hull (a ghost's hull includes its own plating). */
-function foeClass(foe: DuskFoe): string {
+/** HULL-1a (REQ-BFG-079): the hero card's HULL (every form: the landscape column, its rows, the portrait strip): base +
+ *  hullBonus, the day's number with HULL_SCALE on (hullShown); off, 0.9.7's. */
+export const heroHullText = (run: Pick<Run, "hero" | "build" | "day">): string =>
+  String(hullShown(HEROES[run.hero].hull + run.build.hullBonus, run.day));
+
+/** The opponent's hero and hull (a ghost's hull includes its own plating). HULL-1a (REQ-BFG-079): on the fight's day (the
+ *  day's number with HULL_SCALE on). */
+export function foeClass(foe: DuskFoe): string {
   const h = HEROES[foe.hero];
-  return `${h.name} · HULL ${h.hull + foe.build.hullBonus}`;
+  return `${h.name} · HULL ${hullShown(h.hull + foe.build.hullBonus, foe.day)}`;
 }
 
 /** Next-battle card (tonight's dusk opponent): beside FIGHT in landscape (3 rows); a 2-row strip

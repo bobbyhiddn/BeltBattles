@@ -6,6 +6,7 @@ import type { Game } from "../game/game";
 import type { Run } from "../game/run";
 import { record } from "../game/day";
 import { HEROES, START_LIVES } from "../sim/content";
+import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the hull on the day's hull
 import { beltUsed } from "../sim/deck";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
@@ -16,6 +17,10 @@ import { button } from "./ui";
 
 export type AnchorKind = "gold" | "lives" | "hull" | "belt" | "cargo";
 export type Anchors = Record<AnchorKind, { x: number; y: number }>;
+
+/** HULL-1a (REQ-BFG-079): the bar's hull number: base + hullBonus, the day's number with HULL_SCALE on (hullShown). */
+export const runBarHull = (run: Pick<Run, "hero" | "build" | "day">): string =>
+  String(hullShown(HEROES[run.hero].hull + run.build.hullBonus, run.day));
 
 /** Draws the bar and fills `out` with the anchor points. `flash[k]` > 0 flashes that value. */
 export function drawRunBar(g: G, game: Game, run: Run, flash: Record<AnchorKind, number>, out: Anchors, onMenu: () => void): void {
@@ -36,7 +41,7 @@ export function drawRunBar(g: G, game: Game, run: Run, flash: Record<AnchorKind,
   x += START_LIVES * 6 + 5;
   g.drawImage(shieldIcon(), x, 4);
   out.hull.x = x + 2; out.hull.y = 6;
-  const hs = String(HEROES[run.hero].hull + run.build.hullBonus);
+  const hs = runBarHull(run); // HULL-1a (REQ-BFG-079): the day's
   drawText(g, hs, x + 7, 5, flash.hull > 0 ? C.white : C.bone, { font: "3" });
   x += 7 + textWidth(hs, "3") + 6;
   g.drawImage(beltIcon(), x, 6);
