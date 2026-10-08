@@ -34,6 +34,7 @@ import { SHIELD_CAP } from "./content"; // SUS-A (REQ-BFG-069): SHIELD's MAX
 import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-046): harassment is a STUN
 // HULL-1a (REQ-BFG-079): the day's hull and the wind as a share, behind HULL_SCALE (off)
 import { dayMulTenths, dayScaled, scaleTenths, windShareBp, windShareDamage } from "./hullScale";
+import { dmgDayScale, dmgMulTenths } from "./hullScale"; // HULL-1c (REQ-BFG-079; cap b6be918372b006f3): D(d), the damage day term
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -370,6 +371,9 @@ export interface SideState {
   // SUS-A (REQ-BFG-069): SHIELD, whole hits it stops next (0..SHIELD_CAP; absent until its first gain), and the counters
   shield?: number;
   heals?: HealCounts;
+  /** HULL-1c (REQ-BFG-079): D(d)'s remainder carried on this hull, in tenths of a point (hullScale.ts dmgDayScale); set
+   *  only when a scaled battle's D is above 1 and a hit lands here. */
+  dmgRem?: number;
   // SUS-D (REQ-BFG-069), set only on a side whose runes need them:
   guardTimer?: number; // TICK GUARD: seconds to its next SHIELD (carries its remainder)
   halfHealed?: boolean; // SCRAP MEDIC: its HEAL has come
@@ -495,6 +499,9 @@ export class Battle {
   readonly scaled: boolean;
   /** HULL-1a: M(day) in whole tenths when `scaled` (hullScale.ts dayMulTenths), else 10 (M = 1). */
   readonly mulTenths: number;
+  /** HULL-1c (REQ-BFG-079; cap b6be918372b006f3): D(day), the damage day term, in whole tenths when `scaled`
+   *  (hullScale.ts dmgMulTenths), else 10 (D = 1: every hit exactly as before). */
+  readonly dmgTenths: number;
   private windBp = 0; // HULL-1a: the wind's share blown since its last whole tick, in basis-point ticks (scaled only)
 
   /** RUNES-2a: `wins`, the wins each side carried into the fight (the run's own, a ghost's snapshot `wins`; 0 for a
@@ -506,6 +513,7 @@ export class Battle {
   constructor(player: Build, enemy: Build, seed: number, wins?: readonly [number, number], day?: number) {
     this.scaled = dayScaled(day);
     this.mulTenths = this.scaled ? dayMulTenths(day) : 10;
+    this.dmgTenths = this.scaled ? dmgMulTenths(day) : 10; // HULL-1c: D(day) on the day's hull only
     this.rng = new Rng(seed);
     this.record = { rules: RULES_VERSION, seed, builds: [cloneBuild(player), cloneBuild(enemy)] };
     this.sides = [this.makeSide(0, cloneBuild(player)), this.makeSide(1, cloneBuild(enemy))];
@@ -2105,6 +2113,8 @@ export class Battle {
     // SUS-A (REQ-BFG-069): SHIELD, then PLATE, then HULL. A SHIELD stops this whole hit (0, its FRAY bonus included), where
     // WARD STONE's blockHits stopped it: after IRON HIDE, on any impact; its BURN, FRAY and STUN still land below
     if (def.shield) total = atk.rune?.shieldPierce || atk.rune?.shatterPct ? this.shieldShatter(def, total) : this.shieldHit(def); // SUS-D: SHATTER SHOT (FURN-Y: shatterPct keeps it)
+    // HULL-1c (REQ-BFG-079; cap b6be918372b006f3): D(day) on the hit that lands (after a SHIELD, before PLATE soaks it)
+    if (this.dmgTenths !== 10) total = dmgDayScale(total, this.dmgTenths, def);
     // races: bulwark plating soaks first. 0.8.0 P1 (E1): every hull's plating (0 without a source: the damage unchanged)
     const hullPart = absorb(def.plate, total);
     def.hull.hp -= hullPart;
@@ -2391,11 +2401,13 @@ export class Battle {
         const charge = s.limpets[i];
         if (this.t + 1e-9 < charge.at) continue;
         s.limpets.splice(i, 1);
-        const blast = absorb(s.plate, charge.blast); // 0.8.0 P1 (E1): plating soaks limpet blasts on every hull
+        // HULL-1c (REQ-BFG-079): D(day) on the blast that lands, before plating soaks it (D = 1: the blast itself)
+        const landed = this.dmgTenths !== 10 ? dmgDayScale(charge.blast, this.dmgTenths, s) : charge.blast;
+        const blast = absorb(s.plate, landed); // 0.8.0 P1 (E1): plating soaks limpet blasts on every hull
         s.hull.hp -= blast;
-        if (s.spall) this.spallCharge(s, blast, charge.blast - blast); // SPALL CATCHER
+        if (s.spall) this.spallCharge(s, blast, landed - blast); // SPALL CATCHER
         s.hull.flash = 0.12;
-        foe.stats.damage += charge.blast;
+        foe.stats.damage += landed;
         if (charge.stall > 0) this.disrupt(s, charge.target, charge.stall, "limpet");
         this.events.push({ type: "limpet", side: s.side, kind: charge.target.kind, ref: charge.target.ref, cell: charge.target.cell });
       }
@@ -2416,6 +2428,7 @@ export class Battle {
       // RUNES-2a: PYRE HEART (the foe's BURN on this hull deals n% more), ASH CLOAK (this hull's runes: n% less). NUM-1: the
       // two whole %s multiply the tick once, rounded half up once
       if (burn > 0 && (foe.rune?.burnPct || s.rune?.burnCut)) burn = pct(burn, (100 + (foe.rune?.burnPct ?? 0)) * Math.max(0, 100 - (s.rune?.burnCut ?? 0)) / 100);
+      if (burn > 0 && this.dmgTenths !== 10) burn = dmgDayScale(burn, this.dmgTenths, s); // HULL-1c (REQ-BFG-079): D(day) on the tick
       if (burn > 0) {
         const burnt = absorb(s.plate, burn); // races: plating soaks Burn (not the wind); 0.8.0 P1 (E1): on every hull
         s.hull.hp -= burnt;

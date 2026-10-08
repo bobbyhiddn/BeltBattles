@@ -15,7 +15,7 @@
 // THE DARK WIND becomes a share (windShareBp): from WIND_START (25 s) each hull loses a share of ITS OWN max hull every
 // second, WIND_SHARE_START_BP at first and WIND_SHARE_STEP_BP more every WIND_SHARE_EVERY s, straight to hp as today (PLATE
 // and SHIELD don't absorb it). Both hulls lose the same share, so the amounts differ when the max hulls differ. The 120-s
-// hard stop (BATTLE_CAP) stays, as a backstop. HULL-1b tunes the three constants.
+// hard stop (BATTLE_CAP) stays, as a backstop. HULL-1c tuned the three constants (0.1% from 25 s, +0.6% every 5 s).
 //
 // THE SWITCH: HULL_SCALE (false), built as NPC-1 built NPC_DAY (npcDay.ts): hullScaleRules(), setHullScale(on) and
 // withHullScale(fn, on = true), which puts the switch back even on a throw. A battle reads it once, where it starts
@@ -103,15 +103,18 @@ export const hullShown = (n: number, day: number | undefined): number => hullAt(
 
 /** 1 basis point = 0.01% of a hull's max. */
 export const BP = 10000;
-/** The wind's first share a second, from WIND_START: 0.5% (50 bp). */
-export const WIND_SHARE_START_BP = 50;
-/** What the share a second gains every WIND_SHARE_EVERY seconds: +0.5% (50 bp). */
-export const WIND_SHARE_STEP_BP = 50;
+/** The wind's first share a second, from WIND_START: 0.1% (10 bp). HULL-1c (REQ-BFG-079; BRIEF-HULL1C 2 (c)): was 0.5%
+ *  (HULL-1a's start); with D on, 0.5% let the wind decide 48% of day-1 fights (the ceiling is 46%) and 53% on day 2;
+ *  a gentle first step and a steeper climb keep HULL-1a's end (a full hull empties at ~67.5 s, was ~67.2 s) and the 5-s
+ *  rhythm, and the wind decides 35% on day 1 and at most ~15% on days 3-10 (W/output-hull1c/bench). */
+export const WIND_SHARE_START_BP = 10;
+/** What the share a second gains every WIND_SHARE_EVERY seconds: +0.6% (60 bp). HULL-1c: was +0.5% (50 bp). */
+export const WIND_SHARE_STEP_BP = 60;
 /** The wind's step, in seconds (0.9.7's flat wind steps every 5 s too). */
 export const WIND_SHARE_EVERY = 5;
 
-/** The wind's share of each hull's max a second, in basis points, `since` seconds after WIND_START (0 before it): 50 bp from
- *  25 s, 100 from 30 s, 150 from 35 s, and so on. */
+/** The wind's share of each hull's max a second, in basis points, `since` seconds after WIND_START (0 before it): 10 bp from
+ *  25 s, 70 from 30 s, 130 from 35 s, and so on (HULL-1c's constants; HULL-1a's were 50, 100, 150). */
 export function windShareBp(since: number): number {
   if (!(since >= 0)) return 0;
   return WIND_SHARE_START_BP + WIND_SHARE_STEP_BP * Math.floor(since / WIND_SHARE_EVERY);
@@ -122,4 +125,58 @@ export function windShareBp(since: number): number {
 export function windShareDamage(bpTicks: number, max: number, ticksPerSec: number): number {
   const den = BP * ticksPerSec;
   return Math.floor((2 * bpTicks * Math.max(0, max) + den) / (2 * den));
+}
+
+// ------------------------------------------------------------------ HULL-1c: damage growth behind the same switch
+// HULL-1c (REQ-BFG-079; BRIEF-HULL1C 2 (e); cap's decision b6be918372b006f3, option A): with M on, par fights must stay
+// 18-25 s on days 3-10 through damage growth. The three economy levers alone couldn't (gold is neutral for fight length:
+// the par player buys plating with it, which M multiplies; a x2 star step moved no par fight; runes x2 cut day 10 by 5 s
+// only), so cap's decision adds THE DAMAGE DAY TERM D(d), and keeps one economy lever, gold (+1 a day to day 10).
+// With the switch off nothing here runs (D = 1, 0.9.7's income).
+
+/** HULL-1c (gold): 6 + min(day, 10) + the win's 2 (0.9.7's `6 + min(day, 6) + (won ? 2 : 0)` kept growing to day 10),
+ *  with the switch on; days 11+ at day 10's income. Only days 1-9 reach a run's day-10 purse (maxGoldByDay), and day 1's
+ *  purse is START_GOLD either way. */
+export function incomeOn(day: number, won: boolean): number {
+  return 6 + Math.min(Math.max(1, Math.floor(day)), 10) + (won ? 2 : 0);
+}
+
+/**
+ * HULL-1c: D(d), the damage day term, in whole tenths (days 1-10, the fit), the same for every carrier on the day
+ * (players, ghosts, stand-ins, captains, warlords), as M is. Every hit that lands on a hull takes it: projectile impacts
+ * (parts, turrets, runes, FRAY, SPALL), limpet blasts and BURN ticks (battle.ts dmgDayScale). Not the wind, not a share of a
+ * hull, not heals, regen, SHIELD or PLATE (PLATE soaks the hit after D). cap's rules: D(1) = 1.0; D never falls; D <= M on
+ * every day; M / D never falls from day 3 to day 10, so the hull outgrows damage through the run.
+ */
+export const DMG_MUL_TENTHS: readonly number[] = [10, 11, 18, 19, 22, 25, 26, 28, 30, 31];
+
+/** HULL-1c: D past day 10 holds day 10's M / D: D(d) = M(d) x D(10) / M(10), in whole tenths (rounded half up), for days
+ *  11-18 (DMG_MUL_TENTHS_LATE) and a per-day step from day 19 (DMG_MUL_STEP_TENTHS), as M has. */
+export const DMG_MUL_TENTHS_LATE: readonly number[] = DAY_MUL_TENTHS.slice(10).map((m) => Math.floor((m * DMG_MUL_TENTHS[9] * 2 + DAY_MUL_TENTHS[9]) / (2 * DAY_MUL_TENTHS[9])));
+/** HULL-1c: each day past day 18 adds this many tenths to D (M's +12 a day x D(10) / M(10), rounded half up). */
+export const DMG_MUL_STEP_TENTHS = Math.floor((DAY_MUL_STEP_TENTHS * DMG_MUL_TENTHS[9] * 2 + DAY_MUL_TENTHS[9]) / (2 * DAY_MUL_TENTHS[9]));
+
+/** HULL-1c: D(d) in whole tenths, whatever the switch says (the table): 10 for a day below 1, no day or one that isn't a
+ *  finite number; a day that isn't whole counts as its whole part (dayMulTenths' rules). */
+export function dmgMulTenths(day: number | undefined): number {
+  if (typeof day !== "number" || !Number.isFinite(day) || day < 1) return ONE_TENTHS;
+  const d = Math.floor(day), late = [...DMG_MUL_TENTHS, ...DMG_MUL_TENTHS_LATE];
+  return d <= late.length ? late[d - 1] : late[late.length - 1] + DMG_MUL_STEP_TENTHS * (d - late.length);
+}
+
+/** HULL-1c: D(d) as a number (1, 1.1, 3.9): the table's tenths / 10, for words, tests and benches. */
+export const dmgMul = (day: number | undefined): number => dmgMulTenths(day) / 10;
+
+/**
+ * HULL-1c: THE one integer-math rule for D on a hit (the client and the server run the same battle): `n` x `tenths` / 10,
+ * rounded down, the remainder (in tenths of a point) carried on the struck carrier's own counter (`c.dmgRem`) into its
+ * next hit, so rounding never erases D on small hits and the result is deterministic. `tenths` 10 (D = 1) returns `n`
+ * untouched and leaves the counter alone.
+ */
+export function dmgDayScale(n: number, tenths: number, c: { dmgRem?: number }): number {
+  if (tenths === ONE_TENTHS || !(n > 0)) return n;
+  const t = n * tenths + (c.dmgRem ?? 0);
+  const out = Math.floor(t / 10);
+  c.dmgRem = t - out * 10;
+  return out;
 }

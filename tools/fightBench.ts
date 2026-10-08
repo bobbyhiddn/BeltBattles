@@ -130,6 +130,8 @@ interface Row {
   dpsOwn: number; dpsFoe: number; dpsOwnGrowth: number | null; hullOwn: number; hullFoe: number; winCross: number | null;
   /** HULL-1c: the sustain M doesn't scale, as a share of the side's own max hull at the start (median). */
   sustainOwn: number;
+  /** HULL-1c: the shortest fight (s): section 1's "none under 5 s". */
+  min: number;
 }
 
 function rowOf(day: number, hero: string, fights: Out[], sides: { o: Out; side: 0 | 1 }[], cross: { o: Out; side: 0 | 1 }[]): Row {
@@ -148,6 +150,7 @@ function rowOf(day: number, hero: string, fights: Out[], sides: { o: Out; side: 
     hullOwn: q(sides.map((x) => x.o[4 + x.side]), 0.5), hullFoe: q(sides.map((x) => x.o[4 + (1 - x.side)]), 0.5),
     winCross: cross.length ? pts / cross.length : null,
     sustainOwn: q(sides.map((x) => x.o[10 + x.side] / Math.max(1, x.o[4 + x.side])), 0.5),
+    min: ts.reduce((a, b) => Math.min(a, b), Infinity),
   };
 }
 

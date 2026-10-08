@@ -46,6 +46,8 @@
 //   a synced pair grows together. A deck without a synced gun (every other hero's) plays exactly as before.
 
 import { Rng, hashSeed } from "../../core/rng";
+import { hullScaleRules } from "../hullScale"; // HULL-1c (REQ-BFG-079): the cache key
+import { ladderFixRules } from "../ladderFix"; // HULL-1c: the cache key
 import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
 import {
   DX, DY, arrowCell, canFitGear, canSellTurret, cloneBuild, commitRoute, connectorClaims, coreFor, deadEndsAt, footprint,
@@ -1607,7 +1609,9 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   const runes = opts.botRunes ?? BOT_RUNES; // RUNES-2a: THE switch (off: the cache key and the run exactly as before)
   // BOTS-X: the sustain switch too (on: another run; off: the key exactly as before)
   const lc = opts.lastChance; // LC-1 (REQ-BFG-073): absent, the key exactly as before
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}`;
+  // HULL-1c (REQ-BFG-079): the switches that move the par decks (HULL_SCALE's economy, LADDER_FIX's walk) are in the key,
+  // so a run made with a switch off is never reused with it on; off, the key exactly as before
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);

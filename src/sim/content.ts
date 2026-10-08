@@ -2,6 +2,7 @@
 // Values are first-playable design values, not finished balance (spec §13, §24).
 
 import { DORMANT_ITEMS, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, type RaceHeroId } from "./races/data"; // races:
+import { hullScaleRules, incomeOn } from "./hullScale"; // HULL-1c (REQ-BFG-079): the economy behind HULL_SCALE (no imports there)
 
 // bb-0.4.0: hulls +33% (and warlord hull steps / plating to match) so rounds 1-3 last
 // 20-45 s at 1x instead of 16-18 s; every win/loss in the balance probe is unchanged.
@@ -1470,8 +1471,11 @@ export const TURRET_SPEED = 20;
 export const levelSpeed = (s1: number, level: number, step: number): number =>
   s1 + Math.max(0, level - 1) * Math.floor((s1 * step) / 100 + 0.5 + 1e-9);
 
-/** Gold after a dusk fight, indexed by day (0.5.0's round curve). */
+/** Gold after a dusk fight, indexed by day (0.5.0's round curve). HULL-1c (REQ-BFG-079; cap b6be918372b006f3): with
+ *  HULL_SCALE on, hullScale.ts incomeOn (6 + min(day, 10) + the win's 2: it keeps growing to day 10); every reader
+ *  (maxGoldByDay in validate.ts and rivals.ts, roadCap, the par player, the day's income) goes through here. */
 export function incomeFor(day: number, won: boolean): number {
+  if (hullScaleRules()) return incomeOn(day, won);
   return 6 + Math.min(day, 6) + (won ? 2 : 0);
 }
 

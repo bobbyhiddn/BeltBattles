@@ -162,10 +162,12 @@ describe("HULL-1a: BULKHEADS and SCRAP HALO under M", () => {
 });
 
 describe("HULL-1a: the dark wind as a share of each hull's own max", () => {
+  // HULL-1c (REQ-BFG-079; BRIEF-HULL1C 2 (c)), re-pinned in place: HULL-1c tuned the wind's three constants to 0.1% a
+  // second from 25 s, +0.6% every 5 s (were 50 / 50 / 5 bp: 0.5%, +0.5%); the title keeps HULL-1a's name
   it("windShareBp: 0 before WIND_START; 0.5% a second from 25 s, +0.5% every 5 s (named constants)", () => {
-    expect([WIND_SHARE_START_BP, WIND_SHARE_STEP_BP, WIND_SHARE_EVERY]).toEqual([50, 50, 5]);
+    expect([WIND_SHARE_START_BP, WIND_SHARE_STEP_BP, WIND_SHARE_EVERY]).toEqual([10, 60, 5]);
     expect(windShareBp(-0.01)).toBe(0);
-    expect([0, 4.99, 5, 9.99, 10, 45].map(windShareBp)).toEqual([50, 50, 100, 100, 150, 500]);
+    expect([0, 4.99, 5, 9.99, 10, 45].map(windShareBp)).toEqual([10, 10, 70, 70, 130, 550]);
     // a whole second at 0.5% of 12,600 is 63; halves up in integer arithmetic (0.5% of 12,700 = 63.5 -> 64)
     expect(windShareDamage(50 * 60, 12600, 60)).toBe(63);
     expect(windShareDamage(50 * 60, 12700, 60)).toBe(64);
@@ -197,19 +199,21 @@ describe("HULL-1a: the dark wind as a share of each hull's own max", () => {
       bt.events.length = 0;
     }
     expect(beats.length).toBe(20);
-    // the share: 0.5% for the first five beats, 1% for the next five, then 1.5%, then 2% (the step every 5 s)
+    // the share: 0.1% for the first five beats, 0.7% for the next five, then 1.3%, then 1.9% (the step every 5 s)
+    // HULL-1c re-pinned in place (the tuned constants, BRIEF-HULL1C 2 (c)); was 0.5 / 1 / 1.5 / 2% and [63, 51]
     beats.forEach((x, k) => {
-      const bp = 50 + 50 * Math.floor(k / 5);
+      const bp = WIND_SHARE_START_BP + WIND_SHARE_STEP_BP * Math.floor(k / 5);
       expect(x.dmgs).toEqual([Math.round((bp * 12600) / 10000), Math.round((bp * 10200) / 10000)]);
     });
-    expect(beats.slice(0, 2).map((x) => x.dmgs)).toEqual([[63, 51], [63, 51]]);
+    expect(beats.slice(0, 2).map((x) => x.dmgs)).toEqual([[13, 10], [13, 10]]);
     // the amounts differ (the max hulls differ); each side's windTaken is the sum of its own, and its whole hp loss
     expect(p.stats.windTaken).toBe(beats.reduce((s, x) => s + x.dmgs[0], 0));
     expect(e.stats.windTaken).toBe(beats.reduce((s, x) => s + x.dmgs[1], 0));
     expect(p.stats.windTaken).not.toBe(e.stats.windTaken);
-    // equal shares: windTaken / max is the same on both hulls (25% after 20 s: 5 x (0.5 + 1 + 1.5 + 2)%)
-    expect(p.stats.windTaken / p.hull.max).toBeCloseTo(0.25, 9);
-    expect(e.stats.windTaken / e.hull.max).toBeCloseTo(0.25, 9);
+    // equal shares: windTaken / max is the same on both hulls (20% after 20 s: 5 x (0.1 + 0.7 + 1.3 + 1.9)%; HULL-1c, was
+    // 25%: 5 x (0.5 + 1 + 1.5 + 2)%)
+    expect(p.stats.windTaken / p.hull.max).toBeCloseTo(0.2, 9);
+    expect(e.stats.windTaken / e.hull.max).toBeCloseTo(0.2, 9);
     expect(p.hull.max - p.hull.hp).toBe(p.stats.windTaken);
     expect(e.hull.max - e.hull.hp).toBe(e.stats.windTaken);
     expect([p.plate.plate, e.plate.plate]).toEqual(plate);
