@@ -414,7 +414,7 @@ export const LANDS: Record<Exclude<SceneId, SeaKind>, LandLook> = {
       }
       for (let k = 0, n = Math.round((W * H) / 520); k < n; k++) {
         const x = rnd() * W, y = Math.floor(rnd() * H), quiet = q[y] === 1, r = rnd();
-        if (quiet && r > 0.35) continue; // thinner over the boards' rows
+        if (quiet && rnd() > 0.15) continue; // sparse over the boards' rows
         if (r < 0.62) run(ng, W, x, y, 2 + Math.floor(rnd() * 4), rnd() < 0.5 ? "#1C3624" : "#20402A"); // grass
         else if (r < 0.8) { dot(ng, W, x, y, "#2A4E30"); dot(ng, W, x - 1, y - 1, "#2A4E30"); dot(ng, W, x + 1, y - 1, "#2A4E30"); } // a fern
         else if (r < 0.93 && free(q, y - 2, y + 2)) { rect(ng, Math.round(x) % W, y, 2, 2, "#4A3622"); dot(ng, W, x, y, "#6A5032"); } // a stump
@@ -425,12 +425,12 @@ export const LANDS: Record<Exclude<SceneId, SeaKind>, LandLook> = {
   },
   // DESERT: far pale dune haze and a mesa; mid rolling dunes; near ripples, scrub, cactus and bleached stones
   desert: {
-    base: "#3A2D1D", speeds: [3, 10, 24], salt: 0x5555, dust: ["#9A8258", "#6A583C"],
+    base: "#2C1F10", speeds: [3, 10, 24], salt: 0x5555, dust: ["#9A8258", "#6A583C"],
     build(W, H, rnd, q) {
       const [[far, fg], [mid, mg], [near, ng]] = layers3(W, H);
       rect(fg, 0, 0, W, H, LANDS.desert.base);
       for (let k = 0, n = Math.round((W * H) / 1600); k < n; k++) {
-        blob(fg, W, rnd() * W, rnd() * H, 22 + rnd() * 44, 5 + rnd() * 9, rnd() < 0.55 ? "#433423" : "#30251A", 0.4); // dune haze
+        blob(fg, W, rnd() * W, rnd() * H, 22 + rnd() * 44, 5 + rnd() * 9, rnd() < 0.55 ? "#30220E" : "#231709", 0.4); // dune haze
       }
       for (let k = 0, n = Math.max(1, Math.round(W / 140)); k < n; k++) { // a mesa: a flat-topped plateau, lit from the upper left
         const y = freeRow(rnd, H, 12, q);
@@ -442,7 +442,7 @@ export const LANDS: Record<Exclude<SceneId, SeaKind>, LandLook> = {
       }
       for (let k = 0, n = Math.round((W * H) / 700); k < n; k++) { // dune crests: a lit rise and a shadowed fall
         const y = Math.floor(rnd() * H);
-        if (q[y] && rnd() < 0.6) continue;
+        if (!free(q, y - 3, y + 1)) continue; // the crests keep off the boards' rows
         const x = rnd() * W, len = 10 + rnd() * 26;
         for (let i = 0; i < len; i++) {
           const yy = y - Math.round(Math.sin((i / len) * Math.PI) * 3);
@@ -452,7 +452,7 @@ export const LANDS: Record<Exclude<SceneId, SeaKind>, LandLook> = {
       }
       for (let k = 0, n = Math.round((W * H) / 420); k < n; k++) {
         const x = rnd() * W, y = Math.floor(rnd() * H), quiet = q[y] === 1, r = rnd();
-        if (quiet && r > 0.55) continue;
+        if (quiet && rnd() > 0.15) continue;
         if (r < 0.6) { run(ng, W, x, y, 3, "#4A3A27"); dot(ng, W, x + 3, y - 1, "#4A3A27"); } // a ripple
         else if (r < 0.78) { dot(ng, W, x, y, "#3A4126"); dot(ng, W, x + 1, y, "#2A2F1C"); dot(ng, W, x, y - 1, "#4D5631"); } // scrub
         else if (r < 0.9 && free(q, y - 4, y + 4)) { // a cactus: a stem and two arms, its shadow to the lower right
@@ -494,7 +494,7 @@ export const LANDS: Record<Exclude<SceneId, SeaKind>, LandLook> = {
       }
       for (let k = 0, n = Math.round((W * H) / 460); k < n; k++) {
         const x = rnd() * W, y = Math.floor(rnd() * H), quiet = q[y] === 1, r = rnd();
-        if (quiet && r > 0.5) continue;
+        if (quiet && rnd() > 0.15) continue;
         if (r < 0.55) { // a crack: a few steps of dark
           let cx = x, cy = y;
           for (let i = 0; i < 4 + Math.floor(rnd() * 5); i++) { dot(ng, W, cx, cy, "#160805"); cx += 1; cy += rnd() < 0.5 ? 0 : rnd() < 0.5 ? 1 : -1; }
@@ -507,18 +507,18 @@ export const LANDS: Record<Exclude<SceneId, SeaKind>, LandLook> = {
   },
   // SKY: far deep blue to a pale horizon over patchwork fields far below; mid drifting cumulus; near fast wisps
   sky: {
-    base: "#0D2142", speeds: [2, 12, 34], salt: 0x7777, trail: ["#B8C8DA", "#6F86A3"],
+    base: "#0A1A36", speeds: [2, 12, 34], salt: 0x7777, trail: ["#B8C8DA", "#6F86A3"],
     build(W, H, rnd, q) {
       const [[far, fg], [mid, mg], [near, ng]] = layers3(W, H);
-      ramp(fg, W, H, ["#0B1D3C", "#10284C", "#183459"]);
+      ramp(fg, W, H, ["#0A1A36", "#0E1F42", "#10224A"]);
       for (let k = 0, n = Math.round((W * H) / 2200); k < n; k++) { // fields far below: faint plots with darker hedges
         const x = rnd() * W, y = Math.floor(rnd() * H), w = 10 + Math.floor(rnd() * 22), h = 6 + Math.floor(rnd() * 10);
-        const c = rnd() < 0.5 ? "#132D50" : "#112A47";
+        const c = rnd() < 0.5 ? "#10233F" : "#0E2140";
         for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) if ((xx + yy) % 2 === 0) dot(fg, W, x + xx, y + yy, c);
-        run(fg, W, x, y + h, w, "#0A1A33");
+        run(fg, W, x, y + h, w, "#08162D");
       }
       for (let k = 0, n = Math.round((W * H) / 3600); k < n; k++) { // the cloud deck far below: soft pale bands
-        blob(fg, W, rnd() * W, rnd() * H, 30 + rnd() * 40, 3 + rnd() * 4, "#1D3B62", 0.5);
+        blob(fg, W, rnd() * W, rnd() * H, 30 + rnd() * 40, 3 + rnd() * 4, "#13253F", 0.5);
       }
       for (let k = 0, n = Math.round((W * H) / 2600); k < n; k++) { // cumulus: puffs of three to six lit blobs
         const y = freeRow(rnd, H, 9, q);
@@ -530,7 +530,7 @@ export const LANDS: Record<Exclude<SceneId, SeaKind>, LandLook> = {
       }
       for (let k = 0, n = Math.round((W * H) / 1500); k < n; k++) { // wisps
         const y = Math.floor(rnd() * H);
-        if (q[y] && rnd() < 0.7) continue;
+        if (q[y] && rnd() < 0.85) continue;
         run(ng, W, rnd() * W, y, 6 + Math.floor(rnd() * 12), rnd() < 0.5 ? "#4C6488" : "#3E5578");
       }
       return { layers: [far, mid, near] };
@@ -554,9 +554,9 @@ export const LANDS: Record<Exclude<SceneId, SeaKind>, LandLook> = {
         const x = rnd() * W;
         for (let i = 0, m = 3 + Math.floor(rnd() * 3); i < m; i++) litBlob(mg, W, x + i * (6 + rnd() * 5), y + (rnd() - 0.5) * 5, 6 + rnd() * 5, 3 + rnd() * 2, "#252E39", "#323D4A", "#181E26");
       }
-      for (let k = 0, n = Math.round((W * H) / 1300); k < n; k++) { // scud
+      for (let k = 0, n = Math.round((W * H) / 1300); k < n; k++) { // scud, off the boards' rows (the damage smoke reads there)
         const y = Math.floor(rnd() * H);
-        if (q[y] && rnd() < 0.6) continue;
+        if (q[y]) continue;
         run(ng, W, rnd() * W, y, 8 + Math.floor(rnd() * 14), rnd() < 0.5 ? "#2E3946" : "#36424F");
       }
       return { layers: [far, mid, near], glows };

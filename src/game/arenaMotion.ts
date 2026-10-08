@@ -241,7 +241,8 @@ export class ArenaMotion implements ShotMap {
     const out: number[] = [];
     for (const s of [0, 1] as Side[]) {
       const r = plateBox(g, a.frames[s], this.pr);
-      out.push(Math.floor(m.d * (r.y - DRIFT_MAX - 3) + m.f), Math.ceil(m.d * (r.y + r.h + DRIFT_MAX + 3) + m.f));
+      // the plate's rows with its drift and 18 px more: where its damage smoke and fire drift (the readability test)
+      out.push(Math.floor(m.d * (r.y - DRIFT_MAX - 18) + m.f), Math.ceil(m.d * (r.y + r.h + DRIFT_MAX + 18) + m.f));
     }
     return out;
   }

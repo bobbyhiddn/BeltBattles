@@ -17,6 +17,10 @@ import {
 } from "../src/render/styleContrast";
 import { C, FACTION } from "../src/render/palette";
 import { readFileSync } from "node:fs";
+import { SCENE_GROUND, SCENE_THRESHOLDS, TODAY_SEAS, sceneChecks, sceneRows } from "../src/render/sceneContrast"; // FIELD-1
+import { SCENE_IDS, displayRng } from "../src/render/motion";
+import { LANDS, SEAS, isSea } from "../src/render/backdrop";
+import { installRaster, type RasterCanvas } from "./raster.helpers";
 
 describe("CUSTOM-1 style readability (palette pairs)", () => {
   it("the metric: WCAG contrast and CIE76 separation behave", () => {
@@ -128,6 +132,48 @@ describe("CUSTOM-1 style readability (palette pairs)", () => {
         if (/\/sim\//.test(m[2])) expect(m[1], `${f}: ${m[2]}`).toBeTruthy();
         expect(m[2], f).not.toMatch(/\/(net|core)\//);
       }
+    }
+  });
+});
+
+// FIELD-1 (REQ-BFG-075): the battle settings join the readability test (src/render/sceneContrast.ts). For every setting,
+// against the colours that cover its ground: the board plate's ink rim (WCAG), each carrier style's hull and each
+// faction's default hull, the foes (CIE76 delta E), the damage smoke at 50% and fire at 25% (WCAG). The thresholds are
+// today's weakest over the three seas (the hulls: over today's four default carriers), as CUSTOM-3 set its carrier
+// thresholds: no setting reads worse than a battle reads now. The rendered half reads the drawn battle at WIDE in each
+// setting (scripts/stylecheck.mjs).
+describe("FIELD-1 the battle settings' readability (REQ-BFG-075)", () => {
+  installRaster();
+  it("the thresholds are today's weakest over the seas: plate edge 1.00 (EMBER SEA), hull 13.89 (FOUNDRY on OPEN SEA), smoke 2.62 and fire 10.12 (OPEN SEA)", () => {
+    const T = SCENE_THRESHOLDS;
+    expect([T.edge, T.hull, T.smoke, T.fire].map((v) => Math.round(v * 100) / 100)).toEqual([1, 13.89, 2.62, 10.12]);
+    for (const s of TODAY_SEAS) {
+      const k = sceneChecks(s);
+      expect(k.edge, s).toBeGreaterThanOrEqual(T.edge - 1e-9);
+      for (const v of Object.values(k.factions)) expect(v, s).toBeGreaterThanOrEqual(T.hull - 1e-9);
+    }
+  });
+
+  it("every setting: the plate edge, the five carrier styles, the four factions' defaults, smoke and fire, at or above today's weakest", () => {
+    const rows = sceneRows();
+    expect(rows.length).toBe(SCENE_IDS.length * 12);
+    const r2 = (v: number) => (Math.round(v * 100) / 100).toFixed(2);
+    console.log(rows.map((r) => `${r.pass ? "PASS" : "MISS"} ${r.scene} | ${r.check} | ${r2(r.value)} | ${r2(r.min)}`).join("\n"));
+    expect(rows.filter((r) => !r.pass).map((r) => `${r.scene} ${r.check} ${r.value} < ${r.min}`)).toEqual([]);
+  });
+
+  it("the ground colours are the far layer's: each land setting's far layer is at least 90% those colours (and the seas' only base, deep and swell)", () => {
+    const W = 293, H = 633;
+    for (const s of SCENE_IDS) {
+      if (isSea(s)) {
+        expect(SCENE_GROUND[s]).toEqual([SEAS[s].base, SEAS[s].deep, SEAS[s].swell]);
+        continue;
+      }
+      const far = LANDS[s].build(W, H, displayRng(12345), new Uint8Array(H)).layers[0] as unknown as RasterCanvas;
+      const G = new Set(SCENE_GROUND[s].map((c) => c.toUpperCase()));
+      const n = far.px.filter((p) => p !== null && G.has(p.toUpperCase())).length;
+      console.log(`${s}: ${((100 * n) / far.px.length).toFixed(1)}% of the far layer in its ground colours`);
+      expect(n / far.px.length, s).toBeGreaterThanOrEqual(0.9);
     }
   });
 });
