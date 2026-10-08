@@ -31,6 +31,8 @@ import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): BURN per stack eac
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047, N1 2.1): the integer damage pipeline's one rounding
 import { SHIELD_CAP } from "./content"; // SUS-A (REQ-BFG-069): SHIELD's MAX
 import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-046): harassment is a STUN
+// HULL-1a (REQ-BFG-079): the day's hull and the wind as a share, behind HULL_SCALE (off)
+import { dayMulTenths, dayScaled, scaleTenths, windShareBp, windShareDamage } from "./hullScale";
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -429,7 +431,9 @@ export type SimEvent =
   | { type: "pair"; side: Side; turret: number } // E2: two loads paired in a pair-reading turret (a FOUNDRY fusion too)
   | { type: "hold" | "release"; side: Side; gate: number; route: number } // E4: a TWIN LATCH holds or lets go a payload
   | { type: "brace"; side: Side; gate: number; saved: number } // BRACE FRAME: seconds it took off an enemy STUN (NUM-3: every STUN)
-  | { type: "wind"; dmg: number }
+  // HULL-1a (REQ-BFG-079): with the day's hull (HULL_SCALE on, a day given) each side loses its own share, so `dmgs` holds
+  // each side's amount and `dmg` side 0's; absent otherwise (both sides take `dmg`, as in 0.9.7)
+  | { type: "wind"; dmg: number; dmgs?: [number, number] }
   | { type: "windwarn" }
   | { type: "end"; winner: Side | -1 };
 
@@ -438,6 +442,9 @@ export interface BattleRecord {
   seed: number;
   builds: [Build, Build];
   wins?: [number, number]; // RUNES-2a: the wins each side carried in, only when a side holds WARLORD'S DUE (Battle)
+  // HULL-1a (REQ-BFG-079): the day the fight was on, kept only when it played the day's hull (HULL_SCALE on and a day
+  // given); a record without it plays at M = 1 (replay.ts)
+  day?: number;
 }
 
 /** The bare-hull target (a hull pick, or every HULLBREAKER shot). */
@@ -482,17 +489,29 @@ export class Battle {
   private windWarned = false;
   private windTick = 0;
   private windDue = 0; // NUM-1: the wind blown since its last whole tick
+  /** HULL-1a (REQ-BFG-079): does this fight play the day's hull (HULL_SCALE on where it started, and a day given)? Then
+   *  every max hull is M(day) x (base + hullBonus) and the wind is a share of each hull's max. Read once, here. */
+  readonly scaled: boolean;
+  /** HULL-1a: M(day) in whole tenths when `scaled` (hullScale.ts dayMulTenths), else 10 (M = 1). */
+  readonly mulTenths: number;
+  private windBp = 0; // HULL-1a: the wind's share blown since its last whole tick, in basis-point ticks (scaled only)
 
   /** RUNES-2a: `wins`, the wins each side carried into the fight (the run's own, a ghost's snapshot `wins`; 0 for a
    *  stand-in or a warlord), read only by a side holding WARLORD'S DUE; the record keeps them only then (replay.ts), so a
-   *  replay is exact and every other battle and record is as before. */
-  constructor(player: Build, enemy: Build, seed: number, wins?: readonly [number, number]) {
+   *  replay is exact and every other battle and record is as before.
+   *  HULL-1a (REQ-BFG-079): `day`, the day the fight is on (the run's for the dusk, a warlord and the arena; a replay's
+   *  record's). With HULL_SCALE on it sets M(day) on both hulls and the wind's share, and the record keeps it; with the
+   *  switch off, or no day, the fight and its record are 0.9.7's (M = 1). */
+  constructor(player: Build, enemy: Build, seed: number, wins?: readonly [number, number], day?: number) {
+    this.scaled = dayScaled(day);
+    this.mulTenths = this.scaled ? dayMulTenths(day) : 10;
     this.rng = new Rng(seed);
     this.record = { rules: RULES_VERSION, seed, builds: [cloneBuild(player), cloneBuild(enemy)] };
     this.sides = [this.makeSide(0, cloneBuild(player)), this.makeSide(1, cloneBuild(enemy))];
     let reads = false;
     for (const s of this.sides) if (s.rune?.winDmgPct) { s.wins = Math.max(0, Math.floor(wins?.[s.side] ?? 0)); reads = true; }
     if (reads && wins) this.record.wins = [Math.max(0, Math.floor(wins[0])), Math.max(0, Math.floor(wins[1]))];
+    if (this.scaled) this.record.day = day; // HULL-1a: only a fight on the day's hull keeps its day
     raceLink(this.sides); // races: a side facing SIPHON gets Drag state
     // RUNES-1 (REQ-BFG-058): battle-start runes (no RNG; nothing happens on a side without runes)
     for (const s of this.sides) {
@@ -643,8 +662,11 @@ export class Battle {
     const h = HEROES[b.hero];
     const occ = occupancy(b);
     const claims = connectorClaims(b);
+    // HULL-1a (REQ-BFG-079): on the day's hull, M(day) x (base + hullBonus) rounded to a whole 10 (hullScale.ts); else
+    // 0.9.7's base + hullBonus, untouched
+    const max0 = this.scaled ? scaleTenths(h.hull + b.hullBonus, this.mulTenths) : h.hull + b.hullBonus;
     const hull: HullState = {
-      hp: h.hull + b.hullBonus, max: h.hull + b.hullBonus, fray: 0, frayMax: FRAY_MAX,
+      hp: max0, max: max0, fray: 0, frayMax: FRAY_MAX,
       burns: [], burnShown: 0, windShown: 0, flash: 0,
     };
     const gates: GateState[] = [];
@@ -838,7 +860,11 @@ export class Battle {
       // QUICK LATCH: every rig comes online a whole % sooner (an IDLE rig never does)
       if (rune.rigSoon) for (const g of gates) if (Number.isFinite(g.commissionAt)) g.commissionAt *= Math.max(0, 1 - rune.rigSoon / 100);
       // BULKHEADS, SCRAP HALO: HULL per turret and per merged piece, on this battle's hull (not the build's hullBonus)
-      const extra = rune.perTurretHull * turrets.length + rune.mergedHull * mergedPieces(b);
+      // HULL-1a (REQ-BFG-079): on the day's hull each unit's amount takes M(day), rounded to a whole 10, x the count (so
+      // the rune's read-out x the count is what lands); else 0.9.7's flat amounts
+      const extra = this.scaled
+        ? scaleTenths(rune.perTurretHull, this.mulTenths) * turrets.length + scaleTenths(rune.mergedHull, this.mulTenths) * mergedPieces(b)
+        : rune.perTurretHull * turrets.length + rune.mergedHull * mergedPieces(b);
       if (extra) { hull.hp += extra; hull.max += extra; }
     }
     // TWIN NAILS / MOLTEN BOND read PAIRs (abilityText.ts: two loads into one turret through different intakes within
@@ -2386,7 +2412,24 @@ export class Battle {
       this.windWarned = true;
       this.events.push({ type: "windwarn" });
     }
-    if (this.t >= WIND_START) {
+    if (this.t >= WIND_START && this.scaled) {
+      // HULL-1a (REQ-BFG-079): the wind as a share. Each tick adds the share a second (hullScale.ts windShareBp, in basis
+      // points; its step on the same clock as windDps'); once a second each hull takes that share of ITS OWN max, summed
+      // over the ticks blown, rounded half up once (integer arithmetic), straight to hp: PLATE and SHIELD don't absorb it
+      this.windBp += windShareBp(this.t - WIND_START);
+      this.windTick += dt;
+      if (this.windTick >= 1) {
+        this.windTick -= 1;
+        const due = this.windBp;
+        this.windBp = 0;
+        const dmgs: [number, number] = [windShareDamage(due, this.sides[0].hull.max, TICKS_PER_SEC), windShareDamage(due, this.sides[1].hull.max, TICKS_PER_SEC)];
+        for (const s of this.sides) {
+          s.hull.hp -= dmgs[s.side];
+          s.stats.windTaken += dmgs[s.side];
+        }
+        this.events.push({ type: "wind", dmg: dmgs[0], dmgs });
+      }
+    } else if (this.t >= WIND_START) {
       // NUM-1 (REQ-BFG-047, N1 2.1): the dark wind x10, in whole ticks: once a second (the old `wind` event's beat) both
       // hulls take what the wind blew since the last tick (windDps x the seconds), rounded half up once
       this.windDue += this.windDps() * dt;
@@ -2404,8 +2447,12 @@ export class Battle {
     }
   }
 
-  windDps(): number {
+  /** The wind's damage a second (0 before WIND_START): 0.9.7's flat 10, +10 every 5 s, on both hulls alike. HULL-1a
+   *  (REQ-BFG-079): on the day's hull, the share a second of side `side`'s own max hull (the battle HUD's WIND n/S reads
+   *  side 0's), rounded half up. */
+  windDps(side: Side = 0): number {
     if (this.t < WIND_START) return 0;
+    if (this.scaled) return windShareDamage(windShareBp(this.t - WIND_START) * TICKS_PER_SEC, this.sides[side].hull.max, TICKS_PER_SEC);
     return 10 * (1 + Math.floor((this.t - WIND_START) / 5)); // NUM-1: x10 (10 a second, +10 every 5 s)
   }
 
@@ -2669,9 +2716,9 @@ export function gearStats(b: Build, i: number): GearStats {
   return out;
 }
 
-/** Headless run to completion (tests / balance). */
-export function simulate(player: Build, enemy: Build, seed: number, maxTicks = 60 * 200, wins?: readonly [number, number]): Battle {
-  const b = new Battle(player, enemy, seed, wins); // RUNES-2a: `wins` for WARLORD'S DUE (Battle's constructor)
+/** Headless run to completion (tests / balance). HULL-1a (REQ-BFG-079): `day`, the day the fight is on (Battle's). */
+export function simulate(player: Build, enemy: Build, seed: number, maxTicks = 60 * 200, wins?: readonly [number, number], day?: number): Battle {
+  const b = new Battle(player, enemy, seed, wins, day); // RUNES-2a: `wins` for WARLORD'S DUE (Battle's constructor); HULL-1a: `day`
   while (!b.over && b.ticks < maxTicks) {
     b.step();
     b.events.length = 0;
