@@ -13,6 +13,13 @@
 //    which reads ladderFixRules(): the walk rides tick by tick as Battle.transport moves a payload (a tile's speed holds
 //    past its centre; a clamped last move; stamp to chamber = the moves - 1 ticks), so the walk's damage at load and its
 //    time are the battle's (BRAKE ★1 94 / 94, was 94 / 95). The walk feeds the bots' rating, so par decks move with it.
+//  - OVERDRIVE (tests/arsenal.decks; cap's oracle 37b12cb17a536589): no speed ladder can rise on a deck its Kiln paces (a
+//    faster belt only cuts the ride payoffs), so ★2/★3 carry a ride-keep (RIDE_KEEP 0.5 / 1, a star number, 0 at ★1):
+//    on the tiles an OVERDRIVE ★2/★3 speeds, Battle.transport and the walk count keep x the ride at 1x + (1 - keep) x the
+//    real ride. Speeds 3/4/5 and lockedFlat 30/50/110 unchanged. The bench 941.4 / 1036.15 / 1184 (x1.10, x1.14; the rig
+//    rows' median x1.098, x1.134); was 941.4 / 882 / 856.05.
+//  - HOPPER (tests/fb062.hopper): no change (cap's oracle 37b12cb17a536589, ruling Y7A-R6): on a gun its fire rate bounds,
+//    the window only reorders the loads; AZ-BUMP re-rules the saturated row.
 //
 // THE SWITCH: LADDER_FIX (false), in npcDay.ts's form: ladderFixRules(), setLadderFix(on) and withLadderFix(fn, on = true),
 // which puts the switch back even on a throw. A fixed piece is a content patch: while the switch is on, ITEMS[id] is the
