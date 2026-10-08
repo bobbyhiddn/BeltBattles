@@ -10,6 +10,7 @@ import { Arena } from "../game/arena";
 import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
 import { ArenaMotion, drawMotionPerf } from "../game/arenaMotion"; // MOTION-1 (REQ-BFG-071); MOTION-2: in every build
 import { MOTION, MOTION_KNOBS } from "../render/motion";
+import { battleScene } from "../render/scenery"; // FIELD-1 (REQ-BFG-075): the battle's setting, from its seed
 import { settings } from "../core/settings";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
 import { finishDay, foeTitle, ghostOf, startDusk, storedFoe } from "../game/day";
@@ -112,7 +113,8 @@ export class BattleScreen implements Screen {
     this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins);
     this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): the player's board and plate; the foe's stay the defaults
     this.arena.off = [60, 260];
-    this.motion = new ArenaMotion(this.seed, this.foe.day, MOTION, settings.reducedMotion);
+    // FIELD-1 (REQ-BFG-075): the setting this battle's seed picks (its replay plays the same seed: the same setting)
+    this.motion = new ArenaMotion(this.seed, battleScene(this.seed), MOTION, settings.reducedMotion);
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
@@ -343,8 +345,8 @@ export class BattleScreen implements Screen {
     const { W, H } = this.game;
     const a = this.arena;
     const m = this.motion;
-    // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion
-    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed);
+    // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion. FIELD-1: the battle's setting
+    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed, a);
     m.draw(g, a, W, H, settings.reducedMotion);
     this.drawHud(g);
     if (MOTION_KNOBS && m.perf) drawMotionPerf(g, m, this.game); // ?perf=1 (test builds only)

@@ -5,8 +5,18 @@
 // Display only: this module imports nothing (no sim, no DOM), uses no sim RNG and no Math.random (its own small PRNG,
 // seeded per battle), and runs on its own clock (frame time). The sim never reads anything here. docs/MOTION.md.
 
-/** The three code-drawn seas, chosen by day (seaForDay). */
+/** The three code-drawn seas, chosen by day (seaForDay) on the still screens. */
 export type SeaKind = "calm" | "storm" | "ember";
+
+/** FIELD-1 (REQ-BFG-075): the eight battle settings in three media (render/scenery.ts picks one per battle). The water
+ *  ones keep the seas' ids, so OPEN SEA ("calm") keeps today's cache keys and pixels. */
+export type SceneId = SeaKind | "forest" | "desert" | "badlands" | "sky" | "clouds";
+export const SCENE_IDS: readonly SceneId[] = ["calm", "storm", "ember", "forest", "desert", "badlands", "sky", "clouds"];
+
+/** A known setting id (the test builds' ?sea= knob, the page tooling's bb.scene). */
+export function isSceneId(s: unknown): s is SceneId {
+  return typeof s === "string" && (SCENE_IDS as readonly string[]).includes(s);
+}
 
 /**
  * MOTION-2: the dev knobs (?sway, ?sea, ?perf) exist only in test and dev builds: vite's dev server and vitest
@@ -21,8 +31,9 @@ export interface MotionOpts {
   // (0.9.4's floor and tracked hulls, for comparisons) and its `on` option are gone, with the tracked hull's code.
   /** ?sway=N (test builds): the shared board sway, in degrees (|N| <= SWAY_MAX_DEG); 0, off, otherwise. */
   sway: number;
-  /** ?sea=calm|storm|ember (test builds): force a setting (else the day decides). */
-  sea: SeaKind | null;
+  /** ?sea=calm|storm|ember (test builds): force a setting (else the day decides). FIELD-1: any setting id (SCENE_IDS);
+   *  else each battle picks its own (render/scenery.ts). */
+  sea: SceneId | null;
   /** ?perf=1 (test builds): the frame-time overlay with the per-layer ms split. */
   perf: boolean;
 }
@@ -54,7 +65,7 @@ export function parseMotionOpts(search: string, knobs: boolean): MotionOpts {
   const sea = q.get("sea");
   return {
     sway: Number.isFinite(sway) ? Math.max(-SWAY_MAX_DEG, Math.min(SWAY_MAX_DEG, sway)) : 0,
-    sea: sea === "calm" || sea === "storm" || sea === "ember" ? sea : null,
+    sea: isSceneId(sea) ? sea : null,
     perf: q.get("perf") === "1",
   };
 }

@@ -12,6 +12,7 @@ import { Arena } from "../game/arena";
 import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
 import { ArenaMotion } from "../game/arenaMotion";
 import { MOTION } from "../render/motion";
+import { battleScene } from "../render/scenery"; // FIELD-1 (REQ-BFG-075): the record's seed picks the battle's setting
 import { settings } from "../core/settings";
 import type { Battle } from "../sim/battle";
 import { HEROES, RUN_DAYS } from "../sim/content";
@@ -76,7 +77,7 @@ export class ReplayScreen implements Screen {
     this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): your side wears your styles; the foe's the defaults
     this.arena.off = [0, 0];
     this.heroName = HEROES[mine.hero].name;
-    this.motion = new ArenaMotion(this.seed, label.day, MOTION, settings.reducedMotion);
+    this.motion = new ArenaMotion(this.seed, battleScene(this.seed), MOTION, settings.reducedMotion); // FIELD-1: the dusk's setting
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
@@ -152,7 +153,7 @@ export class ReplayScreen implements Screen {
     const a = this.arena, b = a.b;
     const m = this.motion;
     // MOTION-2: the day's sea, then the carriers, boards, shots and effects in motion
-    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed);
+    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed, a);
     m.draw(g, a, W, H, settings.reducedMotion);
     for (let s = 0; s < 2; s++) {
       this.hp[s] = fmtDmg(Math.max(0, b.sides[s].hull.hp)); // NUM-4: the hull is whole (NUM-1); was Math.ceil
