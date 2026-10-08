@@ -4,13 +4,13 @@
 // prints each bench's numbers, off and on (the REPORT's before/after).
 import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
-import { BURN_DPS, BURN_TIME, ITEMS, TICK } from "../src/sim/content";
-import type { Build } from "../src/sim/deck";
+import { AMMO, BURN_DPS, BURN_TIME, ITEMS, TICK } from "../src/sim/content";
+import { payloadDamage, walkRoute, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { PLAYER_DAYS, playerRun } from "../src/sim/harness/player";
 import { LADDER_DEFS, LADDER_FIX, ladderFixRules, setLadderFix, withLadderFix } from "../src/sim/ladderFix";
 import { effectAt } from "../src/sim/stars";
-import { barge, bench } from "./arsenal.bench";
+import { barge, bench, SEED } from "./arsenal.bench";
 import { K, item, withItem, withMod } from "./wave3.helpers";
 
 const log = (s: string) => { if (process.env.BB_TABLES) console.log(s); };
@@ -95,6 +95,53 @@ describe("HULL-1b QUENCH TANK (backlog #370; tests/fb062.quench): ★1 pays more
     for (const r of off) expect(r.d[0]).toBe(r.none);
     const own = BURN_DPS * BURN_TIME;
     withLadderFix(() => { for (const s of [1, 2, 3]) for (const k of [1, 4, 10]) expect((dealt(quenched(s, payload(k))) - dealt(payload(0))) / k, `★${s} ${k} Burn`).toBeGreaterThanOrEqual(own); });
+  });
+});
+
+// ------------------------------------------------------------------ P13, the walk's ride gap (tests/beltside.merge061rel)
+
+/** beltside.merge061rel's firstLoad(): the battle's first load at turret 0 from factory `uid`: stamp-to-chamber seconds,
+ *  its damage at load and its flat. */
+function firstLoad(b: Build, uid: number): { time: number; dmg: number; flat: number } {
+  const bt = new Battle(b, barge(), SEED);
+  const side = bt.sides[0];
+  const f = side.factories.find((x) => x.uid === uid)!;
+  f.timer = 1e9;
+  while (!side.gates.every((g) => g.online || !g.hits.length)) { bt.step(); bt.drainEvents(); }
+  f.timer = 0;
+  const born = new Map<number, number>();
+  while (bt.t < 60 && !bt.over) {
+    bt.step();
+    bt.drainEvents();
+    if (f.produced > 0) f.timer = 1e9;
+    for (const r of side.routes) for (const a of r.ammo) if (!born.has(a.p.id)) born.set(a.p.id, bt.t);
+    const p = side.turrets[0].stack[0];
+    if (p) {
+      const ad = AMMO[p.ammo];
+      return { time: bt.t - born.get(p.id)!, dmg: payloadDamage(p.base ?? ad.base, ad.rideScale, p.ride, p.mult, p.flat), flat: p.flat };
+    }
+  }
+  throw new Error("no payload reached turret 0 within 60 s");
+}
+
+describe("HULL-1b P13 (cap's oracle d306b1b196dbab38): the walk agrees with the battle, tick for tick", () => {
+  it("on: BRAKE SHOE ★1-★3 (the tripwire's bench), GREASE and a bare belt: the walk's damage at load and stamp-to-chamber time are the battle's", () => {
+    const decks: [string, Build][] = [
+      ...[1, 2, 3].map((s): [string, Build] => [`BRAKE ★${s}`, bench([["brake", 4, 3, s]])]),
+      ...[1, 2, 3].map((s): [string, Build] => [`GREASE ★${s}`, bench([["grease", 4, 3, s]])]),
+      ["bare", bench()],
+    ];
+    for (const [name, b] of decks) {
+      const off = withLadderFix(() => ({ f: firstLoad(b, 1), w: walkRoute(b, 0).estimate }), false);
+      const on = withLadderFix(() => ({ f: firstLoad(b, 1), w: walkRoute(b, 0).estimate }));
+      log(`P13 ${name}: battle ${on.f.dmg} dmg ${on.f.time.toFixed(4)} s | walk off ${off.w.dmg} ${off.w.time.toFixed(4)} s, on ${on.w.dmg} ${on.w.time.toFixed(4)} s`);
+      expect(on.f).toEqual(off.f); // the battle itself never reads the switch
+      expect(on.w.dmg, `${name}: damage at load`).toBe(on.f.dmg);
+      expect(on.w.time, `${name}: stamp to chamber`).toBeCloseTo(on.f.time, 9);
+    }
+    // off: bb-0.9.7's walk (the tripwire's pairs: ★1 94 / 95, 4.1667 / 4.2 s)
+    const b1 = bench([["brake", 4, 3, 1]]);
+    expect([firstLoad(b1, 1).dmg, walkRoute(b1, 0).estimate.dmg, +walkRoute(b1, 0).estimate.time.toFixed(4)]).toEqual([94, 95, 4.2]);
   });
 });
 

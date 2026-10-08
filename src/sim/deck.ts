@@ -4,10 +4,11 @@
 // "forward" (toward the enemy); 1 = +x, 2 = back, 3 = -x.
 
 import {
-  AMMO, BELT_SPEED, CELL, GEAR_SLOTS, GRID, HEROES, HULL_SLOTS, ITEMS, JOIN_LIMIT, JOIN_PACE, SHAPE_ARROWS, TURRET_SPEED, rigShape,
+  AMMO, BELT_SPEED, CELL, GEAR_SLOTS, GRID, HEROES, HULL_SLOTS, ITEMS, JOIN_LIMIT, JOIN_PACE, SHAPE_ARROWS, TICK, TURRET_SPEED, rigShape,
   factorySpeed, levelSpeed, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake, type Upgrades,
 } from "./content";
+import { ladderFixRules } from "./ladderFix"; // LADDER_FIX (cap's oracle d306b1b196dbab38): the walk rides tick by tick
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
@@ -646,6 +647,31 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   // which shows that damage)
   const timeOn = new Map<number, number>(), surgeHits = new Map<number, TimelineHit>();
   const n = path.length;
+  // LADDER_FIX (cap's oracle d306b1b196dbab38: the walk agrees with the battle, tick for tick). Switch on, the slug rides as
+  // Battle.transport moves one payload on an empty belt: each TICK it moves BELT_SPEED x the speed state where it stands
+  // (Battle.speedStateAt: a tile's speed holds once the slug is PAST its centre, so the tick that lands on a centre is
+  // still at the old speed) x TICK, never past its belt's end; each move's ride is moved / v (a clamped last move rides a
+  // part of a tick); the hits of a tile apply after the move that reaches its centre (its ride so far, as applyHit reads
+  // it), and HEAT gains on a move at the HEAT before that move's hits. A joining slug stops at its belt's end and enters the
+  // main belt at the join tile's upstream edge (Battle.joins), its next move there. Stamp to chamber is the stamp's tick to
+  // the load's: the moves - 1 (the stamp tick moves the slug too), so the ride is up to a tick longer than the time.
+  // Switch off: the half cells' continuous seconds, exactly as before.
+  const ticked = ladderFixRules();
+  let pos = 0, moves = 0, past = -Infinity, before = speed, end = 0; // ticked: px on the leg, moves, last centre crossed, its speed before, the leg's end
+  const ticksOn = new Map<number, number>(); // ticked: the ticks the slug sits on each belt (Y3: SURGE's pulses)
+  const move = (ri: number, to: number, tol: number): void => {
+    while (pos < to - tol) {
+      const v = BELT_SPEED * (pos > past ? speed : before);
+      const ns = Math.min(pos + v * TICK, end);
+      if (!(ns > pos)) break; // no way on (a 0 speed; never on a walked belt)
+      const r = (ns - pos) / v;
+      ride += r;
+      heatBonus += heat * r;
+      if (moves > 0) ticksOn.set(ri, (ticksOn.get(ri) ?? 0) + 1); // Battle.surgeTick sees it there from the tick after the stamp
+      moves++;
+      pos = ns;
+    }
+  };
   for (let i = 0; i < n; i++) {
     const { route: ri, tile } = path[i];
     const cells = b.routes[ri].cells;
@@ -655,11 +681,22 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         speed = beltStateAt(b, ri, tile, hits).speed;
       }
     }
-    const inHalf = CELL / 2 / (BELT_SPEED * speed);
-    time += inHalf;
-    ride += inHalf;
-    heatBonus += heat * inHalf;
-    timeOn.set(ri, (timeOn.get(ri) ?? 0) + inHalf); // Y3: the seconds on belt ri (SURGE's pulses)
+    if (ticked) {
+      if (i === 0 || path[i - 1].route !== ri) { // a leg: the walked belt from 0, a main belt from its join tile's upstream edge
+        pos = i === 0 ? 0 : tile * CELL;
+        past = -Infinity;
+        before = speed;
+        // its end: a joining belt's at its join tile's side (CELL x tiles); the chain's last belt's, as routeLength
+        end = path[n - 1].route === ri ? (cells.length - 1) * CELL + CELL / 2 + (info.connected ? CELL : 0) : CELL * cells.length;
+      }
+      move(ri, tile * CELL + CELL / 2, 0); // Battle.transport: a tile's hits apply once a move reaches its centre
+    } else {
+      const inHalf = CELL / 2 / (BELT_SPEED * speed);
+      time += inHalf;
+      ride += inHalf;
+      heatBonus += heat * inHalf;
+      timeOn.set(ri, (timeOn.get(ri) ?? 0) + inHalf); // Y3: the seconds on belt ri (SURGE's pulses)
+    }
     const speeds: number[] = [];
     const row: TimelineHit[] = [];
     for (const h of hits[ri]?.[tile] ?? []) {
@@ -770,9 +807,18 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     // beltside-062c (P8): 0.6.1c's per-hit `speed = e.speed` is BELTSIDE's per-tile speedWinner here; slag
     // (`fixed`) keeps its speed, like a METRONOME lock, and no speed hit on its belt is marked as winning
     const won = speedWinner(speeds);
+    if (ticked) { // LADDER_FIX: the speed this tile sets holds past its centre; on it, the speed before
+      past = tile * CELL + CELL / 2;
+      before = speed;
+    }
     if (won !== undefined && !locked && fixed === undefined) speed = won;
     for (const th of row) if (th.speed !== undefined) th.won = !locked && fixed === undefined && th.speed === won;
     if (row.length) timeline.push({ tile, cell: cells[tile], hits: row, speed, ...(ri !== index ? { route: ri } : {}) });
+    if (ticked) {
+      // LADDER_FIX: on to the leg's end after its last tile (Battle.chambers loads, Battle.joins hands on, within 1e-6 of it)
+      if (i === n - 1 || path[i + 1].route !== ri) move(ri, end, 1e-6);
+      continue;
+    }
     const last = i === n - 1;
     const outLen = last ? (info.connected ? CELL : 0) : CELL / 2;
     const outT = outLen / (BELT_SPEED * speed);
@@ -780,6 +826,10 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     ride += outT;
     heatBonus += heat * outT;
     timeOn.set(ri, (timeOn.get(ri) ?? 0) + outT);
+  }
+  if (ticked) { // LADDER_FIX: the stamp's tick to the load's; the seconds on each belt, whole ticks
+    time = Math.max(0, moves - 1) * TICK;
+    for (const [ri, k] of ticksOn) timeOn.set(ri, k * TICK);
   }
   // Y3 (DESIGN-Y row 28): each SURGE VALVE with an arrow on a belt the slug rides (any tile, before or after the slug's own
   // way onto it) pays flat x the seconds it rides there / the period, once for each such belt

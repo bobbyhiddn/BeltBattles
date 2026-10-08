@@ -9,6 +9,10 @@
 //    damage rigs' median x2.17 and x1.59 on the same bench). One number.
 //  - STOKER (tests/wave3.decks, backlog #356): ★3's stoke 0.7 -> 0.85, so the shared gun with room rises at every star
 //    (the row's fights end at the foe's hull, so ★3's faster mould lost on overkill alone). One number.
+//  - P13, the walk's ride gap (tests/beltside.merge061rel; cap's oracle d306b1b196dbab38): a code rule in deck.ts walkRoute,
+//    which reads ladderFixRules(): the walk rides tick by tick as Battle.transport moves a payload (a tile's speed holds
+//    past its centre; a clamped last move; stamp to chamber = the moves - 1 ticks), so the walk's damage at load and its
+//    time are the battle's (BRAKE ★1 94 / 94, was 94 / 95). The walk feeds the bots' rating, so par decks move with it.
 //
 // THE SWITCH: LADDER_FIX (false), in npcDay.ts's form: ladderFixRules(), setLadderFix(on) and withLadderFix(fn, on = true),
 // which puts the switch back even on a throw. A fixed piece is a content patch: while the switch is on, ITEMS[id] is the
