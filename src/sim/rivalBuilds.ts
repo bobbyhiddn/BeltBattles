@@ -252,12 +252,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // days 6-10 (the WEAVER par field's 3/4/5/5/7; a day-7 pack: her road deck's FACTORY level 2 would leave again)
       // FLIP-X2 step 4.4 (cap's ruling 97e639e5813acb37): at ordinary luck the flak on day 5 (was 4; WEAVER's ordinary rare
       // cap is 2 on day 4); soon() keeps the warlord's day 4
-      // CATCHUP-098 (BRIEF-CATCHUP-098 target 3, the Hard band on day 5; REVIEW-CATCHUP097 ruling 2, the re-plan of her days
-      // 3-5, good-luck road deck first): a PINCER (common, 3 g) at good luck on day 5 at (0,4), at the end of the day (kit098
-      // capsearch grow, rated on the four par fields). Her road deck 66 -> 73% on day 5 (walls F / W 58 / 89 -> 44 / 84) and
-      // 65 / 61 / 68 / 64 / 57 -> 59 / 65 / 72 / 70 / 61% on days 6-10 (walls at least 44 / 83); good value 41 of 50, R1 55.
-      // A second part (whetstone, pressure core, flak or pincer star) broke her day-5 FURNACE wall (26-41)
-      soon(4, M(5, "flak", 0)), ...good(G(5, "pincer", 0, 4, 1)), P(6),
+      soon(4, M(5, "flak", 0)), P(6),
       // REDO-X (cap's rulings 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the SPLITTER (synergy; captains.synergy
       // still passes) on day 7 (was 6; WEAVER's ordinary epic+ cap is 0 on day 6); soon() keeps the warlord's day 5; right
       // after P(6), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
