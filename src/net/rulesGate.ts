@@ -28,6 +28,8 @@
 
 import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
+import { RULES_VERSION } from "../sim/content"; // NPC-1 (REQ-BFG-077): NPC_DAY_RULES until the flip
+import { npcDayRules } from "../sim/npcDay"; // NPC-1: the switch
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
@@ -164,6 +166,22 @@ export function lastChanceGateProblem(rules: unknown): string | null {
   if (rulesAtLeast(rules, LAST_CHANCE_RULES)) return null;
   const what = `LAST CHANCE (snapshot.lastChance) needs ${LAST_CHANCE_RULES} or later`;
   return parseRules(rules) ? `rules ${String(rules)} predate ${LAST_CHANCE_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}
+
+/**
+ * NPC-1 (REQ-BFG-077, REQ-BFG-078): the first rules version with the NPC day (a snapshot's `road`). As LC-1's
+ * LAST_CHANCE_RULES was: it reads RULES_VERSION until the flip (AZ-BUMP) writes its version as a literal, so with the switch
+ * on in a test an honest snapshot under this build's rules passes. While NPC_DAY is off the field is refused under every
+ * rules version (npcDayGateProblem's first line).
+ */
+export const NPC_DAY_RULES: string = RULES_VERSION;
+
+/** Why a snapshot under `rules` can't carry a road log, or null: the switch off, or rules before NPC_DAY_RULES. */
+export function npcDayGateProblem(rules: unknown): string | null {
+  if (!npcDayRules()) return "not in this rules version yet";
+  if (rulesAtLeast(rules, NPC_DAY_RULES)) return null;
+  const what = `the road log (snapshot.road) needs ${NPC_DAY_RULES} or later`;
+  return parseRules(rules) ? `rules ${String(rules)} predate ${NPC_DAY_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
 }
 
 /** The gate's rows: what a build may carry and the first rules version that takes it, oldest first. RUNES-2a adds the

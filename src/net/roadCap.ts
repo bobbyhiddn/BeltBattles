@@ -35,6 +35,7 @@ import type { WarlordReward } from "../game/roadTypes";
 import { newRun, type Run } from "../game/run";
 import { gainModule } from "../game/fuse";
 import type { BuildCost } from "./validate"; // type only: validate.ts's buildCost is the strict mode's cost
+import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the NPC day's plans
 
 // ------------------------------------------------------------------ D4: the reviewed model
 
@@ -210,7 +211,7 @@ const payMemo = new Map<string, WarlordPay[]>();
  *  and without a pending SABOTAGE (it swaps the deck, so the parts on offer), and what beating it pays. The gold is
  *  the run day's, as road.ts warlordFight reads it (0.6.2 EASY PAY: SABOTAGE swaps the deck, never the day's pay). */
 export function warlordPays(slot: Difficulty | "matriarch", day: number): readonly WarlordPay[] {
-  const k = `${slot}|${day}`;
+  const k = `${slot}|${day}|${npcDayRules()}`; // NPC-1: the reward differs with NPC_DAY on (no Hard pick)
   const hit = payMemo.get(k);
   if (hit) return hit;
   const ids: RivalId[] = slot === "matriarch" ? (day >= MATRIARCH_DAY ? ["matriarch"] : []) : warlordPool(slot);
@@ -364,6 +365,7 @@ interface DpResult {
  * over-count), with the discount events left out (their day is that caravan's eve).
  */
 function planDP(days: number, mix: Mix, mode: "deck" | "liquid", trace = false, hoard = false): DpResult {
+  if (npcDayRules()) return npcPlanDP(days, mix, mode, trace, hoard); // NPC-1 (REQ-BFG-077): a fight and the event every day
   const all = roadOptions();
   const discountEvents = new Set([...all].filter(([, l]) => l.some((o) => o.discount > 0)).map(([e]) => e));
   const events = EVENT_IDS.filter((e) => mode === "deck" || !discountEvents.has(e));
@@ -450,6 +452,120 @@ function planDP(days: number, mix: Mix, mode: "deck" | "liquid", trace = false, 
   return { value: cur[bestS], plan };
 }
 
+/**
+ * NPC-1 (REQ-BFG-077, REQ-BFG-078; NPC_DAY on): planDP for the NPC day. Every day is a warlord fight AND then an event
+ * (each event at most once a run; taking none is allowed, so the max stays an upper bound over the one bag a run meets).
+ * The fight pays its gold only (the best tier's, the Matriarch's once, a pending bounty on a Hard win): no part is priced
+ * here, because every drop (the Matriarch's legendary part too) is named in the snapshot's road log and counted there at
+ * its value (validate.ts, roadDropValue). The fight comes first, so a bounty staked at a day's event pays from the next
+ * day's Hard fight on. Gold, discounts and rerolls count as in planDP.
+ */
+function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boolean, hoard: boolean): DpResult {
+  const all = roadOptions();
+  const discountEvents = new Set([...all].filter(([, l]) => l.some((o) => o.discount > 0)).map(([e]) => e));
+  const events = EVENT_IDS.filter((e) => mode === "deck" || !discountEvents.has(e));
+  const E = events.length;
+  const opts = events.map((e) => {
+    const list = all.get(e)!;
+    if (mode === "liquid") return [...list];
+    return [...(mix.forced.get(e) ?? list.filter((o) => o.hull === 0 && o.belt === 0))];
+  });
+  const forcedMask = events.reduce((m, e, i) => (mix.forced.has(e) ? m | (1 << i) : m), 0);
+  const amounts = [0, ...new Set(opts.flat().filter((o) => o.bounty > 0).map((o) => o.bounty))];
+  const B = amounts.length;
+  const S = (1 << E) * 2 * B;
+  const at = (mask: number, beaten: number, b: number) => (mask * 2 + beaten) * B + b;
+  let cur = new Float64Array(S).fill(-Infinity);
+  cur[0] = 0;
+  const back: { from: Int32Array; what: (string | undefined)[]; val: Float64Array }[] = [];
+  for (let d = 1; d <= days; d++) {
+    const gold = mode === "liquid" || d < days;
+    const caravan = mode === "deck" && d + 1 <= days;
+    const parts = !(mode === "liquid" && hoard);
+    // the fight: its gold only (bestPay's part = false: the drops are the road log's)
+    const flat = Math.max(0, bestPay("easy", d, gold, false), bestPay("medium", d, gold, false));
+    const hard = bestPay("hard", d, gold, false);
+    const queen = d >= MATRIARCH_DAY ? bestPay("matriarch", d, gold, false) : -Infinity;
+    const today = opts.map((list) => {
+      const byClass = new Map<number, { v: number; label: string }>();
+      for (const o of list) {
+        let v = (gold ? o.gold : 0) - o.pay + (parts ? o.parts : Math.min(0, o.parts));
+        if (caravan) v += o.reroll * REROLL_COST + (o.discount > 0 ? discountGain(o.discount, gmax(d + 1, hoard)) : 0);
+        const cls = o.bounty > 0 ? amounts.indexOf(o.bounty) : -1;
+        const had = byClass.get(cls);
+        if (!had || v > had.v) byClass.set(cls, { v, label: o.label });
+      }
+      return [...byClass].map(([cls, x]) => ({ cls, v: x.v, label: x.label }));
+    });
+    // step 1, the fight: mid[s] with its origin and label
+    const mid = new Float64Array(S).fill(-Infinity);
+    const midFrom = new Int32Array(S).fill(-1);
+    const midWhat: string[] = new Array(S);
+    const midVal = new Float64Array(S);
+    const putMid = (s: number, s2: number, x: number, label: string, gain: number) => {
+      if (x > mid[s2]) {
+        mid[s2] = x;
+        midFrom[s2] = s;
+        midWhat[s2] = label;
+        midVal[s2] = gain;
+      }
+    };
+    for (let s = 0; s < S; s++) {
+      const v = cur[s];
+      if (v === -Infinity) continue;
+      const b = s % B, beaten = Math.floor(s / B) % 2, mask = Math.floor(s / (2 * B));
+      putMid(s, s, v + flat, "easy/medium (or a lost fight)", flat);
+      const bounty = gold ? amounts[b] : 0;
+      if (d >= MATRIARCH_DAY && !beaten) putMid(s, at(mask, 1, 0), v + queen + bounty, `matriarch${b ? " + bounty" : ""}`, queen + bounty);
+      else putMid(s, at(mask, beaten, 0), v + hard + bounty, `hard${b ? " + bounty" : ""}`, hard + bounty);
+    }
+    // step 2, the day's event (or none)
+    const nxt = new Float64Array(S).fill(-Infinity);
+    const from = trace ? new Int32Array(S).fill(-1) : new Int32Array(0);
+    const what: (string | undefined)[] = trace ? new Array(S) : [];
+    const val = trace ? new Float64Array(S) : new Float64Array(0);
+    const put = (m: number, s2: number, x: number, label: string, gain: number) => {
+      if (x > nxt[s2]) {
+        nxt[s2] = x;
+        if (trace) {
+          from[s2] = midFrom[m];
+          what[s2] = `${midWhat[m]}${label ? `, then ${label}` : ""}`;
+          val[s2] = midVal[m] + gain;
+        }
+      }
+    };
+    for (let m = 0; m < S; m++) {
+      const v = mid[m];
+      if (v === -Infinity) continue;
+      const b = m % B, beaten = Math.floor(m / B) % 2, mask = Math.floor(m / (2 * B));
+      put(m, m, v, "", 0);
+      for (let i = 0; i < E; i++) {
+        if (mask & (1 << i)) continue;
+        const m2 = mask | (1 << i);
+        for (const o of today[i]) put(m, at(m2, beaten, o.cls >= 0 ? o.cls : b), v + o.v, `event ${events[i]}: ${o.label}`, o.v);
+      }
+    }
+    if (trace) back.push({ from, what, val });
+    cur = nxt;
+  }
+  let bestS = -1;
+  for (let s = 0; s < S; s++) {
+    const mask = Math.floor(s / (2 * B));
+    if ((mask & forcedMask) === forcedMask && cur[s] > (bestS < 0 ? -Infinity : cur[bestS])) bestS = s;
+  }
+  if (bestS < 0 || cur[bestS] === -Infinity) return { value: -Infinity, plan: [] };
+  const plan: PlanDay[] = [];
+  if (trace) {
+    let s = bestS;
+    for (let d = days; d >= 1; d--) {
+      const t = back[d - 1];
+      plan.unshift({ day: d, pick: t.what[s] ?? "?", value: t.val[s] });
+      s = t.from[s];
+    }
+  }
+  return { value: cur[bestS], plan };
+}
+
 const liquidMemo = new Map<string, number>();
 
 /** The most gold a run can hold at caravan `c` (the eve of which took the discount): the shop's gold by then
@@ -457,7 +573,7 @@ const liquidMemo = new Map<string, number>();
  *  trader pays a part's full value, once). `hoard` (diagnostic, REPORT.md §2 slack): road gold only, the parts
  *  stay on the deck. */
 export function gmax(c: number, hoard = false): number {
-  const k = `${c}|${hoard}`;
+  const k = `${c}|${hoard}|${npcDayRules()}`; // NPC-1: the NPC day's plans differ
   const hit = liquidMemo.get(k);
   if (hit !== undefined) return hit;
   const road = c - 2 >= 1 ? Math.max(0, planDP(c - 2, NO_MIX(), "liquid", false, hoard).value) : 0;
@@ -471,7 +587,7 @@ const capMemo = new Map<string, number>();
 /** The most extra value an honest run whose hull and belt used `mix` can have on its deck at the dusk of `day`;
  *  -Infinity when the mix's events can't all fit in `day` road stops. */
 export function roadCapFor(day: number, mix: Mix = NO_MIX()): number {
-  const k = `${day}|${mix.key}`;
+  const k = `${day}|${mix.key}|${npcDayRules()}`; // NPC-1: the NPC day's plans differ
   const hit = capMemo.get(k);
   if (hit !== undefined) return hit;
   const v = planDP(day, mix, "deck").value;
@@ -524,7 +640,7 @@ export function resetRoadCapMemo(): void {
  * price + crates x crate price must be <= maxGoldByDay(day) + roadCapFor(day, mix). Returns the errors (empty: the
  * deck passes).
  */
-export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeGold = 0, freePart = 0): string[] {
+export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeGold = 0, freePart = 0, drops = 0): string[] {
   let f: PlayerFits;
   try {
     f = playerFits(b, day, cost);
@@ -536,7 +652,8 @@ export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeG
   // every fit's allowance (a constant, so the best fit is the same one). Z-PREP (REQ-BFG-073): so does `freePart`, the
   // price of a free LAST CHANCE part on the deck (validate.ts), named on its own in the budget line; at 0 (every deck
   // without one, every deck while the switch is off) the line is exactly as before
-  const extra = runeGold + freePart;
+  // NPC-1 (REQ-BFG-078): `drops`, the road log's drops at their value (validate.ts), joins it too (0: as before)
+  const extra = runeGold + freePart + drops;
   if (best && best.cost <= best.allow + extra) return [];
   const h = HEROES[b.hero];
   const errors: string[] = [];
@@ -554,7 +671,8 @@ export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeG
     const turrets = cost.turrets ? `, turrets ${cost.turrets}` : ""; // as the strict message names them (0.6.2s)
     const rg = runeGold ? ` + rune gold ${runeGold}` : ""; // RUNES-1: only when runes paid any
     const fp = freePart ? ` + free part ${freePart}` : ""; // Z-PREP: only with a free LAST CHANCE part
-    errors.push(`budget: build costs ${best.cost} gold (items ${cost.items}, mods ${cost.mods}, ${best.crates} crates, ${best.plates} plating${turrets}${road}) but a player's day ${day} allows at most ${best.allow + extra} (maxGoldByDay ${shopGold(day)} + roadCap ${best.cap}${rg}${fp})`);
+    const dp = drops ? ` + drops ${drops}` : ""; // NPC-1: only with drops in the road log
+    errors.push(`budget: build costs ${best.cost} gold (items ${cost.items}, mods ${cost.mods}, ${best.crates} crates, ${best.plates} plating${turrets}${road}) but a player's day ${day} allows at most ${best.allow + extra} (maxGoldByDay ${shopGold(day)} + roadCap ${best.cap}${rg}${fp}${dp})`);
   }
   return errors;
 }

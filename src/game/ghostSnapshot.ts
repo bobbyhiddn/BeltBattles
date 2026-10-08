@@ -14,6 +14,9 @@ import { MAX_SEED, SNAPSHOT_V3, V3_LIVE, V3_PIECE_FIELD, V3_RUNE_COUNTER, V3_SNA
 import { LAST_CHANCE_FIELD, maxRunes } from "../net/snapshot"; // LC-1 (REQ-BFG-073): the decoder's LAST CHANCE key and rune bound
 import { lastChanceGateProblem } from "../net/rulesGate"; // LC-1: the decoder's gate (the switch, then the rules)
 import { lastChanceRuneAt, lastChanceShapeOk, type LastChance, type TakenLastChance } from "../sim/lastChance"; // LC-1
+import { ROAD_FIELD } from "../net/snapshot"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the decoder's road key
+import { npcDayGateProblem } from "../net/rulesGate"; // NPC-1: the decoder's gate
+import { roadShapeOk, type RoadEntry } from "../sim/npcDay"; // NPC-1
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
 // build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
@@ -75,6 +78,7 @@ export interface GhostSnapshot {
   victoryDay?: number;
   battleGold?: number;
   lastChance?: TakenLastChance; // LC-1 (REQ-BFG-073): the run's taken LAST CHANCE, last (only with its switch on)
+  road?: RoadEntry[]; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the run's road log, after it (only with NPC_DAY on)
 }
 
 export const SNAPSHOT_KEYS = ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"] as const;
@@ -186,7 +190,7 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   // PACKS M2 (REQ-BFG-063): `name` may follow, absent or a name names.ts accepts (an in-memory `name: undefined` is
   // absent), exactly as src/net/snapshot.ts checkSnapshot takes it, so this side refuses what the server refuses
   // LC-1 (REQ-BFG-073): `lastChance` last, as the strict decoder takes it (lastChanceOk below)
-  const extra = (k: string) => k === NAME_FIELD || (V3_SNAPSHOT_FIELDS as readonly string[]).includes(k) || k === LAST_CHANCE_FIELD; // RUNES-1: v3's fields
+  const extra = (k: string) => k === NAME_FIELD || (V3_SNAPSHOT_FIELDS as readonly string[]).includes(k) || k === LAST_CHANCE_FIELD || k === ROAD_FIELD; // RUNES-1: v3's fields; NPC-1: the road log
   if (!SNAPSHOT_KEYS.every((k) => keys.includes(k)) || keys.some((k) => !extra(k) && !(SNAPSHOT_KEYS as readonly string[]).includes(k))) return false;
   if (q.name !== undefined && nameProblem(q.name) !== null) return false;
   // RUNES-1 (snapshot v3): each present v3 field only in v3 and only while live; `seed` 1..MAX_SEED
@@ -196,6 +200,8 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   // taken card, a day before RUN_DAYS and before the snapshot's own; its rune then sits at index `day` (runeProblem's lcAt)
   const lc = q[LAST_CHANCE_FIELD] as LastChance | undefined;
   if (lc !== undefined && !(q.v >= SNAPSHOT_V3 && lastChanceGateProblem(q.rules) === null && lastChanceShapeOk(lc, true) && typeof q.day === "number" && lc.day < q.day)) return false;
+  // NPC-1 (REQ-BFG-077, REQ-BFG-078): a road log as src/net/snapshot.ts roadField takes it: v3, the switch and rules gate
+  if (q[ROAD_FIELD] !== undefined && !(q.v >= SNAPSHOT_V3 && npcDayGateProblem(q.rules) === null && roadShapeOk(q[ROAD_FIELD], q.day))) return false;
   return (q.v === 1 || q.v === 2 || q.v === 3) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
     && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build, q.v) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"

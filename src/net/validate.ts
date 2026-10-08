@@ -27,6 +27,12 @@ import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supp
 import { heroGateProblem, lastChanceGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules; Z-BUMP: LAST CHANCE by the rules
 import { runeGrants, runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with the client's check
 import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRuneAt, type TakenLastChance } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
+// NPC-1 (REQ-BFG-077, REQ-BFG-078): the road log's check
+import { dropPool, npcDayRules, roadDropValue, type RoadEntry } from "../sim/npcDay";
+import { npcDayGateProblem } from "./rulesGate";
+import { RIVALS, warlordOffer } from "../sim/rivals";
+import { topParts, warlordDeck, warlordDrop } from "../game/road";
+import { eventFor } from "../game/events";
 
 /** RUNES-1: what a deck's check knows beside the deck: its snapshot's run `seed` (absent on a served ghost, FIX-6, and
  *  on stand-ins and pool decks), so the rune offer rule runs only when the uploader's seed is known. */
@@ -35,6 +41,50 @@ export interface ValidateContext {
   /** LC-1 (REQ-BFG-073): the snapshot's taken LAST CHANCE (absent: none, every switch-off deck): where its rune sits, the
    *  +LAST_CHANCE_HULL grant, the free part's price, and (with the seed) its offer. */
   lastChance?: TakenLastChance;
+  /** NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's road log (absent: none, every switch-off deck): with the seed each
+   *  entry's warlord, deck and drop are re-derived (roadProblem), and its drops count toward the budget at their value. */
+  road?: RoadEntry[];
+}
+
+/**
+ * NPC-1 (REQ-BFG-077, REQ-BFG-078): why a deck's road log can't stand, or null. Refused: the log while NPC_DAY is off; an
+ * entry for a day the deck hasn't reached (after `day`); two entries for one day; a drop on a loss or a draw. With the
+ * uploader's seed, each entry's warlord is re-derived (warlordOffer(seed, day, matriarchBeatenOn), the Matriarch beaten on
+ * the log's first win over her), with its deck (warlordDeck; SABOTAGE's too when the day before met SAPPERS: the event
+ * comes after the fight, so its sabotage hits the next day's warlord) and its seeded drop (road.ts warlordDrop). Then a
+ * legendary part outside the Matriarch's own win (a second Matriarch part), a part not in that warlord's pool, and a drop
+ * (or none) the seeded roll didn't give are refused. Without the seed (a served ghost) only the first lines are checked.
+ */
+export function roadProblem(road: readonly RoadEntry[], day: number, seed?: number): string | null {
+  if (!npcDayRules()) return "road: not in this rules version yet";
+  const seen = new Set<number>();
+  for (const e of road) {
+    if (e.day > day) return `road: day ${e.day} is past the deck's day ${day}`;
+    if (seen.has(e.day)) return `road: two entries for day ${e.day}`;
+    seen.add(e.day);
+    if (e.outcome !== "win" && e.drop !== undefined) return `road: day ${e.day}: a drop (${e.drop}) on a ${e.outcome}`;
+  }
+  if (seed === undefined) return null;
+  let beaten: number | undefined;
+  for (const e of [...road].sort((a, b) => a.day - b.day)) {
+    const id = warlordOffer(seed, e.day, beaten)[e.tier];
+    if (id === "matriarch" && e.outcome === "win") beaten = e.day;
+    if (e.outcome !== "win") continue;
+    const sab = e.day > 1 && eventFor(seed, e.day - 1) === "sappers";
+    const decks = [warlordDeck(id, e.day, false), ...(sab ? [warlordDeck(id, e.day, true)] : [])];
+    const name = RIVALS[id].name;
+    if (e.drop !== undefined) {
+      const legendary = itemDef(e.drop)?.rarity === "legendary";
+      if (legendary && id !== "matriarch") return `road: day ${e.day}: ${e.drop} is a second Matriarch part (a legendary part is hers alone, paid once at her win)`;
+      const pools = decks.map((d) => (id === "matriarch" ? topParts(d, 1) : dropPool(d)));
+      if (!pools.some((p) => p.includes(e.drop!))) return `road: day ${e.day}: ${e.drop} is not in ${name}'s pool`;
+    }
+    const rolls = decks.map((d) => warlordDrop(seed, e.day, id, e.tier, d));
+    if (!rolls.includes(e.drop ?? null)) {
+      return `road: day ${e.day}: the seeded roll of ${name} gave ${[...new Set(rolls.map((r) => r ?? "no drop"))].join(" or ")}, not ${e.drop ?? "no drop"}`;
+    }
+  }
+  return null;
 }
 
 /**
@@ -85,6 +135,9 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // strict decoder asks it), so given an older snapshot's rules one is refused; before the flip the switch refused it
   const lcGate = ctx.lastChance ? lastChanceGateProblem(rules) : null;
   if (lcGate) return { ok: false, errors: [`lastChance: ${lcGate}`] };
+  // NPC-1 (REQ-BFG-077, REQ-BFG-078): a road log travels only with NPC_DAY on and under rules that have it
+  const ndGate = ctx.road ? npcDayGateProblem(rules) : null;
+  if (ndGate) return { ok: false, errors: [`road: ${ndGate}`] };
   return validateBuild(build, day, "player", ctx);
 }
 
@@ -221,6 +274,11 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   if (lc) {
     const lp = lastChanceProblem(lc, b, day, ctx.seed);
     if (lp) return { ok: false, errors: [lp] };
+  }
+  // NPC-1 (REQ-BFG-077, REQ-BFG-078): the road log next (absent on every switch-off deck: nothing below changes)
+  if (ctx.road) {
+    const rd = roadProblem(ctx.road, day, ctx.seed);
+    if (rd) return { ok: false, errors: [rd] };
   }
   const lcAt = lastChanceRuneAt(lc);
   const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost", false, lcAt);
@@ -396,7 +454,8 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   // 0.7.0 player mode: the road's reachable hull and belt, and maxHonestSpend, replace the two blocks below
   if (mode === "player") {
     // RUNES-1: the bought hull and belt, + rune gold; Z-PREP (REQ-BFG-073): + a free LAST CHANCE part's price, named apart
-    errors.push(...playerSupplyBudget(bought, day, buildCost(bought), runeGrant.gold, freeGold));
+    // NPC-1 (REQ-BFG-078): + the road log's drops at their value (0 without a log: the line is as before)
+    errors.push(...playerSupplyBudget(bought, day, buildCost(bought), runeGrant.gold, freeGold, roadDropValue(ctx.road)));
     return { ok: errors.length === 0, errors };
   }
 

@@ -11,6 +11,8 @@ import { nameProblem, type NameProblem } from "./names"; // PACKS M2 (REQ-BFG-06
 import { lastChanceGateProblem } from "./rulesGate"; // LC-1 (REQ-BFG-073): LAST CHANCE by the rules (Z-BUMP: the switch is gone)
 import { BOONS, type Boon, type TakenLastChance } from "../sim/lastChance"; // LC-1
 import { RUN_DAYS } from "../sim/content"; // LC-1: LAST CHANCE comes before the last day
+import { npcDayGateProblem } from "./rulesGate"; // NPC-1 (REQ-BFG-077): the road log by the switch and the rules
+import { ROAD_OUTCOMES, type RoadEntry } from "../sim/npcDay"; // NPC-1
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -100,6 +102,9 @@ export interface GhostSnapshot {
    *  (lastChance.ts): the server re-derives its offer from the seed, finds its rune (right after the day's dawn pick),
    *  frees its part's price once and counts its HULL as a grant. Kept on a served ghost (its runes need it). */
   lastChance?: TakenLastChance;
+  /** NPC-1 (REQ-BFG-077, REQ-BFG-078; snapshot v3, written last, only with NPC_DAY on): the run's road log, one entry per
+   *  day reached ({ day, tier, outcome, drop? }): the server re-derives each warlord and its drop from the seed. */
+  road?: RoadEntry[];
 }
 
 /** A snapshot with its pool id (content hash for stored ghosts, "offline-..." for stand-ins). */
@@ -364,10 +369,39 @@ function lastChanceField(o: Obj, version: number, rules: string, day: number): {
   return { lastChance: { day: d, boon, id: str(lc.id, `${at}.id`, DEF_PATTERN) } };
 }
 
+/** NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's key for its road log (after lastChance, last of all). */
+export const ROAD_FIELD = "road";
+
+/**
+ * NPC-1: the optional `road` [{ day, tier, outcome, drop? }], v3 only and written last (a snapshot without it encodes byte
+ * for byte as before). Refused while NPC_DAY is off and under rules before NPC_DAY_RULES (rulesGate.ts npcDayGateProblem),
+ * as LC-1's lastChance was: a SnapshotError, the endpoint's 400. At most MAX_DAY entries; each day 1..MAX_DAY, a tier, an
+ * outcome and a part id. Whether the entries can stand (their days, the warlords, the seeded drops) is validate.ts's
+ * roadProblem (the endpoint's 422).
+ */
+function roadField(o: Obj, version: number, rules: string): { road?: RoadEntry[] } {
+  if (!has(o, ROAD_FIELD) || o[ROAD_FIELD] === undefined) return {};
+  const at = `snapshot.${ROAD_FIELD}`;
+  if (version < SNAPSHOT_V3) throw new SnapshotError(`${at}: not allowed in a v${version} snapshot`);
+  const gate = npcDayGateProblem(rules);
+  if (gate) throw new SnapshotError(`${at}: ${gate}`);
+  return {
+    road: arr(o[ROAD_FIELD], at, MAX_DAY).map((rv, i) => {
+      const p = `${at}[${i}]`;
+      const e = obj(rv, p, ["day", "tier", "outcome"], ["drop"]);
+      const day = int(e.day, `${p}.day`, 1, MAX_DAY);
+      if (typeof e.tier !== "string" || !(["easy", "medium", "hard"] as unknown[]).includes(e.tier)) throw new SnapshotError(`${p}.tier: expected easy, medium or hard`);
+      if (typeof e.outcome !== "string" || !(ROAD_OUTCOMES as readonly unknown[]).includes(e.outcome)) throw new SnapshotError(`${p}.outcome: expected ${ROAD_OUTCOMES.join(", ")}`);
+      const drop = has(e, "drop") && e.drop !== undefined ? { drop: str(e.drop, `${p}.drop`, DEF_PATTERN) } : {};
+      return { day, tier: e.tier as RoadEntry["tier"], outcome: e.outcome as RoadEntry["outcome"], ...drop };
+    }),
+  };
+}
+
 /** Full strict check of a decoded value. Returns a canonical copy. */
 export function checkSnapshot(v: unknown): GhostSnapshot {
-  // LC-1: `lastChance` may follow the v3 fields (lastChanceField refuses it while its switch is off)
-  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name", ...V3_SNAPSHOT_FIELDS, LAST_CHANCE_FIELD]);
+  // LC-1: `lastChance` may follow the v3 fields (lastChanceField refuses it while its switch is off); NPC-1: then `road`
+  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name", ...V3_SNAPSHOT_FIELDS, LAST_CHANCE_FIELD, ROAD_FIELD]);
   if (o.v !== 1 && o.v !== 2 && o.v !== 3) throw new SnapshotError(`snapshot.v: expected 1, 2 or ${SNAPSHOT_V3}`);
   const ver: 1 | 2 | 3 = o.v;
   const rules = str(o.rules, "snapshot.rules", RULES_PATTERN);
@@ -391,6 +425,7 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
     ...nameField(o), // PACKS M2 (REQ-BFG-063): last, only when present
     ...v3Fields(o, ver), // RUNES-1 (snapshot v3): after the name, only when present
     ...lastChanceField(o, ver, rules, day), // LC-1 (REQ-BFG-073): last of all, only when present (and the switch on)
+    ...roadField(o, ver, rules), // NPC-1 (REQ-BFG-077, REQ-BFG-078): after it, only when present (and NPC_DAY on)
   };
 }
 
