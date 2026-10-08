@@ -2,10 +2,15 @@
 // switch off every piece is bb-0.9.7's (the tripwire tests keep their bb-0.9.7 pins; AZ-BUMP re-rules them at the bump).
 // With it on, each fixed piece's ladder rises at every star on its tripwire's own bench, pinned here by order. BB_TABLES=1
 // prints each bench's numbers, off and on (the REPORT's before/after).
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { AMMO, BURN_DPS, BURN_TIME, ITEMS, TICK } from "../src/sim/content";
-import { payloadDamage, walkRoute, type Build } from "../src/sim/deck";
+import { payloadDamage, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
+import { migrateInlineGates } from "../src/sim/beltside";
+import { PLANS, planBuild } from "../src/sim/rivalBuilds";
+import { LIFT } from "./starRows";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { PLAYER_DAYS, playerRun } from "../src/sim/harness/player";
 import { LADDER_DEFS, LADDER_FIX, ladderFixRules, setLadderFix, withLadderFix } from "../src/sim/ladderFix";
@@ -95,6 +100,104 @@ describe("HULL-1b QUENCH TANK (backlog #370; tests/fb062.quench): ★1 pays more
     for (const r of off) expect(r.d[0]).toBe(r.none);
     const own = BURN_DPS * BURN_TIME;
     withLadderFix(() => { for (const s of [1, 2, 3]) for (const k of [1, 4, 10]) expect((dealt(quenched(s, payload(k))) - dealt(payload(0))) / k, `★${s} ${k} Burn`).toBeGreaterThanOrEqual(own); });
+  });
+});
+
+// ------------------------------------------------------------------ OVERDRIVE (tests/arsenal.decks; cap's oracle 37b12cb17a536589)
+
+const ROOT = new URL("..", import.meta.url).pathname;
+const PAR = JSON.parse(readFileSync(join(ROOT, "tests", "fixtures", "golden-060", "par.json"), "utf8")) as { decks: Record<string, Build> };
+const HAND: Record<string, Placed[]> = { "par/furnace/6": [{ uid: 9011, def: "brake", x: 3, y: 3 }, { uid: 9012, def: "longhaul", x: 3, y: 1 }] };
+/** arsenal.decks's native(): a golden-060 par deck migrated to rigs beside their tiles (the BRAKE / LONG HAUL port by hand). */
+const native = (key: string) => (): Build => {
+  const b = JSON.parse(JSON.stringify(PAR.decks[key])) as Build;
+  migrateInlineGates(b);
+  for (const h of HAND[key] ?? []) { b.items = b.items.filter((p) => p.uid !== h.uid); b.items.push({ ...h }); }
+  return b;
+};
+const rig = (uid: number, def: string, x: number, y: number, rot = 0): Placed => ({ uid, def, x, y, ...rotField(def, rot) });
+/** src/tooling.ts SHOWCASE.junction and .sides, copied (tooling pulls in the game's browser modules). */
+const junction = (): Build => ({
+  hero: "weaver", mods: [], beltCap: 28, hullBonus: 0,
+  items: [{ uid: 1, def: "loom", x: 4, y: 6 }, rig(10, "overdrive", 5, 3), rig(11, "brake", 0, 4, 1), rig(12, "temper", 3, 3, 1)],
+  routes: [
+    { factory: 1, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(5, 2), K(5, 1), K(4, 1), K(4, 0)] },
+    { factory: 1, cells: [K(5, 5), K(5, 4), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(7, 1), K(8, 1), K(8, 0)] },
+    { factory: 1, cells: [K(3, 6), K(2, 6), K(1, 6), K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(1, 1), K(1, 0)] },
+  ],
+});
+const sides = (): Build => ({
+  hero: "furnace", mods: [], beltCap: 18, hullBonus: 0,
+  items: [
+    { uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 6, y: 6 },
+    rig(10, "temper", 1, 3, 1), rig(11, "whetstone", 3, 3, 3), rig(12, "grease", 1, 4, 1), rig(13, "brake", 3, 2, 3),
+    rig(14, "overdrive", 5, 3), rig(15, "coil", 7, 4, 3), rig(16, "splitter", 1, 2, 1),
+  ],
+  routes: [
+    { factory: 1, cells: [K(4, 5), K(3, 5), K(2, 5), K(2, 4), K(2, 3), K(2, 2), K(2, 1), K(3, 1), K(4, 1), K(4, 0)] },
+    { factory: 2, cells: [K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(5, 1), K(5, 0)] },
+  ],
+});
+/** A deck's one OVERDRIVE at `s` stars. */
+const starIt = (b: Build, s: number): Build => {
+  const c = JSON.parse(JSON.stringify(b)) as Build;
+  const od = c.items.filter((p) => p.def === "overdrive");
+  if (od.length !== 1) throw new Error(`deck holds ${od.length} OVERDRIVE`);
+  if (s > 1) od[0].stars = s; else delete od[0].stars;
+  return c;
+};
+const OD_DECKS: { id: string; at: (s: number) => Build; foe: () => Build }[] = [
+  { id: "bench (the tripwire's)", at: (s) => bench([["overdrive", 4, 4, s]], [], 0), foe: native("par/weaver/6") },
+  { id: "longtooth8", at: (s) => starIt(planBuild(PLANS.longtooth, 8).build, s), foe: native("par/weaver/6") },
+  { id: "ratchet8", at: (s) => starIt(planBuild(PLANS.ratchet, 8).build, s), foe: native("par/weaver/6") },
+  { id: "sides", at: (s) => starIt(sides(), s), foe: native("par/weaver/6") },
+  { id: "junction", at: (s) => starIt(junction(), s), foe: native("par/furnace/6") },
+];
+const OD_SEEDS = Array.from({ length: 20 }, (_, i) => i + 1); // arsenal.decks's 20 seeds
+/** tests/starRows.ts's measure (the damage the deck deals before its own KO, the foe's KO lifted by LIFT; mean over the
+ *  seeds), without its memo: starFight's memo keys on the decks and the seed, not on the switch, so an off row would answer
+ *  the on row. */
+function starDmg(at: (s: number) => Build, vs: () => Build, seeds: readonly number[]): number[] {
+  return [1, 2, 3].map((s) => {
+    const deck = at(s), foe = vs();
+    let sum = 0;
+    for (const seed of seeds) {
+      const bt = new Battle(deck, { ...foe, hullBonus: foe.hullBonus + LIFT }, seed);
+      while (!bt.over) { bt.step(); bt.events.length = 0; }
+      sum += bt.sides[0].stats.damage;
+    }
+    return sum / seeds.length;
+  });
+}
+
+describe("HULL-1b OVERDRIVE (backlog #370; tests/arsenal.decks; cap's oracle 37b12cb17a536589): the ride-keep ladder", () => {
+  it("on: the bench rises ★1 < ★2 < ★3; on five decks no step falls more than 3% (the arsenal.decks measure, 20 seeds)", () => {
+    for (const d of OD_DECKS) {
+      const off = withLadderFix(() => starDmg(d.at, d.foe, OD_SEEDS), false);
+      const on = withLadderFix(() => starDmg(d.at, d.foe, OD_SEEDS));
+      log(`OVERDRIVE ${d.id} | off ${off.map((x) => x.toFixed(2)).join(" / ")} | on ${on.map((x) => x.toFixed(2)).join(" / ")} | steps on x${(on[1] / on[0]).toFixed(3)} x${(on[2] / on[1]).toFixed(3)}`);
+      expect(on[1], `${d.id} 1->2`).toBeGreaterThanOrEqual(on[0] * 0.97);
+      expect(on[2], `${d.id} 2->3`).toBeGreaterThanOrEqual(on[1] * 0.97);
+      if (d.id.startsWith("bench")) {
+        expect(off).toEqual([941.4, 882, 856.05]); // the tripwire's bb-0.9.7 means
+        expect(on[0], "bench: ★1 keeps no ride (bb-0.9.7's; a deck holding another fixed piece moves with it)").toBe(off[0]);
+        expect(on[1], "bench ★1 < ★2").toBeGreaterThan(on[0]);
+        expect(on[2], "bench ★2 < ★3").toBeGreaterThan(on[1]);
+      }
+    }
+  });
+
+  it("the keep is OVERDRIVE ★2/★3's alone, on only: 0.5 / 1 (★1 none), and the walk rides it tick for tick with the battle", () => {
+    const keep = (s: number) => (effectAt("overdrive", s).gate as { rideKeep?: number }).rideKeep;
+    expect([1, 2, 3].map(keep)).toEqual([undefined, undefined, undefined]);
+    expect(withLadderFix(() => [1, 2, 3].map(keep))).toEqual([undefined, 0.5, 1]);
+    for (const s of [1, 2, 3]) {
+      const b = bench([["overdrive", 4, 4, s]], [], 0);
+      const on = withLadderFix(() => ({ f: firstLoad(b, 1), w: walkRoute(b, 0).estimate }));
+      log(`OVERDRIVE ★${s} first load: battle ${on.f.dmg} ${on.f.time.toFixed(4)} s, walk ${on.w.dmg} ${on.w.time.toFixed(4)} s`);
+      expect(on.w.dmg, `★${s}`).toBe(on.f.dmg);
+      expect(on.w.time, `★${s}`).toBeCloseTo(on.f.time, 9);
+    }
   });
 });
 

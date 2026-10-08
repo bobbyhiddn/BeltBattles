@@ -23,14 +23,35 @@
 //
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same defs.
 
-import { ITEMS, type ItemDef } from "./content";
+import { ITEMS, type GateEffect, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
 
 /** THE switch (REQ-BFG-070, the star-ladder pass), off in this rules version (bb-0.9.7). */
 export const LADDER_FIX: boolean = false;
 
+/** OVERDRIVE's ride-keep by star (cap's oracle 37b12cb17a536589): on the tiles an OVERDRIVE speeds, a payload's ride
+ *  clock counts keep x its ride at 1x + (1 - keep) x its real ride, so a faster belt stops cutting the ride payoffs (HEAT,
+ *  LONG RIDE, BELLOWS...). ★1 0 (exactly bb-0.9.7), ★2 0.5, ★3 1. A star number, 0 at ★1 (COIL's jump is the precedent).
+ *  It lives on the fixed def's levels (LADDER_DEFS), so it exists only while the switch is on; Battle.transport and the walk
+ *  read it through rideKeepOf. */
+export const RIDE_KEEP: Readonly<Record<2 | 3, number>> = { 2: 0.5, 3: 1 };
+
+/** The ride-keep a speed hit's def carries (0 while the switch is off, and for every def but a fixed OVERDRIVE ★2/★3). */
+export function rideKeepOf(def: ItemDef): number {
+  return lfOn ? ((def.gate as { rideKeep?: number } | undefined)?.rideKeep ?? 0) : 0;
+}
+
 /** The fixed defs, each built from its base def (the switch-off def, as content.ts writes it). */
 export const LADDER_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = {
+  // OVERDRIVE ★2/★3: + rideKeep 0.5 / 1 (cap's oracle 37b12cb17a536589); speeds 3/4/5 and lockedFlat 30/50/110 as before
+  overdrive: (b) => ({
+    ...b,
+    levels: {
+      ...b.levels,
+      2: { ...b.levels![2]!, gate: { ...b.levels![2]!.gate, rideKeep: RIDE_KEEP[2] } as GateEffect },
+      3: { ...b.levels![3]!, gate: { ...b.levels![3]!.gate, rideKeep: RIDE_KEEP[3] } as GateEffect },
+    },
+  }),
   // QUENCH TANK ★1: 40 per BURN (was 30 = a BURN's own damage, so ★1 = no QUENCH); ★2 50 and ★3 70 as before
   quench: (b) => ({ ...b, gate: { ...b.gate, quench: { ...b.gate!.quench!, perBurn: 40 } } }),
   // STOKER ★3: stoke 0.85 (was 0.7); ★1 0.2 and ★2 0.44 as before; its cap (a stoke never outruns its gun) unchanged

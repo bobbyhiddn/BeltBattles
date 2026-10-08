@@ -8,7 +8,7 @@ import {
   factorySpeed, levelSpeed, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake, type Upgrades,
 } from "./content";
-import { ladderFixRules } from "./ladderFix"; // LADDER_FIX (cap's oracle d306b1b196dbab38): the walk rides tick by tick
+import { ladderFixRules, rideKeepOf } from "./ladderFix"; // LADDER_FIX (cap's oracle d306b1b196dbab38): the walk rides tick by tick; HULL-1b: OVERDRIVE's ride-keep
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
@@ -658,13 +658,17 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   // Switch off: the half cells' continuous seconds, exactly as before.
   const ticked = ladderFixRules();
   let pos = 0, moves = 0, past = -Infinity, before = speed, end = 0; // ticked: px on the leg, moves, last centre crossed, its speed before, the leg's end
+  // ticked: the ride-keep of the speed state (HULL-1b, cap's oracle 37b12cb17a536589: an OVERDRIVE ★2/★3's tiles count keep x
+  // the ride at 1x + (1 - keep) x the real ride, as Battle.transport), and the one before the last centre crossed
+  let keep = 0, keepBefore = 0;
   const ticksOn = new Map<number, number>(); // ticked: the ticks the slug sits on each belt (Y3: SURGE's pulses)
   const move = (ri: number, to: number, tol: number): void => {
     while (pos < to - tol) {
       const v = BELT_SPEED * (pos > past ? speed : before);
       const ns = Math.min(pos + v * TICK, end);
       if (!(ns > pos)) break; // no way on (a 0 speed; never on a walked belt)
-      const r = (ns - pos) / v;
+      const k = pos > past ? keep : keepBefore;
+      const r = k > 0 ? k * ((ns - pos) / BELT_SPEED) + (1 - k) * ((ns - pos) / v) : (ns - pos) / v;
       ride += r;
       heatBonus += heat * r;
       if (moves > 0) ticksOn.set(ri, (ticksOn.get(ri) ?? 0) + 1); // Battle.surgeTick sees it there from the tick after the stamp
@@ -679,6 +683,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       joins.push({ route: ri, tile, cell: cells[tile], row: timeline.length });
       if (fixed === undefined && !locked) { // J4, J15: from here on the main belt's speed state (slag keeps `fixed`)
         speed = beltStateAt(b, ri, tile, hits).speed;
+        if (ticked) keep = keepStateAt(b, ri, tile, hits); // HULL-1b: and its ride-keep
       }
     }
     if (ticked) {
@@ -686,6 +691,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         pos = i === 0 ? 0 : tile * CELL;
         past = -Infinity;
         before = speed;
+        keepBefore = keep;
         // its end: a joining belt's at its join tile's side (CELL x tiles); the chain's last belt's, as routeLength
         end = path[n - 1].route === ri ? (cells.length - 1) * CELL + CELL / 2 + (info.connected ? CELL : 0) : CELL * cells.length;
       }
@@ -810,8 +816,10 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     if (ticked) { // LADDER_FIX: the speed this tile sets holds past its centre; on it, the speed before
       past = tile * CELL + CELL / 2;
       before = speed;
+      keepBefore = keep;
     }
     if (won !== undefined && !locked && fixed === undefined) speed = won;
+    if (ticked && won !== undefined && !locked && fixed === undefined) keep = tileKeep(b, hits[ri]?.[tile] ?? []) ?? 0; // HULL-1b
     for (const th of row) if (th.speed !== undefined) th.won = !locked && fixed === undefined && th.speed === won;
     if (row.length) timeline.push({ tile, cell: cells[tile], hits: row, speed, ...(ri !== index ? { route: ri } : {}) });
     if (ticked) {
@@ -1569,6 +1577,23 @@ export function joinersOf(b: Build, m: number, occ = occupancy(b)): number[] {
  * Y3 (release Y; DESIGN-Y row 28): a SURGE pulse sets no speed and holds no per-ride flat (the walk counts its pulses by
  * the seconds on its belts).
  */
+/** HULL-1b (REQ-BFG-070; cap's oracle 37b12cb17a536589), LADDER_FIX on: the ride-keep of a tile's winning speed (the
+ *  largest ladderFix.ts rideKeepOf among its speed hits at that speed; undefined with no speed hit; every rig online, as the
+ *  walk reads them), and of belt m's speed state at tile j (beltStateAt's walk). */
+function tileKeep(b: Build, list: readonly { uid: number; def: string }[]): number | undefined {
+  const es = list.map((h) => effectAt(h.def, starsOf(itemByUid(b, h.uid)))).filter((d) => d.gate?.speed);
+  const won = speedWinner(es.map((d) => d.gate!.speed!));
+  return won === undefined ? undefined : Math.max(0, ...es.filter((d) => d.gate!.speed === won).map(rideKeepOf));
+}
+function keepStateAt(b: Build, m: number, j: number, hits = rigHits(b)): number {
+  let keep = 0;
+  for (let i = 0; i < j; i++) {
+    const k = tileKeep(b, hits[m]?.[i] ?? []);
+    if (k !== undefined) keep = k;
+  }
+  return keep;
+}
+
 export function beltStateAt(b: Build, m: number, j: number, hits = rigHits(b)): { speed: number } {
   let speed = 1;
   for (let i = 0; i < j; i++) {

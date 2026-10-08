@@ -19,6 +19,7 @@ import {
 import { journeyTiles, type JoinLink } from "./deck"; // 0.6.2j: belt joins
 import { shotFloor } from "./deck"; // Y2 (release Y): a LIMPET charge's shot floor
 import { matchedRoutes, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's E3 (stokers) and E6 (matched belts)
+import { ladderFixRules, rideKeepOf } from "./ladderFix"; // HULL-1b (REQ-BFG-070): OVERDRIVE's ride-keep, LADDER_FIX on only
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
 import { mergedPieces, runeMods, type RuneMods } from "./runes"; // RUNES-1 (REQ-BFG-058); RUNES-2a: merged pieces
@@ -1111,6 +1112,24 @@ export class Battle {
     return state;
   }
 
+  /** HULL-1b (REQ-BFG-070), LADDER_FIX on: the ride-keep of the speed state at `pos` (speedStateAt's walk): the largest
+   *  rideKeepOf among the hits that set the winning speed of the last tile with one; 0 where none is an OVERDRIVE ★2/★3. */
+  private rideKeepAt(r: RouteState, pos: number): number {
+    let keep = 0;
+    for (let i = 0; i < r.cells.length; i++) {
+      if (i * CELL + CELL / 2 >= pos) break;
+      const won = this.tileSpeedAt(r.gateAt[i]);
+      if (won === undefined) continue;
+      keep = 0;
+      for (const h of r.gateAt[i]) {
+        const g = h.g;
+        if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0 || g.def.gate!.speed !== won) continue;
+        keep = Math.max(keep, rideKeepOf(g.def));
+      }
+    }
+    return keep;
+  }
+
   private tileSpeedAt(list: readonly TileHit[]): number | undefined {
     const speeds: number[] = [];
     for (const h of list) {
@@ -1191,7 +1210,10 @@ export class Battle {
         if (ns < a.s) ns = a.s;
         const moved = ns - a.s;
         if (v > 0 && moved > 0 && drag === 1) {
-          const ride = moved / v;
+          // HULL-1b (REQ-BFG-070; cap's oracle 37b12cb17a536589), LADDER_FIX on only: on a tile an OVERDRIVE ★2/★3 speeds, the
+          // ride clock counts keep x the ride at 1x + (1 - keep) x the real ride (ladderFix.ts RIDE_KEEP); off, moved / v
+          const keep = ladderFixRules() && fixed === undefined && !s.race?.speedLock ? this.rideKeepAt(r, a.s) : 0;
+          const ride = keep > 0 ? keep * (moved / BELT_SPEED) + (1 - keep) * (moved / v) : moved / v;
           a.p.ride += ride; // races: dragged movement isn't ride
           if (a.p.heat) {
             a.p.heatRide = (a.p.heatRide ?? 0) + ride;
