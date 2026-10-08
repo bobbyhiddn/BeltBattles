@@ -23,15 +23,19 @@
 // and the Iron Matriarch on days 8-10 (MATRIARCH_DAY), warlordDeck(id, day) unsabotaged, `--wseeds` seeds per (hero,
 // captain) (default 4), the par deck s mod k as side 0: fight length only (and hard stops).
 //
-// THE DAY reaches Battle in exactly ONE place, play() below. On azbase Battle takes no day (HULL-1a adds it), so nothing
-// is passed yet; HULL-1c passes it on the marked line.
+// THE DAY reaches Battle in exactly ONE place, play() below (HULL-1c: HULL-1a's trailing `day`; with HULL_SCALE off a
+// day changes nothing, so the switch-off "before" reads as HULL-1b's).
 //
 // --ladder-fix: LADDER_FIX on (src/sim/ladderFix.ts) in the main thread and in every worker, before any deck is built
 // (the par decks may move with it: the walk feeds the bots' rating). Without it every switch is as committed (off).
+// HULL-1c (REQ-BFG-079): --hull-scale (HULL_SCALE, hullScale.ts setHullScale), --npc-day (NPC_DAY, npcDay.ts setNpcDay)
+// and --all-on (all three) the same way, through each module's own setter, never by editing a default.
+// HULL-1c: each side's sustain that M doesn't scale (HEAL/REGEN/RIVETER/MEND PRESS hp healed, PLATE soaked, and SHIELD's
+// blocked hits x the foe's mean hit) as a share of its max hull at the start: the "sustain" column (median).
 //
 //   npx vite build --ssr tools/fightBench.ts --outDir tools/dist/fightbench --emptyOutDir --logLevel warn
 //   nice -n 19 node tools/dist/fightbench/fightBench.js --days 1-10 --k 12 --seeds 24 --workers 6 [--warlords]
-//     [--wseeds 4] [--ladder-fix] --label before --json <out.json> --md <out.md>
+//     [--wseeds 4] [--ladder-fix | --hull-scale | --npc-day | --all-on] --label before --json <out.json> --md <out.md>
 // Battles fan out to worker threads; every result is keyed by its task, so the output never depends on --workers.
 
 import { Worker, isMainThread, parentPort } from "node:worker_threads";
@@ -44,6 +48,8 @@ import { parField } from "../src/sim/harness/par";
 import { DIFFICULTIES, MATRIARCH_DAY, warlordPool, type RivalId } from "../src/sim/rivals";
 import { warlordDeck } from "../src/game/road";
 import { setLadderFix } from "../src/sim/ladderFix"; // --ladder-fix (HULL-1b, REQ-BFG-070)
+import { setHullScale } from "../src/sim/hullScale"; // --hull-scale (HULL-1c, REQ-BFG-079)
+import { setNpcDay } from "../src/sim/npcDay"; // --npc-day (HULL-1c, REQ-BFG-078)
 
 const HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 
@@ -52,8 +58,9 @@ type Task =
   | { kind: "field"; hero: HeroId; day: number; k: number }
   | { kind: "fight"; day: number; field: Build[]; fights: Fight[] };
 /** One battle: winner (-1 draw, -2 none), t, hp0, hp1, max hull at the start 0 and 1, damage dealt 0 and 1 (no wind),
- *  windTaken 0 and 1. */
-type Out = [number, number, number, number, number, number, number, number, number, number];
+ *  windTaken 0 and 1; HULL-1c: the sustain M doesn't scale, 0 and 1 (hp healed + plate soaked + SHIELD's blocked hits x
+ *  the foe's mean hit). */
+type Out = [number, number, number, number, number, number, number, number, number, number, number, number];
 
 const flag = (name: string): string | undefined => {
   const i = process.argv.indexOf(`--${name}`);
@@ -64,15 +71,16 @@ const has = (name: string): boolean => process.argv.includes(`--${name}`);
 
 /** THE one place a fight is made. */
 function play(field: Build[], f: Fight, day: number): Out {
-  const bt = new Battle(field[f.a], field[f.b], f.seed); // HULL-1c: pass the day here once Battle takes it (HULL-1a)
+  const bt = new Battle(field[f.a], field[f.b], f.seed, undefined, day); // HULL-1c: the day (HULL-1a's trailing `day`)
   const max0 = bt.sides[0].hull.max, max1 = bt.sides[1].hull.max;
   while (!bt.over && bt.ticks < 60 * 200) { // simulate()'s loop
     bt.step();
     bt.events.length = 0;
   }
   const [s0, s1] = bt.sides;
-  void day;
-  return [bt.winner ?? -2, bt.t, s0.hull.hp, s1.hull.hp, max0, max1, s0.stats.damage, s1.stats.damage, s0.stats.windTaken, s1.stats.windTaken];
+  // HULL-1c: the sustain M doesn't scale (hp healed, plate soaked, SHIELD's blocked hits at the foe's mean hit)
+  const sus = (s: typeof s0, foe: typeof s0) => (s.heals?.healed ?? 0) + s.plate.absorbed + (s.blocked ?? 0) * (foe.stats.shots > 0 ? foe.stats.damage / foe.stats.shots : 0);
+  return [bt.winner ?? -2, bt.t, s0.hull.hp, s1.hull.hp, max0, max1, s0.stats.damage, s1.stats.damage, s0.stats.windTaken, s1.stats.windTaken, sus(s0, s1), sus(s1, s0)];
 }
 
 function doTask(t: Task): Build[] | Out[] {
@@ -120,6 +128,8 @@ interface Row {
   median: number; p10: number; p90: number; mean: number;
   hardStop: number; windRunning: number; windDecided: number;
   dpsOwn: number; dpsFoe: number; dpsOwnGrowth: number | null; hullOwn: number; hullFoe: number; winCross: number | null;
+  /** HULL-1c: the sustain M doesn't scale, as a share of the side's own max hull at the start (median). */
+  sustainOwn: number;
 }
 
 function rowOf(day: number, hero: string, fights: Out[], sides: { o: Out; side: 0 | 1 }[], cross: { o: Out; side: 0 | 1 }[]): Row {
@@ -137,6 +147,7 @@ function rowOf(day: number, hero: string, fights: Out[], sides: { o: Out; side: 
     dpsOwn: q(sides.map(own), 0.5), dpsFoe: q(sides.map(foe), 0.5), dpsOwnGrowth: null,
     hullOwn: q(sides.map((x) => x.o[4 + x.side]), 0.5), hullFoe: q(sides.map((x) => x.o[4 + (1 - x.side)]), 0.5),
     winCross: cross.length ? pts / cross.length : null,
+    sustainOwn: q(sides.map((x) => x.o[10 + x.side] / Math.max(1, x.o[4 + x.side])), 0.5),
   };
 }
 
@@ -149,6 +160,9 @@ async function main(): Promise<void> {
   const days = parseDays(flag("days") ?? "1-10");
   const k = num("k", 12), S = num("seeds", 24), nw = num("workers", 6), WS = num("wseeds", 4);
   const label = flag("label") ?? (has("ladder-fix") ? "before-ladders" : "before");
+  // HULL-1c: which switches this run turned on (each through its module's setter, in every thread)
+  const on = [allOn || has("ladder-fix") ? "LADDER_FIX" : "", allOn || has("hull-scale") ? "HULL_SCALE" : "", allOn || has("npc-day") ? "NPC_DAY" : ""].filter(Boolean);
+  const switches = on.length ? `${on.join(", ")} on; every other switch as committed (off).` : "Every switch as committed (off).";
   const started = new Date().toISOString();
   const t00 = performance.now();
   const workers = pool(nw, import.meta.url);
@@ -157,7 +171,7 @@ async function main(): Promise<void> {
   const fields = await workers.run<Build[]>(fieldTasks);
   const fieldOf = (day: number, hero: HeroId): Build[] => fields[days.indexOf(day) * HEROES.length + HEROES.indexOf(hero)];
   const tField = (performance.now() - t00) / 1000;
-  console.log(`${label}: par fields built (${days.length} days x ${HEROES.length} heroes x k=${k}) in ${tField.toFixed(1)} s on ${nw} workers${has("ladder-fix") ? "; LADDER_FIX on" : ""}`);
+  console.log(`${label}: par fields built (${days.length} days x ${HEROES.length} heroes x k=${k}) in ${tField.toFixed(1)} s on ${nw} workers; ${switches}`);
   // 2. the fights, one task per (day, pairing)
   const pairs: [number, number][] = [];
   for (let x = 0; x < HEROES.length; x++) for (let y = x; y < HEROES.length; y++) pairs.push([x, y]);
@@ -241,17 +255,17 @@ async function main(): Promise<void> {
   // 5. print, JSON and markdown
   const md: string[] = [];
   md.push(`## fightBench ${label}`, "");
-  md.push(`Started ${started}, ${secs.toFixed(0)} s on ${nw} workers (fields ${tField.toFixed(0)} s, fights ${tFights.toFixed(0)} s${has("warlords") ? `, warlords ${tWar.toFixed(0)} s` : ""}). ${has("ladder-fix") ? "LADDER_FIX on; every other switch as committed (off)." : "Every switch as committed (off)."}`);
-  md.push(`Par decks: parField(hero, day, k = ${k}) (seeds 1..${k}). Each hero pairing (4 mirrors, 6 cross) plays ${S} seeds per day, each from both sides: hashSeed("fightBench", day, A, B, s), A's deck s mod k vs B's deck (s + 1 + floor(s / k)) mod k. ${2 * S * pairs.length} fights a day, ${2 * S * pairs.length * days.length} in all. Length in game seconds (median / p10 / p90); hard stop = reached ${BATTLE_CAP} s; wind running = t >= ${WIND_START} s; wind-decided = the loser's windTaken > the hp it ended below 0; DPS = damage dealt / t without the wind (own and foe, median; growth: own median vs the day before); hull = max hull at the start (median); win = the hero's cross-fight win rate (draw = half).`, "");
-  md.push("| day | hero | fights | length med / p10 / p90 (s) | hard stop | wind running | wind-decided | DPS own (growth) | DPS foe | hull own | hull foe | win (cross) |");
-  md.push("|---|---|---|---|---|---|---|---|---|---|---|---|");
+  md.push(`Started ${started}, ${secs.toFixed(0)} s on ${nw} workers (fields ${tField.toFixed(0)} s, fights ${tFights.toFixed(0)} s${has("warlords") ? `, warlords ${tWar.toFixed(0)} s` : ""}). ${switches}`);
+  md.push(`Par decks: parField(hero, day, k = ${k}) (seeds 1..${k}). Each hero pairing (4 mirrors, 6 cross) plays ${S} seeds per day, each from both sides: hashSeed("fightBench", day, A, B, s), A's deck s mod k vs B's deck (s + 1 + floor(s / k)) mod k. ${2 * S * pairs.length} fights a day, ${2 * S * pairs.length * days.length} in all. Length in game seconds (median / p10 / p90); hard stop = reached ${BATTLE_CAP} s; wind running = t >= ${WIND_START} s; wind-decided = the loser's windTaken > the hp it ended below 0; DPS = damage dealt / t without the wind (own and foe, median; growth: own median vs the day before); hull = max hull at the start (median); win = the hero's cross-fight win rate (draw = half); sustain = what M doesn't scale (hp healed + plate soaked + SHIELD's blocked hits x the foe's mean hit) / own max hull at the start (median).`, "");
+  md.push("| day | hero | fights | length med / p10 / p90 (s) | hard stop | wind running | wind-decided | DPS own (growth) | DPS foe | hull own | hull foe | win (cross) | sustain |");
+  md.push("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
   for (const d of out) {
     console.log(`\n== day ${d.day}`);
     for (const r of [...d.rows, d.all]) {
       const g = r.dpsOwnGrowth === null ? "-" : `${r.dpsOwnGrowth >= 0 ? "+" : ""}${pct(r.dpsOwnGrowth)}%`;
-      const line = `${r.hero.padEnd(7)} n ${r.fights} | t ${r.median.toFixed(2)} / ${r.p10.toFixed(2)} / ${r.p90.toFixed(2)} | hard ${pct(r.hardStop)}% | wind ${pct(r.windRunning)}% decided ${pct(r.windDecided)}% | dps own ${r.dpsOwn.toFixed(1)} (${g}) foe ${r.dpsFoe.toFixed(1)} | hull ${r.hullOwn} / ${r.hullFoe}${r.winCross === null ? "" : ` | win ${pct(r.winCross)}%`}`;
+      const line = `${r.hero.padEnd(7)} n ${r.fights} | t ${r.median.toFixed(2)} / ${r.p10.toFixed(2)} / ${r.p90.toFixed(2)} | hard ${pct(r.hardStop)}% | wind ${pct(r.windRunning)}% decided ${pct(r.windDecided)}% | dps own ${r.dpsOwn.toFixed(1)} (${g}) foe ${r.dpsFoe.toFixed(1)} | hull ${r.hullOwn} / ${r.hullFoe}${r.winCross === null ? "" : ` | win ${pct(r.winCross)}%`} | sustain ${pct(r.sustainOwn)}%`;
       console.log(line);
-      md.push(`| ${d.day} | ${r.hero.toUpperCase()} | ${r.fights} | ${r.median.toFixed(2)} / ${r.p10.toFixed(2)} / ${r.p90.toFixed(2)} | ${pct(r.hardStop)}% | ${pct(r.windRunning)}% | ${pct(r.windDecided)}% | ${r.dpsOwn.toFixed(1)} (${g}) | ${r.dpsFoe.toFixed(1)} | ${r.hullOwn} | ${r.hullFoe} | ${r.winCross === null ? "-" : `${pct(r.winCross)}%`} |`);
+      md.push(`| ${d.day} | ${r.hero.toUpperCase()} | ${r.fights} | ${r.median.toFixed(2)} / ${r.p10.toFixed(2)} / ${r.p90.toFixed(2)} | ${pct(r.hardStop)}% | ${pct(r.windRunning)}% | ${pct(r.windDecided)}% | ${r.dpsOwn.toFixed(1)} (${g}) | ${r.dpsFoe.toFixed(1)} | ${r.hullOwn} | ${r.hullFoe} | ${r.winCross === null ? "-" : `${pct(r.winCross)}%`} | ${pct(r.sustainOwn)}% |`);
     }
   }
   if (warlords.length) {
@@ -271,8 +285,13 @@ async function main(): Promise<void> {
 
 // only when the built bench runs (node .../fightBench.js; its worker threads share that argv)
 const benchRun = !!process.argv[1]?.endsWith("fightBench.js");
+// HULL-1c: --all-on turns every switch on (NPC_DAY, HULL_SCALE, LADDER_FIX)
+const allOn = has("all-on");
 // --ladder-fix: LADDER_FIX on in the main thread and in every worker (they get the same argv), before any deck is built
-if (benchRun && has("ladder-fix")) setLadderFix(true);
+if (benchRun && (allOn || has("ladder-fix"))) setLadderFix(true);
+// HULL-1c (REQ-BFG-079, REQ-BFG-078): --hull-scale and --npc-day the same way, through each module's setter
+if (benchRun && (allOn || has("hull-scale"))) setHullScale(true);
+if (benchRun && (allOn || has("npc-day"))) setNpcDay(true);
 if (benchRun && !isMainThread) {
   parentPort!.on("message", (m: { id: number; task: Task }) => parentPort!.postMessage({ id: m.id, out: doTask(m.task) }));
 } else if (benchRun) void main();

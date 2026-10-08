@@ -71,7 +71,9 @@ import type { DetailRunner, Job, Runner } from "../src/sim/harness/tournament";
 import { DEFAULT_OPTS, focusSeeds } from "../src/sim/harness/tournament";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { flag, num, serveJobs, workerRunner } from "./workers";
-import { setLadderFix } from "../src/sim/ladderFix"; // HULL-1b (REQ-BFG-070): --ladder-fix
+import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix"; // HULL-1b (REQ-BFG-070): --ladder-fix
+import { hullScaleRules, setHullScale } from "../src/sim/hullScale"; // HULL-1c (REQ-BFG-079): --hull-scale, N4's cache
+import { setNpcDay } from "../src/sim/npcDay"; // HULL-1c (REQ-BFG-078): --npc-day
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
 /** 0.8.0 N1 (REQ-BFG-024, REQ-BFG-011): the par fields --rivals and --synergy measure against, `--fields a,b,...`
@@ -100,15 +102,36 @@ async function score(decks: Build[], gauntlet: Build[], seedsOf: (d: number, g: 
   return decks.map((_, d) => pts.slice(d * gauntlet.length, (d + 1) * gauntlet.length).reduce((s, p) => s + p, 0) / (gauntlet.length * SEEDS * 2));
 }
 
-interface PopCache { hero: HeroId; day: number; scores: number[]; costs: number[] }
+/** HULL-1c (REVIEW-HULL1A N4): a population cache records the switches its scores were measured under: `hullScale`
+ *  (HULL_SCALE: the day's hull, the wind's share and the economy behind it) and `ladderFix` (LADDER_FIX), each present
+ *  only when on. With both off the file name and the record are as before. */
+interface PopCache { hero: HeroId; day: number; scores: number[]; costs: number[]; hullScale?: true; ladderFix?: true }
+
+/** HULL-1c (N4): the cache file of `hero` and `day` under the switches now: pop-HERO-DAY.json with both off (as before),
+ *  + "-hs" with HULL_SCALE on and "-lf" with LADDER_FIX on. */
+const popFile = (cache: string, hero: HeroId, day: number): string =>
+  resolve(cache, `pop-${hero}-${day}${hullScaleRules() ? "-hs" : ""}${ladderFixRules() ? "-lf" : ""}.json`);
+
+/** HULL-1c (N4): read a population cache, refusing one recorded under other switches than this run's (a renamed or
+ *  hand-copied file): its scores were measured on another game. */
+function readPop(f: string): PopCache {
+  const c = JSON.parse(readFileSync(f, "utf8")) as PopCache;
+  const was = `HULL_SCALE ${c.hullScale === true ? "on" : "off"}, LADDER_FIX ${c.ladderFix === true ? "on" : "off"}`;
+  const now = `HULL_SCALE ${hullScaleRules() ? "on" : "off"}, LADDER_FIX ${ladderFixRules() ? "on" : "off"}`;
+  if (was !== now) throw new Error(`${f}: a population cache recorded with ${was}; this run has ${now}: refused (use another --cache)`);
+  return c;
+}
 
 async function population(hero: HeroId, day: number, gauntlet: Build[], run: Runner, cache: string): Promise<PopCache> {
-  const f = resolve(cache, `pop-${hero}-${day}.json`);
-  if (existsSync(f)) return JSON.parse(readFileSync(f, "utf8")) as PopCache;
+  const f = popFile(cache, hero, day);
+  if (existsSync(f)) return readPop(f);
   const pop = Array.from({ length: STANDIN_DEFAULTS.pop }, (_, idx) => standInCandidate(hero, day, hashSeed("standin-pop", SEED, hero, day, idx), "on", "on", "on"));
   const builds = pop.map((c) => norm(c.build));
   const scores = await score(builds, gauntlet, (d, g) => Array.from({ length: SEEDS }, (_, k) => hashSeed("standin-battle", SEED, hero, day, d, g, k)), run, day);
-  const out: PopCache = { hero, day, scores, costs: pop.map((c) => c.cost) };
+  const out: PopCache = {
+    hero, day, scores, costs: pop.map((c) => c.cost),
+    ...(hullScaleRules() ? { hullScale: true as const } : {}), ...(ladderFixRules() ? { ladderFix: true as const } : {}),
+  };
   writeFileSync(f, JSON.stringify(out));
   return out;
 }
@@ -188,8 +211,8 @@ function showMode(days: number[], opts: PlayerOpts, k: number): void {
 function showPopMode(days: number[], n: number, cache: string): void {
   for (const hero of (flag("heroes")?.split(",") as HeroId[] | undefined) ?? HEROES) {
     for (const day of days) {
-      const f = resolve(cache, `pop-${hero}-${day}.json`);
-      const pop = existsSync(f) ? (JSON.parse(readFileSync(f, "utf8")) as PopCache) : null;
+      const f = popFile(cache, hero, day); // HULL-1c (N4): the switches' file, refused on a mismatch
+      const pop = existsSync(f) ? readPop(f) : null;
       const sorted = pop ? [...pop.scores].sort((a, b) => a - b) : [];
       for (let idx = 0; idx < Math.min(n, STANDIN_DEFAULTS.pop); idx++) {
         const c = standInCandidate(hero, day, hashSeed("standin-pop", SEED, hero, day, idx), "on", "on", "on");
@@ -1395,6 +1418,22 @@ async function main(): Promise<void> {
 // the --fingerprint lines and every no-battle mode. Worker threads don't read the flag, so a battle mode takes --workers 1
 // (its battles then run in the main thread, localRunner).
 if (isMainThread && process.argv.includes("--ladder-fix")) setLadderFix(true);
+// HULL-1c (REQ-BFG-079, REQ-BFG-078): --hull-scale (HULL_SCALE), --npc-day (NPC_DAY) and --all-on (those two and
+// LADDER_FIX) turn the switches on through each module's setter in the main thread AND in every worker thread: the main
+// thread hands the list to its workers in the environment (PARBENCH_SWITCHES, which a worker thread inherits), so a
+// battle mode runs on any --workers. Without these flags nothing here runs.
+{
+  const sw = new Set<string>();
+  if (isMainThread) {
+    if (process.argv.includes("--all-on")) for (const s of ["ladder", "hull", "npc"]) sw.add(s);
+    if (process.argv.includes("--hull-scale")) sw.add("hull");
+    if (process.argv.includes("--npc-day")) sw.add("npc");
+    if (sw.size) process.env.PARBENCH_SWITCHES = [...sw, ...(process.argv.includes("--ladder-fix") ? ["ladder"] : [])].join(",");
+  } else for (const s of (process.env.PARBENCH_SWITCHES ?? "").split(",")) if (s) sw.add(s);
+  if (sw.has("ladder")) setLadderFix(true);
+  if (sw.has("hull")) setHullScale(true);
+  if (sw.has("npc")) setNpcDay(true);
+}
 // the entry comes last, so every module-level constant above is initialised before main() runs
 if (!isMainThread) serveJobs();
 else {
