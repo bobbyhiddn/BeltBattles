@@ -38,6 +38,7 @@ import { finishDay, startDusk } from "./game/day"; // LC-1 tooling: the game's o
 import { npcDayRules, setNpcDay } from "./sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078) tooling (shots): the switch, page-wide
 import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad, warlordDeck, warlordDrop } from "./game/road"; // NPC-1 tooling
 import { choicesFor, pickChoice } from "./game/events"; // NPC-1 tooling
+import { hullScaleRules, setHullScale } from "./sim/hullScale"; // HULL-1a (REQ-BFG-079) tooling (shots): the switch, page-wide
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
@@ -264,6 +265,15 @@ game.start();
     onToTheRoad(run); // REFIT
     game.go(new BuildScreen(game));
     return seed;
+  },
+  /**
+   * HULL-1a (REQ-BFG-079) tooling, for the shots only: turns HULL_SCALE on (or off) for this page (hullScale.ts
+   * setHullScale, the dev knob, as bb.openNpcDay turns NPC_DAY on; a player never reaches it, and the build ships with it
+   * off). Every screen opened after it draws the day's hull, and every battle on a day plays it. Returns the switch.
+   */
+  hullScale(on = true): boolean {
+    setHullScale(on);
+    return hullScaleRules();
   },
   /** 0.6.0b: the road fork at a day's dawn (matriarchBeatenOn for R3). */
   openFork(o: RunSpec & { matriarchBeatenOn?: number; bounty?: boolean; sabotage?: boolean } = {}, ghosts: GhostSpec[] = []): void {
