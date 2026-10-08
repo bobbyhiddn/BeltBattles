@@ -9,6 +9,10 @@
 // (LEGENDARY). R3: she holds the Hard slot on days 8-10 until beaten (run.matriarchBeatenOn).
 // Road events act only on warlords: a pending SABOTAGE weakens the next warlord, a pending ELITE
 // BOUNTY rides on the next Hard warlord. Dusk (day.ts) is unchanged: a ghost runs as submitted.
+// NPC-1 (REQ-BFG-077, REQ-BFG-078), behind NPC_DAY (src/sim/npcDay.ts; off, everything above is unchanged): the fork offers
+// the three warlords only (forkPicks); after the fight, won or lost, ON TO THE ROAD opens the day's event (onToTheRoad),
+// then REFIT, then dusk. Every win rolls a drop from the deck it fought (warlordDrop; the Matriarch: her legendary part),
+// which replaces Hard's pick of 2; the gold is unchanged.
 
 import { hashSeed } from "../core/rng";
 import { HEROES, ITEMS } from "../sim/content";

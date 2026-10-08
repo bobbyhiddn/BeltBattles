@@ -24,6 +24,9 @@
 //  - the discount counts DG(gold at that caravan): rolls of at most OFFERS distinct defs, rerolls at REROLL_COST.
 // A deck whose hull or belt used a road event (a "mix") is checked against the plans that took that event with
 // that choice, so its hull and belt are costed at their cheapest honest mix (D3), never double counted.
+// NPC-1 (REQ-BFG-077, REQ-BFG-078), with NPC_DAY on (src/sim/npcDay.ts; off, all of the above is unchanged): every day is
+// a warlord fight AND then the day's event (npcPlanDP); a fight prices its gold only, and the drops (the Matriarch's
+// legendary part among them) are named in the snapshot's road log and counted at their value by validate.ts.
 
 import { HEROES, ITEMS, MERCHANTS, OFFERS, REROLL_COST, buyableModules, itemsSoldBy, type MerchantId } from "../sim/content";
 import type { Build } from "../sim/deck";
