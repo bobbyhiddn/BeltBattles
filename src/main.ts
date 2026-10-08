@@ -35,6 +35,9 @@ import { battleSeed } from "./game/run";
 import type { Boon } from "./sim/lastChance"; // LC-1 (REQ-BFG-073) tooling (shots)
 import { pendingLastChance, pendingRune, takeLastChance, takeRune, type Run } from "./game/run"; // LC-1 tooling
 import { finishDay, startDusk } from "./game/day"; // LC-1 tooling: the game's own day loop
+import { npcDayRules, setNpcDay } from "./sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078) tooling (shots): the switch, page-wide
+import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad, warlordDeck, warlordDrop } from "./game/road"; // NPC-1 tooling
+import { choicesFor, pickChoice } from "./game/events"; // NPC-1 tooling
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
@@ -67,7 +70,13 @@ game.start();
       return game.go(new BattleScreen(game));
     }
     if (screen === "event") {
-      beginRoad(game.run); // day 1 always has its intro event
+      // NPC-1 (REQ-BFG-077): with NPC_DAY on the event comes after the day's fight (EASY, lost, when none was fought)
+      if (npcDayRules() && !(game.run.warlord?.day === game.run.day && game.run.warlord.result)) {
+        if (!game.run.road || game.run.road.day !== game.run.day) pickRoad(game.run, "easy");
+        finishWarlord(game.run, 1, 20);
+      }
+      if (npcDayRules()) onToTheRoad(game.run);
+      else beginRoad(game.run); // day 1 always has its intro event
       return game.go(new EventScreen(game));
     }
     if (screen === "summary") {
@@ -188,6 +197,73 @@ game.start();
     if (o.pick) s.lcHeartT = o.heartT ?? 0;
     if (o.open !== undefined) s.lastChancePicker.open = o.open;
     game.go(s);
+  },
+  /**
+   * NPC-1 (REQ-BFG-077, REQ-BFG-078) tooling, for the shots only: turns NPC_DAY on for this page (npcDay.ts setNpcDay, the
+   * dev knob, as LC-1's shots turned LAST CHANCE on; a player never reaches it, and the build ships with it off) and plays
+   * `days` NPC days of `hero` through the game's own rules (each dawn's first rune, the fork's EASY warlord won, the event's
+   * first open choice, REFIT, a dusk win). Then the next day's `at`: "fork" (`inspect`: the inspected card in portrait;
+   * `list`: that tier's ⓘ list open), "result" (the `tier` fight over, `outcome` 0 a win, 1 a loss), "event" (after the
+   * fight) or "refit" (after the event's first open choice). `find`: from `seed` on, the first seed whose `tier` win
+   * drops a part ("drop") or nothing ("nodrop").
+   */
+  openNpcDay(o: { hero?: HeroId; seed?: number; days?: number; at?: "fork" | "result" | "event" | "refit"; tier?: Difficulty; outcome?: 0 | 1; inspect?: number; list?: Difficulty; find?: "drop" | "nodrop" } = {}): number {
+    setNpcDay(true);
+    clearPool();
+    const zero = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
+    const tier = o.tier ?? "medium";
+    const play = (seed: number): Run => {
+      const run = newRun(o.hero ?? "furnace", seed);
+      const dawn = () => {
+        const r = pendingRune(run);
+        if (r) takeRune(run, r.ids[0]);
+      };
+      for (let d = 0; d < (o.days ?? 3) && !run.over; d++) {
+        dawn();
+        leaveCaravan(run);
+        pickRoad(run, "easy");
+        finishWarlord(run, 0, 20);
+        if (onToTheRoad(run) === "event") pickChoice(run, Math.max(0, choicesFor(run).findIndex((c) => !c.blocked)));
+        onToTheRoad(run);
+        leaveCaravan(run);
+        startDusk(run, []);
+        finishDay(run, 0, 20 + run.day, { ...zero }, { ...zero });
+      }
+      dawn();
+      leaveCaravan(run); // to the fork
+      return run;
+    };
+    let seed = o.seed ?? 12345;
+    let run = play(seed);
+    for (let k = 0; o.find && k < 200; k++, run = play(++seed)) {
+      const id = forkFor(run).warlords[tier];
+      const drop = warlordDrop(run.seed, run.day, id, tier, warlordDeck(id, run.day, !!run.sabotage));
+      if ((o.find === "drop") === (drop !== null)) break;
+    }
+    game.run = run;
+    const at = o.at ?? "fork";
+    if (at === "fork") {
+      const s = new ForkScreen(game);
+      if (o.inspect !== undefined) s.sel = o.inspect;
+      if (o.list) s.dropList = o.list;
+      game.go(s);
+      return seed;
+    }
+    pickRoad(run, tier);
+    finishWarlord(run, o.outcome ?? 0, 24.6);
+    if (at === "result") {
+      game.go(new BattleScreen(game, "warlord"));
+      return seed;
+    }
+    onToTheRoad(run);
+    if (at === "event") {
+      game.go(new EventScreen(game));
+      return seed;
+    }
+    pickChoice(run, Math.max(0, choicesFor(run).findIndex((c) => !c.blocked)));
+    onToTheRoad(run); // REFIT
+    game.go(new BuildScreen(game));
+    return seed;
   },
   /** 0.6.0b: the road fork at a day's dawn (matriarchBeatenOn for R3). */
   openFork(o: RunSpec & { matriarchBeatenOn?: number; bounty?: boolean; sabotage?: boolean } = {}, ghosts: GhostSpec[] = []): void {

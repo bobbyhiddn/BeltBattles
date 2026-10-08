@@ -9,6 +9,8 @@ import { RULES_VERSION, START_LIVES, type HeroId } from "./sim/content";
 import type { SideStats } from "./sim/battle";
 import { honestStandInBuild, strongHonestBuild } from "./game/honest";
 import { finishWarlord, pickPending, pickRoad, takePart } from "./game/road";
+import { onToTheRoad } from "./game/road"; // NPC-1 (REQ-BFG-077): the event after the fight
+import { npcDayRules } from "./sim/npcDay"; // NPC-1
 import { gainModule } from "./game/fuse";
 import type { Difficulty } from "./sim/rivals";
 import { key as K, rotField, type Build, type Placed } from "./sim/deck";
@@ -203,7 +205,14 @@ export function playOut(o: RunSpec & { results: string; roads?: string }): Run {
     if (offer) takeRune(run, offer.ids[0]);
     const r = o.roads?.[i++] ?? "V";
     const tier = ({ e: "easy", m: "medium", h: "hard" } as const)[r.toLowerCase() as "e" | "m" | "h"];
-    if (tier) {
+    if (npcDayRules()) {
+      // NPC-1 (REQ-BFG-077; NPC_DAY on): every day is a fight (a "V" day: EASY, lost), then the day's event (the first
+      // open choice), then REFIT
+      pickRoad(run, tier ?? "easy");
+      finishWarlord(run, tier && r === r.toUpperCase() ? 0 : 1, 18 + run.day * 2.3);
+      if (onToTheRoad(run) === "event") pickChoice(run, Math.max(0, choicesFor(run).findIndex((c) => !c.blocked)));
+      onToTheRoad(run);
+    } else if (tier) {
       pickRoad(run, tier);
       finishWarlord(run, r === r.toUpperCase() ? 0 : 1, 18 + run.day * 2.3);
       if (pickPending(run.warlord)) takePart(run, 0);

@@ -23,6 +23,7 @@ import { MODELLED_PICKS, MODELLED_REWARD_FIELDS, checkRoadModel, explainRoadCap,
 import { submitGhost } from "../src/net/ghostClient";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
+import { driveRuns } from "./uploadDriver";
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 const HEROS = (Object.keys(HEROES) as HeroId[]).filter((h) => heroGateProblem(RULES_VERSION, h) === null);
@@ -109,6 +110,24 @@ describe("NPC-1: honest runs are accepted (REQ-BFG-078)", () => {
       }
     }
     expect(withDrops).toBeGreaterThan(50);
+  });
+
+  it("the upload driver's honest runs (tests/uploadDriver.ts on the NPC day: fight, event, REFIT; bought decks) all pass", () => {
+    setNpcDay(true);
+    let n = 0, drops = 0;
+    for (const policy of ["mixed", "warlord:hard", "event:dice:BET 6|warlord:hard"] as const) {
+      for (const r of driveRuns(policy === "mixed" ? 12 : 4, 8100, HEROS, policy)) { // the heroes bb-0.9.7 takes
+        for (const d of r.dusks) {
+          expect(d.roadLog!.length, `${d.hero} d${d.day}`).toBe(d.day);
+          const v = validateUpload(d.build, d.day, RULES_VERSION, { seed: d.runSeed, road: d.roadLog });
+          expect(v.errors, `${policy} ${d.hero} seed ${d.seed} d${d.day}: ${d.road}`).toEqual([]);
+          n++;
+          drops += d.roadLog!.filter((e) => e.drop).length;
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(150);
+    expect(drops).toBeGreaterThan(100);
   });
 
   it("the Matriarch's run: her legendary part on her win, and a mixed run of tiers", () => {

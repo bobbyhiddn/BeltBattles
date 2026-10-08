@@ -32,6 +32,8 @@ import { PLAYABLE_HEROES } from "../../src/sim/heroBuilds";
 import { battleSeed, newRun, type Run } from "../../src/game/run";
 import { REFUND_DAY, REFUND_LIVES, finishDay, startDusk } from "../../src/game/day";
 import { finishWarlord, pickRoad } from "../../src/game/road";
+import { onToTheRoad } from "../../src/game/road"; // NPC-1 (REQ-BFG-077): the event after the fight
+import { npcDayRules } from "../../src/sim/npcDay"; // NPC-1
 import { BAG_IDS, EVENTS, EVENT_IDS, choicesFor, eventFor, eventSequence, makeEvent, pickChoice } from "../../src/game/events";
 import { WARLORD_EVENT_IDS, type Delta, type EventId } from "../../src/game/eventDefs";
 import { standInFoe } from "../../src/game/ghosts";
@@ -257,7 +259,12 @@ export function runPattern(hero: HeroId, seed: number, mask: number, dockDay = 0
   for (let day = 1; day <= RUN_DAYS && !run.over; day++) {
     if (day === dockDay) {
       if (eventFor(run.seed, day) !== dock) throw new Error(`run seed ${seed} has no ${dock} on day ${day}`);
-      pickRoad(run, "event");
+      if (npcDayRules()) {
+        // NPC-1 (REQ-BFG-077; NPC_DAY on): the day's event comes after its fight (EASY, lost: lives never move there)
+        pickRoad(run, "easy");
+        finishWarlord(run, 1, 20);
+        onToTheRoad(run);
+      } else pickRoad(run, "event");
       const i = choicesFor(run).findIndex((c) => livesIn(c.gain) > 0 && !c.blocked);
       if (i >= 0) patched = pickChoice(run, i).ok;
     }

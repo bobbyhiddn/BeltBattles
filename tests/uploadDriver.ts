@@ -47,6 +47,8 @@ import {
 import { BOONS, offeredId, type TakenLastChance } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073)
 import { choicesFor, eventFor, pickChoice } from "../src/game/events";
 import { finishWarlord, leaveCaravan, pickPending, pickRoad, todaysWarlord, takePart } from "../src/game/road";
+import { onToTheRoad } from "../src/game/road"; // NPC-1 (REQ-BFG-077): the event after the fight
+import { npcDayRules, roadLog, type RoadEntry } from "../src/sim/npcDay"; // NPC-1
 import { finishDay, startDusk } from "../src/game/day";
 import { brokenRoutes, fightBlock } from "../src/game/routeCheck";
 import { unfusedInRun, type GainAt } from "../src/game/fuse";
@@ -72,6 +74,8 @@ export interface Dusk {
   gold: number; // gold still held at dusk
   invariant: string[]; // unfusedInRun at dusk: must stay empty (fuse.ts invariant)
   lastChance?: TakenLastChance; // Z-BUMP: the run's taken LAST CHANCE at this dusk, as ghostOf writes it (absent: none)
+  roadLog?: RoadEntry[]; // NPC-1: the road log at this dusk, as ghostOf writes it (NPC_DAY on; absent off)
+  runSeed?: number; // NPC-1: the run's seed, which the road log's check re-derives from (NPC_DAY on; absent off)
 }
 
 export interface DriverRun {
@@ -395,9 +399,36 @@ function otherDays(policy: RoadPolicy): { tier: RoadPick; winP: number } {
   return alt?.startsWith("warlord:") ? { tier: alt.slice(8) as RoadPick, winP: 1 } : { tier: "easy", winP: 0 };
 }
 
+/** NPC-1 (REQ-BFG-077; NPC_DAY on): the day is a fight, then the day's event. The fight: `mixed` a tier by its weights,
+ *  mostly won; an isolated warlord policy its tier, won; any other policy its other days' fight (EASY lost by default).
+ *  The event: `mixed` as the mixed stop chooses it; an isolated event policy its target choice on its event's day; else
+ *  the first open choice that costs and gives nothing (none: the first open one). */
+function npcRoadStop(run: Run, rng: Rng, policy: RoadPolicy): string {
+  const o = otherDays(policy);
+  const pick: RoadPick = policy === "mixed" ? rng.weighted(TIERS, (t) => (t === "hard" ? 6 : t === "medium" ? 2.5 : 1.5))
+    : policy.startsWith("warlord:") ? (policy.slice(8) as RoadPick) : o.tier;
+  const a = fight(run, rng, pick, policy === "mixed" ? 0.85 : policy.startsWith("warlord:") ? 1 : o.winP);
+  if (onToTheRoad(run) !== "event") return `${a}; no event`;
+  const ev = run.event!, list = choicesFor(run);
+  const open = list.map((c, i) => ({ c, i })).filter(({ c }) => !c.blocked);
+  if (!open.length) return `${a}; event ${ev.id}: nothing open`;
+  let i: number;
+  const t = target(policy);
+  if (policy === "mixed") {
+    i = rng.weighted(open, ({ c }) => (c.odds !== undefined ? (ev.roll < c.odds ? 8 : 1.5) : c.cost.length || c.gain.length ? 4 : 1)).i;
+  } else {
+    const hit = t && ev.id === t.id ? open.find(({ c }) => c.label === t.label) : undefined;
+    i = (hit ?? open.find(({ c }) => !c.cost.length && !c.gain.length) ?? open[0]).i;
+  }
+  const b = takeChoice(run, i);
+  onToTheRoad(run); // REFIT (the caravan has moved on)
+  return `${a}; ${b}`;
+}
+
 /** Today's road stop under `policy`. Returns a short description. */
 function roadStop(run: Run, rng: Rng, policy: RoadPolicy): string {
   leaveCaravan(run);
+  if (npcDayRules()) return npcRoadStop(run, rng, policy); // NPC-1 (REQ-BFG-077): a fight, then the day's event
   if (policy === "mixed") {
     const pick: RoadPick = rng.chance(0.5) ? "event" : rng.weighted(TIERS, (t) => (t === "hard" ? 6 : t === "medium" ? 2.5 : 1.5));
     if (pick !== "event") return fight(run, rng, pick, 0.85);
@@ -477,7 +508,9 @@ export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed
     refit(run, rng);
     unblock(run);
     const taken = run.lastChance?.boon ? { lastChance: { day: run.lastChance.day, boon: run.lastChance.boon, ...(run.lastChance.id !== undefined ? { id: run.lastChance.id } : {}) } } : {};
-    dusks.push({ seed, hero, day: run.day, build: cloneBuild(run.build), road, gold: run.gold, invariant: unfusedInRun(run), ...taken });
+    // NPC-1 (REQ-BFG-077, REQ-BFG-078): the road log as ghostOf writes it, with NPC_DAY on (off: absent, as before)
+    const log = npcDayRules() && run.warlords.length ? { roadLog: roadLog(run.warlords), runSeed: run.seed } : {};
+    dusks.push({ seed, hero, day: run.day, build: cloneBuild(run.build), road, gold: run.gold, invariant: unfusedInRun(run), ...taken, ...log });
     startDusk(run, []);
     const r = rng.next();
     const winner = run.lives <= 1 || r < 0.8 ? 0 : r < 0.95 ? 1 : -1;

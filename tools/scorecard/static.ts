@@ -11,6 +11,8 @@ import { buildCost, maxGoldByDay } from "../../src/net/validate";
 import { newRun, type Run } from "../../src/game/run";
 import { finishDay, startDusk } from "../../src/game/day";
 import { forkFor, pickRoad, warlordDeck, warlordReward } from "../../src/game/road";
+import { finishWarlord, onToTheRoad } from "../../src/game/road"; // NPC-1 (REQ-BFG-077): the event after the fight
+import { npcDayRules } from "../../src/sim/npcDay"; // NPC-1
 import { choicesFor } from "../../src/game/events";
 import { standInFoe } from "../../src/game/ghosts";
 import { heroCatalogue, type HeroCatalogue } from "./catalogue";
@@ -218,7 +220,12 @@ function stakesRows(targets: Target[], rows: Row[], sections: Section[]): void {
   const view = (s: Scripted) => {
     const r = JSON.parse(JSON.stringify(s.run)) as Run;
     const road = JSON.parse(JSON.stringify(r)) as Run;
-    pickRoad(road, "event");
+    if (npcDayRules()) {
+      // NPC-1 (REQ-BFG-077; NPC_DAY on): the day's event comes after its fight (EASY, lost: nothing else moves)
+      pickRoad(road, "easy");
+      finishWarlord(road, 1, 20);
+      onToTheRoad(road);
+    } else pickRoad(road, "event");
     const flat: Record<string, string> = {};
     for (const [k, v] of Object.entries(r)) if (k !== "lives") flat[`run.${k}`] = JSON.stringify(v);
     flat["road.fork"] = JSON.stringify(forkFor(r));
