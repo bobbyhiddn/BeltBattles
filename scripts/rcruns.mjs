@@ -24,6 +24,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { VIEWS } from "./shots-list.mjs";
 import { scriptedRun } from "./playthrough.mjs";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const argv = process.argv.slice(2);
@@ -84,6 +85,7 @@ async function startServer(page, data, uploads, seed = true) {
 /** A fresh browser profile on `view`, with the console policy; `allow(text, location)` lets a known line through. */
 async function context(browser, view, pin, allow = () => false, init) {
   const ctx = await browser.newContext(view);
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   await page.addInitScript((r) => { Math.random = () => r; }, pin);
   if (init) await page.addInitScript(init);

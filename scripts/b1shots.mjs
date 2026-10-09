@@ -37,6 +37,7 @@ import { pathToFileURL } from "node:url";
 import { VIEWS as SHOT_VIEWS } from "./shots-list.mjs";
 import { inlineBuild } from "./inline.mjs";
 import { placePlanned, road, settle, sleep, tapRegion } from "./playthrough.mjs";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const argv = process.argv.slice(2);
@@ -481,6 +482,7 @@ async function main() {
     // ------------------------------------------------ the shots (deterministic: in-page decks, events and fights)
     {
       const ctx = await browser.newContext(vopts);
+      await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
       const page = await ctx.newPage();
       await page.addInitScript(() => { Math.random = () => 0.3; });
       const errors = [];
@@ -521,6 +523,7 @@ async function main() {
         continue;
       }
       const ctx = await browser.newContext(vopts);
+      await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
       const page = await ctx.newPage();
       await page.addInitScript((r) => { Math.random = () => r; }, pin.r);
       const errors = [];

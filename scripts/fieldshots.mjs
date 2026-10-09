@@ -25,6 +25,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
@@ -64,6 +65,7 @@ const log = (s) => { lines.push(s); console.log(s); };
  *  framing first; `s.reach` sets the clock to the player's surge at its outer reach; returns where the player's ship is. */
 async function shot(browser, s) {
   const ctx = await browser.newContext(VIEWS[s.view ?? "phone"]);
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -125,6 +127,7 @@ async function shot(browser, s) {
  *  `k` (nearest neighbour), a title on top. */
 async function sheet(browser, name, title, cells, cols, k) {
   const ctx = await browser.newContext({ viewport: { width: 400, height: 300 } });
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const parts = [];
   for (const c of cells) parts.push({ ...c, url: `data:image/png;base64,${(await readFile(c.file)).toString("base64")}` });
@@ -168,6 +171,7 @@ async function videoTake(browser, scene, name) {
   const dir = join(OUT, "video", "raw");
   await mkdir(dir, { recursive: true });
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, recordVideo: { dir, size: { width: 390, height: 844 } } });
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const t0 = Date.now();
   const page = await ctx.newPage();
   const errors = [];

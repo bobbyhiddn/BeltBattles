@@ -41,6 +41,7 @@ import { inlineBuild } from "./inline.mjs";
 import { lastChances, placePlanned, settle, sleep, takeDawnRune, tapRegion } from "./playthrough.mjs";
 import { roadStop } from "./roadstop.mjs";
 import { VIEWS } from "./shots-list.mjs";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -158,6 +159,7 @@ function newState() {
 /** A page with its console errors, page errors and every request it makes. `view`: a VIEWS name, or context options. */
 async function openPage(browser, view, url) {
   const ctx = await browser.newContext(typeof view === "string" ? VIEWS[view] : view);
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const errors = [];
   const requests = [];

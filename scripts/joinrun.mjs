@@ -12,7 +12,7 @@
 
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { settle, sleep, tapRegion } from "./playthrough.mjs";
+import { pressFight, settle, sleep, tapRegion } from "./playthrough.mjs"; // SCOUT-1 (REQ-BFG-076): pressFight
 import { roadStop } from "./roadstop.mjs";
 
 const K = (x, y) => y * 10 + x;
@@ -151,6 +151,7 @@ export async function joinRun(page, touch, log, opts = {}) {
   const deck = await page.evaluate(() => window.bb.game.run.build.routes.find((q) => q.factory === 2));
   log(`[${at()}] DUSK with the join: the press belt ${JSON.stringify(deck)}`);
   if (!deck || deck.join !== K(4, 4)) throw new Error("the dusk deck lost its join");
+  await pressFight(page, touch); // SCOUT-1 (REQ-BFG-076): FIGHT after scouting
   await page.waitForFunction(() => window.bb.game.screen.phase === "fight", null, { timeout: 15000 });
   const j = await page.evaluate(() => {
     const s = window.bb.game.screen.arena.b.sides[0];

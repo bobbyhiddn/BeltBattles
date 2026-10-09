@@ -95,8 +95,8 @@ const opt = (name, fallback) => {
 };
 const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "touchcheck"));
-// PACKS M2: + names; TAP-093b: + bar; CUSTOM-2b (REQ-BFG-072): + customize, newstyle, roadfork
-const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork").split(",").map((s) => s.trim());
+// PACKS M2: + names; TAP-093b: + bar; CUSTOM-2b (REQ-BFG-072): + customize, newstyle, roadfork; SCOUT-1 (REQ-BFG-076): + scout
+const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout").split(",").map((s) => s.trim());
 const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
 /** CUSTOM-2b (REQ-BFG-072): --profile: the player profile (beltbattles.profile.v1) every page of the run starts with,
@@ -149,6 +149,10 @@ const VIEW = {
   desk: VIEWS.desk, // 1920x1080 @1, the mouse
   // TAP-093b (backlog #340): a DPR 2 phone (the iPhone SE class: x3, a finger's target 30 px) for the bar-only section
   "bar-667": { viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  // SCOUT-1 (REQ-BFG-076): the scout section's other views (design call 4)
+  "phone-430": { viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  laptop: { viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 },
+  "laptop-720": { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
 };
 /** shoptap2: the browser a view runs in. */
 const ENGINE = (vname) => (vname.startsWith("wk-") ? "webkit" : "chromium");
@@ -1714,6 +1718,161 @@ async function roadForkSection(browsers, origin) {
   writeFileSync(join(OUT, `${NAME}-roadfork.json`), JSON.stringify(dump, null, 1) + "\n");
 }
 
+// ----------------------------------------------------------------------------------- SCOUT-1: scouting, VIEW BATTLEFIELD
+/** SCOUT-1 (REQ-BFG-076): the views the scout section runs on: the phones 390x844 and 430x932 and phone landscape 844x390
+ *  at DPR 3 (touch, Chromium), the desk 1920x1080 and the laptops 1366x768 and 1280x720 (the mouse). */
+const SCOUT_VIEWS = ["phone", "phone-430", "phone-land", "desk", "laptop", "laptop-720"];
+const overlaps = (a, b) => !!a && !!b && a.x < b.x + b.w - 0.5 && b.x < a.x + a.w - 0.5 && a.y < b.y + b.h - 0.5 && b.y < a.y + a.h - 0.5;
+const inViewport = (r, vp) => !!r && r.x >= -0.5 && r.y >= -0.5 && r.x + r.w <= vp.width + 0.5 && r.y + r.h <= vp.height + 0.5;
+// (box and centre: the customize section's and the panel checks', above)
+/** Both boards' deck tiles (120 x 120 deck px each) on screen now, CSS px. */
+const decks = (page) => page.evaluate(() => {
+  const g = window.bb.game, s = g.screen, m = s.motion, a = s.arena, k = g.view.scale / g.view.dpr, c = g.canvas.getBoundingClientRect();
+  return [0, 1].map((side) => {
+    const p = [[0, 0], [120, 0], [0, 120], [120, 120]].map(([x, y]) => m.localToScreen(a, side, x, y));
+    const xs = p.map((q) => c.left + q[0] * k), ys = p.map((q) => c.top + q[1] * k);
+    return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  });
+});
+const scoutState = (page) => page.evaluate(() => window.bb.scout());
+const regionOf = (page, id) => page.evaluate((i) => window.bb.regions().filter((q) => q.id === i).pop() ?? null, id);
+/** Wait for the battle's phase (bb.screen(true)) with its camera at rest. */
+const phaseAtRest = (page, ph, timeout = 20000) => page.waitForFunction((p) => { const s = window.bb.scout(); return !!s && s.phase === p && !!s.camera && !s.camera.moving; }, ph, { timeout });
+
+/** A real press at client point p: a finger's tap on a touch view, a click on a mouse one. */
+async function press(page, cdp, p) {
+  if (cdp) await tap(cdp, p);
+  else {
+    await page.mouse.click(p.x, p.y);
+    await sleep(120);
+  }
+}
+
+async function scoutView(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  const V = `scout ${vname}`, vp = VIEW[vname].viewport, touch = !!cdp;
+  viewNow = V;
+  const big = (r) => !touch || (!!r && r.w >= TAP_CSS - 0.01 && r.h >= TAP_CSS - 0.01);
+  await page.evaluate(() => window.bb.openDusk({ hero: "furnace", day: 6, seed: 7 }, []));
+  await phaseAtRest(page, "scout");
+  await sleep(200);
+  let s = await scoutState(page);
+  let d = await decks(page);
+  check(s.phase === "scout" && s.camera.shot === "close" && !!s.fight, `${V}: the sail-in ends in scouting at CLOSE, FIGHT shown (${s.phase}, ${s.camera.shot})`);
+  check(big(s.fight) && inViewport(s.fight, vp) && !overlaps(s.fight, d[0]) && !overlaps(s.fight, d[1]),
+    `${V}: FIGHT's target is ${box(s.fight)} CSS px${touch ? ", at least 44 x 44" : ""}, on the screen, over no board's tile`);
+  check(!!s.hint && inViewport(s.hint, vp) && !overlaps(s.hint, d[0]) && !overlaps(s.hint, d[1]), `${V}: the hint SCOUT · TAP ANY PART (${box(s.hint)}) is on the screen, over no board's tile`);
+  await shot(page, `${TAG}-scout-${vname}-scouting.png`);
+  // a face by a real tap on a part of each board; a tap on the open floor closes it
+  const parts = await page.evaluate(() => [window.bb.parts(0), window.bb.parts(1)]);
+  for (const [side, kind] of [[1, "turret"], [0, "item"], [0, "turret"], [1, "item"]]) {
+    const p = parts[side].find((q) => q.kind === kind) ?? parts[side][0];
+    await press(page, cdp, p);
+    s = await scoutState(page);
+    const ok = !!s.face && s.face.side === side && s.face.sel.kind === p.kind && s.face.title.startsWith(p.name) && s.face.lines.length > 0;
+    check(ok && inViewport(s.face.r, vp) && big(s.face.close),
+      `${V}: a ${touch ? "tap" : "click"} on ${side === 0 ? "your" : "the enemy's"} ${p.name} (${p.kind}) in scouting opens its face (${s.face?.title ?? "none"}, side ${s.face?.side}, ${s.face?.lines.length ?? 0} lines), on the screen; its CLOSE ${box(s.face?.close)}`);
+  }
+  await shot(page, `${TAG}-scout-${vname}-face.png`);
+  await press(page, cdp, centre(s.face.close));
+  s = await scoutState(page);
+  check(!s.face && s.phase === "scout", `${V}: the face's CLOSE closes it; still scouting (${s.phase})`);
+  await press(page, cdp, parts[0][0]);
+  const water = { x: 4, y: d[0].y + d[0].h / 2 }; // beside your board, no part there
+  await press(page, cdp, water);
+  s = await scoutState(page);
+  check(!s.face && s.phase === "scout", `${V}: a ${touch ? "tap" : "click"} on empty space closes a face; still scouting (${s.phase})`);
+  // FIGHT by a real press: the count, then the fight at WIDE
+  await press(page, cdp, centre(s.fight));
+  s = await scoutState(page);
+  check(s.phase === "count" && s.camera.shot === "wide", `${V}: a ${touch ? "tap" : "click"} on FIGHT starts the count, the camera easing to WIDE (${s.phase}, ${s.camera.shot})`);
+  await phaseAtRest(page, "fight");
+  const skip = await regionOf(page, "skip");
+  await press(page, cdp, centre(skip));
+  await page.waitForFunction(() => window.bb.screen(true) === "result" && window.bb.regions().some((q) => q.id === "viewfield"), null, { timeout: 30000 });
+  const vf = await regionOf(page, "viewfield"), nx = await regionOf(page, "next");
+  check(!!vf && big(vf) && inViewport(vf, vp) && !!nx && !overlaps(vf, nx), `${V}: the result card's VIEW BATTLEFIELD is ${box(vf)} CSS px${touch ? ", at least 44 tall" : ""}, beside ON TO DAWN (${box(nx)}), never over it`);
+  await shot(page, `${TAG}-scout-${vname}-card.png`);
+  await press(page, cdp, centre(vf));
+  await phaseAtRest(page, "view");
+  await page.waitForFunction(() => window.bb.scout().summaries.length === 2, null, { timeout: 5000 });
+  s = await scoutState(page);
+  d = await decks(page);
+  const sumsOk = s.summaries.length === 2 && s.summaries.every((r) => inViewport(r, vp) && !overlaps(r, d[0]) && !overlaps(r, d[1]));
+  check(s.phase === "view" && s.camera.shot === "close" && sumsOk, `${V}: VIEW BATTLEFIELD at CLOSE with both summaries (${s.summaries.map(box).join("; ")}) on the screen, over no board's tile`);
+  check(big(s.back) && big(s.primary) && inViewport(s.back, vp) && inViewport(s.primary, vp) && !overlaps(s.back, s.primary) && !overlaps(s.back, d[0]) && !overlaps(s.back, d[1]) && !overlaps(s.primary, d[0]) && !overlaps(s.primary, d[1]),
+    `${V}: BACK (${box(s.back)}) and ${s.viewPrimary} (${box(s.primary)})${touch ? " at least 44 x 44" : ""}, apart, on the screen, over no board's tile`);
+  const parts2 = await page.evaluate(() => [window.bb.parts(0), window.bb.parts(1)]);
+  for (const side of [0, 1]) {
+    const p = parts2[side].find((q) => q.kind === "turret") ?? parts2[side][0];
+    await press(page, cdp, p);
+    s = await scoutState(page);
+    check(!!s.face && s.face.side === side && s.face.title.startsWith(p.name) && /^THIS FIGHT: /.test(s.face.line ?? "") && inViewport(s.face.r, vp),
+      `${V}: in VIEW BATTLEFIELD a ${touch ? "tap" : "click"} on ${side === 0 ? "your" : "the enemy's"} ${p.name} opens its face with this fight's line ("${s.face?.line ?? "none"}")`);
+  }
+  await shot(page, `${TAG}-scout-${vname}-view.png`);
+  await press(page, cdp, centre(s.back));
+  s = await scoutState(page);
+  check(s.phase === "result" && !!(await regionOf(page, "next")), `${V}: BACK returns to the result card (${s.phase})`);
+  await sleep(150);
+  await press(page, cdp, centre(await regionOf(page, "viewfield")));
+  await phaseAtRest(page, "view");
+  s = await scoutState(page);
+  await press(page, cdp, centre(s.primary));
+  await settle(page, "build", 15000);
+  check(await page.evaluate(() => window.bb.screen() === "build"), `${V}: ${s.viewPrimary} from VIEW BATTLEFIELD goes on to the dawn's build screen`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+  await ctx.close();
+}
+
+/** SCOUT-1: a Hard warlord won on the phone: the card's VIEW BATTLEFIELD over its part pick, the pick unchanged. */
+async function scoutWarlord(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  const V = `scout ${vname} warlord`, touch = !!cdp, vp = VIEW[vname].viewport;
+  viewNow = V;
+  await page.evaluate(() => window.bb.openWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 }));
+  // the card is up at once (reloaded on its result), under the screen's wipe, which takes no tap: wait for the wipe too
+  await page.waitForFunction(() => window.bb.screen(true) === "result" && !window.bb.game.transitioning && window.bb.regions().some((q) => q.id === "viewfield"), null, { timeout: 20000 });
+  const vf = await regionOf(page, "viewfield"), t0 = await regionOf(page, "take0"), t1 = await regionOf(page, "take1");
+  check(!!vf && (!touch || vf.h >= TAP_CSS - 0.01) && inViewport(vf, vp) && !!t0 && !!t1 && !overlaps(vf, t0) && !overlaps(vf, t1),
+    `${V}: the card's VIEW BATTLEFIELD (${box(vf)}) sits above its part pick (${box(t0)}, ${box(t1)}), never over it`);
+  await press(page, cdp, centre(vf));
+  await phaseAtRest(page, "view");
+  let s = await scoutState(page);
+  check(s.phase === "view" && !!s.back && !s.primary, `${V}: the view offers BACK and no way on while the pick waits (${s.viewPrimary ?? "none"})`);
+  await press(page, cdp, centre(s.back));
+  await sleep(150);
+  await press(page, cdp, centre(await regionOf(page, "take0")));
+  const took = await page.evaluate(() => !!window.bb.game.screen.warlord.result.took);
+  s = await scoutState(page);
+  check(took && s.phase === "result", `${V}: BACK, then the pick takes its part as before (took: ${took})`);
+  await press(page, cdp, centre(await regionOf(page, "viewfield")));
+  await phaseAtRest(page, "view");
+  s = await scoutState(page);
+  check(s.viewPrimary === "REFIT" && !!s.primary, `${V}: with the part in cargo the view's bar offers REFIT (${s.viewPrimary})`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length})`);
+  await ctx.close();
+}
+
+async function scoutSection(browsers, origin) {
+  log("");
+  log("## SCOUT-1 (REQ-BFG-076): scouting and VIEW BATTLEFIELD by real input on every view: FIGHT, a face on each board, the card's VIEW BATTLEFIELD, BACK, the primary action");
+  for (const v of SCOUT_VIEWS) {
+    loadLine(`scout ${v}: start`);
+    try {
+      await scoutView(browsers, origin, v);
+    } catch (e) {
+      check(false, `scout ${v}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    loadLine(`scout ${v}: end`);
+  }
+  try {
+    await scoutWarlord(browsers, origin, "phone");
+  } catch (e) {
+    check(false, `scout phone warlord: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+  }
+}
+
 async function main() {
   const browsers = { chromium: await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] }) };
   const views = ONLY.includes("touch") ? TOUCH_VIEWS : [];
@@ -1748,6 +1907,7 @@ async function main() {
     if (ONLY.includes("customize")) await customizeSection(browsers, site.origin); // CUSTOM-2b (REQ-BFG-072)
     if (ONLY.includes("newstyle")) await newStyleSection(browsers, site.origin);
     if (ONLY.includes("roadfork")) await roadForkSection(browsers, site.origin);
+    if (ONLY.includes("scout")) await scoutSection(browsers, site.origin); // SCOUT-1 (REQ-BFG-076)
   } finally {
     for (const b of Object.values(browsers)) await b.close();
     site.srv.close();

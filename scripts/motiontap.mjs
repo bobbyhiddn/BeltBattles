@@ -14,6 +14,7 @@ import { chromium } from "playwright-core";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const argv = process.argv.slice(2);
 const ki = argv.indexOf("--knobs");
@@ -29,6 +30,7 @@ const MOMENTS = 4;
 
 async function run(browser, name, query, reduced, page0 = PAGE) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -102,6 +104,7 @@ async function run(browser, name, query, reduced, page0 = PAGE) {
  *  its seed's pick; MOTION-2: the day's sea), no overlay. */
 async function ignored(browser) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));

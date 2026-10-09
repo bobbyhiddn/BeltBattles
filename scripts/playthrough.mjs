@@ -67,6 +67,19 @@ export async function tapRegion(page, touch, id) {
   await passName(page, touch); // PACKS M2: no name stored yet: the name screen first
 }
 
+/** SCOUT-1 (REQ-BFG-076): a battle scouts after its sail-in until FIGHT. Wait for the sail-in to end and, if the battle is
+ *  scouting, press the bar's FIGHT with a real tap or click, as a player does (a page in the harness's auto mode,
+ *  bb.fight(true), runs into the count by itself: nothing to press). Returns the phase it found. */
+export async function pressFight(page, touch) {
+  await page.waitForFunction(() => ["scout", "count", "fight", "outro", "result"].includes(window.bb.screen(true)), null, { timeout: 15000 });
+  const ph = await page.evaluate(() => window.bb.screen(true));
+  if (ph === "scout") {
+    await tapRegion(page, touch, "fight");
+    await page.waitForFunction(() => window.bb.screen(true) !== "scout", null, { timeout: 5000 });
+  }
+  return ph;
+}
+
 /** REQ-BFG-073 (REVIEW-ZBUMP Q2, cap's ruling): every LAST CHANCE pick this driver made, in order, so a caller can say
  *  which run met the picker: { day (the dawn it was up), dusk (the dusk that fired it), lives, hullBonus (before -> after) }. */
 export const lastChances = [];
@@ -429,6 +442,8 @@ export async function scriptedRun(page, touch, log, opts) {
     if (!honestFoe(foe)) state.dishonest.push(`day ${foe.day}`);
     log(`[${at()}] DUSK · DAY ${foe.day}: vs ${foe.name} (${foeLine(foe)}), same as the dawn preview: ${foe.name === dawn.foe}`);
     if (day === opts.reloadDay) await reloadAndContinue(page, touch, log, at, state);
+    const ph = await pressFight(page, touch); // SCOUT-1 (REQ-BFG-076): FIGHT by a real tap or click after scouting
+    if (day === 1) log(`[${at()}] SCOUT: the sail-in ends in ${ph}${ph === "scout" ? "; FIGHT pressed" : ""}`);
     if (day === 1) {
       await page.waitForFunction(() => window.bb.game.screen.phase === "fight", null, { timeout: 15000 });
       await tapRegion(page, touch, "sp0");
