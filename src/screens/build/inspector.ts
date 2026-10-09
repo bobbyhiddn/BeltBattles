@@ -82,6 +82,7 @@ import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
 import type { UpgradeTrack } from "../../sim/content"; // bb-0.8.3 (D11)
 import { UPGRADE_MAX } from "../../sim/content"; // NUM-4: the starting turret's next TURRET SPEED level
 import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the hero card's and the foe's hull on the day's hull
+import { dmgShown } from "../../sim/hullScale"; // HULL-1d (REQ-BFG-079): the belt readout's DMG x D(d) on the run's day
 import { mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
@@ -288,8 +289,8 @@ export function beltKind(w: RouteWalk): BeltKind {
 
 /** 0.6.2 BELTSIDE (V4): one hit in a belt's timeline (0.6.2t: the glossary's hitText, with 0b.4's slag and locked
  *  readings: a SLAG belt never reads LOCKED or pays a locked bonus). Exported for tests. */
-export function hitLabel(h: TimelineHit, belt: BeltKind): string {
-  return hitText(h, belt);
+export function hitLabel(h: TimelineHit, belt: BeltKind, day?: number): string {
+  return hitText(h, belt, day); // HULL-1d (REQ-BFG-079): `day`, the run's (its numbers x D(d) / S(d))
 }
 
 /** "4 AND 6", "4, 5 AND 6". */
@@ -669,14 +670,16 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const est = w.estimate;
   // 0b.4: the walk counts SURGE VALVE's pulse damage on a SLAG belt, where the sim never pays it
   // NUM-4 (REQ-BFG-047; N1 2.5): the walk's own estimate through fmtDmg, as it is (was toFixed(1) over a max(1, ...) floor)
-  const big = fmtDmg(est.dmg - slagPulseExtra(w.timeline, belt));
+  // HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (h)1): the shown number lands x D(d) on the run's day (dmgShown; the walk stays
+  // day 1's: deck.ts walkRoute); BURN (a stack count) and TIME (seconds) don't scale. The switch off: as before
+  const big = fmtDmg(dmgShown(est.dmg - slagPulseExtra(w.timeline, belt), run.day));
   // 0.8.0 B1 M2 (G1's F1, ref/BRIEF-v080-B1.md 3.4): a PLATE BREAKER pays its big number only on a blow that finds a whole
   // plating on the hull, and its floor on every other (in real fights about half the blows: N1's m4/breaker.md 39-51%;
   // B1's m2/platemean: a plated hull holds no plating at 53-63% of its shots). On a deck that plates its hull the walk
   // counts the big number, so DMG shows both: the floor's total, then the big number's ("DMG 9.1-12.1")
   const breakers = w.timeline.some((row) => row.hits.some((h) => h.breaker));
   const low = breakers && platedDeck(b) ? walkRoute(b, index, undefined, { unplated: true }) : null;
-  const floorDmg = low ? fmtDmg(low.estimate.dmg - slagPulseExtra(low.timeline, belt)) : big;
+  const floorDmg = low ? fmtDmg(dmgShown(low.estimate.dmg - slagPulseExtra(low.timeline, belt), run.day)) : big; // HULL-1d: x D(d)
   const dmg = floorDmg !== big ? `${floorDmg}-${big}` : big;
   const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
   const spd = belt === "locked" ? "100% (LOCKED)" : belt === "slag" ? `${fmtReadPct(w.speedEnd)} (SLAG)` : fmtReadPct(w.speedEnd); // NUM-4: the walk's end speed, a product of speed states (a reading)
@@ -692,7 +695,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const rows: Block[] = [];
   w.timeline.forEach((row, i) => {
     for (const j of joins) if (j.row === i) rows.push(joinRow(j));
-    rows.push({ role: "row", label: `T${row.tile + 1}`, text: row.hits.map((h) => hitText(h, belt)).join(", "), trim: true });
+    rows.push({ role: "row", label: `T${row.tile + 1}`, text: row.hits.map((h) => hitText(h, belt, run.day)).join(", "), trim: true }); // HULL-1d: the day
   });
   for (const j of joins) if (j.row >= w.timeline.length) rows.push(joinRow(j));
   const feeds = info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED";
@@ -808,7 +811,7 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   const tu = makeTurret(b, index, td); // its interval (every gear piece, the core, the long-belt cadence), window and store
   const every = tu.interval * (tc.bought ? tc.spec.reloadMul ?? 1 : 1); // SALVO's volley reload
   const coreName = tc.bought ? starred(ITEMS[tc.def].name, tc.stars) : (SIGNATURE_CORES[tc.def]?.name ?? "SIGNATURE CORE");
-  const o = (k: number): TextOpts => ({ k, hero: b.hero as HeroId });
+  const o = (k: number): TextOpts => ({ k, hero: b.hero as HeroId, day: run.day }); // HULL-1d (REQ-BFG-079): the run's day
   // a socket's opening sentence (T5: as its own panel reads it); the compact forms use its gist in the row instead
   const first = (def: string, stars: number, k: number): Block[] => {
     // U2a (REQ-BFG-046): a core with a new face shows its rule line(s) under its row, as its own panel reads them

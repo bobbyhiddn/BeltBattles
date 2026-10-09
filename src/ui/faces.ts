@@ -31,6 +31,7 @@ import { statRow, type Stat } from "./icons";
 import { fmtCount, fmtDmg, fmtPct, fmtSec, fmtSpeed } from "./statFormat";
 import { livePerk, type TextOpts } from "./abilityText";
 import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the ARMOR PACK's face on the day's hull
+import { dmgNow, shownOn, sustNow } from "./dayShown"; // HULL-1d (REQ-BFG-079): damage x D(d), sustain x S(d), on the face's day
 import { upToLoads } from "./abilityText"; // Y7b1 (release Y; ruling Y7A-R2): EXT. CHAMBER's UP TO n with the star switch on
 import { SIM } from "./abilityText"; // NUM-3: SCRAPPER's queue cap and SABOT's SHRAPNEL STUN (each checked against battle.ts)
 import { startIn } from "./abilityText"; // TXT-096: ASSEMBLY LINE's "50% SOONER" / "AT ONCE", its sentence's words
@@ -135,7 +136,7 @@ export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
   // Y2 (release Y; DESIGN-Y row 13): a LIMPET WORKS' DMG is its charge's blast (its base is 0: the 20 on impact joined the
   // blast)
   if (fs.round?.kind === "limpet") dmg += fs.round.blast;
-  return [speedPair(speed), ["DMG", fmtDmg(dmg)], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
+  return [speedPair(speed), ["DMG", fmtDmg(dmgNow(dmg))], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
 }
 
 /**
@@ -170,7 +171,7 @@ export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null
   if (r && (r.kind === "sabot" || r.kind === "frost" || r.kind === "drag")) out.push(["STUN", fmtSec(r.seconds)]);
   // the ammo's own: a CINDER SLUG's HEAT (its rideScale), a THREAD SLUG's FRAY (KILN, LOOM)
   const ammo = AMMO[h ? h.ammo : fs.ammo];
-  if (ammo?.rideScale) out.push(["HEAT", fmtDmg(ammo.rideScale)]);
+  if (ammo?.rideScale) out.push(["HEAT", fmtDmg(dmgNow(ammo.rideScale))]);
   if (ammo?.fray) out.push(["FRAY", fmtCount(ammo.fray)]);
   return out.length ? out : null;
 }
@@ -218,12 +219,12 @@ export function coreStats(def: string, stars = 1, k = 1): Stat[] {
 /** C1's reminder texts, each with the piece's own number filled in; the keyword in panel style (its colour, as the
  *  flavour keeps a keyword's colour), the rest dim. */
 export const REMINDER: Record<KeywordName, (n?: number) => string> = {
-  BURN: () => `EACH {*BURN}: ${fmtDmg(FACE_SIM.burnTick)} HULL DAMAGE A SEC FOR ${fmtSec(BURN_TIME)}{SEC}.`,
+  BURN: () => `EACH {*BURN}: ${fmtDmg(dmgNow(FACE_SIM.burnTick))} HULL DAMAGE A SEC FOR ${fmtSec(BURN_TIME)}{SEC}.`,
   STUN: (t = DISRUPT_TIME) => `{*STUN}: THE ENEMY PART IT HITS STOPS FOR ${fmtSec(t)}{SEC}.`,
-  HEAT: (h = AMMO.cinder.rideScale) => `{*HEAT}: +${fmtDmg(h)} DAMAGE FOR EACH SEC IT RIDES.`,
+  HEAT: (h = AMMO.cinder.rideScale) => `{*HEAT}: +${fmtDmg(dmgNow(h))} DAMAGE FOR EACH SEC IT RIDES.`,
   // U2b F3: a cap in a reminder names its unit, one form for every capped reminder ("MAX 15 {FRAY}.", not "UP TO 15")
-  FRAY: () => `EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`,
-  PLATE: () => `{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`,
+  FRAY: () => `EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(dmgNow(FRAY_BONUS))} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`,
+  PLATE: () => `{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(sustNow(PLATE_CAP))} {PLATE}.`,
   PAIR: () => "{*PAIR}: TWO LOADS REACH ONE TURRET AT ONCE.",
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1 and 4.9): SHIELD a count (fmtCount; content.ts SHIELD_CAP), HEAL and REGEN on hull.
   // REGEN's verb is HEAL's (GIVES BACK; 4.9 wrote HEALS, which would stand as a bare keyword: REQ-BFG-032 rule 3)
@@ -284,7 +285,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
   twinmould: () => rules([{ text: "CASTS ITS {SLUG} ONTO SEPARATE BELTS AT ONCE." }]),
   armorpress: (e) => {
-    const p = f(e).plate!, every = fmtSec(p.every), amount = fmtDmg(p.amount);
+    const p = f(e).plate!, every = fmtSec(p.every), amount = fmtDmg(sustNow(p.amount)); // HULL-1d: x S(d)
     const label = `EVERY ${every}{SEC}:`;
     // U2d F1: the period's NEXT★ form is SURGE's, without the label's colon (its period is one at every star today)
     return rules([{ text: `${label} +${amount} {*PLATE}.`, label }], [["every", `EVERY ${every}{SEC}`], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
@@ -315,7 +316,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): ARMOR PRESS's face with HEAL, its stat row ARMOR PRESS's (factoryStats).
     // Battle.pressHeal: heal.amount every heal.every s through heal(), at the stamping pace, while it feeds a turret (the
     // belt rule stays off the face, as ARMOR PRESS's: cap's answer 5 to SUS-A)
-    const h = f(e).heal!, every = fmtSec(h.every), amount = fmtDmg(h.amount);
+    const h = f(e).heal!, every = fmtSec(h.every), amount = fmtDmg(sustNow(h.amount)); // HULL-1d: x S(d)
     const label = `EVERY ${every}{SEC}:`;
     return rules([{ text: `${label} {*HEAL} ${amount}.`, label }], [["every", `EVERY ${every}{SEC}`], ["heal", `{*HEAL} ${amount}`]], [REMINDER.HEAL()]);
   },
@@ -343,7 +344,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: "POURS ONTO ALL ITS BELTS AT ONCE." }, { text: `${label} BLANKS FUSE, +${fmtPct(FUSE_MULT - 1)} {DMG}.`, label }],
       [], [REMINDER.PAIR()]);
   },
-  wardworks: () => rules([{ text: `ITS SLUGS LOAD: +${fmtDmg(PLATE_PER_SLUG)} {*PLATE}.`, label: "LOAD:" }], [], [REMINDER.PLATE()]),
+  wardworks: () => rules([{ text: `ITS SLUGS LOAD: +${fmtDmg(sustNow(PLATE_PER_SLUG))} {*PLATE}.`, label: "LOAD:" }], [], [REMINDER.PLATE()]),
   // ------------------------------------------------------------------------------------- turret cores (numbers x k)
   scatter: (e, x) => {
     // U2e step 2 (REQ-BFG-070): its pellets' share acts on the turret's shot, an ability: it joins the rule (was its stat
@@ -364,7 +365,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // every star) and its SHOT tap says it (glossary.ts TAP_NOTES pressure); it fits the line in the faces' own load icon
     // (EXT. CHAMBER's, HOPPER's {SLUG}) with a cap that names its unit (U2b F3), 210 px of the 225 px band (", UP TO 5." and
     // "..., MAX 5 {SLUG}." after LOAD are 228; a bare "MAX 5." is T2's ban). Was "SHOT: +12 {DMG} FOR EACH LOAD WAITING."
-    const per = fmtDmg(c(e, x).perQueued!), max = fmtCount(c(e, x).maxCount!);
+    const per = fmtDmg(dmgNow(c(e, x).perQueued!)), max = fmtCount(c(e, x).maxCount!);
     return rules([shot(`+${per} {DMG} FOR EACH {SLUG} WAITING, MAX ${max} {SLUG}.`)], [["per", `+${per} {DMG}`]]);
   },
   gatling: (e, x) => {
@@ -394,7 +395,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([shot(`HITS ONLY THE HULL, FOR +${more} {DMG}.`)], [["more", `+${more} {DMG}`]]);
   },
   salvo: (e, x) => {
-    const flat = fmtDmg(c(e, x).volleyFlat!);
+    const flat = fmtDmg(dmgNow(c(e, x).volleyFlat!));
     // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 4): one verb with its own amount (was "EMPTIES THE CHAMBER AT ONCE, +20 {DMG}
     // EACH."); its wait and longer reload are its installed turret's RATE, the volley pace (inspector.ts turretPanel)
     return rules([shot(`FIRES THE CHAMBER AT +${flat} {DMG} EACH.`)], [["flat", `+${flat} {DMG}`]]);
@@ -436,7 +437,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // two parts: Battle.fireCore: + anvilFlat + pct(plate, 100 x perPlate) (x the class %: cores.ts scaleCore), both on one
     // line (180 px at ★3, k 1), each on its own ⓘ ladder. Was Y4's fold (DESIGN-Y row 38) "SHOT: +125% OF YOUR {*PLATE} AS
     // {DMG}." (125% / 275% / 438%, no flat)
-    const flat = fmtDmg(c(e, x).anvilFlat!), per = fmtPct(c(e, x).perPlate!);
+    const flat = fmtDmg(dmgNow(c(e, x).anvilFlat!)), per = fmtPct(c(e, x).perPlate!);
     return rules([shot(`+${flat} {DMG}, +${per} OF YOUR {*PLATE}.`)], [["flat", `+${flat} {DMG}`], ["per", `+${per} OF {PLATE}`]],
       [REMINDER.PLATE()]);
   },
@@ -452,14 +453,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // DESIGN-Y row 40: Battle.fireCore (cores.ts drakeConvert): each flatPerBurn of the shot's bonus damage (BONUS DAMAGE: its
     // glossary tap) becomes FACE_SIM.drakeStacks BURN; the free BURN, its longer BURN and its quicker flight are gone. Was the
     // RULES text "TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY 20 DAMAGE." and 3 more sentences
-    const d = fmtDmg(c(e, x).flatPerBurn!), n = fmtCount(FACE_SIM.drakeStacks);
+    const d = fmtDmg(dmgNow(c(e, x).flatPerBurn!)), n = fmtCount(FACE_SIM.drakeStacks);
     return rules([shot(`EACH ${d} BONUS DAMAGE IS ${n} {*BURN}.`)], [["per", `EACH ${d}`]], [REMINDER.BURN()]);
   },
   capacitor: (e, x) => {
     // DESIGN-Y row 42: Battle.chambers / fireCore: + perSecond (x the class %: cores.ts scaleCore) for each second the chamber
     // sat empty before the shot, no cap (content.ts STAR_DIFF). Was the RULES text "CHARGES ITS NEXT SHOT 20 DAMAGE FOR EACH
     // SECOND ITS CHAMBER SITS EMPTY." with "IT CHARGES FOR UP TO 5 SECONDS."
-    const d = fmtDmg(c(e, x).perSecond!);
+    const d = fmtDmg(dmgNow(c(e, x).perSecond!));
     return rules([shot(`+${d} {DMG} FOR EACH SEC IT SAT EMPTY.`)], [["per", `+${d} {DMG}`]]);
   },
   // ------------------------------------------------------------------- U2b: the TEXT rigs (HIT: in brass; no stat row)
@@ -470,7 +471,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([hit(`+${n} {*BURN}.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);
   },
   whetstone: (e) => {
-    const d = fmtDmg(gt(e).flat!);
+    const d = fmtDmg(dmgNow(gt(e).flat!));
     return rules([hit(`+${d} {DMG}.`)], [["flat", `+${d} {DMG}`]]);
   },
   grease: (e) => {
@@ -485,7 +486,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
   longhaul: (e) => {
     // Battle.applyHit: flat += perPriorGate x the rig hits before it on the payload (at most priorCap from ★2: a clause)
-    const d = fmtDmg(gt(e).perPriorGate!);
+    const d = fmtDmg(dmgNow(gt(e).perPriorGate!));
     return rules([hit(`+${d} {DMG} FOR EACH RIG BEFORE IT.`)], [["per", `+${d} {DMG} EACH`]]);
   },
   coil: (e) => {
@@ -505,7 +506,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   overdrive: (e) => {
     // ★2 REDLINE adds +1 and ★3 AFTERBURNER +3 to each payload (flat, a second rule); their guards are a clause
     const n = fmtCount(gt(e).speed!), flat = gt(e).flat;
-    const d = flat ? fmtDmg(flat) : "";
+    const d = flat ? fmtDmg(dmgNow(flat)) : "";
     return rules([{ text: `${runs(e)} ${n} TIMES AS FAST.` }, ...(flat ? [hit(`+${d} {DMG}.`)] : [])],
       [["speed", `${n} TIMES`], ...(flat ? [["flat", `+${d} {DMG}`] as [string, string]] : [])]);
   },
@@ -513,7 +514,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // DESIGN-Y row 28 (REVIEW-STARD answer 5: the damage pulse): Battle.surgeTick: once each pulse period every slug on its
     // belts gains pulse.flat; the speed pulse is gone. Was "EVERY 3{SEC}: ITS BELTS SURGE 3 TIMES AS FAST FOR 1{SEC}, +10
     // {DMG}." (two effects; it wrapped at ★2)
-    const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(p.flat);
+    const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(dmgNow(p.flat));
     const label = `EVERY ${every}{SEC}:`;
     return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
   },
@@ -537,11 +538,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   riveter: (e) => {
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.9): its repair is HEAL, the same numbers (battle.ts heal(): never past your full hull,
     // half with BURN, none in the dark wind; the HEAL row says so); was "HIT: +6 {HULL}." keyed "repair"
-    const d = fmtDmg(gt(e).heal!);
+    const d = fmtDmg(sustNow(gt(e).heal!)); // HULL-1d: x S(d)
     return rules([hit(`{*HEAL} ${d}.`)], [["heal", `{*HEAL} ${d}`]], [REMINDER.HEAL()]);
   },
   heatjacket: (e) => {
-    const h = gt(e).heat!, d = fmtDmg(h); // + heat damage a second ridden after it (as KILN's cinder: HEAT)
+    const h = gt(e).heat!, d = fmtDmg(dmgNow(h)); // + heat damage a second ridden after it (as KILN's cinder: HEAT)
     return rules([hit(`{*HEAT} ${d}.`)], [["heat", `{*HEAT} ${d}`]], [REMINDER.HEAT(h)]);
   },
   staticbrush: (e) => {
@@ -564,7 +565,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `${label} DOUBLES THE NEXT RIG'S HIT.`, label }], [["every", `EVERY ${t}{SEC}`]]);
   },
   plateroller: (e) => {
-    const d = fmtDmg(gt(e).plate!);
+    const d = fmtDmg(sustNow(gt(e).plate!)); // HULL-1d: x S(d)
     return rules([hit(`+${d} {*PLATE}.`)], [["plate", `+${d} {*PLATE}`]], [REMINDER.PLATE()]);
   },
   stoker: (e) => {
@@ -578,7 +579,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   platebreaker: (e) => {
     // DESIGN-Y row 26: Battle.applyHit: with FACE_SIM.breakerPlate plating on your hull it spends that much for + flat;
     // with less, nothing (the ELSE floor is gone: content.ts STAR_DIFF). Was the same line and "ELSE: +10 {DMG}."
-    const spend = fmtDmg(FACE_SIM.breakerPlate), flat = fmtDmg(gt(e).breaker!.flat);
+    const spend = fmtDmg(sustNow(FACE_SIM.breakerPlate)), flat = fmtDmg(dmgNow(gt(e).breaker!.flat)); // HULL-1d: a pool unit x S(d)
     return rules([hit(`SPENDS ${spend} {*PLATE} FOR +${flat} {DMG}.`)], [["flat", `+${flat} {DMG}`]], [REMINDER.PLATE()]);
   },
   // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
@@ -586,7 +587,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // DESIGN-Y row 15: Battle.applyHit: + each for each enemy part a STUN holds when it hits (rigs, factories, turrets, belt
     // tiles; a wrecked rig is no STUN), no floor, no cap. Was the RULES text "ADDS 10 DAMAGE, AND 10 FOR EACH ENEMY MACHINE
     // STUNNED, UP TO 60 DAMAGE." with "WRECKED MACHINES COUNT TOO; BELT TILES DON'T."
-    const d = fmtDmg(gt(e).perStalled!.each);
+    const d = fmtDmg(dmgNow(gt(e).perStalled!.each));
     return rules([hit(`+${d} {DMG} FOR EACH {*STUN} ON THE FOE.`)], [["each", `{DMG} +${d} EACH`]]);
   },
   braceframe: (e) => {
@@ -600,13 +601,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // DESIGN-Y row 20: Battle.applyHit: + each for each other working rig on its tile (crossfire: a STUNned rig stops, so it
     // doesn't count), no floor, no cap (content.ts STAR_DIFF). Was the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS,
     // AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE." with "STUNNED AND WRECKED RIGS DON'T COUNT."
-    const d = fmtDmg(gt(e).pincer!.each);
+    const d = fmtDmg(dmgNow(gt(e).pincer!.each));
     return rules([hit(`+${d} {DMG} FOR EACH OTHER RIG ON ITS TILE.`)], [["each", `+${d} {DMG} EACH`]]);
   },
   twingauge: (e) => {
     // DESIGN-Y row 21: Battle.applyHit: + matched on a matched belt (MATCHED: its glossary tap), nothing off one. Was the
     // RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, OR 30 DAMAGE ON A MATCHED BELT." with MATCHED's definition
-    const d = fmtDmg(gt(e).gauge!.matched);
+    const d = fmtDmg(dmgNow(gt(e).gauge!.matched));
     return rules([hit(`+${d} {DMG} ON A MATCHED BELT.`)], [["matched", `+${d} {DMG}`]]);
   },
   bellows: (e) => {
@@ -619,7 +620,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // DESIGN-Y row 23: Battle.applyHit: every BURN stack on the slug turns into perBurn damage (no floor, no stack cap). Was
     // the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH." with
     // "ANY MORE BURN STAYS ON THE PAYLOAD." and BURN's definition
-    const d = fmtDmg(gt(e).quench!.perBurn);
+    const d = fmtDmg(dmgNow(gt(e).quench!.perBurn));
     return rules([hit(`TURNS EACH {*BURN} INTO +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
   },
   twinlatch: (e) => {
@@ -633,7 +634,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   counterweight: (e) => {
     // DESIGN-Y row 41: Battle.applyHit: + each for each tile the slug has ridden on its journey, no cap (content.ts
     // STAR_DIFF). Was the RULES text "ADDS 5 DAMAGE FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN, UP TO 60 DAMAGE."
-    const d = fmtDmg(gt(e).perTile!.each);
+    const d = fmtDmg(dmgNow(gt(e).perTile!.each));
     return rules([hit(`+${d} {DMG} FOR EACH TILE RIDDEN.`)], [["each", `+${d} {DMG} EACH`]]);
   },
   shieldwall: (e) => {
@@ -642,8 +643,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // or more (120+, as FURNACE's "8+ TILE BELTS"), both parts on one line (208 px at ★3), each on its own ⓘ ladder. Was
     // Y5's "HIT: +30 {DMG} AT 120 {*PLATE} OR MORE." (DESIGN-Y row 45: its own plating gone). Off it has no face (the RULES
     // text: "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS." with the 120 sentence and PLATING's definition)
-    const pl = gt(e).plated!, d = fmtDmg(pl.flat), plate = fmtDmg(gt(e).plate!);
-    return rules([hit(`+${plate} {*PLATE}, +${d} {DMG} AT ${fmtDmg(pl.min)}+ {*PLATE}.`)], [["plate", `+${plate} {*PLATE}`], ["flat", `+${d} {DMG}`]],
+    const pl = gt(e).plated!, d = fmtDmg(dmgNow(pl.flat)), plate = fmtDmg(sustNow(gt(e).plate!)); // HULL-1d: D, S (its 120+ too)
+    return rules([hit(`+${plate} {*PLATE}, +${d} {DMG} AT ${fmtDmg(sustNow(pl.min))}+ {*PLATE}.`)], [["plate", `+${plate} {*PLATE}`], ["flat", `+${d} {DMG}`]],
       [REMINDER.PLATE()]);
   },
   keg: (e) => {
@@ -651,7 +652,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // blasts + flat onto every slug on its belts (beltPulse, SURGE VALVE's walk) and re-arms; its BURN and ★3 WIDE BLAST's
     // reach are gone (content.ts STAR_DIFF). Was the RULES text "ADDS 60 DAMAGE AND 1 BURN TO EVERY PAYLOAD ON ITS BELTS WHEN
     // IT BLOWS UP." with "IT BLOWS ONCE, 12 SECONDS AFTER IT COMES ONLINE; A STUN PAUSES THE FUSE." and BURN's definition
-    const k = gt(e).keg!, every = fmtSec(k.fuse), d = fmtDmg(k.flat);
+    const k = gt(e).keg!, every = fmtSec(k.fuse), d = fmtDmg(dmgNow(k.flat));
     const label = `EVERY ${every}{SEC}:`;
     return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
   },
@@ -692,7 +693,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   spallcatcher: (e) => {
     // DESIGN-Y row 47: Battle.spallCharge: + add for every `every` damage your ship takes (a PLATE soak counted once, not
     // twice), on this turret's next shot, no cap. Today's line; its cap's number (NEXT★'s MAX) and its caveat go
-    const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
+    const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(dmgNow(sp.add)); // HULL-1d: add x D(d); every counts landed damage
     return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`]]);
   },
   flak: (e) => {
@@ -728,7 +729,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // DESIGN-Y row 35: Battle.loaded / fusionPair: each pair this turret takes rolls seam.pair plating onto your hull; a lone
     // load's is gone (lone 0). Was the RULES text "EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL, AND ANY OTHER
     // LOAD ROLLS 2." with PAIR's and PLATING's definitions
-    const d = fmtDmg(md(e).seam!.pair), label = "{*PAIR}:";
+    const d = fmtDmg(sustNow(md(e).seam!.pair)), label = "{*PAIR}:";
     return rules([{ text: `${label} +${d} {*PLATE}.`, label }], [["plate", `+${d} {*PLATE}`]], [REMINDER.PAIR(), REMINDER.PLATE()]);
   },
   longcase: (e) => {
@@ -736,7 +737,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // sim change). The METRONOME sentence leaves the face: a pendulum slug is an unplayable hero's, and races/data.ts
     // PEAK_SHIFT stays for METRONOME's bots. Was the RULES text "SHOTS FROM PAYLOADS THAT RODE 2 SECONDS OR MORE DEAL 15 MORE
     // DAMAGE." with "PENDULUM SLUGS DON'T GET IT; ON METRONOME THEY PEAK LATER ON THIS TURRET, AFTER 13 TILES."
-    const d = fmtDmg(md(e).longRideFlat!), t = fmtSec(md(e).longRideMin!);
+    const d = fmtDmg(dmgNow(md(e).longRideFlat!)), t = fmtSec(md(e).longRideMin!);
     return rules([shot(`+${d} {DMG} IF ITS {SLUG} RODE ${t}{SEC}.`)], [["flat", `+${d} {DMG}`]]);
   },
   ram: (e) => {
@@ -758,7 +759,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   mendingloom: (e) => {
     // TurretState.regen: your hull heals this much at each whole second (Battle.sustainTick). "YOUR HULL:" says whose it
     // is, not when: no trigger, so no brass label (TEXT-STYLE 3.2, 3.3)
-    const r = fmtDmg(md(e).regen!);
+    const r = fmtDmg(sustNow(md(e).regen!)); // HULL-1d: x S(d)
     return rules([{ text: `YOUR HULL: {*REGEN} ${r}.` }], [["regen", `{*REGEN} ${r}`]], [REMINDER.REGEN()]);
   },
   // ------------------------------------------------------------------------------------------ U2b: the supplies
@@ -866,6 +867,13 @@ export function hasFace(def: string): boolean {
  *  has no clause; the interim caveats keep their one table (INNER COLUMN ONLY is the one row left). */
 export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
   if (!hasFace(def)) return null;
+  // HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (h)1): the face's numbers on o.day (dayShown.ts: damage x D(d), sustain x S(d));
+  // no day, or the switch off: day 1's, as before. Every face read (faceLines, faceDiff, NEXT★, the chips, the ⓘ ladder)
+  // comes through here
+  return shownOn(o.day, () => faceOn(def, stars, o));
+}
+
+function faceOn(def: string, stars: number, o: TextOpts): Face {
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero, day: o.day }; // HULL-1a: the day
   const body = e.kind === "turret" ? TURRET_FACE() : FACES[def](e, x);
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)

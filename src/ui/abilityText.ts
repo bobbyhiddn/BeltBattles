@@ -73,6 +73,7 @@ import { FUSE_MULT, SYNC_WINDOW } from "../sim/races/foundry"; // 0.8.0 H1: FOUN
 import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero select's FURNACE sentence; P1: TWIN TRIGGER's floor
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion"; // 0.8.0 H1: BASTION's WARDWORKS; P1: the plating cap
 import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the ARMOR PACK's hull on the day's hull
+import { dmgNow, shownOn, sustNow } from "./dayShown"; // HULL-1d (REQ-BFG-079): damage x D(d), sustain x S(d), on the text's day
 import { scaleCore } from "../sim/cores";
 import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
@@ -118,14 +119,29 @@ export function heroTrick(hero: HeroId): string {
 
 // ---------------------------------------------------------------------------------------------------------------- units
 
+// HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (h)1): THE READ-OUT'S DAY (dayShown.ts). With HULL_SCALE on, a text built for a day
+// (TextOpts.day, the run's) says what lands that day, as the battle's pops do: every damage amount x D(d) (a slug, a rig's or
+// a gear's + DAMAGE, BURN's damage a second, FRAY's bonus, a limpet's blast, SPALL's add, DRAKE NOZZLE's bonus damage a
+// BURN) and every sustain amount x S(d) (a HEAL, REGEN or PLATE amount, PLATE_CAP, and the two pool units PLATE BREAKER's 10
+// and SHIELD WALL's 120+), each rounded down as it lands. The entry points below (abilityText, gist, cardText, hitText)
+// build their text inside shownOn(o.day, ...), so the entries keep their (e, x) form; outside one (heroTrick, the hero
+// preview), with the switch off or with no day, every number is n itself: 0.9.7's text, byte for byte. Not scaled: BURN,
+// FRAY and SHIELD counts, %, seconds, rates, IRON HIDE's cut (it acts before D), SAP's cut (no piece gives it), SPALL's
+// every (it counts the damage as it lands).
+/** HULL-1d: a sustain amount (HEAL, REGEN, PLATE) on the read-out's day, whole (fmtDmg, as the text printed it). */
+const sust = (n: number): string => fmtDmg(sustNow(n));
+/** HULL-1d: the PLATE pool's cap or unit (PLATE_CAP, PLATE BREAKER's 10, SHIELD WALL's 120) on the read-out's day, the bare
+ *  number the text printed (no formatter, as before). */
+const sustN = (n: number): number => sustNow(n);
+
 // NUM-4 (REQ-BFG-047; N1 2.5): n1 and n2 (toFixed(1) / toFixed(2)) are gone. Every number below goes through one of
 // statFormat.ts's formatters, which print the sim's whole value as it is (a fraction is a finding there, never rounded).
 /** "3 SECONDS", "1 SECOND" (whole seconds, fmtSec). */
 export const seconds = (x: number): string => `${fmtSec(x)} SECOND${x === 1 ? "" : "S"}`;
-/** "20 DAMAGE", "180 DAMAGE" (fmtDmg). */
-export const damage = (x: number): string => `${fmtDmg(x)} DAMAGE`;
-/** "12 MORE DAMAGE". */
-export const moreDamage = (x: number): string => `${fmtDmg(x)} MORE DAMAGE`;
+/** "20 DAMAGE", "180 DAMAGE" (fmtDmg). HULL-1d: x D(d) on the read-out's day (dayShown.ts; none: x). */
+export const damage = (x: number): string => `${fmtDmg(dmgNow(x))} DAMAGE`;
+/** "12 MORE DAMAGE". HULL-1d: x D(d) on the read-out's day. */
+export const moreDamage = (x: number): string => `${fmtDmg(dmgNow(x))} MORE DAMAGE`;
 /** 0.25 -> "25%" (fmtPct: whole). */
 export const percent = (x: number): string => fmtPct(x);
 /** "1 BELT", "3 BELTS". */
@@ -175,7 +191,8 @@ const brakeSpeed = (r: number): string => (Math.abs(r - 0.5) < 1e-9 ? "HALF SPEE
 export interface TextOpts {
   k?: number;
   hero?: HeroId;
-  /** HULL-1a (REQ-BFG-079): the run's day: the ARMOR PACK's hull reads the day's number with HULL_SCALE on (hullShown). */
+  /** HULL-1a (REQ-BFG-079): the run's day: the ARMOR PACK's hull reads the day's number with HULL_SCALE on (hullShown).
+   *  HULL-1d: and every damage amount x D(d), every HEAL / REGEN / PLATE amount x S(d) (shownOn). None: day 1's. */
   day?: number;
 }
 
@@ -223,7 +240,9 @@ const SW = { shield: "SHIELD", heals: "HEALS" } as const;
 
 /** The shared sentences: the same effect reads the same everywhere (T5). */
 export const S = {
-  burn: `EACH BURN DEALS THE ENEMY HULL ${BURN_DPS} DAMAGE A SECOND FOR ${seconds(BURN_TIME)}.`, // NUM-1: the sim's BURN_DPS (was a literal 1)
+  // NUM-1: the sim's BURN_DPS (was a literal 1). HULL-1d (REQ-BFG-079): a getter, so a text built for a day reads its
+  // damage a second x D(d) (dmgShown; outside one, or the switch off: BURN_DPS, as before)
+  get burn(): string { return `EACH BURN DEALS THE ENEMY HULL ${dmgNow(BURN_DPS)} DAMAGE A SECOND FOR ${seconds(BURN_TIME)}.`; },
   /** What a shock does: a STUN in whole seconds (fmtSec), "STUNS A MACHINE FOR 2 SECONDS" (n machines with a jump). */
   stalls: (t: number, n: number) => `STUNS ${n === 1 ? "A MACHINE" : `${n} MACHINES`} FOR ${seconds(t)}`,
   /** How a jump spreads a shock (or a FROSTBITE round's STUN) after the machine the shot hits. */
@@ -246,7 +265,8 @@ export const S = {
   // and PLATE_CAP; hullEffects' wind line skips it), E2's pair (races/foundry.ts inSync), E6's matched belt (deck.ts
   // matchedRoutes) and E3's stoked factory (Battle.produce: its stamp timer, trigger cooldown and plating timer)
   // Y6 (release Y; DESIGN-Y section 4.1; BRIEF-Y6 words): no POISON (retired)
-  plating: `PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO ${PLATE_CAP} PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.`,
+  // HULL-1d (REQ-BFG-079): a getter: on a text's day the pool's cap PLATE_CAP x S(d) (sust; the battle's plate.cap)
+  get plating(): string { return `PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO ${sustN(PLATE_CAP)} PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.`; },
   pair: "A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES AT ONCE; A FOUNDRY FUSION IS A PAIR.",
   matched: "A MATCHED BELT HAS AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.",
   worksFaster: "A FACTORY THAT WORKS FASTER STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO.",
@@ -495,9 +515,10 @@ const ENTRIES: Record<string, Entry> = {
   riveter: {
     // SUS-A (REQ-BFG-069): the field is `heal` now (compile-driven). SUS-B: its words are HEAL's (battle.ts heal(): never
     // past your full hull, half with BURN, none in the dark wind); was REPAIRS
-    text: (e) => [`${SW.heals} YOUR HULL BY ${fmtDmg(g(e).heal!)} FOR EACH PAYLOAD IT HITS.`, `IT NEVER ${SW.heals} PAST YOUR FULL HULL.`, S.heal],
-    gist: (e) => `${SW.heals} ${fmtDmg(g(e).heal!)} FOR EACH PAYLOAD`,
-    card: (e) => `${SW.heals} ${fmtDmg(g(e).heal!)} HULL EACH HIT`,
+    // HULL-1d (REQ-BFG-079): its HEAL x S(d) on the text's day (sust)
+    text: (e) => [`${SW.heals} YOUR HULL BY ${sust(g(e).heal!)} FOR EACH PAYLOAD IT HITS.`, `IT NEVER ${SW.heals} PAST YOUR FULL HULL.`, S.heal],
+    gist: (e) => `${SW.heals} ${sust(g(e).heal!)} FOR EACH PAYLOAD`,
+    card: (e) => `${SW.heals} ${sust(g(e).heal!)} HULL EACH HIT`,
   },
   heatjacket: {
     // transport: heatBonus += heat x ride, from the hit on; two jackets add up
@@ -799,7 +820,8 @@ const ENTRIES: Record<string, Entry> = {
     text: (e, x) => [
       `STAMPS BULWARK SLUGS ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`, // bb-0.8.3 (M4)
       `A BULWARK SLUG DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every level (oracle 6c20deea1363d0bb)
-      `EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY ${fmtDmg(PLATE_PER_SLUG)}, UP TO ${PLATE_CAP} PLATING; A SPLITTER COPY PLATES BY ITS SHARE.`,
+      // HULL-1d (REQ-BFG-079): the slug's PLATE and the pool's cap x S(d) on the text's day
+      `EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY ${sust(PLATE_PER_SLUG)}, UP TO ${sustN(PLATE_CAP)} PLATING; A SPLITTER COPY PLATES BY ITS SHARE.`,
       "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
       "THE DARK WIND IGNORES PLATING.",
     ],
@@ -1080,8 +1102,8 @@ const ENTRIES: Record<string, Entry> = {
   // whatever the switch (content.ts WAVE3_LIVE); nothing shows it while wave 3 is dormant.
   plateroller: {
     // Battle.applyHit (tier 1): addPlate(s, plate) for each payload it hits (E1)
-    text: (e) => [`ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`, S.plating],
-    gist: (e) => `ROLLS ${fmtDmg(g(e).plate!)} PLATING FOR EACH PAYLOAD`,
+    text: (e) => [`ROLLS ${sust(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`, S.plating], // HULL-1d: x S(d)
+    gist: (e) => `ROLLS ${sust(g(e).plate!)} PLATING FOR EACH PAYLOAD`,
     card: () => "PLATES YOUR HULL AS SLUGS PASS",
   },
   twingauge: {
@@ -1150,10 +1172,11 @@ const ENTRIES: Record<string, Entry> = {
     // Battle.applyHit (tier 1): with 1 plating or more on the hull it takes 1 (a plate event) and adds flat, else floor
     // Y3 (release Y; DESIGN-Y row 26): no floor: with less plating it adds nothing
     text: (e) => [
-      `EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS ${damage(g(e).breaker!.flat)}.`, // NUM-1: battle.ts spends 10
+      // NUM-1: battle.ts spends 10. HULL-1d (REQ-BFG-079): a pool unit, x S(d) on the text's day (battle.ts sustUnit)
+      `EACH PAYLOAD IT HITS TAKES ${sustN(10)} PLATING FROM YOUR HULL AND GAINS ${damage(g(e).breaker!.flat)}.`,
       "WITH LESS PLATING THAN THAT, IT ADDS NOTHING.",
     ],
-    gist: (e) => `${damage(g(e).breaker!.flat)} FOR 10 PLATING`, // NUM-1: 10 plating
+    gist: (e) => `${damage(g(e).breaker!.flat)} FOR ${sustN(10)} PLATING`, // NUM-1: 10 plating (HULL-1d: x S(d))
     card: () => "TURNS PLATING INTO DAMAGE", // DESIGN 3.3's "TURNS YOUR PLATING INTO DAMAGE" takes three card lines
   },
   shieldwall: {
@@ -1165,10 +1188,11 @@ const ENTRIES: Record<string, Entry> = {
     // sentence (its numbers in the same order), so the two agree if it is drawn again (were "ROLLS 10 PLATING ONTO YOUR HULL
     // FOR EACH PAYLOAD IT HITS." and "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
     text: (e) => [
-      `ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH GAINS ${damage(g(e).plated!.flat)}.`,
+      // HULL-1d (REQ-BFG-079): its PLATE and its 120+ (a pool unit, battle.ts sustUnit) x S(d) on the text's day
+      `ROLLS ${sust(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS ${sustN(g(e).plated!.min)} PLATING OR MORE, EACH GAINS ${damage(g(e).plated!.flat)}.`,
       S.plating,
     ],
-    gist: (e) => `${fmtDmg(g(e).plate!)} PLATING A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`,
+    gist: (e) => `${sust(g(e).plate!)} PLATING A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${sustN(g(e).plated!.min)} PLATING`,
     card: () => "PLATES YOUR HULL, HITS HARDER", // DESIGN 3.3's "..., HITS HARDER PLATED" takes three card lines
   },
   twinmould: {
@@ -1197,12 +1221,12 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => {
       const fs = f(e);
       return [
-        `PRESSES ${fmtDmg(fs.plate!.amount)} PLATING ONTO YOUR HULL ${every(fs.plate!.every)}, AND STAMPS ${fs.base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${rate(fs.speed)}.`,
+        `PRESSES ${sust(fs.plate!.amount)} PLATING ONTO YOUR HULL ${every(fs.plate!.every)}, AND STAMPS ${fs.base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${rate(fs.speed)}.`, // HULL-1d: x S(d)
         "IT NEEDS A BELT TO A TURRET TO WORK.",
         S.plating,
       ];
     },
-    gist: (e) => `${fmtDmg(f(e).plate!.amount)} PLATING ${every(f(e).plate!.every)}, A SLUG ${rate(f(e).speed)}`,
+    gist: (e) => `${sust(f(e).plate!.amount)} PLATING ${every(f(e).plate!.every)}, A SLUG ${rate(f(e).speed)}`,
     card: (e) => `PLATES YOUR HULL ${every(f(e).plate!.every)}`,
   },
   anvil: {
@@ -1239,7 +1263,8 @@ const ENTRIES: Record<string, Entry> = {
       const sp = m(e).spall!;
       // Y5 (release Y; DESIGN-Y row 47): there is no cap, and what plating soaks counts once
       return [
-        `EVERY ${damage(sp.every)} YOUR SHIP TAKES ADDS ${damage(sp.add)} TO THIS TURRET'S NEXT SHOT.`,
+        // HULL-1d (REQ-BFG-079): its add is a hit amount (x D(d)); its every counts the damage as it lands, so it stays
+        `EVERY ${fmtDmg(sp.every)} DAMAGE YOUR SHIP TAKES ADDS ${damage(sp.add)} TO THIS TURRET'S NEXT SHOT.`,
         "DAMAGE YOUR PLATING SOAKS COUNTS TOO; THE DARK WIND DOESN'T COUNT.",
       ];
     },
@@ -1251,11 +1276,11 @@ const ENTRIES: Record<string, Entry> = {
     // is a pair (Battle.fusionPair)
     // Y4 (release Y; DESIGN-Y row 35): a lone load rolls none (seam.lone 0): pairs only
     text: (e) => [
-      `EACH PAIR THIS TURRET TAKES ROLLS ${fmtDmg(m(e).seam!.pair)} PLATING ONTO YOUR HULL.`,
+      `EACH PAIR THIS TURRET TAKES ROLLS ${sust(m(e).seam!.pair)} PLATING ONTO YOUR HULL.`, // HULL-1d: x S(d)
       S.pair,
       S.plating,
     ],
-    gist: (e) => `${fmtDmg(m(e).seam!.pair)} PLATING A PAIR`,
+    gist: (e) => `${sust(m(e).seam!.pair)} PLATING A PAIR`,
     card: () => "PAIRS PLATE YOUR HULL",
   },
   // ------------------------------------------------------------------------------------------------------ supplies
@@ -1289,20 +1314,20 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => {
       const fs = f(e);
       return [
-        `${SW.heals} YOUR HULL BY ${fmtDmg(fs.heal!.amount)} ${every(fs.heal!.every)}, AND STAMPS A PLAIN SLUG (${damage(slugBase(e))}) ${rate(fs.speed)}.`,
+        `${SW.heals} YOUR HULL BY ${sust(fs.heal!.amount)} ${every(fs.heal!.every)}, AND STAMPS A PLAIN SLUG (${damage(slugBase(e))}) ${rate(fs.speed)}.`, // HULL-1d: x S(d)
         "IT NEEDS A BELT TO A TURRET TO WORK.",
         S.heal,
       ];
     },
-    gist: (e) => `${SW.heals} ${fmtDmg(f(e).heal!.amount)} ${every(f(e).heal!.every)}, A SLUG ${rate(f(e).speed)}`,
+    gist: (e) => `${SW.heals} ${sust(f(e).heal!.amount)} ${every(f(e).heal!.every)}, A SLUG ${rate(f(e).speed)}`,
     card: (e) => `${SW.heals} YOUR HULL ${every(f(e).heal!.every)}`,
   },
   mendingloom: {
     // TurretState.regen: at each whole second your living hull heals its working looms' REGEN through heal() (Battle.
     // sustainTick); a STUN or freeze on its turret pauses it
-    text: (e) => [`${SW.heals} YOUR HULL BY ${fmtDmg(m(e).regen!)} EVERY SECOND.`, "A STUN ON ITS TURRET PAUSES IT.", S.heal],
-    gist: (e) => `${SW.heals} ${fmtDmg(m(e).regen!)} EVERY SECOND`,
-    card: (e) => `${SW.heals} ${fmtDmg(m(e).regen!)} HULL EVERY SECOND`,
+    text: (e) => [`${SW.heals} YOUR HULL BY ${sust(m(e).regen!)} EVERY SECOND.`, "A STUN ON ITS TURRET PAUSES IT.", S.heal], // HULL-1d: x S(d)
+    gist: (e) => `${SW.heals} ${sust(m(e).regen!)} EVERY SECOND`,
+    card: (e) => `${SW.heals} ${sust(m(e).regen!)} HULL EVERY SECOND`,
   },
 };
 
@@ -1341,7 +1366,7 @@ export function hasAbilityText(def: string): boolean {
 }
 
 function ctxOf(stars: number, o: TextOpts = {}): X {
-  return { k: o.k ?? 1, hero: o.hero, stars, day: o.day }; // HULL-1a: the day (only the ARMOR PACK reads it)
+  return { k: o.k ?? 1, hero: o.hero, stars, day: o.day }; // HULL-1a: the day (the ARMOR PACK; HULL-1d: shownOn the rest)
 }
 
 /** The perk named at `stars`, unless the sim doesn't apply its values yet (levels[n].pending; 0.6.1r F5). */
@@ -1354,24 +1379,26 @@ export function abilityText(def: string, stars = 1, o: TextOpts = {}): AbilityTe
   const en = hasAbilityText(def) ? ENTRIES[def] : undefined;
   if (!en) return { sentences: [] };
   const x = ctxOf(stars, o), e = effectAt(def, stars);
-  const sentences = en.text(e, x);
+  const sentences = shownOn(o.day, () => en.text(e, x)); // HULL-1d (REQ-BFG-079): its numbers on the text's day
   const name = stars > 1 ? livePerk(def, stars) : undefined;
   if (!name) return { sentences };
   const after = Math.min(sentences.length - 1, en.perkAt ? en.perkAt(e, x) : 0);
   return { sentences, perk: { name, stars, after } };
 }
 
-/** The star's effect as a short clause without a full stop ("ADDS 4 BURN"); "" for a def without text. */
+/** The star's effect as a short clause without a full stop ("ADDS 4 BURN"); "" for a def without text. HULL-1d: its
+ *  numbers on o.day (the next-star and MERGES WITH lines read it through starGist). */
 export function gist(def: string, stars = 1, o: TextOpts = {}): string {
   const en = hasAbilityText(def) ? ENTRIES[def] : undefined;
-  return en ? en.gist(effectAt(def, stars), ctxOf(stars, o)) : "";
+  return en ? shownOn(o.day, () => en.gist(effectAt(def, stars), ctxOf(stars, o))) : "";
 }
 
-/** The shop card's one-line effect at 1 star, a whole sentence ("ADDS 2 BURN."); "" for a def without text. */
+/** The shop card's one-line effect at 1 star, a whole sentence ("ADDS 2 BURN."); "" for a def without text. HULL-1d: its
+ *  numbers on o.day. */
 export function cardText(def: string, o: TextOpts = {}): string {
   const en = hasAbilityText(def) ? ENTRIES[def] : undefined;
   if (!en) return "";
-  return `${(en.card ?? en.gist)(effectAt(def, 1), ctxOf(1, o))}.`;
+  return `${shownOn(o.day, () => (en.card ?? en.gist)(effectAt(def, 1), ctxOf(1, o)))}.`;
 }
 
 /** The perk a star brings that the star below doesn't name (and the sim applies), else undefined. */
@@ -1425,7 +1452,12 @@ export type BeltKind = "free" | "locked" | "slag";
  * Y3: SURGE VALVE's pulse row is the same on every belt (Battle.surgeTick pays slag too). On a METRONOME (locked) belt a
  * speed rig reads its damage and "(LOCKED)".
  */
-export function hitText(h: TimelineHit, belt: BeltKind): string {
+export function hitText(h: TimelineHit, belt: BeltKind, day?: number): string {
+  // HULL-1d (REQ-BFG-079): `day`, the run's: the row's damage x D(d) and its HEAL / PLATE x S(d) (the walk stays day-1's)
+  return shownOn(day, () => hitRow(h, belt));
+}
+
+function hitRow(h: TimelineHit, belt: BeltKind): string {
   const name = ITEMS[h.def].name, e = effectAt(h.def, h.stars).gate ?? {};
   // Y3 (release Y; DESIGN-Y rows 20, 21, 26, 28, 30): SURGE VALVE is a damage pulse on any belt (no
   // speed, slag and locked belts too), and the rigs whose floor or flat left say what they do instead of "+0 DAMAGE"
@@ -1433,7 +1465,7 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.gauge && !h.matched) return `${name}: NO EFFECT ON AN UNMATCHED BELT`;
   if (e.pincer && !h.others) return `${name}: NO OTHER RIG ON ITS TILE`;
   if (e.latch) return `${name} HOLDS UP TO ${fmtSec(e.latch.hold)} SEC`;
-  if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 PLATING`; // NUM-1: 10 plating
+  if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR ${sustN(10)} PLATING`; // NUM-1: 10 plating (HULL-1d: x S(d))
   // Y5 (DESIGN-Y row 45) gave IRON WALL a row of its own here (no plating: "+30 DAMAGE AT 120 PLATING"); Y7b1 (ruling
   // Y7A-R3d) puts its plating back, so its row is the base's, below
   // Y5 (DESIGN-Y row 46): POWDER KEG re-arms (Battle.kegTick), with no BURN
@@ -1465,7 +1497,7 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.perStalled) return `${name} +${damage(e.perStalled.each)} FOR EACH STUNNED MACHINE`;
   if (e.toll) return `${name} BLOCKS ${e.toll} STUNS`;
   if (e.sift) return `${name} REMOVES ${e.sift === "all" ? "EVERY MARK" : "ONE MARK"}${h.flat ? `, +${damage(h.flat)} IF CLEAN` : ""}`;
-  if (e.heal) return `${name} ${SW.heals} ${fmtDmg(e.heal)} HULL`; // SUS-A: the field is `heal`; SUS-B: HEAL's word (was REPAIRS)
+  if (e.heal) return `${name} ${SW.heals} ${sust(e.heal)} HULL`; // SUS-A: the field is `heal`; SUS-B: HEAL's word (was REPAIRS); HULL-1d: x S(d)
   if (e.heat) return `${name} +${damage(e.heat)} FOR EACH SECOND AFTER`;
   if (e.staticTime) return `${name} STUNS A TURRET ${fmtSec(e.staticTime)} SEC ON BARE HULL`;
   if (e.fray) return `${name} +${e.fray} FRAY`;
@@ -1475,7 +1507,7 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.gauge) return `${name} +${damage(h.flat ?? 0)}${h.matched ? " ON A MATCHED BELT" : ""}`;
   if (e.pincer) return `${name} +${damage(h.flat ?? 0)}${h.others ? `, CROSSFIRE WITH ${plural(h.others, "RIG")}` : ""}`;
   if (e.brace) return `${name} ENEMY STUNS ${percent(1 - e.brace.mul)} SHORTER`; // Y2 (DESIGN-Y row 16): no plated cut
-  if (e.plate) return `${name} +${fmtDmg(e.plate)} PLATING${e.plated ? `, +${damage(e.plated.flat)} AT ${e.plated.min} PLATING` : ""}`;
+  if (e.plate) return `${name} +${sust(e.plate)} PLATING${e.plated ? `, +${damage(e.plated.flat)} AT ${sustN(e.plated.min)} PLATING` : ""}`; // HULL-1d: x S(d)
   const parts = [
     ...(h.flat ? [`+${damage(h.flat)}`] : []),
     ...(h.burn ? [`+${h.burn} BURN`] : []),

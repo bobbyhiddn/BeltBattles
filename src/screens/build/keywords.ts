@@ -76,7 +76,7 @@ const TRIGGERS = ["HIT", "SHOT", "LOAD", "EVERY"];
 
 /** The panel's piece for a selection (null: a belt, an empty slot, a turret with no bought core). */
 export function panelPiece(run: Run, show: Sel): Piece | null {
-  const o: TextOpts = { k: heroKOf(run), hero: run.hero as HeroId };
+  const o: TextOpts = { k: heroKOf(run), hero: run.hero as HeroId, day: run.day }; // HULL-1d (REQ-BFG-079): the run's day
   switch (show.kind) {
     case "offer": {
       const of = run.shop.wagons[show.wagon]?.offers[show.slot];
@@ -96,13 +96,13 @@ export function panelPiece(run: Run, show: Sel): Piece | null {
       const m = run.build.mods.find((q) => q.uid === show.uid);
       const td = m ? turretSlots(run.build)[m.turret]?.td : undefined;
       if (!m || !td) return null;
-      return { def: m.def, stars: starsOf(m), o: { k: ITEMS[m.def].kind === "core" ? classFactor(td) : 1, hero: run.hero as HeroId } };
+      return { def: m.def, stars: starsOf(m), o: { k: ITEMS[m.def].kind === "core" ? classFactor(td) : 1, hero: run.hero as HeroId, day: run.day } }; // HULL-1d: the day
     }
     case "turret": {
       const td = turretSlots(run.build)[show.index]?.td;
       if (!td) return null;
       const tc = resolveCore(run.build, show.index, td);
-      return tc.bought ? { def: tc.def, stars: tc.stars, o: { k: tc.k, hero: run.hero as HeroId } } : null;
+      return tc.bought ? { def: tc.def, stars: tc.stars, o: { k: tc.k, hero: run.hero as HeroId, day: run.day } } : null; // HULL-1d: the day
     }
     default:
       return null;
@@ -114,11 +114,11 @@ export function panelPiece(run: Run, show: Sel): Piece | null {
 export function levelsPiece(run: Run, show: Sel): Piece | null {
   if (show.kind === "turret") {
     const t = turretSlots(run.build)[show.index]?.turret;
-    return t ? { def: t.def, stars: t.stars ?? 1, o: { k: heroKOf(run), hero: run.hero as HeroId } } : null;
+    return t ? { def: t.def, stars: t.stars ?? 1, o: { k: heroKOf(run), hero: run.hero as HeroId, day: run.day } } : null; // HULL-1d
   }
   if (show.kind === "item") {
     const p = itemByUid(run.build, show.uid);
-    return p ? { def: p.def, stars: starsOf(p), o: { k: heroKOf(run), hero: run.hero as HeroId } } : null;
+    return p ? { def: p.def, stars: starsOf(p), o: { k: heroKOf(run), hero: run.hero as HeroId, day: run.day } } : null; // HULL-1d
   }
   return panelPiece(run, show);
 }

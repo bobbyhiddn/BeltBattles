@@ -35,6 +35,7 @@ import { KEYWORD_COLOUR } from "./richText";
 import { SIM, type TextOpts } from "./abilityText";
 import { REMINDER, faceAt, hasFace } from "./faces";
 import { fmtCount, fmtDmg, fmtPct, fmtSec } from "./statFormat";
+import { shownOn } from "./dayShown"; // HULL-1d (REQ-BFG-079): the rows' numbers on the tapped piece's day
 
 /** One glossary row (see the file comment). */
 export interface GlossaryRow {
@@ -64,8 +65,15 @@ const kwColour = (k: KeywordName): string => ICON_COLOUR[ICON[k]];
 /** The keyword's reminder (faces.ts REMINDER) and its one extra sentence. */
 const withExtra = (reminder: string, extra: string): string => `${reminder} ${extra}`;
 
-/** The rows, built from the sim at each call (tests trace their numbers through the formatter registry). */
-export function glossaryRows(): GlossaryRow[] {
+/** The rows, built from the sim at each call (tests trace their numbers through the formatter registry). HULL-1d
+ *  (REQ-BFG-079; BRIEF-HULL1D 2 (h)1): `day`, the day the rows are read on (the tapped piece's run day): the face keywords'
+ *  numbers (faces.ts REMINDER: BURN's damage a second, HEAT's and FRAY's damage x D(d), PLATE's MAX x S(d)) on that day
+ *  (dayShown.ts); no day, or the switch off: day 1's, as before (GLOSSARY, the table, is day 1's). */
+export function glossaryRows(day?: number): GlossaryRow[] {
+  return shownOn(day, rowsNow);
+}
+
+function rowsNow(): GlossaryRow[] {
   const burnExtra = "THEY ADD UP, AND {*PLATE} SOAKS THEM.";
   const stunExtra = "THE HULL ITSELF NEVER STOPS.";
   const heatExtra = "JACKETS ADD UP, FROM THEIR TILE ON.";
@@ -320,7 +328,8 @@ export function glossaryText(word: string, piece?: { def: string; stars: number;
   }
   const found = glossaryEntry(word);
   if (!found) return undefined;
-  const row = glossaryRows().find((r) => r.word === found.word)!; // built now: its numbers go through the formatters now
+  // built now: its numbers go through the formatters now. HULL-1d: on the piece's day (piece.o.day, the run's)
+  const row = glossaryRows(piece?.o?.day).find((r) => r.word === found.word)!;
   if (row.kw && piece && hasFace(piece.def)) {
     const own = faceAt(piece.def, piece.stars, piece.o ?? {})?.reminders.find((r) => r.includes(`{*${row.kw}}`));
     if (own) return row.extra ? `${own} ${row.extra}` : own;
