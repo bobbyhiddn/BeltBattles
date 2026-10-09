@@ -192,21 +192,16 @@ export function dmgDayScale(n: number, tenths: number, c: { dmgRem?: number }): 
 // (PLATE BREAKER's 10 a payload, SHIELD WALL's 12+) on the same S; ANVIL BREECH reads the pool back in day-1 units (its
 // damage takes D at impact). Not SHIELD (it stops whole hits, which D grows), not IRON HIDE's cut (it acts before D), not
 // the max HULL grants (M's), not the wind (a share). With the switch off nothing here runs (S = 1).
+// THE STEP (cap's Q5 addendum, oracle 52d14c43f15a9e68): the full step, S = M on every day, derived from M here, never
+// copied, under its own name so the read-outs use S and a later content pass can still part S from M. Measured (96 seeds,
+// every switch on, W/output-hull1d/bench): half (1 + (M - 1) / 2) left BASTION's cross win at 34.0 on day 3 (36+ wanted);
+// a 3/4 step 37.2; the full step 37.7 (day 2 39.2), with BASTION's median fight 25.3-25.6 s on days 3, 4, 7 and 9, under
+// BASTION's own ceiling of 26.0 s (the ruling; FOUNDRY and the pooled median keep 18-25 s). S = M grows every protective
+// amount as the hull grows, so the bots' day-1 rating (deckRating.ts) keeps its order.
 
-/** HULL-1d: S(d) for days 1-10 in whole tenths, half M's step: S = 1 + (M - 1) / 2 (M's even tenths keep it whole):
- *  x1.0, 1.2, 1.4, 1.6, 1.9, 2.2, 2.5, 2.8, 3.1, 3.5. */
-export const SUST_MUL_TENTHS: readonly number[] = [10, 12, 14, 16, 19, 22, 25, 28, 31, 35];
-/** HULL-1d: S past day 10 holds day 10's M / S (D's construction): S(d) = M(d) x S(10) / M(10), whole tenths, halves up,
- *  for days 11-18, and a per-day step from day 19. */
-export const SUST_MUL_TENTHS_LATE: readonly number[] = DAY_MUL_TENTHS.slice(10).map((m) => Math.floor((m * SUST_MUL_TENTHS[9] * 2 + DAY_MUL_TENTHS[9]) / (2 * DAY_MUL_TENTHS[9])));
-/** HULL-1d: each day past day 18 adds this many tenths to S (M's +12 a day x S(10) / M(10), halves up). */
-export const SUST_MUL_STEP_TENTHS = Math.floor((DAY_MUL_STEP_TENTHS * SUST_MUL_TENTHS[9] * 2 + DAY_MUL_TENTHS[9]) / (2 * DAY_MUL_TENTHS[9]));
-
-/** HULL-1d: S(d) in whole tenths, whatever the switch says (dmgMulTenths' rules: 10 for a day below 1 or no day). */
+/** HULL-1d: S(d) in whole tenths, whatever the switch says: M(d) (dayMulTenths, its rules: 10 for a day below 1 or none). */
 export function sustMulTenths(day: number | undefined): number {
-  if (typeof day !== "number" || !Number.isFinite(day) || day < 1) return ONE_TENTHS;
-  const d = Math.floor(day), late = [...SUST_MUL_TENTHS, ...SUST_MUL_TENTHS_LATE];
-  return d <= late.length ? late[d - 1] : late[late.length - 1] + SUST_MUL_STEP_TENTHS * (d - late.length);
+  return dayMulTenths(day);
 }
 
 /** HULL-1d: S(d) as a number (1, 1.2, 3.5), for words, tests and benches. */
