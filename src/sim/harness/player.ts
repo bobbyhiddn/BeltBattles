@@ -48,6 +48,7 @@
 import { Rng, hashSeed } from "../../core/rng";
 import { hullScaleRules } from "../hullScale"; // HULL-1c (REQ-BFG-079): the cache key
 import { ladderFixRules } from "../ladderFix"; // HULL-1c: the cache key
+import { npcDayRules } from "../npcDay"; // HULL-1d (REQ-BFG-073): the REFIT swap of LAST CHANCE's part (refitSwap)
 import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
 import {
   DX, DY, arrowCell, canFitGear, canSellTurret, cloneBuild, commitRoute, connectorClaims, coreFor, deadEndsAt, footprint,
@@ -1663,11 +1664,55 @@ export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs 
       buy(run, best, "best", 0, []);
       return { rel: best.rel, placed: true };
     }
+    // HULL-1d: with NPC_DAY on, the REFIT before every dusk: the part swapped in for a fitted piece of its kind
+    const sw = npcDayRules() ? refitSwap(run, def, rng) : null;
+    if (sw) {
+      const oldMod = run.build.mods.find((m) => m.uid === sw.swap);
+      if (oldMod ? !storeMod(run, oldMod.uid) : !storePlaced(run, sw.swap)) throw new Error(`placeFreePart: the swapped-out part ${sw.swap} could not go to cargo`);
+      const res = buyOffer(run, 0, 0, sw.at);
+      if (!res.ok) throw new Error(`placeFreePart: the REFIT swap of ${def} failed: ${res.reason}`);
+      return { rel: sw.rel, placed: true };
+    }
     gainModule(run, def);
     return { rel: 0, placed: false };
   } finally {
     run.shop = shop;
   }
+}
+
+/**
+ * HULL-1d (REQ-BFG-073; BRIEF-HULL1D 2 (a)2 and (e)2): the bots' REFIT swap of a free part, NPC_DAY on only. With NPC_DAY
+ * on, a player gets REFIT before every dusk (npcDay.ts: move, swap and place cargo; no buying or selling), so LAST
+ * CHANCE's part, which goes to cargo, can be swapped in for a fitted piece of its kind, the old one going to cargo. The
+ * bots' own swaps (rigSwap, candidates' gear upgrade) judge a fitted piece against the offer's price, and a free part's
+ * price is 0, so they never swapped it in: with every switch on, 155 of 307 offered parts stayed in cargo (HULL-1c).
+ * This is the swap a player makes there: a free rig on a placed rig's cell (rigSwap, the fitted rig's value not
+ * compared), free gear in a fitted gear piece's place on its turret (canFitGear); the best-rated swap, when it rates a
+ * gain and keeps FOUNDRY's synced guns (syncKeeper). A turret needs none (turretCand plans its swap). Reads no RNG
+ * beyond the Shopper's (none here). Null: no swap rates a gain.
+ */
+function refitSwap(run: Run, def: string, rng: Rng): { rel: number; swap: number; at: GainAt } | null {
+  const b = run.build, day = run.day, d = ITEMS[def], base = rateOn(b, day), keep = syncKeeper(b);
+  if (d.kind === "gate") {
+    const s = new Shopper(b, maxGoldByDay(day), day, rng, "on", FUSE_MAX, "on", "on");
+    const c = rigSwap(b, s, def, Infinity, run.nextUid, base, day, keep);
+    return c && c.rel > 0 && c.swap !== undefined && c.at ? { rel: c.rel, swap: c.swap, at: c.at } : null;
+  }
+  if (d.kind !== "mod") return null;
+  let best: { rel: number; swap: number; at: GainAt } | null = null;
+  for (const v of installedTurrets(b)) {
+    for (const old of gearOn(b, v.slot)) {
+      if (old.def === def) continue;
+      const after = cloneBuild(b);
+      after.mods = after.mods.filter((m) => m.uid !== old.uid);
+      if (!canFitGear(after, v.slot, def).ok) continue;
+      after.mods.push({ uid: run.nextUid, def, turret: v.slot });
+      if (keep && !keep(after)) continue;
+      const rel = relOf(after, base, day);
+      if (rel > 0 && (!best || rel > best.rel)) best = { rel, swap: old.uid, at: { turret: v.slot } };
+    }
+  }
+  return best;
 }
 
 /** LC-1: the par run's LAST CHANCE card at the dawn after `day` (playerRun's opts.lastChance): the game's takeLastChance
