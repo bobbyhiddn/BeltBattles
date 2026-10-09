@@ -4,9 +4,11 @@
 //  - stills (default): the page's requestAnimationFrame never fires and Math.random is pinned; the script steps the game
 //    (bb.game.step(1/60)), so a still repeats exactly. FURNACE's day-6 dusk (seed 7, its stand-in foe) on a phone 390x844
 //    at DPR 3: scouting with an enemy part's face open (scout-enemy); with your part's face and its ⓘ view open
-//    (scout-info); VIEW BATTLEFIELD with both summaries and a turret's fight line (view); a Hard warlord's result card with
-//    its VIEW BATTLEFIELD button (warlord-card); desk 1920x1080 and phone landscape 844x390, scouting and the view
-//    (desk-scout, desk-view, land-scout, land-view). Then one contact sheet of them all (sheet).
+//    (scout-info); VIEW BATTLEFIELD with both summaries (view-summaries) and with a turret's face and its fight line
+//    (view-face: an open face takes the open floor where the summaries sit, so one still can't show both); a Hard
+//    warlord's result card with its VIEW BATTLEFIELD button (warlord-card); desk 1920x1080 and phone landscape 844x390,
+//    scouting (a face open) and the view (both summaries) (desk-scout, desk-view, land-scout, land-view). Then one
+//    contact sheet of them all (sheet).
 //  - video (--sets video): one dusk battle from its sail-in, phone 390x844 at DPR 3, rendered frame by frame at the
 //    device's 1170x2532 (the page's clock stepped 1/25 s a frame: real time at 25 fps): scouting (two of your parts, two
 //    enemy parts and one ⓘ view), FIGHT and the ease to WIDE, about 15 s of the fight, the result card, VIEW BATTLEFIELD
@@ -130,8 +132,9 @@ const scoutFace = (side, info) => async (page, touch) => {
   return { part: p, face: s.face?.title, frames: r.frames };
 };
 
-/** VIEW BATTLEFIELD after the fight played at 4X, a turret's face open (its fight line). */
-const viewFace = (side = 0) => async (page, touch) => {
+/** VIEW BATTLEFIELD after the fight played at 4X: with `side` a turret's face open on that board (its fight line), else
+ *  no face, both summaries in the open floor (an open face takes the floor, so one still can't show both). */
+const viewFace = (side = null) => async (page, touch) => {
   await toScouting(page);
   await page.evaluate(() => { window.bb.fight(); window.bb.game.screen.setSpeed(3); });
   const r = await until(page, "result", 60 * 200);
@@ -140,11 +143,16 @@ const viewFace = (side = 0) => async (page, touch) => {
   const v = await region(page, "viewfield");
   if (must(!!v, "the card shows VIEW BATTLEFIELD")) await tap(page, v.x, v.y, touch);
   await steps(page, 50);
+  if (side === null) {
+    const s = await scout(page);
+    must(s.phase === "view" && s.summaries.length === 2 && !s.face, `the view with both summaries (${s.summaries.length})`);
+    return { summaries: s.summaries.length };
+  }
   const p = await part(page, side, ["turret"]);
   await tap(page, p.x, p.y, touch);
   const s = await scout(page);
   must(s.phase === "view" && !!s.face?.line, `the view with a turret's fight line (${s.face?.line})`);
-  return { part: p, line: s.face?.line, summaries: s.summaries.length };
+  return { part: p, line: s.face?.line };
 };
 
 /** A Hard warlord won (its part pick waiting), the card with VIEW BATTLEFIELD. */
@@ -294,12 +302,13 @@ if (SETS.includes("stills")) {
   const add = (file, label) => { if (file) cells.push({ file, label }); };
   add(await still(browser, "scout-enemy", "phone", scoutFace(1, false)), "SCOUTING: AN ENEMY PART");
   add(await still(browser, "scout-info", "phone", scoutFace(0, true)), "SCOUTING: YOUR PART, ITS ⓘ");
-  add(await still(browser, "view", "phone", viewFace(0)), "VIEW BATTLEFIELD");
+  add(await still(browser, "view-summaries", "phone", viewFace(null)), "VIEW BATTLEFIELD: SUMMARIES");
+  add(await still(browser, "view-face", "phone", viewFace(0)), "VIEW BATTLEFIELD: A FIGHT LINE");
   add(await still(browser, "warlord-card", "phone", warlordCard), "WARLORD CARD");
   add(await still(browser, "land-scout", "land", scoutFace(1, false)), "LANDSCAPE: SCOUTING");
-  add(await still(browser, "land-view", "land", viewFace(1)), "LANDSCAPE: VIEW BATTLEFIELD");
+  add(await still(browser, "land-view", "land", viewFace(null)), "LANDSCAPE: VIEW BATTLEFIELD");
   add(await still(browser, "desk-scout", "desk", scoutFace(0, false)), "DESK: SCOUTING");
-  add(await still(browser, "desk-view", "desk", viewFace(0)), "DESK: VIEW BATTLEFIELD");
+  add(await still(browser, "desk-view", "desk", viewFace(null)), "DESK: VIEW BATTLEFIELD");
   if (!ONLY && cells.length) {
     // one sheet of them all: the four phone stills (390x844 at DPR 3) across, then landscape and desk two a row
     const phone = cells.filter((c) => !/LANDSCAPE|DESK/.test(c.label));
