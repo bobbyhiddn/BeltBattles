@@ -80,7 +80,8 @@ async function one(browser, page0, scene, reduced, rate, query) {
     const split = {};
     if (b) for (const k of Object.keys(b.ms)) split[k] = frames ? (b.ms[k] - (a && !reset ? a.ms[k] : 0)) / frames : 0;
     const m = bb.motion();
-    return { gaps, frames, split, reset, work: bb.game.perfStats(Math.min(600, gaps.length)), screen: bb.screen(), phase: m.phase, over: !!m.over, sea: m.sea ?? null, reduced: bb.settings.reducedMotion, wears: bb.profile().wears.carrier };
+    // REVIEW-STAGE098 R2: bb.profile only where the page has it (a --base run against a page from before CUSTOM-2a)
+    return { gaps, frames, split, reset, work: bb.game.perfStats(Math.min(600, gaps.length)), screen: bb.screen(), phase: m.phase, over: !!m.over, sea: m.sea ?? null, reduced: bb.settings.reducedMotion, wears: bb.profile ? bb.profile().wears.carrier : null };
   }, SECS);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
   await ctx.close();
