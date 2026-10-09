@@ -28,6 +28,9 @@ import { finishDay, startDusk } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
 import type { SideStats } from "../src/sim/battle";
 import { setHullScale } from "../src/sim/hullScale"; // HULL-1c: --all-on
+import { dayMulTenths, hullScaleRules, scaleTenths } from "../src/sim/hullScale"; // HULL-1d: section 4 on M
+import { npcDayRules } from "../src/sim/npcDay"; // HULL-1d: the run's switches in its meta
+import { ladderFixRules } from "../src/sim/ladderFix"; // HULL-1d: the run's switches in its meta
 import { setLadderFix } from "../src/sim/ladderFix"; // HULL-1c: --all-on
 import { setNpcDay } from "../src/sim/npcDay"; // HULL-1c: --all-on
 
@@ -176,7 +179,11 @@ function quant(xs: readonly number[], q: number): number {
 const table = (head: string[], rows: (string | number)[][]): string =>
   [`| ${head.join(" | ")} |`, `|${head.map(() => "---").join("|")}|`, ...rows.map((r) => `| ${r.join(" | ")} |`)].join("\n");
 
-function report(all: JobOut[], hullAmt: number, exact?: Exact[]): string {
+/** HULL-1d (REVIEW-HULL1C note D): the HULL card's amount as it lands on `day`: with HULL_SCALE on in the shards' run (their
+ *  meta.switches), +hullAmt x M(day), rounded to a whole 10 (hullAt's rule; the card sits in hullBonus); off: hullAmt. */
+const hullCardOn = (hullAmt: number, day: number, onM: boolean): number => (onM ? scaleTenths(hullAmt, dayMulTenths(day)) : hullAmt);
+
+function report(all: JobOut[], hullAmt: number, exact?: Exact[], onM = false): string {
   const heroes = [...new Set(all.map((j) => j.hero))];
   const groups: [string, JobOut[]][] = [...heroes.map((h) => [h.toUpperCase(), all.filter((j) => j.hero === h)] as [string, JobOut[]]), ["POOLED", all]];
   const out: string[] = [];
@@ -265,17 +272,20 @@ function report(all: JobOut[], hullAmt: number, exact?: Exact[]): string {
     ])));
   }
   // 4. hull by day
-  out.push(`\n### 4. +${hullAmt} against the hull by day (max hull at dusk; par decks and the field they meet)\n`);
+  // HULL-1d (REVIEW-HULL1C note D): with HULL_SCALE on the card lands as +hullAmt x M(day) (battle.ts makeSide: hullBonus x M),
+  // so its share of the day's hull is that, not the day-1 number over the scaled hull (which understated it, 2.6-7.6%)
+  out.push(`\n### 4. +${hullAmt} against the hull by day (max hull at dusk; par decks and the field they meet)${onM ? `; HULL_SCALE on: the card lands as +${hullAmt} x M(day)` : ""}\n`);
   const hrows: (string | number)[][] = [];
   for (const h of heroes) {
     for (const d of [5, 6, 7, 8, 9]) {
       const js = all.filter((j) => j.hero === h);
       const par = js.map((j) => j.hull.par[d - 1]), field = js.map((j) => j.hull.field[d - 1]);
       const med = quant(par, 0.5), grow = mean(js.map((j) => j.hull.par[d - 1] - j.hull.par[d - 2]));
-      hrows.push([h.toUpperCase(), d, `${med} (${quant(par, 0.1)}-${quant(par, 0.9)})`, `${quant(field, 0.5)} (${quant(field, 0.1)}-${quant(field, 0.9)})`, grow.toFixed(0), pc(hullAmt / med), grow > 0 ? (hullAmt / grow).toFixed(1) : "-"]);
+      const amt = hullCardOn(hullAmt, d, onM); // HULL-1d: x M(d) with HULL_SCALE on
+      hrows.push([h.toUpperCase(), d, `${med} (${quant(par, 0.1)}-${quant(par, 0.9)})`, `${quant(field, 0.5)} (${quant(field, 0.1)}-${quant(field, 0.9)})`, grow.toFixed(0), ...(onM ? [amt] : []), pc(amt / med), grow > 0 ? (amt / grow).toFixed(1) : "-"]);
     }
   }
-  out.push(table(["hero", "day", "par median (p10-p90)", "field median (p10-p90)", "par growth since d-1 (mean)", `+${hullAmt} / par hull`, `+${hullAmt} in days of growth`], hrows));
+  out.push(table(["hero", "day", "par median (p10-p90)", "field median (p10-p90)", "par growth since d-1 (mean)", ...(onM ? [`+${hullAmt} x M(d)`] : []), `${onM ? "the card" : `+${hullAmt}`} / par hull`, `${onM ? "the card" : `+${hullAmt}`} in days of growth`], hrows));
   const g19 = heroes.map((h) => { const js = all.filter((j) => j.hero === h); return `${h.toUpperCase()} ${mean(js.map((j) => (j.hull.par[8] - j.hull.par[0]) / 8)).toFixed(0)}`; });
   out.push(`\nMean par hull growth a day, day 1 to day 9: ${g19.join(", ")}.`);
   out.push("\n### 4b. The HULL card's pick rate by its amount (the bots' rating; rune and part cards as offered)\n");
@@ -300,10 +310,12 @@ const range = (s: string): number[] => { const [a, b] = s.split("-").map(Number)
 function main(): void {
   const merge = arg("merge");
   if (merge) {
-    const all: JobOut[] = merge.split(",").flatMap((f) => (JSON.parse(readFileSync(f, "utf8")) as { jobs: JobOut[] }).jobs);
+    const shards = merge.split(",").map((f) => JSON.parse(readFileSync(f, "utf8")) as { meta?: { switches?: { hullScale?: boolean } }; jobs: JobOut[] });
+    const all: JobOut[] = shards.flatMap((x) => x.jobs);
+    const onM = shards.some((x) => x.meta?.switches?.hullScale === true); // HULL-1d: the shards' run had HULL_SCALE on
     const hullAmt = Number(arg("hull") ?? LAST_CHANCE_HULL);
     const exact = process.argv.includes("--exact") ? exactModel([0.3, 0.4, 0.5, 0.6]) : undefined;
-    const md = report(all, hullAmt, exact);
+    const md = report(all, hullAmt, exact, onM);
     const to = arg("md");
     if (to) writeFileSync(to, md + "\n");
     if (exact && arg("exact-json")) writeFileSync(arg("exact-json")!, JSON.stringify(exact, null, 1));
@@ -321,7 +333,9 @@ function main(): void {
     if (!HEROES[hero]) throw new Error(`unknown hero ${hero}`);
     for (const seed of seeds) jobs.push(job(hero, seed, hull, forced.has(seed)));
   }
-  const meta = { heroes, seeds: [seeds[0], seeds[seeds.length - 1]], forced: [...forced], hull, ms: Date.now() - t0, at: new Date().toISOString() };
+  // HULL-1d: the switches the run played under (the merge reads hullScale for section 4); absent with every switch off
+  const sw = { hullScale: hullScaleRules(), ladderFix: ladderFixRules(), npcDay: npcDayRules() };
+  const meta = { heroes, seeds: [seeds[0], seeds[seeds.length - 1]], forced: [...forced], hull, ms: Date.now() - t0, at: new Date().toISOString(), ...(sw.hullScale || sw.ladderFix || sw.npcDay ? { switches: sw } : {}) };
   const to = arg("json");
   if (to) writeFileSync(to, JSON.stringify({ meta, jobs }));
   console.log(`${heroes.join(",")} seeds ${meta.seeds.join("-")}: ${jobs.length} runs, ${jobs.filter((j) => j.lc).length} LAST CHANCE, ${(meta.ms / 1000).toFixed(1)} s`);
@@ -331,4 +345,7 @@ function main(): void {
 // D on every hit, the day's income; LADDER_FIX; NPC_DAY), through each module's setter, before any run is played. The
 // day already reaches maxHull and every dusk fight (HULL-1a).
 if (process.argv.includes("--all-on")) { setHullScale(true); setLadderFix(true); setNpcDay(true); }
+// HULL-1d (BRIEF-HULL1D 2 (e)2): --no-npc-day after --all-on: HULL_SCALE and LADDER_FIX on, NPC_DAY off (the bots without
+// the REFIT swap, player.ts refitSwap, which is NPC_DAY's: the PART fix's before)
+if (process.argv.includes("--no-npc-day")) setNpcDay(false);
 main();
