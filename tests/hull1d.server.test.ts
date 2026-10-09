@@ -444,16 +444,16 @@ describe("HULL-1d (g)2: forgeries are refused with every switch on, each with it
     console.log(`HULL1D-G ★ lines (${s.hero} seed ${s.seed} ${id}): ★3 at the edge: ${over.errors[0]}\n  two ★2: ${pair.errors.join(" | ")}`);
   });
 
-  // FINDING (HULL-1d (g)): with room in the purse the server can't tell the PART card's ★2 copy from a ★3 one. The budget
-  // counts value, not copies: a ★3 is the free ★2 plus a bought ★2 (two ★1 buys merged), so a deck whose purse could have
-  // paid those 2 x price is honest-reachable by that path, and the server takes it. It is refused only at the purse's edge
-  // (the test above). Repro: the PART run below (partOnDeck), its copy restarred to ★3, no plates added: validateUpload ok.
-  it.fails("FINDING: the LAST CHANCE part as a ★3 copy with room in the purse is refused (it is not: value, not copies)", () => {
+  // HULL-1d (g), reviewed (cap_beta): with room in the purse a ★3 copy of the PART card's part is HONEST-REACHABLE, not a
+  // forgery: the free ★2 copy merges with a bought ★2 (two ★1 buys merged) into a ★3, and the budget counts value, not
+  // copies (validate.ts: the free part at valueOf(id, ★2), the rest paid). So the server takes it whenever those 2 x price
+  // fit the purse, and refuses it at the purse's edge (the test above). Pinned as accepted, so a change to the rule shows.
+  it("the LAST CHANCE part as a ★3 copy with room in the purse passes: the free ★2 plus a bought ★2, merged (value, not copies)", () => {
     const { s, id } = partOnDeck();
     every();
     const r = deck(restar(s, id, 3));
-    console.log(`HULL1D-G FINDING ★3: ${s.hero} seed ${s.seed} day ${s.day} ${id}: ★3 copy -> ${r.ok ? "accepted" : r.errors[0]}`);
-    expect(r.ok).toBe(false);
+    console.log(`HULL1D-G ★3 with room: ${s.hero} seed ${s.seed} day ${s.day} ${id}: ★3 copy -> ${r.ok ? "accepted" : r.errors[0]}`);
+    expect(r.ok).toBe(true);
   });
 
   it("a hull one step over the ceiling: one ARMOR PACK, one whole 10 (day-1 units) or the day's own number, every hero, days 1, 5 and 10", () => {
