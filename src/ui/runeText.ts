@@ -13,6 +13,7 @@ import { NUMBER_COLOUR, type Span } from "./richText";
 import { RUNE_REMINDER, glossaryEntry } from "./glossary"; // U2c: the keyword colours and reminders, one source
 import { RUNE_NOTE } from "./glossary"; // Y-FURN: a rune's own reminder (SHATTER SHOT's)
 import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): a max-hull amount on the day's hull
+import { dmgShown, sustShown } from "../sim/hullScale"; // HULL-1d (REQ-BFG-079): a rune's + DMG x D(d), its HEAL / REGEN / PLATE x S(d)
 
 /** A whole number as the game writes it. No rounding here: a rune whose amount is not whole shows it, and
  *  tests/runes.ui.test.ts (every number in every rune text is whole) catches it. */
@@ -74,13 +75,29 @@ const isKeyword = (k: string): k is RuneKeyword => Object.prototype.hasOwnProper
 
 /** HULL-1a (REQ-BFG-079): the rune kinds whose amount is max hull (IRON SKIN, SPARE HULL into hullBonus; BULKHEADS and
  *  SCRAP HALO per unit at the battle's start). With HULL_SCALE on and a day, their {N} reads that day's number (hullScale.ts
- *  hullShown); HEAL and REGEN amounts don't scale. */
+ *  hullShown). HULL-1d: HEAL and REGEN amounts take S(d) (amountOn below). */
 const MAX_HULL_KINDS: ReadonlySet<string> = new Set(["hull", "perTurretHull", "mergedHull"]);
 
+/** HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (h)1): the DMG-unit kind whose amount is no hit: IRON HIDE's cut ("HITS ON YOU: -10
+ *  DMG") acts before D(d) (battle.ts runeHit, then D), so it reads its day-1 number. */
+const DMG_NOT_A_HIT: ReadonlySet<string> = new Set(["hitCut"]);
+
+/** HULL-1d: the amount on `day`. A hit's + DMG (the "dmg" unit: SHARP SCRAP, WAR EDGE, TWIN NAILS, IRON TEMPER, FINAL NAIL,
+ *  SCRAP BITER, SNARE KNOT, BARBED SILK...) x D(d) (dmgShown); a PLATE amount (the "plate" unit: RIVET HOARD, GRAVE PLATES,
+ *  SCAB IRON, LAST WALL, FORGE WARD, SEAM RIVETS) and a HEAL or REGEN amount (the "hull" unit's other kinds: TWIN SALVE,
+ *  SCRAP MEDIC, LEECH VOW, GREEN THREAD) x S(d) (sustShown), as battle.ts lands them; max HULL x M (hullShown). Counts
+ *  (BURN, FRAY, SHIELD), %, seconds, gold and belt never scale. The switch off, or no day: n. */
+function amountOn(def: RuneDef, day?: number): number {
+  const n = def.amount.n, unit = def.amount.unit;
+  if (MAX_HULL_KINDS.has(def.kind)) return hullShown(n, day);
+  if (unit === "dmg") return DMG_NOT_A_HIT.has(def.kind) ? n : dmgShown(n, day);
+  if (unit === "plate" || unit === "hull") return sustShown(n, day);
+  return n;
+}
+
 /** The rune's amount as its text shows it ("15", "25%"). HULL-1a: `day`, the day it is read on (a max-hull amount shows
- *  the day's number with the switch on; off, or no day, 0.9.7's). */
-export const runeAmountText = (def: RuneDef, day?: number): string =>
-  RUNE_UNIT_TEXT[def.amount.unit](MAX_HULL_KINDS.has(def.kind) ? hullShown(def.amount.n, day) : def.amount.n);
+ *  the day's number with the switch on; off, or no day, 0.9.7's). HULL-1d: damage x D(d), sustain x S(d) (amountOn). */
+export const runeAmountText = (def: RuneDef, day?: number): string => RUNE_UNIT_TEXT[def.amount.unit](amountOn(def, day));
 
 /**
  * RuneDef.text as rich-text spans (richText.ts Span): {N} filled from def.amount through its unit's formatter, in the
