@@ -166,11 +166,12 @@ export function faceArea(L: BattleLayout, side: Side): { area: Rect; band: boole
 /** The narrowest landscape floor a face opens in (logical px): about 16 capitals of its 5x7 text a line. */
 export const FACE_MIN_W = 100;
 
-/** The room past a face's panel `r` its ⓘ view may grow into (keywords.ts infoFree's role): portrait, above the floor (over
- *  the enemy's board, while the view is open); landscape, down the column under the panel. Null: none (at least
- *  INFO_FREE_MIN rows). */
+/** The room past a face's panel `r` its ⓘ view may grow into (keywords.ts infoFree's role), never over a board (a tap
+ *  there must reach a part, to swap the face): landscape, down the column under the panel; portrait, none (the floor's
+ *  rows are the panel's own: the view pages inside it). Null: none (at least INFO_FREE_MIN rows). */
 export function faceFree(L: BattleLayout, area: Rect, r: Rect): Rect | null {
-  const q = L.portrait ? { x: r.x + 2, y: 2, w: r.w - 4, h: r.y - 3 } : { x: r.x + 2, y: r.y + r.h + 1, w: r.w - 4, h: area.y + area.h - (r.y + r.h + 1) };
+  if (L.portrait) return null;
+  const q = { x: r.x + 2, y: r.y + r.h + 1, w: r.w - 4, h: area.y + area.h - (r.y + r.h + 1) };
   return q.h >= INFO_FREE_MIN ? q : null;
 }
 
