@@ -3,7 +3,8 @@
 // screen), toasts, and frame timing for the tooling hooks.
 
 import { Audio, type Sfx } from "../audio/audio";
-import { applyView, bindInput, computeView, type InputSink, type PointerKind, type View } from "../core/io";
+import { bindInput, type InputSink, type PointerKind } from "../core/io";
+import { applyGameView, viewWithSub, type GameView } from "./viewGrid"; // FIELD-1 (REQ-BFG-075): the battle's finer canvas grid
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap } from "../render/font";
@@ -19,6 +20,9 @@ export interface Screen {
   mergeNotice?: boolean;
   /** Integer device-pixel scale for this screen; default framing when absent. */
   pickScale?(pw: number, ph: number, portrait: boolean, dpr?: number): number;
+  /** FIELD-1 (REQ-BFG-075): canvas px per logical px (game/viewGrid.ts GameView.sub; the battle's camera grid); 1 when
+   *  absent. */
+  pickSub?(pw: number, ph: number, portrait: boolean, scale: number): number;
   enter?(): void;
   update(dt: number): void;
   draw(g: G): void;
@@ -50,7 +54,7 @@ export function toastFit(text: string, W: number): { font: "5" | "3"; lines: str
 export class Game implements InputSink {
   readonly canvas: HTMLCanvasElement;
   readonly g: G;
-  view: View;
+  view: GameView;
   readonly ui = new UI();
   readonly audio = new Audio();
   run: Run | null = null;
@@ -73,7 +77,7 @@ export class Game implements InputSink {
     this.g = g;
     this.screen = first(this);
     this.view = this.computeView();
-    applyView(canvas, this.view);
+    applyGameView(canvas, this.view);
     bindInput(canvas, () => this.view, this);
     window.addEventListener("resize", () => this.resize());
     document.addEventListener("visibilitychange", () => { this.last = performance.now(); });
@@ -87,14 +91,14 @@ export class Game implements InputSink {
   get H(): number { return this.view.H; }
   get portrait(): boolean { return this.view.portrait; }
 
-  private computeView(): View {
+  private computeView(): GameView {
     const s = this.screen;
-    return computeView(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1, s.pickScale ? s.pickScale.bind(s) : undefined);
+    return viewWithSub(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1, s.pickScale ? s.pickScale.bind(s) : undefined, s.pickSub ? s.pickSub.bind(s) : undefined);
   }
 
   resize(): void {
     this.view = this.computeView();
-    applyView(this.canvas, this.view);
+    applyGameView(this.canvas, this.view);
   }
 
   go(next: Screen): void {
@@ -207,7 +211,8 @@ export class Game implements InputSink {
 
   render(): void {
     const g = this.g;
-    g.setTransform(1, 0, 0, 1, 0, 0);
+    const s = this.view.sub ?? 1; // FIELD-1: the battle's finer grid draws each logical px as s canvas px (1 elsewhere)
+    g.setTransform(s, 0, 0, s, 0, 0);
     g.imageSmoothingEnabled = false;
     g.globalAlpha = 1;
     this.ui.begin();

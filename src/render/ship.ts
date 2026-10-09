@@ -16,7 +16,7 @@ import { carrierStyle, type CarrierId, type FloorId } from "./styles";
 import type { G } from "./pixel";
 import { HULL_L, hullBox, type Box, type DeckFrame, type Facing } from "./frame";
 import { HULL_M, HullPainter, heroPalette, hullSprite } from "./hull";
-import { PIVOT_X, PLATE_HX, PLATE_W, ROT_X, ROT_Y, SHIP_L, STERN_B, boardPlate, plateShade, shipShadow, shipSprite } from "./carrier";
+import { PIVOT_X, PLATE_HX, PLATE_W, ROT_X, ROT_Y, SHIP_L, STERN_B, boardPlate, plateShade, shipShadow, shipSprite, type ShipMedium } from "./carrier";
 
 /** The ship canvases' key for a hero in a carrier style: the hero alone for the default (today's keys). */
 export function shipKey(hero: HeroId, carrier: CarrierId = "war"): string {
@@ -51,23 +51,33 @@ export function pivotOf(f: DeckFrame): [number, number] {
   return [hb.x + hb.w / 2, hb.y + hb.h / 2];
 }
 
+/** FIELD-1 (REQ-BFG-075): the ship's shadow in each medium: alpha and offset (px; `bob` scales the drop). On water today's;
+ *  on ground a firmer shadow close under the treads; in the air a faint one far below. */
+export const SHADOW: Record<ShipMedium, { alpha: number; dx: number; dy: number; bob: number }> = {
+  water: { alpha: 0.35, dx: 2, dy: 3, bob: 1 },
+  ground: { alpha: 0.5, dx: 1, dy: 2, bob: 0 },
+  air: { alpha: 0.16, dx: 9, dy: 14, bob: 2 },
+};
+
 /** The ship, its pivot at (px, py) (whole px), turned `deg` whole degrees (+ = bow up); its shadow drops by `bob`.
- *  CUSTOM-3: in carrier style `carrier` (the player's own carrier only; foes keep the default). */
-export function drawShip(g: G, hero: HeroId, px: number, py: number, deg: number, bob: number, carrier: CarrierId = "war"): void {
+ *  CUSTOM-3: in carrier style `carrier` (the player's own carrier only; foes keep the default). FIELD-1: riding
+ *  `medium` (water: today's canvases and shadow). */
+export function drawShip(g: G, hero: HeroId, px: number, py: number, deg: number, bob: number, carrier: CarrierId = "war", medium: ShipMedium = "water"): void {
   const pal = heroPalette(hero);
   const x = px - ROT_X, y = py - ROT_Y;
   const key = shipKey(hero, carrier), st = carrier === "war" ? undefined : carrierStyle(carrier);
-  g.globalAlpha = 0.35;
-  g.drawImage(shipShadow(key, pal, deg, st), x + 2, y + 3 + bob);
+  const sh = SHADOW[medium];
+  g.globalAlpha = sh.alpha;
+  g.drawImage(shipShadow(key, pal, deg, st, medium), x + sh.dx, y + sh.dy + bob * sh.bob);
   g.globalAlpha = 1;
-  g.drawImage(shipSprite(key, pal, deg, st), x, y);
+  g.drawImage(shipSprite(key, pal, deg, st, medium), x, y);
 }
 
 /** Darken a ship (a KO'd or lost carrier): its ink silhouette at alpha `k`. */
-export function dimShip(g: G, hero: HeroId, px: number, py: number, deg: number, k: number, carrier: CarrierId = "war"): void {
+export function dimShip(g: G, hero: HeroId, px: number, py: number, deg: number, k: number, carrier: CarrierId = "war", medium: ShipMedium = "water"): void {
   if (k <= 0) return;
   g.globalAlpha = Math.min(0.7, k);
-  g.drawImage(shipShadow(shipKey(hero, carrier), heroPalette(hero), deg, carrier === "war" ? undefined : carrierStyle(carrier)), px - ROT_X, py - ROT_Y);
+  g.drawImage(shipShadow(shipKey(hero, carrier), heroPalette(hero), deg, carrier === "war" ? undefined : carrierStyle(carrier), medium), px - ROT_X, py - ROT_Y);
   g.globalAlpha = 1;
 }
 

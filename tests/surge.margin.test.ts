@@ -6,9 +6,10 @@
 // lanes are 0.9.6's (no edge, the same drift and surge).
 import { describe, expect, it } from "vitest";
 import { computeView } from "../src/core/io";
-import { battleLayout, battleScale, laneLayout, laneSpec, minGap } from "../src/game/battleLayout";
+import { battleGrid, battleLayout, battleScale, cameraFocus, laneLayout, laneSpec, minGap } from "../src/game/battleLayout";
 import { DECK, TILE, TILES } from "../src/render/frame";
 import { MotionModel, SURGE_LAND, SURGE_MAX } from "../src/render/motion";
+import { Camera } from "../src/render/camera"; // FIELD-1 (REQ-BFG-075): the sweep at WIDE
 
 /** The battle's lanes on a viewport, as BattleScreen.relayout builds them. */
 function lanes(w: number, h: number, dpr: number) {
@@ -74,6 +75,34 @@ describe("CUSTOM-3 the landscape surge margin (REVIEW-STAGE096 R5 b)", () => {
         maxX = Math.max(maxX, Math.abs(a.offset(0, i / 60)[0]));
       }
       expect(maxX).toBe(SURGE_MAX);
+    }
+  });
+
+  // FIELD-1 (REQ-BFG-075): the fight runs at WIDE (render/camera.ts), the lanes and the surge unchanged; through the
+  // camera's map every tile column of both boards stays on screen at every surge phase, with room to spare
+  it("FIELD-1 at WIDE: through the battle camera, every tile column of both boards is on screen at every surge phase", () => {
+    for (const [name, w, h, dpr] of [["desk", 1920, 1080, 1], ["laptop", 1280, 720, 1], ["laptop-1366", 1366, 768, 1], ["phone-land", 844, 390, 3]] as const) {
+      const { v, L, spec } = lanes(w, h, dpr);
+      const cam = new Camera(battleGrid(Math.floor(w * dpr), Math.floor(h * dpr), v.portrait), "wide");
+      cam.focus = cameraFocus(L);
+      const S = cam.screenAffine();
+      expect(S.a, name).toBeLessThan(1); // zoomed out
+      let spill = -Infinity;
+      for (const seed of SEEDS) {
+        const m = new MotionModel(seed);
+        m.setLanes(spec);
+        for (let i = 0; i <= 120 * 60; i++) {
+          const t = i / 60;
+          for (const s of [0, 1] as const) {
+            const [dx] = m.offset(s, t);
+            for (let c = 0; c < TILES; c++) {
+              const c0 = S.a * (L.frames[s].dx + c * TILE + dx) + S.e, c1 = S.a * (L.frames[s].dx + (c + 1) * TILE + dx) + S.e;
+              spill = Math.max(spill, -c0, c1 - L.W);
+            }
+          }
+        }
+      }
+      expect(spill, `${name}: px of a tile column past a side edge at WIDE`).toBeLessThan(-20);
     }
   });
 });

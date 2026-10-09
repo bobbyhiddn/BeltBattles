@@ -8,7 +8,8 @@
 // one bar docked under the cruisers.
 
 import { DECK, HULL_A, HULL_L, STERN, frameForHull, hullBox, type Box, type DeckFrame } from "../render/frame";
-import type { LaneSpec } from "../render/motion";
+import { SURGE_LAND, SURGE_MAX, type LaneSpec } from "../render/motion";
+import { SHIP_AHEAD, SHIP_BACK, cameraGrid, wideScale, type Grid } from "../render/camera";
 
 export const GAP_MIN = 22; // clears a heavy (13px) + light (9px) barrel poking past the bows
 export const GAP_SHARE = 0.17; // minimum open floor between the bows (share of the firing axis)
@@ -159,6 +160,41 @@ export function laneSpec(L: Pick<BattleLayout, "portrait" | "gap" | "W" | "frame
   const [p, e] = L.frames; // landscape: the player faces east (deck x dx .. dx + DECK), the enemy west
   const edge = Math.min(p.dx, L.W - (e.dx + DECK));
   return { portrait: false, gapRest: L.gap, gapMin, edge };
+}
+
+/**
+ * FIELD-1 (REQ-BFG-075): how far across the screen the two carriers reach at any motion phase (rest-screen logical px):
+ * each ship from its pivot (its hull box's centre) SHIP_BACK behind to SHIP_AHEAD ahead at any heading, plus the surge
+ * its lanes allow (render/motion.ts setLanes: portrait SURGE_MAX; landscape inside the boards' margin). Pure (tests).
+ */
+export function hullSpan(L: Pick<BattleLayout, "portrait" | "gap" | "W" | "frames" | "hulls">, gapMin: number): { x0: number; x1: number } {
+  const spec = laneSpec(L, gapMin);
+  const spare = Math.max(0, Math.floor((spec.gapRest - spec.gapMin) / 2));
+  const surge = spec.portrait ? SURGE_MAX : Math.min(SURGE_LAND, spare, spec.edge === undefined ? SURGE_LAND : Math.max(0, Math.floor(spec.edge)));
+  let x0 = Infinity, x1 = -Infinity;
+  for (const h of L.hulls) {
+    const cx = h.x + h.w / 2;
+    x0 = Math.min(x0, cx - SHIP_BACK - surge);
+    x1 = Math.max(x1, cx + SHIP_AHEAD + surge);
+  }
+  return { x0, x1 };
+}
+
+/** FIELD-1: the battle's camera grid on a screen of pw x ph device px: CLOSE is the battle's own scale (battleScale,
+ *  today's framing), WIDE the largest whole scale at which the carriers' reach (hullSpan) takes at most WIDE_SHARE of
+ *  the width (render/camera.ts). Pure (tests). */
+export function battleGrid(pw: number, ph: number, portrait: boolean): Grid {
+  const close = battleScale(pw, ph, portrait);
+  const W = Math.floor(pw / close), H = Math.floor(ph / close);
+  const L = laneLayout(battleLayout(W, H, portrait));
+  const s = hullSpan(L, minGap(portrait ? H : W));
+  return cameraGrid(close, wideScale(pw, close, s.x1 - s.x0));
+}
+
+/** FIELD-1: the point the battle's camera zooms about (rest-screen logical px, whole): the deck area's centre. */
+export function cameraFocus(L: Pick<BattleLayout, "deckArea">): [number, number] {
+  const d = L.deckArea;
+  return [Math.round(d.x + d.w / 2), Math.round(d.y + d.h / 2)];
 }
 
 /** Cruisers only, centred in a box (title attract loop, previews). The gap is clamped to the box. */
