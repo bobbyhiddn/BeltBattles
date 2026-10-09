@@ -3,6 +3,7 @@
 
 import type { Payload } from "../battle";
 import { roundHalfUp } from "../pct"; // NUM-1 (REQ-BFG-047)
+import { sustDayScale } from "../hullScale"; // HULL-1d (REQ-BFG-079): S(day) on the bulwark slugs' plating
 
 export const PLATE_PER_SLUG = 20; // plating per arriving bulwark slug (x its split multiplier)
 export const PLATE_CAP = 240;
@@ -12,6 +13,11 @@ export interface PlateState {
   gained: number; // plating added (after the cap)
   absorbed: number; // damage soaked
   peak: number;
+  // HULL-1d (REQ-BFG-079): set only in a battle whose S(day) is above 1 (Battle.makeSide): every gain x S where it lands
+  // (hullScale.ts sustDayScale, the remainder in sustRem) and the cap PLATE_CAP x S, so the pool holds what it soaks
+  tenths?: number;
+  cap?: number;
+  sustRem?: number;
 }
 
 export function newPlateState(): PlateState {
@@ -25,7 +31,8 @@ export function plateFor(p: Payload): number {
 
 /** Chamber arrival: add plating, respecting the cap. Returns the plating actually added. */
 export function plateOnLoad(st: PlateState, p: Payload): number {
-  const add = Math.min(plateFor(p), PLATE_CAP - st.plate);
+  const n = st.tenths ? sustDayScale(plateFor(p), st.tenths, st) : plateFor(p); // HULL-1d: S(day), where it lands
+  const add = Math.min(n, (st.cap ?? PLATE_CAP) - st.plate);
   if (add <= 0) return 0;
   st.plate += add;
   st.gained += add;

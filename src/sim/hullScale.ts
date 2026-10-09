@@ -180,3 +180,56 @@ export function dmgDayScale(n: number, tenths: number, c: { dmgRem?: number }): 
   c.dmgRem = t - out * 10;
   return out;
 }
+
+// ------------------------------------------------------------------ HULL-1d: sustain growth behind the same switch
+// HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (b); REVIEW-HULL1C Q5): with M and D on, heal, regen and PLATE amounts kept 0.9.7's
+// numbers, so sustain fell to about a third of its share of a par build's power (HULL-1c REPORT 358-378) and strength moved
+// from BASTION and FOUNDRY to FURNACE and WEAVER. THE SUSTAIN DAY TERM S(d), built as D is: whole tenths, the same for
+// every carrier on the day, read once where a battle starts (Battle's constructor), each amount scaled where it lands with
+// D's rounding (rounded down, the remainder carried on the hull's own counter). Where it lands (battle.ts): every heal
+// (Battle.heal: RIVETER, MEND PRESS, REGEN of the MENDING LOOMs and GREEN THREAD, TWIN SALVE, SCRAP MEDIC, LEECH VOW) and
+// every PLATE gain (Battle.addPlate and the bulwark slugs' plateOnLoad), with the PLATE pool's cap and the two pool units
+// (PLATE BREAKER's 10 a payload, SHIELD WALL's 12+) on the same S; ANVIL BREECH reads the pool back in day-1 units (its
+// damage takes D at impact). Not SHIELD (it stops whole hits, which D grows), not IRON HIDE's cut (it acts before D), not
+// the max HULL grants (M's), not the wind (a share). With the switch off nothing here runs (S = 1).
+
+/** HULL-1d: S(d) for days 1-10 in whole tenths, half M's step: S = 1 + (M - 1) / 2 (M's even tenths keep it whole):
+ *  x1.0, 1.2, 1.4, 1.6, 1.9, 2.2, 2.5, 2.8, 3.1, 3.5. */
+export const SUST_MUL_TENTHS: readonly number[] = [10, 12, 14, 16, 19, 22, 25, 28, 31, 35];
+/** HULL-1d: S past day 10 holds day 10's M / S (D's construction): S(d) = M(d) x S(10) / M(10), whole tenths, halves up,
+ *  for days 11-18, and a per-day step from day 19. */
+export const SUST_MUL_TENTHS_LATE: readonly number[] = DAY_MUL_TENTHS.slice(10).map((m) => Math.floor((m * SUST_MUL_TENTHS[9] * 2 + DAY_MUL_TENTHS[9]) / (2 * DAY_MUL_TENTHS[9])));
+/** HULL-1d: each day past day 18 adds this many tenths to S (M's +12 a day x S(10) / M(10), halves up). */
+export const SUST_MUL_STEP_TENTHS = Math.floor((DAY_MUL_STEP_TENTHS * SUST_MUL_TENTHS[9] * 2 + DAY_MUL_TENTHS[9]) / (2 * DAY_MUL_TENTHS[9]));
+
+/** HULL-1d: S(d) in whole tenths, whatever the switch says (dmgMulTenths' rules: 10 for a day below 1 or no day). */
+export function sustMulTenths(day: number | undefined): number {
+  if (typeof day !== "number" || !Number.isFinite(day) || day < 1) return ONE_TENTHS;
+  const d = Math.floor(day), late = [...SUST_MUL_TENTHS, ...SUST_MUL_TENTHS_LATE];
+  return d <= late.length ? late[d - 1] : late[late.length - 1] + SUST_MUL_STEP_TENTHS * (d - late.length);
+}
+
+/** HULL-1d: S(d) as a number (1, 1.2, 3.5), for words, tests and benches. */
+export const sustMul = (day: number | undefined): number => sustMulTenths(day) / 10;
+
+/** HULL-1d: D's rule for a sustain amount (dmgDayScale's integer math, its own counter `c.sustRem`): `n` x `tenths` / 10
+ *  rounded down, the remainder carried into the next amount on the same hull (or PLATE pool). `tenths` 10 returns `n`. */
+export function sustDayScale(n: number, tenths: number, c: { sustRem?: number }): number {
+  if (tenths === ONE_TENTHS || !(n > 0)) return n;
+  const t = n * tenths + (c.sustRem ?? 0);
+  const out = Math.floor(t / 10);
+  c.sustRem = t - out * 10;
+  return out;
+}
+
+/** HULL-1d: a PLATE pool's unit or cap on the day (PLATE_CAP, PLATE BREAKER's 10, SHIELD WALL's 12+): `n` x `tenths` / 10
+ *  rounded down, no remainder (a threshold, not an amount). `tenths` 10 returns `n`. */
+export const sustUnit = (n: number, tenths: number): number => (tenths === ONE_TENTHS ? n : Math.floor((n * tenths) / 10));
+
+/** HULL-1d: a sustain amount a read-out shows for day-1 amount `n` on `day` (the switch on and a day: n x S(d), rounded down
+ *  as it lands; off, or no day: n). The read-outs' one helper beside dmgShown. */
+export const sustShown = (n: number, day: number | undefined): number => (dayScaled(day) ? sustUnit(n, sustMulTenths(day)) : n);
+
+/** HULL-1d: a damage amount a read-out shows for day-1 amount `n` on `day` (the switch on and a day: n x D(d), rounded down as
+ *  a hit lands; off, or no day: n). Read-outs only: a battle carries the remainder (dmgDayScale). */
+export const dmgShown = (n: number, day: number | undefined): number => (dayScaled(day) ? Math.floor((n * dmgMulTenths(day)) / 10) : n);

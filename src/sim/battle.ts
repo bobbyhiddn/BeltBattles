@@ -35,6 +35,7 @@ import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-
 // HULL-1a (REQ-BFG-079): the day's hull and the wind as a share, behind HULL_SCALE (off)
 import { dayMulTenths, dayScaled, scaleTenths, windShareBp, windShareDamage } from "./hullScale";
 import { dmgDayScale, dmgMulTenths } from "./hullScale"; // HULL-1c (REQ-BFG-079; cap b6be918372b006f3): D(d), the damage day term
+import { sustDayScale, sustMulTenths, sustUnit } from "./hullScale"; // HULL-1d (REQ-BFG-079; REVIEW-HULL1C Q5): S(d), the sustain day term
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -374,6 +375,9 @@ export interface SideState {
   /** HULL-1c (REQ-BFG-079): D(d)'s remainder carried on this hull, in tenths of a point (hullScale.ts dmgDayScale); set
    *  only when a scaled battle's D is above 1 and a hit lands here. */
   dmgRem?: number;
+  /** HULL-1d (REQ-BFG-079): S(d)'s remainder carried on this hull's heals (hullScale.ts sustDayScale); set only when a
+   *  scaled battle's S is above 1 and a heal comes here. */
+  sustRem?: number;
   // SUS-D (REQ-BFG-069), set only on a side whose runes need them:
   guardTimer?: number; // TICK GUARD: seconds to its next SHIELD (carries its remainder)
   halfHealed?: boolean; // SCRAP MEDIC: its HEAL has come
@@ -502,6 +506,9 @@ export class Battle {
   /** HULL-1c (REQ-BFG-079; cap b6be918372b006f3): D(day), the damage day term, in whole tenths when `scaled`
    *  (hullScale.ts dmgMulTenths), else 10 (D = 1: every hit exactly as before). */
   readonly dmgTenths: number;
+  /** HULL-1d (REQ-BFG-079; REVIEW-HULL1C Q5): S(day), the sustain day term, in whole tenths when `scaled` (hullScale.ts
+   *  sustMulTenths), else 10 (S = 1: every heal and PLATE amount exactly as before). */
+  readonly sustTenths: number;
   private windBp = 0; // HULL-1a: the wind's share blown since its last whole tick, in basis-point ticks (scaled only)
 
   /** RUNES-2a: `wins`, the wins each side carried into the fight (the run's own, a ghost's snapshot `wins`; 0 for a
@@ -514,6 +521,7 @@ export class Battle {
     this.scaled = dayScaled(day);
     this.mulTenths = this.scaled ? dayMulTenths(day) : 10;
     this.dmgTenths = this.scaled ? dmgMulTenths(day) : 10; // HULL-1c: D(day) on the day's hull only
+    this.sustTenths = this.scaled ? sustMulTenths(day) : 10; // HULL-1d: S(day), before makeSide (the PLATE pool reads it)
     this.rng = new Rng(seed);
     this.record = { rules: RULES_VERSION, seed, builds: [cloneBuild(player), cloneBuild(enemy)] };
     this.sides = [this.makeSide(0, cloneBuild(player)), this.makeSide(1, cloneBuild(enemy))];
@@ -856,6 +864,8 @@ export class Battle {
       targets.push({ kind: "turret", ref: tu.index, cell: -1, x: (tu.def.col0 + tu.def.width / 2) * CELL, y: -9, weight: 2 });
     });
     const plate = newPlateState(); // 0.8.0 P1 (E1): every hull's plating pool, shared with a race side's RaceSide.plating
+    // HULL-1d: with S above 1 the pool holds what it soaks: every gain x S (bastion.ts plateOnLoad, addPlate), its cap too
+    if (this.sustTenths !== 10) { plate.tenths = this.sustTenths; plate.cap = sustUnit(PLATE_CAP, this.sustTenths); }
     const spall = turrets.filter((tu) => tu.spall);
     // RUNES-1 (REQ-BFG-058): GUN OIL / HAIR TRIGGER fire a whole % faster (the interval / (1 + pct/100)); OILED COGS /
     // STOKED FIRES run the factories' timers a whole % faster (their pace x (1 + pct/100))
@@ -1454,6 +1464,7 @@ export class Battle {
    */
   heal(s: SideState, n: number, source: HealSource, from?: number): number {
     if (!(n > 0) || s.hull.hp <= 0) return 0;
+    if (this.sustTenths !== 10) n = sustDayScale(n, this.sustTenths, s); // HULL-1d: S(day) on every heal, where it lands
     const c = (s.heals ??= { gained: 0, healed: 0, burnLost: 0, windLost: 0 });
     if (this.ticks >= WIND_TICKS) { // the dark wind's rule
       c.windLost += n;
@@ -1559,7 +1570,9 @@ export class Battle {
    *  extra share of a gain made elsewhere, already multiplied: racePlate). */
   addPlate(s: SideState, n: number, raw = false): number {
     if (!raw && s.rune?.plateMul) n *= s.rune.plateMul;
-    const st = s.plate, add = Math.min(n, PLATE_CAP - st.plate);
+    // HULL-1d: S(day) on every PLATE gain where it lands (a raw share is a gain already scaled), up to the pool's own cap
+    if (!raw && s.plate.tenths) n = sustDayScale(n, s.plate.tenths, s.plate);
+    const st = s.plate, add = Math.min(n, (st.cap ?? PLATE_CAP) - st.plate);
     if (!(add > 0)) return 0;
     st.plate += add;
     st.gained += add;
@@ -1678,10 +1691,12 @@ export class Battle {
     if (e.pincer) p.flat += e.pincer.flat + e.pincer.each * Math.min(e.pincer.max ?? Infinity, this.crossfire(s, h));
     if (e.latch) p.flat += e.latch.flat; // TWIN LATCH: each payload it hits (its hold is E4, after the tile's hits)
     if (e.plate) this.addPlate(s, e.plate); // PLATE ROLLER, SHIELD WALL: plating for each payload it hits (E1)
-    if (e.plated && s.plate.plate >= e.plated.min) p.flat += e.plated.flat; // SHIELD WALL: after its plating, at 12+
+    // HULL-1d: SHIELD WALL's 12+ and PLATE BREAKER's 1 plating are pool units, on the pool's S (sustUnit; S = 1: as before)
+    if (e.plated && s.plate.plate >= sustUnit(e.plated.min, this.sustTenths)) p.flat += e.plated.flat; // SHIELD WALL: after its plating, at 12+
     if (e.breaker) { // PLATE BREAKER: takes 1 plating for + flat; with none to take, + floor (it never takes more)
-      if (s.plate.plate >= 10) { // NUM-1: 10 plating (x10 of 1)
-        this.spendPlate(s, 10);
+      const unit = sustUnit(10, this.sustTenths);
+      if (s.plate.plate >= unit) { // NUM-1: 10 plating (x10 of 1)
+        this.spendPlate(s, unit);
         p.flat += e.breaker.flat;
       } else p.flat += e.breaker.floor;
     }
@@ -1970,7 +1985,9 @@ export class Battle {
     // up once (ANVIL's plating %, HULLBREAKER, CAPACITOR's idle seconds, COMPOUND)
     if (routine === "pressure") dmg += pressureBonus(c, queued);
     else if (routine === "salvo") dmg += c.volleyFlat ?? 0;
-    else if (routine === "anvil") dmg += (c.anvilFlat ?? 0) + pct(s.plate.plate, 100 * (c.perPlate ?? 0)); // 0.8.0 P1: ANVIL BREECH (x k)
+    // HULL-1d: with S above 1 ANVIL reads its pool back in day-1 units (pool x 10 / S, rounded down): its damage takes D at
+    // impact, not S as well
+    else if (routine === "anvil") dmg += (c.anvilFlat ?? 0) + pct(this.sustTenths === 10 ? s.plate.plate : Math.floor((s.plate.plate * 10) / this.sustTenths), 100 * (c.perPlate ?? 0)); // 0.8.0 P1: ANVIL BREECH (x k)
     else if (routine === "hullbreaker") dmg = pct(dmg, 100 * (c.hullMul ?? 1));
     else if (routine === "capacitor") { dmg += roundHalfUp((c.perSecond ?? 0) * tu.charge); tu.charge = 0; }
     else if (routine === "compound" && p.compound) {
