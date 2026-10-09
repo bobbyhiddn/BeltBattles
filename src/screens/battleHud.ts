@@ -102,7 +102,9 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     // the strip drains (white where just lost) while the bar below holds; the dark wind goes straight to the bar
     // 0.8.0 I1 M4: the side's pool (P1's E1: SideState.plate, which IS BASTION's RaceSide.plating), so wave 3's plating
     // shows on any hull that holds a source of it
-    drawPlatingStrip(g, bx, ty - 1, bw, s.plate.plate, f.plateShown, PLATE_CAP, PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME);
+    // HULL-1d (REQ-BFG-079): the strip's full width is the pool's own cap (platingMax: PLATE_CAP x S(d) on the day's hull),
+    // its segments the slugs that fill it, as before (the cap and a slug's plating both take S)
+    drawPlatingStrip(g, bx, ty - 1, bw, s.plate.plate, f.plateShown, platingMax(s), PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME);
     hullBar(g, bx, ty - 1 + STRIP_H, bw, 7 - STRIP_H, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t);
   } else if (bw > 8) hullBar(g, bx, ty - 1, bw, 7, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t);
   // status pips: fray / burn
@@ -113,6 +115,10 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     if (burn > 0) rect(g, px - 5, r.y - 2, 2, 2, C.fire3);
   }
 }
+
+/** HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (h)1): the plating strip's full amount: the side's pool cap (PlateState.cap, which
+ *  battle.ts sets to PLATE_CAP x S(d) only on the day's hull with S above 1), else PLATE_CAP, as before. */
+export const platingMax = (s: { plate: { cap?: number } }): number => s.plate.cap ?? PLATE_CAP;
 
 /** SUS-B (REQ-BFG-069): the SHIELD pips' room on a plate: SHIELD_CAP 3x5 glyphs at a 4 px pitch. */
 export const SHIELD_PIPS_W = SHIELD_CAP * 4 - 1;
