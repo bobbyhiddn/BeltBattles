@@ -235,7 +235,9 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       // on every hull without plating, which draws exactly as before)
       const soak = a.takeSoak(e.side, e.dmg);
       if (soak > 0) fx.sparks(x, y, 5, PLATED, 55);
-      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, shown, soak > 0 ? C.rune3 : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
+      // HULL-1d (REQ-BFG-079; REVIEW-HULL1C note B): on the day's hull (Battle.scaled) a pop landing in the same tick as
+      // another over this board stacks above it (Fx.stackedY); off, as before
+      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, shown, soak > 0 ? C.rune3 : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big, a.b.scaled);
       // shake scales with the damage dealt: the landing frame shows exactly 1 px for a light
       // bolt and 2+ px for a heavy shell or 60+ damage (NUM-2: x10); big hits add their trauma on top
       hitShake(fx, dmg, e.heavy, -dx, -dy);
@@ -283,7 +285,7 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       // Fast mode skips floats, as before
       if (fast) return;
       const [x, y] = healPoint(a, e);
-      fx.popup(x, y, `+${fmtDmg(e.amount)}`, HEAL_COLOUR);
+      fx.popup(x, y, `+${fmtDmg(e.amount)}`, HEAL_COLOUR, false, a.b.scaled); // HULL-1d: stacked on the day's hull
       return;
     }
     case "shield": {
@@ -318,13 +320,13 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
     }
     case "harass": return;
     case "burn":
-      fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.fire3); // NUM-4
+      fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.fire3, false, a.b.scaled); // NUM-4; HULL-1d: stacked on the day's hull
       return;
     case "wind":
       for (const side of [0, 1] as Side[]) {
         fx.anchor = side; // MOTION-1: each hull's number rides with it
         // NUM-4: was Math.round. HULL-1a (REQ-BFG-079): with the day's hull each hull's own share (e.dmgs)
-        fx.popup(hullCx(a, side) + (fx.rnd() - 0.5) * 50, hullCy(a, side), fmtDmg(e.dmgs?.[side] ?? e.dmg), C.plum4);
+        fx.popup(hullCx(a, side) + (fx.rnd() - 0.5) * 50, hullCy(a, side), fmtDmg(e.dmgs?.[side] ?? e.dmg), C.plum4, false, a.b.scaled); // HULL-1d: stacked
       }
       snd?.play("whoosh");
       return;

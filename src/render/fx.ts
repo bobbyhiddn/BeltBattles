@@ -9,6 +9,14 @@ import { DEBRIS, DUST, EMBER, Particles, SMOKE, SPARK, STREAK, cid } from "./par
 import { explosion, sparkStar } from "./sprites";
 import { muzzleFlash, ringSprite, scorchSprite } from "./fxsprites";
 import { drawText } from "./font";
+import { textWidth } from "./font"; // HULL-1d (REQ-BFG-079): a pop's box, for stacking same-tick pops (popBox)
+
+/** HULL-1d (REQ-BFG-079; REVIEW-HULL1C note B): a damage number's box as drawPops draws it: its 5x7 text (x2 when big) and
+ *  the 1 px ink outline round it. */
+export const popBox = (text: string, big: boolean): { w: number; h: number } => {
+  const s = big ? 2 : 1;
+  return { w: textWidth(text) * s + 2, h: 7 * s + 2 };
+};
 import type { G } from "./pixel";
 
 const EX = 0, MF = 1, SP = 2, RING = 3;
@@ -299,11 +307,37 @@ export class Fx {
     a.color = color; a.delay = delay; a.size = maxR;
   }
 
-  popup(x: number, y: number, text: string, color: string, big = false): void {
+  /** HULL-1d (REQ-BFG-079; REVIEW-HULL1C note B): `stack` (arenaReact passes it on the day's hull, Battle.scaled), a pop moves
+   *  up above any pop that landed in the same tick on the same board where it would cover it (stackedY); off, as before. */
+  popup(x: number, y: number, text: string, color: string, big = false, stack = false): void {
     if (this.np >= this.pops.length) return;
+    if (stack) y = this.stackedY(x, y, text, big);
     const p = this.pops[this.np++];
     p.x = x; p.y = y; p.text = text; p.color = color; p.t = 0; p.max = big ? 1.15 : 0.85; p.big = big;
     p.side = this.anchorSide;
+  }
+
+  /**
+   * HULL-1d (REQ-BFG-079; REVIEW-HULL1C note B): where a pop landing now at (x, y) sits so it covers no pop that landed in
+   * the same tick (age 0, so the two rise together) on the same board (the anchor): wherever their boxes (popBox) would
+   * overlap, it moves up just above that pop, again until it is clear. Day-10 numbers are wide ("186" and its "24" BURN tick
+   * over one hull), so the later one stacks on top instead of under it. No pop in the way: y itself.
+   */
+  stackedY(x: number, y: number, text: string, big: boolean): number {
+    const me = popBox(text, big);
+    for (let pass = 0; pass <= this.np; pass++) {
+      let moved = false;
+      for (let i = 0; i < this.np; i++) {
+        const p = this.pops[i];
+        if (p.t !== 0 || p.side !== this.anchorSide) continue;
+        const o = popBox(p.text, p.big);
+        if (Math.abs(p.x - x) * 2 >= o.w + me.w || y >= p.y + o.h || p.y >= y + me.h) continue; // apart (both centred on x)
+        y = p.y - me.h;
+        moved = true;
+      }
+      if (!moved) break;
+    }
+    return y;
   }
 
   scorch(x: number, y: number, r: number): void {
