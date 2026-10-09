@@ -468,7 +468,7 @@ function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = 
  * the offer (half its value back) and drops the new rig on that cell, turned for the most hits on connected belts
  * (the game's drop auto-aims; a speed rig never hits a slag belt, P20). Of those swaps, the best-rated; null: none.
  */
-function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, base: number, day: number, keep?: (after: Build) => boolean): Omit<Cand, "wagon" | "slot" | "price"> | null {
+function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, base: number, day: number, keep?: (after: Build) => boolean, stars = 1): Omit<Cand, "wagon" | "slot" | "price"> | null {
   const slag = s.slagRoutesFor(ITEMS[def]);
   const belts = beltIndex(b, s.connected());
   let best: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
@@ -484,6 +484,7 @@ function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, 
     }
     if (!spot) continue;
     placeRigAt(trial, uid, def, spot);
+    if (stars > 1) starFresh(trial, new Set(b.items.map((q) => q.uid)), def, stars); // HULL-1d: LAST CHANCE's ★2 copy
     if (keep && !keep(trial)) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
     const r = relOf(trial, base, day);
     if (!best || r > best.rel) best = { def, kind: "rig", merge: false, at: { x: spot.x, y: spot.y, rot: spot.rot }, swap: p.uid, rel: r };
@@ -1650,34 +1651,83 @@ export function playerBuild(hero: HeroId, day: number, seed: number, opts: Playe
  * caravan comes back after). A part that rates no gain anywhere goes to cargo (gainModule). `rng`: the caller's own stream
  * (never the policy's). Mutates `run`; returns the rating gain and whether it was placed.
  */
-export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs = knobsOf("typical")): { rel: number; placed: boolean } {
+export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs = knobsOf("typical"), stars = 1): { rel: number; placed: boolean } {
   const shop = run.shop, merchant = ITEMS[def]?.merchant;
   if (!merchant) throw new Error(`placeFreePart: ${def} is not a shop part`);
-  run.shop = { wagons: [{ merchant, offers: [{ def, price: 0, sold: false }] }], rerolls: 0, discount: 0, free: 0 };
+  // HULL-1d (REQ-BFG-073): a copy at ★2 (LAST CHANCE's PART with HULL_SCALE on, lastChance.ts lastChancePartStars) goes to
+  // cargo at its star in the game (run.ts takeLastChance) and merges with a twin of that star as any copy does: where that
+  // twin sits on the deck, the merge is its place
+  if (stars > 1) {
+    const g = gainModule(simRun(run), def, undefined, stars);
+    if (g.steps.length && g.where !== "cargo") {
+      const base0 = rateOn(run.build, run.day);
+      gainModule(run, def, undefined, stars);
+      return { rel: relOf(run.build, base0, run.day), placed: true };
+    }
+  }
+  const offer = (): Run["shop"] => ({ wagons: [{ merchant, offers: [{ def, price: 0, sold: false }] }], rerolls: 0, discount: 0, free: 0 });
+  run.shop = offer();
   try {
-    let best: Cand | null = null;
+    const base = stars > 1 ? rateOn(run.build, run.day) : 0;
+    let best: Cand | null = null, bestRel = -Infinity;
     for (const c of allowed(candidates(run, FUSE_MAX, rng, pol))) {
       if (c.wagon !== 0 || c.slot !== 0 || c.def !== def) continue;
-      if (!best || c.rel > best.rel) best = c;
+      // HULL-1d: a copy above ★1 is judged at its star: the buy played on a copy of the run, the fresh piece starred (a ★1
+      // twin's merge is none for it)
+      let rel = c.rel;
+      if (stars > 1) {
+        if (c.merge) continue;
+        const sim = simRun(run);
+        sim.shop = offer();
+        try {
+          if (!buyStarred(sim, c, def, stars)) continue;
+        } catch {
+          continue;
+        }
+        rel = relOf(sim.build, base, run.day);
+      }
+      if (!best || rel > bestRel) { best = c; bestRel = rel; }
     }
-    if (best && best.rel > 0) {
-      buy(run, best, "best", 0, []);
-      return { rel: best.rel, placed: true };
+    if (best && bestRel > 0) {
+      if (stars > 1) buyStarred(run, best, def, stars);
+      else buy(run, best, "best", 0, []);
+      return { rel: bestRel, placed: true };
     }
     // HULL-1d: with NPC_DAY on, the REFIT before every dusk: the part swapped in for a fitted piece of its kind
-    const sw = npcDayRules() ? refitSwap(run, def, rng) : null;
+    const sw = npcDayRules() ? refitSwap(run, def, rng, stars) : null;
     if (sw) {
       const oldMod = run.build.mods.find((m) => m.uid === sw.swap);
       if (oldMod ? !storeMod(run, oldMod.uid) : !storePlaced(run, sw.swap)) throw new Error(`placeFreePart: the swapped-out part ${sw.swap} could not go to cargo`);
+      const had = uidsOf(run.build);
       const res = buyOffer(run, 0, 0, sw.at);
       if (!res.ok) throw new Error(`placeFreePart: the REFIT swap of ${def} failed: ${res.reason}`);
+      if (stars > 1) starFresh(run.build, had, def, stars);
       return { rel: sw.rel, placed: true };
     }
-    gainModule(run, def);
+    gainModule(run, def, undefined, stars); // HULL-1d: into cargo at its star (1: as before)
     return { rel: 0, placed: false };
   } finally {
     run.shop = shop;
   }
+}
+
+/** HULL-1d: every placed piece's uid (rigs and factories, gear and cores, installed turrets). */
+const uidsOf = (b: Build): Set<number> => new Set([...b.items, ...b.mods, ...(b.turrets ?? [])].map((p) => p.uid));
+
+/** HULL-1d: the piece of `def` that `b` holds and `had` didn't (the copy just placed) goes to ★`stars` (LAST CHANCE's copy
+ *  comes at its star; stars ride along when a part moves, run.ts storePlaced). False when none landed (it merged away). */
+function starFresh(b: Build, had: ReadonlySet<number>, def: string, stars: number): boolean {
+  const fresh = [...b.items, ...b.mods, ...(b.turrets ?? [])].find((p) => p.def === def && !had.has(p.uid));
+  if (!fresh) return false;
+  fresh.stars = stars;
+  return true;
+}
+
+/** HULL-1d: buy() of candidate `c` (a copy of `def` at price 0), then the fresh piece at ★`stars`. */
+function buyStarred(r: Run, c: Cand, def: string, stars: number): boolean {
+  const had = uidsOf(r.build);
+  buy(r, c, "best", 0, []);
+  return starFresh(r.build, had, def, stars);
 }
 
 /**
@@ -1691,11 +1741,11 @@ export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs 
  * gain and keeps FOUNDRY's synced guns (syncKeeper). A turret needs none (turretCand plans its swap). Reads no RNG
  * beyond the Shopper's (none here). Null: no swap rates a gain.
  */
-function refitSwap(run: Run, def: string, rng: Rng): { rel: number; swap: number; at: GainAt } | null {
+function refitSwap(run: Run, def: string, rng: Rng, stars = 1): { rel: number; swap: number; at: GainAt } | null {
   const b = run.build, day = run.day, d = ITEMS[def], base = rateOn(b, day), keep = syncKeeper(b);
   if (d.kind === "gate") {
     const s = new Shopper(b, maxGoldByDay(day), day, rng, "on", FUSE_MAX, "on", "on");
-    const c = rigSwap(b, s, def, Infinity, run.nextUid, base, day, keep);
+    const c = rigSwap(b, s, def, Infinity, run.nextUid, base, day, keep, stars);
     return c && c.rel > 0 && c.swap !== undefined && c.at ? { rel: c.rel, swap: c.swap, at: c.at } : null;
   }
   if (d.kind !== "mod") return null;
@@ -1706,7 +1756,7 @@ function refitSwap(run: Run, def: string, rng: Rng): { rel: number; swap: number
       const after = cloneBuild(b);
       after.mods = after.mods.filter((m) => m.uid !== old.uid);
       if (!canFitGear(after, v.slot, def).ok) continue;
-      after.mods.push({ uid: run.nextUid, def, turret: v.slot });
+      after.mods.push({ uid: run.nextUid, def, turret: v.slot, ...(stars > 1 ? { stars } : {}) }); // HULL-1d: at its star
       if (keep && !keep(after)) continue;
       const rel = relOf(after, base, day);
       if (rel > 0 && (!best || rel > best.rel)) best = { rel, swap: old.uid, at: { turret: v.slot } };
@@ -1728,9 +1778,9 @@ function lastChanceCard(run: Run, day: number, boon: Boon, pol: PolicyKnobs, hul
     if (!takeLastChance(run, boon).ok) throw new Error(`par player: LAST CHANCE ${boon} on day ${day} was refused`);
     return;
   }
-  const id = lastChanceOffer(run.seed, day, run.hero, (run.build.runes ?? []).map((q) => q.id)).part;
+  const lo = lastChanceOffer(run.seed, day, run.hero, (run.build.runes ?? []).map((q) => q.id)), id = lo.part;
   if (!id) throw new Error(`par player: no LAST CHANCE part on day ${day}`);
-  placeFreePart(run, id, new Rng(hashSeed("lastchance-place", run.hero, run.seed, day)), pol);
+  placeFreePart(run, id, new Rng(hashSeed("lastchance-place", run.hero, run.seed, day)), pol, lo.partStars ?? 1); // HULL-1d: at its star
   run.lastChance = { day, boon, id };
 }
 

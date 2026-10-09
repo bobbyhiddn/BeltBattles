@@ -281,7 +281,7 @@ export function takeLastChance(run: Run, boon: Boon): { ok: boolean; reason?: st
     else if (d.kind === "belt") run.build.beltCap += d.amount.n;
     else run.gold += pickGold(d, run.build.runes.length, lastWon(run));
   } else if (boon === "part") {
-    gain = gainModule(run, id);
+    gain = gainModule(run, id, undefined, offer.partStars ?? 1); // HULL-1d: at the card's star (★2 with HULL_SCALE on)
     queueFuseAnim(run, gain);
   } else run.build.hullBonus += LAST_CHANCE_HULL;
   const day = run.lastChance!.day;

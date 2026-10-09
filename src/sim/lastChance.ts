@@ -17,6 +17,7 @@
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, RARITIES, RUN_DAYS, buyableModules, type HeroId, type ItemDef, type ItemKind, type Rarity } from "./content";
 import { RUNES, runeFits, runeList, runeWeight } from "./runes";
+import { hullScaleRules } from "./hullScale"; // HULL-1d (REQ-BFG-073): the PART card's star behind HULL_SCALE
 
 /** The lives a dusk loss must leave for LAST CHANCE to fire. */
 export const LAST_CHANCE_AT = 1;
@@ -29,6 +30,16 @@ export const LAST_CHANCE_LIVES = 1;
 export const LAST_CHANCE_HULL = 500;
 /** The RUNE and PART cards' tier. */
 export const LAST_CHANCE_TIER: Rarity = "epic";
+/** HULL-1d (REQ-BFG-073; BRIEF-HULL1D 2 (e)2, PLAN-AZ's example): the PART card's star with HULL_SCALE on. At ★1 the
+ *  bots took the PART card 7.9-9.4% of the time with every switch on (the 15% floor; 127-143 of 277 offered parts rated no
+ *  gain anywhere on the deck that lost), so the card offers its part at ★2: a copy into cargo at ★2 (gainModule's cargo
+ *  branch, which merges it with a ★2 twin as any copy), valued at ★2 by the server (valueOf: price x 2). */
+export const LAST_CHANCE_PART_STARS = 2;
+/** HULL-1d: the PART card's star now: LAST_CHANCE_PART_STARS with HULL_SCALE on (the game's, the bots', the server's and
+ *  the picker's one reader), else 1 (0.9.7's card, exactly). A rule of the switch, never of the deck. */
+export function lastChancePartStars(): number {
+  return hullScaleRules() ? LAST_CHANCE_PART_STARS : 1;
+}
 
 /** The three cards, in the screen's order. */
 export type Boon = "rune" | "part" | "hull";
@@ -56,6 +67,8 @@ export interface LastChanceOffer {
   rune: { id: string; tier: Rarity } | null;
   /** One specific epic rig, turret or gear of the buyable catalogue (lastChanceParts); null if the catalogue had none. */
   part: string | null;
+  /** HULL-1d: the part's star when above 1 (lastChancePartStars: ★2 with HULL_SCALE on); absent: ★1, as before. */
+  partStars?: number;
   /** The HULL card's amount (always offered). */
   hull: number;
 }
@@ -100,7 +113,8 @@ export function lastChanceOffer(seed: number, day: number, hero: HeroId, held: r
   const r = tier ? rng.weighted(left(tier), (d) => runeWeight(d, hero)) : null;
   const parts = lastChanceParts();
   const part = parts.length ? parts[rng.int(parts.length)].id : null;
-  return { day, rune: r ? { id: r.id, tier: r.tier } : null, part, hull: LAST_CHANCE_HULL };
+  const ps = lastChancePartStars(); // HULL-1d: ★2 with HULL_SCALE on (no draw: the stream is unchanged)
+  return { day, rune: r ? { id: r.id, tier: r.tier } : null, part, ...(part && ps > 1 ? { partStars: ps } : {}), hull: LAST_CHANCE_HULL };
 }
 
 /** The offer's card for `boon`: the rune's or part's id, "hull" for the HULL card, or null when the offer has none. */

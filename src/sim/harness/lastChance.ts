@@ -129,7 +129,7 @@ export function botLastChancePick(offer: LastChanceOffer, hero: HeroId, board: B
   let part = -Infinity, placed: boolean | undefined;
   if (offer.part) {
     const run = boardRun(board, hero, day, opts.run);
-    const r = placeFreePart(run, offer.part, new Rng(hashSeed("lastchance-place", hero, run.seed, day)));
+    const r = placeFreePart(run, offer.part, new Rng(hashSeed("lastchance-place", hero, run.seed, day)), undefined, offer.partStars ?? 1); // HULL-1d: at its star
     placed = r.placed;
     part = rateOn(run.build, day);
   }

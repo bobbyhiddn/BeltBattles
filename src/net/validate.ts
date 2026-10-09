@@ -27,6 +27,7 @@ import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supp
 import { heroGateProblem, lastChanceGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules; Z-BUMP: LAST CHANCE by the rules
 import { runeGrants, runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with the client's check
 import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRuneAt, type TakenLastChance } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
+import { lastChancePartStars } from "../sim/lastChance"; // HULL-1d (REQ-BFG-073): the PART card's star (★2 with HULL_SCALE on)
 // NPC-1 (REQ-BFG-077, REQ-BFG-078): the road log's check
 import { dropPool, npcDayRules, roadDropValue, type RoadEntry } from "../sim/npcDay";
 import { npcDayGateProblem } from "./rulesGate";
@@ -292,7 +293,8 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   // blocks below read the bought hull and belt (`bought`); dawn-gold runes add their gold to the day's budget. LC-1: the
   // LAST CHANCE HULL card is a grant like a HULL rune (once), and its PART's price is free (once: freeGold)
   const runeGrant = runeGrants(b.runes, day, lcAt);
-  const freeGold = lc?.boon === "part" && lc.id !== undefined && itemDef(lc.id) ? ITEMS[lc.id].price : 0;
+  // HULL-1d: the free part's value at the card's star (valueOf: ★1 its price, as before; ★2 with HULL_SCALE on, price x 2)
+  const freeGold = lc?.boon === "part" && lc.id !== undefined && itemDef(lc.id) ? valueOf(lc.id, lastChancePartStars()) : 0;
   const grant = lc?.boon === "hull" || freeGold ? { ...runeGrant, hull: runeGrant.hull + (lc?.boon === "hull" ? LAST_CHANCE_HULL : 0), gold: runeGrant.gold + freeGold } : runeGrant;
   const bought: Build = grant.hull || grant.belt ? { ...b, hullBonus: b.hullBonus - grant.hull, beltCap: b.beltCap - grant.belt } : b;
   const errors: string[] = [];
