@@ -515,7 +515,8 @@ export class BattleScreen implements Screen {
       banner(g, W, cy - 16, "DARK WIND", C.plum4, "THE STORM HURTS BOTH HULLS", 1);
     }
     // SCOUT-1 (REQ-BFG-076): the card offers VIEW BATTLEFIELD; while the view opens the card lowers (its rise, played back)
-    const view = this.canView() ? this.onView : undefined, lowering = this.phase === "view" && this.viewT < LOWER_S;
+    const lowering = this.phase === "view" && this.viewT < LOWER_S;
+    const view = this.canView() || lowering ? this.onView : undefined; // lowering: the card keeps its row (no button drawn)
     const cardT = lowering ? LOWER_S - this.viewT : this.pt;
     if ((this.phase === "result" || lowering) && this.warlord?.result) drawWarlordResult(g, this.game, this.warlord, cardT, this.wact, view, fingerPx(this.game));
     const oc = this.outcome();
