@@ -16,7 +16,7 @@ Same battle rules as 0.9.7 (bb-0.9.7), so 0.9.7's ghosts and uploads still meet 
   summary, your side of replays and the hero select. Foes keep today's look.
 - **Looks only:** styles never change rules, ghosts or replays. Your choice is saved on this device.
 - **A head start:** if you already play, the styles your saved ghosts show you have earned are open from the start.
-- **NEW:** a NEW dot on CUSTOMIZE and a NEW STYLE line on the run summary tell you when a style opens.
+- **NEW:** a lime dot on CUSTOMIZE and a NEW STYLE line on the run summary tell you when a style opens.
 - **The road and the fork** show the day's sea behind their cards, as the build screen does.
 - **Carrier styles:** your carrier's hull is now a style you choose, the fourth tab of CUSTOMIZE. Today's ship in your
   faction's colours stays the default (WAR COLOURS), and four more are earned: ADMIRAL'S BLUE (finish 3 runs), IRONCLAD
