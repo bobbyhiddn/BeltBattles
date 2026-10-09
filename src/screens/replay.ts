@@ -15,6 +15,7 @@ import { MOTION, MOTION_KNOBS } from "../render/motion";
 import { settings } from "../core/settings";
 import type { Battle } from "../sim/battle";
 import { HEROES, RUN_DAYS } from "../sim/content";
+import { hullScaleRules } from "../sim/hullScale"; // HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot
 import { C } from "../render/palette";
 import type { G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
@@ -180,6 +181,7 @@ export class ReplayScreen implements Screen {
     st.compact = this.L.compact;
     st.paused = this.arena.paused;
     st.showSpeeds = !this.over;
+    st.deskWind = !this.L.portrait && hullScaleRules(); // HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot
     drawBar(g, this.game, a, this.L.bar, `${Math.floor(sec / 60)}:${sec % 60 < 10 ? "0" : ""}${sec % 60}`, st);
     const cy = Math.round(H / 2);
     if (!this.over && this.pt < 1.6) banner(g, W, cy - 16, `REPLAY · DAY ${this.label.day}/${RUN_DAYS}`, C.ice, `VS ${this.label.foe}`, Math.min(1, this.pt / 0.35));

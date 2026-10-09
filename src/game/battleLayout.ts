@@ -8,6 +8,7 @@
 // one bar docked under the cruisers.
 
 import { HULL_A, HULL_L, STERN, frameForHull, hullBox, type Box, type DeckFrame } from "../render/frame";
+import { hullScaleRules } from "../sim/hullScale"; // HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot
 
 export const GAP_MIN = 22; // clears a heavy (13px) + light (9px) barrel poking past the bows
 export const GAP_SHARE = 0.17; // minimum open floor between the bows (share of the firing axis)
@@ -17,6 +18,11 @@ const PLATE_L = 10; // landscape plates (one text row)
 const BAR_L = 14;
 const BAR_P = 18;
 const BAR_C = 16; // compact portrait: plate + controls merged, overlapping the stern
+/** The landscape (desk) bar's width: the clock, 0.5X 1X 2X 4X, SKIP and II (0.6.0). */
+export const DESK_BAR_W = 150;
+/** HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot with HULL_SCALE on, as wide as the phone bar's room for its
+ *  wind read-out (battleHud.ts drawBar's 40): "WIND 10.3%/S" (44 px) fits whole beside the clock. */
+export const DESK_WIND_W = 40;
 const FULL_P = PLATE_H + 2 * HULL_L + PLATE_H + BAR_P; // portrait stack without the gap
 const COMPACT_P = PLATE_H - STERN + 2 * HULL_L + BAR_C - STERN; // tiny-viewport fallback
 
@@ -73,7 +79,9 @@ export function battleLayout(W: number, H: number, portrait: boolean): BattleLay
     const y0 = PLATE_L + Math.max(0, Math.floor((band - HULL_A) / 2));
     const p = frameForHull(1, x0, y0), e = frameForHull(3, x0 + HULL_L + gap, y0);
     const hp = hullBox(p), he = hullBox(e);
-    const barW = Math.min(W - 8, 150); // 0.6.0: room for 0.5X 1X 2X 4X + SKIP + II
+    // 0.6.0: room for 0.5X 1X 2X 4X + SKIP + II. HULL-1d (REQ-BFG-079; ruling Q4): with HULL_SCALE on, DESK_WIND_W more for
+    // the wind slot (battleHud.ts drawBar: the phone bar's "WIND 0.7%/S"); off, 150 as before
+    const barW = Math.min(W - 8, DESK_BAR_W + (hullScaleRules() ? DESK_WIND_W : 0));
     return {
       W, H, portrait, compact: false, frames: [p, e], hulls: [hp, he], deckArea: union(hp, he),
       gap, gapBox: { x: hp.x + HULL_L, y: hp.y, w: gap, h: HULL_A },

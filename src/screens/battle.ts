@@ -21,6 +21,7 @@ import type { BattleRecord } from "../sim/battle";
 import { finishWarlord, pickPending, takePart, todaysWarlord, warlordSeed } from "../game/road";
 import { onToTheRoad } from "../game/road"; // NPC-1 (REQ-BFG-077): the event after the fight
 import { npcDayRules } from "../sim/npcDay"; // NPC-1
+import { hullScaleRules } from "../sim/hullScale"; // HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot
 import { EventScreen } from "./event/event"; // NPC-1: ON TO THE ROAD opens the day's event
 import { HEROES, RUN_DAYS } from "../sim/content";
 import { C } from "../render/palette";
@@ -479,6 +480,7 @@ export class BattleScreen implements Screen {
     st.compact = L.compact;
     st.paused = this.paused;
     st.showSpeeds = this.phase === "fight" || this.phase === "intro";
+    st.deskWind = !L.portrait && hullScaleRules(); // HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot
     drawBar(g, this.game, this.arena, L.bar, this.clockText, st);
   }
 

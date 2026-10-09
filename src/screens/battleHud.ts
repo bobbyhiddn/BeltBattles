@@ -4,6 +4,7 @@
 import type { Game } from "../game/game";
 import type { Arena } from "../game/arena";
 import type { BattleLayout } from "../game/battleLayout";
+import { DESK_BAR_W, DESK_WIND_W } from "../game/battleLayout"; // HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot
 import type { DayResult } from "../game/run";
 import { record, refundCardLine } from "../game/day";
 import { lastChanceCardLine } from "../game/day"; // LC-1 (REQ-BFG-073)
@@ -175,6 +176,9 @@ export interface BarState {
   onCycle: () => void;
   onSkip: () => void;
   onPause: () => void;
+  /** HULL-1d (REQ-BFG-079; ruling Q4): a desk (landscape) bar with HULL_SCALE on: battleLayout.ts gave it DESK_WIND_W more,
+   *  kept for its wind read-out (battle.ts sets it each frame); absent or false, as before. */
+  deskWind?: boolean;
 }
 
 /** HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): a share a second in basis points (hullScale.ts windShareBp) as the bar prints
@@ -186,6 +190,22 @@ export const windShareText = (bp: number): string => `${Math.round(bp / 10) / 10
  *  arenaReact); otherwise 0.9.7's damage a second, windDps ("WIND 20/S"), as before. */
 export function windReadout(b: Pick<Battle, "t" | "scaled" | "windDps">): string {
   return b.scaled ? `WIND ${windShareText(windShareBp(b.t - WIND_START))}/S` : `WIND ${b.windDps()}/S`;
+}
+
+/** HULL-1d (REQ-BFG-079; ruling Q4): the room a full bar keeps for its wind read-out: a wide (phone) bar's 40, as before; a
+ *  desk bar with HULL_SCALE on (`deskWind`) the DESK_WIND_W its layout added (battleLayout.ts); else none, as before. */
+export const barWindRoom = (w: number, deskWind = false): number => (w > 200 ? 40 : deskWind && w >= DESK_BAR_W + DESK_WIND_W ? DESK_WIND_W : 0);
+
+/** A full bar's speed row (drawBar's arithmetic, in one place): the clock's end `x0`, the wind read-out's room, the speed
+ *  buttons' width `sw` and the first one's x. The wind read-out is drawn where first - x0 holds it whole. */
+export function barSpeedRow(r: Rect, clock: string, deskWind = false): { x0: number; windRoom: number; sw: number; first: number } {
+  const big = r.h >= 14, bh = r.h - 2, right = r.x + r.w - 2;
+  const x0 = r.x + 4 + textWidth(clock, big ? "5" : "3") + 4;
+  const menuW = Math.max(10, Math.round(bh * 0.9)), skipW = Math.max(18, Math.round(bh * 1.7));
+  const skipX = right - menuW - 2 - skipW;
+  const windRoom = barWindRoom(r.w, deskWind), n = SPEEDS.length;
+  const sw = Math.max(15, Math.min(Math.round(bh * 1.5), Math.floor((skipX - 2 - x0 - windRoom - (n - 1)) / n)));
+  return { x0, windRoom, sw, first: skipX - 2 - n * (sw + 1) + 1 };
 }
 
 /** Docked control bar: clock (plum once the dark wind blows) + 0.5X 1X 2X 4X SKIP + II (pause). */
@@ -213,11 +233,11 @@ export function drawBar(g: G, game: Game, a: Arena, r: Rect, clock: string, st: 
     });
     return;
   }
-  // wide bars keep room for the wind readout; the button width never changes mid-battle
-  const windRoom = r.w > 200 ? 40 : 0;
+  // wide bars keep room for the wind readout; the button width never changes mid-battle. HULL-1d (REQ-BFG-079; ruling Q4):
+  // so does the desk bar with HULL_SCALE on (st.deskWind: its layout's DESK_WIND_W more, so its buttons keep their width);
+  // the row's arithmetic is barSpeedRow's (as before)
+  const { windRoom, sw, first } = barSpeedRow(r, clock, st.deskWind);
   const n = SPEEDS.length;
-  const sw = Math.max(15, Math.min(Math.round(bh * 1.5), Math.floor((skipX - 2 - x0 - windRoom - (n - 1)) / n)));
-  const first = skipX - 2 - n * (sw + 1) + 1;
   // HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): windReadout (the share both hulls lose, on the day's hull), only where it fits
   // whole: a share may read wider than 38 px ("WIND 10.3%/S" is 44); 0.9.7's read-outs are 38 at most, so their 38 holds
   const wr = wind ? windReadout(a.b) : "";
