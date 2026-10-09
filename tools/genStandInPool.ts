@@ -40,7 +40,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
-import { isMainThread, threadId } from "node:worker_threads";
+import { isMainThread } from "node:worker_threads";
 import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { FUSE_LIVE, validateBuild, maxGoldByDay, unfusedPairs } from "../src/net/validate";
 import { starsOf } from "../src/sim/stars";
@@ -77,7 +77,7 @@ if (isMainThread) {
   if (sw.has("npc")) setNpcDay(true);
   if (sw.has("hull")) setHullScale(true);
   if (sw.has("ladder")) setLadderFix(true);
-  if (sw.size && !isMainThread) console.log(`worker thread ${threadId}: ${switchesOn().join(", ")} on (read back from each module)`);
+  if (sw.size && !isMainThread) console.log(`worker thread: ${switchesOn().join(", ")} on (read back from each module)`);
 }
 
 /** HULL-1d: the switches on in this thread, read back from each module (empty with every switch off). */
