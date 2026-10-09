@@ -229,6 +229,9 @@ function installKit() {
       over: a.b.over, clock: a.clock, hp: [a.b.sides[0].hull.hp, a.b.sides[1].hull.hp], ...extra,
     };
   };
+  /** SCOUT-1 (REQ-BFG-076): the title's hull boxes as it lays them out. TitleScreen.hulls (this script's source, 0.9.7's
+   *  `this.hulls = this.L.hulls`) left with 0.9.8's motion tidy; layoutInfo().hulls is the same layout's boxes. */
+  const titleHulls = (s) => s.hulls ?? s.layoutInfo().hulls;
   window.__intro = {
     hold, step, open, measure,
     /** The saved run: none ("new"), or a day-3 FURNACE run saved by its build screen ("save": CONTINUE shows). */
@@ -257,12 +260,12 @@ function installKit() {
       open("title");
       step(frames);
       const s = g().screen;
-      return measure(s.arena, s.hulls, { frames, screen: window.bb.screen() });
+      return measure(s.arena, titleHulls(s), { frames, screen: window.bb.screen() });
     },
     stepTitle(frames) {
       step(frames);
       const s = g().screen;
-      return measure(s.arena, s.hulls, { screen: window.bb.screen() });
+      return measure(s.arena, titleHulls(s), { screen: window.bb.screen() });
     },
     /** The title's HOW TO PLAY card or OPTIONS card open on this frame (no step): their regions in CSS px, and the
      *  menu scale's view (0350e5f's title scale: io.ts defaultScale) for the card's old width. */
