@@ -1767,11 +1767,15 @@ async function scoutView(browsers, origin, vname) {
   const parts = await page.evaluate(() => [window.bb.parts(0), window.bb.parts(1)]);
   for (const [side, kind] of [[1, "turret"], [0, "item"], [0, "turret"], [1, "item"]]) {
     const p = parts[side].find((q) => q.kind === kind) ?? parts[side][0];
+    // a face lies in the open floor, over neither board, so the tap swaps it; where the floor is too narrow (the 1366x768
+    // laptop) it lies over the other carrier, and a part under it takes CLOSE first
+    const under = !!s.face && p.x >= s.face.r.x && p.x < s.face.r.x + s.face.r.w && p.y >= s.face.r.y && p.y < s.face.r.y + s.face.r.h;
+    if (under) await press(page, cdp, centre(s.face.close));
     await press(page, cdp, p);
     s = await scoutState(page);
     const ok = !!s.face && s.face.side === side && s.face.sel.kind === p.kind && s.face.title.startsWith(p.name) && s.face.lines.length > 0;
-    check(ok && inViewport(s.face.r, vp) && big(s.face.close),
-      `${V}: a ${touch ? "tap" : "click"} on ${side === 0 ? "your" : "the enemy's"} ${p.name} (${p.kind}) in scouting opens its face (${s.face?.title ?? "none"}, side ${s.face?.side}, ${s.face?.lines.length ?? 0} lines), on the screen; its CLOSE ${box(s.face?.close)}`);
+    check(ok && inViewport(s.face.r, vp) && big(s.face.close) && !overlaps(s.face.r, { x: p.x - 1, y: p.y - 1, w: 2, h: 2 }),
+      `${V}: a ${touch ? "tap" : "click"} on ${side === 0 ? "your" : "the enemy's"} ${p.name} (${p.kind}) in scouting opens its face (${s.face?.title ?? "none"}, side ${s.face?.side}, ${s.face?.lines.length ?? 0} lines)${under ? " (after CLOSE: the last face lay over it)" : ""}, on the screen, the part in sight; its CLOSE ${box(s.face?.close)}`);
   }
   await shot(page, `${TAG}-scout-${vname}-face.png`);
   await press(page, cdp, centre(s.face.close));
@@ -1805,6 +1809,7 @@ async function scoutView(browsers, origin, vname) {
   const parts2 = await page.evaluate(() => [window.bb.parts(0), window.bb.parts(1)]);
   for (const side of [0, 1]) {
     const p = parts2[side].find((q) => q.kind === "turret") ?? parts2[side][0];
+    if (s.face && p.x >= s.face.r.x && p.x < s.face.r.x + s.face.r.w && p.y >= s.face.r.y && p.y < s.face.r.y + s.face.r.h) await press(page, cdp, centre(s.face.close));
     await press(page, cdp, p);
     s = await scoutState(page);
     check(!!s.face && s.face.side === side && s.face.title.startsWith(p.name) && /^THIS FIGHT: /.test(s.face.line ?? "") && inViewport(s.face.r, vp),

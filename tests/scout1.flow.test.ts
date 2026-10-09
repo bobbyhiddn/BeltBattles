@@ -5,7 +5,9 @@
 
 import { describe, expect, it } from "vitest";
 import { viewWithSub } from "../src/game/viewGrid";
-import { battleGrid, battleScale } from "../src/game/battleLayout";
+import { battleGrid, battleLayout, battleScale, laneLayout } from "../src/game/battleLayout";
+import { sx, sy } from "../src/render/frame";
+import { FACE_MIN_W, faceArea, summaryRects } from "../src/screens/battleScout";
 import { BattleScreen, FIGHT_WIDE_S, SCOUT_CLOSE_S, setAutoFight } from "../src/screens/battle";
 import { faceText, partAt, pickPart, readOnlyBlock, summaryRows } from "../src/screens/battleScout";
 import { resultRows } from "../src/screens/battleHud";
@@ -228,6 +230,30 @@ describe("SCOUT-1: VIEW BATTLEFIELD", () => {
     run(s, 60 * 400, () => s.phase === "result");
     const n = s.arena.partShots[0].reduce((a, x) => a + (x ?? 0), 0);
     expect(n).toBe(s.arena.b.sides[0].stats.shots);
+  });
+
+  it("on every view the hint, the summaries and a face in the open floor lie over no board's tile at CLOSE", () => {
+    const VIEWS: [number, number, number][] = [[390, 844, 3], [430, 932, 3], [844, 390, 3], [1920, 1080, 1], [1366, 768, 1], [1280, 720, 1]];
+    for (const [w, h, dpr] of VIEWS) {
+      const v = viewWithSub(w, h, dpr, (pw, ph, p) => battleScale(pw, ph, p), pickSub);
+      const L = laneLayout(battleLayout(v.W, v.H, v.portrait));
+      // each deck's tiles at rest (CLOSE, the calm: no drift): the deck frame's corners
+      const decks = L.frames.map((f) => {
+        const xs = [sx(f, 0, 0), sx(f, 120, 120)], ys = [sy(f, 0, 0), sy(f, 120, 120)];
+        return { x: Math.min(...xs), y: Math.min(...ys), w: Math.abs(xs[1] - xs[0]), h: Math.abs(ys[1] - ys[0]) };
+      });
+      const over = (a: { x: number; y: number; w: number; h: number }) => decks.some((d) => a.x < d.x + d.w && d.x < a.x + a.w && a.y < d.y + d.h && d.y < a.y + a.h);
+      const { r, stacked } = summaryRects(L);
+      expect(over(r[0]) || over(r[1]), `summaries on ${w}x${h}`).toBe(false);
+      expect(r.every((q) => q.x >= 0 && q.y >= 0 && q.x + q.w <= v.W && q.y + q.h <= v.H), `summaries on screen ${w}x${h}`).toBe(true);
+      if (!v.portrait) expect(stacked).toBe(L.gapBox.w - 4 < 96);
+      for (const side of [0, 1] as const) {
+        const fa = faceArea(L, side);
+        const inFloor = v.portrait || L.gapBox.w >= FACE_MIN_W;
+        if (inFloor) expect(over(fa.area), `a face on ${w}x${h}`).toBe(false);
+        else expect(fa.area.x >= L.hulls[1 - side].x && fa.area.x + fa.area.w <= L.hulls[1 - side].x + L.hulls[1 - side].w).toBe(true); // over the other carrier
+      }
+    }
   });
 
   it("a tap hits the part under it on either board through the camera: at CLOSE, at WIDE and mid-move", () => {

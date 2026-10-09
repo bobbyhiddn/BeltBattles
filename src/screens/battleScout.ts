@@ -154,11 +154,17 @@ function faceIcon(build: Build, sel: PartSel): HTMLCanvasElement | null {
  *  (its compact forms where the floor is short); its ⓘ view may grow into the room above it. Landscape: the floor's
  *  column between the carriers, down to the bar, sized to its text; its ⓘ view may grow down the column. In VIEW
  *  BATTLEFIELD an open face covers the summaries (they are back when it closes). */
-export function faceArea(L: BattleLayout): { area: Rect; band: boolean } {
+export function faceArea(L: BattleLayout, side: Side): { area: Rect; band: boolean } {
   const gb = L.gapBox;
   if (L.portrait) return { area: { x: 2, y: gb.y + 1, w: L.W - 4, h: gb.h - 2 }, band: true };
+  // a landscape floor too narrow for a face's text (the 1366x768 laptop's 61 px at x4): over the other carrier's
+  // columns instead, sized to its text (the tapped part stays in sight; a part under it needs CLOSE first)
+  if (gb.w < FACE_MIN_W) { const o = L.hulls[side === 0 ? 1 : 0]; return { area: { x: o.x + 2, y: 2, w: o.w - 4, h: L.bar.y - 4 }, band: false }; }
   return { area: { x: gb.x + 2, y: 2, w: gb.w - 4, h: L.bar.y - 4 }, band: false };
 }
+
+/** The narrowest landscape floor a face opens in (logical px): about 16 capitals of its 5x7 text a line. */
+export const FACE_MIN_W = 100;
 
 /** The room past a face's panel `r` its ⓘ view may grow into (keywords.ts infoFree's role): portrait, above the floor (over
  *  the enemy's board, while the view is open); landscape, down the column under the panel. Null: none (at least
@@ -187,28 +193,39 @@ const ROW = 7;
 /** The summaries' rects in the open floor (L.gapBox), each beside its own carrier: portrait, across the screen (the floor
  *  runs edge to edge), the enemy's at the floor's top (under its bow) and yours at its bottom, two columns of rows;
  *  landscape, stacked in the floor between the carriers, the enemy's above yours, one column. */
-export function summaryRects(L: BattleLayout): { r: [Rect, Rect]; cols: number } {
+export function summaryRects(L: BattleLayout): { r: [Rect, Rect]; cols: number; stacked: boolean } {
   const gb = L.gapBox;
   if (L.portrait) {
     const w = Math.min(L.W - 4, 220), cols = 2, h = 4 + ROW + Math.ceil(5 / cols) * ROW + 2;
     const x = Math.round((L.W - w) / 2);
-    return { r: [{ x, y: gb.y + gb.h - 2 - h, w, h }, { x, y: gb.y + 2, w, h }], cols };
+    return { r: [{ x, y: gb.y + gb.h - 2 - h, w, h }, { x, y: gb.y + 2, w, h }], cols, stacked: false };
   }
-  const w = Math.min(gb.w - 4, 160), cols = 1, h = 4 + ROW + 5 * ROW + 2;
+  // one column; where the floor is too narrow for a label and its value on one row (the 1366x768 laptop), the value goes
+  // under its label (a 6 px pitch)
+  const w = Math.min(gb.w - 4, 160), stacked = w < SUMMARY_ROW_W, h = 4 + ROW + (stacked ? 5 * 2 * 6 : 5 * ROW) + 2;
   const x = Math.round(gb.x + (gb.w - w) / 2);
   const top = gb.y + Math.max(2, Math.floor((gb.h - 2 * h - 6) / 2));
-  return { r: [{ x, y: top + h + 6, w, h }, { x, y: top, w, h }], cols };
+  return { r: [{ x, y: top + h + 6, w, h }, { x, y: top, w, h }], cols: 1, stacked };
 }
+
+/** The narrowest summary that holds a label and its value on one row: PLATING SOAKED and a 5-figure value, 3x5. */
+const SUMMARY_ROW_W = 96;
 
 /** Draw both sides' summaries (VIEW BATTLEFIELD). */
 export function drawSummaries(g: G, a: Arena, L: BattleLayout): void {
-  const { r, cols } = summaryRects(L);
+  const { r, cols, stacked } = summaryRects(L);
   for (const side of [0, 1] as Side[]) {
     const q = r[side];
     statsPanel(g, q, skinOf(a.views[side].skin).panel);
     drawText(g, side === 0 ? "YOU" : "FOE", q.x + 4, q.y + 3, side === 0 ? C.lime : C.red, { font: "3" });
     const rows = summaryRows(a, side), cw = Math.floor((q.w - 8) / cols);
     rows.forEach(([lb, v], i) => {
+      if (stacked) {
+        const y = q.y + 3 + ROW + i * 12;
+        drawText(g, lb, q.x + 4, y, C.slate4, { font: "3" });
+        drawText(g, v, q.x + q.w - 4, y + 6, C.white, { font: "3", align: "right" });
+        return;
+      }
       const col = cols === 2 ? i % 2 : 0, row = cols === 2 ? Math.floor(i / 2) : i;
       const x = q.x + 4 + col * cw, y = q.y + 3 + ROW + row * ROW;
       drawText(g, lb, x, y, C.slate4, { font: "3" });
@@ -300,7 +317,7 @@ export class BattleFaces {
       return;
     }
     const run = faceRun(build), tp = fingerPx(game);
-    const fa = faceArea(L);
+    const fa = faceArea(L, o.side);
     const plan: PanelPlan = planPanel(t, fa.area, selFamilies(run, o.sel), { tap: tp, band: fa.band });
     const r = plan.r, ui = game.ui;
     // the panel wears its side's panel style, as its plate does (the player's chosen style; a foe's the default)
