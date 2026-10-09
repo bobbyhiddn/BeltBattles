@@ -34,7 +34,8 @@ export const LC_TAKE = "TAP AGAIN TO TAKE IT";
 /** "DUSK OF DAY 6 · TAP TO READ" */
 export const lcHint = (day: number): string => `DUSK OF DAY ${day} · TAP TO READ`;
 /** The PART card's sub line ("EPIC PART · TO CARGO · FREE": its tier, where it goes) and the HULL card's. */
-export const lcPartSub = (rarity: Rarity): string => `${tierWord(rarity)} PART · TO CARGO · FREE`;
+/** HULL-1d (REQ-BFG-073): `stars`, the card's star (lastChance.ts partStars: ★2 with HULL_SCALE on); 1: as before. */
+export const lcPartSub = (rarity: Rarity, stars = 1): string => `${tierWord(rarity)} PART${stars > 1 ? ` ★${stars}` : ""} · TO CARGO · FREE`;
 export const LC_HULL_SUB = "MAX HULL · KEPT ALL RUN";
 /** The HULL card's name: "+500 ♥" for LAST_CHANCE_HULL (the HULL icon). */
 export const hullName = (n: number): string => icons(`+${n} {HULL}`);
@@ -51,7 +52,7 @@ export function lastChanceTag(lc: { boon?: Boon; id?: string }): string {
 /** The toast after a pick. HULL-1a (REQ-BFG-079): `day`, the run's day (the HULL card's amount on the day's hull). */
 export function lcToast(boon: Boon, offer: LastChanceOffer, day?: number): string {
   if (boon === "rune") return `RUNE TAKEN: ${RUNES[offer.rune!.id].name}`;
-  if (boon === "part") return `TO CARGO: ${ITEMS[offer.part!].name}`;
+  if (boon === "part") return `TO CARGO: ${ITEMS[offer.part!].name}${(offer.partStars ?? 1) > 1 ? ` ★${offer.partStars}` : ""}`; // HULL-1d: its star
   return `MAX HULL ${hullName(hullShown(offer.hull, day))}`;
 }
 
@@ -68,9 +69,10 @@ const GAP = 7;
 const HEAD = 31;
 const INFO = 11; // the ⓘ box's side
 
-/** The PART card's lines at text width `tw`: the stat row(s) as icons, then each rule (its brass label first). */
-function partLines(def: string, tw: number, run: Pick<Run, "hero" | "build">): RichLine[] {
-  const fl = faceLines(def, 1, textOpts(run as Run));
+/** The PART card's lines at text width `tw`: the stat row(s) as icons, then each rule (its brass label first). HULL-1d
+ *  (REQ-BFG-073): `stars`, the card's star (★2 with HULL_SCALE on: the face at ★2); 1: as before. */
+function partLines(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1): RichLine[] {
+  const fl = faceLines(def, stars, textOpts(run as Run));
   if (!fl) return [];
   const out: RichLine[] = [];
   for (const s of [fl.stats, fl.stats2]) if (s) out.push(...wrapRich(colourize(icons(s), C.bone), tw, "5"));
@@ -83,10 +85,10 @@ function partLines(def: string, tw: number, run: Pick<Run, "hero" | "build">): R
   return out;
 }
 
-/** The PART card's details (ⓘ): its keywords' reminders, then where it goes. */
-function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">): RichLine[] {
-  const fl = faceLines(def, 1, textOpts(run as Run));
-  const rem = [...(fl?.reminders ?? []), "FREE. IT GOES TO CARGO AT ★1; PLACE IT AS ANY PART."];
+/** The PART card's details (ⓘ): its keywords' reminders, then where it goes (HULL-1d: at the card's star). */
+function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1): RichLine[] {
+  const fl = faceLines(def, stars, textOpts(run as Run));
+  const rem = [...(fl?.reminders ?? []), `FREE. IT GOES TO CARGO AT ★${stars}; PLACE IT AS ANY PART.`];
   return rem.flatMap((t) => wrapRich(colourize(icons(t), C.slate4), tw, "3"));
 }
 
@@ -218,7 +220,7 @@ export class LastChancePicker {
     return this.boons(o).map((boon, i) => {
       const shown = this.info.has(i);
       if (boon === "rune") return { boon, lines: [], info: shown ? wrapRich(runeReminderSpans(RUNES[o.rune!.id]), tw, "3") : [] };
-      if (boon === "part") return { boon, lines: partLines(o.part!, tw, run), info: shown ? partInfo(o.part!, tw, run) : [] };
+      if (boon === "part") return { boon, lines: partLines(o.part!, tw, run, o.partStars ?? 1), info: shown ? partInfo(o.part!, tw, run, o.partStars ?? 1) : [] }; // HULL-1d
       const [now, next] = lcHullNow(run, o.hull, run.day); // HULL-1a: the day's numbers
       return { boon, lines: hullLines(now, next - now, tw), info: shown ? hullInfo(tw) : [] };
     });
@@ -270,7 +272,7 @@ export class LastChancePicker {
         drawBody(g, { ...r, y: r.y + base - HEAD }, [], t.info, hint);
       } else if (t.boon === "part") {
         const def = ITEMS[o.part!];
-        drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity), open);
+        drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity, o.partStars ?? 1), open); // HULL-1d
         drawBody(g, r, t.lines, t.info, hint);
       } else {
         drawHead(g, r, C.lime, icons("{HULL}"), lcHullName(o, s.run.day), C.lime, LC_HULL_SUB, open); // HULL-1a: the day's
