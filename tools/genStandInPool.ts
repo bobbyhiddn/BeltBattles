@@ -32,11 +32,15 @@
 // (factories on) prints IDENTICAL and `--check --factories off` DIFFERS. --dry (stars on; not with --check): the stars-on dry run on the live
 // code: it writes <out>/standInPoolData.v2-dry-candidate.ts, standin-pool.md and versus.json and never src;
 // its versus tables play the new picks against the pool this tool was bundled with (the shipped pool).
+// HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (f)): --all-on (with --dry or --versus only) runs with every switch on, NPC_DAY,
+// HULL_SCALE and LADDER_FIX, through each module's setter, before any deck is built, in the main thread (the par field,
+// the caravan candidates and gauntlet, the day's gold) AND in every worker thread (every battle: M, D and S on its day,
+// the wind's share, the fixed ladders). Its --resume days are keyed by the switches as well. Without it nothing moves.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
-import { isMainThread } from "node:worker_threads";
+import { isMainThread, threadId } from "node:worker_threads";
 import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { FUSE_LIVE, validateBuild, maxGoldByDay, unfusedPairs } from "../src/net/validate";
 import { starsOf } from "../src/sim/stars";
@@ -51,8 +55,35 @@ import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the budget check's ru
 import { CARAVAN_MIX, deckStats, type CaravanPolicy } from "../src/sim/harness/caravan";
 import { STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
 import { flag, num, serveJobs, workerRunner } from "./workers";
+import { npcDayRules, setNpcDay } from "../src/sim/npcDay"; // HULL-1d (REQ-BFG-079): --all-on
+import { hullScaleRules, setHullScale } from "../src/sim/hullScale"; // HULL-1d: --all-on
+import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix"; // HULL-1d: --all-on
 
 const DATA = "src/sim/standInPoolData.ts";
+
+// HULL-1d (REQ-BFG-079, REQ-BFG-078, REQ-BFG-070; BRIEF-HULL1D 2 (f)): --all-on sets NPC_DAY, HULL_SCALE and LADDER_FIX
+// through their setters here, before main() builds a deck, in the main thread and in every worker thread: a battle reads
+// HULL_SCALE where it starts (battle.ts Battle's constructor) and LADDER_FIX's defs sit in ITEMS, both per thread, and
+// tools/workers.ts starts its workers without the CLI's argv, so the main thread hands the list down in the environment
+// (STANDINS_SWITCHES, which a worker thread inherits when it starts; tools/parBench.ts's PARBENCH_SWITCHES). Without the
+// flag the main thread clears the variable, so no thread sets anything.
+const SWITCHES_ENV = "STANDINS_SWITCHES";
+if (isMainThread) {
+  if (process.argv.includes("--all-on")) process.env[SWITCHES_ENV] = "npc,hull,ladder";
+  else delete process.env[SWITCHES_ENV];
+}
+{
+  const sw = new Set((process.env[SWITCHES_ENV] ?? "").split(",").filter(Boolean));
+  if (sw.has("npc")) setNpcDay(true);
+  if (sw.has("hull")) setHullScale(true);
+  if (sw.has("ladder")) setLadderFix(true);
+  if (sw.size && !isMainThread) console.log(`worker thread ${threadId}: ${switchesOn().join(", ")} on (read back from each module)`);
+}
+
+/** HULL-1d: the switches on in this thread, read back from each module (empty with every switch off). */
+function switchesOn(): string[] {
+  return [npcDayRules() ? "NPC_DAY" : "", hullScaleRules() ? "HULL_SCALE" : "", ladderFixRules() ? "LADDER_FIX" : ""].filter(Boolean);
+}
 
 if (!isMainThread) serveJobs();
 else {
@@ -122,6 +153,10 @@ async function main(): Promise<void> {
   // part 3 on the release: --dry keeps a stars-on dry run (written under --out, never src) with FUSE_LIVE true
   const dry = process.argv.includes("--dry");
   if (dry && (check || o.stars === "off")) throw new Error("--dry is a stars-on run that writes under --out only: it takes neither --check nor --stars off");
+  // HULL-1d: --all-on (the switches the game doesn't play yet) never writes src/sim/standInPoolData.ts and never checks it
+  if (process.argv.includes("--all-on") && !dry && !process.argv.includes("--versus")) throw new Error("--all-on turns on switches this rules version keeps off: it runs with --dry (written under --out only) or --versus, never into src and never with --check");
+  const on = switchesOn();
+  if (on.length) console.log(`switches: ${on.join(", ")} on in the main thread${process.argv.includes("--all-on") ? " (--all-on), and in every worker thread (STANDINS_SWITCHES)" : ""}`);
   const nw = num("workers", Math.max(1, Math.min(availableParallelism() - 1, 23)));
   const pool = workerRunner(nw, import.meta.url);
   const t0 = performance.now();
@@ -238,7 +273,7 @@ async function main(): Promise<void> {
     writeFileSync(path, candidate);
     const out = resolve(flag("out") ?? "../output");
     mkdirSync(out, { recursive: true });
-    writePicks(o, res.days, out);
+    writePicks(o, res.days, out, on);
     const vsBattles = [...vs.v2v2, ...vs.tables.flatMap((t) => t.rows)].reduce((s, r) => s + r.battles, 0);
     writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles, live: true, bytes: candidate.length }));
     writeFileSync(resolve(out, "versus.json"), JSON.stringify({ heroes: o.heroes, v2v2: vs.v2v2, tables: vs.tables }, null, 1) + "\n");
@@ -258,9 +293,9 @@ async function main(): Promise<void> {
   const out = resolve(flag("out") ?? "../output-h2/pool-v2-dry");
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, "standInPoolData.v2-dry-candidate.ts"), candidate);
-  writePicks(o, res.days, out);
+  writePicks(o, res.days, out, on);
   const vsBattles = [...vs.v2v2, ...vs.tables.flatMap((t) => t.rows)].reduce((s, r) => s + r.battles, 0);
-  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles, live: false, liveDry: FUSE_LIVE }));
+  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles, live: false, liveDry: FUSE_LIVE, ...(on.length ? { switches: on } : {}) }));
   writeFileSync(resolve(out, "versus.json"), JSON.stringify({ heroes: o.heroes, v2v2: vs.v2v2, tables: vs.tables }, null, 1) + "\n");
   console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s) (${secs0.toFixed(1)} s to generate); DRY RUN, wrote ${out}/standInPoolData.v2-dry-candidate.ts and standin-pool.md (src/sim/standInPoolData.ts untouched)`);
 }
@@ -292,7 +327,11 @@ function resumeHooks(o: StandInOpts, dir: string | undefined): GenHooks | undefi
   mkdirSync(at, { recursive: true });
   const bundle = readFileSync(decodeURIComponent(new URL(import.meta.url).pathname), "utf8");
   const tool = `${hash53(bundle)}${hash53(bundle, 1)}`;
-  const key = `${hash53(JSON.stringify({ o, rules: RULES_VERSION, tool }))}${hash53(JSON.stringify({ o, rules: RULES_VERSION, tool }), 1)}`;
+  // HULL-1d: the switches on (--all-on) are in the key, so a day played with them off is never loaded with them on, nor
+  // the other way round; with every switch off the key is exactly as before
+  const on = switchesOn();
+  const keyOf = JSON.stringify(on.length ? { o, rules: RULES_VERSION, tool, switches: on } : { o, rules: RULES_VERSION, tool });
+  const key = `${hash53(keyOf)}${hash53(keyOf, 1)}`;
   const file = (day: number) => resolve(at, `day-${day}.json`);
   console.log(`resume: days are saved in ${at} (key ${key.slice(0, 12)}, tool ${tool.slice(0, 12)})`);
   return {
@@ -309,14 +348,15 @@ function resumeHooks(o: StandInOpts, dir: string | undefined): GenHooks | undefi
   };
 }
 
-/** Step 5: <out>/picks.json for a caravan pool: every pick with its run (policy, seed), gold, vsPar and deck counts. */
-function writePicks(o: StandInOpts, days: HeroDay[], out: string): void {
+/** Step 5: <out>/picks.json for a caravan pool: every pick with its run (policy, seed), gold, vsPar and deck counts.
+ *  HULL-1d: `switches`, the switches on (switchesOn), recorded beside the command when any is on (absent: as before). */
+function writePicks(o: StandInOpts, days: HeroDay[], out: string, switches: string[] = []): void {
   if (sourceOf(o) !== "caravan") return;
   const rows = days.flatMap((hd) => hd.picks.map((p, i) => ({
     hero: hd.hero, day: hd.day, i, par: i === hd.par, idx: p.idx, relax: hd.relax, budget: hd.budget, cost: p.cost, pct: p.pct, score: p.score,
     vsPar: p.vsPar, vsRef: p.vsRef, replayed: !!p.replayed, ...p.caravan, ...deckStats(p.build), code: p.code,
   })));
-  writeFileSync(resolve(out, "picks.json"), JSON.stringify({ command: standInCommand(o), rules: RULES_VERSION, picks: rows }, null, 1) + "\n");
+  writeFileSync(resolve(out, "picks.json"), JSON.stringify({ command: standInCommand(o), rules: RULES_VERSION, ...(switches.length ? { switches } : {}), picks: rows }, null, 1) + "\n");
 }
 
 /** Step 5: the caravan picks of one hero-day, for the report: policy counts, spend, rerolls, stars, turrets, joins. */
@@ -382,13 +422,15 @@ function describeStars(c: Cand): string {
 
 /** Report for the stars-on DRY run: never wired up (src/sim/standInPoolData.ts untouched). */
 function poolMarkdownV2(
-  o: StandInOpts, days: HeroDay[], pvp: VersusRow[], tables: VersusTable[], meta: { battles: number; secs: number; workers: number; vsBattles: number; live?: boolean; bytes?: number; liveDry?: boolean },
+  o: StandInOpts, days: HeroDay[], pvp: VersusRow[], tables: VersusTable[], meta: { battles: number; secs: number; workers: number; vsBattles: number; live?: boolean; bytes?: number; liveDry?: boolean; switches?: string[] },
 ): string {
   // part 3 on the release: liveDry = a --dry run with FUSE_LIVE true (the shipped pool is then pool v2, not v1.1)
+  // HULL-1d: meta.switches, the switches on in this run (absent with every switch off: the report exactly as before)
   const L = [
     meta.live ? "# BeltBattles stand-in pool v2 (merge-aware; shipped since the 0.6.1 flip)" : meta.liveDry ? "# BeltBattles stand-in pool - stars-on DRY RUN on the live code (--dry; not shipped)" : "# BeltBattles stand-in pool v2 - stars-on DRY RUN (not shipped)",
     "",
-    `Generated by \`${standInCommand(o)} --stars on${meta.liveDry ? " --dry" : ""}\` (rules ${RULES_VERSION}): ${meta.battles} battles in ${meta.secs.toFixed(1)} s on ${meta.workers} worker thread(s).`,
+    `Generated by \`${standInCommand(o)} --stars on${meta.liveDry ? " --dry" : ""}${meta.switches?.length && process.argv.includes("--all-on") ? " --all-on" : ""}\` (rules ${RULES_VERSION}): ${meta.battles} battles in ${meta.secs.toFixed(1)} s on ${meta.workers} worker thread(s).`,
+    ...(meta.switches?.length ? [`Switches on in this run, in the main thread and every worker thread: ${meta.switches.join(", ")} (every battle on its dusk's day: M, D and S, the wind's share; the day's gold; the fixed star ladders). The versus tables below play the shipped pool's decks under the same switches.`, ""] : []),
     meta.live ? `This run wrote src/sim/standInPoolData.ts (${meta.bytes} bytes; FUSE_LIVE = true, rules ${RULES_VERSION}); src/sim/standInPool.ts decodes its star-aware codes with decodeStarred. The versus tables below call the pool this tool was bundled with (the committed module before this run) "v1.1"; at the flip that is v1.1 itself.` : meta.liveDry ? `This is a dry run only (--dry; FUSE_LIVE = true, rules ${RULES_VERSION}): src/sim/standInPoolData.ts is untouched. The candidate data module sits beside this file as standInPoolData.v2-dry-candidate.ts. The versus tables below call the pool this tool was bundled with (the shipped module: pool v2 since the 0.6.1 flip) "v1.1", and this run's picks "v2".` : "This is a dry run only: src/sim/standInPool.ts and src/sim/standInPoolData.ts are untouched (the shipped pool stays v1.1 until the flip, FUSE_LIVE = true). The candidate data module sits beside this file as standInPoolData.v2-dry-candidate.ts.",
     "",
     `Every pick below was confirmed (or the tool threw): validateBuild(pick, day) ok, unfusedPairs(pick) empty, boughtCost(pick) <= maxGoldByDay(day) + its runes' dawn gold, and no module above 2 stars (ARSENAL.md §9.2: the Matriarch alone may carry a 3★). That is the flip's rule, ${meta.live || meta.liveDry ? "live in validateBuild since the flip (FUSE_LIVE = true); the generator checks it as well." : "applied by the generator itself because FUSE_LIVE is still false today."}`,
