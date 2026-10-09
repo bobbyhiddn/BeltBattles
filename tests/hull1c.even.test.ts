@@ -1,11 +1,12 @@
 // HULL-1c (REQ-BFG-079; REVIEW-HULL1A N2, pinning its C4b): the day's hull rounds only where it must. M(d) is a whole
-// number of tenths and every one is even (DAY_MUL_TENTHS, DAY_MUL_STEP_TENTHS), and every flat max-hull grant that joins
+// number of tenths and every one is even (DAY_MUL_TENTHS, DAY_MUL_STEP_TENTHS), and every flat max-hull grant is a multiple
+// of 50, or rounded per unit (N2's rule as amended by cap's ruling Q2 on REVIEW-HULL1C; HULL-1d). A grant that joins
 // build.hullBonus (a supply's hull, the "hull" runes, LAST_CHANCE_HULL, the road events' hull deltas) is a multiple of 50,
 // so M(d) x the grant is a whole 10 on every day: the number a toast or a card shows (hullShown) is exactly what the max
 // hull gains. The battle-time runes (perTurretHull, mergedHull) are rounded per unit (REVIEW-HULL1A Q3; tests/hull1a.scale
 // pins the battle), so their text x the count is what lands: BULKHEADS' per-turret amount is a 50 as C4b lists it, SCRAP
-// HALO's per-piece 60 is not (C4b doesn't list it) and rounds per piece. Every value is read from its module; the switch
-// is turned on only through withHullScale.
+// HALO's per-piece 60 is not a 50 and is rounded per unit (it stays 60: the ruling). Every value is read from its module;
+// the switch is turned on only through withHullScale.
 import { describe, expect, it } from "vitest";
 import { HEROES, ITEMS, type HeroId } from "../src/sim/content";
 import { DAY_MUL_STEP_TENTHS, DAY_MUL_TENTHS, dayMulTenths, hullAt, hullScaleRules, withHullScale } from "../src/sim/hullScale";
@@ -47,7 +48,7 @@ function hullBonusGrants(): Record<string, { id: string; n: number }[]> {
   };
 }
 
-describe("HULL-1c: REVIEW-HULL1A C4b, every M(d) even and every flat max-hull grant a 50 (N2)", () => {
+describe("HULL-1c: REVIEW-HULL1A C4b, every M(d) even and every flat max-hull grant a multiple of 50, or rounded per unit (N2)", () => {
   it("M(d) is a whole, even number of tenths: every DAY_MUL_TENTHS value, DAY_MUL_STEP_TENTHS, and so every day's", () => {
     expect(DAY_MUL_TENTHS.length).toBeGreaterThan(0);
     for (const t of DAY_MUL_TENTHS) expect(Number.isInteger(t) && t % 2 === 0, `DAY_MUL_TENTHS ${t}`).toBe(true);
@@ -90,7 +91,8 @@ describe("HULL-1c: REVIEW-HULL1A C4b, every M(d) even and every flat max-hull gr
     expect(perTurret.length).toBeGreaterThan(0);
     expect(merged.length).toBeGreaterThan(0);
     for (const g of perTurret) expect(Number.isInteger(g.n) && g.n > 0 && g.n % 50 === 0, `perTurretHull ${g.id}: ${g.n}`).toBe(true);
-    // SCRAP HALO's per-piece amount needs no 50: each piece's day number is rounded alone, in the battle and in its text alike
+    // a multiple of 50, or rounded per unit (N2 as amended, cap's Q2): SCRAP HALO's per-piece 60 is rounded per unit, each
+    // piece's day number alone, in the battle and in its text alike
     for (const g of merged) expect(Number.isInteger(g.n) && g.n > 0 && g.n % 10 === 0, `mergedHull ${g.id}: ${g.n}`).toBe(true);
     const rounds = merged.filter((g) => DAYS.some((d) => withHullScale(() => hullAt(g.n, d)) * 10 !== dayMulTenths(d) * g.n));
     console.log(`HULL1C-EVEN per-unit runes: ${[...perTurret, ...merged].map((g) => `${g.id} ${g.n}`).join(", ")}; rounded per unit on some day: ${rounds.map((g) => g.id).join(", ") || "none"}`);
