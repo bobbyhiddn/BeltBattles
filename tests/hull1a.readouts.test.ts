@@ -13,6 +13,7 @@ import { RUNES } from "../src/sim/runes";
 import { refHull } from "../src/sim/races/refBuilds";
 import { LAST_CHANCE_HULL, type LastChanceOffer } from "../src/sim/lastChance";
 import { withHullScale } from "../src/sim/hullScale";
+import { sustShown } from "../src/sim/hullScale"; // HULL-1d: GREEN THREAD's REGEN x S(d)
 import { runBarHull } from "../src/ui/runbar";
 import { foeClass, heroHullText, textOpts } from "../src/screens/build/inspector";
 import { revealLine } from "../src/screens/event/reveal";
@@ -92,8 +93,11 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
       expect(on(() => runeLine(RUNES[id]))).toBe(d1); // no day: M = 1
     }
     expect(on(() => runeAmountText(RUNES.scrap_halo, 2))).toBe("80"); // 60 x 1.4 = 84 -> 80, what the battle adds a piece
+    // HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (h)1): a REGEN rune doesn't take M; since S(d) (d028bb8: battle.ts heals GREEN
+    // THREAD's REGEN x S) its line reads x S, as it lands (tests/hull1d.readouts); off, or no day, as before
     const regen = RUNES.green_thread;
-    expect(on(() => runeLine(regen, 10))).toBe(runeLine(regen));
+    expect(on(() => runeLine(regen))).toBe(runeLine(regen));
+    expect(on(() => runeLine(regen, 10))).toBe(runeLine(regen).replace(` ${regen.amount.n}.`, ` ${on(() => sustShown(regen.amount.n, 10))}.`));
     // the cards' lines (runeBar.ts runeTextLines) carry the day too
     const flat = (day?: number) => runeTextLines(RUNES.spare_hull, 200, day).map((l) => l.map((s) => s.t).join("")).join(" ");
     expect(on(() => flat(10))).toBe("+1800 HULL.");
