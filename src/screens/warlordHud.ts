@@ -16,6 +16,7 @@ import { fmtClock } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock, 
 import { fightBlock } from "../game/routeCheck";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
 import { drawHearts } from "./battleHud";
+import { VIEW_ROW_H, viewButton } from "./battleHud"; // SCOUT-1 (REQ-BFG-076): VIEW BATTLEFIELD on the card
 import { itemName } from "./event/cards";
 import { drawBadge } from "./build/shop";
 
@@ -25,12 +26,15 @@ export interface WarlordActions {
   fight: () => void; // FIGHT NOW / ON TO DUSK
 }
 
-export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions): void {
+/** SCOUT-1 (REQ-BFG-076): `onView`, VIEW BATTLEFIELD, on its own row right above the card's actions (the pick, REFIT and
+ *  FIGHT NOW, or ON TO DUSK: never in their place; the pick works as before), the card a row taller; `viewHit`, its tap
+ *  target's least height. Absent, the card exactly as before. */
+export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions, onView?: () => void, viewHit = 0): void {
   const { W, H, ui } = game;
   const run = game.run!;
   const r = w.result!;
   const pick = r.outcome === "win" && !w.reward.legendary && !r.took && r.parts.length > 0;
-  const cw = Math.min(W - 10, 214), ch = 124;
+  const cw = Math.min(W - 10, 214), ch = 124 + (onView ? VIEW_ROW_H : 0);
   const x = Math.round(W / 2 - cw / 2), y = Math.round(H / 2 - ch / 2);
   const k = Math.min(1, pt / 0.25);
   g.globalAlpha = 0.55 * k;
@@ -73,6 +77,7 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
   }
   if (pt <= 0.35) return;
   const by = yy + ch - 26, bw = Math.floor((cw - 24) / 2);
+  if (onView) viewButton(ui, g, { x: x + 10, y: by - VIEW_ROW_H, w: cw - 20, h: 21 }, { x, y: yy, w: cw, h: ch }, onView, viewHit);
   if (pick) {
     r.parts.forEach((d, i) => {
       const bx = x + 10 + i * (bw + 4);

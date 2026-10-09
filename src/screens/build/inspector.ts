@@ -1172,7 +1172,7 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
 
 /** 0.6.2: a panel's title (the 5x7 face, outlined) or sub line (3x5) within `max` px: a title that doesn't fit
  *  steps down to the 3x5 face, and whatever still doesn't fit is cut short with a dot. */
-function fitHead(g: G, s: string, x: number, y: number, max: number, color: string, title: boolean): void {
+export function fitHead(g: G, s: string, x: number, y: number, max: number, color: string, title: boolean): void { // SCOUT-1: exported (the battle's faces)
   if (title && textWidth(s) <= max) {
     drawText(g, s, x, y, color, { outline: C.ink });
     return;
@@ -1476,8 +1476,9 @@ export function hasDetails(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: num
   return spec(ctx, show, !!hover) !== null;
 }
 
-/** Draw a body line at (x, y): a stat label and its value, a grid row, or rich spans. */
-function drawLine(g: G, l: PLine, x: number, y: number): void {
+/** Draw a body line at (x, y): a stat label and its value, a grid row, or rich spans. SCOUT-1: exported (the battle's
+ *  faces). */
+export function drawLine(g: G, l: PLine, x: number, y: number): void {
   if (l.cells) {
     for (const c of l.cells) {
       drawText(g, c.label, x + c.at, y, LABEL, { font: l.font });

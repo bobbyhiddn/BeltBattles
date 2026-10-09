@@ -21,6 +21,8 @@ import { TitleScreen } from "./screens/title";
 import { HeroScreen, ORDER as HERO_ORDER } from "./screens/hero";
 import { BuildScreen } from "./screens/build/build";
 import { BattleScreen, DuskWaitScreen } from "./screens/battle";
+import { autoFighting, setAutoFight } from "./screens/battle"; // SCOUT-1 (REQ-BFG-076) tooling: bb.fight(true)
+import { partsOnScreen } from "./screens/battleScout"; // SCOUT-1 tooling: bb.parts
 import { SummaryScreen } from "./screens/summary";
 import { EventScreen } from "./screens/event/event";
 import type { Arena } from "./game/arena";
@@ -255,9 +257,56 @@ game.start();
     const s = game.screen;
     return { profile: p, wears: chosenSkin(p), unseen: unseen(p), customize: s instanceof CustomizeScreen ? s.info() : null };
   },
-  /** Current screen name (for harness assertions). */
-  screen(): string {
+  /** SCOUT-1 (REQ-BFG-076) tooling (nothing in play calls it): press FIGHT in the current battle (scouting: the count
+   *  starts; its sail-in: the sail-in runs into the count). `auto` true: from now on every battle skips scouting, its
+   *  sail-in running into the count at WIDE as before SCOUT-1 (the harness's flows that don't test scouting); false: off.
+   *  Returns whether a battle was told to fight. */
+  fight(auto?: boolean): boolean {
+    if (auto !== undefined) setAutoFight(auto);
     const s = game.screen;
+    return s instanceof BattleScreen ? s.fight() : false;
+  },
+  /** SCOUT-1 tooling: open (true) or close (false: BACK) VIEW BATTLEFIELD on the current battle's result card. Returns
+   *  whether it changed. */
+  viewBattlefield(open = true): boolean {
+    const s = game.screen;
+    if (!(s instanceof BattleScreen)) return false;
+    return open ? s.openView() : s.closeView();
+  },
+  /** SCOUT-1 tooling (read only): scouting and VIEW BATTLEFIELD as drawn: the phase, the auto mode, the open face (its
+   *  side, part, title, sub line, body lines and rects), FIGHT's, BACK's and the primary action's tap targets, the hint and
+   *  the summaries, in CSS client px; null off a battle. */
+  scout() {
+    const s = game.screen;
+    if (!(s instanceof BattleScreen)) return null;
+    const k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    const css = (q: { x: number; y: number; w: number; h: number } | null | undefined) => (q ? { x: c.left + q.x * k, y: c.top + q.y * k, w: q.w * k, h: q.h * k } : null);
+    const f = s.faces.last, r = s.scoutRects;
+    return {
+      phase: s.phaseName(), auto: autoFighting(), canView: s.canView(), camera: s.motion.camera ? { shot: s.motion.camera.shot, zoom: s.motion.camera.zoom, moving: s.motion.camera.moving } : null,
+      calm: s.motion.model.calmAt(),
+      face: f ? { side: f.side, sel: f.sel, title: f.title, sub: f.sub, line: f.line, lines: f.lines, r: css(f.r), close: css(f.close) } : null,
+      fight: css(r.fight), back: css(r.back), primary: css(r.primary), hint: css(r.hint), summaries: r.summaries.map(css),
+      viewPrimary: s.viewPrimary()?.label ?? null,
+    };
+  },
+  /** SCOUT-1 tooling (read only): every part on board `side` of the current battle (each installed turret, item and belt)
+   *  with a point inside it where it is drawn now, in CSS client px (what a tap must hit to open its face); [] off a
+   *  battle. */
+  parts(side: 0 | 1): { kind: string; id: number; name: string; x: number; y: number }[] {
+    const s = game.screen;
+    if (!(s instanceof BattleScreen)) return [];
+    const k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    return partsOnScreen(s.arena, s.motion, side).map((p) => ({
+      kind: p.sel.kind, id: p.sel.kind === "item" ? p.sel.uid : p.sel.index, name: p.name, x: c.left + p.x * k, y: c.top + p.y * k,
+    }));
+  },
+  /** Current screen name (for harness assertions). SCOUT-1 (REQ-BFG-076): `phase` true, on a battle its phase instead
+   *  ("intro", "scout", "count", "fight", "outro", "result", "view"); without it the names as before, so every flow that
+   *  waits for "battle" or "warlord" still does. */
+  screen(phase = false): string {
+    const s = game.screen;
+    if (phase && s instanceof BattleScreen) return s.phaseName();
     return s instanceof TitleScreen ? "title" : s instanceof HeroScreen ? "hero" : s instanceof BuildScreen ? "build"
       : s instanceof BattleScreen ? (s.kind === "warlord" ? "warlord" : "battle") : s instanceof SummaryScreen ? "summary"
       : s instanceof EventScreen ? "event" : s instanceof ForkScreen ? "fork" : s instanceof ReplayScreen ? "replay"

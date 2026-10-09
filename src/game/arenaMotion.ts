@@ -198,6 +198,27 @@ export class ArenaMotion implements ShotMap {
     return null;
   }
 
+  /** SCOUT-1 (REQ-BFG-076): the point under a screen point (logical px) in `side`'s deck px (its board's local frame, as
+   *  hit() reads it, without the camera shake): through the camera's inverse and the board's. A turret's mount sits at
+   *  render/frame.ts TURRET_LY there, above the grid's first row. */
+  localAt(a: Arena, side: Side, x: number, y: number, out: number[]): number[] {
+    this.toRest(x, y, this.tmp);
+    invertAffine(this.hitAff[side], this.tmp[0], this.tmp[1], this.tmp);
+    const f = a.drawn[side];
+    out[0] = localX(f, this.tmp[0], this.tmp[1]);
+    out[1] = localY(f, this.tmp[0], this.tmp[1]);
+    return out;
+  }
+
+  /** SCOUT-1: a point in `side`'s deck px on screen now (logical px, without the shake, through the camera): localAt's
+   *  inverse (tooling: where a part sits). */
+  localToScreen(a: Arena, side: Side, lx: number, ly: number): [number, number] {
+    const f = a.drawn[side];
+    applyAffine(this.hitAff[side], sx(f, lx, ly), sy(f, lx, ly), this.tmp);
+    if (this.camera) applyAffine(this.scr, this.tmp[0], this.tmp[1], this.tmp);
+    return [this.tmp[0], this.tmp[1]];
+  }
+
   /** A tile's centre on screen now (logical px, without the camera shake; FIELD-1: through the camera): what a tap must
    *  hit. */
   tileCentre(a: Arena, side: Side, cx: number, cy: number): [number, number] {

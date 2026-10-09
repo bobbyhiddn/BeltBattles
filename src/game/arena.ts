@@ -101,6 +101,64 @@ export class Arena {
     if (e.type === "harass" && e.cause === "shock") this.shocks[e.side === 0 ? 1 : 0]++;
   }
 
+  /** SCOUT-1 (REQ-BFG-076; display only, as `shocks`): per side, per TURRET SLOT (the index a turret's events carry), the
+   *  shots it fired (its `fire` events) and the damage they dealt on landing (each landing's `impact`, its splash, arcs
+   *  and lances included), counted from every step played or skipped. The BURN they set and limpet blasts are in the
+   *  side's DAMAGE DEALT but not here: no event names the turret behind them. */
+  readonly partShots: [number[], number[]] = [[], []];
+  readonly partDamage: [number[], number[]] = [[], []];
+  /** SCOUT-1: each shot in flight's side and slot (its `fire` event's), by projectile id, until it lands or is downed. */
+  private readonly flying = new Map<number, { side: Side; slot: number }>();
+  /** SCOUT-1: the ids in flight before a step (Battle.projectiles, read only). */
+  private readonly preIds: number[] = [];
+  private readonly alive = new Set<number>();
+
+  /** SCOUT-1: before a step, the shots in flight (read only). */
+  private preStep(): void {
+    const ps = this.b.projectiles, ids = this.preIds;
+    ids.length = ps.length;
+    for (let i = 0; i < ps.length; i++) ids[i] = ps[i].id;
+  }
+
+  /**
+   * SCOUT-1: after a step, its events into the per-turret tallies. A step lands its shots in flight order (Battle.flight:
+   * Battle.projectiles, which is in id order), each with one `impact`, then its splash, arcs or lances, each an `arc`,
+   * `lance` or `splash` event before its own `impact`. So the step's landed shots, the ids in flight before it and fired in
+   * it that are gone after it and were not downed (`flak`), sorted by id, take its first-hand impacts in turn.
+   */
+  private countStep(ev: readonly SimEvent[]): void {
+    const alive = this.alive;
+    alive.clear();
+    for (let i = 0; i < ev.length; i++) {
+      const e = ev[i];
+      if (e.type === "fire") {
+        this.flying.set(e.proj, { side: e.side, slot: e.turret });
+        this.partShots[e.side][e.turret] = (this.partShots[e.side][e.turret] ?? 0) + 1;
+      } else if (e.type === "flak") this.flying.delete(e.proj);
+    }
+    for (const p of this.b.projectiles) alive.add(p.id);
+    const landed: number[] = [];
+    for (const id of this.preIds) if (!alive.has(id) && this.flying.has(id)) landed.push(id);
+    // a shot fired in this step that also landed in it (a new id: never one in flight before it)
+    for (let i = 0; i < ev.length; i++) {
+      const e = ev[i];
+      if (e.type === "fire" && !alive.has(e.proj) && this.flying.has(e.proj)) landed.push(e.proj);
+    }
+    if (!landed.length) return;
+    landed.sort((x, y) => x - y);
+    let k = 0, cur: { side: Side; slot: number } | undefined, second = false;
+    for (let i = 0; i < ev.length; i++) {
+      const e = ev[i];
+      if (e.type === "splash" || e.type === "arc" || e.type === "lance") second = true;
+      else if (e.type === "impact") {
+        if (!second) cur = k < landed.length ? this.flying.get(landed[k++]) : undefined;
+        second = false;
+        if (cur) this.partDamage[cur.side][cur.slot] = (this.partDamage[cur.side][cur.slot] ?? 0) + e.dmg;
+      }
+    }
+    for (const id of landed) this.flying.delete(id);
+  }
+
   /** 0.8.0 H1 M3 (display only): per side, plating soaked in the step being played that no impact has shown yet. Within
    *  a step, plating takes the step's hits before Burn (Battle: impacts, then hullEffects), so the step's
    *  impacts take it in order (takeSoak). 0 for every hull without plating: Furnace and Weaver never have any. */
@@ -176,11 +234,13 @@ export class Arena {
       this.acc += sdt;
       let n = 0;
       while (this.acc >= TICK && n < 600 && !this.b.over) {
+        this.preStep(); // SCOUT-1: read only
         this.b.step();
         this.stepSoak(); // 0.8.0 H1 M3: read only
         this.acc -= TICK;
         n++;
         const ev = this.b.drainEvents();
+        this.countStep(ev); // SCOUT-1: read only
         for (let i = 0; i < ev.length; i++) {
           this.tally(ev[i]);
           react(this, ev[i], i > 0 ? ev[i - 1] : null); // 0.8.0 I1 M4: the step's event before it (PLATE BREAKER's blow)
@@ -266,8 +326,11 @@ export class Arena {
   finish(): SimEvent[] {
     const out: SimEvent[] = [];
     while (!this.b.over && this.b.ticks < 60 * 200) {
+      this.preStep(); // SCOUT-1: read only
       this.b.step();
-      for (const e of this.b.drainEvents()) {
+      const ev = this.b.drainEvents();
+      this.countStep(ev); // SCOUT-1: read only
+      for (const e of ev) {
         this.tally(e);
         if (e.type === "end") out.push(e);
       }

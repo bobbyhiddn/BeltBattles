@@ -19,7 +19,7 @@ import { SHIELD_CAP } from "../sim/content"; // SUS-B: the pips' count
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: the REGEN badge prints as the faces print REGEN
 import { fmtClock, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results
 import { heartIcon } from "../render/sprites";
-import { button, panel, statsPanel, type Rect } from "../ui/ui";
+import { button, panel, statsPanel, tapRect, type Rect } from "../ui/ui";
 import { skinOf } from "../render/styles"; // CUSTOM-2a (REQ-BFG-072): the plate wears its board's panel style
 import { hullBar } from "../ui/hud";
 import { CLANK_TIME, STRIP_H, drawPlatingStrip } from "../render/raceFx"; // 0.8.0 H1 M3: BASTION's plating strip
@@ -168,6 +168,10 @@ export interface BarState {
   onCycle: () => void;
   onSkip: () => void;
   onPause: () => void;
+  /** SCOUT-1 (REQ-BFG-076): scouting's FIGHT, the bar's lead (primary, 5x7): in the clock's place where it fits before the
+   *  speeds, else just left of the bar (landscape: under the player's hull, never over a board); its tap target is
+   *  `hit` px at least each way. Absent: the bar exactly as before. */
+  lead?: { id: string; label: string; onTap: () => void; hit: number; rect?: Rect };
 }
 
 /** Docked control bar: clock (plum once the dark wind blows) + 0.5X 1X 2X 4X SKIP + II (pause). */
@@ -177,13 +181,20 @@ export function drawBar(g: G, game: Game, a: Arena, r: Rect, clock: string, st: 
   const wind = a.b.t >= WIND_START;
   const big = r.h >= 14;
   const cy = r.y + Math.floor((r.h - (big ? 7 : 5)) / 2);
-  drawText(g, clock, r.x + 4, cy, wind ? C.plum4 : C.bone, { font: big ? "5" : "3", outline: C.ink });
   const x0 = r.x + 4 + textWidth(clock, big ? "5" : "3") + 4;
   const bh = r.h - 2, by = r.y + 1;
   const right = r.x + r.w - 2;
   const menuW = Math.max(10, Math.round(bh * 0.9));
+  // SCOUT-1: FIGHT in the clock's place (the speeds keep their size and place: they are laid out from the clock's width)
+  const lead = st.lead && st.showSpeeds ? leadRect(st.lead.label, r, x0, bh, by, right, menuW, st.compact) : null;
+  if (!lead || lead.x < r.x) drawText(g, clock, r.x + 4, cy, wind ? C.plum4 : C.bone, { font: big ? "5" : "3", outline: C.ink });
   // II pauses in place and shows > (play) until it resumes; P and Space do the same
   button(ui, g, "pause", { x: right - menuW, y: by, w: menuW, h: bh }, st.paused ? ">" : "II", { font: "3", active: st.paused, onTap: st.onPause });
+  if (lead && st.lead) {
+    const hit = tapRect(lead, st.lead.hit, { x: 0, y: 0, w: game.W, h: game.H }, st.lead.hit);
+    button(ui, g, st.lead.id, lead, st.lead.label, { primary: true, onTap: st.lead.onTap, hit });
+    st.lead.rect = hit;
+  }
   if (!st.showSpeeds) return;
   const skipW = Math.max(18, Math.round(bh * 1.7));
   const skipX = right - menuW - 2 - skipW;
@@ -204,6 +215,26 @@ export function drawBar(g: G, game: Game, a: Arena, r: Rect, clock: string, st: 
   for (let i = 0; i < n; i++) {
     button(ui, g, SPEED_IDS[i], { x: first + i * (sw + 1), y: by, w: sw, h: bh }, SPEED_LABELS[i], { font: "3", active: st.speed === i, onTap: st.onSpeed[i] });
   }
+}
+
+/** SCOUT-1: where the bar's lead (FIGHT) goes: from the bar's left edge to the speed controls (laid out as drawBar lays
+ *  them, from the clock's width) where it fits; else just left of the bar (landscape and the desk: under the player's
+ *  hull's side, below its tiles); else (no room either side) right before the speed controls. */
+export function leadRect(label: string, r: Rect, x0: number, bh: number, by: number, right: number, menuW: number, compact = false): Rect {
+  const skipW = Math.max(18, Math.round(bh * 1.7));
+  const skipX = right - menuW - 2 - skipW;
+  let edge: number;
+  if (compact) edge = skipX - 2 - Math.max(18, Math.round(bh * 1.3));
+  else {
+    const windRoom = r.w > 200 ? 40 : 0;
+    const n = SPEEDS.length;
+    const sw = Math.max(15, Math.min(Math.round(bh * 1.5), Math.floor((skipX - 2 - x0 - windRoom - (n - 1)) / n)));
+    edge = skipX - 2 - n * (sw + 1) + 1;
+  }
+  const w = textWidth(label, "5") + 12;
+  let x = r.x + 1;
+  if (x + w > edge - 2) x = r.x - 2 - w >= 0 ? r.x - 2 - w : Math.max(0, edge - 2 - w);
+  return { x, y: by, w, h: bh };
 }
 
 export function hudRects(L: BattleLayout): { plates: [Rect, Rect]; bar: Rect } {
@@ -280,12 +311,16 @@ export function resultCard(n: number, H: number): { h: number; pitch: number } {
 /** LC-1 (REQ-BFG-073): how long the build screen's bar lights the heart LAST CHANCE gave back (seconds). */
 export const LC_HEART_S = 4;
 
-/** Dusk result card: WIN, LOSS (-1 LIFE) or DRAW; the fight's numbers; income; then the next DAWN. */
-export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void): void {
+/** Dusk result card: WIN, LOSS (-1 LIFE) or DRAW; the fight's numbers; income; then the next DAWN. SCOUT-1 (REQ-BFG-076):
+ *  `onView`, VIEW BATTLEFIELD: its own row right above the primary action (never in its place), the card a row taller;
+ *  absent, the card exactly as before. Its tap target is `viewHit` px tall at least (a finger's, TAP_CSS). */
+export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void, onView?: () => void, viewHit = 0): void {
   const { W, H, ui } = game;
   const run = game.run!;
   const rows = resultRows(r);
-  const { h, pitch } = resultCard(rows.length, H); // 0.6.2: 170 (+8 for the SHOCK STALLS row); 0.8.0 H1 M3: + race rows
+  const extra = onView ? VIEW_ROW_H : 0;
+  const card = resultCard(rows.length, H - extra); // 0.6.2: 170 (+8 for the SHOCK STALLS row); 0.8.0 H1 M3: + race rows
+  const pitch = card.pitch, h = card.h + extra;
   const w = Math.min(W - 10, 214);
   const x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - h / 2);
   const k = Math.min(1, pt / 0.25);
@@ -325,4 +360,15 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   const back = refundCardLine(r) ?? lastChanceCardLine(r); // LC-1: "LAST CHANCE: +1 LIFE" (never both: day 2 v 5-9)
   if (back) drawText(g, back, x + w - 10, ry + 3, C.lime, { align: "right" });
   if (pt > 0.35) button(ui, g, "next", { x: x + 10, y: yy + h - 27, w: w - 20, h: 21 }, label, { primary: true, onTap: onNext });
+  if (pt > 0.35 && onView) viewButton(ui, g, { x: x + 10, y: yy + h - 27 - VIEW_ROW_H, w: w - 20, h: 21 }, { x, y: yy, w, h }, onView, viewHit);
+}
+
+/** SCOUT-1: the card's VIEW BATTLEFIELD row (a 21 px button and its 4 px gap above the primary action). */
+export const VIEW_ROW_H = 25;
+
+/** SCOUT-1: VIEW BATTLEFIELD on a result card (dusk or warlord): a secondary button, its tap target grown to `hit` px
+ *  inside the card (never onto the primary action's row below it). */
+export function viewButton(ui: Game["ui"], g: G, b: Rect, card: Rect, onTap: () => void, hit = 0): void {
+  const within = { x: card.x, y: card.y, w: card.w, h: b.y + b.h + 2 - card.y };
+  button(ui, g, "viewfield", b, "VIEW BATTLEFIELD", { onTap, ...(hit ? { hit: tapRect(b, hit, within, hit) } : {}) });
 }
