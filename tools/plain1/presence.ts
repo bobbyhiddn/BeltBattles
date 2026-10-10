@@ -117,9 +117,11 @@ for (const day of DAYS) {
     const hl = lift(hp, 1), il = lift(ip, -1);
     const bought = runs.filter((r) => r.some((d) => d.buys.some((x) => x.def === id))).length;
     const copies = runs.reduce((s, r) => s + r.reduce((t, d) => t + d.buys.filter((x) => x.def === id).length, 0), 0);
+    // run 2 (cap R2-1, the r4 bench at --k 48): holderDecks / insertDecks name each lift's par deck (its seed - 1), so a
+    // bigger k's first decks can be checked against a smaller k's, and a --set variant's holders against the def's
     const row = {
-      id, day, holders: holders.length, holderLift: mean(hl), holderLifts: hl, holderBattles: hp.length * 2 * hp[0]?.whole.length * 2 * SEEDS || 0,
-      inserted: ip.length, insertLift: mean(il), insertLifts: il, insertBattles: ip.reduce((s, p) => s + p.other.length * 2 * SEEDS, 0),
+      id, day, holders: holders.length, holderLift: mean(hl), holderLifts: hl, holderDecks: holders, holderBattles: hp.length * 2 * hp[0]?.whole.length * 2 * SEEDS || 0,
+      inserted: ip.length, insertLift: mean(il), insertLifts: il, insertDecks: ip.map((p) => p.deck), insertBattles: ip.reduce((s, p) => s + p.other.length * 2 * SEEDS, 0),
       buyRate: bought / K, held: holders.length / K, copies,
     };
     (out.rows as unknown[]).push(row);
