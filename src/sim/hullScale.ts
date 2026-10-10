@@ -159,8 +159,11 @@ export function incomeOn(day: number, won: boolean): number {
  *   nice -n 19 node tools/dist/fightbench/fightBench.js --days 5-10 --k 12 --seeds 48 --workers 6 --warlords --wseeds 4
  *     --all-on, on the work tree with this line edited; 2026-10-10 13:45-14:00Z), D's rules held (never falls: day 8's
  * 2.1 comes down to day 9's 2.0; D <= M; M / D never falls on days 3-10: 1.00 1.16 1.40 1.70 2.00 2.30 2.60 2.86).
+ * The official check (ruling step 4: 96 seeds, every switch on, ebd4591 with the bots' tables re-measured at this D) held
+ * every section-1 target but day 9's wind, 20.9% (ceiling 20%), so day 9 moved one tenth, 2.0 -> 2.1 (rules held: D never
+ * falls, 2.0 2.1 2.1 on days 8-10; M / D 2.30 2.48 2.86), and was re-checked once (PAR-AZ REPORT (b)).
  */
-export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 20, 20, 20, 21];
+export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 20, 20, 21, 21];
 
 /** HULL-1c: D past day 10 holds day 10's M / D: D(d) = M(d) x D(10) / M(10), in whole tenths (rounded half up), for days
  *  11-18 (DMG_MUL_TENTHS_LATE) and a per-day step from day 19 (DMG_MUL_STEP_TENTHS), as M has. */
