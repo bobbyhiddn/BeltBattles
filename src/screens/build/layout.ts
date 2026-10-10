@@ -259,11 +259,16 @@ export function phoneBand(W: number): number {
  * ZOOM-1 (REQ-BFG-080, acceptance 2): the details band a portrait phone's build screen keeps at width `W` (art px) when the
  * carrier zooms: what at least 90% of the 899 panels a finger can open need to show their full description (fullText) in
  * the band at that width, measured at every W 186-340 (tests/zoom1.test.ts pins it: the 90th of the sorted heights):
- * 60 to W 235, 57 at 236-237, 53 at 238-245, 48 at 246-247, 45 from 248. The rest grow over the shop rows (panelArea),
- * never over the carrier. phoneBand(W), the tallest's need, stays the cap where the screen spares more.
+ * 60 to W 235, 57 at 236-237, 55 at 238-239, 53 at 240-245, 51 at 246-247, 48 at 248-249, 45 from 250. The rest grow over
+ * the shop rows (panelArea), never over the carrier. phoneBand(W), the tallest's need, stays the cap where the screen
+ * spares more.
+ * SPACE-1 (REQ-BFG-087, D6; REVIEW-ZOOM1 carry-forward 3): re-measured after the words1 merge (WORDS-1's plain words) at
+ * every W 186-340: three runs moved, 238-239 53 -> 55, 246-247 48 -> 51 and 248-249 45 -> 48 (the old pins fit 89.5-89.9%
+ * there); every other run holds, the operator's 402x690 (W 241) at 53, and no pinned view sits at a moved width, so every
+ * PICKS row stays. Was: W < 236 ? 60 : W < 238 ? 57 : W < 246 ? 53 : W < 248 ? 48 : 45.
  */
 export function phoneBand90(W: number): number {
-  return W < 236 ? 60 : W < 238 ? 57 : W < 246 ? 53 : W < 248 ? 48 : 45;
+  return W < 236 ? 60 : W < 238 ? 57 : W < 240 ? 55 : W < 246 ? 53 : W < 248 ? 51 : W < 250 ? 48 : 45;
 }
 
 /** ZOOM-1: idle, a phone's band holds NEXT BATTLE (FOE_H) under the hero card, at least HERO_MIN tall (its compact form:

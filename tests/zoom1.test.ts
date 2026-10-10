@@ -271,7 +271,9 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
 
   it("phoneBand90(W) is the 90th of the 899 heights at each step of its table and either side of it (measured at every W 186-340)", () => {
     expect(all.length).toBe(899);
-    const widths = [186, 235, 236, 237, 238, 241, 245, 246, 247, 248, 258, 315, 340], rows: string[] = [];
+    // SPACE-1 (REQ-BFG-087, D6): the re-pinned table's steps (238, 240, 246, 248, 250) and either side of each; was 186, 235,
+    // 236, 237, 238, 241, 245, 246, 247, 248, 258, 315, 340
+    const widths = [186, 235, 236, 237, 238, 239, 240, 241, 245, 246, 247, 248, 249, 250, 258, 315, 340], rows: string[] = [];
     for (const W of widths) {
       const hs = needs(W).sort((a, b) => a - b), band = phoneBand90(W);
       const share = hs.filter((n) => n <= band).length / hs.length;
