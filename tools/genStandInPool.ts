@@ -199,7 +199,9 @@ async function main(): Promise<void> {
       // fix pass: deck + cargo (cargoGold is set only with cores on, so stars off and cores off are unchanged). FLIP-X2
       // (BOTSX-REPORT section 9): the bought deck (boughtCost: the runes' HULL and BELT out) against the day's gold plus
       // its runes' dawn gold, as standins.ts writtenProblems checks it; a rune-less deck is buildCost and maxGoldByDay
-      if (boughtCost(p.build) + (p.cargoGold ?? 0) > maxGoldByDay(hd.day) + runeGrants(p.build.runes, hd.day).gold) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} costs more than maxGoldByDay${p.cargoGold ? ` (deck + cargo ${p.cargoGold} g)` : ""}`);
+      // PAR-AZ (REQ-BFG-078; BRIEF-PARAZ 1 (a)7): with NPC_DAY on, plus the road's warlord gold and drops (caravan.ts
+      // CaravanMeta.road), as validate.ts counts an upload's road; off, exactly as before
+      if (boughtCost(p.build) + (p.cargoGold ?? 0) > maxGoldByDay(hd.day) + runeGrants(p.build.runes, hd.day).gold + (npcDayRules() ? p.caravan?.road ?? 0 : 0)) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} costs more than maxGoldByDay${p.cargoGold ? ` (deck + cargo ${p.cargoGold} g)` : ""}`);
       // F8 (D4): stars on, a stand-in holds no module above STANDIN_MAX_STARS (2)
       if (o.stars === "on" && maxStarsOf(p.build) > STANDIN_MAX_STARS) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} holds a ${maxStarsOf(p.build)}-star module; stand-ins stop at ${STANDIN_MAX_STARS} stars`);
     }

@@ -40,6 +40,7 @@ import {
 } from "./caravan";
 import { BOT_RUNES } from "../runes"; // RUNES-2a (REQ-BFG-058): THE switch (standInCommand prints a departure from it)
 import { runeGrants } from "../runes"; // BOTS-X (REQ-BFG-058): the runes' HULL and BELT, out of a candidate's value
+import { npcDayRules } from "../npcDay"; // PAR-AZ (REQ-BFG-078): the road's gold and drops in the budget check
 import { fullPurseBuild, spendFloor, type FullPurse } from "./gen";
 import { parRefs, type ParSource } from "./par";
 import type { Cores, Factories, Stars } from "./shopper";
@@ -585,7 +586,9 @@ export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): 
     if (o.stars === "on" && maxStarsOf(back) > STANDIN_MAX_STARS) problems.push(`${at}: stored deck holds a ${maxStarsOf(back)}-star module (stand-ins stop at ${STANDIN_MAX_STARS})`);
     // fix pass: the deck + the candidate's cargo (a stored code holds the deck only; cargoGold is 0 unless cores on)
     // BOTS-X: the bought deck against the day's gold plus its runes' dawn gold
-    if (boughtCost(back) + (p.cargoGold ?? 0) > maxGoldByDay(hd.day) + runeGrants(back.runes, hd.day).gold) problems.push(`${at}: stored deck${p.cargoGold ? ` + cargo ${p.cargoGold} g` : ""} costs more than maxGoldByDay`);
+    // PAR-AZ (REQ-BFG-078; BRIEF-PARAZ 1 (a)7): with NPC_DAY on, plus the road's warlord gold and drops (caravan.ts
+    // CaravanMeta.road), as validate.ts counts an upload's road; off, exactly as before
+    if (boughtCost(back) + (p.cargoGold ?? 0) > maxGoldByDay(hd.day) + runeGrants(back.runes, hd.day).gold + (npcDayRules() ? p.caravan?.road ?? 0 : 0)) problems.push(`${at}: stored deck${p.cargoGold ? ` + cargo ${p.cargoGold} g` : ""} costs more than maxGoldByDay`);
   }
   return problems;
 }

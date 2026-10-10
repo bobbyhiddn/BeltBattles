@@ -26,6 +26,7 @@ import { FUSE_MAX, starsOf } from "../stars";
 import { spendFloor } from "./gen";
 import { PLAYER_DAYS, playerRun, type PlayerOpts } from "./player";
 import { runeGrants } from "../runes"; // RUNES-2a (REQ-BFG-058): a bot's dawn-gold runes in its gold
+import { npcDayRules } from "../npcDay"; // PAR-AZ (REQ-BFG-078): the road's gold and drops in a candidate's gold
 
 /** Where the stand-in population comes from: "caravan" (par-player runs; the CLI default since step 5) or "fullpurse"
  *  (standInCandidate / fullPurseBuild, the pools up to v2.1; the library default when the option is absent). */
@@ -70,6 +71,10 @@ export interface CaravanMeta {
   soldLoss: number; // days 1..day
   unspent: number; // gold carried into the next dawn
   cargoGold: number; // spent gold in neither the deck, the rerolls nor the sale losses (0 when the run's gold adds up)
+  // PAR-AZ (REQ-BFG-078): with NPC_DAY on only, the road's warlord gold plus its drops' value by this dusk (PlayerDay
+  // roadGold + roadDrops), which the budget checks add to the day's gold as validate.ts does (spent then counts the road's
+  // gold too). Absent with the switch off.
+  road?: number;
 }
 
 export interface CaravanDeck { build: Build; value: number; floorMet: boolean; meta: CaravanMeta }
@@ -84,8 +89,13 @@ export function caravanDeck(hero: HeroId, day: number, seed: number, policy: Car
   // hullBonus / beltCap) and the day's gold plus the dawn-gold runes' gold. Without runes both are exactly as before.
   const grant = runeGrants(d.build.runes, day);
   const value = grant.hull || grant.belt ? buildCost({ ...d.build, hullBonus: d.build.hullBonus - grant.hull, beltCap: d.build.beltCap - grant.belt }).total : d.value;
-  const spent = maxGoldByDay(day) + grant.gold - d.gold;
-  const meta: CaravanMeta = { policy, seed, spent, rerollGold: d.rerollGold, soldLoss: d.soldLoss, unspent: d.gold, cargoGold: spent - value - d.rerollGold - d.soldLoss };
+  // PAR-AZ (REQ-BFG-078; BRIEF-PARAZ 1 (a)7): with NPC_DAY on the run also holds the road's warlord gold (spent as the day's
+  // gold is) and its drops (free parts, at their value, npcDay.ts roadDropValue): `spent` counts the road's gold, cargoGold
+  // stays the gold's worth in cargo, and `road` (gold + drops) joins the generator's budget check (standins.ts
+  // writtenProblems, tools/genStandInPool.ts), as validate.ts counts an upload's road. Off: every number as before.
+  const nd = npcDayRules(), roadGold = nd ? d.roadGold ?? 0 : 0, roadDrops = nd ? d.roadDrops ?? 0 : 0;
+  const spent = maxGoldByDay(day) + grant.gold + roadGold - d.gold;
+  const meta: CaravanMeta = { policy, seed, spent, rerollGold: d.rerollGold, soldLoss: d.soldLoss, unspent: d.gold, cargoGold: spent + roadDrops - value - d.rerollGold - d.soldLoss, ...(nd ? { road: roadGold + roadDrops } : {}) };
   return { build: d.build, value, floorMet: spent >= spendFloor(day), meta };
 }
 

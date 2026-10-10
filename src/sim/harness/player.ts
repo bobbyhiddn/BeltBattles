@@ -5,6 +5,12 @@
 // hero-blind offers), each reroll from its reroll (2 g), each purchase from its buyOffer (offered parts only, at the
 // offered price, through gainModule, so copies merge as they do in the game), and each dusk from its finishDay (a win's
 // income, so day t adds maxGoldByDay(t) - maxGoldByDay(t - 1)). Road stops, events and warlords are left out.
+// PAR-AZ (REQ-BFG-078, REQ-BFG-077; cap's ruling Q5 on REVIEW-HULL1D): with NPC_DAY on, the par player has the game's NPC
+// day after each dawn's shop (parNpcDay): it fights the day's MEDIUM warlord as the game plays it (road.ts pickRoad and
+// warlordFight, the battle on warlordSeed and the run's day, finishWarlord); a win pays rewardGold (spent at the next
+// dawn) and the seeded drop, which the bots then place as a free part (placeFreePart: a merge, a spot or the REFIT swap,
+// else cargo). A loss pays nothing and costs no life. It takes no map event and no after-fight event (as 0.9.7's par took
+// no road stop), so its gap to a human is one road stop's worth a day. With NPC_DAY off, none of this runs.
 //
 // The policy (PLAYER_POLICY; output/PAR-REPORT.md measures it) is sensible, not perfect:
 // - The player reads its deck the way the build screen shows it (rateDeck: deck.ts's route walk, the inspector's
@@ -78,6 +84,11 @@ import { syncOf, syncedTurrets } from "../syncEstimate"; // 0.8.0 B1 M1: FOUNDRY
 import { BOT_RUNES, botTakeRune, runeGrants } from "../runes"; // RUNES-2a (REQ-BFG-058): the bots' dawn rune, behind BOT_RUNES
 import { lastChanceOffer, lastChanceRuneAt, type Boon } from "../lastChance"; // LC-1 (REQ-BFG-073)
 import { lcRunes, takeLastChance } from "../../game/run"; // LC-1: the game's own pick
+// PAR-AZ (REQ-BFG-078, REQ-BFG-077): the par player's NPC day (parNpcDay), behind NPC_DAY: the game's road stop and fight
+import { finishWarlord, pickRoad, todaysWarlord, warlordSeed } from "../../game/road";
+import { simulate } from "../battle";
+import { roadDropValue, roadLog } from "../npcDay";
+import type { RivalId } from "../rivals";
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
 
@@ -205,6 +216,25 @@ export interface PlayerDay {
   rerollGold: number; // gold spent on rerolls, days 1..day
   soldLoss: number; // value lost selling replaced parts (value minus refund), days 1..day
   buys: PlayerBuy[]; // today's purchases, in order
+  // PAR-AZ (REQ-BFG-078, REQ-BFG-077): with NPC_DAY on only (absent with it off, so every switch-off day is as before):
+  // today's road stop (parNpcDay); the warlord gold paid on days 1..day; the drops' value on days 1..day at their stars
+  // (npcDay.ts roadDropValue of the run's road log, as validate.ts budgets an upload); and the value left in cargo at dusk
+  // (parts the REFIT swap took off, drops that found no place). `budget` then adds roadGold and roadDrops, so
+  // boughtCost(build) + rerollGold + gold + soldLoss + cargo = budget.
+  road?: PlayerRoad;
+  roadGold?: number;
+  roadDrops?: number;
+  cargo?: number;
+}
+
+/** PAR-AZ (REQ-BFG-078, REQ-BFG-077): one day's road stop of the par player with NPC_DAY on (parNpcDay). */
+export interface PlayerRoad {
+  id: RivalId; // the warlord fought: the Medium one of the day's fork (forkFor(run).warlords.medium)
+  outcome: "win" | "loss" | "draw";
+  time: number; // the fight's length (s)
+  gold: number; // the gold the win paid (rewardGold; 0 on a loss or a draw)
+  drop: string | null; // the seeded drop (warlordDrop; null: no win, or the roll dropped nothing)
+  placed: boolean; // the drop went onto the deck (a merge, a spot or the REFIT swap); false: in cargo, or no drop
 }
 
 type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret" | "upgrade";
@@ -1613,7 +1643,9 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   const lc = opts.lastChance; // LC-1 (REQ-BFG-073): absent, the key exactly as before
   // HULL-1c (REQ-BFG-079): the switches that move the par decks (HULL_SCALE's economy, LADDER_FIX's walk) are in the key,
   // so a run made with a switch off is never reused with it on; off, the key exactly as before
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}`;
+  // PAR-AZ (REQ-BFG-078): NPC_DAY moves every par run now (parNpcDay), so it is in the key; off, the key exactly as before
+  const nd = npcDayRules();
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
@@ -1628,18 +1660,82 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
       if (lc && day === lc.day + 1) lastChanceCard(run, lc.day, lc.boon, pol, lc.hull); // LC-1: before the dawn's rune, as the game
       if (runes && day > 1) dawnRune(run);
       const { buys, rolls } = shopDay(run, pol, maxStars, rng, spent, opts);
-      full.push({ day, build: cloneBuild(run.build), value: buildCost(run.build).total, budget: maxGoldByDay(day) + runeGrants(run.build.runes, day, lastChanceRuneAt(run.lastChance)).gold, gold: run.gold, rerolls: rolls, rerollGold: spent.reroll, soldLoss: spent.sold, buys });
+      // PAR-AZ (REQ-BFG-078, REQ-BFG-077): with NPC_DAY on, the day's road stop after the shop (its gold is spent at the
+      // next dawn), and the road's gold and drops in the day's budget, as validate.ts counts them
+      const road = nd ? parNpcDay(run, pol, spent) : undefined;
+      const budget = maxGoldByDay(day) + runeGrants(run.build.runes, day, lastChanceRuneAt(run.lastChance)).gold;
+      const roadGold = road ? run.warlords.reduce((s, w) => s + w.gold, 0) : 0, roadDrops = road ? roadDropValue(roadLog(run.warlords)) : 0;
+      full.push({
+        day, build: cloneBuild(run.build), value: buildCost(run.build).total, budget: budget + roadGold + roadDrops, gold: run.gold, rerolls: rolls, rerollGold: spent.reroll, soldLoss: spent.sold, buys,
+        ...(road ? { road, roadGold, roadDrops, cargo: run.inventory.reduce((s, it) => s + cargoValue(it), 0) } : {}),
+      });
       if (traced && day >= days) break;
     }
     if (!traced) CACHE.set(key, full);
   }
-  return full.slice(0, Math.max(0, Math.min(PLAYER_DAYS, days))).map((d) => ({ ...d, build: cloneBuild(d.build), buys: d.buys.map((x) => ({ ...x })) }));
+  return full.slice(0, Math.max(0, Math.min(PLAYER_DAYS, days))).map((d) => ({ ...d, build: cloneBuild(d.build), buys: d.buys.map((x) => ({ ...x })), ...(d.road ? { road: { ...d.road } } : {}) }));
 }
 
 /** The par player's deck at dusk of `day` (1-10) for (hero, seed): a fresh copy. */
 export function playerBuild(hero: HeroId, day: number, seed: number, opts: PlayerOpts = {}): Build {
   const d = Math.max(1, Math.min(PLAYER_DAYS, Math.floor(day)));
   return playerRun(hero, d, seed, opts)[d - 1].build;
+}
+
+// ---------------------------------------------------------------- PAR-AZ (REQ-BFG-078, REQ-BFG-077): the par player's NPC day
+
+/** PAR-AZ: the tier the par player fights every day. The par player is the median player; the tiers are tuned so that
+ *  Hard's extra drop worth (1.52-1.59x Medium's on days 3-10) pays for its lower odds, so Medium is a fair pick, and one
+ *  tier keeps par stable and readable (cap's ruling Q5 on REVIEW-HULL1D). Never Easy, Hard or the Matriarch: the Medium
+ *  slot of every day's fork holds a Medium captain (rivals.ts warlordOffers: its own pool, all RUN_DAYS days). */
+export const PAR_ROAD_TIER = "medium" as const;
+
+/**
+ * PAR-AZ (REQ-BFG-078, REQ-BFG-077; BRIEF-PARAZ 1 (a); cap's ruling Q5): the par player's road stop, NPC_DAY on, after the
+ * dawn's shop, as the game plays it:
+ * 1. the fork's Medium warlord: road.ts pickRoad(run, "medium") (warlordFight: forkFor(run).warlords.medium, its deck
+ *    warlordDeck(id, day) and its reward warlordReward; run.road and run.warlord set as the game sets them);
+ * 2. the battle on the run's warlord seed (warlordSeed) and day, each side's wins carried in as screens/battle.ts passes
+ *    them ([run.wins, 0]); simulate() steps it to its end as the battle screen's arena does;
+ * 3. finishWarlord: a win pays rewardGold into the purse (the gold arrives after the day's shop, so it is spent at the next
+ *    dawn) and rolls the seeded drop (warlordDrop -> rollDrop at DROP_STARS.medium, ★1) into cargo, merged as any copy is;
+ *    the road log (run.warlords) gets the game's entry. A loss or a draw pays nothing and costs no life;
+ * 4. the REFIT: today's drop, if it sits in cargo (alone, or as the survivor of a merge with a cargo twin), is placed where
+ *    the bots put a free part (placeFreePart at its star: a merge, the best spot that rates a gain, the REFIT swap of
+ *    34351b5, else back to cargo), on its own stream. A drop that merged into a twin on the deck is placed already.
+ *    Nothing else moves at REFIT (earlier cargo stays).
+ * No map event and no after-fight event: 0.9.7's par took no road stop, so with the fight in, its gap to a human is one
+ * road stop's worth a day (cap's ruling Q5). Mutates `run`; a part the placement sells (a replaced piece of gear or a
+ * displaced turret, as a shop buy sells it) adds its loss to `spent.sold`, so the day's gold still adds up.
+ */
+function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: number }): PlayerRoad {
+  const worth = (): number => buildCost(run.build).total + run.gold + run.inventory.reduce((s, it) => s + cargoValue(it), 0);
+  const before = worth(), logged = run.warlords.length;
+  const pick = pickRoad(run, PAR_ROAD_TIER);
+  const w = todaysWarlord(run);
+  if (!pick.ok || !w) throw new Error(`par player: no ${PAR_ROAD_TIER} warlord on day ${run.day} (${pick.reason ?? "no fight stored"})`);
+  const bt = simulate(run.build, w.build, warlordSeed(run), undefined, [run.wins, 0], run.day);
+  const uid = run.nextUid, queued = run.fuseAnim?.length ?? 0; // the drop's copy takes run.nextUid (fuse.ts gainModule)
+  const res = finishWarlord(run, (bt.winner ?? -1) as 0 | 1 | -1, bt.t);
+  if (!res) throw new Error(`par player: the ${PAR_ROAD_TIER} warlord of day ${run.day} has no result`);
+  const drop = res.took;
+  let placed = false;
+  if (drop) {
+    // where finishWarlord's copy ended: alone in cargo (its own uid), or merged (the queued fuse steps name the survivor)
+    const steps = (run.fuseAnim ?? []).slice(queued);
+    const last = steps[steps.length - 1];
+    const at = last ? last.survivor : uid;
+    const where = last ? last.where : "cargo";
+    const i = where === "cargo" ? run.inventory.findIndex((it) => it.uid === at) : -1;
+    if (i >= 0 && ITEMS[drop]?.merchant) {
+      const [copy] = run.inventory.splice(i, 1);
+      placed = placeFreePart(run, copy.def, new Rng(hashSeed("par-npcday-place", run.hero, run.seed, run.day)), pol, starsOf(copy)).placed;
+    } else placed = where !== "cargo";
+  }
+  // the day's sale loss, if the placement sold a part: what came in (the win's gold, the drop at its star, as the road
+  // log counts it) minus what the deck, the purse and cargo gained
+  spent.sold += before + res.gold + roadDropValue(roadLog(run.warlords.slice(logged))) - worth();
+  return { id: w.id, outcome: res.outcome, time: res.time, gold: res.gold, drop, placed };
 }
 
 // ---------------------------------------------------------------- LC-1 (REQ-BFG-073): LAST CHANCE's cards for the bots
