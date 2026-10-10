@@ -7,6 +7,12 @@
 // A phone taps and drags with real touch events (CDP), the desk and laptop with the mouse. Each still also logs the view,
 // the canvas grid and the carrier's zoom (BuildScreen.carrierView; a build without it: the UI's scale), the board's and
 // the ship's size in device px, the band and the details panel's rect. Works on a build before ZOOM-1 too (k 1).
+// A gesture's moves reach the game before it steps: the browser queues a touch or mouse move for its next frame, and
+// with the game's own frames held, a still could be taken before the last moves arrived. In the three runs before this
+// fix, 3 to 8 of a side's 8 drag and belt stills on the touch views stopped short of the gesture's end (a drag left
+// halfway, a belt a tile short), varying run to run. So after each point of a press the script waits the browser's real
+// frames (the game's stay held) until the editor's pointer is at that point, and a point the game never sees within 120
+// frames is an error (exit 1); after a tap it waits one frame.
 // Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/zoom1shots.mjs <build dir> <out dir> --prefix <before|after> [--only <view>]
 import { chromium } from "playwright-core";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
@@ -81,26 +87,42 @@ const tileAt = (page, cx, cy) => page.evaluate(([x, y]) => {
 }, [cx, cy]);
 
 const tp = (p) => [{ x: p.x, y: p.y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+/** The browser's real frames (window.__z1frame, kept by the init script; the game's own stay held), until the editor's
+ *  pointer is within 1 CSS px of `q` (client px): how many it took, 0 if the game never saw it in 120. */
+const reached = (page, q) => page.evaluate(async ([x, y]) => {
+  for (let i = 1; i <= 120; i++) {
+    await window.__z1frame();
+    const e = window.bb.game.screen.ed, c = window.bb.toClient(e.px, e.py);
+    if (Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1) return i;
+  }
+  return 0;
+}, [q.x, q.y]);
 async function tap(page, cdp, p, touch) {
   if (touch) {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(p) });
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   } else await page.mouse.click(p.x, p.y);
+  await page.evaluate(() => window.__z1frame());
   await step(page, 6);
 }
+/** A press along `path` (client px), held: each point's moves, then the real frames until the game has the finger there
+ *  (reached), then the game's steps. Returns the frames each point took (0: never seen). */
 async function press(page, cdp, path, touch) {
+  const waits = [];
   if (touch) {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(path[0]) });
     for (const q of path.slice(1)) {
       for (let i = 1; i <= 8; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: tp(q) });
+      waits.push(await reached(page, q));
       await step(page, 2);
     }
   } else {
     await page.mouse.move(path[0].x, path[0].y);
     await page.mouse.down();
-    for (const q of path.slice(1)) { await page.mouse.move(q.x, q.y, { steps: 8 }); await step(page, 2); }
+    for (const q of path.slice(1)) { await page.mouse.move(q.x, q.y, { steps: 8 }); waits.push(await reached(page, q)); await step(page, 2); }
   }
   await step(page, 10);
+  return waits;
 }
 
 /** In-page: what the still shows (the view, the grid, the carrier's zoom; device px sizes; the band and the panel). */
@@ -128,6 +150,8 @@ for (const [vname, vopts] of Object.entries(VIEWS)) {
   await page.addInitScript(() => {
     let s = 0x9e3779b9;
     Math.random = () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const raf = window.requestAnimationFrame.bind(window); // the browser's own frame, for the script's waits only
+    window.__z1frame = () => new Promise((ok) => raf(() => ok()));
     window.requestAnimationFrame = () => 0;
   });
   page.on("pageerror", (e) => errors.push(`[${vname}] pageerror: ${e.message}`));
@@ -140,18 +164,22 @@ for (const [vname, vopts] of Object.entries(VIEWS)) {
     await page.evaluate(prep);
     const cdp = await ctx.newCDPSession(page);
     const pts = await points(page);
+    const gesture = (waits) => {
+      console.log(`${PREFIX}-${vname}-${state}: the game had the finger at each point of the press after ${waits.join(", ")} frame(s)`);
+      if (waits.includes(0)) errors.push(`[${vname}] ${state}: the game never had the finger at point ${waits.indexOf(0) + 2} of the press (120 frames)`);
+    };
     if (state === "card") await tap(page, cdp, pts.card, touch);
     if (state === "part") await tap(page, cdp, pts.kiln, touch);
     if (state === "drag") {
       const plan = await page.evaluate(() => { const p = window.bb.game.screen.dragPlan(); return p ? { a: window.bb.toClient(p.from.x, p.from.y), b: window.bb.toClient(p.to.x, p.to.y) } : null; });
-      if (plan) await press(page, cdp, [plan.a, { x: (plan.a.x + plan.b.x) / 2, y: (plan.a.y + plan.b.y) / 2 }, plan.b], touch);
+      if (plan) gesture(await press(page, cdp, [plan.a, { x: (plan.a.x + plan.b.x) / 2, y: (plan.a.y + plan.b.y) / 2 }, plan.b], touch));
       else errors.push(`[${vname}] no drag plan`);
     }
     if (state === "belt") {
       // out of the KILN (2x2 at kilnAt): left along its row, then up, held
       const [kx, ky] = pts.kilnAt;
       const path = [pts.kiln, await tileAt(page, kx - 1, ky), await tileAt(page, kx - 2, ky), await tileAt(page, kx - 3, ky), await tileAt(page, kx - 3, ky - 1), await tileAt(page, kx - 3, ky - 2)];
-      await press(page, cdp, path, touch);
+      gesture(await press(page, cdp, path, touch));
     }
     if (state === "tallest") {
       await page.evaluate(() => {
