@@ -32,6 +32,7 @@ import { migrateDeck } from "./beltside";
 import { FUSE_MAX, starsOf, upgradeGold, valueOf } from "./stars";
 import type { RivalId } from "./rivals";
 import { runeGrants } from "./runes"; // BOTS-X (REQ-BFG-058): a captain's HULL and BELT runes (captainRunesOn)
+import { npcDayRules } from "./npcDay"; // REFIT-AZ (REQ-BFG-078, REQ-BFG-079): the road allowance, behind NPC_DAY
 
 /** Belt cells from (x, y) following moves such as "L3U2" (U = toward the turrets, row 0). */
 export function walk(x: number, y: number, moves = ""): number[] {
@@ -82,6 +83,12 @@ export interface Upgrade {
   factory?: FactoryPlan; // a factory bought that day, with the belt it feeds
   crates?: number; // belt crates bought (+4 belt each)
   plating?: number; // armor plating bought (+25 hull each)
+  // REFIT-AZ (REQ-BFG-078, REQ-BFG-079; REVIEW-PARAZ ruling Q1): the road allowance's days, read only with the NPC day on
+  // (npcDayRules(); off: never read, so every deck is exactly as before). `nd`: a plan upgrade owned sooner with the NPC
+  // day: from nd[luck] at that luck and every better one ("dusk": the dusk deck alone), whenever that luck owns it at all
+  // (ndDayOwned). `dusk`: a road-list entry (RivalPlan.road) the dusk deck alone owns (standInBuild; the road deck never)
+  nd?: Partial<Record<Luck | "dusk", number>>;
+  dusk?: true;
 }
 
 export interface RivalPlan {
@@ -105,6 +112,44 @@ export interface RivalPlan {
   // the count less its paid plates. In the road deck's hull only (good luck and better), never in its value, and never
   // in the stand-in deck (rivals.ts standInBuild builds its hull from the paid plating alone).
   pve?: Readonly<Partial<Record<number, number>>>;
+  // REFIT-AZ (REQ-BFG-078, REQ-BFG-079; REVIEW-PARAZ ruling Q1): the road additions, the parts and packs a captain buys with
+  // the road's value (NPC_ROAD), owned only with the NPC day on (npcDayRules()) and taken after `upgrades` (and `sustain`),
+  // so every other part keeps its uid; each at its own day and luck (`luck`, `sooner`; `dusk`: the dusk deck alone). Off:
+  // never read, so every deck is exactly as before
+  road?: Upgrade[];
+}
+
+/**
+ * REFIT-AZ (REQ-BFG-078, REQ-BFG-079; REVIEW-PARAZ ruling Q1, BRIEF-REFIT-AZ "The road allowance"): the moment a captain deck
+ * is fought. A road (warlord) deck fights during day d, before that day's reward: the par player then holds the warlord gold
+ * of days 1..d-1 (spent at dawn d) and the drops of days 1..d-1. A named stand-in fights at dusk d, after the day's drop is
+ * placed (REFIT) and before the day's gold is spent (the next dawn): the gold of days 1..d-1 and the drops of days 1..d
+ * (src/sim/harness/player.ts playerRun: shopDay, then parNpcDay, then the dusk deck; src/game/road.ts finishWarlord).
+ */
+export type RoadMoment = "warlord" | "dusk";
+
+/**
+ * REFIT-AZ (REQ-BFG-078, REQ-BFG-079; REVIEW-PARAZ ruling Q1): THE ROAD ALLOWANCE, ROAD(d, moment), in whole gold (index day
+ * - 1): the par player's median road value (the warlord gold it received + the drops' value it holds, npcDay.ts
+ * roadDropValue) at the moment the deck is fought (RoadMoment), rounded down. With the NPC day on, a captain-day may hold
+ * maxGoldByDay(d) + its runes' dawn gold + ROAD(d, moment) (roadAllowance), and the captains' budget checks add it; a
+ * ceiling, not a quota. Off: never read.
+ * Provenance: table A0, provisional (BRIEF-REFIT-AZ 2): from PAR-AZ's REPORT (c)1 per-run means at parAZ-accepted
+ * 5c57914 (kit-parAZ/probes/parday.ts, 4 heroes x seeds 1-96, every switch on): warlord gold by dusk 3.5 6.8 9.7 12.9 16.5
+ * 20.0 23.6 27.1 30.7 34.5 and the drops' value by dusk 2.9 5.2 7.3 9.5 12.0 14.6 17.2 20.0 22.8 25.5 g; warlord: gold by
+ * dusk d-1 + drops by dusk d-1; dusk: gold by dusk d-1 + drops by dusk d.
+ */
+export const NPC_ROAD: Readonly<Record<RoadMoment, readonly number[]>> = {
+  warlord: [0, 6, 12, 17, 22, 28, 34, 40, 47, 53],
+  dusk: [2, 8, 14, 19, 24, 31, 37, 43, 49, 56],
+};
+
+/** REFIT-AZ: ROAD(day, moment) with the NPC day on (days past 10 read day 10's), 0 with it off: what a captain deck may hold
+ *  beside maxGoldByDay(day) and its runes' dawn gold (the captains' checks add it). */
+export function roadAllowance(day: number, moment: RoadMoment): number {
+  if (!npcDayRules()) return 0;
+  const d = Math.max(1, Math.min(NPC_ROAD[moment].length, Math.floor(day)));
+  return NPC_ROAD[moment][d - 1];
 }
 
 export interface RivalLoadout {
@@ -964,6 +1009,20 @@ export function dayOwned(u: Upgrade, luck: Luck): number {
   return d;
 }
 
+/**
+ * REFIT-AZ (REQ-BFG-078; REVIEW-PARAZ ruling Q1): the first day a deck at `luck`, fought at `moment`, owns plan upgrade `u`
+ * with the NPC day on: dayOwned, or sooner by the upgrade's NPC-day days (Upgrade.nd: its own luck's or a lesser luck's
+ * day, and "dusk" for the dusk deck), only where that luck owns it at all (a luck never gains a part it doesn't own).
+ */
+export function ndDayOwned(u: Upgrade, luck: Luck, moment: RoadMoment): number {
+  const d = dayOwned(u, luck);
+  if (!u.nd || d === Infinity) return d;
+  let best = d;
+  for (const l of LUCKS) if (LUCK_RANK[l] <= LUCK_RANK[luck] && u.nd[l] !== undefined) best = Math.min(best, u.nd[l]!);
+  if (moment === "dusk" && u.nd.dusk !== undefined) best = Math.min(best, u.nd.dusk);
+  return best;
+}
+
 /** TUNE-C: does a deck at `luck` ever own upgrade `u`? */
 export const ownsAt = (u: Upgrade, luck: Luck): boolean => dayOwned(u, luck) < Infinity;
 
@@ -979,8 +1038,31 @@ const TURRET_UID = 9500;
  * from its upgrade's place in the plan (factories U+1.., rigs and turret equipment U+10+index, bought turrets 9500+index),
  * so a part keeps its uid on every day and at every luck. The hull is the PvE ramp warlordHull(day) plus the plan's
  * plating (rivals.ts standInBuild swaps the ramp for whole plates).
+ * REFIT-AZ (REQ-BFG-078; REVIEW-PARAZ ruling Q1): `moment` is the deck's (the road deck "warlord", standInBuild's
+ * "dusk"). With the NPC day on (npcDayRules(), read once here) the deck also owns its plan's road additions: the upgrades
+ * an Upgrade.nd day brings sooner (ndDayOwned) and the RivalPlan.road list after every other upgrade (`dusk` entries in
+ * the dusk deck alone). The gold levels keep the room the deck has without them (the allowance pays for the additions,
+ * never the levels). Off, or a plan with neither: exactly as before.
  */
-export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary"): RivalLoadout {
+export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary", moment: RoadMoment = "warlord"): RivalLoadout {
+  const nd = npcDayRules() && (!!plan.road?.length || plan.upgrades.some((u) => u.nd !== undefined));
+  const a = assemble(plan, day, luck, moment, nd);
+  const { build, crates, plating, pvePlates } = a;
+  // bb-0.8.3 (REQ-BFG-043 D7', the uniform rule): the gold upgrades its hero's par player buys (captainLevels), where the
+  // day's gold allows; the value counts their gold (stars.ts upgradeGold), as buildCost does
+  // the stand-in (rivals.ts standInBuild) pays for the ramp hull in whole plates: the levels must fit beside those too
+  const ramp = Math.max(0, Math.round(warlordHull(day) / ITEMS.plating.supply!.hull!)) * ITEMS.plating.price;
+  // REFIT-AZ: with the road additions in, the levels' room is the deck's without them (so no level moves for a road part)
+  const roomParts = nd ? assemble(plan, day, luck, moment, false).parts : a.parts;
+  const up = captainLevels(plan.hero, day, maxGold(day) - roomParts - ramp);
+  if (up) build.upgrades = up;
+  const value = a.parts + upgradeGold(build);
+  return { build, crates, plating, pvePlates, value };
+}
+
+/** planBuild's deck before the gold levels: the plan's upgrades owned by `day` at `luck` (with the NPC day's road
+ *  additions when `nd`, REFIT-AZ), the hull and belt, and the parts' value (supplies included, levels not). */
+function assemble(plan: RivalPlan, day: number, luck: Luck, moment: RoadMoment, nd: boolean): { build: Build; crates: number; plating: number; pvePlates: number; parts: number } {
   const U = 9000;
   const b: Build = { hero: plan.hero, items: [], routes: [], mods: [], beltCap: 0, hullBonus: 0 };
   const addFactory = (f: FactoryPlan, u: number) => {
@@ -992,7 +1074,12 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   // 0.8.9 (CATCHUP-089 fallback 2): the day's PvE plates, on a road deck at good luck or better only
   const pvePlates = luck === "ordinary" ? 0 : plan.pve?.[day] ?? 0;
   // BOTS-X (SUS-C): with the sustain switch on, the plan's sustain upgrades after its own (off: `upgrades` itself)
-  const ups = sustainLive() && plan.sustain?.length ? [...plan.upgrades, ...plan.sustain] : plan.upgrades;
+  const base = sustainLive() && plan.sustain?.length ? [...plan.upgrades, ...plan.sustain] : plan.upgrades;
+  // REFIT-AZ: with the NPC day on, the road list after every other upgrade (so every other part keeps its uid)
+  const ups = nd && plan.road?.length ? [...base, ...plan.road] : base;
+  // REFIT-AZ: the day a deck owns an upgrade: dayOwned; with the NPC day, a plan upgrade's nd days (ndDayOwned) and a road
+  // entry at its own day and luck, a `dusk` entry in the dusk deck alone
+  const owned = (u: Upgrade, i: number): number => (!nd ? dayOwned(u, luck) : i >= base.length ? (u.dusk && moment !== "dusk" ? Infinity : dayOwned(u, luck)) : ndDayOwned(u, luck, moment));
   // FLIP-X2 (REVIEW-BOTSX answer 1): with the switch on, the plan's sustainDrop rigs are left out (their index still
   // counts, so every other uid stays)
   const drop = sustainLive() ? plan.sustainDrop ?? [] : [];
@@ -1000,7 +1087,7 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   for (const [i, u] of ups.entries()) {
     const uid = U + 10 + i, tu = TURRET_UID + i;
     const f = u.factory ? fu++ : 0; // factory uids follow the plan's factory order whether or not this luck owns them yet
-    if (dayOwned(u, luck) > day || dropped(u)) continue;
+    if (owned(u, i) > day || dropped(u)) continue;
     if (u.factory) addFactory(u.factory, f);
     if (u.gate) b.items.push({ uid, def: u.gate[0], x: u.gate[1], y: u.gate[2], ...rotField(u.gate[0], u.gate[3] ?? 0) });
     if (u.mod) b.mods.push({ uid, def: u.mod[0], turret: u.mod[1] });
@@ -1039,14 +1126,7 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   const build: Build = migrateDeck(b, "preset:rival");
   const parts = [...build.items, ...build.mods].reduce((n, p) => n + valueOf(p.def, starsOf(p)), 0) + turretsCost(build)
     + crates * ITEMS.beltcrate.price + plating * ITEMS.plating.price;
-  // bb-0.8.3 (REQ-BFG-043 D7', the uniform rule): the gold upgrades its hero's par player buys (captainLevels), where the
-  // day's gold allows; the value counts their gold (stars.ts upgradeGold), as buildCost does
-  // the stand-in (rivals.ts standInBuild) pays for the ramp hull in whole plates: the levels must fit beside those too
-  const ramp = Math.max(0, Math.round(warlordHull(day) / ITEMS.plating.supply!.hull!)) * ITEMS.plating.price;
-  const up = captainLevels(plan.hero, day, maxGold(day) - parts - ramp);
-  if (up) build.upgrades = up;
-  const value = parts + upgradeGold(build);
-  return { build, crates, plating, pvePlates, value };
+  return { build, crates, plating, pvePlates, parts };
 }
 
 /**

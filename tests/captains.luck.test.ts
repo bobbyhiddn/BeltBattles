@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { HEROES, ITEMS, rarityWeights, type ItemDef } from "../src/sim/content";
 import { RIVALS, RIVAL_IDS, RUN_DAYS, deckCost, difficultyOf, luckOf, maxGoldByDay, rivalBuild, rivalDays, rivalLoadout, standInBuild, type RivalId } from "../src/sim/rivals";
-import { CAPTAIN_RUNES, LUCKS, PLANS, captainRunesOn, dayOwned, firstDay, type Luck, type Upgrade } from "../src/sim/rivalBuilds";
+import { CAPTAIN_RUNES, LUCKS, PLANS, captainRunesOn, dayOwned, firstDay, roadAllowance, type Luck, type RoadMoment, type Upgrade } from "../src/sim/rivalBuilds";
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck valued as bought
 import { maxDawnGold, runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold
 import { LUCK_CAPS } from "../src/sim/harness/luckCapsData";
@@ -20,6 +20,11 @@ import { unlockDay } from "../src/game/wares"; // 0.8.0 I1 M3: the per-run draw'
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const STAND_INS = RIVAL_IDS.filter((id) => id !== "matriarch");
 const capsOf = (id: RivalId, day: number, tier: "ordinary" | "good"): LuckMeasures => LUCK_CAPS.caps[RIVALS[id].hero]![day - 1][tier];
+// REFIT-AZ (REQ-BFG-078; REVIEW-PARAZ ruling Q1; BRIEF-REFIT-AZ "The road allowance" 5): with the NPC day on, a captain deck's
+// budget adds the par player's road value at the moment it is fought (rivalBuilds.ts roadAllowance: ROAD(day, moment), 0 with
+// NPC_DAY off), so a cap measured on the road-less par field takes it on its value; nothing else changes, and off every
+// check reads exactly as before
+const withRoad = (c: LuckMeasures, day: number, moment: RoadMoment): LuckMeasures => ({ ...c, value: c.value + roadAllowance(day, moment) });
 
 /** The first day the caravan can offer `d` (src/game/run.ts rollShop): its rarity must have weight that day
  *  (content.ts rarityWeights: legendaries from day 4; dayPool holds them back until then too), its merchant must be
@@ -77,7 +82,8 @@ describe("the luck caps table (src/sim/harness/luckCapsData.ts)", () => {
         // FLIP-X2 (cap's ruling 97e639e5813acb37, item 4): the par field's decks hold their runes, so the most gold a run can
         // hold at that dusk is maxGoldByDay plus the most dawn gold a legal one-rune-a-dawn list pays by then (runes.ts
         // maxDawnGold; was maxGoldByDay alone)
-        expect(c.good.value, `${hero} d${i + 1}`).toBeLessThanOrEqual(maxGoldByDay(i + 1) + maxDawnGold(i + 1));
+        // REFIT-AZ: with the NPC day on, plus the road deck's allowance (0 off)
+        expect(c.good.value, `${hero} d${i + 1}`).toBeLessThanOrEqual(maxGoldByDay(i + 1) + maxDawnGold(i + 1) + roadAllowance(i + 1, "warlord"));
       });
     }
   });
@@ -96,7 +102,7 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
   it("every captain-day's stand-in deck fits its hero-day's ordinary caps", () => {
     const over: string[] = [];
     for (const id of STAND_INS) for (const day of DAYS) {
-      const o = overCaps(luckMeasures(standInBuild(id, day)), capsOf(id, day, "ordinary"));
+      const o = overCaps(luckMeasures(standInBuild(id, day)), withRoad(capsOf(id, day, "ordinary"), day, "dusk")); // REFIT-AZ: + ROAD(day, dusk) on the value
       if (o.length) over.push(`${id} d${day}: ${o.join(", ")}`);
     }
     expect(over).toEqual([]);
@@ -108,7 +114,7 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
       const tier = difficultyOf(id) === "hard" ? "good" : "ordinary";
       const l = rivalLoadout(id, day);
       // a warlord's hull is the free PvE ramp: its value is what its plan bought (items, gear, turrets, crates, plating)
-      const o = overCaps({ ...luckMeasures(l.build), value: l.value }, capsOf(id, day, tier));
+      const o = overCaps({ ...luckMeasures(l.build), value: l.value }, withRoad(capsOf(id, day, tier), day, "warlord")); // REFIT-AZ: + ROAD(day, warlord)
       if (o.length) over.push(`${id} d${day} (${tier}): ${o.join(", ")}`);
     }
     expect(over).toEqual([]);
@@ -183,11 +189,13 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
       // FLIP-X2 (REVIEW-BOTSX section 5): the stand-in holds its runes now, so it is valued as bought (boughtCost: the runes'
       // HULL and BELT out) against the day's gold plus its runes' dawn gold, as validate.ts budgets a deck (was deckCost)
       const s = standInBuild(id, day);
-      expect(boughtCost(s), `${id} d${day} stand-in`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(s.runes, day).gold);
+      // REFIT-AZ (REVIEW-PARAZ ruling Q1): with the NPC day on, + the dusk deck's road allowance (0 off)
+      expect(boughtCost(s), `${id} d${day} stand-in`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(s.runes, day).gold + roadAllowance(day, "dusk"));
       // FLIP-X2 (cap's ruling 97e639e5813acb37, item 4): the warlord deck (its plan's value) against the day's gold plus
       // the dawn gold of its own runes (CAPTAIN_RUNES up to the day; was maxGoldByDay alone)
       const held = (CAPTAIN_RUNES[id] ?? []).slice(0, day).map((q) => ({ id: q }));
-      expect(rivalLoadout(id, day).value, `${id} d${day} warlord`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(held, day).gold);
+      // REFIT-AZ: with the NPC day on, + the road deck's allowance (0 off)
+      expect(rivalLoadout(id, day).value, `${id} d${day} warlord`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(held, day).gold + roadAllowance(day, "warlord"));
     }
   });
 
