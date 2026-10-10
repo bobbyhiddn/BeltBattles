@@ -373,7 +373,7 @@ if (SETS.includes("stills")) {
   const cells = [];
   const add = (file, label) => { if (file) cells.push({ file, label }); };
   add(await still(browser, "go", "phone", fightGo), "THE FIGHT, 0.5 S AFTER GO");
-  add(await still(browser, "next-2x", "phone", nextAt2x), "NEXT BATTLE: 2X BEFORE ITS FIRST STEP");
+  add(await still(browser, "next-2x", "phone", nextAt2x), "NEXT BATTLE: 2X AT 0:00");
   add(await still(browser, "view-summaries", "phone", viewFace(null)), "VIEW BATTLEFIELD: SUMMARIES");
   add(await still(browser, "view-face", "phone", viewFace(0)), "VIEW BATTLEFIELD: A FIGHT LINE");
   add(await still(browser, "warlord-card", "phone", warlordCard), "WARLORD CARD");
