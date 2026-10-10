@@ -266,8 +266,21 @@ export const CARD_ROWS = 7;
  * 0.8.0 H1 M3: the result card's height and row pitch for `n` rows on a screen H px high. Up to CARD_ROWS rows: 0.6.2's
  * 170 px and 8 px, whatever H (a Furnace or Weaver card is unchanged). Each race row adds a pitch; where the card would
  * not fit H with 2 px to spare, the pitch closes to 7, then 6 (the 3x5 rows stay apart).
+ * SCOUT-1b (REQ-BFG-082): `view`, VIEW BATTLEFIELD's row (VIEW_ROW_H px) under the rows: the card with that row must fit
+ * H with 2 px to spare. The pitch closes 8 -> 7 -> 6 at any row count (a 7-row card too), and where pitch 6 is still too
+ * tall the gap between the INCOME line and the buttons closes as well, by at most CARD_GAP_CUT of its 16 px. `h` is the
+ * card's height without the row (the caller adds it). With no `view`, exactly as before.
  */
-export function resultCard(n: number, H: number): { h: number; pitch: number } {
+export function resultCard(n: number, H: number, view = 0): { h: number; pitch: number } {
+  if (view > 0) {
+    const m = Math.max(n, CARD_ROWS);
+    let h = 0;
+    for (const pitch of [8, 7, 6]) {
+      h = 170 + (m - CARD_ROWS) * 8 - (8 - pitch) * (m + 1);
+      if (h + view <= H - 4) return { h, pitch };
+    }
+    return { h: h - Math.min(CARD_GAP_CUT, h + view - (H - 4)), pitch: 6 };
+  }
   if (n <= CARD_ROWS) return { h: 170, pitch: 8 };
   let h = 0;
   for (const pitch of [8, 7, 6]) {
@@ -276,6 +289,10 @@ export function resultCard(n: number, H: number): { h: number; pitch: number } {
   }
   return { h, pitch: 6 };
 }
+
+/** SCOUT-1b (REQ-BFG-082): the most a card with VIEW BATTLEFIELD's row closes the gap between its INCOME line and its
+ *  buttons (16 px), where pitch 6 alone doesn't fit it: 7 px stay clear. */
+export const CARD_GAP_CUT = 9;
 
 /** LC-1 (REQ-BFG-073): how long the build screen's bar lights the heart LAST CHANCE gave back (seconds). */
 export const LC_HEART_S = 4;
@@ -288,8 +305,8 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   const run = game.run!;
   const rows = resultRows(r);
   const extra = onView ? VIEW_ROW_H : 0;
-  const card = resultCard(rows.length, H - extra); // 0.6.2: 170 (+8 for the SHOCK STALLS row); 0.8.0 H1 M3: + race rows
-  const pitch = card.pitch, h = card.h + extra;
+  const card = resultCard(rows.length, H, extra); // 0.6.2: 170 (+8 for the SHOCK STALLS row); 0.8.0 H1 M3: + race rows
+  const pitch = card.pitch, h = card.h + extra; // SCOUT-1b (REQ-BFG-082): with VIEW BATTLEFIELD's row it fits H - 4
   const w = Math.min(W - 10, 214);
   const x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - h / 2);
   const k = Math.min(1, pt / 0.25);

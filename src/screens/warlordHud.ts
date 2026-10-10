@@ -20,6 +20,21 @@ import { VIEW_ROW_H, viewButton } from "./battleHud"; // SCOUT-1 (REQ-BFG-076): 
 import { itemName } from "./event/cards";
 import { drawBadge } from "./build/shop";
 
+/** The line over a Hard win's part pick. */
+export const PICK_LINE_TEXT = "PICK 1 PART FROM THEIR DECK:";
+/** SCOUT-1b (REQ-BFG-082): with VIEW BATTLEFIELD on the card, the PICK line's place over the picks (its 3x5 text, then
+ *  4 px), and how far VIEW BATTLEFIELD's row moves up to sit above it. */
+export const PICK_LINE = 9;
+
+/** SCOUT-1b (REQ-BFG-082): the card's bottom rows (y, top down) for a card at `yy`, `ch` px tall: VIEW BATTLEFIELD's row
+ *  (with `view`), the PICK line (with `pick`; without the view where it always was, under the gold line) and the buttons'
+ *  row (the picks, REFIT and FIGHT NOW, or ON TO DUSK). With both, the PICK line sits right over the picks it heads and
+ *  VIEW BATTLEFIELD right above that line. */
+export function warlordRows(yy: number, ch: number, pick: boolean, view: boolean): { view: number; pickLine: number; buttons: number } {
+  const buttons = yy + ch - 26;
+  return { view: buttons - VIEW_ROW_H - (pick ? PICK_LINE : 0), pickLine: pick && view ? buttons - PICK_LINE : yy + 74, buttons };
+}
+
 export interface WarlordActions {
   take: (() => void)[];
   refit: () => void;
@@ -28,7 +43,8 @@ export interface WarlordActions {
 
 /** SCOUT-1 (REQ-BFG-076): `onView`, VIEW BATTLEFIELD, on its own row right above the card's actions (the pick, REFIT and
  *  FIGHT NOW, or ON TO DUSK: never in their place; the pick works as before), the card a row taller; `viewHit`, its tap
- *  target's least height. Absent, the card exactly as before. */
+ *  target's least height. Absent, the card exactly as before. SCOUT-1b (REQ-BFG-082): with a part pick, its line "PICK 1
+ *  PART FROM THEIR DECK:" sits right over the picks it heads, and VIEW BATTLEFIELD's row right above that line. */
 export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions, onView?: () => void, viewHit = 0): void {
   const { W, H, ui } = game;
   const run = game.run!;
@@ -68,7 +84,7 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
       drawText(g, `${itemName(r.took)} IS IN CARGO`, x + 60, ry + 2, C.lime, { font: "3" });
       ry += 12;
     } else if (pick) {
-      drawText(g, "PICK 1 PART FROM THEIR DECK:", x + 10, ry, C.bone, { font: "3" });
+      drawText(g, PICK_LINE_TEXT, x + 10, warlordRows(yy, ch, pick, !!onView).pickLine, C.bone, { font: "3" }); // SCOUT-1b
       ry += 9;
     } else if (r.took) {
       drawText(g, `${itemName(r.took)} IS IN CARGO`, x + 10, ry, C.lime, { font: "3" });
@@ -77,7 +93,7 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
   }
   if (pt <= 0.35) return;
   const by = yy + ch - 26, bw = Math.floor((cw - 24) / 2);
-  if (onView) viewButton(ui, g, { x: x + 10, y: by - VIEW_ROW_H, w: cw - 20, h: 21 }, { x, y: yy, w: cw, h: ch }, onView, viewHit);
+  if (onView) viewButton(ui, g, { x: x + 10, y: warlordRows(yy, ch, pick, true).view, w: cw - 20, h: 21 }, { x, y: yy, w: cw, h: ch }, onView, viewHit);
   if (pick) {
     r.parts.forEach((d, i) => {
       const bx = x + 10 + i * (bw + 4);
