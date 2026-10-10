@@ -30,7 +30,11 @@ U2f (0.8.9) adds three rules: the ⓘ view's size (5.8), the owned marker (9.5) 
    (`{SLUG}`), its gear slots (`{GEAR}`), its belts (`{BELT}`), and the BURN, STUN, HEAT or FRAY its own shots or payloads carry.
 3. **Given to something else: an ABILITY line.** Payloads passing a rig, the turret a core or gear is fitted to, neighbours, the belt, your
    hull, the run, the rules.
-4. **By kind.** A turret is a stat row only (SCRAP CANNON on U2c's turret panel: `1{SEC} {SLUG}3 {GEAR}1`). A factory shows its output as
+4. **By kind.** A turret is a stat row and no ability line (SCRAP CANNON on U2c's turret panel: `1{SEC} {SLUG}3 {GEAR}1`). **(2026-10-10,
+   WORDS-1, REQ-BFG-081; cap's ruling on READ-1 6.1.)** A turret's panel may carry plain lines under its stat row that say what its load and
+   gear numbers mean: `HOLDS 3 {SLUG}: FIRES THEM ONE A SHOT, THEN RELOADS.` and `1 {GEAR} SLOT FOR TURRET GEAR.` (faces.ts `turretPlain`).
+   They describe the turret without a core, from the stat row's own data; a core's line says what it changes. They are not abilities: no
+   trigger label, no number of their own. A factory shows its output as
    stats, with a line only for a mechanic or for what it gives something else. Rigs, cores, gear, packs and heroes' rules are abilities. A
    hero's signature factory shows its own output as stats and the hero's rule as an ability.
 5. **Evidence.** The Bazaar prints a stat as a number on the card (Fang: "cooldown 3.0 sec on the face"); Backpack Battles' plain Wooden Sword
@@ -161,8 +165,12 @@ At ★2 the `+2` is yellow and the line reads `NEXT ★3: +4 {BURN}`; at ★3 th
 2. In a sentence a keyword is `{*NAME}`, its icon then its word; in a stat row, a chip, a LEVELS ladder or a NEXT★ line it is the icon
    alone (`{BURN}`). It never takes a suffix: `{*STUN}S` is wrong (its S would draw in the base colour).
 3. One mechanic, one word: STALL and SHOCK are STUN, PLATING is PLATE, FIRE RATE and WORKS FASTER are RATE, MACHINE is PART (glossary.ts).
-4. Name a keyword; never define it inline. Its reminder (faces.ts `REMINDER`, at most 10 words, MEMO C1), with the piece's own number,
-   shows on a tap, in the desk's hover tooltip and in the ⓘ KEYWORDS list; never on the face (MEMO C4's dim reminder line is gone).
+4. **(2026-10-10, WORDS-1, REQ-BFG-081; cap's ruling on READ-1 3.3; was "Name a keyword; never define it inline.")** Use a coined word only
+   where a tap on that card explains it; otherwise use plain words. A keyword is still named, never defined inline: its reminder (faces.ts
+   `REMINDER`, at most 10 words, MEMO C1), with the piece's own number, shows on a tap, in the desk's hover tooltip and in the ⓘ KEYWORDS
+   list; never on the face (MEMO C4's dim reminder line is gone). Every glossary word a face prints is tappable there (keywords.ts
+   `matches`), and so are the stat row's `{RATE}`, `{SLUG}` and `{GEAR}` (glossary.ts `statIconNote`). The words a player learns once
+   are the core list (glossary.ts `CORE_WORDS`, at most 10) and each hero's own word (`HERO_WORDS`, taught on hero select).
 5. Other colours: numbers white; trigger labels, `★n` and perk names brass (a perk name never splits); the RATE and GOLD icons yellow; the kept
    texts' FASTER yellow, SLOWER blue (richText.ts `KEYWORD_COLOUR`). Each tappable word has a dotted underline in its colour.
    FLIP-X2: FREEZE's ice is gone with the mechanic (NUM-3: frost rounds STUN). FROST names a round, as CHAIN does, so both draw in the
@@ -201,8 +209,13 @@ At ★2 the `+2` is yellow and the line reads `NEXT ★3: +4 {BURN}`; at ★3 th
    offers ★1 only).
 2. The chip rule (chips.ts): an icon is the mechanic its number measures. The pick: the rule's keyword with its count (TEMPER `{BURN}+1`, GALVANIC
    COIL `{STUN}1.6`), else the first stat pair (DART GUN `{RATE}55`, unsigned; was `0.55{SEC}`), else the rule's first number with an icon (CALIBRATION `{RATE}+33%`).
-3. `{RATE}` only for a gun firing or a factory working (`RATE_KEYS`: CALIBRATION, ESCAPEMENT, GATLING SPOOL, STOKER), never a belt's speed
-   (GREASE WORKS: no chip). Never a waiting timer (a rest, a delay, a period): OVERCLOCKER's rest is no chip; only a cadence is a `{SEC}` chip.
+3. `{RATE}` only for a gun firing or a factory working (`RATE_KEYS`: CALIBRATION, ESCAPEMENT, GATLING SPOOL, STOKER), never a belt's speed.
+   Never a waiting timer (a rest, a delay, a period): OVERCLOCKER's rest is no chip; only a cadence is a `{SEC}` chip. **(2026-10-10, WORDS-1,
+   REQ-BFG-081; cap's ruling on READ-1 6.3.)** A belt-speed rig may show a speed chip, in a form that can't be read as damage or as another
+   card's number: a word, never `{DMG}`, `{RATE}` or a bare number (chips.ts `PLAIN_CHIPS`: GREASE WORKS `FAST`, BRAKE SHOE `SLOW`,
+   OVERDRIVE `FAST`). Every other piece whose face gives no chip by 9.2 shows a plain chip too, so no phone card is blank before a tap: the
+   keyword it works on, its icon with a word or with its face's own number (VENOM DRIP `{BURN}+3{SEC}`, TOLLBOOTH `{STUN}BLOCK`, MANTLET
+   `NO{STUN}`), else a word for its effect (OVERCLOCKER `TWICE`, ROTARY BREECH `SOONER`). Each fits beside the price on the 46 px card.
 4. A faceless piece, a pack, or a face with no number that has an icon keeps today's card and its one line of effect. On the op view's
    narrow card the chip takes the family marks' place; the desk's wide card keeps the marks, the chip left of the price.
 5. **The owned marker (U2f).** A shop, warlord-pick or event card for a piece you own that won't merge yet (`drawBadge` "wait") shows a
