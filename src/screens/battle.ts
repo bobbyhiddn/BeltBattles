@@ -36,6 +36,7 @@ import { fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the hull read
 import { TitleScreen } from "./title";
 import { NOTE_ROW, SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, notePlace, plateSource, type BarState } from "./battleHud";
 import { BattleFaces, drawSummaries, drawViewBar, fingerPx, summaryRects } from "./battleScout"; // SCOUT-1 (REQ-BFG-076)
+import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
 import type { Rect } from "../ui/ui";
 
 /** 0.7.0 (R1 M1): the enemy plate's source line as BattleScreen draws it (see placeSource). */
@@ -141,6 +142,7 @@ export class BattleScreen implements Screen {
     };
     this.relayout();
     this.arena.off = [this.driveIn[0], this.driveIn[1]];
+    this.useSpeed(runSpeed(run)); // SCOUT-1b (REQ-BFG-083): the speed picked earlier in this run, from the first step
     if (w?.result) {
       // reloaded on the result card: show the stored result, never fight or pay again
       this.arena.off = [0, 0];
@@ -325,7 +327,15 @@ export class BattleScreen implements Screen {
     this.arena.setFrames(this.L.frames, this.L.enter);
   }
 
+  /** The player's pick (a bar button, the cycle button, keys 1-4). SCOUT-1b (REQ-BFG-083): it holds for the rest of the
+   *  run, kept on the device with the run's id (game/runSpeed.ts), so the next battle starts at it. */
   setSpeed(i: number): void {
+    this.useSpeed(i);
+    keepRunSpeed(this.game.run!, this.speed);
+  }
+
+  /** SCOUT-1b: play at speed `i` (the bar shows it) without keeping it. */
+  private useSpeed(i: number): void {
     this.speed = Math.max(0, Math.min(SPEEDS.length - 1, i));
     this.arena.speed = SPEEDS[this.speed];
   }
