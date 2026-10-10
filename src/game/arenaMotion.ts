@@ -150,7 +150,8 @@ export class ArenaMotion implements ShotMap {
     if (this.perf) this.perf.add(0, now() - t0);
   }
 
-  /** The arena in motion (drawArena's order: carriers, boards, shots, effects, numbers, the wind, the flash). */
+  /** The arena in motion: carriers, boards, shots, effects, the wind, the numbers, the flash (AZ-PREP: the wind under the
+   *  numbers; drawArena's order had the numbers under the wind). */
   draw(g: G, a: Arena, W: number, H: number, reduced: boolean): void {
     const b = a.b;
     const P = this.perf;
@@ -213,6 +214,11 @@ export class ArenaMotion implements ShotMap {
     }
     const ox = a.fx.shakeX, oy = a.fx.shakeY;
     a.fx.draw(g, ox, oy, -1);
+    a.fx.drawDecals(g, ox, oy, -1);
+    // AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q2, BRIEF-AZPREP 2 (b)): the dark wind under the numbers. Its fog band runs in from
+    // the screen's left edge, over the west board on the desk, and covered the damage pops there (HULL_SCALE's wind decides
+    // late fights); the pops now draw on it. A draw-order change only: was the numbers, the decals, then the wind
+    drawWind(g, b.windLevel() * Math.max(0, 1 - a.overT / 1.2), W, H, a.clock);
     for (const s of [0, 1] as Side[]) {
       const A = this.aff[s];
       g.save();
@@ -221,8 +227,6 @@ export class ArenaMotion implements ShotMap {
       g.restore();
     }
     a.fx.drawPops(g, ox, oy, -1);
-    a.fx.drawDecals(g, ox, oy, -1);
-    drawWind(g, b.windLevel() * Math.max(0, 1 - a.overT / 1.2), W, H, a.clock);
     if (a.fx.flash > 0 && !reduced) {
       g.globalAlpha = Math.min(0.5, a.fx.flash);
       rect(g, 0, 0, W, H, a.fx.flashColor);
