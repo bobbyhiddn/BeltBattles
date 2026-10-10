@@ -18,7 +18,7 @@
 import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
 import { FINDING_GHOST } from "../../game/session"; // 0.7.0a: the NEXT BATTLE card online
-import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
+import { HEROES, ITEMS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import type { ModuleTag } from "../../sim/content"; // 0.8.0 I1 M4: the families in the header
 import { drawFamilyMark, familiesOf, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
@@ -90,7 +90,7 @@ import {
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
 import type { Sel } from "./layout";
-import { describe } from "./shop";
+import { describe, KIND_SUB, panelKind } from "./shop"; // WORDS-1: KIND_SUB, panelKind (a core's and gear's kind in plain words)
 import {
   deadEndLines, freeNote, SLOT_HINT, slotActions, slotColor, slotIcon, slotLabels, slotNotes, slotSub, slotTitle, socketLines, turretHint,
   turretSpec, type SocketRow,
@@ -524,8 +524,11 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),
   ];
   return {
-    title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[wagon].merchant].name}`,
-    subShort: describe(d), // T6: the merchant's name gives way first, so the button can share the title's row
+    // WORDS-1 (REQ-BFG-081; READ-1 6.2: merchant names drew 40 "not understood" flags): no merchant's name on the panel (the
+    // desk's wagon tags keep them), and a core's or gear's kind in plain words (shop.ts panelKind). Was `${describe(d)} ·
+    // ${merchant}`, subShort describe(d)
+    title: d.name, color: RARITY_COLOR[d.rarity], sub: panelKind(d),
+    subShort: KIND_SUB[d.kind] ?? describe(d), // T6: the rarity gives way first (the title shows it in colour)
     headerOnly: one ? { texts: [one], colour: C.bone } : undefined,
     body,
     variants: tightForms(body),
@@ -548,8 +551,11 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
     hintBlock(placeHint(d.kind, false, d.id, touch)),
   ];
   return {
-    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
-    subShort: `${KIND_WORD[d.kind] ?? "PART"} · IN CARGO`, // T6: the rarity gives way first (the title shows it in colour)
+    // WORDS-1 (REQ-BFG-081): a core's or gear's kind in plain words (shop.ts KIND_SUB; was TURRET CORE, TURRET GEAR)
+    // (a core's or gear's own words alone: "... · IN CARGO" is 132-138 px of 3x5, past the 113 px a 320x568 phone's sub
+    // line holds, where fitHead would cut it; its SELL button says it is cargo)
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: KIND_SUB[d.kind] ?? `${describe(d)} · IN CARGO`,
+    subShort: `${KIND_SUB[d.kind] ?? KIND_WORD[d.kind] ?? "PART"}${KIND_SUB[d.kind] ? "" : " · IN CARGO"}`, // T6: the rarity gives way first (the title shows it in colour)
     body,
     variants: tightForms(body),
     labels: sellable ? [`SELL +${turret ? turretSellValue(it) : sellPrice(d.id, stars)}G`] : [],
