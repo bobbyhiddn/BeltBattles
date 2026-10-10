@@ -105,7 +105,7 @@ describe("merging and selling (P1, REQ-BFG-084.3): a star raises only the number
       scaleguard: [{ slugPlate: 3, flat: 10 }, { slugPlate: 7, flat: 20 }, { slugPlate: 11, flat: 35 }],
       ballast: [{ maxHullPct: 8 }, { maxHullPct: 16 }, { maxHullPct: 25 }],
       grindstone: [{ flat: 25 }, { flat: 55 }, { flat: 90 }],
-      brandingiron: [{ flat: 5, burn: 1 }, { flat: 30, burn: 2 }, { flat: 50, burn: 3 }], // ★1 DMG 5: the bench guard's cut
+      brandingiron: [{ flat: 10, burn: 1 }, { flat: 30, burn: 2 }, { flat: 50, burn: 3 }], // ★1 DMG 10: the bench guard's cut (cap R2-1)
     };
     for (const id of PLAIN_RIG_IDS) {
       expect(fusible(id), id).toBe(true);
@@ -169,7 +169,7 @@ describe("a hit gives its stats once per arrow that points at a belt tile (P1, R
     }
   }));
 
-  it("BRANDING IRON at a bend: its two arrows hit both tiles of the bend, so a slug takes 2 x (+5 DMG, +1 BURN)", () => on(() => {
+  it("BRANDING IRON at a bend: its two arrows hit both tiles of the bend, so a slug takes 2 x (+10 DMG, +1 BURN)", () => on(() => {
     // the Kiln's belt (4,5), (4,4), (4,3), then right to (5,3) and up column 5 to (5,0); the iron at (4,2), turned once:
     // its arrows point east at (5,2), tile 4, and back at (4,3), tile 2
     const b: Build = {
@@ -180,9 +180,9 @@ describe("a hit gives its stats once per arrow that points at a belt tile (P1, R
     expect(routeInfo(b, 0).connected).toBe(true);
     expect(rigHits(b).flat(2).filter((h) => h.uid === 50).map((h) => h.tile)).toEqual([2, 4]);
     const mid = pastTilePlain(b, 0, 2), end = pastTilePlain(b, 0, 4);
-    for (const p of mid) expect([p.flat, p.burn]).toEqual([5, 1]);
+    for (const p of mid) expect([p.flat, p.burn]).toEqual([10, 1]);
     expect(end.length).toBeGreaterThan(2);
-    for (const p of end) expect([p.flat, p.burn]).toEqual([10, 2]);
+    for (const p of end) expect([p.flat, p.burn]).toEqual([20, 2]);
   }));
 
   it("SPARK GAP adds its STUN seconds to the slug: 1, two of them 2; after a coil 2 + 1; a coil after it at least 2", () => on(() => {
