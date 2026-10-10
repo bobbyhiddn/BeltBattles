@@ -773,8 +773,14 @@ async function touchSection(browsers, origin, vname) {
     const l0 = await look(page);
     const band = await page.evaluate(() => { const a = window.bb.game.screen.L.info, p = window.bb.toClient(a.x, a.y), q = window.bb.toClient(a.x + a.w, a.y + a.h); return { x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y }; });
     const under = (p, r) => !!r && p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    // SPACE-1 (REQ-BFG-087, D4): a panel now grows until its gaps show (or to the top), so the BOMBARD's header row (its
+    // buttons, each a finger's target) and its words (their tap targets) can lie over a shop card; a press there is the
+    // panel's, as ever (UI.hit: the last region added wins). The card read through it is the first whose centre's top
+    // region is the panel's press-through (`details-over`), the part of the panel a press goes through. Was: the first
+    // card under the panel and not under the band
+    const topRegion = (p) => page.evaluate((q) => window.bb.regions().filter((r) => q.x >= r.x && q.x < r.x + r.w && q.y >= r.y && q.y < r.y + r.h).pop()?.id ?? null, p);
     let ci = -1, cp = null;
-    for (let i = 0; i < 5 && ci < 0; i++) { const p = await card(page, i); if (under(p, l0.box) && !under(p, band)) { ci = i; cp = p; } }
+    for (let i = 0; i < 5 && ci < 0; i++) { const p = await card(page, i); if (under(p, l0.box) && !under(p, band) && (await topRegion(p)) === "details-over") { ci = i; cp = p; } }
     if (cp && l0.grownUp) {
       const s0 = await snap(page);
       const want = await page.evaluate((i) => { const o = window.bb.game.screen.offers()[i]; return { kind: "offer", wagon: o.wagon, slot: o.slot }; }, ci);
@@ -788,7 +794,8 @@ async function touchSection(browsers, origin, vname) {
         const lb = await look(page);
         check(same(lb.sel, { kind: "turret", index: 1 }) && shown(lb, "BOMBARD"), `${V}: a tap on the panel over the band changes nothing (${JSON.stringify(lb.sel)})`);
       }
-    } else log(`[${at()}] ${V}: the BOMBARD's panel doesn't grow over a shop card here (the ${env.band === null ? "landscape column" : "band"}, ${band.h.toFixed(0)} CSS px tall, holds it): no press goes through`);
+    } else if (l0.grownUp) log(`[${at()}] ${V}: the BOMBARD's panel grown up over the shop covers no card's centre where a press goes through (each covered card's centre is under its buttons or words): no press goes through`); // SPACE-1
+    else log(`[${at()}] ${V}: the BOMBARD's panel doesn't grow over a shop card here (the ${env.band === null ? "landscape column" : "band"}, ${band.h.toFixed(0)} CSS px tall, holds it): no press goes through`);
   }
 
   // 035: SELL from each panel (a fresh deck each)
