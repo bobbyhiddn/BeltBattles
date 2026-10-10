@@ -514,8 +514,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // ★2 REDLINE adds +1 and ★3 AFTERBURNER +3 to each payload (flat, a second rule); their guards are a clause
     const n = fmtCount(gt(e).speed!), flat = gt(e).flat;
     const d = flat ? fmtDmg(dmgNow(flat)) : "";
-    return rules([{ text: `${runs(e)} ${n} TIMES AS FAST.` }, ...(flat ? [hit(`+${d} {DMG}.`)] : [])],
-      [["speed", `${n} TIMES`], ...(flat ? [["flat", `+${d} {DMG}`] as [string, string]] : [])]);
+    // AZ-PREP (REQ-BFG-070; REVIEW-HULL1B section 5, BRIEF-AZPREP 2 (g)): with LADDER_FIX on, ★2 and ★3 keep 50% and 100% of
+    // the ride their speed cuts (ladderFix.ts RIDE_KEEP on the fixed def's levels: Battle.transport and the walk count the
+    // ride at 1x x keep + the real ride x (1 - keep)), so its belts' ride payoffs (HEAT, LONG RIDES) don't fall as they
+    // speed up. A rule, and a keyed number for the LEVELS ladder (KEEPS -/50%/100% RIDE) and NEXT★. Off (the base def holds
+    // no rideKeep) and at ★1 (0): no line, every word as today
+    const keep = (gt(e) as { rideKeep?: number }).rideKeep ?? 0, k = keep ? fmtPct(keep) : "";
+    return rules([{ text: `${runs(e)} ${n} TIMES AS FAST.` }, ...(flat ? [hit(`+${d} {DMG}.`)] : []), ...(keep ? [{ text: `KEEPS ${k} OF THE RIDE IT CUTS.` }] : [])],
+      [["speed", `${n} TIMES`], ...(flat ? [["flat", `+${d} {DMG}`] as [string, string]] : []), ...(keep ? [["keep", `KEEPS ${k} RIDE`] as [string, string]] : [])]);
   },
   surge: (e) => {
     // DESIGN-Y row 28 (REVIEW-STARD answer 5: the damage pulse): Battle.surgeTick: once each pulse period every slug on its

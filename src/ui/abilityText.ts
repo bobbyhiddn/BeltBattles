@@ -460,8 +460,12 @@ const ENTRIES: Record<string, Entry> = {
     // GUARD_FREEZE (nor FROST rounds). Battle.acceptHarassment, routeGuardActive. NUM-3: no slow or freeze any more
     text: (e) => {
       const gt = g(e), guard = gt.guard ?? 0;
+      // AZ-PREP (REQ-BFG-070; REVIEW-HULL1B section 5): with LADDER_FIX on, ★2/★3's ride-keep (faces.ts overdrive's line);
+      // off, or at ★1, no sentence (every word as today)
+      const keep = (gt as { rideKeep?: number }).rideKeep ?? 0;
       return [
         `MAKES ${belts(e)} PAST IT ${speedText(gt.speed!)}${gt.flat ? ` AND ADDS ${damage(gt.flat)} TO EACH PAYLOAD` : ""}.`,
+        ...(keep ? [`A PAYLOAD KEEPS ${percent(keep)} OF THE RIDE THAT SPEED CUTS, FOR ITS RIDE BONUSES (HEAT, LONG RIDES).`] : []),
         ...(guard ? [`ENEMY CHAIN${guard & 2 ? " AND FROST" : ""} ROUNDS CAN'T STUN ${belts(e)} PAST IT.`] : []),
         S.locked(gt.lockedFlat!, !!gt.flat),
       ];
@@ -472,7 +476,8 @@ const ENTRIES: Record<string, Entry> = {
     // holds `guard` or `flat`), so both perks name the opening sentence (perkAt's default) and the gist reads the data: its
     // speed, and a flat only where its data holds one, as ★1's and ★3's (was "4 TIMES AS FAST, SAFE FROM CHAINS" at ★2,
     // from REDLINE's name)
-    gist: (e) => `${speedText(g(e).speed!)}${g(e).flat ? `, ADDS ${damage(g(e).flat!)}` : ""}`,
+    // AZ-PREP: + its ride-keep with LADDER_FIX on (★2/★3; off, as today)
+    gist: (e) => `${speedText(g(e).speed!)}${g(e).flat ? `, ADDS ${damage(g(e).flat!)}` : ""}${(g(e) as { rideKeep?: number }).rideKeep ? `, KEEPS ${percent((g(e) as { rideKeep?: number }).rideKeep!)} OF THE RIDE` : ""}`,
     card: (e) => `MAKES BELTS ${speedText(g(e).speed!)}`,
   },
   tollbooth: {
