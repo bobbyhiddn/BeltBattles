@@ -39,17 +39,19 @@ export const FIGHT_BY_DAY: readonly number[] = [24.4, 19.9, 15.7, 14.2, 12.9, 11
  * switch on (NPC_DAY, HULL_SCALE and LADDER_FIX, each through its setter) and the par player's NPC day in (c52be67): the
  * par fights run on the day's hull, damage and sustain (M, D, S) and the wind's share. CAND-A's method, now a tool
  * (tools/fightByDay.ts): the typical par field against itself, K 12, FURNACE and WEAVER, every ordered pair once (552
- * battles a day), the MEAN fight in seconds. Measured at e80ad2d (bb-0.9.7, the switches set by --all-on), 2026-10-10
- * 13:18Z, four shards at once from the repo root:
+ * battles a day), the MEAN fight in seconds. Measured at b56aa34 (bb-0.9.7; PAR-AZ's D(d) re-fit in, cap's ruling
+ * bff72995f529f68b; the switches set by --all-on), 2026-10-10 13:54Z, four shards at once from the repo root:
  *   npx vite build --ssr tools/fightByDay.ts --outDir tools/dist/fightbyday --emptyOutDir --logLevel warn
  *   nice -n 19 node tools/dist/fightbyday/fightByDay.js --days 1,2,3 --k 12 --all-on --json fbd-d1_2_3.json
  *   (and --days 4,5,6, --days 7,8, --days 9,10)
  * Units: real seconds, as rateDeck compares them (each belt's damage counts for the share of the fight left after its first
- * payload, RIVETER and ARMOR PRESS repair over half of it); no day scales a second. Stability (FLIP-X2's way): measured
- * with the bots reading the 0.9.7 tables, selected, then re-measured with these in (PAR-AZ REPORT (b)).
+ * payload, RIVETER and ARMOR PRESS repair over half of it); no day scales a second. Stability (FLIP-X2's way), every pass
+ * in PAR-AZ REPORT (b): at the old D, pass 1 (the bots on the 0.9.7 tables, e80ad2d) was selected and pass 2 moved at most
+ * 9.5%; at the re-fit D, pass 3 (the bots on pass 1's tables, b56aa34) is this table, and pass 4 (this table in) moved at
+ * most 4.3% on any day and column, under the 10% rule.
  * fightTime reads it with HULL_SCALE on (hullScaleRules()); off, FIGHT_BY_DAY exactly as before.
  */
-export const FIGHT_BY_DAY_HS: readonly number[] = [22.6, 19.6, 16.4, 16.0, 15.6, 15.2, 15.1, 15.2, 14.6, 14.4];
+export const FIGHT_BY_DAY_HS: readonly number[] = [22.6, 19.7, 16.6, 16.3, 16.9, 17.8, 17.9, 18.1, 17.4, 18.2];
 /** The par-field fight length of `day` (FIGHT_BY_DAY; days past the table read its last entry). PAR-AZ: with HULL_SCALE on,
  *  FIGHT_BY_DAY_HS (the fights with every switch on). */
 export const fightTime = (day: number): number => {
@@ -98,7 +100,8 @@ export const SUSTAIN_FOE: readonly FoeDay[] = [
  * PAR-AZ (REQ-BFG-079; BRIEF-PARAZ 1 (b); standin-proposal.md step 0b): SUSTAIN_FOE re-measured with EVERY switch on
  * (NPC_DAY, HULL_SCALE and LADDER_FIX, each through its setter) and the par player's NPC day in (c52be67), by
  * tools/sustainFoe.ts's own four shards (the sustain switch on first, k 6, 4 seeds, the four heroes' par fields in every
- * cross pair and mirror, both sides: 2,208 battles a day). Measured at e80ad2d (bb-0.9.7, --all-on), 2026-10-10 13:19Z:
+ * cross pair and mirror, both sides: 2,208 battles a day). Measured at b56aa34 (bb-0.9.7, the re-fit D in, --all-on),
+ * 2026-10-10 13:54Z (pass 3; pass 4 with it in moved at most 4.3%, as FIGHT_BY_DAY_HS's):
  *   npx vite build --ssr tools/sustainFoe.ts --outDir tools/dist/botsx-foe --emptyOutDir --logLevel warn
  *   nice -n 19 node tools/dist/botsx-foe/sustainFoe.js --days 1,2,3 --k 6 --seeds 4 --all-on --json foe-d1_2_3.json
  *   (and --days 4,5,6, --days 7,8, --days 9,10)
@@ -111,16 +114,16 @@ export const SUSTAIN_FOE: readonly FoeDay[] = [
  * foeOn reads it with HULL_SCALE on (hullScaleRules()); off, SUSTAIN_FOE exactly as before.
  */
 export const SUSTAIN_FOE_HS: readonly FoeDay[] = [
-  { fight: 29.51, burn: 0.250, hit: 71.3 }, // day 1
-  { fight: 24.19, burn: 0.583, hit: 68.7 },
-  { fight: 19.89, burn: 0.589, hit: 77.1 },
-  { fight: 20.87, burn: 0.714, hit: 69.5 },
-  { fight: 20.66, burn: 0.760, hit: 75.1 }, // day 5
-  { fight: 20.16, burn: 0.800, hit: 71.8 },
-  { fight: 19.24, burn: 0.833, hit: 80.3 },
-  { fight: 19.16, burn: 0.829, hit: 81.1 },
-  { fight: 18.15, burn: 0.869, hit: 89.2 },
-  { fight: 17.97, burn: 0.915, hit: 83.6 }, // day 10
+  { fight: 29.68, burn: 0.250, hit: 70.5 }, // day 1
+  { fight: 24.27, burn: 0.583, hit: 67.9 },
+  { fight: 19.90, burn: 0.590, hit: 75.2 },
+  { fight: 21.07, burn: 0.715, hit: 68.0 },
+  { fight: 22.17, burn: 0.761, hit: 68.1 }, // day 5
+  { fight: 23.29, burn: 0.803, hit: 57.9 },
+  { fight: 22.80, burn: 0.832, hit: 62.7 },
+  { fight: 24.43, burn: 0.915, hit: 59.7 },
+  { fight: 23.96, burn: 0.957, hit: 63.1 },
+  { fight: 24.43, burn: 0.958, hit: 60.8 }, // day 10
 ];
 /** BOTS-X: the expected foe of `day` (SUSTAIN_FOE; days past the table read its last row). PAR-AZ: with HULL_SCALE on,
  *  SUSTAIN_FOE_HS (the fights with every switch on; its hit in day-1 units). */
