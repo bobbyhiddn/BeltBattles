@@ -182,6 +182,17 @@ function guarded(pw: number, ph: number, portrait: boolean, s0: number, dpr?: nu
   return 1;
 }
 
+/** ZOOM-1 (REQ-BFG-080): what of BASE's layout stays exactly: the screen, the top bar, the shop row (the cards, REROLL,
+ *  the packs) and NEXT BATTLE; in portrait the band, the cargo tray and FIGHT too (at k 1: the layout every scale pick
+ *  reads); in landscape the details column's top and width. The carrier's box (frame, hull, pad, cam) is ZOOM-1's: its own
+ *  zoom, centred in the room the UI leaves (tests/zoom1.test.ts), and in landscape so are the cargo tray (under FIGHT, in
+ *  the right column), FIGHT's place (beside the bow) and the column's foot (2 px off the screen's). */
+const kept = (q: BuildLayout) => ({
+  W: q.W, H: q.H, portrait: q.portrait, bar: q.bar, cards: q.cards, reroll: q.reroll, perRow: q.perRow, tags: q.tags, packs: q.packs, foe: q.foe,
+  // (portrait FIGHT: its x, width and height; its top is the tray's now, 1 px lower: 0.9.8's sat on the flared stern's last row)
+  ...(q.portrait ? { info: q.info, cargo: q.cargo, fight: { x: q.fight.x, w: q.fight.w, h: q.fight.h } } : { info: { x: q.info.x, y: q.info.y, w: q.info.w }, fight: { x: q.fight.x, w: q.fight.w, h: q.fight.h } }),
+});
+
 /** The build screen as the game frames it (BuildScreen.pickScale and layout): its view and its layout with `offers`.
  *  bb-0.8.6 (PACKS P5): on any phone, portrait or landscape, the pack slots' finger target in art px (`tap`). */
 function screen(w: number, h: number, dpr: number, offers = 5) {
@@ -247,7 +258,9 @@ describe("zoom D1: the build screen's scale on a phone is capped at 1.75 CSS px 
       const base = computeView(w, h, dpr, (pw, ph, p) => baseScale(pw, ph, p));
       expect(v, `${w}x${h} @${dpr}`).toEqual(base);
       // bb-0.8.6 (PACKS P5; oracle 43f2c3d185b37c07 (5)): BASE with the packs (a landscape phone's two side by side)
-      expect(L, `${w}x${h} @${dpr}`).toEqual(packed(baseLayout(base.W, base.H, base.portrait, 5), 5, false, tap));
+      // ZOOM-1 (REQ-BFG-080): the whole layout -> what of it stays (kept: the shop row, NEXT BATTLE, FIGHT's column); the
+      // carrier's box, the cargo tray and FIGHT's height on the screen are ZOOM-1's (tests/zoom1.test.ts pins them)
+      expect(kept(L), `${w}x${h} @${dpr}`).toEqual(kept(packed(baseLayout(base.W, base.H, base.portrait, 5), 5, false, tap)));
     }
     expect(computeView(844, 390, 3, buildScale).scale).toBe(4);
   });
@@ -266,7 +279,8 @@ describe("zoom: every view that isn't a phone is exactly as before", () => {
       for (const offers of [5, 3, 0]) {
         const L = buildLayout(v.W, v.H, v.portrait, offers, false);
         // bb-0.8.6 (PACKS P5; oracle 43f2c3d185b37c07 (5)): BASE with the packs (the shop row; a pack row where needed)
-        expect(L, `${w}x${h} @${dpr} offers ${offers}`).toEqual(packed(baseLayout(v.W, v.H, v.portrait, offers), offers, false, 0));
+        // ZOOM-1 (REQ-BFG-080): the whole layout -> what of it stays (kept); the scale above is still BASE's exactly
+        expect(kept(L), `${w}x${h} @${dpr} offers ${offers}`).toEqual(kept(packed(baseLayout(v.W, v.H, v.portrait, offers), offers, false, 0)));
         expect("phone" in L).toBe(false);
       }
       n++;
@@ -311,10 +325,12 @@ describe("zoom D2: a portrait phone's build screen", () => {
       const spare = L.H - shopBottom - (2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3);
       expect(L.info.y, tag).toBe(shopBottom + 2);
       expect(L.info.h, tag).toBe(Math.min(phoneBand(L.W), spare));
-      const above = L.hull.y - BARREL - 2 - (L.info.y + L.info.h), below = L.H - (L.cargo.y + CARGO_H + 3);
+      // ZOOM-1 (REQ-BFG-080): the carrier's box (its barrels' tips to its flared stern) starts 1 px under the band and the
+      // cargo tray right under its last row (layout.ts portBelow: 0.9.8's 186 px under the band at k 1): BARREL + 2 -> + 1
+      const above = L.hull.y - BARREL - 1 - (L.info.y + L.info.h), below = L.H - (L.cargo.y + CARGO_H + 3);
       expect(Math.abs(above - below), `${tag}: the hull centred in what is left`).toBeLessThanOrEqual(1);
       for (const r of [...L.cards, L.reroll]) expect(hit(r, L.info), tag).toBe(false);
-      expect(L.info.y + L.info.h + 2 + BARREL, `${tag}: the bow's barrels clear of the band`).toBeLessThanOrEqual(L.hull.y);
+      expect(L.info.y + L.info.h + 1 + BARREL, `${tag}: the bow's barrels clear of the band`).toBeLessThanOrEqual(L.hull.y);
     }
   });
 

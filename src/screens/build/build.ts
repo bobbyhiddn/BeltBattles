@@ -38,6 +38,7 @@ import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { TAP_CSS } from "../../ui/tap"; // bb-0.8.6 (REQ-BFG-051 P5): the pack slots' finger target
 import { Editor, direct, type BeltX, type EditHost } from "./edit";
 import { buildLayout, buildScale, Caravan, panelArea as panelAreaOf, phoneScreen, type BuildLayout, type Sel } from "./layout";
+import { inCarrier, screenRect, toDeck, toScreen } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
 import { phoneBarLift } from "./layout"; // TAP-093 (backlog #340): a portrait phone's taller top bar
 import { deleteRoute, rotate, sell, store, storeFitted } from "./actions";
 import { cssPerPx as cssScale, type PointerKind } from "../../core/io"; // shoptap (D1)
@@ -126,7 +127,24 @@ export class BuildScreen implements Screen, EditHost {
   /** zoom (REQ-BFG-040): a portrait phone's layout (layout.ts phoneScreen, told by the view pickScale last framed). */
   private phone = false;
 
+  /** ZOOM-1 (REQ-BFG-080): the dpr pickScale last framed (pickSub's layout reads the rune row's height with it). */
+  private pickDpr = 1;
+
+  /**
+   * ZOOM-1 (REQ-BFG-080): the canvas grid (game/viewGrid.ts, FIELD-1's): canvas px per logical px. The carrier draws at
+   * its own whole device-pixel zoom z (layout.ts carrierZoom) and the UI at `scale`, so the canvas runs on unit =
+   * gcd(scale, z) device px per canvas px (camera.ts's rule) and the logical px at sub = scale / unit canvas px: every art
+   * px, the UI's and the carrier's, is whole canvas px. 1 where the carrier draws at the UI's scale (today's canvas).
+   */
+  pickSub(pw: number, ph: number, portrait: boolean, scale: number): number {
+    const z = this.layoutAt(Math.floor(pw / scale), Math.floor(ph / scale), portrait, { scale, dpr: this.pickDpr }, { scale, unit: 1 }).cam.z;
+    let a = scale, b = z;
+    while (b) [a, b] = [b, a % b];
+    return scale / a;
+  }
+
   pickScale(pw: number, ph: number, portrait: boolean, dpr?: number): number {
+    this.pickDpr = dpr ?? 1;
     // zoom (D1): on a phone an art pixel is at most 1.75 CSS px (buildScale); D2: in portrait the phone's layout
     this.phone = portrait && dpr !== undefined && phoneScreen(pw, ph, dpr);
     let scale = buildScale(pw, ph, portrait, dpr);
@@ -205,17 +223,37 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   get toastY(): number {
-    return this.L.cargo.y - 16;
+    // ZOOM-1 (REQ-BFG-080): landscape, 13 px over the hull's foot, where 0.9.8's toast sat (its cargo tray was 3 px under
+    // the hull; the tray now sits under FIGHT, beside the carrier's middle); portrait, over the tray, as before
+    return this.L.portrait ? this.L.cargo.y - 16 : this.L.hull.y + this.L.hull.h - 13;
   }
 
   private layout(): BuildLayout {
+    // ZOOM-1 (REQ-BFG-080): the carrier at the zoom the view's canvas grid holds (pickSub): unit = scale / sub
+    const v = this.game.view, sub = v.sub ?? 1;
+    return this.layoutAt(this.game.W, this.game.H, this.game.portrait, v, { scale: v.scale, unit: v.scale / sub });
+  }
+
+  /** The layout of a W x H logical screen at `view`'s scale (layout(); ZOOM-1: pickSub's, for a view being framed). */
+  private layoutAt(W: number, H: number, portrait: boolean, view: { scale: number; dpr: number }, grid: { scale: number; unit: number }): BuildLayout {
     // RUNES-1 (REQ-BFG-058): the rune bar's row under the top bar (0 with no rune held: exactly as before)
-    const row = runeRowH(this.game.view, this.run.build.runes?.length ?? 0);
-    const offers = this.refit ? OFFERS : this.offers().length, phone = this.phone && this.game.portrait;
+    const row = runeRowH(view, this.run.build.runes?.length ?? 0);
+    const offers = this.refit ? OFFERS : this.offers().length, phone = this.phone && portrait;
     // TAP-093 (backlog #340): a portrait phone's top bar grows to a finger's target where the screen spares it with a rune
     // row (layout.ts phoneBarLift: the same with or without a rune held); 0 elsewhere, as before
-    const lift = phone ? phoneBarLift(this.game.W, this.game.H, offers, this.packTap, runeRowH(this.game.view, 1)) : 0;
-    return shiftLayout(buildLayout(this.game.W, this.game.H - row, this.game.portrait, offers, phone, this.packTap, lift), row, this.game.H);
+    const lift = phone ? phoneBarLift(W, H, offers, this.packTap, runeRowH(view, 1)) : 0;
+    return shiftLayout(buildLayout(W, H - row, portrait, offers, phone, this.packTap, lift, grid), row, H);
+  }
+
+  /** ZOOM-1 tooling (read only; scripts/touchcheck.mjs, zoom1shots.mjs): a deck cell's centre on screen (logical px),
+   *  through the carrier's zoom. */
+  tileCentre(cx: number, cy: number): { x: number; y: number } {
+    return toScreen(this.L, footX(this.L.frame, cx, cy) + 6, footY(this.L.frame, cx, cy) + 6);
+  }
+
+  /** ZOOM-1 tooling (read only): the carrier's zoom (layout.ts CarrierCam) and the canvas grid (canvas px per logical px). */
+  carrierView(): { k: number; z: number; x: number; y: number; sub: number; scale: number } {
+    return { ...this.L.cam, sub: this.game.view.sub ?? 1, scale: this.game.view.scale };
   }
 
   /** TAP-093 (backlog #340): the corner MENU's target this frame (chrome.ts drawTopBar; layout.ts cornerTarget), or null
@@ -280,6 +318,7 @@ export class BuildScreen implements Screen, EditHost {
   placed(x: number, y: number): void {
     this.placedOnce = true;
     this.thunkT = 0.14;
+    ({ x, y } = toDeck(this.L, x, y)); // ZOOM-1 (REQ-BFG-080): the screen point in the carrier's space (wfx draws there)
     this.wfx.dust(x, y + 4, 12, -6);
     this.wfx.ring(x, y, 9, C.bone);
     this.wfx.sparkle(x, y - 2, 0.05);
@@ -309,12 +348,19 @@ export class BuildScreen implements Screen, EditHost {
     return null;
   }
 
+  /** ZOOM-1 (REQ-BFG-080): a landscape cargo tray in the right column has two rows of slots (layout.ts); one row elsewhere,
+   *  as before. */
   slotRect(i: number): Rect {
-    return { x: this.L.cargo.x + 3 + i * 19, y: this.L.cargo.y + 2, w: 18, h: 18 };
+    const per = this.cargoPerRow();
+    return { x: this.L.cargo.x + 3 + (i % per) * 19, y: this.L.cargo.y + 2 + Math.floor(i / per) * 19, w: 18, h: 18 };
+  }
+
+  private cargoPerRow(): number {
+    return Math.max(1, Math.floor((this.L.cargo.w - 6) / 19));
   }
 
   cargoSlots(): number {
-    return Math.max(1, Math.floor((this.L.cargo.w - 6) / 19));
+    return this.cargoPerRow() * Math.max(1, Math.floor((this.L.cargo.h - 3) / 19));
   }
 
   cargoAt(x: number, y: number): number | null {
@@ -335,6 +381,11 @@ export class BuildScreen implements Screen, EditHost {
 
   /** 0.6.2s (REQ-BFG-031 S9, S10): TURRET SLOT i's hit box (deck.ts turretSlots); an empty slot's mount is a heavy's size. */
   turretRect(i: number): Rect {
+    return screenRect(this.L, this.deckTurretRect(i)); // ZOOM-1 (REQ-BFG-080): on screen, through the carrier's zoom
+  }
+
+  /** ZOOM-1: TURRET SLOT i's box in the carrier's space (the selection frame draws there). */
+  private deckTurretRect(i: number): Rect {
     const s = turretSlots(this.run.build)[i];
     const x = turretPivotX(this.L.frame, s.col0, s.width), y = turretPivotY(this.L.frame, s.col0, s.width);
     const r = !s.td || s.td.kind === "heavy" ? 12 : 9;
@@ -453,24 +504,28 @@ export class BuildScreen implements Screen, EditHost {
     v.fuseAnimUid = fd?.uid;
     v.fuseAnimStars = fd?.showStars;
     const bump = this.thunkT > 0.07 ? 1 : 0;
-    if (bump) g.translate(0, bump);
     if (P) t0 = performance.now();
-    drawStillCarrier(g, v.model.hero, L.frame, 0, this.skin.floor, this.skin.carrier); // CUSTOM-3 (REQ-BFG-074): your carrier style
-    if (P) { const t1 = performance.now(); P.add(1, t1 - t0); t0 = t1; }
-    drawMachinery(g, v);
-    this.drawBroken(g);
-    drawTurrets(g, v);
-    this.drawSelection(g);
-    // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks (drawn with the deck) once more over the selection, so a selected
-    // gun's frame never cuts its plate (nothing at level 1)
-    for (const m of levelMarks(this.run.build, L.frame, v.hideItem ?? -1)) drawLevelMark(g, m);
-    this.drawFuseAnim(g);
-    if (bump) g.translate(0, -bump);
-    if (P) { const t1 = performance.now(); P.add(2, t1 - t0); t0 = t1; }
-    this.wfx.draw(g, 0, 0);
+    // ZOOM-1 (REQ-BFG-080): the carrier group (the ship, the deck, belts, parts, turrets, the selection, the level marks,
+    // the merge animation and the world effects) draws in the carrier's space at its own zoom (layout.ts inCarrier)
+    inCarrier(g, L, () => {
+      if (bump) g.translate(0, bump);
+      drawStillCarrier(g, v.model.hero, L.frame, 0, this.skin.floor, this.skin.carrier); // CUSTOM-3 (REQ-BFG-074): your carrier style
+      if (P) { const t1 = performance.now(); P.add(1, t1 - t0); t0 = t1; }
+      drawMachinery(g, v);
+      this.drawBroken(g);
+      drawTurrets(g, v);
+      this.drawSelection(g);
+      // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks (drawn with the deck) once more over the selection, so a selected
+      // gun's frame never cuts its plate (nothing at level 1)
+      for (const m of levelMarks(this.run.build, L.frame, v.hideItem ?? -1)) drawLevelMark(g, m);
+      this.drawFuseAnim(g);
+      if (bump) g.translate(0, -bump);
+      if (P) { const t1 = performance.now(); P.add(2, t1 - t0); t0 = t1; }
+      this.wfx.draw(g, 0, 0);
+    });
     this.runeBar.drawUnder(g, this); // RUNES-1: the rune bar (a grown panel, the options card and a drag draw over it)
     drawBuildChrome(g, this);
-    this.wfx.drawPops(g, 0, 0);
+    inCarrier(g, L, () => this.wfx.drawPops(g, 0, 0));
     this.ufx.draw(g, 0, 0);
     this.ufx.drawPops(g, 0, 0);
     if (!this.modalUp()) {
@@ -528,13 +583,13 @@ export class BuildScreen implements Screen, EditHost {
         drawText(g, String(row.tile + 1), x + 2, y + 2, C.yellow, { font: "3", outline: C.ink });
       }
     } else if (s.kind === "turret") {
-      const r = this.turretRect(s.index);
+      const r = this.deckTurretRect(s.index); // ZOOM-1: drawn in the carrier's space
       frame(g, r.x, r.y, r.w, r.h, col);
     } else if (s.kind === "fitted") {
       // shoptap (REQ-BFG-035): a fitted core or gear piece: its turret is framed
       const m = b.mods.find((q) => q.uid === s.uid);
       if (m && turretSlots(b)[m.turret]) {
-        const r = this.turretRect(m.turret);
+        const r = this.deckTurretRect(m.turret);
         frame(g, r.x, r.y, r.w, r.h, col);
       }
     }
@@ -553,7 +608,7 @@ export class BuildScreen implements Screen, EditHost {
       const r = this.slotRect(i);
       return {
         from: { x: r.x + r.w / 2, y: r.y + r.h / 2 },
-        to: { x: footX(this.L.frame, cell.x, cell.y) + 6, y: footY(this.L.frame, cell.x, cell.y) + 6 },
+        to: this.tileCentre(cell.x, cell.y), // ZOOM-1 (REQ-BFG-080): on screen, through the carrier's zoom
         def: it.def,
       };
     }
@@ -571,7 +626,7 @@ export class BuildScreen implements Screen, EditHost {
       if (!cell || !r) continue;
       return {
         from: { x: r.x + r.w / 2, y: r.y + r.h / 2 },
-        to: { x: footX(this.L.frame, cell.x, cell.y) + 6, y: footY(this.L.frame, cell.x, cell.y) + 6 },
+        to: this.tileCentre(cell.x, cell.y), // ZOOM-1 (REQ-BFG-080): on screen, through the carrier's zoom
         def: o.def,
       };
     }
@@ -653,7 +708,7 @@ export class BuildScreen implements Screen, EditHost {
       const i = this.run.inventory.findIndex((it) => it.uid === step.survivor);
       if (i < 0 || i >= this.cargoSlots()) return null;
       const r = this.slotRect(i);
-      return { x: r.x + 9, y: r.y + 9 };
+      return toDeck(this.L, r.x + 9, r.y + 9); // ZOOM-1 (REQ-BFG-080): the effects draw in the carrier's space
     }
     if (step.where === "deck") {
       const p = this.run.build.items.find((q) => q.uid === step.survivor);

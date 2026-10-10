@@ -68,7 +68,9 @@ async function showHero(page, touch, hero) {
 async function tapSignature(page, touch, def) {
   const at = await page.evaluate((d) => {
     const s = window.bb.game.screen, p = window.bb.game.run.build.items.find((q) => q.def === d);
-    const c = s.fuseAnimPos({ where: "deck", survivor: p.uid });
+    const c0 = s.fuseAnimPos({ where: "deck", survivor: p.uid });
+    // ZOOM-1 (REQ-BFG-080): that centre is in the carrier's space; on screen through its zoom (BuildScreen.carrierView)
+    const v = typeof s.carrierView === "function" ? s.carrierView() : null, c = v ? { x: v.x + v.k * (c0.x - v.x), y: v.y + v.k * (c0.y - v.y) } : c0;
     return { uid: p.uid, ...window.bb.toClient(c.x, c.y) };
   }, def);
   await tapAt(page, touch, at);
