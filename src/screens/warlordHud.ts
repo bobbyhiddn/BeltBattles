@@ -11,7 +11,7 @@ import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText } from "../render/font";
 import { itemIcon } from "../render/sprites";
-import { blockedButton, button, panel } from "../ui/ui";
+import { blockedButton, button, panel, type Rect } from "../ui/ui";
 import { fmtClock } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock, whole elapsed seconds
 import { fightBlock } from "../game/routeCheck";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
@@ -44,8 +44,9 @@ export interface WarlordActions {
 /** SCOUT-1 (REQ-BFG-076): `onView`, VIEW BATTLEFIELD, on its own row right above the card's actions (the pick, REFIT and
  *  FIGHT NOW, or ON TO DUSK: never in their place; the pick works as before), the card a row taller; `viewHit`, its tap
  *  target's least height. Absent, the card exactly as before. SCOUT-1b (REQ-BFG-082): with a part pick, its line "PICK 1
- *  PART FROM THEIR DECK:" sits right over the picks it heads, and VIEW BATTLEFIELD's row right above that line. */
-export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions, onView?: () => void, viewHit = 0): void {
+ *  PART FROM THEIR DECK:" sits right over the picks it heads, and VIEW BATTLEFIELD's row right above that line. Tooling:
+ *  returns the card's box as drawn this frame. */
+export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions, onView?: () => void, viewHit = 0): Rect {
   const { W, H, ui } = game;
   const run = game.run!;
   const r = w.result!;
@@ -91,7 +92,8 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
       ry += 10;
     }
   }
-  if (pt <= 0.35) return;
+  const box = { x, y: yy, w: cw, h: ch };
+  if (pt <= 0.35) return box;
   const by = yy + ch - 26, bw = Math.floor((cw - 24) / 2);
   if (onView) viewButton(ui, g, { x: x + 10, y: warlordRows(yy, ch, pick, true).view, w: cw - 20, h: 21 }, { x, y: yy, w: cw, h: ch }, onView, viewHit);
   if (pick) {
@@ -118,4 +120,5 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
   } else {
     button(ui, g, "next", { x: x + 10, y: by, w: cw - 20, h: 20 }, "ON TO DUSK", { primary: true, onTap: a.fight });
   }
+  return box;
 }

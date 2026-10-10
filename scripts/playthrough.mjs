@@ -67,9 +67,9 @@ export async function tapRegion(page, touch, id) {
   await passName(page, touch); // PACKS M2: no name stored yet: the name screen first
 }
 
-/** SCOUT-1 (REQ-BFG-076): a battle scouts after its sail-in until FIGHT. Wait for the sail-in to end and, if the battle is
- *  scouting, press the bar's FIGHT with a real tap or click, as a player does (a page in the harness's auto mode,
- *  bb.fight(true), runs into the count by itself: nothing to press). Returns the phase it found. */
+/** SCOUT-1 (REQ-BFG-076): a battle scouted after its sail-in until FIGHT. SCOUT-1b (REQ-BFG-082): no battle scouts, the
+ *  sail-in runs into the count by itself: wait for the sail-in to end (nothing to press; on a SCOUT-1 page that is
+ *  scouting, press the bar's FIGHT with a real tap or click). Returns the phase it found. */
 export async function pressFight(page, touch) {
   await page.waitForFunction(() => ["scout", "count", "fight", "outro", "result"].includes(window.bb.screen(true)), null, { timeout: 15000 });
   const ph = await page.evaluate(() => window.bb.screen(true));
@@ -442,8 +442,11 @@ export async function scriptedRun(page, touch, log, opts) {
     if (!honestFoe(foe)) state.dishonest.push(`day ${foe.day}`);
     log(`[${at()}] DUSK · DAY ${foe.day}: vs ${foe.name} (${foeLine(foe)}), same as the dawn preview: ${foe.name === dawn.foe}`);
     if (day === opts.reloadDay) await reloadAndContinue(page, touch, log, at, state);
-    const ph = await pressFight(page, touch); // SCOUT-1 (REQ-BFG-076): FIGHT by a real tap or click after scouting
-    if (day === 1) log(`[${at()}] SCOUT: the sail-in ends in ${ph}${ph === "scout" ? "; FIGHT pressed" : ""}`);
+    const ph = await pressFight(page, touch); // SCOUT-1b (REQ-BFG-082): the sail-in runs into the count, no FIGHT step
+    if (day === 1) log(`[${at()}] SCOUT-1b: the sail-in runs into the count by itself (${ph}${ph === "scout" ? "; FIGHT pressed: a SCOUT-1 page" : "; no FIGHT step"})`);
+    // SCOUT-1b (REQ-BFG-083): the bar's speed at the dusk's start: 1X on day 1 (a new run), then day 1's last pick (4X)
+    const sp = await page.evaluate(() => { const s = window.bb.scout?.(); return s && s.speed !== undefined ? ["0.5X", "1X", "2X", "4X"][s.speed] : "?"; });
+    if (day <= 3 || day === opts.reloadDay) log(`[${at()}] SPEED: day ${day}'s dusk starts at ${sp}; holds: ${sp === (day === 1 ? "1X" : "4X")}`);
     if (day === 1) {
       await page.waitForFunction(() => window.bb.game.screen.phase === "fight", null, { timeout: 15000 });
       await tapRegion(page, touch, "sp0");

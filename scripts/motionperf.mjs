@@ -35,10 +35,10 @@ const CARRIER = opt("carrier", "");
 const SEAS = opt("seas", "") ? opt("seas", "").split(",") : [];
 /** [scene, reduced, sea knob]: one STORM battle (the day's sea), or one battle per sea with --seas. */
 const ALL = [...(SEAS.length ? SEAS.map((sea) => [`battle-${sea}`, false, sea]) : [["battle", false, ""]]), ["battle-reduced", true, ""], ["build", false, ""], ["title", false, ""]];
-// SCOUT-1 (REQ-BFG-076): --scenes picks scenes by name, and adds two at CLOSE: "scout" (the battle scouting, its camera at
-// rest at CLOSE, the carriers sailing steady) and "view" (VIEW BATTLEFIELD after the fight, at CLOSE); --vw/--vh the
-// viewport (default the 390x844 phone, DPR 3), so the CLOSE timings also run on the 430x932 phone (CLOSE x7: the
-// battle's canvas at device resolution, FIELD-1 known gap 3)
+// SCOUT-1 (REQ-BFG-076): --scenes picks scenes by name, and adds one at CLOSE: "view" (VIEW BATTLEFIELD after the fight,
+// at CLOSE, the carriers sailing steady); --vw/--vh the viewport (default the 390x844 phone, DPR 3), so the CLOSE timings
+// also run on the 430x932 phone (CLOSE x7: the battle's canvas at device resolution, FIELD-1 known gap 3). SCOUT-1b
+// (REQ-BFG-082): no "scout" scene (no battle scouts; the fight runs at WIDE from its sail-in, the "battle" scenes)
 const PICK = opt("scenes", "") ? opt("scenes", "").split(",") : null;
 const SCENES = PICK ? PICK.map((n) => ALL.find(([s]) => s === n) ?? [n, false, ""]) : ALL;
 const VW = Number(opt("vw", "390")), VH = Number(opt("vh", "844"));
@@ -63,16 +63,15 @@ async function one(browser, page0, scene, reduced, rate, query) {
   await page.evaluate(([scene, r, hero, day, seed]) => {
     const bb = window.bb;
     if (r) bb.setReducedMotion(true);
-    // SCOUT-1 (REQ-BFG-076): a fight's timing runs with the harness's FIGHT step (bb.fight(true): no scouting, the fight
-    // as before); "scout" scouts; "view" fights, then opens VIEW BATTLEFIELD (below)
-    bb.fight?.(scene !== "scout");
-    if (scene.startsWith("battle") || scene === "scout" || scene === "view") bb.openDusk({ hero, day, seed }, []);
+    // SCOUT-1 (REQ-BFG-076): a fight's timing runs with the harness's FIGHT step (bb.fight(true): on a SCOUT-1 page no
+    // scouting; SCOUT-1b: none to skip); "view" fights, then opens VIEW BATTLEFIELD (below)
+    bb.fight?.(true);
+    if (scene.startsWith("battle") || scene === "view") bb.openDusk({ hero, day, seed }, []);
     else if (scene === "build") bb.openDawn({ hero: "furnace", day: 5, seed: 7 }, []);
     else bb.open("title");
   }, [scene, reduced, HERO, DAY, SEED]);
   const atRest = (ph) => page.waitForFunction((p) => { const s = window.bb.scout(); return !!s && s.phase === p && !!s.camera && !s.camera.moving; }, ph, { timeout: 60000, polling: 100 });
   if (scene.startsWith("battle")) await page.waitForFunction(() => window.bb.motion().phase === "fight", null, { timeout: 60000, polling: 100 });
-  else if (scene === "scout") await atRest("scout");
   else if (scene === "view") {
     await page.waitForFunction(() => window.bb.motion().phase === "fight", null, { timeout: 60000, polling: 100 });
     await page.evaluate(() => window.bb.game.screen.skip());

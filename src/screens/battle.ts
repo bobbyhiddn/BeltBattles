@@ -95,8 +95,9 @@ export class BattleScreen implements Screen {
   readonly faces = new BattleFaces();
   /** SCOUT-1: seconds since VIEW BATTLEFIELD opened (the card lowers over LOWER_S). */
   private viewT = 0;
-  /** SCOUT-1 tooling: this frame's BACK and primary tap targets and the summaries (logical px). */
-  readonly scoutRects: { back: Rect | null; primary: Rect | null; summaries: Rect[] } = { back: null, primary: null, summaries: [] };
+  /** SCOUT-1 tooling: this frame's BACK and primary tap targets and the summaries (logical px); SCOUT-1b: the result
+   *  card's box (null: no card drawn). */
+  readonly scoutRects: { back: Rect | null; primary: Rect | null; summaries: Rect[]; card: Rect | null } = { back: null, primary: null, summaries: [], card: null };
 
   constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
@@ -485,7 +486,9 @@ export class BattleScreen implements Screen {
     const lowering = this.phase === "view" && this.viewT < LOWER_S;
     const view = this.canView() || lowering ? this.onView : undefined; // lowering: the card keeps its row (no button drawn)
     const cardT = lowering ? LOWER_S - this.viewT : this.pt;
-    if ((this.phase === "result" || lowering) && this.warlord?.result) drawWarlordResult(g, this.game, this.warlord, cardT, this.wact, view, fingerPx(this.game));
+    const sr = this.scoutRects;
+    sr.card = null; // SCOUT-1b tooling: the card's box as drawn
+    if ((this.phase === "result" || lowering) && this.warlord?.result) sr.card = drawWarlordResult(g, this.game, this.warlord, cardT, this.wact, view, fingerPx(this.game));
     const oc = this.outcome();
     if (this.phase === "outro" && oc && this.pt > 0.55) {
       const o = oc;
@@ -493,10 +496,9 @@ export class BattleScreen implements Screen {
       banner(g, W, cy - 18, o === "win" ? "VICTORY!" : o === "loss" ? "DEFEAT" : "DRAW", o === "win" ? C.lime : o === "loss" ? C.red : C.bone, o === "win" ? "THEIR HULL BREAKS" : o === "loss" ? "YOUR HULL BREAKS" : undefined, k, 3);
     }
     if ((this.phase === "result" || lowering) && this.result) {
-      drawResult(g, this.game, this.result, cardT, run.over ? "SEE THE RUN" : `ON TO DAWN · DAY ${run.day}`, this.onNext, view, fingerPx(this.game));
+      sr.card = drawResult(g, this.game, this.result, cardT, run.over ? "SEE THE RUN" : `ON TO DAWN · DAY ${run.day}`, this.onNext, view, fingerPx(this.game));
     }
     // SCOUT-1: VIEW BATTLEFIELD's summaries and faces
-    const sr = this.scoutRects;
     sr.summaries = [];
     if (this.phase === "view" && !lowering && !this.faces.open) { // an open face takes the floor; they're back when it closes
       drawSummaries(g, this.arena, this.L);

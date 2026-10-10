@@ -62,7 +62,8 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", "
 const OLD_KEYS = ["beltbattles.run.v7", "beltbattles.ghosts.v1", "beltbattles.player.v1"]; // what 0.6.2 writes
 const NAME_KEY = "beltbattles.name.v1"; // PACKS M2, REQ-BFG-063, brief P7: the player's name, beside the player id (src/net/names.ts NAME_KEY); oracle b4a1c8fa04a2d404
 const PROFILE_KEY = "beltbattles.profile.v1"; // CUSTOM-2a (REQ-BFG-072): the player's profile, the one cross-run store (src/game/profile.ts PROFILE_KEY); REVIEW-CUSTOM1 Q1, turn 9ecab1cc78e896d5
-const OFFLINE_KEYS = [...OLD_KEYS, NAME_KEY, PROFILE_KEY]; // what the offline page may write from 0.8.6 on (the profile from CUSTOM-2)
+const SPEED_KEY = "beltbattles.speed.v1"; // SCOUT-1b (REQ-BFG-083): the run's battle speed, display side (src/game/runSpeed.ts SPEED_KEY)
+const OFFLINE_KEYS = [...OLD_KEYS, NAME_KEY, PROFILE_KEY, SPEED_KEY]; // what the offline page may write from 0.8.6 on (the profile from CUSTOM-2; SCOUT-1b: the speed)
 
 mkdirSync(OUT, { recursive: true });
 const lines = [];

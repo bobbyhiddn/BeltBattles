@@ -299,8 +299,9 @@ export const LC_HEART_S = 4;
 
 /** Dusk result card: WIN, LOSS (-1 LIFE) or DRAW; the fight's numbers; income; then the next DAWN. SCOUT-1 (REQ-BFG-076):
  *  `onView`, VIEW BATTLEFIELD: its own row right above the primary action (never in its place), the card a row taller;
- *  absent, the card exactly as before. Its tap target is `viewHit` px tall at least (a finger's, TAP_CSS). */
-export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void, onView?: () => void, viewHit = 0): void {
+ *  absent, the card exactly as before. Its tap target is `viewHit` px tall at least (a finger's, TAP_CSS). SCOUT-1b
+ *  tooling: returns the card's box as drawn this frame. */
+export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void, onView?: () => void, viewHit = 0): Rect {
   const { W, H, ui } = game;
   const run = game.run!;
   const rows = resultRows(r);
@@ -347,6 +348,7 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   if (back) drawText(g, back, x + w - 10, ry + 3, C.lime, { align: "right" });
   if (pt > 0.35) button(ui, g, "next", { x: x + 10, y: yy + h - 27, w: w - 20, h: 21 }, label, { primary: true, onTap: onNext });
   if (pt > 0.35 && onView) viewButton(ui, g, { x: x + 10, y: yy + h - 27 - VIEW_ROW_H, w: w - 20, h: 21 }, { x, y: yy, w, h }, onView, viewHit);
+  return { x, y: yy, w, h };
 }
 
 /** SCOUT-1: the card's VIEW BATTLEFIELD row (a 21 px button and its 4 px gap above the primary action). */

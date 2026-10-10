@@ -1,19 +1,21 @@
-// SCOUT-1 (REQ-BFG-076): the stills and the tour video of scouting and VIEW BATTLEFIELD, from the offline single-file page
-// (the player build), in headless Chromium. Taps are real pointer taps at the points the page tooling reports (bb.parts:
-// where each part is drawn; bb.regions: the buttons), so what is shown is what a finger does.
+// SCOUT-1 (REQ-BFG-076): the stills and the tour video of VIEW BATTLEFIELD, from the offline single-file page (the player
+// build), in headless Chromium. Taps are real pointer taps at the points the page tooling reports (bb.parts: where each
+// part is drawn; bb.regions: the buttons), so what is shown is what a finger does. SCOUT-1b (REQ-BFG-082, REQ-BFG-083):
+// no scouting pause (the fight starts at once), and the speed picked holding for the run.
 //  - stills (default): the page's requestAnimationFrame never fires and Math.random is pinned; the script steps the game
 //    (bb.game.step(1/60)), so a still repeats exactly. FURNACE's day-6 dusk (seed 7, its stand-in foe) on a phone 390x844
-//    at DPR 3: scouting with an enemy part's face open (scout-enemy); with your part's face and its ⓘ view open
-//    (scout-info); VIEW BATTLEFIELD with both summaries (view-summaries) and with a turret's face and its fight line
-//    (view-face: an open face takes the open floor where the summaries sit, so one still can't show both); a Hard
-//    warlord's result card with its VIEW BATTLEFIELD button (warlord-card); desk 1920x1080 and phone landscape 844x390,
-//    scouting (a face open) and the view (both summaries) (desk-scout, desk-view, land-scout, land-view). Then one
-//    contact sheet of them all (sheet).
-//  - video (--sets video): one dusk battle from its sail-in, phone 390x844 at DPR 3, rendered frame by frame at the
-//    device's 1170x2532 (the page's clock stepped 1/25 s a frame: real time at 25 fps): scouting (two of your parts, two
-//    enemy parts and one ⓘ view), FIGHT and the ease to WIDE, about 15 s of the fight, the result card, VIEW BATTLEFIELD
-//    (a part on each board, both summaries), ON TO DAWN; an mp4 and a webm, <prefix>-tour.
-// Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/scoutshots.mjs <page.html> <outDir> [--only a,b] [--prefix scout1]
+//    at DPR 3: the fight's first second after GO at WIDE (go); the next battle (by ON TO DAWN, FIGHT! and the road fork's
+//    EASY warlord) with the bar on 2X before its first step, 2X picked in the dusk (next-2x); VIEW BATTLEFIELD with both
+//    summaries (view-summaries) and with a turret's face and its fight line (view-face: an open face takes the open floor
+//    where the summaries sit, so one still can't show both); a Hard warlord's result card, VIEW BATTLEFIELD above its PICK
+//    line (warlord-card); the 1366x768 laptop's dusk card, whole (laptop-card); the desk 1920x1080's VIEW BATTLEFIELD
+//    (desk-view). Then one contact sheet of them all (sheet).
+//  - video (--sets video): phone 390x844 at DPR 3, rendered frame by frame at the device's 1170x2532 (the page's clock
+//    stepped 1/25 s a frame: real time at 25 fps): the build screen (day 4, after a Hard warlord's REFIT) and FIGHT!; the
+//    sail-in straight into the 3-2-1 and the fight at WIDE; 1X, then 2X tapped; the fight's end and the card; VIEW
+//    BATTLEFIELD (a part on each board, both summaries); ON TO DAWN and the next day's build screen; FIGHT!, the road
+//    fork's EASY warlord, and that battle with the bar already on 2X, running at 2X; an mp4 and a webm, <prefix>-tour.
+// Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/scoutshots.mjs <page.html> <outDir> [--only a,b] [--prefix scout1b]
 //        [--sets stills|video] [--crf 30]
 // Exit 1 on a console error or a step that didn't happen. Writes <outDir>/stills/<prefix>-<name>.png, <prefix>-shots.log.
 import { chromium } from "playwright-core";
@@ -28,13 +30,14 @@ const pos = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && argv[i - 1].
 const PAGE = resolve(pos[0] ?? "dist/index.html");
 const OUT = resolve(pos[1] ?? "shots/scout");
 const ONLY = opt("only", "");
-const PREFIX = opt("prefix", "scout1");
+const PREFIX = opt("prefix", "scout1b");
 const SETS = opt("sets", "stills").split(",");
 const CRF = opt("crf", "30");
 const VIEWS = {
   phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
   land: { viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
   desk: { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 },
+  laptop: { viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 },
 };
 const NAME = "beltbattles.name.v1";
 const lines = [];
@@ -88,12 +91,20 @@ async function newPage(browser, view, live = false, record = null) {
   return { ctx, page, errors };
 }
 
-/** Into scouting on FURNACE's day-6 dusk (seed 7), the camera at rest at CLOSE. */
-async function toScouting(page) {
+/** SCOUT-1b: FURNACE's day-6 dusk (seed 7) from its first frame to GO: the sail-in runs into the count by itself. */
+async function toGo(page) {
   await page.evaluate(() => { window.bb.openDusk({ hero: "furnace", day: 6, seed: 7 }, []); });
-  const r = await until(page, "scout", 60 * 10);
-  await steps(page, 50); // the ease to CLOSE (0.6 s) and the calm (0.5 s)
-  return r;
+  const seen = await page.evaluate(() => {
+    const bb = window.bb, out = [];
+    for (let f = 0; f < 600 && bb.screen(true) !== "fight"; f++) {
+      bb.game.step(1 / 60);
+      const s = bb.scout();
+      if (s && out[out.length - 1] !== s.phase) out.push(s.phase);
+    }
+    bb.game.render();
+    return out;
+  });
+  return { phases: seen, phase: await page.evaluate(() => window.bb.screen(true)) };
 }
 
 async function still(browser, name, view, fn) {
@@ -110,33 +121,60 @@ async function still(browser, name, view, fn) {
   const file = join(OUT, "stills", `${PREFIX}-${name}.png`);
   await page.screenshot({ path: file });
   const s = await scout(page);
-  log(`still ${name} (${view}): ${JSON.stringify(info)}; scout ${JSON.stringify(s && { phase: s.phase, camera: s.camera, face: s.face && { side: s.face.side, sel: s.face.sel, title: s.face.title, line: s.face.line, lines: s.face.lines.length }, fight: s.fight, back: s.back, primary: s.primary })}; ${(await stat(file)).size} B -> ${file}; console errors ${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""}`);
+  log(`still ${name} (${view}): ${JSON.stringify(info)}; scout ${JSON.stringify(s && { phase: s.phase, camera: s.camera, face: s.face && { side: s.face.side, sel: s.face.sel, title: s.face.title, line: s.face.line, lines: s.face.lines.length }, back: s.back, primary: s.primary, card: s.card, speed: s.speed, arenaSpeed: s.arenaSpeed, ticks: s.ticks })}; ${(await stat(file)).size} B -> ${file}; console errors ${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""}`);
   fails += errors.length;
   await ctx.close();
   return file;
 }
 
-/** Scouting with a face open: an enemy part (side 1) or yours (side 0) with its ⓘ view. */
-const scoutFace = (side, info) => async (page, touch) => {
-  const r = await toScouting(page);
-  must(r.phase === "scout", `scouting reached (${r.phase})`);
-  const p = await part(page, side, side === 1 ? ["turret", "item"] : ["item", "turret"]);
-  await tap(page, p.x, p.y, touch);
-  let s = await scout(page);
-  must(!!s.face && s.face.side === side, `a tap on ${p.name} opens its face (${s.face?.title})`);
-  if (info) {
-    const q = await region(page, "kw:?");
-    if (must(!!q, "the face has its ⓘ button")) await tap(page, q.x, q.y, touch);
-    s = await scout(page);
-  }
-  return { part: p, face: s.face?.title, frames: r.frames };
+/** SCOUT-1b (REQ-BFG-082): the fight's first second after GO, at WIDE: no SCOUT line, no FIGHT button. */
+const fightGo = async (page) => {
+  const r = await toGo(page);
+  must(r.phase === "fight" && r.phases.join(",") === "intro,count,fight", `the sail-in runs into the count and GO (${r.phases.join(" -> ")})`);
+  await steps(page, 30); // half a second after GO
+  const s = await scout(page);
+  must(s.camera.shot === "wide" && !s.camera.moving && !(await region(page, "fight")), `the fight at WIDE, at rest, no FIGHT button (${s.camera.shot})`);
+  return { phases: r.phases, shot: s.camera.shot };
+};
+
+/** A tap on UI region `id` (real), then `n` frames; false when the region isn't there. */
+async function tapRegion(page, id, touch, n = 20) {
+  const q = await region(page, id);
+  if (!must(!!q, `the region ${id} is there`)) return false;
+  await tap(page, q.x, q.y, touch);
+  await steps(page, n);
+  return true;
+}
+
+/** SCOUT-1b (REQ-BFG-083): 2X tapped in the dusk's fight, SKIP, ON TO DAWN, the build screen's FIGHT! and the road fork's
+ *  EASY warlord (on touch a first tap inspects, a second picks): the next battle, a few frames into its sail-in, its bar
+ *  on 2X before its first step. */
+const nextAt2x = async (page, touch) => {
+  await toGo(page);
+  await steps(page, 20);
+  await tapRegion(page, "sp2", touch, 30);
+  must((await scout(page)).speed === 2, "2X picked");
+  await tapRegion(page, "skip", touch, 2);
+  const r = await until(page, "result", 60 * 30);
+  must(r.phase === "result", `the dusk's card (${r.phase})`);
+  await steps(page, 40);
+  await tapRegion(page, "next", touch, 60); // ON TO DAWN · DAY 7, the dawn's build screen (its wipe)
+  for (let i = 0; i < 2 && (await region(page, "runepick-0")); i++) await tapRegion(page, "runepick-0", touch, 20); // a dawn rune pick, if up
+  await tapRegion(page, "fight", touch, 60); // FIGHT!: the road fork
+  must((await page.evaluate(() => window.bb.screen())) === "fork", "the road fork");
+  for (let i = 0; i < (touch ? 2 : 1); i++) await tapRegion(page, "fork1", touch, 30); // EASY: the warlord's battle
+  await page.evaluate(() => { const bb = window.bb; for (let f = 0; f < 120 && bb.screen() !== "warlord"; f++) bb.game.step(1 / 60); });
+  await steps(page, 24);
+  const s = await scout(page);
+  must(s && s.speed === 2 && s.arenaSpeed === 2 && s.ticks === 0 && s.phase === "intro", `the next battle's bar on 2X before its first step (${s && `${s.phase}, speed ${s.speed}, arena ${s.arenaSpeed}, ticks ${s.ticks}`})`);
+  return { screen: await page.evaluate(() => window.bb.screen()), phase: s?.phase, speed: s?.speed, ticks: s?.ticks };
 };
 
 /** VIEW BATTLEFIELD after the fight played at 4X: with `side` a turret's face open on that board (its fight line), else
  *  no face, both summaries in the open floor (an open face takes the floor, so one still can't show both). */
 const viewFace = (side = null) => async (page, touch) => {
-  await toScouting(page);
-  await page.evaluate(() => { window.bb.fight(); window.bb.game.screen.setSpeed(3); });
+  await toGo(page);
+  await page.evaluate(() => { window.bb.game.screen.setSpeed(3); });
   const r = await until(page, "result", 60 * 200);
   must(r.phase === "result", `the result card (${r.phase})`);
   await steps(page, 30);
@@ -155,13 +193,25 @@ const viewFace = (side = null) => async (page, touch) => {
   return { part: p, line: s.face?.line };
 };
 
-/** A Hard warlord won (its part pick waiting), the card with VIEW BATTLEFIELD. */
+/** A Hard warlord won (its part pick waiting), the card with VIEW BATTLEFIELD above its PICK line (SCOUT-1b). */
 const warlordCard = async (page) => {
   await page.evaluate(() => { window.bb.openWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 }); });
   await steps(page, 80);
-  const v = await region(page, "viewfield");
-  must(!!v, "the warlord's card shows VIEW BATTLEFIELD");
-  return { view: v, phase: await page.evaluate(() => window.bb.screen(true)) };
+  const v = await region(page, "viewfield"), t = await region(page, "take0");
+  must(!!v && !!t && v.y + v.h / 2 < t.y - t.h / 2, "the warlord's card shows VIEW BATTLEFIELD above its picks");
+  return { view: v, pick: t, phase: await page.evaluate(() => window.bb.screen(true)) };
+};
+
+/** SCOUT-1b (REQ-BFG-082): the dusk's result card on the 1366x768 laptop, whole (SCOUT-1's was 3 px too tall). */
+const laptopCard = async (page) => {
+  await toGo(page);
+  await page.evaluate(() => { window.bb.game.screen.skip(); });
+  const r = await until(page, "result", 60 * 30);
+  await steps(page, 60);
+  const s = await scout(page);
+  const vp = VIEWS.laptop.viewport;
+  must(r.phase === "result" && !!s.card && s.card.y >= 1.5 && s.card.y + s.card.h <= vp.height - 1.5, `the card whole on the 1366x768 screen (${JSON.stringify(s.card)})`);
+  return { card: s.card };
 };
 
 /** A contact sheet composed in the page from PNGs: `rows` of cells [{file, label}], each cell scaled (smoothly, to a
@@ -220,11 +270,15 @@ async function sheet(browser, name, title, rows) {
 const probe = (f) => execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=width,height,codec_name,avg_frame_rate,nb_frames", "-of", "compact", f]).toString().trim().replace(/\n/g, " ");
 
 /**
- * The tour: one dusk battle from the sail-in on the phone 390x844 at DPR 3, rendered frame by frame at the device's
- * pixels (1170x2532). Playwright's recorder takes a DPR-3 page's frames at its CSS size (390x844: a third of the device's
- * pixels, its pixel art resampled), so here the page's clock is held (as for the stills) and the script steps it 1/25 s a
- * frame and takes each frame's screenshot: 25 frames a second of the game's own time, so the video plays in real time.
- * The taps are real pointer taps between frames. ffmpeg joins the frames into an mp4 (H.264, CRF `CRF`) and a webm.
+ * The tour: phone 390x844 at DPR 3, rendered frame by frame at the device's pixels (1170x2532). Playwright's recorder
+ * takes a DPR-3 page's frames at its CSS size (390x844: a third of the device's pixels, its pixel art resampled), so here
+ * the page's clock is held (as for the stills) and the script steps it 1/25 s a frame and takes each frame's screenshot:
+ * 25 frames a second of the game's own time, so the video plays in real time. The taps are real pointer taps between
+ * frames. ffmpeg joins the frames into an mp4 (H.264, CRF `CRF`) and a webm. SCOUT-1b (REQ-BFG-082, REQ-BFG-083), in
+ * this order: the build screen (FURNACE day 4, after a Hard warlord's win and REFIT: set up before the first frame) and
+ * FIGHT!; the sail-in straight into the 3-2-1 and the fight at WIDE; about 3 s at 1X, then 2X tapped and the fight at 2X;
+ * its end and the card; VIEW BATTLEFIELD (a part on each board, both summaries); ON TO DAWN and the next day's build
+ * screen; FIGHT!, the road fork's EASY warlord, and that battle with the bar on 2X from its first frame, running at 2X.
  */
 async function tour(browser) {
   const FPS = 25, dir = join(OUT, "video", "frames");
@@ -241,8 +295,12 @@ async function tour(browser) {
   const hold = async (secs) => { for (let i = Math.round(secs * FPS); i > 0; i--) await frame(); };
   const until = async (pred, max = 30) => { for (let i = 0; i < max * FPS && !(await page.evaluate(pred)); i++) await frame(); };
   const marks = [];
-  const mark = async (what) => { const s = await scout(page); marks.push(`${(n / FPS).toFixed(1)}s ${what} [${s ? s.phase : await page.evaluate(() => window.bb.screen())}${s?.face ? `: ${s.face.title}` : ""}]`); };
+  const mark = async (what) => {
+    const s = await scout(page);
+    marks.push(`${(n / FPS).toFixed(1)}s ${what} [${s ? `${s.phase}, bar ${["0.5X", "1X", "2X", "4X"][s.speed]}, arena ${s.arenaSpeed}X, ${s.ticks} ticks` : await page.evaluate(() => window.bb.screen())}${s?.face ? `: ${s.face.title}` : ""}]`);
+  };
   const tapAt = async (p) => { await page.touchscreen.tap(p.x, p.y); };
+  const tapId = async (id, what) => { const q = await region(page, id); if (must(!!q, `${what} (${id}) shows`)) await tapAt(q); await frame(); return !!q; };
   const tapPart = async (side, kinds, secs) => {
     const p = await part(page, side, kinds, 0);
     await tapAt(p);
@@ -250,40 +308,54 @@ async function tour(browser) {
     await mark(`tap ${side === 0 ? "your" : "enemy"} ${p.name}`);
     await hold(secs);
   };
-  await page.evaluate(() => window.bb.openDusk({ hero: "furnace", day: 6, seed: 7 }, []));
-  await until(() => { const s = window.bb.scout(); return !!s && s.phase === "scout" && !s.camera.moving; });
-  await mark("scouting");
-  await hold(1.2);
-  await tapPart(0, ["item"], 2.0);
-  await tapPart(0, ["turret"], 1.6);
-  const q = await region(page, "kw:?");
-  if (must(!!q, "the tour's face has its ⓘ button")) { await tapAt(q); await frame(); await mark("ⓘ"); await hold(2.8); }
-  await tapPart(1, ["turret"], 2.0);
-  await tapPart(1, ["item"], 2.0);
-  const f = await region(page, "fight");
-  if (must(!!f, "FIGHT shows")) await tapAt(f);
-  await frame();
-  await mark("FIGHT");
-  await hold(16.4); // the count, the ease to WIDE and about 15 s of the fight
-  await mark("15 s in");
-  await page.evaluate(() => { const s = window.bb.game.screen; if (s.phase === "fight") s.skip(); });
-  await until(() => window.bb.screen(true) === "result", 20);
-  await hold(2.2);
+  // set up (no frames): a Hard warlord won on day 4, its part taken, REFIT: the build screen, FIGHT! on to the dusk
+  await page.evaluate(() => window.bb.openWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 }));
+  await steps(page, 80);
+  for (const id of ["take0", "refit"]) {
+    const q = await region(page, id);
+    if (must(!!q, `the set-up's ${id}`)) await tap(page, q.x, q.y, true);
+    await steps(page, 60);
+  }
+  must((await page.evaluate(() => window.bb.screen())) === "build", "the set-up ends on the build screen");
+  await mark("the build screen (day 4, after REFIT)");
+  await hold(1.6);
+  await tapId("fight", "the build screen's FIGHT!");
+  await mark("FIGHT!");
+  await until(() => window.bb.screen(true) === "fight", 10); // the sail-in straight into the 3-2-1, no pause
+  await mark("GO: the fight at WIDE");
+  await hold(3.0);
+  await mark("3 s at 1X");
+  await tapId("sp2", "the bar's 2X");
+  await mark("2X tapped");
+  await hold(6.0);
+  await until(() => window.bb.screen(true) !== "fight", 6); // its end, or SKIP after 6 s more
+  if (await page.evaluate(() => window.bb.screen(true) === "fight")) { await tapId("skip", "SKIP"); await mark("SKIP"); }
+  await until(() => window.bb.screen(true) === "result", 15);
+  await hold(2.4);
   await mark("the card");
-  const v = await region(page, "viewfield");
-  if (must(!!v, "the card's VIEW BATTLEFIELD")) await tapAt(v);
+  await tapId("viewfield", "the card's VIEW BATTLEFIELD");
   await hold(1.4);
   await mark("VIEW BATTLEFIELD");
   await tapPart(0, ["turret"], 2.6);
   await tapPart(1, ["turret"], 2.6);
-  const cl = await region(page, "faceclose"); // the face's CLOSE: both summaries in sight again
-  if (must(!!cl, "the view's face has CLOSE")) await tapAt(cl);
-  await hold(2.4);
-  await mark("summaries");
-  const nx = await region(page, "viewnext");
-  if (must(!!nx, "ON TO DAWN in the view")) await tapAt(nx);
-  await hold(2.0);
-  await mark("ON TO DAWN");
+  await tapId("faceclose", "the face's CLOSE"); // both summaries in sight again
+  await hold(2.6);
+  await mark("the summaries");
+  await tapId("viewnext", "ON TO DAWN in the view");
+  await hold(2.2);
+  await mark("ON TO DAWN: the next day's build screen");
+  for (let i = 0; i < 2 && (await region(page, "runepick-0")); i++) { await tapId("runepick-0", "the dawn's rune"); await hold(0.8); }
+  await tapId("fight", "the build screen's FIGHT!");
+  await hold(1.2);
+  await mark("the road fork");
+  await tapId("fork1", "the fork's EASY warlord"); // a first tap inspects it
+  await hold(1.0);
+  await tapId("fork1", "the fork's EASY warlord"); // a second takes it
+  await mark("the next battle: the bar on 2X from its first frame");
+  await until(() => window.bb.screen(true) === "fight", 10);
+  await mark("GO at 2X");
+  await hold(5.0);
+  await mark("5 s at 2X");
   await ctx.close();
   fails += errors.length;
   log(`video tour: ${n} frames (${(n / FPS).toFixed(1)} s at ${FPS} fps) rendered at 390x844 CSS px, DPR 3 (1170x2532 device px), the page's clock stepped 1/${FPS} s a frame; console errors ${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""}`);
@@ -296,29 +368,27 @@ async function tour(browser) {
 }
 
 const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
-log(`# scoutshots (SCOUT-1, REQ-BFG-076): ${PAGE}, Chromium ${browser.version()}; sets ${SETS.join(",")}; ${new Date().toISOString()}`);
+log(`# scoutshots (SCOUT-1b, REQ-BFG-082, REQ-BFG-083): ${PAGE}, Chromium ${browser.version()}; sets ${SETS.join(",")}; ${new Date().toISOString()}`);
 if (SETS.includes("stills")) {
   const cells = [];
   const add = (file, label) => { if (file) cells.push({ file, label }); };
-  add(await still(browser, "scout-enemy", "phone", scoutFace(1, false)), "SCOUTING: AN ENEMY PART");
-  add(await still(browser, "scout-info", "phone", scoutFace(0, true)), "SCOUTING: YOUR PART, ITS ⓘ");
+  add(await still(browser, "go", "phone", fightGo), "THE FIGHT, 0.5 S AFTER GO");
+  add(await still(browser, "next-2x", "phone", nextAt2x), "NEXT BATTLE: 2X BEFORE ITS FIRST STEP");
   add(await still(browser, "view-summaries", "phone", viewFace(null)), "VIEW BATTLEFIELD: SUMMARIES");
   add(await still(browser, "view-face", "phone", viewFace(0)), "VIEW BATTLEFIELD: A FIGHT LINE");
   add(await still(browser, "warlord-card", "phone", warlordCard), "WARLORD CARD");
-  add(await still(browser, "land-scout", "land", scoutFace(1, false)), "LANDSCAPE: SCOUTING");
-  add(await still(browser, "land-view", "land", viewFace(null)), "LANDSCAPE: VIEW BATTLEFIELD");
-  add(await still(browser, "desk-scout", "desk", scoutFace(0, false)), "DESK: SCOUTING");
+  add(await still(browser, "laptop-card", "laptop", laptopCard), "LAPTOP 1366X768: THE DUSK CARD");
   add(await still(browser, "desk-view", "desk", viewFace(null)), "DESK: VIEW BATTLEFIELD");
   if (!ONLY && cells.length) {
-    // one sheet of them all: the four phone stills (390x844 at DPR 3) across, then landscape and desk two a row
-    const phone = cells.filter((c) => !/LANDSCAPE|DESK/.test(c.label));
-    const land = cells.filter((c) => /LANDSCAPE/.test(c.label)), desk = cells.filter((c) => /DESK/.test(c.label));
-    await sheet(browser, "sheet", "SCOUT-1: SCOUTING AND VIEW BATTLEFIELD. PHONE 390X844 DPR 3; PHONE LANDSCAPE 844X390 DPR 3; DESK 1920X1080",
-      [{ w: 585, cells: phone }, { w: 1206, cells: land }, { w: 1206, cells: desk }].filter((r) => r.cells.length));
+    // one sheet of them all: the five phone stills (390x844 at DPR 3) across, then the laptop and the desk
+    const phone = cells.filter((c) => !/LAPTOP|DESK/.test(c.label)), wide = cells.filter((c) => /LAPTOP|DESK/.test(c.label));
+    await sheet(browser, "sheet", "SCOUT-1b: THE FIGHT AT ONCE, THE SPEED HELD, VIEW BATTLEFIELD. PHONE 390X844 DPR 3; LAPTOP 1366X768; DESK 1920X1080",
+      [{ w: 585, cells: phone }, { w: 1460, cells: wide }].filter((r) => r.cells.length));
   }
 }
 if (SETS.includes("video")) await tour(browser);
 await browser.close();
+
 await mkdir(join(OUT, "stills"), { recursive: true });
 await writeFile(join(OUT, "stills", `${PREFIX}-shots.log`), lines.join("\n") + "\n");
 log(fails ? `SCOUTSHOTS: ${fails} FAILED` : "SCOUTSHOTS: OK");

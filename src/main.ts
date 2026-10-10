@@ -272,7 +272,8 @@ game.start();
   },
   /** SCOUT-1 tooling (read only): VIEW BATTLEFIELD as drawn: the phase, the camera, the open face (its side, part, title,
    *  sub line, body lines and rects), BACK's and the primary action's tap targets and the summaries, in CSS client px; null
-   *  off a battle. SCOUT-1b (REQ-BFG-083): `speed`, the bar's speed (an index into 0.5X 1X 2X 4X) and the arena's. */
+   *  off a battle. SCOUT-1b (REQ-BFG-083): `speed`, the bar's speed (an index into 0.5X 1X 2X 4X), the arena's and the
+   *  sim's ticks; `card`, the result card's box as drawn (REQ-BFG-082). */
   scout() {
     const s = game.screen;
     if (!(s instanceof BattleScreen)) return null;
@@ -283,7 +284,7 @@ game.start();
       phase: s.phaseName(), canView: s.canView(), camera: s.motion.camera ? { shot: s.motion.camera.shot, zoom: s.motion.camera.zoom, moving: s.motion.camera.moving } : null,
       calm: s.motion.model.calmAt(),
       face: f ? { side: f.side, sel: f.sel, title: f.title, sub: f.sub, line: f.line, lines: f.lines, r: css(f.r), close: css(f.close) } : null,
-      back: css(r.back), primary: css(r.primary), summaries: r.summaries.map(css),
+      back: css(r.back), primary: css(r.primary), summaries: r.summaries.map(css), card: css(r.card),
       viewPrimary: s.viewPrimary()?.label ?? null, speed: s.speed, arenaSpeed: s.arena.speed, ticks: s.arena.b.ticks,
     };
   },
