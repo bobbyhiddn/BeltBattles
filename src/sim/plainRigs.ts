@@ -17,7 +17,7 @@
 //    summed), on top of the base's max hull, whatever the switches make it (P3: Battle.makeSide, after HULL_SCALE's line),
 //    rounded down.
 //  - GRINDSTONE (rare, 5 G, II): + DMG.
-//  - BRANDING IRON (rare, 5 G, L): + DMG and + BURN.
+//  - BRANDING IRON (rare, 5 G, L): + DMG and + BURN (★1 DMG cut to 5 by the presence bench's guard: its def below).
 // A star raises only the numbers (ItemDef.levels); they merge and sell as every rig does (stars.ts, content.ts sellValue).
 //
 // THE SWITCH: PLAIN_RIGS (false), in ladderFix.ts's form (a content patch): plainRigsRules(), setPlainRigs(on) and
@@ -70,7 +70,12 @@ export const PLAIN_DEFS: Readonly<Record<string, ItemDef>> = {
   brandingiron: {
     id: "brandingiron", name: "BRANDING IRON", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
     desc: [], tags: ["FORGE"],
-    gate: { flat: 15, burn: 1 },
+    // ★1 DMG 15 -> 10 -> 5 by the presence bench's guard (REQ-BFG-084.5; the Prime's oracle 0ef955b79d105092: a rig breaks
+    // it on a day when its pooled holder lift is over 10 points AND over the strongest base rig's on the same bench and
+    // day, TEMPER's d3 +24.2 / d6 +10.9). At 15 it lifted d3 +37.8, d6 +12.6; at 10, d3 +28.4, d6 +10.6; at 5, d3 +30.3,
+    // d6 +10.6, d10 +5.1: still over on d3 (its 2 BURN at a bend drive it), so BUMP-1D re-benches it and makes the next cut.
+    // BURN 1, ★2/★3 and the 5 G price as the brief's table (output-plain1/bench, REPORT.md section 5)
+    gate: { flat: 5, burn: 1 },
     levels: { 2: { gate: { flat: 30, burn: 2 } }, 3: { gate: { flat: 50, burn: 3 } } },
   },
 };
