@@ -273,7 +273,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [M(2, "mantlet", 1), M(3, "pressure", 2), G(3, "grease", 6, 1, 2), { ...G(5, "counterweight", 7, 0), dusk: true }, P(6), G2(6, "temper", 0, 0), P(7), P(8, 2), P(9), P(10)],
+    road: [M(2, "mantlet", 1), M(3, "pressure", 2), G(3, "grease", 6, 1, 2), { ...G(5, "counterweight", 7, 0), dusk: true }, P(6), G2(6, "temper", 0, 0), { ...G(6, "temper", 5, 1, 3), dusk: true }, P(7), P(8, 2), P(9), { ...G2(9, "venom", 5, 0), dusk: true }, P(10), { ...G(10, "whetstone", 0, 2, 1), dusk: true }, { ...G(10, "staticbrush", 1, 3, 1), dusk: true }, { ...G(10, "tollbooth", 2, 3), dusk: true }],
   },
   // PRESS GANG: a DOUBLE STAMP (a rare stamp press) beside the kiln feeds the heavy turret's second intake from day 1.
   // Synergy: the DOUBLE STAMP and a WHETSTONE on its belt from day 2 (2 stars from day 7), with a temper beside it (2
@@ -297,7 +297,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [P(4), P(6), G(6, "temper", 7, 4), G(6, "tollbooth", 8, 4), P(7), P(8, 2), G2(9, "keg", 5, 2), P(10), G(10, "whetstone", 3, 1, 1), G(10, "grease", 5, 4, 3)],
+    road: [P(4), { ...G(5, "heatjacket", 3, 5), dusk: true }, P(6), G(6, "temper", 7, 4), G(6, "tollbooth", 8, 4), P(7), P(8, 2), G2(9, "keg", 5, 2), P(10), G(10, "whetstone", 3, 1, 1), G(10, "grease", 5, 4, 3)],
   },
   // OVERCLOCK: a short kiln belt with a whetstone, a counterweight and a brake (2 stars from day 7). Synergy: a
   // CALIBRATE on the gun from day 3 (2 stars from day 7) and an OVERDRIVE on the kiln belt from day 6 (a legendary:
@@ -383,7 +383,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [{ ...M(1, "rotary", 0), dusk: true }, { ...M(2, "mantlet", 1), dusk: true }, { ...G(2, "grease", 3, 3, 1), dusk: true }, ...good(G2(2, "barbed", 3, 0)), ...good(G(2, "grease", 3, 3, 1)), { ...M(3, "pressure", 2), dusk: true }, ...good(M(3, "mantlet", 1)), ...good(M(3, "rotary", 0)), { ...G2(4, "temper", 3, 1), dusk: true }, ...good(G2(4, "grease", 3, 3)), { ...P(5), dusk: true }, ...good(P(5)), { ...G2(6, "barbed", 3, 0), dusk: true }, ...good(G2(6, "longhaul", 5, 0)), { ...P(7), dusk: true }, ...good(G(7, "whetstone", 3, 2, 1)), ...good(G(7, "tollbooth", 5, 2, 3)), ...good(P(8)), { ...P(9), dusk: true }, { ...G2(9, "staticbrush", 0, 1), dusk: true }, { ...G(9, "tollbooth", 3, 2, 1), dusk: true }, ...good(G(9, "grease", 5, 3, 3)), { ...G(10, "temper", 2, 0, 3), dusk: true }, ...good(G(10, "temper", 2, 1, 3))],
+    road: [{ ...M(1, "rotary", 0), dusk: true }, { ...M(2, "mantlet", 1), dusk: true }, { ...G(2, "grease", 3, 3, 1), dusk: true }, ...good(G2(2, "barbed", 3, 0)), ...good(G(2, "grease", 3, 3, 1)), { ...M(3, "pressure", 2), dusk: true }, ...good(M(3, "mantlet", 1)), ...good(M(3, "rotary", 0)), { ...G2(4, "temper", 3, 1), dusk: true }, ...good(G2(4, "grease", 3, 3)), { ...P(5), dusk: true }, { ...G(5, "heatjacket", 5, 3), dusk: true }, ...good(P(5)), ...good(G(5, "heatjacket", 3, 4, 1)), { ...G2(6, "barbed", 3, 0), dusk: true }, ...good(G2(6, "longhaul", 5, 0)), { ...P(7), dusk: true }, ...good(G(7, "whetstone", 3, 2, 1)), ...good(G(7, "tollbooth", 5, 2, 3)), ...good(G(7, "overclocker", 0, 4)), ...good(M(7, "pressure", 2)), ...good(P(8)), { ...P(9), dusk: true }, { ...G2(9, "staticbrush", 0, 1), dusk: true }, { ...G(9, "tollbooth", 3, 2, 1), dusk: true }, ...good(G(9, "grease", 5, 3, 3)), { ...G(10, "temper", 2, 0, 3), dusk: true }, { ...G(10, "bellows", 2, 1), dusk: true }, { ...G(10, "brake", 0, 3, 1), dusk: true }, { ...G(10, "whetstone", 0, 2, 1), dusk: true }, ...good(G(10, "temper", 2, 1, 3)), ...good(G(10, "bellows", 0, 2)), ...good(G(10, "longhaul", 2, 2)), ...good(G(10, "brake", 0, 5, 1))],
   },
   // ---------------------------------------------------------------- Medium (tier 2)
   // SLOW COOKER: the kiln at the back, one 13-tile serpentine so every slug cooks on the way. Synergy: the ride-time
@@ -411,7 +411,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [M(2, "mantlet", 0), P(4), G2(4, "bellows", 5, 2), G(4, "grease", 2, 2, 1), G(5, "brake", 0, 5, 1), G(6, "tollbooth", 1, 3, 2), { ...G(6, "overclocker", 0, 4), dusk: true }, P(7), G2(9, "quench", 3, 0), P(10, 2)],
+    road: [M(2, "mantlet", 0), P(4), G2(4, "bellows", 5, 2), G(4, "grease", 2, 2, 1), G(5, "brake", 0, 5, 1), G(6, "tollbooth", 1, 3, 2), { ...G(6, "overclocker", 0, 4), dusk: true }, P(7), G2(9, "quench", 3, 0), P(10, 2), { ...G(10, "sorting", 4, 4), dusk: true }],
   },
   // SHOCK TROOPER: synergy: a GALVANIC COIL on the kiln belt from day 1 (2 stars from day 7) stalls the enemy
   // machinery, a LODESTONE from day 3 hits harder for every stalled machine, and a TESLA core from day 6 arcs to the
@@ -463,7 +463,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [G(2, "tollbooth", 5, 0, 3), M(2, "mantlet", 1), M(3, "rotary", 2), P(4), G2(4, "temper", 3, 1), M(5, "pressure", 0), { ...G(6, "bellows", 9, 0), dusk: true }, P(7), G(8, "temper", 5, 3, 3), P(9), G2(9, "venom", 3, 2), { ...G(10, "barbed", 2, 0), dusk: true }],
+    road: [G(2, "tollbooth", 5, 0, 3), M(2, "mantlet", 1), M(3, "rotary", 2), P(4), G2(4, "temper", 3, 1), M(5, "pressure", 0), { ...M(5, "ram", 2), dusk: true }, { ...G(6, "bellows", 9, 0), dusk: true }, P(7), G(8, "temper", 5, 3, 3), P(9), G2(9, "venom", 3, 2), { ...G(9, "staticbrush", 7, 1), dusk: true }, { ...G(10, "barbed", 2, 0), dusk: true }, { ...G(10, "venom", 9, 1), dusk: true }],
   },
   // EMBER WEAVE: synergy: a TEMPER on the centre thread from day 1 (2 stars from day 4), a DRAKE core from day 3 (flat
   // damage turns to burn), BELLOWS on the right thread from day 5 and a second temper on the left from day 6: from
@@ -556,7 +556,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [{ ...G2(4, "keg", 3, 0), dusk: true }, ...good(G(4, "brake", 3, 6)), { ...P(6), dusk: true }, { ...G2(6, "temper", 2, 1), dusk: true }, ...good(P(6)), { ...P(8), dusk: true }, ...good(P(8)), ...good(G2(8, "temper", 2, 1)), { ...G(9, "temper", 5, 2, 3), dusk: true }, { ...G(9, "whetstone", 1, 3, 1), dusk: true }, { ...G(9, "tollbooth", 3, 3), dusk: true }, { ...G(9, "sorting", 4, 3), dusk: true }, { ...P(10, 2), dusk: true }, { ...G(10, "barbed", 1, 5), dusk: true }, ...good(P(10, 2))],
+    road: [{ ...G2(4, "keg", 3, 0), dusk: true }, ...good(G(4, "brake", 3, 6)), { ...P(6), dusk: true }, { ...G2(6, "temper", 2, 1), dusk: true }, ...good(P(6)), ...good(G(6, "quench", 1, 3)), { ...P(8), dusk: true }, ...good(P(8)), ...good(G2(8, "temper", 2, 1)), { ...G(9, "temper", 5, 2, 3), dusk: true }, { ...G(9, "whetstone", 1, 3, 1), dusk: true }, { ...G(9, "tollbooth", 3, 3), dusk: true }, { ...G(9, "sorting", 4, 3), dusk: true }, ...good(G(9, "sorting", 4, 3)), ...good(G(9, "temper", 1, 5, 1)), ...good(G(9, "whetstone", 5, 5, 3)), ...good(G(9, "tollbooth", 2, 6)), { ...P(10, 2), dusk: true }, { ...G(10, "barbed", 1, 5), dusk: true }, ...good(P(10, 2)), ...good(M(10, "rotary", 1)), ...good(M(10, "mantlet", 1))],
   },
   // ---------------------------------------------------------------- Hard (tier 3)
   // STATIC WEB: an off-centre loom and a wide loop. Synergy: GALVANIC COILS, one from day 1 (2 stars from day 4) and a
@@ -623,7 +623,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [{ ...M(1, "rotary", 0), dusk: true }, { ...P(2), dusk: true }, ...good(P(2)), { ...M(3, "mantlet", 1), dusk: true }, ...good(G2(3, "temper", 5, 0)), ...good(M(3, "mantlet", 1)), { ...P(4), dusk: true }, { ...P(5), dusk: true }, ...good(P(5)), { ...G2(6, "temper", 5, 0), dusk: true }, { ...G(6, "temper", 5, 1, 3), dusk: true }, { ...G(7, "tollbooth", 3, 2, 1), dusk: true }, { ...G(7, "grease", 5, 4, 3), dusk: true }, ...good(M(7, "rotary", 0)), ...good(G(7, "brake", 7, 5, 2)), { ...G(8, "venom", 5, 2), dusk: true }, ...good(P(9)), { ...G(10, "splitter", 5, 3), dusk: true }, ...good(G(10, "temper", 5, 2, 3)), ...good(G(10, "tollbooth", 5, 3, 3))],
+    road: [{ ...M(1, "rotary", 0), dusk: true }, { ...P(2), dusk: true }, ...good(P(2)), { ...M(3, "mantlet", 1), dusk: true }, ...good(G2(3, "temper", 5, 0)), ...good(M(3, "mantlet", 1)), { ...P(4), dusk: true }, { ...P(5), dusk: true }, ...good(P(5)), { ...G2(6, "temper", 5, 0), dusk: true }, { ...G(6, "temper", 5, 1, 3), dusk: true }, { ...G(7, "tollbooth", 3, 2, 1), dusk: true }, { ...G(7, "grease", 5, 4, 3), dusk: true }, ...good(M(7, "rotary", 0)), ...good(G(7, "brake", 7, 5, 2)), { ...G(8, "venom", 5, 2), dusk: true }, ...good(P(9)), { ...G(10, "splitter", 5, 3), dusk: true }, { ...G(10, "staticbrush", 2, 0), dusk: true }, ...good(G(10, "temper", 5, 2, 3)), ...good(G(10, "tollbooth", 5, 3, 3))],
   },
   // RIG CHAIN: one long cinder belt. Synergy: a WHETSTONE from day 1 (2 stars from day 7) heads a chain of rigs
   // (venom, a counterweight, a hullbreaker core) that a LONG HAUL cashes in from day 5 (+2 damage per hit already
@@ -707,7 +707,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [{ ...G(1, "tollbooth", 3, 0, 1), dusk: true }, { ...P(2), dusk: true }, ...good(P(2)), { ...G(3, "grease", 1, 3, 1), dusk: true }, ...good(G2(3, "bellows", 3, 1)), ...good(G(3, "grease", 1, 3, 1)), ...good(G(4, "brake", 6, 4, 2)), { ...G(5, "whetstone", 3, 2, 2), dusk: true }, { ...P(6), dusk: true }, { ...G2(6, "temper", 1, 4), dusk: true }, { ...G(6, "temper", 5, 4, 2), dusk: true }, ...good(P(6)), ...good(G2(6, "venom", 3, 4)), { ...P(8, 2), dusk: true }, { ...G(8, "brake", 5, 6, 1), dusk: true }, ...good(G2(8, "temper", 1, 4)), { ...P(9), dusk: true }, { ...G2(10, "venom", 3, 4), dusk: true }, ...good(P(10, 2)), ...good(G(10, "temper", 5, 4, 2)), ...good(G(10, "whetstone", 1, 5, 1))],
+    road: [{ ...G(1, "tollbooth", 3, 0, 1), dusk: true }, { ...P(2), dusk: true }, ...good(P(2)), { ...G(3, "grease", 1, 3, 1), dusk: true }, ...good(G2(3, "bellows", 3, 1)), ...good(G(3, "grease", 1, 3, 1)), ...good(G(4, "brake", 6, 4, 2)), { ...G(5, "whetstone", 3, 2, 2), dusk: true }, { ...G(5, "bellows", 3, 1), dusk: true }, { ...P(6), dusk: true }, { ...G2(6, "temper", 1, 4), dusk: true }, { ...G(6, "temper", 5, 4, 2), dusk: true }, ...good(P(6)), ...good(G2(6, "venom", 3, 4)), { ...P(8, 2), dusk: true }, { ...G(8, "brake", 5, 6, 1), dusk: true }, ...good(G2(8, "temper", 1, 4)), { ...P(9), dusk: true }, { ...G(9, "barbed", 6, 4, 1), dusk: true }, ...good(G(9, "sorting", 5, 6)), ...good(G(9, "bellows", 3, 0)), { ...G2(10, "venom", 3, 4), dusk: true }, { ...G(10, "venom", 1, 5), dusk: true }, ...good(P(10, 2)), ...good(G(10, "temper", 5, 4, 2)), ...good(G(10, "whetstone", 1, 5, 1)), ...good(G(10, "tollbooth", 7, 5, 3))],
   },
   // TRIPLE THREAT: synergy: burn left (a TEMPER on the left belt from day 1, 2 stars from day 6), a LONG HAUL on the
   // right from day 4 (2 stars the same day) and a SPLITTER in the centre from day 5 (an epic: ordinary luck owns none
@@ -772,7 +772,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [{ ...M(1, "rotary", 1), dusk: true }, { ...P(2), dusk: true }, ...good(M(2, "rotary", 1)), ...good(M(2, "mantlet", 0)), { ...M(3, "mantlet", 0), dusk: true }, ...good(M(3, "pressure", 2)), { ...P(4), dusk: true }, { ...P(5), dusk: true }, ...good(P(5)), { ...P(6), dusk: true }, { ...G(7, "brake", 7, 4, 1), dusk: true }, { ...M(7, "pressure", 2), dusk: true }, { ...P(8), dusk: true }, ...good(P(8)), { ...P(9), dusk: true }, ...good(P(9, 4)), { ...G2(10, "venom", 0, 0), dusk: true }, ...good(G(10, "whetstone", 7, 4, 1))],
+    road: [{ ...M(1, "rotary", 1), dusk: true }, { ...P(2), dusk: true }, ...good(M(2, "rotary", 1)), ...good(M(2, "mantlet", 0)), { ...M(3, "mantlet", 0), dusk: true }, ...good(M(3, "pressure", 2)), ...good(G(3, "coil", 3, 5, 1)), { ...P(4), dusk: true }, { ...P(5), dusk: true }, { ...G(5, "coil", 3, 5, 1), dusk: true }, ...good(P(5)), ...good(G2(5, "venom", 0, 0)), { ...P(6), dusk: true }, ...good(G(6, "bellows", 0, 1)), { ...G(7, "brake", 7, 4, 1), dusk: true }, { ...M(7, "pressure", 2), dusk: true }, { ...P(8), dusk: true }, ...good(P(8)), ...good(G(8, "venom", 2, 1)), { ...P(9), dusk: true }, ...good(P(9, 4)), { ...G2(10, "venom", 0, 0), dusk: true }, { ...G(10, "bellows", 0, 1), dusk: true }, { ...G(10, "venom", 2, 1), dusk: true }, ...good(G(10, "whetstone", 7, 4, 1)), ...good(G(10, "longhaul", 7, 0))],
   },
   // ---------------------------------------------------------------- Hard, days 8-10 only
   // GRAND FOUNDRY (the stars-aligned deck; she arrives on day 8): the kiln and a STAMP PRESS, heavy armor (three
@@ -814,7 +814,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [...stars(P(8, 2)), ...stars(G(8, "grease", 6, 4, 2)), ...stars(G2(8, "whetstone", 6, 1)), ...stars(G2(8, "longhaul", 6, 0)), ...stars(G2(8, "grease", 6, 4)), ...stars(G(8, "grease", 7, 5, 3)), ...stars(G2(8, "brake", 3, 0)), ...stars(G(8, "brake", 0, 3, 1)), ...stars(P(10, 2)), ...stars(G(10, "whetstone", 4, 3, 1))],
+    road: [...stars(P(8, 2)), ...stars(G(8, "grease", 6, 4, 2)), ...stars(G2(8, "whetstone", 6, 1)), ...stars(G2(8, "longhaul", 6, 0)), ...stars(G2(8, "grease", 6, 4)), ...stars(G(8, "grease", 7, 5, 3)), ...stars(G2(8, "brake", 3, 0)), ...stars(G(8, "brake", 0, 3, 1)), ...stars(G(8, "bellows", 2, 1)), ...stars(G(8, "keg", 1, 1, 1)), ...stars(G2(8, "keg", 1, 1)), ...stars(G(8, "keg", 0, 2)), ...stars(G(9, "heatjacket", 2, 5, 1)), ...stars(P(10, 2)), ...stars(G(10, "whetstone", 4, 3, 1)), ...stars(G(10, "venom", 6, 3)), ...stars(G2(10, "venom", 6, 3))],
   },
   // ---------------------------------------------------------------- 0.8.0 N1: the six wave-3 captains
   // 0.8.0 N1 (REQ-BFG-024, REQ-BFG-011, REQ-BFG-033; DESIGN-wave3 section 5, VERIFIED-D1 Q9-Q12): the six wave-3 captains.
@@ -846,7 +846,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [G(2, "whetstone", 1, 1, 1), G(2, "grease", 1, 5, 1), P(4), G(4, "tollbooth", 1, 2, 1), M(5, "pressure", 1), M(5, "mantlet", 1), P(6), { ...G(7, "splitter", 1, 3), dusk: true }, { ...G(8, "staticbrush", 1, 4), dusk: true }, { ...G(9, "barbed", 5, 0), dusk: true }, P(10)],
+    road: [G(2, "whetstone", 1, 1, 1), G(2, "grease", 1, 5, 1), P(4), G(4, "tollbooth", 1, 2, 1), M(5, "pressure", 1), M(5, "mantlet", 1), P(6), { ...G(7, "splitter", 1, 3), dusk: true }, { ...G(8, "staticbrush", 1, 4), dusk: true }, { ...G(9, "barbed", 5, 0), dusk: true }, P(10), { ...G(10, "coil", 8, 0, 2), dusk: true }],
   },
   // ---------------------------------------------------------------- Hard (tier 3), FOUNDRY
   // LOCKSTEP: the Crucible's belts run up columns 1 and 4 into gun 1, so a TWIN LATCH at (3,2) works both and lets each
@@ -934,7 +934,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [{ ...G(1, "grease", 2, 4, 2), dusk: true }, ...good(G2(2, "twingauge", 1, 0)), ...good(G(2, "grease", 2, 4, 2)), ...good(G(3, "staticbrush", 3, 5)), ...good(G(4, "tollbooth", 5, 1, 3)), { ...P(5), dusk: true }, { ...G(5, "staticbrush", 3, 5), dusk: true }, { ...G(5, "heatjacket", 5, 6), dusk: true }, ...good(P(5)), { ...P(6), dusk: true }, ...good(G(6, "barbed", 0, 2)), { ...P(7), dusk: true }, { ...G(8, "temper", 5, 1, 3), dusk: true }, { ...G(8, "whetstone", 1, 1, 1), dusk: true }, { ...G(8, "tollbooth", 0, 2, 1), dusk: true }, ...good(G(8, "longhaul", 2, 3, 1)), { ...P(9), dusk: true }, ...good(G(9, "coil", 0, 3)), { ...P(10), dusk: true }, ...good(P(10)), ...good(M(10, "rotary", 1)), ...good(G(10, "lodestone", 0, 4))],
+    road: [{ ...G(1, "grease", 2, 4, 2), dusk: true }, ...good(G2(2, "twingauge", 1, 0)), ...good(G(2, "grease", 2, 4, 2)), ...good(G(3, "staticbrush", 3, 5)), ...good(G(4, "tollbooth", 5, 1, 3)), { ...P(5), dusk: true }, { ...G(5, "staticbrush", 3, 5), dusk: true }, { ...G(5, "heatjacket", 5, 6), dusk: true }, ...good(P(5)), { ...P(6), dusk: true }, ...good(G(6, "barbed", 0, 2)), { ...P(7), dusk: true }, { ...G(8, "temper", 5, 1, 3), dusk: true }, { ...G(8, "whetstone", 1, 1, 1), dusk: true }, { ...G(8, "tollbooth", 0, 2, 1), dusk: true }, ...good(G(8, "longhaul", 2, 3, 1)), { ...P(9), dusk: true }, { ...G(9, "longhaul", 2, 3, 1), dusk: true }, ...good(G(9, "coil", 0, 3)), { ...P(10), dusk: true }, { ...G(10, "barbed", 0, 3), dusk: true }, ...good(P(10)), ...good(M(10, "rotary", 1)), ...good(G(10, "lodestone", 0, 4))],
   },
   // ---------------------------------------------------------------- Medium (tier 2), BASTION
   // ANVIL WALL: the Wardworks' bulwark belt plates the hull as it fires, and plating makes every shot hit harder. Synergy:
@@ -1092,7 +1092,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [{ ...M(1, "rotary", 0), dusk: true }, { ...P(2), dusk: true }, { ...P(5), dusk: true }, { ...P(6), dusk: true }, { ...P(7), dusk: true }, { ...P(8, 2), dusk: true }, { ...G(8, "brake", 6, 3, 3), dusk: true }, { ...P(9), dusk: true }, { ...P(10), dusk: true }],
+    road: [{ ...M(1, "rotary", 0), dusk: true }, { ...P(2), dusk: true }, { ...P(5), dusk: true }, { ...P(6), dusk: true }, { ...P(7), dusk: true }, { ...P(8, 2), dusk: true }, { ...G(8, "brake", 6, 3, 3), dusk: true }, { ...P(9), dusk: true }, { ...P(10), dusk: true }, { ...G(10, "tollbooth", 1, 5, 1), dusk: true }],
   },
   // LEAF MAIL: a PLATE ROLLER on the loom's left belt plates her hull from day 1, and plated her guns fire faster.
   // Synergy: the PLATE ROLLER, a STEAM BREECH on gun 1 (day 1) and a SPALL CATCHER on gun 1 from day 4 (damage she takes
@@ -1121,7 +1121,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [{ ...M(1, "rotary", 1), dusk: true }, { ...G(2, "whetstone", 5, 0, 3), dusk: true }, { ...G(2, "tollbooth", 3, 1, 1), dusk: true }, { ...G(3, "grease", 3, 4, 1), dusk: true }, { ...P(4), dusk: true }, { ...P(5), dusk: true }, { ...G2(6, "temper", 3, 0), dusk: true }, { ...G(6, "temper", 5, 1, 3), dusk: true }, { ...M(7, "mantlet", 2), dusk: true }, { ...G(8, "brake", 7, 3, 1), dusk: true }, { ...P(9), dusk: true }, { ...G2(9, "venom", 3, 2), dusk: true }, { ...G(10, "venom", 5, 3), dusk: true }],
+    road: [{ ...M(1, "rotary", 1), dusk: true }, { ...G(2, "whetstone", 5, 0, 3), dusk: true }, { ...G(2, "tollbooth", 3, 1, 1), dusk: true }, { ...G(3, "grease", 3, 4, 1), dusk: true }, { ...P(4), dusk: true }, { ...P(5), dusk: true }, { ...G2(6, "temper", 3, 0), dusk: true }, { ...G(6, "temper", 5, 1, 3), dusk: true }, { ...M(7, "mantlet", 2), dusk: true }, { ...G(7, "braceframe", 7, 4, 1), dusk: true }, { ...G(8, "brake", 7, 3, 1), dusk: true }, { ...P(9), dusk: true }, { ...G2(9, "venom", 3, 2), dusk: true }, { ...G(10, "venom", 5, 3), dusk: true }],
   },
 };
 
