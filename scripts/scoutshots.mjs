@@ -318,7 +318,7 @@ async function tour(browser) {
   }
   must((await page.evaluate(() => window.bb.screen())) === "build", "the set-up ends on the build screen");
   await mark("the build screen (day 4, after REFIT)");
-  await hold(1.6);
+  await hold(2.4);
   await tapId("fight", "the build screen's FIGHT!");
   await mark("FIGHT!");
   await until(() => window.bb.screen(true) === "fight", 10); // the sail-in straight into the 3-2-1, no pause
@@ -331,31 +331,31 @@ async function tour(browser) {
   await until(() => window.bb.screen(true) !== "fight", 6); // its end, or SKIP after 6 s more
   if (await page.evaluate(() => window.bb.screen(true) === "fight")) { await tapId("skip", "SKIP"); await mark("SKIP"); }
   await until(() => window.bb.screen(true) === "result", 15);
-  await hold(2.4);
+  await hold(3.0);
   await mark("the card");
   await tapId("viewfield", "the card's VIEW BATTLEFIELD");
   await hold(1.4);
   await mark("VIEW BATTLEFIELD");
-  await tapPart(0, ["turret"], 2.6);
-  await tapPart(1, ["turret"], 2.6);
+  await tapPart(0, ["turret"], 3.0);
+  await tapPart(1, ["turret"], 3.0);
   await tapId("faceclose", "the face's CLOSE"); // both summaries in sight again
-  await hold(2.6);
+  await hold(3.4);
   await mark("the summaries");
   await tapId("viewnext", "ON TO DAWN in the view");
-  await hold(2.2);
+  await hold(3.0);
   await mark("ON TO DAWN: the next day's build screen");
   for (let i = 0; i < 2 && (await region(page, "runepick-0")); i++) { await tapId("runepick-0", "the dawn's rune"); await hold(0.8); }
   await tapId("fight", "the build screen's FIGHT!");
-  await hold(1.2);
+  await hold(1.8);
   await mark("the road fork");
   await tapId("fork1", "the fork's EASY warlord"); // a first tap inspects it
-  await hold(1.0);
+  await hold(1.2);
   await tapId("fork1", "the fork's EASY warlord"); // a second takes it
   await mark("the next battle: the bar on 2X from its first frame");
   await until(() => window.bb.screen(true) === "fight", 10);
   await mark("GO at 2X");
-  await hold(5.0);
-  await mark("5 s at 2X");
+  await hold(7.0);
+  await mark("7 s at 2X");
   await ctx.close();
   fails += errors.length;
   log(`video tour: ${n} frames (${(n / FPS).toFixed(1)} s at ${FPS} fps) rendered at 390x844 CSS px, DPR 3 (1170x2532 device px), the page's clock stepped 1/${FPS} s a frame; console errors ${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""}`);
