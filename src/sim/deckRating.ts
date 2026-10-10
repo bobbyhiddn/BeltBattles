@@ -22,6 +22,7 @@ import { drakeConvert } from "./cores"; // Y4 (release Y): DRAKE NOZZLE's price 
 import type { CoreSpec } from "./content"; // Y4
 import { doubles } from "./overclock"; // Y3 (release Y): the OVERCLOCKER's price (chargeGains)
 import { effectAt, gradeOf, starsOf, valueOf } from "./stars";
+import { hullScaleRules } from "./hullScale"; // PAR-AZ (REQ-BFG-079): the tables measured with every switch on (fightTime, foeOn)
 
 /** Seconds in a typical dusk fight (the desk run's fights last 17-29 s): damage is weighed by how much of it lands. */
 export const FIGHT_T = 25;
@@ -33,8 +34,28 @@ export const FIGHT_T = 25;
  * so the sharp player (it follows the rating most closely) drew long belts and long joined journeys that fire late.
  */
 export const FIGHT_BY_DAY: readonly number[] = [24.4, 19.9, 15.7, 14.2, 12.9, 11.6, 11.1, 10.5, 10.1, 9.5];
-/** The par-field fight length of `day` (FIGHT_BY_DAY; days past the table read its last entry). */
-export const fightTime = (day: number): number => FIGHT_BY_DAY[Math.max(1, Math.min(FIGHT_BY_DAY.length, Math.floor(day))) - 1];
+/**
+ * PAR-AZ (REQ-BFG-079; BRIEF-PARAZ 1 (b); output-hull1d/standin-proposal.md step 0b): FIGHT_BY_DAY re-measured with EVERY
+ * switch on (NPC_DAY, HULL_SCALE and LADDER_FIX, each through its setter) and the par player's NPC day in (c52be67): the
+ * par fights run on the day's hull, damage and sustain (M, D, S) and the wind's share. CAND-A's method, now a tool
+ * (tools/fightByDay.ts): the typical par field against itself, K 12, FURNACE and WEAVER, every ordered pair once (552
+ * battles a day), the MEAN fight in seconds. Measured at e80ad2d (bb-0.9.7, the switches set by --all-on), 2026-10-10
+ * 13:18Z, four shards at once from the repo root:
+ *   npx vite build --ssr tools/fightByDay.ts --outDir tools/dist/fightbyday --emptyOutDir --logLevel warn
+ *   nice -n 19 node tools/dist/fightbyday/fightByDay.js --days 1,2,3 --k 12 --all-on --json fbd-d1_2_3.json
+ *   (and --days 4,5,6, --days 7,8, --days 9,10)
+ * Units: real seconds, as rateDeck compares them (each belt's damage counts for the share of the fight left after its first
+ * payload, RIVETER and ARMOR PRESS repair over half of it); no day scales a second. Stability (FLIP-X2's way): measured
+ * with the bots reading the 0.9.7 tables, selected, then re-measured with these in (PAR-AZ REPORT (b)).
+ * fightTime reads it with HULL_SCALE on (hullScaleRules()); off, FIGHT_BY_DAY exactly as before.
+ */
+export const FIGHT_BY_DAY_HS: readonly number[] = [22.6, 19.6, 16.4, 16.0, 15.6, 15.2, 15.1, 15.2, 14.6, 14.4];
+/** The par-field fight length of `day` (FIGHT_BY_DAY; days past the table read its last entry). PAR-AZ: with HULL_SCALE on,
+ *  FIGHT_BY_DAY_HS (the fights with every switch on). */
+export const fightTime = (day: number): number => {
+  const t = hullScaleRules() ? FIGHT_BY_DAY_HS : FIGHT_BY_DAY;
+  return t[Math.max(1, Math.min(t.length, Math.floor(day))) - 1];
+};
 
 /**
  * BOTS-X (SUS-C, REQ-BFG-069; SUSTAIN-1 4.8 rule 2): THE EXPECTED DUSK FOE by day 1..10, which the bots' sustain value
@@ -73,8 +94,40 @@ export const SUSTAIN_FOE: readonly FoeDay[] = [
   { fight: 14.39, burn: 0.721, hit: 104.9 },
   { fight: 13.41, burn: 0.719, hit: 113.1 }, // day 10
 ];
-/** BOTS-X: the expected foe of `day` (SUSTAIN_FOE; days past the table read its last row). */
-export const foeOn = (day: number): FoeDay => SUSTAIN_FOE[Math.max(1, Math.min(SUSTAIN_FOE.length, Math.floor(day))) - 1];
+/**
+ * PAR-AZ (REQ-BFG-079; BRIEF-PARAZ 1 (b); standin-proposal.md step 0b): SUSTAIN_FOE re-measured with EVERY switch on
+ * (NPC_DAY, HULL_SCALE and LADDER_FIX, each through its setter) and the par player's NPC day in (c52be67), by
+ * tools/sustainFoe.ts's own four shards (the sustain switch on first, k 6, 4 seeds, the four heroes' par fields in every
+ * cross pair and mirror, both sides: 2,208 battles a day). Measured at e80ad2d (bb-0.9.7, --all-on), 2026-10-10 13:19Z:
+ *   npx vite build --ssr tools/sustainFoe.ts --outDir tools/dist/botsx-foe --emptyOutDir --logLevel warn
+ *   nice -n 19 node tools/dist/botsx-foe/sustainFoe.js --days 1,2,3 --k 6 --seeds 4 --all-on --json foe-d1_2_3.json
+ *   (and --days 4,5,6, --days 7,8, --days 9,10)
+ * Units, as rateDeck compares each column: `fight`, real seconds (the mean fight: the SHIELDs a WARD BELL gains over it,
+ * the heal seconds min(25, fight)); `burn`, the share of sides whose foe landed BURN (heal halved by it), a share; `hit`,
+ * the mean unstopped hit as it LANDED on the day divided by M(d) (the tool's hitM). rateDeck's defense is in day-1 numbers
+ * (the hero's hull + hullBonus, heal and plate as written), and on day d a hull lands x M(d) while heal and plate land
+ * x S(d) = M(d), so they stay day-1 exact; a SHIELD stops one landed hit (D(d) x the raw hit), worth hit / M(d) of day-1
+ * hull. So every deck's defense keeps the day's proportions. Stability as FIGHT_BY_DAY_HS's (PAR-AZ REPORT (b)).
+ * foeOn reads it with HULL_SCALE on (hullScaleRules()); off, SUSTAIN_FOE exactly as before.
+ */
+export const SUSTAIN_FOE_HS: readonly FoeDay[] = [
+  { fight: 29.51, burn: 0.250, hit: 71.3 }, // day 1
+  { fight: 24.19, burn: 0.583, hit: 68.7 },
+  { fight: 19.89, burn: 0.589, hit: 77.1 },
+  { fight: 20.87, burn: 0.714, hit: 69.5 },
+  { fight: 20.66, burn: 0.760, hit: 75.1 }, // day 5
+  { fight: 20.16, burn: 0.800, hit: 71.8 },
+  { fight: 19.24, burn: 0.833, hit: 80.3 },
+  { fight: 19.16, burn: 0.829, hit: 81.1 },
+  { fight: 18.15, burn: 0.869, hit: 89.2 },
+  { fight: 17.97, burn: 0.915, hit: 83.6 }, // day 10
+];
+/** BOTS-X: the expected foe of `day` (SUSTAIN_FOE; days past the table read its last row). PAR-AZ: with HULL_SCALE on,
+ *  SUSTAIN_FOE_HS (the fights with every switch on; its hit in day-1 units). */
+export const foeOn = (day: number): FoeDay => {
+  const t = hullScaleRules() ? SUSTAIN_FOE_HS : SUSTAIN_FOE;
+  return t[Math.max(1, Math.min(t.length, Math.floor(day))) - 1];
+};
 
 /** BOTS-X: a sustain keyword (SUSTAIN-1 4.6). */
 export type SustainKw = "SHIELD" | "HEAL" | "REGEN";
