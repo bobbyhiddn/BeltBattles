@@ -288,7 +288,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const p = f(e).plate!, every = fmtSec(p.every), amount = fmtDmg(sustNow(p.amount)); // HULL-1d: x S(d)
     const label = `EVERY ${every}{SEC}:`;
     // U2d F1: the period's NEXT★ form is SURGE's, without the label's colon (its period is one at every star today)
-    return rules([{ text: `${label} +${amount} {*PLATE}.`, label }], [["every", `EVERY ${every}{SEC}`], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
+    // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q3, face rule 1; replaces cap's answer 5 to SUS-A): its condition is real, so the line
+    // says it in ASSEMBLY LINE's words: battle.ts makeSide starts its plating timer only when one of its belts reaches a gun
+    // (connected, or joined into a chain that feeds one), so a press with no belt to a gun gives nothing. The label stays in
+    // brass after it (faces.ts ruleSpans, keywords.ts and levels.ts find it anywhere in the line); 185 px of the 225 px band
+    // at ★3. Was "EVERY 3{SEC}: +30 {*PLATE}."
+    return rules([{ text: `FEEDS A GUN: ${label} +${amount} {*PLATE}.`, label }], [["every", `EVERY ${every}{SEC}`], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
   },
   // NUM-3 (R1's STUN fold, REQ-BFG-046, REQ-BFG-070): the four STUN-fold factories. A SABOT, FROST or CHAIN round's STUN is
   // its own payload's, a stat ({STUN} in the second stat row, carryStats: R1's "ITS ROUNDS: {STUN} 2.5." line is a stat in
@@ -314,11 +319,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   dragchain: (e) => rules([], [], [REMINDER.STUN(rnd(e).seconds)]),
   mendpress: (e) => {
     // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): ARMOR PRESS's face with HEAL, its stat row ARMOR PRESS's (factoryStats).
-    // Battle.pressHeal: heal.amount every heal.every s through heal(), at the stamping pace, while it feeds a turret (the
-    // belt rule stays off the face, as ARMOR PRESS's: cap's answer 5 to SUS-A)
+    // Battle.pressHeal: heal.amount every heal.every s through heal(), at the stamping pace, while it feeds a turret.
+    // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q3, face rule 1): the belt rule is on the face now, as ARMOR PRESS's (this replaces
+    // cap's answer 5 to SUS-A, which kept it off): battle.ts makeSide starts its HEAL timer only when one of its belts reaches
+    // a gun. 167 px of the 225 px band. Was "EVERY 3{SEC}: {*HEAL} 20."
     const h = f(e).heal!, every = fmtSec(h.every), amount = fmtDmg(sustNow(h.amount)); // HULL-1d: x S(d)
     const label = `EVERY ${every}{SEC}:`;
-    return rules([{ text: `${label} {*HEAL} ${amount}.`, label }], [["every", `EVERY ${every}{SEC}`], ["heal", `{*HEAL} ${amount}`]], [REMINDER.HEAL()]);
+    return rules([{ text: `FEEDS A GUN: ${label} {*HEAL} ${amount}.`, label }], [["every", `EVERY ${every}{SEC}`], ["heal", `{*HEAL} ${amount}`]], [REMINDER.HEAL()]);
   },
   // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
   assembly: (e) => {

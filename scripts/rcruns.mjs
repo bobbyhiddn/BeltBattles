@@ -114,7 +114,7 @@ async function offlineRuns(browser, offline) {
       const r = await scriptedRun(c.page, !!view.hasTouch, (s) => log(`  ${s}`), { days: 3, roads: "vev", check: "fresh", hero, buys: 8, pool: [] });
       await c.page.screenshot({ path: join(OUT, `offline-${hero}-${vname}-day3.png`) });
       const online = await c.page.evaluate(() => window.bb.online());
-      check(version === "0.9.7" && r.days.length >= 3, `offline ${hero} ${vname}: version ${version}, three days played (${r.days.join(" | ")})`);
+      check(version === "0.9.8" && r.days.length >= 3, `offline ${hero} ${vname}: version ${version}, three days played (${r.days.join(" | ")})`);
       check(online === null, `offline ${hero} ${vname}: no online session`);
       const other = c.requests.filter((q) => !/^GET (file|data|blob):/.test(q));
       check(other.length === 0, `offline ${hero} ${vname}: no request but the page (${c.requests.length} file:// requests, ${other.length} others${other.length ? `: ${other.slice(0, 3).join(", ")}` : ""})`);

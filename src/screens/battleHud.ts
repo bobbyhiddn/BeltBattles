@@ -20,7 +20,8 @@ import { SHIELD_CAP } from "../sim/content"; // SUS-B: the pips' count
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: the REGEN badge prints as the faces print REGEN
 import { fmtClock, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results
 import { heartIcon } from "../render/sprites";
-import { button, panel, type Rect } from "../ui/ui";
+import { button, panel, statsPanel, type Rect } from "../ui/ui";
+import { skinOf } from "../render/styles"; // CUSTOM-2a (REQ-BFG-072): the plate wears its board's panel style
 import { hullBar } from "../ui/hud";
 import { CLANK_TIME, STRIP_H, drawPlatingStrip } from "../render/raceFx"; // 0.8.0 H1 M3: BASTION's plating strip
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
@@ -71,7 +72,7 @@ export const plateTag = (tag: string) => `${tag} ·`;
 export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name: string, hpText: string, tag?: string): void {
   const s = a.b.sides[side];
   const f = a.sfx[side];
-  panel(g, r, "dark");
+  statsPanel(g, r, skinOf(a.views[side].skin).panel); // CUSTOM-2a: the player's plate wears its panel style; a foe's the default
   let tx = r.x + 3;
   const ty = r.y + Math.floor((r.h - 5) / 2);
   if (tag) {

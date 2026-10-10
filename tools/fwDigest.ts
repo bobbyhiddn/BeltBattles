@@ -16,7 +16,8 @@
 
 import { makeCanvas, type G } from "../src/render/pixel";
 import { frameForHull, type Facing } from "../src/render/frame";
-import { HULL_M, hullFlash, hullRim, hullShade, hullSprite, treadStrip } from "../src/render/hull";
+import { HULL_M, hullSprite } from "../src/render/hull";
+import { drawArenaStill, drawDeckHull } from "./stillDraw"; // CUSTOM-2a: the tracked hull's drawing is gone
 import { factoryFlashSil, factorySprite, gateSil, gateSprite, itemIcon } from "../src/render/sprites";
 import { turretArt } from "../src/render/turret";
 import { ammoSprite, payloadHalo, payloadSprite, pelletSprite, shellSprite, trailColors, volleySprite } from "../src/render/ammo";
@@ -24,7 +25,6 @@ import { miniCruiser } from "../src/render/eventArt";
 import { drawScene } from "../src/render/scenes";
 import { portraitPixels, type PortraitKey } from "../src/render/portraits";
 import { Arena } from "../src/game/arena";
-import { drawArena } from "../src/game/arenaDraw";
 import { drawPlate } from "../src/screens/battleHud"; // 0.8.0 H1 M3: the battle plates (v070-rc has the same entry point)
 import type { Game } from "../src/game/game";
 import { EVENT_IDS } from "../src/game/events";
@@ -64,12 +64,8 @@ function run(): void {
   const heroes: HeroId[] = ["furnace", "weaver"];
   for (const h of heroes) for (let f = 0; f < 4; f++) {
     put(`hull/${h}/${f}`, hullSprite(h, f as Facing));
-    put(`hullFlash/${h}/${f}`, hullFlash(h, f as Facing));
-    put(`hullRim/${h}/${f}`, hullRim(h, f as Facing));
-    put(`hullShade/${h}/${f}`, hullShade(h, f as Facing));
+    // CUSTOM-2a (REVIEW-MOTION2 Q2): hullFlash, hullRim, hullShade and the tread strips are gone with the tracked hull
   }
-  put("tread/v", treadStrip(true));
-  put("tread/h", treadStrip(false));
   for (const kind of ["heavy", "light", "medium", "adaptable"] as TurretKind[]) for (const fac of ["orc", "elf"] as const) for (let f = 0; f < 4; f++) {
     const a = turretArt(kind, fac, f as Facing);
     put(`turret/${kind}/${fac}/${f}/base`, a.base);
@@ -131,7 +127,7 @@ function run(): void {
     for (const at of [2.5, 6, 11]) {
       while (t < at) { arena.update(1 / 60); t += 1 / 60; }
       const [cv, g] = makeCanvas(W, H);
-      drawArena(g as G, arena, W, H);
+      drawArenaStill(g as G, arena, W, H);
       put(`arena/${name}/${landscape ? "land" : "port"}/${at}`, cv);
       // 0.8.0 H1 M3: the battle HUD's name plates (hull bar, chip, flash, status pips) at the same moments, both sides
       const [pc, pg] = makeCanvas(140, 26);

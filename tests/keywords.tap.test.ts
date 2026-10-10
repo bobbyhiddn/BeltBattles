@@ -433,8 +433,15 @@ describe("U2f: the taller ⓘ view", () => {
     // caveat, POISON's and the retired rows gone); the words, op -> 132 / 179 / 5, desk -> 21 / 105 / 133 / 32 / 15 / 10 (no
     // panel draws a perk's name, the 16 retired perk names leave the LEVELS, LOAD TIME's row is gone). U2f's view: the next
     // test
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([132, 179, 5]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([21, 105, 133, 32, 15, 10]);
+    // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q1), re-measured (the same 316 panels): ROTARY BREECH's tap note (glossary.ts
+    // TAP_NOTES rotary, on CHAMBERS) is one more KEYWORDS definition in its 4 panels' views, so op 132 / 179 / 5 -> 128 /
+    // 183 / 5 and desk 21 / 105 / 133 / 32 / 15 / 10 -> 19 / 103 / 137 / 32 / 15 / 10 here; U2f's view, the one the game
+    // draws (the next test's pins), is unchanged
+    // TXT-AZ item 2 (REQ-BFG-070; REVIEW-TXT096 Q3), re-measured: ARMOR PRESS's and MEND PRESS's lines lead with FEEDS A
+    // GUN, and the desk column sizes to its text, so 5 of their desk views page less: desk 19 / 103 / 137 / 32 / 15 / 10 ->
+    // 19 / 103 / 137 / 37 / 14 / 6; op unchanged; U2f's view unchanged
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([128, 183, 5]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([19, 103, 137, 37, 14, 6]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {

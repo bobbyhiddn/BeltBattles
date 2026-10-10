@@ -176,9 +176,9 @@ function matches(text: string, l: PLine, first: boolean, piece: Piece | null): {
 }
 
 /** The word a piece's tap note sits on, else null. Y7b1 (release Y; ruling Y7A-R2): UP TO too, EXT. CHAMBER's (glossary.ts
- *  TAP_NOTES chamber). */
-function noteWord(def: string): string | null {
-  for (const w of ["AIM", "FASTER", "UP TO"]) if (tapNote(def, w)) return w;
+ *  TAP_NOTES chamber). TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q1): CHAMBERS too, ROTARY BREECH's (TAP_NOTES rotary). */
+export function noteWord(def: string): string | null {
+  for (const w of ["AIM", "FASTER", "UP TO", "CHAMBERS"]) if (tapNote(def, w)) return w;
   return null;
 }
 

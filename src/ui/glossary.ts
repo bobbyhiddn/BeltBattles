@@ -171,8 +171,9 @@ function rowsNow(): GlossaryRow[] {
  * LOAD TIME (Y7b2, the words): no gear holds a load time since Y4 (HOPPER's and TWIN TRIGGER's went; ROTARY's texts say
  * SOONER), so no text names it any more: SALVO RACK's kept sentence names its wait in seconds (abilityText.ts salvo: 2 x
  * WINDOW_TIME after its first load) and TEMPO's family line says HOW LONG A GUN WAITS TO FIRE (families.ts). TXT-096
- * (Y7B2-Q5) took it out of HOPPER's and ROTARY BREECH's catalogue descs; TWIN TRIGGER's still says it (tests/wave3Art.test.ts
- * holds that def equal to tools/wave3Defs.ts's copy). None of the three is drawn (flavour.ts KEPT_FLAVOUR).
+ * (Y7B2-Q5) took it out of HOPPER's and ROTARY BREECH's catalogue descs, and TXT-AZ (REVIEW-TXT096 Q2) out of TWIN TRIGGER's,
+ * with tools/wave3Defs.ts's copy (tests/wave3Art.test.ts holds that def equal to the copy). None of the three is drawn
+ * (flavour.ts KEPT_FLAVOUR).
  */
 
 /** The table, in order: the face keywords, the rune keywords, the kept texts' words, the trigger labels. */
@@ -310,6 +311,12 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // Y7b1 (release Y; ruling Y7A-R2; folded at the flip, Y7b2): EXT. CHAMBER's ★2/★3 face reads UP TO 3 / UP TO 4 (faces.ts
   // chamber); its ⓘ (this tap, on UP TO) says why: Battle.chambers fires at most what the gun's chamber holds
   chamber: { word: "UP TO", text: () => "UP TO: A SHOT NEVER FIRES MORE THAN ITS GUN'S CHAMBER HOLDS." },
+  // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q1): ROTARY BREECH's OLDEST FIRST. cores.ts ROUTINES.rotary's select takes stack index
+  // 0, the oldest load, while its core's order is "FIFO" (content.ts rotary: order "FIFO", at every star); every other gun's
+  // select is IDENTITY's lifo, the newest. Its face can't take it without dropping PART-FULL ... SOONER (rule 4), so its tap
+  // says it, on CHAMBERS: a word of its rule with no glossary row, as AIM, FASTER and UP TO (keywords.ts noteWord).
+  // tests/txtaz.rotary.test.ts reads the order off the sim's own select
+  rotary: { word: "CHAMBERS", text: () => "CHAMBERS: THE OLDEST LOAD IN ITS CHAMBER FIRES FIRST, NOT THE NEWEST." },
 };
 
 /** The tap note of piece `def` for `word` (a trigger label's word or a rule's word), else undefined. */

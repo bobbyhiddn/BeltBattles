@@ -50,7 +50,9 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
     }
   });
 
-  it("each face at every star, in markup through the formatters: RIVETER HIT: HEAL 6, WARD BELL EVERY 8s: +1 SHIELD, MEND PRESS EVERY 3s: HEAL 20, MENDING LOOM YOUR HULL: REGEN 10", () => {
+  // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q3): MEND PRESS's line leads with its condition, FEEDS A GUN (tests/txtaz.presses.test.ts
+  // reads it off the sim); was "EVERY 3{SEC}: {*HEAL} 20." (the label stays, in brass, after it)
+  it("each face at every star, in markup through the formatters: RIVETER HIT: HEAL 6, WARD BELL EVERY 8s: +1 SHIELD, MEND PRESS FEEDS A GUN: EVERY 3s: HEAL 20, MENDING LOOM YOUR HULL: REGEN 10", () => {
     for (const s of STARS) {
       const rv = faceAt("riveter", s)!, heal = fmtDmg(g("riveter", s).gate!.heal!);
       expect([rv.stats, rv.rules, rv.reminders]).toEqual([[], [{ text: `HIT: {*HEAL} ${heal}.`, label: "HIT:" }], [REMINDER.HEAL()]]);
@@ -65,14 +67,14 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
       // fmtSpeed(secPer(speed))], the interval 30 / speed)
       expect(mp.stats.slice(0, 2)).toEqual([["RATE", fmtSpeed(g("mendpress", s).factory!.speed)], ["DMG", fmtDmg(AMMO.plain.base)]]);
       expect(factoryStats("armorpress", s).map(([ic]) => ic)).toEqual(mp.stats.map(([ic]) => ic));
-      expect([mp.rules, mp.reminders, mp.stats2]).toEqual([[{ text: `${pe} {*HEAL} ${fmtDmg(h.amount)}.`, label: pe }], [REMINDER.HEAL()], undefined]);
+      expect([mp.rules, mp.reminders, mp.stats2]).toEqual([[{ text: `FEEDS A GUN: ${pe} {*HEAL} ${fmtDmg(h.amount)}.`, label: pe }], [REMINDER.HEAL()], undefined]);
       const ml = faceAt("mendingloom", s)!;
       // "YOUR HULL:" says whose, not when: no trigger, so no brass label (TEXT-STYLE 3.2, 3.3)
       expect([ml.stats, ml.rules, ml.reminders]).toEqual([[], [{ text: `YOUR HULL: {*REGEN} ${fmtDmg(g("mendingloom", s).mod!.regen!)}.` }], [REMINDER.REGEN()]]);
     }
     // ★1 as the brief writes them, on this base's numbers (NUM-1's x10; SUS-A's WARD BELL ★1 fallback, 8 s)
     const plain = (id: string) => stripIcons(faceLines(id, 1)!.rules[0].text);
-    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: HEAL 6.", "EVERY 8: +1 SHIELD.", "EVERY 3: HEAL 20.", "YOUR HULL: REGEN 10."]);
+    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: HEAL 6.", "EVERY 8: +1 SHIELD.", "FEEDS A GUN: EVERY 3: HEAL 20.", "YOUR HULL: REGEN 10."]);
   });
 
   it("every number on them is a formatter's, at every star; no bare keyword; each line fits the op band", () => {

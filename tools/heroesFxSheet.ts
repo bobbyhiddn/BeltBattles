@@ -10,7 +10,7 @@ import { frameForHull } from "../src/render/frame";
 import { HULL_M } from "../src/render/hull";
 import { CLANK_FRAMES, FUSE_FRAMES, drawPlatingStrip, fuseFlash, platingClank, syncIcon } from "../src/render/raceFx";
 import { Arena } from "../src/game/arena";
-import { drawArena } from "../src/game/arenaDraw";
+import { drawArenaStill } from "./stillDraw"; // CUSTOM-2a: drawArena (the tracked hulls) is gone
 import { drawPlate } from "../src/screens/battleHud";
 import type { Game } from "../src/game/game";
 import { HEROES, type HeroId } from "../src/sim/content";
@@ -133,7 +133,7 @@ function moment(g: G, x: number, y: number, title: string, a: Build, b: Build, s
   }
   const [cv, cg] = makeCanvas(W, H);
   rect(cg, 0, 0, W, H, C.soil1);
-  drawArena(cg, ar, W, H);
+  drawArenaStill(cg, ar, W, H);
   const game = { t: ar.clock } as unknown as Game;
   const name = (s: 0 | 1) => HEROES[ar.b.sides[s].build.hero].name;
   drawPlate(cg, game, ar, { x: 8 + 12, y: 4, w: 132, h: 10 }, 1, name(1), String(Math.ceil(ar.b.sides[1].hull.hp)));

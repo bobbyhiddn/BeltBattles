@@ -3,6 +3,29 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.8: styles you earn
+
+Same battle rules as 0.9.7 (bb-0.9.7), so 0.9.7's ghosts and uploads still meet 0.9.8 players.
+- **Styles you earn:** playing unlocks new looks for your carrier's floor panels, its belts and your stats panels: four
+  of each, beside today's look. You earn them by playing and finishing runs, winning dusk fights, reaching later days
+  and beating warlords.
+- **CUSTOMIZE**, a new button beside OPTIONS on the title, shows each style on your own ship. One tap wears a style you
+  have earned. A locked style says how to earn it and how far along you are, and a tap shows it on your ship without
+  wearing it.
+- **Where your styles show:** your board in battle and on the build screen, your battle plate and part panel, the run
+  summary, your side of replays and the hero select. Foes keep today's look.
+- **Looks only:** styles never change rules, ghosts or replays. Your choice is saved on this device.
+- **A head start:** if you already play, the styles your saved ghosts show you have earned are open from the start.
+- **NEW:** a NEW dot on CUSTOMIZE and a NEW STYLE line on the run summary tell you when a style opens.
+- **The road and the fork** show the day's sea behind their cards, as the build screen does.
+- **Carrier styles:** your carrier's hull is now a style you choose, the fourth tab of CUSTOMIZE. Today's ship in your
+  faction's colours stays the default (WAR COLOURS), and four more are earned: ADMIRAL'S BLUE (finish 3 runs), IRONCLAD
+  (beat 5 warlords), STORMCALLER (win with 4 different heroes) and CHAMPION'S GOLD (win 100 dusk fights). Each keeps
+  your faction's trim and lights, its smoke and fire when hit, and its place in your lane, so you always know which
+  ship is yours. Foes keep today's look.
+- **The landscape battle** keeps both boards whole on the screen while the ships surge: on a desktop or laptop, the
+  outer tile columns no longer slip past the screen's side for a moment.
+
 ## 0.9.7: LAST CHANCE
 
 New battle rules: bb-0.9.7. Ghosts and uploads from 0.9.6 no longer meet 0.9.7 players, and the stand-in and seed pools

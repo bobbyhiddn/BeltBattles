@@ -17,6 +17,7 @@ import { RUNES, isRune, type RuneDef } from "../sim/runes";
 import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH, runeChipW } from "../ui/runeBar";
 import { runeTag, tierColour, tierWord } from "../ui/runeText";
 import type { BuildScreen } from "./build/build";
+import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block on the cards' panel
 
 export const PICK_TITLE = "PICK A RUNE";
 export const PICK_TAKE = "TAP AGAIN TO TAKE IT";
@@ -132,6 +133,7 @@ export class RunePicker {
     g.globalAlpha = 1;
     ui.add({ id: "runepick", r: { x: 0, y: 0, w: W, h: H }, block: true });
     const cx = Math.round(W / 2);
+    drawTitlePlate(g, W, L.top, L.cardW); // TXT-AZ (REVIEW-STAGE097 R5): as the LAST CHANCE picker's, one plate for both
     drawText(g, PICK_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
     const [a, b] = pickDawn(o.day, o.tier);
     const dw = textWidth(a + b);

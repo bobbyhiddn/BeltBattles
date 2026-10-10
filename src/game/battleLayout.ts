@@ -7,7 +7,8 @@
 // plates and hull bars are bolted to their own cruiser; the timer and speed controls share
 // one bar docked under the cruisers.
 
-import { HULL_A, HULL_L, STERN, frameForHull, hullBox, type Box, type DeckFrame } from "../render/frame";
+import { DECK, HULL_A, HULL_L, STERN, frameForHull, hullBox, type Box, type DeckFrame } from "../render/frame";
+import type { LaneSpec } from "../render/motion";
 import { hullScaleRules } from "../sim/hullScale"; // HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot
 
 export const GAP_MIN = 22; // clears a heavy (13px) + light (9px) barrel poking past the bows
@@ -152,6 +153,20 @@ export function laneLayout(L: BattleLayout): BattleLayout {
     bar: { ...L.bar, y: Math.min(L.H - BAR_L, hp2.y + HULL_A) },
     enter,
   };
+}
+
+/**
+ * CUSTOM-3 (REVIEW-STAGE096 R5 b): the lanes the motion model is fitted to, from a battle layout: the rest gap and its
+ * least along the firing axis and, in landscape, the boards' margin: how far the outer tile columns (the player's
+ * leftmost, at its deck's left edge; the enemy's rightmost) stand from the screen's side edges at rest. The landscape
+ * surge stays inside it (render/motion.ts setLanes), so at a surge's outer reach no tile column is off screen. Portrait
+ * carries no edge: its drift and surge are 0.9.6's exactly. Pure (tests/surge.margin.test.ts).
+ */
+export function laneSpec(L: Pick<BattleLayout, "portrait" | "gap" | "W" | "frames">, gapMin: number): LaneSpec {
+  if (L.portrait) return { portrait: true, gapRest: L.gap, gapMin };
+  const [p, e] = L.frames; // landscape: the player faces east (deck x dx .. dx + DECK), the enemy west
+  const edge = Math.min(p.dx, L.W - (e.dx + DECK));
+  return { portrait: false, gapRest: L.gap, gapMin, edge };
 }
 
 /** Cruisers only, centred in a box (title attract loop, previews). The gap is clamped to the box. */

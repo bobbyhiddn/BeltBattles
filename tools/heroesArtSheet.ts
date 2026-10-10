@@ -18,7 +18,7 @@ import { payloadHalo, payloadSprite, shellSprite, trailColors } from "../src/ren
 import { miniCruiser } from "../src/render/eventArt";
 import { portraitPixels, type PortraitKey } from "../src/render/portraits";
 import { Arena } from "../src/game/arena";
-import { drawArena } from "../src/game/arenaDraw";
+import { drawArenaStill } from "./stillDraw"; // CUSTOM-2a: drawArena (the tracked hulls) is gone
 import { HEROES, type Faction, type HeroId, type TurretKind } from "../src/sim/content";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { VERSION } from "../src/version";
@@ -141,7 +141,7 @@ function fight(g: G, x: number, y: number, a: HeroId, b: HeroId, day: number, la
   const f0 = landscape ? frameForHull(1, 4 + HULL_M, 8) : frameForHull(0, 8, H - 146);
   const f1 = landscape ? frameForHull(3, W - 146, 8) : frameForHull(2, 8, 4);
   arena.setFrames([f0, f1], landscape ? [[-1, 0], [1, 0]] : [[0, 1], [0, -1]]);
-  drawArena(cg, arena, W, H);
+  drawArenaStill(cg, arena, W, H);
   g.drawImage(cv, x, y);
   label(g, `${HEROES[a].name} (PLAYER) VS ${HEROES[b].name}${day ? `, DAY ${day} REFERENCE DECKS` : ", START DECKS"}, ${secs} S`, x, y + H + 3, C.slate4, true);
 }

@@ -13,7 +13,8 @@ import { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
-import { ArenaBg } from "../../render/arenaBg";
+import { SeaBackdrop } from "../../render/backdrop"; // CUSTOM-2a (REVIEW-MOTION2 Q1): the day's sea, held still
+import { seaForDay, stillSeaSeed } from "../../render/motion";
 import { drawScene } from "../../render/scenes";
 import { blockedButton, button, panel, type Rect } from "../../ui/ui";
 import { fightBlock } from "../../game/routeCheck";
@@ -54,7 +55,9 @@ export class EventScreen implements Screen {
   private readonly flash: Record<AnchorKind, number> = { gold: 0, lives: 0, hull: 0, belt: 0, cargo: 0 };
   private readonly anchors = newAnchors();
   private readonly ufx = new Fx();
-  private bg = new ArenaBg();
+  /** CUSTOM-2a (REVIEW-MOTION2 Q1): one world on every screen. The day's sea, held still behind the cards: one cached
+   *  blit a frame (render/backdrop.ts drawStill), as the build screen draws it. No layout or touch target moves. */
+  private sea = new SeaBackdrop();
   private leaving = false;
   private readonly onPick = [0, 1, 2].map((i) => () => this.pick(i));
   private readonly onRefit = () => this.refit();
@@ -185,7 +188,7 @@ export class EventScreen implements Screen {
     const L = (this.L = this.layout());
     const { W, H, portrait, ui } = this.game;
     const run = this.run, ev = run.event!, def = EVENTS[ev.id];
-    this.bg.draw(g, W, H, { hulls: [], vertical: portrait, gapLine: false }, this.t);
+    this.sea.drawStill(g, { W, H, kind: seaForDay(run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
     panel(g, L.panel, "dark");
     const s = L.scene;
     rect(g, s.x - 1, s.y - 1, s.w + 2, s.h + 2, C.ink);

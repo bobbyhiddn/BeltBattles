@@ -7,6 +7,7 @@ import { drawText, textWidth, wrap, type FontId } from "../render/font";
 import { itemIcon } from "../render/sprites";
 import { ITEMS } from "../sim/content";
 import type { PointerKind } from "../core/io"; // shoptap (D1)
+import { panelSkin, type PanelId } from "../render/styles"; // CUSTOM-1 (REQ-BFG-072) hook: stats panel styles
 
 export interface Rect {
   x: number;
@@ -108,6 +109,19 @@ export function panel(g: G, r: Rect, style: PanelStyle = "dark"): void {
     default:
       bevel2(g, x, y, w, h, C.navy, C.slate2, C.slate1, C.ink, C.night, C.slate3);
   }
+}
+
+/**
+ * CUSTOM-1 (REQ-BFG-072) hook, shipped by CUSTOM-2a: a stats panel in a panel style (styles.ts PANELS): the battle plates and the build
+ * screen's part and hero panels. The default ("slate") is panel(g, r, "dark") itself; a style swaps the fill, the bevel
+ * and the rivets, and may add a one-pixel trim inside the bevel. Text keeps its colours: the readability test checks
+ * every number and keyword colour against every fill.
+ */
+export function statsPanel(g: G, r: Rect, id: PanelId = "slate"): void {
+  if (id === "slate") return panel(g, r, "dark");
+  const s = panelSkin(id);
+  bevel2(g, r.x, r.y, r.w, r.h, s.fill, s.hi1, s.hi2, s.lo1, s.lo2, s.rivet);
+  if (s.trim && r.w >= 16 && r.h >= 16) frame(g, r.x + 3, r.y + 3, r.w - 6, r.h - 6, s.trim);
 }
 
 export interface ButtonOpts {

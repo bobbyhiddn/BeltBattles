@@ -2,6 +2,7 @@
 // (the dark wind catches you, on day n). The card lists each day: the road event taken, the
 // dusk opponent and the result, beside the cruiser (rolling victor or smoking wreck).
 
+import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { saveRun, type Run } from "../game/run";
 import { flawless, record } from "../game/day";
@@ -12,16 +13,17 @@ import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
 import { HULL_A, HULL_L, frameForHull, hullBox } from "../render/frame";
-import { cruiserModel, drawDim, drawHull, drawTurrets, type CruiserView } from "../render/cruiser";
+import { cruiserModel, drawTurrets, type CruiserView } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
-import { ArenaBg } from "../render/arenaBg";
 import { SeaBackdrop } from "../render/backdrop"; // MOTION-2 (REQ-BFG-071): the day's sea behind the summary
-import { MOTION, MOTION_KNOBS, seaForDay, stillSeaSeed } from "../render/motion";
+import { seaForDay, stillSeaSeed } from "../render/motion";
 import { dimStillPlate, drawStillCarrier } from "../render/ship"; // MOTION-2: the player's ship, held still
 import { button, panel } from "../ui/ui";
 import { TIER_COLOR, TIER_LABEL, nameColor } from "../ui/captain";
 import type { BattleRecord } from "../sim/battle";
 import { openReplay, replayAt } from "../game/replays";
+import { foldRunEnd } from "../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072): the run's end, folded once
+import { loadProfile, runUnlockNames } from "../game/profile"; // CUSTOM-2a: the summary's NEW STYLE line
 import { PHONE_CSS, TAP_CSS, isPhone, tapPx } from "../ui/tap"; // shoptap (D5): R1's rule, shared
 import { lastChanceTag, LC_STOP } from "./lastChancePicker"; // LC-1 (REQ-BFG-073): the LAST CHANCE row's mark
 import { HeroScreen } from "./hero";
@@ -80,7 +82,12 @@ export function summaryButtonH(v: SummaryView): number {
  * a card too tall for the screen slides up over the cruiser, offline too (R1's slide was for the REPLAY strip only: a
  * 360x640 phone's 20-row card ran 8 px off the screen offline).
  */
-export function summaryLayout(v: SummaryView, fights: number, replays: number): SummaryLayout {
+/** CUSTOM-2a (REQ-BFG-072): a NEW STYLE line's pitch under the lives line. The lines sit in the 21 px the card already
+ *  leaves between the lives line and NEW RUN / TITLE (two lines fit), so the card doesn't move; only above a phone's
+ *  REPLAY strip does the card grow by them (the strip moves down). */
+export const NOTE_H = 8;
+
+export function summaryLayout(v: SummaryView, fights: number, replays: number, notes = 0): SummaryLayout {
   const { W, H, portrait } = v;
   const rows = Math.max(1, fights);
   const w = Math.min(W - 12, 252);
@@ -95,7 +102,10 @@ export function summaryLayout(v: SummaryView, fights: number, replays: number): 
     grid = { cols, bw: Math.floor((inner - (cols - 1) * STRIP_GAP) / cols), bh, S: lines * bh + (lines - 1) * STRIP_GAP };
   }
   // the strip sits between the lives line and NEW RUN / TITLE; shoptap (D5): a phone's taller NEW RUN / TITLE (0 elsewhere)
-  const extra = (grid ? grid.S - 8 : 0) + summaryButtonH(v) - 21;
+  // CUSTOM-2a (REQ-BFG-072): + the NEW STYLE lines where a REPLAY strip takes the room under the lives line (no strip:
+  // they fit in the card's own gap, and the card is exactly as before)
+  const notesH = grid ? notes * NOTE_H : 0;
+  const extra = (grid ? grid.S - 8 : 0) + summaryButtonH(v) - 21 + notesH;
   const rowH = Math.max(6, Math.min(ROW, Math.floor((H - 8 - 110 - extra) / rows)));
   const h = 64 + rows * rowH + 12 + 38 + extra;
   const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.64 - w / 2);
@@ -106,7 +116,7 @@ export function summaryLayout(v: SummaryView, fights: number, replays: number): 
   const hy = Math.round(portrait ? Math.max(6, (y - HULL_L) / 2) : H / 2 - HULL_L / 2);
   let strip: SummaryLayout["strip"] = null;
   if (grid) {
-    const g = grid, top = y + 58 + rows * rowH + 13; // 5 px under the lives line
+    const g = grid, top = y + 58 + rows * rowH + 13 + notesH; // 5 px under the lives line (and the NEW STYLE lines)
     strip = Array.from({ length: replays }, (_, i) => ({
       x: x + 8 + (i % g.cols) * (g.bw + STRIP_GAP), y: top + Math.floor(i / g.cols) * (g.bh + STRIP_GAP), w: g.bw, h: g.bh,
     }));
@@ -131,11 +141,12 @@ export class SummaryScreen implements Screen {
   private run: Run;
   private t = 0;
   private fx = new Fx();
-  private bg = new ArenaBg();
   /** MOTION-2 (REQ-BFG-071): the run's last day's sea, held still (one cached blit a frame). */
   private sea = new SeaBackdrop();
   private view: CruiserView;
   private entered = false;
+  /** CUSTOM-2a (REQ-BFG-072): the styles this run unlocked (the NEW STYLE line), read once on entering. */
+  newStyles: string[] = [];
   /** 0.7.0a M4: per history index, the stored dusk record's replay (online runs only: offline dusks store none). */
   private readonly replays = new Map<number, RowReplay>();
 
@@ -143,6 +154,7 @@ export class SummaryScreen implements Screen {
     this.run = game.run!;
     this.view = {
       side: 0, build: this.run.build, model: cruiserModel(this.run.build), frame: frameForHull(0, 0, 0), t: 0, tread: 0,
+      skin: playerSkin(), // CUSTOM-2a (R11): your deck in your styles
     };
     this.run.history.forEach((d, i) => {
       if (!d.record) return;
@@ -160,9 +172,19 @@ export class SummaryScreen implements Screen {
   enter(): void {
     if (this.entered) return this.game.audio.music(null); // back from a replay: nothing to save or announce again
     this.entered = true;
+    foldRunEnd(this.run); // CUSTOM-2a (REQ-BFG-072): once per run (the battle may have folded it already)
+    this.newStyles = runUnlockNames(loadProfile(), this.run.runId);
     saveRun(null);
     this.game.audio.music(null);
     this.game.audio.play(this.complete ? "win" : "lose");
+  }
+
+  /** CUSTOM-2a (REQ-BFG-072): the NEW STYLE lines: one for each style the run unlocked, two at most (a third and more
+   *  are counted on the second line). */
+  noteLines(): string[] {
+    const n = this.newStyles;
+    if (n.length <= 2) return n.map((name) => `NEW STYLE: ${name}.`);
+    return [`NEW STYLE: ${n[0]}.`, `NEW STYLES: ${n.length - 1} MORE IN CUSTOMIZE.`];
   }
 
   /** 0.7.0a M4 (D6): play history[i]'s stored dusk record, read-only; another rules version is refused with its reason. */
@@ -195,7 +217,7 @@ export class SummaryScreen implements Screen {
   }
 
   private layout(): SummaryLayout {
-    return summaryLayout(this.game.view, this.fights().length, this.replays.size);
+    return summaryLayout(this.game.view, this.fights().length, this.replays.size, this.noteLines().length);
   }
 
   update(dt: number): void {
@@ -220,19 +242,12 @@ export class SummaryScreen implements Screen {
     v.t = this.t;
     v.tread = won ? this.t * 20 : 0;
     // MOTION-2 (REQ-BFG-071): one world on every screen. The run's last day's sea, held still, and the player's own
-    // ship, held still under its board (a lost run's wreck dimmed as before). ?motion=0 (test builds only): 0.9.4's look.
-    const still = !MOTION_KNOBS || MOTION.on;
-    if (still) {
-      this.sea.drawStill(g, { W, H, kind: seaForDay(run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
-      drawStillCarrier(g, v.model.hero, v.frame, won ? 0 : 0.55);
-    } else if (MOTION_KNOBS) {
-      this.bg.draw(g, W, H, { hulls: [hullBox(v.frame)], vertical: true, gapLine: false, pad: { x: hx - 6, y: hy - 6, w: HULL_A + 12, h: HULL_L + 12 } }, this.t);
-      drawHull(g, v);
-    }
+    // ship, held still under its board (a lost run's wreck dimmed as before). CUSTOM-2a (REVIEW-MOTION2 Q2): the only look.
+    this.sea.drawStill(g, { W, H, kind: seaForDay(run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
+    drawStillCarrier(g, v.model.hero, v.frame, won ? 0 : 0.55, v.skin?.floor, v.skin?.carrier); // CUSTOM-3: your carrier style
     drawMachinery(g, v);
     drawTurrets(g, v);
-    if (!won && still) dimStillPlate(g, v.frame, 0.55);
-    else if (!won && MOTION_KNOBS) drawDim(g, v, 0.55);
+    if (!won) dimStillPlate(g, v.frame, 0.55);
     this.fx.draw(g, 0, 0);
     const { x, y, w, h } = card;
     const cx = x + w / 2;
@@ -251,6 +266,9 @@ export class SummaryScreen implements Screen {
       drawText(g, `ON DAY ${run.day} · ${hero} · W-L ${record(run)}`, cx, y + 32, C.slate4, { font: "3", align: "center" });
     }
     this.drawDays(g, x + 8, y + 48, w - 16, rowH, !strip);
+    // CUSTOM-2a (REQ-BFG-072): the styles this run unlocked, under the lives line (TEXT-STYLE 8.3: LABEL: TEXT.)
+    const ny = y + 58 + Math.max(1, this.fights().length) * rowH + 12;
+    this.noteLines().forEach((ln, i) => drawText(g, ln, cx, ny + i * NOTE_H, C.yellow, { font: "3", align: "center" }));
     if (strip) this.drawStrip(g, strip);
     const bh = summaryButtonH(this.game.view); // shoptap (D5): 21 px, and on a phone at least 44 CSS px
     const by = y + h - bh - 6;

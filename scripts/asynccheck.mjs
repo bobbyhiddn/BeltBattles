@@ -60,7 +60,8 @@ const children = new Set(); // the ghost server processes this run started
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 const OLD_KEYS = ["beltbattles.run.v7", "beltbattles.ghosts.v1", "beltbattles.player.v1"]; // what 0.6.2 writes
 const NAME_KEY = "beltbattles.name.v1"; // PACKS M2, REQ-BFG-063, brief P7: the player's name, beside the player id (src/net/names.ts NAME_KEY); oracle b4a1c8fa04a2d404
-const OFFLINE_KEYS = [...OLD_KEYS, NAME_KEY]; // what the offline page may write from 0.8.6 on
+const PROFILE_KEY = "beltbattles.profile.v1"; // CUSTOM-2a (REQ-BFG-072): the player's profile, the one cross-run store (src/game/profile.ts PROFILE_KEY); REVIEW-CUSTOM1 Q1, turn 9ecab1cc78e896d5
+const OFFLINE_KEYS = [...OLD_KEYS, NAME_KEY, PROFILE_KEY]; // what the offline page may write from 0.8.6 on (the profile from CUSTOM-2)
 
 mkdirSync(OUT, { recursive: true });
 const lines = [];

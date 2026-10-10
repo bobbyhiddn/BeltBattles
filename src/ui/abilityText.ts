@@ -28,27 +28,44 @@
 // does), from the catalogue's exported constants, or from SIM below (engine numbers no spec carries, each checked
 // against its source by tests/abilityText.test.ts). Turret modules the turret task adds route their text through here.
 //
-// THE VOCABULARY. Each effect is named once, here, and reads the same everywhere (T5):
+// THE VOCABULARY. Each effect is named once, here, and reads the same everywhere (T5). TXT-AZ (REVIEW-TXT096 Q5): every
+// row read against the code at 0.9.8 (fa1e9ed) and written as the code does it:
 //   DAMAGE      "20 DAMAGE", "105 MORE DAMAGE": whole (NUM-4: fmtDmg). BONUS DAMAGE is what rigs and scrap add to a payload.
-//   BURN        each burn deals the enemy hull 1 damage a second for 3 seconds (BURN_TIME) once its shot lands.
-//   SHOCK       a shocked shot stalls the machine it hits (2 seconds, DISRUPT_TIME, unless a star says longer; NUM-3 step 2: was 1.6).
-//   STALL       a stalled machine stops working for a while. A MACHINE is an enemy rig, factory, turret or belt tile.
+//   BURN        each BURN stack deals the enemy hull BURN_DPS (10) damage a second, once each whole second, for BURN_TIME
+//               (3 seconds; a DRAKE NOZZLE's burnTime, VENOM DRIP's seconds and SLOW EMBERS change it) once its shot lands;
+//               plating soaks it first (Battle.hullEffects). Was "1 damage a second" (NUM-1's x10).
+//   SHOCK       a payload's shock STUNs the part its shot hits, never the hull (Battle.impact -> disrupt, cause "shock"), for
+//               the star's shockTime where it has one (GALVANIC COIL 2 and 3 seconds at 2 and 3 stars, HOT SWAP's SPARK
+//               slugs 3 and 4), else DISRUPT_TIME (2 seconds since NUM-3; was 1.6). SPARK JUMP passes it on (sparkJump); a
+//               BRACE FRAME or STEADY IRON cuts it. The sentences say SHOCK for the payload's effect and STUNS for what it does.
+//   STALL       no sentence says it since the STUN fold (NUM-3): every stop is a STUN (below). It is left in names only:
+//               STALL_WORD (the causes' names, for MANTLET's IGNORES line) and the rune field stallCut (STEADY IRON).
+//   MACHINE     an enemy rig, factory, turret or belt tile: what a STUN, wreck or rip can land on, never the hull
+//               (Battle.acceptHarassment). The kept sentences say MACHINE; the faces and the glossary say PART (glossary.ts:
+//               the PART row, MACHINE and MACHINES its aliases).
 //   STUN        NUM-3 (R1's STUN fold, REQ-BFG-046): every stop is a STUN (Battle.disrupt, one timer): a shock, a stall, a
 //               SABOT, FROSTBITE or DRAG CHAIN round (no FREEZE, CHILL, belt SLOW or SNAG any more); the new sentences
 //               say STUN, STUNS, STUNNED (the glossary folds STALL and SHOCK into it).
-//   FRAY        each fray on the enemy hull makes every later hit deal 0.2 more damage (up to 15 fray).
+//   FRAY        each fray on the enemy hull makes every later hit deal FRAY_BONUS (2) more damage, up to FRAY_MAX (15)
+//               fray. Was 0.2 (NUM-1's x10).
 //   SPEED       a belt "60% FASTER", "3 TIMES AS FAST", "AT HALF SPEED" or "40% SLOWER", from the tile a speed rig hits
 //               on. METRONOME's belts are locked at normal speed: speed rigs add damage there instead.
 //   COPIES      SPLITTER and SORTING ARM make more payloads from one.
 //   LOADS       a turret's chamber holds loads. It fires when the chamber is full or soon after the first load (WINDOW_TIME,
 //               1.5 seconds, a hidden timer; Y7b2: the word LOAD TIME retired, glossary.ts RETIRED). A turret with 4
 //               payloads backed up at its intakes JAMS.
-//   FIRE RATE   "THE TURRET FIRES 33% FASTER": the rate, from the fire interval (x0.75 fires 1 / 0.75 = 33% faster).
-//   HARASSMENT  any STUN, wreck or rip that lands on an enemy machine (NUM-3: no freeze or slow any more).
-//   MARKS       SAP, the one mark left (2 less damage; no piece gives it yet). NUM-3: CHILL and SNAG are gone.
+//   FIRE RATE   "THE TURRET FIRES 33% FASTER": a whole rate % (NUM-2: a gear's or core's fireRate; content.ts rateMul(33)
+//               is 1.33), said through faster(). Was "from the fire interval (x0.75)", the field NUM-2 replaced.
+//   HARASSMENT  retired as a word (Y2; glossary.ts RETIRED): no face or sentence says it. Battle.acceptHarassment still takes
+//               every hostile effect on a MACHINE (any STUN, a SABOT wreck, a GRAPNEL rip, the SAP mark) through TOLLBOOTH,
+//               the belt guards and MANTLET, but only a STUN (STUN_CAUSES) spends a TOLLBOOTH toll or counts for an enemy
+//               SCRAPPER (harassAccepted). Was "any STUN, wreck or rip that lands on an enemy machine".
+//   MARKS       SAP, the one mark left (SIM.sap: 20 less damage, NUM-1's x10 of 2; no piece gives it yet). NUM-3: CHILL and
+//               SNAG are gone.
 // 0.8.0 P1 (wave 3, DESIGN-wave3.md 3.2's glossary; each a shared sentence in S below):
-//   PLATING     plating takes damage and burn before your hull, up to 24 (PLATE_CAP); the dark wind goes straight
-//               through it (S.plating). "20 PLATING", "5 PLATING": whole (NUM-4: fmtDmg), the word PLATING as its unit.
+//   PLATING     plating takes damage and burn before your hull, up to PLATE_CAP (240; NUM-1's x10 of 24); the dark wind
+//               goes straight through it (S.plating). "20 PLATING", "5 PLATING": whole (NUM-4: fmtDmg), the word PLATING as
+//               its unit.
 //   PAIR        two loads that reach one turret through different intakes within 0.25 seconds (SYNC_WINDOW); a FOUNDRY
 //               fusion is a pair (S.pair).
 //   MATCHED     a belt with as many tiles as another belt into the same turret (S.matched).

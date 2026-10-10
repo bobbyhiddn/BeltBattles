@@ -30,7 +30,8 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
   },
   braceframe: { // NUM-4 (REQ-BFG-047, NUM-3 F2): STUNS in the game's desc (was STALLS); the copy follows the desc
     id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", shape: "L",
-    desc: ["ENEMY STUNS ON ITS", "TILES END SOONER,", "SOONER STILL PLATED."], tags: ["PLATE", "HARASS"],
+    // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q2): the copy follows the game's rewritten desc (was "... SOONER STILL PLATED.")
+    desc: ["ENEMY STUNS ON THE", "BELT TILES IT HITS", "END SOONER."], tags: ["PLATE", "HARASS"],
     gate: { brace: { mul: 0.5, plated: 0.25 } },
     levels: { 2: { gate: { brace: { mul: 0.3, plated: 0.15 } } }, 3: { gate: { brace: { mul: 0.15, plated: 0.05 } } } },
   },
@@ -86,7 +87,8 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
   },
   twintrigger: {
     id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
-    desc: ["PAIRED LOADS HIT", "HARDER; A SHORTER", "LOAD TIME."], tags: ["TWIN", "TEMPO"],
+    // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q2): the copy follows the game's rewritten desc (was "... A SHORTER LOAD TIME.")
+    desc: ["PAIRED LOADS IN", "THIS TURRET HIT", "HARDER."], tags: ["TWIN", "TEMPO"],
     mod: { pairBonus: 0.25, windowTime: -0.25 },
     levels: { 2: { mod: { pairBonus: 0.55, windowTime: -0.4 } }, 3: { mod: { pairBonus: 0.88, windowTime: -0.55 } } },
   },

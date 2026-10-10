@@ -17,6 +17,7 @@ import { battleSeed, migrateRun, newRun, pendingRune, saveRun, SAVE_KEY, takeRun
 import { duskFoe, finishDay, ghostOf, startDusk, storedFoe, storeOnlineFoe, ghostName } from "../src/game/day";
 import { GHOST_KEY, loadPool, saveGhost, standInFoe } from "../src/game/ghosts";
 import { PLAYER_KEY, setPlayerName } from "../src/game/ghostSnapshot";
+import { PROFILE_KEY } from "../src/game/profile"; // CUSTOM-2a (REQ-BFG-072): the one profile key (REVIEW-CUSTOM1 Q1, turn 9ecab1cc78e896d5)
 import {
   BUILD_SERVER, FETCH_TIMEOUT_MS, normalizeServerUrl, Online, resolveServerUrl, RUNS_KEY, SERVER_KEY, startOnline, stopOnline,
   UPLOAD_TIMEOUT_MS, type OnlineDeps,
@@ -137,7 +138,8 @@ describe("D3: the server URL setting", () => {
       expect(foes).toBeGreaterThan(1);
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(idb).toBe(0);
-      expect(store.keys().every((k) => [SAVE_KEY, GHOST_KEY, PLAYER_KEY].includes(k))).toBe(true); // 0.6.2's keys only
+      // CUSTOM-2a (REQ-BFG-072): decision D3 amended for exactly one more offline key, the profile (REVIEW-CUSTOM1 Q1, turn 9ecab1cc78e896d5)
+      expect(store.keys().every((k) => [SAVE_KEY, GHOST_KEY, PLAYER_KEY, PROFILE_KEY].includes(k))).toBe(true); // 0.6.2's keys and the profile only
       expect(store.keys()).not.toContain(SERVER_KEY);
       expect(store.keys()).not.toContain(RUNS_KEY);
       expect(run).not.toHaveProperty("seenGhosts");
