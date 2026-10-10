@@ -1735,8 +1735,11 @@ function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
   drawText(g, h.name, r.x + 5, y, C.white, { outline: C.ink });
   drawText(g, h.factionName, r.x + r.w - 5, y + 1, C.slate4, { font: "3", align: "right" });
   y += 11;
-  drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, y, C.yellow, { font: "3" });
-  y += 9;
+  // ZOOM-1 (REQ-BFG-080): a compact card (24-29 px: drawHeroCard) skips the playstyle line; from 30 px, as before
+  if (r.h >= 30) {
+    drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, y, C.yellow, { font: "3" });
+    y += 9;
+  }
   const stats: [string, string, string][] = [
     ["HULL", String(h.hull + b.hullBonus), C.white],
     ["BELT", `${used}/${cap}`, used >= cap ? C.amber : C.white],
@@ -1752,6 +1755,12 @@ function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
     const x2 = r.x + 5 + drawText(g, "RUN", r.x + 5, y, C.slate4, { font: "3" }) + 3;
     drawText(g, `W-L ${record(run)} · ${run.lives}/${START_LIVES} LIVES`, x2, y, C.white, { font: "3" });
   }
+}
+
+/** ZOOM-1 (REQ-BFG-080, call 5): the idle hero card alone, in its compact form where it is 24-29 px tall (chrome.ts: a
+ *  phone's band sized for 90% of the panels; from 30 px drawDetails' idle path draws it, as before). */
+export function drawHeroCard(g: G, ctx: Ctx, r: Rect): void {
+  drawHeroStrip(g, ctx.run, r, skinOf(ctx.skin).panel);
 }
 
 /** The opponent's hero and hull (a ghost's hull includes its own plating). */

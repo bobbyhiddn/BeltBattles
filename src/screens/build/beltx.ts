@@ -15,6 +15,7 @@ import { frame, type G } from "../../render/pixel";
 import { button, type Rect } from "../../ui/ui";
 import { TAP_CSS } from "../../ui/tap";
 import { packRects, type BuildLayout } from "./layout";
+import { screenRect } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
 import type { BeltX } from "./edit";
 
 /** The X's side in logical px: a TAP_CSS CSS px target (`cssPerPx`: the view's CSS px per logical px), at least 14. */
@@ -34,18 +35,18 @@ const hits = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w &
  */
 export function placeBeltX(L: BuildLayout, b: Build, x: BeltX, side: number, turrets: readonly Rect[], keepOut: readonly Rect[] = []): Rect | null {
   const f = L.frame;
-  const tx = Math.round(footX(f, kx(x.cell), ky(x.cell))), ty = Math.round(footY(f, kx(x.cell), ky(x.cell)));
-  const tile: Rect = { x: tx, y: ty, w: 12, h: 12 };
-  const cx = tx + 6, cy = ty + 6;
-  const d1 = 6 + Math.ceil(side / 2) + 1, d2 = d1 + Math.ceil(side / 2);
+  // ZOOM-1 (REQ-BFG-080): the deck's rects on screen, through the carrier's zoom (the identity at k 1)
+  const tile: Rect = beltXTile(L, x);
+  const cx = tile.x + tile.w / 2, cy = tile.y + tile.h / 2;
+  const d1 = tile.w / 2 + Math.ceil(side / 2) + 1, d2 = d1 + Math.ceil(side / 2);
   const dirs: [number, number][] = [[0, -1], [1, 0], [-1, 0], [0, 1], [1, -1], [-1, -1], [1, 1], [-1, 1]];
   // bb-0.8.6 (REQ-BFG-051 P5): and clear of the two fixed pack slots
   const keep: Rect[] = [L.bar, L.info, L.cargo, L.fight, L.reroll, ...L.cards, ...packRects(L), ...(L.foe ? [L.foe] : []), ...keepOut];
   const items = b.items.map((p) => {
     const s = defOf(p).size;
-    return { x: Math.round(footX(f, p.x, p.y, s)), y: Math.round(footY(f, p.x, p.y, s)), w: s * 12, h: s * 12 };
+    return screenRect(L, { x: Math.round(footX(f, p.x, p.y, s)), y: Math.round(footY(f, p.x, p.y, s)), w: s * 12, h: s * 12 });
   });
-  const tiles = b.routes.flatMap((r, i) => (i === x.index ? [] : r.cells.map((k) => ({ x: Math.round(footX(f, kx(k), ky(k))), y: Math.round(footY(f, kx(k), ky(k))), w: 12, h: 12 }))));
+  const tiles = b.routes.flatMap((r, i) => (i === x.index ? [] : r.cells.map((k) => screenRect(L, { x: Math.round(footX(f, kx(k), ky(k))), y: Math.round(footY(f, kx(k), ky(k))), w: 12, h: 12 }))));
   let best: Rect | null = null, bestCost = Infinity;
   for (const d of [d1, d2]) {
     for (const [ux, uy] of dirs) {
@@ -65,7 +66,13 @@ export function placeBeltX(L: BuildLayout, b: Build, x: BeltX, side: number, tur
 
 /** Draw the X (a danger button, its own tap target) and ring the tapped tile in red; `onTap` removes the belt. */
 export function drawBeltX(g: G, ui: Parameters<typeof button>[0], L: BuildLayout, x: BeltX, r: Rect, onTap: () => void): void {
-  const f = L.frame;
-  frame(g, Math.round(footX(f, kx(x.cell), ky(x.cell))), Math.round(footY(f, kx(x.cell), ky(x.cell))), 12, 12, C.red);
+  const t = beltXTile(L, x);
+  frame(g, t.x, t.y, t.w, t.h, C.red);
   button(ui, g, "beltx", r, "X", { danger: true, onTap });
+}
+
+/** ZOOM-1 (REQ-BFG-080): the tapped belt tile's rect on screen (through the carrier's zoom). */
+function beltXTile(L: BuildLayout, x: BeltX): Rect {
+  const f = L.frame;
+  return screenRect(L, { x: Math.round(footX(f, kx(x.cell), ky(x.cell))), y: Math.round(footY(f, kx(x.cell), ky(x.cell))), w: 12, h: 12 });
 }

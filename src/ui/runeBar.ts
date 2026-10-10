@@ -23,6 +23,7 @@ import {
   RUNE_KEYWORD_COLOUR, KEYWORD_WORD, runeInitials, runeKeyword, runeReminderSpans, runeSentenceSpans, runeTaken, tierColour,
 } from "./runeText";
 import { buildLayout, FOE_H, phoneScreen, type BuildLayout } from "../screens/build/layout";
+import { LAND_MIN_H } from "../screens/build/layout"; // ZOOM-1 (REQ-BFG-080): runeRowFits' landscape test, 0.9.8's
 import { cornerTap } from "../screens/build/layout"; // TAP-093b (backlog #340): the corner MENU's finger square
 import { OFFERS } from "../sim/content";
 import type { BuildScreen } from "../screens/build/build";
@@ -84,6 +85,7 @@ export function shiftLayout(L: BuildLayout, dy: number, H: number): BuildLayout 
   return {
     ...L, H, cards: L.cards.map(m), reroll: m(L.reroll), frame: { ...L.frame, dy: L.frame.dy + dy }, hull: m(L.hull), pad: m(L.pad),
     cargo: m(L.cargo), fight: m(L.fight), info: m(L.info), foe: L.foe ? m(L.foe) : null, packs: L.packs.map(m),
+    cam: { ...L.cam, y: L.cam.y + dy }, // ZOOM-1 (REQ-BFG-080): the carrier's pivot moves with its frame
   };
 }
 
@@ -96,7 +98,9 @@ export function runeRowFits(s: Pick<BuildScreen, "run" | "refit" | "offers">, pw
   const phone = dpr !== undefined && phoneScreen(pw, ph, dpr);
   const L = buildLayout(W, H - row, portrait, s.refit ? OFFERS : s.offers().length, phone && portrait, phone ? Math.ceil(TAP_CSS / (scale / dpr!)) : 0);
   const foot = Math.max(L.cargo.y + L.cargo.h, L.fight.y + L.fight.h);
-  return foot <= H - row + 2 && (!portrait || L.info.h >= FOE_H);
+  // ZOOM-1 (REQ-BFG-080): landscape, 0.9.8's test exactly: its cargo tray sat under the hull, so the screen held it where
+  // its height held LAND_MIN_H; the tray now sits under FIGHT and always fits, and the scale stays 0.9.8's
+  return (portrait ? foot <= H - row + 2 : H - row >= LAND_MIN_H) && (!portrait || L.info.h >= FOE_H);
 }
 
 const defsOf = (runes: readonly RuneHeld[] | undefined): RuneDef[] =>

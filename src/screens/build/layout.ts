@@ -3,6 +3,7 @@
 // east (as it fights); portrait bow north. The screen picks its own integer scale.
 
 import type { Rect } from "../../ui/ui";
+import type { G } from "../../render/pixel"; // ZOOM-1 (REQ-BFG-080): inCarrier
 import { HULL_A, HULL_L, frameForHull, hullBox, type DeckFrame } from "../../render/frame";
 import { PHONE_CSS } from "../../ui/tap"; // zoom (REQ-BFG-040)
 import { TAP_CSS } from "../../ui/tap"; // bb-0.8.6 (REQ-BFG-051 P5): the pack slots' finger target
@@ -60,10 +61,84 @@ export interface BuildLayout {
   phone?: true;
   /** bb-0.8.6 (REQ-BFG-051, PACKS P5): the two fixed pack slots, BELT PACK then ARMOR PACK (packRects). */
   packs: Rect[];
+  /** ZOOM-1 (REQ-BFG-080): the carrier's own zoom (CarrierCam). `frame` is in the carrier's space: the layout's px as if
+   *  the carrier drew at the UI's scale; `hull` and `pad` are on screen (the zoomed hull box). k 1: the identity. */
+  cam: CarrierCam;
+}
+
+/**
+ * ZOOM-1 (REQ-BFG-080): the build screen's carrier draws at its own whole device-pixel zoom `z` (BuildScreen.pickSub gives
+ * the canvas a grid fine enough for both it and the UI's scale), scaled by k = z / scale about its pivot (x, y): the hull
+ * box's centre, whole logical px, the same point in the carrier's space and on screen. A carrier-space point c is on
+ * screen at pivot + k (c - pivot) (toScreen); a press goes back through toDeck. k 1 is the identity (today's).
+ */
+export interface CarrierCam {
+  k: number;
+  z: number;
+  x: number;
+  y: number;
+}
+
+/** ZOOM-1: the still carrier's reach about its pivot, art px, measured from render/carrier.ts and ship.ts by
+ *  tests/zoom1.test.ts over every hero in every carrier style (the opaque pixels: the ship, its bow wave and the board
+ *  plate; the shadow, 2-3 px further down and ahead, lies on the water and is left out): the transom 88 behind, the bow
+ *  wave's tip 98 ahead, the flared stern 75 above and 74 below the centre line. */
+export const CARRIER_BACK = 88, CARRIER_AHEAD = 98, CARRIER_UP = 75, CARRIER_DOWN = 74;
+
+/** ZOOM-1: the carrier's box about its pivot (art px; x0, y0 its top-left offset): the ship stern to bow wave, and in
+ *  portrait (bow north) the bow turrets' barrels, BARREL over the hull's bow edge (HULL_L / 2 above the pivot). 187 x 150
+ *  landscape, 187 x 160 portrait. */
+export function carrierBox(portrait: boolean): { x0: number; y0: number; w: number; h: number } {
+  const up = portrait ? Math.max(CARRIER_UP, HULL_L / 2 + BARREL) : CARRIER_UP;
+  return { x0: -CARRIER_BACK, y0: -up, w: CARRIER_BACK + CARRIER_AHEAD + 1, h: up + CARRIER_DOWN + 1 };
+}
+
+/** ZOOM-1 (REQ-BFG-080): the carrier's zoom, device px per art px: the largest whole one at which its box fits `room`
+ *  (logical px at the UI's `scale`), a multiple of `unit` (the canvas grid's device px per canvas px, so each art px is
+ *  whole canvas px), and never below the UI's scale (0.9.8's size). Pure (tests). */
+export function carrierZoom(room: { w: number; h: number }, portrait: boolean, scale: number, unit = 1): number {
+  const b = carrierBox(portrait), u = Math.max(1, unit);
+  const fit = Math.floor(Math.min((room.w * scale) / b.w, (room.h * scale) / b.h) + 1e-9);
+  return Math.max(scale, fit - (fit % u));
+}
+
+/** ZOOM-1: a carrier-space point on screen (logical px). */
+export function toScreen(L: Pick<BuildLayout, "cam">, x: number, y: number): { x: number; y: number } {
+  const c = L.cam;
+  return { x: c.x + c.k * (x - c.x), y: c.y + c.k * (y - c.y) };
+}
+
+/** ZOOM-1: a screen point (logical px, a press) in the carrier's space: what the deck's hit tests read. */
+export function toDeck(L: Pick<BuildLayout, "cam">, x: number, y: number): { x: number; y: number } {
+  const c = L.cam;
+  return { x: c.x + (x - c.x) / c.k, y: c.y + (y - c.y) / c.k };
+}
+
+/** ZOOM-1: a carrier-space rect on screen. */
+export function screenRect(L: Pick<BuildLayout, "cam">, r: Rect): Rect {
+  const p = toScreen(L, r.x, r.y);
+  return { x: p.x, y: p.y, w: r.w * L.cam.k, h: r.h * L.cam.k };
+}
+
+/** ZOOM-1: draw `fn` in the carrier's space (the deck, belts, parts, ship, its labels, cues and effects): scaled by k
+ *  about the pivot. At rest every art px is z / unit whole canvas px (the pivot is whole, k x the canvas grid whole). */
+export function inCarrier(g: G, L: Pick<BuildLayout, "cam">, fn: () => void): void {
+  const c = L.cam;
+  if (c.k === 1) return fn();
+  g.save();
+  g.translate(c.x * (1 - c.k), c.y * (1 - c.k));
+  g.scale(c.k, c.k);
+  try {
+    fn();
+  } finally {
+    g.restore();
+  }
 }
 
 const LAND_MIN_W = 430;
-const LAND_MIN_H = BAR_H + 6 + WIDE_CARD_H + 4 + HULL_A + 3 + CARGO_H + 2;
+/** The smallest landscape screen height (logical px) the build screen lays out at (253). ZOOM-1: exported for
+ *  runeRowFits, which keeps 0.9.8's landscape test (the cargo tray no longer sits under the hull). */
+export const LAND_MIN_H = BAR_H + 6 + WIDE_CARD_H + 4 + HULL_A + 3 + CARGO_H + 2;
 
 /** 0.6.2t (T5): a landscape offer card's width for `offers` cards in `W`: as wide as the row allows (the reroll keeps
  *  CARD_W, 8 px apart), at most WIDE_CARD_MAX_W, never under CARD_W. Exported for the tests. */
@@ -177,6 +252,28 @@ export function phoneBand(W: number): number {
   return W < 194 ? 148 : W < 316 ? 141 : W < 320 ? 134 : 129;
 }
 
+/**
+ * ZOOM-1 (REQ-BFG-080, acceptance 2): the details band a portrait phone's build screen keeps at width `W` (art px) when the
+ * carrier zooms: what at least 90% of the 899 panels a finger can open need to show their full description (fullText) in
+ * the band at that width, measured at every W 186-340 (tests/zoom1.test.ts pins it: the 90th of the sorted heights):
+ * 60 to W 235, 57 at 236-237, 53 at 238-245, 48 at 246-247, 45 from 248. The rest grow over the shop rows (panelArea),
+ * never over the carrier. phoneBand(W), the tallest's need, stays the cap where the screen spares more.
+ */
+export function phoneBand90(W: number): number {
+  return W < 236 ? 60 : W < 238 ? 57 : W < 246 ? 53 : W < 248 ? 48 : 45;
+}
+
+/** ZOOM-1: idle, a phone's band holds NEXT BATTLE (FOE_H) under the hero card, at least HERO_MIN tall (its compact form:
+ *  the name over HULL, BELT and FEEDS; inspector.ts drawHeroStrip), 2 px apart. */
+export const HERO_MIN = 24;
+export const IDLE_MIN = HERO_MIN + 2 + FOE_H;
+
+/** ZOOM-1: a portrait layout's height under the band at carrier zoom k: 1 px, the carrier's box (the barrels' tips to the
+ *  flared stern's last row), the cargo tray right under it and the 3 px foot. 186 at k 1: 0.9.8's (its PORT_BELOW less
+ *  the band's own 2 px), so every layout at k 1, and so every scale pick (buildScale, runeRowFits, phoneBarLift: they lay
+ *  out at k 1), is 0.9.8's band. */
+const portBelow = (k: number): number => 1 + k * carrierBox(true).h + CARGO_H + 3;
+
 /** The build screen's layout. zoom (REQ-BFG-040, D2): `phone`, a portrait phone's (phoneScreen): the shop's slots in
  *  balanced rows (five offers and the reroll 3 + 3, not 4 + 2: perRow = ceil(slots / rows)); the details band takes the
  *  room the zoom frees, up to phoneBand(W), the hull centred in what is left as before; the idle hero card and NEXT
@@ -184,7 +281,15 @@ export function phoneBand(W: number): number {
  *  TAP-093 (backlog #340, REQ-BFG-040): `lift`, on a portrait phone's layout, the px the top bar grows (phoneBarLift: so
  *  its buttons' targets are a finger's tall); the shop and everything under it move down by it and the band keeps its
  *  height (the caller lifts only where the screen spares that much). 0, the default, is exactly as before. */
-export function buildLayout(W: number, H: number, portrait: boolean, offers: number, phone = false, tap = 0, lift = 0): BuildLayout {
+export function buildLayout(W: number, H: number, portrait: boolean, offers: number, phone = false, tap = 0, lift = 0,
+  grid?: { scale: number; unit: number }): BuildLayout {
+  // ZOOM-1 (REQ-BFG-080): `grid`, the view's device px per logical px (the UI's scale) and per canvas px (BuildScreen's
+  // canvas grid): the carrier takes the largest whole zoom whose box fits the room the UI leaves (carrierZoom). Absent
+  // (the scale picks, the tests' layouts): the carrier at the UI's scale, k 1.
+  const zoomIn = (room: { w: number; h: number }, port: boolean): CarrierCam => {
+    const z = grid ? carrierZoom(room, port, grid.scale, grid.unit) : 1;
+    return { k: grid ? z / grid.scale : 1, z: grid ? z : 0, x: 0, y: 0 };
+  };
   const up = portrait && phone ? Math.max(0, lift) : 0;
   const bar: Rect = { x: 0, y: 0, w: W, h: BAR_H + up };
   const slots = offers + 1; // + reroll
@@ -211,31 +316,39 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
     const colL = Math.min(136, Math.round(W * 0.28));
     const colR = Math.min(150, Math.round(W * 0.3));
     const top = cy + WIDE_CARD_H + 5;
-    const avail = H - top - CARGO_H - 4;
-    const hy = top + Math.max(0, Math.floor((avail - HULL_A) / 2));
     const cx0 = 6 + colL, cx1 = W - 6 - colR;
-    const hx = Math.round((cx0 + cx1) / 2 - HULL_L / 2);
-    const frame = frameForHull(1, hx, hy);
-    const hull = hullBox(frame);
-    const cw = Math.min(cx1 - cx0 - 8, 200);
-    const cargo: Rect = { x: Math.round((cx0 + cx1) / 2 - cw / 2), y: hull.y + HULL_A + 3, w: cw, h: CARGO_H };
+    // ZOOM-1 (REQ-BFG-080, call 4): the carrier alone in the middle column, from under the shop row to 2 px off the foot
+    // (the cargo tray moves to the right column, under FIGHT), at the largest zoom whose box fits there; its box centred
+    const box = carrierBox(false);
+    const cam = zoomIn({ w: cx1 - cx0, h: H - 2 - top }, false);
+    cam.x = Math.round((cx0 + cx1) / 2 - cam.k * (box.x0 + box.w / 2));
+    cam.y = Math.round((top + H - 2) / 2 - cam.k * (box.y0 + box.h / 2));
+    const frame = frameForHull(1, cam.x - HULL_L / 2, cam.y - HULL_A / 2);
+    const hull = screenRect({ cam }, hullBox(frame));
     const rx = cx1 + 4, rw = colR - 4;
-    const fight: Rect = { x: rx, y: Math.round(hull.y + HULL_A / 2 - 16), w: rw, h: 32 }, foe: Rect = { x: rx, y: top, w: rw, h: 40 };
+    // FIGHT beside the bow, at the hull's middle as before; NEXT BATTLE at the column's top
+    const fight: Rect = { x: rx, y: Math.round(cam.y - 16), w: rw, h: 32 }, foe: Rect = { x: rx, y: top, w: rw, h: 40 };
+    // ZOOM-1: the cargo tray under FIGHT, two rows of slots (the column holds 6-7 a row; 0.9.8's tray under the hull held
+    // up to 10), else (a short screen) one row; never past the foot
+    const two = fight.y + fight.h + 4 + CARGO_H + 19 <= H - 2;
+    const cargo: Rect = { x: rx, y: Math.min(fight.y + fight.h + 4, H - 2 - CARGO_H), w: rw, h: CARGO_H + (two ? 19 : 0) };
     // bb-0.8.6 (PACKS P5): the packs: a desk's stacked column right of REROLL; a landscape phone's two side by side
+    // (ZOOM-1: a landscape phone's that go elsewhere keep clear of the cargo tray under FIGHT as of FIGHT itself)
     const px = reroll.x + reroll.w + GAP;
     const packs: Rect[] = !lr.side
       ? stacked(px, reroll.y, lr.packW, reroll.h)
       : !away
         ? [{ x: px, y: reroll.y, w: lr.packW, h: reroll.h }, { x: px + lr.packW + GAP, y: reroll.y, w: lr.packW, h: reroll.h }]
-        : landPacksAway(W, H, foe, fight, Math.max(tap, PACK_MIN_W));
+        : landPacksAway(W, H, foe, { ...fight, h: cargo.y + cargo.h - fight.y }, Math.max(tap, PACK_MIN_W));
     return {
       W, H, portrait, bar, cards, reroll, perRow: slots, tags, frame, hull,
       pad: { x: hull.x - 5, y: hull.y - 5, w: hull.w + 10, h: hull.h + 10 },
       cargo,
       fight,
-      info: { x: 6, y: top, w: colL - 8, h: cargo.y + CARGO_H - top },
+      info: { x: 6, y: top, w: colL - 8, h: H - 2 - top },
       foe,
       packs,
+      cam,
     };
   }
   const fit = Math.max(1, Math.floor((W - 8 + GAP) / (CARD_W + GAP)));
@@ -271,32 +384,48 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
       : [{ x: rowX, y: rowY, w: packW, h: packH }, { x: rowX + packW + GAP, y: rowY, w: packW, h: packH }];
   // Band between the shop and the bow turrets' barrel tips: idle it holds the hero card over
   // the NEXT BATTLE panel; a selection or hover shows the details panel across all of it.
-  const fixedBelow = PORT_BELOW;
-  const spare = Math.max(0, H - shopBottom - fixedBelow);
+  // ZOOM-1 (REQ-BFG-080): the band keeps at least `least` (a phone's: what 90% of the panels need, phoneBand90, and the
+  // idle pair; elsewhere PORT_BAND, as before); the carrier takes the largest zoom whose box fits what is left (the
+  // screen's width, the height under that band); the band then takes what the zoom leaves, up to its cap (phoneBand(W),
+  // the tallest panel's need; PORT_BAND), and the carrier is centred in the rest. At k 1 every number is 0.9.8's.
+  const infoY = shopBottom + 2;
+  const box = carrierBox(true);
+  const least = phone ? Math.max(phoneBand90(W), IDLE_MIN) : PORT_BAND;
+  const cam = zoomIn({ w: W, h: H - infoY - least - portBelow(0) }, true);
+  const k = cam.k;
+  const spare = Math.max(0, Math.floor(H - infoY - portBelow(k) + 1e-9)); // whole px (k x the box may not be)
   // zoom (D2): a phone's band takes the room the zoom frees, up to what its tallest panel needs (phoneBand)
   const band = Math.min(phone ? phoneBand(W) : PORT_BAND, spare);
-  const info: Rect = { x: 3, y: shopBottom + 2, w: W - 6, h: band };
+  const info: Rect = { x: 3, y: infoY, w: W - 6, h: band };
   // zoom: idle, the hero card over NEXT BATTLE (PORT_BAND tall together) sits in the middle of a taller band
   const idle = Math.max(0, Math.floor((band - PORT_BAND) / 2));
-  const hy = info.y + band + 2 + BARREL + Math.floor((spare - band) / 2);
-  const frame = frameForHull(0, Math.round(W / 2 - HULL_A / 2), hy);
-  const hull = hullBox(frame);
+  // the box's top 1 px under the band, centred in what is left; its pivot on whole px (rounded down: the box never
+  // reaches up into the band)
+  const boxTop = info.y + band + 1 + Math.floor((spare - band) / 2);
+  cam.x = Math.round(W / 2 - k * (box.x0 + box.w / 2));
+  cam.y = Math.ceil(boxTop - k * box.y0 - 1e-9);
+  const frame = frameForHull(0, cam.x - HULL_A / 2, cam.y - HULL_L / 2);
+  const hull = screenRect({ cam }, hullBox(frame));
   const fw = Math.min(64, Math.round(W * 0.36));
-  const ry = hull.y + HULL_L + 4;
+  // the cargo tray and FIGHT right under the box's last row (the flared stern)
+  const ry = Math.min(H - 3 - CARGO_H, Math.ceil(cam.y + k * (box.y0 + box.h) - 1e-9));
   return {
     W, H, portrait, bar, cards, reroll, perRow, tags, frame, hull,
     pad: { x: hull.x - 3, y: hull.y - 4, w: hull.w + 6, h: hull.h + 8 },
     cargo: { x: 3, y: ry, w: W - fw - 9, h: CARGO_H },
-    fight: { x: W - fw - 3, y: ry - 1, w: fw, h: CARGO_H + 2 },
+    // ZOOM-1: FIGHT from the tray's top (was 1 px above it, on the flared stern's last row), 1 px off the screen's foot
+    fight: { x: W - fw - 3, y: ry, w: fw, h: CARGO_H + 2 },
     info,
     foe: band >= FOE_H ? { x: info.x, y: info.y + idle + Math.min(band, PORT_BAND) - FOE_H, w: info.w, h: FOE_H } : null,
     ...(phone ? { phone: true as const } : {}),
     packs,
+    cam,
   };
 }
 
-/** A portrait layout's fixed height under the shop, the band aside: the band's 2 px, the barrels, the hull, the cargo. */
-const PORT_BELOW = 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
+/** A portrait layout's fixed height under the shop at k 1, the band aside: the band's 2 px and portBelow(1) (0.9.8's
+ *  2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3). */
+const PORT_BELOW = 2 + 186;
 
 /**
  * TAP-093 (backlog #340, REQ-BFG-040; the brief's means 1): how far a portrait phone's top bar grows (buildLayout's `lift`)
@@ -392,7 +521,8 @@ export function heroCardRect(info: Rect, foe: Rect): Rect {
 export function panelRect(L: BuildLayout, grow: "up" | "down", h: number = PORT_BAND): Rect {
   const a = L.info;
   if (!L.portrait || a.h >= h) return a;
-  const top = L.bar.y + L.bar.h + 1, bottom = L.cargo.y - 2;
+  // ZOOM-1 (REQ-BFG-080, call 5): grown up, a panel ends at the band's foot: it never reaches down over the carrier
+  const top = L.bar.y + L.bar.h + 1, bottom = grow === "up" ? a.y + a.h : L.cargo.y - 2;
   const ph = Math.min(h, bottom - top);
   const y = Math.max(top, Math.min(bottom - ph, grow === "down" ? a.y : a.y + a.h - ph));
   return { x: a.x, y, w: a.w, h: ph };
@@ -413,9 +543,17 @@ export const PANEL_STEP = 6;
  */
 export function panelArea(L: BuildLayout, sel: Sel, o: { touch: boolean; hover: boolean; busy: boolean }, fit: (r: Rect) => boolean | null): Rect {
   if (!L.portrait || !o.touch || o.hover || o.busy || sel.kind === "none") return L.info;
-  const grow = sel.kind === "offer" ? "down" : "up";
-  const most = L.cargo.y - 2 - (L.bar.y + L.bar.h + 1);
-  for (let h = Math.max(PORT_BAND, L.info.h); ; h += PANEL_STEP) {
+  // ZOOM-1 (REQ-BFG-080, call 5): every panel grows up over the shop rows (a shop card's grew down over the bow: the
+  // carrier now fills that room), never over the carrier; a press on what it covers still reaches what is under it
+  // (chrome.ts `through`). On a phone's layout the band is sized for 90% of the panels (phoneBand90): a panel that shows
+  // whole there stays in it, the rest grow from the band's height
+  const grow = "up";
+  const most = L.info.y + L.info.h - (L.bar.y + L.bar.h + 1);
+  if (L.phone) {
+    const f0 = fit(L.info);
+    if (f0 === null || f0) return L.info;
+  }
+  for (let h = L.phone ? L.info.h + PANEL_STEP : Math.max(PORT_BAND, L.info.h); ; h += PANEL_STEP) {
     const r = panelRect(L, grow, h), f = fit(r);
     if (f === null) return L.info;
     if (f || r.h >= most) return r;
