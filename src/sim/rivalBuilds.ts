@@ -117,6 +117,10 @@ export interface RivalPlan {
   // so every other part keeps its uid; each at its own day and luck (`luck`, `sooner`; `dusk`: the dusk deck alone). Off:
   // never read, so every deck is exactly as before
   road?: Upgrade[];
+  // REFIT-AZ (BRIEF-REFIT-AZ "Targets" 1, the walls; "Levers": an NPC-day re-plan within the budget): the road-deck days on
+  // which, with the NPC day on, the gold levels keep the room the deck has without its road additions (planBuild's levels
+  // rule before round 3), so that day's levels come when the road-less plan bought them. Off: never read
+  roadLevelsHeld?: readonly number[];
 }
 
 /**
@@ -134,15 +138,16 @@ export type RoadMoment = "warlord" | "dusk";
  * roadDropValue) at the moment the deck is fought (RoadMoment), rounded down. With the NPC day on, a captain-day may hold
  * maxGoldByDay(d) + its runes' dawn gold + ROAD(d, moment) (roadAllowance), and the captains' budget checks add it; a
  * ceiling, not a quota. Off: never read.
- * Provenance: table A1, provisional (BRIEF-REFIT-AZ 2 and step 3c): the median over runs of each run's own road value at
- * the moment, rounded down (kit-refitaz/roadtable.mjs), from the parday probe (kit-refitaz/probes/parday.ts, 4 heroes x
- * seeds 1-96, every switch on) on REFIT-AZ's round-2 work tree (output-refitaz/probes/r2); warlord: gold by dusk d-1 +
- * drops by dusk d-1; dusk: gold by dusk d-1 + drops by dusk d. It replaced A0 (PAR-AZ's REPORT (c)1 per-run means at
- * parAZ-accepted 5c57914: warlord 0 6 12 17 22 28 34 40 47 53, dusk 2 8 14 19 24 31 37 43 49 56).
+ * Provenance: the final table A (= A2; BRIEF-REFIT-AZ 2 and step 3c, BRIEF-REFIT-AZ-R1 restart 3): the median over runs
+ * of each run's own road value at the moment, rounded down (kit-refitaz/roadtable.mjs), from the parday probe
+ * (kit-refitaz/probes/parday.ts, 4 heroes x seeds 1-96 = 384 runs, every switch on) at refitaz 683cd5b, REFIT-AZ's round 3
+ * (output-refitaz/probes/r3); warlord: gold by dusk d-1 + drops by dusk d-1; dusk: gold by dusk d-1 + drops by dusk d.
+ * The last table-setting read. Before it: A0 (PAR-AZ's REPORT (c)1 per-run means at parAZ-accepted 5c57914: warlord 0 6 12
+ * 17 22 28 34 40 47 53, dusk 2 8 14 19 24 31 37 43 49 56) and A1 (round 2's read: as A2 but dusk day 8 39).
  */
 export const NPC_ROAD: Readonly<Record<RoadMoment, readonly number[]>> = {
   warlord: [0, 7, 14, 18, 22, 27, 33, 38, 42, 46],
-  dusk: [3, 10, 15, 20, 24, 29, 35, 39, 44, 48],
+  dusk: [3, 10, 15, 20, 24, 29, 35, 40, 44, 48],
 };
 
 /** REFIT-AZ: ROAD(day, moment) with the NPC day on (days past 10 read day 10's), 0 with it off: what a captain deck may hold
@@ -151,6 +156,44 @@ export function roadAllowance(day: number, moment: RoadMoment): number {
   if (!npcDayRules()) return 0;
   const d = Math.max(1, Math.min(NPC_ROAD[moment].length, Math.floor(day)));
   return NPC_ROAD[moment][d - 1];
+}
+
+/** REFIT-AZ: the luck caps' tiers a road count allowance reads (src/sim/harness/luck.ts: ordinary P50, good P90). */
+export type RoadCountTier = "ordinary" | "good";
+type RoadCountRow = Readonly<{ rare: readonly number[]; epic: readonly number[] }>;
+
+/**
+ * REFIT-AZ (REQ-BFG-078, REQ-BFG-024; REVIEW-PARAZ ruling Q1; rulings 388faa07f0f451d1 and b77171cd5288623a): THE ROAD COUNT
+ * ALLOWANCE, ROADN(hero, day, tier) (index day - 1): how many more rare-or-better and epic-or-better parts (luck.ts
+ * LuckMeasures rare / epic) the road-fed par field holds than the road-less one the luck caps were measured on. With the
+ * NPC day on, the captains' luck-cap checks add it to the cap's `rare` and `epic` of the cell they already read
+ * (capsOf(id, day, tier), the deck's hero): a Hard warlord deck `good`; an Easy warlord deck and every captain's stand-in
+ * dusk deck `ordinary`; a Medium warlord deck none (388 item 4: par fights them, and table A is set); the Iron Matriarch has
+ * no luck-caps check. Only the checks read it (tests/captains.luck's two overCaps lines, kit-refitaz capsearch check and
+ * fill), never a deck; star2, star3, turrets, the value (that is ROAD's) and the ARMOR PACK count are not in it. Off: 0.
+ * Provenance (ruling b77171cd5288623a item 1): for hero h, day d, tier t, measure m: own = max(0, the road-fed cap - the
+ * committed cap); pooled = the median of own over the four heroes, rounded down; ROADN = min(pooled, own) (so cap + ROADN
+ * never exceeds that hero's own road-fed cap). The road-fed caps: kit-refitaz/probes/roadcaps.ts (luckCapsTable(), seeds
+ * 1-48 a hero, P50 / P90, every switch on: setHullScale, setLadderFix, setNpcDay) at refitaz 683cd5b, table A2's own par
+ * state (output-refitaz/base/roadcaps-683cd5b.json; `bash kit-refitaz/probe1.sh roadcaps 683cd5b --json ...`), clamped by
+ * `node kit-refitaz/roadncaps.mjs` on it; the committed caps: luckCapsData.ts, IDENTICAL to that commit's switch-off
+ * `npm run luckcaps -- --check` (the subtraction holds only then). Pooled rows: ordinary rare 0 0 0 0 1 1 2 1 1 2, epic 0;
+ * good rare 0 0 1 1 1 2 1 2 2 3, epic 0 0 0 0 1 0 0 0 0 0.
+ */
+export const NPC_ROAD_COUNT: Readonly<Record<"furnace" | "weaver" | "foundry" | "bastion", Readonly<Record<RoadCountTier, RoadCountRow>>>> = {
+  furnace: { ordinary: { rare: [0, 0, 0, 0, 1, 1, 2, 1, 1, 1], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, good: { rare: [0, 0, 1, 1, 1, 2, 1, 2, 2, 1], epic: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0] } },
+  weaver: { ordinary: { rare: [0, 0, 0, 0, 1, 1, 2, 1, 1, 2], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, good: { rare: [0, 0, 1, 0, 0, 1, 1, 2, 2, 3], epic: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0] } },
+  foundry: { ordinary: { rare: [0, 0, 0, 0, 1, 1, 2, 1, 1, 2], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, good: { rare: [0, 0, 1, 1, 1, 2, 1, 2, 2, 3], epic: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0] } },
+  bastion: { ordinary: { rare: [0, 0, 0, 0, 1, 1, 1, 1, 1, 2], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, good: { rare: [0, 0, 1, 1, 1, 2, 1, 2, 2, 3], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] } },
+};
+
+/** REFIT-AZ: ROADN(hero, day, tier) with the NPC day on (days past 10 read day 10's; a hero outside the table 0), 0 with it
+ *  off: what a captain deck's luck-cap check adds to the cap's rare and epic (the checks only; see NPC_ROAD_COUNT). */
+export function roadCountAllowance(hero: string, day: number, tier: RoadCountTier): { rare: number; epic: number } {
+  const t = (NPC_ROAD_COUNT as Record<string, Readonly<Record<RoadCountTier, RoadCountRow>> | undefined>)[hero]?.[tier];
+  if (!npcDayRules() || !t) return { rare: 0, epic: 0 };
+  const d = Math.max(1, Math.min(t.rare.length, Math.floor(day)));
+  return { rare: t.rare[d - 1], epic: t.epic[d - 1] };
 }
 
 export interface RivalLoadout {
@@ -228,8 +271,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(8, G(9, "overclocker", 0, 1)), G(10, "quench", 2, 0), P(10),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [M(2, "mantlet", 1), M(3, "pressure", 2), G(3, "grease", 6, 1, 2), P(6), G2(6, "temper", 0, 0), P(7), P(8, 2), P(9), P(10)],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [M(2, "mantlet", 1), M(3, "pressure", 2), G(3, "grease", 6, 1, 2), { ...G(5, "counterweight", 7, 0), dusk: true }, P(6), G2(6, "temper", 0, 0), P(7), P(8, 2), P(9), P(10)],
   },
   // PRESS GANG: a DOUBLE STAMP (a rare stamp press) beside the kiln feeds the heavy turret's second intake from day 1.
   // Synergy: the DOUBLE STAMP and a WHETSTONE on its belt from day 2 (2 stars from day 7), with a temper beside it (2
@@ -251,7 +295,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G2(7, "whetstone", 6, 0), M(8, "drake", 0), G(9, "surge", 9, 4, 1), P(9), G(10, "longhaul", 3, 0), P(10),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
     road: [P(4), P(6), G(6, "temper", 7, 4), G(6, "tollbooth", 8, 4), P(7), P(8, 2), G2(9, "keg", 5, 2), P(10), G(10, "whetstone", 3, 1, 1), G(10, "grease", 5, 4, 3)],
   },
   // OVERCLOCK: a short kiln belt with a whetstone, a counterweight and a brake (2 stars from day 7). Synergy: a
@@ -283,7 +328,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G(10, "longhaul", 5, 4), P(10),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
     road: [P(4), P(5), P(6), P(7), G(7, "brake", 3, 4, 1), P(8), G2(9, "temper", 3, 3), G(9, "temper", 5, 2, 3), G(9, "grease", 2, 5, 1), P(10)],
   },
   // HARD ELITE, FRAY STORM: a loom with a centre bolt and two long swept wings, two armor plates (days 2 and 3).
@@ -335,7 +381,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // par field's 4 / 8 packs: one PvE plate each day (60% and 56%; walls day 7 71 / 98 -> 61 / 96, day 10 74 / 97 -> 70 / 92)
     pve: { 7: 1, 10: 1 },
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
     road: [{ ...M(1, "rotary", 0), dusk: true }, { ...M(2, "mantlet", 1), dusk: true }, { ...G(2, "grease", 3, 3, 1), dusk: true }, ...good(G2(2, "barbed", 3, 0)), ...good(G(2, "grease", 3, 3, 1)), { ...M(3, "pressure", 2), dusk: true }, ...good(M(3, "mantlet", 1)), ...good(M(3, "rotary", 0)), { ...G2(4, "temper", 3, 1), dusk: true }, ...good(G2(4, "grease", 3, 3)), { ...P(5), dusk: true }, ...good(P(5)), { ...G2(6, "barbed", 3, 0), dusk: true }, ...good(G2(6, "longhaul", 5, 0)), { ...P(7), dusk: true }, ...good(G(7, "whetstone", 3, 2, 1)), ...good(G(7, "tollbooth", 5, 2, 3)), ...good(P(8)), { ...P(9), dusk: true }, { ...G2(9, "staticbrush", 0, 1), dusk: true }, { ...G(9, "tollbooth", 3, 2, 1), dusk: true }, ...good(G(9, "grease", 5, 3, 3)), { ...G(10, "temper", 2, 0, 3), dusk: true }, ...good(G(10, "temper", 2, 1, 3))],
   },
   // ---------------------------------------------------------------- Medium (tier 2)
@@ -362,8 +409,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(7, G(8, "longhaul", 2, 3)), P(8), G(9, "venom", 3, 5, 1), P(9, 2),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [M(2, "mantlet", 0), P(4), G2(4, "bellows", 5, 2), G(4, "grease", 2, 2, 1), G(5, "brake", 0, 5, 1), G(6, "tollbooth", 1, 3, 2), P(7), G2(9, "quench", 3, 0), P(10, 2)],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [M(2, "mantlet", 0), P(4), G2(4, "bellows", 5, 2), G(4, "grease", 2, 2, 1), G(5, "brake", 0, 5, 1), G(6, "tollbooth", 1, 3, 2), { ...G(6, "overclocker", 0, 4), dusk: true }, P(7), G2(9, "quench", 3, 0), P(10, 2)],
   },
   // SHOCK TROOPER: synergy: a GALVANIC COIL on the kiln belt from day 1 (2 stars from day 7) stalls the enemy
   // machinery, a LODESTONE from day 3 hits harder for every stalled machine, and a TESLA core from day 6 arcs to the
@@ -391,8 +439,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G2(7, "coil", 3, 1), soon(7, M(8, "tesla", 0)), G2(8, "temper", 3, 0), P(9, 3), P(10),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [M(2, "mantlet", 0), G(3, "grease", 4, 4, 2), P(4), P(6), P(7), G(8, "temper", 2, 1, 2), G2(9, "longhaul", 4, 3), P(10)],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [M(2, "mantlet", 0), G(3, "grease", 4, 4, 2), P(4), { ...G(5, "counterweight", 3, 3, 1), dusk: true }, P(6), P(7), G(8, "temper", 2, 1, 2), G2(9, "longhaul", 4, 3), { ...G(9, "venom", 1, 2), dusk: true }, P(10), { ...G(10, "staticbrush", 1, 4), dusk: true }],
   },
   // SPLITTER SWARM: synergy: a WHETSTONE from day 1 ahead of the SPLITTER, so both copies gain it. Splitters are epics,
   // so at ordinary luck they come later: one on the centre belt on day 6 (2 stars on day 8), another on day 9. Until
@@ -412,8 +461,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G(8, "brake", 0, 0, 1), P(8, 2), P(10, 2),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [G(2, "tollbooth", 5, 0, 3), M(2, "mantlet", 1), M(3, "rotary", 2), P(4), G2(4, "temper", 3, 1), M(5, "pressure", 0), P(7), G(8, "temper", 5, 3, 3), P(9), G2(9, "venom", 3, 2)],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [G(2, "tollbooth", 5, 0, 3), M(2, "mantlet", 1), M(3, "rotary", 2), P(4), G2(4, "temper", 3, 1), M(5, "pressure", 0), { ...G(6, "bellows", 9, 0), dusk: true }, P(7), G(8, "temper", 5, 3, 3), P(9), G2(9, "venom", 3, 2), { ...G(10, "barbed", 2, 0), dusk: true }],
   },
   // EMBER WEAVE: synergy: a TEMPER on the centre thread from day 1 (2 stars from day 4), a DRAKE core from day 3 (flat
   // damage turns to burn), BELLOWS on the right thread from day 5 and a second temper on the left from day 6: from
@@ -442,8 +492,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(7, G(9, "staticbrush", 3, 2)), P(9), G(10, "longhaul", 3, 1), P(10, 2),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [M(2, "mantlet", 1), M(2, "rotary", 2), G(5, "brake", 6, 4, 2), G(5, "grease", 9, 2, 3), P(6), P(7), G(7, "tollbooth", 0, 0, 1), P(8), G2(9, "venom", 3, 0), G(10, "whetstone", 5, 1, 3)],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [M(2, "mantlet", 1), M(2, "rotary", 2), G(5, "brake", 6, 4, 2), G(5, "grease", 9, 2, 3), { ...G(5, "keg", 7, 0), dusk: true }, P(6), P(7), G(7, "tollbooth", 0, 0, 1), P(8), G2(9, "venom", 3, 0), G(10, "whetstone", 5, 1, 3), { ...G(10, "venom", 5, 2), dusk: true }],
   },
   // HARD ELITE, IRONCLAD: three armor plates (days 3, 4 and 5) and a braked cooker behind them. Synergy: a BRAKE SHOE
   // on the kiln belt from day 1 (slugs ride twice as long) and a HEAT JACKET from day 4 (damage per second ridden),
@@ -503,8 +554,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       ...good(T(10, "swivel", 1), X(10, F("dragchain", 6, 1, [8, 1, "U"]))), soon(6, G(10, "grease", 1, 4, 1)),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [{ ...G2(4, "keg", 3, 0), dusk: true }, ...good(G(4, "brake", 3, 6)), { ...P(6), dusk: true }, { ...G2(6, "temper", 2, 1), dusk: true }, ...good(P(6)), { ...P(8), dusk: true }, ...good(P(8)), ...good(G2(8, "temper", 2, 1)), { ...G(9, "temper", 5, 2, 3), dusk: true }, { ...G(9, "whetstone", 1, 3, 1), dusk: true }, { ...G(9, "tollbooth", 3, 3), dusk: true }, { ...P(10, 2), dusk: true }, ...good(P(10, 2))],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [{ ...G2(4, "keg", 3, 0), dusk: true }, ...good(G(4, "brake", 3, 6)), { ...P(6), dusk: true }, { ...G2(6, "temper", 2, 1), dusk: true }, ...good(P(6)), { ...P(8), dusk: true }, ...good(P(8)), ...good(G2(8, "temper", 2, 1)), { ...G(9, "temper", 5, 2, 3), dusk: true }, { ...G(9, "whetstone", 1, 3, 1), dusk: true }, { ...G(9, "tollbooth", 3, 3), dusk: true }, { ...G(9, "sorting", 4, 3), dusk: true }, { ...P(10, 2), dusk: true }, { ...G(10, "barbed", 1, 5), dusk: true }, ...good(P(10, 2))],
   },
   // ---------------------------------------------------------------- Hard (tier 3)
   // STATIC WEB: an off-centre loom and a wide loop. Synergy: GALVANIC COILS, one from day 1 (2 stars from day 4) and a
@@ -564,9 +616,14 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // e2ca295ce9dcd60a rule 5: fallback 2 is trimmed first): the day-5 plate goes (1 -> 0). With it the par field's top
     // quartile beat her day-5 road deck 38% of the time (FURNACE; 44% at 1210ee8, 44 at 0.9.4); without it 51%
     pve: { 4: 1, 8: 2 },
+    // REFIT-AZ-R1 (the walls, BRIEF-REFIT-AZ target 1; kit tqprobe K 24, every switch on, on round 3's par field): the FURNACE
+    // par field's top quartile beat her day-6 road deck 35% of the time (base 70, rule 40+); with her day-6 levels held
+    // (roadLevelsHeld: the FACTORY level 2 on day 7 again, as the road-less plan) 55% (her road deck 69 -> 47% on day 6)
+    roadLevelsHeld: [6],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [{ ...M(1, "rotary", 0), dusk: true }, { ...P(2), dusk: true }, ...good(P(2)), { ...M(3, "mantlet", 1), dusk: true }, ...good(G2(3, "temper", 5, 0)), ...good(M(3, "mantlet", 1)), { ...P(4), dusk: true }, { ...P(5), dusk: true }, ...good(P(5)), { ...G2(6, "temper", 5, 0), dusk: true }, { ...G(6, "temper", 5, 1, 3), dusk: true }, { ...G(7, "tollbooth", 3, 2, 1), dusk: true }, { ...G(7, "grease", 5, 4, 3), dusk: true }, ...good(M(7, "rotary", 0)), ...good(G(7, "brake", 7, 5, 2)), ...good(P(9)), ...good(G(10, "temper", 5, 2, 3)), ...good(G(10, "tollbooth", 5, 3, 3))],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [{ ...M(1, "rotary", 0), dusk: true }, { ...P(2), dusk: true }, ...good(P(2)), { ...M(3, "mantlet", 1), dusk: true }, ...good(G2(3, "temper", 5, 0)), ...good(M(3, "mantlet", 1)), { ...P(4), dusk: true }, { ...P(5), dusk: true }, ...good(P(5)), { ...G2(6, "temper", 5, 0), dusk: true }, { ...G(6, "temper", 5, 1, 3), dusk: true }, { ...G(7, "tollbooth", 3, 2, 1), dusk: true }, { ...G(7, "grease", 5, 4, 3), dusk: true }, ...good(M(7, "rotary", 0)), ...good(G(7, "brake", 7, 5, 2)), { ...G(8, "venom", 5, 2), dusk: true }, ...good(P(9)), { ...G(10, "splitter", 5, 3), dusk: true }, ...good(G(10, "temper", 5, 2, 3)), ...good(G(10, "tollbooth", 5, 3, 3))],
   },
   // RIG CHAIN: one long cinder belt. Synergy: a WHETSTONE from day 1 (2 stars from day 7) heads a chain of rigs
   // (venom, a counterweight, a hullbreaker core) that a LONG HAUL cashes in from day 5 (+2 damage per hit already
@@ -648,7 +705,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // day-10 Hard band takes its lever from MASTER VOSS (below)
     pve: { 9: 3, 10: 1 },
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
     road: [{ ...G(1, "tollbooth", 3, 0, 1), dusk: true }, { ...P(2), dusk: true }, ...good(P(2)), { ...G(3, "grease", 1, 3, 1), dusk: true }, ...good(G2(3, "bellows", 3, 1)), ...good(G(3, "grease", 1, 3, 1)), ...good(G(4, "brake", 6, 4, 2)), { ...G(5, "whetstone", 3, 2, 2), dusk: true }, { ...P(6), dusk: true }, { ...G2(6, "temper", 1, 4), dusk: true }, { ...G(6, "temper", 5, 4, 2), dusk: true }, ...good(P(6)), ...good(G2(6, "venom", 3, 4)), { ...P(8, 2), dusk: true }, { ...G(8, "brake", 5, 6, 1), dusk: true }, ...good(G2(8, "temper", 1, 4)), { ...P(9), dusk: true }, { ...G2(10, "venom", 3, 4), dusk: true }, ...good(P(10, 2)), ...good(G(10, "temper", 5, 4, 2)), ...good(G(10, "whetstone", 1, 5, 1))],
   },
   // TRIPLE THREAT: synergy: burn left (a TEMPER on the left belt from day 1, 2 stars from day 6), a LONG HAUL on the
@@ -712,7 +770,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // 2 at 0.9.1; 33 -> 52%), day 8 0 -> 3 (count 5, 2 paid; 36 -> 67%); her walls hold (day 4 100 / 100, day 8 50 / 81)
     pve: { 4: 2, 5: 2, 6: 3, 7: 3, 8: 3 },
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
     road: [{ ...M(1, "rotary", 1), dusk: true }, { ...P(2), dusk: true }, ...good(M(2, "rotary", 1)), ...good(M(2, "mantlet", 0)), { ...M(3, "mantlet", 0), dusk: true }, ...good(M(3, "pressure", 2)), { ...P(4), dusk: true }, { ...P(5), dusk: true }, ...good(P(5)), { ...P(6), dusk: true }, { ...G(7, "brake", 7, 4, 1), dusk: true }, { ...M(7, "pressure", 2), dusk: true }, { ...P(8), dusk: true }, ...good(P(8)), { ...P(9), dusk: true }, ...good(P(9, 4)), { ...G2(10, "venom", 0, 0), dusk: true }, ...good(G(10, "whetstone", 7, 4, 1))],
   },
   // ---------------------------------------------------------------- Hard, days 8-10 only
@@ -753,7 +812,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       ),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
     road: [...stars(P(8, 2)), ...stars(G(8, "grease", 6, 4, 2)), ...stars(G2(8, "whetstone", 6, 1)), ...stars(G2(8, "longhaul", 6, 0)), ...stars(G2(8, "grease", 6, 4)), ...stars(G(8, "grease", 7, 5, 3)), ...stars(G2(8, "brake", 3, 0)), ...stars(G(8, "brake", 0, 3, 1)), ...stars(P(10, 2)), ...stars(G(10, "whetstone", 4, 3, 1))],
   },
   // ---------------------------------------------------------------- 0.8.0 N1: the six wave-3 captains
@@ -784,8 +844,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       M2(7, "twintrigger", 0), P(8, 3), G2(9, "twinmould", 6, 2), P(9), P(10),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [G(2, "whetstone", 1, 1, 1), G(2, "grease", 1, 5, 1), P(4), G(4, "tollbooth", 1, 2, 1), M(5, "pressure", 1), M(5, "mantlet", 1), P(6), P(10)],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [G(2, "whetstone", 1, 1, 1), G(2, "grease", 1, 5, 1), P(4), G(4, "tollbooth", 1, 2, 1), M(5, "pressure", 1), M(5, "mantlet", 1), P(6), { ...G(7, "splitter", 1, 3), dusk: true }, { ...G(8, "staticbrush", 1, 4), dusk: true }, { ...G(9, "barbed", 5, 0), dusk: true }, P(10)],
   },
   // ---------------------------------------------------------------- Hard (tier 3), FOUNDRY
   // LOCKSTEP: the Crucible's belts run up columns 1 and 4 into gun 1, so a TWIN LATCH at (3,2) works both and lets each
@@ -871,8 +932,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // With his day-4 packs (the stand-ins, above) paid + PvE stays within the count: days 4-7 2 / 2 / 3 / 4 -> 0 / 0 / 1 / 2
     pve: { 6: 1, 7: 2, 8: 2, 9: 3, 10: 3 },
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [{ ...G(1, "grease", 2, 4, 2), dusk: true }, ...good(G2(2, "twingauge", 1, 0)), ...good(G(2, "grease", 2, 4, 2)), ...good(G(4, "tollbooth", 5, 1, 3)), { ...P(5), dusk: true }, ...good(P(5)), { ...P(6), dusk: true }, { ...P(7), dusk: true }, { ...G(8, "temper", 5, 1, 3), dusk: true }, { ...G(8, "whetstone", 1, 1, 1), dusk: true }, { ...G(8, "tollbooth", 0, 2, 1), dusk: true }, { ...P(9), dusk: true }, { ...P(10), dusk: true }, ...good(P(10)), ...good(M(10, "rotary", 1))],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [{ ...G(1, "grease", 2, 4, 2), dusk: true }, ...good(G2(2, "twingauge", 1, 0)), ...good(G(2, "grease", 2, 4, 2)), ...good(G(3, "staticbrush", 3, 5)), ...good(G(4, "tollbooth", 5, 1, 3)), { ...P(5), dusk: true }, { ...G(5, "staticbrush", 3, 5), dusk: true }, { ...G(5, "heatjacket", 5, 6), dusk: true }, ...good(P(5)), { ...P(6), dusk: true }, ...good(G(6, "barbed", 0, 2)), { ...P(7), dusk: true }, { ...G(8, "temper", 5, 1, 3), dusk: true }, { ...G(8, "whetstone", 1, 1, 1), dusk: true }, { ...G(8, "tollbooth", 0, 2, 1), dusk: true }, ...good(G(8, "longhaul", 2, 3, 1)), { ...P(9), dusk: true }, ...good(G(9, "coil", 0, 3)), { ...P(10), dusk: true }, ...good(P(10)), ...good(M(10, "rotary", 1)), ...good(G(10, "lodestone", 0, 4))],
   },
   // ---------------------------------------------------------------- Medium (tier 2), BASTION
   // ANVIL WALL: the Wardworks' bulwark belt plates the hull as it fires, and plating makes every shot hit harder. Synergy:
@@ -894,8 +956,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G(8, "sorting", 3, 2), P(8), G2(9, "whetstone", 5, 1), P(9, 2), G(10, "whetstone", 5, 4, 3), P(10),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [P(4), M2(4, "anvil", 0), G2(6, "tollbooth", 3, 1), P(7), G(8, "temper", 5, 3, 3), P(10), G(10, "tollbooth", 3, 5, 1)],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [P(4), M2(4, "anvil", 0), G2(6, "tollbooth", 3, 1), P(7), G(8, "temper", 5, 3, 3), P(10), G(10, "tollbooth", 3, 5, 1), { ...G(10, "staticbrush", 5, 5), dusk: true }],
   },
   // SHIELD WALL: a wall of plate on the bulwark belt, broken into damage. Synergy: a PLATE BREAKER on the bulwark belt
   // from day 5 (each payload takes a plating for 4 more damage); at good luck a SHIELD WALL on the bulwark belt from day 9
@@ -976,9 +1039,15 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // e2ca295ce9dcd60a rule 5: fallback 2 is trimmed first): one day-5 plate goes (2 -> 1). With both the par field's top
     // quartile beat his day-5 road deck 38% of the time (FURNACE; 91% at 1210ee8, 45 at 0.9.4); with one 44%, with none 53
     pve: { 4: 2, 5: 1, 7: 1, 8: 3, 9: 4, 10: 3 },
+    // REFIT-AZ-R1 (the walls, BRIEF-REFIT-AZ target 1; kit tqprobe K 24, every switch on, on round 3's par field): the WEAVER
+    // par field's top quartile beat his day-6 / day-7 road deck 26 / 30% of the time (base 86 / 75, rule 40+). The good-luck
+    // pack on day 8 (was 5, in the road list below) and his day-7 levels held (roadLevelsHeld: the FACTORY level 2 on day 8
+    // again, as the road-less plan): 59 / 48% (his road deck 64 -> 54% on day 6, 70 -> 49% on day 7)
+    roadLevelsHeld: [7],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [{ ...P(2), dusk: true }, { ...G(2, "whetstone", 5, 1, 3), dusk: true }, ...good(G(2, "whetstone", 5, 1, 3)), { ...P(4), dusk: true }, ...good(P(5)), ...good(G(5, "tollbooth", 5, 2, 3)), { ...P(7), dusk: true }, { ...P(8, 2), dusk: true }, { ...G(8, "temper", 5, 2, 3), dusk: true }, { ...G(8, "tollbooth", 5, 4, 3), dusk: true }, { ...P(9), dusk: true }, { ...G2(9, "staticbrush", 3, 4), dusk: true }, ...good(G2(9, "venom", 5, 5)), ...good(P(10))],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [{ ...P(2), dusk: true }, { ...G(2, "whetstone", 5, 1, 3), dusk: true }, ...good(G(2, "whetstone", 5, 1, 3)), { ...P(4), dusk: true }, ...good(G(5, "tollbooth", 5, 2, 3)), { ...P(7), dusk: true }, { ...P(8, 2), dusk: true }, { ...G(8, "temper", 5, 2, 3), dusk: true }, { ...G(8, "tollbooth", 5, 4, 3), dusk: true }, ...good(P(8)), { ...P(9), dusk: true }, { ...G2(9, "staticbrush", 3, 4), dusk: true }, ...good(G2(9, "venom", 5, 5)), ...good(P(10))],
   },
   // ---------------------------------------------------------------- dusk stand-ins only (standInOnly), FURNACE and WEAVER
   // TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into connector 5 (day 2, 2 stars from
@@ -1021,7 +1090,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(9, G(10, "temper", 6, 4, 3)), G(10, "longhaul", 4, 4), P(10),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
     road: [{ ...M(1, "rotary", 0), dusk: true }, { ...P(2), dusk: true }, { ...P(5), dusk: true }, { ...P(6), dusk: true }, { ...P(7), dusk: true }, { ...P(8, 2), dusk: true }, { ...G(8, "brake", 6, 3, 3), dusk: true }, { ...P(9), dusk: true }, { ...P(10), dusk: true }],
   },
   // LEAF MAIL: a PLATE ROLLER on the loom's left belt plates her hull from day 1, and plated her guns fire faster.
@@ -1049,8 +1119,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(7, G(8, "bellows", 7, 0)), P(8, 3), G(9, "splitter", 3, 3), P(10, 2),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
-    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts")
-    road: [{ ...M(1, "rotary", 1), dusk: true }, { ...G(2, "whetstone", 5, 0, 3), dusk: true }, { ...G(2, "tollbooth", 3, 1, 1), dusk: true }, { ...G(3, "grease", 3, 4, 1), dusk: true }, { ...P(4), dusk: true }, { ...P(5), dusk: true }, { ...G2(6, "temper", 3, 0), dusk: true }, { ...G(6, "temper", 5, 1, 3), dusk: true }, { ...M(7, "mantlet", 2), dusk: true }, { ...G(8, "brake", 7, 3, 1), dusk: true }, { ...P(9), dusk: true }, { ...G2(9, "venom", 3, 2), dusk: true }],
+    // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
+    // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
+    road: [{ ...M(1, "rotary", 1), dusk: true }, { ...G(2, "whetstone", 5, 0, 3), dusk: true }, { ...G(2, "tollbooth", 3, 1, 1), dusk: true }, { ...G(3, "grease", 3, 4, 1), dusk: true }, { ...P(4), dusk: true }, { ...P(5), dusk: true }, { ...G2(6, "temper", 3, 0), dusk: true }, { ...G(6, "temper", 5, 1, 3), dusk: true }, { ...M(7, "mantlet", 2), dusk: true }, { ...G(8, "brake", 7, 3, 1), dusk: true }, { ...P(9), dusk: true }, { ...G2(9, "venom", 3, 2), dusk: true }, { ...G(10, "venom", 5, 3), dusk: true }],
   },
 };
 
@@ -1114,7 +1185,9 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary",
   // (maxGoldByDay + ROAD(day, moment), after the road additions are paid), never below what the deck's own room without
   // them allowed (so no level leaves for a road part)
   const base = maxGold(day) - (nd ? assemble(plan, day, luck, moment, false).parts : a.parts) - ramp;
-  const room = nd ? Math.max(base, maxGold(day) + roadAllowance(day, moment) - a.parts - ramp) : base;
+  // ... except on the plan's roadLevelsHeld days (the walls): there the road deck keeps the room without its road additions
+  const held = moment === "warlord" && !!plan.roadLevelsHeld?.includes(day);
+  const room = nd && !held ? Math.max(base, maxGold(day) + roadAllowance(day, moment) - a.parts - ramp) : base;
   const up = captainLevels(plan.hero, day, room);
   if (up) build.upgrades = up;
   const value = a.parts + upgradeGold(build);

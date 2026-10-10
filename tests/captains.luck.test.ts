@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { HEROES, ITEMS, rarityWeights, type ItemDef } from "../src/sim/content";
 import { RIVALS, RIVAL_IDS, RUN_DAYS, deckCost, difficultyOf, luckOf, maxGoldByDay, rivalBuild, rivalDays, rivalLoadout, standInBuild, type RivalId } from "../src/sim/rivals";
-import { CAPTAIN_RUNES, LUCKS, PLANS, captainRunesOn, dayOwned, firstDay, roadAllowance, type Luck, type RoadMoment, type Upgrade } from "../src/sim/rivalBuilds";
+import { CAPTAIN_RUNES, LUCKS, PLANS, captainRunesOn, dayOwned, firstDay, roadAllowance, roadCountAllowance, type Luck, type RoadMoment, type Upgrade } from "../src/sim/rivalBuilds";
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck valued as bought
 import { maxDawnGold, runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold
 import { LUCK_CAPS } from "../src/sim/harness/luckCapsData";
@@ -24,7 +24,12 @@ const capsOf = (id: RivalId, day: number, tier: "ordinary" | "good"): LuckMeasur
 // budget adds the par player's road value at the moment it is fought (rivalBuilds.ts roadAllowance: ROAD(day, moment), 0 with
 // NPC_DAY off), so a cap measured on the road-less par field takes it on its value; nothing else changes, and off every
 // check reads exactly as before
-const withRoad = (c: LuckMeasures, day: number, moment: RoadMoment): LuckMeasures => ({ ...c, value: c.value + roadAllowance(day, moment) });
+// ... and (rulings 388faa07f0f451d1 and b77171cd5288623a) the road count allowance on the cap's rare and epic, ROADN for the
+// deck's hero and the cell's tier (rivalBuilds.ts roadCountAllowance, 0 off), never on a Medium warlord deck (`counts`)
+const withRoad = (c: LuckMeasures, day: number, moment: RoadMoment, id: RivalId, tier: "ordinary" | "good", counts = true): LuckMeasures => {
+  const n = counts ? roadCountAllowance(RIVALS[id].hero, day, tier) : { rare: 0, epic: 0 };
+  return { ...c, value: c.value + roadAllowance(day, moment), rare: c.rare + n.rare, epic: c.epic + n.epic };
+};
 
 /** The first day the caravan can offer `d` (src/game/run.ts rollShop): its rarity must have weight that day
  *  (content.ts rarityWeights: legendaries from day 4; dayPool holds them back until then too), its merchant must be
@@ -102,7 +107,7 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
   it("every captain-day's stand-in deck fits its hero-day's ordinary caps", () => {
     const over: string[] = [];
     for (const id of STAND_INS) for (const day of DAYS) {
-      const o = overCaps(luckMeasures(standInBuild(id, day)), withRoad(capsOf(id, day, "ordinary"), day, "dusk")); // REFIT-AZ: + ROAD(day, dusk) on the value
+      const o = overCaps(luckMeasures(standInBuild(id, day)), withRoad(capsOf(id, day, "ordinary"), day, "dusk", id, "ordinary")); // REFIT-AZ: + ROAD(day, dusk) on the value, + ROADN
       if (o.length) over.push(`${id} d${day}: ${o.join(", ")}`);
     }
     expect(over).toEqual([]);
@@ -114,7 +119,7 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
       const tier = difficultyOf(id) === "hard" ? "good" : "ordinary";
       const l = rivalLoadout(id, day);
       // a warlord's hull is the free PvE ramp: its value is what its plan bought (items, gear, turrets, crates, plating)
-      const o = overCaps({ ...luckMeasures(l.build), value: l.value }, withRoad(capsOf(id, day, tier), day, "warlord")); // REFIT-AZ: + ROAD(day, warlord)
+      const o = overCaps({ ...luckMeasures(l.build), value: l.value }, withRoad(capsOf(id, day, tier), day, "warlord", id, tier, difficultyOf(id) !== "medium")); // REFIT-AZ: + ROAD(day, warlord), + ROADN (not on a Medium deck)
       if (o.length) over.push(`${id} d${day} (${tier}): ${o.join(", ")}`);
     }
     expect(over).toEqual([]);
