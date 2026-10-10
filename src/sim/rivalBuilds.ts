@@ -121,6 +121,10 @@ export interface RivalPlan {
   // which, with the NPC day on, the gold levels keep the room the deck has without its road additions (planBuild's levels
   // rule before round 3), so that day's levels come when the road-less plan bought them. Off: never read
   roadLevelsHeld?: readonly number[];
+  // REFIT-AZ (BRIEF-REFIT-AZ target 2, no Hard captain over 80; "Levers": an NPC-day variant of one captain's plan where a
+  // road addition can't express the change): with the NPC day on, these days' PvE plates replace `pve`'s (day -> plates).
+  // Off: never read
+  pveRoad?: Readonly<Partial<Record<number, number>>>;
 }
 
 /**
@@ -1044,6 +1048,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // pack on day 8 (was 5, in the road list below) and his day-7 levels held (roadLevelsHeld: the FACTORY level 2 on day 8
     // again, as the road-less plan): 59 / 48% (his road deck 64 -> 54% on day 6, 70 -> 49% on day 7)
     roadLevelsHeld: [7],
+    // REFIT-AZ-R1 (target 2: no Hard captain over 80 on days 4-10): with the NPC day on his day-9 road deck read 86% against
+    // the four par fields (kit tqprobe K 24, every switch on, round 4's field; base 71, before the road-fed field). Two PvE
+    // plates on day 9 (was 4): 79% (walls FURNACE / WEAVER 65 / 58 -> 77 / 65); three read 82
+    pveRoad: { 9: 2 },
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
@@ -1206,7 +1214,8 @@ function assemble(plan: RivalPlan, day: number, luck: Luck, moment: RoadMoment, 
   plan.factories.forEach((f, i) => { if ((f.at ?? 1) <= day) addFactory(f, U + 1 + i); }); // 0.8.0 I1: FactoryPlan.at
   let crates = plan.crates, plating = 0, fu = U + 1 + plan.factories.length;
   // 0.8.9 (CATCHUP-089 fallback 2): the day's PvE plates, on a road deck at good luck or better only
-  const pvePlates = luck === "ordinary" ? 0 : plan.pve?.[day] ?? 0;
+  // REFIT-AZ: with the NPC day on (`nd`), a plan's pveRoad day replaces its pve day
+  const pvePlates = luck === "ordinary" ? 0 : (nd && plan.pveRoad?.[day] !== undefined ? plan.pveRoad[day] : plan.pve?.[day]) ?? 0;
   // BOTS-X (SUS-C): with the sustain switch on, the plan's sustain upgrades after its own (off: `upgrades` itself)
   const base = sustainLive() && plan.sustain?.length ? [...plan.upgrades, ...plan.sustain] : plan.upgrades;
   // REFIT-AZ: with the NPC day on, the road list after every other upgrade (so every other part keeps its uid)
