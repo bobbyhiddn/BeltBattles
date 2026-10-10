@@ -64,7 +64,7 @@ export const WINDOW_TIME = 1.5; // chamber loading window closes this long after
 export const JAM_THRESHOLD = 4; // payloads backed up at a busy chamber before it jams
 export const JAM_COOLDOWN = 3.0;
 export const DISRUPT_TIME = 2; // Shock disruption duration (s). NUM-3 (REQ-BFG-047, N1 2.2): a ★1 GALVANIC COIL or SPARK STUN, whole seconds (was 1.6)
-export const BURN_TIME = 3.0; // each Burn stack deals 1 dmg/s for this long
+export const BURN_TIME = 3.0; // a Burn stack's seconds where its source sets none (DRAKE's burnTime, VENOM DRIP, SLOW EMBERS: Battle.burnTime); each whole second it deals BURN_DPS (10, below) to the hull (Battle.hullEffects)
 /** NUM-1 (REQ-BFG-047, N1 2.1): the damage a Burn stack deals each second (x10 of 1), once a second (Battle.hullEffects):
  *  BURN_DPS x BURN_TIME a stack, the same total as before, in whole ticks. */
 export const BURN_DPS = 10;
