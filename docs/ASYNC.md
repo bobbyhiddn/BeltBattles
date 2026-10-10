@@ -135,7 +135,12 @@ The strict check refuses such honest decks.
 - **budget** (player):
 
 ```
-maxHonestSpend(day) = maxGold(day) + roadCap(day)       // bb-0.6.2, bb-0.8.0 and bb-0.8.3: roadCap 5, 17, 29, 43, 59, 74, 90, 110, 127, 149
+maxHonestSpend(day) = maxGold(day) + roadCap(day)       // bb-0.9.7, NPC_DAY off: roadCap 5, 17, 28, 44, 57, 73, 89, 108, 124, 147
+                      + drops (NPC_DAY on)              // NPC_DAY on (npcPlanDP): roadCap 5, 20, 36, 51, 66, 80, 93, 102, 113, 123: each day
+                                                        // a fight's gold (the best tier's) then the day's event; no part priced: the road log
+                                                        // names each drop and validate.ts counts it at its value (roadDropValue, "+ drops N")
+                                                        // HULL_SCALE on moves maxGold on days 8-10 (92, 108, 125) and roadCap
+                                                        // on day 9 by 1 (125; 114 with NPC_DAY on)
 cost(build)         = parts + price(plating) × plates + price(beltcrate) × crates
 parts               = buildCost's own terms but the supplies: items, turret mods and the installed turrets
                       (bb-0.8.3: and the upgrade gold paid, 0 / 10 / 30 / 60 a track)
