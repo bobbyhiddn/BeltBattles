@@ -102,28 +102,31 @@ export function carrierZoom(room: { w: number; h: number }, portrait: boolean, s
   return Math.max(scale, fit - (fit % u));
 }
 
+/** ZOOM-1: the layout's carrier camera; a layout made by hand without one (tests' hosts) is at k 1. */
+const camOf = (L: Pick<BuildLayout, "cam">): CarrierCam => (L.cam as CarrierCam | undefined) ?? { k: 1, z: 0, x: 0, y: 0 };
+
 /** ZOOM-1: a carrier-space point on screen (logical px). */
 export function toScreen(L: Pick<BuildLayout, "cam">, x: number, y: number): { x: number; y: number } {
-  const c = L.cam;
+  const c = camOf(L);
   return { x: c.x + c.k * (x - c.x), y: c.y + c.k * (y - c.y) };
 }
 
 /** ZOOM-1: a screen point (logical px, a press) in the carrier's space: what the deck's hit tests read. */
 export function toDeck(L: Pick<BuildLayout, "cam">, x: number, y: number): { x: number; y: number } {
-  const c = L.cam;
+  const c = camOf(L);
   return { x: c.x + (x - c.x) / c.k, y: c.y + (y - c.y) / c.k };
 }
 
 /** ZOOM-1: a carrier-space rect on screen. */
 export function screenRect(L: Pick<BuildLayout, "cam">, r: Rect): Rect {
-  const p = toScreen(L, r.x, r.y);
-  return { x: p.x, y: p.y, w: r.w * L.cam.k, h: r.h * L.cam.k };
+  const p = toScreen(L, r.x, r.y), k = camOf(L).k;
+  return { x: p.x, y: p.y, w: r.w * k, h: r.h * k };
 }
 
 /** ZOOM-1: draw `fn` in the carrier's space (the deck, belts, parts, ship, its labels, cues and effects): scaled by k
  *  about the pivot. At rest every art px is z / unit whole canvas px (the pivot is whole, k x the canvas grid whole). */
 export function inCarrier(g: G, L: Pick<BuildLayout, "cam">, fn: () => void): void {
-  const c = L.cam;
+  const c = camOf(L);
   if (c.k === 1) return fn();
   g.save();
   g.translate(c.x * (1 - c.k), c.y * (1 - c.k));
