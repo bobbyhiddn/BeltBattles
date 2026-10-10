@@ -53,6 +53,7 @@ import { perkAt } from "../sim/stars"; // U2b F6: HOT SWAP's spark carries GALVA
 import { pourAt } from "../sim/stars"; // Y1: a factory's pour as a {SLUG} stat (carryStats)
 import { gearSlotsOf } from "../sim/deck";
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
+import { isPlainRig } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs' interim faces
 
 /**
  * The engine's numbers a reminder needs that no spec carries (as abilityText.ts SIM): each quoted from its source.
@@ -186,7 +187,22 @@ export function turretStats(def: string, stars = 1): Stat[] {
  *  place for them, as factoryStats and turretStats are their kinds' (a later chip or cadence pair goes here). */
 export function rigStats(def: string, stars = 1): Stat[] {
   if (!effectAt(def, stars).gate) throw new Error(`rigStats: ${def} is not a rig`);
+  if (isPlainRig(def)) return plainStats(def, stars); // PLAIN-1 (REQ-BFG-084): a plain stat rig's row
   return [];
+}
+
+/** PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 P4, interim until PLAIN-1F): a plain stat rig's stat row, as the brief's table reads
+ *  it: what each hit gives each slug ({DMG}, {BURN}, {STUN} and {PLATE}, each with its +; Battle.applyHit), or BALLAST's
+ *  carrier stat, MAX {HULL} +n% while it works (Battle.makeSide). Whole numbers, through the formatters. */
+export function plainStats(def: string, stars = 1): Stat[] {
+  const e = effectAt(def, stars).gate!;
+  if (e.maxHullPct) return [["HULL", `+${fmtPct(e.maxHullPct / 100)}`, "MAX"]];
+  if (e.stun) return [["STUN", `+${fmtSec(e.stun)}`]];
+  const out: Stat[] = [];
+  if (e.slugPlate) out.push(["PLATE", `+${fmtDmg(sustNow(e.slugPlate))}`]); // HULL-1d: PLATE x S(d), as PLATE ROLLER's
+  if (e.flat) out.push(["DMG", `+${fmtDmg(dmgNow(e.flat))}`]);
+  if (e.burn) out.push(["BURN", `+${fmtCount(e.burn)}`]);
+  return out;
 }
 
 /** U2b: a piece of turret gear's stat pairs (C4: none; its rule describes the turret it sits on). */
@@ -864,6 +880,20 @@ export const Y6_PIECES: readonly string[] = ["venom"];
 
 
 
+/** PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 P4, interim): the six plain stat rigs' faces. A face is the stat row (plainStats,
+ *  through rigStats) and no rule line; the ⓘ view's ladder reads the row's numbers, and each keyword keeps its reminder.
+ *  Kept apart from FACES so FACE_IDS (the base's faced pieces, which its tests walk) stays the base's; hasFace and faceOn
+ *  read it only for a plain rig in ITEMS (PLAIN_RIGS on). PLAIN-1F builds the final faces on EXPLAIN-1's hover layer. */
+const PLAIN_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
+  // the numbers are the stat row's (rigStats), which the ⓘ ladder, NEXT★ and the shop chip read: no rule, so no nums
+  rasp: () => rules([], [], [REMINDER.BURN()]),
+  sparkgap: (e) => rules([], [], [REMINDER.STUN(gt(e).stun!)]),
+  scaleguard: () => rules([], [], [REMINDER.PLATE()]),
+  ballast: () => rules([]),
+  grindstone: () => rules([]),
+  brandingiron: () => rules([], [], [REMINDER.BURN()]),
+};
+
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [
   ...Object.keys(FACES),
@@ -872,7 +902,8 @@ export const FACE_IDS: readonly string[] = [
 
 /** True for a piece that draws its new face (every other piece keeps today's text). */
 export function hasFace(def: string): boolean {
-  return FACE_IDS.includes(def);
+  // PLAIN-1 (REQ-BFG-084): a plain stat rig has its interim face while it is in ITEMS (PLAIN_RIGS on)
+  return FACE_IDS.includes(def) || (isPlainRig(def) && Object.prototype.hasOwnProperty.call(ITEMS, def));
 }
 
 /** A piece's face at `stars` as data (o: the turret class factor k for a core, the run's hero for MIMIC FORGE). Y7b2 (the
@@ -888,7 +919,7 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
 
 function faceOn(def: string, stars: number, o: TextOpts): Face {
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero, day: o.day }; // HULL-1a: the day
-  const body = e.kind === "turret" ? TURRET_FACE() : FACES[def](e, x);
+  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? PLAIN_FACES[def])(e, x); // PLAIN-1: the six's
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
     : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)
     : supplyStats(def); // U2b: the rig, gear and supply kinds' data functions
