@@ -297,7 +297,13 @@ describe("the inspect panel names the families in its header (REQ-BFG-023: in th
       const fam = selFamilies(c.run, c.sel);
       const p = planPanel(c.t, area, fam), q = planPanel(c.t, area);
       const what = `${c.id} on the ${band}`;
-      expect(JSON.stringify({ ...p, famHead: null }), what).toBe(JSON.stringify({ ...q, famHead: null }));
+      // SPACE-1 (REQ-BFG-087, D8): the tag under the sub line (or beside its second line) takes a gap slot before the body,
+      // its underline's clear space, so the gaps differ, and the column's height, sized with its gaps, with them; the body's
+      // plan and the rest of the header are exactly as without them. Was the whole plan
+      const strip = (x: typeof p) => ({ ...x, famHead: null, gaps: null, r: x.column ? { ...x.r, h: 0 } : x.r, maxY: x.column ? 0 : x.maxY });
+      expect(JSON.stringify(strip(p)), what).toBe(JSON.stringify(strip(q)));
+      expect(p.gaps.before.slice(1), what).toEqual(q.gaps.before.slice(1));
+      expect(p.gaps.before[0] ?? 0, what).toBe(p.famHead && p.famHead.at !== "title" && p.body.lines.length ? 1 : 0);
       expect(q.famHead, what).toBeNull();
       const fb = famBox(p);
       if (!fb) continue;

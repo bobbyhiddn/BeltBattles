@@ -437,8 +437,11 @@ describe("U2f: the taller ⓘ view", () => {
     // and factory's stat row), the glossary words a face line prints (PART, SPEED's FROM THIS TILE ON, JAM) and the turrets'
     // two plain lines lengthen the body-only views: op 132 / 179 / 5 -> 66 / 183 / 67, desk 21 / 105 / 133 / 32 / 15 / 10 ->
     // 5 / 73 / 113 / 84 / 24 / 6 / 9 / 2. U2f's view, the one the game draws (the next test), is unchanged: 316 on 1 page
+    // SPACE-1 (REQ-BFG-087), re-measured (the same 316 panels): the desk column sizes to its text with the gaps between its
+    // items (up to 5 px each), so its body, and U2e's body-only view over it, is taller: desk 5 / 73 / 113 / 84 / 24 / 6 / 9 /
+    // 2 -> 17 / 140 / 121 / 29 / 9. The op band's panels keep their rect (op unchanged); U2f's view (the next test) unchanged
     expect(histogram(o.map((x) => x!.u2e))).toEqual([66, 183, 67]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([5, 73, 113, 84, 24, 6, 9, 2]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([17, 140, 121, 29, 9]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {

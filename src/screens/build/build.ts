@@ -44,6 +44,7 @@ import { deleteRoute, rotate, sell, store, storeFitted } from "./actions";
 import { cssPerPx as cssScale, type PointerKind } from "../../core/io"; // shoptap (D1)
 import { beltXSide, placeBeltX } from "./beltx"; // shoptap (D3)
 import { detailsPlan, fullest, fullText, keptWhole, visibleLines, type PLine } from "./inspector"; // shoptap tooling: panelInfo; shoptap2: panelArea; zoom: fullText
+import { panelFit } from "./inspector"; // SPACE-1 (REQ-BFG-087, D4): the band's fit with the gaps
 import { drawBuildChrome } from "./chrome";
 import { keywordsPressed } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { suggestCell } from "./cues";
@@ -189,11 +190,10 @@ export class BuildScreen implements Screen, EditHost {
   panelArea(): Rect {
     // zoom (REQ-BFG-040, D3): on a phone's layout the panel sits in the band wherever its full description fits there
     // (fullText); only where it doesn't does shoptap2's fallback grow it. Elsewhere, as before: its kept text (keptWhole)
-    const fits = this.L.phone ? fullText : keptWhole;
-    return panelAreaOf(this.L, this.sel, { touch: this.touch, hover: !!this.hover, busy: !!(this.ed.carry || this.ed.draw) }, (r) => {
-      const d = detailsPlan(this, this.sel, null, r);
-      return d ? fits(d.plan) : null;
-    });
+    // SPACE-1 (REQ-BFG-087, D4): inspector.ts panelFit, the one fit the tests share: on a phone, its full description with
+    // its gaps at least GAP_MIN in the band, at GAP while it grows
+    return panelAreaOf(this.L, this.sel, { touch: this.touch, hover: !!this.hover, busy: !!(this.ed.carry || this.ed.draw) },
+      panelFit(this, this.sel, !!this.L.phone));
   }
 
   /** shoptap tooling (window.bb.panel, read only): the details panel as drawDetails plans it now: its title, sub line,

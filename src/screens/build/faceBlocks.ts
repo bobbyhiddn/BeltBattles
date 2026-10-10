@@ -44,7 +44,8 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   const out: Block[] = [];
   if (fl.stats) out.push({ role: "ability", text: fl.stats, keep: true });
   // U2e step 2 (REQ-BFG-070): the second stat row, what a factory's own payloads carry ({BURN}2 {STUN}1.6), kept
-  if (fl.stats2) out.push({ role: "ability", text: fl.stats2, keep: true });
+  // SPACE-1 (REQ-BFG-087, D1): one stat item with the first row (tied: no gap between them)
+  if (fl.stats2) out.push({ role: "ability", text: fl.stats2, keep: true, ...(fl.stats ? { tie: true } : {}) });
   // WORDS-1 (REQ-BFG-081; TEXT-STYLE 1.4 as ruled 2026-10-10): the plain lines under the stat row (a turret's loads and gear
   // slots, faces.ts turretPlain), kept, in the ability lines' face and colour
   for (const text of fl.plain ?? []) out.push({ role: "ability", text, keep: true });

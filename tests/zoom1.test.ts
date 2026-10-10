@@ -18,7 +18,7 @@ import {
   CARRIER_AHEAD, CARRIER_BACK, CARRIER_DOWN, CARRIER_UP, FOE_H, HERO_MIN, IDLE_MIN, buildLayout, buildScale, carrierBox, carrierZoom,
   heroCardRect, panelArea, phoneBand, phoneBand90, phoneBarLift, phoneScreen, toDeck, toScreen, type BuildLayout, type Sel,
 } from "../src/screens/build/layout";
-import { detailsPlan, fullText } from "../src/screens/build/inspector";
+import { detailsPlan, fullText, panelFit } from "../src/screens/build/inspector";
 import { dropCell, type Ctx } from "../src/screens/build/actions";
 import { Editor, type EditHost } from "../src/screens/build/edit";
 import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar";
@@ -285,23 +285,35 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
   }, 300_000);
 
   it("on the zoomed phones every panel shows its full description: in the band, or grown up over the shop (never over the carrier)", () => {
+    const rows: string[] = [], shares: [string, number][] = [];
     for (const [w, h] of [[402, 690], [390, 844], [390, 660], [430, 739]] as const) for (const runes of [1, 0]) {
       const f = framed(w, h, 3, runes), L = f.L, box = boxOn(L);
-      let inBand = 0;
+      let inBand = 0, whole = 0;
       const grown: string[] = [];
       for (const c of all) {
         const ctx = { game: { ui: new UI(), t: 0, view: f.view }, run: c.run, touch: true, L } as unknown as Ctx;
-        const area = panelArea(L, c.sel, { touch: true, hover: false, busy: false }, (r) => { const d = detailsPlan(ctx, c.sel, null, r); return d ? fullText(d.plan) : null; });
+        // SPACE-1 (REQ-BFG-087, D4): the build screen's own fit (inspector.ts panelFit: its full text, its gaps at least
+        // GAP_MIN in the band, at GAP while it grows); was fullText alone
+        const area = panelArea(L, c.sel, { touch: true, hover: false, busy: false }, panelFit(ctx, c.sel, true));
         const d = detailsPlan(ctx, c.sel, null, area)!;
         expect(fullText(d.plan), `${w}x${h}: ${c.id}`).toBe(true);
         expect(hit(area, box), `${w}x${h}: ${c.id} never over the carrier`).toBe(false);
         expect(area.y + area.h, `${w}x${h}: ${c.id} ends at the band's foot`).toBeLessThanOrEqual(L.info.y + L.info.h);
         if (area === L.info) inBand++;
         else grown.push(c.id);
+        // ZOOM-1's own measure: the panel's full text fits the band (what phoneBand90 sizes it for)
+        const b = detailsPlan(ctx, c.sel, null, L.info);
+        if (b && fullText(b.plan)) whole++;
       }
-      console.log(`ZOOM-1 ${w}x${h} runes ${runes}: band ${L.info.h}, ${inBand} of ${all.length} panels in it (${(100 * inBand / all.length).toFixed(1)}%), ${grown.length} grown over the shop`);
-      expect(inBand / all.length, `${w}x${h} runes ${runes}`).toBeGreaterThanOrEqual(0.9);
+      rows.push(`ZOOM-1 ${w}x${h} runes ${runes}: band ${L.info.h}, ${inBand} of ${all.length} panels in it (${(100 * inBand / all.length).toFixed(1)}%), ${grown.length} grown over the shop; full text fits the band: ${whole} (${(100 * whole / all.length).toFixed(1)}%)`);
+      shares.push([`${w}x${h} runes ${runes}`, whole / all.length]);
     }
+    console.log(rows.join("\n"));
+    // SPACE-1 (REQ-BFG-087, D4; the brief's S2d): the band is still sized for 90% of the panels' full text (phoneBand90,
+    // ZOOM-1's acceptance 2), so that share holds. Was: the share IN the band, then the same thing; with SPACE-1's gaps a
+    // panel whose full text fits but leaves less than GAP_MIN a gap grows over the shop rows, so the share in the band is
+    // the REPORT's before/after count, not a 90% floor
+    for (const [tag, share] of shares) expect(share, tag).toBeGreaterThanOrEqual(0.9);
   }, 300_000);
 });
 

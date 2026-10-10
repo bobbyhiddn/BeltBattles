@@ -548,21 +548,25 @@ export const PANEL_STEP = 6;
  * band already 69 px tall stays as it is wherever the panel fits it (every panel on 390x844). Never for a mouse (its
  * panels are 0.8.0's), nor while a mouse hovers a card (`o.hover`), nor during a drag or a belt draw (`o.busy`: the band,
  * so the deck stays in sight to drop on), nor in the landscape column. Pure (tests).
+ * SPACE-1 (REQ-BFG-087, D4): `fit(r, at)` says whether the panel shows in `r` as it must "band" (in the band: its full
+ * text, its gaps at least GAP_MIN) or "grown" (while growing: its gaps at GAP); inspector.ts panelFit is the build screen's.
  */
-export function panelArea(L: BuildLayout, sel: Sel, o: { touch: boolean; hover: boolean; busy: boolean }, fit: (r: Rect) => boolean | null): Rect {
+export function panelArea(L: BuildLayout, sel: Sel, o: { touch: boolean; hover: boolean; busy: boolean },
+  fit: (r: Rect, at: "band" | "grown") => boolean | null): Rect {
   if (!L.portrait || !o.touch || o.hover || o.busy || sel.kind === "none") return L.info;
   // ZOOM-1 (REQ-BFG-080, call 5): every panel grows up over the shop rows (a shop card's grew down over the bow: the
   // carrier now fills that room), never over the carrier; a press on what it covers still reaches what is under it
   // (chrome.ts `through`). On a phone's layout the band is sized for 90% of the panels (phoneBand90): a panel that shows
-  // whole there stays in it, the rest grow from the band's height
+  // whole there stays in it, the rest grow from the band's height. SPACE-1 (D4): whole with its gaps at least GAP_MIN in
+  // the band; growing, it stops at the first height that shows its gaps at GAP (or at the limit, as before)
   const grow = "up";
   const most = L.info.y + L.info.h - (L.bar.y + L.bar.h + 1);
   if (L.phone) {
-    const f0 = fit(L.info);
+    const f0 = fit(L.info, "band");
     if (f0 === null || f0) return L.info;
   }
   for (let h = L.phone ? L.info.h + PANEL_STEP : Math.max(PORT_BAND, L.info.h); ; h += PANEL_STEP) {
-    const r = panelRect(L, grow, h), f = fit(r);
+    const r = panelRect(L, grow, h), f = fit(r, "grown");
     if (f === null) return L.info;
     if (f || r.h >= most) return r;
   }

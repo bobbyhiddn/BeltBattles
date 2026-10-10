@@ -48,6 +48,7 @@ import type { Block, PLine, PanelPlan, PanelText } from "./inspector";
 import { levelLines, levelSpans, type LevelLine } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS
 import { fusible } from "../../sim/stars"; // U2e step 5
 import type { BuildLayout } from "./layout"; // U2f: the room the ⓘ view grows into (infoFree)
+import { GAP } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries
 
 /** The piece a panel shows (its number fills in a keyword's reminder; its tap note): an offer, a part in cargo, a placed
  *  part, a fitted core or gear piece, an installed turret's bought core. */
@@ -682,6 +683,11 @@ export function infoDrawn(items: readonly InfoItem[], r: Rect, top: number, bott
     }
     boxes.push(box);
     let y = box.y + 2;
+    // SPACE-1 (REQ-BFG-087, D5): the view keeps its size and its pages; the room its page leaves in its box (past the
+    // 2 px top and 1 px foot) goes to the gaps between its entries (each LEVELS line, each definition: separate items), up
+    // to the 5x7 face's GAP each, all alike; none where the box is sized to its entries (the room above the panel)
+    const slots = Math.max(0, its.length - 1);
+    const px = slots ? Math.max(0, Math.min(GAP["5"], Math.floor((box.h - 3 - need) / slots))) : 0;
     its.forEach((it, i) => {
       if (its[i - 1]?.section !== it.section) {
         // the section's header row (U2c's "KEYWORDS" at the view's top; a second header sits under the LEVELS; U2f: each
@@ -693,7 +699,7 @@ export function infoDrawn(items: readonly InfoItem[], r: Rect, top: number, bott
         rows.push({ area: ai, y, h: 7, line: ln });
         y += 9;
       }
-      y += it.gap;
+      y += it.gap + (i < its.length - 1 ? px : 0);
     });
   });
   return { view, boxes, rows, foot: pages.length > 1 ? foot - 7 : null };
