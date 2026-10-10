@@ -558,25 +558,41 @@ describe("HULL-1d (g)2: forgeries are refused with every switch on, each with it
     // a second entry for a day (a second fight)
     expect(deck({ ...s2, road: [...s2.road!, { ...s2.road![1] }] }).errors).toEqual(["road: two entries for day 2"]);
     // the events show only in the deck's road mix: +100 off the plating grid is the dock's PLATING (+200) AND the storm's
-    // RIDE THROUGH (-100), two events: not by day 1 (one fight, then one event); by day 2, yes
+    // RIDE THROUGH (-100), two events: not by day 1 (one fight, then one event); by day 2 they fit the road's stops.
+    // AZ-PREP (REVIEW-HULL1D Q1): and, with NPC_DAY on, only where the seed offered both by then (eventFor(seed, 1..2)); on
+    // any other seed the seed's line (was: accepted on any seed, the mix seed-blind)
     const one = deck(supplied(s1, 0, 0, 100));
     expect(one.errors[0]).toMatch(/^supply: hullBonus 100 is not a hull a player can reach by day 1 \(\+250 plating; (?=.*dock PLATING \+200)(?=.*storm RIDE THROUGH -100).*, once a run each\)$/);
-    expect(deck(supplied(s2, 0, 0, 100)).errors).toEqual([]);
+    const road2 = [eventFor(s2.seed!, 1), eventFor(s2.seed!, 2)], two = deck(supplied(s2, 0, 0, 100));
+    if (road2.includes("dock") && road2.includes("storm")) expect(two.errors).toEqual([]);
+    else expect(two.errors).toEqual([expect.stringMatching(new RegExp(`^supply: hullBonus 100 needs (?=.*dock PLATING)(?=.*storm RIDE THROUGH).*, which this run's seed did not offer by day 2 \\(its road: ${[...new Set(road2)].join(", ")}\\)$`))]);
     console.log(`HULL1D-G second event: ${p.hero} #${p.seed} day 1 +100 hull: ${one.errors[0]}`);
   });
 
-  // FINDING (HULL-1d (g)): the deck's road mix is not checked against the seed's events. roadCap's model is seed-blind (any run
-  // seed: the whole bag), so with NPC_DAY on, where the snapshot carries its seed and every day's event is eventFor(seed, d),
-  // a day-1 deck can claim the dock's PLATING (+200 hull) though the seed's day-1 event is another one. Repro: the scripted
-  // run below, its dusk-1 snapshot with hullBonus + 200: validateUpload ok.
-  it.fails("FINDING: a day-1 deck with the dock's PLATING when the seed's day-1 event is not the dock is refused (it is not: the mix is seed-blind)", () => {
-    const p = scripted().find((x) => x.dusks[0].s.build.hullBonus === 0 && eventFor(x.run.seed, 1) !== "dock")!;
+  // AZ-PREP (REQ-BFG-078; REVIEW-HULL1D Q1, BRIEF-AZPREP section 3): HULL-1d (g)'s FINDING (an it.fails here until now), ruled
+  // in behind NPC_DAY. roadCap's model is seed-blind (any run seed: the whole bag), so a day-1 deck could claim the dock's
+  // PLATING (+200 hull) though the seed's day-1 event was another one. With NPC_DAY on, where the snapshot carries its seed
+  // and every day's event is eventFor(seed, d) after its fight, validate.ts now holds the deck's road mix to the seed's events
+  // by its day (roadCap.ts playerFits `offered`). Off, or without a seed: seed-blind, as before.
+  it("a day-1 deck with the dock's PLATING when the seed's day-1 event is not the dock is refused; an honest dock day passes; off, the mix is seed-blind as before", () => {
+    const p = scripted().find((x) => x.dusks[0].s.build.hullBonus === 0 && eventFor(x.run.seed, 1) !== "dock" && !x.dusks[0].s.road![0].drop)!;
     every();
-    const s = p.dusks[0].s;
+    const s = p.dusks[0].s, forged = supplied(s, 0, 0, 200);
     expect(deck(s).ok).toBe(true);
-    const r = deck(supplied(s, 0, 0, 200));
-    console.log(`HULL1D-G FINDING mix: ${p.hero} seed ${s.seed} day-1 event ${eventFor(s.seed!, 1)}; +200 hull (dock PLATING) -> ${r.ok ? "accepted" : r.errors[0]}`);
-    expect(r.ok).toBe(false);
+    const r = deck(forged);
+    expect(r.errors).toEqual([`supply: hullBonus 200 needs dock PLATING, which this run's seed did not offer by day 1 (its road: ${eventFor(s.seed!, 1)})`]);
+    // an honest dock day: a seed whose day-1 event is the dock; the run takes its PLATING (+200) after the fight and passes
+    const seed = Array.from({ length: 400 }, (_, i) => 4400 + i).find((x) => eventFor(x, 1) === "dock")!;
+    const q = play(p.hero, seed, { days: 1 });
+    expect(q.tally.roadHull).toEqual(["dock PLATING +200"]);
+    const honest = deck(q.dusks[0].s);
+    expect(honest.errors).toEqual([]);
+    // off: no seed check, the mix is seed-blind as before (no supply line for the same +200 deck; its road log left out, as a
+    // switch-off snapshot carries none)
+    every(false);
+    const off = validateUpload(forged.build, 1, forged.rules, { seed: forged.seed });
+    expect(off.errors.filter((e) => e.startsWith("supply:"))).toEqual([]);
+    console.log(`AZPREP road mix: ${p.hero} seed ${s.seed} day-1 event ${eventFor(s.seed!, 1)}; +200 hull (dock PLATING) -> ${r.errors[0]}; dock seed ${seed}: ${q.tally.roadHull.join("/")} -> ${honest.ok ? "accepted" : honest.errors[0]}; switch off: ${off.errors.filter((e) => e.startsWith("supply:")).length} supply lines`);
   });
 });
 

@@ -462,7 +462,12 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   if (mode === "player") {
     // RUNES-1: the bought hull and belt, + rune gold; Z-PREP (REQ-BFG-073): + a free LAST CHANCE part's price, named apart
     // NPC-1 (REQ-BFG-078): + the road log's drops at their value (0 without a log: the line is as before)
-    errors.push(...playerSupplyBudget(bought, day, buildCost(bought), runeGrant.gold, freeGold, roadDropValue(ctx.road)));
+    // AZ-PREP (REQ-BFG-078; REVIEW-HULL1D Q1, BRIEF-AZPREP section 3): with NPC_DAY on and the uploader's seed, the road's
+    // hull and belt grants (the dock's PLATING, the storm's RIDE THROUGH, the cache's BELT SPOOL) must come from events the
+    // seed offered by `day`: each day's event after its fight, eventFor(seed, 1..day). Off, or without the seed (a served
+    // ghost): seed-blind, as before
+    const offered = npcDayRules() && ctx.seed !== undefined ? new Set(Array.from({ length: day }, (_, i) => eventFor(ctx.seed!, i + 1))) : undefined;
+    errors.push(...playerSupplyBudget(bought, day, buildCost(bought), runeGrant.gold, freeGold, roadDropValue(ctx.road), offered));
     return { ok: errors.length === 0, errors };
   }
 

@@ -131,7 +131,10 @@ The strict check refuses such honest decks.
 - **supply** (player): `hullBonus` = 25 × plates + a *mix* of the road's hull choices (dock PLATING +20, RIDE
   THROUGH −10, each once a run), never below events.ts's HULL TOO WEAK floor after a hull cost; `beltCap` = hero
   base + 4 × crates + the BELT SPOOL (+4, once). The mix's events must fit in the day's road stops (one a day):
-  a hull of 10 (dock + ride-through) is reachable from day 2, never on day 1.
+  a hull of 10 (dock + ride-through) is reachable from day 2, never on day 1. With NPC_DAY on and the uploader's
+  seed, they must also be events that seed offered by that day (`eventFor(seed, 1..day)`, each day's event after its
+  fight); a mix that needs another is refused with its own line (AZ-PREP; REVIEW-HULL1D Q1). Off, or without a seed
+  (a served ghost), the mix is seed-blind.
 - **budget** (player):
 
 ```

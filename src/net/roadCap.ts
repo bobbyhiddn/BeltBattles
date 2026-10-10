@@ -675,10 +675,10 @@ export function resetRoadCapMemo(): void {
  * price + crates x crate price must be <= maxGoldByDay(day) + roadCapFor(day, mix). Returns the errors (empty: the
  * deck passes).
  */
-export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeGold = 0, freePart = 0, drops = 0): string[] {
+export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeGold = 0, freePart = 0, drops = 0, offered?: ReadonlySet<EventId>): string[] {
   let f: PlayerFits;
   try {
-    f = playerFits(b, day, cost);
+    f = playerFits(b, day, cost, offered); // AZ-PREP: `offered`, the seed's events by `day` (NPC_DAY on; absent: as before)
   } catch (e) {
     return [`budget: the player ceiling is unavailable: ${e instanceof Error ? e.message : String(e)}`];
   }
@@ -692,11 +692,18 @@ export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeG
   if (best && best.cost <= best.allow + extra) return [];
   const h = HEROES[b.hero];
   const errors: string[] = [];
+  // AZ-PREP (REQ-BFG-078; REVIEW-HULL1D Q1): a hull or belt only a mix the seed didn't offer could explain says so, with the
+  // seed's events by the day (NPC_DAY on); any other unreachable one keeps its line
+  const seedRoad = offered ? [...offered].join(", ") : "";
   if (!f.hullOk) {
-    errors.push(`supply: hullBonus ${b.hullBonus} is not a hull a player can reach by day ${day} (+${ITEMS.plating.supply!.hull!} plating; ${hullChoices()}, once a run each)`);
+    errors.push(f.unofferedHull?.length
+      ? `supply: hullBonus ${b.hullBonus} needs ${f.unofferedHull.join(" or ")}, which this run's seed did not offer by day ${day} (its road: ${seedRoad})`
+      : `supply: hullBonus ${b.hullBonus} is not a hull a player can reach by day ${day} (+${ITEMS.plating.supply!.hull!} plating; ${hullChoices()}, once a run each)`);
   }
   if (!f.beltOk) {
-    errors.push(`supply: beltCap ${b.beltCap} is not ${h.belt} + whole +${ITEMS.beltcrate.supply!.belt!} belt crates (and ${beltChoices()}, once a run) by day ${day}`);
+    errors.push(f.unofferedBelt?.length
+      ? `supply: beltCap ${b.beltCap} needs ${f.unofferedBelt.join(" or ")}, which this run's seed did not offer by day ${day} (its road: ${seedRoad})`
+      : `supply: beltCap ${b.beltCap} is not ${h.belt} + whole +${ITEMS.beltcrate.supply!.belt!} belt crates (and ${beltChoices()}, once a run) by day ${day}`);
   }
   if (f.hullOk && f.beltOk && !best) {
     errors.push(`supply: hullBonus ${b.hullBonus} and beltCap ${b.beltCap} together need more road stops than day ${day} has`);
@@ -726,10 +733,14 @@ export interface PlayerFits {
   fits: PlayerFit[]; // every mix that reaches both the hull and the belt by the day, the most room (allow - cost) first
   hullOk: boolean; // some mix reaches the hull by the day
   beltOk: boolean; // some mix reaches the belt by the day
+  /** AZ-PREP (REVIEW-HULL1D Q1): the mixes that would reach the hull (the belt) by the day but need an event the seed
+   *  didn't offer by then (absent without the seed's events, or when none) */
+  unofferedHull?: string[];
+  unofferedBelt?: string[];
 }
 
 /** The D3 search: every road mix that explains the deck's hull and belt by `day`, costed (throws RoadModelError). */
-export function playerFits(b: Build, day: number, cost: BuildCost): PlayerFits {
+export function playerFits(b: Build, day: number, cost: BuildCost, offered?: ReadonlySet<EventId>): PlayerFits {
   const h = HEROES[b.hero];
   const plate = ITEMS.plating, crate = ITEMS.beltcrate;
   const plateHull = plate.supply!.hull!, crateBelt = crate.supply!.belt!;
@@ -750,6 +761,14 @@ export function playerFits(b: Build, day: number, cost: BuildCost): PlayerFits {
     if (!hf && !bf) continue;
     const cap = roadCapFor(day, m);
     if (cap === -Infinity) continue; // the mix's events need more road stops than `day` has
+    // AZ-PREP (REQ-BFG-078; REVIEW-HULL1D Q1, behind NPC_DAY): given the events the uploader's seed offered by `day`
+    // (validate.ts: eventFor(seed, 1..day), only with NPC_DAY on and the seed), a mix that needs another event explains
+    // nothing; its labels are kept for the refusal's line. Without `offered`: seed-blind, as before
+    if (offered && [...m.forced.keys()].some((e) => !offered.has(e))) {
+      if (hf) out.unofferedHull = [...(out.unofferedHull ?? []), m.labels.join(" + ")];
+      if (bf) out.unofferedBelt = [...(out.unofferedBelt ?? []), m.labels.join(" + ")];
+      continue;
+    }
     out.hullOk = out.hullOk || hf; // some honest run reaches this hull by `day` (whatever its belt)
     out.beltOk = out.beltOk || bf;
     if (!hf || !bf) continue;
