@@ -223,7 +223,9 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   get toastY(): number {
-    return this.L.cargo.y - 16;
+    // ZOOM-1 (REQ-BFG-080): landscape, 13 px over the hull's foot, where 0.9.8's toast sat (its cargo tray was 3 px under
+    // the hull; the tray now sits under FIGHT, beside the carrier's middle); portrait, over the tray, as before
+    return this.L.portrait ? this.L.cargo.y - 16 : this.L.hull.y + this.L.hull.h - 13;
   }
 
   private layout(): BuildLayout {
