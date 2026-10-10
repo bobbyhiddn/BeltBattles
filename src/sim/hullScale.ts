@@ -151,8 +151,16 @@ export function incomeOn(day: number, won: boolean): number {
  * holds the day-2 wind share at 27% or less with the day-2 median in 22-30 s (S = M, 96 seeds, every switch on: 1.1 29.6 s
  * and 41.0%, 1.2 27.6 s and 31.8%, 1.3 26.0 s and 22.8%, 1.4 24.6 s and 17.0%); BASTION's day-2 cross win there is 35.2,
  * over this release's 35.0 floor (the ruling). M / D on day 2 is 1.08.
+ * PAR-AZ (REQ-BFG-079; cap's ruling bff72995f529f68b): D(5-10) re-fit, 2.2 2.5 2.6 2.8 3.0 3.1 -> 2.0 2.0 2.0 2.0 2.0 2.1
+ * (days 1-4 kept; days 11+ follow D(10) / M(10) as before). Why: the par player's NPC day (c52be67: the Medium warlord, its
+ * gold and drop every day) made late par decks hit ~40% harder, so par fights fell to 15-17 s on days 6-10. The fit, with
+ * the NPC day and PAR-AZ's pass-1 bot tables in (a35a464), in day order: the fewest tenths off each day that put the pooled
+ * par median at 19.5 s or more (fightBench, 48 seeds, every switch on through --all-on: kit-parAZ/dfit.sh, i.e.
+ *   nice -n 19 node tools/dist/fightbench/fightBench.js --days 5-10 --k 12 --seeds 48 --workers 6 --warlords --wseeds 4
+ *     --all-on, on the work tree with this line edited; 2026-10-10 13:45-14:00Z), D's rules held (never falls: day 8's
+ * 2.1 comes down to day 9's 2.0; D <= M; M / D never falls on days 3-10: 1.00 1.16 1.40 1.70 2.00 2.30 2.60 2.86).
  */
-export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 22, 25, 26, 28, 30, 31];
+export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 20, 20, 20, 21];
 
 /** HULL-1c: D past day 10 holds day 10's M / D: D(d) = M(d) x D(10) / M(10), in whole tenths (rounded half up), for days
  *  11-18 (DMG_MUL_TENTHS_LATE) and a per-day step from day 19 (DMG_MUL_STEP_TENTHS), as M has. */
