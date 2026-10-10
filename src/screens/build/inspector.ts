@@ -80,6 +80,7 @@ import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore
 import { fusible, gradeOf, outputsAt, starsOf, starText, upgradeLevel } from "../../sim/stars";
 import { factoryNext, levelLine, turretSpeedRow, upgradeLabel } from "../../ui/upgradeText"; // bb-0.8.3 (REQ-BFG-043 D11)
 import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
+import { shopShut } from "../../game/run"; // AZ-PREP (REQ-BFG-077; REVIEW-NPC1 Q4): no SELL button in REFIT (NPC_DAY on)
 import type { UpgradeTrack } from "../../sim/content"; // bb-0.8.3 (D11)
 import { UPGRADE_MAX } from "../../sim/content"; // NUM-4: the starting turret's next TURRET SPEED level
 import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the hero card's and the foe's hull on the day's hull
@@ -1387,7 +1388,20 @@ interface Spec {
   actions: Action[];
 }
 
+/** AZ-PREP (REQ-BFG-077; REVIEW-NPC1 Q4): the SELL buttons a panel can offer: a cargo part's or turret's (sell), a placed
+ *  part's on touch (sellpart), a fitted core's or gear's (sellfitted) and an installed turret's (turretsell, turretPanel.ts
+ *  slotActions). */
+const SELL_ACTIONS: ReadonlySet<string> = new Set(["sell", "sellpart", "sellfitted", "turretsell"]);
+
+/** A selection's panel: specOf's, but in REFIT with NPC_DAY on (run.ts shopShut: the caravan has moved on, every sale is
+ *  refused with REFIT_NO_SHOP) without its SELL buttons, so the panel offers only what REFIT allows (AZ-PREP; REVIEW-NPC1
+ *  Q4). The layout reads the buttons (detailsPlan's labels), so it lays out without them. Off, or at the dawn: as before. */
 function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
+  const sp = specOf(ctx, show, hovering);
+  return sp && shopShut(ctx.run) ? { ...sp, actions: sp.actions.filter((a) => !SELL_ACTIONS.has(a.id)) } : sp;
+}
+
+function specOf(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
   const { run } = ctx;
   const b = run.build;
   const touch = !!ctx.touch; // shoptap (D2): the last press was a finger or a pen

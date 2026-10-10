@@ -2,7 +2,7 @@
 // next-battle card, the details panel, drag feedback and the pause/options menu.
 
 import { foldRunEnd } from "../../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072)
-import { packPrice, saveRun, shopBadge, type Run } from "../../game/run";
+import { packPrice, saveRun, shopBadge, shopShut, type Run } from "../../game/run";
 import { record } from "../../game/day";
 import { ITEMS, PACK_IDS, PACK_ITEM, REROLL_COST, RUN_DAYS } from "../../sim/content";
 import { packRects } from "./layout"; // bb-0.8.6 (REQ-BFG-051 P5): the two fixed pack slots
@@ -38,7 +38,10 @@ export function packTip(def: string, run: Run): string {
   return faceLines(def, 1, textOpts(run))?.rules[0]?.text ?? abilityText(def, 1, textOpts(run)).sentences[0] ?? "";
 }
 
-/** Status bar: DAWN · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
+/** AZ-PREP (REQ-BFG-077; REVIEW-NPC1 Q4): the build bar's stage word: REFIT in REFIT with NPC_DAY on, else DAWN. */
+export const barStage = (run: Pick<Run, "stage">): "REFIT" | "DAWN" => (shopShut(run) ? "REFIT" : "DAWN");
+
+/** Status bar: DAWN (REFIT) · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
  *  the hero card below the shop), belt use when there is room, then MENU and SND. */
 function drawTopBar(g: G, s: BuildScreen): void {
   const { W, ui } = s.game;
@@ -60,7 +63,9 @@ function drawTopBar(g: G, s: BuildScreen): void {
   const sndX = W - 2 - sndW, menuX = corner ? 2 : sndX - 1 - menuW;
   const end = corner ? W - 1 : menuX; // where the status line stops
   let x = corner ? menuX + menuW + 4 : 4;
-  x += drawText(g, "DAWN", x, 5 + oy, C.amber, { font: "3" });
+  // AZ-PREP (REQ-BFG-077; REVIEW-NPC1 Q4 and N2): in REFIT with NPC_DAY on (the shop shut, run.ts shopShut) the bar names
+  // the stage: REFIT · DAY n/10. Off, or at the dawn, DAWN as before (0.9.7's road REFIT keeps DAWN, as it keeps its sales)
+  x += drawText(g, barStage(run), x, 5 + oy, C.amber, { font: "3" });
   x += drawText(g, ` · DAY ${run.day}/${RUN_DAYS}`, x, 5 + oy, C.bone, { font: "3" }) + 5;
   g.drawImage(coinIcon(), x, 4 + oy);
   s.coinX = x + 5;
