@@ -84,7 +84,9 @@ async function cardAt(page, def) {
 /** The client point at the centre of placed item `uid` on the deck (heroshots.mjs tapSignature's way). */
 async function itemAt(page, uid) {
   return page.evaluate((uid) => {
-    const c = window.bb.game.screen.fuseAnimPos({ where: "deck", survivor: uid });
+    const s = window.bb.game.screen, c0 = s.fuseAnimPos({ where: "deck", survivor: uid });
+    // ZOOM-1 (REQ-BFG-080): that centre is in the carrier's space; on screen through its zoom (BuildScreen.carrierView)
+    const v = typeof s.carrierView === "function" ? s.carrierView() : null, c = v ? { x: v.x + v.k * (c0.x - v.x), y: v.y + v.k * (c0.y - v.y) } : c0;
     return window.bb.toClient(c.x, c.y);
   }, uid);
 }
