@@ -27,8 +27,8 @@ const capsOf = (id: RivalId, day: number, tier: "ordinary" | "good"): LuckMeasur
 // ... and (rulings 388faa07f0f451d1 and b77171cd5288623a) the road count allowance on the cap's rare and epic, ROADN for the
 // deck's hero and the cell's tier (rivalBuilds.ts roadCountAllowance, 0 off), never on a Medium warlord deck (`counts`)
 const withRoad = (c: LuckMeasures, day: number, moment: RoadMoment, id: RivalId, tier: "ordinary" | "good", counts = true): LuckMeasures => {
-  const n = counts ? roadCountAllowance(RIVALS[id].hero, day, tier) : { rare: 0, epic: 0 };
-  return { ...c, value: c.value + roadAllowance(day, moment), rare: c.rare + n.rare, epic: c.epic + n.epic };
+  const n = counts ? roadCountAllowance(RIVALS[id].hero, day, tier) : { rare: 0, epic: 0, star2: 0 };
+  return { ...c, value: c.value + roadAllowance(day, moment), rare: c.rare + n.rare, epic: c.epic + n.epic, star2: c.star2 + n.star2 };
 };
 
 /** The first day the caravan can offer `d` (src/game/run.ts rollShop): its rarity must have weight that day
