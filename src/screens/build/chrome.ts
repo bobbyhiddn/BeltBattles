@@ -2,7 +2,7 @@
 // next-battle card, the details panel, drag feedback and the pause/options menu.
 
 import { foldRunEnd } from "../../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072)
-import { packPrice, saveRun, shopBadge } from "../../game/run";
+import { packPrice, saveRun, shopBadge, type Run } from "../../game/run";
 import { record } from "../../game/day";
 import { ITEMS, PACK_IDS, PACK_ITEM, REROLL_COST, RUN_DAYS } from "../../sim/content";
 import { packRects } from "./layout"; // bb-0.8.6 (REQ-BFG-051 P5): the two fixed pack slots
@@ -29,6 +29,14 @@ import { drawBeltX } from "./beltx"; // shoptap (D3)
 import { deleteRoute } from "./actions"; // shoptap (D3): the X removes the belt as REMOVE BELT does
 import { faceLines } from "../../ui/faces"; // U2c group 0 fix 3: the packs' faces in their tooltips
 import { shopChipGlyphs } from "../../ui/chips"; // U2c (C4): the shop cards' stat chips
+
+/** bb-0.8.6 (PACKS P5; U2c group 0 fix 3): a pack slot's tooltip text: the pack's face ("+4 BELT TILES FOR THE RUN.",
+ *  "+250 {HULL} FOR THE RUN."), else its first sentence. AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q3): on the run's day
+ *  (textOpts: with HULL_SCALE on the ARMOR PACK's hull x M(d), as its slot and its panel read it); it read day 1's. With
+ *  the switch off, or on day 1, the same text as before. */
+export function packTip(def: string, run: Run): string {
+  return faceLines(def, 1, textOpts(run))?.rules[0]?.text ?? abilityText(def, 1, textOpts(run)).sentences[0] ?? "";
+}
 
 /** Status bar: DAWN · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
  *  the hero card below the shop), belt use when there is room, then MENU and SND. */
@@ -264,7 +272,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     const def = PACK_ITEM[PACK_IDS[ph]];
     // U2c group 0 fix 3: the pack's face, "+4 BELT TILES FOR THE RUN." and "+25 {HULL} FOR THE RUN." (the tooltip's layout
     // as before: one line of its 3x5 text)
-    drawTooltip(g, packRects(L)[ph], ITEMS[def], L.W, faceLines(def, 1)?.rules[0]?.text ?? abilityText(def, 1, textOpts(s.run)).sentences[0] ?? "");
+    drawTooltip(g, packRects(L)[ph], ITEMS[def], L.W, packTip(def, s.run));
   }
   if (s.menu) {
     // TAP-093 (backlog #340): with the corner MENU (sound lives in its card) the card's buttons are a finger's target tall,

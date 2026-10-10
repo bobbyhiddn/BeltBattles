@@ -30,6 +30,7 @@ import { Arena } from "../src/game/arena";
 import { newRun } from "../src/game/run";
 import { Fx, popBox } from "../src/render/fx";
 import { textWidth } from "../src/render/font";
+import { packTip } from "../src/screens/build/chrome"; // AZ-PREP (REVIEW-HULL1D Q3): the pack tooltip on the run's day
 
 afterEach(() => setHullScale(false));
 
@@ -116,6 +117,10 @@ describe("HULL-1d: a part card's numbers on days 5 and 10 (switch on)", () => {
       expect(on(() => abilityText("wardworks", 1, { day })).sentences[2])
         .toContain(`BY ${S(PLATE_PER_SLUG, day)}, UP TO ${S(PLATE_CAP, day)} PLATING`);
     }
+  });
+
+  it("AZ-PREP (REVIEW-HULL1D Q3): a pack slot's tooltip (chrome.ts packTip) is the pack's face on the run's day; off, as today", () => {
+    for (const day of DAYS) for (const def of ["plating", "beltcrate"]) expect([on(() => packTip(def, { ...newRun("furnace", 7), day })), packTip(def, { ...newRun("furnace", 7), day })], `${def} day ${day}`).toEqual([on(() => faceLines(def, 1, { day }))!.rules[0].text, faceLines(def, 1)!.rules[0].text]);
   });
 
   it("the glossary row a tap on a piece shows: BURN's damage a second x D(d), PLATE's MAX x S(d) (the run's day)", () => {
