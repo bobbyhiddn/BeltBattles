@@ -163,7 +163,10 @@ function v7to8(r: Raw): void {
 
 /** 0.6.1a, cosmetic: take the next queued merge toast for the screen on show (game.ts). MERGED
  *  toasts show on any settled screen; the migration notice waits for the next build screen. */
-export function nextFuseToast(run: Run, onBuildScreen: boolean): string | undefined {
+export function nextFuseToast(run: Run, onBuildScreen: boolean, held = false): string | undefined {
+  // AZ-PREP (REQ-BFG-077, REQ-BFG-078; REVIEW-NPC1 N1): a screen with its result card up holds them all (Screen.holdsMerges):
+  // with every NPC win able to drop a part, a drop's merge toast covered the card's "+4 GOLD" line; it waits for the next screen
+  if (held) return undefined;
   const fx = run.fuseFx;
   const i = fx ? fx.findIndex((t) => (t !== MIGRATE_TOAST && t !== BELTSIDE_TOAST) || onBuildScreen) : -1;
   return i < 0 ? undefined : fx!.splice(i, 1)[0];

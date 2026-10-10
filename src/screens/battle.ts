@@ -138,6 +138,13 @@ export class BattleScreen implements Screen {
     }
   }
 
+  /** AZ-PREP (REQ-BFG-077, REQ-BFG-078; REVIEW-NPC1 N1): from the fight's end until the result card closes, the queued merge
+   *  toasts wait (game.ts, save.ts nextFuseToast), so a drop's or a Hard pick's "MERGED: ..." never covers the card's lines
+   *  ("+4 GOLD"); they show on the next screen. */
+  get holdsMerges(): boolean {
+    return this.phase === "outro" || this.phase === "result";
+  }
+
   /** A Hard win's part pick: the part goes to cargo (then REFIT / FIGHT NOW). */
   take(i: number): void {
     if (!this.warlord || this.phase !== "result") return;

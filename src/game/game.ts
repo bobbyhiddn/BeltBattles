@@ -17,6 +17,10 @@ export interface Screen {
   toastY?: number;
   /** 0.6.1a: true on the build screen, which shows the save-migration notice (save.ts MIGRATE_TOAST). */
   mergeNotice?: boolean;
+  /** AZ-PREP (REQ-BFG-077, REQ-BFG-078; REVIEW-NPC1 N1): true while the screen's result card is up (the battle screen, from
+   *  the fight's end until the card closes): the queued merge toasts wait (save.ts nextFuseToast), so none covers the
+   *  card's lines; they show on the next screen. */
+  holdsMerges?: boolean;
   /** Integer device-pixel scale for this screen; default framing when absent. */
   pickScale?(pw: number, ph: number, portrait: boolean, dpr?: number): number;
   enter?(): void;
@@ -180,7 +184,7 @@ export class Game implements InputSink {
     if (this.toastMsg && (this.toastMsg.t -= dt) <= 0) this.toastMsg = null;
     // 0.6.1a: queued merge toasts (run.fuseFx, cosmetic), one at a time once the screen has settled;
     // the save-migration notice waits for the build screen (save.ts nextFuseToast)
-    const fx = this.run?.fuseFx?.length && !this.toastMsg && this.wipeDir === 0 ? nextFuseToast(this.run, !!this.screen.mergeNotice) : undefined;
+    const fx = this.run?.fuseFx?.length && !this.toastMsg && this.wipeDir === 0 ? nextFuseToast(this.run, !!this.screen.mergeNotice, !!this.screen.holdsMerges) : undefined;
     if (fx) {
       this.toast(fx, C.lime);
       // 0.6.1d: the "MERGED: NAME ★n" toast (not its "N BELTS REMOVED" follow-up) plays the fuse Sfx.
