@@ -1923,10 +1923,13 @@ async function speedView(browsers, origin, vname) {
   s = await scoutState(page);
   key = await kept();
   check(s.speed === 2 && s.arenaSpeed === 2 && s.ticks === 0 && key === JSON.stringify({ runId, speed: 2 }), `${V}: after a reload, CONTINUE opens the same fight at 2X (${sp(s)}; ${key})`);
-  await page.evaluate(() => window.bb.openDusk({ hero: "weaver", day: 2, seed: 11 }, [])); // a new run (a new runId)
-  await page.waitForFunction(() => window.bb.screen(true) === "intro", null, { timeout: 15000 });
+  // a new run (a new runId): wait for its own battle (the old screen stays current through the screen's wipe, so a wait
+  // on the phase alone can read the old fight, also in its sail-in)
+  await page.evaluate(() => { window.bb.game.screen.oldScreen = true; window.bb.openDusk({ hero: "weaver", day: 2, seed: 11 }, []); });
+  await page.waitForFunction(() => !window.bb.game.screen.oldScreen && window.bb.screen(true) === "intro", null, { timeout: 15000 });
   s = await scoutState(page);
-  check(s.speed === 1 && s.arenaSpeed === 1, `${V}: a new run starts at 1X (${sp(s)}; the key still holds the old run's: ${await kept()})`);
+  const fresh = await page.evaluate(() => window.bb.game.run.runId);
+  check(fresh !== runId && s.speed === 1 && s.arenaSpeed === 1, `${V}: a new run starts at 1X (${sp(s)}; run ${fresh}; the key still holds the old run's: ${await kept()})`);
   check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
   await ctx.close();
 }
