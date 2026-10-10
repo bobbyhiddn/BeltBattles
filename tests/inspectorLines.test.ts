@@ -323,7 +323,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // `${faceLines("splitter", 2)!.rules[0].text} ★2 CLEAN CUT`); the ⓘ view's NEXT★ (nextLine) keeps PERFECT CUT
     expect(text(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1))).toEqual([
       "→ BELT 1, TILE 3", faceLines("splitter", 2)!.rules[0].text,
-      "ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT.", TURN,
+      "ITS EXTRA SLUGS CAN BACK UP AT THE TURRET AND JAM IT.", TURN, // WORDS-1 (REQ-BFG-081): COPIES cut (was "ITS COPIES ...")
     ]);
     expect(nextLine(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1), "splitter", 2)).toBe(`${faceNext("splitter", 2)!.text} ★3 PERFECT CUT`);
     // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, no perk at ★1; 0.6.2t2 (F1): no flavour kept

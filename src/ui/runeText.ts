@@ -53,7 +53,34 @@ export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
  * ONLINE; text only: the rune's rule, id and amount are unchanged, and RuneDef.text (src/sim/runes.ts) stays.
  */
 export const RUNE_TEXT: Readonly<Record<string, string>> = {
-  quick_latch: "YOUR {BELT} RIGS: START {N} SOONER.",
+  // WORDS-1 (REQ-BFG-081; READ-1 6.1's one-offs: START): START WORKING, as ASSEMBLY LINE's face (was "YOUR {BELT} RIGS: START
+  // {N} SOONER."; battle.ts:839: every rig's online time x the rune's share)
+  quick_latch: "YOUR {BELT} RIGS START WORKING {N} SOONER.",
+  // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D; cap's design call 1): the coined rune words in plain words, text only (src/sim
+  // runes.ts keeps RuneDef.text, so no rule, id, amount or hash moves). VOLLEY: battle.ts:1757 opens a volley when a turret
+  // turns from loading to firing and 546-550 spend it on its first load fired (GATLING: every load; SALVO: the salvo's first
+  // load; COMPOUND: each shell); FINAL NAIL: 1889, the load that leaves the chamber empty, never on a GATLING SPOOL (its
+  // opened card says so: glossary.ts RUNE_NOTE). Each line is one line of the card (223 px of 5x7: tests/runes.ui), so the
+  // two VOLLEY openers say GUN, the game's other word for a turret (A TURRET'S ... is 229 to 241 px)
+  final_nail: "THE SHOT THAT EMPTIES A TURRET: +{N} {DMG}.",
+  ember_shot: "FIRST SHOT AFTER A GUN LOADS: +{N} {*BURN}.",
+  first_blood: "FIRST SHOT AFTER A GUN LOADS: +{N} {DMG}.",
+  // MERGED: runes.ts:566-569 counts each placed, fitted or installed piece at ★2 or ★3 (cargo is not the build's), once;
+  // IN USE, and its opened card says what that is (RUNE_NOTE)
+  scrap_halo: "+{N} {HULL} FOR EACH ★2 OR ★3 PIECE IN USE.",
+  scrap_saint: "+{N} {DMG} FOR EACH ★2 OR ★3 PIECE IN USE.",
+  // STAMP: battle.ts:1096 each slug through a factory's one-slug stamp (batches' too, 1033-1049); a cast (TWIN MOULD,
+  // 1045-1047) or a pour (CRUCIBLE, races/foundry.ts:68-121) gives none: its opened card says so (RUNE_NOTE)
+  forge_ward: "EACH SLUG YOUR FACTORY MAKES: +{N} {*PLATE}.",
+  // MACHINES: battle.ts:570 every impact whose target is not the hull (belt tiles, rigs, factories, turrets): ENEMY PARTS,
+  // and its opened card says what a part is (RUNE_NOTE; the PART row's words)
+  scrap_biter: "YOUR HITS ON ENEMY PARTS: +{N} {DMG}.",
+  // MACHINES, and a keyword's suffix ({*STUN}S, TEXT-STYLE 7.2): battle.ts:2212 cuts every STUN on your side's parts
+  steady_iron: "{*STUN} ON YOUR SHIP: -{N}.",
+  // READ-1 6.1's one-offs: WITHOUT FRAY: battle.ts:2071-2073 a hit whose slug adds no FRAY adds the rune's FRAY
+  thread_storm: "YOUR HITS THAT ADD NO {*FRAY} ADD {N} {*FRAY}.",
+  // READ-1 6.2: REGEN merged into HEAL: battle.ts:1441-1454 GREEN THREAD's amount goes through heal() each whole second
+  green_thread: "YOUR HULL: {*HEAL} {N} EACH SEC.",
 };
 /** A rune's effect line in R1b-2's tokens: its RUNE_TEXT row, else RuneDef.text. */
 export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? def.text;
@@ -178,8 +205,12 @@ const THEME_WORD: Readonly<Record<RuneTheme, string>> = {
   turrets: "TURRETS", gold: "GOLD", armor: "ARMOR", stars: "STARS", // RUNES-2a: R1b's "stars and merging"
 };
 
+/** WORDS-1 (REQ-BFG-081; READ-1 6.1's one-offs: LAST STAND's TURRETS tag read as its scope): a rune whose theme's word says
+ *  less than its rule. LAST STAND speeds guns (battle.ts:1791) and factories (1026). */
+export const RUNE_TAG: Readonly<Record<string, string>> = { last_stand: "GUNS AND FACTORIES" };
+
 /** The card's tag line: "RARE · ARMOR". */
-export const runeTag = (def: RuneDef): string => `${tierWord(def.tier)} · ${THEME_WORD[def.theme]}`;
+export const runeTag = (def: RuneDef): string => `${tierWord(def.tier)} · ${RUNE_TAG[def.id] ?? THEME_WORD[def.theme]}`;
 
 /** The read-out's sub line: "RARE RUNE · TAKEN DAY 4" (`day`: the dawn it was taken). */
 export const runeTaken = (def: RuneDef, day: number): string => `${tierWord(def.tier)} RUNE · TAKEN DAY ${day}`;

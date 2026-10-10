@@ -373,14 +373,18 @@ const ENTRIES: Record<string, Entry> = {
   grease: {
     text: (e) => [`MAKES ${belts(e)} PAST IT ${speedText(g(e).speed!)}.`, S.locked(g(e).lockedFlat!)],
     gist: (e) => speedText(g(e).speed!),
-    card: (e) => `MAKES BELTS ${speedText(g(e).speed!)}`,
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1): where it starts, as its face says (was "MAKES BELTS 60% FASTER", read as the
+    // whole belt); two lines of the wide card
+    card: (e) => `${speedText(g(e).speed!)} FROM THIS TILE ON`,
   },
   brake: {
     // 0.6.1f: half speed at every star; ★2 HOT SHOE and ★3 RED-HOT SHOE add friction heat (flat damage)
     // Y3 (release Y; DESIGN-Y row 27): ★2/★3 slow the belt to 40% / 30% and add no damage
     text: (e) => [`SLOWS ${belts(e)} PAST IT TO ${brakeSpeed(g(e).speed!)}.`, S.locked(g(e).lockedFlat!)],
     gist: (e) => brakeSpeed(g(e).speed!),
-    card: (e) => `SLOWS BELTS TO ${brakeSpeed(g(e).speed!)}`, // Y7b2 (the words): from the data, as OVERDRIVE's (★1: the same words)
+    // Y7b2 (the words): from the data, as OVERDRIVE's (★1: the same words). WORDS-1 (REQ-BFG-081): where it starts, as its
+    // face says (was "SLOWS BELTS TO HALF SPEED")
+    card: (e) => `${brakeSpeed(g(e).speed!)} FROM THIS TILE ON`,
   },
   longhaul: {
     // Battle.applyHit: flat += perPriorGate x prior (at most priorCap from ★2); every applied hit counts (prior++)
@@ -403,7 +407,7 @@ const ENTRIES: Record<string, Entry> = {
       ];
     },
     gist: (e) => `STUNS ${g(e).jump ? plural(1 + g(e).jump!, "MACHINE") : "A MACHINE"} FOR ${seconds(g(e).shockTime ?? DISRUPT_TIME)}`,
-    card: (e) => `SHOCK STUNS FOR ${seconds(g(e).shockTime ?? DISRUPT_TIME)}`,
+    card: (e) => `ITS SLUGS STUN FOR ${seconds(g(e).shockTime ?? DISRUPT_TIME)}`, // WORDS-1: SHOCK is STUN (glossary; was "SHOCK STUNS FOR ...")
   },
   splitter: {
     text: (e) => [
@@ -432,7 +436,9 @@ const ENTRIES: Record<string, Entry> = {
     // speed, and a flat only where its data holds one, as ★1's and ★3's (was "4 TIMES AS FAST, SAFE FROM CHAINS" at ★2,
     // from REDLINE's name)
     gist: (e) => `${speedText(g(e).speed!)}${g(e).flat ? `, ADDS ${damage(g(e).flat!)}` : ""}`,
-    card: (e) => `MAKES BELTS ${speedText(g(e).speed!)}`,
+    // WORDS-1 (REQ-BFG-081): where it starts (was "MAKES BELTS 3 TIMES AS FAST"); its face says FROM THESE TILES ON, which
+    // takes the wide card to 3 lines, so the card says HERE
+    card: (e) => `${speedText(g(e).speed!)} FROM HERE ON`,
   },
   tollbooth: {
     // Battle.acceptHarassment: while online, the toll covers the belts it hits, the rigs hitting them and the turrets
@@ -444,7 +450,7 @@ const ENTRIES: Record<string, Entry> = {
       "IT ALSO GUARDS THE RIGS ON THOSE BELTS AND THE TURRETS THEY FEED.",
     ],
     gist: (e) => `BLOCKS ${g(e).toll} STUNS`,
-    card: (e) => `BLOCKS ${g(e).toll} STUNS`,
+    card: (e) => `FIRST ${g(e).toll} STUNS ON ITS BELT FAIL`, // WORDS-1 (REQ-BFG-081): BLOCKS 2 read as 2 seconds (was "BLOCKS 2 STUNS")
   },
   sifter: {
     // harassment.ts siftDebuffs: NUM-3 (R1's STUN fold): SAP only (CHILL and SNAG are gone; no piece gives SAP yet, S.marks);
@@ -487,6 +493,9 @@ const ENTRIES: Record<string, Entry> = {
       ];
     },
     gist: (e) => `COPIES EVERY ${nth(g(e).sort!.every)} PAYLOAD${g(e).sort!.copies > 2 ? ` ${times(g(e).sort!.copies - 1)}` : ""}`,
+    // WORDS-1 (REQ-BFG-081; READ-1 6.2: PAYLOAD and COPIES cut): the desk card's own line (was its gist, "COPIES EVERY THIRD
+    // PAYLOAD")
+    card: (e) => `EVERY ${nth(g(e).sort!.every)} SLUG IS COPIED`,
   },
   riveter: {
     // SUS-A (REQ-BFG-069): the field is `heal` now (compile-driven). SUS-B: its words are HEAL's (battle.ts heal(): never
@@ -499,7 +508,9 @@ const ENTRIES: Record<string, Entry> = {
     // transport: heatBonus += heat x ride, from the hit on; two jackets add up
     text: (e) => [`ADDS ${damage(g(e).heat!)} FOR EACH SECOND THE PAYLOAD RIDES AFTER IT.`, "TWO JACKETS ADD UP."],
     gist: (e) => `${damage(g(e).heat!)} FOR EACH SECOND`,
-    card: (e) => `${damage(g(e).heat!)} A SECOND RIDDEN`,
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: "IT RIDES ON" still read as the whole ride): AFTER THIS TILE (was "4 DAMAGE
+    // A SECOND RIDDEN"); A SEC, as the reminders write it, keeps it to the wide card's two lines
+    card: (e) => `${damage(g(e).heat!)} A SEC AFTER THIS TILE`,
   },
   venom: {
     // Y6 (release Y; DESIGN-Y section 4.1): it gives each payload it hits burnPlus seconds (Battle.impact): each BURN stack
@@ -514,12 +525,13 @@ const ENTRIES: Record<string, Entry> = {
     // Y3 (release Y; DESIGN-Y row 29): it charges the next rig whatever it is (overclock.ts
     // chargeable), so the skip list's sentence (it still named the dormant SIFTER) left
     text: (e) => [
-      `DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR ${seconds(g(e).overclockCooldown!)}.`,
+      // WORDS-1 (REQ-BFG-081): in its face's words (was "DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR 4 SECONDS.")
+      `THE NEXT RIG DOWN ITS BELT HITS TWICE, THEN IT RECHARGES FOR ${seconds(g(e).overclockCooldown!)}.`,
       "THE NEXT RIG IS THE FIRST LATER RIG ON ITS BELT, WHATEVER IT IS.",
       "A RIG WITH NOTHING TO DOUBLE USES UP THE CHARGE.",
     ],
     gist: (e) => `RECHARGES IN ${seconds(g(e).overclockCooldown!)}`,
-    card: () => "DOUBLES THE NEXT RIG'S HIT",
+    card: () => "NEXT RIG DOWN ITS BELT HITS TWICE", // WORDS-1 (REQ-BFG-081): which rig, as its face (was "DOUBLES THE NEXT RIG'S HIT")
   },
   keg: {
     // Battle.detonateKeg: once, when the fuse (running while online, paused by a STUN) ends; ★3 WIDE BLAST:
@@ -627,7 +639,7 @@ const ENTRIES: Record<string, Entry> = {
       const em = f(e).cycle!.find((p) => p.tint === "ember")!, sp = f(e).cycle!.find((p) => p.tint === "spark")!;
       return `${em.burn ?? 0} BURN, SHOCK STUNS ${sp.jump ? plural(1 + sp.jump, "MACHINE") : "A MACHINE"} FOR ${seconds(sp.shockTime ?? DISRUPT_TIME)}`;
     },
-    card: () => "BURN AND SHOCK SLUGS IN TURN",
+    card: () => "BURN AND STUN SLUGS IN TURN", // WORDS-1 (REQ-BFG-081): SHOCK is STUN (glossary; was "BURN AND SHOCK SLUGS IN TURN")
   },
   slagpot: {
     // Battle.transport: slag keeps AMMO.slag.fixedSpeed whatever the speed rigs and the speed lock (NUM-3: no enemy slows)
@@ -699,7 +711,8 @@ const ENTRIES: Record<string, Entry> = {
     perkAt: (e) => (round<{ shrapnel?: boolean }>(e).shrapnel ? 2 : 0),
     // ★3's SHRAPNEL is named after this clause (newPerk), so the clause doesn't name it too
     gist: (e) => `A SABOT ${rate(f(e).speed)}`,
-    card: () => "SABOTS WRECK ENEMY RIGS",
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1): WRECK in plain words, as its face says (was "SABOTS WRECK ENEMY RIGS")
+    card: () => "STOPS ENEMY RIGS FOR THE FIGHT",
   },
   frostbite: {
     // Battle.roundImpact: NUM-3 (R1's STUN fold): STUN the machine it hits (cause "freeze"), then the `spread` nearest
@@ -717,7 +730,8 @@ const ENTRIES: Record<string, Entry> = {
       const r = round<{ seconds: number; spread: number }>(e);
       return `STUNS ${r.spread ? plural(r.spread + 1, "MACHINE") : "A MACHINE"} FOR ${seconds(r.seconds)}`;
     },
-    card: (e) => `STUNS A MACHINE FOR ${seconds(round<{ seconds: number }>(e).seconds)}`,
+    // WORDS-1 (REQ-BFG-081; READ-1 6.2: MACHINE cut): its rounds' STUN (was "STUNS A MACHINE FOR 2 SECONDS")
+    card: (e) => `ITS ROUNDS STUN FOR ${seconds(round<{ seconds: number }>(e).seconds)}`,
   },
   dragchain: {
     // Battle.roundImpact: NUM-3 (R1's STUN fold): STUN the machine it hits (cause "drag"); was a belt slow over the stretch
@@ -822,7 +836,7 @@ const ENTRIES: Record<string, Entry> = {
       const more = pour ? `, POURS ${pour} AT ONCE` : "";
       return Math.abs(mul - 1) < 1e-9 ? `AS OFTEN AS YOUR HERO'S FACTORY${more}` : `${rateText(mul)}${more}`;
     },
-    card: () => "STAMPS YOUR HERO'S AMMO",
+    card: () => "MAKES YOUR HERO'S SLUGS TOO", // WORDS-1 (REQ-BFG-081): STAMPS and AMMO in plain words, as its face (was "STAMPS YOUR HERO'S AMMO")
   },
   limpet: {
     // Battle.roundImpact / hullEffects: the charge sticks where it lands and blasts the enemy hull `delay` seconds
@@ -907,7 +921,7 @@ const ENTRIES: Record<string, Entry> = {
       return [`TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY ${damage(s.flatPerBurn!)}.`, S.bonus];
     },
     gist: (e, x) => `1 BURN FOR EVERY ${damage(c(e, x).flatPerBurn!)}`,
-    card: () => "TURNS BONUS DAMAGE INTO BURN",
+    card: () => "TURNS RIG DAMAGE INTO BURN", // WORDS-1 (REQ-BFG-081): BONUS DAMAGE in plain words, as its face (was "TURNS BONUS DAMAGE INTO BURN")
   },
   salvo: {
     // cores.ts ROUTINES.salvo: waits for a full chamber (or twice the load time), fires it all, reloads x reloadMul
@@ -942,7 +956,7 @@ const ENTRIES: Record<string, Entry> = {
       ];
     },
     gist: (e, x) => `RIPS ${plural(c(e, x).rip!, "PAYLOAD")} WITHIN ${plural(c(e, x).reach!, "TILE")}`,
-    card: () => "SHOTS RIP ENEMY PAYLOADS",
+    card: () => "SHOTS RIP SLUGS OFF ENEMY BELTS", // WORDS-1 (REQ-BFG-081): PAYLOADS in plain words (was "SHOTS RIP ENEMY PAYLOADS")
   },
   tesla: {
     // Battle.impact: arcs to the nearest targets of the struck one (secondary impact at share, and a stall)
@@ -954,7 +968,7 @@ const ENTRIES: Record<string, Entry> = {
       ];
     },
     gist: (e, x) => `ARCS TO ${plural(c(e, x).arcs!, "MACHINE")} AND STUNS ${c(e, x).arcs === 1 ? "IT" : "THEM"} FOR ${seconds(c(e, x).stall!)}`,
-    card: () => "SHOTS ARC AND STUN MACHINES",
+    card: () => "ITS SHOTS ARC AND STUN", // WORDS-1 (REQ-BFG-081; READ-1 6.2: MACHINE cut; was "SHOTS ARC AND STUN MACHINES")
   },
   capacitor: {
     // Battle.chambers: charge while the chamber is empty (up to maxSeconds), spent on the next shot. Y5 (release Y; DESIGN-Y
@@ -1085,7 +1099,7 @@ const ENTRIES: Record<string, Entry> = {
     // Y3 (release Y; DESIGN-Y row 21): nothing off a matched belt (no floor)
     text: (e) => [`ADDS ${damage(g(e).gauge!.matched)} TO EACH PAYLOAD IT HITS ON A MATCHED BELT.`, S.matched],
     gist: (e) => `${damage(g(e).gauge!.matched)} ON A MATCHED BELT`,
-    card: () => "DAMAGE ON A MATCHED BELT",
+    card: () => "DAMAGE IF ANOTHER BELT IS AS LONG", // WORDS-1 (REQ-BFG-081): MATCHED in plain words, as its face (was "DAMAGE ON A MATCHED BELT")
   },
   pincer: {
     // Battle.applyHit (E5): + flat, and + each for every other working rig hitting the tile (online, not stalled, frozen

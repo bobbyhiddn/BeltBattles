@@ -45,6 +45,9 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   if (fl.stats) out.push({ role: "ability", text: fl.stats, keep: true });
   // U2e step 2 (REQ-BFG-070): the second stat row, what a factory's own payloads carry ({BURN}2 {STUN}1.6), kept
   if (fl.stats2) out.push({ role: "ability", text: fl.stats2, keep: true });
+  // WORDS-1 (REQ-BFG-081; TEXT-STYLE 1.4 as ruled 2026-10-10): the plain lines under the stat row (a turret's loads and gear
+  // slots, faces.ts turretPlain), kept, in the ability lines' face and colour
+  for (const text of fl.plain ?? []) out.push({ role: "ability", text, keep: true });
   for (const r of fl.rules) out.push({ role: "ability", text: r.text, keep: true, ...(r.label ? { brass: r.label } : {}) });
   if (perk && out.length) out[out.length - 1] = { ...out[out.length - 1], perk };
   // U2b F6: the perk clause, its label "★2 SPARK JUMP:" in brass, kept (a face never says less than the sim)

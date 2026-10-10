@@ -48,7 +48,9 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
       expect(f.mark.map((r) => r.length), t).toEqual([3, 3, 3]);
       expect(f.mark.join("").replace(/[x.]/g, ""), t).toBe("");
       expect(f.mark.join("").split("x").length - 1, `${t}'s mark lights 3 or more cells`).toBeGreaterThanOrEqual(3);
-      expect(f.glossary, t).toMatch(/^[A-Z0-9 ,;:.'-]+\.$/);
+      // WORDS-1 (REQ-BFG-081): the line is a tag's tap note now (keywords.ts familyTargets), so a keyword in it is in panel
+      // style, {*BURN} (REQ-BFG-032 rule 3: no keyword stands bare in a text a tap shows); was /^[A-Z0-9 ,;:.'-]+\.$/
+      expect(f.glossary, t).toMatch(/^[A-Z0-9 ,;:.'{}*-]+\.$/);
       expect(f.glossary).not.toContain("·");
     }
     expect(new Set(V2.map((t) => FAMILY[t].colour)).size, "seven colours").toBe(7);

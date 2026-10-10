@@ -127,7 +127,8 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   // Y7b2 (the flip): each BURN lasts burnPlus seconds longer, then BURN's own sentence (POISON left: was [g(e).poison!,
   // SIM.poisonTick, SIM.poisonMax, SIM.poisonTime])
   venom: (e) => [g(e).burnPlus!, ...BURN],
-  overclocker: (e) => [g(e).overclockCooldown!],
+  // WORDS-1 (REQ-BFG-081): its opening says HITS TWICE (2: the doubled hit, overclock.ts doubles), then its rest (was [rest])
+  overclocker: (e) => [2, g(e).overclockCooldown!],
   // Y7b2 (the flip): EVERY fuse SECONDS ... flat DAMAGE, no BURN (was [g(e).keg!.flat, g(e).keg!.burn, g(e).keg!.fuse, ...BURN])
   keg: (e) => [g(e).keg!.fuse, g(e).keg!.flat],
   // NUM-3 step 2: burnPerRide { burn, per, max } (BURN for each `per` s ridden; was 1 BURN every `seconds`)
@@ -365,7 +366,9 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     const at = (def: string, s: number) => abilityText(def, s);
     // NUM-1: x10 (was 2). Y7b2 (the flip): LONG HAUL's cap left (was "ADDS 20 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.")
     expect(at("longhaul", 2).sentences[0]).toBe("ADDS 20 DAMAGE FOR EACH EARLIER RIG HIT.");
-    expect(at("overclocker", 1).sentences[0]).toBe("DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR 4 SECONDS.");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1: NEXT RIG'S): in its face's words (was "DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR 4
+    // SECONDS.")
+    expect(at("overclocker", 1).sentences[0]).toBe("THE NEXT RIG DOWN ITS BELT HITS TWICE, THEN IT RECHARGES FOR 4 SECONDS.");
     expect(at("mimic", 3)).toEqual({ // bb-0.8.3 (REQ-BFG-042 D3): its belts follow its stars; no "AND FEEDS 2 BELTS"
       sentences: ["STAMPS YOUR HERO'S SIGNATURE AMMO 25% FASTER THAN ITS OWN FACTORY."],
       perk: { name: "TWIN SIGNET", stars: 3, after: 0 },
@@ -789,7 +792,8 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // Y7b2 (the flip): TWIN GAUGE's and PINCER's floors left (were "MORE DAMAGE ON A MATCHED BELT." and "MORE DAMAGE WITH
     // RIGS ON ITS TILE."); TWIN TRIGGER's pair bonus is 30% at ★1 (was "PAIRS HIT 25% HARDER.")
     expect(cards).toEqual({
-      plateroller: "PLATES YOUR HULL AS SLUGS PASS.", twingauge: "DAMAGE ON A MATCHED BELT.", pincer: "DAMAGE FOR EACH RIG ON ITS TILE.",
+      // WORDS-1 (REQ-BFG-081): TWIN GAUGE's card in plain words (was "DAMAGE ON A MATCHED BELT.")
+      plateroller: "PLATES YOUR HULL AS SLUGS PASS.", twingauge: "DAMAGE IF ANOTHER BELT IS AS LONG.", pincer: "DAMAGE FOR EACH RIG ON ITS TILE.",
       // NUM-4 (REVIEW-NUM3 F2): one word for one stop, STUNS (was "SHORTER STALLS ON ITS TILES.")
       braceframe: "SHORTER STUNS ON ITS TILES.", twinlatch: "LETS TWO BELTS GO TOGETHER.", stoker: "MAKES FACTORIES WORK FASTER.",
       platebreaker: "TURNS PLATING INTO DAMAGE.", shieldwall: "PLATES YOUR HULL, HITS HARDER.", twinmould: "CASTS TWO SLUGS AT ONCE.",
