@@ -188,13 +188,25 @@ export class BuildScreen implements Screen, EditHost {
    * while a mouse hovers a card, and not during a drag or a belt draw (the band, so the deck stays in sight to drop on).
    */
   panelArea(): Rect {
+    // SPACE-1 (REQ-BFG-087): once a frame (frameArea): inside draw() the frame's first call plans it, the others take it
+    if (this.drawing && this.frameArea) return this.frameArea;
     // zoom (REQ-BFG-040, D3): on a phone's layout the panel sits in the band wherever its full description fits there
     // (fullText); only where it doesn't does shoptap2's fallback grow it. Elsewhere, as before: its kept text (keptWhole)
     // SPACE-1 (REQ-BFG-087, D4): inspector.ts panelFit, the one fit the tests share: on a phone, its full description with
     // its gaps at least GAP_MIN in the band, at GAP while it grows
-    return panelAreaOf(this.L, this.sel, { touch: this.touch, hover: !!this.hover, busy: !!(this.ed.carry || this.ed.draw) },
+    const r = panelAreaOf(this.L, this.sel, { touch: this.touch, hover: !!this.hover, busy: !!(this.ed.carry || this.ed.draw) },
       panelFit(this, this.sel, !!this.L.phone));
+    if (this.drawing) this.frameArea = r;
+    return r;
   }
+
+  /** SPACE-1 (REQ-BFG-087): the details panel's rect for the frame being drawn. panelArea's PANEL_STEP loop plans the
+   *  panel at each height (with D4's gaps a tall turret panel on the 402x690 phone with a rune takes 22 plans, 10 before),
+   *  and a frame asks for it three times (the corner MENU's target, the details band, the rune bar's targets), so inside
+   *  draw() it is planned once. Outside draw() (a press, a drop, the tooling's bb.panel) it is planned fresh, as before;
+   *  nothing draw() reads for it (the selection, the hover, the press kind, a drag, the run) changes while it draws. */
+  private frameArea: Rect | null = null;
+  private drawing = false;
 
   /** shoptap tooling (window.bb.panel, read only): the details panel as drawDetails plans it now: its title, sub line,
    *  button labels and the body lines it draws, and whether its kept text shows whole; null with no panel. shoptap2: in
@@ -476,6 +488,18 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   draw(g: G): void {
+    // SPACE-1 (REQ-BFG-087): panelArea once a frame (frameArea)
+    this.drawing = true;
+    this.frameArea = null;
+    try {
+      this.drawFrame(g);
+    } finally {
+      this.drawing = false;
+      this.frameArea = null;
+    }
+  }
+
+  private drawFrame(g: G): void {
     const L = (this.L = this.layout());
     const { W, H, portrait } = this.game;
     ({ block: this.block, broken: this.broken } = routeCheck(this.run.build));
