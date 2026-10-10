@@ -21,7 +21,6 @@ import { TitleScreen } from "./screens/title";
 import { HeroScreen, ORDER as HERO_ORDER } from "./screens/hero";
 import { BuildScreen } from "./screens/build/build";
 import { BattleScreen, DuskWaitScreen } from "./screens/battle";
-import { autoFighting, setAutoFight } from "./screens/battle"; // SCOUT-1 (REQ-BFG-076) tooling: bb.fight(true)
 import { partsOnScreen } from "./screens/battleScout"; // SCOUT-1 tooling: bb.parts
 import { SummaryScreen } from "./screens/summary";
 import { EventScreen } from "./screens/event/event";
@@ -257,14 +256,12 @@ game.start();
     const s = game.screen;
     return { profile: p, wears: chosenSkin(p), unseen: unseen(p), customize: s instanceof CustomizeScreen ? s.info() : null };
   },
-  /** SCOUT-1 (REQ-BFG-076) tooling (nothing in play calls it): press FIGHT in the current battle (scouting: the count
-   *  starts; its sail-in: the sail-in runs into the count). `auto` true: from now on every battle skips scouting, its
-   *  sail-in running into the count at WIDE as before SCOUT-1 (the harness's flows that don't test scouting); false: off.
-   *  Returns whether a battle was told to fight. */
+  /** SCOUT-1 (REQ-BFG-076) tooling. SCOUT-1b (REQ-BFG-082): no fight waits for FIGHT any more (the sail-in runs into the
+   *  count by itself), so this does nothing and returns false; it stays so the scripts that call bb.fight(true) run as
+   *  they are. */
   fight(auto?: boolean): boolean {
-    if (auto !== undefined) setAutoFight(auto);
-    const s = game.screen;
-    return s instanceof BattleScreen ? s.fight() : false;
+    void auto;
+    return false;
   },
   /** SCOUT-1 tooling: open (true) or close (false: BACK) VIEW BATTLEFIELD on the current battle's result card. Returns
    *  whether it changed. */
@@ -273,9 +270,9 @@ game.start();
     if (!(s instanceof BattleScreen)) return false;
     return open ? s.openView() : s.closeView();
   },
-  /** SCOUT-1 tooling (read only): scouting and VIEW BATTLEFIELD as drawn: the phase, the auto mode, the open face (its
-   *  side, part, title, sub line, body lines and rects), FIGHT's, BACK's and the primary action's tap targets, the hint and
-   *  the summaries, in CSS client px; null off a battle. */
+  /** SCOUT-1 tooling (read only): VIEW BATTLEFIELD as drawn: the phase, the camera, the open face (its side, part, title,
+   *  sub line, body lines and rects), BACK's and the primary action's tap targets and the summaries, in CSS client px; null
+   *  off a battle. SCOUT-1b (REQ-BFG-083): `speed`, the bar's speed (an index into 0.5X 1X 2X 4X) and the arena's. */
   scout() {
     const s = game.screen;
     if (!(s instanceof BattleScreen)) return null;
@@ -283,11 +280,11 @@ game.start();
     const css = (q: { x: number; y: number; w: number; h: number } | null | undefined) => (q ? { x: c.left + q.x * k, y: c.top + q.y * k, w: q.w * k, h: q.h * k } : null);
     const f = s.faces.last, r = s.scoutRects;
     return {
-      phase: s.phaseName(), auto: autoFighting(), canView: s.canView(), camera: s.motion.camera ? { shot: s.motion.camera.shot, zoom: s.motion.camera.zoom, moving: s.motion.camera.moving } : null,
+      phase: s.phaseName(), canView: s.canView(), camera: s.motion.camera ? { shot: s.motion.camera.shot, zoom: s.motion.camera.zoom, moving: s.motion.camera.moving } : null,
       calm: s.motion.model.calmAt(),
       face: f ? { side: f.side, sel: f.sel, title: f.title, sub: f.sub, line: f.line, lines: f.lines, r: css(f.r), close: css(f.close) } : null,
-      fight: css(r.fight), back: css(r.back), primary: css(r.primary), hint: css(r.hint), summaries: r.summaries.map(css),
-      viewPrimary: s.viewPrimary()?.label ?? null,
+      back: css(r.back), primary: css(r.primary), summaries: r.summaries.map(css),
+      viewPrimary: s.viewPrimary()?.label ?? null, speed: s.speed, arenaSpeed: s.arena.speed, ticks: s.arena.b.ticks,
     };
   },
   /** SCOUT-1 tooling (read only): every part on board `side` of the current battle (each installed turret, item and belt)
@@ -302,8 +299,8 @@ game.start();
     }));
   },
   /** Current screen name (for harness assertions). SCOUT-1 (REQ-BFG-076): `phase` true, on a battle its phase instead
-   *  ("intro", "scout", "count", "fight", "outro", "result", "view"); without it the names as before, so every flow that
-   *  waits for "battle" or "warlord" still does. */
+   *  ("intro", "count", "fight", "outro", "result", "view"; SCOUT-1b: no "scout"); without it the names as before, so every
+   *  flow that waits for "battle" or "warlord" still does. */
   screen(phase = false): string {
     const s = game.screen;
     if (phase && s instanceof BattleScreen) return s.phaseName();

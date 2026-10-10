@@ -1,14 +1,16 @@
-// SCOUT-1 (REQ-BFG-076): scouting before a fight and VIEW BATTLEFIELD after it, on BattleScreen itself (a stand-in Game in
-// node: no canvas is drawn). The phase order; FIGHT gating the first sim step; the fight unchanged by scouting (scouted for
-// 0 s or 30 s: the same events and the same result); the saved-battle rules; the summaries against the result card; BACK,
-// the primary action and the warlord's pick; the camera's moves (and a move finishing while paused).
+// SCOUT-1 (REQ-BFG-076): VIEW BATTLEFIELD after a fight, on BattleScreen itself (a stand-in Game in node: no canvas is
+// drawn). SCOUT-1b (REQ-BFG-082): no scouting pause before it: the sail-in runs into the 3-2-1 count at WIDE and the first
+// sim step comes when it did at scout-base; no "scout" phase for a dusk or a warlord; the camera WIDE and at rest through
+// the sail-in and the count; a battle saved before its fight opens in the sail-in again; a warlord reloaded on its card
+// never fights or pays again. Then VIEW BATTLEFIELD as SCOUT-1 left it: the summaries against the result card; BACK, the
+// primary action and the warlord's pick; the faces; the camera's moves (and a move finishing while paused).
 
 import { describe, expect, it } from "vitest";
 import { viewWithSub } from "../src/game/viewGrid";
 import { battleGrid, battleLayout, battleScale, laneLayout } from "../src/game/battleLayout";
 import { sx, sy } from "../src/render/frame";
 import { FACE_MIN_W, faceArea, summaryRects } from "../src/screens/battleScout";
-import { BattleScreen, FIGHT_WIDE_S, SCOUT_CLOSE_S, setAutoFight } from "../src/screens/battle";
+import { BACK_WIDE_S, BattleScreen, VIEW_CLOSE_S } from "../src/screens/battle";
 import { faceText, partAt, pickPart, readOnlyBlock, summaryRows } from "../src/screens/battleScout";
 import { resultRows } from "../src/screens/battleHud";
 import { setupRun, setupWarlord } from "../src/tooling";
@@ -31,9 +33,29 @@ function fakeGame(run: Run, w = 390, h = 844, dpr = 3): Game & { gone: unknown[]
 }
 
 function dusk(day = 6, seed = 7, hero: "furnace" | "weaver" = "furnace"): { game: Game & { gone: unknown[] }; s: BattleScreen } {
-  setAutoFight(false);
   const game = fakeGame(setupRun({ hero, day, seed }));
   return { game, s: new BattleScreen(game) };
+}
+
+/** SCOUT-1b: the frame (1-based, at DT) on which scout-base's intro says GO: its clock adds dt each frame until the
+ *  sail-in (1.2 s) and the count (1.35 s) are over, as BattleScreen.update's does. */
+function goFrame(): number {
+  let pt = 0, n = 0;
+  while (pt < 1.2 + 1.35) {
+    pt += DT;
+    n++;
+  }
+  return n;
+}
+
+/** SCOUT-1b: step a battle to its result card, returning each phase it showed (bb.screen(true)'s names), in order. */
+function phases(s: BattleScreen): string[] {
+  const seen: string[] = [s.phaseName()];
+  for (let i = 0; i < 60 * 400 && s.phase !== "result"; i++) {
+    s.update(DT);
+    if (seen[seen.length - 1] !== s.phaseName()) seen.push(s.phaseName());
+  }
+  return seen;
 }
 
 /** Step the screen n frames (or until `stop`), returning every sim event the fight drained (copied). */
@@ -46,110 +68,81 @@ function run(s: BattleScreen, n: number, stop?: () => boolean): SimEvent[] {
   return out;
 }
 
-describe("SCOUT-1: scouting before the fight", () => {
-  it("the sail-in ends in scouting at CLOSE; FIGHT runs the 3-2-1 count at WIDE; the sim takes no step before the count ends", () => {
+describe("SCOUT-1b: the fight starts at once (no scouting pause)", () => {
+  it("the sail-in runs into the 3-2-1 count by itself; the first sim step comes at INTRO + 1.35 s, as at scout-base", () => {
     const { s } = dusk();
-    expect(s.phaseName()).toBe("intro");
-    expect(s.motion.camera?.shot).toBe("wide");
-    run(s, 71); // the sail-in (1.2 s) not yet over
-    expect(s.phase).toBe("intro");
-    run(s, 2);
-    expect(s.phase).toBe("scout");
-    expect(s.motion.camera?.shot).toBe("close");
-    run(s, Math.ceil(SCOUT_CLOSE_S / DT) + 1);
-    expect(s.motion.camera?.moving).toBe(false);
-    expect(s.motion.camera?.zoom).toBe(1);
-    expect(s.motion.model.calmAt()).toBe(1); // steady sailing: no bank, drift, surge or bob
-    expect(s.motion.model.pose(0)).toMatchObject({ x: 0, y: 0, bank: 0, bob: 0 });
-    // scouting waits as long as it takes: 30 s, no sim step, the clock at 0
-    run(s, 30 * 60);
-    expect(s.phase).toBe("scout");
-    expect(s.arena.b.ticks).toBe(0);
-    expect(s.fight()).toBe(true);
-    expect(s.phaseName()).toBe("count");
-    expect(s.motion.camera?.shot).toBe("wide");
-    // the count (1.35 s): the camera at rest at WIDE before GO, and still no sim step
-    run(s, Math.ceil(FIGHT_WIDE_S / DT) + 1);
-    expect(s.motion.camera?.moving).toBe(false);
-    expect(s.arena.b.ticks).toBe(0);
-    run(s, 200, () => s.phase === "fight");
+    const go = goFrame();
+    expect(go).toBe(154); // 2.55 s at 60 fps: the clock's float sum of 1/60 reaches 2.55 on frame 154
+    for (let i = 1; i < go; i++) {
+      s.update(DT);
+      expect(s.phase).toBe("intro");
+      expect(s.arena.b.ticks).toBe(0); // the sim takes no step in the sail-in or the count
+      if (i !== 72) expect(s.phaseName()).toBe(i < 72 ? "intro" : "count"); // the sail-in is 1.2 s (72 frames)
+    }
+    s.update(DT); // GO
     expect(s.phase).toBe("fight");
-    expect(s.arena.b.ticks).toBe(0); // GO: the first step comes with the fight's first frame
-    run(s, 1);
+    expect(s.arena.b.ticks).toBe(0); // the first step comes with the fight's first frame, as at scout-base
+    s.update(DT);
     expect(s.arena.b.ticks).toBeGreaterThan(0);
-    expect(s.fight()).toBe(false); // once
   });
 
-  it("scouted for 0 s or for 30 s, the fight is the same: the same events, the same result", () => {
-    const fightOf = (wait: number) => {
-      const { s } = dusk(8, 21);
-      run(s, 600, () => s.phase === "scout");
-      run(s, wait);
-      s.fight();
-      run(s, 600, () => s.phase === "fight");
-      const ev = run(s, 60 * 200, () => s.phase !== "fight");
-      const b = s.arena.b;
-      return { ev, winner: b.winner, ticks: b.ticks, hp: [b.sides[0].hull.hp, b.sides[1].hull.hp], stats: [b.sides[0].stats, b.sides[1].stats] };
-    };
-    const a = fightOf(0), b = fightOf(30 * 60);
-    expect(a.ev.length).toBeGreaterThan(50);
-    expect(b.ev).toEqual(a.ev);
-    expect(b.winner).toBe(a.winner);
-    expect(b.ticks).toBe(a.ticks);
-    expect(b.hp).toEqual(a.hp);
-    expect(b.stats).toEqual(a.stats);
-  });
-
-  it("S skips from scouting as from the intro; the auto mode (bb.fight(true)) runs the sail-in into the count at WIDE", () => {
+  it("no scout phase is ever entered, for the dusk or for a warlord: intro, count, fight, outro, result", () => {
     const { s } = dusk();
-    run(s, 600, () => s.phase === "scout");
-    s.key("S");
-    expect(["outro", "result"]).toContain(s.phase);
-    expect(s.arena.b.over).toBe(true);
-    expect(s.motion.camera?.shot).toBe("wide");
-    setAutoFight(true);
-    const game = fakeGame(setupRun({ hero: "furnace", day: 6, seed: 7 }));
-    const t = new BattleScreen(game);
-    setAutoFight(false);
-    const shots: string[] = [];
-    run(t, 300, () => { shots.push(t.phaseName()); return t.phase === "fight"; });
-    expect(shots).not.toContain("scout");
-    expect(t.motion.camera?.shot).toBe("wide");
-    expect(t.phase).toBe("fight");
+    expect(phases(s)).toEqual(["intro", "count", "fight", "outro", "result"]);
+    expect(dusk(8, 21, "weaver").s.phaseName()).toBe("intro");
+    expect(phases(dusk(8, 21, "weaver").s)).toEqual(["intro", "count", "fight", "outro", "result"]);
+    const wr = setupWarlord("hard", { hero: "furnace", day: 4, seed: 9 });
+    const w = new BattleScreen(fakeGame(wr), "warlord");
+    expect(w.kind).toBe("warlord");
+    expect(phases(w)).toEqual(["intro", "count", "fight", "outro", "result"]);
+    expect(w.warlord!.result).toBeTruthy(); // fought and paid once
   });
 
-  it("Enter or Space is FIGHT in scouting; P pauses, and a camera move finishes while paused", () => {
+  it("the camera is WIDE and at rest through the sail-in and the count, the carriers in their full motion", () => {
     const { s } = dusk();
-    run(s, 72, () => s.phase === "scout");
-    run(s, 2);
-    expect(s.motion.camera?.moving).toBe(true);
-    s.key("P");
-    expect(s.paused).toBe(true);
-    run(s, 60);
-    expect(s.motion.camera?.moving).toBe(false); // BattleScreen.update returns early while paused: the move still ends
-    expect(s.phase).toBe("scout");
-    s.key("P");
-    s.key("Enter");
-    expect(s.phaseName()).toBe("count");
-    const t = dusk().s;
-    run(t, 600, () => t.phase === "scout");
-    t.key(" ");
-    expect(t.phaseName()).toBe("count");
+    const cam = s.motion.camera!;
+    const wide = cam.zoom;
+    expect(cam.shot).toBe("wide");
+    expect(wide).toBeLessThan(1); // a DPR-3 phone's WIDE (2/3)
+    for (let i = 0; i < goFrame() + 30; i++) {
+      s.update(DT);
+      expect(cam.shot).toBe("wide");
+      expect(cam.moving).toBe(false);
+      expect(cam.zoom).toBe(wide);
+      expect(s.motion.model.calmAt()).toBe(0); // no steady sailing before the fight
+    }
+    expect(s.phase).toBe("fight");
   });
 
-  it("a battle saved before its fight began opens in scouting again; a warlord reloaded on its card never fights or pays again", () => {
+  it("S skips from the sail-in or the count, as at scout-base", () => {
+    for (const at of [20, 100]) {
+      const { s } = dusk();
+      run(s, at);
+      expect(s.phaseName()).toBe(at < 72 ? "intro" : "count");
+      s.key("S");
+      expect(["outro", "result"]).toContain(s.phase);
+      expect(s.arena.b.over).toBe(true);
+      expect(s.motion.camera?.shot).toBe("wide");
+    }
+  });
+
+  it("a battle saved before its fight began opens in the sail-in and runs into the count; a warlord reloaded on its card never fights or pays again", () => {
     const { game, s } = dusk();
     const foe = s.foeName;
-    run(s, 600, () => s.phase === "scout");
+    run(s, 100);
+    expect(s.phaseName()).toBe("count");
     // the save holds tonight's foe (startDusk stored it): a reload builds the screen again on the same run
     const again = new BattleScreen(game);
     expect(again.foeName).toBe(foe);
-    expect(again.phase).toBe("intro");
-    run(again, 600, () => again.phase === "scout");
-    expect(again.phase).toBe("scout");
+    expect(again.phaseName()).toBe("intro");
     expect(again.arena.b.ticks).toBe(0);
+    const go = goFrame();
+    run(again, go - 1);
+    expect(again.phaseName()).toBe("count");
+    expect(again.arena.b.ticks).toBe(0);
+    run(again, 1);
+    expect(again.phase).toBe("fight");
     // the warlord's card: stored result, reloaded
-    setAutoFight(false);
     const wr = setupWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 });
     const wg = fakeGame(wr);
     const gold = wr.gold;
@@ -165,8 +158,6 @@ describe("SCOUT-1: scouting before the fight", () => {
 describe("SCOUT-1: VIEW BATTLEFIELD", () => {
   it("the summaries' numbers are the result card's where both show one; BACK returns to the card; the bar's primary is the card's", () => {
     const { game, s } = dusk();
-    run(s, 600, () => s.phase === "scout");
-    s.fight();
     run(s, 60 * 400, () => s.phase === "result");
     expect(s.phase).toBe("result");
     expect(s.canView()).toBe(true);
@@ -180,17 +171,36 @@ describe("SCOUT-1: VIEW BATTLEFIELD", () => {
     expect(s.openView()).toBe(true);
     expect(s.phase).toBe("view");
     expect(s.motion.camera?.shot).toBe("close");
-    run(s, 60);
+    run(s, Math.ceil(VIEW_CLOSE_S / DT) + 1);
     expect(s.motion.camera?.moving).toBe(false);
+    expect(s.motion.camera?.zoom).toBe(1);
+    expect(s.motion.model.calmAt()).toBe(1); // steady sailing in the view: no bank, drift, surge or bob
     const p = s.viewPrimary();
     expect(p?.label).toBe(`ON TO DAWN · DAY ${game.run!.day}`);
     expect(s.closeView()).toBe(true);
     expect(s.phase).toBe("result");
     expect(s.motion.camera?.shot).toBe("wide");
+    run(s, Math.ceil(BACK_WIDE_S / DT) + 1);
+    expect(s.motion.camera?.moving).toBe(false);
     s.openView();
     run(s, 30);
     p!.onTap();
     expect(game.gone.length).toBe(1); // ON TO DAWN from the view: the dawn's build screen
+  });
+
+  it("ESC's menu holds the view, and a camera move begun there still comes to rest", () => {
+    const { s } = dusk();
+    run(s, 60 * 400, () => s.phase === "result");
+    s.openView();
+    run(s, 2);
+    expect(s.motion.camera?.moving).toBe(true);
+    s.key("Escape");
+    expect(s.menu).toBe(true);
+    run(s, 60);
+    expect(s.motion.camera?.moving).toBe(false); // BattleScreen.update returns early in the menu: the move still ends
+    expect(s.phase).toBe("view");
+    s.key("P"); // no pause in the view
+    expect(s.phase).toBe("view");
   });
 
   it("the warlord's pick is untouched: no primary in the view while it waits; BACK, pick, then the view offers REFIT", () => {
@@ -211,7 +221,6 @@ describe("SCOUT-1: VIEW BATTLEFIELD", () => {
 
   it("each part's face: the side's own build and hero, read only; a turret's fight line in the view", () => {
     const { s } = dusk(8, 21);
-    run(s, 600, () => s.phase === "scout");
     for (const side of [0, 1] as const) {
       const b = s.arena.b.sides[side].build;
       const slots = turretSlots(b);
@@ -226,13 +235,12 @@ describe("SCOUT-1: VIEW BATTLEFIELD", () => {
       for (const p of b.items) expect(faceText(b, { kind: "item", uid: p.uid })?.labels).toEqual(["CLOSE"]);
     }
     expect(readOnlyBlock({ role: "ability", text: "SPEED: LEVEL 1/4. UPGRADE: »66." })?.text).toBe("SPEED: LEVEL 1/4.");
-    s.fight();
     run(s, 60 * 400, () => s.phase === "result");
     const n = s.arena.partShots[0].reduce((a, x) => a + (x ?? 0), 0);
     expect(n).toBe(s.arena.b.sides[0].stats.shots);
   });
 
-  it("on every view the hint, the summaries and a face in the open floor lie over no board's tile at CLOSE", () => {
+  it("on every view the summaries and a face in the open floor lie over no board's tile at CLOSE", () => {
     const VIEWS: [number, number, number][] = [[390, 844, 3], [430, 932, 3], [844, 390, 3], [1920, 1080, 1], [1366, 768, 1], [1280, 720, 1]];
     for (const [w, h, dpr] of VIEWS) {
       const v = viewWithSub(w, h, dpr, (pw, ph, p) => battleScale(pw, ph, p), pickSub);
@@ -258,7 +266,7 @@ describe("SCOUT-1: VIEW BATTLEFIELD", () => {
 
   it("a tap hits the part under it on either board through the camera: at CLOSE, at WIDE and mid-move", () => {
     const { s } = dusk(8, 21);
-    run(s, 600, () => s.phase === "scout");
+    run(s, 60 * 400, () => s.phase === "result");
     const check = () => {
       for (const side of [0, 1] as const) {
         const b = s.arena.b.sides[side].build;
@@ -275,17 +283,19 @@ describe("SCOUT-1: VIEW BATTLEFIELD", () => {
       }
     };
     s.motion.frame(s.arena);
-    check(); // CLOSE (moving or at rest)
-    run(s, 60);
-    s.motion.frame(s.arena);
-    check();
-    s.fight();
-    run(s, 20);
+    check(); // WIDE (the result card)
+    expect(s.openView()).toBe(true);
+    run(s, 10);
     s.motion.frame(s.arena);
     expect(s.motion.camera?.moving).toBe(true);
     check(); // mid-move
     run(s, 60);
     s.motion.frame(s.arena);
-    check(); // WIDE
+    expect(s.motion.camera?.shot).toBe("close");
+    check(); // CLOSE
+    s.closeView();
+    run(s, 20);
+    s.motion.frame(s.arena);
+    check(); // on its way back to WIDE
   });
 });

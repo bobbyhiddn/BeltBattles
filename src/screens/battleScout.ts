@@ -1,12 +1,13 @@
-// SCOUT-1 (REQ-BFG-076; presentation only): scouting both carriers before a fight, and VIEW BATTLEFIELD after it.
+// SCOUT-1 (REQ-BFG-076; presentation only): VIEW BATTLEFIELD after a fight. SCOUT-1b (REQ-BFG-082): the scouting pause
+// before the fight is gone (the fight starts at once, as before SCOUT-1); the faces stay general (a face for any side's
+// build), for VIEW BATTLEFIELD and for scouting from the build screen later.
 //
-// Scouting: after the sail-in the camera eases to CLOSE (today's framing) and the carriers sail steady; a tap on any part
-// of either board opens its face, the build screen's own panel for that part, read only; FIGHT starts the 3-2-1 count
-// and the camera eases back to WIDE. VIEW BATTLEFIELD: from the result card, the camera eases to CLOSE over both carriers
-// as the fight left them; each part's face adds this fight's numbers for a turret (game/arena.ts partShots and
-// partDamage), and each side's summary sits in the open floor beside its own carrier; BACK returns to the card, and the
-// card's primary action is in the bar too. Nothing here reads or writes the sim beyond what the arena drew: the faces
-// read each side's build (the enemy's from its own build and hero), the summaries the battle's side stats.
+// VIEW BATTLEFIELD: from the result card, the camera eases to CLOSE (today's framing) over both carriers as the fight left
+// them and the carriers sail steady; a tap on any part of either board opens its face, the build screen's own panel for
+// that part, read only, with this fight's numbers for a turret (game/arena.ts partShots and partDamage); each side's
+// summary sits in the open floor beside its own carrier; BACK returns to the card, and the card's primary action is in
+// the bar too. Nothing here reads or writes the sim beyond what the arena drew: the faces read each side's build (the
+// enemy's from its own build and hero), the summaries the battle's side stats.
 
 import type { Game } from "../game/game";
 import type { Arena } from "../game/arena";
@@ -38,10 +39,7 @@ import { INFO_FREE_MIN, drawKeywordLayer, keywordsPressed } from "./build/keywor
 export type PartSel = Extract<Sel, { kind: "item" } | { kind: "route" } | { kind: "turret" }>;
 export interface FacePick { side: Side; sel: PartSel }
 
-/** The scouting line (docs/TEXT-STYLE.md: game words in capitals). */
-export const SCOUT_HINT = "SCOUT · TAP ANY PART";
-export const SCOUT_HINT_SHORT = ["SCOUT", "TAP ANY PART"];
-export const FIGHT_LABEL = "FIGHT";
+/** VIEW BATTLEFIELD's words (docs/TEXT-STYLE.md: game words in capitals). */
 export const VIEW_LABEL = "VIEW BATTLEFIELD";
 export const BACK_LABEL = "BACK";
 
@@ -235,22 +233,6 @@ export function drawSummaries(g: G, a: Arena, L: BattleLayout): void {
   }
 }
 
-/** The scouting line in the open floor's middle (one line, or two where the floor is narrow). */
-export function drawScoutHint(g: G, L: BattleLayout, k = 1): Rect {
-  const gb = L.gapBox, cx = Math.round(gb.x + gb.w / 2), cy = Math.round(gb.y + gb.h / 2);
-  const one = textWidth(SCOUT_HINT, "3") + 8 <= gb.w;
-  const lines = one ? [SCOUT_HINT] : SCOUT_HINT_SHORT;
-  const w = Math.max(...lines.map((s) => textWidth(s, "3"))) + 8, h = lines.length * 8 + 4;
-  const r = { x: cx - Math.round(w / 2), y: cy - Math.round(h / 2), w, h };
-  if (k <= 0) return r;
-  g.globalAlpha = 0.86 * Math.min(1, k);
-  rect(g, r.x, r.y, r.w, r.h, C.ink);
-  g.globalAlpha = Math.min(1, k);
-  lines.forEach((s, i) => drawText(g, s, cx, r.y + 3 + i * 8, i === 0 && s.startsWith("SCOUT") ? C.yellow : C.bone, { font: "3", align: "center" }));
-  g.globalAlpha = 1;
-  return r;
-}
-
 /** The tap target a finger needs here (TAP_CSS CSS px in this view's logical px). */
 export const fingerPx = (game: Pick<Game, "view">): number => tapPx(game.view);
 
@@ -276,7 +258,7 @@ export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () =
 }
 
 /**
- * The faces of one battle (scouting and VIEW BATTLEFIELD): which part is open, and its drawing. The open face's keyword
+ * The faces of one battle (VIEW BATTLEFIELD; general: any side's build): which part is open, and its drawing. The open face's keyword
  * state (its ⓘ view, a word's definition) belongs to this object (keywords.ts keeps it per owner).
  */
 export class BattleFaces {
