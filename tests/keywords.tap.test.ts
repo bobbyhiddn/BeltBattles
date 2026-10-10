@@ -433,8 +433,12 @@ describe("U2f: the taller ⓘ view", () => {
     // caveat, POISON's and the retired rows gone); the words, op -> 132 / 179 / 5, desk -> 21 / 105 / 133 / 32 / 15 / 10 (no
     // panel draws a perk's name, the 16 retired perk names leave the LEVELS, LOAD TIME's row is gone). U2f's view: the next
     // test
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([132, 179, 5]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([21, 105, 133, 32, 15, 10]);
+    // WORDS-1 (REQ-BFG-081), re-measured (the same 316 panels): the stat icons' notes ({RATE}, {SLUG}, {GEAR} on every turret's
+    // and factory's stat row), the glossary words a face line prints (PART, SPEED's FROM THIS TILE ON, JAM) and the turrets'
+    // two plain lines lengthen the body-only views: op 132 / 179 / 5 -> 66 / 183 / 67, desk 21 / 105 / 133 / 32 / 15 / 10 ->
+    // 5 / 73 / 113 / 84 / 24 / 6 / 9 / 2. U2f's view, the one the game draws (the next test), is unchanged: 316 on 1 page
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([66, 183, 67]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([5, 73, 113, 84, 24, 6, 9, 2]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -545,12 +549,14 @@ describe("U2f: the taller ⓘ view", () => {
 // 30 folded pieces: no interim clause or caveat, POISON's row gone). The words move none of the four. U2f's aims hold as
 // above.
 const U2F_OP = [316]; // Y7b2 (the flip): was [309, 2]
-const U2F_OP_RUNE = [304, 12]; // Y7b2 (the flip): was [282, 34]
+// WORDS-1 (REQ-BFG-081), measured: the stat icons' and face words' notes list in the view, so with the worst rune's keywords
+// after them 82 views take a second page (was [304, 12]); none takes a third (U2f's aim: 3 at most with a rune held)
+const U2F_OP_RUNE = [234, 82]; // Y7b2 (the flip): was [282, 34]
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
  *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
  *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). */
-const U2F_OP_RUNE_ON = [304, 12];
+const U2F_OP_RUNE_ON = [234, 82]; // WORDS-1: the same as RUNE_LIST's, as before (was [304, 12])
 const U2F_DESK = [316]; // Y7b2 (the flip): was [302, 9]
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
