@@ -53,7 +53,9 @@ describe("TXT-095 (ii): the shop card's hover tooltip reads faces first, as the 
     const src = readFileSync("src/screens/build/chrome.ts", "utf8");
     expect(src).toContain("drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerTooltip(o.def, textOpts(s.run)));");
     expect(src).not.toContain("abilityText(o.def, 1, textOpts(s.run)).sentences[0]");
-    expect(src).toContain("faceLines(def, 1)?.rules[0]?.text ?? abilityText(def, 1, textOpts(s.run)).sentences[0] ?? \"\"");
+    // AZ-PREP (REVIEW-HULL1D Q3): the pack tooltip's line, face first then its sentence, now on the run's day (chrome.ts
+    // packTip; was faceLines(def, 1)?.rules[0]?.text ?? abilityText(def, 1, textOpts(s.run)).sentences[0] ?? "")
+    expect(src).toContain("faceLines(def, 1, textOpts(run))?.rules[0]?.text ?? abilityText(def, 1, textOpts(run)).sentences[0] ?? \"\"");
   });
 
   it("every offer's tooltip wraps inside its 150 px and draws inside the desk's 640 px build view", () => {
