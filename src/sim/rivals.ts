@@ -15,7 +15,7 @@ import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type Faction, type Hero
 import { starsOf, upgradeGold, valueOf } from "./stars";
 import { turretsCost, type Build } from "./deck";
 import { warlordBuild, warlordHull } from "./ai";
-import { CAPTAIN_RUNES, PLANS, captainRunesOn, planBuild, type Luck, type RivalLoadout } from "./rivalBuilds";
+import { CAPTAIN_RUNES, PLANS, captainRunesOn, planBuild, type Luck, type RivalLoadout, type RoadMoment } from "./rivalBuilds";
 
 export type RivalId =
   | "sootjaw" | "nettle" | "grubnose" | "mothqueen"
@@ -276,9 +276,10 @@ export function luckOf(id: RivalId): Luck {
 }
 
 /** A captain's plan as it stands on a day (1-10) at a luck tier (default: its warlord slot's, luckOf): the deck, its
- *  supplies and its value. */
-export function rivalLoadout(id: RivalId, day: number, luck: Luck = luckOf(id)): RivalLoadout {
-  return planBuild(PLANS[id], day, luck);
+ *  supplies and its value. REFIT-AZ (REQ-BFG-078; REVIEW-PARAZ ruling Q1): `moment`, the moment the deck is fought (the
+ *  road deck's "warlord", standInBuild's "dusk"), picks its road additions with the NPC day on (planBuild); off, unread. */
+export function rivalLoadout(id: RivalId, day: number, luck: Luck = luckOf(id), moment: RoadMoment = "warlord"): RivalLoadout {
+  return planBuild(PLANS[id], day, luck, moment);
 }
 
 /**
@@ -360,7 +361,8 @@ export function deckCost(b: Build): DeckCost {
  */
 export function standInBuild(id: RivalId, day: number): Build {
   // TUNE-C (REQ-BFG-033): a stand-in is assembled at ordinary luck, whatever its warlord slot
-  const l = rivalLoadout(id, day, "ordinary");
+  // REFIT-AZ (REQ-BFG-078; REVIEW-PARAZ ruling Q1): fought at dusk, so with the NPC day on it holds its dusk road additions
+  const l = rivalLoadout(id, day, "ordinary", "dusk");
   // FLIP-X2 (REVIEW-BOTSX section 5): the fought deck holds the captain's runes, as rivalBuild does (captainRunesOn: the
   // first `day` ids of CAPTAIN_RUNES[id], their HULL and BELT on the build). What a captain is said to hold is what he
   // fights with; a value or cap check on this deck values it as bought (standins.ts boughtCost: the runes' grants out)
