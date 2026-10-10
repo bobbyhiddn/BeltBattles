@@ -13,6 +13,7 @@
 // Also the par player's buy rate (P5): the share of its runs (seeds 1..k) holding the rig at each day's dusk and the share
 // that bought one by then, with the copies bought.
 // --set id.field=value (repeatable; field = a ★1 gate number, or price) patches a def before the bench (the guard's cuts).
+// --fight-set id.field=value (run 2, repeatable): the same patch for each day's fights only, on decks built under the defs.
 // Usage: node <built>/presence.js --hero furnace --days 3,6,10 --k 12 --m 6 --seeds 1 --ins 4 --out file.json
 // Pure harness reads; writes only --out. No RNG beyond the game's seeded streams.
 import { writeFileSync } from "node:fs";
@@ -44,14 +45,24 @@ setPlainRigs(true);
 // the guard's cuts: --set rasp.flat=8 (a ★1 gate number) or --set rasp.price=4
 const sets: string[] = [];
 process.argv.forEach((a, i) => { if (a === "--set") sets.push(process.argv[i + 1]); });
-for (const s of sets) {
+/** Patch one def as `id.field=value` says; returns the def it replaced. */
+const applySet = (s: string): [string, ItemDef] => {
   const [lhs, v] = s.split("="), [id, field] = lhs.split(".");
+  const was = ITEMS[id];
   const d: ItemDef = { ...ITEMS[id], gate: { ...ITEMS[id].gate } };
   if (field === "price") d.price = Number(v);
   else (d.gate as Record<string, number>)[field] = Number(v);
   ITEMS[id] = d;
-}
+  return [id, was];
+};
+for (const s of sets) applySet(s);
 if (sets.length) clearStarCache();
+// run 2 (cap R2-1's BURN diagnostic; a bench-only override, never a def): --fight-set id.field=value patches a ★1 number
+// after each day's par decks and par runs are built under the defs, for that day's fights only, then puts the def back.
+// So the same decks (and the same buy rate) fight with the patched number; the foes' copies take it too. (The par run
+// cache keys on hero, seed and rules, never a def; the battle reads each def through the star cache, cleared at each swap.)
+const fightSets: string[] = [];
+process.argv.forEach((a, i) => { if (a === "--fight-set") fightSets.push(process.argv[i + 1]); });
 
 const holds = (b: Build, id: string): boolean => b.items.some((p) => p.def === id);
 const without = (b: Build, id: string): Build => {
@@ -79,7 +90,7 @@ interface Pair { deck: number; whole: number[]; other: number[] } // points per 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : NaN);
 
 const t0 = Date.now();
-const out: Record<string, unknown> = { hero: HERO, days: DAYS, k: K, m: M, seeds: SEEDS, ins: INS, sets, rows: [] as unknown[] };
+const out: Record<string, unknown> = { hero: HERO, days: DAYS, k: K, m: M, seeds: SEEDS, ins: INS, sets, ...(fightSets.length ? { fightSets } : {}), rows: [] as unknown[] };
 for (const day of DAYS) {
   const mine = parField(HERO, day, K);
   const foes = FOES.map((h) => parField(h, day, K).slice(0, M));
@@ -104,6 +115,9 @@ for (const day of DAYS) {
   };
   // the par player's buy rate (P5): its runs to this dusk
   const runs = parSeeds(K).map((s) => playerRun(HERO, day, s));
+  // --fight-set (run 2): the day's decks and runs are built; patch for its fights (the inserted copy's cell reads it too)
+  const undo = fightSets.map(applySet);
+  if (undo.length) clearStarCache();
   for (const id of RIGS) {
     const holders = mine.map((b, i) => (holds(b, id) ? i : -1)).filter((i) => i >= 0);
     const hp: Pair[] = holders.map((i) => ({ deck: i, whole: whole(i), other: play(without(mine[i], id), i, "without") }));
@@ -128,6 +142,9 @@ for (const day of DAYS) {
     const pp = (x: number) => (Number.isNaN(x) ? "-" : `${x >= 0 ? "+" : ""}${(100 * x).toFixed(1)}`);
     console.log(`presence ${HERO} d${day} ${id.padEnd(12)} holders ${holders.length}/${K} lift ${pp(row.holderLift)} pts | inserted ${ip.length} lift ${pp(row.insertLift)} pts | bought by d${day} ${bought}/${K} (${copies} copies) | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   }
+  // --fight-set (run 2): put the defs back (last patch first) before the next day's par decks are built
+  for (const [id, was] of undo.reverse()) ITEMS[id] = was;
+  if (undo.length) clearStarCache();
 }
 writeFileSync(OUT, JSON.stringify(out, null, 1));
 console.log(`presence ${HERO}: done in ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${OUT}`);
