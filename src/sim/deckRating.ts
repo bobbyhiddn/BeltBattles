@@ -10,6 +10,7 @@ import { factorySpeed, rateMul, secPer } from "./content"; // NUM-2 (REQ-BFG-047
 import { WIND_START, sustainLive } from "./content"; // BOTS-X (SUS-C, REQ-BFG-069): the bots' sustain value
 import { AMMO, SHAPE_ARROWS, rigShape } from "./content"; // Y2 (release Y): release Y's prices (STAR_EQ)
 import { JAM_COOLDOWN, JAM_THRESHOLD } from "./content"; // the overfeed (ruling Y7B1-Q4): a jammed gun's lost shots
+import { DISRUPT_TIME } from "./content"; // PLAIN-1 (REQ-BFG-084, P5): SPARK GAP's STUN seconds (STUN_SEC_EQ)
 import { roundHalfUp } from "./pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
 import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
@@ -154,6 +155,9 @@ export interface SustainHull { shield: number; heal: number; regen: number; tota
  * static stall per second, an OVERCLOCKER doubling a rig every few seconds, TOLLBOOTH and SIFTER guards.
  */
 export const EQ = { fray: 30, shock: 30, static: 40, overclock: 80, toll: 5, sift: 5 } as const;
+/** PLAIN-1 (REQ-BFG-084, BRIEF-PLAIN1 P5): a SPARK GAP's STUN, a second of it: EQ.shock's stall (DISRUPT_TIME, 2 s) a second,
+ *  15. A STUN second is the same STUN whatever gave it (Battle.impact), so the price is the shock's. */
+export const STUN_SEC_EQ = EQ.shock / DISRUPT_TIME;
 /** A harassment round's damage-equivalent per payload (content.ts FactorySpec.round), from its card. */
 export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40, drag: 30, limpet: 80 };
 
@@ -254,7 +258,8 @@ export function stunSources(b: Build): number {
   for (const p of b.items) {
     if (!Object.prototype.hasOwnProperty.call(ITEMS, p.def)) continue;
     const e = effectAt(p.def, gradeOf(b, p)), r = e.factory?.round;
-    if (e.gate?.shock || e.gate?.staticTime || e.factory?.cycle?.some((c) => c.shock) || (r && (r.kind !== "limpet" || (r.stall ?? 0) > 0))) n++;
+    // PLAIN-1 (REQ-BFG-084): a SPARK GAP lands a STUN as a coil does (gate.stun; no other rig holds it)
+    if (e.gate?.shock || e.gate?.stun || e.gate?.staticTime || e.factory?.cycle?.some((c) => c.shock) || (r && (r.kind !== "limpet" || (r.stall ?? 0) > 0))) n++;
   }
   for (const m of b.mods) if (ITEMS[m.def]?.kind === "core" && effectAt(m.def, starsOf(m)).core?.routine === "tesla") n++;
   return n;
@@ -348,6 +353,12 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       // 0.8.0 P1, wave 3 (D1's proxies, tools/wave3.ts): plating per payload rated as RIVETER's repair; SHIELD WALL's
       // damage at 12+ plating for half the fight; BRACE FRAME as a guard like TOLLBOOTH's (1, 1.4, 1.7 at its stars)
       if (e.plate) repair += e.plate;
+      // PLAIN-1 (REQ-BFG-084, BRIEF-PLAIN1 P5): the plain stat rigs' two stats the walk's flat terms leave out. SCALE GUARD's
+      // slug PLATE lands once a payload, at the gun, so it is rated as PLATE ROLLER's (the line above); SPARK GAP's STUN
+      // seconds at the shock's own price a second (EQ.shock is a slug's DISRUPT_TIME stall: STUN_SEC_EQ). Its DMG is the
+      // walk's flat; BALLAST's max hull is rateDeck's (ballastHull). No other rig holds either field
+      if (e.slugPlate) repair += e.slugPlate;
+      if (e.stun) eq += STUN_SEC_EQ * e.stun;
       // Y7b1 (release Y; ruling Y7A-R3d): IRON WALL keeps its 0.9.2 def (its own plating, `plate` above, is back), so its
       // bonus is rated as at 0.9.2. Y5's rule (DESIGN-Y row 45: no plating of its own, so the bonus counted only on a deck
       // that plates its hull, platedDeck) left with its deleted row
@@ -357,6 +368,18 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
     }
   }
   return { eq, repair, heal };
+}
+
+/** PLAIN-1 (REQ-BFG-084, P3/P5): the max hull a deck's working BALLASTs add to the rating's hull (the hero's hull +
+ *  hullBonus): each BALLAST with an arrow on a belt tile (rigHits: the IDLE rule) adds its whole %, the %s summed, rounded
+ *  down, as Battle.makeSide adds it to the battle's. 0 without one (every deck while PLAIN_RIGS is off). */
+export function ballastHull(b: Build, hits: RigHit[][][] = rigHits(b)): number {
+  let pct = 0;
+  for (const p of b.items) {
+    const n = ITEMS[p.def]?.gate?.maxHullPct ? effectAt(p.def, starsOf(p)).gate?.maxHullPct ?? 0 : 0;
+    if (n && hits.some((r) => r.some((t) => t.some((h) => h.uid === p.uid)))) pct += n;
+  }
+  return pct > 0 ? Math.floor(((HEROES[b.hero].hull + b.hullBonus) * pct) / 100) : 0;
 }
 
 /** 0.8.0 P1: the plating a plated deck's hull holds on average in a fight (ANVIL BREECH): P1 set half the cap (12) for
@@ -641,6 +664,9 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
   }
   // 0.8.0 P1: ARMOR PRESS plating a second joins the repair rate (half a fight's worth, as RIVETER's)
   let defense = h.hull + b.hullBonus + (repair + plating) * fight * 0.5;
+  // PLAIN-1 (REQ-BFG-084, BRIEF-PLAIN1 P5): BALLAST's max hull %, as Battle.makeSide adds it (the working ones' %s summed, of
+  // the rating's hull, rounded down). The rating's hull term had no share in it, so a max-hull % was worth nothing
+  defense += ballastHull(b, hits);
   if (foe) {
     // BOTS-X (SUSTAIN-1 4.8 rule 2): the sustain as effective hull. WARD BELL and MENDING LOOM work on any installed turret,
     // fed or not (a stalled one pauses: not modelled); a WARD BELL's SHIELDs come at every, 2 every, ... up to the fight's end
