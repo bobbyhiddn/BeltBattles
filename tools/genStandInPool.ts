@@ -187,7 +187,11 @@ async function main(): Promise<void> {
     for (const p of hd.picks) {
       const v = validateBuild(p.build, hd.day);
       const pairErr = new Set(unfusedPairs(p.build).map((m) => `item: ${m}`));
-      const errors = o.stars === "off" ? v.errors.filter((e) => !pairErr.has(e)) : v.errors;
+      // PAR-AZ (REQ-BFG-078; BRIEF-PARAZ 1 (a)7): with NPC_DAY on a pick may hold the road's gold and drops, which
+      // validateBuild's strict budget (maxGoldByDay + the runes' gold) doesn't count, so its budget line is left to the
+      // budget check below, which adds them (CaravanMeta.road) as validate.ts's upload budget does; off, as before
+      const roadBudget = (e: string): boolean => npcDayRules() && e.startsWith("budget: ");
+      const errors = (o.stars === "off" ? v.errors.filter((e) => !pairErr.has(e)) : v.errors).filter((e) => !roadBudget(e));
       // The unfused-pair invariant is the stars-on flip rule (step 3); it must not apply when
       // --stars off, which reproduces the legacy v1.1 pool byte-for-byte - 65 of its 120 decks
       // hold same-star pairs that were never merge-aware in the first place (that is the whole

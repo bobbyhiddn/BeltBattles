@@ -85,9 +85,9 @@ import { BOT_RUNES, botTakeRune, runeGrants } from "../runes"; // RUNES-2a (REQ-
 import { lastChanceOffer, lastChanceRuneAt, type Boon } from "../lastChance"; // LC-1 (REQ-BFG-073)
 import { lcRunes, takeLastChance } from "../../game/run"; // LC-1: the game's own pick
 // PAR-AZ (REQ-BFG-078, REQ-BFG-077): the par player's NPC day (parNpcDay), behind NPC_DAY: the game's road stop and fight
-import { finishWarlord, pickRoad, todaysWarlord, warlordSeed } from "../../game/road";
+import { finishWarlord, pickRoad, todaysWarlord, warlordDrop, warlordSeed } from "../../game/road";
 import { simulate } from "../battle";
-import { roadDropValue, roadLog } from "../npcDay";
+import { roadDropValue, roadLog, withNpcDay } from "../npcDay";
 import type { RivalId } from "../rivals";
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
@@ -235,6 +235,7 @@ export interface PlayerRoad {
   gold: number; // the gold the win paid (rewardGold; 0 on a loss or a draw)
   drop: string | null; // the seeded drop (warlordDrop; null: no win, or the roll dropped nothing)
   placed: boolean; // the drop went onto the deck (a merge, a spot or the REFIT swap); false: in cargo, or no drop
+  declined?: string; // a capped run's (maxStars below FUSE_MAX) seeded drop it declined: it would merge above the cap
 }
 
 type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret" | "upgrade";
@@ -1662,7 +1663,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
       const { buys, rolls } = shopDay(run, pol, maxStars, rng, spent, opts);
       // PAR-AZ (REQ-BFG-078, REQ-BFG-077): with NPC_DAY on, the day's road stop after the shop (its gold is spent at the
       // next dawn), and the road's gold and drops in the day's budget, as validate.ts counts them
-      const road = nd ? parNpcDay(run, pol, spent) : undefined;
+      const road = nd ? parNpcDay(run, pol, spent, maxStars) : undefined;
       const budget = maxGoldByDay(day) + runeGrants(run.build.runes, day, lastChanceRuneAt(run.lastChance)).gold;
       const roadGold = road ? run.warlords.reduce((s, w) => s + w.gold, 0) : 0, roadDrops = road ? roadDropValue(roadLog(run.warlords)) : 0;
       full.push({
@@ -1707,16 +1708,24 @@ export const PAR_ROAD_TIER = "medium" as const;
  * No map event and no after-fight event: 0.9.7's par took no road stop, so with the fight in, its gap to a human is one
  * road stop's worth a day (cap's ruling Q5). Mutates `run`; a part the placement sells (a replaced piece of gear or a
  * displaced turret, as a shop buy sells it) adds its loss to `spent.sold`, so the day's gold still adds up.
+ * `maxStars` (playerRun's: FUSE_MAX for par, 2 for a stand-in candidate, whose pool stops at 2 stars): a capped run
+ * declines a drop that would merge above its cap (fuse.ts mergePreview of the seeded roll), as its shop declines such a
+ * buy; the game's gold and road log entry still come from finishWarlord, played with its drop branch off (NPC_DAY off for
+ * that one call: its only NPC_DAY reads are the drop and the sabotage flag, and a par run is never sabotaged). Par runs
+ * (FUSE_MAX) never decline.
  */
-function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: number }): PlayerRoad {
+function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: number }, maxStars = FUSE_MAX): PlayerRoad {
   const worth = (): number => buildCost(run.build).total + run.gold + run.inventory.reduce((s, it) => s + cargoValue(it), 0);
   const before = worth(), logged = run.warlords.length;
   const pick = pickRoad(run, PAR_ROAD_TIER);
   const w = todaysWarlord(run);
   if (!pick.ok || !w) throw new Error(`par player: no ${PAR_ROAD_TIER} warlord on day ${run.day} (${pick.reason ?? "no fight stored"})`);
   const bt = simulate(run.build, w.build, warlordSeed(run), undefined, [run.wins, 0], run.day);
+  const winner = (bt.winner ?? -1) as 0 | 1 | -1;
+  const pre = winner === 0 && maxStars < FUSE_MAX ? warlordDrop(run.seed, run.day, w.id, w.tier, w.build) : null;
+  const declined = pre && (mergePreview(run, pre)?.toStars ?? 1) > maxStars ? pre : undefined;
   const uid = run.nextUid, queued = run.fuseAnim?.length ?? 0; // the drop's copy takes run.nextUid (fuse.ts gainModule)
-  const res = finishWarlord(run, (bt.winner ?? -1) as 0 | 1 | -1, bt.t);
+  const res = declined ? withNpcDay(() => finishWarlord(run, winner, bt.t), false) : finishWarlord(run, winner, bt.t);
   if (!res) throw new Error(`par player: the ${PAR_ROAD_TIER} warlord of day ${run.day} has no result`);
   const drop = res.took;
   let placed = false;
@@ -1735,7 +1744,7 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
   // the day's sale loss, if the placement sold a part: what came in (the win's gold, the drop at its star, as the road
   // log counts it) minus what the deck, the purse and cargo gained
   spent.sold += before + res.gold + roadDropValue(roadLog(run.warlords.slice(logged))) - worth();
-  return { id: w.id, outcome: res.outcome, time: res.time, gold: res.gold, drop, placed };
+  return { id: w.id, outcome: res.outcome, time: res.time, gold: res.gold, drop, placed, ...(declined ? { declined } : {}) };
 }
 
 // ---------------------------------------------------------------- LC-1 (REQ-BFG-073): LAST CHANCE's cards for the bots

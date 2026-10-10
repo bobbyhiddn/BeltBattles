@@ -580,8 +580,10 @@ export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): 
     // step 5 M5: a caravan pool stores the gold spent the spend floor counted; a full-purse pool stores no sixth element
     const spent = sourceOf(o) === "caravan" ? spentOf(p) : undefined;
     if (w.spent !== spent) problems.push(`${at}: stored spent ${w.spent ?? "(none)"} != the scored candidate's gold spent ${spent ?? "(none: a full-purse pool stores five elements)"}`);
-    const v = validateBuild(back, hd.day);
-    if (!v.ok) problems.push(`${at}: stored deck is invalid: ${v.errors.join("; ")}`);
+    // PAR-AZ (REQ-BFG-078; BRIEF-PARAZ 1 (a)7): with NPC_DAY on, validateBuild's strict budget line (maxGoldByDay + the
+    // runes' gold) is left to the budget check below, which adds the road's gold and drops; off, exactly as before
+    const errs = validateBuild(back, hd.day).errors.filter((e) => !(npcDayRules() && e.startsWith("budget: ")));
+    if (errs.length) problems.push(`${at}: stored deck is invalid: ${errs.join("; ")}`);
     if (o.stars === "on") for (const u of unfusedPairs(back)) problems.push(`${at}: stored deck has an ${u}`);
     if (o.stars === "on" && maxStarsOf(back) > STANDIN_MAX_STARS) problems.push(`${at}: stored deck holds a ${maxStarsOf(back)}-star module (stand-ins stop at ${STANDIN_MAX_STARS})`);
     // fix pass: the deck + the candidate's cargo (a stored code holds the deck only; cargoGold is 0 unless cores on)

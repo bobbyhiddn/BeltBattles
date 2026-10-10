@@ -17,7 +17,7 @@ import { setHullScale } from "../src/sim/hullScale";
 import { setLadderFix } from "../src/sim/ladderFix";
 import { PAR_ROAD_TIER, PLAYER_DAYS, parRunSeed, playerRun, type PlayerDay } from "../src/sim/harness/player";
 import { caravanDeck } from "../src/sim/harness/caravan";
-import { boughtCost } from "../src/sim/harness/standins";
+import { boughtCost, maxStarsOf } from "../src/sim/harness/standins";
 import { FUSE_MAX } from "../src/sim/stars";
 import type { Run } from "../src/game/run";
 
@@ -166,5 +166,28 @@ describe("PAR-AZ: the par player's NPC day, every switch on (the benches' settin
     }
     // without the road's term the old check would refuse decks the road paid for
     expect(over, "decks over the day's gold alone").toBeGreaterThan(0);
+  });
+
+  it("a capped run (a stand-in candidate: maxStars 2) declines a drop that would merge above its cap; its decks stop at 2 stars and the gold adds up", () => {
+    allOn();
+    let declines = 0;
+    for (const hero of ["furnace", "weaver"] as const) for (let seed = 1; seed <= 16; seed++) {
+      const days = playerRun(hero, PLAYER_DAYS, seed, { policy: "typical", maxStars: 2 });
+      for (const d of days) {
+        const at = `${hero} s${seed} d${d.day}`, r = d.road!;
+        expect(maxStarsOf(d.build), at).toBeLessThanOrEqual(2);
+        expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + d.cargo!, at).toBe(d.budget);
+        if (r.declined) {
+          declines++;
+          expect(r.outcome, at).toBe("win");
+          expect(r.gold, at).toBe(rewardGold("medium", d.day)); // the win's gold is paid
+          expect(r.drop, at).toBeNull();
+          expect(r.declined, at).toBe(rollDrop(parRunSeed(hero, seed), d.day, "medium", warlordDeck(r.id, d.day)));
+        }
+      }
+    }
+    expect(declines, "declined drops in the sample").toBeGreaterThan(0);
+    // the par player (no cap) never declines
+    for (const d of playerRun("furnace", PLAYER_DAYS, 1)) expect(d.road!.declined, `par d${d.day}`).toBeUndefined();
   });
 });
