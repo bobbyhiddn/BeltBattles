@@ -7,11 +7,13 @@
 import type { G } from "../render/pixel";
 import { panel, type Rect } from "../ui/ui";
 
-/** How far the plate starts above the title's `top`, and its height: from top - 6 to top + 29. Its bevel takes 3 rows at
- *  each edge (ui.ts bevel2), so its fill runs from top - 3 (above the title's outline at top - 1) to top + 26 (the hint's
- *  last row), and 3 px stay clear above the first card (top + 33). */
+/** How far the plate starts above the title's `top`, and its height: from top - 6 to top + 32, so it meets the first card
+ *  (top + 33). Its bevel takes 3 rows at each edge (ui.ts bevel2), so its fill runs from top - 3 (above the title's outline
+ *  at top - 1) to top + 29 (the hint's last row is top + 26). AZ-PREP (REQ-BFG-073; REVIEW-TXTAZ N1, BRIEF-AZPREP 2 (e)):
+ *  was 36 tall, ending 3 px above the first card, and on the desk (x5) that 15 px strip showed the dimmed shop cards'
+ *  first lines; the plate now closes it on both pickers. No line, card or layout moves. */
 export const PLATE_ABOVE = 6;
-export const PLATE_H = 36;
+export const PLATE_H = 39;
 
 /** The plate behind the title block of a picker whose cards are `cardW` wide, centred on a screen `W` wide (lcLayout's and
  *  pickLayout's x). Pure (tests). */

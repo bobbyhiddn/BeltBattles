@@ -2,7 +2,7 @@
 // FREE." and "DUSK OF DAY n · TAP TO READ") sat over the dimmed shop row on the 1920x1080 desk. Both pickers (the dawn rune
 // picker draws the same block: PICK A RUNE, its dawn line, its hint) now draw it on the cards' own panel, the cards' width
 // (pickHead.ts titlePlate), after the scrim and before the text: one plate for both. Pinned here: the plate covers the
-// block's every row inside its fill and stays clear of the first card, at the screens the game runs on (the desk with and
+// block's every row inside its fill and meets the first card (AZ-PREP; was 3 px clear), at the screens the game runs on (the desk with and
 // without the rune row, the phone, LC-1's portrait and landscape bounds); every title line fits inside it; it is the cards'
 // panel; and both pickers draw it in that order. No layout moved (the first card and the title where they were).
 import { describe, expect, it } from "vitest";
@@ -29,7 +29,9 @@ function recorder(): { g: G; calls: [string, number, number, number, number][] }
 }
 
 describe("TXT-AZ item 6: the pickers' title block on a clean ground (REQ-BFG-073; REVIEW-STAGE097 R5)", () => {
-  it("the plate: the cards' x and width, the block's every row inside its fill, 3 px clear of the first card, on every screen", () => {
+  // AZ-PREP (REVIEW-TXTAZ N1; BRIEF-AZPREP 2 (e)): the plate meets the first card (was 3 px clear of it: on the desk that strip
+  // showed the dimmed shop cards' first lines); PLATE_H 36 -> 39
+  it("the plate: the cards' x and width, the block's every row inside its fill, meeting the first card, on every screen", () => {
     const tall = 31 + 3 * 9 + 1 + 4 * 7 + 13 + 4; // lc1.ui's tallest card
     for (const [W, H] of SCREENS) {
       const layouts = [
@@ -43,11 +45,11 @@ describe("TXT-AZ item 6: the pickers' title block on a clean ground (REQ-BFG-073
         // the fill (inside bevel2's 3 rows at each edge) holds the block
         expect(p.y + 3, at).toBeLessThanOrEqual(L.top + BLOCK.from);
         expect(p.y + p.h - 4, at).toBeGreaterThanOrEqual(L.top + BLOCK.to);
-        expect(c0.y - (p.y + p.h), at).toBe(3);
+        expect(c0.y - (p.y + p.h), at).toBe(0);
         expect(c0.y, at).toBe(L.top + 33); // the layouts are as they were: the first card 33 px under the title
       }
     }
-    expect([PLATE_ABOVE, PLATE_H]).toEqual([6, 36]);
+    expect([PLATE_ABOVE, PLATE_H]).toEqual([6, 39]);
   });
 
   it("every title line fits inside the plate's fill at the narrowest cards (the phone's), the longest day and tier", () => {
@@ -62,9 +64,9 @@ describe("TXT-AZ item 6: the pickers' title block on a clean ground (REQ-BFG-073
   it("it is the cards' panel (ui.ts panel \"dark\"), drawn whole", () => {
     const a = recorder(), b = recorder();
     drawTitlePlate(a.g, 640, 40, 300);
-    panel(b.g, { x: 170, y: 34, w: 300, h: 36 }, "dark");
+    panel(b.g, { x: 170, y: 34, w: 300, h: 39 }, "dark");
     expect(a.calls).toEqual(b.calls);
-    expect(a.calls[0].slice(1)).toEqual([170, 34, 300, 36]); // its ink edge covers the whole plate
+    expect(a.calls[0].slice(1)).toEqual([170, 34, 300, 39]); // its ink edge covers the whole plate
   });
 
   it("both pickers draw it after their scrim and before their title (one plate for both)", () => {
