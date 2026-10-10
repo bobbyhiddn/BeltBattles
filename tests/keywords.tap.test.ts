@@ -622,7 +622,10 @@ describe("FLIP-X1 N4-b: every line of every panel's ⓘ view is on screen", () =
     // layout at x4 with the rune row, whose column runs past the screen's bottom (its cargo tray is cut too)
     const v4 = sheetView(1920, 1080, 1, 0).v, row = runeRowH(v4, 1);
     const at4 = { v: v4, L: shiftLayout(buildLayout(v4.W, v4.H - row, false, 5, false, 0), row, v4.H), touch: false };
-    expect([at4.v.W, at4.v.H, at4.L.info.y + at4.L.info.h > at4.v.H]).toEqual([480, 270, true]);
+    // ZOOM-1 (REQ-BFG-080, call 4): the landscape column now ends 2 px above the screen's foot (the cargo tray sits under
+    // FIGHT, not under the hull), so in this state it no longer runs past the bottom: true -> false. The panels' sweep below
+    // is unchanged (every line of every panel's view still on the screen)
+    expect([at4.v.W, at4.v.H, at4.L.info.y + at4.L.info.h > at4.v.H]).toEqual([480, 270, false]);
     const ward = withSustain(() => {
       const c = sheetPanels().find((q) => q.id === "cargo wardbell ★1 (furnace)")!;
       return span(at4, c, runeWords({ build: { runes: [{ id: "spare_hull", day: 1 }] } } as unknown as Run))!;
