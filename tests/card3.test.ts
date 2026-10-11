@@ -404,3 +404,105 @@ describe("CARD-3 (a): the phone shop card's gist for cores, gear and five rigs (
     expect(keywordColour(`${ICON.PLATE}SHIELD`)).toBe(C.plate3);
   });
 });
+
+// --------------------------------------------------------------------------- (b, c): the phone band and the first-run band
+import { key as K, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
+import { GAP_MIN } from "../src/ui/spacing";
+import { IDLE_FIX, IDLE_SHORT, STOKER_IDLE, fullText, gapsAtLeast, itemPanel } from "../src/screens/build/inspector";
+
+const SHORTB = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
+const rigAt = (uid: number, def: string, x: number, y: number, rot = 0, stars = 1): Placed => ({ uid, def, x, y, ...rotField(def, rot), ...(stars > 1 ? { stars } : {}) });
+function furnaceRun(items: Placed[] = []): Run {
+  const run = newRun("furnace", 5, "shoptap2-panels");
+  run.build = { hero: "furnace", items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, ...items], routes: [{ factory: 1, cells: [...SHORTB] }], mods: [], beltCap: 40, hullBonus: 0 };
+  run.inventory = [];
+  run.gold = 2;
+  return run;
+}
+/** Every panel a finger can open: tests/explain1.test.ts's 899 (space1's, zoom1's), the same ids. */
+function allPanels(): { id: string; run: Run; sel: Sel }[] {
+  const out: ReturnType<typeof allPanels> = [];
+  const OFFER: Sel = { kind: "offer", wagon: 0, slot: 0 };
+  for (const d of buyableModules()) {
+    const stars = fusible(d.id) ? [1, 2, 3] : [1];
+    const o = furnaceRun();
+    o.shop.wagons = [{ merchant: d.merchant ?? "ironmonger", offers: [{ def: d.id, price: d.price, sold: false }] }] as Run["shop"]["wagons"];
+    out.push({ id: `offer ${d.id}`, run: o, sel: OFFER });
+    for (const s of stars) {
+      const c = furnaceRun();
+      c.inventory = [{ uid: 900, def: d.id, ...(s > 1 ? { stars: s } : {}) }];
+      out.push({ id: `cargo ${d.id} ★${s}`, run: c, sel: CARGO3 });
+      if (d.kind === "gate") {
+        for (const [x, y, rot] of [[3, 3, 1], [0, 9, 0], [5, 3, 0]] as const) out.push({ id: `${d.id} ★${s} @${x},${y}`, run: furnaceRun([rigAt(10, d.id, x, y, rot, s)]), sel: { kind: "item", uid: 10 } });
+      } else if (d.kind === "factory") {
+        out.push({ id: `${d.id} ★${s}`, run: furnaceRun([{ uid: 10, def: d.id, x: 0, y: 6, ...(s > 1 ? { stars: s } : {}) }]), sel: { kind: "item", uid: 10 } });
+      } else if (d.kind === "mod" || d.kind === "core") {
+        for (const hero of ["furnace", "weaver"] as const) {
+          const run = newRun(hero, 5, "shoptap2-fit");
+          run.build.mods = [{ uid: 950, def: d.id, turret: 0, ...(s > 1 ? { stars: s } : {}) }];
+          out.push({ id: `${d.id} ★${s} fitted on ${hero}`, run, sel: { kind: "fitted", uid: 950 } });
+        }
+      } else if (d.kind === "turret") {
+        const run = furnaceRun();
+        setTurretList(run.build, [{ slot: 0, def: "scrapcannon", uid: 90 }, { slot: 1, def: d.id, uid: 700, ...(s > 1 ? { stars: s } : {}) }]);
+        run.build.mods = [{ uid: 950, def: "pressure", turret: 1 }, { uid: 951, def: "hopper", turret: 1 }];
+        out.push({ id: `turret ${d.id} ★${s} with a core and gear`, run, sel: { kind: "turret", index: 1 } });
+      }
+    }
+  }
+  for (const hero of PLAYABLE_HEROES) {
+    const run = newRun(hero, 5, "shoptap2-start");
+    for (const p of run.build.items) out.push({ id: `${hero}'s starting ${p.def}`, run, sel: { kind: "item", uid: p.uid } });
+    if (turretSlots(run.build)[0]?.turret) out.push({ id: `${hero}'s starting turret`, run, sel: { kind: "turret", index: 0 } });
+    run.build.routes.forEach((_, i) => out.push({ id: `${hero}'s belt ${i + 1}`, run, sel: { kind: "route", index: i } }));
+  }
+  out.push({ id: "the KILN's belt", run: furnaceRun(), sel: { kind: "route", index: 0 } });
+  return out;
+}
+
+describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (REQ-BFG-004)", () => {
+  it("B's lever 1: an IDLE rig's face says its own state; the fix, true of every rig, is a NOTES line", () => {
+    setTipsForTests("done");
+    for (const [def, warn] of [["temper", { short: IDLE_SHORT, fix: IDLE_FIX }], ["stoker", STOKER_IDLE]] as const) {
+      const run = furnaceRun([rigAt(10, def, 0, 9, 0, 1)]);
+      const t = itemPanel(run, 10, true)!;
+      expect(t.body.map((b) => b.text).slice(0, 2), def).toEqual([warn.short, warn.fix]);
+      const f = framed(402, 690, 3, 1), p = panelCtx(run, { kind: "item", uid: 10 }, f, true);
+      const d = p.d();
+      expect(d.t.body.some((b) => b.text === warn.fix), `${def}: off the face`).toBe(false);
+      expect(d.t.notes!.some((b) => b.text === warn.fix), `${def}: in NOTES`).toBe(true);
+      expect(d.t.body[0].text, def).toBe(warn.short);
+    }
+  });
+
+  it("the in-band counts on the four zoomed phones (tips done and new); 402x690 @3 with a rune: at least 720 of 899 with tips done; every in-band finger panel shows its full text with its gaps at least its face's Gmin; lever 3's panels in 3x5", () => {
+    const all = allPanels(), rows: string[] = [];
+    expect(all.length).toBe(899);
+    const counts: Record<string, number> = {};
+    for (const mode of ["done", "new"] as const) {
+      setTipsForTests(mode);
+      for (const [w, h] of [[402, 690], [390, 844], [390, 660], [430, 739]] as const) for (const runes of [1, 0]) {
+        const f = framed(w, h, 3, runes), L = f.L;
+        let inBand = 0, small = 0;
+        for (const c of all) {
+          const ctx = { game: { ui: new UI(), t: 0, view: f.view, W: f.W, H: f.H }, run: c.run, touch: true, L } as unknown as Ctx;
+          const area = panelArea(L, c.sel, { touch: true, hover: false, busy: false }, panelFit(ctx, c.sel, !!L.phone));
+          if (area !== L.info) continue;
+          inBand++;
+          const p = detailsPlan(ctx, c.sel, null, area)!.plan;
+          const tag = `${mode} ${w}x${h} runes ${runes} ${c.id}`;
+          expect(fullText(p), tag).toBe(true);
+          expect(["3", "5"].includes(p.body.font), tag).toBe(true); // never a face under 3x5
+          expect(gapsAtLeast(p, GAP_MIN[p.body.font]), `${tag}: gaps ${p.gaps.px}`).toBe(true); // never a gap under Gmin
+          // lever 3: in 3x5 where the 5x7 face fits the band only with its gaps under 5x7's Gmin
+          const big = detailsPlan({ ...ctx, L: { ...L, phone: false } } as Ctx, c.sel, null, area)!.plan;
+          if (p.body.font === "3" && big.body.font === "5") { small++; expect(gapsAtLeast(big, GAP_MIN["5"]), tag).toBe(false); }
+        }
+        counts[`${mode} ${w}x${h} ${runes}`] = inBand;
+        rows.push(`CARD3 (b) tips ${mode}: ${w}x${h} @3 runes ${runes}: band ${L.info.h}, ${inBand} of ${all.length} in the band (${((100 * inBand) / all.length).toFixed(1)}%), ${small} of them in 3x5 by lever 3`);
+      }
+    }
+    console.log(rows.join("\n"));
+    expect(counts["done 402x690 1"]).toBeGreaterThanOrEqual(720);
+  }, 900_000);
+});

@@ -176,7 +176,8 @@ export interface Block {
    *  its TILES, HITS: line) and their note, the gun end's next readout row. Presentation only: no plan reads it. */
   tie?: boolean;
   /** EXPLAIN-1 (REQ-BFG-089, E1, E4): default rules text, drawn only in the ⓘ view's NOTES (explainPanel takes it off the
-   *  face): "kind", a line true of every piece of its kind (a turret's HOLDS and SLOT lines, an empty slot's); "rig", a
+   *  face): "kind", a line true of every piece of its kind (a turret's HOLDS and SLOT lines, an empty slot's; CARD-3: an
+   *  IDLE rig's fix, IDLE_FIX); "rig", a
    *  plain rig's rig sentence (faces.ts RIG_SENTENCE), first in NOTES. */
   note?: "rig" | "kind";
   /** CARD-2 (REQ-BFG-081, K4): a turret's labelled stat row (faceBlocks.ts turretRow): its pairs never split; one line where
@@ -342,13 +343,18 @@ export function nextLine(run: Run, def: string, stars: number): string | null {
   return b.length ? `${b[0].text}${b[0].perk ? ` ${b[0].perk}` : ""}` : null;
 }
 
-/** 0.6.2 BELTSIDE: the IDLE warning, and its phone-band form (the sub line says IDLE in amber; the turn hint follows). */
-export const IDLE_WARNING = "IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.";
+/** 0.6.2 BELTSIDE: the IDLE warning (the sub line says IDLE in amber; the turn hint follows). CARD-3 (REQ-BFG-080, B's
+ *  lever 1; REQ-BFG-089): the face draws the rig's own state, IDLE_SHORT (was IDLE_SHORT plus "TURN IT OR MOVE IT BESIDE
+ *  ONE.", 2 lines of the phone band's 5x7 face). The fix says how every rig works (its arrows work the belt tiles they
+ *  reach), so it is a NOTES line (IDLE_FIX: the ⓘ view and the desk hover), as EXPLAIN-1 made the other kind lines. */
 export const IDLE_SHORT = "IDLE: NO ARROW REACHES A BELT.";
+/** CARD-3 (B, lever 1): the IDLE warning's fix, a NOTES line (rigPanel). */
+export const IDLE_FIX = "TURN IT OR MOVE IT BESIDE A BELT.";
 /** 0.6.2t: the IDLE warning where it moves up into a narrow header (the desk column's). */
 export const IDLE_HEAD = "IDLE: NO ARROW ON A BELT.";
-/** 0.8.0 P1 (E3): a STOKER's IDLE warning (it works factories, never belts), in the same three forms. */
-export const STOKER_IDLE = { warning: "IDLE: NO ARROW REACHES A FACTORY. TURN IT OR MOVE IT BESIDE ONE.", short: "IDLE: NO ARROW REACHES A FACTORY.", head: "IDLE: NO ARROW ON A FACTORY." };
+/** 0.8.0 P1 (E3): a STOKER's IDLE warning (it works factories, never belts), in the same forms. CARD-3 (B, lever 1): its
+ *  fix a NOTES line too. */
+export const STOKER_IDLE = { short: "IDLE: NO ARROW REACHES A FACTORY.", head: "IDLE: NO ARROW ON A FACTORY.", fix: "TURN IT OR MOVE IT BESIDE A FACTORY." };
 
 /** 0.6.2t (0b.4): which belt a walk is on: locked (METRONOME, speed-locked), slag (a SLAG POT's fixed speed) or free. */
 export function beltKind(w: RouteWalk): BeltKind {
@@ -432,9 +438,11 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
   const on = new Set(hits.map((h) => h.dir)).size;
   const hl = hitLines(hits);
   // 0.8.0 P1 (E3): a STOKER beside no factory warns about factories (its arrows never work belts, so it has no belt hits)
-  const warn = d.gate?.stoke ? STOKER_IDLE : { warning: IDLE_WARNING, short: IDLE_SHORT, head: IDLE_HEAD };
-  // SPACE-1 (D1): a rig's hits are one list (the next hit ties to the one above it)
-  const lead: Block[] = idle ? [{ role: "warn", text: warn.warning, keep: true }] : hl.full.map((t, i): Block => ({ role: "hits", text: t, keep: true, ...(i ? { tie: true } : {}) }));
+  const warn = d.gate?.stoke ? STOKER_IDLE : { short: IDLE_SHORT, head: IDLE_HEAD, fix: IDLE_FIX };
+  // SPACE-1 (D1): a rig's hits are one list (the next hit ties to the one above it). CARD-3 (B, lever 1): IDLE's fix is a
+  // NOTES line (a "kind" note: explainPanel hides it from every face)
+  const lead: Block[] = idle ? [{ role: "warn", text: warn.short, keep: true }, { role: "warn", text: warn.fix, note: "kind" }]
+    : hl.full.map((t, i): Block => ({ role: "hits", text: t, keep: true, ...(i ? { tie: true } : {}) }));
   const leadTight: Block[] = idle ? [{ role: "warn", text: warn.short, keep: true }]
     : hits.length > 1 ? [{ role: "hits", text: hl.compact, keep: true }] : lead;
   const rest = [
@@ -1218,9 +1226,10 @@ function choose(all: readonly Laid[], avail: number, width: number, main: FontId
  * every kept block whole and the rest whole or absent; where the kept blocks don't fit, the first compact variant whose
  * do (else the last, drawn until the space ends: a phone cut). A tight variant has 1 px more (its body starts 1 px
  * higher). `subFits` says whether a variant's header sub line fits the header (else that variant is skipped).
+ * CARD-3 (REQ-BFG-080, B's lever 3): `small`, the band's face only: the 5x7 face is not tried (planPanel's `inBand`).
  */
 export function planBody(body: readonly Block[], variants: readonly Variant[] | undefined, width: number, avail: number,
-  subFits: (s: string) => boolean = () => true, keepBig = false): BodyPlan {
+  subFits: (s: string) => boolean = () => true, keepBig = false, small = false): BodyPlan {
   const finish = (font: FontId, chosen: Laid[], fits: boolean, variant: number, from: readonly Laid[], v?: Variant): BodyPlan => {
     const lines: (PLine | "rule")[] = [];
     let big = false, ruled = false;
@@ -1246,12 +1255,12 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
   const deskKept = (bs: readonly Block[]): Block[] =>
     (keepBig && bs.some((b) => b.deskKeep) ? bs.map((b) => (b.deskKeep ? { ...b, keep: true } : b)) : [...bs]);
   const big = lay(deskKept(body), width, "5");
-  if (heightOf(big) <= avail) return finish("5", big, true, 0, big);
+  if (!small && heightOf(big) <= avail) return finish("5", big, true, 0, big);
   // 0.6.2t: the desk column (keepBig) keeps the readable 5x7 face while its kept blocks fit it: the optional blocks
   // give way first, each whole or not at all, least important first (the flavour, then the ability's later sentences,
   // then the hint: 0.6.2t2 F4, deskRank); only then does the text drop to the 3x5 face
   const texts: Variant[] = [{ body: deskKept(body) }, ...(variants ?? []).map((t) => ({ ...t, body: deskKept(t.body) }))];
-  if (keepBig) {
+  if (keepBig && !small) {
     for (let v = 0; v < texts.length; v++) {
       const t = texts[v];
       if (t.tight || (t.sub && !subFits(t.sub))) continue; // the tight pitch is the 3x5 face's
@@ -1452,8 +1461,21 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  a touch press's target height in logical px: the column's buttons are that tall (columnButtonH; the portrait band's
  *  keep their size, and drawDetails grows their tap targets instead, so the band keeps its text). shoptap2: `o.band`,
  *  a portrait screen's panel: the band's layout however tall it is (a finger's panel grown past the band, layout.ts
- *  panelArea, keeps its buttons in its header row, not under its text). */
-export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [], o: { tap?: number; band?: boolean; gaps?: boolean } = {}): PanelPlan {
+ *  panelArea, keeps its buttons in its header row, not under its text).
+ *  CARD-3 (REQ-BFG-080, B's lever 3; SPACE-1 open item 2): `o.inBand`, a finger's panel on a phone's band itself
+ *  (detailsPlan: layout.ts panelArea's L.info). A body that takes the 5x7 face there with its gaps under 5x7's GAP_MIN
+ *  (it would grow over the shop rows, D4) stays in the band in the band's face, 3x5, where that shows its full text
+ *  (fullText) with its gaps at least 3x5's GAP_MIN; else the plan is as before. A grown panel still reads in 5x7. */
+export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [],
+  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean } = {}): PanelPlan {
+  const p = planIn(sp, area, families, o, false);
+  if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5" || gapsAtLeast(p, p.gaps.min)) return p;
+  const s = planIn(sp, area, families, o, true);
+  return fullText(s) && gapsAtLeast(s, s.gaps.min) ? s : p;
+}
+
+/** planPanel's plan; `small` (CARD-3, B's lever 3): the body in the 3x5 face only (planBody's `small`). */
+function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
   const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
   const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
@@ -1480,7 +1502,7 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   // the body starts at y + 25 + shift (a tight variant's 1 px higher). The column grows to its text (27 + shift + body +
   // extra, as 0.6.1r sized it); the band's text ends 4 px above its bottom edge. A variant's sub line must fit the header
   const body = planBody(sp.body, sp.variants, wrapW, column ? area.h - 27 - shift - extra : area.h - 27 - shift,
-    (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column);
+    (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column, small);
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families sit in the header and never in the body (planned above,
   // exactly as without them), named where they fit, else as their marks (ui/families.ts, the card's own), in the first
   // place free with a clear pixel all round: the band under a one-line sub line (y+19..y+23, when the body starts at
@@ -1710,13 +1732,16 @@ export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: nu
   // screen's panel keeps the band's layout however tall a finger's panel grows (layout.ts panelArea). SPACE-1: `o.gaps`
   // false plans it without the gaps (tests: the content is the same either way)
   const fams = selFamilies(ctx.run, show), tap = touchTap(ctx), band = !!ctx.L?.portrait, gaps = o.gaps !== false;
-  const plan = planPanel(t, area, fams, { tap, band, gaps });
+  // CARD-3 (REQ-BFG-080, B's lever 3): a finger's panel on a phone's band itself (panelArea's L.info, by its rect: the
+  // tests and BuildScreen pass the same rect) may stay in the band in 3x5 (planPanel's `inBand`)
+  const I = ctx.L?.info, inBand = !!ctx.L?.phone && tap > 0 && !!I && area.x === I.x && area.y === I.y && area.w === I.w && area.h === I.h;
+  const plan = planPanel(t, area, fams, { tap, band, gaps, inBand });
   // shoptap (D2): on the phone band a touch panel's optional button (TO CARGO) gives way where keeping it would cut the
   // panel's kept text (the extra button pushes the row under the sub line); its kept text always shows whole
   if (tap && !plan.column && !keptWhole(plan) && sp.actions.some((a) => a.optional)) {
     const lean: Spec = { ...sp, actions: sp.actions.filter((a) => !a.optional) };
     const lt: PanelText = { ...sp.text, labels: lean.actions.map((a) => a.label) };
-    const lp = planPanel(lt, area, fams, { tap, band, gaps });
+    const lp = planPanel(lt, area, fams, { tap, band, gaps, inBand });
     if (keptWhole(lp)) return { show, sp: lean, t: lt, plan: lp };
   }
   return { show, sp, t, plan };

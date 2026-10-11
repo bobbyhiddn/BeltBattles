@@ -202,7 +202,10 @@ describe("0.8.0 P1: STOKER's panel and TWIN TRIGGER's clash", () => {
     expect(panel("rig stoker ★1 kiln spare0").sub).toBe("RIG · 1/2 ARROWS ON FACTORIES");
     for (const lay of ["belts", "idle"]) {
       const t = panel(`rig stoker ★1 ${lay} spare0`) as PanelText & { idle: boolean };
-      expect([t.idle, t.body[0].role, t.body[0].text], lay).toEqual([true, "warn", STOKER_IDLE.warning]);
+      // CARD-3 (REQ-BFG-080, B's lever 1): the face's warning is its own state; the fix is a "kind" note (NOTES). Was one
+      // block, STOKER_IDLE.warning ("IDLE: NO ARROW REACHES A FACTORY. TURN IT OR MOVE IT BESIDE ONE.")
+      expect([t.idle, t.body[0].role, t.body[0].text], lay).toEqual([true, "warn", STOKER_IDLE.short]);
+      expect([t.body[1].text, t.body[1].note], lay).toEqual([STOKER_IDLE.fix, "kind"]);
     }
     // its offer and cargo hints say where it goes
     expect(panel("offer stoker held[]").body.at(-1)!.text).toBe("TAP A CELL BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT, OR DRAG IT THERE.");
