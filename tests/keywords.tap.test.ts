@@ -452,8 +452,11 @@ describe("U2f: the taller ⓘ view", () => {
     // entry) lengthen the body-only views: op 66 / 183 / 67 -> 14 / 151 / 93 / 58, desk 17 / 140 / 121 / 29 / 9 -> 0 / 17 /
     // 102 / 108 / 37 / 20 / 11 / 19 / 2 (the desk column is shorter too: it sizes to its text, which lost those lines).
     // U2f's view, the one the game draws, is the next test's
+    // CARD-2 (REQ-BFG-081, K4), re-measured (the same 316 panels): the turret row in words takes one label a line in the
+    // desk column, which sizes to its text, so the turret panels' bodies (and this body-only view over them) are taller:
+    // desk 0 / 17 / 102 / 108 / 37 / 20 / 11 / 19 / 2 -> 0 / 17 / 102 / 117 / 37 / 11 / 32; op unchanged (one line there)
     expect(histogram(o.map((x) => x!.u2e))).toEqual([14, 151, 93, 58]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([0, 17, 102, 108, 37, 20, 11, 19, 2]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([0, 17, 102, 117, 37, 11, 32]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {

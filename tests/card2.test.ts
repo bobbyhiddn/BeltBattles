@@ -53,6 +53,20 @@ function cargoRun(hero: "foundry" | "furnace", def: string): Run {
   return run;
 }
 const CARGO: Sel = { kind: "cargo", uid: 900 };
+import { buyableModules } from "../src/sim/content";
+import { fusible } from "../src/sim/stars";
+import { setTurretList } from "../src/sim/deck";
+import { lineWidth } from "../src/ui/richText";
+import { ICON, icons } from "../src/render/font";
+import { shopChip } from "../src/ui/chips";
+import { panelWords } from "../src/screens/build/keywords";
+import { statIconNote } from "../src/ui/glossary";
+/** A turret in cargo's panel plan on a framed view (a finger's). */
+function detailsPlanOf(f: ReturnType<typeof framed>, def: string) {
+  const run = newRun("furnace", 5, "card2-plan");
+  run.inventory = [{ uid: 900, def }];
+  return panelCtx(run, CARGO, f, true).d();
+}
 import { RunePicker, PICK_DEF } from "../src/screens/runePicker";
 import { LastChancePicker } from "../src/screens/lastChancePicker";
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, TIPS_KEY, setTipsForTests, sightDone, sightsDone, tipsDone } from "../src/ui/tips";
@@ -252,6 +266,60 @@ describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): ne
     expect(runeReminderOf(RUNES.ward_stone)).toBe("SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.");
     expect(textWidth(runeReminderOf(RUNES.ward_stone), "3")).toBeLessThanOrEqual(223);
     expect(runeWordText(RUNES.ward_stone, "SHIELD")).toBe("SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.");
+  });
+});
+
+describe("CARD-2 (k4): the turret row in words: RATE n  HOLDS n  GEAR SLOTS n", () => {
+  it("every turret, every star, offer, cargo and installed: one line on the 402x690 @3 tap panel (a rune held), one label a line in the desk column; each label its note; the phone chip unchanged", () => {
+    setTipsForTests("done");
+    const turrets = buyableModules().filter((d) => d.kind === "turret").map((d) => d.id);
+    expect(turrets.length).toBe(13);
+    const phone = framed(402, 690, 3, 1), desk = framed(1920, 1080, 1, 1);
+    const rows: string[] = [];
+    let n = 0, widest = 0, widestId = "";
+    for (const id of turrets) for (const s of fusible(id) ? [1, 2, 3] : [1]) {
+      const cases: [string, Run, Sel][] = [];
+      const c = newRun("furnace", 5, "card2-k4");
+      c.inventory = [{ uid: 900, def: id, ...(s > 1 ? { stars: s } : {}) }];
+      cases.push([`cargo ★${s}`, c, CARGO]);
+      const t = newRun("furnace", 5, "card2-k4t");
+      setTurretList(t.build, [{ slot: 0, def: "scrapcannon", uid: 90 }, { slot: 1, def: id, uid: 700, ...(s > 1 ? { stars: s } : {}) }]);
+      cases.push([`installed ★${s}`, t, { kind: "turret", index: 1 }]);
+      if (s === 1) {
+        const o = newRun("furnace", 5, "card2-k4o");
+        o.shop.wagons = [{ merchant: "ironmonger", offers: [{ def: id, price: 6, sold: false }] }] as Run["shop"]["wagons"];
+        cases.push(["offer", o, { kind: "offer", wagon: 0, slot: 0 }]);
+      }
+      for (const [tag, run, sel] of cases) {
+        for (const [view, f, touch] of [["phone", phone, true], ["desk", desk, false]] as const) {
+          const p = panelCtx(run, sel, f, touch), d = p.d();
+          const row = d.plan.body.lines.filter((l): l is Exclude<typeof l, "rule"> => l !== "rule" && !!l.block.pairs);
+          const text = row.map((l) => lineText(l.spans)).join(" / ");
+          expect(text, `${id} ${tag} ${view}`).toMatch(/^.RATE \d+ {2}.HOLDS \d+ {2}.GEAR SLOTS \d+$|^.RATE \d+ \/ .HOLDS \d+ \/ .GEAR SLOTS \d+$/);
+          if (view === "phone") {
+            expect(row.length, `${id} ${tag}: one line on the phone`).toBe(1);
+            const w = lineWidth(row[0].spans, row[0].font);
+            if (w > widest) { widest = w; widestId = `${id} ${tag}`; }
+            expect(w).toBeLessThanOrEqual(d.plan.r.w - 10);
+            // each label keeps its note: the icon and its word are one target (HOLDS shows {SLUG}'s turret note)
+            const ui = p.draw();
+            const tg = ui.regions.filter((r) => /^kw:\d+:(RATE|SLUG|GEAR)$/.test(r.id)).map((r) => r.id.split(":")[2]);
+            expect(tg, `${id} ${tag}`).toEqual(expect.arrayContaining(["RATE", "SLUG", "GEAR"]));
+          } else {
+            expect(row.length, `${id} ${tag}: the desk column, one label a line`).toBe(d.plan.column ? 3 : 1);
+          }
+          n++;
+        }
+      }
+    }
+    expect(widest).toBeLessThanOrEqual(225);
+    rows.push(`turret panels checked: ${n}; the widest row on the 402x690 @3 tap panel: ${widest} px of 225 (${widestId})`);
+    // the phone shop card's chip keeps {RATE}n (chips.ts)
+    for (const id of turrets) expect(icons(shopChip(id, {})!), id).toMatch(new RegExp(`^${ICON.RATE}\\d+$`));
+    // the words a tap on each shows (glossary.ts statIconNote: RATE's row, the turret's {SLUG}, {GEAR})
+    const words = Object.fromEntries(panelWords(detailsPlanOf(phone, "dartgun").t.body, null).map((w) => [w.word, w.text]));
+    expect([words.RATE, words.SLUG, words.GEAR]).toEqual([statIconNote("RATE", "turret", true), statIconNote("SLUG", "turret", true), statIconNote("GEAR", "turret", true)]);
+    console.log(`CARD-2 (k4):\n${rows.join("\n")}`);
   });
 });
 

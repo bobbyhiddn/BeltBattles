@@ -22,7 +22,7 @@ import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour";
 import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
 import { faceLines } from "../src/ui/faces"; // U2a
 import { speedPair } from "../src/ui/faces"; // U2c step 4: the installed turret's stat row
-import { statRow } from "../src/ui/icons"; // U2c step 4
+import { turretRow as statRow } from "../src/screens/build/faceBlocks"; // U2c step 4. CARD-2 (REQ-BFG-081, K4): the installed turret's row is labelled (RATE n  HOLDS n  GEAR SLOTS n; was icons.ts statRow)
 import { fmtCount, fmtDmg, fmtSec } from "../src/ui/statFormat"; // U2c step 4; NUM-1: fmtDmg
 import { icons, stripIcons } from "../src/render/font"; // U2c step 4
 import { resolveCore } from "../src/sim/cores"; // U2c step 4
@@ -872,7 +872,10 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // TXT-096 (REVIEW-TXT095 Q2): 49 missing (was 50), the two lists diffed at txt096-base and at the tip: only "installed
     // gatling-hopper1" moves, and it shows its hint again; the text that changed on it is its GATLING SPOOL core row's line
     // ("FIRES AT ONCE, SPINS UP TO 67% FASTER", was "SPINS UP TO 67% FASTER AS IT FIRES"), which leaves the hint room
-    expect([withHint, missing.length]).toEqual([1952, 49]);
+    // CARD-2 (REQ-BFG-081, K4): 60 missing (was 49), measured: the turret row in words (RATE n  HOLDS n  GEAR SLOTS n) takes
+    // one label a line in the 118 px desk column (the brief's rule), two lines more, so 11 more installed turrets' kept
+    // blocks leave no room for the hint (all "installed ..."; the hint gives way whole, and its tip and NOTES keep it)
+    expect([withHint, missing.length]).toEqual([1952, 60]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 

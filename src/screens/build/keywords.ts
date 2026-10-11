@@ -52,6 +52,7 @@ import { GAP } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps betwe
 import { PLAIN_RIGS } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): HIT on the plain rigs' KEYWORDS
 import { RIG_SENTENCE, faceLines } from "../../ui/faces"; // CARD-2 (REQ-BFG-004, K1): the rig sentence on the first rig
 import { rigSeen, sawRig, sawWord, sightWord } from "../../ui/firstSight"; // CARD-2 (K1): the first-sight notes
+import { TURRET_LABELS } from "./faceBlocks"; // CARD-2 (REQ-BFG-081, K4): a turret row label's target
 
 /** The piece a panel shows (its number fills in a keyword's reminder; its tap note): an offer, a part in cargo, a placed
  *  part, a fitted core or gear piece, an installed turret's bought core. */
@@ -171,7 +172,9 @@ function matches(text: string, l: PLine, first: boolean, piece: Piece | null): {
     const kind = piece ? ITEMS[piece.def]?.kind : undefined, gunRow = text.includes(ICON.GEAR) && text.includes(ICON.RATE);
     for (const k of STAT_ICONS) {
       for (let i = text.indexOf(ICON[k]); i >= 0; i = text.indexOf(ICON[k], i + 1)) {
-        if (free(i, i + 1)) out.push({ at: i, end: i + 1, word: k, text: statIconNote(k, kind, gunRow), colour: ICON_COLOUR[ICON[k]] ?? C.bone });
+        // CARD-2 (REQ-BFG-081, K4): on the turret row's labels the target is the icon and its word (HOLDS: {SLUG}'s note)
+        const label = b.pairs ? TURRET_LABELS[k] : "", end = label && text.startsWith(label, i + 1) ? i + 1 + label.length : i + 1;
+        if (free(i, end)) out.push({ at: i, end, word: k, text: statIconNote(k, kind, gunRow), colour: ICON_COLOUR[ICON[k]] ?? C.bone });
       }
     }
   }
