@@ -154,11 +154,12 @@ export class FoeView {
     this.last = { card: R.cardHit, back: R.backHit, area: R.area };
   }
 
-  /** Tooling (bb.foeView, scripts/touchcheck.mjs): whether the card opens a foe, the view's state, its targets, the open
-   *  face, and every part's point on screen. */
+  /** Tooling (bb.foeView, scripts/touchcheck.mjs): whether the card opens a foe, the view's state, the card's target (the
+   *  card's own place without a reveal too: a tap there must change nothing), BACK's, the open face, and every part's
+   *  point on screen (none without a reveal). */
   info(s: BuildScreen): { scouted: boolean; open: boolean; card: Rect | null; back: Rect; face: BattleFaces["last"]; parts: ReturnType<typeof foePartsOnScreen> } {
     const foe = scoutedFoe(s.run), R = foeViewRects(s.L, tapPx(s.game.view));
-    return { scouted: !!foe, open: this.open, card: foe ? R.cardHit : null, back: R.backHit, face: this.faces.last, parts: foe ? foePartsOnScreen(s.L, foe) : [] };
+    return { scouted: !!foe, open: this.open, card: R.cardHit, back: R.backHit, face: this.faces.last, parts: foe ? foePartsOnScreen(s.L, foe) : [] };
   }
 }
 
