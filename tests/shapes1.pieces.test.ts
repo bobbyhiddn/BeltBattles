@@ -346,6 +346,30 @@ function fixtures(): { name: string; s: GhostSnapshot; on: boolean }[] {
   });
 }
 
+describe("SHAPES-1 S1/S4 after the merge of c099-pre8 (cap's RUN2 note 1.3-1.4): shapes ride under bb-0.10.0", () => {
+  it("SHAPES_RULES is S6's literal; a bb-0.9.7 record holding a shaped piece is refused, a bb-0.10.0 one is judged in shapes' world", () => {
+    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.10.0"]);
+    const fx = fixtures();
+    const rigs = fx.find((f) => f.name === "rigs")!.s, gantry = fx.find((f) => f.name === "gantry-rot1")!.s;
+    withShapes(() => {
+      // bb-0.10.0: the three rigs and a GANTRY PRESS at rot 1 pass (judged with SHAPES on)
+      expect(validateUpload(rigs.build, rigs.day, "bb-0.10.0", { seed: rigs.seed }).errors).toEqual([]);
+      expect(validateUpload(gantry.build, gantry.day, "bb-0.10.0", { seed: gantry.seed }).errors).toEqual([]);
+      expect(inShapesWorld("bb-0.10.0", () => shapesRules())).toBe(true);
+      // bb-0.9.7: the shaped rigs are refused by the gate; a reshaped factory's rot is judged in 0.9.9's shapes (SHAPES
+      // off inside, with NPC_DAY, HULL_SCALE and LADDER_FIX: inRulesWorld)
+      const old = validateUpload(rigs.build, rigs.day, "bb-0.9.7", { seed: rigs.seed });
+      expect(old.ok).toBe(false);
+      expect(old.errors[0]).toMatch(/^rules: .*shaped rigs/);
+      const oldG = validateUpload(gantry.build, gantry.day, "bb-0.9.7", { seed: gantry.seed });
+      expect(oldG.ok).toBe(false);
+      expect(oldG.errors.some((e) => /only rigs turn/.test(e)), oldG.errors.join(" | ")).toBe(true);
+      expect(inShapesWorld("bb-0.9.7", () => shapesRules())).toBe(false);
+      expect(shapesRules()).toBe(true); // put back after
+    });
+  }, 120_000);
+});
+
 describe("SHAPES-1 S4: the server pins (the client check and POST /v1/ghosts, both switch states)", () => {
   let dir: string;
   let app: GhostServer;

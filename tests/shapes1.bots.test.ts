@@ -15,6 +15,7 @@ import { footprintCells, isShaped } from "../src/sim/foot";
 import { RESHAPED_IDS, SHAPES_IDS, setShapes, withShapes } from "../src/sim/shapes";
 import { shapedSpot } from "../src/sim/beltside";
 import { fitsSomewhere, playerRun } from "../src/sim/harness/player";
+import { casualRun } from "../src/sim/harness/casual"; // SHAPES-1 (cap's RUN2 note 1.7): S7L's casual player
 import { RIVAL_IDS, rivalBuild } from "../src/sim/rivals";
 import { warlordBuild } from "../src/sim/ai";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
@@ -119,6 +120,40 @@ describe("SHAPES-1 S7: par with SHAPES on", () => {
     console.log(`S7 PAR shaped pieces held (deck-days): ${JSON.stringify(stat)}`);
     for (const l of lines) console.log(`S7 PAR ${l}`);
   }, 600_000);
+});
+
+describe("SHAPES-1 S7 (cap's RUN2 note 1.7): the casual player (S7L, casual.ts) with SHAPES on", () => {
+  it("FURNACE and WEAVER, seeds 1-2, days 1-10: every casual deck is legal (no placement, route, rot or shape error)", () => {
+    const held: Record<string, number> = {};
+    withShapes(() => {
+      for (const h of ["furnace", "weaver"] as HeroId[]) for (const seed of [1, 2]) {
+        for (const d of casualRun(h, 10, seed)) {
+          expect(placementErrors(d.build, d.day), `casual ${h} seed ${seed} day ${d.day}`).toEqual([]);
+          for (const p of d.build.items) if (isShaped(ITEMS[p.def])) held[p.def] = (held[p.def] ?? 0) + 1;
+        }
+      }
+    });
+    console.log(`S7 CASUAL shaped pieces held (deck-days): ${JSON.stringify(held)}`);
+  }, 600_000);
+
+  it("S5b (cap's ruling 7f2a91a61910e167): par and casual, 4 heroes x seeds 1-6 x days 1-10: no deck-day fails TURRET INTAKE", () => {
+    let total = 0;
+    const bad: string[] = [];
+    withShapes(() => {
+      for (const h of PLAYABLE_HEROES) for (const seed of [1, 2, 3, 4, 5, 6]) {
+        for (const [who, days] of [["par", playerRun(h, 10, seed)], ["casual", casualRun(h, 10, seed)]] as const) {
+          for (const d of days) {
+            total++;
+            const e = validateBuild(d.build, d.day, "strict").errors.filter((x) => /TURRET INTAKE/.test(x));
+            if (e.length) bad.push(`${who} ${h} s${seed} d${d.day}: ${e.join("; ")}`);
+          }
+        }
+      }
+    });
+    console.log(`S5b scan: ${bad.length} of ${total} deck-days fail TURRET INTAKE (before the sweep: 5 of 480)`);
+    expect(total).toBe(480);
+    expect(bad).toEqual([]);
+  }, 900_000);
 });
 
 describe("SHAPES-1 S7.4: captains and warlords with SHAPES on", () => {
