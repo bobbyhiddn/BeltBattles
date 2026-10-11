@@ -28,7 +28,7 @@ import {
   BELT_BACK, BELT_COUNTS, BOX_H, GUN_COLOUR, JamMemory, STATUS_H, beltShows, boxW, canJam, gunBoxAt, gunState, keepOnScreen,
   overlap, readCount, shownChips, slugsWaiting, statusTab, tabBelow, type BeltCounts, type CountKey, type GunState, type ShownChip,
 } from "../game/counters";
-import { JAM_TAG, beltText, keywordEntry, sentenceEntry, waitingText, type CounterEntry } from "../ui/counterText";
+import { JAM_TAG, beltText, keywordEntry, pairEntry, sentenceEntry, waitingText, type CounterEntry } from "../ui/counterText";
 import type { PlateInfo } from "./battleHud";
 
 /** A counter group's region id prefix (one tap target a group: a plate's counts, a gun, a belt). */
@@ -254,7 +254,12 @@ export class BattleCounters {
     if (grp.kind === "belt") return [sentenceEntry(beltText(s.routes[grp.ref]?.ammo.length ?? 0))];
     if (grp.kind === "gun") {
       const tu = s.turrets.find((q) => q.index === grp.ref);
-      return tu ? [sentenceEntry(waitingText(slugsWaiting(tu), canJam(tu)))] : [];
+      if (!tu) return [];
+      const out = [sentenceEntry(waitingText(slugsWaiting(tu), canJam(tu)))];
+      // PAIR-CUE (REQ-BFG-100, REQ-BFG-081, REQ-BFG-089): a gun with a pair reader adds PAIR's reminder, by its keyword key
+      const pair = tu.pairing ? pairEntry() : null;
+      if (pair) out.push(pair);
+      return out;
     }
     const out: CounterEntry[] = [];
     for (const c of shownChips(a.b, grp.side, undefined, (b, sd, k) => this.readsCount(a, sd, k))) {

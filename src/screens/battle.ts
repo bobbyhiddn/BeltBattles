@@ -39,6 +39,7 @@ import { NOTE_ROW, SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, notePlace, 
 import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout; the plates drawn
 import { BattleFaces, drawSummaries, drawViewBar, fingerPx, summaryRects } from "./battleScout"; // SCOUT-1 (REQ-BFG-076)
 import { BattleCounters, plateKeep } from "./battleCounters"; // COUNT-1 (REQ-BFG-100): the counters
+import { PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board
 import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
 import type { Rect } from "../ui/ui";
 
@@ -156,6 +157,7 @@ export class BattleScreen implements Screen {
     this.arena.off = [this.driveIn[0], this.driveIn[1]];
     // PAIR-CUE (REQ-BFG-100; REVIEW-COUNT1 ruling 3): the board counters draw under every number (ArenaMotion.underNumbers)
     this.motion.underNumbers = (g) => this.drawBoardCounters(g);
+    this.arena.cue = new PairWatch(); // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board, in the fight phase
     this.useSpeed(runSpeed(run)); // SCOUT-1b (REQ-BFG-083): the speed picked earlier in this run, from the first step
     if (w?.result) {
       // reloaded on the result card: show the stored result, never fight or pay again
@@ -475,6 +477,7 @@ export class BattleScreen implements Screen {
     const a = this.arena;
     const m = this.motion;
     this.counters.begin(); // COUNT-1: no counter groups yet this frame (PAIR-CUE: the board's are drawn inside m.draw)
+    if (a.cue) a.cue.on = this.phase === "fight"; // PAIR-CUE: never in the intro, the outro, the card or VIEW BATTLEFIELD
     // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion. FIELD-1: the battle's setting,
     // through the camera
     m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed, a);

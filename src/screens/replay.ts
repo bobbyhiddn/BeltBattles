@@ -29,6 +29,7 @@ import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-0
 import type { View } from "../core/io";
 import { isPhone, tapPx } from "../ui/tap"; // shoptap (D5, backlog 319)
 import { BattleCounters, plateKeep } from "./battleCounters"; // COUNT-1 (REQ-BFG-100): the counters, as the battle shows them
+import { PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board, as the battle shows it
 
 type Box = { x: number; y: number; w: number; h: number };
 const hits = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -100,6 +101,7 @@ export class ReplayScreen implements Screen {
     this.motion = new ArenaMotion(this.seed, battleScene(this.seed), MOTION, settings.reducedMotion); // FIELD-1: the dusk's setting
     // PAIR-CUE (REQ-BFG-100; REVIEW-COUNT1 ruling 3): the board counters draw under every number, as in the battle
     this.motion.underNumbers = (g) => this.drawBoardCounters(g);
+    this.arena.cue = new PairWatch(); // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board, while the replay runs
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
@@ -214,6 +216,7 @@ export class ReplayScreen implements Screen {
     const a = this.arena, b = a.b;
     const m = this.motion;
     this.counters.begin(); // COUNT-1: no counter groups yet this frame (PAIR-CUE: the board's are drawn inside m.draw)
+    if (a.cue) a.cue.on = !this.over; // PAIR-CUE: while the replayed fight runs
     // MOTION-2: the day's sea, then the carriers, boards, shots and effects in motion
     m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed, a);
     m.draw(g, a, W, H, settings.reducedMotion);

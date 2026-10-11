@@ -14,6 +14,7 @@ import type { DeckFrame } from "../render/frame";
 import { damageFx, react } from "./arenaReact";
 import { makeViews } from "./arenaDraw";
 import { newWave3Fx, tickWave3Fx, type Wave3Fx } from "../render/wave3Moments"; // 0.8.0 I1 M4: A1's battle moments
+import type { PairWatch } from "./pairCue"; // PAIR-CUE (REQ-BFG-100): the PAIR on the board (display only)
 
 const SIDES: Side[] = [0, 1];
 
@@ -98,6 +99,10 @@ export class Arena {
   loser: Side | -1 = -1;
   shakePeak = 0; // largest camera offset since the last reset (metrics)
   readonly views: [CruiserView, CruiserView];
+  /** PAIR-CUE (REQ-BFG-100, REQ-BFG-081; display only): the battle's and the replay's PAIR watch (game/pairCue.ts), fed
+   *  every step played, before its events are reacted to; null elsewhere (the title's attract fight, the hero preview: no
+   *  cue). It reads the battle and never writes it or the sim's RNG. */
+  cue: PairWatch | null = null;
   private acc = 0;
   private readonly out: SimEvent[] = []; // update()'s reused per-frame event list
   /** 0.6.2 TUNE-M, RULE SHOCK ROW (display only): per side, the enemy machines its Shock stalled (the battle's own
@@ -232,6 +237,7 @@ export class Arena {
       // hit-stop: hold the frame (sim, belts, shells) while the shake keeps ringing
       fx.hitstop--;
       fx.update(dt * 0.15);
+      this.cue?.tick(dt * 0.15); // PAIR-CUE: the cue's flashes age with the numbers
       this.trackShake();
       return out;
     }
@@ -245,12 +251,14 @@ export class Arena {
       let n = 0;
       while (this.acc >= TICK && n < 600 && !this.b.over) {
         this.preStep(); // SCOUT-1: read only
+        this.cue?.pre(this.b); // PAIR-CUE: read only
         this.b.step();
         this.stepSoak(); // 0.8.0 H1 M3: read only
         this.acc -= TICK;
         n++;
         const ev = this.b.drainEvents();
         this.countStep(ev); // SCOUT-1: read only
+        this.cue?.step(this, ev); // PAIR-CUE: read only; before react (the PAIR shots' impacts it marks)
         for (let i = 0; i < ev.length; i++) {
           this.tally(ev[i]);
           react(this, ev[i], i > 0 ? ev[i - 1] : null); // 0.8.0 I1 M4: the step's event before it (PLATE BREAKER's blow)
@@ -267,7 +275,9 @@ export class Arena {
       if (this.show[side]) damageFx(this, side, dt * k);
     }
     // effects follow the playback: slowed with 0.5X (0.6.0), sped up to at most 2x at 2X/4X
-    fx.update(dt * k * (this.speed < 1 ? this.speed : Math.min(2, Math.max(1, this.speed * 0.75))));
+    const fdt = dt * k * (this.speed < 1 ? this.speed : Math.min(2, Math.max(1, this.speed * 0.75)));
+    fx.update(fdt);
+    this.cue?.tick(fdt); // PAIR-CUE: the cue's flashes age with the numbers
     this.trackShake();
     return out;
   }
@@ -349,6 +359,7 @@ export class Arena {
     this.stepSoak(); // 0.8.0 H1 M3: nothing skipped is shown, so no soak is left over
     this.soakLeft[0] = this.soakLeft[1] = 0;
     this.fx.clear();
+    this.cue?.reset(); // PAIR-CUE: nothing skipped is shown
     for (const e of out) react(this, e);
     return out;
   }

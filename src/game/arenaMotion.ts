@@ -345,6 +345,7 @@ export class ArenaMotion implements ShotMap {
       if (hpct < 0.25) cracks(t, f, CRACKS_25, PLATE_HX, PLATE_HX + PLATE_W);
       drawMachinery(t, v);
       drawTurrets(t, v);
+      a.cue?.drawBoard(t, a, s, reduced); // PAIR-CUE (REQ-BFG-100): the near-miss glows, each pair's flash and bracket
       if (a.loser === v.side && a.koT > 0.35) dimPlate(t, r, Math.min(0.62, (a.koT - 0.35) * 1.1));
       for (const charge of b.sides[s].limpets) {
         const x = Math.round(sx(f, charge.target.x, charge.target.y)), y = Math.round(sy(f, charge.target.x, charge.target.y));
@@ -413,6 +414,7 @@ export class ArenaMotion implements ShotMap {
       else g.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
       g.imageSmoothingEnabled = false;
       a.fx.drawPops(g, 0, 0, s);
+      if (a.cue?.on) a.fx.drawPairPops(g, 0, 0, s); // PAIR-CUE (REQ-BFG-100): PAIR's glyph over a gun, its mark by a PAIR shot's number
       g.restore();
     }
     g.save();

@@ -50,3 +50,10 @@ export const JAM_TAG = "JAM";
 
 /** A board counter's entry (C5, C6): no head, its sentence in the panel's bone. */
 export const sentenceEntry = (body: string): CounterEntry => ({ icon: "", word: "", colour: C.bone, count: "", body });
+
+/** PAIR-CUE (REQ-BFG-100, REQ-BFG-081; REQ-BFG-089: rules text only on a tap or hover): the line a gun with a pair reader
+ *  adds to its C6 panel: PAIR's icon and word over PAIR's reminder, both from the glossary's row for its keyword key (no
+ *  count: the cue on the board shows each pair as it happens). No new string: the words are the glossary's. */
+export function pairEntry(): CounterEntry | null {
+  return keywordEntry("PAIR", "");
+}
