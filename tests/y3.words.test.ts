@@ -93,7 +93,8 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(abilityText("assembly", 3).perk).toEqual(undefined); // Y7b2 (the words): was .toEqual({ name: "HOT START", stars: 3, after: 0 }) (the name stayed: R-1, the ⓘ view and the desk's); it left with its rule
     expect(["pincer", "twingauge", "bellows", "surge", "assembly"].map((d) => cardText(d))).toEqual([
       // WORDS-1 (REQ-BFG-081): TWIN GAUGE's card in plain words (was "DAMAGE ON A MATCHED BELT.")
-      "DAMAGE FOR EACH RIG ON ITS TILE.", "DAMAGE IF ANOTHER BELT IS AS LONG.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "RIGS START 50% SOONER."]);
+      // CARD-3 (REQ-BFG-081, D3): PINCER's and ASSEMBLY LINE's desk lines say their faces' words
+      "DAMAGE FOR OTHER RIGS HITTING IT.", "DAMAGE IF ANOTHER BELT IS AS LONG.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "FEEDS A GUN: RIGS WORK 50% SOONER."]);
     expect(["quench", "brake", "twinlatch", "platebreaker", "surge"].map((d) => gist(d, 2))).toEqual([
       "50 DAMAGE FOR EACH BURN", "40% SPEED", "HOLDS UP TO 2 SECONDS", "88 DAMAGE FOR 10 SHIELD", "20 DAMAGE EVERY 3 SECONDS"]);
   });

@@ -666,7 +666,10 @@ const ENTRIES: Record<string, Entry> = {
     },
     perkAt: (e) => (f(e).hotStart ? 1 : 0),
     gist: (e) => `${f(e).commission! <= 0 ? "ALL " : ""}RIGS START ${startIn(f(e).commission!)}`,
-    card: (e) => `RIGS START ${startIn(f(e).commission!)}`,
+    // CARD-3 (REQ-BFG-081, D3): the face's words (faces.ts: "FEEDS A GUN: YOUR RIGS WORK 50% SOONER."; CARD-2 K3 g). battle.ts
+    // assemblyLines: one whose belt reaches a turret sets the side's factor, and every rig's commissionAt is multiplied by it
+    // (content.ts commission 0.5 at ★1). Was "RIGS START 50% SOONER"
+    card: (e) => `FEEDS A GUN: RIGS WORK ${startIn(f(e).commission!)}`,
   },
   gantry: {
     text: (e, x) => [
@@ -854,7 +857,9 @@ const ENTRIES: Record<string, Entry> = {
       const r = round<{ delay: number; blast: number; stall?: number }>(e);
       return `BLASTS FOR ${damage(r.blast)}${r.stall ? ` AND STUNS FOR ${seconds(r.stall)}` : ""}`;
     },
-    card: (e) => `BLASTS THE HULL FOR ${damage(round<{ blast: number }>(e).blast)}`,
+    // CARD-3 (REQ-BFG-081, D3): whose hull, as the face says (CARD-2 K3 g): battle.ts roundImpact pushes the charge onto the
+    // hit side, and hullEffects blasts that side's hull, the foe's (content.ts blast 100 at ★1). Was "BLASTS THE HULL FOR 100"
+    card: (e) => `BLASTS THE FOE'S HULL FOR ${fmtDmg(round<{ blast: number }>(e).blast)}`, // 2 lines at the 69 px wide card
   },
   // -------------------------------------------------------------------------------------------------- turret cores
   scatter: {
@@ -905,7 +910,9 @@ const ENTRIES: Record<string, Entry> = {
       ];
     },
     gist: (e, x) => `SPINS UP TO ${rateText(imul(c(e, x).top))}`,
-    card: () => "FIRES AT ONCE, SPINS UP",
+    // CARD-3 (REQ-BFG-081, D3): the face's words (CARD-2 K3 g): cores.ts gatlingReady fires once a load is in and the barrel
+    // is ready, never waiting for a full chamber. Was "FIRES AT ONCE, SPINS UP"
+    card: () => "FIRES AS LOADS COME, SPINS UP", // 2 lines at the 69 px wide card ("FIRES EACH LOAD AS IT COMES, ..." takes 3)
   },
   hullbreaker: {
     text: (e, x) => [`EVERY SHOT HITS THE ENEMY HULL FOR ${percent(c(e, x).hullMul! - 1)} MORE DAMAGE, NEVER A MACHINE.`],
@@ -1037,7 +1044,9 @@ const ENTRIES: Record<string, Entry> = {
     },
     gist: (e) => (m(e).alwaysMachine ? "ALWAYS AIMS AT A MACHINE"
       : (m(e).rerolls ?? 1) === 1 ? "AIMS AGAIN ONCE OFF BARE HULL" : `AIMS AGAIN UP TO ${times(m(e).rerolls!)}`),
-    card: () => "RE-AIMS SHOTS OFF BARE HULL",
+    // CARD-3 (REQ-BFG-081, D3): the face's words (CARD-2 K3 g): battle.ts pickTarget picks a hull pick again, up to rerolls
+    // times. Was "RE-AIMS SHOTS OFF BARE HULL"
+    card: () => "SHOTS AIMED AT NO PART AIM AGAIN",
   },
   hopper: {
     // makeTurret: + window slots, + seconds to the load time (a GATLING never reads it). 0.6.2 FB-B: every star keeps
@@ -1113,7 +1122,9 @@ const ENTRIES: Record<string, Entry> = {
       return [`ADDS ${damage(p.each)} TO EACH PAYLOAD IT HITS FOR EACH OTHER RIG HITTING THAT TILE.`, "STUNNED AND WRECKED RIGS DON'T COUNT."];
     },
     gist: (e) => `${damage(g(e).pincer!.each)} FOR EACH OTHER RIG ON ITS TILE`,
-    card: () => "DAMAGE FOR EACH RIG ON ITS TILE",
+    // CARD-3 (REQ-BFG-081, D3): the face's words (CARD-2 K3 g): battle.ts crossfire counts the other working rigs whose arrows
+    // hit the same tile, so the same slug. Was "DAMAGE FOR EACH RIG ON ITS TILE"
+    card: () => "DAMAGE FOR OTHER RIGS HITTING IT", // 2 lines at the 69 px wide card (T2 bans PER; "FOR EACH OTHER RIG HITTING IT" takes 3)
   },
   braceframe: {
     // Battle.braceCut: an enemy STUN on a tile it hits, or on the brace itself, lasts x mul while it works, x plated while

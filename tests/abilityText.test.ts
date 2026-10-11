@@ -793,7 +793,7 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // RIGS ON ITS TILE."); TWIN TRIGGER's pair bonus is 30% at ★1 (was "PAIRS HIT 25% HARDER.")
     expect(cards).toEqual({
       // WORDS-1 (REQ-BFG-081): TWIN GAUGE's card in plain words (was "DAMAGE ON A MATCHED BELT.")
-      plateroller: "SHIELDS YOUR HULL AS SLUGS PASS.", twingauge: "DAMAGE IF ANOTHER BELT IS AS LONG.", pincer: "DAMAGE FOR EACH RIG ON ITS TILE.",
+      plateroller: "SHIELDS YOUR HULL AS SLUGS PASS.", twingauge: "DAMAGE IF ANOTHER BELT IS AS LONG.", pincer: "DAMAGE FOR OTHER RIGS HITTING IT.", /* CARD-3 (REQ-BFG-081, D3) */
       // NUM-4 (REVIEW-NUM3 F2): one word for one stop, STUNS (was "SHORTER STALLS ON ITS TILES.")
       // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.3 item 4): TWIN LATCH's desk line says what it does (was "LETS TWO BELTS GO TOGETHER.")
       braceframe: "SHORTER STUNS ON ITS TILES.", twinlatch: "HOLDS A SLUG TO PAIR TWO BELTS.", stoker: "MAKES FACTORIES WORK FASTER.",

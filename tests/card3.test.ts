@@ -25,6 +25,9 @@ import { FAMILY, FAMILY_ORDER, familiesText, familyNote, familyWord } from "../s
 import { captainSpans } from "../src/ui/captainText";
 import { resultRows } from "../src/screens/battleHud";
 import { choiceLabel } from "../src/screens/event/cards";
+import { CARD_EFFECT_LINES, cardEffectLines, cardEffectWidth } from "../src/screens/build/shop";
+import { lineText, lineWidth } from "../src/ui/richText";
+import { wideCardW } from "../src/screens/build/layout";
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, NOTICE_IDS, RENAME_NOTICE, TIPS_KEY, completeNotice, completeTip, kwSight, noticeDone, renameNoticeDue, setTipsForTests, sightDone } from "../src/ui/tips";
 import { sightWord } from "../src/ui/firstSight";
 
@@ -194,5 +197,26 @@ describe("CARD-3 (r): SHIELD and WARD (REQ-BFG-107)", () => {
     const src = readFileSync("src/screens/build/build.ts", "utf8"), enter = src.slice(src.indexOf("  enter(): void {"), src.indexOf("  select(s: Sel): void {"));
     expect(enter).toMatch(/if \(refund \|\| scout\) this\.game\.toast\([^\n]+\n(?:\s*\/\/[^\n]*\n)*\s*else if \(renameNoticeDue\(finishedRuns\(\)\)\) \{\n\s*this\.game\.toast\(RENAME_NOTICE, C\.yellow, undefined, 6\);\n\s*completeNotice\("rename107"\);/);
     expect(src.match(/renameNoticeDue|completeNotice/g)!.length).toBe(4); // the import's two, enter()'s two
+  });
+});
+
+describe("CARD-3 (d3): the wide desk shop card's one-line effects say their faces' meaning (REQ-BFG-081)", () => {
+  it("the five lines CARD-2's K3 fixed on the faces, each in at most two lines of the wide card at every landscape width", () => {
+    const want: Record<string, string> = {
+      assembly: "FEEDS A GUN: RIGS WORK 50% SOONER.", gatling: "FIRES AS LOADS COME, SPINS UP.", pincer: "DAMAGE FOR OTHER RIGS HITTING IT.",
+      limpet: "BLASTS THE FOE'S HULL FOR 100.", spotter: "SHOTS AIMED AT NO PART AIM AGAIN.",
+    };
+    const out: string[] = [];
+    for (const [id, line] of Object.entries(want)) {
+      expect(cardText(id), id).toBe(line);
+      let most = 0;
+      for (let W = 430; W <= 480; W++) {
+        const w = wideCardW(W, 5), ls = cardEffectLines(line, w);
+        expect(ls.length, `${id} at ${w}`).toBeLessThanOrEqual(CARD_EFFECT_LINES);
+        for (const l of ls) { expect(lineWidth(l, "3"), `${id} at ${w}: ${lineText(l)}`).toBeLessThanOrEqual(cardEffectWidth(w)); most = Math.max(most, ls.length); }
+      }
+      out.push(`${id} "${line}" ${most} line(s)`);
+    }
+    console.log(`CARD3 (d3): ${out.join("; ")}`);
   });
 });
