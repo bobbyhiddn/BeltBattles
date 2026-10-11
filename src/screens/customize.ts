@@ -55,8 +55,9 @@ export const ROW_H = 46;
 export const WANT_H = 494;
 const KEYWORDS: [string, string][] = [
   ["BURN", ICON_COLOUR[ICON.BURN]], ["STUN", ICON_COLOUR[ICON.STUN]], ["HEAT", ICON_COLOUR[ICON.HEAT]],
-  ["FRAY", ICON_COLOUR[ICON.FRAY]], ["PLATE", ICON_COLOUR[ICON.PLATE]], ["PAIR", ICON_COLOUR[ICON.PAIR]],
-  ["SHIELD", ICON_COLOUR[ICON.SHIELD]], ["HEAL", ICON_COLOUR[ICON.HEAL]], ["REGEN", ICON_COLOUR[ICON.REGEN]],
+  // CARD-3 (REQ-BFG-107): the player's words, each in its mechanic's colour (SHIELD the soak's plate3, WARD the block's rune3)
+  ["FRAY", ICON_COLOUR[ICON.FRAY]], ["SHIELD", ICON_COLOUR[ICON.PLATE]], ["PAIR", ICON_COLOUR[ICON.PAIR]],
+  ["WARD", ICON_COLOUR[ICON.SHIELD]], ["HEAL", ICON_COLOUR[ICON.HEAL]], ["REGEN", ICON_COLOUR[ICON.REGEN]],
 ];
 
 // ------------------------------------------------------------------------------------------------- the state

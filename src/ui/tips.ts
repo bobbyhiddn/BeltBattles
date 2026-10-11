@@ -95,19 +95,30 @@ export type SightId = string;
  * else), which K4 labels on turrets, nor the family tags. Each is a row's word (glossary.ts glossaryEntry(..).word).
  */
 export const FIRST_SIGHT_WORDS: readonly string[] = [
-  "PAIR", "FRAY", "PLATE", "SHIELD", "BURN", "STUN", "HEAT", "HEAL", "REGEN", "RIDE",
+  "PAIR", "FRAY", "SHIELD", "WARD", "BURN", "STUN", "HEAT", "HEAL", "REGEN", "RIDE", // CARD-3 (REQ-BFG-107): SHIELD, WARD
   "HIT", "SHOT", "LOAD", "EVERY",
   "AIM", "FASTER", "UP TO",
   "PART", "SPEED", "JAM", "MATCHED", "LOCKED", "COPIES", "BONUS DAMAGE", "DARK WIND",
 ];
 /** The rig sentence's note (the first rig panel). */
 export const RIG_SIGHT: SightId = "rig";
+/** CARD-3 (REQ-BFG-107): the two renamed words take ids no earlier build used, so every player meets both new meanings
+ *  once, even after a build with K1 stored "kw:SHIELD" (the old block's) and "kw:PLATE": SHIELD (the soak) is
+ *  "kw:SHIELD.107" and WARD is "kw:WARD". An old "kw:PLATE" or "kw:SHIELD" in a store is an id this build doesn't know. */
+const SIGHT_ID_OF: Readonly<Record<string, SightId>> = { SHIELD: "kw:SHIELD.107" };
 /** A keyword's note id. */
-export const kwSight = (word: string): SightId => `kw:${word}`;
+export const kwSight = (word: string): SightId => SIGHT_ID_OF[word] ?? `kw:${word}`;
 /** Every first-sight id this build knows: the rig sentence's, then each word's. */
 export const FIRST_SIGHT_IDS: readonly SightId[] = [RIG_SIGHT, ...FIRST_SIGHT_WORDS.map(kwSight)];
 const SIGHT_IDS = FIRST_SIGHT_IDS;
-const isSightId = (v: unknown): v is SightId => typeof v === "string" && SIGHT_IDS.includes(v);
+/**
+ * CARD-3 (REQ-BFG-107): THE NOTICES, one-time notes kept in this store with E5's rules (done once shown, for good; with no
+ * storage, once a session). "rename107": the returning player's note on the rename (BuildScreen.enter, renameNoticeDue).
+ */
+export const NOTICE_IDS: readonly SightId[] = ["rename107"];
+/** CARD-3: the rename notice's words (REQ-BFG-107). */
+export const RENAME_NOTICE = "PLATE IS NOW CALLED SHIELD. THE OLD SHIELD IS NOW WARD.";
+const isSightId = (v: unknown): v is SightId => typeof v === "string" && (SIGHT_IDS.includes(v) || NOTICE_IDS.includes(v));
 
 /** The done tips: null until read (the first ask reads the store once). */
 let done: Set<TipId> | null = null;
@@ -163,6 +174,27 @@ export function completeSight(id: SightId): void {
   write();
 }
 
+/**
+ * CARD-3 (REQ-BFG-107): whether the returning player's rename notice is due: not shown yet on this device, and the store
+ * shows earlier play: any how-to tip done, or `finishedRuns` > 0 (game/profile.ts counters.runsFinished). A new player
+ * never sees it. Pure but for the store.
+ */
+export function renameNoticeDue(finishedRuns: number): boolean {
+  const tips = state();
+  return !seen.has("rename107") && (IDS.some((id) => tips.has(id)) || finishedRuns > 0);
+}
+
+/** CARD-3: the rename notice has been on screen: done, for good (the store's rules). */
+export function completeNotice(id: SightId): void {
+  state();
+  if (seen.has(id)) return;
+  seen.add(id);
+  write();
+}
+
+/** CARD-3: whether a notice has been on screen on this device (tests, tooling). */
+export const noticeDone = (id: SightId): boolean => sightDone(id);
+
 /** CARD-2 (K1): the done first-sight notes, in FIRST_SIGHT_IDS order (tooling, tests). */
 export const sightsDone = (): SightId[] => {
   state();
@@ -207,7 +239,8 @@ export function setTipsForTests(mode: "new" | "done" | "reload" | "sight"): TipI
     return tipsDone();
   }
   done = new Set(mode === "done" || mode === "sight" ? IDS : []);
-  seen = new Set(mode === "done" ? SIGHT_IDS : []);
+  // CARD-3 (REQ-BFG-107): the notices are done with the tips ("done", "sight"), new with "new"
+  seen = new Set(mode === "done" ? [...SIGHT_IDS, ...NOTICE_IDS] : mode === "sight" ? NOTICE_IDS : []);
   try {
     if (mode !== "new") localStorage.setItem(TIPS_KEY, JSON.stringify([...done, ...seen]));
     else localStorage.removeItem(TIPS_KEY);

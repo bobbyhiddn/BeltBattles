@@ -3,6 +3,7 @@
 // Same frame grammar as the shop cards (ink edge, top stripe, bevel sides, bottom strip).
 
 import type { Choice, Delta } from "../../game/eventDefs";
+import { gameWords } from "../../ui/gameWords"; // CARD-3 (REQ-BFG-107)
 import type { ShopBadge } from "../../game/run";
 import { ITEMS } from "../../sim/content";
 import { C } from "../../render/palette";
@@ -14,6 +15,11 @@ import { drawBadge } from "../build/shop";
 import type { Rect } from "../../ui/ui";
 
 // bb-0.8.6 (REQ-BFG-051 P1): plating's short name is the pack's, ARMOR PACK (was ARMOR PLATE), so every surface says it
+/** CARD-3 (REQ-BFG-107): a choice's label as the card draws it. The FIELD DOCK's PLATING gains 200 HULL (eventDefs.ts
+ *  dock: gain hull 200), not SHIELD, so it reads HULL PATCH; the label itself stays (src/net/roadCap.ts and the net tests
+ *  read choices by it). Any other label through the one display function. */
+const CHOICE_TEXT: Readonly<Record<string, string>> = { PLATING: "HULL PATCH" };
+export const choiceLabel = (label: string): string => CHOICE_TEXT[label] ?? gameWords(label);
 const SHORT: Record<string, string> = { calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PACK", grease: "GREASE", coil: "GALV. COIL" };
 
 export function deltaIcon(d: Delta): HTMLCanvasElement {
@@ -107,7 +113,7 @@ export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView)
   rect(g, x + 4, y + 7, 9, 9, C.ink);
   rect(g, x + 5, y + 8, 7, 7, dim ? C.slate1 : v.state === "chosen" ? stripe : C.amber);
   drawText(g, String(i + 1), x + 7, y + 9, C.ink, { font: "3" });
-  drawText(g, c.label, x + 16, y + 8, dim ? C.slate3 : C.white, { outline: C.ink });
+  drawText(g, choiceLabel(c.label), x + 16, y + 8, dim ? C.slate3 : C.white, { outline: C.ink }); // CARD-3 (REQ-BFG-107)
   if (c.odds !== undefined) drawText(g, `${Math.round(c.odds * 100)}% WIN`, x + r.w - 5, y + 9, dim ? C.slate3 : C.yellow, { font: "3", align: "right" });
   // 0.6.1d2: the same MERGE/wait/MAX badge as the shop card, for a choice that gains an item.
   // Never combined with odds today (a gamble's gain is always gold), but skip it defensively

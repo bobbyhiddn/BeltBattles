@@ -26,6 +26,7 @@
 // THE INTERIM (N1 2.6): the faces are held for stage A's NUMBERS release; until then the formatters print today's values.
 
 import { icons, textWidth, type KeywordName } from "../render/font";
+import { gameWords } from "./gameWords"; // CARD-3 (REQ-BFG-107): a sim string in the player's words
 import { colourize, PERK_COLOUR, type Span } from "./richText";
 import { statRow, type Stat } from "./icons";
 import { fmtCount, fmtDmg, fmtPct, fmtSec, fmtSpeed } from "./statFormat";
@@ -226,7 +227,10 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   // WORDS-1 (REQ-BFG-081; READ-1 4: BARBED SPOOL, the one card all three readers got wrong; a reader took HIT for the rig
   // label): every later shot that hits the hull (battle.ts:2053; was "EVERY LATER HIT +2 DAMAGE.")
   FRAY: () => `EACH {*FRAY}: EVERY LATER SHOT THAT HITS THE HULL +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`,
-  PLATE: () => `{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`,
+  // CARD-3 (REQ-BFG-107): the soak layer reads SHIELD ({*PLATE} draws ICON.PLATE then SHIELD: font.ts PLAYER_WORD), with
+  // the genre's POINT FOR POINT: races/bastion.ts absorb takes min(SHIELD, damage) off each hit (impacts, limpet blasts,
+  // BURN) before the hull; PLATE_CAP 240. HULL DAMAGE says where it stands (was "SOAKS DAMAGE BEFORE YOUR HULL.")
+  PLATE: () => `{*PLATE}: SOAKS HULL DAMAGE POINT FOR POINT. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`,
   // WORDS-1 (REQ-BFG-081; READ-1 4: readers took a pair for two slugs fired together): from two belts (races/foundry.ts
   // inSync: two loads by two intakes, a belt to an intake; was "TWO LOADS REACH ONE TURRET AT ONCE.")
   PAIR: () => "{*PAIR}: TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE.",
@@ -234,7 +238,9 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   // REGEN's verb is HEAL's (GIVES BACK; 4.9 wrote HEALS, which would stand as a bare keyword: REQ-BFG-032 rule 3)
   // NUM-4 (REVIEW-SUSB F1): it blocks one hit's DAMAGE; that hit's BURN, FRAY, STUN and poison still land (battle.ts impact)
   // CARD-2 (REQ-BFG-081, K3 b): ALL OF one hit's damage, however big (battle.ts:2059 shieldHit returns 0 for the hit)
-  SHIELD: () => `EACH {*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
+  // CARD-3 (REQ-BFG-107): the block reads WARD ({*SHIELD} draws ICON.SHIELD then WARD), in the rune reminder's words:
+  // shieldHit breaks one (SHIELD_CAP 3) and returns 0 for the hit; never "WHOLE HIT" (REVIEW-SUSB F1)
+  SHIELD: () => `{*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
   HEAL: () => "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL.",
   REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC.",
 };
@@ -1131,5 +1137,7 @@ export function heroFace(hero: HeroId): { rules: FaceRule[]; reminders: string[]
 }
 
 /** C6's identity in three words (PLAYSTYLE), for the TEXT heroes whose words change; every other hero keeps its own. */
-const PLAYSTYLE: Partial<Record<HeroId, string>> = { weaver: "THREADS FRAY HULLS", foundry: "PAIRS FUSE STRONGER" };
-export const heroPlaystyle = (hero: HeroId): string => PLAYSTYLE[hero] ?? HEROES[hero].pattern;
+// CARD-3 (REQ-BFG-107): BASTION's PLATE AND ENDURE (races/data.ts pattern) reads SHIELD AND ENDURE: its bulwark slugs add
+// SHIELD as they load (races/bastion.ts plateOnLoad); any other hero's pattern goes through gameWords
+const PLAYSTYLE: Partial<Record<HeroId, string>> = { weaver: "THREADS FRAY HULLS", foundry: "PAIRS FUSE STRONGER", bastion: "SHIELD AND ENDURE" };
+export const heroPlaystyle = (hero: HeroId): string => PLAYSTYLE[hero] ?? gameWords(HEROES[hero].pattern);

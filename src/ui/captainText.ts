@@ -8,6 +8,7 @@
 
 import { ICON, ICON_COLOUR, KEYWORDS, type KeywordName } from "../render/font";
 import { colourize, type Span } from "./richText";
+import { gameWords } from "./gameWords"; // CARD-3 (REQ-BFG-107)
 
 /** Each keyword's word forms in captain text: the keyword, and the plural or past forms the lines use. */
 export const CAPTAIN_FORMS: Readonly<Record<KeywordName, readonly string[]>> = {
@@ -15,10 +16,10 @@ export const CAPTAIN_FORMS: Readonly<Record<KeywordName, readonly string[]>> = {
   STUN: ["STUN", "STUNS", "STUNNED"],
   HEAT: ["HEAT"],
   FRAY: ["FRAY"],
-  PLATE: ["PLATE", "PLATED"],
+  PLATE: ["SHIELD", "SHIELDED"], // CARD-3 (REQ-BFG-107): the soak layer's player words (after gameWords)
   PAIR: ["PAIR", "PAIRS"],
   // SUS-B (REQ-BFG-069): the sustain keywords (no captain line names one today; THANE KARSK's plan is IRON WALL)
-  SHIELD: ["SHIELD", "SHIELDS"],
+  SHIELD: ["WARD", "WARDS"], // CARD-3: the block's
   HEAL: ["HEAL", "HEALS"],
   REGEN: ["REGEN"],
 };
@@ -44,10 +45,17 @@ export function captainKeywordColour(word: string): string | undefined {
 export const CAPTAIN_TEXT: ReadonlyArray<readonly [string, string]> = [
   ["GALVANIC COILS STUN YOUR MACHINES.", "GALVANIC COILS STUN YOUR PARTS."], // SPARKFANG's blurb
   ["MATCHED POUR", "TWIN POUR"], // BRASSWICK's trick (alone, or after his name in the inspect panel's title)
+  // CARD-3 (REQ-BFG-107): PLATE leaves the game's text. These two PLATES are ARMOR PACKs (+hull, the plating supply;
+  // bb-0.8.6 renamed ARMOR PLATE to ARMOR PACK), not the soak layer: rivalBuilds.ts P() = { plating } upgrades, two for
+  // MOTH QUEEN ("ARMOR PACKs on her two plates") and three for OLD BULWARK ("on his three plates")
+  ["SPLIT BOLTS, TWO PLATES.", "SPLIT BOLTS, TWO ARMOR PACKS."], // MOTH QUEEN's blurb
+  ["THREE ARMOR PLATES,", "THREE ARMOR PACKS,"], // OLD BULWARK's blurb
 ];
 
 /** A captain's line in the words the player reads (CAPTAIN_TEXT); any other line as it is. */
-export const captainText = (text: string): string => CAPTAIN_TEXT.reduce((t, [from, to]) => t.split(from).join(to), text);
+// CARD-3 (REQ-BFG-107): then the one display function (GRIMHOLD's THICK PLATE, THANE KARSK's WALL OF PLATE and THISTLEMAIL's
+// PLATE and PLATED name the soak layer: SHIELD)
+export const captainText = (text: string): string => gameWords(CAPTAIN_TEXT.reduce((t, [from, to]) => t.split(from).join(to), text));
 
 /** A captain's line as rich spans: each keyword in its colour, everything else as colourize draws it in `base`. */
 export function captainSpans(text: string, base: string): Span[] {

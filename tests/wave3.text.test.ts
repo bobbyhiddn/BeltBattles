@@ -235,7 +235,7 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
       if (!/^[+-]?\d+(\.\d+)?%?$/.test(w)) return [];
       const next = ws[i + 1] ?? "";
       if (w.endsWith("%")) return /^(DAMAGE|FASTER|SLOWER|SHORTER)$/.test(next) ? [] : [w];
-      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|RIGS?)$/.test(next) ? [] : [w];
+      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|SHIELD|RIGS?)$/.test(next) ? [] : [w];
     });
   };
 
@@ -259,9 +259,9 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
   it("the rows, written out: the walk's damage, and what the rig does that the walk can't count", () => {
     const h = (def: string, stars: number, more: object = {}) => hitText({ uid: 1, def, dir: 1, stars, tier: 1, ...more } as Parameters<typeof hitText>[0], "free");
     // NUM-1: x10 (the walk's hit values and the rows were 1.1 / 1, 12, 3 / 3, 1 / 1, 5, 3 / 2.2 / 4, 1)
-    expect(h("plateroller", 2, { plate: 11 })).toBe("PLATE ROLLER +11 PLATING");
+    expect(h("plateroller", 2, { plate: 11 })).toBe("PLATE ROLLER +11 SHIELD");
     // SUS-B (cap's answer 3 to SUSTAIN-1): SHIELD WALL is IRON WALL (the name; the id and the row stay)
-    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 PLATING, +30 DAMAGE AT 120 PLATING");
+    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 SHIELD, +30 DAMAGE AT 120 SHIELD");
     // Y7b2 (the flip): TWIN GAUGE's floor left, so the walk gives an unmatched belt flat 0 and its row says it does nothing
     // there (was the hit { flat: 10, matched: false } and "TWIN GAUGE +10 DAMAGE")
     expect([h("twingauge", 1, { flat: 30, matched: true }), h("twingauge", 1, { flat: 0, matched: false })])
@@ -279,7 +279,7 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
     expect(h("twinlatch", 2, { flat: 0, hold: 2 })).toBe("TWIN LATCH HOLDS UP TO 2 SEC");
     // NUM-1: battle.ts spends 10 plating (was 1). Y7b2 (the flip): no floor (was "PLATE BREAKER +40 DAMAGE FOR 10 PLATING,
     // ELSE +10 DAMAGE")
-    expect(h("platebreaker", 1, { flat: 40 })).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING");
+    expect(h("platebreaker", 1, { flat: 40 })).toBe("PLATE BREAKER +40 DAMAGE FOR 10 SHIELD"); // CARD-3 (REQ-BFG-107)
     // each row's numbers are the spec's at that star. Y7b2 (the flip): one, its STUNs' cut (was 2, with the plated cut)
     for (const s of STARS) expect(numbers(h("braceframe", s)).length).toBe(1);
   });

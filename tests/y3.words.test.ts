@@ -77,7 +77,7 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(abilityText("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
     expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT.");
     expect(abilityText("barbed", 3).sentences[0]).toBe("ADDS 3 FRAY TO EACH PAYLOAD IT HITS.");
-    expect(abilityText("platebreaker", 1).sentences).toEqual(["EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS 40 DAMAGE.", "WITH LESS PLATING THAN THAT, IT ADDS NOTHING."]);
+    expect(abilityText("platebreaker", 1).sentences).toEqual(["EACH PAYLOAD IT HITS TAKES 10 SHIELD FROM YOUR HULL AND GAINS 40 DAMAGE.", "WITH LESS SHIELD THAN THAT, IT ADDS NOTHING."]);
     expect(abilityText("brake", 2).sentences[0]).toBe("SLOWS THE BELT PAST IT TO 40% SPEED.");
     expect(abilityText("surge", 3).sentences).toEqual(["EVERY 2 SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 30 DAMAGE.", "PAYLOADS BEFORE ITS TILE GET IT TOO."]);
     expect(abilityText("overclocker", 1).sentences.slice(1)).toEqual(["THE NEXT RIG IS THE FIRST LATER RIG ON ITS BELT, WHATEVER IT IS.", "A RIG WITH NOTHING TO DOUBLE USES UP THE CHARGE."]);
@@ -95,7 +95,7 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
       // WORDS-1 (REQ-BFG-081): TWIN GAUGE's card in plain words (was "DAMAGE ON A MATCHED BELT.")
       "DAMAGE FOR EACH RIG ON ITS TILE.", "DAMAGE IF ANOTHER BELT IS AS LONG.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "RIGS START 50% SOONER."]);
     expect(["quench", "brake", "twinlatch", "platebreaker", "surge"].map((d) => gist(d, 2))).toEqual([
-      "50 DAMAGE FOR EACH BURN", "40% SPEED", "HOLDS UP TO 2 SECONDS", "88 DAMAGE FOR 10 PLATING", "20 DAMAGE EVERY 3 SECONDS"]);
+      "50 DAMAGE FOR EACH BURN", "40% SPEED", "HOLDS UP TO 2 SECONDS", "88 DAMAGE FOR 10 SHIELD", "20 DAMAGE EVERY 3 SECONDS"]);
   });
 
   it("on, the belt timeline says the new rules (hitText)", () => {
@@ -108,7 +108,7 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(hitText(row("pincer", 1, { flat: 0, others: 0 }), "free")).toBe("PINCER: NO OTHER RIG ON ITS TILE");
     expect(hitText(row("pincer", 2, { flat: 44, others: 1 }), "free")).toBe("PINCER +44 DAMAGE, CROSSFIRE WITH 1 RIG");
     expect(hitText(row("twinlatch", 3, { flat: 0 }), "free")).toBe("TWIN LATCH HOLDS UP TO 3 SEC");
-    expect(hitText(row("platebreaker", 1, { flat: 0 }), "free")).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING");
+    expect(hitText(row("platebreaker", 1, { flat: 0 }), "free")).toBe("PLATE BREAKER +40 DAMAGE FOR 10 SHIELD");
     expect(hitText(row("brake", 3), "free")).toBe("BRAKE SHOE AT 30% SPEED"); // Y7b2 (the words): was "BRAKE SHOE 70% SLOWER"
     expect(hitText(row("longhaul", 2, { flat: 160, prior: 8 }), "free")).toBe("LONG HAUL +160 DAMAGE (8 HITS BEFORE)");
     for (const def of Y3_PIECES.filter((d) => ITEMS[d].kind === "gate")) for (const s of STARS) {

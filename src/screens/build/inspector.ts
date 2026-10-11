@@ -20,7 +20,7 @@ import { record } from "../../game/day";
 import { FINDING_GHOST } from "../../game/session"; // 0.7.0a: the NEXT BATTLE card online
 import { HEROES, ITEMS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import type { ModuleTag } from "../../sim/content"; // 0.8.0 I1 M4: the families in the header
-import { drawFamilyMark, familiesOf, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
+import { drawFamilyMark, familiesOf, familySpans, familyWord } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import {
   arrowsOf, beltUsed, canSellTurret, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo,
@@ -565,8 +565,10 @@ export function stokeCapBlocks(run: Run, factories: readonly number[]): Block[] 
     // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): "THE KILN'S GUN IS FULL: IT WORKS ONLY 8% FASTER." (was
     // "..., SO IT WORKS ONLY 8% FASTER."), the same meaning and numbers
     const text = effectAt(p.def, starsOf(p)).factory?.plate
-      ? none ? `${name} GUN IS FULL: ONLY ITS PLATING WORKS ${percent(stoke)} FASTER.`
-      : `${name} GUN IS FULL: IT STAMPS ONLY ${effPct} FASTER, BUT PLATES ${percent(stoke)} FASTER.`
+      // CARD-3 (REQ-BFG-107): its SHIELD timer (factory.plate.every, stokedPace) in SHIELD's words (was "ONLY ITS PLATING WORKS
+      // n FASTER" and "BUT PLATES n FASTER")
+      ? none ? `${name} GUN IS FULL: ONLY ITS SHIELD COMES ${percent(stoke)} FASTER.`
+      : `${name} GUN IS FULL: IT STAMPS ONLY ${effPct} FASTER, BUT ITS SHIELD COMES ${percent(stoke)} FASTER.`
       : none ? `${name} GUN IS FULL: IT WORKS NO FASTER.` : `${name} GUN IS FULL: IT WORKS ONLY ${effPct} FASTER.`;
     return [{ role: "warn", text, rank: 1 }];
   });
@@ -1488,7 +1490,7 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   // y+20..y+22; the body starts at y+24)
   const tags = [...families];
   const strip = !column && area.y + 25 + shift + 5 > area.y + area.h - 4 && !!sp.headerOnly;
-  const namesW = textWidth(tags.join(", "), "3"), marksW = tags.length * 4 - 1;
+  const namesW = textWidth(tags.map(familyWord).join(", "), "3"), marksW = tags.length * 4 - 1; // CARD-3: the player's tags
   const titleFree = column || !labels.length || !!port?.shift;
   const beside = (text: string, font: FontId, free: boolean, gap = 6) => (w: number) => free && 23 + textWidth(text, font) + gap + w <= area.w - 4;
   const bySub2 = beside(subs[1] ?? "", "3", column && subs.length === 2), byTitle = beside(sp.title, "5", titleFree);
@@ -1855,7 +1857,7 @@ export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead">): void 
   const fh = plan.famHead, r = plan.r;
   if (!fh) return;
   if (fh.names) {
-    const spans = familySpans(fh.tags.join(", "), C.slate4);
+    const spans = familySpans(fh.tags.map(familyWord).join(", "), C.slate4); // CARD-3 (REQ-BFG-107): the player's tags
     if (fh.at === "sub") drawRich(g, spans, r.x + 23, r.y + 19, "3");
     else drawRich(g, spans, r.x + r.w - 4 - lineWidth(spans, "3"), r.y + (fh.at === "sub2" ? 19 : 5), "3");
     return;

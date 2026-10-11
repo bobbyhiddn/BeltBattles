@@ -13,7 +13,7 @@ import { key as K, rotField, setTurretList, type Placed } from "../src/sim/deck"
 import { rotFacing, stokeSpots } from "../src/sim/beltside";
 import { fusible } from "../src/sim/stars";
 import { newRun, type Run } from "../src/game/run";
-import { FAMILY, FAMILY_ORDER, drawFamilyMark, drawFamilyMarks, familiesOf, familiesText, familySpans } from "../src/ui/families";
+import { FAMILY, FAMILY_ORDER, drawFamilyMark, drawFamilyMarks, familiesOf, familiesText, familySpans, familyWord } from "../src/ui/families"; // CARD-3: familyWord
 import { CARD_MARK_X, CARD_MARK_Y, drawCard, drawTooltip, type CardState } from "../src/screens/build/shop";
 import { CARD_H, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W, buildLayout, type Sel } from "../src/screens/build/layout";
 import {
@@ -70,7 +70,7 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
       expect(f.length, `${d.id} has a family`).toBeGreaterThanOrEqual(1);
       expect(f.length, d.id).toBeLessThanOrEqual(3);
       counts[f.length]++;
-      expect(familiesText(d.id), d.id).toBe(f.join(", "));
+      expect(familiesText(d.id), d.id).toBe(f.map(familyWord).join(", ")); // CARD-3: the player's tags
     }
     // FLIP-X2: SIFTER (FORGE, HARASS, PLATE: 3 families) leaves; WARD BELL and MENDING LOOM (PLATE) and MEND PRESS (PLATE,
     // SWARM) join: [0, 31, 50, 5] -> [0, 33, 51, 4]
@@ -86,7 +86,7 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
     expect(familySpans("FORGE, TEMPO", C.slate4)).toEqual([
       { t: "FORGE", c: FAMILY.FORGE.colour, whole: true }, { t: ", ", c: C.slate4 }, { t: "TEMPO", c: FAMILY.TEMPO.colour, whole: true },
     ]);
-    expect(familySpans("PLATE")).toEqual([{ t: "PLATE", c: FAMILY.PLATE.colour, whole: true }]);
+    expect(familySpans("SHIELD")).toEqual([{ t: "SHIELD", c: FAMILY.PLATE.colour, whole: true }]); // CARD-3 (REQ-BFG-107): the tag reads SHIELD
   });
 
   it("drawFamilyMarks draws each mark's lit cells in its colour, 4 px apart (grey when dim), and returns the row's width", () => {
@@ -244,7 +244,7 @@ function famBox(plan: PanelPlan): Box | null {
   const fh = plan.famHead, r = plan.r;
   if (!fh) return null;
   if (fh.names) {
-    const w = textWidth(fh.tags.join(", "), "3");
+    const w = textWidth(fh.tags.map(familyWord).join(", "), "3"); // CARD-3: the player's tags
     return fh.at === "sub" ? { x: r.x + 23, y: r.y + 19, w, h: 5, what: "names" } : { x: r.x + r.w - 4 - w, y: r.y + (fh.at === "sub2" ? 19 : 5), w, h: 5, what: "names" };
   }
   const w = fh.tags.length * 4 - 1;
@@ -315,7 +315,7 @@ describe("the inspect panel names the families in its header (REQ-BFG-023: in th
       for (const b of headBoxes(c.t, p)) expect(meets(ring, b), `${what}: the families (${JSON.stringify(p.famHead)}) meet the ${b.what}`).toBe(false);
       // marks only where the names have no room: beside the title they'd run into it, and under the sub line the body
       // starts a row higher (tight) or they are too wide
-      const namesW = textWidth(fam.join(", "), "3");
+      const namesW = textWidth(fam.map(familyWord).join(", "), "3"); // CARD-3
       if (!p.famHead!.names && p.famHead!.at === "title") expect(23 + textWidth(c.t.title) + 6 + namesW > area.w - 4, what).toBe(true);
       if (!p.famHead!.names && p.famHead!.at === "sub") {
         expect(p.body.tight || namesW > area.w - 27, what).toBe(true);
@@ -399,7 +399,7 @@ describe("the inspect panel names the families in its header (REQ-BFG-023: in th
       const c = draw({ at, tags: ["PLATE"], names: true });
       const xs = cols(c, y, 5)[FAMILY.PLATE.colour];
       expect(Math.max(...xs), at).toBe(r.x + r.w - 5); // right-aligned 4 px in
-      expect(Math.min(...xs), at).toBe(r.x + r.w - 4 - textWidth("PLATE", "3"));
+      expect(Math.min(...xs), at).toBe(r.x + r.w - 4 - textWidth("SHIELD", "3")); // CARD-3
     }
     for (const [at, x, y] of [["title", r.x + r.w - 4 - 7, r.y + 6], ["sub2", r.x + r.w - 4 - 7, r.y + 20], ["sub", r.x + 23, r.y + 20]] as const) {
       const c = draw({ at, tags: ["SWARM", "TWIN"], names: false });

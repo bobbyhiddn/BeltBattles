@@ -138,7 +138,7 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
   afterEach(() => { delete g.localStorage; setTipsForTests("reload"); });
 
   it("SEAM RIVETS, TWIN SALVE, HOT SEAM, IRON TEMPER: every keyword a target, its definition in the room, no overlap; sizes on every pinned phone", () => {
-    expect(CASES.map((id) => runeWordOrder(RUNES[id]))).toEqual([["PAIR", "PLATE"], ["PAIR", "HEAL"], ["PAIR", "BURN"], ["PLATE", "DMG"]]);
+    expect(CASES.map((id) => runeWordOrder(RUNES[id]))).toEqual([["PAIR", "SHIELD"], ["PAIR", "HEAL"], ["PAIR", "BURN"], ["SHIELD", "DMG"]]); // CARD-3 (REQ-BFG-107): SHIELD
     const rows: string[] = [];
     for (const [name, w, h, dpr] of PHONES) {
       const f = framed(w, h, dpr, 1);
@@ -168,10 +168,10 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
       rows.push(`${name} (S ${f.S}, card ${cw} art px): least word target ${minW.toFixed(1)} x ${minH.toFixed(1)} CSS px`);
     }
     console.log(`CARD-2 (k2) rune word targets:\n${rows.join("\n")}`);
-    expect(runeWordText(RUNES.seam_rivets, runeKeywordOf(RUNES.seam_rivets, "PLATE")!)).toMatch(/^PLATE: /);
+    expect(runeWordText(RUNES.seam_rivets, runeKeywordOf(RUNES.seam_rivets, "SHIELD")!)).toMatch(/^SHIELD: /); // CARD-3
     expect(runeWordText(RUNES.twin_salve, runeKeywordOf(RUNES.twin_salve, "HEAL")!)).toMatch(/^HEAL: /);
     // SHATTER SHOT's SHIELD shows its own note (its hits break a SHIELD), not SHIELD's reminder
-    expect(runeWordText(RUNES.shatter_shot, runeKeywordOf(RUNES.shatter_shot, "SHIELD")!)).toBe("SHIELD: IT BREAKS; THE HIT STILL LANDS.");
+    expect(runeWordText(RUNES.shatter_shot, runeKeywordOf(RUNES.shatter_shot, "WARD")!)).toBe("WARD: IT BREAKS; THE HIT STILL LANDS."); // CARD-3
   });
 
   it("the dawn picker: a word tap shows its definition in the room and never takes the rune; the take tap still works off the words", () => {
@@ -184,7 +184,7 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
     ui = sc.frame(picker as never);
     const before = state(run);
     const words = ui.regions.filter((r) => r.id.startsWith("runepick-w"));
-    expect(words.map((r) => r.id.split(":")[1])).toEqual(["PAIR", "PLATE"]);
+    expect(words.map((r) => r.id.split(":")[1])).toEqual(["PAIR", "SHIELD"]); // CARD-3 (REQ-BFG-107)
     for (const wr of words) {
       expect(ui.hit(wr.r.x + 1, wr.r.y + 1)?.id, wr.id).toBe(wr.id); // over the card's region
       picker.pressed(wr.id);
@@ -251,9 +251,9 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
 describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): new words, one line on the op card and the desk", () => {
   it("FIGHT START on every START: rune; SHIELD's reminder; SNARE KNOT's 15; MERGED; TOLL ROAD's load; TWIN SALVE's EACH PAIR", () => {
     const want: Record<string, string[]> = {
-      rivet_hoard: ["FIGHT START: +60 PLATE."], grave_plates: ["FIGHT START: +240 PLATE."], loose_thread: ["FIGHT START: THE FOE HAS 2 FRAY."],
-      tangle_wire: ["FIGHT START: THE FOE HAS 5 FRAY."], ash_kindle: ["FIGHT START: THE FOE HAS 4 BURN."], ward_stone: ["FIGHT START: +3 SHIELD."],
-      bulwark_ward: ["FIGHT START: +2 SHIELD."], searing: ["FIGHT START: THE FOE HAS 5 BURN.", "FOE WITH YOUR BURN: NO HEAL."],
+      rivet_hoard: ["FIGHT START: +60 SHIELD."], grave_plates: ["FIGHT START: +240 SHIELD."], loose_thread: ["FIGHT START: THE FOE HAS 2 FRAY."],
+      tangle_wire: ["FIGHT START: THE FOE HAS 5 FRAY."], ash_kindle: ["FIGHT START: THE FOE HAS 4 BURN."], ward_stone: ["FIGHT START: +3 WARD."],
+      bulwark_ward: ["FIGHT START: +2 WARD."], searing: ["FIGHT START: THE FOE HAS 5 BURN.", "FOE WITH YOUR BURN: NO HEAL."],
       snare_knot: ["AT 15 FRAY (FULL): YOUR HITS +20 DMG."], scrap_halo: ["+60 HULL PER MERGED (★2/★3) PIECE IN USE."],
       scrap_saint: ["+11% DMG PER MERGED (★2/★3) PIECE IN USE."], toll_road: ["EACH LOAD: +4% DMG PER RIG IT PASSED."], twin_salve: ["EACH PAIR: HEAL 20."],
     };
@@ -270,9 +270,9 @@ describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): ne
       expect(runeKeywordsOf(def).sort(), id).toEqual([...new Set([...def.text.matchAll(/\{\*?([A-Z]+)\}/g)].map((m) => m[1]).filter((k) => k !== "N"))].sort());
     }
     console.log(`CARD-2 (k3) rune lines (5x7 px; the op card's text is 223 px, the 390-wide phones' 216):\n${rows.join("\n")}`);
-    expect(runeReminderOf(RUNES.ward_stone)).toBe("SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.");
+    expect(runeReminderOf(RUNES.ward_stone)).toBe("WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS."); // CARD-3
     expect(textWidth(runeReminderOf(RUNES.ward_stone), "3")).toBeLessThanOrEqual(223);
-    expect(runeWordText(RUNES.ward_stone, "SHIELD")).toBe("SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.");
+    expect(runeWordText(RUNES.ward_stone, "SHIELD")).toBe("WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS."); // CARD-3: the token SHIELD reads WARD
   });
 });
 
@@ -350,7 +350,7 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     // the next open of this panel: its next keyword not yet seen (PLATE)
     keywordsIdle(p.ctx);
     p.draw();
-    expect(keywordState(p.ctx)!.word).toBe("PLATE");
+    expect(keywordState(p.ctx)!.word).toBe("SHIELD"); // CARD-3 (REQ-BFG-107)
     // another panel with PAIR (TWIN TRIGGER): PAIR is done, so no PAIR box
     const run2 = cargoRun("foundry", "twintrigger"), p2 = panelCtx(run2, CARGO, f, true);
     p2.draw();
@@ -358,7 +358,7 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     expect(state(run), "no press changed the run").toBe(before);
     // the store keeps them; a reload too
     setTipsForTests("reload");
-    expect(sightDone("kw:PAIR") && sightDone("kw:PLATE")).toBe(true);
+    expect(sightDone("kw:PAIR") && sightDone("kw:SHIELD.107")).toBe(true); // CARD-3: the new id
   });
 
   it("TEMPER: the first open shows the rig sentence by the icon, the second BURN's definition; a how-to tip, a refit and the desk", () => {
@@ -488,7 +488,7 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     ui = sc.frame(picker as never);
     expect(ui.regions.some((r) => r.id === PICK_DEF)).toBe(true);
     expect(sightDone("kw:PAIR"), "done once its box was on screen").toBe(true);
-    expect(sightDone("kw:PLATE"), "the next one waits for the next open").toBe(false);
+    expect(sightDone("kw:SHIELD.107"), "the next one waits for the next open").toBe(false); // CARD-3
     // the next open: TWIN SALVE (PAIR: HEAL 20.): PAIR is done, so HEAL
     picker.pressed("runepick-1");
     ui.regions.find((r) => r.id === "runepick-1")!.onTap!();
@@ -497,7 +497,7 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     // SEAM RIVETS again: PLATE now; HOT SEAM after: BURN (PAIR done)
     picker.pressed("runepick-0");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-0")!.onTap!();
-    expect(picker.word).toBe("PLATE");
+    expect(picker.word).toBe("SHIELD"); // CARD-3 (REQ-BFG-107)
     sc.frame(picker as never);
     picker.pressed("runepick-2");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-2")!.onTap!();
@@ -510,9 +510,9 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     expect(state(run), "no rune taken, nothing bought").toBe(before);
     // the store holds the notes with the tips' ids; a reload keeps them
     const stored = JSON.parse((g.localStorage as Mem).getItem(TIPS_KEY)!);
-    expect(stored).toEqual(expect.arrayContaining(["kw:PAIR", "kw:HEAL", "kw:PLATE", "kw:BURN"]));
+    expect(stored).toEqual(expect.arrayContaining(["kw:PAIR", "kw:HEAL", "kw:SHIELD.107", "kw:BURN"])); // CARD-3
     setTipsForTests("reload");
-    expect(["kw:PAIR", "kw:HEAL", "kw:PLATE", "kw:BURN"].every((id) => sightDone(id))).toBe(true);
+    expect(["kw:PAIR", "kw:HEAL", "kw:SHIELD.107", "kw:BURN"].every((id) => sightDone(id))).toBe(true);
     expect(runeSightWord(RUNES.seam_rivets)).toBeNull();
   });
 
@@ -542,7 +542,7 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     sawWord("PAIR");
     expect(sightWord(["PAIR"])).toBeNull();
     expect(FIRST_SIGHT_WORDS.every((w) => !["RATE", "DMG", "SLUG", "GEAR", "BELT", "HULL", "GOLD"].includes(w))).toBe(true);
-    expect(Object.values(KEYWORD_WORD).filter((w) => FIRST_SIGHT_WORDS.includes(w)).sort()).toEqual(["BURN", "FRAY", "HEAL", "HEAT", "PAIR", "PLATE", "REGEN", "RIDE", "SHIELD", "STUN"]);
+    expect(Object.values(KEYWORD_WORD).filter((w) => FIRST_SIGHT_WORDS.includes(w)).sort()).toEqual(["BURN", "FRAY", "HEAL", "HEAT", "PAIR", "REGEN", "RIDE", "SHIELD", "STUN", "WARD"]); // CARD-3
   });
 });
 
@@ -591,6 +591,12 @@ import { captainSpans } from "../src/ui/captainText";
 describe("CARD-2 (k3 (i)): the two captains' lines with retired words, drawn in the current words (captainText.ts)", () => {
   it("SPARKFANG's blurb and BRASSWICK's trick (alone and in the inspect panel's title); RIVALS unchanged; every other captain line as it was", () => {
     const shown = (t: string) => captainSpans(t, "#000000").map((s) => s.t).join("");
+    // CARD-3 (REQ-BFG-107): PLATE leaves the game's text: two ARMOR PACKs (rivalBuilds.ts P()), three soak layers (SHIELD)
+    const R107: Record<string, string> = {
+      mothqueen: "SPLIT BOLTS, TWO ARMOR PACKS. FRAY PILES UP.", bulwark: "THREE ARMOR PACKS, A BRAKED COOKER.",
+      grimhold: "THICK SHIELD MAKES EVERY SHOT HIT HARDER.", karsk: "A WALL OF SHIELD. HE BREAKS IT ON YOU.",
+      thistlemail: "THREADS SHIELD HER. SHIELDED, HER GUNS SPIN.",
+    };
     expect([RIVALS.sparkfang.blurb, RIVALS.brasswick.trick]).toEqual(["GALVANIC COILS STUN YOUR MACHINES.", "MATCHED POUR"]); // src/sim keeps them
     expect(shown(RIVALS.sparkfang.blurb)).toBe("GALVANIC COILS STUN YOUR PARTS.");
     expect(shown(RIVALS.brasswick.trick)).toBe("TWIN POUR");
@@ -600,12 +606,14 @@ describe("CARD-2 (k3 (i)): the two captains' lines with retired words, drawn in 
     let same = 0;
     for (const id of RIVAL_IDS) for (const line of [RIVALS[id].trick, RIVALS[id].blurb, `${RIVALS[id].name}, ${RIVALS[id].trick}`]) {
       expect(/\bMACHINES?\b|\bMATCHED\b/.test(shown(line)), `${id}: ${shown(line)}`).toBe(false);
+      // CARD-3 (REQ-BFG-107): five blurbs read the new words (captainText.ts: CAPTAIN_TEXT, then gameWords)
+      if (R107[id] && line === RIVALS[id].blurb) { expect(shown(line), id).toBe(R107[id]); continue; }
       if (!(id === "sparkfang" && line === RIVALS[id].blurb) && !(id === "brasswick" && line.includes("MATCHED POUR"))) {
         expect(shown(line), id).toBe(line);
         same++;
       }
     }
-    expect(same).toBe(RIVAL_IDS.length * 3 - 3);
+    expect(same).toBe(RIVAL_IDS.length * 3 - 3 - Object.keys(R107).length); // CARD-3: and the five
   });
 });
 

@@ -10,7 +10,8 @@
 //   the faces dropped (U2b REPORT section 12, the rows marked tap); no piece: the default number (T2a's, the sim's
 //   constant), STUN's number-free, as T2a's SHOCK was (stars and pieces change it);
 // - the words the kept texts still name (RULES and STUN-fold pieces, the notices): T2a's rows, in the style guide's form;
-//   one mechanic one word: SHOCK and STALL are STUN's (battle.ts disrupt: one timer), PLATING is PLATE's, FIRE RATE and
+//   one mechanic one word: SHOCK and STALL are STUN's (battle.ts disrupt: one timer), PLATING is SHIELD's (CARD-3: the
+//   soak layer, internal PLATE; REQ-BFG-107), FIRE RATE and
 //   WORKS FASTER are RATE's (a gun's or a factory's pace), MACHINE is PART's (C1: "MACHINE becomes enemy part");
 // - the rune keywords (runeText.ts RuneKeyword): BURN (battle.ts hull.burns: HOT SWAP's ticks and BURN_TIME), STUN (the
 //   disrupt timer: STEADY IRON's stallCut shortens it; FLIP-X2 N4-d, was the STALL token), RIDE (rideOf: the ammo's own ride bonus, rideScale: only the
@@ -68,7 +69,11 @@ export function glossaryRows(): GlossaryRow[] {
   const burnExtra = "THEY ADD UP, AND {*PLATE} SOAKS THEM.";
   const stunExtra = "THE HULL ITSELF NEVER STOPS.";
   const heatExtra = "JACKETS ADD UP, FROM THEIR TILE ON.";
-  const plateExtra = "THE DARK WIND GOES PAST IT.";
+  // CARD-3 (REQ-BFG-107): the soak's one extra sentence says which acts first, as battle.ts impact does it: IRON HIDE's
+  // cut (runeHit), then a WARD stops the hit (shieldHit returns 0, so absorb takes no SHIELD), then SHIELD soaks the rest
+  // point for point (races/bastion.ts absorb), then the hull. THE DARK WIND GOES PAST IT moved to the DARK WIND row (both
+  // sentences take 3 lines of 5x7 at 225 px with the point-for-point reminder; a tap shows at most 2)
+  const plateExtra = "A {*SHIELD} GOES FIRST.";
   // NUM-4 (REQ-BFG-047; N1 2.2): the pair window (SYNC_WINDOW 0.25 s), the load window (1.5 s) and the commission timers
   // (1.2 s, +0.6 s) are hidden timers no whole second says: the rows keep the rule, not the number
   // WORDS-1 (REQ-BFG-081): PAIR's reminder says FROM TWO BELTS now (faces.ts REMINDER.PAIR), so its extra sentence goes (was
@@ -88,11 +93,14 @@ export function glossaryRows(): GlossaryRow[] {
     },
     { word: "HEAT", aliases: [], colour: kwColour("HEAT"), kw: "HEAT", extra: heatExtra, def: withExtra(REMINDER.HEAT(), heatExtra), scope: "text" },
     { word: "FRAY", aliases: ["FRAYS"], colour: kwColour("FRAY"), kw: "FRAY", def: REMINDER.FRAY(), scope: "text" },
-    { word: "PLATE", aliases: ["PLATES", "PLATED", "PLATING"], colour: kwColour("PLATE"), kw: "PLATE", extra: plateExtra, def: withExtra(REMINDER.PLATE(), plateExtra), scope: "text" },
+    // CARD-3 (REQ-BFG-107): the soak layer reads SHIELD (kw PLATE, its internal name); PLATES, PLATED and PLATING are no
+    // longer aliases (the word PLATE is in no player text; a name holding it is never this row)
+    { word: "SHIELD", aliases: ["SHIELDS", "SHIELDED"], colour: kwColour("PLATE"), kw: "PLATE", extra: plateExtra, def: withExtra(REMINDER.PLATE(), plateExtra), scope: "text" },
     { word: "PAIR", aliases: ["PAIRS", "PAIRED"], colour: kwColour("PAIR"), kw: "PAIR", def: REMINDER.PAIR(), scope: "text" },
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1, 4.9): SHIELD a count (MAX 3), HEAL never past full hull (RIVETER's old REPAIR is
     // HEAL's: one mechanic, one word), REGEN at each whole second (battle.ts sustainTick)
-    { word: "SHIELD", aliases: ["SHIELDS"], colour: kwColour("SHIELD"), kw: "SHIELD", extra: shieldExtra, def: withExtra(REMINDER.SHIELD(), shieldExtra), scope: "text" },
+    // CARD-3 (REQ-BFG-107): the one-hit block reads WARD (kw SHIELD, its internal name)
+    { word: "WARD", aliases: ["WARDS"], colour: kwColour("SHIELD"), kw: "SHIELD", extra: shieldExtra, def: withExtra(REMINDER.SHIELD(), shieldExtra), scope: "text" },
     {
       word: "HEAL", aliases: ["HEALS", "HEALED", "HEALING", "REPAIR", "REPAIRS"], colour: kwColour("HEAL"), kw: "HEAL", extra: healExtra,
       def: withExtra(REMINDER.HEAL(), healExtra), scope: "text",
@@ -135,7 +143,9 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "BONUS DAMAGE", aliases: [], colour: PLAIN, def: "BONUS DAMAGE: WHAT RIGS AND SCRAP ADD TO A SLUG.", scope: "text" },
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1): the dark wind's text row, no icon (battle.ts: WIND_START, nothing heals from then;
     // 4.1's "NOTHING HEALS IN IT." names HEAL in panel style, as every text a tap shows does)
-    { word: "DARK WIND", aliases: [], colour: PLAIN, def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`, scope: "text" },
+    // CARD-3 (REQ-BFG-107): + PAST SHIELD, the soak note's old extra (battle.ts: the wind's damage goes to the hull, never
+    // through absorb; impacts, limpet blasts and BURN do), 2 lines of 5x7 at 225 px
+    { word: "DARK WIND", aliases: [], colour: PLAIN, def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS, PAST {*PLATE}. NO {*HEAL} IN IT.`, scope: "text" },
     // ------------------------------------------------------------------------- the trigger labels (T1 2.3), brass
     { word: "HIT", aliases: [], colour: C.brass3, def: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", scope: "label" },
     { word: "SHOT", aliases: [], colour: C.brass3, def: "SHOT: EACH SHOT THIS TURRET FIRES.", scope: "label" },
@@ -168,7 +178,9 @@ export const GLOSSARY: readonly GlossaryRow[] = glossaryRows();
 /** The rune cards' number-free reminders (runeText.ts runeReminder), one per rune keyword that has one; each says what
  *  its glossary row says (tests/glossary.test.ts), its word first. */
 export const RUNE_REMINDER: Readonly<Record<string, string>> = {
-  PLATE: "PLATE: SOAKS DAMAGE BEFORE YOUR HULL.",
+  // CARD-3 (REQ-BFG-107): the soak layer's player word is SHIELD, and the genre's POINT FOR POINT (races/bastion.ts absorb:
+  // min(SHIELD, damage) off the hit, the rest to the hull). 203 px of 3x5, one line on every card (216 at the least)
+  PLATE: "SHIELD: SOAKS DAMAGE POINT FOR POINT BEFORE YOUR HULL.",
   PAIR: "PAIR: TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE.", // WORDS-1: FROM TWO BELTS, as its row
   HEAT: "HEAT: MORE DAMAGE FOR EACH SEC IT RIDES.",
   FRAY: "FRAY: EACH ONE ADDS DAMAGE TO EVERY LATER SHOT ON THE HULL.", // WORDS-1: not HIT, the rig's label (READ-1 4)
@@ -180,7 +192,8 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   // NUM-4 (REVIEW-SUSB F1; was "STOPS ONE WHOLE HIT"). CARD-2 (REQ-BFG-081, K3 b; READ-3 6: Haiku read a SHIELD as plate
   // that soaks): ALL OF a hit's damage, however big (battle.ts:2059 impact: shieldHit returns 0 for the hit, its FRAY bonus
   // too); its BURN, FRAY and STUN still land (2066-), so never "WHOLE HIT"
-  SHIELD: "SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.",
+  // CARD-3 (REQ-BFG-107): the one-hit block's player word is WARD; CARD-2's true words (184 px of 3x5)
+  SHIELD: "WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.",
   HEAL: "HEAL: GIVES BACK HULL, NEVER PAST FULL.",
   REGEN: "REGEN: GIVES BACK HULL EACH SEC.",
 };
@@ -190,7 +203,7 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
  *  its card says the SHIELD breaks and the hit still lands (battle.ts impact: shieldShatter), with no new keyword (no
  *  PIERCE: it would serve one rune). Number-free, its keyword's word first, one line of 3x5 on the card. */
 export const RUNE_NOTE: Readonly<Record<string, string>> = {
-  shatter_shot: "SHIELD: IT BREAKS; THE HIT STILL LANDS.",
+  shatter_shot: "WARD: IT BREAKS; THE HIT STILL LANDS.", // CARD-3 (REQ-BFG-107): WARD, the block's word
   // WORDS-1 (REQ-BFG-081; TEXT-STYLE 7.4 as ruled 2026-10-10): what a plain rune line can't hold in its one line of the card,
   // on the opened card: FINAL NAIL never lands on a GATLING SPOOL (battle.ts:1889); a piece IN USE is a placed, installed or
   // fitted one (runes.ts:566-569: the build's pieces; cargo is not); a TWIN MOULD's cast and a CRUCIBLE's pour give FORGE
@@ -361,7 +374,7 @@ export function statIconNote(k: StatIcon, kind: string | undefined, gunRow: bool
  * (HEAT: FURNACE, FRAY: WEAVER, PAIR: FOUNDRY; BASTION's PLATE is core). docs/VOCAB of WORDS-1 lists each and how it is
  * learned; tests/words1.vocab.test.ts holds the list to 10 or fewer.
  */
-export const CORE_WORDS: readonly string[] = ["SLUG", "BELT", "HIT", "RATE", "LOAD", "HULL", "BURN", "STUN", "PLATE", "MERGE"];
+export const CORE_WORDS: readonly string[] = ["SLUG", "BELT", "HIT", "RATE", "LOAD", "HULL", "BURN", "STUN", "SHIELD", "MERGE"]; // CARD-3: SHIELD (was PLATE)
 /** The hero words, each taught on its hero's select card (heroes.ts; hero select draws the hero's trick). */
 export const HERO_WORDS: Readonly<Record<string, string>> = { HEAT: "furnace", FRAY: "weaver", PAIR: "foundry" };
 
@@ -391,3 +404,7 @@ export function glossaryText(word: string, piece?: { def: string; stars: number;
 
 /** A definition in glyphs (icons()), as it is drawn. */
 export const glossaryGlyphs = (markup: string): string => icons(markup);
+
+// CARD-3 (REQ-BFG-107): the one display function for a sim string a screen draws as it is (src/ui/gameWords.ts, a module
+// of its own, so faces.ts can use it without the glossary's import of faces.ts)
+export { GAME_WORDS, NAMES_KEPT, gameWords } from "./gameWords";

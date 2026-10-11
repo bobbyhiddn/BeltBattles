@@ -23,7 +23,7 @@ import { RUNE_TEXT, runeLine, runeReminder, runeTextOf } from "../src/ui/runeTex
 import { FAMILY } from "../src/ui/families";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { fusible, effectAt } from "../src/sim/stars";
-import { KEYWORDS, icons, textWidth } from "../src/render/font";
+import { ICON, KEYWORDS, icons, textWidth } from "../src/render/font"; // CARD-3: ICON
 import type { TimelineHit } from "../src/sim/deck";
 import { STARS, rigBench } from "./y3.helpers";
 
@@ -114,7 +114,7 @@ describe("Y5 words: the 7's kept sentences, gists, cards and timeline rows say t
     expect(abilityText("capacitor", 1, { k: 1 }).sentences).toEqual(["CHARGES ITS NEXT SHOT 20 DAMAGE FOR EACH SECOND ITS CHAMBER SITS EMPTY."]);
     expect(abilityText("spallcatcher", 1).sentences).toEqual([
       "EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 10 DAMAGE TO THIS TURRET'S NEXT SHOT.",
-      "DAMAGE YOUR PLATING SOAKS COUNTS TOO; THE DARK WIND DOESN'T COUNT.",
+      "DAMAGE YOUR SHIELD SOAKS COUNTS TOO; THE DARK WIND DOESN'T COUNT.",
     ]);
     expect(gist("spallcatcher", 2)).toBe("22 DAMAGE FOR EVERY 40");
     // Y7b1 (Y7A-R3d): was ["WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH PAYLOAD IT HITS GAINS 30 DAMAGE."] and
@@ -122,8 +122,8 @@ describe("Y5 words: the 7's kept sentences, gists, cards and timeline rows say t
     // TXT-096 (REVIEW-TXT095 Q2): one opening with both parts, as its face (were "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH
     // PAYLOAD IT HITS." and "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
     expect(abilityText("shieldwall", 1).sentences.slice(0, 1)).toEqual([
-      "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH GAINS 30 DAMAGE."]);
-    expect([gist("shieldwall", 2), cardText("shieldwall")]).toEqual(["22 PLATING A PAYLOAD, 66 DAMAGE AT 120 PLATING", "PLATES YOUR HULL, HITS HARDER."]);
+      "ROLLS 10 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 SHIELD OR MORE, EACH GAINS 30 DAMAGE."]);
+    expect([gist("shieldwall", 2), cardText("shieldwall")]).toEqual(["22 SHIELD A PAYLOAD, 66 DAMAGE AT 120 SHIELD", "ADDS SHIELD, HITS HARDER."]); // CARD-3 (REQ-BFG-107)
     expect(abilityText("keg", 1).sentences).toEqual([
       "EVERY 12 SECONDS IT BLOWS UP, ADDING 60 DAMAGE TO EVERY PAYLOAD ON ITS BELTS.",
       "ITS FUSE RUNS FROM THE START OF THE BATTLE; A STUN PAUSES IT.",
@@ -132,11 +132,14 @@ describe("Y5 words: the 7's kept sentences, gists, cards and timeline rows say t
     expect(hitText({ def: "keg", stars: 2 } as TimelineHit, "free")).toBe("POWDER KEG +130 DAMAGE EVERY 10 SEC");
   });
 
-  it("the faces' keywords are the existing ones (no new keyword); IRON WALL's taps PLATE", () => {
+  it("the faces' keywords are the existing ones (no new keyword); IRON WALL's taps SHIELD (CARD-3: PLATE's player word)", () => {
     for (const def of Y5_PIECES) for (const s of STARS) {
       for (const r of faceAt(def, s, k1(def))!.rules) for (const m of r.text.matchAll(/\{\*([A-Z]+)\}/g)) expect(KEYWORDS as readonly string[], `${def}: ${m[1]}`).toContain(m[1]);
     }
-    expect(glossaryWordsIn(faceAt("shieldwall", 1)!.rules[0].text).map((r) => r.word)).toContain("PLATE");
+    // CARD-3 (REQ-BFG-107): as drawn (the token {*PLATE} draws ICON.PLATE then SHIELD)
+    // (keywords.ts finds a keyword by its icon, then the player's word; glossaryWordsIn reads plain words)
+    expect(icons(faceAt("shieldwall", 1)!.rules[0].text)).toContain(`${ICON.PLATE}SHIELD`);
+    expect(glossaryEntry("SHIELD")!.kw).toBe("PLATE");
   });
 });
 

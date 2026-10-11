@@ -14,6 +14,7 @@ import { RUNE_REMINDER, glossaryEntry } from "./glossary"; // U2c: the keyword c
 import { RUNE_NOTE } from "./glossary"; // Y-FURN: a rune's own reminder (SHATTER SHOT's)
 import { FRAY_MAX } from "../sim/content"; // CARD-2 (REQ-BFG-081, K3 c): SNARE KNOT's FULL, named
 import { fmtCount } from "./statFormat"; // CARD-2 (K3 c): the one formatter for a count
+import { gameWords } from "./gameWords"; // CARD-3 (REQ-BFG-107): a sim string in the player's words
 
 /** A whole number as the game writes it. No rounding here: a rune whose amount is not whole shows it, and
  *  tests/runes.ui.test.ts (every number in every rune text is whole) catches it. */
@@ -40,9 +41,11 @@ export const RUNE_UNIT_TEXT: Readonly<Record<RuneUnit, (n: number) => string>> =
 // stays only as a glossary alias of STUN
 export type RuneKeyword = "HULL" | "BELT" | "GOLD" | "DMG" | "RATE" | "PLATE" | "PAIR" | "HEAT" | "FRAY" | "BURN" | "RIDE" | "STUN"
   | "SHIELD" | "HEAL" | "REGEN";
+// CARD-3 (REQ-BFG-107): the tokens keep their internal names; the soak layer (PLATE) reads SHIELD and the block (SHIELD)
+// reads WARD, as font.ts PLAYER_WORD draws the faces' keywords (each keeps its colour: the glossary row of its word)
 export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
-  HULL: "HULL", BELT: "BELT", GOLD: "GOLD", DMG: "DMG", RATE: "RATE", PLATE: "PLATE", PAIR: "PAIR", HEAT: "HEAT", FRAY: "FRAY",
-  BURN: "BURN", RIDE: "RIDE", STUN: "STUN", SHIELD: "SHIELD", HEAL: "HEAL", REGEN: "REGEN",
+  HULL: "HULL", BELT: "BELT", GOLD: "GOLD", DMG: "DMG", RATE: "RATE", PLATE: "SHIELD", PAIR: "PAIR", HEAT: "HEAT", FRAY: "FRAY",
+  BURN: "BURN", RIDE: "RIDE", STUN: "STUN", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN",
 };
 
 /**
@@ -114,7 +117,8 @@ export const RUNE_TEXT: Readonly<Record<string, string>> = {
   twin_salve: "EACH {PAIR}: {*HEAL} {N}.",
 };
 /** A rune's effect line in R1b-2's tokens: its RUNE_TEXT row, else RuneDef.text. */
-export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? def.text;
+// CARD-3 (REQ-BFG-107): RuneDef.text (src/sim) through the one display function (its tokens and names untouched)
+export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? gameWords(def.text);
 /** Each keyword's colour (render/palette.ts C): the hull's red, gold's yellow, the belts' brass, damage white, speed's yellow
  *  (richText.ts KEYWORD_COLOUR.faster), BASTION's plating, FOUNDRY's pair cyan, FURNACE's fire, WEAVER's plum. RUNES-2a:
  *  BURN in richText's burn colour (fire, as HEAT), RIDE in the belts' wood, STUN in shock's cyan (was the STALL token).

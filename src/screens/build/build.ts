@@ -2,6 +2,7 @@
 // bow. Drag and drop or tap-to-place; contextual cues replace the old instruction text.
 
 import { playerSkin } from "../../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
+import { loadProfile } from "../../game/profile"; // CARD-3 (REQ-BFG-107): a finished run counts as earlier play
 import type { Skin } from "../../render/styles"; // CUSTOM-2a
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
@@ -50,6 +51,7 @@ import { keywordsPressed } from "./keywords"; // U2c (REQ-BFG-045): tap to expla
 import { keywordState, questionRect } from "./keywords"; // EXPLAIN-1 (REQ-BFG-089) tooling: panelInfo's ⓘ target and view
 import { columnButtons } from "./inspector"; // EXPLAIN-1 tooling: the column's buttons (panelInfo's ⓘ target clears them)
 import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a pack bought completes the supply tip
+import { completeNotice, RENAME_NOTICE, renameNoticeDue } from "../../ui/tips"; // CARD-3 (REQ-BFG-107): the rename notice
 import { suggestCell } from "./cues";
 import { BattleScreen, duskScreen } from "../battle";
 import { EventScreen } from "../event/event";
@@ -69,6 +71,15 @@ interface FuseAnimState {
   step: FuseStep;
   t: number;
   fired: boolean; // the flash/ring/sparkle one-shot has fired for this step
+}
+
+/** CARD-3 (REQ-BFG-107): the runs this device finished (game/profile.ts counters.runsFinished; 0 with no store). */
+function finishedRuns(): number {
+  try {
+    return loadProfile().counters.runsFinished;
+  } catch {
+    return 0;
+  }
 }
 
 export class BuildScreen implements Screen, EditHost {
@@ -325,6 +336,13 @@ export class BuildScreen implements Screen, EditHost {
       // 0.6.2 RULE EARLY-LOSS REFUND: said at the dawn it gives the life back (toasts replace each other: one line)
       const refund = refundNotice(this.run) ?? "";
       if (refund || scout) this.game.toast([refund, scout].filter(Boolean).join(" · "), C.lime);
+      // CARD-3 (REQ-BFG-107): the returning player's notice, once on this device: on the first caravan whose dawn has no
+      // toast of its own (toasts replace each other), when the store shows earlier play (a how-to tip done, or a finished
+      // run). A toast takes no press, so nothing on it can change the run
+      else if (renameNoticeDue(finishedRuns())) {
+        this.game.toast(RENAME_NOTICE, C.yellow, undefined, 6);
+        completeNotice("rename107");
+      }
     }
     saveRun(this.run);
   }

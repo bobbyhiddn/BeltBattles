@@ -188,8 +188,9 @@ export function summaryRows(a: Pick<Arena, "b">, side: Side): [string, string][]
     ["SHOTS", String(s.stats.shots)],
     ["HULL LOST", fmtDmg(Math.max(0, s.hull.max - Math.max(0, s.hull.hp)))],
     ["WIND TAKEN", fmtDmg(s.stats.windTaken)],
-    ["PLATE BLOCKED", fmtDmg(s.plate.absorbed)],
-    ["SHIELD BLOCKED", fmtCount(s.blocked ?? 0)],
+    // CARD-3 (REQ-BFG-107): the soak layer's and the block's words, as their pops' colours (was PLATE and SHIELD BLOCKED)
+    ["SHIELD BLOCKED", fmtDmg(s.plate.absorbed)],
+    ["WARD BLOCKED", fmtCount(s.blocked ?? 0)],
   ];
 }
 

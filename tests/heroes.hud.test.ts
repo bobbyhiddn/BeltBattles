@@ -52,7 +52,7 @@ describe("FOUNDRY's and BASTION's hero-select tricks state the sim's own numbers
     expect(f).toContain("REACH ONE GUN AT ONCE FUSE");
     expect(f).toContain(`DEALS THEIR DAMAGE AND ${fmtPct(FUSE_MULT - 1)} MORE`);
     const b = heroTrick("bastion");
-    expect(b).toContain(`${PLATE_PER_SLUG} EACH UP TO ${PLATE_CAP} PLATING`);
+    expect(b).toContain(`${PLATE_PER_SLUG} EACH UP TO ${PLATE_CAP} SHIELD`); // CARD-3 (REQ-BFG-107): the soak layer's word
   });
 });
 

@@ -109,7 +109,7 @@ export function heroTrick(hero: HeroId): string {
       // FUSE_MULT x1.15 as a whole % (was "1.15 TIMES")
       return `ITS CRUCIBLE POURS A BLANK ONTO BOTH ITS BELTS AT ONCE, AND TWO BLANKS THAT REACH ONE GUN AT ONCE FUSE INTO ONE SLUG THAT DEALS THEIR DAMAGE AND ${percent(FUSE_MULT - 1)} MORE.`;
     case "bastion":
-      return `ITS BULWARK SLUGS PLATE YOUR HULL AS THEY LOAD, ${fmtDmg(PLATE_PER_SLUG)} EACH UP TO ${PLATE_CAP} PLATING, AND PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES.`;
+      return `ITS BULWARK SLUGS SHIELD YOUR HULL AS THEY LOAD, ${fmtDmg(PLATE_PER_SLUG)} EACH UP TO ${PLATE_CAP} SHIELD, AND SHIELD TAKES HITS AND BURN BEFORE YOUR HULL DOES.`;
     default:
       return h.blurb.join(" ");
   }
@@ -214,8 +214,9 @@ const belts = (e: ItemDef): string => ((SHAPE_ARROWS[rigShape(e) ?? "I"]?.length
 const round = <T>(e: ItemDef) => f(e).round as unknown as T;
 
 /** SUS-B (REQ-BFG-069): the sustain words these sentences use, in one place, as the keyword data holds them (font.ts
- *  KEYWORDS, glossary.ts): a later swap of a word (the operator may yet rename PLATE to SHIELD) changes them here. */
-const SW = { shield: "SHIELD", heals: "HEALS" } as const;
+ *  KEYWORDS, glossary.ts): a later swap of a word (the operator may yet rename PLATE to SHIELD) changes them here.
+ *  CARD-3 (REQ-BFG-107): it did: the block reads WARD (this file's PLATING sentences read SHIELD, the soak layer's word). */
+const SW = { shield: "WARD", heals: "HEALS" } as const;
 
 /** The shared sentences: the same effect reads the same everywhere (T5). */
 export const S = {
@@ -242,7 +243,7 @@ export const S = {
   // and PLATE_CAP; hullEffects' wind line skips it), E2's pair (races/foundry.ts inSync), E6's matched belt (deck.ts
   // matchedRoutes) and E3's stoked factory (Battle.produce: its stamp timer, trigger cooldown and plating timer)
   // Y6 (release Y; DESIGN-Y section 4.1; BRIEF-Y6 words): no POISON (retired)
-  plating: `PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO ${PLATE_CAP} PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.`,
+  plating: `SHIELD TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO ${PLATE_CAP} SHIELD; THE DARK WIND GOES STRAIGHT THROUGH IT.`,
   pair: "A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES AT ONCE; A FOUNDRY FUSION IS A PAIR.",
   matched: "A MATCHED BELT HAS AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.",
   worksFaster: "A FACTORY THAT WORKS FASTER STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO.",
@@ -809,9 +810,9 @@ const ENTRIES: Record<string, Entry> = {
     text: (e, x) => [
       `STAMPS BULWARK SLUGS ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`, // bb-0.8.3 (M4)
       `A BULWARK SLUG DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every level (oracle 6c20deea1363d0bb)
-      `EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY ${fmtDmg(PLATE_PER_SLUG)}, UP TO ${PLATE_CAP} PLATING; A SPLITTER COPY PLATES BY ITS SHARE.`,
-      "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
-      "THE DARK WIND IGNORES PLATING.",
+      `EACH ONE THAT LOADS INTO A TURRET SHIELDS YOUR HULL BY ${fmtDmg(PLATE_PER_SLUG)}, UP TO ${PLATE_CAP} SHIELD; A SPLITTER COPY SHIELDS BY ITS SHARE.`,
+      "SHIELD TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
+      "THE DARK WIND IGNORES SHIELD.",
     ],
     gist: () => "BULWARK SLUGS", // bb-0.8.3 (M4); T47 (REQ-BFG-047): no seconds
   },
@@ -1090,9 +1091,9 @@ const ENTRIES: Record<string, Entry> = {
   // whatever the switch (content.ts WAVE3_LIVE); nothing shows it while wave 3 is dormant.
   plateroller: {
     // Battle.applyHit (tier 1): addPlate(s, plate) for each payload it hits (E1)
-    text: (e) => [`ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`, S.plating],
-    gist: (e) => `ROLLS ${fmtDmg(g(e).plate!)} PLATING FOR EACH PAYLOAD`,
-    card: () => "PLATES YOUR HULL AS SLUGS PASS",
+    text: (e) => [`ROLLS ${fmtDmg(g(e).plate!)} SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`, S.plating],
+    gist: (e) => `ROLLS ${fmtDmg(g(e).plate!)} SHIELD FOR EACH PAYLOAD`,
+    card: () => "SHIELDS YOUR HULL AS SLUGS PASS",
   },
   twingauge: {
     // Battle.applyHit: + flat, or + matched on a matched belt (E6: deck.ts matchedRoutes, read once in Battle.makeSide)
@@ -1162,11 +1163,11 @@ const ENTRIES: Record<string, Entry> = {
     // Battle.applyHit (tier 1): with 1 plating or more on the hull it takes 1 (a plate event) and adds flat, else floor
     // Y3 (release Y; DESIGN-Y row 26): no floor: with less plating it adds nothing
     text: (e) => [
-      `EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS ${damage(g(e).breaker!.flat)}.`, // NUM-1: battle.ts spends 10
-      "WITH LESS PLATING THAN THAT, IT ADDS NOTHING.",
+      `EACH PAYLOAD IT HITS TAKES 10 SHIELD FROM YOUR HULL AND GAINS ${damage(g(e).breaker!.flat)}.`, // NUM-1: battle.ts spends 10
+      "WITH LESS SHIELD THAN THAT, IT ADDS NOTHING.",
     ],
-    gist: (e) => `${damage(g(e).breaker!.flat)} FOR 10 PLATING`, // NUM-1: 10 plating
-    card: () => "TURNS PLATING INTO DAMAGE", // DESIGN 3.3's "TURNS YOUR PLATING INTO DAMAGE" takes three card lines
+    gist: (e) => `${damage(g(e).breaker!.flat)} FOR 10 SHIELD`, // NUM-1: 10 plating
+    card: () => "TURNS SHIELD INTO DAMAGE", // DESIGN 3.3's "TURNS YOUR PLATING INTO DAMAGE" takes three card lines
   },
   shieldwall: {
     // Battle.applyHit: addPlate(plate) first, then + plated.flat while the hull holds plated.min plating or more. Y7b1
@@ -1177,11 +1178,12 @@ const ENTRIES: Record<string, Entry> = {
     // sentence (its numbers in the same order), so the two agree if it is drawn again (were "ROLLS 10 PLATING ONTO YOUR HULL
     // FOR EACH PAYLOAD IT HITS." and "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
     text: (e) => [
-      `ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH GAINS ${damage(g(e).plated!.flat)}.`,
+      `ROLLS ${fmtDmg(g(e).plate!)} SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS ${g(e).plated!.min} SHIELD OR MORE, EACH GAINS ${damage(g(e).plated!.flat)}.`,
       S.plating,
     ],
-    gist: (e) => `${fmtDmg(g(e).plate!)} PLATING A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`,
-    card: () => "PLATES YOUR HULL, HITS HARDER", // DESIGN 3.3's "..., HITS HARDER PLATED" takes three card lines
+    gist: (e) => `${fmtDmg(g(e).plate!)} SHIELD A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} SHIELD`,
+    // CARD-3 (REQ-BFG-107): ADDS SHIELD (SHIELDS YOUR HULL takes 3 lines of the wide card at some widths; was PLATES YOUR HULL)
+    card: () => "ADDS SHIELD, HITS HARDER", // DESIGN 3.3's "..., HITS HARDER PLATED" takes three card lines
   },
   twinmould: {
     // Battle.produce (twin): one slug onto each of `pour` belts with room, on the same tick (races/foundry.ts pourAll);
@@ -1209,13 +1211,13 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => {
       const fs = f(e);
       return [
-        `PRESSES ${fmtDmg(fs.plate!.amount)} PLATING ONTO YOUR HULL ${every(fs.plate!.every)}, AND STAMPS ${fs.base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${rate(fs.speed)}.`,
+        `PRESSES ${fmtDmg(fs.plate!.amount)} SHIELD ONTO YOUR HULL ${every(fs.plate!.every)}, AND STAMPS ${fs.base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${rate(fs.speed)}.`,
         "IT NEEDS A BELT TO A TURRET TO WORK.",
         S.plating,
       ];
     },
-    gist: (e) => `${fmtDmg(f(e).plate!.amount)} PLATING ${every(f(e).plate!.every)}, A SLUG ${rate(f(e).speed)}`,
-    card: (e) => `PLATES YOUR HULL ${every(f(e).plate!.every)}`,
+    gist: (e) => `${fmtDmg(f(e).plate!.amount)} SHIELD ${every(f(e).plate!.every)}, A SLUG ${rate(f(e).speed)}`,
+    card: (e) => `SHIELDS YOUR HULL ${every(f(e).plate!.every)}`,
   },
   anvil: {
     // Battle.fireCore (anvil): + anvilFlat + perPlate x the hull's plating at fire time, both x k (cores.ts CORE_ABSOLUTE)
@@ -1223,16 +1225,16 @@ const ENTRIES: Record<string, Entry> = {
     // Y7b1 (release Y; ruling Y7A-R3c): it reads its base def (its STAR_DIFF row is deleted), so its sentences are the
     // base's. Y4's fold ("EACH SHOT DEALS 125% OF THE PLATING ON YOUR HULL AS MORE DAMAGE."; gist "125% OF YOUR PLATING AS
     // DAMAGE") left with it
-    text: (e, x) => [`EACH SHOT DEALS ${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL.`, S.plating],
-    gist: (e, x) => `${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF YOUR PLATING`,
-    card: () => "MORE DAMAGE THE MORE PLATING",
+    text: (e, x) => [`EACH SHOT DEALS ${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF THE SHIELD ON YOUR HULL.`, S.plating],
+    gist: (e, x) => `${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF YOUR SHIELD`,
+    card: () => "MORE DAMAGE THE MORE SHIELD",
   },
   steambreech: {
     // cores.ts ROUTINES.steam: the cadence x steamPlated while the hull holds plating, else x steamBare (rates: no k)
     // Y4 (release Y; DESIGN-Y row 39): there is no bare rate (no steamBare): at its own rate
-    text: (e, x) => [`THE TURRET FIRES ${rateText(imul(c(e, x).steamPlated))} WHILE YOUR HULL HOLDS PLATING.`],
-    gist: (e, x) => `${rateText(imul(c(e, x).steamPlated))} PLATED`,
-    card: () => "FIRES FASTER WHILE PLATED",
+    text: (e, x) => [`THE TURRET FIRES ${rateText(imul(c(e, x).steamPlated))} WHILE YOUR HULL HOLDS SHIELD.`],
+    gist: (e, x) => `${rateText(imul(c(e, x).steamPlated))} SHIELDED`,
+    card: () => "FIRES FASTER WHILE SHIELDED",
   },
   twintrigger: {
     // Battle.fire / fireCore: a paired load (E2; a COMPOUND shell packing one) x (1 + pairBonus), before FINISHER RAM.
@@ -1252,7 +1254,7 @@ const ENTRIES: Record<string, Entry> = {
       // Y5 (release Y; DESIGN-Y row 47): there is no cap, and what plating soaks counts once
       return [
         `EVERY ${damage(sp.every)} YOUR SHIP TAKES ADDS ${damage(sp.add)} TO THIS TURRET'S NEXT SHOT.`,
-        "DAMAGE YOUR PLATING SOAKS COUNTS TOO; THE DARK WIND DOESN'T COUNT.",
+        "DAMAGE YOUR SHIELD SOAKS COUNTS TOO; THE DARK WIND DOESN'T COUNT.",
       ];
     },
     gist: (e) => `${damage(m(e).spall!.add)} FOR EVERY ${m(e).spall!.every}`, // DESIGN 3.3's words
@@ -1263,12 +1265,12 @@ const ENTRIES: Record<string, Entry> = {
     // is a pair (Battle.fusionPair)
     // Y4 (release Y; DESIGN-Y row 35): a lone load rolls none (seam.lone 0): pairs only
     text: (e) => [
-      `EACH PAIR THIS TURRET TAKES ROLLS ${fmtDmg(m(e).seam!.pair)} PLATING ONTO YOUR HULL.`,
+      `EACH PAIR THIS TURRET TAKES ROLLS ${fmtDmg(m(e).seam!.pair)} SHIELD ONTO YOUR HULL.`,
       S.pair,
       S.plating,
     ],
-    gist: (e) => `${fmtDmg(m(e).seam!.pair)} PLATING A PAIR`,
-    card: () => "PAIRS PLATE YOUR HULL",
+    gist: (e) => `${fmtDmg(m(e).seam!.pair)} SHIELD A PAIR`,
+    card: () => "PAIRS SHIELD YOUR HULL",
   },
   // ------------------------------------------------------------------------------------------------------ supplies
   beltcrate: {
@@ -1445,7 +1447,7 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.gauge && !h.matched) return `${name}: NO EFFECT ON AN UNMATCHED BELT`;
   if (e.pincer && !h.others) return `${name}: NO OTHER RIG ON ITS TILE`;
   if (e.latch) return `${name} HOLDS UP TO ${fmtSec(e.latch.hold)} SEC`;
-  if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 PLATING`; // NUM-1: 10 plating
+  if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 SHIELD`; // NUM-1: 10 plating
   // Y5 (DESIGN-Y row 45) gave IRON WALL a row of its own here (no plating: "+30 DAMAGE AT 120 PLATING"); Y7b1 (ruling
   // Y7A-R3d) puts its plating back, so its row is the base's, below
   // Y5 (DESIGN-Y row 46): POWDER KEG re-arms (Battle.kegTick), with no BURN
@@ -1487,7 +1489,7 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.gauge) return `${name} +${damage(h.flat ?? 0)}${h.matched ? " ON A MATCHED BELT" : ""}`;
   if (e.pincer) return `${name} +${damage(h.flat ?? 0)}${h.others ? `, CROSSFIRE WITH ${plural(h.others, "RIG")}` : ""}`;
   if (e.brace) return `${name} ENEMY STUNS ${percent(1 - e.brace.mul)} SHORTER`; // Y2 (DESIGN-Y row 16): no plated cut
-  if (e.plate) return `${name} +${fmtDmg(e.plate)} PLATING${e.plated ? `, +${damage(e.plated.flat)} AT ${e.plated.min} PLATING` : ""}`;
+  if (e.plate) return `${name} +${fmtDmg(e.plate)} SHIELD${e.plated ? `, +${damage(e.plated.flat)} AT ${e.plated.min} SHIELD` : ""}`; // CARD-3 (REQ-BFG-107)
   const parts = [
     ...(h.flat ? [`+${damage(h.flat)}`] : []),
     ...(h.burn ? [`+${h.burn} BURN`] : []),

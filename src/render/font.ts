@@ -51,6 +51,30 @@ export type IconName = keyof typeof ICON;
  *  (REQ-BFG-069; cap's answer 1 to SUSTAIN-1: a budget of 12): + SHIELD, HEAL and REGEN, 9 in all. */
 export const KEYWORDS = ["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"] as const;
 export type KeywordName = (typeof KEYWORDS)[number];
+/**
+ * CARD-3 (REQ-BFG-107; the operator, 2026-10-11: "shielding in the genre normally works like plate"): THE PLAYER'S WORDS.
+ * KEYWORDS above are INTERNAL names: the markup tokens ("{*PLATE}", "{*SHIELD}"), the REMINDER and glossary keys, the
+ * RuneKeyword tokens, ICON's keys, sim fields and test ids keep them, so the hull and PIECES lanes' code still merges and a
+ * token always names its mechanic. What a player reads is PLAYER_WORD, one place:
+ *   internal name   player word   icon (unchanged)                     colour (unchanged)   the mechanic (src/sim)
+ *   PLATE           SHIELD        ICON.PLATE, the riveted plate        C.plate3             soaks damage point for point
+ *                   (SHIELDS, SHIELDED)                                                     before the hull (absorb, PLATE_CAP)
+ *   SHIELD          WARD          ICON.SHIELD, the ward diamond        C.rune3              blocks all of one hit's damage,
+ *                   (WARDS)                                                                 then breaks (shieldHit, SHIELD_CAP)
+ *   every other     itself        ICON[name]                           ICON_COLOUR          (unchanged)
+ * So "{*PLATE}" draws ICON.PLATE then SHIELD, and "{*SHIELD}" draws ICON.SHIELD then WARD; "{PLATE}" and "{SHIELD}" are
+ * the icons alone, as before. The word PLATE is in no player text: a sim string a screen draws goes through glossary.ts
+ * gameWords. Names (PLATE ROLLER, WARD STONE, ...) keep their words and are never coloured as a keyword.
+ */
+export const PLAYER_WORD: Readonly<Record<KeywordName, string>> = {
+  BURN: "BURN", STUN: "STUN", HEAT: "HEAT", FRAY: "FRAY", PLATE: "SHIELD", PAIR: "PAIR", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN",
+};
+/** CARD-3 (REQ-BFG-107): the internal keyword a player word names ("SHIELD" -> PLATE, "WARD" -> SHIELD), else undefined. */
+export const keywordOfWord = (word: string): KeywordName | undefined =>
+  KEYWORDS.find((k) => PLAYER_WORD[k] === word);
+/** CARD-3 (REQ-BFG-107): each keyword icon's player word (ICON.PLATE -> SHIELD, ICON.SHIELD -> WARD), for tools and tests
+ *  that print an icon by name. */
+export const ICON_WORD: Readonly<Record<string, string>> = Object.fromEntries(KEYWORDS.map((k) => [ICON[k], PLAYER_WORD[k]]));
 
 // 5x7: rows joined with "|"
 const F5: GlyphMap = {
@@ -287,7 +311,7 @@ export function icons(s: string, mode: IconMode = "word"): string {
     const ch = ICON[name as IconName];
     if (!kw) return ch;
     if (!KEYWORD_SET.has(name)) return m;
-    return mode === "alone" ? ch : ch + name;
+    return mode === "alone" ? ch : ch + PLAYER_WORD[name as KeywordName]; // CARD-3 (REQ-BFG-107): the player's word
   });
 }
 
@@ -297,8 +321,9 @@ export function keywordColour(word: string): string | undefined {
   if (word.length < 2) return undefined;
   // CARD-2 (REQ-BFG-081, K3 g): a keyword's suffix S ("{*STUN}S", TEXT-STYLE 7.2; GALVANIC COIL's ITS {SLUG} {*STUN}S THE
   // PART IT HITS) keeps the keyword's colour, icon and word; was only the bare name, so STUNS drew in the line's base colour
-  const full = word.slice(1), name = KEYWORD_SET.has(full) ? full : full.endsWith("S") ? full.slice(0, -1) : full;
-  return KEYWORD_SET.has(name) && word[0] === ICON[name as KeywordName] ? ICON_COLOUR[word[0]] : undefined;
+  // CARD-3 (REQ-BFG-107): the glued word is the player's (PLAYER_WORD: SHIELD on ICON.PLATE, WARD on ICON.SHIELD)
+  const full = word.slice(1), k = keywordOfWord(full) ?? (full.endsWith("S") ? keywordOfWord(full.slice(0, -1)) : undefined);
+  return k && word[0] === ICON[k] ? ICON_COLOUR[word[0]] : undefined;
 }
 
 /** U1 (tests, tools): a glyph's bitmap rows in a face ("#" ink, "." blank), or undefined where the face has none. */

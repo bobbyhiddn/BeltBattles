@@ -31,12 +31,12 @@ import { resolveCore } from "../../sim/cores";
 import { gradeOf, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { rect, frame, type G } from "../../render/pixel";
-import { ICON, KEYWORDS, drawText, icons, textWidth, type FontId } from "../../render/font";
+import { ICON, KEYWORDS, PLAYER_WORD, drawText, icons, textWidth, type FontId } from "../../render/font";
 import { colourize, drawRich, lineText, lineWidth, wrapRich, type RichLine } from "../../ui/richText";
 import { glossaryEntry, glossaryHits, glossaryText, keywordRow, tapNote } from "../../ui/glossary";
 import { STAT_ICONS, statIconNote } from "../../ui/glossary"; // WORDS-1 (REQ-BFG-081): the stat icons' notes
 import { ICON_COLOUR } from "../../render/font"; // WORDS-1: a stat icon's underline in its colour ({RATE} yellow)
-import { FAMILY, familyNote } from "../../ui/families"; // WORDS-1: the family tags' taps (familyTargets)
+import { FAMILY, familyNote, familyWord } from "../../ui/families"; // WORDS-1: the family tags' taps (familyTargets)
 import type { ModuleTag } from "../../sim/content"; // WORDS-1
 import { tapRect, inside, type Rect, type UI } from "../../ui/ui";
 import type { TextOpts } from "../../ui/abilityText";
@@ -161,8 +161,10 @@ function matches(text: string, l: PLine, first: boolean, piece: Piece | null): {
     out.push({ at, end, word, text: shown, colour: row?.colour ?? C.bone });
   };
   // the keywords as drawn: the icon and its word (panel style), or the icon alone
+  // CARD-3 (REQ-BFG-107): the word glued to the icon is the player's (font.ts PLAYER_WORD: SHIELD, WARD)
   for (const k of KEYWORDS) {
-    for (let i = text.indexOf(ICON[k]); i >= 0; i = text.indexOf(ICON[k], i + 1)) add(i, text.startsWith(k, i + 1) ? i + 1 + k.length : i + 1, k);
+    const w = PLAYER_WORD[k];
+    for (let i = text.indexOf(ICON[k]); i >= 0; i = text.indexOf(ICON[k], i + 1)) add(i, text.startsWith(w, i + 1) ? i + 1 + w.length : i + 1, w);
   }
   const b = l.block;
   // WORDS-1 (REQ-BFG-081; cap's design call 3): the stat icons {RATE}, {SLUG} and {GEAR} on an ability line (a face's stat
@@ -305,17 +307,17 @@ export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: rea
     for (const a of avoid) if (q) q = clipOut(q, a);
     for (const t of out) if (q && overlaps(q, t.r)) q = clipOut(q, t.r);
     if (q && inside(q, Math.floor(glyph.x + glyph.w / 2), Math.floor(glyph.y + glyph.h / 2))) {
-      out.push({ word: `${tag} FAMILY`, text: familyNote(tag), colour: FAMILY[tag].colour, glyph, r: q });
+      out.push({ word: `${familyWord(tag)} FAMILY`, text: familyNote(tag), colour: FAMILY[tag].colour, glyph, r: q }); // CARD-3: the player's tag
     }
   };
   if (fh.names) {
     // drawFamHead: "FORGE, TEMPO" in 3x5, under the sub line (x + 23, y + 19), or right-aligned on the sub line's second row
     // (y + 19) or the title's (y + 5)
-    const text = fh.tags.join(", "), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3");
+    const words = fh.tags.map(familyWord), text = words.join(", "), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3"); // CARD-3
     const y0 = r.y + (fh.at === "title" ? 5 : 19);
     fh.tags.forEach((tag, i) => {
-      const before = i ? textWidth(`${fh.tags.slice(0, i).join(", ")}, `, "3") + 1 : 0;
-      push(tag, { x: x0 + before, y: y0, w: textWidth(tag, "3"), h: GLYPH_H["3"] });
+      const before = i ? textWidth(`${words.slice(0, i).join(", ")}, `, "3") + 1 : 0;
+      push(tag, { x: x0 + before, y: y0, w: textWidth(words[i], "3"), h: GLYPH_H["3"] });
     });
     return out;
   }
