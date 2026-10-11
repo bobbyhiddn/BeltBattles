@@ -116,7 +116,7 @@ function opened(v: View, L: BuildLayout, c: { run: Run; sel: Sel }, touch = true
   return { ctx, d, plan: p, buttons, tap };
 }
 
-function check(tag: string, run: Run, d: { show: Sel; t: { body: import("../src/screens/build/inspector").Block[] } }, plan: PanelPlan, buttons: Rect[], tap: number,
+function check(tag: string, run: Run, d: { show: Sel; t: { body: import("../src/screens/build/inspector").Block[]; notes?: import("../src/screens/build/inspector").Block[] } }, plan: PanelPlan, buttons: Rect[], tap: number,
   counts: { panels: number; targets: number; words: number; tapped: Set<string>; levels?: number }) {
   const piece = panelPiece(run, d.show);
   // EXPLAIN-1 (REQ-BFG-089, E4): the words the drawn panel's ⓘ lists (explainWords: its face's blocks before any was hidden,
