@@ -28,6 +28,7 @@ import { SPEEDS, SPEED_1X, drawBar, drawPlate, type BarState } from "./battleHud
 import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout, as the battle shows it
 import type { View } from "../core/io";
 import { isPhone, tapPx } from "../ui/tap"; // shoptap (D5, backlog 319)
+import { BattleCounters, plateKeep } from "./battleCounters"; // COUNT-1 (REQ-BFG-100): the counters, as the battle shows them
 
 type Box = { x: number; y: number; w: number; h: number };
 const hits = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -86,6 +87,8 @@ export class ReplayScreen implements Screen {
    *  result card's (whole seconds; "" until the card shows), both from statFormat.ts clockSec. */
   clockText = "0:00";
   cardClock = "";
+  /** COUNT-1 (REQ-BFG-100; display only): the status rows, the guns' and belts' counts and their panels, as in the battle. */
+  readonly counters = new BattleCounters();
 
   constructor(private game: Game, private back: Screen, battle: Battle, private label: { day: number; foe: string }) {
     const [mine, theirs] = battle.record.builds;
@@ -142,7 +145,8 @@ export class ReplayScreen implements Screen {
     this.motion.setLanes(this.L, minGap(portrait ? H : W));
     this.motion.useCamera(this.viewGrid(), cameraFocus(this.L), "wide"); // FIELD-1: WIDE, as the dusk
     this.arena.setFrames(this.L.frames, this.L.enter);
-    this.motion.windKeep = { plates: this.L.plates, bar: this.L.bar }; // WIND-1 (REQ-BFG-093): the wind's numbers keep clear
+    // WIND-1 (REQ-BFG-093): the wind's numbers keep clear. COUNT-1 (REQ-BFG-100): of each plate's status row too
+    this.motion.windKeep = { plates: plateKeep(this.L), bar: this.L.bar };
   }
 
   setSpeed(i: number): void {
@@ -158,6 +162,7 @@ export class ReplayScreen implements Screen {
   skip(): void {
     if (this.over) return;
     this.arena.paused = false;
+    this.counters.reset(); // COUNT-1: the skipped steps' jams are not shown
     for (const e of this.arena.finish()) if (e.type === "end") this.end();
   }
 
@@ -182,6 +187,7 @@ export class ReplayScreen implements Screen {
     this.motion.update(dt, settings.reducedMotion); // MOTION-2: the display clock (frame time; never the sim's)
     if (!this.over) {
       const ev = this.arena.update(dt);
+      this.counters.events(ev); // COUNT-1 (REQ-BFG-053): the guns' jams, read only
       for (let i = 0; i < ev.length; i++) if (ev[i].type === "end" && !this.over) this.end();
       if (this.arena.b.over && !this.over) this.end();
     } else this.arena.update(dt, false);
@@ -199,8 +205,14 @@ export class ReplayScreen implements Screen {
       const p = this.L.plates[s], r = this.plateR[s];
       r.x = p.x; r.y = p.y; r.w = p.w; r.h = p.h;
     }
+    // COUNT-1 (REQ-BFG-100): the guns' and belts' counts while the replay runs, under the plates and the bar; their tap
+    // targets clear of the bar's buttons and BACK
+    const live = !this.over, leave = replayLeaveRect(this.L, this.game.view);
+    this.counters.begin();
+    this.counters.drawBoard(g, this.game, a, m, [...plateKeep({ plates: [this.plateR[0], this.plateR[1]], hulls: this.L.hulls }), this.L.bar], [this.L.bar, leave], live);
     this.plateRows[1] = drawPlate(g, this.game, a, this.plateR[1], 1, this.label.foe, this.hp[1]);
     this.plateRows[0] = drawPlate(g, this.game, a, this.plateR[0], 0, this.heroName, this.hp[0]);
+    this.counters.drawRows(g, this.game, a, this.L, this.plateR, this.plateRows, [this.L.bar, leave], live); // COUNT-1: C1, C2
     this.clockText = barClock(b.t); // WIND-2 (REQ-BFG-093): whole ticks, then whole seconds (was Math.floor(b.t): 1:08 at 69 s)
     const st = this.bar;
     st.speed = this.speed;
@@ -212,6 +224,9 @@ export class ReplayScreen implements Screen {
     this.windCallR = drawWindCall(g, a, this.L, m, settings.reducedMotion); // WIND-1 (REQ-BFG-093): the callout, as the battle
     if (!this.over && this.pt < 1.6) banner(g, W, cy - 16, `REPLAY · DAY ${this.label.day}/${RUN_DAYS}`, C.ice, `VS ${this.label.foe}`, Math.min(1, this.pt / 0.35));
     drawText(g, "REPLAY", 4, 4, C.ice, { font: "3", outline: C.ink });
+    // COUNT-1 (REQ-BFG-100): a counter group's panel (a tap's, or the desk's hover) while the replay runs
+    if (live) this.counters.drawPanel(g, this.game, a, this.plateRows);
+    else this.counters.open = null;
     if (this.over && this.pt > 0.6) {
       const won = b.winner === 0, lost = b.winner === 1;
       // shoptap (D5, backlog 319): on a phone BACK is at least TAP_CSS CSS px tall (R1 measured 30), the card as much taller
@@ -226,6 +241,11 @@ export class ReplayScreen implements Screen {
     } else {
       button(ui, g, "replayleave", replayLeaveRect(this.L, this.game.view), "BACK", { font: "3", onTap: () => this.leave() });
     }
+  }
+
+  /** COUNT-1 (REQ-BFG-100): every press, before it is routed: a press off a counter group closes its panel. */
+  pressed(_x: number, _y: number, region: string | null): void {
+    this.counters.pressed(region);
   }
 
   key(k: string): void {

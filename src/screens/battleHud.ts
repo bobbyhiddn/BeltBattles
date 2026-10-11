@@ -202,13 +202,8 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     drawPlatingStrip(g, bx, ty - 1, bw, s.plate.plate, f.plateShown, PLATE_CAP, PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME, PLATE_STRIP);
     hullBar(g, bx, ty - 1 + STRIP_H, bw, 7 - STRIP_H, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t, windTint(f));
   } else if (bw > 8) hullBar(g, bx, ty - 1, bw, 7, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t, windTint(f));
-  // status pips: fray / burn
-  const burn = s.hull.burns.length;
-  if (s.hull.fray > 0 || burn > 0) {
-    const px = r.x + r.w - 3;
-    if (s.hull.fray > 0) rect(g, px - 2, r.y - 2, 2, 2, C.ice);
-    if (burn > 0) rect(g, px - 5, r.y - 2, 2, 2, C.fire3);
-  }
+  // COUNT-1 (REQ-BFG-100): the 2x2 FRAY and BURN dots that sat at r.y - 2 (off the canvas over the foe's plate, which sits
+  // at y 0; and counting BURN's entries, not its stacks) are gone: the status row (screens/battleCounters.ts) counts them
   const hullW = textWidth(row.hull, "5") + (row.max ? textWidth(row.max, "3") + 1 : 0);
   return {
     side, r: { ...r }, hull: row.max ? `${row.hull}${row.max}` : row.hull, font: "5", hullBox: { x: row.hullX, y: row.hy, w: hullW, h: 7 },

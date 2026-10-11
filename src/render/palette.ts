@@ -69,6 +69,9 @@ export const C = {
   plum2: "#34194A",
   plum3: "#55306F",
   plum4: "#8A5CB0",
+  // COUNT-1 (REQ-BFG-100): one step lighter, for FRAY's number in the status row (plum4 reads 3.51:1 on the counter
+  // box's navy; this, 6.3:1); FRAY's icon stays plum4
+  plum5: "#B48ADB",
   // fire
   fire0: "#5E170C",
   fire1: "#A82E14",
