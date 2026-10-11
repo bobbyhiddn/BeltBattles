@@ -189,5 +189,6 @@ describe("PAR-AZ: the par player's NPC day, every switch on (the benches' settin
     expect(declines, "declined drops in the sample").toBeGreaterThan(0);
     // the par player (no cap) never declines
     for (const d of playerRun("furnace", PLAYER_DAYS, 1)) expect(d.road!.declined, `par d${d.day}`).toBeUndefined();
-  });
+  }, 90_000); // AZ-BUMP (REVIEW-AZPREP N1; a load timeout, not the rule): 21 s alone, but 30.7 s and 32.6 s in loaded
+  // whole-suite gates (AZ-PREP's 7a30f36, REFIT-AZ's a3ae8c3), over vitest's 30 s default
 });
