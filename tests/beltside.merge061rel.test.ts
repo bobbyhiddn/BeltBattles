@@ -180,36 +180,21 @@ describe("P13: BRAKE SHOE (Y7b2, the flip: a pure speed rig at every star, no fl
     expect(withLadderFix(() => [1, 2, 3].map((s) => +walkRoute(bench([["brake", 4, 3, s]]), 0).estimate.time.toFixed(9)), false)).toEqual([4.2, 5, 6.333333333]);
   });
 
-  it("the walk and the battle agree: stamp-to-chamber time and damage at load, ★1-★3", () => {
-    // AZ-BUMP (the flip, LADDER_FIX): the bb-0.9.7 tripwire keeps its point with LADDER_FIX off until S7 turns it into a
-    // regression test of the fixed ladder
-    withLadderFix(() => {
+  // AZ-BUMP S7 (backlog #370; REQ-BFG-070, LADDER_FIX on for good): the BAL-2 tripwire is gone (cap's oracles
+  // 42da94243f43feef and d306b1b196dbab38, re-keyed at Y7b2 and Z-BUMP: the walk's ride 2-3 ticks longer than the battle's,
+  // BRAKE ★1 94 / 95 and 4.1667 / 4.2 s, ★3 6.2833 / 6.3333 s under bb-0.9.7; its rules key and its LADDER_FIX-off run
+  // with it). The star-ladder pass fixed P13 (ladderFix.ts: deck.ts walkRoute rides tick by tick as Battle.transport moves a
+  // payload), so this is a plain regression test: the walk agrees with the battle tick for tick, its damage at load and its
+  // stamp-to-chamber time exactly the battle's, at every star
+  it("the walk and the battle agree tick for tick: stamp-to-chamber time and damage at load, ★1-★3", () => {
     for (const s of [1, 2, 3]) {
       const b = bench([["brake", 4, 3, s]]);
       const w = walkRoute(b, 0).estimate;
       const f = firstLoad(b, 1);
       expect(f.flat, `★${s}`).toBe(HEAT[s]);
-      // Y7b2 (the bump to bb-0.9.3): the BAL-2 tripwire below, re-keyed from bb-0.9.1 with the re-measured pairs. The ride gap
-      // (the battle's ride 2-3 ticks shorter than the walk's) is unresolved: d306b1b196dbab38 sent its fix to the next release
-      // that regenerates, but Y7b2's brief allows no rule or number change beyond the flip and the fuse rule (the walk feeds the
-      // bots' rating), so it stays a tripwire and goes to cap. With the flip's 30% belt at ★3 it now shows in the time too
-      // (battle 6.2833 s, walk 6.3333 s: 3 ticks, just past the time check's 0.05), so the pin holds both, at every star
-      // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none): re-keyed bb-0.9.3 -> bb-0.9.7,
-      // the pairs measured at Z-BUMP's tip. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
-      if (RULES_VERSION === "bb-0.9.7") {
-        const pin: Record<number, [number, number, number, number]> = { 1: [94, 95, 4.1667, 4.2], 2: [105, 105, 4.9667, 5], 3: [122, 122, 6.2833, 6.3333] };
-        expect([f.dmg, w.dmg, +f.time.toFixed(4), +w.time.toFixed(4)], `BAL-2 tripwire (cap's oracles 42da94243f43feef, d306b1b196dbab38), re-keyed at Y7b2: BRAKE SHOE ★${s}'s damage at load and stamp-to-chamber time, battle vs walk, pinned under bb-0.9.7 (re-ruled at Z-BUMP); accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)`).toEqual(pin[s]);
-        continue;
-      }
-      expect(f.time, `★${s}: stamp to chamber`).toBeCloseTo(w.time, 1);
-      // BAL-2 TRIPWIRE (cap's oracles 42da94243f43feef and d306b1b196dbab38), as BAL-2 wrote it under bb-0.9.1: with the KILN's
-      // HEAT 13 every star's first load dealt 1 less in the battle than in the walk (battle / walk ★1 94 / 95, ★2 114 / 115,
-      // ★3 144 / 145, ★2/★3 with their old flats); the battle's ride is 251 ticks (4.1833 s), the walk's 252 (4.2000 s). Y7b2
-      // re-keyed it to bb-0.9.3 above. Under any other rules version the original agreement applies again: whoever bumps fixes
-      // it or asks cap.
-      expect(f.dmg, `★${s}: damage`).toBeCloseTo(w.dmg, 1);
+      expect(w.dmg, `★${s}: damage at load, walk = battle`).toBe(f.dmg);
+      expect(+w.time.toFixed(9), `★${s}: stamp to chamber, walk = battle`).toBe(+f.time.toFixed(9));
     }
-    }, false);
   });
 
   it("on a slag belt the flat still applies and the speed does not (P8): the walk, the battle and the label agree", () => {

@@ -16,11 +16,14 @@ import { INERT, reasonOf } from "./deadOffers.inert";
  *  Y7b2 step 7 (BRIEF-Y7B2: "Re-run the dead-offer audit, with its tripwire re-keyed to bb-0.9.3"): re-keyed to bb-0.9.3
  *  (was bb-0.9.1) with the flip and the bump; the audit re-run on release Y's rules is in T/output-y7b2/deadaudit.
  *  Z-BUMP S5 (BRIEF-ZBUMP: "Re-key the dead-offer audit's tripwire to bb-0.9.7, as Y7b2 step 7 did"): re-keyed to bb-0.9.7
- *  (was bb-0.9.3) with the bump; the audit re-run on release Z's rules is in L/output-zbump/deadaudit. */
-const OPEN_RULES = "bb-0.9.7";
+ *  (was bb-0.9.3) with the bump; the audit re-run on release Z's rules is in L/output-zbump/deadaudit.
+ *  AZ-BUMP S7 (BRIEF-AZBUMP: "Re-key any other test keyed to bb-0.9.7 that git grep finds (the dead-offer audit and the
+ *  like)"): re-keyed to bb-0.10.0 (was bb-0.9.7) with the hull release's bump, as Z-BUMP S5 and Y7b2 step 7 did; the open
+ *  rows are the same NUM-1 / NUM-2 provisional rows (the INERT table, tests/deadOffers.inert.ts), still unclassified. */
+const OPEN_RULES = "bb-0.10.0";
 
 describe("REQ-BFG-021: the dead-offer audit's open reasons (num1Open, num2Open) end at the next rules version", () => {
-  it("no num1Open or num2Open reason remains once RULES_VERSION differs from bb-0.9.7 (Z-BUMP: re-keyed, was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)", () => {
+  it("no num1Open or num2Open reason remains once RULES_VERSION differs from bb-0.10.0 (AZ-BUMP: re-keyed, was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)", () => {
     const open: string[] = [];
     for (const [hero, mods] of Object.entries(INERT) as [HeroId, Record<string, number[]>][]) {
       for (const [id, days] of Object.entries(mods)) for (const day of days) {

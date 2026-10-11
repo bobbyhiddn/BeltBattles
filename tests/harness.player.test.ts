@@ -1,7 +1,7 @@
 // FB-C (REQ-BFG-026): the par player. playerBuild(hero, day, seed) plays a real run through the game's caravan
 // (rollShop, reroll, buyOffer), so par is what a typical player can actually assemble under shop luck.
 import { describe, expect, it } from "vitest";
-import { ITEMS, REROLL_COST, RULES_VERSION } from "../src/sim/content"; // Y7b2: RULES_VERSION for the buy-count tripwire
+import { ITEMS, REROLL_COST } from "../src/sim/content"; // AZ-BUMP S7: RULES_VERSION is gone with the buy-count tripwire's key
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
 import { PLAYER_DAYS, knobsOf, playerBuild, playerRun } from "../src/sim/harness/player";
 import { PAR_K, medianIndex, parDeck, parField, parReference, parRefs, parSeeds, parSourceFor } from "../src/sim/harness/par";
@@ -27,8 +27,7 @@ import { withHullScale } from "../src/sim/hullScale";
 import { withLadderFix } from "../src/sim/ladderFix";
 
 const HEROES = ["furnace", "weaver"] as const;
-// Y7b2 tripwire (cap's ruling 38ca8abc09dd2c46): the six caravan runs' buy counts under bb-0.9.3 (see the first test)
-const Y7B2_BOUGHT: Record<string, number> = { "furnace 1": 12, "furnace 2": 15, "furnace 3": 13, "weaver 1": 14, "weaver 2": 10, "weaver 3": 16 };
+// AZ-BUMP S7: Y7B2_BOUGHT (the Y7b2 tripwire's six buy counts, 12 15 13 / 14 10 16 under bb-0.9.7) is gone with the tripwire
 
 /** AZ-BUMP (the flip): `fn` in bb-0.9.7's world, every switch off (NPC_DAY, HULL_SCALE and LADDER_FIX ship on), each put
  *  back after it, even on a throw. */
@@ -43,11 +42,13 @@ const goldIn = (d: PlayerDay): number => boughtCost(d.build) + d.rerollGold + d.
 const strictBut = (b: Build, day: number): string[] => validateBuild(b, day).errors.filter((e) => !(npcDayRules() && e.startsWith("budget: ")));
 
 describe("par player (playerBuild): a real run through the caravan", () => {
-  // AZ-BUMP (the flip; BRIEF-AZBUMP S5 rule 7): the Y7b2 tripwire below keeps its bb-0.9.7 point with LADDER_FIX off (the
-  // star-ladder pass it names; S7 turns it into a regression test). The six runs it pins were counted in bb-0.9.7's world,
-  // and NPC_DAY (the par player's road gold and drops) and HULL_SCALE (its fight-length table and gold) move a par run's buys
-  // too (every switch on: furnace s1 buys 13, not 12), so the test runs with every switch off (offWorld)
-  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => offWorld(() => {
+  // AZ-BUMP S7 (backlog #370; cap's ruling: the buy floor is a sample floor, not a game rule; cap's answer to AZ-BUMP run 5's
+  // Q1): the Y7b2 tripwire is gone (cap's ruling 38ca8abc09dd2c46, re-ruled at Z-BUMP: the six runs' buys pinned under
+  // bb-0.9.7, 12 15 13 / 14 10 16, counted with every switch off, WEAVER s2's 10 under the floor), with its rules key and its
+  // all-off world (offWorld, which the flip's re-pin gave it until S7). The six runs are the shipped par player's (every
+  // switch on), and the floor is "at least 10 buys" for all six, with no rules key
+  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => {
+    const boughtAll: string[] = [];
     for (const hero of HEROES) {
       for (const seed of [1, 2, 3]) {
         let bought = 0, rerolls = 0;
@@ -66,17 +67,10 @@ describe("par player (playerBuild): a real run through the caravan", () => {
           },
         });
         // a sample floor, not a game rule: it stops the four integrity checks above from passing on a near-empty run.
-        // Y7b2 tripwire (cap's ruling 38ca8abc09dd2c46; cause the flip): under bb-0.9.3 the six runs' buys are pinned
-        // exactly, FURNACE s1-s3 12 / 15 / 13 and WEAVER s1-s3 14 / 10 / 16 (at 455944c 13 / 14 / 17 and 17 / 12 / 16).
-        // WEAVER s2 buys 10: out went 4 TWIN GAUGE, a ROTARY and 2 FLAK, in came SABOT, SCATTER, RAM, PLATE BREAKER,
-        // LONG HAUL and plating. The floor stays live for the other five runs, and for all six under any other version.
-        // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none, which answers this tripwire's
-        // "ask cap"): re-keyed bb-0.9.3 -> bb-0.9.7, the six runs re-measured at Z-BUMP's tip. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
-        if (RULES_VERSION === "bb-0.9.7") {
-          const why = "Y7b2 tripwire (cap's ruling 38ca8abc09dd2c46), re-ruled at Z-BUMP: the six runs' caravan buys are pinned under bb-0.9.7; accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)";
-          expect(bought, `${why}: ${hero} s${seed}`).toBe(Y7B2_BOUGHT[`${hero} ${seed}`]);
-        }
-        if (RULES_VERSION !== "bb-0.9.7" || !(hero === "weaver" && seed === 2)) expect(bought, `${hero} s${seed}`).toBeGreaterThan(10); // Z-BUMP: re-keyed (was bb-0.9.3)
+        // AZ-BUMP S7: at least 10 buys, all six runs, no rules key (was more than 10, but for WEAVER s2's 10 under the Y7b2
+        // tripwire's bb-0.9.7 key)
+        boughtAll.push(`${hero} s${seed} ${bought}`);
+        expect(bought, `${hero} s${seed}`).toBeGreaterThanOrEqual(10);
         // a player rerolls a few times a run, not every dawn: the policy keeps the run's reroll gold within its
         // share of the day's gold (rerollShare; the stuck rerolls within 1 - floor), 15 g of day 10's 119
         const pol = knobsOf();
@@ -85,7 +79,8 @@ describe("par player (playerBuild): a real run through the caravan", () => {
         expect(playerRun(hero, PLAYER_DAYS, seed)[PLAYER_DAYS - 1].rerollGold).toBe(rerolls * REROLL_COST);
       }
     }
-  }));
+    console.log(`AZBUMP-S7 the par player's caravan buys, every switch on: ${boughtAll.join(", ")}`);
+  });
 
   it("every day's deck is legal (validateBuild, no unfused pair) and the gold adds up to maxGoldByDay", () => {
     for (const hero of HEROES) {

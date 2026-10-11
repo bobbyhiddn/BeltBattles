@@ -10,12 +10,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "../src/sim/content";
-import { RULES_VERSION } from "../src/sim/content"; // Y7b2: OVERDRIVE's tripwire (cap's ruling 171ac18e8a707ab5) is keyed to bb-0.9.3
 import { hitsOfRig, rigHits, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates } from "../src/sim/beltside";
 import { bench, busy, factoryBench, gantryBench } from "./arsenal.bench";
 import { starCell, starRows, type StarRow } from "./starRows";
-import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's bb-0.9.7 tripwire row
+// AZ-BUMP S7: RULES_VERSION and withLadderFix are gone with OVERDRIVE's tripwire (its bb-0.9.7 key and its LADDER_FIX-off row)
 
 const par = JSON.parse(readFileSync(new URL("./fixtures/golden-060/par.json", import.meta.url), "utf8")) as { decks: Record<string, Build> };
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
@@ -136,26 +135,18 @@ const line = (c: Case, r: DeckRow[]) => `${c.id} | ${c.deck} | ${c.opp} | ${r.ma
 describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of the damage the deck deals before it falls (20 seeds, the opponent's KO lifted)", () => {
   for (const c of CASES) {
     it(`${c.id} (${c.deck} vs ${c.opp})`, () => {
-      // AZ-BUMP (the flip, LADDER_FIX): the bb-0.9.7 tripwire keeps its point with LADDER_FIX off until S7 turns it into a
-      // regression test of the fixed ladder. Only its row (OVERDRIVE on the bench) is fought with the switch off; every other
-      // row keeps the shipped switch
-      const trip = RULES_VERSION === "bb-0.9.7" && c.id === "overdrive" && c.deck === "bench" && c.opp === WEAVER;
-      const r = trip ? withLadderFix(() => deckRows(c), false) : deckRows(c);
+      const r = deckRows(c);
       const fall = KNOWN_FALLS.find((k) => k.id === c.id);
       if (fall) console.log(`KNOWN FALL (oracle ${fall.oracle}, ${fall.steps.join(", ")}: ${fall.cause}) ${line(c, r)}`);
       else if (process.env.BB_TABLES) console.log(`DECK ${line(c, r)}`);
-      // Y7b2 TRIPWIRE (cap's ruling 171ac18e8a707ab5; only while RULES_VERSION is "bb-0.9.3"; OVERDRIVE on this bench deck
-      // only): the flip removed REDLINE's +10 and AFTERBURNER's +30 flat, and 4x / 5x speed cuts ride-scaled damage on this
-      // deck, so ★2 < ★1 by 6.3% and ★3 < ★1 by 9.1% (was: every step an upgrade). Its three means are pinned exactly; the 3%
-      // check stays live for every other card and deck, and KNOWN_FALLS stays empty. Design list: OVERDRIVE's speed ladder (no
-      // flat returns, REVIEW-STARD); once fixed, delete this tripwire and let the 3% check cover OVERDRIVE again
-      // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none): re-keyed bb-0.9.3 -> bb-0.9.7,
-      // its three means measured at Z-BUMP's tip. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
-      if (RULES_VERSION === "bb-0.9.7" && c.id === "overdrive" && c.deck === "bench" && c.opp === WEAVER) {
-        const why = "Y7b2 tripwire (cap's ruling 171ac18e8a707ab5): OVERDRIVE's bench means pinned under bb-0.9.7 (re-ruled at Z-BUMP), ★2 < ★1 by 6.3%, ★3 < ★1 by 9.1%; accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)";
-        expect(r.map((x) => x.dmg), why).toEqual([941.4, 882, 856.05]);
-        expect(r[1].dmg, `${why}: the recorded finding, ★2 under ★1`).toBeLessThan(r[0].dmg);
-        return;
+      // AZ-BUMP S7 (backlog #370; REQ-BFG-070, LADDER_FIX on for good): the Y7b2 tripwire is gone (cap's ruling
+      // 171ac18e8a707ab5, re-ruled at Z-BUMP: OVERDRIVE's bench means 941.4 / 882 / 856.05 under bb-0.9.7, ★2 and ★3 under
+      // ★1, its rules key and its LADDER_FIX-off row with it). The star-ladder pass fixed it (ladderFix.ts: ★2 / ★3's ride
+      // keep 0.5 / 1, cap's oracle 37b12cb17a536589), so OVERDRIVE on this bench is a plain regression test of the fixed
+      // ladder, every star a real step up (941.4 / 1036.15 / 1184, x1.10 and x1.14), and the 3% check covers it again
+      if (c.id === "overdrive" && c.deck === "bench" && c.opp === WEAVER) {
+        expect(r.map((x) => x.dmg), "OVERDRIVE's bench, the fixed ladder").toEqual([941.4, 1036.15, 1184]);
+        expect(r[0].dmg < r[1].dmg && r[1].dmg < r[2].dmg, "OVERDRIVE: every star a real step up").toBe(true);
       }
       if (!known(c.id, "1->2")) expect(r[1].dmg, `${c.id} 1->2`).toBeGreaterThanOrEqual(r[0].dmg * 0.97);
       if (!known(c.id, "2->3")) expect(r[2].dmg, `${c.id} 2->3`).toBeGreaterThanOrEqual(r[1].dmg * 0.97);
