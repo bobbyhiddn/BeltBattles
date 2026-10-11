@@ -1,9 +1,12 @@
 // MIRROR-1 (operator's test, 2026-10-11): both carriers are the same hero with the same hull and the same equipment,
 // kept as empty as possible (the hero's starting deck with its belts cut, so no turret ever loads and nothing fires).
 // Only the dark wind can move a hull. Logs both hulls every second from 20 s to the end, and the second before the end.
-// Throwaway on wave3-mock (0.9.8 rules, fa1e9ed + mock tools); not game code.
+// Throwaway on wave3-mock (0.9.8 rules, fa1e9ed + mock tools); not game code. WIND-2 (REQ-BFG-093): the mirror is the
+// check now; its JSON goes to the OS temp dir (TMPDIR), not another lane's workspace.
 import { describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Battle } from "../src/sim/battle";
 import { WIND_START, type HeroId } from "../src/sim/content";
 import { heroStartBuild } from "../src/sim/heroBuilds";
@@ -29,7 +32,7 @@ describe("MIRROR-1: same hull, same kit, nothing fires", () => {
     const end = { t: Math.round(bt.t * 100) / 100, you: p.hull.hp, foe: e.hull.hp, winner: (bt as any).winner ?? null };
     const before = rows.filter((r) => r.t <= Math.floor(end.t) - 1).slice(-1)[0];
     const out = { maxHull: [p.hull.max, e.hull.max], windTaken: [p.stats.windTaken, e.stats.windTaken], before, end, rows };
-    writeFileSync("/home/cap/.hermit/primes/.workspaces/cap/beltbattles-wave3/tmp/mirror-wind.json", JSON.stringify(out, null, 1));
+    writeFileSync(join(tmpdir(), "mirror-wind.json"), JSON.stringify(out, null, 1));
     console.log("MIRROR-1", JSON.stringify({ maxHull: out.maxHull, windTaken: out.windTaken, before, end }));
     expect(p.hull.max).toBe(e.hull.max);
     for (const r of rows) expect(r.you).toBe(r.foe);
