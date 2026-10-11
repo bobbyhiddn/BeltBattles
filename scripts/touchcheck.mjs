@@ -1726,6 +1726,10 @@ async function newStyleSection(browsers, origin) {
  * view: the fork (day 3) and the day-1 event, every target's region (CSS px) written to <name>-roadfork.json, so a run
  * on 8fbba9d's build (no sea) can be compared with it; a tap (a click on the desk) on the fork's ROAD EVENT card picks
  * it (in portrait the first tap inspects, as 0.6.0b's touch rule) and the event opens; a tap on its first choice picks it.
+ * TOUCH-099 (MERGE-099D; REVIEW-MERGE099C ruling 1): with NPC_DAY on (src/game/road.ts forkPicks: the fork offers the three
+ * warlords only, and the day's event comes after the fight) the section plays the day as a player does: a tap on the
+ * fork's first card (the EASY warlord) picks it, the fight runs (SKIP, as a player may), and the result's ON TO THE ROAD
+ * opens the road event. The fork's targets, the event's and the tap on its first choice are checked as before.
  */
 async function roadForkSection(browsers, origin) {
   log("");
@@ -1748,11 +1752,26 @@ async function roadForkSection(browsers, origin) {
       await nextFrame(page);
       const fork = await regsNow();
       const portrait = await page.evaluate(() => window.bb.game.portrait);
+      // TOUCH-099: the fork's first card is the ROAD EVENT, or with NPC_DAY on the EASY warlord (ForkScreen.picks)
+      const pick0 = await page.evaluate(() => window.bb.game.screen.picks?.[0] ?? null);
+      const npcDay = pick0 !== "event";
       await press(centre(await region(page, "fork0")));
       const sel = await page.evaluate(() => ({ screen: window.bb.screen(), sel: window.bb.game.screen.sel ?? null }));
       if (portrait && sel.screen === "fork") await press(centre(await region(page, "fork0")));
+      let fought = "";
+      if (npcDay) {
+        // TOUCH-099 (NPC_DAY on): the day's fight first (SKIP to its result), then the result card's ON TO THE ROAD
+        await settle(page, "warlord");
+        await page.waitForFunction(() => window.bb.screen(true) === "fight" && window.bb.regions().some((q) => q.id === "skip"), null, { timeout: 20000 });
+        await press(centre(await regionOf(page, "skip")));
+        await page.waitForFunction(() => window.bb.screen(true) === "result" && !window.bb.game.transitioning && window.bb.regions().some((q) => q.id === "toroad"), null, { timeout: 30000 });
+        await sleep(300);
+        const w = await page.evaluate(() => { const f = window.bb.game.screen.warlord; return f ? `the ${f.tier} warlord, a ${f.result?.outcome}` : "no warlord"; });
+        await press(centre(await regionOf(page, "toroad")));
+        fought = `the day's fight (${w}, by SKIP), then its result's ON TO THE ROAD: `;
+      }
       await settle(page, "event");
-      check(!portrait || sel.sel === 0, `${V}: ${touch ? "a tap" : "a click"} on the fork's ROAD EVENT card ${portrait ? `inspects it first (sel ${sel.sel}), a second picks it` : "picks it"}: the road event opens (${await page.evaluate(() => window.bb.screen())})`);
+      check(!portrait || sel.sel === 0, `${V}: ${touch ? "a tap" : "a click"} on the fork's ${npcDay ? `${String(pick0).toUpperCase()} warlord` : "ROAD EVENT"} card ${portrait ? `inspects it first (sel ${sel.sel}), a second picks it` : "picks it"}: ${fought}the road event opens (${await page.evaluate(() => window.bb.screen())})`);
       await page.evaluate(() => { window.bb.game.run = null; window.bb.open("event"); }); // a new run's day-1 event
       await settle(page, "event");
       await regionDrawn(page, "choice0");
@@ -1892,7 +1911,11 @@ async function scoutView(browsers, origin, vname) {
 }
 
 /** SCOUT-1: a Hard warlord won on the phone: the card's VIEW BATTLEFIELD, the pick unchanged. SCOUT-1b (REQ-BFG-082):
- *  VIEW BATTLEFIELD above the line PICK 1 PART FROM THEIR DECK:, which sits right over the picks; the card whole. */
+ *  VIEW BATTLEFIELD above the line PICK 1 PART FROM THEIR DECK:, which sits right over the picks; the card whole.
+ *  TOUCH-099 (MERGE-099D; REVIEW-MERGE099C ruling 1): with NPC_DAY on a Hard win gives no pick: it rolls a drop (road.ts
+ *  warlordReward and finishWarlord: npcDay.ts DROP_CHANCE.hard, to cargo at DROP_STARS.hard, ★2) shown as the drop card
+ *  (or NO DROP), and the card's one way on is ON TO THE ROAD (the day's event, then REFIT): scoutWarlordNpcDay checks that
+ *  card the same way (VIEW BATTLEFIELD's place, the card whole, the view's BACK and way on, the drop, the way on). */
 async function scoutWarlord(browsers, origin, vname) {
   const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
   const V = `scout ${vname} warlord`, touch = !!cdp, vp = VIEW[vname].viewport;
@@ -1901,6 +1924,13 @@ async function scoutWarlord(browsers, origin, vname) {
   // the card is up at once (reloaded on its result), under the screen's wipe, which takes no tap: wait for the wipe too
   await page.waitForFunction(() => window.bb.screen(true) === "result" && !window.bb.game.transitioning && window.bb.regions().some((q) => q.id === "viewfield"), null, { timeout: 20000 });
   await sleep(300);
+  // TOUCH-099: NPC_DAY's reward carries its drop chance (road.ts warlordReward); 0.9.7's has none
+  if (await page.evaluate(() => window.bb.game.screen.warlord?.reward?.chance !== undefined)) {
+    await scoutWarlordNpcDay(page, cdp, V, touch, vp);
+    check(errors.length === 0, `${V}: 0 console errors (${errors.length})`);
+    await ctx.close();
+    return;
+  }
   const vf = await regionOf(page, "viewfield"), t0 = await regionOf(page, "take0"), t1 = await regionOf(page, "take1");
   const k = await page.evaluate(() => window.bb.game.view.scale / window.bb.game.view.dpr); // CSS px a logical px
   // the PICK line (3x5, 9 logical px with its gap) lies between them: the view's target ends 10 px or more above the picks
@@ -1926,6 +1956,45 @@ async function scoutWarlord(browsers, origin, vname) {
   check(s.viewPrimary === "REFIT" && !!s.primary, `${V}: with the part in cargo the view's bar offers REFIT (${s.viewPrimary})`);
   check(errors.length === 0, `${V}: 0 console errors (${errors.length})`);
   await ctx.close();
+}
+
+/** TOUCH-099 (MERGE-099D): SCOUT-1b's warlord card with NPC_DAY on, a Hard win on the phone: five checks, as the pick's five.
+ *  The card (warlordHud.ts drawWarlordResult): the gold line at its y + 62 logical px (12 tall), the drop card under it
+ *  (22 tall: its foot at y + 96), VIEW BATTLEFIELD's row (warlordRows, no pick) and ON TO THE ROAD at the foot; MERGE-099C's
+ *  9079f79 makes the view's bar offer ON TO THE ROAD too. */
+async function scoutWarlordNpcDay(page, cdp, V, touch, vp) {
+  const vf = await regionOf(page, "viewfield"), road = await regionOf(page, "toroad");
+  const k = await page.evaluate(() => window.bb.game.view.scale / window.bb.game.view.dpr); // CSS px a logical px
+  let s = await scoutState(page);
+  const gap = vf && s.card ? vf.y - (s.card.y + 96 * k) : -1;
+  check(!!vf && (!touch || vf.h >= TAP_CSS - 0.01) && inViewport(vf, vp) && !!road && inViewport(road, vp) && !overlaps(vf, road) && vf.y + vf.h <= road.y + 0.5 && gap >= 10 * k - 0.5,
+    `${V}: (NPC_DAY: a drop, no pick) the card's VIEW BATTLEFIELD (${box(vf)}) sits between the drop card and ON TO THE ROAD (${box(road)}): ${(gap / k).toFixed(1)} logical px under the drop card`);
+  check(!!s.card && inViewport(s.card, vp), `${V}: the warlord's card is whole on the screen (${box(s.card)})`);
+  await shot(page, `${TAG}-${V.replace(/ /g, "-")}.png`);
+  await press(page, cdp, centre(vf));
+  await phaseAtRest(page, "view");
+  s = await scoutState(page);
+  check(s.phase === "view" && !!s.back && !!s.primary && s.viewPrimary === "ON TO THE ROAD",
+    `${V}: a ${touch ? "tap" : "click"} on VIEW BATTLEFIELD at its place opens the view; it offers BACK and the card's one way on, ON TO THE ROAD (${s.viewPrimary ?? "none"})`);
+  await press(page, cdp, centre(s.back));
+  await sleep(150);
+  const d = await page.evaluate(() => {
+    const g = window.bb.game, f = g.screen.warlord, run = g.run, took = f?.result?.took ?? null;
+    const inv = took ? run.inventory.find((i) => i.def === took) : undefined;
+    return {
+      took, outcome: f?.result?.outcome ?? null, parts: f?.result?.parts?.length ?? -1, logged: run.warlords[run.warlords.length - 1]?.part ?? null,
+      held: !!took && (!!inv || JSON.stringify(run.build).includes(`"${took}"`)), stars: inv ? (inv.stars ?? 1) : null,
+    };
+  });
+  s = await scoutState(page);
+  check(s.phase === "result" && d.outcome === "win" && d.parts === 0 && d.took === d.logged && (d.took === null || (d.held && (d.stars === null || d.stars >= 2))),
+    `${V}: BACK, then the card: the Hard win's drop ${d.took ? `${d.took} is in the run (cargo ★${d.stars ?? "?"}; Hard drops at ★2)` : "is NO DROP"} and nothing to pick (parts ${d.parts})`);
+  await press(page, cdp, centre(await regionOf(page, "viewfield")));
+  await phaseAtRest(page, "view");
+  s = await scoutState(page);
+  await press(page, cdp, centre(s.primary));
+  await settle(page, "event", 15000);
+  check(await page.evaluate(() => window.bb.screen() === "event"), `${V}: ${s.viewPrimary} from VIEW BATTLEFIELD opens the day's road event`);
 }
 
 /** SCOUT-1b (REQ-BFG-083): the speed picked holds for the run. A dusk on a new run starts at 1X; 2X picked by a real tap
