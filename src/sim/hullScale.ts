@@ -162,8 +162,18 @@ export function incomeOn(day: number, won: boolean): number {
  * The official check (ruling step 4: 96 seeds, every switch on, ebd4591 with the bots' tables re-measured at this D) held
  * every section-1 target but day 9's wind, 20.9% (ceiling 20%), so day 9 moved one tenth, 2.0 -> 2.1 (rules held: D never
  * falls, 2.0 2.1 2.1 on days 8-10; M / D 2.30 2.48 2.86), and was re-checked once (PAR-AZ REPORT (b)).
+ * AZ-BUMP (REQ-BFG-079; REVIEW-PARAZ Q1, REVIEW-REFITAZ Q4; BRIEF-AZBUMP S4a, cap's call): D(8-10) 2.0 2.1 2.1 -> 2.1 2.3
+ * 2.4 (days 1-7 kept; days 11-18 follow the new D(10) / M(10) = 2.50: 2.7 3.0 3.4 3.7 4.2 4.6 5.1 5.6, was 2.4 2.7 2.9
+ * 3.2 3.6 4.1 4.5 4.9; the step past day 18 0.5, was 0.4). Why: with REFIT-AZ's captains in (a3ae8c3) the fights decided
+ * by the wind on days 8-10 read 22.7 24.0 26.1% over the 20% ceiling. The fit, in day order, the fewest tenths up on each
+ * day that put its wind share at 20% or less with its median at 18 s or more (kit-azbump/fb.sh: fightBench, 96 seeds,
+ * days 1-10, every switch on through --all-on, on the work tree with this line edited; 2026-10-11 01:25-01:46Z):
+ * 2.1 2.2 2.3 read 19.9 21.3 20.9%; 2.1 2.3 2.4 read 19.9 18.9 17.7% (medians 21.4 20.8 21.0 s); 2.1 2.3 2.3 read day 10
+ * at 20.9%. D's rules hold (never falls; D <= M; M / D on days 3-10: 1.00 1.16 1.40 1.70 2.00 2.19 2.26 2.50). The run at
+ * 2.1 2.3 2.4 is the re-check of every target on all days: par medians 19.2-21.4 s on days 3-10, wind 2.1-19.9% on days
+ * 3-10 (13.0% on day 2), no hard stop (AZ-BUMP REPORT section 5).
  */
-export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 20, 20, 21, 21];
+export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 20, 21, 23, 24];
 
 /** HULL-1c: D past day 10 holds day 10's M / D: D(d) = M(d) x D(10) / M(10), in whole tenths (rounded half up), for days
  *  11-18 (DMG_MUL_TENTHS_LATE) and a per-day step from day 19 (DMG_MUL_STEP_TENTHS), as M has. */
