@@ -33,6 +33,14 @@
 //    shop's gold alone (maxGoldByDay + its runes' gold), which a road-fed deck outgrows by its road gold and drops, so with
 //    NPC_DAY on its budget line is left to the player-mode check right after it, which counts both (roadCap and the road
 //    log), as the stand-in generator's own check does (standins.ts writtenProblems); every other strict line stands.
+//  - LOSS-1 P2 (REQ-BFG-092; REVIEW-LOSS1 Q1, BRIEF-LOSS1-ADD2 B), with NPC_DAY on: every playable hero's floor ghost
+//    (variant FLOOR_VARIANT, the day's floor record) carries the casual player's dusk deck of its day (casual.ts casualRun,
+//    CASUAL_TUNE), so the record a losing run carries (no wins, the fewest lives) meets decks a casual human can beat. All
+//    ten of a hero's floor decks come from ONE casual run (casualFloorRun: the first seed from CASUAL_FLOOR_SEED up whose
+//    deck differs from the day's variants 0 and 1 on every day), so every one is reachable in one run; each travels as a
+//    v3 snapshot with that run's road log and run seed, as a race deck does, and passes the same checks (seedGhost). The
+//    records, playerIds, runIds and createdAt order are as before; a floor ghost's id (ghostId, its content's hash) moves
+//    with its deck. With NPC_DAY off, no casual run is played: every snapshot exactly as before.
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
@@ -40,7 +48,8 @@ import { startingBuild } from "../src/sim/ai";
 import { installedTurrets, occupancy, type Build } from "../src/sim/deck";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { PAR_K, parSeeds } from "../src/sim/harness/par";
-import { parRunSeed, playerRoadLog, playerRun } from "../src/sim/harness/player";
+import { parRunSeed, playerRoadLog, playerRun, type PlayerDay } from "../src/sim/harness/player";
+import { CASUAL_TUNE, casualRun } from "../src/sim/harness/casual"; // LOSS-1 P2: the floor ghosts' decks (NPC_DAY on)
 import { npcDayRules, type RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP (N3): the seed ghosts' road logs
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { eligible } from "../src/net/matchmaking";
@@ -168,12 +177,54 @@ export function sampleGhosts(): GhostSnapshot[] {
   return out;
 }
 
+/** LOSS-1 P2: the casual floor run's first seed (playerRun's field-seed argument; its run seed is parRunSeed(hero, seed)):
+ *  outside the par field (parSeeds(PAR_K), 1-12, the race decks' runs) and every bench's seeds (1-96), so no par-field or
+ *  bench run meets its own deck. The seed LOSS-1 run 1 measured as --casual-floor (REPORT-LOSS1 section 6). */
+export const CASUAL_FLOOR_SEED = 9001;
+/** LOSS-1 P2: the seeds casualFloorRun tries (CASUAL_FLOOR_SEED, +1, ...) before it throws. */
+export const CASUAL_FLOOR_TRIES = 16;
+
+/** LOSS-1 P2: a hero's casual floor run: its field seed and its days 1..MAX_DAY (casual.ts casualRun). */
+export interface CasualFloor { seed: number; days: PlayerDay[] }
+
+/**
+ * LOSS-1 P2 (REQ-BFG-092; BRIEF-LOSS1-ADD2 B), NPC_DAY on: the one casual run whose dusk deck of day d is `hero`'s floor
+ * ghost of day d. The seed rule: the first seed from CASUAL_FLOOR_SEED up (at most CASUAL_FLOOR_TRIES) whose deck on every
+ * day 1..MAX_DAY differs (encodeStarred: parts, cells and stars) from every deck in `taken(day)`, that day's variant 0 and
+ * 1 decks, so the floor ghost is never the same deck as another seed ghost of its hero and day and all ten come from one
+ * run. casualRun is playerRun with the casual knobs, so its runs are cached per process (player.ts CACHE). `botRunes`
+ * (absent: runes.ts BOT_RUNES) reaches the casual player as it reaches the race decks' par player. Throws if no seed fits.
+ */
+export function casualFloorRun(hero: HeroId, taken: (day: number) => ReadonlySet<string>, botRunes?: boolean): CasualFloor {
+  for (let seed = CASUAL_FLOOR_SEED; seed < CASUAL_FLOOR_SEED + CASUAL_FLOOR_TRIES; seed++) {
+    const days = casualRun(hero, MAX_DAY, seed, CASUAL_TUNE, botRunes !== undefined ? { botRunes } : {});
+    if (days.every((d) => !taken(d.day).has(encodeStarred(d.build)))) return { seed, days };
+  }
+  throw new Error(`casual floor run ${hero}: no seed in ${CASUAL_FLOOR_SEED}-${CASUAL_FLOOR_SEED + CASUAL_FLOOR_TRIES - 1} gives ${MAX_DAY} decks that differ from the day's variants 0 and 1`);
+}
+
+/** LOSS-1 P2: the floor ghost of `day` from a casual floor run: its deck, its run seed (in the v3 snapshot, as a race
+ *  ghost's, so the upload check re-derives every dawn's rune offer) and its road log by that dusk. */
+function casualFloorGhost(hero: HeroId, day: number, cf: CasualFloor, at: number): GhostSnapshot {
+  const seed = (parRunSeed(hero, cf.seed) >>> 0) || undefined;
+  return seedGhost(hero, day, FLOOR_VARIANT, cf.days[day - 1].build, floorRecord(day), at, seed, roadOf(playerRoadLog(cf.days, day)));
+}
+
 /** D5: one floor ghost per hero and day (variant FLOOR_VARIANT, its own stand-in pool deck), with floorRecord(day).
- *  `first`: its createdAt index, after the sample ghosts, so their records and ids never move. */
-export function floorGhosts(first = STAND_IN_HEROES.length * SAMPLE_VARIANTS * MAX_DAY): GhostSnapshot[] {
+ *  `first`: its createdAt index, after the sample ghosts, so their records and ids never move. LOSS-1 P2: with NPC_DAY on,
+ *  the deck is the hero's casual floor run's (casualFloorRun, distinct from the day's variants 0 and 1); o.botRunes reaches
+ *  that run. Off: exactly as before (no casual run is played). */
+export function floorGhosts(first = STAND_IN_HEROES.length * SAMPLE_VARIANTS * MAX_DAY, o: { botRunes?: boolean } = {}): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
   for (const hero of STAND_IN_HEROES) {
+    const cf = npcDayRules()
+      ? casualFloorRun(hero, (day) => new Set([0, 1].map((v) => encodeStarred(sampleDeck(hero, day, v, sampleSeed(hero, v, day))))), o.botRunes)
+      : null;
     for (let day = 1; day <= MAX_DAY; day++) {
+      if (cf) {
+        out.push(casualFloorGhost(hero, day, cf, EPOCH + (first + out.length) * 1000));
+        continue;
+      }
       const entry = sampleEntry(hero, day, FLOOR_VARIANT, sampleSeed(hero, FLOOR_VARIANT, day)); // AZ-BUMP (N3): + its road log
       out.push(seedGhost(hero, day, FLOOR_VARIANT, entry.build, floorRecord(day), EPOCH + (first + out.length) * 1000, undefined, roadOf(entry.road)));
     }
@@ -217,15 +268,31 @@ export function raceDeck(hero: HeroId, day: number, v: number, botRunes?: boolea
 /** 0.8.0 RC: the race seed ghosts, RACE_VARIANTS per RACE_SEED_HEROES hero and day: variants 0 and 1 carry a drawn record
  *  (the draws of a stand-in hero's variant 0), variant FLOOR_VARIANT the day's floor record. `first`: the createdAt index
  *  of the first one, after the stand-in heroes' sample and floor ghosts. `deckOf`: the deck source (raceDeck; tests pass
- *  their own to show that every deck goes through seedGhost's checks). */
+ *  their own to show that every deck goes through seedGhost's checks). LOSS-1 P2: with NPC_DAY on, variant FLOOR_VARIANT's
+ *  deck is the hero's casual floor run's (casualFloorRun, distinct from the day's variant 0 and 1 decks from `deckOf`), not
+ *  deckOf's; o.botRunes reaches that run. Off: exactly as before. */
 export function raceGhosts(
   first = STAND_IN_HEROES.length * (SAMPLE_VARIANTS + 1) * MAX_DAY, deckOf: (hero: HeroId, day: number, v: number) => RaceDeck = raceDeck,
+  o: { botRunes?: boolean } = {},
 ): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
+  const p2 = npcDayRules(); // LOSS-1 P2
   for (const hero of RACE_SEED_HEROES) {
+    const taken = new Map<number, Set<string>>(); // LOSS-1 P2: each day's variant 0 and 1 decks (encodeStarred)
+    let cf: CasualFloor | undefined;
     for (let v = 0; v < RACE_VARIANTS; v++) {
       for (let day = 1; day <= MAX_DAY; day++) {
+        if (p2 && v === FLOOR_VARIANT) {
+          // LOSS-1 P2: the casual floor run, played once per hero after every day's variants 0 and 1 are known
+          cf ??= casualFloorRun(hero, (d) => taken.get(d) ?? new Set<string>(), o.botRunes);
+          out.push(casualFloorGhost(hero, day, cf, EPOCH + (first + out.length) * 1000));
+          continue;
+        }
         const { build, seed: field, road } = deckOf(hero, day, v); // AZ-BUMP (N3): + its par run's road log
+        if (p2) {
+          if (!taken.has(day)) taken.set(day, new Set<string>());
+          taken.get(day)!.add(encodeStarred(build));
+        }
         const seed = (parRunSeed(hero, field) >>> 0) || undefined; // FLIP-X2: that par run's own run seed, in the v3 snapshot
         let rec: DuskRecord;
         if (v === FLOOR_VARIANT) rec = floorRecord(day);
@@ -265,10 +332,11 @@ export function uncoveredStates(pool: readonly GhostSnapshot[], min = MIN_ELIGIB
 
 /** The seed pool: the 40 sample ghosts, the 20 floor ghosts (FURNACE and WEAVER), then the 60 race ghosts (FOUNDRY and
  *  BASTION, 0.8.0 RC). Throws if a reachable state is not covered. RUNES-2a: o.botRunes (absent: runes.ts BOT_RUNES,
- *  off) reaches the race decks' par player (raceDeck); the stand-in heroes' decks come from the bundled stand-in pool. */
+ *  off) reaches the race decks' par player (raceDeck); the stand-in heroes' decks come from the bundled stand-in pool.
+ *  LOSS-1 P2: with NPC_DAY on, o.botRunes reaches the casual floor runs too (every hero's floor ghost). */
 export function generateSamplePool(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
-  const races = o.botRunes === undefined ? raceGhosts() : raceGhosts(undefined, (h, d, v) => raceDeck(h, d, v, o.botRunes));
-  const pool = [...sampleGhosts(), ...floorGhosts(), ...races];
+  const races = o.botRunes === undefined ? raceGhosts() : raceGhosts(undefined, (h, d, v) => raceDeck(h, d, v, o.botRunes), o);
+  const pool = [...sampleGhosts(), ...floorGhosts(undefined, o), ...races];
   const gaps = uncoveredStates(pool);
   if (gaps.length) {
     throw new Error(`the seed pool leaves ${gaps.length} reachable states with fewer than ${MIN_ELIGIBLE} eligible ghosts: `
