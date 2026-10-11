@@ -2023,7 +2023,17 @@ async function foeCardSteps(page, cdp, errors, vname) {
   foeStep = "SPY";
   await press(page, cdp, centre(await regionWait(page, "choice2"))); // SPY
   foeStep = "REFIT";
-  await press(page, cdp, centre(await regionWait(page, "refit")));
+  await regionWait(page, "refit");
+  // the SPY result's beat first: under load a REFIT tap sent the moment its target appears can be lost (14b22b9's
+  // gaming-mode run, phone-430 and phone-land: still on the event with REFIT up 15 s later); a lost tap is re-sent, logged
+  await sleep(800);
+  for (let i = 0; i < 3 && (await page.evaluate(() => window.bb.screen())) !== "build"; i++) {
+    const r = await regionOf(page, "refit");
+    if (!r) break;
+    if (i > 0) log(`RETRY [${V}] REFIT tapped again: the screen was still the event's (${await page.evaluate(() => window.bb.screen())})`);
+    await press(page, cdp, centre(r));
+    await page.waitForFunction(() => window.bb.screen() === "build", null, { timeout: 8000 }).catch(() => {});
+  }
   foeStep = "the build screen";
   await settle(page, "build", 15000);
   foeStep = "the card's target";
