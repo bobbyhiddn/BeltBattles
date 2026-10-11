@@ -288,7 +288,10 @@ export class BattleCounters {
       else { this.open = null; this.kept = null; }
     }
     if (!grp && p.kind === "mouse" && !p.down) {
-      for (let i = this.groups.length - 1; i >= 0 && !grp; i--) if (inside(this.groups[i].target, p.x, p.y)) grp = this.groups[i];
+      // PAIR-CUE (REVIEW-COUNT1 gap 4): a resting mouse shows a group's panel only where that group's target is the topmost
+      // region under it (the paused chip, the bar and the cards above a target hide it, as they take its press)
+      const id = hoverGroup(ui.regions, p.x, p.y);
+      if (id) grp = this.groups.find((q) => q.id === id);
     }
     d.panel = null;
     if (!grp) return;
@@ -392,6 +395,18 @@ function chrome(g: G, w: number, h: number): void {
 /** The box's 1 px slate2 top edge, drawn last (over the numbers' ink outline). */
 function edge(g: G, w: number): void {
   rect(g, 1, 1, w - 2, 1, C.slate2);
+}
+
+/** PAIR-CUE (REVIEW-COUNT1 gap 4): the counter group a resting mouse at (x, y) hovers: the topmost region under it (the
+ *  UI's regions, last added on top: the frame before's), when that is a counter group's target; the open panel's own
+ *  region is looked through (it never sits on its group). Null: none (a block, a button or nothing on top). Pure. */
+export function hoverGroup(regions: readonly { id: string; r: Rect }[], x: number, y: number): string | null {
+  for (let i = regions.length - 1; i >= 0; i--) {
+    const q = regions[i];
+    if (q.id === CNT_PANEL || !inside(q.r, x, y)) continue;
+    return q.id.startsWith(CNT_REGION) ? q.id : null;
+  }
+  return null;
 }
 
 /** PAIR-CUE (REVIEW-COUNT1 ruling 4): `side`'s deck (its 120 x 120 tiles) on screen now, as the counters' anchors are
