@@ -3,44 +3,64 @@
 // the one front from the left, as before. Presentation only: nothing here touches the sim.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { computeView } from "../src/core/io";
-import { battleLayout, battleScale, laneLayout } from "../src/game/battleLayout";
-import { windBoth } from "../src/game/arenaMotion";
+import { battleGrid, battleLayout, battleScale, cameraFocus, laneLayout, minGap } from "../src/game/battleLayout";
+import { ArenaMotion, windBoth } from "../src/game/arenaMotion";
+import { Arena } from "../src/game/arena";
+import { viewWithSub } from "../src/game/viewGrid";
+import { startingBuild, warlordBuild } from "../src/sim/ai";
 import { hullBox, type Box } from "../src/render/frame";
 import { C } from "../src/render/palette";
 import { drawWind } from "../src/render/world";
 import { bayer, type G } from "../src/render/pixel";
 
-/** A recorder (node has no canvas): each fillRect with its colour and alpha, and each drawImage of a recorded canvas
- *  (its own fills, e.g. the cached dither rows) at its place. */
+/** A recording 2D context (node has no canvas): each fillRect with its colour and alpha, each drawImage of a recorded
+ *  canvas (its own fills: the cached dither rows, the glyphs) at its place, each setTransform, in one ordered list per
+ *  canvas (`ops`), and the fills and images apart; every other call is a no-op (as tests/motion.test.ts's fakeCtx). */
 interface Fill { x: number; y: number; w: number; h: number; fill: string; alpha: number }
-interface Img { img: { fills: Fill[] }; x: number; y: number; alpha: number }
-function recorder(): { g: G; fills: Fill[]; imgs: Img[] } {
-  const fills: Fill[] = [], imgs: Img[] = [];
-  const st = { fillStyle: "", globalAlpha: 1, imageSmoothingEnabled: false };
-  const g = {
-    get fillStyle() { return st.fillStyle; },
-    set fillStyle(v: string) { st.fillStyle = v; },
-    get globalAlpha() { return st.globalAlpha; },
-    set globalAlpha(v: number) { st.globalAlpha = v; },
-    get imageSmoothingEnabled() { return st.imageSmoothingEnabled; },
-    set imageSmoothingEnabled(v: boolean) { st.imageSmoothingEnabled = v; },
-    fillRect(x: number, y: number, w: number, h: number) { fills.push({ x, y, w, h, fill: st.fillStyle, alpha: st.globalAlpha }); },
-    drawImage(img: { fills: Fill[] }, x: number, y: number) { imgs.push({ img, x, y, alpha: st.globalAlpha }); },
-  };
-  return { g: g as unknown as G, fills, imgs };
+interface FakeCanvas { width: number; height: number; fills: Fill[]; imgs: Img[]; ops: Op[]; getContext: () => G }
+interface Img { img: FakeCanvas; x: number; y: number; alpha: number }
+type Op = { op: "fill"; f: Fill } | { op: "img"; d: Img } | { op: "tf"; m: number[] };
+function fakeCanvas(): FakeCanvas {
+  const c: FakeCanvas = { width: 0, height: 0, fills: [], imgs: [], ops: [], getContext: () => g };
+  const st: Record<string, unknown> = { canvas: c, fillStyle: "#000000", globalAlpha: 1, imageSmoothingEnabled: false };
+  const g = new Proxy(st, {
+    get(t, k) {
+      if (typeof k !== "string") return undefined;
+      if (k in t) return t[k];
+      if (k === "fillRect") return (x: number, y: number, w: number, h: number) => {
+        const f = { x, y, w, h, fill: t.fillStyle as string, alpha: t.globalAlpha as number };
+        c.fills.push(f);
+        c.ops.push({ op: "fill", f });
+      };
+      if (k === "drawImage") return (img: FakeCanvas, ...n: number[]) => {
+        const d = { img, x: n.length >= 8 ? n[4] : n[0], y: n.length >= 8 ? n[5] : n[1], alpha: t.globalAlpha as number };
+        c.imgs.push(d);
+        c.ops.push({ op: "img", d });
+      };
+      if (k === "setTransform") return (...m: number[]) => { c.ops.push({ op: "tf", m }); };
+      if (k === "getImageData" || k === "createImageData") return (_x: number, _y: number, w = 1, h = 1) => ({ data: new Uint8ClampedArray(Math.max(4, w * h * 4)), width: w, height: h });
+      if (k === "measureText") return () => ({ width: 0 });
+      if (k === "createLinearGradient" || k === "createRadialGradient" || k === "createPattern") return () => ({ addColorStop() {} });
+      return () => undefined;
+    },
+    set(t, k, v) {
+      if (typeof k === "string") t[k] = v;
+      return true;
+    },
+  }) as unknown as G;
+  return c;
+}
+function recorder(): { g: G; fills: Fill[]; imgs: Img[]; canvas: FakeCanvas } {
+  const c = fakeCanvas();
+  return { g: c.getContext(), fills: c.fills, imgs: c.imgs, canvas: c };
 }
 
-/** A stand-in `document` whose canvases record (the dither rows are made with makeCanvas). */
+/** A stand-in `document` whose canvases record (the dither rows, the world layer and the glyphs are made with makeCanvas). */
 const doc = globalThis as { document?: unknown };
 let prevDoc: unknown;
 beforeAll(() => {
   prevDoc = doc.document;
-  doc.document = {
-    createElement: () => {
-      const r = recorder();
-      return { width: 0, height: 0, fills: r.fills, getContext: () => r.g };
-    },
-  };
+  doc.document = { createElement: () => fakeCanvas() };
 });
 afterAll(() => { doc.document = prevDoc; });
 
@@ -171,5 +191,88 @@ describe("WIND-2 call 1: a fair storm", () => {
     expect(r.fills.length).toBeGreaterThan(0);
     expect(r.fills.every((f) => f.fill === "#FF00FF" && f.alpha === 1 && f.h === 2)).toBe(true);
     expect(r.fills.some((f) => f.x === 0) && r.fills.some((f) => f.x + f.w === 384)).toBe(true);
+  });
+});
+
+/** The battle's arena in motion on a viewport, through the camera, as BattleScreen and ReplayScreen set it up, with the
+ *  dark wind at full strength (display only: the battle's windLevel read as 1) and numbers of colours of their own: a hit
+ *  on each board and one at the shake, and a wind number on each board, all 0.3 s old (steady, in their colours). */
+const HIT = ["#A1B2C3", "#B2C3D4", "#C3D4E5"];
+function windyArena(w: number, h: number, dpr: number, shot: "wide" | "close") {
+  const pick = (pw: number, ph: number, p: boolean, scale: number) => { const gr = battleGrid(pw, ph, p); return gr.close === scale ? gr.sub : 1; };
+  const v = viewWithSub(w, h, dpr, (pw, ph, p) => battleScale(pw, ph, p), pick);
+  const grid = battleGrid(Math.floor(w * dpr), Math.floor(h * dpr), v.portrait);
+  const L = laneLayout(battleLayout(v.W, v.H, v.portrait));
+  const a = new Arena(startingBuild("furnace", 1), warlordBuild("weaver", 3), 7, null);
+  a.quiet = true;
+  a.setFrames(L.frames, L.enter);
+  (a.b as unknown as { windLevel: () => number }).windLevel = () => 1;
+  const am = new ArenaMotion(7, "calm", { sway: 0, sea: null, perf: false }, false);
+  am.setLanes(L, minGap(v.portrait ? v.H : v.W));
+  am.useCamera(grid, cameraFocus(L), shot);
+  [0, 1, -1].forEach((s, i) => {
+    a.fx.anchor = s;
+    a.fx.popup(L.hulls[Math.max(0, s)].x + 30, L.hulls[Math.max(0, s)].y + 30, "40", HIT[i]);
+  });
+  for (const s of [0, 1]) {
+    a.fx.anchor = s;
+    a.fx.windPop(L.hulls[s].x + 70, L.hulls[s].y + 70, "90", C.windHit);
+  }
+  a.fx.anchor = -1;
+  for (let i = 0; i < a.fx.popCount; i++) a.fx.popList[i].t = 0.3;
+  return { v, grid, L, a, am };
+}
+
+describe("WIND-2 call 2: every number above the storm", () => {
+  it("the numbers are drawn on the canvas after the whole storm, the wind's numbers after them, and none in the world layer", () => {
+    for (const [w, h, dpr] of [[1920, 1080, 1], [390, 844, 3], [844, 390, 3]]) for (const shot of ["wide", "close"] as const) {
+      const { v, a, am } = windyArena(w, h, dpr, shot);
+      const screen = fakeCanvas();
+      am.drawSea(screen.getContext(), v.W, v.H, 0, 0, v.scale, v.dpr, 7, a);
+      am.draw(screen.getContext(), a, v.W, v.H, false);
+      const name = `${w}x${h} ${shot}`;
+      const ops = screen.ops;
+      const layer = (am as unknown as { layer: FakeCanvas }).layer;
+      const has = (d: Img, c: string) => d.img.fills.some((f) => f.fill === c);
+      const at = (pred: (o: Op) => boolean) => ops.map((o, i) => (pred(o) ? i : -1)).filter((i) => i >= 0);
+      const blit = at((o) => o.op === "img" && o.d.img === layer);
+      const storm = at((o) => o.op === "fill" && (o.f.fill === C.plum0 || o.f.fill === C.plum3 || o.f.fill === C.plum4));
+      const dither = at((o) => o.op === "img" && (has(o.d, C.plum1) || has(o.d, C.plum2)));
+      const pops = at((o) => o.op === "img" && HIT.some((c) => has(o.d, c)));
+      const wind = at((o) => o.op === "img" && has(o.d, C.windHit));
+      expect(blit.length, name).toBe(1);
+      expect(storm.length && dither.length, name).toBeGreaterThan(0);
+      expect(storm.filter((i) => ops[i].op === "fill" && (ops[i] as { f: Fill }).f.alpha === 0.55).length, name).toBeGreaterThan(0); // the band
+      expect(pops.length, name).toBeGreaterThanOrEqual(3 * 2); // three numbers, two glyphs each
+      expect(wind.length, name).toBeGreaterThanOrEqual(2 * 2);
+      const lastStorm = Math.max(...storm, ...dither);
+      expect(Math.min(...storm, ...dither), name).toBeGreaterThan(blit[0]); // the storm over the world
+      expect(Math.min(...pops), name).toBeGreaterThan(lastStorm); // every number over the whole storm
+      expect(Math.min(...wind), name).toBeGreaterThan(Math.max(...pops)); // WIND-1's wind numbers over them
+      expect(layer.imgs.filter((d) => HIT.some((c) => has(d, c))), name).toEqual([]); // nothing of them in the world layer
+    }
+  });
+
+  it("at rest each number covers the canvas pixels the world layer's blit gave it: whole layer px, lf canvas px each", () => {
+    for (const [w, h, dpr] of [[1920, 1080, 1], [390, 844, 3], [402, 690, 3], [844, 390, 3]]) for (const shot of ["wide", "close"] as const) {
+      const { v, a, am } = windyArena(w, h, dpr, shot);
+      const screen = fakeCanvas();
+      am.drawSea(screen.getContext(), v.W, v.H, 0, 0, v.scale, v.dpr, 7, a);
+      am.draw(screen.getContext(), a, v.W, v.H, false);
+      const lf = (am as unknown as { lf: number }).lf, name = `${w}x${h} ${shot} lf ${lf}`;
+      expect(Number.isInteger(lf), name).toBe(true);
+      let tf: number[] = [];
+      let n = 0;
+      for (const o of screen.ops) {
+        if (o.op === "tf") tf = o.m;
+        if (o.op !== "img" || !HIT.some((c) => o.d.img.fills.some((f) => f.fill === c))) continue;
+        // the canvas transform is lf x (the camera's map o the board's): a whole-pixel translation in layer px, unscaled
+        expect([tf[0], tf[1], tf[2], tf[3]], name).toEqual([lf, 0, 0, lf]);
+        expect(Number.isInteger(tf[4] / lf) && Number.isInteger(tf[5] / lf), `${name}: ${tf}`).toBe(true);
+        expect(Number.isInteger(o.d.x) && Number.isInteger(o.d.y), name).toBe(true);
+        n++;
+      }
+      expect(n, name).toBeGreaterThanOrEqual(6);
+    }
   });
 });

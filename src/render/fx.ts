@@ -388,7 +388,8 @@ export class Fx {
     }
   }
 
-  /** Damage numbers: pop up, hold, blink out. Drawn above everything in the world layer. */
+  /** Damage numbers: pop up, hold, blink out. Drawn above everything in the world (WIND-2, REQ-BFG-093: and above the dark
+   *  wind: ArenaMotion.drawPops draws them on the canvas after it, as the world layer would). */
   drawPops(g: G, ox: number, oy: number, only = ALL_SIDES): void {
     for (let i = 0; i < this.np; i++) {
       const p = this.pops[i];

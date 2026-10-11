@@ -10,7 +10,8 @@
 // FIELD-1 (REQ-BFG-075): the battle's setting (render/scenery.ts: water, ground or air, picked per battle) and its
 // medium under the hulls (water: the wake and bow wave; ground: treads and dust; air: engine pods and contrails), and the
 // battle camera (render/camera.ts). With a camera (the battle and the replay) the world (the setting, carriers, boards,
-// shots, effects and damage numbers) is drawn into a world layer, one layer px per art px at rest, through the camera's
+// shots and effects; WIND-2: the damage numbers now after the dark wind, on the canvas at the layer's scale) is drawn into
+// a world layer, one layer px per art px at rest, through the camera's
 // map composed with each board's affine, and the layer is blitted onto the game's finer canvas grid at a whole factor;
 // taps are hit-tested through the camera's inverse. The HUD, the dark wind and the screen flash are drawn on the canvas
 // at today's size, screen-anchored. Without a camera (the title's attract fight, the hero preview) the arena draws as it
@@ -298,8 +299,9 @@ export class ArenaMotion implements ShotMap {
     if (this.perf) this.perf.add(0, now() - t0);
   }
 
-  /** The arena in motion (drawArena's order: carriers, boards, shots, effects, numbers, the wind, the flash). FIELD-1:
-   *  with a camera, the world into its layer (drawSea started it) through the camera, then the layer onto the canvas. */
+  /** The arena in motion (drawArena's order: carriers, boards, shots, effects, the wind, the numbers, the flash; WIND-2:
+   *  the numbers after the wind, so it never dims them). FIELD-1: with a camera, the world into its layer (drawSea started
+   *  it) through the camera, then the layer onto the canvas. */
   draw(g: G, a: Arena, W: number, H: number, reduced: boolean): void {
     const b = a.b;
     const P = this.perf;
@@ -365,14 +367,7 @@ export class ArenaMotion implements ShotMap {
     }
     const ox = a.fx.shakeX, oy = a.fx.shakeY;
     a.fx.draw(t, ox, oy, -1);
-    for (const s of [0, 1] as Side[]) {
-      const A = cam ? compose(this.cam, this.aff[s], this.cm) : this.aff[s];
-      t.save();
-      t.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
-      a.fx.drawPops(t, 0, 0, s);
-      t.restore();
-    }
-    a.fx.drawPops(t, ox, oy, -1);
+    // WIND-2 (REQ-BFG-093): the numbers (hits, BURN, heals, BLOCKED) left the world layer: drawn after the wind (drawPops)
     a.fx.drawDecals(t, ox, oy, -1);
     if (cam && this.layer) {
       // FIELD-1: the world layer onto the canvas, `lf` canvas px per layer px (whole: crisp), then the HUD-sized overlays
@@ -386,6 +381,7 @@ export class ArenaMotion implements ShotMap {
     // WIND-2 (REQ-BFG-093): side by side, the storm rolls in from both screen edges (windBoth: the layout at rest)
     const level = b.windLevel() * Math.max(0, 1 - a.overT / 1.2);
     drawWind(g, level, W, H, a.clock, { both: windBoth(hullBox(a.drawn[0]), hullBox(a.drawn[1])), mark: this.windMark });
+    this.drawPops(g, a); // WIND-2 (REQ-BFG-093): every number above the storm, as the world layer drew it
     this.drawWindPops(g, a, W, H); // WIND-1 (REQ-BFG-093): the wind's numbers above the wind
     if (a.fx.flash > 0 && !reduced) {
       g.globalAlpha = Math.min(0.5, a.fx.flash);
@@ -393,6 +389,33 @@ export class ArenaMotion implements ShotMap {
       g.globalAlpha = 1;
     }
     if (P) { P.add(4, now() - t0); P.frame(); }
+  }
+
+  /**
+   * WIND-2 (REQ-BFG-093): the arena's numbers (hits, BURN, heals and BLOCKED: Fx.drawPops), drawn on the canvas after the
+   * dark wind, so its wash, band and streaks never dim them; otherwise exactly as the world layer drew them: each board's
+   * through its board's map and the camera, the rest at the camera and the shake, at the layer's scale (`lf` canvas px per
+   * layer px). A board sails screen-aligned (no sway in a player build: a whole-pixel translation), so at rest each number
+   * covers the very canvas pixels the layer's blit gave it: the same size at every camera and zoom, the same colours,
+   * riding with its board, rising and blinking out as before. Without a camera (the title's fight, the hero preview),
+   * through each board's map on the canvas, as before. The decals and effects stay in the world layer.
+   */
+  private drawPops(g: G, a: Arena): void {
+    const cam = this.camera, f = this.lf;
+    for (const s of [0, 1] as Side[]) {
+      const A = cam ? compose(this.cam, this.aff[s], this.cm) : this.aff[s];
+      g.save();
+      if (cam) g.setTransform(f * A.a, f * A.b, f * A.c, f * A.d, f * A.e, f * A.f);
+      else g.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
+      g.imageSmoothingEnabled = false;
+      a.fx.drawPops(g, 0, 0, s);
+      g.restore();
+    }
+    g.save();
+    if (cam) g.setTransform(f * this.cam.a, 0, 0, f * this.cam.d, f * this.cam.e, f * this.cam.f);
+    g.imageSmoothingEnabled = false;
+    a.fx.drawPops(g, a.fx.shakeX, a.fx.shakeY, -1);
+    g.restore();
   }
 
   /** WIND-1 (REQ-BFG-093): the HUD the dark wind's numbers keep clear of (logical px, at rest: each side's plate and the
