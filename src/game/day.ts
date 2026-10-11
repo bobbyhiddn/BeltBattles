@@ -13,6 +13,7 @@ import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (
 import { LAST_CHANCE_LIVES, lastChanceFires } from "../sim/lastChance"; // LC-1 (REQ-BFG-073); Z-BUMP: no switch
 import { npcDayRules, roadLog } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's road log
 import { heartsDusk, heartsRun } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a hearts run's dusk
+import { LAST_CHANCE_AT } from "../sim/lastChance"; // RETUNE-1 run 2: the dusk card's LAST CHANCE line on a hearts run
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -148,7 +149,12 @@ export const refundNotice = (run: Pick<Run, "day" | "refund">): string | null =>
 export const refundCardLine = (r: Pick<DayResult, "refund">): string | null => (r.refund ? `+${r.refund} LIFE AT DAWN` : null);
 
 /** LC-1 (REQ-BFG-073): the dusk card's line when this dusk fired LAST CHANCE ("LAST CHANCE: +1 LIFE"), else null. */
-export const lastChanceCardLine = (r: Pick<DayResult, "lastChance">): string | null => (r.lastChance ? `LAST CHANCE: +${r.lastChance.lives} LIFE` : null);
+export const lastChanceCardLine = (r: Pick<DayResult, "lastChance" | "heartsLost">): string | null =>
+  !r.lastChance ? null
+    // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's loss (heartsLost set) that fired it: the run stays on 1 heart (it sets the
+    // hearts to 1, adding none when the loss left 1); today's width (20 characters), so the card's INCOME line stays clear
+    : r.heartsLost !== undefined ? `LAST CHANCE: ${LAST_CHANCE_AT} ${LAST_CHANCE_AT === 1 ? "HEART" : "HEARTS"}`
+    : `LAST CHANCE: +${r.lastChance.lives} LIFE`;
 
 /** Did the run lose a life at dusk before REFUND_DAY? (Lives are only ever lost at dusk.) */
 export const lostEarly = (run: Pick<Run, "history">): boolean => run.history.some((h) => h.day < REFUND_DAY && h.outcome === "loss");

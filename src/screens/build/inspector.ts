@@ -18,6 +18,8 @@
 import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
 import { FINDING_GHOST } from "../../game/session"; // 0.7.0a: the NEXT BATTLE card online
+import { drawStakes, duskStakes, livesOf, stakesWidth, STAKES_SAVES, STAKES_SAVES_SHORT, type DuskStakes } from "../../ui/stakes"; // RETUNE-1 run 2: the hearts at stake
+import { heartsRun, livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: the hero card's HEARTS
 import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import type { ModuleTag } from "../../sim/content"; // 0.8.0 I1 M4: the families in the header
 import { drawFamilyMark, familiesOf, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
@@ -1692,8 +1694,11 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
     drawText(g, "NEXT", area.x + 5, area.y + 5, C.slate4, { font: "3" });
     // 0.7.0a: online, until tonight's ghost is stored, the line says so instead of naming a foe
     const searching = note === FINDING_GHOST;
-    drawText(g, searching ? note : foe.name, area.x + 24, area.y + 4, searching ? C.slate4 : C.red, { outline: C.ink });
+    const nw = drawText(g, searching ? note : foe.name, area.x + 24, area.y + 4, searching ? C.slate4 : C.red, { outline: C.ink });
     drawText(g, `${searching ? "" : `${foeClass(foe)} · `}BELT ${used}/${cap} · W-L ${record(run)}`, area.x + 5, area.y + 14, C.bone, { font: "3" });
+    // RETUNE-1 run 2 (REQ-BFG-096): the strip's NEXT row carries the hearts at stake on a hearts run, where they fit
+    const st = duskStakes(run);
+    if (st) foeStakes(g, st, area, area.y + 5, area.x + 24 + nw);
     return;
   }
   if (!column) return drawHeroStrip(g, run, area, pid);
@@ -1703,9 +1708,10 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
     ["BELT", `${used}/${cap} TILES`, used >= cap ? C.amber : C.white],
     ["FEEDS", `${connectedRouteCount(b)}/${intakeCount(b)} INTAKES`, connectedRouteCount(b) ? C.lime : C.red],
     ["RUN", `W-L ${record(run)}`, C.white],
-    ["LIVES", `${run.lives}/${START_LIVES}`, C.white],
+    // RETUNE-1 run 2 (REQ-BFG-096): HEARTS n/10 on a hearts run (the label column widens to hold it); else as before
+    heartsRun(run) ? ["HEARTS", `${run.lives}/${livesCap(run)}`, C.white] : ["LIVES", `${run.lives}/${START_LIVES}`, C.white],
   ];
-  const kw = textWidth("FEEDS") + 6;
+  const kw = Math.max(textWidth("FEEDS"), ...big.map(([k]) => textWidth(k))) + 6;
   if (big.every(([, v]) => 10 + kw + textWidth(v) <= area.w) && 31 + big.length * 10 <= area.h) {
     const r = { ...area, h: 31 + big.length * 10 };
     statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072)
@@ -1724,7 +1730,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
     ["HULL", heroHullText(run), C.white],
     ["BELT", `${used}/${cap} TILES`, used >= cap ? C.amber : C.white],
     ["FEEDS", `${connectedRouteCount(b)}/${intakeCount(b)} INTAKES`, connectedRouteCount(b) ? C.lime : C.red],
-    ["RUN", `W-L ${record(run)} · ${run.lives}/${START_LIVES} LIVES`, C.white],
+    ["RUN", `W-L ${record(run)} · ${livesOf(run)}`, C.white], // RETUNE-1 run 2: "n/10 HEARTS" on a hearts run
   ];
   const r = column ? { ...area, h: Math.min(area.h, 29 + rows.length * 8) } : area;
   statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072)
@@ -1768,7 +1774,7 @@ function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
   y += 8;
   if (y + 5 <= r.y + r.h - 3) {
     const x2 = r.x + 5 + drawText(g, "RUN", r.x + 5, y, C.slate4, { font: "3" }) + 3;
-    drawText(g, `W-L ${record(run)} · ${run.lives}/${START_LIVES} LIVES`, x2, y, C.white, { font: "3" });
+    drawText(g, `W-L ${record(run)} · ${livesOf(run)}`, x2, y, C.white, { font: "3" }); // RETUNE-1 run 2: HEARTS on a hearts run
   }
 }
 
@@ -1788,11 +1794,13 @@ export function foeClass(foe: DuskFoe): string {
  *  in portrait. A pool ghost reads "GHOST · <HERO> · <W>-<L>", a stand-in its warlord name.
  *  0.7.0a step 6 (online only; `note` null offline, 0.6.2's card): the head line names the source in small text, ONLINE
  *  GHOST or OFFLINE STAND-IN; until tonight's ghost is stored the card says FINDING A GHOST... and names no foe. */
-export function drawFoe(g: G, foe: DuskFoe, r: Rect, note: string | null = null): void {
+export function drawFoe(g: G, foe: DuskFoe, r: Rect, note: string | null = null, stakes: DuskStakes | null = null): void {
   panel(g, r, "dark");
   if (note === FINDING_GHOST) {
-    drawText(g, r.h < 32 ? "NEXT BATTLE" : "NEXT BATTLE · DUSK", r.x + 5, r.y + 5, C.slate4, { font: "3" });
+    const head = r.h < 32 ? "NEXT BATTLE" : "NEXT BATTLE · DUSK";
+    drawText(g, head, r.x + 5, r.y + 5, C.slate4, { font: "3" });
     drawText(g, note, r.x + 5, r.y + 13, C.slate4, { outline: C.ink });
+    if (stakes) foeStakes(g, stakes, r, r.y + 5, r.x + 5 + textWidth(head, "3")); // RETUNE-1 run 2: the hearts at stake
     return;
   }
   const head0 = foe.kind === "ghost" ? "NEXT BATTLE · DUSK GHOST" : "NEXT BATTLE · DUSK";
@@ -1810,9 +1818,33 @@ export function drawFoe(g: G, foe: DuskFoe, r: Rect, note: string | null = null)
     drawText(g, foeClass(foe), r.x + r.w - 5, r.y + 5, C.bone, { font: "3", align: "right" });
     const nw = drawText(g, foe.name, x0, r.y + 13, C.red, { outline: C.ink });
     if (rival) tag(g, "STAND-IN", x0 + nw + 4, r.y + 14, C.slate3);
+    // RETUNE-1 run 2 (REQ-BFG-096): on a hearts run, the hearts at stake at the name row's right, clear of the name and tag
+    if (stakes) foeStakes(g, stakes, r, r.y + 14, x0 + nw + (rival ? 4 + textWidth("STAND-IN", "3") + 5 : 0)); // the tag: its text + 5
     return;
   }
   const nw = drawText(g, foe.name, x0, r.y + 13, C.red, { outline: C.ink });
   if (rival) tag(g, "STAND-IN", x0 + nw + 4, r.y + 14, C.slate3);
   drawText(g, foeClass(foe), x0, r.y + 24, C.bone, { font: "3" });
+  // RETUNE-1 run 2 (REQ-BFG-096): on a hearts run, the hearts at stake at the head row's right; LAST CHANCE on the class row
+  if (stakes) {
+    foeStakes(g, { ...stakes, saves: false }, r, r.y + 5, x0 + textWidth(head, "3"));
+    if (stakes.saves) foeSaves(g, r, r.y + 24, x0 + textWidth(foeClass(foe), "3"));
+  }
+}
+
+/** RETUNE-1 run 2 (REQ-BFG-096): the NEXT BATTLE panel's stakes on a hearts run, right-aligned in `r` on row `y` where they
+ *  clear `after` (the row's last drawn pixel) by 4 px: "-N" and the heart, then (`saves`) LAST CHANCE SAVES YOU (or LAST
+ *  CHANCE) before it where that fits too. */
+function foeStakes(g: G, s: DuskStakes, r: Rect, y: number, after: number): void {
+  const right = r.x + r.w - 5, w = stakesWidth(s);
+  if (right - w < after + 4) return;
+  drawStakes(g, s, right - w, y);
+  if (s.saves) foeSaves(g, { ...r, w: r.w - w - 4 }, y, after);
+}
+
+/** LAST CHANCE SAVES YOU (or LAST CHANCE where only that fits) right-aligned in `r` on row `y`, clear of `after`. */
+function foeSaves(g: G, r: Rect, y: number, after: number): void {
+  const right = r.x + r.w - 5;
+  const words = [STAKES_SAVES, STAKES_SAVES_SHORT].find((t) => right - textWidth(t, "3") >= after + 4);
+  if (words) drawText(g, words, right, y, C.lime, { font: "3", align: "right" });
 }
