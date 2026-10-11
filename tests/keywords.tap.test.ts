@@ -192,7 +192,7 @@ describe("U2c tap to explain: on every phone view, every panel's targets, `?` an
       const o = opened(v, L, c), piece = panelPiece(c.run, o.d.show);
       for (const t of keywordTargets(visibleLines(o.plan), o.plan, piece, o.buttons)) seen.add(glossaryEntry(t.word)?.word ?? t.word);
     }
-    for (const w of ["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "HIT", "SHOT", "LOAD", "EVERY", "AIM", "FASTER"]) expect(seen.has(w), w).toBe(true);
+    for (const w of ["BURN", "STUN", "HEAT", "FRAY", "SHIELD", "PAIR", "HIT", "SHOT", "LOAD", "EVERY", "AIM", "FASTER"]) expect(seen.has(w), w).toBe(true); // CARD-3 (REQ-BFG-107): SHIELD (was PLATE)
   });
 });
 

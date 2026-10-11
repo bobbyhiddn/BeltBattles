@@ -213,7 +213,7 @@ describe("Y5 row 45: IRON WALL: Y7b1 (Y7A-R3d): +10/+22/+35 PLATE a slug, +30/+6
   it("face: one line, HIT: +10 {*PLATE}, +30 {DMG} AT 120+ {*PLATE}. (both parts; 208 px at ★3); ladders {PLATE} +10/+22/+35 and {DMG} +30/+66/+105", () => {
     oneLine("shieldwall");
     expect(lines("shieldwall")).toEqual(FLAT.map((d, i) => [`HIT: +${[10, 22, 35][i]} {*PLATE}, +${d} {DMG} AT 120+ {*PLATE}.`]));
-    expect(Math.max(...lines("shieldwall").map((l) => px(l[0])))).toBe(208);
+    expect(Math.max(...lines("shieldwall").map((l) => px(l[0])))).toBe(220); // CARD-3 (REQ-BFG-107): SHIELD twice (was 208 with PLATE), in the 225 band
     expect(levels("shieldwall", 1)).toEqual(["{PLATE} [+10]/+22/+35", "{DMG} [+30]/+66/+105", next(2, "+22 {PLATE}, +66 {DMG}")]);
     expect(hasFace("shieldwall")).toBe(true);
   });
