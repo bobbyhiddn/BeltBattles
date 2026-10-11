@@ -479,8 +479,9 @@ async function main() {
         };
         for (let i = 0; i < 90; i++) g.step(1 / 60); // the KO and the card (shows from 0.6 s after the end)
         g.render();
-        const card = typeof s.cardClock === "string" ? s.cardClock : String(Math.max(0, Math.floor(b.t + 1e-9)));
-        return { ...at, card, cardFrom: typeof s.cardClock === "string" ? "drawn" : "computed (fmtClock: Math.floor(b.t + 1e-9))", plates: [...s.hp], frames: n, watch: window.__mirror };
+        const card = typeof s.cardClock === "string" && s.cardClock ? s.cardClock : String(Math.max(0, Math.floor(b.t + 1e-9)));
+        const rb = g.ui.regions.find((q) => q.id === "replayback");
+        return { ...at, card, cardFrom: typeof s.cardClock === "string" && s.cardClock ? "drawn" : "computed (fmtClock: Math.floor(b.t + 1e-9))", cardBack: rb ? { x: rb.r.x, y: rb.r.y, w: rb.r.w, h: rb.r.h } : null, plates: [...s.hp], frames: n, watch: window.__mirror };
       });
       const endFile = `${TAG}-end-${rname}.png`;
       await page.screenshot({ path: join(OUT, endFile) });
@@ -490,7 +491,27 @@ async function main() {
       log(`   the bar's clock "${end.barClock}" (${end.barFrom}); the card's "${end.card} S" (${end.cardFrom}): ${end.barClock === `${Math.floor(Number(end.card) / 60)}:${String(Number(end.card) % 60).padStart(2, "0")}` ? "they agree" : "THEY DISAGREE"}`);
       V.clocksAgree = end.barClock === `${Math.floor(Number(end.card) / 60)}:${String(Number(end.card) % 60).padStart(2, "0")}`;
       log(`   watched ${end.watch.frames} frames: ${end.watch.unequal.length} with the two hulls unequal; ${end.watch.drops.length} hull drops, each the same on both: ${end.watch.drops.every((d) => d.you === d.foe)}`);
+      log(`   the result card's BACK (replayback): ${JSON.stringify(end.cardBack)} (logical px)`);
       if (end.watch.unequal.length || !end.watch.drops.every((d) => d.you === d.foe) || end.winner !== -1) fail("the mirror is not even");
+      // BACK while it plays still leaves the replay: the mirror again, 2 s in, a real tap (or click) on its region
+      const tb = await page.evaluate(({ hero, seed, day, reduced }) => {
+        const bb = window.bb;
+        bb.setReducedMotion(!!reduced);
+        bb.openMirror(hero, seed, day);
+        for (let i = 0; i < 160; i++) bb.game.step(1 / 60);
+        bb.game.render();
+        const r = bb.regions().find((q) => q.id === "replayleave");
+        const lr = bb.game.ui.regions.find((q) => q.id === "replayleave");
+        return { screen: bb.screen(), css: r ? { x: r.x + r.w / 2, y: r.y + r.h / 2 } : null, rect: lr ? { x: lr.r.x, y: lr.r.y, w: lr.r.w, h: lr.r.h } : null };
+      }, { hero: HERO, seed: SEED, day: DAY, reduced });
+      if (tb.css) {
+        if (vopts.hasTouch) await page.touchscreen.tap(tb.css.x, tb.css.y);
+        else await page.mouse.click(tb.css.x, tb.css.y);
+      }
+      const after = await page.evaluate(() => { for (let i = 0; i < 60; i++) window.bb.game.step(1 / 60); return window.bb.screen(); });
+      V.back = { rect: tb.rect, before: tb.screen, after };
+      log(`   BACK while it plays: ${JSON.stringify(tb.rect)} (logical px); a ${vopts.hasTouch ? "tap" : "click"} at its centre: ${tb.screen} -> ${after}`);
+      if (after !== "title") fail("BACK did not leave the replay");
     } catch (e) {
       failed++;
       log(`FAILED: ${e.message}`);
