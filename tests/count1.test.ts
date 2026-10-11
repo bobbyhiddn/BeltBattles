@@ -17,7 +17,7 @@ import type { Build } from "../src/sim/deck";
 import { parRefs } from "../src/sim/harness/par";
 import { battleLayout, battleScale, laneLayout } from "../src/game/battleLayout";
 import {
-  BELT_COUNTS, JamMemory, READERS, STATUS_CHIPS, STATUS_H, boxW, burnStacks, canJam, gunState, holds, keepOnScreen, readCount,
+  BELT_COUNTS, GUN_COLOUR, JamMemory, READERS, STATUS_CHIPS, STATUS_H, boxW, burnStacks, canJam, gunState, holds, keepOnScreen, readCount,
   shownChips, slugsWaiting, statusTab, stunnedParts, tabBelow, type StatusChip,
 } from "../src/game/counters";
 import { clipOut, plateKeep, plateTarget, squareAt } from "../src/screens/battleCounters";
@@ -267,6 +267,8 @@ describe("COUNT-1: the words (REQ-BFG-107) and colours", () => {
     expect(contrast(C.plum4, C.navy)).toBeLessThan(4.5);
     expect(contrast(STATUS_CHIPS.find((c) => c.key === "fray")!.numColour, C.navy)).toBeGreaterThanOrEqual(4.5);
     for (const c of STATUS_CHIPS.filter((q) => q.key !== "poison")) expect(contrast(c.numColour, C.navy), c.key).toBeGreaterThanOrEqual(4.5);
+    // C6's three states (white, amber, red) and C5's white on the same navy box
+    for (const [k, col] of Object.entries(GUN_COLOUR)) expect(contrast(col, C.navy), k).toBeGreaterThanOrEqual(4.5);
     expect(BELT_COUNTS).toBe("all");
   });
 });
