@@ -1624,6 +1624,19 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
         continue;
       }
     }
+    // SHAPES-1 (REQ-BFG-086 S7.3; PIECES-1 5.3): the room knob's one more trigger, "the piece on offer fits nowhere useful":
+    // an affordable shaped piece the deck can't hold (fitsSomewhere) makes the player lengthen its best belt once (the same
+    // once a day) and look again; if it still fits nowhere it stays in the caravan. Off: never (shapesRules first)
+    if (!roomy && pol.room && shapesRules() && beltFree(run.build) > 0
+      && run.shop.wagons.some((w) => w.offers.some((o) => !o.sold && o.price <= run.gold && !!ITEMS[o.def] && isShaped(ITEMS[o.def]) && !fitsSomewhere(run.build, o.def)))) {
+      roomy = true;
+      const g = growBelt(run.build, run.day, rng, rateOn(run.build, run.day));
+      if (g && g.rel >= -pol.harmless) {
+        run.build.items = g.build.items;
+        run.build.routes = g.build.routes;
+        continue;
+      }
+    }
     const allowed = rolls < pol.rerolls && run.gold >= REROLL_COST + 3
       && spent.reroll + REROLL_COST <= pol.rerollShare * budget
       && value + run.gold - REROLL_COST >= target;
