@@ -68,9 +68,9 @@ export const RUNE_TEXT: Readonly<Record<string, string>> = {
   ember_shot: "FIRST SHOT AFTER A GUN LOADS: +{N} {*BURN}.",
   first_blood: "FIRST SHOT AFTER A GUN LOADS: +{N} {DMG}.",
   // MERGED: runes.ts:566-569 counts each placed, fitted or installed piece at ★2 or ★3 (cargo is not the build's), once;
-  // IN USE, and its opened card says what that is (RUNE_NOTE)
-  scrap_halo: "+{N} {HULL} FOR EACH ★2 OR ★3 PIECE IN USE.",
-  scrap_saint: "+{N} {DMG} FOR EACH ★2 OR ★3 PIECE IN USE.",
+  // IN USE, and its opened card says what that is (RUNE_NOTE). CARD-2 (K3 d): SCRAP HALO's and SCRAP SAINT's one row each
+  // is below (was "+{N} {HULL} FOR EACH ★2 OR ★3 PIECE IN USE." and "+{N} {DMG} FOR EACH ★2 OR ★3 PIECE IN USE." here; a
+  // second key in the literal, which tsc refuses, TS1117)
   // STAMP: battle.ts:1096 each slug through a factory's one-slug stamp (batches' too, 1033-1049); a cast (TWIN MOULD,
   // 1045-1047) or a pour (CRUCIBLE, races/foundry.ts:68-121) gives none: its opened card says so (RUNE_NOTE)
   forge_ward: "EACH SLUG YOUR FACTORY MAKES: +{N} {*PLATE}.",
