@@ -166,6 +166,27 @@ game.start();
     game.go(new ReplayScreen(game, new TitleScreen(game), r.battle, { day: o.day ?? 8, foe: o.foe ?? HEROES[b.hero].name }));
     return true;
   },
+  /** COUNT-1 (REQ-BFG-100) tooling (read only): the counters as drawn in the last frame of the current battle or replay:
+   *  each status row (its box and chips), each gun's and belt's box (count, text, colour state), every counter group's tap
+   *  target and the open panel (its heads and lines), boxes in CSS client px; C5's rule; null on another screen. With
+   *  `mode`, C5's rule becomes it first (the stills' comparison: "all" or "readers"). */
+  counters(mode?: "all" | "readers") {
+    const s = game.screen;
+    if (!(s instanceof BattleScreen) && !(s instanceof ReplayScreen)) return null;
+    if (mode === "all" || mode === "readers") s.counters.mode = mode;
+    const k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    const css = (q: { x: number; y: number; w: number; h: number } | null | undefined) => (q ? { x: c.left + q.x * k, y: c.top + q.y * k, w: q.w * k, h: q.h * k } : null);
+    const d = s.counters.last;
+    return {
+      mode: s.counters.mode, open: s.counters.open, cached: s.counters.cached, skipped: d.skipped, k, W: game.W, H: game.H,
+      tabs: d.tabs.map((t) => (t ? { side: t.side, below: t.below, chips: t.chips, r: css(t.r), art: { ...t.r } } : null)),
+      guns: d.guns.map((q) => ({ side: q.side, slot: q.slot, n: q.n, text: q.text, state: q.state, r: css(q.r), art: { ...q.r } })),
+      belts: d.belts.map((q) => ({ side: q.side, route: q.route, n: q.n, r: css(q.r), art: { ...q.r } })),
+      targets: d.targets.map((q) => ({ id: q.id, r: css(q.r), art: { ...q.r } })),
+      panel: d.panel ? { id: d.panel.id, heads: d.panel.heads, lines: d.panel.lines, r: css(d.panel.r) } : null,
+      pops: s.arena.fx.popCount,
+    };
+  },
   openDusk(o: RunSpec = {}, ghosts: GhostSpec[] = []): void {
     clearPool();
     addGhosts(ghosts);
