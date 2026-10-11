@@ -8,6 +8,8 @@ import { C } from "./palette";
 import { DEBRIS, DUST, EMBER, Particles, SMOKE, SPARK, STREAK, cid } from "./particles";
 import { explosion, sparkStar } from "./sprites";
 import { muzzleFlash, ringSprite, scorchSprite } from "./fxsprites";
+import { ICON, ICON_COLOUR, textWidth as pairTextW } from "./font"; // PAIR-CUE (REQ-BFG-100): PAIR's glyph, its colour, a number's width
+
 import { drawText } from "./font";
 import type { G } from "./pixel";
 
@@ -46,6 +48,29 @@ export interface Popup {
 /** WIND-1 (REQ-BFG-093): the longest a dark wind number lives (s, effect time): a big hit's. */
 export const WIND_POP_MAX = 1.15;
 
+/**
+ * PAIR-CUE (REQ-BFG-100, REQ-BFG-081): a PAIR pop: PAIR's 5x7 glyph over a gun on a `pair` event (`mark` false), or its 3x5
+ * glyph beside a PAIR shot's hit number (`mark` true: it takes that number's place, life and size, `dx` px right of its
+ * centre, so it rises and blinks out with it). They live in the damage numbers' spare room (Fx.pairPop).
+ */
+export interface PairPop {
+  x: number;
+  y: number;
+  dx: number;
+  t: number;
+  max: number;
+  big: boolean;
+  side: number;
+  mark: boolean;
+}
+
+/** PAIR-CUE: the PAIR pops' own slots (they may use no more of the damage numbers' 48 than lie free). */
+export const PAIR_POPS = 16;
+/** PAIR-CUE: PAIR's keyword colour (font.ts ICON_COLOUR, its one source: C.blue). */
+export const PAIR_COLOUR = ICON_COLOUR[ICON.PAIR];
+/** PAIR-CUE: a glyph pop's life (s, effect time): a hit number's. */
+export const PAIR_POP_MAX = 0.85;
+
 interface Decal {
   x: number;
   y: number;
@@ -77,6 +102,9 @@ export class Fx {
   private np = 0;
   private decals = pool<Decal>(40, () => ({ x: 0, y: 0, r: 0, v: 0, t: 0, max: 1, side: -1 }));
   private nd = 0;
+  /** PAIR-CUE (REQ-BFG-100): the live PAIR pops (the first `npr`), oldest first. */
+  private pairs = pool<PairPop>(PAIR_POPS, () => ({ x: 0, y: 0, dx: 0, t: 0, max: 1, big: false, side: -1, mark: false }));
+  private npr = 0;
   private anchorSide = -1;
   /** MOTION-1 (REQ-BFG-071, display only): the board the next spawns belong to (0, 1; -1 none). The arena's react() sets
    *  it per event; a motion build draws each board's effects with that board's transform, so hits, flashes and numbers
@@ -117,6 +145,7 @@ export class Fx {
   clear(): void {
     this.parts.clear();
     this.na = this.np = this.nd = 0;
+    this.npr = 0; // PAIR-CUE
     this.trauma = this.flash = this.hitstop = 0;
     this.kickX = this.kickY = this.shakeX = this.shakeY = 0;
     this.landPx = this.landX = this.landY = 0;
@@ -202,6 +231,90 @@ export class Fx {
       d.t += dt;
       if (d.t >= d.max) this.swap(this.decals, i, --this.nd);
       else i++;
+    }
+    this.updatePairs(dt); // PAIR-CUE
+  }
+
+  // ------------------------------------------------------------ PAIR-CUE (REQ-BFG-100, REQ-BFG-081): PAIR's pops
+
+  /** The live PAIR pops (read only; the first `pairCount`, oldest first). */
+  get pairList(): readonly PairPop[] {
+    return this.pairs;
+  }
+
+  get pairCount(): number {
+    return this.npr;
+  }
+
+  /** The PAIR pops age with the numbers (the same effect time); a dead one leaves, the rest keep their order. */
+  private updatePairs(dt: number): void {
+    let n = 0;
+    for (let i = 0; i < this.npr; i++) {
+      const p = this.pairs[i];
+      p.t += dt;
+      if (p.t < p.max) this.swap(this.pairs, i, n++);
+    }
+    this.npr = n;
+    this.yieldPairs();
+  }
+
+  /** Drop the oldest PAIR pop (its slot goes to the end, free). */
+  private dropOldestPair(): void {
+    for (let i = 1; i < this.npr; i++) this.swap(this.pairs, i - 1, i);
+    this.npr--;
+  }
+
+  /**
+   * A damage or wind number never waits for a PAIR pop: popup() and windPop() look only at the numbers, so one that takes
+   * a slot while the pool's room (its 48, numbers and PAIR pops together) is full takes it from a PAIR pop: here the
+   * oldest PAIR pops give their room back until the pool holds at most its 48 again. Run at every update and every pairPop,
+   * so no frame is drawn with more than 48.
+   */
+  private yieldPairs(): void {
+    while (this.npr > 0 && this.np + this.npr > this.pops.length) this.dropOldestPair();
+  }
+
+  /**
+   * A PAIR pop (game/pairCue.ts): it takes a free slot of the pool's room, else the oldest PAIR pop's, else it is dropped
+   * (false): it never costs a damage number or a wind number. `mark`: beside the number `of` (a PAIR shot's hit number,
+   * just popped), with its place, life and size; else PAIR's glyph over a gun at (x, y) (rest-screen px, as popup's).
+   */
+  pairPop(x: number, y: number, of?: Popup): boolean {
+    this.yieldPairs();
+    let p: PairPop;
+    if (this.np + this.npr < this.pops.length && this.npr < this.pairs.length) p = this.pairs[this.npr++];
+    else if (this.npr > 0) {
+      this.dropOldestPair();
+      p = this.pairs[this.npr++];
+    } else return false;
+    p.side = this.anchorSide;
+    p.t = 0;
+    if (of) {
+      const s = of.big ? 2 : 1;
+      p.x = of.x; p.y = of.y; p.max = of.max; p.big = of.big; p.mark = true;
+      p.dx = Math.ceil((pairTextW(of.text) * s) / 2) + 2; // past the number's right edge and its outline
+      p.t = of.t;
+    } else {
+      p.x = x; p.y = y; p.max = PAIR_POP_MAX; p.big = false; p.mark = false; p.dx = 0;
+    }
+    return true;
+  }
+
+  /**
+   * The PAIR pops of one board (`only`, as drawPops), in the numbers' style: PAIR's glyph in its keyword colour (font.ts
+   * ICON_COLOUR: C.blue), a 1 px ink outline, white on its first frames; a glyph pop rises over its gun as a hit number
+   * does, a mark rides beside its number (the 3x5 glyph, mid-height of the number), both blinking out with it.
+   */
+  drawPairPops(g: G, ox: number, oy: number, only = ALL_SIDES): void {
+    for (let i = 0; i < this.npr; i++) {
+      const p = this.pairs[i];
+      if (only !== ALL_SIDES && p.side !== only) continue;
+      const k = p.t / p.max;
+      if (k > 0.78 && Math.floor(p.t * 22) % 2) continue;
+      const rise = (p.big ? 16 : 11) * Math.min(1, k * 2.2);
+      const col = p.t < 0.05 ? C.white : PAIR_COLOUR;
+      if (p.mark) drawText(g, ICON.PAIR, Math.round(p.x + ox + p.dx), Math.round(p.y + oy - rise + (p.big ? 4 : 1)), col, { font: "3", mono: true, outline: C.ink });
+      else drawText(g, ICON.PAIR, Math.round(p.x + ox), Math.round(p.y + oy - rise), col, { align: "center", mono: true, outline: C.ink });
     }
   }
 
