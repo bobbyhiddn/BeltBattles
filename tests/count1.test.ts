@@ -1,6 +1,7 @@
 // COUNT-1 (REQ-BFG-100; REQ-BFG-053's waiting count): the battle view's counters. Tests only: no sim change.
 //  - each value against the sim's own state on a stepped real fight (day 10, FURNACE's par deck 2 v WEAVER's par deck 1,
-//    seed 1: tools/count1/pickFights.ts's pick, with a LODESTONE aboard the foe and three jams on your side): BURN's stacks
+//    seed 1: tools/count1/pickFights.ts's pick, with a LODESTONE aboard the foe and three jams on your side; MERGE-099D:
+//    under c099's rules WEAVER's par deck 3 v FURNACE's par deck 1, seed 3, the same conditions: `fight` below): BURN's stacks
 //    (not its entries), STUN against LODESTONE's own count at every LODESTONE hit, the waiting count against PRESSURE
 //    BREECH's own sum at every shot, and C6's colour across each jam (amber at the threshold, red from the jam until the
 //    gun fires again);
@@ -30,8 +31,13 @@ import { tapPx } from "../src/ui/tap";
 const ROOT = join(new URL("..", import.meta.url).pathname);
 const deck = (hero: HeroId, day: number, i: number): Build => structuredClone(parRefs(hero, day, "field", 4)[i]);
 
-/** The fight: your FURNACE par deck 2 v the foe's WEAVER par deck 1 (a LODESTONE aboard), day 10, seed 1. */
-const fight = (): Battle => new Battle(deck("furnace", 10, 1), deck("weaver", 10, 0), 1);
+/** The fight: your FURNACE par deck 2 v the foe's WEAVER par deck 1 (a LODESTONE aboard), day 10, seed 1, as COUNT-1 picked
+ *  it under bb-0.9.7. MERGE-099D (BRIEF-MERGE-099D 1f; tests only): under c099's rules (bb-0.10.0: the flip, HULL_SCALE,
+ *  LADDER_FIX) those par decks fight otherwise (that foe holds no LODESTONE and your side never jams), so the fight is
+ *  re-picked on the merged tree by every condition below (W/kit-099d/zz-099d-c1pick.test.ts, scratch: FURNACE v WEAVER,
+ *  FOUNDRY and BASTION both ways, days 6-10, seeds 1-3): the one that meets them all is your WEAVER par deck 3 v the foe's
+ *  FURNACE par deck 1 (a LODESTONE aboard), day 10, seed 3. Every assertion is kept. */
+const fight = (): Battle => new Battle(deck("weaver", 10, 2), deck("furnace", 10, 0), 3);
 
 type Priv = { applyHit: (...a: unknown[]) => unknown; fire: (...a: unknown[]) => unknown };
 
@@ -167,7 +173,8 @@ describe("COUNT-1: the status row", () => {
     expect(holds(b.sides[1], READERS.find((r) => r.id === "lodestone")!)).toBe(true);
     expect(readCount(b, 0, "stun")).toBe(true);
     expect(readCount(b, 1, "stun")).toBe(false);
-    // at the start (the foe's WEAVER rune has put FRAY on your hull already): your STUN chip at 0, dimmed; none on the foe's
+    // at the start: your STUN chip at 0, dimmed; none on the foe's (MERGE-099D: the re-picked fight's foe is FURNACE; was
+    // "the foe's WEAVER rune has put FRAY on your hull already")
     const fresh = fight();
     expect(shownChips(fresh, 0).find((c) => c.chip.key === "stun")).toEqual({ chip: STATUS_CHIPS.find((c) => c.key === "stun"), n: 0, dim: true });
     expect(shownChips(fresh, 1).find((c) => c.chip.key === "stun")).toBeUndefined();
