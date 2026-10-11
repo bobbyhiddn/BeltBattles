@@ -551,20 +551,39 @@ import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 
 describe("CARD-2 (k1): never in a fight, on hero screens or packs: the first-sight hooks' callers (a source scan)", () => {
-  it("drawKeywordLayer's one caller asks only in the caravan; drawDetails only on the build screen; runeSightWord only on the three rune cards", () => {
+  it("only drawDetails asks drawKeywordLayer for the notes, and only in the caravan; drawDetails only on the build screen; runeSightWord only on the three rune cards", () => {
     const files: string[] = [];
     const walk = (d: string) => { for (const f of readdirSync(d)) { const p = `${d}/${f}`; if (statSync(p).isDirectory()) walk(p); else if (p.endsWith(".ts")) files.push(p); } };
     walk("src");
     const code = (f: string) => readFileSync(f, "utf8").split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join("\n");
     const callers = (re: RegExp) => files.filter((f) => re.test(code(f))).sort();
-    // keywords.ts and inspector.ts define them; the one caller of each is named
-    expect(callers(/\bdrawKeywordLayer\(/)).toEqual(["src/screens/build/inspector.ts", "src/screens/build/keywords.ts"]);
+    // The arguments of the call whose "(" is at `at`: commas at the call's own depth, plus one
+    const argCount = (src: string, at: number) => {
+      let depth = 0, n = 1;
+      for (let i = at; i < src.length; i++) {
+        const c = src[i];
+        if ("([{".includes(c)) depth++;
+        else if (")]}".includes(c)) { if (--depth === 0) return n; }
+        else if (c === "," && depth === 1) n++;
+      }
+      return -1;
+    };
+    // drawKeywordLayer's 12th parameter, `sight`, asks for the notes. keywords.ts defines it; inspector.ts's drawDetails
+    // is the one caller that passes it, as ctx.run.stage === "caravan". Any other caller (after the motion lane's merge,
+    // battleScout.ts's VIEW BATTLEFIELD faces, with 10) leaves it at its default, false. (cap's review: the merge onto
+    // release-099 adds battleScout.ts as a caller, which the scan's first form refused)
+    const asks = callers(/\bdrawKeywordLayer\(/).filter((f) => f !== "src/screens/build/keywords.ts").filter((f) => {
+      const src = code(f);
+      return [...src.matchAll(/\bdrawKeywordLayer\(/g)].some((m) => argCount(src, m.index! + m[0].length - 1) >= 12);
+    });
+    expect(asks).toEqual(["src/screens/build/inspector.ts"]);
     expect(code("src/screens/build/inspector.ts")).toMatch(/drawKeywordLayer\([^;]*ctx\.run\.stage === "caravan"\);/);
     expect(callers(/\bdrawDetails\(/)).toEqual(["src/screens/build/chrome.ts", "src/screens/build/inspector.ts"]);
     expect(callers(/\bruneSightWord\(/)).toEqual(["src/screens/lastChancePicker.ts", "src/screens/runePicker.ts", "src/ui/runeBar.ts"]);
     expect(code("src/ui/runeBar.ts")).toMatch(/s\.run\.stage === "caravan" \? runeSightWord\(/);
-    // nothing in a fight's, a hero's or a pack's screen reaches the notes
-    for (const f of files.filter((p) => /screens\/(battle|hero|packs?)/i.test(p))) expect(code(f), f).not.toMatch(/firstSight|drawKeywordLayer|runeSightWord|drawDetails/);
+    // nothing in a fight's, a hero's or a pack's screen reaches the notes (a battle screen may draw keyword targets
+    // through drawKeywordLayer, never asking for the notes: `asks` above)
+    for (const f of files.filter((p) => /screens\/(battle|hero|packs?)/i.test(p))) expect(code(f), f).not.toMatch(/firstSight|runeSightWord|drawDetails/);
   });
 });
 import { captainSpans } from "../src/ui/captainText";
