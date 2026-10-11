@@ -32,6 +32,7 @@ import { SHAPES_RULES, shapesGateProblem, shapesWorld } from "../src/net/rulesGa
 import { reachableRecords } from "../src/net/records";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { migrateRun, shapesRun } from "../src/game/save";
+import { nextFuseToast, shapeNotice } from "../src/game/save"; // SHAPES-1 (Q4): the load notice
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
@@ -345,6 +346,34 @@ function fixtures(): { name: string; s: GhostSnapshot; on: boolean }[] {
     return out;
   });
 }
+
+describe("SHAPES-1 S6, cap's RUN2 note Q4: the load notice for a reshaped factory (the player's save only)", () => {
+  it("each case's words (cap's): moved, moved and lost 1 or 2 belts, into cargo, sold with a full cargo", () => {
+    expect(shapeNotice("GANTRY PRESS", { lost: 0 })).toBe("GANTRY PRESS HAS A NEW SHAPE. IT MOVED TO FIT.");
+    expect(shapeNotice("GANTRY PRESS", { lost: 2 })).toBe("GANTRY PRESS HAS A NEW SHAPE. IT MOVED TO FIT AND LOST 2 BELTS.");
+    expect(shapeNotice("ASSEMBLY LINE", { lost: 1 })).toBe("ASSEMBLY LINE HAS A NEW SHAPE. IT MOVED TO FIT AND LOST 1 BELT.");
+    expect(shapeNotice("GANTRY PRESS", { cargo: true })).toBe("GANTRY PRESS HAS A NEW SHAPE AND NO ROOM. IT'S IN YOUR CARGO.");
+    expect(shapeNotice("GANTRY PRESS", { sold: 7 })).toBe("GANTRY PRESS HAS A NEW SHAPE AND NO ROOM. IT WAS SOLD FOR 7 G.");
+  });
+
+  it("shapesRun queues one line for a factory that moved (shown on the build screen only), none for one that stayed put", () => {
+    const raw = (x: number, y: number) => ({
+      build: { hero: "furnace", items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "gantry", x, y }], routes: [], mods: [], beltCap: 40, hullBonus: 0 },
+      inventory: [] as unknown[], gold: 0, fuseFx: [] as string[],
+    });
+    withShapes(() => {
+      const moved = raw(8, 8); // a 2x2 at (8,8): as a 2x3 it leaves the deck there, so it moves
+      shapesRun(moved as never);
+      expect(moved.fuseFx).toEqual(["GANTRY PRESS HAS A NEW SHAPE. IT MOVED TO FIT."]);
+      expect(nextFuseToast(moved as never, false)).toBeUndefined(); // it waits for the build screen
+      expect(nextFuseToast(moved as never, true)).toBe("GANTRY PRESS HAS A NEW SHAPE. IT MOVED TO FIT.");
+      expect(moved.fuseFx).toEqual([]); // once
+      const stays = raw(0, 7); // its 2x3 fits at its own anchor: nothing moves, nothing said
+      shapesRun(stays as never);
+      expect(stays.fuseFx).toEqual([]);
+    });
+  });
+});
 
 describe("SHAPES-1 S1/S4 after the merge of c099-pre8 (cap's RUN2 note 1.3-1.4): shapes ride under bb-0.10.0", () => {
   it("SHAPES_RULES is S6's literal; a bb-0.9.7 record holding a shaped piece is refused, a bb-0.10.0 one is judged in shapes' world", () => {
