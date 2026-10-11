@@ -32,6 +32,7 @@ import { hashSeed } from "../src/core/rng";
 import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
 import { RIVALS, RIVAL_IDS, rivalBuild, type RivalId } from "../src/sim/rivals";
 import { RUNES, botRunePick, runeList, runeOffer, runeProblem } from "../src/sim/runes"; // BOTS-X: runeList(), the dawn's own list
+import { withOpenRunes } from "../src/sim/openRunes"; // OPEN-1 (REQ-BFG-109): the captains keep the closed offer
 
 /** A captain's rune seed (see the header). */
 export const captainRuneSeed = (id: RivalId): number => hashSeed("captain-runes", id);
@@ -76,14 +77,26 @@ export const CAPTAIN_RUNE_SKIP: Readonly<Partial<Record<RivalId, readonly RuneSk
 export const runeSkipped = (skip: readonly RuneSkip[], rune: string, day: number): boolean =>
   skip.some((s) => (typeof s === "string" ? s === rune : s[0] === rune && day < s[1]));
 
-/** Captain `id`'s picks at the dawns of days 1..days (RUN_DAYS by default), in pick order. */
+/** OPEN-1 (REQ-BFG-109): the captains' offer rule: closed (today's weighted offer, FIX-10's redraw), never the switch. */
+const CLOSED = false;
+
+/** Captain `id`'s picks at the dawns of days 1..days (RUN_DAYS by default), in pick order.
+ *  OPEN-1 (REQ-BFG-109): the captains keep today's weighted offer, whatever OPEN_RUNES says (a captain's runes are part of
+ *  its tuned plan; BUMP-1D's captain pass may revisit them): the offers and the check are CLOSED, passed explicitly, and the
+ *  whole list is read with the switch off (withOpenRunes(..., false)), so runeInertFor reads the base defs, not a
+ *  rewrite's. The output and the CAPTAIN_RUNES table are byte-identical with the switch on and off
+ *  (tests/open1.offers.test.ts). */
 export function captainRunes(id: RivalId, days = RUN_DAYS): string[] {
+  return withOpenRunes(() => closedCaptainRunes(id, days), false);
+}
+
+function closedCaptainRunes(id: RivalId, days: number): string[] {
   const hero = RIVALS[id].hero, seed = captainRuneSeed(id), skip = CAPTAIN_RUNE_SKIP[id] ?? [];
   // botRuneList's loop (runes.ts) with the generator's rules on the offer (the header): day d reads rivalBuild(id, d)
   // and runeOffer(seed, d, hero, the picks before it); it stops at an empty offer
   const list: string[] = [];
   for (let day = 1; day <= days; day++) {
-    const offer = runeOffer(seed, day, hero, list);
+    const offer = runeOffer(seed, day, hero, list, CLOSED);
     const cards = offer.ids.filter((q) => !runeInertFor(q, hero) && !runeSkipped(skip, q, day));
     const pick = botRunePick(cards.length ? cards : offer.ids, hero, rivalBuild(id, day));
     if (pick === null) break;
@@ -91,7 +104,7 @@ export function captainRunes(id: RivalId, days = RUN_DAYS): string[] {
   }
   if (list.length !== days) throw new Error(`captain runes ${id}: ${list.length} picks for ${days} dawns (an empty offer)`);
   for (let day = 1; day <= days; day++) {
-    const p = runeProblem(list.slice(0, day).map((q) => ({ id: q })), day, hero, captainRuneSeed(id));
+    const p = runeProblem(list.slice(0, day).map((q) => ({ id: q })), day, hero, captainRuneSeed(id), "atMost", false, -1, CLOSED);
     if (p) throw new Error(`captain runes ${id} day ${day}: ${p}`);
   }
   return list;

@@ -19,6 +19,7 @@ import { hashSeed, Rng } from "../core/rng";
 import { HEROES, RARITIES, type HeroId, type Rarity } from "./content";
 import { sustainLive } from "./content"; // SUS-D (REQ-BFG-069): the sustain switch gates the sustain runes' offer
 import { SUSTAIN_FIRST_DAY } from "./content"; // BOTS-X (REQ-BFG-069): the day-3 hold (runeOffer, runeProblem)
+import { OPEN_RUNE_DEFS, bindOpenRuneDefs } from "./openRunes"; // OPEN-1 (REQ-BFG-109): the rewrites behind OPEN_RUNES
 
 /** SUS-D: "sec" is a whole number of seconds (TICK GUARD's timer; runeText.ts writes it with the SEC icon, as `8{SEC}`). */
 export type RuneUnit = "dmg" | "hull" | "plate" | "gold" | "belt" | "pct" | "count" | "sec";
@@ -297,6 +298,32 @@ export const RUNES: Readonly<Record<string, RuneDef>> = Object.fromEntries(ALL_R
 /** A rune is in this rules version's catalogue. */
 export const isRune = (id: unknown): id is string => typeof id === "string" && Object.prototype.hasOwnProperty.call(RUNES, id);
 
+// ---- OPEN-1 (REQ-BFG-109): the dead-rune rewrites behind OPEN_RUNES (src/sim/openRunes.ts OPEN_RUNE_DEFS), in
+// ladderFix.ts's form: while the switch is on, each rewritten rune's def (built from its base def) stands in RUNES and in
+// the lists (RUNE_LIST or SUSTAIN_RUNE_LIST, and ALL_RUNES), so every reader sees one def; while it is off they hold the
+// very base objects written above. The same id, name, tier and theme, so no offer moves with a rewrite.
+
+/** The rewritten runes' base defs, kept at the first swap (so a swap back restores the very objects above). */
+const OPEN_BASE = new Map<string, RuneDef>();
+
+/** Put `def` in place of rune `id` wherever the catalogue holds it (RUNES and the lists), in place. */
+function placeRuneDef(id: string, def: RuneDef): void {
+  (RUNES as Record<string, RuneDef>)[id] = def;
+  for (const list of [RUNE_LIST, SUSTAIN_RUNE_LIST, ALL_RUNES] as unknown as RuneDef[][]) {
+    const i = list.findIndex((d) => d.id === id);
+    if (i >= 0) list[i] = def;
+  }
+}
+
+/** OPEN-1: swap each rewritten rune's def in (on) or put its base def back (off). openRunes.ts calls it at once with the
+ *  switch's state and at every change (setOpenRunes). */
+bindOpenRuneDefs((on) => {
+  for (const id of Object.keys(OPEN_RUNE_DEFS)) {
+    if (!OPEN_BASE.has(id)) OPEN_BASE.set(id, RUNES[id]);
+    placeRuneDef(id, on ? OPEN_RUNE_DEFS[id](OPEN_BASE.get(id)!) : OPEN_BASE.get(id)!);
+  }
+});
+
 /** SUS-D: is `id` one of the sustain runes (whatever the switch)? */
 export const isSustainRune = (id: string): boolean => SUSTAIN_RUNE_LIST.some((d) => d.id === id);
 
@@ -337,8 +364,10 @@ export function tierOdds(day: number): Record<Rarity, number> {
 /** Cards in the dawn's offer: 3 on days 1-4, 2 from day 5 (the operator's). */
 export const offerSize = (day: number): number => (day <= 4 ? 3 : 2);
 
-/** The draw's weight: the hero's own style x3, a generic theme x2, another hero's style x1. */
-export function runeWeight(d: RuneDef, hero: HeroId): number {
+/** The draw's weight: the hero's own style x3, a generic theme x2, another hero's style x1. OPEN-1 (REQ-BFG-109): under the
+ *  open rule (`open`, the caller's: openRunes.ts) every rune weighs 1, whatever the hero. */
+export function runeWeight(d: RuneDef, hero: HeroId, open = false): number {
+  if (open) return 1;
   if (GENERIC_THEMES.includes(d.theme)) return 2;
   return HERO_STYLE[hero] === d.theme ? 3 : 1;
 }
@@ -366,8 +395,11 @@ export interface RuneOffer {
  *    card has yet; when none is left, among all the tier's runes left (the theme rule relaxed, deterministically).
  * 4. FIX-10: if no card fits the hero (runeFits), the last card is redrawn among the fitting runes left whose theme no
  *    other card has (then among all fitting runes left); with none, the offer stands.
+ * OPEN-1 (REQ-BFG-109): `open` is the caller's rule (openRunes.ts: the game's switch, a record's own rules, the bots'
+ * switch, the captains' closed). Open, step 3 weighs every rune 1 (runeWeight) and step 4 is skipped, so the offer reads
+ * no hero at all: the same cards for every hero. Closed (the default), every line reads as before.
  */
-export function runeOffer(seed: number, day: number, hero: HeroId, held: readonly string[]): RuneOffer {
+export function runeOffer(seed: number, day: number, hero: HeroId, held: readonly string[], open = false): RuneOffer {
   const rng = new Rng(hashSeed(seed >>> 0, "rune", day));
   const size = offerSize(day);
   const odds = tierOdds(day);
@@ -389,11 +421,11 @@ export function runeOffer(seed: number, day: number, hero: HeroId, held: readonl
   const cards: RuneDef[] = [];
   while (cards.length < size && pool.length) {
     const fresh = pool.filter((d) => !cards.some((c) => c.theme === d.theme));
-    const pick = rng.weighted(fresh.length ? fresh : pool, (d) => runeWeight(d, hero));
+    const pick = rng.weighted(fresh.length ? fresh : pool, (d) => runeWeight(d, hero, open));
     cards.push(pick);
     pool = pool.filter((d) => d !== pick);
   }
-  if (cards.length && !cards.some((c) => runeFits(c, hero))) {
+  if (!open && cards.length && !cards.some((c) => runeFits(c, hero))) { // OPEN-1: no FIX-10 redraw under the open rule
     const others = cards.slice(0, -1);
     const fitting = pool.filter((d) => runeFits(d, hero));
     const fresh = fitting.filter((d) => !others.some((c) => c.theme === d.theme));
@@ -421,8 +453,10 @@ export type RuneCount = "exact" | "atMost";
  *   and no id appears twice;
  * - when `seed` is known (the uploader's snapshot; served ghosts carry none, FIX-6): runes[i] was in
  *   runeOffer(seed, i + 1, hero, the runes before it).
+ * OPEN-1 (REQ-BFG-109): `open` is the offer rule of the record's own rules (rulesGate.ts openRunesFor(snapshot.rules));
+ * each dawn's offer is re-derived under it (runeOffer's `open`). Closed (the default): as before.
  */
-export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number, count: RuneCount = "atMost", keepDormant = false, lcAt = -1): string | null {
+export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number, count: RuneCount = "atMost", keepDormant = false, lcAt = -1, open = false): string | null {
   // LC-1 (REQ-BFG-073): `lcAt` (>= 0 only for a snapshot whose lastChance took a rune): the LAST CHANCE rune's index, right
   // after the dawn pick of its day (lastChance.ts lastChanceRuneAt). It is one more rune than the dawns; its own offer is
   // validate.ts's check (lastChance.ts lastChanceOffer), and each dawn rune after it was taken at the dawn of day i, not
@@ -451,7 +485,7 @@ export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: nu
     if (seed === undefined && isSustainRune(q.id) && dawn < SUSTAIN_FIRST_DAY) return `runes[${i}]: ${RUNES[q.id].name} is not offered before the dawn of day ${SUSTAIN_FIRST_DAY}`;
     if (held.includes(q.id)) return `runes[${i}]: ${RUNES[q.id].name} is held twice`;
     // LC-1: the LAST CHANCE rune's offer is validate.ts's (lastChance.ts lastChanceOffer), not a dawn's
-    if (seed !== undefined && i !== lcAt && !runeOffer(seed, dawn, hero, held).ids.includes(q.id)) {
+    if (seed !== undefined && i !== lcAt && !runeOffer(seed, dawn, hero, held, open).ids.includes(q.id)) {
       return `runes[${i}]: ${RUNES[q.id].name} was not offered at the dawn of day ${dawn}`;
     }
     held.push(q.id);
@@ -690,14 +724,16 @@ export interface BotRune {
  * later dawn as a run's do (day.ts finishDay's runeDawn, or dawnGold(build.runes) for a bot without a Run). `seed` is the
  * run seed (run.seed, the one a snapshot carries). Null, the build untouched, when off, when the build missed a dawn
  * (runes.length !== day - 1: one rune a dawn from day 1, as runeDawn owes a pick) or when the offer is empty.
+ * OPEN-1 (REQ-BFG-109): `open`, the offer rule (runeOffer's): the bots pass the switch (openRunes.ts openRunesRules());
+ * closed by default, as before.
  */
-export function botTakeRune(build: Build, seed: number, day: number, hero: HeroId = build.hero, on: boolean = BOT_RUNES, won = false, lcRunes = 0): BotRune | null {
+export function botTakeRune(build: Build, seed: number, day: number, hero: HeroId = build.hero, on: boolean = BOT_RUNES, won = false, lcRunes = 0, open = false): BotRune | null {
   if (!on) return null;
   const ids = (build.runes ?? []).map((q) => q.id);
   // LC-1 (REQ-BFG-073): `lcRunes` (1 once a LAST CHANCE rune is held, else 0): it is held (the offer excludes it) but is
   // no dawn's pick, so the dawn count leaves it out
   if (ids.length - lcRunes !== day - 1) return null;
-  const id = botRunePick(runeOffer(seed, day, hero, ids), hero, build);
+  const id = botRunePick(runeOffer(seed, day, hero, ids, open), hero, build);
   if (id === null) return null;
   const d = RUNES[id];
   build.runes = [...(build.runes ?? []), { id }];
@@ -711,12 +747,13 @@ export function botTakeRune(build: Build, seed: number, day: number, hero: HeroI
 /**
  * The bots' picks at the dawns of days 1..days on a board by day, with no purse (R1b-2 1.6's captains: a named build by
  * day; tools/genCaptainRunes.ts). Day d reads boardOf(d) and runeOffer(seed, d, hero, the picks before it), so the list
- * passes runeProblem(list, days, hero, seed) by construction. It stops at an empty offer.
+ * passes runeProblem(list, days, hero, seed) by construction. It stops at an empty offer. OPEN-1 (REQ-BFG-109): `open`,
+ * the offer rule (runeOffer's; the list then passes runeProblem with the same `open`); closed by default, as before.
  */
-export function botRuneList(seed: number, hero: HeroId, boardOf: (day: number) => Build, days: number): string[] {
+export function botRuneList(seed: number, hero: HeroId, boardOf: (day: number) => Build, days: number, open = false): string[] {
   const picks: string[] = [];
   for (let day = 1; day <= days; day++) {
-    const id = botRunePick(runeOffer(seed, day, hero, picks), hero, boardOf(day));
+    const id = botRunePick(runeOffer(seed, day, hero, picks, open), hero, boardOf(day));
     if (id === null) break;
     picks.push(id);
   }

@@ -44,6 +44,7 @@ import { finishDay, startDusk } from "../src/game/day";
 import { serveJobs, workerRunner } from "./workers";
 import { botLastChancePick } from "../src/sim/harness/lastChance"; // H1: the existing LAST CHANCE pick policy
 import { lastChanceOffer, type Boon } from "../src/sim/lastChance";
+import { openRunesRules } from "../src/sim/openRunes"; // OPEN-1 (REQ-BFG-109): the bots' LAST CHANCE card follows the switch
 import { allOn } from "./loss1Switches";
 import { HEARTS_RULE, HEARTS_START, heartCost as sharedHeartCost, heartsDusk, type HeartsRule } from "../src/sim/hearts"; // RETUNE-1: the shared rule
 
@@ -694,7 +695,7 @@ function modeBench(): unknown {
           }
           reached = day;
           if (fired && day < RUN_DAYS) {
-            const offer = lastChanceOffer(runSeed, day, hero, (deck.runes ?? []).map((q) => q.id));
+            const offer = lastChanceOffer(runSeed, day, hero, (deck.runes ?? []).map((q) => q.id), openRunesRules()); // OPEN-1: the switch
             boon = botLastChancePick(offer, hero, deck, day, { wins }).boon;
             decks = playerRun(hero, RUN_DAYS, seed, { ...opts, lastChance: { day, boon: boon as Boon } });
           }

@@ -19,6 +19,7 @@ import { HEROES, RUN_DAYS, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, type Boon } from "../src/sim/lastChance";
+import { openRunesRules } from "../src/sim/openRunes"; // OPEN-1 (REQ-BFG-109): the bots' LAST CHANCE card follows the switch
 import { RUNES } from "../src/sim/runes";
 import { ITEMS } from "../src/sim/content";
 import { parRunSeed, playerRun, rateOn } from "../src/sim/harness/player";
@@ -118,7 +119,7 @@ function job(hero: HeroId, seed: number, hull: number, forced: boolean): JobOut 
   const d = onNoCard.lcDay;
   if (!d) return out;
   const board = plain[d - 1].build;
-  const offer = { ...lastChanceOffer(runSeed, d, hero, (board.runes ?? []).map((q) => q.id)), hull };
+  const offer = { ...lastChanceOffer(runSeed, d, hero, (board.runes ?? []).map((q) => q.id), openRunesRules()), hull }; // OPEN-1: the switch
   const pick = botLastChancePick(offer, hero, board, d, { wins: res.slice(0, d - 1).filter((r) => r === 0).length });
   const restOf = (boon: Boon): Rest => {
     const lcRun = playerRun(hero, RUN_DAYS, seed, { lastChance: { day: d, boon, ...(hull !== LAST_CHANCE_HULL ? { hull } : {}) } });

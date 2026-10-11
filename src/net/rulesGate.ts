@@ -228,3 +228,18 @@ export function heartsFor(rules: unknown): boolean {
 export function livesCapFor(rules: unknown, cap: number): number {
   return heartsFor(rules) ? Math.max(cap, HEARTS_START) : cap;
 }
+
+// ---- OPEN-1 (REQ-BFG-109): the open rune pool's row, on its own lines (RETUNE-1 adds HEARTS_RULES and PICK_RULES at this
+// spot). Not a RULES_ROWS row: it refuses no build feature; it says which offer rule re-derives a record's runes.
+import { openRunesRules } from "../sim/openRunes"; // OPEN-1: the OPEN_RUNES switch (src/sim/openRunes.ts)
+
+/** OPEN-1 (REQ-BFG-109): the first rules version whose rune offers are open (hero-blind: no style weight, no FIX-10 redraw,
+ *  no fit filter on LAST CHANCE's rune card). It reads RULES_VERSION until BUMP-1D writes the bump's version here as a
+ *  literal (as Z-BUMP wrote LAST_CHANCE_RULES); from then on every older record keeps today's weighted offers. */
+export const OPEN_RUNES_RULES: string = RULES_VERSION;
+
+/** Are the rune offers open for a record or upload under `rules`? The switch on AND `rules` a readable version at or after
+ *  OPEN_RUNES_RULES. False with the switch off, whatever the rules (every record is then checked on today's offers). */
+export function openRunesFor(rules: unknown): boolean {
+  return openRunesRules() && rulesAtLeast(rules, OPEN_RUNES_RULES);
+}

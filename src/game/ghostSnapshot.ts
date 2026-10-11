@@ -18,6 +18,7 @@ import { ROAD_FIELD } from "../net/snapshot"; // NPC-1 (REQ-BFG-077, REQ-BFG-078
 import { npcDayGateProblem } from "../net/rulesGate"; // NPC-1: the decoder's gate
 import { roadShapeOk, type RoadEntry } from "../sim/npcDay"; // NPC-1
 import { livesCapFor } from "../net/rulesGate"; // RETUNE-1 (REQ-BFG-096): the decoder's lives bound (hearts: 10)
+import { openRunesFor } from "../net/rulesGate"; // OPEN-1 (REQ-BFG-109): the offer rule of the snapshot's rules
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
 // build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
@@ -212,7 +213,8 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
     && rulesGateProblem(q.rules, q.build) === null && heroGateProblem(q.rules, q.hero) === null
     // RUNES-1: the rune rule (validate.ts validateBuild's); FLIP-X2 (ruling 5d6d83ef57d1494c): at most `day` here (the
     // local pool), exact only for uploads (validateUpload); and a dormant rune kept (an old ghost holding one survives)
-    && runeProblem(q.build.runes, q.day, q.hero, q.seed, "atMost", true, lastChanceRuneAt(lc)) === null;
+    // OPEN-1 (REQ-BFG-109): each dawn's offer re-derived on the offer rule of the snapshot's own rules (openRunesFor)
+    && runeProblem(q.build.runes, q.day, q.hero, q.seed, "atMost", true, lastChanceRuneAt(lc), openRunesFor(q.rules)) === null;
 }
 
 /** Any string made safe for ID_PATTERN (invalid characters become "_", at most 64 long). */
