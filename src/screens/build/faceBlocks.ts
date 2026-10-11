@@ -46,7 +46,7 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   const out: Block[] = [];
   // EXPLAIN-1 (REQ-BFG-084 step 0b; PIECES-1 3.3): WHETSTONE, TEMPER and BARBED SPOOL draw a plain face: their hit stat as
   // a stat row ({DMG}+20), no HIT: rule line (faces.ts PLAIN_RIGS; faceAt keeps the rule, so LEVELS and the chip stay)
-  const plainRig = plainRigStats(def, stars);
+  const plainRig = plainRigStats(def, stars, o.day); // MERGE-099C: on the read-out's day (HULL-1d), as the rule line
   if (plainRig) return [{ role: "ability", text: statRow(plainRig), keep: true }];
   if (fl.stats) out.push({ role: "ability", text: fl.stats, keep: true });
   // U2e step 2 (REQ-BFG-070): the second stat row, what a factory's own payloads carry ({BURN}2 {STUN}1.6), kept

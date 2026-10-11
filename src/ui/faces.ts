@@ -887,11 +887,13 @@ export function turretPlainOf(n: number, g: number): string[] {
 export const PLAIN_RIGS: readonly string[] = ["whetstone", "temper", "barbed"];
 
 /** A plain rig's stat row's pairs at `stars`, from the sim's star data through the formatters faceAt's rule uses (gate
- *  flat, burn, fray); null for every other piece. */
-export function plainRigStats(def: string, stars = 1): Stat[] | null {
+ *  flat, burn, fray); null for every other piece. MERGE-099C (HULL-1d, REQ-BFG-079): on `day`, the read-out's (the run's),
+ *  as faceAt's rule line reads it: WHETSTONE's + DAMAGE x D(d) (dayShown.ts dmgNow); BURN and FRAY are counts, unscaled.
+ *  No day, or HULL_SCALE off: day 1's, as before. */
+export function plainRigStats(def: string, stars = 1, day?: number): Stat[] | null {
   if (!PLAIN_RIGS.includes(def)) return null;
   const g = effectAt(def, stars).gate!;
-  if (def === "whetstone") return [["DMG", `+${fmtDmg(g.flat!)}`]];
+  if (def === "whetstone") return [["DMG", `+${fmtDmg(shownOn(day, () => dmgNow(g.flat!)))}`]];
   if (def === "temper") return [["BURN", `+${fmtCount(g.burn!)}`]];
   return [["FRAY", `+${fmtCount(g.fray!)}`]];
 }
