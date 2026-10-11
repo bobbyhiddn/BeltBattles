@@ -215,9 +215,11 @@ export class BattleCounters {
     let t: Rect | null = target;
     for (const b of avoid) if (t) t = clipOut(t, b);
     if (!t) return;
-    this.groups.push({ id, kind, side, ref, anchor, target: t });
+    const grp: Group = { id, kind, side, ref, anchor, target: t };
+    this.groups.push(grp);
     this.last.targets.push({ id, r: t });
-    game.ui.add({ id, r: t, onTap: () => { this.open = this.open === id ? null : id; } });
+    // the tap keeps the group as tapped, so its panel opens even if the count falls to 0 in the very next step
+    game.ui.add({ id, r: t, onTap: () => { this.open = this.open === id ? null : id; this.kept = this.open ? { grp, frames: 0 } : null; } });
   }
 
   // ------------------------------------------------------------------------------------------------------- the panel
