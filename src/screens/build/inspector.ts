@@ -34,6 +34,7 @@ import { platedDeck } from "../../sim/deck"; // 0.8.0 B1 M2 (F1): PLATE BREAKER'
 import { stokeKeep } from "../../sim/deckRating"; // 0.8.0 I1 M4 (VERIFIED-P1 H4): a stoke capped by its gun
 import { effectAt } from "../../sim/stars"; // 0.8.0 I1 M4: a STOKER's stoke at its stars
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
+import { freeJoinsRules } from "../../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): no pace words with FREE_JOINS on
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { infoFree } from "./keywords"; // U2f (REQ-BFG-070): the room the ⓘ view grows into
 import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
@@ -42,7 +43,8 @@ import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view
  * 0.6.2 TUNE-M, RULE JOIN PACE: the lines a joined factory's panels lead with (its own panel, and each of its belts'):
  * JOIN_PACE_LINE ("JOINED: THIS FACTORY RUNS AT 70% PACE.") and, for belt `index` (or the factory's first belt), how
  * often a load now leaves onto it against the unjoined rate. [] for a factory none of whose belts joins, so those
- * panels read as before.
+ * panels read as before. JOINS-1 (REQ-BFG-091): [] for every factory with FREE_JOINS on (factoryPace is 1: no line at
+ * all, not a 100% line).
  */
 export function joinPaceLines(b: Build, factoryUid: number, index = b.routes.findIndex((r) => r.factory === factoryUid)): [string, string][] {
   const pace = factoryPace(b, factoryUid);
@@ -707,8 +709,9 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   return {
     // 0.6.2j: a joining belt's sub names the belt it joins (0.6.2rel: two short sentences, no "·"); 0.6.2rel2: a main
     // belt's one sentence ends with its full stop too
-    // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joining belt's sub says its factory's pace too, for the header strip
-    sub: info.join ? `JOINS BELT ${info.join.route + 1} AT ${JOIN_PACE_PCT}% PACE. ${feeds}.` : `${feeds}.`,
+    // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joining belt's sub says its factory's pace too, for the header strip.
+    // JOINS-1 (REQ-BFG-091): with FREE_JOINS on there is no pace to say: the sub names the belt it joins only
+    sub: info.join ? (freeJoinsRules() ? `JOINS BELT ${info.join.route + 1}. ${feeds}.` : `JOINS BELT ${info.join.route + 1} AT ${JOIN_PACE_PCT}% PACE. ${feeds}.`) : `${feeds}.`,
     ...(info.join ? { subShort: `JOINS BELT ${info.join.route + 1}.` } : {}),
     // 0.6.2t2 (F2): the header strip labels its time as the readout's grid does (TIME), never a bare number
     headerOnly: info.connected ? {

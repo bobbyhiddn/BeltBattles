@@ -261,7 +261,9 @@ export function migrateRun(raw: unknown): Run | null {
   if (Array.isArray(r.build.items) && Array.isArray(r.build.routes)) beltsideRun(r); // 0.6.2 BELTSIDE (D3): every load, idempotent
   if (Array.isArray(r.build.routes) && r.build.routes.some((q: Raw) => q && q.join !== undefined)) {
     try {
-      pruneJoins(r.build as Build); // 0.6.2j (J8, J12): every load, idempotent; a deck without joins never gets here
+      // 0.6.2j (J8, J12): every load, idempotent; a deck without joins never gets here. JOINS-1 (REQ-BFG-091): a save is
+      // the run in play, under this client's rules: with FREE_JOINS on pruneJoins keeps every legal join (no limit)
+      pruneJoins(r.build as Build);
     } catch {
       /* a deck the sim can't read: its joins stay as saved (the sim treats an illegal join as an open end) */
     }

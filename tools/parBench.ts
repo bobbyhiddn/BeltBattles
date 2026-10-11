@@ -74,6 +74,7 @@ import { flag, num, serveJobs, workerRunner } from "./workers";
 import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix"; // HULL-1b (REQ-BFG-070): --ladder-fix
 import { hullScaleRules, setHullScale } from "../src/sim/hullScale"; // HULL-1c (REQ-BFG-079): --hull-scale, N4's cache
 import { setNpcDay } from "../src/sim/npcDay"; // HULL-1c (REQ-BFG-078): --npc-day
+import { freeJoinsRules, setFreeJoins } from "../src/sim/freeJoins"; // JOINS-1 (REQ-BFG-091): --free-joins, the pop cache
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
 /** 0.8.0 N1 (REQ-BFG-024, REQ-BFG-011): the par fields --rivals and --synergy measure against, `--fields a,b,...`
@@ -105,19 +106,20 @@ async function score(decks: Build[], gauntlet: Build[], seedsOf: (d: number, g: 
 /** HULL-1c (REVIEW-HULL1A N4): a population cache records the switches its scores were measured under: `hullScale`
  *  (HULL_SCALE: the day's hull, the wind's share and the economy behind it) and `ladderFix` (LADDER_FIX), each present
  *  only when on. With both off the file name and the record are as before. */
-interface PopCache { hero: HeroId; day: number; scores: number[]; costs: number[]; hullScale?: true; ladderFix?: true }
+interface PopCache { hero: HeroId; day: number; scores: number[]; costs: number[]; hullScale?: true; ladderFix?: true; freeJoins?: true }
 
 /** HULL-1c (N4): the cache file of `hero` and `day` under the switches now: pop-HERO-DAY.json with both off (as before),
- *  + "-hs" with HULL_SCALE on and "-lf" with LADDER_FIX on. */
+ *  + "-hs" with HULL_SCALE on and "-lf" with LADDER_FIX on. JOINS-1 (REQ-BFG-091): + "-fj" with FREE_JOINS on. */
 const popFile = (cache: string, hero: HeroId, day: number): string =>
-  resolve(cache, `pop-${hero}-${day}${hullScaleRules() ? "-hs" : ""}${ladderFixRules() ? "-lf" : ""}.json`);
+  resolve(cache, `pop-${hero}-${day}${hullScaleRules() ? "-hs" : ""}${ladderFixRules() ? "-lf" : ""}${freeJoinsRules() ? "-fj" : ""}.json`);
 
 /** HULL-1c (N4): read a population cache, refusing one recorded under other switches than this run's (a renamed or
  *  hand-copied file): its scores were measured on another game. */
 function readPop(f: string): PopCache {
   const c = JSON.parse(readFileSync(f, "utf8")) as PopCache;
-  const was = `HULL_SCALE ${c.hullScale === true ? "on" : "off"}, LADDER_FIX ${c.ladderFix === true ? "on" : "off"}`;
-  const now = `HULL_SCALE ${hullScaleRules() ? "on" : "off"}, LADDER_FIX ${ladderFixRules() ? "on" : "off"}`;
+  // JOINS-1: FREE_JOINS named only when on, so a switch-off cache reads exactly as before
+  const was = `HULL_SCALE ${c.hullScale === true ? "on" : "off"}, LADDER_FIX ${c.ladderFix === true ? "on" : "off"}${c.freeJoins === true ? ", FREE_JOINS on" : ""}`;
+  const now = `HULL_SCALE ${hullScaleRules() ? "on" : "off"}, LADDER_FIX ${ladderFixRules() ? "on" : "off"}${freeJoinsRules() ? ", FREE_JOINS on" : ""}`;
   if (was !== now) throw new Error(`${f}: a population cache recorded with ${was}; this run has ${now}: refused (use another --cache)`);
   return c;
 }
@@ -131,6 +133,7 @@ async function population(hero: HeroId, day: number, gauntlet: Build[], run: Run
   const out: PopCache = {
     hero, day, scores, costs: pop.map((c) => c.cost),
     ...(hullScaleRules() ? { hullScale: true as const } : {}), ...(ladderFixRules() ? { ladderFix: true as const } : {}),
+    ...(freeJoinsRules() ? { freeJoins: true as const } : {}), // JOINS-1
   };
   writeFileSync(f, JSON.stringify(out));
   return out;
@@ -1428,11 +1431,14 @@ if (isMainThread && process.argv.includes("--ladder-fix")) setLadderFix(true);
     if (process.argv.includes("--all-on")) for (const s of ["ladder", "hull", "npc"]) sw.add(s);
     if (process.argv.includes("--hull-scale")) sw.add("hull");
     if (process.argv.includes("--npc-day")) sw.add("npc");
+    // JOINS-1 (REQ-BFG-091): --free-joins (FREE_JOINS) the same way; --all-on still means the three above
+    if (process.argv.includes("--free-joins")) sw.add("free");
     if (sw.size) process.env.PARBENCH_SWITCHES = [...sw, ...(process.argv.includes("--ladder-fix") ? ["ladder"] : [])].join(",");
   } else for (const s of (process.env.PARBENCH_SWITCHES ?? "").split(",")) if (s) sw.add(s);
   if (sw.has("ladder")) setLadderFix(true);
   if (sw.has("hull")) setHullScale(true);
   if (sw.has("npc")) setNpcDay(true);
+  if (sw.has("free")) setFreeJoins(true);
 }
 // the entry comes last, so every module-level constant above is initialised before main() runs
 if (!isMainThread) serveJobs();

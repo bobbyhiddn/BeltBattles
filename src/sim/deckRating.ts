@@ -448,7 +448,8 @@ export interface DeckRating {
  * `fight`: the fight's length in seconds, FIGHT_T by default; the par player passes its day's (fightTime), so damage
  * is weighed by the share of that day's fight left after each first payload arrives, and RIVETER repairs half of it.
  * 0.6.2 TUNE-M, RULE JOIN PACE: a factory one of whose belts joins another belt makes its loads at JOIN_PACE of its rate
- * (deck.ts factoryPace), on every belt it feeds; a deck without joins rates exactly as before (x 1).
+ * (deck.ts factoryPace), on every belt it feeds; a deck without joins rates exactly as before (x 1). JOINS-1
+ * (REQ-BFG-091): with FREE_JOINS on factoryPace is 1 for every factory, so a joined factory rates at its full rate.
  */
 // 0.8.0 B1 M2: `breakerShare` (BREAKER_SHARE by default) lets a test read the rating's PLATE BREAKER term at other shares
 // BOTS-X (SUS-C, REQ-BFG-069; SUSTAIN-1 4.8 rule 2): `day` (the par player's, player.ts rateOn) with the sustain switch on

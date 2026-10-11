@@ -32,11 +32,18 @@
 // client's snapshot check, validateUpload given a snapshot's rules and the ghost probe ask it. HULL_SCALE and LADDER_FIX add
 // no id and no field: they change the rules of pieces bb-0.9.7 already carries (Y7b2's case), so the exact check (rules ===
 // RULES_VERSION) on every accepting path keeps bb-0.9.7's ghosts and records out of bb-0.10.0's pools.
+// JOINS-1 (REQ-BFG-091): FREE_JOINS_RULES, beside NPC_DAY_RULES (not a RULES_ROWS row: it refuses no field). Free joins
+// (no RULE JOIN PACE, no RULE JOIN LIMIT) hold for a record or an upload only when the switch is on AND its own rules
+// are at or after FREE_JOINS_RULES (freeJoinsFor); every stored record and every upload asks that, never the switch
+// alone: validateUpload checks the deck under its rules' answer, the bundled pool loader under each snapshot's, and a
+// battle record replays under its own (replay.ts). A record under older rules keeps both rules: its third join is
+// refused ("2 JOINS PER DECK") and its joined factories run at JOIN_PACE.
 
 import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
 import { RULES_VERSION } from "../sim/content"; // HULL-ON: the rows at the end read it until the flip (AZ-BUMP dropped NPC-1's import with NPC_DAY_RULES' literal)
 import { npcDayRules } from "../sim/npcDay"; // NPC-1: the switch
+import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): the switch
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
@@ -189,6 +196,21 @@ export function npcDayGateProblem(rules: unknown): string | null {
   if (rulesAtLeast(rules, NPC_DAY_RULES)) return null;
   const what = `the road log (snapshot.road) needs ${NPC_DAY_RULES} or later`;
   return parseRules(rules) ? `rules ${String(rules)} predate ${NPC_DAY_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}
+
+/**
+ * JOINS-1 (REQ-BFG-091): the first rules version with free joins (FREE_JOINS, src/sim/freeJoins.ts: a joining belt
+ * never slows its factory, and a deck holds any number of legal joins). As NPC_DAY_RULES is until its flip: it reads
+ * RULES_VERSION here, so with the switch on in a test an honest record under this build's rules gets free joins. THE
+ * RULES BUMP THAT TURNS FREE_JOINS ON WRITES ITS OWN VERSION HERE AS A LITERAL (as Z-BUMP wrote LAST_CHANCE_RULES), so
+ * from then on every older record (bb-0.9.7 among them) keeps RULE JOIN PACE and RULE JOIN LIMIT, whatever the switch.
+ */
+export const FREE_JOINS_RULES: string = RULES_VERSION;
+
+/** Do free joins hold for a record, snapshot or upload under `rules`? The switch on AND `rules` a readable version at or
+ *  after FREE_JOINS_RULES. False with the switch off, whatever the rules (every record then plays as at bb-0.9.7). */
+export function freeJoinsFor(rules: unknown): boolean {
+  return freeJoinsRules() && rulesAtLeast(rules, FREE_JOINS_RULES);
 }
 
 /** The gate's rows: what a build may carry and the first rules version that takes it, oldest first. RUNES-2a adds the
