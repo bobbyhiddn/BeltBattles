@@ -540,6 +540,29 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
 });
 
 import { definitionLines, explainWords, infoDrawn, infoItems, infoLevels, infoPages, panelPiece } from "../src/screens/build/keywords";
+import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
+import { captainSpans } from "../src/ui/captainText";
+
+describe("CARD-2 (k3 (i)): the two captains' lines with retired words, drawn in the current words (captainText.ts)", () => {
+  it("SPARKFANG's blurb and BRASSWICK's trick (alone and in the inspect panel's title); RIVALS unchanged; every other captain line as it was", () => {
+    const shown = (t: string) => captainSpans(t, "#000000").map((s) => s.t).join("");
+    expect([RIVALS.sparkfang.blurb, RIVALS.brasswick.trick]).toEqual(["GALVANIC COILS STUN YOUR MACHINES.", "MATCHED POUR"]); // src/sim keeps them
+    expect(shown(RIVALS.sparkfang.blurb)).toBe("GALVANIC COILS STUN YOUR PARTS.");
+    expect(shown(RIVALS.brasswick.trick)).toBe("TWIN POUR");
+    expect(shown(`${RIVALS.brasswick.name}, ${RIVALS.brasswick.trick}`)).toBe("BRASSWICK, TWIN POUR");
+    // STUNS still draws in STUN's colour
+    expect(captainSpans(RIVALS.sparkfang.blurb, "#000000").find((s) => s.t === "STUN")?.c).not.toBe("#000000");
+    let same = 0;
+    for (const id of RIVAL_IDS) for (const line of [RIVALS[id].trick, RIVALS[id].blurb, `${RIVALS[id].name}, ${RIVALS[id].trick}`]) {
+      expect(/\bMACHINES?\b|\bMATCHED\b/.test(shown(line)), `${id}: ${shown(line)}`).toBe(false);
+      if (!(id === "sparkfang" && line === RIVALS[id].blurb) && !(id === "brasswick" && line.includes("MATCHED POUR"))) {
+        expect(shown(line), id).toBe(line);
+        same++;
+      }
+    }
+    expect(same).toBe(RIVAL_IDS.length * 3 - 3);
+  });
+});
 
 describe("CARD-2 (k5): NOTES in 3x5 in the ⓘ view (READ-3 fix 5; the page counts are keywords.tap.test.ts's U2F pins)", () => {
   afterEach(() => { setTipsForTests("reload"); });
