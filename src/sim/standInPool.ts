@@ -73,6 +73,9 @@ import { TURRET_UID0, rotOf, setTurretList, startingTurrets, type Build, type Bu
 /** bb-0.8.3 (D10): a level 1..4 (absent or below 1: 1), as stars.ts levelOf (the loader imports only ./content and ./deck). */
 const levelOf = (n: number | undefined): number => (typeof n === "number" && Number.isFinite(n) && n >= 1 ? Math.min(4, Math.floor(n)) : 1);
 import { logMigration, migrateInlineGates } from "./beltside";
+import { logShapes, migrateShapedFactories } from "./beltside"; // SHAPES-1 (REQ-BFG-086 S6): the load migration
+import { footOf, footTurns } from "./foot"; // SHAPES-1 (S4): a shaped factory's rot
+import { shapesRules } from "./shapes"; // SHAPES-1 (S1): the switch
 import { STAND_IN_DATA, type StandInDay } from "./standInPoolData";
 
 /** RULES_VERSION the pool was generated (and scored) under. */
@@ -167,8 +170,18 @@ export function decodeStandIn(hero: HeroId, code: string): Build {
   const b = decodeStandInRaw(hero, code);
   const m = migrateInlineGates(b);
   logMigration("standin", m, { dropped: m.stranded.length });
-  if (m.stranded.length) renumber(b);
+  if (m.stranded.length + shapesStandIn(b)) renumber(b);
   return b;
+}
+
+/** SHAPES-1 (REQ-BFG-086 S6): with SHAPES on, a stand-in deck coded in 0.9.9's shapes re-places its GANTRY PRESS and
+ *  ASSEMBLY LINE (beltside.ts migrateShapedFactories; one that fits nowhere is dropped, logged under "standin:shapes").
+ *  Returns how many left the deck (0 with the switch off: nothing runs). */
+function shapesStandIn(b: Build): number {
+  if (!shapesRules()) return 0;
+  const moves = migrateShapedFactories(b);
+  logShapes("standin:shapes", moves);
+  return moves.filter((v) => !v.to).length;
 }
 
 /** Items get uids 1..n in order and mods n+1.., as the code format assigns them; routes follow their factory. Step 5:
@@ -197,7 +210,8 @@ export function decodeStandInRaw(hero: HeroId, code: string): Build {
   const items: Placed[] = words(itemPart).map((w, i) => {
     const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?$/.exec(w);
     if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad item "${w}"`);
-    if (m[4] && ITEMS[m[1]].kind !== "gate") throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
+    // SHAPES-1 (REQ-BFG-086 S4): a shaped factory (one whose footprint changes when turned) carries its rot too
+    if (m[4] && ITEMS[m[1]].kind !== "gate" && footTurns(footOf(ITEMS[m[1]])) === 1) throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
     return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}) };
   });
   const routes: RouteDef[] = words(routePart).map((w) => {
@@ -361,7 +375,7 @@ export function decodeStarred(hero: HeroId, code: string): Build {
   const b = decodeStarredRaw(hero, code);
   const m = migrateInlineGates(b);
   logMigration("standin", m, { dropped: m.stranded.length });
-  if (m.stranded.length) renumber(b);
+  if (m.stranded.length + shapesStandIn(b)) renumber(b);
   return b;
 }
 
@@ -379,7 +393,8 @@ export function decodeStarredRaw(hero: HeroId, code: string): Build {
   const items: Placed[] = words(itemPart).map((w, i) => {
     const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?(?:\*([23]))?$/.exec(w);
     if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad item "${w}"`);
-    if (m[4] && ITEMS[m[1]].kind !== "gate") throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
+    // SHAPES-1 (REQ-BFG-086 S4): a shaped factory (one whose footprint changes when turned) carries its rot too
+    if (m[4] && ITEMS[m[1]].kind !== "gate" && footTurns(footOf(ITEMS[m[1]])) === 1) throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
     return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}), ...star(m[5]) };
   });
   const routes: RouteDef[] = words(routePart).map((w) => {

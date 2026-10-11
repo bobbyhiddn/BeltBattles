@@ -10,8 +10,9 @@ import {
   adjacentToFactory, arrowCell, dirBetween, hero, inGrid, key, kx, ky, occupancy, opposite, rigArrows,
   rotField, turretForColumn, type Build, type Dir, type Placed,
 } from "./deck";
-import { cellsOf, rigArrowCells } from "./deck"; // SHAPES-1 (REQ-BFG-086 R1-R2): a piece's cells; a rig's per-cell arrows
-import { footOf, footOnDeck } from "./foot"; // SHAPES-1: a def's foot
+import { cellsOf, pruneJoins, rigArrowCells, rotOf } from "./deck"; // SHAPES-1 (REQ-BFG-086 R1-R2, S6): cells; per-cell arrows
+import { footOf, footOnDeck, footprintCells, footTurns } from "./foot"; // SHAPES-1: a def's foot
+import { RESHAPED_IDS, shapesRules } from "./shapes"; // SHAPES-1 (S6): the switch and the reshaped factories
 
 // ---------------------------------------------------------------- the D3 migration
 
@@ -152,11 +153,138 @@ export function clearMigrationLog(): void {
 /**
  * Migrate a ghost, stand-in or preset deck at its load boundary (D3): stranded rigs are dropped and the
  * drop is logged under `source`. Returns the same (mutated) deck, so builders can `return migrated(b, s)`.
+ * SHAPES-1 (REQ-BFG-086 S6): with SHAPES on, its GANTRY PRESS and ASSEMBLY LINE take their new shapes too
+ * (migrateShapedFactories; one that fits nowhere is dropped with its belts, logged under `source`:shapes). Off: as before.
  */
 export function migrateDeck<T extends Build>(b: T, source: string): T {
   const m = migrateInlineGates(b);
   logMigration(source, m, { dropped: m.stranded.length });
+  if (shapesRules()) logShapes(`${source}:shapes`, migrateShapedFactories(b));
   return b;
+}
+
+// ---------------------------------------------------------------- SHAPES-1 (S6): the load migration
+
+/** SHAPES-1 (S6): what migrateShapedFactories did to one reshaped factory. */
+export interface ReshapedMove {
+  uid: number;
+  def: string;
+  from: { x: number; y: number; rot: number };
+  to: { x: number; y: number; rot: number } | null; // null: it fits nowhere and left the deck with its belts (the caller cargoes it)
+  kept: number; // its belts kept
+  lost: number; // its belts removed, each whole
+  stars?: number; // the copy's stars (2 or 3), for the caller that cargoes it; absent = 1
+}
+
+/** One candidate placement of a reshaped factory: its anchor, rot and the indices of its own belts it keeps. */
+interface Spot { x: number; y: number; rot: number; keep: number[] }
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S6): with SHAPES on, every GANTRY PRESS and ASSEMBLY LINE (shapes.ts RESHAPED_IDS) on a deck made
+ * in 0.9.9's shapes is re-placed in its new shape, as migrateInlineGates re-placed BELTSIDE's gates. A spot is an anchor
+ * and a rot (0..footTurns - 1) whose cells are all on the deck, off other machinery, off other factories' belts and off
+ * the turret intake cells (cap's ruling 4ef9d32165edfd0d, 4: an intake cell "doesn't fit"). The factory's own belts may be
+ * covered: a belt is kept when its first tile is still beside the footprint and no cell of the footprint covers one of its
+ * tiles (and, for a belt that joins one of the factory's own belts, when that belt is kept). First the anchor at its own rot: if it fits there and keeps every belt, it stays (so the migration is idempotent
+ * and a deck made with SHAPES on never moves). Otherwise the spot that keeps the most belts wins; ties go to the nearest
+ * anchor to the old one (|dx| + |dy|), then the lower rot, then row order. A belt it can't keep is removed whole (and
+ * pruneJoins frees a belt that joined it), as when a factory is moved today. With no spot, the factory leaves the deck with
+ * its belts (`to: null`; the caller cargoes, refunds or drops it). Mutates `b`; deck order is kept. Off: nothing.
+ */
+export function migrateShapedFactories(b: Build): ReshapedMove[] {
+  const out: ReshapedMove[] = [];
+  if (!shapesRules()) return out;
+  for (const p of b.items.filter((q) => RESHAPED_IDS.includes(q.def))) {
+    const d = ITEMS[p.def];
+    const own = b.routes.map((r, i) => (r.factory === p.uid ? i : -1)).filter((i) => i >= 0);
+    const blocked = new Set<number>();
+    for (const q of b.items) if (q.uid !== p.uid) for (const k of cellsOf(q)) blocked.add(k);
+    b.routes.forEach((r, i) => { if (r.factory !== p.uid) for (const k of r.cells) blocked.add(k); });
+    const h = hero(b);
+    const spotAt = (x: number, y: number, rot: number): Spot | null => {
+      if (!footOnDeck(d, x, y, rot)) return null;
+      const cells = footprintCells(d, x, y, rot);
+      if (cells.some((k) => blocked.has(k) || (ky(k) === 0 && turretForColumn(h, kx(k)) >= 0))) return null;
+      const fp = new Set(cells);
+      const beside = (k: number) => !fp.has(k) && [0, 1, 2, 3].some((dir) => {
+        const nx = kx(k) - [0, 1, 0, -1][dir], ny = ky(k) - [-1, 0, 1, 0][dir];
+        return inGrid(nx, ny) && fp.has(key(nx, ny));
+      });
+      let keep = own.filter((i) => {
+        const r = b.routes[i];
+        return r.cells.length > 0 && beside(r.cells[0]) && !r.cells.some((k) => fp.has(k));
+      });
+      // a belt that joins one of its own belts it can't keep would be left an open end: it goes too (whole), down the chain
+      for (let changed = true; changed;) {
+        changed = false;
+        for (const i of keep) {
+          const j = b.routes[i].join;
+          const into = j === undefined ? -1 : b.routes.findIndex((q) => q.cells.includes(j));
+          if (into >= 0 && own.includes(into) && !keep.includes(into)) {
+            keep = keep.filter((q) => q !== i);
+            changed = true;
+            break;
+          }
+        }
+      }
+      return { x, y, rot, keep };
+    };
+    const from = { x: p.x, y: p.y, rot: rotOf(p) };
+    let best = spotAt(p.x, p.y, rotOf(p));
+    if (!best || best.keep.length < own.length) {
+      best = null;
+      const turns = footTurns(footOf(d));
+      let bestDist = Infinity;
+      for (let rot = 0; rot < turns; rot++) {
+        for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+          const s = spotAt(x, y, rot);
+          if (!s) continue;
+          const dist = Math.abs(x - p.x) + Math.abs(y - p.y);
+          const better = !best || s.keep.length > best.keep.length
+            || (s.keep.length === best.keep.length && (dist < bestDist || (dist === bestDist && rot < best.rot)));
+          if (better) {
+            best = s;
+            bestDist = dist;
+          }
+        }
+      }
+    }
+    if (!best) {
+      b.items = b.items.filter((q) => q.uid !== p.uid);
+      b.routes = b.routes.filter((r) => r.factory !== p.uid);
+      pruneJoins(b);
+      out.push({ uid: p.uid, def: p.def, from, to: null, kept: 0, lost: own.length, ...(p.stars && p.stars > 1 ? { stars: p.stars } : {}) });
+      continue;
+    }
+    const keep = new Set(best.keep);
+    const lost = own.filter((i) => !keep.has(i));
+    if (best.x !== p.x || best.y !== p.y || best.rot !== rotOf(p) || lost.length) {
+      p.x = best.x;
+      p.y = best.y;
+      const f = rotField(p.def, best.rot);
+      if (f.rot === undefined) delete p.rot;
+      else p.rot = f.rot;
+      if (lost.length) {
+        const drop = new Set(lost);
+        b.routes = b.routes.filter((_, i) => !drop.has(i));
+        pruneJoins(b);
+      }
+      out.push({ uid: p.uid, def: p.def, from, to: { x: best.x, y: best.y, rot: best.rot }, kept: best.keep.length, lost: lost.length });
+    }
+  }
+  return out;
+}
+
+/** SHAPES-1 (S6): log one deck's re-placed factories (the migration log's `moved`; `dropped` for one that fit nowhere). */
+export function logShapes(source: string, moves: ReshapedMove[], extra: { cargoed?: number; refunded?: number } = {}): void {
+  if (!moves.length) return;
+  const gone = moves.filter((m) => !m.to);
+  const m: Migration = { moved: [], stranded: [] };
+  for (const v of moves) {
+    if (v.to) m.moved.push({ uid: v.uid, def: v.def, from: key(v.from.x, v.from.y), to: key(v.to.x, v.to.y), rot: v.to.rot });
+    else m.stranded.push({ uid: v.uid, def: v.def, x: v.from.x, y: v.from.y });
+  }
+  logMigration(source, m, extra.cargoed !== undefined || extra.refunded !== undefined ? extra : { dropped: gone.length });
 }
 
 // ---------------------------------------------------------------- placement helpers

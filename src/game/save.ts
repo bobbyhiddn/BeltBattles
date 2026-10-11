@@ -23,6 +23,8 @@ import { RUN_DAYS, START_LIVES, type HeroId } from "../sim/content";
 import { pruneJoins, type Build } from "../sim/deck"; // 0.6.2j
 import { warlordName } from "../sim/ai";
 import { logMigration, migrateDeck, migrateInlineGates } from "../sim/beltside";
+import { logShapes, migrateShapedFactories } from "../sim/beltside"; // SHAPES-1 (REQ-BFG-086 S6): the load migration
+import { shapesRules } from "../sim/shapes"; // SHAPES-1 (S1): the switch
 import { starField, starsOf, valueOf } from "../sim/stars";
 import { ID_PATTERN, toId } from "./ghostSnapshot";
 import { fuseAll } from "./fuse";
@@ -132,6 +134,36 @@ export function beltsideRun(r: Raw): { moved: number; cargoed: number; refunded:
     dropped += n - before(b);
   }
   return { moved: m.moved.length, cargoed, refunded, dropped };
+}
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S6), at the save boundary: with SHAPES on, the run's GANTRY PRESS and ASSEMBLY LINE take their new
+ * shapes (beltside.ts migrateShapedFactories: kept where they fit with every belt, else the spot that keeps the most belts;
+ * a belt it can't keep is removed whole). One that fits nowhere goes to cargo with its belts removed (refunded, as
+ * beltsideRun's stranded rigs, once cargo holds MIGRATE_CARGO_CAP parts). The stored dusk foe and warlord decks re-place
+ * theirs too (one that fits nowhere is dropped, logged). Every load, idempotent; a run without them is untouched. Off: no
+ * call (migrateRun reads the switch).
+ */
+export function shapesRun(r: Raw): { moved: number; cargoed: number; refunded: number; lost: number } {
+  const moves = migrateShapedFactories(r.build);
+  let cargoed = 0, refunded = 0;
+  for (const v of moves) {
+    if (v.to) continue;
+    const p = { uid: v.uid, def: v.def };
+    if (r.inventory.length < MIGRATE_CARGO_CAP) {
+      r.inventory.push({ ...p, ...starField(v.stars ?? 1) });
+      cargoed++;
+    } else {
+      r.gold = (Number(r.gold) || 0) + valueOf(v.def, v.stars ?? 1);
+      refunded++;
+    }
+  }
+  logShapes("save:shapes", moves, { cargoed, refunded });
+  for (const [b, src] of [[r.dusk?.build, "save:dusk:shapes"], [r.warlord?.build, "save:warlord:shapes"]] as [Raw | undefined, string][]) {
+    if (!b || !Array.isArray(b.items) || !Array.isArray(b.routes)) continue;
+    logShapes(src, migrateShapedFactories(b as never));
+  }
+  return { moved: moves.filter((v) => v.to).length, cargoed, refunded, lost: moves.reduce((n, v) => n + v.lost, 0) };
 }
 
 function v6to7(r: Raw): void {
@@ -255,6 +287,8 @@ export function migrateRun(raw: unknown): Run | null {
   if (!STAGES.includes(r.stage)) r.stage = "caravan";
   if (r.stage === "warlord" && !(r.warlord && r.warlord.day === r.day)) r.stage = "fork";
   if (Array.isArray(r.build.items) && Array.isArray(r.build.routes)) beltsideRun(r); // 0.6.2 BELTSIDE (D3): every load, idempotent
+  // SHAPES-1 (REQ-BFG-086 S6): with SHAPES on, GANTRY PRESS and ASSEMBLY LINE in their new shapes; every load, idempotent
+  if (shapesRules() && Array.isArray(r.build.items) && Array.isArray(r.build.routes)) shapesRun(r);
   if (Array.isArray(r.build.routes) && r.build.routes.some((q: Raw) => q && q.join !== undefined)) {
     try {
       pruneJoins(r.build as Build); // 0.6.2j (J8, J12): every load, idempotent; a deck without joins never gets here

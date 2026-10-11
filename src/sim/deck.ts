@@ -14,7 +14,7 @@ import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
 // SHAPES-1 (REQ-BFG-086 R1-R2): the footprint engine (foot.ts) and the SHAPES switch (shapes.ts, loaded with the sim)
 import { canonicalRot, footOf, footOffsets, footOnDeck, footprintCells } from "./foot";
-import "./shapes";
+import { shapesRules } from "./shapes";
 export { footprintCells } from "./foot";
 
 export type Dir = 0 | 1 | 2 | 3;
@@ -952,7 +952,8 @@ export function canPlaceItem(b: Build, defId: string, x: number, y: number, igno
   // SHAPES-1 (REQ-BFG-086 R1): every cell of the turned footprint on the deck (a 1-cell rig or a 2x2: 0.9.9's bounds)
   if (!footOnDeck(def, x, y, rot)) return { ok: false, reason: "OFF THE DECK" };
   const occ = occupancy(b);
-  for (const k of footprintCells(def, x, y, rot)) {
+  const cells = footprintCells(def, x, y, rot);
+  for (const k of cells) {
     const o = occ[k];
     if (o.item >= 0 && o.item !== ignoreUid) return { ok: false, reason: "OCCUPIED" };
     if (o.route >= 0) {
@@ -960,7 +961,27 @@ export function canPlaceItem(b: Build, defId: string, x: number, y: number, igno
       if (!(def.kind === "factory" && r.factory === ignoreUid)) return { ok: false, reason: "BELT IN THE WAY" };
     }
   }
+  // SHAPES-1 (REQ-BFG-086 S5; cap's ruling, oracle 4ef9d32165edfd0d): with SHAPES on, a drop that newly covers a row-0
+  // intake cell of an installed turret is refused for every piece. The cells the piece (ignoreUid) stands on now are its
+  // own, so a piece already there (a 1-cell rig from an older save) may stay, turn in place or go back. Off: 0.9.9's rule.
+  if (shapesRules()) {
+    const own = ignoreUid >= 0 ? itemByUid(b, ignoreUid) : undefined;
+    const mine = own ? new Set(cellsOf(own)) : undefined;
+    const h = hero(b);
+    for (const k of cells) if (!mine?.has(k) && intakeOf(h, k)) return { ok: false, reason: "TURRET INTAKE" };
+  }
   return { ok: true };
+}
+
+/** SHAPES-1 (S5): is cell k a turret intake of hero view `h` (hero(b)): a forward-row cell in an installed turret's
+ *  connector column (beltside.ts intakeCell's test, on a resolved hero). */
+function intakeOf(h: HeroDef, k: number): boolean {
+  return ky(k) === 0 && turretForColumn(h, kx(k)) >= 0;
+}
+
+/** SHAPES-1 (S5): is cell k a row-0 intake cell of one of `b`'s installed turrets (beltside.ts intakeCell)? */
+export function isIntakeCell(b: Build, k: number): boolean {
+  return intakeOf(hero(b), k);
 }
 
 /** Place a new item on the deck (caller guarantees canPlaceItem). */

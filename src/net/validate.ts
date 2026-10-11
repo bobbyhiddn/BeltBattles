@@ -21,8 +21,10 @@ import {
   routeInfo, routeWellFormed, turretSlots, turretsCost, type Build,
 } from "../sim/deck";
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
-import { rotOf } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S4): a piece's turn
-import { footOnDeck, footprintCells } from "../sim/foot"; // SHAPES-1 (R1): the turned footprint
+import { isIntakeCell, rotOf } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S4, S5): a piece's turn; a turret intake cell
+import { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "../sim/foot"; // SHAPES-1 (R1): the turned footprint
+import { shapesRules, withShapes } from "../sim/shapes"; // SHAPES-1 (S1): the switch
+import { shapesGateProblem, shapesWorld } from "./rulesGate"; // SHAPES-1 (S1, S4): SHAPES_RULES' gate
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
@@ -146,7 +148,21 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // NPC-1 (REQ-BFG-077, REQ-BFG-078): a road log travels only with NPC_DAY on and under rules that have it
   const ndGate = ctx.road ? npcDayGateProblem(rules) : null;
   if (ndGate) return { ok: false, errors: [`road: ${ndGate}`] };
-  return validateBuild(build, day, "player", ctx);
+  // SHAPES-1 (REQ-BFG-086 S1, S4): the shaped rigs travel only with SHAPES on and under rules that have them
+  // (rulesGate.ts shapesGateProblem); a deck under older rules is judged in 0.9.9's shapes (inShapesWorld)
+  const shGate = shapesGateProblem(rules, build);
+  if (shGate) return { ok: false, errors: [`rules: ${shGate}`] };
+  return inShapesWorld(rules, () => validateBuild(build, day, "player", ctx));
+}
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S1, S4): run `fn` in the shapes world of `rules` (rulesGate.ts shapesWorld): with SHAPES on and
+ * rules before SHAPES_RULES, with the switch off (2x2 GANTRY PRESS and ASSEMBLY LINE at 0.9.9's price, no rot on a
+ * factory, no TURRET INTAKE), the world the deck was made in; otherwise as the switch stands. The switch is put back
+ * after, even on a throw (withShapes).
+ */
+export function inShapesWorld<T>(rules: unknown, fn: () => T): T {
+  return shapesRules() && !shapesWorld(rules) ? withShapes(fn, false) : fn();
 }
 
 export interface Validation {
@@ -361,11 +377,16 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   }
   if (FUSE_LIVE) for (const m of unfusedPairs(b)) errors.push(`item: ${m}`);
 
-  // 0.6.2 BELTSIDE (D2) rot: an integer 0..MAX_ROT (checkBuildShape already bounds it), on a rig only
+  // 0.6.2 BELTSIDE (D2) rot: an integer 0..MAX_ROT (checkBuildShape already bounds it), on a rig only. SHAPES-1 (REQ-BFG-086
+  // S1, S4): and on a shaped factory in its lowest form (foot.ts canonicalRot: a 2x3 or I3 factory rot 1, absent for 0);
+  // a piece whose footprint never changes when turned (a 2x2, so every factory with SHAPES off) still has none
   for (const p of b.items) {
     if (p.rot === undefined) continue;
+    const d = ITEMS[p.def], turns = footTurns(footOf(d));
     if (!Number.isInteger(p.rot) || p.rot < 0 || p.rot > MAX_ROT) errors.push(`item: uid ${p.uid} has rot ${p.rot}; expected 0..${MAX_ROT}`);
-    else if (ITEMS[p.def].kind !== "gate") errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have a rot (only rigs turn)`);
+    else if (d.kind === "gate") continue;
+    else if (turns === 1) errors.push(`item: uid ${p.uid} ${d.name} can't have a rot (only rigs turn)`);
+    else if (p.rot === 0 || p.rot >= turns) errors.push(`item: uid ${p.uid} ${d.name} has rot ${p.rot}; its ${footOf(d).toUpperCase()} footprint turns only to rot 1..${turns - 1} (absent = 0)`);
   }
 
   // purchasability and the signature factory
@@ -391,6 +412,11 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     const chk = canPlaceItem(b, p.def, p.x, p.y, p.uid, rotOf(p));
     if (!chk.ok && chk.reason !== "OCCUPIED") errors.push(`placement: uid ${p.uid} ${d.name} at ${p.x},${p.y}: ${chk.reason}`);
     if (!footOnDeck(d, p.x, p.y, rotOf(p))) continue;
+    // SHAPES-1 (S5; cap's ruling, oracle 4ef9d32165edfd0d): with SHAPES on a SHAPED piece (2+ cells for a rig, not 2x2 for
+    // a factory) may not cover a turret intake cell; a 1-cell rig and a 2x2 keep 0.9.9's rule there (legal)
+    if (shapesRules() && isShaped(d) && footprintCells(d, p.x, p.y, rotOf(p)).some((k) => isIntakeCell(b, k))) {
+      errors.push(`placement: uid ${p.uid} ${d.name} at ${p.x},${p.y}: TURRET INTAKE`);
+    }
     for (const k of footprintCells(d, p.x, p.y, rotOf(p))) {
       const o = owner.get(k);
       if (o !== undefined) errors.push(`placement: uid ${p.uid} ${d.name} overlaps uid ${o} at cell ${k}`);
