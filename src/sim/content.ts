@@ -31,7 +31,14 @@ import { hullScaleRules, incomeOn } from "./hullScale"; // HULL-1c (REQ-BFG-079)
 // gear, or +500 max hull; and the bots' rating prices an overfed gun's jams (the overfeed patch, OVF-1); every pool
 // regenerated once with them. 0.9.4 and 0.9.5 shipped on bb-0.9.3, and the motion release takes 0.9.6 on bb-0.9.3, so the
 // rules skip to the release that first ships them (cap's call). Ghosts and records made under bb-0.9.3 don't mix.
-export const RULES_VERSION = "bb-0.9.7";
+// bb-0.10.0 (the hull release, job AZ-BUMP; REQ-BFG-079, REQ-BFG-077, REQ-BFG-078, REQ-BFG-073, REQ-BFG-070): the hull
+// grows with the day (HULL_SCALE: M, S and D, the wind's share, the gold table), every day has a warlord fight that drops
+// a part, then an event and REFIT before dusk (NPC_DAY: a snapshot carries its road log), every star is a real step up
+// (LADDER_FIX), LAST CHANCE's HULL card is +500 x M(d), and REFIT-AZ's captains shop on the road; every pool regenerated
+// once with them. The three switches are on for good (AZ-BUMP's flip; their off paths stay this release for older
+// records). The rules string is cap's call; the release lane picks the label at staging. Ghosts and records made under
+// bb-0.9.7 don't mix.
+export const RULES_VERSION = "bb-0.10.0";
 /**
  * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
  * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player

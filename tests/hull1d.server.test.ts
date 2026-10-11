@@ -1,7 +1,7 @@
 // HULL-1d (REQ-BFG-079, REQ-BFG-073, REQ-BFG-078; BRIEF-HULL1D 2 (g)): the server with every switch on. NPC_DAY, HULL_SCALE and
 // LADDER_FIX on together, as AZ-BUMP will ship them (each through its setter; every test puts all three back on, the shipped
 // value, afterEach; AZ-BUMP's flip, was off).
-// 1. Honest uploads pass, for every hero the game offers (heroBuilds.ts PLAYABLE_HEROES, the bb-0.9.7 rules' heroes), days
+// 1. Honest uploads pass, for every hero the game offers (heroBuilds.ts PLAYABLE_HEROES, the bb-0.10.0 rules' heroes; AZ-BUMP: was bb-0.9.7), days
 //    1-10: the upload driver's runs (tests/uploadDriver.ts: bought decks, the NPC day's fight, event and REFIT, its LAST CHANCE
 //    drawn from the offer), and scripted runs through the game's own rules that take each LAST CHANCE card (RUNE, PART at ★2,
 //    HULL), win drops at each tier (Easy, Medium, Hard at ★2; the Matriarch's part), buy ARMOR PACKs and take HULL runes, so
@@ -39,7 +39,7 @@ import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { driveRuns } from "./uploadDriver";
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
-/** Every hero the game offers (hero select's list): the heroes bb-0.9.7's rules accept (the first test checks they agree). */
+/** Every hero the game offers (hero select's list): the heroes bb-0.10.0's rules accept (AZ-BUMP: was bb-0.9.7's) (the first test checks they agree). */
 const HEROS: readonly HeroId[] = PLAYABLE_HEROES;
 const PLATE = ITEMS.plating.supply!.hull!, PLATE_GOLD = ITEMS.plating.price; // an ARMOR PACK: +250 max hull, 5 gold
 const CRATE = ITEMS.beltcrate.supply!.belt!, CRATE_GOLD = ITEMS.beltcrate.price; // a BELT PACK: +4 belt, 2 gold
@@ -256,7 +256,7 @@ function scripted(): Played[] {
 }
 
 describe("HULL-1d (g)1: honest uploads pass with every switch on, every hero, days 1-10", () => {
-  it("every hero the game offers is a hero bb-0.9.7's rules accept", () => {
+  it("every hero the game offers is a hero bb-0.10.0's rules accept", () => {
     expect([...HEROS].sort()).toEqual([...heroesFor(RULES_VERSION)].sort());
   });
 

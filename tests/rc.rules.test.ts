@@ -89,7 +89,7 @@ function as070(identity: Identity, sent: GhostSnapshot[] = []): OnlineDeps {
 
 describe("rules bb-0.8.7: the version", () => {
   it("RULES_VERSION is bb-0.8.7 (RUNES-1), at or after bb-0.8.0, the first rules that carry the four playable heroes (HEROES_RULES); bb-0.6.2 carries FURNACE and WEAVER", () => {
-    expect(RULES_VERSION).toBe("bb-0.9.7") /* Z-BUMP: the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     // the RC's bump made RULES_VERSION HEROES_RULES itself; BELTS's comes after it, and the table needs no new row
     expect(HEROES_RULES).toBe("bb-0.8.0");
     expect(rulesAtLeast(RULES_VERSION, HEROES_RULES)).toBe(true);
@@ -119,10 +119,10 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
   const ask = (rules: string, day = 3) => fetch(`${base}/v1/ghosts/match?rules=${rules}&day=${day}&wins=1&lives=5&player=rc-new&seen=&runs=0`);
 
   it("/v1/health names bb-0.8.7, and the match route serves bb-0.8.7 seed ghosts and no bb-0.6.2 ghost", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.9.7") /* Z-BUMP: the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const now = await ask(RULES_VERSION);
     expect(now.status).toBe(200);
-    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.9.7") /* Z-BUMP: the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const old = await ask(OLD_RULES);
     expect(old.status).toBe(404);
     await old.text();
@@ -147,7 +147,7 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
       const old = await post(snapOf(hero, day, OLD_RULES, ref));
       if (hero === "furnace" || hero === "weaver") {
         expect(old.status, `${hero} d${day} ${OLD_RULES}`).toBe(422);
-        expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates bb-0.9.7`); // Z-BUMP: the server names bb-0.9.7 (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
+        expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates bb-0.10.0`); // AZ-BUMP: the server names bb-0.10.0 (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
       } else {
         expect(old.status, `${hero} d${day} ${OLD_RULES}`).toBe(400);
         expect(old.body.error).toBe(`snapshot.hero: rules ${OLD_RULES} accept only FURNACE, WEAVER, not ${hero.toUpperCase()}`);
@@ -159,21 +159,21 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
   });
 
   // STAGE-091, backlog 333-11 (VERIFIED-RC's mutant CM2): the server's rules check is exact, not a prefix. An otherwise
-  // honest upload under this build's two neighbours, bb-0.9.6 (the motion release's label on bb-0.9.3's rules) and bb-0.9.8,
-  // is refused with 422 at that check, and nothing is stored under either. A check loosened to the prefix "bb-0.9" would
-  // store both (CM2). Z-BUMP: the bump moved the neighbours (were bb-0.9.2 and bb-0.9.4 around bb-0.9.3; Y7b2: bb-0.9.0 and
-  // bb-0.9.2 around bb-0.9.1)
-  it("refuses an otherwise honest upload under bb-0.9.6 and under bb-0.9.8: 422 at the exact rules check, nothing stored under either", async () => {
-    expect(RULES_VERSION).toBe("bb-0.9.7"); // the two near misses are this build's neighbours (Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1)
+  // honest upload under this build's two neighbours, bb-0.9.7 (the rules it replaces, 0.9.7's and 0.9.8's) and bb-0.10.1,
+  // is refused with 422 at that check, and nothing is stored under either. A check loosened to the prefix "bb-0." would
+  // store both, and one loosened to "bb-0.10" the second (CM2). AZ-BUMP: the bump moved the neighbours (were bb-0.9.6 and
+  // bb-0.9.8 around bb-0.9.7; Z-BUMP: bb-0.9.2 and bb-0.9.4 around bb-0.9.3; Y7b2: bb-0.9.0 and bb-0.9.2 around bb-0.9.1)
+  it("refuses an otherwise honest upload under bb-0.9.7 and under bb-0.10.1: 422 at the exact rules check, nothing stored under either", async () => {
+    expect(RULES_VERSION).toBe("bb-0.10.0"); // the two near misses are this build's neighbours (AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1)
     const before = backend.storedRecords();
     const day = 3;
-    for (const rules of ["bb-0.9.6", "bb-0.9.8"]) { // Z-BUMP: was ["bb-0.9.2", "bb-0.9.4"]; Y7b2: was ["bb-0.9.0", "bb-0.9.2"]
+    for (const rules of ["bb-0.9.7", "bb-0.10.1"]) { // AZ-BUMP: was ["bb-0.9.6", "bb-0.9.8"]; Z-BUMP: was ["bb-0.9.2", "bb-0.9.4"]; Y7b2: was ["bb-0.9.0", "bb-0.9.2"]
       for (const hero of PLAYABLE_HEROES) {
         const deck = withDawnRunes(heroRefBuild(hero, day), day);
         expect(validateUpload(deck, day, rules).ok, `${hero} ${rules}: honest under its own rules`).toBe(true); // only the rules string is off
         const r = await post({ ...snapOf(hero, day, rules, deck), v: SNAPSHOT_V3 });
         expect(r.status, `${hero} d${day} ${rules}`).toBe(422);
-        expect(r.body.error).toBe(`rules ${rules} not accepted: this server validates bb-0.9.7`); // Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1
+        expect(r.body.error).toBe(`rules ${rules} not accepted: this server validates bb-0.10.0`); // AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1
       }
       expect(await app.store.bucket(rules, day)).toEqual([]);
     }

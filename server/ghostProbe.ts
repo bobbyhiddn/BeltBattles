@@ -11,7 +11,7 @@
 //   unreachable-signed  that honest deck with a record no run carries: day 1, 0 wins, 1 life   -> 422, H2's record error
 //   hero-WEAVER, hero-FOUNDRY, hero-BASTION: each hero's honest day-3 reference deck (heroRefBuild) at 1 win and 5 lives,
 //                       a record a run carries into dusk 3 (records.ts isReachable)            -> 201 each
-//   hero-METRONOME, hero-SIPHON: the same, for the two heroes bb-0.9.7 does not take (FLIP-X2: release X adds no hero; BAL-2: nor does 0.9.1; Y7b2: nor does release Y; Z-BUMP: nor does release Z). The game's encoder
+//   hero-METRONOME, hero-SIPHON: the same, for the two heroes bb-0.10.0 does not take (FLIP-X2: release X adds no hero; BAL-2: nor does 0.9.1; Y7b2: nor does release Y; Z-BUMP: nor does release Z; AZ-BUMP: nor does the hull release). The game's encoder
 //                       refuses them, so their bytes are the canonical text built by hand     -> 400, the strict decode's
 //                       hero gate naming bb-0.8.3 and the hero
 // Z-PREP (REQ-BFG-073; LC-1 REPORT 9.3), two more rows, under PROBE_RULES with LAST CHANCE (Z-BUMP: the switch is gone;
@@ -20,14 +20,22 @@
 //                       and 2 lives after a LAST CHANCE on day 5, with its seed                -> 201 and its ghost id
 //   lastchance-day3     the same with its LAST CHANCE on day 3, which no run carries           -> 422, the record error
 // Under rules before LAST_CHANCE_RULES the plan would be exactly the nine rows above, in that order, byte for byte.
-// Exactly five decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION and
-// FURNACE's LAST CHANCE deck (four under rules without LAST CHANCE).
+// AZ-BUMP (REQ-BFG-077, REQ-BFG-078; the hull release's bump to bb-0.10.0), two more rows, under PROBE_RULES with the NPC
+// day (the rules gate decides, rulesGate.ts npcDayGateProblem(PROBE_RULES), as for any record):
+//   npcday-signed       WEAVER's start deck with its two dawn runes, dusk 2 at 1 win and 5 lives, with its seed and the
+//                       road log of its two warlord wins (day 1 EASY, no drop; day 2 MEDIUM, its seeded drop SCATTER)
+//                                                                                              -> 201 and its ghost id
+//   npcday-forged       the same with day 2's drop forged (DARTGUN, another part of that warlord's pool)
+//                                                                                              -> 422, the road error
+// Under rules before NPC_DAY_RULES the plan would be exactly the eleven rows above, in that order, byte for byte.
+// Exactly six decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
+// FURNACE's LAST CHANCE deck and WEAVER's NPC-day deck (five under rules without the NPC day, four without LAST CHANCE).
 // Built by `npm run build:server` beside ghost-admin.mjs:  node server/dist/ghost-probe.mjs <base-url> <id-file>
 // It writes the probe's player id to <id-file> before the first POST, so the clean-up (ghost-admin.mjs remove-player)
 // always has it, and it refuses an <id-file> that already holds an id (that earlier probe's player is not cleaned up yet).
 // It prints one line per check (PASS or FAIL, name, expected, got), then the player id, then a summary with the number of
 // decks the server stored for this player. Exit 0 only if every check matched; 1 if a check failed or got no answer; 2
-// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is bb-0.9.7. There is no secret
+// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is bb-0.10.0. There is no secret
 // to print: the key is non-extractable, and neither the public key nor a signature is printed. No network but the base
 // URL. Its expectations are written out here, not read from the code under test (the rules gate, the record model).
 
@@ -39,11 +47,13 @@ import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { botTakeRune } from "../src/sim/runes"; // FLIP-X2 (cap's ruling 5d6d83ef57d1494c): the honest decks' dawn runes
 import { LAST_CHANCE_HULL } from "../src/sim/lastChance"; // Z-PREP (REQ-BFG-073): the flip's two rows
 import { lastChanceGateProblem } from "../src/net/rulesGate"; // Z-BUMP (REQ-BFG-073): the two rows by PROBE_RULES, through the rules gate
+import { npcDayGateProblem } from "../src/net/rulesGate"; // AZ-BUMP (REQ-BFG-077, REQ-BFG-078): the NPC day's two rows, through the rules gate
+import type { RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP: the NPC-day rows' road log
 
-/** The rules this probe's expectations are written for: release Z's (bb-0.9.7, Z-BUMP's bump, with LAST CHANCE's two rows;
- *  release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6, BELTS's bb-0.8.3 and
- *  0.8.0's bb-0.8.0 before, the same heroes). */
-export const PROBE_RULES = "bb-0.9.7"; // Z-BUMP (REQ-BFG-073): the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+/** The rules this probe's expectations are written for: the hull release's (bb-0.10.0, AZ-BUMP's bump, with the NPC day's
+ *  two rows; release Z's bb-0.9.7 with LAST CHANCE's two rows, release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's
+ *  bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6, BELTS's bb-0.8.3 and 0.8.0's bb-0.8.0 before, the same heroes). */
+export const PROBE_RULES = "bb-0.10.0"; // AZ-BUMP (REQ-BFG-077, REQ-BFG-078, REQ-BFG-079): the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
 /** FLIP-X2 (cap's ruling 5d6d83ef57d1494c): under bb-0.9.0 an upload holds exactly one rune a dawn (validateUpload's
  *  player mode). The probe's honest decks take theirs as the bots do (runes.ts botTakeRune at each dawn on this run seed:
  *  the grants on the build, every pick in its dawn's offer), and the snapshot carries the seed (v3), so the server
@@ -57,9 +67,9 @@ export function probeRunes(build: GhostSnapshot["build"], day: number): GhostSna
   }
   return b;
 }
-/** The heroes bb-0.9.7 takes, as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
+/** The heroes bb-0.10.0 takes, as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
 export const PROBE_ACCEPTED = "FURNACE, WEAVER, FOUNDRY, BASTION";
-/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.9.7 refuses (400), in posting order. */
+/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.10.0 refuses (400), in posting order. */
 export const STORED_HEROES: readonly HeroId[] = ["weaver", "foundry", "bastion"];
 export const REFUSED_HEROES: readonly HeroId[] = ["metronome", "siphon"];
 /** The hero rows' dusk: day 3 at 1 win and 5 lives, a record a run carries into dusk 3. */
@@ -76,8 +86,22 @@ export const LC_FORGED_DAY = 3;
 /** Z-BUMP (REQ-BFG-073): does the probe's rules version have LAST CHANCE (the rules gate: PROBE_RULES at or after
  *  LAST_CHANCE_RULES)? The switch is gone; this asks what the switch asked. */
 export const probeHasLastChance = (): boolean => lastChanceGateProblem(PROBE_RULES) === null;
-/** The decks the probe stores when every check passes: PROBE_STORED, and the honest LAST CHANCE deck under rules with it. */
-export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0);
+/** AZ-BUMP (REQ-BFG-077, REQ-BFG-078): the NPC-day rows' hero, dusk and road log on PROBE_SEED, written out (the server
+ *  re-derives each warlord, its deck and its seeded roll from the seed: validate.ts roadProblem). Day 1's EASY warlord
+ *  (BRASSWICK) rolled no drop; day 2's MEDIUM warlord (LACEWING) rolled SCATTER. The forged row names DARTGUN, another
+ *  part of LACEWING's pool, as day 2's drop. */
+export const NPC_HERO: HeroId = "weaver";
+export const NPC_DUSK = { day: 2, wins: 1, lives: 5 } as const;
+export const NPC_ROAD: readonly RoadEntry[] = [{ day: 1, tier: "easy", outcome: "win" }, { day: 2, tier: "medium", outcome: "win", drop: "scatter" }];
+export const NPC_FORGED_DROP = "dartgun";
+/** The server's answer to the forged drop: validateUpload's road line (validate.ts roadProblem), inside "deck failed validation". */
+export const NPC_ROAD_ERROR = `road: day 2: the seeded roll of LACEWING gave scatter, not ${NPC_FORGED_DROP}`;
+/** AZ-BUMP: does the probe's rules version have the NPC day (the rules gate: PROBE_RULES at or after NPC_DAY_RULES, with the
+ *  switch on, as the build ships)? */
+export const probeHasNpcDay = (): boolean => npcDayGateProblem(PROBE_RULES) === null;
+/** The decks the probe stores when every check passes: PROBE_STORED, the honest LAST CHANCE deck under rules with it, and
+ *  the honest NPC-day deck under rules with the NPC day (AZ-BUMP). */
+export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0);
 export const PROBE_TIMEOUT_MS = 15_000;
 export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file>   (base url: http(s)://host[:port], no path; an id file that holds no id yet)";
 /** The server's answer to a POST without the signing headers (identity.ts uploadHeaderError). */
@@ -88,7 +112,7 @@ export const recordError = (d: { day: number; wins: number; lives: number }): st
 /** Z-PREP (REQ-BFG-073): the same answer for an upload that carries a LAST CHANCE (server/app.ts, POST step 6). */
 export const lcRecordError = (d: { day: number; wins: number; lives: number }, lcDay: number): string =>
   `${recordError(d)} after a LAST CHANCE on day ${lcDay}`;
-/** The strict decode's answer to a hero bb-0.9.7 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
+/** The strict decode's answer to a hero bb-0.10.0 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
 export const heroError = (hero: HeroId): string => `snapshot.hero: rules ${PROBE_RULES} accept only ${PROBE_ACCEPTED}, not ${hero.toUpperCase()}`;
 
 export interface ProbeAnswer {
@@ -165,6 +189,9 @@ export function canonicalText(s: GhostSnapshot): string {
     // Z-BUMP (REQ-BFG-073, the flip): the taken LAST CHANCE, last of all { day, boon, id? } (snapshot.ts lastChanceField), so
     // the probe's own canonical bytes cover its two LAST CHANCE rows as the encoder writes them
     ...(s.lastChance !== undefined ? { lastChance: { day: s.lastChance.day, boon: s.lastChance.boon, ...(s.lastChance.id !== undefined ? { id: s.lastChance.id } : {}) } } : {}),
+    // AZ-BUMP (REQ-BFG-077, REQ-BFG-078): the road log after it, last of all [{ day, tier, outcome, drop?, sabotaged? }]
+    // (snapshot.ts roadField), so the probe's own canonical bytes cover its two NPC-day rows as the encoder writes them
+    ...(s.road !== undefined ? { road: s.road.map((e) => ({ day: e.day, tier: e.tier, outcome: e.outcome, ...(e.drop !== undefined ? { drop: e.drop } : {}), ...(e.sabotaged ? { sabotaged: true } : {}) })) } : {}),
   });
 }
 
@@ -191,7 +218,16 @@ function lastChanceDusk(playerId: string, lcDay: number, runId: string, now: num
   return { ...dusk(playerId, "furnace", LC_DUSK, build, runId, now), lastChance: { day: lcDay, boon: "hull" } };
 }
 
-/** The nine POSTs, in order, for `playerId` at time `now` (eleven while LAST CHANCE is on). Pure: no key, no network. */
+/** AZ-BUMP (REQ-BFG-077, REQ-BFG-078): WEAVER's start deck with its dawn runes of days 1..2, uploaded at dusk 2 (1W 5L) with
+ *  `road`, the road log of its two warlord fights (NPC_ROAD, or a forgery of it). Only under rules with the NPC day (the
+ *  encoder and the decoder refuse the field otherwise). */
+function npcDayDusk(playerId: string, road: readonly RoadEntry[], runId: string, now: number): GhostSnapshot {
+  const build = probeRunes(heroStartBuild(NPC_HERO), NPC_DUSK.day);
+  return { ...dusk(playerId, NPC_HERO, NPC_DUSK, build, runId, now), road: road.map((e) => ({ ...e })) };
+}
+
+/** The nine POSTs, in order, for `playerId` at time `now` (eleven with LAST CHANCE; thirteen with the NPC day too, as
+ *  bb-0.10.0 has both). Pure: no key, no network. */
 export function probePlan(playerId: string, now: number): PlannedPost[] {
   const run = `probe-${now}`;
   const plan: PlannedPost[] = [];
@@ -233,6 +269,19 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
     const forged = lastChanceDusk(playerId, LC_FORGED_DAY, `${run}-lastchance-day3`, now);
     const fErr = lcRecordError(LC_DUSK, LC_FORGED_DAY);
     plan.push({ name: "lastchance-day3", snapshot: forged, text: encodeSnapshot(forged), signed: true, expected: `422 ${fErr}`, pass: (a) => a.status === 422 && a.error === fErr });
+  }
+  // 12-13. AZ-BUMP (REQ-BFG-077, REQ-BFG-078): the NPC day's rows, under rules with the NPC day (the rules gate): an honest
+  // NPC-day upload with its road log and a drop, then the same with day 2's drop forged
+  if (probeHasNpcDay()) {
+    const nd = npcDayDusk(playerId, NPC_ROAD, `${run}-npcday`, now);
+    const nid = ghostId(nd);
+    plan.push({ name: "npcday-signed", snapshot: nd, text: encodeSnapshot(nd), signed: true, expected: `201 {"id":"${nid}"}`, pass: (a) => a.status === 201 && a.id === nid });
+    const forgedRoad = NPC_ROAD.map((e) => (e.day === NPC_DUSK.day ? { ...e, drop: NPC_FORGED_DROP } : e));
+    const nf = npcDayDusk(playerId, forgedRoad, `${run}-npcday-forged`, now);
+    plan.push({
+      name: "npcday-forged", snapshot: nf, text: encodeSnapshot(nf), signed: true, expected: `422 deck failed validation: ${NPC_ROAD_ERROR}`,
+      pass: (a) => a.status === 422 && a.error === "deck failed validation" && (a.errors ?? []).includes(NPC_ROAD_ERROR),
+    });
   }
   return plan;
 }

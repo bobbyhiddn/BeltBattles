@@ -71,9 +71,12 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
     expect(isSnapshot(plain)).toBe(true); // ... and the client's check takes it: only the field is refused
   });
 
-  it("accepted under LAST_CHANCE_RULES (RULES_VERSION until the bump), refused under older rules", () => {
+  // AZ-BUMP (the bump to bb-0.10.0): LAST_CHANCE_RULES stays Z-BUMP's literal bb-0.9.7 and this build's rules move past it
+  // (was "accepted under LAST_CHANCE_RULES (RULES_VERSION until the bump), ...", LAST_CHANCE_RULES === RULES_VERSION)
+  it("accepted under LAST_CHANCE_RULES (bb-0.9.7, a literal since Z-BUMP) and this build's later rules, refused under older rules", () => {
     const { s } = honest("hull");
-    expect(LAST_CHANCE_RULES).toBe(RULES_VERSION);
+    expect(LAST_CHANCE_RULES).toBe("bb-0.9.7"); // AZ-BUMP: the bump (was RULES_VERSION's value until it)
+    expect([RULES_VERSION, lastChanceGateProblem(RULES_VERSION)]).toEqual(["bb-0.10.0", null]); // AZ-BUMP: this build's rules have LAST CHANCE
     expect(checkSnapshot(s).lastChance).toEqual({ day: D, boon: "hull" });
     expect(isSnapshot(s)).toBe(true);
     // written last, after the seed; a snapshot without one encodes as before

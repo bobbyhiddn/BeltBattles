@@ -94,7 +94,8 @@ const RACE_PART_SHA256 = "0f6dd49c07790f30a15051129a7963c8404ab35b67b39759025355
 
 // Y7b2 (the bump, the pools): title bb-0.9.1 -> bb-0.9.3, and Y7b2's regeneration added (was "... again at REDO-X and BAL-2; ...")
 // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7, and Z-BUMP's regeneration added (was "... again at REDO-X, BAL-2 and Y7b2; ...")
-describe("the bb-0.9.7 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, again at REDO-X, BAL-2, Y7b2 and Z-BUMP; v3 snapshots holding their runes)", () => {
+// AZ-BUMP (the bump): title bb-0.9.7 -> bb-0.10.0 (the pool's decks move at S8's regeneration)
+describe("the bb-0.10.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, again at REDO-X, BAL-2, Y7b2 and Z-BUMP; v3 snapshots holding their runes)", () => {
   it("holds every playable hero on every day 1-10, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 120 in all", () => {
     expect([...PLAYABLE_HEROES]).toEqual(["furnace", "weaver", "foundry", "bastion"]);
     expect([...STAND_IN_HEROES]).toEqual(["furnace", "weaver"]);
@@ -183,7 +184,8 @@ interface Store { name: string; store(): ReturnType<typeof tigrisFor> | JsonlSto
 
 // Y7b2 (the bump): title bb-0.9.1 -> bb-0.9.3
 // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7
-describe("the seed pool on both stores: ghosts:admin list --rules bb-0.9.7", () => {
+// AZ-BUMP (the bump): title bb-0.9.7 -> bb-0.10.0
+describe("the seed pool on both stores: ghosts:admin list --rules bb-0.10.0", () => {
   let fake: FakeS3;
   const dirs: string[] = [];
   beforeAll(async () => {
@@ -218,7 +220,7 @@ describe("the seed pool on both stores: ghosts:admin list --rules bb-0.9.7", () 
 
   // Y7b2 (the bump): title bb-0.9.1 -> bb-0.9.3
   // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7
-  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.9.7, none under bb-0.6.2", async () => {
+  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.10.0 (AZ-BUMP: was bb-0.9.7), none under bb-0.6.2", async () => {
     for (const h of stores()) {
       expect(await seedStore(h.store()), h.name).toMatchObject({ rules: RULES_VERSION, entries: 120, written: 120, removed: 0 });
       for (const [rules, perDay, all] of [[RULES_VERSION, 12, 120], ["bb-0.6.2", 0, 0]] as const) {

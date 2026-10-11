@@ -13,6 +13,10 @@
 // Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule, so the probe has eleven rows (lastchance-signed 201,
 // lastchance-day3 422 after hero-SIPHON; was nine) and stores five decks (was four). The record check is split by the
 // upload's LAST CHANCE (see its mock), and a sixth server switches off lastchance-day3's own check.
+// AZ-BUMP (REQ-BFG-077, REQ-BFG-078; the bump to bb-0.10.0): the NPC day is the game's rule, so the probe has thirteen rows
+// (npcday-signed 201, npcday-forged 422 after lastchance-day3; was eleven) and stores six decks (was five). A seventh
+// server switches off npcday-forged's own check: validateUpload's road lines (validate.ts roadProblem), as "budget" drops
+// its budget lines.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,7 +25,7 @@ import { createGhostServer, type GhostServer } from "../server/app";
 import { JsonlStore } from "../server/store";
 import { probeMain } from "../server/ghostProbe";
 
-type Off = "signature" | "budget" | "record" | "metronome" | "siphon" | "lastchance-record"; // Z-BUMP: + lastchance-record
+type Off = "signature" | "budget" | "record" | "metronome" | "siphon" | "lastchance-record" | "road"; // Z-BUMP: + lastchance-record; AZ-BUMP: + road
 /** The one check switched off for the next probe (null: none, the real server). */
 const off = vi.hoisted(() => ({ check: null as null | string }));
 
@@ -48,8 +52,10 @@ vi.mock("../src/net/validate", async (importOriginal) => {
     ...real,
     validateUpload: (...a: Parameters<typeof real.validateUpload>) => {
       const v = real.validateUpload(...a);
-      if (off.check !== "budget") return v;
-      const errors = v.errors.filter((e) => !e.startsWith("budget: "));
+      // AZ-BUMP (the bump): with "road" set, its road lines are dropped the same way (npcday-forged's own check)
+      const line = off.check === "budget" ? "budget: " : off.check === "road" ? "road: " : null;
+      if (line === null) return v;
+      const errors = v.errors.filter((e) => !e.startsWith(line));
       return { ...v, ok: errors.length === 0, errors };
     },
   };
@@ -77,8 +83,8 @@ vi.mock("../src/net/rulesGate", async (importOriginal) => {
 });
 
 // Z-BUMP: the flip (was the nine rows, without lastchance-signed and lastchance-day3; ghost-probe.test.ts pins the same eleven)
-const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON", "lastchance-signed", "lastchance-day3"];
-const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400", "201", "422"]; // Z-BUMP: the flip (was nine, without the last 201 and 422)
+const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON", "lastchance-signed", "lastchance-day3", "npcday-signed", "npcday-forged"]; // AZ-BUMP: the bump (the NPC day's two rows; was eleven)
+const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400", "201", "422", "201", "422"]; // AZ-BUMP: the bump (the NPC day's 201 and 422; was eleven). Z-BUMP: the flip (was nine, without the last 201 and 422)
 /** Each misbehaving server: the check switched off, the probe row it lets through, and what that POST then gets. */
 const CASES: { off: Off; row: string; status: string }[] = [
   { off: "signature", row: "furnace-unsigned", status: "200" },
@@ -87,6 +93,7 @@ const CASES: { off: Off; row: string; status: string }[] = [
   { off: "metronome", row: "hero-METRONOME", status: "201" },
   { off: "siphon", row: "hero-SIPHON", status: "201" },
   { off: "lastchance-record", row: "lastchance-day3", status: "201" }, // Z-BUMP: the flip, the new row's own check
+  { off: "road", row: "npcday-forged", status: "201" }, // AZ-BUMP: the bump, the NPC day's forged row's own check
 ];
 
 interface Rig {
@@ -121,13 +128,13 @@ const posts = (log: string[]) => log.filter((l) => / POST \/v1\/ghosts /.test(l)
 const checkLines = (lines: string[]) => lines.filter((l) => /^(PASS|FAIL) {2}/.test(l));
 
 describe("the uploads step's probe against a misbehaving server (one check switched off)", () => {
-  it("no check switched off: the same rig is the correct server, eleven checks as expected, exit 0, five decks stored", async () => { // Z-BUMP: the flip (was nine checks, four decks)
+  it("no check switched off: the same rig is the correct server, thirteen checks as expected, exit 0, six decks stored", async () => { // AZ-BUMP: the bump (was eleven checks, five decks). Z-BUMP: the flip (was nine checks, four decks)
     const { base, idFile, log } = await serve();
     const lines: string[] = [];
     expect(await probeMain([base, idFile], (l) => lines.push(l))).toBe(0);
     expect(checkLines(lines).map((l) => l.split(/\s+/).slice(0, 2).join(" "))).toEqual(NAMES.map((n) => `PASS ${n}`));
     expect(posts(log)).toEqual(STATUSES);
-    expect(lines.at(-1)).toBe(`probe: 11 of 11 checks as expected; the server stored 5 deck(s) for this player (expected 5); the player id is in ${idFile}`); // Z-BUMP: the flip (was 9 of 9, stored 4, expected 4)
+    expect(lines.at(-1)).toBe(`probe: 13 of 13 checks as expected; the server stored 6 deck(s) for this player (expected 6); the player id is in ${idFile}`); // AZ-BUMP: the bump (was 11 of 11, stored 5, expected 5). Z-BUMP: the flip (was 9 of 9, stored 4, expected 4)
   }, 60_000);
 
   it.each(CASES)("a server that takes the $row row (its $off check switched off): the probe exits 1 with FAIL on exactly that row", async ({ off: which, row, status }) => {
@@ -141,6 +148,6 @@ describe("the uploads step's probe against a misbehaving server (one check switc
     // the server misbehaved as meant, and only there: that row's POST was taken, every other answered as the real server's
     expect(posts(log)).toEqual(STATUSES.map((s, i) => (NAMES[i] === row ? status : s)));
     expect(checks[NAMES.indexOf(row)]).toMatch(new RegExp(`^FAIL {2}${row} +expected: \\d{3} .+ \\| got: ${status} \\{"id":"g[0-9a-f]{14}"\\}$`));
-    expect(lines.at(-1)).toBe(`probe: 10 of 11 checks as expected; the server stored 6 deck(s) for this player (expected 5); the player id is in ${idFile}`); // Z-BUMP: the flip (was 8 of 9, stored 5, expected 4)
+    expect(lines.at(-1)).toBe(`probe: 12 of 13 checks as expected; the server stored 7 deck(s) for this player (expected 6); the player id is in ${idFile}`); // AZ-BUMP: the bump (was 10 of 11, stored 6, expected 5). Z-BUMP: the flip (was 8 of 9, stored 5, expected 4)
   }, 60_000);
 });
