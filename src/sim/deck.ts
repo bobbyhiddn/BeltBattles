@@ -549,7 +549,7 @@ export interface TimelineHit {
   plate?: number; // PLATE ROLLER, SHIELD WALL: plating it rolls onto your hull for this payload
   plated?: { min: number; flat: number }; // SHIELD WALL: the damage it adds while your hull holds `min` plating (not in flat)
   breaker?: { flat: number; floor: number }; // PLATE BREAKER: both numbers (flat holds the one the walk counts: platedDeck)
-  brace?: { mul: number; plated: number }; // BRACE FRAME: what it does to enemy stalls on this tile (no damage)
+  brace?: { mul: number }; // BRACE FRAME: what it does to enemy stalls on this tile (no damage)
   hold?: number; // TWIN LATCH: the seconds it may hold a payload here (when both its arrows hit belts)
 }
 

@@ -169,7 +169,7 @@ export interface GateEffect {
   gauge?: { flat: number; matched: number }; // TWIN GAUGE: + flat, or + matched on a matched belt (E6)
   // Y3 (DESIGN-Y row 20; REVIEW-STARD: "PINCER's dead `max: 3`: Y3 deletes it"): its def has no max and flat 0 (the flip)
   pincer?: { flat: number; each: number; max?: number }; // PINCER: + flat, + each for every other active rig on its tile (E5)
-  brace?: { mul: number; plated: number }; // BRACE FRAME: enemy STUNs on its tiles x mul (NUM-3: every STUN); `plated` is unread since Y2 (Battle.braceCut)
+  brace?: { mul: number }; // BRACE FRAME: enemy STUNs on its tiles x mul (NUM-3: every STUN); TXT-AZ: its `plated`, unread since Y2 (Battle.braceCut), is gone
   latch?: { hold: number; flat: number }; // TWIN LATCH: holds a payload at most `hold` s for its other belt (E4); + flat on each payload it hits
   stoke?: number; // STOKER: each factory its arrows point at works this share faster (E3); its arrows do nothing to belts
   breaker?: { flat: number; floor: number }; // PLATE BREAKER: 1 plating for + flat; with none, + floor
@@ -1020,9 +1020,9 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
     id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", shape: "L",
     // TXT-096: drawn nowhere (its KEPT_FLAVOUR row). TXT-AZ (REVIEW-TXT096 Q2): it says what the piece does since Y2 (battle.ts braceCut reads mul only; was "... SOONER STILL PLATED."), edited with tools/wave3Defs.ts's copy, so tests/wave3Art.test.ts:199 (each wave-3 def equal to that copy) stays green
     desc: ["ENEMY STUNS ON THE", "BELT TILES IT HITS", "END SOONER."], tags: ["PLATE", "HARASS"],
-    // TXT-096 (REVIEW-STAGE093 ruling 15): brace.plated is unread since Y2 (battle.ts braceCut reads mul only), so the face is honest; it stays until a rules release (#370)
-    gate: { brace: { mul: 0.5, plated: 0.25 } },
-    levels: { 2: { gate: { brace: { mul: 0.3, plated: 0.15 } } }, 3: { gate: { brace: { mul: 0.15, plated: 0.05 } } } },
+    // TXT-AZ (REVIEW-STAGE093 ruling 15, #370): brace.plated, unread since Y2 (battle.ts braceCut reads mul only), is gone at every star, with tools/wave3Defs.ts's copy
+    gate: { brace: { mul: 0.5 } },
+    levels: { 2: { gate: { brace: { mul: 0.3 } } }, 3: { gate: { brace: { mul: 0.15 } } } },
   },
   twinlatch: {
     id: "twinlatch", name: "TWIN LATCH", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker", shape: "II",

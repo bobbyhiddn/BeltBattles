@@ -32,8 +32,8 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
     id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", shape: "L",
     // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q2): the copy follows the game's rewritten desc (was "... SOONER STILL PLATED.")
     desc: ["ENEMY STUNS ON THE", "BELT TILES IT HITS", "END SOONER."], tags: ["PLATE", "HARASS"],
-    gate: { brace: { mul: 0.5, plated: 0.25 } },
-    levels: { 2: { gate: { brace: { mul: 0.3, plated: 0.15 } } }, 3: { gate: { brace: { mul: 0.15, plated: 0.05 } } } },
+    gate: { brace: { mul: 0.5 } },
+    levels: { 2: { gate: { brace: { mul: 0.3 } } }, 3: { gate: { brace: { mul: 0.15 } } } },
   },
   twinlatch: {
     id: "twinlatch", name: "TWIN LATCH", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker", shape: "II",

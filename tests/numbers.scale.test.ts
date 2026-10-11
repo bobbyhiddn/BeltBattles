@@ -150,6 +150,19 @@ const BAL2_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: numbe
 // their field (POISON, the floors and caps, the perk rules; EQ.poison and EQ.perStalled with the rating's off path), the
 // fixture untouched. Each is checked at its release-Y value (`now`; undefined: no field), as BAL2_MOVED's are; every other
 // row keeps its check. Measured on y7b2 (T/output-y7b2/diag/numscale-bad.json). Cause: the flip
+// AZ-BUMP (REQ-BFG-070; TXT-AZ item 5, REVIEW-TXTAZ Q1, REVIEW-STAGE093 ruling 15, #370): BRACE FRAME's `plated`, unread
+// since Y2 (Battle.braceCut reads mul only), is gone at every star from WAVE3_ITEMS and from tools/wave3Defs.ts's copy, so
+// its 6 rows are gone with their field (`now` undefined, as Y7B2_MOVED's gone rows), the fixture untouched (NUM-1's
+// record). Each is checked below at its recorded `was` and as gone; every other row keeps its check. Cause: TXT-AZ item 5
+const ITEM5_MOVED: Record<string, { was: number; now: undefined }> = {
+  "WAVE3_ITEMS.braceframe.gate.brace.plated": { was: 0.25, now: undefined },
+  "WAVE3_ITEMS.braceframe.levels.2.gate.brace.plated": { was: 0.15, now: undefined },
+  "WAVE3_ITEMS.braceframe.levels.3.gate.brace.plated": { was: 0.05, now: undefined },
+  "P1_WAVE3_ITEMS.braceframe.gate.brace.plated": { was: 0.25, now: undefined },
+  "P1_WAVE3_ITEMS.braceframe.levels.2.gate.brace.plated": { was: 0.15, now: undefined },
+  "P1_WAVE3_ITEMS.braceframe.levels.3.gate.brace.plated": { was: 0.05, now: undefined },
+};
+
 const Y7B2_MOVED: Record<string, { was: number; now: number | undefined }> = {
   "ITEMS.hotswap.levels.2.factory.cycle.0.burn": { was: 4, now: 5 },
   "ITEMS.hotswap.levels.2.factory.cycle.1.jump": { was: 1, now: undefined },
@@ -369,8 +382,17 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // Y-FURN: and a row FURN-Y moved (YFURN_MOVED, COAL CHUTE and HEAT SINK) at its release-Y value below (was each live at
     // its recorded value, 25 and 50)
     // BAL-2: and a row BAL-2 moved (BAL2_MOVED: the KILN's HEAT and the two hulls) at its 0.9.1 value below
-    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && !(r.id in BAL2_MOVED) && !(r.id in Y7B2_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
+    // AZ-BUMP: and a row TXT-AZ item 5 removed (ITEM5_MOVED: BRACE FRAME's plated) as gone below
+    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && !(r.id in BAL2_MOVED) && !(r.id in Y7B2_MOVED) && !(r.id in ITEM5_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
     expect(bad).toEqual([]);
+    // AZ-BUMP (TXT-AZ item 5): the 6 removed rows, every one a "same" fixture row recorded at the map's `was`, each gone
+    // with its field (was each live at its recorded value)
+    const item5 = rows.filter((r) => r.id in ITEM5_MOVED);
+    expect(item5.map((r) => r.id).sort()).toEqual(Object.keys(ITEM5_MOVED).sort());
+    for (const r of item5) {
+      expect([r.rule, r.now], r.id).toEqual(["same", ITEM5_MOVED[r.id].was]);
+      expect(live(r.id), r.id).toBeUndefined();
+    }
     // Y7b2 (the flip): the 98 moved rows, every one a fixture row recorded at the map's `was`, each live at its release-Y
     // value (39) or gone with its field (59)
     const y7b2 = rows.filter((r) => r.id in Y7B2_MOVED);

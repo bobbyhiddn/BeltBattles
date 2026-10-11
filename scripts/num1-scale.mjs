@@ -47,7 +47,7 @@ const SPEC = {
   "gate.pulse.on": S, "gate.pulse.period": S, "gate.sort.every": S, "gate.sort.copies": S, "gate.poison": S,
   "gate.overclockCooldown": S, "gate.keg.fuse": S, "gate.keg.burn": S, "gate.burnPerRide.seconds": S,
   "gate.burnPerRide.max": S, "gate.quench.stacks": S, "gate.staticTime": S, "gate.fray": S, "gate.frayCap": S,
-  "gate.pincer.max": S, "gate.brace.mul": S, "gate.brace.plated": S, "gate.latch.hold": S, "gate.stoke": S,
+  "gate.pincer.max": S, "gate.brace.mul": S, "gate.latch.hold": S, "gate.stoke": S, // AZ-BUMP: no brace.plated (TXT-AZ item 5)
   // factories (FactorySpec)
   "factory.base": X, "factory.scrapFlat": X, "factory.round.blast": X, "factory.plate.amount": X,
   "factory.interval": S, "factory.lead": S, "factory.pour": S, "factory.batch": S, "factory.cycle.*.burn": S,

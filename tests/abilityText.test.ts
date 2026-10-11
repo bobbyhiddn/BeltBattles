@@ -246,8 +246,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   // 0.8.0 I1 (VERIFIED-P1 H5): no "UP TO 3 OTHERS" (it never binds). Y7b2 (the flip): no floor (flat 0; was
   // [g(e).pincer!.flat, g(e).pincer!.each])
   pincer: (e) => [g(e).pincer!.each],
-  // Y7b2 (the flip): one sentence, its STUNs n% shorter (Y2's: the plated multiplier left, so no plated sentence; was
-  // [pct(1 - g(e).brace!.mul), pct(1 - g(e).brace!.plated)])
+  // Y7b2 (the flip): one sentence, its STUNs n% shorter (Y2's: the plated multiplier left, so no plated sentence)
   braceframe: (e) => [pct(1 - g(e).brace!.mul)],
   // BRINGS ONE TOO; ... INTO TWO GUNS. Y7b2 (the flip): no flat sentence (flat 0; was [1, g(e).latch!.hold,
   // g(e).latch!.flat, 2])
