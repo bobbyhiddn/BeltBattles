@@ -136,7 +136,8 @@ describe("OPEN-1: LAST CHANCE's rune card, on and off", () => {
   it("fixed seeds: closed fits the hero and is weighted; open is one even draw for every hero; the part never moves", () => {
     expect(HEROES4.map((h) => lastChanceOffer(1, 8, h, []).rune?.id)).toEqual(["thread_storm", "widows_web", "scrap_saint", "scab_iron"]);
     for (const h of HEROES4) {
-      expect(lastChanceOffer(1, 8, h, [], true), h).toEqual({ day: 8, rune: { id: "scrap_saint", tier: "epic" }, part: "chamber", hull: 500 });
+      // HULL-ON (HULL_SCALE, on since AZ-BUMP's flip def6e73): the PART card is ★2 (HULL-1d lastChancePartStars: partStars 2)
+      expect(lastChanceOffer(1, 8, h, [], true), h).toEqual({ day: 8, rune: { id: "scrap_saint", tier: "epic" }, part: "chamber", partStars: 2, hull: 500 });
       expect(lastChanceOffer(1, 8, h, []).part, h).toBe("chamber");
       expect(lastChanceOffer(1, 5, h, [], true).rune?.id, h).toBe("thread_storm");
     }

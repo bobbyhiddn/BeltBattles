@@ -30,6 +30,7 @@ import { blockedCells, randomPath, shortestTiles, startCells } from "../src/sim/
 import { LONG_ROAD_PCT, OPEN_RUNE_DEFS, openRunesRules, withOpenRunes } from "../src/sim/openRunes";
 import { RUNES, type RuneDef } from "../src/sim/runes";
 import { validateBuild } from "../src/net/validate";
+import { npcDayRules } from "../src/sim/npcDay"; // HULL-ON (NPC_DAY ships on): the par decks' budget line (strictBut)
 import { RUNE_TEXT, runeReminder, runeSentenceSpans } from "../src/ui/runeText";
 import { BAND, px } from "./y3.helpers";
 
@@ -95,6 +96,10 @@ function twoIntakeFed(b: Build): boolean {
 }
 
 const strict = (b: Build, day: number): string[] => validateBuild(b, day, "strict").errors;
+/** HULL-ON (NPC_DAY, on since AZ-BUMP's flip def6e73): the par player fights the Medium warlord every day, so a par deck is
+ *  road-fed: legal by every strict line but the budget's, which is the road's rule (the road's gold and drops count only in
+ *  the player mode with the road log), as the flip converted harness.player.test.ts (its strictBut). Off: strict as is. */
+const strictBut = (b: Build, day: number): string[] => strict(b, day).filter((e) => !(npcDayRules() && e.startsWith("budget: ")));
 
 /** `c` with its cheapest rigs (not in `keep`) dropped one by one while the strict check says only that the day's budget is
  *  short; null when another check fails or no rig is left to drop. */
@@ -246,7 +251,8 @@ describe("OPEN-1: no rune is dead for any hero (REQ-BFG-109)", () => {
         expect(f.two, `${h}: a two-intake deck`).not.toBeNull();
         expect(f.parts.HEAT!.build.items.some((p) => p.def === "heatjacket")).toBe(true);
         expect(twoIntakeFed(f.two!.build)).toBe(true);
-        for (const d of f.decks) expect(strict(d.build, d.day), `${h}: ${d.label}`).toEqual([]);
+        // HULL-ON (NPC_DAY): the par decks' budget is the road's rule (strictBut); every other strict line stands
+        for (const d of f.decks) expect(strictBut(d.build, d.day), `${h}: ${d.label}`).toEqual([]);
         out.push(`${h}: ${PARTS.map((p) => `${p.key} ${f.parts[p.key]!.label}`).join("; ")}; PAIR ${f.two!.label}`);
       }
       return out;
