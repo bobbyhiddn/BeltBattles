@@ -3,6 +3,67 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.9: the battle view
+
+Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 0.9.9 players.
+- **Battle settings:** every battle now has its own setting, picked at random: on water (OPEN SEA, STORM SEA or EMBER
+  SEA), on the ground (FOREST, DESERT or BADLANDS) or in the air (SKY or STORM CLOUDS). Your carrier rolls on tracks over
+  the ground and flies on engine pods through the air. A replay shows its battle's setting, and the title's demo fight
+  tours them all.
+- **A wider view of the fight:** the camera pulls back while the carriers fight, so both ships and the setting around
+  them show with room to spare. Your plates, the clock and the speed controls keep their size.
+- **VIEW BATTLEFIELD after every fight:** a new button on the result card shows both carriers as the fight left them,
+  with each side's damage dealt, shots, hull lost, plating soaked and SHIELD stops. Tap a part to read it; a turret also
+  says how much damage it dealt in how many shots. BACK returns to the card, or go on from the view.
+- **Your battle speed holds:** the speed you pick in a battle (0.5X, 1X, 2X or 4X) stays for the rest of the run, warlord
+  fights too, and after a reload or CONTINUE. A new run starts at 1X; a replay keeps its own speed.
+- **A scouted foe up close:** once a SCOUT stop's SPY has shown tonight's dusk deck, tap the NEXT BATTLE card to see that
+  foe's carrier. Tap a part to read it, and BACK returns to yours. Without SPY the card is as before.
+- The dark wind's hits now show on both carriers: each tick a bright violet number lands on your hull and on the foe's,
+  drawn over the storm, and both hull bars flash.
+- DARK WIND · HITS BOTH HULLS shows between the carriers when the wind rises, in replays too (it was a blinking banner over
+  the boards).
+- Each plate shows its hull as a number, with its max where there is room ("805/2100").
+- SHIELD shows its count beside its pips, and plating shows its amount beside the bar. A hit plating soaks pops BLOCKED and
+  the amount; a hit a SHIELD stops pops BLOCKED.
+- VIEW BATTLEFIELD adds WIND TAKEN. Its plating and SHIELD rows read PLATE BLOCKED and SHIELD BLOCKED.
+- **The dark wind looks fair on every screen:** when the carriers sit side by side (a desktop, a laptop, a phone held
+  sideways), the storm rolls in from both sides of the screen, so it covers both boards alike. It used to cover only
+  your board there. A phone held upright looks as before.
+- **Every number shows over the dark wind:** hits, BURN, heals and BLOCKED are never dimmed by the storm.
+- **In a replay, BACK keeps off the foe's plate:** on a desktop or laptop it sits in the bottom right corner, so the
+  foe's hull number shows in full.
+- **One fight clock:** the playback bar and the result card read the same second at the end of a fight (a 69-second
+  fight read 1:08 on the bar and 69S on the card).
+- **Your carrier up close:** the build screen shows your carrier as big as the screen has room for. On a desktop the
+  board is two thirds bigger, and on most phones a fifth bigger. The shop, your hero card, NEXT BATTLE and FIGHT keep
+  their size.
+- **Cargo beside your ship:** on a desktop or laptop your cargo sits under FIGHT, two rows of slots, so nothing covers
+  your carrier.
+- **Details on a phone:** a part's details sit between the shop and your carrier in a shorter strip that fits most
+  parts. A part with more to say grows up over the shop, never over your carrier, and a tap on a shop card it covers
+  still reads that card.
+- **Clear space between descriptions:** cards and panels leave about half a line of space between their separate
+  items: the stat row, each description, each level line and the note under the rule (DART GUN's panel, for one). On a
+  phone a panel that needs the room grows up over the shop, never over your carrier.
+- **Plainer card words:**
+  - Turret cards now say what their numbers mean: how many loads the gun holds (it fires them one a shot, then reloads)
+    and how many gear slots it has.
+  - Tap a stat icon on any card to read it. That works for the speed `»`, the load `●` and the gear `⚙`.
+  - Speed rigs now say where they act: from their own tile on, toward the gun.
+  - Cards and runes use plain words where they used VOLLEY, MERGED, STAMP, MACHINES, NEXT RIG'S, BONUS DAMAGE, BLOCKS
+    and WRECK.
+  - FINAL NAIL's card now says it never works on a GATLING SPOOL, and FORGE WARD's that cast or poured slugs give
+    nothing.
+  - Every shop card on a phone now hints at what it does, speed rigs included (FAST, SLOW, TWICE, ...).
+  - Tap a family tag (FORGE, SWARM, BURST, ...) on a panel to read what that family does.
+  - Cores and gear now say what they do in the panel header. Merchant names stay on the desk's wagons.
+  - MENDING LOOM and GREEN THREAD now say HEAL each second. They always healed by HEAL's rules.
+- **Cleaner cards:** a card shows its stats and its own rules. Flavour, a turret's ammo and gear lines and how-to tips
+  move to NOTES in the ⓘ view (on a desktop, rest the mouse on the card's icon). A tip shows until you've done it once.
+- **WHETSTONE, TEMPER and BARBED SPOOL** show their bonus as a stat.
+- No rule changed: every fight plays exactly as in 0.9.8, and online play is unchanged.
+
 ## 0.9.8: styles you earn
 
 Same battle rules as 0.9.7 (bb-0.9.7), so 0.9.7's ghosts and uploads still meet 0.9.8 players.
