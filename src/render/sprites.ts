@@ -556,6 +556,36 @@ function drawGate(g: G, id: string, f: number, active: boolean): void {
       for (const y of [4, 7]) hline(g, 2, y, 8, C.brass3);
       break;
     }
+    // SHAPES-1 (REQ-BFG-086 S8): the three shaped rigs' 12x12 pictures (their icon, itemIcon's fallthrough; on the deck
+    // they draw as one body across their cells, shapeArt.ts). Their ids exist only with SHAPES on.
+    case "nailstrip": { // a wooden plank lying across, a row of three nail heads, their points standing out of its top
+      bevel(g, 1, 4, 10, 6, C.wood1, C.wood3, C.wood0, C.ink);
+      hline(g, 2, 8, 8, C.wood0);
+      for (const x of [3, 6, 9]) {
+        vline(g, x - 1, 1, 3, C.steel3); px(g, x - 1, 1, active ? C.white : C.steel2);
+        rect(g, x - 1, 5, 2, 2, C.steel2); px(g, x - 1, 5, active ? C.white : C.steel3); px(g, x, 6, C.steel0);
+      }
+      break;
+    }
+    case "embertrough": { // an iron trough seen from above, full of coals, sparks rising off it
+      bevel(g, 0, 3, 12, 8, C.steel1, C.steel2, C.steel0, C.ink);
+      rect(g, 2, 5, 8, 4, C.ink);
+      rect(g, 3, 6, 6, 2, C.fire0);
+      const coal = [C.fire1, C.fire2, C.fire3];
+      for (const [x, y, i] of [[3, 6, 0], [5, 6, 1], [7, 6, 2], [4, 7, 2], [6, 7, 0], [8, 7, 1]]) px(g, x, y, active ? C.fire4 : coal[(i + f) % 3]);
+      px(g, 4 + (f % 2), 1, C.fire3); px(g, 7, 2 - (f % 2), C.fire4);
+      break;
+    }
+    case "spikerail": { // a steel rail standing up the cell, three spikes out of each side
+      rect(g, 4, 0, 4, 12, C.ink);
+      vline(g, 5, 0, 12, C.steel3); vline(g, 6, 0, 12, C.steel2);
+      for (const y of [2, 6, 10]) {
+        hline(g, 1, y, 3, C.steel2); px(g, 1, y, active ? C.yellow : C.white);
+        hline(g, 8, y, 3, C.steel2); px(g, 10, y, active ? C.yellow : C.white);
+      }
+      for (const y of [4, 8]) px(g, 5, y, C.brass4);
+      break;
+    }
     default: {
       if (drawWave3Gate(g, id, f, active)) break; // 0.8.0 A1: wave 3's eight rigs (wave3Art.ts)
       bevel(g, 1, 1, 10, 10, C.steel1, C.steel2, C.steel0, C.ink);

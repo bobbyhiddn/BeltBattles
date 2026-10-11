@@ -13,7 +13,8 @@ import { C } from "../../render/palette";
 import { frame, type G } from "../../render/pixel";
 import { drawText, textWidth } from "../../render/font";
 import { CELL } from "../../sim/content";
-import { defOf, itemByUid, kx, ky, turretSlots } from "../../sim/deck";
+import { defOf, itemByUid, kx, ky, rotOf, turretSlots } from "../../sim/deck";
+import { footBox } from "../../sim/foot"; // SHAPES-1 (R1): a piece's turned box
 import { localX, localY, sx, sy, TURRET_LY } from "../../render/frame";
 import { cruiserModel, drawTurrets, type CruiserModel, type CruiserView } from "../../render/cruiser";
 import { drawMachinery } from "../../render/machinery";
@@ -70,7 +71,8 @@ export function foePartsOnScreen(L: BuildLayout, foe: DuskFoe): { sel: PartSel; 
     out.push({ sel, name, x: p.x, y: p.y });
   };
   turretSlots(b).forEach((s, i) => { if (s.td) at({ kind: "turret", index: i }, "TURRET", (s.col0 + s.width / 2) * CELL, TURRET_LY); });
-  for (const p of b.items) { const n = defOf(p).size ?? 1; at({ kind: "item", uid: p.uid }, defOf(p).name, (p.x + n / 2) * CELL, (p.y + n / 2) * CELL); }
+  // SHAPES-1 (R1): an item's middle is its turned footprint's box centre (a 1-cell rig's and a 2x2's as before)
+  for (const p of b.items) { const bx = footBox(defOf(p), rotOf(p)); at({ kind: "item", uid: p.uid }, defOf(p).name, (p.x + bx.w / 2) * CELL, (p.y + bx.h / 2) * CELL); }
   b.routes.forEach((r, i) => { const k = r.cells[Math.floor(r.cells.length / 2)]; if (k !== undefined) at({ kind: "route", index: i }, "BELT ROUTE", (kx(k) + 0.5) * CELL, (ky(k) + 0.5) * CELL); });
   return out;
 }
@@ -172,7 +174,7 @@ function markPart(g: G, L: BuildLayout, foe: DuskFoe, sel: PartSel, col: string)
   };
   if (sel.kind === "item") {
     const p = itemByUid(b, sel.uid);
-    if (p) { const n = defOf(p).size ?? 1; box(p.x * CELL, p.y * CELL, n * CELL, n * CELL); }
+    if (p) { const bx = footBox(defOf(p), rotOf(p)); box(p.x * CELL, p.y * CELL, bx.w * CELL, bx.h * CELL); } // SHAPES-1: its turned box
   } else if (sel.kind === "route") {
     for (const k of b.routes[sel.index]?.cells ?? []) box(kx(k) * CELL, ky(k) * CELL, CELL, CELL);
   } else {

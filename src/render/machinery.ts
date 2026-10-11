@@ -22,6 +22,10 @@ import { factoryMoment, rigMoment, stokedNow } from "./wave3Moments"; // 0.8.0 I
 import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the hero factory's FACTORY level
 import type { CruiserView, RigModel } from "./cruiser";
 import { skinOf, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook; CUSTOM-2a: the board's belt style (its view's skin)
+import { cellsOf, type Placed, type RigArrow } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S8)
+import type { ItemDef } from "../sim/content";
+import { isShaped } from "../sim/foot"; // SHAPES-1: a rig of 2+ cells, a factory not 2x2 (none with SHAPES off)
+import { pieceRect, screenMask, shapedFactorySil, shapedFactorySprite, shapedRigBody, shapedRigSil } from "./shapeArt"; // SHAPES-1
 
 /** 0.6.1d2: two cosmetic, build-screen-only cues threaded through CruiserView without touching
  *  cruiser.ts (0.6.1b's custody): the survivor ring (which deck twin a hovered/selected shop offer
@@ -320,6 +324,10 @@ function drawFactories(g: G, v: CruiserView): void {
     const p = items[n];
     const d = defOf(p);
     if (d.kind !== "factory" || p.uid === v.hideItem) continue;
+    if (isShaped(d)) { // SHAPES-1 (S8): a 2x3 or I3 factory, one body over its turned footprint's box
+      drawShapedFactory(g, v, p, d);
+      continue;
+    }
     const x = Math.round(footX(f, p.x, p.y, d.size)), y = Math.round(footY(f, p.x, p.y, d.size));
     let fs = null;
     if (v.sim) for (const q of v.sim.factories) if (q.uid === p.uid) fs = q;
@@ -350,6 +358,36 @@ function drawFactories(g: G, v: CruiserView): void {
   // bb-0.8.3 (REQ-BFG-043 D11): the FACTORY level (2-4) on the hero's signature factory, in its sprite's bottom-left
   // corner, where a bought factory's star pips go (levelMark.ts; nothing at level 1)
   drawLevelMarks(g, v.build, f, "factory", v.hideItem ?? -1);
+}
+
+/** SHAPES-1 (REQ-BFG-086 S8): a shaped factory (GANTRY PRESS's 2x3, ASSEMBLY LINE's I3) as one body over its turned
+ *  footprint's screen box (shapeArt.ts), with drawFactories' chutes, frame logic, flash, flare, shock, stall mark, pips,
+ *  ★3 brass frame and survivor ring sized to that box. */
+function drawShapedFactory(g: G, v: CruiserView, p: Placed, d: ItemDef): void {
+  const f = v.frame;
+  const r = pieceRect(f, p);
+  const x = Math.round(r.x), y = Math.round(r.y), w = r.w, h = r.h;
+  let fs = null;
+  if (v.sim) for (const q of v.sim.factories) if (q.uid === p.uid) fs = q;
+  const flash = !!fs && fs.flash > 0;
+  const fstars = animStars(v, p.uid, starsOf(p));
+  const fi = factoryFrame(d.id, v.t, fs, flash, fstars);
+  for (const rm of v.model.routes) {
+    if (rm.factory === p.uid && rm.cells.length && rm.index !== v.hideRoute) drawChute(g, f, rm.cells[0], rm.d0, d.id);
+  }
+  if (v.ghost && v.ghost.factory === p.uid && v.ghost.cells.length) drawChute(g, f, v.ghost.cells[0], ghostD0(v, p.uid), d.id);
+  g.drawImage(shapedFactorySprite(d.id, fi, flash, fstars, w, h), x, y);
+  if (flash && fs) {
+    g.globalAlpha = Math.min(0.6, fs.flash * 3);
+    g.drawImage(shapedFactorySil(d.id, fstars, w, h), x, y);
+    g.globalAlpha = 1;
+  }
+  if (fs ? stokedNow(fs) : v.model.stoked.has(p.uid)) g.drawImage(stokeFlare(Math.floor(v.t * 10)), x + w - 7, y - 4);
+  if (fs && fs.disrupted > 0) shock(g, x + (w >> 1) - 6, y + (h >> 1) - 6, v.t);
+  if (fs && fs.stalled && Math.floor(v.t * 4) % 2) drawText(g, "!", x + w - 2, y - 2, C.yellow, { outline: C.ink });
+  drawPips(g, x + 2, y + h - 3, w - 4, fstars, "left");
+  if (fstars >= 3) frameRect(g, x, y, w, h, C.brass3);
+  if (v.survivorUid === p.uid) drawSurvivorRing(g, x - 1, y - 1, w + 2, h + 2, v.t);
 }
 
 /**
@@ -384,12 +422,24 @@ function ghostD0(v: CruiserView, uid: number): number {
   const b = v.build;
   for (const p of b.items) {
     if (p.uid !== uid) continue;
+    if (isShaped(defOf(p))) return shapedSide(cellsOf(p), k); // SHAPES-1 (R3): beside any cell of the turned footprint
     const s = defOf(p).size;
     const x = kx(k), y = ky(k);
     if (y === p.y - 1 && x >= p.x && x < p.x + s) return 0;
     if (y === p.y + s && x >= p.x && x < p.x + s) return 2;
     if (x === p.x - 1 && y >= p.y && y < p.y + s) return 3;
     if (x === p.x + s && y >= p.y && y < p.y + s) return 1;
+  }
+  return -1;
+}
+
+/** SHAPES-1 (R3): the side of a shaped factory's footprint `cells` that cell `k` lies beside (the direction from the
+ *  footprint cell to `k`; ghostD0's order 0, 2, 3, 1), or -1 when `k` touches none (or is one of them). */
+export function shapedSide(cells: readonly number[], k: number): number {
+  if (cells.includes(k)) return -1;
+  const x = kx(k), y = ky(k);
+  for (const d of [0, 2, 3, 1]) {
+    for (const c of cells) if (kx(c) + DX[d] === x && ky(c) + DY[d] === y) return d;
   }
   return -1;
 }
@@ -401,6 +451,15 @@ function arrowState(rm: RigModel, k: number, gs: GateState | null, nozzle = fals
   if (!rm.hit[k] && !(nozzle && rm.stoke?.[k])) return 0;
   if (!gs) return 1; // the build screen: every rig online
   if (gs.arrowFlash[rm.dirs[k]] > 0) return 2;
+  return gs.online && gs.disrupted <= 0 ? 1 : 3;
+}
+
+/** SHAPES-1 (R2): arrowState for one arrow of a shaped rig (RigModel.arrows): idle unless it lands on a belt tile; the
+ *  sim flashes by direction (GateState.arrowFlash), so every working arrow that way flashes. */
+function cellArrowState(a: RigArrow & { hit: boolean }, gs: GateState | null): ArrowState {
+  if (!a.hit) return 0;
+  if (!gs) return 1;
+  if (gs.arrowFlash[a.dir] > 0) return 2;
   return gs.online && gs.disrupted <= 0 ? 1 : 3;
 }
 
@@ -417,6 +476,13 @@ function drawArrowTips(g: G, v: CruiserView): void {
     const rm = v.model.rigs.get(p.uid);
     if (!rm) continue;
     const gs = gateStateOf(v, p.uid);
+    if (rm.arrows) { // SHAPES-1 (R2): a shaped rig's tips, one per working arrow, on the tile it points at
+      for (const a of rm.arrows) {
+        if (!a.hit || a.to < 0) continue;
+        g.drawImage(rigTip(sdir(f, a.dir), cellArrowState(a, gs)), Math.round(footX(f, kx(a.to), ky(a.to))), Math.round(footY(f, kx(a.to), ky(a.to))));
+      }
+      continue;
+    }
     for (let k = 0; k < rm.dirs.length; k++) {
       if (!rm.hit[k]) continue;
       const d = rm.dirs[k], nx = p.x + DX[d], ny = p.y + DY[d];
@@ -435,6 +501,10 @@ function drawRigs(g: G, v: CruiserView): void {
     const p = items[n];
     const d = defOf(p);
     if (d.kind !== "gate" || p.uid === v.hideItem) continue;
+    if (isShaped(d)) { // SHAPES-1 (S8): a rig of 2+ cells, one body across them
+      drawShapedRig(g, v, p, d);
+      continue;
+    }
     const x = Math.round(footX(f, p.x, p.y)), y = Math.round(footY(f, p.x, p.y));
     const gs = gateStateOf(v, p.uid);
     const active = !!gs && gs.flash > 0;
@@ -472,6 +542,44 @@ function drawRigs(g: G, v: CruiserView): void {
     if (gstars >= 3) frameRect(g, x, y, 12, 12, C.brass3);
     if (v.survivorUid === p.uid) drawSurvivorRing(g, x - 1, y - 1, 14, 14, v.t);
   }
+}
+
+/** SHAPES-1 (REQ-BFG-086 S8): a shaped rig as ONE body over its turned footprint's screen box (shapeArt.ts; never the
+ *  12x12 sprite per cell), dimmed while idle or offline as drawRigs dims a 1-cell rig; then a nozzle for every arrow on
+ *  the cell it shines from (deck.ts rigArrowCells, through RigModel.arrows), the wrench and shock at the box's middle,
+ *  and the pips, ★3 brass frame and survivor ring sized to the box. */
+function drawShapedRig(g: G, v: CruiserView, p: Placed, d: ItemDef): void {
+  const f = v.frame;
+  const r = pieceRect(f, p);
+  const x = Math.round(r.x), y = Math.round(r.y), w = r.w, h = r.h;
+  const mask = screenMask(f, p, r);
+  const gs = gateStateOf(v, p.uid);
+  const active = !!gs && gs.flash > 0;
+  g.drawImage(shapedRigBody(d.id, w, h, Math.floor(v.t * 8), active, mask), x, y);
+  if (active && gs) {
+    g.globalAlpha = Math.min(0.7, gs.flash * 4);
+    g.drawImage(shapedRigSil(d.id, w, h, mask), x, y);
+    g.globalAlpha = 1;
+  }
+  const onRoute = gs ? gs.hits.length > 0 || !!gs.factoryHits : v.model.gateOnRoute.has(p.uid);
+  if (!onRoute || (gs && !gs.online)) {
+    g.globalAlpha = 0.55;
+    if (!mask) rect(g, x + 1, y + 1, w - 2, h - 2, C.ink);
+    else for (const k of cellsOf(p)) rect(g, Math.round(footX(f, kx(k), ky(k))) + 1, Math.round(footY(f, kx(k), ky(k))) + 1, 10, 10, C.ink);
+    g.globalAlpha = 1;
+  }
+  const rm = v.model.rigs.get(p.uid);
+  for (const a of rm?.arrows ?? []) {
+    if (a.from < 0) continue;
+    g.drawImage(rigNozzle(sdir(f, a.dir), cellArrowState(a, gs)), Math.round(footX(f, kx(a.from), ky(a.from))), Math.round(footY(f, kx(a.from), ky(a.from))));
+  }
+  const mx = x + (w >> 1) - 6, my = y + (h >> 1) - 6; // the middle cell-sized square of the box
+  if (gs && !gs.online && onRoute && Math.floor(v.t * 6) % 2) g.drawImage(wrenchIcon(), mx + 4, my + 3);
+  if (gs && gs.disrupted > 0) shock(g, mx, my, v.t);
+  const gstars = animStars(v, p.uid, starsOf(p));
+  drawPips(g, x + 1, y + h - 2, w - 2, gstars);
+  if (gstars >= 3) frameRect(g, x, y, w, h, C.brass3);
+  if (v.survivorUid === p.uid) drawSurvivorRing(g, x - 1, y - 1, w + 2, h + 2, v.t);
 }
 
 /** 0.6.1d2: the merge animation's pip override for `uid` (Math.max(1, step.stars - 1) pre-pop, the
