@@ -7,6 +7,8 @@
 
 import type { Block } from "./inspector";
 import { faceLines, faceMerge, faceNext, hasFace } from "../../ui/faces";
+import { plainRigStats } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b): the three plain stat rigs
+import { statRow } from "../../ui/icons"; // EXPLAIN-1: a plain rig's stat row
 import type { TextOpts } from "../../ui/abilityText";
 import { livePerk } from "../../ui/abilityText";
 
@@ -42,13 +44,18 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   const perkName = stars > 1 && !perkInfoOnly(def) ? livePerk(def, stars) : undefined;
   const perk = perkName && !fl.clause ? `★${stars} ${perkName}` : undefined;
   const out: Block[] = [];
+  // EXPLAIN-1 (REQ-BFG-084 step 0b; PIECES-1 3.3): WHETSTONE, TEMPER and BARBED SPOOL draw a plain face: their hit stat as
+  // a stat row ({DMG}+20), no HIT: rule line (faces.ts PLAIN_RIGS; faceAt keeps the rule, so LEVELS and the chip stay)
+  const plainRig = plainRigStats(def, stars);
+  if (plainRig) return [{ role: "ability", text: statRow(plainRig), keep: true }];
   if (fl.stats) out.push({ role: "ability", text: fl.stats, keep: true });
   // U2e step 2 (REQ-BFG-070): the second stat row, what a factory's own payloads carry ({BURN}2 {STUN}1.6), kept
   // SPACE-1 (REQ-BFG-087, D1): one stat item with the first row (tied: no gap between them)
   if (fl.stats2) out.push({ role: "ability", text: fl.stats2, keep: true, ...(fl.stats ? { tie: true } : {}) });
   // WORDS-1 (REQ-BFG-081; TEXT-STYLE 1.4 as ruled 2026-10-10): the plain lines under the stat row (a turret's loads and gear
-  // slots, faces.ts turretPlain), kept, in the ability lines' face and colour
-  for (const text of fl.plain ?? []) out.push({ role: "ability", text, keep: true });
+  // slots, faces.ts turretPlain), kept, in the ability lines' face and colour. EXPLAIN-1 (REQ-BFG-089, E1c): they are kind
+  // text (true of every turret), marked `note: "kind"`: a drawn panel (inspector.ts explainPanel) moves them to its ⓘ NOTES
+  for (const text of fl.plain ?? []) out.push({ role: "ability", text, keep: true, note: "kind" });
   for (const r of fl.rules) out.push({ role: "ability", text: r.text, keep: true, ...(r.label ? { brass: r.label } : {}) });
   if (perk && out.length) out[out.length - 1] = { ...out[out.length - 1], perk };
   // U2b F6: the perk clause, its label "★2 SPARK JUMP:" in brass, kept (a face never says less than the sim)

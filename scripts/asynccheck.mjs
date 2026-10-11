@@ -67,6 +67,9 @@ const OFFLINE_KEYS = [...OLD_KEYS, NAME_KEY, PROFILE_KEY, SPEED_KEY]; // what th
 
 mkdirSync(OUT, { recursive: true });
 const lines = [];
+// EXPLAIN-1 (REQ-BFG-089, E5): the first-run tips done on this device (src/ui/tips.ts TIPS_KEY), one key more the offline
+// page may write (added here, apart from OFFLINE_KEYS' line, which SCOUT-1b's branch changes too: the lanes merge clean)
+OFFLINE_KEYS.push("beltbattles.tips");
 const t0 = Date.now();
 const at = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
 const log = (s) => {

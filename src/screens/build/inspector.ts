@@ -107,6 +107,8 @@ import { statRow } from "../../ui/icons"; // U2c step 4
 import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; // U2c step 4; NUM-4: the estimate, whole
 import { icons } from "../../render/font"; // U2c step 4
 import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items
+import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
+import { PLAIN_RIGS, RIG_SENTENCE, turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' rig sentence and kind lines
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -169,6 +171,10 @@ export interface Block {
    *  row's own description under that row, a factory's second stat row, a rig's next hit, a belt's timeline rows (under
    *  its TILES, HITS: line) and their note, the gun end's next readout row. Presentation only: no plan reads it. */
   tie?: boolean;
+  /** EXPLAIN-1 (REQ-BFG-089, E1, E4): default rules text, drawn only in the ⓘ view's NOTES (explainPanel takes it off the
+   *  face): "kind", a line true of every piece of its kind (a turret's HOLDS and SLOT lines, an empty slot's); "rig", a
+   *  plain rig's rig sentence (faces.ts RIG_SENTENCE), first in NOTES. */
+  note?: "rig" | "kind";
 }
 
 /** Each role's base colour and whether it always takes the small (3x5) face: the flavour dimmer than the ability text,
@@ -243,6 +249,57 @@ const flavourBlocks = (def: string, stars: number, k: number): Block[] => {
 };
 /** The action hint. */
 const hintBlock = (text: string): Block => ({ role: "hint", text, rank: 6 });
+
+// ------------------------------------------------------------------------------------------- EXPLAIN-1: the default face
+
+/** EXPLAIN-1 (REQ-BFG-089, E4): a NOTES line's place: the rig sentence, the kind lines, the flavour and edge-case
+ *  sentences, the how-to hint (stable within each). */
+const noteOrder = (b: Block): number => (b.note === "rig" ? 0 : b.note === "kind" ? 1 : b.role === "hint" ? 3 : 2);
+
+/** EXPLAIN-1 (E1, E5): a block the default face doesn't draw: default rules text (a "kind" or "rig" note, the flavour, a
+ *  keyword reminder) and a how-to hint whose first-run tip is done (src/ui/tips.ts). */
+export function hiddenBlock(b: Block): boolean {
+  return !!b.note || b.role === "flavour" || b.role === "reminder" || (b.role === "hint" && !hintShows(b.text));
+}
+
+/**
+ * EXPLAIN-1 (REQ-BFG-089; the operator: "any of the default rules text should be hidden without the hover" and "per item
+ * abilities should always be visible"): a panel's DEFAULT FACE, as every drawn panel is (spec: offer, cargo, placed,
+ * fitted, rig, stoker, turret and turret slot panels, the desk column and the phone's tap panel). From `t`:
+ * - E1, E5: the body and every compact variant without the hidden blocks (hiddenBlock); a variant that shared the body's
+ *   blocks shares the new body (planBody's fullBody reads that), so the plan is the base's minus the hidden blocks and they
+ *   take no gap slot (SPACE-1's gapSlots never sees them);
+ * - E2: a per-piece restriction (the "caveat" role: faces.ts INTERIM_CAVEATS, DART GUN's inner column) as a rule line, the
+ *   ability text's role (its face and C.bone), in the same place, its words unchanged;
+ * - E4: `notes`, the ⓘ view's NOTES: the rig sentence of a plain rig (`def` in faces.ts PLAIN_RIGS; E9), the kind lines,
+ *   the flavour and edge-case sentences, then the hint (always, its tip done or not); a builder's own `notes` join them.
+ *   Keyword reminders are KEYWORDS' definitions, not NOTES;
+ * - `words`: the face's blocks before any was hidden, then the NOTES lines it never drew (keywords.ts panelWords reads them,
+ *   so KEYWORDS still names every word a hidden line names).
+ * Pure but for the tips' store (hintShows). Apply once per panel.
+ */
+export function explainPanel(t: PanelText, def?: string): PanelText {
+  const ruled = new Map<Block, Block>();
+  const rule = (b: Block): Block => {
+    if (b.role !== "caveat") return b;
+    let r = ruled.get(b);
+    if (!r) ruled.set(b, (r = { ...b, role: "ability" }));
+    return r;
+  };
+  const faces = new Map<readonly Block[], Block[]>();
+  const face = (bs: readonly Block[]): Block[] => {
+    let out = faces.get(bs);
+    if (!out) faces.set(bs, (out = bs.filter((b) => !hiddenBlock(b)).map(rule)));
+    return out;
+  };
+  const extra: Block[] = [...(def && PLAIN_RIGS.includes(def) ? [{ role: "ability", text: RIG_SENTENCE, note: "rig" } as Block] : []), ...(t.notes ?? [])];
+  const hidden = t.body.filter((b) => !!b.note || b.role === "flavour" || b.role === "hint");
+  const notes = [...extra, ...hidden].map((b, i) => ({ b, i })).sort((p, q) => noteOrder(p.b) - noteOrder(q.b) || p.i - q.i).map((x) => x.b);
+  return {
+    ...t, body: face(t.body), ...(t.variants ? { variants: t.variants.map((v) => ({ ...v, body: face(v.body) })) } : {}),
+    notes, words: [...t.body, ...extra],
+  };
+}
 
 /** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo.
  *  shoptap (D2): `touch`: a touch tap never places (it reads), so on a phone a part is dragged where it goes. */
@@ -332,6 +389,12 @@ export interface PanelText {
   /** Compact forms for a short band, fullest first (planBody takes the first whose kept blocks fit). */
   variants?: Variant[];
   labels: string[];
+  /** EXPLAIN-1 (REQ-BFG-089, E4): the ⓘ view's NOTES, in order (explainPanel): the rig sentence, the kind lines, the flavour
+   *  and edge-case sentences, the how-to hint. A builder may give lines no face draws (an installed turret's kind lines). */
+  notes?: Block[];
+  /** EXPLAIN-1 (E4): the blocks the ⓘ KEYWORDS reads (keywords.ts panelWords): the face's blocks before any was hidden,
+   *  then the NOTES lines no face drew, so no word's definition goes with the line that named it. Absent: `body`. */
+  words?: Block[];
 }
 
 /** A rig's panel extras (tests): IDLE, an X rig (no ROTATE). */
@@ -926,6 +989,9 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
     body,
     variants: [{ body, tight: true }, ...forms.flatMap((f) => [{ body: f }, { body: f, tight: true }])],
     labels: [...(startTurret && upgradeLabel(tl) ? [upgradeLabel(tl)!] : []), ...(tc.bought ? ["REMOVE CORE"] : []), ...(gm ? ["REMOVE GEAR"] : []), ...slotLabels(b, index)],
+    // EXPLAIN-1 (REQ-BFG-089, E1c, E4): the turret's two kind lines, never on this face (WORDS-1 drew them on its cards only),
+    // in its ⓘ NOTES at its stat row's numbers: the window and the slot's gear slots
+    notes: turretPlainOf(tu.window, gearSlots).map((text): Block => ({ role: "ability", text: icons(text), keep: true, note: "kind" })),
   };
 }
 
@@ -1205,7 +1271,7 @@ export function fitHead(g: G, s: string, x: number, y: number, max: number, colo
  * the body text moves down by that row (`shift`). Returns one rect per label, in action order (the last action
  * sits at the right edge, as before). Exported for tests.
  */
-export function portraitButtons(title: string, sub: string, labels: string[], r: Rect): { rects: Rect[]; shift: number } {
+export function portraitButtons(title: string, sub: string, labels: string[], r: Rect, left = 0): { rects: Rect[]; shift: number } {
   const n = labels.length, gap = 3, h = 13;
   const clear = r.x + 23 + Math.max(textWidth(title) + 2, textWidth(sub, "3")) + 3; // the title's outline, then a gap
   const even = Math.min(64, Math.floor((r.w - 10 - gap * (n - 1)) / n));
@@ -1227,9 +1293,18 @@ export function portraitButtons(title: string, sub: string, labels: string[], r:
   // the row: y+21..y+33, 1 px under the icon box (y+4..y+19) and 3 px under the sub-line (y+13..y+17). The body
   // text, which began at y+25, starts 3 px under the row (y+37): a 12 px shift keeps 4 lines of the 3x5 face in
   // the 69 px phone band (the turret case's CORE and GEAR lines both still show).
+  // EXPLAIN-1 (REQ-BFG-089, E3): `left`, on touch the ⓘ icon's finger square (keywords.ts questionRect: the box grown to a
+  // TAP_CSS square from x+1): the row starts right of it, so the icon's target is a whole square clear of the buttons'
+  // grown rects; where a label would not fit the narrower buttons, the row keeps the panel's width, as before
   const w = Math.floor((r.w - 10 - gap * (n - 1)) / n);
+  const x0 = Math.max(5, left), wl = Math.floor((r.w - 5 - x0 - gap * (n - 1)) / n);
+  if (x0 > 5 && labels.every((l) => textWidth(l, "3") + 4 <= wl)) return { rects: place(labels.map(() => wl), r.x + r.w - 5, r.y + 21), shift: 12 };
   return { rects: place(labels.map(() => w), r.x + r.w - 5, r.y + 21), shift: 12 };
 }
+
+/** EXPLAIN-1 (REQ-BFG-089, E3): how far right of a phone panel's left edge its ⓘ icon's finger square reaches (questionRect:
+ *  the 16 px box at x+4, grown to `tap` px from x+1), so the button row under the sub line starts there; 0 for a mouse. */
+export const iconReserve = (tap: number): number => (tap > 0 ? Math.max(20, 1 + tap) : 0);
 
 /** beltside-062: the least portrait panel height that holds portraitButtons' row (y+21..y+33) inside its frame. */
 const PORT_ROW_MIN_H = 36;
@@ -1361,9 +1436,11 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
   const btnRows = columnRows(labels.length, o.tap); // shoptap (D5): on touch two buttons a row (columnButtons)
   const wrapW = area.w - 10;
-  let port = !column && labels.length ? portraitButtons(sp.title, sp.sub, labels, area) : null;
+  // EXPLAIN-1 (REQ-BFG-089, E3): on touch a button row under the sub line starts right of the ⓘ's finger square
+  const reserve = iconReserve(o.tap ?? 0);
+  let port = !column && labels.length ? portraitButtons(sp.title, sp.sub, labels, area, reserve) : null;
   if (port?.shift && sp.subShort) {
-    const short = portraitButtons(sp.title, sp.subShort, labels, area);
+    const short = portraitButtons(sp.title, sp.subShort, labels, area, reserve);
     if (!short.shift) port = short;
   }
   if (port?.shift && area.h < PORT_ROW_MIN_H) port = { rects: topRowButtons(labels, area), shift: 0 };
@@ -1459,7 +1536,24 @@ interface Spec {
   actions: Action[];
 }
 
+/** EXPLAIN-1 (REQ-BFG-089): the piece a selection shows, for its plain face's rig sentence (explainPanel's `def`). */
+function shownDef(run: Run, show: Sel): string | undefined {
+  switch (show.kind) {
+    case "offer": return run.shop.wagons[show.wagon]?.offers[show.slot]?.def;
+    case "cargo": return run.inventory.find((i) => i.uid === show.uid)?.def;
+    case "item": return itemByUid(run.build, show.uid)?.def;
+    case "fitted": return run.build.mods.find((m) => m.uid === show.uid)?.def;
+    default: return undefined;
+  }
+}
+
+/** EXPLAIN-1 (REQ-BFG-089): every drawn panel's text is its default face (explainPanel), once, here. */
 function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
+  const s = baseSpec(ctx, show, hovering);
+  return s && { ...s, text: explainPanel(s.text, shownDef(ctx.run, show)) };
+}
+
+function baseSpec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
   const { run } = ctx;
   const b = run.build;
   const touch = !!ctx.touch; // shoptap (D2): the last press was a finger or a pen
@@ -1721,7 +1815,9 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
   // shown definition or the KEYWORDS view, the desk's hover tooltip
   // U2f (REQ-BFG-070): the ⓘ view may grow past the panel (infoFree: above it on the phone, down the column on the desk)
-  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, d, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column));
+  // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
+  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, d, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
+    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined);
 }
 
 /** 0.8.0 I1 M4 (REQ-BFG-023 part 2): draw plan.famHead, the shown module's families in the panel's header: each name in

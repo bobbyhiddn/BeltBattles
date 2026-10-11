@@ -5,7 +5,8 @@
 // (BuildScreen.pickSub: unit = gcd(scale, zoom) device px per canvas px), so every art pixel is whole device px. A portrait
 // phone's band is sized for 90% of the panels (phoneBand90); the rest grow over the shop rows, never over the carrier.
 // Every press on the carrier goes through the same map (toDeck), every carrier draw through its inverse (inCarrier).
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { setTipsForTests } from "../src/ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): the band measured with every tip new
 import { installRaster, fresh, G } from "./raster.helpers";
 import { newRun, type Run } from "../src/game/run";
 import { buyableModules } from "../src/sim/content";
@@ -258,6 +259,10 @@ function panels(): { id: string; run: Run; sel: Sel }[] {
 
 describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2)", () => {
   const all = panels();
+  // EXPLAIN-1 (REQ-BFG-089, E5): a how-to hint shows until its first-run tip is done (src/ui/tips.ts), and this file's drag
+  // and tap tests above complete some tips (a part placed or moved). The band is measured with every tip new, the first
+  // run's panels, the most a panel holds; tests/explain1.test.ts (e) measures the band with every tip done too
+  beforeAll(() => { setTipsForTests("new"); });
   /** The height each panel needs at band width W - 6 to show its full description (fullText), in the band's layout. */
   const needs = (W: number): number[] => {
     const L = buildLayout(W, 700, true, 5, true, 27), v = { W, H: 700, scale: 5, dpr: 3, portrait: true };
@@ -276,9 +281,14 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
     const widths = [186, 235, 236, 237, 238, 239, 240, 241, 245, 246, 247, 248, 249, 250, 258, 315, 340], rows: string[] = [];
     for (const W of widths) {
       const hs = needs(W).sort((a, b) => a - b), band = phoneBand90(W);
-      const share = hs.filter((n) => n <= band).length / hs.length;
-      rows.push(`${W}: ${band} (${(share * 100).toFixed(1)}% fit; tallest ${hs[hs.length - 1]})`);
-      expect(hs[Math.ceil(0.9 * hs.length) - 1], `W ${W}`).toBe(band);
+      const share = hs.filter((n) => n <= band).length / hs.length, p90 = hs[Math.ceil(0.9 * hs.length) - 1];
+      rows.push(`${W}: ${band} (${(share * 100).toFixed(1)}% fit; measured 90th ${p90}; tallest ${hs[hs.length - 1]})`);
+      // EXPLAIN-1 (REQ-BFG-089, E6): the pins hold as floors. EXPLAIN-1 takes default rules text off the faces (a turret's two
+      // kind lines, the flavour, a done tip's hint), so the panels need less: the measured 90th can only fall below a pin,
+      // never rise past it. The pins stay (the band keeps its height and the zoom its PICKS: cap's call, EXPLAIN-1's brief
+      // E6; a re-pin is an option for cap, reported in the REPORT's section 6), and each must still cover at least 90% of the
+      // panels (the shares can only rise). Was: the measured 90th equals the pin
+      expect(p90, `W ${W}`).toBeLessThanOrEqual(band);
       expect(share, `W ${W}`).toBeGreaterThanOrEqual(0.9);
     }
     console.log(`ZOOM-1 phoneBand90: ${rows.join(" | ")}`);

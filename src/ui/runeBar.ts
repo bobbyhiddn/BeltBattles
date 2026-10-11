@@ -15,7 +15,11 @@ import { frame, rect } from "../render/pixel";
 import { C } from "../render/palette";
 import { drawText, textWidth } from "../render/font";
 import { panel, type Rect } from "./ui";
+import { inside, tapRect, type UI } from "./ui"; // EXPLAIN-1 (REQ-BFG-089, E3): the chip's target
 import { tapPx, TAP_CSS } from "./tap";
+import { isPhone } from "./tap"; // EXPLAIN-1 (E3): a phone's chip target is a finger's
+import { runeReminder } from "./runeText"; // EXPLAIN-1 (E3): the hidden line the chip shows
+import { drawIconTip, helpCursor, iconTipRect } from "../screens/build/keywords"; // EXPLAIN-1 (E3): the tooltip's style
 import type { View } from "../core/io";
 import { drawRich, wrapRich, type RichLine } from "./richText";
 import { RUNES, isRune, type RuneDef, type RuneHeld } from "../sim/runes";
@@ -139,7 +143,11 @@ export interface RuneCardOpts {
   sub: string;
   /** A yellow ring: the opened picker card. */
   open?: boolean;
+  /** The reminder's room under the effect lines (runeCardH counts it). EXPLAIN-1 (REQ-BFG-089, E1d): the reminder is
+   *  default rules text, so the room stays clear; the line draws there only while `noteOpen` (a tap on the chip, E3). */
   reminder?: boolean;
+  /** EXPLAIN-1 (E3): the hidden line shown in its room, in keywords.ts definitionBox's look (drawRuneNote). */
+  noteOpen?: boolean;
   /** A yellow bar under the text ("TAP AGAIN TO TAKE IT"). */
   hint?: string;
 }
@@ -202,17 +210,66 @@ export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void
     y += 9;
   }
   if (o.reminder) {
-    y += 1;
-    for (const l of wrapRich(runeReminderSpans(def), tw, "3")) {
-      drawRich(g, l, r.x + 5, y, "3");
-      y += 7;
-    }
+    // EXPLAIN-1 (REQ-BFG-089, E1d): the reminder's room stays, clear; its line draws only while the chip has it open (E3)
+    const ls = wrapRich(runeReminderSpans(def, C.bone), tw, "3");
+    if (o.noteOpen) drawRuneNote(g, r, y, ls);
+    y += 1 + ls.length * 7;
   }
   if (o.hint) {
     const hw = textWidth(o.hint) + 8, hb = { x: Math.round(r.x + r.w / 2 - hw / 2), y: y + 1, w: hw, h: 11 };
     rect(g, hb.x, hb.y, hb.w, hb.h, C.yellow);
     drawText(g, o.hint, hb.x + 4, hb.y + 2, C.ink);
   }
+}
+
+// ---- EXPLAIN-1 (REQ-BFG-089, E3): the card's chip is its icon ------------------------------------------------------------
+
+/** EXPLAIN-1 (E3): the chip as drawRuneCard draws it on card `r`. Pure (tests). */
+export const runeCardChip = (r: Rect, def: RuneDef): Rect => ({ x: r.x + 5, y: r.y + 6, w: runeCardChipW(def), h: CARD_CHIP });
+
+/** EXPLAIN-1 (E3): the chip's target: the chip, grown on touch (`tap` > 0, a finger's TAP_CSS square in art px) as ui.ts
+ *  tapRect grows the buttons, inside the card (1 px in from its frame). Pure (tests). */
+export function runeChipTarget(r: Rect, def: RuneDef, tap: number): Rect {
+  const c = runeCardChip(r, def);
+  return tap ? tapRect(c, tap, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, tap) : c;
+}
+
+/** EXPLAIN-1 (E3): the hidden line's box over its room (from `y`, the room's top: drawRuneCard's text y after the effect
+ *  lines), keywords.ts definitionBox's look (navy, a slate1 top edge), its lines `ls` where the reminder drew them: whole,
+ *  never cut (the room is theirs: runeCardH). Pure geometry: runeNoteBox. */
+export function runeNoteBox(r: Rect, y: number, lines: number): Rect {
+  return { x: r.x + 2, y: y - 1, w: r.w - 4, h: lines * 7 + 3 };
+}
+
+function drawRuneNote(g: G, r: Rect, y: number, ls: readonly RichLine[]): void {
+  const box = runeNoteBox(r, y, ls.length);
+  rect(g, box.x, box.y, box.w, box.h, C.navy);
+  rect(g, box.x, box.y, box.w, 1, C.slate1);
+  ls.forEach((l, i) => drawRich(g, l, r.x + 5, y + 1 + i * 7, "3"));
+}
+
+/** EXPLAIN-1 (E3): the room's top y on card `r` (drawRuneCard's: the head, then 9 px a line of the effect). Pure. */
+export const runeNoteY = (r: Rect, def: RuneDef): number => r.y + CARD_TEXT_Y + runeTextLines(def, runeCardTextW(r.w)).length * 9;
+
+/**
+ * EXPLAIN-1 (E3): a rune card's chip as its icon, after the card's own region (so a press on it is the chip's, never the
+ * card's: no rune is taken, no card is picked): its target (runeChipTarget) toggles the hidden line (`toggle`), and with a
+ * mouse, hovering it shows the line in the word tooltip's style beside the card (keywords.ts iconTipRect), on the
+ * screen `screen`, with the help cursor. Returns the target. `id` starts with the screen's own prefix (the rune bar's
+ * "rune", the pickers'), so their press rules keep the card open.
+ */
+export function runeChipIcon(g: G, ui: UI, id: string, card: Rect, def: RuneDef, tap: number, toggle: (() => void) | null,
+  screen: { W: number; H: number }, canvas?: HTMLCanvasElement | null): Rect {
+  const t = runeChipTarget(card, def, tap);
+  if (toggle) ui.add({ id, r: t, onTap: toggle });
+  const p = ui.pointer;
+  if (!tap && p.kind === "mouse" && !p.down && inside(t, p.x, p.y)) {
+    const items = [runeReminder(def)], tr = iconTipRect(items, card, screen);
+    drawIconTip(g, items, tr);
+    ui.add({ id: `${id}-tip`, r: tr, block: true });
+    helpCursor(canvas, true);
+  }
+  return t;
 }
 
 /** The read-outs' width on a screen `W` wide. */
@@ -227,6 +284,8 @@ export const runeListH = (n: number): number => 16 + n * 19 + 2;
 export class RuneBar {
   open = -1;
   list = false;
+  /** EXPLAIN-1 (REQ-BFG-089, E3): the open read-out's hidden line is shown (its chip was tapped). */
+  note = false;
 
   /** The bar as the build screen lays it out now (its row right under the top bar), or null with no rune held. */
   layout(s: BuildScreen): RuneBarLayout | null {
@@ -268,14 +327,16 @@ export class RuneBar {
     const ui = s.game.ui;
     const defs = defsOf(s.run.build.runes);
     ui.add({ id: "runebar", r: B.bar, block: true });
-    B.chips.forEach((r, i) => ui.add({ id: `rune-${i}`, r, onTap: () => { this.list = false; this.open = this.open === i ? -1 : i; } }));
+    B.chips.forEach((r, i) => ui.add({ id: `rune-${i}`, r, onTap: () => { this.list = false; this.note = false; this.open = this.open === i ? -1 : i; } }));
     if (B.more) ui.add({ id: "rune-more", r: B.more, onTap: () => { this.open = -1; this.list = !this.list; } });
     const W = s.game.W, w = readoutW(W), x = Math.round(W / 2 - w / 2), y = B.bar.y + B.bar.h + 2;
     if (this.open >= 0 && defs[this.open]) {
       const def = defs[this.open];
       const r = { x, y, w, h: runeCardH(def, w, { reminder: true }) };
-      drawRuneCard(g, r, def, { sub: runeTaken(def, this.open + 1), reminder: true });
-      ui.add({ id: "rune-readout", r, onTap: () => { this.open = -1; } });
+      // EXPLAIN-1 (REQ-BFG-089, E1d, E3): the reminder's room stays clear; the chip shows its line (a tap) or a tooltip (hover)
+      drawRuneCard(g, r, def, { sub: runeTaken(def, this.open + 1), reminder: true, noteOpen: this.note });
+      ui.add({ id: "rune-readout", r, onTap: () => { this.open = -1; this.note = false; } });
+      runeChipIcon(g, ui, "rune-chip", r, def, runeTapOf(s), () => { this.note = !this.note; }, { W: s.game.W, H: s.game.H }, s.game.canvas);
     } else if (this.list) {
       const r = { x, y, w, h: runeListH(defs.length) };
       panel(g, r, "dark");
@@ -291,11 +352,19 @@ export class RuneBar {
     }
   }
 
-  /** Every press (BuildScreen.pressed): one on anything but the bar and its read-out closes the read-out. */
+  /** Every press (BuildScreen.pressed): one on anything but the bar and its read-out closes the read-out. EXPLAIN-1 (E3):
+   *  one on anything but the read-out's chip closes the chip's line. */
   pressed(region: string | null): void {
+    if (region !== "rune-chip") this.note = false;
     if (region === null || !region.startsWith("rune")) {
       this.open = -1;
       this.list = false;
     }
   }
+}
+
+/** EXPLAIN-1 (REQ-BFG-089, E3): a rune chip's finger target on a build screen: a TAP_CSS square (tapPx) on a phone or after
+ *  a finger's press, else 0 (a mouse: the chip itself, and its hover). */
+export function runeTapOf(s: { touch: boolean; game: { view: View } }): number {
+  return s.touch || isPhone(s.game.view) ? tapPx(s.game.view) : 0;
 }

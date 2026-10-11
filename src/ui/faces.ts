@@ -848,9 +848,40 @@ const TURRET_FACE = (): Rules => rules([]);
  * one load a shot until the chamber is empty, then the reload); a core's own line says what it changes.
  */
 export function turretPlain(def: string, stars = 1): string[] {
-  const n = effectAt(def, stars).turret!.window, g = gearSlotsOf(def, stars);
+  return turretPlainOf(effectAt(def, stars).turret!.window, gearSlotsOf(def, stars));
+}
+
+/** EXPLAIN-1 (REQ-BFG-089, E4): the two plain lines for a chamber of `n` loads and `g` gear slots, the same words as
+ *  turretPlain: an installed turret's ⓘ NOTES reads them at its own stat row's numbers (its window and its slot's gear
+ *  slots), as turretPlain reads a card's. */
+export function turretPlainOf(n: number, g: number): string[] {
   return [`HOLDS ${fmtCount(n)} {SLUG}: FIRES THEM ONE A SHOT, THEN RELOADS.`, `${fmtCount(g)} {GEAR} SLOT${s(g)} FOR TURRET GEAR.`];
 }
+
+// ------------------------------------------------------- EXPLAIN-1 (REQ-BFG-084 step 0b): three plain stat rigs
+
+/**
+ * EXPLAIN-1 (REQ-BFG-084 step 0b; PIECES-1 3.3 and 3.5): the three rigs whose one line was a bare hit stat ("HIT: +20
+ * {DMG}.") draw a plain face: that stat as a stat row ({DMG}+20), no rule line. Face data only, on the panel's face
+ * (screens/build/faceBlocks.ts): faceAt keeps their rule and numbers, so their LEVELS, NEXT★, phone chip, desk card and
+ * tooltip are as before. HEAT JACKET (its desk card's condition), PLATE ROLLER and RIVETER (their stat goes to the ship)
+ * keep their HIT: line. An explicit list, so no other rig moves.
+ */
+export const PLAIN_RIGS: readonly string[] = ["whetstone", "temper", "barbed"];
+
+/** A plain rig's stat row's pairs at `stars`, from the sim's star data through the formatters faceAt's rule uses (gate
+ *  flat, burn, fray); null for every other piece. */
+export function plainRigStats(def: string, stars = 1): Stat[] | null {
+  if (!PLAIN_RIGS.includes(def)) return null;
+  const g = effectAt(def, stars).gate!;
+  if (def === "whetstone") return [["DMG", `+${fmtDmg(g.flat!)}`]];
+  if (def === "temper") return [["BURN", `+${fmtCount(g.burn!)}`]];
+  return [["FRAY", `+${fmtCount(g.fray!)}`]];
+}
+
+/** PIECES-1 3.5's fixed rig sentence: true of every slug-stat rig, so it is default rules text and never on a face; it
+ *  leads a plain rig's ⓘ NOTES (inspector.ts explainPanel). Checked clause by clause against src/sim (REPORT section 10). */
+export const RIG_SENTENCE = "EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS STATS TO EVERY SLUG ON THAT TILE. ONE ARROW, ONE HIT.";
 
 // ------------------------------------------------------------- Y2 (release Y): the STUN pieces with the switch on
 

@@ -15,11 +15,14 @@ import { drawRich } from "../ui/richText";
 import { pendingRune, takeRune, type Run } from "../game/run";
 import { RUNES, isRune, type RuneDef } from "../sim/runes";
 import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH, runeChipW } from "../ui/runeBar";
+import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the chip as the card's icon
 import { runeTag, tierColour, tierWord } from "../ui/runeText";
 import type { BuildScreen } from "./build/build";
 
 export const PICK_TITLE = "PICK A RUNE";
 export const PICK_TAKE = "TAP AGAIN TO TAKE IT";
+/** EXPLAIN-1 (REQ-BFG-089, E3): the opened card's chip's region. */
+export const PICK_CHIP = "runepick-chip";
 /** "1 OF 3. FREE. KEPT ALL RUN. TAP TO READ." (2 from day 5). */
 export const pickHint = (cards: number): string => `1 OF ${cards}. FREE. KEPT ALL RUN. TAP TO READ.`;
 /** The dawn line's two parts: "DAWN OF DAY 4 · " and the tier's ("RARE RUNES", in its colour). */
@@ -82,7 +85,15 @@ export function pickLayout(W: number, H: number, ids: readonly string[], open: n
 export class RunePicker {
   /** The opened card (-1: none). */
   open = -1;
+  /** EXPLAIN-1 (REQ-BFG-089, E3): the opened card's hidden line is shown (its chip was tapped). */
+  note = false;
   private day = 0;
+
+  /** EXPLAIN-1 (E3): every press while the picker is up (BuildScreen.pressed): one anywhere but the opened card's chip
+   *  closes its line. */
+  pressed(region: string | null): void {
+    if (region !== PICK_CHIP) this.note = false;
+  }
 
   /** Today's offer while the pick is pending and the run is at its caravan (not a refit), else null. */
   offer(s: Pick<BuildScreen, "run" | "refit">): ReturnType<typeof pendingRune> {
@@ -100,6 +111,7 @@ export class RunePicker {
   tap(s: BuildScreen, i: number, id: string): void {
     if (this.open !== i) {
       this.open = i;
+      this.note = false;
       return;
     }
     const r = takeRune(s.run, id);
@@ -122,6 +134,7 @@ export class RunePicker {
     if (this.day !== o.day) {
       this.day = o.day;
       this.open = -1;
+      this.note = false;
     }
     const { W, H, ui } = s.game;
     const held = (s.run.build.runes ?? []).map((q) => q.id).filter(isRune);
@@ -138,8 +151,17 @@ export class RunePicker {
     drawText(g, pickHint(o.ids.length), cx, L.top + 22, C.slate4, { font: "3", align: "center" });
     o.ids.forEach((id, i) => {
       const def = RUNES[id], r = L.cards[i], open = i === this.open;
-      drawRuneCard(g, r, def, { sub: runeTag(def), open, reminder: open, hint: open ? PICK_TAKE : undefined });
+      // EXPLAIN-1 (REQ-BFG-089, E1d): the opened card keeps its reminder's room, clear until its chip shows the line (E3)
+      drawRuneCard(g, r, def, { sub: runeTag(def), open, reminder: open, noteOpen: open && this.note, hint: open ? PICK_TAKE : undefined });
       ui.add({ id: `runepick-${i}`, r, onTap: () => this.tap(s, i, id) });
+    });
+    // EXPLAIN-1 (E3): each card's chip is its icon, its region over the card's: on the opened card a tap shows its hidden
+    // line in its room (never the "TAP AGAIN TO TAKE IT" tap); on a closed card a tap opens it as the card does; with a
+    // mouse, hovering a chip shows the line beside its card. After every card, so no card draws over a tooltip
+    o.ids.forEach((id, i) => {
+      const open = i === this.open;
+      runeChipIcon(g, ui, open ? PICK_CHIP : `runepick-${i}-chip`, L.cards[i], RUNES[id], runeTapOf(s),
+        open ? () => { this.note = !this.note; } : () => this.tap(s, i, id), { W, H }, s.game.canvas);
     });
     if (L.tray) {
       panel(g, L.tray, "inset");
