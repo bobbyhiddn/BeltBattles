@@ -68,6 +68,14 @@ describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ
     });
     expect(kindLine(ITEMS.gantry)).toBe(`${ITEMS.gantry.rarity.toUpperCase()} FACTORY`);
     expect(shapeWord("gantry")).toBeNull();
+    // a turret is not a deck piece: a size-2 turret's type line never names a shape, with SHAPES on or off
+    withShapes(() => {
+      for (const d of Object.values(ITEMS).filter((q) => q.kind !== "gate" && q.kind !== "factory")) {
+        expect(shapeWord(d.id), d.id).toBeNull();
+        expect(shapeLines(d.id)).toEqual([]);
+        expect(shapeNotes(d.id)).toEqual([]);
+      }
+    });
   });
 
   it("GANTRY PRESS (2x3): FEEDS 4/5/6 BELTS IN TURN. and BIGGER: +1 {BELT}, kept, after its face; ASSEMBLY LINE adds none", () => {

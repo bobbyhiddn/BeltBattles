@@ -24,6 +24,7 @@ import { footBox, footprintCells } from "../../sim/foot";
 import { boxRect } from "../../render/frame";
 import { disc, ring } from "../../render/pixel";
 import { canTurn, machineryArrows, shapedPiece, shapeTag, turnsOf } from "./shapeEdit";
+import { pieceRect, screenMask, shapedFactorySprite, shapedRigBody } from "../../render/shapeArt"; // SHAPES-1: the ghost's body
 
 /** A deck cell; for a rig, with the rotation it would take there. */
 type Cell = { x: number; y: number; rot?: number };
@@ -70,10 +71,12 @@ export function drawShapeGhost(g: G, L: BuildLayout, b: Build, defId: string, x:
   const pts = footprintCells(d, x, y, rot).map((k) => ({ x: Math.round(footX(f, kx(k), ky(k))), y: Math.round(footY(f, kx(k), ky(k))) }));
   const at = new Set(pts.map((p) => `${p.x},${p.y}`));
   const bx = footBox(d, rot), box = boxRect(f, x, y, bx.w, bx.h);
+  // its body as the deck draws it (render/shapeArt.ts: one body over the turned box), at the ghost's alpha
   g.globalAlpha = alpha;
-  for (const p of pts) rect(g, p.x, p.y, 12, 12, C.slate2);
-  const icon = itemIcon(defId);
-  g.drawImage(icon, Math.round(box.x + box.w / 2 - icon.width / 2), Math.round(box.y + box.h / 2 - icon.height / 2));
+  const pl = { uid: -1, def: defId, x, y, ...(rot ? { rot } : {}) };
+  const pr = pieceRect(L.frame, pl);
+  const body = d.kind === "factory" ? shapedFactorySprite(defId, 0, false, 1, pr.w, pr.h) : shapedRigBody(defId, pr.w, pr.h, 0, false, screenMask(L.frame, pl, pr));
+  g.drawImage(body, Math.round(pr.x), Math.round(pr.y));
   g.globalAlpha = 1;
   let hits: { dir: number; cell: number; from?: number }[] = [], machinery = 0;
   if (isRig(defId)) {

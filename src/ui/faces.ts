@@ -1015,6 +1015,12 @@ function shapedPlainStats(def: string, stars: number, day?: number): Stat[] {
   return [["DMG", `+${fmtDmg(shownOn(day, () => dmgNow(g.flat!)))}`]];
 }
 
+/** SHAPES-1: a shaped deck piece (a rig of 2+ cells, a factory not 2x2): foot.ts isShaped for a rig or a factory only (a
+ *  size-2 turret's foot reads 2x2, which isShaped counts as a shape: never one here). */
+function deckShaped(d: ItemDef): boolean {
+  return (d.kind === "gate" || d.kind === "factory") && isShaped(d);
+}
+
 /** SHAPES-1 (R2): the most hits a rig's shape can make: each arrow direction from every outside edge of its cells, one hit
  *  each (rigArrowCells at rot 0): NAIL STRIP and EMBER TROUGH 2, SPIKE RAIL 6. */
 export function shapeMaxHits(def: string): number {
@@ -1029,7 +1035,7 @@ export function shapeMaxHits(def: string): number {
  */
 export function shapeLines(def: string, stars = 1): FaceRule[] {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
-  if (!d || !shapesRules() || !isShaped(d)) return [];
+  if (!d || !shapesRules() || !deckShaped(d)) return [];
   if (d.kind === "gate") return [{ text: `UP TO ${fmtCount(shapeMaxHits(def))} HITS` }];
   const more = footSlots(d);
   if (d.kind !== "factory" || !more) return [];
@@ -1045,7 +1051,7 @@ export const SIZE_RULE = `A FACTORY'S EVERY ${fmtCount(SLOT_EVERY_CELLS)} CELLS 
 /** SHAPES-1: a shaped piece's NOTES sentences ([] for every other piece and with SHAPES off). */
 export function shapeNotes(def: string): string[] {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
-  if (!d || !shapesRules() || !isShaped(d)) return [];
+  if (!d || !shapesRules() || !deckShaped(d)) return [];
   return d.kind === "gate" ? [SHAPE_RULE] : d.kind === "factory" ? [SIZE_RULE] : [];
 }
 
@@ -1053,7 +1059,7 @@ export function shapeNotes(def: string): string[] {
  *  block; null for a 1-cell rig, a 2x2 factory and anything with SHAPES off (their type line stays as it is). */
 export function shapeWord(def: string): string | null {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
-  if (!d || !shapesRules() || !isShaped(d)) return null;
+  if (!d || !shapesRules() || !deckShaped(d)) return null;
   // a block (every cell of its box, 2+ each way: 2x3, 3x3) by its box, depth X width as the FootId names it; else its cells
   const b = footBox(d, 0), n = footCount(d);
   return n === b.w * b.h && b.w > 1 && b.h > 1 ? `${fmtCount(b.h)}X${fmtCount(b.w)}` : `${fmtCount(n)} CELLS`;
