@@ -6,7 +6,8 @@ import { newRun } from "./game/run";
 import { gainModule } from "./game/fuse";
 import { beginRoad, makeEvent } from "./game/events";
 import type { EventId } from "./game/eventDefs";
-import { ITEMS, buyableModules, type HeroId } from "./sim/content";
+import { HEROES, ITEMS, buyableModules, type HeroId } from "./sim/content";
+import { heroStartBuild } from "./sim/heroBuilds"; // MIRROR-1 (REQ-BFG-093) tooling: the mirror test's silent deck
 import { FUSE_MAX, fusible } from "./sim/stars";
 import { settings, setReducedMotion } from "./core/settings";
 import { VERSION } from "./version";
@@ -137,6 +138,19 @@ game.start();
     clearPool();
     game.run = showcaseRun(name, o);
     game.go(screen === "battle" ? new BattleScreen(game) : new BuildScreen(game));
+  },
+  /** MIRROR-1 (REQ-BFG-093) tooling (wave3-mock only, test only: nothing ships): the operator's mirror test. Both sides
+   *  are `hero`'s starting deck with its belts cut (heroStartBuild with routes []: nothing loads, nothing fires; uids 1
+   *  and 101, as tests/mirror.wind.test.ts builds them), so only the dark wind moves a hull. Opened as a stored record
+   *  replayed (openReplay(battleRecordFor(a, b, seed)) into a ReplayScreen, as bb.openReplay and the summary's REPLAY
+   *  play one), BACK to the title; `day` only picks the replay's sea and banner. Changes no run state. */
+  openMirror(hero: HeroId = "furnace", seed = 7, day = 1): boolean {
+    clearPool();
+    const silent = (uid: number): Build => ({ ...heroStartBuild(hero, uid), routes: [] });
+    const r = openReplay(battleRecordFor(silent(1), silent(101), seed));
+    if (!r.ok) return false;
+    game.go(new ReplayScreen(game, new TitleScreen(game), r.battle, { day, foe: HEROES[hero].name }));
+    return true;
   },
   openDusk(o: RunSpec = {}, ghosts: GhostSpec[] = []): void {
     clearPool();
