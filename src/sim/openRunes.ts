@@ -63,12 +63,35 @@ export function withOpenRunes<T>(fn: () => T, on = true): T {
   }
 }
 
+/** THE LONG ROAD's amount under the open rule (a whole %, per rig a load passes; TOLL ROAD's unit). Run 2's bench
+ *  (tools/open1.ts --mode value, "today": AZ's three switches on; FURNACE's bare par decks, seeds 1-10, days 3-10, against
+ *  the four heroes' par decks, seeds 1-2, both sides; points a fight x100, 95% interval over the members): today's x2
+ *  +16.3 [9.8, 22.9]; this rewrite at 6 +15.6 [5.8, 25.4], 8 +19.2, 10 +23.0, 12 +26.3, 15 +29.4 (TOLL ROAD's 4: +10.7).
+ *  6 is the whole amount nearest today's (-4%). */
+export const LONG_ROAD_PCT = 6;
+
 /**
  * The dead-rune rewrites (REQ-BFG-109 section 4c), each built from its base def (the switch-off def, as runes.ts writes it):
  * the same id, name, tier and theme (so the same offers), only the trigger or target changed, on an effect the battle
- * already has. Empty until the audit (step 2).
+ * already has.
+ *
+ * THE AUDIT (BRIEF-OPEN1 4a; tools/open1.ts --mode audit, the par decks of days 3, 6 and 9) and cap's call (oracle request
+ * 3360bc59b3a473f1: section 4's definition decides, "no deck that hero can build"; the par-deck run is the screen):
+ * - DEAD, rewritten here: THE LONG ROAD for WEAVER, FOUNDRY and BASTION. "YOUR RIDE BONUS: x2" reads a load's ride bonus,
+ *   and only the KILN's CINDER SLUG has one (AMMO rideScale; the KILN is FURNACE's own factory, no shop sells it).
+ * - PART, kept as they are (build-arounds: dead on the par decks, live with a shop part): COAL CHUTE and HEAT SINK for
+ *   WEAVER, FOUNDRY and BASTION (HEAT: a HEAT JACKET, a rare QUARTERMASTER rig), and the seven PAIR runes for WEAVER (a
+ *   two-intake turret, SCRAP CANNON, CARRONADE, RAMPART or SWIVEL, fed by two belts; WEAVER's DART GUNs take one belt
+ *   each). tests/open1.deadRunes.test.ts builds each such deck legally and proves the rune fires there.
  */
-export const OPEN_RUNE_DEFS: Readonly<Record<string, (base: RuneDef) => RuneDef>> = {};
+export const OPEN_RUNE_DEFS: Readonly<Record<string, (base: RuneDef) => RuneDef>> = {
+  // THE LONG ROAD (legendary, furnace): the road a load travels, keyed on what every deck holds. The battle's one generic
+  // reading of a load's road is the rigs it passed (Payload.prior: TOLL ROAD's priorPct, in runeMul's % sum), so the
+  // rune becomes "+N% DMG PER RIG A LOAD PASSES", in TOLL ROAD's words (one effect, one wording), N set on FURNACE's value
+  // of today's x2 (tools/open1.ts --mode value). The better form, a ride bonus for every load ("YOUR LOADS: +N DMG A SEC
+  // RIDDEN"), needs a new effect field in battle.ts: the REPORT proposes it, nothing here builds it.
+  long_road: (base) => ({ ...base, kind: "priorPct", amount: { unit: "pct", n: LONG_ROAD_PCT }, text: "+{N} {DMG} PER RIG A LOAD PASSES." }),
+};
 
 /** runes.ts's hook (called once, at its load): `fn(on)` swaps the rewritten defs in or out; it is applied at once with the
  *  switch's current state, and again at every change. */
