@@ -61,6 +61,9 @@ const LOWER_S = 0.25;
  *  bow wave 3 more). */
 const SAIL_IN_PAD = 24;
 
+/** PAIR-CUE (REQ-BFG-100): the paused chip's body, a blocking region (a press on it reaches nothing under it). */
+export const PAUSE_CHIP = "pchip";
+
 export class BattleScreen implements Screen {
   readonly arena: Arena;
   readonly foe: DuskFoe;
@@ -553,6 +556,9 @@ export class BattleScreen implements Screen {
     panel(g, r, "dark");
     drawText(g, "PAUSED", r.x + 6, r.y + 4, C.yellow, { scale: 2, outline: C.ink });
     drawText(g, hint, r.x + 6, r.y + 20, C.slate4, { font: "3" });
+    // PAIR-CUE (REQ-BFG-100; REVIEW-COUNT1, gap 4): the chip's body swallows a press, so a counter target under it (added
+    // earlier this frame) is never reached through it; MENU, added after, still wins on its own button
+    ui.add({ id: PAUSE_CHIP, r, block: true });
     button(ui, g, "pmenu", { x: r.x + r.w - 34, y: r.y + 5, w: 30, h: 18 }, "MENU", { font: "3", onTap: this.openMenu });
   }
 
