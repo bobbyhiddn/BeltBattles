@@ -314,29 +314,40 @@ function numbersInPage({ kinds, band }) {
   return { level: +(b.windLevel() * Math.max(0, 1 - a.overT / 1.2)).toFixed(3), stray, nums: made.map((q) => ({ side: q.side, kind: q.kind, text: q.text, px: q.px, dimmed: q.dimmed, inBand: q.inBand, box: q.box })) };
 }
 
-/** In-page: g.render() timed (ms a frame): the frame as it is, with the wind's level at 0, and with KINDS on both boards. */
+/** In-page: the frame's cost (ms): g.render() and its raster (the canvas drawn into a 1x1 reading copy forces Chrome's
+ *  deferred canvas to raster the frame, so each sample holds the frame's real drawing; the copy's own cost is in every
+ *  sample alike), sampled frame by frame in turn: the frame as it is, with the wind's level at 0, and with KINDS on both
+ *  boards. Medians (and means) over n samples each. */
 function costInPage({ n, kinds }) {
-  const bb = window.bb, g = bb.game, s = g.screen, a = s.arena, b = a.b, fx = a.fx;
-  const time = (k) => { const t0 = performance.now(); for (let i = 0; i < k; i++) g.render(); return (performance.now() - t0) / k; };
-  time(5);
-  let on = 0, off = 0, nums = 0;
+  const bb = window.bb, g = bb.game, s = g.screen, a = s.arena, b = a.b, fx = a.fx, cv = g.canvas;
+  const copy = document.createElement("canvas");
+  copy.width = copy.height = 1;
+  const cx = copy.getContext("2d", { willReadFrequently: true });
+  const frame = () => { const t0 = performance.now(); g.render(); cx.drawImage(cv, 0, 0, 1, 1, 0, 0, 1, 1); cx.getImageData(0, 0, 1, 1); return performance.now() - t0; };
   const np0 = fx.np, anchor0 = fx.anchor;
-  for (let r = 0; r < 4; r++) {
-    on += time(n);
-    b.windLevel = () => 0;
-    off += time(n);
-    delete b.windLevel;
+  const put = () => {
     for (const side of [0, 1]) {
       const hb = s.L.hulls[side];
       fx.anchor = side;
       for (const k of kinds) { fx.popup(hb.x + hb.w * k.at[0], hb.y + hb.h * k.at[1], k.text, k.colour, k.big); fx.pops[fx.np - 1].t = 0.3; }
     }
     fx.anchor = anchor0;
-    nums += time(n);
+  };
+  for (let i = 0; i < 5; i++) frame();
+  const on = [], off = [], nums = [];
+  for (let i = 0; i < n; i++) {
+    on.push(frame());
+    b.windLevel = () => 0;
+    off.push(frame());
+    delete b.windLevel;
+    put();
+    nums.push(frame());
     fx.np = np0;
   }
   g.render();
-  return { frames: 12 * n, on: +(on / 4).toFixed(2), off: +(off / 4).toFixed(2), wind: +((on - off) / 4).toFixed(2), withNumbers: +(nums / 4).toFixed(2) };
+  const med = (xs) => { const q = [...xs].sort((x, y) => x - y); return +q[Math.floor(q.length / 2)].toFixed(2); };
+  const mean = (xs) => +(xs.reduce((t, x) => t + x, 0) / xs.length).toFixed(2);
+  return { frames: 3 * n, on: med(on), off: med(off), wind: +(med(on) - med(off)).toFixed(2), withNumbers: med(nums), numbers: +(med(nums) - med(on)).toFixed(2), means: { on: mean(on), off: mean(off), withNumbers: mean(nums) } };
 }
 
 const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
@@ -434,9 +445,9 @@ async function main() {
             C.numbersSeenAsDrawn = nm.nums.every((q) => q.dimmed === 0);
           }
           if (COST === vname && !reduced && at === AT[AT.length - 1] && cam === CAMS[0]) {
-            const co = await page.evaluate(costInPage, { n: 15, kinds: KINDS });
+            const co = await page.evaluate(costInPage, { n: 60, kinds: KINDS });
             V.cost = co;
-            log(`     frame cost (${co.frames} renders): ${co.on} ms a frame with the wind, ${co.off} with its level at 0 (the wind: ${co.wind} ms), ${co.withNumbers} with the 12 numbers on`);
+            log(`     frame cost (${co.frames} frames, medians, raster included): ${co.on} ms a frame with the wind, ${co.off} with its level at 0 (the storm: ${co.wind} ms), ${co.withNumbers} with the 12 numbers on (the numbers: ${co.numbers} ms); means ${JSON.stringify(co.means)}`);
           }
         }
         await page.evaluate(camInPage, "wide");
