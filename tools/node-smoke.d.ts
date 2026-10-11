@@ -18,6 +18,10 @@ declare module "node:child_process" {
 declare module "node:fs" {
   export function mkdtempSync(prefix: string): string;
   export function rmSync(path: string, opts?: { recursive?: boolean; force?: boolean }): void;
+  // CARD-2 (REQ-BFG-081), merge prep for TSC-369's tests type-check (tsconfig.tests.json includes this file): the tests'
+  // source scans (card2's k1 scan, numbers.lint, harness.mods) list files with these two
+  export function readdirSync(path: string): string[];
+  export function statSync(path: string): { isDirectory(): boolean; isFile(): boolean };
 }
 
 declare module "node:os" {
