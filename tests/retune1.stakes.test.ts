@@ -15,7 +15,7 @@ import { newRun, type Run } from "../src/game/run";
 import type { Choice } from "../src/game/eventDefs";
 import type { SideStats } from "../src/sim/battle";
 import {
-  drawStakesLine, duskStakes, heartsWord, lifeWord, livesLeft, livesOf, STAKES_SAVES, stakesLineWidth, stakesText, stakesWidth,
+  drawStakesLine, duskStakes, heartsWord, lifeWord, livesLeft, livesOf, STAKES_SAVES, STAKES_SAVES_SHORT, stakesLineWidth, stakesText, stakesWidth,
 } from "../src/ui/stakes";
 import { drawHearts, lossLine } from "../src/screens/battleHud";
 import { LC_LINE, LC_LINE_HEARTS, LC_STOP, LC_STOP_HEARTS, lcLayout, lcLine, lcStop } from "../src/screens/lastChancePicker";
@@ -224,7 +224,16 @@ describe("RETUNE-1 run 2 stakes: the hearts fit (the phone 844x390 both ways up,
         const s = duskStakes(run)!;
         expect(s.saves).toBe(day === 7);
         const rec = recorder(v.W, v.H);
-        drawFoe(rec.g, duskFoe(run, []), r, null, s);
+        const said = drawFoe(rec.g, duskFoe(run, []), r, null, s);
+        // run 3: the panel says LAST CHANCE when it would save the run: on the landscape panel (40 px; the phone at 844x390
+        // and the desk), beside the class line or on a row of its own under it, inside the panel; never otherwise
+        if (!s.saves) expect(said, name).toBeNull();
+        else if (r.h >= 40) {
+          expect(said, `${name} ${JSON.stringify(r)}`).not.toBeNull();
+          expect([STAKES_SAVES, STAKES_SAVES_SHORT]).toContain(said!.words);
+          const left = said!.right - textWidth(said!.words, "3");
+          expect(left >= r.x + 5 && said!.right <= r.x + r.w - 5 && said!.y >= r.y + 2 && said!.y + 5 <= r.y + r.h - 2, `${name} ${JSON.stringify(r)} ${JSON.stringify(said)}`).toBe(true);
+        }
         const hearts = rec.draws.filter((d) => isHeart(d.img));
         expect(hearts, `${name} ${r.w}x${r.h}`).toHaveLength(1);
         const [d] = hearts;
