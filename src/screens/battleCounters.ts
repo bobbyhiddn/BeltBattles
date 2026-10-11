@@ -15,7 +15,7 @@ import type { BattleLayout } from "../game/battleLayout";
 import type { Side, SimEvent } from "../sim/battle";
 import { CELL } from "../sim/content";
 import { kx, ky, turretSlots, type Build } from "../sim/deck";
-import { TURRET_LY } from "../render/frame";
+import { DECK, TURRET_LY, fwdX, fwdY } from "../render/frame";
 import { C } from "../render/palette";
 import { makeCanvas, rect, type G } from "../render/pixel";
 import { ICON, drawText, textWidth } from "../render/font";
@@ -25,7 +25,7 @@ import { fmtCount } from "../ui/statFormat";
 import { drawRich, type RichLine } from "../ui/richText";
 import { definitionLines } from "./build/keywords";
 import {
-  BELT_BACK, BELT_COUNTS, BOX_H, GUN_COLOUR, GUN_DX, GUN_DY, JamMemory, STATUS_H, beltShows, boxW, canJam, gunState, keepOnScreen,
+  BELT_BACK, BELT_COUNTS, BOX_H, GUN_COLOUR, JamMemory, STATUS_H, beltShows, boxW, canJam, gunBoxAt, gunState, keepOnScreen,
   overlap, readCount, shownChips, slugsWaiting, statusTab, tabBelow, type BeltCounts, type CountKey, type GunState, type ShownChip,
 } from "../game/counters";
 import { JAM_TAG, beltText, keywordEntry, sentenceEntry, waitingText, type CounterEntry } from "../ui/counterText";
@@ -128,7 +128,9 @@ export class BattleCounters {
    * and at each belt holding a slug (BELT_COUNTS' rule), each on its anchor as drawn now, upright, whole px, kept on the
    * screen and not drawn while its anchor is off it (CLOSE). A box that would cover a plate, a status row, the bar (`keep`)
    * or a wind number drawn this frame (ArenaMotion.windDrawn) is left out this frame. Call after the world, before the
-   * plates: the plates, the bar and the DARK WIND callout draw over it.
+   * plates: the plates, the bar and the DARK WIND callout draw over it. PAIR-CUE (REVIEW-COUNT1 ruling 3): the screens call
+   * it from ArenaMotion.underNumbers, so every number (hits, BURN, heals, BLOCKED, PAIR's pops, the wind's) draws over it.
+   * A gun's box sits on its pivot's outward side, never over the board's tiles (gunBoxAt; ruling 4).
    */
   drawBoard(g: G, game: Game, a: Arena, m: ArenaMotion, keep: readonly Rect[], avoid: readonly Rect[], live: boolean): void {
     const d = this.last;
@@ -137,10 +139,12 @@ export class BattleCounters {
     d.skipped = 0;
     if (!live || a.b.over) return;
     const { W, H } = game, tp = tapPx(game.view);
-    // C6 first: a gun's waiting slugs (PRESSURE BREECH's count), beside its pivot; JAM while jammed
+    // C6 first: a gun's waiting slugs (PRESSURE BREECH's count), beside its pivot on its outward side (PAIR-CUE: never over
+    // the board's tiles); JAM while jammed
     for (const side of SIDES) {
       if (!a.show[side]) continue;
       const s = a.b.sides[side], slots = this.slotsOf(a, side);
+      const f = a.drawn[side], deck = deckOnScreen(a, m, side);
       for (const tu of s.turrets) {
         const n = slugsWaiting(tu), sl = slots[tu.index];
         if (n <= 0 || !sl) continue;
@@ -148,7 +152,8 @@ export class BattleCounters {
         const st = gunState(tu, this.jams.jammed(side, tu.index));
         const text = st === "jam" ? `${fmtCount(n)} ${JAM_TAG}` : fmtCount(n);
         const w = boxW(textWidth(ICON.SLUG, "3") + 1 + textWidth(text, "3"));
-        const box = keepOnScreen(px, py, Math.round(px) + GUN_DX, Math.round(py) + GUN_DY, w, BOX_H, W, H);
+        const at = gunBoxAt(px, py, w, BOX_H, fwdX(f), fwdY(f), deck);
+        const box = keepOnScreen(px, py, at.x, at.y, w, BOX_H, W, H);
         if (!box || this.covers(box, keep, m)) { d.skipped++; continue; }
         g.drawImage(this.boxImage(ICON.SLUG, text, GUN_COLOUR[st]), box.x, box.y);
         d.guns.push({ side, slot: tu.index, r: box, n, text, state: st });
@@ -382,6 +387,17 @@ function chrome(g: G, w: number, h: number): void {
 /** The box's 1 px slate2 top edge, drawn last (over the numbers' ink outline). */
 function edge(g: G, w: number): void {
   rect(g, 1, 1, w - 2, 1, C.slate2);
+}
+
+/** PAIR-CUE (REVIEW-COUNT1 ruling 4): `side`'s deck (its 120 x 120 tiles) on screen now, as the counters' anchors are
+ *  (ArenaMotion.localToScreen: carrier x board x camera, without the shake). */
+export function deckOnScreen(a: Arena, m: Pick<ArenaMotion, "localToScreen">, side: Side): Rect {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [lx, ly] of [[0, 0], [DECK, 0], [0, DECK], [DECK, DECK]]) {
+    const [x, y] = m.localToScreen(a, side, lx, ly);
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
 function union(a: Rect, b: Rect): Rect {

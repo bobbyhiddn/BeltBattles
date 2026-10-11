@@ -237,6 +237,26 @@ export const boxW = (textW: number): number => textW + 4;
 
 /** C6's box offset from the gun's pivot on screen (the spec's +7, -4). */
 export const GUN_DX = 7, GUN_DY = -4;
+
+/**
+ * PAIR-CUE (REQ-BFG-100; REVIEW-COUNT1 ruling 4): where C6's w x h box goes for a gun whose pivot is at (px, py) on screen,
+ * on a board whose bow points (bx, by) on screen (frame.ts fwdX, fwdY) and whose tiles cover `deck` on screen: on the
+ * pivot's outward side, over the rail or the open water, never over the board's tiles. A bow pointing left (the foe on the
+ * desk and on a phone held sideways) mirrors the spec's +7 to the pivot's left (-7 - w); every other bow keeps +7, -4 (your
+ * guns everywhere, both sides on a portrait phone). Then, should the box still touch the tiles (a deep WIDE zoom brings the
+ * pivot within reach of the deck's edge), it moves out along the bow until it is clear. Pure.
+ */
+export function gunBoxAt(px: number, py: number, w: number, h: number, bx: number, by: number,
+  deck: { x: number; y: number; w: number; h: number }): { x: number; y: number } {
+  let x = bx < 0 ? Math.round(px) - GUN_DX - w : Math.round(px) + GUN_DX, y = Math.round(py) + GUN_DY;
+  if (overlap({ x, y, w, h }, deck)) {
+    if (bx > 0) x = Math.ceil(deck.x + deck.w);
+    else if (bx < 0) x = Math.floor(deck.x) - w;
+    else if (by < 0) y = Math.floor(deck.y) - h;
+    else if (by > 0) y = Math.ceil(deck.y + deck.h);
+  }
+  return { x, y };
+}
 /** C5's box centre from the belt's last tile centre on screen: this far back along the belt, away from its gun. */
 export const BELT_BACK = 4;
 
