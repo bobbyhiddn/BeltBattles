@@ -76,7 +76,10 @@ export const RUNE_TEXT: Readonly<Record<string, string>> = {
   // second key in the literal, which tsc refuses, TS1117)
   // STAMP: battle.ts:1096 each slug through a factory's one-slug stamp (batches' too, 1033-1049); a cast (TWIN MOULD,
   // 1045-1047) or a pour (CRUCIBLE, races/foundry.ts:68-121) gives none: its opened card says so (RUNE_NOTE)
-  forge_ward: "EACH SLUG YOUR FACTORY MAKES: +{N} {*PLATE}.",
+  // CARD-3 (REQ-BFG-107): "EACH SLUG FROM YOUR FACTORY" (was "EACH SLUG YOUR FACTORY MAKES"): with the word SHIELD (one
+  // letter more than PLATE) the old line took 225 px, past the op view card's 223 (one line, tests/runes.ui.test.ts); this
+  // one 219. The same claim: battle.ts:1096 each slug a factory of the rune holder's side stamps adds N (PLATE_CAP holds)
+  forge_ward: "EACH SLUG FROM YOUR FACTORY: +{N} {*PLATE}.",
   // MACHINES: battle.ts:570 every impact whose target is not the hull (belt tiles, rigs, factories, turrets): ENEMY PARTS,
   // and its opened card says what a part is (RUNE_NOTE; the PART row's words)
   scrap_biter: "YOUR HITS ON ENEMY PARTS: +{N} {DMG}.",

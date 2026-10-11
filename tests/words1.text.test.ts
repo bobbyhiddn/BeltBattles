@@ -116,7 +116,9 @@ describe("WORDS-1: the new lines", () => {
       "THE SHOT THAT EMPTIES A TURRET: +10 DMG.", "FIRST SHOT AFTER A GUN LOADS: +1 BURN.", "FIRST SHOT AFTER A GUN LOADS: +70% DMG.",
       // CARD-2 (REQ-BFG-081, K3 d; READ-3 6: ★2 and ★3 not read as merged): MERGED comes back on these two, glossed by the
       // stars (was "+60 HULL FOR EACH ★2 OR ★3 PIECE IN USE." and "+11% DMG FOR EACH ★2 OR ★3 PIECE IN USE.")
-      "+60 HULL PER MERGED (★2/★3) PIECE IN USE.", "+11% DMG PER MERGED (★2/★3) PIECE IN USE.", "EACH SLUG YOUR FACTORY MAKES: +10 SHIELD.",
+      // CARD-3 (REQ-BFG-107): FORGE WARD's line in SHIELD's words, one line on the op card (was "EACH SLUG YOUR FACTORY MAKES:
+      // +10 PLATE.", 225 px with SHIELD against the card's 223)
+      "+60 HULL PER MERGED (★2/★3) PIECE IN USE.", "+11% DMG PER MERGED (★2/★3) PIECE IN USE.", "EACH SLUG FROM YOUR FACTORY: +10 SHIELD.",
       "YOUR HITS ON ENEMY PARTS: +10 DMG.", "STUN ON YOUR SHIP: -100%.", "YOUR HITS THAT ADD NO FRAY ADD 1 FRAY.", "YOUR HULL: HEAL 10 EACH SEC."]);
     // the opened card says what the one line can't (battle.ts:1889; runes.ts:566-569; battle.ts:1045-1047; battle.ts:570)
     expect(runeReminder(rune("final_nail"))).toBe("NOT ON A GATLING SPOOL: IT FIRES EACH LOAD AS IT COMES.");
