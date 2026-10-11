@@ -85,6 +85,7 @@ export const JOIN_PACE = 0.7;
 // 0.6.2 TUNE-M, RULE JOIN LIMIT (the Prime's decision, oracle ea0abdc95439b4d8): a deck holds at most this many joining
 // belts. deck.ts joinProblem refuses the next one in route order ("2 JOINS PER DECK"); a saved deck with more keeps its
 // first two, and the rest become open ends (pruneJoins on load).
+// JOINS-1 (REQ-BFG-091): FREE_JOINS (freeJoins.ts) drops both rules above when on; with it off both hold as written.
 export const JOIN_LIMIT = 2;
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";

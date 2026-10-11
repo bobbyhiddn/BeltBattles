@@ -31,6 +31,8 @@ import { lastChancePartStars } from "../sim/lastChance"; // HULL-1d (REQ-BFG-073
 // NPC-1 (REQ-BFG-077, REQ-BFG-078): the road log's check
 import { dropPool, npcDayRules, roadDropValue, type RoadEntry } from "../sim/npcDay";
 import { npcDayGateProblem } from "./rulesGate";
+import { freeJoinsFor } from "./rulesGate"; // JOINS-1 (REQ-BFG-091): free joins by the upload's own rules
+import { withFreeJoins } from "../sim/freeJoins"; // JOINS-1: the deck check runs under that answer
 import { RIVALS, warlordOffer } from "../sim/rivals";
 import { topParts, warlordDeck, warlordDrop } from "../game/road";
 import { eventFor } from "../game/events";
@@ -130,6 +132,9 @@ export type ValidationMode = "strict" | "player";
  * travels under (its snapshot's; default this build's RULES_VERSION). A deck with turret slots or belt joins under rules
  * that predate bb-0.6.2, or that can't be read, is refused with one "rules:" error naming both (rulesGate.ts). Joins
  * past JOIN_LIMIT are validateBuild's own (deck.ts joinProblem: "2 JOINS PER DECK"), in both modes.
+ * JOINS-1 (REQ-BFG-091): the deck is checked under ITS rules' answer to free joins (rulesGate.ts freeJoinsFor: FREE_JOINS
+ * on and `rules` at or after FREE_JOINS_RULES), never the switch alone: under such rules any number of legal joins
+ * passes; under older rules a join past JOIN_LIMIT is refused as before. With the switch off, exactly as before.
  */
 export function validateUpload(build: Build, day: number, rules: string = RULES_VERSION, ctx: ValidateContext = {}): Validation {
   const why = rulesGateProblem(rules, build);
@@ -144,7 +149,7 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // NPC-1 (REQ-BFG-077, REQ-BFG-078): a road log travels only with NPC_DAY on and under rules that have it
   const ndGate = ctx.road ? npcDayGateProblem(rules) : null;
   if (ndGate) return { ok: false, errors: [`road: ${ndGate}`] };
-  return validateBuild(build, day, "player", ctx);
+  return withFreeJoins(() => validateBuild(build, day, "player", ctx), freeJoinsFor(rules)); // JOINS-1: by its own rules
 }
 
 export interface Validation {

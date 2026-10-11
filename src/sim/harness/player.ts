@@ -55,6 +55,7 @@ import { Rng, hashSeed } from "../../core/rng";
 import { hullScaleRules } from "../hullScale"; // HULL-1c (REQ-BFG-079): the cache key
 import { ladderFixRules } from "../ladderFix"; // HULL-1c: the cache key
 import { npcDayRules } from "../npcDay"; // HULL-1d (REQ-BFG-073): the REFIT swap of LAST CHANCE's part (refitSwap)
+import { freeJoinsRules } from "../freeJoins"; // JOINS-1 (REQ-BFG-091): no join limit with FREE_JOINS on; the cache key
 import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
 import {
   DX, DY, arrowCell, canFitGear, canSellTurret, cloneBuild, commitRoute, connectorClaims, coreFor, deadEndsAt, footprint,
@@ -723,8 +724,9 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
   }
   if (!pol.join) return best;
   // TUNE-M, RULE JOIN LIMIT: a new factory's belt is the last route, so on a deck that already holds JOIN_LIMIT joins
-  // its join would be refused (commitRoute's pruneJoins leaves it an open end): no join plan
-  if (joinCount(b) >= JOIN_LIMIT) return best;
+  // its join would be refused (commitRoute's pruneJoins leaves it an open end): no join plan. JOINS-1 (REQ-BFG-091): with
+  // FREE_JOINS on there is no limit, so the plan is always weighed (off: exactly as before)
+  if (!freeJoinsRules() && joinCount(b) >= JOIN_LIMIT) return best;
   const d = ITEMS[def], occ = occupancy(b), spare = beltFree(b);
   const targets = joinTargets(b);
   if (!targets.length) return best;
@@ -1646,7 +1648,9 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // so a run made with a switch off is never reused with it on; off, the key exactly as before
   // PAR-AZ (REQ-BFG-078): NPC_DAY moves every par run now (parNpcDay), so it is in the key; off, the key exactly as before
   const nd = npcDayRules();
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}`;
+  // JOINS-1 (REQ-BFG-091): FREE_JOINS moves the par decks (no join pace, no join limit), so it is in the key; off, the key
+  // exactly as before
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${freeJoinsRules() ? "|fj" : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);

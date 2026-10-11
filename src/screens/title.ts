@@ -14,6 +14,7 @@ import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUN
 import { startingBuild, warlordBuild } from "../sim/ai";
 import { HEROES, RUN_DAYS, type HeroId } from "../sim/content";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE and RULE JOIN LIMIT in the rules card
+import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): neither rule in the card with FREE_JOINS on
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
@@ -37,11 +38,24 @@ import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): 
 /** MOTION-2: the attract fight's sea, round by round: a day of each setting (render/motion.ts seaForDay). */
 const ATTRACT_DAYS = [2, 5, 9];
 
-export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line 3 states RULE JOIN PACE)
+/** JOINS-1 (REQ-BFG-091): the rules card's line 3 under the switch now. FREE_JOINS off: it states RULE JOIN LIMIT and
+ *  RULE JOIN PACE, exactly as before; on, neither (a deck holds any number of legal joins, and a join never slows its
+ *  factory). */
+export function helpLine3(free = freeJoinsRules()): string {
+  const how = "3  AT DAWN, BUY RIGS FROM THE CARAVAN. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
+  return free ? `${how}.` : `${how} (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`;
+}
+
+/** JOINS-1: the rules card the title draws: HELP with line 3 by the switch now (HELP itself with FREE_JOINS off). */
+export function helpLines(): string[] {
+  return HELP.map((ln, i) => (i === 2 ? helpLine3() : ln));
+}
+
+export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line 3 states RULE JOIN PACE; JOINS-1: at load)
   "1  SURVIVE 10 DAYS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.",
   // 0.6.2 TUNE-M: line 2 states RULE EARLY-LOSS REFUND (day.ts)
   `2  YOU HAVE 5 LIVES. A DUSK LOSS COSTS ONE, A DRAW NONE. LOSE ON DAY 1 OR 2 AND DAY ${REFUND_DAY}'S DAWN GIVES ONE LIFE BACK (ONCE A RUN). YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`,
-  `3  AT DAWN, BUY RIGS FROM THE CARAVAN. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`,
+  helpLine3(), // JOINS-1 (REQ-BFG-091): with FREE_JOINS off exactly as before (RULE JOIN LIMIT and RULE JOIN PACE)
   "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
   "5  ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3). AT DUSK YOUR CRUISER FIGHTS ON ITS OWN: 0.5X-4X, SKIP, II OR P TO PAUSE.",
 ];
@@ -186,11 +200,12 @@ export class TitleScreen implements Screen {
     const { W, H } = this.game;
     // intro: titleLayout.ts helpCard: 0350e5f's card at k = 1 (desk, landscape); where the title steps its scale down
     // (k > 1) the card keeps its CSS width and its text takes the 5x7 face, about as tall in CSS px as the 3x5 face was
-    const { x, y, w, h, font } = helpCard(W, H, this.k, HELP);
+    const lines = helpLines(); // JOINS-1 (REQ-BFG-091): line 3 by the switch now (HELP exactly, with FREE_JOINS off)
+    const { x, y, w, h, font } = helpCard(W, H, this.k, lines);
     panel(g, { x, y, w, h }, "raised");
     drawText(g, "HOW TO PLAY", W / 2, y + 6, C.yellow, { align: "center" });
     let yy = y + 20;
-    for (const ln of HELP) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, font, 2) + 3;
+    for (const ln of lines) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, font, 2) + 3;
     this.game.ui.add({ id: "helpcard", r: { x, y, w, h }, onTap: () => { this.help = false; } });
   }
 
