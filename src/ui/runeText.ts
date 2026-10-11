@@ -40,13 +40,21 @@ export const RUNE_UNIT_TEXT: Readonly<Record<RuneUnit, (n: number) => string>> =
 // FLIP-X2 (N4-d, REVIEW-NUM4 section 4): the STALL token is STUN now (STEADY IRON's {*STUN}), one word for one stop; STALL
 // stays only as a glossary alias of STUN
 export type RuneKeyword = "HULL" | "BELT" | "GOLD" | "DMG" | "RATE" | "PLATE" | "PAIR" | "HEAT" | "FRAY" | "BURN" | "RIDE" | "STUN"
-  | "SHIELD" | "HEAL" | "REGEN";
+  | "SHIELD" | "HEAL" | "REGEN"
+  // CARD-4 (REQ-BFG-081, T; READ-4 11 item 6): word-only keywords, a word target with a note on the cards that name them
+  // (SCRAP HALO's and SCRAP SAINT's MERGED, TOLL ROAD's LOAD and RIG), never a rune's chip word or its chip's line
+  // (WORD_ONLY): glossary.ts RUNE_WORD_NOTE has their notes
+  | "MERGED" | "LOAD" | "RIG";
 // CARD-3 (REQ-BFG-107): the tokens keep their internal names; the soak layer (PLATE) reads SHIELD and the block (SHIELD)
 // reads WARD, as font.ts PLAYER_WORD draws the faces' keywords (each keeps its colour: the glossary row of its word)
 export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
   HULL: "HULL", BELT: "BELT", GOLD: "GOLD", DMG: "DMG", RATE: "RATE", PLATE: "SHIELD", PAIR: "PAIR", HEAT: "HEAT", FRAY: "FRAY",
   BURN: "BURN", RIDE: "RIDE", STUN: "STUN", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN",
+  MERGED: "MERGED", LOAD: "LOAD", RIG: "RIG", // CARD-4 (T)
 };
+/** CARD-4 (REQ-BFG-081, T): the keywords that are only words with a note (a target on the card): never the chip's word
+ *  (runeKeyword), never the chip's line (runeReminder), never a row of the panels' KEYWORDS view (keywords.ts runeWords). */
+export const WORD_ONLY: ReadonlySet<RuneKeyword> = new Set<RuneKeyword>(["MERGED", "LOAD", "RIG"]);
 
 /**
  * SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.2): a rune's effect line as the cards draw it, where it differs from
@@ -110,11 +118,19 @@ export const RUNE_TEXT: Readonly<Record<string, string>> = {
   // installed piece at ★2 or more (★3 is the top), once; battle.ts:841 (HULL) and 540 (+n% DMG a merged piece). MERGED is
   // the MERGE badge's word (glossary.ts CORE_WORDS); IN USE keeps its note on the opened card. 223 px: one line on the op
   // card (the 390-wide phones wrap it, as WORDS-1's 217 px line did)
-  scrap_halo: "+{N} {HULL} PER MERGED (★2/★3) PIECE IN USE.",
-  scrap_saint: "+{N} {DMG} PER MERGED (★2/★3) PIECE IN USE.",
+  // CARD-4 (REQ-BFG-081, T; READ-4 11 item 6: no note said what merging is): MERGED a word with a note (RUNE_WORD_NOTE);
+  // the line's words and width are as before
+  scrap_halo: "+{N} {HULL} PER {MERGED} (★2/★3) PIECE IN USE.",
+  scrap_saint: "+{N} {DMG} PER {MERGED} (★2/★3) PIECE IN USE.",
   // CARD-2 (K3 e; READ-2 7.1: each load counts its own rigs; Haiku read it as all damage rising): battle.ts:540 runeMul
   // multiplies a shot by priorPct x p.prior, the gates that payload passed (1693: p.prior++ at each rig hit on it)
-  toll_road: "EACH LOAD: +{N} {DMG} PER RIG IT PASSED.",
+  // CARD-4 (T; READ-4 11 item 6): LOAD and RIG words with notes (RUNE_WORD_NOTE); the line as before
+  toll_road: "EACH {LOAD}: +{N} {DMG} PER {RIG} IT PASSED.",
+  // CARD-4 (REQ-BFG-081, REQ-BFG-089, T; READ-4 3: a reader hedged on whether +150 HULL lasts; its KEPT ALL RUN was behind the
+  // chip): the rune's own fact on its face. runes.ts:704 / run.ts:211 add the amount to build.hullBonus when it is taken, the
+  // max hull every fight starts full at (LAST CHANCE's +500 MAX HULL is the same field), for the rest of the run (104 px)
+  iron_skin: "+{N} MAX {HULL}, ALL RUN.",
+  spare_hull: "+{N} MAX {HULL}, ALL RUN.",
   // CARD-2 (K3 f; READ-2 7.1: Haiku read PAIR: as once a fight): battle.ts:639 runeHeal heals the rune's n on each PAIR shot
   // that lands (payload.paired), every time
   twin_salve: "EACH {PAIR}: {*HEAL} {N}.",
@@ -207,7 +223,7 @@ export function runeKeyword(def: RuneDef): RuneKeyword | null {
   const text = runeTextOf(def); // SUS-B: WARD STONE's SHIELD line (RUNE_TEXT)
   const starred = /\{\*([A-Z]+)\}/.exec(text)?.[1];
   if (starred && isKeyword(starred)) return starred;
-  const all = [...text.matchAll(TOKEN)].map((m) => m[2]).filter(isKeyword);
+  const all = [...text.matchAll(TOKEN)].map((m) => m[2]).filter(isKeyword).filter((k) => !WORD_ONLY.has(k)); // CARD-4 (T)
   return all.length ? all[all.length - 1] : null;
 }
 
@@ -220,7 +236,7 @@ export const PLAIN_REMINDER = "KEPT ALL RUN.";
  *  Y-FURN: a rune's own reminder (glossary.ts RUNE_NOTE: SHATTER SHOT's) comes first. */
 export function runeReminder(def: RuneDef): string {
   if (RUNE_NOTE[def.id]) return RUNE_NOTE[def.id];
-  for (const k of runeKeywords(def)) if (REMINDER[k]) return REMINDER[k]!;
+  for (const k of runeKeywords(def)) if (REMINDER[k] && !WORD_ONLY.has(k)) return REMINDER[k]!; // CARD-4 (T): never a word-only one's
   return PLAIN_REMINDER;
 }
 

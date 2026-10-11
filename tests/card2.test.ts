@@ -76,6 +76,7 @@ function detailsPlanOf(f: ReturnType<typeof framed>, def: string) {
 }
 import { RunePicker, PICK_DEF } from "../src/screens/runePicker";
 import { PICK_BAR } from "../src/screens/runePicker"; // CARD-4 (REQ-BFG-081, P1)
+import { WORD_ONLY } from "../src/ui/runeText"; // CARD-4 (REQ-BFG-081, T)
 import { LastChancePicker } from "../src/screens/lastChancePicker";
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, TIPS_KEY, setTipsForTests, sightDone, sightsDone, tipsDone } from "../src/ui/tips";
 import { sawWord, sightWord } from "../src/ui/firstSight";
@@ -274,8 +275,9 @@ describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): ne
         expect(got, `${id} at ${cw}`).toEqual(lines);
       }
       rows.push(`${id}: ${lines.map((l) => `"${l}" ${textWidth(l, "5")} px`).join(" / ")}`);
-      // the tokens and the amount are RuneDef's: no keyword, number or rule moved
-      expect(runeKeywordsOf(def).sort(), id).toEqual([...new Set([...def.text.matchAll(/\{\*?([A-Z]+)\}/g)].map((m) => m[1]).filter((k) => k !== "N"))].sort());
+      // the tokens and the amount are RuneDef's: no keyword, number or rule moved (CARD-4, T: the word-only keywords aside,
+      // MERGED, LOAD and RIG, words with a note: runeText.ts WORD_ONLY)
+      expect(runeKeywordsOf(def).filter((k) => !WORD_ONLY.has(k)).sort(), id).toEqual([...new Set([...def.text.matchAll(/\{\*?([A-Z]+)\}/g)].map((m) => m[1]).filter((k) => k !== "N"))].sort());
     }
     console.log(`CARD-2 (k3) rune lines (5x7 px; the op card's text is 223 px, the 390-wide phones' 216):\n${rows.join("\n")}`);
     expect(runeReminderOf(RUNES.ward_stone)).toBe("WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS."); // CARD-3
@@ -563,7 +565,8 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     sawWord("PAIR");
     expect(sightWord(["PAIR"])).toBeNull();
     expect(FIRST_SIGHT_WORDS.every((w) => !["RATE", "DMG", "SLUG", "GEAR", "BELT", "HULL", "GOLD"].includes(w))).toBe(true);
-    expect(Object.values(KEYWORD_WORD).filter((w) => FIRST_SIGHT_WORDS.includes(w)).sort()).toEqual(["BURN", "FRAY", "HEAL", "HEAT", "PAIR", "REGEN", "RIDE", "SHIELD", "STUN", "WARD"]); // CARD-3
+    // CARD-4 (REQ-BFG-081, T) changed this list: LOAD is a rune word now (TOLL ROAD's), its first sight the LOAD label's
+    expect(Object.values(KEYWORD_WORD).filter((w) => FIRST_SIGHT_WORDS.includes(w)).sort()).toEqual(["BURN", "FRAY", "HEAL", "HEAT", "LOAD", "PAIR", "REGEN", "RIDE", "SHIELD", "STUN", "WARD"]); // CARD-3
   });
 });
 

@@ -146,17 +146,17 @@ export const PHONE_GISTS: Readonly<Record<string, (chip: string, f: Face) => rea
   hullbreaker: (c) => ["HULL ONLY", c], // SHOT: HITS ONLY THE HULL, FOR +30% DMG
   drake: () => ["RIG DAMAGE", "TO{BURN}"], // SHOT: EACH 25 DAMAGE RIGS ADDED TO ITS SLUG BECOMES 1 BURN
   grapnel: (c) => ["FOE BELTS", c], // SHOT: ON A BELT OR RIG, RIPS 1 SLUG (an enemy's)
-  tesla: (c) => ["ARCS", c], // SHOT: ALSO ARCS TO 1 PART: STUN 1
+  tesla: (c) => ["ARC STUNS", c], // SHOT: ALSO ARCS TO 1 PART: STUN 1. CARD-4 (T): was ARCS (READ-4 8: PPW)
   capacitor: (c) => ["CHARGES UP", c], // SHOT: +20 DMG FOR EACH SEC IT SAT EMPTY
-  compound: (c) => ["ONE SHELL", c], // SHOT: FIRES 2 SLUG AS 1 SHOT AT +15% DMG
-  anvil: (c) => ["DMG FROM", c], // SHOT: +25 DMG, +100% OF YOUR SHIELD (the chip: the SHIELD icon, +100%)
+  compound: (c) => ["{SLUG}{SLUG} AS ONE", c], // SHOT: FIRES 2 SLUG AS 1 SHOT AT +15% DMG. CARD-4 (T): was ONE SHELL (PPW)
+  anvil: (c) => ["DMG + YOUR", c], // SHOT: +25 DMG, +100% OF YOUR SHIELD (the chip: the SHIELD icon, +100%). CARD-4 (T): was DMG FROM (RPW)
   steambreech: (c) => ["IF {*PLATE}", c], // FIRES 40% FASTER IF YOU HAVE SHIELD
   // gear
-  chamber: (c) => ["SHOTS FIRE", c], // EACH SHOT FIRES 2 SLUG
+  chamber: (c) => ["PER SHOT", c], // EACH SHOT FIRES 2 SLUG. CARD-4 (T): was SHOTS FIRE (PPW)
   calibrate: (c) => ["FIRE RATE", c], // FIRES 33% FASTER
   escapement: (c) => ["FIRE RATE", c], // FIRES 11% FASTER
   flak: (_c, f) => ["FOE {*STUN}", `-${numOf(f, "intercept")}`], // SHOOTS DOWN 25% OF ENEMY STUN SHOTS (its face's number)
-  spotter: (c) => ["AT NO PART", c], // SHOTS AIMED AT NO PART AIM AGAIN ONCE
+  spotter: (c) => ["AIMS AGAIN", c], // SHOTS AIMED AT NO PART AIM AGAIN ONCE. CARD-4 (T): was AT NO PART (WPW: read as wasted shots)
   hopper: (c) => ["CHAMBER", c], // ITS CHAMBER HOLDS +1 SLUG
   mantlet: (c) => ["ITS GUN", c], // STUN CAN'T STOP ITS GUN OR LAST 1 TILE
   ram: (c) => ["LAST {SLUG}", c], // SHOT: THE CHAMBER'S LAST SLUG +40% DMG
@@ -168,8 +168,8 @@ export const PHONE_GISTS: Readonly<Record<string, (chip: string, f: Face) => rea
   mendingloom: (c) => ["EACH SEC", c], // YOUR HULL: HEAL 10 EACH SEC
   // the five rigs whose chip leaves the target open (READ-2 7.3 item 2)
   tollbooth: (c) => ["ITS BELT", c], // THE FIRST 2 STUN ON ITS BELT'S PARTS EACH FIGHT DO NOTHING
-  sorting: (c) => ["ITS BELTS", c], // HIT: OF EVERY 3 SLUG, ONE BECOMES 2 (on every belt its arrows reach)
-  braceframe: (c) => ["ITS TILES", c], // ENEMY STUN ON ITS TILES: 50% SHORTER
+  sorting: (c) => ["EACH THIRD", c], // HIT: OF EVERY 3 SLUG, ONE BECOMES 2 (on every belt its arrows reach). CARD-4 (T): was ITS BELTS (PPW)
+  braceframe: (c) => ["TILES HIT", c], // FOE STUN ON TILES IT HITS: 50% SHORTER. CARD-4 (T): was ITS TILES (TILES IT HITS: 49 px, past row A's 40)
   overdrive: (c) => ["ITS BELTS", c], // ITS BELTS RUN 3 TIMES AS FAST FROM THESE TILES ON
 };
 

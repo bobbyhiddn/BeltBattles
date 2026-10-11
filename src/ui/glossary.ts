@@ -26,6 +26,8 @@
 import { COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, WINDOW_TIME, type ItemDef } from "../sim/content";
 import { WIND_START } from "../sim/content"; // SUS-B (REQ-BFG-069): the DARK WIND row
 import { SPEED_K } from "../sim/content"; // NUM-4 (REQ-BFG-047): the RATE row's 30 seconds
+import { BURN_DPS, BURN_TIME, FRAY_BONUS, FRAY_MAX } from "../sim/content"; // CARD-4 (REQ-BFG-081, T): the rune word notes' numbers
+import { FUSE_MAX } from "../sim/stars"; // CARD-4 (T): MERGED's ★2 and ★3
 import { SYNC_WINDOW } from "../sim/races/foundry";
 import { scaleCore } from "../sim/cores";
 import { effectAt } from "../sim/stars";
@@ -196,6 +198,24 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   SHIELD: "WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.",
   HEAL: "HEAL: GIVES BACK HULL, NEVER PAST FULL.",
   REGEN: "REGEN: GIVES BACK HULL EACH SEC.",
+};
+
+/**
+ * CARD-4 (REQ-BFG-081, T; READ-4 5 and 11 item 6): what a tap on a rune card's word shows, where it is not the chip's
+ * number-free reminder (RUNE_REMINDER, which the chip's line keeps): FRAY's and BURN's with their glossary rows' numbers
+ * (content.ts FRAY_BONUS a stack on every later shot on the hull, FRAY_MAX stacks; BURN_DPS hull damage a second for
+ * BURN_TIME seconds a stack: battle.ts:2053, 2354-2365), from the sim's constants; and the word-only keywords' notes
+ * (runeText.ts WORD_ONLY): MERGED (stars.ts: copies merge into a ★2, a ★2 into a ★3; runes.ts mergedPieces counts a placed,
+ * fitted or installed piece at ★2 or more), LOAD (VOCAB: a load is one slug a turret takes in from a belt) and RIG (the
+ * place hint's words: its arrows work the belt tiles they point at). Each its word first; each fits the note room of every
+ * card that shows it (tests/card4.test.ts (t)).
+ */
+export const RUNE_WORD_NOTE: Readonly<Record<string, string>> = {
+  FRAY: `FRAY: EACH ONE ADDS +${FRAY_BONUS} DAMAGE TO EVERY LATER SHOT ON THE HULL. MAX ${FRAY_MAX}.`,
+  BURN: `BURN: EACH ONE DEALS ${BURN_DPS} HULL DAMAGE A SEC FOR ${BURN_TIME} SEC.`,
+  MERGED: `MERGED: A ★${FUSE_MAX - 1} OR ★${FUSE_MAX} PIECE, MADE BY MERGING COPIES.`, // stars.ts FUSE_MAX: ★3 the top
+  LOAD: "LOAD: ONE SLUG A TURRET TAKES IN FROM A BELT.",
+  RIG: "RIG: A PART BESIDE A BELT. ITS ARROWS WORK THE BELT TILES THEY POINT AT.",
 };
 
 /** Y-FURN (REQ-BFG-070; release Y): a rune's own reminder, where its keyword's would say the opposite of its rule (runeText.ts

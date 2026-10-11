@@ -17,6 +17,8 @@ import {
   GLOSSARY, GLOSSARY_WRAP_W, RUNE_REMINDER, TAP_NOTES, glossaryEntry, glossaryHits, glossaryRows, glossaryText, glossaryWordsIn, keywordRow,
 } from "../src/ui/glossary";
 import { KEYWORD_WORD, RUNE_KEYWORD_COLOUR, runeReminder, runeReminderSpans, type RuneKeyword } from "../src/ui/runeText";
+import { WORD_ONLY } from "../src/ui/runeText"; // CARD-4 (REQ-BFG-081, T)
+import { RUNE_WORD_NOTE } from "../src/ui/glossary"; // CARD-4 (T)
 import { RUNE_LIST } from "../src/sim/runes";
 import { computeView } from "../src/core/io";
 import { buildLayout, buildScale } from "../src/screens/build/layout";
@@ -112,11 +114,15 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
   });
 
   it("the rune keywords have rows (BURN, RIDE and STUN too), and the rune cards' colours and reminders come from them", () => {
-    for (const k of Object.keys(KEYWORD_WORD) as RuneKeyword[]) {
+    // CARD-4 (REQ-BFG-081, T) changed this: the word-only keywords (MERGED, LOAD, RIG: a word target with a note on the rune
+    // cards that name them, never a chip) take their notes from glossary.ts RUNE_WORD_NOTE, not a row (a row would make the
+    // word a target on every panel); LOAD's colour is its label row's
+    for (const k of (Object.keys(KEYWORD_WORD) as RuneKeyword[]).filter((q) => !WORD_ONLY.has(q))) {
       const row = glossaryEntry(KEYWORD_WORD[k]);
       expect(row, k).toBeDefined();
       expect(RUNE_KEYWORD_COLOUR[k], k).toBe(row!.colour);
     }
+    for (const k of WORD_ONLY) expect(RUNE_WORD_NOTE[k]?.startsWith(`${KEYWORD_WORD[k]}: `), k).toBe(true);
     // each rune reminder: number-free, its word first, and it says what its row says (a phrase both hold)
     const same: Record<string, string> = {
       // WORDS-1 (REQ-BFG-081; READ-1 4): PAIR from two belts (was "TWO LOADS REACH ONE TURRET AT ONCE"), FRAY on the hull's

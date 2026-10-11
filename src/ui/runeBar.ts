@@ -32,6 +32,7 @@ import { cornerTap } from "../screens/build/layout"; // TAP-093b (backlog #340):
 import { OFFERS } from "../sim/content";
 import type { BuildScreen } from "../screens/build/build";
 import { glossaryEntry, RUNE_NOTE, RUNE_REMINDER } from "./glossary"; // CARD-2 (REQ-BFG-081, K2): a rune word's definition
+import { RUNE_WORD_NOTE } from "./glossary"; // CARD-4 (REQ-BFG-081, T): the numbered notes, the word-only keywords' notes
 import { lineText } from "./richText"; // CARD-2 (K2): where a keyword sits on a drawn line
 import { runeKeywords, runeTextOf as runeTextOfDef, type RuneKeyword } from "./runeText"; // CARD-2 (K2)
 import { sightWord, sawWord } from "./firstSight"; // CARD-2 (REQ-BFG-004, K1): the first-sight notes on rune cards
@@ -169,6 +170,13 @@ export interface RuneCardOpts {
 /** CARD-4 (REQ-BFG-081, P2): a take within this many seconds of its card opening is ignored, so a double tap opens a
  *  card and stops there (the build screen's clock: BuildScreen.t, game seconds, real time while the game runs). */
 export const TAKE_GUARD_S = 0.35;
+/** CARD-4 (P2): the guard's wall clock in ms (performance.now where there is one); tests pin it (TAKE_CLOCK.wall). */
+export const TAKE_CLOCK: { wall: () => number } = { wall: () => (typeof performance !== "undefined" ? performance.now() : 0) };
+/** CARD-4 (P2): a take `game` s of the build screen's game time and `wallMs` ms of wall time after its card opened passes
+ *  the guard once either is past TAKE_GUARD_S: the game's clock runs behind the wall's on slow frames (dt at most 0.05 s a
+ *  frame: game.ts loop; READ-4's P under load took 2 of 5 bar taps at 500 ms), and a frame-stepped test runs ahead of it.
+ *  A double tap is under 350 ms on both. Pure. */
+export const takeGuardPassed = (game: number, wallMs: number): boolean => game >= TAKE_GUARD_S || wallMs >= TAKE_GUARD_S * 1000;
 
 /** CARD-4 (P1): the TAP AGAIN bar's band, art px: 13 (the bar's 11, 1 above and 1 below), or on touch (`tap` > 0) tall
  *  enough that the bar's target (runeBarTarget: from 2 px under the band's top at the lowest, where a note box's foot can
@@ -350,7 +358,8 @@ export function runeWordOrder(def: RuneDef): string[] {
 export function runeWordText(def: RuneDef, k: RuneKeyword): string {
   const w = KEYWORD_WORD[k], note = RUNE_NOTE[def.id];
   if (note && note.startsWith(`${w}: `)) return note;
-  return RUNE_REMINDER[k] ?? glossaryEntry(w)?.def ?? w;
+  // CARD-4 (REQ-BFG-081, T): FRAY's and BURN's with their numbers, and the word-only keywords' notes (RUNE_WORD_NOTE)
+  return RUNE_WORD_NOTE[k] ?? RUNE_REMINDER[k] ?? glossaryEntry(w)?.def ?? w;
 }
 
 /** CARD-2 (K2): the definition's 3x5 lines at text width `tw`: its word in the keyword's colour, the rest bone, as the

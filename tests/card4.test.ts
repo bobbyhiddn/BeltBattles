@@ -20,6 +20,8 @@ import { RUNES, RUNE_LIST, type RuneDef } from "../src/sim/runes";
 import { UI, inside, type Rect } from "../src/ui/ui";
 import { TAP_CSS } from "../src/ui/tap";
 import { buildLayout, buildScale, phoneBarLift, phoneScreen } from "../src/screens/build/layout";
+import { TAKE_CLOCK, takeGuardPassed } from "../src/ui/runeBar"; // CARD-4 (P2): the guard's wall clock, pinned here
+const WALL = TAKE_CLOCK.wall;
 import {
   TAKE_GUARD_S, runeBarBand, runeBarRect, runeBarTarget, runeCardH, runeChipTarget, runeHintBand, runeRowFits, runeRowH,
   runeWordBoxOn, runeWordTargets, shiftLayout,
@@ -39,8 +41,8 @@ class Mem {
   keys(): string[] { return [...this.m.keys()]; }
 }
 const g = globalThis as unknown as { localStorage?: unknown };
-beforeEach(() => { g.localStorage = new Mem(); setTipsForTests("reload"); });
-afterEach(() => { delete g.localStorage; setTipsForTests("reload"); });
+beforeEach(() => { g.localStorage = new Mem(); setTipsForTests("reload"); TAKE_CLOCK.wall = () => 0; });
+afterEach(() => { delete g.localStorage; setTipsForTests("reload"); TAKE_CLOCK.wall = WALL; });
 /** A page reload: the store read again, then this build's first module (src/ui/firstRun.ts) runs decidePlayer. */
 const boot = (): boolean => { setTipsForTests("reload"); return decidePlayer(); };
 const stored = (): string[] => JSON.parse((g.localStorage as Mem).getItem(TIPS_KEY) ?? "[]");
@@ -237,6 +239,27 @@ describe("CARD-4 (p): on the rune cards only the TAP AGAIN bar takes a rune (REQ
       sc.press(picker, PICK_BAR);
       expect(held(run), `${name}: the bar after the guard`).toEqual([id0]);
     }
+  });
+
+  it("P2's clocks: either the game's or the wall's past 350 ms passes; a double tap is under both", () => {
+    expect([takeGuardPassed(0.34, 349), takeGuardPassed(0.35, 0), takeGuardPassed(0.1, 350), takeGuardPassed(0.2, 200)]).toEqual([false, true, true, false]);
+    // the wall's clock alone (a slow frame: the game's clock 0.1 s behind): a bar tap 400 ms after the open takes
+    setTipsForTests("done");
+    const run = newRun("furnace", 3, "card4-p2-wall");
+    const sc = screenOf(run, 402, 690, 3, true), picker = new RunePicker();
+    let wall = 1000;
+    TAKE_CLOCK.wall = () => wall;
+    sc.frame(picker as never);
+    sc.press(picker, "runepick-0");
+    sc.frame(picker as never);
+    sc.s.t = 0.1;
+    wall = 1300;
+    sc.press(picker, PICK_BAR);
+    expect(held(run), "300 ms: ignored").toEqual([]);
+    sc.frame(picker as never);
+    wall = 1400;
+    sc.press(picker, PICK_BAR);
+    expect(held(run).length, "400 ms on the wall: taken").toBe(1);
   });
 
   it("P2: a double tap on a closed card (open, then the same point at once) opens it and stops there, on every card position and on the bar", () => {
@@ -616,5 +639,107 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
     expect(defBoxPlace({ ...box, h: 12 }, [{ glyph: { x: 9, y: 144, w: 20, h: 7 } }], head, strip).box.y).toBe(144 - 2 - 12);
     // the screen's foot: where nothing fits, as near the line as the screen allows (listed)
     expect(defBoxPlace(box, [{ glyph: { x: 9, y: 144, w: 20, h: 7 } }], head, strip, 180).fits).toBe(false);
+  });
+});
+
+// ---- T --------------------------------------------------------------------------------------------------------------------
+import { phoneGist, shopChip } from "../src/ui/chips";
+import { faceLines } from "../src/ui/faces";
+import { cardText } from "../src/ui/abilityText";
+import { textWidth, icons } from "../src/render/font";
+import { BURN_DPS, BURN_TIME, FRAY_BONUS, FRAY_MAX } from "../src/sim/content";
+import { FUSE_MAX } from "../src/sim/stars";
+import { KEYWORD_WORD, PLAIN_REMINDER, WORD_ONLY, runeKeyword, runeKeywords, runeLine, runeReminder } from "../src/ui/runeText";
+import { RUNE_NOTE, RUNE_WORD_NOTE } from "../src/ui/glossary";
+import { runeTextLines, runeCardTextW, runeWordText } from "../src/ui/runeBar";
+import { lineText } from "../src/ui/richText";
+
+describe("CARD-4 (t): the words READ-4 found misread (REQ-BFG-081, REQ-BFG-089; READ-4 3, 5, 8, 11 item 6)", () => {
+  it("BRACE FRAME: TILES IT HITS (its FULL RULE's words) on the face, the desk line and the phone gist; the face one 5x7 line on every phone panel", () => {
+    const fl = faceLines("braceframe", 1, {})!;
+    const plain = (t: string): string => t.replace(/[^\x20-\x7E]/g, "").replace(/\s+/g, " "); // as drawn, icons and the font's own word glyphs out
+    expect(fl.rules.map((r) => plain(r.text))).toEqual(["FOE STUN ON TILES IT HITS: 50% SHORTER."]);
+    expect(fl.rules.map((r) => r.text).join(" ")).toMatch(/ON TILES IT HITS: 50% SHORTER\./);
+    expect(cardText("braceframe")).toBe("SHORTER STUNS ON TILES IT HITS.");
+    expect(phoneGist("braceframe", {})).toEqual(["TILES HIT", "{STUN}-50%"]);
+    // the sim: Battle.braceCut multiplies an enemy STUN's seconds on a tile its arrows hit by brace.mul (0.5 at ★1)
+    expect(ITEMS.braceframe.gate!.brace!.mul).toBe(0.5);
+  });
+
+  it("the six phone gists name what each piece does, each row A at most 10 capitals, 40 px, no digit; row B the face's chip", () => {
+    const want: Record<string, readonly [string, string]> = {
+      spotter: ["AIMS AGAIN", "AIM+1"], anvil: ["DMG + YOUR", "{PLATE}+100%"], compound: ["{SLUG}{SLUG} AS ONE", "{DMG}+15%"],
+      chamber: ["PER SHOT", "{SLUG}2"], tesla: ["ARC STUNS", "{STUN}1"], sorting: ["EACH THIRD", "{SLUG}COPY"],
+    };
+    for (const [d, g] of Object.entries(want)) {
+      expect(phoneGist(d, {}), d).toEqual(g);
+      expect(g[1], d).toBe(shopChip(d, {})); // row B: the face's own chip, unchanged
+      const a = icons(g[0], "alone");
+      expect(textWidth(a, "3"), d).toBeLessThanOrEqual(40);
+      expect((g[0].replace(/\{[A-Z*]+\}/g, "").match(/[A-Z]/g) ?? []).length, d).toBeLessThanOrEqual(10);
+      expect(/\d/.test(g[0]), d).toBe(false);
+    }
+    // each true to its face (the face is the sim's numbers): SPOTTER's no-part shots aim again; ANVIL BREECH adds 100% of
+    // your SHIELD to its shot's damage; COMPOUND BREECH fires 2 slugs as 1 shot; EXT. CHAMBER fires 2 slugs a shot; TESLA
+    // ARC's arc stuns; SORTING ARM copies one slug in 3
+    const rule = (d: string): string => faceLines(d, 1, {})!.rules[0].text.replace(/[^\x20-\x7E]/g, "").replace(/\s+/g, " ");
+    expect(rule("spotter")).toBe("SHOTS AIMED AT NO PART AIM AGAIN ONCE.");
+    console.log(`CARD-4 (t) faces: ${["anvil", "compound", "chamber", "tesla", "sorting"].map((d) => `${d}: ${JSON.stringify(rule(d))}`).join("; ")}`);
+    expect(rule("anvil")).toMatch(/100% OF YOUR/);
+    expect(rule("compound")).toMatch(/FIRES 2 ?AS 1 SHOT/);
+    expect(rule("chamber")).toMatch(/EACH SHOT FIRES 2/);
+    expect(rule("tesla")).toMatch(/ARCS TO 1 PART: ?STUN ?1/);
+    expect(rule("sorting")).toMatch(/OF EVERY 3 ?, ONE BECOMES 2/);
+    // the three READ-4 left alone keep theirs (their notes carry WARD and PAIR)
+    expect([phoneGist("wardbell", {})![0], phoneGist("seamwelder", {})![0], phoneGist("twintrigger", {})![0]]).toEqual(["OVER TIME", "{*PAIR}", "{*PAIR}"]);
+  });
+
+  it("the hull runes say ALL RUN on the card; MERGED, LOAD and RIG are words with notes on their cards; the chips and their lines as before", () => {
+    for (const id of ["iron_skin", "spare_hull"]) {
+      expect(runeLine(RUNES[id]), id).toBe(`+${RUNES[id].amount.n} MAX HULL, ALL RUN.`);
+      for (const w of [216, 223, 290]) expect(runeTextLines(RUNES[id], w).length, `${id} @${w}`).toBe(1);
+      expect([runeKeyword(RUNES[id]), runeReminder(RUNES[id])], id).toEqual(["HULL", PLAIN_REMINDER]);
+    }
+    const words: Record<string, string[]> = { scrap_halo: ["HULL", "MERGED"], scrap_saint: ["DMG", "MERGED"], toll_road: ["LOAD", "DMG", "RIG"] };
+    const chip: Record<string, string> = { scrap_halo: "HULL", scrap_saint: "DMG", toll_road: "DMG" };
+    for (const [id, ws] of Object.entries(words)) {
+      const def = RUNES[id];
+      expect(runeKeywords(def).map((k) => KEYWORD_WORD[k]), id).toEqual(ws);
+      expect(runeKeyword(def), `${id}: its chip's word`).toBe(chip[id]);
+      expect(runeReminder(def), `${id}: its chip's line`).toBe(RUNE_NOTE[id] ?? PLAIN_REMINDER);
+      // the line's words are as before (only a word target is added)
+      expect(runeLine(def), id).toBe({ scrap_halo: "+60 HULL PER MERGED (★2/★3) PIECE IN USE.", scrap_saint: `+${def.amount.n}% DMG PER MERGED (★2/★3) PIECE IN USE.`, toll_road: `EACH LOAD: +${def.amount.n}% DMG PER RIG IT PASSED.` }[id]);
+      const card = { x: 4, y: 40, w: 233, h: runeCardH(def, 233, { reminder: true, hint: PICK_TAKE }) };
+      const ts = runeWordTargets(card, def);
+      for (const w of ws.filter((x) => x !== "HULL" && x !== "DMG")) {
+        const t = ts.find((q) => q.word === w);
+        expect(t, `${id} ${w}: a target`).toBeDefined();
+        expect(t!.text, `${id} ${w}`).toBe(RUNE_WORD_NOTE[w]);
+      }
+    }
+    expect(RUNE_WORD_NOTE.MERGED).toBe(`MERGED: A ★${FUSE_MAX - 1} OR ★${FUSE_MAX} PIECE, MADE BY MERGING COPIES.`);
+    expect([...WORD_ONLY].sort()).toEqual(["LOAD", "MERGED", "RIG"]);
+  });
+
+  it("FRAY's and BURN's word notes carry their glossary rows' numbers (the sim's constants), and every rune card's box holds them whole on every view", () => {
+    expect(RUNE_WORD_NOTE.FRAY).toBe(`FRAY: EACH ONE ADDS +${FRAY_BONUS} DAMAGE TO EVERY LATER SHOT ON THE HULL. MAX ${FRAY_MAX}.`);
+    expect(RUNE_WORD_NOTE.BURN).toBe(`BURN: EACH ONE DEALS ${BURN_DPS} HULL DAMAGE A SEC FOR ${BURN_TIME} SEC.`);
+    expect([FRAY_BONUS, FRAY_MAX, BURN_DPS, BURN_TIME]).toEqual([2, 15, 10, 3]);
+    let n = 0;
+    for (const [name, w, h, dpr] of [...PHONES, DESK]) {
+      const f = framed(w, h, dpr, 0), cardW = Math.min(f.W - 8, 300);
+      for (const def of Object.values(RUNES) as RuneDef[]) {
+        for (const k of runeKeywords(def)) {
+          const t = runeWordText(def, k);
+          expect(t.startsWith(`${KEYWORD_WORD[k]}: `), `${def.id} ${k}`).toBe(true);
+          const card = { x: 4, y: 40, w: cardW, h: runeCardH(def, cardW, { reminder: true, hint: PICK_TAKE, tap: dpr > 1 ? f.tap : 0 }) };
+          const box = runeWordBoxOn(card, def, KEYWORD_WORD[k])!;
+          expect(box.y >= card.y + 31 && box.y + box.h <= card.y + card.h, `${name} ${def.id} ${KEYWORD_WORD[k]}: the box in the card`).toBe(true);
+          n++;
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(400);
+    void lineText; void runeCardTextW;
   });
 });

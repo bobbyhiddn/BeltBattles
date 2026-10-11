@@ -26,7 +26,7 @@ import { pendingLastChance, takeLastChance, type Run } from "../game/run";
 import { drawRuneCard, runeCardH } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the rune card's chip as its icon
 import { drawRuneWordNote, runeHintBand, runeKeywordOf, runeSightWord, runeWordLayer, runeWordLines } from "../ui/runeBar"; // CARD-2 (K2; K1)
-import { TAKE_GUARD_S, runeBarBand, runeBarTarget } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): the RUNE card's bar alone takes it
+import { TAKE_CLOCK, runeBarBand, runeBarTarget, takeGuardPassed } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): the RUNE card's bar alone takes it
 import { runeReminderSpans, runeTag, tierWord } from "../ui/runeText";
 import { textOpts } from "./build/inspector";
 import type { BuildScreen } from "./build/build";
@@ -215,8 +215,9 @@ export class LastChancePicker {
   auto = false;
   /** CARD-4 (P3): this press only closed a note that opened by itself: its tap does nothing else. */
   private eaten = false;
-  /** CARD-4 (P2): when the open card opened (the build screen's game seconds). */
+  /** CARD-4 (P2): when the open card opened (the build screen's game seconds; TAKE_CLOCK: the wall's ms). */
   private openedAt = 0;
+  private openedWall = 0;
   private key = "";
 
   /** CARD-4 (REQ-BFG-081, P3): every press while the picker is up (BuildScreen.pressed): while a note that opened by
@@ -263,6 +264,7 @@ export class LastChancePicker {
       this.word = boon === "rune" && o.rune ? runeSightWord(RUNES[o.rune.id]) : null;
       this.auto = !!this.word; // CARD-4 (P3)
       this.openedAt = clock(s); // CARD-4 (P2)
+      this.openedWall = TAKE_CLOCK.wall();
       return;
     }
     if (boon === "rune") {
@@ -276,7 +278,7 @@ export class LastChancePicker {
    *  double tap's second tap: ignored) or this press only closed a self-opened note (P3). */
   take(s: BuildScreen, i: number, o: LastChanceOffer): void {
     if (this.eat()) return;
-    if (this.open !== i || clock(s) - this.openedAt < TAKE_GUARD_S) return;
+    if (this.open !== i || !takeGuardPassed(clock(s) - this.openedAt, TAKE_CLOCK.wall() - this.openedWall)) return;
     this.takeBoon(s, "rune", o);
   }
 

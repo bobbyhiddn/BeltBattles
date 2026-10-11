@@ -17,7 +17,7 @@ import { RUNES, isRune, type RuneDef } from "../sim/runes";
 import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH, runeChipW } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the chip as the card's icon
 import { runeHintBand, runeSightWord, runeWordBoxOn, runeWordLayer, sawRuneNote } from "../ui/runeBar"; // CARD-2 (REQ-BFG-081, K2; K1)
-import { TAKE_GUARD_S, runeBarTarget, runeCardTextW, runeNoteBox, runeNoteY } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): only the bar takes, never too soon
+import { TAKE_CLOCK, runeBarTarget, runeCardTextW, runeNoteBox, runeNoteY, takeGuardPassed } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): only the bar takes, never too soon
 import { wrapRich } from "../ui/richText"; // CARD-4 (P1): the chip's line's box (the bar's target is never under it)
 import { runeReminderSpans } from "../ui/runeText";
 import { runeTag, tierColour, tierWord } from "../ui/runeText";
@@ -109,8 +109,9 @@ export class RunePicker {
   auto = false;
   /** CARD-4 (P3): this press only closed a note that opened by itself: its tap does nothing else (eat). */
   private eaten = false;
-  /** CARD-4 (P2): when the open card opened (clock: the build screen's game seconds). */
+  /** CARD-4 (P2): when the open card opened (clock: the build screen's game seconds; TAKE_CLOCK: the wall's ms). */
   private openedAt = 0;
+  private openedWall = 0;
   private day = 0;
 
   /** EXPLAIN-1 (E3): every press while the picker is up (BuildScreen.pressed): one anywhere but the opened card's chip
@@ -160,13 +161,14 @@ export class RunePicker {
     this.word = runeSightWord(RUNES[id]); // CARD-2 (K1): its first effect keyword not yet seen opens by itself
     this.auto = !!this.word; // CARD-4 (P3)
     this.openedAt = clock(s); // CARD-4 (P2)
+    this.openedWall = TAKE_CLOCK.wall();
   }
 
   /** CARD-4 (REQ-BFG-081, P1, P2): the open card's TAP AGAIN bar: take card i's rune (run.ts takeRune), unless it opened
    *  under TAKE_GUARD_S ago (a double tap's second tap: ignored) or this press only closed a self-opened note (P3). */
   take(s: BuildScreen, i: number, id: string): void {
     if (this.eat()) return;
-    if (this.open !== i || clock(s) - this.openedAt < TAKE_GUARD_S) return;
+    if (this.open !== i || !takeGuardPassed(clock(s) - this.openedAt, TAKE_CLOCK.wall() - this.openedWall)) return;
     const r = takeRune(s.run, id);
     if (!r.ok) {
       s.game.error(r.reason ?? "NO RUNE TO PICK");

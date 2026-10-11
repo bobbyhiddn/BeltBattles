@@ -44,6 +44,7 @@ import { hasFace } from "../../ui/faces";
 import type { Sel } from "./layout";
 import { RUNES } from "../../sim/runes";
 import { KEYWORD_WORD, runeKeywords } from "../../ui/runeText";
+import { WORD_ONLY } from "../../ui/runeText"; // CARD-4 (REQ-BFG-081, T)
 import type { Block, PLine, PanelPlan, PanelText } from "./inspector";
 import { levelLines, levelSpans, type LevelLine } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS
 import { fusible } from "../../sim/stars"; // U2e step 5
@@ -336,6 +337,7 @@ export function runeWords(run: Run): KwWord[] {
     const d = RUNES[h.id];
     if (!d) continue;
     for (const k of runeKeywords(d)) {
+      if (WORD_ONLY.has(k)) continue; // CARD-4 (REQ-BFG-081, T): a word-only keyword (TOLL ROAD's LOAD) is no row of the view
       const row = glossaryEntry(KEYWORD_WORD[k]);
       if (row && !out.some((w) => w.word === row.word)) out.push({ word: row.word, text: row.def, colour: row.colour });
     }

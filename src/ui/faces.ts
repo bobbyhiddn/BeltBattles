@@ -657,7 +657,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // and its brace of itself are gone). Was the RULES text "ENEMY STUNS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST 50%
     // SHORTER." with "WHILE YOUR HULL HOLDS PLATING THEY LAST 75% SHORTER."
     const cut = fmtPct(1 - gt(e).brace!.mul);
-    return rules([{ text: `ENEMY {*STUN} ON ITS TILES: ${cut} SHORTER.` }], [["cut", `${cut} SHORTER`]]);
+    // CARD-4 (REQ-BFG-081, T; READ-4 3, 11 item 6: ITS TILES left open, the one card under 2 of 3 in round A): the FULL
+    // RULE's words, TILES IT HITS (Battle.braceCut: an enemy STUN on a belt tile its arrows hit), in one 5x7 line on every
+    // phone panel: FOE, the game's other word for the enemy (ENEMY ... ON TILES IT HITS took 229 px, past the band's 225;
+    // ON THE BELT TILES IT HITS 255)
+    return rules([{ text: `FOE {*STUN} ON TILES IT HITS: ${cut} SHORTER.` }], [["cut", `${cut} SHORTER`]]);
   },
   pincer: (e) => {
     // DESIGN-Y row 20: Battle.applyHit: + each for each other working rig on its tile (crossfire: a STUNned rig stops, so it

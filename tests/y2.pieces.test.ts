@@ -357,9 +357,10 @@ describe("Y2 row 16: BRACE FRAME cuts enemy STUNs on its tiles 50%/70%/85%, plat
     expect(Math.round(left(false, true) * 60)).toBe(240);
   });
 
-  it("face (new with the switch on): ENEMY STUN ON ITS TILES: 50% SHORTER; ladder 50%/70%/85% SHORTER", () => {
+  // CARD-4 (REQ-BFG-081, T) changed this pin: the FULL RULE's TILES IT HITS (was ON ITS TILES: READ-4 3, PPR)
+  it("face (new with the switch on): FOE STUN ON TILES IT HITS: 50% SHORTER; ladder 50%/70%/85% SHORTER", () => {
     expect(hasFace("braceframe")).toBe(true);
-    expect(lines("braceframe")).toEqual(["50%", "70%", "85%"].map((p) => [`ENEMY {*STUN} ON ITS TILES: ${p} SHORTER.`]));
+    expect(lines("braceframe")).toEqual(["50%", "70%", "85%"].map((p) => [`FOE {*STUN} ON TILES IT HITS: ${p} SHORTER.`]));
     oneLine("braceframe");
     expect(levels("braceframe", 1)).toEqual(["[50%]/70%/85% SHORTER", "NEXT ★2: 70% SHORTER"]);
     expect(levels("braceframe", 3)).toEqual(["50%/70%/[85%] SHORTER"]);

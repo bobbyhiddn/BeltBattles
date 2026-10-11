@@ -43,7 +43,7 @@ describe("rune text (runeText.ts)", () => {
     expect(RUNE_UNIT_TEXT.pct(25)).toBe("25%");
     expect(RUNE_UNIT_TEXT.hull(15)).toBe("15");
     const iron = RUNE_LIST.find((d) => d.id === "iron_skin")!;
-    expect(runeLine(iron)).toBe(`+${iron.amount.n} HULL.`);
+    expect(runeLine(iron)).toBe(`+${iron.amount.n} MAX HULL, ALL RUN.`); // CARD-4 (REQ-BFG-081, T) changed this pin: the rune's own fact on its face
     expect(runeSpans(iron)[0]).toEqual({ t: `+${iron.amount.n}`, c: expect.any(String) });
     for (const d of RUNE_LIST) expect(runeLine(d), d.id).toContain(RUNE_UNIT_TEXT[d.amount.unit](d.amount.n));
   });
