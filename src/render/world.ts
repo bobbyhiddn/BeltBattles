@@ -1,7 +1,24 @@
 // World overlays that are not tied to a cruiser: the dark wind storm front.
 
 import { C } from "./palette";
-import { bayer, rect, type G } from "./pixel";
+import { bayer, makeCanvas, rect, type G } from "./pixel";
+
+/** WIND-2 (REQ-BFG-093): the dither at a front's edge, cached as one small image per colour, width and row phase (the
+ *  band's rows are 2 px tall at even y, and bayer's pattern repeats every 4 rows, so a row's y & 3 is 0 or 2): a row draws
+ *  two images instead of a pixel at a time, with the same pixels (the image is bayer's own, drawn at the row's x and y;
+ *  the game draws with smoothing off). The second front doubled the per-pixel fills: on the desk at 68 s the storm cost
+ *  0.65 ms a frame with one front, 7.6 ms with two, per-pixel (REPORT-WIND2 section 2). */
+const DITHER = new Map<string, HTMLCanvasElement>();
+function ditherRow(c: string, w: number, density: number, ox: number, y: number): HTMLCanvasElement {
+  const key = `${c} ${w} ${density} ${ox} ${y & 3}`;
+  let cv = DITHER.get(key);
+  if (!cv) {
+    const [canvas, d] = makeCanvas(w, 2);
+    bayer(d, 0, 0, w, 2, c, density, ox, y & 3);
+    DITHER.set(key, (cv = canvas));
+  }
+  return cv;
+}
 
 /**
  * WIND-2 (REQ-BFG-093): how the dark wind is drawn on this layout. `both`: the carriers sit side by side (the caller
@@ -42,8 +59,8 @@ export function drawWind(g: G, level: number, W: number, H: number, t: number, l
       g.globalAlpha = 0.55;
       rect(g, x0, y, fx, 2, C.plum0);
       g.globalAlpha = 1;
-      bayer(g, f ? W - fx : fx - 10, y, 10, 2, C.plum1, 0.5, 0, y);
-      bayer(g, f ? W - fx - 2 : fx - 4, y, 6, 2, C.plum2, 0.35, 1, y);
+      g.drawImage(ditherRow(C.plum1, 10, 0.5, 0, y), f ? W - fx : fx - 10, y);
+      g.drawImage(ditherRow(C.plum2, 6, 0.35, 1, y), f ? W - fx - 2 : fx - 4, y);
     }
   }
   if (mark) return;

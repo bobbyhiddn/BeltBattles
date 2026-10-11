@@ -1,29 +1,55 @@
 // WIND-2 (REQ-BFG-093): the dark wind looks fair on every layout. Call 1: side by side (the desk, a phone held sideways)
 // the storm rolls in from both screen edges, so both boards sit under the same share of it; stacked (a portrait phone)
 // the one front from the left, as before. Presentation only: nothing here touches the sim.
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { computeView } from "../src/core/io";
 import { battleLayout, battleScale, laneLayout } from "../src/game/battleLayout";
 import { windBoth } from "../src/game/arenaMotion";
 import { hullBox, type Box } from "../src/render/frame";
 import { C } from "../src/render/palette";
 import { drawWind } from "../src/render/world";
-import type { G } from "../src/render/pixel";
+import { bayer, type G } from "../src/render/pixel";
 
-/** A fillRect recorder: each fill with its colour and alpha (node has no canvas). */
+/** A recorder (node has no canvas): each fillRect with its colour and alpha, and each drawImage of a recorded canvas
+ *  (its own fills, e.g. the cached dither rows) at its place. */
 interface Fill { x: number; y: number; w: number; h: number; fill: string; alpha: number }
-function recorder(): { g: G; fills: Fill[] } {
-  const fills: Fill[] = [];
-  const st = { fillStyle: "", globalAlpha: 1 };
+interface Img { img: { fills: Fill[] }; x: number; y: number; alpha: number }
+function recorder(): { g: G; fills: Fill[]; imgs: Img[] } {
+  const fills: Fill[] = [], imgs: Img[] = [];
+  const st = { fillStyle: "", globalAlpha: 1, imageSmoothingEnabled: false };
   const g = {
     get fillStyle() { return st.fillStyle; },
     set fillStyle(v: string) { st.fillStyle = v; },
     get globalAlpha() { return st.globalAlpha; },
     set globalAlpha(v: number) { st.globalAlpha = v; },
+    get imageSmoothingEnabled() { return st.imageSmoothingEnabled; },
+    set imageSmoothingEnabled(v: boolean) { st.imageSmoothingEnabled = v; },
     fillRect(x: number, y: number, w: number, h: number) { fills.push({ x, y, w, h, fill: st.fillStyle, alpha: st.globalAlpha }); },
+    drawImage(img: { fills: Fill[] }, x: number, y: number) { imgs.push({ img, x, y, alpha: st.globalAlpha }); },
   };
-  return { g: g as unknown as G, fills };
+  return { g: g as unknown as G, fills, imgs };
 }
+
+/** A stand-in `document` whose canvases record (the dither rows are made with makeCanvas). */
+const doc = globalThis as { document?: unknown };
+let prevDoc: unknown;
+beforeAll(() => {
+  prevDoc = doc.document;
+  doc.document = {
+    createElement: () => {
+      const r = recorder();
+      return { width: 0, height: 0, fills: r.fills, getContext: () => r.g };
+    },
+  };
+});
+afterAll(() => { doc.document = prevDoc; });
+
+/** The cells an image draw paints: its canvas's fills, moved to where it is drawn. */
+const cellsOf = (imgs: Img[]): string[] => imgs.flatMap((d) => d.img.fills.flatMap((f) => {
+  const out: string[] = [];
+  for (let j = 0; j < f.h; j++) for (let i = 0; i < f.w; i++) out.push(`${d.x + f.x + i},${d.y + f.y + j},${f.fill}`);
+  return out;
+})).sort();
 
 /** The battle's layout on a viewport, as the battle and the replay lay it out (lanes included). */
 function layoutOf(w: number, h: number, dpr: number) {
@@ -82,9 +108,11 @@ describe("WIND-2 call 1: a fair storm", () => {
         expect(band2).toContainEqual(f); // the west front unchanged
         expect(band2).toContainEqual({ ...f, x: W - f.w }); // and its mirror image, flush with the east edge
       }
-      const count = (fs: Fill[], c: string) => fs.filter((f) => f.fill === c).length;
-      expect(count(two.fills, C.plum1)).toBe(2 * count(one.fills, C.plum1)); // the dither at both fronts
-      expect(count(two.fills, C.plum2)).toBe(2 * count(one.fills, C.plum2));
+      expect(two.imgs.length).toBe(2 * one.imgs.length); // the dither rows at both fronts
+      const cells = (imgs: Img[], c: string) => cellsOf(imgs).filter((s) => s.endsWith(c)).length;
+      expect(cells(two.imgs, C.plum1)).toBe(2 * cells(one.imgs, C.plum1));
+      expect(cells(two.imgs, C.plum2)).toBe(2 * cells(one.imgs, C.plum2));
+      expect(cells(one.imgs, C.plum1)).toBeGreaterThan(0);
       const streaks = (fs: Fill[]) => fs.filter((f) => (f.fill === C.plum3 || f.fill === C.plum4) && f.h === 1);
       expect(streaks(one.fills).length).toBe(Math.floor(10 + level * 40));
       expect(streaks(two.fills).length).toBe(2 * streaks(one.fills).length); // each front its own, as dense as the one was
@@ -100,7 +128,26 @@ describe("WIND-2 call 1: a fair storm", () => {
       drawWind(a.g, 1, 195, 422, t);
       drawWind(b.g, 1, 195, 422, t, { both: false });
       expect(b.fills).toEqual(a.fills);
+      expect(cellsOf(b.imgs)).toEqual(cellsOf(a.imgs));
       expect(a.fills.filter((f) => f.fill === C.plum0 && f.alpha === 0.55).every((f) => f.x === 0)).toBe(true);
+    }
+  });
+
+  it("the cached dither rows paint exactly bayer's cells, row by row, as the per-pixel dither did (wind2-base)", () => {
+    for (const [W, H] of [[195, 422], [384, 216], [422, 195]]) for (const level of [0.3, 0.9, 1]) for (const t of [26.2, 50.3, 68.3]) {
+      const r = recorder(), ref = recorder();
+      drawWind(r.g, level, W, H, t);
+      const front = level * W * 0.42; // wind2-base's dither, per pixel (render/world.ts at 6dda035)
+      for (let y = 0; y < H; y += 2) {
+        const wob = Math.sin(y * 0.07 + t * 1.3) * 7 + Math.sin(y * 0.19 - t * 2.3) * 3;
+        const fx = Math.max(0, Math.round(front + wob));
+        if (fx <= 0) continue;
+        bayer(ref.g, fx - 10, y, 10, 2, C.plum1, 0.5, 0, y);
+        bayer(ref.g, fx - 4, y, 6, 2, C.plum2, 0.35, 1, y);
+      }
+      const refCells = ref.fills.map((f) => `${f.x},${f.y},${f.fill}`).sort();
+      expect(cellsOf(r.imgs), `${W}x${H} level ${level} t ${t}`).toEqual(refCells);
+      expect(r.imgs.every((d) => d.alpha === 1)).toBe(true);
     }
   });
 
