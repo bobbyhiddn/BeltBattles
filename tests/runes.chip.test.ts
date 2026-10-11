@@ -83,15 +83,16 @@ describe("FLIP-X1 F-a: the rune card's chip word fits its box", () => {
     });
   });
 
-  it("only a SHIELD card's chip widens (to 26); every other card keeps the 22 px chip, so it draws as before", () => {
-    expect(textWidth(KEYWORD_WORD.SHIELD, "3")).toBe(23); // wider than the 22 px box: the flaw
+  // CARD-3 (REQ-BFG-107): the 23 px chip word is SHIELD, which the soak layer's runes (token PLATE) draw now; the one-hit
+  // block's runes (token SHIELD) draw WARD (15 px) and keep the 22 px chip. Was "only a SHIELD card's chip widens": WARD
+  // STONE, BULWARK WARD, TICK GUARD and SHATTER SHOT at 26
+  it("only a card whose chip word is SHIELD (the soak layer's) widens (to 26); every other card keeps the 22 px chip", () => {
+    expect([textWidth(KEYWORD_WORD.PLATE, "3"), textWidth(KEYWORD_WORD.SHIELD, "3")]).toEqual([23, 15]); // SHIELD is wider than the 22 px box
     const wide = (list: readonly RuneDef[]) => list.filter((d) => runeCardChipW(d) !== 22).map((d) => [d.id, runeCardChipW(d)]);
-    expect(wide(RUNE_LIST)).toEqual([["ward_stone", 26]]); // switch off: WARD STONE, x2a's one SHIELD rune
-    // FLIP-X2 (REVIEW-TUNEX): SHATTER SHOT is dormant, so runeList() leaves it out: the three SHIELD runes the dawn offers, in
-    // runeList() order (was the four, SHATTER SHOT last); its own card still widens
-    // BAL-2 (the lines: DORMANT_RUNES empty): SHATTER SHOT is offered again, so runeList() holds the four SHIELD runes,
-    // SHATTER SHOT last (was the three, without it)
-    expect(withSustain(() => wide(runeList()))).toEqual([["ward_stone", 26], ["bulwark_ward", 26], ["tick_guard", 26], ["shatter_shot", 26]]);
-    expect(wide([RUNES.shatter_shot])).toEqual([["shatter_shot", 26]]);
+    const soak = (list: readonly RuneDef[]) => list.filter((d) => runeKeyword(d) === "PLATE").map((d) => [d.id, 26]);
+    expect(soak(RUNE_LIST).length).toBeGreaterThan(0);
+    expect(wide(RUNE_LIST)).toEqual(soak(RUNE_LIST)); // switch off
+    expect(withSustain(() => wide(runeList()))).toEqual(withSustain(() => soak(runeList())));
+    for (const id of ["ward_stone", "bulwark_ward", "tick_guard", "shatter_shot"]) expect(runeCardChipW(RUNES[id]), id).toBe(22);
   });
 });

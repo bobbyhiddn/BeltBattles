@@ -16,6 +16,7 @@
 // VALVE, HOPPER and MANTLET keep nothing, like the rest of their families: their rules are all in the ability text.
 
 import { ITEMS } from "../../sim/content";
+import { gameWords } from "../../ui/gameWords"; // CARD-3 (REQ-BFG-107)
 import { hasFace } from "../../ui/faces"; // U2b F2
 
 /**
@@ -160,7 +161,7 @@ const SIGNATURE_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
   clockworks: [],
   sump: ["ITS SLUGS DRAG FOR THE LEFT GUN AND ECHO FOR THE RIGHT GUN."],
   crucible: ["MIRROR ITS BELTS, TILE FOR TILE AND RIG FOR RIG, SO ITS BLANKS ARRIVE TOGETHER."],
-  wardworks: ["A FULL OR JAMMED CHAMBER STARVES THE PLATING."],
+  wardworks: ["A FULL OR JAMMED CHAMBER STARVES THE SHIELD."], // CARD-3 (REQ-BFG-107): SHIELD, the soak layer (was PLATING)
 };
 
 const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
@@ -175,7 +176,7 @@ export function flavour(def: string, stars = 1, k = 1): string[] {
   if (own(KEPT_FLAVOUR, def)) return [...KEPT_FLAVOUR[def]];
   if (own(SIGNATURE_FLAVOUR, def)) return [...SIGNATURE_FLAVOUR[def]];
   if (hasFace(def)) return []; // U2b F2 (REQ-BFG-046): a panel that draws a face never draws the desc (KILN's, LOOM's)
-  return [ITEMS[def].desc.join(" ")];
+  return [gameWords(ITEMS[def].desc.join(" "))]; // CARD-3 (REQ-BFG-107): a catalogue desc in the player's words
 }
 
 /** The flavour as one paragraph (what the panels wrap and draw); "" when there is none. */

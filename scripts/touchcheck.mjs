@@ -697,6 +697,33 @@ async function touchSection(browsers, origin, vname) {
     fitCheck(vname, V, `the GALVANIC COIL in cargo, ${d} CSS px drift`, l);
   }
   await shot(page, `${TAG}-${vname}-cargo-panel.png`);
+  // CARD-3 (REQ-BFG-087, D7; SPACE-1 open item 10): the phone panel checks with a rune held (the rune strip under the bar,
+  // so a portrait band is shorter: 57 px on 402x690): the two shop cards, the carrier's parts and the cargo part, one tap
+  // each (a 5 CSS px drift): each panel shown, and on a portrait phone (FIT_VIEWS) in the band or grown up from it with its
+  // full description; a tap changes nothing. The rune is taken back after, so the later checks see their deck
+  {
+    await page.keyboard.press("Escape");
+    await page.evaluate(() => { const g = window.bb.game; g.run.build.runes = [{ id: "many_hands" }]; g.resize(); g.step(1 / 60); g.render(); });
+    const bandR = await page.evaluate(() => { const L = window.bb.game.screen.L; return L.portrait ? L.info.h : null; });
+    log(`[${at()}] ${V}: D7, a rune held: ${bandR === null ? "the landscape column" : `the portrait panel band ${bandR} px`}`);
+    const runeCases = [
+      ["the affordable shop card (GREASE WORKS)", () => card(page, 0), (s) => s.kind === "offer" && s.slot === 0, "GREASE WORKS"],
+      ["the unaffordable shop card (GANTRY PRESS)", () => card(page, 1), (s) => s.kind === "offer" && s.slot === 1, "GANTRY PRESS"],
+      ...parts.map(([what, where, want, title]) => [what, where, (s) => same(s, want), title]),
+      ["the GALVANIC COIL in cargo", () => slot(page, 0), (s) => same(s, { kind: "cargo", uid: 60 }), "GALVANIC COIL"],
+    ];
+    for (const [what, where, ok, title] of runeCases) {
+      await page.keyboard.press("Escape");
+      const s0 = await snap(page);
+      await tap(cdp, await where(), 5, 90);
+      const l = await look(page), s1 = await snap(page);
+      check(ok(l.sel) && s1 === s0 && !l.carry && shown(l, title), `${V}: D7, a rune held: ${what} tapped with a 5 CSS px drift opens its panel (${l.panel ? pdesc(l) : `${JSON.stringify(l.sel)}, no panel`}); gold, the build and cargo unchanged`);
+      fitCheck(vname, V, `D7, a rune held: ${what}`, l);
+    }
+    await shot(page, `${TAG}-${vname}-runeheld-panel.png`);
+    await page.keyboard.press("Escape");
+    await page.evaluate(() => { const g = window.bb.game; g.run.build.runes = []; g.resize(); g.step(1 / 60); g.render(); });
+  }
   // the signature KILN's panel says it stays aboard, no SELL. bb-0.8.3 (REQ-BFG-043 D11): its one button is its FACTORY
   // UPGRADE 10G (it had none); with 5 gold it is dim, still showing its price, and a tap on it changes nothing. The note
   // is 0.8.0's again ("THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD."; run 3's was "IT STAYS ABOARD: NO COPY CAN

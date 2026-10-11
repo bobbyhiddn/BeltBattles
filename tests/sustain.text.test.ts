@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
 import { AMMO, ITEMS, SHIELD_CAP, SUSTAIN_IDS, SUSTAIN_LIVE, buyableModules, withSustain, type ItemDef } from "../src/sim/content"; // NUM-4: secPer unused (RATE)
 import { effectAt, fusible } from "../src/sim/stars";
-import { ICON, ICON_COLOUR, KEYWORDS, icons, stripIcons, textWidth } from "../src/render/font";
+import { ICON, ICON_COLOUR, KEYWORDS, PLAYER_WORD, icons, stripIcons, textWidth } from "../src/render/font"; // CARD-3: PLAYER_WORD
+import { NAMES_KEPT } from "../src/ui/gameWords"; // CARD-3 (REQ-BFG-107)
 import { C } from "../src/render/palette";
 import { colourize, lineText, wrapRich } from "../src/ui/richText";
 import { captureFormats, FORMATTERS, fmtCount, fmtDmg, fmtSec, fmtSpeed } from "../src/ui/statFormat";
@@ -77,8 +78,8 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
     // ★1 as the brief writes them, on this base's numbers (NUM-1's x10; SUS-A's WARD BELL ★1 fallback, 8 s)
     const plain = (id: string) => stripIcons(faceLines(id, 1)!.rules[0].text);
     // MERGE-099C: both sides' lines, as c099 ships them: TXT-AZ item 2's FEEDS A GUN (MEND PRESS) and WORDS-1's MENDING LOOM
-    // (was "YOUR HULL: REGEN 10.")
-    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: HEAL 6.", "EVERY 8: +1 SHIELD.", "FEEDS A GUN: EVERY 3: HEAL 20.", "YOUR HULL: HEAL 10 EACH SEC."]);
+    // (was "YOUR HULL: REGEN 10."). MERGE-099D (BRIEF-MERGE-099D 1f): CARD-3's word for WARD BELL's block, +1 WARD (was SHIELD)
+    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: HEAL 6.", "EVERY 8: +1 WARD.", "FEEDS A GUN: EVERY 3: HEAL 20.", "YOUR HULL: HEAL 10 EACH SEC."]);
   });
 
   it("every number on them is a formatter's, at every star; no bare keyword; each line fits the op band", () => {
@@ -123,7 +124,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
   it("the ⓘ KEYWORDS (a tap's texts): each face keyword's own reminder and its row's extra sentence, 2 lines at 225 px", () => {
     const want: Record<string, [string, string]> = {
       riveter: ["HEAL", `${REMINDER.HEAL()} ${keywordRow("HEAL").extra}`],
-      wardbell: ["SHIELD", `${REMINDER.SHIELD()} ${keywordRow("SHIELD").extra}`],
+      wardbell: ["WARD", `${REMINDER.SHIELD()} ${keywordRow("SHIELD").extra}`], // CARD-3 (REQ-BFG-107): the block reads WARD
       mendpress: ["HEAL", `${REMINDER.HEAL()} ${keywordRow("HEAL").extra}`],
       mendingloom: ["HEAL", `${REMINDER.HEAL()} ${keywordRow("HEAL").extra}`], // WORDS-1: HEAL (was REGEN's reminder and extra)
     };
@@ -140,7 +141,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
       `{HEAL}${fmtDmg(ITEMS.mendpress.factory!.heal!.amount)}`, `{HEAL}${fmtDmg(ITEMS.mendingloom.mod!.regen!)}`, // WORDS-1: {HEAL} (was {REGEN})
     ]);
     expect(SUSTAIN_FACES.map((id) => cardText(id))).toEqual([
-      "HEALS 6 HULL EACH HIT.", "SHIELDS YOUR HULL EVERY 8 SECONDS." /* FLIP-X2 (cap's ruling 207816b18a9fbfdb C): was "+1 SHIELD EVERY 8 SECONDS." */, "HEALS YOUR HULL EVERY 3 SECONDS.", "HEALS 10 HULL EVERY SECOND.",
+      "HEALS 6 HULL EACH HIT.", "WARDS YOUR HULL EVERY 8 SECONDS." /* FLIP-X2 (cap's ruling 207816b18a9fbfdb C): was "+1 SHIELD EVERY 8 SECONDS." */, "HEALS YOUR HULL EVERY 3 SECONDS.", "HEALS 10 HULL EVERY SECOND.",
     ]);
   });
 });
@@ -168,7 +169,7 @@ describe("SUS-B the ability text (the kept sentences, gist, card; RIVETER's word
     expect(abilityText("riveter", 1).sentences).toEqual([
       "HEALS YOUR HULL BY 6 FOR EACH PAYLOAD IT HITS.", "IT NEVER HEALS PAST YOUR FULL HULL.", "A HULL WITH BURN HEALS HALF, AND NOTHING HEALS IN THE DARK WIND.",
     ]);
-    expect(abilityText("wardbell", 1).sentences[0]).toBe(`YOUR HULL GAINS ONE SHIELD EVERY 8 SECONDS, UP TO ${SHIELD_CAP}.`);
+    expect(abilityText("wardbell", 1).sentences[0]).toBe(`YOUR HULL GAINS ONE WARD EVERY 8 SECONDS, UP TO ${SHIELD_CAP}.`);
     expect(abilityText("mendingloom", 2).sentences[0]).toBe("HEALS YOUR HULL BY 15 EVERY SECOND.");
   });
 
@@ -194,14 +195,15 @@ describe("SUS-B WARD STONE reads as SHIELD (its rune line; runes.ts keeps the ru
   it("START: +3 SHIELD., SHIELD in its colour, SHIELD's rune reminder", () => {
     const ward = RUNE_LIST.find((r) => r.id === "ward_stone")!;
     expect(ward.amount.n).toBe(3);
-    expect(runeLine(ward)).toBe("START: +3 SHIELD.");
+    expect(runeLine(ward)).toBe("FIGHT START: +3 WARD."); // CARD-3 (REQ-BFG-107): the block reads WARD // CARD-2 (REQ-BFG-081, K3 a): the fight's start (was "START: +3 SHIELD.")
     expect(runeKeywords(ward)).toEqual(["SHIELD"]);
-    expect(runeSpans(ward).find((sp) => sp.t === "SHIELD")!.c).toBe(ICON_COLOUR[ICON.SHIELD]);
+    expect(runeSpans(ward).find((sp) => sp.t === "WARD")!.c).toBe(ICON_COLOUR[ICON.SHIELD]); // CARD-3
     expect(RUNE_KEYWORD_COLOUR.SHIELD).toBe(ICON_COLOUR[ICON.SHIELD]);
     // NUM-4 (REVIEW-SUSB F1): it blocks one hit's DAMAGE (was "SHIELD: STOPS ONE WHOLE HIT, THEN BREAKS.")
-    expect(runeReminder(ward)).toBe("SHIELD: BLOCKS ONE HIT'S DAMAGE, THEN BREAKS.");
+    // CARD-2 (K3 b): ALL OF one hit's damage (was "SHIELD: BLOCKS ONE HIT'S DAMAGE, THEN BREAKS.")
+    expect(runeReminder(ward)).toBe("WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS."); // CARD-3
     // every other rune reads as before
-    for (const r of RUNE_LIST.filter((q) => q.id !== "ward_stone")) expect(runeLine(r), r.id).not.toContain("SHIELD");
+    for (const r of RUNE_LIST.filter((q) => q.id !== "ward_stone")) expect(runeLine(r), r.id).not.toContain("WARD"); // CARD-3: only WARD STONE names the block
   });
 });
 
@@ -222,9 +224,10 @@ describe("SUS-B a tap on each new label (the panel's own words, as keywords.ts f
   it("SHIELD on WARD BELL, HEAL on RIVETER and MEND PRESS, REGEN on MENDING LOOM: each shows its LABEL: EFFECT text", () => {
     withSustain(() => {
       const wb = wordsOf("wardbell", 1), rv = wordsOf("riveter", 2), mp = wordsOf("mendpress", 1), ml = wordsOf("mendingloom", 3);
-      expect(wb.SHIELD).toBe(glossaryText("SHIELD", { def: "wardbell", stars: 1 }));
+      expect(wb.WARD).toBe(glossaryText("WARD", { def: "wardbell", stars: 1 })); // CARD-3 (REQ-BFG-107)
       // NUM-4 (REVIEW-SUSB F1): REMINDER.SHIELD blocks one hit's DAMAGE (was /^EACH SHIELD: STOPS ONE WHOLE HIT\./)
-      expect(stripIcons(icons(wb.SHIELD))).toMatch(/^EACH SHIELD: BLOCKS ONE HIT'S DAMAGE\./);
+      // CARD-2 (REQ-BFG-081, K3 b): ALL OF one hit's damage (was /^EACH SHIELD: BLOCKS ONE HIT'S DAMAGE\./)
+      expect(stripIcons(icons(wb.WARD))).toMatch(/^WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS\./); // CARD-3 (REQ-BFG-107)
       expect(wb.EVERY).toBe(glossaryEntry("EVERY")!.def);
       expect(stripIcons(icons(rv.HEAL))).toMatch(/^HEAL: GIVES BACK ♥, NEVER PAST FULL\./);
       expect(rv.HIT).toBe(glossaryEntry("HIT")!.def);
@@ -265,7 +268,7 @@ describe("SUS-B the coverage checks under withSustain (the day RUNES-2b flips th
         }
         // faceText's rule: a keyword in panel style, never a bare word; a perk's name (its clause label) is no keyword
         const said = [fl!.stats ?? "", ...fl!.rules.map((r) => r.text), ...fl!.reminders, fl!.clause ? fl!.clause.text.slice(fl!.clause.label!.length + 1) : "", ...(fl!.caveats ?? [])];
-        for (const line of said) for (const k of KEYWORDS) for (const m of line.matchAll(new RegExp(k, "g"))) expect(line[m.index! - 1], `${d.id}: ${k}`).toBe(ICON[k]);
+        for (const line of said) for (const k of KEYWORDS) { const t = NAMES_KEPT.reduce((x, n) => x.split(n).join(" ".repeat(n.length)), icons(line)); for (const m of t.matchAll(new RegExp(`\\b${PLAYER_WORD[k]}(?:S|ED)?\\b`, "g"))) expect(t[m.index! - 1], `${d.id}: ${k}`).toBe(ICON[k]); } // CARD-3: as drawn, names aside
         const nx = faceNext(d.id, s, o);
         if (nx) expect(textWidth(`${nx.text}${nx.perk ? ` ★${s + 1} ${nx.perk}` : ""}`, "5"), `${d.id} ★${s}`).toBeLessThanOrEqual(NEXT_LINE_W);
       }
@@ -280,7 +283,7 @@ describe("SUS-B the coverage checks under withSustain (the day RUNES-2b flips th
         for (const k of KEYWORDS) {
           if (!faceAt(d.id, s, o)!.reminders.some((r) => r.includes(`{*${k}}`))) continue;
           expect(keywordRow(k), k).toBeDefined();
-          const text = glossaryText(k, { def: d.id, stars: s, o })!;
+          const text = glossaryText(PLAYER_WORD[k], { def: d.id, stars: s, o })!; // CARD-3 (REQ-BFG-107): the word as drawn
           const lines = wrapRich(colourize(icons(text), C.bone), GLOSSARY_WRAP_W, "5");
           expect(lines.length, `${d.id} ★${s} ${k}: ${stripIcons(icons(text))}`).toBeLessThanOrEqual(2);
           for (const l of lines) expect(textWidth(lineText(l), "5")).toBeLessThanOrEqual(GLOSSARY_WRAP_W);

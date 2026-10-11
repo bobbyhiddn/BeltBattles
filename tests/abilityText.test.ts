@@ -612,7 +612,7 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect([S.plating, S.pair, S.matched, S.worksFaster]).toEqual([
       // NUM-1: x10 (was 24). Y7b2 (the flip): no POISON (S_PLATING became S.plating; was "PLATING TAKES DAMAGE, BURN AND
       // POISON BEFORE YOUR HULL, ...")
-      "PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO 240 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.",
+      "SHIELD TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO 240 SHIELD; THE DARK WIND GOES STRAIGHT THROUGH IT.",
       // NUM-4 (REQ-BFG-047; N1 2.2): the pair window, SYNC_WINDOW 0.25 s (pinned below), is a hidden timer said AT ONCE
       // (was "WITHIN 0.25 SECONDS")
       "A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES AT ONCE; A FOUNDRY FUSION IS A PAIR.",
@@ -639,7 +639,7 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     const at = (def: string, s = 1, k = 1) => abilityText(def, s, { k }).sentences;
     // NUM-1 (REQ-BFG-047): every damage and plating number below is x10 (fixtures/num1-base-values.json); %, times,
     // counts and ANVIL's perPlate (damage per plating, a ratio) as they were
-    expect(at("plateroller", 3)[0]).toBe("ROLLS 17 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS."); // was 1.7
+    expect(at("plateroller", 3)[0]).toBe("ROLLS 17 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS."); // was 1.7
     // was 2.2, 6.6. Y7b2 (the flip): TWIN GAUGE's floor left, the matched bonus alone (was "ADDS 22 DAMAGE TO EACH PAYLOAD
     // IT HITS, OR 66 DAMAGE ON A MATCHED BELT.")
     expect(at("twingauge", 2)[0]).toBe("ADDS 66 DAMAGE TO EACH PAYLOAD IT HITS ON A MATCHED BELT.");
@@ -672,10 +672,10 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // NUM-1: was 1 PLATING, 14, 3.5. The battle spends 10 plating (battle.ts: `if (s.plate.plate >= 10) { // NUM-1: 10
     // plating (x10 of 1)`), so the text's "TAKES 1 PLATING" (abilityText.ts platebreaker) disagrees: a text bug, left red
     // Y7b2 (the flip): PLATE BREAKER's floor left (was its second sentence "WITH NO PLATING TO TAKE, IT ADDS 35 DAMAGE.")
-    expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS 140 DAMAGE.", "WITH LESS PLATING THAN THAT, IT ADDS NOTHING."]);
+    expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 10 SHIELD FROM YOUR HULL AND GAINS 140 DAMAGE.", "WITH LESS SHIELD THAN THAT, IT ADDS NOTHING."]);
     // TXT-096 (REVIEW-TXT095 Q2): one opening with both parts (was its [1], "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF
     // THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
-    expect(at("shieldwall")[0]).toBe("ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH GAINS 30 DAMAGE."); // was 12, 3
+    expect(at("shieldwall")[0]).toBe("ROLLS 10 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 SHIELD OR MORE, EACH GAINS 30 DAMAGE."); // was 12, 3
     // bb-0.8.3 (REQ-BFG-042 D3): the pour, not its belts: TWO (★3 THIRD SPRUE: THREE) at once, the next ones in turn
     // NUM-2 (REQ-BFG-047): the casts every 30 / speed s: ★1 speed 17, 30 / 17 = 1.76 (was 1.8); ★3 speed 21, 1.43 (was 1.4)
     // NUM-4 (REQ-BFG-047): the casts AT RATE n, n its SPEED (★1 17, ★3 21; was EVERY 1.76 / 1.43 SECONDS)
@@ -691,19 +691,19 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     });
     // NUM-2 (REQ-BFG-047; was EVERY 1.6 SECONDS): ★1 speed 19, a slug every 30 / 19 = 1.58 s
     // NUM-4 (REQ-BFG-047): AT RATE 19, its SPEED (was EVERY 1.58 SECONDS)
-    expect(at("armorpress")[0]).toBe(`PRESSES 30 PLATING ONTO YOUR HULL EVERY 3 SECONDS, AND STAMPS A PLAIN SLUG (30 DAMAGE) AT RATE ${spdAt("armorpress", 1)}.`); // 0.8.0 B1 M2: 2 every 4 s -> 3 every 3 s; NUM-1: was 3, 3
+    expect(at("armorpress")[0]).toBe(`PRESSES 30 SHIELD ONTO YOUR HULL EVERY 3 SECONDS, AND STAMPS A PLAIN SLUG (30 DAMAGE) AT RATE ${spdAt("armorpress", 1)}.`); // 0.8.0 B1 M2: 2 every 4 s -> 3 every 3 s; NUM-1: was 3, 3
     // NUM-4 (REQ-BFG-047): perPlate as the sim keeps it, a whole % of the hull's plating (cores.ts scaleCore; Battle.fireCore:
     // pct(plate, 100 x perPlate)): ★1 1 -> 100% (was "AND 1 MORE FOR EACH PLATING ON YOUR HULL.", the ratio at one decimal)
     const perPlate = (s: number, k: number) => pct(scaleCore(effectAt("anvil", s).core!, k).perPlate!);
-    expect(at("anvil")[0]).toBe(`EACH SHOT DEALS 25 MORE DAMAGE, PLUS ${perPlate(1, 1)}% OF THE PLATING ON YOUR HULL.`); // 0.8.0 B1 M2: was 1 and 0.2; NUM-1: was 2.5 (perPlate a ratio: 1)
+    expect(at("anvil")[0]).toBe(`EACH SHOT DEALS 25 MORE DAMAGE, PLUS ${perPlate(1, 1)}% OF THE SHIELD ON YOUR HULL.`); // 0.8.0 B1 M2: was 1 and 0.2; NUM-1: was 2.5 (perPlate a ratio: 1)
     // x k, as every core (0.8.0 B1 M2: was 1.9 and 0.4); NUM-1: was 4.8. ★3 anvilFlat 88 x 55% = 48.4, rounded half up at
     // install (scaleCore) to 48; perPlate 3.5 x 55% = 1.925 -> 1.93 (a whole % of a ratio), printed 1.9 as before.
     // NUM-4: printed as the sim keeps it, 193% (was "AND 1.9 MORE FOR EACH PLATING ON YOUR HULL.")
-    expect(at("anvil", 3, 0.55)[0]).toBe(`EACH SHOT DEALS 48 MORE DAMAGE, PLUS ${perPlate(3, 0.55)}% OF THE PLATING ON YOUR HULL.`);
+    expect(at("anvil", 3, 0.55)[0]).toBe(`EACH SHOT DEALS 48 MORE DAMAGE, PLUS ${perPlate(3, 0.55)}% OF THE SHIELD ON YOUR HULL.`);
     expect(perPlate(3, 0.55)).toBe(193);
     // 0.8.0 B1 M2: was 44% and 10%. Y7b2 (the flip): STEAM BREECH's bare speed-up left, plated 40/80/120% (was "THE TURRET
     // FIRES 70% FASTER WHILE YOUR HULL HOLDS PLATING, AND 20% FASTER WITHOUT IT.")
-    expect(at("steambreech", 2)).toEqual(["THE TURRET FIRES 80% FASTER WHILE YOUR HULL HOLDS PLATING."]);
+    expect(at("steambreech", 2)).toEqual(["THE TURRET FIRES 80% FASTER WHILE YOUR HULL HOLDS SHIELD."]);
     // NUM-4 (REQ-BFG-047; N1 2.2): its -0.55 s and the 0.3 s floor are hidden timers no whole second says, so the sentence
     // says SHORTER, DOWN TO A FLOOR (was "ITS LOAD TIME IS 0.55 SECONDS SHORTER, BUT NEVER UNDER 0.3 SECONDS."); the sim
     // keeps both (pinned here). Y7b2 (the flip): TWIN TRIGGER's load-time cut left (no windowTime; pairBonus 30/60/95), so
@@ -714,9 +714,9 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // NUM-1: was 4, 2.2, 17.6. Y7b2 (the flip): no cap (was "..., UP TO 176 DAMAGE.")
     expect(at("spallcatcher", 2)[0]).toBe("EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 22 DAMAGE TO THIS TURRET'S NEXT SHOT.");
     // NUM-1: was 1, 0.2. Y7b2 (the flip): a lone load rolls none (was "..., AND ANY OTHER LOAD ROLLS 2.")
-    expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL.");
+    expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 10 SHIELD ONTO YOUR HULL.");
     // the next-star lines DESIGN 3.3 gives
-    expect([1, 2].map((s) => nextStarText("plateroller", s))).toEqual(["NEXT STAR: ROLLS 11 PLATING FOR EACH PAYLOAD.", "NEXT STAR: ROLLS 17 PLATING FOR EACH PAYLOAD."]); // NUM-1: was 1.1, 1.7
+    expect([1, 2].map((s) => nextStarText("plateroller", s))).toEqual(["NEXT STAR: ROLLS 11 SHIELD FOR EACH PAYLOAD.", "NEXT STAR: ROLLS 17 SHIELD FOR EACH PAYLOAD."]); // NUM-1: was 1.1, 1.7
     // NUM-1: was 3.5, 10.5. Y7b2 (the flip): no floor (was "NEXT STAR: ADDS 35 DAMAGE, OR 105 ON A MATCHED BELT.")
     expect(nextStarText("twingauge", 2)).toBe("NEXT STAR: 105 DAMAGE ON A MATCHED BELT.");
     // Y7b2 (the flip): no plated multiplier (was "NEXT STAR: 70% SHORTER, 85% WHILE PLATED.")
@@ -724,21 +724,21 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(nextStarText("stoker", 1)).toBe("NEXT STAR: ITS FACTORIES WORK 44% FASTER.");
     // NUM-1: was 8.8, 1 PLATING, 2.2; the battle spends 10 plating, the text still says 1 (a text bug, as above). Y7b2 (the
     // flip): no floor (was "NEXT STAR: 88 DAMAGE FOR 10 PLATING, 22 WITHOUT.")
-    expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 88 DAMAGE FOR 10 PLATING.");
-    expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 22 PLATING A PAYLOAD, 66 DAMAGE AT 120 PLATING."); // NUM-1: was 2.2, 6.6, 12
+    expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 88 DAMAGE FOR 10 SHIELD.");
+    expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 22 SHIELD A PAYLOAD, 66 DAMAGE AT 120 SHIELD."); // NUM-1: was 2.2, 6.6, 12
     // NUM-2 (REQ-BFG-047): ★2 TWIN MOULD speed 19, 30 / 19 = 1.58 (was 1.6); ★2 ARMOR PRESS speed 21, 1.43 (was 1.4)
     // NUM-4 (REQ-BFG-047): AT RATE 19 and AT RATE 21, the ★2 SPEEDs (was EVERY 1.58 / 1.43 SECONDS)
     expect(nextStarText("twinmould", 1)).toBe(`NEXT STAR: 50 DAMAGE EACH, AT RATE ${spdAt("twinmould", 2)}, 3 BELTS.`); // bb-0.8.3 (M4); NUM-1: was 5
-    expect(nextStarText("armorpress", 1)).toBe(`NEXT STAR: 66 PLATING EVERY 3 SECONDS, A SLUG AT RATE ${spdAt("armorpress", 2)}, 3 BELTS.`); // 0.8.0 B1 M2; bb-0.8.3 (M4); NUM-1: was 6.6
+    expect(nextStarText("armorpress", 1)).toBe(`NEXT STAR: 66 SHIELD EVERY 3 SECONDS, A SLUG AT RATE ${spdAt("armorpress", 2)}, 3 BELTS.`); // 0.8.0 B1 M2; bb-0.8.3 (M4); NUM-1: was 6.6
     // 0.8.0 B1 M2. Y7b2 (the flip): plated 80% at ★2, no bare speed-up (was "NEXT STAR: 70% FASTER PLATED, 20% WITHOUT.")
-    expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 80% FASTER PLATED.");
+    expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 80% FASTER SHIELDED.");
     // NUM-4 (REQ-BFG-047; N1 2.2): ★2's -0.4 s is a hidden timer (pinned here), SHORTER LOAD TIME (was "LOAD TIME 0.4
     // SECONDS SHORTER"). Y7b2 (the flip): pairBonus 60% at ★2 and no load-time cut (was "NEXT STAR: PAIRS DEAL 55% MORE,
     // SHORTER LOAD TIME." and -windowTime 0.4)
     expect(nextStarText("twintrigger", 1)).toBe("NEXT STAR: PAIRS DEAL 60% MORE.");
     expect(effectAt("twintrigger", 2).mod!.windowTime).toBeUndefined();
     // NUM-1: was 2.2, 0.4. Y7b2 (the flip): no lone load's plating (was "NEXT STAR: 22 PLATING A PAIR, 4 FOR ANY OTHER LOAD.")
-    expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 22 PLATING A PAIR.");
+    expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 22 SHIELD A PAIR.");
   });
 
   it("T1: each opens with one plain sentence; T4: every entry a whole sentence, the perk this star's", () => {
@@ -806,12 +806,13 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // RIGS ON ITS TILE."); TWIN TRIGGER's pair bonus is 30% at ★1 (was "PAIRS HIT 25% HARDER.")
     expect(cards).toEqual({
       // WORDS-1 (REQ-BFG-081): TWIN GAUGE's card in plain words (was "DAMAGE ON A MATCHED BELT.")
-      plateroller: "PLATES YOUR HULL AS SLUGS PASS.", twingauge: "DAMAGE IF ANOTHER BELT IS AS LONG.", pincer: "DAMAGE FOR EACH RIG ON ITS TILE.",
+      plateroller: "SHIELDS YOUR HULL AS SLUGS PASS.", twingauge: "DAMAGE IF ANOTHER BELT IS AS LONG.", pincer: "DAMAGE FOR OTHER RIGS HITTING IT.", /* CARD-3 (REQ-BFG-081, D3) */
       // NUM-4 (REVIEW-NUM3 F2): one word for one stop, STUNS (was "SHORTER STALLS ON ITS TILES.")
-      braceframe: "SHORTER STUNS ON ITS TILES.", twinlatch: "LETS TWO BELTS GO TOGETHER.", stoker: "MAKES FACTORIES WORK FASTER.",
-      platebreaker: "TURNS PLATING INTO DAMAGE.", shieldwall: "PLATES YOUR HULL, HITS HARDER.", twinmould: "CASTS TWO SLUGS AT ONCE.",
-      armorpress: "PLATES YOUR HULL EVERY 3 SECONDS.", anvil: "MORE DAMAGE THE MORE PLATING.", steambreech: "FIRES FASTER WHILE PLATED.",
-      twintrigger: "PAIRS HIT 30% HARDER.", spallcatcher: "HITS YOU TAKE CHARGE ITS SHOT.", seamwelder: "PAIRS PLATE YOUR HULL.",
+      // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.3 item 4): TWIN LATCH's desk line says what it does (was "LETS TWO BELTS GO TOGETHER.")
+      braceframe: "SHORTER STUNS ON ITS TILES.", twinlatch: "HOLDS A SLUG TO PAIR TWO BELTS.", stoker: "MAKES FACTORIES WORK FASTER.",
+      platebreaker: "TURNS SHIELD INTO DAMAGE.", shieldwall: "ADDS SHIELD, HITS HARDER.", twinmould: "CASTS TWO SLUGS AT ONCE.", // CARD-3 (REQ-BFG-107): the words
+      armorpress: "SHIELDS YOUR HULL EVERY 3 SECONDS.", anvil: "MORE DAMAGE THE MORE SHIELD.", steambreech: "FIRES FASTER WHILE SHIELDED.",
+      twintrigger: "PAIRS HIT 30% HARDER.", spallcatcher: "HITS YOU TAKE CHARGE ITS SHOT.", seamwelder: "PAIRS SHIELD YOUR HULL.",
     });
     for (const d of W3) for (const k of kOf(d)) {
       const card = cardText(d.id, { k }), id = `${d.id} k${k}: ${card}`;

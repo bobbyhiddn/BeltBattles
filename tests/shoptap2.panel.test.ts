@@ -325,7 +325,9 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
     gantry.shop.wagons = [{ merchant: "quartermaster", offers: [{ def: "gantry", price: 7, sold: false }] }] as Run["shop"]["wagons"];
     const look = (run: Run, sel: Sel, area: R) => {
       const d = detailsPlan({ game: { ui: new UI(), t: 0, view: v }, run, touch: true, L } as unknown as Ctx, sel, null, area)!;
-      return { title: d.t.title, labels: d.t.labels, lines: visibleLines(d.plan).filter((q) => q.line !== "rule").length, whole: keptWhole(d.plan) };
+      // CARD-3 (REQ-BFG-080, C): a portrait band panel's new tip's hint is drawn in its strip above the panel (d.hint), so it
+      // counts as one of its lines shown (it was in the plan's lines), wherever drawDetails draws the panel (14 px or taller)
+      return { title: d.t.title, labels: d.t.labels, lines: visibleLines(d.plan).filter((q) => q.line !== "rule").length + (d.hint && area.h >= 14 ? 1 : 0), whole: keptWhole(d.plan) };
     };
     // 0350e5f drew these in the 8 px band (L.info), which drawDetails leaves empty (under 14 px). bb-0.8.6 (PACKS P5): the
     // pack row takes 33 px of this pre-cap layout's band, so it is 0 px now (was 8); the grown panel is unchanged

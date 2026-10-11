@@ -9,6 +9,8 @@
 //   - no face or panel string, at any view, is wider than its box, and every panel's text fits it whole.
 import { describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
+import { turretRow } from "../src/screens/build/faceBlocks"; // CARD-2 (REQ-BFG-081, K4): the turret row in words
+import { turretStats } from "../src/ui/faces"; // CARD-2 (K4)
 import { newRun, type Run } from "../src/game/run";
 import { ITEMS, MERCHANTS, buyableModules } from "../src/sim/content";
 import { gearSlotsOf } from "../src/sim/deck";
@@ -73,7 +75,9 @@ describe("WORDS-1: the new lines", () => {
       // under the stat row, kept, in the ability lines' face: the panel's blocks are the stat row, the two lines, then
       // the caveat (an inner turret's), nothing else
       const bs = faceBlocks(d.id, s, {})!;
-      expect(bs.slice(0, 3).map((b) => b.text), d.id).toEqual([faceLines(d.id, s)!.stats, ...want.map((t) => icons(t))]);
+      // CARD-2 (REQ-BFG-081, K4): the panel's stat row is in words (faceBlocks.ts turretRow: RATE n  HOLDS n  GEAR SLOTS n; was
+      // faceLines' icon row, which the face data keeps)
+      expect(bs.slice(0, 3).map((b) => b.text), d.id).toEqual([turretRow(turretStats(d.id, s)), ...want.map((t) => icons(t))]);
       expect(bs.every((b) => b.keep), d.id).toBe(true);
       expect(faceAt(d.id, s)!.rules).toEqual([]); // still no ability line: TEXT-STYLE 1.4 as ruled 2026-10-10
     }
@@ -93,7 +97,8 @@ describe("WORDS-1: the new lines", () => {
   it("READ-1 6.1's plain-word swaps, on the faces and the desk cards", () => {
     const face = (d: string) => stripIcons(faceLines(d, 1, d === "drake" ? { k: 1 } : {})!.rules[0].text);
     expect(face("mimic")).toBe("MAKES YOUR HERO'S SLUGS TOO.");
-    expect(face("sabot")).toBe("ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT.");
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.4): its first line of two (was "ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT.")
+    expect(face("sabot")).toBe("A RIG IT HITS STOPS FOR THE WHOLE FIGHT.");
     expect(face("overclocker")).toBe("EVERY 4: THE NEXT RIG DOWN ITS BELT HITS TWICE.");
     expect(face("twingauge")).toBe("HIT: +30  IF ANOTHER BELT INTO ITS TURRET IS AS LONG.");
     expect(face("drake")).toBe("SHOT: EACH 25 DAMAGE RIGS ADDED TO ITS SLUG BECOMES 1 BURN.");
@@ -109,7 +114,11 @@ describe("WORDS-1: the new lines", () => {
     expect(["final_nail", "ember_shot", "first_blood", "scrap_halo", "scrap_saint", "forge_ward", "scrap_biter", "steady_iron", "thread_storm", "green_thread"]
       .map((id) => runeLine(rune(id)))).toEqual([
       "THE SHOT THAT EMPTIES A TURRET: +10 DMG.", "FIRST SHOT AFTER A GUN LOADS: +1 BURN.", "FIRST SHOT AFTER A GUN LOADS: +70% DMG.",
-      "+60 HULL FOR EACH ★2 OR ★3 PIECE IN USE.", "+11% DMG FOR EACH ★2 OR ★3 PIECE IN USE.", "EACH SLUG YOUR FACTORY MAKES: +10 PLATE.",
+      // CARD-2 (REQ-BFG-081, K3 d; READ-3 6: ★2 and ★3 not read as merged): MERGED comes back on these two, glossed by the
+      // stars (was "+60 HULL FOR EACH ★2 OR ★3 PIECE IN USE." and "+11% DMG FOR EACH ★2 OR ★3 PIECE IN USE.")
+      // CARD-3 (REQ-BFG-107): FORGE WARD's line in SHIELD's words, one line on the op card (was "EACH SLUG YOUR FACTORY MAKES:
+      // +10 PLATE.", 225 px with SHIELD against the card's 223)
+      "+60 HULL PER MERGED (★2/★3) PIECE IN USE.", "+11% DMG PER MERGED (★2/★3) PIECE IN USE.", "EACH SLUG FROM YOUR FACTORY: +10 SHIELD.",
       "YOUR HITS ON ENEMY PARTS: +10 DMG.", "STUN ON YOUR SHIP: -100%.", "YOUR HITS THAT ADD NO FRAY ADD 1 FRAY.", "YOUR HULL: HEAL 10 EACH SEC."]);
     // the opened card says what the one line can't (battle.ts:1889; runes.ts:566-569; battle.ts:1045-1047; battle.ts:570)
     expect(runeReminder(rune("final_nail"))).toBe("NOT ON A GATLING SPOOL: IT FIRES EACH LOAD AS IT COMES.");
@@ -117,7 +126,8 @@ describe("WORDS-1: the new lines", () => {
     expect(runeReminder(rune("scrap_biter"))).toBe("PART: AN ENEMY RIG, FACTORY, GUN OR BELT TILE.");
     expect(runeTag(rune("last_stand"))).toBe("EPIC · GUNS AND FACTORIES");
     for (const r of [...RUNE_LIST, ...SUSTAIN_RUNE_LIST]) {
-      for (const re of RETIRED) expect(runeLine(r), r.id).not.toMatch(re);
+      // CARD-2 (K3 d): MERGED is the brief's word on SCRAP HALO and SCRAP SAINT (the MERGE badge's), so it is not retired there
+      for (const re of RETIRED) if (!(String(re) === String(/\bMERGED\b/) && ["scrap_halo", "scrap_saint"].includes(r.id))) expect(runeLine(r), r.id).not.toMatch(re);
       expect(runeReminder(r), r.id).not.toMatch(/\d/);
       expect(textWidth(runeReminder(r), "3"), r.id).toBeLessThanOrEqual(223);
     }
@@ -155,7 +165,7 @@ describe("WORDS-1: the new lines", () => {
 describe("WORDS-1: tap reach (TEXT-STYLE 7.4 as ruled 2026-10-10)", () => {
   it("the core list holds 10 or fewer, and each hero word is its hero's", () => {
     expect(CORE_WORDS.length).toBeLessThanOrEqual(10);
-    expect([...CORE_WORDS]).toEqual(["SLUG", "BELT", "HIT", "RATE", "LOAD", "HULL", "BURN", "STUN", "PLATE", "MERGE"]);
+    expect([...CORE_WORDS]).toEqual(["SLUG", "BELT", "HIT", "RATE", "LOAD", "HULL", "BURN", "STUN", "SHIELD", "MERGE"]);
     expect(HERO_WORDS).toEqual({ HEAT: "furnace", FRAY: "weaver", PAIR: "foundry" });
   });
 
@@ -226,7 +236,8 @@ describe("WORDS-1: tap reach (TEXT-STYLE 7.4 as ruled 2026-10-10)", () => {
         const q = questionRect(plan.r, plan.y, tap, buttons);
         const ts = familyTargets(plan, [...buttons, ...(q ? [q] : [])]);
         for (const t of ts) {
-          const tag = t.word.replace(/ FAMILY$/, "") as keyof typeof FAMILY;
+          // CARD-3 (REQ-BFG-107): the target names the player's tag (the PLATE family reads SHIELD)
+          const tag = (Object.keys(FAMILY) as (keyof typeof FAMILY)[]).find((q) => FAMILY[q].word === t.word.replace(/ FAMILY$/, ""))!;
           expect(t.text, d.id).toBe(familyNote(tag));
           expect(t.r.x >= plan.r.x && t.r.y >= plan.r.y && t.r.x + t.r.w <= plan.r.x + plan.r.w && t.r.y + t.r.h <= plan.r.y + plan.r.h, `${d.id} ${t.word} inside`).toBe(true);
           for (const b of buttons) expect(t.r.x < b.x + b.w && b.x < t.r.x + t.r.w && t.r.y < b.y + b.h && b.y < t.r.y + t.r.h, `${d.id} ${t.word} clear of a button`).toBe(false);

@@ -113,7 +113,7 @@ describe("Y6 texts: VENOM says BURN's seconds; the lines that named POISON drop 
   });
 
   it("the PLATE sentence drops AND POISON (S.plating) in all five pieces that say it", () => {
-    expect(S.plating).toBe("PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO 240 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT."); // Y7b2 (the flip): was S_PLATING
+    expect(S.plating).toBe("SHIELD TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO 240 SHIELD; THE DARK WIND GOES STRAIGHT THROUGH IT."); // Y7b2 (the flip): was S_PLATING
     for (const def of ["plateroller", "shieldwall", "armorpress", "seamwelder", "anvil"]) for (const s of STARS) {
       const onT = abilityText(def, s, k1(def)).sentences;
       expect(onT, `${def} ★${s}`).toContain(S.plating);
@@ -124,7 +124,7 @@ describe("Y6 texts: VENOM says BURN's seconds; the lines that named POISON drop 
     expect(abilityText("splitter", 1).sentences[1]).toBe("EACH COPY KEEPS ALL OF THE BURN AND SHOCK.");
     expect(abilityText("compound", 1, { k: 1 }).sentences[1]).toBe("BOTH LOADS' BURN AND SHOCK RIDE ALONG.");
     expect(abilityText("wardbell", 1).sentences.slice(1, 3)).toEqual([
-      "EACH SHIELD BLOCKS ONE HIT'S DAMAGE, THEN BREAKS; THAT HIT'S BURN, FRAY AND STUN STILL LAND.",
+      "EACH WARD BLOCKS ONE HIT'S DAMAGE, THEN BREAKS; THAT HIT'S BURN, FRAY AND STUN STILL LAND.",
       "BURN AND THE DARK WIND DEAL THEIR DAMAGE PAST IT.",
     ]);
   });

@@ -460,8 +460,9 @@ export function resultRows(r: Pick<DayResult, "player" | "enemy" | "shocks" | "r
   const v = (x: number | null, f: (n: number) => string = fmtDmg): string => (x === null ? "-" : f(x));
   const race = r.race;
   if (race?.fused) rows.push(["FUSED SLUGS", v(race.fused[0], fmtCount), v(race.fused[1], fmtCount)]);
-  if (race?.plated) rows.push(["PLATING GAINED", v(race.plated[0]), v(race.plated[1])]);
-  if (race?.spent) rows.push(["PLATING SPENT", v(race.spent[0]), v(race.spent[1])]);
+  // CARD-3 (REQ-BFG-107): the soak layer's word (was PLATING GAINED and PLATING SPENT)
+  if (race?.plated) rows.push(["SHIELD GAINED", v(race.plated[0]), v(race.plated[1])]);
+  if (race?.spent) rows.push(["SHIELD SPENT", v(race.spent[0]), v(race.spent[1])]);
   return rows;
 }
 

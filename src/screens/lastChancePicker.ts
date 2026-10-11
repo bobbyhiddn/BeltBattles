@@ -18,16 +18,20 @@ import { panel, type Rect } from "../ui/ui";
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
 import { faceLines } from "../ui/faces";
 import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block on the cards' panel
+import { PLAIN_RIGS, RIG_SENTENCE, plainRigStats } from "../ui/faces"; // CARD-2 (REQ-BFG-084, K6): the plain rigs' faces
+import { statRow } from "../ui/icons"; // CARD-2 (K6)
 import { HEROES, ITEMS, type Rarity } from "../sim/content";
 import { RUNES } from "../sim/runes";
 import { BOONS, LAST_CHANCE_HULL, type Boon, type LastChanceOffer } from "../sim/lastChance";
 import { pendingLastChance, takeLastChance, type Run } from "../game/run";
 import { drawRuneCard, runeCardH } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the rune card's chip as its icon
+import { drawRuneWordNote, runeHintBand, runeKeywordOf, runeSightWord, runeWordLayer, runeWordLines } from "../ui/runeBar"; // CARD-2 (K2; K1)
 import { runeReminderSpans, runeTag, tierWord } from "../ui/runeText";
 import { textOpts } from "./build/inspector";
 import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the HULL card on the day's hull
 import type { BuildScreen } from "./build/build";
+import { GAP as ITEM_GAP, GAP_MIN as ITEM_GAP_MIN } from "../ui/spacing"; // CARD-3 (REQ-BFG-087, D5, D6): the gaps between a card's items (GAP here is the cards')
 
 export const LC_TITLE = "LAST CHANCE";
 /** The line under the title: the life came back, and the pick. */
@@ -71,32 +75,52 @@ const GAP = 7;
 const HEAD = 31;
 const INFO = 11; // the ⓘ box's side
 
-/** The PART card's lines at text width `tw`: the stat row(s) as icons, then each rule (its brass label first). HULL-1d
- *  (REQ-BFG-073): `stars`, the card's star (★2 with HULL_SCALE on: the face at ★2); 1: as before. */
-function partLines(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1): RichLine[] {
-  const fl = faceLines(def, stars, textOpts(run as Run));
+/** CARD-3 (REQ-BFG-087, D5; SPACE-1 open item 8): a card's text as separate items (a stat row, a rule, a reminder, the
+ *  where-it-goes line), each its wrapped lines: drawBody puts the gap between items (lcGaps), the pitch inside one. */
+type Items = RichLine[][];
+/** CARD-3 (D5): the lines of `items`, and how many gaps sit between them. Pure. */
+const lineCount = (items: Items): number => items.reduce((n, it) => n + it.length, 0);
+const gapCount = (items: Items): number => Math.max(0, items.length - 1);
+/** CARD-3 (D5, D6): the gaps a card's items take: G (src/ui/spacing.ts GAP, 5x7 5 between its lines' items, 3x5 4
+ *  between its details'), or Gmin (3 and 2) where the screen can't hold three cards with G (LastChancePicker.layout). */
+export const lcGaps = (min = false): { lines: number; info: number } => (min ? { lines: ITEM_GAP_MIN["5"], info: ITEM_GAP_MIN["3"] } : { lines: ITEM_GAP["5"], info: ITEM_GAP["3"] });
+
+/** The PART card's lines at text width `tw`: the stat row(s) as icons, then each rule (its brass label first). CARD-2
+ *  (REQ-BFG-084, K6; REVIEW-EXPLAIN1 open item 1): a plain stat rig (faces.ts PLAIN_RIGS: WHETSTONE, TEMPER, BARBED SPOOL)
+ *  draws its plain face, the panel's: plainRigStats' stat row ({DMG}+20), no HIT: line (it read faceLines' rule).
+ *  CARD-3 (D5): as items: the stat rows one (the second continues the first, as the panel ties them), each rule one.
+ *  HULL-1d (REQ-BFG-073): `stars`, the card's star (★2 with HULL_SCALE on: the face at ★2); 1: as before. MERGE-099D: a
+ *  plain rig's stat row at that star and on the run's day too, as its rule line would read (MERGE-099C 6ed6e27's rule) */
+export function partLines(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1): Items { // CARD-3: exported for the tests
+  const o = textOpts(run as Run);
+  const plain = plainRigStats(def, stars, o.day);
+  if (plain) return [wrapRich(colourize(statRow(plain), C.bone), tw, "5")];
+  const fl = faceLines(def, stars, o);
   if (!fl) return [];
-  const out: RichLine[] = [];
-  for (const s of [fl.stats, fl.stats2]) if (s) out.push(...wrapRich(colourize(icons(s), C.bone), tw, "5"));
+  const out: Items = [];
+  const stats = [fl.stats, fl.stats2].flatMap((s) => (s ? wrapRich(colourize(icons(s), C.bone), tw, "5") : []));
+  if (stats.length) out.push(stats);
   for (const r of fl.rules) {
     // the rule's text starts with its trigger label ("SHOT: ..."): the label in brass, as the inspector's face draws it
     const text = icons(r.text), label = r.label ? icons(r.label) : "";
     const spans = label && text.startsWith(label) ? [{ t: label, c: C.brass3 }, ...colourize(text.slice(label.length), C.bone)] : colourize(text, C.bone);
-    out.push(...wrapRich(spans, tw, "5"));
+    out.push(wrapRich(spans, tw, "5"));
   }
   return out;
 }
 
-/** The PART card's details (ⓘ): its keywords' reminders, then where it goes (HULL-1d: at the card's star). */
-function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1): RichLine[] {
+/** The PART card's details (ⓘ): its keywords' reminders, then where it goes (HULL-1d: at the card's star). CARD-2
+ *  (REQ-BFG-084, K6): a plain stat rig's rig sentence first (faces.ts RIG_SENTENCE: the trigger its face no longer prints,
+ *  as its panel's ⓘ NOTES lead with it). CARD-3 (D5): each sentence an item. */
+export function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1): Items { // CARD-3: exported for the tests
   const fl = faceLines(def, stars, textOpts(run as Run));
-  const rem = [...(fl?.reminders ?? []), `FREE. IT GOES TO CARGO AT ★${stars}; PLACE IT AS ANY PART.`];
-  return rem.flatMap((t) => wrapRich(colourize(icons(t), C.slate4), tw, "3"));
+  const rem = [...(PLAIN_RIGS.includes(def) ? [RIG_SENTENCE] : []), ...(fl?.reminders ?? []), `FREE. IT GOES TO CARGO AT ★${stars}; PLACE IT AS ANY PART.`];
+  return rem.map((t) => wrapRich(colourize(icons(t), C.slate4), tw, "3"));
 }
 
-/** The HULL card's line and details. */
-const hullLines = (now: number, n: number, tw: number): RichLine[] => wrapRich(colourize(icons(`YOUR {HULL}: ${now} TO ${now + n}.`), C.bone), tw, "5");
-const hullInfo = (tw: number): RichLine[] => wrapRich(colourize(icons("MAX {HULL} FOR THE REST OF THE RUN. EVERY FIGHT STARTS FULL."), C.slate4), tw, "3");
+/** The HULL card's line and details (CARD-3, D5: one item each). */
+const hullLines = (now: number, n: number, tw: number): Items => [wrapRich(colourize(icons(`YOUR {HULL}: ${now} TO ${now + n}.`), C.bone), tw, "5")];
+const hullInfo = (tw: number): Items => [wrapRich(colourize(icons("MAX {HULL} FOR THE REST OF THE RUN. EVERY FIGHT STARTS FULL."), C.slate4), tw, "3")];
 
 export interface LcLayout {
   top: number;
@@ -105,11 +129,14 @@ export interface LcLayout {
   /** each card's ⓘ box */
   infos: Rect[];
   bottom: number;
+  /** CARD-3 (D5, D6): the gaps the cards' items take (lcGaps: G, or Gmin where three cards with G overrun the screen). */
+  gap?: { lines: number; info: number };
 }
 
-/** One card's height at width `w`: the head, its lines, the details when shown, the take bar when open. */
-function cardH(lines: number, info: number, open: boolean): number {
-  return HEAD + lines * 9 + (info ? 1 + info * 7 : 0) + (open ? 13 : 0) + 4;
+/** One card's height at width `w`: the head, its lines, the details when shown, the take bar when open. CARD-3 (D5): and
+ *  the gaps between their items (lcGaps). */
+export function cardH(lines: Items, info: Items, open: boolean, gap = lcGaps()): number { // CARD-3: exported for the tests
+  return HEAD + lineCount(lines) * 9 + gapCount(lines) * gap.lines + (info.length ? 1 + lineCount(info) * 7 + gapCount(info) * gap.info : 0) + (open ? 13 : 0) + 4;
 }
 
 /** The screen's layout at W x H. Pure (tests): `hs` each card's height. */
@@ -153,19 +180,26 @@ function drawHead(g: G, r: Rect, edge: string, icon: CanvasImageSource | string,
   drawText(g, sub, r.x + 31, r.y + 18, C.slate4, { font: "3" });
 }
 
-/** Lines, then the details, then the take bar, from the card's text top. */
-function drawBody(g: G, r: Rect, lines: readonly RichLine[], info: readonly RichLine[], hint: string | null): void {
+/** Lines, then the details, then the take bar, from the card's text top. CARD-3 (REQ-BFG-087, D5): the gap `gap` between
+ *  two items (lcGaps), the pitch inside one. */
+function drawBody(g: G, r: Rect, lines: Items, info: Items, hint: string | null, gap = lcGaps()): void {
   let y = r.y + HEAD;
-  for (const l of lines) {
-    drawRich(g, l, r.x + 5, y, "5");
-    y += 9;
-  }
+  lines.forEach((it, i) => {
+    if (i) y += gap.lines;
+    for (const l of it) {
+      drawRich(g, l, r.x + 5, y, "5");
+      y += 9;
+    }
+  });
   if (info.length) {
     y += 1;
-    for (const l of info) {
-      drawRich(g, l, r.x + 5, y, "3");
-      y += 7;
-    }
+    info.forEach((it, i) => {
+      if (i) y += gap.info;
+      for (const l of it) {
+        drawRich(g, l, r.x + 5, y, "3");
+        y += 7;
+      }
+    });
   }
   if (hint) {
     const hw = textWidth(hint) + 8, hb = { x: Math.round(r.x + r.w / 2 - hw / 2), y: y + 1, w: hw, h: 11 };
@@ -179,6 +213,10 @@ export class LastChancePicker {
   /** The opened card (-1: none) and the cards whose details (ⓘ) are shown. */
   open = -1;
   info = new Set<number>();
+  /** CARD-2 (REQ-BFG-081, K2; REQ-BFG-004, K1): the keyword whose definition the open RUNE card shows (a word's tap, or its
+   *  first sight when the card opened), in its details' room (over its effect lines' foot while its details are closed:
+   *  the card keeps its size); null for none. Any other press closes it (each region's tap, and the screen's). */
+  word: string | null = null;
   private key = "";
 
   /** The pending offer while the run is at its caravan (not a refit), else null. */
@@ -201,8 +239,11 @@ export class LastChancePicker {
   tap(s: BuildScreen, i: number, boon: Boon, o: LastChanceOffer): void {
     if (this.open !== i) {
       this.open = i;
+      // CARD-2 (K1): an opened RUNE card shows its first effect keyword not yet seen, by itself (no tap is counted)
+      this.word = boon === "rune" && o.rune ? runeSightWord(RUNES[o.rune.id]) : null;
       return;
     }
+    this.word = null;
     const r = takeLastChance(s.run, boon);
     if (!r.ok) {
       s.game.error(r.reason ?? "NO LAST CHANCE TO PICK");
@@ -217,11 +258,11 @@ export class LastChancePicker {
   }
 
   /** Each card's lines and details at width `w` (pure on the run). */
-  private texts(run: Run, o: LastChanceOffer, w: number): { boon: Boon; lines: RichLine[]; info: RichLine[] }[] {
+  private texts(run: Run, o: LastChanceOffer, w: number): { boon: Boon; lines: Items; info: Items }[] {
     const tw = w - 10;
     return this.boons(o).map((boon, i) => {
       const shown = this.info.has(i);
-      if (boon === "rune") return { boon, lines: [], info: shown ? wrapRich(runeReminderSpans(RUNES[o.rune!.id]), tw, "3") : [] };
+      if (boon === "rune") return { boon, lines: [], info: shown ? [wrapRich(runeReminderSpans(RUNES[o.rune!.id]), tw, "3")] : [] };
       if (boon === "part") return { boon, lines: partLines(o.part!, tw, run, o.partStars ?? 1), info: shown ? partInfo(o.part!, tw, run, o.partStars ?? 1) : [] }; // HULL-1d
       const [now, next] = lcHullNow(run, o.hull, run.day); // HULL-1a: the day's numbers
       return { boon, lines: hullLines(now, next - now, tw), info: shown ? hullInfo(tw) : [] };
@@ -231,10 +272,14 @@ export class LastChancePicker {
   layout(s: Pick<BuildScreen, "run" | "game">, o: LastChanceOffer): LcLayout {
     const { W, H } = s.game;
     const w = Math.min(W - 8, 300);
-    const hs = this.texts(s.run, o, w).map((t, i) => (t.boon === "rune"
-      ? runeCardH(RUNES[o.rune!.id], w, i === this.open ? { hint: LC_TAKE, day: s.run.day } : { day: s.run.day }) + (t.info.length ? 1 + t.info.length * 7 : 0)
-      : cardH(t.lines.length, t.info.length, i === this.open)));
-    return lcLayout(W, H, hs);
+    const texts = this.texts(s.run, o, w);
+    const hs = (gap: { lines: number; info: number }) => texts.map((t, i) => (t.boon === "rune"
+      ? runeCardH(RUNES[o.rune!.id], w, i === this.open ? { hint: LC_TAKE, day: s.run.day } : { day: s.run.day }) + (t.info.length ? 1 + lineCount(t.info) * 7 + gapCount(t.info) * gap.info : 0)
+      : cardH(t.lines, t.info, i === this.open, gap)));
+    // CARD-3 (REQ-BFG-087, D5, D6): the gaps at G; Gmin where three cards with G would overrun the screen
+    const L = lcLayout(W, H, hs(lcGaps()));
+    if (L.bottom <= H) return { ...L, gap: lcGaps() };
+    return { ...lcLayout(W, H, hs(lcGaps(true))), gap: lcGaps(true) };
   }
 
   draw(g: G, s: BuildScreen): void {
@@ -242,6 +287,7 @@ export class LastChancePicker {
     if (!o) {
       this.open = -1;
       this.info.clear();
+      this.word = null;
       return;
     }
     const key = `${o.day}|${o.rune?.id}|${o.part}`;
@@ -250,15 +296,18 @@ export class LastChancePicker {
       if (this.key) {
         this.open = -1;
         this.info.clear();
+        this.word = null;
       }
       this.key = key;
     }
     const { W, H, ui } = s.game;
     const L = this.layout(s, o);
+    this.wordBox = null;
     g.globalAlpha = 0.86;
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;
-    ui.add({ id: "lcpick", r: { x: 0, y: 0, w: W, h: H }, block: true });
+    // CARD-2 (K2): a press anywhere off the RUNE card's words closes a word's definition (the regions over it close it too)
+    ui.add({ id: "lcpick", r: { x: 0, y: 0, w: W, h: H }, block: true, onTap: () => { this.word = null; } });
     const cx = Math.round(W / 2);
     drawTitlePlate(g, W, L.top, L.cardW); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint
     drawText(g, LC_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
@@ -272,14 +321,18 @@ export class LastChancePicker {
         drawRuneCard(g, r, def, { sub: `${runeTag(def)} · FREE`, open, hint: undefined, day: s.run.day }); // HULL-1a
         // the rune card's own body is drawRuneCard's; its details and the take bar follow its text
         const base = runeCardH(def, r.w, { day: s.run.day }) - 4;
-        drawBody(g, { ...r, y: r.y + base - HEAD }, [], t.info, hint);
+        drawBody(g, { ...r, y: r.y + base - HEAD }, [], t.info, hint, L.gap);
+        // CARD-2 (K2; K1): the shown keyword's definition, in the details' room (its lines' place: drawBody's y + 1), or,
+        // with the details closed, over the effect lines' foot, growing up: whole, and the card keeps its size
+        const k = open && this.word ? runeKeywordOf(def, this.word) : null;
+        if (k) this.wordBox = drawRuneWordNote(g, r, t.info.length ? r.y + base + 1 : r.y + base - 2, lineCount(t.info), runeWordLines(def, k, r.w - 10));
       } else if (t.boon === "part") {
         const def = ITEMS[o.part!];
         drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity, o.partStars ?? 1), open); // HULL-1d
-        drawBody(g, r, t.lines, t.info, hint);
+        drawBody(g, r, t.lines, t.info, hint, L.gap);
       } else {
         drawHead(g, r, C.lime, icons("{HULL}"), lcHullName(o, s.run.day), C.lime, LC_HULL_SUB, open); // HULL-1a: the day's
-        drawBody(g, r, t.lines, t.info, hint);
+        drawBody(g, r, t.lines, t.info, hint, L.gap);
       }
       ui.add({ id: `lcpick-${t.boon}`, r, onTap: () => this.tap(s, i, t.boon, o) });
       drawInfo(g, L.infos[i], this.info.has(i));
@@ -288,6 +341,7 @@ export class LastChancePicker {
       const ir = L.infos[i], side = Math.max(ir.w + 8, isPhone(s.game.view) ? tapPx(s.game.view) : 0);
       const right = r.x + r.w, tr = { x: right - side, y: r.y, w: side, h: Math.min(side, r.h) };
       ui.add({ id: `lcinfo-${t.boon}`, r: tr, onTap: () => {
+        this.word = null; // CARD-2 (K2): another press closes a word's definition
         if (this.info.has(i)) this.info.delete(i);
         else this.info.add(i);
       } });
@@ -299,11 +353,22 @@ export class LastChancePicker {
     texts.forEach((t, i) => {
       if (t.boon !== "rune") return;
       runeChipIcon(g, ui, "lcchip-rune", L.cards[i], RUNES[o.rune!.id], runeTapOf(s), () => {
+        this.word = null; // CARD-2 (K2): the chip's line replaces a word's definition
         if (this.info.has(i)) this.info.delete(i);
         else this.info.add(i);
       }, { W, H }, s.game.canvas);
+      // CARD-2 (REQ-BFG-081, K2): the open RUNE card's keywords are word targets, over the card's region (a tap on one shows
+      // or hides its definition and never picks the card); a closed card's are not (a tap on it opens it, as before)
+      if (i === this.open) {
+        runeWordLayer(g, ui, "lcrune-", L.cards[i], RUNES[o.rune!.id], runeTapOf(s), this.word, this.word ? this.wordBox : null, (wd) => {
+          this.word = this.word === wd ? null : wd;
+        }, { W, H }, s.game.canvas, () => { this.word = null; }, runeHintBand(L.cards[i])); // CARD-3 (REQ-BFG-087, D2)
+      }
     });
   }
+
+  /** CARD-2 (K2): the shown word's definition box as last drawn (its region). */
+  private wordBox: { x: number; y: number; w: number; h: number } | null = null;
 
   /** Tooling (bb.lastChance()): the picker as drawn, or null when it is not up. */
   infoOf(s: BuildScreen): { day: number; boons: Boon[]; rune: string | null; part: string | null; hull: number; open: number; layout: LcLayout } | null {

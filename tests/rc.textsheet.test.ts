@@ -73,7 +73,7 @@ function anvilFit(hero: HeroId, stars: number): { fits: { flat: number; per: num
  *  EACH PLATING", perPlate to one decimal). */
 function anvilText(hero: HeroId, stars: number): [number, number] {
   const s = abilityText("anvil", stars, textOpts(newRun(hero, 1))).sentences[0];
-  const m = /^EACH SHOT DEALS ([\d.]+) MORE DAMAGE, PLUS ([\d.]+)% OF THE PLATING ON YOUR HULL\.$/.exec(s);
+  const m = /^EACH SHOT DEALS ([\d.]+) MORE DAMAGE, PLUS ([\d.]+)% OF THE SHIELD ON YOUR HULL\.$/.exec(s); // CARD-3 (REQ-BFG-107)
   expect(m, `${hero} ★${stars}: ${s}`).not.toBeNull();
   return [Number(m![1]), Number(m![2]) / 100];
 }
@@ -146,6 +146,6 @@ describe("a turret core's numbers on every playable hero's own gun (the text she
     }
     // Y7b2 (the flip): plated 40% at ★1 and no bare speed-up (Y4, DESIGN-Y row 39; was "THE TURRET FIRES 35% FASTER WHILE
     // YOUR HULL HOLDS PLATING, AND 10% FASTER WITHOUT IT.")
-    expect(abilityText("steambreech", 1).sentences[0]).toBe("THE TURRET FIRES 40% FASTER WHILE YOUR HULL HOLDS PLATING.");
+    expect(abilityText("steambreech", 1).sentences[0]).toBe("THE TURRET FIRES 40% FASTER WHILE YOUR HULL HOLDS SHIELD.");
   });
 });

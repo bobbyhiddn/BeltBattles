@@ -11,6 +11,25 @@ import { plainRigStats } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0
 import { statRow } from "../../ui/icons"; // EXPLAIN-1: a plain rig's stat row
 import type { TextOpts } from "../../ui/abilityText";
 import { livePerk } from "../../ui/abilityText";
+import { turretStats } from "../../ui/faces"; // CARD-2 (REQ-BFG-081, K4): the turret row's pairs
+import type { Stat } from "../../ui/icons"; // CARD-2 (K4)
+import { ICON } from "../../render/font"; // CARD-2 (K4)
+import { ITEMS } from "../../sim/content"; // CARD-2 (K4): a turret's face
+
+/** CARD-2 (REQ-BFG-081, K4; READ-3 section 7, E10): THE TURRET ROW'S LABELS, Batomon-style: each stat's icon, then its word,
+ *  then its number. HOLDS is the word that carries the meaning: the bare {SLUG}n never said the chamber holds n (READ-3 3.3:
+ *  39 of 39 face-alone answers asked); GEAR SLOTS says what {GEAR}n counts. The icons stay: the row fits the 402x690 @3 tap
+ *  panel's 225 px text row on one line with them and GEAR SLOTS (tests/card2.test.ts measures every turret, every star). */
+export const TURRET_LABELS: Readonly<Record<"RATE" | "SLUG" | "GEAR", string>> = { RATE: "RATE", SLUG: "HOLDS", GEAR: "GEAR SLOTS" };
+/** The gap between two pairs (two spaces, as the brief writes the row); one space inside a pair. */
+export const PAIR_GAP = "  ";
+
+/** CARD-2 (K4): a turret's stat row (turretStats' pairs, or an installed turret's own) as labelled pairs: "{RATE}RATE 55
+ *  {SLUG}HOLDS 2  {GEAR}GEAR SLOTS 1" in glyphs, two spaces between pairs. Inspector role "ability" with `pairs` (layBlock
+ *  draws it as it is, never splitting a pair: one line where it fits, else one pair a line, as the desk column needs). */
+export function turretRow(stats: readonly Stat[]): string {
+  return stats.map(([k, v]) => `${ICON[k as keyof typeof ICON]}${TURRET_LABELS[k as keyof typeof TURRET_LABELS] ?? k} ${v}`).join(PAIR_GAP);
+}
 
 /** The reminder's rank among a panel's optional blocks: after an ability's later sentences (2) and a turret's notes'
  *  first rank (1), before the turret notes (4), the hint (6) and the flavour (7). */
@@ -48,7 +67,10 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   // a stat row ({DMG}+20), no HIT: rule line (faces.ts PLAIN_RIGS; faceAt keeps the rule, so LEVELS and the chip stay)
   const plainRig = plainRigStats(def, stars, o.day); // MERGE-099C: on the read-out's day (HULL-1d), as the rule line
   if (plainRig) return [{ role: "ability", text: statRow(plainRig), keep: true }];
-  if (fl.stats) out.push({ role: "ability", text: fl.stats, keep: true });
+  // CARD-2 (REQ-BFG-081, K4): a turret's row in words (RATE 55  HOLDS 2  GEAR SLOTS 1), from the sim at this star; the
+  // ladder stays in LEVELS, the phone shop chip keeps {RATE}n (chips.ts), and faceLines (the face data) is unchanged
+  if (fl.stats && ITEMS[def]?.kind === "turret") out.push({ role: "ability", text: turretRow(turretStats(def, stars)), keep: true, pairs: true });
+  else if (fl.stats) out.push({ role: "ability", text: fl.stats, keep: true });
   // U2e step 2 (REQ-BFG-070): the second stat row, what a factory's own payloads carry ({BURN}2 {STUN}1.6), kept
   // SPACE-1 (REQ-BFG-087, D1): one stat item with the first row (tied: no gap between them)
   if (fl.stats2) out.push({ role: "ability", text: fl.stats2, keep: true, ...(fl.stats ? { tie: true } : {}) });

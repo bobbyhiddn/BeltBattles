@@ -33,6 +33,8 @@ const rule = (def: string, s: number, k = 1): string => {
   return rs[0].text;
 };
 const core = (def: string, s: number, k = 1) => scaleCore(effectAt(def, s).core!, k)!;
+/** CARD-2 (REQ-BFG-081, K3 g): the face's rule lines (GATLING SPOOL's are two now: FIRES EACH LOAD AS IT COMES., then its spin). */
+const rules = (def: string, s: number, k = 1): string[] => faceAt(def, s, { k })!.rules.map((r) => r.text);
 
 describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-BFG-046)", () => {
   // ------------------------------------------------------------------------------------------------- ASSEMBLY LINE
@@ -59,7 +61,8 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
       expect(pressRigAt(asm(s)), `★${s} fed`).toBeCloseTo(COMMISSION_BASE * commission, 9);
       expect(pressRigAt(asm(s, false)), `★${s} cut`).toBeCloseTo(COMMISSION_BASE, 9);
       // the face says the condition and the sim's factor, in its sentence's words
-      expect(rule("assembly", s), `★${s}`).toBe(`FEEDS A GUN: YOUR RIGS START ${startIn(assemblyLines(asm(s)).factor)}.`);
+      // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): WORK (was "FEEDS A GUN: YOUR RIGS START ...")
+      expect(rule("assembly", s), `★${s}`).toBe(`FEEDS A GUN: YOUR RIGS WORK ${startIn(assemblyLines(asm(s)).factor)}.`);
     }
   });
 
@@ -69,9 +72,9 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
     expect(working.map((g) => g.commissionAt)).toEqual([0, 0, 0]);
     bt.step();
     expect(working.map((g) => g.online)).toEqual([true, true, true]);
-    expect(rule("assembly", 3)).toBe("FEEDS A GUN: YOUR RIGS START AT ONCE.");
+    expect(rule("assembly", 3)).toBe("FEEDS A GUN: YOUR RIGS WORK AT ONCE."); // CARD-2 (K3 g): WORK (was START)
     // ★1 and ★2 come online later (their % is the sim's: 1 - commissionAt / its time without one)
-    for (const s of [1, 2]) expect(rule("assembly", s)).toBe(`FEEDS A GUN: YOUR RIGS START ${fmtPct(1 - pressRigAt(asm(s)) / pressRigAt(asm(s, false)))} SOONER.`);
+    for (const s of [1, 2]) expect(rule("assembly", s)).toBe(`FEEDS A GUN: YOUR RIGS WORK ${fmtPct(1 - pressRigAt(asm(s)) / pressRigAt(asm(s, false)))} SOONER.`);
   });
 
   // --------------------------------------------------------------------------------------------------- HULLBREAKER
@@ -116,8 +119,10 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
         expect(readyWithOne(g, 0), `${def} ★${s}`).toBe(true);
       }
     }
+    // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: FIRES AT ONCE): FINAL NAIL's note's words, a line of their own, then the spin (was
+    // one line, "FIRES AT ONCE, SPINS UP TO 67% FASTER.")
     for (const s of STARS) for (const k of KS) {
-      expect(rule("gatling", s, k), `★${s} k${k}`).toBe(`FIRES AT ONCE, SPINS UP TO ${fmtPct(core("gatling", s, k).top! / 100)} FASTER.`);
+      expect(rules("gatling", s, k), `★${s} k${k}`).toEqual(["FIRES EACH LOAD AS IT COMES.", `SPINS UP TO ${fmtPct(core("gatling", s, k).top! / 100)} FASTER.`]);
     }
   });
 
@@ -186,10 +191,11 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
   // ------------------------------------------------------------------------------------------------------------ fit
   it("every changed line is one line of 5x7 inside the op band (225 px) at every star and class factor", () => {
     let widest = 0, at = "";
-    for (const def of ["assembly", "hullbreaker", "gatling", "grapnel", "pressure", "sorting"]) for (const s of STARS) for (const k of KS) {
-      const w = textWidth(icons(rule(def, s, k)));
+    // CARD-2 (REQ-BFG-081, K3 g): each rule line (GATLING SPOOL's two; was rule(): one line each piece)
+    for (const def of ["assembly", "hullbreaker", "gatling", "grapnel", "pressure", "sorting"]) for (const s of STARS) for (const k of KS) for (const line of rules(def, s, k)) {
+      const w = textWidth(icons(line));
       if (w > widest) { widest = w; at = `${def} ★${s} k${k}`; }
-      expect(w, `${def} ★${s} k${k}: ${rule(def, s, k)}`).toBeLessThanOrEqual(NEXT_LINE_W);
+      expect(w, `${def} ★${s} k${k}: ${line}`).toBeLessThanOrEqual(NEXT_LINE_W);
     }
     expect(NEXT_LINE_W).toBe(225);
     console.log(`TXT-096 faces: the widest changed line ${widest} px of ${NEXT_LINE_W} (${at})`);

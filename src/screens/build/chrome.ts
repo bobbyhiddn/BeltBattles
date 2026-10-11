@@ -31,7 +31,7 @@ import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 import { drawBeltX } from "./beltx"; // shoptap (D3)
 import { deleteRoute } from "./actions"; // shoptap (D3): the X removes the belt as REMOVE BELT does
 import { faceLines } from "../../ui/faces"; // U2c group 0 fix 3: the packs' faces in their tooltips
-import { shopChipGlyphs } from "../../ui/chips"; // U2c (C4): the shop cards' stat chips
+import { phoneGist, shopChipGlyphs } from "../../ui/chips"; // U2c (C4): the shop cards' stat chips
 
 /** bb-0.8.6 (PACKS P5; U2c group 0 fix 3): a pack slot's tooltip text: the pack's face ("+4 BELT TILES FOR THE RUN.",
  *  "+250 {HULL} FOR THE RUN."), else its first sentence. AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q3): on the run's day
@@ -141,6 +141,7 @@ function drawShop(g: G, s: BuildScreen): void {
       badge: o.sold ? null : shopBadge(run, o.def), // 0.6.1d: live, never stored on the offer
       effect: cardText(o.def, textOpts(run)), // 0.6.2t (T5): drawn on a wide (landscape) card
       chip: shopChipGlyphs(o.def, textOpts(run)) ?? undefined, // U2c (C4): the stat chip
+      gist: phoneGist(o.def, textOpts(run)) ?? undefined, // CARD-3 (REQ-BFG-081, A): the phone card's gist (the narrow face)
     }, t);
   }
   const rr = { ...L.reroll, x: L.reroll.x + s.caravan.dx(list.length, L.W) };

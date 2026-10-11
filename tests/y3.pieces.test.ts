@@ -64,7 +64,8 @@ describe("Y3 row 20: PINCER: +20 for each other rig on its tile; no floor, no ma
   });
 
   it("face: HIT: +20/+44/+70 DMG FOR EACH OTHER RIG ON ITS TILE, one line in the band; ladder +20/+44/+70 DMG EACH", () => {
-    expect(lines("pincer")).toEqual([20, 44, 70].map((d) => [`HIT: +${d} {DMG} FOR EACH OTHER RIG ON ITS TILE.`]));
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1: ITS TILE, whose): HITTING IT, 221 px at ★3 (was "... FOR EACH OTHER RIG ON ITS TILE.")
+    expect(lines("pincer")).toEqual([20, 44, 70].map((d) => [`HIT: +${d} {DMG} FOR EACH OTHER RIG HITTING IT.`]));
     oneLine("pincer");
     expect(levels("pincer", 1)).toEqual(["[+20]/+44/+70 {DMG} EACH", next(2, "+44 {DMG} EACH")]);
     expect(levels("pincer", 3)).toEqual(["+20/+44/[+70] {DMG} EACH"]);
@@ -421,7 +422,8 @@ describe("Y3 row 32: ASSEMBLY LINE: your rigs start 50%/75%/100% sooner, its own
   // above, online(3) [0, 0, 0]; tests/txt096.faces.test.ts pins both); was "YOUR RIGS START 50%/75%/100% SOONER." with the
   // ladder "[50%]/75%/100% SOONER" (★3's AT ONCE has no number, so the ladder lists the three forms)
   it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; FEEDS A GUN: YOUR RIGS START 50% SOONER/75% SOONER/AT ONCE; ladders DMG 30/45/60, 50% SOONER/75% SOONER/AT ONCE; no HOT START name, the ⓘ view's too (Y7b2, TXT-096)", () => {
-    expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`FEEDS A GUN: YOUR RIGS START ${p}.`]));
+    // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): WORK (was "FEEDS A GUN: YOUR RIGS START ...")
+    expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`FEEDS A GUN: YOUR RIGS WORK ${p}.`]));
     expect(faceAt("assembly", 1)!.stats).toEqual([["RATE", "17"], ["DMG", "30"], ["BELT", "2"]]);
     oneLine("assembly");
     // Y7b2 (the words): was [..., "[50%]/75%/100% SOONER", "★3 HOT START", `NEXT ★2: ...`] (the name left with its rule)
