@@ -28,7 +28,11 @@ afterEach(allOff);
 /** sha256 of JSON.stringify(generateSamplePool()) with every switch off at 283cfaf, the hull release's work tip before P2
  *  (LOSS-1 run 2, 05:17-05:20Z 2026-10-11: the same at 283cfaf and at P2's tip). The stand-in pool's regeneration (AZ-BUMP
  *  S8) moves it, as it moves rc.seedpool's digests. */
-const POOL_OFF_SHA256 = "9599ba92e8f469132b8a61cb0bd697cee2849ad62908369791758f470c96d20c";
+// AZ-BUMP S7L (BRIEF-AZBUMP-S8L step 3; the cause: AZ-BUMP's bump, 00af45d): every seed ghost carries rules: RULES_VERSION
+// (samplePool.ts), now bb-0.10.0, so the off pool's JSON moved with the rules string alone: with bb-0.9.7 put back in its
+// 120 "rules" fields it is 9599ba92e8f46913... exactly, 283cfaf's (kit-azbump probes/zz-p2off). Re-pinned to H_off,
+// the off pool at S7's tip 05021ce and at the merge (p2hash.sh); was 9599ba92e8f46913...
+const POOL_OFF_SHA256 = "3057141f793eb6c03a211ceb332f4e485d6efe561b30441b2e5e2ed82515e79d";
 const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
 const label = (s: GhostSnapshot) => [s.hero, s.day, s.playerId, s.runId, s.createdAt, s.wins, s.lives, s.rules];
 
