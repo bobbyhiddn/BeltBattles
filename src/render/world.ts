@@ -6,8 +6,9 @@ import { bayer, makeCanvas, rect, type G } from "./pixel";
 /** WIND-2 (REQ-BFG-093): the dither at a front's edge, cached as one small image per colour, width and row phase (the
  *  band's rows are 2 px tall at even y, and bayer's pattern repeats every 4 rows, so a row's y & 3 is 0 or 2): a row draws
  *  two images instead of a pixel at a time, with the same pixels (the image is bayer's own, drawn at the row's x and y;
- *  the game draws with smoothing off). The second front doubled the per-pixel fills: on the desk at 68 s the storm cost
- *  0.65 ms a frame with one front, 7.6 ms with two, per-pixel (REPORT-WIND2 section 2). */
+ *  the game draws with smoothing off). Fewer draw calls, not a faster frame: on the desk at 68 s, raster included, the
+ *  storm costs 0.6 ms a frame with one front, 1.1 ms with two per-pixel and 1.2 ms with two cached (REPORT-WIND2
+ *  section 2; measured under a 1.5-CPU limit, so provisional). */
 const DITHER = new Map<string, HTMLCanvasElement>();
 function ditherRow(c: string, w: number, density: number, ox: number, y: number): HTMLCanvasElement {
   const key = `${c} ${w} ${density} ${ox} ${y & 3}`;
