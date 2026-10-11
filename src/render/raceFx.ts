@@ -116,7 +116,10 @@ export const STRIP_H = 2;
  * which trails it like the hull bar's chip) shows white: a hit took plating before HP. `shine` (0..1) lights the newest
  * segment as plating lands (the CLANK).
  */
-export function drawPlatingStrip(g: G, x: number, y: number, w: number, plate: number, shown: number, max: number, segments: number, shine = 0): void {
+export function drawPlatingStrip(g: G, x: number, y: number, w: number, plate: number, shown: number, max: number, segments: number, shine = 0,
+  cols: { full: string; part: string; edge: string; shine: string } = RUNE_STRIP): void {
+  // WIND-1 (REQ-BFG-097): `cols`, the strip's colours (the battle plate passes plating's own, apart from SHIELD's rune
+  // blue); absent, the rune blue as before
   const per = max / segments;
   const top = Math.ceil(Math.min(max, Math.max(0, plate)) / per - 1e-9) - 1;
   for (let k = 0; k < segments; k++) {
@@ -129,12 +132,15 @@ export function drawPlatingStrip(g: G, x: number, y: number, w: number, plate: n
     rect(g, x0, y, sw, STRIP_H, C.plate0);
     if (chip > fill) rect(g, x0 + fill, y, chip - fill, STRIP_H, C.white);
     if (fill > 0) {
-      rect(g, x0, y, fill, STRIP_H, a >= 1 ? C.rune2 : C.rune1);
-      rect(g, x0, y, fill, 1, C.rune3);
+      rect(g, x0, y, fill, STRIP_H, a >= 1 ? cols.full : cols.part);
+      rect(g, x0, y, fill, 1, cols.edge);
     }
-    if (k === top && shine > 0) rect(g, x0, y, sw, STRIP_H, shine > 0.5 ? C.white : C.rune4);
+    if (k === top && shine > 0) rect(g, x0, y, sw, STRIP_H, shine > 0.5 ? C.white : cols.shine);
   }
 }
+
+/** The strip's colours before WIND-1: the bulwark slug's rune blue. */
+const RUNE_STRIP = { full: C.rune2, part: C.rune1, edge: C.rune3, shine: C.rune4 } as const;
 
 // --------------------------------------------------------------------------------------------------------------- SYNC
 

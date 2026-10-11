@@ -32,6 +32,7 @@ import { cellAt, footX, footY } from "../../render/frame";
 import { inside } from "../../ui/ui";
 import { drop, dropCell, rigRotAt, rotate, type Carry, type Ctx, type Src } from "./actions";
 import type { Sel } from "./layout";
+import { toDeck } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 import { gearOn, turretSlots, type Build } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031); shoptap: gearOn, Build
 
@@ -207,7 +208,8 @@ export class Editor {
     if (cu !== null) return { from: "cargo", uid: cu };
     const t = h.turretAt(x, y);
     if (t >= 0) return { from: "turret", index: t };
-    const c = cellAt(h.L.frame, x, y);
+    const d = toDeck(h.L, x, y); // ZOOM-1 (REQ-BFG-080): the press in the carrier's space
+    const c = cellAt(h.L.frame, d.x, d.y);
     if (!inGrid(c.cx, c.cy)) return inside(h.L.hull, x, y) ? { from: "cell", k: -1 } : null;
     const k = key(c.cx, c.cy);
     const b = h.run.build;
@@ -466,7 +468,8 @@ export class Editor {
     const d = this.draw!;
     const { run, game, L } = this.h;
     const b = run.build;
-    const c = cellAt(L.frame, x, y);
+    const at = toDeck(L, x, y); // ZOOM-1 (REQ-BFG-080): the finger in the carrier's space
+    const c = cellAt(L.frame, at.x, at.y);
     if (!inGrid(c.cx, c.cy)) return;
     const k = key(c.cx, c.cy);
     const cells = d.cells;

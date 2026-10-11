@@ -48,7 +48,9 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
       expect(f.mark.map((r) => r.length), t).toEqual([3, 3, 3]);
       expect(f.mark.join("").replace(/[x.]/g, ""), t).toBe("");
       expect(f.mark.join("").split("x").length - 1, `${t}'s mark lights 3 or more cells`).toBeGreaterThanOrEqual(3);
-      expect(f.glossary, t).toMatch(/^[A-Z0-9 ,;:.'-]+\.$/);
+      // WORDS-1 (REQ-BFG-081): the line is a tag's tap note now (keywords.ts familyTargets), so a keyword in it is in panel
+      // style, {*BURN} (REQ-BFG-032 rule 3: no keyword stands bare in a text a tap shows); was /^[A-Z0-9 ,;:.'-]+\.$/
+      expect(f.glossary, t).toMatch(/^[A-Z0-9 ,;:.'{}*-]+\.$/);
       expect(f.glossary).not.toContain("·");
     }
     expect(new Set(V2.map((t) => FAMILY[t].colour)).size, "seven colours").toBe(7);
@@ -295,7 +297,13 @@ describe("the inspect panel names the families in its header (REQ-BFG-023: in th
       const fam = selFamilies(c.run, c.sel);
       const p = planPanel(c.t, area, fam), q = planPanel(c.t, area);
       const what = `${c.id} on the ${band}`;
-      expect(JSON.stringify({ ...p, famHead: null }), what).toBe(JSON.stringify({ ...q, famHead: null }));
+      // SPACE-1 (REQ-BFG-087, D8): the tag under the sub line (or beside its second line) takes a gap slot before the body,
+      // its underline's clear space, so the gaps differ, and the column's height, sized with its gaps, with them; the body's
+      // plan and the rest of the header are exactly as without them. Was the whole plan
+      const strip = (x: typeof p) => ({ ...x, famHead: null, gaps: null, r: x.column ? { ...x.r, h: 0 } : x.r, maxY: x.column ? 0 : x.maxY });
+      expect(JSON.stringify(strip(p)), what).toBe(JSON.stringify(strip(q)));
+      expect(p.gaps.before.slice(1), what).toEqual(q.gaps.before.slice(1));
+      expect(p.gaps.before[0] ?? 0, what).toBe(p.famHead && p.famHead.at !== "title" && p.body.lines.length ? 1 : 0);
       expect(q.famHead, what).toBeNull();
       const fb = famBox(p);
       if (!fb) continue;

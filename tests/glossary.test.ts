@@ -114,7 +114,9 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
     }
     // each rune reminder: number-free, its word first, and it says what its row says (a phrase both hold)
     const same: Record<string, string> = {
-      PLATE: "BEFORE YOUR HULL", PAIR: "TWO LOADS REACH ONE TURRET AT ONCE", HEAT: "FOR EACH SEC IT RIDES", FRAY: "LATER HIT",
+      // WORDS-1 (REQ-BFG-081; READ-1 4): PAIR from two belts (was "TWO LOADS REACH ONE TURRET AT ONCE"), FRAY on the hull's
+      // later shots (was "LATER HIT": HIT read as the rig's label)
+      PLATE: "BEFORE YOUR HULL", PAIR: "TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE", HEAT: "FOR EACH SEC IT RIDES", FRAY: "EVERY LATER SHOT",
       // U2d F4: RIDE's row reworded (cap), its reminder its first sentence; was "CINDER SLUG'S OWN"
       RATE: "HOW OFTEN A GUN FIRES OR A FACTORY WORKS", BURN: "HULL DAMAGE", RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE", STUN: "STOPS FOR A WHILE", // FLIP-X2 N4-d: STUN (was STALL)
       // SUS-B (REQ-BFG-069): the sustain keywords' rune reminders (SUSTAIN-1 4.1)
@@ -268,7 +270,9 @@ describe("U2c U2b's ledger: every NEEDED: U2c row now has a home", () => {
     const pair = stripIcons(icons(glossaryText("PAIR", { def: "crucible", stars: 1 })!));
     expect(pair).toContain("BY TWO INTAKES AT ONCE");
     expect(pair).toContain("A LONE ONE FIRES ON ITS OWN");
-    expect(stripIcons(icons(glossaryText("PAIR")!))).toContain("TWO LOADS REACH ONE TURRET AT ONCE. BY TWO INTAKES."); // every other PAIR
+    // WORDS-1 (REQ-BFG-081; READ-1 4: readers took a pair for two slugs fired together): FROM TWO BELTS, in the reminder
+    // itself (was "TWO LOADS REACH ONE TURRET AT ONCE. BY TWO INTAKES.")
+    expect(stripIcons(icons(glossaryText("PAIR")!))).toContain("TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE."); // every other PAIR
     // SURGE VALVE: its face says the pulse's speed and length (group 0 fix 1), its EVERY label's tap explains it. Y7b2 (the
     // flip): the speed pulse left (Y3), so the face says the damage pulse, its period and damage, and the tap who gets it
     // (were toContain(`${fmtCount(p.speed)} TIMES AS FAST FOR ${fmtSec(p.on)}`) and toContain(`RUNS FAST FOR

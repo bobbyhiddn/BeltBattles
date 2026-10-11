@@ -13,6 +13,8 @@ import { faceAt, hasFace } from "../src/ui/faces";
 import { faceBlocks } from "../src/screens/build/faceBlocks";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { icons, textWidth } from "../src/render/font";
+import { colourize, wrapRich } from "../src/ui/richText"; // WORDS-1: a face line's two lines (lines2)
+import { C } from "../src/render/palette"; // WORDS-1
 import { statRow } from "../src/ui/icons";
 import { glossaryText } from "../src/ui/glossary";
 import { barge, bench } from "./arsenal.bench";
@@ -28,11 +30,18 @@ export const px = (markup: string): number => textWidth(icons(markup));
 export const levels = (def: string, stars = 1): string[] => levelLines(def, stars)!.map((l) => levelText(l));
 /** The checks every Y2 face passes: one line at each star inside the band; no clause, no caveat; no perk name on the face
  *  blocks (R-1). */
-function oneLine(def: string): void {
+/** WORDS-1 (REQ-BFG-081; READ-1 6.1, measured in its round D; the brief's design call 3): a face line that READ-1's plain
+ *  words take past the op band's one line wraps (TEXT-STYLE 8.2: wrapRich at draw time) and must fit two lines of 5x7 at the
+ *  band's width; everything else oneLine checks stays as it was. */
+function lines2(markup: string): number {
+  return wrapRich(colourize(icons(markup), C.bone), BAND, "5").length;
+}
+function oneLine(def: string, lines = 1): void {
   for (const s of STARS) {
     const f = faceAt(def, s)!;
     expect(f.rules, `${def} ★${s}`).toHaveLength(1);
-    expect(px(f.rules[0].text), `${def} ★${s}: ${f.rules[0].text}`).toBeLessThanOrEqual(BAND);
+    if (lines > 1) expect(lines2(f.rules[0].text), `${def} ★${s}: ${f.rules[0].text}`).toBeLessThanOrEqual(lines); // WORDS-1
+    else expect(px(f.rules[0].text), `${def} ★${s}: ${f.rules[0].text}`).toBeLessThanOrEqual(BAND);
     expect(f.clause, `${def} ★${s} clause`).toBeUndefined();
     expect(f.caveats, `${def} ★${s} caveats`).toBeUndefined();
     expect(faceBlocks(def, s, {})!.some((b) => b.perk), `${def} ★${s} perk on the face`).toBe(false);
@@ -76,10 +85,12 @@ describe("Y2 row 8: TOLLBOOTH blocks STUNs on its belt's parts, its factory from
   });
 
   it("face: BLOCKS 2/4/7 STUN ON ITS BELT'S PARTS, one line in the band; ladder BLOCKS 2/4/7", () => {
-    expect(lines("tollbooth")).toEqual([2, 4, 7].map((n) => [`BLOCKS ${n} {*STUN} ON ITS BELT'S PARTS.`]));
-    oneLine("tollbooth");
-    expect(levels("tollbooth", 1)).toEqual(["BLOCKS [2]/4/7", "NEXT ★2: BLOCKS 4"]); // Y7b2 (the words): was ["BLOCKS [2]/4/7", "★3 FACTORY GUARD", "NEXT ★2: BLOCKS 4"] (the name left with its rule)
-    expect(levels("tollbooth", 3)).toEqual(["BLOCKS 2/4/[7]"]); // Y7b2 (the words): was ["BLOCKS 2/4/[7]", "★3 FACTORY GUARD"]
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: BLOCKS 2 read as 2 seconds): the first n each fight do nothing; two lines
+    // of the op band (329 px), its PARTS tappable (was `BLOCKS ${n} {*STUN} ON ITS BELT'S PARTS.`)
+    expect(lines("tollbooth")).toEqual([2, 4, 7].map((n) => [`THE FIRST ${n} {*STUN} ON ITS BELT'S PARTS EACH FIGHT DO NOTHING.`]));
+    oneLine("tollbooth", 2); // WORDS-1 (REQ-BFG-081): READ-1 6.1's plain words, two lines of the band (was one)
+    expect(levels("tollbooth", 1)).toEqual(["FIRST [2]/4/7", "NEXT ★2: FIRST 4"]); // WORDS-1: its key's words, FIRST (was BLOCKS) // Y7b2 (the words): was ["BLOCKS [2]/4/7", "★3 FACTORY GUARD", "NEXT ★2: BLOCKS 4"] (the name left with its rule)
+    expect(levels("tollbooth", 3)).toEqual(["FIRST 2/4/[7]"]); // WORDS-1: FIRST (was BLOCKS) // Y7b2 (the words): was ["BLOCKS 2/4/[7]", "★3 FACTORY GUARD"]
   });
 });
 
@@ -158,8 +169,9 @@ describe("Y2 row 11: SABOT FOUNDRY ★3 drops SHRAPNEL and works at RATE 20", ()
   });
 
   it("face: ITS ROUNDS WRECK RIGS FOR THE FIGHT at every star, no SHRAPNEL clause; ladder RATE 5/11/20", () => {
-    expect(lines("sabot")).toEqual(STARS.map(() => ["ITS ROUNDS WRECK RIGS FOR THE FIGHT."]));
-    oneLine("sabot");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: WRECK): plain words (was "ITS ROUNDS WRECK RIGS FOR THE FIGHT.")
+    expect(lines("sabot")).toEqual(STARS.map(() => ["ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT."]));
+    oneLine("sabot", 2); // WORDS-1 (REQ-BFG-081): READ-1 6.1's plain words, two lines of the band (was one)
     expect(levels("sabot", 3)).toEqual(["{RATE} 5/11/[20]", "{BELT} 2/3/[4]"]); // Y7b2 (the words): was ["{RATE} 5/11/[20]", "{BELT} 2/3/[4]", "★3 SHRAPNEL"]
     expect(faceAt("sabot", 3)!.stats2).toEqual([["STUN", "4"]]);
   });
@@ -368,7 +380,8 @@ describe("Y2 row 17: SPOTTER re-aims 1/2/3 times, no factory weighting, no sure 
   });
 
   it("face: SHOTS AT BARE HULL GET 1/2/3 MORE AIM(S), no clause; ladder 1/2/3 MORE AIMS", () => {
-    expect(lines("spotter")).toEqual([["SHOTS AT BARE HULL GET 1 MORE AIM."], ["SHOTS AT BARE HULL GET 2 MORE AIMS."], ["SHOTS AT BARE HULL GET 3 MORE AIMS."]]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1's one-offs: BARE HULL): AIMED AT NO PART (was "SHOTS AT BARE HULL GET ...")
+    expect(lines("spotter")).toEqual([["SHOTS AIMED AT NO PART GET 1 MORE AIM."], ["SHOTS AIMED AT NO PART GET 2 MORE AIMS."], ["SHOTS AIMED AT NO PART GET 3 MORE AIMS."]]);
     oneLine("spotter");
     // Y7b2 (the words): was ["[1]/2/3 MORE AIMS", "★2 FACTORY SPOT", "★3 EAGLE EYE", "NEXT ★2: 2 MORE AIMS ★2 FACTORY SPOT"]
     expect(levels("spotter", 1)).toEqual(["[1]/2/3 MORE AIMS", "NEXT ★2: 2 MORE AIMS"]);
@@ -399,8 +412,9 @@ describe("Y2 row 18: OVERDRIVE ★2/★3 lose their flat and their guards", () =
   });
 
   it("face: ITS BELTS RUN 3/4/5 TIMES AS FAST, one line (no HIT: +10 line, no guard clause); ladder 3/4/5 TIMES", () => {
-    expect(lines("overdrive")).toEqual([3, 4, 5].map((n) => [`ITS BELTS RUN ${n} TIMES AS FAST.`]));
-    oneLine("overdrive");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: read as the whole belt): FROM THESE TILES ON, two lines of the op band
+    expect(lines("overdrive")).toEqual([3, 4, 5].map((n) => [`ITS BELTS RUN ${n} TIMES AS FAST FROM THESE TILES ON.`]));
+    oneLine("overdrive", 2); // WORDS-1 (REQ-BFG-081): READ-1 6.1's plain words, two lines of the band (was one)
     expect(levels("overdrive", 1)).toEqual(["[3]/4/5 TIMES", "★2 REDLINE", "★3 AFTERBURNER", "NEXT ★2: 4 TIMES ★2 REDLINE"]);
   });
 });

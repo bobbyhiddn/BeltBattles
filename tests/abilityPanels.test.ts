@@ -443,8 +443,10 @@ describe("0.6.2t T4: the panels' layout", () => {
     // ended with "★3 TWIN SIGNET", then the rule)
     expect(text[0]).toBe(faceLines("mimic", 3, { hero: "furnace" })!.stats);
     expect(text.filter((l) => l.includes("TWIN SIGNET"))).toEqual([]);
-    expect(text.join(" ")).toContain("STAMPS YOUR HERO'S SLUGS."); // (the desk column wraps it: its last line ends "SLUGS.")
-    const p = text.findIndex((l) => l.endsWith("SLUGS."));
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1: STAMPS in plain words): "MAKES YOUR HERO'S SLUGS TOO." (was "STAMPS YOUR HERO'S
+    // SLUGS."); the desk column wraps it, its last line ends "TOO." (was "SLUGS.")
+    expect(text.join(" ")).toContain("MAKES YOUR HERO'S SLUGS TOO.");
+    const p = text.findIndex((l) => l.endsWith("TOO."));
     expect([p > 0, text[p + 1]]).toEqual([true, "--"]);
   });
 
@@ -769,7 +771,9 @@ describe("0.6.2t2 F1: no flavour sentence repeats the ability text on its panel"
     }
     // the counts the REPORT quotes (881b38f: 1076 panels with a flavour block, 1491 sentences, 1330 of them flagged; the
     // 0.6.2t2 tip 85 and 85; 0.6.2rel2 on the 0.6.2 candidate: 24 more, RAMPART CANNON's and HAIL GUN's cards and offers)
-    expect([flavoured, sentences]).toEqual([109, 109]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1): SABOT FOUNDRY keeps no flavour ("THE ENEMY SEES EACH ROUND COMING." read as a rule),
+    // so its 15 panels show none: 94 (was 109)
+    expect([flavoured, sentences]).toEqual([94, 94]);
     console.log(`F1 guard: ${PANELS.length} panels, ${flavoured} with a flavour block, ${sentences} flavour sentences, 0 repeats`);
   });
 
@@ -907,7 +911,11 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // Y7b2 (the flip): 1223, measured: release Y's faces for the 30 folded pieces (a stat row and one line, no interim
     // clause or caveat) leave 342 more phone panels room for the hint. Y7b2 (the words): 1231, measured: no panel draws a
     // perk's name (R-1 for every piece), 8 more (was 881)
-    expect(hints).toBe(1231);
+    // WORDS-1 (REQ-BFG-081), measured: 1048 (was 1231). The turrets' two plain lines under the stat row (TEXT-STYLE 1.4 as
+    // ruled 2026-10-10) and READ-1 6.1's longer plain lines (the speed rigs, TWIN GAUGE, OVERCLOCKER, DRAKE NOZZLE, TOLLBOOTH,
+    // SABOT FOUNDRY) take the optional hint's room on the fixed 69 px band on 183 phone panels; the hint gives way first, as
+    // ever (a finger's panel grows past the band to its full text: shoptap2, layout.ts panelArea)
+    expect(hints).toBe(1048);
   });
 });
 

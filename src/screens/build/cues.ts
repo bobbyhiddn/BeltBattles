@@ -8,13 +8,14 @@ import { beltIndex, bestSpot, hitsIfPlaced, stokeSpots, stokesIfPlaced } from ".
 import { C, RARITY_COLOR } from "../../render/palette";
 import { bevel, frame, rect, type G } from "../../render/pixel";
 import { drawText } from "../../render/font";
-import { footX, footY, sdir } from "../../render/frame";
+import { footX, footY, hullBox, sdir } from "../../render/frame";
 import { factorySprite, gateSprite, itemIcon, rigNozzle, rigTip, type ArrowState } from "../../render/sprites";
 import { arrowDir } from "../../render/fxsprites";
 import { turretPivotX, turretPivotY } from "../../render/cruiser";
 import { inside, type Rect } from "../../ui/ui";
 import { dropCell, type Carry } from "./actions";
 import type { BuildLayout } from "./layout";
+import { inCarrier } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
 
 /** A deck cell; for a rig, with the rotation it would take there. */
 type Cell = { x: number; y: number; rot?: number };
@@ -149,14 +150,18 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
   const bob = Math.floor(t * 4) % 2;
   const lift = Math.min(8, Math.round(3 + 30 * Math.min(0.15, t)));
   const rig = isRig(c.def);
+  // ZOOM-1 (REQ-BFG-080): what snaps to the deck (the ghost, the lifted tile over its cell, the turret brackets) draws in
+  // the carrier's space at its zoom (inCarrier); the tile under the pointer, off the deck, at the UI's scale
   if ((def.kind === "gate" || def.kind === "factory") && inside(L.hull, px, py)) {
     const cell = dropCell(L, px, py, def.size);
     if (cell) {
       const at: Cell = rig ? { ...cell, rot: c.rot ?? 0 } : cell;
-      drawGhostAt(g, L, b, c.def, at, c.src.from === "deck" ? c.uid : -1, t, 0.55);
-      const half = (def.size * 12) / 2;
-      drawLifted(g, c.def, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half,
-        half + 4 + bob + (rig ? 12 : 0), 1, rig ? liftedArrows(L, b, c, at) : undefined);
+      inCarrier(g, L, () => {
+        drawGhostAt(g, L, b, c.def, at, c.src.from === "deck" ? c.uid : -1, t, 0.55);
+        const half = (def.size * 12) / 2;
+        drawLifted(g, c.def, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half,
+          half + 4 + bob + (rig ? 12 : 0), 1, rig ? liftedArrows(L, b, c, at) : undefined);
+      });
       return;
     }
   }
@@ -168,19 +173,19 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
       // 0.6.1b: gear needs a free hardpoint; a core always fits its socket (a bought core there swaps to cargo).
       // 0.6.2s (S4): a free GEAR SLOT and no second copy of the def; an empty slot takes neither
       const taken = !s.turret || (def.kind === "mod" && !canFitGear(b, ti, c.def, c.uid).ok);
-      frame(g, x - 13, y - 13, 26, 26, taken ? C.red : C.lime);
+      inCarrier(g, L, () => frame(g, x - 13, y - 13, 26, 26, taken ? C.red : C.lime));
     }
   }
   if (def.kind === "turret") {
     // 0.6.2s (REQ-BFG-031 S5, S10): every TURRET SLOT is a target (amber brackets); the one under the pointer shows
     // what the drop does: lime installs in an empty slot, yellow swaps with the turret there
     const ti = turretAt(px, py);
-    turretSlots(b).forEach((s, i) => {
+    inCarrier(g, L, () => turretSlots(b).forEach((s, i) => {
       const x = Math.round(turretPivotX(L.frame, s.col0, s.width)), y = Math.round(turretPivotY(L.frame, s.col0, s.width));
       const here = i === ti;
       frame(g, x - 13, y - 13, 26, 26, here ? (s.turret && !(c.src.from === "mount" && c.src.index === i) ? C.yellow : C.lime) : C.amber);
       if (here) frame(g, x - 14, y - 14, 28, 28, C.ink);
-    });
+    }));
   }
   if (def.kind === "supply" && inside(L.hull, px, py)) frame(g, L.hull.x - 2, L.hull.y - 2, L.hull.w + 4, L.hull.h + 4, C.lime);
   // lifted: the 2x tile above the pointer, contact shadow under the pointer
@@ -205,7 +210,9 @@ export function drawSuggestion(g: G, L: BuildLayout, b: Build, defId: string, t:
     return;
   }
   if (def.kind === "supply") {
-    if (Math.floor(t * 3) % 2) frame(g, L.hull.x - 2, L.hull.y - 2, L.hull.w + 4, L.hull.h + 4, C.amber);
+    // ZOOM-1 (REQ-BFG-080): drawn in the carrier's space (chrome.ts inCarrier): the hull box there, not L.hull (on screen)
+    const hb = hullBox(L.frame);
+    if (Math.floor(t * 3) % 2) frame(g, hb.x - 2, hb.y - 2, hb.w + 4, hb.h + 4, C.amber);
     return;
   }
   const cell = suggestCell(b, defId);

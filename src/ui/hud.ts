@@ -13,14 +13,16 @@ import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): 
  * Hull bar: ink frame, 1px ticks. `shown` trails `hp` (chip damage drains after a hold);
  * `flash` > 0 blinks the live fill white on the frame a hit lands.
  */
-export function hullBar(g: G, x: number, y: number, w: number, h: number, hp: number, shown: number, max: number, color: string, flash: number, t: number): void {
-  rect(g, x, y, w, h, C.ink);
+export function hullBar(g: G, x: number, y: number, w: number, h: number, hp: number, shown: number, max: number, color: string, flash: number, t: number, tint?: string): void {
+  // WIND-1 (REQ-BFG-093): `tint` (the dark wind's colour on a wind tick) flashes the bar's frame and its live fill in it; the
+  // fill's length (the level), the chip and the tick gaps draw as always, so the level never hides. Absent: as before
+  rect(g, x, y, w, h, tint ?? C.ink);
   const iw = w - 2, ih = h - 2;
   const fa = Math.max(0, Math.min(1, hp / max));
   const fs = Math.max(fa, Math.min(1, shown / max));
   const na = Math.round(iw * fa), ns = Math.round(iw * fs);
   const low = fa < 0.25;
-  const live = flash > 0 ? C.white : low && Math.floor(t * 6) % 2 ? C.red : color;
+  const live = tint ?? (flash > 0 ? C.white : low && Math.floor(t * 6) % 2 ? C.red : color);
   rect(g, x + 1, y + 1, iw, ih, C.slate0);
   if (ns > na) rect(g, x + 1 + na, y + 1, ns - na, ih, flash > 0 ? C.bone : C.white);
   if (na > 0) {

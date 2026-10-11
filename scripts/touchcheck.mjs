@@ -95,8 +95,9 @@ const opt = (name, fallback) => {
 };
 const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "touchcheck"));
-// PACKS M2: + names; TAP-093b: + bar; CUSTOM-2b (REQ-BFG-072): + customize, newstyle, roadfork
-const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork").split(",").map((s) => s.trim());
+// PACKS M2: + names; TAP-093b: + bar; CUSTOM-2b (REQ-BFG-072): + customize, newstyle, roadfork; SCOUT-1 (REQ-BFG-076): + scout;
+// SCOUT-1c (REQ-BFG-082): + foecard
+const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout,foecard").split(",").map((s) => s.trim());
 const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
 /** CUSTOM-2b (REQ-BFG-072): --profile: the player profile (beltbattles.profile.v1) every page of the run starts with,
@@ -149,6 +150,10 @@ const VIEW = {
   desk: VIEWS.desk, // 1920x1080 @1, the mouse
   // TAP-093b (backlog #340): a DPR 2 phone (the iPhone SE class: x3, a finger's target 30 px) for the bar-only section
   "bar-667": { viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  // SCOUT-1 (REQ-BFG-076): the scout section's other views (design call 4)
+  "phone-430": { viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  laptop: { viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 },
+  "laptop-720": { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
 };
 /** shoptap2: the browser a view runs in. */
 const ENGINE = (vname) => (vname.startsWith("wk-") ? "webkit" : "chromium");
@@ -347,7 +352,10 @@ async function openDeck(page, deck) {
 
 /** In-page client points: a deck cell's centre, a shop card's, a turret slot's, a cargo slot's, a UI region's. */
 const cell = (page, x, y) => page.evaluate(([cx, cy]) => {
-  const f = window.bb.game.screen.L.frame, D = 120;
+  // ZOOM-1 (REQ-BFG-080): through the carrier's own zoom where the build has it (BuildScreen.tileCentre)
+  const s = window.bb.game.screen;
+  if (typeof s.tileCentre === "function") { const p = s.tileCentre(cx, cy); return window.bb.toClient(p.x, p.y); }
+  const f = s.L.frame, D = 120;
   const sx = f.facing === 0 || f.facing === 2 ? f.dx + cx * 12 : f.facing === 1 ? f.dx + D - (cy + 1) * 12 : f.dx + cy * 12;
   const sy = f.facing === 0 ? f.dy + cy * 12 : f.facing === 2 ? f.dy + D - (cy + 1) * 12 : f.dy + cx * 12;
   return window.bb.toClient(sx + 6, sy + 6);
@@ -386,18 +394,23 @@ const lookNow = (page) => page.evaluate(() => {
   const a = s.L.info, p = window.bb.toClient(a.x, a.y), q = window.bb.toClient(a.x + a.w, a.y + a.h);
   const band = s.L.portrait ? { x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y } : null;
   const inBand = !!box && !!band && box.x >= band.x - 0.51 && box.y >= band.y - 0.51 && box.x + box.w <= band.x + band.w + 0.51 && box.y + box.h <= band.y + band.h + 0.51;
+  // ZOOM-1 (REQ-BFG-080, call 5): a panel grown up over the shop rows from the band (its foot at the band's foot, never
+  // over the carrier under it)
+  const grownUp = !!box && !!band && !inBand && box.y + box.h <= band.y + band.h + 0.51 && box.y < band.y;
   return {
     sel: s.sel, carry: s.ed.carry ? s.ed.carry.def : null, draw: s.ed.draw ? { ...s.ed.draw, cells: [...s.ed.draw.cells] } : null,
     toasts: g.toastLog.length, panel: typeof window.bb.panel === "function" ? window.bb.panel() : null, gold: g.run.gold,
-    box, inside, vis: { x: x0, y: y0, w: Math.round(x1 - x0), h: Math.round(y1 - y0) }, band, inBand,
+    box, inside, vis: { x: x0, y: y0, w: Math.round(x1 - x0), h: Math.round(y1 - y0) }, band, inBand, grownUp,
   };
 });
 /** zoom (REQ-BFG-040, A1): on a portrait phone view (FIT_VIEWS) the panel a tap opened sits inside the band, drawn no
  *  bigger than it (not grown over the bow or the shop), fully inside the visible viewport, with its full description
  *  (panelInfo's `full`: its kept text whole, the full body's text, every rule sentence, no phone cut; its flavour and hint
  *  may give way, and its form is reported). */
-const fitted = (l) => !!l.panel && l.inBand && l.inside && l.panel.full === true;
-const fdesc = (l) => (!l.panel ? "no panel" : `${l.box ? `${l.box.w.toFixed(0)}x${l.box.h.toFixed(0)} CSS px at y ${l.box.y.toFixed(0)}` : "not drawn"} ${l.inBand ? "inside" : "NOT inside"} the band${l.band ? ` (${l.band.h.toFixed(0)} CSS px at y ${l.band.y.toFixed(0)})` : ""}; ${l.panel.full === true ? "its full description" : l.panel.full === false ? "NOT its full description" : "full description unknown"}${l.panel.fullest ? ", every block (variant 0)" : l.panel.full ? ` (variant ${l.panel.variant}${l.panel.dropped.length ? `, ${l.panel.dropped.join("/")} gave way` : ""})` : ""}`);
+// ZOOM-1 (REQ-BFG-080, call 5): a phone's band is sized for 90% of the panels; the rest grow up over the shop rows, never
+// over the carrier: in the band, or grown up from it (grownUp), with the full description (was: in the band only)
+const fitted = (l) => !!l.panel && (l.inBand || l.grownUp) && l.inside && l.panel.full === true;
+const fdesc = (l) => (!l.panel ? "no panel" : `${l.box ? `${l.box.w.toFixed(0)}x${l.box.h.toFixed(0)} CSS px at y ${l.box.y.toFixed(0)}` : "not drawn"} ${l.inBand ? "inside" : l.grownUp ? "grown up over the shop from" : "NOT inside"} the band${l.band ? ` (${l.band.h.toFixed(0)} CSS px at y ${l.band.y.toFixed(0)})` : ""}; ${l.panel.full === true ? "its full description" : l.panel.full === false ? "NOT its full description" : "full description unknown"}${l.panel.fullest ? ", every block (variant 0)" : l.panel.full ? ` (variant ${l.panel.variant}${l.panel.dropped.length ? `, ${l.panel.dropped.join("/")} gave way` : ""})` : ""}`);
 function fitCheck(vname, V, what, l) {
   if (FIT_VIEWS.has(vname)) check(fitted(l), `${V}: A1 ${what}: its panel ${fdesc(l)}`);
 }
@@ -430,10 +443,17 @@ const marksOf = (page, track) => page.evaluate(([tr, glyphs, yellow, ink]) => {
   const cx = scratch.getContext("2d", { willReadFrequently: true });
   cx.drawImage(g.canvas, 0, 0);
   const near = (d, k, c) => Math.abs(d[k] - c[0]) <= 3 && Math.abs(d[k + 1] - c[1]) <= 3 && Math.abs(d[k + 2] - c[2]) <= 3;
+  // ZOOM-1 (REQ-BFG-080): the marks are in the carrier's space (its own zoom, BuildScreen.carrierView) and the canvas runs on
+  // its grid (sub canvas px per logical px): each numeral pixel is read at its centre through both (k 1, sub 1: as before)
+  const cv = typeof s.carrierView === "function" ? s.carrierView() : { k: 1, x: 0, y: 0, sub: 1 };
+  const at = (x, y) => [Math.floor((cv.x + cv.k * (x - cv.x)) * cv.sub), Math.floor((cv.y + cv.k * (y - cv.y)) * cv.sub)];
   return marks.map((m) => {
-    const rows = (glyphs[m.text] ?? "").split("|"), d = cx.getImageData(m.x + 1, m.y + 1, 3, 5).data;
+    const rows = (glyphs[m.text] ?? "").split("|");
     let px = 0;
-    for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (rows[j] && near(d, 4 * (j * 3 + i), rows[j][i] === "#" ? yellow : ink)) px++;
+    for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) {
+      const [qx, qy] = at(m.x + 1 + i + 0.5, m.y + 1 + j + 0.5), d = cx.getImageData(qx, qy, 1, 1).data;
+      if (rows[j] && near(d, 0, rows[j][i] === "#" ? yellow : ink)) px++;
+    }
     return { ...m, px };
   });
 }, [track, GLYPH3, YELLOW, INK]);
@@ -748,27 +768,39 @@ async function touchSection(browsers, origin, vname) {
     if (title !== null) fitCheck(vname, V, `${what} read with the GREASE WORKS card selected`, l);
   }
 
-  // shoptap2: where a finger's panel grows past the band it covers part of the bow (a shop card's) or the shop (a part's):
-  // a press there goes through to what is under it; a press on the band part of the panel changes nothing, as ever
+  // shoptap2: where a finger's panel grows past the band a press on what it covers goes through to what is under it; a
+  // press on the band part of the panel changes nothing, as ever. ZOOM-1 (REQ-BFG-080, call 5): every panel grows up over
+  // the shop rows (a shop card's grew down over the bow, which the zoomed carrier fills now): the BOMBARD's (a turret with
+  // a core and gear: the tallest kind) and a shop card it covers, read through it
   {
     await page.keyboard.press("Escape");
-    await tap(cdp, await card(page, 0), 3, 0);
-    const l0 = await look(page), t = await turret(page, 1);
+    await tap(cdp, await turret(page, 1), 3, 0);
+    const l0 = await look(page);
     const band = await page.evaluate(() => { const a = window.bb.game.screen.L.info, p = window.bb.toClient(a.x, a.y), q = window.bb.toClient(a.x + a.w, a.y + a.h); return { x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y }; });
     const under = (p, r) => !!r && p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
-    if (under(t, l0.box) && !under(t, band)) {
+    // SPACE-1 (REQ-BFG-087, D4): a panel now grows until its gaps show (or to the top), so the BOMBARD's header row (its
+    // buttons, each a finger's target) and its words (their tap targets) can lie over a shop card; a press there is the
+    // panel's, as ever (UI.hit: the last region added wins). The card read through it is the first whose centre's top
+    // region is the panel's press-through (`details-over`), the part of the panel a press goes through. Was: the first
+    // card under the panel and not under the band
+    const topRegion = (p) => page.evaluate((q) => window.bb.regions().filter((r) => q.x >= r.x && q.x < r.x + r.w && q.y >= r.y && q.y < r.y + r.h).pop()?.id ?? null, p);
+    let ci = -1, cp = null;
+    for (let i = 0; i < 5 && ci < 0; i++) { const p = await card(page, i); if (under(p, l0.box) && !under(p, band) && (await topRegion(p)) === "details-over") { ci = i; cp = p; } }
+    if (cp && l0.grownUp) {
       const s0 = await snap(page);
-      await tap(cdp, t, 5, 90);
+      const want = await page.evaluate((i) => { const o = window.bb.game.screen.offers()[i]; return { kind: "offer", wagon: o.wagon, slot: o.slot }; }, ci);
+      await tap(cdp, cp, 5, 90);
       const l = await look(page);
-      check(same(l.sel, { kind: "turret", index: 1 }) && shown(l, "BOMBARD") && (await snap(page)) === s0,
-        `${V}: the GREASE WORKS panel grown over the bow covers the BOMBARD; a tap there goes through and reads it (${pdesc(l)}); nothing changed`);
+      check(same(l.sel, want) && shown(l) && (await snap(page)) === s0,
+        `${V}: the BOMBARD's panel grown up over the shop covers card ${ci}; a tap there goes through and reads it (${pdesc(l)}); nothing changed`);
       if (band.h >= 6) {
-        await tap(cdp, await card(page, 0), 3, 0);
+        await tap(cdp, await turret(page, 1), 3, 0);
         await tap(cdp, { x: band.x + band.w / 2, y: band.y + band.h / 2 }, 3, 0);
         const lb = await look(page);
-        check(same(lb.sel, { kind: "offer", wagon: 0, slot: 0 }) && shown(lb, "GREASE WORKS"), `${V}: a tap on the panel over the band changes nothing (${JSON.stringify(lb.sel)})`);
+        check(same(lb.sel, { kind: "turret", index: 1 }) && shown(lb, "BOMBARD"), `${V}: a tap on the panel over the band changes nothing (${JSON.stringify(lb.sel)})`);
       }
-    } else log(`[${at()}] ${V}: the shop card's panel doesn't cover the BOMBARD here (the ${env.band === null ? "landscape column" : "band"}, ${band.h.toFixed(0)} CSS px tall, holds it): no press goes through`);
+    } else if (l0.grownUp) log(`[${at()}] ${V}: the BOMBARD's panel grown up over the shop covers no card's centre where a press goes through (each covered card's centre is under its buttons or words): no press goes through`); // SPACE-1
+    else log(`[${at()}] ${V}: the BOMBARD's panel doesn't grow over a shop card here (the ${env.band === null ? "landscape column" : "band"}, ${band.h.toFixed(0)} CSS px tall, holds it): no press goes through`);
   }
 
   // 035: SELL from each panel (a fresh deck each)
@@ -1714,6 +1746,380 @@ async function roadForkSection(browsers, origin) {
   writeFileSync(join(OUT, `${NAME}-roadfork.json`), JSON.stringify(dump, null, 1) + "\n");
 }
 
+// ----------------------------------------------------------------------------------- SCOUT-1: VIEW BATTLEFIELD; SCOUT-1b
+/** SCOUT-1 (REQ-BFG-076): the views the scout section runs on: the phones 390x844 and 430x932 and phone landscape 844x390
+ *  at DPR 3 (touch, Chromium), the desk 1920x1080 and the laptops 1366x768 and 1280x720 (the mouse). SCOUT-1b
+ *  (REQ-BFG-082, REQ-BFG-083): no scouting pause (the sail-in runs into the count at WIDE, no FIGHT step), VIEW
+ *  BATTLEFIELD as SCOUT-1 left it (its faces now tapped in the view), the cards whole and the warlord's VIEW BATTLEFIELD
+ *  above its PICK line; and the speed picked holding for the run (SPEED_VIEWS). */
+const SCOUT_VIEWS = ["phone", "phone-430", "phone-land", "desk", "laptop", "laptop-720"];
+const SPEED_VIEWS = ["phone", "desk"];
+const SPEED_KEY = "beltbattles.speed.v1"; // src/game/runSpeed.ts
+const overlaps = (a, b) => !!a && !!b && a.x < b.x + b.w - 0.5 && b.x < a.x + a.w - 0.5 && a.y < b.y + b.h - 0.5 && b.y < a.y + a.h - 0.5;
+const inViewport = (r, vp) => !!r && r.x >= -0.5 && r.y >= -0.5 && r.x + r.w <= vp.width + 0.5 && r.y + r.h <= vp.height + 0.5;
+// (box and centre: the customize section's and the panel checks', above)
+/** Both boards' deck tiles (120 x 120 deck px each) on screen now, CSS px. */
+const decks = (page) => page.evaluate(() => {
+  const g = window.bb.game, s = g.screen, m = s.motion, a = s.arena, k = g.view.scale / g.view.dpr, c = g.canvas.getBoundingClientRect();
+  return [0, 1].map((side) => {
+    const p = [[0, 0], [120, 0], [0, 120], [120, 120]].map(([x, y]) => m.localToScreen(a, side, x, y));
+    const xs = p.map((q) => c.left + q[0] * k), ys = p.map((q) => c.top + q[1] * k);
+    return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  });
+});
+const scoutState = (page) => page.evaluate(() => window.bb.scout());
+const regionOf = (page, id) => page.evaluate((i) => window.bb.regions().filter((q) => q.id === i).pop() ?? null, id);
+/** Wait for the battle's phase (bb.screen(true)) with its camera at rest. */
+const phaseAtRest = (page, ph, timeout = 20000) => page.waitForFunction((p) => { const s = window.bb.scout(); return !!s && s.phase === p && !!s.camera && !s.camera.moving; }, ph, { timeout });
+const SPEED_LABEL = ["0.5X", "1X", "2X", "4X"];
+
+/** A real press at client point p: a finger's tap on a touch view, a click on a mouse one. */
+async function press(page, cdp, p) {
+  if (cdp) await tap(cdp, p);
+  else {
+    await page.mouse.click(p.x, p.y);
+    await sleep(120);
+  }
+}
+
+/** SCOUT-1b (REQ-BFG-082): from a battle's first frame to GO, every animation frame: its phase, the camera, the sim's
+ *  ticks and whether a FIGHT button is drawn (in the page, so no frame is missed). */
+const sailIn = (page) => page.evaluate(() => new Promise((ok) => {
+  const out = [], t0 = performance.now();
+  const tick = () => {
+    const s = window.bb.scout();
+    if (s) out.push({ ph: s.phase, shot: s.camera ? s.camera.shot : null, moving: !!s.camera?.moving, ticks: s.ticks, fight: window.bb.regions().some((q) => q.id === "fight"), t: performance.now() - t0 });
+    if ((s && s.phase === "fight") || performance.now() - t0 > 20000) ok(out);
+    else requestAnimationFrame(tick);
+  };
+  tick();
+}));
+
+async function scoutView(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  const V = `scout ${vname}`, vp = VIEW[vname].viewport, touch = !!cdp;
+  viewNow = V;
+  const big = (r) => !touch || (!!r && r.w >= TAP_CSS - 0.01 && r.h >= TAP_CSS - 0.01);
+  await page.evaluate(() => window.bb.openDusk({ hero: "furnace", day: 6, seed: 7 }, []));
+  // SCOUT-1b (REQ-BFG-082): the fight starts at once: the sail-in runs into the 3-2-1 count by itself, at WIDE and at rest
+  const fr = await sailIn(page);
+  const before = fr.filter((f) => f.ph !== "fight"), phases = [...new Set(fr.map((f) => f.ph))];
+  const go = fr.find((f) => f.ph === "fight");
+  check(!!go && phases.join(",") === "intro,count,fight", `${V}: the sail-in runs into the 3-2-1 count and GO by itself, no scouting (${phases.join(" -> ")}; GO ${go ? (go.t / 1000).toFixed(2) : "never"} s after the first frame, ${fr.length} frames)`);
+  check(before.length > 0 && before.every((f) => f.shot === "wide" && !f.moving), `${V}: the camera is WIDE and at rest through the sail-in and the count (${before.length} frames: ${[...new Set(before.map((f) => `${f.shot}${f.moving ? " moving" : ""}`))].join(", ")})`);
+  check(before.every((f) => !f.fight && f.ticks === 0), `${V}: no FIGHT button and no sim step before GO (FIGHT drawn on ${before.filter((f) => f.fight).length} frames; ticks ${Math.max(0, ...before.map((f) => f.ticks))})`);
+  await shot(page, `${TAG}-scout-${vname}-go.png`);
+  const skip = await regionOf(page, "skip");
+  await press(page, cdp, centre(skip));
+  await page.waitForFunction(() => window.bb.screen(true) === "result" && window.bb.regions().some((q) => q.id === "viewfield"), null, { timeout: 30000 });
+  await sleep(300); // the card at rest (its rise is 0.25 s)
+  const vf = await regionOf(page, "viewfield"), nx = await regionOf(page, "next");
+  let s = await scoutState(page);
+  check(!!vf && big(vf) && inViewport(vf, vp) && !!nx && !overlaps(vf, nx), `${V}: the result card's VIEW BATTLEFIELD is ${box(vf)} CSS px${touch ? ", at least 44 tall" : ""}, beside ON TO DAWN (${box(nx)}), never over it`);
+  check(!!s.card && inViewport(s.card, vp) && s.card.y >= 1.5 && s.card.y + s.card.h <= vp.height - 1.5, `${V}: the dusk card is whole on the screen (${box(s.card)} in ${vp.width}x${vp.height})`);
+  await shot(page, `${TAG}-scout-${vname}-card.png`);
+  await press(page, cdp, centre(vf));
+  await phaseAtRest(page, "view");
+  await page.waitForFunction(() => window.bb.scout().summaries.length === 2, null, { timeout: 5000 });
+  s = await scoutState(page);
+  let d = await decks(page);
+  const sumsOk = s.summaries.length === 2 && s.summaries.every((r) => inViewport(r, vp) && !overlaps(r, d[0]) && !overlaps(r, d[1]));
+  check(s.phase === "view" && s.camera.shot === "close" && sumsOk, `${V}: VIEW BATTLEFIELD at CLOSE with both summaries (${s.summaries.map(box).join("; ")}) on the screen, over no board's tile`);
+  check(big(s.back) && big(s.primary) && inViewport(s.back, vp) && inViewport(s.primary, vp) && !overlaps(s.back, s.primary) && !overlaps(s.back, d[0]) && !overlaps(s.back, d[1]) && !overlaps(s.primary, d[0]) && !overlaps(s.primary, d[1]),
+    `${V}: BACK (${box(s.back)}) and ${s.viewPrimary} (${box(s.primary)})${touch ? " at least 44 x 44" : ""}, apart, on the screen, over no board's tile`);
+  // a face by a real tap on a part of each board (a turret's with this fight's line); CLOSE first where the last face lies
+  // over the next part (the 1366x768 laptop: a face there opens over the other carrier)
+  const parts = await page.evaluate(() => [window.bb.parts(0), window.bb.parts(1)]);
+  for (const [side, kind] of [[1, "turret"], [0, "item"], [0, "turret"], [1, "item"]]) {
+    const p = parts[side].find((q) => q.kind === kind) ?? parts[side][0];
+    const under = !!s.face && p.x >= s.face.r.x && p.x < s.face.r.x + s.face.r.w && p.y >= s.face.r.y && p.y < s.face.r.y + s.face.r.h;
+    if (under) await press(page, cdp, centre(s.face.close));
+    await press(page, cdp, p);
+    s = await scoutState(page);
+    const ok = !!s.face && s.face.side === side && s.face.sel.kind === p.kind && s.face.title.startsWith(p.name) && s.face.lines.length > 0 && (p.kind !== "turret" || /^THIS FIGHT: /.test(s.face.line ?? ""));
+    check(ok && inViewport(s.face.r, vp) && big(s.face.close) && !overlaps(s.face.r, { x: p.x - 1, y: p.y - 1, w: 2, h: 2 }),
+      `${V}: in VIEW BATTLEFIELD a ${touch ? "tap" : "click"} on ${side === 0 ? "your" : "the enemy's"} ${p.name} (${p.kind}) opens its face (${s.face?.title ?? "none"}, side ${s.face?.side}, ${s.face?.lines.length ?? 0} lines${p.kind === "turret" ? `, "${s.face?.line ?? "no fight line"}"` : ""})${under ? " (after CLOSE: the last face lay over it)" : ""}, on the screen, the part in sight; its CLOSE ${box(s.face?.close)}`);
+  }
+  await shot(page, `${TAG}-scout-${vname}-view.png`);
+  await press(page, cdp, centre(s.face.close));
+  s = await scoutState(page);
+  check(!s.face && s.phase === "view", `${V}: the face's CLOSE closes it; still in the view (${s.phase})`);
+  await press(page, cdp, parts[0][0]);
+  d = await decks(page);
+  const water = { x: 4, y: d[0].y + d[0].h / 2 }; // beside your board, no part there
+  await press(page, cdp, water);
+  s = await scoutState(page);
+  check(!s.face && s.phase === "view", `${V}: a ${touch ? "tap" : "click"} on empty space closes a face; still in the view (${s.phase})`);
+  await press(page, cdp, centre(s.back));
+  s = await scoutState(page);
+  check(s.phase === "result" && !!(await regionOf(page, "next")), `${V}: BACK returns to the result card (${s.phase})`);
+  await sleep(150);
+  await press(page, cdp, centre(await regionOf(page, "viewfield")));
+  await phaseAtRest(page, "view");
+  s = await scoutState(page);
+  await press(page, cdp, centre(s.primary));
+  await settle(page, "build", 15000);
+  check(await page.evaluate(() => window.bb.screen() === "build"), `${V}: ${s.viewPrimary} from VIEW BATTLEFIELD goes on to the dawn's build screen`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+  await ctx.close();
+}
+
+/** SCOUT-1: a Hard warlord won on the phone: the card's VIEW BATTLEFIELD, the pick unchanged. SCOUT-1b (REQ-BFG-082):
+ *  VIEW BATTLEFIELD above the line PICK 1 PART FROM THEIR DECK:, which sits right over the picks; the card whole. */
+async function scoutWarlord(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  const V = `scout ${vname} warlord`, touch = !!cdp, vp = VIEW[vname].viewport;
+  viewNow = V;
+  await page.evaluate(() => window.bb.openWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 }));
+  // the card is up at once (reloaded on its result), under the screen's wipe, which takes no tap: wait for the wipe too
+  await page.waitForFunction(() => window.bb.screen(true) === "result" && !window.bb.game.transitioning && window.bb.regions().some((q) => q.id === "viewfield"), null, { timeout: 20000 });
+  await sleep(300);
+  const vf = await regionOf(page, "viewfield"), t0 = await regionOf(page, "take0"), t1 = await regionOf(page, "take1");
+  const k = await page.evaluate(() => window.bb.game.view.scale / window.bb.game.view.dpr); // CSS px a logical px
+  // the PICK line (3x5, 9 logical px with its gap) lies between them: the view's target ends 10 px or more above the picks
+  const gap = vf && t0 ? t0.y - (vf.y + vf.h) : -1;
+  check(!!vf && (!touch || vf.h >= TAP_CSS - 0.01) && inViewport(vf, vp) && !!t0 && !!t1 && !overlaps(vf, t0) && !overlaps(vf, t1) && gap >= 10 * k - 0.5,
+    `${V}: the card's VIEW BATTLEFIELD (${box(vf)}) sits above the PICK line, which sits right over its part pick (${box(t0)}, ${box(t1)}): ${(gap / k).toFixed(1)} logical px between them`);
+  let s = await scoutState(page);
+  check(!!s.card && inViewport(s.card, vp), `${V}: the warlord's card is whole on the screen (${box(s.card)})`);
+  await shot(page, `${TAG}-scout-${vname}-warlord.png`);
+  await press(page, cdp, centre(vf));
+  await phaseAtRest(page, "view");
+  s = await scoutState(page);
+  check(s.phase === "view" && !!s.back && !s.primary, `${V}: a ${touch ? "tap" : "click"} on VIEW BATTLEFIELD at its new place opens the view; it offers BACK and no way on while the pick waits (${s.viewPrimary ?? "none"})`);
+  await press(page, cdp, centre(s.back));
+  await sleep(150);
+  await press(page, cdp, centre(await regionOf(page, "take0")));
+  const took = await page.evaluate(() => !!window.bb.game.screen.warlord.result.took);
+  s = await scoutState(page);
+  check(took && s.phase === "result", `${V}: BACK, then the pick takes its part as before (took: ${took})`);
+  await press(page, cdp, centre(await regionOf(page, "viewfield")));
+  await phaseAtRest(page, "view");
+  s = await scoutState(page);
+  check(s.viewPrimary === "REFIT" && !!s.primary, `${V}: with the part in cargo the view's bar offers REFIT (${s.viewPrimary})`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length})`);
+  await ctx.close();
+}
+
+/** SCOUT-1b (REQ-BFG-083): the speed picked holds for the run. A dusk on a new run starts at 1X; 2X picked by a real tap
+ *  mid-fight; SKIP, ON TO DAWN, the build screen's FIGHT!, the road fork's EASY warlord: the next battle's bar is on 2X
+ *  before its first step and it runs at 2X; a reload and CONTINUE: the same fight at 2X; a new run at 1X. */
+async function speedView(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname, { name: "SPEED" }); // a name: CONTINUE opens no name screen
+  const V = `speed ${vname}`, touch = !!cdp;
+  viewNow = V;
+  const sp = (s) => (s ? `bar ${SPEED_LABEL[s.speed]}, arena ${s.arenaSpeed}X, ${s.ticks} ticks, ${s.phase}` : "no battle");
+  const kept = () => page.evaluate((key) => localStorage.getItem(key), SPEED_KEY);
+  await page.evaluate(() => window.bb.openDusk({ hero: "furnace", day: 6, seed: 7 }, []));
+  await page.waitForFunction(() => window.bb.screen(true) === "intro", null, { timeout: 15000 });
+  let s = await scoutState(page);
+  check(s.speed === 1 && s.arenaSpeed === 1, `${V}: a new run's dusk starts at 1X (${sp(s)})`);
+  await page.waitForFunction(() => window.bb.screen(true) === "fight", null, { timeout: 15000 });
+  await press(page, cdp, centre(await regionOf(page, "sp2")));
+  s = await scoutState(page);
+  const runId = await page.evaluate(() => window.bb.game.run.runId);
+  let key = await kept();
+  check(s.speed === 2 && s.arenaSpeed === 2 && key === JSON.stringify({ runId, speed: 2 }), `${V}: a ${touch ? "tap" : "click"} on 2X mid-fight plays at 2X and keeps it with the run (${sp(s)}; ${key})`);
+  await press(page, cdp, centre(await regionOf(page, "skip")));
+  await page.waitForFunction(() => window.bb.screen(true) === "result" && window.bb.regions().some((q) => q.id === "next"), null, { timeout: 30000 });
+  await sleep(300);
+  await press(page, cdp, centre(await regionOf(page, "next")));
+  await settle(page, "build", 15000);
+  // the dawn's rune pick (and LAST CHANCE) take every tap first: take the first card, as playthrough's takeDawnRune does
+  for (let i = 0; i < 2 && (await regionOf(page, "runepick-0")); i++) await press(page, cdp, centre(await regionOf(page, "runepick-0")));
+  await sleep(200);
+  await press(page, cdp, centre(await regionOf(page, "fight")));
+  await settle(page, "fork", 15000);
+  await sleep(300);
+  for (let i = 0; i < (touch ? 2 : 1); i++) {
+    await press(page, cdp, centre(await regionOf(page, "fork1"))); // EASY: on touch a first tap inspects, a second picks
+    await sleep(200);
+  }
+  await page.waitForFunction(() => window.bb.screen() === "warlord", null, { timeout: 15000 });
+  s = await scoutState(page);
+  check(s.phase === "intro" && s.ticks === 0 && s.speed === 2 && s.arenaSpeed === 2, `${V}: the next battle (the road's EASY warlord, by FIGHT! and the fork) shows 2X before its first step (${sp(s)})`);
+  await page.waitForFunction(() => { const q = window.bb.scout(); return !!q && q.phase === "fight" && q.ticks > 0; }, null, { timeout: 15000 });
+  s = await scoutState(page);
+  check(s.speed === 2 && s.arenaSpeed === 2 && s.ticks > 0, `${V}: and it runs at 2X (${sp(s)})`);
+  await shot(page, `${TAG}-speed-${vname}-next.png`);
+  // a reload: the title's CONTINUE resumes the warlord fight (saved before it began), still at 2X
+  await page.reload();
+  await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
+  await settle(page, "title");
+  await press(page, cdp, centre(await page.waitForFunction(() => window.bb.regions().find((q) => q.id === "cont") ?? null, null, { timeout: 15000 }).then((h) => h.jsonValue())));
+  await page.waitForFunction(() => window.bb.screen() === "warlord", null, { timeout: 15000 });
+  s = await scoutState(page);
+  key = await kept();
+  check(s.speed === 2 && s.arenaSpeed === 2 && s.ticks === 0 && key === JSON.stringify({ runId, speed: 2 }), `${V}: after a reload, CONTINUE opens the same fight at 2X (${sp(s)}; ${key})`);
+  // a new run (a new runId): wait for its own battle (the old screen stays current through the screen's wipe, so a wait
+  // on the phase alone can read the old fight, also in its sail-in)
+  await page.evaluate(() => { window.bb.game.screen.oldScreen = true; window.bb.openDusk({ hero: "weaver", day: 2, seed: 11 }, []); });
+  await page.waitForFunction(() => !window.bb.game.screen.oldScreen && window.bb.screen(true) === "intro", null, { timeout: 15000 });
+  s = await scoutState(page);
+  const fresh = await page.evaluate(() => window.bb.game.run.runId);
+  check(fresh !== runId && s.speed === 1 && s.arenaSpeed === 1, `${V}: a new run starts at 1X (${sp(s)}; run ${fresh}; the key still holds the old run's: ${await kept()})`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+  await ctx.close();
+}
+
+async function scoutSection(browsers, origin) {
+  log("");
+  log("## SCOUT-1b (REQ-BFG-082, REQ-BFG-083): the fight starts at once and VIEW BATTLEFIELD after it, by real input on every view (the sail-in into the count at WIDE, the card whole, a face on each board, BACK, the primary action; the warlord's VIEW BATTLEFIELD above its PICK line); the speed picked holding for the run");
+  for (const v of SCOUT_VIEWS) {
+    loadLine(`scout ${v}: start`);
+    try {
+      await scoutView(browsers, origin, v);
+    } catch (e) {
+      check(false, `scout ${v}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    loadLine(`scout ${v}: end`);
+  }
+  try {
+    await scoutWarlord(browsers, origin, "phone");
+  } catch (e) {
+    check(false, `scout phone warlord: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+  }
+  for (const v of SPEED_VIEWS) {
+    loadLine(`speed ${v}: start`);
+    try {
+      await speedView(browsers, origin, v);
+    } catch (e) {
+      check(false, `speed ${v}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    loadLine(`speed ${v}: end`);
+  }
+}
+
+// ------------------------------------------------------------- SCOUT-1c: a scouted foe from the NEXT BATTLE card
+/** SCOUT-1c (REQ-BFG-082): after a SCOUT road stop's SPY and REFIT, the build screen's NEXT BATTLE card opens tonight's
+ *  foe's carrier by a real tap: the card's target (44 CSS px on touch), a face on a turret and an item of the foe's
+ *  carrier (read only: CLOSE, no hint), CLOSE, a tap off the carrier closing a face, BACK; the saved run's bytes the same
+ *  before and after; 0 console errors. Without a reveal (a dawn's build screen) the card has no target and a tap on it
+ *  changes nothing. On SCOUT_VIEWS, and the operator's 402x690 in WebKit where the run has WebKit. */
+const RUN_KEY = "beltbattles.run.v7"; // src/game/save.ts SAVE_KEY
+async function foeCardView(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  try {
+    await foeCardSteps(page, cdp, errors, vname);
+  } catch (e) {
+    await shot(page, `${TAG}-foecard-${vname}-stopped.png`).catch(() => {});
+    throw new Error(`at "${foeStep}": ${String(e instanceof Error ? e.message : e).split("\n")[0]} (screen ${await page.evaluate(() => window.bb.screen(true)).catch(() => "?")}; regions ${await page.evaluate(() => window.bb.regions().map((q) => q.id).join(" ")).catch(() => "?")})`);
+  } finally {
+    await ctx.close();
+  }
+}
+let foeStep = "";
+const regionWait = (page, id, timeout = 15000) => page.waitForFunction((i) => window.bb.regions().find((q) => q.id === i) ?? null, id, { timeout }).then((h) => h.jsonValue());
+async function foeCardSteps(page, cdp, errors, vname) {
+  const V = `foecard ${vname}`, vp = VIEW[vname].viewport, touch = !!cdp;
+  viewNow = V;
+  const big = (r) => !touch || (!!r && r.w >= TAP_CSS - 0.01 && r.h >= TAP_CSS - 0.01);
+  const fv = () => page.evaluate(() => window.bb.foeView());
+  const saved = () => page.evaluate((k) => localStorage.getItem(k), RUN_KEY);
+  foeStep = "the SCOUT stop";
+  await page.evaluate(() => window.bb.openEvent("scout", { hero: "furnace", day: 5, gold: 9, seed: 31 }));
+  await settle(page, "event", 15000);
+  await sleep(400);
+  foeStep = "SPY";
+  await press(page, cdp, centre(await regionWait(page, "choice2"))); // SPY
+  foeStep = "REFIT";
+  await regionWait(page, "refit");
+  // the SPY result's beat first: under load a REFIT tap sent the moment its target appears can be lost (14b22b9's
+  // gaming-mode run, phone-430 and phone-land: still on the event with REFIT up 15 s later); a lost tap is re-sent, logged
+  await sleep(800);
+  for (let i = 0; i < 3 && (await page.evaluate(() => window.bb.screen())) !== "build"; i++) {
+    const r = await regionOf(page, "refit");
+    if (!r) break;
+    if (i > 0) log(`RETRY [${V}] REFIT tapped again: the screen was still the event's (${await page.evaluate(() => window.bb.screen())})`);
+    await press(page, cdp, centre(r));
+    await page.waitForFunction(() => window.bb.screen() === "build", null, { timeout: 8000 }).catch(() => {});
+  }
+  foeStep = "the build screen";
+  await settle(page, "build", 15000);
+  foeStep = "the card's target";
+  await page.waitForFunction(() => { const f = window.bb.foeView(); return !!f && f.scouted && !!window.bb.regions().find((q) => q.id === "foecard"); }, null, { timeout: 10000 });
+  foeStep = "the view";
+  let f = await fv();
+  const card = await regionOf(page, "foecard");
+  check(f.scouted && !!card && big(card) && inViewport(card, vp), `${V}: after SCOUT's SPY and REFIT the NEXT BATTLE card is a target (${box(card)} CSS px${touch ? ", at least 44 x 44" : ""}) on the screen`);
+  await shot(page, `${TAG}-foecard-${vname}-card.png`);
+  const bytes0 = await saved();
+  await press(page, cdp, centre(card));
+  f = await fv();
+  check(f.open && big(f.back) && inViewport(f.back, vp) && f.parts.length > 0, `${V}: a ${touch ? "tap" : "click"} on the card opens the foe's carrier (${f.parts.length} parts), BACK ${box(f.back)}`);
+  for (const kind of ["turret", "item"]) {
+    const p = f.parts.find((q) => q.kind === kind) ?? f.parts[0];
+    const under = !!f.face && p.x >= f.face.r.x && p.x < f.face.r.x + f.face.r.w && p.y >= f.face.r.y && p.y < f.face.r.y + f.face.r.h;
+    if (under) await press(page, cdp, centre(f.face.close));
+    await press(page, cdp, p);
+    f = await fv();
+    const ok = !!f.face && f.face.sel.kind === p.kind && f.face.lines.length > 0 && !f.face.lines.some((l) => /^(DRAG|TAP|PRESS) /.test(l));
+    check(ok && inViewport(f.face.r, vp) && big(f.face.close) && !overlaps(f.face.r, { x: p.x - 1, y: p.y - 1, w: 2, h: 2 }) && !overlaps(f.face.r, f.back),
+      `${V}: a ${touch ? "tap" : "click"} on the foe's ${p.name} (${p.kind}) opens its face (${f.face?.title ?? "none"}, ${f.face?.lines.length ?? 0} lines), read only, on the screen, the part in sight; its CLOSE ${box(f.face?.close)}`);
+  }
+  await shot(page, `${TAG}-foecard-${vname}-face.png`);
+  await press(page, cdp, centre(f.face.close));
+  f = await fv();
+  check(f.open && !f.face, `${V}: CLOSE closes the face; the view stays open`);
+  await press(page, cdp, f.parts[0]);
+  await press(page, cdp, centre(card)); // the card's place: off the foe's carrier
+  f = await fv();
+  check(f.open && !f.face, `${V}: a ${touch ? "tap" : "click"} off the carrier closes a face; the view stays open`);
+  await press(page, cdp, centre(f.back));
+  f = await fv();
+  const bytes1 = await saved();
+  check(!f.open && (await page.evaluate(() => window.bb.screen())) === "build" && !!(await regionOf(page, "fight")), `${V}: BACK returns to the build screen (FIGHT! back)`);
+  check(!!bytes0 && bytes0 === bytes1, `${V}: the saved run's bytes are the same before the card and after BACK (${bytes0 ? bytes0.length : 0} B)`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+}
+
+/** SCOUT-1c: without a reveal (a dawn's build screen) the card is as before: no target, and a tap on it changes nothing. */
+async function foeCardPlain(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  const V = `foecard ${vname} unscouted`;
+  viewNow = V;
+  await page.evaluate(() => window.bb.openDawn({ hero: "furnace", day: 3, gold: 9, seed: 31 }));
+  await settle(page, "build", 15000);
+  for (let i = 0; i < 2 && (await regionOf(page, "runepick-0")); i++) await press(page, cdp, centre(await regionOf(page, "runepick-0")));
+  await page.waitForFunction(() => window.bb.game.screen.caravan.ready, null, { timeout: 10000 });
+  await sleep(300);
+  let f = await page.evaluate(() => window.bb.foeView());
+  const before = await page.evaluate((k) => localStorage.getItem(k), RUN_KEY);
+  const run0 = await page.evaluate(() => JSON.stringify(window.bb.game.run));
+  check(!f.scouted && !!f.card && !(await regionOf(page, "foecard")), `${V}: no reveal today: the NEXT BATTLE card (${box(f.card)}) has no target`);
+  await press(page, cdp, centre(f.card));
+  await sleep(200);
+  f = await page.evaluate(() => window.bb.foeView());
+  const after = await page.evaluate((k) => localStorage.getItem(k), RUN_KEY);
+  const run1 = await page.evaluate(() => JSON.stringify(window.bb.game.run));
+  check(!f.open && (await page.evaluate(() => window.bb.screen())) === "build" && before === after && run0 === run1, `${V}: a ${cdp ? "tap" : "click"} on the card changes nothing (no view; the run and its save the same)`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length})`);
+  await ctx.close();
+}
+
+async function foeCardSection(browsers, origin) {
+  log("");
+  log("## SCOUT-1c (REQ-BFG-082): a SCOUT-revealed foe from the NEXT BATTLE card, by real input (the card's target, a face on the foe's carrier, CLOSE, BACK, the save unchanged); without a reveal the card is as before");
+  const pick = opt("fviews", "");
+  const views = pick ? pick.split(",").map((s) => s.trim()) : [...SCOUT_VIEWS, ...(browsers.webkit ? ["wk-op-690"] : [])];
+  for (const v of views) {
+    loadLine(`foecard ${v}: start`);
+    try {
+      await foeCardView(browsers, origin, v);
+    } catch (e) {
+      check(false, `foecard ${v}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    loadLine(`foecard ${v}: end`);
+  }
+  for (const v of ["phone", "desk"]) {
+    try {
+      await foeCardPlain(browsers, origin, v);
+    } catch (e) {
+      check(false, `foecard ${v} unscouted: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+  }
+}
+
 async function main() {
   const browsers = { chromium: await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] }) };
   const views = ONLY.includes("touch") ? TOUCH_VIEWS : [];
@@ -1748,6 +2154,8 @@ async function main() {
     if (ONLY.includes("customize")) await customizeSection(browsers, site.origin); // CUSTOM-2b (REQ-BFG-072)
     if (ONLY.includes("newstyle")) await newStyleSection(browsers, site.origin);
     if (ONLY.includes("roadfork")) await roadForkSection(browsers, site.origin);
+    if (ONLY.includes("scout")) await scoutSection(browsers, site.origin); // SCOUT-1 (REQ-BFG-076)
+    if (ONLY.includes("foecard")) await foeCardSection(browsers, site.origin); // SCOUT-1c (REQ-BFG-082)
   } finally {
     for (const b of Object.values(browsers)) await b.close();
     site.srv.close();

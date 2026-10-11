@@ -34,7 +34,14 @@ const HERO = opt("hero", "bastion"), DAY = Number(opt("day", "4")), SEED = Numbe
 const CARRIER = opt("carrier", "");
 const SEAS = opt("seas", "") ? opt("seas", "").split(",") : [];
 /** [scene, reduced, sea knob]: one STORM battle (the day's sea), or one battle per sea with --seas. */
-const SCENES = [...(SEAS.length ? SEAS.map((sea) => [`battle-${sea}`, false, sea]) : [["battle", false, ""]]), ["battle-reduced", true, ""], ["build", false, ""], ["title", false, ""]];
+const ALL = [...(SEAS.length ? SEAS.map((sea) => [`battle-${sea}`, false, sea]) : [["battle", false, ""]]), ["battle-reduced", true, ""], ["build", false, ""], ["title", false, ""]];
+// SCOUT-1 (REQ-BFG-076): --scenes picks scenes by name, and adds one at CLOSE: "view" (VIEW BATTLEFIELD after the fight,
+// at CLOSE, the carriers sailing steady); --vw/--vh the viewport (default the 390x844 phone, DPR 3), so the CLOSE timings
+// also run on the 430x932 phone (CLOSE x7: the battle's canvas at device resolution, FIELD-1 known gap 3). SCOUT-1b
+// (REQ-BFG-082): no "scout" scene (no battle scouts; the fight runs at WIDE from its sail-in, the "battle" scenes)
+const PICK = opt("scenes", "") ? opt("scenes", "").split(",") : null;
+const SCENES = PICK ? PICK.map((n) => ALL.find(([s]) => s === n) ?? [n, false, ""]) : ALL;
+const VW = Number(opt("vw", "390")), VH = Number(opt("vh", "844"));
 /** CUSTOM-3: every style open and seen, the player wearing carrier `c`. */
 const carrierProfile = (c) => {
   const ids = { floor: ["timber", "tread", "checker", "rune"], belt: ["verdigris", "blued", "timber", "rune"], panel: ["brass", "verdigris", "timber", "plum"], carrier: ["admiral", "ironclad", "storm", "gold"] };
@@ -44,7 +51,7 @@ const carrierProfile = (c) => {
 const pct = (a, p) => a[Math.min(a.length - 1, Math.max(0, Math.ceil(p * a.length) - 1))];
 
 async function one(browser, page0, scene, reduced, rate, query) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -56,12 +63,22 @@ async function one(browser, page0, scene, reduced, rate, query) {
   await page.evaluate(([scene, r, hero, day, seed]) => {
     const bb = window.bb;
     if (r) bb.setReducedMotion(true);
-    if (scene.startsWith("battle")) bb.openDusk({ hero, day, seed }, []);
+    // SCOUT-1 (REQ-BFG-076): a fight's timing runs with the harness's FIGHT step (bb.fight(true): on a SCOUT-1 page no
+    // scouting; SCOUT-1b: none to skip); "view" fights, then opens VIEW BATTLEFIELD (below)
+    bb.fight?.(true);
+    if (scene.startsWith("battle") || scene === "view") bb.openDusk({ hero, day, seed }, []);
     else if (scene === "build") bb.openDawn({ hero: "furnace", day: 5, seed: 7 }, []);
     else bb.open("title");
   }, [scene, reduced, HERO, DAY, SEED]);
+  const atRest = (ph) => page.waitForFunction((p) => { const s = window.bb.scout(); return !!s && s.phase === p && !!s.camera && !s.camera.moving; }, ph, { timeout: 60000, polling: 100 });
   if (scene.startsWith("battle")) await page.waitForFunction(() => window.bb.motion().phase === "fight", null, { timeout: 60000, polling: 100 });
-  else await page.waitForTimeout(1500); // the wipe, the caches
+  else if (scene === "view") {
+    await page.waitForFunction(() => window.bb.motion().phase === "fight", null, { timeout: 60000, polling: 100 });
+    await page.evaluate(() => window.bb.game.screen.skip());
+    await page.waitForFunction(() => window.bb.screen(true) === "result" && window.bb.scout().canView, null, { timeout: 60000, polling: 100 });
+    await page.evaluate(() => window.bb.viewBattlefield(true));
+    await atRest("view");
+  } else await page.waitForTimeout(1500); // the wipe, the caches
   const load0 = loadavg()[0];
   const res = await page.evaluate(async (secs) => {
     const bb = window.bb;
@@ -80,7 +97,12 @@ async function one(browser, page0, scene, reduced, rate, query) {
     const split = {};
     if (b) for (const k of Object.keys(b.ms)) split[k] = frames ? (b.ms[k] - (a && !reset ? a.ms[k] : 0)) / frames : 0;
     const m = bb.motion();
-    return { gaps, frames, split, reset, work: bb.game.perfStats(Math.min(600, gaps.length)), screen: bb.screen(), phase: m.phase, over: !!m.over, sea: m.sea ?? null, reduced: bb.settings.reducedMotion, wears: bb.profile().wears.carrier };
+    // REVIEW-STAGE098 R2: bb.profile only where the page has it (a --base run against a page from before CUSTOM-2a);
+    // SCOUT-1: the camera's shot at the end (CLOSE in scouting and the view)
+    return {
+      gaps, frames, split, reset, work: bb.game.perfStats(Math.min(600, gaps.length)), screen: bb.screen(), phase: m.phase, over: !!m.over, sea: m.sea ?? null,
+      reduced: bb.settings.reducedMotion, wears: bb.profile ? bb.profile().wears.carrier : null, shot: m.camera ? m.camera.shot : null,
+    };
   }, SECS);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
   await ctx.close();
@@ -92,7 +114,7 @@ async function one(browser, page0, scene, reduced, rate, query) {
     // the brief's two thresholds; a 60 Hz interval reads 16.6-16.8 ms in headless, so > 20 ms says a frame really slipped
     over16: +over(16.7).toFixed(2), over20: +over(20).toFixed(2), over33: +over(33.4).toFixed(2),
     split: Object.fromEntries(Object.entries(res.split).map(([k, v]) => [k, +v.toFixed(3)])), splitFrames: res.frames, splitReset: res.reset,
-    workMs: +res.work.workMs.toFixed(3), maxWorkMs: +res.work.maxWorkMs.toFixed(2), endScreen: res.screen, endPhase: res.phase, over: res.over, carrier: res.wears,
+    workMs: +res.work.workMs.toFixed(3), maxWorkMs: +res.work.maxWorkMs.toFixed(2), endScreen: res.screen, endPhase: res.phase, over: res.over, carrier: res.wears, shot: res.shot, view: `${VW}x${VH}`,
     load: +load0.toFixed(2), errors,
   };
 }
@@ -100,7 +122,7 @@ async function one(browser, page0, scene, reduced, rate, query) {
 const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
 const rows = [];
 console.log(`motionperf on ${PAGE}${BASE ? ` (and the build screen on ${BASE})` : ""}, ${SECS} s per run, battle ${HERO} dusk day ${DAY} seed ${SEED}${SEAS.length ? ` in the seas ${SEAS.join(", ")}` : ""}, the player's carrier ${CARRIER || "as stored (none: the default)"}, ${new Date().toISOString()}, load ${loadavg()[0].toFixed(2)}`);
-const say = (r) => console.log(`${r.scene.padEnd(14)} ${r.page === PAGE ? "" : "BASE "}cpu x${r.rate}: ${r.frames} frames (${r.fps} fps) p50 ${r.p50} p95 ${r.p95} p99 ${r.p99} max ${r.max} ms; >16.7 ${r.over16}% >20 ${r.over20}% >33.4 ${r.over33}%; split ${JSON.stringify(r.split)} over ${r.splitFrames} frames${r.splitReset ? " (a new attract round mid-run: split since)" : ""}; game work ${r.workMs} ms/frame (max ${r.maxWorkMs}); end ${r.endScreen}/${r.endPhase}; sea ${r.sea}; carrier ${r.carrier}; load ${r.load}; errors ${r.errors.length}`);
+const say = (r) => console.log(`${r.scene.padEnd(14)} ${r.page === PAGE ? "" : "BASE "}${r.view} cpu x${r.rate}: ${r.frames} frames (${r.fps} fps) p50 ${r.p50} p95 ${r.p95} p99 ${r.p99} max ${r.max} ms; >16.7 ${r.over16}% >20 ${r.over20}% >33.4 ${r.over33}%; split ${JSON.stringify(r.split)} over ${r.splitFrames} frames${r.splitReset ? " (a new attract round mid-run: split since)" : ""}; game work ${r.workMs} ms/frame (max ${r.maxWorkMs}); end ${r.endScreen}/${r.endPhase}${r.shot ? ` at ${r.shot.toUpperCase()}` : ""}; sea ${r.sea}; carrier ${r.carrier}; load ${r.load}; errors ${r.errors.length}`);
 for (const rate of [4, 1]) {
   for (const [scene, reduced, sea] of SCENES) {
     const r = await one(browser, PAGE, scene.startsWith("battle-") && !reduced ? "battle" : scene, reduced, rate, sea ? `?perf=1&sea=${sea}` : "?perf=1");

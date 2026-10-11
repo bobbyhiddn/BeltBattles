@@ -107,7 +107,8 @@ describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read thei
   // read in 0.5-1.5x of the rare median: the ruling's fallback 25 / 18 / 13 (no third point)
   it("DRAKE NOZZLE (Y7A-R4, its fallback): flatPerBurn 25 / 18 / 13 on (Y4's 10 / 7 / 5); its face and ⓘ ladder say them; off, 0.9.2's 20 / 15 / 10", () => {
     expect(STARS.map((s) => effectAt("drake", s).core!.flatPerBurn)).toEqual([25, 18, 13]);
-    expect(lines("drake")).toEqual([25, 18, 13].map((d) => [`SHOT: EACH ${d} BONUS DAMAGE IS 1 {*BURN}.`]));
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1: BONUS DAMAGE): the same numbers in plain words
+    expect(lines("drake")).toEqual([25, 18, 13].map((d) => [`SHOT: EACH ${d} DAMAGE RIGS ADDED TO ITS SLUG BECOMES 1 {*BURN}.`]));
     expect(levels("drake", 2)).toEqual(["EACH 25/[18]/13", next(3, "EACH 13")]);
     expect(gist("drake", 3, { k: 1 })).toBe("1 BURN FOR EVERY 13 DAMAGE");
   });

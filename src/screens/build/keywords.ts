@@ -34,6 +34,10 @@ import { rect, frame, type G } from "../../render/pixel";
 import { ICON, KEYWORDS, drawText, icons, textWidth, type FontId } from "../../render/font";
 import { colourize, drawRich, lineText, lineWidth, wrapRich, type RichLine } from "../../ui/richText";
 import { glossaryEntry, glossaryHits, glossaryText, keywordRow, tapNote } from "../../ui/glossary";
+import { STAT_ICONS, statIconNote } from "../../ui/glossary"; // WORDS-1 (REQ-BFG-081): the stat icons' notes
+import { ICON_COLOUR } from "../../render/font"; // WORDS-1: a stat icon's underline in its colour ({RATE} yellow)
+import { FAMILY, familyNote } from "../../ui/families"; // WORDS-1: the family tags' taps (familyTargets)
+import type { ModuleTag } from "../../sim/content"; // WORDS-1
 import { tapRect, inside, type Rect, type UI } from "../../ui/ui";
 import type { TextOpts } from "../../ui/abilityText";
 import { hasFace } from "../../ui/faces";
@@ -44,6 +48,7 @@ import type { Block, PLine, PanelPlan, PanelText } from "./inspector";
 import { levelLines, levelSpans, type LevelLine } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS
 import { fusible } from "../../sim/stars"; // U2e step 5
 import type { BuildLayout } from "./layout"; // U2f: the room the ⓘ view grows into (infoFree)
+import { GAP } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries
 
 /** The piece a panel shows (its number fills in a keyword's reminder; its tap note): an offer, a part in cargo, a placed
  *  part, a fitted core or gear piece, an installed turret's bought core. */
@@ -156,7 +161,22 @@ function matches(text: string, l: PLine, first: boolean, piece: Piece | null): {
     for (let i = text.indexOf(ICON[k]); i >= 0; i = text.indexOf(ICON[k], i + 1)) add(i, text.startsWith(k, i + 1) ? i + 1 + k.length : i + 1, k);
   }
   const b = l.block;
+  // WORDS-1 (REQ-BFG-081; cap's design call 3): the stat icons {RATE}, {SLUG} and {GEAR} on an ability line (a face's stat
+  // row and rule lines, the turret panel's stat row), each with its note (glossary.ts statIconNote: {SLUG} by the piece's
+  // kind; a row with a {GEAR} pair is a turret's stat row)
+  if (b.role === "ability") {
+    const kind = piece ? ITEMS[piece.def]?.kind : undefined, gunRow = text.includes(ICON.GEAR) && text.includes(ICON.RATE);
+    for (const k of STAT_ICONS) {
+      for (let i = text.indexOf(ICON[k]); i >= 0; i = text.indexOf(ICON[k], i + 1)) {
+        if (free(i, i + 1)) out.push({ at: i, end: i + 1, word: k, text: statIconNote(k, kind, gunRow), colour: ICON_COLOUR[ICON[k]] ?? C.bone });
+      }
+    }
+  }
   if (isFaceLine(b, piece)) {
+    // WORDS-1 (REQ-BFG-081; TEXT-STYLE 7.4 as ruled 2026-10-10: a coined word only where a tap on that card explains it):
+    // every glossary word a face line prints (PART, SPEED's FROM THIS TILE ON, MATCHED, JAM, ...), as a kept text's are;
+    // RATE's verb forms (FIRES, WORKS FASTER) stay plain on a face, where the {RATE} icon carries the note
+    for (const h of glossaryHits(text)) if (h.row.word !== "RATE") add(h.at, h.end, h.row.word);
     // the rule's brass trigger label (on the block's first line), its word's row or the piece's tap note
     if (first && b.brass) {
       const at = text.indexOf(b.brass), word = b.brass.split(/[ :]/)[0];
@@ -256,6 +276,43 @@ export function keywordTargets(lines: readonly { line: PLine | "rule"; y: number
     // tap away in the KEYWORDS view
     if (q && inside(q, Math.floor(t.cx), Math.floor(t.cy))) out.push({ word: t.word, text: t.text, colour: t.colour, glyph: t.glyph, r: q });
   }
+  return out;
+}
+
+/**
+ * WORDS-1 (REQ-BFG-081; READ-1 3.2: the family tags drew 403 of round A's 1,172 "not understood" flags; cap's design call
+ * 4): the header's family tags as tap targets, each showing its families.ts line (familyNote). Where drawFamHead draws the
+ * names (3x5), each name; where only the marks fit, each 3x3 mark. Each glyph grown to a 7 px pitch (the header's), inside
+ * the panel (1 px in from its frame) and clear of `avoid` (the buttons' grown rects and the ⓘ button's), its middle in its
+ * target; its key is "<TAG> FAMILY", apart from the PLATE keyword's. Pure (drawKeywordLayer, tests).
+ */
+export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: readonly Rect[] = []): KwTarget[] {
+  const fh = plan.famHead, r = plan.r;
+  if (!fh) return [];
+  const within = { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, out: KwTarget[] = [];
+  const push = (tag: ModuleTag, glyph: Rect) => {
+    let q: Rect | null = clamp(grow({ x: glyph.x - 1, y: glyph.y, w: glyph.w + 2, h: glyph.h }, 7, 7), within);
+    for (const a of avoid) if (q) q = clipOut(q, a);
+    for (const t of out) if (q && overlaps(q, t.r)) q = clipOut(q, t.r);
+    if (q && inside(q, Math.floor(glyph.x + glyph.w / 2), Math.floor(glyph.y + glyph.h / 2))) {
+      out.push({ word: `${tag} FAMILY`, text: familyNote(tag), colour: FAMILY[tag].colour, glyph, r: q });
+    }
+  };
+  if (fh.names) {
+    // drawFamHead: "FORGE, TEMPO" in 3x5, under the sub line (x + 23, y + 19), or right-aligned on the sub line's second row
+    // (y + 19) or the title's (y + 5)
+    const text = fh.tags.join(", "), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3");
+    const y0 = r.y + (fh.at === "title" ? 5 : 19);
+    fh.tags.forEach((tag, i) => {
+      const before = i ? textWidth(`${fh.tags.slice(0, i).join(", ")}, `, "3") + 1 : 0;
+      push(tag, { x: x0 + before, y: y0, w: textWidth(tag, "3"), h: GLYPH_H["3"] });
+    });
+    return out;
+  }
+  // drawFamHead's marks: 3x3 each, 4 px apart, from (x + 23, y + 20) under the sub line, else right-aligned (y + 6 by the
+  // title, y + 20 by the sub line's second row)
+  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + (fh.at === "title" ? 6 : 20);
+  fh.tags.forEach((tag, i) => push(tag, { x: x0 + i * 4, y: y0, w: 3, h: 3 }));
   return out;
 }
 
@@ -543,7 +600,9 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
     drawView(g, ui, s, infoItems(levels, words, r.w - 10), r, plan.y - 1, bottom, free);
     return setCursor(canvas, false);
   }
-  const targets = keywordTargets(lines, plan, piece, avoid);
+  // WORDS-1 (REQ-BFG-081): the header's family tags too, each with its families.ts line (familyTargets)
+  const body = keywordTargets(lines, plan, piece, avoid);
+  const targets = [...body, ...familyTargets(plan, [...avoid, ...body.map((t) => t.r)])];
   // the shown definition covers the panel's bottom rows: the words under it are not targets meanwhile
   const shown = s.word ? words.find((w) => w.word === s.word) ?? targets.find((t) => t.word === s.word) : undefined;
   const defLines = shown ? definitionLines(shown.text, r.w - 10) : [];
@@ -624,6 +683,11 @@ export function infoDrawn(items: readonly InfoItem[], r: Rect, top: number, bott
     }
     boxes.push(box);
     let y = box.y + 2;
+    // SPACE-1 (REQ-BFG-087, D5): the view keeps its size and its pages; the room its page leaves in its box (past the
+    // 2 px top and 1 px foot) goes to the gaps between its entries (each LEVELS line, each definition: separate items), up
+    // to the 5x7 face's GAP each, all alike; none where the box is sized to its entries (the room above the panel)
+    const slots = Math.max(0, its.length - 1);
+    const px = slots ? Math.max(0, Math.min(GAP["5"], Math.floor((box.h - 3 - need) / slots))) : 0;
     its.forEach((it, i) => {
       if (its[i - 1]?.section !== it.section) {
         // the section's header row (U2c's "KEYWORDS" at the view's top; a second header sits under the LEVELS; U2f: each
@@ -635,7 +699,7 @@ export function infoDrawn(items: readonly InfoItem[], r: Rect, top: number, bott
         rows.push({ area: ai, y, h: 7, line: ln });
         y += 9;
       }
-      y += it.gap;
+      y += it.gap + (i < its.length - 1 ? px : 0);
     });
   });
   return { view, boxes, rows, foot: pages.length > 1 ? foot - 7 : null };

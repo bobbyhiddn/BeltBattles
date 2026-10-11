@@ -100,6 +100,9 @@ export interface Face {
   clause?: FaceRule;
   /** U2b F5: the interim caveats (INTERIM_CAVEATS): kept, 3x5, in the reminder's colour, outside the budget. */
   caveats?: string[];
+  /** WORDS-1 (REQ-BFG-081; TEXT-STYLE 1.4 as ruled 2026-10-10): plain lines under the stat row that say what its numbers
+   *  mean (a turret's loads and gear slots: READ-1 6.1, measured in its round D). Not abilities: no label, no number key. */
+  plain?: string[];
 }
 
 interface X {
@@ -220,9 +223,13 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   STUN: (t = DISRUPT_TIME) => `{*STUN}: THE ENEMY PART IT HITS STOPS FOR ${fmtSec(t)}{SEC}.`,
   HEAT: (h = AMMO.cinder.rideScale) => `{*HEAT}: +${fmtDmg(h)} DAMAGE FOR EACH SEC IT RIDES.`,
   // U2b F3: a cap in a reminder names its unit, one form for every capped reminder ("MAX 15 {FRAY}.", not "UP TO 15")
-  FRAY: () => `EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`,
+  // WORDS-1 (REQ-BFG-081; READ-1 4: BARBED SPOOL, the one card all three readers got wrong; a reader took HIT for the rig
+  // label): every later shot that hits the hull (battle.ts:2053; was "EVERY LATER HIT +2 DAMAGE.")
+  FRAY: () => `EACH {*FRAY}: EVERY LATER SHOT THAT HITS THE HULL +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`,
   PLATE: () => `{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`,
-  PAIR: () => "{*PAIR}: TWO LOADS REACH ONE TURRET AT ONCE.",
+  // WORDS-1 (REQ-BFG-081; READ-1 4: readers took a pair for two slugs fired together): from two belts (races/foundry.ts
+  // inSync: two loads by two intakes, a belt to an intake; was "TWO LOADS REACH ONE TURRET AT ONCE.")
+  PAIR: () => "{*PAIR}: TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE.",
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1 and 4.9): SHIELD a count (fmtCount; content.ts SHIELD_CAP), HEAL and REGEN on hull.
   // REGEN's verb is HEAL's (GIVES BACK; 4.9 wrote HEALS, which would stand as a bare keyword: REQ-BFG-032 rule 3)
   // NUM-4 (REVIEW-SUSB F1): it blocks one hit's DAMAGE; that hit's BURN, FRAY, STUN and poison still land (battle.ts impact)
@@ -253,6 +260,10 @@ const md = (e: ItemDef) => e.mod!;
 const oneBelt = (e: ItemDef): boolean => (SHAPE_ARROWS[rigShape(e) ?? "I"]?.length ?? 1) <= 1;
 const itsBelts = (e: ItemDef): string => (oneBelt(e) ? "ITS BELT" : "ITS BELTS");
 const runs = (e: ItemDef): string => (oneBelt(e) ? "ITS BELT RUNS" : "ITS BELTS RUN");
+/** WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: the speed rigs 1 of 12 answers right, then 11 of 12): where a speed rig's
+ *  change starts, the tile its arrow points at (one arrow) or the tiles its arrows point at (more), on to the gun: Battle
+ *  walks each tile's speed from the rig's own tile on (the SPEED tap note, glossary.ts). */
+const fromHere = (e: ItemDef): string => (oneBelt(e) ? "FROM THIS TILE ON" : "FROM THESE TILES ON");
 
 const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // --------------------------------------------------------------------------------------------------- factories
@@ -270,7 +281,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
   slagpot: () => rules([{ text: "ITS SLUGS IGNORE BELT SPEED." }]),
   gantry: () => rules([]),
-  mimic: () => rules([{ text: "STAMPS YOUR HERO'S SLUGS." }]),
+  // WORDS-1 (REQ-BFG-081; READ-1 6.1): STAMPS is a coined word with no note (was "STAMPS YOUR HERO'S SLUGS."); Battle.factoryDef
+  // makes the hero's own ammo here, beside the hero's factory: TOO
+  mimic: () => rules([{ text: "MAKES YOUR HERO'S SLUGS TOO." }]),
   limpet: (e) => {
     // DESIGN-Y row 13: its charges' blast is its DMG stat (factoryStats: the charge's 20 joined it, content.ts STAR_DIFF);
     // Battle.hullEffects: each charge blasts the enemy hull round.delay s after it hits. Was "CHARGES BLAST THE HULL: 80
@@ -298,7 +311,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
   sabot: (e) => {
     // Battle.roundImpact: a round on a rig wrecks it for the battle; on any other part, a STUN of round.seconds (its stat)
-    return rules([{ text: "ITS ROUNDS WRECK RIGS FOR THE FIGHT." }], [], [REMINDER.STUN(rnd(e).seconds)]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D): WRECK in plain words (was "ITS ROUNDS WRECK RIGS FOR THE FIGHT."). A
+    // wreck is no STUN (TOLLBOOTH, MANTLET and LODESTONE don't count it), so the line says STOP, not STUN
+    return rules([{ text: "ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT." }], [], [REMINDER.STUN(rnd(e).seconds)]);
   },
   // Battle.roundImpact: a frost or chain round STUNs the part it hits (its stat)
   frostbite: (e) => {
@@ -328,6 +343,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // come online on the first tick (commissionAt 0): AT ONCE, as its sentence says (abilityText.ts startIn). 217 px of the
     // 225 px band ("WHILE IT FEEDS A TURRET, ..." is 286). Was "YOUR RIGS START 50% SOONER." (★3: "100% SOONER.")
     const soon = startIn(f(e).commission!);
+    // WORDS-1 (REQ-BFG-081): READ-1 6.1's one-off "START WORKING" takes the line to 263 px, past the op band's one line that
+    // TXT-096 pinned (tests/txt096.faces), so the line stays (a known gap of WORDS-1's REPORT)
     return rules([{ text: `FEEDS A GUN: YOUR RIGS START ${soon}.` }], [["soon", soon]]);
   },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
@@ -379,6 +396,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // shop card's words (abilityText.ts gatling card). SPINS UP keeps the spin firing builds (the ⓘ ladder's "+6% A QUICK
     // SHOT" says how). 212 px of the 225 px band ("FIRES EACH LOAD AT ONCE, ..." is 268). Was "SPINS UP TO 67% FASTER AS IT
     // FIRES."
+    // WORDS-1 (REQ-BFG-081): READ-1 6.1's one-off (FIRES AT ONCE) has no plain form inside the op band's one line (268 px and
+    // more), so the line stays (a known gap of WORDS-1's REPORT)
     return rules([{ text: `FIRES AT ONCE, SPINS UP TO ${up} FASTER.` }], [["spin", `${up} FASTER`], ["step", `+${step} A QUICK SHOT`]]);
   },
   hullbreaker: (e, x) => {
@@ -421,7 +440,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 5): one verb with its own amount (was "TWO LOADS FUSE INTO ONE SHELL, +15%
     // {DMG}.", two clauses); the counts through fmtCount (FACE_SIM)
     const from = fmtCount(FACE_SIM.compoundLoads), into = fmtCount(FACE_SIM.compoundShells);
-    return rules([shot(`FUSES ${from} {SLUG} INTO ${into} AT +${more} {DMG}.`)], [["mult", `+${more} {DMG}`]]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1's one-offs: FUSES): cores.ts:178 ready at 2 loads; battle.ts:1920-1923 one shell
+    // of both loads at (dmg1 + dmg2) x mult (was "FUSES 2 {SLUG} INTO 1 AT +15% {DMG}.")
+    return rules([shot(`FIRES ${from} {SLUG} AS ${into} SHOT AT +${more} {DMG}.`)], [["mult", `+${more} {DMG}`]]);
   },
   lance: (e, x) => {
     const n = c(e, x).columns!, cols = fmtCount(n), share = fmtPct(c(e, x).share!);
@@ -451,7 +472,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // glossary tap) becomes FACE_SIM.drakeStacks BURN; the free BURN, its longer BURN and its quicker flight are gone. Was the
     // RULES text "TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY 20 DAMAGE." and 3 more sentences
     const d = fmtDmg(c(e, x).flatPerBurn!), n = fmtCount(FACE_SIM.drakeStacks);
-    return rules([shot(`EACH ${d} BONUS DAMAGE IS ${n} {*BURN}.`)], [["per", `EACH ${d}`]], [REMINDER.BURN()]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D 3 of 3 right): BONUS DAMAGE in plain words (was "EACH 25 BONUS DAMAGE IS 1
+    // {*BURN}."). battle.ts:1907 converts the slug's flat, which its rigs add (1617-1671, 1146), and SCRAPPER's scrap and a
+    // FOUNDRY fuse too (1078, races/foundry.ts:47): its SHOT tap note says those and that HEAT never counts (glossary.ts)
+    return rules([shot(`EACH ${d} DAMAGE RIGS ADDED TO ITS SLUG BECOMES ${n} {*BURN}.`)], [["per", `EACH ${d}`]], [REMINDER.BURN()]);
   },
   capacitor: (e, x) => {
     // DESIGN-Y row 42: Battle.chambers / fireCore: + perSecond (x the class %: cores.ts scaleCore) for each second the chamber
@@ -475,11 +499,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // speedText's rule: a belt speed x1.6 is 60% faster (N1 2.3: "X% FASTER" is the speed up X%); METRONOME's locked
     // belts (lockedFlat) are not playable (hero.ts ORDER), so R1 dropped that line
     const up = fmtPct(gt(e).speed! - 1);
-    return rules([{ text: `${runs(e)} ${up} FASTER.` }], [["speed", `${up} FASTER`]]);
+    // WORDS-1 (REQ-BFG-081): where it starts (fromHere; was "ITS BELT RUNS 60% FASTER.", read as the whole belt)
+    return rules([{ text: `${runs(e)} ${up} FASTER ${fromHere(e)}.` }], [["speed", `${up} FASTER`]]);
   },
   brake: (e) => {
     const sp = fmtPct(gt(e).speed!); // x0.5 at every star (0.6.1f); ★2 HOT SHOE / ★3 RED-HOT SHOE add flat (a clause)
-    return rules([{ text: `${runs(e)} AT ${sp} SPEED.` }], [["speed", `${sp} SPEED`]]);
+    // WORDS-1 (REQ-BFG-081): where it starts (fromHere; was "ITS BELT RUNS AT 50% SPEED.")
+    return rules([{ text: `${runs(e)} AT ${sp} SPEED ${fromHere(e)}.` }], [["speed", `${sp} SPEED`]]);
   },
   longhaul: (e) => {
     // Battle.applyHit: flat += perPriorGate x the rig hits before it on the payload (at most priorCap from ★2: a clause)
@@ -504,7 +530,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // ★2 REDLINE adds +1 and ★3 AFTERBURNER +3 to each payload (flat, a second rule); their guards are a clause
     const n = fmtCount(gt(e).speed!), flat = gt(e).flat;
     const d = flat ? fmtDmg(flat) : "";
-    return rules([{ text: `${runs(e)} ${n} TIMES AS FAST.` }, ...(flat ? [hit(`+${d} {DMG}.`)] : [])],
+    // WORDS-1 (REQ-BFG-081): where it starts (fromHere; was "ITS BELTS RUN 3 TIMES AS FAST.")
+    return rules([{ text: `${runs(e)} ${n} TIMES AS FAST ${fromHere(e)}.` }, ...(flat ? [hit(`+${d} {DMG}.`)] : [])],
       [["speed", `${n} TIMES`], ...(flat ? [["flat", `+${d} {DMG}`] as [string, string]] : [])]);
   },
   surge: (e) => {
@@ -530,7 +557,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // blocked; a wreck or a rip is no STUN (the shared rule). Was "BLOCKS THE FIRST 2 {*STUN} HITS ON ITS BELT." with two
     // caveats and ★3 FACTORY GUARD's clause
     const n = fmtCount(gt(e).toll!);
-    return rules([{ text: `BLOCKS ${n} {*STUN} ON ${oneBelt(e) ? "ITS BELT'S" : "ITS BELTS'"} PARTS.` }], [["toll", `BLOCKS ${n}`]]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1: BLOCKS 2 read as 2 seconds): battle.ts:2157-2167: the first `toll` STUNs each fight on
+    // its belt's tiles, the rigs on it, its factory and its gun do nothing (657: set at the fight's start, never refilled);
+    // PARTS is tappable there (the PART row: a rig, factory, turret or belt tile). Was "BLOCKS 2 {*STUN} ON ITS BELT'S PARTS."
+    return rules([{ text: `THE FIRST ${n} {*STUN} ON ${oneBelt(e) ? "ITS BELT'S" : "ITS BELTS'"} PARTS EACH FIGHT DO NOTHING.` }], [["toll", `FIRST ${n}`]]);
   },
   riveter: (e) => {
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.9): its repair is HEAL, the same numbers (battle.ts heal(): never past your full hull,
@@ -559,7 +589,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // "DOUBLES THE NEXT RIG'S HIT, RESTS 4{SEC}." with the caveat "IT SKIPS RIGS IT CAN'T DOUBLE."
     const t = fmtSec(gt(e).overclockCooldown!);
     const label = `EVERY ${t}{SEC}:`;
-    return rules([{ text: `${label} DOUBLES THE NEXT RIG'S HIT.`, label }], [["every", `EVERY ${t}{SEC}`]]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D 3 of 3 right: NEXT RIG'S read as the next rig in time): battle.ts:727-744
+    // the first later rig down its belt (739), its hit doubled while charged (1607-1615), then the rest (was "DOUBLES THE
+    // NEXT RIG'S HIT.")
+    return rules([{ text: `${label} THE NEXT RIG DOWN ITS BELT HITS TWICE.`, label }], [["every", `EVERY ${t}{SEC}`]]);
   },
   plateroller: (e) => {
     const d = fmtDmg(gt(e).plate!);
@@ -599,13 +632,17 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // doesn't count), no floor, no cap (content.ts STAR_DIFF). Was the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS,
     // AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE." with "STUNNED AND WRECKED RIGS DON'T COUNT."
     const d = fmtDmg(gt(e).pincer!.each);
+    // WORDS-1 (REQ-BFG-081): READ-1 6.1's one-off (ITS TILE) has no plain form inside the op band's one line (225 px at ★3
+    // now; "ON THE SAME TILE" is 253), so the line stays (a known gap of WORDS-1's REPORT)
     return rules([hit(`+${d} {DMG} FOR EACH OTHER RIG ON ITS TILE.`)], [["each", `+${d} {DMG} EACH`]]);
   },
   twingauge: (e) => {
     // DESIGN-Y row 21: Battle.applyHit: + matched on a matched belt (MATCHED: its glossary tap), nothing off one. Was the
     // RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, OR 30 DAMAGE ON A MATCHED BELT." with MATCHED's definition
     const d = fmtDmg(gt(e).gauge!.matched);
-    return rules([hit(`+${d} {DMG} ON A MATCHED BELT.`)], [["matched", `+${d} {DMG}`]]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D 3 of 3 right; the call: reworded, not a MATCHED tap): deck.ts:384 a belt is
+    // matched when another belt into the same turret has as many tiles (1450-1452) (was "... ON A MATCHED BELT.")
+    return rules([hit(`+${d} {DMG} IF ANOTHER BELT INTO ITS TURRET IS AS LONG.`)], [["matched", `+${d} {DMG}`]]);
   },
   bellows: (e) => {
     // DESIGN-Y row 22: Battle.applyHit: + burn BURN for each whole `per` s the slug has ridden, no cap. Was the RULES text
@@ -651,6 +688,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // IT BLOWS UP." with "IT BLOWS ONCE, 12 SECONDS AFTER IT COMES ONLINE; A STUN PAUSES THE FUSE." and BURN's definition
     const k = gt(e).keg!, every = fmtSec(k.fuse), d = fmtDmg(k.flat);
     const label = `EVERY ${every}{SEC}:`;
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1's POWDER KEG: ITS BELTS): battle.ts:1146 blasts every slug anywhere on each belt its
+    // arrows hit, the whole belt, so READ-1's "THE BELT TILES ITS ARROWS POINT AT" would say less than the sim. The line stays
+    // (one line of the op band, 209 px) and its EVERY label's tap says the whole belt, as SURGE VALVE's does (glossary.ts
+    // TAP_NOTES keg)
     return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
   },
   venom: (e) => {
@@ -681,7 +722,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   spotter: (e) => {
     // Battle.pickTarget: a pick of bare hull is rerolled up to `rerolls` times; ★2/★3 weigh factories (a clause)
     const r = md(e).rerolls ?? 1, n = fmtCount(r);
-    return rules([{ text: `SHOTS AT BARE HULL GET ${n} MORE AIM${s(r)}.` }], [["rerolls", `${n} MORE AIM${s(r)}`]]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1's one-offs: BARE HULL): battle.ts:1996, 444-446 a pick of no part; 1991 picked again
+    // (was "SHOTS AT BARE HULL GET 1 MORE AIM."); 213 px at ★3, one line of the op band
+    return rules([{ text: `SHOTS AIMED AT NO PART GET ${n} MORE AIM${s(r)}.` }], [["rerolls", `${n} MORE AIM${s(r)}`]]);
   },
   escapement: (e) => {
     const up = fmtPct(md(e).fireRate! / 100); // METRONOME's pendulum line: not playable (R1 dropped it); NUM-2: stored
@@ -705,6 +748,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // every STUN source (content.ts STUN_CAUSES), and so do the last intakeGuard tiles of each belt into it (1/2/3 from ★1;
     // their rigs no longer share it). Was "IMMUNE TO {*STUN}." and ★2 FULL GUARD's and ★3 BULWARK SKIRT's clauses
     const n = md(e).intakeGuard ?? 0, tiles = `${fmtCount(n)} TILE${s(n)}`;
+    // WORDS-1 (REQ-BFG-081): READ-1 6.1's one-off (LAST 1 TILE: battle.ts:808-809, the last tiles of each belt into its gun)
+    // has no plain form inside the op band's one line (279 px and more), so the line stays (a known gap of WORDS-1's REPORT)
     return rules([{ text: `{*STUN} CAN'T STOP ITS GUN OR LAST ${tiles}.` }], [["guard", `LAST ${tiles}`]]);
   },
   // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
@@ -757,7 +802,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // TurretState.regen: your hull heals this much at each whole second (Battle.sustainTick). "YOUR HULL:" says whose it
     // is, not when: no trigger, so no brass label (TEXT-STYLE 3.2, 3.3)
     const r = fmtDmg(md(e).regen!);
-    return rules([{ text: `YOUR HULL: {*REGEN} ${r}.` }], [["regen", `{*REGEN} ${r}`]], [REMINDER.REGEN()]);
+    // WORDS-1 (REQ-BFG-081; READ-1 6.2: REGEN merged into HEAL): battle.ts:1441-1454 each whole second the LOOMs' amount goes
+    // through heal() (1402-1413: HEAL's rules), so it is a HEAL each second (was "YOUR HULL: {*REGEN} 5.")
+    return rules([{ text: `YOUR HULL: {*HEAL} ${r} EACH SEC.` }], [["regen", `{*HEAL} ${r}`]], [REMINDER.HEAL()]);
   },
   // ------------------------------------------------------------------------------------------ U2b: the supplies
   // U2c group 0 fix 2: {BELT} means belts, a count (a factory's {BELT}3); belt capacity is tiles, in words (hero select's
@@ -784,12 +831,26 @@ export interface InterimCaveat {
  * three caveats are STOKER's cap, SPALL CATCHER's double count (with its cap) and OVERCLOCKER's exclusions.
  */
 export const INTERIM_CAVEATS: readonly InterimCaveat[] = [
-  { id: "inner", until: "the board cues job: the turret's intake marks", applies: (e) => e.turret?.intake === "inner", text: () => "INNER COLUMN ONLY." },
+  // WORDS-1 (REQ-BFG-081; READ-1 6.1): the whole rule, so it can't be read as "fits only an inner slot" (READ-1 T-04, T-05:
+  // 8 misses). Battle.makeTurret / deck.ts: such a gun takes a belt into its inner column only; it fits any turret slot
+  // (was "INNER COLUMN ONLY.")
+  { id: "inner", until: "the board cues job: the turret's intake marks", applies: (e) => e.turret?.intake === "inner", text: () => "TAKES A BELT ON ITS INNER COLUMN ONLY." },
 ];
 
 
-/** The turrets: a stat row only (R1 C3: a turret carries no rules text). */
+/** The turrets: a stat row and no rules text (R1 C3: a turret carries no rules text). */
 const TURRET_FACE = (): Rules => rules([]);
+
+/**
+ * WORDS-1 (REQ-BFG-081; TEXT-STYLE 1.4 as ruled 2026-10-10; READ-1 6.1, round D: turrets 11 of 39 answers right, then 39 of
+ * 39): a turret's two plain lines under its stat row, what its {SLUG} and {GEAR} numbers mean, from the same data as the
+ * row (turretStats: TurretSpec.window, deck.ts gearSlotsOf). They describe the turret without a core (cores.ts IDENTITY:
+ * one load a shot until the chamber is empty, then the reload); a core's own line says what it changes.
+ */
+export function turretPlain(def: string, stars = 1): string[] {
+  const n = effectAt(def, stars).turret!.window, g = gearSlotsOf(def, stars);
+  return [`HOLDS ${fmtCount(n)} {SLUG}: FIRES THEM ONE A SHOT, THEN RELOADS.`, `${fmtCount(g)} {GEAR} SLOT${s(g)} FOR TURRET GEAR.`];
+}
 
 // ------------------------------------------------------------- Y2 (release Y): the STUN pieces with the switch on
 
@@ -872,8 +933,10 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
   const caveats = INTERIM_CAVEATS.filter((cv) => cv.applies(e)).map((cv) => cv.text(e));
   // U2e step 2: a factory's own payloads' stats, its second stat row
   const stats2 = e.kind === "factory" ? carryStats(def, stars, o.hero) : null;
+  // WORDS-1 (REQ-BFG-081): a turret's plain lines under its stat row (turretPlain)
+  const plain = e.kind === "turret" ? turretPlain(def, stars) : null;
   return {
-    stats, ...(stats2 ? { stats2 } : {}), ...body,
+    stats, ...(stats2 ? { stats2 } : {}), ...(plain ? { plain } : {}), ...body,
     ...(caveats.length ? { caveats } : {}),
   };
 }
@@ -888,6 +951,8 @@ export interface FaceLines {
   reminders: string[];
   clause?: FaceRule;
   caveats?: string[];
+  /** WORDS-1 (REQ-BFG-081): the plain lines under the stat row (Face.plain), in glyphs. */
+  plain?: string[];
 }
 
 export function faceLines(def: string, stars = 1, o: TextOpts = {}): FaceLines | null {
@@ -896,6 +961,7 @@ export function faceLines(def: string, stars = 1, o: TextOpts = {}): FaceLines |
   return {
     stats: fc.stats.length ? statRow(fc.stats) : null,
     ...(fc.stats2?.length ? { stats2: statRow(fc.stats2) } : {}),
+    ...(fc.plain?.length ? { plain: fc.plain.map((t) => icons(t)) } : {}),
     rules: fc.rules.map((r) => ({ text: icons(r.text), ...(r.label ? { label: icons(r.label) } : {}) })),
     reminders: fc.reminders.map((r) => icons(r)),
     ...(fc.clause ? { clause: { text: icons(fc.clause.text), label: icons(fc.clause.label!) } } : {}),

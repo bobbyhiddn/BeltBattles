@@ -25,7 +25,7 @@
 import { KEYWORDS, icons, type IconName } from "../render/font";
 import { ITEMS } from "../sim/content";
 import type { TextOpts } from "./abilityText";
-import { faceAt, hasFace } from "./faces";
+import { faceAt, hasFace, type Face } from "./faces";
 
 /** A number as the face prints it (signed, decimal, a percentage). */
 const NUM = /[+-]?\d+(?:\.\d+)?%?/;
@@ -56,12 +56,52 @@ function chipFrom(text: string, icon?: IconName, key?: string): string | null {
   return name === "SEC" ? `${v}{SEC}` : `{${name}}${v}`;
 }
 
+/** WORDS-1: a face's keyed rule number as its face printed it (the first number of `key`'s value: "+3", "50%"). */
+const numOf = (f: Face, key: string): string => NUM.exec(f.nums.find(([k]) => k === key)?.[1] ?? "")?.[0] ?? "";
+
+/**
+ * WORDS-1 (REQ-BFG-081; READ-1 6.3 option 1: the 15 pieces whose phone card showed no chip scored 33% read alone;
+ * TEXT-STYLE 9.3 as ruled 2026-10-10): THE PLAIN CHIPS, one for each piece whose face has no number with an icon (or whose
+ * number is a belt's speed or a rest), so every buyable piece's phone card says something before a tap. Each fits the
+ * card's chip room beside its price (tests/shopChips.test.ts) and can't be read as damage or as another card's number:
+ *   - a belt-speed rig, a word: FAST (GREASE WORKS, OVERDRIVE) or SLOW (BRAKE SHOE), never {RATE} or {DMG} (9.3);
+ *   - a keyword the piece works on, its icon with a word or with its face's own number: VENOM DRIP {BURN}+3{SEC} (its BURN
+ *     lasts 3 s more), BRACE FRAME {STUN}-50% (STUN on its tiles half as long), FLAK SCREEN {STUN}-30% (30% of STUN shots shot
+ *     down), TOLLBOOTH {STUN}BLOCK, MANTLET NO{STUN}, TWIN LATCH {PAIR}PAIR, DRAKE NOZZLE {DMG}TO{BURN};
+ *   - else a word for its effect: SORTING ARM {SLUG}COPY, OVERCLOCKER TWICE, ROTARY BREECH SOONER, GRAPNEL GUN {SLUG}RIP,
+ *     SPOTTER AIM+1 (its face's number).
+ * A number here is the face's own (numOf: printed by its formatter), never a literal.
+ */
+export const PLAIN_CHIPS: Readonly<Record<string, (f: Face) => string>> = {
+  venom: (f) => `{BURN}${numOf(f, "plus")}{SEC}`,
+  tollbooth: () => "{STUN}BLOCK",
+  braceframe: (f) => `{STUN}-${numOf(f, "cut")}`,
+  grease: () => "FAST",
+  brake: () => "SLOW",
+  overdrive: () => "FAST",
+  sorting: () => "{SLUG}COPY",
+  overclocker: () => "TWICE",
+  twinlatch: () => "{PAIR}PAIR",
+  drake: () => "{DMG}TO{BURN}",
+  rotary: () => "SOONER",
+  grapnel: () => "{SLUG}RIP",
+  spotter: (f) => `AIM+${numOf(f, "rerolls")}`,
+  mantlet: () => "NO{STUN}",
+  flak: (f) => `{STUN}-${numOf(f, "intercept")}`,
+};
+
 /** The shop card's chip for `def` at ★1 (o: the hero's class factor for a core, the hero for MIMIC FORGE), in markup, or
- *  null (today's card). */
+ *  null (today's card). WORDS-1: a piece the rule gives no chip takes its PLAIN_CHIPS row. */
 export function shopChip(def: string, o: TextOpts = {}): string | null {
   if (!hasFace(def) || ITEMS[def]?.kind === "supply") return null;
   const f = faceAt(def, 1, o);
   if (!f) return null;
+  const c = ruleChip(f);
+  return c ?? PLAIN_CHIPS[def]?.(f) ?? null;
+}
+
+/** The chip rule (U2c, U2d F2) on a face at ★1, or null. */
+function ruleChip(f: Face): string | null {
   // 1. the rule's keyword with its count
   const kw = f.nums.find(([, v]) => KEYWORDS.some((k) => v.includes(`{*${k}}`) || v.includes(`{${k}}`)));
   if (kw) return chipFrom(kw[1]);

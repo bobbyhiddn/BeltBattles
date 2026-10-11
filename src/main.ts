@@ -6,7 +6,8 @@ import { newRun } from "./game/run";
 import { gainModule } from "./game/fuse";
 import { beginRoad, makeEvent } from "./game/events";
 import type { EventId } from "./game/eventDefs";
-import { ITEMS, buyableModules, type HeroId } from "./sim/content";
+import { HEROES, ITEMS, buyableModules, type HeroId } from "./sim/content";
+import { heroStartBuild } from "./sim/heroBuilds"; // MIRROR-1 (REQ-BFG-093) tooling: the mirror test's silent deck
 import { FUSE_MAX, fusible } from "./sim/stars";
 import { settings, setReducedMotion } from "./core/settings";
 import { VERSION } from "./version";
@@ -21,6 +22,7 @@ import { TitleScreen } from "./screens/title";
 import { HeroScreen, ORDER as HERO_ORDER } from "./screens/hero";
 import { BuildScreen } from "./screens/build/build";
 import { BattleScreen, DuskWaitScreen } from "./screens/battle";
+import { partsOnScreen } from "./screens/battleScout"; // SCOUT-1 tooling: bb.parts
 import { SummaryScreen } from "./screens/summary";
 import { EventScreen } from "./screens/event/event";
 import type { Arena } from "./game/arena";
@@ -30,13 +32,15 @@ import { CustomizeScreen } from "./screens/customize"; // CUSTOM-2a (REQ-BFG-072
 import { chosenSkin, loadProfile, unseen } from "./game/profile"; // CUSTOM-2a (REQ-BFG-072) tooling (read only)
 import { currentName } from "./game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063) tooling
 import { runeGrants } from "./sim/runes"; // RUNES-1 (REQ-BFG-058) tooling
-import { MOTION, MOTION_KNOBS } from "./render/motion"; // MOTION-1 (REQ-BFG-071) tooling
+import { MOTION, MOTION_KNOBS, isSceneId } from "./render/motion"; // MOTION-1 (REQ-BFG-071) tooling
+import { forceScene, forcedScene } from "./render/scenery"; // FIELD-1 (REQ-BFG-075) tooling: bb.scene
 import { openReplay } from "./game/replays"; // MOTION-2 (REQ-BFG-071) tooling: a replay still
 import { battleRecordFor } from "./net/replay";
 import { battleSeed } from "./game/run";
 import type { Boon } from "./sim/lastChance"; // LC-1 (REQ-BFG-073) tooling (shots)
 import { pendingLastChance, pendingRune, takeLastChance, takeRune, type Run } from "./game/run"; // LC-1 tooling
 import { finishDay, startDusk } from "./game/day"; // LC-1 tooling: the game's own day loop
+import { C } from "./render/palette"; // WIND-1 (REQ-BFG-093) tooling: bb.windInfo's colour
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
@@ -134,6 +138,20 @@ game.start();
     clearPool();
     game.run = showcaseRun(name, o);
     game.go(screen === "battle" ? new BattleScreen(game) : new BuildScreen(game));
+  },
+  /** MIRROR-1 (REQ-BFG-093) tooling: a read-only dev hook that rides the release beside openShowcase and windInfo
+   *  (WIND-2: scripts/mirror1shots.mjs opens it for the mirror check; no player path calls it). The operator's mirror
+   *  test: both sides are `hero`'s starting deck with its belts cut (heroStartBuild with routes []: nothing loads,
+   *  nothing fires; uids 1 and 101, as tests/mirror.wind.test.ts builds them), so only the dark wind moves a hull. Opened
+   *  as a stored record replayed (openReplay(battleRecordFor(a, b, seed)) into a ReplayScreen, as bb.openReplay and the
+   *  summary's REPLAY play one), BACK to the title; `day` only picks the replay's sea and banner. Changes no run state. */
+  openMirror(hero: HeroId = "furnace", seed = 7, day = 1): boolean {
+    clearPool();
+    const silent = (uid: number): Build => ({ ...heroStartBuild(hero, uid), routes: [] });
+    const r = openReplay(battleRecordFor(silent(1), silent(101), seed));
+    if (!r.ok) return false;
+    game.go(new ReplayScreen(game, new TitleScreen(game), r.battle, { day, foe: HEROES[hero].name }));
+    return true;
   },
   openDusk(o: RunSpec = {}, ghosts: GhostSpec[] = []): void {
     clearPool();
@@ -254,9 +272,87 @@ game.start();
     const s = game.screen;
     return { profile: p, wears: chosenSkin(p), unseen: unseen(p), customize: s instanceof CustomizeScreen ? s.info() : null };
   },
-  /** Current screen name (for harness assertions). */
-  screen(): string {
+  /** SCOUT-1 (REQ-BFG-076) tooling. SCOUT-1b (REQ-BFG-082): no fight waits for FIGHT any more (the sail-in runs into the
+   *  count by itself), so this does nothing and returns false; it stays so the scripts that call bb.fight(true) run as
+   *  they are. */
+  fight(auto?: boolean): boolean {
+    void auto;
+    return false;
+  },
+  /** SCOUT-1 tooling: open (true) or close (false: BACK) VIEW BATTLEFIELD on the current battle's result card. Returns
+   *  whether it changed. */
+  viewBattlefield(open = true): boolean {
     const s = game.screen;
+    if (!(s instanceof BattleScreen)) return false;
+    return open ? s.openView() : s.closeView();
+  },
+  /** SCOUT-1 tooling (read only): VIEW BATTLEFIELD as drawn: the phase, the camera, the open face (its side, part, title,
+   *  sub line, body lines and rects), BACK's and the primary action's tap targets and the summaries, in CSS client px; null
+   *  off a battle. SCOUT-1b (REQ-BFG-083): `speed`, the bar's speed (an index into 0.5X 1X 2X 4X), the arena's and the
+   *  sim's ticks; `card`, the result card's box as drawn (REQ-BFG-082). */
+  scout() {
+    const s = game.screen;
+    if (!(s instanceof BattleScreen)) return null;
+    const k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    const css = (q: { x: number; y: number; w: number; h: number } | null | undefined) => (q ? { x: c.left + q.x * k, y: c.top + q.y * k, w: q.w * k, h: q.h * k } : null);
+    const f = s.faces.last, r = s.scoutRects;
+    return {
+      phase: s.phaseName(), canView: s.canView(), camera: s.motion.camera ? { shot: s.motion.camera.shot, zoom: s.motion.camera.zoom, moving: s.motion.camera.moving } : null,
+      calm: s.motion.model.calmAt(),
+      face: f ? { side: f.side, sel: f.sel, title: f.title, sub: f.sub, line: f.line, lines: f.lines, r: css(f.r), close: css(f.close) } : null,
+      back: css(r.back), primary: css(r.primary), summaries: r.summaries.map(css), card: css(r.card),
+      viewPrimary: s.viewPrimary()?.label ?? null, speed: s.speed, arenaSpeed: s.arena.speed, ticks: s.arena.b.ticks,
+    };
+  },
+  /** SCOUT-1 tooling (read only): every part on board `side` of the current battle (each installed turret, item and belt)
+   *  with a point inside it where it is drawn now, in CSS client px (what a tap must hit to open its face); [] off a
+   *  battle. */
+  parts(side: 0 | 1): { kind: string; id: number; name: string; x: number; y: number }[] {
+    const s = game.screen;
+    if (!(s instanceof BattleScreen)) return [];
+    const k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    return partsOnScreen(s.arena, s.motion, side).map((p) => ({
+      kind: p.sel.kind, id: p.sel.kind === "item" ? p.sel.uid : p.sel.index, name: p.name, x: c.left + p.x * k, y: c.top + p.y * k,
+    }));
+  },
+  /** SCOUT-1c tooling (read only; REQ-BFG-082): the build screen's scouted foe (build/foeView.ts): whether the NEXT BATTLE
+   *  card opens one (`scouted`), whether its view is open, the card's and BACK's tap targets, the open face (title, sub
+   *  line, body lines, its rect and CLOSE's target) and every part of the foe's carrier with a point inside it, all in CSS
+   *  client px; null off the build screen. */
+  foeView() {
+    const s = game.screen;
+    if (!(s instanceof BuildScreen)) return null;
+    const k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    const css = (q: { x: number; y: number; w: number; h: number } | null | undefined) => (q ? { x: c.left + q.x * k, y: c.top + q.y * k, w: q.w * k, h: q.h * k } : null);
+    const v = s.foeView.info(s), f = v.face;
+    return {
+      scouted: v.scouted, open: v.open, card: css(v.card), back: css(v.back),
+      face: f ? { sel: f.sel, title: f.title, sub: f.sub, lines: f.lines, r: css(f.r), close: css(f.close) } : null,
+      parts: v.parts.map((p) => ({ kind: p.sel.kind, id: p.sel.kind === "item" ? p.sel.uid : p.sel.index, name: p.name, x: c.left + p.x * k, y: c.top + p.y * k })),
+    };
+  },
+  /** WIND-1 (REQ-BFG-093) tooling (read only; scripts/wind1shots.mjs): the dark wind on the current battle or replay: its
+   *  colour (palette.ts C.windHit), each hull bar's wind flash (s left), the callout's clock and its box, the wind numbers
+   *  drawn in the last frame (side, text, box; `beside`: by its plate, its carrier out of view) and each plate as drawn (its
+   *  box and its hull text), boxes in CSS client px; null on another screen. */
+  windInfo() {
+    const s = game.screen;
+    if (!(s instanceof BattleScreen) && !(s instanceof ReplayScreen)) return null;
+    const k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    const css = (q: { x: number; y: number; w: number; h: number } | null | undefined) => (q ? { x: c.left + q.x * k, y: c.top + q.y * k, w: q.w * k, h: q.h * k } : null);
+    const a = s.arena;
+    return {
+      colour: C.windHit, flash: [a.sfx[0].windFlash, a.sfx[1].windFlash], callT: a.windCallT, call: css(s.windCallR),
+      numbers: s.motion.windDrawn.map((n) => ({ side: n.side, text: n.text, beside: n.beside, r: css(n) })),
+      plates: s.plateRows.map((p) => (p ? { ...p, r: css(p.r), bar: css(p.bar), hullBox: css(p.hullBox) } : null)),
+    };
+  },
+  /** Current screen name (for harness assertions). SCOUT-1 (REQ-BFG-076): `phase` true, on a battle its phase instead
+   *  ("intro", "count", "fight", "outro", "result", "view"; SCOUT-1b: no "scout"); without it the names as before, so every
+   *  flow that waits for "battle" or "warlord" still does. */
+  screen(phase = false): string {
+    const s = game.screen;
+    if (phase && s instanceof BattleScreen) return s.phaseName();
     return s instanceof TitleScreen ? "title" : s instanceof HeroScreen ? "hero" : s instanceof BuildScreen ? "build"
       : s instanceof BattleScreen ? (s.kind === "warlord" ? "warlord" : "battle") : s instanceof SummaryScreen ? "summary"
       : s instanceof EventScreen ? "event" : s instanceof ForkScreen ? "fork" : s instanceof ReplayScreen ? "replay"
@@ -305,14 +401,33 @@ game.start();
     };
     if (s instanceof BuildScreen && s.perf) return { ...base, perf: s.perf.mean(), perfTotals: s.perf.totals() };
     const om = s instanceof TitleScreen || s instanceof ReplayScreen ? s.motion : null;
-    if (om) return { ...base, on: true, t: om.model.t, sea: om.kind, reduced: om.model.reduced, poses: [om.model.pose(0), om.model.pose(1)], drawnBank: [...om.bankDrawn], perf: om.perf ? om.perf.mean() : null, perfTotals: om.perf ? om.perf.totals() : null };
+    // FIELD-1: the setting (`sea`, its id), its medium and the camera (shot, zoom, grid; null at the title's framing)
+    const cam = (x: { camera: { shot: string; zoom: number; moving: boolean; grid: object } | null }) => (x.camera ? { shot: x.camera.shot, zoom: x.camera.zoom, moving: x.camera.moving, grid: { ...x.camera.grid } } : null);
+    if (om) return { ...base, on: true, t: om.model.t, sea: om.kind, medium: om.medium, camera: cam(om), reduced: om.model.reduced, poses: [om.model.pose(0), om.model.pose(1)], drawnBank: [...om.bankDrawn], perf: om.perf ? om.perf.mean() : null, perfTotals: om.perf ? om.perf.totals() : null };
     if (!m || !(s instanceof BattleScreen)) return base;
     return {
-      ...base, t: m.model.t, sea: m.kind, reduced: m.model.reduced, spec: m.model.spec, gap: m.model.gapAt(),
+      ...base, t: m.model.t, sea: m.kind, medium: m.medium, camera: cam(m), reduced: m.model.reduced, spec: m.model.spec, gap: m.model.gapAt(),
       poses: [m.model.pose(0), m.model.pose(1)], drawnBank: [...m.bankDrawn], lastTap: m.lastTap, taps: m.taps,
       perf: m.perf ? m.perf.mean() : null, perfTotals: m.perf ? m.perf.totals() : null, seaBuilds: m.sea.builds,
       shots: s.arena.b.projectiles.length, over: s.arena.b.over, shake: [s.arena.fx.shakeX, s.arena.fx.shakeY],
     };
+  },
+  /** FIELD-1 (REQ-BFG-075) tooling (shots and videos; nothing in play calls it): every battle and replay from now on
+   *  shows setting `id` (scenery.ts: calm, storm, ember, forest, desert, badlands, sky, clouds); null, back to each
+   *  battle's own pick. Returns the setting forced (null: none, or an unknown id). */
+  scene(id: string | null): string | null {
+    forceScene(isSceneId(id) ? id : null);
+    return forcedScene();
+  },
+  /** FIELD-1 tooling (stills; SCOUT-1's API in a script's hands): ease the current battle's or replay's camera to `shot`
+   *  ("close": today's framing; "wide") over `secs` (0: cut). Returns the camera's state, or null on another screen. */
+  camera(shot?: "close" | "wide", secs = 0): { shot: string; zoom: number; moving: boolean; grid: unknown } | null {
+    const s = game.screen;
+    const m = s instanceof BattleScreen || s instanceof ReplayScreen ? s.motion : null;
+    const c = m?.camera;
+    if (!c) return null;
+    if (shot === "close" || shot === "wide") c.easeTo(shot, secs);
+    return { shot: c.shot, zoom: c.zoom, moving: c.moving, grid: { ...c.grid } };
   },
   /** MOTION-1 tooling: board `side`'s tile (cx, cy) centre where it is drawn now, in CSS client px (null: no motion). */
   motionTile(side: 0 | 1, cx: number, cy: number): { x: number; y: number } | null {

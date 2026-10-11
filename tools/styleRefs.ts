@@ -10,4 +10,8 @@ export {
   carrierFill, chevronContrast, contrast, edgeContrast, floorTones, keywordMin, numberContrast, separation, yoursDistance,
 } from "../src/render/styleContrast";
 export { C, FACTION } from "../src/render/palette";
+// FIELD-1 (REQ-BFG-075): the battle settings' checks and thresholds (the logic half reads the same)
+export { SCENE_GROUND, SCENE_THRESHOLDS, sceneChecks } from "../src/render/sceneContrast";
+export { SCENE_IDS } from "../src/render/motion";
+export { SCENE_NAME } from "../src/render/scenery";
 export { ICON, ICON_COLOUR } from "../src/render/font";

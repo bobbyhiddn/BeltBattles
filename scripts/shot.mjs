@@ -8,6 +8,7 @@ import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { measure } from "./metrics.mjs";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 // BB_SHOTS: another shot-list module (a trial list; it re-exports VIEWS and prep from shots-list.mjs)
 const { SHOTS, VIEWS, prep } = await import(process.env.BB_SHOTS ? pathToFileURL(resolve(process.env.BB_SHOTS)).href : "./shots-list.mjs");
@@ -66,6 +67,7 @@ async function main() {
     const shots = SHOTS.filter(([n, v]) => v === vname && `${n}-${v}`.includes(filter));
     if (!shots.length) continue;
     const ctx = await browser.newContext(vopts);
+    await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
     await ctx.route(`${ORIGIN}/**`, serve);
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`[${vname}] pageerror: ${e.message}`));

@@ -17,6 +17,7 @@ import { mkdir, writeFile, rename, stat } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
@@ -46,6 +47,7 @@ const FREEZE = () => {
 async function still(browser, name, view, scene, o = {}) {
   const page0 = o.page ?? PAGE;
   const ctx = await browser.newContext(view);
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -99,6 +101,7 @@ async function video(browser) {
   await mkdir(dir, { recursive: true });
   // record what Playwright can: the page's 390x844 CSS px (at DPR 2), then scale it in this script (below)
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, recordVideo: { dir, size: { width: 390, height: 844 } } });
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const t0 = Date.now();
   const page = await ctx.newPage();
   const errors = [];

@@ -14,6 +14,7 @@ import { chromium } from "playwright-core";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const argv = process.argv.slice(2);
 const ki = argv.indexOf("--knobs");
@@ -29,6 +30,7 @@ const MOMENTS = 4;
 
 async function run(browser, name, query, reduced, page0 = PAGE) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -98,13 +100,24 @@ async function run(browser, name, query, reduced, page0 = PAGE) {
   await ctx.close();
 }
 
-/** MOTION-2: the player build ignores every dev knob in the URL: motion stays on, no sway, the day's sea, no overlay. */
+/** MOTION-2: the player build ignores every dev knob in the URL: motion stays on, no sway, the battle's own setting (FIELD-1:
+ *  its seed's pick; MOTION-2: the day's sea), no overlay. */
 async function ignored(browser) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  // FIELD-1 (REQ-BFG-075): a battle's setting is its seed's pick (render/scenery.ts), not the day's: the same battle opened
+  // on the page without the query sets the expectation
+  const plain = await ctx.newPage();
+  await plain.goto(pathToFileURL(PAGE).href);
+  await plain.waitForFunction(() => !!window.bb && window.bb.screen() === "title");
+  await plain.evaluate(() => window.bb.openDusk({ hero: "furnace", day: 2, seed: 7 }, []));
+  await plain.waitForFunction(() => window.bb.motion().phase === "fight", null, { timeout: 20000 });
+  const pick = await plain.evaluate(() => window.bb.motion().sea);
+  await plain.close();
   const q = "?motion=0&sway=3&sea=ember&perf=1";
   await page.goto(pathToFileURL(PAGE).href + q);
   await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title");
@@ -116,7 +129,7 @@ async function ignored(browser) {
   check(m.knobs === false, `knobs ignored: the player build has no knobs (MOTION_KNOBS false)`);
   // CUSTOM-2a (REVIEW-MOTION2 Q2): the options have no `on` (the ?motion=0 knob is gone from every build)
   check(JSON.stringify(m.opts) === JSON.stringify({ sway: 0, sea: null, perf: false }), `knobs ignored: the options are the defaults whatever the URL says: ${JSON.stringify(m.opts)}`);
-  check(m.on === true && m.sea === "calm", `knobs ignored: ?motion=0 and ?sea=ember change nothing: motion on ${m.on}, day 2's sea ${m.sea}`);
+  check(m.on === true && m.sea === pick && (pick === "ember" || m.sea !== "ember"), `knobs ignored: ?motion=0 and ?sea=ember change nothing: motion on ${m.on}, the battle's own setting ${m.sea} (the same battle without the query: ${pick})`);
   check(m.perf === null && m.poses.every((p) => p.board === 0), `knobs ignored: ?perf=1 and ?sway=3 change nothing: perf ${JSON.stringify(m.perf)}, board angles [${m.poses.map((p) => p.board)}]`);
   check(errors.length === 0, `knobs ignored: console errors ${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""}`);
   await ctx.close();

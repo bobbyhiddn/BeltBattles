@@ -29,7 +29,9 @@ interface Anim {
   side: number; // MOTION-1: the board it rides with (-1: none)
 }
 
-interface Popup {
+/** A damage number in the pool. WIND-1 (REQ-BFG-093): exported, read only, for the dark wind's numbers (`wind`), which
+ *  ArenaMotion draws above the wind; drawPops draws every other one. */
+export interface Popup {
   x: number;
   y: number;
   text: string;
@@ -38,7 +40,11 @@ interface Popup {
   max: number;
   big: boolean;
   side: number; // MOTION-1
+  wind: boolean; // WIND-1: a dark wind number (Fx.windPop)
 }
+
+/** WIND-1 (REQ-BFG-093): the longest a dark wind number lives (s, effect time): a big hit's. */
+export const WIND_POP_MAX = 1.15;
 
 interface Decal {
   x: number;
@@ -67,7 +73,7 @@ export class Fx {
   readonly parts = new Particles(1400);
   private anims = pool<Anim>(128, () => ({ kind: 0, x: 0, y: 0, t: 0, fps: 0, frames: 0, size: 0, cool: false, dir: 0, heavy: false, delay: 0, color: C.white, side: -1 }));
   private na = 0;
-  private pops = pool<Popup>(48, () => ({ x: 0, y: 0, text: "", color: C.white, t: 0, max: 1, big: false, side: -1 }));
+  private pops = pool<Popup>(48, () => ({ x: 0, y: 0, text: "", color: C.white, t: 0, max: 1, big: false, side: -1, wind: false }));
   private np = 0;
   private decals = pool<Decal>(40, () => ({ x: 0, y: 0, r: 0, v: 0, t: 0, max: 1, side: -1 }));
   private nd = 0;
@@ -304,6 +310,39 @@ export class Fx {
     const p = this.pops[this.np++];
     p.x = x; p.y = y; p.text = text; p.color = color; p.t = 0; p.max = big ? 1.15 : 0.85; p.big = big;
     p.side = this.anchorSide;
+    p.wind = false; // WIND-1
+  }
+
+  /**
+   * WIND-1 (REQ-BFG-093): the dark wind's number on the anchor's hull, at (x, y) (rest-screen px, as popup's), living `max` s
+   * of effect time (at most WIND_POP_MAX). A full pool never loses one: it takes the slot of the ordinary number with the
+   * most of its life gone (were every slot a wind number, the oldest of all). Big, and drawn above the wind (ArenaMotion,
+   * from windPops); drawPops never draws it. popup's own parameters are unchanged.
+   */
+  windPop(x: number, y: number, text: string, color: string, max = WIND_POP_MAX): void {
+    let p: Popup;
+    if (this.np < this.pops.length) p = this.pops[this.np++];
+    else {
+      let k = -1;
+      for (let i = 0; i < this.np; i++) {
+        const q = this.pops[i];
+        if (!q.wind && (k < 0 || q.t / q.max > this.pops[k].t / this.pops[k].max)) k = i;
+      }
+      if (k < 0) for (let i = 0; i < this.np; i++) if (k < 0 || this.pops[i].t > this.pops[k].t) k = i;
+      p = this.pops[k];
+    }
+    p.x = x; p.y = y; p.text = text; p.color = color; p.t = 0; p.max = Math.min(WIND_POP_MAX, max); p.big = true;
+    p.side = this.anchorSide;
+    p.wind = true;
+  }
+
+  /** WIND-1 (REQ-BFG-093): the live numbers (read only; the first `popCount`), for the wind's numbers' own pass. */
+  get popList(): readonly Popup[] {
+    return this.pops;
+  }
+
+  get popCount(): number {
+    return this.np;
   }
 
   scorch(x: number, y: number, r: number): void {
@@ -349,10 +388,12 @@ export class Fx {
     }
   }
 
-  /** Damage numbers: pop up, hold, blink out. Drawn above everything in the world layer. */
+  /** Damage numbers: pop up, hold, blink out. Drawn above everything in the world (WIND-2, REQ-BFG-093: and above the dark
+   *  wind: ArenaMotion.drawPops draws them on the canvas after it, as the world layer would). */
   drawPops(g: G, ox: number, oy: number, only = ALL_SIDES): void {
     for (let i = 0; i < this.np; i++) {
       const p = this.pops[i];
+      if (p.wind) continue; // WIND-1 (REQ-BFG-093): the wind's numbers have their own pass, above the wind
       if (only !== ALL_SIDES && p.side !== only) continue;
       const k = p.t / p.max;
       const rise = (p.big ? 16 : 11) * Math.min(1, k * 2.2);

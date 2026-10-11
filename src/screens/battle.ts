@@ -7,9 +7,11 @@
 import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
-import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
+import { battleGrid, battleLayout, battleScale, cameraFocus, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
 import { ArenaMotion, drawMotionPerf } from "../game/arenaMotion"; // MOTION-1 (REQ-BFG-071); MOTION-2: in every build
 import { MOTION, MOTION_KNOBS } from "../render/motion";
+import { battleScene } from "../render/scenery"; // FIELD-1 (REQ-BFG-075): the battle's setting, from its seed
+import { cameraGrid, type Grid } from "../render/camera"; // FIELD-1: the battle camera's grid
 import { settings } from "../core/settings";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
 import { finishDay, foeTitle, ghostOf, startDusk, storedFoe } from "../game/day";
@@ -31,16 +33,29 @@ import { button, panel } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { SummaryScreen } from "./summary";
 import { fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the hull readout, whole
+import { barClock, clockSec } from "../ui/statFormat"; // WIND-2 (REQ-BFG-093): one fight clock, the bar's as the card's
 import { TitleScreen } from "./title";
 import { NOTE_ROW, SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, notePlace, plateSource, type BarState } from "./battleHud";
+import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout; the plates drawn
+import { BattleFaces, drawSummaries, drawViewBar, fingerPx, summaryRects } from "./battleScout"; // SCOUT-1 (REQ-BFG-076)
+import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
+import type { Rect } from "../ui/ui";
 
 /** 0.7.0 (R1 M1): the enemy plate's source line as BattleScreen draws it (see placeSource). */
 export type SourceLine =
   | { place: "above"; text: string; box: { x: number; y: number; w: number; h: number } }
   | { place: "plate"; tag: string; name: string };
 
-type Phase = "intro" | "fight" | "outro" | "result";
+/** SCOUT-1 (REQ-BFG-076): "view" is VIEW BATTLEFIELD, opened from the result card. SCOUT-1b (REQ-BFG-082): no scouting
+ *  pause: the sail-in runs into the 3-2-1 count by itself at WIDE, as before SCOUT-1. */
+type Phase = "intro" | "fight" | "outro" | "result" | "view";
 const INTRO = 1.2; // drive-in seconds
+/** SCOUT-1: VIEW BATTLEFIELD's camera moves (FIELD-1's Camera.easeTo) and the steady sailing's ease (MotionModel.calmTo),
+ *  seconds. */
+export const VIEW_CLOSE_S = 0.6, BACK_WIDE_S = 0.6, CALM_S = 0.5;
+/** SCOUT-1: how long the card takes to lower when VIEW BATTLEFIELD opens (its rise, played back). */
+const LOWER_S = 0.25;
+
 /** MOTION-2 (REQ-BFG-071): how far past its hull box a carrier starts its sail-in (its bow reaches 18 px past the box, its
  *  bow wave 3 more). */
 const SAIL_IN_PAD = 24;
@@ -52,7 +67,6 @@ export class BattleScreen implements Screen {
   private pt = 0;
   private result: DayResult | null = null;
   readonly foeName: string;
-  private windBanner = 0;
   private count = 4;
   speed = SPEED_1X;
   menu = false;
@@ -78,6 +92,17 @@ export class BattleScreen implements Screen {
   readonly motion: ArenaMotion;
   /** The drive-in distances (px) each side starts at: far enough left to sail in from off screen (relayout). */
   private driveIn: [number, number] = [60, 260];
+  /** SCOUT-1 (REQ-BFG-076): the faces of both boards (VIEW BATTLEFIELD). */
+  readonly faces = new BattleFaces();
+  /** SCOUT-1: seconds since VIEW BATTLEFIELD opened (the card lowers over LOWER_S). */
+  private viewT = 0;
+  /** SCOUT-1 tooling: this frame's BACK and primary tap targets and the summaries (logical px); SCOUT-1b: the result
+   *  card's box (null: no card drawn). */
+  readonly scoutRects: { back: Rect | null; primary: Rect | null; summaries: Rect[]; card: Rect | null } = { back: null, primary: null, summaries: [], card: null };
+  /** WIND-1 tooling (bb.windInfo): the DARK WIND callout's box as drawn this frame (null: not showing). */
+  windCallR: Rect | null = null;
+  /** WIND-1 tooling (bb.windInfo): each plate as drawn this frame (battleHud.ts drawPlate), [yours, the foe's]. */
+  readonly plateRows: [PlateInfo | null, PlateInfo | null] = [null, null];
 
   constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
@@ -112,7 +137,8 @@ export class BattleScreen implements Screen {
     this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins);
     this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): the player's board and plate; the foe's stay the defaults
     this.arena.off = [60, 260];
-    this.motion = new ArenaMotion(this.seed, this.foe.day, MOTION, settings.reducedMotion);
+    // FIELD-1 (REQ-BFG-075): the setting this battle's seed picks (its replay plays the same seed: the same setting)
+    this.motion = new ArenaMotion(this.seed, battleScene(this.seed), MOTION, settings.reducedMotion);
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
@@ -122,6 +148,7 @@ export class BattleScreen implements Screen {
     };
     this.relayout();
     this.arena.off = [this.driveIn[0], this.driveIn[1]];
+    this.useSpeed(runSpeed(run)); // SCOUT-1b (REQ-BFG-083): the speed picked earlier in this run, from the first step
     if (w?.result) {
       // reloaded on the result card: show the stored result, never fight or pay again
       this.arena.off = [0, 0];
@@ -166,6 +193,24 @@ export class BattleScreen implements Screen {
     return battleScale(pw, ph, portrait);
   }
 
+  private gridPick: { grid: Grid; W: number; H: number; portrait: boolean } | null = null;
+
+  /** FIELD-1 (REQ-BFG-075): the canvas grid the camera needs (game/viewGrid.ts GameView.sub): both shots' pixels whole. */
+  pickSub(pw: number, ph: number, portrait: boolean, scale: number): number {
+    const grid = battleGrid(pw, ph, portrait);
+    if (grid.close !== scale) return 1;
+    this.gridPick = { grid, W: Math.floor(pw / scale), H: Math.floor(ph / scale), portrait };
+    return grid.sub;
+  }
+
+  /** FIELD-1: the camera grid of the view on screen (pickSub's); a view not yet the battle's gets a grid that doesn't
+   *  zoom (until enter() lays the battle out on its own view). */
+  private viewGrid(): Grid {
+    const v = this.game.view, p = this.gridPick;
+    const grid = p && p.W === v.W && p.H === v.H && p.portrait === v.portrait ? p.grid : battleGrid(v.W * v.scale, v.H * v.scale, v.portrait);
+    return grid.close === v.scale && grid.sub === (v.sub ?? 1) ? grid : cameraGrid(v.scale, v.scale);
+  }
+
   get toastY(): number {
     return Math.round(this.game.H / 2 - 8);
   }
@@ -176,9 +221,63 @@ export class BattleScreen implements Screen {
   }
 
   togglePause(): void {
-    if (this.menu || this.phase === "result") return;
+    if (this.menu || this.phase === "result" || this.phase === "view") return;
     this.arena.paused = !this.arena.paused;
     this.game.audio.play("click");
+  }
+
+  // ------------------------------------------------------------ SCOUT-1 (REQ-BFG-076): VIEW BATTLEFIELD
+
+  /** Back to the fight's framing: WIDE and the full motion. */
+  private toWide(secs: number): void {
+    if (this.motion.camera && (this.motion.camera.shot !== "wide" || this.motion.camera.moving)) this.motion.camera.easeTo("wide", secs);
+    if (this.motion.model.calmAt() > 0 || this.motion.model.calmAt(Infinity) > 0) this.motion.model.calmTo(0, CALM_S);
+  }
+
+  /** VIEW BATTLEFIELD is offered: on the result card, with the battle's end in the arena (a live fight's, or a reloaded
+   *  warlord card's: the constructor rebuilt it with Arena.finish from the stored fight, as the replay's path does). */
+  canView(): boolean {
+    return this.phase === "result" && this.arena.b.over;
+  }
+
+  /** VIEW BATTLEFIELD: the card lowers and the camera eases to CLOSE over both carriers as the fight left them. */
+  openView(): boolean {
+    if (!this.canView()) return false;
+    this.phase = "view";
+    this.viewT = 0;
+    this.faces.close();
+    this.motion.camera?.easeTo("close", VIEW_CLOSE_S);
+    this.motion.model.calmTo(1, CALM_S);
+    this.game.audio.play("click");
+    return true;
+  }
+
+  /** BACK: the result card again (at rest, its buttons up), the camera back at WIDE. */
+  closeView(): boolean {
+    if (this.phase !== "view") return false;
+    this.phase = "result";
+    this.pt = 1.4; // the card at rest, its buttons shown, its lost heart done blinking
+    this.faces.close();
+    this.toWide(BACK_WIDE_S);
+    this.game.audio.play("click");
+    return true;
+  }
+
+  /** The card's primary action, as the view's bar offers it: ON TO DAWN · DAY n or SEE THE RUN; a warlord's REFIT (a part
+   *  in cargo) or ON TO DUSK; none while a warlord's part pick waits on the card (BACK to pick). */
+  viewPrimary(): { label: string; onTap: () => void } | null {
+    const w = this.warlord;
+    if (w) {
+      const r = w.result;
+      if (!r || pickPending(w)) return null;
+      return r.took ? { label: "REFIT", onTap: this.wact.refit } : { label: "ON TO DUSK", onTap: this.wact.fight };
+    }
+    return { label: this.game.run!.over ? "SEE THE RUN" : `ON TO DAWN · DAY ${this.game.run!.day}`, onTap: this.onNext };
+  }
+
+  /** Tooling: the battle's phase, "count" for the intro's 3-2-1 count (the sail-in over). */
+  phaseName(): string {
+    return this.phase === "intro" && this.pt >= INTRO ? "count" : this.phase;
   }
 
   enter(): void {
@@ -213,20 +312,37 @@ export class BattleScreen implements Screen {
   private onNext = () => this.next();
   private openMenu = () => { this.menu = true; this.arena.paused = true; };
 
+  private subKey = 0;
+
   private relayout(): void {
     const { W, H, portrait } = this.game;
-    if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait) return;
+    const sub = this.game.view.sub ?? 1;
+    if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait && this.subKey === sub) return;
+    this.subKey = sub;
     // MOTION-1: the lanes (portrait as today; landscape's enemy lane raised and a little ahead), the sail-in from the
     // left, and the curves fitted so the gap never closes below the layout's minimum
     this.L = laneLayout(battleLayout(W, H, portrait));
     this.motion.setLanes(this.L, minGap(portrait ? H : W));
-    // MOTION-2: + SAIL_IN_PAD, so the longer bow (render/carrier.ts) starts off screen too
-    this.driveIn = [this.L.hulls[0].x + this.L.hulls[0].w + SAIL_IN_PAD, this.L.hulls[1].x + this.L.hulls[1].w + SAIL_IN_PAD + 28];
+    // FIELD-1 (REQ-BFG-075): the fight runs at WIDE, from the sail-in to the result, zoomed about the lanes' centre
+    this.motion.useCamera(this.viewGrid(), cameraFocus(this.L), "wide");
+    // MOTION-2: + SAIL_IN_PAD, so the longer bow (render/carrier.ts) starts off screen too. FIELD-1: off WIDE's screen,
+    // whose left edge sits further left in the layout's space
+    const left = Math.min(0, Math.floor(this.motion.toRest(0, 0, [0, 0])[0]));
+    this.driveIn = [this.L.hulls[0].x + this.L.hulls[0].w + SAIL_IN_PAD - left, this.L.hulls[1].x + this.L.hulls[1].w + SAIL_IN_PAD + 28 - left];
     this.src = this.placeSource();
     this.arena.setFrames(this.L.frames, this.L.enter);
+    this.motion.windKeep = { plates: this.L.plates, bar: this.L.bar }; // WIND-1 (REQ-BFG-093): the wind's numbers keep clear
   }
 
+  /** The player's pick (a bar button, the cycle button, keys 1-4). SCOUT-1b (REQ-BFG-083): it holds for the rest of the
+   *  run, kept on the device with the run's id (game/runSpeed.ts), so the next battle starts at it. */
   setSpeed(i: number): void {
+    this.useSpeed(i);
+    keepRunSpeed(this.game.run!, this.speed);
+  }
+
+  /** SCOUT-1b: play at speed `i` (the bar shows it) without keeping it. */
+  private useSpeed(i: number): void {
     this.speed = Math.max(0, Math.min(SPEEDS.length - 1, i));
     this.arena.speed = SPEEDS[this.speed];
   }
@@ -295,7 +411,12 @@ export class BattleScreen implements Screen {
 
   update(dt: number): void {
     this.relayout();
-    if (this.menu || this.arena.paused) return; // paused: nothing moves, the sim holds its tick
+    if (this.menu || this.arena.paused) {
+      // paused: nothing moves, the sim holds its tick. SCOUT-1: a camera move begun in VIEW BATTLEFIELD still comes to rest
+      // (FIELD-1 REPORT s11: update returns here, so the move needs its own step)
+      if (this.phase === "view") this.motion.camera?.update(dt);
+      return;
+    }
     this.motion.update(dt, settings.reducedMotion); // MOTION-1: the display clock (frame time; never the sim's)
     this.pt += dt;
     const a = this.arena;
@@ -324,11 +445,11 @@ export class BattleScreen implements Screen {
       const ev = a.update(dt); // reused array, valid until the next update()
       for (let i = 0; i < ev.length; i++) {
         const e = ev[i];
-        if (e.type === "windwarn") this.windBanner = 2.4;
         if (e.type === "end" && this.phase === "fight") this.end();
       }
     } else {
       a.update(dt, false);
+      if (this.phase === "view") this.viewT += dt; // SCOUT-1
       if (this.phase === "outro" && this.pt > 2.5) {
         this.phase = "result";
         this.pt = 0;
@@ -336,15 +457,15 @@ export class BattleScreen implements Screen {
         this.game.audio.play(o === "win" ? "win" : o === "loss" ? "lose" : "ready");
       }
     }
-    this.windBanner = Math.max(0, this.windBanner - dt);
   }
 
   draw(g: G): void {
     const { W, H } = this.game;
     const a = this.arena;
     const m = this.motion;
-    // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion
-    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed);
+    // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion. FIELD-1: the battle's setting,
+    // through the camera
+    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed, a);
     m.draw(g, a, W, H, settings.reducedMotion);
     this.drawHud(g);
     if (MOTION_KNOBS && m.perf) drawMotionPerf(g, m, this.game); // ?perf=1 (test builds only)
@@ -362,22 +483,39 @@ export class BattleScreen implements Screen {
     } else if (this.phase === "fight" && this.pt < 0.7 && Math.floor(this.pt * 10) % 2 === 0) {
       drawText(g, "FIGHT!", W / 2, cy - 11, C.yellow, { align: "center", scale: 3, outline: C.ink });
     }
-    if (this.windBanner > 0 && Math.floor(this.windBanner * 6) % 2 === 0) {
-      banner(g, W, cy - 16, "DARK WIND", C.plum4, "THE STORM HURTS BOTH HULLS", 1);
-    }
-    if (this.phase === "result" && this.warlord?.result) drawWarlordResult(g, this.game, this.warlord, this.pt, this.wact);
+    // WIND-1 (REQ-BFG-093): the DARK WIND callout in the open floor (was a blinking full-width banner at the screen's middle,
+    // over the boards on landscape, here only: the replay had none)
+    this.windCallR = drawWindCall(g, a, this.L, m, settings.reducedMotion);
+    // SCOUT-1 (REQ-BFG-076): the card offers VIEW BATTLEFIELD; while the view opens the card lowers (its rise, played back)
+    const lowering = this.phase === "view" && this.viewT < LOWER_S;
+    const view = this.canView() || lowering ? this.onView : undefined; // lowering: the card keeps its row (no button drawn)
+    const cardT = lowering ? LOWER_S - this.viewT : this.pt;
+    const sr = this.scoutRects;
+    sr.card = null; // SCOUT-1b tooling: the card's box as drawn
+    if ((this.phase === "result" || lowering) && this.warlord?.result) sr.card = drawWarlordResult(g, this.game, this.warlord, cardT, this.wact, view, fingerPx(this.game));
     const oc = this.outcome();
     if (this.phase === "outro" && oc && this.pt > 0.55) {
       const o = oc;
       const k = Math.min(1, (this.pt - 0.55) / 0.25);
       banner(g, W, cy - 18, o === "win" ? "VICTORY!" : o === "loss" ? "DEFEAT" : "DRAW", o === "win" ? C.lime : o === "loss" ? C.red : C.bone, o === "win" ? "THEIR HULL BREAKS" : o === "loss" ? "YOUR HULL BREAKS" : undefined, k, 3);
     }
-    if (this.phase === "result" && this.result) {
-      drawResult(g, this.game, this.result, this.pt, run.over ? "SEE THE RUN" : `ON TO DAWN · DAY ${run.day}`, this.onNext);
+    if ((this.phase === "result" || lowering) && this.result) {
+      sr.card = drawResult(g, this.game, this.result, cardT, run.over ? "SEE THE RUN" : `ON TO DAWN · DAY ${run.day}`, this.onNext, view, fingerPx(this.game));
     }
-    if (this.paused && this.phase !== "result") this.drawPaused(g);
+    // SCOUT-1: VIEW BATTLEFIELD's summaries and faces
+    sr.summaries = [];
+    if (this.phase === "view" && !lowering && !this.faces.open) { // an open face takes the floor; they're back when it closes
+      drawSummaries(g, this.arena, this.L);
+      sr.summaries = [...summaryRects(this.L).r];
+    }
+    if (this.phase === "view" && !lowering) this.faces.draw(g, this.game, this.arena, this.L, true);
+    else this.faces.last = null;
+    if (this.paused && this.phase !== "result" && this.phase !== "view") this.drawPaused(g);
     if (this.menu) this.drawMenu(g);
   }
+
+  private onView = () => this.openView();
+  private onBack = () => this.closeView();
 
   /** Intro: the captain's portrait, name and tag (the warlord's tier, or STAND-IN at dusk). */
   private drawCaptain(g: G, y: number): void {
@@ -416,26 +554,36 @@ export class BattleScreen implements Screen {
         this.hpText[s] = fmtDmg(hp);
       }
     }
-    // plates ride with their cruiser during the drive-in
+    // plates ride with their cruiser during the drive-in (FIELD-1: at the camera's zoom, as the cruiser moves on screen)
+    const z = this.motion.camera?.zoom ?? 1;
     for (let s = 0; s < 2; s++) {
       const p = L.plates[s], r = this.plateR[s];
-      r.x = p.x + Math.round(this.arena.enter[s][0] * this.arena.off[s]);
-      r.y = p.y + Math.round(this.arena.enter[s][1] * this.arena.off[s]);
+      r.x = p.x + Math.round(this.arena.enter[s][0] * this.arena.off[s] * z);
+      r.y = p.y + Math.round(this.arena.enter[s][1] * this.arena.off[s] * z);
       r.w = p.w;
       r.h = p.h;
     }
     // 0.7.0a step 6 (online only): the foe's source in small text by its plate, online ghost or offline stand-in; 0.7.0
     // (R1 M1): where sourceLine() puts it, riding with the plate
     const src = this.src, p1 = this.plateR[1];
-    drawPlate(g, this.game, this.arena, p1, 1, src?.place === "plate" ? src.name : this.foeName, this.hpText[1], src?.place === "plate" ? src.tag : undefined);
+    this.plateRows[1] = drawPlate(g, this.game, this.arena, p1, 1, src?.place === "plate" ? src.name : this.foeName, this.hpText[1], src?.place === "plate" ? src.tag : undefined);
     if (src?.place === "above") drawText(g, src.text, p1.x + 3, p1.y - (NOTE_ROW - 1), C.slate4, { font: "3", outline: C.ink });
-    drawPlate(g, this.game, this.arena, this.plateR[0], 0, HEROES[this.game.run!.hero].name, this.hpText[0]);
-    const sec = Math.floor(b.t);
+    this.plateRows[0] = drawPlate(g, this.game, this.arena, this.plateR[0], 0, HEROES[this.game.run!.hero].name, this.hpText[0]);
+    const sec = clockSec(b.t); // WIND-2 (REQ-BFG-093): whole ticks, then whole seconds (was Math.floor(b.t): 1:08 at 69 s)
     if (sec !== this.clockSec) {
       this.clockSec = sec;
-      this.clockText = `${Math.floor(sec / 60)}:${sec % 60 < 10 ? "0" : ""}${sec % 60}`;
+      this.clockText = barClock(b.t);
     }
     const st = this.bar;
+    const sr = this.scoutRects;
+    sr.back = sr.primary = null;
+    if (this.phase === "view") {
+      // SCOUT-1 (REQ-BFG-076): VIEW BATTLEFIELD's bar: BACK and the card's primary action, where the playback bar sits
+      const q = drawViewBar(g, this.game, L.bar, this.clockText, this.onBack, this.viewPrimary());
+      sr.back = q.back;
+      sr.primary = q.primary;
+      return;
+    }
     st.speed = this.speed;
     st.compact = L.compact;
     st.paused = this.paused;
@@ -475,6 +623,13 @@ export class BattleScreen implements Screen {
   down(x: number, y: number): void {
     if (this.menu || this.phase === "result") return;
     this.motion.tap(this.arena, x, y);
+    // SCOUT-1 (REQ-BFG-076): in VIEW BATTLEFIELD a part opens its face (another part swaps it); empty space closes it
+    if (this.phase === "view" && this.viewT >= LOWER_S) this.faces.press(this.arena, this.motion, x, y);
+  }
+
+  /** SCOUT-1: every press, before it is routed: a press off the face's keyword targets closes its open definition. */
+  pressed(_x: number, _y: number, region: string | null): void {
+    if (this.faces.open) this.faces.pressed(region);
   }
 
   key(k: string): void {
@@ -483,8 +638,10 @@ export class BattleScreen implements Screen {
     else if (k === "Escape") {
       this.menu = !this.menu;
       this.arena.paused = this.menu;
-    } else if ((k === " " || k === "p" || k === "P") && this.phase !== "result") this.togglePause();
+    } else if ((k === " " || k === "p" || k === "P") && this.phase !== "result" && this.phase !== "view") this.togglePause();
     else if ((k === "Enter" || k === " ") && this.phase === "result" && this.pt > 0.35) this.next();
+    else if ((k === "Enter" || k === " ") && this.phase === "view" && this.viewT >= LOWER_S) this.viewPrimary()?.onTap(); // SCOUT-1
+    else if ((k === "Backspace" || k === "b" || k === "B") && this.phase === "view") this.closeView(); // SCOUT-1: BACK
   }
 }
 

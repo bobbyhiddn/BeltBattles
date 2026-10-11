@@ -9,9 +9,11 @@
 import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
-import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
+import { battleGrid, battleLayout, battleScale, cameraFocus, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
 import { ArenaMotion } from "../game/arenaMotion";
 import { MOTION } from "../render/motion";
+import { battleScene } from "../render/scenery"; // FIELD-1 (REQ-BFG-075): the record's seed picks the battle's setting
+import { cameraGrid, type Grid } from "../render/camera"; // FIELD-1: the battle camera, at WIDE as the dusk was
 import { settings } from "../core/settings";
 import type { Battle } from "../sim/battle";
 import { HEROES, RUN_DAYS } from "../sim/content";
@@ -20,8 +22,10 @@ import type { G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
 import { banner } from "../ui/hud";
 import { fmtClock, fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock and the hull, whole
+import { barClock } from "../ui/statFormat"; // WIND-2 (REQ-BFG-093): one fight clock, the bar's as the card's
 import { button, panel } from "../ui/ui";
 import { SPEEDS, SPEED_1X, drawBar, drawPlate, type BarState } from "./battleHud";
+import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout, as the battle shows it
 import type { View } from "../core/io";
 import { isPhone, tapPx } from "../ui/tap"; // shoptap (D5, backlog 319)
 
@@ -34,23 +38,29 @@ export function replayBackH(v: Pick<View, "W" | "H" | "scale" | "dpr">): number 
 }
 
 /**
- * shoptap (D5, backlog 319): the replay's BACK while the fight plays. 0.7.0a's 36 x 12 at the top right, everywhere but a
- * phone. On a phone a TAP_CSS square (R1 measured 0.7.0a's at 24 CSS px tall), as wide as its label needs: in the first
- * screen corner (top right, bottom right, top left, bottom left; 2 px in, then flush with the screen's edge) clear of
- * both plates, both hulls, the playback bar and the REPLAY label (an iPhone turned on its side: the bottom right, under
- * the enemy hull and right of the bar); where none is clear (a portrait phone, whose hulls fill its width), the top right
- * as before, the square narrower than 0.7.0a's button so it keeps off the enemy plate. Pure (tests).
+ * shoptap (D5, backlog 319): the replay's BACK while the fight plays. On a phone a TAP_CSS square (R1 measured 0.7.0a's
+ * at 24 CSS px tall), as wide as its label needs; elsewhere 0.7.0a's 36 x 12. WIND-2 (REQ-BFG-093): on EVERY view (it
+ * was the phone's alone; elsewhere 0.7.0a's top right sat over the right end of the enemy plate, where its hull number
+ * is printed) it goes in the first screen corner (top right, bottom right, top left, bottom left; 2 px in, then flush
+ * with the screen's edge) clear of both plates, both hulls, the playback bar and the REPLAY label: an iPhone turned on
+ * its side and the desk, the bottom right, under the enemy hull and right of the bar. Where no corner is clear: on a
+ * portrait phone, whose hulls fill its width, the top right as before, the square narrower than 0.7.0a's button so it
+ * keeps off the enemy plate; on any other view, just under the enemy plate's right end, clear of it. The plates don't
+ * move. Pure (tests).
  */
 export function replayLeaveRect(L: BattleLayout, v: Pick<View, "W" | "H" | "scale" | "dpr">): Box {
   const { W, H } = L;
-  if (!isPhone(v)) return { x: W - 38, y: 2, w: 36, h: 12 };
-  const h = Math.max(12, tapPx(v)), w = Math.max(h, textWidth("BACK", "3") + 6);
+  const phone = isPhone(v);
+  const h = phone ? Math.max(12, tapPx(v)) : 12, w = phone ? Math.max(h, textWidth("BACK", "3") + 6) : 36;
   const corners: Box[] = [2, 0].flatMap((m) => [
     { x: W - w - m, y: m, w, h }, { x: W - w - m, y: H - h - m, w, h }, { x: m, y: m, w, h }, { x: m, y: H - h - m, w, h },
   ]);
   const label = { x: 3, y: 3, w: textWidth("REPLAY", "3") + 2, h: 7 }; // the outlined REPLAY at (4, 4)
   const keep = [...L.plates, ...L.hulls, L.bar, label];
-  return corners.find((c) => keep.every((k) => !hits(c, k))) ?? corners[0];
+  const clear = corners.find((c) => keep.every((k) => !hits(c, k)));
+  if (clear || phone) return clear ?? corners[0];
+  const p = L.plates[1]; // no corner clear off a phone: just under the enemy plate's right end
+  return { x: Math.max(0, Math.min(W - w, p.x + p.w - w)), y: Math.min(H - h, p.y + p.h + 1), w, h };
 }
 
 export class ReplayScreen implements Screen {
@@ -68,6 +78,14 @@ export class ReplayScreen implements Screen {
   /** MOTION-2 (REQ-BFG-071): the replay in motion. CUSTOM-2a (REVIEW-MOTION2 Q2): always (no ?motion=0). */
   readonly motion: ArenaMotion;
   private readonly seed: number;
+  /** WIND-1 tooling (bb.windInfo): the DARK WIND callout's box as drawn this frame (null: not showing). */
+  windCallR: Box | null = null;
+  /** WIND-1 tooling (bb.windInfo): each plate as drawn this frame, [yours, the foe's]. */
+  readonly plateRows: [PlateInfo | null, PlateInfo | null] = [null, null];
+  /** WIND-2 (REQ-BFG-093) tooling (read only; scripts/mirror1shots.mjs): the playback bar's clock as drawn ("m:ss") and the
+   *  result card's (whole seconds; "" until the card shows), both from statFormat.ts clockSec. */
+  clockText = "0:00";
+  cardClock = "";
 
   constructor(private game: Game, private back: Screen, battle: Battle, private label: { day: number; foe: string }) {
     const [mine, theirs] = battle.record.builds;
@@ -76,7 +94,7 @@ export class ReplayScreen implements Screen {
     this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): your side wears your styles; the foe's the defaults
     this.arena.off = [0, 0];
     this.heroName = HEROES[mine.hero].name;
-    this.motion = new ArenaMotion(this.seed, label.day, MOTION, settings.reducedMotion);
+    this.motion = new ArenaMotion(this.seed, battleScene(this.seed), MOTION, settings.reducedMotion); // FIELD-1: the dusk's setting
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
@@ -91,18 +109,40 @@ export class ReplayScreen implements Screen {
     return battleScale(pw, ph, portrait);
   }
 
+  private gridPick: { grid: Grid; W: number; H: number; portrait: boolean } | null = null;
+
+  /** FIELD-1 (REQ-BFG-075): the battle's canvas grid (game/viewGrid.ts GameView.sub), as BattleScreen.pickSub. */
+  pickSub(pw: number, ph: number, portrait: boolean, scale: number): number {
+    const grid = battleGrid(pw, ph, portrait);
+    if (grid.close !== scale) return 1;
+    this.gridPick = { grid, W: Math.floor(pw / scale), H: Math.floor(ph / scale), portrait };
+    return grid.sub;
+  }
+
+  private viewGrid(): Grid {
+    const v = this.game.view, p = this.gridPick;
+    const grid = p && p.W === v.W && p.H === v.H && p.portrait === v.portrait ? p.grid : battleGrid(v.W * v.scale, v.H * v.scale, v.portrait);
+    return grid.close === v.scale && grid.sub === (v.sub ?? 1) ? grid : cameraGrid(v.scale, v.scale);
+  }
+
   enter(): void {
     this.relayout();
     this.game.audio.music("battle");
   }
 
+  private subKey = 0;
+
   private relayout(): void {
     const { W, H, portrait } = this.game;
-    if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait) return;
+    const sub = this.game.view.sub ?? 1;
+    if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait && this.subKey === sub) return;
+    this.subKey = sub;
     // MOTION-2: the battle's lanes (portrait as 0.9.4; landscape's enemy lane raised and a little ahead)
     this.L = laneLayout(battleLayout(W, H, portrait));
     this.motion.setLanes(this.L, minGap(portrait ? H : W));
+    this.motion.useCamera(this.viewGrid(), cameraFocus(this.L), "wide"); // FIELD-1: WIDE, as the dusk
     this.arena.setFrames(this.L.frames, this.L.enter);
+    this.motion.windKeep = { plates: this.L.plates, bar: this.L.bar }; // WIND-1 (REQ-BFG-093): the wind's numbers keep clear
   }
 
   setSpeed(i: number): void {
@@ -152,23 +192,24 @@ export class ReplayScreen implements Screen {
     const a = this.arena, b = a.b;
     const m = this.motion;
     // MOTION-2: the day's sea, then the carriers, boards, shots and effects in motion
-    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed);
+    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed, a);
     m.draw(g, a, W, H, settings.reducedMotion);
     for (let s = 0; s < 2; s++) {
       this.hp[s] = fmtDmg(Math.max(0, b.sides[s].hull.hp)); // NUM-4: the hull is whole (NUM-1); was Math.ceil
       const p = this.L.plates[s], r = this.plateR[s];
       r.x = p.x; r.y = p.y; r.w = p.w; r.h = p.h;
     }
-    drawPlate(g, this.game, a, this.plateR[1], 1, this.label.foe, this.hp[1]);
-    drawPlate(g, this.game, a, this.plateR[0], 0, this.heroName, this.hp[0]);
-    const sec = Math.floor(b.t);
+    this.plateRows[1] = drawPlate(g, this.game, a, this.plateR[1], 1, this.label.foe, this.hp[1]);
+    this.plateRows[0] = drawPlate(g, this.game, a, this.plateR[0], 0, this.heroName, this.hp[0]);
+    this.clockText = barClock(b.t); // WIND-2 (REQ-BFG-093): whole ticks, then whole seconds (was Math.floor(b.t): 1:08 at 69 s)
     const st = this.bar;
     st.speed = this.speed;
     st.compact = this.L.compact;
     st.paused = this.arena.paused;
     st.showSpeeds = !this.over;
-    drawBar(g, this.game, a, this.L.bar, `${Math.floor(sec / 60)}:${sec % 60 < 10 ? "0" : ""}${sec % 60}`, st);
+    drawBar(g, this.game, a, this.L.bar, this.clockText, st);
     const cy = Math.round(H / 2);
+    this.windCallR = drawWindCall(g, a, this.L, m, settings.reducedMotion); // WIND-1 (REQ-BFG-093): the callout, as the battle
     if (!this.over && this.pt < 1.6) banner(g, W, cy - 16, `REPLAY · DAY ${this.label.day}/${RUN_DAYS}`, C.ice, `VS ${this.label.foe}`, Math.min(1, this.pt / 0.35));
     drawText(g, "REPLAY", 4, 4, C.ice, { font: "3", outline: C.ink });
     if (this.over && this.pt > 0.6) {
@@ -179,7 +220,8 @@ export class ReplayScreen implements Screen {
       const x = Math.round(W / 2 - w / 2), y = cy - Math.round(h / 2);
       panel(g, { x, y, w, h }, "raised");
       drawText(g, won ? "WIN" : lost ? "LOSS" : "DRAW", W / 2, y + 6, won ? C.lime : lost ? C.red : C.bone, { align: "center", scale: 2, outline: C.ink });
-      drawText(g, `REPLAY · DAY ${this.label.day} · ${fmtClock(b.t)}S`, W / 2, y + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
+      this.cardClock = fmtClock(b.t);
+      drawText(g, `REPLAY · DAY ${this.label.day} · ${this.cardClock}S`, W / 2, y + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
       button(ui, g, "replayback", { x: x + 10, y: y + h - 4 - bh, w: w - 20, h: bh }, "BACK", { primary: true, onTap: () => this.leave() });
     } else {
       button(ui, g, "replayleave", replayLeaveRect(this.L, this.game.view), "BACK", { font: "3", onTap: () => this.leave() });

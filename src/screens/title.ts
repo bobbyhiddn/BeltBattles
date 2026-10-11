@@ -29,13 +29,12 @@ import { ForkScreen } from "./fork/fork";
 import { BattleScreen } from "./battle";
 import { VERSION } from "../version";
 import { MOTION } from "../render/motion"; // MOTION-2 (REQ-BFG-071): the attract fight in motion
+import { attractScene } from "../render/scenery"; // FIELD-1 (REQ-BFG-075): the attract fight's settings, round by round
 import { ArenaMotion } from "../game/arenaMotion";
 import { minGap } from "../game/battleLayout";
 import { settings } from "../core/settings";
 import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the name screen comes first
 
-/** MOTION-2: the attract fight's sea, round by round: a day of each setting (render/motion.ts seaForDay). */
-const ATTRACT_DAYS = [2, 5, 9];
 
 export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line 3 states RULE JOIN PACE)
   "1  SURVIVE 10 DAYS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.",
@@ -82,8 +81,10 @@ export class TitleScreen implements Screen {
     this.arena = new Arena(startingBuild(me, 1), warlordBuild(foe, 2 + (this.n % 4)), seed, null);
     this.arena.quiet = true;
     this.arena.b.sides[0].hull.hp += 60; // keep the attract fight going a while
-    // MOTION-2: the round's carriers and sea (display only: the display clock and PRNG, seeded like the round)
-    this.motion = new ArenaMotion(seed, ATTRACT_DAYS[this.n % ATTRACT_DAYS.length], MOTION, settings.reducedMotion);
+    // MOTION-2: the round's carriers and sea (display only: the display clock and PRNG, seeded like the round). FIELD-1
+    // (REQ-BFG-075): the settings in turn (scenery.ts ATTRACT_SCENES: OPEN SEA, DESERT, SKY first: all three media), at
+    // the title's own framing (no camera)
+    this.motion = new ArenaMotion(seed, attractScene(this.n), MOTION, settings.reducedMotion);
     this.n++;
     this.overT = 0;
     this.layoutKey = "";
@@ -136,7 +137,7 @@ export class TitleScreen implements Screen {
     this.place();
     const m = this.motion, a = this.arena;
     // MOTION-2 (REQ-BFG-071): the round's sea, then the carriers, boards, shots and effects in motion
-    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, game.view.scale, game.view.dpr, m.model.seed);
+    m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, game.view.scale, game.view.dpr, m.model.seed, a);
     m.draw(g, a, W, H, settings.reducedMotion);
     g.globalAlpha = 0.45;
     rect(g, 0, 0, W, H, C.ink);

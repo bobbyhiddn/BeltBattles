@@ -45,11 +45,15 @@ describe("Y4 words: no new keyword; BONUS DAMAGE stays; Y7b2: LOAD TIME retires"
     expect(abilityText("salvo", 1, { k: 1 }).sentences.some((t) => t.includes("LOAD TIME"))).toBe(false); // Y7b2 (the words): was toBe(true)
     expect(abilityText("salvo", 1, { k: 1 }).sentences[1]).toBe("IT WAITS FOR A FULL CHAMBER, OR 3 SECONDS AFTER ITS FIRST LOAD."); // Y7b2 (the words): was "..., OR TWICE ITS LOAD TIME."
     // Y7b2 (the words): was toContain("LOAD TIME") ("WHEN THINGS HAPPEN: BELT SPEED, FIRE RATE, LOAD TIME, COMMISSIONING, PULSES AND FUSES.")
-    expect(FAMILY.TEMPO.glossary).toBe("WHEN THINGS HAPPEN: BELT SPEED, FIRE RATE, HOW LONG A GUN WAITS TO FIRE, WHEN RIGS START, PULSES AND FUSES.");
+    // WORDS-1 (REQ-BFG-081): the line is TEMPO's tap note now, in plain words, and still names no LOAD TIME (was "WHEN THINGS
+    // HAPPEN: BELT SPEED, FIRE RATE, HOW LONG A GUN WAITS TO FIRE, WHEN RIGS START, PULSES AND FUSES.")
+    expect(FAMILY.TEMPO.glossary).toBe("WHEN THINGS HAPPEN: BELT SPEED, HOW OFTEN A GUN FIRES, HOW LONG IT WAITS, WHEN RIGS START, AND TIMERS.");
   });
 
   it("DRAKE NOZZLE's face names BONUS DAMAGE (its glossary tap); the faces' keywords are the existing ones", () => {
-    expect(glossaryWordsIn(faceAt("drake", 1)!.rules[0].text).map((r) => r.word)).toContain("BONUS DAMAGE");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, brief call 3: BONUS DAMAGE is a plain-word swap): the face names no BONUS DAMAGE now
+    // (was toContain); the row stays for the kept sentence that defines it (S.bonus)
+    expect(glossaryWordsIn(faceAt("drake", 1)!.rules[0].text).map((r) => r.word)).not.toContain("BONUS DAMAGE");
     for (const def of Y4_PIECES) for (const s of STARS) {
       for (const m of faceAt(def, s, k1(def))!.rules[0].text.matchAll(/\{\*?([A-Z]+)\}/g)) {
         expect(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SLUG", "DMG"], `${def} ★${s}`).toContain(m[1]);

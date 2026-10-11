@@ -28,12 +28,13 @@ import { C } from "../../render/palette";
 import { footX, footY, localX, localY } from "../../render/frame";
 import { inside } from "../../ui/ui";
 import type { BuildLayout, Sel } from "./layout";
+import { toDeck, toScreen } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
 
 export interface Ctx {
   game: Game;
   run: Run;
   L: BuildLayout;
-  wfx: Fx; // deck-space effects (screen coordinates)
+  wfx: Fx; // deck-space effects (ZOOM-1: the carrier's space, drawn through its zoom: layout.ts inCarrier)
   ufx: Fx; // UI effects
   select(s: Sel): void;
   turretAt(x: number, y: number): number;
@@ -256,6 +257,7 @@ export function sellPrice(defId: string, stars = 1): number {
 
 /** Deck cell for an item of the given footprint centred under a screen point. */
 export function dropCell(L: BuildLayout, x: number, y: number, size: number): { x: number; y: number } | null {
+  ({ x, y } = toDeck(L, x, y)); // ZOOM-1 (REQ-BFG-080): the screen point in the carrier's space
   const lx = localX(L.frame, x, y) - (size - 1) * (CELL / 2), ly = localY(L.frame, x, y) - (size - 1) * (CELL / 2);
   const m = GRID * CELL;
   if (lx < -8 || ly < -8 || lx > m + 8 || ly > m + 8) return null;
@@ -368,6 +370,7 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
   ctx.game.audio.play("place");
   ctx.select({ kind: "item", uid });
   ctx.touched();
-  ctx.placed(px, py);
+  const at = toScreen(L, px, py); // ZOOM-1: placed() takes a screen point, as from a drop
+  ctx.placed(at.x, at.y);
   return true;
 }

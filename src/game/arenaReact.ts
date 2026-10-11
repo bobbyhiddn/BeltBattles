@@ -11,6 +11,7 @@ import { hullBox, hullX, hullY, sx, sy } from "../render/frame";
 import { muzzleX, muzzleY } from "../render/cruiser";
 import { CLANK_TIME, FUSE_TIME } from "../render/raceFx"; // 0.8.0 H1 M3: FOUNDRY's weld flash, BASTION's CLANK
 import type { Fx } from "../render/fx";
+import { WIND_POP_MAX } from "../render/fx"; // WIND-1 (REQ-BFG-093): the wind number's longest life
 import { RELEASE_TIME, SHRUG_TIME } from "../render/wave3Moments"; // 0.8.0 I1 M4: A1's battle moments
 import type { Arena } from "./arena";
 import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): HEAL's and SHIELD's colours, one source
@@ -28,8 +29,16 @@ const debrisOf = (hero: string): readonly string[] =>
   hero === "furnace" ? DEBRIS_ORC : hero === "foundry" ? DEBRIS_HUMAN : hero === "bastion" ? DEBRIS_DWARF : DEBRIS_ELF;
 const KO_DEBRIS = [C.steel2, C.rust3, C.steel1, C.fire3, C.bone] as const;
 const SHOCK = [C.ice, C.white, C.cyan] as const;
-// 0.8.0 H1 M3: a hit that BASTION's plating took throws plate chips, and its number shows in the plating strip's rune blue
-const PLATED = [C.rune3, C.plate3, C.rune4] as const;
+// 0.8.0 H1 M3: a hit that BASTION's plating took throws plate chips, and its number shows in the plating strip's rune blue.
+// WIND-1 (REQ-BFG-097): in plating's own colours (PLATE_COLOUR), apart from SHIELD's rune blue
+const PLATED = [C.plate3, C.plate2, C.white] as const;
+
+/** WIND-1 (REQ-BFG-097): plating's colour (the PLATE icon's, font.ts ICON_COLOUR: C.plate3) and SHIELD's (its icon's, rune3):
+ *  the plate's layers and their BLOCKED pops. One source each: ICON_COLOUR. */
+export const PLATE_COLOUR = ICON_COLOUR[ICON.PLATE];
+export const SHIELD_COLOUR = ICON_COLOUR[ICON.SHIELD];
+/** WIND-1 (REQ-BFG-097): the word a stopped or soaked hit pops (docs/TEXT-STYLE.md: game words in capitals). */
+export const BLOCKED = "BLOCKED";
 
 /** SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): HEAL's colour (font.ts ICON_COLOUR, the one source: green) for its floats. */
 export const HEAL_COLOUR = ICON_COLOUR[ICON.HEAL];
@@ -37,6 +46,45 @@ export const HEAL_COLOUR = ICON_COLOUR[ICON.HEAL];
 export const SHIELD_BREAK_TIME = 0.5;
 /** SUS-B: a broken SHIELD's sparks, in SHIELD's rune glow (ICON_COLOUR) and white. */
 const SHIELD_SPARKS = [ICON_COLOUR[ICON.SHIELD], C.white, C.rune4] as const;
+
+/** WIND-1 (REQ-BFG-093): the dark wind's colour (palette.ts C.windHit, its one source): its numbers on both hulls, both hull
+ *  bars' flash and the DARK WIND callout. */
+export const WIND_COLOUR = C.windHit;
+/** WIND-1: how long a hull bar flashes on a wind tick (s, real time): each bar, the enemy's too. */
+export const WIND_FLASH_TIME = 0.18;
+/** WIND-1: the wisps at each hull on a tick (motion on, at 2X or slower, as the other sparks). */
+const WIND_WISPS = [C.windHit, C.white, C.plum4] as const;
+
+/** WIND-1 (REQ-BFG-093; design call 8): the wind's damage to `side`'s hull on this tick: the event's `dmg`, the same for both
+ *  hulls on this base. The hull release's merge makes this `e.dmgs?.[side] ?? e.dmg` (each hull's own share), and only this. */
+export function windDmg(e: Extract<SimEvent, { type: "wind" }>, side: Side): number {
+  void side;
+  return e.dmg;
+}
+
+/** WIND-1: how long a wind number lives (effect time): a big hit's, cut to the effect time until the next tick (one sim
+ *  second at the playback's effect speed, Arena.update's), so at 2X and 4X one number never covers the next. */
+export function windLife(speed: number): number {
+  const fxScale = speed < 1 ? speed : Math.min(2, Math.max(1, speed * 0.75));
+  return Math.min(WIND_POP_MAX, (0.98 * fxScale) / speed);
+}
+
+/** WIND-1 (REQ-BFG-093): the dark wind's tick on `side`'s carrier, the wind case's one helper per side: its number `n`
+ *  (Fx.windPop: in the pool even when it is full, drawn above the wind and kept on screen by ArenaMotion), its hull bar's
+ *  purple flash, and a few purple wisps at the hull (not under Reduce Motion, not above 2X). */
+export function windPop(a: Arena, side: Side, n: number): void {
+  const fx = a.fx;
+  fx.anchor = side; // MOTION-1: each hull's number rides with it
+  const x = hullCx(a, side) + (fx.rnd() - 0.5) * 50, y = hullCy(a, side);
+  fx.windPop(x, y, fmtDmg(n), WIND_COLOUR, windLife(a.speed)); // NUM-4: through fmtDmg
+  a.sfx[side].windFlash = WIND_FLASH_TIME;
+  if (a.speed <= 2 && !settings.reducedMotion) fx.sparks(x, y, 4, WIND_WISPS, 30);
+}
+
+/** WIND-1: the DARK WIND callout starts (once a fight): at the windwarn, or at the first wind tick if that comes first. */
+export function windCall(a: Arena): void {
+  if (a.windCallT < 0) a.windCallT = 0;
+}
 
 /** SUS-B: where a heal's float rises: RIVETER's rig, MEND PRESS's factory, else (REGEN) the hull a little above centre. */
 export function healPoint(a: Arena, e: Extract<SimEvent, { type: "heal" }>): [number, number] {
@@ -235,7 +283,13 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       // on every hull without plating, which draws exactly as before)
       const soak = a.takeSoak(e.side, e.dmg);
       if (soak > 0) fx.sparks(x, y, 5, PLATED, 55);
-      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, shown, soak > 0 ? C.rune3 : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
+      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, shown, soak > 0 ? PLATE_COLOUR : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
+      // WIND-1 (REQ-BFG-097): above the hit's own number, what plating soaked of it (BLOCKED n), and a hit a SHIELD stopped
+      // (BLOCKED: its stopped damage is not in the events, so no number)
+      const stop = a.sfx[e.side].shieldStop;
+      a.sfx[e.side].shieldStop = false;
+      if (soak > 0) fx.popup(x, y - 6 - (e.big ? 16 : 9), `${BLOCKED} ${fmtDmg(soak)}`, PLATE_COLOUR);
+      else if (stop && e.dmg === 0) fx.popup(x, y - 6 - (e.big ? 16 : 9), BLOCKED, SHIELD_COLOUR);
       // shake scales with the damage dealt: the landing frame shows exactly 1 px for a light
       // bolt and 2+ px for a heavy shell or 60+ damage (NUM-2: x10); big hits add their trauma on top
       hitShake(fx, dmg, e.heavy, -dx, -dy);
@@ -293,6 +347,7 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       const f = a.sfx[e.side];
       f.shieldBreak = SHIELD_BREAK_TIME;
       f.shieldAt = e.shield;
+      f.shieldStop = true; // WIND-1 (REQ-BFG-097): the stopped hit's impact, next, pops BLOCKED
       if (!fast) fx.sparks(hullCx(a, e.side), hullCy(a, e.side), 5, SHIELD_SPARKS, 45);
       return;
     }
@@ -321,13 +376,13 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.fire3); // NUM-4
       return;
     case "wind":
-      for (const side of [0, 1] as Side[]) {
-        fx.anchor = side; // MOTION-1: each hull's number rides with it
-        fx.popup(hullCx(a, side) + (fx.rnd() - 0.5) * 50, hullCy(a, side), fmtDmg(e.dmg), C.plum4); // NUM-4: was Math.round
-      }
+      // WIND-1 (REQ-BFG-093): both hulls, every tick: one helper per side, each hull's number from windDmg (NUM-4: fmtDmg)
+      for (const side of [0, 1] as Side[]) windPop(a, side, windDmg(e, side));
+      windCall(a);
       snd?.play("whoosh");
       return;
     case "windwarn":
+      windCall(a); // WIND-1: the DARK WIND callout
       snd?.play("siren");
       return;
     case "end":

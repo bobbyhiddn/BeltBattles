@@ -4,7 +4,7 @@
 // ON TO DUSK). With reloadMid the page reloads in the middle of the warlord fight and CONTINUE
 // must replay the same fight (same captain, same stored deck, from 0:00).
 
-import { placePlanned, road, settle, sleep, tapRegion } from "./playthrough.mjs";
+import { placePlanned, pressFight, road, settle, sleep, tapRegion } from "./playthrough.mjs";
 
 const PICKS = ["v", "e", "m", "h"];
 const LABEL = { v: "ROAD EVENT", e: "EASY", m: "MEDIUM", h: "HARD" };
@@ -19,6 +19,7 @@ const warlordNow = (page) => page.evaluate(() => {
 });
 
 async function reloadMidWarlord(page, touch, log, at, state, before) {
+  await pressFight(page, touch); // SCOUT-1 (REQ-BFG-076): FIGHT after scouting, then the reload mid-fight
   await page.waitForFunction(() => window.bb.game.screen.phase === "fight", null, { timeout: 15000 });
   await sleep(900);
   const t = await page.evaluate(() => window.bb.game.screen.arena.b.t);

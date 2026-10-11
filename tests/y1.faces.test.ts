@@ -47,7 +47,8 @@ describe("Y1: faces only, rules unchanged", () => {
     expect(STARS.map((s) => line("hullbreaker", s))).toEqual(STARS.map((s) => `SHOT: HITS ONLY THE HULL, FOR +${fmtPct(c("hullbreaker", s).hullMul! - 1)} .`));
     expect(STARS.map((s) => line("salvo", s))).toEqual(STARS.map((s) => `SHOT: FIRES THE CHAMBER AT +${fmtDmg(c("salvo", s).volleyFlat!)}  EACH.`));
     expect(STARS.map((s) => line("compound", s))).toEqual(STARS.map((s) =>
-      `SHOT: FUSES ${fmtCount(FACE_SIM.compoundLoads)}  INTO ${fmtCount(FACE_SIM.compoundShells)} AT +${fmtPct(c("compound", s).mult! - 1)} .`));
+      // WORDS-1 (REQ-BFG-081; READ-1 6.1's one-offs: FUSES): FIRES 2 AS 1 SHOT (was "FUSES 2 INTO 1")
+      `SHOT: FIRES ${fmtCount(FACE_SIM.compoundLoads)}  AS ${fmtCount(FACE_SIM.compoundShells)} SHOT AT +${fmtPct(c("compound", s).mult! - 1)} .`));
     for (const def of ["hullbreaker", "salvo", "compound"]) {
       for (const s of STARS) expect(faceLines(def, s)!.rules[0].label, def).toBe("SHOT:");
       fits(def);
@@ -65,7 +66,8 @@ describe("Y1: faces only, rules unchanged", () => {
     for (const hero of ["furnace", "weaver", "bastion"] as HeroId[]) for (const s of STARS) {
       expect((faceAt("mimic", s, { hero })!.stats2 ?? []).some(([ic]) => ic === "SLUG"), `${hero} ★${s}`).toBe(false);
     }
-    expect(STARS.map((s) => line("mimic", s, { hero: "foundry" }))).toEqual(STARS.map(() => "STAMPS YOUR HERO'S SLUGS."));
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1: STAMPS): "MAKES YOUR HERO'S SLUGS TOO." (was "STAMPS YOUR HERO'S SLUGS.")
+    expect(STARS.map((s) => line("mimic", s, { hero: "foundry" }))).toEqual(STARS.map(() => "MAKES YOUR HERO'S SLUGS TOO."));
     expect(STARS.map((s) => faceAt("twinmould", s)!.stats2!.find(([ic]) => ic === "SLUG")?.[1])).toEqual(STARS.map((s) => fmtCount(pour("twinmould", s))));
     expect(ladders("twinmould", 1)).toContain(`{SLUG} ${ladder(STARS.map((s) => fmtCount(pour("twinmould", s))))}`);
     expect(STARS.map((s) => line("twinmould", s))).toEqual(STARS.map(() => "CASTS ITS  ONTO SEPARATE BELTS AT ONCE."));

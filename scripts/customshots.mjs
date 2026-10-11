@@ -26,6 +26,7 @@ import { chromium } from "playwright-core";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
@@ -98,6 +99,7 @@ const log = (s) => { lines.push(s); console.log(s); };
 
 async function shot(browser, s, crops = {}) {
   const ctx = await browser.newContext(VIEWS[s.view ?? "phone"]);
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -190,6 +192,7 @@ async function contact(browser, crops) {
     parts.push({ c, name: CARRIER_NAMES[c], url: `data:image/png;base64,${(await readFile(f)).toString("base64")}`, crop: crops[c] });
   }
   const ctx = await browser.newContext({ viewport: { width: 400, height: 300 }, deviceScaleFactor: 1 });
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   await page.setContent("<html><body style='margin:0;background:#050B12'></body></html>");
   const data = await page.evaluate(async (ps) => {

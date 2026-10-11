@@ -68,11 +68,13 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
       expect([mp.rules, mp.reminders, mp.stats2]).toEqual([[{ text: `${pe} {*HEAL} ${fmtDmg(h.amount)}.`, label: pe }], [REMINDER.HEAL()], undefined]);
       const ml = faceAt("mendingloom", s)!;
       // "YOUR HULL:" says whose, not when: no trigger, so no brass label (TEXT-STYLE 3.2, 3.3)
-      expect([ml.stats, ml.rules, ml.reminders]).toEqual([[], [{ text: `YOUR HULL: {*REGEN} ${fmtDmg(g("mendingloom", s).mod!.regen!)}.` }], [REMINDER.REGEN()]]);
+      // WORDS-1 (REQ-BFG-081; READ-1 6.2: REGEN merged into HEAL, battle.ts:1441-1454 its regen goes through heal() each
+      // whole second): a HEAL each second (was `YOUR HULL: {*REGEN} n.` with REGEN's reminder)
+      expect([ml.stats, ml.rules, ml.reminders]).toEqual([[], [{ text: `YOUR HULL: {*HEAL} ${fmtDmg(g("mendingloom", s).mod!.regen!)} EACH SEC.` }], [REMINDER.HEAL()]]);
     }
     // ★1 as the brief writes them, on this base's numbers (NUM-1's x10; SUS-A's WARD BELL ★1 fallback, 8 s)
     const plain = (id: string) => stripIcons(faceLines(id, 1)!.rules[0].text);
-    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: HEAL 6.", "EVERY 8: +1 SHIELD.", "EVERY 3: HEAL 20.", "YOUR HULL: REGEN 10."]);
+    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: HEAL 6.", "EVERY 8: +1 SHIELD.", "EVERY 3: HEAL 20.", "YOUR HULL: HEAL 10 EACH SEC."]); // WORDS-1 (was "YOUR HULL: REGEN 10.")
   });
 
   it("every number on them is a formatter's, at every star; no bare keyword; each line fits the op band", () => {
@@ -105,7 +107,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
     expect(press[press.length - 1].startsWith("NEXT ★2: ")).toBe(true);
     // the icons in the ladders: HEAL's, SHIELD's (in its rule), REGEN's
     expect(levelText(levelLines("riveter", 1)![0])).toBe("{HEAL} [6]/13/21");
-    expect(levelText(levelLines("mendingloom", 1)![0])).toBe("{REGEN} [10]/15/20");
+    expect(levelText(levelLines("mendingloom", 1)![0])).toBe("{HEAL} [10]/15/20"); // WORDS-1: HEAL's icon (was {REGEN})
     expect(levelText(levelLines("wardbell", 1)![0])).toBe("EVERY [8]/5/4{SEC}");
     for (const id of SUSTAIN_FACES) for (const s of STARS) {
       for (const l of levelLines(id, s)!) expect(textWidth(icons(levelText(l, (v) => v)), "5"), `${id} ★${s}`).toBeLessThanOrEqual(NEXT_LINE_W);
@@ -119,7 +121,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
       riveter: ["HEAL", `${REMINDER.HEAL()} ${keywordRow("HEAL").extra}`],
       wardbell: ["SHIELD", `${REMINDER.SHIELD()} ${keywordRow("SHIELD").extra}`],
       mendpress: ["HEAL", `${REMINDER.HEAL()} ${keywordRow("HEAL").extra}`],
-      mendingloom: ["REGEN", `${REMINDER.REGEN()} ${keywordRow("REGEN").extra}`],
+      mendingloom: ["HEAL", `${REMINDER.HEAL()} ${keywordRow("HEAL").extra}`], // WORDS-1: HEAL (was REGEN's reminder and extra)
     };
     for (const id of SUSTAIN_FACES) for (const s of STARS) {
       const [k, text] = want[id];
@@ -131,7 +133,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
   it("their one-line shop offers: the stat chip (the rule's keyword with its count) and the card's sentence", () => {
     expect(SUSTAIN_FACES.map((id) => shopChip(id))).toEqual([
       `{HEAL}${fmtDmg(ITEMS.riveter.gate!.heal!)}`, `{SHIELD}+${fmtCount(ITEMS.wardbell.mod!.shield!.amount)}`,
-      `{HEAL}${fmtDmg(ITEMS.mendpress.factory!.heal!.amount)}`, `{REGEN}${fmtDmg(ITEMS.mendingloom.mod!.regen!)}`,
+      `{HEAL}${fmtDmg(ITEMS.mendpress.factory!.heal!.amount)}`, `{HEAL}${fmtDmg(ITEMS.mendingloom.mod!.regen!)}`, // WORDS-1: {HEAL} (was {REGEN})
     ]);
     expect(SUSTAIN_FACES.map((id) => cardText(id))).toEqual([
       "HEALS 6 HULL EACH HIT.", "SHIELDS YOUR HULL EVERY 8 SECONDS." /* FLIP-X2 (cap's ruling 207816b18a9fbfdb C): was "+1 SHIELD EVERY 8 SECONDS." */, "HEALS YOUR HULL EVERY 3 SECONDS.", "HEALS 10 HULL EVERY SECOND.",
@@ -223,9 +225,11 @@ describe("SUS-B a tap on each new label (the panel's own words, as keywords.ts f
       expect(stripIcons(icons(rv.HEAL))).toMatch(/^HEAL: GIVES BACK ♥, NEVER PAST FULL\./);
       expect(rv.HIT).toBe(glossaryEntry("HIT")!.def);
       expect(mp.HEAL).toBe(rv.HEAL);
-      expect(stripIcons(icons(ml.REGEN))).toMatch(/^REGEN: GIVES BACK THIS MUCH ♥ EACH SEC\./);
+      // WORDS-1 (REQ-BFG-081; READ-1 6.2): MENDING LOOM's face says HEAL now (REGEN merged into HEAL), so its tap shows HEAL's
+      // (was /^REGEN: GIVES BACK THIS MUCH ♥ EACH SEC\./ and the key REGEN)
+      expect(ml.HEAL).toBe(rv.HEAL);
       // no tap note on these faces (MEND PRESS keeps ARMOR PRESS's: the belt rule is in its kept text, cap's answer 5)
-      expect(Object.keys(ml)).toEqual(["REGEN"]);
+      expect(Object.keys(ml)).toEqual(["HEAL"]);
     });
   });
 });

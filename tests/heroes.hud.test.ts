@@ -113,11 +113,13 @@ describe("a BASTION side's battle plate draws the strip from that side's own pla
     drawPlate(bastion.g, game, a, r, 1, "BASTION", "147");
     const fullSegs = Math.floor(plate / PLATE_PER_SLUG + 1e-9);
     const partSegs = plate / PLATE_PER_SLUG - fullSegs > 1e-9 ? 1 : 0;
-    expect(count(bastion.fills, C.rune2)).toBe(fullSegs);
-    expect(count(bastion.fills, C.rune1)).toBe(partSegs);
+    // WIND-1 (REQ-BFG-097): the battle plate's strip wears plating's own colours (plate2 full, plate1 part full), apart
+    // from SHIELD's rune blue (was rune2 and rune1)
+    expect(count(bastion.fills, C.plate2)).toBe(fullSegs);
+    expect(count(bastion.fills, C.plate1)).toBe(partSegs);
 
     const foundry = recorder();
     drawPlate(foundry.g, game, a, r, 0, "FOUNDRY", "147");
-    expect(count(foundry.fills, C.rune2) + count(foundry.fills, C.rune1) + count(foundry.fills, C.plate0)).toBe(0);
+    expect(count(foundry.fills, C.plate2) + count(foundry.fills, C.plate1) + count(foundry.fills, C.plate0)).toBe(0);
   });
 });
