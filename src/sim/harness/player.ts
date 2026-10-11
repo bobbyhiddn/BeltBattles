@@ -54,6 +54,7 @@
 import { Rng, hashSeed } from "../../core/rng";
 import { hullScaleRules } from "../hullScale"; // HULL-1c (REQ-BFG-079): the cache key
 import { ladderFixRules } from "../ladderFix"; // HULL-1c: the cache key
+import { guardRules } from "../guard"; // RETUNE-1 (REQ-BFG-097): the cache key
 import { npcDayRules } from "../npcDay"; // HULL-1d (REQ-BFG-073): the REFIT swap of LAST CHANCE's part (refitSwap)
 import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
 import {
@@ -1646,7 +1647,9 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // so a run made with a switch off is never reused with it on; off, the key exactly as before
   // PAR-AZ (REQ-BFG-078): NPC_DAY moves every par run now (parNpcDay), so it is in the key; off, the key exactly as before
   const nd = npcDayRules();
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}`;
+  // RETUNE-1 (REQ-BFG-097): GUARD moves the par decks (the rating reads PLATE ROLLER's and WARD BELL's numbers); off, the
+  // key exactly as before
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);

@@ -25,6 +25,7 @@ import { fetchGhost, submitGhost, type FetchedGhost, type GhostRequest, type Sub
 import { indexedDbKeyStore, loadIdentity, type Identity } from "../net/identity";
 import { validateUpload } from "../net/validate";
 import { ghostOf, storedFoe, storeOnlineFoe } from "./day";
+import { ghostAllowed } from "./ghostGuard"; // RETUNE-1 run 2 (REQ-BFG-096): the upload guard
 import { battleSeed, saveRun, type Run } from "./run";
 import { online, setSession, type Session } from "./session";
 
@@ -218,6 +219,11 @@ export class Online implements Session {
     if (!this.identity || run.uploaded === run.day) return;
     run.uploaded = run.day;
     const snap = ghostOf(run, this.deps.now(), this.identity.playerId);
+    if (!ghostAllowed(run, snap.rules)) { // RETUNE-1 run 2 (REQ-BFG-096): no hearts mark under hearts rules (ghostGuard.ts)
+      console.debug("[beltbattles] tonight's deck is not uploaded: a lives run under hearts rules");
+      this.lastUpload = { ok: false, error: "a lives run under hearts rules", refused: true };
+      return;
+    }
     const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed, ...(snap.lastChance ? { lastChance: snap.lastChance } : {}), ...(snap.road ? { road: snap.road } : {}) }); // RUNES-1: the server's own rune check (LC-1: and its LAST CHANCE; NPC-1: and its road log)
     if (!v.ok) {
       console.debug(`[beltbattles] tonight's deck is not uploaded: ${v.errors[0] ?? "refused"}`);

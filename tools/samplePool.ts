@@ -51,11 +51,16 @@ import { PAR_K, parSeeds } from "../src/sim/harness/par";
 import { parRunSeed, playerRoadLog, playerRun, type PlayerDay } from "../src/sim/harness/player";
 import { CASUAL_TUNE, casualRun } from "../src/sim/harness/casual"; // LOSS-1 P2: the floor ghosts' decks (NPC_DAY on)
 import { npcDayRules, type RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP (N3): the seed ghosts' road logs
+import { HEARTS_START, heartsDusk, heartsRules } from "../src/sim/hearts"; // RETUNE-1 (REQ-BFG-096): the hearts labels
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { eligible } from "../src/net/matchmaking";
 import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
 import { checkSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { GRADE_MAX } from "../src/net/snapshot"; // RETUNE-1 T5 (REQ-BFG-092): the grade's bound
+import { GRADE_K, GRADE_SEEDS, pickRules } from "../src/net/pick"; // RETUNE-1 T5: the switch and the grade's K and seeds
+import { parField } from "../src/sim/harness/par"; // RETUNE-1 T5: the grade's par fields
+import { playJob, type Job } from "../src/sim/harness/tournament"; // RETUNE-1 T5: a pairing's points
 import { encodeStarred, standInParIndex, standInPickIndex, standInPool, type StandInEntry } from "../src/sim/standInPool";
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
@@ -129,6 +134,24 @@ export function reachableLabel(day: number, wins: number, lives: number): DuskRe
   return same.reduce((a, b) => (Math.abs(b.lives - lives) < Math.abs(a.lives - lives) || (Math.abs(b.lives - lives) === Math.abs(a.lives - lives) && b.lives > a.lives) ? b : a));
 }
 
+/**
+ * RETUNE-1 (REQ-BFG-096): a drawn label (`wins`, and `lost` of the other dusks lost) on the run's scale. HEARTS off: the
+ * 5-life label as before, START_LIVES - min(START_LIVES - 1, lost), snapped by reachableLabel (the same draws, the same
+ * records). HEARTS on: the hearts a run holds after losing the `lost` dusks just before `day` (its wins came first), on the
+ * game's own step (hearts.ts heartsDusk: 1/2/3 by day, LAST CHANCE), snapped by reachableLabel to a record the hearts model
+ * reaches (records.ts, this build's rules).
+ */
+export function drawnLabel(day: number, wins: number, lost: number): DuskRecord {
+  if (!heartsRules()) return reachableLabel(day, wins, START_LIVES - Math.min(START_LIVES - 1, lost));
+  let h = HEARTS_START, lc = false;
+  for (let d = day - lost; d < day; d++) {
+    const r = heartsDusk(h, d, "loss", lc);
+    h = r.hearts;
+    lc = lc || r.lastChance;
+  }
+  return reachableLabel(day, wins, Math.max(1, h));
+}
+
 /** One seed ghost, checked: the strict shop rules and the player mode (D5), and a reachable label. FLIP-X2 (RUNES-2a
  *  section 3 step 4; BOTSX-REPORT section 9): a deck that holds runes travels as a v3 snapshot (Build.runes is v3 only),
  *  carrying the run seed when the deck's run is known (`seed`: a race ghost's par-field run), so the upload check
@@ -169,8 +192,7 @@ export function sampleGhosts(): GhostSnapshot[] {
         if (v === 1) shopper(hero, day, rng); // replay the retired shopper's draws: records unchanged
         const entry = sampleEntry(hero, day, v, seed); // AZ-BUMP (N3): the deck and its run's road log
         const wins = rng.int(day);
-        const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
-        out.push(seedGhost(hero, day, v, entry.build, reachableLabel(day, wins, START_LIVES - losses), EPOCH + out.length * 1000, undefined, roadOf(entry.road)));
+        out.push(seedGhost(hero, day, v, entry.build, drawnLabel(day, wins, rng.int(day - wins)), EPOCH + out.length * 1000, undefined, roadOf(entry.road)));
       }
     }
   }
@@ -299,8 +321,7 @@ export function raceGhosts(
         else {
           const rng = new Rng(sampleSeed(hero, v, day));
           const wins = rng.int(day);
-          const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
-          rec = reachableLabel(day, wins, START_LIVES - losses);
+          rec = drawnLabel(day, wins, rng.int(day - wins));
         }
         out.push(seedGhost(hero, day, v, build, rec, EPOCH + (first + out.length) * 1000, seed, roadOf(road)));
       }
@@ -342,7 +363,33 @@ export function generateSamplePool(o: { botRunes?: boolean } = {}): GhostSnapsho
     throw new Error(`the seed pool leaves ${gaps.length} reachable states with fewer than ${MIN_ELIGIBLE} eligible ghosts: `
       + gaps.slice(0, 8).map((g) => `day ${g.day} ${g.wins}W ${g.lives} lives (${g.eligible})`).join(", "));
   }
-  return pool;
+  if (!pickRules()) return pool;
+  // RETUNE-1 T5 (REQ-BFG-092): with PICK on, every seed ghost carries its grade (v3, written last; ghostId leaves it out)
+  const grades = gradeSamplePool(pool);
+  return pool.map((s, i) => ({ ...s, v: SNAPSHOT_V3, grade: grades[i] }));
+}
+
+/** RETUNE-1 T5's grade heroes: the four par fields, in tools/retune1.ts's order (so the grades are the bench's). */
+const GRADE_HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
+
+/**
+ * RETUNE-1 T5 (REQ-BFG-092; cap's answer 5): each seed ghost's grade, its vsPar in permille (0..GRADE_MAX): its win rate
+ * (a draw half) against the four par fields' first `k` members of its day (harness/par.ts parField), `seeds` seeds from
+ * both sides (tournament.ts playJob), seeded as tools/retune1.ts --mode pool's grade was (so the pick ships as measured).
+ * In-process: K 6 x 1 seed is 24 pairings x 2 battles a ghost, 5,760 battles for the 120-ghost pool.
+ */
+export function gradeSamplePool(pool: readonly GhostSnapshot[], k: number = GRADE_K, seeds: number = GRADE_SEEDS): number[] {
+  return pool.map((s, gi) => {
+    let pts = 0, n = 0;
+    for (const h of GRADE_HEROES) {
+      parField(h, s.day, k).forEach((b, m) => {
+        const job: Job = { a: 0, b: 1, seeds: Array.from({ length: seeds }, (_, x) => hashSeed("rt1-grade", s.day, gi, h, m, x)), day: s.day };
+        pts += playJob([s.build, b], job) / (2 * seeds);
+        n++;
+      });
+    }
+    return Math.round((pts / n) * GRADE_MAX);
+  });
 }
 
 /** One canonical snapshot per line inside a JSON array (diff-friendly). */

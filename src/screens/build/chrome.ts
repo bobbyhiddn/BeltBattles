@@ -20,6 +20,9 @@ import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
 import { LC_HEART_S } from "../battleHud"; // LC-1 (REQ-BFG-073): the regained heart
+import { START_LIVES } from "../../sim/content"; // RETUNE-1 run 2 (REQ-BFG-096): a row's hearts
+import { livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: a hearts run's 10
+import { duskStakes } from "../../ui/stakes"; // RETUNE-1 run 2: the NEXT BATTLE panel's hearts at stake
 import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
 import { drawDetails, drawFoe, hasDetails, textOpts } from "./inspector";
@@ -72,7 +75,9 @@ function drawTopBar(g: G, s: BuildScreen): void {
   x += 7 + drawText(g, String(run.gold), x + 7, 4 + oy, C.yellow, { outline: C.ink }) + 5;
   // LC-1 (REQ-BFG-073): the heart LAST CHANCE gave back, lit for a few seconds after the pick (lcHeartT: Infinity, none)
   const lcT = (s as { lcHeartT?: number }).lcHeartT ?? Infinity;
-  x += drawHearts(g, x, 4 + oy, run.lives, lcT, -1, lcT < LC_HEART_S ? run.lives - 1 : -1) + 5;
+  // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's 10 hearts in two rows of 5 (today's 5's width, so the bar is as before)
+  const hc = livesCap(run);
+  x += drawHearts(g, x, (hc > START_LIVES ? 1 : 4) + oy, run.lives, lcT, -1, lcT < LC_HEART_S ? run.lives - 1 : -1, hc, START_LIVES) + 5;
   // the W-L record: labelled where it fits, bare beside the hearts on narrow portrait bars (the
   // phone's bar has no room, so its hero card below the shop carries the record)
   const wl = record(run);
@@ -240,7 +245,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   const held = c ? null : s.ed.selectedCarry();
   if (held && !s.ed.busy) drawSuggestion(g, L, s.run.build, held.def, s.t);
   if (!L.portrait) {
-    if (L.foe) drawFoe(g, s.foe, L.foe, s.note());
+    if (L.foe) drawFoe(g, s.foe, L.foe, s.note(), duskStakes(s.run)); // RETUNE-1 run 2: the hearts at stake (hearts run)
     drawDetails(g, s, s.sel, s.hover, L.info, s.foe, s.note());
   } else if (hasDetails(s, s.sel, s.hover) || !L.foe) {
     // a selection or hover uses the whole band. shoptap2 (REQ-BFG-034, -035): after a finger's tap, where the band is
@@ -251,7 +256,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     drawDetails(g, s, s.sel, s.hover, area, s.foe, s.note(), through);
   } else {
     // idle portrait band: hero card over the NEXT BATTLE panel (zoom: on a phone's taller band, the pair in its middle)
-    drawFoe(g, s.foe, L.foe, s.note());
+    drawFoe(g, s.foe, L.foe, s.note(), duskStakes(s.run)); // RETUNE-1 run 2: the hearts at stake (hearts run)
     const top = heroCardRect(L.info, L.foe);
     if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top, s.foe, s.note());
   }

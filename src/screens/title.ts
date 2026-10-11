@@ -33,6 +33,7 @@ import { ArenaMotion } from "../game/arenaMotion";
 import { minGap } from "../game/battleLayout";
 import { settings } from "../core/settings";
 import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the name screen comes first
+import { HEART_COST_FROM, HEART_COSTS, HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 run 2: the rules card's hearts
 
 /** MOTION-2: the attract fight's sea, round by round: a day of each setting (render/motion.ts seaForDay). */
 const ATTRACT_DAYS = [2, 5, 9];
@@ -45,6 +46,12 @@ export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line
   "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
   "5  ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3). AT DUSK YOUR CRUISER FIGHTS ON ITS OWN: 0.5X-4X, SKIP, II OR P TO PAUSE.",
 ];
+
+/** RETUNE-1 run 2 (REQ-BFG-096): line 2 with HEARTS on (no run exists on the title, so the switch decides): the hearts rule
+ *  (hearts.ts: HEARTS_START, a loss costs heartCost(day), 1/2/3 by day band; no early-loss refund). */
+export const HELP_HEARTS_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${HEART_COSTS[0]} ON DAYS 1-${HEART_COST_FROM[1] - 1}, ${HEART_COSTS[1]} ON DAYS ${HEART_COST_FROM[1]}-${HEART_COST_FROM[2] - 1} AND ${HEART_COSTS[2]} FROM DAY ${HEART_COST_FROM[2]}, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`;
+/** The HOW TO PLAY lines: HELP, with line 2 the hearts rule while HEARTS is on (off: HELP itself, as before). */
+export const helpLines = (): string[] => (heartsRules() ? HELP.map((ln, i) => (i === 1 ? HELP_HEARTS_2 : ln)) : HELP);
 
 export class TitleScreen implements Screen {
   private arena!: Arena;
@@ -186,11 +193,12 @@ export class TitleScreen implements Screen {
     const { W, H } = this.game;
     // intro: titleLayout.ts helpCard: 0350e5f's card at k = 1 (desk, landscape); where the title steps its scale down
     // (k > 1) the card keeps its CSS width and its text takes the 5x7 face, about as tall in CSS px as the 3x5 face was
-    const { x, y, w, h, font } = helpCard(W, H, this.k, HELP);
+    const help = helpLines(); // RETUNE-1 run 2 (REQ-BFG-096): line 2 says hearts while HEARTS is on; off, HELP
+    const { x, y, w, h, font } = helpCard(W, H, this.k, help);
     panel(g, { x, y, w, h }, "raised");
     drawText(g, "HOW TO PLAY", W / 2, y + 6, C.yellow, { align: "center" });
     let yy = y + 20;
-    for (const ln of HELP) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, font, 2) + 3;
+    for (const ln of help) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, font, 2) + 3;
     this.game.ui.add({ id: "helpcard", r: { x, y, w, h }, onTap: () => { this.help = false; } });
   }
 

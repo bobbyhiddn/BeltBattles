@@ -35,6 +35,7 @@
 
 import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
+import { RULES_VERSION } from "../sim/content"; // HULL-ON: the rows at the end read it until the flip (AZ-BUMP dropped NPC-1's import with NPC_DAY_RULES' literal)
 import { npcDayRules } from "../sim/npcDay"; // NPC-1: the switch
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
@@ -211,4 +212,45 @@ export function rulesGateProblem(rules: unknown, build: unknown): string | null 
     return parseRules(rules) ? `rules ${String(rules)} predate ${row.from}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
   }
   return null;
+}
+
+// ---- RETUNE-1 (REQ-BFG-096, REQ-BFG-092): the next rules release's rows, at the end of the file (a small merge surface:
+// JOINS-1 adds FREE_JOINS_RULES beside NPC_DAY_RULES above). Not RULES_ROWS rows: they refuse no build feature. Each
+// literal reads RULES_VERSION until the bump that turns its switch on (BUMP-1D) writes that version here as a literal, as
+// Z-BUMP wrote LAST_CHANCE_RULES; from then on every older record keeps today's rule, whatever the switch.
+import { heartsRules, HEARTS_START } from "../sim/hearts"; // RETUNE-1: the HEARTS switch (src/sim/hearts.ts)
+
+/** RETUNE-1 (REQ-BFG-096): the first rules version with hearts (10 hearts, a loss costs 1/2/3 by day). */
+export const HEARTS_RULES: string = RULES_VERSION;
+
+/** Do hearts hold for a record, snapshot or match request under `rules`? The switch on AND `rules` a readable version at
+ *  or after HEARTS_RULES. False with the switch off, whatever the rules (every record then reads 5 lives, as today). */
+export function heartsFor(rules: unknown): boolean {
+  return heartsRules() && rulesAtLeast(rules, HEARTS_RULES);
+}
+
+/** The most lives (hearts) a snapshot or a match request under `rules` may state: `cap` (the contract's MAX_LIVES, 9),
+ *  raised to HEARTS_START (10) under rules with hearts. So the bound follows the rules: an old-rules record keeps 9, and
+ *  the record check (records.ts) refuses anything its own rules' model can't reach. */
+export function livesCapFor(rules: unknown, cap: number): number {
+  return heartsFor(rules) ? Math.max(cap, HEARTS_START) : cap;
+}
+
+import { pickRules } from "./pick"; // RETUNE-1 T5: the PICK switch (src/net/pick.ts)
+
+/** RETUNE-1 T5 (REQ-BFG-092): the first rules version with the graded pick (R1) and the seed pool's grades. */
+export const PICK_RULES: string = RULES_VERSION;
+
+/** Does the graded pick hold for a match request or a graded snapshot under `rules`? The switch on AND `rules` a readable
+ *  version at or after PICK_RULES. False with the switch off, whatever the rules (every pick then as today). */
+export function pickFor(rules: unknown): boolean {
+  return pickRules() && rulesAtLeast(rules, PICK_RULES);
+}
+
+/** RETUNE-1 T5: why a snapshot under `rules` may not carry a grade (snapshot.grade), or null when it may (pickFor). */
+export function pickGateProblem(rules: unknown): string | null {
+  if (!pickRules()) return "not in this rules version yet";
+  if (rulesAtLeast(rules, PICK_RULES)) return null;
+  const what = `a seed ghost's grade (snapshot.grade) needs ${PICK_RULES} or later`;
+  return parseRules(rules) ? `rules ${String(rules)} predate ${PICK_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
 }

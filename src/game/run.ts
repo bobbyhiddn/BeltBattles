@@ -23,6 +23,7 @@ import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
 import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type LastChance, type LastChanceOffer } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT has no shop
+import { HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a new run's hearts
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
   type TurretOpResult,
@@ -78,6 +79,9 @@ export interface DayResult {
   // once (the dusk card's "LAST CHANCE: +1 LIFE"), then the card taken and its id (the summary's row). Absent otherwise,
   // so every switch-off result is saved as before. Save v8, no bump (a new optional field, as refund was).
   lastChance?: { lives: number; boon?: Boon; id?: string };
+  // RETUNE-1 (REQ-BFG-096): on a hearts run, the hearts this dusk's loss cost (heartCost: 1/2/3); absent on a lives run
+  // and on a win or a draw, so every switch-off result is saved as before
+  heartsLost?: number;
 }
 
 /** Where the day stands (0.6.0b): dawn caravan, the road fork, the road event or the warlord
@@ -162,6 +166,10 @@ export interface Run {
   // taken (takeLastChance). A LAST CHANCE rune sits in build.runes right after its day's dawn pick (index `day`). Absent:
   // it never fired (every switch-off run). Save v8, no bump (a new optional field, as refund and runeDay were).
   lastChance?: LastChance;
+  // RETUNE-1 (REQ-BFG-096): the run plays on hearts (src/sim/hearts.ts: 10 hearts, a loss costs 1/2/3 by day), set by
+  // newRun while HEARTS is on; true only. Absent: 5 lives, as before (every switch-off run, and a run saved before the
+  // bump that turns HEARTS on, which finishes on its own scale). Save v8, no bump (a new optional field, as lastChance).
+  hearts?: true;
 }
 
 export const RUN_VERSION = 8; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once); NUM-1: hull x10 (save.ts v7to8, once)
@@ -182,6 +190,8 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
     road: null, warlord: null, warlords: [], matriarchBeatenOn: null, bounty: null, sabotage: null,
     wares: drawWares(seed), // 0.8.0 I1 M3: the per-run draw (the run seed alone)
     runeDay: 1, // RUNES-1: the first dawn's rune pick
+    // RETUNE-1 (REQ-BFG-096): with HEARTS on, HEARTS_START hearts and the run's mark, last; off: exactly as before
+    ...(heartsRules() ? { lives: HEARTS_START, hearts: true as const } : {}),
   };
   rollShop(run);
   return run;

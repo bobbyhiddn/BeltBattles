@@ -23,6 +23,7 @@ import { seaForDay, stillSeaSeed } from "../../render/motion";
 import { button, panel, type Rect } from "../../ui/ui";
 import { optionsCard } from "../../ui/hud";
 import { drawRunBar, newAnchors, type AnchorKind } from "../../ui/runbar";
+import { lifeWord } from "../../ui/stakes"; // RETUNE-1 run 2 (REQ-BFG-096): HEART on a hearts run
 import { eventScale } from "../event/layout";
 import { drawEventCard, drawWarlordCard, rewardText, type ForkCardView } from "./cards";
 import { EventScreen } from "../event/event";
@@ -147,7 +148,8 @@ export class ForkScreen implements Screen {
     const L = this.layout();
     const npc = npcDayRules(); // NPC-1 (REQ-BFG-077): one fight to pick; the day's event comes after it
     drawText(g, `THE ROAD · DAY ${run.day}/${RUN_DAYS}`, W / 2, L.head, C.yellow, { align: "center", outline: C.ink });
-    drawText(g, npc ? "PICK ONE FIGHT · WARLORDS NEVER COST A LIFE" : "PICK ONE STOP · WARLORDS NEVER COST A LIFE", W / 2, L.head + 9, C.slate4, { font: "3", align: "center" });
+    // RETUNE-1 run 2 (REQ-BFG-096): HEART on a hearts run (lifeWord), LIFE as before otherwise
+    drawText(g, `${npc ? "PICK ONE FIGHT" : "PICK ONE STOP"} · WARLORDS NEVER COST A ${lifeWord(run)}`, W / 2, L.head + 9, C.slate4, { font: "3", align: "center" });
     if (npc) drawText(g, afterTheFight(f.event), W / 2, L.head + 18, C.amber, { font: "3", align: "center" });
     const v = this.v;
     v.t = this.t;
@@ -205,7 +207,7 @@ export class ForkScreen implements Screen {
       const tier = p, id = this.fork.warlords[tier], inf = this.info(tier);
       title = `${RIVALS[id].name}, ${RIVALS[id].trick}`; // U2b (REQ-BFG-032 rule 1, U2a-INPUTS 2): no middle dot
       const notes = inf.notes.map((n) => (n === "SABOTAGED" ? "! SABOTAGED: YESTERDAY'S DECK" : `! ${n} ON A WIN`));
-      lines = [RIVALS[id].blurb, rewardText(inf.reward), "A LOSS COSTS NO LIFE", ...notes];
+      lines = [RIVALS[id].blurb, rewardText(inf.reward), `A LOSS COSTS NO ${lifeWord(this.run)}`, ...notes]; // RETUNE-1 run 2: HEART on a hearts run
       if (npcDayRules()) {
         // NPC-1 (REQ-BFG-078): the inspect panel's drop row: the parts as icons with their odds, and the ⓘ list
         const t = this.dropOf(tier), dy = r.y + r.h - 26;

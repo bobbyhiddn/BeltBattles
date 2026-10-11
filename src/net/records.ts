@@ -28,6 +28,10 @@ import { REFUND_DAY, REFUND_LIVES } from "../game/day";
 // LAST_CHANCE_RULES) reads such a record by its own rules, with no LAST CHANCE (the model before the flip).
 import { LAST_CHANCE_AT, LAST_CHANCE_LIVES } from "../sim/lastChance";
 import { lastChanceGateProblem } from "./rulesGate";
+// RETUNE-1 (REQ-BFG-096): the hearts model for records whose rules pass heartsFor (heartsRecords below)
+import { RULES_VERSION } from "../sim/content";
+import { HEARTS_START, heartsDusk } from "../sim/hearts";
+import { heartsFor } from "./rulesGate";
 
 /** The DOCK's PATCH UP: the one road choice that moves lives (tests check it against the event definitions). */
 export const PATCH_UP_LIVES = 1;
@@ -60,6 +64,8 @@ export const recordHasLastChance = (rules?: unknown): boolean => rules === undef
  * (recordHasLastChance); absent: this build's rules.
  */
 export function reachableRecords(day: number, opts: { draws?: boolean; patchUp?: boolean; dockDay?: number; lastChance?: LastChanceDay; rules?: unknown } = {}): DuskRecord[] {
+  // RETUNE-1 (REQ-BFG-096): a record whose rules pass heartsFor (absent: this build's) reads on the hearts model
+  if (heartsFor(opts.rules === undefined ? RULES_VERSION : opts.rules)) return heartsRecords(day, opts);
   // dockDay (tests): PATCH UP only on that day's road, as a run whose DOCK comes that day (absent: any day)
   const draws = opts.draws ?? true, patchUp = opts.patchUp ?? true, dockDay = opts.dockDay;
   const lcOn = recordHasLastChance(opts.rules); // Z-BUMP: under older rules no state fires it (lc stays 0): today's records before the flip
@@ -90,6 +96,41 @@ export function reachableRecords(day: number, opts: { draws?: boolean; patchUp?:
   }
   const seen = new Map<string, DuskRecord>();
   // LC-1: under rules with LAST CHANCE and `lastChance` given, only the runs whose LAST CHANCE fired that day (null: never)
+  const fired = opts.lastChance === undefined || !lcOn ? states : states.filter((s) => s.lc === (opts.lastChance ?? 0));
+  for (const s of fired) seen.set(`${s.w}|${s.l}`, { wins: s.w, lives: s.l });
+  return [...seen.values()].sort((a, b) => a.wins - b.wins || a.lives - b.lives);
+}
+
+/**
+ * RETUNE-1 (REQ-BFG-096): the hearts model, for records whose rules pass heartsFor (rulesGate.ts): HEARTS_START (10) at
+ * the start; a dusk loss costs heartCost(day) (1/2/3), a win or a draw none; LAST CHANCE once a run at the first loss that
+ * leaves 1 heart or fewer before RUN_DAYS, which sets the hearts to 1 (hearts.ts heartsDusk, the game's own step); out of
+ * hearts otherwise ends the run; no early-loss refund; PATCH UP +1 on the road, once a run, never above HEARTS_START.
+ * Same options and output as reachableRecords (lives = hearts going into the dusk).
+ */
+function heartsRecords(day: number, opts: { draws?: boolean; patchUp?: boolean; dockDay?: number; lastChance?: LastChanceDay; rules?: unknown }): DuskRecord[] {
+  const draws = opts.draws ?? true, patchUp = opts.patchUp ?? true, dockDay = opts.dockDay;
+  const lcOn = recordHasLastChance(opts.rules);
+  let states: State[] = [{ w: 0, l: HEARTS_START, early: false, dock: false, lc: 0 }];
+  for (let d = 1; d < day; d++) {
+    const next = new Map<string, State>();
+    const add = (s: State) => next.set(`${s.w}|${s.l}|${s.dock}|${s.lc}`, s);
+    for (const s of states) {
+      const outs: State[] = [{ ...s, w: s.w + 1 }]; // a win
+      if (draws) outs.push({ ...s }); // a draw costs no heart
+      // a loss: heartCost(d); LAST CHANCE (once, before RUN_DAYS) sets the hearts to 1; 0 hearts ends the run
+      const r = heartsDusk(s.l, d, "loss", !lcOn || s.lc > 0);
+      if (r.hearts > 0) outs.push({ ...s, l: r.hearts, lc: r.lastChance ? d : s.lc });
+      for (const o of outs) {
+        add(o); // no refund at any dawn
+        // the road of day d + 1: PATCH UP, once a run, never above HEARTS_START
+        const dockToday = dockDay === undefined || dockDay === d + 1;
+        if (patchUp && dockToday && !o.dock && o.l + PATCH_UP_LIVES <= HEARTS_START) add({ ...o, l: o.l + PATCH_UP_LIVES, dock: true });
+      }
+    }
+    states = [...next.values()];
+  }
+  const seen = new Map<string, DuskRecord>();
   const fired = opts.lastChance === undefined || !lcOn ? states : states.filter((s) => s.lc === (opts.lastChance ?? 0));
   for (const s of fired) seen.set(`${s.w}|${s.l}`, { wins: s.w, lives: s.l });
   return [...seen.values()].sort((a, b) => a.wins - b.wins || a.lives - b.lives);

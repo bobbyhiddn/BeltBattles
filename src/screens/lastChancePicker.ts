@@ -21,6 +21,8 @@ import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAG
 import { HEROES, ITEMS, type Rarity } from "../sim/content";
 import { RUNES } from "../sim/runes";
 import { BOONS, LAST_CHANCE_HULL, type Boon, type LastChanceOffer } from "../sim/lastChance";
+import { LAST_CHANCE_AT } from "../sim/lastChance"; // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's line
+import { heartsRun } from "../sim/hearts"; // RETUNE-1 run 2: the run's mark
 import { pendingLastChance, takeLastChance, type Run } from "../game/run";
 import { drawRuneCard, runeCardH } from "../ui/runeBar";
 import { runeReminderSpans, runeTag, tierWord } from "../ui/runeText";
@@ -42,6 +44,13 @@ export const LC_HULL_SUB = "MAX HULL · KEPT ALL RUN";
 export const hullName = (n: number): string => icons(`+${n} {HULL}`);
 /** The summary's STOP cell on the dusk that fired LAST CHANCE (STOP_W holds it: "WARLORD"-wide labels). */
 export const LC_STOP = "+1 LIFE";
+/** RETUNE-1 run 2 (REQ-BFG-096): on a hearts run (hearts.ts heartsRun) LAST CHANCE fires at the first loss that would leave
+ *  1 heart or fewer and keeps the run on 1 heart: the line under the title says so (LC_LINE's form), and the summary's
+ *  STOP cell says SAVED. A run without the mark: LC_LINE and LC_STOP, as before. */
+export const LC_LINE_HEARTS = `SAVED ON ${LAST_CHANCE_AT} HEART. PICK ONE. FREE.`;
+export const LC_STOP_HEARTS = "SAVED";
+export const lcLine = (run: { hearts?: boolean }): string => (heartsRun(run) ? LC_LINE_HEARTS : LC_LINE);
+export const lcStop = (run: { hearts?: boolean }): string => (heartsRun(run) ? LC_STOP_HEARTS : LC_STOP);
 /** The summary row's mark: the card taken (the rune's or part's name, or "+500 ♥"); "PICK" while it is pending. */
 export function lastChanceTag(lc: { boon?: Boon; id?: string }): string {
   if (lc.boon === "rune" && lc.id && RUNES[lc.id]) return RUNES[lc.id].name;
@@ -261,7 +270,7 @@ export class LastChancePicker {
     const cx = Math.round(W / 2);
     drawTitlePlate(g, W, L.top, L.cardW); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint
     drawText(g, LC_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
-    drawText(g, LC_LINE, cx, L.top + 11, C.lime, { align: "center" });
+    drawText(g, lcLine(s.run), cx, L.top + 11, C.lime, { align: "center" }); // RETUNE-1 run 2: a hearts run's words
     drawText(g, lcHint(o.day), cx, L.top + 22, C.slate4, { font: "3", align: "center" });
     const texts = this.texts(s.run, o, L.cardW);
     texts.forEach((t, i) => {

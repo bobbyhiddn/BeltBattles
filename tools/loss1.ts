@@ -45,6 +45,9 @@ import { serveJobs, workerRunner } from "./workers";
 import { botLastChancePick } from "../src/sim/harness/lastChance"; // H1: the existing LAST CHANCE pick policy
 import { lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { allOn } from "./loss1Switches";
+import { HEARTS_RULE, HEARTS_START, heartCost as sharedHeartCost, heartsDusk, type HeartsRule } from "../src/sim/hearts"; // RETUNE-1: the shared rule
+import { setGuard } from "../src/sim/guard"; // RETUNE-1 run 2: --guard (GUARD's content numbers in this process)
+import { RUNES, type RuneDef } from "../src/sim/runes"; // RETUNE-1 run 2: --set rune.<id>=<n>
 
 const HEROES4: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const TIERS = ["easy", "medium", "hard"] as const;
@@ -307,8 +310,12 @@ export interface FightLog {
   winner: number; t: number; ticks: number; max: number[]; hpWind: number[] | null; hpEnd: number[];
   windTaken: number[]; windLast: number[]; windLastTick: boolean; dmg: number[]; shots: number[];
   shielded: number[]; cut: number[]; plate: number[]; blockedHits: number[]; dmgTenths: number;
+  shieldSpent: number[]; shieldSmall: number[]; // RETUNE-1 run 2: SHIELDs spent, and spent on a small hit
 }
-interface GuardTally { shielded: number[]; cut: number[] }
+/** RETUNE-1 run 2 (BRIEF-RETUNE1-R2 section 3): `hits`, each impact on a side (its total after the runes' hook, before D),
+ *  and `shieldHits`, the ones a SHIELD stopped, so a fight's spent SHIELDs can be split by size (a "small" hit is under a
+ *  quarter of that side's mean incoming hit in the fight). */
+interface GuardTally { shielded: number[]; cut: number[]; hits: number[][]; shieldHits: number[][] }
 let GUARD: GuardTally | null = null;
 let hooked = false;
 function hookBattle(): void {
@@ -317,13 +324,18 @@ function hookBattle(): void {
   const P = Battle.prototype as unknown as Record<string, (...a: never[]) => unknown>;
   const impact0 = P.impact, runeHit0 = P.runeHit, shieldHit0 = P.shieldHit;
   const pre: number[] = []; // the impact being resolved: its total after the runes' hook (what a SHIELD would stop)
+  const stopped: boolean[] = []; // RETUNE-1 run 2: did a SHIELD stop the impact being resolved?
   type Side = { side: number; hull: { fray: number; frayMax: number }; rune?: { frayMul?: number; machineDmg?: number; fullFrayDmg?: number; hitCut?: number } };
   P.impact = function (this: { sides: Side[] }, pr: { from: number; share?: number; dmg: number }) {
     const atk = this.sides[pr.from], def = this.sides[pr.from === 0 ? 1 : 0];
     let bonus = pr.share !== undefined ? pct(def.hull.fray * FRAY_BONUS, 100 * pr.share) : def.hull.fray * FRAY_BONUS;
     if (atk.rune?.frayMul) bonus *= atk.rune.frayMul;
     pre.push(pr.dmg + bonus);
-    try { return (impact0 as unknown as (p: unknown) => unknown).call(this, pr); } finally { pre.pop(); }
+    stopped.push(false);
+    try { return (impact0 as unknown as (p: unknown) => unknown).call(this, pr); } finally {
+      const size = pre.pop()!, sh = stopped.pop()!;
+      if (GUARD) { GUARD.hits[def.side].push(size); if (sh) GUARD.shieldHits[def.side].push(size); }
+    }
   } as never;
   P.runeHit = function (this: unknown, atk: Side, def: Side, hit: { kind: string }, total: number) {
     const out = (runeHit0 as unknown as (...a: unknown[]) => number).call(this, atk, def, hit, total);
@@ -334,13 +346,23 @@ function hookBattle(): void {
   } as never;
   P.shieldHit = function (this: unknown, def: Side) {
     if (GUARD && pre.length) GUARD.shielded[def.side] += pre[pre.length - 1];
+    if (stopped.length) stopped[stopped.length - 1] = true;
     return (shieldHit0 as unknown as (d: unknown) => number).call(this, def);
   } as never;
 }
 
+/** RETUNE-1 run 2: the SHIELDs side i spent in a fight, and how many of them on a small hit (under a quarter of the mean
+ *  hit coming in to side i in that fight). */
+function shieldSplit(g: GuardTally, i: number): { spent: number; small: number } {
+  const hs = g.hits[i], n = hs.length;
+  if (!n) return { spent: 0, small: 0 };
+  const mean = hs.reduce((s, x) => s + x, 0) / n;
+  return { spent: g.shieldHits[i].length, small: g.shieldHits[i].filter((x) => x < mean / 4).length };
+}
+
 export function probeFight(a: Build, b: Build, seed: number, day: number): FightLog {
   hookBattle();
-  const g: GuardTally = { shielded: [0, 0], cut: [0, 0] };
+  const g: GuardTally = { shielded: [0, 0], cut: [0, 0], hits: [[], []], shieldHits: [[], []] };
   GUARD = g;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bt = new (Battle as any)(a, b, seed, undefined, day);
@@ -361,6 +383,7 @@ export function probeFight(a: Build, b: Build, seed: number, day: number): Fight
     dmg: two((i) => bt.sides[i].stats.damage), shots: two((i) => bt.sides[i].stats.shots),
     shielded: two((i) => Math.round(g.shielded[i] * D)), cut: two((i) => Math.round(g.cut[i] * D)), plate: two((i) => bt.sides[i].plate?.absorbed ?? 0),
     blockedHits: two((i) => bt.sides[i].blocked ?? 0), dmgTenths: bt.dmgTenths ?? 10,
+    shieldSpent: two((i) => shieldSplit(g, i).spent), shieldSmall: two((i) => shieldSplit(g, i).small),
   };
 }
 
@@ -377,7 +400,7 @@ export function fightView(f: FightLog, me: number): Record<string, unknown> {
     aheadHpAtWind: f.hpWind !== null && f.hpWind[me] > f.hpWind[foe],
     windLast: dead && f.windLastTick && f.hpEnd[me] + f.windLast[me] > 0, windDecided: dead && f.windTaken[me] > -f.hpEnd[me],
     windTaken: [f.windTaken[me], f.windTaken[foe]],
-    guard: { shielded: f.shielded[me], cut: f.cut[me], plate: f.plate[me], hits: f.blockedHits[me], incoming: f.dmg[foe] + f.shielded[me] + f.cut[me], foeShots: f.shots[foe] },
+    guard: { shielded: f.shielded[me], cut: f.cut[me], plate: f.plate[me], hits: f.blockedHits[me], incoming: f.dmg[foe] + f.shielded[me] + f.cut[me], foeShots: f.shots[foe], spent: f.shieldSpent?.[me] ?? 0, small: f.shieldSmall?.[me] ?? 0 },
   };
 }
 
@@ -497,7 +520,7 @@ function modeGuard(): unknown {
       if (only.length && !only.includes(v.def) && v.def !== "none") continue;
       let pts = 0, n = 0, decks = 0;
       const from: Record<string, number> = {};
-      const mine = { shielded: 0, cut: 0, plate: 0, incoming: 0, hits: 0, foeShots: 0 }, theirs = { ...mine };
+      const mine = { shielded: 0, cut: 0, plate: 0, incoming: 0, hits: 0, foeShots: 0, spent: 0, small: 0 }, theirs = { ...mine };
       const add = (t: typeof mine, g: typeof mine) => { for (const k of Object.keys(t) as (keyof typeof mine)[]) t[k] += g[k]; };
       for (const { h, m, b } of base) {
         const sw = swapIn(b, v.def, v.stars);
@@ -520,7 +543,8 @@ function modeGuard(): unknown {
       const share = (g: typeof mine) => (g.incoming ? r3((g.shielded + g.cut + g.plate) / g.incoming) : null);
       out.push({
         day, def: v.def, name: ITEMS[v.def]?.name ?? v.def, stars: v.stars, kind: v.kind, decks, fights: n, lift: n ? r3(pts / n - 0.5) : null,
-        share: share(mine), parts: n ? { shield: r3(mine.shielded / mine.incoming), cut: r3(mine.cut / mine.incoming), plate: r3(mine.plate / mine.incoming), hits: r3(mine.hits / n), incoming: Math.round(mine.incoming / n) } : null,
+        share: share(mine), parts: n ? { shield: r3(mine.shielded / mine.incoming), cut: r3(mine.cut / mine.incoming), plate: r3(mine.plate / mine.incoming), hits: r3(mine.hits / n), incoming: Math.round(mine.incoming / n), spent: r3(mine.spent / n), smallShare: mine.spent ? r3(mine.small / mine.spent) : null } : null,
+        baseParts: n ? { shield: r3(theirs.shielded / theirs.incoming), plate: r3(theirs.plate / theirs.incoming), spent: r3(theirs.spent / n), smallShare: theirs.spent ? r3(theirs.small / theirs.spent) : null } : null,
         baseShare: share(theirs), from,
       });
     }
@@ -557,21 +581,24 @@ async function modeCands(run: Runner): Promise<unknown> {
 
 // ---------------------------------------------------------------- mode bench
 
-/** H1 (REQ-BFG-096; BRIEF-LOSS1-ADD1 A.1): a run starts with 10 hearts. H3 (a proposal read only): --hearts-start n. */
-export const HEARTS_START_RULE = 10;
-const HEARTS_START = flag("hearts-start") ? Number(flag("hearts-start")) : HEARTS_START_RULE;
+/** H1 (REQ-BFG-096; BRIEF-LOSS1-ADD1 A.1): a run starts with 10 hearts. H3 (a proposal read only): --hearts-start n.
+ *  RETUNE-1 (REQ-BFG-096): the game's rule now lives in src/sim/hearts.ts; this ledger takes its step (heartsDusk), so the
+ *  bench and the game can't drift. The flags only change the rule's numbers (HeartsRule), never its shape. */
+export const HEARTS_START_RULE = HEARTS_START;
+const HEARTS_BENCH_RULE: HeartsRule = {
+  start: flag("hearts-start") ? Number(flag("hearts-start")) : HEARTS_RULE.start,
+  cost: (flag("hearts-cost") ? flag("hearts-cost")!.split(",").map(Number) : [...HEARTS_RULE.cost]) as unknown as HeartsRule["cost"],
+};
 /** H1: the hearts a lost dusk costs: 1 on days 1-3, 2 on days 4-6, 3 from day 7 (a road fight or a draw: none). H3:
- *  --hearts-cost a,b,c (days 1-3, 4-6, 7+). */
-const COST = (flag("hearts-cost") ?? "1,2,3").split(",").map(Number);
-export const heartCost = (day: number): number => (day <= 3 ? COST[0] : day <= 6 ? COST[1] : COST[2]);
+ *  --hearts-cost a,b,c (days 1-3, 4-6, 7+). RETUNE-1: hearts.ts heartCost on the bench's rule. */
+export const heartCost = (day: number): number => sharedHeartCost(day, HEARTS_BENCH_RULE);
 /** H1: one dusk under the hearts rule (r: 0 win, 1 loss, -1 draw). LAST CHANCE fires once a run, at the first loss that
  *  would leave 1 heart or fewer: the player stays on 1 heart (and takes the card). As the game's LAST CHANCE, never on the
- *  last day (lastChance.ts lastChanceFires: day < RUN_DAYS; there is no dawn to play it). No day-3 refund (A.1 has none). */
-export function heartsLoss(hearts: number, day: number, r: number, used: boolean): { hearts: number; lastChance: boolean } {
-  if (r !== 1) return { hearts, lastChance: false };
-  const left = hearts - heartCost(day);
-  if (!used && left <= 1 && day < RUN_DAYS) return { hearts: 1, lastChance: true };
-  return { hearts: Math.max(0, left), lastChance: false };
+ *  last day (`lastDay`, RUN_DAYS; there is no dawn to play it). No day-3 refund (A.1 has none). RETUNE-1: hearts.ts
+ *  heartsDusk, the game's own step. */
+export function heartsLoss(hearts: number, day: number, r: number, used: boolean, lastDay: number = RUN_DAYS): { hearts: number; lastChance: boolean } {
+  const s = heartsDusk(hearts, day, r === 0 ? "win" : r === 1 ? "loss" : "draw", used, { rule: HEARTS_BENCH_RULE, lastDay });
+  return { hearts: s.hearts, lastChance: s.lastChance };
 }
 
 function fight(a: Build, b: Build, seed: number, day: number): 0 | 1 | -1 {
@@ -661,7 +688,7 @@ function modeBench(): unknown {
         // the matching reads today's lives (the pool's records are on the 5-life scale): a shadow of the game's ledger fed
         // the same results; under `card` it is the ledger itself
         const shadow = newRun(hero, runSeed, `loss1-${hero}-${seed}`);
-        let decks = days, hearts = HEARTS_START, wins = 0, lcDay = 0, reached = 0, over: null | "lost" | "complete" = null;
+        let decks = days, hearts = HEARTS_BENCH_RULE.start, wins = 0, lcDay = 0, reached = 0, over: null | "lost" | "complete" = null;
         let boon: string | null = null;
         const seen: string[] = [], res: number[] = [], foes: string[] = [], grade: (number | null)[] = [], recs: string[] = [];
         for (let day = 1; day <= RUN_DAYS && !over; day++) {
@@ -742,6 +769,14 @@ function applySets(): void {
   for (const kv of (flag("set") ?? "").split(",").filter(Boolean)) {
     const [path, val] = kv.split("=");
     const keys = path.split(".");
+    if (keys[0] === "rune") { // RETUNE-1 run 2: rune.<id>=<n>, a rune's amount (its def's amount object swapped, in this process)
+      const d = RUNES[keys[1]] as RuneDef | undefined;
+      if (!d) throw new Error(`--set ${path}: no rune ${keys[1]}`);
+      const was = d.amount.n;
+      (d as { amount: RuneDef["amount"] }).amount = { ...d.amount, n: Number(val) };
+      if (isMainThread) console.log(`--set ${path}: ${was} -> ${val}`);
+      continue;
+    }
     let o = ITEMS as unknown as Record<string, unknown>;
     for (const k of keys.slice(0, -1)) o = o[k] as Record<string, unknown>;
     const last = keys[keys.length - 1];
@@ -753,6 +788,7 @@ function applySets(): void {
 
 const toolRun = !!process.argv[1]?.endsWith("loss1.js");
 if (toolRun && has("all-on")) allOn(); // every thread (workers share argv) before any deck is built
+if (toolRun && has("guard")) setGuard(true); // RETUNE-1 run 2: GUARD's numbers, before --set (which then edits the guarded defs)
 if (toolRun && flag("set")) applySets();
 if (toolRun && !isMainThread) serveJobs();
 else if (toolRun) void main();

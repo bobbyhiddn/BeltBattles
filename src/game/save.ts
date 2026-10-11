@@ -29,6 +29,7 @@ import { fuseAll } from "./fuse";
 import { readoutOk } from "./raceReadout"; // 0.8.0 H1 M3
 import { waresOk } from "./wares"; // 0.8.0 I1 M3
 import { lastChanceShapeOk } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
+import { HEARTS_START } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a hearts run's clamp
 import type { Run } from "./run";
 
 export const SAVE_KEY = "beltbattles.run.v7";
@@ -250,7 +251,10 @@ export function migrateRun(raw: unknown): Run | null {
     if (h && typeof h === "object" && h.race !== undefined && !readoutOk(h.race)) delete h.race;
   }
   r.day = clampDay(r.day);
-  r.lives = Math.max(0, Math.min(START_LIVES, Number(r.lives) || 0));
+  // RETUNE-1 (REQ-BFG-096): a hearts run's mark is `true` or absent (anything else is dropped: a lives run), and its
+  // hearts clamp to HEARTS_START; a save without the mark (every switch-off run) clamps to START_LIVES exactly as before
+  if (r.hearts !== undefined && r.hearts !== true) delete r.hearts;
+  r.lives = Math.max(0, Math.min(r.hearts === true ? HEARTS_START : START_LIVES, Number(r.lives) || 0));
   if (typeof r.runId !== "string") r.runId = `s-${((Number(r.seed) || 0) >>> 0).toString(36)}`;
   if (!STAGES.includes(r.stage)) r.stage = "caravan";
   if (r.stage === "warlord" && !(r.warlord && r.warlord.day === r.day)) r.stage = "fork";
