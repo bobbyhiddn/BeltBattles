@@ -230,6 +230,10 @@ const clamp = (r: Rect, within: Rect): Rect | null => {
   return x1 > x && y1 > y ? { x, y, w: x1 - x, h: y1 - y } : null;
 };
 
+/** CARD-2 (REQ-BFG-081, K2): U2c's target rules, for the rune cards' word targets (runeBar.ts runeWordTargets). */
+export const clampRect = clamp;
+export const clipOutRect = clipOut;
+
 /**
  * The tap targets of a planned panel (pure; drawDetails and the tests): every word its visible lines name (see the file
  * comment), each its glyphs grown to its line's pitch and at least a pitch wide, the nearest winning where two meet, inside
@@ -825,17 +829,27 @@ export function drawIconTip(g: G, items: readonly string[], tr: Rect): void {
 }
 
 /** The desk's hover tooltip (shop.ts drawTooltip's style: night, an ink frame and shadow) under the word, as the shop's
- *  sits under its card (the panel's title and the word stay in sight). */
-function drawHoverTip(g: G, t: KwTarget, r: Rect): void {
-  const lines = wrapRich(colourize(icons(t.text), C.bone), 150, "3");
+ *  sits under its card (the panel's title and the word stay in sight). CARD-2 (K1): returns its rect (a first-sight box
+ *  in this look is a UI region). */
+function drawHoverTip(g: G, t: KwTarget, r: Rect): Rect {
+  return drawWordTip(g, t.text, t.colour, t.glyph, r);
+}
+
+/** CARD-2 (REQ-BFG-081, K1, K2): drawHoverTip's box for a definition `text` (markup) of a word drawn at `glyph` on panel or
+ *  card `r`, its top edge in the word's `colour`; on `screen` where given, kept on it (a rune card on a narrow screen).
+ *  Returns its rect. */
+export function drawWordTip(g: G, text: string, colour: string, glyph: Rect, r: Rect, screen?: { W: number; H: number }): Rect {
+  const lines = wrapRich(colourize(icons(text), C.bone), 150, "3");
   const w = Math.max(...lines.map((l) => lineWidth(l, "3"))) + 10, h = 8 + lines.length * 7;
-  const x = Math.max(2, Math.min(r.x + r.w + 200 - w, t.glyph.x - 4));
-  const y = t.glyph.y + t.glyph.h + 4;
+  let x = Math.max(2, Math.min(r.x + r.w + 200 - w, glyph.x - 4));
+  if (screen) x = Math.max(2, Math.min(screen.W - w - 2, x));
+  const y = glyph.y + glyph.h + 4;
   rect(g, x + 2, y + 2, w, h, C.ink);
   rect(g, x, y, w, h, C.ink);
   rect(g, x + 1, y + 1, w - 2, h - 2, C.night);
-  rect(g, x + 1, y + 1, w - 2, 1, t.colour === C.bone ? C.slate3 : t.colour);
+  rect(g, x + 1, y + 1, w - 2, 1, colour === C.bone ? C.slate3 : colour);
   lines.forEach((l, i) => drawRich(g, l, x + 5, y + 4 + i * 7, "3"));
+  return { x, y, w, h };
 }
 
 let cursorHelp = false;
