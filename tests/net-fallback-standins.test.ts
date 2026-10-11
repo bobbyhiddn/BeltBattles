@@ -77,5 +77,7 @@ describe("fallback stand-ins", () => {
         expect(JSON.stringify(v1.build), `${hero} d${day}`).not.toBe(JSON.stringify(v0.build));
       }
     }
-  });
+  }, 600_000); // AZ-BUMP (JOINS-1 question 5; a host timeout, not the rule): generateSamplePool builds the whole seed pool
+  // (the race heroes' par runs, every ghost through seedGhost's checks): 11.4 s in AZ-BUMP S1's whole suite, but 231-288 s
+  // under the 1.5-CPU quota on the host (231 s alone at 283cfaf), over vitest's 30 s default
 });

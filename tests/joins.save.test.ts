@@ -99,7 +99,9 @@ describe("J12: GhostSnapshot v2 carries the join", () => {
       expect(back).toEqual(s);
       expect(back.build.routes.every((r) => !("join" in r))).toBe(true);
     }
-  });
+  }, 600_000); // AZ-BUMP (JOINS-1 question 5; a host timeout, not the rule): generateSamplePool builds the whole seed pool
+  // (the race heroes' par runs, every ghost through seedGhost's checks): 11.1 s in AZ-BUMP S1's whole suite, but 205-292 s
+  // under the 1.5-CPU quota on the host (230 s alone at 283cfaf), over vitest's 30 s default
 
   it("the codec checks the join's shape only: v2, a cell key 0..99; its legality is validateBuild's", () => {
     expect(() => net.checkSnapshot(snap(joined(), 1))).toThrow(/routes\[1\]\.join: not allowed in a v1 snapshot/);
