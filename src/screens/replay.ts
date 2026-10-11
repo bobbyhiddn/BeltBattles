@@ -98,6 +98,8 @@ export class ReplayScreen implements Screen {
     this.arena.off = [0, 0];
     this.heroName = HEROES[mine.hero].name;
     this.motion = new ArenaMotion(this.seed, battleScene(this.seed), MOTION, settings.reducedMotion); // FIELD-1: the dusk's setting
+    // PAIR-CUE (REQ-BFG-100; REVIEW-COUNT1 ruling 3): the board counters draw under every number, as in the battle
+    this.motion.underNumbers = (g) => this.drawBoardCounters(g);
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
@@ -193,10 +195,25 @@ export class ReplayScreen implements Screen {
     } else this.arena.update(dt, false);
   }
 
+  /**
+   * COUNT-1 (REQ-BFG-100): the guns' and belts' counts while the replay runs, under the plates and the bar; their tap
+   * targets clear of the bar's buttons and BACK. PAIR-CUE (REVIEW-COUNT1 ruling 3): drawn from inside ArenaMotion.draw
+   * (underNumbers), before every number, as in the battle.
+   */
+  private drawBoardCounters(g: G): void {
+    for (let s = 0; s < 2; s++) {
+      const p = this.L.plates[s], r = this.plateR[s];
+      r.x = p.x; r.y = p.y; r.w = p.w; r.h = p.h;
+    }
+    const leave = replayLeaveRect(this.L, this.game.view);
+    this.counters.drawBoard(g, this.game, this.arena, this.motion, [...plateKeep({ plates: [this.plateR[0], this.plateR[1]], hulls: this.L.hulls }), this.L.bar], [this.L.bar, leave], !this.over);
+  }
+
   draw(g: G): void {
     const { W, H, ui } = this.game;
     const a = this.arena, b = a.b;
     const m = this.motion;
+    this.counters.begin(); // COUNT-1: no counter groups yet this frame (PAIR-CUE: the board's are drawn inside m.draw)
     // MOTION-2: the day's sea, then the carriers, boards, shots and effects in motion
     m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed, a);
     m.draw(g, a, W, H, settings.reducedMotion);
@@ -205,11 +222,7 @@ export class ReplayScreen implements Screen {
       const p = this.L.plates[s], r = this.plateR[s];
       r.x = p.x; r.y = p.y; r.w = p.w; r.h = p.h;
     }
-    // COUNT-1 (REQ-BFG-100): the guns' and belts' counts while the replay runs, under the plates and the bar; their tap
-    // targets clear of the bar's buttons and BACK
     const live = !this.over, leave = replayLeaveRect(this.L, this.game.view);
-    this.counters.begin();
-    this.counters.drawBoard(g, this.game, a, m, [...plateKeep({ plates: [this.plateR[0], this.plateR[1]], hulls: this.L.hulls }), this.L.bar], [this.L.bar, leave], live);
     this.plateRows[1] = drawPlate(g, this.game, a, this.plateR[1], 1, this.label.foe, this.hp[1]);
     this.plateRows[0] = drawPlate(g, this.game, a, this.plateR[0], 0, this.heroName, this.hp[0]);
     this.counters.drawRows(g, this.game, a, this.L, this.plateR, this.plateRows, [this.L.bar, leave], live); // COUNT-1: C1, C2
