@@ -1137,7 +1137,9 @@ const ENTRIES: Record<string, Entry> = {
       "ON BELTS INTO TWO GUNS, IT LETS BOTH GO AT ONCE.",
     ],
     gist: (e) => `HOLDS UP TO ${seconds(g(e).latch!.hold)}`,
-    card: () => "LETS TWO BELTS GO TOGETHER",
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.3 item 4: every desk reader took it for a belt joiner, WWW): what its face says
+    // (Battle.latchTick holds a slug for its other belt, so the two make a PAIR at the gun; was "LETS TWO BELTS GO TOGETHER")
+    card: () => "HOLDS A SLUG TO PAIR TWO BELTS",
   },
   stoker: {
     // E3: its arrows work factories (deck.ts stokeHits), never belts. Battle.stokedPace: the factory's timers x (1 + its

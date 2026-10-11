@@ -28,8 +28,10 @@ const fits = (def: string, o = {}) => {
 describe("Y1: faces only, rules unchanged", () => {
   it("1-2: GALVANIC COIL and FROSTBITE FOUNDRY say the parts a STUN hits on their line; no perk clause", () => {
     const g = STARS.map((s) => effectAt("coil", s).gate!), coilParts = g.map((x) => 1 + (x.jump ?? 0));
+    // CARD-2 (REQ-BFG-081, K3 (g); READ-2 7.1's words): whose STUN on which part: ITS {SLUG} {*STUN}S THE PART IT HITS 2{SEC}
+    // (★2/★3: n PARTS); was `HIT: STUN ${sec} ON ${n} PART${S}.` The numbers still come from the sim
     expect(STARS.map((s) => line("coil", s))).toEqual(g.map((x, i) =>
-      `HIT: STUN ${fmtSec(x.shockTime ?? DISRUPT_TIME)} ON ${fmtCount(coilParts[i])} PART${S(coilParts[i])}.`));
+      `HIT: ITS  STUNS ${coilParts[i] === 1 ? "THE PART IT HITS" : `${fmtCount(coilParts[i])} PARTS`} ${fmtSec(x.shockTime ?? DISRUPT_TIME)}.`));
     expect(ladders("coil", 1)).toEqual([`{STUN} ${ladder(g.map((x) => fmtSec(x.shockTime ?? DISRUPT_TIME)))}`, `${ladder(coilParts.map(fmtCount))} PARTS`]);
     const r = STARS.map((s) => effectAt("frostbite", s).factory!.round as { seconds: number; spread?: number });
     const frostParts = r.map((x) => 1 + (x.spread ?? 0));

@@ -33,10 +33,26 @@ export function captainKeywordColour(word: string): string | undefined {
   return core ? COLOUR_OF.get(core) : undefined;
 }
 
+/**
+ * CARD-2 (REQ-BFG-081, K3 (i); REVIEW-WORDS1 note 2): two captains' lines in src/sim/rivals.ts still print a retired word
+ * (VOCAB.md: MACHINE(S), MATCHED). RIVALS keeps its strings (src/sim is protected; rivals.npcs.test.ts pins the trick);
+ * every captain line the player reads (the road fork's card and its inspect panel) goes through captainSpans, so it draws
+ * the current words here, as runeText.ts draws RuneDef.text's. Checked in src/sim: SPARKFANG's synergy is the GALVANIC
+ * COIL (rivalBuilds.ts:298; G(2, "coil") on his belts), whose slug stuns the part it hits (a PART: a rig, factory, turret
+ * or belt tile); BRASSWICK's is the TWIN GAUGE, TWIN MOULD and TWIN TRIGGER (rivalBuilds.ts:631).
+ */
+export const CAPTAIN_TEXT: ReadonlyArray<readonly [string, string]> = [
+  ["GALVANIC COILS STUN YOUR MACHINES.", "GALVANIC COILS STUN YOUR PARTS."], // SPARKFANG's blurb
+  ["MATCHED POUR", "TWIN POUR"], // BRASSWICK's trick (alone, or after his name in the inspect panel's title)
+];
+
+/** A captain's line in the words the player reads (CAPTAIN_TEXT); any other line as it is. */
+export const captainText = (text: string): string => CAPTAIN_TEXT.reduce((t, [from, to]) => t.split(from).join(to), text);
+
 /** A captain's line as rich spans: each keyword in its colour, everything else as colourize draws it in `base`. */
 export function captainSpans(text: string, base: string): Span[] {
   const out: Span[] = [];
-  text.split(" ").forEach((w, i) => {
+  captainText(text).split(" ").forEach((w, i) => {
     if (i > 0) out.push({ t: " ", c: base });
     const m = /^([^A-Z]*)([A-Z]+)([^A-Z]*)$/.exec(w);
     const kc = m ? COLOUR_OF.get(m[2]) : undefined;

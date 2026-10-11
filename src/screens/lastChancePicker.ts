@@ -17,12 +17,15 @@ import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on 
 import { panel, type Rect } from "../ui/ui";
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
 import { faceLines } from "../ui/faces";
+import { PLAIN_RIGS, RIG_SENTENCE, plainRigStats } from "../ui/faces"; // CARD-2 (REQ-BFG-084, K6): the plain rigs' faces
+import { statRow } from "../ui/icons"; // CARD-2 (K6)
 import { HEROES, ITEMS, type Rarity } from "../sim/content";
 import { RUNES } from "../sim/runes";
 import { BOONS, LAST_CHANCE_HULL, type Boon, type LastChanceOffer } from "../sim/lastChance";
 import { pendingLastChance, takeLastChance, type Run } from "../game/run";
 import { drawRuneCard, runeCardH } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the rune card's chip as its icon
+import { drawRuneWordNote, runeKeywordOf, runeSightWord, runeWordLayer, runeWordLines } from "../ui/runeBar"; // CARD-2 (K2; K1)
 import { runeReminderSpans, runeTag, tierWord } from "../ui/runeText";
 import { textOpts } from "./build/inspector";
 import type { BuildScreen } from "./build/build";
@@ -59,8 +62,12 @@ const GAP = 7;
 const HEAD = 31;
 const INFO = 11; // the ⓘ box's side
 
-/** The PART card's lines at text width `tw`: the stat row(s) as icons, then each rule (its brass label first). */
+/** The PART card's lines at text width `tw`: the stat row(s) as icons, then each rule (its brass label first). CARD-2
+ *  (REQ-BFG-084, K6; REVIEW-EXPLAIN1 open item 1): a plain stat rig (faces.ts PLAIN_RIGS: WHETSTONE, TEMPER, BARBED SPOOL)
+ *  draws its plain face, the panel's: plainRigStats' stat row ({DMG}+20), no HIT: line (it read faceLines' rule). */
 function partLines(def: string, tw: number, run: Pick<Run, "hero" | "build">): RichLine[] {
+  const plain = plainRigStats(def, 1);
+  if (plain) return wrapRich(colourize(statRow(plain), C.bone), tw, "5");
   const fl = faceLines(def, 1, textOpts(run as Run));
   if (!fl) return [];
   const out: RichLine[] = [];
@@ -74,10 +81,11 @@ function partLines(def: string, tw: number, run: Pick<Run, "hero" | "build">): R
   return out;
 }
 
-/** The PART card's details (ⓘ): its keywords' reminders, then where it goes. */
+/** The PART card's details (ⓘ): its keywords' reminders, then where it goes. CARD-2 (REQ-BFG-084, K6): a plain stat rig's
+ *  rig sentence first (faces.ts RIG_SENTENCE: the trigger its face no longer prints, as its panel's ⓘ NOTES lead with it). */
 function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">): RichLine[] {
   const fl = faceLines(def, 1, textOpts(run as Run));
-  const rem = [...(fl?.reminders ?? []), "FREE. IT GOES TO CARGO AT ★1; PLACE IT AS ANY PART."];
+  const rem = [...(PLAIN_RIGS.includes(def) ? [RIG_SENTENCE] : []), ...(fl?.reminders ?? []), "FREE. IT GOES TO CARGO AT ★1; PLACE IT AS ANY PART."];
   return rem.flatMap((t) => wrapRich(colourize(icons(t), C.slate4), tw, "3"));
 }
 
@@ -166,6 +174,10 @@ export class LastChancePicker {
   /** The opened card (-1: none) and the cards whose details (ⓘ) are shown. */
   open = -1;
   info = new Set<number>();
+  /** CARD-2 (REQ-BFG-081, K2; REQ-BFG-004, K1): the keyword whose definition the open RUNE card shows (a word's tap, or its
+   *  first sight when the card opened), in its details' room (over its effect lines' foot while its details are closed:
+   *  the card keeps its size); null for none. Any other press closes it (each region's tap, and the screen's). */
+  word: string | null = null;
   private key = "";
 
   /** The pending offer while the run is at its caravan (not a refit), else null. */
@@ -188,8 +200,11 @@ export class LastChancePicker {
   tap(s: BuildScreen, i: number, boon: Boon, o: LastChanceOffer): void {
     if (this.open !== i) {
       this.open = i;
+      // CARD-2 (K1): an opened RUNE card shows its first effect keyword not yet seen, by itself (no tap is counted)
+      this.word = boon === "rune" && o.rune ? runeSightWord(RUNES[o.rune.id]) : null;
       return;
     }
+    this.word = null;
     const r = takeLastChance(s.run, boon);
     if (!r.ok) {
       s.game.error(r.reason ?? "NO LAST CHANCE TO PICK");
@@ -229,6 +244,7 @@ export class LastChancePicker {
     if (!o) {
       this.open = -1;
       this.info.clear();
+      this.word = null;
       return;
     }
     const key = `${o.day}|${o.rune?.id}|${o.part}`;
@@ -237,15 +253,18 @@ export class LastChancePicker {
       if (this.key) {
         this.open = -1;
         this.info.clear();
+        this.word = null;
       }
       this.key = key;
     }
     const { W, H, ui } = s.game;
     const L = this.layout(s, o);
+    this.wordBox = null;
     g.globalAlpha = 0.86;
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;
-    ui.add({ id: "lcpick", r: { x: 0, y: 0, w: W, h: H }, block: true });
+    // CARD-2 (K2): a press anywhere off the RUNE card's words closes a word's definition (the regions over it close it too)
+    ui.add({ id: "lcpick", r: { x: 0, y: 0, w: W, h: H }, block: true, onTap: () => { this.word = null; } });
     const cx = Math.round(W / 2);
     drawText(g, LC_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
     drawText(g, LC_LINE, cx, L.top + 11, C.lime, { align: "center" });
@@ -259,6 +278,10 @@ export class LastChancePicker {
         // the rune card's own body is drawRuneCard's; its details and the take bar follow its text
         const base = runeCardH(def, r.w, {}) - 4;
         drawBody(g, { ...r, y: r.y + base - HEAD }, [], t.info, hint);
+        // CARD-2 (K2; K1): the shown keyword's definition, in the details' room (its lines' place: drawBody's y + 1), or,
+        // with the details closed, over the effect lines' foot, growing up: whole, and the card keeps its size
+        const k = open && this.word ? runeKeywordOf(def, this.word) : null;
+        if (k) this.wordBox = drawRuneWordNote(g, r, t.info.length ? r.y + base + 1 : r.y + base - 2, t.info.length, runeWordLines(def, k, r.w - 10));
       } else if (t.boon === "part") {
         const def = ITEMS[o.part!];
         drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity), open);
@@ -274,6 +297,7 @@ export class LastChancePicker {
       const ir = L.infos[i], side = Math.max(ir.w + 8, isPhone(s.game.view) ? tapPx(s.game.view) : 0);
       const right = r.x + r.w, tr = { x: right - side, y: r.y, w: side, h: Math.min(side, r.h) };
       ui.add({ id: `lcinfo-${t.boon}`, r: tr, onTap: () => {
+        this.word = null; // CARD-2 (K2): another press closes a word's definition
         if (this.info.has(i)) this.info.delete(i);
         else this.info.add(i);
       } });
@@ -285,11 +309,22 @@ export class LastChancePicker {
     texts.forEach((t, i) => {
       if (t.boon !== "rune") return;
       runeChipIcon(g, ui, "lcchip-rune", L.cards[i], RUNES[o.rune!.id], runeTapOf(s), () => {
+        this.word = null; // CARD-2 (K2): the chip's line replaces a word's definition
         if (this.info.has(i)) this.info.delete(i);
         else this.info.add(i);
       }, { W, H }, s.game.canvas);
+      // CARD-2 (REQ-BFG-081, K2): the open RUNE card's keywords are word targets, over the card's region (a tap on one shows
+      // or hides its definition and never picks the card); a closed card's are not (a tap on it opens it, as before)
+      if (i === this.open) {
+        runeWordLayer(g, ui, "lcrune-", L.cards[i], RUNES[o.rune!.id], runeTapOf(s), this.word, this.word ? this.wordBox : null, (wd) => {
+          this.word = this.word === wd ? null : wd;
+        }, { W, H }, s.game.canvas, () => { this.word = null; });
+      }
     });
   }
+
+  /** CARD-2 (K2): the shown word's definition box as last drawn (its region). */
+  private wordBox: { x: number; y: number; w: number; h: number } | null = null;
 
   /** Tooling (bb.lastChance()): the picker as drawn, or null when it is not up. */
   infoOf(s: BuildScreen): { day: number; boons: Boon[]; rune: string | null; part: string | null; hull: number; open: number; layout: LcLayout } | null {

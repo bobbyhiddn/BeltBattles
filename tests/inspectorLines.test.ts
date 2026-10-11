@@ -445,7 +445,8 @@ describe("P11: a rig's panel order, and the phone band", () => {
     const fl = faceLines("coil", 2)!;
     expect(drawn.join(" ")).toContain(fl.rules[0].text);
     const g2 = effectAt("coil", 2).gate!;
-    expect(stripIcons(fl.rules[0].text)).toBe(`HIT: STUN ${fmtSec(g2.shockTime!)} ON ${fmtCount(1 + g2.jump!)} PARTS.`);
+    // CARD-2 (REQ-BFG-081, K3 (g); READ-2 7.1's words): whose STUN on which parts (was `HIT: STUN ${sec} ON ${n} PARTS.`)
+    expect(stripIcons(fl.rules[0].text)).toBe(`HIT: ITS  STUNS ${fmtCount(1 + g2.jump!)} PARTS ${fmtSec(g2.shockTime!)}.`);
     expect(fl.clause).toBeUndefined();
     expect(drawn.join(" ")).not.toContain("SPARK JUMP");
     expect(drawn.join(" ")).not.toContain("NEXT ★");

@@ -156,7 +156,8 @@ function check(tag: string, run: Run, d: { show: Sel; t: { body: import("../src/
     expect(pages.flat().map((it) => it.note ?? it.level ?? it.word), `${tag}: the ⓘ view lists its NOTES, its LEVELS, then every word`).toEqual([...notes, ...levels, ...words]);
     expect(pages.flat().filter((it) => it.word).map((it) => it.word), `${tag}: the KEYWORDS`).toEqual(viewPages(words, plan.r.w - 10, plan.maxY + 2 - (plan.y - 1)).flat());
     // every line of the view fits its width (the op view's and every other phone's)
-    for (const it of items) for (const ln of it.lines) expect(lineWidth(ln, "5"), `${tag}: an ⓘ line fits`).toBeLessThanOrEqual(plan.r.w - 10);
+    // CARD-2 (REQ-BFG-081, K5): each line in its own face (NOTES in 3x5; was every line measured in 5x7)
+    for (const it of items) for (const ln of it.lines) expect(lineWidth(ln, it.font ?? "5"), `${tag}: an ⓘ line fits`).toBeLessThanOrEqual(plan.r.w - 10);
     counts.levels = (counts.levels ?? 0) + levels.length;
   }
   if (words.length) {
@@ -452,8 +453,13 @@ describe("U2f: the taller ⓘ view", () => {
     // entry) lengthen the body-only views: op 66 / 183 / 67 -> 14 / 151 / 93 / 58, desk 17 / 140 / 121 / 29 / 9 -> 0 / 17 /
     // 102 / 108 / 37 / 20 / 11 / 19 / 2 (the desk column is shorter too: it sizes to its text, which lost those lines).
     // U2f's view, the one the game draws, is the next test's
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([14, 151, 93, 58]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([0, 17, 102, 108, 37, 20, 11, 19, 2]);
+    // CARD-2 (REQ-BFG-081, K4), re-measured (the same 316 panels): the turret row in words takes one label a line in the
+    // desk column, which sizes to its text, so the turret panels' bodies (and this body-only view over them) are taller:
+    // desk 0 / 17 / 102 / 108 / 37 / 20 / 11 / 19 / 2 -> 0 / 17 / 102 / 117 / 37 / 11 / 32; op unchanged (one line there)
+    // CARD-2 (K5), re-measured: NOTES in 3x5: op 14 / 151 / 93 / 58 -> 14 / 181 / 86 / 35, desk 0 / 17 / 102 / 117 / 37 /
+    // 11 / 32 -> 5 / 51 / 104 / 78 / 68 / 10
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([14, 181, 86, 35]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([5, 51, 104, 78, 68, 10]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -572,7 +578,10 @@ describe("U2f: the taller ⓘ view", () => {
 // hides (a turret's two kind lines, the flavour, the hint, a plain rig's rig sentence), each a separate entry, so a third of
 // the views take a second page: op [316] -> [260, 56], the worst rune held [234, 82] -> [143, 173], the same with the switch
 // on, desk [316] -> [277, 39]. U2f's aims hold: op most on 1 page and none over 2, a rune held none over 3, desk none over 3
-const U2F_OP = [260, 56]; // EXPLAIN-1: was [316] (Y7b2 (the flip): was [309, 2])
+// CARD-2 (REQ-BFG-081, K5; READ-3 fix 5), measured: NOTES in the 3x5 face (each line still its own entry): op [260, 56] ->
+// [262, 54] (the phone's view already grows into the room above the panel, so NOTES' rows were seldom what paged it),
+// the worst rune held [143, 173] unchanged, desk [277, 39] -> [315, 1]
+const U2F_OP = [262, 54]; // CARD-2: was [260, 56] (EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
 // WORDS-1 (REQ-BFG-081), measured: the stat icons' and face words' notes list in the view, so with the worst rune's keywords
 // after them 82 views take a second page (was [304, 12]); none takes a third (U2f's aim: 3 at most with a rune held)
 const U2F_OP_RUNE = [143, 173]; // EXPLAIN-1: was [234, 82] (Y7b2 (the flip): was [282, 34])
@@ -581,7 +590,7 @@ const U2F_OP_RUNE = [143, 173]; // EXPLAIN-1: was [234, 82] (Y7b2 (the flip): wa
  *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
  *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). EXPLAIN-1: still the same (was [234, 82]). */
 const U2F_OP_RUNE_ON = [143, 173]; // WORDS-1: the same as RUNE_LIST's, as before (was [304, 12])
-const U2F_DESK = [277, 39]; // EXPLAIN-1: was [316] (Y7b2 (the flip): was [302, 9])
+const U2F_DESK = [315, 1]; // CARD-2 (K5): was [277, 39] (EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
 // the screen (the test above), but on the 1920x1080 desk WARD BELL's last KEYWORDS line (a held rune's HULL) drew partly

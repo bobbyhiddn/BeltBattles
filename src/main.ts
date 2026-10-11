@@ -387,8 +387,9 @@ game.start();
     return s instanceof BuildScreen ? s.panelInfo() : null;
   },
   /** EXPLAIN-1 (REQ-BFG-089, E5) tooling (stills, checks): the first-run tips: "new" (every tip shows), "done" (none shows;
-   *  stored, so a reload keeps it) or "reload" (read the store again); returns the done tips. Absent: the done tips. */
-  tips: (mode?: "new" | "done" | "reload") => (mode ? setTipsForTests(mode) : tipsDone()),
+   *  stored, so a reload keeps it) or "reload" (read the store again); returns the done tips. Absent: the done tips.
+   *  CARD-2 (REQ-BFG-004, K1): "new" and "done" cover the first-sight notes too; "sight": every tip done, every note new. */
+  tips: (mode?: "new" | "done" | "reload" | "sight") => (mode ? setTipsForTests(mode) : tipsDone()),
   /** PACKS M2 (REQ-BFG-063) tooling (read only): the stored player name, and the name screen as drawn (null: not up). */
   playerName: () => currentName(),
   nameEntry() {

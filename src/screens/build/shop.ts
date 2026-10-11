@@ -12,6 +12,8 @@ import type { Rect } from "../../ui/ui";
 import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
 import { drawFamilyMarks, familiesText, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
 import { faceLines } from "../../ui/faces"; // TXT-095: the offer's tooltip, faces first (offerTooltip)
+import { plainRigStats } from "../../ui/faces"; // CARD-2 (REQ-BFG-084, K6): a plain rig's tooltip is its stat row
+import { statRow } from "../../ui/icons"; // CARD-2 (K6)
 import { abilityText, type TextOpts } from "../../ui/abilityText"; // TXT-095: its fallback, the kept opening sentence
 import { CARD_W } from "./layout";
 
@@ -254,6 +256,10 @@ export function tooltipLines(text: string): RichLine[] {
  *  a face with no rule line, a stat row only: the factories PRESS, DOUBLE STAMP, GANTRY and DRAG CHAIN, and the 13 guns),
  *  else "". Was abilityText(...).sentences[0] alone. */
 export function offerTooltip(def: string, o: TextOpts = {}): string {
+  // CARD-2 (REQ-BFG-084, K6; REVIEW-EXPLAIN1 open item 1): a plain stat rig (WHETSTONE, TEMPER, BARBED SPOOL) shows its plain
+  // face, the panel's stat row ({DMG}+20), not faceLines' HIT: rule (faces.ts plainRigStats)
+  const plain = plainRigStats(def, 1);
+  if (plain) return statRow(plain);
   return faceLines(def, 1, o)?.rules[0]?.text ?? abilityText(def, 1, o).sentences[0] ?? "";
 }
 

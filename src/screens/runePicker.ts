@@ -16,6 +16,7 @@ import { pendingRune, takeRune, type Run } from "../game/run";
 import { RUNES, isRune, type RuneDef } from "../sim/runes";
 import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH, runeChipW } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the chip as the card's icon
+import { runeSightWord, runeWordBoxOn, runeWordLayer, sawRuneNote } from "../ui/runeBar"; // CARD-2 (REQ-BFG-081, K2; K1)
 import { runeTag, tierColour, tierWord } from "../ui/runeText";
 import type { BuildScreen } from "./build/build";
 
@@ -23,6 +24,9 @@ export const PICK_TITLE = "PICK A RUNE";
 export const PICK_TAKE = "TAP AGAIN TO TAKE IT";
 /** EXPLAIN-1 (REQ-BFG-089, E3): the opened card's chip's region. */
 export const PICK_CHIP = "runepick-chip";
+/** CARD-2 (REQ-BFG-081, K2): the opened card's word targets' prefix ("runepick-w0:PAIR") and its definition box's id. */
+export const PICK_WORD = "runepick-w";
+export const PICK_DEF = "runepick-def";
 /** "1 OF 3. FREE. KEPT ALL RUN. TAP TO READ." (2 from day 5). */
 export const pickHint = (cards: number): string => `1 OF ${cards}. FREE. KEPT ALL RUN. TAP TO READ.`;
 /** The dawn line's two parts: "DAWN OF DAY 4 · " and the tier's ("RARE RUNES", in its colour). */
@@ -87,12 +91,16 @@ export class RunePicker {
   open = -1;
   /** EXPLAIN-1 (REQ-BFG-089, E3): the opened card's hidden line is shown (its chip was tapped). */
   note = false;
+  /** CARD-2 (REQ-BFG-081, K2; REQ-BFG-004, K1): the keyword whose definition the opened card's room shows: a word's tap,
+   *  or its first sight when the card opened (never the "TAP AGAIN TO TAKE IT" tap: it is no tap at all). */
+  word: string | null = null;
   private day = 0;
 
   /** EXPLAIN-1 (E3): every press while the picker is up (BuildScreen.pressed): one anywhere but the opened card's chip
-   *  closes its line. */
+   *  closes its line. CARD-2 (K2): one anywhere but its words closes a word's definition (a word's own tap toggles it). */
   pressed(region: string | null): void {
     if (region !== PICK_CHIP) this.note = false;
+    if (!region || !region.startsWith(PICK_WORD)) this.word = null;
   }
 
   /** Today's offer while the pick is pending and the run is at its caravan (not a refit), else null. */
@@ -112,6 +120,7 @@ export class RunePicker {
     if (this.open !== i) {
       this.open = i;
       this.note = false;
+      this.word = runeSightWord(RUNES[id]); // CARD-2 (K1): its first effect keyword not yet seen opens by itself
       return;
     }
     const r = takeRune(s.run, id);
@@ -135,6 +144,7 @@ export class RunePicker {
       this.day = o.day;
       this.open = -1;
       this.note = false;
+      this.word = null;
     }
     const { W, H, ui } = s.game;
     const held = (s.run.build.runes ?? []).map((q) => q.id).filter(isRune);
@@ -152,7 +162,9 @@ export class RunePicker {
     o.ids.forEach((id, i) => {
       const def = RUNES[id], r = L.cards[i], open = i === this.open;
       // EXPLAIN-1 (REQ-BFG-089, E1d): the opened card keeps its reminder's room, clear until its chip shows the line (E3)
-      drawRuneCard(g, r, def, { sub: runeTag(def), open, reminder: open, noteOpen: open && this.note, hint: open ? PICK_TAKE : undefined });
+      // CARD-2 (K2): a keyword's definition (its tap, or K1's first sight) takes the room in place of the chip's line
+      drawRuneCard(g, r, def, { sub: runeTag(def), open, reminder: open, noteOpen: open && this.note, word: open ? this.word : null, hint: open ? PICK_TAKE : undefined });
+      if (open && this.note) sawRuneNote(def);
       ui.add({ id: `runepick-${i}`, r, onTap: () => this.tap(s, i, id) });
     });
     // EXPLAIN-1 (E3): each card's chip is its icon, its region over the card's: on the opened card a tap shows its hidden
@@ -161,7 +173,16 @@ export class RunePicker {
     o.ids.forEach((id, i) => {
       const open = i === this.open;
       runeChipIcon(g, ui, open ? PICK_CHIP : `runepick-${i}-chip`, L.cards[i], RUNES[id], runeTapOf(s),
-        open ? () => { this.note = !this.note; } : () => this.tap(s, i, id), { W, H }, s.game.canvas);
+        open ? () => { this.note = !this.note; this.word = null; } : () => this.tap(s, i, id), { W, H }, s.game.canvas);
+      // CARD-2 (REQ-BFG-081, K2): the opened card's keywords are word targets, their regions over the card's (a tap on one
+      // shows or hides its definition in the room and never takes the rune); a closed card's words are not (a tap anywhere
+      // on it opens it, as before)
+      if (open) {
+        runeWordLayer(g, ui, "runepick-", L.cards[i], RUNES[id], runeTapOf(s), this.word, runeWordBoxOn(L.cards[i], RUNES[id], this.word), (wd) => {
+          this.note = false;
+          this.word = this.word === wd ? null : wd;
+        }, { W, H }, s.game.canvas);
+      }
     });
     if (L.tray) {
       panel(g, L.tray, "inset");

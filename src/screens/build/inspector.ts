@@ -34,6 +34,7 @@ import { effectAt } from "../../sim/stars"; // 0.8.0 I1 M4: a STOKER's stoke at 
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { infoFree } from "./keywords"; // U2f (REQ-BFG-070): the room the ⓘ view grows into
+import { keywordsIdle } from "./keywords"; // CARD-2 (REQ-BFG-004, K1): a closed panel's next draw is a new open
 import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
 
 /**
@@ -100,6 +101,9 @@ import { sellFitted, sellPlaced, storeFitted } from "./actions"; // shoptap (D2,
 import { tapRect } from "../../ui/ui"; // shoptap (D5): a finger's tap target around a drawn button
 import { tapPx } from "../../ui/tap"; // shoptap (D5)
 import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks"; // U2a (REQ-BFG-046): the new faces
+import { PAIR_GAP, turretRow } from "./faceBlocks"; // CARD-2 (REQ-BFG-081, K4): the turret row's labels
+import { ICON_COLOUR } from "../../render/font"; // CARD-2 (K4): a label's icon in its colour
+import { NUMBER_COLOUR } from "../../ui/richText"; // CARD-2 (K4): a label's number
 import { faceGist, heroPlaystyle, ruleSpans } from "../../ui/faces"; // U2a
 import { speedPair } from "../../ui/faces"; // U2c step 4: the installed turret's stat row
 import { salvoSpeed } from "../../sim/cores"; // Y1: SALVO RACK's volley pace, in a SPEED's one rounding; Y4 (S1): the sim's helper
@@ -175,6 +179,9 @@ export interface Block {
    *  face): "kind", a line true of every piece of its kind (a turret's HOLDS and SLOT lines, an empty slot's); "rig", a
    *  plain rig's rig sentence (faces.ts RIG_SENTENCE), first in NOTES. */
   note?: "rig" | "kind";
+  /** CARD-2 (REQ-BFG-081, K4): a turret's labelled stat row (faceBlocks.ts turretRow): its pairs never split; one line where
+   *  the row fits, else one pair a line (the desk column). */
+  pairs?: boolean;
 }
 
 /** Each role's base colour and whether it always takes the small (3x5) face: the flavour dimmer than the ability text,
@@ -925,7 +932,8 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   const stats: Block[] = [
     // NUM-4 (REQ-BFG-047): the RATE pair is the SPEED the battle uses (TurretState.speed: every gear piece, the core, the
     // long belt and the TURRET SPEED level, rounded once); Y1: a SALVO RACK's, its volley pace (above)
-    { role: "ability", text: statRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true },
+    // CARD-2 (REQ-BFG-081, K4): in words, its own numbers (faceBlocks.ts turretRow: RATE n  HOLDS n  GEAR SLOTS n)
+    { role: "ability", text: turretRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true, pairs: true },
     ...(note ? [{ role: "note", text: icons(note), keep: true } as Block] : []),
   ];
   // a clash (a piece of gear that does nothing here) and the shield. 0.6.2rel2 (the rehearsal's nit 1): the desk column
@@ -1052,6 +1060,19 @@ function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = fal
     // one pair a line, the values aligned after the widest label
     const lw = Math.max(gp.l0, gp.l1) + gap;
     return b.cells.map(([l, v]) => ({ spans: [], font, block: b, pitch, cells: [{ at: 0, label: l, spans: colourize(v, base), vx: lw }] }));
+  }
+  if (b.pairs) {
+    // CARD-2 (REQ-BFG-081, K4): the turret row's labelled pairs ("{RATE}RATE 55"), each its icon in its colour, its word in
+    // the line's colour and its number white, never split: one line where the row fits, else one pair a line (the desk
+    // column's 118 px)
+    const ps = b.text.split(PAIR_GAP).map((p): Span[] => {
+      const at = p.lastIndexOf(" "), icon = p[0], ic = ICON_COLOUR[icon];
+      const label = ic ? p.slice(1, at) : p.slice(0, at);
+      return [...(ic ? [{ t: icon, c: ic }] : []), { t: `${label} `, c: base }, { t: p.slice(at + 1), c: NUMBER_COLOUR }];
+    });
+    const one = ps.flatMap((s, i) => (i ? [{ t: PAIR_GAP, c: base }, ...s] : s));
+    if (lineWidth(one, font) <= width) return [{ spans: one, font, block: b, pitch }];
+    return ps.map((spans) => ({ spans, font, block: b, pitch }));
   }
   if (b.role === "row") {
     const indent = b.label ? cols.labelW : 0;
@@ -1761,7 +1782,10 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   const column = !ctx.L?.portrait && area.h >= 70;
   const d = detailsPlan(ctx, sel, hover, area);
   const pid = skinOf(ctx.skin).panel; // CUSTOM-2a (REQ-BFG-072): the player's panel style (ctx.skin, set by the build screen)
-  if (!d) return drawIdle(g, ctx.run, area, column, foe, note, pid);
+  if (!d) {
+    keywordsIdle(ctx); // CARD-2 (REQ-BFG-004, K1): the panel closed: its next draw is a new open
+    return drawIdle(g, ctx.run, area, column, foe, note, pid);
+  }
   const { sp, t, plan } = d;
   const r = plan.r;
   statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072): the part panel
@@ -1816,8 +1840,10 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // shown definition or the KEYWORDS view, the desk's hover tooltip
   // U2f (REQ-BFG-070): the ⓘ view may grow past the panel (infoFree: above it on the phone, down the column on the desk)
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
+  // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
+  // build screen between a fight's rounds; a fight's own faces never come here)
   drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, d, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
-    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined);
+    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 
 /** 0.8.0 I1 M4 (REQ-BFG-023 part 2): draw plan.famHead, the shown module's families in the panel's header: each name in
