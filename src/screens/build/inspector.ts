@@ -101,6 +101,7 @@ import {
 import { touchSlotHint } from "./turretPanel"; // shoptap (REQ-BFG-035)
 import { sellFitted, sellPlaced, storeFitted } from "./actions"; // shoptap (D2, REQ-BFG-035): SELL on the carrier's panels
 import { canTurn, shapedPiece } from "./shapeEdit"; // SHAPES-1 (REQ-BFG-086 S2): a shaped factory's ROTATE
+import { arrowCellsOf } from "../../sim/deck"; // SHAPES-1 (R2): a long rig's arrows, one per (cell, direction)
 import { tapRect } from "../../ui/ui"; // shoptap (D5): a finger's tap target around a drawn button
 import { tapPx } from "../../ui/tap"; // shoptap (D5)
 import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks"; // U2a (REQ-BFG-046): the new faces
@@ -432,12 +433,14 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
   if (d.kind !== "gate") return null;
   const stars = starsOf(p);
   const hits = hitsOfRig(run.build, p.uid);
-  const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
+  const arrows = shapedPiece(d.id) ? arrowCellsOf(p).length : arrowsOf(p).length, x = rigShape(d) === "X"; // SHAPES-1: per cell
   // 0.8.0 P1 (E3): a STOKER works factories, not belts: its factory hits take off the IDLE mark and lead its panel
   const stokes = d.gate?.stoke ? stokeHits(run.build).filter((h) => h.uid === p.uid) : [];
   if (stokes.length) return stokerPanel(run, p.uid, stokes.map((h) => h.factory), arrows, touch);
   const idle = hits.length === 0;
-  const on = new Set(hits.map((h) => h.dir)).size;
+  // SHAPES-1 (REQ-BFG-086 R2): a long rig's arrows are its (cell, direction) pairs (deck.ts arrowCellsOf), each one hit
+  const shaped = shapedPiece(d.id);
+  const on = shaped ? new Set(hits.map((h) => `${h.from ?? -1}:${h.dir}`)).size : new Set(hits.map((h) => h.dir)).size;
   const hl = hitLines(hits);
   // 0.8.0 P1 (E3): a STOKER beside no factory warns about factories (its arrows never work belts, so it has no belt hits)
   const warn = d.gate?.stoke ? STOKER_IDLE : { warning: IDLE_WARNING, short: IDLE_SHORT, head: IDLE_HEAD };

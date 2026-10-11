@@ -128,7 +128,8 @@ export function rotateButtonRect(box: Rect, fx: number, W: number, tap: number):
   const mid = box.x + box.w / 2;
   const left = fx > mid + 2 || (Math.abs(fx - mid) <= 2 && mid > W / 2);
   const x = Math.max(0, Math.min(W - d, left ? box.x - 4 - d : box.x + box.w + 4));
-  const y = Math.max(0, Math.round(box.y + box.h / 2 - d / 2));
+  // level with the box's middle, but never above its top: the tag stands over the box (drawShapeTag), clear of the button
+  const y = Math.max(0, Math.round(box.y) - 1, Math.round(box.y + box.h / 2 - d / 2));
   return { x: Math.round(x), y, w: d, h: d };
 }
 

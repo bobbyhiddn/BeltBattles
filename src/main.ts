@@ -182,8 +182,9 @@ game.start();
     const s = game.screen as unknown as { ed?: { carry: unknown; px: number; py: number; carryT: number }; L?: Parameters<typeof toScreen>[0] & { frame: Parameters<typeof footX>[0] } };
     const run = game.run;
     if (!run || !s.ed || !s.L) return;
-    const g = gainModule(run, def);
-    const uid = g.where === "cargo" ? g.survivor : -1;
+    // a fresh cargo part (pushed, not gained: gainModule would merge it into a placed twin)
+    const uid = run.nextUid++;
+    run.inventory.push({ uid, def });
     const box = footBox(ITEMS[def], rot);
     const across = s.L.frame.facing === 0 || s.L.frame.facing === 2;
     const sw = (across ? box.w : box.h) * 12, sh = (across ? box.h : box.w) * 12;

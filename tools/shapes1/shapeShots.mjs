@@ -59,7 +59,8 @@ async function main() {
       await shot("ghost", `an EMBER TROUGH carried over (${spot.x},${spot.y}) rot ${spot.rot} (${spot.hits} hits)${opts.hasTouch ? ", a finger's carry" : ""}`);
     }
     const belt = await page.evaluate(() => { const r = window.bb.game.run.build.routes[0]; const k = r.cells[Math.min(2, r.cells.length - 1)]; return { x: k % 10, y: Math.floor(k / 10) }; });
-    await page.evaluate(([b, touch]) => { window.bb.game.screen.ed.carry = null; window.bb.carryShape("nailstrip", b.x, b.y, 0, touch); }, [belt, !!opts.hasTouch]);
+    // a mouse's carry on both views: a finger's drop snaps to the nearest legal anchor within 1 cell (S3), so it isn't refused there
+    await page.evaluate((b) => { window.bb.game.screen.ed.carry = null; window.bb.carryShape("nailstrip", b.x, b.y, 0, false); }, belt);
     await settle(page, 6);
     await shot("refused", `a NAIL STRIP carried over belt tile (${belt.x},${belt.y}): refused`);
     for (const def of ["nailstrip", "gantry"]) {

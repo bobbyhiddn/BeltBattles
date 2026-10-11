@@ -23,7 +23,7 @@ import {
   canTurn, carryTurn, machineryArrows, shapedPiece, shapeTag, snapAnchor, turnFit, turnsOf,
 } from "../src/screens/build/shapeEdit";
 import { rotateButtonRect } from "../src/screens/build/cues";
-import { itemPanel } from "../src/screens/build/inspector";
+import { itemPanel, rigPanel } from "../src/screens/build/inspector";
 import { tapPx } from "../src/ui/tap";
 
 const SHORT = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
@@ -231,6 +231,7 @@ describe("SHAPES-1 S3: a finger's carry (above the finger, the snap) and the flo
     expect(mid.w * PHONE_K).toBeGreaterThanOrEqual(44);
     expect(mid.w).toBe(mid.h);
     expect(mid.x).toBe(128); // a finger under the middle, the ghost in the screen's left half: the right side
+    expect(mid.y).toBe(99); // never above the box's top: the tag over the box stays clear of it
     const right = rotateButtonRect(box, 130, PHONE.W, tap); // the finger right of the middle: the left side
     expect(right.x + right.w).toBe(96);
     const edge = rotateButtonRect({ x: 2, y: 100, w: 24, h: 12 }, 30, PHONE.W, tap);
@@ -287,6 +288,17 @@ describe("SHAPES-1 S2: the reasons and the ghost's tag", () => {
       // lying along x at (5,4)-(6,4), arrow forward: (5,3) free deck, (6,3) the WHETSTONE: one arrow idles at machinery
       expect(machineryArrows(run.build, "nailstrip", 5, 4, 0)).toBe(1);
       expect(machineryArrows(run.build, "nailstrip", 5, 4, 0, 7)).toBe(0); // the piece being moved isn't machinery
+    });
+  });
+});
+
+describe("SHAPES-1 R2: a placed long rig's panel counts its arrows per cell", () => {
+  it("a NAIL STRIP along the belt: RIG · 2/2 ARROWS ON BELTS; turned away: IDLE", () => {
+    withShapes(() => {
+      const run = furnace([{ uid: 7, def: "nailstrip", x: 3, y: 2, ...rotField("nailstrip", 1) }]);
+      expect(rigPanel(run, 7)!.sub).toBe("RIG · 2/2 ARROWS ON BELTS");
+      run.build.items[1] = { uid: 7, def: "nailstrip", x: 3, y: 2, ...rotField("nailstrip", 3) };
+      expect(rigPanel(run, 7)!.idle).toBe(true);
     });
   });
 });
