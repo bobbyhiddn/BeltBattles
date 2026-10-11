@@ -50,6 +50,8 @@ import { fusible } from "../../sim/stars"; // U2e step 5
 import type { BuildLayout } from "./layout"; // U2f: the room the ⓘ view grows into (infoFree)
 import { GAP } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries
 import { PLAIN_RIGS } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): HIT on the plain rigs' KEYWORDS
+import { RIG_SENTENCE, faceLines } from "../../ui/faces"; // CARD-2 (REQ-BFG-004, K1): the rig sentence on the first rig
+import { rigSeen, sawRig, sawWord, sightWord } from "../../ui/firstSight"; // CARD-2 (K1): the first-sight notes
 
 /** The piece a panel shows (its number fills in a keyword's reminder; its tap note): an offer, a part in cargo, a placed
  *  part, a fitted core or gear piece, an installed turret's bought core. */
@@ -376,18 +378,24 @@ export function panelWords(body: readonly Block[], piece: Piece | null): KwWord[
 
 // ------------------------------------------------------------------------------------------------- state and drawing
 
-/** The panel's tap state: which panel (its selection), the word shown, the KEYWORDS view's page. */
+/** The panel's tap state: which panel (its selection), the word shown, the KEYWORDS view's page. CARD-2 (REQ-BFG-004, K1):
+ *  `opened`, this open's first sight is decided (a fresh state is a new open: another panel, or this one again after the
+ *  panel closed, keywordsIdle); `auto`, a desk's first-sight word (its definition in the hover tooltip's look; on touch
+ *  the first sight is `word` itself, as a tap's); `rig`, the rig sentence's box by the icon. */
 interface KwState {
   key: string;
   word: string | null;
   page: number | null;
   hover: string | null;
+  opened: boolean;
+  auto: string | null;
+  rig: boolean;
 }
 const STATE = new WeakMap<object, KwState>();
 const stateOf = (owner: object, key: string): KwState => {
   let s = STATE.get(owner);
   if (!s || s.key !== key) {
-    s = { key, word: null, page: null, hover: null };
+    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false };
     STATE.set(owner, s);
   }
   return s;
@@ -396,13 +404,42 @@ const stateOf = (owner: object, key: string): KwState => {
 /** The ids this layer's regions use (BuildScreen.pressed keeps a press on one from closing what it opens). */
 export const KW_REGION = "kw:";
 export const isKeywordRegion = (id: string | null): boolean => !!id && id.startsWith(KW_REGION);
+/** CARD-2 (K1): a first-sight box's region (the desk's word box, the rig sentence's): a UI region, so a press on it never
+ *  reaches the board; like a tapped word's box (`kwdef`) it is no keyword region, so the press closes it. */
+export const SIGHT_REGION = "kwsight";
 
-/** BuildScreen.pressed: a press anywhere but on a word, `?` or the KEYWORDS view closes the definition and the view. */
+/** BuildScreen.pressed: a press anywhere but on a word, `?` or the KEYWORDS view closes the definition and the view.
+ *  CARD-2 (K1): any press closes a first-sight box (on touch the box is the shown word's: it closes as a tapped one). */
 export function keywordsPressed(owner: object, region: string | null): void {
   const s = STATE.get(owner);
-  if (!s || isKeywordRegion(region)) return;
+  if (!s) return;
+  s.auto = null;
+  s.rig = false;
+  if (isKeywordRegion(region)) return;
   s.word = null;
   s.page = null;
+}
+
+/** CARD-2 (REQ-BFG-004, K1): drawDetails with no panel to draw: the panel closed, so its next draw is a new open (its first
+ *  sight decided again). */
+export function keywordsIdle(owner: object): void {
+  STATE.delete(owner);
+}
+
+/** CARD-2 (K1): the reading order of a panel's word targets (top to bottom, left to right). */
+const reading = (a: KwTarget, b: KwTarget): number => a.glyph.y - b.glyph.y || a.glyph.x - b.glyph.x;
+
+/**
+ * CARD-2 (REQ-BFG-004, K1): a rig the rig sentence is true of (faces.ts RIG_SENTENCE: each arrow on a belt tile gives its
+ * stats to every slug on that tile, one hit an arrow): a plain stat rig (WHETSTONE, TEMPER, BARBED SPOOL) or a rig whose
+ * face's rule is a HIT: rule. Not a STOKER (its arrows work factories) nor a speed or timer rig (no HIT:).
+ */
+export function rigSentenceRig(piece: Piece | null): boolean {
+  if (!piece) return false;
+  const e = ITEMS[piece.def];
+  if (e?.kind !== "gate" || e.gate?.stoke) return false;
+  if (PLAIN_RIGS.includes(piece.def)) return true;
+  return !!faceLines(piece.def, piece.stars, piece.o)?.rules.some((r) => r.label === "HIT:");
 }
 
 /** What the layer shows now (tests and tooling). */
@@ -610,7 +647,9 @@ function underline(g: G, t: KwTarget): void {
  */
 export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
-  free: Rect | null = null, screen?: { W: number; H: number }): void {
+  free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
+  // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
+  // screen in its caravan; a fight's VIEW BATTLEFIELD, the foe's carrier and every other caller never ask)
   const { plan } = d, r = plan.r;
   const piece = panelPiece(run, d.show);
   const own = explainWords(d.t, piece); // EXPLAIN-1 (E4, E9): the face's words before any line was hidden; HIT on a plain rig
@@ -645,6 +684,22 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // WORDS-1 (REQ-BFG-081): the header's family tags too, each with its families.ts line (familyTargets)
   const body = keywordTargets(lines, plan, piece, avoid);
   const targets = [...body, ...familyTargets(plan, [...avoid, ...body.map((t) => t.r)])];
+  // CARD-2 (REQ-BFG-004, K1): THE FIRST SIGHT, decided once per open (a fresh state). None where the screen doesn't ask
+  // (`sight`) or where the panel shows a how-to tip this time (E5's hint drawn); else the rig sentence on the first rig
+  // panel (a rig it is true of), else the first effect keyword not yet seen, in reading order, its definition opened as a
+  // finger's tap opens it (touch: `word`, definitionBox at the panel's foot) or as a resting mouse shows it (the desk:
+  // drawHoverTip under the word). One box per open; the next waits for the next open.
+  if (!s.opened) {
+    s.opened = true;
+    if (sight && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) {
+      if (rigSentenceRig(piece) && !rigSeen()) s.rig = true;
+      else {
+        const w = sightWord([...body].sort(reading).map((t) => t.word));
+        if (w && tap) s.word = glossaryEntry(w)?.word ?? w;
+        else if (w) s.auto = w;
+      }
+    }
+  }
   // the shown definition covers the panel's bottom rows: the words under it are not targets meanwhile
   const shown = s.word ? words.find((w) => w.word === s.word) ?? targets.find((t) => t.word === s.word) : undefined;
   const defLines = shown ? definitionLines(shown.text, r.w - 10) : [];
@@ -672,11 +727,38 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
     drawIconTip(g, tipItems, tr);
     ui.add({ id: `${KW_REGION}tip`, r: tr, block: true });
     s.hover = "ⓘ";
+    // CARD-2 (K1): the player's own look at NOTES: the rig sentence there counts as seen; a first-sight box gives way
+    if (tipItems.includes(RIG_SENTENCE)) sawRig();
+    s.auto = null;
+    s.rig = false;
     return setCursor(canvas, true);
   }
+  // a word's own definition on screen (its tap, its hover, or its first sight) is done (firstSight.ts)
+  if (shown && box) sawWord(shown.word);
   s.hover = hov ? hov.word : null;
   setCursor(canvas, !!hov);
-  if (hov) drawHoverTip(g, hov, r);
+  if (hov) {
+    drawHoverTip(g, hov, r);
+    sawWord(hov.word);
+    s.auto = null; // the player's own hover replaces a first-sight box
+    s.rig = false;
+  }
+  if (box) s.auto = null;
+  if (s.page !== null || box) s.rig = false;
+  // the desk's first-sight box: the word's definition in the hover tooltip's look, under the word, a UI region
+  const at = s.auto ? targets.find((t) => t.word === s.auto) : undefined;
+  if (s.auto && !at) s.auto = null;
+  if (at) {
+    ui.add({ id: SIGHT_REGION, r: drawHoverTip(g, at, r), block: true });
+    sawWord(at.word);
+  }
+  // the rig sentence's box: by the panel's icon, in the icon tooltip's look (iconTipRect, drawIconTip), a UI region
+  if (s.rig) {
+    const items = [RIG_SENTENCE], tr = iconTipRect(items, r, screen);
+    drawIconTip(g, items, tr);
+    ui.add({ id: SIGHT_REGION, r: tr, block: true });
+    sawRig();
+  }
 }
 
 /** FLIP-X1 (N4-b): one text row the ⓘ view draws: a section's header (3x5, `section`) or one line of an entry (5x7,

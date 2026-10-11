@@ -24,6 +24,35 @@ import { lineText } from "../src/ui/richText";
 import type { RuneDef } from "../src/sim/runes";
 
 const runeTextLinesOf = (def: RuneDef, cw: number): string[] => runeTextLines(def, runeCardTextW(cw)).map(lineText);
+import { panelArea, type Sel } from "../src/screens/build/layout";
+import { detailsPlan, drawDetails, panelFit } from "../src/screens/build/inspector";
+import { SIGHT_REGION, iconTipRect, keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
+import { RIG_SENTENCE } from "../src/ui/faces";
+import type { Ctx } from "../src/screens/build/actions";
+import type { DuskFoe } from "../src/game/run";
+
+/** A build screen's panel context (explain1.test.ts's ctxOf and placed): the run, the framed layout, a finger or a mouse. */
+function panelCtx(run: Run, sel: Sel, f: ReturnType<typeof framed>, touch: boolean) {
+  const ctx = { game: { ui: new UI(), t: 0, view: f.view, W: f.W, H: f.H }, run, touch, L: f.L } as unknown as Ctx;
+  const area = panelArea(f.L, sel, { touch, hover: false, busy: false }, panelFit(ctx, sel, !!f.L.phone));
+  const draw = (pointer?: { x: number; y: number }) => {
+    const ui = (ctx.game as unknown as { ui: UI }).ui;
+    ui.pointer.kind = touch ? "touch" : "mouse";
+    if (pointer) Object.assign(ui.pointer, { ...pointer, down: false, kind: "mouse" });
+    else Object.assign(ui.pointer, { x: -1, y: -1, down: false });
+    ui.begin();
+    drawDetails(gOf(fresh(f.W, f.H)), ctx, sel, null, area, {} as DuskFoe);
+    ui.end();
+    return ui;
+  };
+  return { ctx, area, draw, d: () => detailsPlan(ctx, sel, null, area)! };
+}
+function cargoRun(hero: "foundry" | "furnace", def: string): Run {
+  const run = newRun(hero, 5, `card2-${def}`);
+  run.inventory = [{ uid: 900, def }];
+  return run;
+}
+const CARGO: Sel = { kind: "cargo", uid: 900 };
 import { RunePicker, PICK_DEF } from "../src/screens/runePicker";
 import { LastChancePicker } from "../src/screens/lastChancePicker";
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, TIPS_KEY, setTipsForTests, sightDone, sightsDone, tipsDone } from "../src/ui/tips";
@@ -223,6 +252,80 @@ describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): ne
     expect(runeReminderOf(RUNES.ward_stone)).toBe("SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.");
     expect(textWidth(runeReminderOf(RUNES.ward_stone), "3")).toBeLessThanOrEqual(223);
     expect(runeWordText(RUNES.ward_stone, "SHIELD")).toBe("SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.");
+  });
+});
+
+describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and the rig sentence", () => {
+  beforeEach(() => { g.localStorage = new Mem(); setTipsForTests("reload"); });
+  afterEach(() => { delete g.localStorage; setTipsForTests("reload"); });
+
+  it("the phone (402x690 @3, a finger): PAIR opens by itself on the first panel that shows it, as a tap opens it, and on no later one; one box per open", () => {
+    setTipsForTests("sight"); // the how-to tips done (a panel that shows one shows no first-sight box), every note new
+    const f = framed(402, 690, 3, 1);
+    const run = cargoRun("foundry", "seamwelder"), p = panelCtx(run, CARGO, f, true);
+    const before = state(run);
+    let ui = p.draw();
+    expect(keywordState(p.ctx)!.word, "SEAM WELDER: its first keyword, PAIR, as if tapped").toBe("PAIR");
+    expect(ui.regions.some((r) => r.id === "kwdef")).toBe(true);
+    expect(sightDone("kw:PAIR")).toBe(true);
+    // a press anywhere closes it, as a tapped word's; the same open shows nothing more
+    keywordsPressed(p.ctx, null);
+    ui = p.draw();
+    expect([keywordState(p.ctx)!.word, ui.regions.some((r) => r.id === "kwdef" || r.id === SIGHT_REGION)]).toEqual([null, false]);
+    // the next open of this panel: its next keyword not yet seen (PLATE)
+    keywordsIdle(p.ctx);
+    p.draw();
+    expect(keywordState(p.ctx)!.word).toBe("PLATE");
+    // another panel with PAIR (TWIN TRIGGER): PAIR is done, so no PAIR box
+    const run2 = cargoRun("foundry", "twintrigger"), p2 = panelCtx(run2, CARGO, f, true);
+    p2.draw();
+    expect(keywordState(p2.ctx)!.word, "PAIR shows once").not.toBe("PAIR");
+    expect(state(run), "no press changed the run").toBe(before);
+    // the store keeps them; a reload too
+    setTipsForTests("reload");
+    expect(sightDone("kw:PAIR") && sightDone("kw:PLATE")).toBe(true);
+  });
+
+  it("TEMPER: the first open shows the rig sentence by the icon, the second BURN's definition; a how-to tip, a refit and the desk", () => {
+    setTipsForTests("sight");
+    const f = framed(402, 690, 3, 1);
+    const run = cargoRun("furnace", "temper"), p = panelCtx(run, CARGO, f, true);
+    const before = state(run);
+    let ui = p.draw();
+    const box = ui.regions.find((r) => r.id === SIGHT_REGION);
+    expect([keywordState(p.ctx)!.rig, keywordState(p.ctx)!.word]).toEqual([true, null]);
+    expect(box!.r).toEqual(iconTipRect([RIG_SENTENCE], p.d().plan.r, { W: f.W, H: f.H }));
+    expect(sightDone("rig")).toBe(true);
+    // a press on the box is a UI region's (it closes it; nothing else)
+    expect(ui.hit(box!.r.x + 2, box!.r.y + 2)?.id).toBe(SIGHT_REGION);
+    keywordsPressed(p.ctx, SIGHT_REGION);
+    expect(keywordState(p.ctx)!.rig).toBe(false);
+    keywordsIdle(p.ctx);
+    ui = p.draw();
+    expect([keywordState(p.ctx)!.rig, keywordState(p.ctx)!.word]).toEqual([false, "BURN"]);
+    expect(sightDone("kw:BURN")).toBe(true);
+    expect(state(run)).toBe(before);
+    // a panel that shows a how-to tip (the place hint, tips new) shows no first-sight box
+    setTipsForTests("new");
+    const p2 = panelCtx(cargoRun("furnace", "temper"), CARGO, f, true);
+    ui = p2.draw();
+    expect([keywordState(p2.ctx)!.rig, keywordState(p2.ctx)!.word, ui.regions.some((r) => r.id === SIGHT_REGION)]).toEqual([false, null, false]);
+    // a refit (the build screen between a fight's rounds): none
+    setTipsForTests("sight");
+    const r3 = cargoRun("furnace", "temper");
+    (r3 as unknown as { stage: string }).stage = "refit";
+    const p3 = panelCtx(r3, CARGO, f, true);
+    p3.draw();
+    expect([keywordState(p3.ctx)!.rig, keywordState(p3.ctx)!.word]).toEqual([false, null]);
+    expect(sightDone("rig")).toBe(false);
+    // the desk (a mouse): the rig sentence by the icon, then BURN's definition in the hover tooltip's look under the word
+    const fd = framed(1920, 1080, 1, 1), pd = panelCtx(cargoRun("furnace", "temper"), CARGO, fd, false);
+    pd.draw();
+    expect(keywordState(pd.ctx)!.rig).toBe(true);
+    keywordsIdle(pd.ctx);
+    ui = pd.draw();
+    expect([keywordState(pd.ctx)!.auto, keywordState(pd.ctx)!.word]).toEqual(["BURN", null]);
+    expect(ui.regions.some((r) => r.id === SIGHT_REGION)).toBe(true);
   });
 });
 

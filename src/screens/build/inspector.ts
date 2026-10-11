@@ -34,6 +34,7 @@ import { effectAt } from "../../sim/stars"; // 0.8.0 I1 M4: a STOKER's stoke at 
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { infoFree } from "./keywords"; // U2f (REQ-BFG-070): the room the ⓘ view grows into
+import { keywordsIdle } from "./keywords"; // CARD-2 (REQ-BFG-004, K1): a closed panel's next draw is a new open
 import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
 
 /**
@@ -1760,7 +1761,10 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   const column = !ctx.L?.portrait && area.h >= 70;
   const d = detailsPlan(ctx, sel, hover, area);
   const pid = skinOf(ctx.skin).panel; // CUSTOM-2a (REQ-BFG-072): the player's panel style (ctx.skin, set by the build screen)
-  if (!d) return drawIdle(g, ctx.run, area, column, foe, note, pid);
+  if (!d) {
+    keywordsIdle(ctx); // CARD-2 (REQ-BFG-004, K1): the panel closed: its next draw is a new open
+    return drawIdle(g, ctx.run, area, column, foe, note, pid);
+  }
   const { sp, t, plan } = d;
   const r = plan.r;
   statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072): the part panel
@@ -1815,8 +1819,10 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // shown definition or the KEYWORDS view, the desk's hover tooltip
   // U2f (REQ-BFG-070): the ⓘ view may grow past the panel (infoFree: above it on the phone, down the column on the desk)
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
+  // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
+  // build screen between a fight's rounds; a fight's own faces never come here)
   drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, d, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
-    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined);
+    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 
 /** 0.8.0 I1 M4 (REQ-BFG-023 part 2): draw plan.famHead, the shown module's families in the panel's header: each name in
