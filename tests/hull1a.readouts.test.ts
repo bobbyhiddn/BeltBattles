@@ -86,7 +86,8 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
       iron_skin: ["+150 HULL.", "+900 HULL."],
       spare_hull: ["+300 HULL.", "+1800 HULL."],
       bulkheads: ["+50 HULL PER TURRET YOU HAVE.", "+300 HULL PER TURRET YOU HAVE."],
-      scrap_halo: ["+60 HULL PER MERGED PIECE.", "+360 HULL PER MERGED PIECE."],
+      // MERGE-099C: WORDS-1's words (REQ-BFG-081; runeText.ts: was "PER MERGED PIECE."), HULL-1a's numbers
+      scrap_halo: ["+60 HULL FOR EACH ★2 OR ★3 PIECE IN USE.", "+360 HULL FOR EACH ★2 OR ★3 PIECE IN USE."],
     };
     for (const [id, [d1, d10]] of Object.entries(want)) {
       expect(runeLine(RUNES[id], 10)).toBe(d1); // off
@@ -99,7 +100,10 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
     // THREAD's REGEN x S) its line reads x S, as it lands (tests/hull1d.readouts); off, or no day, as before
     const regen = RUNES.green_thread;
     expect(on(() => runeLine(regen))).toBe(runeLine(regen));
-    expect(on(() => runeLine(regen, 10))).toBe(runeLine(regen).replace(` ${regen.amount.n}.`, ` ${on(() => sustShown(regen.amount.n, 10))}.`));
+    // MERGE-099C: WORDS-1's line, "YOUR HULL: HEAL n EACH SEC." (was "YOUR HULL: REGEN n."), so the number is followed by a
+    // space, not the full stop
+    expect(on(() => runeLine(regen, 10))).not.toBe(runeLine(regen));
+    expect(on(() => runeLine(regen, 10))).toBe(runeLine(regen).replace(` ${regen.amount.n} `, ` ${on(() => sustShown(regen.amount.n, 10))} `));
     // the cards' lines (runeBar.ts runeTextLines) carry the day too
     const flat = (day?: number) => runeTextLines(RUNES.spare_hull, 200, day).map((l) => l.map((s) => s.t).join("")).join(" ");
     expect(on(() => flat(10))).toBe("+1800 HULL.");

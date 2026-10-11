@@ -31,7 +31,10 @@ describe("AZ-PREP (g): OVERDRIVE's ★2/★3 ride-keep words, behind LADDER_FIX 
     expect(on[1].levels).toContain("KEEPS -/[50%]/100% RIDE");
     expect(on[1].text[1]).toBe("A PAYLOAD KEEPS 50% OF THE RIDE THAT SPEED CUTS, FOR ITS RIDE BONUSES (HEAT, LONG RIDES).");
     expect(on[2].gist).toBe(`${off[2].gist}, KEEPS 100% OF THE RIDE`);
-    // every face line and NEXT★ line inside the op band
-    for (const r of on) for (const line of [...r.face, ...(r.next ? [r.next] : [])]) expect(textWidth(icons(line)), line).toBeLessThanOrEqual(NEXT_LINE_W);
+    // every face line and NEXT★ line inside the op band. MERGE-099C: but the speed line, WORDS-1's "ITS BELTS RUN n TIMES AS
+    // FAST FROM THESE TILES ON." (REQ-BFG-081; 275 px), which takes two lines of the band as c099 ships it
+    // (tests/y2.pieces.test.ts holds it there: oneLine("overdrive", 2)); the ride-keep line and NEXT★ stay one line each
+    expect(on.every((r) => r.face[0].endsWith("FROM THESE TILES ON."))).toBe(true);
+    for (const r of on) for (const line of [...r.face.slice(1), ...(r.next ? [r.next] : [])]) expect(textWidth(icons(line)), line).toBeLessThanOrEqual(NEXT_LINE_W);
   });
 });

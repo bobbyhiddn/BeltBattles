@@ -142,7 +142,8 @@ describe("HULL-1d: a rune's text on days 5 and 10 (switch on)", () => {
       expect(on(() => runeLine(RUNES.war_edge, day))).toBe(`YOUR SHOTS: +${D(RUNES.war_edge.amount.n, day)} DMG.`);
       expect(on(() => runeLine(RUNES.sharp_scrap, day))).toBe(`EACH TURRET'S FIRST SHOT: +${D(RUNES.sharp_scrap.amount.n, day)} DMG.`);
       expect(on(() => runeLine(RUNES.rivet_hoard, day))).toBe(`START: +${S(RUNES.rivet_hoard.amount.n, day)} PLATE.`);
-      expect(on(() => runeLine(RUNES.green_thread, day))).toBe(`YOUR HULL: REGEN ${S(RUNES.green_thread.amount.n, day)}.`);
+      // MERGE-099C: WORDS-1's words (REQ-BFG-081; was "YOUR HULL: REGEN n."), HULL-1d's S(d)
+      expect(on(() => runeLine(RUNES.green_thread, day))).toBe(`YOUR HULL: HEAL ${S(RUNES.green_thread.amount.n, day)} EACH SEC.`);
       expect(on(() => runeLine(RUNES.leech_vow, day))).toBe(`EACH SHOT THAT LANDS: HEAL ${S(RUNES.leech_vow.amount.n, day)}.`);
       for (const id of ["iron_hide", "ash_kindle", "ward_stone", "gun_oil", "coin_purse"]) {
         expect(on(() => runeLine(RUNES[id], day)), id).toBe(runeLine(RUNES[id]));
