@@ -8,6 +8,9 @@ import { ArenaMotion, windBoth } from "../src/game/arenaMotion";
 import { Arena } from "../src/game/arena";
 import { viewWithSub } from "../src/game/viewGrid";
 import { startingBuild, warlordBuild } from "../src/sim/ai";
+import { replayBackH, replayLeaveRect } from "../src/screens/replay";
+import { TAP_CSS, isPhone, tapPx } from "../src/ui/tap";
+import { textWidth } from "../src/render/font";
 import { hullBox, type Box } from "../src/render/frame";
 import { C } from "../src/render/palette";
 import { drawWind } from "../src/render/world";
@@ -222,6 +225,38 @@ function windyArena(w: number, h: number, dpr: number, shot: "wide" | "close") {
   for (let i = 0; i < a.fx.popCount; i++) a.fx.popList[i].t = 0.3;
   return { v, grid, L, a, am };
 }
+
+describe("WIND-2 call 3: the replay's BACK clear of both plates on every view", () => {
+  it("in the first clear corner (else just under the enemy plate's right end): never over a plate, the bar or the REPLAY label", () => {
+    const VIEWS: [string, number, number, number][] = [
+      ...SIDE_BY_SIDE, ...STACKED, ["android 360x780", 360, 780, 3], ["pixel 412x915", 412, 915, 2.625], ["small landscape 640x360", 640, 360, 2],
+      ["tablet 768x1024", 768, 1024, 2], ["tablet landscape 1024x768", 1024, 768, 2],
+    ];
+    const hit = (p: Box, q: Box) => p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
+    const rows: string[] = [];
+    for (const [name, w, h, dpr] of VIEWS) {
+      const { v, L } = layoutOf(w, h, dpr); // the replay's own layout (lanes)
+      const r = replayLeaveRect(L, v);
+      const phone = isPhone(v), k = v.scale / v.dpr;
+      const label = { x: 3, y: 3, w: textWidth("REPLAY", "3") + 2, h: 7 }; // the outlined REPLAY at (4, 4), as replay.ts
+      expect(r.x >= 0 && r.y >= 0 && r.x + r.w <= v.W && r.y + r.h <= v.H, `${name}: on the screen`).toBe(true);
+      expect(L.plates.some((p) => hit(p, r)), `${name}: off both plates`).toBe(false);
+      expect(hit(r, L.bar) || hit(r, label), `${name}: off the bar and the label`).toBe(false);
+      if (phone) expect(Math.min(r.w, r.h) * k, `${name}: a tap target`).toBeGreaterThanOrEqual(TAP_CSS);
+      else expect([r.w, r.h], name).toEqual([36, 12]);
+      const where = r.x + r.w >= v.W - 2 ? (r.y <= 2 ? "top right" : r.y + r.h >= v.H - 2 ? "bottom right" : "right") : r.x <= 2 ? (r.y <= 2 ? "top left" : "bottom left") : "under the enemy plate";
+      rows.push(`WIND2 BACK | ${name} | ${v.W}x${v.H} | ${JSON.stringify(r)} | ${where} | over a hull: ${L.hulls.some((q) => hit(q, r))}`);
+    }
+    console.log(rows.join("\n"));
+  });
+
+  it("the result card's BACK (replayback) is the card's own, unchanged: 15 px, on a phone at least TAP_CSS CSS px", () => {
+    for (const [name, w, h, dpr] of [...SIDE_BY_SIDE, ...STACKED]) {
+      const { v } = layoutOf(w, h, dpr);
+      expect(replayBackH(v), name).toBe(isPhone(v) ? Math.max(15, tapPx(v)) : 15);
+    }
+  });
+});
 
 describe("WIND-2 call 2: every number above the storm", () => {
   it("the numbers are drawn on the canvas after the whole storm, the wind's numbers after them, and none in the world layer", () => {

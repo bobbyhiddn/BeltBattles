@@ -37,23 +37,29 @@ export function replayBackH(v: Pick<View, "W" | "H" | "scale" | "dpr">): number 
 }
 
 /**
- * shoptap (D5, backlog 319): the replay's BACK while the fight plays. 0.7.0a's 36 x 12 at the top right, everywhere but a
- * phone. On a phone a TAP_CSS square (R1 measured 0.7.0a's at 24 CSS px tall), as wide as its label needs: in the first
- * screen corner (top right, bottom right, top left, bottom left; 2 px in, then flush with the screen's edge) clear of
- * both plates, both hulls, the playback bar and the REPLAY label (an iPhone turned on its side: the bottom right, under
- * the enemy hull and right of the bar); where none is clear (a portrait phone, whose hulls fill its width), the top right
- * as before, the square narrower than 0.7.0a's button so it keeps off the enemy plate. Pure (tests).
+ * shoptap (D5, backlog 319): the replay's BACK while the fight plays. On a phone a TAP_CSS square (R1 measured 0.7.0a's
+ * at 24 CSS px tall), as wide as its label needs; elsewhere 0.7.0a's 36 x 12. WIND-2 (REQ-BFG-093): on EVERY view (it
+ * was the phone's alone; elsewhere 0.7.0a's top right sat over the right end of the enemy plate, where its hull number
+ * is printed) it goes in the first screen corner (top right, bottom right, top left, bottom left; 2 px in, then flush
+ * with the screen's edge) clear of both plates, both hulls, the playback bar and the REPLAY label: an iPhone turned on
+ * its side and the desk, the bottom right, under the enemy hull and right of the bar. Where no corner is clear: on a
+ * portrait phone, whose hulls fill its width, the top right as before, the square narrower than 0.7.0a's button so it
+ * keeps off the enemy plate; on any other view, just under the enemy plate's right end, clear of it. The plates don't
+ * move. Pure (tests).
  */
 export function replayLeaveRect(L: BattleLayout, v: Pick<View, "W" | "H" | "scale" | "dpr">): Box {
   const { W, H } = L;
-  if (!isPhone(v)) return { x: W - 38, y: 2, w: 36, h: 12 };
-  const h = Math.max(12, tapPx(v)), w = Math.max(h, textWidth("BACK", "3") + 6);
+  const phone = isPhone(v);
+  const h = phone ? Math.max(12, tapPx(v)) : 12, w = phone ? Math.max(h, textWidth("BACK", "3") + 6) : 36;
   const corners: Box[] = [2, 0].flatMap((m) => [
     { x: W - w - m, y: m, w, h }, { x: W - w - m, y: H - h - m, w, h }, { x: m, y: m, w, h }, { x: m, y: H - h - m, w, h },
   ]);
   const label = { x: 3, y: 3, w: textWidth("REPLAY", "3") + 2, h: 7 }; // the outlined REPLAY at (4, 4)
   const keep = [...L.plates, ...L.hulls, L.bar, label];
-  return corners.find((c) => keep.every((k) => !hits(c, k))) ?? corners[0];
+  const clear = corners.find((c) => keep.every((k) => !hits(c, k)));
+  if (clear || phone) return clear ?? corners[0];
+  const p = L.plates[1]; // no corner clear off a phone: just under the enemy plate's right end
+  return { x: Math.max(0, Math.min(W - w, p.x + p.w - w)), y: Math.min(H - h, p.y + p.h + 1), w, h };
 }
 
 export class ReplayScreen implements Screen {

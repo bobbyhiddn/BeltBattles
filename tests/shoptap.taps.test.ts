@@ -9,7 +9,7 @@
 //   - a deck cell on the phones, the size the touch rules are made for (D4: a fingertip is wider than a cell).
 import { describe, expect, it } from "vitest";
 import { computeView } from "../src/core/io";
-import { battleLayout, battleScale } from "../src/game/battleLayout";
+import { battleLayout, battleScale, laneLayout } from "../src/game/battleLayout";
 import { TAP_CSS, isPhone, tapPx } from "../src/ui/tap";
 import { summaryButtonH, summaryLayout, type SummaryView } from "../src/screens/summary";
 import { replayBackH, replayLeaveRect } from "../src/screens/replay";
@@ -112,11 +112,20 @@ describe("backlog 319: the replay's BACK", () => {
     for (const [w, h, dpr] of [[640, 360, 2], [667, 375, 2], [360, 640, 2]] as const) expect(at(w, h, dpr).clear, `${w}x${h}`).toBe(true);
   });
 
-  it("the desktop's are 0.7.0a's: BACK 15 px on the result card, 36 x 12 at the top right while it plays", () => {
+  it("the desktop's: BACK 15 px on the result card (0.7.0a's); while it plays 0.7.0a's 36 x 12, WIND-2: off both plates, in a clear corner", () => {
     for (const [name, w, h, dpr] of DESKS) {
-      const v = bview(w, h, dpr), L = battleLayout(v.W, v.H, v.portrait);
-      expect([replayBackH(v), replayLeaveRect(L, v)], name).toEqual([15, { x: v.W - 38, y: 2, w: 36, h: 12 }]);
+      const v = bview(w, h, dpr);
+      // the replay lays out its lanes (laneLayout); the plain layout too, as the other tests here read it
+      for (const L of [battleLayout(v.W, v.H, v.portrait), laneLayout(battleLayout(v.W, v.H, v.portrait))]) {
+        const r = replayLeaveRect(L, v);
+        expect([replayBackH(v), r.w, r.h], name).toEqual([15, 36, 12]);
+        expect(r.x >= 0 && r.y >= 0 && r.x + r.w <= v.W && r.y + r.h <= v.H, `${name}: on the screen`).toBe(true);
+        expect(L.plates.some((p) => hit(p, r)), `${name}: off both plates`).toBe(false); // 0.7.0a's top right hid the foe's hull number
+      }
     }
+    // the desk: the bottom right, 2 px in, under the enemy hull and right of the bar (0.7.0a's was { x: 346, y: 2 })
+    const d = bview(1920, 1080, 1);
+    expect(replayLeaveRect(laneLayout(battleLayout(d.W, d.H, d.portrait)), d)).toEqual({ x: 384 - 38, y: 216 - 14, w: 36, h: 12 });
   });
 });
 
