@@ -294,7 +294,7 @@ describe("CARD-3 (d1, d2): a definition never covers its own word; a word's tool
       const ws = [...new Set(regs.map((q) => q.id.split(":")[2]))].filter((w) => glossaryEntry(w) || w.endsWith(" FAMILY") === false);
       panels++;
       for (const w of ws) {
-        const st = keywordState(p.ctx)!;
+        const st = keywordState(p.ctx)! as { word: string | null }; // the panel's tap state (a tap sets its word)
         st.word = glossaryEntry(w)?.word ?? w;
         const ui = p.draw(), def = ui.regions.find((q) => q.id === "kwdef");
         if (!def) { st.word = null; continue; }
