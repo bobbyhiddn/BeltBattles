@@ -52,7 +52,10 @@ describe("Y3 words: no new keyword; ONLINE stays (KEG, QUICK LATCH; Y5: it retir
   });
 
   it("TWIN GAUGE's face taps MATCHED; the faces' keywords are the existing ones", () => {
-    expect(glossaryWordsIn(faceAt("twingauge", 1)!.rules[0].text).map((r) => r.word)).toContain("MATCHED");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: the call is to reword, not to tap): TWIN GAUGE's face says it in plain words
+    // and names no MATCHED (was toContain("MATCHED")); the MATCHED row stays for the belt panel's notice and kept sentences
+    expect(glossaryWordsIn(faceAt("twingauge", 1)!.rules[0].text).map((r) => r.word)).not.toContain("MATCHED");
+    expect(glossaryEntry("MATCHED")?.word).toBe("MATCHED");
     for (const def of Y3_PIECES) for (const s of STARS) {
       for (const r of faceAt(def, s)!.rules) for (const m of r.text.matchAll(/\{\*([A-Z]+)\}/g)) expect(KEYWORDS as readonly string[], `${def}: ${m[1]}`).toContain(m[1]);
     }
@@ -92,7 +95,8 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(abilityText("assembly", 3).sentences[0]).toBe("WHILE IT FEEDS A TURRET, ALL YOUR RIGS START WORKING AT ONCE, THOSE ON ITS OWN BELT TOO.");
     expect(abilityText("assembly", 3).perk).toEqual(undefined); // Y7b2 (the words): was .toEqual({ name: "HOT START", stars: 3, after: 0 }) (the name stayed: R-1, the ⓘ view and the desk's); it left with its rule
     expect(["pincer", "twingauge", "bellows", "surge", "assembly"].map((d) => cardText(d))).toEqual([
-      "DAMAGE FOR EACH RIG ON ITS TILE.", "DAMAGE ON A MATCHED BELT.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "RIGS START 50% SOONER."]);
+      // WORDS-1 (REQ-BFG-081): TWIN GAUGE's card in plain words (was "DAMAGE ON A MATCHED BELT.")
+      "DAMAGE FOR EACH RIG ON ITS TILE.", "DAMAGE IF ANOTHER BELT IS AS LONG.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "RIGS START 50% SOONER."]);
     expect(["quench", "brake", "twinlatch", "platebreaker", "surge"].map((d) => gist(d, 2))).toEqual([
       "50 DAMAGE FOR EACH BURN", "40% SPEED", "HOLDS UP TO 2 SECONDS", "88 DAMAGE FOR 10 PLATING", "20 DAMAGE EVERY 3 SECONDS"]);
   });

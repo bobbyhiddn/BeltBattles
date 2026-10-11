@@ -22,9 +22,9 @@ import { STARS, SUPPLIES, banned, numbers, sentencesOf, starsOf } from "./textRu
 /** The kept table, pinned: the modules that keep a flavour sentence (the same at every star and class factor). */
 const KEPT: Record<string, string[]> = {
   press: ["NEEDS A FREE TURRET INTAKE."],
-  sabot: ["THE ENEMY SEES EACH ROUND COMING."], // NUM-3: SABOT has a face (U2b F2: never its desc; was the desc's sentence)
-  whetstone: ["BEFORE A SPLITTER, BOTH COPIES GAIN IT."],
-  splitter: ["ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT."],
+  // WORDS-1 (REQ-BFG-081; READ-1 6.1: read as a rule, 3 flags): SABOT keeps none (was "THE ENEMY SEES EACH ROUND COMING.")
+  whetstone: ["BEFORE A SPLITTER, BOTH SLUGS GAIN IT."], // WORDS-1 (REQ-BFG-081): COPIES cut (was "... BOTH COPIES GAIN IT.")
+  splitter: ["ITS EXTRA SLUGS CAN BACK UP AT THE TURRET AND JAM IT."], // WORDS-1: COPIES cut (READ-1 6.2; was "ITS COPIES ...")
   beltcrate: ["LONGER ROUTES COOK HOTTER PAYLOADS."],
   // 0.6.2rel2: two of the 13 turrets keep a comparison their ability text can't make (checked below against the TurretDefs)
   rampart: ["A QUICKER HEAVY GUN WITH A SLOWER SHELL."],
@@ -69,7 +69,7 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     for (const id of ["quench", "surge", "hopper", "mantlet"]) expect(KEPT_FLAVOUR[id], id).toEqual([]);
   });
 
-  it("pins: seven modules keep one sentence each, at every star and class factor; every other module shows none", () => {
+  it("pins: six modules keep one sentence each, at every star and class factor; every other module shows none", () => {
     const counts = { moduleStars: 0, withFlavour: 0, sentences: 0 };
     for (const d of SOLD) for (const s of starsOf(d)) {
       counts.moduleStars++;
@@ -84,7 +84,8 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     // flavour) leave the sold list: 260 -> 257
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): the 3 sustain pieces' 9 module-stars join, none with flavour (each has
     // a face, so flavour() shows none): 257 -> 266
-    expect(counts).toEqual({ moduleStars: 266, withFlavour: 19, sentences: 19 });
+    // WORDS-1 (REQ-BFG-081): SABOT FOUNDRY's three stars keep none now: 16 (was 19)
+    expect(counts).toEqual({ moduleStars: 266, withFlavour: 16, sentences: 16 });
   });
 
   it("a kept sentence is one whole sentence under T2's rules and quotes no number", () => {
@@ -145,7 +146,7 @@ describe("0.6.2t: the panels show the kept flavour, set apart and dimmer; a modu
     const run = newRun("furnace", 5, "flavour");
     run.build.items.push({ uid: 10, def: "splitter", x: 3, y: 3, rot: 1, stars: 3 });
     const rp = rigPanel(run, 10)!;
-    expect(flav(rp)).toEqual(["ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT."]);
+    expect(flav(rp)).toEqual(["ITS EXTRA SLUGS CAN BACK UP AT THE TURRET AND JAM IT."]); // WORDS-1 (was "ITS COPIES ...")
     expect(rp.body.map((b) => b.text).join(" ")).not.toContain("60%");
   });
 

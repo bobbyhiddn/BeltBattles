@@ -10,6 +10,7 @@ import { G, fresh, installRaster } from "./raster.helpers";
 import { Arena } from "../src/game/arena";
 import { HEAL_COLOUR, SHIELD_BREAK_TIME } from "../src/game/arenaReact";
 import { SHIELD_PIPS_W, drawPlate, drawShieldPips, regenMax, regenNow, showsShield } from "../src/screens/battleHud";
+import { plateRow } from "../src/screens/battleHud"; // WIND-1 (REQ-BFG-093): the plate's row (the hull number, then the badge)
 import type { Game } from "../src/game/game";
 import { RUNES } from "../src/sim/runes";
 import { drawText, textWidth } from "../src/render/font";
@@ -143,7 +144,13 @@ describe("SUS-B the HUD: SHIELD pips, the REGEN badge, HEAL floats", () => {
       const cv = fresh(r.w, r.h), ref = fresh(r.w, r.h);
       drawPlate(G(cv), { t: 0 } as unknown as Game, a, r, 0, "YOU", hp);
       const ty = r.y + Math.floor((r.h - 5) / 2);
-      drawText(G(ref), badge, r.x + r.w - 3 - textWidth(hp, "3") - 3, ty, col, { font: "3", align: "right" });
+      // WIND-1 (REQ-BFG-093): the plate prints the hull itself, in the 5x7 face (plateRow: "current/max" where it fits), and
+      // the badge sits right-aligned 3 px before it, as before it sat before the 3x5 HP text
+      const s0 = a.b.sides[0];
+      const row = plateRow({ x: r.x, y: r.y, w: r.w, h: r.h, lead: textWidth("YOU", "3"), hp: s0.hull.hp, max: s0.hull.max, shield: null, regenRoom: textWidth(badge, "3") + 3, plate: null });
+      expect(row.regenX).toBe(row.hullX - 3);
+      void hp;
+      drawText(G(ref), badge, row.regenX!, ty, col, { font: "3", align: "right" });
       const lit = (c: typeof cv) => c.px.flatMap((p, i) => (p === col ? [i] : []));
       expect(lit(ref).length).toBeGreaterThan(0);
       expect(lit(cv)).toEqual(lit(ref));

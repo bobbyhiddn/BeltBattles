@@ -4,6 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { VIEWS } from "./shots-list.mjs";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
@@ -92,6 +93,7 @@ export async function measure(browser, origin, serve, errors) {
   };
   for (const [vname, vopts] of Object.entries(VIEWS)) {
     const ctx = await browser.newContext(vopts);
+    await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
     await ctx.route(`${origin}/**`, serve);
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`[metrics ${vname}] pageerror: ${e.message}`));

@@ -38,19 +38,25 @@ import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { TAP_CSS } from "../../ui/tap"; // bb-0.8.6 (REQ-BFG-051 P5): the pack slots' finger target
 import { Editor, direct, type BeltX, type EditHost } from "./edit";
 import { buildLayout, buildScale, Caravan, panelArea as panelAreaOf, phoneScreen, type BuildLayout, type Sel } from "./layout";
+import { inCarrier, screenRect, toDeck, toScreen } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
 import { phoneBarLift } from "./layout"; // TAP-093 (backlog #340): a portrait phone's taller top bar
 import { deleteRoute, rotate, sell, store, storeFitted } from "./actions";
 import { cssPerPx as cssScale, type PointerKind } from "../../core/io"; // shoptap (D1)
 import { beltXSide, placeBeltX } from "./beltx"; // shoptap (D3)
 import { detailsPlan, fullest, fullText, keptWhole, visibleLines, type PLine } from "./inspector"; // shoptap tooling: panelInfo; shoptap2: panelArea; zoom: fullText
+import { panelFit } from "./inspector"; // SPACE-1 (REQ-BFG-087, D4): the band's fit with the gaps
 import { drawBuildChrome } from "./chrome";
 import { keywordsPressed } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
+import { keywordState, questionRect } from "./keywords"; // EXPLAIN-1 (REQ-BFG-089) tooling: panelInfo's ⓘ target and view
+import { columnButtons } from "./inspector"; // EXPLAIN-1 tooling: the column's buttons (panelInfo's ⓘ target clears them)
+import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a pack bought completes the supply tip
 import { suggestCell } from "./cues";
 import { BattleScreen, duskScreen } from "../battle";
 import { EventScreen } from "../event/event";
 import { RuneBar, runeRowFits, runeRowH, shiftLayout } from "../../ui/runeBar"; // RUNES-1 (REQ-BFG-058): the rune bar
 import { RunePicker } from "../runePicker"; // RUNES-1: the dawn rune picker
 import { LastChancePicker } from "../lastChancePicker"; // LC-1 (REQ-BFG-073): the LAST CHANCE pick, before the dawn rune
+import { FoeView } from "./foeView"; // SCOUT-1c (REQ-BFG-082): a SCOUT-revealed foe from the NEXT BATTLE card
 
 /** 0.6.1d2 (ARSENAL.md §8.3): 0.5s per merge step normally; reduced motion collapses lift/arc/ring/
  *  sparkle to just the flash, so its "impact" beat comes almost immediately. */
@@ -126,7 +132,24 @@ export class BuildScreen implements Screen, EditHost {
   /** zoom (REQ-BFG-040): a portrait phone's layout (layout.ts phoneScreen, told by the view pickScale last framed). */
   private phone = false;
 
+  /** ZOOM-1 (REQ-BFG-080): the dpr pickScale last framed (pickSub's layout reads the rune row's height with it). */
+  private pickDpr = 1;
+
+  /**
+   * ZOOM-1 (REQ-BFG-080): the canvas grid (game/viewGrid.ts, FIELD-1's): canvas px per logical px. The carrier draws at
+   * its own whole device-pixel zoom z (layout.ts carrierZoom) and the UI at `scale`, so the canvas runs on unit =
+   * gcd(scale, z) device px per canvas px (camera.ts's rule) and the logical px at sub = scale / unit canvas px: every art
+   * px, the UI's and the carrier's, is whole canvas px. 1 where the carrier draws at the UI's scale (today's canvas).
+   */
+  pickSub(pw: number, ph: number, portrait: boolean, scale: number): number {
+    const z = this.layoutAt(Math.floor(pw / scale), Math.floor(ph / scale), portrait, { scale, dpr: this.pickDpr }, { scale, unit: 1 }).cam.z;
+    let a = scale, b = z;
+    while (b) [a, b] = [b, a % b];
+    return scale / a;
+  }
+
   pickScale(pw: number, ph: number, portrait: boolean, dpr?: number): number {
+    this.pickDpr = dpr ?? 1;
     // zoom (D1): on a phone an art pixel is at most 1.75 CSS px (buildScale); D2: in portrait the phone's layout
     this.phone = portrait && dpr !== undefined && phoneScreen(pw, ph, dpr);
     let scale = buildScale(pw, ph, portrait, dpr);
@@ -169,20 +192,31 @@ export class BuildScreen implements Screen, EditHost {
    * while a mouse hovers a card, and not during a drag or a belt draw (the band, so the deck stays in sight to drop on).
    */
   panelArea(): Rect {
+    // SPACE-1 (REQ-BFG-087): once a frame (frameArea): inside draw() the frame's first call plans it, the others take it
+    if (this.drawing && this.frameArea) return this.frameArea;
     // zoom (REQ-BFG-040, D3): on a phone's layout the panel sits in the band wherever its full description fits there
     // (fullText); only where it doesn't does shoptap2's fallback grow it. Elsewhere, as before: its kept text (keptWhole)
-    const fits = this.L.phone ? fullText : keptWhole;
-    return panelAreaOf(this.L, this.sel, { touch: this.touch, hover: !!this.hover, busy: !!(this.ed.carry || this.ed.draw) }, (r) => {
-      const d = detailsPlan(this, this.sel, null, r);
-      return d ? fits(d.plan) : null;
-    });
+    // SPACE-1 (REQ-BFG-087, D4): inspector.ts panelFit, the one fit the tests share: on a phone, its full description with
+    // its gaps at least GAP_MIN in the band, at GAP while it grows
+    const r = panelAreaOf(this.L, this.sel, { touch: this.touch, hover: !!this.hover, busy: !!(this.ed.carry || this.ed.draw) },
+      panelFit(this, this.sel, !!this.L.phone));
+    if (this.drawing) this.frameArea = r;
+    return r;
   }
+
+  /** SPACE-1 (REQ-BFG-087): the details panel's rect for the frame being drawn. panelArea's PANEL_STEP loop plans the
+   *  panel at each height (with D4's gaps a tall turret panel on the 402x690 phone with a rune takes 22 plans, 10 before),
+   *  and a frame asks for it three times (the corner MENU's target, the details band, the rune bar's targets), so inside
+   *  draw() it is planned once. Outside draw() (a press, a drop, the tooling's bb.panel) it is planned fresh, as before;
+   *  nothing draw() reads for it (the selection, the hover, the press kind, a drag, the run) changes while it draws. */
+  private frameArea: Rect | null = null;
+  private drawing = false;
 
   /** shoptap tooling (window.bb.panel, read only): the details panel as drawDetails plans it now: its title, sub line,
    *  button labels and the body lines it draws, and whether its kept text shows whole; null with no panel. shoptap2: in
    *  the rect it is drawn in (panelArea). */
   panelInfo(): { title: string; sub: string; labels: string[]; lines: string[]; whole: boolean; full: boolean; fullest: boolean;
-    variant: number; dropped: string[]; inBand: boolean; band: Rect; area: Rect } | null {
+    variant: number; dropped: string[]; inBand: boolean; band: Rect; area: Rect; notes: string[]; info: Rect | null; view: boolean } | null {
     const area = this.panelArea();
     const d = detailsPlan(this, this.sel, this.hover, area);
     if (!d) return null;
@@ -190,11 +224,16 @@ export class BuildScreen implements Screen, EditHost {
       : `${l.label ? `${l.label} ` : ""}${l.spans.map((s) => s.t).join("")}`);
     const lines = visibleLines(d.plan).flatMap((v) => (v.line === "rule" ? [] : [text(v.line)]));
     const sub = d.plan.headerOnly ? d.plan.headerOnly.lines.join(" ") : d.plan.body.sub ?? d.plan.subs.join(" ");
+    // EXPLAIN-1 (REQ-BFG-089) tooling: the ⓘ NOTES lines, the ⓘ icon's target as drawDetails registers it (keywords.ts
+    // questionRect, clear of the buttons' hit rects) and whether the ⓘ view is open
+    const tap = this.touch ? tapPx(this.game.view) : 0, n = d.t.labels.length, p = d.plan;
+    const buttons = p.column ? columnButtons(n, p.r, tap) : (p.rects ?? []).map((b) => (tap ? tapRect(b, tap, p.r) : b));
     // zoom (REQ-BFG-040): its full description (fullText), its fullest form (every block, variant 0), the variant and the
     // blocks that gave way, and whether it sits in the band (not grown over the bow or the shop)
     return {
       title: d.t.title, sub, labels: d.t.labels, lines, whole: keptWhole(d.plan), full: fullText(d.plan), fullest: fullest(d.plan),
       variant: d.plan.body.variant, dropped: d.plan.body.dropped.map((b) => b.role), inBand: area === this.L.info, band: { ...this.L.info }, area: { ...area },
+      notes: (d.t.notes ?? []).map((b) => b.text), info: questionRect(p.r, p.y, tap, buttons), view: (keywordState(this)?.page ?? null) !== null,
     };
   }
 
@@ -205,17 +244,37 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   get toastY(): number {
-    return this.L.cargo.y - 16;
+    // ZOOM-1 (REQ-BFG-080): landscape, 13 px over the hull's foot, where 0.9.8's toast sat (its cargo tray was 3 px under
+    // the hull; the tray now sits under FIGHT, beside the carrier's middle); portrait, over the tray, as before
+    return this.L.portrait ? this.L.cargo.y - 16 : this.L.hull.y + this.L.hull.h - 13;
   }
 
   private layout(): BuildLayout {
+    // ZOOM-1 (REQ-BFG-080): the carrier at the zoom the view's canvas grid holds (pickSub): unit = scale / sub
+    const v = this.game.view, sub = v.sub ?? 1;
+    return this.layoutAt(this.game.W, this.game.H, this.game.portrait, v, { scale: v.scale, unit: v.scale / sub });
+  }
+
+  /** The layout of a W x H logical screen at `view`'s scale (layout(); ZOOM-1: pickSub's, for a view being framed). */
+  private layoutAt(W: number, H: number, portrait: boolean, view: { scale: number; dpr: number }, grid: { scale: number; unit: number }): BuildLayout {
     // RUNES-1 (REQ-BFG-058): the rune bar's row under the top bar (0 with no rune held: exactly as before)
-    const row = runeRowH(this.game.view, this.run.build.runes?.length ?? 0);
-    const offers = this.refit ? OFFERS : this.offers().length, phone = this.phone && this.game.portrait;
+    const row = runeRowH(view, this.run.build.runes?.length ?? 0);
+    const offers = this.refit ? OFFERS : this.offers().length, phone = this.phone && portrait;
     // TAP-093 (backlog #340): a portrait phone's top bar grows to a finger's target where the screen spares it with a rune
     // row (layout.ts phoneBarLift: the same with or without a rune held); 0 elsewhere, as before
-    const lift = phone ? phoneBarLift(this.game.W, this.game.H, offers, this.packTap, runeRowH(this.game.view, 1)) : 0;
-    return shiftLayout(buildLayout(this.game.W, this.game.H - row, this.game.portrait, offers, phone, this.packTap, lift), row, this.game.H);
+    const lift = phone ? phoneBarLift(W, H, offers, this.packTap, runeRowH(view, 1)) : 0;
+    return shiftLayout(buildLayout(W, H - row, portrait, offers, phone, this.packTap, lift, grid), row, H);
+  }
+
+  /** ZOOM-1 tooling (read only; scripts/touchcheck.mjs, zoom1shots.mjs): a deck cell's centre on screen (logical px),
+   *  through the carrier's zoom. */
+  tileCentre(cx: number, cy: number): { x: number; y: number } {
+    return toScreen(this.L, footX(this.L.frame, cx, cy) + 6, footY(this.L.frame, cx, cy) + 6);
+  }
+
+  /** ZOOM-1 tooling (read only): the carrier's zoom (layout.ts CarrierCam) and the canvas grid (canvas px per logical px). */
+  carrierView(): { k: number; z: number; x: number; y: number; sub: number; scale: number } {
+    return { ...this.L.cam, sub: this.game.view.sub ?? 1, scale: this.game.view.scale };
   }
 
   /** TAP-093 (backlog #340): the corner MENU's target this frame (chrome.ts drawTopBar; layout.ts cornerTarget), or null
@@ -230,6 +289,9 @@ export class BuildScreen implements Screen, EditHost {
    *  with the switch off) and the regained heart's animation clock on the bar (seconds since the pick; Infinity: none). */
   readonly lastChancePicker = new LastChancePicker();
   lcHeartT = Infinity;
+  /** SCOUT-1c (REQ-BFG-082): a SCOUT-revealed foe's carrier, opened from the NEXT BATTLE card (build/foeView.ts). While it
+   *  is open it takes every press and key, and the frame draws it over the sea instead of the deck and its chrome. */
+  readonly foeView = new FoeView();
 
   /** RUNES-1, LC-1: a picker is up (it takes every press and key). */
   modalUp(): boolean {
@@ -280,6 +342,7 @@ export class BuildScreen implements Screen, EditHost {
   placed(x: number, y: number): void {
     this.placedOnce = true;
     this.thunkT = 0.14;
+    ({ x, y } = toDeck(this.L, x, y)); // ZOOM-1 (REQ-BFG-080): the screen point in the carrier's space (wfx draws there)
     this.wfx.dust(x, y + 4, 12, -6);
     this.wfx.ring(x, y, 9, C.bone);
     this.wfx.sparkle(x, y - 2, 0.05);
@@ -309,12 +372,19 @@ export class BuildScreen implements Screen, EditHost {
     return null;
   }
 
+  /** ZOOM-1 (REQ-BFG-080): a landscape cargo tray in the right column has two rows of slots (layout.ts); one row elsewhere,
+   *  as before. */
   slotRect(i: number): Rect {
-    return { x: this.L.cargo.x + 3 + i * 19, y: this.L.cargo.y + 2, w: 18, h: 18 };
+    const per = this.cargoPerRow();
+    return { x: this.L.cargo.x + 3 + (i % per) * 19, y: this.L.cargo.y + 2 + Math.floor(i / per) * 19, w: 18, h: 18 };
+  }
+
+  private cargoPerRow(): number {
+    return Math.max(1, Math.floor((this.L.cargo.w - 6) / 19));
   }
 
   cargoSlots(): number {
-    return Math.max(1, Math.floor((this.L.cargo.w - 6) / 19));
+    return this.cargoPerRow() * Math.max(1, Math.floor((this.L.cargo.h - 3) / 19));
   }
 
   cargoAt(x: number, y: number): number | null {
@@ -335,6 +405,11 @@ export class BuildScreen implements Screen, EditHost {
 
   /** 0.6.2s (REQ-BFG-031 S9, S10): TURRET SLOT i's hit box (deck.ts turretSlots); an empty slot's mount is a heavy's size. */
   turretRect(i: number): Rect {
+    return screenRect(this.L, this.deckTurretRect(i)); // ZOOM-1 (REQ-BFG-080): on screen, through the carrier's zoom
+  }
+
+  /** ZOOM-1: TURRET SLOT i's box in the carrier's space (the selection frame draws there). */
+  private deckTurretRect(i: number): Rect {
     const s = turretSlots(this.run.build)[i];
     const x = turretPivotX(this.L.frame, s.col0, s.width), y = turretPivotY(this.L.frame, s.col0, s.width);
     const r = !s.td || s.td.kind === "heavy" ? 12 : 9;
@@ -373,6 +448,7 @@ export class BuildScreen implements Screen, EditHost {
     this.ufx.popup(this.coinX, 12, `-${r.price}`, C.yellow);
     this.game.audio.play("coin");
     saveRun(this.run);
+    completeTip("supply"); // EXPLAIN-1 (REQ-BFG-089, E5): a supply bought (a pack is used the moment it is bought)
   }
 
   fight(): void {
@@ -425,6 +501,18 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   draw(g: G): void {
+    // SPACE-1 (REQ-BFG-087): panelArea once a frame (frameArea)
+    this.drawing = true;
+    this.frameArea = null;
+    try {
+      this.drawFrame(g);
+    } finally {
+      this.drawing = false;
+      this.frameArea = null;
+    }
+  }
+
+  private drawFrame(g: G): void {
     const L = (this.L = this.layout());
     const { W, H, portrait } = this.game;
     ({ block: this.block, broken: this.broken } = routeCheck(this.run.build));
@@ -436,6 +524,7 @@ export class BuildScreen implements Screen, EditHost {
     let t0 = tw;
     this.sea.drawStill(g, { W, H, kind: seaForDay(this.run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(this.run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
     if (P) { const t1 = performance.now(); P.add(0, t1 - t0); t0 = t1; }
+    if (this.foeView.open) return this.foeView.draw(g, this); // SCOUT-1c (REQ-BFG-082): the scouted foe's carrier
     const ghost = this.ed.ghost();
     // free connectors glow while drawing, with no belt fed, or when a belt goes nowhere
     const guide = !!this.ed.draw || connectedRouteCount(this.run.build) === 0 || this.block === NOWHERE;
@@ -453,24 +542,28 @@ export class BuildScreen implements Screen, EditHost {
     v.fuseAnimUid = fd?.uid;
     v.fuseAnimStars = fd?.showStars;
     const bump = this.thunkT > 0.07 ? 1 : 0;
-    if (bump) g.translate(0, bump);
     if (P) t0 = performance.now();
-    drawStillCarrier(g, v.model.hero, L.frame, 0, this.skin.floor, this.skin.carrier); // CUSTOM-3 (REQ-BFG-074): your carrier style
-    if (P) { const t1 = performance.now(); P.add(1, t1 - t0); t0 = t1; }
-    drawMachinery(g, v);
-    this.drawBroken(g);
-    drawTurrets(g, v);
-    this.drawSelection(g);
-    // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks (drawn with the deck) once more over the selection, so a selected
-    // gun's frame never cuts its plate (nothing at level 1)
-    for (const m of levelMarks(this.run.build, L.frame, v.hideItem ?? -1)) drawLevelMark(g, m);
-    this.drawFuseAnim(g);
-    if (bump) g.translate(0, -bump);
-    if (P) { const t1 = performance.now(); P.add(2, t1 - t0); t0 = t1; }
-    this.wfx.draw(g, 0, 0);
+    // ZOOM-1 (REQ-BFG-080): the carrier group (the ship, the deck, belts, parts, turrets, the selection, the level marks,
+    // the merge animation and the world effects) draws in the carrier's space at its own zoom (layout.ts inCarrier)
+    inCarrier(g, L, () => {
+      if (bump) g.translate(0, bump);
+      drawStillCarrier(g, v.model.hero, L.frame, 0, this.skin.floor, this.skin.carrier); // CUSTOM-3 (REQ-BFG-074): your carrier style
+      if (P) { const t1 = performance.now(); P.add(1, t1 - t0); t0 = t1; }
+      drawMachinery(g, v);
+      this.drawBroken(g);
+      drawTurrets(g, v);
+      this.drawSelection(g);
+      // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks (drawn with the deck) once more over the selection, so a selected
+      // gun's frame never cuts its plate (nothing at level 1)
+      for (const m of levelMarks(this.run.build, L.frame, v.hideItem ?? -1)) drawLevelMark(g, m);
+      this.drawFuseAnim(g);
+      if (bump) g.translate(0, -bump);
+      if (P) { const t1 = performance.now(); P.add(2, t1 - t0); t0 = t1; }
+      this.wfx.draw(g, 0, 0);
+    });
     this.runeBar.drawUnder(g, this); // RUNES-1: the rune bar (a grown panel, the options card and a drag draw over it)
     drawBuildChrome(g, this);
-    this.wfx.drawPops(g, 0, 0);
+    inCarrier(g, L, () => this.wfx.drawPops(g, 0, 0));
     this.ufx.draw(g, 0, 0);
     this.ufx.drawPops(g, 0, 0);
     if (!this.modalUp()) {
@@ -528,13 +621,13 @@ export class BuildScreen implements Screen, EditHost {
         drawText(g, String(row.tile + 1), x + 2, y + 2, C.yellow, { font: "3", outline: C.ink });
       }
     } else if (s.kind === "turret") {
-      const r = this.turretRect(s.index);
+      const r = this.deckTurretRect(s.index); // ZOOM-1: drawn in the carrier's space
       frame(g, r.x, r.y, r.w, r.h, col);
     } else if (s.kind === "fitted") {
       // shoptap (REQ-BFG-035): a fitted core or gear piece: its turret is framed
       const m = b.mods.find((q) => q.uid === s.uid);
       if (m && turretSlots(b)[m.turret]) {
-        const r = this.turretRect(m.turret);
+        const r = this.deckTurretRect(m.turret);
         frame(g, r.x, r.y, r.w, r.h, col);
       }
     }
@@ -553,7 +646,7 @@ export class BuildScreen implements Screen, EditHost {
       const r = this.slotRect(i);
       return {
         from: { x: r.x + r.w / 2, y: r.y + r.h / 2 },
-        to: { x: footX(this.L.frame, cell.x, cell.y) + 6, y: footY(this.L.frame, cell.x, cell.y) + 6 },
+        to: this.tileCentre(cell.x, cell.y), // ZOOM-1 (REQ-BFG-080): on screen, through the carrier's zoom
         def: it.def,
       };
     }
@@ -571,7 +664,7 @@ export class BuildScreen implements Screen, EditHost {
       if (!cell || !r) continue;
       return {
         from: { x: r.x + r.w / 2, y: r.y + r.h / 2 },
-        to: { x: footX(this.L.frame, cell.x, cell.y) + 6, y: footY(this.L.frame, cell.x, cell.y) + 6 },
+        to: this.tileCentre(cell.x, cell.y), // ZOOM-1 (REQ-BFG-080): on screen, through the carrier's zoom
         def: o.def,
       };
     }
@@ -653,7 +746,7 @@ export class BuildScreen implements Screen, EditHost {
       const i = this.run.inventory.findIndex((it) => it.uid === step.survivor);
       if (i < 0 || i >= this.cargoSlots()) return null;
       const r = this.slotRect(i);
-      return { x: r.x + 9, y: r.y + 9 };
+      return toDeck(this.L, r.x + 9, r.y + 9); // ZOOM-1 (REQ-BFG-080): the effects draw in the carrier's space
     }
     if (step.where === "deck") {
       const p = this.run.build.items.find((q) => q.uid === step.survivor);
@@ -705,6 +798,7 @@ export class BuildScreen implements Screen, EditHost {
 
   /** shoptap (D1): `kind`, the pointer that pressed (the editor's touch rules read it). */
   down(x: number, y: number, kind: PointerKind = "mouse"): void {
+    if (this.foeView.open) return this.foeView.press(this, x, y); // SCOUT-1c: a part of the foe's carrier opens its face
     if (this.modalUp()) return; // RUNES-1: nothing under the rune picker moves (LC-1: nor the LAST CHANCE picker)
     this.skipFuseAnim(); // 0.6.1d2: a tap anywhere skips the merge animation to its end
     this.ed.down(x, y, kind);
@@ -712,19 +806,24 @@ export class BuildScreen implements Screen, EditHost {
 
   /** shoptap (D3): every press: one anywhere but on the belt X takes the X down (a press on a UI region included). */
   pressed(_x: number, _y: number, region: string | null): void {
-    if (this.modalUp()) return; // RUNES-1: the rune picker takes every press (LC-1: the LAST CHANCE picker too)
+    if (this.foeView.open) return this.foeView.faces.pressed(region); // SCOUT-1c: a press off a face's word closes it
+    // RUNES-1: the rune picker takes every press (LC-1: the LAST CHANCE picker too). EXPLAIN-1 (REQ-BFG-089, E3): a press
+    // anywhere but the opened card's chip closes the line it shows
+    if (this.modalUp()) return this.runePicker.pressed(region);
     if (region !== "beltx") this.ed.dropX();
     this.runeBar.pressed(region); // RUNES-1: a press off the rune bar closes its read-out
     keywordsPressed(this, region); // U2c (REQ-BFG-045): a press off a word, `?` or the KEYWORDS view closes them
   }
 
   move(x: number, y: number): void {
+    if (this.foeView.open) return; // SCOUT-1c: no hover or drag under the foe's view
     if (this.modalUp()) return; // RUNES-1: no hover or drag under the rune picker (LC-1: nor the LAST CHANCE picker)
     this.ed.move(x, y);
     this.hover = this.game.ui.pointer.down ? null : this.offerAt(x, y);
   }
 
   up(x: number, y: number): void {
+    if (this.foeView.open) return; // SCOUT-1c
     this.ed.up(x, y);
   }
 
@@ -733,6 +832,7 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   key(k: string): void {
+    if (this.foeView.open) return this.foeView.key(k); // SCOUT-1c: Escape closes the face, then the view; no FIGHT under it
     if (this.modalUp()) return; // RUNES-1: the rune picker can't be skipped (no FIGHT, reroll or Escape under it); LC-1: nor LAST CHANCE
     if (k === "Escape") {
       if (this.menu) this.menu = false;

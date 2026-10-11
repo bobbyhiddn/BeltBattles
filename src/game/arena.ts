@@ -43,6 +43,11 @@ export interface SideFx {
   // (the count after the break, so the pip at that index)
   shieldBreak: number;
   shieldAt: number;
+  // WIND-1 (REQ-BFG-093; display only): seconds left on the hull bar's purple flash for a dark wind tick (arenaReact windPop)
+  windFlash: number;
+  // WIND-1 (REQ-BFG-097; display only): a SHIELD just stopped a hit (its `shield` event of -1); the hit's own impact, next in
+  // the step, pops BLOCKED there
+  shieldStop: boolean;
 }
 
 function sideFx(b: Battle, side: Side): SideFx {
@@ -62,6 +67,7 @@ function sideFx(b: Battle, side: Side): SideFx {
     plateShown: plate, plateHold: 0, plateLast: plate, plateShine: 0,
     w3: newWave3Fx(turretSlots(s.build).length),
     shieldBreak: 0, shieldAt: 0, // SUS-B
+    windFlash: 0, shieldStop: false, // WIND-1
   };
 }
 
@@ -86,6 +92,9 @@ export class Arena {
   show: [boolean, boolean] = [true, true];
   overT = 0;
   koT = -1; // seconds since the KO (drives slow-mo)
+  /** WIND-1 (REQ-BFG-093; display only): seconds since the DARK WIND callout started (the windwarn, or the first wind tick
+   *  if that comes first; once a fight); -1 before it. The battle and the replay draw it (battleHud.ts drawWindCall). */
+  windCallT = -1;
   loser: Side | -1 = -1;
   shakePeak = 0; // largest camera offset since the last reset (metrics)
   readonly views: [CruiserView, CruiserView];
@@ -99,6 +108,64 @@ export class Arena {
   /** Count one drained event into the readout tallies (shocks). */
   private tally(e: SimEvent): void {
     if (e.type === "harass" && e.cause === "shock") this.shocks[e.side === 0 ? 1 : 0]++;
+  }
+
+  /** SCOUT-1 (REQ-BFG-076; display only, as `shocks`): per side, per TURRET SLOT (the index a turret's events carry), the
+   *  shots it fired (its `fire` events) and the damage they dealt on landing (each landing's `impact`, its splash, arcs
+   *  and lances included), counted from every step played or skipped. The BURN they set and limpet blasts are in the
+   *  side's DAMAGE DEALT but not here: no event names the turret behind them. */
+  readonly partShots: [number[], number[]] = [[], []];
+  readonly partDamage: [number[], number[]] = [[], []];
+  /** SCOUT-1: each shot in flight's side and slot (its `fire` event's), by projectile id, until it lands or is downed. */
+  private readonly flying = new Map<number, { side: Side; slot: number }>();
+  /** SCOUT-1: the ids in flight before a step (Battle.projectiles, read only). */
+  private readonly preIds: number[] = [];
+  private readonly alive = new Set<number>();
+
+  /** SCOUT-1: before a step, the shots in flight (read only). */
+  private preStep(): void {
+    const ps = this.b.projectiles, ids = this.preIds;
+    ids.length = ps.length;
+    for (let i = 0; i < ps.length; i++) ids[i] = ps[i].id;
+  }
+
+  /**
+   * SCOUT-1: after a step, its events into the per-turret tallies. A step lands its shots in flight order (Battle.flight:
+   * Battle.projectiles, which is in id order), each with one `impact`, then its splash, arcs or lances, each an `arc`,
+   * `lance` or `splash` event before its own `impact`. So the step's landed shots, the ids in flight before it and fired in
+   * it that are gone after it and were not downed (`flak`), sorted by id, take its first-hand impacts in turn.
+   */
+  private countStep(ev: readonly SimEvent[]): void {
+    const alive = this.alive;
+    alive.clear();
+    for (let i = 0; i < ev.length; i++) {
+      const e = ev[i];
+      if (e.type === "fire") {
+        this.flying.set(e.proj, { side: e.side, slot: e.turret });
+        this.partShots[e.side][e.turret] = (this.partShots[e.side][e.turret] ?? 0) + 1;
+      } else if (e.type === "flak") this.flying.delete(e.proj);
+    }
+    for (const p of this.b.projectiles) alive.add(p.id);
+    const landed: number[] = [];
+    for (const id of this.preIds) if (!alive.has(id) && this.flying.has(id)) landed.push(id);
+    // a shot fired in this step that also landed in it (a new id: never one in flight before it)
+    for (let i = 0; i < ev.length; i++) {
+      const e = ev[i];
+      if (e.type === "fire" && !alive.has(e.proj) && this.flying.has(e.proj)) landed.push(e.proj);
+    }
+    if (!landed.length) return;
+    landed.sort((x, y) => x - y);
+    let k = 0, cur: { side: Side; slot: number } | undefined, second = false;
+    for (let i = 0; i < ev.length; i++) {
+      const e = ev[i];
+      if (e.type === "splash" || e.type === "arc" || e.type === "lance") second = true;
+      else if (e.type === "impact") {
+        if (!second) cur = k < landed.length ? this.flying.get(landed[k++]) : undefined;
+        second = false;
+        if (cur) this.partDamage[cur.side][cur.slot] = (this.partDamage[cur.side][cur.slot] ?? 0) + e.dmg;
+      }
+    }
+    for (const id of landed) this.flying.delete(id);
   }
 
   /** 0.8.0 H1 M3 (display only): per side, plating soaked in the step being played that no impact has shown yet. Within
@@ -170,6 +237,7 @@ export class Arena {
       return out;
     }
     if (this.koT >= 0) this.koT += dt;
+    if (this.windCallT >= 0 && !this.paused) this.windCallT += dt; // WIND-1: the callout runs on real time, held by a pause
     const k = (this.paused ? 0 : 1) * this.koScale();
     const sdt = dt * k * this.speed;
     this.clock += sdt;
@@ -177,11 +245,13 @@ export class Arena {
       this.acc += sdt;
       let n = 0;
       while (this.acc >= TICK && n < 600 && !this.b.over) {
+        this.preStep(); // SCOUT-1: read only
         this.b.step();
         this.stepSoak(); // 0.8.0 H1 M3: read only
         this.acc -= TICK;
         n++;
         const ev = this.b.drainEvents();
+        this.countStep(ev); // SCOUT-1: read only
         for (let i = 0; i < ev.length; i++) {
           this.tally(ev[i]);
           react(this, ev[i], i > 0 ? ev[i - 1] : null); // 0.8.0 I1 M4: the step's event before it (PLATE BREAKER's blow)
@@ -261,14 +331,18 @@ export class Arena {
     if (f.plateShown < plate) f.plateShown = plate;
     tickWave3Fx(f.w3, s, rdt); // 0.8.0 I1 M4: wave 3's moments play out; ARMOR PRESS's presses read off its timer
     f.shieldBreak = Math.max(0, f.shieldBreak - rdt); // SUS-B: the SHIELD break cue plays out
+    f.windFlash = Math.max(0, f.windFlash - rdt); // WIND-1: the bar's wind flash plays out
   }
 
   /** Resolve the rest of the battle instantly (SKIP). Only the end event is animated. */
   finish(): SimEvent[] {
     const out: SimEvent[] = [];
     while (!this.b.over && this.b.ticks < 60 * 200) {
+      this.preStep(); // SCOUT-1: read only
       this.b.step();
-      for (const e of this.b.drainEvents()) {
+      const ev = this.b.drainEvents();
+      this.countStep(ev); // SCOUT-1: read only
+      for (const e of ev) {
         this.tally(e);
         if (e.type === "end") out.push(e);
       }

@@ -600,6 +600,8 @@ function SHOWCASE(name, extra, o = {}) {
     bb.openShowcase(${J(name)}, "build", ${J(o)}); ${STEP(90)}
     const s = bb.game.screen, f = s.L.frame, D = 120;
     const CELL = (x, y) => {
+      // ZOOM-1 (REQ-BFG-080): through the carrier's own zoom where the build has it (BuildScreen.tileCentre)
+      if (typeof s.tileCentre === "function") { const p = s.tileCentre(x, y); return [p.x, p.y]; }
       const sx = f.facing === 0 || f.facing === 2 ? f.dx + x * 12 : f.facing === 1 ? f.dx + D - (y + 1) * 12 : f.dx + y * 12;
       const sy = f.facing === 0 ? f.dy + y * 12 : f.facing === 2 ? f.dy + D - (y + 1) * 12 : f.dy + x * 12;
       return [sx + 6, sy + 6];

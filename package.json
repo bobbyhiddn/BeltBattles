@@ -1,7 +1,7 @@
 {
   "name": "beltbattles",
   "private": true,
-  "version": "0.9.8",
+  "version": "0.9.9",
   "type": "module",
   "description": "BeltBattles — industrial-fantasy conveyor autobattler (first playable prototype).",
   "scripts": {
@@ -12,6 +12,7 @@
     "test": "vitest run",
     "shot": "node scripts/shot.mjs",
     "typecheck:server": "tsc -p tsconfig.server.json",
+    "typecheck:tests": "node scripts/tscheck-tests.mjs",
     "build:server": "tsc -p tsconfig.server.json && vite build --config vite.server.config.ts",
     "server": "npm run build:server && node server/dist/ghost-server.mjs",
     "gen:ghosts": "npm run build:server && node server/dist/gen-ghost-pool.mjs",

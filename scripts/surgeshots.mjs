@@ -10,6 +10,7 @@ import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -41,6 +42,7 @@ log(`# surgeshots (CUSTOM-3, REVIEW-STAGE096 R5 b): ${DIST} at ${origin}, Chromi
 let bad = 0, errorsAll = 0;
 for (const [name, w, h] of VIEWS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));

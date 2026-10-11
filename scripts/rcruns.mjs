@@ -24,6 +24,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { VIEWS } from "./shots-list.mjs";
 import { scriptedRun } from "./playthrough.mjs";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const argv = process.argv.slice(2);
@@ -84,6 +85,7 @@ async function startServer(page, data, uploads, seed = true) {
 /** A fresh browser profile on `view`, with the console policy; `allow(text, location)` lets a known line through. */
 async function context(browser, view, pin, allow = () => false, init) {
   const ctx = await browser.newContext(view);
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   const page = await ctx.newPage();
   await page.addInitScript((r) => { Math.random = () => r; }, pin);
   if (init) await page.addInitScript(init);
@@ -114,7 +116,7 @@ async function offlineRuns(browser, offline) {
       const r = await scriptedRun(c.page, !!view.hasTouch, (s) => log(`  ${s}`), { days: 3, roads: "vev", check: "fresh", hero, buys: 8, pool: [] });
       await c.page.screenshot({ path: join(OUT, `offline-${hero}-${vname}-day3.png`) });
       const online = await c.page.evaluate(() => window.bb.online());
-      check(version === "0.9.8" && r.days.length >= 3, `offline ${hero} ${vname}: version ${version}, three days played (${r.days.join(" | ")})`);
+      check(version === "0.9.9" && r.days.length >= 3, `offline ${hero} ${vname}: version ${version}, three days played (${r.days.join(" | ")})`);
       check(online === null, `offline ${hero} ${vname}: no online session`);
       const other = c.requests.filter((q) => !/^GET (file|data|blob):/.test(q));
       check(other.length === 0, `offline ${hero} ${vname}: no request but the page (${c.requests.length} file:// requests, ${other.length} others${other.length ? `: ${other.slice(0, 3).join(", ")}` : ""})`);

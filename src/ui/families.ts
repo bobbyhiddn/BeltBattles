@@ -26,36 +26,50 @@ export const FAMILY: Readonly<Record<ModuleTag, Family>> = {
     tag: "FORGE", colour: C.fire3, mark: [".x.", "xxx", "xxx"], // a flame
     // Y6 (release Y; DESIGN-Y 4.1; BRIEF-Y6 words): POISON is retired (glossary.ts), so the line drops it (was "ADDS
     // DAMAGE, BURN, POISON OR FRAY ..."; a getter behind the star switch until the flip, Y7b2)
-    glossary: "ADDS DAMAGE, BURN OR FRAY TO EACH PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES.",
+    // WORDS-1 (REQ-BFG-081; READ-1 3.2): plain words, and the line is the tag's tap note now (keywords.ts familyTargets): was
+    // "ADDS DAMAGE, BURN OR FRAY TO EACH PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES."
+    glossary: "ADDS DAMAGE, {*BURN} OR {*FRAY} TO SLUGS ON THE BELT, OR MORE DAMAGE THE LONGER A SLUG RIDES.",
   },
   HARASS: {
     tag: "HARASS", colour: C.ice, mark: ["xx.", ".x.", ".xx"], // a bolt
     // NUM-3 (R1's STUN fold): every stop is a STUN (was "STALLS, FREEZES, SLOWS, WRECKS OR RIPS ...")
-    glossary: "STUNS, WRECKS OR RIPS ENEMY MACHINES; PAYS FOR DOING IT; OR STOPS THE ENEMY DOING IT TO YOU.",
+    // WORDS-1: was "STUNS, WRECKS OR RIPS ENEMY MACHINES; PAYS FOR DOING IT; OR STOPS THE ENEMY DOING IT TO YOU."
+    glossary: "STOPS OR ROBS ENEMY RIGS, FACTORIES, GUNS AND BELTS, PAYS FOR DOING IT, OR GUARDS YOURS.",
   },
   SWARM: {
     tag: "SWARM", colour: C.lime, mark: ["x.x", "...", "x.x"], // many
-    glossary: "MORE PAYLOADS AND MORE HITS: SECOND FACTORIES, BATCHES, COPIES, PELLETS AND LIGHT GUNS, AND WHAT PAYS FOR EACH PAYLOAD.",
+    // WORDS-1: was "MORE PAYLOADS AND MORE HITS: SECOND FACTORIES, BATCHES, COPIES, PELLETS AND LIGHT GUNS, AND WHAT PAYS FOR
+    // EACH PAYLOAD."
+    glossary: "MORE SLUGS AND MORE HITS: MORE FACTORIES, SPLIT SLUGS, PELLETS AND LIGHT GUNS, AND WHAT PAYS FOR EACH SLUG.",
   },
   BURST: {
     tag: "BURST", colour: C.red, mark: [".x.", "xxx", ".x."], // a burst
-    glossary: "FEWER, BIGGER HITS: HEAVY SLUGS AND ROUNDS, RIG CHAINS ON ONE PAYLOAD, FULL-CHAMBER VOLLEYS, PACKED AND CHARGED SHELLS, HEAVY GUNS.",
+    // WORDS-1: was "FEWER, BIGGER HITS: HEAVY SLUGS AND ROUNDS, RIG CHAINS ON ONE PAYLOAD, FULL-CHAMBER VOLLEYS, PACKED AND
+    // CHARGED SHELLS, HEAVY GUNS."
+    glossary: "FEWER, BIGGER HITS: HEAVY SLUGS, MANY RIGS ON ONE SLUG, A FULL CHAMBER FIRED AT ONCE, AND HEAVY GUNS.",
   },
   TEMPO: {
     tag: "TEMPO", colour: C.yellow, mark: ["xxx", ".x.", "xxx"], // an hourglass
     // Y7b2 (the words): LOAD TIME retires (glossary.ts RETIRED) and COMMISSION is an engine word, so the line says what each
     // is (was "..., FIRE RATE, LOAD TIME, COMMISSIONING, PULSES AND FUSES.")
-    glossary: "WHEN THINGS HAPPEN: BELT SPEED, FIRE RATE, HOW LONG A GUN WAITS TO FIRE, WHEN RIGS START, PULSES AND FUSES.",
+    // WORDS-1: was "WHEN THINGS HAPPEN: BELT SPEED, FIRE RATE, HOW LONG A GUN WAITS TO FIRE, WHEN RIGS START, PULSES AND FUSES."
+    glossary: "WHEN THINGS HAPPEN: BELT SPEED, HOW OFTEN A GUN FIRES, HOW LONG IT WAITS, WHEN RIGS START, AND TIMERS.",
   },
   TWIN: {
     tag: "TWIN", colour: C.blue, mark: ["x.x", "x.x", "x.x"], // two belts
-    glossary: "TWO BELTS INTO ONE GUN: MATCHED BELTS, PAIRS THAT ARRIVE TOGETHER, AND WHAT PAYS FOR A PAIR.",
+    // WORDS-1: was "TWO BELTS INTO ONE GUN: MATCHED BELTS, PAIRS THAT ARRIVE TOGETHER, AND WHAT PAYS FOR A PAIR."
+    glossary: "TWO BELTS INTO ONE GUN: BELTS AS LONG AS EACH OTHER, A {*PAIR}, AND WHAT PAYS FOR ONE.",
   },
   PLATE: {
     tag: "PLATE", colour: C.plate3, mark: ["xxx", "x.x", "xxx"], // a plate
-    glossary: "A HULL THAT OUTLASTS THE FIGHT: PLATING, REPAIR AND GUARDS, AND WHAT TURNS PLATING INTO DAMAGE.",
+    // WORDS-1: was "A HULL THAT OUTLASTS THE FIGHT: PLATING, REPAIR AND GUARDS, AND WHAT TURNS PLATING INTO DAMAGE."
+    glossary: "A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*HEAL} AND GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.",
   },
 };
+
+/** WORDS-1 (REQ-BFG-081; READ-1 3.2: the family tags drew 403 of round A's 1,172 "not understood" flags; cap's design call
+ *  4): what a tap on a family tag in a panel's header shows (keywords.ts familyTargets): its name, then its line. */
+export const familyNote = (tag: ModuleTag): string => `${tag}: ${FAMILY[tag].glossary}`;
 
 /** A module's families in FAMILY_ORDER ([] for a generalist, a supply or an unknown id). */
 export function familiesOf(def: string): ModuleTag[] {

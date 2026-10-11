@@ -191,7 +191,10 @@ function installKit() {
         const o = i * 4;
         if (full[o] !== part[o] || full[o + 1] !== part[o + 1] || full[o + 2] !== part[o + 2]) mask[i] = 1;
       }
-      out.push(blob(mask, W, H));
+      // SCOUT-1 (REQ-BFG-076; FIELD-1 known gap 4): the blob is in canvas px; the battle's canvas runs on a finer grid,
+      // view.sub canvas px per logical px (game/viewGrid.ts; the title keeps 1), so it goes to logical px here
+      const b = blob(mask, W, H), sub = game.view.sub ?? 1;
+      out.push(b && sub !== 1 ? { n: b.n, x: b.x / sub, y: b.y / sub, w: b.w / sub, h: b.h / sub } : b);
     }
     game.render(); // the whole frame again: the one the screenshot shows
     return out;
@@ -226,6 +229,9 @@ function installKit() {
       over: a.b.over, clock: a.clock, hp: [a.b.sides[0].hull.hp, a.b.sides[1].hull.hp], ...extra,
     };
   };
+  /** SCOUT-1 (REQ-BFG-076): the title's hull boxes as it lays them out. TitleScreen.hulls (this script's source, 0.9.7's
+   *  `this.hulls = this.L.hulls`) left with 0.9.8's motion tidy; layoutInfo().hulls is the same layout's boxes. */
+  const titleHulls = (s) => s.hulls ?? s.layoutInfo().hulls;
   window.__intro = {
     hold, step, open, measure,
     /** The saved run: none ("new"), or a day-3 FURNACE run saved by its build screen ("save": CONTINUE shows). */
@@ -254,12 +260,12 @@ function installKit() {
       open("title");
       step(frames);
       const s = g().screen;
-      return measure(s.arena, s.hulls, { frames, screen: window.bb.screen() });
+      return measure(s.arena, titleHulls(s), { frames, screen: window.bb.screen() });
     },
     stepTitle(frames) {
       step(frames);
       const s = g().screen;
-      return measure(s.arena, s.hulls, { screen: window.bb.screen() });
+      return measure(s.arena, titleHulls(s), { screen: window.bb.screen() });
     },
     /** The title's HOW TO PLAY card or OPTIONS card open on this frame (no step): their regions in CSS px, and the
      *  menu scale's view (0350e5f's title scale: io.ts defaultScale) for the card's old width. */
@@ -279,15 +285,23 @@ function installKit() {
       s.menu = false;
       game.render();
     },
-    /** The real dusk battle (bb.open("battle")), `secs` into its fight. */
+    /** The real dusk battle (bb.open("battle")), `secs` into its fight. SCOUT-1 (REQ-BFG-076): FIGHT pressed after
+     *  scouting (bb.fight), and the hull boxes as drawn: the layout's at rest through the battle's camera (FIELD-1's WIDE;
+     *  motion.scr maps rest px to the screen's logical px), with the canvas's finer grid read in drawnBoxes. */
     battle(secs) {
       open("battle");
       const game = g();
       let f = 0;
-      while (game.screen.phase !== "fight" && f < 60 * 30) { step(1); f++; }
+      while (game.screen.phase !== "fight" && f < 60 * 30) {
+        if (game.screen.phase === "scout") window.bb.fight?.();
+        step(1);
+        f++;
+      }
       step(Math.round(secs * 60));
       const s = game.screen;
-      return measure(s.arena, s.L.hulls, { phase: s.phase, screen: window.bb.screen() });
+      const m = s.motion?.camera ? s.motion.scr : null;
+      const hulls = m ? s.L.hulls.map((b) => ({ x: m.a * b.x + m.e, y: m.d * b.y + m.f, w: m.a * b.w, h: m.d * b.h })) : s.L.hulls;
+      return measure(s.arena, hulls, { phase: s.phase, screen: window.bb.screen(), sub: game.view.sub ?? 1, zoom: s.motion?.camera?.zoom ?? 1 });
     },
   };
 }

@@ -24,6 +24,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { VIEWS as SHOT_VIEWS } from "./shots-list.mjs";
 import { inlineBuild } from "./inline.mjs";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const argv = process.argv.slice(2);
@@ -84,7 +85,9 @@ async function cardAt(page, def) {
 /** The client point at the centre of placed item `uid` on the deck (heroshots.mjs tapSignature's way). */
 async function itemAt(page, uid) {
   return page.evaluate((uid) => {
-    const c = window.bb.game.screen.fuseAnimPos({ where: "deck", survivor: uid });
+    const s = window.bb.game.screen, c0 = s.fuseAnimPos({ where: "deck", survivor: uid });
+    // ZOOM-1 (REQ-BFG-080): that centre is in the carrier's space; on screen through its zoom (BuildScreen.carrierView)
+    const v = typeof s.carrierView === "function" ? s.carrierView() : null, c = v ? { x: v.x + v.k * (c0.x - v.x), y: v.y + v.k * (c0.y - v.y) } : c0;
     return window.bb.toClient(c.x, c.y);
   }, uid);
 }
@@ -141,6 +144,7 @@ async function main() {
   for (const [vname, vopts] of Object.entries(VIEWS)) {
     const touch = !!vopts.hasTouch;
     const ctx = await browser.newContext(vopts);
+    await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
     const page = await ctx.newPage();
     await page.addInitScript(() => { Math.random = () => 0.3; });
     const errors = [];

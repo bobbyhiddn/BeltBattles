@@ -9,6 +9,7 @@ import { chromium } from "playwright-core";
 import { readFile, mkdir } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { SHOTS, VIEWS, prep } from "./shots-list.mjs";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const [distArg, outArg] = process.argv.slice(2);
 if (!distArg || !outArg) throw new Error("usage: node scripts/shots-det.mjs <build dir> <outDir>");
@@ -58,6 +59,7 @@ for (const [vname, vopts] of Object.entries(VIEWS)) {
   const shots = SHOTS.filter(([, v]) => v === vname);
   if (!shots.length) continue;
   const ctx = await browser.newContext(vopts);
+  await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
   await ctx.route(`${ORIGIN}/**`, serve);
   const page = await ctx.newPage();
   await page.addInitScript(() => {

@@ -15,10 +15,23 @@
 // exactly today's draw calls and keys (`ship:<hero>`, `shipR:<hero>:<deg>`, `shipS:<hero>:<deg>`); a style's key carries
 // its id (`<hero>:<style>`; render/ship.ts shipKey), so it never reuses the default's canvas.
 
+// FIELD-1 (REQ-BFG-075): the carrier rides each medium through a layer under the hull; the hull art never changes. On
+// water the ship canvas is today's, its bow wave included (keys unchanged). On ground and in the air there is no bow
+// wave: the canvas draws, under the hull, tread units (GROUND) or engine pods with their exhaust glow (AIR) along both
+// flanks, showing a few px past the hull's outline. Their canvases add the medium to the key (`ship:<key>:<medium>`,
+// `shipR:<key>:<medium>:<deg>`, `shipS:<key>:<medium>:<deg>`). The outline, the board plate, PIVOT_X, the mounts and the
+// rotation canvases are the same in every medium, so taps, shots and motion are unchanged.
+
 import { C, type FactionPalette } from "./palette";
 import { makeCanvas, rect, silhouette, type G } from "./pixel";
 import type { Facing } from "./frame";
 import type { CarrierStyle } from "./styles";
+
+/** FIELD-1: what the carrier rides (render/scenery.ts Medium; repeated here so this module imports no scenery). */
+export type ShipMedium = "water" | "ground" | "air";
+
+/** The cache key's medium part: none on water (today's keys). */
+const mk = (medium: ShipMedium): string => (medium === "water" ? "" : `:${medium}`);
 
 type Cv = HTMLCanvasElement;
 
@@ -70,16 +83,17 @@ function insideShip(x: number, y: number): boolean {
 
 /** The ship at heading 0 (bow right), its bow wave under it. Light falls from the upper left (STUDY rule 4). CUSTOM-3:
  *  `st` (a carrier style with a paint) repaints and dresses it; absent (or WAR COLOURS), today's ship exactly. */
-function shipBase(key: string, P: FactionPalette, st?: CarrierStyle): Cv {
-  return cached(`ship:${key}`, () => {
+function shipBase(key: string, P: FactionPalette, st?: CarrierStyle, medium: ShipMedium = "water"): Cv {
+  return cached(`ship:${key}${mk(medium)}`, () => {
     const [c, g] = makeCanvas(SHIP_L + 2 * M, STERN_B + 2 * M);
     const cy = STERN_B / 2;
     const s = st?.paint ? st : undefined;
     const H = s?.paint ?? [P.hull0, P.hull1, P.hull2, P.hull3, P.hull4];
     const id = s?.id;
-    // bow wave: foam 1-3 px off the hull along the bow's taper, thinning toward the beam
+    if (medium !== "water") underLayer(g, P, medium); // FIELD-1: treads or engine pods, under the hull
+    // bow wave: foam 1-3 px off the hull along the bow's taper, thinning toward the beam (on water only)
     const w0 = SHIP_L - BOW_TAPER - 6;
-    for (let x = w0; x < SHIP_L + 3; x++) {
+    for (let x = w0; x < SHIP_L + 3 && medium === "water"; x++) {
       for (let y = Math.floor(cy - SHIP_B / 2) - 3; y < cy + SHIP_B / 2 + 3; y++) {
         if (insideShip(x, y)) continue;
         let near = 9;
@@ -339,12 +353,74 @@ function casemate(g: G, P: FactionPalette, H: readonly string[]): void {
   for (const [k, dy] of [[0, -24], [1, -13], [2, 11], [3, 22]]) rect(g, M + x0 + w - 4, M + cy + dy, 2, 3, k % 2 ? P.trim2 : P.glow);
 }
 
+/** FIELD-1: the units the carrier rides on, outboard of the hull along both flanks (ship-local: x from the stern; across,
+ *  UNDER_IN..UNDER_OUT px from the centre line), so they show past the board plate's long edges (the plate covers the
+ *  middle of the ship: 70 px either side of the centre line in portrait, 65 in landscape). GROUND: one long track a
+ *  flank, the length of the ship (x 8..150) on three struts; AIR: two engine pods a flank (x 34..74 and 96..128) on
+ *  pylons, each with its exhaust glowing aft and a spinning prop's blur fore. */
+export const UNDER_IN = 70, UNDER_OUT = 78;
+export const TRACK: readonly [number, number] = [8, 150];
+export const PODS: readonly [number, number][] = [[34, 74], [96, 128]];
+/** Where the dust (ground: the track's aft end) and the contrails (air: the aft pod's exhaust) leave the carrier,
+ *  ship-local about the pivot: x aft of it, y either side. */
+export const EMIT: Record<"ground" | "air", readonly [number, number]> = {
+  ground: [TRACK[0] - PIVOT_X, (UNDER_IN + UNDER_OUT) / 2],
+  air: [PODS[0][0] - PIVOT_X, (UNDER_IN + UNDER_OUT) / 2],
+};
+
+function underLayer(g: G, P: FactionPalette, medium: ShipMedium): void {
+  const cy = STERN_B / 2, w = UNDER_OUT - UNDER_IN;
+  for (const side of [-1, 1]) {
+    const y = side < 0 ? cy - UNDER_OUT : cy + UNDER_IN; // the unit's top row
+    const lit = side < 0; // the upper flank faces the light (from the upper left)
+    // struts or pylons from the hull's side out to the unit (under the hull, so only their outboard part shows)
+    const struts = medium === "ground" ? [30, 78, 126] : [46, 54, 104, 116];
+    for (const x of struts) {
+      const y0 = side < 0 ? cy - UNDER_IN : cy + 30, y1 = side < 0 ? cy - 30 : cy + UNDER_IN;
+      rect(g, M + x - 1, M + y0, 4, y1 - y0, C.ink);
+      rect(g, M + x, M + y0, 2, y1 - y0, lit ? C.steel2 : C.steel1);
+    }
+    if (medium === "ground") {
+      // a long track: ink rim, steel links (a bar every 3 px), road wheels along the middle, a sprocket aft, an idler fore
+      const [x0, x1] = TRACK, L = x1 - x0;
+      rect(g, M + x0, M + y, L, w, C.ink);
+      rect(g, M + x0 + 1, M + y + 1, L - 2, w - 2, C.steel0);
+      for (let x = x0 + 2; x < x1 - 1; x += 3) rect(g, M + x, M + y + 1, 1, w - 2, lit ? C.steel2 : C.steel1);
+      rect(g, M + x0 + 1, M + y + 1, L - 2, 1, lit ? C.steel3 : C.steel2);
+      rect(g, M + x0 + 1, M + y + w - 2, L - 2, 1, C.ink);
+      for (let x = x0 + 9; x < x1 - 8; x += 12) {
+        rect(g, M + x, M + y + 2, 4, w - 4, C.ink);
+        rect(g, M + x + 1, M + y + 3, 2, w - 6, lit ? C.steel3 : C.steel2);
+      }
+      for (const x of [x0 + 1, x1 - 6]) {
+        rect(g, M + x, M + y + 1, 5, w - 2, C.ink);
+        rect(g, M + x + 1, M + y + 2, 3, w - 4, P.trim1);
+        rect(g, M + x + 2, M + y + 3, 1, w - 6, P.trim2);
+      }
+    } else {
+      for (const [x0, x1] of PODS) {
+        // a nacelle: rounded ends, a lit top, the faction's trim band, the exhaust aft (the faction's glow), a prop fore
+        const L = x1 - x0;
+        rect(g, M + x0 + 1, M + y, L - 2, w, C.ink);
+        rect(g, M + x0, M + y + 1, L, w - 2, C.ink);
+        rect(g, M + x0 + 1, M + y + 1, L - 2, w - 2, C.steel1);
+        rect(g, M + x0 + 2, M + y + 1, L - 4, 1, lit ? C.steel3 : C.steel2);
+        rect(g, M + x0 + 2, M + y + w - 2, L - 4, 1, C.steel0);
+        rect(g, M + x0 + Math.floor(L / 2) - 1, M + y + 1, 3, w - 2, P.trim1);
+        rect(g, M + x0 + 1, M + y + 2, 3, w - 4, P.glow);
+        rect(g, M + x0, M + y + 3, 1, w - 6, C.white);
+        for (let k = -4; k < w + 4; k++) if ((k & 1) === 0) rect(g, M + x1, M + y + k, 1, 1, C.steel2); // the prop's blur
+      }
+    }
+  }
+}
+
 /** The ship turned by `deg` (whole degrees, + = bow up), on a ROT_W x ROT_H canvas whose (ROT_X, ROT_Y) is the pivot.
  *  Nearest-neighbour rotation once per angle, then cached: blitted at whole pixels it stays crisp. CUSTOM-3: `st`, a
- *  carrier style (the caller's `key` names it; render/ship.ts shipKey). */
-export function shipSprite(key: string, P: FactionPalette, deg: number, st?: CarrierStyle): Cv {
-  return cached(`shipR:${key}:${deg}`, () => {
-    const base = shipBase(key, P, st);
+ *  carrier style (the caller's `key` names it; render/ship.ts shipKey). FIELD-1: `medium` (water: today's key). */
+export function shipSprite(key: string, P: FactionPalette, deg: number, st?: CarrierStyle, medium: ShipMedium = "water"): Cv {
+  return cached(`shipR:${key}${mk(medium)}:${deg}`, () => {
+    const base = shipBase(key, P, st, medium);
     const [c, g] = makeCanvas(ROT_W, ROT_H);
     g.imageSmoothingEnabled = false;
     g.translate(ROT_X, ROT_Y);
@@ -355,8 +431,8 @@ export function shipSprite(key: string, P: FactionPalette, deg: number, st?: Car
 }
 
 /** The ship's shadow (ink silhouette) at the same angle. */
-export function shipShadow(key: string, P: FactionPalette, deg: number, st?: CarrierStyle): Cv {
-  return cached(`shipS:${key}:${deg}`, () => silhouette(shipSprite(key, P, deg, st), C.ink));
+export function shipShadow(key: string, P: FactionPalette, deg: number, st?: CarrierStyle, medium: ShipMedium = "water"): Cv {
+  return cached(`shipS:${key}${mk(medium)}:${deg}`, () => silhouette(shipSprite(key, P, deg, st, medium), C.ink));
 }
 
 /** CUSTOM-3 tooling and tests: the cache keys the ship canvases are stored under (read only). */

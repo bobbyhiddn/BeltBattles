@@ -18,6 +18,7 @@
 import { chromium } from "playwright-core";
 import { readFile, mkdir } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -201,6 +202,7 @@ async function main() {
   let T = null; // RUNES-2a: the seed and its walk (findTiers), found once
   for (const [vname, vopts] of Object.entries(VIEWS)) {
     const ctx = await browser.newContext(vopts);
+    await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
     await ctx.route(`${ORIGIN}/**`, serve);
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`[${vname}] pageerror: ${e.message}`));

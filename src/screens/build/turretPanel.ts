@@ -129,8 +129,9 @@ export function emptySlotPanel(b: Build, t: number): PanelText {
   const s = hullSlots(b.hero)[t];
   const body: Block[] = [
     ...deadEndLines(b, t).map((text): Block => ({ role: "warn", text, keep: true })),
-    { role: "ability", text: "IT TAKES ANY TURRET.", keep: true },
-    { role: "ability", text: "AN EMPTY SLOT TAKES NO BELTS AND HAS NO CORE SOCKET OR GEAR SLOTS.", rank: 2 },
+    // EXPLAIN-1 (REQ-BFG-089, E1f): both are true of every empty slot (kind text): its ⓘ NOTES, not its face
+    { role: "ability", text: "IT TAKES ANY TURRET.", keep: true, note: "kind" },
+    { role: "ability", text: "AN EMPTY SLOT TAKES NO BELTS AND HAS NO CORE SOCKET OR GEAR SLOTS.", rank: 2, note: "kind" },
     { role: "hint", text: "DRAG A TURRET HERE FROM CARGO OR THE SHOP.", rank: 6 },
   ];
   const short: Block[] = [...deadEndLines(b, t, true).map((text): Block => ({ role: "warn", text, keep: true })), ...body.filter((x) => x.role !== "warn")];

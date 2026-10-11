@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["tests", "src/env.d.ts", "server/node.d.ts", "tools/node-smoke.d.ts", "tools/node-threads.d.ts"]
+}

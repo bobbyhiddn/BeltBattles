@@ -15,12 +15,16 @@ import type { Side } from "../sim/battle";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
+import { wrap } from "../render/font"; // WIND-1 (REQ-BFG-093): the callout's smaller line, where the floor is narrow
 import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): SHIELD's pips and REGEN's badge, one source
+import type { SideFx } from "../game/arena"; // WIND-1: the bars' wind flash
+import type { ArenaMotion } from "../game/arenaMotion"; // WIND-1: the callout's floor, through the camera
+import { PLATE_COLOUR, SHIELD_COLOUR } from "../game/arenaReact"; // WIND-1 (REQ-BFG-097): plating's and SHIELD's colours (ICON_COLOUR)
 import { SHIELD_CAP } from "../sim/content"; // SUS-B: the pips' count
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: the REGEN badge prints as the faces print REGEN
-import { fmtClock, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results
+import { fmtClock, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results; WIND-1: SHIELD's count
 import { heartIcon } from "../render/sprites";
-import { button, panel, statsPanel, type Rect } from "../ui/ui";
+import { button, panel, statsPanel, tapRect, type Rect } from "../ui/ui";
 import { skinOf } from "../render/styles"; // CUSTOM-2a (REQ-BFG-072): the plate wears its board's panel style
 import { hullBar } from "../ui/hud";
 import { CLANK_TIME, STRIP_H, drawPlatingStrip } from "../render/raceFx"; // 0.8.0 H1 M3: BASTION's plating strip
@@ -67,48 +71,142 @@ export function plateSource(name: string, note: string): { tag: string; name: st
 /** The tag as the plate draws it, before the name: "ONLINE ·". */
 export const plateTag = (tag: string) => `${tag} ·`;
 
+/** WIND-1 (REQ-BFG-093): the least hull bar a plate keeps where it can (logical px). The hull's "/max", then SHIELD's pips
+ *  (its count stays, after one SHIELD glyph), then REGEN's badge give way to it, in that order; the current hull never does. */
+export const BAR_MIN = 36;
+
+/** WIND-1: the plating strip's colours on the plate (raceFx.ts drawPlatingStrip's `cols`): plate2 full, plate1 part full,
+ *  plate3 its top edge and the shine (was the rune blue SHIELD wears). */
+const PLATE_STRIP = { full: C.plate2, part: C.plate1, edge: C.plate3, shine: C.plate3 } as const;
+
+/** WIND-1 (REQ-BFG-093, REQ-BFG-097): a plate's row, left to right: [tag] NAME [SHIELD] [the hull bar, plating's layer on
+ *  it] [PLATE n] [+REGEN] HULL. `ty` is the 3x5 row's top, `hy` the hull number's (the 5x7 face, which every plate's height
+ *  holds); x positions are left edges but `regenX`, the badge's right edge. */
+export interface PlateRow {
+  ty: number;
+  hy: number;
+  hull: string;
+  max: string | null;
+  hullX: number;
+  shield: { x: number; pips: boolean; count: string } | null;
+  /** plating's number (`text`, digits only) after the PLATE icon at `x`, ICON_GAP px apart (flush, the 3x5 icon read as a 7) */
+  plate: { x: number; text: string } | null;
+  regenX: number | null;
+  bar: { x: number; w: number };
+}
+
+/**
+ * WIND-1 (REQ-BFG-093, REQ-BFG-097): the plate's row in the plate's own rect (the layout never changes: no plate grows).
+ * The hull: its current hull (fmtDmg of s.hull.hp, read directly) in the 5x7 face, and "/max" (fmtDmg of s.hull.max) after
+ * it in the 3x5 face where the bar keeps BAR_MIN; `shield` (null: the side can't hold SHIELD) its count, after its pips where
+ * room allows; `plate` (null: no plating layer) plating's number with the PLATE icon; `regenRoom` REGEN's badge room (0:
+ * none). `lead`: the tag's and the name's width from the plate's left text edge. Pure (tests/wind1.test.ts).
+ */
+export function plateRow(o: { x: number; y: number; w: number; h: number; lead: number; hp: number; max: number; shield: number | null; regenRoom: number; plate: number | null }): PlateRow {
+  const ty = o.y + Math.floor((o.h - 5) / 2), hy = o.y + Math.max(0, Math.floor((o.h - 7) / 2));
+  const hull = fmtDmg(Math.max(0, o.hp)), max = `/${fmtDmg(o.max)}`;
+  const curW = textWidth(hull, "5"), maxW = textWidth(max, "3") + 1;
+  const count = o.shield === null ? "" : fmtCount(o.shield);
+  const pipsW = SHIELD_PIPS_W + ICON_GAP + textWidth(count, "3"), oneW = textWidth(ICON.SHIELD, "3") + ICON_GAP + textWidth(count, "3");
+  const plateText = o.plate === null ? "" : fmtDmg(o.plate), plateW = textWidth(ICON.PLATE, "3") + ICON_GAP + textWidth(plateText, "3");
+  const right = o.x + o.w - 3, left = o.x + 3 + o.lead + 3;
+  const forms = [[true, true, true], [false, true, true], [false, false, true], [false, false, false]];
+  let row: PlateRow | null = null;
+  for (let i = 0; i < forms.length; i++) {
+    const [withMax, pips, regen] = forms[i];
+    const hullX = right - curW - (withMax ? maxW : 0);
+    let rx = hullX - 3;
+    const regenX = o.regenRoom && regen ? rx : null;
+    if (regenX !== null) rx -= o.regenRoom;
+    const plate = o.plate === null ? null : { x: rx - plateW, text: plateText };
+    if (plate) rx = plate.x - 3;
+    let lx = left;
+    const shield = o.shield === null ? null : { x: lx, pips, count };
+    if (shield) lx += (pips ? pipsW : oneW) + 3;
+    row = { ty, hy, hull, max: withMax ? max : null, hullX, shield, plate, regenX, bar: { x: lx, w: rx - lx } };
+    if (row.bar.w >= BAR_MIN) break;
+  }
+  return row!;
+}
+
+/** WIND-1 (REQ-BFG-097): the gap between an icon and its number on the plate (px): flush, the 3x5 PLATE icon and a digit
+ *  read as one number ("70" for plating 0). */
+export const ICON_GAP = 2;
+
+/** WIND-1 tooling (bb.windInfo): a plate as drawn: its rect, its hull text ("current" or "current/max"), the hull number's
+ *  box and face, the bar's box, the SHIELD count and plating number shown (null: none). */
+export interface PlateInfo {
+  side: Side;
+  r: Rect;
+  hull: string;
+  font: "5";
+  hullBox: Rect;
+  bar: Rect;
+  shield: string | null;
+  plate: string | null;
+  windFlash: boolean;
+}
+
 /** Name plate: [NAME ▮▮▮▮▮▮▮▮ 147] on a dark panel, player lime / enemy red. 0.7.0 (R1 M1): `tag` (online, the enemy
- *  plate where no row is free above it) goes first, grey: [ONLINE · WEAVER · 0W 5♥ ▮▮▮▮ 147]. */
-export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name: string, hpText: string, tag?: string): void {
+ *  plate where no row is free above it) goes first, grey: [ONLINE · WEAVER · 0W 5♥ ▮▮▮▮ 147]. WIND-1 (REQ-BFG-093,
+ *  REQ-BFG-097): the row is plateRow's: the hull as a number you can read (white, the 5x7 face, "/max" where it fits; read
+ *  from s.hull directly, so `hpText` is no longer drawn), SHIELD's count with its pips, plating's layer with its number in
+ *  plating's colour; the bar flashes the wind's colour on a wind tick. Returns what it drew (tooling). */
+export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name: string, hpText: string, tag?: string): PlateInfo {
+  void hpText; // WIND-1: the plate reads the hull itself (current and max)
   const s = a.b.sides[side];
   const f = a.sfx[side];
   statsPanel(g, r, skinOf(a.views[side].skin).panel); // CUSTOM-2a: the player's plate wears its panel style; a foe's the default
   let tx = r.x + 3;
-  const ty = r.y + Math.floor((r.h - 5) / 2);
+  const ty0 = r.y + Math.floor((r.h - 5) / 2);
   if (tag) {
     const t = plateTag(tag);
-    drawText(g, t, tx, ty, C.slate4, { font: "3" });
+    drawText(g, t, tx, ty0, C.slate4, { font: "3" });
     tx += textWidth(t, "3") + 4;
   }
   const nameW = textWidth(name, "3");
-  const hpW = textWidth(hpText, "3");
-  drawText(g, name, tx, ty, side === 0 ? C.white : C.red, { font: "3" });
-  drawText(g, hpText, r.x + r.w - 3, ty, C.bone, { font: "3", align: "right" });
-  let bx = tx + nameW + 3, bw = r.x + r.w - 3 - hpW - 3 - bx;
+  drawText(g, name, tx, ty0, side === 0 ? C.white : C.red, { font: "3" });
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): a side that can hold SHIELD shows its pips before its bar (lit up to its count, the
-  // rest of SHIELD_CAP dim; a broken one flashes out), and a side with REGEN (MENDING LOOMs, FLIP-X1: or GREEN THREAD) its REGEN badge before its HP. Their
-  // room is kept from the start, so the bar never moves; a plate without either draws exactly as before
-  if (bw > 8 + SHIELD_PIPS_W && showsShield(a, side)) {
-    drawShieldPips(g, bx, ty, s.shield ?? 0, f.shieldBreak > 0 ? f.shieldAt : -1, game.t);
-    bx += SHIELD_PIPS_W + 3;
-    bw -= SHIELD_PIPS_W + 3;
+  // rest of SHIELD_CAP dim; a broken one flashes out), and a side with REGEN (MENDING LOOMs, FLIP-X1: or GREEN THREAD) its
+  // REGEN badge before its HP. Their room is kept from the start, so the bar never moves. WIND-1 (REQ-BFG-097): SHIELD's
+  // count after its pips; plating's layer (whenever plated() or the side holds any) with its number
+  const shows = showsShield(a, side), plating = plated(a, side) || s.plate.plate > 0;
+  const rmax = regenMax(a, side), regenRoom = rmax > 0 ? textWidth(`+${fmtDmg(rmax)}`, "3") + 3 : 0;
+  const row = plateRow({ x: r.x, y: r.y, w: r.w, h: r.h, lead: tx - (r.x + 3) + nameW, hp: s.hull.hp, max: s.hull.max, shield: shows ? s.shield ?? 0 : null, regenRoom, plate: plating ? s.plate.plate : null });
+  const ty = row.ty;
+  drawText(g, row.hull, row.hullX, row.hy, C.white, { font: "5" });
+  if (row.max) drawText(g, row.max, row.hullX + textWidth(row.hull, "5") + 1, row.hy + 2, C.bone, { font: "3" });
+  const broke = f.shieldBreak > 0 ? f.shieldAt : -1;
+  if (row.shield) {
+    const n = s.shield ?? 0;
+    if (row.shield.pips) {
+      drawShieldPips(g, row.shield.x, ty, n, broke, game.t);
+      drawText(g, row.shield.count, row.shield.x + SHIELD_PIPS_W + ICON_GAP, ty, SHIELD_COLOUR, { font: "3" });
+    } else {
+      const flash = broke >= n && f.shieldBreak > 0 && (settings.reducedMotion || Math.floor(game.t * 12) % 2 === 0);
+      drawText(g, ICON.SHIELD, row.shield.x, ty, n > 0 ? SHIELD_COLOUR : flash ? C.white : C.slate2, { font: "3", mono: true });
+      drawText(g, row.shield.count, row.shield.x + textWidth(ICON.SHIELD, "3") + ICON_GAP, ty, SHIELD_COLOUR, { font: "3" });
+    }
   }
-  const rmax = regenMax(a, side), room = rmax > 0 ? textWidth(`+${fmtDmg(rmax)}`, "3") + 3 : 0;
-  if (room && bw > 8 + room) {
+  if (row.regenX !== null) {
     const now = regenNow(a, side);
-    if (now > 0) drawText(g, `+${fmtDmg(now)}`, r.x + r.w - 3 - hpW - 3, ty, ICON_COLOUR[ICON.REGEN], { font: "3", align: "right" });
-    bw -= room;
+    if (now > 0) drawText(g, `+${fmtDmg(now)}`, row.regenX, ty, ICON_COLOUR[ICON.REGEN], { font: "3", align: "right" });
   }
-  if (bw > 8 && plated(a, side)) {
+  if (row.plate) {
+    drawText(g, ICON.PLATE, row.plate.x, ty, PLATE_COLOUR, { font: "3", mono: true });
+    drawText(g, row.plate.text, row.plate.x + textWidth(ICON.PLATE, "3") + ICON_GAP, ty, PLATE_COLOUR, { font: "3" });
+  }
+  const bx = row.bar.x, bw = row.bar.w;
+  if (bw > 8 && plating) {
     // 0.8.0 H1 M3: BASTION's plating strip on top of the hull bar, in the bar's 7 rows: plating takes hits before HP, so
     // the strip drains (white where just lost) while the bar below holds; the dark wind goes straight to the bar
     // 0.8.0 I1 M4: the side's pool (P1's E1: SideState.plate, which IS BASTION's RaceSide.plating), so wave 3's plating
-    // shows on any hull that holds a source of it
+    // shows on any hull that holds a source of it. WIND-1 (REQ-BFG-097): in plating's colours, its number beside the bar
     // HULL-1d (REQ-BFG-079): the strip's full width is the pool's own cap (platingMax: PLATE_CAP x S(d) on the day's hull),
     // its segments the slugs that fill it, as before (the cap and a slug's plating both take S)
-    drawPlatingStrip(g, bx, ty - 1, bw, s.plate.plate, f.plateShown, platingMax(s), PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME);
-    hullBar(g, bx, ty - 1 + STRIP_H, bw, 7 - STRIP_H, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t);
-  } else if (bw > 8) hullBar(g, bx, ty - 1, bw, 7, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t);
+    drawPlatingStrip(g, bx, ty - 1, bw, s.plate.plate, f.plateShown, platingMax(s), PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME, PLATE_STRIP);
+    hullBar(g, bx, ty - 1 + STRIP_H, bw, 7 - STRIP_H, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t, windTint(f));
+  } else if (bw > 8) hullBar(g, bx, ty - 1, bw, 7, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t, windTint(f));
   // status pips: fray / burn
   const burn = s.hull.burns.length;
   if (s.hull.fray > 0 || burn > 0) {
@@ -116,6 +214,72 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     if (s.hull.fray > 0) rect(g, px - 2, r.y - 2, 2, 2, C.ice);
     if (burn > 0) rect(g, px - 5, r.y - 2, 2, 2, C.fire3);
   }
+  const hullW = textWidth(row.hull, "5") + (row.max ? textWidth(row.max, "3") + 1 : 0);
+  return {
+    side, r: { ...r }, hull: row.max ? `${row.hull}${row.max}` : row.hull, font: "5", hullBox: { x: row.hullX, y: row.hy, w: hullW, h: 7 },
+    bar: { x: bx, y: ty - 1, w: Math.max(0, bw), h: 7 }, shield: row.shield ? row.shield.count : null, plate: row.plate ? row.plate.text : null,
+    windFlash: f.windFlash > 0,
+  };
+}
+
+/** WIND-1 (REQ-BFG-093): the hull bar's tint on a dark wind tick (both bars: arenaReact windPop sets each side's flash), or
+ *  none. */
+export const windTint = (f: Pick<SideFx, "windFlash">): string | undefined => (f.windFlash > 0 ? C.windHit : undefined);
+
+/** WIND-1 (REQ-BFG-093): the DARK WIND callout's words (docs/TEXT-STYLE.md: game words in capitals; the old banner's
+ *  "THE STORM HURTS BOTH HULLS", cut to what the player needs) and how long it shows (s, real time; once a fight). */
+export const WIND_CALL = "DARK WIND";
+export const WIND_CALL_SUB = "HITS BOTH HULLS";
+export const WIND_CALL_TIME = 2;
+/** WIND-1: the callout's wipe open from its centre (s; none with Reduce Motion). */
+const WIND_CALL_WIPE = 0.2;
+/** WIND-1: the margin kept from each carrier in the open floor (logical px), for their drift. */
+const FLOOR_PAD = 4;
+
+/**
+ * WIND-1 (REQ-BFG-093): the open floor between the carriers as it is on screen now (logical px): the layout's gapBox through
+ * the camera's screen map (FIELD-1: WIDE draws the floor smaller about its focus), FLOOR_PAD in from each carrier. Portrait
+ * takes the floor's rows across the whole screen (nothing else is in them: a face's band does the same); landscape its
+ * column between the carriers. Without a camera, the gapBox itself.
+ */
+export function floorOnScreen(L: Pick<BattleLayout, "portrait" | "gapBox" | "W">, m: Pick<ArenaMotion, "camera" | "scr"> | null): Rect {
+  const gb = L.gapBox, s = m && m.camera ? m.scr : null;
+  const x = s ? s.a * gb.x + s.e : gb.x, y = s ? s.d * gb.y + s.f : gb.y;
+  const w = s ? s.a * gb.w : gb.w, h = s ? s.d * gb.h : gb.h;
+  if (L.portrait) return { x: 2, y: Math.round(y) + FLOOR_PAD, w: L.W - 4, h: Math.max(0, Math.round(h) - 2 * FLOOR_PAD) };
+  return { x: Math.round(x) + FLOOR_PAD, y: Math.round(y), w: Math.max(0, Math.round(w) - 2 * FLOOR_PAD), h: Math.round(h) };
+}
+
+/** WIND-1: the callout's box in `floor` (centred) and its text: DARK WIND in the 5x7 face, twice its size where the floor
+ *  holds it, once where it doesn't; the smaller line in the 3x5 face, on two lines where one won't fit. */
+export function windCallLayout(floor: Rect): { r: Rect; scale: number; lines: string[] } {
+  const scale = textWidth(WIND_CALL) * 2 + 10 <= floor.w ? 2 : 1;
+  const lines = textWidth(WIND_CALL_SUB, "3") + 10 <= floor.w ? [WIND_CALL_SUB] : wrap(WIND_CALL_SUB, Math.max(8, floor.w - 10), "3");
+  const tw = Math.max(textWidth(WIND_CALL) * scale, ...lines.map((l) => textWidth(l, "3")));
+  const w = Math.min(Math.max(0, floor.w), tw + 10), h = 4 + 7 * scale + 3 + lines.length * 6 + 3;
+  return { r: { x: Math.round(floor.x + (floor.w - w) / 2), y: Math.round(floor.y + (floor.h - h) / 2), w, h }, scale, lines };
+}
+
+/**
+ * WIND-1 (REQ-BFG-093): the DARK WIND callout, once a fight for WIND_CALL_TIME s from the windwarn (or the first wind tick):
+ * a short banner in the open floor between the carriers on screen (floorOnScreen), never over a board: DARK WIND in the
+ * wind's colour, HITS BOTH HULLS under it. The battle and the replay both draw it. Returns its box (null: not showing).
+ */
+export function drawWindCall(g: G, a: Pick<Arena, "windCallT">, L: BattleLayout, m: Pick<ArenaMotion, "camera" | "scr"> | null, reduced: boolean): Rect | null {
+  const t = a.windCallT;
+  if (t < 0 || t >= WIND_CALL_TIME) return null;
+  const { r, scale, lines } = windCallLayout(floorOnScreen(L, m));
+  const k = reduced ? 1 : Math.min(1, t / WIND_CALL_WIPE);
+  const bw = Math.round(r.w * k), x0 = r.x + Math.round((r.w - bw) / 2);
+  g.globalAlpha = 0.86;
+  rect(g, x0, r.y, bw, r.h, C.ink);
+  g.globalAlpha = 1;
+  rect(g, x0, r.y, bw, 2, C.windHit);
+  rect(g, x0, r.y + r.h - 2, bw, 2, C.windHit);
+  if (k < 0.98) return r;
+  drawText(g, WIND_CALL, r.x + r.w / 2, r.y + 4, C.windHit, { align: "center", scale, outline: C.ink });
+  lines.forEach((ln, i) => drawText(g, ln, r.x + r.w / 2, r.y + 4 + 7 * scale + 3 + i * 6, C.bone, { font: "3", align: "center" }));
+  return r;
 }
 
 /** HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (h)1): the plating strip's full amount: the side's pool cap (PlateState.cap, which
@@ -308,8 +472,21 @@ export const CARD_ROWS = 7;
  * 0.8.0 H1 M3: the result card's height and row pitch for `n` rows on a screen H px high. Up to CARD_ROWS rows: 0.6.2's
  * 170 px and 8 px, whatever H (a Furnace or Weaver card is unchanged). Each race row adds a pitch; where the card would
  * not fit H with 2 px to spare, the pitch closes to 7, then 6 (the 3x5 rows stay apart).
+ * SCOUT-1b (REQ-BFG-082): `view`, VIEW BATTLEFIELD's row (VIEW_ROW_H px) under the rows: the card with that row must fit
+ * H with 2 px to spare. The pitch closes 8 -> 7 -> 6 at any row count (a 7-row card too), and where pitch 6 is still too
+ * tall the gap between the INCOME line and the buttons closes as well, by at most CARD_GAP_CUT of its 16 px. `h` is the
+ * card's height without the row (the caller adds it). With no `view`, exactly as before.
  */
-export function resultCard(n: number, H: number): { h: number; pitch: number } {
+export function resultCard(n: number, H: number, view = 0): { h: number; pitch: number } {
+  if (view > 0) {
+    const m = Math.max(n, CARD_ROWS);
+    let h = 0;
+    for (const pitch of [8, 7, 6]) {
+      h = 170 + (m - CARD_ROWS) * 8 - (8 - pitch) * (m + 1);
+      if (h + view <= H - 4) return { h, pitch };
+    }
+    return { h: h - Math.min(CARD_GAP_CUT, h + view - (H - 4)), pitch: 6 };
+  }
   if (n <= CARD_ROWS) return { h: 170, pitch: 8 };
   let h = 0;
   for (const pitch of [8, 7, 6]) {
@@ -319,15 +496,24 @@ export function resultCard(n: number, H: number): { h: number; pitch: number } {
   return { h, pitch: 6 };
 }
 
+/** SCOUT-1b (REQ-BFG-082): the most a card with VIEW BATTLEFIELD's row closes the gap between its INCOME line and its
+ *  buttons (16 px), where pitch 6 alone doesn't fit it: 7 px stay clear. */
+export const CARD_GAP_CUT = 9;
+
 /** LC-1 (REQ-BFG-073): how long the build screen's bar lights the heart LAST CHANCE gave back (seconds). */
 export const LC_HEART_S = 4;
 
-/** Dusk result card: WIN, LOSS (-1 LIFE) or DRAW; the fight's numbers; income; then the next DAWN. */
-export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void): void {
+/** Dusk result card: WIN, LOSS (-1 LIFE) or DRAW; the fight's numbers; income; then the next DAWN. SCOUT-1 (REQ-BFG-076):
+ *  `onView`, VIEW BATTLEFIELD: its own row right above the primary action (never in its place), the card a row taller;
+ *  absent, the card exactly as before. Its tap target is `viewHit` px tall at least (a finger's, TAP_CSS). SCOUT-1b
+ *  tooling: returns the card's box as drawn this frame. */
+export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void, onView?: () => void, viewHit = 0): Rect {
   const { W, H, ui } = game;
   const run = game.run!;
   const rows = resultRows(r);
-  const { h, pitch } = resultCard(rows.length, H); // 0.6.2: 170 (+8 for the SHOCK STALLS row); 0.8.0 H1 M3: + race rows
+  const extra = onView ? VIEW_ROW_H : 0;
+  const card = resultCard(rows.length, H, extra); // 0.6.2: 170 (+8 for the SHOCK STALLS row); 0.8.0 H1 M3: + race rows
+  const pitch = card.pitch, h = card.h + extra; // SCOUT-1b (REQ-BFG-082): with VIEW BATTLEFIELD's row it fits H - 4
   const w = Math.min(W - 10, 214);
   const x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - h / 2);
   const k = Math.min(1, pt / 0.25);
@@ -367,4 +553,16 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   const back = refundCardLine(r) ?? lastChanceCardLine(r); // LC-1: "LAST CHANCE: +1 LIFE" (never both: day 2 v 5-9)
   if (back) drawText(g, back, x + w - 10, ry + 3, C.lime, { align: "right" });
   if (pt > 0.35) button(ui, g, "next", { x: x + 10, y: yy + h - 27, w: w - 20, h: 21 }, label, { primary: true, onTap: onNext });
+  if (pt > 0.35 && onView) viewButton(ui, g, { x: x + 10, y: yy + h - 27 - VIEW_ROW_H, w: w - 20, h: 21 }, { x, y: yy, w, h }, onView, viewHit);
+  return { x, y: yy, w, h };
+}
+
+/** SCOUT-1: the card's VIEW BATTLEFIELD row (a 21 px button and its 4 px gap above the primary action). */
+export const VIEW_ROW_H = 25;
+
+/** SCOUT-1: VIEW BATTLEFIELD on a result card (dusk or warlord): a secondary button, its tap target grown to `hit` px
+ *  inside the card (never onto the primary action's row below it). */
+export function viewButton(ui: Game["ui"], g: G, b: Rect, card: Rect, onTap: () => void, hit = 0): void {
+  const within = { x: card.x, y: card.y, w: card.w, h: b.y + b.h + 2 - card.y };
+  button(ui, g, "viewfield", b, "VIEW BATTLEFIELD", { onTap, ...(hit ? { hit: tapRect(b, hit, within, hit) } : {}) });
 }

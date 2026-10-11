@@ -11,6 +11,7 @@ import { deadEndsAt, turretSlots, type TurretOpResult } from "../../sim/deck";
 import { C } from "../../render/palette";
 import { inside } from "../../ui/ui";
 import type { Carry, Ctx } from "./actions";
+import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a successful action completes its first-run tip
 
 /** A turret operation's refusal (deck.ts / run.ts reasons) as a player sentence. */
 function refusal(reason?: string): string {
@@ -49,6 +50,7 @@ export function installAt(ctx: Ctx, uid: number, t: number, x: number, y: number
   ctx.select({ kind: "turret", index: t });
   ctx.touched();
   ctx.placed(x, y);
+  completeTip("install"); // EXPLAIN-1 (E5): a turret installed in a slot
   return true;
 }
 
@@ -64,6 +66,7 @@ export function moveTo(ctx: Ctx, from: number, to: number, x: number, y: number)
     report(ctx, r, [from, to]);
     ctx.touched();
     ctx.placed(x, y);
+    completeTip("swap"); // EXPLAIN-1 (E5): an installed turret moved or swapped to another slot
   }
   ctx.select({ kind: "turret", index: to });
   return true;
@@ -123,6 +126,7 @@ function buyTurret(ctx: Ctx, wagon: number, slot: number, t: number, x: number, 
   } else ctx.select({ kind: "cargo", uid: g.survivor });
   ctx.touched();
   if (t >= 0) ctx.placed(x, y);
+  if (t >= 0) completeTip("install"); // EXPLAIN-1 (E5): bought onto a slot (it merged into a copy the player owns)
   return true;
 }
 

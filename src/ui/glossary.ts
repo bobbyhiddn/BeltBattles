@@ -34,7 +34,7 @@ import { ICON, ICON_COLOUR, icons, type KeywordName } from "../render/font";
 import { KEYWORD_COLOUR } from "./richText";
 import { SIM, type TextOpts } from "./abilityText";
 import { REMINDER, faceAt, hasFace } from "./faces";
-import { fmtCount, fmtDmg, fmtPct, fmtSec } from "./statFormat";
+import { fmtCount, fmtPct, fmtSec } from "./statFormat"; // WORDS-1: fmtDmg left with the MARKS row
 import { shownOn } from "./dayShown"; // HULL-1d (REQ-BFG-079): the rows' numbers on the tapped piece's day
 
 /** One glossary row (see the file comment). */
@@ -80,7 +80,8 @@ function rowsNow(): GlossaryRow[] {
   const plateExtra = "THE DARK WIND GOES PAST IT.";
   // NUM-4 (REQ-BFG-047; N1 2.2): the pair window (SYNC_WINDOW 0.25 s), the load window (1.5 s) and the commission timers
   // (1.2 s, +0.6 s) are hidden timers no whole second says: the rows keep the rule, not the number
-  const pairExtra = "BY TWO INTAKES.";
+  // WORDS-1 (REQ-BFG-081): PAIR's reminder says FROM TWO BELTS now (faces.ts REMINDER.PAIR), so its extra sentence goes (was
+  // "BY TWO INTAKES.")
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1): the sustain keywords' one extra sentence each. A face keyword never stands as a
   // bare word in a text a tap shows (REQ-BFG-032 rule 3; tests/glossary.test.ts), so 4.1's verb HEALS is said another way:
   // HEAL's "A HULL WITH BURN HEALS HALF." is "GETS HALF", REGEN's "NOTHING HEALS IN THE DARK WIND." is "IT STOPS"
@@ -97,7 +98,7 @@ function rowsNow(): GlossaryRow[] {
     { word: "HEAT", aliases: [], colour: kwColour("HEAT"), kw: "HEAT", extra: heatExtra, def: withExtra(REMINDER.HEAT(), heatExtra), scope: "text" },
     { word: "FRAY", aliases: ["FRAYS"], colour: kwColour("FRAY"), kw: "FRAY", def: REMINDER.FRAY(), scope: "text" },
     { word: "PLATE", aliases: ["PLATES", "PLATED", "PLATING"], colour: kwColour("PLATE"), kw: "PLATE", extra: plateExtra, def: withExtra(REMINDER.PLATE(), plateExtra), scope: "text" },
-    { word: "PAIR", aliases: ["PAIRS", "PAIRED"], colour: kwColour("PAIR"), kw: "PAIR", extra: pairExtra, def: withExtra(REMINDER.PAIR(), pairExtra), scope: "text" },
+    { word: "PAIR", aliases: ["PAIRS", "PAIRED"], colour: kwColour("PAIR"), kw: "PAIR", def: REMINDER.PAIR(), scope: "text" },
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1, 4.9): SHIELD a count (MAX 3), HEAL never past full hull (RIVETER's old REPAIR is
     // HEAL's: one mechanic, one word), REGEN at each whole second (battle.ts sustainTick)
     { word: "SHIELD", aliases: ["SHIELDS"], colour: kwColour("SHIELD"), kw: "SHIELD", extra: shieldExtra, def: withExtra(REMINDER.SHIELD(), shieldExtra), scope: "text" },
@@ -123,18 +124,21 @@ function rowsNow(): GlossaryRow[] {
     { word: "PART", aliases: ["PARTS", "MACHINE", "MACHINES"], colour: PLAIN, def: "PART: A RIG, FACTORY, TURRET OR BELT TILE.", scope: "text" },
     // NUM-3 (R1's STUN fold, REQ-BFG-046): the FREEZE row is gone: a FROSTBITE round STUNs (the STUN row); nothing freezes.
     // Y7b2 (the flip): the POISON row is gone too (Y6 retired it; RETIRED below)
-    { word: "SPEED", aliases: ["AS FAST", "HALF SPEED", "SPEED RIG", "SPEED RIGS"], colour: KEYWORD_COLOUR.faster, def: "SPEED: A SPEED RIG CHANGES ITS BELT FROM THE TILE IT HITS ON.", scope: "text" },
+    // WORDS-1 (REQ-BFG-081; READ-1 3.3, 6.1): the speed rigs' faces end "FROM THIS TILE ON" (FROM THESE TILES ON), and a tap
+    // on it shows this row: the SPEED note where the card prints it (READ-1: the one sentence that would fix the misread
+    // had no tap that reached it)
+    {
+      word: "SPEED", aliases: ["AS FAST", "HALF SPEED", "SPEED RIG", "SPEED RIGS", "FROM THIS TILE ON", "FROM THESE TILES ON"],
+      colour: KEYWORD_COLOUR.faster, def: "SPEED: A SPEED RIG CHANGES ITS BELT FROM THE TILE IT HITS ON.", scope: "text",
+    },
     { word: "LOCKED", aliases: ["LOCKED BELT", "LOCKED BELTS"], colour: PLAIN, def: "LOCKED: METRONOME'S BELTS KEEP THEIR SPEED; SPEED RIGS ADD DAMAGE INSTEAD.", scope: "text" },
     { word: "COPIES", aliases: ["COPY", "COPIED"], colour: PLAIN, def: "COPIES: SPLITTER AND SORTING ARM TURN A SLUG INTO MORE SLUGS.", scope: "text" },
     // Y7b2 (the words): the LOAD TIME row is gone (no text names it; RETIRED below)
     // JAM keeps one meaning: an over-fed gun skipping a shot (battle.ts: JAM_THRESHOLD loads backed up)
     { word: "JAM", aliases: ["JAMS", "JAMMED"], colour: PLAIN, def: `JAM: A GUN WITH ${fmtCount(JAM_THRESHOLD)} LOADS BACKED UP AT ITS INTAKES SKIPS A SHOT.`, scope: "text" },
     // Y7b2 (the flip): the HARASSMENT row is gone (Y2 retired it: harassment is a STUN; RETIRED below)
-    {
-      // NUM-3: CHILL and SNAG are gone (harassment.ts PayloadDebuffs); SAP is the one mark left, and no piece gives it yet
-      word: "MARKS", aliases: ["MARK", "SAP"], colour: PLAIN,
-      def: `MARKS: SAP, THE ONE MARK: ITS SLUG DEALS ${fmtDmg(SIM.sap)} LESS {DMG}. NO PIECE GIVES IT YET.`, scope: "text",
-    },
+    // WORDS-1 (REQ-BFG-081; READ-1 6.2): the MARKS row is gone: no piece gives SAP (harassment.ts), and no buyable card
+    // names it (the dormant SIFTER's kept text says MARK in plain words)
     { word: "MATCHED", aliases: ["MATCHED BELT"], colour: PLAIN, def: "MATCHED: A BELT WITH AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.", scope: "text" },
     // Y7b2 (the flip): the ONLINE row is gone (Y5 retired it: the texts say START; RETIRED below)
     { word: "BONUS DAMAGE", aliases: [], colour: PLAIN, def: "BONUS DAMAGE: WHAT RIGS AND SCRAP ADD TO A SLUG.", scope: "text" },
@@ -183,9 +187,9 @@ export const GLOSSARY: readonly GlossaryRow[] = glossaryRows();
  *  its glossary row says (tests/glossary.test.ts), its word first. */
 export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   PLATE: "PLATE: SOAKS DAMAGE BEFORE YOUR HULL.",
-  PAIR: "PAIR: TWO LOADS REACH ONE TURRET AT ONCE.",
+  PAIR: "PAIR: TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE.", // WORDS-1: FROM TWO BELTS, as its row
   HEAT: "HEAT: MORE DAMAGE FOR EACH SEC IT RIDES.",
-  FRAY: "FRAY: EACH ONE ADDS DAMAGE TO EVERY LATER HIT.",
+  FRAY: "FRAY: EACH ONE ADDS DAMAGE TO EVERY LATER SHOT ON THE HULL.", // WORDS-1: not HIT, the rig's label (READ-1 4)
   RATE: "RATE: HOW OFTEN A GUN FIRES OR A FACTORY WORKS.",
   BURN: "BURN: EACH ONE DEALS HULL DAMAGE EVERY SEC FOR A WHILE.",
   RIDE: "RIDE: THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE.", // U2d F4: its row's first sentence (was A CINDER SLUG'S OWN HEAT FOR EACH SEC IT RIDES.)
@@ -202,6 +206,15 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
  *  PIERCE: it would serve one rune). Number-free, its keyword's word first, one line of 3x5 on the card. */
 export const RUNE_NOTE: Readonly<Record<string, string>> = {
   shatter_shot: "SHIELD: IT BREAKS; THE HIT STILL LANDS.",
+  // WORDS-1 (REQ-BFG-081; TEXT-STYLE 7.4 as ruled 2026-10-10): what a plain rune line can't hold in its one line of the card,
+  // on the opened card: FINAL NAIL never lands on a GATLING SPOOL (battle.ts:1889); a piece IN USE is a placed, installed or
+  // fitted one (runes.ts:566-569: the build's pieces; cargo is not); a TWIN MOULD's cast and a CRUCIBLE's pour give FORGE
+  // WARD nothing (battle.ts:1045-1047, races/foundry.ts:68-121); SCRAP BITER's PART, the PART row's words (battle.ts:570)
+  final_nail: "NOT ON A GATLING SPOOL: IT FIRES EACH LOAD AS IT COMES.",
+  scrap_halo: "IN USE: PLACED, INSTALLED OR FITTED, NOT IN CARGO.",
+  scrap_saint: "IN USE: PLACED, INSTALLED OR FITTED, NOT IN CARGO.",
+  forge_ward: "A TWIN MOULD'S OR CRUCIBLE'S SLUGS GIVE NONE.",
+  scrap_biter: "PART: AN ENEMY RIG, FACTORY, GUN OR BELT TILE.",
 };
 
 /** Every form (word and aliases) with its row, longest first (so a two-word form wins over its first word). */
@@ -287,6 +300,12 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
     word: "SHOT",
     text: (e, x) => `SHOT: FIRES AT A FULL CHAMBER OR ${fmtSec(SIM.salvoWait * WINDOW_TIME)}{SEC} AFTER ITS FIRST LOAD. NEXT RELOAD: ${fmtPct(core(e, x).reloadMul! - 1)} LONGER.`,
   },
+  // WORDS-1 (REQ-BFG-081; READ-1 6.1: POWDER KEG's ITS BELTS read as the tiles by it): battle.ts:1146 its blast reaches every
+  // slug on the belts its arrows hit, wherever it is, as SURGE VALVE's pulse does (the same note's words)
+  keg: {
+    word: "EVERY",
+    text: (e) => `EVERY ${fmtSec(e.gate!.keg!.fuse)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.`,
+  },
   // battle.ts rip: a hit on an enemy belt tile or rig rips the nearest payloads within reach. Y2 (release Y; DESIGN-Y row
   // 19): a hit POWDER KEG is no longer disarmed, so the tap doesn't say it
   grapnel: {
@@ -299,11 +318,17 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // battle.ts impact: each pellet picks its own target; a burn splits between them
   scatter: { word: "SHOT", text: () => "SHOT: EACH PELLET PICKS ITS OWN TARGET, AND ITS {*BURN} SPLITS AMONG THEM." },
   // battle.ts pickTarget: a pick of bare hull is picked again; a shot at a part still hits the hull too
-  spotter: { word: "AIM", text: () => "AIM: A SHOT AT BARE HULL PICKS AGAIN; A SHOT AT A PART STILL HITS THE HULL." },
+  // WORDS-1 (REQ-BFG-081; READ-1 6.1's one-offs: BARE HULL): "AIMED AT NO PART", as its face (was "AIM: A SHOT AT BARE HULL
+  // PICKS AGAIN; ...")
+  spotter: { word: "AIM", text: () => "AIM: A SHOT AIMED AT NO PART PICKS AGAIN; A SHOT AT A PART STILL HITS THE HULL." },
+  // WORDS-1 (REQ-BFG-081): DRAKE NOZZLE's face says RIGS ADDED; battle.ts:1907 converts the slug's whole flat at the shot,
+  // so SCRAPPER's scrap (1078) and a FOUNDRY fuse's (races/foundry.ts:47) count too, and HEAT (p.heatBonus, 1199) never
+  drake: { word: "SHOT", text: () => "SHOT: SCRAP AND FUSED SLUGS' EXTRA DAMAGE COUNTS TOO. {*HEAT} NEVER DOES." },
   // races/foundry.ts: two blanks by two intakes within SYNC_WINDOW fuse (FUSE_MULT); a lone blank fires as a load of its own
   crucible: { word: "PAIR", text: () => "{*PAIR}: TWO BLANKS BY TWO INTAKES AT ONCE FUSE; A LONE ONE FIRES ON ITS OWN." }, // NUM-4: no 0.25 s
   // battle.ts stokedPace: a stoked factory's other timers (ARMOR PRESS's plating) run faster too
-  stoker: { word: "FASTER", text: () => "FASTER: IT STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO." },
+  // WORDS-1 (REQ-BFG-081; READ-1 6.1: STAMP cut): its slugs come sooner (was "FASTER: IT STAMPS AND POURS SOONER, ...")
+  stoker: { word: "FASTER", text: () => "FASTER: ITS SLUGS COME SOONER, AND ITS OTHER TIMERS RUN FASTER TOO." },
   // Y4 (release Y; REVIEW-Y1 ruling 3; BRIEF-Y4 S2; folded at the flip, Y7b2): TESLA ARC's face keeps its lone {DMG}25% stat
   // (faces.ts coreStats); its SHOT label's tap says what that share is: Battle.impact: each arc deals tesla.share of the
   // shot's damage (25% / 25% / 30%, its data's)
@@ -318,6 +343,45 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // tests/txtaz.rotary.test.ts reads the order off the sim's own select
   rotary: { word: "CHAMBERS", text: () => "CHAMBERS: THE OLDEST LOAD IN ITS CHAMBER FIRES FIRST, NOT THE NEWEST." },
 };
+
+// ------------------------------------------------------------------------------- WORDS-1: the stat icons' notes
+
+/**
+ * WORDS-1 (REQ-BFG-081; READ-1 3.1: a turret's bare {SLUG} and {GEAR} were behind 40 of round A's 103 misses; cap's design
+ * call 3): the stat row's {RATE}, {SLUG} and {GEAR} icons are tappable wherever a face draws them (keywords.ts matches),
+ * each with a note that leads with its icon. {RATE} shows the RATE row. {SLUG} names two things (READ-1 6.5), so its note
+ * follows the piece: a turret's (its stat row, the loads its chamber holds: TurretSpec.window, Battle.makeTurret), a
+ * core's or gear's (a load its turret takes in), else a factory's or a rig's (a slug: what a factory makes, Battle.stamp,
+ * and a belt carries). {GEAR} is a turret's gear slots (deck.ts gearSlotsOf: one piece of gear a slot; a core has its own
+ * place, cores.ts resolveCore).
+ */
+export type StatIcon = "RATE" | "SLUG" | "GEAR";
+export const STAT_ICONS: readonly StatIcon[] = ["RATE", "SLUG", "GEAR"];
+export const SLUG_NOTES = {
+  gun: "{SLUG}: THE LOADS ITS CHAMBER HOLDS. A LOAD IS ONE SLUG FROM A BELT.",
+  load: "{SLUG}: A SLUG ITS TURRET TAKES IN, ONE LOAD.",
+  slug: "{SLUG}: A SLUG, WHAT A FACTORY MAKES AND A BELT CARRIES TO A GUN.",
+} as const;
+export const GEAR_NOTE = "{GEAR}: ITS GEAR SLOTS. EACH HOLDS ONE PIECE OF TURRET GEAR.";
+
+/** What a tap on stat icon `k` shows on a line (`gunRow`: the line is a turret's stat row) of piece kind `kind`. */
+export function statIconNote(k: StatIcon, kind: string | undefined, gunRow: boolean): string {
+  if (k === "RATE") return glossaryRows().find((r) => r.word === "RATE")!.def;
+  if (k === "GEAR") return GEAR_NOTE;
+  return gunRow || kind === "turret" ? SLUG_NOTES.gun : kind === "core" || kind === "mod" ? SLUG_NOTES.load : SLUG_NOTES.slug;
+}
+
+/**
+ * WORDS-1 (REQ-BFG-081; READ-1 6.2's list, kept as it stands; cap's design call 4): THE CORE LIST, the 10 words a new
+ * player learns once and every card then uses without a note on that card: what a factory makes and a belt carries, the
+ * belt, a rig's trigger, the stat icons, your hull, the three keywords every hero meets, and merging. Every other coined
+ * word a buyable card prints is tappable on that card (keywords.ts matches) or a hero's own word, taught on hero select
+ * (HEAT: FURNACE, FRAY: WEAVER, PAIR: FOUNDRY; BASTION's PLATE is core). docs/VOCAB of WORDS-1 lists each and how it is
+ * learned; tests/words1.vocab.test.ts holds the list to 10 or fewer.
+ */
+export const CORE_WORDS: readonly string[] = ["SLUG", "BELT", "HIT", "RATE", "LOAD", "HULL", "BURN", "STUN", "PLATE", "MERGE"];
+/** The hero words, each taught on its hero's select card (heroes.ts; hero select draws the hero's trick). */
+export const HERO_WORDS: Readonly<Record<string, string>> = { HEAT: "furnace", FRAY: "weaver", PAIR: "foundry" };
 
 /** The tap note of piece `def` for `word` (a trigger label's word or a rule's word), else undefined. */
 export function tapNote(def: string, word: string): TapNote | undefined {

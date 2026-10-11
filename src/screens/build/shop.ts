@@ -346,6 +346,20 @@ export function drawTag(g: G, x: number, y: number, merchant: MerchantId): void 
   drawText(g, name, x + 5, y, C.slate4, { font: "3" });
 }
 
+/** WORDS-1 (REQ-BFG-081; READ-1 3.2: TURRET CORE and TURRET GEAR drew 87 of round A's "not understood" flags; 6.2): what a
+ *  core and a piece of gear do, in the words a panel's sub line uses for their kind. */
+export const KIND_SUB: Readonly<Partial<Record<ItemDef["kind"], string>>> = { core: "CHANGES HOW A GUN SHOOTS", mod: "FITS A GUN'S GEAR SLOT" };
+// (READ-1 6.2's "CHANGES HOW ITS TURRET SHOOTS" is 111 px of 3x5 and "FITS A TURRET'S GEAR SLOT" 93, past the 92 px the
+// 1366x768 laptop's column gives a sub line, where fitHead would cut it short: GUN, the faces' other word for a turret,
+// makes them 91 and 81 px)
+
+/** WORDS-1: a panel's kind line: "RARE HEAVY TURRET", and a core's or gear's own words alone, "CHANGES HOW A GUN SHOOTS"
+ *  (the title's colour says its rarity; one line in the desk column keeps the families' place under it). describe's kind
+ *  names stay for everything else that reads them. */
+export function panelKind(def: ItemDef): string {
+  return KIND_SUB[def.kind] ?? describe(def);
+}
+
 export function describe(def: ItemDef): string {
   // 0.6.1b: kind "core" reads "TURRET CORE" (ARSENAL.md §8.1), distinct from gear's "TURRET GEAR"
   // 0.6.2 BELTSIDE: kind "gate" reads "RIG" (ref/DESIGN-beltside.md §1: the code keeps the kind)

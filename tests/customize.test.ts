@@ -203,4 +203,3 @@ describe("CUSTOM-2a the summary's NEW STYLE lines", () => {
     expect(strips).toBeGreaterThan(0);
   });
 });
-

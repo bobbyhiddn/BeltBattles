@@ -5,10 +5,12 @@
 import { chromium } from "playwright-core";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const PAGE = resolve(process.argv[2] ?? "dist-motion/index.html");
 const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
 const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 })).newPage();
+await autoFight(page); // SCOUT-1: battles skip scouting, as before SCOUT-1
 await page.addInitScript(() => { window.requestAnimationFrame = () => 0; });
 await page.goto(pathToFileURL(PAGE).href);
 await page.waitForFunction(() => !!window.bb && !!window.bb.game);

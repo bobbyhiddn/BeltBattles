@@ -35,21 +35,25 @@ export const KEPT_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
   // character: the enemy sees them coming. NUM-3 (R1's STUN fold): SABOT has a face, which never draws its desc (U2b F2), and
   // its face says the wreck and the STUN: only the character stays (was "TELEGRAPHED ROUNDS WRECK RIGS OR STALL OTHER
   // MACHINERY.", the desc)
-  sabot: ["THE ENEMY SEES EACH ROUND COMING."],
+  // WORDS-1 (REQ-BFG-081; READ-1 6.1): dropped: readers took "THE ENEMY SEES EACH ROUND COMING." for a rule (3 flags)
+  sabot: [],
   frostbite: [],
   dragchain: [],
   mimic: [],
   limpet: [],
   // --- rigs ---
   temper: [],
-  whetstone: ["BEFORE A SPLITTER, BOTH COPIES GAIN IT."], // an interaction (the split scales it: battle.ts applyHit)
+  // an interaction (the split scales it: battle.ts applyHit). WORDS-1 (REQ-BFG-081; READ-1 6.2: COPIES cut): BOTH SLUGS
+  // (was "BEFORE A SPLITTER, BOTH COPIES GAIN IT.")
+  whetstone: ["BEFORE A SPLITTER, BOTH SLUGS GAIN IT."],
   grease: [],
   brake: [],
   longhaul: [],
   coil: [],
   // "MORE BELT PRESSURE." in the glossary's words: copies back up at a turret's intakes, and 4 backed up there jam it
   // as it fires (battle.ts turret loop, JAM_THRESHOLD)
-  splitter: ["ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT."],
+  // WORDS-1 (REQ-BFG-081; READ-1 6.2: COPIES cut, "SPLITTER's 2 slugs"): EXTRA SLUGS (was "ITS COPIES CAN BACK UP ...")
+  splitter: ["ITS EXTRA SLUGS CAN BACK UP AT THE TURRET AND JAM IT."],
   overdrive: [],
   tollbooth: [],
   sifter: [],

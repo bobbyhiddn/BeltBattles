@@ -16,6 +16,8 @@ import { effectAt, fusible, outputsAt, pendingAt } from "../src/sim/stars"; // U
 import { buildLayout } from "../src/screens/build/layout";
 import { abilityText, gist, livePerk, newPerk, nextStarHeadline, nextStarText, type TextOpts } from "../src/ui/abilityText";
 import { REMINDER, faceLines, faceMerge, faceNext, hasFace } from "../src/ui/faces"; // U2c (U2b's faces): the face kit
+import { plainRigStats } from "../src/ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b): TEMPER's plain face
+import { statRow } from "../src/ui/icons"; // EXPLAIN-1: its stat row
 import { faceNextBlock } from "../src/screens/build/faceBlocks"; // U2c (U2b's faces)
 import { fmtCount, fmtDmg, fmtPct, fmtSec } from "../src/ui/statFormat"; // U2c (U2b's faces): the formatters
 import { fmtSpeed } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): a stamp's SPEED as it is (NUM-2: its interval, 30 / speed, via secPer)
@@ -324,7 +326,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // `${faceLines("splitter", 2)!.rules[0].text} ★2 CLEAN CUT`); the ⓘ view's NEXT★ (nextLine) keeps PERFECT CUT
     expect(text(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1))).toEqual([
       "→ BELT 1, TILE 3", faceLines("splitter", 2)!.rules[0].text,
-      "ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT.", TURN,
+      "ITS EXTRA SLUGS CAN BACK UP AT THE TURRET AND JAM IT.", TURN, // WORDS-1 (REQ-BFG-081): COPIES cut (was "ITS COPIES ...")
     ]);
     expect(nextLine(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1), "splitter", 2)).toBe(`${faceNext("splitter", 2)!.text} ★3 PERFECT CUT`);
     // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, no perk at ★1; 0.6.2t2 (F1): no flavour kept
@@ -340,7 +342,10 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // "ADDS 2 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS.", "NEXT STAR:
     // ADDS 4 BURN."
     // U2e step 4 (REQ-BFG-070): no reminder and no NEXT★ on the face (a tap and the ⓘ view show them), no merge progress
-    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE_WARNING, faceLines("temper", 2)!.rules[0].text, TURN]);
+    // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): TEMPER's plain face, its hit stat as a stat row (faces.ts plainRigStats; was its
+    // face's rule line `HIT: +2 {BURN}.`, faceLines("temper", 2).rules[0].text). The builder's body: the drawn face hides the
+    // hint once its tip is done (inspector.ts explainPanel; tests/explain1.test.ts)
+    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE_WARNING, statRow(plainRigStats("temper", 2)!), TURN]);
     expect(faceLines("temper", 2)!.reminders).toEqual([icons(REMINDER.BURN())]);
     expect([idle.sub, idle.subColor, idle.idle, idle.labels]).toEqual(["RIG · IDLE", C.amber, true, ["ROTATE", "TO CARGO"]]);
     // a ★3 X OVERDRIVE at (5,3): no next star past ★3, no ROTATE for an X

@@ -11,15 +11,31 @@ import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText } from "../render/font";
 import { itemIcon } from "../render/sprites";
-import { blockedButton, button, panel } from "../ui/ui";
+import { blockedButton, button, panel, type Rect } from "../ui/ui";
 import { fmtClock } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock, whole elapsed seconds
 import { fightBlock } from "../game/routeCheck";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
 import { drawHearts } from "./battleHud";
+import { VIEW_ROW_H, viewButton } from "./battleHud"; // SCOUT-1 (REQ-BFG-076): VIEW BATTLEFIELD on the card
 import { itemName } from "./event/cards";
 import { drawBadge } from "./build/shop";
 import { DROP_STARS, npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078); HULL-1b: DROP_STARS
 import { drawDropCard } from "./fork/drops"; // NPC-1: the drop card
+
+/** The line over a Hard win's part pick. */
+export const PICK_LINE_TEXT = "PICK 1 PART FROM THEIR DECK:";
+/** SCOUT-1b (REQ-BFG-082): with VIEW BATTLEFIELD on the card, the PICK line's place over the picks (its 3x5 text, then
+ *  4 px), and how far VIEW BATTLEFIELD's row moves up to sit above it. */
+export const PICK_LINE = 9;
+
+/** SCOUT-1b (REQ-BFG-082): the card's bottom rows (y, top down) for a card at `yy`, `ch` px tall: VIEW BATTLEFIELD's row
+ *  (with `view`), the PICK line (with `pick`; without the view where it always was, under the gold line) and the buttons'
+ *  row (the picks, REFIT and FIGHT NOW, or ON TO DUSK). With both, the PICK line sits right over the picks it heads and
+ *  VIEW BATTLEFIELD right above that line. */
+export function warlordRows(yy: number, ch: number, pick: boolean, view: boolean): { view: number; pickLine: number; buttons: number } {
+  const buttons = yy + ch - 26;
+  return { view: buttons - VIEW_ROW_H - (pick ? PICK_LINE : 0), pickLine: pick && view ? buttons - PICK_LINE : yy + 74, buttons };
+}
 
 export interface WarlordActions {
   take: (() => void)[];
@@ -31,13 +47,18 @@ export interface WarlordActions {
 /** NPC-1 (REQ-BFG-077): the result's one way on with NPC_DAY on, win or lose. */
 export const ON_TO_THE_ROAD = "ON TO THE ROAD";
 
-export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions): void {
+/** SCOUT-1 (REQ-BFG-076): `onView`, VIEW BATTLEFIELD, on its own row right above the card's actions (the pick, REFIT and
+ *  FIGHT NOW, or ON TO DUSK: never in their place; the pick works as before), the card a row taller; `viewHit`, its tap
+ *  target's least height. Absent, the card exactly as before. SCOUT-1b (REQ-BFG-082): with a part pick, its line "PICK 1
+ *  PART FROM THEIR DECK:" sits right over the picks it heads, and VIEW BATTLEFIELD's row right above that line. Tooling:
+ *  returns the card's box as drawn this frame. */
+export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions, onView?: () => void, viewHit = 0): Rect {
   const { W, H, ui } = game;
   const run = game.run!;
   const r = w.result!;
   const npc = npcDayRules(); // NPC-1 (REQ-BFG-077, REQ-BFG-078): the drop card or NO DROP, then ON TO THE ROAD
   const pick = r.outcome === "win" && !w.reward.legendary && !r.took && r.parts.length > 0;
-  const cw = Math.min(W - 10, 214), ch = npc ? 132 : 124;
+  const cw = Math.min(W - 10, 214), ch = (npc ? 132 : 124) + (onView ? VIEW_ROW_H : 0);
   const x = Math.round(W / 2 - cw / 2), y = Math.round(H / 2 - ch / 2);
   const k = Math.min(1, pt / 0.25);
   g.globalAlpha = 0.55 * k;
@@ -75,19 +96,21 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
       drawText(g, `${itemName(r.took)} IS IN CARGO`, x + 60, ry + 2, C.lime, { font: "3" });
       ry += 12;
     } else if (pick) {
-      drawText(g, "PICK 1 PART FROM THEIR DECK:", x + 10, ry, C.bone, { font: "3" });
+      drawText(g, PICK_LINE_TEXT, x + 10, warlordRows(yy, ch, pick, !!onView).pickLine, C.bone, { font: "3" }); // SCOUT-1b
       ry += 9;
     } else if (r.took) {
       drawText(g, `${itemName(r.took)} IS IN CARGO`, x + 10, ry, C.lime, { font: "3" });
       ry += 10;
     }
   }
-  if (pt <= 0.35) return;
+  const box = { x, y: yy, w: cw, h: ch };
+  if (pt <= 0.35) return box;
   const by = yy + ch - 26, bw = Math.floor((cw - 24) / 2);
+  if (onView) viewButton(ui, g, { x: x + 10, y: warlordRows(yy, ch, pick, true).view, w: cw - 20, h: 21 }, { x, y: yy, w: cw, h: ch }, onView, viewHit);
   if (npc) {
     // NPC-1 (REQ-BFG-077): one way on, win or lose: the day's event (then REFIT, then dusk)
     button(ui, g, "toroad", { x: x + 10, y: by, w: cw - 20, h: 20 }, ON_TO_THE_ROAD, { primary: true, onTap: a.road ?? a.fight });
-    return;
+    return box;
   }
   if (pick) {
     r.parts.forEach((d, i) => {
@@ -113,4 +136,5 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
   } else {
     button(ui, g, "next", { x: x + 10, y: by, w: cw - 20, h: 20 }, "ON TO DUSK", { primary: true, onTap: a.fight });
   }
+  return box;
 }

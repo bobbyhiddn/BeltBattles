@@ -331,8 +331,10 @@ describe("Y4 row 40: DRAKE NOZZLE: each 25/18/13 bonus damage is 1 BURN (Y7A-R4'
   });
 
   it("face: SHOT: EACH 25/18/13 BONUS DAMAGE IS 1 BURN; ladder EACH 25/18/13 (Y7A-R4's fallback; was 10/7/5)", () => {
-    expect(lines("drake")).toEqual([25, 18, 13].map((d) => [`SHOT: EACH ${d} BONUS DAMAGE IS 1 {*BURN}.`]));
-    oneLine("drake");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: BONUS DAMAGE): plain words; its SHOT tap adds scrap and fused slugs, never
+    // HEAT (glossary.ts TAP_NOTES drake)
+    expect(lines("drake")).toEqual([25, 18, 13].map((d) => [`SHOT: EACH ${d} DAMAGE RIGS ADDED TO ITS SLUG BECOMES 1 {*BURN}.`]));
+    oneLine("drake", 2); // WORDS-1 (REQ-BFG-081): READ-1 6.1's plain words, two lines of the band (was one)
     expect(levels("drake", 1)).toEqual(["EACH [25]/18/13", next(2, "EACH 18")]);
     expect(hasFace("drake")).toBe(true);
   });

@@ -76,9 +76,11 @@ describe("Y5 words: ONLINE retires; QUICK LATCH says START; no new keyword", () 
 
   it("QUICK LATCH: on, its line says START (text only: its rule, id and amount unchanged); off, the base's byte for byte", () => {
     const r = RUNES.quick_latch;
-    expect(RUNE_TEXT).toEqual({ quick_latch: "YOUR {BELT} RIGS: START {N} SOONER." });
-    expect(runeTextOf(r)).toBe("YOUR {BELT} RIGS: START {N} SOONER.");
-    expect(runeLine(r)).toBe("YOUR BELT RIGS: START 50% SOONER.");
+    // WORDS-1 (REQ-BFG-081): RUNE_TEXT holds WORDS-1's plain lines too (READ-1 6.1), and QUICK LATCH says START WORKING (was
+    // toEqual({ quick_latch: "YOUR {BELT} RIGS: START {N} SOONER." }))
+    expect(RUNE_TEXT.quick_latch).toBe("YOUR {BELT} RIGS START WORKING {N} SOONER.");
+    expect(runeTextOf(r)).toBe("YOUR {BELT} RIGS START WORKING {N} SOONER."); // WORDS-1 (was "YOUR {BELT} RIGS: START {N} SOONER.")
+    expect(runeLine(r)).toBe("YOUR BELT RIGS START WORKING 50% SOONER."); // WORDS-1 (was "YOUR BELT RIGS: START 50% SOONER.")
     expect(r.text).toBe("YOUR {BELT} RIGS: ONLINE {N} SOONER."); // the def (src/sim/runes.ts)
     expect(textWidth(icons(runeLine(r)))).toBeLessThanOrEqual(225);
   });

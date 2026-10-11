@@ -15,6 +15,8 @@ import { beltIcon, coinIcon } from "../../render/sprites";
 import { button, inside, itemSlot, panel, tapRect } from "../../ui/ui";
 import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { heroCardRect } from "./layout"; // zoom (D2)
+import { HERO_MIN, inCarrier } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom; the compact hero card
+import { drawHeroCard } from "./inspector"; // ZOOM-1
 import { BAR_H, cornerTap, cornerTarget } from "./layout"; // TAP-093 (backlog #340): the phone's bar and its corner MENU
 import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
@@ -22,7 +24,8 @@ import { drawHearts } from "../battleHud";
 import { LC_HEART_S } from "../battleHud"; // LC-1 (REQ-BFG-073): the regained heart
 import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
-import { drawDetails, drawFoe, hasDetails, textOpts } from "./inspector";
+import { drawDetails, hasDetails, textOpts } from "./inspector";
+import { drawFoeCard } from "./foeView"; // SCOUT-1c (REQ-BFG-082): the NEXT BATTLE card opens a scouted foe
 import { abilityText, cardText } from "../../ui/abilityText"; // 0.6.2t (T5): the card's one-line effect, the tooltip's
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 import { drawBeltX } from "./beltx"; // shoptap (D3)
@@ -180,7 +183,8 @@ function drawCargo(g: G, s: BuildScreen): void {
   const carry = s.ed.carry;
   const items = run.inventory;
   if (!items.length) {
-    drawText(g, "CARGO · EMPTY", r.x + r.w / 2, r.y + 9, C.slate3, { font: "3", align: "center" });
+    // ZOOM-1 (REQ-BFG-080): a landscape tray of two rows says so in its middle (one row: y + 9, as before)
+    drawText(g, "CARGO · EMPTY", r.x + r.w / 2, r.y + Math.floor(r.h / 2) - 2, C.slate3, { font: "3", align: "center" });
   } else {
     const n = s.cargoSlots();
     const survivorUid = s.survivorUid(); // 0.6.1d2: the shop hover/selection's merge-target ring
@@ -238,9 +242,9 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   // band (it hid the panel's text); in landscape the two never meet
   const c = s.ed.carry;
   const held = c ? null : s.ed.selectedCarry();
-  if (held && !s.ed.busy) drawSuggestion(g, L, s.run.build, held.def, s.t);
+  if (held && !s.ed.busy) inCarrier(g, L, () => drawSuggestion(g, L, s.run.build, held.def, s.t)); // ZOOM-1: at the carrier's zoom
   if (!L.portrait) {
-    if (L.foe) drawFoe(g, s.foe, L.foe, s.note());
+    if (L.foe) drawFoeCard(g, s, L.foe); // SCOUT-1c (REQ-BFG-082): drawFoe, and a revealed foe's tap target
     drawDetails(g, s, s.sel, s.hover, L.info, s.foe, s.note());
   } else if (hasDetails(s, s.sel, s.hover) || !L.foe) {
     // a selection or hover uses the whole band. shoptap2 (REQ-BFG-034, -035): after a finger's tap, where the band is
@@ -251,9 +255,12 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     drawDetails(g, s, s.sel, s.hover, area, s.foe, s.note(), through);
   } else {
     // idle portrait band: hero card over the NEXT BATTLE panel (zoom: on a phone's taller band, the pair in its middle)
-    drawFoe(g, s.foe, L.foe, s.note());
+    drawFoeCard(g, s, L.foe); // SCOUT-1c (REQ-BFG-082): drawFoe, and a revealed foe's tap target
     const top = heroCardRect(L.info, L.foe);
     if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top, s.foe, s.note());
+    // ZOOM-1 (REQ-BFG-080, call 5): a phone's band sized for 90% of the panels can leave the hero card 24-29 px: its compact
+    // form (the name over HULL, BELT and FEEDS)
+    else if (top.h >= HERO_MIN) drawHeroCard(g, s, top);
   }
   drawTopBar(g, s);
   // shoptap (D3, REQ-BFG-036): the belt X a touch tap put up; a tap on it removes the whole belt (REMOVE BELT's path)

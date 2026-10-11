@@ -38,6 +38,7 @@ import { createServer } from "node:http";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -141,6 +142,7 @@ const row = (surface, id, name, check, value, palette, min, how) => {
 const site = await pageServer();
 const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
 const ctx = await browser.newContext(PHONE);
+await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -356,6 +358,207 @@ for (const st of CARRIERS) {
     for (const m of modes) defaults.forEach((dm, i) => { const x = separation(m.mode, dm); if (x < d) { d = x; near = HERO4[i][0]; } });
     row("carrier", st.id, st.name, "yours (delta E)", bad.length ? null : d, yoursDistance(st).value, T.yours, `the visible hull's most common colour ${modes[0].mode} (${Math.round(100 * modes[0].share)}% of FURNACE's stern band and bow; the fill on all four heroes) against each faction's default as drawn; nearest ${near}${bad.length ? `; MODE IS NOT THE FILL for ${bad.length}` : ""}`);
   }
+}
+
+// ---- FIELD-1 (REQ-BFG-075): the battle settings, on the battle as drawn at WIDE (the world layer: one px per art px).
+// For each setting (bb.scene), FURNACE's day-5 dusk (seed 7) stepped into the fight, the world layer read twice: as drawn
+// (A), and the same frame with both carriers hidden and the effects left out (B). A pixel is the backdrop where A and B
+// agree. Measured (a check with nothing drawn to measure fails):
+//  - plate edge: the board plates' ink rim beside the backdrop just outside it (WCAG; the least over the 4-neighbour
+//    pairs, in the five battles);
+//  - hull: the player's hull (the most common colour of its stern band as drawn) against each backdrop colour within
+//    6 px of the hull (CIE76 delta E, the least over colours covering at least 2% of that ring), in each of the five
+//    carrier styles on FURNACE and in WAR COLOURS on FURNACE, WEAVER, FOUNDRY and BASTION (each faction's default: the
+//    foes);
+//  - smoke at 50% and fire at 25%: the player's hull set below 50% and below 25% (this page only, as customshots' damage
+//    stills do), stepped 1 s; the particles alone (the frame with the carriers hidden and the particles drawn, against
+//    B): each smoke colour (slate3, slate4) or fire colour (fire4, yellow, white) they draw against each backdrop colour
+//    covering at least 2% of the backdrop within 6 px of them (WCAG; the least).
+// The thresholds are today's weakest over the three seas: the lower of the seas as measured here and the seas' palette
+// pairs (src/render/sceneContrast.ts SCENE_THRESHOLDS; the logic half is tests/styles.readability.test.ts), since where
+// one frame's particles land on today's water varies. The water settings' rows meet it by construction (they set it).
+const { SCENE_THRESHOLDS: ST, sceneChecks, SCENE_IDS: SIDS, SCENE_NAME } = R;
+const sceneRead = (page, args) => page.evaluate(([scene, hero, below]) => {
+  const bb = window.bb, g = bb.game, step = (n) => { for (let i = 0; i < n; i++) g.step(1 / 60); };
+  bb.scene(scene);
+  bb.openDusk({ hero, day: 5, seed: 7 }, []);
+  step(40);
+  for (let i = 0; i < 60 * 60; i++) {
+    step(1);
+    if (i % 6) continue;
+    const m = bb.motion();
+    if (m.phase === "fight" && m.t > 6 && g.screen.arena.b.projectiles.length >= 1) break;
+  }
+  const s = g.screen, a = s.arena, mo = s.motion;
+  if (below) { const h = a.b.sides[0].hull; h.hp = Math.floor(h.max * below); step(60); }
+  const read = () => {
+    g.render();
+    const L = mo.layer, sc = document.createElement("canvas");
+    sc.width = L.width; sc.height = L.height;
+    const cx = sc.getContext("2d", { willReadFrequently: true });
+    cx.drawImage(L, 0, 0);
+    return cx.getImageData(0, 0, sc.width, sc.height).data;
+  };
+  const A = read();
+  const show = [...a.show], fx = a.fx, keep = [fx.draw, fx.drawPops, fx.drawDecals];
+  a.show = [false, false];
+  fx.drawPops = fx.drawDecals = () => {}; // the damage numbers and decals left out: the particles alone
+  const Cfx = below ? read() : null; // the carriers hidden, the particles drawn: the damage particles over the backdrop
+  fx.draw = () => {};
+  const B = read();
+  a.show = show; [fx.draw, fx.drawPops, fx.drawDecals] = keep;
+  const W = mo.layer.width, H = mo.layer.height;
+  const hex = (d, k) => `#${[d[k], d[k + 1], d[k + 2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  const same = (k) => A[k] === B[k] && A[k + 1] === B[k + 1] && A[k + 2] === B[k + 2];
+  const cam = mo.cam;
+  // each board's plate rect in layer px (portrait plates: the hull box cut to x 13..142; sway 0: pure translations)
+  const plates = [0, 1].map((side) => {
+    const f = a.drawn[side], aff = mo.aff[side];
+    const x = f.dx - 18 + 13, y = f.facing === 0 ? f.dy - 14 : f.dy - 6;
+    return { x: Math.round(cam.a * (x + aff.e) + cam.e), y: Math.round(cam.d * (y + aff.f) + cam.f), w: Math.round(130 * cam.a), h: Math.round(140 * cam.d) };
+  });
+  const pairs = {}; // "fig|ground": count
+  const add = (k, q) => { const key = `${hex(A, k)}|${hex(A, q)}`; pairs[key] = (pairs[key] ?? 0) + 1; };
+  const rim = {};
+  for (const p of plates) {
+    for (let x = p.x; x < p.x + p.w; x++) for (const [y, oy] of [[p.y, p.y - 1], [p.y + p.h - 1, p.y + p.h]]) {
+      if (oy < 0 || oy >= H || x < 0 || x >= W) continue;
+      const k = 4 * (y * W + x), q = 4 * (oy * W + x);
+      if (!same(q)) continue;
+      const key = `${hex(A, k)}|${hex(A, q)}`; rim[key] = (rim[key] ?? 0) + 1;
+    }
+    for (let y = p.y; y < p.y + p.h; y++) for (const [x, ox] of [[p.x, p.x - 1], [p.x + p.w - 1, p.x + p.w]]) {
+      if (ox < 0 || ox >= W || y < 0 || y >= H) continue;
+      const k = 4 * (y * W + x), q = 4 * (y * W + ox);
+      if (!same(q)) continue;
+      const key = `${hex(A, k)}|${hex(A, q)}`; rim[key] = (rim[key] ?? 0) + 1;
+    }
+  }
+  // the player's ship: its stern band's most common colour as drawn; the backdrop within 6 px of the ship's outline
+  const pv = [cam.a * mo.pivot[0][0] + cam.e, cam.d * mo.pivot[0][1] + cam.f];
+  const counts = {};
+  for (let y = Math.round(pv[1] - 60); y < Math.round(pv[1] + 60); y++) for (let x = Math.round(pv[0] - 86); x < Math.round(pv[0] - 68); x++) {
+    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+    const k = 4 * (y * W + x);
+    if (same(k)) continue;
+    const c = hex(A, k); counts[c] = (counts[c] ?? 0) + 1;
+  }
+  const mode = Object.entries(counts).sort((p, q) => q[1] - p[1])[0] ?? null;
+  const ring = {};
+  let ringN = 0;
+  for (let y = Math.round(pv[1] - 100); y < Math.round(pv[1] + 100); y++) for (let x = Math.round(pv[0] - 110); x < Math.round(pv[0] + 110); x++) {
+    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+    const k = 4 * (y * W + x);
+    if (!same(k)) continue;
+    let near = false;
+    for (let dy = -6; dy <= 6 && !near; dy += 2) for (let dx = -6; dx <= 6 && !near; dx += 2) {
+      const xx = x + dx, yy = y + dy;
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+      const q = 4 * (yy * W + xx);
+      if (!same(q) && Math.abs(xx - pv[0]) < 104 && Math.abs(yy - pv[1]) < 80) near = true;
+    }
+    if (!near) continue;
+    const c = hex(A, k); ring[c] = (ring[c] ?? 0) + 1; ringN++;
+  }
+  // the damage particles (with `below`): the pixels the effects add (Cfx against B, both with the carriers hidden) beside
+  // the backdrop's own pixels
+  const fxPairs = {}, fxCols = {}, fxRing = {};
+  let fxRingN = 0;
+  if (Cfx) {
+    const fxSame = (k) => Cfx[k] === B[k] && Cfx[k + 1] === B[k + 1] && Cfx[k + 2] === B[k + 2];
+    const mark = new Uint8Array(W * H);
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+      const k = 4 * (y * W + x);
+      if (fxSame(k)) continue;
+      const c = hex(Cfx, k); fxCols[c] = (fxCols[c] ?? 0) + 1;
+      // the backdrop around the particles (what they are seen against): within 6 px, from the frame without them
+      for (let yy = Math.max(0, y - 6); yy <= Math.min(H - 1, y + 6); yy++) for (let xx = Math.max(0, x - 6); xx <= Math.min(W - 1, x + 6); xx++) mark[yy * W + xx] = 1;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const q = 4 * ((y + dy) * W + x + dx);
+        if (!fxSame(q)) continue;
+        const key = `${hex(Cfx, k)}|${hex(Cfx, q)}`; fxPairs[key] = (fxPairs[key] ?? 0) + 1;
+      }
+    }
+    for (let i = 0; i < W * H; i++) {
+      if (!mark[i] || !fxSame(4 * i) || !same(4 * i)) continue; // the backdrop's own pixel (no carrier, no particle)
+      const c = hex(B, 4 * i); fxRing[c] = (fxRing[c] ?? 0) + 1; fxRingN++;
+    }
+  }
+  void add; void pairs;
+  return { scene: mo.kind, zoom: cam.a, layer: [W, H], plates, rim, mode, ring, ringN, fxPairs, fxCols, fxRing, fxRingN, wears: bb.profile().wears?.carrier ?? null, hp: a.b.sides[0].hull.hp / a.b.sides[0].hull.max };
+}, args);
+const wear = async (id) => { await ui("open"); await ui("tab", "carrier"); const s = await ui("row", id); if (s.worn.carrier !== id) throw new Error(`${id} not worn`); };
+const near = (a, b, t = 2) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); const x = p(a), y = p(b); return x.every((v, i) => Math.abs(v - y[i]) <= t); };
+const leastPairs = (obj, figs) => {
+  let v = null, n = 0;
+  for (const [key, cnt] of Object.entries(obj)) {
+    const [f, gr] = key.split("|");
+    if (figs && !figs.some((c) => near(f, c.toLowerCase()))) continue;
+    n += cnt;
+    const x = contrast(f, gr);
+    v = v === null ? x : Math.min(v, x);
+  }
+  return { v, n };
+};
+/** The damage effects against the backdrop: each of `figs` the particles draw (at least 5 px of it) against each backdrop
+ *  colour covering at least 2% of the area around them (WCAG; the least), and the count of particle px of those colours. */
+const fxVs = (r, figs) => {
+  const drawn = Object.entries(r.fxCols).filter(([c, n]) => n >= 5 && figs.some((f) => near(c, f.toLowerCase()))).map(([c]) => c);
+  const cols = Object.entries(r.fxRing).filter(([, n]) => n >= 0.02 * r.fxRingN).map(([c]) => c);
+  const px = Object.entries(r.fxCols).filter(([c]) => figs.some((f) => near(c, f.toLowerCase()))).reduce((s, [, n]) => s + n, 0);
+  return { v: drawn.length && cols.length ? Math.min(...drawn.flatMap((d) => cols.map((c) => contrast(d, c)))) : null, n: px, drawn, cols };
+};
+const hullVs = (r) => {
+  if (!r.mode) return { v: null, cols: [] };
+  const cols = Object.entries(r.ring).filter(([, n]) => n >= 0.02 * r.ringN).map(([c]) => c);
+  return { v: cols.length ? Math.min(...cols.map((c) => separation(r.mode[0], c))) : null, cols };
+};
+log(`FIELD-1 SCENE THRESHOLDS (the logic half's, on the ground colours) ${JSON.stringify(Object.fromEntries(Object.entries(ST).map(([k, v]) => [k, Math.round(v * 1000) / 1000])))}`);
+await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("beltbattles.run.")) localStorage.removeItem(k); });
+// measure every setting first: each check's rendered value, then the rendered thresholds from today's three seas
+const SM = {}; // SM[id] = { edge, edgeN, styles: {id: {v, how}}, foes: {faction: {v, how}}, smoke, fire }
+for (const id of SIDS) {
+  const m = (SM[id] = { edge: null, edgeN: 0, styles: {}, foes: {} });
+  for (const st of CARRIERS) {
+    await wear(st.id);
+    const r = await sceneRead(page, [id, "furnace", 0]);
+    if (r.scene !== id) throw new Error(`setting ${r.scene}, not ${id}`);
+    const e = leastPairs(r.rim, [C.ink]);
+    if (e.v !== null) { m.edge = m.edge === null ? e.v : Math.min(m.edge, e.v); m.edgeN += e.n; }
+    const h = hullVs(r);
+    m.styles[st.id] = { v: h.v, how: `the stern band's ${r.mode ? r.mode[0] : "none"} against the backdrop within 6 px (${h.cols.join(" ")}; ${r.ringN} px)` };
+    if (st.id === "war") await page.screenshot({ path: join(OUT, `stylecheck-scene-${id}.png`) });
+  }
+  await wear("war");
+  for (const [hero, faction] of HERO4) {
+    const r = await sceneRead(page, [id, hero, 0]);
+    const h = hullVs(r);
+    m.foes[faction] = { v: h.v, how: `${hero}'s default hull ${r.mode ? r.mode[0] : "none"} against the backdrop within 6 px (${h.cols.join(" ")})` };
+  }
+  m.smoke = fxVs(await sceneRead(page, [id, "furnace", 0.45]), SMOKE_50);
+  m.fire = fxVs(await sceneRead(page, [id, "furnace", 0.2]), FIRE_25);
+}
+await page.evaluate(() => window.bb.scene(null));
+// the thresholds: today's weakest over the three seas (as CUSTOM-3's: today's default sets the bar), the lower of the
+// seas as drawn here and the seas' palette pairs (the logic half): where the particles land in one frame varies, the
+// palette is the worst the sea's ground can show
+const SEAS3 = ["calm", "storm", "ember"];
+const minOf = (xs) => (xs.some((x) => x === null || x === undefined) ? null : Math.min(...xs));
+const drawnT = {
+  edge: minOf(SEAS3.map((s) => SM[s].edge)),
+  hull: minOf(SEAS3.flatMap((s) => HERO4.map(([, f]) => SM[s].foes[f].v))),
+  smoke: minOf(SEAS3.map((s) => SM[s].smoke.v)),
+  fire: minOf(SEAS3.map((s) => SM[s].fire.v)),
+};
+const RT = Object.fromEntries(Object.entries(drawnT).map(([k, v]) => [k, v === null ? null : Math.min(v, ST[k])]));
+log(`FIELD-1 THRESHOLDS: today's seas as drawn ${JSON.stringify(Object.fromEntries(Object.entries(drawnT).map(([k, v]) => [k, v === null ? null : Math.round(v * 1000) / 1000])))}; as palette pairs ${JSON.stringify(Object.fromEntries(Object.entries(ST).map(([k, v]) => [k, Math.round(v * 1000) / 1000])))}; the bar (the lower) ${JSON.stringify(Object.fromEntries(Object.entries(RT).map(([k, v]) => [k, v === null ? null : Math.round(v * 1000) / 1000])))}`);
+for (const id of SIDS) {
+  const pal = sceneChecks(id), nm = SCENE_NAME[id], m = SM[id];
+  row("scene", id, nm, "plate edge", m.edge, pal.edge, RT.edge ?? Infinity, `the plates' ink rim beside the backdrop just outside (${m.edgeN} pairs, five battles)`);
+  for (const st of CARRIERS) row("scene", id, nm, `hull ${st.name}`, m.styles[st.id].v, pal.styles[st.id], RT.hull ?? Infinity, m.styles[st.id].how);
+  for (const [, faction] of HERO4) row("scene", id, nm, `foe ${faction} default`, m.foes[faction].v, pal.factions[faction], RT.hull ?? Infinity, m.foes[faction].how);
+  row("scene", id, nm, "smoke at 50%", m.smoke.v, pal.smoke, RT.smoke ?? Infinity, `the damage particles (hull at 45%) ${m.smoke.drawn.join(" ")} (${m.smoke.n} px) against the backdrop around them (${m.smoke.cols.join(" ")})`);
+  row("scene", id, nm, "fire at 25%", m.fire.v, pal.fire, RT.fire ?? Infinity, `the damage particles (hull at 20%) ${m.fire.drawn.join(" ")} (${m.fire.n} px) against the backdrop around them (${m.fire.cols.join(" ")})`);
 }
 
 await browser.close();

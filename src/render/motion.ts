@@ -5,8 +5,18 @@
 // Display only: this module imports nothing (no sim, no DOM), uses no sim RNG and no Math.random (its own small PRNG,
 // seeded per battle), and runs on its own clock (frame time). The sim never reads anything here. docs/MOTION.md.
 
-/** The three code-drawn seas, chosen by day (seaForDay). */
+/** The three code-drawn seas, chosen by day (seaForDay) on the still screens. */
 export type SeaKind = "calm" | "storm" | "ember";
+
+/** FIELD-1 (REQ-BFG-075): the eight battle settings in three media (render/scenery.ts picks one per battle). The water
+ *  ones keep the seas' ids, so OPEN SEA ("calm") keeps today's cache keys and pixels. */
+export type SceneId = SeaKind | "forest" | "desert" | "badlands" | "sky" | "clouds";
+export const SCENE_IDS: readonly SceneId[] = ["calm", "storm", "ember", "forest", "desert", "badlands", "sky", "clouds"];
+
+/** A known setting id (the test builds' ?sea= knob, the page tooling's bb.scene). */
+export function isSceneId(s: unknown): s is SceneId {
+  return typeof s === "string" && (SCENE_IDS as readonly string[]).includes(s);
+}
 
 /**
  * MOTION-2: the dev knobs (?sway, ?sea, ?perf) exist only in test and dev builds: vite's dev server and vitest
@@ -21,8 +31,9 @@ export interface MotionOpts {
   // (0.9.4's floor and tracked hulls, for comparisons) and its `on` option are gone, with the tracked hull's code.
   /** ?sway=N (test builds): the shared board sway, in degrees (|N| <= SWAY_MAX_DEG); 0, off, otherwise. */
   sway: number;
-  /** ?sea=calm|storm|ember (test builds): force a setting (else the day decides). */
-  sea: SeaKind | null;
+  /** ?sea=calm|storm|ember (test builds): force a setting (else the day decides). FIELD-1: any setting id (SCENE_IDS);
+   *  else each battle picks its own (render/scenery.ts). */
+  sea: SceneId | null;
   /** ?perf=1 (test builds): the frame-time overlay with the per-layer ms split. */
   perf: boolean;
 }
@@ -54,7 +65,7 @@ export function parseMotionOpts(search: string, knobs: boolean): MotionOpts {
   const sea = q.get("sea");
   return {
     sway: Number.isFinite(sway) ? Math.max(-SWAY_MAX_DEG, Math.min(SWAY_MAX_DEG, sway)) : 0,
-    sea: sea === "calm" || sea === "storm" || sea === "ember" ? sea : null,
+    sea: isSceneId(sea) ? sea : null,
     perf: q.get("perf") === "1",
   };
 }
@@ -196,11 +207,31 @@ export class MotionModel {
     return this.reduced || this.held || this.sway === 0 ? 0 : this.sway * Math.sin((TAU * t) / SWAY_PERIOD);
   }
 
+  /** SCOUT-1 (REQ-BFG-076; display only): the calm's move, from `c0` at clock `t0` to `c1` over `dur` s (smoothstep). */
+  private calmMove = { t0: 0, c0: 0, c1: 0, dur: 0 };
+
+  /** SCOUT-1: ease into steady sailing (`target` 1: reduce motion's straight sailing, no bank, drift, surge, bob or sway;
+   *  0: the full motion) over `secs` s of this clock. The water keeps its speed. A pure function of the clock, so the wake
+   *  reads where the stern was. */
+  calmTo(target: number, secs: number): void {
+    this.calmMove = { t0: this.t, c0: this.calmAt(this.t), c1: Math.max(0, Math.min(1, target)), dur: Math.max(0, secs) };
+  }
+
+  /** SCOUT-1: the calm at clock t: 0 (the full motion, as before) to 1 (steady). */
+  calmAt(t = this.t): number {
+    const m = this.calmMove;
+    if (m.dur <= 0 || t >= m.t0 + m.dur) return m.c1;
+    if (t <= m.t0) return m.c0;
+    const k = (t - m.t0) / m.dur;
+    return m.c0 + (m.c1 - m.c0) * k * k * (3 - 2 * k);
+  }
+
   /** Side `s`'s pose at time t (0 the player, 1 the enemy). Reduce motion (and a ship held still): straight sailing, no
-   *  bank, drift, surge or bob. */
+   *  bank, drift, surge or bob. SCOUT-1: the calm (calmAt) scales the motion down toward that straight sailing. */
   pose(s: 0 | 1, t = this.t, out: Pose = { x: 0, y: 0, bank: 0, board: 0, gimbal: 0, bob: 0 }): Pose {
-    const board = this.swayAt(t);
-    if (this.reduced || this.held) {
+    const calm = this.calmAt(t);
+    const board = calm > 0 ? this.swayAt(t) * (1 - calm) : this.swayAt(t);
+    if (this.reduced || this.held || calm >= 1) {
       out.x = out.y = out.bank = out.bob = 0;
       out.board = board;
       out.gimbal = board;
@@ -214,6 +245,14 @@ export class MotionModel {
     out.bank = -this.bankMax * v + 0; // + 0: no -0
     out.x = this.surge * Math.sin(c.wx * t + c.px);
     out.bob = Math.sin(c.wb * t + c.pb);
+    if (calm > 0) {
+      // SCOUT-1: part of the way to steady sailing (0 calm leaves every number exactly as before)
+      const k = 1 - calm;
+      out.y *= k;
+      out.bank = out.bank * k + 0;
+      out.x *= k;
+      out.bob *= k;
+    }
     out.board = board;
     out.gimbal = board - out.bank; // the gimbal turns the board back by the heading, to the shared sway
     return out;

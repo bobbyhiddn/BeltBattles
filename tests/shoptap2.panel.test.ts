@@ -119,7 +119,9 @@ describe("shoptap2: the panel's rect on every portrait phone view", () => {
     const s = view(390, 664, 3).L, full = view(390, 1000, 3).L, land = view(844, 390, 3).L;
     expect(full.info.h).toBe(69);
     const fits = () => true;
-    expect(panelArea(s, OFFER, TOUCH, fits)).toEqual(panelRect(s, "down"));
+    // ZOOM-1 (REQ-BFG-080, call 5): a shop card's panel grows up over the shop too (it grew down over the bow; the carrier
+    // fills that room now, and no panel covers it): panelRect(s, "down") -> panelRect(s, "up")
+    expect(panelArea(s, OFFER, TOUCH, fits)).toEqual(panelRect(s, "up"));
     for (const sel of [{ kind: "item", uid: 1 }, { kind: "turret", index: 0 }, { kind: "fitted", uid: 950 }, { kind: "route", index: 0 }, { kind: "cargo", uid: 9 }] as Sel[]) {
       expect(panelArea(s, sel, TOUCH, fits), sel.kind).toEqual(panelRect(s, "up"));
     }
@@ -159,11 +161,14 @@ describe("shoptap2: the panel's rect on every portrait phone view", () => {
     const s = view(390, 700, 3).L, full = view(390, 844, 3).L;
     const need = (n: number) => (r: R) => r.h >= n;
     expect(panelArea(s, { kind: "item", uid: 1 }, TOUCH, need(90)).h).toBe(PORT_BAND + 4 * PANEL_STEP); // 69, 75, 81, 87, 93
-    expect(panelArea(s, OFFER, TOUCH, need(115))).toEqual(panelRect(s, "down", PORT_BAND + 8 * PANEL_STEP));
+    // ZOOM-1 (REQ-BFG-080, call 5): up, as every panel now: panelRect(s, "down", ..) -> panelRect(s, "up", ..)
+    expect(panelArea(s, OFFER, TOUCH, need(115))).toEqual(panelRect(s, "up", PORT_BAND + 8 * PANEL_STEP));
     // a full band that can't hold a panel grows too (no such panel on 390x844: every one fits its 69 px band there)
     expect(panelArea(full, { kind: "item", uid: 1 }, TOUCH, need(80)).h).toBe(PORT_BAND + 2 * PANEL_STEP);
-    // never past the top bar or the cargo tray: a panel that never fits stops at the room there is
-    const most = s.cargo.y - 2 - (s.bar.y + s.bar.h + 1);
+    // never past the top bar or the band's foot: a panel that never fits stops at the room there is (ZOOM-1: was to the
+    // cargo tray, s.cargo.y - 2: a panel grown down over the bow; now the band's foot, s.info.y + s.info.h: never over the
+    // carrier)
+    const most = s.info.y + s.info.h - (s.bar.y + s.bar.h + 1);
     for (const sel of [OFFER, { kind: "item", uid: 1 } as Sel]) {
       const r = panelArea(s, sel, TOUCH, () => false);
       expect([r.y, r.h], sel.kind).toEqual([s.bar.y + s.bar.h + 1, most]);

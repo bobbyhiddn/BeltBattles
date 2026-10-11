@@ -17,6 +17,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { VIEWS as SHOT_VIEWS } from "./shots-list.mjs";
 import { inlineBuild } from "./inline.mjs";
+import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const argv = process.argv.slice(2);
@@ -68,7 +69,9 @@ async function showHero(page, touch, hero) {
 async function tapSignature(page, touch, def) {
   const at = await page.evaluate((d) => {
     const s = window.bb.game.screen, p = window.bb.game.run.build.items.find((q) => q.def === d);
-    const c = s.fuseAnimPos({ where: "deck", survivor: p.uid });
+    const c0 = s.fuseAnimPos({ where: "deck", survivor: p.uid });
+    // ZOOM-1 (REQ-BFG-080): that centre is in the carrier's space; on screen through its zoom (BuildScreen.carrierView)
+    const v = typeof s.carrierView === "function" ? s.carrierView() : null, c = v ? { x: v.x + v.k * (c0.x - v.x), y: v.y + v.k * (c0.y - v.y) } : c0;
     return { uid: p.uid, ...window.bb.toClient(c.x, c.y) };
   }, def);
   await tapAt(page, touch, at);
@@ -135,6 +138,7 @@ async function main() {
   for (const [vname, vopts] of Object.entries(VIEWS)) {
     const touch = !!vopts.hasTouch;
     const ctx = await browser.newContext(vopts);
+    await autoFight(ctx); // SCOUT-1: battles skip scouting, as before SCOUT-1
     const page = await ctx.newPage();
     await page.addInitScript(() => { Math.random = () => 0.3; }); // the run seed, as singlefile.mjs pins it
     const errors = [];

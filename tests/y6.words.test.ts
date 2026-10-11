@@ -146,7 +146,9 @@ describe("Y6 texts: VENOM says BURN's seconds; the lines that named POISON drop 
   });
 
   it("the FORGE family's line drops POISON (on); off, the base's line byte for byte; every other family's line as before", () => {
-    expect(FAMILY.FORGE.glossary).toBe("ADDS DAMAGE, BURN OR FRAY TO EACH PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES.");
+    // WORDS-1 (REQ-BFG-081): FORGE's tap note now, in plain words, and still no POISON (was "ADDS DAMAGE, BURN OR FRAY TO EACH
+    // PAYLOAD ON THE BELT, OR BUILDS DAMAGE THE LONGER THE PAYLOAD RIDES.")
+    expect(FAMILY.FORGE.glossary).toBe("ADDS DAMAGE, {*BURN} OR {*FRAY} TO SLUGS ON THE BELT, OR MORE DAMAGE THE LONGER A SLUG RIDES.");
   });
 });
 

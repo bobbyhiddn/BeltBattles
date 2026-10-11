@@ -17,6 +17,7 @@ import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 import { fitCore } from "../../game/run"; // 0.6.1b
 import { canFitGear, gearSlotsAt, turretSlots, type Build } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031)
 import { dropTurret } from "./turretActions"; // 0.6.2s (REQ-BFG-031 S5)
+import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a successful action completes its first-run tip
 
 /** HULL-1a (REQ-BFG-079): a supply's toast once bought ("+250 MAX HULL", "+4 BELT CAPACITY"): the hull as the day's
  *  number with HULL_SCALE on (`day`: the run's); off, 0.9.7's. */
@@ -36,12 +37,13 @@ import { C } from "../../render/palette";
 import { footX, footY, localX, localY } from "../../render/frame";
 import { inside } from "../../ui/ui";
 import type { BuildLayout, Sel } from "./layout";
+import { toDeck, toScreen } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
 
 export interface Ctx {
   game: Game;
   run: Run;
   L: BuildLayout;
-  wfx: Fx; // deck-space effects (screen coordinates)
+  wfx: Fx; // deck-space effects (ZOOM-1: the carrier's space, drawn through its zoom: layout.ts inCarrier)
   ufx: Fx; // UI effects
   select(s: Sel): void;
   turretAt(x: number, y: number): number;
@@ -98,6 +100,7 @@ export function rotate(ctx: Ctx, uid: number): void {
   }
   ctx.game.audio.play("belt");
   ctx.touched();
+  completeTip("turn"); // EXPLAIN-1 (E5): a placed rig turned
   const f = ctx.L.frame;
   ctx.wfx.ring(footX(f, p.x, p.y) + CELL / 2, footY(f, p.x, p.y) + CELL / 2, 7, C.yellow);
 }
@@ -120,6 +123,7 @@ export function buy(ctx: Ctx, wagon: number, slot: number, at?: GainAt): { ok: b
     ctx.game.toast(supplyToast(d, ctx.run.day), C.lime, "repair"); // HULL-1a (REQ-BFG-079): the day's hull
     ctx.select({ kind: "none" });
     ctx.touched();
+    completeTip("supply"); // EXPLAIN-1 (E5): a supply bought (used the moment it was bought)
   }
   if (res.gain?.steps.length) ctx.touched(); // a merge changed the deck or cargo
   return { ok: true, item: res.item, gain: res.gain };
@@ -249,6 +253,7 @@ function dropCore(ctx: Ctx, c: Carry, x: number, y: number, overHull: boolean): 
   ctx.select({ kind: "turret", index: t });
   ctx.touched();
   ctx.placed(x, y);
+  completeTip("fit"); // EXPLAIN-1 (E5): a core fitted to a turret
   return true;
 }
 
@@ -267,6 +272,7 @@ export function sellPrice(defId: string, stars = 1): number {
 
 /** Deck cell for an item of the given footprint centred under a screen point. */
 export function dropCell(L: BuildLayout, x: number, y: number, size: number): { x: number; y: number } | null {
+  ({ x, y } = toDeck(L, x, y)); // ZOOM-1 (REQ-BFG-080): the screen point in the carrier's space
   const lx = localX(L.frame, x, y) - (size - 1) * (CELL / 2), ly = localY(L.frame, x, y) - (size - 1) * (CELL / 2);
   const m = GRID * CELL;
   if (lx < -8 || ly < -8 || lx > m + 8 || ly > m + 8) return null;
@@ -314,6 +320,7 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
       selectGain(ctx, r.gain);
       ctx.touched();
       ctx.placed(x, y);
+      completeTip(def.kind === "core" || def.kind === "mod" ? "fit" : "place"); // EXPLAIN-1 (E5): dropped where it merged
       return true;
     }
   }
@@ -346,6 +353,7 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
     ctx.select({ kind: "turret", index: t });
     ctx.touched();
     ctx.placed(x, y);
+    completeTip("fit"); // EXPLAIN-1 (E5): a piece of gear fitted to a turret
     return true;
   }
   const cell = dropCell(L, x, y, def.size);
@@ -379,6 +387,8 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
   ctx.game.audio.play("place");
   ctx.select({ kind: "item", uid });
   ctx.touched();
-  ctx.placed(px, py);
+  const at = toScreen(L, px, py); // ZOOM-1: placed() takes a screen point, as from a drop
+  ctx.placed(at.x, at.y);
+  completeTip(src.from === "deck" ? "move" : "place"); // EXPLAIN-1 (E5): a part placed on the deck, or a placed one moved
   return true;
 }

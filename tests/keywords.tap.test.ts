@@ -19,6 +19,7 @@ import { infoItems, infoLevels, infoPages, questionBox } from "../src/screens/bu
 import { lineWidth } from "../src/ui/richText"; // U2e step 5
 import { infoFree, infoView, runeWords, INFO_FREE_MIN, type KwWord } from "../src/screens/build/keywords"; // U2f: the taller ⓘ view
 import { infoDrawn } from "../src/screens/build/keywords"; // FLIP-X1 (N4-b): the view as drawn
+import { explainWords } from "../src/screens/build/keywords"; // EXPLAIN-1 (REQ-BFG-089, E4): the ⓘ's words as drawn
 import { phoneScreen } from "../src/screens/build/layout"; // U2f
 import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar"; // U2f: the text sheet's view
 import { RUNE_LIST, runeList } from "../src/sim/runes"; // U2f; FLIP-X1 (F-d): runeList
@@ -115,10 +116,12 @@ function opened(v: View, L: BuildLayout, c: { run: Run; sel: Sel }, touch = true
   return { ctx, d, plan: p, buttons, tap };
 }
 
-function check(tag: string, run: Run, d: { show: Sel; t: { body: import("../src/screens/build/inspector").Block[] } }, plan: PanelPlan, buttons: Rect[], tap: number,
+function check(tag: string, run: Run, d: { show: Sel; t: { body: import("../src/screens/build/inspector").Block[]; notes?: import("../src/screens/build/inspector").Block[] } }, plan: PanelPlan, buttons: Rect[], tap: number,
   counts: { panels: number; targets: number; words: number; tapped: Set<string>; levels?: number }) {
   const piece = panelPiece(run, d.show);
-  const words = panelWords(d.t.body, piece);
+  // EXPLAIN-1 (REQ-BFG-089, E4): the words the drawn panel's ⓘ lists (explainWords: its face's blocks before any was hidden,
+  // its NOTES lines; a plain rig's HIT), and its NOTES; was panelWords(d.t.body), the body being the whole face then
+  const words = explainWords(d.t, piece), notes = (d.t.notes ?? []).map((b) => b.text);
   const q = questionRect(plan.r, plan.y, tap, buttons);
   const targets = keywordTargets(visibleLines(plan), plan, piece, [...buttons, ...(q ? [q] : [])]);
   const inner = { x: plan.r.x + 1, y: plan.r.y + 1, w: plan.r.w - 2, h: plan.r.h - 2 };
@@ -133,20 +136,24 @@ function check(tag: string, run: Run, d: { show: Sel; t: { body: import("../src/
     // the word as drawn is what a finger aims at: its middle is in its target (a word a button's grown rect covers past its
     // middle is no target; the KEYWORDS view still lists it)
     expect(inside(t.r, Math.floor(t.glyph.x + t.glyph.w / 2), Math.floor(t.glyph.y + t.glyph.h / 2)), `${tag}: ${t.word}'s middle in its target`).toBe(true);
-    if (!buttons.some((b) => overlaps(b, t.glyph))) expect(t.r.h, `${tag}: ${t.word} grown to its line's pitch`).toBeGreaterThanOrEqual(t.glyph.h);
+    // EXPLAIN-1 (REQ-BFG-089, E3): the ⓘ's target is a finger's square now (keywords.ts questionRect), reaching 4 px into the
+    // body's top left on a phone, as a button's grown rect reaches into it: a word under it keeps its middle in its target
+    // (above), and may be clipped as a word under a button's is
+    if (!buttons.some((b) => overlaps(b, t.glyph)) && !(q && overlaps(q, t.glyph))) expect(t.r.h, `${tag}: ${t.word} grown to its line's pitch`).toBeGreaterThanOrEqual(t.glyph.h);
     counts.tapped.add(t.word);
   }
   // U2e step 5 (REQ-BFG-070): the ⓘ button (U2c's `?`, the same rect) is on every panel that names a word or has LEVELS
   const levels = infoLevels(run, d.show);
-  if (words.length || levels.length) {
+  if (words.length || levels.length || notes.length) {
     // every word is reachable: the ⓘ button is there, inside the panel, clear of the buttons; its view lists every LEVELS
     // line, then every word (U2c: viewPages listed every word; the ⓘ view's pages hold the same words after the LEVELS)
+    // EXPLAIN-1 (REQ-BFG-089, E4): its NOTES first (a panel with NOTES has the ⓘ too)
     expect(q, `${tag}: ⓘ`).not.toBeNull();
     expect(within(q!, plan.r), `${tag}: ⓘ inside`).toBe(true);
     for (const b of buttons) expect(overlaps(q!, b), `${tag}: ⓘ clear of a button`).toBe(false);
-    const items = infoItems(levels, words, plan.r.w - 10);
+    const items = infoItems(levels, words, plan.r.w - 10, notes);
     const pages = infoPages(items, plan.maxY + 2 - (plan.y - 1));
-    expect(pages.flat().map((it) => it.level ?? it.word), `${tag}: the ⓘ view lists its LEVELS, then every word`).toEqual([...levels, ...words]);
+    expect(pages.flat().map((it) => it.note ?? it.level ?? it.word), `${tag}: the ⓘ view lists its NOTES, its LEVELS, then every word`).toEqual([...notes, ...levels, ...words]);
     expect(pages.flat().filter((it) => it.word).map((it) => it.word), `${tag}: the KEYWORDS`).toEqual(viewPages(words, plan.r.w - 10, plan.maxY + 2 - (plan.y - 1)).flat());
     // every line of the view fits its width (the op view's and every other phone's)
     for (const it of items) for (const ln of it.lines) expect(lineWidth(ln, "5"), `${tag}: an ⓘ line fits`).toBeLessThanOrEqual(plan.r.w - 10);
@@ -376,11 +383,12 @@ function infoOf(vw: ReturnType<typeof sheetView>, c: { run: Run; sel: Sel }, ext
   const plan = (r: Rect) => { const k = `${r.x},${r.y},${r.w},${r.h}`; if (!memo.has(k)) memo.set(k, detailsPlan(ctx, c.sel, null, r)); return memo.get(k)!; };
   const area = panelArea(vw.L, c.sel, { touch: vw.touch, hover: false, busy: false }, (r) => { const d = plan(r); return d ? fullText(d.plan) : null; });
   const d = plan(area)!, p = d.plan;
-  const own = panelWords(d.t.body, panelPiece(c.run, d.show));
+  // EXPLAIN-1 (REQ-BFG-089, E4): the view the game draws: NOTES first, the words explainWords lists (was panelWords(d.t.body))
+  const own = explainWords(d.t, panelPiece(c.run, d.show)), notes = (d.t.notes ?? []).map((b) => b.text);
   const words = [...own, ...extra.filter((w) => !own.some((o) => o.word === w.word))];
   const levels = infoLevels(c.run, c.sel);
-  if (!words.length && !levels.length) return null;
-  const items = infoItems(levels, words, p.r.w - 10);
+  if (!words.length && !levels.length && !notes.length) return null;
+  const items = infoItems(levels, words, p.r.w - 10, notes);
   const free = infoFree(vw.L, p.r, p.column);
   return { plan: p, items, free, u2e: infoPages(items, p.maxY + 2 - (p.y - 1)).length, view: infoView(items, p.r, p.y - 1, p.maxY + 2, free) };
 }
@@ -446,8 +454,23 @@ describe("U2f: the taller ⓘ view", () => {
     // the KEEPS -/50%/100% RIDE row in its LEVELS) pages 2 op views and 1 desk view more; QUENCH's +40 and STOKER's 85% are as
     // wide as the numbers they replace. With LADDER_FIX off and the other two switches on both read as before
     // (output-azbump/logs/vp-L1.log). U2f's view (the next test's pins) unchanged
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([126, 185, 5]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([19, 102, 138, 37, 14, 6]);
+    // WORDS-1 (REQ-BFG-081), re-measured (the same 316 panels): the stat icons' notes ({RATE}, {SLUG}, {GEAR} on every turret's
+    // and factory's stat row), the glossary words a face line prints (PART, SPEED's FROM THIS TILE ON, JAM) and the turrets'
+    // two plain lines lengthen the body-only views: op 132 / 179 / 5 -> 66 / 183 / 67, desk 21 / 105 / 133 / 32 / 15 / 10 ->
+    // 5 / 73 / 113 / 84 / 24 / 6 / 9 / 2. U2f's view, the one the game draws (the next test), is unchanged: 316 on 1 page
+    // SPACE-1 (REQ-BFG-087), re-measured (the same 316 panels): the desk column sizes to its text with the gaps between its
+    // items (up to 5 px each), so its body, and U2e's body-only view over it, is taller: desk 5 / 73 / 113 / 84 / 24 / 6 / 9 /
+    // 2 -> 17 / 140 / 121 / 29 / 9. The op band's panels keep their rect (op unchanged); U2f's view (the next test) unchanged
+    // EXPLAIN-1 (REQ-BFG-089, E4), re-measured (the same 316 panels): NOTES first in the view (each hidden line a separate
+    // entry) lengthen the body-only views: op 66 / 183 / 67 -> 14 / 151 / 93 / 58, desk 17 / 140 / 121 / 29 / 9 -> 0 / 17 /
+    // 102 / 108 / 37 / 20 / 11 / 19 / 2 (the desk column is shorter too: it sizes to its text, which lost those lines).
+    // U2f's view, the one the game draws, is the next test's
+    // MERGE-099C (c099 = azbump + release-099; BRIEF-MERGE-099C 3c: the shipped text decides), re-measured at c099 (the same
+    // 316 panels): both sides' lines in one view, so op 14 / 151 / 93 / 58 -> 8 / 157 / 93 / 58 (azbump's 6: TXT-AZ's ROTARY
+    // note and the ride-keep, as above) and desk 0 / 17 / 102 / 108 / 37 / 20 / 11 / 19 / 2 -> 0 / 12 / 106 / 109 / 41 / 16 /
+    // 11 / 19 / 2. U2f's view (the next test's pins) unchanged
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 157, 93, 58]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([0, 12, 106, 109, 41, 16, 11, 19, 2]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -478,19 +501,24 @@ describe("U2f: the taller ⓘ view", () => {
       for (const c of all) {
         const o = opened(v, L, c, w !== 1920);
         const p = o.plan, r = p.r;
-        const piece = panelPiece(c.run, o.d.show), words = panelWords(o.d.t.body, piece), levels = infoLevels(c.run, o.d.show);
-        if (!words.length && !levels.length) continue;
-        const items = infoItems(levels, words, r.w - 10);
+        // EXPLAIN-1 (REQ-BFG-089, E4): the view the game draws: NOTES first, then the LEVELS and the words explainWords lists
+        const piece = panelPiece(c.run, o.d.show), words = explainWords(o.d.t, piece), levels = infoLevels(c.run, o.d.show);
+        const notes = (o.d.t.notes ?? []).map((b) => b.text);
+        if (!words.length && !levels.length && !notes.length) continue;
+        const items = infoItems(levels, words, r.w - 10, notes);
         const free = infoFree(L, r, p.column);
         const view = infoView(items, r, p.y - 1, p.maxY + 2, free);
         const tag = `${w}x${h}: ${c.id}`;
         const header = { x: r.x, y: r.y, w: r.w, h: p.y - 1 - r.y }, q = questionRect(r, p.y, o.tap, o.buttons);
         if (view.areas.length > 1 || view.areas[0].h > p.maxY + 2 - (p.y - 1)) grown++;
-        expect(view.pages.flat(2).map((it) => it.level ?? it.word), `${tag}: every entry, in order`).toEqual([...levels, ...words]);
+        expect(view.pages.flat(2).map((it) => it.note ?? it.level ?? it.word), `${tag}: every entry, in order`).toEqual([...notes, ...levels, ...words]);
+        // EXPLAIN-1 (E3): the ⓘ's target is a finger's square, 4 px into the body on a phone: the view never covers its part
+        // in the header (where its drawn box is); over the body the open view's region, registered after it, takes the press
+        const qHead = q && q.y < p.y - 1 ? { ...q, h: Math.min(q.h, p.y - 1 - q.y) } : null;
         for (const a of view.areas) {
           expect(overlaps(a, header), `${tag}: the header`).toBe(false);
           expect(overlaps(a, questionBox(r)), `${tag}: ⓘ`).toBe(false);
-          if (q) expect(overlaps(a, q), `${tag}: ⓘ's hit rect`).toBe(false);
+          if (qHead) expect(overlaps(a, qHead), `${tag}: ⓘ's hit rect in the header`).toBe(false);
           expect(a.y, `${tag}: under the top bar`).toBeGreaterThan(L.bar.y + L.bar.h);
           expect(a.y + a.h, `${tag}: its area on the screen`).toBeLessThanOrEqual(L.H);
           // the room above the panel never reaches the phone's buttons (the body is U2e's view, which a grown target may meet)
@@ -557,14 +585,20 @@ describe("U2f: the taller ⓘ view", () => {
 // [282, 34] -> [304, 12], the same with the switch on; desk [302, 9] -> [316] (release Y's shorter faces and LEVELS for the
 // 30 folded pieces: no interim clause or caveat, POISON's row gone). The words move none of the four. U2f's aims hold as
 // above.
-const U2F_OP = [316]; // Y7b2 (the flip): was [309, 2]
-const U2F_OP_RUNE = [304, 12]; // Y7b2 (the flip): was [282, 34]
+// EXPLAIN-1 (REQ-BFG-089, E4), re-measured (the same 316 panels): the view now opens with NOTES, the lines the default face
+// hides (a turret's two kind lines, the flavour, the hint, a plain rig's rig sentence), each a separate entry, so a third of
+// the views take a second page: op [316] -> [260, 56], the worst rune held [234, 82] -> [143, 173], the same with the switch
+// on, desk [316] -> [277, 39]. U2f's aims hold: op most on 1 page and none over 2, a rune held none over 3, desk none over 3
+const U2F_OP = [260, 56]; // EXPLAIN-1: was [316] (Y7b2 (the flip): was [309, 2])
+// WORDS-1 (REQ-BFG-081), measured: the stat icons' and face words' notes list in the view, so with the worst rune's keywords
+// after them 82 views take a second page (was [304, 12]); none takes a third (U2f's aim: 3 at most with a rune held)
+const U2F_OP_RUNE = [143, 173]; // EXPLAIN-1: was [234, 82] (Y7b2 (the flip): was [282, 34])
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
  *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
- *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). */
-const U2F_OP_RUNE_ON = [304, 12];
-const U2F_DESK = [316]; // Y7b2 (the flip): was [302, 9]
+ *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). EXPLAIN-1: still the same (was [234, 82]). */
+const U2F_OP_RUNE_ON = [143, 173]; // WORDS-1: the same as RUNE_LIST's, as before (was [304, 12])
+const U2F_DESK = [277, 39]; // EXPLAIN-1: was [316] (Y7b2 (the flip): was [302, 9])
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
 // the screen (the test above), but on the 1920x1080 desk WARD BELL's last KEYWORDS line (a held rune's HULL) drew partly
@@ -635,7 +669,10 @@ describe("FLIP-X1 N4-b: every line of every panel's ⓘ view is on screen", () =
     // layout at x4 with the rune row, whose column runs past the screen's bottom (its cargo tray is cut too)
     const v4 = sheetView(1920, 1080, 1, 0).v, row = runeRowH(v4, 1);
     const at4 = { v: v4, L: shiftLayout(buildLayout(v4.W, v4.H - row, false, 5, false, 0), row, v4.H), touch: false };
-    expect([at4.v.W, at4.v.H, at4.L.info.y + at4.L.info.h > at4.v.H]).toEqual([480, 270, true]);
+    // ZOOM-1 (REQ-BFG-080, call 4): the landscape column now ends 2 px above the screen's foot (the cargo tray sits under
+    // FIGHT, not under the hull), so in this state it no longer runs past the bottom: true -> false. The panels' sweep below
+    // is unchanged (every line of every panel's view still on the screen)
+    expect([at4.v.W, at4.v.H, at4.L.info.y + at4.L.info.h > at4.v.H]).toEqual([480, 270, false]);
     const ward = withSustain(() => {
       const c = sheetPanels().find((q) => q.id === "cargo wardbell ★1 (furnace)")!;
       return span(at4, c, runeWords({ build: { runes: [{ id: "spare_hull", day: 1 }] } } as unknown as Run))!;
