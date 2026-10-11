@@ -34,6 +34,9 @@ import { gradeOf, starsOf } from "../stars";
 import { beltPolicy, botSlots, reachCols } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7): the bots' belts
 import { fusibleCopies, gainInto, previewMerge } from "./merge";
 import { blockedCells, freeConnectors, shortestTiles, startCells } from "./path";
+import { startCellsFor } from "./path"; // SHAPES-1 (REQ-BFG-086 S7.2)
+import { cellsOf } from "../deck"; // SHAPES-1: a placed piece's turned footprint
+import { footOnDeck } from "../foot"; // SHAPES-1: every cell on the deck
 import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Accept, type Shopper } from "./shopper";
 import type { GainAt } from "../../game/fuse";
 
@@ -483,7 +486,7 @@ function moreRoutes(s: Shopper, uid: number, merged: boolean): void {
   for (;;) {
     const f = b.items.find((p) => p.uid === uid);
     if (!f || routesOf(b, uid).length >= botSlots(f.def, gradeOf(b, f), b.hero, policy)) return; // bb-0.8.3: its grade
-    const bl = blockedCells(b), starts = startCells(f.x, f.y, ITEMS[f.def].size, bl);
+    const bl = blockedCells(b), starts = startCellsFor(cellsOf(f), bl); // SHAPES-1: the turned footprint
     let cells: number[] | null = null;
     if (policy === "reach") {
       // (c): the next belt only into an installed turret this factory doesn't feed yet, at its shortest (or 2 tiles longer)
@@ -547,13 +550,13 @@ function pressLine(s: Shopper, carried: Placed[]): boolean {
   for (let tries = 0; tries < 8; tries++) {
     const x = s.rng.int(GRID - 1), y = 1 + s.rng.int(GRID - 2);
     const occ = occupancy(b);
-    if (footprint(def, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
+    if (!footOnDeck(def, x, y) || footprint(def, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue; // SHAPES-1: a 2x3 or I3 fits on the deck (a 2x2 always does here)
     const snap = cloneBuild(b);
     const uid = s.uid; // gainInto (stars on) mints this same uid; the raw push (off) mints it too
     if (s.stars) gainInto(s, b, def.id, { x, y }, s.cargo); // no twin (checked above): lands at x,y, as pushed
     else { b.items.push({ uid, def: def.id, x, y }); s.uid++; }
     const bl = blockedCells(b);
-    const cells = s.drawRoute(-1, startCells(x, y, def.size, bl), bl, s.left());
+    const cells = s.drawRoute(-1, startCellsFor(footprint(def, x, y), bl), bl, s.left()); // SHAPES-1: start cells from its edge
     if (cells) {
       s.buyBelt(-1, cells.length);
       b.routes.push({ factory: uid, cells });

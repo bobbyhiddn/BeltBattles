@@ -23,6 +23,8 @@ import { FUSE_MAX } from "../stars";
 import { shopFactories, shopItems } from "./heroes";
 import { cargoValue, gainInto, previewMerge, type InvItem } from "./merge";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
+import { startCellsFor } from "./path"; // SHAPES-1 (REQ-BFG-086 S7.2)
+import { cellsOf } from "../deck"; // SHAPES-1: a placed piece's turned footprint
 
 export const CRATE = ITEMS.beltcrate, PLATE = ITEMS.plating, PRESS = ITEMS.press;
 /** BOTS-X (REQ-BFG-069): not one of SUS-A's sustain pieces (the random builder's stock, Shopper below). */
@@ -393,7 +395,7 @@ export class Shopper {
     const carried = this.ridersOf(ri);
     this.lift(carried);
     const bl = blockedCells(b, ri);
-    const cells = this.drawRoute(ri, startCells(f.x, f.y, ITEMS[f.def].size, bl), bl, spare, tiles, col);
+    const cells = this.drawRoute(ri, startCellsFor(cellsOf(f), bl), bl, spare, tiles, col); // SHAPES-1: the turned footprint
     if (!cells) return this.restore(snap);
     this.buyBelt(ri, cells.length);
     b.routes[ri] = { factory: r.factory, cells };

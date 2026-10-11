@@ -12,6 +12,8 @@ import {
 } from "../src/sim/deck";
 import { HEROES, ITEMS, MERCHANTS, PACK_IDS, PACK_ITEM, itemsSoldBy, type MerchantId } from "../src/sim/content";
 import { unfusedPairs } from "../src/net/validate";
+import { rotOf } from "../src/sim/deck"; // SHAPES-1 (REQ-BFG-086): a piece's turn
+import { isShaped } from "../src/sim/foot"; // SHAPES-1: a shaped piece
 import { outputsAt, starsOf } from "../src/sim/stars"; // bb-0.8.3 (REQ-BFG-042): belt slots by stars
 
 /** Every def the caravan sells (merchant stock: the 58 modules, 13 turrets and the two supplies). */
@@ -42,7 +44,7 @@ export function legalityProblems(b: Build): string[] {
   if (facs.filter((p) => p.def === h.factory).length !== 1) bad.push(`needs exactly one ${h.factory}`);
   for (const f of facs) if (f.def !== h.factory && SIGNATURES.has(f.def)) bad.push(`foreign factory ${f.def}`);
   for (const f of facs) {
-    const chk = canPlaceItem(nb, f.def, f.x, f.y);
+    const chk = canPlaceItem(nb, f.def, f.x, f.y, -1, rotOf(f)); // SHAPES-1 (REQ-BFG-086 S7.4): a shaped factory's rot
     if (chk.ok) placeItem(nb, f);
     else bad.push(`factory ${f.def}@${f.x},${f.y}: ${chk.reason}`);
   }
@@ -66,8 +68,11 @@ export function legalityProblems(b: Build): string[] {
   // 0.6.2 BELTSIDE: a rig stands beside the belt (canPlaceItem refuses a belt tile) and, in a preset deck,
   // must work one: an IDLE rig (no arrow reaches a belt) is a wasted purchase
   for (const g of gates) {
-    const chk = canPlaceItem(nb, g.def, g.x, g.y);
-    if (!chk.ok) bad.push(`rig ${g.def}@${g.x},${g.y}: ${chk.reason}`);
+    const chk = canPlaceItem(nb, g.def, g.x, g.y, -1, rotOf(g)); // SHAPES-1: a shaped rig's turned footprint
+    // SHAPES-1 (S5; cap's ruling 4ef9d32165edfd0d): an authored 1-cell rig on a turret intake (KARSK's IRON WALL) keeps
+    // 0.9.9's rule, as the validator does; only a shaped piece there is refused. Off: TURRET INTAKE never comes up.
+    const grandfathered = !chk.ok && chk.reason === "TURRET INTAKE" && !isShaped(ITEMS[g.def]);
+    if (!chk.ok && !grandfathered) bad.push(`rig ${g.def}@${g.x},${g.y}: ${chk.reason}`);
     else placeItem(nb, g);
   }
   for (const g of gates) if (!hitsOfRig(nb, g.uid).length) bad.push(`rig ${g.def}@${g.x},${g.y} is IDLE`);

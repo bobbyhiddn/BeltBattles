@@ -74,8 +74,7 @@ import { TURRET_UID0, rotOf, setTurretList, startingTurrets, type Build, type Bu
 const levelOf = (n: number | undefined): number => (typeof n === "number" && Number.isFinite(n) && n >= 1 ? Math.min(4, Math.floor(n)) : 1);
 import { logMigration, migrateInlineGates } from "./beltside";
 import { logShapes, migrateShapedFactories } from "./beltside"; // SHAPES-1 (REQ-BFG-086 S6): the load migration
-import { footOf, footTurns } from "./foot"; // SHAPES-1 (S4): a shaped factory's rot
-import { shapesRules } from "./shapes"; // SHAPES-1 (S1): the switch
+import { footOf, footTurns, shapesRules } from "./deck"; // SHAPES-1 (S1, S4): the switch; a shaped factory's rot (foot.ts, shapes.ts via deck.ts)
 import { STAND_IN_DATA, type StandInDay } from "./standInPoolData";
 
 /** RULES_VERSION the pool was generated (and scored) under. */

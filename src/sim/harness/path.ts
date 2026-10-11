@@ -23,8 +23,16 @@ export function blockedCells(b: Build, skipRoute = -1): Uint8Array {
 
 /** Free cells orthogonally adjacent to a size x size footprint at (fx, fy). */
 export function startCells(fx: number, fy: number, size: number, bl: Uint8Array): number[] {
-  const fp = new Set<number>();
-  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) fp.add(key(fx + i, fy + j));
+  const fp: number[] = [];
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) fp.push(key(fx + i, fy + j));
+  return startCellsFor(fp, bl);
+}
+
+/** SHAPES-1 (REQ-BFG-086 R3, S7.2): free cells orthogonally adjacent to any footprint (its cells: foot.ts footprintCells,
+ *  deck.ts cellsOf), row by row: where a belt may start, the start cells from the turned edge. A size x size square
+ *  gives startCells' cells in its order. */
+export function startCellsFor(cells: readonly number[], bl: Uint8Array): number[] {
+  const fp = new Set<number>(cells);
   const out: number[] = [];
   for (let y = 0; y < GRID; y++) {
     for (let x = 0; x < GRID; x++) {

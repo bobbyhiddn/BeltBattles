@@ -11,8 +11,9 @@ import {
   rotField, turretForColumn, type Build, type Dir, type Placed,
 } from "./deck";
 import { cellsOf, pruneJoins, rigArrowCells, rotOf } from "./deck"; // SHAPES-1 (REQ-BFG-086 R1-R2, S6): cells; per-cell arrows
-import { footOf, footOnDeck, footprintCells, footTurns } from "./foot"; // SHAPES-1: a def's foot
-import { RESHAPED_IDS, shapesRules } from "./shapes"; // SHAPES-1 (S6): the switch and the reshaped factories
+// SHAPES-1: the footprint engine (foot.ts) and the switch (shapes.ts), through deck.ts: this file imports only ./content
+// and ./deck (the stand-in loader's portability, tests/standInPool.gen.test.ts)
+import { RESHAPED_IDS, footOf, footOnDeck, footprintCells, footTurns, shapesRules } from "./deck";
 
 // ---------------------------------------------------------------- the D3 migration
 
@@ -387,6 +388,8 @@ export function spotForTile(
   const r = b.routes[ri];
   const k0 = r?.cells[ti];
   if (k0 === undefined) return null;
+  // SHAPES-1 (REQ-BFG-086 S7.1): a multi-cell rig takes the shaped-rig solver's best placement that hits this tile
+  if (ITEMS[def] && footOf(ITEMS[def]) !== "1") return shapedSpot(b, def, only, accept, [ri, ti]);
   const belts = beltIndex(b, only);
   let best: RigSpot | null = null;
   for (const d of neighbourOrder(b, ri, ti)) {
@@ -480,6 +483,50 @@ export function stokeSpots(b: Build, def: string, occ = occupancy(b)): StokeSpot
     }
   }
   return out.sort((a, c) => c.stokes.length - a.stokes.length); // stable: deck order within a count
+}
+
+// ---------------------------------------------------------------- SHAPES-1 (S7.1): the shaped-rig solver
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S7.1; PIECES-1 5.3 "How bots and par builders place shapes"): where a multi-cell rig of `def` goes
+ * on `b`. Every placement, anchor x, y x rot (rotations: 0-3), at most 400, whose cells are all free (no machinery, no
+ * belt), on the deck and off the turret intakes. Its score: the sum over its hits on the belts `only` accepts of a hit's
+ * value, minus 0.5 for each of its cells beside a belt that no arrow of it hits a belt from (the room it takes). A hit's
+ * value is 1: a plain rig's flat and per-tile terms (estimateRoute's) are the same for every hit of one def, so each hit
+ * counts alike; `accept` rules placements out by their hits, as H2's does (a speed rig's on a slag belt, P20). The best
+ * wins; ties go to its first hit tile in H2's order (route, then tile), then that tile's D3 neighbour order
+ * (neighbourOrder: the side its arrow shines from), then the lower rot, then row order, as H2 (bestSpot, spotForTile)
+ * breaks ties. `tile` ([route, tile]): only placements that hit that tile (the "typical" player's random belt tile).
+ * null when no placement hits a belt.
+ */
+export function shapedSpot(
+  b: Build, def: string, only?: (ri: number) => boolean, accept?: (hits: WouldHit[]) => boolean, tile?: readonly [number, number],
+): RigSpot | null {
+  const d = ITEMS[def];
+  if (!d) return null;
+  const belts = beltIndex(b, only), occ = occupancy(b), h = hero(b);
+  const beside = (k: number) => [0, 1, 2, 3].some((dir) => {
+    const n = arrowCell(kx(k), ky(k), dir as Dir);
+    return n >= 0 && occ[n].route >= 0;
+  });
+  let best: { spot: RigSpot; score: number; order: number[] } | null = null;
+  for (const rot of rotations(def)) {
+    for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+      if (!footOnDeck(d, x, y, rot)) continue;
+      const cells = footprintCells(d, x, y, rot);
+      if (cells.some((k) => occ[k].item >= 0 || occ[k].route >= 0 || (ky(k) === 0 && turretForColumn(h, kx(k)) >= 0))) continue;
+      const hits = hitsIfPlaced(b, def, x, y, rot, belts);
+      if (!hits.length || (accept && !accept(hits))) continue;
+      if (tile && !hits.some((q) => q.route === tile[0] && q.tile === tile[1])) continue;
+      const wasted = cells.filter((k) => beside(k) && !hits.some((q) => (q.from ?? key(x, y)) === k)).length;
+      const score = hits.length - 0.5 * wasted;
+      const first = [...hits].sort((p, q) => p.route - q.route || p.tile - q.tile)[0];
+      const order = [first.route, first.tile, neighbourOrder(b, first.route, first.tile).indexOf(opposite(first.dir)), rot];
+      const before = (o: number[]) => { for (let i = 0; i < o.length; i++) if (order[i] !== o[i]) return order[i] < o[i]; return false; };
+      if (!best || score > best.score || (score === best.score && before(best.order))) best = { spot: { x, y, rot, hits }, score, order };
+    }
+  }
+  return best ? best.spot : null;
 }
 
 /** Place a rig at a spot (the caller checked it is free): the item with its rot field. */
