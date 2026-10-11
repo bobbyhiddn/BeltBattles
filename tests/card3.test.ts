@@ -573,3 +573,43 @@ describe("CARD-3 (d5, d6): LAST CHANCE's part and hull cards take gaps between t
     expect(short.gap).toEqual(lcGaps(true));
   });
 });
+
+// --------------------------------------------------------------------------- (e): the rune bar read-out's note room
+import { RuneBar, runeCardH as cardHOf } from "../src/ui/runeBar";
+import { RUNES } from "../src/sim/runes";
+
+describe("CARD-3 (e): the rune bar's read-out makes its note room only while a note shows (REQ-BFG-089)", () => {
+  it("every rune: the read-out ends after its last line with no note, makes the room for the chip's line or a word's definition; its chip and words stay put", () => {
+    setTipsForTests("done");
+    const f = framed(402, 690, 3, 1), rows: string[] = [];
+    let n = 0;
+    for (const def of RUNE_LIST) {
+      const run = newRun("furnace", 5, `card3-e-${def.id}`);
+      run.build.runes = [{ id: def.id }] as never;
+      const ui = new UI(), bar = new RuneBar();
+      const s = { run, game: { W: f.W, H: f.H, view: f.view, ui, canvas: null }, L: f.L, menu: false, panelArea: () => f.L.info };
+      const frame = () => { ui.begin(); bar.drawOver(gOf(fresh(f.W, f.H)), s as never); ui.end(); return ui; };
+      frame().regions.find((q) => q.id === "rune-0")!.onTap!();
+      bar.word = null; // the read-out with no note (K1's first sight aside)
+      const at = () => {
+        const u = frame(), r = u.regions.find((q) => q.id === "rune-readout")!.r;
+        return { r, chip: u.regions.find((q) => q.id === "rune-chip")?.r, words: u.regions.filter((q) => q.id.startsWith("rune-w")).map((q) => q.r) };
+      };
+      const none = at(), w = none.r.w;
+      bar.note = true;
+      const note = at();
+      bar.note = false;
+      const k = runeKeywords(def)[0];
+      bar.word = k ? KEYWORD_WORD[k] : null;
+      const word = k ? at() : note;
+      expect(none.r.h, def.id).toBe(cardHOf(def, w, {}));
+      expect([note.r.h, word.r.h], def.id).toEqual([cardHOf(def, w, { reminder: true }), cardHOf(def, w, { reminder: true })]);
+      // nothing a press reaches moves: the card's top, its chip, its words
+      expect([note.r.y, note.chip, note.words], def.id).toEqual([none.r.y, none.chip, none.words]);
+      expect([!!none.chip, RUNES[def.id].id], def.id).toEqual([true, def.id]);
+      if (n++ < 4) rows.push(`${def.id}: ${none.r.h} px with no note, ${note.r.h} with one`);
+      bar.word = null;
+    }
+    console.log(`CARD3 (e): ${n} runes' read-outs on 402x690 @3: ${rows.join("; ")}`);
+  });
+});

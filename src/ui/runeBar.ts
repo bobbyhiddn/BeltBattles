@@ -525,10 +525,15 @@ export class RuneBar {
     const W = s.game.W, w = readoutW(W), x = Math.round(W / 2 - w / 2), y = B.bar.y + B.bar.h + 2;
     if (this.open >= 0 && defs[this.open]) {
       const def = defs[this.open];
-      const r = { x, y, w, h: runeCardH(def, w, { reminder: true }) };
+      // CARD-3 (REQ-BFG-089, E; EXPLAIN-1 open item 4): on the bar's read-out only, the card ends after its last line while
+      // no note shows, and makes the reminder's room while one does (the chip's line, or a word's definition). Its top, its
+      // chip and its words keep their places, so nothing a press reaches moves; only its foot comes up (a press below it
+      // closes it, as any press off it always did). The picker's opened card and LAST CHANCE's RUNE card keep their size
+      const room = this.note || !!this.word;
+      const r = { x, y, w, h: runeCardH(def, w, { reminder: room }) };
       // EXPLAIN-1 (REQ-BFG-089, E1d, E3): the reminder's room stays clear; the chip shows its line (a tap) or a tooltip (hover)
       // CARD-2 (K2): a keyword's definition (its tap, or K1's first sight) takes the room in place of the chip's line
-      drawRuneCard(g, r, def, { sub: runeTaken(def, this.open + 1), reminder: true, noteOpen: this.note, word: this.word });
+      drawRuneCard(g, r, def, { sub: runeTaken(def, this.open + 1), reminder: room, noteOpen: this.note, word: this.word });
       if (this.note) sawRuneNote(def);
       ui.add({ id: "rune-readout", r, onTap: () => { this.open = -1; this.note = false; this.word = null; } });
       runeChipIcon(g, ui, "rune-chip", r, def, runeTapOf(s), () => { this.note = !this.note; this.word = null; }, { W: s.game.W, H: s.game.H }, s.game.canvas);
