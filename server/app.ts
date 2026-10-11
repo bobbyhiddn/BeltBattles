@@ -35,7 +35,8 @@ import { join } from "node:path";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
 import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
-import { isNewPlayer, matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
+import { isNewPlayer, matchSeed, type MatchRequest } from "../src/net/matchmaking";
+import { matchPick } from "../src/net/pick"; // RETUNE-1 T5 (REQ-BFG-092): the one pick, shared with the client's fallback
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, type GhostSnapshot } from "../src/net/snapshot";
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { isReachable } from "../src/net/records";
@@ -324,6 +325,9 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         // are seeded, never uploaded, carry none). The decoder has already refused a bad one; here only its absence
         const named = nameProblem(snap.name);
         if (named) throw new HttpError(422, `name: ${named}`);
+        // RETUNE-1 T5 (REQ-BFG-092): only the seed step grades a ghost (the graded pick ranks by it), so an upload carries
+        // none (with PICK off the decoder has already refused the field, 400)
+        if (snap.grade !== undefined) throw new HttpError(422, "grade: only the seed pool's ghosts carry a grade");
         // 0.7.0: a player's deck, the player mode (road gold, parts, hull). RUNES-1 (REQ-BFG-058): with the snapshot's run
         // seed, so validateBuild re-derives every dawn's rune offer (runes.ts runeProblem); the seed is stored, never served
         // LC-1 (REQ-BFG-073): and its LAST CHANCE (absent on every switch-off snapshot: the decoder refuses the field)
@@ -349,8 +353,9 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         only("GET");
         const m = parseMatchQuery(url.searchParams);
         // 0.7.0a D2: a new player is matched against the seed pool only; D1 holds inside pickGhost (eligible)
+        // RETUNE-1 T5 (REQ-BFG-092): matchPick, the graded pick under rules with PICK (pick.ts); otherwise pickGhost exactly
         const ghosts = await store.bucket(m.rules, m.day, isNewPlayer(m) ? "pool" : "all");
-        const hit = pickGhost(ghosts, m, new Rng(matchSeed(m, salt())));
+        const hit = matchPick(ghosts, m, new Rng(matchSeed(m, salt())));
         if (!hit) throw new HttpError(404, "no ghost for this rules version, day and record yet");
         return send(res, 200, { id: hit.id, snapshot: servedSnapshot(hit.snapshot) }); // RUNES-1 (FIX-6): no seed
       }

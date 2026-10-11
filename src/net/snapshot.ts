@@ -14,6 +14,7 @@ import { RUN_DAYS } from "../sim/content"; // LC-1: LAST CHANCE comes before the
 import { npcDayGateProblem } from "./rulesGate"; // NPC-1 (REQ-BFG-077): the road log by the switch and the rules
 import { ROAD_OUTCOMES, type RoadEntry } from "../sim/npcDay"; // NPC-1
 import { livesCapFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the lives bound follows the rules (hearts: 10)
+import { pickGateProblem } from "./rulesGate"; // RETUNE-1 T5 (REQ-BFG-092): a seed ghost's grade by the switch and the rules
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -106,7 +107,14 @@ export interface GhostSnapshot {
   /** NPC-1 (REQ-BFG-077, REQ-BFG-078; snapshot v3, written last, only with NPC_DAY on): the run's road log, one entry per
    *  day reached ({ day, tier, outcome, drop? }): the server re-derives each warlord and its drop from the seed. */
   road?: RoadEntry[];
+  /** RETUNE-1 T5 (REQ-BFG-092; snapshot v3, written last, only with PICK on and under rules with it): a seed ghost's grade,
+   *  its vsPar in permille (0..GRADE_MAX), written by the seed step (tools/samplePool.ts); the graded pick (pick.ts
+   *  matchPick) ranks by it. Never an upload's (POST /v1/ghosts refuses one); ghostId leaves it out. */
+  grade?: number;
 }
+
+/** RETUNE-1 T5: the most a grade reads (a vsPar of 1, in permille). */
+export const GRADE_MAX = 1000;
 
 /** A snapshot with its pool id (content hash for stored ghosts, "offline-..." for stand-ins). */
 export interface PoolEntry {
@@ -402,10 +410,28 @@ function roadField(o: Obj, version: number, rules: string): { road?: RoadEntry[]
   };
 }
 
+/** RETUNE-1 T5 (REQ-BFG-092): the snapshot's key for a seed ghost's grade (after road, last of all). */
+export const GRADE_FIELD = "grade";
+
+/**
+ * RETUNE-1 T5: the optional `grade` (an integer 0..GRADE_MAX, a seed ghost's vsPar in permille), v3 only and written last
+ * (a snapshot without it encodes byte for byte as before). Refused while PICK is off and under rules before PICK_RULES
+ * (rulesGate.ts pickGateProblem), as the road log is: a SnapshotError, the endpoint's 400.
+ */
+function gradeField(o: Obj, version: number, rules: string): { grade?: number } {
+  if (!has(o, GRADE_FIELD) || o[GRADE_FIELD] === undefined) return {};
+  const at = `snapshot.${GRADE_FIELD}`;
+  if (version < SNAPSHOT_V3) throw new SnapshotError(`${at}: not allowed in a v${version} snapshot`);
+  const gate = pickGateProblem(rules);
+  if (gate) throw new SnapshotError(`${at}: ${gate}`);
+  return { grade: int(o[GRADE_FIELD], at, 0, GRADE_MAX) };
+}
+
 /** Full strict check of a decoded value. Returns a canonical copy. */
 export function checkSnapshot(v: unknown): GhostSnapshot {
-  // LC-1: `lastChance` may follow the v3 fields (lastChanceField refuses it while its switch is off); NPC-1: then `road`
-  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name", ...V3_SNAPSHOT_FIELDS, LAST_CHANCE_FIELD, ROAD_FIELD]);
+  // LC-1: `lastChance` may follow the v3 fields (lastChanceField refuses it while its switch is off); NPC-1: then `road`;
+  // RETUNE-1 T5: then `grade`
+  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name", ...V3_SNAPSHOT_FIELDS, LAST_CHANCE_FIELD, ROAD_FIELD, GRADE_FIELD]);
   if (o.v !== 1 && o.v !== 2 && o.v !== 3) throw new SnapshotError(`snapshot.v: expected 1, 2 or ${SNAPSHOT_V3}`);
   const ver: 1 | 2 | 3 = o.v;
   const rules = str(o.rules, "snapshot.rules", RULES_PATTERN);
@@ -430,6 +456,7 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
     ...v3Fields(o, ver), // RUNES-1 (snapshot v3): after the name, only when present
     ...lastChanceField(o, ver, rules, day), // LC-1 (REQ-BFG-073): last of all, only when present (and the switch on)
     ...roadField(o, ver, rules), // NPC-1 (REQ-BFG-077, REQ-BFG-078): after it, only when present (and NPC_DAY on)
+    ...gradeField(o, ver, rules), // RETUNE-1 T5 (REQ-BFG-092): last, only when present (and PICK on)
   };
 }
 
@@ -472,5 +499,11 @@ function hash53(text: string, seed = 0): number {
 
 /** Content-addressed ghost id: the same snapshot always gets the same id (idempotent submit). */
 export function ghostId(s: GhostSnapshot): string {
+  // RETUNE-1 T5 (REQ-BFG-092): a seed ghost's grade is the seed step's note on the ghost, not the ghost: the id is the
+  // ungraded snapshot's (so grading keeps every id, and a snapshot without a grade hashes exactly as before)
+  if (s.grade !== undefined) {
+    const { grade: _grade, ...ghost } = s;
+    return ghostId(ghost);
+  }
   return "g" + hash53(encodeSnapshot(s)).toString(16).padStart(14, "0");
 }

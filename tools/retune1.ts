@@ -43,7 +43,8 @@ import { RULES_VERSION, RUN_DAYS, START_LIVES, type HeroId } from "../src/sim/co
 import { type Build } from "../src/sim/deck";
 import { parField } from "../src/sim/harness/par";
 import { parRunSeed, playerRun, rateOn, type PlayerOpts } from "../src/sim/harness/player";
-import { casualOpts, recordPick, RECORD_RULE, type Grades, type RecordRule } from "../src/sim/harness/casual";
+import { casualOpts, type Grades } from "../src/sim/harness/casual";
+import { GRADE_K, GRADE_SEEDS, matchPick, PICK_RULE, setPick, type PickRule } from "../src/net/pick"; // RETUNE-1 T5: the built pick
 import { botLastChancePick } from "../src/sim/harness/lastChance";
 import { LAST_CHANCE_AT, LAST_CHANCE_HULL, LAST_CHANCE_LIVES, lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { HEARTS_RULE, heartsDusk, type HeartsRule } from "../src/sim/hearts";
@@ -54,7 +55,7 @@ import { setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
 import { REFUND_DAY, REFUND_LIVES } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
-import { checkSnapshot, ghostId, type PoolEntry } from "../src/net/snapshot";
+import { checkSnapshot, ghostId, GRADE_MAX, type PoolEntry } from "../src/net/snapshot";
 import { pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { generateSamplePool } from "./samplePool";
 import { serveJobs, workerRunner } from "./workers";
@@ -99,6 +100,7 @@ export function applySet(s: SetSwitches): string {
   setLadderFix(s.ladderFix);
   setHearts(s.hearts);
   setGuard(s.guard);
+  setPick(s.pick); // RETUNE-1 T5: the built pick and the seed step's grades
   return Object.entries(s).filter(([, v]) => v).map(([k]) => k).join("+");
 }
 const SET = setOf(flag("set") ?? "today", (flag("also") ?? "").split(",").filter(Boolean));
@@ -107,31 +109,13 @@ const SET = setOf(flag("set") ?? "today", (flag("also") ?? "").split(",").filter
 
 async function modePool(): Promise<unknown> {
   const t0 = Date.now();
+  // RETUNE-1 T5: with PICK in the set, generateSamplePool grades every seed ghost itself (samplePool.ts gradeSamplePool:
+  // the built grade, K 6 x 1 seed, seeded as run 1's worker grade was), into each snapshot (`grade`, in permille)
   const pool = generateSamplePool().map((snapshot) => ({ id: ghostId(snapshot), snapshot }));
-  console.log(`pool: ${pool.length} seed ghosts in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  console.log(`pool: ${pool.length} seed ghosts in ${((Date.now() - t0) / 1000).toFixed(0)} s${SET.pick ? " (graded in the seed step)" : ""}`);
   if (!SET.pick) return { pool, grades: [] };
-  const K = int("grade-k", 6), S = int("grade-seeds", 1);
-  const decks: Build[] = [];
-  const at = new Map<string, number>();
-  const add = (key: string, b: () => Build) => { let i = at.get(key); if (i === undefined) { i = decks.length; decks.push(b()); at.set(key, i); } return i; };
-  const jobs: Job[] = [];
-  const plan = pool.map((e, gi) => {
-    const day = e.snapshot.day, a = add(`ghost|${e.id}`, () => e.snapshot.build);
-    const js = HEROES4.flatMap((h) => parField(h, day, K).map((b, m) => {
-      jobs.push({ a, b: add(`par|${h}|${day}|${m}`, () => b), seeds: Array.from({ length: S }, (_, x) => hashSeed("rt1-grade", day, gi, h, m, x)), day });
-      return jobs.length - 1;
-    }));
-    return { e, js };
-  });
-  console.log(`grade: ${plan.length} seed ghosts, ${jobs.length} pairings, k ${K}, seeds ${S}, ${decks.length} decks built at ${((Date.now() - t0) / 1000).toFixed(0)} s`);
-  const runner = workerRunner(Math.min(2, int("workers", 2)), import.meta.url);
-  try {
-    const pts = await runner.run(decks, jobs);
-    const grades = plan.map(({ e, js }) => ({ id: e.id, hero: e.snapshot.hero, day: e.snapshot.day, wins: e.snapshot.wins, lives: e.snapshot.lives, playerId: e.snapshot.playerId, vsPar: r3(js.reduce((s, j) => s + pts[j] / (2 * S), 0) / js.length) }));
-    return { pool, grades, gradeK: K, gradeSeeds: S };
-  } finally {
-    await runner.close();
-  }
+  const grades = pool.map((e) => ({ id: e.id, hero: e.snapshot.hero, day: e.snapshot.day, wins: e.snapshot.wins, lives: e.snapshot.lives, playerId: e.snapshot.playerId, vsPar: r3((e.snapshot.grade ?? 0) / GRADE_MAX) }));
+  return { pool, grades, gradeK: GRADE_K, gradeSeeds: GRADE_SEEDS, grader: "samplePool" };
 }
 
 // ---------------------------------------------------------------- mode bench
@@ -154,7 +138,7 @@ function policyOpts(p: string): PlayerOpts {
 }
 
 interface BenchCtx {
-  pool: PoolEntry[]; grades: Grades; rule: RecordRule; opts: PlayerOpts; hearts: HeartsRule; refund: boolean;
+  pool: PoolEntry[]; grades: Grades; rule: PickRule; opts: PlayerOpts; hearts: HeartsRule; refund: boolean;
 }
 
 /** One run of `hero` (field seed `seed`) on run model `model`. */
@@ -177,7 +161,8 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059", ctx: BenchCt
     recs.push(`${wins}W${left}`);
     const req: MatchRequest = { rules: RULES_VERSION, day: cd, wins, lives: Math.max(1, left), playerId: "rt1-bench", seen, runs: 0 };
     const rng = new Rng(hashSeed("rt1-match", runSeed, day));
-    const hit = SET.pick ? recordPick(ctx.pool, req, ctx.grades, rng, ctx.rule) : pickGhost(ctx.pool, req, rng);
+    // RETUNE-1 T5: PICK is the game's own pick now (pick.ts matchPick on the snapshots' grades; --rule its numbers)
+    const hit = SET.pick ? matchPick(ctx.pool, req, rng, ctx.rule) : pickGhost(ctx.pool, req, rng);
     let foe: Build;
     if (hit) {
       foe = hit.snapshot.build;
@@ -227,9 +212,17 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059", ctx: BenchCt
 function loadPoolFile(file: string): { pool: PoolEntry[]; grades: Grades } {
   const raw = JSON.parse(readFileSync(file, "utf8")) as { data?: { pool: { id: string; snapshot: unknown }[]; grades: { id: string; vsPar: number }[] } };
   const d = raw.data!;
-  const pool = d.pool.map((e) => ({ id: e.id, snapshot: checkSnapshot(e.snapshot) }));
+  const listed = new Map(d.grades.map((g) => [g.id, g.vsPar]));
+  const pool = d.pool.map((e) => {
+    const snapshot = checkSnapshot(e.snapshot);
+    // RETUNE-1 T5: run 1's pools list the grades beside the snapshots: each goes into its snapshot here (in memory), as
+    // the seed step writes it; a pool made by the built seed step carries them already
+    const vs = listed.get(e.id);
+    if (SET.pick && snapshot.grade === undefined && vs !== undefined) snapshot.grade = Math.round(vs * GRADE_MAX);
+    return { id: e.id, snapshot };
+  });
   for (const e of pool) if (ghostId(e.snapshot) !== e.id) throw new Error(`pool ${file}: ${e.id} is not its snapshot's id`);
-  return { pool, grades: new Map(d.grades.map((g) => [g.id, g.vsPar])) };
+  return { pool, grades: new Map(pool.filter((e) => e.snapshot.grade !== undefined).map((e) => [e.id, e.snapshot.grade! / GRADE_MAX])) };
 }
 
 function modeBench(): unknown {
@@ -240,7 +233,7 @@ function modeBench(): unknown {
   const { pool, grades } = loadPoolFile(flag("pool")!);
   if (SET.pick && !grades.size) throw new Error("PICK in the set needs a graded pool (--mode pool with PICK)");
   const rv = flag("rule")?.split(",").map(Number);
-  const rule: RecordRule = rv ? { losing: rv[0], deep: rv[1], deepAt: rv[2] } : { ...RECORD_RULE };
+  const rule: PickRule = rv ? { losing: rv[0], deep: rv[1], deepAt: rv[2] } : { ...PICK_RULE };
   const hearts: HeartsRule = { ...HEARTS_RULE, ...(flag("hearts-start") ? { start: Number(flag("hearts-start")) } : {}) };
   const ctx: BenchCtx = { pool, grades, rule, opts: policyOpts(pol), hearts, refund: has("refund") };
   const rows: Row[] = [];

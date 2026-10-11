@@ -228,3 +228,22 @@ export function heartsFor(rules: unknown): boolean {
 export function livesCapFor(rules: unknown, cap: number): number {
   return heartsFor(rules) ? Math.max(cap, HEARTS_START) : cap;
 }
+
+import { pickRules } from "./pick"; // RETUNE-1 T5: the PICK switch (src/net/pick.ts)
+
+/** RETUNE-1 T5 (REQ-BFG-092): the first rules version with the graded pick (R1) and the seed pool's grades. */
+export const PICK_RULES: string = RULES_VERSION;
+
+/** Does the graded pick hold for a match request or a graded snapshot under `rules`? The switch on AND `rules` a readable
+ *  version at or after PICK_RULES. False with the switch off, whatever the rules (every pick then as today). */
+export function pickFor(rules: unknown): boolean {
+  return pickRules() && rulesAtLeast(rules, PICK_RULES);
+}
+
+/** RETUNE-1 T5: why a snapshot under `rules` may not carry a grade (snapshot.grade), or null when it may (pickFor). */
+export function pickGateProblem(rules: unknown): string | null {
+  if (!pickRules()) return "not in this rules version yet";
+  if (rulesAtLeast(rules, PICK_RULES)) return null;
+  const what = `a seed ghost's grade (snapshot.grade) needs ${PICK_RULES} or later`;
+  return parseRules(rules) ? `rules ${String(rules)} predate ${PICK_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}

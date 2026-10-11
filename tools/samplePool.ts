@@ -57,6 +57,10 @@ import { eligible } from "../src/net/matchmaking";
 import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
 import { checkSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { GRADE_MAX } from "../src/net/snapshot"; // RETUNE-1 T5 (REQ-BFG-092): the grade's bound
+import { GRADE_K, GRADE_SEEDS, pickRules } from "../src/net/pick"; // RETUNE-1 T5: the switch and the grade's K and seeds
+import { parField } from "../src/sim/harness/par"; // RETUNE-1 T5: the grade's par fields
+import { playJob, type Job } from "../src/sim/harness/tournament"; // RETUNE-1 T5: a pairing's points
 import { encodeStarred, standInParIndex, standInPickIndex, standInPool, type StandInEntry } from "../src/sim/standInPool";
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
@@ -359,7 +363,33 @@ export function generateSamplePool(o: { botRunes?: boolean } = {}): GhostSnapsho
     throw new Error(`the seed pool leaves ${gaps.length} reachable states with fewer than ${MIN_ELIGIBLE} eligible ghosts: `
       + gaps.slice(0, 8).map((g) => `day ${g.day} ${g.wins}W ${g.lives} lives (${g.eligible})`).join(", "));
   }
-  return pool;
+  if (!pickRules()) return pool;
+  // RETUNE-1 T5 (REQ-BFG-092): with PICK on, every seed ghost carries its grade (v3, written last; ghostId leaves it out)
+  const grades = gradeSamplePool(pool);
+  return pool.map((s, i) => ({ ...s, v: SNAPSHOT_V3, grade: grades[i] }));
+}
+
+/** RETUNE-1 T5's grade heroes: the four par fields, in tools/retune1.ts's order (so the grades are the bench's). */
+const GRADE_HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
+
+/**
+ * RETUNE-1 T5 (REQ-BFG-092; cap's answer 5): each seed ghost's grade, its vsPar in permille (0..GRADE_MAX): its win rate
+ * (a draw half) against the four par fields' first `k` members of its day (harness/par.ts parField), `seeds` seeds from
+ * both sides (tournament.ts playJob), seeded as tools/retune1.ts --mode pool's grade was (so the pick ships as measured).
+ * In-process: K 6 x 1 seed is 24 pairings x 2 battles a ghost, 5,760 battles for the 120-ghost pool.
+ */
+export function gradeSamplePool(pool: readonly GhostSnapshot[], k: number = GRADE_K, seeds: number = GRADE_SEEDS): number[] {
+  return pool.map((s, gi) => {
+    let pts = 0, n = 0;
+    for (const h of GRADE_HEROES) {
+      parField(h, s.day, k).forEach((b, m) => {
+        const job: Job = { a: 0, b: 1, seeds: Array.from({ length: seeds }, (_, x) => hashSeed("rt1-grade", s.day, gi, h, m, x)), day: s.day };
+        pts += playJob([s.build, b], job) / (2 * seeds);
+        n++;
+      });
+    }
+    return Math.round((pts / n) * GRADE_MAX);
+  });
 }
 
 /** One canonical snapshot per line inside a JSON array (diff-friendly). */

@@ -8,7 +8,8 @@ import { migrateDeck } from "../sim/beltside";
 import { HEROES, RULES_VERSION, START_LIVES, type HeroId } from "../sim/content";
 import { cloneBuild } from "../sim/deck";
 import { standInPick } from "../sim/standInPool";
-import { pickGhost, type MatchRequest } from "./matchmaking";
+import { type MatchRequest } from "./matchmaking";
+import { matchPick } from "./pick"; // RETUNE-1 T5 (REQ-BFG-092): the one pick, shared with the server's match route
 import { checkSnapshot, MAX_DAY, MAX_LIVES, SNAPSHOT_V3, SNAPSHOT_VERSION, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
 import { heartsFor, livesCapFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the stand-in's mirrored hearts
@@ -116,7 +117,9 @@ export interface FallbackRequest extends MatchRequest {
 
 /** Best offline opponent: a matching bundled-pool ghost, else the stand-in pool's deck (offlineGhost). */
 export function fallbackGhost(req: FallbackRequest, pool: readonly PoolEntry[] = []): PoolEntry {
-  const hit = pickGhost(pool, req, new Rng(req.seed));
+  // RETUNE-1 T5 (REQ-BFG-092): the server's pick (pick.ts matchPick: the graded pick under rules with PICK, else
+  // pickGhost exactly). The stand-in below needs no grade: it never follows a record past D1's lives and wins.
+  const hit = matchPick(pool, req, new Rng(req.seed));
   return hit ?? offlineGhost(req.hero, req.day, req.seed, { wins: req.wins, lives: req.lives });
 }
 
