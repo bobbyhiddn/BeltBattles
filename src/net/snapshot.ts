@@ -13,6 +13,7 @@ import { BOONS, type Boon, type TakenLastChance } from "../sim/lastChance"; // L
 import { RUN_DAYS } from "../sim/content"; // LC-1: LAST CHANCE comes before the last day
 import { npcDayGateProblem } from "./rulesGate"; // NPC-1 (REQ-BFG-077): the road log by the switch and the rules
 import { ROAD_OUTCOMES, type RoadEntry } from "../sim/npcDay"; // NPC-1
+import { livesCapFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the lives bound follows the rules (hearts: 10)
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -411,7 +412,7 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
   if (!isHeroId(o.hero)) throw new SnapshotError("snapshot.hero: unknown hero");
   const day = int(o.day, "snapshot.day", 1, MAX_DAY);
   const wins = int(o.wins, "snapshot.wins", 0, day - 1);
-  const lives = int(o.lives, "snapshot.lives", 1, MAX_LIVES);
+  const lives = int(o.lives, "snapshot.lives", 1, livesCapFor(rules, MAX_LIVES)); // RETUNE-1: 10 under rules with hearts
   const build = checkBuildShape(o.build, "snapshot.build", ver);
   if (build.hero !== o.hero) throw new SnapshotError("snapshot.build.hero: must equal snapshot.hero");
   const gate = rulesGateProblem(rules, build); // 0.7.0 (v070-rel M2): before any exact RULES_VERSION check of a caller

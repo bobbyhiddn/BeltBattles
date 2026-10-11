@@ -206,3 +206,25 @@ export function rulesGateProblem(rules: unknown, build: unknown): string | null 
   }
   return null;
 }
+
+// ---- RETUNE-1 (REQ-BFG-096, REQ-BFG-092): the next rules release's rows, at the end of the file (a small merge surface:
+// JOINS-1 adds FREE_JOINS_RULES beside NPC_DAY_RULES above). Not RULES_ROWS rows: they refuse no build feature. Each
+// literal reads RULES_VERSION until the bump that turns its switch on (BUMP-1D) writes that version here as a literal, as
+// Z-BUMP wrote LAST_CHANCE_RULES; from then on every older record keeps today's rule, whatever the switch.
+import { heartsRules, HEARTS_START } from "../sim/hearts"; // RETUNE-1: the HEARTS switch (src/sim/hearts.ts)
+
+/** RETUNE-1 (REQ-BFG-096): the first rules version with hearts (10 hearts, a loss costs 1/2/3 by day). */
+export const HEARTS_RULES: string = RULES_VERSION;
+
+/** Do hearts hold for a record, snapshot or match request under `rules`? The switch on AND `rules` a readable version at
+ *  or after HEARTS_RULES. False with the switch off, whatever the rules (every record then reads 5 lives, as today). */
+export function heartsFor(rules: unknown): boolean {
+  return heartsRules() && rulesAtLeast(rules, HEARTS_RULES);
+}
+
+/** The most lives (hearts) a snapshot or a match request under `rules` may state: `cap` (the contract's MAX_LIVES, 9),
+ *  raised to HEARTS_START (10) under rules with hearts. So the bound follows the rules: an old-rules record keeps 9, and
+ *  the record check (records.ts) refuses anything its own rules' model can't reach. */
+export function livesCapFor(rules: unknown, cap: number): number {
+  return heartsFor(rules) ? Math.max(cap, HEARTS_START) : cap;
+}

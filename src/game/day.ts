@@ -12,6 +12,7 @@ import { rollShop, runeDawn, type DayResult, type DuskFoe, type Run } from "./ru
 import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (type only)
 import { LAST_CHANCE_LIVES, lastChanceFires } from "../sim/lastChance"; // LC-1 (REQ-BFG-073); Z-BUMP: no switch
 import { npcDayRules, roadLog } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's road log
+import { heartsDusk, heartsRun } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a hearts run's dusk
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -168,6 +169,9 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
   const res: DayResult = { day: run.day, outcome, income, time, foe: foe?.name ?? "?", ghost: foe?.kind === "ghost", player, enemy };
   run.history.push(res);
   if (outcome === "win") run.wins++;
+  // RETUNE-1 (REQ-BFG-096): a hearts run (hearts.ts heartsRun: started with HEARTS on) takes the hearts step instead: a
+  // loss costs heartCost(day), LAST CHANCE at the first loss leaving 1 heart or fewer sets the hearts to 1, no refund
+  if (heartsRun(run)) return finishHeartsDay(run, res, outcome, income);
   if (outcome === "loss") {
     run.losses++;
     run.lives = Math.max(0, run.lives - 1);
@@ -183,17 +187,7 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
   if (run.lives <= 0) run.over = "lost";
   else if (run.day >= RUN_DAYS) run.over = "complete";
   if (!run.over) {
-    run.day++;
-    run.stage = "caravan";
-    run.dusk = null;
-    run.road = null;
-    run.warlord = null;
-    // 0.6.1d: today's final caravan is tomorrow's variety check (ARSENAL.md §5.2 step 1).
-    run.lastMerchants = run.shop.wagons.map((w) => w.merchant);
-    run.shop = { wagons: [], rerolls: 0, discount: run.nextShop.discount, free: run.nextShop.free };
-    run.nextShop = { discount: 0, free: 0 };
-    rollShop(run);
-    runeDawn(run); // RUNES-1 (REQ-BFG-058): the held dawn-gold runes pay; today's rune pick (runes.ts' own stream, never the shop's)
+    nextDawn(run);
     // 0.6.2 RULE EARLY-LOSS REFUND: the new dawn is day 3 and a life was lost on day 1 or 2: one back, once per run
     const back = earlyLossRefund(run);
     if (back !== null) {
@@ -202,6 +196,40 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
       if (back > 0) res.refund = back;
     }
   }
+  return res;
+}
+
+/** The next dawn: a fresh day, its caravan and its rune (finishDay's, for both scales). */
+function nextDawn(run: Run): void {
+  run.day++;
+  run.stage = "caravan";
+  run.dusk = null;
+  run.road = null;
+  run.warlord = null;
+  // 0.6.1d: today's final caravan is tomorrow's variety check (ARSENAL.md §5.2 step 1).
+  run.lastMerchants = run.shop.wagons.map((w) => w.merchant);
+  run.shop = { wagons: [], rerolls: 0, discount: run.nextShop.discount, free: run.nextShop.free };
+  run.nextShop = { discount: 0, free: 0 };
+  rollShop(run);
+  runeDawn(run); // RUNES-1 (REQ-BFG-058): the held dawn-gold runes pay; today's rune pick (runes.ts' own stream, never the shop's)
+}
+
+/** RETUNE-1 (REQ-BFG-096): finishDay on a hearts run, after the history row and the win count: the hearts step
+ *  (hearts.ts heartsDusk), the income, then the run ends or the next dawn comes, with no early-loss refund. A LAST CHANCE
+ *  row records the hearts it gave back (0 when the loss left exactly 1) and the hearts it saved the run on (`hearts`). */
+function finishHeartsDay(run: Run, res: DayResult, outcome: DayResult["outcome"], income: number): DayResult {
+  if (outcome === "loss") run.losses++;
+  const step = heartsDusk(run.lives, run.day, outcome, run.lastChance !== undefined);
+  if (step.cost > 0) res.heartsLost = step.cost;
+  if (step.lastChance) {
+    res.lastChance = { lives: step.hearts - Math.max(0, run.lives - step.cost) };
+    run.lastChance = { day: run.day };
+  }
+  run.lives = step.hearts;
+  run.gold += income;
+  if (run.lives <= 0) run.over = "lost";
+  else if (run.day >= RUN_DAYS) run.over = "complete";
+  if (!run.over) nextDawn(run);
   return res;
 }
 

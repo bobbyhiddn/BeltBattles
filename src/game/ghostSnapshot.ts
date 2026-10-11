@@ -17,6 +17,7 @@ import { lastChanceRuneAt, lastChanceShapeOk, type LastChance, type TakenLastCha
 import { ROAD_FIELD } from "../net/snapshot"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the decoder's road key
 import { npcDayGateProblem } from "../net/rulesGate"; // NPC-1: the decoder's gate
 import { roadShapeOk, type RoadEntry } from "../sim/npcDay"; // NPC-1
+import { livesCapFor } from "../net/rulesGate"; // RETUNE-1 (REQ-BFG-096): the decoder's lives bound (hearts: 10)
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
 // build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
@@ -203,7 +204,7 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   // NPC-1 (REQ-BFG-077, REQ-BFG-078): a road log as src/net/snapshot.ts roadField takes it: v3, the switch and rules gate
   if (q[ROAD_FIELD] !== undefined && !(q.v >= SNAPSHOT_V3 && npcDayGateProblem(q.rules) === null && roadShapeOk(q[ROAD_FIELD], q.day))) return false;
   return (q.v === 1 || q.v === 2 || q.v === 3) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
-    && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build, q.v) && q.build.hero === q.hero
+    && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, livesCapFor(q.rules, MAX_LIVES)) && buildOk(q.build, q.v) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
     && ID_PATTERN.test(q.playerId) && inRange(q.createdAt, 0, Number.MAX_SAFE_INTEGER)
     // RUNES-2a (RUNES-1 Q4): the rules gate, as src/net/snapshot.ts checkSnapshot asks it (its rows: turrets and joins

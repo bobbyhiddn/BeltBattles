@@ -11,6 +11,8 @@ import { standInPick } from "../sim/standInPool";
 import { pickGhost, type MatchRequest } from "./matchmaking";
 import { checkSnapshot, MAX_DAY, MAX_LIVES, SNAPSHOT_V3, SNAPSHOT_VERSION, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
+import { heartsFor, livesCapFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the stand-in's mirrored hearts
+import { HEARTS_START } from "../sim/hearts"; // RETUNE-1
 
 /**
  * Heroes a stand-in (or sample-pool) ghost may play. Each needs decks in the stand-in pool (STAND_IN_POOL_HEROES),
@@ -43,7 +45,8 @@ export function offlineGhost(hero: HeroId, day: number, seed: number, record?: {
   const d = Math.min(MAX_DAY, Math.max(1, Math.floor(day)));
   const foe = rivalHero(hero, seed);
   const wins = Math.min(d - 1, Math.max(0, Math.floor(record?.wins ?? 0)));
-  const lives = Math.min(MAX_LIVES, Math.max(1, Math.floor(record?.lives ?? START_LIVES)));
+  // RETUNE-1 (REQ-BFG-096): under rules with hearts the mirror holds up to HEARTS_START (10), and starts there
+  const lives = Math.min(livesCapFor(RULES_VERSION, MAX_LIVES), Math.max(1, Math.floor(record?.lives ?? (heartsFor(RULES_VERSION) ? HEARTS_START : START_LIVES))));
   const build = standInPick(foe, d, seed);
   const snapshot = checkSnapshot({
     // the 0.6.1 flip: a pool deck may carry merge stars, and (0.6.2 BELTSIDE, DESIGN-beltside D1) its rigs `rot`; only

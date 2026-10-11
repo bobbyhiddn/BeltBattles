@@ -40,6 +40,7 @@ import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, Nam
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { isReachable } from "../src/net/records";
 import { validateUpload } from "../src/net/validate";
+import { livesCapFor } from "../src/net/rulesGate"; // RETUNE-1 (REQ-BFG-096): the match route's lives bound
 import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
 
@@ -211,7 +212,8 @@ export function parseMatchQuery(q: URLSearchParams): MatchRequest {
   }
   return {
     rules, day: intParam(q, "day", 1, MAX_DAY), wins: intParam(q, "wins", 0, MAX_DAY),
-    lives: intParam(q, "lives", 0, MAX_LIVES), playerId: player, seen,
+    // RETUNE-1 (REQ-BFG-096): the bound follows the request's rules (rulesGate.ts livesCapFor: 10 with hearts, else 9)
+    lives: intParam(q, "lives", 0, livesCapFor(rules, MAX_LIVES)), playerId: player, seen,
     // 0.7.0a D2: the client's finished runs; absent counts as 0 (a new player: seed pool only)
     runs: q.has("runs") ? intParam(q, "runs", 0, MAX_RUNS) : 0,
   };
