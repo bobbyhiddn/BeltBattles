@@ -460,12 +460,14 @@ describe("CARD-2 (k6): the plain rigs' faces on LAST CHANCE's PART card and the 
       expect(o0, `${id}: a pending LAST CHANCE pick`).toBeTruthy();
       if (!o0) continue;
       lc.offer = () => ({ ...o0, part: id }) as never;
-      const lines = (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; lines: { t: string }[][]; info: { t: string }[][] }[] }).texts(run, lc.offer(sc.s as never), 300);
+      // CARD-3 (REQ-BFG-087, D5): the card's text is items now (each its lines: drawBody puts G between items), so the lines
+      // are the items' lines in order (was one list of lines)
+      const lines = (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; lines: { t: string }[][][]; info: { t: string }[][][] }[] }).texts(run, lc.offer(sc.s as never), 300);
       const part = lines.find((t) => t.boon === "part")!;
-      expect(part.lines.map((l) => l.map((s) => s.t).join("")), id).toEqual([want[id]]);
+      expect(part.lines.flat().map((l) => l.map((s) => s.t).join("")), id).toEqual([want[id]]);
       lc.info.add(lines.findIndex((t) => t.boon === "part"));
-      const info = (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; info: { t: string }[][] }[] }).texts(run, lc.offer(sc.s as never), 300).find((t) => t.boon === "part")!.info;
-      expect(info.map((l) => l.map((s) => s.t).join("")).join(" "), id).toMatch(/^EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS STATS TO EVERY SLUG ON THAT TILE\. ONE ARROW, ONE HIT\. /);
+      const info = (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; info: { t: string }[][][] }[] }).texts(run, lc.offer(sc.s as never), 300).find((t) => t.boon === "part")!.info;
+      expect(info.flat().map((l) => l.map((s) => s.t).join("")).join(" "), id).toMatch(/^EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS STATS TO EVERY SLUG ON THAT TILE\. ONE ARROW, ONE HIT\. /);
     }
   });
 });
