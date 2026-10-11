@@ -17,6 +17,9 @@ import { RUNES, isRune, type RuneDef } from "../sim/runes";
 import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH, runeChipW } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the chip as the card's icon
 import { runeHintBand, runeSightWord, runeWordBoxOn, runeWordLayer, sawRuneNote } from "../ui/runeBar"; // CARD-2 (REQ-BFG-081, K2; K1)
+import { TAKE_GUARD_S, runeBarTarget, runeCardTextW, runeNoteBox, runeNoteY } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): only the bar takes, never too soon
+import { wrapRich } from "../ui/richText"; // CARD-4 (P1): the chip's line's box (the bar's target is never under it)
+import { runeReminderSpans } from "../ui/runeText";
 import { runeTag, tierColour, tierWord } from "../ui/runeText";
 import type { BuildScreen } from "./build/build";
 
@@ -27,6 +30,13 @@ export const PICK_CHIP = "runepick-chip";
 /** CARD-2 (REQ-BFG-081, K2): the opened card's word targets' prefix ("runepick-w0:PAIR") and its definition box's id. */
 export const PICK_WORD = "runepick-w";
 export const PICK_DEF = "runepick-def";
+/** CARD-4 (REQ-BFG-081, P1): the opened card's TAP AGAIN TO TAKE IT bar's target, the one region that takes the rune. */
+export const PICK_BAR = "runepick-take";
+/** CARD-4 (P2): the build screen's clock (BuildScreen.t, game seconds); 0 where a caller's screen has none (tests). */
+const clock = (s: object): number => {
+  const t = (s as { t?: unknown }).t;
+  return typeof t === "number" ? t : 0;
+};
 /** "1 OF 3. FREE. KEPT ALL RUN. TAP TO READ." (2 from day 5). */
 export const pickHint = (cards: number): string => `1 OF ${cards}. FREE. KEPT ALL RUN. TAP TO READ.`;
 /** The dawn line's two parts: "DAWN OF DAY 4 · " and the tier's ("RARE RUNES", in its colour). */
@@ -49,10 +59,11 @@ export interface PickLayout {
 
 /** The picker on a screen W x H: `ids` the cards, `open` the opened one (-1 none), `held` the runes held. Pure (tests).
  *  FLIP-X2 (REVIEW-FLIPX1 answer 3): `heldIds`, the held runes' ids in pick order, sizes each tray chip from its keyword
- *  word (runeChipW: SHIELD's 26, every other word's 22); absent, every chip is 22 wide and the tray is exactly as before. */
-export function pickLayout(W: number, H: number, ids: readonly string[], open: number, held: number, heldIds?: readonly string[]): PickLayout {
+ *  word (runeChipW: SHIELD's 26, every other word's 22); absent, every chip is 22 wide and the tray is exactly as before.
+ *  CARD-4 (P1): `tap`, a finger's target in art px (runeTapOf; 0 for a mouse): the opened card's bar band holds it. */
+export function pickLayout(W: number, H: number, ids: readonly string[], open: number, held: number, heldIds?: readonly string[], tap = 0): PickLayout {
   const cardW = Math.min(W - 8, 300), x = Math.round(W / 2 - cardW / 2);
-  const hs = ids.map((id, i) => runeCardH(RUNES[id], cardW, i === open ? { reminder: true, hint: PICK_TAKE } : {}));
+  const hs = ids.map((id, i) => runeCardH(RUNES[id], cardW, i === open ? { reminder: true, hint: PICK_TAKE, tap } : {}));
   // the tray: "YOUR RUNES n" then the chips in rows (display only: RUNE_CHIP_MIN, not a finger's size)
   const chip = RUNE_CHIP_MIN, pitch = chip + 3;
   const x0 = x + 5 + textWidth(`${TRAY_LABEL} 10`, "3") + 5, right = x + cardW - 4;
@@ -94,13 +105,37 @@ export class RunePicker {
   /** CARD-2 (REQ-BFG-081, K2; REQ-BFG-004, K1): the keyword whose definition the opened card's room shows: a word's tap,
    *  or its first sight when the card opened (never the "TAP AGAIN TO TAKE IT" tap: it is no tap at all). */
   word: string | null = null;
+  /** CARD-4 (REQ-BFG-081, P3): `word`'s note opened by itself (K1's first sight when the card opened), not by a tap. */
+  auto = false;
+  /** CARD-4 (P3): this press only closed a note that opened by itself: its tap does nothing else (eat). */
+  private eaten = false;
+  /** CARD-4 (P2): when the open card opened (clock: the build screen's game seconds). */
+  private openedAt = 0;
   private day = 0;
 
   /** EXPLAIN-1 (E3): every press while the picker is up (BuildScreen.pressed): one anywhere but the opened card's chip
-   *  closes its line. CARD-2 (K2): one anywhere but its words closes a word's definition (a word's own tap toggles it). */
+   *  closes its line. CARD-2 (K2): one anywhere but its words closes a word's definition (a word's own tap toggles it).
+   *  CARD-4 (REQ-BFG-081, P3): while a note that opened by itself is on screen, the next press anywhere only closes it (its
+   *  tap, on the bar, a word, a chip or another card, then does nothing: eat). */
   pressed(region: string | null): void {
+    this.eaten = false;
+    if (this.auto && this.word) {
+      this.word = null;
+      this.note = false;
+      this.auto = false;
+      this.eaten = true;
+      return;
+    }
+    this.auto = false;
     if (region !== PICK_CHIP) this.note = false;
     if (!region || !region.startsWith(PICK_WORD)) this.word = null;
+  }
+
+  /** CARD-4 (P3): true (once) when this press only closed a note that opened by itself: the caller's tap does nothing. */
+  private eat(): boolean {
+    if (!this.eaten) return false;
+    this.eaten = false;
+    return true;
   }
 
   /** Today's offer while the pick is pending and the run is at its caravan (not a refit), else null. */
@@ -115,14 +150,23 @@ export class RunePicker {
     return !!this.offer(s);
   }
 
-  /** A tap on card i: open it, or take it when it is open already. */
+  /** A tap on card i: open it. CARD-4 (REQ-BFG-081, P1): a tap on the open card does nothing (its words, chip and bar
+   *  have their own regions); only its TAP AGAIN bar takes it (take). */
   tap(s: BuildScreen, i: number, id: string): void {
-    if (this.open !== i) {
-      this.open = i;
-      this.note = false;
-      this.word = runeSightWord(RUNES[id]); // CARD-2 (K1): its first effect keyword not yet seen opens by itself
-      return;
-    }
+    if (this.eat()) return;
+    if (this.open === i) return;
+    this.open = i;
+    this.note = false;
+    this.word = runeSightWord(RUNES[id]); // CARD-2 (K1): its first effect keyword not yet seen opens by itself
+    this.auto = !!this.word; // CARD-4 (P3)
+    this.openedAt = clock(s); // CARD-4 (P2)
+  }
+
+  /** CARD-4 (REQ-BFG-081, P1, P2): the open card's TAP AGAIN bar: take card i's rune (run.ts takeRune), unless it opened
+   *  under TAKE_GUARD_S ago (a double tap's second tap: ignored) or this press only closed a self-opened note (P3). */
+  take(s: BuildScreen, i: number, id: string): void {
+    if (this.eat()) return;
+    if (this.open !== i || clock(s) - this.openedAt < TAKE_GUARD_S) return;
     const r = takeRune(s.run, id);
     if (!r.ok) {
       s.game.error(r.reason ?? "NO RUNE TO PICK");
@@ -145,10 +189,12 @@ export class RunePicker {
       this.open = -1;
       this.note = false;
       this.word = null;
+      this.auto = false;
     }
     const { W, H, ui } = s.game;
     const held = (s.run.build.runes ?? []).map((q) => q.id).filter(isRune);
-    const L = pickLayout(W, H, o.ids, this.open, held.length, held); // FLIP-X2: the tray's chips sized from their words
+    const tap = runeTapOf(s); // CARD-4 (P1): the bar's band holds a finger's target on touch
+    const L = pickLayout(W, H, o.ids, this.open, held.length, held, tap); // FLIP-X2: the tray's chips sized from their words
     g.globalAlpha = 0.86;
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;
@@ -163,25 +209,34 @@ export class RunePicker {
       const def = RUNES[id], r = L.cards[i], open = i === this.open;
       // EXPLAIN-1 (REQ-BFG-089, E1d): the opened card keeps its reminder's room, clear until its chip shows the line (E3)
       // CARD-2 (K2): a keyword's definition (its tap, or K1's first sight) takes the room in place of the chip's line
-      drawRuneCard(g, r, def, { sub: runeTag(def), open, reminder: open, noteOpen: open && this.note, word: open ? this.word : null, hint: open ? PICK_TAKE : undefined });
+      drawRuneCard(g, r, def, { sub: runeTag(def), open, reminder: open, noteOpen: open && this.note, word: open ? this.word : null, hint: open ? PICK_TAKE : undefined, tap });
       if (open && this.note) sawRuneNote(def);
-      ui.add({ id: `runepick-${i}`, r, onTap: () => this.tap(s, i, id) });
+      // CARD-4 (REQ-BFG-081, P1): a closed card's tap opens it; the open card's body takes nothing (a press there closes
+      // an open note: pressed), and only its bar's target takes the rune, never under a note box (runeBarTarget)
+      if (!open) ui.add({ id: `runepick-${i}`, r, onTap: () => this.tap(s, i, id) });
+      else {
+        ui.add({ id: `runepick-${i}`, r, block: true });
+        ui.add({ id: PICK_BAR, r: runeBarTarget(r, PICK_TAKE, tap, this.boxOn(r, def)), onTap: () => this.take(s, i, id) });
+      }
     });
     // EXPLAIN-1 (E3): each card's chip is its icon, its region over the card's: on the opened card a tap shows its hidden
     // line in its room (never the "TAP AGAIN TO TAKE IT" tap); on a closed card a tap opens it as the card does; with a
     // mouse, hovering a chip shows the line beside its card. After every card, so no card draws over a tooltip
     o.ids.forEach((id, i) => {
       const open = i === this.open;
-      runeChipIcon(g, ui, open ? PICK_CHIP : `runepick-${i}-chip`, L.cards[i], RUNES[id], runeTapOf(s),
-        open ? () => { this.note = !this.note; this.word = null; } : () => this.tap(s, i, id), { W, H }, s.game.canvas);
+      runeChipIcon(g, ui, open ? PICK_CHIP : `runepick-${i}-chip`, L.cards[i], RUNES[id], tap,
+        open ? () => { if (this.eat()) return; this.note = !this.note; this.word = null; } : () => this.tap(s, i, id), { W, H }, s.game.canvas);
       // CARD-2 (REQ-BFG-081, K2): the opened card's keywords are word targets, their regions over the card's (a tap on one
       // shows or hides its definition in the room and never takes the rune); a closed card's words are not (a tap anywhere
-      // on it opens it, as before)
+      // on it opens it, as before). CARD-4 (P4): finger-tall on touch, clear of the bar's target
       if (open) {
-        runeWordLayer(g, ui, "runepick-", L.cards[i], RUNES[id], runeTapOf(s), this.word, runeWordBoxOn(L.cards[i], RUNES[id], this.word), (wd) => {
+        const r = L.cards[i], def = RUNES[id];
+        runeWordLayer(g, ui, "runepick-", r, def, tap, this.word, runeWordBoxOn(r, def, this.word), (wd) => {
+          if (this.eat()) return;
           this.note = false;
           this.word = this.word === wd ? null : wd;
-        }, { W, H }, s.game.canvas, undefined, runeHintBand(L.cards[i])); // CARD-3 (REQ-BFG-087, D2): the tooltip keeps clear of TAP AGAIN
+        }, { W, H }, s.game.canvas, undefined, runeHintBand(r, tap), // CARD-3 (REQ-BFG-087, D2): the tooltip keeps clear of TAP AGAIN
+        runeBarTarget(r, PICK_TAKE, tap, this.boxOn(r, def)));
       }
     });
     if (L.tray) {
@@ -191,11 +246,22 @@ export class RunePicker {
     }
   }
 
-  /** Tooling (bb.runePicker()): the picker as drawn, or null when it is not up. */
-  info(s: BuildScreen): { day: number; tier: string; ids: string[]; open: number; layout: PickLayout } | null {
+  /** CARD-4 (P1): the note box shown on open card `r` (a word's definition, or the chip's line), else null. */
+  private boxOn(r: Rect, def: RuneDef): Rect | null {
+    if (this.word) return runeWordBoxOn(r, def, this.word);
+    if (this.note) return runeNoteBox(r, runeNoteY(r, def), wrapRich(runeReminderSpans(def), runeCardTextW(r.w), "3").length);
+    return null;
+  }
+
+  /** Tooling (bb.runePicker()): the picker as drawn, or null when it is not up. CARD-4 (P1): `bar`, the open card's TAP
+   *  AGAIN target as drawn (null with no card open). */
+  info(s: BuildScreen): { day: number; tier: string; ids: string[]; open: number; layout: PickLayout; bar: Rect | null } | null {
     const o = this.offer(s);
     if (!o) return null;
-    const held = (s.run.build.runes ?? []).length;
-    return { day: o.day, tier: o.tier, ids: [...o.ids], open: this.open, layout: pickLayout(s.game.W, s.game.H, o.ids, this.open, held) };
+    const held = (s.run.build.runes ?? []).map((q) => q.id).filter(isRune), tap = runeTapOf(s);
+    const layout = pickLayout(s.game.W, s.game.H, o.ids, this.open, held.length, held, tap);
+    const card = this.open >= 0 ? layout.cards[this.open] : null;
+    const bar = card ? runeBarTarget(card, PICK_TAKE, tap, this.boxOn(card, RUNES[o.ids[this.open]])) : null;
+    return { day: o.day, tier: o.tier, ids: [...o.ids], open: this.open, layout, bar };
   }
 }

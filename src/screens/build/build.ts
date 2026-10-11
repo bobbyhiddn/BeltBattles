@@ -817,7 +817,12 @@ export class BuildScreen implements Screen, EditHost {
     if (this.foeView.open) return this.foeView.faces.pressed(region); // SCOUT-1c: a press off a face's word closes it
     // RUNES-1: the rune picker takes every press (LC-1: the LAST CHANCE picker too). EXPLAIN-1 (REQ-BFG-089, E3): a press
     // anywhere but the opened card's chip closes the line it shows
-    if (this.modalUp()) return this.runePicker.pressed(region);
+    // CARD-4 (REQ-BFG-081, P3): LAST CHANCE hears every press too (a press while its note that opened by itself is up
+    // only closes it)
+    if (this.modalUp()) {
+      this.lastChancePicker.pressed(region);
+      return this.runePicker.pressed(region);
+    }
     if (region !== "beltx") this.ed.dropX();
     this.runeBar.pressed(region); // RUNES-1: a press off the rune bar closes its read-out
     keywordsPressed(this, region); // U2c (REQ-BFG-045): a press off a word, `?` or the KEYWORDS view closes them

@@ -35,7 +35,7 @@ import { glossaryEntry, RUNE_NOTE, RUNE_REMINDER } from "./glossary"; // CARD-2 
 import { lineText } from "./richText"; // CARD-2 (K2): where a keyword sits on a drawn line
 import { runeKeywords, runeTextOf as runeTextOfDef, type RuneKeyword } from "./runeText"; // CARD-2 (K2)
 import { sightWord, sawWord } from "./firstSight"; // CARD-2 (REQ-BFG-004, K1): the first-sight notes on rune cards
-import { clampRect, clipOutRect, drawWordTip } from "../screens/build/keywords"; // CARD-2 (K2): U2c's target rules, the tooltip
+import { clampRect, drawWordTip } from "../screens/build/keywords"; // CARD-2 (K2): U2c's target rules, the tooltip (CARD-4: clipKeep)
 
 const overlapsR = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
@@ -161,7 +161,19 @@ export interface RuneCardOpts {
   word?: string | null;
   /** A yellow bar under the text ("TAP AGAIN TO TAKE IT"). */
   hint?: string;
+  /** CARD-4 (REQ-BFG-081, P1): a finger's target height in art px (runeTapOf: tapPx on touch, 0 for a mouse): the bar's
+   *  band grows to hold a target that tall (runeBarBand); the drawn bar keeps its 11 px, centred in its band. */
+  tap?: number;
 }
+
+/** CARD-4 (REQ-BFG-081, P2): a take within this many seconds of its card opening is ignored, so a double tap opens a
+ *  card and stops there (the build screen's clock: BuildScreen.t, game seconds, real time while the game runs). */
+export const TAKE_GUARD_S = 0.35;
+
+/** CARD-4 (P1): the TAP AGAIN bar's band, art px: 13 (the bar's 11, 1 above and 1 below), or on touch (`tap` > 0) tall
+ *  enough that the bar's target (runeBarTarget: from 2 px under the band's top at the lowest, where a note box's foot can
+ *  reach, to the card's ink frame) is `tap` tall. Pure. */
+export const runeBarBand = (tap = 0): number => Math.max(13, tap - 1);
 
 const CARD_TEXT_Y = 31;
 /** A card's text width: its width less the 5 px insets. */
@@ -193,15 +205,36 @@ export function runeTextLines(def: RuneDef, tw: number): RichLine[] {
 }
 
 /** CARD-3 (REQ-BFG-087, D2): the band of an opened card that holds its TAP AGAIN TO TAKE IT bar: the bar's 11 px (runeCardH's
- *  13 for it, then 4 at the foot), the card's width. The pickers pass it to runeWordLayer so a word's tooltip keeps clear. */
-export const runeHintBand = (card: Rect): Rect => ({ x: card.x, y: card.y + card.h - 17, w: card.w, h: 13 });
+ *  13 for it, then 4 at the foot), the card's width. The pickers pass it to runeWordLayer so a word's tooltip keeps clear.
+ *  CARD-4 (P1): on touch (`tap` > 0) the band is runeBarBand(tap) tall. */
+export const runeHintBand = (card: Rect, tap = 0): Rect => ({ x: card.x, y: card.y + card.h - 4 - runeBarBand(tap), w: card.w, h: runeBarBand(tap) });
+
+/** CARD-4 (P1): the drawn bar (11 px, `hint`'s width and 4 px a side) on opened card `card`, centred in its band. Pure. */
+export function runeBarRect(card: Rect, hint: string, tap = 0): Rect {
+  const band = runeHintBand(card, tap), hw = textWidth(hint) + 8;
+  return { x: Math.round(card.x + card.w / 2 - hw / 2), y: band.y + Math.floor((band.h - 11) / 2), w: hw, h: 11 };
+}
+
+/**
+ * CARD-4 (REQ-BFG-081, P1): the TAP AGAIN TO TAKE IT bar's target, the only press that takes the rune: the bar's width
+ * (on touch at least `tap` wide, grown about its middle inside the card), from 1 px under its band's top (or the foot of a
+ * shown note box `box`, so it is never under a note) down to the card's ink frame: `tap` tall or more on touch (its band
+ * is runeBarBand's), 15 px on the desk (the drawn bar's 11 and its band's rows round it). Pure (the pickers, tests).
+ */
+export function runeBarTarget(card: Rect, hint: string, tap = 0, box: Rect | null = null): Rect {
+  const band = runeHintBand(card, tap), bar = runeBarRect(card, hint, tap);
+  const top = Math.max(band.y + 1, box ? box.y + box.h : band.y + 1), bottom = card.y + card.h - 1;
+  const w = Math.min(card.w - 2, Math.max(bar.w, tap));
+  const x = Math.max(card.x + 1, Math.min(card.x + card.w - 1 - w, Math.round(bar.x + bar.w / 2 - w / 2)));
+  return { x, y: top, w, h: Math.max(1, bottom - top) };
+}
 
 /** A rune card's height at width `w` (R1b-2's mock: a 31 px head, 9 px per effect line, 7 per reminder line, the hint
- *  bar 13, 4 at the foot). Pure (tests). */
+ *  bar 13, 4 at the foot). Pure (tests). CARD-4 (P1): the hint's band runeBarBand(o.tap) (13 on the desk). */
 export function runeCardH(def: RuneDef, w: number, o: Omit<RuneCardOpts, "sub">): number {
   let h = CARD_TEXT_Y + runeTextLines(def, runeCardTextW(w)).length * 9;
   if (o.reminder) h += 1 + wrapRich(runeReminderSpans(def), runeCardTextW(w), "3").length * 7;
-  if (o.hint) h += 13;
+  if (o.hint) h += runeBarBand(o.tap);
   return h + 4;
 }
 
@@ -234,7 +267,8 @@ export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void
     y += 1 + ls.length * 7;
   }
   if (o.hint) {
-    const hw = textWidth(o.hint) + 8, hb = { x: Math.round(r.x + r.w / 2 - hw / 2), y: y + 1, w: hw, h: 11 };
+    // CARD-4 (P1): centred in its band (y + 1 in the desk's 13 px band, as before; runeBarRect, on a card runeCardH tall)
+    const hw = textWidth(o.hint) + 8, hb = { x: Math.round(r.x + r.w / 2 - hw / 2), y: y + Math.floor((runeBarBand(o.tap) - 11) / 2), w: hw, h: 11 };
     rect(g, hb.x, hb.y, hb.w, hb.h, C.yellow);
     drawText(g, o.hint, hb.x + 4, hb.y + 2, C.ink);
   }
@@ -369,8 +403,11 @@ export interface RuneWord {
  * words; each kept inside the card (1 px in) and clear of `avoid` (the chip's target); a word whose middle is no longer in
  * its rect is left out (the chip still shows the card's line). Pure (drawing, the screens, tests).
  */
-export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = []): RuneWord[] {
+export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = [], tap = 0): RuneWord[] {
   const ks = runeKeywords(def), raw: (RuneWord & { cx: number; cy: number })[] = [];
+  // CARD-4 (REQ-BFG-081, P4): on touch (`tap` > 0, a finger's TAP_CSS in art px) each target is `tap` tall, centred on its
+  // word, where the room allows (READ-4 T: a tap 8 CSS px off a 15 px target took the rune); the desk keeps the line's pitch
+  const th = tap > 9 ? tap : 9;
   runeTextLines(def, runeCardTextW(r.w)).forEach((l, li) => {
     const text = lineText(l), y = r.y + CARD_TEXT_Y + li * 9;
     const cols: string[] = []; // each character's colour: a token draws its word in its keyword's colour
@@ -384,17 +421,18 @@ export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = 
         const gx = r.x + 5 + (i > 0 ? textWidth(text.slice(0, i), "5") + 1 : 0);
         const glyph = { x: gx, y, w: textWidth(w, "5"), h: 7 };
         const nw = Math.max(glyph.w + 2, 9);
-        const hit = { x: glyph.x - 1 - Math.floor((nw - glyph.w - 2) / 2), y: y - 1, w: nw, h: 9 };
+        const hit = { x: glyph.x - 1 - Math.floor((nw - glyph.w - 2) / 2), y: y - 1 - Math.floor((th - 9) / 2), w: nw, h: th };
         raw.push({ k, word: w, text: runeWordText(def, k), colour: c, glyph, r: hit, cx: glyph.x + glyph.w / 2, cy: y + 3.5 });
       }
     }
   });
   raw.sort((a, b) => a.glyph.y - b.glyph.y || a.glyph.x - b.glyph.x);
-  // the nearest wins: two grown rects that meet split between their words (keywordTargets' rule)
+  // the nearest wins: two grown rects that meet split between their words (keywordTargets' rule). CARD-4 (P4): two words
+  // on different lines always split across the gap between their lines, half to each (at 9 px rects never met there)
   for (let i = 0; i < raw.length; i++) for (let j = i + 1; j < raw.length; j++) {
     const a = raw[i], b = raw[j];
     if (!overlapsR(a.r, b.r)) continue;
-    if (Math.abs(a.cx - b.cx) >= Math.abs(a.cy - b.cy)) {
+    if (a.glyph.y === b.glyph.y) {
       const [p, q] = a.cx <= b.cx ? [a, b] : [b, a];
       const mid = Math.max(p.glyph.x + p.glyph.w, Math.min(q.glyph.x, Math.round((p.glyph.x + p.glyph.w + q.glyph.x) / 2)));
       p.r = { ...p.r, w: Math.max(1, mid - p.r.x) };
@@ -409,10 +447,25 @@ export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = 
   const within = { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, out: RuneWord[] = [];
   for (const t of raw) {
     let q: Rect | null = clampRect(t.r, within);
-    for (const a of avoid) if (q) q = clipOutRect(q, a);
+    // CARD-4 (P4): clear of `avoid` (the chip's target; the TAP AGAIN bar's), keeping the side that holds the word's middle
+    for (const a of avoid) if (q) q = clipKeep(q, a, Math.floor(t.cx), Math.floor(t.cy));
     if (q && inside(q, Math.floor(t.cx), Math.floor(t.cy))) out.push({ k: t.k, word: t.word, text: t.text, colour: t.colour, glyph: t.glyph, r: q });
   }
   return out;
+}
+
+/** CARD-4 (P4): `q` without the part `a` covers: the largest of the pieces above, below, left and right of `a` that still
+ *  holds the point (x, y) (a word's middle), else null. Where the largest piece holds the point this is keywords.ts
+ *  clipOutRect's (U2c's) rule; where it doesn't, U2c's dropped the word and this keeps its own side. Pure. */
+function clipKeep(q: Rect, a: Rect, x: number, y: number): Rect | null {
+  if (!overlapsR(q, a)) return q;
+  const cands: Rect[] = [
+    { x: q.x, y: q.y, w: q.w, h: a.y - q.y },
+    { x: q.x, y: a.y + a.h, w: q.w, h: q.y + q.h - (a.y + a.h) },
+    { x: q.x, y: q.y, w: a.x - q.x, h: q.h },
+    { x: a.x + a.w, y: q.y, w: q.x + q.w - (a.x + a.w), h: q.h },
+  ].filter((c) => c.w > 0 && c.h > 0 && inside(c, x, y));
+  return cands.length ? cands.sort((p, s) => s.w * s.h - p.w * p.h)[0] : null;
 }
 
 /**
@@ -425,8 +478,12 @@ export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = 
  * hovered) is done for K1 (firstSight.ts sawWord). Returns the targets.
  */
 export function runeWordLayer(g: G, ui: UI, id: string, card: Rect, def: RuneDef, tap: number, word: string | null, box: Rect | null,
-  onWord: (w: string) => void, screen: { W: number; H: number }, canvas?: HTMLCanvasElement | null, onDef?: () => void, bar?: Rect | null): RuneWord[] {
-  const ts = runeWordTargets(card, def, [runeChipTarget(card, def, tap)]);
+  onWord: (w: string) => void, screen: { W: number; H: number }, canvas?: HTMLCanvasElement | null, onDef?: () => void, bar?: Rect | null,
+  take?: Rect | null): RuneWord[] {
+  // CARD-4 (REQ-BFG-081, P4): on a picker's opened card (the cards with a TAP AGAIN bar: `take`, its target, runeBarTarget)
+  // finger-tall on touch and never reaching the bar's target; the rune bar's read-out (no `take`) keeps its targets as they
+  // were (CARD-3 E: nothing a press reaches moves when its room opens)
+  const ts = runeWordTargets(card, def, [runeChipTarget(card, def, tap), ...(take ? [take] : [])], take ? tap : 0);
   ts.forEach((t, i) => {
     if (box && overlapsR(t.glyph, box)) return;
     for (let x = t.glyph.x; x < t.glyph.x + t.glyph.w; x += 2) rect(g, x, t.glyph.y + t.glyph.h, 1, 1, t.colour === C.bone ? C.slate4 : t.colour);

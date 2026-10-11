@@ -75,6 +75,7 @@ function detailsPlanOf(f: ReturnType<typeof framed>, def: string) {
   return panelCtx(run, CARGO, f, true).d();
 }
 import { RunePicker, PICK_DEF } from "../src/screens/runePicker";
+import { PICK_BAR } from "../src/screens/runePicker"; // CARD-4 (REQ-BFG-081, P1)
 import { LastChancePicker } from "../src/screens/lastChancePicker";
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, TIPS_KEY, setTipsForTests, sightDone, sightsDone, tipsDone } from "../src/ui/tips";
 import { sawWord, sightWord } from "../src/ui/firstSight";
@@ -208,15 +209,22 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
     picker.pressed("runepick");
     expect(picker.word).toBeNull();
     expect(state(run)).toBe(before);
-    // the take tap, on the card off its words, still takes it (the real offer)
-    const real = new RunePicker();
+    // the take tap, off the words, still takes it (the real offer). CARD-4 (REQ-BFG-081, P1, P2) changed what this checks:
+    // the open card's body takes nothing; its TAP AGAIN bar's target does, once the guard after the open has passed
+    // (tests/card4.test.ts (p) checks the rule itself)
+    const real = new RunePicker(), clock = sc.s as unknown as { t: number };
+    clock.t = 0;
     let u2 = sc.frame(real as never);
     const id0 = real.info(sc.s as never)!.ids[0];
     u2.regions.find((r) => r.id === "runepick-0")!.onTap!();
     u2 = sc.frame(real as never);
     const card = u2.regions.find((r) => r.id === "runepick-0")!;
     expect(u2.hit(card.r.x + card.r.w - 3, card.r.y + card.r.h - 3)?.id).toBe("runepick-0");
-    card.onTap!();
+    expect(card.onTap, "CARD-4: the open card's body takes nothing").toBeUndefined();
+    const bar = u2.regions.find((r) => r.id === PICK_BAR)!;
+    expect(u2.hit(bar.r.x + bar.r.w / 2, bar.r.y + bar.r.h / 2)?.id).toBe(PICK_BAR);
+    clock.t = 1;
+    bar.onTap!();
     expect((run.build.runes ?? []).map((q) => q.id)).toContain(id0);
   });
 
@@ -491,21 +499,30 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     expect(ui.regions.some((r) => r.id === PICK_DEF)).toBe(true);
     expect(sightDone("kw:PAIR"), "done once its box was on screen").toBe(true);
     expect(sightDone("kw:SHIELD.107"), "the next one waits for the next open").toBe(false); // CARD-3
-    // the next open: TWIN SALVE (PAIR: HEAL 20.): PAIR is done, so HEAL
+    // the next open: TWIN SALVE (PAIR: HEAL 20.): PAIR is done, so HEAL. CARD-4 (REQ-BFG-081, P3) changed what this
+    // checks: while PAIR's note (opened by itself) is up, the next press only closes it; the press after opens the card
+    picker.pressed("runepick-1");
+    ui.regions.find((r) => r.id === "runepick-1")!.onTap!();
+    expect([picker.open, picker.word], "CARD-4 (P3): that press only closed PAIR's note").toEqual([0, null]);
+    ui = sc.frame(picker as never);
     picker.pressed("runepick-1");
     ui.regions.find((r) => r.id === "runepick-1")!.onTap!();
     expect(picker.word).toBe("HEAL");
     sc.frame(picker as never);
-    // SEAM RIVETS again: PLATE now; HOT SEAM after: BURN (PAIR done)
+    // SEAM RIVETS again: PLATE now; HOT SEAM after: BURN (PAIR done). CARD-4 (P3): a press on the picker's background
+    // first closes each note that opened by itself
+    picker.pressed("runepick");
     picker.pressed("runepick-0");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-0")!.onTap!();
     expect(picker.word).toBe("SHIELD"); // CARD-3 (REQ-BFG-107)
     sc.frame(picker as never);
+    picker.pressed("runepick");
     picker.pressed("runepick-2");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-2")!.onTap!();
     expect(picker.word).toBe("BURN");
     sc.frame(picker as never);
     // every keyword seen: an open shows none, never on every open
+    picker.pressed("runepick");
     picker.pressed("runepick-0");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-0")!.onTap!();
     expect(picker.word).toBeNull();
