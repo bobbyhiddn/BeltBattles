@@ -308,7 +308,10 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   spotter: { word: "AIM", text: () => "AIM: A SHOT AIMED AT NO PART PICKS AGAIN; A SHOT AT A PART STILL HITS THE HULL." },
   // WORDS-1 (REQ-BFG-081): DRAKE NOZZLE's face says RIGS ADDED; battle.ts:1907 converts the slug's whole flat at the shot,
   // so SCRAPPER's scrap (1078) and a FOUNDRY fuse's (races/foundry.ts:47) count too, and HEAT (p.heatBonus, 1199) never
-  drake: { word: "SHOT", text: () => "SHOT: SCRAP AND FUSED SLUGS' EXTRA DAMAGE COUNTS TOO. {*HEAT} NEVER DOES." },
+  // CARD-2 (REQ-BFG-081, K3 h; REVIEW-WORDS1 note 1): a fused slug is an alloy (races/data.ts:64, base 0) whose whole damage
+  // is its flat (races/foundry.ts:47 fuse: a.flat = dmg), so DRAKE converts all of it (battle.ts drakeConvert(c, p.flat));
+  // HEAT (heatBonus) never. Two lines of 5x7 at 225 (was "SHOT: SCRAP AND FUSED SLUGS' EXTRA DAMAGE COUNTS TOO. ...")
+  drake: { word: "SHOT", text: () => "SHOT: SCRAP'S EXTRA DAMAGE COUNTS, AND ALL OF A FUSED SLUG'S. {*HEAT} NEVER DOES." },
   // races/foundry.ts: two blanks by two intakes within SYNC_WINDOW fuse (FUSE_MULT); a lone blank fires as a load of its own
   crucible: { word: "PAIR", text: () => "{*PAIR}: TWO BLANKS BY TWO INTAKES AT ONCE FUSE; A LONE ONE FIRES ON ITS OWN." }, // NUM-4: no 0.25 s
   // battle.ts stokedPace: a stoked factory's other timers (ARMOR PRESS's plating) run faster too

@@ -874,8 +874,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // ("FIRES AT ONCE, SPINS UP TO 67% FASTER", was "SPINS UP TO 67% FASTER AS IT FIRES"), which leaves the hint room
     // CARD-2 (REQ-BFG-081, K4): 60 missing (was 49), measured: the turret row in words (RATE n  HOLDS n  GEAR SLOTS n) takes
     // one label a line in the 118 px desk column (the brief's rule), two lines more, so 11 more installed turrets' kept
-    // blocks leave no room for the hint (all "installed ..."; the hint gives way whole, and its tip and NOTES keep it)
-    expect([withHint, missing.length]).toEqual([1952, 60]);
+    // blocks leave no room for the hint (all "installed ..."; the hint gives way whole, and its tip and NOTES keep it). K3 g:
+    // 61, measured: one more of the allowed kinds (a turret with GATLING SPOOL's two lines)
+    expect([withHint, missing.length]).toEqual([1952, 61]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -918,7 +919,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // ruled 2026-10-10) and READ-1 6.1's longer plain lines (the speed rigs, TWIN GAUGE, OVERCLOCKER, DRAKE NOZZLE, TOLLBOOTH,
     // SABOT FOUNDRY) take the optional hint's room on the fixed 69 px band on 183 phone panels; the hint gives way first, as
     // ever (a finger's panel grows past the band to its full text: shoptap2, layout.ts panelArea)
-    expect(hints).toBe(1048);
+    // CARD-2 (REQ-BFG-081, K3 g), measured: 1046 (was 1048): GATLING SPOOL's two lines (FIRES EACH LOAD AS IT COMES. and its
+    // spin, was one) take the optional hint's room on 2 phone panels of the fixed band; the hint gives way first, as ever
+    expect(hints).toBe(1046);
   });
 });
 

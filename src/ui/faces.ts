@@ -272,7 +272,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // U2e step 2 (REQ-BFG-070): a batch is the factory's own output, a stat ({SLUG}2 in its second stat row, carryStats):
   // was "STAMPS 2 SLUGS AT A TIME." and "DROPS 3 SLUGS; RIGS HIT EACH ONE."
   doublestamp: () => rules([]),
-  shottower: () => rules([{ text: "RIGS HIT EACH SLUG." }]),
+  // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 4): each rig hits every slug of its batch (battle.ts stamp: the batch's slugs
+  // leave one by one, each a payload a rig's arrow hits on its tile), the batch's count from the sim (3 at every star;
+  // was "RIGS HIT EACH SLUG.")
+  shottower: (e) => rules([{ text: `EACH RIG HITS ALL ${fmtCount(f(e).batch ?? 1)} SLUGS.` }]),
   hotswap: (e) => {
     // Battle.stamp: EMBER slugs carry its burn, SPARK slugs a shock (DISRUPT_TIME, or the star's shockTime)
     // U2e step 2: its slugs' BURN and STUN are its own, stats ({BURN}2 {STUN}1.6, carryStats); the line says only that
@@ -290,7 +293,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // Battle.hullEffects: each charge blasts the enemy hull round.delay s after it hits. Was "CHARGES BLAST THE HULL: 80
     // {DMG}, 3{SEC} LATER." and ★2/★3's clause "ITS BLAST GIVES THE PART {*STUN} 1."
     const delay = fmtSec((f(e).round as { delay: number }).delay);
-    return rules([{ text: `ITS {SLUG} BLAST THE HULL ${delay}{SEC} AFTER THEY HIT.` }], [["delay", `${delay}{SEC}`]]);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: THE HULL, THEY): battle.ts roundImpact pushes a charge on any hit (a part or the
+    // hull) and 2342- blasts the hit side's hull (the foe's) round.delay s later: THE FOE'S HULL, AFTER A HIT (225 px, the op
+    // band's one line; was "ITS {SLUG} BLAST THE HULL 3{SEC} AFTER THEY HIT.")
+    return rules([{ text: `ITS {SLUG} BLAST THE FOE'S HULL ${delay}{SEC} AFTER A HIT.` }], [["delay", `${delay}{SEC}`]]);
   },
   // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
   // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
@@ -308,13 +314,19 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // Battle.produce: one more stamp for each harassment its side lands (acceptHarassment); that wrecks and rips count too
     // and the queue's cap are interim caveats, ★3 BIG HAUL's wreck a clause. Its slugs' scrapFlat is in its DMG stat
     const n = fmtCount(FACE_SIM.scrapPerHarass);
-    return rules([{ text: `+${n} {SLUG} FOR EACH {*STUN} YOU LAND.` }]);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 2): the trigger first, as READ-2's words (its own slugs never stun; was
+    // "+1 {SLUG} FOR EACH {*STUN} YOU LAND.")
+    return rules([{ text: `EACH {*STUN} YOU LAND: ${n} EXTRA {SLUG}.` }]);
   },
   sabot: (e) => {
     // Battle.roundImpact: a round on a rig wrecks it for the battle; on any other part, a STUN of round.seconds (its stat)
     // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D): WRECK in plain words (was "ITS ROUNDS WRECK RIGS FOR THE FIGHT."). A
     // wreck is no STUN (TOLLBOOTH, MANTLET and LODESTONE don't count it), so the line says STOP, not STUN
-    return rules([{ text: "ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT." }], [], [REMINDER.STUN(rnd(e).seconds)]);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 2, 7.4: two effects under one icon): both, one a line: battle.ts roundImpact
+    // wrecks a rig it hits for the battle and STUNs a belt tile, factory or turret round.seconds (its {STUN} stat). Two lines
+    // of 219 and 177 px, as the old 271 px sentence's two on the phone (was "ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT.")
+    const t = fmtSec(rnd(e).seconds);
+    return rules([{ text: "A RIG IT HITS STOPS FOR THE WHOLE FIGHT." }, { text: `ANY OTHER PART IT HITS: {*STUN} ${t}{SEC}.` }], [], [REMINDER.STUN(rnd(e).seconds)]);
   },
   // Battle.roundImpact: a frost or chain round STUNs the part it hits (its stat)
   frostbite: (e) => {
@@ -346,7 +358,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const soon = startIn(f(e).commission!);
     // WORDS-1 (REQ-BFG-081): READ-1 6.1's one-off "START WORKING" takes the line to 263 px, past the op band's one line that
     // TXT-096 pinned (tests/txt096.faces), so the line stays (a known gap of WORDS-1's REPORT)
-    return rules([{ text: `FEEDS A GUN: YOUR RIGS START ${soon}.` }], [["soon", soon]]);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): what starts sooner is the rigs' work (makeSide: each rig
+    // comes online at x commission of its time while this feeds a gun): WORK (211 px; START WORKING is 263, past the op
+    // band's one line; was "FEEDS A GUN: YOUR RIGS START 50% SOONER.")
+    return rules([{ text: `FEEDS A GUN: YOUR RIGS WORK ${soon}.` }], [["soon", soon]]);
   },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
@@ -399,7 +414,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // FIRES."
     // WORDS-1 (REQ-BFG-081): READ-1 6.1's one-off (FIRES AT ONCE) has no plain form inside the op band's one line (268 px and
     // more), so the line stays (a known gap of WORDS-1's REPORT)
-    return rules([{ text: `FIRES AT ONCE, SPINS UP TO ${up} FASTER.` }], [["spin", `${up} FASTER`], ["step", `+${step} A QUICK SHOT`]]);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: FIRES AT ONCE): FINAL NAIL's note's truth, its own line (gatlingReady fires each
+    // load as soon as the barrel is ready, never waiting for a full chamber); the spin a line of its own (153 and 125 px:
+    // the op band's one line each; the two in one were 284; was "FIRES AT ONCE, SPINS UP TO 67% FASTER.")
+    return rules([{ text: "FIRES EACH LOAD AS IT COMES." }, { text: `SPINS UP TO ${up} FASTER.` }], [["spin", `${up} FASTER`], ["step", `+${step} A QUICK SHOT`]]);
   },
   hullbreaker: (e, x) => {
     const more = fmtPct(c(e, x).hullMul! - 1);
@@ -520,7 +538,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // (Battle.sparkJump: the shock also stalls the `jump` nearest other parts). Was "{*STUN} 2." and the clause "★2 SPARK
     // JUMP: {*STUN} HITS 2 PARTS."; the perk's name shows in the ⓘ LEVELS only (ruling R-1, faceBlocks.ts PERK_INFO_ONLY)
     const parts = 1 + (gt(e).jump ?? 0), n = fmtCount(parts);
-    return rules([hit(`{*STUN} ${stun} ON ${n} PART${s(parts)}.`)],
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 2): whose STUN on which part (Battle.impact: the shocked slug stops the part
+    // it hits; sparkJump the jump nearest others): ITS {SLUG} {*STUN}S THE PART IT HITS (203 px), at ★2/★3 n PARTS (was
+    // "HIT: {*STUN} 2 ON 1 PART.")
+    return rules([hit(parts === 1 ? `ITS {SLUG} {*STUN}S THE PART IT HITS ${stun}{SEC}.` : `ITS {SLUG} {*STUN}S ${n} PARTS ${stun}{SEC}.`)],
       [["stun", `{*STUN} ${stun}`], ["parts", `${n} PART${s(parts)}`]], [REMINDER.STUN(t)]);
   },
   splitter: (e) => {
@@ -635,7 +656,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const d = fmtDmg(gt(e).pincer!.each);
     // WORDS-1 (REQ-BFG-081): READ-1 6.1's one-off (ITS TILE) has no plain form inside the op band's one line (225 px at ★3
     // now; "ON THE SAME TILE" is 253), so the line stays (a known gap of WORDS-1's REPORT)
-    return rules([hit(`+${d} {DMG} FOR EACH OTHER RIG ON ITS TILE.`)], [["each", `+${d} {DMG} EACH`]]);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 3: ITS TILE, whose): each other working rig hitting the same slug (its tile's
+    // rigs), 221 px at ★3 (READ-2's "... HITTING THAT TILE." is 233, past the op band's one line; was "... ON ITS TILE.")
+    return rules([hit(`+${d} {DMG} FOR EACH OTHER RIG HITTING IT.`)], [["each", `+${d} {DMG} EACH`]]);
   },
   twingauge: (e) => {
     // DESIGN-Y row 21: Battle.applyHit: + matched on a matched belt (MATCHED: its glossary tap), nothing off one. Was the
@@ -725,7 +748,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const r = md(e).rerolls ?? 1, n = fmtCount(r);
     // WORDS-1 (REQ-BFG-081; READ-1 6.1's one-offs: BARE HULL): battle.ts:1996, 444-446 a pick of no part; 1991 picked again
     // (was "SHOTS AT BARE HULL GET 1 MORE AIM."); 213 px at ★3, one line of the op band
-    return rules([{ text: `SHOTS AIMED AT NO PART GET ${n} MORE AIM${s(r)}.` }], [["rerolls", `${n} MORE AIM${s(r)}`]]);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 2: AIM): AIM AGAIN, as READ-2's words (battle.ts pickTarget: a pick of no
+    // part is picked again, up to rerolls times): ONCE, TWICE, 3 TIMES (209 / 215 / 225 px; was "... GET 1 MORE AIM."). The
+    // number's key keeps its words (the ⓘ ladder's and NEXT★'s "1/2/3 MORE AIMS", and the phone chip's AIM+n read it)
+    const again = r === 1 ? "ONCE" : r === 2 ? "TWICE" : `${n} TIMES`;
+    return rules([{ text: `SHOTS AIMED AT NO PART AIM AGAIN ${again}.` }], [["rerolls", `${n} MORE AIM${s(r)}`]]);
   },
   escapement: (e) => {
     const up = fmtPct(md(e).fireRate! / 100); // METRONOME's pendulum line: not playable (R1 dropped it); NUM-2: stored

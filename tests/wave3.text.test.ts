@@ -297,7 +297,8 @@ describe("0.8.0 P1: the switch keeps wave 3's text out of the game while it is o
     // no floor), so its panel draws the face's line, "HIT: +20 {DMG} FOR EACH OTHER RIG ON ITS TILE." (was "ADDS 10 DAMAGE TO
     // EACH PAYLOAD IT HITS, AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE.")
     expect(t.body.find((b) => b.role === "ability")!.text).toBe(faceLines("pincer", 1)!.rules[0].text);
-    expect(stripIcons(faceLines("pincer", 1)!.rules[0].text)).toBe(`HIT: +${fmtDmg(ITEMS.pincer.gate!.pincer!.each)}  FOR EACH OTHER RIG ON ITS TILE.`);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1: ITS TILE, whose): HITTING IT (was "... FOR EACH OTHER RIG ON ITS TILE.")
+    expect(stripIcons(faceLines("pincer", 1)!.rules[0].text)).toBe(`HIT: +${fmtDmg(ITEMS.pincer.gate!.pincer!.each)}  FOR EACH OTHER RIG HITTING IT.`);
     const placed: Placed = { uid: 10, def: "pincer", x: 3, y: 3 };
     expect(placed.def in ITEMS).toBe(true);
   });

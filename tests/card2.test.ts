@@ -60,7 +60,13 @@ import { lineWidth } from "../src/ui/richText";
 import { ICON, icons } from "../src/render/font";
 import { shopChip } from "../src/ui/chips";
 import { panelWords } from "../src/screens/build/keywords";
-import { statIconNote } from "../src/ui/glossary";
+import { statIconNote, glossaryText } from "../src/ui/glossary";
+import { faceLines } from "../src/ui/faces";
+import { cardText as cardTextOf } from "../src/ui/abilityText";
+import { colourize, wrapRich } from "../src/ui/richText";
+import { C } from "../src/render/palette";
+import { stripIcons as stripIconsOf } from "../src/render/font";
+const wrapRichOf = (t: string, w: number) => wrapRich(colourize(icons(t), C.bone), w, "5");
 /** A turret in cargo's panel plan on a framed view (a finger's). */
 function detailsPlanOf(f: ReturnType<typeof framed>, def: string) {
   const run = newRun("furnace", 5, "card2-plan");
@@ -394,6 +400,37 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     ui = pd.draw();
     expect([keywordState(pd.ctx)!.auto, keywordState(pd.ctx)!.word]).toEqual(["BURN", null]);
     expect(ui.regions.some((r) => r.id === SIGHT_REGION)).toBe(true);
+  });
+});
+
+describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new words, each line in the op band (225 px)", () => {
+  it("SHOT TOWER, ASSEMBLY LINE, SABOT, SCRAPPER, LIMPET, GATLING, PINCER, SPOTTER, COIL, TWIN LATCH's desk line, DRAKE's SHOT note", () => {
+    const want: Record<string, string[][]> = {
+      shottower: [["EACH RIG HITS ALL 3 SLUGS."]],
+      assembly: [["FEEDS A GUN: YOUR RIGS WORK 50% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK 75% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK AT ONCE."]],
+      sabot: [["A RIG IT HITS STOPS FOR THE WHOLE FIGHT.", "ANY OTHER PART IT HITS: STUN 4."]],
+      scrapper: [["EACH STUN YOU LAND: 1 EXTRA ."]],
+      limpet: [["ITS  BLAST THE FOE'S HULL 3 AFTER A HIT."]],
+      gatling: [["FIRES EACH LOAD AS IT COMES.", "SPINS UP TO 67% FASTER."]],
+      pincer: [["HIT: +20  FOR EACH OTHER RIG HITTING IT."], ["HIT: +44  FOR EACH OTHER RIG HITTING IT."], ["HIT: +70  FOR EACH OTHER RIG HITTING IT."]],
+      spotter: [["SHOTS AIMED AT NO PART AIM AGAIN ONCE."], ["SHOTS AIMED AT NO PART AIM AGAIN TWICE."], ["SHOTS AIMED AT NO PART AIM AGAIN 3 TIMES."]],
+      coil: [["HIT: ITS  STUNS THE PART IT HITS 2."], ["HIT: ITS  STUNS 2 PARTS 2."], ["HIT: ITS  STUNS 2 PARTS 3."]],
+    };
+    const rows: string[] = [];
+    for (const [id, stars] of Object.entries(want)) stars.forEach((lines, i) => {
+      const fl = faceLines(id, i + 1, { k: 1 })!;
+      const got = fl.rules.map((r) => stripIconsOf(r.text));
+      expect(got, `${id} ★${i + 1}`).toEqual(lines);
+      for (const r of fl.rules) {
+        expect(textWidth(r.text, "5"), `${id} ★${i + 1}: ${r.text}`).toBeLessThanOrEqual(225);
+        rows.push(`${id} ★${i + 1}: "${stripIconsOf(r.text)}" ${textWidth(r.text, "5")} px`);
+      }
+    });
+    expect(cardTextOf("twinlatch", {})).toBe("HOLDS A SLUG TO PAIR TWO BELTS.");
+    const drake = glossaryText("SHOT", { def: "drake", stars: 1 })!;
+    expect(drake).toBe("SHOT: SCRAP'S EXTRA DAMAGE COUNTS, AND ALL OF A FUSED SLUG'S. {*HEAT} NEVER DOES.");
+    rows.push(`drake SHOT note: ${wrapRichOf(drake, 225).length} lines of 5x7 at 225 px; twinlatch desk card: ${textWidth("HOLDS A SLUG TO PAIR TWO BELTS.", "5")} px`);
+    console.log(`CARD-2 (k3) piece lines:\n${rows.join("\n")}`);
   });
 });
 

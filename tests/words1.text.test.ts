@@ -9,6 +9,8 @@
 //   - no face or panel string, at any view, is wider than its box, and every panel's text fits it whole.
 import { describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
+import { turretRow } from "../src/screens/build/faceBlocks"; // CARD-2 (REQ-BFG-081, K4): the turret row in words
+import { turretStats } from "../src/ui/faces"; // CARD-2 (K4)
 import { newRun, type Run } from "../src/game/run";
 import { ITEMS, MERCHANTS, buyableModules } from "../src/sim/content";
 import { gearSlotsOf } from "../src/sim/deck";
@@ -73,7 +75,9 @@ describe("WORDS-1: the new lines", () => {
       // under the stat row, kept, in the ability lines' face: the panel's blocks are the stat row, the two lines, then
       // the caveat (an inner turret's), nothing else
       const bs = faceBlocks(d.id, s, {})!;
-      expect(bs.slice(0, 3).map((b) => b.text), d.id).toEqual([faceLines(d.id, s)!.stats, ...want.map((t) => icons(t))]);
+      // CARD-2 (REQ-BFG-081, K4): the panel's stat row is in words (faceBlocks.ts turretRow: RATE n  HOLDS n  GEAR SLOTS n; was
+      // faceLines' icon row, which the face data keeps)
+      expect(bs.slice(0, 3).map((b) => b.text), d.id).toEqual([turretRow(turretStats(d.id, s)), ...want.map((t) => icons(t))]);
       expect(bs.every((b) => b.keep), d.id).toBe(true);
       expect(faceAt(d.id, s)!.rules).toEqual([]); // still no ability line: TEXT-STYLE 1.4 as ruled 2026-10-10
     }
@@ -93,7 +97,8 @@ describe("WORDS-1: the new lines", () => {
   it("READ-1 6.1's plain-word swaps, on the faces and the desk cards", () => {
     const face = (d: string) => stripIcons(faceLines(d, 1, d === "drake" ? { k: 1 } : {})!.rules[0].text);
     expect(face("mimic")).toBe("MAKES YOUR HERO'S SLUGS TOO.");
-    expect(face("sabot")).toBe("ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT.");
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.4): its first line of two (was "ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT.")
+    expect(face("sabot")).toBe("A RIG IT HITS STOPS FOR THE WHOLE FIGHT.");
     expect(face("overclocker")).toBe("EVERY 4: THE NEXT RIG DOWN ITS BELT HITS TWICE.");
     expect(face("twingauge")).toBe("HIT: +30  IF ANOTHER BELT INTO ITS TURRET IS AS LONG.");
     expect(face("drake")).toBe("SHOT: EACH 25 DAMAGE RIGS ADDED TO ITS SLUG BECOMES 1 BURN.");
