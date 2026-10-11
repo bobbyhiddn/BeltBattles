@@ -20,7 +20,7 @@ import {
   BELT_COUNTS, GUN_COLOUR, JamMemory, READERS, STATUS_CHIPS, STATUS_H, boxW, burnStacks, canJam, gunState, holds, keepOnScreen, readCount,
   shownChips, slugsWaiting, statusTab, stunnedParts, tabBelow, type StatusChip,
 } from "../src/game/counters";
-import { clipOut, plateKeep, plateTarget, squareAt } from "../src/screens/battleCounters";
+import { clipOut, pickGroup, plateKeep, plateTarget, squareAt } from "../src/screens/battleCounters";
 import { keywordEntry, keywordRow, waitingText } from "../src/ui/counterText";
 import { textWidth } from "../src/render/font";
 import { C } from "../src/render/palette";
@@ -241,6 +241,19 @@ describe("COUNT-1: on every view: inside the screen, and a finger's target a gro
       expect(keepOnScreen(5, H, 0, 0, w, 9, W, H)).toBeNull();
     });
   }
+});
+
+describe("COUNT-1: overlapping finger targets", () => {
+  it("a tap goes to the group whose box is under it, else the nearest box among the targets that hold it", () => {
+    const belt = { id: "belt", anchor: { x: 100, y: 100, w: 7, h: 9 }, target: squareAt({ x: 100, y: 100, w: 7, h: 9 }, 27, 241, 414) };
+    const gun = { id: "gun", anchor: { x: 104, y: 110, w: 11, h: 9 }, target: squareAt({ x: 104, y: 110, w: 11, h: 9 }, 27, 241, 414) };
+    const gs = [belt, gun];
+    expect(pickGroup(gs, 103, 104)!.id).toBe("belt"); // on the belt's box, inside the gun's square too
+    expect(pickGroup(gs, 108, 113)!.id).toBe("gun");
+    expect(pickGroup(gs, 112, 122)!.id).toBe("gun"); // nearer the gun's box
+    expect(pickGroup(gs, 96, 98)!.id).toBe("belt");
+    expect(pickGroup(gs, 0, 0)).toBeNull();
+  });
 });
 
 describe("COUNT-1: the words (REQ-BFG-107) and colours", () => {

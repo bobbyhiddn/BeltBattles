@@ -37,6 +37,8 @@ export const CNT_REGION = "cnt:";
 export const CNT_PANEL = "cntpanel";
 /** The panel's widest (art px): the glossary's wrap width (GLOSSARY_WRAP_W 225) and its 5 px margins. */
 export const PANEL_W = 235;
+/** C5's box steps back along its belt this far at a time, at most this many times, to keep off a gun's box. */
+export const BELT_STEP = 5, BELT_TRIES = 3;
 /** How many frames an open panel outlives its group (a gun fires its last waiting slug, a belt empties): it stays where
  *  it was, its count now 0, for about 1.5 s, so a finger's panel doesn't vanish under it; then it closes. */
 export const OPEN_GRACE = 90;
@@ -135,10 +137,29 @@ export class BattleCounters {
     d.skipped = 0;
     if (!live || a.b.over) return;
     const { W, H } = game, tp = tapPx(game.view);
+    // C6 first: a gun's waiting slugs (PRESSURE BREECH's count), beside its pivot; JAM while jammed
+    for (const side of SIDES) {
+      if (!a.show[side]) continue;
+      const s = a.b.sides[side], slots = this.slotsOf(a, side);
+      for (const tu of s.turrets) {
+        const n = slugsWaiting(tu), sl = slots[tu.index];
+        if (n <= 0 || !sl) continue;
+        const [px, py] = m.localToScreen(a, side, (sl.col0 + sl.width / 2) * CELL, TURRET_LY);
+        const st = gunState(tu, this.jams.jammed(side, tu.index));
+        const text = st === "jam" ? `${fmtCount(n)} ${JAM_TAG}` : fmtCount(n);
+        const w = boxW(textWidth(ICON.SLUG, "3") + 1 + textWidth(text, "3"));
+        const box = keepOnScreen(px, py, Math.round(px) + GUN_DX, Math.round(py) + GUN_DY, w, BOX_H, W, H);
+        if (!box || this.covers(box, keep, m)) { d.skipped++; continue; }
+        g.drawImage(this.boxImage(ICON.SLUG, text, GUN_COLOUR[st]), box.x, box.y);
+        d.guns.push({ side, slot: tu.index, r: box, n, text, state: st });
+        this.addGroup(game, `${CNT_REGION}gun${side}:${tu.index}`, "gun", side, tu.index, box, squareAt(box, tp, W, H), avoid);
+      }
+    }
+    // C5: a belt's slugs, at its last tile before the gun, set back along the belt (away from its gun), further back
+    // (BELT_STEP at a time, BELT_TRIES times) while it would touch a gun's box: the desk's foe ends its belts by its guns
     for (const side of SIDES) {
       if (!a.show[side]) continue;
       const s = a.b.sides[side];
-      // C5: a belt's slugs, at its last tile before the gun, set back along the belt (away from its gun)
       for (const r of s.routes) {
         if (!beltShows(s, r, this.mode) || !r.cells.length) continue;
         const last = r.cells[r.cells.length - 1];
@@ -152,26 +173,17 @@ export class BattleCounters {
           uy = (cy - py) / l;
         }
         const n = r.ammo.length, text = fmtCount(n), w = boxW(textWidth(text, "3"));
-        const box = keepOnScreen(cx, cy, cx - BELT_BACK * ux - w / 2, cy - BELT_BACK * uy - BOX_H / 2, w, BOX_H, W, H);
+        let box: Rect | null = null;
+        for (let k = 0; k <= BELT_TRIES; k++) {
+          const back = BELT_BACK + k * BELT_STEP;
+          box = keepOnScreen(cx, cy, cx - back * ux - w / 2, cy - back * uy - BOX_H / 2, w, BOX_H, W, H);
+          if (!box || !d.guns.some((q) => overlap(box!, q.r))) break;
+          if (k === BELT_TRIES) box = null;
+        }
         if (!box || this.covers(box, keep, m)) { d.skipped++; continue; }
         g.drawImage(this.boxImage("", text, C.white), box.x, box.y);
         d.belts.push({ side, route: r.index, r: box, n });
         this.addGroup(game, `${CNT_REGION}belt${side}:${r.index}`, "belt", side, r.index, box, squareAt(box, tp, W, H), avoid);
-      }
-      // C6: a gun's waiting slugs (PRESSURE BREECH's count), beside its pivot; JAM while jammed
-      const slots = this.slotsOf(a, side);
-      for (const tu of s.turrets) {
-        const n = slugsWaiting(tu), sl = slots[tu.index];
-        if (n <= 0 || !sl) continue;
-        const [px, py] = m.localToScreen(a, side, (sl.col0 + sl.width / 2) * CELL, TURRET_LY);
-        const st = gunState(tu, this.jams.jammed(side, tu.index));
-        const text = st === "jam" ? `${fmtCount(n)} ${JAM_TAG}` : fmtCount(n);
-        const w = boxW(textWidth(ICON.SLUG, "3") + 1 + textWidth(text, "3"));
-        const box = keepOnScreen(px, py, Math.round(px) + GUN_DX, Math.round(py) + GUN_DY, w, BOX_H, W, H);
-        if (!box || this.covers(box, keep, m)) { d.skipped++; continue; }
-        g.drawImage(this.boxImage(ICON.SLUG, text, GUN_COLOUR[st]), box.x, box.y);
-        d.guns.push({ side, slot: tu.index, r: box, n, text, state: st });
-        this.addGroup(game, `${CNT_REGION}gun${side}:${tu.index}`, "gun", side, tu.index, box, squareAt(box, tp, W, H), avoid);
       }
     }
   }
@@ -218,8 +230,15 @@ export class BattleCounters {
     const grp: Group = { id, kind, side, ref, anchor, target: t };
     this.groups.push(grp);
     this.last.targets.push({ id, r: t });
-    // the tap keeps the group as tapped, so its panel opens even if the count falls to 0 in the very next step
-    game.ui.add({ id, r: t, onTap: () => { this.open = this.open === id ? null : id; this.kept = this.open ? { grp, frames: 0 } : null; } });
+    // where finger targets overlap, the tap goes to the group whose box is under it, else the nearest (pickGroup); the tap
+    // keeps the group as tapped, so its panel opens even if the count falls to 0 in the very next step
+    game.ui.add({
+      id, r: t, onTap: () => {
+        const p = game.ui.pointer, q = pickGroup(this.groups, p.x, p.y) ?? grp;
+        this.open = this.open === q.id ? null : q.id;
+        this.kept = this.open ? { grp: q, frames: 0 } : null;
+      },
+    });
   }
 
   // ------------------------------------------------------------------------------------------------------- the panel
@@ -368,6 +387,18 @@ function edge(g: G, w: number): void {
 function union(a: Rect, b: Rect): Rect {
   const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+}
+
+/** Where finger targets overlap, the group a tap at (x, y) means: the one whose box (`anchor`) holds the point, else the
+ *  one whose box centre is nearest, among those whose target holds it (later groups win ties); null: none. Pure. */
+export function pickGroup<T extends { anchor: Rect; target: Rect }>(groups: readonly T[], x: number, y: number): T | null {
+  let best: T | null = null, bd = Infinity;
+  for (const q of groups) {
+    if (!inside(q.target, x, y)) continue;
+    const d = inside(q.anchor, x, y) ? -1 : Math.hypot(x - (q.anchor.x + q.anchor.w / 2), y - (q.anchor.y + q.anchor.h / 2));
+    if (d <= bd) { bd = d; best = q; }
+  }
+  return best;
 }
 
 /** A plate group's tap target: the plate and its tab (`base`), at least `tp` px tall, grown towards the plate's hull
