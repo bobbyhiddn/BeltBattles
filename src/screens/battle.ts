@@ -31,6 +31,7 @@ import { C } from "../render/palette";
 import type { G } from "../render/pixel";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
 import { drawWarlordResult, type WarlordActions } from "./warlordHud";
+import { ON_TO_THE_ROAD } from "./warlordHud"; // MERGE-099C: the view's primary with NPC_DAY on, as the card's
 import { drawText, textWidth } from "../render/font";
 import { banner, optionsCard } from "../ui/hud";
 import { button, panel } from "../ui/ui";
@@ -289,12 +290,15 @@ export class BattleScreen implements Screen {
   }
 
   /** The card's primary action, as the view's bar offers it: ON TO DAWN · DAY n or SEE THE RUN; a warlord's REFIT (a part
-   *  in cargo) or ON TO DUSK; none while a warlord's part pick waits on the card (BACK to pick). */
+   *  in cargo) or ON TO DUSK; none while a warlord's part pick waits on the card (BACK to pick). MERGE-099C: with NPC_DAY
+   *  on (NPC-1, REQ-BFG-077) a warlord's card has one way on, win or lose, ON TO THE ROAD (warlordHud.ts), so the view
+   *  offers that too (REFIT and ON TO DUSK from the view would skip the day's event). */
   viewPrimary(): { label: string; onTap: () => void } | null {
     const w = this.warlord;
     if (w) {
       const r = w.result;
       if (!r || pickPending(w)) return null;
+      if (npcDayRules()) return { label: ON_TO_THE_ROAD, onTap: this.wact.road ?? this.wact.fight };
       return r.took ? { label: "REFIT", onTap: this.wact.refit } : { label: "ON TO DUSK", onTap: this.wact.fight };
     }
     return { label: this.game.run!.over ? "SEE THE RUN" : `ON TO DAWN · DAY ${this.game.run!.day}`, onTap: this.onNext };

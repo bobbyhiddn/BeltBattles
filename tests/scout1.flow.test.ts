@@ -14,6 +14,8 @@ import { BACK_WIDE_S, BattleScreen, VIEW_CLOSE_S } from "../src/screens/battle";
 import { faceText, partAt, pickPart, readOnlyBlock, summaryRows } from "../src/screens/battleScout";
 import { resultRows } from "../src/screens/battleHud";
 import { setupRun, setupWarlord } from "../src/tooling";
+import { npcDayRules, withNpcDay } from "../src/sim/npcDay"; // MERGE-099C: the warlord's pick is NPC_DAY off's
+import { ON_TO_THE_ROAD } from "../src/screens/warlordHud"; // MERGE-099C: NPC_DAY on, the view offers the card's one way on
 import { turretSlots } from "../src/sim/deck";
 import { ITEMS } from "../src/sim/content";
 import type { SimEvent } from "../src/sim/battle";
@@ -204,19 +206,31 @@ describe("SCOUT-1: VIEW BATTLEFIELD", () => {
   });
 
   it("the warlord's pick is untouched: no primary in the view while it waits; BACK, pick, then the view offers REFIT", () => {
+    // MERGE-099C: a Hard win's pick of 2 is NPC_DAY off's flow (0.9.8's, kept behind the switch), so it is checked off;
+    // with NPC_DAY on, as c099 ships it (NPC-1, REQ-BFG-077), the win drops a part instead (no pick) and the card's one way
+    // on is ON TO THE ROAD, which the view offers too (battle.ts viewPrimary)
+    withNpcDay(() => {
+      const wr = setupWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 });
+      const wg = fakeGame(wr);
+      const w = new BattleScreen(wg, "warlord");
+      run(w, 30);
+      expect(w.openView()).toBe(true);
+      expect(w.viewPrimary()).toBeNull();
+      w.take(0); // the card's pick isn't reachable from the view
+      expect(w.warlord!.result!.took).toBeFalsy();
+      w.closeView();
+      w.take(0);
+      expect(w.warlord!.result!.took).toBeTruthy();
+      w.openView();
+      expect(w.viewPrimary()?.label).toBe("REFIT");
+    }, false);
+    expect(npcDayRules()).toBe(true); // the shipped value
     const wr = setupWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 });
-    const wg = fakeGame(wr);
-    const w = new BattleScreen(wg, "warlord");
+    const w = new BattleScreen(fakeGame(wr), "warlord");
     run(w, 30);
+    expect(w.warlord!.result!.parts).toEqual([]); // no pick
     expect(w.openView()).toBe(true);
-    expect(w.viewPrimary()).toBeNull();
-    w.take(0); // the card's pick isn't reachable from the view
-    expect(w.warlord!.result!.took).toBeFalsy();
-    w.closeView();
-    w.take(0);
-    expect(w.warlord!.result!.took).toBeTruthy();
-    w.openView();
-    expect(w.viewPrimary()?.label).toBe("REFIT");
+    expect(w.viewPrimary()?.label).toBe(ON_TO_THE_ROAD);
   });
 
   it("each part's face: the side's own build and hero, read only; a turret's fight line in the view", () => {
