@@ -1,7 +1,7 @@
 // HULL-1a (REQ-BFG-079, REQ-BFG-078): the server with both switches on, as AZ-BUMP will ship them. (h) The hull ceiling
 // counts M through hullBonus, which stays a day-1 number, so validate.ts and roadCap.ts need no hull change: the upload
 // driver's honest decks (tests/uploadDriver.ts on the NPC day, with their road logs) pass at days 1, 5 and 10 for every
-// bb-0.9.7 hero, and an over-budget hull is refused, with HULL_SCALE on or off alike. (i) REVIEW-NPC1 Q3: a road entry says
+// bb-0.10.0 hero (AZ-BUMP: was bb-0.9.7), and an over-budget hull is refused, with HULL_SCALE on or off alike. (i) REVIEW-NPC1 Q3: a road entry says
 // when its warlord was sabotaged (`sabotaged: true`); the server checks exactly that one deck, and refuses the flag after
 // a day with no SAPPERS with its own line; with NPC_DAY off the field is still refused (the endpoint's 400). Every test
 // puts both switches back (afterEach).
@@ -22,7 +22,7 @@ import { validateUpload } from "../src/net/validate";
 import { driveRuns } from "./uploadDriver";
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
-const HEROS = (Object.keys(HEROES) as HeroId[]).filter((h) => heroGateProblem(RULES_VERSION, h) === null); // bb-0.9.7's
+const HEROS = (Object.keys(HEROES) as HeroId[]).filter((h) => heroGateProblem(RULES_VERSION, h) === null); // bb-0.10.0's (AZ-BUMP: was bb-0.9.7's)
 const PLATE = ITEMS.plating.supply!.hull!;
 
 afterEach(() => { // the shipped values (AZ-BUMP's flip; were false): a test that reads a switch off sets it off itself
@@ -36,7 +36,7 @@ const both = (on = true): void => {
 const check = (s: GhostSnapshot) => validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(s.road ? { road: s.road } : {}) });
 
 describe("HULL-1a (h): the server with both switches on", () => {
-  it("the upload driver's honest decks pass at days 1, 5 and 10 for every bb-0.9.7 hero, with their road logs", () => {
+  it("the upload driver's honest decks pass at days 1, 5 and 10 for every bb-0.10.0 hero, with their road logs", () => {
     both();
     const seen = new Set<string>();
     let n = 0;

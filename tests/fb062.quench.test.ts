@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { spotForTile } from "../src/sim/beltside";
 import { BURN_DPS, BURN_TIME, ITEMS, TICK, type HeroId } from "../src/sim/content";
-import { RULES_VERSION } from "../src/sim/content"; // Y7b2: QUENCH ★1's tripwire (cap's ruling e66379fbf3184e56) is keyed to bb-0.9.3
+// AZ-BUMP S7: RULES_VERSION is gone with QUENCH ★1's tripwire key (the fixed ladder is a plain regression test)
 import { cloneBuild, rigHits, walkRoute, type Build } from "../src/sim/deck";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { heroStartBuild } from "../src/sim/heroBuilds";
@@ -102,32 +102,18 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
   // only). With Burn, ★1 pays 30 a Burn, exactly a Burn's own 30 (BURN_DPS x BURN_TIME), so "no QUENCH < ★1" fails at
   // every count (measured 60 = 60 at 1 Burn, 90 = 90 at 2, 150 = 150 at 4, 330 = 330 at 10): the tripwire below (cap's
   // ruling e66379fbf3184e56)
+  // AZ-BUMP S7 (backlog #370; REQ-BFG-070, LADDER_FIX on for good): the Y7b2 tripwire is gone (cap's ruling
+  // e66379fbf3184e56, re-ruled at Z-BUMP: no QUENCH = ★1 at every Burn count under bb-0.9.7, its rules key and its
+  // LADDER_FIX-off run with it). The star-ladder pass fixed it (ladderFix.ts: ★1 pays 40 per BURN, +10 over the BURN it
+  // spends), so this is a plain regression test of the fixed ladder: no QUENCH < ★1 < ★2 < ★3 at every Burn count
   it("each star step is an upgrade for any Burn count", () => {
-    // AZ-BUMP (the flip, LADDER_FIX): the bb-0.9.7 tripwire keeps its point with LADDER_FIX off until S7 turns it into a
-    // regression test of the fixed ladder
-    withLadderFix(() => {
-    // Y7b2 TRIPWIRE (cap's ruling e66379fbf3184e56; only while RULES_VERSION is "bb-0.9.3"): ★1 pays 30 per BURN, which
-    // only equals the BURN it spends (BURN_DPS x BURN_TIME = 30), so ★1 adds nothing: no QUENCH = ★1 at every Burn count
-    // (was: no QUENCH < ★1). Both are pinned exactly at every count (measured: no QUENCH and ★1 each deal these); ★1 < ★2
-    // < ★3 stays live at every count, and (b)'s >= stays as written. Design list, R3a's QUENCH entry: ★1 must pay more
-    // than the BURN it spends (decide it with the forced-rig bench after Y, plated and shielded foes included); once
-    // decided, delete this tripwire and let "no QUENCH < ★1" cover ★1 again
-    const TRIP_Q1: Record<number, number> = { 1: 60, 2: 90, 3: 120, 4: 150, 5: 180, 6: 210, 7: 240, 8: 270, 10: 330 };
+    expect([effectAt("quench", 1).gate?.quench?.perBurn, BURN_DPS * BURN_TIME], "★1 pays more than the BURN it spends").toEqual([40, 30]);
     for (const k of BURNS.filter((x) => x > 0)) {
       const d = STARS.map((s) => dealt(quenched(s, payload(k)))), none = dealt(payload(k));
+      expect(d[0], `${k} Burn: no QUENCH < ★1`).toBeGreaterThan(none);
       expect(d[1], `${k} Burn: ★1 < ★2`).toBeGreaterThan(d[0]);
       expect(d[2], `${k} Burn: ★2 < ★3`).toBeGreaterThan(d[1]);
-      // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none): re-keyed bb-0.9.3 -> bb-0.9.7,
-      // measured at Z-BUMP's tip at every Burn count. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
-      if (RULES_VERSION === "bb-0.9.7") {
-        const why = `Y7b2 tripwire (cap's ruling e66379fbf3184e56): no QUENCH = QUENCH ★1 pinned under bb-0.9.7 (re-ruled at Z-BUMP) at ${k} Burn; ★1 pays 30 per BURN, which only equals the BURN it spends (BURN_DPS x BURN_TIME = 30), so ★1 adds nothing; accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)`;
-        expect([none, d[0]], why).toEqual([TRIP_Q1[k], TRIP_Q1[k]]);
-        expect([effectAt("quench", 1).gate?.quench?.perBurn, BURN_DPS * BURN_TIME], `${why}: the recorded finding, ★1's pay per BURN is a BURN's own damage`).toEqual([30, 30]);
-        continue;
-      }
-      expect(d[0], `${k} Burn: no QUENCH < ★1`).toBeGreaterThan(none);
     }
-    }, false);
   });
 
   it("(a) without Burn, QUENCH adds less per arrow than WHETSTONE at the same star (estimate and battle): a Burn payoff", () => {

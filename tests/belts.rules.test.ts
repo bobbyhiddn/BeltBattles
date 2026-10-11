@@ -58,7 +58,7 @@ const DAYS = [1, 5, 9];
 const NEAR = [OLD_RULES, "bb-0.8.2", "bb-0.8.4", "bb-0.8.3x", "BB-0.8.3", " bb-0.8.3", "bb-0.8.3 ", "bb-0.8.03", "bb-0.8.30", "bb-0.8.3.0", "bb-0.8", "bb_0.8.3"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
 // FLIP-X2: the one bump (was bb-0.8.7; the tests that read it were skipped while the seed pool failed its checks)
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.9.7`; // Z-BUMP: the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.10.0`; // AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
 const slotError = (name: string, routes: number, outs: number) => `route: ${name} uid 1 feeds ${routes} routes but has ${outs} output(s)`;
 
 /** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. FLIP-X2: under this build's rules the
@@ -157,7 +157,7 @@ function playDusk(run: Run): void {
 
 describe("rules bb-0.8.7: the version and its decks", () => {
   it("RULES_VERSION is bb-0.8.7, after bb-0.8.0 (HEROES_RULES): the same four heroes travel, and the hero table needs no row", () => {
-    expect(RULES_VERSION).toBe("bb-0.9.7") /* Z-BUMP: the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     expect(HEROES_RULES).toBe(OLD_RULES);
     expect(RULES_VERSION).not.toBe(OLD_RULES);
     expect(rulesAtLeast(RULES_VERSION, OLD_RULES)).toBe(true);
@@ -236,10 +236,10 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
   const fresh = (s: GhostSnapshot): GhostSnapshot => ({ ...s, runId: `${s.runId}-${k++}` });
 
   it("/v1/health names bb-0.8.7; the match route serves bb-0.8.7 seed ghosts, and has none under bb-0.8.0 (a fresh pool)", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.9.7") /* Z-BUMP: the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const now = await ask(RULES_VERSION);
     expect(now.status).toBe(200);
-    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.9.7") /* Z-BUMP: the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     for (const day of [1, 3, 10]) {
       const old = await ask(OLD_RULES, day);
       expect(old.status, `day ${day}`).toBe(404);
@@ -404,8 +404,11 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
     // FLIP-X2: each one the rune-less v2 deck a bb-0.8.0 pool held (was the v3 seed deck holding its day's runes, which the
     // rules gate refuses under bb-0.8.0): no runes (their hull and belt back out of hullBonus / beltCap) and no seed; and
     // only the decks bb-0.8.0's gate takes (was all 60: a deck with a bb-0.9.0 sustain piece was never in a bb-0.8.0 pool)
+    // AZ-BUMP S7L (the cause LOSS-1 P2, 5f3ac64, merged at 3b19771): the floor ghosts now carry their casual run's road log
+    // (v3 only: "snapshot.road: not allowed in a v2 snapshot"), which a bb-0.8.0 pool never held, so the copy drops it too,
+    // as it drops the runes and the seed (snapshot.contract and h2.nearmiss drop it the same way since the flip)
     const pool080: GhostSnapshot[] = [...sampleGhosts(), ...floorGhosts()].map((s): GhostSnapshot => {
-      const { seed: _seed, ...rest } = s;
+      const { seed: _seed, road: _road, ...rest } = s;
       const { runes, ...build } = s.build;
       const g = runeGrants(runes, s.day);
       return { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };

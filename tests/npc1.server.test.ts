@@ -116,7 +116,7 @@ describe("NPC-1: honest runs are accepted (REQ-BFG-078)", () => {
     setNpcDay(true);
     let n = 0, drops = 0;
     for (const policy of ["mixed", "warlord:hard", "event:dice:BET 6|warlord:hard"] as const) {
-      for (const r of driveRuns(policy === "mixed" ? 12 : 4, 8100, HEROS, policy)) { // the heroes bb-0.9.7 takes
+      for (const r of driveRuns(policy === "mixed" ? 12 : 4, 8100, HEROS, policy)) { // the heroes bb-0.10.0 takes (AZ-BUMP: was bb-0.9.7)
         for (const d of r.dusks) {
           expect(d.roadLog!.length, `${d.hero} d${d.day}`).toBe(d.day);
           const v = validateUpload(d.build, d.day, RULES_VERSION, { seed: d.runSeed, road: d.roadLog });

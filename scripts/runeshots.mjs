@@ -140,8 +140,9 @@ const findTiers = (page) => page.evaluate(({ prefer }) => {
  *  the rune bar's chip edges (a chip's bottom edge); the read-out's frame and height. */
 const look = (page) => page.evaluate(({ RAR, SL4 }) => {
   const game = window.bb.game, s = game.screen, g = game.g;
+  const k = game.view.sub ?? 1; // R4-1: canvas px per art px (the view's canvas grid; 1 without one)
   const hex = (d, i) => "#" + [d[i], d[i + 1], d[i + 2]].map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
-  const px = (x, y) => hex(g.getImageData(Math.floor(x), Math.floor(y), 1, 1).data, 0);
+  const px = (x, y) => hex(g.getImageData(Math.floor(x) * k, Math.floor(y) * k, 1, 1).data, 0);
   const out = {};
   const info = s.runePicker?.info(s);
   if (info) {
@@ -149,17 +150,17 @@ const look = (page) => page.evaluate(({ RAR, SL4 }) => {
     out.edges = L.cards.map((c) => px(c.x + c.w / 2, c.y + 1));
     out.heights = L.cards.map((c) => c.h);
     out.heads = L.cards.map((c, i) => {
-      const d = g.getImageData(c.x + c.w - 5, c.y + 6, 3, 19).data;
+      const d = g.getImageData((c.x + c.w - 5) * k, (c.y + 6) * k, 3 * k, 19 * k).data;
       let n = 0;
       for (let j = 0; j < d.length; j += 4) if (hex(d, j) === out.edges[i] || hex(d, j) === SL4) n++;
-      return n;
+      return n / (k * k);
     });
-    const band = g.getImageData(0, L.top + 11, game.W, 7).data;
+    const band = g.getImageData(0, (L.top + 11) * k, game.W * k, 7 * k).data;
     out.word = {};
     for (const [t, col] of Object.entries(RAR)) {
       let n = 0;
       for (let j = 0; j < band.length; j += 4) if (hex(band, j) === col) n++;
-      out.word[t] = n;
+      out.word[t] = n / (k * k);
     }
   }
   const B = s.runeBar?.layout(s);

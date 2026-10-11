@@ -18,8 +18,7 @@ import { rateDeck } from "../src/sim/deckRating";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { K, item, latchDeck, withItem, withMod } from "./wave3.helpers";
 import { starCell, starRows, type StarRow } from "./starRows";
-import { RULES_VERSION } from "../src/sim/content"; // BAL-2: the STOKER row's tripwire (cap's oracle 42da94243f43feef)
-import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the tripwire row with the switch off
+// AZ-BUMP S7: RULES_VERSION and withLadderFix are gone with the STOKER row's tripwire (its bb-0.9.7 key and its LADDER_FIX-off row)
 
 const SEEDS = [1, 2, 3, 4, 5]; // both sides +3000 hull, 120 s: STOKER's cap rows (capRows) and the rows' own measure (ownRow)
 const ROW_SEEDS = Array.from({ length: 10 }, (_, i) => i + 1); // 0.8.0 T1: the star rows (deckRows)
@@ -211,36 +210,14 @@ describe("wave 3, deck level: 1 -> 2 -> 3 stars never loses more than 3% of the 
 describe("STOKER's cap (the Prime's call, oracle a0e94bc69949561f): a stoke never makes a factory outrun its gun", () => {
   for (const r of STOKER_ROWS) {
     it(`${r.id}: no stoker <= 1 star <= 2 stars <= 3 stars, and no more jams than with no stoker`, () => {
-      // AZ-BUMP (the flip, LADDER_FIX): the BAL-2 tripwire row below asserts bb-0.9.7's broken ladder ("accepted for bb-0.9.7;
-      // the star-ladder pass fixes it"), so that row is measured with LADDER_FIX set off through the setter
-      // (withLadderFix(fn, false)) and keeps its bb-0.9.7 point; S7 turns it into a regression test. On, its ★3 reads 4176
-      // (was 4086), above ★2. Every other row is measured as shipped (on)
-      const tripwire = RULES_VERSION === "bb-0.9.7" && r.id === "shared gun with room, STOKER on the mould";
-      const rows = tripwire ? withLadderFix(() => capRows(r), false) : capRows(r);
+      const rows = capRows(r);
       if (process.env.BB_TABLES) console.log(`STOKER ${r.id} | ${rows.map((x, s) => `${s ? `★${s}` : "none"} ${x.dmg.toFixed(1)} (jams ${x.jams})`).join(" | ")}`);
-      // BAL-2 TRIPWIRE (cap's oracle 42da94243f43feef; only while RULES_VERSION is "bb-0.9.1"): with 0.9.1's lines together
-      // (FURNACE hull 2100, WEAVER hull 1700, the KILN's HEAT 13; either alone keeps the row rising) this row reads
-      // 3918 / 3954 / 4104 / 4086, ★3 under ★2. Every one of its fights ends with WEAVER's hull at 0 by about 51 s (at
-      // 0.9.0's values too), so the row measures the foe's hull, not STOKER (W/output-bal2/probe/diag-summary.txt). Pinned
-      // exactly, with ★3 < ★2 recorded; the rest of the row as written. Under any other rules version the original
-      // assertions apply again: whoever bumps fixes the measure (the hull bonus or the seeds) or STOKER's share rule, or
-      // asks cap.
-      // Y7b2 (the bump to bb-0.9.3): re-keyed from bb-0.9.1 by cap's ruling Y7A-R1 (REVIEW-Y7A section 7: "The tripwire row
-      // stays under ruling 42da94243f43feef"); measured on y7b2 after the flip, the same four means (Y7b1's B2 read them on
-      // and off alike), so the pins are unchanged
-      // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7; not one of Y7B2-Q3's five, re-keyed the same way as git grep finds it):
-      // re-keyed bb-0.9.3 -> bb-0.9.7, its four means measured at Z-BUMP's tip. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
-      if (RULES_VERSION === "bb-0.9.7" && r.id === "shared gun with room, STOKER on the mould") {
-        const why = "BAL-2 tripwire (cap's oracle 42da94243f43feef; kept by ruling Y7A-R1, re-keyed at Y7b2 and Z-BUMP): STOKER's 'shared gun with room' row pinned under bb-0.9.7; accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)";
-        expect(rows.map((x) => x.dmg), why).toEqual([3918, 3954, 4104, 4086]);
-        expect(rows[3].dmg, `${why}: the recorded finding, ★3 under ★2`).toBeLessThan(rows[2].dmg);
-        for (let s = 1; s <= 3; s++) expect(rows[s].jams, `${r.id} ★${s} jams`).toBeLessThanOrEqual(rows[0].jams);
-        for (let s = 1; s <= 2; s++) {
-          expect(rows[s].dmg, `${r.id} ★${s}`).toBeGreaterThanOrEqual(rows[s - 1].dmg * 0.999);
-          expect(rows[s].dmg, `${r.id} ★${s} rises`).toBeGreaterThan(rows[s - 1].dmg);
-        }
-        return;
-      }
+      // AZ-BUMP S7 (backlog #356; REQ-BFG-070, LADDER_FIX on for good): the BAL-2 tripwire is gone (cap's oracle
+      // 42da94243f43feef, kept by ruling Y7A-R1, re-keyed at Y7b2 and Z-BUMP: this row read 3918 / 3954 / 4104 / 4086 under
+      // bb-0.9.7, ★3 under ★2, its fights ending at the foe's hull; its rules key and its LADDER_FIX-off row with it). The
+      // star-ladder pass fixed it (ladderFix.ts: STOKER ★3's stoke 0.7 -> 0.85), so the row is a plain regression test of the
+      // fixed ladder: it rises at every star (3918 / 3954 / 4104 / 4176), and its jams stay at or under no stoker's
+      if (r.id === "shared gun with room, STOKER on the mould") expect(rows.map((x) => x.dmg), "STOKER on the mould, the fixed ladder").toEqual([3918, 3954, 4104, 4176]);
       for (let s = 1; s <= 3; s++) {
         expect(rows[s].dmg, `${r.id} ★${s}`).toBeGreaterThanOrEqual(rows[s - 1].dmg * 0.999);
         expect(rows[s].jams, `${r.id} ★${s} jams`).toBeLessThanOrEqual(rows[0].jams);

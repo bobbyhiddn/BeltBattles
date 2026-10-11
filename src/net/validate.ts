@@ -38,6 +38,25 @@ import { npcDayGateProblem } from "./rulesGate";
 import { RIVALS, warlordOffer } from "../sim/rivals";
 import { topParts, warlordDeck, warlordDrop } from "../game/road";
 import { eventFor } from "../game/events";
+// AZ-BUMP (S6, the stored records): a deck under older rules is budgeted in its own rules' world (inRulesWorld below)
+import { NPC_DAY_RULES, rulesAtLeast } from "./rulesGate";
+import { withNpcDay } from "../sim/npcDay";
+import { withHullScale } from "../sim/hullScale";
+import { withLadderFix } from "../sim/ladderFix";
+
+/**
+ * AZ-BUMP (REQ-BFG-077, REQ-BFG-078, REQ-BFG-079; S6, the stored records, Z-BUMP S4's pattern): run `fn` in the world of
+ * `rules`. The hull release's three switches (NPC_DAY, HULL_SCALE, LADDER_FIX) came on together with its rules,
+ * bb-0.10.0 (NPC_DAY_RULES, the NPC day's row), so a deck under older rules (a stored bb-0.9.7 record: no road, no M or
+ * D, bb-0.9.7's gold table and road) is judged with all three off, the world it was made in. The rules gate decides,
+ * never the global switch; this build's rules (and later) run as the switches stand (on, as the build ships; a test's
+ * setter otherwise). Each switch is put back after, even on a throw (the with* helpers). roadCap's memo keys carry the
+ * switches, so the two worlds never share a memo entry.
+ */
+export function inRulesWorld<T>(rules: unknown, fn: () => T): T {
+  if (rulesAtLeast(rules, NPC_DAY_RULES)) return fn();
+  return withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false);
+}
 
 /** RUNES-1: what a deck's check knows beside the deck: its snapshot's run `seed` (absent on a served ghost, FIX-6, and
  *  on stand-ins and pool decks), so the rune offer rule runs only when the uploader's seed is known. */
@@ -152,7 +171,11 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // (rulesGate.ts shapesGateProblem); a deck under older rules is judged in 0.9.9's shapes (inShapesWorld)
   const shGate = shapesGateProblem(rules, build);
   if (shGate) return { ok: false, errors: [`rules: ${shGate}`] };
-  return inShapesWorld(rules, () => validateBuild(build, day, "player", ctx));
+  // AZ-BUMP (S6, the stored records): the budget, the road and the events by the deck's own rules (inRulesWorld): under
+  // rules before bb-0.10.0 with the hull release's three switches off; under this build's as they stand. SHAPES-1 (the
+  // merge of c099-pre8, cap's RUN2 note 1.2): both worlds nested, so a bb-0.9.7 record is judged with NPC_DAY, HULL_SCALE,
+  // LADDER_FIX and SHAPES off
+  return inRulesWorld(rules, () => inShapesWorld(rules, () => validateBuild(build, day, "player", ctx)));
 }
 
 /**

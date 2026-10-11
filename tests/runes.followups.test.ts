@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { RULES_ROWS, RUNES_RULES, TURRETS_JOINS_RULES, rulesGateProblem, runeFeatures } from "../src/net/rulesGate";
 import { LAST_CHANCE_RULES, lastChanceGateProblem } from "../src/net/rulesGate"; // Z-BUMP: LAST CHANCE's row
+import { NPC_DAY_RULES, npcDayGateProblem } from "../src/net/rulesGate"; // AZ-BUMP: the NPC day's row
 import { SUSTAIN_RULES } from "../src/net/rulesGate"; // FLIP-X2: the third row, bb-0.9.0
 import { FURNACE_RUNES_RULES, furnaceRuneFeatures } from "../src/net/rulesGate"; // BAL-2: the fourth row, bb-0.9.1
 import { rulesAtLeast } from "../src/net/rulesGate"; // Y7b2: bb-0.9.3 adds no row, so this build's rules are at or after every row
@@ -43,10 +44,18 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     // gate gains no row: this build's rules are bb-0.9.3, at or after every row (was RULES_VERSION === FURNACE_RUNES_RULES).
     // Z-BUMP (the bump to bb-0.9.7; REQ-BFG-073): RULES_ROWS gains no row either. LAST CHANCE's row gates a snapshot field
     // (snapshot.lastChance), not a build feature, so it is rulesGate.ts lastChanceGateProblem with LAST_CHANCE_RULES, beside
-    // RULES_ROWS (checked below); this build's rules are bb-0.9.7, at or after every row and LAST_CHANCE_RULES
-    expect(RULES_VERSION).toBe("bb-0.9.7"); // Z-BUMP: the bump (was bb-0.9.3)
-    expect(LAST_CHANCE_RULES).toBe("bb-0.9.7"); // Z-BUMP: LAST CHANCE's row, a literal
+    // RULES_ROWS (checked below); this build's rules are bb-0.9.7, at or after every row and LAST_CHANCE_RULES.
+    // AZ-BUMP (the bump to bb-0.10.0; REQ-BFG-077, REQ-BFG-078): RULES_ROWS gains no row either. The NPC day's row gates a
+    // snapshot field (snapshot.road), not a build feature, so it is rulesGate.ts npcDayGateProblem with NPC_DAY_RULES (now a
+    // literal), beside RULES_ROWS; HULL_SCALE and LADDER_FIX add no id and no field. This build's rules are bb-0.10.0, at or
+    // after every row, LAST_CHANCE_RULES and NPC_DAY_RULES
+    expect(RULES_VERSION).toBe("bb-0.10.0"); // AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3)
+    expect(LAST_CHANCE_RULES).toBe("bb-0.9.7"); // Z-BUMP: LAST CHANCE's row, a literal (AZ-BUMP's bump leaves it)
     expect(lastChanceGateProblem(RULES_VERSION)).toBeNull();
+    expect(lastChanceGateProblem("bb-0.9.7")).toBeNull(); // AZ-BUMP: release Z's rules keep LAST CHANCE
+    expect(NPC_DAY_RULES).toBe("bb-0.10.0"); // AZ-BUMP: the NPC day's row, a literal
+    expect(npcDayGateProblem(RULES_VERSION)).toBeNull();
+    expect(npcDayGateProblem("bb-0.9.7")).toBe("rules bb-0.9.7 predate bb-0.10.0: the road log (snapshot.road) needs bb-0.10.0 or later");
     expect(lastChanceGateProblem("bb-0.9.3")).toBe("rules bb-0.9.3 predate bb-0.9.7: LAST CHANCE (snapshot.lastChance) needs bb-0.9.7 or later");
     expect(RULES_ROWS.every((r) => rulesAtLeast(RULES_VERSION, r.from))).toBe(true);
     expect(FURNACE_RUNES_RULES).toBe("bb-0.9.1");
@@ -59,14 +68,16 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     expect(rulesGateProblem("bb-0.9.0", b)).toBeNull();
     expect(rulesGateProblem("bb-0.9.1", b)).toBeNull();
     expect(rulesGateProblem("bb-0.9.3", b)).toBeNull(); // Y7b2: release Y's rules
-    expect(rulesGateProblem("bb-0.9.7", b)).toBeNull(); // Z-BUMP: this build's rules
+    expect(rulesGateProblem("bb-0.9.7", b)).toBeNull(); // Z-BUMP: release Z's rules
+    expect(rulesGateProblem("bb-0.10.0", b)).toBeNull(); // AZ-BUMP: this build's rules
     // BAL-2: the fourth row. A FURNACE rune needs bb-0.9.1 (dormant under bb-0.9.0, other effects before it); others don't
     for (const id of ["coal_chute", "heat_sink", "searing", "shatter_shot"]) {
       const f: Build = { ...heroStartBuild("furnace"), runes: [{ id: "iron_skin" }, { id }] };
       expect(furnaceRuneFeatures(f), id).toEqual(["FURNACE's runes (COAL CHUTE, HEAT SINK, SEARING, SHATTER SHOT)"]);
       expect(rulesGateProblem("bb-0.9.1", f), id).toBeNull();
       expect(rulesGateProblem("bb-0.9.3", f), id).toBeNull(); // Y7b2: release Y's rules
-      expect(rulesGateProblem("bb-0.9.7", f), id).toBeNull(); // Z-BUMP: this build's rules
+      expect(rulesGateProblem("bb-0.9.7", f), id).toBeNull(); // Z-BUMP: release Z's rules
+      expect(rulesGateProblem("bb-0.10.0", f), id).toBeNull(); // AZ-BUMP: this build's rules
       expect(rulesGateProblem("bb-0.9.0", f), id).toBe("rules bb-0.9.0 predate bb-0.9.1: FURNACE's runes (COAL CHUTE, HEAT SINK, SEARING, SHATTER SHOT) need bb-0.9.1 or later");
     }
     for (const none of [b, heroStartBuild("furnace"), null, 7, "x", { runes: "x" }, { runes: [{ id: 7 }] }]) expect(furnaceRuneFeatures(none)).toEqual([]);
