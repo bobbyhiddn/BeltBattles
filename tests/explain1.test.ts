@@ -335,6 +335,8 @@ describe("EXPLAIN-1 (c): the icon", () => {
       }
       n++;
       expect(tip, c.id).toBeDefined();
+      // the words keep their underlines and targets while the icon's tooltip shows (U2c's word taps stay as they are)
+      if (c.id.startsWith("cargo dartgun")) expect(ui.regions.some((r) => /^kw:\d+:/.test(r.id)), `${c.id}: its words' targets`).toBe(true);
       expect(items.slice(0, (d.t.notes ?? []).length), c.id).toEqual((d.t.notes ?? []).map((b) => b.text));
       expect(tip!.r, c.id).toEqual(iconTipRect(items, p.r, { W: f.W, H: f.H }));
       expect(tip!.r.x >= 0 && tip!.r.y >= 0 && tip!.r.x + tip!.r.w <= f.W && tip!.r.y + tip!.r.h <= f.H, `${c.id}: on the screen`).toBe(true);

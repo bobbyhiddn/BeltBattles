@@ -633,17 +633,11 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
     drawView(g, ui, s, infoItems(levels, words, r.w - 10, notes), r, plan.y - 1, bottom, free);
     return setCursor(canvas, false);
   }
-  // EXPLAIN-1 (REQ-BFG-089, E3): the desk: hovering the icon shows the NOTES (and a plain rig's HIT) beside the panel, in
-  // the word tooltip's style, whole and on the screen, with the help cursor; a click opens the ⓘ view as before
+  // EXPLAIN-1 (REQ-BFG-089, E3): the desk: the mouse resting on the icon (drawn last, below: the words keep their underlines
+  // and targets meanwhile)
   const pm = ui.pointer;
   const tipItems = iconTipItems(d.t, words, piece);
-  if (!tap && pm.kind === "mouse" && !pm.down && qr && tipItems.length && inside(qr, pm.x, pm.y)) {
-    const tr = iconTipRect(tipItems, r, screen);
-    drawIconTip(g, tipItems, tr);
-    ui.add({ id: `${KW_REGION}tip`, r: tr, block: true });
-    s.hover = "ⓘ";
-    return setCursor(canvas, true);
-  }
+  const onIcon = !tap && pm.kind === "mouse" && !pm.down && !!qr && tipItems.length > 0 && inside(qr, pm.x, pm.y);
   // WORDS-1 (REQ-BFG-081): the header's family tags too, each with its families.ts line (familyTargets)
   const body = keywordTargets(lines, plan, piece, avoid);
   const targets = [...body, ...familyTargets(plan, [...avoid, ...body.map((t) => t.r)])];
@@ -667,6 +661,15 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // (not the word whose definition is open: a click leaves the mouse on it, and the box already says it)
   const hov = !tap && p.kind === "mouse" && !p.down
     ? targets.find((t) => inside(t.r, p.x, p.y) && !(box && overlaps(t.glyph, box)) && (glossaryEntry(t.word)?.word ?? t.word) !== s.word) : undefined;
+  // EXPLAIN-1 (REQ-BFG-089, E3): the mouse on the icon shows the NOTES (and a plain rig's HIT) beside the panel, in the word
+  // tooltip's style, whole and on the screen, with the help cursor; a click opens the ⓘ view as before
+  if (onIcon) {
+    const tr = iconTipRect(tipItems, r, screen);
+    drawIconTip(g, tipItems, tr);
+    ui.add({ id: `${KW_REGION}tip`, r: tr, block: true });
+    s.hover = "ⓘ";
+    return setCursor(canvas, true);
+  }
   s.hover = hov ? hov.word : null;
   setCursor(canvas, !!hov);
   if (hov) drawHoverTip(g, hov, r);
