@@ -1465,13 +1465,18 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  CARD-3 (REQ-BFG-080, B's lever 3; SPACE-1 open item 2): `o.inBand`, a finger's panel on a phone's band itself
  *  (detailsPlan: layout.ts panelArea's L.info). A body that takes the 5x7 face there with its gaps under 5x7's GAP_MIN
  *  (it would grow over the shop rows, D4) stays in the band in the band's face, 3x5, where that shows its full text
- *  (fullText) with its gaps at least 3x5's GAP_MIN; else the plan is as before. A grown panel still reads in 5x7. */
+ *  (fullText) with its gaps at least 3x5's GAP_MIN; else the plan is as before. A grown panel still reads in 5x7. The
+ *  face is chosen with the gaps on, whatever `o.gaps` asks, so the content is the same with the gaps off and on (SPACE-1's
+ *  content first: the gaps never change what a plan shows). */
 export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [],
   o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean } = {}): PanelPlan {
   const p = planIn(sp, area, families, o, false);
-  if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5" || gapsAtLeast(p, p.gaps.min)) return p;
-  const s = planIn(sp, area, families, o, true);
-  return fullText(s) && gapsAtLeast(s, s.gaps.min) ? s : p;
+  if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5") return p;
+  const on = { ...o, gaps: true }, big = o.gaps === false ? planIn(sp, area, families, on, false) : p;
+  if (gapsAtLeast(big, big.gaps.min)) return p;
+  const s = planIn(sp, area, families, on, true);
+  if (!fullText(s) || !gapsAtLeast(s, s.gaps.min)) return p;
+  return o.gaps === false ? planIn(sp, area, families, o, true) : s;
 }
 
 /** planPanel's plan; `small` (CARD-3, B's lever 3): the body in the 3x5 face only (planBody's `small`). */
@@ -1723,11 +1728,35 @@ export function selFamilies(run: Run, show: Sel): ModuleTag[] {
  *  labels, and the panel's plan with the shown module's families in its header (selFamilies); null for the idle panel.
  *  Exported for the tests. */
 export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect,
-  o: { gaps?: boolean } = {}): { show: Sel; sp: Spec; t: PanelText; plan: PanelPlan } | null {
+  o: { gaps?: boolean } = {}): { show: Sel; sp: Spec; t: PanelText; plan: PanelPlan; hint: string | null } | null {
   const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
   const sp = spec(ctx, show, !!hover);
   if (!sp) return null;
   const t: PanelText = { ...sp.text, labels: sp.actions.map((a) => a.label) };
+  // CARD-3 (REQ-BFG-080, REQ-BFG-004, C; EXPLAIN-1 open item 3): on a portrait band a how-to hint (its tip new) no longer
+  // grows the panel: the panel is planned without it, so it is sized as with its tip done, and drawDetails draws the hint
+  // in a strip just above the panel (hintStrip). The hint keeps its words, its once-only rule and its store (tips.ts);
+  // `t` keeps it (NOTES, KEYWORDS, the tests' face). The landscape column keeps it as its last item, as before
+  const hint = ctx.L?.portrait ? t.body.find((b) => b.role === "hint")?.text ?? null : null;
+  const r = detailsPlanOf(ctx, show, sp, t, area, o, hint);
+  return r && { ...r, hint };
+}
+
+/** CARD-3 (C): a panel's text without its how-to hint (the body and every variant; a variant that shared the body's
+ *  blocks shares the new body, as explainPanel keeps them, so planBody's fullBody reads the same). */
+function withoutHint(t: PanelText): PanelText {
+  const cut = new Map<readonly Block[], Block[]>();
+  const f = (bs: readonly Block[]): Block[] => {
+    let out = cut.get(bs);
+    if (!out) cut.set(bs, (out = bs.filter((b) => b.role !== "hint")));
+    return out;
+  };
+  return { ...t, body: f(t.body), ...(t.variants ? { variants: t.variants.map((v) => ({ ...v, body: f(v.body) })) } : {}) };
+}
+
+/** detailsPlan's plan of `t` in `area` (CARD-3, C: without the hint where `hint` is set). */
+function detailsPlanOf(ctx: Ctx, show: Sel, sp: Spec, t: PanelText, area: Rect, o: { gaps?: boolean }, hint: string | null): { show: Sel; sp: Spec; t: PanelText; plan: PanelPlan } {
+  const planned = (x: PanelText): PanelText => (hint ? withoutHint(x) : x);
   // 0.8.0 I1 M4: the families in its header; shoptap (D5): on touch, a finger's button height; shoptap2: a portrait
   // screen's panel keeps the band's layout however tall a finger's panel grows (layout.ts panelArea). SPACE-1: `o.gaps`
   // false plans it without the gaps (tests: the content is the same either way)
@@ -1735,16 +1764,33 @@ export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: nu
   // CARD-3 (REQ-BFG-080, B's lever 3): a finger's panel on a phone's band itself (panelArea's L.info, by its rect: the
   // tests and BuildScreen pass the same rect) may stay in the band in 3x5 (planPanel's `inBand`)
   const I = ctx.L?.info, inBand = !!ctx.L?.phone && tap > 0 && !!I && area.x === I.x && area.y === I.y && area.w === I.w && area.h === I.h;
-  const plan = planPanel(t, area, fams, { tap, band, gaps, inBand });
+  const plan = planPanel(planned(t), area, fams, { tap, band, gaps, inBand });
   // shoptap (D2): on the phone band a touch panel's optional button (TO CARGO) gives way where keeping it would cut the
   // panel's kept text (the extra button pushes the row under the sub line); its kept text always shows whole
   if (tap && !plan.column && !keptWhole(plan) && sp.actions.some((a) => a.optional)) {
     const lean: Spec = { ...sp, actions: sp.actions.filter((a) => !a.optional) };
     const lt: PanelText = { ...sp.text, labels: lean.actions.map((a) => a.label) };
-    const lp = planPanel(lt, area, fams, { tap, band, gaps, inBand });
+    const lp = planPanel(planned(lt), area, fams, { tap, band, gaps, inBand });
     if (keptWhole(lp)) return { show, sp: lean, t: lt, plan: lp };
   }
   return { show, sp, t, plan };
+}
+
+/** CARD-3 (REQ-BFG-080, REQ-BFG-004, C): a band panel's how-to hint strip by its panel `r`: the hint's words in 3x5 in
+ *  the hint's colour, wrapped to the panel's text width, in a frame as wide as the panel: just above it (as the ⓘ icon's
+ *  tooltip goes above a phone panel), else just below it, on a screen `H` tall. Pure (drawDetails, tests). */
+export function hintStrip(text: string, r: Rect, H?: number): { lines: Span[][]; r: Rect } {
+  const lines = wrapRich([{ t: text, c: ROLE.hint.colour }], r.w - 10, "3");
+  const h = 2 + 7 * lines.length;
+  const y = r.y - h >= 2 ? r.y - h : Math.max(2, Math.min((H ?? r.y + r.h + h) - h, r.y + r.h));
+  return { lines, r: { x: r.x, y, w: r.w, h } };
+}
+
+/** CARD-3 (C): draw a hint strip (hintStrip): an ink frame, night inside, the lines from 2 px under its top edge. */
+function drawHintStrip(g: G, s: ReturnType<typeof hintStrip>): void {
+  rect(g, s.r.x, s.r.y, s.r.w, s.r.h, C.ink);
+  rect(g, s.r.x + 1, s.r.y + 1, s.r.w - 2, s.r.h - 2, C.night);
+  s.lines.forEach((ln, i) => drawRich(g, ln, s.r.x + 5, s.r.y + 2 + i * 7, "3"));
 }
 
 /**
@@ -1863,6 +1909,8 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
     if (v.line === "rule") rect(g, r.x + 5, v.y + 1, r.w - 10, 1, C.slate1);
     else drawLine(g, v.line, r.x + 5, v.y);
   }
+  // CARD-3 (REQ-BFG-080, REQ-BFG-004, C): a band panel's how-to hint (its tip new), outside the panel's plan, just above it
+  if (d.hint) drawHintStrip(g, hintStrip(d.hint, r, ctx.game?.H));
   // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
   // shown definition or the KEYWORDS view, the desk's hover tooltip
   // U2f (REQ-BFG-070): the ⓘ view may grow past the panel (infoFree: above it on the phone, down the column on the desk)

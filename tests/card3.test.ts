@@ -408,7 +408,7 @@ describe("CARD-3 (a): the phone shop card's gist for cores, gear and five rigs (
 // --------------------------------------------------------------------------- (b, c): the phone band and the first-run band
 import { key as K, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
 import { GAP_MIN } from "../src/ui/spacing";
-import { IDLE_FIX, IDLE_SHORT, STOKER_IDLE, fullText, gapsAtLeast, itemPanel } from "../src/screens/build/inspector";
+import { IDLE_FIX, IDLE_SHORT, STOKER_IDLE, TOUCH_TURN, fullText, gapsAtLeast, hintStrip, itemPanel, visibleLines } from "../src/screens/build/inspector";
 
 const SHORTB = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
 const rigAt = (uid: number, def: string, x: number, y: number, rot = 0, stars = 1): Placed => ({ uid, def, x, y, ...rotField(def, rot), ...(stars > 1 ? { stars } : {}) });
@@ -504,5 +504,33 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
     }
     console.log(rows.join("\n"));
     expect(counts["done 402x690 1"]).toBeGreaterThanOrEqual(720);
+    // C: with tips new, within 5 points of tips done on 402x690 @3 with a rune
+    expect((100 * (counts["done 402x690 1"] - counts["new 402x690 1"])) / all.length).toBeLessThanOrEqual(5);
   }, 900_000);
+
+  it("C: a new tip's hint no longer grows the panel: the panel is sized as with the tip done, the hint in a strip just above it, its words, its once-only rule and its store unchanged", () => {
+    const f = framed(402, 690, 3, 1);
+    const run = furnaceRun([rigAt(10, "temper", 3, 3, 1, 1)]), sel: Sel = { kind: "item", uid: 10 };
+    setTipsForTests("done");
+    const done = panelCtx(run, sel, f, true);
+    expect(done.d().hint).toBe(null);
+    setTipsForTests("new");
+    const fresh1 = panelCtx(run, sel, f, true), d = fresh1.d();
+    expect(d.hint).toBe(TOUCH_TURN); // its words
+    expect(d.t.body.some((b) => b.role === "hint" && b.text === TOUCH_TURN)).toBe(true); // the face keeps it (NOTES, the store)
+    expect(fresh1.area).toEqual(done.area); // sized as with the tip done
+    expect(visibleLines(d.plan).some((v) => v.line !== "rule" && v.line.block.role === "hint")).toBe(false);
+    const s = hintStrip(d.hint!, d.plan.r, f.H);
+    expect([s.r.x, s.r.w, s.r.y + s.r.h]).toEqual([d.plan.r.x, d.plan.r.w, d.plan.r.y]); // just above the panel
+    expect(s.lines.map(lineText).join(" ")).toBe(TOUCH_TURN);
+    expect(s.lines.every((l) => lineWidth(l, "3") <= d.plan.r.w - 10)).toBe(true);
+    // the strip takes no press: drawDetails registers nothing over it (a press there reaches what is under it)
+    const ui = fresh1.draw();
+    expect(ui.regions.filter((q) => ov(q.r, s.r)).map((q) => q.id)).toEqual([]);
+    // its once-only rule (tips.ts): it shows while either of its tips (turn, move) is new; both done, the strip goes
+    completeTip("turn");
+    expect(panelCtx(run, sel, f, true).d().hint).toBe(TOUCH_TURN);
+    completeTip("move");
+    expect(panelCtx(run, sel, f, true).d().hint).toBe(null);
+  });
 });

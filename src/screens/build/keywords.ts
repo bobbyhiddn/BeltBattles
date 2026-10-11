@@ -668,7 +668,7 @@ function underline(g: G, t: KwTarget): void {
  * definition or the KEYWORDS view; on the desk, the hover tooltip and the `help` cursor. `owner`: the screen (its state);
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
-export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan },
+export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
   free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
   // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
@@ -714,7 +714,9 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // drawHoverTip under the word). One box per open; the next waits for the next open.
   if (!s.opened) {
     s.opened = true;
-    if (sight && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) {
+    // CARD-3 (REQ-BFG-080, C): a band panel draws its hint in a strip above it (detailsPlan's `hint`): that is a how-to
+    // tip shown this time too
+    if (sight && !d.hint && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) {
       if (rigSentenceRig(piece) && !rigSeen()) s.rig = true;
       else {
         const w = sightWord([...body].sort(reading).map((t) => t.word));

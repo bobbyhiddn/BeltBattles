@@ -208,6 +208,12 @@ describe("EXPLAIN-1 (a, b): the default faces, and nothing lost", () => {
           if (b.note || b.role === "flavour" || b.role === "reminder" || b.role === "caveat") bad.push(`${c.id}: drew ${b.role}`);
           if (b.role === "hint") hints++;
         }
+        // CARD-3 (REQ-BFG-080, C): the band draws a new tip's hint in its strip just above the panel (detailsPlan's `hint`,
+        // the face's own hint), no longer in the panel's plan: it shows there (was counted in visibleLines only)
+        if (d.hint) {
+          hints++;
+          if (!d.t.body.some((b) => b.role === "hint" && b.text === d.hint)) bad.push(`${c.id}: a strip that is not its hint`);
+        }
         const want = raw.body.filter((b) => !hiddenBlock(b)).map((b) => key(b.role === "caveat" ? { ...b, role: "ability" } : b));
         if (JSON.stringify(d.t.body.map(key)) !== JSON.stringify(want)) bad.push(`${c.id}: body`);
         if (raw.body.some((b) => b.role === "hint") && !d.t.body.some((b) => b.role === "hint")) bad.push(`${c.id}: its new tip's hint left the face`);
