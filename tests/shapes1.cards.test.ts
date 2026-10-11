@@ -35,7 +35,7 @@ const texts = (bs: { text: string }[]) => bs.map((b) => b.text);
 describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ-BFG-089)", () => {
   it("a stat row from the sim's numbers, no HIT: line, and UP TO N HITS (NAIL STRIP and EMBER TROUGH 2, SPIKE RAIL 6)", () => {
     withShapes(() => {
-      const want: Record<string, [string, string, number]> = { nailstrip: ["DMG", "+12/+25/+40", 2], embertrough: ["BURN", "+1/+2/+3", 2], spikerail: ["DMG", "+10/+20/+35", 6] };
+      const want: Record<string, ["DMG" | "BURN", string, number]> = { nailstrip: ["DMG", "+12/+25/+40", 2], embertrough: ["BURN", "+1/+2/+3", 2], spikerail: ["DMG", "+10/+20/+35", 6] };
       for (const def of SHAPED_PLAIN_RIGS) {
         expect(hasFace(def) && isPlainRig(def)).toBe(true);
         const [icon, ladder, hits] = want[def];
