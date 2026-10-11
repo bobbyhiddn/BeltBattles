@@ -31,9 +31,11 @@
 // THE VOCABULARY. Each effect is named once, here, and reads the same everywhere (T5). TXT-AZ (REVIEW-TXT096 Q5): every
 // row read against the code at 0.9.8 (fa1e9ed) and written as the code does it:
 //   DAMAGE      "20 DAMAGE", "105 MORE DAMAGE": whole (NUM-4: fmtDmg). BONUS DAMAGE is what rigs and scrap add to a payload.
-//   BURN        each BURN stack deals the enemy hull BURN_DPS (10) damage a second, once each whole second, for BURN_TIME
-//               (3 seconds; a DRAKE NOZZLE's burnTime, VENOM DRIP's seconds and SLOW EMBERS change it) once its shot lands;
-//               plating soaks it first (Battle.hullEffects). Was "1 damage a second" (NUM-1's x10).
+//   BURN        each BURN stack deals the enemy hull BURN_DPS (10) damage a second x D(d), once each whole second, for
+//               BURN_TIME (3 seconds; a DRAKE NOZZLE's burnTime, VENOM DRIP's seconds and SLOW EMBERS change it) once its
+//               shot lands; plating soaks it first (Battle.hullEffects). Was "1 damage a second" (NUM-1's x10). AZ-BUMP
+//               (REVIEW-AZPREP Q4), as it ships: D(d) is the day's damage term (hullScale.ts dmgMulTenths, on each tick:
+//               battle.ts hullEffects), with HULL_SCALE on; D = 1 with it off.
 //   SHOCK       a payload's shock STUNs the part its shot hits, never the hull (Battle.impact -> disrupt, cause "shock"), for
 //               the star's shockTime where it has one (GALVANIC COIL 2 and 3 seconds at 2 and 3 stars, HOT SWAP's SPARK
 //               slugs 3 and 4), else DISRUPT_TIME (2 seconds since NUM-3; was 1.6). SPARK JUMP passes it on (sparkJump); a
@@ -47,7 +49,8 @@
 //               SABOT, FROSTBITE or DRAG CHAIN round (no FREEZE, CHILL, belt SLOW or SNAG any more); the new sentences
 //               say STUN, STUNS, STUNNED (the glossary folds STALL and SHOCK into it).
 //   FRAY        each fray on the enemy hull makes every later hit deal FRAY_BONUS (2) more damage, up to FRAY_MAX (15)
-//               fray. Was 0.2 (NUM-1's x10).
+//               fray. Was 0.2 (NUM-1's x10). AZ-BUMP (REVIEW-AZPREP Q4), as it ships: +2 x D(d) a stack, since the bonus
+//               rides its hit and D(d) lands on the hit (battle.ts impact), with HULL_SCALE on; D = 1 with it off.
 //   SPEED       a belt "60% FASTER", "3 TIMES AS FAST", "AT HALF SPEED" or "40% SLOWER", from the tile a speed rig hits
 //               on. METRONOME's belts are locked at normal speed: speed rigs add damage there instead.
 //   COPIES      SPLITTER and SORTING ARM make more payloads from one.
@@ -63,9 +66,10 @@
 //   MARKS       SAP, the one mark left (SIM.sap: 20 less damage, NUM-1's x10 of 2; no piece gives it yet). NUM-3: CHILL and
 //               SNAG are gone.
 // 0.8.0 P1 (wave 3, DESIGN-wave3.md 3.2's glossary; each a shared sentence in S below):
-//   PLATING     plating takes damage and burn before your hull, up to PLATE_CAP (240; NUM-1's x10 of 24); the dark wind
-//               goes straight through it (S.plating). "20 PLATING", "5 PLATING": whole (NUM-4: fmtDmg), the word PLATING as
-//               its unit.
+//   PLATING     plating takes damage and burn before your hull, up to PLATE_CAP (240; NUM-1's x10 of 24) x S(d); the dark
+//               wind goes straight through it (S.plating). "20 PLATING", "5 PLATING": whole (NUM-4: fmtDmg), the word PLATING
+//               as its unit. AZ-BUMP (REVIEW-AZPREP Q4), as it ships: S(d) is the day's sustain term (hullScale.ts
+//               sustMulTenths; the battle's plate.cap = sustUnit(PLATE_CAP, S)), with HULL_SCALE on; S = 1 with it off.
 //   PAIR        two loads that reach one turret through different intakes within 0.25 seconds (SYNC_WINDOW); a FOUNDRY
 //               fusion is a pair (S.pair).
 //   MATCHED     a belt with as many tiles as another belt into the same turret (S.matched).

@@ -73,7 +73,7 @@ vite into `server/dist/`), `npm run server -- --port 7790 --data ./ghost-data`,
   off-grid cells, ids outside `[A-Za-z0-9_-]{1,64}` and anything over **16 KB** all throw.
 - The shape allows a negative `hullBonus` so battle records holding the earlier warlord stand-ins still
   decode (stand-ins now come from the stand-in pool). The strict `validateBuild` rejects it; the player mode
-  accepts exactly the hulls a run reaches (−10 after a RIDE THROUGH with no plating).
+  accepts exactly the hulls a run reaches (−100 after a RIDE THROUGH with no plating).
 
 ## Validation (`validateBuild(build, day, mode)`)
 
@@ -107,7 +107,7 @@ Both use deck.ts's own rules, and every error starts with its category:
 - **rules** (`validateUpload` only, given the snapshot's `rules`): turret slots (a non-empty `build.turrets`) and belt
   joins (any route `join`) are bb-0.6.2 rules. Under rules that predate bb-0.6.2, or that `src/net/rulesGate.ts` can't
   read as `bb-MAJOR.MINOR.PATCH`, such a deck is refused with one error naming the rules and the feature.
-- **supply** (strict): `beltCap` = hero base + whole +4 belt crates; `hullBonus` = whole +25 plating.
+- **supply** (strict): `beltCap` = hero base + whole +4 belt crates; `hullBonus` = whole +250 plating.
 - **budget** (strict):
 
 ```
@@ -115,7 +115,7 @@ maxGold(day) = START_GOLD + Σ_{d=1}^{day−1} incomeFor(d, won = true)     // 8
 cost(build)  = Σ value(deck items) + Σ value(turret mods)                  // value = price × 2^(stars − 1)
              + Σ turretValue(installed turrets)   // 0.6.2s: price × (2^(stars − 1) − 1 if it holds the free starting copy)
              + price(beltcrate) × ceil((beltCap − hero.belt) / 4)
-             + price(plating)   × ceil(hullBonus / 25)
+             + price(plating)   × ceil(hullBonus / 250)
 valid ⇔ cost(build) ≤ maxGold(day)
 ```
 For the shop alone this is a safe upper bound: selling refunds at most half the value, rerolls only spend.
@@ -125,16 +125,19 @@ For the shop alone this is a safe upper bound: selling refunds at most half the 
 The road puts more on a real player's deck than the shop's gold: road gold (warlord wins, the herald's bounty,
 bets, SCRAP IT, the coin pouch, RIDE THROUGH), free or cheap parts (SALVAGE, SMUGGLER, TRADER SWAP, a Hard
 win's pick, the Matriarch's part, each a 1-star copy through `gainModule`), the scout's discount or free reroll,
-and hull and belt off the shop's grid (dock PLATING +20 hull, RIDE THROUGH −10 hull, the BELT SPOOL +4 belt).
+and hull and belt off the shop's grid (dock PLATING +200 hull, RIDE THROUGH −100 hull, the BELT SPOOL +4 belt).
 The strict check refuses such honest decks.
 
-- **supply** (player): `hullBonus` = 25 × plates + a *mix* of the road's hull choices (dock PLATING +20, RIDE
-  THROUGH −10, each once a run), never below events.ts's HULL TOO WEAK floor after a hull cost; `beltCap` = hero
-  base + 4 × crates + the BELT SPOOL (+4, once). The mix's events must fit in the day's road stops (one a day):
-  a hull of 10 (dock + ride-through) is reachable from day 2, never on day 1. With NPC_DAY on and the uploader's
-  seed, they must also be events that seed offered by that day (`eventFor(seed, 1..day)`, each day's event after its
-  fight); a mix that needs another is refused with its own line (AZ-PREP; REVIEW-HULL1D Q1). Off, or without a seed
-  (a served ghost), the mix is seed-blind.
+- **supply** (player): `hullBonus` = 250 × plates (`ITEMS.plating.supply.hull`) + a *mix* of the road's hull choices
+  (dock PLATING +200, RIDE THROUGH −100, each once a run; eventDefs.ts), never below events.ts's HULL TOO WEAK floor
+  after a hull cost (roadCap.ts `HULL_FLOOR`, 1000); `beltCap` = hero base + 4 × crates + the BELT SPOOL (+4, once).
+  The mix's events must fit in the day's road stops (one a day): a hull of 100 (dock + ride-through) is reachable
+  from day 2, never on day 1. With NPC_DAY on and the uploader's seed, they must also be events that seed offered by
+  that day (`eventFor(seed, 1..day)`, each day's event after its fight); a mix that needs another is refused with its
+  own line (AZ-PREP; REVIEW-HULL1D Q1). Off, or without a seed (a served ghost), the mix is seed-blind. `hullBonus`
+  stays a day-1 number in the snapshot and in these checks: with HULL_SCALE on, M scales it in battle, where the max
+  hull is M(d) × (hero base + `hullBonus`), rounded to a whole 10 (hullScale.ts `hullAt`, battle.ts; AZ-BUMP,
+  REVIEW-AZPREP Q4).
 - **budget** (player):
 
 ```
