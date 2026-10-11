@@ -17,6 +17,7 @@ import { boostable, doubles, overclocked } from "../src/sim/overclock";
 import { STARS, lines, levels, next, oneLine, payload, probe, px } from "./y3.helpers";
 import { barge, bench, SEED } from "./arsenal.bench";
 import { faceAt, hasFace, Y6_PIECES } from "../src/ui/faces";
+import { fmtSec } from "../src/ui/statFormat"; // WORDS-1: its plain chip's seconds
 import { perkInfoOnly } from "../src/screens/build/faceBlocks";
 import { shopChip } from "../src/ui/chips";
 
@@ -231,6 +232,8 @@ describe("Y6 row 48: VENOM DRIP's face and ladder (DESIGN-Y: HIT: ITS [BURN]BURN
   });
 
   it("the shop card: no chip (its one number is a {SEC}, which the chip rule never shows), so it keeps its card line", () => {
-    expect(shopChip("venom")).toBeNull();
+    // WORDS-1 (REQ-BFG-081; READ-1 6.3: the 15 chipless phone cards; TEXT-STYLE 9.3 as ruled 2026-10-10): a plain chip, its
+    // BURN icon with its face's own +3 and SEC after it (chips.ts PLAIN_CHIPS; was null)
+    expect(shopChip("venom")).toBe(`{BURN}+${fmtSec(ITEMS.venom.gate!.burnPlus!)}{SEC}`);
   });
 });

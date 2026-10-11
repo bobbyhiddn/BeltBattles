@@ -351,7 +351,10 @@ async function openDeck(page, deck) {
 
 /** In-page client points: a deck cell's centre, a shop card's, a turret slot's, a cargo slot's, a UI region's. */
 const cell = (page, x, y) => page.evaluate(([cx, cy]) => {
-  const f = window.bb.game.screen.L.frame, D = 120;
+  // ZOOM-1 (REQ-BFG-080): through the carrier's own zoom where the build has it (BuildScreen.tileCentre)
+  const s = window.bb.game.screen;
+  if (typeof s.tileCentre === "function") { const p = s.tileCentre(cx, cy); return window.bb.toClient(p.x, p.y); }
+  const f = s.L.frame, D = 120;
   const sx = f.facing === 0 || f.facing === 2 ? f.dx + cx * 12 : f.facing === 1 ? f.dx + D - (cy + 1) * 12 : f.dx + cy * 12;
   const sy = f.facing === 0 ? f.dy + cy * 12 : f.facing === 2 ? f.dy + D - (cy + 1) * 12 : f.dy + cx * 12;
   return window.bb.toClient(sx + 6, sy + 6);
@@ -390,18 +393,23 @@ const lookNow = (page) => page.evaluate(() => {
   const a = s.L.info, p = window.bb.toClient(a.x, a.y), q = window.bb.toClient(a.x + a.w, a.y + a.h);
   const band = s.L.portrait ? { x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y } : null;
   const inBand = !!box && !!band && box.x >= band.x - 0.51 && box.y >= band.y - 0.51 && box.x + box.w <= band.x + band.w + 0.51 && box.y + box.h <= band.y + band.h + 0.51;
+  // ZOOM-1 (REQ-BFG-080, call 5): a panel grown up over the shop rows from the band (its foot at the band's foot, never
+  // over the carrier under it)
+  const grownUp = !!box && !!band && !inBand && box.y + box.h <= band.y + band.h + 0.51 && box.y < band.y;
   return {
     sel: s.sel, carry: s.ed.carry ? s.ed.carry.def : null, draw: s.ed.draw ? { ...s.ed.draw, cells: [...s.ed.draw.cells] } : null,
     toasts: g.toastLog.length, panel: typeof window.bb.panel === "function" ? window.bb.panel() : null, gold: g.run.gold,
-    box, inside, vis: { x: x0, y: y0, w: Math.round(x1 - x0), h: Math.round(y1 - y0) }, band, inBand,
+    box, inside, vis: { x: x0, y: y0, w: Math.round(x1 - x0), h: Math.round(y1 - y0) }, band, inBand, grownUp,
   };
 });
 /** zoom (REQ-BFG-040, A1): on a portrait phone view (FIT_VIEWS) the panel a tap opened sits inside the band, drawn no
  *  bigger than it (not grown over the bow or the shop), fully inside the visible viewport, with its full description
  *  (panelInfo's `full`: its kept text whole, the full body's text, every rule sentence, no phone cut; its flavour and hint
  *  may give way, and its form is reported). */
-const fitted = (l) => !!l.panel && l.inBand && l.inside && l.panel.full === true;
-const fdesc = (l) => (!l.panel ? "no panel" : `${l.box ? `${l.box.w.toFixed(0)}x${l.box.h.toFixed(0)} CSS px at y ${l.box.y.toFixed(0)}` : "not drawn"} ${l.inBand ? "inside" : "NOT inside"} the band${l.band ? ` (${l.band.h.toFixed(0)} CSS px at y ${l.band.y.toFixed(0)})` : ""}; ${l.panel.full === true ? "its full description" : l.panel.full === false ? "NOT its full description" : "full description unknown"}${l.panel.fullest ? ", every block (variant 0)" : l.panel.full ? ` (variant ${l.panel.variant}${l.panel.dropped.length ? `, ${l.panel.dropped.join("/")} gave way` : ""})` : ""}`);
+// ZOOM-1 (REQ-BFG-080, call 5): a phone's band is sized for 90% of the panels; the rest grow up over the shop rows, never
+// over the carrier: in the band, or grown up from it (grownUp), with the full description (was: in the band only)
+const fitted = (l) => !!l.panel && (l.inBand || l.grownUp) && l.inside && l.panel.full === true;
+const fdesc = (l) => (!l.panel ? "no panel" : `${l.box ? `${l.box.w.toFixed(0)}x${l.box.h.toFixed(0)} CSS px at y ${l.box.y.toFixed(0)}` : "not drawn"} ${l.inBand ? "inside" : l.grownUp ? "grown up over the shop from" : "NOT inside"} the band${l.band ? ` (${l.band.h.toFixed(0)} CSS px at y ${l.band.y.toFixed(0)})` : ""}; ${l.panel.full === true ? "its full description" : l.panel.full === false ? "NOT its full description" : "full description unknown"}${l.panel.fullest ? ", every block (variant 0)" : l.panel.full ? ` (variant ${l.panel.variant}${l.panel.dropped.length ? `, ${l.panel.dropped.join("/")} gave way` : ""})` : ""}`);
 function fitCheck(vname, V, what, l) {
   if (FIT_VIEWS.has(vname)) check(fitted(l), `${V}: A1 ${what}: its panel ${fdesc(l)}`);
 }
@@ -434,10 +442,17 @@ const marksOf = (page, track) => page.evaluate(([tr, glyphs, yellow, ink]) => {
   const cx = scratch.getContext("2d", { willReadFrequently: true });
   cx.drawImage(g.canvas, 0, 0);
   const near = (d, k, c) => Math.abs(d[k] - c[0]) <= 3 && Math.abs(d[k + 1] - c[1]) <= 3 && Math.abs(d[k + 2] - c[2]) <= 3;
+  // ZOOM-1 (REQ-BFG-080): the marks are in the carrier's space (its own zoom, BuildScreen.carrierView) and the canvas runs on
+  // its grid (sub canvas px per logical px): each numeral pixel is read at its centre through both (k 1, sub 1: as before)
+  const cv = typeof s.carrierView === "function" ? s.carrierView() : { k: 1, x: 0, y: 0, sub: 1 };
+  const at = (x, y) => [Math.floor((cv.x + cv.k * (x - cv.x)) * cv.sub), Math.floor((cv.y + cv.k * (y - cv.y)) * cv.sub)];
   return marks.map((m) => {
-    const rows = (glyphs[m.text] ?? "").split("|"), d = cx.getImageData(m.x + 1, m.y + 1, 3, 5).data;
+    const rows = (glyphs[m.text] ?? "").split("|");
     let px = 0;
-    for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (rows[j] && near(d, 4 * (j * 3 + i), rows[j][i] === "#" ? yellow : ink)) px++;
+    for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) {
+      const [qx, qy] = at(m.x + 1 + i + 0.5, m.y + 1 + j + 0.5), d = cx.getImageData(qx, qy, 1, 1).data;
+      if (rows[j] && near(d, 0, rows[j][i] === "#" ? yellow : ink)) px++;
+    }
     return { ...m, px };
   });
 }, [track, GLYPH3, YELLOW, INK]);
@@ -752,27 +767,39 @@ async function touchSection(browsers, origin, vname) {
     if (title !== null) fitCheck(vname, V, `${what} read with the GREASE WORKS card selected`, l);
   }
 
-  // shoptap2: where a finger's panel grows past the band it covers part of the bow (a shop card's) or the shop (a part's):
-  // a press there goes through to what is under it; a press on the band part of the panel changes nothing, as ever
+  // shoptap2: where a finger's panel grows past the band a press on what it covers goes through to what is under it; a
+  // press on the band part of the panel changes nothing, as ever. ZOOM-1 (REQ-BFG-080, call 5): every panel grows up over
+  // the shop rows (a shop card's grew down over the bow, which the zoomed carrier fills now): the BOMBARD's (a turret with
+  // a core and gear: the tallest kind) and a shop card it covers, read through it
   {
     await page.keyboard.press("Escape");
-    await tap(cdp, await card(page, 0), 3, 0);
-    const l0 = await look(page), t = await turret(page, 1);
+    await tap(cdp, await turret(page, 1), 3, 0);
+    const l0 = await look(page);
     const band = await page.evaluate(() => { const a = window.bb.game.screen.L.info, p = window.bb.toClient(a.x, a.y), q = window.bb.toClient(a.x + a.w, a.y + a.h); return { x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y }; });
     const under = (p, r) => !!r && p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
-    if (under(t, l0.box) && !under(t, band)) {
+    // SPACE-1 (REQ-BFG-087, D4): a panel now grows until its gaps show (or to the top), so the BOMBARD's header row (its
+    // buttons, each a finger's target) and its words (their tap targets) can lie over a shop card; a press there is the
+    // panel's, as ever (UI.hit: the last region added wins). The card read through it is the first whose centre's top
+    // region is the panel's press-through (`details-over`), the part of the panel a press goes through. Was: the first
+    // card under the panel and not under the band
+    const topRegion = (p) => page.evaluate((q) => window.bb.regions().filter((r) => q.x >= r.x && q.x < r.x + r.w && q.y >= r.y && q.y < r.y + r.h).pop()?.id ?? null, p);
+    let ci = -1, cp = null;
+    for (let i = 0; i < 5 && ci < 0; i++) { const p = await card(page, i); if (under(p, l0.box) && !under(p, band) && (await topRegion(p)) === "details-over") { ci = i; cp = p; } }
+    if (cp && l0.grownUp) {
       const s0 = await snap(page);
-      await tap(cdp, t, 5, 90);
+      const want = await page.evaluate((i) => { const o = window.bb.game.screen.offers()[i]; return { kind: "offer", wagon: o.wagon, slot: o.slot }; }, ci);
+      await tap(cdp, cp, 5, 90);
       const l = await look(page);
-      check(same(l.sel, { kind: "turret", index: 1 }) && shown(l, "BOMBARD") && (await snap(page)) === s0,
-        `${V}: the GREASE WORKS panel grown over the bow covers the BOMBARD; a tap there goes through and reads it (${pdesc(l)}); nothing changed`);
+      check(same(l.sel, want) && shown(l) && (await snap(page)) === s0,
+        `${V}: the BOMBARD's panel grown up over the shop covers card ${ci}; a tap there goes through and reads it (${pdesc(l)}); nothing changed`);
       if (band.h >= 6) {
-        await tap(cdp, await card(page, 0), 3, 0);
+        await tap(cdp, await turret(page, 1), 3, 0);
         await tap(cdp, { x: band.x + band.w / 2, y: band.y + band.h / 2 }, 3, 0);
         const lb = await look(page);
-        check(same(lb.sel, { kind: "offer", wagon: 0, slot: 0 }) && shown(lb, "GREASE WORKS"), `${V}: a tap on the panel over the band changes nothing (${JSON.stringify(lb.sel)})`);
+        check(same(lb.sel, { kind: "turret", index: 1 }) && shown(lb, "BOMBARD"), `${V}: a tap on the panel over the band changes nothing (${JSON.stringify(lb.sel)})`);
       }
-    } else log(`[${at()}] ${V}: the shop card's panel doesn't cover the BOMBARD here (the ${env.band === null ? "landscape column" : "band"}, ${band.h.toFixed(0)} CSS px tall, holds it): no press goes through`);
+    } else if (l0.grownUp) log(`[${at()}] ${V}: the BOMBARD's panel grown up over the shop covers no card's centre where a press goes through (each covered card's centre is under its buttons or words): no press goes through`); // SPACE-1
+    else log(`[${at()}] ${V}: the BOMBARD's panel doesn't grow over a shop card here (the ${env.band === null ? "landscape column" : "band"}, ${band.h.toFixed(0)} CSS px tall, holds it): no press goes through`);
   }
 
   // 035: SELL from each panel (a fresh deck each)

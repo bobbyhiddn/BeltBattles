@@ -37,7 +37,9 @@ const TABLE: readonly [string, string, string, string, string, string, number, s
   ["scrap_medic", "SCRAP MEDIC", "rare", "armor", "halfHeal", "hull", 300, "FIRST TIME BELOW HALF {HULL}: {*HEAL} {N}.", "FIRST TIME BELOW HALF HULL: HEAL 300.", [201]],
   // FLIP-X2 (TUNE-X line 4, REVIEW-SUSD answer 3): rare at 15 (was "epic", 20, "... HEAL 20."); the line's width is the same
   ["leech_vow", "LEECH VOW", "rare", "turrets", "hitHeal", "hull", 15, "EACH SHOT THAT LANDS: {*HEAL} {N}.", "EACH SHOT THAT LANDS: HEAL 15.", [161]],
-  ["green_thread", "GREEN THREAD", "common", "weaver", "regen", "hull", 10, "YOUR HULL: {*REGEN} {N}.", "YOUR HULL: REGEN 10.", [105]],
+  // WORDS-1 (REQ-BFG-081; READ-1 6.2: REGEN merged into HEAL): its card's line (was "YOUR HULL: REGEN 10."); its RuneDef.text
+  // stays "YOUR HULL: {*REGEN} {N}."
+  ["green_thread", "GREEN THREAD", "common", "weaver", "regen", "hull", 10, "YOUR HULL: {*REGEN} {N}.", "YOUR HULL: HEAL 10 EACH SEC.", [149]],
   // Y-FURN (FURN-Y row 3, REVIEW-FURNY): searBurn 6, two lines (was "burnNoHeal", "count", 1, "FOE WITH YOUR {*BURN}: NO
   // {*HEAL}.", "FOE WITH YOUR BURN: NO HEAL.", 149); its second line is the old one
   // BAL-2 (the lines: cap's REVIEW-BAL1 row 5, SEARING searBurn 6 -> 5): 5, "... HAS 5 BURN. ..." (was 6, "... HAS 6 BURN.
@@ -65,7 +67,10 @@ describe("SUS-D: the sustain runes in the catalogue", () => {
     // WARD STONE's line is in runes.ts (SUS-B's runeText.ts RUNE_TEXT row is gone); rare, armor, startShield 3 as before
     expect([RUNES.ward_stone.text, RUNES.ward_stone.tier, RUNES.ward_stone.theme, RUNES.ward_stone.amount.n]).toEqual(["START: +{N} {*SHIELD}.", "rare", "armor", 3]);
     // Y7b2 (the flip): the star switch's STAR_RUNE_TEXT row (QUICK LATCH's START, Y5) folded into RUNE_TEXT (was {})
-    expect(RUNE_TEXT).toEqual({ quick_latch: "YOUR {BELT} RIGS: START {N} SOONER." });
+    // WORDS-1 (REQ-BFG-081): RUNE_TEXT holds WORDS-1's plain lines too (READ-1 6.1), GREEN THREAD's among them (REGEN merged
+    // into HEAL); RuneDef.text is unchanged (was toEqual({ quick_latch: "YOUR {BELT} RIGS: START {N} SOONER." }))
+    expect(RUNE_TEXT.quick_latch).toBe("YOUR {BELT} RIGS START WORKING {N} SOONER.");
+    expect(RUNE_TEXT.green_thread).toBe("YOUR HULL: {*HEAL} {N} EACH SEC.");
   });
 
   it("each is a kind of its own, but BULWARK WARD shares WARD STONE's startShield (their SHIELD adds; MAX 3 holds)", () => {
@@ -288,9 +293,11 @@ describe("SUS-D: the words on the rune cards (measured: phone 402x690 @3 and the
     const chips = Object.fromEntries(SUSTAIN_RUNE_LIST.map((d) => [d.id, runeKeyword(d)]));
     expect(chips).toEqual({
       bulwark_ward: "SHIELD", tick_guard: "SHIELD", twin_salve: "HEAL", scrap_medic: "HEAL", leech_vow: "HEAL",
-      green_thread: "REGEN", searing: "BURN", shatter_shot: "SHIELD",
+      green_thread: "HEAL", searing: "BURN", shatter_shot: "SHIELD", // WORDS-1: HEAL (was REGEN: REGEN merged into HEAL)
     });
-    expect(Object.keys(RUNE_NOTE)).toEqual(["shatter_shot"]);
+    // WORDS-1 (REQ-BFG-081): RUNE_NOTE holds WORDS-1's opened-card notes too (FINAL NAIL's GATLING, IN USE, a cast or poured
+    // slug, PART); none is a sustain rune's (was toEqual(["shatter_shot"]))
+    expect(Object.keys(RUNE_NOTE)).toEqual(["shatter_shot", "final_nail", "scrap_halo", "scrap_saint", "forge_ward", "scrap_biter"]);
     const widths: Record<string, number> = {};
     for (const d of SUSTAIN_RUNE_LIST) {
       const k = runeKeyword(d)!;
@@ -309,7 +316,9 @@ describe("SUS-D: the words on the rune cards (measured: phone 402x690 @3 and the
     // x2a (cap, REVIEW-SUSD F-e): SHIELD re-measured after NUM-4's RUNE_REMINDER.SHIELD reword (REVIEW-SUSB F1,
     // "BLOCKS ONE HIT'S DAMAGE, THEN BREAKS."): 152 -> 166, still one line under opW 223
     // Y-FURN: SHIELD's 166 is BULWARK WARD's and TICK GUARD's; SHATTER SHOT's own reminder 144 (was SHIELD's 166 too)
-    expect(widths).toEqual({ SHIELD: 166, HEAL: 144, REGEN: 118, BURN: 205, shatter_shot: 144 });
+    // WORDS-1 (REQ-BFG-081): GREEN THREAD's line says HEAL now (REGEN merged into HEAL), so its reminder is HEAL's 144 and no
+    // sustain rune shows REGEN's (was { ..., REGEN: 118, ... })
+    expect(widths).toEqual({ SHIELD: 166, HEAL: 144, BURN: 205, shatter_shot: 144 });
     expect(runeTag(byId("leech_vow"))).toBe("RARE · TURRETS"); // FLIP-X2 (TUNE-X line 4): rare (was "EPIC · TURRETS")
   });
 });

@@ -282,7 +282,9 @@ const clearSel = (page) => page.keyboard.press("Escape").then(() => sleep(60));
 const deckParts = (page, keep) => page.evaluate((keep) => {
   const s = window.bb.game.screen;
   return window.bb.game.run.build.items.filter((p) => !keep.includes(p.uid)).map((p) => {
-    const c = s.fuseAnimPos({ where: "deck", survivor: p.uid }); // an existing build-screen helper: the part's centre
+    const c0 = s.fuseAnimPos({ where: "deck", survivor: p.uid }); // an existing build-screen helper: the part's centre
+    // ZOOM-1 (REQ-BFG-080): that centre is in the carrier's space; on screen through its zoom (BuildScreen.carrierView)
+    const v = typeof s.carrierView === "function" ? s.carrierView() : null, c = v ? { x: v.x + v.k * (c0.x - v.x), y: v.y + v.k * (c0.y - v.y) } : c0;
     // beltside-062: rot (absent = 0; only rigs carry one)
     return { uid: p.uid, def: p.def, stars: p.stars || 1, rot: p.rot || 0, cell: `${p.x},${p.y}`, at: window.bb.toClient(c.x, c.y) };
   });

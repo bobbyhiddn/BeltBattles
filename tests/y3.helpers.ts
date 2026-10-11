@@ -11,6 +11,8 @@ import { faceAt } from "../src/ui/faces";
 import { faceBlocks } from "../src/screens/build/faceBlocks";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { icons, textWidth } from "../src/render/font";
+import { colourize, wrapRich } from "../src/ui/richText"; // WORDS-1: a face line's two lines (lines2)
+import { C } from "../src/render/palette"; // WORDS-1
 import { barge, bench } from "./arsenal.bench";
 
 export const BAND = 225; // TEXT-STYLE 11.1-11.2: one line of 5x7 on the op view's band (NEXT_LINE_W, GLOSSARY_WRAP_W)
@@ -26,11 +28,18 @@ export const next = (to: number, markup: string): string => `NEXT ★${to}: ${ic
 
 /** The checks every Y3 face passes: one line at each star inside the band; no clause, no caveat; no perk name on the face
  *  blocks (R-1); and every ⓘ LEVELS line inside the band too. */
-export function oneLine(def: string): void {
+/** WORDS-1 (REQ-BFG-081; READ-1 6.1, measured in its round D; the brief's design call 3): a face line that READ-1's plain
+ *  words take past the op band's one line wraps (TEXT-STYLE 8.2: wrapRich at draw time) and must fit two lines of 5x7 at the
+ *  band's width; everything else oneLine checks stays as it was. */
+export function lines2(markup: string): number {
+  return wrapRich(colourize(icons(markup), C.bone), BAND, "5").length;
+}
+export function oneLine(def: string, lines = 1): void {
   for (const s of STARS) {
     const f = faceAt(def, s)!;
     expect(f.rules, `${def} ★${s}`).toHaveLength(1);
-    expect(px(f.rules[0].text), `${def} ★${s}: ${f.rules[0].text}`).toBeLessThanOrEqual(BAND);
+    if (lines > 1) expect(lines2(f.rules[0].text), `${def} ★${s}: ${f.rules[0].text}`).toBeLessThanOrEqual(lines); // WORDS-1
+    else expect(px(f.rules[0].text), `${def} ★${s}: ${f.rules[0].text}`).toBeLessThanOrEqual(BAND);
     expect(f.clause, `${def} ★${s} clause`).toBeUndefined();
     expect(f.caveats, `${def} ★${s} caveats`).toBeUndefined();
     expect(faceBlocks(def, s, {})!.some((b) => b.perk), `${def} ★${s} perk on the face`).toBe(false);

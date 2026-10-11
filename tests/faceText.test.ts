@@ -321,7 +321,9 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
   });
 
   it("F3: a cap in a reminder names its unit, one form for every capped reminder (MAX n, then the unit's icon)", () => {
-    expect(REMINDER.FRAY()).toBe(`EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`);
+    // WORDS-1 (REQ-BFG-081; READ-1 4: a reader took HIT for the rig's label): EVERY LATER SHOT THAT HITS THE HULL (was "EVERY
+    // LATER HIT"); its cap's form is unchanged
+    expect(REMINDER.FRAY()).toBe(`EACH {*FRAY}: EVERY LATER SHOT THAT HITS THE HULL +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`);
     expect(REMINDER.PLATE()).toBe(`{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`);
     for (const def of FACE_IDS) for (const s of starsOf(def)) for (const r of faceLines(def, s)!.reminders) expect(r.includes("UP TO"), r).toBe(false);
   });
@@ -351,7 +353,8 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
       expect(cv.length, `${def} ★${s}`).toBe(INTERIM_CAVEATS.filter((c) => c.applies(effectAt(def, s))).length);
       expect(cv.every((b) => b.keep), def).toBe(true);
     }
-    for (const def of inner) expect(stripIcons(faceLines(def, 1)!.caveats!.join(" ")), def).toBe("INNER COLUMN ONLY.");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1: "INNER COLUMN ONLY." read as "fits only an inner slot", 8 misses): the whole rule
+    for (const def of inner) expect(stripIcons(faceLines(def, 1)!.caveats!.join(" ")), def).toBe("TAKES A BELT ON ITS INNER COLUMN ONLY.");
     // Y7b2 (the flip): call 7's three caveats left (STOKER's, SPALL CATCHER's and OVERCLOCKER's: each was
     // caveats!.length 1), so the table is INNER COLUMN ONLY's row alone
     for (const def of ["stoker", "spallcatcher", "overclocker"]) expect(faceLines(def, 1)!.caveats, def).toBeUndefined();
@@ -417,7 +420,8 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
       const fs = effectAt("scrapper", s).factory!;
       expect(factoryStats("scrapper", s)[1]).toEqual(["DMG", fmtDmg(AMMO[fs.ammo].base + fs.scrapFlat!)]);
       // Y7b2 (the flip): release Y's TOLLBOOTH face, its belt's parts (was `BLOCKS THE FIRST ${toll} STUN HITS ON ITS BELT.`)
-      expect(stripIcons(faceLines("tollbooth", s)!.rules[0].text)).toBe(`BLOCKS ${fmtCount(effectAt("tollbooth", s).gate!.toll!)} STUN ON ITS BELT'S PARTS.`);
+      // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: BLOCKS 2 read as 2 seconds; was `BLOCKS ${toll} STUN ON ITS BELT'S PARTS.`)
+      expect(stripIcons(faceLines("tollbooth", s)!.rules[0].text)).toBe(`THE FIRST ${fmtCount(effectAt("tollbooth", s).gate!.toll!)} STUN ON ITS BELT'S PARTS EACH FIGHT DO NOTHING.`);
       expect(stripIcons(faceLines("flak", s)!.rules[0].text)).toBe(`SHOOTS DOWN ${fmtPct(effectAt("flak", s).mod!.intercept!)} OF ENEMY STUN SHOTS.`);
     }
     // the interim caveats the sim needs: harassment is a STUN, a wreck or a rip; SCRAPPER's queue cap; FLAK's other shots.

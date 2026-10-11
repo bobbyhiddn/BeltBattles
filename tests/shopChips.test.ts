@@ -12,6 +12,7 @@ import { CARD_CHIP_Y, CARD_MARK_X, cardPriceX, drawCard } from "../src/screens/b
 import { CARD_H, CARD_W } from "../src/screens/build/layout";
 import { C } from "../src/render/palette";
 import { RATE_KEYS } from "../src/ui/chips"; // U2d F2
+import { PLAIN_CHIPS } from "../src/ui/chips"; // WORDS-1 (REQ-BFG-081): the plain chips
 import { faceAt } from "../src/ui/faces"; // U2d F2
 import { fmtDmg } from "../src/ui/statFormat"; // U2d F2
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds"; // U2d F2
@@ -54,7 +55,10 @@ describe("U2c the shop chip: the pick and its numbers", () => {
     // TOLLBOOTH, FLAK SCREEN and MANTLET have faces whose numbers carry no STUN count (a block count, a share, none): no chip
     // Y7b2 (the flip): HOPPER has a face now (release Y's, folded from STAR_FACES), its rule's number the slot it adds,
     // {SLUG}+1, so it left the list (was null); DRAKE's face ("EACH 25") carries no icon: still none
-    for (const def of ["drake", "tollbooth", "flak", "mantlet", "beltcrate", "plating", "sorting", "spotter", "brake", "overdrive", "grapnel"]) expect(shopChip(def, { k }), def).toBeNull();
+    // WORDS-1 (REQ-BFG-081; READ-1 6.3 option 1; TEXT-STYLE 9.3 as ruled 2026-10-10): every piece the rule gives no chip
+    // shows its plain chip (chips.ts PLAIN_CHIPS; were null); only the supplies keep today's card
+    for (const def of ["beltcrate", "plating"]) expect(shopChip(def, { k }), def).toBeNull();
+    for (const def of ["drake", "tollbooth", "flak", "mantlet", "sorting", "spotter", "brake", "overdrive", "grapnel"]) expect(shopChip(def, { k }), def).toBe(PLAIN_CHIPS[def](faceAt(def, 1, { k })!));
     expect(shopChip("hopper", { k })).toBe(`{SLUG}+${fmtCount(effectAt("hopper", 1).mod!.window!)}`);
     // NUM-4 (REQ-BFG-047): its cadence is its RATE pair (factoryStats' first pair), its SPEED, unsigned (was 30 / speed{SEC})
     expect(factoryStats("scrapper", 1)[0]).toEqual(["RATE", fmtSpeed(effectAt("scrapper", 1).factory!.speed)]);
@@ -67,7 +71,9 @@ describe("U2c the shop chip: the pick and its numbers", () => {
     let n = 0;
     for (const def of BUYABLE) {
       const { value: chip, records } = captureFormats(() => shopChip(def, { k, hero: "furnace" }));
-      if (!chip) continue;
+      // WORDS-1 (REQ-BFG-081): a plain chip (PLAIN_CHIPS) may be a word with no number or a keyword with SEC after its number;
+      // its own test is below
+      if (!chip || def in PLAIN_CHIPS) continue;
       expect(hasFace(def), def).toBe(true);
       const num = /[+-]?\d+(?:\.\d+)?%?/.exec(chip)![0].replace(/^\+/, "");
       expect(records.map((r) => r.printed.replace(/^\+/, "")), `${def}: ${chip}`).toContain(num);
@@ -79,11 +85,30 @@ describe("U2c the shop chip: the pick and its numbers", () => {
 });
 
 describe("U2d F2 (cap's answer to U2c question 3): the chip rule, a chip's icon is the mechanic its number measures", () => {
-  it("GREASE WORKS (its belts' speed) and OVERCLOCKER (its rest) keep today's card, with no chip", () => {
+  // WORDS-1 (REQ-BFG-081; TEXT-STYLE 9.3 as ruled 2026-10-10): the rule still gives them no chip (a belt's speed is not RATE, a
+  // rest is a waiting timer), so each shows its plain chip, a word (was: "keep today's card, with no chip", toBeNull)
+  it("GREASE WORKS (its belts' speed) and OVERCLOCKER (its rest): no chip by the rule, so a plain word chip", () => {
     expect(faceAt("grease", 1)!.nums.map(([key]) => key)).toEqual(["speed"]); // its FASTER is a belt's speed: not RATE
-    expect(shopChip("grease")).toBeNull();
+    expect(shopChip("grease")).toBe("FAST");
     expect(faceAt("overclocker", 1)!.nums[0][1]).toMatch(/\{SEC\}$/); // RESTS n{SEC}: a waiting timer
-    expect(shopChip("overclocker")).toBeNull();
+    expect(shopChip("overclocker")).toBe("TWICE");
+  });
+
+  it("WORDS-1: the plain chips are READ-1 6.3's 15 chipless pieces, none read as damage, a rate or another card's number", () => {
+    const fifteen = ["venom", "tollbooth", "braceframe", "grease", "brake", "overdrive", "sorting", "overclocker", "twinlatch", "drake", "rotary", "grapnel", "spotter", "mantlet", "flak"];
+    expect(Object.keys(PLAIN_CHIPS).sort()).toEqual([...fifteen].sort());
+    for (const def of fifteen) {
+      const f = faceAt(def, 1, { k })!, chip = shopChip(def, { k })!;
+      expect(chip, def).toBe(PLAIN_CHIPS[def](f));
+      expect(chip, def).not.toMatch(/\{RATE\}/); // never a rate (9.3)
+      if (["grease", "brake", "overdrive"].includes(def)) expect(chip, def).toMatch(/^[A-Z]+$/); // a belt's speed: a word
+      // a number is one the face printed (its keyed rule number), never a literal
+      const n = /\d+%?/.exec(chip)?.[0];
+      if (n) expect(f.nums.some(([, v]) => v.includes(n)), `${def}: ${chip}`).toBe(true);
+    }
+    // the chip that names a number gives its unit: VENOM DRIP's BURN lasts +3 SEC; SPOTTER's 1 MORE AIM
+    expect(shopChip("venom")).toMatch(/^\{BURN\}\+\d+\{SEC\}$/);
+    expect(shopChip("spotter")).toMatch(/^AIM\+\d+$/);
   });
 
   // NUM-4 (REQ-BFG-047): retitled, its checks kept or replaced by their equivalents. A gun's or a factory's cadence is its RATE
@@ -96,7 +121,7 @@ describe("U2d F2 (cap's answer to U2c question 3): the chip rule, a chip's icon 
     // every context that changes a ★1 face: a core's class factor (faceText's k list), MIMIC FORGE's hero
     for (const def of BUYABLE) for (const [hero, kk] of PLAYABLE_HEROES.flatMap((h) => [1, 0.8, 0.75, 0.55, 0.4].map((x) => [h, x] as const))) {
       const o = { k: kk, hero }, chip = shopChip(def, o), f = faceAt(def, 1, o);
-      if (!chip || !f) continue;
+      if (!chip || !f || def in PLAIN_CHIPS) continue; // WORDS-1: the plain chips' own test is above
       if (chip.startsWith("{RATE}+")) {
         // a rule's FASTER (signed): the number's own key says it measures how often a gun fires or a factory works
         expect(chip, def).toMatch(/^\{RATE\}\+\d+%$/); // NUM-4: signed, a whole % (chips.ts signs a FASTER only)
@@ -131,7 +156,8 @@ describe("U2d F2 (cap's answer to U2c question 3): the chip rule, a chip's icon 
     expect(cadence.filter((d) => ITEMS[d].kind === "factory")).toEqual(expect.arrayContaining(["press", "scrapper", "mimic"]));
     // the speed rigs' FASTER, TIMES and SPEED are their belts': SURGE's chip is its damage, the others keep today's card
     expect(shopChip("surge")).toBe(`{DMG}+${fmtDmg(effectAt("surge", 1).gate!.pulse!.flat)}`);
-    for (const def of ["grease", "brake", "overdrive"]) expect(shopChip(def), def).toBeNull();
+    // WORDS-1 (REQ-BFG-081; TEXT-STYLE 9.3 as ruled 2026-10-10): a speed rig's chip is a word, never {RATE} (were toBeNull)
+    expect(["grease", "brake", "overdrive"].map((def) => shopChip(def))).toEqual(["FAST", "SLOW", "FAST"]);
   });
 });
 

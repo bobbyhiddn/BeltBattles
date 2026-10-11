@@ -88,8 +88,9 @@ describe("Y3 row 21: TWIN GAUGE: +30 on a matched belt; nothing off one", () => 
   });
 
   it("face: HIT: +30/+66/+105 DMG ON A MATCHED BELT; ladder DMG +30/+66/+105", () => {
-    expect(lines("twingauge")).toEqual([30, 66, 105].map((d) => [`HIT: +${d} {DMG} ON A MATCHED BELT.`]));
-    oneLine("twingauge");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: MATCHED had no tap on this card): plain words, two lines of the op band
+    expect(lines("twingauge")).toEqual([30, 66, 105].map((d) => [`HIT: +${d} {DMG} IF ANOTHER BELT INTO ITS TURRET IS AS LONG.`]));
+    oneLine("twingauge", 2); // WORDS-1 (REQ-BFG-081): READ-1 6.1's plain words, two lines of the band (was one)
     expect(levels("twingauge", 1)).toEqual(["{DMG} [+30]/+66/+105", next(2, "+66 {DMG}")]);
     expect(hasFace("twingauge")).toBe(true);
   });
@@ -232,8 +233,9 @@ describe("Y3 row 27: BRAKE SHOE ★2/★3 slow the belt to 40% / 30% and lose th
 
   // Y7b2 (the words): was "face: ...; ladder 50%/40%/30% SPEED; perks in the ⓘ view only"
   it("face: today's line ITS BELT RUNS AT 50%/40%/30% SPEED, no HOT SHOE clause; ladder 50%/40%/30% SPEED; no perk names, the ⓘ view's too (Y7b2: they left with the flats)", () => {
-    expect(lines("brake")).toEqual(["50%", "40%", "30%"].map((p) => [`ITS BELT RUNS AT ${p} SPEED.`]));
-    oneLine("brake");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: read as the whole belt): FROM THIS TILE ON
+    expect(lines("brake")).toEqual(["50%", "40%", "30%"].map((p) => [`ITS BELT RUNS AT ${p} SPEED FROM THIS TILE ON.`]));
+    oneLine("brake", 2); // WORDS-1 (REQ-BFG-081): READ-1 6.1's plain words, two lines of the band (was one)
     expect(levels("brake", 1)).toEqual(["[50%]/40%/30% SPEED", next(2, "40% SPEED")]); // Y7b2 (the words): was ["[50%]/40%/30% SPEED", "★2 HOT SHOE", "★3 RED-HOT SHOE", `${next(2, "40% SPEED")} ★2 HOT SHOE`]
   });
 });
@@ -311,8 +313,9 @@ describe("Y3 row 29: OVERCLOCKER charges the next rig, whatever it is", () => {
   });
 
   it("face: EVERY 4/2/1 SEC: DOUBLES THE NEXT RIG'S HIT, no caveat; ladder EVERY 4/2/1 SEC", () => {
-    expect(lines("overclocker")).toEqual([4, 2, 1].map((t) => [`EVERY ${t}{SEC}: DOUBLES THE NEXT RIG'S HIT.`]));
-    oneLine("overclocker");
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: NEXT RIG'S read as the next in time): which rig, in plain words
+    expect(lines("overclocker")).toEqual([4, 2, 1].map((t) => [`EVERY ${t}{SEC}: THE NEXT RIG DOWN ITS BELT HITS TWICE.`]));
+    oneLine("overclocker", 2); // WORDS-1 (REQ-BFG-081): READ-1 6.1's plain words, two lines of the band (was one)
     expect(levels("overclocker", 1)).toEqual(["EVERY [4]/2/1{SEC}", next(2, "EVERY 2{SEC}")]);
   });
 });

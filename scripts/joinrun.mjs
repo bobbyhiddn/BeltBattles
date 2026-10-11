@@ -19,7 +19,10 @@ const K = (x, y) => y * 10 + x;
 
 /** Client point at the centre of deck cell (x, y) of the build screen's deck (any facing). */
 const cellPoint = (page, x, y) => page.evaluate(([cx, cy]) => {
-  const f = window.bb.game.screen.L.frame, D = 120;
+  // ZOOM-1 (REQ-BFG-080): through the carrier's own zoom where the build has it (BuildScreen.tileCentre)
+  const s = window.bb.game.screen;
+  if (typeof s.tileCentre === "function") { const p = s.tileCentre(cx, cy); return window.bb.toClient(p.x, p.y); }
+  const f = s.L.frame, D = 120;
   const sx = f.facing === 0 || f.facing === 2 ? f.dx + cx * 12 : f.facing === 1 ? f.dx + D - (cy + 1) * 12 : f.dx + cy * 12;
   const sy = f.facing === 0 ? f.dy + cy * 12 : f.facing === 2 ? f.dy + D - (cy + 1) * 12 : f.dy + cx * 12;
   return window.bb.toClient(sx + 6, sy + 6);

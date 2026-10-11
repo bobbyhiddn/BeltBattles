@@ -18,7 +18,7 @@
 import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
 import { FINDING_GHOST } from "../../game/session"; // 0.7.0a: the NEXT BATTLE card online
-import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
+import { HEROES, ITEMS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import type { ModuleTag } from "../../sim/content"; // 0.8.0 I1 M4: the families in the header
 import { drawFamilyMark, familiesOf, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
@@ -90,7 +90,7 @@ import {
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
 import type { Sel } from "./layout";
-import { describe } from "./shop";
+import { describe, KIND_SUB, panelKind } from "./shop"; // WORDS-1: KIND_SUB, panelKind (a core's and gear's kind in plain words)
 import {
   deadEndLines, freeNote, SLOT_HINT, slotActions, slotColor, slotIcon, slotLabels, slotNotes, slotSub, slotTitle, socketLines, turretHint,
   turretSpec, type SocketRow,
@@ -106,6 +106,7 @@ import { salvoSpeed } from "../../sim/cores"; // Y1: SALVO RACK's volley pace, i
 import { statRow } from "../../ui/icons"; // U2c step 4
 import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; // U2c step 4; NUM-4: the estimate, whole
 import { icons } from "../../render/font"; // U2c step 4
+import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -164,6 +165,10 @@ export interface Block {
   /** U2a (REQ-BFG-046, R1 C4): a part of the text drawn in brass, a rule's trigger label ("SHOT:", "EVERY 3s:") or the
    *  NEXT★ label; a keyword in it keeps its colour. */
   brass?: string;
+  /** SPACE-1 (REQ-BFG-087, D1): it continues the item above it, so no gap opens between them (gapSlots): a turret's socket
+   *  row's own description under that row, a factory's second stat row, a rig's next hit, a belt's timeline rows (under
+   *  its TILES, HITS: line) and their note, the gun end's next readout row. Presentation only: no plan reads it. */
+  tie?: boolean;
 }
 
 /** Each role's base colour and whether it always takes the small (3x5) face: the flavour dimmer than the ability text,
@@ -358,7 +363,8 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
   const hl = hitLines(hits);
   // 0.8.0 P1 (E3): a STOKER beside no factory warns about factories (its arrows never work belts, so it has no belt hits)
   const warn = d.gate?.stoke ? STOKER_IDLE : { warning: IDLE_WARNING, short: IDLE_SHORT, head: IDLE_HEAD };
-  const lead: Block[] = idle ? [{ role: "warn", text: warn.warning, keep: true }] : hl.full.map((t): Block => ({ role: "hits", text: t, keep: true }));
+  // SPACE-1 (D1): a rig's hits are one list (the next hit ties to the one above it)
+  const lead: Block[] = idle ? [{ role: "warn", text: warn.warning, keep: true }] : hl.full.map((t, i): Block => ({ role: "hits", text: t, keep: true, ...(i ? { tie: true } : {}) }));
   const leadTight: Block[] = idle ? [{ role: "warn", text: warn.short, keep: true }]
     : hits.length > 1 ? [{ role: "hits", text: hl.compact, keep: true }] : lead;
   const rest = [
@@ -406,7 +412,7 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number,
   const p = itemByUid(run.build, uid)!;
   const d = defOf(p), stars = starsOf(p);
   const names = factories.map((f) => `THE ${ITEMS[itemByUid(run.build, f)!.def].name}`);
-  const lead: Block[] = names.map((n): Block => ({ role: "hits", text: `→ STOKES ${n}`, keep: true }));
+  const lead: Block[] = names.map((n, i): Block => ({ role: "hits", text: `→ STOKES ${n}`, keep: true, ...(i ? { tie: true } : {}) })); // SPACE-1: one list
   const compact = `→ STOKES ${andList(names)}`;
   const rest = [
     ...stokerAbility(run, d.id, stars, factories),
@@ -524,8 +530,11 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),
   ];
   return {
-    title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[wagon].merchant].name}`,
-    subShort: describe(d), // T6: the merchant's name gives way first, so the button can share the title's row
+    // WORDS-1 (REQ-BFG-081; READ-1 6.2: merchant names drew 40 "not understood" flags): no merchant's name on the panel (the
+    // desk's wagon tags keep them), and a core's or gear's kind in plain words (shop.ts panelKind). Was `${describe(d)} ·
+    // ${merchant}`, subShort describe(d)
+    title: d.name, color: RARITY_COLOR[d.rarity], sub: panelKind(d),
+    subShort: KIND_SUB[d.kind] ?? describe(d), // T6: the rarity gives way first (the title shows it in colour)
     headerOnly: one ? { texts: [one], colour: C.bone } : undefined,
     body,
     variants: tightForms(body),
@@ -548,8 +557,11 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
     hintBlock(placeHint(d.kind, false, d.id, touch)),
   ];
   return {
-    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
-    subShort: `${KIND_WORD[d.kind] ?? "PART"} · IN CARGO`, // T6: the rarity gives way first (the title shows it in colour)
+    // WORDS-1 (REQ-BFG-081): a core's or gear's kind in plain words (shop.ts KIND_SUB; was TURRET CORE, TURRET GEAR)
+    // (a core's or gear's own words alone: "... · IN CARGO" is 132-138 px of 3x5, past the 113 px a 320x568 phone's sub
+    // line holds, where fitHead would cut it; its SELL button says it is cargo)
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: KIND_SUB[d.kind] ?? `${describe(d)} · IN CARGO`,
+    subShort: `${KIND_SUB[d.kind] ?? KIND_WORD[d.kind] ?? "PART"}${KIND_SUB[d.kind] ? "" : " · IN CARGO"}`, // T6: the rarity gives way first (the title shows it in colour)
     body,
     variants: tightForms(body),
     labels: sellable ? [`SELL +${turret ? turretSellValue(it) : sellPrice(d.id, stars)}G`] : [],
@@ -688,11 +700,13 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   ];
   const joined = joinersOf(b, index); // 0.6.2j (J10): the belts that join this one
   const joins = w.joins ?? [];
-  const joinRow = (j: WalkJoin): Block => ({ role: "row", text: `JOINS BELT ${j.route + 1} AT TILE ${j.tile + 1}.`, colour: C.cyan, trim: true, join: true });
+  // SPACE-1 (REQ-BFG-087, D1): the timeline is one table under its TILES, HITS: line (its rows tie), and the gun end's
+  // readout another (its second and third rows tie to the first)
+  const joinRow = (j: WalkJoin): Block => ({ role: "row", text: `JOINS BELT ${j.route + 1} AT TILE ${j.tile + 1}.`, colour: C.cyan, trim: true, join: true, tie: true });
   const rows: Block[] = [];
   w.timeline.forEach((row, i) => {
     for (const j of joins) if (j.row === i) rows.push(joinRow(j));
-    rows.push({ role: "row", label: `T${row.tile + 1}`, text: row.hits.map((h) => hitText(h, belt)).join(", "), trim: true });
+    rows.push({ role: "row", label: `T${row.tile + 1}`, text: row.hits.map((h) => hitText(h, belt)).join(", "), trim: true, tie: true });
   });
   for (const j of joins) if (j.row >= w.timeline.length) rows.push(joinRow(j));
   const feeds = info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED";
@@ -723,7 +737,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
       { role: "hits", text: hitCount ? `${info.tiles} TILES, ${hitCount} HIT${hitCount === 1 ? "" : "S"}:` : `${info.tiles} TILES. NO RIG WORKS THIS BELT.`, keep: true },
     ],
     rows,
-    foot: cells.map((c): Block => ({ role: "grid", text: "", cells: c, keep: true })),
+    foot: cells.map((c, i): Block => ({ role: "grid", text: "", cells: c, keep: true, ...(i ? { tie: true } : {}) })),
     more: (n) => moreFor(rows.slice(rows.length - n)),
   };
 }
@@ -876,11 +890,13 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
     return makeTurret(b2, index, turretSlots(b2)[index]?.td ?? td).speed;
   };
   if (startTurret) rest.splice(rest.length - 1, 0, { role: "ability", text: `SPEED: ${turretSpeedRow(nextSpeed(), tl)}`, rank: 7 });
+  // SPACE-1 (REQ-BFG-087, D1): each socket is one item: its row, and its own description tied under it
+  const own = (bs: Block[]): Block[] => bs.map((x) => ({ ...x, tie: true }));
   const body: Block[] = [
     ...warn(false),
     ...stats, // U2c step 4: the stat row first, then the CORE and GEAR rows as now
     ...socketLines(b, index, coreName).flatMap((s, i) =>
-      [rowOf(s), ...(i === 0 ? (tc.bought ? first(tc.def, tc.stars, tc.k) : []) : s.def ? first(s.def, s.stars ?? 1, 1) : [])]),
+      [rowOf(s), ...own(i === 0 ? (tc.bought ? first(tc.def, tc.stars, tc.k) : []) : s.def ? first(s.def, s.stars ?? 1, 1) : [])]),
     ...rest,
   ];
   const gists = socketLines(b, index, coreGist ? `${coreName}: ${coreGist}.` : coreName, (d, s) => gist(d, s, o(1))).map(rowOf);
@@ -1054,7 +1070,7 @@ export interface BodyPlan {
 }
 
 /** A note for timeline rows that gave way (0.6.2 BELTSIDE's trim). */
-const moreNote = (n: number): Block => ({ role: "note", text: `+${n} MORE HIT TILE${n === 1 ? "" : "S"} (NUMBERED ON THE DECK)`, keep: true });
+const moreNote = (n: number): Block => ({ role: "note", text: `+${n} MORE HIT TILE${n === 1 ? "" : "S"} (NUMBERED ON THE DECK)`, keep: true, tie: true }); // SPACE-1: the timeline's
 /** 0.6.2j (J10): the block standing for the timeline rows that gave way: the note counts the hit tiles among them (a
  *  JOINS row is none); when they hold no hit tile, the first of them shows as itself. */
 export function moreFor(dropped: readonly Block[]): Block {
@@ -1256,6 +1272,56 @@ export interface PanelPlan {
    *  the sub line's second line ("sub2") or of the title ("title"), named or (where the names don't fit) as their marks;
    *  null when none is given or the header has no room. */
   famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean } | null;
+  /** SPACE-1 (REQ-BFG-087): the gaps between the body's separate items, laid after the body's plan (which is exactly as
+   *  without them) from the room it leaves: `before[i]`, the gap slots before body line i (gapSlots); `slots`, their sum;
+   *  `px`, each slot's gap (all alike: `G` where the room holds it, less where it doesn't, 0 with no room or a cut);
+   *  `G` and `min`, the body face's GAP and GAP_MIN (src/ui/spacing.ts). */
+  gaps: PanelGaps;
+}
+
+/** SPACE-1 (REQ-BFG-087): a panel plan's gaps (PanelPlan.gaps). */
+export interface PanelGaps {
+  before: number[];
+  slots: number;
+  px: number;
+  G: number;
+  min: number;
+}
+
+/**
+ * SPACE-1 (REQ-BFG-087, D1, D8): the gap slots before each of a body plan's lines: 1 before a line that starts a separate
+ * item (a block after a block it isn't tied to, the rule before the flavour or hint, the block after that rule: the rule
+ * takes at most a gap above and below it), 0 inside one block (a wrapped description keeps its pitch) and before a block
+ * tied to the one above it (Block.tie). `tag`: the family tag sits on the header's row right above the body (under the
+ * sub line, or beside its second line): one slot before the first line, so its underline gets clear space (WORDS-1's
+ * review note 3). Pure (planPanel, tests).
+ */
+export function gapSlots(lines: readonly (PLine | "rule")[], tag: boolean): number[] {
+  const out: number[] = [];
+  let prev: PLine | "rule" | null = null;
+  for (const l of lines) {
+    out.push(prev === null ? (tag ? 1 : 0) : l === "rule" || prev === "rule" ? 1 : l.block === prev.block || l.block.tie ? 0 : 1);
+    prev = l;
+  }
+  return out;
+}
+
+/** SPACE-1 (D3): each gap slot's px in a body from `y` to `maxY`: the room under its last line's glyphs (as visibleLines
+ *  draws it), shared by `slots`, at most `G` each; 0 where a line is cut already (a phone cut keeps exactly its lines). */
+function slotPx(lines: readonly (PLine | "rule")[], y: number, maxY: number, slots: number, G: number): number {
+  if (!slots) return 0;
+  let at = y, end = y;
+  for (const l of lines) {
+    if (l === "rule") {
+      at += DIVIDER;
+      continue;
+    }
+    const gh = l.font === "5" ? 7 : 5;
+    if (at + gh > maxY) return 0;
+    end = at + gh;
+    at += l.pitch;
+  }
+  return Math.max(0, Math.min(G, Math.floor((maxY - end) / slots)));
 }
 
 /** shoptap (D5): the landscape column's stacked button height: 16 px, and on touch a finger's target (`tap`, TAP_CSS CSS
@@ -1289,7 +1355,7 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  keep their size, and drawDetails grows their tap targets instead, so the band keeps its text). shoptap2: `o.band`,
  *  a portrait screen's panel: the band's layout however tall it is (a finger's panel grown past the band, layout.ts
  *  panelArea, keeps its buttons in its header row, not under its text). */
-export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [], o: { tap?: number; band?: boolean } = {}): PanelPlan {
+export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [], o: { tap?: number; band?: boolean; gaps?: boolean } = {}): PanelPlan {
   const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
   const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
@@ -1341,14 +1407,24 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
     : bySub2(marksW) ? { at: "sub2", tags, names: false }
     : byTitle(marksW) || byTitleTight(marksW) ? { at: "title", tags, names: false }
     : null;
-  const r = column ? { ...area, h: Math.min(area.h, 27 + shift + body.height + extra) } : area;
+  // SPACE-1 (REQ-BFG-087, D2, D3): the body above is planned exactly as without gaps; its separate items then take a gap
+  // each (gapSlots) from the room left: up to G (the body face's GAP), all alike, less where the room is short. The
+  // column, sized to its text, is sized with its gaps at G within its area (`o.gaps` false: none, the plan as before)
+  const on = o.gaps !== false, G = GAP[body.font];
+  const before = gapSlots(body.lines, !!famHead && (famHead.at === "sub" || famHead.at === "sub2"));
+  const slots = before.reduce((n, k) => n + k, 0);
+  const r = column ? { ...area, h: Math.min(area.h, 27 + shift + body.height + extra + (on ? slots * G : 0)) } : area;
   const y = r.y + 25 + shift - (body.tight ? 1 : 0);
   const maxY = column && labels.length ? r.y + r.h - 5 - btnRows * pitch : r.y + r.h - 4;
   // no body line fits (the header-only 360x640 strip): its header text instead of the sub line, on up to two lines
   const headerOnly = !column && r.y + 25 + shift + 5 > maxY && sp.headerOnly
     ? { lines: headerLines(sp.headerOnly.texts, subMax, r.w - 27), colour: sp.headerOnly.colour } : null;
-  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, body, y, maxY, headerOnly, famHead };
+  const gaps: PanelGaps = { before, slots, px: on && !headerOnly ? slotPx(body.lines, y, maxY, slots, G) : 0, G, min: GAP_MIN[body.font] };
+  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, body, y, maxY, headerOnly, famHead, gaps };
 }
+
+/** SPACE-1 (REQ-BFG-087, D4): a plan's gaps are at least `px` (or it has none to show). */
+export const gapsAtLeast = (plan: Pick<PanelPlan, "gaps">, px: number): boolean => plan.gaps.slots === 0 || plan.gaps.px >= px;
 
 /** A header-only strip's text: the first of `texts` that fits one line of `first` px, else the fullest that fits two
  *  (the first line beside the buttons, the second under them), else the last on two lines, the second cut. */
@@ -1507,24 +1583,42 @@ export function selFamilies(run: Run, show: Sel): ModuleTag[] {
 /** 0.8.0 I1 M4: what drawDetails shows for `sel` (or the hovered offer) in `area`: its spec, its text with the action
  *  labels, and the panel's plan with the shown module's families in its header (selFamilies); null for the idle panel.
  *  Exported for the tests. */
-export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect): { show: Sel; sp: Spec; t: PanelText; plan: PanelPlan } | null {
+export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect,
+  o: { gaps?: boolean } = {}): { show: Sel; sp: Spec; t: PanelText; plan: PanelPlan } | null {
   const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
   const sp = spec(ctx, show, !!hover);
   if (!sp) return null;
   const t: PanelText = { ...sp.text, labels: sp.actions.map((a) => a.label) };
   // 0.8.0 I1 M4: the families in its header; shoptap (D5): on touch, a finger's button height; shoptap2: a portrait
-  // screen's panel keeps the band's layout however tall a finger's panel grows (layout.ts panelArea)
-  const fams = selFamilies(ctx.run, show), tap = touchTap(ctx), band = !!ctx.L?.portrait;
-  const plan = planPanel(t, area, fams, { tap, band });
+  // screen's panel keeps the band's layout however tall a finger's panel grows (layout.ts panelArea). SPACE-1: `o.gaps`
+  // false plans it without the gaps (tests: the content is the same either way)
+  const fams = selFamilies(ctx.run, show), tap = touchTap(ctx), band = !!ctx.L?.portrait, gaps = o.gaps !== false;
+  const plan = planPanel(t, area, fams, { tap, band, gaps });
   // shoptap (D2): on the phone band a touch panel's optional button (TO CARGO) gives way where keeping it would cut the
   // panel's kept text (the extra button pushes the row under the sub line); its kept text always shows whole
   if (tap && !plan.column && !keptWhole(plan) && sp.actions.some((a) => a.optional)) {
     const lean: Spec = { ...sp, actions: sp.actions.filter((a) => !a.optional) };
     const lt: PanelText = { ...sp.text, labels: lean.actions.map((a) => a.label) };
-    const lp = planPanel(lt, area, fams, { tap, band });
+    const lp = planPanel(lt, area, fams, { tap, band, gaps });
     if (keptWhole(lp)) return { show, sp: lean, t: lt, plan: lp };
   }
   return { show, sp, t, plan };
+}
+
+/**
+ * SPACE-1 (REQ-BFG-087, D4): how the build screen tests a rect `r` for the details panel of `sel` (BuildScreen.panelArea,
+ * layout.ts panelArea; the tests use this one function too): null, no panel. On a phone's layout (`phone`), its full
+ * description (fullText, zoom's D3) with its gaps at least GAP_MIN in the band (`at` "band": else it grows over the shop
+ * rows), and at GAP while it grows (`at` "grown": it stops at the first height that shows them, or at panelArea's limit).
+ * Elsewhere its kept text (keptWhole), as before: its gaps take the room it gets.
+ */
+export function panelFit(ctx: Ctx, sel: Sel, phone: boolean): (r: Rect, at?: "band" | "grown") => boolean | null {
+  return (r, at = "band") => {
+    const d = detailsPlan(ctx, sel, null, r);
+    if (!d) return null;
+    if (!phone) return keptWhole(d.plan);
+    return fullText(d.plan) && gapsAtLeast(d.plan, at === "band" ? d.plan.gaps.min : d.plan.gaps.G);
+  };
 }
 
 /** shoptap (D2): a plan's kept blocks fit and every one of their lines is drawn (T6's phone guarantee). */
@@ -1650,10 +1744,11 @@ export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead">): void 
 
 /** The body lines drawDetails draws and their y: every line whose glyphs end by the panel's last y (a line past it is a
  *  phone cut, which planBody avoids; the tests check that every kept line is here). Exported for tests. */
-export function visibleLines(plan: PanelPlan): { line: PLine | "rule"; y: number }[] {
+export function visibleLines(plan: Pick<PanelPlan, "y" | "maxY" | "body"> & Partial<Pick<PanelPlan, "gaps">>): { line: PLine | "rule"; y: number }[] {
   const out: { line: PLine | "rule"; y: number }[] = [];
   let y = plan.y;
-  for (const l of plan.body.lines) {
+  for (const [i, l] of plan.body.lines.entries()) {
+    y += (plan.gaps?.before[i] ?? 0) * (plan.gaps?.px ?? 0); // SPACE-1 (REQ-BFG-087): the gap before a separate item
     if (l === "rule") {
       if (y + 1 <= plan.maxY) out.push({ line: l, y });
       y += DIVIDER;
@@ -1736,8 +1831,11 @@ function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
   drawText(g, h.name, r.x + 5, y, C.white, { outline: C.ink });
   drawText(g, h.factionName, r.x + r.w - 5, y + 1, C.slate4, { font: "3", align: "right" });
   y += 11;
-  drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, y, C.yellow, { font: "3" });
-  y += 9;
+  // ZOOM-1 (REQ-BFG-080): a compact card (24-29 px: drawHeroCard) skips the playstyle line; from 30 px, as before
+  if (r.h >= 30) {
+    drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, y, C.yellow, { font: "3" });
+    y += 9;
+  }
   const stats: [string, string, string][] = [
     ["HULL", String(h.hull + b.hullBonus), C.white],
     ["BELT", `${used}/${cap}`, used >= cap ? C.amber : C.white],
@@ -1753,6 +1851,12 @@ function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
     const x2 = r.x + 5 + drawText(g, "RUN", r.x + 5, y, C.slate4, { font: "3" }) + 3;
     drawText(g, `W-L ${record(run)} · ${run.lives}/${START_LIVES} LIVES`, x2, y, C.white, { font: "3" });
   }
+}
+
+/** ZOOM-1 (REQ-BFG-080, call 5): the idle hero card alone, in its compact form where it is 24-29 px tall (chrome.ts: a
+ *  phone's band sized for 90% of the panels; from 30 px drawDetails' idle path draws it, as before). */
+export function drawHeroCard(g: G, ctx: Ctx, r: Rect): void {
+  drawHeroStrip(g, ctx.run, r, skinOf(ctx.skin).panel);
 }
 
 /** The opponent's hero and hull (a ghost's hull includes its own plating). */
