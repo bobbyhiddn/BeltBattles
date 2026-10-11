@@ -16,10 +16,17 @@
 // own rules version (replay.ts), and the server checks decks by price, never by plate or shield. So GUARD needs no rules
 // literal; BUMP-1D turns it on with the rules bump.
 //
+// RETUNE-1 run 2 (BRIEF-RETUNE1-R2 section 2, plate balancing; REQ-BFG-097): the common PLATE runes, measured on LOSS-1's
+// S1 method (output-retune1/plate): RIVET HOARD startPlate 60 -> 180, LAST WALL halfPlate 80 -> 140, SEAM RIVETS pairPlate
+// 10 -> 30. A rune's number is its def's `amount` (runes.ts RUNES): the switch swaps that object on the very def (so the
+// catalogue, the cards and the battle read one number) and puts back the base object when off. The rune offer code
+// (runeWeight, runeFits, runeOffer) never reads an amount, so no offer moves.
+//
 // Shared, pure and dependency-light (no DOM), like ladderFix.ts.
 
 import { ITEMS, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
+import { RUNES, type RuneDef } from "./runes";
 
 /** THE switch (REQ-BFG-097), off in this rules version (bb-0.9.7). */
 export const GUARD: boolean = false;
@@ -51,22 +58,46 @@ export const GUARD_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = 
   }),
 };
 
+/** RETUNE-1 run 2: the common PLATE runes' amounts with GUARD on (runes.ts: 60 / 80 / 10 in this rules version). */
+export const GUARD_RUNES: Readonly<Record<string, number>> = { rivet_hoard: 180, last_wall: 140, seam_rivets: 30 };
+
 let gOn = false;
 /** The base defs, kept at the first swap (so a swap back restores the very object content.ts made). */
 const BASE = new Map<string, ItemDef>();
+/** The guarded runes' base amount objects, kept at the first swap (runes.ts's own objects). */
+const RUNE_BASE = new Map<string, RuneDef["amount"]>();
 
 /** Are the guard numbers in the game now (GUARD, or a withGuard call)? */
 export function guardRules(): boolean {
   return gOn;
 }
 
-/** Turn the guard numbers on or off: swap each guarded piece's def in ITEMS (its guarded or its base def) and clear the
- *  star cache. Setting the state it already has does nothing. */
+/** The guarded runes' amounts to the switch's state `on`: the guarded amount object or the base one, on the very def. */
+function swapRunes(on: boolean): void {
+  for (const id of Object.keys(GUARD_RUNES)) {
+    const def = RUNES[id] as { amount: RuneDef["amount"] };
+    if (!RUNE_BASE.has(id)) RUNE_BASE.set(id, def.amount);
+    const base = RUNE_BASE.get(id)!;
+    def.amount = on ? { ...base, n: GUARD_RUNES[id] } : base;
+  }
+}
+
+/** Turn the guard numbers on or off: swap each guarded piece's def in ITEMS (its guarded or its base def), each guarded
+ *  rune's amount, and clear the star cache. Setting the state it already has does nothing. */
 export function setGuard(on: boolean): void {
   if (on === gOn) return;
   for (const id of Object.keys(GUARD_DEFS)) {
     if (!BASE.has(id)) BASE.set(id, ITEMS[id]);
     ITEMS[id] = on ? GUARD_DEFS[id](BASE.get(id)!) : BASE.get(id)!;
+  }
+  try {
+    swapRunes(on);
+  } catch (e) {
+    // Only at load with GUARD = true (BUMP-1D): runes.ts imports deck.ts, which loads this module, so when runes.ts is
+    // the first of them to load, RUNES isn't made yet here. The runes then take the switch's state once every module
+    // has loaded (before any battle or card reads an amount).
+    if (!(e instanceof ReferenceError)) throw e;
+    queueMicrotask(() => swapRunes(gOn));
   }
   clearStarCache();
   gOn = on;
