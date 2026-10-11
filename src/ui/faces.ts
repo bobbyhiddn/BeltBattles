@@ -272,10 +272,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // U2e step 2 (REQ-BFG-070): a batch is the factory's own output, a stat ({SLUG}2 in its second stat row, carryStats):
   // was "STAMPS 2 SLUGS AT A TIME." and "DROPS 3 SLUGS; RIGS HIT EACH ONE."
   doublestamp: () => rules([]),
-  // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 4): each rig hits every slug of its batch (battle.ts stamp: the batch's slugs
+  // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 4; READ-3 F-03): the batch's slugs are hit one by one (battle.ts stamp: they
   // leave one by one, each a payload a rig's arrow hits on its tile), the batch's count from the sim (3 at every star;
   // was "RIGS HIT EACH SLUG.")
-  shottower: (e) => rules([{ text: `EACH RIG HITS ALL ${fmtCount(f(e).batch ?? 1)} SLUGS.` }]),
+  // CARD-2 run 2: not "EACH RIG HITS ALL 3 SLUGS." (run 1's, the brief's example): stamp deals a batch's slugs round-robin
+  // over the tower's belts (battle.ts:1064-1090, f.rr), and a factory feeds up to 2 belts at ★1 (stars.ts BELT_SLOTS), so a
+  // rig on one of two belts sees 2 or 1 of the 3. Each slug is its own payload, hit by the rigs on its belt: ON ITS OWN, as
+  // the desk text says it (abilityText.ts shottower: RIGS HIT EACH BUCKSHOT ON ITS OWN). 217 px
+  shottower: (e) => rules([{ text: `RIGS HIT EACH OF ITS ${fmtCount(f(e).batch ?? 1)} SLUGS ON ITS OWN.` }]),
   hotswap: (e) => {
     // Battle.stamp: EMBER slugs carry its burn, SPARK slugs a shock (DISRUPT_TIME, or the star's shockTime)
     // U2e step 2: its slugs' BURN and STUN are its own, stats ({BURN}2 {STUN}1.6, carryStats); the line says only that

@@ -295,7 +295,9 @@ export function icons(s: string, mode: IconMode = "word"): string {
  *  else undefined. richText.ts colourize colours the word with it; a bare word ("PAIRS", "HEAT JACKET") is untouched. */
 export function keywordColour(word: string): string | undefined {
   if (word.length < 2) return undefined;
-  const name = word.slice(1);
+  // CARD-2 (REQ-BFG-081, K3 g): a keyword's suffix S ("{*STUN}S", TEXT-STYLE 7.2; GALVANIC COIL's ITS {SLUG} {*STUN}S THE
+  // PART IT HITS) keeps the keyword's colour, icon and word; was only the bare name, so STUNS drew in the line's base colour
+  const full = word.slice(1), name = KEYWORD_SET.has(full) ? full : full.endsWith("S") ? full.slice(0, -1) : full;
   return KEYWORD_SET.has(name) && word[0] === ICON[name as KeywordName] ? ICON_COLOUR[word[0]] : undefined;
 }
 

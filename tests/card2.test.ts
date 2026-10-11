@@ -57,7 +57,7 @@ import { buyableModules } from "../src/sim/content";
 import { fusible } from "../src/sim/stars";
 import { setTurretList } from "../src/sim/deck";
 import { lineWidth } from "../src/ui/richText";
-import { ICON, icons } from "../src/render/font";
+import { ICON, ICON_COLOUR, icons } from "../src/render/font";
 import { shopChip } from "../src/ui/chips";
 import { panelWords } from "../src/screens/build/keywords";
 import { statIconNote, glossaryText } from "../src/ui/glossary";
@@ -407,7 +407,7 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
 describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new words, each line in the op band (225 px)", () => {
   it("SHOT TOWER, ASSEMBLY LINE, SABOT, SCRAPPER, LIMPET, GATLING, PINCER, SPOTTER, COIL, TWIN LATCH's desk line, DRAKE's SHOT note", () => {
     const want: Record<string, string[][]> = {
-      shottower: [["EACH RIG HITS ALL 3 SLUGS."]],
+      shottower: [["RIGS HIT EACH OF ITS 3 SLUGS ON ITS OWN."]], // run 2: true on a two-belt tower too (stamp is round-robin)
       assembly: [["FEEDS A GUN: YOUR RIGS WORK 50% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK 75% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK AT ONCE."]],
       sabot: [["A RIG IT HITS STOPS FOR THE WHOLE FIGHT.", "ANY OTHER PART IT HITS: STUN 4."]],
       scrapper: [["EACH STUN YOU LAND: 1 EXTRA ."]],
@@ -427,6 +427,13 @@ describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new w
         rows.push(`${id} ★${i + 1}: "${stripIconsOf(r.text)}" ${textWidth(r.text, "5")} px`);
       }
     });
+    // TEXT-STYLE 7.2's suffix keeps the keyword's colour (font.ts keywordColour): COIL's {*STUN}S, icon and word, in STUN's
+    // colour at every star (it drew in the line's base colour before the fix); a bare STUNS (no icon) stays as it was
+    for (const s of [1, 2, 3]) {
+      const sp = colourize(icons(faceLines("coil", s, { k: 1 })!.rules[0].text), C.bone).find((x) => stripIconsOf(x.t) === "STUNS");
+      expect(sp?.c, `coil ★${s}`).toBe(ICON_COLOUR[ICON.STUN]);
+    }
+    expect(colourize("STUNS", C.bone)[0].c).toBe(C.bone);
     expect(cardTextOf("twinlatch", {})).toBe("HOLDS A SLUG TO PAIR TWO BELTS.");
     const drake = glossaryText("SHOT", { def: "drake", stars: 1 })!;
     expect(drake).toBe("SHOT: SCRAP'S EXTRA DAMAGE COUNTS, AND ALL OF A FUSED SLUG'S. {*HEAT} NEVER DOES.");
@@ -541,6 +548,25 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
 
 import { definitionLines, explainWords, infoDrawn, infoItems, infoLevels, infoPages, panelPiece } from "../src/screens/build/keywords";
 import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+
+describe("CARD-2 (k1): never in a fight, on hero screens or packs: the first-sight hooks' callers (a source scan)", () => {
+  it("drawKeywordLayer's one caller asks only in the caravan; drawDetails only on the build screen; runeSightWord only on the three rune cards", () => {
+    const files: string[] = [];
+    const walk = (d: string) => { for (const f of readdirSync(d)) { const p = `${d}/${f}`; if (statSync(p).isDirectory()) walk(p); else if (p.endsWith(".ts")) files.push(p); } };
+    walk("src");
+    const code = (f: string) => readFileSync(f, "utf8").split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join("\n");
+    const callers = (re: RegExp) => files.filter((f) => re.test(code(f))).sort();
+    // keywords.ts and inspector.ts define them; the one caller of each is named
+    expect(callers(/\bdrawKeywordLayer\(/)).toEqual(["src/screens/build/inspector.ts", "src/screens/build/keywords.ts"]);
+    expect(code("src/screens/build/inspector.ts")).toMatch(/drawKeywordLayer\([^;]*ctx\.run\.stage === "caravan"\);/);
+    expect(callers(/\bdrawDetails\(/)).toEqual(["src/screens/build/chrome.ts", "src/screens/build/inspector.ts"]);
+    expect(callers(/\bruneSightWord\(/)).toEqual(["src/screens/lastChancePicker.ts", "src/screens/runePicker.ts", "src/ui/runeBar.ts"]);
+    expect(code("src/ui/runeBar.ts")).toMatch(/s\.run\.stage === "caravan" \? runeSightWord\(/);
+    // nothing in a fight's, a hero's or a pack's screen reaches the notes
+    for (const f of files.filter((p) => /screens\/(battle|hero|packs?)/i.test(p))) expect(code(f), f).not.toMatch(/firstSight|drawKeywordLayer|runeSightWord|drawDetails/);
+  });
+});
 import { captainSpans } from "../src/ui/captainText";
 
 describe("CARD-2 (k3 (i)): the two captains' lines with retired words, drawn in the current words (captainText.ts)", () => {
