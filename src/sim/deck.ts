@@ -9,6 +9,7 @@ import {
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake, type Upgrades,
 } from "./content";
 import { ladderFixRules, rideKeepOf } from "./ladderFix"; // LADDER_FIX (cap's oracle d306b1b196dbab38): the walk rides tick by tick; HULL-1b: OVERDRIVE's ride-keep
+import "./guard"; // RETUNE-1 (REQ-BFG-097): GUARD's content patch (guard.ts) loads with the deck rules, so GUARD = true takes hold everywhere
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
