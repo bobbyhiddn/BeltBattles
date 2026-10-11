@@ -495,7 +495,7 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
           expect(["3", "5"].includes(p.body.font), tag).toBe(true); // never a face under 3x5
           expect(gapsAtLeast(p, GAP_MIN[p.body.font]), `${tag}: gaps ${p.gaps.px}`).toBe(true); // never a gap under Gmin
           // lever 3: in 3x5 where the 5x7 face fits the band only with its gaps under 5x7's Gmin
-          const big = detailsPlan({ ...ctx, L: { ...L, phone: false } } as Ctx, c.sel, null, area)!.plan;
+          const big = detailsPlan({ ...ctx, L: { ...L, phone: undefined } } as unknown as Ctx, c.sel, null, area)!.plan;
           if (p.body.font === "3" && big.body.font === "5") { small++; expect(gapsAtLeast(big, GAP_MIN["5"]), tag).toBe(false); }
         }
         counts[`${mode} ${w}x${h} ${runes}`] = inBand;
