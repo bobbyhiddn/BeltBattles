@@ -30,7 +30,7 @@ describe("P4: the interim faces", () => {
       scaleguard: ["[PLATE]+3 [DMG]+10", "[PLATE]+7 [DMG]+20", "[PLATE]+11 [DMG]+35"],
       ballast: ["MAX ♥+8%", "MAX ♥+16%", "MAX ♥+25%"],
       grindstone: ["[DMG]+25", "[DMG]+55", "[DMG]+90"],
-      brandingiron: ["[DMG]+10 [BURN]+1", "[DMG]+30 [BURN]+2", "[DMG]+50 [BURN]+3"], // ★1 DMG 10: the bench guard's cut (cap R2-1)
+      brandingiron: ["[DMG]+15", "[DMG]+30 [BURN]+1", "[DMG]+50 [BURN]+2"], // FIRSTDAY-1 F7: the burn comes with the first merge
     };
     on(() => {
       for (const id of PLAIN_RIG_IDS) {

@@ -17,7 +17,7 @@
 //    summed), on top of the base's max hull, whatever the switches make it (P3: Battle.makeSide, after HULL_SCALE's line),
 //    rounded down.
 //  - GRINDSTONE (rare, 5 G, II): + DMG.
-//  - BRANDING IRON (rare, 5 G, L): + DMG and + BURN (★1 DMG 10: the presence bench's first cut, kept; its def below).
+//  - BRANDING IRON (rare, 5 G, L): + DMG, and + BURN from ★2 (FIRSTDAY-1 ruling F7; its def below).
 // A star raises only the numbers (ItemDef.levels); they merge and sell as every rig does (stars.ts, content.ts sellValue).
 //
 // THE SWITCH: PLAIN_RIGS (false), in ladderFix.ts's form (a content patch): plainRigsRules(), setPlainRigs(on) and
@@ -70,14 +70,9 @@ export const PLAIN_DEFS: Readonly<Record<string, ItemDef>> = {
   brandingiron: {
     id: "brandingiron", name: "BRANDING IRON", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
     desc: [], tags: ["FORGE"],
-    // ★1 DMG 15 -> 10 by the presence bench's guard (REQ-BFG-084.5; the Prime's oracle 0ef955b79d105092: a rig breaks it
-    // on a day when its pooled holder lift is over 10 points AND over the strongest base rig's on the same bench and day,
-    // TEMPER's d3 +24.2 / d6 +10.9). At 15 it lifted d3 +37.9, d6 +12.6; at 10, d3 +28.4, d6 +10.6. A second cut to 5
-    // (d3 +30.2, d6 +10.6) bought nothing, so cap's run-2 ruling R2-1 put ★1 back to 10 (its 2 BURN at a bend drive d3;
-    // cap decides any next cut in the review). BURN 1, ★2/★3 and the 5 G price as the brief's table (output-plain1/bench,
-    // REPORT.md section 5)
-    gate: { flat: 10, burn: 1 },
-    levels: { 2: { gate: { flat: 30, burn: 2 } }, 3: { gate: { flat: 50, burn: 3 } } },
+    // FIRSTDAY-1 ruling F7 (REVIEW-PLAIN1 D1; REQ-BFG-084.5): the burn comes with the first merge (★1 DMG 15, no BURN).
+    gate: { flat: 15 },
+    levels: { 2: { gate: { flat: 30, burn: 1 } }, 3: { gate: { flat: 50, burn: 2 } } },
   },
 };
 
