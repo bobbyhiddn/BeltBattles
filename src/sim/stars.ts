@@ -6,6 +6,7 @@
 import {
   HEROES, ITEMS, UPGRADE_MAX, UPGRADE_PRICE, UPGRADE_TRACKS, type HeroId, type ItemDef, type Upgrades, type UpgradeTrack,
 } from "./content";
+import { footSlots } from "./foot"; // SHAPES-1 (REQ-BFG-086 R3): the size's belt slots
 
 /** The highest star level: 1+1 make 2, 2+2 make 3, and 3 never fuses further. */
 export const FUSE_MAX = 3;
@@ -160,7 +161,8 @@ export const BELT_SLOTS: readonly number[] = [0, 2, 3, 4, 5];
 export function outputsAt(def: string, stars: number): number {
   const spec = effectAt(def, stars).factory;
   if (!spec) return 0;
-  return BELT_SLOTS[gradeFor(def, stars)] + (spec.lead ?? 0);
+  // SHAPES-1 (REQ-BFG-086 R3): + one slot for every 2 cells beyond 4 (foot.ts footSlots: a 2x3 1, a 3x3 2; a 2x2 0)
+  return BELT_SLOTS[gradeFor(def, stars)] + (spec.lead ?? 0) + footSlots(ITEMS[def]);
 }
 
 /**

@@ -7,9 +7,11 @@
 
 import { GRID, ITEMS, SHAPE_ARROWS, rigShape } from "./content";
 import {
-  adjacentToFactory, arrowCell, dirBetween, footprint, hero, inGrid, key, kx, ky, occupancy, opposite, rigArrows,
+  adjacentToFactory, arrowCell, dirBetween, hero, inGrid, key, kx, ky, occupancy, opposite, rigArrows,
   rotField, turretForColumn, type Build, type Dir, type Placed,
 } from "./deck";
+import { cellsOf, rigArrowCells } from "./deck"; // SHAPES-1 (REQ-BFG-086 R1-R2): a piece's cells; a rig's per-cell arrows
+import { footOf, footOnDeck } from "./foot"; // SHAPES-1: a def's foot
 
 // ---------------------------------------------------------------- the D3 migration
 
@@ -73,7 +75,7 @@ export function migrateInlineGates(b: Build): Migration {
   for (const p of b.items) {
     const d = ITEMS[p.def];
     if (!d || moving.has(p.uid)) continue;
-    for (const k of footprint(d, p.x, p.y)) taken.add(k);
+    for (const k of cellsOf(p)) taken.add(k); // SHAPES-1: the turned footprint
   }
   const strandedUids = new Set<number>();
   for (const p of inline) {
@@ -165,6 +167,7 @@ export interface WouldHit {
   cell: number;
   route: number;
   tile: number;
+  from?: number; // SHAPES-1 (R2): the rig cell the arrow shines from; written only for a multi-cell rig
 }
 
 /** Belt cell -> [route, tile] for routes accepted by `only` (default: every route). */
@@ -181,6 +184,17 @@ export function beltIndex(b: Build, only?: (ri: number) => boolean): Map<number,
  *  for a stoking rig (STOKER), whose arrows do nothing to belts: stokesIfPlaced reads its factory hits. */
 export function hitsIfPlaced(b: Build, def: string, x: number, y: number, rot: number, belts = beltIndex(b)): WouldHit[] {
   const out: WouldHit[] = [];
+  const d = ITEMS[def];
+  if (d && footOf(d) !== "1") {
+    // SHAPES-1 (REQ-BFG-086 R2): a multi-cell rig's arrows shine from every outside edge of its cells (rigArrowCells);
+    // none while a cell is off the deck or on a belt
+    if (!footOnDeck(d, x, y, rot) || d.gate?.stoke || cellsOf({ uid: -1, def, x, y, rot }).some((k) => belts.has(k))) return out;
+    for (const a of rigArrowCells(d, x, y, rot)) {
+      const w = a.to >= 0 ? belts.get(a.to) : undefined;
+      if (w) out.push({ dir: a.dir, cell: a.to, route: w[0], tile: w[1], from: a.from });
+    }
+    return out;
+  }
   if (!inGrid(x, y) || belts.has(key(x, y)) || ITEMS[def]?.gate?.stoke) return out;
   for (const dir of rigArrows(def, rot)) {
     const k = arrowCell(x, y, dir);
@@ -293,11 +307,12 @@ export interface WouldStoke {
 export function stokesIfPlaced(b: Build, def: string, x: number, y: number, rot: number): WouldStoke[] {
   const out: WouldStoke[] = [];
   if (!ITEMS[def]?.gate?.stoke || !inGrid(x, y)) return out;
-  for (const dir of rigArrows(def, rot)) {
-    const k = arrowCell(x, y, dir);
+  // SHAPES-1 (R2): every arrow of the rig (rigArrowCells; a 1-cell rig's are its arrows from its cell, as before)
+  for (const a of rigArrowCells(def, x, y, rot)) {
+    const k = a.to;
     if (k < 0) continue;
-    const f = b.items.find((p) => ITEMS[p.def]?.kind === "factory" && footprint(ITEMS[p.def], p.x, p.y).includes(k));
-    if (f) out.push({ dir, cell: k, factory: f.uid });
+    const f = b.items.find((p) => ITEMS[p.def]?.kind === "factory" && cellsOf(p).includes(k));
+    if (f) out.push({ dir: a.dir, cell: k, factory: f.uid });
   }
   return out;
 }
@@ -323,7 +338,7 @@ export function stokeSpots(b: Build, def: string, occ = occupancy(b)): StokeSpot
   for (const f of b.items) {
     const d = ITEMS[f.def];
     if (d?.kind !== "factory") continue;
-    const fp = new Set(footprint(d, f.x, f.y));
+    const fp = new Set(cellsOf(f)); // SHAPES-1: the turned footprint
     for (const k of fp) for (const dir of [0, 1, 2, 3] as Dir[]) {
       const c = arrowCell(kx(k), ky(k), dir);
       if (c < 0 || fp.has(c) || seen.has(c) || !freeForRig(b, c, occ) || intakeCell(b, c)) continue;

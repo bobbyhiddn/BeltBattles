@@ -19,6 +19,8 @@ import {
 import { journeyTiles, type JoinLink } from "./deck"; // 0.6.2j: belt joins
 import { shotFloor } from "./deck"; // Y2 (release Y): a LIMPET charge's shot floor
 import { matchedRoutes, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's E3 (stokers) and E6 (matched belts)
+import { rotOf } from "./deck"; // SHAPES-1 (REQ-BFG-086 R1): a piece's turn, for its footprint's box
+import { footBox } from "./foot"; // SHAPES-1: the turned footprint's box (a target's centre)
 import { ladderFixRules, rideKeepOf } from "./ladderFix"; // HULL-1b (REQ-BFG-070): OVERDRIVE's ride-keep, LADDER_FIX on only
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
@@ -855,10 +857,19 @@ export class Battle {
         targets.push({ kind: "belt", ref: r.index, cell: ci, x: kx(k) * CELL + 6, y: ky(k) * CELL + 6, weight: 1 });
       });
     }
-    for (const g of gates) targets.push({ kind: "gate", ref: g.uid, cell: -1, x: g.x * CELL + 6, y: g.y * CELL + 6, weight: 2 });
+    // SHAPES-1 (REQ-BFG-086 R1): a piece's target sits at the centre of its turned footprint's box: a 1-cell rig's cell
+    // centre (+6) and a 2x2's centre (+12), as before; a 2x3 GANTRY PRESS's or a long rig's box centre
+    const boxOf = (uid: number) => {
+      const p = b.items.find((q) => q.uid === uid)!;
+      return footBox(defOf(p), rotOf(p));
+    };
+    for (const g of gates) {
+      const bx = boxOf(g.uid);
+      targets.push({ kind: "gate", ref: g.uid, cell: -1, x: g.x * CELL + (bx.w * CELL) / 2, y: g.y * CELL + (bx.h * CELL) / 2, weight: 2 });
+    }
     for (const f of factories) {
-      const s = f.def.size * CELL;
-      targets.push({ kind: "factory", ref: f.uid, cell: -1, x: f.x * CELL + s / 2, y: f.y * CELL + s / 2, weight: 3 });
+      const bx = boxOf(f.uid);
+      targets.push({ kind: "factory", ref: f.uid, cell: -1, x: f.x * CELL + (bx.w * CELL) / 2, y: f.y * CELL + (bx.h * CELL) / 2, weight: 3 });
     }
     turrets.forEach((tu) => {
       targets.push({ kind: "turret", ref: tu.index, cell: -1, x: (tu.def.col0 + tu.def.width / 2) * CELL, y: -9, weight: 2 });

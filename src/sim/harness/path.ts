@@ -6,13 +6,14 @@
 import type { Rng } from "../../core/rng";
 import { GRID, ITEMS } from "../content";
 import { DX, DY, footprint, hero, inGrid, key, kx, ky, type Build } from "../deck";
+import { cellsOf } from "../deck"; // SHAPES-1 (REQ-BFG-086 R1): a placed piece's turned footprint
 
 const dist = (a: number, b: number) => Math.abs(kx(a) - kx(b)) + Math.abs(ky(a) - ky(b));
 
 /** Cells a new or rerouted belt may not use: machinery, other routes' belts, the forward row. */
 export function blockedCells(b: Build, skipRoute = -1): Uint8Array {
   const bl = new Uint8Array(GRID * GRID);
-  for (const p of b.items) for (const k of footprint(ITEMS[p.def], p.x, p.y)) if (k >= 0 && k < bl.length) bl[k] = 1;
+  for (const p of b.items) for (const k of cellsOf(p)) if (k >= 0 && k < bl.length) bl[k] = 1; // SHAPES-1: turned footprints
   b.routes.forEach((r, i) => {
     if (i !== skipRoute) for (const k of r.cells) bl[k] = 1;
   });
@@ -51,7 +52,7 @@ export function freeConnectors(b: Build, except = -1): number[] {
     const last = r.cells[r.cells.length - 1];
     if (ky(last) === 0) taken.add(kx(last));
   });
-  for (const p of b.items) for (const k of footprint(ITEMS[p.def], p.x, p.y)) if (ky(k) === 0) taken.add(kx(k));
+  for (const p of b.items) for (const k of cellsOf(p)) if (ky(k) === 0) taken.add(kx(k)); // SHAPES-1: turned footprints
   return hero(b).turrets.flatMap((t) => t.connectors).filter((c) => !taken.has(c)); // 0.6.2s: installed intakes
 }
 

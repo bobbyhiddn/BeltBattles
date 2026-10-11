@@ -12,6 +12,10 @@ import { ladderFixRules, rideKeepOf } from "./ladderFix"; // LADDER_FIX (cap's o
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
+// SHAPES-1 (REQ-BFG-086 R1-R2): the footprint engine (foot.ts) and the SHAPES switch (shapes.ts, loaded with the sim)
+import { canonicalRot, footOf, footOffsets, footOnDeck, footprintCells } from "./foot";
+import "./shapes";
+export { footprintCells } from "./foot";
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -26,6 +30,8 @@ export interface Placed {
   stars?: number; // 0.6.1a: 2 or 3 after a merge; absent = 1 (never written as 1)
   // 0.6.2 BELTSIDE (D1): a rig's rotation in clockwise quarter turns, 1..3; absent = 0. Written only for
   // rigs (kind "gate"), never as 0, never for an X rig (it ignores rotation).
+  // SHAPES-1 (REQ-BFG-086 R1): also a shaped factory's, in its lowest form that gives the same cells (foot.ts
+  // canonicalRot: a 2x3 or I3 factory 1, a 2x2 never). (x, y) is the top-left of the turned footprint's bounding box.
   rot?: number;
   grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused by both snapshot checks until GROW-1 switches it on
 }
@@ -102,10 +108,16 @@ export function defOf(p: { def: string }): ItemDef {
   return d;
 }
 
-export function footprint(def: ItemDef, x: number, y: number): number[] {
-  const out: number[] = [];
-  for (let j = 0; j < def.size; j++) for (let i = 0; i < def.size; i++) out.push(key(x + i, y + j));
-  return out;
+/** SHAPES-1 (REQ-BFG-086 R1): the old name of foot.ts footprintCells, kept for the tests and tools that import it. Its
+ *  `size x size` is gone: every cell list is footprintCells's (a 1-cell rig and a 2x2 factory give the same cells, in the
+ *  same order, as before). */
+export function footprint(def: ItemDef, x: number, y: number, rot = 0): number[] {
+  return footprintCells(def, x, y, rot);
+}
+
+/** SHAPES-1 (R1): a placed piece's cells (footprintCells at its own rot). */
+export function cellsOf(p: Placed): number[] {
+  return footprintCells(defOf(p), p.x, p.y, rotOf(p));
 }
 
 export interface Occ {
@@ -116,7 +128,7 @@ export interface Occ {
 export function occupancy(b: Build): Occ[] {
   const occ: Occ[] = Array.from({ length: GRID * GRID }, () => ({ item: -1, route: -1 }));
   for (const p of b.items) {
-    for (const k of footprint(defOf(p), p.x, p.y)) if (k >= 0 && k < occ.length) occ[k].item = p.uid;
+    for (const k of cellsOf(p)) if (k >= 0 && k < occ.length) occ[k].item = p.uid;
   }
   b.routes.forEach((r, i) => {
     for (const k of r.cells) occ[k].route = i;
@@ -171,7 +183,7 @@ export function connectorClaims(b: Build): Map<number, number> {
 export function adjacentToFactory(b: Build, factoryUid: number, k: number): number {
   const f = itemByUid(b, factoryUid);
   if (!f) return -1;
-  const fp = new Set(footprint(defOf(f), f.x, f.y));
+  const fp = new Set(cellsOf(f)); // SHAPES-1 (R3): any free cell beside the turned footprint
   const x = kx(k), y = ky(k);
   if (fp.has(k)) return -1;
   for (let d = 0; d < 4; d++) {
@@ -232,10 +244,13 @@ export function arrowsOf(p: Placed): Dir[] {
   return rigArrows(p.def, rotOf(p));
 }
 
-/** The rot to store for a rig: undefined for 0 and for an X rig (D1: absent means 0). */
+/** The rot to store for a rig: undefined for 0 and for an X rig (D1: absent means 0). SHAPES-1 (R1): for any deck piece,
+ *  its lowest rot that gives the same cells (foot.ts canonicalRot): a rig's 0-3 as before, a 2x3 or I3 factory's 0 or 1, a
+ *  2x2 factory's 0. */
 export function rotField(def: string, rot: number): { rot?: number } {
-  const r = ((Math.floor(rot) % 4) + 4) % 4;
-  return r === 0 || rigShape(def) === "X" ? {} : { rot: r };
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
+  const r = d ? canonicalRot(d, rot) : ((Math.floor(rot) % 4) + 4) % 4; // an X rig of one cell: 0
+  return r === 0 ? {} : { rot: r };
 }
 
 /** Set (or clear, at 0) a placed rig's rotation in place. */
@@ -269,6 +284,7 @@ export interface RigHit {
   tile: number; // tile index along the route
   cell: number; // the tile's cell key
   tier: HitTier;
+  from?: number; // SHAPES-1 (R2): the rig cell the arrow shines from; written only for a multi-cell rig
 }
 
 /** R7 order on one tile: tier, then rig uid, then arrow direction. */
@@ -300,12 +316,54 @@ export function arrowCell(x: number, y: number, dir: Dir): number {
   return inGrid(nx, ny) ? key(nx, ny) : -1;
 }
 
+/** SHAPES-1 (R2): one arrow of a rig: the cell it shines from, its absolute direction and the cell it points at (-1 off
+ *  the deck). */
+export interface RigArrow {
+  from: number;
+  dir: Dir;
+  to: number;
+}
+
+/**
+ * SHAPES-1 (REQ-BFG-086 R2, rule set B): every arrow of a rig of `def` standing at (x, y) turned `rot`. Each arrow
+ * direction (rigArrows: the count by rarity, REQ-BFG-025, in shape order) shines from every cell of the rig's foot (row
+ * by row) whose neighbour that way is outside the foot; each such (cell, direction) is one arrow. A 1-cell rig has
+ * exactly its arrows from its one cell, in shape order: 0.9.9's rule. [] for anything that is not a rig.
+ */
+export function rigArrowCells(def: string | ItemDef, x: number, y: number, rot = 0): RigArrow[] {
+  const d = typeof def === "string" ? (Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined) : def;
+  if (!d) return [];
+  const dirs = rigArrows(d, rot);
+  if (!dirs.length) return [];
+  if (footOf(d) === "1") {
+    const from = inGrid(x, y) ? key(x, y) : -1;
+    return dirs.map((dir) => ({ from, dir, to: arrowCell(x, y, dir) }));
+  }
+  const cells = footOffsets(d, rot).map(([dx, dy]) => [x + dx, y + dy] as const);
+  const inside = new Set(cells.map(([cx, cy]) => `${cx},${cy}`));
+  const out: RigArrow[] = [];
+  for (const dir of dirs) {
+    for (const [cx, cy] of cells) {
+      if (inside.has(`${cx + DX[dir]},${cy + DY[dir]}`)) continue;
+      out.push({ from: inGrid(cx, cy) ? key(cx, cy) : -1, dir, to: arrowCell(cx, cy, dir) });
+    }
+  }
+  return out;
+}
+
+/** SHAPES-1 (R2): a placed rig's arrows (rigArrowCells at its own cell and rot). */
+export function arrowCellsOf(p: Placed): RigArrow[] {
+  return rigArrowCells(p.def, p.x, p.y, rotOf(p));
+}
+
 /**
  * Every hit on the deck (R5, R7, R8): result[route][tile] lists the arrows landing on that belt tile in
  * R7 order. An arrow hits when the orthogonal neighbour it points at is a belt tile of any route; an arrow
  * at empty deck, machinery or off the deck is idle. A rig hits every belt its arrows reach, one hit per
  * arrow, so a rig may hit several routes, or one route more than once. A rig standing on a belt tile
- * (illegal since R1; migrateInlineGates moves it) makes no hits. Rigs are one cell (size 1).
+ * (illegal since R1; migrateInlineGates moves it) makes no hits. SHAPES-1 (REQ-BFG-086 R2): a multi-cell rig's
+ * arrows shine from every outside edge of its cells (rigArrowCells), each hit carrying the cell it shines from
+ * (`from`); a 1-cell rig's hits are exactly 0.9.9's.
  */
 export function rigHits(b: Build): RigHit[][][] {
   const out: RigHit[][][] = b.routes.map((r) => r.cells.map(() => []));
@@ -313,15 +371,26 @@ export function rigHits(b: Build): RigHit[][][] {
   b.routes.forEach((r, ri) => r.cells.forEach((k, ti) => where.set(k, ri * 1024 + ti)));
   for (const p of b.items) {
     const d = ITEMS[p.def];
-    if (!d || d.kind !== "gate" || where.has(key(p.x, p.y))) continue;
+    if (!d || d.kind !== "gate") continue;
+    const one = footOf(d) === "1";
+    if (one ? where.has(key(p.x, p.y)) : cellsOf(p).some((k) => where.has(k))) continue;
     if (d.gate?.stoke) continue; // 0.8.0 P1 (E3): a STOKER's arrows do nothing to belts; they work factories (stokeHits)
     const tier = hitTier(effectAt(p.def, starsOf(p)).gate);
-    for (const dir of arrowsOf(p)) {
-      const k = arrowCell(p.x, p.y, dir);
-      const w = k >= 0 ? where.get(k) : undefined;
+    if (one) {
+      for (const dir of arrowsOf(p)) {
+        const k = arrowCell(p.x, p.y, dir);
+        const w = k >= 0 ? where.get(k) : undefined;
+        if (w === undefined) continue;
+        const route = Math.floor(w / 1024), tile = w % 1024;
+        out[route][tile].push({ uid: p.uid, def: p.def, dir, route, tile, cell: k, tier });
+      }
+      continue;
+    }
+    for (const a of arrowCellsOf(p)) {
+      const w = a.to >= 0 ? where.get(a.to) : undefined;
       if (w === undefined) continue;
       const route = Math.floor(w / 1024), tile = w % 1024;
-      out[route][tile].push({ uid: p.uid, def: p.def, dir, route, tile, cell: k, tier });
+      out[route][tile].push({ uid: p.uid, def: p.def, dir: a.dir, route, tile, cell: a.to, tier, from: a.from });
     }
   }
   for (const r of out) for (const t of r) if (t.length > 1) t.sort(byR7);
@@ -350,16 +419,16 @@ export function rigFactoryHits(b: Build): FactoryHit[] {
   const at = new Map<number, number>(); // footprint cell -> factory uid
   for (const p of b.items) {
     const d = ITEMS[p.def];
-    if (d?.kind === "factory") for (const k of footprint(d, p.x, p.y)) at.set(k, p.uid);
+    if (d?.kind === "factory") for (const k of cellsOf(p)) at.set(k, p.uid);
   }
   const out: FactoryHit[] = [];
   if (!at.size) return out;
   for (const p of b.items) {
     if (ITEMS[p.def]?.kind !== "gate") continue;
-    for (const dir of arrowsOf(p)) {
-      const k = arrowCell(p.x, p.y, dir);
-      const f = k >= 0 ? at.get(k) : undefined;
-      if (f !== undefined) out.push({ uid: p.uid, def: p.def, dir, factory: f, cell: k });
+    // SHAPES-1 (R2): every arrow of a multi-cell rig (rigArrowCells); a 1-cell rig's are 0.9.9's, in the same order
+    for (const a of arrowCellsOf(p)) {
+      const f = a.to >= 0 ? at.get(a.to) : undefined;
+      if (f !== undefined) out.push({ uid: p.uid, def: p.def, dir: a.dir, factory: f, cell: a.to });
     }
   }
   return out;
@@ -876,13 +945,14 @@ export function estimateRoute(b: Build, index: number, hits = rigHits(b)): Route
  * beside the belt (it needs no belt in reach; with none it is IDLE). A factory being moved may still cover
  * belts of its own routes, which moveItem drops.
  */
-export function canPlaceItem(b: Build, defId: string, x: number, y: number, ignoreUid = -1): { ok: boolean; reason?: string } {
+export function canPlaceItem(b: Build, defId: string, x: number, y: number, ignoreUid = -1, rot = 0): { ok: boolean; reason?: string } {
   const def = ITEMS[defId];
   if (!def) return { ok: false, reason: "UNKNOWN" };
   if (def.kind !== "gate" && def.kind !== "factory") return { ok: false, reason: "NOT DECK EQUIPMENT" };
-  if (x < 0 || y < 0 || x + def.size > GRID || y + def.size > GRID) return { ok: false, reason: "OFF THE DECK" };
+  // SHAPES-1 (REQ-BFG-086 R1): every cell of the turned footprint on the deck (a 1-cell rig or a 2x2: 0.9.9's bounds)
+  if (!footOnDeck(def, x, y, rot)) return { ok: false, reason: "OFF THE DECK" };
   const occ = occupancy(b);
-  for (const k of footprint(def, x, y)) {
+  for (const k of footprintCells(def, x, y, rot)) {
     const o = occ[k];
     if (o.item >= 0 && o.item !== ignoreUid) return { ok: false, reason: "OCCUPIED" };
     if (o.route >= 0) {
@@ -919,15 +989,17 @@ export function removeItem(b: Build, uid: number): number {
 }
 
 /** Move an item; factories keep routes whose first cell still attaches. 0.6.2j (J8): a belt that joined a belt cut
- *  loose here becomes an open end (pruneJoins); one that joined a belt the move keeps stays joined. */
-export function moveItem(b: Build, uid: number, x: number, y: number): { dropped: number } {
+ *  loose here becomes an open end (pruneJoins); one that joined a belt the move keeps stays joined. SHAPES-1 (R1, S2):
+ *  `rot`, when given, turns it too (stored by rotField); a moved shaped factory may cover its own belts, which drop. */
+export function moveItem(b: Build, uid: number, x: number, y: number, rot?: number): { dropped: number } {
   const p = itemByUid(b, uid);
   if (!p) return { dropped: 0 };
   p.x = x;
   p.y = y;
+  if (rot !== undefined) setRot(p, rot);
   let dropped = 0;
   if (defOf(p).kind === "factory") {
-    const fp = new Set(footprint(defOf(p), x, y));
+    const fp = new Set(cellsOf(p));
     b.routes = b.routes.filter((r) => {
       if (r.factory !== uid) return true;
       const ok = r.cells.length > 0 && adjacentToFactory(b, uid, r.cells[0]) >= 0 && !r.cells.some((k) => fp.has(k));

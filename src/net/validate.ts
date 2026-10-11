@@ -21,6 +21,8 @@ import {
   routeInfo, routeWellFormed, turretSlots, turretsCost, type Build,
 } from "../sim/deck";
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
+import { rotOf } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S4): a piece's turn
+import { footOnDeck, footprintCells } from "../sim/foot"; // SHAPES-1 (R1): the turned footprint
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
@@ -385,10 +387,11 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   const owner = new Map<number, number>();
   for (const p of b.items) {
     const d = ITEMS[p.def];
-    const chk = canPlaceItem(b, p.def, p.x, p.y, p.uid);
+    // SHAPES-1 (REQ-BFG-086 R1, S4): the turned footprint (footprintCells at the piece's rot) for bounds and overlaps
+    const chk = canPlaceItem(b, p.def, p.x, p.y, p.uid, rotOf(p));
     if (!chk.ok && chk.reason !== "OCCUPIED") errors.push(`placement: uid ${p.uid} ${d.name} at ${p.x},${p.y}: ${chk.reason}`);
-    if (p.x + d.size > GRID || p.y + d.size > GRID) continue;
-    for (const k of footprint(d, p.x, p.y)) {
+    if (!footOnDeck(d, p.x, p.y, rotOf(p))) continue;
+    for (const k of footprintCells(d, p.x, p.y, rotOf(p))) {
       const o = owner.get(k);
       if (o !== undefined) errors.push(`placement: uid ${p.uid} ${d.name} overlaps uid ${o} at cell ${k}`);
       else owner.set(k, p.uid);
