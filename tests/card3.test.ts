@@ -351,3 +351,56 @@ describe("CARD-3 (d1, d2): a definition never covers its own word; a word's tool
     for (const w of words) expect(yellow(frame({ x: w.r.x + 2, y: w.r.y + 2 })), w.id).toBe(base);
   });
 });
+
+// --------------------------------------------------------------------------- (a): the phone shop card's gist
+import { PHONE_GISTS, phoneGist, shopChip } from "../src/ui/chips";
+import { CARD_CHIP_Y, CARD_GIST_Y, CARD_GIST_NAME_Y, CARD_MARK_X, cardPriceX, drawCard } from "../src/screens/build/shop";
+import { CARD_H, CARD_W } from "../src/screens/build/layout";
+import { textWidth } from "../src/render/font";
+
+describe("CARD-3 (a): the phone shop card's gist for cores, gear and five rigs (REQ-BFG-081)", () => {
+  const FIVE = ["tollbooth", "sorting", "mantlet", "braceframe", "overdrive"];
+  it("every core and piece of gear shows a gist, and so do the five rigs; turrets, factories and the other rigs keep their chips", () => {
+    const rows: string[] = [];
+    for (const d of buyableModules()) {
+      const o = d.kind === "core" ? { k: 1 } : {}, gst = phoneGist(d.id, o), chip = shopChip(d.id, o);
+      const wants = d.kind === "core" || d.kind === "mod" || FIVE.includes(d.id);
+      expect(!!gst, `${d.id} (${d.kind})`).toBe(wants);
+      if (!gst) continue;
+      const [a, b] = gst, aw = textWidth(icons(a), "3"), bw = textWidth(icons(b, "alone"), "3");
+      const room = cardPriceX(0, CARD_W, d.price, false, true) - CARD_MARK_X - 1; // the chip's room, left of the coin
+      expect(/\d/.test(a), `${d.id}: row A in words`).toBe(false);
+      expect(aw, `${d.id} row A ${a}`).toBeLessThanOrEqual(CARD_W - 2 * CARD_MARK_X - 1);
+      expect(bw, `${d.id} row B ${b} (room ${room})`).toBeLessThanOrEqual(room);
+      rows.push(`${d.id} | ${d.kind} | ${plain(chip ?? "-")} | ${plain(a)} / ${plain(b)} | ${cardText(d.id, o)} | A ${aw} px of ${CARD_W - 2 * CARD_MARK_X - 1}, B ${bw} of ${room}`);
+    }
+    expect(Object.keys(PHONE_GISTS).length).toBe(rows.length);
+    console.log(`CARD3 (a) gists, ${rows.length}:\n${rows.join("\n")}`);
+  });
+
+  it("the card keeps its 46x42 size, its price and its touch target; the gist's rows sit inside it, the art gives up its room", () => {
+    expect([CARD_W, CARD_H]).toEqual([46, 42]);
+    expect([CARD_GIST_NAME_Y, CARD_GIST_Y, CARD_CHIP_Y]).toEqual([13, 25, 32]); // name rows 13..23, row A 25..29, row B 32..36
+    const st = { sold: false, affordable: true, selected: false, hover: false, pulse: false, hidden: false, shake: 0 };
+    for (const id of ["lance", "mortar", "salvo", "steambreech", "overdrive"]) {
+      const d = ITEMS[id], gst = phoneGist(id, d.kind === "core" ? { k: 1 } : {})!;
+      const c = fresh(60, 60), r = { x: 5, y: 5, w: CARD_W, h: CARD_H };
+      drawCard(gOf(c), r, d, d.price, d.merchant!, { ...st, gist: gst, chip: shopChip(id) ?? undefined }, 0);
+      let outside = 0, rowA = 0, rowB = 0;
+      for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) {
+        const px = c.at(x, y);
+        if (px === null) continue;
+        if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) outside++;
+        if (y >= r.y + CARD_GIST_Y && y < r.y + CARD_GIST_Y + 5 && x > r.x + 2 && x < r.x + r.w - 3 && px !== C.slate0) rowA++;
+        if (y >= r.y + CARD_CHIP_Y && y < r.y + CARD_CHIP_Y + 5 && x > r.x + 2 && x < cardPriceX(r.x, r.w, d.price, false, true) && px !== C.slate0) rowB++;
+      }
+      expect([outside, rowA > 0, rowB > 0], id).toEqual([0, true, true]);
+    }
+  });
+
+  it("keyword words keep their colours in a gist (STEAM BREECH's SHIELD in plate3)", () => {
+    const [a] = phoneGist("steambreech", { k: 1 })!;
+    expect(icons(a)).toBe(`IF ${ICON.PLATE}SHIELD`);
+    expect(keywordColour(`${ICON.PLATE}SHIELD`)).toBe(C.plate3);
+  });
+});

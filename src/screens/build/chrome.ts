@@ -31,7 +31,7 @@ import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 import { drawBeltX } from "./beltx"; // shoptap (D3)
 import { deleteRoute } from "./actions"; // shoptap (D3): the X removes the belt as REMOVE BELT does
 import { faceLines } from "../../ui/faces"; // U2c group 0 fix 3: the packs' faces in their tooltips
-import { shopChipGlyphs } from "../../ui/chips"; // U2c (C4): the shop cards' stat chips
+import { phoneGist, shopChipGlyphs } from "../../ui/chips"; // U2c (C4): the shop cards' stat chips
 
 /** Status bar: DAWN · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
  *  the hero card below the shop), belt use when there is room, then MENU and SND. */
@@ -128,6 +128,7 @@ function drawShop(g: G, s: BuildScreen): void {
       badge: o.sold ? null : shopBadge(run, o.def), // 0.6.1d: live, never stored on the offer
       effect: cardText(o.def, textOpts(run)), // 0.6.2t (T5): drawn on a wide (landscape) card
       chip: shopChipGlyphs(o.def, textOpts(run)) ?? undefined, // U2c (C4): the stat chip
+      gist: phoneGist(o.def, textOpts(run)) ?? undefined, // CARD-3 (REQ-BFG-081, A): the phone card's gist (the narrow face)
     }, t);
   }
   const rr = { ...L.reroll, x: L.reroll.x + s.caravan.dx(list.length, L.W) };
