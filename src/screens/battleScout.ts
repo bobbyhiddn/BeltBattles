@@ -175,17 +175,23 @@ export function faceFree(L: BattleLayout, area: Rect, r: Rect): Rect | null {
 
 /** Each side's damage summary rows (label, value), from the same sources as the result card: the battle's side stats
  *  (DAMAGE DEALT, SHOTS: battleHud.ts resultRows reads the same SideStats through finishDay), its hull, its plating pool
- *  (SideState.plate.absorbed) and its SHIELD's stopped hits (SideState.blocked). */
+ *  (SideState.plate.absorbed) and its SHIELD's stopped hits (SideState.blocked). WIND-1 (REQ-BFG-093, REQ-BFG-097): WIND
+ *  TAKEN (SideStats.windTaken: the dark wind's damage to this hull, the same on both sides); PLATING SOAKED and SHIELD STOPS
+ *  are PLATE BLOCKED and SHIELD BLOCKED, the words their pops say (arenaReact BLOCKED). */
 export function summaryRows(a: Pick<Arena, "b">, side: Side): [string, string][] {
   const s = a.b.sides[side];
   return [
     ["DAMAGE DEALT", fmtDmg(s.stats.damage)],
     ["SHOTS", String(s.stats.shots)],
     ["HULL LOST", fmtDmg(Math.max(0, s.hull.max - Math.max(0, s.hull.hp)))],
-    ["PLATING SOAKED", fmtDmg(s.plate.absorbed)],
-    ["SHIELD STOPS", fmtCount(s.blocked ?? 0)],
+    ["WIND TAKEN", fmtDmg(s.stats.windTaken)],
+    ["PLATE BLOCKED", fmtDmg(s.plate.absorbed)],
+    ["SHIELD BLOCKED", fmtCount(s.blocked ?? 0)],
   ];
 }
+
+/** WIND-1 (REQ-BFG-093): the summaries' row count (summaryRows'), which sizes their rects. */
+export const SUMMARY_ROWS = 6;
 
 const ROW = 7;
 
@@ -195,16 +201,19 @@ const ROW = 7;
 export function summaryRects(L: BattleLayout): { r: [Rect, Rect]; cols: number; stacked: boolean } {
   const gb = L.gapBox;
   if (L.portrait) {
-    const w = Math.min(L.W - 4, 220), cols = 2, h = 4 + ROW + Math.ceil(5 / cols) * ROW + 2;
+    const w = Math.min(L.W - 4, 220), cols = 2, h = 4 + ROW + Math.ceil(SUMMARY_ROWS / cols) * ROW + 2; // WIND-1: from the rows (was 5)
     const x = Math.round((L.W - w) / 2);
     return { r: [{ x, y: gb.y + gb.h - 2 - h, w, h }, { x, y: gb.y + 2, w, h }], cols, stacked: false };
   }
   // one column; where the floor is too narrow for a label and its value on one row (the 1366x768 laptop), the value goes
   // under its label (a 6 px pitch)
-  const w = Math.min(gb.w - 4, 160), stacked = w < SUMMARY_ROW_W, h = 4 + ROW + (stacked ? 5 * 2 * 6 : 5 * ROW) + 2;
+  const w = Math.min(gb.w - 4, 160), stacked = w < SUMMARY_ROW_W, h = 4 + ROW + (stacked ? SUMMARY_ROWS * 2 * 6 : SUMMARY_ROWS * ROW) + 2; // WIND-1: from the rows
   const x = Math.round(gb.x + (gb.w - w) / 2);
-  const top = gb.y + Math.max(2, Math.floor((gb.h - 2 * h - 6) / 2));
-  return { r: [{ x, y: top + h + 6, w, h }, { x, y: top, w, h }], cols: 1, stacked };
+  // WIND-1 (REQ-BFG-093): where the floor's rows can't hold both (the 1366x768 laptop's stack with its 6 rows), the column
+  // between the carriers from the screen's top to the bar, as a face uses it (faceArea), 2 px between the two
+  const fits = 2 * h + 6 + 4 <= gb.h, gap = fits ? 6 : 2;
+  const top = fits ? gb.y + Math.max(2, Math.floor((gb.h - 2 * h - 6) / 2)) : 2 + Math.max(0, Math.floor((L.bar.y - 4 - 2 * h - gap) / 2));
+  return { r: [{ x, y: top + h + gap, w, h }, { x, y: top, w, h }], cols: 1, stacked };
 }
 
 /** The narrowest summary that holds a label and its value on one row: PLATING SOAKED and a 5-figure value, 3x5. */

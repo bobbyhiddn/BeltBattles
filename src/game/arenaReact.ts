@@ -29,8 +29,16 @@ const debrisOf = (hero: string): readonly string[] =>
   hero === "furnace" ? DEBRIS_ORC : hero === "foundry" ? DEBRIS_HUMAN : hero === "bastion" ? DEBRIS_DWARF : DEBRIS_ELF;
 const KO_DEBRIS = [C.steel2, C.rust3, C.steel1, C.fire3, C.bone] as const;
 const SHOCK = [C.ice, C.white, C.cyan] as const;
-// 0.8.0 H1 M3: a hit that BASTION's plating took throws plate chips, and its number shows in the plating strip's rune blue
-const PLATED = [C.rune3, C.plate3, C.rune4] as const;
+// 0.8.0 H1 M3: a hit that BASTION's plating took throws plate chips, and its number shows in the plating strip's rune blue.
+// WIND-1 (REQ-BFG-097): in plating's own colours (PLATE_COLOUR), apart from SHIELD's rune blue
+const PLATED = [C.plate3, C.plate2, C.white] as const;
+
+/** WIND-1 (REQ-BFG-097): plating's colour (the PLATE icon's, font.ts ICON_COLOUR: C.plate3) and SHIELD's (its icon's, rune3):
+ *  the plate's layers and their BLOCKED pops. One source each: ICON_COLOUR. */
+export const PLATE_COLOUR = ICON_COLOUR[ICON.PLATE];
+export const SHIELD_COLOUR = ICON_COLOUR[ICON.SHIELD];
+/** WIND-1 (REQ-BFG-097): the word a stopped or soaked hit pops (docs/TEXT-STYLE.md: game words in capitals). */
+export const BLOCKED = "BLOCKED";
 
 /** SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): HEAL's colour (font.ts ICON_COLOUR, the one source: green) for its floats. */
 export const HEAL_COLOUR = ICON_COLOUR[ICON.HEAL];
@@ -275,7 +283,13 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       // on every hull without plating, which draws exactly as before)
       const soak = a.takeSoak(e.side, e.dmg);
       if (soak > 0) fx.sparks(x, y, 5, PLATED, 55);
-      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, shown, soak > 0 ? C.rune3 : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
+      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, shown, soak > 0 ? PLATE_COLOUR : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
+      // WIND-1 (REQ-BFG-097): above the hit's own number, what plating soaked of it (BLOCKED n), and a hit a SHIELD stopped
+      // (BLOCKED: its stopped damage is not in the events, so no number)
+      const stop = a.sfx[e.side].shieldStop;
+      a.sfx[e.side].shieldStop = false;
+      if (soak > 0) fx.popup(x, y - 6 - (e.big ? 16 : 9), `${BLOCKED} ${fmtDmg(soak)}`, PLATE_COLOUR);
+      else if (stop && e.dmg === 0) fx.popup(x, y - 6 - (e.big ? 16 : 9), BLOCKED, SHIELD_COLOUR);
       // shake scales with the damage dealt: the landing frame shows exactly 1 px for a light
       // bolt and 2+ px for a heavy shell or 60+ damage (NUM-2: x10); big hits add their trauma on top
       hitShake(fx, dmg, e.heavy, -dx, -dy);
@@ -333,6 +347,7 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       const f = a.sfx[e.side];
       f.shieldBreak = SHIELD_BREAK_TIME;
       f.shieldAt = e.shield;
+      f.shieldStop = true; // WIND-1 (REQ-BFG-097): the stopped hit's impact, next, pops BLOCKED
       if (!fast) fx.sparks(hullCx(a, e.side), hullCy(a, e.side), 5, SHIELD_SPARKS, 45);
       return;
     }

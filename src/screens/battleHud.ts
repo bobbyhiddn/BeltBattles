@@ -18,9 +18,10 @@ import { wrap } from "../render/font"; // WIND-1 (REQ-BFG-093): the callout's sm
 import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): SHIELD's pips and REGEN's badge, one source
 import type { SideFx } from "../game/arena"; // WIND-1: the bars' wind flash
 import type { ArenaMotion } from "../game/arenaMotion"; // WIND-1: the callout's floor, through the camera
+import { PLATE_COLOUR, SHIELD_COLOUR } from "../game/arenaReact"; // WIND-1 (REQ-BFG-097): plating's and SHIELD's colours (ICON_COLOUR)
 import { SHIELD_CAP } from "../sim/content"; // SUS-B: the pips' count
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: the REGEN badge prints as the faces print REGEN
-import { fmtClock, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results
+import { fmtClock, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results; WIND-1: SHIELD's count
 import { heartIcon } from "../render/sprites";
 import { button, panel, statsPanel, tapRect, type Rect } from "../ui/ui";
 import { skinOf } from "../render/styles"; // CUSTOM-2a (REQ-BFG-072): the plate wears its board's panel style
@@ -67,44 +68,129 @@ export function plateSource(name: string, note: string): { tag: string; name: st
 /** The tag as the plate draws it, before the name: "ONLINE ·". */
 export const plateTag = (tag: string) => `${tag} ·`;
 
+/** WIND-1 (REQ-BFG-093): the least hull bar a plate keeps where it can (logical px). The hull's "/max", then SHIELD's pips
+ *  (its count stays, after one SHIELD glyph), then REGEN's badge give way to it, in that order; the current hull never does. */
+export const BAR_MIN = 36;
+
+/** WIND-1: the plating strip's colours on the plate (raceFx.ts drawPlatingStrip's `cols`): plate2 full, plate1 part full,
+ *  plate3 its top edge and the shine (was the rune blue SHIELD wears). */
+const PLATE_STRIP = { full: C.plate2, part: C.plate1, edge: C.plate3, shine: C.plate3 } as const;
+
+/** WIND-1 (REQ-BFG-093, REQ-BFG-097): a plate's row, left to right: [tag] NAME [SHIELD] [the hull bar, plating's layer on
+ *  it] [PLATE n] [+REGEN] HULL. `ty` is the 3x5 row's top, `hy` the hull number's (the 5x7 face, which every plate's height
+ *  holds); x positions are left edges but `regenX`, the badge's right edge. */
+export interface PlateRow {
+  ty: number;
+  hy: number;
+  hull: string;
+  max: string | null;
+  hullX: number;
+  shield: { x: number; pips: boolean; count: string } | null;
+  plate: { x: number; text: string } | null;
+  regenX: number | null;
+  bar: { x: number; w: number };
+}
+
+/**
+ * WIND-1 (REQ-BFG-093, REQ-BFG-097): the plate's row in the plate's own rect (the layout never changes: no plate grows).
+ * The hull: its current hull (fmtDmg of s.hull.hp, read directly) in the 5x7 face, and "/max" (fmtDmg of s.hull.max) after
+ * it in the 3x5 face where the bar keeps BAR_MIN; `shield` (null: the side can't hold SHIELD) its count, after its pips where
+ * room allows; `plate` (null: no plating layer) plating's number with the PLATE icon; `regenRoom` REGEN's badge room (0:
+ * none). `lead`: the tag's and the name's width from the plate's left text edge. Pure (tests/wind1.test.ts).
+ */
+export function plateRow(o: { x: number; y: number; w: number; h: number; lead: number; hp: number; max: number; shield: number | null; regenRoom: number; plate: number | null }): PlateRow {
+  const ty = o.y + Math.floor((o.h - 5) / 2), hy = o.y + Math.max(0, Math.floor((o.h - 7) / 2));
+  const hull = fmtDmg(Math.max(0, o.hp)), max = `/${fmtDmg(o.max)}`;
+  const curW = textWidth(hull, "5"), maxW = textWidth(max, "3") + 1;
+  const count = o.shield === null ? "" : fmtCount(o.shield);
+  const pipsW = SHIELD_PIPS_W + 1 + textWidth(count, "3"), oneW = textWidth(`${ICON.SHIELD}${count}`, "3");
+  const plateText = o.plate === null ? "" : `${ICON.PLATE}${fmtDmg(o.plate)}`, plateW = textWidth(plateText, "3");
+  const right = o.x + o.w - 3, left = o.x + 3 + o.lead + 3;
+  const forms = [[true, true, true], [false, true, true], [false, false, true], [false, false, false]];
+  let row: PlateRow | null = null;
+  for (let i = 0; i < forms.length; i++) {
+    const [withMax, pips, regen] = forms[i];
+    const hullX = right - curW - (withMax ? maxW : 0);
+    let rx = hullX - 3;
+    const regenX = o.regenRoom && regen ? rx : null;
+    if (regenX !== null) rx -= o.regenRoom;
+    const plate = o.plate === null ? null : { x: rx - plateW, text: plateText };
+    if (plate) rx = plate.x - 3;
+    let lx = left;
+    const shield = o.shield === null ? null : { x: lx, pips, count };
+    if (shield) lx += (pips ? pipsW : oneW) + 3;
+    row = { ty, hy, hull, max: withMax ? max : null, hullX, shield, plate, regenX, bar: { x: lx, w: rx - lx } };
+    if (row.bar.w >= BAR_MIN) break;
+  }
+  return row!;
+}
+
+/** WIND-1 tooling (bb.windInfo): a plate as drawn: its rect, its hull text ("current" or "current/max"), the hull number's
+ *  box and face, the bar's box, the SHIELD count and plating number shown (null: none). */
+export interface PlateInfo {
+  side: Side;
+  r: Rect;
+  hull: string;
+  font: "5";
+  hullBox: Rect;
+  bar: Rect;
+  shield: string | null;
+  plate: string | null;
+  windFlash: boolean;
+}
+
 /** Name plate: [NAME ▮▮▮▮▮▮▮▮ 147] on a dark panel, player lime / enemy red. 0.7.0 (R1 M1): `tag` (online, the enemy
- *  plate where no row is free above it) goes first, grey: [ONLINE · WEAVER · 0W 5♥ ▮▮▮▮ 147]. */
-export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name: string, hpText: string, tag?: string): void {
+ *  plate where no row is free above it) goes first, grey: [ONLINE · WEAVER · 0W 5♥ ▮▮▮▮ 147]. WIND-1 (REQ-BFG-093,
+ *  REQ-BFG-097): the row is plateRow's: the hull as a number you can read (white, the 5x7 face, "/max" where it fits; read
+ *  from s.hull directly, so `hpText` is no longer drawn), SHIELD's count with its pips, plating's layer with its number in
+ *  plating's colour; the bar flashes the wind's colour on a wind tick. Returns what it drew (tooling). */
+export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name: string, hpText: string, tag?: string): PlateInfo {
+  void hpText; // WIND-1: the plate reads the hull itself (current and max)
   const s = a.b.sides[side];
   const f = a.sfx[side];
   statsPanel(g, r, skinOf(a.views[side].skin).panel); // CUSTOM-2a: the player's plate wears its panel style; a foe's the default
   let tx = r.x + 3;
-  const ty = r.y + Math.floor((r.h - 5) / 2);
+  const ty0 = r.y + Math.floor((r.h - 5) / 2);
   if (tag) {
     const t = plateTag(tag);
-    drawText(g, t, tx, ty, C.slate4, { font: "3" });
+    drawText(g, t, tx, ty0, C.slate4, { font: "3" });
     tx += textWidth(t, "3") + 4;
   }
   const nameW = textWidth(name, "3");
-  const hpW = textWidth(hpText, "3");
-  drawText(g, name, tx, ty, side === 0 ? C.white : C.red, { font: "3" });
-  drawText(g, hpText, r.x + r.w - 3, ty, C.bone, { font: "3", align: "right" });
-  let bx = tx + nameW + 3, bw = r.x + r.w - 3 - hpW - 3 - bx;
+  drawText(g, name, tx, ty0, side === 0 ? C.white : C.red, { font: "3" });
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): a side that can hold SHIELD shows its pips before its bar (lit up to its count, the
-  // rest of SHIELD_CAP dim; a broken one flashes out), and a side with REGEN (MENDING LOOMs, FLIP-X1: or GREEN THREAD) its REGEN badge before its HP. Their
-  // room is kept from the start, so the bar never moves; a plate without either draws exactly as before
-  if (bw > 8 + SHIELD_PIPS_W && showsShield(a, side)) {
-    drawShieldPips(g, bx, ty, s.shield ?? 0, f.shieldBreak > 0 ? f.shieldAt : -1, game.t);
-    bx += SHIELD_PIPS_W + 3;
-    bw -= SHIELD_PIPS_W + 3;
+  // rest of SHIELD_CAP dim; a broken one flashes out), and a side with REGEN (MENDING LOOMs, FLIP-X1: or GREEN THREAD) its
+  // REGEN badge before its HP. Their room is kept from the start, so the bar never moves. WIND-1 (REQ-BFG-097): SHIELD's
+  // count after its pips; plating's layer (whenever plated() or the side holds any) with its number
+  const shows = showsShield(a, side), plating = plated(a, side) || s.plate.plate > 0;
+  const rmax = regenMax(a, side), regenRoom = rmax > 0 ? textWidth(`+${fmtDmg(rmax)}`, "3") + 3 : 0;
+  const row = plateRow({ x: r.x, y: r.y, w: r.w, h: r.h, lead: tx - (r.x + 3) + nameW, hp: s.hull.hp, max: s.hull.max, shield: shows ? s.shield ?? 0 : null, regenRoom, plate: plating ? s.plate.plate : null });
+  const ty = row.ty;
+  drawText(g, row.hull, row.hullX, row.hy, C.white, { font: "5" });
+  if (row.max) drawText(g, row.max, row.hullX + textWidth(row.hull, "5") + 1, row.hy + 2, C.bone, { font: "3" });
+  const broke = f.shieldBreak > 0 ? f.shieldAt : -1;
+  if (row.shield) {
+    const n = s.shield ?? 0;
+    if (row.shield.pips) {
+      drawShieldPips(g, row.shield.x, ty, n, broke, game.t);
+      drawText(g, row.shield.count, row.shield.x + SHIELD_PIPS_W + 1, ty, SHIELD_COLOUR, { font: "3" });
+    } else {
+      const flash = broke >= n && f.shieldBreak > 0 && (settings.reducedMotion || Math.floor(game.t * 12) % 2 === 0);
+      drawText(g, `${ICON.SHIELD}${row.shield.count}`, row.shield.x, ty, n > 0 ? SHIELD_COLOUR : flash ? C.white : C.slate2, { font: "3", mono: true });
+    }
   }
-  const rmax = regenMax(a, side), room = rmax > 0 ? textWidth(`+${fmtDmg(rmax)}`, "3") + 3 : 0;
-  if (room && bw > 8 + room) {
+  if (row.regenX !== null) {
     const now = regenNow(a, side);
-    if (now > 0) drawText(g, `+${fmtDmg(now)}`, r.x + r.w - 3 - hpW - 3, ty, ICON_COLOUR[ICON.REGEN], { font: "3", align: "right" });
-    bw -= room;
+    if (now > 0) drawText(g, `+${fmtDmg(now)}`, row.regenX, ty, ICON_COLOUR[ICON.REGEN], { font: "3", align: "right" });
   }
-  if (bw > 8 && plated(a, side)) {
+  if (row.plate) drawText(g, row.plate.text, row.plate.x, ty, PLATE_COLOUR, { font: "3", mono: true });
+  const bx = row.bar.x, bw = row.bar.w;
+  if (bw > 8 && plating) {
     // 0.8.0 H1 M3: BASTION's plating strip on top of the hull bar, in the bar's 7 rows: plating takes hits before HP, so
     // the strip drains (white where just lost) while the bar below holds; the dark wind goes straight to the bar
     // 0.8.0 I1 M4: the side's pool (P1's E1: SideState.plate, which IS BASTION's RaceSide.plating), so wave 3's plating
-    // shows on any hull that holds a source of it
-    drawPlatingStrip(g, bx, ty - 1, bw, s.plate.plate, f.plateShown, PLATE_CAP, PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME);
+    // shows on any hull that holds a source of it. WIND-1 (REQ-BFG-097): in plating's colours, its number beside the bar
+    drawPlatingStrip(g, bx, ty - 1, bw, s.plate.plate, f.plateShown, PLATE_CAP, PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME, PLATE_STRIP);
     hullBar(g, bx, ty - 1 + STRIP_H, bw, 7 - STRIP_H, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t, windTint(f));
   } else if (bw > 8) hullBar(g, bx, ty - 1, bw, 7, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t, windTint(f));
   // status pips: fray / burn
@@ -114,6 +200,12 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     if (s.hull.fray > 0) rect(g, px - 2, r.y - 2, 2, 2, C.ice);
     if (burn > 0) rect(g, px - 5, r.y - 2, 2, 2, C.fire3);
   }
+  const hullW = textWidth(row.hull, "5") + (row.max ? textWidth(row.max, "3") + 1 : 0);
+  return {
+    side, r: { ...r }, hull: row.max ? `${row.hull}${row.max}` : row.hull, font: "5", hullBox: { x: row.hullX, y: row.hy, w: hullW, h: 7 },
+    bar: { x: bx, y: ty - 1, w: Math.max(0, bw), h: 7 }, shield: row.shield ? row.shield.count : null, plate: row.plate ? row.plate.text : null,
+    windFlash: f.windFlash > 0,
+  };
 }
 
 /** WIND-1 (REQ-BFG-093): the hull bar's tint on a dark wind tick (both bars: arenaReact windPop sets each side's flash), or

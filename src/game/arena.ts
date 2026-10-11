@@ -45,6 +45,9 @@ export interface SideFx {
   shieldAt: number;
   // WIND-1 (REQ-BFG-093; display only): seconds left on the hull bar's purple flash for a dark wind tick (arenaReact windPop)
   windFlash: number;
+  // WIND-1 (REQ-BFG-097; display only): a SHIELD just stopped a hit (its `shield` event of -1); the hit's own impact, next in
+  // the step, pops BLOCKED there
+  shieldStop: boolean;
 }
 
 function sideFx(b: Battle, side: Side): SideFx {
@@ -64,7 +67,7 @@ function sideFx(b: Battle, side: Side): SideFx {
     plateShown: plate, plateHold: 0, plateLast: plate, plateShine: 0,
     w3: newWave3Fx(turretSlots(s.build).length),
     shieldBreak: 0, shieldAt: 0, // SUS-B
-    windFlash: 0, // WIND-1
+    windFlash: 0, shieldStop: false, // WIND-1
   };
 }
 

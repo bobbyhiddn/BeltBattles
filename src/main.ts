@@ -329,6 +329,7 @@ game.start();
     return {
       colour: C.windHit, flash: [a.sfx[0].windFlash, a.sfx[1].windFlash], callT: a.windCallT, call: css(s.windCallR),
       numbers: s.motion.windDrawn.map((n) => ({ side: n.side, text: n.text, beside: n.beside, r: css(n) })),
+      plates: s.plateRows.map((p) => (p ? { ...p, r: css(p.r), bar: css(p.bar), hullBox: css(p.hullBox) } : null)),
     };
   },
   /** Current screen name (for harness assertions). SCOUT-1 (REQ-BFG-076): `phase` true, on a battle its phase instead

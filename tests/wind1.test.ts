@@ -14,11 +14,13 @@ import { setupRun } from "../src/tooling";
 import { startDusk } from "../src/game/day";
 import { battleSeed } from "../src/game/run";
 import { Arena } from "../src/game/arena";
-import { WIND_COLOUR, WIND_FLASH_TIME, react, windDmg, windLife } from "../src/game/arenaReact";
+import { BLOCKED, PLATE_COLOUR, SHIELD_COLOUR, WIND_COLOUR, WIND_FLASH_TIME, react, windDmg, windLife } from "../src/game/arenaReact";
 import { placeWindNumber } from "../src/game/arenaMotion";
 import { battleLayout, battleScale, cameraFocus, laneLayout, type BattleLayout } from "../src/game/battleLayout";
-import { WIND_CALL, WIND_CALL_SUB, floorOnScreen, windCallLayout } from "../src/screens/battleHud";
+import { BAR_MIN, WIND_CALL, WIND_CALL_SUB, floorOnScreen, plateRow, windCallLayout } from "../src/screens/battleHud";
+import { SUMMARY_ROWS, summaryRects, summaryRows } from "../src/screens/battleScout";
 import { WIND_POP_MAX, type Popup } from "../src/render/fx";
+import { ICON, textWidth } from "../src/render/font";
 import { C } from "../src/render/palette";
 import { fmtDmg } from "../src/ui/statFormat";
 
@@ -168,6 +170,148 @@ function layoutOf(w: number, h: number, dpr: number): BattleLayout {
   const s = battleScale(pw, ph, portrait);
   return laneLayout(battleLayout(Math.floor(pw / s), Math.floor(ph / s), portrait));
 }
+
+describe("WIND-1: the plates (call 5: the hull as a number; call 6: SHIELD's count, plating's number)", () => {
+  const NAMES: [string, string | undefined][] = [["FURNACE", undefined], ["FOUNDRY", undefined], ["BRASSWICK", undefined], ["IRON MATRIARCH", undefined], ["WEAVER · 0W 5♥", "ONLINE"]];
+  it("on every view: the current hull always, in the 5x7 face inside the plate; /max where the bar keeps BAR_MIN; nothing overlaps", () => {
+    const table: string[] = [];
+    for (const [name, w, h, dpr] of VIEWS) {
+      const L = layoutOf(w, h, dpr);
+      for (const side of [0, 1] as Side[]) {
+        const r = L.plates[side];
+        const forms: string[] = [];
+        for (const [nm, tag] of NAMES) {
+          const lead = (tag ? textWidth(`${tag} ·`, "3") + 4 : 0) + textWidth(nm, "3");
+          for (const [hp, max] of [[2100, 2100], [906, 2250], [0, 3850], [12345, 12345]]) {
+            for (const shield of [null, 0, 3]) {
+              for (const plate of [null, 0, 240]) {
+                const row = plateRow({ x: r.x, y: r.y, w: r.w, h: r.h, lead, hp, max, shield, regenRoom: 0, plate });
+                const curW = textWidth(row.hull, "5"), maxW = row.max ? textWidth(row.max, "3") + 1 : 0;
+                expect(row.hull).toBe(fmtDmg(hp));
+                expect(row.hullX + curW + maxW).toBeLessThanOrEqual(r.x + r.w - 3);
+                expect(row.hy).toBeGreaterThanOrEqual(r.y);
+                expect(row.hy + 7).toBeLessThanOrEqual(r.y + r.h);
+                expect(row.bar.x + row.bar.w + 3).toBeLessThanOrEqual(row.plate ? row.plate.x : row.hullX);
+                if (row.plate) expect(row.plate.x + textWidth(row.plate.text, "3") + 3).toBeLessThanOrEqual(row.hullX);
+                if (row.max) expect(row.bar.w).toBeGreaterThanOrEqual(BAR_MIN);
+                if (row.shield) expect(row.shield.count).toBe(String(shield));
+                if (plate !== null) expect(row.plate?.text).toBe(`${ICON.PLATE}${fmtDmg(plate)}`);
+                if (hp === 2100 && shield === null && plate === null) forms.push(`${nm}: ${row.max ? "cur/max" : "cur"} bar ${row.bar.w}`);
+              }
+            }
+          }
+          // a plain plate with a hero's name (no SHIELD, no plating, 4 figures) shows current/max on every view but the
+          // compact portrait's narrow player plate
+          const plain = plateRow({ x: r.x, y: r.y, w: r.w, h: r.h, lead: textWidth("FURNACE", "3"), hp: 2100, max: 2100, shield: null, regenRoom: 0, plate: null });
+          if (!L.compact || side === 1) expect(plain.max, `${name} side ${side}`).toBe("/2100");
+        }
+        table.push(`${name} ${side ? "foe" : "you"} plate ${r.w}x${r.h}: ${forms.join("; ")}`);
+      }
+    }
+    console.log(`WIND1 PLATES\n${table.join("\n")}`);
+  });
+});
+
+/** CIE L*a*b* (D65) of a #RRGGBB colour, and the CIE76 difference: how far apart two colours look. */
+function lab(hex: string): [number, number, number] {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  const X = (0.4124 * c[0] + 0.3576 * c[1] + 0.1805 * c[2]) / 0.95047, Y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2], Z = (0.0193 * c[0] + 0.1192 * c[1] + 0.9505 * c[2]) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+}
+const dE = (a: string, b: string): number => { const p = lab(a), q = lab(b); return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); };
+
+describe("WIND-1 call 6: BLOCKED pops, the colours, VIEW BATTLEFIELD's rows", () => {
+  const impact = (side: Side, dmg: number): SimEvent => ({ type: "impact", side, x: 60, y: 60, dmg, heavy: false, kind: "hull", shock: false, burn: 0, big: false });
+  const pops = (a: Arena) => a.fx.popList.slice(0, a.fx.popCount).map((p) => ({ text: p.text, color: p.color, side: p.side }));
+
+  it("a plating soak pops BLOCKED n (the soaked part) in plating's colour, apart from the hit's own number", () => {
+    const d = dusk("bastion", 1, 12345);
+    const a = new Arena(d.player, d.enemy, d.seed, null, undefined, [0, 0]);
+    (a as unknown as { soakLeft: [number, number] }).soakLeft[1] = 40; // the step's plating soak (Arena.stepSoak), not yet shown
+    react(a, impact(1, 100));
+    expect(pops(a)).toEqual([{ text: "100", color: PLATE_COLOUR, side: 1 }, { text: `${BLOCKED} 40`, color: PLATE_COLOUR, side: 1 }]);
+    react(a, impact(1, 100)); // the soak is spent: a plain hit
+    expect(pops(a).slice(2)).toEqual([{ text: "100", color: C.white, side: 1 }]);
+  });
+
+  it("a SHIELD stop pops BLOCKED with no number, in SHIELD's colour, where its hit lands; a pierced SHIELD doesn't", () => {
+    const d = dusk("furnace", 1, 12345);
+    const a = new Arena(d.player, d.enemy, d.seed, null, undefined, [0, 0]);
+    react(a, { type: "shield", side: 0, amount: -1, shield: 2 });
+    react(a, impact(0, 0));
+    expect(pops(a)).toEqual([{ text: "0", color: C.white, side: 0 }, { text: BLOCKED, color: SHIELD_COLOUR, side: 0 }]);
+    react(a, { type: "shield", side: 0, amount: -1, shield: 1 });
+    react(a, impact(0, 50)); // SHATTER SHOT: damage went through
+    expect(pops(a).slice(2)).toEqual([{ text: "50", color: C.white, side: 0 }]);
+    react(a, { type: "shield", side: 0, amount: 1, shield: 2 }); // a gain: no cue
+    react(a, impact(0, 0));
+    expect(pops(a).slice(3)).toEqual([{ text: "0", color: C.white, side: 0 }]);
+  });
+
+  it("in a BASTION dusk, plating soaks pop BLOCKED numbers on the BASTION's hull", () => {
+    const d = dusk("bastion", 1, 12345);
+    const a = new Arena(d.player, d.enemy, d.seed, null, undefined, [0, 0]);
+    let blocked = 0;
+    for (let f = 0; f < 60 * 50 && !a.b.over; f++) {
+      const before = live(a);
+      a.update(1 / 60);
+      for (let i = 0; i < a.fx.popCount; i++) {
+        const p = a.fx.popList[i];
+        if (!before.has(p) && p.text.startsWith(`${BLOCKED} `)) { blocked++; expect(p.color).toBe(PLATE_COLOUR); expect(p.side).toBe(0); }
+      }
+    }
+    expect(a.b.sides[0].plate.absorbed).toBeGreaterThan(0);
+    expect(blocked).toBeGreaterThan(0);
+  });
+
+  it("the colours: the wind's, plating's and SHIELD's apart from each other and from fire, burn, HEAL, the hits and the plum UI", () => {
+    const named: [string, string][] = [["wind", WIND_COLOUR], ["plate", PLATE_COLOUR], ["shield", SHIELD_COLOUR]];
+    const others: [string, string][] = [["fire3 (fire, BURN)", C.fire3], ["fire4", C.fire4], ["yellow", C.yellow], ["white", C.white], ["HEAL", C.green], ["plum4", C.plum4], ["REGEN", C.verd3]];
+    const out: string[] = [];
+    for (let i = 0; i < named.length; i++) {
+      for (const [n2, c2] of [...named.slice(i + 1), ...others]) {
+        const d = dE(named[i][1], c2);
+        out.push(`${named[i][0]}-${n2} ${d.toFixed(0)}`);
+        expect(d, `${named[i][0]} ${named[i][1]} against ${n2} ${c2}`).toBeGreaterThanOrEqual(15);
+      }
+    }
+    expect(PLATE_COLOUR).toBe(C.plate3);
+    expect(SHIELD_COLOUR).toBe(C.rune3);
+    console.log(`WIND1 DELTA-E76 ${out.join(", ")}`);
+  });
+
+  it("VIEW BATTLEFIELD: WIND TAKEN is stats.windTaken on both sides; PLATE BLOCKED and SHIELD BLOCKED; both summaries fit every view", () => {
+    const d = dusk("bastion", 1, 12345);
+    const a = new Arena(d.player, d.enemy, d.seed, null, undefined, [0, 0]);
+    a.finish();
+    expect(a.b.sides[0].stats.windTaken).toBeGreaterThan(0);
+    for (const side of [0, 1] as Side[]) {
+      const rows = summaryRows(a, side), m = Object.fromEntries(rows);
+      expect(rows.length).toBe(SUMMARY_ROWS);
+      expect(rows.map((r) => r[0])).toEqual(["DAMAGE DEALT", "SHOTS", "HULL LOST", "WIND TAKEN", "PLATE BLOCKED", "SHIELD BLOCKED"]);
+      expect(m["WIND TAKEN"]).toBe(fmtDmg(a.b.sides[side].stats.windTaken));
+      expect(m["PLATE BLOCKED"]).toBe(fmtDmg(a.b.sides[side].plate.absorbed));
+      expect(m["SHIELD BLOCKED"]).toBe(String(a.b.sides[side].blocked ?? 0));
+    }
+    expect(summaryRows(a, 0)[3][1]).toBe(summaryRows(a, 1)[3][1]); // the same wind on both
+    for (const [name, w, h, dpr] of VIEWS) {
+      const L = layoutOf(w, h, dpr), { r, stacked } = summaryRects(L);
+      for (const q of r) {
+        expect(inside(q, { x: 0, y: 0, w: L.W, h: L.H }), `${name}: on screen`).toBe(true);
+        // portrait: the floor's rows; landscape: the column between the carriers, above the bar (a face's, faceArea)
+        expect(inside(q, L.portrait ? { x: 0, y: L.gapBox.y, w: L.W, h: L.gapBox.h } : { x: L.gapBox.x, y: 0, w: L.gapBox.w, h: L.bar.y }), `${name}: in the floor`).toBe(true);
+        for (const hb of L.hulls) expect(hits(q, hb), `${name}: over a carrier`).toBe(false);
+        const rows = summaryRows(a, 0);
+        const need = 4 + 7 + (stacked ? rows.length * 12 : Math.ceil(rows.length / (L.portrait ? 2 : 1)) * 7) + 2;
+        expect(q.h, `${name}: holds its rows`).toBeGreaterThanOrEqual(need);
+        // a label and its value side by side fit the row (or the stack puts the value under it)
+        if (!stacked && !L.portrait) for (const [lb, v] of rows) expect(textWidth(lb, "3") + 4 + textWidth(v, "3") + 8).toBeLessThanOrEqual(q.w);
+      }
+      expect(hits(r[0], r[1]), `${name}: the two summaries overlap`).toBe(false);
+    }
+  });
+});
 
 describe("WIND-1: where the numbers and the callout go", () => {
   it("a wind number is inside the screen and clear of both plates and the bar, on its hull or beside its plate", () => {

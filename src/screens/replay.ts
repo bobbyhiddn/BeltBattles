@@ -24,7 +24,7 @@ import { banner } from "../ui/hud";
 import { fmtClock, fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock and the hull, whole
 import { button, panel } from "../ui/ui";
 import { SPEEDS, SPEED_1X, drawBar, drawPlate, type BarState } from "./battleHud";
-import { drawWindCall } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout, as the battle shows it
+import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout, as the battle shows it
 import type { View } from "../core/io";
 import { isPhone, tapPx } from "../ui/tap"; // shoptap (D5, backlog 319)
 
@@ -73,6 +73,8 @@ export class ReplayScreen implements Screen {
   private readonly seed: number;
   /** WIND-1 tooling (bb.windInfo): the DARK WIND callout's box as drawn this frame (null: not showing). */
   windCallR: Box | null = null;
+  /** WIND-1 tooling (bb.windInfo): each plate as drawn this frame, [yours, the foe's]. */
+  readonly plateRows: [PlateInfo | null, PlateInfo | null] = [null, null];
 
   constructor(private game: Game, private back: Screen, battle: Battle, private label: { day: number; foe: string }) {
     const [mine, theirs] = battle.record.builds;
@@ -186,8 +188,8 @@ export class ReplayScreen implements Screen {
       const p = this.L.plates[s], r = this.plateR[s];
       r.x = p.x; r.y = p.y; r.w = p.w; r.h = p.h;
     }
-    drawPlate(g, this.game, a, this.plateR[1], 1, this.label.foe, this.hp[1]);
-    drawPlate(g, this.game, a, this.plateR[0], 0, this.heroName, this.hp[0]);
+    this.plateRows[1] = drawPlate(g, this.game, a, this.plateR[1], 1, this.label.foe, this.hp[1]);
+    this.plateRows[0] = drawPlate(g, this.game, a, this.plateR[0], 0, this.heroName, this.hp[0]);
     const sec = Math.floor(b.t);
     const st = this.bar;
     st.speed = this.speed;
