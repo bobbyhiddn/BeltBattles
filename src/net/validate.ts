@@ -25,6 +25,7 @@ import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, lastChanceGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules; Z-BUMP: LAST CHANCE by the rules
+import { firstRunGateProblem } from "./rulesGate"; // FIRSTDAY-1 (REQ-BFG-004, F4): the first-run flag by the gate
 import { runeGrants, runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with the client's check
 import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRuneAt, type TakenLastChance } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { lastChancePartStars } from "../sim/lastChance"; // HULL-1d (REQ-BFG-073): the PART card's star (★2 with HULL_SCALE on)
@@ -45,6 +46,9 @@ export interface ValidateContext {
   /** NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's road log (absent: none, every switch-off deck): with the seed each
    *  entry's warlord, deck and drop are re-derived (roadProblem), and its drops count toward the budget at their value. */
   road?: RoadEntry[];
+  /** FIRSTDAY-1 (REQ-BFG-004, F4): the snapshot's first-run flag (absent: every other deck): with the seed, days 1-2's
+   *  rune offers are re-derived by F3's rule (runes.ts runeProblem); refused while the first-run gate is off. */
+  firstRun?: boolean;
 }
 
 /**
@@ -144,6 +148,9 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // NPC-1 (REQ-BFG-077, REQ-BFG-078): a road log travels only with NPC_DAY on and under rules that have it
   const ndGate = ctx.road ? npcDayGateProblem(rules) : null;
   if (ndGate) return { ok: false, errors: [`road: ${ndGate}`] };
+  // FIRSTDAY-1 (REQ-BFG-004, F4): a first-run flag travels only with the first-run gate on
+  const frGate = ctx.firstRun ? firstRunGateProblem() : null;
+  if (frGate) return { ok: false, errors: [`firstRun: ${frGate}`] };
   return validateBuild(build, day, "player", ctx);
 }
 
@@ -287,7 +294,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     if (rd) return { ok: false, errors: [rd] };
   }
   const lcAt = lastChanceRuneAt(lc);
-  const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost", false, lcAt);
+  const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost", false, lcAt, ctx.firstRun === true); // FIRSTDAY-1: a first run's dawns 1-2
   if (rp) return { ok: false, errors: [`rune: ${rp}`] };
   // what the runes gave: HULL and BELT runes sit in hullBonus / beltCap (run.ts takeRune), so the supply and budget
   // blocks below read the bought hull and belt (`bought`); dawn-gold runes add their gold to the day's budget. LC-1: the

@@ -13,6 +13,7 @@ import { BOONS, type Boon, type TakenLastChance } from "../sim/lastChance"; // L
 import { RUN_DAYS } from "../sim/content"; // LC-1: LAST CHANCE comes before the last day
 import { npcDayGateProblem } from "./rulesGate"; // NPC-1 (REQ-BFG-077): the road log by the switch and the rules
 import { ROAD_OUTCOMES, type RoadEntry } from "../sim/npcDay"; // NPC-1
+import { firstRunGateProblem } from "./rulesGate"; // FIRSTDAY-1 (REQ-BFG-004): the first-run flag by the gate
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -105,6 +106,10 @@ export interface GhostSnapshot {
   /** NPC-1 (REQ-BFG-077, REQ-BFG-078; snapshot v3, written last, only with NPC_DAY on): the run's road log, one entry per
    *  day reached ({ day, tier, outcome, drop? }): the server re-derives each warlord and its drop from the seed. */
   road?: RoadEntry[];
+  /** FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F4; snapshot v3, written last, only with the first-run gate on): the run
+   *  is a new player's first run, so its days 1-2 rune offers are re-derived by F3's rule (runes.ts runeProblem). Absent
+   *  on every other snapshot. */
+  firstRun?: true;
 }
 
 /** A snapshot with its pool id (content hash for stored ghosts, "offline-..." for stand-ins). */
@@ -401,10 +406,30 @@ function roadField(o: Obj, version: number, rules: string): { road?: RoadEntry[]
   };
 }
 
+/** FIRSTDAY-1 (REQ-BFG-004): the snapshot's key for a first run's flag (after road, last of all). */
+export const FIRST_RUN_FIELD = "firstRun";
+
+/**
+ * FIRSTDAY-1 (BRIEF-FIRSTDAY1 F4): the optional `firstRun`, v3 only, `true` only, written last (a snapshot without it
+ * encodes byte for byte as before). Refused while the first-run gate is off (rulesGate.ts firstRunGateProblem): a
+ * SnapshotError, the endpoint's 400, as NPC-1's road log is. What it changes is validate.ts's rune check (runeProblem's
+ * `firstRun`: days 1-2's offers by F3's rule).
+ */
+function firstRunField(o: Obj, version: number): { firstRun?: true } {
+  if (!has(o, FIRST_RUN_FIELD) || o[FIRST_RUN_FIELD] === undefined) return {};
+  const at = `snapshot.${FIRST_RUN_FIELD}`;
+  if (version < SNAPSHOT_V3) throw new SnapshotError(`${at}: not allowed in a v${version} snapshot`);
+  const gate = firstRunGateProblem();
+  if (gate) throw new SnapshotError(`${at}: ${gate}`);
+  if (o[FIRST_RUN_FIELD] !== true) throw new SnapshotError(`${at}: expected true (or no key)`);
+  return { firstRun: true };
+}
+
 /** Full strict check of a decoded value. Returns a canonical copy. */
 export function checkSnapshot(v: unknown): GhostSnapshot {
-  // LC-1: `lastChance` may follow the v3 fields (lastChanceField refuses it while its switch is off); NPC-1: then `road`
-  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name", ...V3_SNAPSHOT_FIELDS, LAST_CHANCE_FIELD, ROAD_FIELD]);
+  // LC-1: `lastChance` may follow the v3 fields (lastChanceField refuses it while its switch is off); NPC-1: then `road`;
+  // FIRSTDAY-1: then `firstRun` (firstRunField refuses it while the first-run gate is off)
+  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name", ...V3_SNAPSHOT_FIELDS, LAST_CHANCE_FIELD, ROAD_FIELD, FIRST_RUN_FIELD]);
   if (o.v !== 1 && o.v !== 2 && o.v !== 3) throw new SnapshotError(`snapshot.v: expected 1, 2 or ${SNAPSHOT_V3}`);
   const ver: 1 | 2 | 3 = o.v;
   const rules = str(o.rules, "snapshot.rules", RULES_PATTERN);
@@ -429,6 +454,7 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
     ...v3Fields(o, ver), // RUNES-1 (snapshot v3): after the name, only when present
     ...lastChanceField(o, ver, rules, day), // LC-1 (REQ-BFG-073): last of all, only when present (and the switch on)
     ...roadField(o, ver, rules), // NPC-1 (REQ-BFG-077, REQ-BFG-078): after it, only when present (and NPC_DAY on)
+    ...firstRunField(o, ver), // FIRSTDAY-1 (REQ-BFG-004): last of all, only when present (and the first-run gate on)
   };
 }
 

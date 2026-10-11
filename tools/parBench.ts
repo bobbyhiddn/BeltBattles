@@ -75,6 +75,7 @@ import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix"; // HULL-1b 
 import { hullScaleRules, setHullScale } from "../src/sim/hullScale"; // HULL-1c (REQ-BFG-079): --hull-scale, N4's cache
 import { setNpcDay } from "../src/sim/npcDay"; // HULL-1c (REQ-BFG-078): --npc-day
 import { setPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): --plain-rigs
+import { setFirstRun } from "../src/sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004): --first-run
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
 /** 0.8.0 N1 (REQ-BFG-024, REQ-BFG-011): the par fields --rivals and --synergy measure against, `--fields a,b,...`
@@ -1430,12 +1431,14 @@ if (isMainThread && process.argv.includes("--ladder-fix")) setLadderFix(true);
     if (process.argv.includes("--hull-scale")) sw.add("hull");
     if (process.argv.includes("--npc-day")) sw.add("npc");
     if (process.argv.includes("--plain-rigs")) sw.add("plain"); // PLAIN-1 (REQ-BFG-084): PLAIN_RIGS, beside --all-on or alone
+    if (process.argv.includes("--first-run")) sw.add("first"); // FIRSTDAY-1 (REQ-BFG-004): FIRST_RUN (the par player never plays a first run: F5)
     if (sw.size) process.env.PARBENCH_SWITCHES = [...sw, ...(process.argv.includes("--ladder-fix") ? ["ladder"] : [])].join(",");
   } else for (const s of (process.env.PARBENCH_SWITCHES ?? "").split(",")) if (s) sw.add(s);
   if (sw.has("ladder")) setLadderFix(true);
   if (sw.has("hull")) setHullScale(true);
   if (sw.has("npc")) setNpcDay(true);
   if (sw.has("plain")) setPlainRigs(true); // PLAIN-1: the six in ITEMS in every thread (a content patch)
+  if (sw.has("first")) setFirstRun(true); // FIRSTDAY-1 (F5): with it on, every par deck must equal the switch-off decks'
 }
 // the entry comes last, so every module-level constant above is initialised before main() runs
 if (!isMainThread) serveJobs();

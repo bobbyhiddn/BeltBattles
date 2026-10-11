@@ -17,6 +17,8 @@ import { lastChanceRuneAt, lastChanceShapeOk, type LastChance, type TakenLastCha
 import { ROAD_FIELD } from "../net/snapshot"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the decoder's road key
 import { npcDayGateProblem } from "../net/rulesGate"; // NPC-1: the decoder's gate
 import { roadShapeOk, type RoadEntry } from "../sim/npcDay"; // NPC-1
+import { FIRST_RUN_FIELD } from "../net/snapshot"; // FIRSTDAY-1 (REQ-BFG-004, F4): the decoder's first-run key
+import { firstRunGateProblem } from "../net/rulesGate"; // FIRSTDAY-1: the decoder's gate
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
 // build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
@@ -79,6 +81,7 @@ export interface GhostSnapshot {
   battleGold?: number;
   lastChance?: TakenLastChance; // LC-1 (REQ-BFG-073): the run's taken LAST CHANCE, last (only with its switch on)
   road?: RoadEntry[]; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the run's road log, after it (only with NPC_DAY on)
+  firstRun?: true; // FIRSTDAY-1 (REQ-BFG-004, F4): a new player's first run, last (only with the first-run gate on)
 }
 
 export const SNAPSHOT_KEYS = ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"] as const;
@@ -190,7 +193,7 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   // PACKS M2 (REQ-BFG-063): `name` may follow, absent or a name names.ts accepts (an in-memory `name: undefined` is
   // absent), exactly as src/net/snapshot.ts checkSnapshot takes it, so this side refuses what the server refuses
   // LC-1 (REQ-BFG-073): `lastChance` last, as the strict decoder takes it (lastChanceOk below)
-  const extra = (k: string) => k === NAME_FIELD || (V3_SNAPSHOT_FIELDS as readonly string[]).includes(k) || k === LAST_CHANCE_FIELD || k === ROAD_FIELD; // RUNES-1: v3's fields; NPC-1: the road log
+  const extra = (k: string) => k === NAME_FIELD || (V3_SNAPSHOT_FIELDS as readonly string[]).includes(k) || k === LAST_CHANCE_FIELD || k === ROAD_FIELD || k === FIRST_RUN_FIELD; // RUNES-1: v3's fields; NPC-1: the road log; FIRSTDAY-1: the first-run flag
   if (!SNAPSHOT_KEYS.every((k) => keys.includes(k)) || keys.some((k) => !extra(k) && !(SNAPSHOT_KEYS as readonly string[]).includes(k))) return false;
   if (q.name !== undefined && nameProblem(q.name) !== null) return false;
   // RUNES-1 (snapshot v3): each present v3 field only in v3 and only while live; `seed` 1..MAX_SEED
@@ -202,6 +205,8 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   if (lc !== undefined && !(q.v >= SNAPSHOT_V3 && lastChanceGateProblem(q.rules) === null && lastChanceShapeOk(lc, true) && typeof q.day === "number" && lc.day < q.day)) return false;
   // NPC-1 (REQ-BFG-077, REQ-BFG-078): a road log as src/net/snapshot.ts roadField takes it: v3, the switch and rules gate
   if (q[ROAD_FIELD] !== undefined && !(q.v >= SNAPSHOT_V3 && npcDayGateProblem(q.rules) === null && roadShapeOk(q[ROAD_FIELD], q.day))) return false;
+  // FIRSTDAY-1 (REQ-BFG-004, F4): a first-run flag as src/net/snapshot.ts firstRunField takes it: v3, true, the gate on
+  if (q[FIRST_RUN_FIELD] !== undefined && !(q.v >= SNAPSHOT_V3 && q[FIRST_RUN_FIELD] === true && firstRunGateProblem() === null)) return false;
   return (q.v === 1 || q.v === 2 || q.v === 3) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
     && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build, q.v) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
@@ -211,7 +216,7 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
     && rulesGateProblem(q.rules, q.build) === null && heroGateProblem(q.rules, q.hero) === null
     // RUNES-1: the rune rule (validate.ts validateBuild's); FLIP-X2 (ruling 5d6d83ef57d1494c): at most `day` here (the
     // local pool), exact only for uploads (validateUpload); and a dormant rune kept (an old ghost holding one survives)
-    && runeProblem(q.build.runes, q.day, q.hero, q.seed, "atMost", true, lastChanceRuneAt(lc)) === null;
+    && runeProblem(q.build.runes, q.day, q.hero, q.seed, "atMost", true, lastChanceRuneAt(lc), q[FIRST_RUN_FIELD] === true) === null; // FIRSTDAY-1: a first run's dawns 1-2
 }
 
 /** Any string made safe for ID_PATTERN (invalid characters become "_", at most 64 long). */

@@ -30,6 +30,7 @@ import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
 import { RULES_VERSION } from "../sim/content"; // NPC-1 (REQ-BFG-077): NPC_DAY_RULES until the flip
 import { npcDayRules } from "../sim/npcDay"; // NPC-1: the switch
+import { firstRunGate } from "../sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004): the first-run gate (FIRST_RUN and PLAIN_RIGS)
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
@@ -182,6 +183,13 @@ export function npcDayGateProblem(rules: unknown): string | null {
   if (rulesAtLeast(rules, NPC_DAY_RULES)) return null;
   const what = `the road log (snapshot.road) needs ${NPC_DAY_RULES} or later`;
   return parseRules(rules) ? `rules ${String(rules)} predate ${NPC_DAY_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}
+
+/** FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F4): why a snapshot can't carry the first-run flag, or null: the gate off
+ *  (FIRST_RUN or PLAIN_RIGS off: a first run is then a normal run, so no deck may claim one). BUMP-1D ties it to 1D's
+ *  rules version when it flips both switches. */
+export function firstRunGateProblem(): string | null {
+  return firstRunGate() ? null : "not in this rules version yet";
 }
 
 /** The gate's rows: what a build may carry and the first rules version that takes it, oldest first. RUNES-2a adds the

@@ -218,7 +218,7 @@ export class Online implements Session {
     if (!this.identity || run.uploaded === run.day) return;
     run.uploaded = run.day;
     const snap = ghostOf(run, this.deps.now(), this.identity.playerId);
-    const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed, ...(snap.lastChance ? { lastChance: snap.lastChance } : {}), ...(snap.road ? { road: snap.road } : {}) }); // RUNES-1: the server's own rune check (LC-1: and its LAST CHANCE; NPC-1: and its road log)
+    const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed, ...(snap.lastChance ? { lastChance: snap.lastChance } : {}), ...(snap.road ? { road: snap.road } : {}), ...(snap.firstRun ? { firstRun: true } : {}) }); // RUNES-1: the server's own rune check (LC-1: and its LAST CHANCE; NPC-1: and its road log; FIRSTDAY-1: and its first-run flag)
     if (!v.ok) {
       console.debug(`[beltbattles] tonight's deck is not uploaded: ${v.errors[0] ?? "refused"}`);
       this.lastUpload = { ok: false, error: v.errors[0] ?? "refused", refused: true };

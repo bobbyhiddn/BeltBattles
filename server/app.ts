@@ -326,7 +326,9 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         // seed, so validateBuild re-derives every dawn's rune offer (runes.ts runeProblem); the seed is stored, never served
         // LC-1 (REQ-BFG-073): and its LAST CHANCE (absent on every switch-off snapshot: the decoder refuses the field)
         // NPC-1 (REQ-BFG-077, REQ-BFG-078): and its road log (absent on every switch-off snapshot: the decoder refuses it, 400)
-        const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed, ...(snap.lastChance ? { lastChance: snap.lastChance } : {}), ...(snap.road ? { road: snap.road } : {}) });
+        // FIRSTDAY-1 (REQ-BFG-004, F4): and its first-run flag (absent on every other snapshot: the decoder refuses it
+        // while the first-run gate is off, 400), so days 1-2's rune offers are re-derived by F3's rule
+        const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed, ...(snap.lastChance ? { lastChance: snap.lastChance } : {}), ...(snap.road ? { road: snap.road } : {}), ...(snap.firstRun ? { firstRun: true } : {}) });
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
         // 0.8.0 H2 (backlog 325): the (wins, lives) record must be one a run can carry into this day's dusk, as the seed
         // and ghosts:admin revalidate already check (same words as revalidate's). Otherwise an honest deck could carry a
