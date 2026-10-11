@@ -154,6 +154,18 @@ game.start();
     game.go(new ReplayScreen(game, new TitleScreen(game), r.battle, { day, foe: HEROES[hero].name }));
     return true;
   },
+  /** COUNT-1 (REQ-BFG-100) tooling: a read-only dev hook beside openMirror (no player path calls it): the fight of two given
+   *  builds `a` (yours) and `b` (the foe's) at `seed`, as a stored record replayed (openReplay(battleRecordFor(a, b, seed))
+   *  into a ReplayScreen, as openMirror and the summary's REPLAY play one), so every still of the counters is reproducible
+   *  from its two decks and its seed; BACK to the title. `day` picks the replay's banner, `foe` the foe plate's name.
+   *  Changes no run state. False when the record is refused. */
+  openFight(a: Build, b: Build, seed = 7, o: { day?: number; foe?: string } = {}): boolean {
+    clearPool();
+    const r = openReplay(battleRecordFor(a, b, seed));
+    if (!r.ok) return false;
+    game.go(new ReplayScreen(game, new TitleScreen(game), r.battle, { day: o.day ?? 8, foe: o.foe ?? HEROES[b.hero].name }));
+    return true;
+  },
   openDusk(o: RunSpec = {}, ghosts: GhostSpec[] = []): void {
     clearPool();
     addGhosts(ghosts);
