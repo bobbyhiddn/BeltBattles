@@ -383,7 +383,9 @@ export class ArenaMotion implements ShotMap {
       g.drawImage(this.layer, 0, 0, this.layer.width * this.lf, this.layer.height * this.lf);
       g.restore();
     }
-    drawWind(g, b.windLevel() * Math.max(0, 1 - a.overT / 1.2), W, H, a.clock, this.windMark);
+    // WIND-2 (REQ-BFG-093): side by side, the storm rolls in from both screen edges (windBoth: the layout at rest)
+    const level = b.windLevel() * Math.max(0, 1 - a.overT / 1.2);
+    drawWind(g, level, W, H, a.clock, { both: windBoth(hullBox(a.drawn[0]), hullBox(a.drawn[1])), mark: this.windMark });
     this.drawWindPops(g, a, W, H); // WIND-1 (REQ-BFG-093): the wind's numbers above the wind
     if (a.fx.flash > 0 && !reduced) {
       g.globalAlpha = Math.min(0.5, a.fx.flash);
@@ -397,7 +399,7 @@ export class ArenaMotion implements ShotMap {
    *  playback bar); the battle and the replay set it at each layout. Empty: only the screen's edges. */
   windKeep: { plates: readonly Box[]; bar: Box | null } = { plates: [], bar: null };
   /** WIND-2 (REQ-BFG-093) tooling, display only (scripts/mirror1shots.mjs sets it for one frame, then clears it; the game
-   *  never does): a colour the dark wind's band is drawn in, flat and opaque (render/world.ts drawWind's `mark`). */
+   *  never does): a colour the dark wind's band is drawn in, flat and opaque (render/world.ts drawWind's `look.mark`). */
   windMark = "";
   /** WIND-1 tooling (read only; bb.windInfo): the wind numbers drawn this frame, their side, text and box (logical px). */
   readonly windDrawn: { side: Side; text: string; x: number; y: number; w: number; h: number; beside: boolean }[] = [];
@@ -520,6 +522,16 @@ export class ArenaMotion implements ShotMap {
       }
     }
   }
+}
+
+/**
+ * WIND-2 (REQ-BFG-093): the dark wind's mode on this layout, from the two hulls at rest (`a.drawn`: never the camera, so
+ * CLOSE never flips it): true when they sit side by side (their centres differ more across than down: the desk, a phone
+ * held sideways), where the storm rolls in from both screen edges so each board sits under the same share of it; false
+ * when they are stacked (a portrait phone), where today's one front from the left lies over both alike. Pure.
+ */
+export function windBoth(h0: Box, h1: Box): boolean {
+  return Math.abs(h0.x + h0.w / 2 - (h1.x + h1.w / 2)) > Math.abs(h0.y + h0.h / 2 - (h1.y + h1.h / 2));
 }
 
 /**
