@@ -28,6 +28,7 @@ import { Editor, type EditHost } from "../src/screens/build/edit";
 import type { Sel } from "../src/screens/build/layout";
 import { frame as deckFrame } from "../src/render/frame";
 import { playerRun } from "../src/sim/harness/player";
+import { npcDayRules } from "../src/sim/npcDay"; // HULL-ON (NPC_DAY ships on): the par decks' budget line (JOINS-1 (6))
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
@@ -308,7 +309,11 @@ describe("JOINS-1 (6): the par player plans joins with no limit", () => {
     for (const [hero, seed] of [["weaver", 1], ["weaver", 2], ["furnace", 1], ["furnace", 2]] as const) {
       for (const d of playerRun(hero, 10, seed)) {
         decks++;
-        expect(validateBuild(d.build, d.day).errors, `${hero} s${seed} d${d.day}`).toEqual([]);
+        // HULL-ON (NPC_DAY, on since AZ-BUMP's flip def6e73): the par player fights the Medium warlord every day, so its
+        // decks are road-fed: legal by every strict line but the budget's, which is the road's rule (the road's gold and
+        // drops count only in the player mode with the road log), as the flip converted harness.player.test.ts (strictBut)
+        const errs = validateBuild(d.build, d.day).errors.filter((e) => !(npcDayRules() && e.startsWith("budget: ")));
+        expect(errs, `${hero} s${seed} d${d.day}`).toEqual([]);
         if (legalJoins(d.build) > JOIN_LIMIT) past++;
       }
     }
