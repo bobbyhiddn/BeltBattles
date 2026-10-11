@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { ITEMS, WINDOW_TIME } from "../src/sim/content";
-import { RULES_VERSION } from "../src/sim/content"; // Y7b2: HOPPER's tripwire (cap's ruling e66379fbf3184e56) is keyed to bb-0.9.3
+// AZ-BUMP S7: RULES_VERSION is gone with HOPPER's tripwire key (its saturated row is pinned with its cause, no rules key)
 import type { Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars";
@@ -68,7 +68,10 @@ describe("FB-B HOPPER: ★1's window at every star, plus a store for loads that 
   // 17, 2108; ★3 39, 17, 1976. The store and BOTTOMLESS asserts are deleted (switch-off only); ★2 -> ★3 deals less
   // (1976 < 2108): the tripwire below (cap's ruling e66379fbf3184e56). (The title was "...: the store takes loads off the
   // belts; each star ...")
-  it("two belts into one gun (saturated): each star deals more, none jams more", () => {
+  // AZ-BUMP S7 (backlog #370; cap's REVIEW-HULL1B section 5: "AZ-BUMP re-rules fb062.hopper's saturated row the NUM-1/NUM-2
+  // way: pin 2020 / 2108 / 1976 with the cause in a comment, and keep the jam, shot, ★2 > ★1, sparse-route and window checks
+  // live"): was "...: each star deals more, none jams more", with ★3's damage under a bb-0.9.7 tripwire key
+  it("two belts into one gun (saturated): none jams more, no star fires fewer shots, ★2 deals more than ★1; ★3's damage pinned (HOPPER's fire-rate-bound gun)", () => {
     const [one, two, three] = STARS.map((s) => shots(busy([["hopper", s]], 5000), 60));
     expect(two.jams).toBeLessThanOrEqual(one.jams);
     // Y7b2 (cap's ruling e66379fbf3184e56): ★3's jams too, so the title's "none jams more" holds at every star (17 = 17)
@@ -76,22 +79,13 @@ describe("FB-B HOPPER: ★1's window at every star, plus a store for loads that 
     expect(two.times.length).toBeGreaterThanOrEqual(one.times.length);
     expect(three.times.length).toBeGreaterThanOrEqual(two.times.length);
     expect(two.damage).toBeGreaterThan(one.damage);
-    // Y7b2 TRIPWIRE (cap's ruling e66379fbf3184e56; only while RULES_VERSION is "bb-0.9.3"; this saturated bench only): the
-    // flip took ★2/★3's store and ★3's no-jam, and on a saturated gun every star fires 39 shots with 17 jams, so the extra
-    // slots add no shots and only the packing moves the damage: ★3 < ★2 by 6.3% and ★3 < ★1 by 2.2% (was: each star deals
-    // more). Its three damages are pinned exactly; the jams, the shot counts and ★2 > ★1 above stay live. Design list:
-    // HOPPER's stars on saturated guns (one seed; check across seeds when fixing; fix it inside the window rule, with no
-    // store or no-jam returning: REVIEW-STARD, Y7A-R6); once fixed, delete this tripwire and let ★3 > ★2 cover HOPPER again
-    // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none): re-keyed bb-0.9.3 -> bb-0.9.7,
-    // its three damages measured at Z-BUMP's tip. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
-    if (RULES_VERSION === "bb-0.9.7") {
-      const why = "Y7b2 tripwire (cap's ruling e66379fbf3184e56): HOPPER's saturated damages pinned under bb-0.9.7 (re-ruled at Z-BUMP), ★3 < ★2 by 6.3%, ★3 < ★1 by 2.2%; accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)";
-      expect([one.damage, two.damage, three.damage], why).toEqual([2020, 2108, 1976]);
-      expect(three.damage, `${why}: the recorded finding, ★3 under ★2`).toBeLessThan(two.damage);
-      expect(three.damage, `${why}: the recorded finding, ★3 under ★1`).toBeLessThan(one.damage);
-      return;
-    }
-    expect(three.damage).toBeGreaterThan(two.damage);
+    // AZ-BUMP S7, the cause (no rules key): on a gun its fire rate bounds, every star fires 39 shots with 17 jams, and the
+    // window only reorders the loads, so ★3's packing deals less than ★2's (1976 < 2108, -6.3%; under ★1 by 2.2%). The
+    // star-ladder pass leaves HOPPER as it is (ladderFix.ts: "no change", cap's oracle 37b12cb17a536589, ruling Y7A-R6);
+    // HOPPER's job on a fire-rate-bound gun is backlog #385 (priority 0), for a content pass after the hull release. Pinned
+    // exactly, as NUM-1 and NUM-2 pin their measured rows (was the Y7b2 tripwire, cap's ruling e66379fbf3184e56, keyed to
+    // bb-0.9.3 and re-keyed to bb-0.9.7 at Z-BUMP); the jams, the shot counts and ★2 > ★1 above stay live
+    expect([one.damage, two.damage, three.damage], "HOPPER on a saturated gun (REVIEW-HULL1B section 5, backlog #385)").toEqual([2020, 2108, 1976]);
   });
 
   // Y7b2 (the flip): was "... still fuse through the store ..." (no store now); measured 24 fusions at every star

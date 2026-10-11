@@ -24,6 +24,9 @@ import { REFIT_LABEL } from "../src/screens/event/event";
 import { itemName } from "../src/screens/event/cards";
 import { EVENTS } from "../src/game/eventDefs";
 import { scriptDigest } from "./npc1.script";
+import { scriptedDays } from "./npc1.script"; // AZ-BUMP (the bump): the switch-off digest with bb-0.9.7 put back
+import { hashSeed } from "../src/core/rng"; // AZ-BUMP (the bump): scriptDigest's hash
+import { RULES_VERSION } from "../src/sim/content"; // AZ-BUMP (the bump): the rules string each snapshot stamps
 import type { Difficulty } from "../src/sim/rivals";
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
@@ -64,11 +67,23 @@ function npcDay(run0: Run, tier: Difficulty, won: 0 | 1 | -1, dusk: 0 | 1 | -1, 
 
 // AZ-BUMP (the flip, NPC_DAY): NPC_DAY ships on, so the two tests of 0.9.7's day set it off themselves (withNpcDay(fn, false));
 // the digests were taken at npc1-base with the switch off (HULL_SCALE's gold table moves only from day 7, past the script's 3)
+// AZ-BUMP (the bump to bb-0.10.0): ghostOf stamps this build's rules in each of the script's three snapshots, and that string
+// is the only change since npc1-base: with bb-0.9.7 (the rules npc1-base stamped) put back in those three "rules" fields,
+// the script's JSON gives npc1-base's three digests exactly (kit-azbump probes/zz-npc1digest, run 8). So the digest is read
+// with bb-0.9.7 put back, and the pins stay npc1-base's (scriptDigest itself now reads 16c756d4:6295, ad47262:6246 and
+// 4bbf5518:6334, each 3 characters longer: "bb-0.10.0" is one character longer than "bb-0.9.7")
+const digest097 = (seed: number): string => {
+  const s = JSON.stringify(scriptedDays(seed));
+  expect(s.split(`"rules":"${RULES_VERSION}"`).length - 1, `seed ${seed}: the script's three snapshots`).toBe(3);
+  const back = s.split(`"rules":"${RULES_VERSION}"`).join(`"rules":"bb-0.9.7"`);
+  return `${hashSeed(back).toString(16)}:${back.length}`;
+};
 describe("NPC-1 with the switch off: 0.9.7's day", () => {
-  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f)", () => withNpcDay(() => {
-    expect(scriptDigest(9701)).toBe("5865119d:6292");
-    expect(scriptDigest(4242)).toBe("6ab6cc53:6243");
-    expect(scriptDigest(31337)).toBe("8a31722d:6331");
+  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withNpcDay(() => {
+    expect(digest097(9701)).toBe("5865119d:6292");
+    expect(digest097(4242)).toBe("6ab6cc53:6243");
+    expect(digest097(31337)).toBe("8a31722d:6331");
+    expect(scriptDigest(9701)).toBe("16c756d4:6295"); // AZ-BUMP: the bump, the rules string alone (was "5865119d:6292")
   }, false));
 
   it("the fork keeps its event stop, Hard its pick of 2, REFIT its sales, and the snapshot has no road", () => withNpcDay(() => {

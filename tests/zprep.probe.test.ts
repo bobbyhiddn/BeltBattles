@@ -20,6 +20,8 @@ import { isReachable } from "../src/net/records";
 
 const NINE = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON"];
 const ELEVEN = [...NINE, "lastchance-signed", "lastchance-day3"];
+// AZ-BUMP (the bump to bb-0.10.0; REQ-BFG-077, REQ-BFG-078): the NPC day's two rows follow LAST CHANCE's
+const THIRTEEN = [...ELEVEN, "npcday-signed", "npcday-forged"];
 const NOW = 1_790_000_000_000;
 const rows = (plan: ReturnType<typeof probePlan>) => plan.map((p) => [p.name, p.text, p.signed, p.expected]);
 const ctx = (s: GhostSnapshot) => ({ seed: s.seed, ...(s.lastChance ? { lastChance: s.lastChance } : {}) });
@@ -33,23 +35,25 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // Z-BUMP (the bump): each of the nine rows' bytes carries this build's rules (now bb-0.9.7) and the 201 rows their
 // ghost ids, so the digest moved with the rules string; was c39396ca... under bb-0.9.3 (the flip commit, where it equals the
 // pre-flip build's own nine rows, flip-T3.md)
-const PRE_FLIP_NINE = "bb8341cb5d8178ecabb1c04d02ffefed8e21dcb7cd39ce5419fed0d237c8f080";
+// AZ-BUMP (the bump): the nine rows' bytes carry this build's rules, now bb-0.10.0, so the digest moved again with
+// the rules string; was bb8341cb... under bb-0.9.7 (Z-BUMP's pin). The nine rows are otherwise as before, in order
+const PRE_FLIP_NINE = "3e2f6adeffe09f9c102792286d97eefe0201e81ad97c4f5d119a9faabf3c7847";
 
 describe("Z-PREP: the probe's LAST CHANCE rows", () => {
-  it("the plan: the nine rows it had before the flip first (in order, byte for byte, none carries a lastChance), then the two LAST CHANCE rows; 5 decks are expected", () => {
+  it("the plan: the nine rows it had before the flip first (in order, byte for byte, none carries a lastChance), then the two LAST CHANCE rows and the NPC day's two (AZ-BUMP); 6 decks are expected", () => {
     const plan = probePlan("p-zprep", NOW);
-    expect(plan.map((p) => p.name)).toEqual(ELEVEN); // Z-BUMP (the flip): was NINE, the whole plan with the switch off
+    expect(plan.map((p) => p.name)).toEqual(THIRTEEN); // AZ-BUMP (the bump): was ELEVEN. Z-BUMP (the flip): was NINE, the whole plan with the switch off
     const nine = plan.slice(0, 9);
     expect(digest(rows(nine))).toBe(PRE_FLIP_NINE); // Z-BUMP: the first nine, byte for byte the plan before the flip
     expect(nine.some((p) => p.snapshot.lastChance !== undefined || p.text.includes("lastChance"))).toBe(false);
-    expect([probeStored(), PROBE_STORED]).toEqual([5, 4]); // Z-BUMP (the flip): was [4, 4]; the nine rows still store 4
+    expect([probeStored(), PROBE_STORED]).toEqual([6, 4]); // AZ-BUMP (the bump): was [5, 4] (the NPC day's honest row stores one more). Z-BUMP (the flip): was [4, 4]; the nine rows still store 4
   });
 
   it("the nine rows unchanged, then the two flip rows; the honest one passes POST's checks, the forged one fails only the record", () => {
     const on = probePlan("p-zprep", NOW);
-    expect(on.map((p) => p.name)).toEqual(ELEVEN);
+    expect(on.map((p) => p.name)).toEqual(THIRTEEN); // AZ-BUMP (the bump): was ELEVEN
     expect(digest(rows(on.slice(0, 9)))).toBe(PRE_FLIP_NINE); // the first nine, byte for byte (Z-BUMP: was rows(off), the switch-off plan)
-    const [h, f] = on.slice(9);
+    const [h, f] = on.slice(9, 11); // AZ-BUMP: LAST CHANCE's two rows (the NPC day's two follow)
     // the honest row: FURNACE's start deck, its six dawn runes on PROBE_SEED, +LAST_CHANCE_HULL; the encoder's bytes
     expect(h.snapshot).toMatchObject({ hero: "furnace", ...LC_DUSK, seed: PROBE_SEED, lastChance: { day: 5, boon: "hull" } });
     expect(h.snapshot.build.runes).toHaveLength(6);
@@ -65,10 +69,10 @@ describe("Z-PREP: the probe's LAST CHANCE rows", () => {
     expect(validateUpload(f.snapshot.build, f.snapshot.day, f.snapshot.rules, ctx(f.snapshot)).ok).toBe(true);
     expect(isReachable(6, 0, 2, { lastChance: 3 })).toBe(false);
     expect([f.signed, f.expected]).toEqual([true, "422 record: 0W 2 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 3"]);
-    expect(probeStored()).toBe(5);
+    expect(probeStored()).toBe(6); // AZ-BUMP: the bump (was 5; the NPC day's honest row)
   });
 
-  it("end to end: eleven checks as expected against a fresh server, which stores five decks", async () => {
+  it("end to end: thirteen checks as expected against a fresh server, which stores six decks (AZ-BUMP: was eleven and five)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "bb-zprep-probe-"));
     const store = new JsonlStore(join(dir, "data"));
     store.load();
@@ -76,10 +80,10 @@ describe("Z-PREP: the probe's LAST CHANCE rows", () => {
     try {
       const base = `http://127.0.0.1:${await app.listen(0)}`;
       const r = await runProbe(base, () => {}, 15_000, NOW);
-      expect(r.checks.map((c) => [c.name, c.ok])).toEqual(ELEVEN.map((n) => [n, true]));
+      expect(r.checks.map((c) => [c.name, c.ok])).toEqual(THIRTEEN.map((n) => [n, true])); // AZ-BUMP: was ELEVEN
       expect(r.checks[9].got).toMatch(/^201 \{"id":"g[0-9a-f]{14}"\}$/);
       expect(r.checks[10].got).toBe("422 record: 0W 2 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 3");
-      expect([r.ok, r.stored, probeStored()]).toEqual([true, 5, 5]);
+      expect([r.ok, r.stored, probeStored()]).toEqual([true, 6, 6]); // AZ-BUMP: the bump (was [true, 5, 5])
     } finally {
       await app.close();
       rmSync(dir, { recursive: true, force: true });

@@ -58,8 +58,8 @@ function honest(boon: Boon, hero: HeroId): GhostSnapshot {
 }
 
 describe("Z-BUMP F1 (REVIEW-ZPREP): revalidate's record check knows the record's rules", () => {
-  it("this build's rules and LAST CHANCE's row are bb-0.9.7; bb-0.9.3 predates it, so its records are read without LAST CHANCE", () => {
-    expect([RULES_VERSION, LAST_CHANCE_RULES]).toEqual(["bb-0.9.7", "bb-0.9.7"]);
+  it("LAST CHANCE's row is bb-0.9.7 and this build's rules are at or after it (AZ-BUMP: bb-0.10.0); bb-0.9.3 predates it, so its records are read without LAST CHANCE", () => {
+    expect([RULES_VERSION, LAST_CHANCE_RULES]).toEqual(["bb-0.10.0", "bb-0.9.7"]); // AZ-BUMP: the bump (was ["bb-0.9.7", "bb-0.9.7"])
     expect([recordHasLastChance(RULES_VERSION), recordHasLastChance(OLD), recordHasLastChance(undefined), recordHasLastChance("nope")]).toEqual([true, false, true, false]);
     // the model under bb-0.9.3 is the one before the flip: 1 life at dusk 6 after five losses; under bb-0.9.7 the loss at
     // dusk 5 fires LAST CHANCE, so that run carries 2 lives, never 1
@@ -71,7 +71,7 @@ describe("Z-BUMP F1 (REVIEW-ZPREP): revalidate's record check knows the record's
     expect([count(OLD), count(RULES_VERSION), count()]).toEqual([178, 172, 172]);
   });
 
-  it("a bb-0.9.3 record at 0W 1L on dusk 6 revalidates clean (uploadProblems under --rules bb-0.9.3); the CLI itself takes only bb-0.9.7", () => {
+  it("a bb-0.9.3 record at 0W 1L on dusk 6 revalidates clean (uploadProblems under --rules bb-0.9.3); the CLI itself takes only this build's rules (AZ-BUMP: bb-0.10.0; was bb-0.9.7)", () => {
     const s = plain(OLD);
     expect(uploadProblems(stored(s), OLD)).toEqual([]);
     // revalidate's CLI path reads only this build's rules: --rules bb-0.9.3 is a usage error (exit 2), nothing is read
@@ -79,12 +79,12 @@ describe("Z-BUMP F1 (REVIEW-ZPREP): revalidate's record check knows the record's
     expect(() => parseArgs(["revalidate", "--rules", OLD])).toThrow(`revalidate checks uploads with this build's rules, ${RULES_VERSION}; for ${OLD} use wipe-uploads or remove-player`);
   });
 
-  it("the same record under bb-0.9.7 is refused: a run at 1 life on dusk 6 would have had its LAST CHANCE", () => {
+  it("the same record under this build's rules (AZ-BUMP: bb-0.10.0; was bb-0.9.7) is refused: a run at 1 life on dusk 6 would have had its LAST CHANCE", () => {
     const s = plain(RULES_VERSION);
     expect(uploadProblems(stored(s), RULES_VERSION)).toEqual(["record: 0W 1 lives is no record a run carries into dusk 6"]);
   });
 
-  it("an honest bb-0.9.7 LAST CHANCE record revalidates clean, each card; stamped bb-0.9.3 its field is the decoder's refusal", () => {
+  it("an honest LAST CHANCE record under this build's rules (AZ-BUMP: bb-0.10.0; was bb-0.9.7) revalidates clean, each card; stamped bb-0.9.3 its field is the decoder's refusal", () => {
     for (const hero of ["furnace", "bastion"] as HeroId[]) {
       for (const boon of BOONS) {
         const s = honest(boon, hero);
@@ -95,7 +95,7 @@ describe("Z-BUMP F1 (REVIEW-ZPREP): revalidate's record check knows the record's
         const old: StoredRecord = { ...rec, text: rec.text.replace(`"rules":"${RULES_VERSION}"`, `"rules":"${OLD}"`) };
         expect(old.text, `${hero} ${boon}`).not.toBe(rec.text);
         expect(uploadProblems(old, OLD), `${hero} ${boon}`)
-          .toEqual([`strict decode: snapshot.lastChance: rules ${OLD} predate ${RULES_VERSION}: LAST CHANCE (snapshot.lastChance) needs ${RULES_VERSION} or later`]);
+          .toEqual([`strict decode: snapshot.lastChance: rules ${OLD} predate ${LAST_CHANCE_RULES}: LAST CHANCE (snapshot.lastChance) needs ${LAST_CHANCE_RULES} or later`]); // AZ-BUMP (the bump): the row's own version (it equalled RULES_VERSION until the bump)
       }
     }
   });

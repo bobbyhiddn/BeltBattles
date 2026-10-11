@@ -45,8 +45,9 @@
 // the new CUSTOMIZE screen (REQ-BFG-072, REQ-BFG-074). No battle changes, so the rules stay bb-0.9.7 and the label
 // moves to 0.9.8.
 // 0.9.9 is 0.9.8 with the battle view: a setting for every battle, a wider view of the fight, VIEW BATTLEFIELD after
-// it, a scouted foe's carrier, the dark wind's numbers on both carriers and cleaner cards. No battle changes, so the
-// rules stay bb-0.9.7 and the label moves to 0.9.9.
+// it, a scouted foe's carrier, the dark wind's numbers on both carriers and cleaner cards. The hull release rides in
+// it: AZ-BUMP (its one bump; REQ-BFG-079, REQ-BFG-077, REQ-BFG-078) changes battles (the hull by the day, the NPC day,
+// the star ladders), so the rules move to bb-0.10.0 and the label to 0.9.9 (the combined 0.9.9 on branch c099).
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version";
@@ -55,9 +56,9 @@ import { RULES_VERSION } from "../src/sim/content";
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
 describe("the 0.9.9 label", () => {
-  it("is 0.9.9 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are Z-BUMP's bb-0.9.7 (Y7b2's were bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
+  it("is 0.9.9 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are AZ-BUMP's bb-0.10.0 (Z-BUMP's were bb-0.9.7, Y7b2's bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
     expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.9", "0.9.9", "0.9.9", "0.9.9"]);
-    expect(RULES_VERSION).toBe("bb-0.9.7") /* Z-BUMP: the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
+    expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
   });
 });
