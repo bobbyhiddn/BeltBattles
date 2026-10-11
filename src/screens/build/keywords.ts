@@ -505,20 +505,28 @@ export interface InfoItem {
   word?: KwWord;
   /** EXPLAIN-1: a NOTES line's text (markup or glyphs, as the panel's text holds it). */
   note?: string;
+  /** CARD-2 (REQ-BFG-081, K5): its lines' face: NOTES in 3x5 (a 7 px pitch), as the hidden lines were drawn on the face;
+   *  LEVELS and KEYWORDS in 5x7 (absent: "5", a 9 px pitch). */
+  font?: FontId;
 }
+
+/** CARD-2 (K5): an entry's line pitch: 7 px for a 3x5 entry (NOTES), 9 for a 5x7 one. */
+const pitchOf = (it: Pick<InfoItem, "font">): number => (it.font === "3" ? 7 : 9);
 
 /** The ⓘ view's entries at text width `w`: EXPLAIN-1 (E4) the NOTES lines first (each a separate entry, wrapped in 5x7 as a
  *  definition is), then the LEVELS lines (each wrapped in 5x7), then the KEYWORDS definitions. */
 export function infoItems(levels: readonly LevelLine[], words: readonly KwWord[], w: number, notes: readonly string[] = []): InfoItem[] {
   return [
-    ...notes.map((note): InfoItem => ({ section: "NOTES", lines: definitionLines(note, w), gap: 2, note })),
+    // CARD-2 (REQ-BFG-081, K5; READ-3 fix 5, EXPLAIN-1 open item 2): NOTES in the 3x5 face (each line its own entry, its
+    // keyword in its colour), so most views fit one page; was definitionLines (5x7)
+    ...notes.map((note): InfoItem => ({ section: "NOTES", lines: wrapRich(colourize(icons(note), C.bone), w, "3"), gap: 2, note, font: "3" })),
     ...levels.map((level, i): InfoItem => ({ section: "LEVELS", lines: wrapRich(levelSpans(level), w, "5"), gap: i === levels.length - 1 ? 2 : 0, level })),
     ...words.map((word): InfoItem => ({ section: "KEYWORDS", lines: definitionLines(word.text, w), gap: 2, word })),
   ];
 }
 
 /** The height an entry takes on a page after `prev` (its section's 9 px header row when it opens the page or a section). */
-const itemNeed = (it: InfoItem, prev: InfoItem | undefined): number => (prev?.section === it.section ? 0 : 9) + it.lines.length * 9 + it.gap;
+const itemNeed = (it: InfoItem, prev: InfoItem | undefined): number => (prev?.section === it.section ? 0 : 9) + it.lines.length * pitchOf(it) + it.gap;
 
 /** The ⓘ view's pages: as many whole entries as fit the body's height (`h`), each section's header row before its first
  *  entry on a page (U2c's viewPages, with LEVELS before KEYWORDS); a page footer's room where there are more. */
@@ -772,6 +780,8 @@ export interface InfoRow {
   h: number;
   section?: InfoItem["section"];
   line?: RichLine;
+  /** CARD-2 (K5): the line's face (NOTES "3"; absent: "5"). */
+  font?: FontId;
 }
 
 /** FLIP-X1 (N4-b): page `page` of the ⓘ view as drawView draws it: its areas and pages (infoView), each area's box (null
@@ -831,9 +841,10 @@ export function infoDrawn(items: readonly InfoItem[], r: Rect, top: number, bott
         rows.push({ area: ai, y: y + 1, h: 5, section: it.section });
         y += 9;
       }
+      // CARD-2 (K5): a NOTES entry's lines in 3x5 (5 px tall, a 7 px pitch)
       for (const ln of it.lines) {
-        rows.push({ area: ai, y, h: 7, line: ln });
-        y += 9;
+        rows.push({ area: ai, y, h: it.font === "3" ? 5 : 7, line: ln, ...(it.font === "3" ? { font: "3" as FontId } : {}) });
+        y += pitchOf(it);
       }
       y += it.gap + (i < its.length - 1 ? px : 0);
     });
@@ -863,7 +874,7 @@ function drawView(g: G, ui: UI, s: KwState, items: readonly InfoItem[], r: Rect,
     for (const row of rows) {
       if (row.area !== ai) continue;
       if (row.section) drawText(g, row.section, r.x + 5, row.y, C.brass3, { font: "3" });
-      else if (row.line) drawRich(g, row.line, r.x + 5, row.y, "5");
+      else if (row.line) drawRich(g, row.line, r.x + 5, row.y, row.font ?? "5");
     }
     ui.add({ id: `${KW_REGION}view`, r: box, onTap: turn });
   });

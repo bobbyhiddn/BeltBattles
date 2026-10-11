@@ -538,3 +538,47 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     expect(Object.values(KEYWORD_WORD).filter((w) => FIRST_SIGHT_WORDS.includes(w)).sort()).toEqual(["BURN", "FRAY", "HEAL", "HEAT", "PAIR", "PLATE", "REGEN", "RIDE", "SHIELD", "STUN"]);
   });
 });
+
+import { definitionLines, explainWords, infoDrawn, infoItems, infoLevels, infoPages, panelPiece } from "../src/screens/build/keywords";
+
+describe("CARD-2 (k5): NOTES in 3x5 in the ⓘ view (READ-3 fix 5; the page counts are keywords.tap.test.ts's U2F pins)", () => {
+  afterEach(() => { setTipsForTests("reload"); });
+
+  it("TEMPER, DART GUN, SEAM WELDER on 402x690 @3 with a rune and on the desk: each NOTES line its own 3x5 entry (7 px pitch, infoDrawn's gaps); LEVELS and KEYWORDS in 5x7 as before", () => {
+    setTipsForTests("done");
+    const rows: string[] = [];
+    let nNotes = 0;
+    for (const [view, f, touch] of [["op-402x690 runes 1", framed(402, 690, 3, 1), true], ["desk runes 1", framed(1920, 1080, 1, 1), false]] as const) {
+      for (const def of ["temper", "dartgun", "seamwelder"]) {
+        const run = cargoRun(def === "seamwelder" ? "foundry" : "furnace", def), d = panelCtx(run, CARGO, f, touch).d();
+        const r = d.plan.r, w = r.w - 10, top = d.plan.y - 1, bottom = d.plan.maxY + 2;
+        const notes = (d.t.notes ?? []).map((b) => b.text);
+        const items = infoItems(infoLevels(run, CARGO), explainWords(d.t, panelPiece(run, CARGO)), w, notes);
+        const ns = items.filter((it) => it.section === "NOTES");
+        // every NOTES line is still its own entry, in order, with its gap; drawn in 3x5 (its keyword in its colour)
+        expect(ns.map((it) => it.note), `${view} ${def}`).toEqual(notes);
+        for (const it of ns) {
+          expect([it.font, it.gap], `${view} ${def}: ${it.note}`).toEqual(["3", 2]);
+          expect(it.lines).toEqual(wrapRich(colourize(icons(it.note!), C.bone), w, "3"));
+          for (const ln of it.lines) expect(lineWidth(ln, "3")).toBeLessThanOrEqual(w);
+        }
+        // LEVELS and KEYWORDS as they were (5x7)
+        for (const it of items.filter((x) => x.section !== "NOTES")) expect(it.font, `${view} ${def}: ${it.section}`).toBeUndefined();
+        // as drawn: a NOTES line 5 px tall at a 7 px pitch, every other line 7 px at 9
+        const drawn = infoDrawn(items, r, top, bottom, null, 0);
+        const lines = drawn.rows.filter((q) => q.line);
+        for (const q of lines) expect(q.h, `${view} ${def}`).toBe(q.font === "3" ? 5 : 7);
+        for (let i = 1; i < lines.length; i++) {
+          if (lines[i].area === lines[i - 1].area && lines[i].font === "3" && lines[i - 1].font === "3" && lines[i].y - lines[i - 1].y < 9) expect(lines[i].y - lines[i - 1].y).toBe(7);
+        }
+        // the room NOTES takes: 5x7 (EXPLAIN-1) -> 3x5; the body-alone pages (U2e) before -> after
+        const old = items.map((it) => (it.section === "NOTES" ? { ...it, lines: definitionLines(it.note!, w), font: undefined } : it));
+        const h5 = ns.reduce((n, it) => n + definitionLines(it.note!, w).length * 9 + it.gap, 0), h3 = ns.reduce((n, it) => n + it.lines.length * 7 + it.gap, 0);
+        nNotes += ns.length;
+        rows.push(`${view} ${def}: ${ns.length} NOTES entries, ${h5} -> ${h3} px; body-alone pages ${infoPages(old, bottom - top).length} -> ${infoPages(items, bottom - top).length}`);
+      }
+    }
+    expect(nNotes).toBeGreaterThan(0);
+    console.log(`CARD-2 (k5) NOTES in 3x5:\n${rows.join("\n")}`);
+  });
+});
