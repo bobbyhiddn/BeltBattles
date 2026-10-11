@@ -121,7 +121,9 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   // AZ-BUMP (the flip, LADDER_FIX): ★2/★3's ride-keep sentence ("A PAYLOAD KEEPS 50% / 100% OF THE RIDE THAT SPEED CUTS, FOR
   // ITS RIDE BONUSES (HEAT, LONG RIDES).") quotes the keep, after the speed and before the locked sentence (was [speed,
   // ...flat, lockedFlat], which off and at ★1 it still is)
-  overdrive: (e) => [fasterNum(g(e).speed!), ...(g(e).flat ? [g(e).flat] : []), ...(rideKeep(e) ? [pct(rideKeep(e))] : []), g(e).lockedFlat!],
+  // MERGE-099C (TSC-369's ratchet: c099's tests type-check no worse than release-099's 162): `g(e).flat!`, guarded already
+  // (a call doesn't narrow), so the row's three TS2322s go (two were 0.9.8's, one the ride-keep's); the numbers are the same
+  overdrive: (e) => [fasterNum(g(e).speed!), ...(g(e).flat ? [g(e).flat!] : []), ...(rideKeep(e) ? [pct(rideKeep(e))] : []), g(e).lockedFlat!],
   tollbooth: (e) => [g(e).toll!],
   // NUM-3 (R1's STUN fold): S.marks names SAP, the one mark left, and its cut (SIM.sap; was CHILL's 25% and SNAG's 20%)
   sifter: (e) => (g(e).sift === "all" ? [g(e).siftFlat!, ...(g(e).siftClean ? [g(e).siftClean] : []), SIM.sap] : [1, SIM.sap]),
