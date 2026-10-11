@@ -23,7 +23,7 @@ import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
 import { beltIcon, itemIcon } from "../render/sprites";
-import { skinOf } from "../render/styles";
+import { skinOf, type PanelId } from "../render/styles";
 import { button, panel, statsPanel, tapRect, type Rect } from "../ui/ui";
 import { tapPx } from "../ui/tap";
 import { fmtCount, fmtDmg } from "../ui/statFormat";
@@ -292,19 +292,29 @@ export class BattleFaces {
       this.last = null;
       return;
     }
-    const build = a.b.sides[o.side].build;
-    const line = view ? fightLine(a, o) : null;
+    const fa = faceArea(L, o.side);
+    // the panel wears its side's panel style, as its plate does (the player's chosen style; a foe's the default)
+    this.drawOn(g, game, a.b.sides[o.side].build, fa, (r) => faceFree(L, fa.area, r), skinOf(a.views[o.side].skin).panel, view ? fightLine(a, o) : null);
+  }
+
+  /** SCOUT-1c (REQ-BFG-082): the one face path. The open face on `build` in `fa` (planPanel's area, and whether it is a
+   *  band), its ⓘ view growing into free(panel rect), in panel style `style`; `line`: VIEW BATTLEFIELD's fight line. The
+   *  battle (draw above) and the build screen's scouted foe (build/foeView.ts) both draw through it. */
+  drawOn(g: G, game: Game, build: Build, fa: { area: Rect; band: boolean }, free: (r: Rect) => Rect | null, style: PanelId, line: string | null): void {
+    const o = this.open;
+    if (!o) {
+      this.last = null;
+      return;
+    }
     const t = faceText(build, o.sel, line);
     if (!t) {
       this.close();
       return;
     }
     const run = faceRun(build), tp = fingerPx(game);
-    const fa = faceArea(L, o.side);
     const plan: PanelPlan = planPanel(t, fa.area, selFamilies(run, o.sel), { tap: tp, band: fa.band });
     const r = plan.r, ui = game.ui;
-    // the panel wears its side's panel style, as its plate does (the player's chosen style; a foe's the default)
-    statsPanel(g, r, skinOf(a.views[o.side].skin).panel);
+    statsPanel(g, r, style);
     ui.add({ id: "face", r, block: true });
     rect(g, r.x + 4, r.y + 4, 16, 16, C.ink);
     rect(g, r.x + 5, r.y + 5, 14, 14, C.slate0);
@@ -326,7 +336,7 @@ export class BattleFaces {
       else drawLine(g, v.line, r.x + 5, v.y);
     }
     // the ⓘ button and the keyword targets (the build screen's layer, on this side's build: the enemy's runes too)
-    drawKeywordLayer(g, this, ui, run, { show: o.sel, t, plan }, shown, hit ? [hit] : [], tp, game.canvas, faceFree(L, fa.area, r));
+    drawKeywordLayer(g, this, ui, run, { show: o.sel, t, plan }, shown, hit ? [hit] : [], tp, game.canvas, free(r));
     this.last = {
       title: t.title, sub: t.sub, side: o.side, sel: o.sel, line, r: { ...r }, close: hit,
       lines: shown.flatMap((v) => (v.line === "rule" ? [] : [v.line.spans.map((s) => s.t).join("")])),

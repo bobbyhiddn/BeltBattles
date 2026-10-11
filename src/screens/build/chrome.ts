@@ -24,7 +24,8 @@ import { drawHearts } from "../battleHud";
 import { LC_HEART_S } from "../battleHud"; // LC-1 (REQ-BFG-073): the regained heart
 import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
-import { drawDetails, drawFoe, hasDetails, textOpts } from "./inspector";
+import { drawDetails, hasDetails, textOpts } from "./inspector";
+import { drawFoeCard } from "./foeView"; // SCOUT-1c (REQ-BFG-082): the NEXT BATTLE card opens a scouted foe
 import { abilityText, cardText } from "../../ui/abilityText"; // 0.6.2t (T5): the card's one-line effect, the tooltip's
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 import { drawBeltX } from "./beltx"; // shoptap (D3)
@@ -230,7 +231,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   const held = c ? null : s.ed.selectedCarry();
   if (held && !s.ed.busy) inCarrier(g, L, () => drawSuggestion(g, L, s.run.build, held.def, s.t)); // ZOOM-1: at the carrier's zoom
   if (!L.portrait) {
-    if (L.foe) drawFoe(g, s.foe, L.foe, s.note());
+    if (L.foe) drawFoeCard(g, s, L.foe); // SCOUT-1c (REQ-BFG-082): drawFoe, and a revealed foe's tap target
     drawDetails(g, s, s.sel, s.hover, L.info, s.foe, s.note());
   } else if (hasDetails(s, s.sel, s.hover) || !L.foe) {
     // a selection or hover uses the whole band. shoptap2 (REQ-BFG-034, -035): after a finger's tap, where the band is
@@ -241,7 +242,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     drawDetails(g, s, s.sel, s.hover, area, s.foe, s.note(), through);
   } else {
     // idle portrait band: hero card over the NEXT BATTLE panel (zoom: on a phone's taller band, the pair in its middle)
-    drawFoe(g, s.foe, L.foe, s.note());
+    drawFoeCard(g, s, L.foe); // SCOUT-1c (REQ-BFG-082): drawFoe, and a revealed foe's tap target
     const top = heroCardRect(L.info, L.foe);
     if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top, s.foe, s.note());
     // ZOOM-1 (REQ-BFG-080, call 5): a phone's band sized for 90% of the panels can leave the hero card 24-29 px: its compact

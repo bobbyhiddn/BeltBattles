@@ -53,6 +53,7 @@ import { EventScreen } from "../event/event";
 import { RuneBar, runeRowFits, runeRowH, shiftLayout } from "../../ui/runeBar"; // RUNES-1 (REQ-BFG-058): the rune bar
 import { RunePicker } from "../runePicker"; // RUNES-1: the dawn rune picker
 import { LastChancePicker } from "../lastChancePicker"; // LC-1 (REQ-BFG-073): the LAST CHANCE pick, before the dawn rune
+import { FoeView } from "./foeView"; // SCOUT-1c (REQ-BFG-082): a SCOUT-revealed foe from the NEXT BATTLE card
 
 /** 0.6.1d2 (ARSENAL.md §8.3): 0.5s per merge step normally; reduced motion collapses lift/arc/ring/
  *  sparkle to just the flash, so its "impact" beat comes almost immediately. */
@@ -280,6 +281,9 @@ export class BuildScreen implements Screen, EditHost {
    *  with the switch off) and the regained heart's animation clock on the bar (seconds since the pick; Infinity: none). */
   readonly lastChancePicker = new LastChancePicker();
   lcHeartT = Infinity;
+  /** SCOUT-1c (REQ-BFG-082): a SCOUT-revealed foe's carrier, opened from the NEXT BATTLE card (build/foeView.ts). While it
+   *  is open it takes every press and key, and the frame draws it over the sea instead of the deck and its chrome. */
+  readonly foeView = new FoeView();
 
   /** RUNES-1, LC-1: a picker is up (it takes every press and key). */
   modalUp(): boolean {
@@ -511,6 +515,7 @@ export class BuildScreen implements Screen, EditHost {
     let t0 = tw;
     this.sea.drawStill(g, { W, H, kind: seaForDay(this.run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(this.run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
     if (P) { const t1 = performance.now(); P.add(0, t1 - t0); t0 = t1; }
+    if (this.foeView.open) return this.foeView.draw(g, this); // SCOUT-1c (REQ-BFG-082): the scouted foe's carrier
     const ghost = this.ed.ghost();
     // free connectors glow while drawing, with no belt fed, or when a belt goes nowhere
     const guide = !!this.ed.draw || connectedRouteCount(this.run.build) === 0 || this.block === NOWHERE;
@@ -784,6 +789,7 @@ export class BuildScreen implements Screen, EditHost {
 
   /** shoptap (D1): `kind`, the pointer that pressed (the editor's touch rules read it). */
   down(x: number, y: number, kind: PointerKind = "mouse"): void {
+    if (this.foeView.open) return this.foeView.press(this, x, y); // SCOUT-1c: a part of the foe's carrier opens its face
     if (this.modalUp()) return; // RUNES-1: nothing under the rune picker moves (LC-1: nor the LAST CHANCE picker)
     this.skipFuseAnim(); // 0.6.1d2: a tap anywhere skips the merge animation to its end
     this.ed.down(x, y, kind);
@@ -791,6 +797,7 @@ export class BuildScreen implements Screen, EditHost {
 
   /** shoptap (D3): every press: one anywhere but on the belt X takes the X down (a press on a UI region included). */
   pressed(_x: number, _y: number, region: string | null): void {
+    if (this.foeView.open) return this.foeView.faces.pressed(region); // SCOUT-1c: a press off a face's word closes it
     if (this.modalUp()) return; // RUNES-1: the rune picker takes every press (LC-1: the LAST CHANCE picker too)
     if (region !== "beltx") this.ed.dropX();
     this.runeBar.pressed(region); // RUNES-1: a press off the rune bar closes its read-out
@@ -798,12 +805,14 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   move(x: number, y: number): void {
+    if (this.foeView.open) return; // SCOUT-1c: no hover or drag under the foe's view
     if (this.modalUp()) return; // RUNES-1: no hover or drag under the rune picker (LC-1: nor the LAST CHANCE picker)
     this.ed.move(x, y);
     this.hover = this.game.ui.pointer.down ? null : this.offerAt(x, y);
   }
 
   up(x: number, y: number): void {
+    if (this.foeView.open) return; // SCOUT-1c
     this.ed.up(x, y);
   }
 
@@ -812,6 +821,7 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   key(k: string): void {
+    if (this.foeView.open) return this.foeView.key(k); // SCOUT-1c: Escape closes the face, then the view; no FIGHT under it
     if (this.modalUp()) return; // RUNES-1: the rune picker can't be skipped (no FIGHT, reroll or Escape under it); LC-1: nor LAST CHANCE
     if (k === "Escape") {
       if (this.menu) this.menu = false;

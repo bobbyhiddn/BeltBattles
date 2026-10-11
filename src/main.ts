@@ -299,6 +299,22 @@ game.start();
       kind: p.sel.kind, id: p.sel.kind === "item" ? p.sel.uid : p.sel.index, name: p.name, x: c.left + p.x * k, y: c.top + p.y * k,
     }));
   },
+  /** SCOUT-1c tooling (read only; REQ-BFG-082): the build screen's scouted foe (build/foeView.ts): whether the NEXT BATTLE
+   *  card opens one (`scouted`), whether its view is open, the card's and BACK's tap targets, the open face (title, sub
+   *  line, body lines, its rect and CLOSE's target) and every part of the foe's carrier with a point inside it, all in CSS
+   *  client px; null off the build screen. */
+  foeView() {
+    const s = game.screen;
+    if (!(s instanceof BuildScreen)) return null;
+    const k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    const css = (q: { x: number; y: number; w: number; h: number } | null | undefined) => (q ? { x: c.left + q.x * k, y: c.top + q.y * k, w: q.w * k, h: q.h * k } : null);
+    const v = s.foeView.info(s), f = v.face;
+    return {
+      scouted: v.scouted, open: v.open, card: css(v.card), back: css(v.back),
+      face: f ? { sel: f.sel, title: f.title, sub: f.sub, lines: f.lines, r: css(f.r), close: css(f.close) } : null,
+      parts: v.parts.map((p) => ({ kind: p.sel.kind, id: p.sel.kind === "item" ? p.sel.uid : p.sel.index, name: p.name, x: c.left + p.x * k, y: c.top + p.y * k })),
+    };
+  },
   /** Current screen name (for harness assertions). SCOUT-1 (REQ-BFG-076): `phase` true, on a battle its phase instead
    *  ("intro", "count", "fight", "outro", "result", "view"; SCOUT-1b: no "scout"); without it the names as before, so every
    *  flow that waits for "battle" or "warlord" still does. */
