@@ -18,6 +18,7 @@ import type { Difficulty } from "./sim/rivals";
 import { loadPool, standInFoe } from "./game/ghosts";
 import { deckCost, maxGoldByDay } from "./sim/rivals";
 import type { Build } from "./sim/deck";
+import { kx, ky } from "./sim/deck"; // PAIR-CUE (REQ-BFG-100) tooling: bb.pairs's intake tiles
 import { TitleScreen } from "./screens/title";
 import { HeroScreen, ORDER as HERO_ORDER } from "./screens/hero";
 import { BuildScreen } from "./screens/build/build";
@@ -185,6 +186,33 @@ game.start();
       targets: d.targets.map((q) => ({ id: q.id, r: css(q.r), art: { ...q.r } })),
       panel: d.panel ? { id: d.panel.id, heads: d.panel.heads, lines: d.panel.lines, r: css(d.panel.r) } : null,
       pops: s.arena.fx.popCount,
+    };
+  },
+  /** PAIR-CUE (REQ-BFG-100, REQ-BFG-081) tooling (read only): the PAIR cue as of the last frame of the current battle or
+   *  replay: whether it shows, the pairs showing (side, turret, both intakes' routes, how they were found, age), what the
+   *  board drew (glows, flashed intakes, brackets), the PAIR pops alive (glyphs and marks), the pool's use (numbers +
+   *  PAIR pops, of 48) and the watch's tally; each intake tile's centre in CSS client px; null on another screen. */
+  pairs() {
+    const s = game.screen;
+    if (!(s instanceof BattleScreen) && !(s instanceof ReplayScreen)) return null;
+    const cue = s.arena.cue;
+    if (!cue) return null;
+    const a = s.arena, fx = a.fx, k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    const tile = (side: 0 | 1, ri: number) => {
+      const r = a.b.sides[side].routes[ri];
+      if (!r || !r.cells.length) return null;
+      const last = r.cells[r.cells.length - 1];
+      const [x, y] = s.motion.tileCentre(a, side, kx(last), ky(last));
+      return { x: c.left + x * k, y: c.top + y * k };
+    };
+    const pops = fx.pairList.slice(0, fx.pairCount);
+    return {
+      on: cue.on, k,
+      shown: cue.shown.map((q) => ({ ...q, routes: [...q.routes], tiles: q.routes.map((ri) => tile(q.side, ri)) })),
+      drawn: { glows: cue.drawn.glows.map((g) => g.map((q) => ({ ...q }))), flashes: cue.drawn.flashes.map((g) => g.map((q) => ({ ...q }))), brackets: [...cue.drawn.brackets] },
+      glyphs: pops.filter((p) => !p.mark).length, marks: pops.filter((p) => p.mark).length,
+      pool: { numbers: fx.popCount, pairs: fx.pairCount, of: 48 },
+      tally: { ...cue.tally },
     };
   },
   openDusk(o: RunSpec = {}, ghosts: GhostSpec[] = []): void {
