@@ -53,6 +53,7 @@ import { setGuard } from "../src/sim/guard";
 import { setHullScale } from "../src/sim/hullScale";
 import { setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
+import { openRunesRules, setOpenRunes } from "../src/sim/openRunes"; // OPEN-1 (REQ-BFG-109): --also open
 import { REFUND_DAY, REFUND_LIVES } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
 import { checkSnapshot, ghostId, GRADE_MAX, type PoolEntry } from "../src/net/snapshot";
@@ -82,14 +83,16 @@ const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
 // ---------------------------------------------------------------- the sets
 
-export interface SetSwitches { npcDay: boolean; hullScale: boolean; ladderFix: boolean; hearts: boolean; guard: boolean; pick: boolean }
+// OPEN-1 (REQ-BFG-109): `--also open` adds OPEN_RUNES (the open rune pool and its rewrites, src/sim/openRunes.ts): BRIEF-OPEN1
+// section 5's "open" set is `--set today --also open`.
+export interface SetSwitches { npcDay: boolean; hullScale: boolean; ladderFix: boolean; hearts: boolean; guard: boolean; pick: boolean; open: boolean }
 export function setOf(name: string, also: string[] = []): SetSwitches {
-  const today: SetSwitches = { npcDay: true, hullScale: true, ladderFix: true, hearts: false, guard: false, pick: false };
+  const today: SetSwitches = { npcDay: true, hullScale: true, ladderFix: true, hearts: false, guard: false, pick: false, open: false };
   const s = name === "allon" ? { ...today, hearts: true, guard: true, pick: true } : name === "today" ? today : null;
   if (!s) throw new Error(`--set ${name}: today or allon`);
   for (const a of also) {
-    if (a === "hearts" || a === "guard" || a === "pick") s[a] = true;
-    else if (a) throw new Error(`--also ${a}: hearts, guard or pick`);
+    if (a === "hearts" || a === "guard" || a === "pick" || a === "open") s[a] = true;
+    else if (a) throw new Error(`--also ${a}: hearts, guard, pick or open`);
   }
   return s;
 }
@@ -101,6 +104,7 @@ export function applySet(s: SetSwitches): string {
   setHearts(s.hearts);
   setGuard(s.guard);
   setPick(s.pick); // RETUNE-1 T5: the built pick and the seed step's grades
+  setOpenRunes(s.open); // OPEN-1
   return Object.entries(s).filter(([, v]) => v).map(([k]) => k).join("+");
 }
 const SET = setOf(flag("set") ?? "today", (flag("also") ?? "").split(",").filter(Boolean));
@@ -194,7 +198,7 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059", ctx: BenchCt
       lcUsed = true;
       lcDay = day;
       if (day < RUN_DAYS) {
-        const offer = lastChanceOffer(runSeed, day, hero, (deck.runes ?? []).map((q) => q.id));
+        const offer = lastChanceOffer(runSeed, day, hero, (deck.runes ?? []).map((q) => q.id), openRunesRules()); // OPEN-1: the switch
         boon = botLastChancePick(offer, hero, deck, day, { wins }).boon;
         decks = playerRun(hero, RUN_DAYS, seed, { ...ctx.opts, lastChance: { day, boon: boon as Boon } }).map((d) => d.build);
       } else {

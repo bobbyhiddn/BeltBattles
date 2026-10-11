@@ -55,6 +55,7 @@ import { Rng, hashSeed } from "../../core/rng";
 import { hullScaleRules } from "../hullScale"; // HULL-1c (REQ-BFG-079): the cache key
 import { ladderFixRules } from "../ladderFix"; // HULL-1c: the cache key
 import { guardRules } from "../guard"; // RETUNE-1 (REQ-BFG-097): the cache key
+import { openRunesRules } from "../openRunes"; // OPEN-1 (REQ-BFG-109): the bots' offer rule, and the cache key
 import { npcDayRules } from "../npcDay"; // HULL-1d (REQ-BFG-073): the REFIT swap of LAST CHANCE's part (refitSwap)
 import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
 import {
@@ -1623,7 +1624,8 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
  */
 function dawnRune(run: Run): void {
   // LC-1: a LAST CHANCE rune is held but no dawn's pick (lcRunes: 0 for every run without one)
-  const got = botTakeRune(run.build, run.seed, run.day, run.hero, true, run.history[run.history.length - 1]?.outcome === "win", lcRunes(run));
+  // OPEN-1 (REQ-BFG-109): the bots follow the switch (the game's own offer rule)
+  const got = botTakeRune(run.build, run.seed, run.day, run.hero, true, run.history[run.history.length - 1]?.outcome === "win", lcRunes(run), openRunesRules());
   if (!got) return;
   run.gold += got.gold;
   delete run.runeDay;
@@ -1649,7 +1651,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   const nd = npcDayRules();
   // RETUNE-1 (REQ-BFG-097): GUARD moves the par decks (the rating reads PLATE ROLLER's and WARD BELL's numbers); off, the
   // key exactly as before
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}`;
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
@@ -1899,7 +1901,7 @@ function lastChanceCard(run: Run, day: number, boon: Boon, pol: PolicyKnobs, hul
     if (!takeLastChance(run, boon).ok) throw new Error(`par player: LAST CHANCE ${boon} on day ${day} was refused`);
     return;
   }
-  const lo = lastChanceOffer(run.seed, day, run.hero, (run.build.runes ?? []).map((q) => q.id)), id = lo.part;
+  const lo = lastChanceOffer(run.seed, day, run.hero, (run.build.runes ?? []).map((q) => q.id), openRunesRules()), id = lo.part; // OPEN-1: the switch
   if (!id) throw new Error(`par player: no LAST CHANCE part on day ${day}`);
   placeFreePart(run, id, new Rng(hashSeed("lastchance-place", run.hero, run.seed, day)), pol, lo.partStars ?? 1); // HULL-1d: at its star
   run.lastChance = { day, boon, id };

@@ -24,6 +24,7 @@ import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/run
 import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type LastChance, type LastChanceOffer } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT has no shop
 import { HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a new run's hearts
+import { openRunesRules } from "../sim/openRunes"; // OPEN-1 (REQ-BFG-109): the dawn offer's and LAST CHANCE card's rule
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
   type TurretOpResult,
@@ -204,7 +205,8 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
 export function pendingRune(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over" | "lastChance">): RuneOffer | null {
   if (run.over || run.runeDay !== run.day) return null;
   if (lastChancePending(run)) return null; // LC-1: the LAST CHANCE pick comes first (its offer reads the runes held now)
-  const offer = runeOffer(run.seed, run.day, run.hero, (run.build.runes ?? []).map((q) => q.id));
+  // OPEN-1 (REQ-BFG-109): this build's offer rule, the switch (openRunesRules: hero-blind when on)
+  const offer = runeOffer(run.seed, run.day, run.hero, (run.build.runes ?? []).map((q) => q.id), openRunesRules());
   return offer.ids.length ? offer : null;
 }
 
@@ -267,7 +269,7 @@ export const lastChancePending = (run: Pick<Run, "lastChance" | "over">): boolea
  *  CONTINUE shows the same three cards; null when no pick is pending. */
 export function pendingLastChance(run: Pick<Run, "seed" | "hero" | "build" | "lastChance" | "over">): LastChanceOffer | null {
   if (!lastChancePending(run)) return null;
-  return lastChanceOffer(run.seed, run.lastChance!.day, run.hero, (run.build.runes ?? []).map((q) => q.id));
+  return lastChanceOffer(run.seed, run.lastChance!.day, run.hero, (run.build.runes ?? []).map((q) => q.id), openRunesRules()); // OPEN-1: the switch
 }
 
 /**

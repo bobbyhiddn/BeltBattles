@@ -49,6 +49,7 @@ import { LAST_CHANCE_HULL } from "../src/sim/lastChance"; // Z-PREP (REQ-BFG-073
 import { lastChanceGateProblem } from "../src/net/rulesGate"; // Z-BUMP (REQ-BFG-073): the two rows by PROBE_RULES, through the rules gate
 import { npcDayGateProblem } from "../src/net/rulesGate"; // AZ-BUMP (REQ-BFG-077, REQ-BFG-078): the NPC day's two rows, through the rules gate
 import type { RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP: the NPC-day rows' road log
+import { openRunesFor } from "../src/net/rulesGate"; // OPEN-1 (REQ-BFG-109): the honest decks' offer rule, by PROBE_RULES
 
 /** The rules this probe's expectations are written for: the hull release's (bb-0.10.0, AZ-BUMP's bump, with the NPC day's
  *  two rows; release Z's bb-0.9.7 with LAST CHANCE's two rows, release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's
@@ -63,7 +64,8 @@ export const PROBE_SEED = 20261005;
 export function probeRunes(build: GhostSnapshot["build"], day: number): GhostSnapshot["build"] {
   const b: GhostSnapshot["build"] = JSON.parse(JSON.stringify(build));
   for (let d = 1; d <= day; d++) {
-    if (!botTakeRune(b, PROBE_SEED, d, b.hero, true)) throw new Error(`ghost-probe: no rune for ${b.hero} at the dawn of day ${d}`);
+    // OPEN-1 (REQ-BFG-109): the offers of the probe's own rules (openRunesFor), the rule the server checks them by
+    if (!botTakeRune(b, PROBE_SEED, d, b.hero, true, false, 0, openRunesFor(PROBE_RULES))) throw new Error(`ghost-probe: no rune for ${b.hero} at the dawn of day ${d}`);
   }
   return b;
 }
