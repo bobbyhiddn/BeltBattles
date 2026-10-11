@@ -383,7 +383,7 @@ export class ArenaMotion implements ShotMap {
       g.drawImage(this.layer, 0, 0, this.layer.width * this.lf, this.layer.height * this.lf);
       g.restore();
     }
-    drawWind(g, b.windLevel() * Math.max(0, 1 - a.overT / 1.2), W, H, a.clock);
+    drawWind(g, b.windLevel() * Math.max(0, 1 - a.overT / 1.2), W, H, a.clock, this.windMark);
     this.drawWindPops(g, a, W, H); // WIND-1 (REQ-BFG-093): the wind's numbers above the wind
     if (a.fx.flash > 0 && !reduced) {
       g.globalAlpha = Math.min(0.5, a.fx.flash);
@@ -396,6 +396,9 @@ export class ArenaMotion implements ShotMap {
   /** WIND-1 (REQ-BFG-093): the HUD the dark wind's numbers keep clear of (logical px, at rest: each side's plate and the
    *  playback bar); the battle and the replay set it at each layout. Empty: only the screen's edges. */
   windKeep: { plates: readonly Box[]; bar: Box | null } = { plates: [], bar: null };
+  /** WIND-2 (REQ-BFG-093) tooling, display only (scripts/mirror1shots.mjs sets it for one frame, then clears it; the game
+   *  never does): a colour the dark wind's band is drawn in, flat and opaque (render/world.ts drawWind's `mark`). */
+  windMark = "";
   /** WIND-1 tooling (read only; bb.windInfo): the wind numbers drawn this frame, their side, text and box (logical px). */
   readonly windDrawn: { side: Side; text: string; x: number; y: number; w: number; h: number; beside: boolean }[] = [];
 
