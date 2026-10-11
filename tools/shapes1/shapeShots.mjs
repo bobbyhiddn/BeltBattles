@@ -86,6 +86,10 @@ async function main() {
     await page.evaluate(() => window.bb.game.screen.select({ kind: "offer", wagon: 0, slot: 0 }));
     await settle(page, 6);
     await shot("offer-nailstrip", "NAIL STRIP's card selected: its panel face");
+    // the battle world (FIELD-1) with the same deck: bb.open("battle") keeps the run (its classic foe), a few seconds in
+    await page.evaluate(() => window.bb.open("battle"));
+    await settle(page, 240);
+    await shot("battle", "the battle world, 4 s in, the deck with its shaped pieces");
     await ctx.close();
   }
   await browser.close();
