@@ -281,9 +281,14 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
     const widths = [186, 235, 236, 237, 238, 239, 240, 241, 245, 246, 247, 248, 249, 250, 258, 315, 340], rows: string[] = [];
     for (const W of widths) {
       const hs = needs(W).sort((a, b) => a - b), band = phoneBand90(W);
-      const share = hs.filter((n) => n <= band).length / hs.length;
-      rows.push(`${W}: ${band} (${(share * 100).toFixed(1)}% fit; tallest ${hs[hs.length - 1]})`);
-      expect(hs[Math.ceil(0.9 * hs.length) - 1], `W ${W}`).toBe(band);
+      const share = hs.filter((n) => n <= band).length / hs.length, p90 = hs[Math.ceil(0.9 * hs.length) - 1];
+      rows.push(`${W}: ${band} (${(share * 100).toFixed(1)}% fit; measured 90th ${p90}; tallest ${hs[hs.length - 1]})`);
+      // EXPLAIN-1 (REQ-BFG-089, E6): the pins hold as floors. EXPLAIN-1 takes default rules text off the faces (a turret's two
+      // kind lines, the flavour, a done tip's hint), so the panels need less: the measured 90th can only fall below a pin,
+      // never rise past it. The pins stay (the band keeps its height and the zoom its PICKS: cap's call, EXPLAIN-1's brief
+      // E6; a re-pin is an option for cap, reported in the REPORT's section 6), and each must still cover at least 90% of the
+      // panels (the shares can only rise). Was: the measured 90th equals the pin
+      expect(p90, `W ${W}`).toBeLessThanOrEqual(band);
       expect(share, `W ${W}`).toBeGreaterThanOrEqual(0.9);
     }
     console.log(`ZOOM-1 phoneBand90: ${rows.join(" | ")}`);
