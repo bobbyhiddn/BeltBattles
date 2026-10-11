@@ -37,6 +37,9 @@ export const CNT_REGION = "cnt:";
 export const CNT_PANEL = "cntpanel";
 /** The panel's widest (art px): the glossary's wrap width (GLOSSARY_WRAP_W 225) and its 5 px margins. */
 export const PANEL_W = 235;
+/** How many frames an open panel outlives its group (a gun fires its last waiting slug, a belt empties): it stays where
+ *  it was, its count now 0, for about 1.5 s, so a finger's panel doesn't vanish under it; then it closes. */
+export const OPEN_GRACE = 90;
 
 type GroupKind = "plate" | "gun" | "belt";
 interface Group { id: string; kind: GroupKind; side: Side; ref: number; anchor: Rect; target: Rect }
@@ -66,6 +69,8 @@ export class BattleCounters {
   open: string | null = null;
   readonly last: CountersDrawn = { tabs: [null, null], guns: [], belts: [], targets: [], panel: null, skipped: 0 };
   private readonly groups: Group[] = [];
+  /** The open group as last drawn, and the frames since (OPEN_GRACE). */
+  private kept: { grp: Group; frames: number } | null = null;
   private readonly cache = new Map<string, HTMLCanvasElement>();
   private slotsFor: Build | null = null;
   private slots: [ReturnType<typeof turretSlots>, ReturnType<typeof turretSlots>] = [[], []];
@@ -246,7 +251,11 @@ export class BattleCounters {
   drawPanel(g: G, game: Game, a: Arena, rows: readonly (PlateInfo | null)[]): void {
     const d = this.last, ui = game.ui, p = ui.pointer;
     let grp = this.open ? this.groups.find((q) => q.id === this.open) : undefined;
-    if (this.open && !grp) this.open = null;
+    if (this.open) {
+      if (grp) this.kept = { grp, frames: 0 };
+      else if (this.kept && this.kept.grp.id === this.open && this.kept.frames++ < OPEN_GRACE) grp = this.kept.grp;
+      else { this.open = null; this.kept = null; }
+    }
     if (!grp && p.kind === "mouse" && !p.down) {
       for (let i = this.groups.length - 1; i >= 0 && !grp; i--) if (inside(this.groups[i].target, p.x, p.y)) grp = this.groups[i];
     }
