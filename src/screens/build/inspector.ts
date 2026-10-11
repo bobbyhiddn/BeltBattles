@@ -108,7 +108,7 @@ import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; //
 import { icons } from "../../render/font"; // U2c step 4
 import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items
 import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
-import { turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4): an installed turret's kind lines in NOTES
+import { PLAIN_RIGS, RIG_SENTENCE, turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' rig sentence and kind lines
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -292,8 +292,7 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
     if (!out) faces.set(bs, (out = bs.filter((b) => !hiddenBlock(b)).map(rule)));
     return out;
   };
-  void def;
-  const extra: Block[] = [...(t.notes ?? [])];
+  const extra: Block[] = [...(def && PLAIN_RIGS.includes(def) ? [{ role: "ability", text: RIG_SENTENCE, note: "rig" } as Block] : []), ...(t.notes ?? [])];
   const hidden = t.body.filter((b) => !!b.note || b.role === "flavour" || b.role === "hint");
   const notes = [...extra, ...hidden].map((b, i) => ({ b, i })).sort((p, q) => noteOrder(p.b) - noteOrder(q.b) || p.i - q.i).map((x) => x.b);
   return {

@@ -49,6 +49,7 @@ import { levelLines, levelSpans, type LevelLine } from "./levels"; // U2e step 5
 import { fusible } from "../../sim/stars"; // U2e step 5
 import type { BuildLayout } from "./layout"; // U2f: the room the ⓘ view grows into (infoFree)
 import { GAP } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries
+import { PLAIN_RIGS } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): HIT on the plain rigs' KEYWORDS
 
 /** The piece a panel shows (its number fills in a keyword's reminder; its tap note): an offer, a part in cargo, a placed
  *  part, a fitted core or gear piece, an installed turret's bought core. */
@@ -338,15 +339,18 @@ export function runeWords(run: Run): KwWord[] {
  * the HIT: label, HIT first, as its label led the line (its definition as today's: glossary.ts glossaryText).
  */
 export function explainWords(t: Pick<PanelText, "body" | "words">, piece: Piece | null): KwWord[] {
-  return panelWords(t.words ?? t.body, piece);
+  const own = panelWords(t.words ?? t.body, piece);
+  if (!piece || !PLAIN_RIGS.includes(piece.def) || own.some((w) => w.word === "HIT")) return own;
+  const row = glossaryEntry("HIT"), text = glossaryText("HIT", piece);
+  return row && text ? [{ word: row.word, text, colour: row.colour }, ...own] : own;
 }
 
-/** EXPLAIN-1 (E3): what the ⓘ icon's hover tooltip lists: the NOTES lines, each a separate item. Markup or glyphs, as
- *  drawn. */
+/** EXPLAIN-1 (E3): what the ⓘ icon's hover tooltip lists: the NOTES lines, each a separate item, and a plain rig's HIT
+ *  definition after them (its face no longer prints the label a hover would read). Markup or glyphs, as drawn. */
 export function iconTipItems(t: Pick<PanelText, "notes">, words: readonly KwWord[], piece: Piece | null): string[] {
-  void words;
-  void piece;
-  return (t.notes ?? []).map((b) => b.text);
+  const notes = (t.notes ?? []).map((b) => b.text);
+  const hit = piece && PLAIN_RIGS.includes(piece.def) ? words.find((w) => w.word === "HIT") : undefined;
+  return [...notes, ...(hit ? [hit.text] : [])];
 }
 
 /** Every word a panel's text names (all of its body's blocks, shown or given way), once, in reading order, with what a tap
