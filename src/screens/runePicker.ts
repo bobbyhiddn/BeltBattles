@@ -181,10 +181,12 @@ export class RunePicker {
       // shows or hides its definition in the room and never takes the rune); a closed card's words are not (a tap anywhere
       // on it opens it, as before)
       if (open) {
-        runeWordLayer(g, ui, "runepick-", L.cards[i], RUNES[id], runeTapOf(s), this.word, runeWordBoxOn(L.cards[i], RUNES[id], this.word), (wd) => {
+        // MERGE-099D (BRIEF-MERGE-099D 1c): its words and the definition's region on the dawn's day, as the card draws them
+        // (HULL-1a: `day: o.day` above)
+        runeWordLayer(g, ui, "runepick-", L.cards[i], RUNES[id], runeTapOf(s), this.word, runeWordBoxOn(L.cards[i], RUNES[id], this.word, o.day), (wd) => {
           this.note = false;
           this.word = this.word === wd ? null : wd;
-        }, { W, H }, s.game.canvas, undefined, runeHintBand(L.cards[i])); // CARD-3 (REQ-BFG-087, D2): the tooltip keeps clear of TAP AGAIN
+        }, { W, H }, s.game.canvas, undefined, runeHintBand(L.cards[i]), o.day); // CARD-3 (REQ-BFG-087, D2): the tooltip keeps clear of TAP AGAIN
       }
     });
     if (L.tray) {

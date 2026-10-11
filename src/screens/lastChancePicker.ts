@@ -362,7 +362,7 @@ export class LastChancePicker {
       if (i === this.open) {
         runeWordLayer(g, ui, "lcrune-", L.cards[i], RUNES[o.rune!.id], runeTapOf(s), this.word, this.word ? this.wordBox : null, (wd) => {
           this.word = this.word === wd ? null : wd;
-        }, { W, H }, s.game.canvas, () => { this.word = null; }, runeHintBand(L.cards[i])); // CARD-3 (REQ-BFG-087, D2)
+        }, { W, H }, s.game.canvas, () => { this.word = null; }, runeHintBand(L.cards[i]), s.run.day); // CARD-3 (REQ-BFG-087, D2); MERGE-099D: the card's day
       }
     });
   }

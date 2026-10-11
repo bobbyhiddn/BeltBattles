@@ -280,7 +280,9 @@ export function tooltipLines(text: string): RichLine[] {
 export function offerTooltip(def: string, o: TextOpts = {}): string {
   // CARD-2 (REQ-BFG-084, K6; REVIEW-EXPLAIN1 open item 1): a plain stat rig (WHETSTONE, TEMPER, BARBED SPOOL) shows its plain
   // face, the panel's stat row ({DMG}+20), not faceLines' HIT: rule (faces.ts plainRigStats)
-  const plain = plainRigStats(def, 1);
+  // MERGE-099D (BRIEF-MERGE-099D 1c): on the run's day (`o.day`), as faceLines' rule lines below and faceBlocks read it
+  // (MERGE-099C 6ed6e27: WHETSTONE's + DAMAGE x D(d) with HULL_SCALE on)
+  const plain = plainRigStats(def, 1, o.day);
   if (plain) return statRow(plain);
   return faceLines(def, 1, o)?.rules[0]?.text ?? abilityText(def, 1, o).sentences[0] ?? "";
 }

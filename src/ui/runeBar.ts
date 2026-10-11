@@ -268,8 +268,10 @@ function drawRuneNote(g: G, r: Rect, y: number, ls: readonly RichLine[]): void {
   ls.forEach((l, i) => drawRich(g, l, r.x + 5, y + 1 + i * 7, "3"));
 }
 
-/** EXPLAIN-1 (E3): the room's top y on card `r` (drawRuneCard's: the head, then 9 px a line of the effect). Pure. */
-export const runeNoteY = (r: Rect, def: RuneDef): number => r.y + CARD_TEXT_Y + runeTextLines(def, runeCardTextW(r.w)).length * 9;
+/** EXPLAIN-1 (E3): the room's top y on card `r` (drawRuneCard's: the head, then 9 px a line of the effect). Pure.
+ *  MERGE-099D (BRIEF-MERGE-099D 1c): `day`, the day the card is drawn on (HULL-1a: its effect lines wrap the day's amount,
+ *  so the room starts where drawRuneCard's does); no day: day 1's, as before. */
+export const runeNoteY = (r: Rect, def: RuneDef, day?: number): number => r.y + CARD_TEXT_Y + runeTextLines(def, runeCardTextW(r.w), day).length * 9;
 
 /**
  * EXPLAIN-1 (E3): a rune card's chip as its icon, after the card's own region (so a press on it is the chip's, never the
@@ -345,12 +347,13 @@ export function drawRuneWordNote(g: G, r: Rect, y: number, room: number, ls: rea
 }
 
 /** CARD-2 (K2): the shown definition's box on a card with a note room (the picker's opened card, the bar's read-out), or
- *  null when `word` is none of the card's keywords. Pure (the screens' regions, tests). */
-export function runeWordBoxOn(r: Rect, def: RuneDef, word: string | null): Rect | null {
+ *  null when `word` is none of the card's keywords. Pure (the screens' regions, tests). MERGE-099D (1c): `day`, the card's
+ *  (drawRuneCard's `day`), so the box's region sits where the card draws it. */
+export function runeWordBoxOn(r: Rect, def: RuneDef, word: string | null, day?: number): Rect | null {
   const k = word ? runeKeywordOf(def, word) : null;
   if (!k) return null;
   const tw = runeCardTextW(r.w);
-  return runeWordBox(r, runeNoteY(r, def), wrapRich(runeReminderSpans(def), tw, "3").length, runeWordLines(def, k, tw).length);
+  return runeWordBox(r, runeNoteY(r, def, day), wrapRich(runeReminderSpans(def), tw, "3").length, runeWordLines(def, k, tw).length);
 }
 
 /** CARD-2 (K2): one keyword on a rune card's effect lines: its keyword and word, what a tap shows, its colour, its glyphs
@@ -370,10 +373,12 @@ export interface RuneWord {
  * wide, as U2c's word targets on panels (keywords.ts keywordTargets); where two grown rects meet they split between their
  * words; each kept inside the card (1 px in) and clear of `avoid` (the chip's target); a word whose middle is no longer in
  * its rect is left out (the chip still shows the card's line). Pure (drawing, the screens, tests).
+ * MERGE-099D (BRIEF-MERGE-099D 1c): `day`, the day the card is drawn on (drawRuneCard's `day`; HULL-1a: a rune's amount is
+ * the day's number with HULL_SCALE on, so its words sit where that day's lines put them); no day: day 1's, as before.
  */
-export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = []): RuneWord[] {
+export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = [], day?: number): RuneWord[] {
   const ks = runeKeywords(def), raw: (RuneWord & { cx: number; cy: number })[] = [];
-  runeTextLines(def, runeCardTextW(r.w)).forEach((l, li) => {
+  runeTextLines(def, runeCardTextW(r.w), day).forEach((l, li) => {
     const text = lineText(l), y = r.y + CARD_TEXT_Y + li * 9;
     const cols: string[] = []; // each character's colour: a token draws its word in its keyword's colour
     for (const s of l) for (let j = 0; j < s.t.length; j++) cols.push(s.c);
@@ -427,8 +432,9 @@ export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = 
  * hovered) is done for K1 (firstSight.ts sawWord). Returns the targets.
  */
 export function runeWordLayer(g: G, ui: UI, id: string, card: Rect, def: RuneDef, tap: number, word: string | null, box: Rect | null,
-  onWord: (w: string) => void, screen: { W: number; H: number }, canvas?: HTMLCanvasElement | null, onDef?: () => void, bar?: Rect | null): RuneWord[] {
-  const ts = runeWordTargets(card, def, [runeChipTarget(card, def, tap)]);
+  onWord: (w: string) => void, screen: { W: number; H: number }, canvas?: HTMLCanvasElement | null, onDef?: () => void, bar?: Rect | null,
+  day?: number): RuneWord[] {
+  const ts = runeWordTargets(card, def, [runeChipTarget(card, def, tap)], day); // MERGE-099D (1c): the card's day
   ts.forEach((t, i) => {
     if (box && overlapsR(t.glyph, box)) return;
     for (let x = t.glyph.x; x < t.glyph.x + t.glyph.w; x += 2) rect(g, x, t.glyph.y + t.glyph.h, 1, 1, t.colour === C.bone ? C.slate4 : t.colour);
@@ -540,10 +546,11 @@ export class RuneBar {
       ui.add({ id: "rune-readout", r, onTap: () => { this.open = -1; this.note = false; this.word = null; } });
       runeChipIcon(g, ui, "rune-chip", r, def, runeTapOf(s), () => { this.note = !this.note; this.word = null; }, { W: s.game.W, H: s.game.H }, s.game.canvas);
       // CARD-2 (K2): every keyword on the read-out is a word target (a tap shows or hides its definition in the room)
-      runeWordLayer(g, ui, "rune-", r, def, runeTapOf(s), this.word, runeWordBoxOn(r, def, this.word), (wd) => {
+      // MERGE-099D (1c): its words and the definition's region on the run's day, as the card draws them (HULL-1a)
+      runeWordLayer(g, ui, "rune-", r, def, runeTapOf(s), this.word, runeWordBoxOn(r, def, this.word, s.run.day), (wd) => {
         this.note = false;
         this.word = this.word === wd ? null : wd;
-      }, { W: s.game.W, H: s.game.H }, s.game.canvas);
+      }, { W: s.game.W, H: s.game.H }, s.game.canvas, undefined, undefined, s.run.day);
     } else if (this.list) {
       const r = { x, y, w, h: runeListH(defs.length) };
       panel(g, r, "dark");
