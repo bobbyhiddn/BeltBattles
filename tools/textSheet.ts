@@ -27,6 +27,7 @@ import { panelWords } from "../src/screens/build/keywords"; // WORDS-1
 import { familiesOf, familyNote } from "../src/ui/families"; // WORDS-1: the family tags' tap notes
 import { CORE_WORDS, HERO_WORDS } from "../src/ui/glossary"; // WORDS-1: the core list
 import { runeTag } from "../src/ui/runeText"; // WORDS-1: LAST STAND's tag
+import { setShapes } from "../src/sim/shapes"; // SHAPES-1: BB_SHAPES=1
 
 const NAME_OF = new Map<string, string>(Object.entries(ICON).map(([k, v]) => [v as string, k]));
 /** Markup or glyphs as plain text: each private-use icon as [NAME]. */
@@ -100,6 +101,9 @@ function sheet(): string {
 if ((process.argv[1] ?? "").endsWith("textSheet.js")) {
   const path = process.argv[2];
   if (!path) throw new Error("usage: node tools/dist/textsheet/textSheet.js <out.md>");
+  // SHAPES-1 (REQ-BFG-086, S8): BB_SHAPES=1 makes the sheet with SHAPES on (the three shaped rigs, GANTRY PRESS 2x3, ASSEMBLY
+  // LINE I3), as the brief's text-sheet check asks; unset, the sheet is as before
+  if (process.env.BB_SHAPES === "1") setShapes(true);
   const text = sheet();
   writeFileSync(path, text);
   console.log(`text sheet: ${text.split("\n").length} lines -> ${path}`);

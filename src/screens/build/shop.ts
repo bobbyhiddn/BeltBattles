@@ -15,6 +15,9 @@ import { drawFamilyMarks, familiesText, familySpans } from "../../ui/families"; 
 import { faceLines } from "../../ui/faces"; // TXT-095: the offer's tooltip, faces first (offerTooltip)
 import { abilityText, type TextOpts } from "../../ui/abilityText"; // TXT-095: its fallback, the kept opening sentence
 import { CARD_W } from "./layout";
+import { shapeWord } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-086.1): the type line's shape
+import { miniShape } from "../../ui/shapePic"; // SHAPES-1: the card's mini shape
+import { shapedPiece } from "./shapeEdit"; // SHAPES-1
 
 export const MERCHANT_COLOR: Record<MerchantId, string> = {
   ironmonger: C.steel2,
@@ -203,6 +206,7 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
     const lines = cardName(def, r.w - 4);
     const two = lines.length > 1;
     g.drawImage(icon, Math.round(x + r.w / 2 - 6), y + (two ? 5 : 8));
+    if (shapedPiece(def.id)) g.drawImage(miniShape(def.id), x + 3, y + 5); // SHAPES-1 (REQ-BFG-086.1): the card's mini shape, top left
     // review-061 F1: the badge sits on top of the icon, or the icon hides its label
     if (s.badge && !s.sold) drawBadge(g, x + 1, y + 5, r.w - 8, s.badge, t);
     let ny = y + (two ? 18 : 22);
@@ -366,7 +370,10 @@ export function describe(def: ItemDef): string {
   // 0.6.2s (REQ-BFG-031 S10): a turret reads its class ("RARE HEAVY TURRET")
   const kind = def.kind === "gate" ? "RIG" : def.kind === "factory" ? "FACTORY" : def.kind === "mod" ? "TURRET GEAR" : def.kind === "core" ? "TURRET CORE"
     : def.kind === "turret" ? `${(def.turret?.class ?? "").toUpperCase()} TURRET` : "SUPPLY";
-  return `${def.rarity.toUpperCase()} ${kind}`;
+  // SHAPES-1 (REQ-BFG-086.1, S8): a shaped piece's type line names its shape ("COMMON RIG · 2 CELLS", "RARE FACTORY ·
+  // 2X3"); a 1-cell rig's and a 2x2 factory's stay as they are (faces.ts shapeWord: null)
+  const sw = shapeWord(def.id);
+  return `${def.rarity.toUpperCase()} ${kind}${sw ? ` · ${sw}` : ""}`;
 }
 
 export { ITEMS };

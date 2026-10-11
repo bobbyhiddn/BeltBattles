@@ -52,6 +52,9 @@ import { effectAt, FUSE_MAX, fusible, outputsAt } from "../sim/stars";
 import { perkAt } from "../sim/stars"; // U2b F6: HOT SWAP's spark carries GALVANIC COIL's SPARK JUMP (content.ts hotswap)
 import { pourAt } from "../sim/stars"; // Y1: a factory's pour as a {SLUG} stat (carryStats)
 import { gearSlotsOf } from "../sim/deck";
+import { rigArrowCells } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 R2): a long rig's most hits
+import { shapesRules } from "../sim/shapes"; // SHAPES-1: the shaped pieces' faces, lines and notes (SHAPES on only)
+import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 
 /**
@@ -891,6 +894,7 @@ export const PLAIN_RIGS: readonly string[] = ["whetstone", "temper", "barbed"];
  *  as faceAt's rule line reads it: WHETSTONE's + DAMAGE x D(d) (dayShown.ts dmgNow); BURN and FRAY are counts, unscaled.
  *  No day, or HULL_SCALE off: day 1's, as before. */
 export function plainRigStats(def: string, stars = 1, day?: number): Stat[] | null {
+  if (shapesRules() && SHAPED_PLAIN_RIGS.includes(def)) return shapedPlainStats(def, stars, day); // SHAPES-1 (REQ-BFG-084)
   if (!PLAIN_RIGS.includes(def)) return null;
   const g = effectAt(def, stars).gate!;
   if (def === "whetstone") return [["DMG", `+${fmtDmg(shownOn(day, () => dmgNow(g.flat!)))}`]];
@@ -964,9 +968,95 @@ export const FACE_IDS: readonly string[] = [
   ...Object.values(ITEMS).filter((d) => d.kind === "turret").map((d) => d.id),
 ];
 
-/** True for a piece that draws its new face (every other piece keeps today's text). */
+/** True for a piece that draws its new face (every other piece keeps today's text). SHAPES-1: the three shaped plain
+ *  rigs too, with SHAPES on (SHAPE_FACES). */
 export function hasFace(def: string): boolean {
-  return FACE_IDS.includes(def);
+  return FACE_IDS.includes(def) || (shapesRules() && Object.prototype.hasOwnProperty.call(SHAPE_FACES, def));
+}
+
+// ------------------------------------------------- SHAPES-1 (REQ-BFG-086, REQ-BFG-084, REQ-BFG-089): the shaped pieces
+
+/**
+ * SHAPES-1 (REQ-BFG-084; BRIEF-SHAPES1 R4, S8): the three shaped plain stat rigs' faces, WHETSTONE's and TEMPER's (a hit
+ * stat that PLAIN_RIGS' path draws as a stat row, no HIT: line; faceAt keeps the rule, so LEVELS, NEXT★ and the chip read
+ * it). Apart from FACES, so FACE_IDS (the tests' and tools' list) stays 0.9.9's, and no reader meets an id that isn't in
+ * ITEMS with SHAPES off; hasFace sees them only with SHAPES on (src/sim/shapes.ts).
+ */
+const SHAPE_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
+  nailstrip: (e) => {
+    const d = fmtDmg(dmgNow(gt(e).flat!));
+    return rules([hit(`+${d} {DMG}.`)], [["flat", `+${d} {DMG}`]]);
+  },
+  embertrough: (e) => {
+    const n = fmtCount(gt(e).burn!);
+    return rules([hit(`+${n} {*BURN}.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);
+  },
+  spikerail: (e) => {
+    const d = fmtDmg(dmgNow(gt(e).flat!));
+    return rules([hit(`+${d} {DMG}.`)], [["flat", `+${d} {DMG}`]]);
+  },
+};
+
+/** SHAPES-1 (REQ-BFG-084): the shaped plain stat rigs (with SHAPES on, plainRigStats draws them as PLAIN_RIGS' are; that
+ *  list stays 0.9.9's three, tests/explain1 pins it). */
+export const SHAPED_PLAIN_RIGS: readonly string[] = ["nailstrip", "embertrough", "spikerail"];
+
+/** SHAPES-1: a plain stat rig, the base's three or (SHAPES on) a shaped one: its face is a stat row and its NOTES lead
+ *  with the rig sentence (inspector.ts explainPanel, keywords.ts). */
+export function isPlainRig(def: string): boolean {
+  return PLAIN_RIGS.includes(def) || (shapesRules() && SHAPED_PLAIN_RIGS.includes(def));
+}
+
+/** SHAPES-1: a shaped plain rig's stat row at `stars`: NAIL STRIP's and SPIKE RAIL's DMG on `day` (WHETSTONE's rule),
+ *  EMBER TROUGH's BURN count (TEMPER's). */
+function shapedPlainStats(def: string, stars: number, day?: number): Stat[] {
+  const g = effectAt(def, stars).gate!;
+  if (g.burn) return [["BURN", `+${fmtCount(g.burn)}`]];
+  return [["DMG", `+${fmtDmg(shownOn(day, () => dmgNow(g.flat!)))}`]];
+}
+
+/** SHAPES-1 (R2): the most hits a rig's shape can make: each arrow direction from every outside edge of its cells, one hit
+ *  each (rigArrowCells at rot 0): NAIL STRIP and EMBER TROUGH 2, SPIKE RAIL 6. */
+export function shapeMaxHits(def: string): number {
+  return rigArrowCells(def, 0, 0, 0).length;
+}
+
+/**
+ * SHAPES-1 (REQ-BFG-086.1, REQ-BFG-089; BRIEF-SHAPES1 S8; the mock ref/pieces1/cards-phone.png): a shaped piece's own
+ * lines, always on its face: a long rig's `UP TO 2 HITS`; a factory that its size gives belt slots (GANTRY PRESS's 2x3)
+ * `FEEDS 4 BELTS IN TURN.` (its slots at `stars`) and `BIGGER: +1 {BELT}` (foot.ts footSlots). [] for every other piece,
+ * so nothing else changes, and for everything with SHAPES off (no shaped piece exists).
+ */
+export function shapeLines(def: string, stars = 1): FaceRule[] {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
+  if (!d || !shapesRules() || !isShaped(d)) return [];
+  if (d.kind === "gate") return [{ text: `UP TO ${fmtCount(shapeMaxHits(def))} HITS` }];
+  const more = footSlots(d);
+  if (d.kind !== "factory" || !more) return [];
+  // the markup drawn as faceLines draws a rule's (icons: {BELT} -> its glyph)
+  return [{ text: `FEEDS ${fmtCount(outputsAt(def, stars))} BELTS IN TURN.` }, { text: icons(`BIGGER: +${fmtCount(more)} {BELT}`), label: "BIGGER:" }];
+}
+
+/** SHAPES-1 (REQ-BFG-089; S8): the default rules text for a shaped piece, behind the hover or tap (EXPLAIN-1's ⓘ NOTES):
+ *  the shape rule for a long rig, the size rule for a shaped factory. */
+export const SHAPE_RULE = "A LONG RIG'S ARROWS SHINE FROM EVERY OUTSIDE EDGE OF ITS CELLS.";
+export const SIZE_RULE = `A FACTORY'S EVERY ${fmtCount(SLOT_EVERY_CELLS)} CELLS PAST ${fmtCount(SLOT_FROM_CELLS)} ADD A BELT SLOT.`;
+
+/** SHAPES-1: a shaped piece's NOTES sentences ([] for every other piece and with SHAPES off). */
+export function shapeNotes(def: string): string[] {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
+  if (!d || !shapesRules() || !isShaped(d)) return [];
+  return d.kind === "gate" ? [SHAPE_RULE] : d.kind === "factory" ? [SIZE_RULE] : [];
+}
+
+/** SHAPES-1 (REQ-BFG-086.1): the shape in a type line: `2 CELLS`, `3 CELLS` for a line or a bent shape, `2X3`, `3X3` for a
+ *  block; null for a 1-cell rig, a 2x2 factory and anything with SHAPES off (their type line stays as it is). */
+export function shapeWord(def: string): string | null {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
+  if (!d || !shapesRules() || !isShaped(d)) return null;
+  // a block (every cell of its box, 2+ each way: 2x3, 3x3) by its box, depth X width as the FootId names it; else its cells
+  const b = footBox(d, 0), n = footCount(d);
+  return n === b.w * b.h && b.w > 1 && b.h > 1 ? `${fmtCount(b.h)}X${fmtCount(b.w)}` : `${fmtCount(n)} CELLS`;
 }
 
 /** A piece's face at `stars` as data (o: the turret class factor k for a core, the run's hero for MIMIC FORGE). Y7b2 (the
@@ -982,7 +1072,7 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
 
 function faceOn(def: string, stars: number, o: TextOpts): Face {
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero, day: o.day }; // HULL-1a: the day
-  const body = e.kind === "turret" ? TURRET_FACE() : FACES[def](e, x);
+  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? SHAPE_FACES[def])(e, x); // SHAPES-1: SHAPE_FACES
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
     : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)
     : supplyStats(def); // U2b: the rig, gear and supply kinds' data functions

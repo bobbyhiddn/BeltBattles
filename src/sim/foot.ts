@@ -126,8 +126,13 @@ export function footOnDeck(def: ItemDef, x: number, y: number, rot = 0): boolean
 /** R3: the belt slots a factory's size adds on top of outputsAt's: one for every 2 cells beyond 4 (a 2x3 1, a 3x3 2;
  *  a 1-cell, 3-cell or 4-cell foot 0). */
 export function footSlots(def: ItemDef): number {
-  return Math.floor(Math.max(0, footCount(def) - 4) / 2);
+  return Math.floor(Math.max(0, footCount(def) - SLOT_FROM_CELLS) / SLOT_EVERY_CELLS);
 }
+
+/** R3's numbers (footSlots; the face's size rule reads them): one belt slot for every SLOT_EVERY_CELLS cells beyond
+ *  SLOT_FROM_CELLS. */
+export const SLOT_FROM_CELLS = 4;
+export const SLOT_EVERY_CELLS = 2;
 
 /** Is `def` a shaped piece: a foot other than its kind's 0.9.9 one (a multi-cell rig, or a factory that isn't 2x2)? */
 export function isShaped(def: ItemDef): boolean {

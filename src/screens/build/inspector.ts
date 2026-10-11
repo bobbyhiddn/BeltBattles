@@ -112,7 +112,15 @@ import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; //
 import { icons } from "../../render/font"; // U2c step 4
 import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items
 import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
-import { PLAIN_RIGS, RIG_SENTENCE, turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' rig sentence and kind lines
+import { RIG_SENTENCE, turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' rig sentence and kind lines
+import { isPlainRig, shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
+import { shapePic } from "../../ui/shapePic"; // SHAPES-1 (REQ-BFG-086.1): the panel face's shape picture
+
+/** SHAPES-1 (REQ-BFG-086.1, S8): a panel's header picture: a shaped piece's shape with its arrows (ui/shapePic.ts), in the
+ *  header's 16x16 box where every other piece keeps its icon. */
+function panelIcon(def: string): HTMLCanvasElement {
+  return shapedPiece(def) ? shapePic(def) : itemIcon(def);
+}
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -296,7 +304,10 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
     if (!out) faces.set(bs, (out = bs.filter((b) => !hiddenBlock(b)).map(rule)));
     return out;
   };
-  const extra: Block[] = [...(def && PLAIN_RIGS.includes(def) ? [{ role: "ability", text: RIG_SENTENCE, note: "rig" } as Block] : []), ...(t.notes ?? [])];
+  // SHAPES-1 (REQ-BFG-089, S8): a shaped plain rig leads with the rig sentence too (isPlainRig), then a shaped piece's
+  // shape or size rule (faces.ts shapeNotes): default rules text, behind the hover or tap
+  const shaped: Block[] = def ? shapeNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : [];
+  const extra: Block[] = [...(def && isPlainRig(def) ? [{ role: "ability", text: RIG_SENTENCE, note: "rig" } as Block] : []), ...shaped, ...(t.notes ?? [])];
   const hidden = t.body.filter((b) => !!b.note || b.role === "flavour" || b.role === "hint");
   const notes = [...extra, ...hidden].map((b, i) => ({ b, i })).sort((p, q) => noteOrder(p.b) - noteOrder(q.b) || p.i - q.i).map((x) => x.b);
   return {
@@ -1583,7 +1594,7 @@ function baseSpec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       if (!t || !o) return null;
       const can = !o.sold && run.gold >= o.price;
       return {
-        icon: itemIcon(o.def), text: t,
+        icon: panelIcon(o.def), text: t, // SHAPES-1 (REQ-BFG-086.1): a shaped piece's panel shows its shape
         actions: hovering ? [] : [{
           id: "buy", label: t.labels[0], primary: can, disabled: !can,
           onTap: () => {
@@ -1597,7 +1608,7 @@ function baseSpec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const t = cargoPanel(run, show.uid, touch);
       const it = run.inventory.find((i) => i.uid === show.uid);
       if (!t || !it) return null;
-      return { icon: itemIcon(it.def), text: t, actions: [{ id: "sell", label: t.labels[0], onTap: () => sell(ctx, it.uid) }] };
+      return { icon: panelIcon(it.def), text: t, actions: [{ id: "sell", label: t.labels[0], onTap: () => sell(ctx, it.uid) }] }; // SHAPES-1
     }
     case "item": {
       const p = itemByUid(b, show.uid);
@@ -1619,7 +1630,7 @@ function baseSpec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
           ...(shapedPiece(d.id) && canTurn(d.id) ? [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }] : []),
           { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid), ...(touch ? { optional: true } : {}) }, ...sellIt,
         ] : [];
-      return { icon: itemIcon(d.id), text: t, actions };
+      return { icon: panelIcon(d.id), text: t, actions }; // SHAPES-1: a shaped piece's shape picture
     }
     case "fitted": {
       // shoptap (REQ-BFG-035): a turret's core or gear piece, picked by a touch tap on the selected turret
