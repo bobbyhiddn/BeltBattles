@@ -149,7 +149,9 @@ describe("the shop card shows the module's family marks (REQ-BFG-023 acceptance 
 });
 
 describe("the desk's hover tooltip names the families, each in its colour, under the module's kind", () => {
-  it("a line of names at y+21, the ability lines 7 px lower, the box 7 px taller", () => {
+  // CARD-3 (REQ-BFG-087, D4): the ability lines 7 + G (3x5's GAP, 4) px lower and the box as much taller: the gap G between
+  // the family line and the effect (were 7 px lower, the sentence at y+28, right under the names)
+  it("a line of names at y+21, the ability lines 11 px lower (the line and the gap G), the box 11 px taller", () => {
     for (const id of ["whetstone", "stoker", "twinmould", "overclocker", "anvil", "seamwelder"]) {
       const d = ITEMS[id], f = familiesOf(id);
       const r = { x: 40, y: 2, w: CARD_W, h: CARD_H };
@@ -168,8 +170,10 @@ describe("the desk's hover tooltip names the families, each in its colour, under
       // the ability line moved down a row: nothing of the bone text on the names' rows
       for (let i = 0; i < 260; i++) for (let j = y + 21; j < y + 26; j++) expect(c.at(i, j) === C.bone, `${id} (${i},${j})`).toBe(false);
       let bone = false;
-      for (let i = 0; i < 260; i++) for (let j = y + 28; j < y + 33; j++) if (c.at(i, j) === C.bone) bone = true;
-      expect(bone, `${id}: the sentence at y+28`).toBe(true);
+      for (let i = 0; i < 260; i++) for (let j = y + 32; j < y + 37; j++) if (c.at(i, j) === C.bone) bone = true;
+      expect(bone, `${id}: the sentence at y+32`).toBe(true); // CARD-3 (D4): was y+28
+      // CARD-3 (D4): the gap G clear between them (the names' foot y+25, the sentence's top y+32)
+      for (let i = 0; i < 260; i++) for (let j = y + 26; j < y + 32; j++) expect(c.at(i, j) === C.bone, `${id} gap (${i},${j})`).toBe(false);
     }
   });
 });

@@ -16,6 +16,7 @@ import { plainRigStats } from "../../ui/faces"; // CARD-2 (REQ-BFG-084, K6): a p
 import { statRow } from "../../ui/icons"; // CARD-2 (K6)
 import { abilityText, type TextOpts } from "../../ui/abilityText"; // TXT-095: its fallback, the kept opening sentence
 import { CARD_W } from "./layout";
+import { GAP } from "../../ui/spacing"; // CARD-3 (REQ-BFG-087, D4): the tooltip's family line's gap
 
 export const MERCHANT_COLOR: Record<MerchantId, string> = {
   ironmonger: C.steel2,
@@ -288,8 +289,10 @@ export function offerTooltip(def: string, o: TextOpts = {}): string {
  *  TXT-095: an offer's `text` is offerTooltip's (its face's first rule line first), as a pack's is (chrome.ts). */
 export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text = ""): void {
   const lines = tooltipLines(text);
-  // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families, named in their colours under its kind (none: no line)
-  const fam = familiesText(def.id), famLine = fam ? familySpans(fam) : null, fh = famLine ? 7 : 0;
+  // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families, named in their colours under its kind (none: no line).
+  // CARD-3 (REQ-BFG-087, D4; SPACE-1 open item 7): the family line and the effect are separate items: the gap G (3x5's)
+  // between them (the effect's first line sat right under the names: 2 px, the pitch's)
+  const fam = familiesText(def.id), famLine = fam ? familySpans(fam) : null, fh = famLine ? 7 + GAP["3"] : 0;
   const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(describe(def), "3"), famLine ? lineWidth(famLine, "3") : 0) + 10;
   const h = 22 + fh + lines.length * 7;
   const x = Math.max(2, Math.min(W - w - 2, Math.round(r.x + r.w / 2 - w / 2)));

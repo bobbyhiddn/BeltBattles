@@ -534,3 +534,42 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
     expect(panelCtx(run, sel, f, true).d().hint).toBe(null);
   });
 });
+
+// --------------------------------------------------------------------------- (d5, d6): LAST CHANCE's part and hull cards
+import { LastChancePicker, cardH, lcGaps, partInfo, partLines } from "../src/screens/lastChancePicker";
+import { GAP } from "../src/ui/spacing";
+
+describe("CARD-3 (d5, d6): LAST CHANCE's part and hull cards take gaps between their items (REQ-BFG-087)", () => {
+  const n = (its: readonly unknown[][]): number => its.reduce((k, it) => k + it.length, 0);
+  it("a card's items (a stat row, each rule, each detail) are G apart, the pitch inside one; Gmin where G doesn't fit the screen", () => {
+    expect([lcGaps(), lcGaps(true)]).toEqual([{ lines: GAP["5"], info: GAP["3"] }, { lines: GAP_MIN["5"], info: GAP_MIN["3"] }]);
+    const run = newRun("foundry", 5, "card3-lc");
+    let multi = 0;
+    for (const d of buyableModules()) {
+      const items = partLines(d.id, 290, run), info = partInfo(d.id, 290, run);
+      if (items.length > 1) multi++;
+      const was = 31 + n(items) * 9 + 1 + n(info) * 7 + 13 + 4; // card3-base's cardH: no gap
+      const gi = Math.max(0, items.length - 1), gd = Math.max(0, info.length - 1);
+      expect(cardH(items, info, true), d.id).toBe(was + gi * GAP["5"] + gd * GAP["3"]);
+      expect(cardH(items, info, true, lcGaps(true)), d.id).toBe(was + gi * GAP_MIN["5"] + gd * GAP_MIN["3"]);
+      expect(items.every((it) => it.length > 0) && info.every((it) => it.length > 0), d.id).toBe(true);
+    }
+    expect(multi).toBeGreaterThan(10);
+  });
+
+  it("on the operator's phone the three cards fit with G, every card's details open; on a screen too short for G they take Gmin", () => {
+    const run = newRun("furnace", 5, "card3-lc");
+    (run as unknown as { lastChance: { lives: number; day: number } }).lastChance = { lives: 1, day: 3 };
+    const lc = new LastChancePicker();
+    const f = framed(402, 690, 3, 0), s = { run, refit: false, game: { W: f.W, H: f.H } };
+    const o = lc.offer(s as never);
+    expect(o).not.toBeNull();
+    lc.boons(o!).forEach((_, i) => lc.info.add(i));
+    lc.open = lc.boons(o!).length - 1;
+    const L = lc.layout(s as never, o!);
+    expect([L.gap, L.bottom <= f.H]).toEqual([lcGaps(), true]);
+    // a screen 1 px too short for the cards with G even at lcLayout's least top (4)
+    const short = lc.layout({ ...s, game: { W: f.W, H: L.bottom - L.top + 3 } } as never, o!);
+    expect(short.gap).toEqual(lcGaps(true));
+  });
+});
