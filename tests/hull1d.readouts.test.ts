@@ -112,12 +112,13 @@ describe("HULL-1d: a part card's numbers on days 5 and 10 (switch on)", () => {
       expect(on(() => abilityText("riveter", 1, { day })).sentences[0]).toBe(`HEALS YOUR HULL BY ${S(heal, day)} FOR EACH PAYLOAD IT HITS.`);
       expect(on(() => faceLines("riveter", 1, { day }))!.rules[0].text).toContain(` ${S(heal, day)}`);
       expect(on(() => abilityText("mendingloom", 1, { day })).sentences[0]).toBe(`HEALS YOUR HULL BY ${S(regen, day)} EVERY SECOND.`);
-      expect(on(() => abilityText("plateroller", 1, { day })).sentences[0]).toBe(`ROLLS ${S(plate, day)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`);
+      // MERGE-099D (BRIEF-MERGE-099D 1d, 1f): CARD-3's word for the soak layer, SHIELD (was PLATING), HULL-1d's S(d)
+      expect(on(() => abilityText("plateroller", 1, { day })).sentences[0]).toBe(`ROLLS ${S(plate, day)} SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`);
       // the PLATE pool's cap (S.plating) and PLATE BREAKER's 10 (a pool unit) on the same S
-      expect(on(() => abilityText("plateroller", 1, { day })).sentences[1]).toContain(`UP TO ${S(PLATE_CAP, day)} PLATING`);
-      expect(on(() => abilityText("platebreaker", 1, { day })).sentences[0]).toContain(`TAKES ${S(10, day)} PLATING`);
+      expect(on(() => abilityText("plateroller", 1, { day })).sentences[1]).toContain(`UP TO ${S(PLATE_CAP, day)} SHIELD`);
+      expect(on(() => abilityText("platebreaker", 1, { day })).sentences[0]).toContain(`TAKES ${S(10, day)} SHIELD`);
       expect(on(() => abilityText("wardworks", 1, { day })).sentences[2])
-        .toContain(`BY ${S(PLATE_PER_SLUG, day)}, UP TO ${S(PLATE_CAP, day)} PLATING`);
+        .toContain(`BY ${S(PLATE_PER_SLUG, day)}, UP TO ${S(PLATE_CAP, day)} SHIELD`);
     }
   });
 
@@ -130,7 +131,8 @@ describe("HULL-1d: a part card's numbers on days 5 and 10 (switch on)", () => {
     for (const day of DAYS) {
       const o = { day };
       expect(on(() => glossaryText("BURN", { def: "whetstone", stars: 1, o }))).toContain(`${D(BURN_DPS, day)} HULL DAMAGE`);
-      expect(on(() => glossaryText("PLATE", { def: "whetstone", stars: 1, o }))).toContain(`MAX ${S(PLATE_CAP, day)}`);
+      // MERGE-099D (1f): the soak layer's row is SHIELD now (CARD-3; kw PLATE), a tap on its word
+      expect(on(() => glossaryText("SHIELD", { def: "whetstone", stars: 1, o }))).toContain(`MAX ${S(PLATE_CAP, day)}`);
       expect(on(() => glossaryText("BURN", { def: "whetstone", stars: 1, o: {} }))).toBe(glossaryText("BURN"));
     }
   });
@@ -141,7 +143,8 @@ describe("HULL-1d: a rune's text on days 5 and 10 (switch on)", () => {
     for (const day of DAYS) {
       expect(on(() => runeLine(RUNES.war_edge, day))).toBe(`YOUR SHOTS: +${D(RUNES.war_edge.amount.n, day)} DMG.`);
       expect(on(() => runeLine(RUNES.sharp_scrap, day))).toBe(`EACH TURRET'S FIRST SHOT: +${D(RUNES.sharp_scrap.amount.n, day)} DMG.`);
-      expect(on(() => runeLine(RUNES.rivet_hoard, day))).toBe(`START: +${S(RUNES.rivet_hoard.amount.n, day)} PLATE.`);
+      // MERGE-099D (1d, 1f): CARD-2's FIGHT START: (K3 a) and CARD-3's SHIELD (was "START: +n PLATE."), HULL-1d's S(d)
+      expect(on(() => runeLine(RUNES.rivet_hoard, day))).toBe(`FIGHT START: +${S(RUNES.rivet_hoard.amount.n, day)} SHIELD.`);
       // MERGE-099C: WORDS-1's words (REQ-BFG-081; was "YOUR HULL: REGEN n."), HULL-1d's S(d)
       expect(on(() => runeLine(RUNES.green_thread, day))).toBe(`YOUR HULL: HEAL ${S(RUNES.green_thread.amount.n, day)} EACH SEC.`);
       expect(on(() => runeLine(RUNES.leech_vow, day))).toBe(`EACH SHOT THAT LANDS: HEAL ${S(RUNES.leech_vow.amount.n, day)}.`);

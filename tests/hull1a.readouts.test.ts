@@ -86,8 +86,10 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
       iron_skin: ["+150 HULL.", "+900 HULL."],
       spare_hull: ["+300 HULL.", "+1800 HULL."],
       bulkheads: ["+50 HULL PER TURRET YOU HAVE.", "+300 HULL PER TURRET YOU HAVE."],
-      // MERGE-099C: WORDS-1's words (REQ-BFG-081; runeText.ts: was "PER MERGED PIECE."), HULL-1a's numbers
-      scrap_halo: ["+60 HULL FOR EACH ★2 OR ★3 PIECE IN USE.", "+360 HULL FOR EACH ★2 OR ★3 PIECE IN USE."],
+      // MERGE-099C: WORDS-1's words (REQ-BFG-081; runeText.ts: was "PER MERGED PIECE."), HULL-1a's numbers. MERGE-099D
+      // (BRIEF-MERGE-099D 1f): CARD-2's words (K3 d, runeText.ts RUNE_TEXT scrap_halo; was "FOR EACH ★2 OR ★3 PIECE IN USE."),
+      // HULL-1a's numbers
+      scrap_halo: ["+60 HULL PER MERGED (★2/★3) PIECE IN USE.", "+360 HULL PER MERGED (★2/★3) PIECE IN USE."],
     };
     for (const [id, [d1, d10]] of Object.entries(want)) {
       expect(runeLine(RUNES[id], 10)).toBe(d1); // off
