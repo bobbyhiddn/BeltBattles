@@ -345,6 +345,7 @@ export class ArenaMotion implements ShotMap {
       if (hpct < 0.25) cracks(t, f, CRACKS_25, PLATE_HX, PLATE_HX + PLATE_W);
       drawMachinery(t, v);
       drawTurrets(t, v);
+      a.cue?.drawBoard(t, a, s, reduced); // PAIR-CUE (REQ-BFG-100): the near-miss glows, each pair's flash and bracket
       if (a.loser === v.side && a.koT > 0.35) dimPlate(t, r, Math.min(0.62, (a.koT - 0.35) * 1.1));
       for (const charge of b.sides[s].limpets) {
         const x = Math.round(sx(f, charge.target.x, charge.target.y)), y = Math.round(sy(f, charge.target.x, charge.target.y));
@@ -381,8 +382,12 @@ export class ArenaMotion implements ShotMap {
     // WIND-2 (REQ-BFG-093): side by side, the storm rolls in from both screen edges (windBoth: the layout at rest)
     const level = b.windLevel() * Math.max(0, 1 - a.overT / 1.2);
     drawWind(g, level, W, H, a.clock, { both: windBoth(hullBox(a.drawn[0]), hullBox(a.drawn[1])), mark: this.windMark });
+    // PAIR-CUE (REQ-BFG-100; REVIEW-COUNT1 ruling 3): the wind's numbers placed first (windDrawn: this frame's, which the
+    // board counters keep clear of), then the board counters under every number, then the numbers over them
+    this.placeWindPops(a, W, H);
+    this.underNumbers?.(g);
     this.drawPops(g, a); // WIND-2 (REQ-BFG-093): every number above the storm, as the world layer drew it
-    this.drawWindPops(g, a, W, H); // WIND-1 (REQ-BFG-093): the wind's numbers above the wind
+    this.drawWindNumbers(g); // WIND-1 (REQ-BFG-093): the wind's numbers above the wind
     if (a.fx.flash > 0 && !reduced) {
       g.globalAlpha = Math.min(0.5, a.fx.flash);
       rect(g, 0, 0, W, H, a.fx.flashColor);
@@ -409,6 +414,7 @@ export class ArenaMotion implements ShotMap {
       else g.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
       g.imageSmoothingEnabled = false;
       a.fx.drawPops(g, 0, 0, s);
+      if (a.cue?.on) a.fx.drawPairPops(g, 0, 0, s); // PAIR-CUE (REQ-BFG-100): PAIR's glyph over a gun, its mark by a PAIR shot's number
       g.restore();
     }
     g.save();
@@ -426,6 +432,15 @@ export class ArenaMotion implements ShotMap {
   windMark = "";
   /** WIND-1 tooling (read only; bb.windInfo): the wind numbers drawn this frame, their side, text and box (logical px). */
   readonly windDrawn: { side: Side; text: string; x: number; y: number; w: number; h: number; beside: boolean }[] = [];
+  /** PAIR-CUE: each placed wind number's colour this frame (windDrawn's order). */
+  private readonly windCol: string[] = [];
+  /**
+   * PAIR-CUE (REQ-BFG-100; REVIEW-COUNT1 ruling 3: hit numbers stay on top): drawn on the canvas after the world and the
+   * dark wind, before every number (hits, BURN ticks, heals, BLOCKED, PAIR's pops and the wind's numbers), so a fresh number
+   * is always whole over what it draws; it shows again as the number fades. The battle and the replay draw their board
+   * counters here (C5, C6: upright, at the screen's scale). Null: nothing (the title's fight, the hero preview).
+   */
+  underNumbers: ((g: G) => void) | null = null;
 
   /**
    * WIND-1 (REQ-BFG-093): the dark wind's numbers (Fx.windPop), drawn on the canvas after the wind, so its wash, band and
@@ -433,8 +448,9 @@ export class ArenaMotion implements ShotMap {
    * upright. Each sits on its own carrier's hull (its board's map and the camera: it rides with the carrier), rises and
    * blinks out as the other numbers do; it is kept inside the screen and clear of both plates and the bar (moved up or down
    * out of one); a carrier whose hull centre is off the screen gets its number beside its own plate instead.
+   * PAIR-CUE: placed here (windDrawn) before the board counters draw, drawn by drawWindNumbers after the other numbers.
    */
-  private drawWindPops(g: G, a: Arena, W: number, H: number): void {
+  private placeWindPops(a: Arena, W: number, H: number): void {
     const fx = a.fx, list = fx.popList, q = this.tmp, keep = this.windKeep, out = this.windDrawn;
     out.length = 0;
     for (let i = 0; i < fx.popCount; i++) {
@@ -447,9 +463,15 @@ export class ArenaMotion implements ShotMap {
       if (this.camera) applyAffine(this.scr, q[0], q[1], q);
       const w = textWidth(p.text) * 2 + 4, h = 7 * 2 + 4; // the text x2 and its 2 px outline
       const at = placeWindNumber(q[0], q[1], 16 * Math.min(1, k * 2.2), w, h, W, H, keep, s);
-      drawText(g, p.text, at.x + 2, at.y + 2, p.t < 0.05 ? C.white : p.color, { outline: C.ink, scale: 2 });
+      this.windCol[out.length] = p.t < 0.05 ? C.white : p.color;
       out.push({ side: s, text: p.text, x: at.x, y: at.y, w, h, beside: at.beside });
     }
+  }
+
+  /** WIND-1 (REQ-BFG-093): the wind's numbers as placed this frame (placeWindPops), over every other number. */
+  private drawWindNumbers(g: G): void {
+    const out = this.windDrawn;
+    for (let i = 0; i < out.length; i++) drawText(g, out[i].text, out[i].x + 2, out[i].y + 2, this.windCol[i], { outline: C.ink, scale: 2 });
   }
 
   /** FIELD-1: the carrier's trail in its medium: the wake on water, dust on ground, contrails in the air. */
