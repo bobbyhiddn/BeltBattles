@@ -15,7 +15,8 @@ import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } 
 import { finishDay, foeTitle, ghostOf, startDusk, storedFoe } from "../game/day";
 import { foldDuskResult, foldWarlordResult } from "../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072): the profile's folds
 import { raceReadout } from "../game/raceReadout"; // 0.8.0 H1 M3: the card's FOUNDRY and BASTION rows
-import { loadPool, saveGhost } from "../game/ghosts";
+import { loadPool } from "../game/ghosts";
+import { saveRunGhost } from "../game/ghostGuard"; // RETUNE-1 run 2 (REQ-BFG-096): the upload guard (saveGhost behind it)
 import { FINDING_GHOST, foeNote, online, onlineMode } from "../game/session"; // 0.7.0a: online play (none: offline, as 0.6.2)
 import { battleRecordFor } from "../net/replay";
 import type { BattleRecord } from "../sim/battle";
@@ -284,7 +285,7 @@ export class BattleScreen implements Screen {
       this.result.hulls = [b.sides[0].hull.hp, b.sides[1].hull.hp];
       if (run.over) online()?.countRun(run); // D2: a finished run, won or lost
     }
-    saveGhost(mine);
+    saveRunGhost(run, mine); // RETUNE-1 run 2: saveGhost, unless the upload guard refuses (no hearts mark, hearts rules)
     saveRun(run);
     foldDuskResult(run, this.result); // CUSTOM-2a (REQ-BFG-072): the dusk (and the run's end when it ended the run), once
     this.phase = "outro";
