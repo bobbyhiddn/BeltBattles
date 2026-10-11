@@ -12,6 +12,8 @@ import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { lineWidth } from "../src/ui/richText";
 import { abilityText } from "../src/ui/abilityText";
 import { faceLines, hasFace } from "../src/ui/faces";
+import { plainRigStats } from "../src/ui/faces"; // CARD-2 (REQ-BFG-084, K6): the plain rigs' tooltip
+import { statRow } from "../src/ui/icons"; // CARD-2 (K6)
 import { TOOLTIP_TEXT_W, drawTooltip, offerTooltip, tooltipLines } from "../src/screens/build/shop";
 import { G, fresh, installRaster } from "./raster.helpers";
 
@@ -28,7 +30,12 @@ describe("TXT-095 (ii): the shop card's hover tooltip reads faces first, as the 
     for (const def of DEFS) for (const o of ctxs) {
       const tip = offerTooltip(def, o), id = `${def} ${JSON.stringify(o)}`;
       const rule = faceLines(def, 1, o)?.rules[0]?.text;
-      if (rule !== undefined) {
+      // CARD-2 (REQ-BFG-084, K6): a plain stat rig's tooltip is its plain face, the panel's stat row (was its HIT: rule)
+      const plain = plainRigStats(def, 1);
+      if (plain) {
+        expect(tip, id).toBe(statRow(plain));
+        ruled++;
+      } else if (rule !== undefined) {
         expect(tip, id).toBe(rule);
         ruled++;
       } else {

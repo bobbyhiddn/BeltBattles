@@ -17,6 +17,8 @@ import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on 
 import { panel, type Rect } from "../ui/ui";
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
 import { faceLines } from "../ui/faces";
+import { PLAIN_RIGS, RIG_SENTENCE, plainRigStats } from "../ui/faces"; // CARD-2 (REQ-BFG-084, K6): the plain rigs' faces
+import { statRow } from "../ui/icons"; // CARD-2 (K6)
 import { HEROES, ITEMS, type Rarity } from "../sim/content";
 import { RUNES } from "../sim/runes";
 import { BOONS, LAST_CHANCE_HULL, type Boon, type LastChanceOffer } from "../sim/lastChance";
@@ -60,8 +62,12 @@ const GAP = 7;
 const HEAD = 31;
 const INFO = 11; // the ⓘ box's side
 
-/** The PART card's lines at text width `tw`: the stat row(s) as icons, then each rule (its brass label first). */
+/** The PART card's lines at text width `tw`: the stat row(s) as icons, then each rule (its brass label first). CARD-2
+ *  (REQ-BFG-084, K6; REVIEW-EXPLAIN1 open item 1): a plain stat rig (faces.ts PLAIN_RIGS: WHETSTONE, TEMPER, BARBED SPOOL)
+ *  draws its plain face, the panel's: plainRigStats' stat row ({DMG}+20), no HIT: line (it read faceLines' rule). */
 function partLines(def: string, tw: number, run: Pick<Run, "hero" | "build">): RichLine[] {
+  const plain = plainRigStats(def, 1);
+  if (plain) return wrapRich(colourize(statRow(plain), C.bone), tw, "5");
   const fl = faceLines(def, 1, textOpts(run as Run));
   if (!fl) return [];
   const out: RichLine[] = [];
@@ -75,10 +81,11 @@ function partLines(def: string, tw: number, run: Pick<Run, "hero" | "build">): R
   return out;
 }
 
-/** The PART card's details (ⓘ): its keywords' reminders, then where it goes. */
+/** The PART card's details (ⓘ): its keywords' reminders, then where it goes. CARD-2 (REQ-BFG-084, K6): a plain stat rig's
+ *  rig sentence first (faces.ts RIG_SENTENCE: the trigger its face no longer prints, as its panel's ⓘ NOTES lead with it). */
 function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">): RichLine[] {
   const fl = faceLines(def, 1, textOpts(run as Run));
-  const rem = [...(fl?.reminders ?? []), "FREE. IT GOES TO CARGO AT ★1; PLACE IT AS ANY PART."];
+  const rem = [...(PLAIN_RIGS.includes(def) ? [RIG_SENTENCE] : []), ...(fl?.reminders ?? []), "FREE. IT GOES TO CARGO AT ★1; PLACE IT AS ANY PART."];
   return rem.flatMap((t) => wrapRich(colourize(icons(t), C.slate4), tw, "3"));
 }
 

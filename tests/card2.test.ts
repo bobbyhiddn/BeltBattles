@@ -67,6 +67,7 @@ import { colourize, wrapRich } from "../src/ui/richText";
 import { C } from "../src/render/palette";
 import { stripIcons as stripIconsOf } from "../src/render/font";
 const wrapRichOf = (t: string, w: number) => wrapRich(colourize(icons(t), C.bone), w, "5");
+import { offerTooltip } from "../src/screens/build/shop";
 /** A turret in cargo's panel plan on a framed view (a finger's). */
 function detailsPlanOf(f: ReturnType<typeof framed>, def: string) {
   const run = newRun("furnace", 5, "card2-plan");
@@ -431,6 +432,34 @@ describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new w
     expect(drake).toBe("SHOT: SCRAP'S EXTRA DAMAGE COUNTS, AND ALL OF A FUSED SLUG'S. {*HEAT} NEVER DOES.");
     rows.push(`drake SHOT note: ${wrapRichOf(drake, 225).length} lines of 5x7 at 225 px; twinlatch desk card: ${textWidth("HOLDS A SLUG TO PAIR TWO BELTS.", "5")} px`);
     console.log(`CARD-2 (k3) piece lines:\n${rows.join("\n")}`);
+  });
+});
+
+describe("CARD-2 (k6): the plain rigs' faces on LAST CHANCE's PART card and the desk shop card's hover (REQ-BFG-084)", () => {
+  it("WHETSTONE, TEMPER, BARBED SPOOL: the stat row, no HIT: line; LAST CHANCE's i box leads with the rig sentence; every other rig unchanged", () => {
+    const want: Record<string, string> = { whetstone: `${ICON.DMG}+20`, temper: `${ICON.BURN}+1`, barbed: `${ICON.FRAY}+1` };
+    for (const [id, row] of Object.entries(want)) {
+      expect(offerTooltip(id), id).toBe(row);
+      expect(offerTooltip(id), id).not.toContain("HIT:");
+    }
+    // another rig keeps its face's first rule line (HEAT JACKET, PLATE ROLLER, RIVETER keep HIT:)
+    expect(offerTooltip("plateroller")).toBe(faceLines("plateroller", 1)!.rules[0].text);
+    // LAST CHANCE: a run whose pending pick offers each plain rig as its PART
+    for (const id of Object.keys(want)) {
+      const run = newRun("furnace", 5, `card2-k6-${id}`);
+      (run as unknown as { lastChance: { lives: number; day: number } }).lastChance = { lives: 1, day: 3 };
+      const sc = screenOf(run, 402, 690, 3, true), lc = new LastChancePicker();
+      const o0 = lc.offer(sc.s as never);
+      expect(o0, `${id}: a pending LAST CHANCE pick`).toBeTruthy();
+      if (!o0) continue;
+      lc.offer = () => ({ ...o0, part: id }) as never;
+      const lines = (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; lines: { t: string }[][]; info: { t: string }[][] }[] }).texts(run, lc.offer(sc.s as never), 300);
+      const part = lines.find((t) => t.boon === "part")!;
+      expect(part.lines.map((l) => l.map((s) => s.t).join("")), id).toEqual([want[id]]);
+      lc.info.add(lines.findIndex((t) => t.boon === "part"));
+      const info = (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; info: { t: string }[][] }[] }).texts(run, lc.offer(sc.s as never), 300).find((t) => t.boon === "part")!.info;
+      expect(info.map((l) => l.map((s) => s.t).join("")).join(" "), id).toMatch(/^EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS STATS TO EVERY SLUG ON THAT TILE\. ONE ARROW, ONE HIT\. /);
+    }
   });
 });
 
