@@ -28,6 +28,8 @@ import { panelArea, type Sel } from "../src/screens/build/layout";
 import { detailsPlan, drawDetails, panelFit } from "../src/screens/build/inspector";
 import { SIGHT_REGION, iconTipRect, keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
 import { RIG_SENTENCE } from "../src/ui/faces";
+import { plainRigStats } from "../src/ui/faces"; // MERGE-099D (BRIEF-MERGE-099D 1f): (k6) at the LAST CHANCE offer's star
+import { statRow } from "../src/ui/icons"; // MERGE-099D (1f)
 import type { Ctx } from "../src/screens/build/actions";
 import type { DuskFoe } from "../src/game/run";
 
@@ -464,7 +466,11 @@ describe("CARD-2 (k6): the plain rigs' faces on LAST CHANCE's PART card and the 
       // are the items' lines in order (was one list of lines)
       const lines = (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; lines: { t: string }[][][]; info: { t: string }[][][] }[] }).texts(run, lc.offer(sc.s as never), 300);
       const part = lines.find((t) => t.boon === "part")!;
-      expect(part.lines.flat().map((l) => l.map((s) => s.t).join("")), id).toEqual([want[id]]);
+      // MERGE-099D (BRIEF-MERGE-099D 1c, 1f): c099's LAST CHANCE PART card is the face at the offer's star (HULL-1d, REQ-BFG-073:
+      // ★2 with HULL_SCALE on) on the run's day (HULL-1a/1d), so the plain rig's stat row is plainRigStats there (WHETSTONE ★2:
+      // +40; was ★1's want[id] on bb-0.9.7, which had no part star); the switch off: ★1, want[id], as before
+      expect(part.lines.flat().map((l) => l.map((s) => s.t).join("")), id).toEqual([statRow(plainRigStats(id, o0.partStars ?? 1, run.day)!)]);
+      if ((o0.partStars ?? 1) === 1 && run.day === 1) expect(statRow(plainRigStats(id, 1, 1)!), id).toBe(want[id]);
       lc.info.add(lines.findIndex((t) => t.boon === "part"));
       const info = (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; info: { t: string }[][][] }[] }).texts(run, lc.offer(sc.s as never), 300).find((t) => t.boon === "part")!.info;
       expect(info.flat().map((l) => l.map((s) => s.t).join("")).join(" "), id).toMatch(/^EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS STATS TO EVERY SLUG ON THAT TILE\. ONE ARROW, ONE HIT\. /);

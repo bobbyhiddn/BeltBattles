@@ -368,7 +368,9 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
       expect(pcts(capLine(b)), `★${s}`).toEqual([Math.round(measured * 100) / 100]);
     }
     expect(fasterThan(off.plates, 3)).toBeCloseTo(0, 6);
-    expect(withLadderFix(() => capLine(sharedPress(3)), false)).toBe("THE ARMOR PRESS'S GUN IS FULL: ONLY ITS PLATING WORKS 70% FASTER.");
+    // MERGE-099D (BRIEF-MERGE-099D 1d/1f): c099's LADDER_FIX-off pin in CARD-3's words (inspector.ts stokeCapBlocks: ITS
+    // SHIELD COMES; was ONLY ITS PLATING WORKS)
+    expect(withLadderFix(() => capLine(sharedPress(3)), false)).toBe("THE ARMOR PRESS'S GUN IS FULL: ONLY ITS SHIELD COMES 70% FASTER.");
   });
 
   // NUM-4 (REQ-BFG-047): retitled, the title quoted the line before NUM-2 (was "room for part of the stoke: \"SO IT STAMPS
@@ -432,10 +434,11 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
       if (text) expect(speed * (plated - stamped), label).toBeGreaterThanOrEqual(1);
       else expect(speed * (plated - stamped), label).toBeLessThan(1);
     }
-    // AZ-BUMP (the flip, LADDER_FIX): with LADDER_FIX off, ★3's two lines read PLATES 70% as before
+    // AZ-BUMP (the flip, LADDER_FIX): with LADDER_FIX off, ★3's two lines read 70% as before. MERGE-099D (1d/1f): in
+    // CARD-3's words, ITS SHIELD COMES (was BUT PLATES)
     expect(withLadderFix(() => [capLine(lonePress(3, 1)), capLine(lonePress(3, 2))], false)).toEqual([
-      "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 58% FASTER, BUT PLATES 70% FASTER.",
-      "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT PLATES 70% FASTER.",
+      "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 58% FASTER, BUT ITS SHIELD COMES 70% FASTER.",
+      "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT ITS SHIELD COMES 70% FASTER.",
     ]);
     // where the gun has room for the whole stoke (1 and 2 stars on the 1-star press) the opening sentence stays the
     // glossary's: the press works 20 / 44% faster, its plating with it

@@ -14,7 +14,7 @@ import { windReadout, windShareText } from "../src/screens/battleHud";
 import { GLOSSARY_WRAP_W, glossaryRows, glossaryText } from "../src/ui/glossary";
 import { captureFormats, fmtSec } from "../src/ui/statFormat";
 import { C } from "../src/render/palette";
-import { ICON, KEYWORDS, icons, stripIcons, textWidth } from "../src/render/font";
+import { ICON, KEYWORDS, PLAYER_WORD, icons, stripIcons, textWidth } from "../src/render/font"; // MERGE-099D: PLAYER_WORD (CARD-3)
 import { colourize, wrapRich } from "../src/ui/richText";
 
 afterEach(() => setHullScale(true)); // the shipped value (AZ-BUMP's flip; was false): a test that reads the switch off sets it off itself
@@ -79,14 +79,17 @@ describe("HULL-1c: the bar's wind read-out (REVIEW-HULL1A N3)", () => {
 });
 
 describe("HULL-1c: the wind's info text, the glossary's DARK WIND row (REVIEW-HULL1A N3)", () => {
-  const OFF = `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`;
+  // MERGE-099D (BRIEF-MERGE-099D 1f; cap's ruling, oracle 19ddc7af83f1dba3): CARD-3 (REQ-BFG-107) moved THE DARK WIND GOES
+  // PAST IT from the soak row (SHIELD) to this row, so both forms say PAST SHIELD; the ON form keeps 2 lines as HULLS LOSE
+  // A GROWING % OF MAX EACH SEC (was EACH HULL LOSES A GROWING % OF ITS MAX EACH SEC.)
+  const OFF = `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS, PAST {*PLATE}. NO {*HEAL} IN IT.`;
 
   it("switch on: each hull loses a share of its own max every second; 2 lines of 5x7 at the band's width; its one number the sim's", () => {
     setHullScale(true);
     expect(hullScaleRules()).toBe(true);
     const def = glossaryText("DARK WIND")!;
     expect(def).not.toBe(OFF);
-    expect(stripIcons(icons(def))).toMatch(/^DARK WIND: FROM \d+, EACH HULL LOSES A GROWING % OF ITS MAX EACH SEC\. NO .?HEAL\.$/);
+    expect(stripIcons(icons(def))).toMatch(/^DARK WIND: FROM \d+, HULLS LOSE A GROWING % OF MAX EACH SEC, PAST .?SHIELD\. NO .?HEAL\.$/);
     const lines = wrapRich(colourize(icons(def), C.bone), GLOSSARY_WRAP_W, "5");
     expect(lines.length).toBeLessThanOrEqual(2);
     for (const l of lines) expect(textWidth(l.map((s) => s.t).join(""), "5")).toBeLessThanOrEqual(GLOSSARY_WRAP_W);
@@ -94,7 +97,9 @@ describe("HULL-1c: the wind's info text, the glossary's DARK WIND row (REVIEW-HU
     const { value: rows, records } = captureFormats(() => glossaryRows());
     expect(rows.find((r) => r.word === "DARK WIND")!.def).toBe(def);
     expect(records.some((r) => r.unit === "sec" && r.value === WIND_START)).toBe(true);
-    for (const k of KEYWORDS) for (const m of icons(def).matchAll(new RegExp(k, "g"))) expect(icons(def)[m.index! - 1], k).toBe(ICON[k]);
+    // MERGE-099D (BRIEF-MERGE-099D 1f): each keyword is found by the word it draws (CARD-3's font.ts PLAYER_WORD: {*PLATE}
+    // draws ICON.PLATE then SHIELD), its icon before it (was the internal name: PAST SHIELD is the PLATE token's word)
+    for (const k of KEYWORDS) for (const m of icons(def).matchAll(new RegExp(PLAYER_WORD[k], "g"))) expect(icons(def)[m.index! - 1], k).toBe(ICON[k]);
     console.log(`HULL1C-WINDHUD info: ${stripIcons(icons(def))} (${lines.map((l) => textWidth(l.map((s) => s.t).join(""), "5")).join(" + ")} px)`);
   });
 

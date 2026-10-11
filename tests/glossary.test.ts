@@ -231,7 +231,8 @@ describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND
     // oracle 19ddc7af83f1dba3): in both rows; the ON row reads HULLS LOSE A GROWING % OF MAX EACH SEC so it keeps 2 lines
     "DARK WIND": { def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULLS LOSE A GROWING % OF MAX EACH SEC, PAST {*PLATE}. NO {*HEAL}.`, aliases: [], colour: C.bone },
   };
-  const DARK_WIND_OFF = `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`;
+  // MERGE-099D (1f; cap's ruling, oracle 19ddc7af83f1dba3): the switch off reads CARD-3's words, + PAST {*PLATE}
+  const DARK_WIND_OFF = `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS, PAST {*PLATE}. NO {*HEAL} IN IT.`;
 
   it("each row: its word first, its aliases, its colour (the icon's; DARK WIND none), its definition in markup", () => {
     for (const [word, w] of Object.entries(want)) {
