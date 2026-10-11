@@ -69,6 +69,10 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
   const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
   delete out.seed;
   delete out.build.runes;
+  // AZ-BUMP S7L (the cause LOSS-1 P2, 5f3ac64, merged at 3b19771): the seed pool's floor ghosts now carry their casual run's
+  // road log (v3 only: "snapshot.road: not allowed in a v2 snapshot"), which no client before bb-0.8.7 sent, so it goes too,
+  // as the runes and the seed (snapshot.contract and h2.nearmiss drop it the same way since the flip)
+  delete out.road;
   return out;
 }
 

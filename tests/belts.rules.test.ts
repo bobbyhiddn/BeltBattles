@@ -404,8 +404,11 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
     // FLIP-X2: each one the rune-less v2 deck a bb-0.8.0 pool held (was the v3 seed deck holding its day's runes, which the
     // rules gate refuses under bb-0.8.0): no runes (their hull and belt back out of hullBonus / beltCap) and no seed; and
     // only the decks bb-0.8.0's gate takes (was all 60: a deck with a bb-0.9.0 sustain piece was never in a bb-0.8.0 pool)
+    // AZ-BUMP S7L (the cause LOSS-1 P2, 5f3ac64, merged at 3b19771): the floor ghosts now carry their casual run's road log
+    // (v3 only: "snapshot.road: not allowed in a v2 snapshot"), which a bb-0.8.0 pool never held, so the copy drops it too,
+    // as it drops the runes and the seed (snapshot.contract and h2.nearmiss drop it the same way since the flip)
     const pool080: GhostSnapshot[] = [...sampleGhosts(), ...floorGhosts()].map((s): GhostSnapshot => {
-      const { seed: _seed, ...rest } = s;
+      const { seed: _seed, road: _road, ...rest } = s;
       const { runes, ...build } = s.build;
       const g = runeGrants(runes, s.day);
       return { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };

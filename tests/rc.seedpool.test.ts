@@ -154,7 +154,9 @@ describe("the bb-0.10.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
       // client sent it: v2, without its runes and seed (was { ...s, rules: "bb-0.6.2" }); with its runes it is refused first
       expect(() => checkSnapshot({ ...s, rules: "bb-0.6.2" }), at).toThrow(/runes \(build\.runes\) need bb-0\.8\.7 or later/);
       const { runes: _runes, ...bare } = s.build;
-      const { seed: _seed, ...rest } = s;
+      // AZ-BUMP S7L (the cause LOSS-1 P2, 5f3ac64, merged at 3b19771): the floor ghosts now carry their casual run's road
+      // log (v3 only), which a bb-0.6.2 client never sent, so the copy drops it too, as the runes and the seed
+      const { seed: _seed, road: _road, ...rest } = s;
       const old = { ...rest, v: 2, rules: "bb-0.6.2", build: bare };
       // FLIP-X2: a deck holding a sustain piece (WARD BELL, MEND PRESS, MENDING LOOM; SUSTAIN_LIVE) can't travel under
       // bb-0.6.2 at all: the rules gate (bb-0.9.0's row) refuses it before the hero gate is read
