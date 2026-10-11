@@ -22,6 +22,7 @@ import type { G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
 import { banner } from "../ui/hud";
 import { fmtClock, fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock and the hull, whole
+import { barClock } from "../ui/statFormat"; // WIND-2 (REQ-BFG-093): one fight clock, the bar's as the card's
 import { button, panel } from "../ui/ui";
 import { SPEEDS, SPEED_1X, drawBar, drawPlate, type BarState } from "./battleHud";
 import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout, as the battle shows it
@@ -81,6 +82,10 @@ export class ReplayScreen implements Screen {
   windCallR: Box | null = null;
   /** WIND-1 tooling (bb.windInfo): each plate as drawn this frame, [yours, the foe's]. */
   readonly plateRows: [PlateInfo | null, PlateInfo | null] = [null, null];
+  /** WIND-2 (REQ-BFG-093) tooling (read only; scripts/mirror1shots.mjs): the playback bar's clock as drawn ("m:ss") and the
+   *  result card's (whole seconds; "" until the card shows), both from statFormat.ts clockSec. */
+  clockText = "0:00";
+  cardClock = "";
 
   constructor(private game: Game, private back: Screen, battle: Battle, private label: { day: number; foe: string }) {
     const [mine, theirs] = battle.record.builds;
@@ -196,13 +201,13 @@ export class ReplayScreen implements Screen {
     }
     this.plateRows[1] = drawPlate(g, this.game, a, this.plateR[1], 1, this.label.foe, this.hp[1]);
     this.plateRows[0] = drawPlate(g, this.game, a, this.plateR[0], 0, this.heroName, this.hp[0]);
-    const sec = Math.floor(b.t);
+    this.clockText = barClock(b.t); // WIND-2 (REQ-BFG-093): whole ticks, then whole seconds (was Math.floor(b.t): 1:08 at 69 s)
     const st = this.bar;
     st.speed = this.speed;
     st.compact = this.L.compact;
     st.paused = this.arena.paused;
     st.showSpeeds = !this.over;
-    drawBar(g, this.game, a, this.L.bar, `${Math.floor(sec / 60)}:${sec % 60 < 10 ? "0" : ""}${sec % 60}`, st);
+    drawBar(g, this.game, a, this.L.bar, this.clockText, st);
     const cy = Math.round(H / 2);
     this.windCallR = drawWindCall(g, a, this.L, m, settings.reducedMotion); // WIND-1 (REQ-BFG-093): the callout, as the battle
     if (!this.over && this.pt < 1.6) banner(g, W, cy - 16, `REPLAY · DAY ${this.label.day}/${RUN_DAYS}`, C.ice, `VS ${this.label.foe}`, Math.min(1, this.pt / 0.35));
@@ -215,7 +220,8 @@ export class ReplayScreen implements Screen {
       const x = Math.round(W / 2 - w / 2), y = cy - Math.round(h / 2);
       panel(g, { x, y, w, h }, "raised");
       drawText(g, won ? "WIN" : lost ? "LOSS" : "DRAW", W / 2, y + 6, won ? C.lime : lost ? C.red : C.bone, { align: "center", scale: 2, outline: C.ink });
-      drawText(g, `REPLAY · DAY ${this.label.day} · ${fmtClock(b.t)}S`, W / 2, y + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
+      this.cardClock = fmtClock(b.t);
+      drawText(g, `REPLAY · DAY ${this.label.day} · ${this.cardClock}S`, W / 2, y + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
       button(ui, g, "replayback", { x: x + 10, y: y + h - 4 - bh, w: w - 20, h: bh }, "BACK", { primary: true, onTap: () => this.leave() });
     } else {
       button(ui, g, "replayleave", replayLeaveRect(this.L, this.game.view), "BACK", { font: "3", onTap: () => this.leave() });

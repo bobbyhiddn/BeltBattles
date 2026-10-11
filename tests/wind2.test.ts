@@ -11,6 +11,10 @@ import { startingBuild, warlordBuild } from "../src/sim/ai";
 import { replayBackH, replayLeaveRect } from "../src/screens/replay";
 import { TAP_CSS, isPhone, tapPx } from "../src/ui/tap";
 import { textWidth } from "../src/render/font";
+import { barClock, captureFormats, clockSec, fmtClock } from "../src/ui/statFormat";
+import { TICK } from "../src/sim/content";
+import { Battle } from "../src/sim/battle";
+import { heroStartBuild } from "../src/sim/heroBuilds";
 import { hullBox, type Box } from "../src/render/frame";
 import { C } from "../src/render/palette";
 import { drawWind } from "../src/render/world";
@@ -225,6 +229,33 @@ function windyArena(w: number, h: number, dpr: number, shot: "wide" | "close") {
   for (let i = 0; i < a.fx.popCount; i++) a.fx.popList[i].t = 0.3;
   return { v, grid, L, a, am };
 }
+
+describe("WIND-2 call 4: one fight clock", () => {
+  it("the card and the bar read the same second: 68.99999999999737 is 69 and 1:09; 68.5 is 68 and 1:08; 0 is 0 and 0:00", () => {
+    for (const [t, card, bar] of [[68.99999999999737, "69", "1:09"], [68.5, "68", "1:08"], [0, "0", "0:00"], [59.999999, "60", "1:00"], [600, "600", "10:00"]] as const) {
+      expect([fmtClock(t), barClock(t), clockSec(t)], `${t}`).toEqual([card, bar, Number(card)]);
+    }
+    // fmtClock keeps its record (unit sec, the whole value it prints)
+    const { value, records } = captureFormats(() => fmtClock(68.99999999999737), "wind2");
+    expect([value, records]).toEqual(["69", [{ unit: "sec", value: 69, printed: "69", site: "wind2" }]]);
+  });
+
+  it("the float clock's drift never misreads: every tick of a 10,000-tick sum reads its whole second", () => {
+    let t = 0;
+    for (let n = 1; n <= 10000; n++) {
+      t += TICK; // as the sim sums its clock
+      if (clockSec(t) !== Math.floor(n / 60)) expect([n, t, clockSec(t)]).toEqual([n, t, Math.floor(n / 60)]);
+    }
+  });
+
+  it("the mirror's last tick (4140) reads 69 on the card and 1:09 on the bar, where Math.floor(t) read 1:08", () => {
+    const silent = (uid: number) => ({ ...heroStartBuild("furnace", uid), routes: [] });
+    const bt = new Battle(silent(1), silent(101), 7);
+    while (!bt.over && bt.t < 200) { bt.step(); bt.events.length = 0; }
+    expect([bt.ticks, bt.t, Math.floor(bt.t)]).toEqual([4140, 68.99999999999737, 68]);
+    expect([fmtClock(bt.t), barClock(bt.t)]).toEqual(["69", "1:09"]);
+  });
+});
 
 describe("WIND-2 call 3: the replay's BACK clear of both plates on every view", () => {
   it("in the first clear corner (else just under the enemy plate's right end): never over a plate, the bar or the REPLAY label", () => {

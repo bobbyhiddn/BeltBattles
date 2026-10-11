@@ -77,7 +77,10 @@ describe("numbers.battle (NUM-4): pops, hull, clocks, results, the estimate and 
 
   it("the clocks: whole elapsed seconds, floored like any clock", () => {
     expect(fmtClock(12.34)).toBe("12");
-    expect(fmtClock(12.999)).toBe("12");
+    // WIND-2 (REQ-BFG-093): the clock is a count of sim ticks (1/60 s), snapped to the nearest tick, then floored: 12.999 s
+    // is 0.06 of a tick before tick 780 (13.000 s), so it reads 13; tick 779, the last of second 12, reads 12
+    expect(fmtClock(12.999)).toBe("13");
+    expect(fmtClock(779 / 60)).toBe("12");
     expect(fmtClock(0)).toBe("0");
     expect(fmtClock(59.5)).toBe("59");
     expect(fmtClock(24.99999999999986)).toBe("25"); // the float clock's drift on tick 1500 (NUM-3 finding 6) reads 25

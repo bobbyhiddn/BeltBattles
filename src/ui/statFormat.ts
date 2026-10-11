@@ -17,6 +17,8 @@
 // { unit, value, printed, site }. Tests pin faces through it (value to string), not through literal strings, so
 // re-pinning at NUMBERS is a regeneration; W/output-u2a/tools/numcheck traces every number on a face to its record.
 
+import { TICK } from "../sim/content"; // WIND-2 (REQ-BFG-093): the sim's step, read only, for the fight clock (clockSec)
+
 /** The units: one formatter each. */
 export type Unit = "dmg" | "speed" | "sec" | "pct" | "count" | "gold";
 
@@ -90,11 +92,27 @@ export function fmtPct(x: number): string {
   if (Math.abs(p - r) > 1e-6) { finding("pct", x, `${p}%`); return rec("pct", x, `${p}%`); } // a finding: as it is
   return rec("pct", x, `${r === 0 ? 0 : r}%`);
 }
+/** WIND-2 (REQ-BFG-093): the fight clock in whole seconds, the one place a clock turns into seconds. The sim's clock is a
+ *  float sum of ticks and drifts (a fight's last tick, 4140, reads 68.99999999999737), so it is snapped to whole sim ticks
+ *  first (TICK, content.ts), then floored to whole seconds by integer division: tick 4140 is 69 s, 68.5 s is 68. fmtClock
+ *  (the cards, FIRST SHOT) and both playback bars (barClock: the battle's and the replay's) read it, so they agree. */
+export function clockSec(t: number): number {
+  const n = Math.round(t / TICK), perSec = Math.round(1 / TICK);
+  return Math.max(0, Math.floor(n / perSec));
+}
+
+/** WIND-2 (REQ-BFG-093): the playback bar's clock, "m:ss", from clockSec (a reading on the bar, as before: no record). */
+export function barClock(t: number): string {
+  const s = clockSec(t);
+  return `${Math.floor(s / 60)}:${s % 60 < 10 ? "0" : ""}${s % 60}`;
+}
+
 /** NUM-4 (N1 2.2, "the clocks and logs"): a clock reading, whole elapsed seconds, floored like any clock (12.34 s reads
  *  "12"): the battle clock, the replay's, FIRST SHOT and a belt's ride time. The one place a time is floored; the record
- *  keeps the whole value it prints (unit sec). The face writes S or SEC after it. */
+ *  keeps the whole value it prints (unit sec). The face writes S or SEC after it. WIND-2: through clockSec (whole ticks,
+ *  then whole seconds; was Math.floor(t + 1e-9)), so the card and the bar read the same second. */
 export const fmtClock = (t: number): string => {
-  const s = Math.max(0, Math.floor(t + 1e-9));
+  const s = clockSec(t);
   return rec("sec", s, String(s));
 };
 /** NUM-4: a measured share (the results' GUNS IDLE: idle time over turret time), a reading like a clock, so it is the one

@@ -33,6 +33,7 @@ import { button, panel } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { SummaryScreen } from "./summary";
 import { fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the hull readout, whole
+import { barClock, clockSec } from "../ui/statFormat"; // WIND-2 (REQ-BFG-093): one fight clock, the bar's as the card's
 import { TitleScreen } from "./title";
 import { NOTE_ROW, SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, notePlace, plateSource, type BarState } from "./battleHud";
 import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout; the plates drawn
@@ -568,10 +569,10 @@ export class BattleScreen implements Screen {
     this.plateRows[1] = drawPlate(g, this.game, this.arena, p1, 1, src?.place === "plate" ? src.name : this.foeName, this.hpText[1], src?.place === "plate" ? src.tag : undefined);
     if (src?.place === "above") drawText(g, src.text, p1.x + 3, p1.y - (NOTE_ROW - 1), C.slate4, { font: "3", outline: C.ink });
     this.plateRows[0] = drawPlate(g, this.game, this.arena, this.plateR[0], 0, HEROES[this.game.run!.hero].name, this.hpText[0]);
-    const sec = Math.floor(b.t);
+    const sec = clockSec(b.t); // WIND-2 (REQ-BFG-093): whole ticks, then whole seconds (was Math.floor(b.t): 1:08 at 69 s)
     if (sec !== this.clockSec) {
       this.clockSec = sec;
-      this.clockText = `${Math.floor(sec / 60)}:${sec % 60 < 10 ? "0" : ""}${sec % 60}`;
+      this.clockText = barClock(b.t);
     }
     const st = this.bar;
     const sr = this.scoutRects;
