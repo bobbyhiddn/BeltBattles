@@ -30,6 +30,7 @@ import { CustomizeScreen } from "./screens/customize"; // CUSTOM-2a (REQ-BFG-072
 import { chosenSkin, loadProfile, unseen } from "./game/profile"; // CUSTOM-2a (REQ-BFG-072) tooling (read only)
 import { currentName } from "./game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063) tooling
 import { runeGrants } from "./sim/runes"; // RUNES-1 (REQ-BFG-058) tooling
+import { setTipsForTests, tipsDone } from "./ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5) tooling: bb.tips
 import { MOTION, MOTION_KNOBS, isSceneId } from "./render/motion"; // MOTION-1 (REQ-BFG-071) tooling
 import { forceScene, forcedScene } from "./render/scenery"; // FIELD-1 (REQ-BFG-075) tooling: bb.scene
 import { openReplay } from "./game/replays"; // MOTION-2 (REQ-BFG-071) tooling: a replay still
@@ -290,6 +291,9 @@ game.start();
     const s = game.screen;
     return s instanceof BuildScreen ? s.panelInfo() : null;
   },
+  /** EXPLAIN-1 (REQ-BFG-089, E5) tooling (stills, checks): the first-run tips: "new" (every tip shows), "done" (none shows;
+   *  stored, so a reload keeps it) or "reload" (read the store again); returns the done tips. Absent: the done tips. */
+  tips: (mode?: "new" | "done" | "reload") => (mode ? setTipsForTests(mode) : tipsDone()),
   /** PACKS M2 (REQ-BFG-063) tooling (read only): the stored player name, and the name screen as drawn (null: not up). */
   playerName: () => currentName(),
   nameEntry() {

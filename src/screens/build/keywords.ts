@@ -331,6 +331,24 @@ export function runeWords(run: Run): KwWord[] {
   return out;
 }
 
+/**
+ * EXPLAIN-1 (REQ-BFG-089, E4; REQ-BFG-084 step 0b, E9): the words a drawn panel's ⓘ KEYWORDS lists: panelWords over its
+ * text's `words` (inspector.ts explainPanel: the face's blocks before any was hidden, then the NOTES lines no face drew),
+ * so a hidden line's words keep their definitions; and on a plain rig (faces.ts PLAIN_RIGS), whose face no longer prints
+ * the HIT: label, HIT first, as its label led the line (its definition as today's: glossary.ts glossaryText).
+ */
+export function explainWords(t: Pick<PanelText, "body" | "words">, piece: Piece | null): KwWord[] {
+  return panelWords(t.words ?? t.body, piece);
+}
+
+/** EXPLAIN-1 (E3): what the ⓘ icon's hover tooltip lists: the NOTES lines, each a separate item. Markup or glyphs, as
+ *  drawn. */
+export function iconTipItems(t: Pick<PanelText, "notes">, words: readonly KwWord[], piece: Piece | null): string[] {
+  void words;
+  void piece;
+  return (t.notes ?? []).map((b) => b.text);
+}
+
 /** Every word a panel's text names (all of its body's blocks, shown or given way), once, in reading order, with what a tap
  *  on it shows: for the KEYWORDS view (and the test that every word a panel names can be reached). */
 export function panelWords(body: readonly Block[], piece: Piece | null): KwWord[] {
@@ -387,10 +405,14 @@ export function keywordState(owner: object): Readonly<KwState> | undefined {
 /** The `?` button's drawn box: the header's icon box (drawDetails draws the icon at r.x + 4..20). */
 export const questionBox = (r: Rect): Rect => ({ x: r.x + 4, y: r.y + 4, w: 16, h: 16 });
 
-/** The `?` button's target: the box, grown on touch (`tap` > 0) as the buttons' are, kept in the panel above its body and
- *  clear of the buttons' grown rects. */
+/** The `?` button's target: the box, grown on touch (`tap` > 0) as the buttons' are, clear of the buttons' grown rects.
+ *  EXPLAIN-1 (REQ-BFG-089, E3: "at least 44 CSS px square on every pinned phone view"): it grows inside the panel (1 px in
+ *  from its frame), no longer kept above the body: a phone's header is 23 art px tall where a TAP_CSS square is 27 (x5 at
+ *  DPR 3), so the square reaches 4 px into the body's top left; the words there keep their targets clear of it, as they
+ *  keep clear of the buttons' (keywordTargets' `avoid`). `bodyY` stays for the callers (unused). */
 export function questionRect(r: Rect, bodyY: number, tap: number, buttons: readonly Rect[]): Rect | null {
-  let q: Rect | null = tap ? tapRect(questionBox(r), tap, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: Math.max(16, bodyY - 2 - r.y) }, tap) : questionBox(r);
+  void bodyY;
+  let q: Rect | null = tap ? tapRect(questionBox(r), tap, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, tap) : questionBox(r);
   for (const b of buttons) if (q) q = clipOut(q, b);
   return q;
 }
@@ -426,17 +448,22 @@ export function viewPages(words: readonly KwWord[], w: number, h: number): KwWor
 /** U2e step 5 (REQ-BFG-070): one entry of the ⓘ view: a LEVELS line or a keyword's definition, as wrapped lines, under
  *  its section's header (LEVELS first, then KEYWORDS). */
 export interface InfoItem {
-  section: "LEVELS" | "KEYWORDS";
+  /** EXPLAIN-1 (REQ-BFG-089, E4): NOTES, the piece's hidden lines, first. */
+  section: "NOTES" | "LEVELS" | "KEYWORDS";
   lines: RichLine[];
-  /** The gap under it (a definition's 2 px, as U2c's view; a LEVELS line none, its section's last 2). */
+  /** The gap under it (a definition's 2 px, as U2c's view; a LEVELS line none, its section's last 2; a NOTES line 2). */
   gap: number;
   level?: LevelLine;
   word?: KwWord;
+  /** EXPLAIN-1: a NOTES line's text (markup or glyphs, as the panel's text holds it). */
+  note?: string;
 }
 
-/** The ⓘ view's entries at text width `w`: the LEVELS lines (each wrapped in 5x7), then the KEYWORDS definitions. */
-export function infoItems(levels: readonly LevelLine[], words: readonly KwWord[], w: number): InfoItem[] {
+/** The ⓘ view's entries at text width `w`: EXPLAIN-1 (E4) the NOTES lines first (each a separate entry, wrapped in 5x7 as a
+ *  definition is), then the LEVELS lines (each wrapped in 5x7), then the KEYWORDS definitions. */
+export function infoItems(levels: readonly LevelLine[], words: readonly KwWord[], w: number, notes: readonly string[] = []): InfoItem[] {
   return [
+    ...notes.map((note): InfoItem => ({ section: "NOTES", lines: definitionLines(note, w), gap: 2, note })),
     ...levels.map((level, i): InfoItem => ({ section: "LEVELS", lines: wrapRich(levelSpans(level), w, "5"), gap: i === levels.length - 1 ? 2 : 0, level })),
     ...words.map((word): InfoItem => ({ section: "KEYWORDS", lines: definitionLines(word.text, w), gap: 2, word })),
   ];
@@ -575,16 +602,18 @@ function underline(g: G, t: KwTarget): void {
  */
 export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
-  free: Rect | null = null): void {
+  free: Rect | null = null, screen?: { W: number; H: number }): void {
   const { plan } = d, r = plan.r;
   const piece = panelPiece(run, d.show);
-  const own = panelWords(d.t.body, piece);
+  const own = explainWords(d.t, piece); // EXPLAIN-1 (E4, E9): the face's words before any line was hidden; HIT on a plain rig
   // the view lists the held runes' keywords after the panel's own words (BRIEF-U2c step 2: the rune keywords too)
   const words = [...own, ...runeWords(run).filter((w) => !own.some((o) => o.word === w.word))];
   const s = stateOf(owner, JSON.stringify(d.show));
-  // U2e step 5 (REQ-BFG-070): the ⓘ view shows the piece's LEVELS first, then its KEYWORDS
+  // U2e step 5 (REQ-BFG-070): the ⓘ view shows the piece's LEVELS first, then its KEYWORDS. EXPLAIN-1 (REQ-BFG-089, E4):
+  // NOTES, the lines the default face hides, before them; the icon shows on a panel with NOTES too (E3)
   const levels = infoLevels(run, d.show);
-  if (!words.length && !levels.length) return setCursor(canvas, false);
+  const notes = (d.t.notes ?? []).map((b) => b.text);
+  if (!words.length && !levels.length && !notes.length) return setCursor(canvas, false);
   const bottom = plan.maxY + 2;
   const qr = questionRect(r, plan.y, tap, buttons);
   const avoid = [...buttons, ...(qr ? [qr] : [])];
@@ -597,8 +626,19 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   if (qr) ui.add({ id: `${KW_REGION}?`, r: qr, onTap: () => { s.page = s.page === null ? 0 : null; s.word = null; } });
   if (s.page !== null) {
     // U2f: `free`, the room past the panel the view may grow into (infoFree: above it on the phone, below on the desk)
-    drawView(g, ui, s, infoItems(levels, words, r.w - 10), r, plan.y - 1, bottom, free);
+    drawView(g, ui, s, infoItems(levels, words, r.w - 10, notes), r, plan.y - 1, bottom, free);
     return setCursor(canvas, false);
+  }
+  // EXPLAIN-1 (REQ-BFG-089, E3): the desk: hovering the icon shows the NOTES (and a plain rig's HIT) beside the panel, in
+  // the word tooltip's style, whole and on the screen, with the help cursor; a click opens the ⓘ view as before
+  const pm = ui.pointer;
+  const tipItems = iconTipItems(d.t, words, piece);
+  if (!tap && pm.kind === "mouse" && !pm.down && qr && tipItems.length && inside(qr, pm.x, pm.y)) {
+    const tr = iconTipRect(tipItems, r, screen);
+    drawIconTip(g, tipItems, tr);
+    ui.add({ id: `${KW_REGION}tip`, r: tr, block: true });
+    s.hover = "ⓘ";
+    return setCursor(canvas, true);
   }
   // WORDS-1 (REQ-BFG-081): the header's family tags too, each with its families.ts line (familyTargets)
   const body = keywordTargets(lines, plan, piece, avoid);
@@ -734,6 +774,49 @@ function drawView(g: G, ui: UI, s: KwState, items: readonly InfoItem[], r: Rect,
   if (foot !== null) drawText(g, `TAP FOR MORE ${(s.page ?? 0) + 1}/${pages.length}`, r.x + r.w - 5, foot, C.slate4, { font: "3", align: "right" });
 }
 
+/** EXPLAIN-1 (REQ-BFG-089, E3): the icon tooltip's text width (3x5 px), as the word tooltip's (drawHoverTip). */
+export const ICON_TIP_W = 150;
+
+/** EXPLAIN-1 (E3): the icon tooltip's lines: each item wrapped in 3x5 at ICON_TIP_W (today's 7 px pitch inside one
+ *  sentence), its keyword in its colour, as drawHoverTip writes a definition. */
+export const iconTipLines = (items: readonly string[]): RichLine[][] => items.map((t) => wrapRich(colourize(icons(t), C.bone), ICON_TIP_W, "3"));
+
+/**
+ * EXPLAIN-1 (REQ-BFG-089, E3): where the icon's hover tooltip goes for panel `r`: beside the panel, top-aligned with it
+ * (its right, else its left), else above it, else below it, kept on the screen (`screen`, the build screen's W and H). Its
+ * size: drawHoverTip's frame (5 px in, 4 px over the first line, 4 under the last) round the items, each a separate item
+ * with the 3x5 face's GAP between two of them (SPACE-1, REQ-BFG-087) and the 7 px pitch inside one. Pure (tests).
+ */
+export function iconTipRect(items: readonly string[], r: Rect, screen?: { W: number; H: number }): Rect {
+  const ls = iconTipLines(items);
+  const w = Math.max(...ls.flat().map((l) => lineWidth(l, "3"))) + 10;
+  const h = 8 + ls.reduce((n, l) => n + l.length * 7, 0) + Math.max(0, ls.length - 1) * GAP["3"];
+  const W = screen?.W ?? r.x + r.w + w + 6, H = screen?.H ?? r.y + h + 4;
+  const fitsX = (x: number) => x >= 2 && x + w + 2 <= W, clampY = (y: number) => Math.max(2, Math.min(H - h - 2, y));
+  if (fitsX(r.x + r.w + 4)) return { x: r.x + r.w + 4, y: clampY(r.y), w, h };
+  if (fitsX(r.x - w - 6)) return { x: r.x - w - 6, y: clampY(r.y), w, h };
+  const x = Math.max(2, Math.min(W - w - 2, r.x));
+  if (r.y - h - 6 >= 2) return { x, y: r.y - h - 6, w, h };
+  return { x, y: Math.max(2, Math.min(H - h - 2, r.y + r.h + 4)), w, h };
+}
+
+/** EXPLAIN-1 (E3): the icon's hover tooltip in `tr` (iconTipRect), drawHoverTip's style: an ink frame and shadow, night,
+ *  a slate3 top edge; the items in 3x5, GAP apart. A rune card's chip draws its hidden line with it (runeBar.ts). */
+export function drawIconTip(g: G, items: readonly string[], tr: Rect): void {
+  rect(g, tr.x + 2, tr.y + 2, tr.w, tr.h, C.ink);
+  rect(g, tr.x, tr.y, tr.w, tr.h, C.ink);
+  rect(g, tr.x + 1, tr.y + 1, tr.w - 2, tr.h - 2, C.night);
+  rect(g, tr.x + 1, tr.y + 1, tr.w - 2, 1, C.slate3);
+  let y = tr.y + 4;
+  for (const ls of iconTipLines(items)) {
+    for (const l of ls) {
+      drawRich(g, l, tr.x + 5, y, "3");
+      y += 7;
+    }
+    y += GAP["3"];
+  }
+}
+
 /** The desk's hover tooltip (shop.ts drawTooltip's style: night, an ink frame and shadow) under the word, as the shop's
  *  sits under its card (the panel's title and the word stay in sight). */
 function drawHoverTip(g: G, t: KwTarget, r: Rect): void {
@@ -759,6 +842,11 @@ function setCursor(canvas: HTMLCanvasElement | null | undefined, on: boolean): v
 /** drawDetails, before it draws (or with no panel): the help cursor goes until a word is hovered again. */
 export function keywordCursorOff(canvas?: HTMLCanvasElement | null): void {
   setCursor(canvas, false);
+}
+
+/** EXPLAIN-1 (REQ-BFG-089, E3): the help cursor for a hovered rune chip (runeBar.ts runeChipIcon), drawn after the panel. */
+export function helpCursor(canvas: HTMLCanvasElement | null | undefined, on: boolean): void {
+  setCursor(canvas, on);
 }
 
 export { keywordRow };

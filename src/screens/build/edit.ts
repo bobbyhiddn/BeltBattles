@@ -24,6 +24,7 @@ import {
   itemByUid, key, kx, ky, manhattanSteps, occupancy, rotOf, routeInfo, routesOf,
 } from "../../sim/deck";
 import { canJoin, joinOf } from "../../sim/deck"; // 0.6.2j: belt joins
+import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a successful action completes its first-run tip
 import { JOIN_PACE_PCT } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { ITEMS, UPGRADE_MAX } from "../../sim/content";
 import { FUSE_MAX, gradeOf, isSignatureFactory, outputsAt } from "../../sim/stars";
@@ -378,6 +379,7 @@ export class Editor {
         const at = mine >= 0 ? mine : cur.kind === "turret" && cur.index === src.index ? -1 : -2;
         if (at === -2) return s({ kind: "turret", index: src.index });
         const next = pieces[at + 1];
+        if (next !== undefined) completeTip("cycle"); // EXPLAIN-1 (REQ-BFG-089, E5): a tap that steps to the turret's next part
         return s(next !== undefined ? { kind: "fitted", uid: next } : { kind: "turret", index: src.index });
       }
       default: return s({ kind: "none" });
@@ -549,6 +551,7 @@ export class Editor {
     const b = this.h.run.build;
     const idx = commitRoute(b, d.factory, d.cells, d.replacing, d.join); // 0.6.2j: the join, when the draw ended in one
     this.h.touched();
+    completeTip("lay"); // EXPLAIN-1 (REQ-BFG-089, E5): a belt laid
     const info = routeInfo(b, idx);
     if (!info.connected) this.h.game.toast("BELT DOESN'T REACH A TURRET YET", C.yellow);
     // 0.6.2j (J3): no confirmation, just word. 0.6.2 TUNE-M: RULE JOIN PACE, said where the join is made

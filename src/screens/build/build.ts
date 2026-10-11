@@ -47,6 +47,9 @@ import { detailsPlan, fullest, fullText, keptWhole, visibleLines, type PLine } f
 import { panelFit } from "./inspector"; // SPACE-1 (REQ-BFG-087, D4): the band's fit with the gaps
 import { drawBuildChrome } from "./chrome";
 import { keywordsPressed } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
+import { keywordState, questionRect } from "./keywords"; // EXPLAIN-1 (REQ-BFG-089) tooling: panelInfo's ⓘ target and view
+import { columnButtons } from "./inspector"; // EXPLAIN-1 tooling: the column's buttons (panelInfo's ⓘ target clears them)
+import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a pack bought completes the supply tip
 import { suggestCell } from "./cues";
 import { BattleScreen, duskScreen } from "../battle";
 import { EventScreen } from "../event/event";
@@ -212,7 +215,7 @@ export class BuildScreen implements Screen, EditHost {
    *  button labels and the body lines it draws, and whether its kept text shows whole; null with no panel. shoptap2: in
    *  the rect it is drawn in (panelArea). */
   panelInfo(): { title: string; sub: string; labels: string[]; lines: string[]; whole: boolean; full: boolean; fullest: boolean;
-    variant: number; dropped: string[]; inBand: boolean; band: Rect; area: Rect } | null {
+    variant: number; dropped: string[]; inBand: boolean; band: Rect; area: Rect; notes: string[]; info: Rect | null; view: boolean } | null {
     const area = this.panelArea();
     const d = detailsPlan(this, this.sel, this.hover, area);
     if (!d) return null;
@@ -220,11 +223,16 @@ export class BuildScreen implements Screen, EditHost {
       : `${l.label ? `${l.label} ` : ""}${l.spans.map((s) => s.t).join("")}`);
     const lines = visibleLines(d.plan).flatMap((v) => (v.line === "rule" ? [] : [text(v.line)]));
     const sub = d.plan.headerOnly ? d.plan.headerOnly.lines.join(" ") : d.plan.body.sub ?? d.plan.subs.join(" ");
+    // EXPLAIN-1 (REQ-BFG-089) tooling: the ⓘ NOTES lines, the ⓘ icon's target as drawDetails registers it (keywords.ts
+    // questionRect, clear of the buttons' hit rects) and whether the ⓘ view is open
+    const tap = this.touch ? tapPx(this.game.view) : 0, n = d.t.labels.length, p = d.plan;
+    const buttons = p.column ? columnButtons(n, p.r, tap) : (p.rects ?? []).map((b) => (tap ? tapRect(b, tap, p.r) : b));
     // zoom (REQ-BFG-040): its full description (fullText), its fullest form (every block, variant 0), the variant and the
     // blocks that gave way, and whether it sits in the band (not grown over the bow or the shop)
     return {
       title: d.t.title, sub, labels: d.t.labels, lines, whole: keptWhole(d.plan), full: fullText(d.plan), fullest: fullest(d.plan),
       variant: d.plan.body.variant, dropped: d.plan.body.dropped.map((b) => b.role), inBand: area === this.L.info, band: { ...this.L.info }, area: { ...area },
+      notes: (d.t.notes ?? []).map((b) => b.text), info: questionRect(p.r, p.y, tap, buttons), view: (keywordState(this)?.page ?? null) !== null,
     };
   }
 
@@ -436,6 +444,7 @@ export class BuildScreen implements Screen, EditHost {
     this.ufx.popup(this.coinX, 12, `-${r.price}`, C.yellow);
     this.game.audio.play("coin");
     saveRun(this.run);
+    completeTip("supply"); // EXPLAIN-1 (REQ-BFG-089, E5): a supply bought (a pack is used the moment it is bought)
   }
 
   fight(): void {
@@ -791,7 +800,9 @@ export class BuildScreen implements Screen, EditHost {
 
   /** shoptap (D3): every press: one anywhere but on the belt X takes the X down (a press on a UI region included). */
   pressed(_x: number, _y: number, region: string | null): void {
-    if (this.modalUp()) return; // RUNES-1: the rune picker takes every press (LC-1: the LAST CHANCE picker too)
+    // RUNES-1: the rune picker takes every press (LC-1: the LAST CHANCE picker too). EXPLAIN-1 (REQ-BFG-089, E3): a press
+    // anywhere but the opened card's chip closes the line it shows
+    if (this.modalUp()) return this.runePicker.pressed(region);
     if (region !== "beltx") this.ed.dropX();
     this.runeBar.pressed(region); // RUNES-1: a press off the rune bar closes its read-out
     keywordsPressed(this, region); // U2c (REQ-BFG-045): a press off a word, `?` or the KEYWORDS view closes them

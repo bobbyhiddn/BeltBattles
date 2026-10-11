@@ -22,6 +22,7 @@ import { RUNES } from "../sim/runes";
 import { BOONS, LAST_CHANCE_HULL, type Boon, type LastChanceOffer } from "../sim/lastChance";
 import { pendingLastChance, takeLastChance, type Run } from "../game/run";
 import { drawRuneCard, runeCardH } from "../ui/runeBar";
+import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the rune card's chip as its icon
 import { runeReminderSpans, runeTag, tierWord } from "../ui/runeText";
 import { textOpts } from "./build/inspector";
 import type { BuildScreen } from "./build/build";
@@ -276,6 +277,17 @@ export class LastChancePicker {
         if (this.info.has(i)) this.info.delete(i);
         else this.info.add(i);
       } });
+    });
+    // EXPLAIN-1 (REQ-BFG-089, E3, E7): the RUNE card's chip is its icon, as on the dawn picker: its region over the card's,
+    // so a tap on it never picks the card; it shows the card's hidden line (its details, as the card's ⓘ does: the rune's
+    // reminder under its effect); with a mouse, hovering it shows the line beside the card. After every card (no card draws
+    // over the tooltip)
+    texts.forEach((t, i) => {
+      if (t.boon !== "rune") return;
+      runeChipIcon(g, ui, "lcchip-rune", L.cards[i], RUNES[o.rune!.id], runeTapOf(s), () => {
+        if (this.info.has(i)) this.info.delete(i);
+        else this.info.add(i);
+      }, { W, H }, s.game.canvas);
     });
   }
 

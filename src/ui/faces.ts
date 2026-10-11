@@ -848,9 +848,16 @@ const TURRET_FACE = (): Rules => rules([]);
  * one load a shot until the chamber is empty, then the reload); a core's own line says what it changes.
  */
 export function turretPlain(def: string, stars = 1): string[] {
-  const n = effectAt(def, stars).turret!.window, g = gearSlotsOf(def, stars);
+  return turretPlainOf(effectAt(def, stars).turret!.window, gearSlotsOf(def, stars));
+}
+
+/** EXPLAIN-1 (REQ-BFG-089, E4): the two plain lines for a chamber of `n` loads and `g` gear slots, the same words as
+ *  turretPlain: an installed turret's ⓘ NOTES reads them at its own stat row's numbers (its window and its slot's gear
+ *  slots), as turretPlain reads a card's. */
+export function turretPlainOf(n: number, g: number): string[] {
   return [`HOLDS ${fmtCount(n)} {SLUG}: FIRES THEM ONE A SHOT, THEN RELOADS.`, `${fmtCount(g)} {GEAR} SLOT${s(g)} FOR TURRET GEAR.`];
 }
+
 
 // ------------------------------------------------------------- Y2 (release Y): the STUN pieces with the switch on
 

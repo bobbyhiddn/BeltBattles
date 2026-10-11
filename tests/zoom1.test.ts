@@ -5,7 +5,8 @@
 // (BuildScreen.pickSub: unit = gcd(scale, zoom) device px per canvas px), so every art pixel is whole device px. A portrait
 // phone's band is sized for 90% of the panels (phoneBand90); the rest grow over the shop rows, never over the carrier.
 // Every press on the carrier goes through the same map (toDeck), every carrier draw through its inverse (inCarrier).
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { setTipsForTests } from "../src/ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): the band measured with every tip new
 import { installRaster, fresh, G } from "./raster.helpers";
 import { newRun, type Run } from "../src/game/run";
 import { buyableModules } from "../src/sim/content";
@@ -258,6 +259,10 @@ function panels(): { id: string; run: Run; sel: Sel }[] {
 
 describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2)", () => {
   const all = panels();
+  // EXPLAIN-1 (REQ-BFG-089, E5): a how-to hint shows until its first-run tip is done (src/ui/tips.ts), and this file's drag
+  // and tap tests above complete some tips (a part placed or moved). The band is measured with every tip new, the first
+  // run's panels, the most a panel holds; tests/explain1.test.ts (e) measures the band with every tip done too
+  beforeAll(() => { setTipsForTests("new"); });
   /** The height each panel needs at band width W - 6 to show its full description (fullText), in the band's layout. */
   const needs = (W: number): number[] => {
     const L = buildLayout(W, 700, true, 5, true, 27), v = { W, H: 700, scale: 5, dpr: 3, portrait: true };

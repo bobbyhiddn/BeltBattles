@@ -15,6 +15,7 @@ import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 import { fitCore } from "../../game/run"; // 0.6.1b
 import { canFitGear, gearSlotsAt, turretSlots, type Build } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031)
 import { dropTurret } from "./turretActions"; // 0.6.2s (REQ-BFG-031 S5)
+import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a successful action completes its first-run tip
 
 /** 0.6.2s (S4): why gear can't go on turret slot t, as a player sentence. */
 export function gearRefusal(b: Build, t: number, reason?: string): string {
@@ -91,6 +92,7 @@ export function rotate(ctx: Ctx, uid: number): void {
   }
   ctx.game.audio.play("belt");
   ctx.touched();
+  completeTip("turn"); // EXPLAIN-1 (E5): a placed rig turned
   const f = ctx.L.frame;
   ctx.wfx.ring(footX(f, p.x, p.y) + CELL / 2, footY(f, p.x, p.y) + CELL / 2, 7, C.yellow);
 }
@@ -113,6 +115,7 @@ export function buy(ctx: Ctx, wagon: number, slot: number, at?: GainAt): { ok: b
     ctx.game.toast(d.supply?.belt ? `+${d.supply.belt} BELT CAPACITY` : `+${d.supply?.hull ?? 0} MAX HULL`, C.lime, "repair");
     ctx.select({ kind: "none" });
     ctx.touched();
+    completeTip("supply"); // EXPLAIN-1 (E5): a supply bought (used the moment it was bought)
   }
   if (res.gain?.steps.length) ctx.touched(); // a merge changed the deck or cargo
   return { ok: true, item: res.item, gain: res.gain };
@@ -239,6 +242,7 @@ function dropCore(ctx: Ctx, c: Carry, x: number, y: number, overHull: boolean): 
   ctx.select({ kind: "turret", index: t });
   ctx.touched();
   ctx.placed(x, y);
+  completeTip("fit"); // EXPLAIN-1 (E5): a core fitted to a turret
   return true;
 }
 
@@ -305,6 +309,7 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
       selectGain(ctx, r.gain);
       ctx.touched();
       ctx.placed(x, y);
+      completeTip(def.kind === "core" || def.kind === "mod" ? "fit" : "place"); // EXPLAIN-1 (E5): dropped where it merged
       return true;
     }
   }
@@ -337,6 +342,7 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
     ctx.select({ kind: "turret", index: t });
     ctx.touched();
     ctx.placed(x, y);
+    completeTip("fit"); // EXPLAIN-1 (E5): a piece of gear fitted to a turret
     return true;
   }
   const cell = dropCell(L, x, y, def.size);
@@ -372,5 +378,6 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
   ctx.touched();
   const at = toScreen(L, px, py); // ZOOM-1: placed() takes a screen point, as from a drop
   ctx.placed(at.x, at.y);
+  completeTip(src.from === "deck" ? "move" : "place"); // EXPLAIN-1 (E5): a part placed on the deck, or a placed one moved
   return true;
 }
