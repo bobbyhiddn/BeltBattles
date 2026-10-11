@@ -220,3 +220,134 @@ describe("CARD-3 (d3): the wide desk shop card's one-line effects say their face
     console.log(`CARD3 (d3): ${out.join("; ")}`);
   });
 });
+
+// ------------------------------------------------------------------ (d1, d2): the definition box and the word tooltip
+import { installRaster, fresh, G as gOf } from "./raster.helpers";
+import { UI, type Rect } from "../src/ui/ui";
+import { TAP_CSS } from "../src/ui/tap";
+import { buildLayout, buildScale, panelArea, phoneBarLift, phoneScreen, type Sel } from "../src/screens/build/layout";
+import { runeRowFits, runeRowH, shiftLayout, runeHintBand } from "../src/ui/runeBar";
+import { detailsPlan, drawDetails, panelFit } from "../src/screens/build/inspector";
+import { defBoxClear, definitionBox, drawWordTip, keywordState, keywordsIdle } from "../src/screens/build/keywords";
+import { RunePicker } from "../src/screens/runePicker";
+import type { Ctx } from "../src/screens/build/actions";
+import type { DuskFoe, Run } from "../src/game/run";
+
+installRaster();
+const gcd3 = (a: number, b: number): number => (b ? gcd3(b, a % b) : a);
+/** The build screen as the game frames it (tests/card2.test.ts's framed). */
+function framed(w: number, h: number, dpr: number, runes = 1, offers = 5) {
+  const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr), portrait = ph > pw * 1.05;
+  const fake = { run: { build: { runes: Array.from({ length: runes }, () => ({ id: "many_hands" })) } }, refit: false, offers: () => Array.from({ length: offers }) } as unknown as Parameters<typeof runeRowFits>[0];
+  let S = buildScale(pw, ph, portrait, dpr);
+  while (S > 1 && !runeRowFits(fake, pw, ph, portrait, S, dpr)) S--;
+  const isPh = phoneScreen(pw, ph, dpr), phone = portrait && isPh, tap = isPh ? Math.ceil(TAP_CSS / (S / dpr)) : 0;
+  const v = { scale: S, dpr }, W = Math.floor(pw / S), H = Math.floor(ph / S);
+  const lay = (unit: number) => {
+    const row = runeRowH(v, runes), lift = phone ? phoneBarLift(W, H, offers, tap, runeRowH(v, 1)) : 0;
+    return shiftLayout(buildLayout(W, H - row, portrait, offers, phone, tap, lift, { scale: S, unit }), row, H);
+  };
+  const Z = lay(1).cam.z, unit = gcd3(S, Z), sub = S / unit;
+  return { S, W, H, L: lay(unit), tap, phone, portrait, view: { W, H, scale: S, dpr, portrait, sub } };
+}
+/** A build screen's panel context (tests/card2.test.ts's panelCtx). */
+function panelCtx(run: Run, sel: Sel, f: ReturnType<typeof framed>, touch: boolean) {
+  const ctx = { game: { ui: new UI(), t: 0, view: f.view, W: f.W, H: f.H }, run, touch, L: f.L } as unknown as Ctx;
+  const area = panelArea(f.L, sel, { touch, hover: false, busy: false }, panelFit(ctx, sel, !!f.L.phone));
+  const draw = () => {
+    const ui = (ctx.game as unknown as { ui: UI }).ui;
+    ui.pointer.kind = touch ? "touch" : "mouse";
+    Object.assign(ui.pointer, { x: -1, y: -1, down: false });
+    ui.begin();
+    drawDetails(gOf(fresh(f.W, f.H)), ctx, sel, null, area, {} as DuskFoe);
+    ui.end();
+    return ui;
+  };
+  return { ctx, area, draw, d: () => detailsPlan(ctx, sel, null, area)! };
+}
+const CARGO3: Sel = { kind: "cargo", uid: 900 };
+const ov = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+describe("CARD-3 (d1, d2): a definition never covers its own word; a word's tooltip never covers TAP AGAIN (REQ-BFG-087)", () => {
+  it("defBoxClear: the foot box moves just above the word's line where it would cover the word, else it stays", () => {
+    const r = { x: 0, y: 100, w: 235, h: 57 }, box = definitionBox(r, r.y + 55, 2); // 21 px at the foot
+    const low = { glyph: { x: 30, y: 145, w: 20, h: 7 } }, high = { glyph: { x: 30, y: 112, w: 20, h: 7 } };
+    expect(defBoxClear(box, r, [high])).toEqual(box);
+    expect(defBoxClear(box, r, [low])).toEqual({ ...box, y: 145 - 2 - box.h });
+    expect(defBoxClear(box, { ...r, y: 140 }, [{ glyph: { x: 0, y: 150, w: 5, h: 7 } }])).toEqual(box); // no room above: as before
+  });
+
+  it("every phone panel (402x690 @3, a rune, tips done): a word's definition, opened as a tap opens it, leaves that word showing", () => {
+    setTipsForTests("done");
+    const f = framed(402, 690, 3, 1);
+    let panels = 0, words = 0, moved = 0;
+    const out: string[] = [];
+    for (const d of [...buyableModules(), ...Object.values(ITEMS).filter((x) => x.kind === "supply")]) for (const s of fusible(d.id) ? [1, 2, 3] : [1]) {
+      const run = newRun("furnace", 5, `card3-${d.id}`);
+      let sel: Sel = CARGO3;
+      if (d.kind === "supply") {
+        run.shop.wagons = [{ merchant: d.merchant ?? "ironmonger", offers: [{ def: d.id, price: d.price, sold: false }] }] as Run["shop"]["wagons"];
+        sel = { kind: "offer", wagon: 0, slot: 0 };
+      } else run.inventory = [{ uid: 900, def: d.id, ...(s > 1 ? { stars: s } : {}) }];
+      const p = panelCtx(run, sel, f, true);
+      const ui0 = p.draw(), regs = ui0.regions.filter((q) => /^kw:\d+:/.test(q.id));
+      const ws = [...new Set(regs.map((q) => q.id.split(":")[2]))].filter((w) => glossaryEntry(w) || w.endsWith(" FAMILY") === false);
+      panels++;
+      for (const w of ws) {
+        const st = keywordState(p.ctx)!;
+        st.word = glossaryEntry(w)?.word ?? w;
+        const ui = p.draw(), def = ui.regions.find((q) => q.id === "kwdef");
+        if (!def) { st.word = null; continue; }
+        words++;
+        const foot = definitionBox(p.d().plan.r, p.d().plan.maxY + 2, 1);
+        if (def.r.y + def.r.h < foot.y + foot.h - 1) moved++;
+        // the word's own targets are still targets (a target under the box is not: drawKeywordLayer)
+        const mine = ui.regions.filter((q) => /^kw:\d+:/.test(q.id) && (glossaryEntry(q.id.split(":")[2])?.word ?? q.id.split(":")[2]) === st.word);
+        expect(mine.length, `${d.id} ★${s} ${w}: its own word under its box`).toBeGreaterThan(0);
+        if (def.r.y + def.r.h < foot.y + foot.h - 1 && out.length < 12) out.push(`${d.id} ★${s} ${w}`);
+        st.word = null;
+      }
+      keywordsIdle(p.ctx);
+    }
+    console.log(`CARD3 (d1): ${panels} phone panels, ${words} definitions opened, ${moved} moved above their word (e.g. ${out.join(", ")})`);
+    expect(moved).toBeGreaterThan(0);
+  });
+
+  it("drawWordTip keeps clear of `avoid` (above the word where below would cover it), as before without it", () => {
+    const c = fresh(300, 200), r = { x: 4, y: 40, w: 233, h: 100 }, glyph = { x: 30, y: 95, w: 20, h: 7 };
+    const band = runeHintBand(r);
+    const below = drawWordTip(gOf(c), "PAIR: TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE.", C.blue, glyph, r);
+    const clear = drawWordTip(gOf(c), "PAIR: TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE.", C.blue, glyph, r, undefined, band);
+    expect(below.y).toBe(glyph.y + glyph.h + 4);
+    expect(ov(below, band)).toBe(true);
+    expect([ov(clear, band), clear.y + clear.h + 2 <= glyph.y]).toEqual([false, true]);
+  });
+
+  it("the desk's dawn picker: a hovered word's tooltip leaves every pixel of TAP AGAIN TO TAKE IT showing", () => {
+    setTipsForTests("done");
+    const f = framed(1920, 1080, 1, 0), ui = new UI();
+    const s = { run: newRun("foundry", 5, "card3-pick"), refit: false, touch: false, L: f.L,
+      game: { W: f.W, H: f.H, ui, view: f.view, canvas: null, error: () => {}, resize: () => {}, toast: () => {} }, touched: () => {} };
+    const picker = new RunePicker();
+    picker.offer = () => ({ day: 1, tier: "common", ids: ["seam_rivets", "twin_salve", "hot_seam"] }) as never;
+    const frame = (pointer?: { x: number; y: number }) => {
+      ui.pointer.kind = "mouse";
+      Object.assign(ui.pointer, pointer ? { ...pointer, down: false } : { x: -1, y: -1, down: false });
+      const c = fresh(f.W, f.H);
+      ui.begin();
+      picker.draw(gOf(c), s as never);
+      ui.end();
+      return c;
+    };
+    frame();
+    ui.regions.find((q) => q.id === "runepick-0")!.onTap!();
+    frame();
+    const card = ui.regions.find((q) => q.id === "runepick-0")!.r, band = runeHintBand(card);
+    const yellow = (c: ReturnType<typeof fresh>) => { let n = 0; for (let y = band.y; y < band.y + band.h; y++) for (let x = band.x; x < band.x + band.w; x++) if (c.at(x, y) === C.yellow) n++; return n; };
+    const base = yellow(frame());
+    expect(base).toBeGreaterThan(50);
+    const words = ui.regions.filter((q) => q.id.startsWith("runepick-w"));
+    expect(words.length).toBeGreaterThan(0);
+    for (const w of words) expect(yellow(frame({ x: w.r.x + 2, y: w.r.y + 2 })), w.id).toBe(base);
+  });
+});

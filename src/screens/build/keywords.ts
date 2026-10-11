@@ -477,6 +477,16 @@ export function definitionBox(r: Rect, bottom: number, lines: number): Rect {
   return { x: r.x + 2, y: bottom - h, w: r.w - 4, h };
 }
 
+/** CARD-3 (REQ-BFG-087, D1): definition box `box` (definitionBox's, at the panel's foot), moved to end 2 px above the top
+ *  of the explained word's line where it would cover one of `own` (the targets of the word it explains); the panel's
+ *  frame (r.y + 1) the highest it goes, else it stays at the foot. Pure (drawKeywordLayer, tests). */
+export function defBoxClear(box: Rect, r: Rect, own: readonly { glyph: Rect }[]): Rect {
+  const hit = own.filter((t) => overlaps(t.glyph, box));
+  if (!hit.length) return box;
+  const y = Math.min(...hit.map((t) => t.glyph.y)) - 2 - box.h;
+  return y >= r.y + 1 ? { ...box, y } : box;
+}
+
 /** The KEYWORDS view's pages: as many whole definitions as fit the body's height (`h`) each, the header row first. */
 export function viewPages(words: readonly KwWord[], w: number, h: number): KwWord[][] {
   const pages: KwWord[][] = [];
@@ -716,7 +726,9 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // the shown definition covers the panel's bottom rows: the words under it are not targets meanwhile
   const shown = s.word ? words.find((w) => w.word === s.word) ?? targets.find((t) => t.word === s.word) : undefined;
   const defLines = shown ? definitionLines(shown.text, r.w - 10) : [];
-  const box = shown ? definitionBox(r, bottom, defLines.length) : null;
+  // CARD-3 (REQ-BFG-087, D1; REVIEW-CARD2 open item 1): the box sits at the panel's foot, unless it would cover the word it
+  // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1): then just above that word's line
+  const box = shown ? defBoxClear(definitionBox(r, bottom, defLines.length), r, targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word)) : null;
   targets.forEach((t, i) => {
     if (box && overlaps(t.glyph, box)) return;
     underline(g, t);
@@ -936,12 +948,15 @@ function drawHoverTip(g: G, t: KwTarget, r: Rect): Rect {
 /** CARD-2 (REQ-BFG-081, K1, K2): drawHoverTip's box for a definition `text` (markup) of a word drawn at `glyph` on panel or
  *  card `r`, its top edge in the word's `colour`; on `screen` where given, kept on it (a rune card on a narrow screen).
  *  Returns its rect. */
-export function drawWordTip(g: G, text: string, colour: string, glyph: Rect, r: Rect, screen?: { W: number; H: number }): Rect {
+export function drawWordTip(g: G, text: string, colour: string, glyph: Rect, r: Rect, screen?: { W: number; H: number }, avoid?: Rect | null): Rect {
   const lines = wrapRich(colourize(icons(text), C.bone), 150, "3");
   const w = Math.max(...lines.map((l) => lineWidth(l, "3"))) + 10, h = 8 + lines.length * 7;
   let x = Math.max(2, Math.min(r.x + r.w + 200 - w, glyph.x - 4));
   if (screen) x = Math.max(2, Math.min(screen.W - w - 2, x));
-  const y = glyph.y + glyph.h + 4;
+  let y = glyph.y + glyph.h + 4;
+  // CARD-3 (REQ-BFG-087, D2; REVIEW-CARD2 open item 3): under the word it would cover `avoid` (a rune card's TAP AGAIN TO
+  // TAKE IT bar, its shadow 2 px included): then above the word, where the screen's top allows
+  if (avoid && overlaps({ x, y, w: w + 2, h: h + 2 }, avoid) && glyph.y - 4 - h >= 2) y = glyph.y - 4 - h;
   rect(g, x + 2, y + 2, w, h, C.ink);
   rect(g, x, y, w, h, C.ink);
   rect(g, x + 1, y + 1, w - 2, h - 2, C.night);

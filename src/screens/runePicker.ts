@@ -16,7 +16,7 @@ import { pendingRune, takeRune, type Run } from "../game/run";
 import { RUNES, isRune, type RuneDef } from "../sim/runes";
 import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH, runeChipW } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the chip as the card's icon
-import { runeSightWord, runeWordBoxOn, runeWordLayer, sawRuneNote } from "../ui/runeBar"; // CARD-2 (REQ-BFG-081, K2; K1)
+import { runeHintBand, runeSightWord, runeWordBoxOn, runeWordLayer, sawRuneNote } from "../ui/runeBar"; // CARD-2 (REQ-BFG-081, K2; K1)
 import { runeTag, tierColour, tierWord } from "../ui/runeText";
 import type { BuildScreen } from "./build/build";
 
@@ -181,7 +181,7 @@ export class RunePicker {
         runeWordLayer(g, ui, "runepick-", L.cards[i], RUNES[id], runeTapOf(s), this.word, runeWordBoxOn(L.cards[i], RUNES[id], this.word), (wd) => {
           this.note = false;
           this.word = this.word === wd ? null : wd;
-        }, { W, H }, s.game.canvas);
+        }, { W, H }, s.game.canvas, undefined, runeHintBand(L.cards[i])); // CARD-3 (REQ-BFG-087, D2): the tooltip keeps clear of TAP AGAIN
       }
     });
     if (L.tray) {

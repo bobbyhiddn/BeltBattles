@@ -192,6 +192,10 @@ export function runeTextLines(def: RuneDef, tw: number): RichLine[] {
   return runeSentenceSpans(def).flatMap((s) => wrapRich(s, tw, "5"));
 }
 
+/** CARD-3 (REQ-BFG-087, D2): the band of an opened card that holds its TAP AGAIN TO TAKE IT bar: the bar's 11 px (runeCardH's
+ *  13 for it, then 4 at the foot), the card's width. The pickers pass it to runeWordLayer so a word's tooltip keeps clear. */
+export const runeHintBand = (card: Rect): Rect => ({ x: card.x, y: card.y + card.h - 17, w: card.w, h: 13 });
+
 /** A rune card's height at width `w` (R1b-2's mock: a 31 px head, 9 px per effect line, 7 per reminder line, the hint
  *  bar 13, 4 at the foot). Pure (tests). */
 export function runeCardH(def: RuneDef, w: number, o: Omit<RuneCardOpts, "sub">): number {
@@ -421,7 +425,7 @@ export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = 
  * hovered) is done for K1 (firstSight.ts sawWord). Returns the targets.
  */
 export function runeWordLayer(g: G, ui: UI, id: string, card: Rect, def: RuneDef, tap: number, word: string | null, box: Rect | null,
-  onWord: (w: string) => void, screen: { W: number; H: number }, canvas?: HTMLCanvasElement | null, onDef?: () => void): RuneWord[] {
+  onWord: (w: string) => void, screen: { W: number; H: number }, canvas?: HTMLCanvasElement | null, onDef?: () => void, bar?: Rect | null): RuneWord[] {
   const ts = runeWordTargets(card, def, [runeChipTarget(card, def, tap)]);
   ts.forEach((t, i) => {
     if (box && overlapsR(t.glyph, box)) return;
@@ -435,7 +439,7 @@ export function runeWordLayer(g: G, ui: UI, id: string, card: Rect, def: RuneDef
   const p = ui.pointer;
   const hov = !tap && p.kind === "mouse" && !p.down ? ts.find((t) => inside(t.r, p.x, p.y) && t.word !== word && !(box && overlapsR(t.glyph, box))) : undefined;
   if (hov) {
-    drawWordTip(g, hov.text, hov.colour, hov.glyph, card, screen);
+    drawWordTip(g, hov.text, hov.colour, hov.glyph, card, screen, bar); // CARD-3 (D2): never over the TAP AGAIN bar
     sawWord(hov.word);
     helpCursor(canvas, true);
   }

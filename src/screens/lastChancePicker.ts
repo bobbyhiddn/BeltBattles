@@ -25,7 +25,7 @@ import { BOONS, LAST_CHANCE_HULL, type Boon, type LastChanceOffer } from "../sim
 import { pendingLastChance, takeLastChance, type Run } from "../game/run";
 import { drawRuneCard, runeCardH } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the rune card's chip as its icon
-import { drawRuneWordNote, runeKeywordOf, runeSightWord, runeWordLayer, runeWordLines } from "../ui/runeBar"; // CARD-2 (K2; K1)
+import { drawRuneWordNote, runeHintBand, runeKeywordOf, runeSightWord, runeWordLayer, runeWordLines } from "../ui/runeBar"; // CARD-2 (K2; K1)
 import { runeReminderSpans, runeTag, tierWord } from "../ui/runeText";
 import { textOpts } from "./build/inspector";
 import type { BuildScreen } from "./build/build";
@@ -318,7 +318,7 @@ export class LastChancePicker {
       if (i === this.open) {
         runeWordLayer(g, ui, "lcrune-", L.cards[i], RUNES[o.rune!.id], runeTapOf(s), this.word, this.word ? this.wordBox : null, (wd) => {
           this.word = this.word === wd ? null : wd;
-        }, { W, H }, s.game.canvas, () => { this.word = null; });
+        }, { W, H }, s.game.canvas, () => { this.word = null; }, runeHintBand(L.cards[i])); // CARD-3 (REQ-BFG-087, D2)
       }
     });
   }
