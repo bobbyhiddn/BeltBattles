@@ -3,7 +3,7 @@
 // 0.8.0 H1 (REQ-BFG-011, REQ-BFG-032): every playable hero (PLAYABLE_HEROES: FURNACE, WEAVER, FOUNDRY, BASTION), each with
 // its portrait beside its name and its trick in one plain sentence built from the real values (abilityText.ts heroTrick).
 
-import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
+import { isNewPlayer, playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles; FIRSTDAY-1: isNewPlayer
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { newRun, saveRun } from "../game/run";
@@ -82,7 +82,8 @@ export class HeroScreen implements Screen {
 
   choose(): void {
     const id = ORDER[this.i];
-    const run = newRun(id, (Math.random() * 0x7fffffff) | 0);
+    // FIRSTDAY-1 (REQ-BFG-004, F2): a new player's first run (newRun makes one only with FIRST_RUN and PLAIN_RIGS on)
+    const run = newRun(id, (Math.random() * 0x7fffffff) | 0, undefined, isNewPlayer());
     this.game.run = run;
     saveRun(run);
     this.game.audio.play("horn");
