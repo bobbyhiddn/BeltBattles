@@ -14,6 +14,9 @@ import { KEYWORD_WORD, runeKeywords } from "../src/ui/runeText";
 import { plainRigStats } from "../src/ui/faces";
 import { statRow } from "../src/ui/icons";
 import { offerTooltip } from "../src/screens/build/shop";
+import { DROP_CLASSES, DROP_CLASS_LABEL } from "../src/sim/npcDay";
+import { classText } from "../src/screens/fork/drops";
+import { gameWords } from "../src/ui/gameWords";
 
 const CARD = { x: 40, y: 60, w: 233, h: 120 }; // the op view's picker card (its text 223 px wide)
 const DAYS = [1, 2, 4, 6, 8, 10];
@@ -71,5 +74,16 @@ describe("MERGE-099D follow-up: the desk shop tooltip's plain rig on the run's d
     }, true);
     // the switch off: day 1's number on every day, as before
     withHullScale(() => expect(offerTooltip("whetstone", { day: 10 })).toBe(offerTooltip("whetstone", { day: 1 })), false);
+  });
+});
+
+describe("MERGE-099D follow-up: the NPC day's sim strings through gameWords (rule 1d)", () => {
+  it("the drop list's class words (npcDay.ts DROP_CLASS_LABEL) are gameWords' (each label as it is: none holds a renamed word)", () => {
+    for (const cls of DROP_CLASSES) {
+      const t = classText({ def: "lodestone", cls, odds: 1 } as never);
+      expect(t, cls).toBe(gameWords(DROP_CLASS_LABEL[cls]));
+      expect(t, cls).toBe(DROP_CLASS_LABEL[cls]);
+    }
+    expect(classText({ def: "lodestone", cls: "legendary", odds: 1 } as never)).toBe("LEGENDARY");
   });
 });
