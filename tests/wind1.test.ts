@@ -192,10 +192,10 @@ describe("WIND-1: the plates (call 5: the hull as a number; call 6: SHIELD's cou
                 expect(row.hy).toBeGreaterThanOrEqual(r.y);
                 expect(row.hy + 7).toBeLessThanOrEqual(r.y + r.h);
                 expect(row.bar.x + row.bar.w + 3).toBeLessThanOrEqual(row.plate ? row.plate.x : row.hullX);
-                if (row.plate) expect(row.plate.x + textWidth(row.plate.text, "3") + 3).toBeLessThanOrEqual(row.hullX);
+                if (row.plate) expect(row.plate.x + textWidth(ICON.PLATE, "3") + 2 + textWidth(row.plate.text, "3") + 3).toBeLessThanOrEqual(row.hullX);
                 if (row.max) expect(row.bar.w).toBeGreaterThanOrEqual(BAR_MIN);
                 if (row.shield) expect(row.shield.count).toBe(String(shield));
-                if (plate !== null) expect(row.plate?.text).toBe(`${ICON.PLATE}${fmtDmg(plate)}`);
+                if (plate !== null) expect(row.plate?.text).toBe(fmtDmg(plate));
                 if (hp === 2100 && shield === null && plate === null) forms.push(`${nm}: ${row.max ? "cur/max" : "cur"} bar ${row.bar.w}`);
               }
             }

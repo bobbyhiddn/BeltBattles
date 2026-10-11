@@ -32,7 +32,9 @@ const REDUCED = opt("reduced", "").split(",").filter(Boolean);
 const [FH, FD, FS] = opt("fight", "furnace,1,12345").split(",");
 const FIGHT = { hero: FH, day: Number(FD), seed: Number(FS) };
 const WIND = opt("wind", ""); // the wind number's colour; default: the page's (bb.windInfo) or 0.9.8's C.plum4
-const EXTRA = opt("extra", "0") === "1";
+const EXTRA = opt("extra", "0") === "1"; // the scenes: plating's and SHIELD's BLOCKED pops, VIEW BATTLEFIELD
+const SCENE_VIEWS = opt("scenes", "p390,d1920").split(",").filter(Boolean);
+const CALL = opt("call", "0") === "1"; // a still of the DARK WIND callout, 1 s after the windwarn
 const lines = [];
 const log = (s) => { lines.push(s); console.log(s); };
 const results = [];
@@ -174,6 +176,97 @@ function hudInfo() {
   return typeof bb.windInfo === "function" ? bb.windInfo() : null;
 }
 
+/** In the page (after build): the pixel checks at this frame: in each plate's bar, the pixels of the wind's colour (its
+ *  flash); in each plate's hull number box, the white pixels (the number drawn); the wind numbers drawn (bb.windInfo) and,
+ *  for each, the pixels of the wind's colour in its box. Null on the old page. */
+function checkHud({ wind }) {
+  const bb = window.bb, g = bb.game, s = g.screen;
+  if (typeof bb.windInfo !== "function" || !s.plateRows) return null;
+  g.render();
+  const info = bb.windInfo();
+  const cv = g.canvas, cx = cv.getContext("2d", { willReadFrequently: true });
+  const kx = cv.width / g.W, ky = cv.height / g.H;
+  const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const W = rgb(wind || info.colour), WH = rgb("#E9F1E5");
+  const count = (r, c) => {
+    const x0 = Math.max(0, Math.floor(r.x * kx)), y0 = Math.max(0, Math.floor(r.y * ky));
+    const w = Math.min(cv.width - x0, Math.ceil(r.w * kx)), h = Math.min(cv.height - y0, Math.ceil(r.h * ky));
+    if (w <= 0 || h <= 0) return 0;
+    const d = cx.getImageData(x0, y0, w, h).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] === c[0] && d[i + 1] === c[1] && d[i + 2] === c[2]) n++;
+    return n;
+  };
+  const plates = s.plateRows.map((p) => p && { side: p.side, hull: p.hull, flash: p.windFlash, flashPx: count(p.bar, W), hullPx: count(p.hullBox, WH), shield: p.shield, plate: p.plate });
+  const nums = s.motion.windDrawn.map((n) => ({ side: n.side, text: n.text, beside: n.beside, windPx: count(n, W), box: { x: n.x, y: n.y, w: n.w, h: n.h } }));
+  return { plates, nums, callT: info.callT, call: s.windCallR ? { ...s.windCallR } : null, W: g.W, H: g.H };
+}
+
+/** In the page: step the fight on to sim time `t` (s). */
+function stepTo({ t }) {
+  const g = window.bb.game, b = g.screen.arena.b;
+  let n = 0;
+  while (b.t < t && !b.over && n++ < 60 * 120) g.step(1 / 60);
+  g.render();
+  return { t: +b.t.toFixed(3), over: b.over };
+}
+
+/** In the page: step until a pop whose text starts with `prefix` is 0.1-0.4 s old (a BLOCKED pop), at most `secs` s. */
+function stepToPop({ prefix, exact, secs }) {
+  const g = window.bb.game, a = g.screen.arena, fx = a.fx;
+  for (let n = 0; n < 60 * secs && !a.b.over; n++) {
+    g.step(1 / 60);
+    for (let i = 0; i < fx.np; i++) {
+      const p = fx.pops[i];
+      if ((exact ? p.text === prefix : p.text.startsWith(prefix)) && p.t >= 0.1 && p.t <= 0.4) {
+        g.render();
+        return { found: true, t: +a.b.t.toFixed(3), text: p.text, color: p.color, side: p.side, popT: +p.t.toFixed(3) };
+      }
+    }
+  }
+  return { found: false, t: +a.b.t.toFixed(3) };
+}
+
+/** In the page: play the fight out at 4X to its result card, then open VIEW BATTLEFIELD and let the camera settle. */
+function toView() {
+  const bb = window.bb, g = bb.game, s = g.screen;
+  s.setSpeed(3);
+  let n = 0;
+  while (bb.screen(true) !== "result" && n++ < 60 * 200) g.step(1 / 60);
+  for (let i = 0; i < 60; i++) g.step(1 / 60);
+  const opened = bb.viewBattlefield(true);
+  for (let i = 0; i < 90; i++) g.step(1 / 60);
+  g.render();
+  const sc = bb.scout();
+  return { opened, phase: bb.screen(true), summaries: sc ? sc.summaries : null, t: +s.arena.b.t.toFixed(2), windTaken: [s.arena.b.sides[0].stats.windTaken, s.arena.b.sides[1].stats.windTaken] };
+}
+
+/** One scene still: `scene` plate (a BASTION dusk: a plating soak's BLOCKED n), shield (WARD STONE: a SHIELD's BLOCKED) or
+ *  view (VIEW BATTLEFIELD after a fight). */
+async function runScene(browser, vname, scene) {
+  const ctx = await browser.newContext(V[vname]);
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  await page.addInitScript(FREEZE);
+  await page.goto(pathToFileURL(PAGE).href);
+  await page.waitForFunction(() => !!window.bb && !!window.bb.game);
+  const fight = scene === "plate" ? { hero: "bastion", day: 1, seed: 12345 } : FIGHT;
+  await page.evaluate(openScene, { fight, cam: "wide", reduced: false, scene: scene === "shield" ? "shield" : "dusk" });
+  const name = `${TAG}-${vname}-${scene}`;
+  let r;
+  if (scene === "view") r = await page.evaluate(toView);
+  else r = await page.evaluate(stepToPop, scene === "plate" ? { prefix: "BLOCKED ", exact: false, secs: 40 } : { prefix: "BLOCKED", exact: true, secs: 40 });
+  const hi = scene === "view" ? null : await page.evaluate(checkHud, { wind: WIND });
+  const file = join(OUT, "stills", `${name}.png`);
+  await page.screenshot({ path: file });
+  log(`${name}: ${JSON.stringify(r)}${hi ? `; plates ${JSON.stringify(hi.plates)}` : ""}; still ${file} (${(await stat(file)).size} B); console errors ${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""}`);
+  results.push({ scene, view: vname, tag: TAG, r, hud: hi });
+  await ctx.close();
+  return errors.length + (scene === "view" ? (r.opened ? 0 : 1) : r.found ? 0 : 1);
+}
+
 async function runView(browser, vname, cam, reduced) {
   const ctx = await browser.newContext(V[vname]);
   const page = await ctx.newPage();
@@ -187,6 +280,15 @@ async function runView(browser, vname, cam, reduced) {
   const o = await page.evaluate(openScene, { fight: FIGHT, cam, reduced });
   const name = `${TAG}-${vname}-${cam}${reduced ? "-reduced" : ""}`;
   log(`${name}: ${o.screen}, logical ${o.W}x${o.H} at scale ${o.scale} (DPR ${o.dpr}, sub ${o.sub}); fight ${FIGHT.hero} day ${FIGHT.day} seed ${FIGHT.seed}`);
+  if (CALL) {
+    // the DARK WIND callout, 1 s after the windwarn (20 s)
+    const st = await page.evaluate(stepTo, { t: 21 });
+    const hi = await page.evaluate(checkHud, { wind: WIND });
+    const file = join(OUT, "stills", `${name}-call.png`);
+    await page.screenshot({ path: file });
+    log(`  callout at ${st.t} s: ${hi ? `clock ${hi.callT.toFixed(2)} s, box ${JSON.stringify(hi.call)} (logical, screen ${hi.W}x${hi.H})` : "no bb.windInfo (the old page)"}; still ${file} (${(await stat(file)).size} B)`);
+    results.push({ view: vname, camName: cam, reduced: !!reduced, tag: TAG, call: hi ? hi.call : null, t: st.t, missed: true });
+  }
   for (const tick of TICKS) {
     const r = await page.evaluate(stepAndMeasure, { tick, after: 6, wind: WIND, measure: true });
     r.view = vname; r.camName = cam; r.reduced = !!reduced; r.tag = TAG;
@@ -200,6 +302,12 @@ async function runView(browser, vname, cam, reduced) {
     if (tick === SHOT) {
       const hi = await page.evaluate(hudInfo);
       if (hi) { r.hud = hi; log(`    hud: ${JSON.stringify(hi)}`); }
+      const ck = await page.evaluate(checkHud, { wind: WIND });
+      if (ck) {
+        r.check = ck;
+        for (const p of ck.plates) if (p) log(`    CHECK plate ${p.side}: hull "${p.hull}" drawn (${p.hullPx} white px in its box); bar flash ${p.flash} (${p.flashPx} px of the wind's colour in the bar)${p.shield !== null ? `; SHIELD ${p.shield}` : ""}${p.plate !== null ? `; plating ${p.plate}` : ""}`);
+        for (const n of ck.nums) log(`    CHECK wind number side ${n.side} "${n.text}": ${n.windPx} px of the wind's colour in its box ${JSON.stringify(n.box)}${n.beside ? " (beside its plate)" : " (on its hull)"}`);
+      }
       const file = join(OUT, "stills", `${name}-tick${tick}.png`);
       await page.screenshot({ path: file });
       log(`    still ${file} (${(await stat(file)).size} B)`);
@@ -216,6 +324,7 @@ let bad = 0;
 log(`wind1shots ${TAG} on ${PAGE}, ${new Date().toISOString()}; views ${VIEWS.join(",")}; cams ${CAMS.join(",")}; ticks ${TICKS.join(",")}; shot tick ${SHOT}; reduced ${REDUCED.join(",") || "-"}`);
 for (const v of VIEWS) for (const c of CAMS) bad += await runView(browser, v, c, false);
 for (const v of REDUCED) bad += await runView(browser, v, "wide", true);
+if (EXTRA) for (const v of SCENE_VIEWS) for (const sc of ["plate", "shield", "view"]) bad += await runScene(browser, v, sc);
 await browser.close();
 await writeFile(join(OUT, `wind1shots-${TAG}.log`), lines.join("\n") + "\n");
 await writeFile(join(OUT, `wind1shots-${TAG}.json`), JSON.stringify(results, null, 1) + "\n");

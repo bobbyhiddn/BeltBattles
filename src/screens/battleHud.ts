@@ -86,6 +86,7 @@ export interface PlateRow {
   max: string | null;
   hullX: number;
   shield: { x: number; pips: boolean; count: string } | null;
+  /** plating's number (`text`, digits only) after the PLATE icon at `x`, ICON_GAP px apart (flush, the 3x5 icon read as a 7) */
   plate: { x: number; text: string } | null;
   regenX: number | null;
   bar: { x: number; w: number };
@@ -103,8 +104,8 @@ export function plateRow(o: { x: number; y: number; w: number; h: number; lead: 
   const hull = fmtDmg(Math.max(0, o.hp)), max = `/${fmtDmg(o.max)}`;
   const curW = textWidth(hull, "5"), maxW = textWidth(max, "3") + 1;
   const count = o.shield === null ? "" : fmtCount(o.shield);
-  const pipsW = SHIELD_PIPS_W + 1 + textWidth(count, "3"), oneW = textWidth(`${ICON.SHIELD}${count}`, "3");
-  const plateText = o.plate === null ? "" : `${ICON.PLATE}${fmtDmg(o.plate)}`, plateW = textWidth(plateText, "3");
+  const pipsW = SHIELD_PIPS_W + ICON_GAP + textWidth(count, "3"), oneW = textWidth(ICON.SHIELD, "3") + ICON_GAP + textWidth(count, "3");
+  const plateText = o.plate === null ? "" : fmtDmg(o.plate), plateW = textWidth(ICON.PLATE, "3") + ICON_GAP + textWidth(plateText, "3");
   const right = o.x + o.w - 3, left = o.x + 3 + o.lead + 3;
   const forms = [[true, true, true], [false, true, true], [false, false, true], [false, false, false]];
   let row: PlateRow | null = null;
@@ -124,6 +125,10 @@ export function plateRow(o: { x: number; y: number; w: number; h: number; lead: 
   }
   return row!;
 }
+
+/** WIND-1 (REQ-BFG-097): the gap between an icon and its number on the plate (px): flush, the 3x5 PLATE icon and a digit
+ *  read as one number ("70" for plating 0). */
+export const ICON_GAP = 2;
 
 /** WIND-1 tooling (bb.windInfo): a plate as drawn: its rect, its hull text ("current" or "current/max"), the hull number's
  *  box and face, the bar's box, the SHIELD count and plating number shown (null: none). */
@@ -173,17 +178,21 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     const n = s.shield ?? 0;
     if (row.shield.pips) {
       drawShieldPips(g, row.shield.x, ty, n, broke, game.t);
-      drawText(g, row.shield.count, row.shield.x + SHIELD_PIPS_W + 1, ty, SHIELD_COLOUR, { font: "3" });
+      drawText(g, row.shield.count, row.shield.x + SHIELD_PIPS_W + ICON_GAP, ty, SHIELD_COLOUR, { font: "3" });
     } else {
       const flash = broke >= n && f.shieldBreak > 0 && (settings.reducedMotion || Math.floor(game.t * 12) % 2 === 0);
-      drawText(g, `${ICON.SHIELD}${row.shield.count}`, row.shield.x, ty, n > 0 ? SHIELD_COLOUR : flash ? C.white : C.slate2, { font: "3", mono: true });
+      drawText(g, ICON.SHIELD, row.shield.x, ty, n > 0 ? SHIELD_COLOUR : flash ? C.white : C.slate2, { font: "3", mono: true });
+      drawText(g, row.shield.count, row.shield.x + textWidth(ICON.SHIELD, "3") + ICON_GAP, ty, SHIELD_COLOUR, { font: "3" });
     }
   }
   if (row.regenX !== null) {
     const now = regenNow(a, side);
     if (now > 0) drawText(g, `+${fmtDmg(now)}`, row.regenX, ty, ICON_COLOUR[ICON.REGEN], { font: "3", align: "right" });
   }
-  if (row.plate) drawText(g, row.plate.text, row.plate.x, ty, PLATE_COLOUR, { font: "3", mono: true });
+  if (row.plate) {
+    drawText(g, ICON.PLATE, row.plate.x, ty, PLATE_COLOUR, { font: "3", mono: true });
+    drawText(g, row.plate.text, row.plate.x + textWidth(ICON.PLATE, "3") + ICON_GAP, ty, PLATE_COLOUR, { font: "3" });
+  }
   const bx = row.bar.x, bw = row.bar.w;
   if (bw > 8 && plating) {
     // 0.8.0 H1 M3: BASTION's plating strip on top of the hull bar, in the bar's 7 rows: plating takes hits before HP, so
