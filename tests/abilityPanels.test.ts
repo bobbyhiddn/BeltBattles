@@ -938,7 +938,7 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       if (!/^[+-]?\d+(\.\d+)?%?$/.test(w)) return [];
       const next = ws[i + 1] ?? "";
       if (w.endsWith("%")) return /^(DAMAGE|FASTER|SLOWER|SHORTER|SPEED)$/.test(next) ? [] : [w];
-      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|RIGS?|STUNS)$/.test(next) ? [] : [w];
+      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|SHIELD|RIGS?|STUNS)$/.test(next) ? [] : [w];
     });
   };
   /** 0.6.2rel2: turret `def` (★ts) in a FURNACE's slot 1 with `core` (★cs) and `gear` in its hardpoints, in order. */
