@@ -61,6 +61,12 @@
 //   before, and every older code (no head word starts "r:") decodes exactly as before, with no runes key. The runes
 //   key is the decoded build's last (after upgrades), as run.ts writes it. HULL and BELT runes stay inside
 //   hullBonus / beltCap (as run.ts takeRune and runes.ts botTakeRune put them), so the code writes those as they are.
+// AZ-BUMP (REQ-BFG-078, REQ-BFG-077; REVIEW-PARAZ N3, BRIEF-AZBUMP S3): a caravan pool generated with NPC_DAY on carries a
+// seventh element, the pick's run's road log (roadWord: one word per day reached, "<day><tier><outcome>[s][:<drop>]",
+// tier e/m/h, outcome w/l/d, "s" a sabotaged fight, e.g. "1mw:scrapcannon 2ml 3mw"), so a seed ghost drawn from the pool
+// travels with it (tools/samplePool.ts) and the player-mode checks count its drops exactly as an upload's (validate.ts
+// roadDropValue). standInPool returns it as StandInEntry.road. A pool generated with NPC_DAY off has no seventh element
+// (its module is written exactly as before) and its entries no road.
 
 import { GRID, HEROES, ITEMS, type HeroId, type Upgrades } from "./content";
 import { TURRET_UID0, rotOf, setTurretList, startingTurrets, type Build, type BuildTurret, type ModPlacement, type Placed, type RouteDef } from "./deck";
@@ -86,11 +92,47 @@ export interface StandInEntry {
   spent: number; // step 5 M5: the gold spent to assemble the deck: a caravan pool stores it (value + rerolls + sale losses); = cost for a full-purse pool
   pct: number; // strength percentile inside its hero/day population (0-100)
   vsPar: number; // lower win rate against the day's par of both factions (0-1): the par field (par.ts parRefs) for a caravan pool, heroRefBuild for pool v2.1
+  /** AZ-BUMP (REQ-BFG-078; REVIEW-PARAZ N3): the pick's run's road log, days 1..day (a caravan pool generated with NPC_DAY
+   *  on; absent otherwise). */
+  road?: StandInRoadEntry[];
+}
+
+/** AZ-BUMP (N3): one road log entry as the pool stores it, the shape of npcDay.ts RoadEntry (this file imports only
+ *  ./content, ./deck and ./beltside, so it is declared here). */
+export interface StandInRoadEntry {
+  day: number;
+  tier: "easy" | "medium" | "hard";
+  outcome: "win" | "loss" | "draw";
+  drop?: string;
+  sabotaged?: true;
+}
+
+const ROAD_TIERS = { e: "easy", m: "medium", h: "hard" } as const;
+const ROAD_OUTCOMES = { w: "win", l: "loss", d: "draw" } as const;
+const ROAD_ENTRY = /^(\d{1,2})([emh])([wld])(s?)(?::([a-z0-9_]{1,32}))?$/;
+
+/** AZ-BUMP (N3): a road log as the pool's seventh tuple element (see the header): one word per entry, in log order. */
+export function roadWord(road: readonly StandInRoadEntry[]): string {
+  return road.map((e) => `${e.day}${e.tier[0]}${e.outcome[0]}${e.sabotaged ? "s" : ""}${e.drop !== undefined ? `:${e.drop}` : ""}`).join(" ");
+}
+
+/** AZ-BUMP (N3): the road log a pool's road word writes, each entry with only the keys it has (drop, then sabotaged, as
+ *  npcDay.ts roadLog writes them); "" is no entry. Refuses a word it can't read, so nothing is dropped silently. */
+export function roadOfWord(word: string): StandInRoadEntry[] {
+  return word.split(" ").filter(Boolean).map((w) => {
+    const m = ROAD_ENTRY.exec(w);
+    if (!m) throw new Error(`stand-in pool: bad road word "${w}"`);
+    return {
+      day: Number(m[1]), tier: ROAD_TIERS[m[2] as keyof typeof ROAD_TIERS], outcome: ROAD_OUTCOMES[m[3] as keyof typeof ROAD_OUTCOMES],
+      ...(m[5] !== undefined ? { drop: m[5] } : {}), ...(m[4] ? { sabotaged: true as const } : {}),
+    };
+  });
 }
 
 /** Step 5 M5: a stored tuple as the loader reads it. The data module declares its own StandInTuple: five elements in a
- *  full-purse pool (v2.1), six in a caravan pool, whose sixth is the gold spent. */
-type PoolTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number, spent?: number];
+ *  full-purse pool (v2.1), six in a caravan pool, whose sixth is the gold spent; AZ-BUMP (N3): seven in a caravan pool
+ *  generated with NPC_DAY on, whose seventh is the run's road log (roadWord). */
+type PoolTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number, spent?: number, road?: string];
 
 const cellCode = (x: number, y: number): string => `${y}${x}`;
 const V1_NO_TURRETS = "stand-in code: the v1 code carries no turrets and no belt joins (use encodeStarred / decodeStarred)";
@@ -379,7 +421,8 @@ export function standInPool(hero: HeroId, day: number): StandInEntry[] {
   if (!d) return [];
   const dd = standInDay(day);
   const entries: readonly PoolTuple[] = d[1];
-  return entries.map(([cost, pct, , code, vsPar, spent]) => ({ hero, day: dd, build: decodeStarred(hero, code), cost, spent: spent ?? cost, pct, vsPar }))
+  // AZ-BUMP (N3): a seventh element, the run's road log, when the pool has one
+  return entries.map(([cost, pct, , code, vsPar, spent, road]) => ({ hero, day: dd, build: decodeStarred(hero, code), cost, spent: spent ?? cost, pct, vsPar, ...(road !== undefined ? { road: roadOfWord(road) } : {}) }))
     .sort((a, b) => a.pct - b.pct);
 }
 

@@ -87,7 +87,7 @@ import { lcRunes, takeLastChance } from "../../game/run"; // LC-1: the game's ow
 // PAR-AZ (REQ-BFG-078, REQ-BFG-077): the par player's NPC day (parNpcDay), behind NPC_DAY: the game's road stop and fight
 import { finishWarlord, pickRoad, todaysWarlord, warlordDrop, warlordSeed } from "../../game/road";
 import { simulate } from "../battle";
-import { roadDropValue, roadLog, withNpcDay } from "../npcDay";
+import { roadDropValue, roadLog, withNpcDay, type RoadEntry } from "../npcDay";
 import type { RivalId } from "../rivals";
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
@@ -1690,6 +1690,15 @@ export function playerBuild(hero: HeroId, day: number, seed: number, opts: Playe
  *  tier keeps par stable and readable (cap's ruling Q5 on REVIEW-HULL1D). Never Easy, Hard or the Matriarch: the Medium
  *  slot of every day's fork holds a Medium captain (rivals.ts warlordOffers: its own pool, all RUN_DAYS days). */
 export const PAR_ROAD_TIER = "medium" as const;
+
+/** AZ-BUMP (REQ-BFG-078, REQ-BFG-077; REVIEW-PARAZ N3, BRIEF-AZBUMP S3): the road log of a par-player run (playerRun's days,
+ *  NPC_DAY on) by dusk `day`, as the game's road log reads it (npcDay.ts roadLog of run.warlords): one entry a day in day
+ *  order, the tier PAR_ROAD_TIER, the outcome and the drop that went to cargo (absent: none; a capped run's declined drop
+ *  is none, as finishWarlord logs it); a par run is never sabotaged. [] with NPC_DAY off (no road stop). So roadDropValue
+ *  of it is the day's roadDrops, and a deck drawn from the run travels with it (the stand-in pool, the seed pool). */
+export function playerRoadLog(days: readonly PlayerDay[], day: number): RoadEntry[] {
+  return days.slice(0, Math.max(0, day)).flatMap((d) => (d.road ? [{ day: d.day, tier: PAR_ROAD_TIER, outcome: d.road.outcome, ...(d.road.drop ? { drop: d.road.drop } : {}) }] : []));
+}
 
 /**
  * PAR-AZ (REQ-BFG-078, REQ-BFG-077; BRIEF-PARAZ 1 (a); cap's ruling Q5): the par player's road stop, NPC_DAY on, after the

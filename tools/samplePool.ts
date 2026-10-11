@@ -23,6 +23,16 @@
 //  - generateSamplePool() = all three, 120 snapshots (60 FURNACE and WEAVER, 60 FOUNDRY and BASTION). It fails loudly
 //    (throws) if a ghost fails validateBuild (the shop's strict rules) or validateUpload (the player mode, as POST
 //    /v1/ghosts checks an upload), if a label is not reachable, or if a reachable state has fewer than 2 eligible ghosts.
+//  - AZ-BUMP (REQ-BFG-078, REQ-BFG-077; REVIEW-PARAZ N3, BRIEF-AZBUMP S3), with NPC_DAY on: a seed deck is road-fed (its
+//    run fought a warlord each day and may hold the drops), and the player mode counts drops only through a road log
+//    (validate.ts roadDropValue). So every seed ghost carries its run's road log as a v3 snapshot's `road`: a stand-in
+//    pool deck the log its pool tuple stores (standInPool.ts StandInEntry.road), a race deck its par run's (player.ts
+//    playerRoadLog); seedGhost's player-mode check, the seed step (server/seed.ts checkPool) and the client's served-ghost
+//    check (ghostClient.ts) pass it as ctx.road, so its drops count exactly as for a player's upload. With NPC_DAY off,
+//    no ghost carries one: every snapshot exactly as before. seedGhost's strict check (validateBuild) holds a deck to the
+//    shop's gold alone (maxGoldByDay + its runes' gold), which a road-fed deck outgrows by its road gold and drops, so with
+//    NPC_DAY on its budget line is left to the player-mode check right after it, which counts both (roadCap and the road
+//    log), as the stand-in generator's own check does (standins.ts writtenProblems); every other strict line stands.
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
@@ -30,13 +40,14 @@ import { startingBuild } from "../src/sim/ai";
 import { installedTurrets, occupancy, type Build } from "../src/sim/deck";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { PAR_K, parSeeds } from "../src/sim/harness/par";
-import { parRunSeed, playerBuild } from "../src/sim/harness/player";
+import { parRunSeed, playerRoadLog, playerRun } from "../src/sim/harness/player";
+import { npcDayRules, type RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP (N3): the seed ghosts' road logs
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { eligible } from "../src/net/matchmaking";
 import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
 import { checkSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
-import { encodeStarred, standInParIndex, standInPickIndex, standInPool } from "../src/sim/standInPool";
+import { encodeStarred, standInParIndex, standInPickIndex, standInPool, type StandInEntry } from "../src/sim/standInPool";
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -54,15 +65,23 @@ const sampleSeed = (hero: HeroId, v: number, day: number): number => hashSeed("s
 /** The sample deck: variant 0 = the par; variant v >= 1 = standInPick's entry for `seed`, stepped deterministically to the
  *  next entry while it is the same deck as the par (or, from variant 2, as an earlier variant's deck). */
 export function sampleDeck(hero: HeroId, day: number, v: number, seed: number): Build {
+  return sampleEntry(hero, day, v, seed).build;
+}
+
+/** AZ-BUMP (N3): sampleDeck's pool entry, with its run's road log when the pool stores one (StandInEntry.road). */
+export function sampleEntry(hero: HeroId, day: number, v: number, seed: number): StandInEntry {
   const pool = standInPool(hero, day), par = standInParIndex(hero, day);
-  if (v === 0) return pool[par].build;
+  if (v === 0) return pool[par];
   // star-aware codes: since the 0.6.1 flip two picks may differ only in stars
   const taken = new Set([encodeStarred(pool[par].build)]);
   for (let u = 1; u < v; u++) taken.add(encodeStarred(sampleDeck(hero, day, u, sampleSeed(hero, u, day))));
   let i = standInPickIndex(hero, day, seed);
   for (let step = 0; step < pool.length && taken.has(encodeStarred(pool[i].build)); step++) i = (i + 1) % pool.length;
-  return pool[i].build;
+  return pool[i];
 }
+
+/** AZ-BUMP (N3): the road log a seed ghost carries: its run's, with NPC_DAY on only (off: none, the snapshot as before). */
+const roadOf = (road: readonly RoadEntry[] | undefined): RoadEntry[] | undefined => (npcDayRules() && road ? [...road] : undefined);
 
 /** Retired variant-1 shopper (gates, a module, plating on the starting layout). Its deck is no
  *  longer used; it only replays its rng draws so each snapshot keeps its record. */
@@ -105,18 +124,26 @@ export function reachableLabel(day: number, wins: number, lives: number): DuskRe
  *  section 3 step 4; BOTSX-REPORT section 9): a deck that holds runes travels as a v3 snapshot (Build.runes is v3 only),
  *  carrying the run seed when the deck's run is known (`seed`: a race ghost's par-field run), so the upload check
  *  re-derives every dawn's offer; a stand-in pool deck stores no run seed, so its ghost carries none (the count rule
- *  still holds it to one rune a dawn). A rune-less deck is v2 exactly as before. */
-function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number, seed?: number): GhostSnapshot {
+ *  still holds it to one rune a dawn). A rune-less deck is v2 exactly as before. AZ-BUMP (REQ-BFG-078; REVIEW-PARAZ N3):
+ *  `road`, its run's road log (NPC_DAY on only; see the header), travels in a v3 snapshot's `road` and goes to the
+ *  player-mode check as ctx.road, as an upload's does; and the strict check's budget line is left to that check. */
+function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number, seed?: number, road?: RoadEntry[]): GhostSnapshot {
   const runes = (build.runes?.length ?? 0) > 0;
   const snap = checkSnapshot({
     // v2: pool decks carry stars (the 0.6.1 flip) and rigs their `rot` (0.6.2 BELTSIDE, DESIGN-beltside D1)
-    v: runes ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
+    // AZ-BUMP (N3): a road log is v3 only (snapshot.ts roadField), written last
+    v: runes || road ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
     runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: at,
     ...(runes && seed !== undefined ? { seed } : {}),
+    ...(road ? { road } : {}),
   });
+  // AZ-BUMP (N3): with NPC_DAY on, the strict budget line (the shop's gold alone) is left to the player mode below, which
+  // counts the road's gold (roadCap) and the road log's drops; off, every strict line exactly as before
   const val = validateBuild(snap.build, day);
-  if (!val.ok) throw new Error(`sample ghost ${hero} v${v} day ${day} is invalid: ${val.errors.join("; ")}`);
-  const up = validateUpload(snap.build, day, snap.rules, { seed: snap.seed }); // D5: an honest player could have uploaded it
+  const strict = val.errors.filter((e) => !(npcDayRules() && e.startsWith("budget: ")));
+  if (strict.length) throw new Error(`sample ghost ${hero} v${v} day ${day} is invalid: ${strict.join("; ")}`);
+  // D5: an honest player could have uploaded it. AZ-BUMP (N3): with its road log, as an upload carries it
+  const up = validateUpload(snap.build, day, snap.rules, { seed: snap.seed, ...(snap.road ? { road: snap.road } : {}) });
   if (!up.ok) throw new Error(`sample ghost ${hero} v${v} day ${day} fails validateUpload (player mode): ${up.errors.join("; ")}`);
   if (!isReachable(day, snap.wins, snap.lives)) throw new Error(`sample ghost ${hero} v${v} day ${day}: ${snap.wins}W ${snap.lives} lives is not a record a run can carry into that dusk`);
   return snap;
@@ -131,10 +158,10 @@ export function sampleGhosts(): GhostSnapshot[] {
         const seed = sampleSeed(hero, v, day);
         const rng = new Rng(seed);
         if (v === 1) shopper(hero, day, rng); // replay the retired shopper's draws: records unchanged
-        const build = sampleDeck(hero, day, v, seed);
+        const entry = sampleEntry(hero, day, v, seed); // AZ-BUMP (N3): the deck and its run's road log
         const wins = rng.int(day);
         const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
-        out.push(seedGhost(hero, day, v, build, reachableLabel(day, wins, START_LIVES - losses), EPOCH + out.length * 1000));
+        out.push(seedGhost(hero, day, v, entry.build, reachableLabel(day, wins, START_LIVES - losses), EPOCH + out.length * 1000, undefined, roadOf(entry.road)));
       }
     }
   }
@@ -147,8 +174,8 @@ export function floorGhosts(first = STAND_IN_HEROES.length * SAMPLE_VARIANTS * M
   const out: GhostSnapshot[] = [];
   for (const hero of STAND_IN_HEROES) {
     for (let day = 1; day <= MAX_DAY; day++) {
-      const build = sampleDeck(hero, day, FLOOR_VARIANT, sampleSeed(hero, FLOOR_VARIANT, day));
-      out.push(seedGhost(hero, day, FLOOR_VARIANT, build, floorRecord(day), EPOCH + (first + out.length) * 1000));
+      const entry = sampleEntry(hero, day, FLOOR_VARIANT, sampleSeed(hero, FLOOR_VARIANT, day)); // AZ-BUMP (N3): + its road log
+      out.push(seedGhost(hero, day, FLOOR_VARIANT, entry.build, floorRecord(day), EPOCH + (first + out.length) * 1000, undefined, roadOf(entry.road)));
     }
   }
   return out;
@@ -161,8 +188,9 @@ export const RACE_SEED_HEROES: readonly HeroId[] = PLAYABLE_HEROES.filter((h) =>
 /** Seed ghosts per race hero and day: as many as a stand-in hero's (SAMPLE_VARIANTS sample ghosts and one floor ghost). */
 export const RACE_VARIANTS = SAMPLE_VARIANTS + 1;
 
-/** A race seed deck and the par-field run it comes from. */
-export interface RaceDeck { build: Build; seed: number }
+/** A race seed deck and the par-field run it comes from. AZ-BUMP (N3): `road`, that run's road log by the deck's dusk
+ *  (player.ts playerRoadLog; NPC_DAY on only, absent off). */
+export interface RaceDeck { build: Build; seed: number; road?: RoadEntry[] }
 
 /**
  * 0.8.0 RC: the race seed deck of (hero, day, variant v): the par player's dusk deck of `day` (playerBuild, the typical
@@ -177,8 +205,11 @@ export function raceDeck(hero: HeroId, day: number, v: number, botRunes?: boolea
   for (let u = 0; u < v; u++) taken.add(encodeStarred(raceDeck(hero, day, u, botRunes).build));
   let i = hashSeed("race-seed-pool", hero, v, day) % seeds.length;
   for (let step = 0; step < seeds.length; step++, i = (i + 1) % seeds.length) {
-    const build = playerBuild(hero, day, seeds[i], botRunes !== undefined ? { botRunes } : {});
-    if (!taken.has(encodeStarred(build))) return { build, seed: seeds[i] };
+    // AZ-BUMP (N3): the run itself (playerBuild's deck is its dusk of `day`), for its road log
+    const d = Math.max(1, Math.min(MAX_DAY, Math.floor(day)));
+    const days = playerRun(hero, d, seeds[i], botRunes !== undefined ? { botRunes } : {});
+    const build = days[d - 1].build;
+    if (!taken.has(encodeStarred(build))) return { build, seed: seeds[i], ...(npcDayRules() ? { road: playerRoadLog(days, d) } : {}) };
   }
   throw new Error(`race seed deck ${hero} day ${day} variant ${v}: the par field holds fewer than ${v + 1} distinct decks`);
 }
@@ -194,7 +225,7 @@ export function raceGhosts(
   for (const hero of RACE_SEED_HEROES) {
     for (let v = 0; v < RACE_VARIANTS; v++) {
       for (let day = 1; day <= MAX_DAY; day++) {
-        const { build, seed: field } = deckOf(hero, day, v);
+        const { build, seed: field, road } = deckOf(hero, day, v); // AZ-BUMP (N3): + its par run's road log
         const seed = (parRunSeed(hero, field) >>> 0) || undefined; // FLIP-X2: that par run's own run seed, in the v3 snapshot
         let rec: DuskRecord;
         if (v === FLOOR_VARIANT) rec = floorRecord(day);
@@ -204,7 +235,7 @@ export function raceGhosts(
           const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
           rec = reachableLabel(day, wins, START_LIVES - losses);
         }
-        out.push(seedGhost(hero, day, v, build, rec, EPOCH + (first + out.length) * 1000, seed));
+        out.push(seedGhost(hero, day, v, build, rec, EPOCH + (first + out.length) * 1000, seed, roadOf(road)));
       }
     }
   }

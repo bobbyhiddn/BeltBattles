@@ -24,9 +24,9 @@ import { hullSlots, turretList, type Build } from "../deck";
 import { buildCost, maxGoldByDay } from "../../net/validate";
 import { FUSE_MAX, starsOf } from "../stars";
 import { spendFloor } from "./gen";
-import { PLAYER_DAYS, playerRun, type PlayerOpts } from "./player";
+import { PLAYER_DAYS, playerRoadLog, playerRun, type PlayerOpts } from "./player";
 import { runeGrants } from "../runes"; // RUNES-2a (REQ-BFG-058): a bot's dawn-gold runes in its gold
-import { npcDayRules } from "../npcDay"; // PAR-AZ (REQ-BFG-078): the road's gold and drops in a candidate's gold
+import { npcDayRules, type RoadEntry } from "../npcDay"; // PAR-AZ (REQ-BFG-078): the road's gold and drops in a candidate's gold
 
 /** Where the stand-in population comes from: "caravan" (par-player runs; the CLI default since step 5) or "fullpurse"
  *  (standInCandidate / fullPurseBuild, the pools up to v2.1; the library default when the option is absent). */
@@ -75,6 +75,10 @@ export interface CaravanMeta {
   // roadGold + roadDrops), which the budget checks add to the day's gold as validate.ts does (spent then counts the road's
   // gold too). Absent with the switch off.
   road?: number;
+  // AZ-BUMP (REQ-BFG-078; REVIEW-PARAZ N3, BRIEF-AZBUMP S3): with NPC_DAY on only, the run's road log by this dusk
+  // (player.ts playerRoadLog), which the stand-in pool stores beside the pick (standins.ts dataModuleText) so a seed ghost
+  // drawn from it carries it and the player-mode checks count its drops as an upload's. Absent with the switch off.
+  log?: RoadEntry[];
 }
 
 export interface CaravanDeck { build: Build; value: number; floorMet: boolean; meta: CaravanMeta }
@@ -82,7 +86,8 @@ export interface CaravanDeck { build: Build; value: number; floorMet: boolean; m
 /** The day-`day` dusk deck of the (hero, policy, seed) run (a fresh copy), with its gold. RUNES-2a: `botRunes` (absent:
  *  runes.ts BOT_RUNES, off) has the player take a rune at each dawn; its dawn-gold runes' gold joins the day's gold. */
 export function caravanDeck(hero: HeroId, day: number, seed: number, policy: CaravanPolicy, maxStars: number, botRunes?: boolean): CaravanDeck {
-  const d = playerRun(hero, PLAYER_DAYS, seed, { ...CARAVAN_POLICY[policy], maxStars, ...(botRunes !== undefined ? { botRunes } : {}) })[day - 1];
+  const days = playerRun(hero, PLAYER_DAYS, seed, { ...CARAVAN_POLICY[policy], maxStars, ...(botRunes !== undefined ? { botRunes } : {}) });
+  const d = days[day - 1];
   if (!d) throw new Error(`caravan deck: no day ${day} in a ${PLAYER_DAYS}-day run`);
   if (buildCost(d.build).total !== d.value) throw new Error(`caravan deck ${hero} d${day} ${policy} ${seed}: the run's value ${d.value} != buildCost ${buildCost(d.build).total}`);
   // RUNES-2a: as validate.ts reads a deck with runes: the bought deck's value (the HULL and BELT runes' own taken out of
@@ -95,7 +100,8 @@ export function caravanDeck(hero: HeroId, day: number, seed: number, policy: Car
   // writtenProblems, tools/genStandInPool.ts), as validate.ts counts an upload's road. Off: every number as before.
   const nd = npcDayRules(), roadGold = nd ? d.roadGold ?? 0 : 0, roadDrops = nd ? d.roadDrops ?? 0 : 0;
   const spent = maxGoldByDay(day) + grant.gold + roadGold - d.gold;
-  const meta: CaravanMeta = { policy, seed, spent, rerollGold: d.rerollGold, soldLoss: d.soldLoss, unspent: d.gold, cargoGold: spent + roadDrops - value - d.rerollGold - d.soldLoss, ...(nd ? { road: roadGold + roadDrops } : {}) };
+  // AZ-BUMP (N3): and its road log by this dusk (log), with NPC_DAY on only
+  const meta: CaravanMeta = { policy, seed, spent, rerollGold: d.rerollGold, soldLoss: d.soldLoss, unspent: d.gold, cargoGold: spent + roadDrops - value - d.rerollGold - d.soldLoss, ...(nd ? { road: roadGold + roadDrops, log: playerRoadLog(days, day) } : {}) };
   return { build: d.build, value, floorMet: spent >= spendFloor(day), meta };
 }
 

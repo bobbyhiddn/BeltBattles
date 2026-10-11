@@ -45,8 +45,11 @@ export function checkPool(snapshots: readonly unknown[], rules = RULES_VERSION):
       // it, as an upload is (server/app.ts): its rune's place, its card, its record. Z-BUMP S4 (REVIEW-ZPREP F1's reader
       // check): the record model reads the pool ghost's own rules (records.ts `rules`), so a pool checked under an older
       // `rules` argument keeps that version's model; today every pool is this build's rules (the exact check above), unchanged
+      // AZ-BUMP (REQ-BFG-078, REQ-BFG-077; REVIEW-PARAZ N3, BRIEF-AZBUMP S3): with NPC_DAY on a seed ghost carries its run's
+      // road log (tools/samplePool.ts), and the player mode counts a deck's drops only through it (validate.ts
+      // roadDropValue), so it goes in as ctx.road, as an upload's does (server/app.ts); a snapshot without one: as before
       const lc = snapshot.lastChance;
-      const v = validateUpload(snapshot.build, snapshot.day, snapshot.rules, lc ? { lastChance: lc } : {});
+      const v = validateUpload(snapshot.build, snapshot.day, snapshot.rules, { ...(lc ? { lastChance: lc } : {}), ...(snapshot.road ? { road: snapshot.road } : {}) });
       if (!v.ok) throw new Error(`validateUpload: ${v.errors.join("; ")}`);
       if (!isReachable(snapshot.day, snapshot.wins, snapshot.lives, { rules: snapshot.rules, ...(lc ? { lastChance: lc.day } : {}) })) {
         throw new Error(`record ${snapshot.wins}W ${snapshot.lives} lives: no run carries it into dusk ${snapshot.day}`);
