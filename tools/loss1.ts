@@ -45,6 +45,7 @@ import { serveJobs, workerRunner } from "./workers";
 import { botLastChancePick } from "../src/sim/harness/lastChance"; // H1: the existing LAST CHANCE pick policy
 import { lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { allOn } from "./loss1Switches";
+import { HEARTS_RULE, HEARTS_START, heartCost as sharedHeartCost, heartsDusk, type HeartsRule } from "../src/sim/hearts"; // RETUNE-1: the shared rule
 
 const HEROES4: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const TIERS = ["easy", "medium", "hard"] as const;
@@ -557,21 +558,24 @@ async function modeCands(run: Runner): Promise<unknown> {
 
 // ---------------------------------------------------------------- mode bench
 
-/** H1 (REQ-BFG-096; BRIEF-LOSS1-ADD1 A.1): a run starts with 10 hearts. H3 (a proposal read only): --hearts-start n. */
-export const HEARTS_START_RULE = 10;
-const HEARTS_START = flag("hearts-start") ? Number(flag("hearts-start")) : HEARTS_START_RULE;
+/** H1 (REQ-BFG-096; BRIEF-LOSS1-ADD1 A.1): a run starts with 10 hearts. H3 (a proposal read only): --hearts-start n.
+ *  RETUNE-1 (REQ-BFG-096): the game's rule now lives in src/sim/hearts.ts; this ledger takes its step (heartsDusk), so the
+ *  bench and the game can't drift. The flags only change the rule's numbers (HeartsRule), never its shape. */
+export const HEARTS_START_RULE = HEARTS_START;
+const HEARTS_BENCH_RULE: HeartsRule = {
+  start: flag("hearts-start") ? Number(flag("hearts-start")) : HEARTS_RULE.start,
+  cost: (flag("hearts-cost") ? flag("hearts-cost")!.split(",").map(Number) : [...HEARTS_RULE.cost]) as unknown as HeartsRule["cost"],
+};
 /** H1: the hearts a lost dusk costs: 1 on days 1-3, 2 on days 4-6, 3 from day 7 (a road fight or a draw: none). H3:
- *  --hearts-cost a,b,c (days 1-3, 4-6, 7+). */
-const COST = (flag("hearts-cost") ?? "1,2,3").split(",").map(Number);
-export const heartCost = (day: number): number => (day <= 3 ? COST[0] : day <= 6 ? COST[1] : COST[2]);
+ *  --hearts-cost a,b,c (days 1-3, 4-6, 7+). RETUNE-1: hearts.ts heartCost on the bench's rule. */
+export const heartCost = (day: number): number => sharedHeartCost(day, HEARTS_BENCH_RULE);
 /** H1: one dusk under the hearts rule (r: 0 win, 1 loss, -1 draw). LAST CHANCE fires once a run, at the first loss that
  *  would leave 1 heart or fewer: the player stays on 1 heart (and takes the card). As the game's LAST CHANCE, never on the
- *  last day (lastChance.ts lastChanceFires: day < RUN_DAYS; there is no dawn to play it). No day-3 refund (A.1 has none). */
-export function heartsLoss(hearts: number, day: number, r: number, used: boolean): { hearts: number; lastChance: boolean } {
-  if (r !== 1) return { hearts, lastChance: false };
-  const left = hearts - heartCost(day);
-  if (!used && left <= 1 && day < RUN_DAYS) return { hearts: 1, lastChance: true };
-  return { hearts: Math.max(0, left), lastChance: false };
+ *  last day (`lastDay`, RUN_DAYS; there is no dawn to play it). No day-3 refund (A.1 has none). RETUNE-1: hearts.ts
+ *  heartsDusk, the game's own step. */
+export function heartsLoss(hearts: number, day: number, r: number, used: boolean, lastDay: number = RUN_DAYS): { hearts: number; lastChance: boolean } {
+  const s = heartsDusk(hearts, day, r === 0 ? "win" : r === 1 ? "loss" : "draw", used, { rule: HEARTS_BENCH_RULE, lastDay });
+  return { hearts: s.hearts, lastChance: s.lastChance };
 }
 
 function fight(a: Build, b: Build, seed: number, day: number): 0 | 1 | -1 {
@@ -661,7 +665,7 @@ function modeBench(): unknown {
         // the matching reads today's lives (the pool's records are on the 5-life scale): a shadow of the game's ledger fed
         // the same results; under `card` it is the ledger itself
         const shadow = newRun(hero, runSeed, `loss1-${hero}-${seed}`);
-        let decks = days, hearts = HEARTS_START, wins = 0, lcDay = 0, reached = 0, over: null | "lost" | "complete" = null;
+        let decks = days, hearts = HEARTS_BENCH_RULE.start, wins = 0, lcDay = 0, reached = 0, over: null | "lost" | "complete" = null;
         let boon: string | null = null;
         const seen: string[] = [], res: number[] = [], foes: string[] = [], grade: (number | null)[] = [], recs: string[] = [];
         for (let day = 1; day <= RUN_DAYS && !over; day++) {
