@@ -103,7 +103,20 @@ export async function takeDawnRune(page, touch) {
     return !!r && !r.over && r.runeDay === r.day && r.stage === "caravan" && window.bb.screen() === "build" && !g.transitioning;
   });
   if (!up) return false;
-  for (let k = 0; k < 2; k++) await press(page, touch, await regionCenter(page, "runepick-0"));
+  await press(page, touch, await regionCenter(page, "runepick-0"));
+  // CARD-2 (REQ-BFG-081, K2; REQ-BFG-004, K1): the opened card's keywords are word targets and its note room may show a
+  // definition (a tap's, or the first sight's), and a press on either never takes the rune; so the take tap goes where the
+  // card says, on its TAP AGAIN TO TAKE IT bar (low on the card, off the words and the room; was the card's centre again)
+  await page.waitForFunction(() => window.bb.game.screen.runePicker?.open === 0, null, { timeout: 5000 });
+  const take = await page.evaluate(() => {
+    const rs = window.bb.regions(), r = rs.filter((q) => q.id === "runepick-0").pop();
+    const over = rs.filter((q) => /^runepick-(w\d|def|chip)/.test(q.id));
+    const free = (x, y) => !over.some((q) => x >= q.x && x < q.x + q.w && y >= q.y && y < q.y + q.h);
+    const x = r.x + r.w / 2;
+    for (let y = r.y + r.h - 4; y > r.y + r.h / 2; y -= 2) if (free(x, y)) return { x, y };
+    return { x: r.x + r.w - 4, y: r.y + r.h - 4 };
+  });
+  await press(page, touch, take);
   await page.waitForFunction(() => window.bb.game.run.runeDay === undefined, null, { timeout: 5000 });
   await sleep(120);
   return true;
