@@ -272,8 +272,8 @@ export class BattleCounters {
     for (const b of blocks) {
       if (b.e.word) {
         let hx = x + 5;
-        if (b.e.icon) hx = drawText(g, b.e.icon, hx, ty, b.e.colour, { mono: true }) + 2;
-        hx = drawText(g, b.e.word, hx, ty, b.e.colour) + 4;
+        if (b.e.icon) hx += drawText(g, b.e.icon, hx, ty, b.e.colour, { mono: true }) + 2; // drawText returns the width
+        hx += drawText(g, b.e.word, hx, ty, b.e.colour) + 4;
         drawText(g, b.e.count, hx, ty, C.white);
         heads.push(`${b.e.word} ${b.e.count}`);
         ty += 9;
@@ -301,7 +301,7 @@ export class BattleCounters {
     const [c, cg] = makeCanvas(w, BOX_H);
     chrome(cg, w, BOX_H);
     let tx = 2;
-    if (icon) tx = drawText(cg, icon, tx, 2, col, { font: "3", mono: true, outline: C.ink }) + 1;
+    if (icon) tx += drawText(cg, icon, tx, 2, col, { font: "3", mono: true, outline: C.ink }) + 1; // drawText returns the width
     drawText(cg, text, tx, 2, col, { font: "3", outline: C.ink });
     edge(cg, w);
     img = this.put(key, c);
@@ -322,7 +322,7 @@ export class BattleCounters {
       const b = tab.chips[i], x = b.x - tab.x;
       cg.globalAlpha = ch.dim ? 0.45 : 1;
       drawText(cg, ch.chip.icon, x, 2, ch.chip.colour, { mono: true, outline: C.ink });
-      const nx = drawText(cg, texts[i].num, b.numX - tab.x, 2, ch.chip.numColour, { outline: C.ink });
+      const nx = b.numX - tab.x + drawText(cg, texts[i].num, b.numX - tab.x, 2, ch.chip.numColour, { outline: C.ink }) + 1; // + its width and the face's 1 px advance
       if (texts[i].tail) drawText(cg, texts[i].tail, nx, 2, C.slate4, { outline: C.ink });
       cg.globalAlpha = 1;
     });
