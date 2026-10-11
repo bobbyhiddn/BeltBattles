@@ -190,12 +190,13 @@ describe("SUS-B WARD STONE reads as SHIELD (its rune line; runes.ts keeps the ru
   it("START: +3 SHIELD., SHIELD in its colour, SHIELD's rune reminder", () => {
     const ward = RUNE_LIST.find((r) => r.id === "ward_stone")!;
     expect(ward.amount.n).toBe(3);
-    expect(runeLine(ward)).toBe("START: +3 SHIELD.");
+    expect(runeLine(ward)).toBe("FIGHT START: +3 SHIELD."); // CARD-2 (REQ-BFG-081, K3 a): the fight's start (was "START: +3 SHIELD.")
     expect(runeKeywords(ward)).toEqual(["SHIELD"]);
     expect(runeSpans(ward).find((sp) => sp.t === "SHIELD")!.c).toBe(ICON_COLOUR[ICON.SHIELD]);
     expect(RUNE_KEYWORD_COLOUR.SHIELD).toBe(ICON_COLOUR[ICON.SHIELD]);
     // NUM-4 (REVIEW-SUSB F1): it blocks one hit's DAMAGE (was "SHIELD: STOPS ONE WHOLE HIT, THEN BREAKS.")
-    expect(runeReminder(ward)).toBe("SHIELD: BLOCKS ONE HIT'S DAMAGE, THEN BREAKS.");
+    // CARD-2 (K3 b): ALL OF one hit's damage (was "SHIELD: BLOCKS ONE HIT'S DAMAGE, THEN BREAKS.")
+    expect(runeReminder(ward)).toBe("SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.");
     // every other rune reads as before
     for (const r of RUNE_LIST.filter((q) => q.id !== "ward_stone")) expect(runeLine(r), r.id).not.toContain("SHIELD");
   });
@@ -220,7 +221,8 @@ describe("SUS-B a tap on each new label (the panel's own words, as keywords.ts f
       const wb = wordsOf("wardbell", 1), rv = wordsOf("riveter", 2), mp = wordsOf("mendpress", 1), ml = wordsOf("mendingloom", 3);
       expect(wb.SHIELD).toBe(glossaryText("SHIELD", { def: "wardbell", stars: 1 }));
       // NUM-4 (REVIEW-SUSB F1): REMINDER.SHIELD blocks one hit's DAMAGE (was /^EACH SHIELD: STOPS ONE WHOLE HIT\./)
-      expect(stripIcons(icons(wb.SHIELD))).toMatch(/^EACH SHIELD: BLOCKS ONE HIT'S DAMAGE\./);
+      // CARD-2 (REQ-BFG-081, K3 b): ALL OF one hit's damage (was /^EACH SHIELD: BLOCKS ONE HIT'S DAMAGE\./)
+      expect(stripIcons(icons(wb.SHIELD))).toMatch(/^EACH SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE\./);
       expect(wb.EVERY).toBe(glossaryEntry("EVERY")!.def);
       expect(stripIcons(icons(rv.HEAL))).toMatch(/^HEAL: GIVES BACK ♥, NEVER PAST FULL\./);
       expect(rv.HIT).toBe(glossaryEntry("HIT")!.def);

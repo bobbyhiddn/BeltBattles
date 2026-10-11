@@ -17,7 +17,13 @@ import {
   readoutW, runeCardH, runeChipTarget, runeRowFits, runeRowH, runeSightWord, runeWordBoxOn, runeWordOrder, runeWordTargets, runeWordText,
   runeKeywordOf, shiftLayout,
 } from "../src/ui/runeBar";
-import { KEYWORD_WORD } from "../src/ui/runeText";
+import { KEYWORD_WORD, runeKeywords as runeKeywordsOf, runeReminder as runeReminderOf } from "../src/ui/runeText";
+import { runeTextLines, runeCardTextW } from "../src/ui/runeBar";
+import { textWidth } from "../src/render/font";
+import { lineText } from "../src/ui/richText";
+import type { RuneDef } from "../src/sim/runes";
+
+const runeTextLinesOf = (def: RuneDef, cw: number): string[] => runeTextLines(def, runeCardTextW(cw)).map(lineText);
 import { RunePicker, PICK_DEF } from "../src/screens/runePicker";
 import { LastChancePicker } from "../src/screens/lastChancePicker";
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, TIPS_KEY, setTipsForTests, sightDone, sightsDone, tipsDone } from "../src/ui/tips";
@@ -189,6 +195,34 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
     box.onTap!();
     expect(lc.word).toBeNull();
     expect([lc.open, state(run)]).toEqual([0, before]);
+  });
+});
+
+describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): new words, one line on the op card and the desk", () => {
+  it("FIGHT START on every START: rune; SHIELD's reminder; SNARE KNOT's 15; MERGED; TOLL ROAD's load; TWIN SALVE's EACH PAIR", () => {
+    const want: Record<string, string[]> = {
+      rivet_hoard: ["FIGHT START: +60 PLATE."], grave_plates: ["FIGHT START: +240 PLATE."], loose_thread: ["FIGHT START: THE FOE HAS 2 FRAY."],
+      tangle_wire: ["FIGHT START: THE FOE HAS 5 FRAY."], ash_kindle: ["FIGHT START: THE FOE HAS 4 BURN."], ward_stone: ["FIGHT START: +3 SHIELD."],
+      bulwark_ward: ["FIGHT START: +2 SHIELD."], searing: ["FIGHT START: THE FOE HAS 5 BURN.", "FOE WITH YOUR BURN: NO HEAL."],
+      snare_knot: ["AT 15 FRAY (FULL): YOUR HITS +20 DMG."], scrap_halo: ["+60 HULL PER MERGED (★2/★3) PIECE IN USE."],
+      scrap_saint: ["+11% DMG PER MERGED (★2/★3) PIECE IN USE."], toll_road: ["EACH LOAD: +4% DMG PER RIG IT PASSED."], twin_salve: ["EACH PAIR: HEAL 20."],
+    };
+    const rows: string[] = [];
+    for (const [id, lines] of Object.entries(want)) {
+      const def = RUNES[id];
+      for (const cw of [233, 300]) {
+        // the op card (402x690: 233 wide, 223 of text) and the desk's (300): each sentence one line, the card's lines as wanted
+        const got = runeTextLinesOf(def, cw);
+        expect(got, `${id} at ${cw}`).toEqual(lines);
+      }
+      rows.push(`${id}: ${lines.map((l) => `"${l}" ${textWidth(l, "5")} px`).join(" / ")}`);
+      // the tokens and the amount are RuneDef's: no keyword, number or rule moved
+      expect(runeKeywordsOf(def).sort(), id).toEqual([...new Set([...def.text.matchAll(/\{\*?([A-Z]+)\}/g)].map((m) => m[1]).filter((k) => k !== "N"))].sort());
+    }
+    console.log(`CARD-2 (k3) rune lines (5x7 px; the op card's text is 223 px, the 390-wide phones' 216):\n${rows.join("\n")}`);
+    expect(runeReminderOf(RUNES.ward_stone)).toBe("SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.");
+    expect(textWidth(runeReminderOf(RUNES.ward_stone), "3")).toBeLessThanOrEqual(223);
+    expect(runeWordText(RUNES.ward_stone, "SHIELD")).toBe("SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.");
   });
 });
 

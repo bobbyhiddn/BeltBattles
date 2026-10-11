@@ -121,7 +121,8 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
       RATE: "HOW OFTEN A GUN FIRES OR A FACTORY WORKS", BURN: "HULL DAMAGE", RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE", STUN: "STOPS FOR A WHILE", // FLIP-X2 N4-d: STUN (was STALL)
       // SUS-B (REQ-BFG-069): the sustain keywords' rune reminders (SUSTAIN-1 4.1)
       // NUM-4 (REVIEW-SUSB F1): a SHIELD blocks one hit's DAMAGE (was "STOPS ONE WHOLE HIT")
-      SHIELD: "BLOCKS ONE HIT'S DAMAGE", HEAL: "NEVER PAST FULL", REGEN: "EACH SEC",
+      // CARD-2 (REQ-BFG-081, K3 b): ALL OF one hit's damage, in the reminder and the row alike (was "BLOCKS ONE HIT'S DAMAGE")
+      SHIELD: "BLOCKS ALL OF ONE HIT'S DAMAGE", HEAL: "NEVER PAST FULL", REGEN: "EACH SEC",
     };
     // U2d F4 (cap, seen in crop-keywords-rune-op): RIDE's row in cap's words, whole (2 lines of 5x7 at 225 px: the fit test below)
     expect(glossaryEntry("RIDE")!.def).toBe("RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.");
@@ -206,7 +207,8 @@ describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND
   // test above), the row says it another way: REGEN GIVES BACK, a hull with BURN GETS HALF, IT STOPS, NO HEAL IN IT
   const want: Record<string, { def: string; aliases: string[]; colour: string }> = {
     // NUM-4 (REVIEW-SUSB F1): BLOCKS ONE HIT'S DAMAGE (was "STOPS ONE WHOLE HIT"); the extra {*BURN} GOES PAST IT. stays
-    SHIELD: { def: `EACH {*SHIELD}: BLOCKS ONE HIT'S DAMAGE. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}. {*BURN} GOES PAST IT.`, aliases: ["SHIELDS"], colour: ICON_COLOUR[ICON.SHIELD] },
+    // CARD-2 (REQ-BFG-081, K3 b; READ-3 6: SHIELD read as plate that soaks): ALL OF one hit's damage (was "BLOCKS ONE HIT'S")
+    SHIELD: { def: `EACH {*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}. {*BURN} GOES PAST IT.`, aliases: ["SHIELDS"], colour: ICON_COLOUR[ICON.SHIELD] },
     HEAL: { def: "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL. A HULL WITH {*BURN} GETS HALF.", aliases: ["HEALS", "HEALED", "HEALING", "REPAIR", "REPAIRS"], colour: ICON_COLOUR[ICON.HEAL] },
     REGEN: { def: "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC. IT STOPS IN THE DARK WIND.", aliases: [], colour: ICON_COLOUR[ICON.REGEN] },
     "DARK WIND": { def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`, aliases: [], colour: C.bone },

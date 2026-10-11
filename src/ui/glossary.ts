@@ -177,7 +177,10 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   RIDE: "RIDE: THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE.", // U2d F4: its row's first sentence (was A CINDER SLUG'S OWN HEAT FOR EACH SEC IT RIDES.)
   STUN: "STUN: A STUNNED PART STOPS FOR A WHILE.", // FLIP-X2 (N4-d): the rune token is STUN (was STALL, which read STUN)
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1's rune reminders; REGEN's says GIVES BACK, as its row does)
-  SHIELD: "SHIELD: BLOCKS ONE HIT'S DAMAGE, THEN BREAKS.", // NUM-4 (REVIEW-SUSB F1; was "STOPS ONE WHOLE HIT")
+  // NUM-4 (REVIEW-SUSB F1; was "STOPS ONE WHOLE HIT"). CARD-2 (REQ-BFG-081, K3 b; READ-3 6: Haiku read a SHIELD as plate
+  // that soaks): ALL OF a hit's damage, however big (battle.ts:2059 impact: shieldHit returns 0 for the hit, its FRAY bonus
+  // too); its BURN, FRAY and STUN still land (2066-), so never "WHOLE HIT"
+  SHIELD: "SHIELD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS.",
   HEAL: "HEAL: GIVES BACK HULL, NEVER PAST FULL.",
   REGEN: "REGEN: GIVES BACK HULL EACH SEC.",
 };

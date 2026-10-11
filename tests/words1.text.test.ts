@@ -109,7 +109,9 @@ describe("WORDS-1: the new lines", () => {
     expect(["final_nail", "ember_shot", "first_blood", "scrap_halo", "scrap_saint", "forge_ward", "scrap_biter", "steady_iron", "thread_storm", "green_thread"]
       .map((id) => runeLine(rune(id)))).toEqual([
       "THE SHOT THAT EMPTIES A TURRET: +10 DMG.", "FIRST SHOT AFTER A GUN LOADS: +1 BURN.", "FIRST SHOT AFTER A GUN LOADS: +70% DMG.",
-      "+60 HULL FOR EACH ★2 OR ★3 PIECE IN USE.", "+11% DMG FOR EACH ★2 OR ★3 PIECE IN USE.", "EACH SLUG YOUR FACTORY MAKES: +10 PLATE.",
+      // CARD-2 (REQ-BFG-081, K3 d; READ-3 6: ★2 and ★3 not read as merged): MERGED comes back on these two, glossed by the
+      // stars (was "+60 HULL FOR EACH ★2 OR ★3 PIECE IN USE." and "+11% DMG FOR EACH ★2 OR ★3 PIECE IN USE.")
+      "+60 HULL PER MERGED (★2/★3) PIECE IN USE.", "+11% DMG PER MERGED (★2/★3) PIECE IN USE.", "EACH SLUG YOUR FACTORY MAKES: +10 PLATE.",
       "YOUR HITS ON ENEMY PARTS: +10 DMG.", "STUN ON YOUR SHIP: -100%.", "YOUR HITS THAT ADD NO FRAY ADD 1 FRAY.", "YOUR HULL: HEAL 10 EACH SEC."]);
     // the opened card says what the one line can't (battle.ts:1889; runes.ts:566-569; battle.ts:1045-1047; battle.ts:570)
     expect(runeReminder(rune("final_nail"))).toBe("NOT ON A GATLING SPOOL: IT FIRES EACH LOAD AS IT COMES.");
@@ -117,7 +119,8 @@ describe("WORDS-1: the new lines", () => {
     expect(runeReminder(rune("scrap_biter"))).toBe("PART: AN ENEMY RIG, FACTORY, GUN OR BELT TILE.");
     expect(runeTag(rune("last_stand"))).toBe("EPIC · GUNS AND FACTORIES");
     for (const r of [...RUNE_LIST, ...SUSTAIN_RUNE_LIST]) {
-      for (const re of RETIRED) expect(runeLine(r), r.id).not.toMatch(re);
+      // CARD-2 (K3 d): MERGED is the brief's word on SCRAP HALO and SCRAP SAINT (the MERGE badge's), so it is not retired there
+      for (const re of RETIRED) if (!(String(re) === String(/\bMERGED\b/) && ["scrap_halo", "scrap_saint"].includes(r.id))) expect(runeLine(r), r.id).not.toMatch(re);
       expect(runeReminder(r), r.id).not.toMatch(/\d/);
       expect(textWidth(runeReminder(r), "3"), r.id).toBeLessThanOrEqual(223);
     }

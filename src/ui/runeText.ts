@@ -12,6 +12,8 @@ import type { RuneDef, RuneTheme, RuneUnit } from "../sim/runes";
 import { NUMBER_COLOUR, type Span } from "./richText";
 import { RUNE_REMINDER, glossaryEntry } from "./glossary"; // U2c: the keyword colours and reminders, one source
 import { RUNE_NOTE } from "./glossary"; // Y-FURN: a rune's own reminder (SHATTER SHOT's)
+import { FRAY_MAX } from "../sim/content"; // CARD-2 (REQ-BFG-081, K3 c): SNARE KNOT's FULL, named
+import { fmtCount } from "./statFormat"; // CARD-2 (K3 c): the one formatter for a count
 
 /** A whole number as the game writes it. No rounding here: a rune whose amount is not whole shows it, and
  *  tests/runes.ui.test.ts (every number in every rune text is whole) catches it. */
@@ -81,6 +83,35 @@ export const RUNE_TEXT: Readonly<Record<string, string>> = {
   thread_storm: "YOUR HITS THAT ADD NO {*FRAY} ADD {N} {*FRAY}.",
   // READ-1 6.2: REGEN merged into HEAL: battle.ts:1441-1454 GREEN THREAD's amount goes through heal() each whole second
   green_thread: "YOUR HULL: {*HEAL} {N} EACH SEC.",
+  // CARD-2 (REQ-BFG-081, K3 a; READ-3 4.1, 6: Haiku hedged between the run and the fight on START): every "START:" line is
+  // the fight's start, one label for all: battle.ts:497-511, Battle's constructor (one Battle per fight: arena.ts:130)
+  // adds the PLATE, the foe's FRAY and BURN and the SHIELD ("battle-start runes"). FIGHT START: fits every card (171 px of
+  // 5x7 at most, under the 390-wide phones' 216); EACH FIGHT: fits too, but reads as a state held all fight ("EACH FIGHT:
+  // THE FOE HAS 5 FRAY"), where the FRAY is added once, at the start
+  rivet_hoard: "FIGHT START: +{N} {*PLATE}.",
+  grave_plates: "FIGHT START: +{N} {*PLATE}.",
+  loose_thread: "FIGHT START: THE FOE HAS {N} {*FRAY}.",
+  tangle_wire: "FIGHT START: THE FOE HAS {N} {*FRAY}.",
+  ash_kindle: "FIGHT START: THE FOE HAS {N} {BURN}.",
+  ward_stone: "FIGHT START: +{N} {*SHIELD}.",
+  bulwark_ward: "FIGHT START: +{N} {*SHIELD}.",
+  searing: "FIGHT START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}.",
+  // CARD-2 (K3 c; READ-3 6: FULL): the number FULL is: battle.ts:571 runeHit adds the rune's DMG while the foe's hull holds
+  // its FRAY cap (frayMax), which makeSide sets to FRAY_MAX (content.ts: 15) and impact (2068) raises only for a payload's
+  // frayCap, which no piece has since Y3 (content.ts:694). The number from the sim's constant, never a literal
+  snare_knot: `AT ${fmtCount(FRAY_MAX)} {*FRAY} (FULL): YOUR HITS +{N} {DMG}.`,
+  // CARD-2 (K3 d; READ-3 6: ★2 and ★3 not read as merged): runes.ts:566-569 mergedPieces counts each placed, fitted or
+  // installed piece at ★2 or more (★3 is the top), once; battle.ts:841 (HULL) and 540 (+n% DMG a merged piece). MERGED is
+  // the MERGE badge's word (glossary.ts CORE_WORDS); IN USE keeps its note on the opened card. 223 px: one line on the op
+  // card (the 390-wide phones wrap it, as WORDS-1's 217 px line did)
+  scrap_halo: "+{N} {HULL} PER MERGED (★2/★3) PIECE IN USE.",
+  scrap_saint: "+{N} {DMG} PER MERGED (★2/★3) PIECE IN USE.",
+  // CARD-2 (K3 e; READ-2 7.1: each load counts its own rigs; Haiku read it as all damage rising): battle.ts:540 runeMul
+  // multiplies a shot by priorPct x p.prior, the gates that payload passed (1693: p.prior++ at each rig hit on it)
+  toll_road: "EACH LOAD: +{N} {DMG} PER RIG IT PASSED.",
+  // CARD-2 (K3 f; READ-2 7.1: Haiku read PAIR: as once a fight): battle.ts:639 runeHeal heals the rune's n on each PAIR shot
+  // that lands (payload.paired), every time
+  twin_salve: "EACH {PAIR}: {*HEAL} {N}.",
 };
 /** A rune's effect line in R1b-2's tokens: its RUNE_TEXT row, else RuneDef.text. */
 export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? def.text;

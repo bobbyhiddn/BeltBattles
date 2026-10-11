@@ -233,7 +233,8 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1 and 4.9): SHIELD a count (fmtCount; content.ts SHIELD_CAP), HEAL and REGEN on hull.
   // REGEN's verb is HEAL's (GIVES BACK; 4.9 wrote HEALS, which would stand as a bare keyword: REQ-BFG-032 rule 3)
   // NUM-4 (REVIEW-SUSB F1): it blocks one hit's DAMAGE; that hit's BURN, FRAY, STUN and poison still land (battle.ts impact)
-  SHIELD: () => `EACH {*SHIELD}: BLOCKS ONE HIT'S DAMAGE. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
+  // CARD-2 (REQ-BFG-081, K3 b): ALL OF one hit's damage, however big (battle.ts:2059 shieldHit returns 0 for the hit)
+  SHIELD: () => `EACH {*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
   HEAL: () => "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL.",
   REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC.",
 };
