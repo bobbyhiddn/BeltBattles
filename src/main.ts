@@ -139,11 +139,12 @@ game.start();
     game.run = showcaseRun(name, o);
     game.go(screen === "battle" ? new BattleScreen(game) : new BuildScreen(game));
   },
-  /** MIRROR-1 (REQ-BFG-093) tooling (wave3-mock only, test only: nothing ships): the operator's mirror test. Both sides
-   *  are `hero`'s starting deck with its belts cut (heroStartBuild with routes []: nothing loads, nothing fires; uids 1
-   *  and 101, as tests/mirror.wind.test.ts builds them), so only the dark wind moves a hull. Opened as a stored record
-   *  replayed (openReplay(battleRecordFor(a, b, seed)) into a ReplayScreen, as bb.openReplay and the summary's REPLAY
-   *  play one), BACK to the title; `day` only picks the replay's sea and banner. Changes no run state. */
+  /** MIRROR-1 (REQ-BFG-093) tooling: a read-only dev hook that rides the release beside openShowcase and windInfo
+   *  (WIND-2: scripts/mirror1shots.mjs opens it for the mirror check; no player path calls it). The operator's mirror
+   *  test: both sides are `hero`'s starting deck with its belts cut (heroStartBuild with routes []: nothing loads,
+   *  nothing fires; uids 1 and 101, as tests/mirror.wind.test.ts builds them), so only the dark wind moves a hull. Opened
+   *  as a stored record replayed (openReplay(battleRecordFor(a, b, seed)) into a ReplayScreen, as bb.openReplay and the
+   *  summary's REPLAY play one), BACK to the title; `day` only picks the replay's sea and banner. Changes no run state. */
   openMirror(hero: HeroId = "furnace", seed = 7, day = 1): boolean {
     clearPool();
     const silent = (uid: number): Build => ({ ...heroStartBuild(hero, uid), routes: [] });
