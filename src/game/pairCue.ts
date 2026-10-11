@@ -32,6 +32,8 @@ export const PULSE_HZ = 6, PULSE_LOW = 0.55;
 export const FLASH_A = 0.6;
 /** Float slack on the sim's accumulated time (races/foundry.ts EPS). */
 const EPS = 1e-6;
+/** The glyph pop starts this far above the gun's pivot (rest px), clear of the turret's art, and rises as a hit number. */
+export const GLYPH_UP = 12;
 
 /** How a pair's two intakes were found: from both loads' recorded entries ("loads"); a FOUNDRY fusion's alloy and the belt
  *  that delivered its partner this step ("fusion"); the turret's only two intakes ("two"); not found ("none": no flash or
@@ -248,12 +250,12 @@ export class PairWatch {
     if (routes.length < 2) how = "none";
     this.tally[how]++;
     this.shown.push({ side, turret: slot, routes, how, age: 0 });
-    // the glyph over the gun's pivot (its board's rest-screen px, as a hit number's), riding with its board
+    // the glyph over the gun's pivot, clear of its art (its board's rest-screen px, as a hit number's), riding with its board
     const sl = this.slotsOf(b, side)[slot];
     if (!sl) return;
     const fr = a.drawn[side], lx = (sl.col0 + sl.width / 2) * CELL;
     a.fx.anchor = side;
-    if (a.fx.pairPop(sx(fr, lx, TURRET_LY), sy(fr, lx, TURRET_LY) - 6)) this.tally.glyphs++;
+    if (a.fx.pairPop(sx(fr, lx, TURRET_LY), sy(fr, lx, TURRET_LY) - GLYPH_UP)) this.tally.glyphs++;
     else this.tally.glyphsDropped++;
   }
 

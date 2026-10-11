@@ -29,6 +29,8 @@ import {
   overlap, readCount, shownChips, slugsWaiting, statusTab, tabBelow, type BeltCounts, type CountKey, type GunState, type ShownChip,
 } from "../game/counters";
 import { JAM_TAG, beltText, keywordEntry, pairEntry, sentenceEntry, waitingText, type CounterEntry } from "../ui/counterText";
+import { GLOW_A, type PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100): an intake's cue on its belt's box
+import { PAIR_COLOUR } from "../render/fx";
 import type { PlateInfo } from "./battleHud";
 
 /** A counter group's region id prefix (one tap target a group: a plate's counts, a gun, a belt). */
@@ -187,6 +189,11 @@ export class BattleCounters {
         }
         if (!box || this.covers(box, keep, m)) { d.skipped++; continue; }
         g.drawImage(this.boxImage("", text, C.white), box.x, box.y);
+        // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the box sits on its belt's intake tile, so while that intake flashes for a
+        // pair (or glows for a load waiting inside its window) the box's frame takes PAIR's blue (the glow's strength):
+        // the box never hides the cue
+        const cue = a.cue ? intakeCue(a.cue.drawn, side, r.index) : 0;
+        if (cue > 0) { g.globalAlpha = Math.min(1, cue); frameRect(g, box, PAIR_COLOUR); g.globalAlpha = 1; }
         d.belts.push({ side, route: r.index, r: box, n });
         this.addGroup(game, `${CNT_REGION}belt${side}:${r.index}`, "belt", side, r.index, box, squareAt(box, tp, W, H), avoid);
       }
@@ -407,6 +414,23 @@ export function hoverGroup(regions: readonly { id: string; r: Rect }[], x: numbe
     return q.id.startsWith(CNT_REGION) ? q.id : null;
   }
   return null;
+}
+
+/** PAIR-CUE (REQ-BFG-100, REQ-BFG-081): a belt's intake cue this frame (PairWatch.drawn, drawn with the world just
+ *  before the counters): 1 while it flashes for a pair, else its near-miss glow's strength over GLOW_A (0..1), else 0. */
+export function intakeCue(drawn: PairWatch["drawn"], side: Side, route: number): number {
+  if (drawn.flashes[side].some((f) => f.route === route)) return 1;
+  let a = 0;
+  for (const g of drawn.glows[side]) if (g.route === route) a = Math.max(a, g.alpha / GLOW_A);
+  return a;
+}
+
+/** A 1 px frame round `r`. */
+function frameRect(g: G, r: Rect, col: string): void {
+  rect(g, r.x, r.y, r.w, 1, col);
+  rect(g, r.x, r.y + r.h - 1, r.w, 1, col);
+  rect(g, r.x, r.y, 1, r.h, col);
+  rect(g, r.x + r.w - 1, r.y, 1, r.h, col);
 }
 
 /** PAIR-CUE (REVIEW-COUNT1 ruling 4): `side`'s deck (its 120 x 120 tiles) on screen now, as the counters' anchors are

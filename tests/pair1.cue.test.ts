@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Arena } from "../src/game/arena";
-import { FLASH_S, GLOW_A, PairWatch, intakesOf, pairLoads, pairedImpacts } from "../src/game/pairCue";
+import { FLASH_S, GLOW_A, GLYPH_UP, PairWatch, intakesOf, pairLoads, pairedImpacts } from "../src/game/pairCue";
 import type { Payload, Projectile, Side, SideState, SimEvent, TurretState } from "../src/sim/battle";
 import { CELL, TICK } from "../src/sim/content";
 import { turretSlots } from "../src/sim/deck";
@@ -21,7 +21,7 @@ import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { TURRET_LY, sx, sy } from "../src/render/frame";
 import { PAIR_COLOUR } from "../src/render/fx";
 import { ICON } from "../src/render/font";
-import { BattleCounters } from "../src/screens/battleCounters";
+import { BattleCounters, intakeCue } from "../src/screens/battleCounters";
 import { keywordRow, pairEntry } from "../src/ui/counterText";
 import { fakeCanvas, fakeDom } from "./pair1.helpers";
 
@@ -157,16 +157,18 @@ describe("PAIR-CUE: timing, the glyph, the glow and the phase", () => {
     expect(FLASH_S).toBe(0.3);
   });
 
-  it("the glyph pops over the pair's gun (its pivot, 6 px up, on its board), and both intakes flash with a bracket", () => {
+  it("the glyph pops over the pair's gun (GLYPH_UP above its pivot, on its board), both intakes flash with a bracket, their belt boxes framed blue", () => {
     let checked = 0;
     play("voss", (a, w, ev) => {
       if (checked >= 6 || !ev.some((e) => e.type === "pair")) return;
       const c = w.shown[w.shown.length - 1];
       const fx = a.fx, glyphs = fx.pairList.slice(0, fx.pairCount).filter((p) => !p.mark), g = glyphs[glyphs.length - 1];
       const sl = turretSlots(a.b.sides[c.side].build)[c.turret], fr = a.drawn[c.side], lx = (sl.col0 + sl.width / 2) * CELL;
-      expect({ x: g.x, y: g.y, side: g.side, mark: g.mark }).toEqual({ x: sx(fr, lx, TURRET_LY), y: sy(fr, lx, TURRET_LY) - 6, side: c.side, mark: false });
+      expect({ x: g.x, y: g.y, side: g.side, mark: g.mark }).toEqual({ x: sx(fr, lx, TURRET_LY), y: sy(fr, lx, TURRET_LY) - GLYPH_UP, side: c.side, mark: false });
       const cv = fakeCanvas();
       w.drawBoard(cv.getContext(), a, c.side, false);
+      // the belt boxes on both intakes take PAIR's blue frame while they flash (intakeCue: 1)
+      for (const r of c.routes) expect(intakeCue(w.drawn, c.side, r)).toBe(1);
       const flashed = w.drawn.flashes[c.side].map((f) => f.route);
       for (const r of c.routes) expect(flashed, "both of its intakes flash (with any other pair still showing)").toContain(r);
       expect(new Set(flashed)).toEqual(new Set(w.shown.filter((q) => q.side === c.side).flatMap((q) => q.routes)));
