@@ -30,7 +30,7 @@ import { fmtCount, fmtDmg } from "../ui/statFormat";
 import type { Sel } from "./build/layout";
 import {
   columnButtons, drawFamHead, drawLine, fitHead, itemPanel, planPanel, routePanel, selFamilies, turretPanel, visibleLines,
-  type Block, type PanelPlan, type PanelText,
+  explainPanel, type Block, type PanelPlan, type PanelText,
 } from "./build/inspector";
 import { slotIcon } from "./build/turretPanel";
 import { INFO_FREE_MIN, drawKeywordLayer, keywordsPressed } from "./build/keywords";
@@ -124,7 +124,10 @@ export function faceText(build: Build, sel: PartSel, line: string | null = null)
   if (!t) return null;
   const head: Block[] = line ? [{ role: "note", text: line, keep: true, colour: C.yellow }] : [];
   const strip = (bs: readonly Block[]): Block[] => [...head, ...bs.flatMap((b) => { const r = readOnlyBlock(b); return r ? [r] : []; })];
-  return { ...t, body: strip(t.body), variants: t.variants?.map((v) => ({ ...v, body: strip(v.body) })), labels: [CLOSE_LABEL] };
+  // EXPLAIN-1 (REQ-BFG-089), at the merge: a face hides what its card hides (flavour into NOTES; a plain rig's rig
+  // sentence), run after readOnlyBlock has stripped the hints, so no hint lands in NOTES.
+  const def = sel.kind === "item" ? itemByUid(build, sel.uid)?.def : undefined;
+  return explainPanel({ ...t, body: strip(t.body), variants: t.variants?.map((v) => ({ ...v, body: strip(v.body) })), labels: [CLOSE_LABEL] }, def);
 }
 
 /** A panel block as a face shows it, read only: none of the owner's how-to hints (turn, move, drag, lay belt), nothing of
