@@ -14,7 +14,10 @@ import type { Side } from "../sim/battle";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
+import { wrap } from "../render/font"; // WIND-1 (REQ-BFG-093): the callout's smaller line, where the floor is narrow
 import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): SHIELD's pips and REGEN's badge, one source
+import type { SideFx } from "../game/arena"; // WIND-1: the bars' wind flash
+import type { ArenaMotion } from "../game/arenaMotion"; // WIND-1: the callout's floor, through the camera
 import { SHIELD_CAP } from "../sim/content"; // SUS-B: the pips' count
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: the REGEN badge prints as the faces print REGEN
 import { fmtClock, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results
@@ -102,8 +105,8 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     // 0.8.0 I1 M4: the side's pool (P1's E1: SideState.plate, which IS BASTION's RaceSide.plating), so wave 3's plating
     // shows on any hull that holds a source of it
     drawPlatingStrip(g, bx, ty - 1, bw, s.plate.plate, f.plateShown, PLATE_CAP, PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME);
-    hullBar(g, bx, ty - 1 + STRIP_H, bw, 7 - STRIP_H, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t);
-  } else if (bw > 8) hullBar(g, bx, ty - 1, bw, 7, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t);
+    hullBar(g, bx, ty - 1 + STRIP_H, bw, 7 - STRIP_H, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t, windTint(f));
+  } else if (bw > 8) hullBar(g, bx, ty - 1, bw, 7, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t, windTint(f));
   // status pips: fray / burn
   const burn = s.hull.burns.length;
   if (s.hull.fray > 0 || burn > 0) {
@@ -111,6 +114,66 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     if (s.hull.fray > 0) rect(g, px - 2, r.y - 2, 2, 2, C.ice);
     if (burn > 0) rect(g, px - 5, r.y - 2, 2, 2, C.fire3);
   }
+}
+
+/** WIND-1 (REQ-BFG-093): the hull bar's tint on a dark wind tick (both bars: arenaReact windPop sets each side's flash), or
+ *  none. */
+export const windTint = (f: Pick<SideFx, "windFlash">): string | undefined => (f.windFlash > 0 ? C.windHit : undefined);
+
+/** WIND-1 (REQ-BFG-093): the DARK WIND callout's words (docs/TEXT-STYLE.md: game words in capitals; the old banner's
+ *  "THE STORM HURTS BOTH HULLS", cut to what the player needs) and how long it shows (s, real time; once a fight). */
+export const WIND_CALL = "DARK WIND";
+export const WIND_CALL_SUB = "HITS BOTH HULLS";
+export const WIND_CALL_TIME = 2;
+/** WIND-1: the callout's wipe open from its centre (s; none with Reduce Motion). */
+const WIND_CALL_WIPE = 0.2;
+/** WIND-1: the margin kept from each carrier in the open floor (logical px), for their drift. */
+const FLOOR_PAD = 4;
+
+/**
+ * WIND-1 (REQ-BFG-093): the open floor between the carriers as it is on screen now (logical px): the layout's gapBox through
+ * the camera's screen map (FIELD-1: WIDE draws the floor smaller about its focus), FLOOR_PAD in from each carrier. Portrait
+ * takes the floor's rows across the whole screen (nothing else is in them: a face's band does the same); landscape its
+ * column between the carriers. Without a camera, the gapBox itself.
+ */
+export function floorOnScreen(L: Pick<BattleLayout, "portrait" | "gapBox" | "W">, m: Pick<ArenaMotion, "camera" | "scr"> | null): Rect {
+  const gb = L.gapBox, s = m && m.camera ? m.scr : null;
+  const x = s ? s.a * gb.x + s.e : gb.x, y = s ? s.d * gb.y + s.f : gb.y;
+  const w = s ? s.a * gb.w : gb.w, h = s ? s.d * gb.h : gb.h;
+  if (L.portrait) return { x: 2, y: Math.round(y) + FLOOR_PAD, w: L.W - 4, h: Math.max(0, Math.round(h) - 2 * FLOOR_PAD) };
+  return { x: Math.round(x) + FLOOR_PAD, y: Math.round(y), w: Math.max(0, Math.round(w) - 2 * FLOOR_PAD), h: Math.round(h) };
+}
+
+/** WIND-1: the callout's box in `floor` (centred) and its text: DARK WIND in the 5x7 face, twice its size where the floor
+ *  holds it, once where it doesn't; the smaller line in the 3x5 face, on two lines where one won't fit. */
+export function windCallLayout(floor: Rect): { r: Rect; scale: number; lines: string[] } {
+  const scale = textWidth(WIND_CALL) * 2 + 10 <= floor.w ? 2 : 1;
+  const lines = textWidth(WIND_CALL_SUB, "3") + 10 <= floor.w ? [WIND_CALL_SUB] : wrap(WIND_CALL_SUB, Math.max(8, floor.w - 10), "3");
+  const tw = Math.max(textWidth(WIND_CALL) * scale, ...lines.map((l) => textWidth(l, "3")));
+  const w = Math.min(Math.max(0, floor.w), tw + 10), h = 4 + 7 * scale + 3 + lines.length * 6 + 3;
+  return { r: { x: Math.round(floor.x + (floor.w - w) / 2), y: Math.round(floor.y + (floor.h - h) / 2), w, h }, scale, lines };
+}
+
+/**
+ * WIND-1 (REQ-BFG-093): the DARK WIND callout, once a fight for WIND_CALL_TIME s from the windwarn (or the first wind tick):
+ * a short banner in the open floor between the carriers on screen (floorOnScreen), never over a board: DARK WIND in the
+ * wind's colour, HITS BOTH HULLS under it. The battle and the replay both draw it. Returns its box (null: not showing).
+ */
+export function drawWindCall(g: G, a: Pick<Arena, "windCallT">, L: BattleLayout, m: Pick<ArenaMotion, "camera" | "scr"> | null, reduced: boolean): Rect | null {
+  const t = a.windCallT;
+  if (t < 0 || t >= WIND_CALL_TIME) return null;
+  const { r, scale, lines } = windCallLayout(floorOnScreen(L, m));
+  const k = reduced ? 1 : Math.min(1, t / WIND_CALL_WIPE);
+  const bw = Math.round(r.w * k), x0 = r.x + Math.round((r.w - bw) / 2);
+  g.globalAlpha = 0.86;
+  rect(g, x0, r.y, bw, r.h, C.ink);
+  g.globalAlpha = 1;
+  rect(g, x0, r.y, bw, 2, C.windHit);
+  rect(g, x0, r.y + r.h - 2, bw, 2, C.windHit);
+  if (k < 0.98) return r;
+  drawText(g, WIND_CALL, r.x + r.w / 2, r.y + 4, C.windHit, { align: "center", scale, outline: C.ink });
+  lines.forEach((ln, i) => drawText(g, ln, r.x + r.w / 2, r.y + 4 + 7 * scale + 3 + i * 6, C.bone, { font: "3", align: "center" }));
+  return r;
 }
 
 /** SUS-B (REQ-BFG-069): the SHIELD pips' room on a plate: SHIELD_CAP 3x5 glyphs at a 4 px pitch. */

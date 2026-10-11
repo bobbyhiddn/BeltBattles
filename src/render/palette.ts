@@ -126,6 +126,10 @@ export const C = {
   olive2: "#4A5A1E",
   olive3: "#6E8030",
   olive4: "#9AAE52",
+  // WIND-1 (REQ-BFG-093): the dark wind's hits, its one source: the wind's numbers on both hulls, both hull bars' flash and the
+  // DARK WIND callout. A bright violet, drawn with an ink outline: clear of fire (fire3), the hit numbers (white, fire4,
+  // yellow), HEAL's green, SHIELD's rune3, plating's plate3 and the plum UI (plum4, which the wind's streaks wear)
+  windHit: "#E07BFF",
 };
 
 export type ColorName = keyof typeof C;

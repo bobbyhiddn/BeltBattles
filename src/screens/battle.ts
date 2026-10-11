@@ -35,6 +35,7 @@ import { SummaryScreen } from "./summary";
 import { fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the hull readout, whole
 import { TitleScreen } from "./title";
 import { NOTE_ROW, SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, notePlace, plateSource, type BarState } from "./battleHud";
+import { drawWindCall } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout
 import { BattleFaces, drawSummaries, drawViewBar, fingerPx, summaryRects } from "./battleScout"; // SCOUT-1 (REQ-BFG-076)
 import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
 import type { Rect } from "../ui/ui";
@@ -65,7 +66,6 @@ export class BattleScreen implements Screen {
   private pt = 0;
   private result: DayResult | null = null;
   readonly foeName: string;
-  private windBanner = 0;
   private count = 4;
   speed = SPEED_1X;
   menu = false;
@@ -98,6 +98,8 @@ export class BattleScreen implements Screen {
   /** SCOUT-1 tooling: this frame's BACK and primary tap targets and the summaries (logical px); SCOUT-1b: the result
    *  card's box (null: no card drawn). */
   readonly scoutRects: { back: Rect | null; primary: Rect | null; summaries: Rect[]; card: Rect | null } = { back: null, primary: null, summaries: [], card: null };
+  /** WIND-1 tooling (bb.windInfo): the DARK WIND callout's box as drawn this frame (null: not showing). */
+  windCallR: Rect | null = null;
 
   constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
@@ -326,6 +328,7 @@ export class BattleScreen implements Screen {
     this.driveIn = [this.L.hulls[0].x + this.L.hulls[0].w + SAIL_IN_PAD - left, this.L.hulls[1].x + this.L.hulls[1].w + SAIL_IN_PAD + 28 - left];
     this.src = this.placeSource();
     this.arena.setFrames(this.L.frames, this.L.enter);
+    this.motion.windKeep = { plates: this.L.plates, bar: this.L.bar }; // WIND-1 (REQ-BFG-093): the wind's numbers keep clear
   }
 
   /** The player's pick (a bar button, the cycle button, keys 1-4). SCOUT-1b (REQ-BFG-083): it holds for the rest of the
@@ -439,7 +442,6 @@ export class BattleScreen implements Screen {
       const ev = a.update(dt); // reused array, valid until the next update()
       for (let i = 0; i < ev.length; i++) {
         const e = ev[i];
-        if (e.type === "windwarn") this.windBanner = 2.4;
         if (e.type === "end" && this.phase === "fight") this.end();
       }
     } else {
@@ -452,7 +454,6 @@ export class BattleScreen implements Screen {
         this.game.audio.play(o === "win" ? "win" : o === "loss" ? "lose" : "ready");
       }
     }
-    this.windBanner = Math.max(0, this.windBanner - dt);
   }
 
   draw(g: G): void {
@@ -479,9 +480,9 @@ export class BattleScreen implements Screen {
     } else if (this.phase === "fight" && this.pt < 0.7 && Math.floor(this.pt * 10) % 2 === 0) {
       drawText(g, "FIGHT!", W / 2, cy - 11, C.yellow, { align: "center", scale: 3, outline: C.ink });
     }
-    if (this.windBanner > 0 && Math.floor(this.windBanner * 6) % 2 === 0) {
-      banner(g, W, cy - 16, "DARK WIND", C.plum4, "THE STORM HURTS BOTH HULLS", 1);
-    }
+    // WIND-1 (REQ-BFG-093): the DARK WIND callout in the open floor (was a blinking full-width banner at the screen's middle,
+    // over the boards on landscape, here only: the replay had none)
+    this.windCallR = drawWindCall(g, a, this.L, m, settings.reducedMotion);
     // SCOUT-1 (REQ-BFG-076): the card offers VIEW BATTLEFIELD; while the view opens the card lowers (its rise, played back)
     const lowering = this.phase === "view" && this.viewT < LOWER_S;
     const view = this.canView() || lowering ? this.onView : undefined; // lowering: the card keeps its row (no button drawn)

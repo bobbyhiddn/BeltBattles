@@ -43,6 +43,8 @@ export interface SideFx {
   // (the count after the break, so the pip at that index)
   shieldBreak: number;
   shieldAt: number;
+  // WIND-1 (REQ-BFG-093; display only): seconds left on the hull bar's purple flash for a dark wind tick (arenaReact windPop)
+  windFlash: number;
 }
 
 function sideFx(b: Battle, side: Side): SideFx {
@@ -62,6 +64,7 @@ function sideFx(b: Battle, side: Side): SideFx {
     plateShown: plate, plateHold: 0, plateLast: plate, plateShine: 0,
     w3: newWave3Fx(turretSlots(s.build).length),
     shieldBreak: 0, shieldAt: 0, // SUS-B
+    windFlash: 0, // WIND-1
   };
 }
 
@@ -86,6 +89,9 @@ export class Arena {
   show: [boolean, boolean] = [true, true];
   overT = 0;
   koT = -1; // seconds since the KO (drives slow-mo)
+  /** WIND-1 (REQ-BFG-093; display only): seconds since the DARK WIND callout started (the windwarn, or the first wind tick
+   *  if that comes first; once a fight); -1 before it. The battle and the replay draw it (battleHud.ts drawWindCall). */
+  windCallT = -1;
   loser: Side | -1 = -1;
   shakePeak = 0; // largest camera offset since the last reset (metrics)
   readonly views: [CruiserView, CruiserView];
@@ -227,6 +233,7 @@ export class Arena {
       return out;
     }
     if (this.koT >= 0) this.koT += dt;
+    if (this.windCallT >= 0 && !this.paused) this.windCallT += dt; // WIND-1: the callout runs on real time, held by a pause
     const k = (this.paused ? 0 : 1) * this.koScale();
     const sdt = dt * k * this.speed;
     this.clock += sdt;
@@ -320,6 +327,7 @@ export class Arena {
     if (f.plateShown < plate) f.plateShown = plate;
     tickWave3Fx(f.w3, s, rdt); // 0.8.0 I1 M4: wave 3's moments play out; ARMOR PRESS's presses read off its timer
     f.shieldBreak = Math.max(0, f.shieldBreak - rdt); // SUS-B: the SHIELD break cue plays out
+    f.windFlash = Math.max(0, f.windFlash - rdt); // WIND-1: the bar's wind flash plays out
   }
 
   /** Resolve the rest of the battle instantly (SKIP). Only the end event is animated. */

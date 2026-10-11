@@ -39,6 +39,7 @@ import { battleSeed } from "./game/run";
 import type { Boon } from "./sim/lastChance"; // LC-1 (REQ-BFG-073) tooling (shots)
 import { pendingLastChance, pendingRune, takeLastChance, takeRune, type Run } from "./game/run"; // LC-1 tooling
 import { finishDay, startDusk } from "./game/day"; // LC-1 tooling: the game's own day loop
+import { C } from "./render/palette"; // WIND-1 (REQ-BFG-093) tooling: bb.windInfo's colour
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
@@ -313,6 +314,21 @@ game.start();
       scouted: v.scouted, open: v.open, card: css(v.card), back: css(v.back),
       face: f ? { sel: f.sel, title: f.title, sub: f.sub, lines: f.lines, r: css(f.r), close: css(f.close) } : null,
       parts: v.parts.map((p) => ({ kind: p.sel.kind, id: p.sel.kind === "item" ? p.sel.uid : p.sel.index, name: p.name, x: c.left + p.x * k, y: c.top + p.y * k })),
+    };
+  },
+  /** WIND-1 (REQ-BFG-093) tooling (read only; scripts/wind1shots.mjs): the dark wind on the current battle or replay: its
+   *  colour (palette.ts C.windHit), each hull bar's wind flash (s left), the callout's clock and its box, the wind numbers
+   *  drawn in the last frame (side, text, box; `beside`: by its plate, its carrier out of view) and each plate as drawn (its
+   *  box and its hull text), boxes in CSS client px; null on another screen. */
+  windInfo() {
+    const s = game.screen;
+    if (!(s instanceof BattleScreen) && !(s instanceof ReplayScreen)) return null;
+    const k = game.view.scale / game.view.dpr, c = game.canvas.getBoundingClientRect();
+    const css = (q: { x: number; y: number; w: number; h: number } | null | undefined) => (q ? { x: c.left + q.x * k, y: c.top + q.y * k, w: q.w * k, h: q.h * k } : null);
+    const a = s.arena;
+    return {
+      colour: C.windHit, flash: [a.sfx[0].windFlash, a.sfx[1].windFlash], callT: a.windCallT, call: css(s.windCallR),
+      numbers: s.motion.windDrawn.map((n) => ({ side: n.side, text: n.text, beside: n.beside, r: css(n) })),
     };
   },
   /** Current screen name (for harness assertions). SCOUT-1 (REQ-BFG-076): `phase` true, on a battle its phase instead

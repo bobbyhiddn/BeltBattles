@@ -24,6 +24,7 @@ import { banner } from "../ui/hud";
 import { fmtClock, fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock and the hull, whole
 import { button, panel } from "../ui/ui";
 import { SPEEDS, SPEED_1X, drawBar, drawPlate, type BarState } from "./battleHud";
+import { drawWindCall } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout, as the battle shows it
 import type { View } from "../core/io";
 import { isPhone, tapPx } from "../ui/tap"; // shoptap (D5, backlog 319)
 
@@ -70,6 +71,8 @@ export class ReplayScreen implements Screen {
   /** MOTION-2 (REQ-BFG-071): the replay in motion. CUSTOM-2a (REVIEW-MOTION2 Q2): always (no ?motion=0). */
   readonly motion: ArenaMotion;
   private readonly seed: number;
+  /** WIND-1 tooling (bb.windInfo): the DARK WIND callout's box as drawn this frame (null: not showing). */
+  windCallR: Box | null = null;
 
   constructor(private game: Game, private back: Screen, battle: Battle, private label: { day: number; foe: string }) {
     const [mine, theirs] = battle.record.builds;
@@ -126,6 +129,7 @@ export class ReplayScreen implements Screen {
     this.motion.setLanes(this.L, minGap(portrait ? H : W));
     this.motion.useCamera(this.viewGrid(), cameraFocus(this.L), "wide"); // FIELD-1: WIDE, as the dusk
     this.arena.setFrames(this.L.frames, this.L.enter);
+    this.motion.windKeep = { plates: this.L.plates, bar: this.L.bar }; // WIND-1 (REQ-BFG-093): the wind's numbers keep clear
   }
 
   setSpeed(i: number): void {
@@ -192,6 +196,7 @@ export class ReplayScreen implements Screen {
     st.showSpeeds = !this.over;
     drawBar(g, this.game, a, this.L.bar, `${Math.floor(sec / 60)}:${sec % 60 < 10 ? "0" : ""}${sec % 60}`, st);
     const cy = Math.round(H / 2);
+    this.windCallR = drawWindCall(g, a, this.L, m, settings.reducedMotion); // WIND-1 (REQ-BFG-093): the callout, as the battle
     if (!this.over && this.pt < 1.6) banner(g, W, cy - 16, `REPLAY · DAY ${this.label.day}/${RUN_DAYS}`, C.ice, `VS ${this.label.foe}`, Math.min(1, this.pt / 0.35));
     drawText(g, "REPLAY", 4, 4, C.ice, { font: "3", outline: C.ink });
     if (this.over && this.pt > 0.6) {

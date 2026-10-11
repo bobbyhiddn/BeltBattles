@@ -23,7 +23,7 @@ import { TILE, TILES, hullBox, localX, localY, sx, sy, type Box } from "../rende
 import { drawTurrets } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
 import { drawWind } from "../render/world";
-import { drawText } from "../render/font";
+import { drawText, textWidth } from "../render/font";
 import { EMIT, PIVOT_X, PLATE_HX, PLATE_W, foam } from "../render/carrier";
 import { dimPlate, dimShip, drawPlate, drawShip, plateBox } from "../render/ship";
 import { LANDS, SEAS, SeaBackdrop, isSea } from "../render/backdrop";
@@ -384,12 +384,44 @@ export class ArenaMotion implements ShotMap {
       g.restore();
     }
     drawWind(g, b.windLevel() * Math.max(0, 1 - a.overT / 1.2), W, H, a.clock);
+    this.drawWindPops(g, a, W, H); // WIND-1 (REQ-BFG-093): the wind's numbers above the wind
     if (a.fx.flash > 0 && !reduced) {
       g.globalAlpha = Math.min(0.5, a.fx.flash);
       rect(g, 0, 0, W, H, a.fx.flashColor);
       g.globalAlpha = 1;
     }
     if (P) { P.add(4, now() - t0); P.frame(); }
+  }
+
+  /** WIND-1 (REQ-BFG-093): the HUD the dark wind's numbers keep clear of (logical px, at rest: each side's plate and the
+   *  playback bar); the battle and the replay set it at each layout. Empty: only the screen's edges. */
+  windKeep: { plates: readonly Box[]; bar: Box | null } = { plates: [], bar: null };
+  /** WIND-1 tooling (read only; bb.windInfo): the wind numbers drawn this frame, their side, text and box (logical px). */
+  readonly windDrawn: { side: Side; text: string; x: number; y: number; w: number; h: number; beside: boolean }[] = [];
+
+  /**
+   * WIND-1 (REQ-BFG-093): the dark wind's numbers (Fx.windPop), drawn on the canvas after the wind, so its wash, band and
+   * streaks never dim them: the 5x7 face at twice its size (a big hit's number at CLOSE, bigger at WIDE) with an ink outline,
+   * upright. Each sits on its own carrier's hull (its board's map and the camera: it rides with the carrier), rises and
+   * blinks out as the other numbers do; it is kept inside the screen and clear of both plates and the bar (moved up or down
+   * out of one); a carrier whose hull centre is off the screen gets its number beside its own plate instead.
+   */
+  private drawWindPops(g: G, a: Arena, W: number, H: number): void {
+    const fx = a.fx, list = fx.popList, q = this.tmp, keep = this.windKeep, out = this.windDrawn;
+    out.length = 0;
+    for (let i = 0; i < fx.popCount; i++) {
+      const p = list[i];
+      if (!p.wind || (p.side !== 0 && p.side !== 1)) continue;
+      const s = p.side as Side;
+      const k = p.t / p.max;
+      if (k > 0.78 && Math.floor(p.t * 22) % 2) continue; // blinks out, as drawPops
+      applyAffine(this.aff[s], p.x, p.y, q);
+      if (this.camera) applyAffine(this.scr, q[0], q[1], q);
+      const w = textWidth(p.text) * 2 + 4, h = 7 * 2 + 4; // the text x2 and its 2 px outline
+      const at = placeWindNumber(q[0], q[1], 16 * Math.min(1, k * 2.2), w, h, W, H, keep, s);
+      drawText(g, p.text, at.x + 2, at.y + 2, p.t < 0.05 ? C.white : p.color, { outline: C.ink, scale: 2 });
+      out.push({ side: s, text: p.text, x: at.x, y: at.y, w, h, beside: at.beside });
+    }
   }
 
   /** FIELD-1: the carrier's trail in its medium: the wake on water, dust on ground, contrails in the air. */
@@ -485,6 +517,38 @@ export class ArenaMotion implements ShotMap {
       }
     }
   }
+}
+
+/**
+ * WIND-1 (REQ-BFG-093): where a dark wind number of w x h (logical px, its outline included) is drawn: centred on its
+ * carrier's point (cx, cy) on screen, `rise` px up; a point off the W x H screen (a carrier out of view) puts it beside its
+ * own plate (`keep.plates[side]`), on the screen's side of it. Then inside the screen, 1 px in, and out of every plate and
+ * the bar: towards the screen's middle (a plate or bar in the lower half pushes it up, in the upper half down), again until
+ * clear (a plate and the bar can sit edge to edge). Pure (tests/wind1.test.ts).
+ */
+export function placeWindNumber(cx: number, cy: number, rise: number, w: number, h: number, W: number, H: number,
+  keep: { plates: readonly Box[]; bar: Box | null }, side: Side): { x: number; y: number; beside: boolean } {
+  let x = Math.round(cx - w / 2), y = Math.round(cy - h / 2 - rise);
+  const beside = cx < 0 || cx >= W || cy < 0 || cy >= H;
+  const pl = keep.plates[side];
+  if (beside && pl) {
+    x = Math.round(pl.x + pl.w / 2 - w / 2);
+    y = pl.y + pl.h / 2 < H / 2 ? pl.y + pl.h + 2 : pl.y - h - 2;
+  }
+  x = Math.max(1, Math.min(W - w - 1, x));
+  y = Math.max(1, Math.min(H - h - 1, y));
+  const n = keep.plates.length + (keep.bar ? 1 : 0);
+  for (let pass = 0; pass < 4; pass++) {
+    let moved = false;
+    for (let j = 0; j < n; j++) {
+      const r = j < keep.plates.length ? keep.plates[j] : keep.bar!;
+      if (x >= r.x + r.w || r.x >= x + w || y >= r.y + r.h || r.y >= y + h) continue;
+      y = r.y + r.h / 2 >= H / 2 ? r.y - h - 1 : r.y + r.h + 1;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return { x, y: Math.max(1, Math.min(H - h - 1, y)), beside };
 }
 
 /** ?perf=1 (test builds only; MOTION-2 keeps it out of the player bundle): the frame-time overlay (the rAF interval's
