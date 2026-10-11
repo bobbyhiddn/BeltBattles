@@ -10,6 +10,7 @@ import { rotFacing } from "../src/sim/beltside";
 import { computeView, type View } from "../src/core/io";
 import { UI, inside, tapRect, type Rect } from "../src/ui/ui";
 import { tapPx } from "../src/ui/tap";
+import { setTipsForTests } from "../src/ui/tips"; // CARD-4 (REQ-BFG-004, K): the tap test starts with the notes done
 import { buildLayout, buildScale, panelArea, type BuildLayout, type Sel } from "../src/screens/build/layout";
 import { columnButtons, detailsPlan, drawDetails, fullText, visibleLines, type PanelPlan } from "../src/screens/build/inspector";
 import {
@@ -209,6 +210,12 @@ const centre = (r: Rect) => ({ x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor
 
 describe("U2c tap to explain: the tap, the close rules, `?`, the desk hover and the existing presses", () => {
   it("a tap shows the word's definition (the piece's own number), a second tap closes it, another word switches, a press elsewhere closes it", () => {
+    // CARD-4 (REQ-BFG-004, K) changed this test's start: a strip no longer holds the first sight back, so the panel (its
+    // tips new: the strip up) would open BURN's note by itself; the tap rules are checked with the notes done
+    setTipsForTests("done");
+    try { tapRules(); } finally { setTipsForTests("reload"); }
+  });
+  const tapRules = (): void => {
     const { v, L } = screen(402, 690, 3);
     const run = furnace();
     run.inventory = [{ uid: 900, def: "hotswap" }];
@@ -245,7 +252,7 @@ describe("U2c tap to explain: the tap, the close rules, `?`, the desk hover and 
     expect(ui4.regions.some((r) => /^kw:\d/.test(r.id))).toBe(false);
     keywordsPressed(o.ctx, "sell");
     expect(keywordState(o.ctx)!.page).toBeNull();
-  });
+  };
 
   it("a press on a word or ? is the word's region, never the board's; a button's centre still reaches its button", () => {
     for (const [w, h, dpr] of [[402, 690, 3], [390, 664, 3], [320, 568, 2]] as const) {

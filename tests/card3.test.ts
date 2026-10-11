@@ -309,17 +309,19 @@ describe("CARD-3 (d1, d2): a definition never covers its own word; a word's tool
         const ui = p.draw(), def = ui.regions.find((q) => q.id === "kwdef");
         if (!def) { st.word = null; continue; }
         words++;
+        // CARD-4 (REQ-BFG-087, D) changed what this counts: a box off the panel's foot moves under its word's line (or above
+        // it only where that misses the header), so "moved" counts boxes off the foot either way
         const foot = definitionBox(p.d().plan.r, p.d().plan.maxY + 2, 1);
-        if (def.r.y + def.r.h < foot.y + foot.h - 1) moved++;
+        if (def.r.y + def.r.h !== foot.y + foot.h) moved++;
         // the word's own targets are still targets (a target under the box is not: drawKeywordLayer)
         const mine = ui.regions.filter((q) => /^kw:\d+:/.test(q.id) && (glossaryEntry(q.id.split(":")[2])?.word ?? q.id.split(":")[2]) === st.word);
         expect(mine.length, `${d.id} ★${s} ${w}: its own word under its box`).toBeGreaterThan(0);
-        if (def.r.y + def.r.h < foot.y + foot.h - 1 && out.length < 12) out.push(`${d.id} ★${s} ${w}`);
+        if (def.r.y + def.r.h !== foot.y + foot.h && out.length < 12) out.push(`${d.id} ★${s} ${w}`);
         st.word = null;
       }
       keywordsIdle(p.ctx);
     }
-    console.log(`CARD3 (d1): ${panels} phone panels, ${words} definitions opened, ${moved} moved above their word (e.g. ${out.join(", ")})`);
+    console.log(`CARD3 (d1): ${panels} phone panels, ${words} definitions opened, ${moved} moved off the panel's foot, clear of their word (e.g. ${out.join(", ")})`);
     expect(moved).toBeGreaterThan(0);
   });
 
@@ -531,7 +533,7 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
     expect(fresh1.area).toEqual(done.area); // sized as with the tip done
     expect(visibleLines(d.plan).some((v) => v.line !== "rule" && v.line.block.role === "hint")).toBe(false);
     const s = hintStrip(d.hint!, d.plan.r, f.H);
-    expect([s.r.x, s.r.w, s.r.y + s.r.h]).toEqual([d.plan.r.x, d.plan.r.w, d.plan.r.y]); // just above the panel
+    expect([s.r.x, s.r.w, s.r.y]).toEqual([d.plan.r.x, d.plan.r.w, d.plan.r.y + d.plan.r.h]); // CARD-4 (REQ-BFG-087, S) changed this: just under the panel (was just above, over the shop's prices)
     expect(s.lines.map(lineText).join(" ")).toBe(TOUCH_TURN);
     expect(s.lines.every((l) => lineWidth(l, "3") <= d.plan.r.w - 10)).toBe(true);
     // the strip takes no press: drawDetails registers nothing over it (a press there reaches what is under it)

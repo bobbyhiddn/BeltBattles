@@ -487,6 +487,34 @@ export function defBoxClear(box: Rect, r: Rect, own: readonly { glyph: Rect }[])
   return y >= r.y + 1 ? { ...box, y } : box;
 }
 
+/**
+ * CARD-4 (REQ-BFG-087, D; REVIEW-CARD3 D1; READ-4 F step 11: SPEED's box over BRAKE SHOE's title, ⓘ and BUY): where a shown
+ * definition's box goes (a tap's or a first sight's), in place of defBoxClear: never over the panel's header (`head`: its
+ * rows down to the body's top, and the drawn buttons), never over its own word's row (`own`, the explained word's
+ * targets), never over the how-to strip (`strip`; CARD-4 K: a strip is not a note, so a first-sight box may show beside
+ * it), and on the screen (`H`). In order: the panel's foot (definitionBox, as before) where that is clear; else just under
+ * the word's line (past the panel's foot, onto the deck side, where it must); else just above the line, where that misses
+ * the header; else just under the header (a word in the header itself: a family tag); else just under the strip; else
+ * just under the line as the screen allows (`fits` false: the tests list it). Pure (drawKeywordLayer, tests).
+ */
+export function defBoxPlace(box: Rect, own: readonly { glyph: Rect }[], head: readonly Rect[], strip: Rect | null, H = Infinity): { box: Rect; fits: boolean } {
+  const clear = (b: Rect): boolean => b.y >= 0 && b.y + b.h <= H && !head.some((q) => overlaps(b, q)) && !own.some((t) => overlaps(t.glyph, b)) && !(strip && overlaps(b, strip));
+  if (clear(box)) return { box, fits: true };
+  const top = own.length ? Math.min(...own.map((t) => t.glyph.y)) : box.y;
+  const bot = own.length ? Math.max(...own.map((t) => t.glyph.y + t.glyph.h)) : box.y + box.h;
+  const headBot = head.length ? Math.max(...head.map((q) => q.y + q.h)) : bot;
+  const at = (y: number): Rect => ({ ...box, y });
+  for (const b of [at(bot + 2), at(top - 2 - box.h), at(headBot + 1), ...(strip ? [at(strip.y + strip.h + 1)] : [])]) if (clear(b)) return { box: b, fits: true };
+  return { box: at(Math.max(0, Math.min(H - box.h, bot + 2))), fits: false };
+}
+
+/** CARD-4 (D): a planned panel's header as defBoxPlace avoids it: its rows from the panel's top to the body's (the title,
+ *  the sub line, the families, the ⓘ icon), and the drawn buttons (the band's in the header; the column's under the text). */
+export function panelHead(plan: Pick<PanelPlan, "r" | "y" | "rects" | "column">, buttons: readonly Rect[] = []): Rect[] {
+  const r = plan.r;
+  return [{ x: r.x, y: r.y, w: r.w, h: Math.max(1, plan.y - r.y) }, ...(plan.rects ?? []), ...(plan.column ? buttons : [])];
+}
+
 /** The KEYWORDS view's pages: as many whole definitions as fit the body's height (`h`) each, the header row first. */
 export function viewPages(words: readonly KwWord[], w: number, h: number): KwWord[][] {
   const pages: KwWord[][] = [];
@@ -668,7 +696,7 @@ function underline(g: G, t: KwTarget): void {
  * definition or the KEYWORDS view; on the desk, the hover tooltip and the `help` cursor. `owner`: the screen (its state);
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
-export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null },
+export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
   free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
   // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
@@ -714,9 +742,10 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // drawHoverTip under the word). One box per open; the next waits for the next open.
   if (!s.opened) {
     s.opened = true;
-    // CARD-3 (REQ-BFG-080, C): a band panel draws its hint in a strip above it (detailsPlan's `hint`): that is a how-to
-    // tip shown this time too
-    if (sight && !d.hint && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) {
+    // CARD-3 (REQ-BFG-080, C): a band panel draws its hint in a strip by it (detailsPlan's `hint`). CARD-4 (REQ-BFG-004, K;
+    // READ-4 10.1: the first rigs' keywords never opened before the first fight): a strip is not a note, so the first
+    // sight opens beside it (its box kept off the strip: defBoxPlace); a hint drawn in the body (the column) still waits
+    if (sight && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) {
       if (rigSentenceRig(piece) && !rigSeen()) s.rig = true;
       else {
         const w = sightWord([...body].sort(reading).map((t) => t.word));
@@ -729,8 +758,10 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   const shown = s.word ? words.find((w) => w.word === s.word) ?? targets.find((t) => t.word === s.word) : undefined;
   const defLines = shown ? definitionLines(shown.text, r.w - 10) : [];
   // CARD-3 (REQ-BFG-087, D1; REVIEW-CARD2 open item 1): the box sits at the panel's foot, unless it would cover the word it
-  // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1): then just above that word's line
-  const box = shown ? defBoxClear(definitionBox(r, bottom, defLines.length), r, targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word)) : null;
+  // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1). CARD-4 (REQ-BFG-087, D): then just
+  // under the word's line, or above it only where that misses the header, never over the header or the hint strip
+  const box = shown ? defBoxPlace(definitionBox(r, bottom, defLines.length), targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word),
+    panelHead(plan, buttons), d.strip ?? null, screen?.H).box : null;
   targets.forEach((t, i) => {
     if (box && overlaps(t.glyph, box)) return;
     underline(g, t);

@@ -421,3 +421,200 @@ describe("CARD-4 (p): on the rune cards only the TAP AGAIN bar takes a rune (REQ
     expect(full).toBeGreaterThan(short.length);
   });
 });
+
+// ---- K, D, S --------------------------------------------------------------------------------------------------------------
+import { buyableModules, ITEMS } from "../src/sim/content";
+import { fusible } from "../src/sim/stars";
+import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
+import { key as KEY, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
+import { panelArea, type Sel } from "../src/screens/build/layout";
+import { detailsPlan, drawDetails, hintStrip, panelFit } from "../src/screens/build/inspector";
+import { defBoxPlace, definitionBox, keywordState, keywordsIdle, panelHead } from "../src/screens/build/keywords";
+import { glossaryEntry } from "../src/ui/glossary";
+import { tipDone } from "../src/ui/tips";
+import type { Ctx } from "../src/screens/build/actions";
+import type { DuskFoe } from "../src/game/run";
+
+/** A build screen's panel context (tests/card3.test.ts's panelCtx). */
+function panelCtx(run: Run, sel: Sel, f: ReturnType<typeof framed>, touch: boolean) {
+  const ctx = { game: { ui: new UI(), t: 0, view: f.view, W: f.W, H: f.H }, run, touch, L: f.L } as unknown as Ctx;
+  const area = panelArea(f.L, sel, { touch, hover: false, busy: false }, panelFit(ctx, sel, !!f.L.phone));
+  const draw = () => {
+    const ui = (ctx.game as unknown as { ui: UI }).ui;
+    ui.pointer.kind = touch ? "touch" : "mouse";
+    Object.assign(ui.pointer, { x: -1, y: -1, down: false });
+    ui.begin();
+    drawDetails(gOf(fresh(f.W, f.H)), ctx, sel, null, area, {} as DuskFoe);
+    ui.end();
+    return ui;
+  };
+  return { ctx, area, draw, d: () => detailsPlan(ctx, sel, null, area)! };
+}
+const CARGO: Sel = { kind: "cargo", uid: 900 };
+const SHORTB = [KEY(4, 5), KEY(4, 4), KEY(4, 3), KEY(4, 2), KEY(4, 1), KEY(4, 0)];
+const rigAt = (uid: number, def: string, x: number, y: number, rot = 0, stars = 1): Placed => ({ uid, def, x, y, ...rotField(def, rot), ...(stars > 1 ? { stars } : {}) });
+function furnaceRun(items: Placed[] = []): Run {
+  const run = newRun("furnace", 5, "card4-panels");
+  run.build = { hero: "furnace", items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, ...items], routes: [{ factory: 1, cells: [...SHORTB] }], mods: [], beltCap: 40, hullBonus: 0 };
+  run.inventory = [];
+  run.gold = 2;
+  return run;
+}
+/** Every panel a finger can open (tests/card3.test.ts's allPanels: explain1's 899). */
+function allPanels(): { id: string; run: Run; sel: Sel }[] {
+  const out: ReturnType<typeof allPanels> = [];
+  const OFFER: Sel = { kind: "offer", wagon: 0, slot: 0 };
+  for (const d of buyableModules()) {
+    const stars = fusible(d.id) ? [1, 2, 3] : [1];
+    const o = furnaceRun();
+    o.shop.wagons = [{ merchant: d.merchant ?? "ironmonger", offers: [{ def: d.id, price: d.price, sold: false }] }] as Run["shop"]["wagons"];
+    out.push({ id: `offer ${d.id}`, run: o, sel: OFFER });
+    for (const s of stars) {
+      const c = furnaceRun();
+      c.inventory = [{ uid: 900, def: d.id, ...(s > 1 ? { stars: s } : {}) }];
+      out.push({ id: `cargo ${d.id} ★${s}`, run: c, sel: CARGO });
+      if (d.kind === "gate") {
+        for (const [x, y, rot] of [[3, 3, 1], [0, 9, 0], [5, 3, 0]] as const) out.push({ id: `${d.id} ★${s} @${x},${y}`, run: furnaceRun([rigAt(10, d.id, x, y, rot, s)]), sel: { kind: "item", uid: 10 } });
+      } else if (d.kind === "factory") {
+        out.push({ id: `${d.id} ★${s}`, run: furnaceRun([{ uid: 10, def: d.id, x: 0, y: 6, ...(s > 1 ? { stars: s } : {}) }]), sel: { kind: "item", uid: 10 } });
+      } else if (d.kind === "mod" || d.kind === "core") {
+        for (const hero of ["furnace", "weaver"] as const) {
+          const run = newRun(hero, 5, "card4-fit");
+          run.build.mods = [{ uid: 950, def: d.id, turret: 0, ...(s > 1 ? { stars: s } : {}) }];
+          out.push({ id: `${d.id} ★${s} fitted on ${hero}`, run, sel: { kind: "fitted", uid: 950 } });
+        }
+      } else if (d.kind === "turret") {
+        const run = furnaceRun();
+        setTurretList(run.build, [{ slot: 0, def: "scrapcannon", uid: 90 }, { slot: 1, def: d.id, uid: 700, ...(s > 1 ? { stars: s } : {}) }]);
+        run.build.mods = [{ uid: 950, def: "pressure", turret: 1 }, { uid: 951, def: "hopper", turret: 1 }];
+        out.push({ id: `turret ${d.id} ★${s} with a core and gear`, run, sel: { kind: "turret", index: 1 } });
+      }
+    }
+  }
+  for (const hero of PLAYABLE_HEROES) {
+    const run = newRun(hero, 5, "card4-start");
+    for (const p of run.build.items) out.push({ id: `${hero}'s starting ${p.def}`, run, sel: { kind: "item", uid: p.uid } });
+    if (turretSlots(run.build)[0]?.turret) out.push({ id: `${hero}'s starting turret`, run, sel: { kind: "turret", index: 0 } });
+    run.build.routes.forEach((_, i) => out.push({ id: `${hero}'s belt ${i + 1}`, run, sel: { kind: "route", index: i } }));
+  }
+  out.push({ id: "the KILN's belt", run: furnaceRun(), sel: { kind: "route", index: 0 } });
+  return out;
+}
+const ZOOMED: [string, number, number, number][] = PHONES.filter(([n]) => !n.startsWith("land"));
+/** What the strip and a box must never cover on the build screen: every shop card (its price), REROLL, the packs. */
+const shopRects = (f: ReturnType<typeof framed>): { what: string; r: Rect }[] => [
+  ...f.L.cards.map((r, i) => ({ what: `shop card ${i + 1}`, r })), { what: "REROLL", r: f.L.reroll }, ...f.L.packs.map((r, i) => ({ what: `pack ${i + 1}`, r })),
+];
+
+describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a header; no strip over a price (REQ-BFG-004, REQ-BFG-087)", () => {
+  it("S: on the four zoomed phones every panel's hint strip (tips new) sits just under the panel, over no shop card, REROLL, pack, button or the panel", () => {
+    let strips = 0;
+    const where = new Map<string, number>();
+    for (const [name, w, h, dpr] of ZOOMED) {
+      const f = framed(w, h, dpr, 1);
+      for (const p of allPanels()) {
+        setTipsForTests("new");
+        const pc = panelCtx(p.run, p.sel, f, true), d = pc.d();
+        if (!d?.hint) continue;
+        strips++;
+        const s = hintStrip(d.hint, d.plan.r, f.H).r;
+        expect(s.y, `${name} ${p.id}: just under the panel`).toBe(d.plan.r.y + d.plan.r.h);
+        expect(s.y + s.h <= f.H - 2, `${name} ${p.id}: on the screen`).toBe(true);
+        for (const q of shopRects(f)) expect(overlaps(s, q.r), `${name} ${p.id}: over ${q.what}`).toBe(false);
+        for (const b of d.plan.rects ?? []) expect(overlaps(s, b), `${name} ${p.id}: over a button`).toBe(false);
+        expect(overlaps(s, d.plan.r), `${name} ${p.id}: over the panel`).toBe(false);
+        // the strip takes no press (CARD-3 C): nothing is registered over it
+        const ui = pc.draw();
+        expect(ui.regions.filter((q) => overlaps(q.r, s) && q.id !== "details-over").map((q) => q.id), `${name} ${p.id}`).toEqual([]);
+        where.set(name, (where.get(name) ?? 0) + 1);
+      }
+    }
+    console.log(`CARD-4 (s): ${strips} strips, each just under its panel: ${[...where].map(([k, v]) => `${k} ${v}`).join(", ")}`);
+    expect(strips).toBeGreaterThan(100);
+  });
+
+  it("K: a rig's first panels (the strip up, every first-sight note new) open their first keyword's note beside the strip: SURGE VALVE's EVERY, BRAKE SHOE's SPEED; never two boxes", () => {
+    const f = framed(402, 690, 3, 1);
+    for (const [def, word] of [["surge", "EVERY"], ["brake", "SPEED"]] as const) {
+      for (const sel of ["offer", "placed"] as const) {
+        setTipsForTests("new");
+        const run = sel === "offer" ? furnaceRun() : furnaceRun([rigAt(10, def, 3, 3, 1)]);
+        if (sel === "offer") run.shop.wagons = [{ merchant: "tinker", offers: [{ def, price: ITEMS[def].price, sold: false }] }] as Run["shop"]["wagons"];
+        run.gold = 9;
+        const pc = panelCtx(run, sel === "offer" ? { kind: "offer", wagon: 0, slot: 0 } : { kind: "item", uid: 10 }, f, true);
+        const d = pc.d();
+        expect(d.hint, `${def} ${sel}: the strip shows`).not.toBeNull();
+        const ui = pc.draw();
+        const st = keywordState(pc.ctx) as { word: string | null; rig: boolean };
+        expect(st.word, `${def} ${sel}`).toBe(glossaryEntry(word)?.word ?? word);
+        const boxes = ui.regions.filter((q) => q.id === "kwdef" || q.id === "kwsight");
+        expect(boxes.length, `${def} ${sel}: one box`).toBe(1);
+        const strip = hintStrip(d.hint!, d.plan.r, f.H).r;
+        expect(overlaps(boxes[0].r, strip), `${def} ${sel}: the box off the strip`).toBe(false);
+        for (const hq of panelHead(d.plan)) expect(overlaps(boxes[0].r, hq), `${def} ${sel}: the box off the header`).toBe(false);
+        keywordsIdle(pc.ctx);
+        expect(tipDone("place")).toBe(false);
+      }
+    }
+  });
+
+  // one test per phone (each draws every panel's every box twice: tips new and done), each given 3 minutes under load
+  for (const [name, w, h, dpr] of PHONES) it(`D on ${name}: tips new and done, every keyword's box (a tap's, as a first sight's) misses the panel's header, its own word's row and the strip; the ones that can't fit are listed`, () => {
+    let n = 0, below = 0, past = 0;
+    const cant: string[] = [];
+    {
+      const f = framed(w, h, dpr, 1);
+      for (const tips of ["done", "new"] as const) {
+        for (const p of allPanels()) {
+          setTipsForTests(tips);
+          const pc = panelCtx(p.run, p.sel, f, true);
+          const ui0 = pc.draw(), d = pc.d();
+          if (!d) continue;
+          const st0 = keywordState(pc.ctx) as { word: string | null } | undefined;
+          if (st0) st0.word = null;
+          const ui1 = pc.draw();
+          const regs = ui1.regions.filter((q) => /^kw:\d+:/.test(q.id));
+          void ui0;
+          const words = [...new Set(regs.map((q) => q.id.split(":")[2]))];
+          const strip = d.hint ? hintStrip(d.hint, d.plan.r, f.H).r : null;
+          const head = panelHead(d.plan);
+          for (const wd of words) {
+            const st = keywordState(pc.ctx)! as { word: string | null };
+            const key = glossaryEntry(wd)?.word ?? wd;
+            st.word = key;
+            const ui = pc.draw(), def = ui.regions.find((q) => q.id === "kwdef");
+            if (!def) { st.word = null; continue; }
+            n++;
+            const mineBefore = regs.filter((q) => (glossaryEntry(q.id.split(":")[2])?.word ?? q.id.split(":")[2]) === key);
+            const mine = ui.regions.filter((q) => /^kw:\d+:/.test(q.id) && (glossaryEntry(q.id.split(":")[2])?.word ?? q.id.split(":")[2]) === key);
+            const bad = head.some((q) => overlaps(def.r, q)) || mine.length < mineBefore.length || (strip && overlaps(def.r, strip));
+            if (bad) cant.push(`${name} ${tips} ${p.id} ${wd}: box ${JSON.stringify(def.r)}${head.some((q) => overlaps(def.r, q)) ? " over the header" : ""}${mine.length < mineBefore.length ? " over its own word" : ""}${strip && overlaps(def.r, strip) ? " over the strip" : ""}`);
+            const foot = definitionBox(d.plan.r, d.plan.maxY + 2, Math.round((def.r.h - 3) / 9));
+            if (def.r.y > foot.y) below++;
+            if (def.r.y + def.r.h > d.plan.r.y + d.plan.r.h) past++;
+            st.word = null;
+          }
+          keywordsIdle(pc.ctx);
+        }
+      }
+    }
+    console.log(`CARD-4 (d) ${name}: ${n} boxes (tips new and done); ${below} sit lower than the panel's foot box (under their word's line), ${past} reach past the panel's foot; ${cant.length} can't fit:\n${cant.slice(0, 40).join("\n")}`);
+    expect(n).toBeGreaterThan(1000);
+    expect(cant.length, cant.slice(0, 5).join("\n")).toBe(0);
+  }, 180_000);
+
+  it("defBoxPlace: the foot where clear; else under the word's line; else above it where that misses the header; else under the strip", () => {
+    const head = [{ x: 0, y: 100, w: 235, h: 25 }], box = { x: 2, y: 136, w: 231, h: 21 }; // a 2-line box at a 57 px panel's foot
+    expect(defBoxPlace(box, [{ glyph: { x: 9, y: 126, w: 20, h: 7 } }], head, null)).toEqual({ box, fits: true });
+    // its word on the last line: under the line (past the panel's foot)
+    expect(defBoxPlace(box, [{ glyph: { x: 9, y: 144, w: 20, h: 7 } }], head, null).box.y).toBe(153);
+    // its word on the first line under the header (SPEED on BRAKE SHOE): under the line, never over the header
+    expect(defBoxPlace({ ...box, y: 125 }, [{ glyph: { x: 9, y: 126, w: 20, h: 7 } }], head, null).box.y).toBe(135);
+    // a strip under the panel where the box would go: above the line if that misses the header, else under the strip
+    const strip = { x: 0, y: 157, w: 235, h: 16 };
+    expect(defBoxPlace(box, [{ glyph: { x: 9, y: 144, w: 20, h: 7 } }], head, strip).box.y).toBe(174);
+    expect(defBoxPlace({ ...box, h: 12 }, [{ glyph: { x: 9, y: 144, w: 20, h: 7 } }], head, strip).box.y).toBe(144 - 2 - 12);
+    // the screen's foot: where nothing fits, as near the line as the screen allows (listed)
+    expect(defBoxPlace(box, [{ glyph: { x: 9, y: 144, w: 20, h: 7 } }], head, strip, 180).fits).toBe(false);
+  });
+});

@@ -388,11 +388,13 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     expect([keywordState(p.ctx)!.rig, keywordState(p.ctx)!.word]).toEqual([false, "BURN"]);
     expect(sightDone("kw:BURN")).toBe(true);
     expect(state(run)).toBe(before);
-    // a panel that shows a how-to tip (the place hint, tips new) shows no first-sight box
+    // a panel that shows a how-to tip (the place hint, tips new). CARD-4 (REQ-BFG-004, K) changed what this checks: on the
+    // phone the tip is a strip by the panel, and a strip is not a note, so the first sight opens beside it (here the rig
+    // sentence by the icon; tests/card4.test.ts (k) checks the box keeps off the strip)
     setTipsForTests("new");
     const p2 = panelCtx(cargoRun("furnace", "temper"), CARGO, f, true);
     ui = p2.draw();
-    expect([keywordState(p2.ctx)!.rig, keywordState(p2.ctx)!.word, ui.regions.some((r) => r.id === SIGHT_REGION)]).toEqual([false, null, false]);
+    expect([keywordState(p2.ctx)!.rig, keywordState(p2.ctx)!.word, ui.regions.some((r) => r.id === SIGHT_REGION)]).toEqual([true, null, true]);
     // a refit (the build screen between a fight's rounds): none
     setTipsForTests("sight");
     const r3 = cargoRun("furnace", "temper");
