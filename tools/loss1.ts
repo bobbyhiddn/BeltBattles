@@ -294,7 +294,20 @@ function modeBench(): unknown {
   const seeds = range(flag("seeds") ?? "1-96");
   const roadSeeds = int("road-seeds", 9999); // road fights only for seeds up to this
   const opts = policyOpts(pol);
-  const pool = fieldKind === "seed" ? loadPool(flag("pool")!).filter((e) => isSeed(e.snapshot)) : [];
+  let pool = fieldKind === "seed" ? loadPool(flag("pool")!).filter((e) => isSeed(e.snapshot)) : [];
+  // --casual-floor <tune>: proposal P2, the seed pool's floor ghosts (variant 2: no wins, the fewest lives) carry the casual
+  // player's deck of their hero and day (casual.ts casualRun on seed 9001, outside every bench's seeds) instead of a
+  // stand-in pool or par deck; their records unchanged, so today's matching sends a losing record to them
+  const cf = flag("casual-floor");
+  if (cf) {
+    const decks = new Map<HeroId, Build[]>();
+    pool = pool.map((e) => {
+      if (!e.snapshot.playerId.endsWith("-2")) return e;
+      const h = e.snapshot.hero;
+      if (!decks.has(h)) decks.set(h, playerRun(h, RUN_DAYS, 9001, casualOpts(cf)).map((d) => d.build));
+      return { id: e.id, snapshot: { ...e.snapshot, build: decks.get(h)![e.snapshot.day - 1] } };
+    });
+  }
   const gj = flag("grades") ? JSON.parse(readFileSync(flag("grades")!, "utf8")) : null; // grade mode's file ({ data }) or a bare list
   const grades: Grades = new Map(gj ? ((gj.data ?? gj) as { id: string; vsPar: number }[]).map((g) => [g.id, g.vsPar]) : []);
   if (ruleList.includes("record") && !grades.size) throw new Error("--rule record needs --grades");
