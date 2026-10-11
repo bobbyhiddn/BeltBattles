@@ -267,7 +267,12 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   const bx = s.ed.beltX(), br = bx ? s.beltXRect(bx) : null;
   if (bx && br) drawBeltX(g, ui, L, bx, br, () => deleteRoute(s, bx.index));
   // drag feedback (the placement suggestion is drawn above, before the details panel)
-  if (c) drawCarry(g, L, s.run.build, c, s.ed.px, s.ed.py, s.ed.carryT, (x, y) => s.turretAt(x, y));
+  if (c) {
+    // SHAPES-1 (REQ-BFG-086 S3): a touch carry of a shaped piece shows the floating ROTATE button: a target a second
+    // finger presses while the first carries (Region.second; game.ts pointerExtra)
+    const rb = drawCarry(g, L, s.run.build, c, s.ed.px, s.ed.py, s.ed.carryT, (x, y) => s.turretAt(x, y), { W: s.game.view.W, tap: tapPx(s.game.view) });
+    if (rb) ui.add({ id: "carryrotate", r: rb, onTap: () => { s.ed.rotateCarry(); }, second: true });
+  }
   if (cue) drawFightCue(g, L.fight, L.portrait, s.t);
   // mouse hover tooltip under the card
   if (s.hover && !c && s.caravan.ready) {

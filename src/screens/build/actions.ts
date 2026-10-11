@@ -38,6 +38,10 @@ import { footX, footY, localX, localY } from "../../render/frame";
 import { inside } from "../../ui/ui";
 import type { BuildLayout, Sel } from "./layout";
 import { toDeck, toScreen } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
+import { screenRect } from "./layout"; // SHAPES-1 (S3): a cell's size on screen (the finger lift)
+import { footBox } from "../../sim/foot"; // SHAPES-1 (REQ-BFG-086 R1): a turned footprint's box
+import { boxRect } from "../../render/frame"; // SHAPES-1: a non-square box on screen
+import { aimShaped, carriedRot, shapedPiece, snapAnchor, turnFit } from "./shapeEdit"; // SHAPES-1 (S2, S3)
 
 export interface Ctx {
   game: Game;
@@ -78,6 +82,9 @@ export interface Carry {
   // rotation with the most hits, ties keep this one) until R turns it by hand (`manual`)
   rot?: number;
   manual?: boolean;
+  /** SHAPES-1 (REQ-BFG-086 S3): a finger or a pen lifted it: a shaped piece's ghost and drop point stand above the finger
+   *  (fingerLift), its drop snaps (shapeEdit.ts snapAnchor) and the floating ROTATE button shows. Absent: a mouse. */
+  touch?: boolean;
 }
 
 /**
@@ -90,9 +97,24 @@ export function rigRotAt(b: Run["build"], c: Pick<Carry, "def" | "rot" | "manual
   return bestRot(b, c.def, cell.x, cell.y, c.rot ?? 0).rot;
 }
 
-/** 0.6.2 BELTSIDE (B2): tap, ROTATE or R: a placed rig turns a quarter turn clockwise (an X rig faces every side). */
+/** 0.6.2 BELTSIDE (B2): tap, ROTATE or R: a placed rig turns a quarter turn clockwise (an X rig faces every side).
+ *  SHAPES-1 (REQ-BFG-086 S2): a shaped piece (a long rig, a 2x3 or I3 factory) turns around its anchor to the next turn
+ *  that fits there (shapeEdit.ts turnFit); none fits: it stays put and the reason shows. A factory that turns over its
+ *  own belts drops them, as a move does. */
 export function rotate(ctx: Ctx, uid: number): void {
   const p = ctx.run.build.items.find((q) => q.uid === uid);
+  if (p && shapedPiece(p.def)) {
+    const t = turnFit(ctx.run.build, uid);
+    if (!t.ok) return ctx.invalid(t.reason);
+    const r = moveItem(ctx.run.build, uid, p.x, p.y, t.rot);
+    if (r.dropped) ctx.game.toast(`${r.dropped} BELT${r.dropped > 1 ? "S" : ""} CUT LOOSE`, C.yellow);
+    ctx.game.audio.play("belt");
+    ctx.touched();
+    completeTip("turn");
+    const box = footBox(ITEMS[p.def], t.rot), at = boxRect(ctx.L.frame, p.x, p.y, box.w, box.h);
+    ctx.wfx.ring(at.x + at.w / 2, at.y + at.h / 2, 7, C.yellow);
+    return;
+  }
   if (!p || !isRig(p.def)) return;
   if (!rotateRig(ctx.run, uid)) {
     ctx.game.toast("AN X RIG FACES EVERY SIDE", C.slate4);
@@ -280,6 +302,79 @@ export function dropCell(L: BuildLayout, x: number, y: number, size: number): { 
   return { x: Math.max(0, Math.min(GRID - size, cx)), y: Math.max(0, Math.min(GRID - size, cy)) };
 }
 
+/** SHAPES-1 (REQ-BFG-086 R1): dropCell for a turned footprint: the anchor (the top-left of its box, `w` cells along x
+ *  and `h` along y: footBox) with the box centred under a screen point, kept on the deck as dropCell keeps a square. */
+export function dropAnchor(L: BuildLayout, x: number, y: number, defId: string, rot: number): { x: number; y: number } | null {
+  const { w, h } = footBox(ITEMS[defId], rot);
+  ({ x, y } = toDeck(L, x, y));
+  const lx = localX(L.frame, x, y) - (w - 1) * (CELL / 2), ly = localY(L.frame, x, y) - (h - 1) * (CELL / 2);
+  const m = GRID * CELL;
+  if (lx < -8 || ly < -8 || lx > m + 8 || ly > m + 8) return null;
+  const cx = Math.floor(lx / CELL), cy = Math.floor(ly / CELL);
+  return { x: Math.max(0, Math.min(GRID - w, cx)), y: Math.max(0, Math.min(GRID - h, cy)) };
+}
+
+/** SHAPES-1 (S3): how far (screen px) above a finger a touch-carried shaped piece's ghost, and so its drop point, stands:
+ *  half the ghost's height on screen plus 1.5 cells, so the finger doesn't hide it. */
+export function fingerLift(L: BuildLayout, defId: string, rot: number): number {
+  const { w, h } = footBox(ITEMS[defId], rot);
+  const cell = screenRect(L, { x: 0, y: 0, w: CELL, h: CELL }).h;
+  const tall = L.frame.facing === 0 || L.frame.facing === 2 ? h : w;
+  return (tall / 2 + 1.5) * cell;
+}
+
+/** SHAPES-1 (S2, S3): where a carried deck piece would land for a pointer at (x, y): its anchor, its rot, and whether it
+ *  fits there (else why). One function for the preview (cues.ts drawCarry) and the drop, so what shows is what lands. */
+export interface CarryTarget {
+  x: number;
+  y: number;
+  rot: number;
+  ok: boolean;
+  reason?: string;
+  /** a shaped piece's drop point on screen (above the finger on touch). */
+  px: number;
+  py: number;
+}
+
+/**
+ * SHAPES-1: the carried piece's target. A 1-cell rig and a 2x2 factory: 0.9.9's (dropCell at its size; a rig at
+ * rigRotAt's rot; no snap). A shaped piece: its rot as carried (a long rig's auto-aim or hand turn, edit.ts aim; a factory's
+ * hand turn), its box centred under the point (fingerLift above a finger), and on touch the snap to the nearest legal
+ * anchor within 1 cell (shapeEdit.ts snapAnchor). null: off the deck.
+ */
+export function carryTarget(L: BuildLayout, b: Run["build"], c: Carry, x: number, y: number): CarryTarget | null {
+  const def = ITEMS[c.def];
+  const ignore = c.src.from === "deck" ? c.uid : -1;
+  if (!shapedPiece(c.def)) {
+    const cell = dropCell(L, x, y, def.size);
+    if (!cell) return null;
+    const rot = isRig(c.def) ? rigRotAt(b, c, cell) : 0;
+    const chk = canPlaceItem(b, c.def, cell.x, cell.y, ignore);
+    return { ...cell, rot, ok: chk.ok, ...(chk.reason ? { reason: chk.reason } : {}), px: x, py: y };
+  }
+  // a long rig placed with no turn yet (a click on the deck with its card selected) aims itself where it lands, as B1's
+  // rigRotAt does for a 1-cell rig (aimCarry asks again with each rot set, so this runs once)
+  const rot = c.rot === undefined && !c.manual && isRig(c.def) ? aimCarry(L, b, { ...c, rot: 0 }, x, y) ?? 0 : carriedRot(c.def, c.rot);
+  const py = c.touch ? y - fingerLift(L, c.def, rot) : y;
+  const a = dropAnchor(L, x, py, c.def, rot);
+  if (!a) return null;
+  const snap = c.touch ? snapAnchor(b, c.def, a.x, a.y, rot, ignore) : null;
+  const at = snap ?? a;
+  const chk = canPlaceItem(b, c.def, at.x, at.y, ignore, rot);
+  return { x: at.x, y: at.y, rot, ok: chk.ok, ...(chk.reason ? { reason: chk.reason } : {}), px: x, py };
+}
+
+/** SHAPES-1 (S2): a carried shaped rig's auto-aim at a pointer (B1's, extended): the turn with the most hits where it
+ *  would land (aimShaped over carryTarget's anchors), unless turned by hand. */
+export function aimCarry(L: BuildLayout, b: Run["build"], c: Carry, x: number, y: number): number | undefined {
+  if (c.manual || !isRig(c.def) || !shapedPiece(c.def)) return undefined;
+  const ignore = c.src.from === "deck" ? c.uid : -1;
+  return aimShaped(b, c.def, c.rot ?? 0, (rot) => {
+    const t = carryTarget(L, b, { ...c, rot }, x, y);
+    return t ? { x: t.x, y: t.y } : null;
+  }, ignore);
+}
+
 /** Is (x, y) a belt tile of the build? */
 export function onBelt(run: Run, x: number, y: number): boolean {
   return occupancy(run.build)[key(x, y)].route >= 0;
@@ -356,16 +451,18 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
     completeTip("fit"); // EXPLAIN-1 (E5): a piece of gear fitted to a turret
     return true;
   }
-  const cell = dropCell(L, x, y, def.size);
-  if (!cell) return false;
-  const ignore = src.from === "deck" ? c.uid : -1;
-  const chk = canPlaceItem(b, c.def, cell.x, cell.y, ignore);
-  if (!chk.ok) {
-    ctx.invalid(chk.reason ?? "CAN'T PLACE THAT");
+  // SHAPES-1 (REQ-BFG-086 S2, S3): carryTarget, the preview's own target (a 1-cell rig and a 2x2 factory: 0.9.9's
+  // dropCell, canPlaceItem and rigRotAt, unchanged)
+  const tgt = carryTarget(L, b, c, x, y);
+  if (!tgt) return false;
+  const cell = { x: tgt.x, y: tgt.y };
+  if (!tgt.ok) {
+    ctx.invalid(tgt.reason ?? "CAN'T PLACE THAT");
     return false;
   }
-  // 0.6.2 BELTSIDE: a rig lands at the rotation its preview showed (B1)
-  const rot = isRig(c.def) ? rigRotAt(b, c, cell) : 0;
+  // 0.6.2 BELTSIDE: a rig lands at the rotation its preview showed (B1). SHAPES-1: a shaped piece at its carried rot
+  const rot = tgt.rot;
+  const shaped = shapedPiece(c.def);
   let uid = c.uid;
   if (src.from === "offer") {
     const r = buy(ctx, src.wagon, src.slot, { x: cell.x, y: cell.y, rot }); // placed first; a cargo twin merges into it
@@ -376,14 +473,16 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
     if (!it) return false;
     placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y, ...starField(starsOf(it)), ...rotField(c.def, rot) }); // moving never fuses
   } else if (src.from === "deck") {
-    const r = moveItem(b, uid, cell.x, cell.y);
+    // SHAPES-1 (S2): a shaped piece moves and turns at once (its new cells decide which of a factory's belts it keeps)
+    const r = shaped ? moveItem(b, uid, cell.x, cell.y, rot) : moveItem(b, uid, cell.x, cell.y);
     if (r.dropped) ctx.game.toast(`${r.dropped} BELT${r.dropped > 1 ? "S" : ""} CUT LOOSE`, C.yellow);
     const p = b.items.find((q) => q.uid === uid);
-    if (p && isRig(p.def)) setRot(p, rot);
+    if (p && isRig(p.def) && !shaped) setRot(p, rot);
   }
   const f = L.frame;
-  const px = footX(f, cell.x, cell.y, def.size) + (def.size * CELL) / 2;
-  const py = footY(f, cell.x, cell.y, def.size) + (def.size * CELL) / 2;
+  const box = shaped ? boxRect(f, cell.x, cell.y, footBox(def, rot).w, footBox(def, rot).h) : null; // SHAPES-1: its box's centre
+  const px = box ? box.x + box.w / 2 : footX(f, cell.x, cell.y, def.size) + (def.size * CELL) / 2;
+  const py = box ? box.y + box.h / 2 : footY(f, cell.x, cell.y, def.size) + (def.size * CELL) / 2;
   ctx.game.audio.play("place");
   ctx.select({ kind: "item", uid });
   ctx.touched();

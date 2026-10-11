@@ -100,6 +100,7 @@ import {
 } from "./turretPanel"; // 0.6.2s; 0.6.2rel: its panels are PanelText too
 import { touchSlotHint } from "./turretPanel"; // shoptap (REQ-BFG-035)
 import { sellFitted, sellPlaced, storeFitted } from "./actions"; // shoptap (D2, REQ-BFG-035): SELL on the carrier's panels
+import { canTurn, shapedPiece } from "./shapeEdit"; // SHAPES-1 (REQ-BFG-086 S2): a shaped factory's ROTATE
 import { tapRect } from "../../ui/ui"; // shoptap (D5): a finger's tap target around a drawn button
 import { tapPx } from "../../ui/tap"; // shoptap (D5)
 import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks"; // U2a (REQ-BFG-046): the new faces
@@ -667,7 +668,8 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
     sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${outputsAt(d.id, grade) || 1}`,
     body,
     variants: tightForms(body),
-    labels: sig ? (up ? [up] : []) : ["TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
+    // SHAPES-1 (REQ-BFG-086 S2): a shaped factory that turns (2x3, I3) has ROTATE first, as a rig's panel does
+    labels: sig ? (up ? [up] : []) : [...(shapedPiece(d.id) && canTurn(d.id) ? ["ROTATE"] : []), "TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
   };
 }
 
@@ -1612,7 +1614,11 @@ function baseSpec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
           { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid), ...(touch ? { optional: true } : {}) },
           ...sellIt,
         ]
-        : t.labels.length ? [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid), ...(touch ? { optional: true } : {}) }, ...sellIt] : [];
+        : t.labels.length ? [
+          // SHAPES-1 (REQ-BFG-086 S2): a shaped factory's ROTATE (its panel's first label)
+          ...(shapedPiece(d.id) && canTurn(d.id) ? [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }] : []),
+          { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid), ...(touch ? { optional: true } : {}) }, ...sellIt,
+        ] : [];
       return { icon: itemIcon(d.id), text: t, actions };
     }
     case "fitted": {

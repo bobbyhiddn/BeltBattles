@@ -10,6 +10,9 @@
 
 import { defOf, kx, ky, type Build } from "../../sim/deck";
 import { footX, footY } from "../../render/frame";
+import { rotOf } from "../../sim/deck"; // SHAPES-1 (REQ-BFG-086 R1)
+import { footBox } from "../../sim/foot"; // SHAPES-1
+import { boxRect } from "../../render/frame"; // SHAPES-1
 import { C } from "../../render/palette";
 import { frame, type G } from "../../render/pixel";
 import { button, type Rect } from "../../ui/ui";
@@ -43,8 +46,9 @@ export function placeBeltX(L: BuildLayout, b: Build, x: BeltX, side: number, tur
   // bb-0.8.6 (REQ-BFG-051 P5): and clear of the two fixed pack slots
   const keep: Rect[] = [L.bar, L.info, L.cargo, L.fight, L.reroll, ...L.cards, ...packRects(L), ...(L.foe ? [L.foe] : []), ...keepOut];
   const items = b.items.map((p) => {
-    const s = defOf(p).size;
-    return screenRect(L, { x: Math.round(footX(f, p.x, p.y, s)), y: Math.round(footY(f, p.x, p.y, s)), w: s * 12, h: s * 12 });
+    // SHAPES-1 (REQ-BFG-086 R1): each piece's turned footprint's box (a 1-cell rig's and a 2x2's: the size x size square)
+    const fb = footBox(defOf(p), rotOf(p)), r = boxRect(f, p.x, p.y, fb.w, fb.h);
+    return screenRect(L, { x: Math.round(r.x), y: Math.round(r.y), w: r.w, h: r.h });
   });
   const tiles = b.routes.flatMap((r, i) => (i === x.index ? [] : r.cells.map((k) => screenRect(L, { x: Math.round(footX(f, kx(k), ky(k))), y: Math.round(footY(f, kx(k), ky(k))), w: 12, h: 12 }))));
   let best: Rect | null = null, bestCost = Infinity;

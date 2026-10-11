@@ -22,6 +22,9 @@ export interface Region {
   onTap?: () => void;
   onDown?: (x: number, y: number) => void;
   block?: boolean; // swallow input even without handlers
+  /** SHAPES-1 (REQ-BFG-086 S3): a second finger may press it while the first is down (the floating ROTATE button a touch
+   *  carry shows; game.ts pointerExtra). */
+  second?: boolean;
 }
 
 export const inside = (r: Rect, x: number, y: number) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
