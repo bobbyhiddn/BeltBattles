@@ -6,6 +6,7 @@ import { GHOST_KEY, POOL_MAX, loadPool, pickGhost, saveGhost, standInFoe, type G
 import { chooseFoe, finishDay, ghostOf, startDusk } from "../src/game/day";
 import { battleSeed, buyOffer, newRun, reroll } from "../src/game/run";
 import { beginRoad, choicesFor, pickChoice } from "../src/game/events";
+import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad } from "../src/game/road"; // AZ-BUMP (the flip): the NPC day's fight
 import { startingBuild } from "../src/sim/ai";
 import { RIVALS, standInBuild, standInGhost } from "../src/sim/rivals";
 import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES } from "../src/sim/content";
@@ -140,7 +141,13 @@ describe("soft-lock sweep: 300 seeded 10-day runs against a filling pool", () =>
         run.shop.wagons.forEach((w, wi) => w.offers.forEach((o, si) => {
           if (!o.sold && run.gold >= o.price && rng.chance(0.5)) expect(buyOffer(run, wi, si).ok).toBe(true);
         }));
-        if (beginRoad(run)) {
+        // AZ-BUMP (the flip, NPC_DAY): the shipped day is a warlord fight at the fork (pickRoad(run, "event") is refused), then
+        // the day's event after it, won or lost (ON TO THE ROAD), then REFIT and the dusk: the sweep plays it, a tier and the
+        // fight's outcome drawn from the run's stream (a win's drop goes to cargo, so the invariants below see it)
+        leaveCaravan(run);
+        expect(pickRoad(run, (["easy", "medium", "hard"] as const)[rng.int(3)]).ok).toBe(true);
+        finishWarlord(run, rng.chance(0.6) ? 0 : 1, 25);
+        if (onToTheRoad(run) === "event") {
           const ok = choicesFor(run).map((c, i) => (c.blocked ? -1 : i)).filter((i) => i >= 0);
           expect(ok.length).toBeGreaterThan(0);
           expect(pickChoice(run, ok[rng.int(ok.length)]).ok).toBe(true);

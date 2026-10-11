@@ -16,6 +16,7 @@ import { beltUsed, canPlaceItem, key, kx, ky, moveItem, occupancy, placeItem, ty
 import { deckCost } from "../src/sim/rivals";
 import { buildCost } from "../src/net/validate";
 import { starField, starsOf, valueOf } from "../src/sim/stars";
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's Hard pick with NPC_DAY off
 
 const K = key;
 const STATS = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 0, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
@@ -162,12 +163,16 @@ describe("every source goes through gainModule", () => {
     expect(copies(run2, "chamber").map((c) => [c.stars, c.where])).toEqual([[2, "turret 1"]]);
   });
   it("Hard pick and the Matriarch's prize (1-star copies, then merged)", () => {
-    const run = setupWarlord("hard", { day: 3, outcome: 0 });
-    expect(pickPending(run.warlord)).toBe(true);
-    const part = run.warlord!.result!.parts[0];
-    gainModule(run, part);
-    expect(takePart(run, 0)).toBe(part);
-    expect(copies(run, part).map((c) => c.stars)).toEqual([2]);
+    // AZ-BUMP (the flip, NPC_DAY): with the NPC day on a Hard win rolls a drop instead of the pick (no parts on offer), so
+    // the pick's half runs with NPC_DAY off (0.9.7's path, kept for older records); the Matriarch's prize is the same either way
+    withNpcDay(() => {
+      const run = setupWarlord("hard", { day: 3, outcome: 0 });
+      expect(pickPending(run.warlord)).toBe(true);
+      const part = run.warlord!.result!.parts[0];
+      gainModule(run, part);
+      expect(takePart(run, 0)).toBe(part);
+      expect(copies(run, part).map((c) => c.stars)).toEqual([2]);
+    }, false);
     const m = setupWarlord("hard", { day: 8 });
     expect(m.warlord!.id).toBe("matriarch");
     const prize = m.warlord!.reward.parts[0];

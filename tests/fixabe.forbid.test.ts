@@ -10,10 +10,14 @@ import type { Build } from "../src/sim/deck";
 const holds = (b: Build, def: string): boolean => b.items.some((p) => p.def === def) || b.mods.some((m) => m.def === def);
 const CASES: [("furnace" | "weaver"), string][] = [["furnace", "temper"], ["weaver", "temper"], ["weaver", "dragchain"], ["furnace", "flak"]];
 
-/** The first day index the run without the knob takes `def` (PLAYER_DAYS: never), and the first day the two decks differ. */
+/** The first day index the run without the knob takes `def` (PLAYER_DAYS: never), and the first day the two decks differ.
+ *  AZ-BUMP (the flip, NPC_DAY; cap's ruling on run 4's Q5a): with NPC_DAY on a run takes a part by a buy or as a warlord's
+ *  drop (PlayerDay.road.drop), and the knob now declines a forbidden drop as it refuses a forbidden buy (player.ts
+ *  parNpcDay, only with tune.forbid set), so the first take is the first day of either. Was the first buy (furnace TEMPER
+ *  s7: the run with the knob got TEMPER as day 6's drop, "holds" on d6, before the knob declined drops). */
 function alignment(hero: "furnace" | "weaver", def: string, seed: number): { first: number; drift: number } {
   const base = playerRun(hero, PLAYER_DAYS, seed), ctrl = playerRun(hero, PLAYER_DAYS, seed, { tune: { forbid: def } });
-  const at = base.findIndex((d) => d.buys.some((x) => x.def === def));
+  const at = base.findIndex((d) => d.buys.some((x) => x.def === def) || d.road?.drop === def);
   const first = at < 0 ? PLAYER_DAYS : at;
   let drift = 0;
   while (drift < PLAYER_DAYS && JSON.stringify(ctrl[drift].build) === JSON.stringify(base[drift].build)) drift++;
@@ -40,7 +44,9 @@ describe("FIX-ABE E: a forbidden part is refused only when it would be taken", (
       const { first, drift } = alignment(hero, def, seed);
       expect(drift, `${hero} ${def} s${seed}: drifts before the first take (day ${first + 1})`).toBeGreaterThanOrEqual(first);
     }
-  }, 240_000);
+    // AZ-BUMP (the flip): 600 s (was 240 s), a host timeout under the 1.5-CPU quota (the GATE RULE; 240 s hit in run 5's
+    // group check: 32 par runs, each fighting a warlord every day), not the rule
+  }, 600_000);
 
   it("an empty forbid marks nothing: the run is the par run", () => {
     for (const hero of ["furnace", "weaver"] as const) for (const seed of [1, 2]) {

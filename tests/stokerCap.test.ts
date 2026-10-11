@@ -13,6 +13,7 @@ import { K, barge, item, withItem, withMod } from "./wave3.helpers";
 import { banned } from "./textRules";
 import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): 30 / speed
 import { effectAt } from "../src/sim/stars";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's STOKER ★3 beside the shipped one
 
 const PHONE = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
 const DESK = buildLayout(480, 270, false, 5).info;
@@ -67,11 +68,14 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
     // the Kiln stamps every 1.25 s into a gun that takes a load a second: at most 25% faster
     expect(stokeKeep(stoked(furnaceStart, 1)).size).toBe(0);
     expect(capLines(stoked(furnaceStart, 1))).toEqual([]);
-    for (const [s, stoke] of [[2, 0.44], [3, 0.7]] as const) {
+    // AZ-BUMP (the flip, LADDER_FIX): ★3 0.7 -> 0.85, the star-ladder pass's STOKER ★3 (src/sim/ladderFix.ts); the gun still
+    // takes 25% more, so ★3 keeps 0.25 / 0.85 of its stoke and its line is the same; off, bb-0.9.7's 0.7 (below)
+    for (const [s, stoke] of [[2, 0.44], [3, 0.85]] as const) {
       const keep = stokeKeep(stoked(furnaceStart, s));
       expect(keep.get(1)! * stoke, `★${s}`).toBeCloseTo(0.25, 2);
       expect(capLines(stoked(furnaceStart, s)), `★${s}`).toEqual(["THE KILN'S GUN IS FULL: IT WORKS ONLY 25% FASTER."]);
     }
+    expect(withLadderFix(() => stokeKeep(stoked(furnaceStart, 3)).get(1)!, false) * 0.7, "★3 off").toBeCloseTo(0.25, 2);
   });
 
   it("the battle plays what the panel says: the capped Kiln stamps about 25% faster than unstoked", () => {
@@ -90,13 +94,18 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
   });
 
   it("where the gun has room there is no line (the 8-tile Kiln, at every star); a full shared gun: NO FASTER", () => {
-    for (const s of [1, 2, 3]) expect(capLines(stoked(longKiln, s)), `8-tile ★${s}`).toEqual([]);
+    // AZ-BUMP (the flip, LADDER_FIX): the 8-tile Kiln's gun takes 75% more, so ★3's stoke 0.85 (was 0.7) is held to it and
+    // its panel says so; ★1-★2, and bb-0.9.7's ★3 (70%, LADDER_FIX off), have room: no line (was [1, 2, 3] all no line)
+    for (const s of [1, 2]) expect(capLines(stoked(longKiln, s)), `8-tile ★${s}`).toEqual([]);
+    expect(capLines(stoked(longKiln, 3)), "8-tile ★3").toEqual(["THE KILN'S GUN IS FULL: IT WORKS ONLY 75% FASTER."]);
+    expect(withLadderFix(() => capLines(stoked(longKiln, 3)), false), "8-tile ★3 off").toEqual([]);
     expect(capLines(stoked(lockjaw, 1, 1, 6))).toEqual(["THE KILN'S GUN IS FULL: IT WORKS NO FASTER."]);
     expect(capLines(stoked(lockjaw, 1, 8, 6))).toEqual(["THE TWIN MOULD'S GUN IS FULL: IT WORKS NO FASTER."]);
     expect(capLines(withMod(stoked(lockjaw, 1, 8, 6), 60, "calibrate", 0, 3))).toEqual([]); // CALIBRATION ★3 makes room
     // no STOKER, no line; a factory list without a capped one gives none
     expect(stokeKeep(furnaceStart()).size).toBe(0);
-    expect(stokeCapBlocks(runOf(stoked(longKiln, 3)), [1])).toEqual([]);
+    // AZ-BUMP (the flip, LADDER_FIX): ★2 (was ★3): with the star-ladder pass on, the 8-tile Kiln at ★3 is capped (above)
+    expect(stokeCapBlocks(runOf(stoked(longKiln, 2)), [1])).toEqual([]);
   });
 
   it("a stoked factory feeding two guns keeps the strictest gun's cap, as the battle paces it (I1's mutant cap-keep-max)", () => {

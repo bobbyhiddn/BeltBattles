@@ -25,13 +25,21 @@ const sig = (b: Battle) => ({
 });
 
 describe("HULL-1a: the switch", () => {
-  it("HULL_SCALE is off in bb-0.9.7; withHullScale turns it on for one call and puts it back, even on a throw", () => {
-    expect(HULL_SCALE).toBe(false);
-    expect(hullScaleRules()).toBe(false);
-    expect(withHullScale(() => hullScaleRules())).toBe(true);
-    expect(() => withHullScale(() => { throw new Error("x"); })).toThrow("x");
-    expect(hullScaleRules()).toBe(false);
+  // AZ-BUMP (the flip, HULL_SCALE): false -> true, the hull release ships the day's hull (was "HULL_SCALE is off in
+  // bb-0.9.7"). The put-back is checked from both sides: off for one call from the shipped on, and (the bb-0.9.7 form) on
+  // for one call from off, set through the setter
+  it("HULL_SCALE ships on (AZ-BUMP's flip); withHullScale sets it for one call and puts it back, even on a throw", () => {
+    expect(HULL_SCALE).toBe(true);
+    expect(hullScaleRules()).toBe(true);
+    expect(withHullScale(() => hullScaleRules(), false)).toBe(false);
+    expect(() => withHullScale(() => { throw new Error("x"); }, false)).toThrow("x");
+    expect(hullScaleRules()).toBe(true);
     expect(withHullScale(() => withHullScale(() => hullScaleRules(), false))).toBe(false);
+    withHullScale(() => {
+      expect(withHullScale(() => hullScaleRules())).toBe(true);
+      expect(() => withHullScale(() => { throw new Error("x"); })).toThrow("x");
+      expect(hullScaleRules()).toBe(false);
+    }, false);
   });
 });
 
@@ -70,7 +78,7 @@ describe("HULL-1a: M(d), in whole tenths", () => {
   });
 
   it("the switch off, or no day: n itself, untouched (no rounding)", () => {
-    expect(hullAt(1715, 10)).toBe(1715);
+    expect(withHullScale(() => hullAt(1715, 10), false)).toBe(1715); // AZ-BUMP (the flip, HULL_SCALE): off through the setter (it ships on)
     expect(withHullScale(() => hullAt(1715, undefined))).toBe(1715);
   });
 });
@@ -99,7 +107,9 @@ describe("HULL-1a: the day on Battle", () => {
     }
   });
 
-  it("the switch off, or no day: a battle and its record play exactly as before (M = 1, no day in the record)", () => {
+  it("the switch off, or no day: a battle and its record play exactly as before (M = 1, no day in the record)", () => withHullScale(() => {
+    // AZ-BUMP (the flip, HULL_SCALE): the switch ships on, so the test sets it off for itself (plain is the switch-off
+    // battle again, so the switch-on, no-day line still compares against the off world)
     for (const [x, y, seed] of [[a, b, 7], [b, a, 99], [heroStartBuild("foundry", 1), heroStartBuild("bastion", 101), 3]] as [Build, Build, number][]) {
       const plain = simulate(x, y, seed);
       const offDay = simulate(x, y, seed, undefined, undefined, 10); // the switch off, a day given
@@ -110,9 +120,10 @@ describe("HULL-1a: the day on Battle", () => {
       expect("day" in plain.record).toBe(false);
       expect(plain.sides.map((s) => s.hull.max)).toEqual([HEROES[x.hero].hull + x.hullBonus, HEROES[y.hero].hull + y.hullBonus]);
     }
-  });
+  }, false));
 
-  it("a replay: an old record (no day) plays as before with the switch on; a record on the day's hull keeps its day and replays exactly", () => {
+  it("a replay: an old record (no day) plays as before with the switch on; a record on the day's hull keeps its day and replays exactly", () => withHullScale(() => {
+    // AZ-BUMP (the flip, HULL_SCALE): the switch ships on, so the test sets it off for itself (its off record and replays)
     const rec = battleRecordFor(a, b, 7, undefined, 10); // the switch off: no day kept
     expect("day" in rec).toBe(false);
     const before = replay(rec);
@@ -128,7 +139,7 @@ describe("HULL-1a: the day on Battle", () => {
     expect(() => checkRecord({ ...r10, day: "x" } as never)).not.toThrow();
     expect(() => withHullScale(() => checkRecord({ ...r10, day: 0 }))).toThrow(/day/);
     expect(() => withHullScale(() => checkRecord({ ...r10, day: 2.5 }))).toThrow(/day/);
-  });
+  }, false));
 });
 
 describe("HULL-1a: BULKHEADS and SCRAP HALO under M", () => {
@@ -140,7 +151,7 @@ describe("HULL-1a: BULKHEADS and SCRAP HALO under M", () => {
     const withRune: Build = { ...base, runes: [{ id: "bulkheads" }] };
     const turrets = new Battle(base, base, 1).sides[0].turrets.length;
     expect(turrets).toBeGreaterThan(0);
-    expect(maxOf(withRune, 5) - maxOf(base, 5)).toBe(n * turrets); // off
+    expect(withHullScale(() => maxOf(withRune, 5) - maxOf(base, 5), false)).toBe(n * turrets); // off (AZ-BUMP, the flip: HULL_SCALE off through the setter)
     for (const d of [1, 2, 5, 10]) {
       const gain = withHullScale(() => maxOf(withRune, d) - maxOf(base, d));
       expect(gain).toBe(scaleTenths(n, dayMulTenths(d)) * turrets);
@@ -154,7 +165,7 @@ describe("HULL-1a: BULKHEADS and SCRAP HALO under M", () => {
     const plain: Build = { ...merged, runes: [] };
     const pieces = mergedPieces(merged);
     expect(pieces).toBeGreaterThanOrEqual(1);
-    expect(maxOf(merged, 2) - maxOf(plain, 2)).toBe(n * pieces); // off
+    expect(withHullScale(() => maxOf(merged, 2) - maxOf(plain, 2), false)).toBe(n * pieces); // off (AZ-BUMP, the flip: HULL_SCALE off through the setter)
     expect(withHullScale(() => maxOf(merged, 2) - maxOf(plain, 2))).toBe(80 * pieces);
     expect(withHullScale(() => maxOf(merged, 10) - maxOf(plain, 10))).toBe(n * 6 * pieces);
     expect(withHullScale(() => maxOf(merged) - maxOf(plain))).toBe(n * pieces); // no day: M = 1
@@ -224,7 +235,8 @@ describe("HULL-1a: the dark wind as a share of each hull's own max", () => {
   });
 
   it("the switch off, or no day: 0.9.7's flat wind, the same amount on both hulls (#368's test holds)", () => {
-    for (const make of [() => new Battle(silent("furnace", 1), silent("weaver", 101), 7, undefined, 10), () => withHullScale(() => new Battle(silent("furnace", 1), silent("weaver", 101), 7))]) {
+    // AZ-BUMP (the flip, HULL_SCALE): the day-10 battle is the switch-off one, set off through the setter (it ships on)
+    for (const make of [() => withHullScale(() => new Battle(silent("furnace", 1), silent("weaver", 101), 7, undefined, 10), false), () => withHullScale(() => new Battle(silent("furnace", 1), silent("weaver", 101), 7))]) {
       const bt = make();
       while (!bt.over && bt.t < WIND_START + 6) {
         bt.step();

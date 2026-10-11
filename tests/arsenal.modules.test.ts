@@ -13,6 +13,8 @@ import { pct } from "../src/sim/pct"; // NUM-1 (REQ-BFG-047): the sim's one % ru
 import { batchGaps, factoryBench, factoryLight, factoryOut, gantryBench, gantryWeaver, stamps } from "./arsenal.bench"; // 0.6.1c
 import type { Payload } from "../src/sim/battle";
 import { AMMO_SPACING, BELT_SPEED, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): secPer, a factory's cycle 30 / speed
+import { TICK } from "../src/sim/content"; // AZ-BUMP (the flip, LADDER_FIX): the walk's stamp to chamber is whole ticks (P13)
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): SLAG POT's walk with the switch off
 import { effectAt, outputsAt, starsOf } from "../src/sim/stars";
 import { overclocked } from "../src/sim/overclock";
 import { routeProblems } from "../src/game/routeCheck";
@@ -433,7 +435,12 @@ describe("0.6.1c: the six factories' special rules", () => {
     const press = (g: [string, number, number, number][]) => est(factoryBench("press", 1, { only: true, gates: g }), 0).time;
     expect(press([["grease", 5, 4, 1]])).toBeLessThan(press([])); // a plain slug on the same belt does feel them
     expect(press([["brake", 5, 4, 1]])).toBeGreaterThan(press([]));
-    expect(none.est).toBeCloseTo(press([]) / 0.75, 9);
+    // AZ-BUMP (the flip, LADDER_FIX): P13, the walk rides tick by tick, so stamp to chamber is whole ticks and slag's 0.75x
+    // holds within a tick: slag 239 ticks (3.983 s), the plain slug 179 (2.983 s; / 0.75 = 238.7 ticks); was exactly the
+    // plain slug's / 0.75 (the half cells' seconds), as it still is with LADDER_FIX off
+    expect([none.est, press([])]).toEqual([239 * TICK, 179 * TICK]);
+    expect(Math.abs(none.est - press([]) / 0.75)).toBeLessThan(TICK);
+    withLadderFix(() => expect(est(factoryBench("slagpot", 1, { only: true, gates: [] }), 0).time).toBeCloseTo(press([]) / 0.75, 9), false);
     expect([1, 2, 3].map((s) => factoryOut("slagpot", s).bases)).toEqual([7, 12, 15].map((v) => [10 * v])); // NUM-1: x10 (was 7 / 12 / 15)
   });
 

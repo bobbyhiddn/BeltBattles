@@ -15,10 +15,10 @@ import { setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
 import { newRun, type Run } from "../src/game/run";
 
-afterEach(() => {
-  setNpcDay(false);
-  setHullScale(false);
-  setLadderFix(false);
+afterEach(() => { // the shipped values (AZ-BUMP's flip; were false); place() sets every switch itself
+  setNpcDay(true);
+  setHullScale(true);
+  setLadderFix(true);
 });
 
 /** A run around `board` on `day` (harness/lastChance.ts boardRun's form: cargo empty, uids after the board's). */

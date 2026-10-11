@@ -8,6 +8,7 @@ import { PLATE_STEP, PLAYABLE_HEROES, REF_DAYS, heroRefBuild, heroStartBuild, ra
 import { isRaceHero } from "../src/sim/races/data";
 import { refHull } from "../src/sim/races/refBuilds";
 import { buildCost, expectLegal, maxGoldByDay } from "./races.helpers";
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): 0.9.7's gold beside the shipped
 
 // races rulings 2 and 3 (amended by Step A): one entry point for every hero, and every reference
 // build is a deck a player could own that day (whole plating on the nearest-plate ramp, cost
@@ -77,7 +78,10 @@ describe("heroBuilds: one entry point for all six heroes", () => {
 
 describe("heroBuilds: honest budget (ruling 3)", () => {
   it("the day budget matches ref/async validate.ts: 8, 17, 27 ... 119", () => {
-    expect(DAYS.map(maxGoldByDay)).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
+    // AZ-BUMP (the flip, HULL_SCALE): 91 105 119 -> 92 108 125 on days 8-10: HULL_SCALE's gold (hullScale.ts incomeOn,
+    // 6 + min(day, 10) + 2 on a win, through content.ts incomeFor). Off, 0.9.7's 8, 17, 27 ... 119
+    expect(DAYS.map(maxGoldByDay)).toEqual([8, 17, 27, 38, 50, 63, 77, 92, 108, 125]);
+    expect(withHullScale(() => DAYS.map(maxGoldByDay), false)).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
   });
 
   it("all 60 reference builds are legal decks a player could own that day", () => {

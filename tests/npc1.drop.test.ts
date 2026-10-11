@@ -1,5 +1,6 @@
 // NPC-1 (REQ-BFG-078): the drops (src/sim/npcDay.ts; road.ts warlordDrop, warlordDropTable, expectedRoadValue). The switch
-// is NPC_DAY (off); the pure drop functions don't read it, and every test that turns it on does so with withNpcDay.
+// is NPC_DAY (on since AZ-BUMP's flip; was off); the pure drop functions don't read it, and every test that turns it on does
+// so with withNpcDay.
 import { describe, expect, it } from "vitest";
 import { HEROES, ITEMS, RUN_DAYS } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
@@ -27,17 +28,19 @@ function everyDeck(): { id: RivalId; tier: Difficulty; day: number; deck: Build 
 }
 
 describe("NPC-1 the switch (REQ-BFG-077, REQ-BFG-078)", () => {
+  // AZ-BUMP (the flip, NPC_DAY): the switch ships on (NPC_DAY false -> true; the title keeps its key and names the old
+  // state), so the default reads true and withNpcDay(fn, false) is the off path; withNpcDay still puts it back even on a throw
   it("NPC_DAY is off in this rules version, and withNpcDay puts it back even on a throw", () => {
-    expect(NPC_DAY).toBe(false);
-    expect(npcDayRules()).toBe(false);
-    expect(withNpcDay(() => npcDayRules())).toBe(true);
-    expect(npcDayRules()).toBe(false);
-    expect(() => withNpcDay(() => { throw new Error("x"); })).toThrow("x");
-    expect(npcDayRules()).toBe(false);
-    setNpcDay(true);
+    expect(NPC_DAY).toBe(true);
+    expect(npcDayRules()).toBe(true);
     expect(withNpcDay(() => npcDayRules(), false)).toBe(false);
     expect(npcDayRules()).toBe(true);
+    expect(() => withNpcDay(() => { throw new Error("x"); }, false)).toThrow("x");
+    expect(npcDayRules()).toBe(true);
     setNpcDay(false);
+    expect(withNpcDay(() => npcDayRules())).toBe(true);
+    expect(npcDayRules()).toBe(false);
+    setNpcDay(true); // the shipped value (AZ-BUMP's flip)
   });
 });
 

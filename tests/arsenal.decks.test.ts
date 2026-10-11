@@ -15,6 +15,7 @@ import { hitsOfRig, rigHits, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates } from "../src/sim/beltside";
 import { bench, busy, factoryBench, gantryBench } from "./arsenal.bench";
 import { starCell, starRows, type StarRow } from "./starRows";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's bb-0.9.7 tripwire row
 
 const par = JSON.parse(readFileSync(new URL("./fixtures/golden-060/par.json", import.meta.url), "utf8")) as { decks: Record<string, Build> };
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
@@ -135,7 +136,11 @@ const line = (c: Case, r: DeckRow[]) => `${c.id} | ${c.deck} | ${c.opp} | ${r.ma
 describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of the damage the deck deals before it falls (20 seeds, the opponent's KO lifted)", () => {
   for (const c of CASES) {
     it(`${c.id} (${c.deck} vs ${c.opp})`, () => {
-      const r = deckRows(c);
+      // AZ-BUMP (the flip, LADDER_FIX): the bb-0.9.7 tripwire keeps its point with LADDER_FIX off until S7 turns it into a
+      // regression test of the fixed ladder. Only its row (OVERDRIVE on the bench) is fought with the switch off; every other
+      // row keeps the shipped switch
+      const trip = RULES_VERSION === "bb-0.9.7" && c.id === "overdrive" && c.deck === "bench" && c.opp === WEAVER;
+      const r = trip ? withLadderFix(() => deckRows(c), false) : deckRows(c);
       const fall = KNOWN_FALLS.find((k) => k.id === c.id);
       if (fall) console.log(`KNOWN FALL (oracle ${fall.oracle}, ${fall.steps.join(", ")}: ${fall.cause}) ${line(c, r)}`);
       else if (process.env.BB_TABLES) console.log(`DECK ${line(c, r)}`);

@@ -20,14 +20,16 @@ import { unlockDay } from "../src/game/wares";
 import { firstOfferDay } from "../src/sim/harness/synergy";
 import { randomBuild } from "../src/sim/harness/gen";
 import { Rng } from "../src/core/rng";
-import { RATING_CURVE, SUSTAIN_FOE, fightTime, foeOn, rateDeck, sustainKeyword, type RateOut } from "../src/sim/deckRating";
+import { RATING_CURVE, SUSTAIN_FOE, SUSTAIN_FOE_HS, fightTime, foeOn, rateDeck, sustainKeyword, type RateOut } from "../src/sim/deckRating";
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): SUSTAIN_FOE, the switch-off table, with HULL_SCALE off
+import { boughtCost } from "../src/sim/harness/standins"; // AZ-BUMP (the flip): a deck with runes valued as bought
 import {
   HERO_SUSTAIN, SHIELD_MAX, SUSTAIN_LEAN, SUSTAIN_MAX, busiestRoute, playerBuild, playerRun, quietTurret, secondSource, sustainPieces,
   sustainRule, type PlayerOffer,
 } from "../src/sim/harness/player";
-import { RIVAL_IDS, rivalBuild, rivalLoadout, standInBuild } from "../src/sim/rivals";
-import { LUCKS, PLANS } from "../src/sim/rivalBuilds";
-import { RUNE_LIST, isSustainRune, runeOffer, runeProblem } from "../src/sim/runes";
+import { RIVAL_IDS, maxGoldByDay, rivalBuild, rivalLoadout, standInBuild } from "../src/sim/rivals";
+import { LUCKS, PLANS, roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP: the road allowance
+import { RUNE_LIST, isSustainRune, runeGrants, runeOffer, runeProblem } from "../src/sim/runes";
 import type { SideStats } from "../src/sim/battle";
 
 const HEROES4: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
@@ -130,8 +132,15 @@ describe("BOTS-X step 2: the bots' sustain value (deckRating.ts, SUSTAIN-1 4.8 r
     expect(SUSTAIN_FOE[0]).toEqual({ fight: 29.25, burn: 0.25, hit: 74.5 });
     expect(SUSTAIN_FOE[4]).toEqual({ fight: 18.56, burn: 0.49, hit: 88.0 });
     expect(SUSTAIN_FOE[9]).toEqual({ fight: 13.41, burn: 0.719, hit: 113.1 });
-    expect(foeOn(0)).toBe(SUSTAIN_FOE[0]);
-    expect(foeOn(14)).toBe(SUSTAIN_FOE[9]);
+    // AZ-BUMP (the flip, HULL_SCALE): foeOn reads PAR-AZ's all-on table, SUSTAIN_FOE_HS (day 1 29.25 / 0.25 / 74.5 -> 29.68 /
+    // 0.25 / 70.5), the fights on the day's hull; SUSTAIN_FOE above is the switch-off table, read with HULL_SCALE off
+    expect(foeOn(0)).toBe(SUSTAIN_FOE_HS[0]);
+    expect(foeOn(0)).toEqual({ fight: 29.68, burn: 0.25, hit: 70.5 });
+    expect(foeOn(14)).toBe(SUSTAIN_FOE_HS[9]);
+    withHullScale(() => {
+      expect(foeOn(0)).toBe(SUSTAIN_FOE[0]);
+      expect(foeOn(14)).toBe(SUSTAIN_FOE[9]);
+    }, false);
     const src = readFileSync(new URL("../src/sim/deckRating.ts", import.meta.url), "utf8");
     for (const s of ["tools/sustainFoe.ts", "bx e1e1004", 'hashSeed("botsx-foe"', "2026-10-05 06:14:33Z", "--k 6 --seeds 4", "nice -n 19"]) expect(src, s).toContain(s);
     // FLIP-X2: and the re-run that wrote today's table, its branch, commit and times
@@ -176,7 +185,8 @@ describe("BOTS-X step 2: the bots' sustain value (deckRating.ts, SUSTAIN-1 4.8 r
         expect(o.sustain).toBeUndefined();
       }
     }, false);
-  });
+    // AZ-BUMP (the flip): 600 s, 30 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE), not the rule
+  }, 600_000);
 });
 
 describe("BOTS-X step 2: the bots' rules (player.ts, SUSTAIN-1 4.8 rules 2-6; the switch on)", () => {
@@ -258,7 +268,11 @@ describe("BOTS-X step 2: the bots' rules (player.ts, SUSTAIN-1 4.8 rules 2-6; th
           expect(p.length, `${hero} ${seed} d${d.day}`).toBeLessThanOrEqual(SUSTAIN_MAX);
           expect(p.filter((x) => x.kw === "SHIELD").length, `${hero} ${seed} d${d.day}`).toBeLessThanOrEqual(SHIELD_MAX);
           if (d.day < SUSTAIN_FIRST_DAY) expect(p.filter((x) => isSustain(x.def)), `${hero} ${seed} d${d.day}`).toEqual([]);
-          expect(validateBuild(d.build, d.day).errors, `${hero} ${seed} d${d.day}`).toEqual([]);
+          // AZ-BUMP (the flip, NPC_DAY): the par player fights the Medium warlord every day, so its deck holds the road's gold and
+          // drops, which the strict (shop-only) validator doesn't budget (furnace 1 d2: 21 g of 17): every other check as before,
+          // and the deck as bought within the day's par budget (PlayerDay.budget: maxGoldByDay + the runes' gold + the road's)
+          expect(validateBuild(d.build, d.day).errors.filter((e) => !e.startsWith("budget:")), `${hero} ${seed} d${d.day}`).toEqual([]);
+          expect(boughtCost(d.build), `${hero} ${seed} d${d.day}`).toBeLessThanOrEqual(d.budget);
         }
         // one seed builds one deck: the traced run above, the cached run and a second call are the same decks
         const again = playerRun(hero, 10, seed).map((d) => d.build);
@@ -268,7 +282,8 @@ describe("BOTS-X step 2: the bots' rules (player.ts, SUSTAIN-1 4.8 rules 2-6; th
       expect(picks).toBeGreaterThan(0);
       expect(held).toBeGreaterThan(0);
     });
-  }, 120_000); // FLIP-X2: heavier with the switches on (every par dawn takes a rune too): the whole-suite runs read 16.7 s at
+  }, 600_000); // AZ-BUMP (the flip): 600 s, 120 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE; the
+  // par runs fight a warlord every day), not the rule. FLIP-X2: heavier with the switches on (every par dawn takes a rune too): the whole-suite runs read 16.7 s at
   // step 1b, 21.9 s at step 2, 25.4 s at 3c; 26 s at host load 4 and 42-47 s at 11-15 here, against the global 30 s
   // (vite.config.ts). Its own limit, as 0.8.8 (bccf33f) gave two heavy tests: no assertion, input or check changed
 
@@ -297,7 +312,8 @@ describe("BOTS-X step 2: the bots' rules (player.ts, SUSTAIN-1 4.8 rules 2-6; th
         for (const p of b.items.filter((x) => x.def === "mendpress")) expect(b.routes.filter((r) => r.factory === p.uid).every((r) => r.join === undefined)).toBe(true);
       }
     });
-  });
+  }, 120_000); // AZ-BUMP (the flip): its par runs (three dusk decks and 4 heroes x 6 seeds to day 10; 38.4 s when the test
+  // above left them uncached, 5 ms cached), longer with the NPC day; a host timeout under the 1.5-CPU quota, not the rule
 
   it("off: the par runs hold no sustain piece and the cache keeps the two worlds apart", () => {
     // FLIP-X2 (REQ-BFG-069): the switch is on by default, so off is withSustain(fn, false) and the default run is the on run
@@ -325,7 +341,12 @@ describe("BOTS-X step 3: the captains (rivalBuilds.ts RivalPlan.sustain; SUSTAIN
             expect(b.mods.filter((m) => m.turret === 0 && ITEMS[m.def].kind === "mod").map((m) => m.def).sort()).toEqual(["spallcatcher", "wardbell"]);
           }
         }
-        expect(validateBuild(standInBuild("karsk", d), d).errors, `karsk d${d}`).toEqual([]);
+        // AZ-BUMP (the flip, NPC_DAY): his dusk deck may also hold REFIT-AZ's road additions, which the strict validator's
+        // budget (maxGoldByDay + the runes' dawn gold) doesn't hold (karsk d2: 22 g of 17): every other check as before, and the
+        // deck as bought within the day's gold + its runes' dawn gold + the dusk deck's road allowance, as captains.luck's R1
+        const s = standInBuild("karsk", d);
+        expect(validateBuild(s, d).errors.filter((e) => !e.startsWith("budget:")), `karsk d${d}`).toEqual([]);
+        expect(boughtCost(s), `karsk d${d}`).toBeLessThanOrEqual(maxGoldByDay(d) + runeGrants(s.runes, d).gold + roadAllowance(d, "dusk"));
       }
       for (const def of PLANS.karsk.synergy!.filter((x) => x !== "shieldwall")) expect(standInBuild("karsk", 9).items.some((p) => p.def === def) || standInBuild("karsk", 9).mods.some((m) => m.def === def), def).toBe(true);
     });

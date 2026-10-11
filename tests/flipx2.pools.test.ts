@@ -50,9 +50,13 @@ describe("FLIP-X2: the regenerated pools hold their runes", () => {
       expect(s.rules, at).toBe(RULES_VERSION);
       expect(s.build.runes?.length, at).toBe(s.day);
       expect(noDormant(s.build), at).toEqual([]);
-      expect(validateUpload(s.build, s.day, s.rules), at).toEqual({ ok: true, errors: [] });
+      // AZ-BUMP (the flip, NPC_DAY; N3 a48010b): a seed ghost carries its run's road log, and the upload check counts its
+      // drops through it (ctx.road), as the seed step passes it (server/seed.ts:52)
+      expect(validateUpload(s.build, s.day, s.rules, s.road ? { road: s.road } : {}), at).toEqual({ ok: true, errors: [] });
     }
-  });
+    // AZ-BUMP (the flip): 600 s, generateSamplePool builds the whole seed pool (par runs with a warlord fight every day); a
+    // host timeout under the 1.5-CPU quota (30 s hit in run 4's shard), not the rule, as 4af1683 gave the other two
+  }, 600_000);
 
   it("every captain's deck holds exactly `day` runes on days 1-10: its CAPTAIN_RUNES list's first `day`", () => {
     const ids = RIVAL_IDS.filter((id) => CAPTAIN_RUNES[id]);

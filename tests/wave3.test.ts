@@ -182,7 +182,11 @@ describe("wave3: the per-run draw (REQ-BFG-022 part 2)", () => {
     });
     expect(DORMANT_ITEMS.has).toBe(own);
     expect(Object.prototype.hasOwnProperty.call(DORMANT_ITEMS, "has")).toBe(false);
-  });
+    // AZ-BUMP (the 1.5-CPU quota, the GATE RULE; no switch): 600 s (was the 30 s default), a host timeout, not the rule.
+    // 11.7 s in S1's whole suite, 15.9 s in AZ-BUMP run 4's switch-on shard, 78.5 s and 68.0 s in run 7 (shard s3-1, then
+    // alone). Run 7's variants (the tree with ONE switch off, the four at once) read 41.7-44.5 s each: no switch makes it
+    // slower
+  }, 600_000);
 
   it("today's rule as a ware map: all 70, the ARCANE DEALER from day 3, legendaries from day 4 (two steps)", () => {
     // 0.8.0 I1 M2: v070-rc's catalogue, wave 3 off. FLIP-X2: in D1's world (inD1: with the switch on the map also holds the

@@ -422,5 +422,10 @@ describe("warlord difficulty ladder, day by day (reference = the FURNACE par fie
     // eslint-disable-next-line no-console
     console.log(lines.join("\n"));
     expect(bad, bad.join("\n")).toEqual([]);
-  });
+    // AZ-BUMP (the flip, LADDER_FIX): 600 s (was the 30 s default), a host timeout under the 1.5-CPU quota (the GATE RULE),
+    // not the rule. LADDER_FIX makes these 1,080 battles about 1.2x slower (in battle its per-tick code is OVERDRIVE's
+    // ride-keep walk, battle.ts rideKeepAt): AZ-BUMP run 7's probe read 6.6-6.9 s with every switch on and 5.5 s with
+    // LADDER_FIX off; NPC_DAY and HULL_SCALE moved it by 0.1 s at most (these fights pass no day). 7.4 s in S1's whole
+    // suite, 12.5 s in run 4's switch-on shard, 33 s and 50 s in run 6 (the quota's cgroup saturated by other jobs)
+  }, 600_000);
 });

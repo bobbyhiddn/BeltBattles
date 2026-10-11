@@ -8,6 +8,7 @@ import { hardParts, pickRoad, topParts, warlordDeckDay, warlordReward } from "..
 import { newRun } from "../src/game/run";
 import { HEROES, ITEMS, RUN_DAYS } from "../src/sim/content";
 import { rivalBuild, rivalDays, type RivalId } from "../src/sim/rivals";
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's Hard pick with NPC_DAY off
 
 const SEEDS = Array.from({ length: 200 }, (_, i) => 3 + i * 7717);
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
@@ -18,7 +19,10 @@ function deckDefs(id: RivalId, d: number): Set<string> {
 }
 
 describe("every Hard pick offers 2 parts (0.6.0c)", () => {
-  it("200 seeds x days 1-10, sabotaged and not: 2 distinct real parts, no signature factory, no supply", () => {
+  // AZ-BUMP (the flip, NPC_DAY): with the NPC day on a Hard win rolls a drop instead (npcDay.ts; warlordReward offers no
+  // parts), so the pick of 2 is the switch-off path, kept for older records: the tests that take it through pickRoad or
+  // warlordReward run with NPC_DAY off (hardParts itself reads no switch)
+  it("200 seeds x days 1-10, sabotaged and not: 2 distinct real parts, no signature factory, no supply", () => withNpcDay(() => {
     let checked = 0, filled = 0, matriarch = 0;
     for (const seed of SEEDS) {
       for (let day = 1; day <= RUN_DAYS; day++) {
@@ -64,9 +68,9 @@ describe("every Hard pick offers 2 parts (0.6.0c)", () => {
     expect(checked).toBeGreaterThan(3000);
     expect(matriarch).toBeGreaterThan(0);
     expect(filled).toBeGreaterThan(0);
-  });
+  }, false));
 
-  it("LONGTOOTH day 1 (TUNE-C plans; before them HIGHSPIRE day 1 and OLD BULWARK days 1-2) is filled from the captain's next decks", () => {
+  it("LONGTOOTH day 1 (TUNE-C plans; before them HIGHSPIRE day 1 and OLD BULWARK days 1-2) is filled from the captain's next decks", () => withNpcDay(() => {
     expect(topParts(rivalBuild("longtooth", 1), 2)).toEqual(["whetstone"]);
     for (const [id, day] of [["longtooth", 1]] as [RivalId, number][]) {
       const deck = rivalBuild(id, day);
@@ -82,7 +86,7 @@ describe("every Hard pick offers 2 parts (0.6.0c)", () => {
       expect(r.parts[1]).toBe(next[0]);
       expect(hardParts(id, deck, day)).toEqual(r.parts);
     }
-  });
+  }, false));
 
   it("a deck with 2 or more giveable parts is offered exactly its own top 2 (no fill)", () => {
     for (const id of ["sparkfang", "longtooth", "silkshade", "emberlyn", "highspire", "bulwark"] as RivalId[]) {

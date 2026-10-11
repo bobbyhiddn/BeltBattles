@@ -25,9 +25,9 @@ const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0
 const HEROS = (Object.keys(HEROES) as HeroId[]).filter((h) => heroGateProblem(RULES_VERSION, h) === null); // bb-0.9.7's
 const PLATE = ITEMS.plating.supply!.hull!;
 
-afterEach(() => {
-  setNpcDay(false);
-  setHullScale(false);
+afterEach(() => { // the shipped values (AZ-BUMP's flip; were false): a test that reads a switch off sets it off itself
+  setNpcDay(true);
+  setHullScale(true);
 });
 const both = (on = true): void => {
   setNpcDay(on);
@@ -72,6 +72,7 @@ describe("HULL-1a (h): the server with both switches on", () => {
       expect(d.roadLog).toEqual([{ day: 1, tier: "hard", outcome: "win", drop: expect.any(String) }]);
       return validateUpload(d.build, d.day, RULES_VERSION, { seed: d.runSeed, road: d.roadLog }).errors;
     };
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): the first verdict is hull1-base's, HULL_SCALE off (it ships on)
     setNpcDay(true);
     expect(verdict()).toEqual([]);
     setHullScale(true);

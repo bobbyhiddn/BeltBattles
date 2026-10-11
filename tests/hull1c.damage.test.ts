@@ -50,7 +50,8 @@ describe("HULL-1c: D(d), the damage day term", () => {
   });
 
   it("a battle's D: only on the day's hull (HULL_SCALE on and a day); a BURN tick lands x D, the carry kept per hull", () => {
-    expect(new Battle(silent("furnace", 1), silent("weaver", 101), 7, undefined, 10).dmgTenths).toBe(10);
+    // AZ-BUMP (the flip, HULL_SCALE): the switch-off battle, off through the setter (the switch ships on)
+    expect(withHullScale(() => new Battle(silent("furnace", 1), silent("weaver", 101), 7, undefined, 10), false).dmgTenths).toBe(10);
     expect(withHullScale(() => new Battle(silent("furnace", 1), silent("weaver", 101), 7)).dmgTenths).toBe(10);
     for (const day of [1, 2, 7, 10]) {
       const bt = withHullScale(() => new Battle(silent("furnace", 1), silent("weaver", 101), 7, undefined, day));
@@ -72,7 +73,8 @@ describe("HULL-1c: gold per day keeps growing to day 10 (with the switch on)", (
       for (let d = 1; d <= 10; d++) expect(simMaxGold(d)).toBe(maxGoldByDay(d));
     });
     expect(START_GOLD).toBe(8);
-    expect(Array.from({ length: 10 }, (_, i) => incomeFor(i + 1, true))).toEqual([9, 10, 11, 12, 13, 14, 14, 14, 14, 14]);
-    expect(Array.from({ length: 10 }, (_, i) => maxGoldByDay(i + 1))).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
+    // AZ-BUMP (the flip, HULL_SCALE): off through the setter (the switch ships on): 0.9.7's income and purse
+    expect(withHullScale(() => Array.from({ length: 10 }, (_, i) => incomeFor(i + 1, true)), false)).toEqual([9, 10, 11, 12, 13, 14, 14, 14, 14, 14]);
+    expect(withHullScale(() => Array.from({ length: 10 }, (_, i) => maxGoldByDay(i + 1)), false)).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
   });
 });

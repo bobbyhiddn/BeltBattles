@@ -134,7 +134,12 @@ describe("the upload check (validateUpload, the player mode)", () => {
       // FLIP-X2: the driver's decks hold their dawns' runes (tests/uploadDriver.ts), which need bb-0.8.7: checked and
       // encoded under RULES_VERSION, the rules after HEROES_RULES that carry the four heroes and the runes (was
       // HEROES_RULES, bb-0.8.0, which now refuses any deck with runes at the rules gate)
-      expect(validateUpload(d.build, d.day, RULES_VERSION), `${d.hero} #${d.seed} d${d.day}`).toEqual({ ok: true, errors: [] });
+      // AZ-BUMP (the flip, NPC_DAY): with the run's road log and seed, as the upload carries them (Dusk.roadLog / runSeed: day.ts
+      // ghostOf's snapshot.road and seed; server/app.ts passes both, with its LAST CHANCE): the player mode counts a deck's
+      // drops only through its road log (validate.ts roadDropValue). With NPC_DAY off the dusk has none: as before
+      const seed = (d.runSeed ?? 0) >>> 0;
+      const ctx = { ...(seed ? { seed } : {}), ...(d.lastChance ? { lastChance: d.lastChance } : {}), ...(d.roadLog ? { road: d.roadLog } : {}) };
+      expect(validateUpload(d.build, d.day, RULES_VERSION, ctx), `${d.hero} #${d.seed} d${d.day}`).toEqual({ ok: true, errors: [] });
       const s = snap(d.hero, d.day, RULES_VERSION, d.build);
       expect(decodeSnapshot(encodeSnapshot(s))).toEqual(checkSnapshot(s));
     }
@@ -271,7 +276,9 @@ describe("the server and the client, both ways", () => {
     expect(new Set(pool.map((p) => p.hero))).toEqual(new Set(["furnace", "weaver", "foundry", "bastion"]));
     const bad = { ...pool[0], rules: OLD_RULES, hero: "foundry", build: heroRefBuild("foundry", pool[0].day) };
     expect(() => checkPool([...pool, bad])).toThrow(/snapshot\.hero: rules bb-0\.6\.2 accept only FURNACE, WEAVER, not FOUNDRY/);
-  });
+    // AZ-BUMP (the flip): generateSamplePool's race decks are par runs, longer with the NPC day (a warlord battle every day);
+    // a host timeout under the 1.5-CPU quota, not the rule (was the 30 s default)
+  }, 600_000);
 
   it("the player's own ghosts keep every hero: ghostOf a FOUNDRY run is a snapshot of this build's rules (bb-0.8.0 since the RC, bb-0.8.3 since BELTS), which the strict decoder now accepts", () => {
     const g = ghostOf(newRun("foundry", 3), 0, "p1");

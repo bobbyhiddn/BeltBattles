@@ -23,6 +23,7 @@ import { Shopper } from "../src/sim/harness/shopper";
 import { starsOf } from "../src/sim/stars";
 import { barge, bench, factoryBench, SEED } from "./arsenal.bench";
 import { POOL_NATIVE } from "./beltside.helpers";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): P13's walk with the switch off, and its tripwire
 
 const st = (s: number) => (s > 1 ? { stars: s } : {});
 /** A rig at (x, y) whose FIRST arrow points in absolute direction `dir` (0 up, 1 east, 2 down, 3 west). */
@@ -172,10 +173,17 @@ describe("P13: BRAKE SHOE (Y7b2, the flip: a pure speed rig at every star, no fl
     }
     // Y7b2 (the flip): each star slows the belt more, so stamp to chamber takes longer (was: the same seconds at every star)
     const t = [1, 2, 3].map((s) => walkRoute(bench([["brake", 4, 3, s]]), 0).estimate.time);
-    expect(t.map((x) => +x.toFixed(9))).toEqual([4.2, 5, 6.333333333]);
+    // AZ-BUMP (the flip, LADDER_FIX): [4.2, 5, 6.333333333] -> [4.166666667, 4.966666667, 6.283333333], P13: the walk rides tick
+    // by tick, so stamp to chamber is the battle's (250 / 298 / 377 ticks; the BAL-2 pin's battle times); with LADDER_FIX off
+    // the half cells' seconds, as before
+    expect(t.map((x) => +x.toFixed(9))).toEqual([4.166666667, 4.966666667, 6.283333333]);
+    expect(withLadderFix(() => [1, 2, 3].map((s) => +walkRoute(bench([["brake", 4, 3, s]]), 0).estimate.time.toFixed(9)), false)).toEqual([4.2, 5, 6.333333333]);
   });
 
   it("the walk and the battle agree: stamp-to-chamber time and damage at load, ★1-★3", () => {
+    // AZ-BUMP (the flip, LADDER_FIX): the bb-0.9.7 tripwire keeps its point with LADDER_FIX off until S7 turns it into a
+    // regression test of the fixed ladder
+    withLadderFix(() => {
     for (const s of [1, 2, 3]) {
       const b = bench([["brake", 4, 3, s]]);
       const w = walkRoute(b, 0).estimate;
@@ -201,6 +209,7 @@ describe("P13: BRAKE SHOE (Y7b2, the flip: a pure speed rig at every star, no fl
       // it or asks cap.
       expect(f.dmg, `★${s}: damage`).toBeCloseTo(w.dmg, 1);
     }
+    }, false);
   });
 
   it("on a slag belt the flat still applies and the speed does not (P8): the walk, the battle and the label agree", () => {

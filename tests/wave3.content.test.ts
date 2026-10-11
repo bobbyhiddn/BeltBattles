@@ -27,6 +27,7 @@ import { effectAt } from "../src/sim/stars";
 import { key, type Build } from "../src/sim/deck";
 import { familyTable } from "../tools/luckReport";
 import { WAVE3_DESIGN, tagsFor } from "../tools/wave3";
+import { LADDER_DEFS, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): STOKER's fixed def
 
 const FAMS: ModuleTag[] = ["FORGE", "HARASS", "SWARM", "BURST", "TEMPO", "TWIN", "PLATE"];
 const ids = (ds: { id: string }[]) => ds.map((d) => d.id);
@@ -49,7 +50,13 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
     expect(WAVE3_IDS).toHaveLength(15);
     for (const id of WAVE3_IDS) {
       expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
-      expect(ITEMS[id], id).toBe(WAVE3_ITEMS[id]);
+      // AZ-BUMP (the flip, LADDER_FIX): with the star-ladder pass on, ITEMS.stoker is its fixed def, a new object built from
+      // WAVE3_ITEMS.stoker (ladderFix.ts LADDER_DEFS.stoker: ★3 stoke 0.7 -> 0.85), so STOKER's identity (the very entry, as
+      // merged) is read with LADDER_FIX off and its on entry is compared with that fixed def; every other id as before
+      if (Object.prototype.hasOwnProperty.call(LADDER_DEFS, id)) {
+        expect(withLadderFix(() => ITEMS[id], false), id).toBe(WAVE3_ITEMS[id]);
+        expect(ITEMS[id], id).toEqual(LADDER_DEFS[id](WAVE3_ITEMS[id]));
+      } else expect(ITEMS[id], id).toBe(WAVE3_ITEMS[id]);
       expect(ITEMS[id].id).toBe(id);
       expect(effectAt(id, 3).id).toBe(id);
       expect(isWave3(id)).toBe(true);

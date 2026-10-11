@@ -15,9 +15,9 @@ import { explainRoadCap, gmax, resetRoadCapMemo, roadCap, roadCapFor, roadMixes,
 import { driveRuns } from "./uploadDriver";
 
 const HEROS = (Object.keys(HEROES) as HeroId[]).filter((h) => heroGateProblem(RULES_VERSION, h) === null);
-afterEach(() => {
-  setNpcDay(false);
-  setHullScale(false);
+afterEach(() => { // the shipped values (AZ-BUMP's flip; were false): a test that reads a switch off sets it off itself
+  setNpcDay(true);
+  setHullScale(true);
 });
 
 describe("HULL-1c: NPC-1's day-1 refusal (REVIEW-HULL1A Q1)", () => {
@@ -42,6 +42,7 @@ describe("HULL-1c: NPC-1's day-1 refusal (REVIEW-HULL1A Q1)", () => {
   });
 
   it("the model: day 1 with the dock's PLATING is roadCap 0 with NPC_DAY on (the fight's gold pays it), -its cost off (0.9.7's day: the event alone)", () => {
+    setNpcDay(false); // AZ-BUMP (the flip, NPC_DAY): the switch-off model first (it ships on; the afterEach puts it back)
     const dock = roadMixes().find((m) => m.labels.length === 1 && m.labels[0] === "dock PLATING")!;
     expect(dock).toBeDefined();
     const cost = roadOptions().get("dock")!.find((o) => o.label === "PLATING")!.pay;
@@ -56,6 +57,7 @@ describe("HULL-1c: NPC-1's day-1 refusal (REVIEW-HULL1A Q1)", () => {
 
   it("the memo keys carry HULL_SCALE: a value computed with it off is never reused with it on, nor back (NPC_DAY off and on)", () => {
     const read = () => Array.from({ length: 10 }, (_, i) => [gmax(i + 2), roadCap(i + 1)]);
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): each pass reads the switch-off values first (it ships on)
     for (const nd of [false, true]) {
       setNpcDay(nd);
       resetRoadCapMemo();

@@ -1133,6 +1133,15 @@ export function setWave3(on: boolean): void {
     Object.defineProperty(ITEMS, id, { value: WAVE3_ITEMS[id], enumerable: on, writable: true, configurable: true });
   }
   wave3On = on;
+  for (const fn of afterWave3) fn();
+}
+
+/** AZ-BUMP (the flip; cap's ruling on run 4's Q3): hooks run after each setWave3. setWave3 writes WAVE3_ITEMS[id] back
+ *  into ITEMS for every wave-3 id, STOKER's base def among them, while ladderFix.ts patches ITEMS[id] in place; its hook
+ *  puts the ladder-fixed def back while LADDER_FIX is on (switch off: it does nothing). None is set at this module's load. */
+const afterWave3: (() => void)[] = [];
+export function onSetWave3(fn: () => void): void {
+  afterWave3.push(fn);
 }
 
 /** 0.8.0 P1: run `fn` with wave 3 on (or off), then put the switch back as it was, even if `fn` throws. */

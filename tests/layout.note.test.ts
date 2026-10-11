@@ -8,6 +8,7 @@ import { ghostName } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
 import { NOTE_ROW, notePlace, plateSource, plateTag } from "../src/screens/battleHud";
 import type { Box } from "../src/render/frame";
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): 0.6.2's layout is the switch-off one
 
 // 0.7.0 (R1 M1; REQ-BFG-016): the enemy plate's source line (ONLINE GHOST / OFFLINE STAND-IN, online only) overlaps
 // neither the hull nor the plate's text on any layout. 0.7.0a drew it just under the plate when no row was free above it,
@@ -32,6 +33,11 @@ function grid(): [number, number, number][] {
 
 /** The digest of 0.6.2's battleLayout over grid(), taken at v070a a8b9973 (battleLayout.ts is rel-062-final's). */
 const LAYOUT_062 = "0a9a0f8b 129102c0 9dee4af1 18af96f3 b98452bb 81ef0bfe 344f1449 d54fdd49";
+/** AZ-BUMP (the flip, HULL_SCALE): the same grid's digest with HULL_SCALE on (the shipped game), measured on the flip's src:
+ *  HULL-1d's desk wind slot (ruling Q4; tests/hull1d.readouts) makes a landscape bar DESK_WIND_W wider (battleLayout.ts barW:
+ *  min(W - 8, 150 + 40), was min(W - 8, 150)), so the WIND n%/S read-out fits beside the clock. The switch is battleLayout's
+ *  only read (no other box moves); with it off the grid still hashes to LAYOUT_062. */
+const LAYOUT_AZ = "3d569f73 460d022d 05bf5cdd 92ff1142 024666a9 9acedbe7 94e9b2ba 3cb24960";
 
 /** Where 0.7.0a drew the line: text at (p.x + 3, p.y - 7) with a free row, else at (p.x + 3, p.y + p.h + 2); its box
  *  includes the 1 px outline. */
@@ -42,12 +48,16 @@ function line070a(p: Box, text: string): Box {
 
 describe("the enemy plate's source line (0.7.0 R1 M1)", () => {
   it("the battle layout is 0.6.2's on every screen (1,602 viewports, one digest), online and offline alike", () => {
-    const all = grid().map(([w, h, dpr]) => {
+    const layouts = () => grid().map(([w, h, dpr]) => {
       const v = computeView(w, h, dpr, battleScale);
       return [w, h, dpr, v.scale, battleLayout(v.W, v.H, v.portrait)];
     });
+    const all = layouts();
     expect(all).toHaveLength(1602);
-    expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe(LAYOUT_062.replace(/ /g, ""));
+    // AZ-BUMP (the flip, HULL_SCALE): 0a9a0f8b... -> 3d569f73... (LAYOUT_AZ), the desk wind slot the switch ships; the switch
+    // off: 0.6.2's digest, as before
+    expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe(LAYOUT_AZ.replace(/ /g, ""));
+    expect(createHash("sha256").update(JSON.stringify(withHullScale(layouts, false))).digest("hex")).toBe(LAYOUT_062.replace(/ /g, ""));
   });
 
   it("on every layout the line has a clean place: the free row above the plate (touching nothing), else the plate's strip", () => {

@@ -29,5 +29,8 @@ describe("SUS-A: the heavy mirror ends before 120 s", () => {
     expect(n).toBe(10 * 36);
     expect(sustained).toBeGreaterThan(n / 2); // the stacks did work: most battles healed and gained SHIELD
     expect(longest).toBeLessThan(BATTLE_CAP);
-  });
+  }, 150_000); // AZ-BUMP (the flip): parField's 80 par decks come from the par player's runs, a warlord fight every day (the
+  // NPC day) on the day's hull (HULL_SCALE: longer fights), so they take longer to build; a host timeout under the 1.5-CPU
+  // quota, not the rule (16.7 s with only HULL_SCALE off in the switch-off proof run, vp-H1; over vitest's 30 s default with
+  // every switch on)
 });

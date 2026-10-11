@@ -140,5 +140,7 @@ describe("star-aware stand-in code (F2)", () => {
     const v1 = res.days.map((hd) => ({ ...hd, picks: hd.picks.map((p) => ({ ...p, code: encodeStandIn(p.build) })) }));
     expect(writtenProblems(tiny, res.days, dataModuleText(tiny, v1)).length).toBeGreaterThan(0);
     expect(text).toContain("star-aware (src/sim/harness/standinCode.ts");
-  }, 120_000);
+  }, 600_000); // AZ-BUMP (the flip, HULL_SCALE): the tiny dry pool still builds all 10 days and plays every battle on its day
+  // (genStandIns' jobs carry the day), now on the day's hull (M(d) x the hull, D(d) on the hits: longer fights); a host
+  // timeout under the 1.5-CPU quota, not the rule (133 s in the flip's shard run, over the 120 s this test had)
 });

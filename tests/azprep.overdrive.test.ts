@@ -16,8 +16,11 @@ const read = (s: number) => ({
 
 describe("AZ-PREP (g): OVERDRIVE's ★2/★3 ride-keep words, behind LADDER_FIX (REVIEW-HULL1B section 5)", () => {
   it("switch off: no ride words at any star (every word as today); on: ★1 as off, ★2 and ★3 say 50% and 100%", () => {
-    const off = [1, 2, 3].map(read), on = withLadderFix(() => [1, 2, 3].map(read)), again = [1, 2, 3].map(read);
+    // AZ-BUMP (the flip, LADDER_FIX): the off half sets the switch off itself (it read the default, now on); `again` reads
+    // after withLadderFix has put it back off, and the default (the shipped value) reads as on
+    const [off, on, again] = withLadderFix(() => [[1, 2, 3].map(read), withLadderFix(() => [1, 2, 3].map(read)), [1, 2, 3].map(read)], false);
     expect(again).toEqual(off); // the switch back off: the base def's words again
+    expect([1, 2, 3].map(read)).toEqual(on); // AZ-BUMP (the flip, LADDER_FIX): the shipped value, on
     expect(JSON.stringify(off)).not.toMatch(/RIDE IT CUTS|KEEPS \d|OF THE RIDE/);
     expect(on[0].face).toEqual(off[0].face);
     expect(on[0].text).toEqual(off[0].text);

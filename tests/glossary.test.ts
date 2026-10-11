@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { COMMISSION_BASE, COMMISSION_STEP, ITEMS, JAM_THRESHOLD, WINDOW_TIME, type HeroId } from "../src/sim/content";
 import { SHIELD_CAP, WIND_START } from "../src/sim/content"; // SUS-B (REQ-BFG-069)
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the DARK WIND row's switch-off words
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { effectAt, fusible } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
@@ -207,8 +208,12 @@ describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND
     SHIELD: { def: `EACH {*SHIELD}: BLOCKS ONE HIT'S DAMAGE. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}. {*BURN} GOES PAST IT.`, aliases: ["SHIELDS"], colour: ICON_COLOUR[ICON.SHIELD] },
     HEAL: { def: "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL. A HULL WITH {*BURN} GETS HALF.", aliases: ["HEALS", "HEALED", "HEALING", "REPAIR", "REPAIRS"], colour: ICON_COLOUR[ICON.HEAL] },
     REGEN: { def: "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC. IT STOPS IN THE DARK WIND.", aliases: [], colour: ICON_COLOUR[ICON.REGEN] },
-    "DARK WIND": { def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`, aliases: [], colour: C.bone },
+    // AZ-BUMP (the flip, HULL_SCALE): "HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT." -> "EACH HULL LOSES A GROWING % OF ITS MAX
+    // EACH SEC. NO {*HEAL}.": with HULL_SCALE on the wind is a share of each hull's own max, and the row says so (glossary.ts,
+    // HULL-1c's words; tests/hull1c.windhud). The switch off still reads SUS-B's words (DARK_WIND_OFF, the tap test below)
+    "DARK WIND": { def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, EACH HULL LOSES A GROWING % OF ITS MAX EACH SEC. NO {*HEAL}.`, aliases: [], colour: C.bone },
   };
+  const DARK_WIND_OFF = `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`;
 
   it("each row: its word first, its aliases, its colour (the icon's; DARK WIND none), its definition in markup", () => {
     for (const [word, w] of Object.entries(want)) {
@@ -242,6 +247,7 @@ describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND
     expect(glossaryText("REPAIRS")).toBe(want.HEAL.def);
     expect(glossaryText("REGEN")).toBe(want.REGEN.def);
     expect(glossaryText("DARK WIND")).toBe(want["DARK WIND"].def);
+    expect(withHullScale(() => glossaryText("DARK WIND"), false)).toBe(DARK_WIND_OFF); // AZ-BUMP: the switch off, SUS-B's words
     // a kept text names them as words: each is a tap there, the longest form first
     const t = "IT REPAIRS YOUR HULL. NOTHING HEALS IN THE DARK WIND. TWO SHIELDS AND REGEN.";
     expect(glossaryHits(t).map((h) => [t.slice(h.at, h.end), h.row.word])).toEqual([

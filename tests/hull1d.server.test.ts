@@ -1,5 +1,6 @@
 // HULL-1d (REQ-BFG-079, REQ-BFG-073, REQ-BFG-078; BRIEF-HULL1D 2 (g)): the server with every switch on. NPC_DAY, HULL_SCALE and
-// LADDER_FIX on together, as AZ-BUMP will ship them (each through its setter; every test puts all three back off, afterEach).
+// LADDER_FIX on together, as AZ-BUMP will ship them (each through its setter; every test puts all three back on, the shipped
+// value, afterEach; AZ-BUMP's flip, was off).
 // 1. Honest uploads pass, for every hero the game offers (heroBuilds.ts PLAYABLE_HEROES, the bb-0.9.7 rules' heroes), days
 //    1-10: the upload driver's runs (tests/uploadDriver.ts: bought decks, the NPC day's fight, event and REFIT, its LAST CHANCE
 //    drawn from the offer), and scripted runs through the game's own rules that take each LAST CHANCE card (RUNE, PART at ★2,
@@ -44,10 +45,10 @@ const PLATE = ITEMS.plating.supply!.hull!, PLATE_GOLD = ITEMS.plating.price; // 
 const CRATE = ITEMS.beltcrate.supply!.belt!, CRATE_GOLD = ITEMS.beltcrate.price; // a BELT PACK: +4 belt, 2 gold
 const D = 5; // the LAST CHANCE day of a scripted LAST CHANCE run: five dusk losses (the day-3 refund between) leave 1 life
 
-afterEach(() => {
-  setNpcDay(false);
-  setHullScale(false);
-  setLadderFix(false);
+afterEach(() => { // the shipped values (AZ-BUMP's flip; were false); every test sets its switches itself (every())
+  setNpcDay(true);
+  setHullScale(true);
+  setLadderFix(true);
 });
 /** Every switch on (or off), each through its setter. */
 const every = (on = true): void => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateBuild } from "../src/net/validate";
 import { AUDIT_PATHS, driveRuns, errorKind, type DriverRun, type RoadPolicy } from "./uploadDriver";
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the audit's paths are 0.9.7's road (below)
 
 // v070-validate M1: what today's strict check (validateBuild) does to honest dusk decks. The seeded driver
 // (tests/uploadDriver.ts) plays through the real game functions; each isolated path takes one road choice
@@ -43,14 +44,21 @@ const fmt = (r: PathRow) => `${r.policy.padEnd(34)} runs ${r.runs} fired ${r.fir
 describe("v070 M1 audit: today's validateBuild on honest dusk decks", () => {
   const rows = new Map<RoadPolicy, PathRow>();
   const all: DriverRun[] = [];
-  for (const p of AUDIT_PATHS) {
-    const runs = driveRuns(RUNS_PER_PATH, 5000, undefined, p);
-    all.push(...runs);
-    rows.set(p, audit(p, runs));
-  }
-  const mixedRuns = driveRuns(MIXED_RUNS, 1);
-  all.push(...mixedRuns);
-  const mixed = audit("mixed", mixedRuns);
+  // AZ-BUMP (the flip, NPC_DAY): the audit isolates 0.9.7's road paths (one road stop a day: an event's choice or a warlord
+  // tier, nothing from the road on the other days) and fired() reads 0.9.7's road words. With NPC_DAY on every day is a
+  // fight and then the day's event, so no path is isolated (the "none" policy meets events with no empty choice) and no
+  // event stop reads as fired; so the runs are driven with NPC_DAY off. The NPC day's decks are net-upload.driver's (the
+  // player mode with the road log)
+  const mixed = withNpcDay(() => {
+    for (const p of AUDIT_PATHS) {
+      const runs = driveRuns(RUNS_PER_PATH, 5000, undefined, p);
+      all.push(...runs);
+      rows.set(p, audit(p, runs));
+    }
+    const mixedRuns = driveRuns(MIXED_RUNS, 1);
+    all.push(...mixedRuns);
+    return audit("mixed", mixedRuns);
+  }, false);
 
   it("prints the per-path table (REPORT.md §1)", () => {
     console.log(`v070 M1 audit (strict validateBuild), ${RUNS_PER_PATH} runs per path, ${MIXED_RUNS} mixed runs:\n`

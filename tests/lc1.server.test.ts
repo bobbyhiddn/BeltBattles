@@ -126,7 +126,9 @@ describe("LC-1: honest LAST CHANCE runs pass the upload check", () => {
     const old = { rules: OLD_RULES };
     expect([isReachable(6, 0, 1, old), isReachable(6, 0, 2, old)]).toEqual([true, true]);
     expect(reachableRecords(6, { ...old, lastChance: 5 })).toEqual(reachableRecords(6, old));
-  });
+    // AZ-BUMP (the flip): 600 s, 30 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE; the twelve honest
+    // LAST CHANCE runs fight a warlord every day), not the rule
+  }, 600_000);
 
   it(`the +${LAST_CHANCE_HULL} counts once toward the reachable hull; the free part's price comes out of the budget once`, () => {
     // at its budget's edge (plates added while the check takes them), each honest deck still passes ...
@@ -234,7 +236,8 @@ describe("LC-1: an honest LAST CHANCE run uploads through the server, each card"
     expect(q.status).toBe(400);
     expect(JSON.stringify(await q.json())).toContain(`snapshot.lastChance: ${OLD_GATE}`);
     expect(app.store.size).toBe(3);
-  });
+  }, 120_000); // AZ-BUMP (the flip): four par runs (weaver s7, each card) and their uploads, longer with the NPC day; a host
+  // timeout under the 1.5-CPU quota, not the rule (timed out at vitest's 30 s default)
 
   it("decodeSnapshot round-trips an honest LAST CHANCE snapshot (the served form keeps it)", () => {
     const { s } = honest("part", "bastion", 9);

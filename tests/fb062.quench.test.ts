@@ -22,11 +22,14 @@ import { hitLabel } from "../src/screens/build/inspector";
 import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2rel: the glossary's words (REQ-BFG-032)
 import { wrapText } from "../src/ui/richText";
 import { barge, bench, est, run } from "./arsenal.bench";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): QUENCH ★1's off checks and the tripwire
 
 // NUM-1: flat and perBurn x10 (were 1/2/3 and 3/5/7); stacks unchanged
 // Y7b2 (the flip): flat 0 (was 10/20/30) and no stacks (was 4/5/6); perBurn 30/50/70 as before
+// AZ-BUMP (the flip, LADDER_FIX): ★1 perBurn 30 -> 40, the star-ladder pass (★1 pays +10 over the BURN it spends; ladderFix.ts
+// LADDER_DEFS quench); ★2 / ★3 as before. With LADDER_FIX off ★1 is 30 (the off checks and the bb-0.9.7 tripwire below)
 const RULE: Record<number, { flat: number; perBurn: number }> = {
-  1: { flat: 0, perBurn: 30 },
+  1: { flat: 0, perBurn: 40 },
   2: { flat: 0, perBurn: 50 },
   3: { flat: 0, perBurn: 70 },
 };
@@ -71,6 +74,7 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
   // rest stays Burn"
   it("the rule at 1/2/3 stars: every Burn spent at +3/+5/+7 each, no floor, no cap", () => {
     expect(STARS.map((s) => effectAt("quench", s).gate?.quench)).toEqual(STARS.map((s) => RULE[s]));
+    expect(withLadderFix(() => effectAt("quench", 1).gate?.quench, false)).toEqual({ flat: 0, perBurn: 30 }); // AZ-BUMP: LADDER_FIX off, as before
     for (const s of STARS) for (const k of BURNS) {
       const q = quenched(s, payload(k));
       const spent = k; // Y7b2 (the flip): no stack cap (was Math.min(k, RULE[s].stacks))
@@ -99,6 +103,9 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
   // every count (measured 60 = 60 at 1 Burn, 90 = 90 at 2, 150 = 150 at 4, 330 = 330 at 10): the tripwire below (cap's
   // ruling e66379fbf3184e56)
   it("each star step is an upgrade for any Burn count", () => {
+    // AZ-BUMP (the flip, LADDER_FIX): the bb-0.9.7 tripwire keeps its point with LADDER_FIX off until S7 turns it into a
+    // regression test of the fixed ladder
+    withLadderFix(() => {
     // Y7b2 TRIPWIRE (cap's ruling e66379fbf3184e56; only while RULES_VERSION is "bb-0.9.3"): ★1 pays 30 per BURN, which
     // only equals the BURN it spends (BURN_DPS x BURN_TIME = 30), so ★1 adds nothing: no QUENCH = ★1 at every Burn count
     // (was: no QUENCH < ★1). Both are pinned exactly at every count (measured: no QUENCH and ★1 each deal these); ★1 < ★2
@@ -120,6 +127,7 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
       }
       expect(d[0], `${k} Burn: no QUENCH < ★1`).toBeGreaterThan(none);
     }
+    }, false);
   });
 
   it("(a) without Burn, QUENCH adds less per arrow than WHETSTONE at the same star (estimate and battle): a Burn payoff", () => {
@@ -162,7 +170,8 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
   // Y7b2 (the flip): was "an overclocked QUENCH doubles its floor and its per-stack pay, over the same stacks"
   it("an overclocked QUENCH doubles its pay for each Burn", () => {
     // Y7b2 (the flip): was { flat: 20, perBurn: 60, stacks: 4 } (RULE[1] had the floor 10 and 4 stacks)
-    expect(overclocked({ quench: RULE[1] })).toEqual({ quench: { flat: 0, perBurn: 60 } }); // NUM-1: x10 (was 2/6)
+    // AZ-BUMP (the flip, LADDER_FIX): perBurn 60 -> 80, RULE[1] is the fixed ★1 (40 a BURN, doubled)
+    expect(overclocked({ quench: RULE[1] })).toEqual({ quench: { flat: 0, perBurn: 80 } }); // NUM-1: x10 (was 2/6)
   });
 
   // Y7b2 (the flip): was "... every star line state the floor and the conversion in plain words" (the star lines state the
@@ -181,6 +190,8 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
     // DAMAGE FOR EACH BURN, UP TO 6 BURN"
     expect(STARS.map((s) => abilityText("quench", s).sentences[0])).toEqual(STARS.map((s) =>
       `TURNS EACH BURN ON THE PAYLOADS IT HITS INTO ${RULE[s].perBurn} DAMAGE.`));
+    // AZ-BUMP (the flip, LADDER_FIX): ★1 reads 40 (RULE[1]); with LADDER_FIX off 30, as before
+    expect(withLadderFix(() => abilityText("quench", 1).sentences[0], false)).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
     expect(abilityText("quench", 1).sentences.slice(1, 2)).toEqual(["EACH BURN DEALS THE ENEMY HULL 10 DAMAGE A SECOND FOR 3 SECONDS."]);
     expect(gist("quench", 3)).toBe("70 DAMAGE FOR EACH BURN"); // NUM-1: x10 (was 3, 7)
     // the opening sentence, wrapped by the one helper, stays within three lines of the phone band

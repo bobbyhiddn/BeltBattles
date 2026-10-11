@@ -3,6 +3,7 @@ import { startingBuild, warlordBuild } from "../src/sim/ai";
 import { START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { furnaceDeck, K, STRAIGHT } from "./netHelpers";
+import { incomeOn, withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): the day's gold
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
 const errorsOf = (b: Parameters<typeof validateBuild>[0], day = 10) => validateBuild(b, day).errors.join("\n");
@@ -10,10 +11,16 @@ const errorsOf = (b: Parameters<typeof validateBuild>[0], day = 10) => validateB
 describe("deck validation: budget formula", () => {
   it("max gold by day = START_GOLD + incomeFor(d, true) for each earlier day", () => {
     const table = Array.from({ length: 10 }, (_, i) => maxGoldByDay(i + 1));
-    expect(table).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
+    // AZ-BUMP (the flip, HULL_SCALE): 91 105 119 -> 92 108 125 on days 8-10: HULL_SCALE's gold (hullScale.ts incomeOn,
+    // 6 + min(day, 10) + 2 on a win; 0.9.7's 6 + min(day, 6) + 2 stopped growing at day 6). Off, 0.9.7's table
+    expect(table).toEqual([8, 17, 27, 38, 50, 63, 77, 92, 108, 125]);
+    expect(withHullScale(() => Array.from({ length: 10 }, (_, i) => maxGoldByDay(i + 1)), false)).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
     let g = START_GOLD;
     for (let d = 1; d <= 10; d++) {
       expect(maxGoldByDay(d)).toBe(g);
+      // AZ-BUMP (the flip, HULL_SCALE): the switch's own formula (content.ts incomeFor reads incomeOn with it on)
+      expect(incomeFor(d, true)).toBe(incomeOn(d, true));
+      expect(incomeOn(d, true)).toBe(6 + Math.min(d, 10) + 2);
       g += incomeFor(d, true);
     }
   });

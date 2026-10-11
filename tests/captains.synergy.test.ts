@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "../src/sim/content";
 import { withSustain } from "../src/sim/content"; // BOTS-X (SUS-C): the same checks with the sustain switch on
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip; cap's ruling): the swaps on the road-less deck
 import type { Build } from "../src/sim/deck";
 import { RIVALS, RIVAL_IDS, deckCost, luckOf, rivalBuild, standInBuild, type RivalId } from "../src/sim/rivals";
 import { LUCK_CAPS } from "../src/sim/harness/luckCapsData"; // bb-0.8.3 (oracle 512f23ac589b2482 (1)): captains.luck's cap reader
@@ -102,7 +103,12 @@ describe("the synergy check's swaps (harness/synergy.ts)", () => {
     }
   });
 
-  it("each variant swaps every synergy part in its own slot (same uid, cell or turret, stars), stays legal, and costs what it reports", () => {
+  // AZ-BUMP (the flip, NPC_DAY; cap's ruling): the check is about the named build's own synergy parts, so its cases are
+  // measured on the road-less deck, with NPC_DAY off. With it on, the dusk deck also holds REFIT-AZ's road additions, which
+  // can take it past the strict validator's budget (maxGoldByDay + the runes' dawn gold; ROAD(day, "dusk") is the captains'
+  // checks' own); on such a deck swapLegal refuses every candidate and synergySwap keeps the synergy parts in their slots
+  // (SOOTJAW d5, 59 g of 50: heatjacket#9012 and bellows#9015, his plan's own); refitaz.road checks the on decks
+  it("each variant swaps every synergy part in its own slot (same uid, cell or turret, stars), stays legal, and costs what it reports", () => withNpcDay(() => {
     for (const c of CASES) {
       const plan = PLANS[c.id], deck = deckOf(c);
       for (let v = 0; v < 3; v++) {
@@ -128,7 +134,7 @@ describe("the synergy check's swaps (harness/synergy.ts)", () => {
         expect(deckCost(s.build).total, tag).toBe(deckCost(deck).total + s.swaps.reduce((n, w) => n + w.dGold, 0));
       }
     }
-  });
+  }, false));
 });
 
 // BOTS-X (SUS-C, REQ-BFG-069; SUSTAIN-1 4.8 rule 7): the same checks with the sustain switch on. THANE KARSK's plan adds
@@ -170,7 +176,8 @@ describe("the synergy check's swaps with the sustain switch on (BOTS-X)", () => 
     expect(["wardbell", "mendpress", "mendingloom"].map((d) => firstOfferDay(ITEMS[d]))).toEqual([3, 3, 3]);
   }));
 
-  it("each variant swaps every synergy part in its own slot, stays legal, and costs what it reports", () => withSustain(() => {
+  // AZ-BUMP (the flip, NPC_DAY; cap's ruling): on the road-less deck, with NPC_DAY off (the first block's swap test says why)
+  it("each variant swaps every synergy part in its own slot, stays legal, and costs what it reports", () => withNpcDay(() => withSustain(() => {
     for (const c of CASES) {
       const plan = PLANS[c.id], deck = deckOf(c);
       for (let v = 0; v < 3; v++) {
@@ -187,5 +194,5 @@ describe("the synergy check's swaps with the sustain switch on (BOTS-X)", () => 
         expect(deckCost(s.build).total, tag).toBe(deckCost(deck).total + s.swaps.reduce((n, w) => n + w.dGold, 0));
       }
     }
-  }));
+  }), false));
 });

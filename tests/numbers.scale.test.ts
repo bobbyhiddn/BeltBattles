@@ -17,6 +17,7 @@ import { SABOTAGE_HULL } from "../src/game/road";
 import { HULL_FLOOR } from "../src/net/roadCap";
 import { EQ, MEAN_PLATE, MEAN_PLATE_OTHER, ROUND_EQ } from "../src/sim/deckRating";
 import { P1_WAVE3_ITEMS } from "../tools/wave3Defs";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the star-ladder pass's rows, off and on
 
 interface Row { file: string; id: string; rule: "x10" | "same"; base: number; now: number; rounded?: boolean }
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/num1-base-values.json", import.meta.url), "utf8")) as
@@ -283,6 +284,18 @@ const Y7B2_NUM2: Record<string, { was: number; now: number | undefined }> = {
 const Y7B2_ADDED: Record<string, number> = {
   "ITEMS.limpet.factory.base": 0, "ITEMS.venom.gate.burnPlus": 3, "ITEMS.venom.levels.2.gate.burnPlus": 6, "ITEMS.venom.levels.3.gate.burnPlus": 9,
 };
+// AZ-BUMP (the flip, LADDER_FIX; REQ-BFG-070, the star-ladder pass, src/sim/ladderFix.ts): with the switch on, ITEMS holds the
+// pass's fixed defs, which moved one row after NUM-1's record, the fixture untouched (NUM-1's record): QUENCH TANK ★1's
+// perBurn 30 -> 40 (an x10 row, still whole; ★1 paid exactly a BURN's own damage). It is checked at its fixed value, and at
+// its recorded one with the switch off, as BAL2_MOVED's are; every other row keeps its check. OVERDRIVE ★2/★3's rideKeep
+// 0.5 / 1 are fields the pass added that NUM-1's script never met (a share of the ride, N1-native, no x10), classified here
+// and checked live below, as Y7B2_ADDED's are. STOKER ★3's stoke 0.85 meets no row: the fixture records wave 3 under
+// WAVE3_ITEMS and P1_WAVE3_ITEMS, which the pass leaves as written (it swaps ITEMS.stoker alone, and the scan below skips
+// ITEMS' wave-3 ids). Cause: LADDER_FIX
+const LADDER_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: number }> = {
+  "ITEMS.quench.gate.quench.perBurn": { rule: "x10", was: 30, now: 40 },
+};
+const LADDER_ADDED: Record<string, number> = { "ITEMS.overdrive.levels.2.gate.rideKeep": 0.5, "ITEMS.overdrive.levels.3.gate.rideKeep": 1 };
 
 // FLIP-X2 (REQ-BFG-069, the sustain switch on): ITEMS lists WARD BELL, MEND PRESS and MENDING LOOM now, so the walk meets
 // their numeric fields. SUS-A wrote them after NUM-1's script and NUM-2's (content.ts SUSTAIN_ITEMS: "on the N1 scale",
@@ -383,8 +396,20 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // its recorded value, 25 and 50)
     // BAL-2: and a row BAL-2 moved (BAL2_MOVED: the KILN's HEAT and the two hulls) at its 0.9.1 value below
     // AZ-BUMP: and a row TXT-AZ item 5 removed (ITEM5_MOVED: BRACE FRAME's plated) as gone below
-    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && !(r.id in BAL2_MOVED) && !(r.id in Y7B2_MOVED) && !(r.id in ITEM5_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
+    // AZ-BUMP (the flip, LADDER_FIX): and a row the star-ladder pass moved (LADDER_MOVED: QUENCH ★1's perBurn) at its fixed
+    // value below
+    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && !(r.id in BAL2_MOVED) && !(r.id in Y7B2_MOVED) && !(r.id in ITEM5_MOVED) && !(r.id in LADDER_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
     expect(bad).toEqual([]);
+    // AZ-BUMP (the flip, LADDER_FIX): the moved row, a fixture row of content.ts recorded at the map's `was` under the map's
+    // rule, live at its fixed value; with the switch off, at its recorded one (bb-0.9.7's)
+    const ladder = rows.filter((r) => r.id in LADDER_MOVED);
+    expect(ladder.map((r) => r.id).sort()).toEqual(Object.keys(LADDER_MOVED).sort());
+    for (const r of ladder) {
+      const m = LADDER_MOVED[r.id];
+      expect([r.file, r.rule, r.now], r.id).toEqual(["src/sim/content.ts", m.rule, m.was]);
+      expect(live(r.id), r.id).toBe(m.now);
+      expect(withLadderFix(() => live(r.id), false), `${r.id}, off`).toBe(m.was);
+    }
     // AZ-BUMP (TXT-AZ item 5): the 6 removed rows, every one a "same" fixture row recorded at the map's `was`, each gone
     // with its field (was each live at its recorded value)
     const item5 = rows.filter((r) => r.id in ITEM5_MOVED);
@@ -495,6 +520,7 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
       && !n1Native.has(id) // FLIP-X1 (F-d): a sustain rune's amount is N1-native (n1Native), checked below
       && !sustainNative.has(id) // FLIP-X2: a sustain piece's field is N1-native (SUSTAIN_N1), checked below
       && !(id in Y7B2_ADDED) // Y7b2: a field the flip added (Y7B2_ADDED), checked below
+      && !(id in LADDER_ADDED) // AZ-BUMP (the flip, LADDER_FIX): a field the star-ladder pass added (LADDER_ADDED), checked below
       && (ruleOf(id, NUM2_RULES) === N2 ? !num2To.has(id) : ruleOf(id) !== "same"));
     expect(missing).toEqual([]);
     // FLIP-X1 (F-d), the sustain-on pins: two-sided, the scan meets the 8 and none is a fixture row (under either name)
@@ -509,6 +535,11 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // Y7b2 (the flip): two-sided: the scan meets the 4 fields Y7B2_ADDED names, none is a fixture row, each live at its value
     expect(ids.filter((id) => id in Y7B2_ADDED).sort()).toEqual(Object.keys(Y7B2_ADDED).sort());
     for (const [id, v] of Object.entries(Y7B2_ADDED)) expect([byId.has(id), live(id)], id).toEqual([false, v]);
+    // AZ-BUMP (the flip, LADDER_FIX): two-sided: the scan meets the 2 fields LADDER_ADDED names, none is a fixture row, each
+    // live at its value; with the switch off neither exists (bb-0.9.7's defs)
+    expect(ids.filter((id) => id in LADDER_ADDED).sort()).toEqual(Object.keys(LADDER_ADDED).sort());
+    for (const [id, v] of Object.entries(LADDER_ADDED)) expect([byId.has(id), live(id)], id).toEqual([false, v]);
+    expect(withLadderFix(() => Object.keys(LADDER_ADDED).map((id) => live(id)), false)).toEqual([undefined, undefined]);
     // NUM-3 (R1's STUN fold, N1 2.2): two-sided: the scan meets every field of num3New and none is a fixture row; measured
     // 8 (BELLOWS' burn and per at ★1-★3, SABOT's round.seconds at ★1 and ★3), each live at its value. Unclassified, SABOT's
     // two would pass the line above as "same" (factory.round.seconds is FROSTBITE's and DRAG CHAIN's rule).

@@ -1,8 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { REROLL_COST, RUN_DAYS } from "../src/sim/content";
 import { MATRIARCH_DAY, maxGoldByDay, warlordPool, type RivalId } from "../src/sim/rivals";
 import { EVENT_IDS } from "../src/game/eventDefs";
 import { discountGain, gmax, roadCap, roadCapHoard, roadOptions, warlordPays, type WarlordPay } from "../src/net/roadCap";
+import { setNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): this file measures 0.9.7's road (below)
+import { setHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): and 0.9.7's gold
 
 // v070-validate M4 (REPORT.md §2), re-derived on rel-062-final 40d2b2c (v070-rel M1): roadCap's slack per day. roadCap is
 // the best road plan under relaxations that keep it safe; this file measures what they cost, against the best CONSISTENT
@@ -270,6 +272,20 @@ function all(): NonNullable<typeof memo> {
 }
 
 describe("roadCap's slack per day (REPORT.md §2; v070-rel: re-derived on 40d2b2c)", () => {
+  // AZ-BUMP (the flip, NPC_DAY and HULL_SCALE): this file re-derives 0.9.7's road plans (one road stop a day: an event or a
+  // warlord, a Hard win's part), roadCap's off path (planDP). With NPC_DAY on roadCap prices the NPC day instead
+  // (npcPlanDP: a fight and then the day's event every day, the drops in the road log), which this file does not model, so
+  // it runs with NPC_DAY off; and with HULL_SCALE off, 0.9.7's gold, where its pins were measured (HULL_SCALE moves the
+  // shop's gold from day 8, and gmax with it). net-upload.test.ts pins the shipped ceiling
+  beforeAll(() => {
+    setNpcDay(false);
+    setHullScale(false);
+  });
+  afterAll(() => {
+    setNpcDay(true); // the shipped value (AZ-BUMP's flip)
+    setHullScale(true); // the shipped value (AZ-BUMP's flip)
+  });
+
   it("this file's DP reproduces roadCap and roadCapHoard on every day, and brute force agrees on days 1-4", () => {
     const { cap, hoard, free } = all();
     expect(cap.map((p) => p.value)).toEqual(DAYS.map(roadCap));
@@ -279,7 +295,8 @@ describe("roadCap's slack per day (REPORT.md §2; v070-rel: re-derived on 40d2b2
       expect(bruteForce(d, byHoard), `hoard d${d}`).toBe(roadCapHoard(d));
       expect(bruteForce(d, byOwnGold), `consistent d${d}`).toBe(free[d - 1].value);
     }
-  }, 120_000);
+    // AZ-BUMP (the flip): 600 s, 120 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE), not the rule
+  }, 600_000);
 
   it("the rotation DP agrees with every seed's rotation enumerated (days 1-7), and its plans fit a seed's Hard slots", () => {
     const { rot, exact } = all();

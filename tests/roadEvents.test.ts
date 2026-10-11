@@ -5,6 +5,7 @@ import { beginRoad, choicesFor, eventFor, makeEvent, pickChoice } from "../src/g
 import { gainModule } from "../src/game/fuse";
 import { battleSeed, migrateRun, newRun, reroll, rollShop, type Run } from "../src/game/run";
 import { chooseFoe, finishDay, startDusk } from "../src/game/day";
+import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad } from "../src/game/road"; // AZ-BUMP (the flip): the NPC day's fight
 import { ITEMS, START_LIVES } from "../src/sim/content";
 import type { SideStats } from "../src/sim/battle";
 
@@ -227,7 +228,13 @@ describe("road events: save and load", () => {
   it("quitting mid-event and reloading shows the same event with no free reward and no re-roll", () => {
     for (const seed of SEEDS.slice(0, 60)) {
       const run = newRun("furnace", seed);
-      expect(beginRoad(run)).toBe(true);
+      // AZ-BUMP (the flip, NPC_DAY): the shipped day's event follows the warlord fight (pickRoad(run, "event") is refused), so
+      // the run fights first (the fork's Easy warlord, won, as main.ts openNpcDay plays it) and ON TO THE ROAD opens the
+      // event; the reload below is mid-event as before (beginRoad reopens the day's event after the fight)
+      leaveCaravan(run);
+      expect(pickRoad(run, "easy").ok).toBe(true);
+      finishWarlord(run, 0, 20);
+      expect(onToTheRoad(run)).toBe("event");
       const saved = JSON.stringify(run);
       const loaded = migrateRun(JSON.parse(saved))!;
       expect(loaded.stage).toBe("event");
@@ -242,7 +249,7 @@ describe("road events: save and load", () => {
       expect(pickChoice(loaded, open).ok).toBe(true);
       const after = migrateRun(JSON.parse(JSON.stringify(loaded)))!;
       expect(after.event!.picked).toBe(open);
-      expect(beginRoad(after)).toBe(false); // resolved: straight to the battle
+      expect(beginRoad(after)).toBe(false); // resolved: on to REFIT, then the battle (AZ-BUMP: NPC_DAY's REFIT before dusk)
       const g = after.gold;
       expect(pickChoice(after, 0).ok).toBe(false);
       expect(after.gold).toBe(g);

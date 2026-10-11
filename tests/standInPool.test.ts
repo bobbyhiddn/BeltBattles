@@ -17,6 +17,7 @@ import type { Build } from "../src/sim/deck";
 import { poolLoss } from "./beltside.helpers";
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a deck with runes valued as bought (the runes' HULL and BELT out)
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold and own hull
+import { roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP (the flip): the dusk deck's road allowance
 import { POOL_LEGACY, POOL_PAR_BAND, POOL_PAR_SHORT } from "./standInPool.helpers";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
@@ -124,7 +125,9 @@ describe("standInFoe: the day's captain with its named build (200 seeds x days 1
         // out) against the day's gold plus its runes' dawn gold, and its plating is the hull less the runes' own (was
         // deckCost(b).total <= maxGoldByDay(day): 110 <= 105, and b.hullBonus % PLATE)
         const grant = runeGrants(b.runes, day);
-        const cost = boughtCost(b), budget = maxGoldByDay(day) + grant.gold;
+        // AZ-BUMP (the flip, NPC_DAY): + the dusk deck's road allowance (REFIT-AZ's road additions; roadAllowance, 0 off), as
+        // captains.luck's R1; refitaz.road checks the on decks
+        const cost = boughtCost(b), budget = maxGoldByDay(day) + grant.gold + roadAllowance(day, "dusk");
         expect(cost, `${b.hero} d${day}`).toBeLessThanOrEqual(budget);
         expect(b.hullBonus - grant.hull).toBeGreaterThanOrEqual(0);
         expect((b.hullBonus - grant.hull) % PLATE).toBe(0);

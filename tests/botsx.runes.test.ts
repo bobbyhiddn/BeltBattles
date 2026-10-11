@@ -20,6 +20,7 @@ import { caravanCandidate } from "../src/sim/harness/caravan";
 import { STANDIN_MAX_STARS, boughtCost, caravanCand } from "../src/sim/harness/standins";
 import { buildCost, validateBuild } from "../src/net/validate";
 import { CAPTAIN_RUNES, captainRunesOn } from "../src/sim/rivalBuilds";
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the switch-off world of the caravanCand test
 import { RIVALS, RIVAL_IDS, rivalBuild, rivalLoadout, type RivalId } from "../src/sim/rivals";
 import {
   HERO_STYLE, RUNES, RUNE_HEROES, RUNE_LIST, SUSTAIN_RUNE_LIST, boardThemeCount, botRuneList, botRunePick, runeGrants, runeList,
@@ -236,9 +237,12 @@ describe("BOTS-X the stand-in codecs carry Build.runes (RUNES-2a 3 step 2)", () 
 // ---------------------------------------------------------------- 2. caravanCand's cost
 
 describe("BOTS-X caravanCand costs the bought deck, as caravanDeck does (RUNES-2a 3 step 2)", () => {
-  it("switch off: every candidate costs buildCost of its deck and caravanDeck's value, as before; the same deck holding a HULL and a BELT rune is costed without them", () => withSustain(() => {
+  it("switch off: every candidate costs buildCost of its deck and caravanDeck's value, as before; the same deck holding a HULL and a BELT rune is costed without them", () => withNpcDay(() => withSustain(() => {
     // FLIP-X2 (REQ-BFG-058, REQ-BFG-069): both switches are on by default now, so the switch-off world is botRunes false on
     // the candidate and the sustain switch off for the call (was the default for both)
+    // AZ-BUMP (the flip, NPC_DAY): and NPC_DAY off, so the candidate is a road-less run whose deck the strict validator
+    // reads (:262); with it on, a candidate's deck holds its road's gold and drops, which only the player mode with the
+    // road log counts (tests/standin.caravan checks those)
     let n = 0;
     for (const hero of HEROES4) {
       for (let idx = 0; idx < 4; idx++) { // the policy mix: typical, typical, sharp, loose
@@ -265,7 +269,9 @@ describe("BOTS-X caravanCand costs the bought deck, as caravanDeck does (RUNES-2
       }
     }
     expect(n).toBe(32);
-  }, false));
+    // AZ-BUMP (the flip): 600 s, a host timeout under the 1.5-CPU quota (the GATE RULE; 30 s hit in run 5's group check:
+    // the candidates' runs fight a warlord every day), not the rule
+  }, false), false), 600_000);
 
   it("botRunes on (the switch's test path): the candidate keeps its runes and costs caravanDeck's value", () => {
     for (let idx = 0; idx < 4; idx++) {
@@ -275,7 +281,9 @@ describe("BOTS-X caravanCand costs the bought deck, as caravanDeck does (RUNES-2
       expect(c.cost).toBe(on.value);
       expect(c.code).toContain(` r:${on.build.runes!.map((q) => q.id).join(",")}/`);
     }
-  });
+    // AZ-BUMP (the flip): 600 s, a host timeout under the 1.5-CPU quota (the GATE RULE; 30 s hit in run 5's group check:
+    // the candidates' runs fight a warlord every day), not the rule
+  }, 600_000);
 });
 
 // ---------------------------------------------------------------- 3. CAPTAIN_RUNES and rivalBuild

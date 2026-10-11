@@ -7,7 +7,7 @@ import {
   DIFFICULTIES, MATRIARCH_DAY, RIVALS, RIVAL_IDS, RUN_DAYS, difficultyOf, rivalBuild, rivalDays, rivalLoadout,
   standInGhost, standInGhosts, warlordOffer, warlordOffers, warlordPool, type RivalId,
 } from "../src/sim/rivals";
-import { PLANS } from "../src/sim/rivalBuilds";
+import { PLANS, roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP: the road allowance
 import { battleSeed, newRun } from "../src/game/run";
 import { legalityProblems } from "./rivals.legality";
 
@@ -77,7 +77,9 @@ describe("rival builds are legal production builds", () => {
         // NUM-1 (REQ-BFG-047): a plate's hull from the data, 250 (was the literal 25)
         // 0.8.9 (CATCHUP-089 fallback 2): a Hard road deck may carry free PvE plates beside its paid plating
         expect(b.hullBonus).toBe(warlordHull(day) + ITEMS.plating.supply!.hull! * (l.plating + l.pvePlates));
-        if (rivalDays(id).includes(day)) expect(l.value, `${id} day ${day} value`).toBeLessThanOrEqual(budget(day));
+        // AZ-BUMP (the flip, NPC_DAY): + the road deck's allowance (REFIT-AZ's road additions; roadAllowance, 0 off), as
+        // captains.luck's R1; refitaz.road checks the on decks
+        if (rivalDays(id).includes(day)) expect(l.value, `${id} day ${day} value`).toBeLessThanOrEqual(budget(day) + roadAllowance(day, "warlord"));
       }
     });
   }

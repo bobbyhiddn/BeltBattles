@@ -34,6 +34,7 @@ import { abilityText, cardText } from "../src/ui/abilityText";
 import { banned } from "./textRules";
 import { faceLines } from "../src/ui/faces"; // U2b (REQ-BFG-046): STOKER's face
 import { SEED, barge, item, run as fight, withItem, withMod } from "./wave3.helpers";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the off checks beside STOKER ★3's re-pins
 
 installRaster();
 
@@ -107,7 +108,9 @@ const TWO: Case[] = [
 /** Every gun has room. */
 const UNCAPPED: Case[] = [
   ...cases("6-tile Kiln", furnaceStart, 6, 6, [1]),
-  ...cases("8-tile Kiln", longKiln, 6, 6),
+  // AZ-BUMP (the flip, LADDER_FIX): ★1 and ★2 (was every star). STOKER ★3's stoke 0.7 -> 0.85 passes the room its long-belt
+  // gun has (75%), so the 8-tile Kiln at ★3 is capped now: "the decks" below checks that, and its room with LADDER_FIX off
+  ...cases("8-tile Kiln", longKiln, 6, 6, [1, 2]),
   ...cases("shared gun with CALIBRATION 3 stars, on the mould", () => withMod(lockjaw(), 60, "calibrate", 0, 3), 8, 6),
   ...cases("6-tile Kiln and a loose STAMP PRESS", withLoose("press"), 5, 6, [1]),
 ];
@@ -147,6 +150,14 @@ describe("STOKER's capped line takes the opening sentence's place (0.8.0 B1 M4, 
       expect(factoriesOf(c.b).length, c.id).toBeGreaterThan(0);
       for (const f of factoriesOf(c.b)) expect(stokeKeep(c.b).get(f) ?? 1, c.id).toBe(1);
     }
+    // AZ-BUMP (the flip, LADDER_FIX): the 8-tile Kiln at ★3 left UNCAPPED. Its gun (a load every 30 / 42 s, E1's long belt)
+    // has room for 75% more than the Kiln's stamp every 1.25 s, so STOKER ★3's 85% is held to 75% (keep 0.75 / 0.85) and the
+    // panel says so; with LADDER_FIX off (★3 0.7) it has room, as before
+    const kiln3 = stoked(longKiln, 3, 6, 6);
+    expect(factoriesOf(kiln3)).toEqual([1]);
+    expect(stokeKeep(kiln3).get(1)).toBeCloseTo(0.75 / 0.85, 9);
+    expect(stokeCapBlocks(runOf({ id: "8-tile Kiln ★3", b: kiln3, stars: 3 }, 0), [1]).map((b) => b.text)).toEqual(["THE KILN'S GUN IS FULL: IT WORKS ONLY 75% FASTER."]);
+    expect(withLadderFix(() => stokeKeep(kiln3).get(1) ?? 1, false)).toBe(1);
   });
 
   it("capped: the opening block keeps its place and its keep, its text the capped line; the N% sentence is gone", () => {
@@ -275,9 +286,15 @@ describe("STOKER's capped line takes the opening sentence's place (0.8.0 B1 M4, 
       const rest = t.body.filter((b) => b.rank === 1 && !b.keep).map((b) => b.text);
       expect(rest, c.id).toEqual([...capped.slice(1).map((b) => b.text), ...full.map((f) => {
         const name = (c.b.items.find((p) => p.uid === f) as Placed).def === "press" ? "STAMP PRESS" : "DRAG CHAIN FOUNDRY";
-        return `THE ${name} WORKS ${[20, 44, 70][c.stars - 1]}% FASTER.`;
+        // AZ-BUMP (the flip, LADDER_FIX): ★3 70 -> 85, STOKER ★3's stoke 0.7 -> 0.85 (the star-ladder pass); a factory with no
+        // gun keeps the full stoke
+        return `THE ${name} WORKS ${[20, 44, 85][c.stars - 1]}% FASTER.`;
       })]);
     }
+    // AZ-BUMP (the flip, LADDER_FIX): with LADDER_FIX off the loose STAMP PRESS beside the ★3 Kiln works 70% faster, as before
+    const loose3 = TWO.find((c) => c.id === "6-tile Kiln and a loose STAMP PRESS ★3")!;
+    expect(withLadderFix(() => rigPanel(runOf(loose3, 0), STOKER)!.body.filter((b) => b.rank === 1 && !b.keep).map((b) => b.text), false))
+      .toEqual(["THE STAMP PRESS WORKS 70% FASTER."]);
   });
 });
 
@@ -338,7 +355,9 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
 
   it("G1's C-E3-press deck: \"SO ONLY ITS PLATING WORKS 20 / 44 / 70% FASTER\", and the battle stamps as unstoked and plates that much faster", () => {
     const off = pressLog(pressDeck()); // no STOKER
-    for (const [s, k] of [[1, 0.2], [2, 0.44], [3, 0.7]] as const) {
+    // AZ-BUMP (the flip, LADDER_FIX): ★3 0.7 -> 0.85, STOKER ★3's stoke (the star-ladder pass): the plating takes the full
+    // stoke, so ★3's line and the battle's plating read 85% (70% with LADDER_FIX off: after the loop)
+    for (const [s, k] of [[1, 0.2], [2, 0.44], [3, 0.85]] as const) {
       const b = sharedPress(s);
       // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was ", SO ONLY ITS PLATING ..."
       expect(capLine(b), `★${s}`).toBe(`THE ARMOR PRESS'S GUN IS FULL: ONLY ITS PLATING WORKS ${Math.round(k * 100)}% FASTER.`);
@@ -349,6 +368,7 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
       expect(pcts(capLine(b)), `★${s}`).toEqual([Math.round(measured * 100) / 100]);
     }
     expect(fasterThan(off.plates, 3)).toBeCloseTo(0, 6);
+    expect(withLadderFix(() => capLine(sharedPress(3)), false)).toBe("THE ARMOR PRESS'S GUN IS FULL: ONLY ITS PLATING WORKS 70% FASTER.");
   });
 
   // NUM-4 (REQ-BFG-047): retitled, the title quoted the line before NUM-2 (was "room for part of the stoke: \"SO IT STAMPS
@@ -361,14 +381,18 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
     const want: [number, number, string | null][] = [
       // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was ", SO IT STAMPS ONLY ..."
       // NUM-2 (REQ-BFG-047; was 60%): the ★1 press stamps every 30 / 19 = 1.58 s (was 1.6), so the full gun leaves it 58%
-      [3, 1, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 58% FASTER, BUT PLATES 70% FASTER."],
+      // AZ-BUMP (the flip, LADDER_FIX): PLATES 70% -> 85%, STOKER ★3's stoke 0.7 -> 0.85 (the plating takes the full stoke;
+      // the stamping still stops at the gun's 58%); off, 70%: after the loop
+      [3, 1, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 58% FASTER, BUT PLATES 85% FASTER."],
       // NUM-2 (was 40%, 40%): the ★2 press stamps every 30 / 21 = 1.43 s (was 1.4), so the full gun leaves it 43%
       // NUM-4 (REQ-BFG-047): the named rule change, GUN IS FULL's threshold from the data: the cap holds back 21 x 0.44 x
       // (1 - 43/44) = 0.21 of a SPEED point, under one, so no line (was "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43%
       // FASTER, BUT PLATES 44% FASTER."); the STOKER's panel opens with its face's own line, as the room cases below, and
       // the battle checks stay, their numbers now the data's (the rating's keep x the stoke, and the stoke)
       [2, 2, null],
-      [3, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT PLATES 70% FASTER."],
+      // AZ-BUMP (the flip, LADDER_FIX): PLATES 70% -> 85%, as above (the stamping at the gun's 43%: 21 / 30 x 1.85 against a
+      // load a second keeps 0.504 of the stoke)
+      [3, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT PLATES 85% FASTER."],
     ];
     for (const [s, press, text] of want) {
       const b = lonePress(s, press);
@@ -397,13 +421,21 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
       // 1.43 s (was 1.4), so the full gun leaves it 43% of STOKER ★2's 44% and that line claims a 1-point gap; the battle
       // measures 0.0105 (the other two lines: 0.119 of 0.12, 0.269 of 0.27)
       expect(plated - stamped, label).toBeGreaterThan(0);
-      expect(Math.abs(plated - stamped - (plate - stamp)), label).toBeLessThan(0.005);
+      // AZ-BUMP (the flip, LADDER_FIX): STOKER ★3 0.85 on the ★2 press measures a gap of 0.426 against the line's 0.42
+      // (85% - 43%; its 43% is 0.85 x 0.504 = 0.428 rounded, so the rounding alone is 0.002 of it): that row within 0.01,
+      // the plating's own band above; the other rows still within 0.005
+      expect(Math.abs(plated - stamped - (plate - stamp)), label).toBeLessThan(s === 3 && press === 2 ? 0.01 : 0.005);
       // NUM-4 (REQ-BFG-047): the threshold in the battle's own numbers: the SPEED points the cap holds back, the press's
       // SPEED x (plated - stamped), are at least one where a line shows and under one where none does (★2 on ★2: 0.22)
       const speed = effectAt("armorpress", press).factory!.speed;
       if (text) expect(speed * (plated - stamped), label).toBeGreaterThanOrEqual(1);
       else expect(speed * (plated - stamped), label).toBeLessThan(1);
     }
+    // AZ-BUMP (the flip, LADDER_FIX): with LADDER_FIX off, ★3's two lines read PLATES 70% as before
+    expect(withLadderFix(() => [capLine(lonePress(3, 1)), capLine(lonePress(3, 2))], false)).toEqual([
+      "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 58% FASTER, BUT PLATES 70% FASTER.",
+      "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT PLATES 70% FASTER.",
+    ]);
     // where the gun has room for the whole stoke (1 and 2 stars on the 1-star press) the opening sentence stays the
     // glossary's: the press works 20 / 44% faster, its plating with it
     for (const s of [1, 2]) {

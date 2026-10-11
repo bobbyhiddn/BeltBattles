@@ -20,6 +20,11 @@
 // validateUpload with the snapshot's seed and its lastChance, isReachable with its LAST CHANCE day (null when it has none).
 // The record model now gives 172 records over dusks 1-10 (was 178), 13 of them only after a LAST CHANCE; the sample goes up
 // as the game uploads it, with its lastChance.
+// AZ-BUMP (REQ-BFG-077, REQ-BFG-078; the flip, NPC_DAY): the run code plays the NPC day: the fork offers the three warlords
+// (road.ts forkPicks; pickRoad(run, "event") is refused, THE EVENT COMES AFTER THE FIGHT), the day's event follows the fight
+// (onToTheRoad), then REFIT. The runs pick a warlord, fight it, then take a random choice of the day's event; each dusk is
+// checked with its road log too (snapshot.road, as server/app.ts passes it). Before: a random pick of ROAD_PICKS, the event
+// instead of a fight (0.9.7's road).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
 import { Rng, hashSeed } from "../src/core/rng";
@@ -28,7 +33,7 @@ import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import type { SideStats } from "../src/sim/battle";
 import { buyOffer, fightRefusal, newRun, pendingLastChance, pendingRune, takeLastChance, takeRune, type Run } from "../src/game/run";
 import { BOONS, offeredId } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): LAST CHANCE's pick
-import { finishWarlord, leaveCaravan, pickPending, pickRoad, ROAD_PICKS, takePart, todaysWarlord } from "../src/game/road";
+import { finishWarlord, forkPicks, leaveCaravan, onToTheRoad, pickPending, pickRoad, takePart, todaysWarlord } from "../src/game/road"; // AZ-BUMP: forkPicks, onToTheRoad (was ROAD_PICKS)
 import { choicesFor, eventFor, pickChoice } from "../src/game/events";
 import { finishDay, ghostOf, startDusk } from "../src/game/day";
 import { fightBlock } from "../src/game/routeCheck";
@@ -44,7 +49,12 @@ import { setPlayerName } from "../src/game/ghostSnapshot";
 setPlayerName(TEST_NAME); // PACKS M2 (REQ-BFG-063): the device has a player name, so ghostOf carries it as the game uploads it
 
 // 400 runs a hero meet every reachable record by run 117 of each hero (output-H2/logs/m1-playcurve.json); ~7 s in all
-const RUNS_PER_HERO = 400;
+// AZ-BUMP (the flip, NPC_DAY): 1000 (was 400). The day's event now follows every fight, so nearly every run meets its DOCK
+// (1,528 of 1,600 runs at 400 a hero; 381 before the flip) and buys PATCH UP about 4x as often (231 against 59). The
+// 1-life records after a LAST CHANCE grow rarer: at 400 runs a hero d8 2W 1L is never met (171 of 172). AZ-BUMP run 6's
+// probe of this run code (B/output-azbump/notes/h2probe-flip.json): all 172 met from 500 runs a hero; at 1000 every record
+// is met 8 times or more (the rarest d8 2W 1L and d9 3W 1L). The claim is unchanged
+const RUNS_PER_HERO = 1000;
 const NOSTATS = {} as SideStats; // finishDay and finishWarlord only store a fight's stats
 const key = (day: number, wins: number, lives: number) => `${day}|${wins}|${lives}`;
 
@@ -89,10 +99,18 @@ function playRun(hero: HeroId, i: number, player: string): Played {
       buyOffer(run, wi, si);
     }
     leaveCaravan(run);
-    // the fork, then the road stop
-    const pick = rng.pick(ROAD_PICKS);
+    // the fork, then the road stop. AZ-BUMP (the flip, NPC_DAY): the fork's picks are forkPicks() (with NPC_DAY on the three
+    // warlords: no "event only" stop) and the day's event follows the fight (onToTheRoad: "event" while its choice is open),
+    // then REFIT, as the game plays the NPC day. Was a pick of ROAD_PICKS: 0.9.7's road, the event instead of a fight
+    const pick = rng.pick(forkPicks());
     expect(pickRoad(run, pick).ok, `${hero} #${i} day ${run.day} ${pick}`).toBe(true);
-    if (pick === "event") {
+    if (pick !== "event") {
+      const before = run.lives;
+      finishWarlord(run, rng.pick([0, 1, -1] as const), 20 + run.day);
+      if (pickPending(run.warlord)) takePart(run, rng.int(todaysWarlord(run)!.result!.parts.length));
+      expect(run.lives).toBe(before); // warlords never move lives
+    }
+    if (pick === "event" || onToTheRoad(run) === "event") {
       if (eventFor(run.seed, run.day) === "dock") out.dockMet++;
       const open = choicesFor(run).map((c, ci) => ({ c, ci })).filter(({ c }) => !c.blocked);
       if (open.length) {
@@ -104,11 +122,7 @@ function playRun(hero: HeroId, i: number, player: string): Played {
           expect(run.lives).toBe(before + 1);
         } else expect(run.lives).toBe(before); // no other choice moves lives
       }
-    } else {
-      const before = run.lives;
-      finishWarlord(run, rng.pick([0, 1, -1] as const), 20 + run.day);
-      if (pickPending(run.warlord)) takePart(run, rng.int(todaysWarlord(run)!.result!.parts.length));
-      expect(run.lives).toBe(before); // warlords never move lives
+      onToTheRoad(run); // AZ-BUMP (the flip, NPC_DAY): REFIT (the caravan has moved on); off, nothing (null)
     }
     expect(fightBlock(run.build), `${hero} #${i} day ${run.day}: FIGHT open`).toBeFalsy(); // nothing here draws a belt
     expect(fightRefusal(run), `${hero} #${i} day ${run.day}: no pick pending`).toBeNull(); // Z-BUMP: FIGHT's own refusal
@@ -120,7 +134,9 @@ function playRun(hero: HeroId, i: number, player: string): Played {
     // deck with its seed and its lastChance. Were isReachable(s.day, s.wins, s.lives) and validateUpload(s.build, s.day)
     const lcAt = s.lastChance ? ` (LAST CHANCE ${s.lastChance.day})` : "";
     if (!isReachable(s.day, s.wins, s.lives, { lastChance: s.lastChance?.day ?? null })) out.unreachable.push(`${hero} #${i} d${s.day} ${s.wins}W ${s.lives}L${lcAt}`);
-    const v = validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(s.lastChance ? { lastChance: s.lastChance } : {}) });
+    // AZ-BUMP (the flip, NPC_DAY): and its road log (snapshot.road), as server/app.ts passes it: the player mode counts the
+    // deck's drops only through it
+    const v = validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(s.lastChance ? { lastChance: s.lastChance } : {}), ...(s.road ? { road: s.road } : {}) });
     if (!v.ok) out.refused.push(`${hero} #${i} d${s.day}${lcAt}: ${v.errors[0]}`);
     out.lastDay = run.day;
     const r = rng.next() * (odds[0] + odds[1] + odds[2]);
@@ -152,7 +168,9 @@ describe("H2: real runs through the run code only ever upload records POST /v1/g
       const by = met.get(k)!;
       sample.push(by.get(PLAYABLE_HEROES[j % PLAYABLE_HEROES.length]) ?? [...by.values()][0]);
     });
-  }, 60_000);
+    // AZ-BUMP (the flip): 600 s (was 60 s), a host timeout under the 1.5-CPU quota (the GATE RULE; 60 s hit in run 5's group
+    // check: the runs now fight a warlord every day), not the rule
+  }, 600_000);
 
   it(`${RUNS_PER_HERO} runs of each of the four heroes: every dusk's snapshot carries a reachable record and an upload-valid deck`, () => {
     const dusks = runs.reduce((a, p) => a + p.snaps.length, 0);

@@ -13,6 +13,7 @@ import { faceAt, hasFace } from "../src/ui/faces";
 import { statRow } from "../src/ui/icons";
 import { STARS, barge, east, hitOnce, key as K, levels, lines, next, oneLine, rigBench } from "./y3.helpers";
 import { SEED, item, latchDeck, withItem } from "./wave3.helpers";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's QUENCH ★1 and STOKER ★3 beside the shipped ones
 
 /** The flat and BURN the walk's hit of `def` adds (its first timeline hit of that def). */
 const walkHit = (b: Build, def: string) => {
@@ -125,20 +126,27 @@ describe("Y3 row 23: QUENCH TANK turns each BURN into +30/+50/+70; no floor, no 
       const p = hitOnce(rigBench([["quench", 4, 3, s]]), (q) => { q.burn = burn; });
       return [p.flat, p.burn];
     };
-    expect(STARS.map((s) => at(s, 7))).toEqual([[210, 0], [350, 0], [490, 0]]);
+    // AZ-BUMP (the flip, LADDER_FIX): ★1 210 -> 280, 7 BURN x 40 (the star-ladder pass's QUENCH ★1, was 30 a BURN); off, 210
+    expect(STARS.map((s) => at(s, 7))).toEqual([[280, 0], [350, 0], [490, 0]]);
+    expect(withLadderFix(() => at(1, 7), false)).toEqual([210, 0]);
     expect(STARS.map((s) => at(s, 0)[0])).toEqual([0, 0, 0]);
   });
 
   it("battle: on, a slug with a ★3 TEMPER's 4 BURN past a QUENCH TANK carries 120 and no BURN (off 10 + 120, none left)", () => {
     const b = rigBench([["temper", 4, 4, 3], ["quench", 4, 3, 1]]);
     const a = slugPast(b, 2);
-    expect([a.flat, a.burn]).toEqual([120, 0]);
+    // AZ-BUMP (the flip, LADDER_FIX): 120 -> 160, 4 BURN x 40 (QUENCH ★1, was 30 a BURN); off, 120
+    expect([a.flat, a.burn]).toEqual([160, 0]);
+    const off = withLadderFix(() => slugPast(rigBench([["temper", 4, 4, 3], ["quench", 4, 3, 1]]), 2), false);
+    expect([off.flat, off.burn]).toEqual([120, 0]);
   });
 
   it("face: HIT: TURNS EACH BURN INTO +30/+50/+70 DMG; ladder DMG +30/+50/+70", () => {
-    expect(lines("quench")).toEqual([30, 50, 70].map((d) => [`HIT: TURNS EACH {*BURN} INTO +${d} {DMG}.`]));
+    // AZ-BUMP (the flip, LADDER_FIX): ★1 +30 -> +40, the star-ladder pass's QUENCH ★1, on its face and its ladder; off, +30
+    expect(lines("quench")).toEqual([40, 50, 70].map((d) => [`HIT: TURNS EACH {*BURN} INTO +${d} {DMG}.`]));
+    expect(withLadderFix(() => lines("quench")[0], false)).toEqual(["HIT: TURNS EACH {*BURN} INTO +30 {DMG}."]);
     oneLine("quench");
-    expect(levels("quench", 1)).toEqual(["{DMG} [+30]/+50/+70", next(2, "+50 {DMG}")]);
+    expect(levels("quench", 1)).toEqual(["{DMG} [+40]/+50/+70", next(2, "+50 {DMG}")]);
     expect(hasFace("quench")).toBe(true);
   });
 });
@@ -372,9 +380,12 @@ describe("Y3 row 31: STOKER's factories work 20%/44%/70% faster; Y7b1 (ruling Y7
   });
 
   it("face: ITS FACTORIES WORK UP TO 20%/44%/70% FASTER (Y7A-R1: the cap in its line), no caveat; ladder 20%/44%/70% FASTER", () => {
-    expect(lines("stoker")).toEqual(["20%", "44%", "70%"].map((p) => [`ITS FACTORIES WORK UP TO ${p} FASTER.`])); // Y7b1 (Y7A-R1): was `ITS FACTORIES WORK ${p} FASTER.`
+    // AZ-BUMP (the flip, LADDER_FIX): ★3 70% -> 85%, the star-ladder pass's STOKER ★3 (stoke 0.85, was 0.7), on its face and
+    // its ladder; off, 70%
+    expect(lines("stoker")).toEqual(["20%", "44%", "85%"].map((p) => [`ITS FACTORIES WORK UP TO ${p} FASTER.`])); // Y7b1 (Y7A-R1): was `ITS FACTORIES WORK ${p} FASTER.`
+    expect(withLadderFix(() => lines("stoker")[2], false)).toEqual(["ITS FACTORIES WORK UP TO 70% FASTER."]);
     oneLine("stoker");
-    expect(levels("stoker", 1)).toEqual(["[20%]/44%/70% FASTER", next(2, "44% FASTER")]);
+    expect(levels("stoker", 1)).toEqual(["[20%]/44%/85% FASTER", next(2, "44% FASTER")]);
   });
 });
 

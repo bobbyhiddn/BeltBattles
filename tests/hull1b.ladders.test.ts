@@ -2,6 +2,7 @@
 // switch off every piece is bb-0.9.7's (the tripwire tests keep their bb-0.9.7 pins; AZ-BUMP re-rules them at the bump).
 // With it on, each fixed piece's ladder rises at every star on its tripwire's own bench, pinned here by order. BB_TABLES=1
 // prints each bench's numbers, off and on (the REPORT's before/after).
+// AZ-BUMP (the flip, LADDER_FIX): the switch ships on now; each off half below sets it off itself (they read the default).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -14,6 +15,8 @@ import { LIFT } from "./starRows";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { PLAYER_DAYS, playerRun } from "../src/sim/harness/player";
 import { LADDER_DEFS, LADDER_FIX, ladderFixRules, setLadderFix, withLadderFix } from "../src/sim/ladderFix";
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip, NPC_DAY): the par player's bb-0.9.7 runs, the NPC day off
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): the same runs, 0.9.7's gold table
 import { effectAt } from "../src/sim/stars";
 import { barge, bench, SEED } from "./arsenal.bench";
 import { K, item, withItem, withMod } from "./wave3.helpers";
@@ -22,8 +25,13 @@ const log = (s: string) => { if (process.env.BB_TABLES) console.log(s); };
 
 describe("HULL-1b the switch (REQ-BFG-070)", () => {
   it("LADDER_FIX is off in this rules version; withLadderFix puts it back even on a throw; off, every fixed def is content.ts's own object", () => {
-    expect(LADDER_FIX).toBe(false);
-    expect(ladderFixRules()).toBe(false);
+    // AZ-BUMP (the flip, LADDER_FIX): ships on (was toBe(false) twice: "off in this rules version")
+    expect(LADDER_FIX).toBe(true);
+    expect(ladderFixRules()).toBe(true);
+    // AZ-BUMP (the flip, LADDER_FIX): the off half (content.ts's own objects; withLadderFix puts the switch back off, even on
+    // a throw) runs from the switch set off here, as it ran from the default before the flip; the shipped value is put back
+    // at the end
+    setLadderFix(false);
     const base = Object.fromEntries(Object.keys(LADDER_DEFS).map((id) => [id, ITEMS[id]]));
     expect(withLadderFix(() => ladderFixRules())).toBe(true);
     expect(ladderFixRules()).toBe(false);
@@ -35,9 +43,13 @@ describe("HULL-1b the switch (REQ-BFG-070)", () => {
     expect(ladderFixRules()).toBe(true);
     setLadderFix(false);
     for (const id of Object.keys(LADDER_DEFS)) expect(ITEMS[id]).toBe(base[id]);
+    setLadderFix(true); // AZ-BUMP (the flip, LADDER_FIX): the shipped value (AZ-BUMP's flip) for the later tests (was left off)
   });
 
-  it("the fixed numbers, on; bb-0.9.7's, off (the star cache follows the switch both ways)", () => {
+  // AZ-BUMP (the flip, LADDER_FIX): the off halves (bb-0.9.7's numbers; bq / bk, the base defs) read the default, which ships
+  // on now, so the test runs with the switch set off (withLadderFix(fn, false), put back even on a throw); its on halves are
+  // withLadderFix's, as before
+  it("the fixed numbers, on; bb-0.9.7's, off (the star cache follows the switch both ways)", () => withLadderFix(() => {
     const q = (s: number) => effectAt("quench", s).gate!.quench!.perBurn;
     const k = (s: number) => effectAt("stoker", s).gate!.stoke;
     const off = () => [[1, 2, 3].map(q), [1, 2, 3].map(k)];
@@ -51,7 +63,7 @@ describe("HULL-1b the switch (REQ-BFG-070)", () => {
     expect(fq.gate).toEqual({ ...bq.gate, quench: { ...bq.gate!.quench!, perBurn: 40 } });
     expect({ ...fk, levels: null }).toEqual({ ...bk, levels: null });
     expect(fk.levels).toEqual({ ...bk.levels, 3: { ...bk.levels![3], gate: { ...bk.levels![3]!.gate, stoke: 0.85 } } });
-  });
+  }, false));
 });
 
 // ------------------------------------------------------------------ QUENCH TANK (tests/fb062.quench's own bench)
@@ -185,11 +197,16 @@ describe("HULL-1b OVERDRIVE (backlog #370; tests/arsenal.decks; cap's oracle 37b
         expect(on[2], "bench ★2 < ★3").toBeGreaterThan(on[1]);
       }
     }
-  });
+    // AZ-BUMP (the 1.5-CPU quota, the GATE RULE; no switch): 600 s (was the 30 s default), a host timeout, not the rule. 4.7 s
+    // in S1's whole suite, 11.0 s in AZ-BUMP run 4's switch-on shard, 34.3 s and 35.8 s in run 7 (shard s3-1, then alone).
+    // The test sets LADDER_FIX itself (off, then on). Run 7's variants (the tree with ONE switch off, the four at once) read
+    // 49.5-51.9 s each: no switch makes it slower
+  }, 600_000);
 
   it("the keep is OVERDRIVE ★2/★3's alone, on only: 0.5 / 1 (★1 none), and the walk rides it tick for tick with the battle", () => {
     const keep = (s: number) => (effectAt("overdrive", s).gate as { rideKeep?: number }).rideKeep;
-    expect([1, 2, 3].map(keep)).toEqual([undefined, undefined, undefined]);
+    // AZ-BUMP (the flip, LADDER_FIX): the off half reads the switch set off (it read the default, which ships on)
+    expect(withLadderFix(() => [1, 2, 3].map(keep), false)).toEqual([undefined, undefined, undefined]);
     expect(withLadderFix(() => [1, 2, 3].map(keep))).toEqual([undefined, 0.5, 1]);
     for (const s of [1, 2, 3]) {
       const b = bench([["overdrive", 4, 4, s]], [], 0);
@@ -243,8 +260,10 @@ describe("HULL-1b P13 (cap's oracle d306b1b196dbab38): the walk agrees with the 
       expect(on.w.time, `${name}: stamp to chamber`).toBeCloseTo(on.f.time, 9);
     }
     // off: bb-0.9.7's walk (the tripwire's pairs: ★1 94 / 95, 4.1667 / 4.2 s)
+    // AZ-BUMP (the flip, LADDER_FIX): read with the switch set off (it read the default, which ships on: there the walk is
+    // the battle's, 94 / 4.1667, as the loop above checks)
     const b1 = bench([["brake", 4, 3, 1]]);
-    expect([firstLoad(b1, 1).dmg, walkRoute(b1, 0).estimate.dmg, +walkRoute(b1, 0).estimate.time.toFixed(4)]).toEqual([94, 95, 4.2]);
+    expect(withLadderFix(() => [firstLoad(b1, 1).dmg, walkRoute(b1, 0).estimate.dmg, +walkRoute(b1, 0).estimate.time.toFixed(4)], false)).toEqual([94, 95, 4.2]);
   });
 });
 
@@ -257,11 +276,17 @@ describe("HULL-1b the par player's six runs (tests/harness.player's buy floor: n
       playerRun(hero, PLAYER_DAYS, seed, { trace: () => { n++; } });
       return n;
     }));
-    const off = withLadderFix(buys, false), on = withLadderFix(buys);
+    // AZ-BUMP (the flip, NPC_DAY, HULL_SCALE, LADDER_FIX): bb-0.9.7's six are the all-off world's: with NPC_DAY on the par
+    // player fights the Medium warlord every day (road gold and drops in its deck) and HULL_SCALE moves its gold table
+    // (maxGoldByDay), so the off half sets all three off (LADDER_FIX off alone read 13 / 15 / 16 / 17 / 14 / 16, the other
+    // two on); the on half is the shipped game, every switch on
+    const off = withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false), on = withLadderFix(buys);
     log(`BUYS FURNACE s1-s3, WEAVER s1-s3: off ${off.join(" / ")}; on ${on.join(" / ")}`);
     expect(off).toEqual([12, 15, 13, 14, 10, 16]); // bb-0.9.7's, as tests/harness.player pins them
     for (const n of on) expect(n).toBeGreaterThan(0);
-  });
+    // AZ-BUMP (the flip): 300 s, the on half's six runs fight a warlord every day; a host timeout under the 1.5-CPU quota
+    // (30 s hit in run 5's group check), not the rule
+  }, 300_000);
 });
 
 // ------------------------------------------------------------------ STOKER (tests/wave3.decks STOKER_ROWS, backlog #356)

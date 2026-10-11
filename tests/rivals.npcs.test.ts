@@ -13,6 +13,8 @@ import {
 } from "../src/sim/rivals";
 import { PLANS } from "../src/sim/rivalBuilds";
 import { finishWarlord, forkFor, pickRoad, roadChosen, takePart, todaysWarlord, warlordDeck, warlordDeckDay, warlordReward, warlordSeed } from "../src/game/road";
+import { onToTheRoad } from "../src/game/road"; // AZ-BUMP (the flip): the day's event after the fight, then REFIT
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's Hard prizes with NPC_DAY off
 import { battleSeed, buyOffer, installFromCargo, migrateRun, type Run } from "../src/game/run";
 import { finishDay, startDusk } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
@@ -157,7 +159,11 @@ describe("the Hard prizes stay inside today's economy (0.8.0 N1, oracle 94b9559f
     const r = warlordReward(id, "hard", warlordDeck(id, day, sab), warlordDeckDay(id, day, sab), day);
     return Math.max(0, ...r.parts.map((p) => valueOf(p, 1)));
   };
-  it("MASTER VOSS's and THANE KARSK's prizes never beat the best of the five other Hard captains on any day", () => {
+  // AZ-BUMP (the flip, NPC_DAY): with the NPC day on a Hard win rolls a drop instead of the pick (warlordReward offers no
+  // parts, so every prize read 0: [5, 6, 6, 7, ..] -> [0, 0, ..]) and the upload ceiling prices a fight's gold only, the drops
+  // counted through the road log (src/net/roadCap.ts); so the prizes, and the 0.9.7 ceiling they feed, are the switch-off
+  // path, kept for older records: this check runs with NPC_DAY off (on the road-less decks)
+  it("MASTER VOSS's and THANE KARSK's prizes never beat the best of the five other Hard captains on any day", () => withNpcDay(() => {
     const best = DAYS.map((day) => Math.max(...BASE_HARD.flatMap((id) => [false, true].map((sab) => part(id, day, sab)))));
     // CATCHUP-098 (REQ-BFG-024; cap's yes for roadCap, oracle bc842e7024551665): MOTH QUEEN's SPLITTER (7 g) at good luck on
     // day 4, so day 4's best is 7 (was 5 6 6 6 7 7 7 10 10 10); MASTER VOSS and THANE KARSK stay at or under it
@@ -166,7 +172,7 @@ describe("the Hard prizes stay inside today's economy (0.8.0 N1, oracle 94b9559f
       expect(part(id, day, sab), `${id} day ${day}${sab ? " sabotaged" : ""}`).toBeLessThanOrEqual(best[day - 1]);
       expect(warlordReward(id, "hard", warlordDeck(id, day, sab), warlordDeckDay(id, day, sab), day).parts.length, `${id} d${day}`).toBe(2);
     }
-  });
+  }, false));
 });
 
 // ------------------------------------------------------------------ saves written before N1
@@ -197,22 +203,27 @@ function shop(run: Run): void {
   }));
 }
 
-/** Play a loaded run on to its end with the game's own day loop; returns the days played and each dusk's stand-in. */
+/** Play a loaded run on to its end with the game's own day loop; returns the days played and each dusk's stand-in.
+ *  AZ-BUMP (the flip, NPC_DAY): the shipped day (main.ts openNpcDay's): a warlord tier at the fork, the fight, then ON TO THE
+ *  ROAD: the day's event (its first open choice) and REFIT, then the dusk (0.9.7's road took the event instead of a fight
+ *  1 day in 4; pickRoad(run, "event") is refused with the NPC day on). A save that stored today's fight resumes at it, one
+ *  that stored tonight's foe goes on to the dusk. */
 function playOn(run: Run, seed: number): { days: number; standIns: RivalId[]; offers: RivalId[][] } {
   const out = { days: 0, standIns: [] as RivalId[], offers: [] as RivalId[][] };
   for (let guard = 0; guard < RUN_DAYS + 1 && !run.over; guard++) {
     if (!roadChosen(run)) {
       shop(run);
       out.offers.push(Object.values(forkFor(run).warlords));
-      const pick = (["event", "easy", "medium", "hard"] as const)[hashSeed(seed, run.hero, run.day, "n1-play") % 4];
+      const pick = (["easy", "medium", "hard"] as const)[hashSeed(seed, run.hero, run.day, "n1-play") % 3];
       expect(pickRoad(run, pick).ok).toBe(true);
-      if (pick === "event") pickChoice(run, Math.max(0, choicesFor(run).findIndex((c) => !c.blocked)));
     }
     const w = todaysWarlord(run);
     if (w && !w.result) {
       const b = simulate(run.build, w.build, warlordSeed(run));
       const res = finishWarlord(run, b.winner as 0 | 1 | -1, b.t);
-      if (res?.outcome === "win" && w.tier === "hard") takePart(run, 0);
+      if (res?.outcome === "win" && w.tier === "hard") takePart(run, 0); // AZ-BUMP: a pick only for an old save's stored Hard fight (its pick of 2) that dropped nothing
+      if (onToTheRoad(run) === "event") pickChoice(run, Math.max(0, choicesFor(run).findIndex((c) => !c.blocked)));
+      onToTheRoad(run); // REFIT
     }
     const foe = startDusk(run, []);
     if (foe.kind === "standin") out.standIns.push(foe.rival as RivalId);

@@ -21,6 +21,7 @@ import { fmtCount, fmtDmg, fmtPct, fmtSec } from "../src/ui/statFormat"; // U2c 
 import { fmtSpeed } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): a stamp's SPEED as it is (NUM-2: its interval, 30 / speed, via secPer)
 import { DISRUPT_TIME, WINDOW_TIME } from "../src/sim/content"; // NUM-3 step 2: HOT SWAP's spark STUN, ROTARY's load time
 import { stripIcons } from "../src/render/font"; // Y1: COIL's one line, read as text
+import { RIDE_KEEP, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's ride-keep words, and off
 
 // 0.6.1r (review-061 F5, N2, N4) and after: the inspector's ability, next-star, merge-progress and MERGES WITH lines.
 // 0.6.2t (REQ-BFG-032): they read as whole sentences from the glossary (src/ui/abilityText.ts): "NEXT STAR: ADDS 4 BURN.",
@@ -352,11 +353,17 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // (was expect(od.clause!.label).toBe("★3 AFTERBURNER:"), the perk named by its clause's brass label)
     const x = rigPanel(rigRun("overdrive", 3, 5, 3, 0, 0), 10)!;
     const od = faceLines("overdrive", 3)!;
+    // AZ-BUMP (the flip, LADDER_FIX): + its second rule line, ★3's ride-keep "KEEPS 100% OF THE RIDE IT CUTS." (AZ-PREP (g)),
+    // so [1, undefined] -> [2, undefined]; with LADDER_FIX off the one line, as before
     expect(text(rigRun("overdrive", 3, 5, 3, 0, 0))).toEqual([
-      "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", od.rules[0].text,
+      "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", od.rules[0].text, od.rules[1].text,
       "FACES EVERY SIDE. DRAG TO MOVE.",
     ]);
-    expect([od.rules.length, od.clause]).toEqual([1, undefined]);
+    expect([od.rules.length, od.rules[1].text, od.clause]).toEqual([2, `KEEPS ${fmtPct(RIDE_KEEP[3])} OF THE RIDE IT CUTS.`, undefined]);
+    withLadderFix(() => {
+      expect(text(rigRun("overdrive", 3, 5, 3, 0, 0))).toEqual(["→ BELT 1, TILE 3", "→ BELT 2, TILE 3", faceLines("overdrive", 3)!.rules[0].text, "FACES EVERY SIDE. DRAG TO MOVE."]);
+      expect([faceLines("overdrive", 3)!.rules.length, faceLines("overdrive", 3)!.clause]).toEqual([1, undefined]);
+    }, false);
     expect([x.sub, x.subShort, x.labels]).toEqual(["RIG · 2/4 ARROWS ON BELTS", "RIG · 2/4 HIT", ["TO CARGO"]]);
   });
 
@@ -375,8 +382,12 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // the headline: the next star's first clause, where it has more than one. Y7b2: SURGE VALVE's next star is its damage pulse
     // alone (the flip: no speed; was "NEXT STAR: 5 TIMES AS FAST.") and OVERDRIVE's its speed alone (the words: its gist reads
     // the data, no SAFE FROM CHAINS; was "NEXT STAR: 4 TIMES AS FAST."), one clause each, so none of the four has a headline
+    // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's null -> "NEXT STAR: 4 TIMES AS FAST.", its ★2 gist has two clauses again
+    // ("4 TIMES AS FAST, KEEPS 50% OF THE RIDE": the ride-keep, AZ-PREP (g)), so the headline is the first; with LADDER_FIX off
+    // one clause and no headline, as before
     expect([nextStarHeadline("coil", 2), nextStarHeadline("surge", 2), nextStarHeadline("brake", 1), nextStarHeadline("overdrive", 1)])
-      .toEqual([null, null, null, null]);
+      .toEqual([null, null, null, "NEXT STAR: 4 TIMES AS FAST."]);
+    expect(withLadderFix(() => nextStarHeadline("overdrive", 1), false)).toBeNull();
   });
 
   /** The layouts a rig's shape allows on this deck: 1 hit beside the Kiln's belt, 2 hits (II, L, T, X), 3 hits in the
@@ -526,7 +537,10 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
     expect([1, 2, 3].map((s) => gist("grease", s))).toEqual(["60% FASTER", up(2), up(3)]);
     // NUM-1 (REQ-BFG-047): x10, OVERDRIVE ★3's flat through fmtDmg ("30"; was the literal "3"). Y7b2 (the flip): ★3's flat
     // left, so its gist is its speed (was `5 TIMES AS FAST, ADDS ${fmtDmg(flat)} DAMAGE`, "..., ADDS 30 DAMAGE")
-    expect(gist("overdrive", 3)).toBe("5 TIMES AS FAST");
+    // AZ-BUMP (the flip, LADDER_FIX): "5 TIMES AS FAST" -> "5 TIMES AS FAST, KEEPS 100% OF THE RIDE", ★3's ride-keep (AZ-PREP
+    // (g)); with LADDER_FIX off its speed alone, as before
+    expect(gist("overdrive", 3)).toBe(`5 TIMES AS FAST, KEEPS ${fmtPct(RIDE_KEEP[3])} OF THE RIDE`);
+    expect(withLadderFix(() => gist("overdrive", 3), false)).toBe("5 TIMES AS FAST");
     // U2c (U2b's faces): NEXT★ shows the next star's changed numbers, each the ★3 value through its formatter: OVERDRIVE's
     // "5 TIMES" (fmtCount) and "+30 {DMG}" (fmtDmg; NUM-1: x10, was "+3 {DMG}"), then AFTERBURNER once; GALVANIC COIL's "{STUN} 2.8" (fmtSec; its 2 parts
     // are ★2's too, so the diff leaves them out), no perk. Were "NEXT STAR: 5 TIMES AS FAST, ADDS 3 DAMAGE. ★3 AFTERBURNER
@@ -534,7 +548,11 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
     // Y7b2 (the flip): no flat, so the speed alone, then AFTERBURNER once (was `NEXT ★3: ${fmtCount(od3.speed!)} TIMES,
     // +${fmtDmg(od3.flat!)} ${ICON.DMG} ★3 AFTERBURNER`)
     const od3 = effectAt("overdrive", 3).gate!;
-    expect(nextLine(holding("overdrive", [2]), "overdrive", 2)).toBe(`NEXT ★3: ${fmtCount(od3.speed!)} TIMES ★3 AFTERBURNER`);
+    // AZ-BUMP (the flip, LADDER_FIX): + ★3's ride-keep, ", KEEPS 100% RIDE", and AFTERBURNER gives way where it would pass the
+    // 225 px band (faces.ts faceNext, U2d F1; REVIEW-AZPREP (g) and Q5: the ⓘ ladder still names it); with LADDER_FIX off the
+    // speed alone, then AFTERBURNER, as before
+    expect(nextLine(holding("overdrive", [2]), "overdrive", 2)).toBe(`NEXT ★3: ${fmtCount(od3.speed!)} TIMES, KEEPS ${fmtPct(RIDE_KEEP[3])} RIDE`);
+    expect(withLadderFix(() => nextLine(holding("overdrive", [2]), "overdrive", 2), false)).toBe(`NEXT ★3: ${fmtCount(od3.speed!)} TIMES ★3 AFTERBURNER`);
     expect(nextLine(holding("coil", [2]), "coil", 2)).toBe(`NEXT ★3: ${ICON.STUN} ${fmtSec(effectAt("coil", 3).gate!.shockTime!)}`); // SPARK JUMP already
   });
 

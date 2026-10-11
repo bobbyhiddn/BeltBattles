@@ -65,7 +65,9 @@ describe("HULL-1c: REVIEW-HULL1A C4b, every M(d) even and every flat max-hull gr
     console.log(`HULL1C-EVEN hullBonus grants: ${Object.entries(all).map(([s, l]) => `${s} ${l.map((g) => `${g.id} ${g.n}`).join(", ")}`).join("; ")}`);
   });
 
-  it("so on every day the shown number is exact and is what lands: M(d) x n is a whole 10, and adding n to any hero's hull adds exactly that", () => {
+  it("so on every day the shown number is exact and is what lands: M(d) x n is a whole 10, and adding n to any hero's hull adds exactly that", () => withHullScale(() => {
+    // AZ-BUMP (the flip, HULL_SCALE): the switch ships on, so the test starts it off for itself and its last line still
+    // proves withHullScale puts the switch back
     const grants = Object.values(hullBonusGrants()).flat();
     const heroes = Object.keys(HEROES) as HeroId[];
     withHullScale(() => {
@@ -84,7 +86,7 @@ describe("HULL-1c: REVIEW-HULL1A C4b, every M(d) even and every flat max-hull gr
       }
     });
     expect(hullScaleRules()).toBe(false);
-  });
+  }, false));
 
   it("the battle-time runes, each unit rounded alone (Q3): whole 10s; BULKHEADS' per-turret amount a 50 as C4b lists it", () => {
     const perTurret = runesOf("perTurretHull"), merged = runesOf("mergedHull");

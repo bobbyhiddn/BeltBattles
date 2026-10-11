@@ -22,6 +22,7 @@ import { validateBuild } from "../src/net/validate";
 import type { GhostSnapshot } from "../src/game/ghostSnapshot";
 import { barge, factoryBench, gantryWeaver, SEED } from "./arsenal.bench";
 import { roadDraws, type RoadDraws } from "./beltside.roadDraws";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): P8's walk with the switch off
 
 const J = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const st = (s: number) => (s > 1 ? { stars: s } : {});
@@ -197,7 +198,12 @@ describe("P8: SLAG rides at its fixed 0.75x", () => {
     expect(press("brake").estimate.time).toBeGreaterThan(press(null).estimate.time);
     expect(press("grease").estimate.time).toBeLessThan(press(null).estimate.time);
     expect([press("brake").timeline[0].hits[0].won, press("brake").fixed, press("brake").speedEnd]).toEqual([true, undefined, 0.5]);
-    expect(none.estimate.time).toBeCloseTo(press(null).estimate.time / 0.75, 9);
+    // AZ-BUMP (the flip, LADDER_FIX): P13, the walk rides tick by tick, so stamp to chamber is whole ticks and slag's 0.75x
+    // holds within a tick: slag 239 ticks (3.983 s), the press slug 179 (2.983 s; / 0.75 = 238.7 ticks); was exactly the
+    // press slug's / 0.75 (the half cells' seconds), as it still is with LADDER_FIX off
+    expect([none.estimate.time, press(null).estimate.time]).toEqual([239 * TICK, 179 * TICK]);
+    expect(Math.abs(none.estimate.time - press(null).estimate.time / 0.75)).toBeLessThan(TICK);
+    withLadderFix(() => expect(walkRoute(slag(null), 0).estimate.time).toBeCloseTo(press(null).estimate.time / 0.75, 9), false);
   });
 
   it("as in 0.6.1c, slag ignores the METRONOME speed lock and SIPHON's Drag, which hold other payloads (the silent check)", () => {

@@ -15,10 +15,10 @@ import {
 } from "../src/game/road";
 import { newRun, type Run } from "../src/game/run";
 
-afterEach(() => {
-  setNpcDay(false);
-  setHullScale(false);
-  setLadderFix(false);
+afterEach(() => { // the shipped values (AZ-BUMP's flip; were false); both tests set every switch themselves (set)
+  setNpcDay(true);
+  setHullScale(true);
+  setLadderFix(true);
 });
 
 const ON_OFF = [false, true] as const;

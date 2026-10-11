@@ -5,7 +5,7 @@
 // standins.ts dataModuleText from caravan.ts CaravanMeta.log), a race deck takes its par run's (player.ts playerRoadLog),
 // tools/samplePool.ts writes it into the seed ghost's v3 snapshot, and the seed step (server/seed.ts checkPool) passes it
 // as ctx.road, as an upload's is passed. No blanket allowance: a deck without its log is held to road gold alone.
-// The switches are set through their own setters and all put back off after each test.
+// The switches are set through their own setters and all put back after each test (on: the shipped value, AZ-BUMP's flip).
 import { afterEach, describe, expect, it } from "vitest";
 import type { HeroId } from "../src/sim/content";
 import { RULES_VERSION } from "../src/sim/content";
@@ -24,9 +24,10 @@ import { RACE_SEED_HEROES, raceDeck, raceGhosts } from "../tools/samplePool";
 import type { Run } from "../src/game/run";
 
 afterEach(() => {
-  setNpcDay(false);
-  setHullScale(false);
-  setLadderFix(false);
+  // the shipped value (AZ-BUMP's flip); a test that needs a switch off sets it off itself
+  setNpcDay(true);
+  setHullScale(true);
+  setLadderFix(true);
 });
 const allOn = (): void => { setNpcDay(true); setHullScale(true); setLadderFix(true); };
 
@@ -62,6 +63,7 @@ describe("AZ-BUMP N3: a pool entry's road log (REVIEW-PARAZ N3)", () => {
 
   it("a par-player run's road log is the game's (roadLog of run.warlords), one entry a day, its drops the day's roadDrops; none with NPC_DAY off", () => {
     for (const hero of ["furnace", "bastion"] as const) {
+      setNpcDay(false); // AZ-BUMP (the flip, NPC_DAY): it ships on, so each hero's off check sets it off itself
       expect(playerRoadLog(playerRun(hero, PLAYER_DAYS, 3), PLAYER_DAYS), `${hero} off`).toEqual([]);
       allOn();
       let run: Run | undefined;
@@ -71,7 +73,6 @@ describe("AZ-BUMP N3: a pool entry's road log (REVIEW-PARAZ N3)", () => {
         const log = playerRoadLog(days, d.day);
         expect([log.length, log.every((e) => e.tier === PAR_ROAD_TIER), roadDropValue(log)], `${hero} d${d.day}`).toEqual([d.day, true, d.roadDrops]);
       }
-      setNpcDay(false);
     }
   });
 
@@ -106,6 +107,7 @@ describe("AZ-BUMP N3: a pool entry's road log (REVIEW-PARAZ N3)", () => {
 
   it("the seed pool's race ghosts carry their par run's road log with NPC_DAY on and pass the seed step; off, none (the snapshots as before)", () => {
     const hero = RACE_SEED_HEROES[0];
+    setNpcDay(false); // AZ-BUMP (the flip, NPC_DAY): it ships on, so the off check sets it off itself
     expect(raceDeck(hero, 4, 0).road, "off").toBeUndefined();
     allOn();
     const deck = raceDeck(hero, 4, 0);

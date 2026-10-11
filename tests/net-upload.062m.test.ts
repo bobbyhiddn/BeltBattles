@@ -15,12 +15,12 @@ import { ROAD_PICKS, warlordDeck, warlordDeckDay, warlordReward } from "../src/g
 import { newRun, storeTurret } from "../src/game/run";
 import { gainModule } from "../src/game/fuse";
 import { MODELLED_EVENTS, MODELLED_PICKS, playerFits, roadOptions } from "../src/net/roadCap";
-import { buildCost, maxHonestSpend, validateBuild, validateUpload } from "../src/net/validate";
+import { buildCost, maxHonestSpend, validateBuild, validateUpload, type ValidateContext, type Validation } from "../src/net/validate";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { floorRecord } from "../src/net/records";
 import { createGhostServer, type GhostServer } from "../server/app";
-import { furnaceDeck, playerCheck } from "./netHelpers";
+import { furnaceDeck, playerCheck, uploadRulesFor } from "./netHelpers";
 import { heroesFor } from "../src/net/rulesGate";
 import { driveRuns, type Dusk } from "./uploadDriver";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
@@ -102,6 +102,17 @@ const HONEST: Dusk[] = driveRuns(90, 7000).flatMap((r) => r.dusks)
 /** 0.8.0 H1: the honest decks this server's rules (bb-0.6.2) accept: FURNACE's and WEAVER's (rulesGate.ts RULES_HEROES). */
 const HONEST_HERE: Dusk[] = HONEST.filter((d) => heroesFor(RULES_VERSION).includes(d.hero));
 
+/** AZ-BUMP (the flip, NPC_DAY): an honest dusk as POST /v1/ghosts checks its upload (server/app.ts): with the run seed, its
+ *  taken LAST CHANCE and its road log (Dusk.runSeed / lastChance / roadLog, as day.ts ghostOf writes the snapshot's seed,
+ *  lastChance and road), since with NPC_DAY on the player mode counts a deck's drops only through its road log (validate.ts
+ *  roadDropValue); under the rules that accept its hero, else the player mode with the same context (netHelpers.ts
+ *  playerCheck's form). Was playerCheck(d.build, d.day): no seed, no LAST CHANCE, no road log. */
+function postCheck(d: Dusk): Validation {
+  const seed = (d.runSeed ?? 0) >>> 0;
+  const ctx: ValidateContext = { ...(seed ? { seed } : {}), ...(d.lastChance ? { lastChance: d.lastChance } : {}), ...(d.roadLog ? { road: d.roadLog } : {}) };
+  const rules = uploadRulesFor(d.hero);
+  return rules ? validateUpload(d.build, d.day, rules, ctx) : validateBuild(d.build, d.day, "player", ctx);
+}
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
 const core = (errors: string[]) => errors.filter((e) => !/^(supply|budget):/.test(e));
 const around = (k: number): number[] => [[0, -1], [1, 0], [0, 1], [-1, 0]]
@@ -185,7 +196,8 @@ describe("062m recheck 2: the superset property with validateBuild's turret and 
     expect(HONEST.length).toBeGreaterThan(30);
     expect(new Set(HONEST.map((d) => d.hero)).size).toBeGreaterThanOrEqual(4);
     for (const d of HONEST) {
-      expect(playerCheck(d.build, d.day), `${d.hero} #${d.seed} d${d.day}`).toEqual({ ok: true, errors: [] }); // 0.8.0 H1: rules by hero
+      // 0.8.0 H1: rules by hero. AZ-BUMP (the flip, NPC_DAY): with the run's road log, seed and LAST CHANCE (postCheck)
+      expect(postCheck(d), `${d.hero} #${d.seed} d${d.day}`).toEqual({ ok: true, errors: [] });
       expect(core(validateBuild(d.build, d.day).errors), `${d.hero} #${d.seed} d${d.day}`).toEqual([]); // strict: supply/budget at most
     }
   });

@@ -62,14 +62,16 @@ function npcDay(run0: Run, tier: Difficulty, won: 0 | 1 | -1, dusk: 0 | 1 | -1, 
   return run;
 }
 
+// AZ-BUMP (the flip, NPC_DAY): NPC_DAY ships on, so the two tests of 0.9.7's day set it off themselves (withNpcDay(fn, false));
+// the digests were taken at npc1-base with the switch off (HULL_SCALE's gold table moves only from day 7, past the script's 3)
 describe("NPC-1 with the switch off: 0.9.7's day", () => {
-  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f)", () => {
+  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f)", () => withNpcDay(() => {
     expect(scriptDigest(9701)).toBe("5865119d:6292");
     expect(scriptDigest(4242)).toBe("6ab6cc53:6243");
     expect(scriptDigest(31337)).toBe("8a31722d:6331");
-  });
+  }, false));
 
-  it("the fork keeps its event stop, Hard its pick of 2, REFIT its sales, and the snapshot has no road", () => {
+  it("the fork keeps its event stop, Hard its pick of 2, REFIT its sales, and the snapshot has no road", () => withNpcDay(() => {
     expect([...forkPicks()]).toEqual([...ROAD_PICKS]);
     const run = newRun("weaver", 555, "npc1-off");
     dawn(run);
@@ -87,7 +89,7 @@ describe("NPC-1 with the switch off: 0.9.7's day", () => {
     const before = JSON.stringify(run);
     expect(onToTheRoad(run)).toBeNull(); // off: no event after the fight, nothing changes
     expect(JSON.stringify(run)).toBe(before);
-  });
+  }, false));
 });
 
 describe("NPC-1 the day with the switch on (REQ-BFG-077)", () => {
@@ -251,10 +253,12 @@ describe("NPC-1 the screens' words (REQ-BFG-077, REQ-BFG-078)", () => {
       expect(rows.length).toBe(t.lines.length);
       for (const [i, l] of t.lines.entries()) expect(rows[i]).toMatch(new RegExp(`^${itemName(l.def).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} · [A-Z ]+ · (<1|\\d+)%$`));
     });
-    // off: 0.9.7's reward lines
-    const run = newRun("furnace", 321, "npc1-words");
-    const f = forkFor(run);
-    expect(rewardText(warlordReward(f.warlords.medium, "medium", warlordDeck(f.warlords.medium, 1), 1, 1))).toBe("WIN +4 GOLD");
+    // off: 0.9.7's reward lines (AZ-BUMP, the flip: NPC_DAY ships on, so the off half sets it off itself)
+    withNpcDay(() => {
+      const run = newRun("furnace", 321, "npc1-words");
+      const f = forkFor(run);
+      expect(rewardText(warlordReward(f.warlords.medium, "medium", warlordDeck(f.warlords.medium, 1), 1, 1))).toBe("WIN +4 GOLD");
+    }, false);
   });
 
   it("the victory screen: the drop as a part card going to cargo, or NO DROP; one way on: ON TO THE ROAD; the event's REFIT", () => {

@@ -6,6 +6,7 @@ import { eventFor } from "../src/game/events";
 import { ROAD_PICKS, forkFor, leaveCaravan, pickRoad, roadChosen } from "../src/game/road";
 import { newRun, reroll, rollShop, type Run } from "../src/game/run";
 import { DIFFICULTIES, rivalBuild, warlordOffer } from "../src/sim/rivals";
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's event stop runs with NPC_DAY off
 
 const SEEDS = Array.from({ length: 50 }, (_, i) => 3 + i * 104729);
 const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -78,7 +79,10 @@ describe("the road fork: picking a stop", () => {
     }
   });
 
-  it('pickRoad(run, "event") opens the day\'s event; a second pick the same day is refused and changes nothing', () => {
+  // AZ-BUMP (the flip, NPC_DAY): 0.9.7's road, the fork's event stop. With NPC_DAY on the fork offers the three warlords and
+  // pickRoad(run, "event") is refused (the event follows the fight: tests/npc1.day.test.ts); the path stays for old records,
+  // so this test runs with NPC_DAY off
+  it('pickRoad(run, "event") opens the day\'s event; a second pick the same day is refused and changes nothing', () => withNpcDay(() => {
     for (const seed of SEEDS) {
       for (const day of DAYS) {
         const run = atDay(seed, day);
@@ -98,7 +102,7 @@ describe("the road fork: picking a stop", () => {
         expect(leaveCaravan(run)).toBe("event"); // still open
       }
     }
-  });
+  }, false));
 
   it("picking a warlord stores exactly the offered captain with rivalBuild(id, day); a second pick is refused", () => {
     for (const seed of SEEDS) {

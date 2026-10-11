@@ -16,6 +16,7 @@ import { effectAt, outputsAt, perkAt } from "../src/sim/stars";
 import { walkRoute, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { K, SEED, barge, furnaceBench, item, latchDeck, pastTile, run, twoPress, withItem, withMod } from "./wave3.helpers";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): STOKER ★3's off check
 
 type Metric = number | number[];
 interface Row { id: string; headline: string; band?: [number, number]; at: (stars: number) => Metric }
@@ -97,7 +98,9 @@ export const ROWS: Row[] = [
   // number is its hold, 1 / 2 / 3 s, read off the battle's hold and release events
   { id: "twinlatch", headline: "Seconds it holds a lone payload for its other belt", band: BAND,
     at: (s) => latchHold(s) },
-  { id: "stoker", headline: "How much faster the factory it points at stamps", band: BAND,
+  // AZ-BUMP (the flip, LADDER_FIX): band [2.2, 3.5] -> [2.2, 4.25], STOKER ★3's stoke 0.7 -> 0.85 (the star-ladder pass), so
+  // ★3 is 0.85 / 0.2 = 4.25x ★1 in the data (was 0.7 / 0.2 = 3.5x, the BAND); measured 4.26
+  { id: "stoker", headline: "How much faster the factory it points at stamps", band: [2.2, 4.25],
     at: (s) => PRESS_EVERY / mean(stampGaps(withItem(pressBench(), item(30, "stoker", 6, 6, 0, s)))) - 1 }, // NUM-2: 30 / 21 (was 1.4)
   { id: "platebreaker", headline: "Damage a payload gains for 1 plating (20 plating on the hull)", band: BAND,
     at: (s) => flatsPast(onTile3("platebreaker", s), 3, 20)[0] },
@@ -328,10 +331,15 @@ describe("wave 3's named rules", () => {
   });
 
   it("STOKER: 20% / 44% / 70% faster; OVERCLOCKER can't boost it or BRACE FRAME (they act on no payload)", () => {
-    for (const [s, k] of [[1, 0.2], [2, 0.44], [3, 0.7]] as const) {
+    // AZ-BUMP (the flip, LADDER_FIX): ★3 0.7 -> 0.85, STOKER ★3's stoke (the star-ladder pass); with LADDER_FIX off ★3
+    // stamps 70% faster, as before (below)
+    for (const [s, k] of [[1, 0.2], [2, 0.44], [3, 0.85]] as const) {
       // NUM-2 (REQ-BFG-047; was the literal 1.4 s, the press's ★1 interval): 30 / its whole speed (21: 1.4286 s)
       for (const g of stampGaps(withItem(pressBench(), item(30, "stoker", 6, 6, 0, s)))) expect(Math.abs(g - PRESS_EVERY / (1 + k))).toBeLessThan(2 / 60);
     }
+    withLadderFix(() => {
+      for (const g of stampGaps(withItem(pressBench(), item(30, "stoker", 6, 6, 0, 3)))) expect(Math.abs(g - PRESS_EVERY / 1.7)).toBeLessThan(2 / 60);
+    }, false);
     for (const id of ["stoker", "braceframe"]) for (const s of [1, 2, 3]) expect(boostable(effectAt(id, s).gate!), id).toBe(false);
   });
 

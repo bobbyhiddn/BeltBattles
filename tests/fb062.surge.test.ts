@@ -19,6 +19,8 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars";
 import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2rel: the glossary's words (REQ-BFG-032)
 import { barge, bench } from "./arsenal.bench";
+import { TICK } from "../src/sim/content"; // AZ-BUMP (the flip, LADDER_FIX): the walk's seconds on a belt are whole ticks (P13)
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the walk's off check
 
 const STARS = [1, 2, 3];
 const FLAT = [10, 20, 30]; // NUM-1: x10 (was 1/2/3)
@@ -95,7 +97,13 @@ describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
     for (const s of STARS) {
       const hit = walkRoute(bench([["surge", 4, 3, s]]), 0).timeline[0].hits[0];
       // Y7b2 (the flip): 10 x 2.6 s / 3, 20 x 2.6 / 3, 30 x 2.6 / 2 (the bench's ride, as the walk sums it; was FLAT[s - 1])
-      expect([hit.def, hit.flat], `★${s}`).toEqual(["surge", [8.666666666666666, 17.333333333333332, 38.99999999999999][s - 1]]);
+      // AZ-BUMP (the flip, LADDER_FIX): 8.667 / 17.333 / 39 -> 8.611 / 17.222 / 38.75, P13: the walk rides tick by tick, so the
+      // seconds on the valve's belt are its 155 ticks there, 2.583 s (was the half cells' 2.6 s); the same at every star (no
+      // speed). Written as the walk computes it, flat x (155 x TICK) / the period; with LADDER_FIX off the old numbers
+      const period = effectAt("surge", s).gate!.pulse!.period;
+      expect([hit.def, hit.flat], `★${s}`).toEqual(["surge", (FLAT[s - 1] * (155 * TICK)) / period]);
+      expect(withLadderFix(() => walkRoute(bench([["surge", 4, 3, s]]), 0).timeline[0].hits[0].flat, false), `★${s} off`)
+        .toBe([8.666666666666666, 17.333333333333332, 38.99999999999999][s - 1]);
     }
   });
 

@@ -62,7 +62,11 @@ describe(`LC-1: records.ts follows LAST CHANCE, and reads a record under older r
   it(`reachableRecords equals the run code's records at every dusk 1-9; under ${OLD_RULES}, those of a run whose LAST CHANCE is spent`, () => {
     for (let day = 1; day <= 9; day++) expect(modelRecords(day), `day ${day}`).toEqual(runCodeRecords(day));
     for (let day = 1; day <= 9; day++) expect(modelRecords(day, OLD_RULES), `${OLD_RULES} day ${day}`).toEqual(runCodeRecords(day, true));
-  }, 120_000);
+    // AZ-BUMP (the 1.5-CPU quota, the GATE RULE; no switch): 600 s (was 120 s), a host timeout, not the rule. 46 s in S1's
+    // whole suite (every switch off, before the quota), 66 s in AZ-BUMP run 4's switch-on shard, 183 s and 191 s alone in
+    // run 6 (the quota's cgroup saturated by other jobs). No switch makes it slower: run 7's probe timed this run code with
+    // each switch off in turn, interleaved, and every median sat within noise of all on (6.28-6.53 s for days 1-8)
+  }, 600_000);
 
   // Z-BUMP: was "on: ...; off: as before"; floorRecord reads this build's rules, and the floor before the flip is
   // records.ts's under OLD_RULES (the fewest lives with no wins, as floorRecord takes it)

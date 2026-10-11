@@ -25,8 +25,9 @@
 //
 // Shared, pure and dependency-light (no DOM), like npcDay.ts: the client, the server and the tests read the same tables.
 
-/** THE switch (REQ-BFG-079), off in this rules version (bb-0.9.7). */
-export const HULL_SCALE: boolean = false;
+/** THE switch (REQ-BFG-079): on, from AZ-BUMP's flip (the hull release). Its setter, withHullScale and the off path stay
+ *  this release, for older records and the tests that measure the off world. */
+export const HULL_SCALE: boolean = true;
 
 let hsOn = false;
 

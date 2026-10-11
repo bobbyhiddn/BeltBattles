@@ -440,8 +440,14 @@ describe("U2f: the taller ⓘ view", () => {
     // TXT-AZ item 2 (REQ-BFG-070; REVIEW-TXT096 Q3), re-measured: ARMOR PRESS's and MEND PRESS's lines lead with FEEDS A
     // GUN, and the desk column sizes to its text, so 5 of their desk views page less: desk 19 / 103 / 137 / 32 / 15 / 10 ->
     // 19 / 103 / 137 / 37 / 14 / 6; op unchanged; U2f's view unchanged
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([128, 183, 5]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([19, 103, 137, 37, 14, 6]);
+    // AZ-BUMP (the flip, LADDER_FIX), re-measured on the flip's src (the same 316 panels; the test's own log line in
+    // output-azbump/logs/xon-3of3-vitest.log): op 128 / 183 / 5 -> 126 / 185 / 5, desk 19 / 103 / 137 / 37 / 14 / 6 -> 19 /
+    // 102 / 138 / 37 / 14 / 6. The star-ladder pass's OVERDRIVE ride-keep (★2/★3's KEEPS n% OF THE RIDE IT CUTS. on the face,
+    // the KEEPS -/50%/100% RIDE row in its LEVELS) pages 2 op views and 1 desk view more; QUENCH's +40 and STOKER's 85% are as
+    // wide as the numbers they replace. With LADDER_FIX off and the other two switches on both read as before
+    // (output-azbump/logs/vp-L1.log). U2f's view (the next test's pins) unchanged
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([126, 185, 5]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([19, 102, 138, 37, 14, 6]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {

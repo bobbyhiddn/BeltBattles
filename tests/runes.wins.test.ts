@@ -29,7 +29,8 @@ describe("RUNES-087F: WARLORD'S DUE's wins (cap's Q5)", () => {
     const online = onlineFoe(run, { source: "server", id: "x", snapshot: g } as never);
     expect([online.kind, online.record?.wins]).toEqual(["ghost", g.wins]);
     expect(onlineFoe(run, { source: "fallback", error: "no ghost" } as never).record).toBeUndefined();
-  });
+  }, 600_000); // AZ-BUMP (the flip): generateSamplePool (the whole seed pool, its race decks from par runs), longer with the NPC
+  // day; a host timeout under the 1.5-CPU quota, not the rule (timed out at vitest's 30 s default)
 
   it("the run's record at a dusk: its day, the wins carried into it, a ghost or not", () => {
     const h = [dusk(1, "win"), dusk(2, "loss"), dusk(3, "win"), dusk(4, "draw"), dusk(5, "win", false)];

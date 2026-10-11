@@ -5,7 +5,8 @@ import { ITEMS, type HeroId } from "../src/sim/content";
 import { heroRefBuild } from "../src/sim/heroBuilds";
 import { buildCost, unfusedPairs, validateBuild } from "../src/net/validate";
 import { RIVAL_IDS, deckCost, honestReference, luckOf, maxGoldByDay, rivalBuild, rivalLoadout, standInBuild } from "../src/sim/rivals";
-import { CAPTAIN_RUNES, PLANS, dayOwned } from "../src/sim/rivalBuilds";
+import { CAPTAIN_RUNES, PLANS, dayOwned, roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP: the road allowance
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the plan's own purchases with NPC_DAY off
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck valued as bought
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold
 import { starsOf, upgradeGold } from "../src/sim/stars";
@@ -45,10 +46,15 @@ describe("live preset purchases obey automatic merging", () => {
       expect(road.mods.every((p) => starsOf(p) <= (id === "matriarch" ? 3 : 2)), label).toBe(true);
       expect(deckCost(standIn).total, label).toBe(buildCost(standIn).total);
       if (id !== "matriarch" || day >= 8) {
-        expect(validateBuild(standIn, day), label).toMatchObject({ ok: true, errors: [] });
+        // AZ-BUMP (the flip, NPC_DAY): the strict validator budgets the shop's gold and the runes' dawn gold only, while the
+        // dusk deck may also hold REFIT-AZ's road additions (ROAD(day, "dusk"), the budget line below): with the NPC day on
+        // every other check passes; the whole check passes the road-less deck (NPC_DAY off); refitaz.road checks the on decks
+        expect(validateBuild(standIn, day).errors.filter((e) => !e.startsWith("budget:")), label).toEqual([]);
+        withNpcDay(() => expect(validateBuild(standInBuild(id, day), day), label).toMatchObject({ ok: true, errors: [] }), false);
         // FLIP-X2 (REVIEW-BOTSX section 5): the stand-in holds its runes, so it is valued as bought against the day's gold
         // plus its runes' dawn gold (was deckCost against maxGoldByDay)
-        expect(boughtCost(standIn), label).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(standIn.runes, day).gold);
+        // AZ-BUMP (the flip, NPC_DAY): + the dusk deck's road allowance (roadAllowance, 0 off), as captains.luck's R1
+        expect(boughtCost(standIn), label).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(standIn.runes, day).gold + roadAllowance(day, "dusk"));
       }
       // Road decks carry the existing fractional PvE hull ramp; only supply and budget
       // may prevent a road deck from being sent as a player ghost.
@@ -81,14 +87,18 @@ describe("live preset purchases obey automatic merging", () => {
         }
         paid += (u.crates ?? 0) * ITEMS.beltcrate.price + (u.plating ?? 0) * ITEMS.plating.price;
       }
-      const l = rivalLoadout(id, day);
+      // AZ-BUMP (the flip, NPC_DAY): the purchases above are the plan's own (REFIT-AZ's road list is owned only with the NPC
+      // day on), so they are the value of the road-less deck, read with NPC_DAY off; refitaz.road checks the on decks
+      const l = withNpcDay(() => rivalLoadout(id, day), false);
       // bb-0.8.3 (REQ-BFG-043 D10, D7'): the value counts the gold upgrades too (rivalBuilds.ts captainLevels, the uniform
       // rule), as every sum of value does (stars.ts upgradeGold)
       paid += upgradeGold(l.build);
       expect(l.value, `${id} day ${day} purchases`).toBe(paid);
       // FLIP-X2 (cap's ruling 97e639e5813acb37, item 4): plus the dawn gold of the captain's own runes by that day
       const held = (CAPTAIN_RUNES[id] ?? []).slice(0, day).map((q) => ({ id: q }));
-      if (id !== "matriarch") expect(l.value, `${id} day ${day} budget`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(held, day).gold);
+      // AZ-BUMP (the flip, NPC_DAY): the shipped deck, its road additions in, + the road deck's allowance (roadAllowance, 0
+      // off), as captains.luck's R1
+      if (id !== "matriarch") expect(rivalLoadout(id, day).value, `${id} day ${day} budget`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(held, day).gold + roadAllowance(day, "warlord"));
     }
     // 0.6.2 TUNE-C plans: SILKSHADE's coils (a ★2 from day 4, a ★1 on another belt from day 5) both work a belt
     const coil = rivalBuild("silkshade", 5).items.filter((p) => p.def === "coil");

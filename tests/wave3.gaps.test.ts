@@ -169,7 +169,10 @@ describe("E3: rig arrows at factories (STOKER)", () => {
     // 0.8.0 B1 M2 (brief 3.3): ARMOR PRESS plates every 3 s (was 4)
     expect(off.plates.map((t) => +t.toFixed(3))).toEqual([3, 6, 9, 12, 15, 18, 21]);
     expect(off.stamps.length).toBeGreaterThan(10);
-    for (const [s, k] of [[1, 0.2], [2, 0.44], [3, 0.7]] as const) {
+    // AZ-BUMP (the flip, LADDER_FIX): ★3 0.7 -> 0.85, STOKER ★3's stoke (the star-ladder pass, src/sim/ladderFix.ts). It read
+    // 0.7 with the switch on before only because legal()'s withWave3 put STOKER's unfixed def back into ITEMS (setWave3; the
+    // flip's re-apply hook keeps the fixed def, cap's ruling Q3 in AZ-BUMP run 4)
+    for (const [s, k] of [[1, 0.2], [2, 0.44], [3, 0.85]] as const) {
       const b = withItem(plain, item(30, "stoker", 8, 6, 0, s)); // its west arrow points into the press at (7,6)
       legal(b, `STOKER ★${s}`);
       expect(stokeHits(b).map((h) => [h.uid, h.factory])).toEqual([[30, 7]]);

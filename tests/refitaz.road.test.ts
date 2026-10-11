@@ -2,8 +2,9 @@
 // the captains' road allowance, behind NPC_DAY. Every captain deck may hold the par player's road value at the moment it is
 // fought (rivalBuilds.ts NPC_ROAD / roadAllowance), spent as road additions (RivalPlan.road, Upgrade.nd) that the captain
 // build path (planBuild) reads only with the NPC day on.
-// - Off (the repo's default): every captain's road deck, dusk deck and plan loadout at every luck on days 1-10 equals the
-//   base's (parAZ-accepted 5c57914): one digest (kit-refitaz/probes/deckdigest.ts's), pinned below. The allowance is 0.
+// - Off (the default before AZ-BUMP's flip; now set through the setters): every captain's road deck, dusk deck and plan
+//   loadout at every luck on days 1-10 equals the base's (parAZ-accepted 5c57914): one digest
+//   (kit-refitaz/probes/deckdigest.ts's), pinned below. The allowance is 0.
 // - On (every switch, through the setters; put back after each test): every captain-day stays within its budget,
 //   maxGoldByDay(day) + its runes' dawn gold + ROAD(day, moment) (the Iron Matriarch outside it, as R1); every deck is legal
 //   and never shrinks; every road part is caravan stock, owned no earlier than the caravan can offer it, and an original
@@ -22,9 +23,10 @@ import { legalityProblems, SOLD } from "./rivals.legality";
 import { unlockDay } from "../src/game/wares";
 
 afterEach(() => {
-  setNpcDay(false);
-  setHullScale(false);
-  setLadderFix(false);
+  // the shipped value (AZ-BUMP's flip); the off test sets every switch off itself
+  setNpcDay(true);
+  setHullScale(true);
+  setLadderFix(true);
 });
 const allOn = (): void => {
   setHullScale(true);
@@ -62,6 +64,12 @@ const ORIGINAL = ["sootjaw", "nettle", "grubnose", "mothqueen", "sparkfang", "la
 
 describe("REFIT-AZ: the road allowance, behind NPC_DAY", () => {
   it("off: every captain's road deck, dusk deck and loadout on days 1-10 is the base's (digest), and the allowance is 0", () => {
+    // AZ-BUMP (the flip): the switches ship on, so the off test sets them off itself: NPC_DAY (the road additions), and
+    // HULL_SCALE and LADDER_FIX too, as BASE_DIGEST_OFF was taken with every switch off (HULL_SCALE's gold table moves
+    // maxGoldByDay from day 8, and with it the captains' gold levels, rivalBuilds.ts planBuild's room)
+    setNpcDay(false);
+    setHullScale(false);
+    setLadderFix(false);
     expect(npcDayRules()).toBe(false);
     expect(deckDigest()).toBe(BASE_DIGEST_OFF);
     for (const day of DAYS) for (const m of ["warlord", "dusk"] as const) expect(roadAllowance(day, m)).toBe(0);

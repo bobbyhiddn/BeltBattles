@@ -24,6 +24,7 @@ import { faceAt } from "../src/ui/faces";
 import { glossaryText } from "../src/ui/glossary";
 import { STARS, levels, lines, next, oneLine } from "./y3.helpers";
 import { K, barge, furnaceBench, item, withItem, withMod } from "./wave3.helpers";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the off checks beside its re-pins
 
 const SEEDS = [1, 2, 3, 4, 5]; // wave3.decks' capRows: both sides +3000 hull, 120 s
 
@@ -70,12 +71,20 @@ describe("Y7b1 Y7A-R1: STOKER's cap holds with the switch on, at every star (no 
   it("rating: on, FURNACE's start deck rates none / ★1 / ★2 / ★3 at 46.6 / 50.4 / 51.1 / 51.1, as off (Y7a, before: 45.6 / 40.8 at ★2/★3); stokeKeep as off", () => {
     const stoked = (s: number) => (s ? withItem(furnaceStart(), item(70, "stoker", 6, 6, 0, s)) : furnaceStart());
     const offense = (s: number) => rateDeck(stoked(s)).offense;
-    expect([0, 1, 2, 3].map((s) => offense(s).toFixed(1))).toEqual(["46.6", "50.4", "51.1", "51.1"]);
+    // AZ-BUMP (the flip, LADDER_FIX): none / ★1 46.6 / 50.4 -> 46.7 / 50.5, P13: the walk rides tick by tick (the rating
+    // reads the walk's damage and time; the KILN's slugs heat as they ride), no STOKER number; ★2 / ★3 stay 51.1, held at the
+    // gun (★3's 0.85 too). With LADDER_FIX off the title's numbers, as before
+    expect([0, 1, 2, 3].map((s) => offense(s).toFixed(1))).toEqual(["46.7", "50.5", "51.1", "51.1"]);
+    expect(withLadderFix(() => [0, 1, 2, 3].map((s) => offense(s).toFixed(1)), false)).toEqual(["46.6", "50.4", "51.1", "51.1"]);
   });
 
   it("data and texts: the stoke stays 0.2 / 0.44 / 0.7; on, the face says the cap in its one line (UP TO) and the ⓘ sentence names the gun, as off", () => {
-    expect(STARS.map((s) => effectAt("stoker", s).gate!.stoke)).toEqual([0.2, 0.44, 0.7]);
-    expect(lines("stoker")).toEqual(["20%", "44%", "70%"].map((p) => [`ITS FACTORIES WORK UP TO ${p} FASTER.`]));
+    // AZ-BUMP (the flip, LADDER_FIX): ★3 0.7 -> 0.85 and its face 70% -> 85%, the star-ladder pass (ladderFix.ts LADDER_DEFS
+    // stoker); with LADDER_FIX off the title's 0.2 / 0.44 / 0.7, as before
+    expect(STARS.map((s) => effectAt("stoker", s).gate!.stoke)).toEqual([0.2, 0.44, 0.85]);
+    expect(lines("stoker")).toEqual(["20%", "44%", "85%"].map((p) => [`ITS FACTORIES WORK UP TO ${p} FASTER.`]));
+    expect(withLadderFix(() => [STARS.map((s) => effectAt("stoker", s).gate!.stoke), lines("stoker")], false))
+      .toEqual([[0.2, 0.44, 0.7], ["20%", "44%", "70%"].map((p) => [`ITS FACTORIES WORK UP TO ${p} FASTER.`])]);
     oneLine("stoker");
     expect(faceAt("stoker", 2)!.caveats).toBeUndefined();
     expect(abilityText("stoker", 1).sentences[1]).toBe("IT NEVER MAKES A FACTORY OUTRUN ITS GUN.");

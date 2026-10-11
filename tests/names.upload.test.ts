@@ -245,5 +245,9 @@ describe("the whole seed pool carries no names", () => {
     const pool = generateSamplePool();
     expect(pool.length).toBeGreaterThan(0);
     expect(pool.filter((s) => s.name !== undefined)).toEqual([]);
-  }, 120_000);
+    // AZ-BUMP (the 1.5-CPU quota, the GATE RULE): 600 s (was 120 s), a host timeout, not the rule. generateSamplePool builds
+    // the whole seed pool, as in joins.save's and net-fallback-standins' tests (600 s at 4af1683: 230 s alone at 283cfaf with
+    // every switch off). This one: 10.5 s in S1's whole suite, 42.1 s in AZ-BUMP run 4's switch-on shard, 148 s in run 7's
+    // shard s2-3 and over 120 s alone on the tree (run 7, gc-r7-alone-s23)
+  }, 600_000);
 });

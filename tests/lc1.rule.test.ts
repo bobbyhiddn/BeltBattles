@@ -16,6 +16,7 @@ import {
 } from "../src/game/run";
 import { migrateRun } from "../src/game/save";
 import { PATCH_UP_LIVES } from "../src/net/records";
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): LC-1's ★1 PART card, HULL_SCALE off
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 type R = "W" | "L" | "D";
@@ -248,6 +249,10 @@ describe("LC-1: the pick", () => {
     expect(reload(run).lastChance).toEqual({ day: 5, boon: "hull" });
   });
 
+  // AZ-BUMP (the flip, HULL_SCALE): the PART card's star moves with HULL_SCALE on purpose (HULL-1d, lastChance.ts
+  // lastChancePartStars: LAST_CHANCE_PART_STARS 2, so the bots take the card within its band): the copy goes to cargo at ★2
+  // (1 -> 2; valued at ★2 by the server). With HULL_SCALE off it is LC-1's card at 1 star, checked at the end (the title
+  // keeps its key and names LC-1's star)
   it("PART: the offered epic part goes to cargo free at 1 star (no gold spent)", () => {
     const run = play("LLLLL", "weaver", 12);
     const offer = pendingLastChance(run)!, gold = run.gold, cargo = run.inventory.length;
@@ -256,9 +261,17 @@ describe("LC-1: the pick", () => {
     expect(run.gold).toBe(gold);
     expect(run.inventory.length).toBe(cargo + 1);
     const it = run.inventory[run.inventory.length - 1];
-    expect([it.def, it.stars ?? 1]).toEqual([offer.part, 1]);
+    expect([it.def, it.stars ?? 1]).toEqual([offer.part, 2]); // AZ-BUMP (the flip, HULL_SCALE): 1 -> 2, the PART card at ★2
     expect(run.lastChance).toEqual({ day: 5, boon: "part", id: offer.part });
     expect(run.history[4].lastChance).toEqual({ lives: 1, boon: "part", id: offer.part });
+    // HULL_SCALE off: the same run's card is LC-1's, its copy at 1 star
+    const off = withHullScale(() => {
+      const o = play("LLLLL", "weaver", 12), part = pendingLastChance(o)!.part;
+      expect(takeLastChance(o, "part").ok).toBe(true);
+      const c = o.inventory[o.inventory.length - 1];
+      return [part, c.def, c.stars ?? 1];
+    }, false);
+    expect(off).toEqual([offer.part, offer.part, 1]);
   });
 
   it("RUNE: held right after day 5's dawn pick; the battle reads it; later dawns exclude it and still owe their picks", () => {

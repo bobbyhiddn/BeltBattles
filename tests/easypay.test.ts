@@ -9,6 +9,7 @@ import {
 import { newRun, rollShop, type Run } from "../src/game/run";
 import { rewardText } from "../src/screens/fork/cards";
 import { rivalBuild } from "../src/sim/rivals";
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's reward line, NPC_DAY off
 
 function atDay(seed: number, day: number): Run {
   const run = newRun(seed % 2 ? "weaver" : "furnace", seed);
@@ -34,7 +35,10 @@ describe("RULE EASY PAY", () => {
         expect(pickRoad(run, "easy").ok).toBe(true);
         const pay = day >= 4 ? 3 : 2;
         expect(run.warlord!.reward.gold).toBe(pay);
-        expect(rewardText(run.warlord!.reward)).toBe(`WIN +${pay} GOLD`); // the fork card's and the HUD's reward line
+        // AZ-BUMP (the flip, NPC_DAY): `WIN +${pay} GOLD` -> `WIN +${pay}G · DROP 60%`: with NPC_DAY on every win rolls a drop and
+        // the reward line says its chance (NPC-1, REQ-BFG-078; Easy's 60%); the gold is the same. Off: 0.9.7's line, below
+        expect(rewardText(run.warlord!.reward)).toBe(`WIN +${pay}G · DROP 60%`); // the fork card's and the HUD's reward line
+        expect(withNpcDay(() => rewardText(warlordReward(run.warlord!.id, "easy", run.warlord!.build, day, day)), false)).toBe(`WIN +${pay} GOLD`);
         const g0 = run.gold;
         expect(finishWarlord(run, 0, 30)!.gold).toBe(pay);
         expect(run.gold - g0).toBe(pay);

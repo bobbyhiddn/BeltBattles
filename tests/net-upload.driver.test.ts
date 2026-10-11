@@ -6,6 +6,9 @@ import { runeGrants } from "../src/sim/runes";
 import { BOONS, LAST_CHANCE_HULL, lastChanceRuneAt } from "../src/sim/lastChance";
 import { AUDIT_PATHS, DRIVER_HEROES, driveRuns, errorKind, type DriverRun, type Dusk } from "./uploadDriver";
 import { uploadRulesFor } from "./netHelpers";
+import { roadDropValue } from "../src/sim/npcDay"; // AZ-BUMP (the flip, NPC_DAY): the road log's drops in the allowance
+import { lastChancePartStars } from "../src/sim/lastChance"; // AZ-BUMP (the flip, HULL_SCALE): the PART card's star
+import { valueOf } from "../src/sim/stars";
 
 // v070-validate M3: the M1 driver as a test. Every dusk deck of every seeded run is an honest deck (the driver
 // only plays legal actions through the real game functions), so the player mode must refuse none of them; the
@@ -29,10 +32,12 @@ const PATH_RUNS = Number(process.env.V070_DRIVER_PATH_RUNS ?? 36);
 /** Z-BUMP (the flip): POST /v1/ghosts's own deck check of a dusk (server/app.ts): validateUpload with the snapshot's run seed
  *  (day.ts ghostOf's snapshot.seed) and its taken LAST CHANCE (snapshot.lastChance), under the rules that accept the deck's
  *  hero (netHelpers.ts uploadRulesFor); for a hero no rules version accepts yet, the player mode with the same context, as
- *  netHelpers.ts playerCheck does. Was playerCheck(d.build, d.day): no seed, no LAST CHANCE. */
+ *  netHelpers.ts playerCheck does. Was playerCheck(d.build, d.day): no seed, no LAST CHANCE.
+ *  AZ-BUMP (the flip, NPC_DAY): and its road log (snapshot.road, as ghostOf writes it: Dusk.roadLog, with NPC_DAY on), as
+ *  server/app.ts passes it: the player mode counts a deck's drops only through it (validate.ts roadDropValue). */
 function postCheck(r: DriverRun, d: Dusk): Validation {
   const seed = r.run.seed >>> 0;
-  const ctx: ValidateContext = { ...(seed ? { seed } : {}), ...(d.lastChance ? { lastChance: d.lastChance } : {}) };
+  const ctx: ValidateContext = { ...(seed ? { seed } : {}), ...(d.lastChance ? { lastChance: d.lastChance } : {}), ...(d.roadLog ? { road: d.roadLog } : {}) };
   const rules = uploadRulesFor(d.hero);
   return rules ? validateUpload(d.build, d.day, rules, ctx) : validateBuild(d.build, d.day, "player", ctx);
 }
@@ -71,7 +76,10 @@ function tally(runs: DriverRun[]): Tally {
       const lc = d.lastChance;
       const g = runeGrants(d.build.runes, d.day, lastChanceRuneAt(lc));
       const hull = g.hull + (lc?.boon === "hull" ? LAST_CHANCE_HULL : 0);
-      const gold = g.gold + (lc?.boon === "part" && lc.id !== undefined ? ITEMS[lc.id]?.price ?? 0 : 0);
+      // AZ-BUMP (the flip): the allowance as validate.ts reads it: a PART card's value at the card's star (HULL_SCALE: ★2,
+      // price x 2; validate.ts freeGold, was its price), and the road log's drops at their value (NPC_DAY: roadDropValue of
+      // Dusk.roadLog; none with the switch off)
+      const gold = g.gold + (lc?.boon === "part" && lc.id !== undefined && ITEMS[lc.id] ? valueOf(lc.id, lastChancePartStars()) : 0) + roadDropValue(d.roadLog);
       const bought = hull || g.belt ? { ...d.build, hullBonus: d.build.hullBonus - hull, beltCap: d.build.beltCap - g.belt } : d.build;
       // recheck 1 on every deck: on the shop's grid the player mode costs the deck exactly as buildCost does
       const plain = playerFits(bought, d.day, buildCost(bought)).fits.find((f) => f.mix.key === "");

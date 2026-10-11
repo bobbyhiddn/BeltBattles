@@ -5,6 +5,9 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { lastChanceOffer, type Boon } from "../src/sim/lastChance";
+import { lastChancePartStars } from "../src/sim/lastChance"; // AZ-BUMP (the flip, HULL_SCALE): the PART card's star
+import { valueOf } from "../src/sim/stars";
+import { withHullScale } from "../src/sim/hullScale";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { runeGrants } from "../src/sim/runes";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
@@ -46,13 +49,19 @@ describe("Z-PREP: the budget line names a free LAST CHANCE part", () => {
       expect(e, hero).toHaveLength(1);
       const m = LINE.exec(e[0]);
       expect(m, `${hero}: ${e[0]}`).not.toBeNull();
-      const price = ITEMS[s.lastChance!.id!].price;
+      // AZ-BUMP (the flip, HULL_SCALE): M is the free part's value at the PART card's star (validate.ts freeGold: valueOf at
+      // lastChance.ts lastChancePartStars), ★2 with HULL_SCALE on, so its price x 2 (furnace: 10 -> 20); off, ★1, its price
+      const price = valueOf(s.lastChance!.id!, lastChancePartStars());
+      expect(price, hero).toBe(2 * ITEMS[s.lastChance!.id!].price);
+      expect(withHullScale(() => lastChancePartStars(), false), hero).toBe(1);
       const runeGold = runeGrants(s.build.runes, s.day).gold;
       expect([Number(m![9]), Number(m![7] ?? 0)], hero).toEqual([price, runeGold]); // the part apart; the rune gold its runes' alone
       expect(Number(m![3]), hero).toBe(Number(m![4]) + Number(m![5]) + runeGold + price); // the allowance adds up
       expect(e[0].endsWith(`${runeGold ? ` + rune gold ${runeGold}` : ""} + free part ${price})`), hero).toBe(true);
     }
-  });
+    // AZ-BUMP (the flip): 600 s, a host timeout under the 1.5-CPU quota (the GATE RULE; 30 s hit in run 5's group check:
+    // the four honest LAST CHANCE runs fight a warlord every day), not the rule
+  }, 600_000);
 
   it("without a LAST CHANCE part (the rune and hull cards, and every deck with no LAST CHANCE) the line is today's: no free part", () => {
     for (const boon of ["rune", "hull"] as Boon[]) {

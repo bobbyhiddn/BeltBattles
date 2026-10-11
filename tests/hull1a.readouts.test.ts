@@ -37,8 +37,10 @@ const foeOf = (hero: HeroId, day: number, hullBonus = 0): DuskFoe =>
 const on = <T>(fn: () => T): T => withHullScale(fn);
 const offer: LastChanceOffer = { day: 5, rune: null, part: null, hull: LAST_CHANCE_HULL };
 
+// AZ-BUMP (the flip, HULL_SCALE): the switch ships on; every test below reads 0.9.7's number with it off and the day's
+// through on(), so each runs with HULL_SCALE off for itself (withHullScale(..., false), FLIP-X2's form for the sustain switch)
 describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
-  it("the run bar's hull and the hero card's HULL: base + hullBonus, x M(d) with the switch on", () => {
+  it("the run bar's hull and the hero card's HULL: base + hullBonus, x M(d) with the switch on", () => withHullScale(() => {
     for (const f of [runBarHull, heroHullText]) {
       expect(f(runOf("furnace", 10, 750))).toBe("2850"); // off: 0.9.7's
       expect(on(() => f(runOf("furnace", 1, 750)))).toBe("2850");
@@ -46,18 +48,18 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
       expect(on(() => f(runOf("foundry", 10)))).toBe("13500");
       expect(on(() => f(runOf("weaver", 5, 250)))).toBe("5460"); // 1950 x 2.8
     }
-  });
+  }, false));
 
-  it("NEXT BATTLE's foe hull and the scout report's: on the fight's day", () => {
+  it("NEXT BATTLE's foe hull and the scout report's: on the fight's day", () => withHullScale(() => {
     expect(foeClass(foeOf("weaver", 10, 250))).toBe("WEAVER · HULL 1950");
     expect(on(() => foeClass(foeOf("weaver", 1, 250)))).toBe("WEAVER · HULL 1950");
     expect(on(() => foeClass(foeOf("weaver", 10, 250)))).toBe("WEAVER · HULL 11700");
     const belt = heroStartBuild("bastion", 101).beltCap;
     expect(revealLine(foeOf("bastion", 10))).toBe(`BASTION · HULL 2150 · BELT ${belt}`);
     expect(on(() => revealLine(foeOf("bastion", 10)))).toBe(`BASTION · HULL 12900 · BELT ${belt}`);
-  });
+  }, false));
 
-  it("the ARMOR PACK: its slot, its face, its ability text and the toast read M(d) x 250", () => {
+  it("the ARMOR PACK: its slot, its face, its ability text and the toast read M(d) x 250", () => withHullScale(() => {
     expect(ITEMS.plating.supply!.hull).toBe(250);
     expect(packAmount("armor", 10)).toBe(packAmount("armor"));
     expect(on(() => packAmount("armor", 1))).toBe(packAmount("armor"));
@@ -77,9 +79,9 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
     expect(on(() => supplyToast(ITEMS.beltcrate, 10))).toBe(supplyToast(ITEMS.beltcrate));
     // the panels' opts carry the run's day (inspector.ts textOpts)
     expect(textOpts({ ...runOf("furnace", 7), seed: 1 } as unknown as Run).day).toBe(7);
-  });
+  }, false));
 
-  it("HULL rune text: IRON SKIN, SPARE HULL, BULKHEADS and SCRAP HALO read M(d) x N; a REGEN rune doesn't scale", () => {
+  it("HULL rune text: IRON SKIN, SPARE HULL, BULKHEADS and SCRAP HALO read M(d) x N; a REGEN rune doesn't scale", () => withHullScale(() => {
     const want: Record<string, [string, string]> = {
       iron_skin: ["+150 HULL.", "+900 HULL."],
       spare_hull: ["+300 HULL.", "+1800 HULL."],
@@ -102,9 +104,9 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
     const flat = (day?: number) => runeTextLines(RUNES.spare_hull, 200, day).map((l) => l.map((s) => s.t).join("")).join(" ");
     expect(on(() => flat(10))).toBe("+1800 HULL.");
     expect(flat(10)).toBe("+300 HULL.");
-  });
+  }, false));
 
-  it("LAST CHANCE's HULL card: +500 becomes M(d) x 500 (its name, YOUR HULL line and toast)", () => {
+  it("LAST CHANCE's HULL card: +500 becomes M(d) x 500 (its name, YOUR HULL line and toast)", () => withHullScale(() => {
     expect(lcHullName(offer, 5)).toBe(lcHullName(offer));
     expect(on(() => lcHullName(offer, 1))).toBe(lcHullName(offer));
     expect(on(() => lcHullName(offer, 5))).toMatch(/^\+1400 /);
@@ -113,9 +115,9 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
     expect(on(() => lcHullNow(runOf("furnace", 5), 500, 5))).toEqual([5880, 7280]);
     expect(lcToast("hull", offer, 5)).toBe(lcToast("hull", offer));
     expect(on(() => lcToast("hull", offer, 5))).toMatch(/^MAX HULL \+1400 /);
-  });
+  }, false));
 
-  it("the road event's hull amounts (PLATING, RIDE THROUGH and the hull costs): the card chips and the outcome line", () => {
+  it("the road event's hull amounts (PLATING, RIDE THROUGH and the hull costs): the card chips and the outcome line", () => withHullScale(() => {
     const d = { k: "hull" as const, n: 250 };
     expect(deltaText(d, false, 10)).toBe("+250 HULL");
     expect(on(() => deltaText(d, false, 1))).toBe("+250 HULL");
@@ -124,9 +126,9 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
     const c = { cost: [], gain: [d] } as unknown as Choice;
     expect(outcomeText(c, true, 10)[0]).toBe("+250 MAX HULL");
     expect(on(() => outcomeText(c, true, 10)[0])).toBe("+1500 MAX HULL");
-  });
+  }, false));
 
-  it("the widest read-out on day 10: the biggest hero (FOUNDRY 2,250) bare, with the par player's plating, and a heavy deck (HULL1A-WIDEST)", () => {
+  it("the widest read-out on day 10: the biggest hero (FOUNDRY 2,250) bare, with the par player's plating, and a heavy deck (HULL1A-WIDEST)", () => withHullScale(() => {
     const rows: string[] = [];
     for (const [label, bonus] of [["bare", 0], ["par plating", refHull(10)], ["10 packs", 2500]] as [string, number][]) {
       const bar0 = runBarHull(runOf("foundry", 10, bonus)), bar = on(() => runBarHull(runOf("foundry", 10, bonus)));
@@ -139,5 +141,5 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
     rows.push(`LAST CHANCE name ${on(() => lcHullName(offer, 9))} (day 9, font 5: ${textWidth(on(() => lcHullName(offer, 9)))} px; day 1 ${textWidth(lcHullName(offer))} px)`);
     console.log(`HULL1A-WIDEST\n${rows.join("\n")}`);
     expect(HEROES.foundry.hull).toBe(Math.max(...PLAYABLE_HEROES.map((h) => HEROES[h].hull)));
-  });
+  }, false));
 });

@@ -204,7 +204,8 @@ game.start();
   },
   /**
    * NPC-1 (REQ-BFG-077, REQ-BFG-078) tooling, for the shots only: turns NPC_DAY on for this page (npcDay.ts setNpcDay, the
-   * dev knob, as LC-1's shots turned LAST CHANCE on; a player never reaches it, and the build ships with it off) and plays
+   * dev knob, as LC-1's shots turned LAST CHANCE on; a player never reaches it; since AZ-BUMP's flip the build ships with
+   * it on and the setter runs in a dev page only) and plays
    * `days` NPC days of `hero` through the game's own rules (each dawn's first rune, the fork's EASY warlord won, the event's
    * first open choice, REFIT, a dusk win). Then the next day's `at`: "fork" (`inspect`: the inspected card in portrait;
    * `list`: that tier's ⓘ list open), "result" (the `tier` fight over, `outcome` 0 a win, 1 a loss), "event" (after the
@@ -212,7 +213,9 @@ game.start();
    * drops a part ("drop") or nothing ("nodrop").
    */
   openNpcDay(o: { hero?: HeroId; seed?: number; days?: number; at?: "fork" | "result" | "event" | "refit"; tier?: Difficulty; outcome?: 0 | 1; inspect?: number; list?: Difficulty; find?: "drop" | "nodrop" } = {}): number {
-    setNpcDay(true);
+    // AZ-BUMP (the flip; cap's ruling on run 4's Q4): NPC_DAY ships on, and the setter is dev-only (import.meta.env.DEV,
+    // as render/motion.ts:17), so no hook can flip a switch on a production page; the screens open the same either way
+    if (import.meta.env.DEV) setNpcDay(true);
     clearPool();
     const zero = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
     const tier = o.tier ?? "medium";
@@ -271,11 +274,14 @@ game.start();
   },
   /**
    * HULL-1a (REQ-BFG-079) tooling, for the shots only: turns HULL_SCALE on (or off) for this page (hullScale.ts
-   * setHullScale, the dev knob, as bb.openNpcDay turns NPC_DAY on; a player never reaches it, and the build ships with it
-   * off). Every screen opened after it draws the day's hull, and every battle on a day plays it. Returns the switch.
+   * setHullScale, the dev knob, as bb.openNpcDay turns NPC_DAY on; a player never reaches it; since AZ-BUMP's flip the build
+   * ships with it on and the setter runs in a dev page only). Every screen opened after it draws the day's hull, and every
+   * battle on a day plays it. Returns the switch.
    */
   hullScale(on = true): boolean {
-    setHullScale(on);
+    // AZ-BUMP (the flip; cap's ruling on run 4's Q4): HULL_SCALE ships on, and the setter is dev-only (import.meta.env.DEV,
+    // as render/motion.ts:17): on a production page this only reports the switch, so no hook can turn it off there
+    if (import.meta.env.DEV) setHullScale(on);
     return hullScaleRules();
   },
   /** 0.6.0b: the road fork at a day's dawn (matriarchBeatenOn for R3). */

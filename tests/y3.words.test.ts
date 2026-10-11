@@ -23,6 +23,7 @@ import { C } from "../src/render/palette";
 import { colourize, wrapRich } from "../src/ui/richText";
 import { STARS, rigBench } from "./y3.helpers";
 import { item, withItem } from "./wave3.helpers";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's QUENCH ★1 beside the shipped one
 
 /** The words a switch-on text of the 13 may never say: each names a floor, cap, caveat, clause or rule that left. */
 const GONE = /UP TO \d+ BURN|UP TO \d+ HITS|MAX \d+ RIGS|MAX \d+ \{?FRAY|HOLD \d+ FRAY|ELSE|NEVER OUTRUN|CAN'T DOUBLE|THAT CAN BE DOUBLED|SIFTER|SURGE \d|TIMES AS FAST|PULSES ITS BELTS|SPEEDS UP|LETS GO GAINS|TWICE AS HARD|ONLINE|TO EACH PAYLOAD IT HITS, (OR|AND)|UP TO \d+ OF ITS BURN|ANY MORE BURN STAYS|NO PLATING TO TAKE|RAZOR WIRE:|HOT SHOE:|HOT START:|FOR \d+\{SEC\}, \+/;
@@ -71,7 +72,9 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(abilityText("pincer", 1).sentences[0]).toBe("ADDS 20 DAMAGE TO EACH PAYLOAD IT HITS FOR EACH OTHER RIG HITTING THAT TILE.");
     expect(abilityText("twingauge", 2).sentences[0]).toBe("ADDS 66 DAMAGE TO EACH PAYLOAD IT HITS ON A MATCHED BELT.");
     expect(abilityText("bellows", 3).sentences[0]).toBe("ADDS 3 BURN FOR EACH 2 SECONDS THE PAYLOAD HAS RIDDEN.");
-    expect(abilityText("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
+    // AZ-BUMP (the flip, LADDER_FIX): 30 -> 40, the star-ladder pass's QUENCH ★1 (40 a BURN); off, 30
+    expect(abilityText("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 40 DAMAGE.");
+    expect(withLadderFix(() => abilityText("quench", 1).sentences[0], false)).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
     expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT.");
     expect(abilityText("barbed", 3).sentences[0]).toBe("ADDS 3 FRAY TO EACH PAYLOAD IT HITS.");
     expect(abilityText("platebreaker", 1).sentences).toEqual(["EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS 40 DAMAGE.", "WITH LESS PLATING THAN THAT, IT ADDS NOTHING."]);

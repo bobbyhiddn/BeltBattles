@@ -13,7 +13,7 @@ import { finishDay } from "../src/game/day";
 import { newRun, pendingLastChance, pendingRune, takeLastChance, takeRune, type Run } from "../src/game/run";
 import { lcPartSub, lcToast } from "../src/screens/lastChancePicker";
 
-afterEach(() => setHullScale(false));
+afterEach(() => setHullScale(true)); // the shipped value (AZ-BUMP's flip; was false): a test that reads the switch off sets it off itself
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 
@@ -32,6 +32,7 @@ const copies = (run: Run, def: string): number[] => [...run.inventory, ...run.bu
 
 describe("HULL-1d: LAST CHANCE's PART card at ★2 (HULL_SCALE on only)", () => {
   it("the star: 1 with the switch off, LAST_CHANCE_PART_STARS (2) on; the offer names the same part either way, partStars only on", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): the switch-off star first (it ships on; the afterEach puts it back)
     expect(LAST_CHANCE_PART_STARS).toBe(2);
     expect(lastChancePartStars()).toBe(1);
     for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
@@ -68,6 +69,7 @@ describe("HULL-1d: LAST CHANCE's PART card at ★2 (HULL_SCALE on only)", () => 
   });
 
   it("the picker's words: off as before; on, the card's star in its sub-line and toast", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): the switch-off offer first (it ships on; the afterEach puts it back)
     expect(lcPartSub("epic")).toBe("EPIC PART · TO CARGO · FREE");
     expect(lcPartSub("epic", 1)).toBe("EPIC PART · TO CARGO · FREE");
     expect(lcPartSub("epic", 2)).toBe("EPIC PART ★2 · TO CARGO · FREE");

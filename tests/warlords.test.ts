@@ -5,7 +5,9 @@ import { hashSeed } from "../src/core/rng";
 import { finishDay } from "../src/game/day";
 import {
   MATRIARCH_GOLD, REWARD_GOLD, finishWarlord, forkFor, hardParts, leaveCaravan, pickPending, pickRoad, rewardGold, takePart, topParts, warlordSeed,
+  warlordDrop, // AZ-BUMP (the flip): a win's seeded drop
 } from "../src/game/road";
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's Hard pick and dusk with NPC_DAY off
 import { battleSeed, migrateRun, newRun, rollShop, type Run } from "../src/game/run";
 import { simulate, type SideStats } from "../src/sim/battle";
 import { ITEMS } from "../src/sim/content";
@@ -53,7 +55,11 @@ describe("warlords: rewards", () => {
             expect(run.gold - g0).toBe(pay);
             expect(run.lives).toBe(1);
             expect(run.over).toBe(null);
-            expect(defs(run)).toEqual(inv0); // a regular warlord's part waits for takePart
+            // AZ-BUMP (the flip, NPC_DAY): a win takes the seeded drop at once, through gainModule (no part waits for takePart:
+            // that is 0.9.7's Hard pick, (b) below with NPC_DAY off); no drop, or a loss or a draw, leaves cargo as it was
+            const w = run.warlord!;
+            expect(out.took).toBe(winner === 0 ? warlordDrop(run.seed, day, w.id, tier, w.build) : null);
+            if (!out.took) expect(defs(run)).toEqual(inv0);
             expect(run.warlords).toHaveLength(1);
             const again = clone(run);
             expect(finishWarlord(run, 0, 7)).toEqual(out); // a second call pays nothing more
@@ -65,7 +71,9 @@ describe("warlords: rewards", () => {
     }
   });
 
-  it("(b) a Hard win offers 2 distinct parts of that warlord's deck, priciest first; takePart takes exactly one", () => {
+  // AZ-BUMP (the flip, NPC_DAY): with the NPC day on a Hard win rolls a drop instead (warlordReward offers no parts), so the
+  // pick of 2 is the switch-off path, kept for older records: (b) runs with NPC_DAY off
+  it("(b) a Hard win offers 2 distinct parts of that warlord's deck, priciest first; takePart takes exactly one", () => withNpcDay(() => {
     const seen = new Set<string>();
     const short: string[] = [];
     for (const seed of SEEDS) {
@@ -106,7 +114,7 @@ describe("warlords: rewards", () => {
     expect(seen.size).toBe(7);
     // eslint-disable-next-line no-console
     if (short.length) console.log(`Hard decks with fewer than 2 giveable parts: ${[...new Set(short)].join(", ")}`);
-  });
+  }, false));
 
   it("a loss or draw has no part pick", () => {
     for (const winner of [1, -1] as const) {
@@ -214,7 +222,10 @@ describe("warlords: R3, reloads and the dusk", () => {
         expect([c.winner, c.t]).toEqual([a.winner, a.t]);
         const out = finishWarlord(loaded, a.winner as 0 | 1 | -1, a.t)!;
         expect(out.time).toBe(a.t);
-        expect(leaveCaravan(loaded)).toBe("battle"); // fought: on to the dusk
+        // AZ-BUMP (the flip, NPC_DAY): fought: on to the day's event, which comes after the fight ("battle", on to the dusk,
+        // with NPC_DAY off: 0.9.7's road)
+        expect(withNpcDay(() => leaveCaravan(clone(loaded)), false)).toBe("battle");
+        expect(leaveCaravan(loaded)).toBe("event");
       }
     }
   });

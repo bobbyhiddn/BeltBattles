@@ -12,6 +12,7 @@ import { startingBuild } from "../src/sim/ai";
 import { RIVALS, maxGoldByDay, standInBuild, standInGhost } from "../src/sim/rivals";
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck with runes valued as bought (was deckCost)
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' hull out of the plating, their dawn gold in the budget
+import { roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP (the flip): the dusk deck's road allowance
 import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import type { SideStats } from "../src/sim/battle";
@@ -222,7 +223,9 @@ describe("standInFoe: the day's rival captain with its named build", () => {
         const g = runeGrants(f.build.runes, day), hull = f.build.hullBonus - g.hull;
         expect(hull).toBeGreaterThanOrEqual(0);
         expect(Number.isInteger(hull / PLATE)).toBe(true);
-        expect(boughtCost(f.build)).toBeLessThanOrEqual(maxGoldByDay(day) + g.gold);
+        // AZ-BUMP (the flip, NPC_DAY): + the dusk deck's road allowance (REFIT-AZ's road additions; roadAllowance, 0 off), as
+        // captains.luck's R1; refitaz.road checks the on decks
+        expect(boughtCost(f.build)).toBeLessThanOrEqual(maxGoldByDay(day) + g.gold + roadAllowance(day, "dusk"));
         ids.add(f.id);
       }
       expect(ids.size).toBe(RUN_DAYS); // no captain stands in twice in a run

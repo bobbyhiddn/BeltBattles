@@ -9,6 +9,7 @@ import { abilityText, gist, nextStarText } from "../src/ui/abilityText";
 import { HEROES } from "../src/sim/content";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { FUSE_MULT } from "../src/sim/races/foundry";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the off checks beside the ride-keep words
 
 const SEED = 4242;
 /** A FURNACE deck: the Kiln at (4,6) on a straight 6-tile belt up column 4 into the heavy gun, hull lifted. */
@@ -50,8 +51,11 @@ describe("B1 M2: OVERDRIVE ★2 REDLINE (oracle 1cd5224fab866da2 (A))", () => {
   it("its card reads the data: the gist and the highlight name the speed at ★2 and ★3 (no chain guard, no flat)", () => {
     // Y7b2 (the words): from the data (was "4 TIMES AS FAST, SAFE FROM CHAINS" and "NEXT STAR: 4 TIMES AS FAST, SAFE FROM
     // CHAINS.")
-    expect(gist("overdrive", 2)).toBe("4 TIMES AS FAST");
-    expect(nextStarText("overdrive", 1)).toBe("NEXT STAR: 4 TIMES AS FAST.");
+    // AZ-BUMP (the flip, LADDER_FIX): "4 TIMES AS FAST" -> "4 TIMES AS FAST, KEEPS 50% OF THE RIDE" (and the next star's line
+    // with it), OVERDRIVE ★2's ride-keep (ladderFix.ts RIDE_KEEP, AZ-PREP (g)); with LADDER_FIX off the words as before
+    expect(gist("overdrive", 2)).toBe("4 TIMES AS FAST, KEEPS 50% OF THE RIDE");
+    expect(nextStarText("overdrive", 1)).toBe("NEXT STAR: 4 TIMES AS FAST, KEEPS 50% OF THE RIDE.");
+    expect(withLadderFix(() => [gist("overdrive", 2), nextStarText("overdrive", 1)], false)).toEqual(["4 TIMES AS FAST", "NEXT STAR: 4 TIMES AS FAST."]);
     const t2 = abilityText("overdrive", 2);
     // Y7b2 (the words): REDLINE names the opening sentence (was after 1, the chain guard's)
     expect(t2.perk).toEqual({ name: "REDLINE", stars: 2, after: 0 });
@@ -61,8 +65,13 @@ describe("B1 M2: OVERDRIVE ★2 REDLINE (oracle 1cd5224fab866da2 (A))", () => {
     // NUM-3 (R1's STUN fold): was toContain("ENEMY CHAINS CAN'T SLOW") (a chain round slowed a belt stretch); now REDLINE's
     // chain guard keeps enemy CHAIN rounds' STUNs off its belts, and abilityText's sentence says so (step 1b: "ENEMY CHAIN
     // [AND FROST] ROUNDS CAN'T STUN ..."); at ★2 the chain alone, as before (★3 AFTERBURNER adds AND FROST)
-    expect(t2.sentences).toEqual(["MAKES THE BELTS PAST IT 4 TIMES AS FAST.", "ON METRONOME'S LOCKED BELTS IT ADDS 50 DAMAGE INSTEAD."]);
-    expect(gist("overdrive", 3)).toBe("5 TIMES AS FAST"); // NUM-1: x10 (was ADDS 3). Y7b2 (the flip): was "5 TIMES AS FAST, ADDS 30 DAMAGE"
+    // AZ-BUMP (the flip, LADDER_FIX): + the ride-keep sentence after the speed (★2 keeps 50% of the ride it cuts, AZ-PREP
+    // (g)); with LADDER_FIX off the two sentences as before
+    expect(t2.sentences).toEqual(["MAKES THE BELTS PAST IT 4 TIMES AS FAST.", "A PAYLOAD KEEPS 50% OF THE RIDE THAT SPEED CUTS, FOR ITS RIDE BONUSES (HEAT, LONG RIDES).", "ON METRONOME'S LOCKED BELTS IT ADDS 50 DAMAGE INSTEAD."]);
+    expect(withLadderFix(() => abilityText("overdrive", 2).sentences, false)).toEqual(["MAKES THE BELTS PAST IT 4 TIMES AS FAST.", "ON METRONOME'S LOCKED BELTS IT ADDS 50 DAMAGE INSTEAD."]);
+    // AZ-BUMP (the flip, LADDER_FIX): "5 TIMES AS FAST" -> "5 TIMES AS FAST, KEEPS 100% OF THE RIDE", ★3's ride-keep; off as before
+    expect(gist("overdrive", 3)).toBe("5 TIMES AS FAST, KEEPS 100% OF THE RIDE"); // NUM-1: x10 (was ADDS 3). Y7b2 (the flip): was "5 TIMES AS FAST, ADDS 30 DAMAGE"
+    expect(withLadderFix(() => gist("overdrive", 3), false)).toBe("5 TIMES AS FAST");
     expect(abilityText("overdrive", 3).perk).toEqual({ name: "AFTERBURNER", stars: 3, after: 0 });
   });
 });

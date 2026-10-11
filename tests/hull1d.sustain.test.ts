@@ -16,14 +16,16 @@ const silent = (hero: HeroId, uid: number): Build => ({ ...heroStartBuild(hero, 
 const battle = (day?: number): Battle => new Battle(silent("bastion", 1), silent("weaver", 101), 7, undefined, day);
 
 describe("HULL-1d: S(d), the sustain day term (S = M)", () => {
-  it("S is M on every day, derived (days 1-40); no day or a day below 1 is 1; the read-out helper follows the switch", () => {
+  // AZ-BUMP (the flip, HULL_SCALE): the switch ships on; the three tests below read the switch-off world beside the on one
+  // (withHullScale), so each runs with HULL_SCALE off for itself (withHullScale(..., false)), as written
+  it("S is M on every day, derived (days 1-40); no day or a day below 1 is 1; the read-out helper follows the switch", () => withHullScale(() => {
     for (let d = 1; d <= 40; d++) expect(sustMulTenths(d)).toBe(dayMulTenths(d));
     expect([sustMulTenths(undefined), sustMulTenths(0), sustMul(1), sustMul(10)]).toEqual([10, 10, 1, 6]);
     expect(sustShown(13, 10)).toBe(13); // the switch off: the number itself
     expect(withHullScale(() => [sustShown(13, 10), sustShown(13, 5), sustShown(13, undefined)])).toEqual([78, 36, 13]);
     expect([sustUnit(240, 60), sustUnit(10, 28), sustUnit(10, 10)]).toEqual([1440, 28, 10]);
     expect(hullScaleRules()).toBe(false);
-  });
+  }, false));
 
   it("the integer rule: n x S rounded down, the remainder carried (D's rule, its own counter)", () => {
     const c: { sustRem?: number } = {};
@@ -33,7 +35,7 @@ describe("HULL-1d: S(d), the sustain day term (S = M)", () => {
     expect([sustDayScale(50, 10, c2), c2.sustRem]).toEqual([50, undefined]); // S = 1: untouched, no counter
   });
 
-  it("a battle's S: only on the day's hull; a heal lands x S with its remainder kept on that hull; off or no day, the heal as written", () => {
+  it("a battle's S: only on the day's hull; a heal lands x S with its remainder kept on that hull; off or no day, the heal as written", () => withHullScale(() => {
     expect(battle(10).sustTenths).toBe(10); // the switch off
     expect(withHullScale(() => battle()).sustTenths).toBe(10); // no day
     for (const day of [1, 2, 5, 10]) {
@@ -49,9 +51,9 @@ describe("HULL-1d: S(d), the sustain day term (S = M)", () => {
       so.hull.hp = Math.floor(so.hull.max / 2);
       expect(off.heal(so, 7, "rune")).toBe(7);
     }
-  });
+  }, false));
 
-  it("PLATE: every gain lands x S, up to the pool's own cap PLATE_CAP x S; off, the cap is PLATE_CAP and the gain as written", () => {
+  it("PLATE: every gain lands x S, up to the pool's own cap PLATE_CAP x S; off, the cap is PLATE_CAP and the gain as written", () => withHullScale(() => {
     for (const day of [2, 5, 10]) {
       const bt = withHullScale(() => battle(day));
       const s = bt.sides[0], t = dayMulTenths(day);
@@ -65,5 +67,5 @@ describe("HULL-1d: S(d), the sustain day term (S = M)", () => {
     expect(off.addPlate(so, 50)).toBe(50);
     for (let i = 0; i < 100; i++) off.addPlate(so, 50);
     expect(so.plate.plate).toBe(PLATE_CAP);
-  });
+  }, false));
 });

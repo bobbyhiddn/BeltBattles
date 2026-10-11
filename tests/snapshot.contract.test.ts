@@ -100,8 +100,10 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
       // ("snapshot.seed: not allowed in a v1 snapshot", foundry d1), so the v1 and v2 rows below take a copy without the
       // runes and the seed (was the snapshot as it is: v1 furnace d1 and foundry d1 refused on both sides, [false, false]
       // for [true, true])
+      // AZ-BUMP (the flip, NPC_DAY; REVIEW-PARAZ N3): and a seed ghost carries its run's road log (`road`, v3 only: a race
+      // ghost's v2 round trip below threw "snapshot.road: not allowed in a v2 snapshot"), so the copy drops it too
       const { runes: _runes, ...runeless } = s3.build;
-      const { seed: _seed, ...seedless } = s3;
+      const { seed: _seed, road: _road, ...seedless } = s3;
       const s: net.GhostSnapshot = { ...seedless, build: runeless };
       // 0.6.2 BELTSIDE: a v1 copy loads on both sides unless a rig carries `rot`, which only v2 allows; since the 0.6.1
       // flip it may not carry merge stars either. beltside-062-on-061: both rules at once, on each side separately
@@ -132,6 +134,7 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     for (const r of plain.build.routes) delete r.join;
     delete plain.build.runes; // FLIP-X2: the runes are v3-only (was kept: POOL[0], furnace d1, holds TAR BARREL)
     delete plain.seed; // FLIP-X2: so is a race ghost's run seed (was kept)
+    delete plain.road; // AZ-BUMP (the flip, NPC_DAY): and a seed ghost's road log (NPC_DAY on; v3 only)
     expect([local.isSnapshot({ ...plain, v: 1 }), netOk({ ...plain, v: 1 })]).toEqual([true, true]);
     expect(bad).toEqual([]);
   });

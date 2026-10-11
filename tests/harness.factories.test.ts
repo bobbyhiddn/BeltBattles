@@ -22,6 +22,7 @@ import { STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, maxStarsOf, standI
 import { encodeStarred } from "../src/sim/harness/standinCode";
 import { withLegacyStock } from "./catalogueLegacy";
 import { withBeltPolicy } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D7)
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the pins' switch-off check
 
 const hash32 = (s: string): number => {
   let h = 0x811c9dc5;
@@ -181,18 +182,33 @@ describe("harness factories (0.6.1c): legality", () => {
 
   // P19 pins predate the shared-pool change. These new pins include Metronome's speed rigs while factories are off.
   it("stars on + cores on + factories off is deterministic with the shared pool", () => {
-    const a: string[] = [];
-    const b: string[] = [];
-    withLegacyStock(() => {
-      for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("fac-off-pin", hero, day, i)), "on", FUSE_MAX, "on", "off")));
-      for (const hero of HARNESS_HEROES) for (let day = 1; day <= 10; day++) for (let i = 0; i < 3; i++) b.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-fac-off-pin", hero, day, i), undefined, 60, "on", FUSE_MAX, "on", "off")));
-    });
+    // AZ-BUMP (the flip, HULL_SCALE): both hashes, drawn on the purse of the switch as it stands (the note at the pins)
+    const pins = (): [number, number] => {
+      const a: string[] = [];
+      const b: string[] = [];
+      withLegacyStock(() => {
+        for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("fac-off-pin", hero, day, i)), "on", FUSE_MAX, "on", "off")));
+        for (const hero of HARNESS_HEROES) for (let day = 1; day <= 10; day++) for (let i = 0; i < 3; i++) b.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-fac-off-pin", hero, day, i), undefined, 60, "on", FUSE_MAX, "on", "off")));
+      });
+      return [hash32(a.join("|")), hash32(b.join("|"))];
+    };
     // REQ-BFG-021 changes Metronome's choices within the pre-expansion stock.
     // NUM-1 (REQ-BFG-047): both re-pinned (were 788536636 and 1842022582): the ARMOR PACK's hull x10
     // (ITEMS.plating.supply.hull 25 -> 250), so every build's hullBonus is x10; the same builds with hullBonus / 10 (a) and
     // build.hullBonus / 10 (b) hash to 788536636 and 1842022582 exactly (no other field or decision moved).
-    expect(hash32(a.join("|"))).toBe(3615626450);
-    expect(hash32(b.join("|"))).toBe(3585233270);
+    // AZ-BUMP (the flip, HULL_SCALE): the random builds 3615626450 -> 2409389084, measured on the flip's src. The harness
+    // spends maxGoldByDay(day), and HULL_SCALE's income (6 + min(day, 10) + 2 a win; tests/hull1c.damage) lifts the purse
+    // on days 8-10 (91 105 119 -> 92 108 125), so day 10's random builds buy more. The full purses spend the same purses
+    // (days 8-10 lifted too), but their on value was never read (the flip's run stops at the first pin): it is logged
+    // (AZ-BUMP-PIN) for a later re-pin. With HULL_SCALE off both read their values above (the flip's switch-off proof
+    // run, vp-H1: this file green with only HULL_SCALE off), so no other harness path moved; that check stays here
+    const [a, b] = pins();
+    console.log(`AZ-BUMP-PIN harness.factories, every switch on: random builds ${a}, full purses ${b}`);
+    expect(a).toBe(2409389084);
+    // AZ-BUMP (the flip, HULL_SCALE): the full purses 3585233270 -> 602242560, read from the log line above in run 5's group
+    // check M1b (the work tree, every switch on)
+    expect(b).toBe(602242560);
+    expect(withHullScale(pins, false)).toEqual([3615626450, 3585233270]);
   }, 240_000);
 });
 

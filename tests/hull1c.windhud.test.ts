@@ -17,7 +17,7 @@ import { C } from "../src/render/palette";
 import { ICON, KEYWORDS, icons, stripIcons, textWidth } from "../src/render/font";
 import { colourize, wrapRich } from "../src/ui/richText";
 
-afterEach(() => setHullScale(false));
+afterEach(() => setHullScale(true)); // the shipped value (AZ-BUMP's flip; was false): a test that reads the switch off sets it off itself
 
 /** A hero's starting deck with its belts cut: nothing fires, so only the wind moves a hull (tests/hull1a.scale.test.ts). */
 const silent = (hero: HeroId, uid: number): Build => ({ ...heroStartBuild(hero, uid), routes: [] });
@@ -57,6 +57,7 @@ describe("HULL-1c: the bar's wind read-out (REVIEW-HULL1A N3)", () => {
   });
 
   it("the switch off, or a day-less battle with it on: 0.9.7's read-out, the player's damage a second (windDps), as before", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): the switch-off battles (it ships on; the afterEach puts it back)
     for (const make of [() => fight(10), () => fight(), () => withHullScale(() => fight())]) {
       const bt = make();
       expect(bt.scaled).toBe(false);
@@ -98,6 +99,7 @@ describe("HULL-1c: the wind's info text, the glossary's DARK WIND row (REVIEW-HU
   });
 
   it("switch off: SUS-B's words, as before (tests/glossary.test.ts pins them too)", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): the switch-off words (it ships on; the afterEach puts it back)
     expect(glossaryText("DARK WIND")).toBe(OFF);
     expect(withHullScale(() => glossaryText("DARK WIND"))).not.toBe(OFF);
     expect(glossaryText("DARK WIND")).toBe(OFF);

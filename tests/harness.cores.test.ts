@@ -17,6 +17,7 @@ import { Shopper } from "../src/sim/harness/shopper";
 import { STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, standInCandidate, standInCommand, writtenProblems, type HeroDay } from "../src/sim/harness/standins";
 import { encodeStarred } from "../src/sim/harness/standinCode";
 import { DEFAULT_OPTS, runTournament, type Runner } from "../src/sim/harness/tournament";
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the pins' switch-off check
 
 const hash32 = (s: string): number => {
   let h = 0x811c9dc5;
@@ -104,10 +105,14 @@ describe("harness cores (0.6.1b): legality", () => {
 
   // 0.6.2p (item 7a): retitled from "... is deterministic ..."; it pins two hashes (values unchanged)
   it("pin: stars on + cores off, random and full-purse builds with the expanded shared pool hash to their pinned values", () => {
-    const a: string[] = [];
-    for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("on-pin", hero, day, i)), "on", FUSE_MAX, "off")));
-    const b: string[] = [];
-    for (const hero of ["furnace", "weaver"] as const) for (let day = 1; day <= 10; day++) for (let i = 0; i < 3; i++) b.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-on-pin", hero, day, i), undefined, 60, "on", FUSE_MAX, "off")));
+    // AZ-BUMP (the flip, HULL_SCALE): both hashes, drawn on the purse of the switch as it stands (the note at the pins)
+    const pins = (): [number, number] => {
+      const a: string[] = [];
+      for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("on-pin", hero, day, i)), "on", FUSE_MAX, "off")));
+      const b: string[] = [];
+      for (const hero of ["furnace", "weaver"] as const) for (let day = 1; day <= 10; day++) for (let i = 0; i < 3; i++) b.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-on-pin", hero, day, i), undefined, 60, "on", FUSE_MAX, "off")));
+      return [hash32(a.join("|")), hash32(b.join("|"))];
+    };
     // beltside-062-on-061 re-pin (DESIGN §13 P16, moved by H2's rig placement: every rig these builds buy stands where
     // H2 puts it, and a merging copy leaves the survivor's cell and rotation): 3068763238 -> 2679854933 and
     // 1965100384 -> 3070968615, measured on this branch. BELTSIDE never had a pre-cores stars-on harness to compute
@@ -139,8 +144,19 @@ describe("harness cores (0.6.1b): legality", () => {
     // new star numbers: 2599201197 -> 299861875 and 1712223641 -> 2353056724, measured on y7b2 after the flip (the first is
     // also Y7b1's switch-on reading at 455944c, T/output-y7b2/diag/flip-on.json; the harness reads none of step 5's
     // regenerated data, and step 3's words are text only)
-    expect(hash32(a.join("|"))).toBe(299861875);
-    expect(hash32(b.join("|"))).toBe(2353056724);
+    // AZ-BUMP (the flip, HULL_SCALE): the random builds 299861875 -> 4035130089, measured on the flip's src. The harness
+    // spends maxGoldByDay(day), and HULL_SCALE's income (6 + min(day, 10) + 2 a win; tests/hull1c.damage) lifts the purse
+    // on days 8-10 (91 105 119 -> 92 108 125), so day 10's random builds buy more. The full purses spend the same purses
+    // (days 8-10 lifted too), but their on value was never read (the flip's run stops at the first pin): it is logged
+    // (AZ-BUMP-PIN) for a later re-pin. With HULL_SCALE off both read Y7b2's values (the flip's switch-off proof run,
+    // vp-H1: this file green with only HULL_SCALE off), so no other harness path moved; that check stays here
+    const [a, b] = pins();
+    console.log(`AZ-BUMP-PIN harness.cores, every switch on: random builds ${a}, full purses ${b}`);
+    expect(a).toBe(4035130089);
+    // AZ-BUMP (the flip, HULL_SCALE): the full purses 2353056724 -> 3958019260, read from the log line above in run 5's group
+    // check M1b (the work tree, every switch on)
+    expect(b).toBe(3958019260);
+    expect(withHullScale(pins, false)).toEqual([299861875, 2353056724]);
   }, 60_000);
 });
 
@@ -251,6 +267,8 @@ describe("harness cores (0.6.1b): options and reports", () => {
     expect(standInCommand({ ...STANDIN_DEFAULTS, stars: "on", cores: "off" })).toContain("--cores off");
   });
 
+  // AZ-BUMP (the flip): the next test's limit is 600 s (was 60 s), 60 s hit in run 5's group check under the 1.5-CPU quota
+  // (the GATE RULE; its battles play on their day, longer with HULL_SCALE), not the rule
   it("a tiny stars-on tournament reports core use with cores on (cores fitted, per def and star) and none with cores off", async () => {
     const tiny = { ...DEFAULT_OPTS, heroes: ["furnace", "weaver"] as HeroId[], days: [7], calibrationDays: [7], pop: 6, gauntlet: 2, seeds: 1, elites: 2 };
     const noBench: Runner = async (_f, jobs) => jobs.map(() => 1);
@@ -267,7 +285,7 @@ describe("harness cores (0.6.1b): options and reports", () => {
     }
     // cores ride in build.mods, so a fitted 1-star core is a benched def (a fitted core raised to 2 and 3 stars)
     expect((on.bench ?? []).some((r) => isCore(r.def))).toBe(true);
-  }, 60_000);
+  }, 600_000);
 });
 
 describe("harness cores (0.6.1b): the stand-in 2-star cap covers cores (D4, ARSENAL.md:502)", () => {

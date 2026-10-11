@@ -8,6 +8,7 @@ import { ITEMS } from "../src/sim/content";
 import { RUNES } from "../src/sim/runes";
 import { LC_HULL_SUB, LC_LINE, LC_STOP, LC_TAKE, LC_TITLE, hullName, lastChanceTag, lcHint, lcLayout, lcPartSub, lcToast } from "../src/screens/lastChancePicker";
 import { lastChanceCardLine } from "../src/game/day";
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): LC-1's toast, HULL_SCALE off
 
 describe("LC-1: the LAST CHANCE screen", () => {
   it("three cards at their tallest fit a 390x844 phone (292x633 logical) and its landscape (844x390), below the title", () => {
@@ -46,7 +47,10 @@ describe("LC-1: the LAST CHANCE screen", () => {
   it("the toast after a pick and the dusk card's line", () => {
     const o = lastChanceOffer(5, 6, "weaver", []);
     expect(lcToast("rune", o)).toBe(`RUNE TAKEN: ${RUNES[o.rune!.id].name}`);
-    expect(lcToast("part", o)).toBe(`TO CARGO: ${ITEMS[o.part!].name}`);
+    // AZ-BUMP (the flip, HULL_SCALE): "TO CARGO: <PART>" -> "TO CARGO: <PART> ★2": the PART card's copy is ★2 with HULL_SCALE on
+    // (HULL-1d, lastChance.ts lastChancePartStars) and the toast names its star; off, LC-1's toast
+    expect(lcToast("part", o)).toBe(`TO CARGO: ${ITEMS[o.part!].name} ★2`);
+    expect(lcToast("part", withHullScale(() => lastChanceOffer(5, 6, "weaver", []), false))).toBe(`TO CARGO: ${ITEMS[o.part!].name}`);
     expect(lcToast("hull", o)).toBe(`MAX HULL ${hullName(LAST_CHANCE_HULL)}`);
     expect(lastChanceCardLine({ lastChance: { lives: 1 } })).toBe("LAST CHANCE: +1 LIFE");
     expect(lastChanceCardLine({})).toBeNull();

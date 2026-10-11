@@ -29,7 +29,7 @@ const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0
 const HEROS = (Object.keys(HEROES) as HeroId[]).filter((h) => heroGateProblem(RULES_VERSION, h) === null);
 const PLATE = ITEMS.plating.supply!.hull!;
 
-afterEach(() => setNpcDay(false));
+afterEach(() => setNpcDay(true)); // the shipped value (AZ-BUMP's flip); a test that needs NPC_DAY off sets it off itself
 
 /** An honest run with the switch on: `days` NPC days through the game's rules (each dawn's first rune, the fork's `tier`,
  *  the fight's `fight` outcome, the event's first open choice, REFIT, a dusk win), snapshotted at the last dusk. */
@@ -191,6 +191,7 @@ describe("NPC-1: forgeries are refused, each with its own line (REQ-BFG-078)", (
 
 describe("NPC-1: roadCap models a fight and the day's event every day (D4 kept honest)", () => {
   it("every pick and reward field under the switch is reviewed; off and on don't share a memo", () => {
+    setNpcDay(false); // AZ-BUMP (the flip, NPC_DAY): it ships on, so the off memo's test sets it off itself
     const off = [1, 3, 5, 8, 10].map((d) => roadCap(d));
     setNpcDay(true);
     expect(forkPicks().every((p) => MODELLED_PICKS.includes(p))).toBe(true);

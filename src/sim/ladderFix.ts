@@ -30,11 +30,12 @@
 //
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same defs.
 
-import { ITEMS, type GateEffect, type ItemDef } from "./content";
+import { ITEMS, onSetWave3, type GateEffect, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
 
-/** THE switch (REQ-BFG-070, the star-ladder pass), off in this rules version (bb-0.9.7). */
-export const LADDER_FIX: boolean = false;
+/** THE switch (REQ-BFG-070, the star-ladder pass): on, from AZ-BUMP's flip (the hull release). Its setter, withLadderFix
+ *  and the off path stay this release, for older records and the tests that measure the off world. */
+export const LADDER_FIX: boolean = true;
 
 /** OVERDRIVE's ride-keep by star (cap's oracle 37b12cb17a536589): on the tiles an OVERDRIVE speeds, a payload's ride
  *  clock counts keep x its ride at 1x + (1 - keep) x its real ride, so a faster belt stops cutting the ride payoffs (HEAT,
@@ -68,6 +69,8 @@ export const LADDER_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> =
 let lfOn = false;
 /** The base defs, kept at the first swap (so a swap back restores the very object content.ts made). */
 const BASE = new Map<string, ItemDef>();
+/** AZ-BUMP (the flip): the fixed def each swap on put in ITEMS, so setWave3's hook below puts back that very object. */
+const FIXED = new Map<string, ItemDef>();
 
 /** Is the star-ladder pass in the game now (LADDER_FIX, or a withLadderFix call)? */
 export function ladderFixRules(): boolean {
@@ -80,11 +83,28 @@ export function setLadderFix(on: boolean): void {
   if (on === lfOn) return;
   for (const id of Object.keys(LADDER_DEFS)) {
     if (!BASE.has(id)) BASE.set(id, ITEMS[id]);
-    ITEMS[id] = on ? LADDER_DEFS[id](BASE.get(id)!) : BASE.get(id)!;
+    if (on) FIXED.set(id, LADDER_DEFS[id](BASE.get(id)!));
+    ITEMS[id] = on ? FIXED.get(id)! : BASE.get(id)!;
   }
   clearStarCache();
   lfOn = on;
 }
+
+// AZ-BUMP (the flip; cap's ruling on run 4's Q3; tests/luckReport.test.ts:141): content.ts setWave3 writes WAVE3_ITEMS[id]
+// back into ITEMS for every wave-3 id, so with the pass on a wave-3 toggle (tools/luckReport.ts, tools/wave3.ts) would
+// leave STOKER's base def (★3 stoke 0.7) in ITEMS. While the switch is on, put back the fixed def wherever setWave3 just
+// wrote the base def. Switch off: nothing (bb-0.9.7's setWave3, byte for byte).
+onSetWave3(() => {
+  if (!lfOn) return;
+  let moved = false;
+  for (const [id, fixed] of FIXED) {
+    if (ITEMS[id] === BASE.get(id)) {
+      ITEMS[id] = fixed;
+      moved = true;
+    }
+  }
+  if (moved) clearStarCache();
+});
 
 /** Run `fn` with the star-ladder pass on (or off), then put the switch back as it was, even if `fn` throws. */
 export function withLadderFix<T>(fn: () => T, on = true): T {

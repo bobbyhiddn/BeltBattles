@@ -292,9 +292,14 @@ describe("M1: absent fields encode exactly as before, and older codes decode exa
       const b = playerBuild(hero, day, s);
       if (!b.turrets && !b.routes.some((r) => r.join !== undefined) && !b.upgrades) { check(b); par++; }
     }
-    expect(par).toBeGreaterThanOrEqual(12);
+    // AZ-BUMP (the flip, NPC_DAY): at least 12 -> 7 of these 72 par decks hold no turret, join or level: the par player now
+    // fights the Medium warlord every day (PAR-AZ), and its road gold and drops make richer decks that hold turrets, joins
+    // and levels sooner, so fewer qualify; each that does is checked as before
+    expect(par).toBeGreaterThanOrEqual(7);
     expect(n).toBe(120 + 96 + par);
-  });
+    // AZ-BUMP (the flip): 600 s, a host timeout under the 1.5-CPU quota (the GATE RULE; 30 s hit in run 5's group check:
+    // the 72 par decks' runs fight a warlord every day), not the rule
+  }, 600_000);
 
   it("a Build.turrets list that encodes like the starting layout (a WEAVER swap of two free DART GUNs) writes no section and decodes to no field", () => {
     const w = startingBuild("weaver", 1);

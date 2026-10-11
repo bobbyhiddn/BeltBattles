@@ -35,18 +35,19 @@ describe("AZ-PREP (c): REFIT with NPC_DAY on has no SELL button and its bar says
     run.build.items.push({ uid: 901, def: "temper", x: 3, y: 3, ...rotField("temper", 1) });
     run.build.mods = [{ uid: 902, def: "mantlet", turret: 0 }];
     const cases: [Sel, boolean][] = [[{ kind: "cargo", uid: 900 }, false], [{ kind: "cargo", uid: 900 }, true], [{ kind: "item", uid: 901 }, true], [{ kind: "fitted", uid: 902 }, true]];
+    // AZ-BUMP (the flip, NPC_DAY): the switch ships on, so the off reads (the dawn and 0.9.7's road REFIT) set it off themselves
     for (const [sel, touch] of cases) {
       const at = `${sel.kind} ${touch ? "touch" : "mouse"}`;
       run.stage = "caravan";
-      const dawn = buttons(run, sel, touch), dawnOn = withNpcDay(() => buttons(run, sel, touch));
+      const dawn = withNpcDay(() => buttons(run, sel, touch), false), dawnOn = withNpcDay(() => buttons(run, sel, touch));
       run.stage = "refit";
-      const off = buttons(run, sel, touch), on = withNpcDay(() => buttons(run, sel, touch));
+      const off = withNpcDay(() => buttons(run, sel, touch), false), on = withNpcDay(() => buttons(run, sel, touch));
       expect(dawn.some((l) => SELL.test(l)), at).toBe(true);
       expect([dawnOn, off], at).toEqual([dawn, dawn]); // the dawn with the switch on, and 0.9.7's road REFIT: as today
       expect(on, at).toEqual(dawn.filter((l) => !SELL.test(l))); // REFIT with NPC_DAY on: the same buttons but SELL
     }
     // the bar's stage word (chrome.ts drawTopBar): REFIT only in REFIT (and at its dusk) with NPC_DAY on
-    const word = (stage: Run["stage"]) => [barStage({ stage }), withNpcDay(() => barStage({ stage }))];
+    const word = (stage: Run["stage"]) => [withNpcDay(() => barStage({ stage }), false), withNpcDay(() => barStage({ stage }))]; // AZ-BUMP: the off word sets NPC_DAY off
     expect([word("caravan"), word("refit"), word("battle"), word("fork")]).toEqual([["DAWN", "DAWN"], ["DAWN", "REFIT"], ["DAWN", "REFIT"], ["DAWN", "DAWN"]]);
   });
 });

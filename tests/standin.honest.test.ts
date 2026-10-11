@@ -13,6 +13,8 @@ import type { Build } from "../src/sim/deck";
 import { starsOf, valueOf } from "../src/sim/stars";
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a deck with runes valued as bought (the runes' HULL and BELT out)
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold in the day's budget
+import { roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP (the flip): the dusk deck's road allowance
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): 0.9.7's gold table with HULL_SCALE off
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const BOTH: HeroId[] = ["furnace", "weaver"];
@@ -43,7 +45,10 @@ describe("honest deck helpers (M3b; tooling since 0.6.0b) and the dusk stand-in"
   });
 
   it("maxGoldByDay: START_GOLD + every earlier day's winning income", () => {
-    expect(DAYS.map(maxGoldByDay)).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
+    // AZ-BUMP (the flip, HULL_SCALE): [.., 91, 105, 119] -> [.., 92, 108, 125], the winning income 6 + min(day, 10) + 2 (was
+    // min(day, 6)); with the switch off, 0.9.7's table
+    expect(DAYS.map(maxGoldByDay)).toEqual([8, 17, 27, 38, 50, 63, 77, 92, 108, 125]);
+    expect(withHullScale(() => DAYS.map(maxGoldByDay), false)).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
     expect(maxGoldByDay(1)).toBe(START_GOLD);
     for (const d of DAYS.slice(1)) expect(maxGoldByDay(d) - maxGoldByDay(d - 1)).toBe(incomeFor(d - 1, true));
   });
@@ -101,7 +106,9 @@ describe("honest deck helpers (M3b; tooling since 0.6.0b) and the dusk stand-in"
         // FLIP-X2 (REVIEW-BOTSX section 5): standInBuild holds the captain's CAPTAIN_RUNES prefix (its HULL and BELT on the
         // deck), so the deck is valued as bought (boughtCost: the runes' grants out, as validate.ts) against the day's gold
         // plus its runes' dawn gold (was deckCost(f.build).total <= maxGoldByDay(d): 18 <= 17)
-        expect(boughtCost(f.build), `${id} d${d}`).toBeLessThanOrEqual(maxGoldByDay(d) + runeGrants(f.build.runes, d).gold);
+        // AZ-BUMP (the flip, NPC_DAY): + the dusk deck's road allowance (REFIT-AZ's road additions; roadAllowance, 0 off), as
+        // captains.luck's R1; refitaz.road checks the on decks
+        expect(boughtCost(f.build), `${id} d${d}`).toBeLessThanOrEqual(maxGoldByDay(d) + runeGrants(f.build.runes, d).gold + roadAllowance(d, "dusk"));
       }
     }
   });

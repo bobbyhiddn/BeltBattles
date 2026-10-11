@@ -6,7 +6,7 @@
 // M5 (REQ-BFG-033: honesty is gold spent): a caravan pool's tuples carry each pick's gold spent as a sixth element,
 // which the written-module guard checks and the loader returns (StandInEntry.spent); a full-purse pool is unchanged.
 import { readFileSync } from "node:fs";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { hashSeed } from "../src/core/rng";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { footprint, hullSlots, installTurret, key as K, kx, ky, occupancy, routeInfo, setJoin, type Build } from "../src/sim/deck";
@@ -28,6 +28,7 @@ import type { Runner } from "../src/sim/harness/tournament";
 import { FUSE_MAX } from "../src/sim/stars";
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: the bought deck's value (the runes' HULL and BELT out)
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold in the day's budget
+import { npcDayRules, roadDropValue, setNpcDay, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the caravan runs' NPC day
 
 const HEROES = ["furnace", "weaver"] as const;
 
@@ -71,7 +72,9 @@ describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
       // the gauntlet: typical, uncapped, its own seeds
       expect(JSON.stringify(caravanGauntlet(hero, 5, 1, 3))).toBe(JSON.stringify(playerBuild(hero, 5, caravanGauntletSeedOf(1, 3))));
     }
-  });
+    // AZ-BUMP (the flip): 600 s, 30 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE; the candidates'
+    // runs fight a warlord every day), not the rule
+  }, 600_000);
 
   it("every candidate is legal, fused, within budget and at most 2 stars; its gold adds up; the spend floor counts rerolls and sale losses", () => {
     let n = 0, met = 0, withTurrets = 0;
@@ -81,7 +84,11 @@ describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
         for (let day = 1; day <= 10; day++) {
           const d = caravanCandidate(hero, day, 1, idx, STANDIN_MAX_STARS);
           const at = `${hero} #${idx} (${d.meta.policy} ${d.meta.seed}) d${day}`;
-          expect(validateBuild(d.build, day).errors, at).toEqual([]);
+          // AZ-BUMP (the flip, NPC_DAY): the caravan run fights the Medium warlord every day (PAR-AZ), so its deck holds road
+          // gold and drops; as the generator checks a pick (standins.ts writtenProblems), the strict budget line (the day's
+          // gold and its runes' alone) is left to the budget below, which adds the road's gold and drops (CaravanMeta.road);
+          // every other strict line stands
+          expect(validateBuild(d.build, day).errors.filter((e) => !(npcDayRules() && e.startsWith("budget: "))), at).toEqual([]);
           expect(unfusedPairs(d.build), at).toEqual([]);
           // FLIP-X2 (REQ-BFG-058, BOT_RUNES on): the caravan run takes a rune each dawn, so its value is the deck as bought
           // (boughtCost: the runes' HULL and BELT out of hullBonus / beltCap, as caravanDeck and validate.ts value it) and its
@@ -89,12 +96,21 @@ describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
           // (was d.value === buildCost(d.build).total: furnace #0 (typical 1000) d10 118 vs 128; and the bounds below
           // were maxGoldByDay(day))
           const grant = runeGrants(d.build.runes, day);
+          // AZ-BUMP (the flip, NPC_DAY): the road's warlord gold and drops by this dusk (CaravanMeta.road) and the drops alone
+          // (npcDay.ts roadDropValue of the run's road log, CaravanMeta.log); both 0 with the switch off
+          const road = d.meta.road ?? 0, drops = roadDropValue(d.meta.log);
           expect(d.value, at).toBe(boughtCost(d.build));
-          expect(d.value, at).toBeLessThanOrEqual(maxGoldByDay(day) + grant.gold);
+          expect(d.value, at).toBeLessThanOrEqual(maxGoldByDay(day) + grant.gold + road); // AZ-BUMP: + the road's (writtenProblems)
           expect(maxStarsOf(d.build), at).toBeLessThanOrEqual(STANDIN_MAX_STARS);
-          expect(d.meta.cargoGold, at).toBe(0); // deck + rerolls + sale losses + unspent = maxGoldByDay (+ the runes' gold)
-          expect(d.meta.spent, at).toBe(d.value + d.meta.rerollGold + d.meta.soldLoss);
-          expect(d.meta.spent + d.meta.unspent, at).toBe(maxGoldByDay(day) + grant.gold);
+          // AZ-BUMP (the flip, NPC_DAY): the gold adds up with the road's (caravan.ts caravanDeck): cargoGold is the value left
+          // in cargo at dusk (drops that found no place, parts the REFIT swap took off; 0 with the switch off, as before), so
+          // deck + rerolls + sale losses + cargo = the gold spent + the drops, and spent + unspent = maxGoldByDay + the runes'
+          // gold + the road's warlord gold. Were cargoGold 0, spent = deck + rerolls + sale losses and spent + unspent =
+          // maxGoldByDay (+ the runes' gold): the same lines with the road's terms at 0
+          expect(d.meta.cargoGold, at).toBeGreaterThanOrEqual(0);
+          if (!npcDayRules()) expect(d.meta.cargoGold, at).toBe(0); // deck + rerolls + sale losses + unspent = maxGoldByDay (+ the runes' gold)
+          expect(d.meta.spent + drops, at).toBe(d.value + d.meta.rerollGold + d.meta.soldLoss + d.meta.cargoGold);
+          expect(d.meta.spent + d.meta.unspent, at).toBe(maxGoldByDay(day) + grant.gold + road - drops);
           expect(d.floorMet, at).toBe(d.meta.spent >= spendFloor(day));
           // the candidate as scored: normalised through the stored code, its value as the cost
           const c = caravanCand(idx, d);
@@ -115,7 +131,8 @@ describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
     // at this base a turret offer that merges into the hull's starting turret is bought, so some decks carry
     // Build.turrets (a 2-star free starting copy); the code keeps it (standin.turrets.test.ts)
     expect(withTurrets).toBeGreaterThan(0);
-  });
+    // AZ-BUMP (the flip): 600 s, 30 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE), not the rule
+  }, 600_000);
 });
 
 // ---------------------------------------------------------------- the pass-through (brief M2: a faked deck)
@@ -213,7 +230,11 @@ describe("M2: turrets and joins pass through the generator (a faked playerBuild 
       const f = caravanCand(8, { build: faked, floorMet: true, meta });
       expect(f.code).toMatch(/>\d\d/);
       expect(f.code.split("/")).toHaveLength(5);
-      expect(deckStats(f.build)).toMatchObject({ turretsField: true, beyondStart: 1, joins: 1 });
+      // AZ-BUMP (the flip, NPC_DAY): beyondStart is the faked deck's own: its DECK GUN, and with NPC_DAY on whatever the par
+      // deck it starts from already holds beyond its starting layout (the NPC day's road gold and drops: a turret by day 4;
+      // 2 in all on the flip). Was 1, the DECK GUN alone, on 0.9.7's road-less par deck
+      expect(deckStats(f.build)).toMatchObject({ turretsField: true, beyondStart: deckStats(faked).beyondStart, joins: 1 });
+      expect(deckStats(faked).beyondStart).toBeGreaterThanOrEqual(1); // the DECK GUN, in the hull's extra slot
       // a population of eight: seven real caravan candidates around it; the faked one scores in the window's middle
       const pop = [...Array.from({ length: 7 }, (_, i) => caravanCand(i, caravanCandidate(hero, day, 1, i, STANDIN_MAX_STARS))), f];
       const pcts = [0, 14.3, 28.6, 42.9, 71.4, 85.7, 100, 57.1];
@@ -267,18 +288,22 @@ describe("M2: genStandIns --source caravan", () => {
         expect(p.floorMet).toBe(d.floorMet);
       }
       for (const p of h.picks) {
-        expect(validateBuild(p.build, h.day).errors).toEqual([]);
+        // AZ-BUMP (the flip, NPC_DAY): as the generator's own guard (standins.ts writtenProblems): the strict budget line is
+        // left to the budget below, which adds the pick's road gold and drops (CaravanMeta.road); every other strict line stands
+        expect(validateBuild(p.build, h.day).errors.filter((e) => !(npcDayRules() && e.startsWith("budget: ")))).toEqual([]);
         expect(unfusedPairs(p.build)).toEqual([]);
         // FLIP-X2: the pick's bought value against the day's gold plus its runes' dawn gold, the generator's own budget
-        // (tools/genStandInPool.ts; was maxGoldByDay(h.day): 53 <= 50)
-        expect(p.cost, `${h.hero} d${h.day} #${p.idx}`).toBeLessThanOrEqual(maxGoldByDay(h.day) + runeGrants(p.build.runes, h.day).gold);
+        // (tools/genStandInPool.ts; was maxGoldByDay(h.day): 53 <= 50). AZ-BUMP (the flip, NPC_DAY): plus the pick's road gold
+        // and drops (CaravanMeta.road, as writtenProblems; 0 with the switch off)
+        expect(p.cost, `${h.hero} d${h.day} #${p.idx}`).toBeLessThanOrEqual(maxGoldByDay(h.day) + runeGrants(p.build.runes, h.day).gold + (npcDayRules() ? p.caravan?.road ?? 0 : 0));
         expect(maxStarsOf(p.build)).toBeLessThanOrEqual(2);
       }
       // F8: the 2-star cap report compares with the same player uncapped
       const uncapped = h.pop.filter((p) => encodeStarred(caravanCandidate(h.hero, h.day, tiny.seed, p.idx, FUSE_MAX).build) !== p.code).length;
       expect(h.capAffected).toBe(uncapped);
     }
-  }, 120_000);
+    // AZ-BUMP (the flip): 600 s, 120 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE), not the rule
+  }, 600_000);
 
   it("resumes: days loaded from a saved run give the same module and battles as playing them", async () => {
     const saved = new Map<number, string>();
@@ -383,8 +408,19 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
   const TUPLES_V21 = "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1)]; each day is";
   const TYPE_CARAVAN = "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number, spent: number];";
   const TYPE_V21 = "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number];";
+  // AZ-BUMP (the flip, NPC_DAY): with NPC_DAY on a caravan pool's tuple carries a seventh element, the pick's run's road log
+  // (REVIEW-PARAZ N3; standins.ts dataModuleText), and its tuple line and StandInTuple name it after spent
+  const TUPLES_CARAVAN_ROAD = "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1), spent (gold), road log]; each day is";
+  const TYPE_CARAVAN_ROAD = "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number, spent: number, road: string];";
+  afterEach(() => setNpcDay(true)); // the shipped value (AZ-BUMP's flip): a test below sets NPC_DAY off for itself
 
   it("a caravan pool (fake runner) writes each pick's gold spent as a sixth element, the guard checks it, and the loader returns it", async () => {
+    // AZ-BUMP (the flip, NPC_DAY): the gold spent is the shop's (deck + rerolls + sale losses, cargoGold 0), and an
+    // over-spend pick is one whose rerolls or sales put spent above its cost; with NPC_DAY on the run's drops sit on the deck
+    // at their value, unpaid (spent + drops = deck + rerolls + sale losses + cargo), so no base pick over-spends and those
+    // identities hold only without the road. So this pool is generated with NPC_DAY off (the afterEach puts it back);
+    // M2's candidate test above reads the gold with the road
+    setNpcDay(false);
     // NUM-1 (REQ-BFG-047, cap's oracle 03f2cc3c1884e806): test-only, an over-spend pick is forced in. fakeRun hashes the
     // deck codes, and NUM-1's codes (hull x10) re-rolled it so that no pick over-spent. So first the over-spend candidates
     // (caravan spent > cost) of every hero/day's population (base and growth), keyed by deck code (a code that some
@@ -435,7 +471,9 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
     for (const hd of res.days) {
       expect(L.standInPool(hd.hero, hd.day).map((e) => [e.cost, e.spent]), `${hd.hero} d${hd.day}`).toEqual(hd.picks.map((p) => [p.cost, spentOf(p)]));
     }
-  }, 120_000);
+    // AZ-BUMP (the flip): 600 s, 120 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE), not the rule; a
+    // timed-out run here kept going into the next test (the full-purse pool read [17, 17] there, run 5's check H2)
+  }, 600_000);
 
   it("a full-purse pool is written as before (five elements) and its entries' spent is their cost", async () => {
     const fp: StandInOpts = { ...tiny, source: "fullpurse", par: "heroref" }; // the legacy options of pool v2.1
@@ -471,8 +509,13 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
 
   it("the header documents the sixth element: a caravan pool's tuple line and StandInTuple; pool v2.1's lines are unchanged", () => {
     const car = dataModuleText(tiny, []).split("\n"), fp = dataModuleText({ ...tiny, source: "fullpurse", par: "heroref" }, []).split("\n");
-    expect(car).toContain(TUPLES_CARAVAN);
-    expect(car).toContain(TYPE_CARAVAN);
+    // AZ-BUMP (the flip, NPC_DAY): on, the caravan pool's lines name the seventh element too (road log); off, the sixth
+    // element's lines exactly as before
+    expect(car).toContain(TUPLES_CARAVAN_ROAD);
+    expect(car).toContain(TYPE_CARAVAN_ROAD);
+    const off = withNpcDay(() => dataModuleText(tiny, []), false).split("\n");
+    expect(off).toContain(TUPLES_CARAVAN);
+    expect(off).toContain(TYPE_CARAVAN);
     expect(car.join("\n")).toContain("// spent is the gold the pick's run had spent by that dusk (maxGoldByDay less the gold it kept): the deck's value\n// + reroll gold + sale losses (REQ-BFG-033).");
     expect(fp).toContain(TUPLES_V21);
     expect(fp).toContain(TYPE_V21);

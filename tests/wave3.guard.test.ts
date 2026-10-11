@@ -18,6 +18,8 @@ import type { HeroId } from "../src/sim/content";
 import { key as K, rigHits, rotField, type Build, type Dir } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): v070-rc's switch-off world
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip): v070-rc's switch-off world
 
 const FIXTURE = fileURLToPath(new URL("./fixtures/wave3-guard/v070rc.json", import.meta.url));
 const WRITE = !!process.env.BB_WAVE3_GUARD_WRITE;
@@ -134,7 +136,13 @@ describe("wave-3 guards: decks without a wave-3 part replay v070-rc's battles bi
     return;
   }
   const want = JSON.parse(readFileSync(FIXTURE, "utf8")) as { source: string; seeds: number[]; battles: Record<string, unknown[]> };
-  const got = record();
+  // AZ-BUMP (the flip, LADDER_FIX): v070-rc's battles are the switch-off world, replayed bit for bit (not re-recorded: the
+  // guard's point is that the engine's other paths are unchanged). The race heroes' day-9 ref decks hold a QUENCH TANK
+  // (refBuilds.ts: FOUNDRY's from day 5, SIPHON's from day 6, BASTION's and METRONOME's on day 9), whose ★1 pays 40 a BURN
+  // with LADDER_FIX on (was 30): the 4 day-9 rows with FOUNDRY or SIPHON moved (BASTION's and METRONOME's QUENCH works a
+  // belt with no BURN), so the battles play with LADDER_FIX off. HULL_SCALE off too, the record's world (these battles
+  // have no day, so it moves none of them)
+  const got = withLadderFix(() => withHullScale(() => record(), false), false);
   it("the fixture is v070-rc's and covers every guard deck; each guard rig works the tile it was put beside", () => {
     expect(want.source).toBe("v070-rc");
     expect(want.seeds).toEqual(SEEDS);

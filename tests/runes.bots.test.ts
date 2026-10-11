@@ -9,7 +9,7 @@ import { hashSeed } from "../src/core/rng";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { cloneBuild, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
-import { playerRun } from "../src/sim/harness/player";
+import { playerRoadLog, playerRun } from "../src/sim/harness/player"; // AZ-BUMP: + the par run's road log
 import { caravanCandidate } from "../src/sim/harness/caravan";
 import { rivalBuild, RIVALS } from "../src/sim/rivals";
 import {
@@ -139,7 +139,9 @@ describe("RUNES-2a the par player behind the switch", () => {
     expect(playerRun("bastion", 10, 3, { onReroll: () => {} })).toEqual(on);
     expect(playerRun("bastion", 10, 3)).toEqual(on);
     expect(on.map((d) => d.build.runes?.length)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-  });
+    // AZ-BUMP (the flip): 600 s, a host timeout under the 1.5-CPU quota (the GATE RULE; 30 s hit in run 5's group check:
+    // the par runs fight a warlord every day), not the rule
+  }, 600_000);
 
   it("switch on: every dawn takes one offered rune (runeProblem passes with the run seed) and every deck validates", () => {
     for (const [hero, seed] of [["furnace", 1], ["weaver", 2], ["foundry", 1], ["bastion", 2]] as [HeroId, number][]) {
@@ -148,7 +150,12 @@ describe("RUNES-2a the par player behind the switch", () => {
         const runes = d.build.runes ?? [];
         expect(runes.length).toBe(d.day);
         expect(runeProblem(runes, d.day, hero, runSeed(hero, seed))).toBeNull();
-        const v = validateBuild(d.build, d.day, "strict", { seed: runSeed(hero, seed) });
+        // AZ-BUMP (the flip, NPC_DAY): the par run fights the Medium warlord every day (PAR-AZ), so its deck holds road gold and
+        // drops, which the strict mode's budget (the shop's gold and its runes' alone) refuses by design; the deck is checked
+        // as its upload is (REVIEW-PARAZ N3, tools/samplePool.ts seedGhost): the player mode, with the run seed (each dawn's
+        // offer re-derived, exactly one rune a dawn) and the run's road log (player.ts playerRoadLog). Was the strict mode
+        const log = playerRoadLog(days, d.day);
+        const v = validateBuild(d.build, d.day, "player", { seed: runSeed(hero, seed), ...(log.length ? { road: log } : {}) });
         expect(v.errors).toEqual([]);
         // the run keeps every rune: each dusk's list extends the day before's
         if (d.day > 1) expect(runes.slice(0, d.day - 1)).toEqual(days[d.day - 2].build.runes);
@@ -172,7 +179,9 @@ describe("RUNES-2a the caravan stand-ins inherit the par player's switch", () =>
       expect(runeProblem(on.build.runes, 6, "weaver", runSeed("weaver", on.meta.seed))).toBeNull();
       expect(on.meta.cargoGold).toBe(off.meta.cargoGold); // the dawn-gold runes' gold is in the day's gold (runeGrants)
     }
-  });
+    // AZ-BUMP (the flip): 600 s, a host timeout under the 1.5-CPU quota (the GATE RULE; 30 s hit in run 5's group check:
+    // the candidates' runs fight a warlord every day), not the rule
+  }, 600_000);
 });
 
 describe("RUNES-2a the captains' generator (tools/genCaptainRunes.ts)", () => {

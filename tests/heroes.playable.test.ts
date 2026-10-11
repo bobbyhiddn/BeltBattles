@@ -7,7 +7,7 @@ import { hashSeed } from "../src/core/rng";
 import { battleSeed, buyOffer, installFromCargo, loadRun, newRun, reroll, saveRun, type Run } from "../src/game/run";
 import { finishDay, startDusk } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
-import { finishWarlord, forkFor, pickRoad, takePart, todaysWarlord, topParts, warlordSeed } from "../src/game/road";
+import { finishWarlord, forkFor, onToTheRoad, pickRoad, todaysWarlord, topParts, warlordSeed } from "../src/game/road"; // AZ-BUMP: onToTheRoad (was takePart)
 import { choicesFor, pickChoice } from "../src/game/events";
 import { ORDER } from "../src/screens/hero";
 import { PORTRAIT_KEYS } from "../src/render/portraits";
@@ -146,20 +146,23 @@ function play(hero: HeroId, seed: number, scripted: boolean): Played {
     if (hashSeed(seed, run.day, "h1-reroll") % 3 === 0 && run.gold >= 4) reroll(run);
     out.buys += shop(run);
     run = roundTrip(run); // after the caravan
-    const pick = (["event", "easy", "medium", "hard"] as const)[hashSeed(seed, hero, run.day, "h1-road") % 4];
+    // AZ-BUMP (the flip, NPC_DAY): the shipped day. The fork offers the three warlords (pickRoad(run, "event") is refused), the
+    // fight is simulated and its result taken (a win's drop goes to cargo; no pick of 2), then ON TO THE ROAD opens the day's
+    // event, won or lost, and its first open choice leads to REFIT and the dusk (main.ts openNpcDay's order). Was one stop a
+    // day: the event, or an Easy, Medium or Hard warlord (Hard's pick of 2)
+    const pick = (["easy", "medium", "hard"] as const)[hashSeed(seed, hero, run.day, "h1-road") % 3];
     expect(forkFor(run).day).toBe(run.day);
     expect(pickRoad(run, pick).ok).toBe(true);
-    if (pick === "event") {
+    const w = todaysWarlord(run)!;
+    const wb = simulate(run.build, w.build, warlordSeed(run));
+    finishWarlord(run, wb.winner as 0 | 1 | -1, wb.t);
+    out.warlords++;
+    if (onToTheRoad(run) === "event") {
       const i = choicesFor(run).findIndex((c) => !c.blocked);
       expect(pickChoice(run, i).ok).toBe(true);
       out.events++;
-    } else {
-      const w = todaysWarlord(run)!;
-      const b = simulate(run.build, w.build, warlordSeed(run));
-      const res = finishWarlord(run, b.winner as 0 | 1 | -1, b.t);
-      if (res?.outcome === "win" && pick === "hard") takePart(run, 0);
-      out.warlords++;
     }
+    expect(onToTheRoad(run)).toBe("refit"); // the event resolved: REFIT before the dusk
     run = roundTrip(run); // after the road
     expect(validateBuild(run.build, run.day).errors.filter((e) => !/^(supply|budget):/.test(e)), `${hero} #${seed} d${run.day}`).toEqual([]);
     const foe = startDusk(run, []);
@@ -240,7 +243,8 @@ describe("growing the roster moves no harness number (par.ts) and no foe pool (f
   it("the stand-in heroes stay FURNACE and WEAVER; the seed ghosts' heroes are the four playable heroes (0.8.0 RC)", () => {
     expect([...STAND_IN_HEROES]).toEqual(["furnace", "weaver"]);
     expect(new Set(generateSamplePool().map((g) => g.hero))).toEqual(new Set(["furnace", "weaver", "foundry", "bastion"])); // 0.8.0 RC (oracle 96e0ebe434a93f2b): was FURNACE and WEAVER
-  });
+  }, 600_000); // AZ-BUMP (the flip): generateSamplePool (the whole seed pool, its race decks from par runs), longer with the NPC
+  // day; a host timeout under the 1.5-CPU quota, not the rule (timed out at vitest's 30 s default)
 });
 
 describe("the road's reward parts never include any hero's signature factory", () => {

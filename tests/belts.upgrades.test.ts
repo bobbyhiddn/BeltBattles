@@ -25,7 +25,7 @@ import { playerRun } from "../src/sim/harness/player";
 import { decodeStarredRaw, encodeStarred } from "../src/sim/standInPool";
 import * as harnessCode from "../src/sim/harness/standinCode";
 import { RIVAL_IDS, rivalLoadout, standInBuild } from "../src/sim/rivals";
-import { CAPTAIN_LEVELS } from "../src/sim/rivalBuilds";
+import { CAPTAIN_LEVELS, roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP: the road allowance
 import { barge, SEED } from "./arsenal.bench";
 
 /** A captain's stand-in deck's cost (the honest deck rivals.ts standInBuild serves), as bought. FLIP-X2: the deck holds
@@ -33,8 +33,9 @@ import { barge, SEED } from "./arsenal.bench";
  *  validate.ts) (was buildCost(standInBuild(id, day)).total). */
 const standInCost = (id: (typeof RIVAL_IDS)[number], day: number): number => boughtCost(standInBuild(id, day));
 /** FLIP-X2: the stand-in's budget, the day's gold plus its runes' dawn gold (runeGrants), the rule validate.ts applies
- *  (was maxGoldByDay(day) alone). */
-const standInBudget = (id: (typeof RIVAL_IDS)[number], day: number): number => maxGoldByDay(day) + runeGrants(standInBuild(id, day).runes, day).gold;
+ *  (was maxGoldByDay(day) alone). AZ-BUMP (the flip, NPC_DAY): + the dusk deck's road allowance (REFIT-AZ's road additions;
+ *  roadAllowance, 0 off), as captains.luck's R1; refitaz.road checks the on decks. */
+const standInBudget = (id: (typeof RIVAL_IDS)[number], day: number): number => maxGoldByDay(day) + runeGrants(standInBuild(id, day).runes, day).gold + roadAllowance(day, "dusk");
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck with runes valued as bought
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold in the day's budget
 import { K, tally } from "./belts.helpers";
@@ -270,7 +271,8 @@ describe("D7': the bots buy the upgrades; the stand-in code and the captains car
       }
       expect(runs, hero).toBeGreaterThanOrEqual(MOST);
     }
-  }, 120_000); // REDO-X: 96 par runs (was 24) take 30-45 s under load, over the 30 s default (as bccf33f's two limits)
+  }, 600_000); // AZ-BUMP (the flip): 600 s, 120 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE; the
+  // par runs fight a warlord every day), not the rule. REDO-X: 96 par runs (was 24) take 30-45 s under load, over the 30 s default (as bccf33f's two limits)
 
   it("an honest run with upgrades passes the upload check on every day (validateUpload, the player mode and its budget)", () => {
     let withLevels = 0;

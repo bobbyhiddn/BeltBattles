@@ -51,10 +51,13 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
 /** FLIP-X2: the pool decks now hold their day's runes (v3, with a run seed), and rules before bb-0.8.7 (or unreadable)
  *  refuse a deck holding runes at the decoder (400). A near miss is a pre-rune client's rules string on its deck, so the
  *  deck goes up as that client sends it: rune-less v2, no seed (was the pool deck itself), and meets the gates and the
- *  exact rules check as before. */
+ *  exact rules check as before. AZ-BUMP (the flip, NPC_DAY; REVIEW-PARAZ N3): with NPC_DAY on a seed ghost also carries its
+ *  run's road log (`road`, v3 only: "snapshot.road: not allowed in a v2 snapshot"), which a pre-rune client never sent, so
+ *  the copy drops it too. */
 function runeless(s: GhostSnapshot): GhostSnapshot {
   const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
   delete out.seed;
+  delete out.road; // AZ-BUMP (the flip, NPC_DAY): the road log is v3 only, as the runes and the seed
   delete out.build.runes;
   return out;
 }

@@ -5,8 +5,8 @@
 import { describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
 import { BAG_IDS, WARLORD_EVENT_IDS, type EventId } from "../src/game/eventDefs";
-import { beginRoad, choicesFor, eventFor, eventSequence, makeEvent } from "../src/game/events";
-import { forkFor } from "../src/game/road";
+import { choicesFor, eventFor, eventSequence, makeEvent } from "../src/game/events";
+import { finishWarlord, forkFor, onToTheRoad, pickRoad } from "../src/game/road"; // AZ-BUMP: the event after the fight
 import { newRun } from "../src/game/run";
 import { RUN_DAYS } from "../src/sim/content";
 
@@ -83,7 +83,12 @@ describe("no dud last stop (0.6.0d): HERALD and SAPPERS never land on day 10", (
       run.day = RUN_DAYS;
       expect(DUDS.has(forkFor(run).event)).toBe(false);
       run.gold = 20;
-      beginRoad(run);
+      // AZ-BUMP (the flip, NPC_DAY): the day's event comes after the warlord fight (the fork offers no event stop, and
+      // beginRoad opens nothing before a fight), so the day-10 event opens as the game opens it: a fight (lost here: no gold,
+      // no drop), then ON TO THE ROAD (was beginRoad, 0.9.7's event stop)
+      expect(pickRoad(run, "easy").ok).toBe(true);
+      finishWarlord(run, 1, 30);
+      expect(onToTheRoad(run)).toBe("event");
       expect(DUDS.has(run.event!.id)).toBe(false);
       expect(choicesFor(run).some((c) => !c.blocked)).toBe(true);
     }

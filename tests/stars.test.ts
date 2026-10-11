@@ -8,6 +8,7 @@ import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SP
 import { estimateRoute, key, rotField, type Build } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
 import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, starsOf, valueOf } from "../src/sim/stars";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): BRAKE's walk with the switch off
 
 const LIVE = ["temper", "whetstone", "grease", "brake", "longhaul", "coil", "splitter", "overdrive", "press", "chamber", "calibrate"];
 const K = key;
@@ -106,7 +107,10 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
   it("BRAKE speed 0.5/0.4/0.3: more seconds on the belt at each star; damage in 30 s", () => {
     const t = at3((s) => est(bench([["brake", 4, 4, s]])).time);
     // Y7b2 (the flip): the measured seconds, 5 tiles at 0.4 s each taking x2 / x2.5 / x3.33 (was [t[1], t[2]] toEqual([t[0], t[0]]))
-    expect(t).toEqual([4.6, 5.6, 7.266666666666667]);
+    // AZ-BUMP (the flip, LADDER_FIX): [4.6, 5.6, 7.267] -> [4.567, 5.567, 7.217], P13: the walk rides tick by tick (274 / 334 /
+    // 433 ticks, stamp to chamber as the battle loads it); with LADDER_FIX off the half cells' seconds, as before
+    expect(t).toEqual([4.566666666666666, 5.566666666666666, 7.216666666666667]);
+    expect(withLadderFix(() => at3((s) => est(bench([["brake", 4, 4, s]])).time), false)).toEqual([4.6, 5.6, 7.266666666666667]);
     expect(t[0]).toBeGreaterThan(est(bench([])).time); // still a slow
     expect(up(at3((s) => run(bench([["brake", 4, 4, s]])).sides[0].stats.damage))).toBe(true);
   });

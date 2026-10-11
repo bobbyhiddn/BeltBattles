@@ -22,13 +22,32 @@ import {
 import { rateOn, type PlayerDay, type PlayerOpts } from "../src/sim/harness/player";
 import { walkRoute } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
+import { npcDayRules, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the switches, through their setters
+import { withHullScale } from "../src/sim/hullScale";
+import { withLadderFix } from "../src/sim/ladderFix";
 
 const HEROES = ["furnace", "weaver"] as const;
 // Y7b2 tripwire (cap's ruling 38ca8abc09dd2c46): the six caravan runs' buy counts under bb-0.9.3 (see the first test)
 const Y7B2_BOUGHT: Record<string, number> = { "furnace 1": 12, "furnace 2": 15, "furnace 3": 13, "weaver 1": 14, "weaver 2": 10, "weaver 3": 16 };
 
+/** AZ-BUMP (the flip): `fn` in bb-0.9.7's world, every switch off (NPC_DAY, HULL_SCALE and LADDER_FIX ship on), each put
+ *  back after it, even on a throw. */
+const offWorld = <T>(fn: () => T): T => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false);
+// AZ-BUMP (the flip, NPC_DAY): the par player fights the Medium warlord every day (player.ts parNpcDay), so its deck is
+// road-fed. The day's budget is maxGoldByDay + the runes' dawn gold + the road's gold and drops by that dusk (playerRun's
+// budget + roadGold + roadDrops), and the gold adds up with the value left in cargo (d.cargo); all three are absent with
+// NPC_DAY off, so off both read as before. validateBuild's strict budget line (the shop's gold alone) is left to that rule,
+// as standins.ts writtenProblems leaves it; every other strict line stands.
+const roadBudget = (d: PlayerDay): number => maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold + (d.roadGold ?? 0) + (d.roadDrops ?? 0);
+const goldIn = (d: PlayerDay): number => boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + (d.cargo ?? 0);
+const strictBut = (b: Build, day: number): string[] => validateBuild(b, day).errors.filter((e) => !(npcDayRules() && e.startsWith("budget: ")));
+
 describe("par player (playerBuild): a real run through the caravan", () => {
-  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => {
+  // AZ-BUMP (the flip; BRIEF-AZBUMP S5 rule 7): the Y7b2 tripwire below keeps its bb-0.9.7 point with LADDER_FIX off (the
+  // star-ladder pass it names; S7 turns it into a regression test). The six runs it pins were counted in bb-0.9.7's world,
+  // and NPC_DAY (the par player's road gold and drops) and HULL_SCALE (its fight-length table and gold) move a par run's buys
+  // too (every switch on: furnace s1 buys 13, not 12), so the test runs with every switch off (offWorld)
+  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => offWorld(() => {
     for (const hero of HEROES) {
       for (const seed of [1, 2, 3]) {
         let bought = 0, rerolls = 0;
@@ -66,14 +85,15 @@ describe("par player (playerBuild): a real run through the caravan", () => {
         expect(playerRun(hero, PLAYER_DAYS, seed)[PLAYER_DAYS - 1].rerollGold).toBe(rerolls * REROLL_COST);
       }
     }
-  });
+  }));
 
   it("every day's deck is legal (validateBuild, no unfused pair) and the gold adds up to maxGoldByDay", () => {
     for (const hero of HEROES) {
       for (const seed of parSeeds()) {
         for (const d of playerRun(hero, PLAYER_DAYS, seed)) {
-          const v = validateBuild(d.build, d.day);
-          expect(v.ok, `${hero} s${seed} d${d.day}: ${v.errors.join("; ")}`).toBe(true);
+          // AZ-BUMP (the flip, NPC_DAY): legal by every strict line but the budget's, which is the road's rule below (strictBut)
+          const errs = strictBut(d.build, d.day);
+          expect(errs, `${hero} s${seed} d${d.day}: ${errs.join("; ")}`).toEqual([]);
           expect(unfusedPairs(d.build)).toEqual([]);
           expect(d.value).toBe(buildCost(d.build).total);
           // deck value + reroll gold + unspent gold + what selling replaced parts lost = every gold the run received
@@ -82,12 +102,16 @@ describe("par player (playerBuild): a real run through the caravan", () => {
           // bought deck (boughtCost, as validate.ts costs it) + rerolls + purse + sold loss = d.budget, the day's maxGoldByDay
           // + its runes' dawn gold (runeGrants); without runes both are as before (was d.value + d.rerollGold + d.gold +
           // d.soldLoss = maxGoldByDay(d.day): 96 = 91 on furnace s1 d8)
-          expect(d.budget, `${hero} s${seed} d${d.day}`).toBe(maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold);
-          expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss, `${hero} s${seed} d${d.day}`).toBe(d.budget);
+          // AZ-BUMP (the flip, NPC_DAY): the budget's own rule with the road (roadBudget: + the road's gold and drops by this
+          // dusk) and the gold with the cargo's value (goldIn); was maxGoldByDay + the runes' gold (12 vs 8 on furnace s1 d1:
+          // day 1's Medium win, +4)
+          expect(d.budget, `${hero} s${seed} d${d.day}`).toBe(roadBudget(d));
+          expect(goldIn(d), `${hero} s${seed} d${d.day}`).toBe(d.budget);
         }
       }
     }
-  });
+  }, 120_000); // AZ-BUMP (the flip): the field's 24 par runs, each with an NPC fight a day (the first test's runs are bb-0.9.7's
+  // now, cached apart), longer with the NPC day; a host timeout under the 1.5-CPU quota, not the rule
 
   it("spends like a player: the field's median deck is at least 85% of maxGoldByDay on every hero-day", () => {
     for (const hero of HEROES) {
@@ -174,7 +198,8 @@ describe("par field (par.ts): the par of a hero and day is K par-player decks", 
     const legacy = await runTournament(o, localRunner); // absent: the legacy Reference, exactly
     for (const h of o.heroes) expect(legacy.days[0].calibration![h].build).toEqual(heroRefBuild(h, 1));
     expect(md(legacy)).toContain("Reference = heroRefBuild(hero, day)");
-  }, 300_000); // 0.6.2 CAND-A: 72 s alone, over 120 s in the full suite at --maxWorkers=4 beside the harness budget files
+  }, 600_000); // AZ-BUMP (the flip): 600 s, 300 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE; the
+  // field's par runs fight a warlord every day), not the rule. 0.6.2 CAND-A: 72 s alone, over 120 s in the full suite at --maxWorkers=4 beside the harness budget files
 
   it("medianIndex takes the lower median, ties to the lower index", () => {
     expect(medianIndex([0.9, 0.1, 0.5])).toBe(2);
@@ -212,7 +237,10 @@ describe("0.6.2 CAND-A: the par player buys, installs and replaces turrets throu
       const b = d.build, e = extraSlot(b), buy = d.buys.find((x) => x.into === "extra")!;
       expect(buy.slot, `${hero} s${seed} d${d.day}`).toBe(e);
       expect(ITEMS[buy.def].kind).toBe("turret");
-      expect(validateBuild(b, d.day).errors, `${hero} s${seed} d${d.day}`).toEqual([]);
+      // AZ-BUMP (the flip, NPC_DAY): the deck is road-fed ("build costs 131 gold ... but day 8 allows at most 92" on furnace s3
+      // d8: the shop's gold alone), so its budget is the road's rule (roadBudget; d.budget, checked in the gold test above)
+      expect(strictBut(b, d.day), `${hero} s${seed} d${d.day}`).toEqual([]);
+      expect(boughtCost(b), `${hero} s${seed} d${d.day}: within the day's gold and the road's`).toBeLessThanOrEqual(d.budget);
       if (turretSlots(b)[e].turret && fed(b).has(e)) fedSeen++;
     }
     expect(fedSeen, "a gun in the extra slot fires: a belt feeds it by dusk").toBeGreaterThan(0);
@@ -234,11 +262,14 @@ describe("0.6.2 CAND-A: the par player buys, installs and replaces turrets throu
     for (const { hero, seed, d } of hits) {
       const buy = d.buys.find((x) => x.into === "replace")!;
       expect(buy.replaced, `${hero} s${seed} d${d.day}`).toBeDefined();
-      expect(validateBuild(d.build, d.day).errors).toEqual([]);
+      // AZ-BUMP (the flip, NPC_DAY): the road-fed deck's budget line is the road's rule below (strictBut; "build costs 163
+      // gold ... but day 10 allows at most 133" with the shop's gold alone)
+      expect(strictBut(d.build, d.day)).toEqual([]);
       // FLIP-X2 (BOT_RUNES on): the bought deck (boughtCost: the runes' HULL and BELT out) and the day's gold plus its
       // runes' dawn gold (d.budget), as in the test above (was d.value + ... = maxGoldByDay(d.day): 131 = 119)
-      expect(d.budget, `${hero} s${seed} d${d.day}`).toBe(maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold);
-      expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss, `${hero} s${seed} d${d.day}`).toBe(d.budget);
+      // AZ-BUMP (the flip, NPC_DAY): with the road's gold and drops (roadBudget) and the cargo's value (goldIn), as above
+      expect(d.budget, `${hero} s${seed} d${d.day}`).toBe(roadBudget(d));
+      expect(goldIn(d), `${hero} s${seed} d${d.day}`).toBe(d.budget);
     }
   }, 300_000); // 0.8.0 B1: 96 par runs, about 15 s alone
 
@@ -247,7 +278,10 @@ describe("0.6.2 CAND-A: the par player buys, installs and replaces turrets throu
     expect(hit, "a turret with 2+ gear").toBeDefined();
     const b = hit!.d.build;
     for (const v of installedTurrets(b)) expect(gearOn(b, v.slot).length).toBeLessThanOrEqual(v.gearSlots);
-    expect(validateBuild(b, hit!.d.day).errors).toEqual([]);
+    // AZ-BUMP (the flip, NPC_DAY): the road-fed deck's budget is the road's rule (roadBudget; d.budget, checked in the gold
+    // test above), not the shop's gold alone ("build costs 174 gold ... but day 10 allows at most 125")
+    expect(strictBut(b, hit!.d.day)).toEqual([]);
+    expect(boughtCost(b)).toBeLessThanOrEqual(hit!.d.budget);
   });
 });
 
@@ -362,8 +396,14 @@ describe("0.6.2 CAND-A: the rating reads turrets and joins as the battle fights 
 // late or never, and POWDER KEGs that blow after most fights are over. Sharp WEAVER fell to 36% against par on day 10.
 // The fix: the day's fight (fightTime), each belt from its own first payload after the turret's first window and shot
 // flight, the keg's one blast, and a saturation curve that goes on falling under a deep load (junction-062's bench).
+// AZ-BUMP (the flip, HULL_SCALE): with HULL_SCALE on, fightTime reads PAR-AZ's FIGHT_BY_DAY_HS (22.6 ... 18.2 s, longer late
+// and not falling: tests/parAZ.tables.test.ts checks it and the rating on it), so the tests below that mean CAND-A's 0.9.7
+// table (FIGHT_BY_DAY: day 1 as FIGHT_T, 9.5 s on day 10) run with HULL_SCALE off
 describe("CAND-A: the rating weighs damage over the day's fight, each belt from its own first payload", () => {
-  it("fightTime: the par field's fight length per day, day 1 as FIGHT_T, shorter as decks grow, clamped to days 1..10", () => {
+  // AZ-BUMP (the flip, HULL_SCALE): FIGHT_BY_DAY's shape (fightTime(1) 22.6 with HULL_SCALE on: 2.4 s from FIGHT_T); and the
+  // par deck the rating check reads is bb-0.9.7's, as that check was written for it (a road-fed deck may hold a sustain
+  // piece, which rateOn's day term values and a rateDeck without the day does not), so every switch off (offWorld)
+  it("fightTime: the par field's fight length per day, day 1 as FIGHT_T, shorter as decks grow, clamped to days 1..10", () => offWorld(() => {
     expect(FIGHT_BY_DAY.length).toBe(PLAYER_DAYS);
     expect(Math.abs(fightTime(1) - FIGHT_T)).toBeLessThan(1);
     expect(fightTime(10)).toBe(9.5);
@@ -374,9 +414,11 @@ describe("CAND-A: the rating weighs damage over the day's fight, each belt from 
     const b = playerBuild("weaver", 10, 1);
     expect(rateOn(b, 10)).toBe(rateDeck(b, RATING_CURVE, fightTime(10)).value);
     expect(rateOn(b, 10)).toBeLessThan(rateDeck(b).value); // a shorter fight: less of the damage lands
-  });
+  }));
 
-  it("a POWDER KEG counts only when it blows before the fight is over, and then only for the payloads on its belt", () => {
+  // AZ-BUMP (the flip, HULL_SCALE): day 10's fight is 9.5 s only on the 0.9.7 table (18.2 s with HULL_SCALE on, past the
+  // keg's 12 s fuse: 95975 vs 87668), so this runs with HULL_SCALE off
+  it("a POWDER KEG counts only when it blows before the fight is over, and then only for the payloads on its belt", () => withHullScale(() => {
     const base = JOIN_LAYOUTS.F0(5);
     const keg = cloneBuild(base); // west of the KILN belt's first tile, facing east onto it
     keg.items.push({ uid: 40, def: "keg", x: 3, y: 5, rot: rotFacing("keg", 1) });
@@ -393,9 +435,11 @@ describe("CAND-A: the rating weighs damage over the day's fight, each belt from 
     // belt fires", expect(v(keg, 60) / v(base, 60)).toBeLessThan(v(keg, FIGHT_T) / v(base, FIGHT_T)). POWDER KEG's one blast
     // is gone: it blasts at every multiple of its fuse (deckRating.ts kegGain; battle.ts kegTick), so a longer fight holds
     // more blasts (x1.098 at 60 s, x1.082 at FIGHT_T 25 s). The checks above read kegGain's first blast, a live rule
-  });
+  }, false));
 
-  it("a joined belt counts from its own first payload, not from the turret's earliest belt's", () => {
+  // AZ-BUMP (the flip, HULL_SCALE): the later line loses on day 10's 9.5 s fight of the 0.9.7 table; at HULL_SCALE's 18.2 s it
+  // draws level (303854 vs 303530), so this runs with HULL_SCALE off
+  it("a joined belt counts from its own first payload, not from the turret's earliest belt's", () => withHullScale(() => {
     // F1 (day 10), and the same deck with the PRESS's joining line drawn 3 tiles longer into the same join tile: the
     // same payloads through the same rigs, the first one later. Weighed from the KILN belt's first payload (the old
     // rule) the two rated alike on every day; now the later line loses on day 10's fight and draws level in a long one.
@@ -408,7 +452,7 @@ describe("CAND-A: the rating weighs damage over the day's fight, each belt from 
     const v = (b: Build, fight: number) => rateDeck(b, RATING_CURVE, fight).value;
     expect(v(long, fightTime(10))).toBeLessThan(0.99 * v(short, fightTime(10)));
     expect(v(long, 1e6) / v(short, 1e6)).toBeCloseTo(1, 3);
-  });
+  }, false));
 
   it("junction-062's bench order holds at each day's fight too", () => {
     const v = (id: string, d: number) => rateDeck(JOIN_LAYOUTS[id](d), RATING_CURVE, fightTime(d)).value;
@@ -444,11 +488,14 @@ describe("0.6.2 CAND-A: the policy variants still run", () => {
         for (const seed of [1, 2]) {
           const run = playerRun(hero, PLAYER_DAYS, seed, opts);
           for (const d of run) {
-            expect(validateBuild(d.build, d.day).errors, `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toEqual([]);
+            // AZ-BUMP (the flip, NPC_DAY): the road-fed deck's budget line is the road's rule below (strictBut)
+            expect(strictBut(d.build, d.day), `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toEqual([]);
             // FLIP-X2 (BOT_RUNES on): the bought deck and the day's gold plus its runes' dawn gold, as above (was d.value +
             // ... = maxGoldByDay(d.day): 96 = 91)
-            expect(d.budget, `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toBe(maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold);
-            expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss, `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toBe(d.budget);
+            // AZ-BUMP (the flip, NPC_DAY): with the road's gold and drops (roadBudget) and the cargo's value (goldIn), as above
+            // (was maxGoldByDay + the runes' gold: 12 vs 8 on furnace s1 d1)
+            expect(d.budget, `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toBe(roadBudget(d));
+            expect(goldIn(d), `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toBe(d.budget);
           }
           expect(JSON.stringify(playerRun(hero, 7, seed, { ...opts, trace: () => {} })[6].build)).toBe(JSON.stringify(run[6].build));
         }

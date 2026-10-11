@@ -12,6 +12,7 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars"; // NUM-1 (REQ-BFG-047): the rigs' numbers read from the data (x10)
 import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): 30 / speed
 import { K, SEED, barge, events, furnaceBench, item, latchDeck, pastTile, run, twoPress, withItem, withMod } from "./wave3.helpers";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's STOKER ★3 beside the shipped one
 
 const plain = (id: number): Payload => ({ id, ammo: "plain", ride: 0, mult: 1, flat: 0, burn: 0, shock: false, prior: 0, factory: 0, copy: false });
 /** A projectile from side `from` that lands `dmg` on the other side's bare hull. */
@@ -182,10 +183,12 @@ describe("E3: rig arrows at factories (STOKER; the Prime's Q6 guard)", () => {
     // NUM-2 (REQ-BFG-047; was the literal 1.4 s, the press's ★1 interval): 30 / its whole speed (21: 1.4286 s), from the data
     const every = secPer(effectAt("press", 1).factory!.speed);
     expect(Math.max(...base) - every).toBeLessThan(2 / 60);
-    [0.2, 0.44, 0.7].forEach((k, i) => {
+    // AZ-BUMP (the flip, LADDER_FIX): ★3 0.7 -> 0.85, the star-ladder pass's STOKER ★3 (src/sim/ladderFix.ts); off, 0.7 (below)
+    [0.2, 0.44, 0.85].forEach((k, i) => {
       const g = gaps(withItem(press(), item(30, "stoker", 6, 6, 0, i + 1))); // west arrow on the press at (5,6)
       for (const x of g) expect(Math.abs(x - every / (1 + k)), `★${i + 1} ${x}`).toBeLessThan(2 / 60);
     });
+    for (const x of withLadderFix(() => gaps(withItem(press(), item(30, "stoker", 6, 6, 0, 3))), false)) expect(Math.abs(x - every / 1.7), `★3 off ${x}`).toBeLessThan(2 / 60);
   });
 
   it("its factory hits are its only hits: it comes online at 1.2 s, never touches a belt, and is not IDLE", () => {

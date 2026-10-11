@@ -25,7 +25,7 @@ import { heroGateProblem } from "../src/net/rulesGate";
 import { dropCardText, dropStarText } from "../src/screens/fork/drops";
 import type { GhostSnapshot } from "../src/net/snapshot";
 
-afterEach(() => setNpcDay(false));
+afterEach(() => setNpcDay(true)); // the shipped value (AZ-BUMP's flip); the switch-off test below sets it off itself
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 const HEROS = (Object.keys(HEROES) as HeroId[]).filter((h) => heroGateProblem(RULES_VERSION, h) === null);
@@ -62,7 +62,7 @@ const check = (s: GhostSnapshot) => validateUpload(s.build, s.day, s.rules, { se
 
 describe("HULL-1b the drop numbers (REQ-BFG-078; Q2's levers: ★2 and the tilt)", () => {
   it("the tables: chances 60/75/90 (unchanged), Hard t/e/r/c 2/2/3/5, Easy and Medium 1/1/3/6; Hard drops at ★2; the operator's shape", () => {
-    expect(NPC_DAY).toBe(false);
+    expect(NPC_DAY).toBe(true); // AZ-BUMP (the flip, NPC_DAY): the switch ships on (false -> true)
     expect(DROP_CHANCE).toEqual({ easy: 0.6, medium: 0.75, hard: 0.9 });
     expect(DROP_WEIGHTS).toEqual({
       easy: { turret: 1, epic: 1, rare: 3, common: 6 }, medium: { turret: 1, epic: 1, rare: 3, common: 6 }, hard: { turret: 2, epic: 2, rare: 3, common: 5 },

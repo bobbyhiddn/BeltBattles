@@ -21,6 +21,8 @@ import {
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
 import { furnaceDeck, playerCheck } from "./netHelpers";
 import { withDawnRunes } from "./runeFill";
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's road where a test means it
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): 0.9.7's gold beside it
 
 // v070-validate M3: the player mode (validateUpload) and its road ceiling (src/net/roadCap.ts).
 // FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes, so every deck these tests check in
@@ -111,11 +113,18 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
   });
 
   it("day 1 counts only what reaches the deck before its dusk: the best part, never gold", () => {
-    const hardDay1 = max(warlordPool("hard").flatMap((id) => [false, true].map((s) =>
-      max([0, ...warlordReward(id, "hard", warlordDeck(id, 1, s), warlordDeckDay(id, 1, s)).parts.map(price)]))));
-    const events = [...roadOptions().values()].flat().filter((x) => !x.hull && !x.belt).map((x) => x.parts - x.pay);
-    expect(roadCap(1)).toBe(Math.max(hardDay1, ...events));
-    expect(explainRoadCap(1)).toEqual([{ day: 1, pick: "hard", value: hardDay1 }]);
+    // AZ-BUMP (the flip, NPC_DAY): 0.9.7's road (one road stop: the Hard pick's part, or an event) runs with NPC_DAY off. On,
+    // a win's part is a drop the road log names (warlordReward offers none) and every day is a fight and then the day's
+    // event, so day 1 is the fight (its gold can't reach the deck) and then the best event: the trader's SWAP, 5
+    withNpcDay(() => {
+      const hardDay1 = max(warlordPool("hard").flatMap((id) => [false, true].map((s) =>
+        max([0, ...warlordReward(id, "hard", warlordDeck(id, 1, s), warlordDeckDay(id, 1, s)).parts.map(price)]))));
+      const events = [...roadOptions().values()].flat().filter((x) => !x.hull && !x.belt).map((x) => x.parts - x.pay);
+      expect(roadCap(1)).toBe(Math.max(hardDay1, ...events));
+      expect(explainRoadCap(1)).toEqual([{ day: 1, pick: "hard", value: hardDay1 }]);
+    }, false);
+    expect(roadCap(1)).toBe(5);
+    expect(explainRoadCap(1)).toEqual([{ day: 1, pick: "easy/medium (or a lost fight), then event trader: SWAP", value: 5 }]);
   });
 
   it("the best plan: one road stop a day, each event at most once, the Matriarch once from her day; it sums to roadCap", () => {
@@ -145,10 +154,18 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
     // makes the day-4 Hard win pay 7 (was 6; the best Hard prize row 5 6 6 6 7 7 7 10 10 10 -> 5 6 6 7 7 7 7 10 10 10), so the
     // ceiling loosens by 1-2 g on day 4 and days 6-10 (was 5 17 28 43 57 71 87 106 122 146 and maxHonestSpend
     // 13 34 55 81 107 134 164 197 227 265); src/net/roadCap.ts is unchanged (it reads the captains' tables)
+    // AZ-BUMP (the flip, NPC_DAY and HULL_SCALE): 5 17 28 44 57 73 89 108 124 147 -> 5 20 36 51 66 80 93 102 114 123, and
+    // maxHonestSpend 13 34 55 82 107 136 166 199 229 266 -> 13 37 63 89 116 143 170 194 222 248: with NPC_DAY on every day is
+    // a fight and then the day's event (roadCap.ts npcPlanDP: a fight prices its gold only, the drops count through the
+    // road log), and HULL_SCALE's gold (6 + min(day, 10) + 2) is the shop's gold from day 8 and gmax's. Both off: 0.9.7's
     const table = Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1));
-    expect(table).toEqual([5, 17, 28, 44, 57, 73, 89, 108, 124, 147]);
-    expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 34, 55, 82, 107, 136, 166, 199, 229, 266]);
+    expect(table).toEqual([5, 20, 36, 51, 66, 80, 93, 102, 114, 123]);
+    expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 37, 63, 89, 116, 143, 170, 194, 222, 248]);
     for (let d = 2; d <= RUN_DAYS; d++) expect(roadCap(d)).toBeGreaterThanOrEqual(roadCap(d - 1));
+    withNpcDay(() => withHullScale(() => {
+      expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1))).toEqual([5, 17, 28, 44, 57, 73, 89, 108, 124, 147]);
+      expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 34, 55, 82, 107, 136, 166, 199, 229, 266]);
+    }, false), false);
   });
 
   it("the discount: rolls of at most OFFERS distinct defs, rerolls at REROLL_COST; exact on small purses", () => {
@@ -178,7 +195,13 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
     // bb-0.8.6 (PACKS P1-P2): the discount reaches no pack (was 0 0 0 0 2 3 4 7 8 9)
     // CATCHUP-098 (cap's yes for roadCap, oracle bc842e7024551665): MOTH QUEEN's day-4 SPLITTER (a 7 g part, was 6) counts as
     // gold in roadCap's liquid plan from day 6 (roadCap +2, roadCapHoard +1 on days 6-9); was 0 0 0 2 1 3 3 6 6 11
-    expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 2, 1, 4, 4, 7, 7, 11]);
+    // AZ-BUMP (the flip, NPC_DAY and HULL_SCALE): 0 0 0 2 1 4 4 7 7 11 -> 0 0 0 0 0 1 1 1 1 1: with NPC_DAY on a fight pays
+    // gold only in roadCap's plans (no Hard pick's part: the drops are the road log's), so the parts gmax's liquid plan
+    // counts as gold are the events' alone. Both off: 0.9.7's
+    expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 1, 1]);
+    withNpcDay(() => withHullScale(() => {
+      expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 2, 1, 4, 4, 7, 7, 11]);
+    }, false), false);
   });
 });
 
@@ -212,7 +235,11 @@ describe("player hull and belt rules (D3)", () => {
     expect(validateBuild(deck(["temper", "whetstone"], 0, 0, DOCK), 1).errors.join()).toMatch(/supply: hullBonus 200/); // strict
     // FLIP-X2: each upload below holds its day's runes (up)
     expect(up(deck(["temper", "whetstone"], 0, 0, DOCK), 1)).toEqual({ ok: true, errors: [] }); // 6 + dock 2 = 8
-    expect(up(deck(["temper", "quench"], 0, 0, DOCK), 1).errors.join()).toMatch(/^budget: build costs 7 gold .*road dock PLATING.* allows at most 6/);
+    // AZ-BUMP (the flip, NPC_DAY): the dock's 2 gold out of day 1's purse is 0.9.7's road (the event instead of the fight),
+    // so this line runs with NPC_DAY off. On, the day's fight comes first and its gold pays the dock's (HULL-1c, roadCap.ts
+    // npcPlanDP), so the same 7-gold deck fits day 1's 8
+    withNpcDay(() => expect(up(deck(["temper", "quench"], 0, 0, DOCK), 1).errors.join()).toMatch(/^budget: build costs 7 gold .*road dock PLATING.* allows at most 6/), false);
+    expect(up(deck(["temper", "quench"], 0, 0, DOCK), 1)).toEqual({ ok: true, errors: [] });
     expect(up(deck(["temper", "whetstone"], 0, 0, RIDE), 1).ok).toBe(true); // RIDE THROUGH: its 5 g come after dusk
     expect(up(deck([], 0, 0, DOCK + RIDE), 1).errors.join()).toMatch(/^supply: hullBonus 100 is not a hull a player can reach by day 1/);
     expect(up(deck([], 0, 0, DOCK + RIDE), 2).ok).toBe(true); // dock + ride-through on two days

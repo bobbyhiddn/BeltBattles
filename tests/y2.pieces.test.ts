@@ -16,6 +16,7 @@ import { icons, textWidth } from "../src/render/font";
 import { statRow } from "../src/ui/icons";
 import { glossaryText } from "../src/ui/glossary";
 import { barge, bench } from "./arsenal.bench";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's face with the switch off
 
 export const BAND = 225; // TEXT-STYLE 11.1-11.2: one line of 5x7 on the op view's band (NEXT_LINE_W, GLOSSARY_WRAP_W)
 const STARS = [1, 2, 3] as const;
@@ -399,9 +400,23 @@ describe("Y2 row 18: OVERDRIVE ★2/★3 lose their flat and their guards", () =
   });
 
   it("face: ITS BELTS RUN 3/4/5 TIMES AS FAST, one line (no HIT: +10 line, no guard clause); ladder 3/4/5 TIMES", () => {
-    expect(lines("overdrive")).toEqual([3, 4, 5].map((n) => [`ITS BELTS RUN ${n} TIMES AS FAST.`]));
-    oneLine("overdrive");
-    expect(levels("overdrive", 1)).toEqual(["[3]/4/5 TIMES", "★2 REDLINE", "★3 AFTERBURNER", "NEXT ★2: 4 TIMES ★2 REDLINE"]);
+    // AZ-BUMP (the flip, LADDER_FIX): ★2/★3 add a second rule line, "KEEPS 50% / 100% OF THE RIDE IT CUTS." (OVERDRIVE's
+    // ride-keep, AZ-PREP (g); tests/azprep.overdrive.test.ts holds the lines inside the op band), so Y2's one-line face (no
+    // HIT: +10 line, no guard clause) is checked with LADDER_FIX off; REVIEW-AZPREP Q5: the wrap is reported, not re-keyed
+    expect(lines("overdrive")).toEqual([
+      ["ITS BELTS RUN 3 TIMES AS FAST."],
+      ["ITS BELTS RUN 4 TIMES AS FAST.", "KEEPS 50% OF THE RIDE IT CUTS."],
+      ["ITS BELTS RUN 5 TIMES AS FAST.", "KEEPS 100% OF THE RIDE IT CUTS."],
+    ]);
+    withLadderFix(() => {
+      expect(lines("overdrive")).toEqual([3, 4, 5].map((n) => [`ITS BELTS RUN ${n} TIMES AS FAST.`]));
+      oneLine("overdrive");
+    }, false);
+    // AZ-BUMP (the flip, LADDER_FIX): + the ride-keep ladder "KEEPS [-]/50%/100% RIDE", and NEXT ★2 names it; the NEXT★ line
+    // drops "★2 REDLINE" where it would pass the 225 px band (faces.ts faceNext, U2d F1; the ladder still names REDLINE).
+    // With LADDER_FIX off the ladder as before
+    expect(levels("overdrive", 1)).toEqual(["[3]/4/5 TIMES", "KEEPS [-]/50%/100% RIDE", "★2 REDLINE", "★3 AFTERBURNER", "NEXT ★2: 4 TIMES, KEEPS 50% RIDE"]);
+    expect(withLadderFix(() => levels("overdrive", 1), false)).toEqual(["[3]/4/5 TIMES", "★2 REDLINE", "★3 AFTERBURNER", "NEXT ★2: 4 TIMES ★2 REDLINE"]);
   });
 });
 

@@ -16,6 +16,7 @@ import { fusibleCopies, gainInto, previewMerge } from "../src/sim/harness/merge"
 import { exceptPairs } from "./harnessLegacy";
 import { spotBeside } from "./beltside.helpers";
 import { withLegacyStock } from "./catalogueLegacy";
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the legacy harness's purse is the switch-off one
 
 const freeCells = (b: Build): number[] => {
   const occ = occupancy(b);
@@ -158,7 +159,11 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
       return h >>> 0;
     };
     const parts: string[] = [];
-    withLegacyStock(() => {
+    // AZ-BUMP (the flip, HULL_SCALE): the pin is the legacy harness's output (c432bee's v1, beltside-062c's), which spent
+    // 0.9.7's purse; randomBuild spends maxGoldByDay(day), and HULL_SCALE's income (6 + min(day, 10) + 2 a win;
+    // tests/hull1c.damage) lifts day 10's purse 119 -> 125 (3878896561 -> 3374485796 with it on), so the builds are drawn
+    // with HULL_SCALE off
+    withHullScale(() => withLegacyStock(() => {
       for (const hero of HARNESS_HEROES) {
         for (const day of [1, 3, 5, 7, 10]) {
           for (let i = 0; i < 3; i++) {
@@ -168,7 +173,7 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
           }
         }
       }
-    });
+    }), false);
     // REQ-BFG-021 changes Metronome's choices within the pre-expansion stock.
     // NUM-1 (REQ-BFG-047): re-pinned (was 675877753): the ARMOR PACK's hull x10 (ITEMS.plating.supply.hull 25 -> 250, the
     // harness's PLATE_HULL), so every build's hullBonus is x10; the same 90 builds with hullBonus / 10 hash to 675877753
@@ -183,13 +188,15 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
       return h >>> 0;
     };
     const parts: string[] = [];
-    withLegacyStock(() => {
+    // AZ-BUMP (the flip, HULL_SCALE): BELTSIDE's pre-v2 harness spent 0.9.7's purse; HULL_SCALE's income lifts days 8-10's
+    // (91 105 119 -> 92 108 125; 805093062 -> 2970122629 with it on), so the builds are drawn with HULL_SCALE off
+    withHullScale(() => withLegacyStock(() => {
       for (const hero of ["furnace", "weaver"] as const) {
         for (let day = 1; day <= 10; day++) {
           for (let i = 0; i < 3; i++) parts.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-pin", hero, day, i), undefined, 60, "off")));
         }
       }
-    });
+    }), false);
     // 3150828827 = the same 60 builds from c432bee's own v1 fullPurseBuild(hero, day, seed, undefined, 60), in a
     // scratch export (output-h2b/step0/pins/). At bf779de the pin was 512167455 (the v1 mod pool was 2 mods then).
     // beltside-062-on-061 re-pin (P16, H2's rig placement): 3150828827 -> 555421802 = the same 60 builds from

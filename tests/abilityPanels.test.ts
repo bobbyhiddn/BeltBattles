@@ -907,7 +907,12 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // Y7b2 (the flip): 1223, measured: release Y's faces for the 30 folded pieces (a stat row and one line, no interim
     // clause or caveat) leave 342 more phone panels room for the hint. Y7b2 (the words): 1231, measured: no panel draws a
     // perk's name (R-1 for every piece), 8 more (was 881)
-    expect(hints).toBe(1231);
+    // AZ-BUMP (the flip, LADDER_FIX): 1227, measured on the flip's src (was 1231): the star-ladder pass's new text on these
+    // panels (OVERDRIVE ★2/★3's ride-keep line and sentence, KEEPS 50% / 100% OF THE RIDE; P13's walk numbers on the belt
+    // panels) leaves 4 fewer phone panels room for the hint. With LADDER_FIX off and the other two switches on it reads 1231
+    // (output-azbump/logs/vp-L1.log), so the pass is the cause; the panels are day-1 caravan runs, which HULL_SCALE (x1 on
+    // day 1) and NPC_DAY (REFIT only) don't reach
+    expect(hints).toBe(1227);
   });
 });
 

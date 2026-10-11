@@ -1,7 +1,7 @@
 // PAR-AZ (REQ-BFG-079; BRIEF-PARAZ 1 (b)): the bots' fight and foe tables, behind HULL_SCALE. deckRating.ts fightTime and
 // foeOn read FIGHT_BY_DAY_HS and SUSTAIN_FOE_HS (re-measured with every switch on and the par player's NPC day in) when
 // HULL_SCALE is on, and the 0.9.7 tables, FIGHT_BY_DAY and SUSTAIN_FOE, exactly as before when it is off. The switch is
-// set through its own setter and put back off after each test.
+// set through its own setter and put back after each test (on: the shipped value, AZ-BUMP's flip).
 import { afterEach, describe, expect, it } from "vitest";
 import {
   FIGHT_BY_DAY, FIGHT_BY_DAY_HS, RATING_CURVE, SUSTAIN_FOE, SUSTAIN_FOE_HS, fightTime, foeOn, rateDeck, type RateOut,
@@ -9,12 +9,13 @@ import {
 import { setHullScale } from "../src/sim/hullScale";
 import { PLAYER_DAYS, playerBuild, rateOn } from "../src/sim/harness/player";
 
-afterEach(() => setHullScale(false));
+afterEach(() => setHullScale(true)); // the shipped value (AZ-BUMP's flip); the off tests set it off themselves
 
 const DAYS = Array.from({ length: PLAYER_DAYS }, (_, i) => i + 1);
 
 describe("PAR-AZ: the bots' tables, HULL_SCALE off (the 0.9.7 tables, as before)", () => {
   it("off: fightTime reads FIGHT_BY_DAY and foeOn reads SUSTAIN_FOE, both unchanged, clamped to days 1..10", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): it ships on, so the off test sets it off itself
     expect(FIGHT_BY_DAY).toEqual([24.4, 19.9, 15.7, 14.2, 12.9, 11.6, 11.1, 10.5, 10.1, 9.5]);
     expect(SUSTAIN_FOE[0]).toEqual({ fight: 29.25, burn: 0.25, hit: 74.5 });
     expect(SUSTAIN_FOE[9]).toEqual({ fight: 13.41, burn: 0.719, hit: 113.1 });
@@ -29,6 +30,7 @@ describe("PAR-AZ: the bots' tables, HULL_SCALE off (the 0.9.7 tables, as before)
   });
 
   it("off: the par player's rating reads the old fight (rateOn = rateDeck over FIGHT_BY_DAY's day)", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): it ships on, so the off test sets it off itself
     for (const d of [2, 6, 10]) {
       const b = playerBuild("bastion", d, 1);
       expect(rateOn(b, d), `d${d}`).toBe(rateDeck(b, RATING_CURVE, FIGHT_BY_DAY[d - 1], undefined, undefined, d).value);

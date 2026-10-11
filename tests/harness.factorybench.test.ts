@@ -77,16 +77,22 @@ describe("factory bench (0.6.1c)", () => {
     const furnaceGantry = sources.find((s) => s.tag === "furnace par")!.build;
     expect(routesOf(furnaceGantry, furnaceGantry.items.find((p) => p.def === "gantry")!.uid).length).toBe(1); // FURNACE: one free connector
     expect(g.byRoutes![0].decks.some((d) => d.tag === "furnace par")).toBe(true);
-  }, 120_000);
+    // AZ-BUMP (the flip, HULL_SCALE): 600 s (was 120 s), a host timeout under the 1.5-CPU quota (the GATE RULE), not the rule:
+    // the bench plays every battle on day 7, now on day 7's hull (M 4.0, longer fights); it hit 120 s in AZ-BUMP run 6 (the
+    // file 480 s beside one other file; 215 s in run 4's switch-on shard, where this test passed)
+  }, 600_000);
 
   it("PRESS-SLOT rows play the swapped decks (the Press replaced in place by each factory at 1-3 stars), every variant of a deck on the same seeds", async () => {
     const gauntlet = (["weaver", "bastion"] as HeroId[]).map((h, i) => randomBuild(h, 7, new Rng(hashSeed("ps-g", i)), "on", FUSE_MAX, "on", "on"));
     const field: BenchSource[] = [{ hero: "foundry", tag: "foundry elite 0", build: withFactory("foundry", "press", 1) }, { hero: "foundry", tag: "foundry elite 1", build: withFactory("foundry", "hotswap", 1) }];
     const sources = pressSlotSources(field);
     expect(sources.map((s) => s.tag)).toEqual(["par/furnace/6 (arsenal)", "foundry elite 0"]); // decks without a Press are left out
-    const played: { deck: string; b: number; seeds: number[] }[] = [];
+    // AZ-BUMP (the flip, HULL_SCALE): each job's day is kept too (pressSlotBench plays its jobs on the bench's day, Job.day 7),
+    // so the sum below replays the same battles: with HULL_SCALE on a battle on a day is the day's (M, D, S, the wind's
+    // share), and a day-less replay (as this test had, while a day changed nothing) is another battle
+    const played: { deck: string; b: number; seeds: number[]; day?: number }[] = [];
     const rec: StatsRunner = async (f, jobs) => {
-      for (const j of jobs) played.push({ deck: JSON.stringify(f[j.a]), b: j.b - (f.length - gauntlet.length), seeds: j.seeds });
+      for (const j of jobs) played.push({ deck: JSON.stringify(f[j.a]), b: j.b - (f.length - gauntlet.length), seeds: j.seeds, day: j.day });
       return localStats(f, jobs);
     };
     const ps = await pressSlotBench(O, 7, gauntlet, sources, rec);
@@ -101,7 +107,7 @@ describe("factory bench (0.6.1c)", () => {
           if (unfusedPairs(v).length) { expect(jobs.length).toBe(0); expect(ps.decks[src].cells[def][star - 1]).toBeNull(); continue; }
           expect(jobs.length, `${s.tag} ${def} ★${star}`).toBe(gauntlet.length);
           for (const j of jobs) expect(j.seeds).toEqual(focusSeeds(O, 7, src, j.b, PRESS_SLOT_KEY));
-          const sum = jobs.reduce((t, j) => { const x = jobStats([...[JSON.parse(j.deck) as Build], ...gauntlet], { a: 0, b: 1 + j.b, seeds: j.seeds }); return { pts: t.pts + x.pts, dmg: t.dmg + x.dmg, jams: t.jams + x.jams }; }, { pts: 0, dmg: 0, jams: 0 } as JobStats);
+          const sum = jobs.reduce((t, j) => { const x = jobStats([...[JSON.parse(j.deck) as Build], ...gauntlet], { a: 0, b: 1 + j.b, seeds: j.seeds, day: j.day }); return { pts: t.pts + x.pts, dmg: t.dmg + x.dmg, jams: t.jams + x.jams }; }, { pts: 0, dmg: 0, jams: 0 } as JobStats);
           expect(ps.decks[src].cells[def][star - 1]).toEqual(sum);
         }
       }

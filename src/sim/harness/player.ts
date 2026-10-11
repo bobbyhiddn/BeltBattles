@@ -1731,8 +1731,12 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
   if (!pick.ok || !w) throw new Error(`par player: no ${PAR_ROAD_TIER} warlord on day ${run.day} (${pick.reason ?? "no fight stored"})`);
   const bt = simulate(run.build, w.build, warlordSeed(run), undefined, [run.wins, 0], run.day);
   const winner = (bt.winner ?? -1) as 0 | 1 | -1;
-  const pre = winner === 0 && maxStars < FUSE_MAX ? warlordDrop(run.seed, run.day, w.id, w.tier, w.build) : null;
-  const declined = pre && (mergePreview(run, pre)?.toStars ?? 1) > maxStars ? pre : undefined;
+  // AZ-BUMP (the flip; cap's ruling on run 4's Q5a): TUNE-M's forbid knob (pol.forbid) declines a forbidden drop as it
+  // refuses a forbidden buy, the same way a capped run declines a drop above its cap. Harness only; par and every policy
+  // set no forbid, so their runs (and the fingerprint) are as before
+  const banned = forbidden(pol);
+  const pre = winner === 0 && (maxStars < FUSE_MAX || banned.size > 0) ? warlordDrop(run.seed, run.day, w.id, w.tier, w.build) : null;
+  const declined = pre && ((mergePreview(run, pre)?.toStars ?? 1) > maxStars || banned.has(pre)) ? pre : undefined;
   const uid = run.nextUid, queued = run.fuseAnim?.length ?? 0; // the drop's copy takes run.nextUid (fuse.ts gainModule)
   const res = declined ? withNpcDay(() => finishWarlord(run, winner, bt.t), false) : finishWarlord(run, winner, bt.t);
   if (!res) throw new Error(`par player: the ${PAR_ROAD_TIER} warlord of day ${run.day} has no result`);

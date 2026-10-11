@@ -15,6 +15,7 @@ import { faceAt } from "../src/ui/faces";
 import { abilityText, heroTrick } from "../src/ui/abilityText";
 import { captureFormats } from "../src/ui/statFormat";
 import { barge, SEED } from "./arsenal.bench";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's STOKER ★3 beside the shipped one
 
 const roundHalfUp = (x: number): number => Math.floor(x + 0.5 + 1e-9);
 /** The whole %s a piece's face prints (its fmtPct records), as numbers. */
@@ -112,7 +113,8 @@ describe("NUM-2: whole rate %s (N1 2.3), each shown % exact against the sim's mu
   // Y7b2 (the flip): Y3's BRAKE SHOE slows to 50% / 40% / 30% (was 50% at every star). Was "belt states: GREASE +60 / +130 /
   // +210%, BRAKE 50%, OVERDRIVE x3 / x4 / x5; STOKER +20 / +44 / +70% (already rates)"
   it("belt states: GREASE +60 / +130 / +210%, BRAKE 50% / 40% / 30%, OVERDRIVE x3 / x4 / x5; STOKER +20 / +44 / +70% (already rates)", () => {
-    const grease = [60, 130, 210], brake = [50, 40, 30], stoke = [20, 44, 70];
+    // AZ-BUMP (the flip, LADDER_FIX): STOKER ★3 70 -> 85, the star-ladder pass's ★3 stoke 0.85 (was 0.7); off, 70 (below)
+    const grease = [60, 130, 210], brake = [50, 40, 30], stoke = [20, 44, 85];
     for (const s of [1, 2, 3]) {
       const g = effectAt("grease", s).gate!.speed!;
       expect(shownPcts("grease", s), `GREASE ★${s}`).toEqual([grease[s - 1]]);
@@ -124,5 +126,6 @@ describe("NUM-2: whole rate %s (N1 2.3), each shown % exact against the sim's mu
       expect(shownPcts("stoker", s), `STOKER ★${s}`).toEqual([stoke[s - 1]]);
       expect(Math.abs(k * 100 - stoke[s - 1]), `STOKER ★${s}`).toBeLessThan(1e-9);
     }
+    expect(withLadderFix(() => [shownPcts("stoker", 3), effectAt("stoker", 3).gate!.stoke], false)).toEqual([[70], 0.7]);
   });
 });

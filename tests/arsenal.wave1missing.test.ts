@@ -5,6 +5,7 @@ import { estimateRoute } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
 import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2t: the glossary
 import { barge, bench } from "./arsenal.bench";
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): QUENCH ★1's off checks
 
 const IDS = ["venom", "overclocker", "keg", "bellows", "quench", "staticbrush", "lodestone", "barbed", "counterweight"];
 const payload = (): Payload => ({ id: 91, ammo: "plain", ride: 3, mult: 1, flat: 0, burn: 0,
@@ -51,7 +52,10 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
     expect([1, 2, 3].map((s) => effectAt("bellows", s).gate?.burnPerRide?.burn)).toEqual([1, 2, 3]);
     // 0.6.2 FB-B (tests/fb062.quench.test.ts): +3/+5/+7 per Burn stack, up to 4/5/6 stacks, +1/+2/+3 on every payload
     // (was +2/+4/+6 per stack, capped at +12/+26/+42 damage)
-    expect([1, 2, 3].map((s) => effectAt("quench", s).gate?.quench?.perBurn)).toEqual([3, 5, 7].map((v) => 10 * v)); // NUM-1: x10 (was 3 / 5 / 7)
+    // AZ-BUMP (the flip, LADDER_FIX): ★1 30 -> 40, the star-ladder pass (★1 pays more than the BURN it spends, 30); with
+    // LADDER_FIX off 30, as before
+    expect([1, 2, 3].map((s) => effectAt("quench", s).gate?.quench?.perBurn)).toEqual([40, 50, 70]); // NUM-1: x10 (was 3 / 5 / 7)
+    expect(withLadderFix(() => effectAt("quench", 1).gate?.quench?.perBurn, false)).toBe(30);
     // NUM-3 (N1 2.2): STUN 1 / 2 / 3 s, whole (was 0.6 / 1.3 / 2.1)
     expect([1, 2, 3].map((s) => effectAt("staticbrush", s).gate?.staticTime)).toEqual([1, 2, 3]);
     expect([1, 2, 3].map((s) => effectAt("lodestone", s).gate?.perStalled?.each)).toEqual([10, 22, 35]); // NUM-1: x10 (was 1 / 2.2 / 3.5)
@@ -116,7 +120,9 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
       const quench = process("quench", stars, 3, 10);
       // NUM-1: flat and perBurn x10 (was 1 + 4 * 3, 2 + 5 * 5, 3 + 6 * 7)
       // Y7b2 (the flip): no floor and no stack cap, so all 10 BURN turn into 10 x perBurn (was 10 x [1 + 4 * 3, 2 + 5 * 5, 3 + 6 * 7])
-      expect(quench.a.p.flat).toBe([300, 500, 700][stars - 1]); // was 12 / 26 / 42 (all 10 spent)
+      // AZ-BUMP (the flip, LADDER_FIX): ★1 300 -> 400, 10 x ★1's 40 a BURN (was 30); with LADDER_FIX off 300, as before
+      expect(quench.a.p.flat).toBe([400, 500, 700][stars - 1]); // was 12 / 26 / 42 (all 10 spent)
+      if (stars === 1) expect(withLadderFix(() => process("quench", 1, 3, 10).a.p.flat, false)).toBe(300);
       expect(quench.a.p.burn).toBe(0); // Y7b2 (the flip): all 10 spent (was [6, 5, 4]: 4 / 5 / 6 spent)
       expect(estimateRoute(bench([["temper", 4, 4, 1], ["quench", 4, 3, stars]]), 0).burn).toBe(0);
     }

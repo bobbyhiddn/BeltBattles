@@ -32,7 +32,7 @@ import { Fx, popBox } from "../src/render/fx";
 import { textWidth } from "../src/render/font";
 import { packTip } from "../src/screens/build/chrome"; // AZ-PREP (REVIEW-HULL1D Q3): the pack tooltip on the run's day
 
-afterEach(() => setHullScale(false));
+afterEach(() => setHullScale(true)); // the shipped value (AZ-BUMP's flip; was false): a test that reads the switch off sets it off itself
 
 const on = <T>(fn: () => T): T => withHullScale(fn);
 /** The day's damage for a day-1 amount: n x D(d), rounded down (the module's own D). */
@@ -50,6 +50,7 @@ const readouts = (def: string, s: number, o: { day?: number }): unknown => ({
 
 describe("HULL-1d: the switch off, or no day: every read-out as today", () => {
   it("every part's text, face, chip and level details read the same on any day with the switch off", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): this test's switch-off reads (it ships on; the afterEach puts it back)
     let n = 0;
     for (const def of TEXT_DEFS) for (const s of starsOf(def)) {
       const today = readouts(def, s, {});
@@ -70,6 +71,7 @@ describe("HULL-1d: the switch off, or no day: every read-out as today", () => {
   });
 
   it("every rune's text and the glossary rows read the same with the switch off, whatever the day", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): this test's switch-off reads (it ships on; the afterEach puts it back)
     for (const r of Object.values(RUNES)) for (const day of [1, 5, 10]) expect(runeLine(r, day), `${r.id} day ${day}`).toBe(runeLine(r));
     for (const day of [1, 5, 10]) expect(glossaryRows(day)).toEqual(glossaryRows());
     // the switch on (HULL-1c's DARK WIND row reads its share): no day and day 1 read the same numbers
@@ -120,6 +122,7 @@ describe("HULL-1d: a part card's numbers on days 5 and 10 (switch on)", () => {
   });
 
   it("AZ-PREP (REVIEW-HULL1D Q3): a pack slot's tooltip (chrome.ts packTip) is the pack's face on the run's day; off, as today", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): this test's switch-off reads (it ships on; the afterEach puts it back)
     for (const day of DAYS) for (const def of ["plating", "beltcrate"]) expect([on(() => packTip(def, { ...newRun("furnace", 7), day })), packTip(def, { ...newRun("furnace", 7), day })], `${def} day ${day}`).toEqual([on(() => faceLines(def, 1, { day }))!.rules[0].text, faceLines(def, 1)!.rules[0].text]);
   });
 
@@ -150,6 +153,7 @@ describe("HULL-1d: a rune's text on days 5 and 10 (switch on)", () => {
 
 describe("HULL-1d: the inspector and the ⓘ level details on days 5 and 10 (switch on)", () => {
   it("the belt read-out's DMG x D(d) (the walk stays day 1's); BURN (a count) and TIME as before", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): this test's switch-off reads (it ships on; the afterEach puts it back)
     for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
       const run = newRun(hero, 4242);
       const idx = run.build.routes.findIndex((_, i) => beltPanel(run, i)?.headerOnly);
@@ -183,6 +187,7 @@ describe("HULL-1d: the battle agrees (switch on)", () => {
   const fight = (hero: HeroId, day?: number): Battle => new Battle(heroStartBuild(hero, 1), heroStartBuild("furnace", 101), 7, undefined, day);
 
   it("the HUD's plating strip reads the pool's cap: PLATE_CAP x S(d) on the day's hull, PLATE_CAP otherwise", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): this test's switch-off reads (it ships on; the afterEach puts it back)
     for (const day of DAYS) {
       const bt = on(() => fight("bastion", day));
       expect(platingMax(bt.sides[0]), `day ${day}`).toBe(S(PLATE_CAP, day));
@@ -225,7 +230,8 @@ describe("HULL-1d: two pops in one tick over one hull (REVIEW-HULL1C note B)", (
   });
 
   it("arenaReact stacks its pops on the day's hull only (Battle.scaled): off, or no day, every popup as before", () => {
-    const run = (scaled: boolean, day?: number): boolean[] => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): this test's switch-off reads (it ships on; the afterEach puts it back)
+    const run =(scaled: boolean, day?: number): boolean[] => {
       const a = (scaled ? on : (f: () => Arena) => f())(() =>
         new Arena(heroStartBuild("furnace", 1), heroStartBuild("weaver", 101), 7, null, undefined, undefined, day));
       a.quiet = true;
@@ -250,7 +256,8 @@ describe("HULL-1d: the desk bar's wind slot (ruling Q4)", () => {
   const DESK = [480, 270] as const; // 1920x1080 at x4
 
   it("switch on: the desk bar is DESK_WIND_W wider and keeps that room, so WIND 10.3%/S fits whole; its buttons keep their width", () => {
-    const off = battleLayout(DESK[0], DESK[1], false).bar, at = on(() => battleLayout(DESK[0], DESK[1], false)).bar;
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): this test's switch-off reads (it ships on; the afterEach puts it back)
+    const off =battleLayout(DESK[0], DESK[1], false).bar, at = on(() => battleLayout(DESK[0], DESK[1], false)).bar;
     expect(off.w).toBe(DESK_BAR_W);
     expect(at.w).toBe(DESK_BAR_W + DESK_WIND_W);
     const rowOff = barSpeedRow(off, "1:05"), rowOn = barSpeedRow(at, "1:05", true);
@@ -262,6 +269,7 @@ describe("HULL-1d: the desk bar's wind slot (ruling Q4)", () => {
   });
 
   it("the phone bars and the switch off read as today", () => {
+    setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): this test's switch-off reads (it ships on; the afterEach puts it back)
     for (const [W, H] of [[241, 414], [134, 230], [480, 270], [600, 338]] as const) {
       for (const portrait of [true, false]) {
         const off = battleLayout(W, H, portrait), at = on(() => battleLayout(W, H, portrait));

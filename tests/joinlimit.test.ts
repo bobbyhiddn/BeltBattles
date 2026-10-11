@@ -13,7 +13,7 @@ import {
 import { validateBuild } from "../src/net/validate";
 import { NOWHERE, fightBlock, routeProblems } from "../src/game/routeCheck";
 import { migrateRun, newRun, type Run } from "../src/game/run";
-import { playerRun } from "../src/sim/harness/player";
+import { parRunSeed, playerRoadLog, playerRun } from "../src/sim/harness/player"; // AZ-BUMP: + the run's seed and road log
 import { Editor, type EditHost } from "../src/screens/build/edit";
 import type { Sel } from "../src/screens/build/layout";
 import { frame as deckFrame } from "../src/render/frame";
@@ -146,11 +146,17 @@ describe("RULE JOIN LIMIT: at most 2 joining belts a deck", () => {
     let atLimit = 0;
     for (const hero of ["weaver", "furnace"] as const) {
       for (let seed = 1; seed <= 6; seed++) {
-        for (const d of playerRun(hero, 10, seed)) {
+        const days = playerRun(hero, 10, seed);
+        for (const d of days) {
           const b = d.build;
           expect(overJoinLimit(b), `${hero} s${seed} d${d.day}`).toBe(false);
           expect(b.routes.every((_, i) => joinProblem(b, i) !== JOIN_OVER_LIMIT)).toBe(true);
-          expect(validateBuild(b, d.day).errors, `${hero} s${seed} d${d.day}`).toEqual([]);
+          // AZ-BUMP (the flip, NPC_DAY): the par run fights the Medium warlord every day (PAR-AZ), so its deck holds road gold
+          // and drops (PlayerDay.budget), which the strict mode's budget (the shop's gold and its runes' alone) refuses by
+          // design; the deck is checked as its upload is (REVIEW-PARAZ N3, tools/samplePool.ts seedGhost): validateBuild's
+          // player mode with the run's road log (player.ts playerRoadLog) and run seed. The join lines are the same in both modes
+          const log = playerRoadLog(days, d.day);
+          expect(validateBuild(b, d.day, "player", { seed: parRunSeed(hero, seed), ...(log.length ? { road: log } : {}) }).errors, `${hero} s${seed} d${d.day}`).toEqual([]);
           if (legalJoins(b) === JOIN_LIMIT) atLimit++;
         }
       }

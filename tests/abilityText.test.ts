@@ -31,6 +31,7 @@ import { rateMul } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): the whole 
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2: MIMIC's speed rounds half up once (battle.ts factoryDef)
 // Y7b2 (the flip): `pct as simPct` (NUM-4: GRAPNEL's salvage as the sim rounds it) left with that salvage, its one reader
 import { PEAK_SHIFT } from "../src/sim/races/data"; // NUM-4: METRONOME's peak shift, a hidden timer no sentence quotes
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's sentences beside the shipped ones
 
 // 0.6.2t (REQ-BFG-032): the ability text of every buyable module (0.8.0: 31 rigs, 15 factories, 15 cores, 12 mods) at 1, 2
 // and 3 stars, and of each supply: its numbers are that star's real values, it opens with one plain sentence, it uses
@@ -94,6 +95,9 @@ const spd = (e: ItemDef): number => f(e).speed;
 /** NUM-2: a stored whole rate % as the interval share the texts' rateText reads (1 / rateMul(X)); rateNum(imul(X)) is the
  *  "X% FASTER" a sentence quotes, speedNum(1 / imul(X)) the "X% SLOWER" (was the stored interval multiplier itself). */
 const imul = (rate: number | undefined): number => 1 / rateMul(rate);
+/** AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE ★2/★3's ride-keep, the star-ladder pass's fixed def's rideKeep (0.5 / 1; 0 at
+ *  ★1, and with the switch off, where no def holds one). */
+const rideKeep = (e: ItemDef): number => (g(e) as { rideKeep?: number }).rideKeep ?? 0;
 
 /**
  * The audit: the numbers a module's ability text quotes at a star, every sentence in reading order (digits, and ONE to
@@ -114,7 +118,10 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
     return j ? [1 + j, t, j] : [t]; // STALLS 2 MACHINES FOR 1.8 SECONDS. ... THEN THE NEAREST OTHER ONE.
   },
   splitter: (e) => [g(e).split!.copies, pct(g(e).split!.mult)],
-  overdrive: (e) => [fasterNum(g(e).speed!), ...(g(e).flat ? [g(e).flat] : []), g(e).lockedFlat!],
+  // AZ-BUMP (the flip, LADDER_FIX): ★2/★3's ride-keep sentence ("A PAYLOAD KEEPS 50% / 100% OF THE RIDE THAT SPEED CUTS, FOR
+  // ITS RIDE BONUSES (HEAT, LONG RIDES).") quotes the keep, after the speed and before the locked sentence (was [speed,
+  // ...flat, lockedFlat], which off and at ★1 it still is)
+  overdrive: (e) => [fasterNum(g(e).speed!), ...(g(e).flat ? [g(e).flat] : []), ...(rideKeep(e) ? [pct(rideKeep(e))] : []), g(e).lockedFlat!],
   tollbooth: (e) => [g(e).toll!],
   // NUM-3 (R1's STUN fold): S.marks names SAP, the one mark left, and its cut (SIM.sap; was CHILL's 25% and SNAG's 20%)
   sifter: (e) => (g(e).sift === "all" ? [g(e).siftFlat!, ...(g(e).siftClean ? [g(e).siftClean] : []), SIM.sap] : [1, SIM.sap]),
@@ -328,6 +335,9 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     for (const { d, s, k, id } of CASES) {
       expect(numbers(abilityText(d.id, s, { k }).sentences.join(" ")), id).toEqual(NUMBERS[d.id](effectAt(d.id, s), k, s));
     }
+    // AZ-BUMP (the flip, LADDER_FIX): off, OVERDRIVE ★2/★3 quote their speed and locked damage alone, bb-0.9.7's [4, 50] and
+    // [5, 110] (on, [4, 50, 50] and [5, 100, 110] in the loop above)
+    expect(withLadderFix(() => [2, 3].map((s) => numbers(abilityText("overdrive", s).sentences.join(" "))), false)).toEqual([[4, 50], [5, 110]]);
     // NUM-4 (REQ-BFG-047; N1 2.2): the hidden timers the rows above no longer quote (was each in seconds, MORTAR's x2.2):
     // none is a whole second, so the sentences say them in words (SOON AFTER, AT ONCE, LONGER, SHORTER, EARLIER, LATER) and
     // the three shared sentences that carried them quote none of them (S.pair keeps its TWO LOADS and ONE TURRET); the sim
@@ -390,7 +400,9 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     const at = (def: string, s: number) => abilityText(def, s);
     // NUM-1: x10 (was 1 and 3; 4 Burn is a count). Y7b2 (the flip): QUENCH has no floor and no stack cap (was "ADDS 10
     // DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH.")
-    expect(at("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
+    // AZ-BUMP (the flip, LADDER_FIX): 30 -> 40, the star-ladder pass's QUENCH ★1 (40 a BURN); off, 30
+    expect(at("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 40 DAMAGE.");
+    expect(withLadderFix(() => at("quench", 1).sentences[0], false)).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
     // NUM-1: x10 (was 1). Y7b2 (the flip): SURGE VALVE's damage pulse alone (was "PULSES ITS BELTS 3 TIMES AS FAST FOR 1
     // SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE.")
     expect(at("surge", 1).sentences[0]).toBe("EVERY 3 SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 10 DAMAGE.");

@@ -24,6 +24,8 @@ import { readFileSync } from "node:fs";
 import { Battle } from "../src/sim/battle";
 import { SUSTAIN_IDS } from "../src/sim/content";
 import { cloneBuild, type Build } from "../src/sim/deck";
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the record's switch-off world
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip): the record's switch-off world
 
 interface Row { a: number; b: number; ward: [boolean, boolean]; seed: number; winner: number | null; ticks: number; t: number; sides: unknown[] }
 const fx = JSON.parse(readFileSync(new URL("./fixtures/y7b2-wardstone.json", import.meta.url), "utf8")) as // Y7b2 (was bal2-wardstone.json; BAL-2: was num3-wardstone.json)
@@ -37,7 +39,12 @@ describe("SUS-A parity: WARD STONE as SHIELD battles as recorded (num2's blockHi
     expect(fx.rows.filter((r) => r.ward[0] || r.ward[1]).length).toBe(288);
   });
 
-  it("every battle: the same winner, ticks, time, hulls, plating, hits stopped and stats", () => {
+  it("every battle: the same winner, ticks, time, hulls, plating, hits stopped and stats", () => withLadderFix(() => withHullScale(() => {
+    // AZ-BUMP (the flip, LADDER_FIX): the record is bb-0.9.3's, the switch-off world, replayed bit for bit (not re-recorded:
+    // its point is WARD STONE's SHIELD and the engine's other paths unchanged). The flip moved exactly the 72 battles of
+    // FOUNDRY's day-6 ref deck (6 foes x 2 orders x 3 placements x 2 seeds), the one deck holding a QUENCH TANK, whose ★1
+    // pays 40 a BURN with LADDER_FIX on (was 30), so the replay runs with LADDER_FIX off. HULL_SCALE off too, the record's
+    // world (these battles have no day, so it moves none of them)
     const bad: string[] = [];
     let stopped = 0;
     for (const r of fx.rows) {
@@ -53,5 +60,5 @@ describe("SUS-A parity: WARD STONE as SHIELD battles as recorded (num2's blockHi
     }
     expect(bad).toEqual([]);
     expect(stopped).toBeGreaterThan(288 * 3); // the stones did stop hits: at least 3 a battle on average
-  });
+  }, false), false));
 });

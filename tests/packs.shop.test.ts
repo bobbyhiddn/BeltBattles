@@ -11,7 +11,8 @@ import { decodeSnapshot, encodeSnapshot, SNAPSHOT_VERSION, type GhostSnapshot } 
 import { isSnapshot } from "../src/game/ghostSnapshot";
 import { buyPack, loadRun, newRun, packPrice, packShort, reroll, rollShop, saveRun, type Run } from "../src/game/run";
 import { heroStartBuild } from "../src/sim/heroBuilds";
-import { playerRun, type PlayerDay } from "../src/sim/harness/player";
+import { parRunSeed, playerRoadLog, playerRun, type PlayerDay } from "../src/sim/harness/player"; // AZ-BUMP: + the run's seed and road log
+import { npcDayRules, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the par run's NPC day
 import { PACK_POLICY, type PackPolicy } from "../src/sim/harness/belts";
 import { RULES_VERSION } from "../src/sim/content";
 import { itemName } from "../src/screens/event/cards";
@@ -257,14 +258,20 @@ describe("P6: the bots buy packs on value", () => {
       }
       expect(runs, hero).toBeGreaterThanOrEqual(4);
     }
-  });
+    // AZ-BUMP (the flip): 24 par runs, longer with the NPC day (a Medium warlord battle every day); a host timeout under the
+    // 1.5-CPU quota, not the rule (was the 30 s default; 32.8 s measured on the flip)
+  }, 600_000); // AZ-BUMP (the flip): 600 s, 120 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE), not the rule
 
   it("never buys none; ARMOR-greedy and BELT-greedy spend every coin left on their pack at the day's end", () => {
     const never = withPacks("weaver", "never", () => playerRun("weaver", 10, 3, { onDecide: () => {} }));
     expect(packBuys(never)).toEqual([]);
-    const armor = withPacks("weaver", "armor", () => playerRun("weaver", 10, 3, { onDecide: () => {} }));
+    // AZ-BUMP (the flip, NPC_DAY): the par run's warlord fight comes after its shop (PAR-AZ parNpcDay), and the gold a win
+    // pays (and a REFIT sale's refund) waits in the purse for the next dawn's caravan (armor d3: 5 gold at dusk), so a
+    // dusk's gold is the shop's leftover only without the NPC day: the greedy runs are played with NPC_DAY off (the shop's
+    // pack policy is the same either way)
+    const armor = withNpcDay(() => withPacks("weaver", "armor", () => playerRun("weaver", 10, 3, { onDecide: () => {} })), false);
     for (const d of armor) expect(d.gold, `armor d${d.day}`).toBeLessThan(5);
-    const belt = withPacks("weaver", "belt", () => playerRun("weaver", 10, 3, { onDecide: () => {} }));
+    const belt = withNpcDay(() => withPacks("weaver", "belt", () => playerRun("weaver", 10, 3, { onDecide: () => {} })), false);
     for (const d of belt) expect(d.gold, `belt d${d.day}`).toBeLessThan(2);
     // a greedy buy is always its own pack; the greedy runs end their days with less gold than the value run's
     expect(packBuys(armor).filter((b) => b.why === "greedy").every((b) => b.def === "plating")).toBe(true);
@@ -276,9 +283,16 @@ describe("P6: the bots buy packs on value", () => {
       const days = withPacks(hero, p, () => playerRun(hero, 10, seed, { onDecide: () => {} }));
       expect(packBuys(days).length, `${hero} ${p} ${seed}`).toBeGreaterThan(0);
       for (const d of days) {
-        expect(validateUpload(d.build, d.day).errors, `${hero} ${p} seed ${seed} day ${d.day}`).toEqual([]);
-        expect(validateBuild(d.build, d.day).errors, `${hero} ${p} seed ${seed} day ${d.day} strict`).toEqual([]);
+        // AZ-BUMP (the flip, NPC_DAY): the par run fights the Medium warlord every day (PAR-AZ), so its deck holds road gold
+        // and drops. The upload check counts the drops only through the run's road log, so it gets the run's log and seed,
+        // as an upload carries them (REVIEW-PARAZ N3, tools/samplePool.ts seedGhost); and the strict check's budget line (the
+        // shop's gold and its runes' alone) is left to that check, as seedGhost leaves it: every other strict line stands
+        const log = playerRoadLog(days, d.day);
+        expect(validateUpload(d.build, d.day, RULES_VERSION, { seed: parRunSeed(hero, seed), ...(log.length ? { road: log } : {}) }).errors, `${hero} ${p} seed ${seed} day ${d.day}`).toEqual([]);
+        expect(validateBuild(d.build, d.day).errors.filter((e) => !(npcDayRules() && e.startsWith("budget: "))), `${hero} ${p} seed ${seed} day ${d.day} strict`).toEqual([]);
       }
     }
-  });
+    // AZ-BUMP (the flip): 24 traced par runs (never cached), longer with the NPC day; a host timeout under the 1.5-CPU quota,
+    // not the rule (was the 30 s default; it refused at its first strict line on the flip, before running them all)
+  }, 600_000); // AZ-BUMP (the flip): 600 s, 120 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE), not the rule
 });

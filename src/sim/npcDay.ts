@@ -28,8 +28,9 @@ import { turretList, type Build } from "./deck";
 import type { Difficulty } from "./rivals";
 import { valueOf } from "./stars";
 
-/** THE switch (REQ-BFG-077, REQ-BFG-078), off in this rules version (bb-0.9.7). */
-export const NPC_DAY: boolean = false;
+/** THE switch (REQ-BFG-077, REQ-BFG-078): on, from AZ-BUMP's flip (the hull release). Its setter, withNpcDay and the off
+ *  path stay this release, for older records and the tests that measure the off world. */
+export const NPC_DAY: boolean = true;
 
 let ndOn = false;
 

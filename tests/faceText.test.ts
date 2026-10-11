@@ -574,7 +574,13 @@ describe("U2d F1 (cap's answer to U2c question 1): NEXT★ shows every number th
     // class factors, SURGE ★2's TIMES, SPOTTER ★1's factory weight), and their perks BIG HAUL, SHRAPNEL, SALVAGE LINE and
     // FACTORY SPOT left with the words; the 26 NEXT★ lines with a new perk all fit the band with it (the widest SURGE ★2's
     // HAMMER VALVE, 216 px of 225)
-    expect(gaveWay).toEqual([]);
+    // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's two NEXT★ lines now carry the ride-keep (KEEPS 50% / 100% RIDE), so its
+    // perk names give way, as the rule above lets them (234 and 264 px with the name, of 225): REVIEW-AZPREP Q5's wrap,
+    // reported and not re-keyed (S10 shoots OVERDRIVE ★2 and its ⓘ on the desk). Off, none gives way, as before
+    expect(gaveWay).toEqual([
+      "overdrive ★1: NEXT ★2: 4 TIMES, KEEPS 50% RIDE (★2 REDLINE)",
+      "overdrive ★2: NEXT ★3: 5 TIMES, KEEPS 100% RIDE (★3 AFTERBURNER)",
+    ]);
   });
 });
 

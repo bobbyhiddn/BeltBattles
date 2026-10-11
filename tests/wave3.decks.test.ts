@@ -19,6 +19,7 @@ import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { K, item, latchDeck, withItem, withMod } from "./wave3.helpers";
 import { starCell, starRows, type StarRow } from "./starRows";
 import { RULES_VERSION } from "../src/sim/content"; // BAL-2: the STOKER row's tripwire (cap's oracle 42da94243f43feef)
+import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the tripwire row with the switch off
 
 const SEEDS = [1, 2, 3, 4, 5]; // both sides +3000 hull, 120 s: STOKER's cap rows (capRows) and the rows' own measure (ownRow)
 const ROW_SEEDS = Array.from({ length: 10 }, (_, i) => i + 1); // 0.8.0 T1: the star rows (deckRows)
@@ -210,7 +211,12 @@ describe("wave 3, deck level: 1 -> 2 -> 3 stars never loses more than 3% of the 
 describe("STOKER's cap (the Prime's call, oracle a0e94bc69949561f): a stoke never makes a factory outrun its gun", () => {
   for (const r of STOKER_ROWS) {
     it(`${r.id}: no stoker <= 1 star <= 2 stars <= 3 stars, and no more jams than with no stoker`, () => {
-      const rows = capRows(r);
+      // AZ-BUMP (the flip, LADDER_FIX): the BAL-2 tripwire row below asserts bb-0.9.7's broken ladder ("accepted for bb-0.9.7;
+      // the star-ladder pass fixes it"), so that row is measured with LADDER_FIX set off through the setter
+      // (withLadderFix(fn, false)) and keeps its bb-0.9.7 point; S7 turns it into a regression test. On, its ★3 reads 4176
+      // (was 4086), above ★2. Every other row is measured as shipped (on)
+      const tripwire = RULES_VERSION === "bb-0.9.7" && r.id === "shared gun with room, STOKER on the mould";
+      const rows = tripwire ? withLadderFix(() => capRows(r), false) : capRows(r);
       if (process.env.BB_TABLES) console.log(`STOKER ${r.id} | ${rows.map((x, s) => `${s ? `★${s}` : "none"} ${x.dmg.toFixed(1)} (jams ${x.jams})`).join(" | ")}`);
       // BAL-2 TRIPWIRE (cap's oracle 42da94243f43feef; only while RULES_VERSION is "bb-0.9.1"): with 0.9.1's lines together
       // (FURNACE hull 2100, WEAVER hull 1700, the KILN's HEAT 13; either alone keeps the row rising) this row reads

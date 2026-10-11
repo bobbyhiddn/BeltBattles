@@ -7,9 +7,11 @@ import {
   standInBuild, standInGhosts,
 } from "../src/sim/rivals";
 import { legalityProblems } from "./rivals.legality";
-import { CAPTAIN_RUNES } from "../src/sim/rivalBuilds"; // FLIP-X2: the stand-in holds the captain's runes
+import { CAPTAIN_RUNES, roadAllowance } from "../src/sim/rivalBuilds"; // FLIP-X2: the stand-in holds the captain's runes; AZ-BUMP: the road allowance
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck valued as bought
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' grants and dawn gold
+import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the plan identities with NPC_DAY off
+import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): 0.9.7's gold table with HULL_SCALE off
 
 // Rulings R1 and R2 (Part 4): every dusk opponent is an honest deck a player could own. The async
 // validator (src/net, not in this series) is mirrored here: whole +250 plating (NUM-1: x10, was +25), whole +4 belt crates,
@@ -29,7 +31,10 @@ function validatorBudget(day: number): number {
 
 describe("honest-deck helpers mirror the async validator", () => {
   it("maxGoldByDay is START_GOLD plus every winning day's income before the fight", () => {
-    expect(DAYS.map(maxGoldByDay)).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
+    // AZ-BUMP (the flip, HULL_SCALE): [.., 91, 105, 119] -> [.., 92, 108, 125], the winning income 6 + min(day, 10) + 2 (was
+    // min(day, 6)); with the switch off, 0.9.7's table
+    expect(DAYS.map(maxGoldByDay)).toEqual([8, 17, 27, 38, 50, 63, 77, 92, 108, 125]);
+    expect(withHullScale(() => DAYS.map(maxGoldByDay), false)).toEqual([8, 17, 27, 38, 50, 63, 77, 91, 105, 119]);
     for (const d of DAYS) expect(maxGoldByDay(d)).toBe(validatorBudget(d));
   });
 
@@ -75,16 +80,25 @@ describe("stand-in decks are honest (R1, R2)", () => {
         const hull = b.hullBonus - g.hull, belt = b.beltCap - g.belt;
         expect(hull, why).toBeGreaterThanOrEqual(0);
         expect(hull % PLATE, why).toBe(0); // NUM-1: whole 250-hull plates (was % 25)
-        expect(hull, why).toBe(PLATE * (l.plating + rampPlates(day))); // NUM-1: 250 x (was 25 x)
         expect((belt - HEROES[b.hero].belt) % 4, why).toBe(0);
         b.routes.forEach((_, i) => expect(routeInfo(b, i).connected, `${why} route ${i}`).toBe(true));
-        expect(boughtCost(b), why).toBeLessThanOrEqual(maxGoldByDay(day) + g.gold);
-        expect(boughtCost(b), why).toBe(l.value + 5 * rampPlates(day));
-        // one plan, two decks: only the hull differs from the plan at ordinary luck, which is the warlord deck of an
-        // Easy or Medium captain; a Hard warlord adds what good luck brings (and brings sooner)
-        const { runes: _runes, ...plain } = b;
-        expect({ ...plain, hullBonus: 0, beltCap: belt }, why).toEqual({ ...l.build, hullBonus: 0 });
-        if (luckOf(id) === "ordinary") expect({ ...b, hullBonus: 0 }, why).toEqual({ ...w, hullBonus: 0 });
+        // AZ-BUMP (the flip, NPC_DAY): + the dusk deck's road allowance (REFIT-AZ's road additions; roadAllowance, 0 off), as
+        // captains.luck's R1
+        expect(boughtCost(b), why).toBeLessThanOrEqual(maxGoldByDay(day) + g.gold + roadAllowance(day, "dusk"));
+        // AZ-BUMP (the flip, NPC_DAY): the plan identities below (the hull and the value are the plan's; one plan, two decks)
+        // mean the plan without REFIT-AZ's road additions (with the NPC day on, the dusk deck holds its dusk ones and the plan
+        // loadouts their road deck's), so they read the decks with NPC_DAY off; refitaz.road checks the on decks
+        withNpcDay(() => {
+          const b = standInBuild(id, day), w = rivalBuild(id, day), l = rivalLoadout(id, day, "ordinary");
+          const g = runeGrants(b.runes, day), hull = b.hullBonus - g.hull, belt = b.beltCap - g.belt;
+          expect(hull, why).toBe(PLATE * (l.plating + rampPlates(day))); // NUM-1: 250 x (was 25 x)
+          expect(boughtCost(b), why).toBe(l.value + 5 * rampPlates(day));
+          // one plan, two decks: only the hull differs from the plan at ordinary luck, which is the warlord deck of an
+          // Easy or Medium captain; a Hard warlord adds what good luck brings (and brings sooner)
+          const { runes: _runes, ...plain } = b;
+          expect({ ...plain, hullBonus: 0, beltCap: belt }, why).toEqual({ ...l.build, hullBonus: 0 });
+          if (luckOf(id) === "ordinary") expect({ ...b, hullBonus: 0 }, why).toEqual({ ...w, hullBonus: 0 });
+        }, false);
         // 0.8.9 (CATCHUP-089 fallback 2): the road deck may carry free PvE plates (good luck only, so a Hard captain's);
         // the stand-in's ordinary plan never owns one, and its hull above is the paid plating alone
         expect(l.pvePlates, why).toBe(0);

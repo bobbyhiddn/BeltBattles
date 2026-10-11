@@ -3,7 +3,7 @@
 // warlordFight, the battle on warlordSeed and the run's day, finishWarlord): a win pays rewardGold and the seeded drop,
 // which the bots place as a free part (placeFreePart: a merge, a spot, the REFIT swap, else cargo); a loss pays nothing and
 // costs no life; no events. With the switch off nothing runs: no road, the day's gold and the cache key as before.
-// The switches are set through their own setters and all put back off after each test.
+// The switches are set through their own setters and all put back after each test (on: the shipped value, AZ-BUMP's flip).
 import { afterEach, describe, expect, it } from "vitest";
 import { START_LIVES, type HeroId } from "../src/sim/content";
 import { turretList } from "../src/sim/deck";
@@ -22,9 +22,10 @@ import { FUSE_MAX } from "../src/sim/stars";
 import type { Run } from "../src/game/run";
 
 afterEach(() => {
-  setNpcDay(false);
-  setHullScale(false);
-  setLadderFix(false);
+  // the shipped value (AZ-BUMP's flip); a test that needs a switch off sets it off itself
+  setNpcDay(true);
+  setHullScale(true);
+  setLadderFix(true);
 });
 
 const HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
@@ -43,6 +44,7 @@ const holds = (d: PlayerDay, def: string): boolean =>
 
 describe("PAR-AZ: the par player's NPC day, NPC_DAY off (nothing runs)", () => {
   it("off: no road stop, no road log, and the day's gold as before (boughtCost + rerolls + purse + sold loss = maxGoldByDay + the runes' gold)", () => {
+    setNpcDay(false); // AZ-BUMP (the flip, NPC_DAY): it ships on, so the off test sets it off itself (the afterEach puts it back)
     for (const hero of ["furnace", "bastion"] as const) for (const seed of [1, 2]) {
       const { days, run } = traced(hero, PLAYER_DAYS, seed);
       expect(run.warlords, `${hero} s${seed}`).toEqual([]);
@@ -58,6 +60,7 @@ describe("PAR-AZ: the par player's NPC day, NPC_DAY off (nothing runs)", () => {
   });
 
   it("the cache key keeps NPC_DAY apart: a run made with it on is never reused off (off, on, off again: the first and last equal)", () => {
+    setNpcDay(false); // AZ-BUMP (the flip, NPC_DAY): the first run is the off one, so the test sets the switch off itself
     const off1 = JSON.stringify(playerRun("weaver", PLAYER_DAYS, 3));
     setNpcDay(true);
     const on = JSON.stringify(playerRun("weaver", PLAYER_DAYS, 3));
@@ -118,10 +121,13 @@ describe("PAR-AZ: the par player's NPC day, every switch on (the benches' settin
     expect(losses, "losses in the sample").toBeGreaterThan(0);
     expect(placed, "drops placed in the sample").toBeGreaterThan(0);
     expect(drops, "drops").toBe(placed + cargo);
-  });
+    // AZ-BUMP (the flip): 600 s, 30 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE), not the rule
+  }, 600_000);
 
   it("NPC_DAY alone runs the same road stop (Medium, the reward, the drop) and the gold adds up", () => {
     setNpcDay(true);
+    setHullScale(false); // AZ-BUMP (the flip): HULL_SCALE and LADDER_FIX ship on, so "NPC_DAY alone" sets them off itself
+    setLadderFix(false);
     for (const hero of ["foundry", "weaver"] as const) {
       const days = playerRun(hero, PLAYER_DAYS, 5);
       for (const d of days) {
@@ -189,6 +195,6 @@ describe("PAR-AZ: the par player's NPC day, every switch on (the benches' settin
     expect(declines, "declined drops in the sample").toBeGreaterThan(0);
     // the par player (no cap) never declines
     for (const d of playerRun("furnace", PLAYER_DAYS, 1)) expect(d.road!.declined, `par d${d.day}`).toBeUndefined();
-  }, 90_000); // AZ-BUMP (REVIEW-AZPREP N1; a load timeout, not the rule): 21 s alone, but 30.7 s and 32.6 s in loaded
+  }, 600_000); // AZ-BUMP (the flip): 600 s, 90 s hit in run 5's group check under the 1.5-CPU quota (the GATE RULE). AZ-BUMP (REVIEW-AZPREP N1; a load timeout, not the rule): 21 s alone, but 30.7 s and 32.6 s in loaded
   // whole-suite gates (AZ-PREP's 7a30f36, REFIT-AZ's a3ae8c3), over vitest's 30 s default
 });
