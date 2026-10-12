@@ -170,7 +170,7 @@ function main(): void {
   }
   const decks = [...field, ...more.filter((f) => (f.seed ?? 0) > NSEEDS), ...heroref, ...pool, ...captains];
   const bad = decks.filter((f) => f.problems.length);
-  writeFileSync(resolve(OUT, `parfill-${TAG}.json`), JSON.stringify({ shapes: ON, shapesRules: shapesRules(), seeds: NSEEDS, more: MORE, days: DAYS, heroes: RUN_HEROES, field, more, heroref, pool, captains, errors }, null, 1));
+  writeFileSync(resolve(OUT, `parfill-${TAG}.json`), JSON.stringify({ shapes: ON, shapesRules: shapesRules(), seeds: NSEEDS, moreSeeds: MORE, days: DAYS, heroes: RUN_HEROES, field, more, heroref, pool, captains, errors }, null, 1));
 
   const by = (fs: Fill[], hero: HeroId, day: number): Fill[] => fs.filter((f) => f.hero === hero && f.day === day);
   const name = (h: HeroId): string => HEROES[h].name;
