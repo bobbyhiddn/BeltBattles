@@ -46,6 +46,7 @@ import {
   explainWords, iconTipItems, iconTipRect, infoItems, infoLevels, keywordState, keywordsPressed, panelPiece, panelWords, questionRect,
 } from "../src/screens/build/keywords";
 import { PLAIN_RIGS, RIG_SENTENCE, faceLines, hasFace, plainRigStats, turretPlainOf } from "../src/ui/faces";
+import { SHAPED_PLAIN_RIGS, isPlainRig, shapeLines } from "../src/ui/faces"; // SHAPES-1 flip: the shaped plain rigs (E9's path)
 import { TIPS, TIPS_KEY, completeTip, hintShows, hintTips, setTipsForTests, tipDone, tipsDone } from "../src/ui/tips";
 import { buy, rotate, type Ctx } from "../src/screens/build/actions";
 import { tapRect } from "../src/ui/ui";
@@ -162,7 +163,9 @@ describe("EXPLAIN-1 (a, b): the default faces, and nothing lost", () => {
 
   it("(a) on every pinned view, with a rune and without, tips done: no hidden line drawn; the blocks are the builder's minus the hidden ones; INNER COLUMN in the rule face and colour", () => {
     setTipsForTests("done");
-    expect(all.length).toBe(899);
+    // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable modules, 13 panels each (an offer, and at each
+    // star a cargo panel and 3 placed ones): 899 + 39 = 938; GANTRY PRESS's and ASSEMBLY LINE's 7 each are reshaped, not added
+    expect(all.length).toBe(938);
     const bad: string[] = [];
     let n = 0, inner = 0, hidden = 0;
     for (const [name, w, h, dpr] of VIEWS) for (const runes of [1, 0]) {
@@ -574,6 +577,8 @@ describe("EXPLAIN-1 (e): the band", () => {
       }).sort((a, b) => a - b);
       const p90 = hs[Math.ceil(0.9 * hs.length) - 1], pin = phoneBand90(W);
       rows.push(`${W}: pin ${pin}, measured 90th ${p90} (tips done)`);
+      // SHAPES-1 flip (left red: a LIMIT, cap's call; zoom1.test.ts has the numbers): tips done as tips new, the three shaped
+      // plain rigs' 27 placed panels lift the 90th past the pin at W 186 (67), 236-239 (60), 240 (57) and 250 (48)
       expect(p90, `W ${W}`).toBeLessThanOrEqual(pin);
     }
     console.log(`EXPLAIN-1 phoneBand90, tips done: ${rows.join(" | ")}`);
@@ -619,12 +624,28 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
   });
 
   it("every other rig's face is its face data's (the stat row if any, then each rule line): HEAT JACKET, PLATE ROLLER and RIVETER keep HIT:", () => {
-    const rigs = buyableModules().filter((d) => d.kind === "gate" && hasFace(d.id) && !PLAIN_RIGS.includes(d.id));
+    // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL are plain stat rigs by design (REQ-BFG-084; faces.ts
+    // SHAPED_PLAIN_RIGS, isPlainRig; PLAIN_RIGS stays the base's three, pinned above): with SHAPES on their face is the plain
+    // path's stat row and their own shape line (shapeLines: UP TO 2 / UP TO 6 HITS), no HIT: line, so they leave this list
+    // as WHETSTONE does (was !PLAIN_RIGS.includes) and are checked as plain faces below
+    const rigs = buyableModules().filter((d) => d.kind === "gate" && hasFace(d.id) && !isPlainRig(d.id));
     for (const d of rigs) for (const s of fusible(d.id) ? [1, 2, 3] : [1]) {
       const fl = faceLines(d.id, s, {})!;
       const want = [...(fl.stats ? [fl.stats] : []), ...(fl.stats2 ? [fl.stats2] : []), ...fl.rules.map((r) => r.text), ...(fl.caveats ?? [])];
       expect(faceBlocks(d.id, s, {})!.map((b) => b.text), `${d.id} ★${s}`).toEqual(want);
     }
+    // SHAPES-1 flip: the three shaped plain rigs, each at every star: its stat row from the sim's numbers (SHAPES_ITEMS: NAIL
+    // STRIP +12/+25/+40 DMG, EMBER TROUGH +1/+2/+3 BURN, SPIKE RAIL +10/+20/+35 DMG), then its UP TO n HITS, no HIT: line
+    expect(SHAPED_PLAIN_RIGS.filter((d) => buyableModules().some((x) => x.id === d && isPlainRig(d)))).toEqual(["nailstrip", "embertrough", "spikerail"]);
+    for (const def of SHAPED_PLAIN_RIGS) for (const s of [1, 2, 3]) {
+      const fb = faceBlocks(def, s, {})!;
+      expect(fb.map((b) => b.text), `${def} ★${s}`).toEqual([statRow(plainRigStats(def, s)!), ...shapeLines(def, s).map((r) => r.text)]);
+      expect(fb.some((b) => b.text.includes("HIT:")), `${def} ★${s}`).toBe(false);
+    }
+    expect(SHAPED_PLAIN_RIGS.map((d) => [1, 2, 3].map((s) => plainRigStats(d, s)!.map(([k, v]) => `${k} ${v}`).join()).join("/"))).toEqual([
+      "DMG +12/DMG +25/DMG +40", "BURN +1/BURN +2/BURN +3", "DMG +10/DMG +20/DMG +35",
+    ]);
+    expect(SHAPED_PLAIN_RIGS.map((d) => shapeLines(d, 1).map((r) => r.text))).toEqual([["UP TO 2 HITS"], ["UP TO 2 HITS"], ["UP TO 6 HITS"]]);
     for (const def of ["heatjacket", "plateroller", "riveter"]) expect(faceLines(def, 1)!.rules[0].text.startsWith("HIT:"), def).toBe(true);
     expect(rigs.length).toBeGreaterThan(20);
   });

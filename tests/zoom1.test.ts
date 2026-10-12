@@ -275,7 +275,9 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
   };
 
   it("phoneBand90(W) is the 90th of the 899 heights at each step of its table and either side of it (measured at every W 186-340)", () => {
-    expect(all.length).toBe(899);
+    // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable modules, 13 panels each (an offer, and at each
+    // star a cargo panel and 3 placed ones): 899 + 39 = 938; GANTRY PRESS's and ASSEMBLY LINE's 7 each are reshaped, not added
+    expect(all.length).toBe(938);
     // SPACE-1 (REQ-BFG-087, D6): the re-pinned table's steps (238, 240, 246, 248, 250) and either side of each; was 186, 235,
     // 236, 237, 238, 241, 245, 246, 247, 248, 258, 315, 340
     const widths = [186, 235, 236, 237, 238, 239, 240, 241, 245, 246, 247, 248, 249, 250, 258, 315, 340], rows: string[] = [];
@@ -288,6 +290,11 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
       // never rise past it. The pins stay (the band keeps its height and the zoom its PICKS: cap's call, EXPLAIN-1's brief
       // E6; a re-pin is an option for cap, reported in the REPORT's section 6), and each must still cover at least 90% of the
       // panels (the shares can only rise). Was: the measured 90th equals the pin
+      // SHAPES-1 flip (left red: a LIMIT, cap's call): the three shaped plain rigs' 27 placed panels need 67/74 px at W 186
+      // and 55/62 from W 235 (a hit line per cell and UP TO n HITS: two or three lines more than WHETSTONE's 53/41), so with
+      // SHAPES on the measured 90th passes the pin at W 186 (67 > 60, 89.3% fit), 236-239 (60), 240 (57 > 53, 87.7%) and
+      // 250 (48 > 45, 88.4%); without the 39 new panels it is at or under the pin at every W. The pins are layout.ts
+      // phoneBand90's
       expect(p90, `W ${W}`).toBeLessThanOrEqual(band);
       expect(share, `W ${W}`).toBeGreaterThanOrEqual(0.9);
     }

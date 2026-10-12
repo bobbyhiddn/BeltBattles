@@ -314,7 +314,10 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
     // the case counts (the REPORT quotes them): 396 rig cases as 0.6.2p's, then every other buyable module and supply;
     // 0.8.0 I1 M2: 534 with wave 3's 8 rigs (was 396). FLIP-X2 (REVIEW-NUM3 answer 2): 522, SIFTER dormant leaves the
     // buyable rigs (its 12 rig cases)
-    expect([counts.rig, counts.cases]).toEqual([522, PANELS.length]);
+    // SHAPES-1 flip: the three shaped plain rigs' rig cases join: NAIL STRIP and EMBER TROUGH (I: 1hit, idle) 12 each and
+    // SPIKE RAIL (II: 1hit, 2hit, idle) 18 (3 stars x 2 spares a layout): 522 + 42 = 564; every case fits, as before (cut 0).
+    // PANELS 1980 -> 2049: their 69 (the 42, 18 in cargo, 9 on offer)
+    expect([counts.rig, counts.cases]).toEqual([564, PANELS.length]);
     expect(counts.flavourWhole + counts.flavourAbsent).toBe(counts.cases);
     console.log(`T6 phone fit: ${JSON.stringify(counts)}`);
   });
@@ -872,7 +875,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // TXT-096 (REVIEW-TXT095 Q2): 49 missing (was 50), the two lists diffed at txt096-base and at the tip: only "installed
     // gatling-hopper1" moves, and it shows its hint again; the text that changed on it is its GATLING SPOOL core row's line
     // ("FIRES AT ONCE, SPINS UP TO 67% FASTER", was "SPINS UP TO 67% FASTER AS IT FIRES"), which leaves the hint room
-    expect([withHint, missing.length]).toEqual([1952, 49]);
+    // SHAPES-1 flip: 2021, measured on cd59be0 (the run with SHAPES off reads 1952 and the same 49): the three shaped plain
+    // rigs' 69 desk panels join, each with its hint and each showing it; the 49 missing are the same list (was 1952)
+    expect([withHint, missing.length]).toEqual([2021, 49]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -923,7 +928,11 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // MERGE-099C (c099 = azbump + release-099; BRIEF-MERGE-099C 3c: the shipped text decides), measured at c099: 1040 (the
     // bundle's 1048, azbump's 1227): both sides' lines on the same 69 px band, so 8 fewer phone panels keep the hint than
     // with WORDS-1's and EXPLAIN-1's lines alone (the star-ladder pass's ride-keep and walk numbers, as above)
-    expect(hints).toBe(1040);
+    // SHAPES-1 flip: 1057, measured on cd59be0 (1040 with SHAPES off): 25 of the three shaped plain rigs' 69 panels keep the
+    // hint on the 69 px band (their placed panels list a hit per cell and UP TO n HITS, so most give it way), and 8 GANTRY
+    // PRESS panels lose it (placed ★1-★3 and cargo ★3, spare 0 and 1: its face's two new lines, FEEDS n BELTS IN TURN. and
+    // BIGGER: +1 BELT, take the optional hint's room; the hint gives way first, as ever): 1040 - 8 + 25 (was 1040)
+    expect(hints).toBe(1057);
   });
 });
 

@@ -181,7 +181,9 @@ describe("SPACE-1: clear space between the descriptions on cards and panels (REQ
   const all = panels();
 
   it("the sweep is zoom1.test.ts's 899 panels; the gaps are about half a line: 5x7 G 5 (pitch 9), 3x5 G 4 (pitch 7); G_MIN ceil(G/2)", () => {
-    expect(all.length).toBe(899);
+    // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable modules, 13 panels each (an offer, and at each
+    // star a cargo panel and 3 placed ones): 899 + 39 = 938; GANTRY PRESS's and ASSEMBLY LINE's 7 each are reshaped, not added
+    expect(all.length).toBe(938);
     expect([GAP["5"], GAP["3"], GAP_MIN["5"], GAP_MIN["3"]]).toEqual([5, 4, 3, 2]);
     expect(GAP_MIN["5"]).toBe(Math.ceil(GAP["5"] / 2));
     expect(GAP_MIN["3"]).toBe(Math.ceil(GAP["3"] / 2));
