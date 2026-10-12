@@ -87,7 +87,9 @@ describe("U2e step 1 (was N2 / T5): no panel draws merge progress", () => {
     // 23 rigs, 13 factories, 13 cores and 9 mods at 65a36b7; + 13 turrets (0.6.2s); 0.8.0 I1 M2 (REPORT-P1 section 13):
     // + wave 3's 15 (was 71). FLIP-X2 (REQ-BFG-069, the sustain switch on): + WARD BELL, MEND PRESS and MENDING LOOM (ITEMS
     // lists them now); the dormant SIFTER stays an ITEMS entry, fusible (old decks hold it): 86 -> 89
-    expect(fus).toHaveLength(89);
+    // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL (src/sim/shapes.ts SHAPES_ITEMS) are in ITEMS with SHAPES on,
+    // fusible as any rig: 89 -> 92
+    expect(fus).toHaveLength(92);
     let panels = 0, lines = 0;
     for (const def of fus) {
       const d = ITEMS[def];
@@ -255,7 +257,8 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
     // bb-0.8.3 (REQ-BFG-042 D3, M4): its belts (3 / 4 / 5, were 2 / 3 / 3) close the next-star line, so the clause is
     // FOURTH ARM's stamp (0.8.0: "FEEDS 2 BELTS", "FEEDS 3 BELTS", "6 DAMAGE SLUGS"). T47 (REQ-BFG-047): no seconds, so
     // ★1 says its belts (as 0.8.4 did) and FOURTH ARM says FASTER
-    gantry: ["FEEDS 3 BELTS", "FASTER PLAIN SLUGS", "60 DAMAGE SLUGS"], // NUM-1: x10 (was 6)
+    // SHAPES-1 flip: GANTRY PRESS is 2x3, its size's +1 belt slot (foot.ts footSlots) makes 4/5/6, so ★1 says 4 (was 3)
+    gantry: ["FEEDS 4 BELTS", "FASTER PLAIN SLUGS", "60 DAMAGE SLUGS"], // NUM-1: x10 (was 6)
   };
   // bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS ★2 is FOURTH ARM (was THIRD ARM). Y7b2 (the words): ASSEMBLY LINE ★3's HOT
   // START left with its rule (was assembly: ["", "HOT START"])
@@ -416,17 +419,24 @@ describe("P11: a rig's panel order, and the phone band", () => {
   // longer, so the phone band (161 x 69) gained compact forms (the hits in the header, a 6 px line pitch); a case may come
   // back here only with a written reason, and its hits and perk must still show and its next-star line start in view.
   const KNOWN_PHONE_CUTS = new Map<string, string>();
+  /** SHAPES-1 flip: a long rig's arrows shine from every outside edge of its cells (faces.ts SHAPE_RULE), so laid along a
+   *  belt a layout hits once per cell for each arrow on a belt: NAIL STRIP and EMBER TROUGH (I2, one arrow) hit 2 where a
+   *  1-cell rig hits 1; SPIKE RAIL (I3, II) 3 beside the Kiln's belt and 6 between the two belts (3 on each, its UP TO 6
+   *  HITS); IDLE is 0 as for any rig. Measured on cd59be0 (the hits lines: BELT 1 TILES 2-3; BELT 1 TILES 1-3; and BELT 2's
+   *  too) */
+  const SHAPED_HITS: Record<string, Record<string, number>> = { nailstrip: { "1hit": 2 }, embertrough: { "1hit": 2 }, spikerail: { "1hit": 3, "2hit": 6 } };
 
   it("phone: every buyable rig's hits (or IDLE), ability text, perk, next star and merge progress show whole", () => {
     const rigs = buyableModules().filter((d) => d.kind === "gate").map((d) => d.id);
-    expect(rigs).toHaveLength(30); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23); FLIP-X2: SIFTER dormant, 31 -> 30
+    // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL with SHAPES on, 30 -> 33
+    expect(rigs).toHaveLength(33); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23); FLIP-X2: SIFTER dormant, 31 -> 30
     const band = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
     let cases = 0, nextCases = 0;
     for (const def of rigs) {
       for (const s of [1, 2, 3]) for (const [lay, x, y, rot, want, extra] of layouts(def)) for (const spare of [0, 1]) {
         const id = `${def} ★${s} ${lay} spare${spare}`;
         const rp = rigPanel(rigRun(def, s, x, y, rot, spare, extra), 10)!;
-        expect(rp.idle ? 0 : rp.body.filter((b) => b.role === "hits").length, `${id}: hits`).toBe(want);
+        expect(rp.idle ? 0 : rp.body.filter((b) => b.role === "hits").length, `${id}: hits`).toBe(SHAPED_HITS[def]?.[lay] ?? want); // SHAPES-1 flip: a long rig's hits (SHAPED_HITS)
         const plan = planPanel(rp, band);
         const drawn = new Set(visibleLines(plan).map((v) => v.line));
         const whole = plan.body.shown.filter((l) => l.b.keep).every((l) => l.lines.every((ln) => drawn.has(ln)));
@@ -439,7 +449,9 @@ describe("P11: a rig's panel order, and the phone band", () => {
     expect(KNOWN_PHONE_CUTS.size).toBe(0);
     // 0.8.0 I1 M2: + wave 3's 8 rigs (was [396, 264]); U2e step 4 (REQ-BFG-070): no rig panel draws a next-star line (the ⓘ
     // view's LEVELS hold it), so none of the 534 has one (was 356, the ★1 and ★2 cases)
-    expect([cases, nextCases]).toEqual([522, 0]); // FLIP-X2: SIFTER dormant, its 12 rig cases leave (was 534)
+    // SHAPES-1 flip: the three shaped rigs' cases join: NAIL STRIP and EMBER TROUGH (I: 1hit, idle) 12 each, SPIKE RAIL (II:
+    // 1hit, 2hit, idle) 18, 3 stars x 2 spares each layout: 522 + 42 = 564, none with a next-star line
+    expect([cases, nextCases]).toEqual([564, 0]); // FLIP-X2: SIFTER dormant, its 12 rig cases leave (was 534)
   });
 
   it("the desktop column keeps the full text in the 5x7 face: the laptop's column (1366x768: text 109 px)", () => {

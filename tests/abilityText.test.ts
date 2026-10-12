@@ -108,6 +108,12 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   // rigs
   temper: (e) => [g(e).burn!, ...BURN],
   whetstone: (e) => [g(e).flat!],
+  // SHAPES-1 flip: the three shaped plain rigs (src/sim/shapes.ts SHAPES_ITEMS) are buyable with SHAPES on; their
+  // sentences are WHETSTONE's and TEMPER's (abilityText.ts ENTRIES), so their rows are too: NAIL STRIP 12/25/40 and SPIKE
+  // RAIL 10/20/35 DAMAGE (gate.flat), EMBER TROUGH 1/2/3 BURN (gate.burn) and S.burn's numbers
+  nailstrip: (e) => [g(e).flat!],
+  embertrough: (e) => [g(e).burn!, ...BURN],
+  spikerail: (e) => [g(e).flat!],
   grease: (e) => [fasterNum(g(e).speed!), g(e).lockedFlat!],
   // Y7b2 (the flip): ★2/★3 slow the belt TO 40% / 30% SPEED with no flat (★1 HALF SPEED, in words); was [...(g(e).flat ?
   // [g(e).flat] : []), g(e).lockedFlat!], HALF SPEED at every star
@@ -324,14 +330,17 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER dormant leaves the buyable rigs, 31 -> 30
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): MEND PRESS joins the factories (15 -> 16), WARD BELL and MENDING LOOM the
     // mods (12 -> 14)
-    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([30, 16, 15, 14, 13, 2]);
+    // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable rigs (30 -> 33); the factories stay 16
+    // (GANTRY PRESS and ASSEMBLY LINE are reshaped, not added)
+    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([33, 16, 15, 14, 13, 2]);
     for (const d of ALL) expect(hasAbilityText(d.id), d.id).toBe(true);
     // FLIP-X2 (REVIEW-NUM3 answer 2): the dormant SIFTER keeps its NUMBERS row (captains' plans and old decks hold it) but
     // leaves the buyable modules: 86 -> 85 modules, (86 + 15) * 3 + 2 -> (85 + 15) * 3 + 2 cases
     expect(Object.keys(NUMBERS).sort()).toEqual([...ALL.map((d) => d.id), ...DORMANT_ITEMS].sort());
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): + the 3 sustain pieces, 85 -> 88 modules, (88 + 15) * 3 + 2 cases (was
     // (85 + 15) * 3 + 2)
-    expect(CASES).toHaveLength((88 + 15) * 3 + 2); // 88 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
+    // SHAPES-1 flip: + the three shaped plain rigs, 88 -> 91 modules, (91 + 15) * 3 + 2 cases (was (88 + 15) * 3 + 2)
+    expect(CASES).toHaveLength((91 + 15) * 3 + 2); // 91 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
   });
 
   it("the numbers every sentence quotes are that star's values (effectAt; a core's x k)", () => {
@@ -509,7 +518,8 @@ describe("0.6.2t T5: next star, merge progress and MERGES WITH, as sentences", (
     }
     // bb-0.8.3: FOURTH ARM (0.8.0: "NEXT STAR: FEEDS 3 BELTS.", THIRD ARM): a faster stamp, and 4 belts. T47
     // (REQ-BFG-047): FASTER, no seconds
-    expect(nextStarText("gantry", 1)).toBe("NEXT STAR: FASTER PLAIN SLUGS, 4 BELTS.");
+    // SHAPES-1 flip: GANTRY PRESS is 2x3, its size's +1 belt slot (foot.ts footSlots) makes 4/5/6, so ★2 feeds 5 (was 4)
+    expect(nextStarText("gantry", 1)).toBe("NEXT STAR: FASTER PLAIN SLUGS, 5 BELTS.");
     expect(nextStarText("temper", 1)).toBe("NEXT STAR: ADDS 2 BURN.");
   });
 
