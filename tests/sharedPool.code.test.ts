@@ -18,7 +18,8 @@ import { EVENT_IDS, choicesFor, makeEvent } from "../src/game/events";
 import { newRun } from "../src/game/run";
 
 /** ItemDef's fields (src/sim/content.ts). */
-const FIELDS: (keyof ItemDef)[] = ["id", "name", "kind", "rarity", "price", "size", "desc", "merchant", "shape", "gate", "factory", "mod", "core", "turret", "reason", "supply", "levels", "tags"];
+// SHAPES-1 flip: + "foot" (REQ-BFG-086 R1), set on the three shaped rigs and the reshaped GANTRY PRESS and ASSEMBLY LINE
+const FIELDS: (keyof ItemDef)[] = ["id", "name", "kind", "rarity", "price", "size", "foot", "desc", "merchant", "shape", "gate", "factory", "mod", "core", "turret", "reason", "supply", "levels", "tags"];
 // 0.8.0 I1 (oracle c38b1df9f2e9c338): family map v2's seven names (VERIFIED-D1 Q1), written out, so a new tag needs a
 // deliberate edit here; none names a race, faction or hero
 const TAGS: ModuleTag[] = ["FORGE", "HARASS", "SWARM", "BURST", "TEMPO", "TWIN", "PLATE"];

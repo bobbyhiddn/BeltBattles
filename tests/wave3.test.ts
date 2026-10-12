@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS, RARITY_ARROWS, SHAPE_ARROWS, buyableModules, itemsSoldBy, rigShape, type HeroId } from "../src/sim/content";
 import { withSustain } from "../src/sim/content"; // FLIP-X2: D1's catalogue has no sustain piece (inD1 below)
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: ... and no shaped rig (inD1 below)
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { newRun, rollShop, type Run } from "../src/game/run";
 import { Rng } from "../src/core/rng";
@@ -23,7 +24,10 @@ const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome"
  * (the default now) every variant also counts WARD BELL, MEND PRESS and MENDING LOOM, so D1's checks run in D1's world: the
  * sustain switch off for the call (withSustain(fn, false)). The live catalogue is pinned with the switch on below.
  */
-const inD1 = <T>(fn: () => T): T => withSustain(fn, false);
+// SHAPES-1 flip: D1's catalogues hold no shaped rig either (no row in D1's maps for NAIL STRIP, EMBER TROUGH or SPIKE RAIL,
+// and D1's counts are without them), so D1's world also has shapes off for the call (withShapes(fn, false)); the live
+// catalogue is pinned with every switch on below
+const inD1 = <T>(fn: () => T): T => withShapes(() => withSustain(fn, false), false);
 
 describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
   // 0.8.0 I1 M2 (REPORT-P1 section 13, "D1's 71-module counts"): wave 3 is live, so v070-rc's catalogue is the `today`
@@ -43,9 +47,11 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
     const live = catalogueCount();
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): + WARD BELL, MEND PRESS, MENDING LOOM: 86 -> 89 counted, 73 -> 76
     // without turrets; buyableModules() 85 -> 88 (the dormant SIFTER is counted, not stocked: sameAsBuyable stays false)
-    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([89, 76, 13, false]); // FLIP-X2: SIFTER dormant (was true)
-    expect(buyableModules().length).toBe(88); // FLIP-X2: 89 counted less the dormant SIFTER (was 85)
-    expect(live.byKind).toEqual({ rig: 31, factory: 16, core: 15, mod: 14, turret: 13 }); // FLIP-X2: factory 15 -> 16, mod 12 -> 14
+    // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL (rigs): 89 -> 92 counted, 76 -> 79 without turrets,
+    // buyableModules() 88 -> 91, rig 31 -> 34 (GANTRY PRESS and ASSEMBLY LINE are reshaped, not added)
+    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([92, 79, 13, false]); // FLIP-X2: SIFTER dormant (was true)
+    expect(buyableModules().length).toBe(91); // FLIP-X2: 89 counted less the dormant SIFTER (was 85); SHAPES-1 flip: was 88
+    expect(live.byKind).toEqual({ rig: 34, factory: 16, core: 15, mod: 14, turret: 13 }); // FLIP-X2: factory 15 -> 16, mod 12 -> 14; SHAPES-1 flip: rig 31 -> 34
     expect(inD1(() => catalogueCount()).total).toBe(86); // FLIP-X2: D1's wave-3 catalogue, the switch off
   });
 

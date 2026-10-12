@@ -63,7 +63,9 @@ describe("wave-2 stock and live star data", () => {
     // 3's 8 rigs, 2 factories, 2 cores and 3 mods (was 23, 13, 13, 9)
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): + MEND PRESS (factory), WARD BELL and MENDING LOOM (mods), 15 -> 16 and
     // 12 -> 14; the dormant SIFTER keeps its merchant, so the rigs stay 31 (was [31, 15, 15, 12])
-    expect(counts).toEqual([31, 16, 15, 14]);
+    // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH (alchemist) and SPIKE RAIL (tinker), the three shaped rigs, 31 -> 34 (was
+    // [31, 16, 15, 14]); GANTRY PRESS and ASSEMBLY LINE are reshaped, not added
+    expect(counts).toEqual([34, 16, 15, 14]);
     for (const id of WAVE) {
       const d = ITEMS[id];
       expect([d.merchant, d.rarity, d.price], id).toEqual(WAVE_STOCK[id]);
