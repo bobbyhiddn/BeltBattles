@@ -23,6 +23,9 @@ import { faceBlocks } from "../src/screens/build/faceBlocks";
 import { describe as kindLine } from "../src/screens/build/shop";
 import { cargoPanel, explainPanel, itemPanel } from "../src/screens/build/inspector";
 import { shapePicSize } from "../src/ui/shapePic";
+import { rigSentenceRig } from "../src/screens/build/keywords"; // RUN5 2 (the c099-card3 merge's follow-up)
+import { partInfo } from "../src/screens/lastChancePicker"; // RUN5 2
+import { lineText } from "../src/ui/richText"; // RUN5 2
 
 function furnace(items: Run["build"]["items"] = [], cargo: string[] = []): Run {
   const run = newRun("furnace", 5, "shapes1c");
@@ -155,5 +158,31 @@ describe("SHAPES-1 S1: with SHAPES off no face, line, note or type line moves", 
         expect(shapeWord(d)).toBeNull();
       }
     }, false);
+  });
+});
+
+// RUN5-SHAPES1 2 / C099CARD3-MERGE-PREP 3 (cap's call): card3's two rig-sentence sites follow isPlainRig, as shapes' inspector
+// NOTES do: the shaped three get the rig sentence as the plain three do; a factory (GANTRY PRESS, ASSEMBLY LINE) or a turret
+// never does. Text in the 3x5 details as drawn (each wrapped item's lines joined).
+// RUN6 1.4's fail proof (run 6): with only lastChancePicker.ts undone the partInfo test fails (nailstrip gets no sentence).
+// With only keywords.ts undone the rigSentenceRig test still passes: card3's own fallback (a face rule labelled HIT:) already
+// says yes for the shaped three, whose SHAPE_FACES build their rules with hit() (faces.ts). So isPlainRig there gives the
+// same answer for every def; the test pins the behaviour, and the line keeps the two sites on one list.
+describe("SHAPES-1 x c099-card3: the rig sentence follows isPlainRig (CARD-2 K1 first sight, K6 LAST CHANCE's PART card)", () => {
+  const info = (def: string): string[] => partInfo(def, 290, furnace()).map((lines) => lines.map(lineText).join(" "));
+  const piece = (def: string) => ({ def, stars: 1, o: {} });
+  it("keywords.ts rigSentenceRig: the shaped three and the plain three yes; GANTRY PRESS, ASSEMBLY LINE and a turret no (SHAPES on)", () => {
+    withShapes(() => {
+      for (const def of [...PLAIN_RIGS, ...SHAPED_PLAIN_RIGS]) expect(rigSentenceRig(piece(def)), def).toBe(true);
+      for (const def of ["gantry", "assembly", "kiln", "scrapcannon"]) expect(rigSentenceRig(piece(def)), def).toBe(false);
+    });
+  });
+  it("lastChancePicker.ts partInfo: the rig sentence first for the shaped three and the plain three; never for a factory or a turret (SHAPES on)", () => {
+    withShapes(() => {
+      const sentence = info("whetstone")[0];
+      expect(sentence).toBe(RIG_SENTENCE);
+      for (const def of SHAPED_PLAIN_RIGS) expect(info(def)[0], def).toBe(sentence);
+      for (const def of ["gantry", "assembly", "kiln", "scrapcannon"]) expect(info(def), def).not.toContain(sentence);
+    });
   });
 });

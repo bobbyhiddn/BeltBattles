@@ -50,7 +50,6 @@ import { fusible } from "../../sim/stars"; // U2e step 5
 import type { BuildLayout } from "./layout"; // U2f: the room the ⓘ view grows into (infoFree)
 import { GAP } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries
 import { isPlainRig } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): HIT on the plain rigs' KEYWORDS (SHAPES-1: isPlainRig)
-import { PLAIN_RIGS } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): HIT on the plain rigs' KEYWORDS
 import { RIG_SENTENCE, faceLines } from "../../ui/faces"; // CARD-2 (REQ-BFG-004, K1): the rig sentence on the first rig
 import { rigSeen, sawRig, sawWord, sightWord } from "../../ui/firstSight"; // CARD-2 (K1): the first-sight notes
 import { TURRET_LABELS } from "./faceBlocks"; // CARD-2 (REQ-BFG-081, K4): a turret row label's target
@@ -444,7 +443,7 @@ export function rigSentenceRig(piece: Piece | null): boolean {
   if (!piece) return false;
   const e = ITEMS[piece.def];
   if (e?.kind !== "gate" || e.gate?.stoke) return false;
-  if (PLAIN_RIGS.includes(piece.def)) return true;
+  if (isPlainRig(piece.def)) return true; // SHAPES-1 x c099-card3 (RUN5 2): PLAIN_RIGS, and the shaped three with SHAPES on
   return !!faceLines(piece.def, piece.stars, piece.o)?.rules.some((r) => r.label === "HIT:");
 }
 
