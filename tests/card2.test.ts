@@ -26,7 +26,7 @@ import type { RuneDef } from "../src/sim/runes";
 const runeTextLinesOf = (def: RuneDef, cw: number): string[] => runeTextLines(def, runeCardTextW(cw)).map(lineText);
 import { panelArea, type Sel } from "../src/screens/build/layout";
 import { detailsPlan, drawDetails, panelFit } from "../src/screens/build/inspector";
-import { SIGHT_REGION, iconTipRect, keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
+import { SIGHT_REGION, rigTipRect, keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
 import { RIG_SENTENCE } from "../src/ui/faces";
 import type { Ctx } from "../src/screens/build/actions";
 import type { DuskFoe } from "../src/game/run";
@@ -379,7 +379,10 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     let ui = p.draw();
     const box = ui.regions.find((r) => r.id === SIGHT_REGION);
     expect([keywordState(p.ctx)!.rig, keywordState(p.ctx)!.word]).toEqual([true, null]);
-    expect(box!.r).toEqual(iconTipRect([RIG_SENTENCE], p.d().plan.r, { W: f.W, H: f.H }));
+    // CARD-4 run 2 (by design): on the phone, with no room beside the panel, under it (rigTipRect; iconTipRect put it above,
+    // over the shop: READ-4 F step 7); no strip here (tips done)
+    expect(box!.r).toEqual(rigTipRect([RIG_SENTENCE], p.d().plan.r, { W: f.W, H: f.H }, null));
+    expect(box!.r.y).toBeGreaterThanOrEqual(p.d().plan.r.y + p.d().plan.r.h);
     expect(sightDone("rig")).toBe(true);
     // a press on the box is a UI region's (it closes it; nothing else)
     expect(ui.hit(box!.r.x + 2, box!.r.y + 2)?.id).toBe(SIGHT_REGION);

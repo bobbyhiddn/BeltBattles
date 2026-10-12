@@ -812,9 +812,11 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
     ui.add({ id: SIGHT_REGION, r: drawHoverTip(g, at, r), block: true });
     sawWord(at.word);
   }
-  // the rig sentence's box: by the panel's icon, in the icon tooltip's look (iconTipRect, drawIconTip), a UI region
+  // the rig sentence's box: by the panel's icon, in the icon tooltip's look (iconTipRect, drawIconTip), a UI region.
+  // CARD-4 run 2 (REQ-BFG-087): where the screen has no room beside the panel (a phone's band panel), under the panel and
+  // its strip, off the shop (rigTipRect)
   if (s.rig) {
-    const items = [RIG_SENTENCE], tr = iconTipRect(items, r, screen);
+    const items = [RIG_SENTENCE], tr = rigTipRect(items, r, screen, d.strip ?? null);
     drawIconTip(g, items, tr);
     ui.add({ id: SIGHT_REGION, r: tr, block: true });
     sawRig();
@@ -954,6 +956,25 @@ export function iconTipRect(items: readonly string[], r: Rect, screen?: { W: num
   const x = Math.max(2, Math.min(W - w - 2, r.x));
   if (r.y - h - 6 >= 2) return { x, y: r.y - h - 6, w, h };
   return { x, y: Math.max(2, Math.min(H - h - 2, r.y + r.h + 4)), w, h };
+}
+
+/**
+ * CARD-4 run 2 (REQ-BFG-087, REQ-BFG-004; RESTART-RUN2 3 (b): READ-4 F step 7, run 1's tip1 and tip2): the rig sentence's
+ * first-sight box. Beside the panel where the screen has room (iconTipRect's place: the desk's column); where it hasn't (a
+ * phone's band panel spans the screen) just under the panel and its how-to strip, on the deck side, where the screen holds
+ * it (iconTipRect put it above the panel, over shop cards 4 and 5, their prices and REROLL's edge); else just above the
+ * panel and its strip; else iconTipRect's place. Never over the panel (its header, its word's row) or the strip where one
+ * of those fits. Any press closes it (keywordsPressed), as before. Pure (drawKeywordLayer, tests).
+ */
+export function rigTipRect(items: readonly string[], r: Rect, screen?: { W: number; H: number }, strip: Rect | null = null): Rect {
+  const tr = iconTipRect(items, r, screen);
+  if (tr.x >= r.x + r.w || tr.x + tr.w <= r.x) return tr;
+  const H = screen?.H ?? Infinity;
+  const below = Math.max(r.y + r.h, strip && strip.y >= r.y + r.h ? strip.y + strip.h : 0) + 4;
+  if (below + tr.h + 2 <= H) return { ...tr, y: below };
+  const above = Math.min(r.y, strip && strip.y < r.y ? strip.y : r.y) - tr.h - 6;
+  if (above >= 2) return { ...tr, y: above };
+  return tr;
 }
 
 /** EXPLAIN-1 (E3): the icon's hover tooltip in `tr` (iconTipRect), drawHoverTip's style: an ink frame and shadow, night,

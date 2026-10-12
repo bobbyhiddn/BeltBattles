@@ -640,6 +640,37 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
     // the screen's foot: where nothing fits, as near the line as the screen allows (listed)
     expect(defBoxPlace(box, [{ glyph: { x: 9, y: 144, w: 20, h: 7 } }], head, strip, 180).fits).toBe(false);
   });
+
+  // CARD-4 run 2 (RESTART-RUN2 3 (b); READ-4 F step 7, run 1's tip1 and tip2: the rig sentence's box over shop cards 4 and 5
+  // and REROLL): with no room beside a phone's band panel, the rig sentence's first-sight box goes under the panel and its
+  // strip, on the deck side
+  it("the rig sentence's first-sight box (tips new): on the four zoomed phones under the panel and its strip, over no shop card, REROLL, pack, the panel, the strip, CARGO or FIGHT, and on the screen; beside the panel where there is room (the landscape phone and the desk listed)", () => {
+    const cant: string[] = [], seen = new Map<string, number>(), other: string[] = [];
+    for (const [name, w, h, dpr] of [...PHONES, DESK]) {
+      const f = framed(w, h, dpr, 1), touch = name !== DESK[0];
+      for (const p of allPanels()) {
+        setTipsForTests("new");
+        const pc = panelCtx(p.run, p.sel, f, touch);
+        const ui = pc.draw(), d = pc.d();
+        const sight = ui.regions.filter((q) => q.id === "kwsight");
+        if (!d || !sight.length || !(keywordState(pc.ctx) as { rig?: boolean } | undefined)?.rig) { keywordsIdle(pc.ctx); continue; }
+        seen.set(name, (seen.get(name) ?? 0) + 1);
+        expect(sight.length + ui.regions.filter((q) => q.id === "kwdef").length, `${name} ${p.id}: one box`).toBe(1);
+        const b = sight[0].r, strip = d.hint ? hintStrip(d.hint, d.plan.r, f.H).r : null;
+        const bad = [...shopRects(f).filter((q) => overlaps(b, q.r)).map((q) => q.what), ...(overlaps(b, d.plan.r) ? ["the panel"] : []), ...(strip && overlaps(b, strip) ? ["the strip"] : []),
+          ...(b.y < 0 || b.y + b.h > f.H ? ["off the screen"] : []), ...(overlaps(b, f.L.fight) ? ["FIGHT"] : []), ...(overlaps(b, f.L.cargo) ? ["CARGO"] : [])];
+        const line = `${name} ${p.id}: box ${JSON.stringify(b)}${bad.length ? ` over ${bad.join(", ")}` : ""}`;
+        if (ZOOMED.some(([n]) => n === name)) {
+          if (bad.length) cant.push(line);
+          expect(b.y, `${name} ${p.id}: under the panel and its strip`).toBeGreaterThanOrEqual(Math.max(d.plan.r.y + d.plan.r.h, strip ? strip.y + strip.h : 0));
+        } else if (bad.length) other.push(line);
+        keywordsIdle(pc.ctx);
+      }
+    }
+    console.log(`CARD-4 run 2 (rig box): ${[...seen].map(([k, v]) => `${k} ${v}`).join(", ")} rig sentence boxes; ${cant.length} on the zoomed phones over a shop card, REROLL, a pack, the panel or the strip; the landscape phone and the desk: ${other.length} such${other.length ? `:\n${other.slice(0, 12).join("\n")}` : ""}`);
+    for (const [n] of ZOOMED) expect(seen.get(n) ?? 0, n).toBeGreaterThan(5);
+    expect(cant, cant.slice(0, 5).join("\n")).toEqual([]);
+  }, 180_000);
 });
 
 // ---- T --------------------------------------------------------------------------------------------------------------------
