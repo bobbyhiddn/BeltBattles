@@ -33,8 +33,11 @@ describe("FIX-ABE E: a forbidden part is refused only when it would be taken", (
   // dawns change its picks, so its run now takes TEMPER on day 5 (first 4, not 10). Seed 3 is the first FURNACE seed,
   // counting up from 1, whose run never takes TEMPER (seed 1 takes it on day 1, seed 2 on day 6); both checks exact.
   // (Seed 6 is the one that drifted on day 9 before FIX-ABE E.)
-  it("FURNACE, TEMPER forbidden, seed 3: the run without the knob never takes TEMPER, so all 10 decks are identical (seed 6 drifted on day 9)", () => {
-    const { first, drift } = alignment("furnace", "temper", 3);
+  // SHAPES-1 flip: seed 3 -> 12, by the same rule. With the shaped pieces in the caravan (SHAPES on) seed 3's run takes
+  // TEMPER on day 9 (first 8); seeds 1-11 all take it (first 3 1 8 1 1 1 5 1 4 0 0), and seed 12 is the first whose run never
+  // does, its 10 decks identical with the knob (measured on the flip's src); with SHAPES off seed 3 reads as before
+  it("FURNACE, TEMPER forbidden, seed 12 (SHAPES-1 flip; was seed 3): the run without the knob never takes TEMPER, so all 10 decks are identical (seed 6 drifted on day 9)", () => {
+    const { first, drift } = alignment("furnace", "temper", 12);
     expect(first).toBe(PLAYER_DAYS);
     expect(drift).toBe(PLAYER_DAYS);
   }, 120_000);

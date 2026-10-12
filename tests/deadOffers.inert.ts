@@ -24,7 +24,9 @@ export type Reason =
   | "noFoeHits"
   // Y7b2 (the flip; release Y, bb-0.9.3; DESIGN.md's release Y section, REVIEW-STARD answer 4: the floors went, so a payoff
   // piece does nothing without its engine): a payoff piece whose engine this reference deck lacks
-  | "needsEngine";
+  | "needsEngine"
+  // SHAPES-1 flip: a shaped rig (SPIKE RAIL, an I3) that finds no room beside a connected belt on this reference deck
+  | "noRoom";
 // Y7b2 (the flip): needsRide is gone with its last pairs (FOUNDRY 6-8 and 10, BASTION 1, FURNACE 1): BELLOWS's +1 BURN for
 // each whole 2 s ridden (was 4 for each 10 s, up to 4) reaches every reference deck's belts, so it is live on every hero, days 1-10
 // FLIP-X2 (REVIEW-NUM3 answer 2): NUM-3's num3Open reason is gone with its 60 rows, all SIFTER's (every hero, days 1-10):
@@ -56,6 +58,11 @@ export const REASONS: Record<Reason, string> = {
   // BURN on the slugs it hits, no STUN on the foe, no PLATE, no PAIR, no matched belt, no other rig on its tile, never a belt
   // under both TWIN LATCH arrows, at most 20 bonus damage a shot
   needsEngine: "Release Y's one-line rule gives it no floor: it acts only on its engine (VENOM DRIP on BURN, QUENCH TANK on BURN, TWIN GAUGE on a matched belt, PINCER beside another rig on its tile, PLATE BREAKER and STEAM BREECH on PLATE, LODESTONE on a STUN, TWIN LATCH with a belt under each arrow, TWIN TRIGGER and SEAM WELDER on a PAIR, DRAKE NOZZLE on 25+ bonus damage a shot), and this deck has none of it there.",
+  // SHAPES-1 flip (SHAPES on: NAIL STRIP, EMBER TROUGH and SPIKE RAIL are buyable): BASTION days 9-10, checked on the deck
+  // with the shaped-rig solver's own rule (beltside.ts shapedSpot: every anchor x rot, all cells free, on the deck, off the
+  // intakes): 160 and 158 free SPIKE RAIL placements, none with an arrow on a connected belt (day 8: 2; a NAIL STRIP, an I2,
+  // still has 1 on days 9-10 and is live)
+  noRoom: "SPIKE RAIL is an I3 rig: it needs three free cells in a line beside a connected belt, and on this deck every free cell beside one is hemmed in by machinery, belts or other rigs, so it can't be put to work anywhere.",
 };
 
 /** The inert pairs: hero, module, its days (ascending), as the audit finds them on the reference decks. */
@@ -127,7 +134,8 @@ export const REASONS: Record<Reason, string> = {
 //   apply, and NPC_DAY doesn't reach them)
 export const INERT: Record<HeroId, Record<string, number[]>> = {
   foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], scrapcannon: [1, 2, 3, 4, 5, 6], rampart: [1, 2, 3, 4, 5, 6], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6], twinneedle: [1, 5, 6], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], railgun: [1, 6], bombard: [1, 2, 3, 4, 5, 6], siegegun: [1, 2, 3, 4, 5, 6], thunderer: [1, 2, 3, 4, 5, 6], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hopper: [1, 2, 3, 4, 5, 6], venom: [5, 6, 7, 8, 9, 10], lodestone: [6, 7, 8, 9, 10], pincer: [6, 7], twinlatch: [6, 7, 8, 9, 10], platebreaker: [6, 7, 8, 9, 10] },
-  bastion: { spotter: [1, 2, 3, 4, 5, 6, 7], scrapcannon: [1, 2, 3], deckgun: [1, 2, 3, 4], siegegun: [1, 4], thunderer: [1, 2, 3, 4], longcase: [2, 3, 4], calibrate: [4], rampart: [4], swivel: [4], steambreech: [4], overclocker: [5, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], stoker: [5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], lodestone: [1, 5, 6], hopper: [1, 2, 3, 4], drake: [1, 2], twingauge: [1, 5, 6, 9, 10], twinlatch: [1, 5, 6, 9, 10], twintrigger: [1, 2, 3, 4], seamwelder: [1, 2, 3, 4], pincer: [5, 6, 9, 10], venom: [7, 8, 9, 10], quench: [9, 10] },
+  bastion: { spotter: [1, 2, 3, 4, 5, 6, 7], scrapcannon: [1, 2, 3], deckgun: [1, 2, 3, 4], siegegun: [1, 4], thunderer: [1, 2, 3, 4], longcase: [2, 3, 4], calibrate: [4], rampart: [4], swivel: [4], steambreech: [4], overclocker: [5, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], stoker: [5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], lodestone: [1, 5, 6], hopper: [1, 2, 3, 4], drake: [1, 2], twingauge: [1, 5, 6, 9, 10], twinlatch: [1, 5, 6, 9, 10], twintrigger: [1, 2, 3, 4], seamwelder: [1, 2, 3, 4], pincer: [5, 6, 9, 10], venom: [7, 8, 9, 10], quench: [9, 10],
+    spikerail: [9, 10] }, // SHAPES-1 flip: SPIKE RAIL is buyable (SHAPES on) and finds no room on days 9-10 (noRoom)
   furnace: { longhaul: [1], overclocker: [1], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5], calibrate: [3, 4, 5, 6], scrapcannon: [3, 4, 5, 6], rampart: [3, 4, 5, 6], swivel: [3, 4, 5, 6], deckgun: [3, 4, 5], siegegun: [3, 4, 5], thunderer: [3, 4, 5], escapement: [3, 4, 5], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [6, 7, 8, 9, 10], spikegun: [6, 7, 8, 9, 10], hailgun: [6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], venom: [1], quench: [1], lodestone: [1], hopper: [1, 2, 3, 4, 5], drake: [1, 2, 3, 4, 5, 6, 7], twingauge: [1], pincer: [1], twinlatch: [1], platebreaker: [1], twintrigger: [1, 2, 3, 4, 5], seamwelder: [1, 2, 3, 4, 5] },
   weaver: { longhaul: [1], overclocker: [1, 2], chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2, 3], scrapcannon: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], siegegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], thunderer: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [2, 5], twintrigger: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], venom: [1, 2], quench: [1, 2], lodestone: [1, 2], hopper: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], drake: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twingauge: [1, 2], pincer: [1], twinlatch: [1, 2], platebreaker: [1, 2], seamwelder: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
   metronome: { calibrate: [1, 2], spotter: [1, 2, 3], swivel: [1, 2, 3, 4, 5, 6, 7], deckgun: [1, 2, 3, 4, 5, 6, 7], thunderer: [1, 2, 3, 4], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], scrapcannon: [3, 4], rampart: [3, 4, 5, 6, 7], bombard: [3, 4], siegegun: [3, 4], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hopper: [1, 2, 3, 4], drake: [1], twintrigger: [1, 2, 3, 4], seamwelder: [1, 2, 3, 4], venom: [7, 8, 9, 10], quench: [9, 10] },
@@ -177,7 +185,8 @@ export const WHY: Partial<Record<HeroId, Record<string, Why>>> = {
     steambreech: [[1, 8, "starved"], [9, 9, "starved"]] },
   bastion: { longcase: "shortRide", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake", stoker: "gunFull", // 0.8.0 I1: STOKER
     scrapcannon: "num1Open", deckgun: [[1, 1, "num1Open"], [5, 6, "starved"], [10, 10, "num1Open"]], thunderer: "num1Open",
-    siegegun: [[2, 3, "num1Open"], [4, 4, "starved"]], rampart: "starved", grease: "stampPaced" },
+    siegegun: [[2, 3, "num1Open"], [4, 4, "starved"]], rampart: "starved", grease: "stampPaced",
+    spikerail: "noRoom" }, // SHAPES-1 flip
   // Y7b2 (the flip): STEAM BREECH on days 1-2 and 7-10, new, needsEngine (no PLATE on the deck; its gun isn't starved:
   // CALIBRATION is live there); its old days keep their reasons (was [[4, 5, "starved"], [6, 10, "num1Open"]])
   furnace: { longhaul: "needsPriorHits", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake",

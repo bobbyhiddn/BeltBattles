@@ -18,6 +18,7 @@ import { STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, standInCandidate, 
 import { encodeStarred } from "../src/sim/harness/standinCode";
 import { DEFAULT_OPTS, runTournament, type Runner } from "../src/sim/harness/tournament";
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the pins' switch-off check
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the pins' switch-off check
 
 const hash32 = (s: string): number => {
   let h = 0x811c9dc5;
@@ -152,11 +153,16 @@ describe("harness cores (0.6.1b): legality", () => {
     // vp-H1: this file green with only HULL_SCALE off), so no other harness path moved; that check stays here
     const [a, b] = pins();
     console.log(`AZ-BUMP-PIN harness.cores, every switch on: random builds ${a}, full purses ${b}`);
-    expect(a).toBe(4035130089);
+    // SHAPES-1 flip: the shared pool (buyableModules()) gains NAIL STRIP, EMBER TROUGH and SPIKE RAIL, which the random
+    // builds draw and place by the shaped-rig solver (beltside.ts shapedSpot), and the order lever's swap now keeps a shaped
+    // flat rig legal (levers.ts sortRoute/fitsTurned), so both move: 4035130089 -> 1254995653 and 3958019260 -> 710977181.
+    // With SHAPES off both read AZ-BUMP's values again (below), so no other harness path moved
+    expect(a).toBe(1254995653);
     // AZ-BUMP (the flip, HULL_SCALE): the full purses 2353056724 -> 3958019260, read from the log line above in run 5's group
     // check M1b (the work tree, every switch on)
-    expect(b).toBe(3958019260);
-    expect(withHullScale(pins, false)).toEqual([299861875, 2353056724]);
+    expect(b).toBe(710977181);
+    expect(withShapes(pins, false)).toEqual([4035130089, 3958019260]); // SHAPES-1 flip: the switch-off check
+    expect(withShapes(() => withHullScale(pins, false), false)).toEqual([299861875, 2353056724]); // SHAPES-1 flip: AZ-BUMP's check, SHAPES off
   }, 60_000);
 });
 
