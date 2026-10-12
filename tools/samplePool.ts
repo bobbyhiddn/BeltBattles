@@ -51,6 +51,7 @@ import { PAR_K, parSeeds } from "../src/sim/harness/par";
 import { parRunSeed, playerRoadLog, playerRun, type PlayerDay } from "../src/sim/harness/player";
 import { CASUAL_TUNE, casualRun } from "../src/sim/harness/casual"; // LOSS-1 P2: the floor ghosts' decks (NPC_DAY on)
 import { npcDayRules, type RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP (N3): the seed ghosts' road logs
+import { isShapesPiece } from "../src/sim/shapes"; // SHAPES-1: the retired shopper never draws a shaped rig
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { eligible } from "../src/net/matchmaking";
 import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
@@ -60,7 +61,11 @@ import { encodeStarred, standInParIndex, standInPickIndex, standInPool, type Sta
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
 const PLATE = ITEMS.plating.supply!.hull!;
-const GATES = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant);
+// SHAPES-1 (step 8, the flip; RUN2-SHAPES1 1.7: changed because a shaped piece broke it): the retired variant-1 shopper
+// replays its rng draws only, so each sample snapshot keeps its record; it never draws one of the three shaped rigs. With
+// SHAPES on at load they would join this list (made once, at load): its draws, and so the records, would move, and with
+// SHAPES then set off a drawn NAIL STRIP would be an unknown item. The list is the same with SHAPES on or off.
+const GATES = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant && !isShapesPiece(d.id));
 const MODS = Object.values(ITEMS).filter((d) => d.kind === "mod" && d.merchant);
 
 /** sampleGhosts' variants per hero and day (0 the par, 1 a seeded pick); floorGhosts adds variant FLOOR_VARIANT. */
