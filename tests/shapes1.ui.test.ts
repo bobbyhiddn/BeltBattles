@@ -10,7 +10,7 @@
 //   `IDLE: NO BELT IN REACH`, `2 HITS · 1 ARROW IDLES`.
 // - SHAPES off: no shaped piece exists, a 1-cell rig's and a 2x2's carry target is 0.9.9's, and no factory panel has ROTATE.
 import { describe, expect, it } from "vitest";
-import { newRun, type Run } from "../src/game/run";
+import { newRun, rotateRig, type Run } from "../src/game/run";
 import { ITEMS } from "../src/sim/content";
 import { canPlaceItem, isIntakeCell, itemByUid, key as K, rotField, rotOf, type Placed } from "../src/sim/deck";
 import { withShapes } from "../src/sim/shapes";
@@ -89,6 +89,26 @@ describe("SHAPES-1 S2: turning a shaped piece around its anchor", () => {
       expect(rotOf(itemByUid(run.build, 7)!)).toBe(3);
       rotate(h, 7); // from 3: rot 0 at (3,2) covers (4,2), the belt: falls through to rot 1
       expect(rotOf(itemByUid(run.build, 7)!)).toBe(1);
+    });
+  });
+
+  it("run.ts rotateRig (the game's API) turns a long rig only to a turn that fits, as turnFit; boxed in it stays (false); a 1-cell rig as before", () => {
+    withShapes(() => {
+      const run = furnace([{ uid: 7, def: "nailstrip", x: 3, y: 2, ...rotField("nailstrip", 1) }]);
+      expect(rotateRig(run, 7)).toBe(true);
+      expect(rotOf(itemByUid(run.build, 7)!)).toBe(3); // rot 2 would cover the belt: the next that fits
+      expect(rotateRig(run, 7)).toBe(true);
+      expect(rotOf(itemByUid(run.build, 7)!)).toBe(1); // rot 0 covers the belt too: falls through to 1
+      // boxed in: every other turn of a SPIKE RAIL at (0,7) leaves the deck or meets machinery: it stays put
+      const boxed = furnace([{ uid: 8, def: "spikerail", x: 0, y: 7 }, { uid: 9, def: "whetstone", x: 1, y: 7 }]);
+      const before = rotOf(itemByUid(boxed.build, 8)!);
+      const turned = rotateRig(boxed, 8);
+      const after = rotOf(itemByUid(boxed.build, 8)!);
+      if (!turned) expect(after).toBe(before);
+      else expect(canPlaceItem(boxed.build, "spikerail", 0, 7, 8, after).ok).toBe(true); // it only ever lands where it fits
+      // a 1-cell rig turns a quarter, always
+      expect(rotateRig(boxed, 9)).toBe(true);
+      expect(rotOf(itemByUid(boxed.build, 9)!)).toBe(1);
     });
   });
 

@@ -21,6 +21,7 @@ import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the p
 import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold (dayPool)
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 import { cellsOf, isIntakeCell, shapesRules } from "../sim/deck"; // SHAPES-1 S5b: the intake sweep
+import { canPlaceItem } from "../sim/deck"; // SHAPES-1 (R1, S2): rotateRig turns a long rig only where it fits
 import { isShaped } from "../sim/foot"; // SHAPES-1 S5b
 import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
 import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type LastChance, type LastChanceOffer } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
@@ -652,6 +653,19 @@ export function storePlaced(run: Run, uid: number): boolean {
 export function rotateRig(run: Run, uid: number): boolean {
   const p = run.build.items.find((q) => q.uid === uid);
   if (!p || rigShape(p.def) === undefined || rigShape(p.def) === "X") return false;
+  // SHAPES-1 (REQ-BFG-086 R1, S2; found by the flip's upload-driver fix): a long rig's turn moves its footprint, so it turns
+  // around its anchor only to a turn that fits there (the editor's rule, shapeEdit.ts turnFit): the next one that fits;
+  // none fits: it stays put (false). A 1-cell rig turns as before. (The build screen sends shaped pieces to turnFit.)
+  if (isShaped(ITEMS[p.def])) {
+    for (let k = 1; k < 4; k++) {
+      const r = (rotOf(p) + k) % 4;
+      if (canPlaceItem(run.build, p.def, p.x, p.y, uid, r).ok) {
+        setRot(p, r);
+        return true;
+      }
+    }
+    return false;
+  }
   setRot(p, rotOf(p) + 1);
   return true;
 }
