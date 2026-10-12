@@ -75,7 +75,7 @@
 //         wearing it, and the reload keeps the carrier choice. --profile mixed adds carrier styles: ADMIRAL'S BLUE open and
 //         worn, IRONCLAD open and unseen, STORMCALLER and CHAMPION'S GOLD locked.
 // Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names,bar,customize,
-//        newstyle,roadfork] [--tag after] [--name touchcheck] [--profile none|mixed] [--cviews phone,...,desk]
+//        newstyle,roadfork,scout,foecard,shaperotate] [--tag after] [--name touchcheck] [--profile none|mixed] [--cviews phone,...,desk]
 //        [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json, <name>-mouse.json and the screenshots.
 
@@ -96,8 +96,8 @@ const opt = (name, fallback) => {
 const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "touchcheck"));
 // PACKS M2: + names; TAP-093b: + bar; CUSTOM-2b (REQ-BFG-072): + customize, newstyle, roadfork; SCOUT-1 (REQ-BFG-076): + scout;
-// SCOUT-1c (REQ-BFG-082): + foecard
-const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout,foecard").split(",").map((s) => s.trim());
+// SCOUT-1c (REQ-BFG-082): + foecard; SHAPES-1 (REQ-BFG-086 S3): + shaperotate
+const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout,foecard,shaperotate").split(",").map((s) => s.trim());
 const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
 /** CUSTOM-2b (REQ-BFG-072): --profile: the player profile (beltbattles.profile.v1) every page of the run starts with,
@@ -2216,6 +2216,75 @@ async function foeCardSection(browsers, origin) {
   }
 }
 
+// ---------------------------------------------------------------------------------- SHAPES-1: the floating ROTATE button
+/** SHAPES-1 (REQ-BFG-086 S3; RUN3-SHAPES1 5): FURNACE's day-3 deck (FURNACE above) with a NAIL STRIP (a 2-cell rig) in
+ *  cargo in the GALVANIC COIL's place. */
+const SHAPE_DECK = { ...FURNACE, inventory: [{ uid: 60, def: "nailstrip" }] };
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S3, acceptance 4; RUN3-SHAPES1 5): a finger's carry of a shaped piece on a phone, by real touch
+ * input. A drag from cargo lifts the NAIL STRIP; while that finger stays down the floating ROTATE button (chrome.ts
+ * `carryrotate`) shows beside its ghost as a target at least 44 x 44 CSS px; a second finger's tap on it turns the carried
+ * piece (edit.ts rotateCarry: a quarter turn, or the next turn that fits) while the first finger still holds it; the first
+ * finger's lift drops it at the turned rot. Chromium's phone view only (its CDP session holds two touch points; the WebKit
+ * session here holds one). A build without shaped pieces (before SHAPES-1, or SHAPES off) logs one line and checks nothing.
+ */
+async function shapeRotateView(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  const V = `shaperotate ${vname}`;
+  viewNow = V;
+  // bb.shapes() only reports the switch on a production page (its setter is dev-only since SHAPES-1's flip)
+  const has = await page.evaluate(() => typeof window.bb.shapes === "function" && window.bb.shapes() === true);
+  if (!has) {
+    log(`${V}: this build has no shaped pieces (SHAPES off): nothing to check`);
+    await ctx.close();
+    return;
+  }
+  await openDeck(page, SHAPE_DECK);
+  const from = await slot(page, 0), to = await cell(page, 1, 4);
+  await drag(cdp, [from, to], false); // the finger stays down: the carry
+  await page.waitForFunction(() => window.bb.game.screen.ed.carry?.def === "nailstrip", null, { timeout: 5000 }).catch(() => {});
+  await nextFrame(page);
+  const carried = () => page.evaluate(() => { const c = window.bb.game.screen.ed.carry; return c ? { def: c.def, rot: c.rot ?? 0, touch: !!c.touch } : null; });
+  const c0 = await carried();
+  check(!!c0 && c0.def === "nailstrip" && c0.touch, `${V}: a finger's drag from cargo carries the NAIL STRIP (${c0 ? `a ${c0.touch ? "finger's" : "mouse's"} carry at rot ${c0.rot}` : "no carry"})`);
+  const rb = await region(page, "carryrotate");
+  check(!!rb && rb.w >= TAP_CSS && rb.h >= TAP_CSS, `${V}: while the finger holds it, the floating ROTATE button shows: a ${rb ? `${rb.w.toFixed(1)}x${rb.h.toFixed(1)}` : "missing"} CSS px target (at least 44 x 44)`);
+  if (rb) {
+    // the second finger: down on ROTATE while the first stays down where the drag left it, about 40 ms, then up alone. CDP
+    // takes the active points each time (a touchEnd may name none): a touchStart naming both presses the new one, and a
+    // touchMove naming the first alone lifts the second (each changed point is one pointer event, in the page's order)
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [tp(to), { ...tp(centre(rb)), id: 2 }] });
+    await sleep(40);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [tp(to)] });
+    await sleep(150);
+    await nextFrame(page);
+  }
+  const c1 = await carried();
+  check(!!c0 && !!c1 && c1.def === "nailstrip" && c1.rot !== c0.rot, `${V}: a second finger's tap on ROTATE turns the carried NAIL STRIP while the first finger holds it (rot ${c0 ? c0.rot : "?"} -> ${c1 ? c1.rot : "no carry"})`);
+  await shot(page, `${vname}-shaperotate.png`);
+  await up(cdp); // the first finger lifts: the drop
+  await nextFrame(page);
+  const placed = await page.evaluate(() => window.bb.game.run.build.items.find((p) => p.def === "nailstrip") ?? null);
+  check(!!placed && !!c1 && (placed.rot ?? 0) === c1.rot, `${V}: the first finger's lift drops the NAIL STRIP at the turned rot (${placed ? `at (${placed.x},${placed.y}) rot ${placed.rot ?? 0}` : "not on the deck"})`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+  await ctx.close();
+}
+
+async function shapeRotateSection(browsers, origin) {
+  log("");
+  log("## SHAPES-1 (REQ-BFG-086 S3): a finger's carry of a shaped piece: the floating ROTATE button (at least 44 CSS px), a second finger's tap that turns the piece, the drop at the turned rot");
+  for (const v of ["phone"]) {
+    loadLine(`shaperotate ${v}: start`);
+    try {
+      await shapeRotateView(browsers, origin, v);
+    } catch (e) {
+      check(false, `shaperotate ${v}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    loadLine(`shaperotate ${v}: end`);
+  }
+}
+
 async function main() {
   const browsers = { chromium: await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] }) };
   const views = ONLY.includes("touch") ? TOUCH_VIEWS : [];
@@ -2252,6 +2321,7 @@ async function main() {
     if (ONLY.includes("roadfork")) await roadForkSection(browsers, site.origin);
     if (ONLY.includes("scout")) await scoutSection(browsers, site.origin); // SCOUT-1 (REQ-BFG-076)
     if (ONLY.includes("foecard")) await foeCardSection(browsers, site.origin); // SCOUT-1c (REQ-BFG-082)
+    if (ONLY.includes("shaperotate")) await shapeRotateSection(browsers, site.origin); // SHAPES-1 (REQ-BFG-086 S3)
   } finally {
     for (const b of Object.values(browsers)) await b.close();
     site.srv.close();

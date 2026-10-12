@@ -73,6 +73,18 @@ async function main() {
       }, def);
       await settle(page, 6);
       if (uid >= 0) await shot(`panel-${def}`, `the placed ${def}'s panel face`);
+      // SHAPES-1 run 6 (the gate's NOTES picture, REQ-BFG-089): the placed NAIL STRIP's ⓘ view open (keywords.ts region
+      // "kw:?", as scripts/shots-num4.mjs opens it): the default rules text behind the tap (the rig sentence, the shape rule)
+      if (uid >= 0 && def === "nailstrip") {
+        const opened = await page.evaluate(() => {
+          const r = window.bb.game.ui.regions.filter((q) => q.id.endsWith("kw:?")).pop();
+          if (r) r.onTap();
+          return !!r;
+        });
+        await settle(page, 6);
+        if (opened) await shot("notes-nailstrip", "the placed NAIL STRIP's ⓘ view open (its NOTES: the default rules text)");
+        else console.log(`notes-nailstrip-${view}.png: not taken (no ⓘ region)`);
+      }
     }
     await page.evaluate(() => {
       const s = window.bb.game.screen, run = window.bb.game.run;
@@ -91,6 +103,16 @@ async function main() {
     await page.evaluate(() => window.bb.open("battle"));
     await settle(page, 240);
     await shot("battle", "the battle world, 4 s in, the deck with its shaped pieces");
+    // SHAPES-1 run 6 (the gate's foe-view picture): SCOUT-1's VIEW BATTLEFIELD once the fight is over (bb.viewBattlefield
+    // opens it from the result card), both carriers drawn, the deck's shaped pieces among them
+    const viewed = await page.evaluate(() => {
+      const g = window.bb.game;
+      for (let i = 0; i < 60 * 240; i++) { g.step(1 / 60); if (i % 30 === 0 && window.bb.viewBattlefield(true)) return true; }
+      return window.bb.viewBattlefield(true);
+    });
+    await settle(page, 90);
+    if (viewed) await shot("foeview", "VIEW BATTLEFIELD after the fight (SCOUT-1's view): the deck's shaped pieces as the foe sees them");
+    else console.log(`foeview-${view}.png: not taken (no result card in 240 s)`);
     await ctx.close();
   }
   await browser.close();
