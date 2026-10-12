@@ -7,6 +7,7 @@
 // Every press on the carrier goes through the same map (toDeck), every carrier draw through its inverse (inCarrier).
 import { beforeAll, describe, expect, it } from "vitest";
 import { setTipsForTests } from "../src/ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): the band measured with every tip new
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 (RUN5 1.2): phoneBand90's point on the shipped panels, SHAPES off
 import { installRaster, fresh, G } from "./raster.helpers";
 import { newRun, type Run } from "../src/game/run";
 import { buyableModules } from "../src/sim/content";
@@ -263,10 +264,11 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
   // and tap tests above complete some tips (a part placed or moved). The band is measured with every tip new, the first
   // run's panels, the most a panel holds; tests/explain1.test.ts (e) measures the band with every tip done too
   beforeAll(() => { setTipsForTests("new"); });
-  /** The height each panel needs at band width W - 6 to show its full description (fullText), in the band's layout. */
-  const needs = (W: number): number[] => {
+  /** The height each panel needs at band width W - 6 to show its full description (fullText), in the band's layout.
+   *  SHAPES-1 (RUN5 1.2): `list`, the panels to measure (default all; the SHAPES-off set below). */
+  const needs = (W: number, list = all): number[] => {
     const L = buildLayout(W, 700, true, 5, true, 27), v = { W, H: 700, scale: 5, dpr: 3, portrait: true };
-    return all.map((c) => {
+    return list.map((c) => {
       const ctx = { game: { ui: new UI(), t: 0, view: v }, run: c.run, touch: true, L } as unknown as Ctx;
       let lo = 10, hi = 200;
       while (hi - lo > 1) { const m = (lo + hi) >> 1; const d = detailsPlan(ctx, c.sel, null, { ...L.info, h: m }); if (d && fullText(d.plan)) hi = m; else lo = m; }
@@ -281,25 +283,49 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
     // SPACE-1 (REQ-BFG-087, D6): the re-pinned table's steps (238, 240, 246, 248, 250) and either side of each; was 186, 235,
     // 236, 237, 238, 241, 245, 246, 247, 248, 258, 315, 340
     const widths = [186, 235, 236, 237, 238, 239, 240, 241, 245, 246, 247, 248, 249, 250, 258, 315, 340], rows: string[] = [];
+    // SHAPES-1 x c099-card3 (RUN5-SHAPES1 1.2, cap's ruling: no layout or panel-code change in SHAPES-1; layout.ts
+    // phoneBand90 stays): the band was sized on the shipped panel set, so this test keeps its point with SHAPES set off, on
+    // the 899 panels without the shaped three (the same rule as SHAPES-1's off-world tripwires, 22ca218). With SHAPES on
+    // (as it ships) one assertion below pins the merged tree's measured fit at the widths that move
+    const measure = (list: typeof all, W: number) => {
+      const hs = needs(W, list).sort((a, b) => a - b), band = phoneBand90(W);
+      return { band, fit: hs.filter((n) => n <= band).length, share: hs.filter((n) => n <= band).length / hs.length, p90: hs[Math.ceil(0.9 * hs.length) - 1], tallest: hs[hs.length - 1] };
+    };
+    withShapes(() => {
+      const shipped = panels();
+      expect(shipped.length).toBe(899);
+      for (const W of widths) {
+        const { band, share, p90, tallest } = measure(shipped, W);
+        rows.push(`${W}: ${band} (${(share * 100).toFixed(1)}% fit; measured 90th ${p90}; tallest ${tallest})`);
+        // EXPLAIN-1 (REQ-BFG-089, E6): the pins hold as floors. EXPLAIN-1 takes default rules text off the faces (a turret's two
+        // kind lines, the flavour, a done tip's hint), so the panels need less: the measured 90th can only fall below a pin,
+        // never rise past it. The pins stay (the band keeps its height and the zoom its PICKS: cap's call, EXPLAIN-1's brief
+        // E6; a re-pin is an option for cap, reported in the REPORT's section 6), and each must still cover at least 90% of the
+        // panels (the shares can only rise). Was: the measured 90th equals the pin
+        expect(p90, `W ${W}`).toBeLessThanOrEqual(band);
+        expect(share, `W ${W}`).toBeGreaterThanOrEqual(0.9);
+      }
+    }, false);
+    console.log(`ZOOM-1 phoneBand90 (SHAPES off): ${rows.join(" | ")}`);
+    // SHAPES-1 flip (a LIMIT, cap's call): the three shaped plain rigs' 27 placed panels need 67/74 px at W 186 and 55/62
+    // from W 235 (a hit line per cell and UP TO n HITS: two or three lines more than WHETSTONE's 53/41), so with SHAPES on
+    // the measured 90th passes the pin at some widths (run 4 at cd59be0: W 186 67 > 60, 89.3% fit; 236-239 60; 240 57 > 53,
+    // 87.7%; 250 48 > 45, 88.4%). SHAPES-1 x c099-card3 (RUN5 1.2): measured on the merged tree (card3 moved the panels),
+    // every width where the 90th passes the pin or under 90% fit, with its fit (panels of 938 at or under the pin) and its
+    // 90th. Compacting a long rig's hit lines, and the way back to 90%, is PLAIN-1F's. zoom.test.ts's overflow and D3 checks
+    // still pass with SHAPES on: every panel shows its full text (in the band or grown over the shop)
+    const on: string[] = [], moved: Record<number, string> = {};
     for (const W of widths) {
-      const hs = needs(W).sort((a, b) => a - b), band = phoneBand90(W);
-      const share = hs.filter((n) => n <= band).length / hs.length, p90 = hs[Math.ceil(0.9 * hs.length) - 1];
-      rows.push(`${W}: ${band} (${(share * 100).toFixed(1)}% fit; measured 90th ${p90}; tallest ${hs[hs.length - 1]})`);
-      // EXPLAIN-1 (REQ-BFG-089, E6): the pins hold as floors. EXPLAIN-1 takes default rules text off the faces (a turret's two
-      // kind lines, the flavour, a done tip's hint), so the panels need less: the measured 90th can only fall below a pin,
-      // never rise past it. The pins stay (the band keeps its height and the zoom its PICKS: cap's call, EXPLAIN-1's brief
-      // E6; a re-pin is an option for cap, reported in the REPORT's section 6), and each must still cover at least 90% of the
-      // panels (the shares can only rise). Was: the measured 90th equals the pin
-      // SHAPES-1 flip (left red: a LIMIT, cap's call): the three shaped plain rigs' 27 placed panels need 67/74 px at W 186
-      // and 55/62 from W 235 (a hit line per cell and UP TO n HITS: two or three lines more than WHETSTONE's 53/41), so with
-      // SHAPES on the measured 90th passes the pin at W 186 (67 > 60, 89.3% fit), 236-239 (60), 240 (57 > 53, 87.7%) and
-      // 250 (48 > 45, 88.4%); without the 39 new panels it is at or under the pin at every W. The pins are layout.ts
-      // phoneBand90's
-      expect(p90, `W ${W}`).toBeLessThanOrEqual(band);
-      expect(share, `W ${W}`).toBeGreaterThanOrEqual(0.9);
+      const { band, fit, share, p90, tallest } = measure(all, W);
+      on.push(`${W}: ${band} (${(share * 100).toFixed(2)}% fit; measured 90th ${p90}; tallest ${tallest})`);
+      if (p90 > band || share < 0.9) moved[W] = `${fit} of ${all.length}, 90th ${p90}`;
     }
-    console.log(`ZOOM-1 phoneBand90: ${rows.join(" | ")}`);
-  }, 300_000);
+    console.log(`ZOOM-1 phoneBand90 (SHAPES on): ${on.join(" | ")}`);
+    // measured on the merged tree (run 6, after b81b420): card3's words moved the widths that pass: W 186-249 now at or under
+    // the pin (W 186: 90th 60 = the pin, 93.18% fit), and from W 250 the 90th is 48 over the pin 45 (88.59% at W 250, 89.87%
+    // at W 258-340). SHAPES off, every width holds (above)
+    expect(moved).toEqual({ 250: "831 of 938, 90th 48", 258: "843 of 938, 90th 48", 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48" });
+  }, 900_000); // SHAPES-1 (RUN5 1.2): two sweeps now (SHAPES off and on), 17 widths x the panels each; was 300 s
 
   it("on the zoomed phones every panel shows its full description: in the band, or grown up over the shop (never over the carrier)", () => {
     const rows: string[] = [], shares: [string, number][] = [];

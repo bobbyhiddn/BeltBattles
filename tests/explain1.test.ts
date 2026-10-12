@@ -49,6 +49,7 @@ import {
 } from "../src/screens/build/keywords";
 import { PLAIN_RIGS, RIG_SENTENCE, faceLines, hasFace, plainRigStats, turretPlainOf } from "../src/ui/faces";
 import { SHAPED_PLAIN_RIGS, isPlainRig, shapeLines } from "../src/ui/faces"; // SHAPES-1 flip: the shaped plain rigs (E9's path)
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 (RUN5 1.2): (e)'s point on the shipped panels, SHAPES off
 import { TIPS, TIPS_KEY, completeTip, hintShows, hintTips, setTipsForTests, tipDone, tipsDone } from "../src/ui/tips";
 import { buy, rotate, type Ctx } from "../src/screens/build/actions";
 import { tapRect } from "../src/ui/ui";
@@ -577,22 +578,46 @@ describe("EXPLAIN-1 (e): the band", () => {
 
   it("(e) phoneBand90's measure (zoom1.test.ts's: each panel's full text at band width W - 6) with every tip done: the 90th per width, under or at each pin", () => {
     setTipsForTests("done");
-    const rows: string[] = [];
-    for (const W of [186, 235, 236, 237, 238, 239, 240, 241, 245, 246, 247, 248, 249, 250, 258, 315, 340]) {
+    const rows: string[] = [], widths = [186, 235, 236, 237, 238, 239, 240, 241, 245, 246, 247, 248, 249, 250, 258, 315, 340];
+    const measure = (list: typeof all, W: number) => {
       const L = buildLayout(W, 700, true, 5, true, 27), v = { W, H: 700, scale: 5, dpr: 3, portrait: true };
-      const hs = all.map((c) => {
+      const hs = list.map((c) => {
         const ctx = { game: { ui: new UI(), t: 0, view: v }, run: c.run, touch: true, L } as unknown as Ctx;
         let lo = 10, hi = 200;
         while (hi - lo > 1) { const m = (lo + hi) >> 1; const d = detailsPlan(ctx, c.sel, null, { ...L.info, h: m }); if (d && fullTextOf(d.plan)) hi = m; else lo = m; }
         return hi;
       }).sort((a, b) => a - b);
-      const p90 = hs[Math.ceil(0.9 * hs.length) - 1], pin = phoneBand90(W);
-      rows.push(`${W}: pin ${pin}, measured 90th ${p90} (tips done)`);
-      // SHAPES-1 flip (left red: a LIMIT, cap's call; zoom1.test.ts has the numbers): tips done as tips new, the three shaped
-      // plain rigs' 27 placed panels lift the 90th past the pin at W 186 (67), 236-239 (60), 240 (57) and 250 (48)
-      expect(p90, `W ${W}`).toBeLessThanOrEqual(pin);
+      const pin = phoneBand90(W), fit = hs.filter((n) => n <= pin).length;
+      return { pin, p90: hs[Math.ceil(0.9 * hs.length) - 1], fit, share: fit / hs.length };
+    };
+    // SHAPES-1 x c099-card3 (RUN5-SHAPES1 1.2, cap's ruling: no layout or panel-code change in SHAPES-1; layout.ts
+    // phoneBand90 stays): the band was sized on the shipped panel set, so (e) keeps its point with SHAPES set off, on the 899
+    // panels without the shaped three (the same rule as SHAPES-1's off-world tripwires, 22ca218)
+    withShapes(() => {
+      const shipped = panels();
+      expect(shipped.length).toBe(899);
+      for (const W of widths) {
+        const { pin, p90 } = measure(shipped, W);
+        rows.push(`${W}: pin ${pin}, measured 90th ${p90} (tips done)`);
+        expect(p90, `W ${W}`).toBeLessThanOrEqual(pin);
+      }
+    }, false);
+    console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES off): ${rows.join(" | ")}`);
+    // SHAPES-1 flip (a LIMIT, cap's call; zoom1.test.ts has the numbers): tips done as tips new, the three shaped plain rigs'
+    // 27 placed panels lift the 90th past the pin at some widths (run 4 at cd59be0: W 186 67, 236-239 60, 240 57, 250 48).
+    // SHAPES-1 x c099-card3 (RUN5 1.2): one assertion pins the merged tree's measured fit with SHAPES on (as it ships) at
+    // the widths that move: each width whose 90th passes the pin, with its fit (panels of 938 at or under the pin) and its
+    // 90th. The way back to 90% is PLAIN-1F's (a long rig's hit lines compacted)
+    const on: string[] = [], moved: Record<number, string> = {};
+    for (const W of widths) {
+      const { pin, p90, fit, share } = measure(all, W);
+      on.push(`${W}: pin ${pin}, measured 90th ${p90}, ${(share * 100).toFixed(2)}% fit (tips done)`);
+      if (p90 > pin) moved[W] = `${fit} of ${all.length}, 90th ${p90}`;
     }
-    console.log(`EXPLAIN-1 phoneBand90, tips done: ${rows.join(" | ")}`);
+    console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES on): ${on.join(" | ")}`);
+    // measured on the merged tree (run 6, after b81b420), tips done the same as zoom1's tips new: W 186-249 at or under the
+    // pin; from W 250 the 90th is 48 over the pin 45 (88.59% fit at W 250, 89.87% at W 258-340)
+    expect(moved).toEqual({ 250: "831 of 938, 90th 48", 258: "843 of 938, 90th 48", 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48" });
   }, 900_000);
 });
 
