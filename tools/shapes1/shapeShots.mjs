@@ -78,7 +78,8 @@ async function main() {
       const s = window.bb.game.screen, run = window.bb.game.run;
       s.select({ kind: "none" });
       run.gold = 30;
-      run.shop.wagons = [{ merchant: "alchemist", offers: ["nailstrip", "embertrough", "spikerail", "gantry"].map((def) => ({ def, price: { nailstrip: 4, embertrough: 4, spikerail: 6, gantry: 7 }[def], sold: false })) }];
+      // the shop's prices as the game sets them (EMBER TROUGH 5 G since cap's ruling RUN5-SHAPES1 1.1)
+      run.shop.wagons = [{ merchant: "alchemist", offers: ["nailstrip", "embertrough", "spikerail", "gantry"].map((def) => ({ def, price: { nailstrip: 4, embertrough: 5, spikerail: 6, gantry: 7 }[def], sold: false })) }];
       s.touched?.();
     });
     await settle(page, 30);

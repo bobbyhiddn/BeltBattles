@@ -157,10 +157,13 @@ describe("harness cores (0.6.1b): legality", () => {
     // builds draw and place by the shaped-rig solver (beltside.ts shapedSpot), and the order lever's swap now keeps a shaped
     // flat rig legal (levers.ts sortRoute/fitsTurned), so both move: 4035130089 -> 1254995653 and 3958019260 -> 710977181.
     // With SHAPES off both read AZ-BUMP's values again (below), so no other harness path moved
-    expect(a).toBe(1254995653);
+    // SHAPES-1 (RUN5-SHAPES1 3, cap's ruling 1.1): EMBER TROUGH 4 -> 5 G: the random builds and the full purses spend
+    // their gold by price on the shared pool, so both move again: 1254995653 -> 898715018 and 710977181 -> 3415494316
+    // (measured, run 6). With SHAPES off nothing moves (the switch-off checks below)
+    expect(a).toBe(898715018);
     // AZ-BUMP (the flip, HULL_SCALE): the full purses 2353056724 -> 3958019260, read from the log line above in run 5's group
     // check M1b (the work tree, every switch on)
-    expect(b).toBe(710977181);
+    expect(b).toBe(3415494316); // SHAPES-1 (RUN5 3): EMBER TROUGH 5 G; was 710977181 (the flip)
     expect(withShapes(pins, false)).toEqual([4035130089, 3958019260]); // SHAPES-1 flip: the switch-off check
     expect(withShapes(() => withHullScale(pins, false), false)).toEqual([299861875, 2353056724]); // SHAPES-1 flip: AZ-BUMP's check, SHAPES off
   }, 60_000);

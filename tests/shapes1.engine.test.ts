@@ -290,7 +290,8 @@ describe("SHAPES-1 S1: the switch", () => {
   it("R4's numbers: the three rigs' rarity, price, foot, arrows and star rows", () => {
     const row3 = (id: string) => [SHAPES_ITEMS[id].gate, SHAPES_ITEMS[id].levels?.[2]?.gate, SHAPES_ITEMS[id].levels?.[3]?.gate];
     expect(["nailstrip", "embertrough", "spikerail"].map((id) => [SHAPES_ITEMS[id].name, SHAPES_ITEMS[id].rarity, SHAPES_ITEMS[id].price, SHAPES_ITEMS[id].foot])).toEqual([
-      ["NAIL STRIP", "common", 4, "I2"], ["EMBER TROUGH", "common", 4, "I2"], ["SPIKE RAIL", "rare", 6, "I3"],
+      // EMBER TROUGH 4 -> 5 G: cap's ruling RUN5-SHAPES1 1.1 (two TEMPERs on its cells, one gold less than their 6 G)
+      ["NAIL STRIP", "common", 4, "I2"], ["EMBER TROUGH", "common", 5, "I2"], ["SPIKE RAIL", "rare", 6, "I3"],
     ]);
     expect(row3("nailstrip")).toEqual([{ flat: 12 }, { flat: 25 }, { flat: 40 }]);
     expect(row3("embertrough")).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);

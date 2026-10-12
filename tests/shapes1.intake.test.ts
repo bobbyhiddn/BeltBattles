@@ -110,8 +110,10 @@ describe("SHAPES-1 S5b: the intake sweep", () => {
     withShapes(() => {
       const days = casualRun("weaver", 10, 2);
       // before the sweep this run put RAMPART into slot 3 on day 6, over its NAIL STRIP at (7,0); scoring its installs
-      // through installFromCargo (and so the sweep) it now keeps the NAIL STRIP and takes a HAILGUN there on day 9
-      expect(days.map((d) => turretSlots(d.build)[3]?.turret?.def ?? "-").join(" ")).toBe("- - - - - - - - hailgun hailgun");
+      // through installFromCargo (and so the sweep) it now keeps the NAIL STRIP and takes a HAILGUN there on day 9.
+      // SHAPES-1 (RUN5-SHAPES1 3, cap's ruling 1.1): EMBER TROUGH 4 -> 5 G moves this casual run's buys, so slot 3 now takes a
+      // RAMPART on day 10 (was HAILGUN on days 9-10; measured, run 6); every day still validates with no TURRET INTAKE error
+      expect(days.map((d) => turretSlots(d.build)[3]?.turret?.def ?? "-").join(" ")).toBe("- - - - - - - - - rampart");
       for (const d of days) {
         expect(validateBuild(d.build, d.day, "strict").errors.filter((e) => /TURRET INTAKE/.test(e)), `day ${d.day}`).toEqual([]);
         expect(validateUpload(d.build, d.day).errors.filter((e) => /TURRET INTAKE/.test(e)), `day ${d.day}`).toEqual([]);

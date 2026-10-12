@@ -42,7 +42,10 @@ export const SHAPES_ITEMS: Readonly<Record<string, ItemDef>> = {
     levels: { 2: { gate: { flat: 25 } }, 3: { gate: { flat: 40 } } },
   },
   embertrough: {
-    id: "embertrough", name: "EMBER TROUGH", kind: "gate", rarity: "common", price: 4, size: 1, foot: "I2", merchant: "alchemist",
+    // price 5 G (was the brief's 4): cap's ruling RUN5-SHAPES1 1.1 (on the swap read, REPORT section 9 b): it plays like two
+    // TEMPERs on its cells, so it can't be cut per hit (BURN 1 at 1 star is the floor) and price is its lever; at 5 G it
+    // costs one gold less than its two TEMPERs (6 G), a small discount for needing a straight run along a belt
+    id: "embertrough", name: "EMBER TROUGH", kind: "gate", rarity: "common", price: 5, size: 1, foot: "I2", merchant: "alchemist",
     desc: [], tags: ["FORGE"],
     gate: { burn: 1 }, // NAIL STRIP's burn twin
     levels: { 2: { gate: { burn: 2 } }, 3: { gate: { burn: 3 } } },
