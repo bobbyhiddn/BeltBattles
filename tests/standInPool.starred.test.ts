@@ -21,6 +21,7 @@ import {
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { STAND_IN_DATA as V11 } from "./fixtures/standInPoolData.v1.1";
 import { FUSE_MAX, fusible, starsOf } from "../src/sim/stars";
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: (c)'s synthetic deck in the off world
 
 /** Every stored code of the v1.1 pool (the fixture since the 0.6.1 flip), with its hero and day. */
 function v11Codes(): { hero: HeroId; day: number; code: string }[] {
@@ -120,6 +121,11 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
     }
     expect(words).toBeGreaterThan(240);
 
+    // SHAPES-1 flip (step 8), rule 2: the synthetic deck below puts every fusible piece on one cell each (1-cell rigs and
+    // 2x2 factories). With SHAPES on the loader re-places a code's 2x2-written GANTRY PRESS and ASSEMBLY LINE (the S6 load
+    // migration, tests/shapes1.pieces) and a long rig there would leave the deck, which this star-suffix test is not
+    // about: it runs with SHAPES off, as before the flip. The shaped pieces' codes: tests/shapes1.pieces and shapes1.bots.
+    withShapes(() => {
     const fus = Object.keys(ITEMS).filter(fusible);
     const asItems = fus.filter((d) => ITEMS[d].kind === "gate" || ITEMS[d].kind === "factory");
     const cores = fus.filter((d) => ITEMS[d].kind === "core"), mods = fus.filter((d) => ITEMS[d].kind === "mod");
@@ -140,6 +146,7 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
       expect(JSON.stringify(back)).toBe(JSON.stringify(b));
       expect(encodeStarred(back)).toBe(c);
     }
+    }, false);
   });
 
   it("the suffix follows stars.ts starsOf for any stars value (pins the loader's inlined copy); FUSE_MAX is 3", () => {
