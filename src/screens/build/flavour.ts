@@ -70,6 +70,11 @@ export const KEPT_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
   lodestone: [],
   barbed: [],
   counterweight: [],
+  // SHAPES-1 (REQ-BFG-086, REQ-BFG-084): the three shaped plain stat rigs, sold with SHAPES on (src/sim/shapes.ts); none
+  // kept, as TEMPER keeps none: each draws a face (a stat row) and has an empty desc, which no panel may fall back to
+  nailstrip: [],
+  embertrough: [],
+  spikerail: [],
   // --- turret gear ---
   chamber: [], // "DROP ON A TURRET." is the action hint's job
   calibrate: [],
