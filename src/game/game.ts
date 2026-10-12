@@ -38,8 +38,8 @@ export interface Screen {
   up?(x: number, y: number): void;
   cancel?(): void;
   key?(k: string): void;
-  /** SHAPES-1 (REQ-BFG-086 S3): the mouse wheel; true when the screen used it. */
-  wheel?(dy: number): boolean;
+  /** SHAPES-1 (REQ-BFG-086 S3): the mouse wheel (deltaY, deltaMode); true when the screen used it. */
+  wheel?(dy: number, mode?: number): boolean;
 }
 
 interface Toast {
@@ -332,9 +332,9 @@ export class Game implements InputSink {
   }
 
   /** SHAPES-1 (S3): the mouse wheel goes to the screen (the build screen turns a carried piece with it). */
-  wheel(dy: number): boolean {
+  wheel(dy: number, mode = 0): boolean {
     if (this.wipeDir !== 0 || this.nameEntry) return false;
-    return !!this.screen.wheel?.(dy);
+    return !!this.screen.wheel?.(dy, mode);
   }
 
   key(k: string): void {

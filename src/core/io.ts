@@ -59,8 +59,9 @@ export interface InputSink {
   /** SHAPES-1 (REQ-BFG-086 S3): a second pointer pressed while the first is down (no drag, no capture): only a region a
    *  second finger may press hears it (the floating ROTATE button a touch carry shows). */
   pointerExtra?(x: number, y: number, kind: PointerKind): void;
-  /** SHAPES-1 (S3): the mouse wheel (deltaY); true when the screen used it (its default is then prevented). */
-  wheel?(dy: number): boolean;
+  /** SHAPES-1 (S3): the mouse wheel (deltaY and its deltaMode: 0 px, 1 lines, 2 pages); true when the screen used it (its
+   *  default is then prevented). */
+  wheel?(dy: number, mode?: number): boolean;
 }
 
 /** Single-pointer input (mouse, pen or first touch), mapped to logical pixels. shoptap (D1): a press passes its
@@ -109,7 +110,7 @@ export function bindInput(canvas: HTMLCanvasElement, getView: () => View, sink: 
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   // SHAPES-1 (S3): the desk's wheel turns a carried piece (the screen says whether it used it)
   canvas.addEventListener("wheel", (e) => {
-    if (sink.wheel?.(e.deltaY)) e.preventDefault();
+    if (sink.wheel?.(e.deltaY, e.deltaMode)) e.preventDefault();
   }, { passive: false });
   window.addEventListener("keydown", (e) => {
     if (e.repeat && e.key !== "Backspace") return;

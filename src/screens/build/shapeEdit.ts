@@ -139,3 +139,29 @@ export function carriedRot(defId: string, rot: number | undefined): number {
   const n = turnsOf(defId);
   return (((rot ?? 0) % n) + n) % n;
 }
+
+/** S3, cap's wheel guard (RUN3-SHAPES1 1.5): a wheel notch is 100 px of deltaY; a line (deltaMode 1) is 100/3 px, so a
+ *  3-line notch is one notch; a page (deltaMode 2) is one notch; and at most one turn every 0.15 s. */
+export const WHEEL_NOTCH_PX = 100;
+export const WHEEL_LINE_PX = WHEEL_NOTCH_PX / 3;
+export const WHEEL_GAP_S = 0.15;
+/** The wheel's running sum (px) and the time of its last turn (s; -1: none yet). */
+export interface WheelState {
+  sum: number;
+  last: number;
+}
+/** A wheel event's deltaY in px, by its deltaMode (0 px, 1 lines, 2 pages). */
+export function wheelPx(deltaY: number, deltaMode = 0): number {
+  return deltaMode === 1 ? deltaY * WHEEL_LINE_PX : deltaMode === 2 ? deltaY * WHEEL_NOTCH_PX : deltaY;
+}
+/** Add one wheel event (px) at time `now` (s) to `s`: true when it makes a quarter turn. The sum turns at 100 px either
+ *  way and resets; a notch inside 0.15 s of the last turn is dropped (the sum resets too). So a trackpad's long swipe of
+ *  small deltas turns at most once per 0.15 s and only per 100 px, and can't spin the piece. */
+export function wheelTurn(s: WheelState, px: number, now: number): boolean {
+  s.sum += px;
+  if (Math.abs(s.sum) < WHEEL_NOTCH_PX) return false;
+  s.sum = 0;
+  if (s.last >= 0 && now - s.last < WHEEL_GAP_S) return false;
+  s.last = now;
+  return true;
+}

@@ -51,7 +51,7 @@ import { keywordState, questionRect } from "./keywords"; // EXPLAIN-1 (REQ-BFG-0
 import { columnButtons } from "./inspector"; // EXPLAIN-1 tooling: the column's buttons (panelInfo's ⓘ target clears them)
 import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a pack bought completes the supply tip
 import { suggestCell } from "./cues";
-import { canTurn, shapedPiece } from "./shapeEdit"; // SHAPES-1 (REQ-BFG-086 S2, S3)
+import { canTurn, shapedPiece, wheelPx, wheelTurn, type WheelState } from "./shapeEdit"; // SHAPES-1 (REQ-BFG-086 S2, S3)
 import { shapesRules } from "../../sim/deck"; // SHAPES-1 (S3): the wheel turns a carried piece with SHAPES on
 import { footBox } from "../../sim/foot"; // SHAPES-1 (R1): a turned footprint's box
 import { boxRect } from "../../render/frame"; // SHAPES-1
@@ -842,14 +842,17 @@ export class BuildScreen implements Screen, EditHost {
     this.ed.cancel();
   }
 
-  private wheelT = -1;
-  /** SHAPES-1 (REQ-BFG-086 S3): with SHAPES on, the desk's mouse wheel turns the carried piece, as R does (one turn at most
-   *  every 0.12 s, so a trackpad's burst is one turn). With SHAPES off the wheel does nothing here, as before. */
-  wheel(dy: number): boolean {
-    if (!shapesRules() || !this.ed.carry || dy === 0 || this.foeView.open || this.modalUp()) return false;
-    if (this.wheelT >= 0 && this.t - this.wheelT < 0.12) return true;
-    this.wheelT = this.t;
-    this.ed.rotateCarry();
+  private wheelS: WheelState = { sum: 0, last: -1 };
+  /** SHAPES-1 (REQ-BFG-086 S3): with SHAPES on, the desk's mouse wheel turns the carried piece, as R does, by cap's wheel
+   *  guard (RUN3-SHAPES1 1.5; shapeEdit.ts wheelTurn): a quarter turn per notch (100 px of deltaY summed, a line 100/3 px),
+   *  at most one every 0.15 s, so a trackpad's swipe can't spin it. With nothing carried, or SHAPES off, the wheel does
+   *  nothing here, as before. */
+  wheel(dy: number, mode = 0): boolean {
+    if (!shapesRules() || !this.ed.carry || dy === 0 || this.foeView.open || this.modalUp()) {
+      this.wheelS.sum = 0;
+      return false;
+    }
+    if (wheelTurn(this.wheelS, wheelPx(dy, mode), this.t)) this.ed.rotateCarry();
     return true;
   }
 

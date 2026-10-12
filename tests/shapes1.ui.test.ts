@@ -21,6 +21,7 @@ import { buildScale, type BuildLayout, type Sel } from "../src/screens/build/lay
 import { carryTarget, dropCell, fingerLift, rigRotAt, rotate, type Carry } from "../src/screens/build/actions";
 import {
   canTurn, carryTurn, machineryArrows, shapedPiece, shapeTag, snapAnchor, turnFit, turnsOf,
+  WHEEL_GAP_S, wheelPx, wheelTurn, type WheelState,
 } from "../src/screens/build/shapeEdit";
 import { rotateButtonRect } from "../src/screens/build/cues";
 import { itemPanel, rigPanel } from "../src/screens/build/inspector";
@@ -180,6 +181,30 @@ describe("SHAPES-1 S2: the carried long rig (auto-aim, R, the drop lands where t
       expect(carryTurn(run.build, "gantry", 0, () => ({ x: 0, y: 7 }), 9)).toEqual({ rot: 0, reason: "OCCUPIED" });
       expect(carryTurn(run.build, "gantry", 0, () => null, 9)).toEqual({ rot: 1 });
     });
+  });
+});
+
+describe("SHAPES-1 S3, cap's wheel guard (RUN3-SHAPES1 1.5): one quarter turn per wheel notch, never a spin", () => {
+  it("a mouse notch (100 px, or 3 lines) turns once; a trackpad's swipe of small deltas turns once per 100 px and at most once per 0.15 s", () => {
+    const fresh = (): WheelState => ({ sum: 0, last: -1 });
+    // a mouse: one notch of 100 px, or 3 lines (deltaMode 1), or one page, is one turn
+    expect(wheelTurn(fresh(), wheelPx(100), 0)).toBe(true);
+    expect(wheelTurn(fresh(), wheelPx(3, 1), 0)).toBe(true);
+    expect(wheelTurn(fresh(), wheelPx(1, 2), 0)).toBe(true);
+    expect(wheelTurn(fresh(), wheelPx(-100), 0)).toBe(true); // either way
+    expect(wheelTurn(fresh(), wheelPx(1, 1), 0)).toBe(false); // one line is a third of a notch
+    // two notches 0.05 s apart: one turn (the second inside 0.15 s is dropped); 0.2 s apart: two
+    const s = fresh();
+    expect([wheelTurn(s, 100, 1), wheelTurn(s, 100, 1.05), wheelTurn(s, 100, 1.25)]).toEqual([true, false, true]);
+    // a trackpad: 4 px every 16 ms for 2 s (500 px in 125 events): turns only at each 100 px, never two within 0.15 s
+    const t = fresh();
+    const turns: number[] = [];
+    for (let i = 0; i < 125; i++) if (wheelTurn(t, 4, i * 0.016)) turns.push(i * 0.016);
+    expect(turns.length).toBe(5);
+    for (let i = 1; i < turns.length; i++) expect(turns[i] - turns[i - 1]).toBeGreaterThanOrEqual(WHEEL_GAP_S);
+    // a swipe back and forth never reaches a notch: no turn
+    const u = fresh();
+    expect(Array.from({ length: 60 }, (_, i) => wheelTurn(u, i % 2 ? -40 : 40, i * 0.016)).some(Boolean)).toBe(false);
   });
 });
 
