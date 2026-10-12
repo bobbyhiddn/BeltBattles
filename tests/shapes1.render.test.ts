@@ -4,12 +4,12 @@
 // footprint cell, and every other place a deck piece is placed or found by its box (levelMark.ts, foeView.ts,
 // battleScout.ts, arenaReact.ts) with SHAPES on; with SHAPES off the same helpers give 0.9.9's numbers for a 1-cell rig
 // and a 2x2 factory. Drawn into tests/raster.helpers.ts's software raster.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { G, R, fresh, installRaster, region, sig } from "./raster.helpers";
 import { CELL, ITEMS, type ItemDef } from "../src/sim/content";
 import { adjacentToFactory, cellsOf, key as K, type Build, type Placed } from "../src/sim/deck";
 import { isShaped } from "../src/sim/foot";
-import { SHAPES, SHAPES_IDS, withShapes } from "../src/sim/shapes";
+import { SHAPES, SHAPES_IDS, setShapes, withShapes } from "../src/sim/shapes";
 import { boxRect, footX, footY, frame, sx, sy, type DeckFrame, type Facing } from "../src/render/frame";
 import { C } from "../src/render/palette";
 import { gateSprite, itemIcon } from "../src/render/sprites";
@@ -24,6 +24,7 @@ import { pieceMid } from "../src/game/arenaReact";
 installRaster();
 
 const THREE = ["nailstrip", "embertrough", "spikerail"];
+afterEach(() => setShapes(SHAPES)); // SHAPES-1 flip: back to the shipped value (on) after a test that set it off
 const FACINGS: Facing[] = [0, 1, 2, 3];
 const row = (y: number, x0: number, x1: number): number[] => Array.from({ length: x1 - x0 + 1 }, (_, i) => K(x0 + i, y));
 const col = (x: number, y0: number, y1: number): number[] => Array.from({ length: y1 - y0 + 1 }, (_, i) => K(x, y0 + i));
@@ -116,13 +117,15 @@ describe("SHAPES-1 S8: a shaped rig is one body over its turned box", () => {
   });
 
   it("with SHAPES off no rig model has per-cell arrows and no deck piece (rig or factory) is shaped", () => {
-    expect(SHAPES).toBe(false);
-    for (const id of SHAPES_IDS) expect(ITEMS[id]).toBeUndefined();
-    for (const d of Object.values(ITEMS)) if (d.kind === "gate" || d.kind === "factory") expect(isShaped(d), d.id).toBe(false);
-    const b = deck([{ uid: 6, def: "whetstone", x: 2, y: 4 }], [row(3, 1, 4)]);
-    const rm = cruiserModel(b).rigs.get(6)!;
-    expect(rm.arrows).toBeUndefined();
-    expect(Object.keys(rm).sort()).toEqual(["dirs", "hit"]);
+    expect(SHAPES).toBe(true); // SHAPES-1 flip: it ships on; the off world is set off below
+    withShapes(() => {
+      for (const id of SHAPES_IDS) expect(ITEMS[id]).toBeUndefined();
+      for (const d of Object.values(ITEMS)) if (d.kind === "gate" || d.kind === "factory") expect(isShaped(d), d.id).toBe(false);
+      const b = deck([{ uid: 6, def: "whetstone", x: 2, y: 4 }], [row(3, 1, 4)]);
+      const rm = cruiserModel(b).rigs.get(6)!;
+      expect(rm.arrows).toBeUndefined();
+      expect(Object.keys(rm).sort()).toEqual(["dirs", "hit"]);
+    }, false);
   });
 });
 
@@ -200,7 +203,7 @@ describe("SHAPES-1 S8: every other deck site reads the turned box", () => {
   });
 
   it("SHAPES off: WHETSTONE and a 2x2 factory give 0.9.9's box, middle and level mark on every facing", () => {
-    expect(SHAPES).toBe(false);
+    setShapes(false); // SHAPES-1 flip: the off world set off (it ships on); the file's afterEach puts SHAPES back
     const w: Placed = { uid: 6, def: "whetstone", x: 2, y: 4, rot: 3 }, k: Placed = { uid: 1, def: "kiln", x: 5, y: 6 };
     const b: Build = { hero: "furnace", items: [k, w], routes: [], mods: [], beltCap: 99, hullBonus: 0, upgrades: { factory: 2 } };
     for (const fc of FACINGS) {

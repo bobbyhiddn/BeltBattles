@@ -5,13 +5,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { newRun, installFromCargo, intakeToast, moveInstalled, sweepIntakes, type Run } from "../src/game/run";
 import { canPlaceItem, cloneBuild, isIntakeCell, itemByUid, key as K, moveTurret, turretSlots } from "../src/sim/deck";
-import { setShapes, withShapes } from "../src/sim/shapes";
+import { SHAPES, setShapes, withShapes } from "../src/sim/shapes";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import { casualRun } from "../src/sim/harness/casual";
 import { installAt } from "../src/screens/build/turretActions";
 import type { Ctx } from "../src/screens/build/actions";
 
-afterEach(() => setShapes(false));
+afterEach(() => setShapes(SHAPES)); // SHAPES-1 flip: the shipped value (on)
 
 /** WEAVER's start (slot 3 empty) with a NAIL STRIP (★2) standing up at (7,0)-(7,1) and a RAMPART in cargo. */
 function weaver(rig = "nailstrip"): Run {

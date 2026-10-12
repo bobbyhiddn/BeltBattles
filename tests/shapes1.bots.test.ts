@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { cellsOf, cloneBuild, isIntakeCell, key as K, type Build, type Placed } from "../src/sim/deck";
 import { footprintCells, isShaped } from "../src/sim/foot";
-import { RESHAPED_IDS, SHAPES_IDS, setShapes, withShapes } from "../src/sim/shapes";
+import { RESHAPED_IDS, SHAPES, SHAPES_IDS, setShapes, withShapes } from "../src/sim/shapes";
 import { shapedSpot } from "../src/sim/beltside";
 import { fitsSomewhere, playerRun } from "../src/sim/harness/player";
 import { casualRun } from "../src/sim/harness/casual"; // SHAPES-1 (cap's RUN2 note 1.7): S7L's casual player
@@ -24,7 +24,7 @@ import { legalityProblems } from "./rivals.legality";
 import { STANDIN_DEFAULTS, genStandIns } from "../src/sim/harness/standins";
 import { localRunner } from "../src/sim/harness/tournament";
 
-afterEach(() => setShapes(false));
+afterEach(() => setShapes(SHAPES)); // SHAPES-1 flip: the shipped value (on)
 
 /** A bare deck: belts as given (factory uid 1, a KILN at (8,8)), items as given. */
 function deck(routes: number[][], items: Placed[] = []): Build {
@@ -198,7 +198,7 @@ describe("SHAPES-1 S7.5: a dry stand-in sample with SHAPES on (in memory)", () =
       expect(unfusedPairs(p.build)).toEqual([]);
       expect(buildCost(p.build).total).toBeLessThanOrEqual(maxGoldByDay(hd.day));
     }
-    setShapes(false);
+    setShapes(SHAPES); // SHAPES-1 flip: the shipped value
     console.log(`S7 DRY stand-in sample: ${res.days.length} hero-days, ${picks} picks, ${shaped} with a shaped piece`);
     expect(picks).toBeGreaterThan(0);
     void cloneBuild;

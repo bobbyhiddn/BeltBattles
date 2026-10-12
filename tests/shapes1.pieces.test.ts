@@ -19,7 +19,7 @@ import {
   canPlaceItem, cellsOf, cloneBuild, isIntakeCell, routeInfo, rotOf, type Build, type Placed,
 } from "../src/sim/deck";
 import { footOf, footOnDeck, footprintCells, footTurns } from "../src/sim/foot";
-import { SHAPES_IDS, setShapes, shapesRules, withShapes } from "../src/sim/shapes";
+import { SHAPES, SHAPES_IDS, setShapes, shapesRules, withShapes } from "../src/sim/shapes";
 import { clearMigrationLog, migrateShapedFactories, migrationLog } from "../src/sim/beltside";
 import { effectAt, fusible, outputsAt, valueOf } from "../src/sim/stars";
 import { lastChanceParts } from "../src/sim/lastChance";
@@ -36,12 +36,13 @@ import { nextFuseToast, shapeNotice } from "../src/game/save"; // SHAPES-1 (Q4):
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
-afterEach(() => setShapes(false)); // the shipped value; a test that needs SHAPES on sets it itself
+afterEach(() => setShapes(SHAPES)); // SHAPES-1 flip: the shipped value (on); a test that needs SHAPES off sets it itself
 
 const ids = (l: { id: string }[]) => l.map((d) => d.id);
 
 describe("SHAPES-1 R4 and S9: the pools", () => {
   it("off: no pool, merchant or LAST CHANCE card sees the three; on: each is in its rarity's catalogue and its merchant's stock", () => {
+    setShapes(false); // SHAPES-1 flip: the off world set off (it ships on); afterEach puts SHAPES back
     const off = ids(buyableModules());
     const lcOff = ids(lastChanceParts());
     for (const id of SHAPES_IDS) expect(off, id).not.toContain(id);
@@ -72,7 +73,7 @@ describe("SHAPES-1 R4 and S9: the pools", () => {
       for (const d of buyableModules()) cat[d.rarity] = (cat[d.rarity] ?? 0) + 1;
       return { catalogue: buyableModules().length, cat, draw: total / runs, perRarity: Object.fromEntries(Object.entries(by).map(([r, n]) => [r, Math.round((n / runs) * 10) / 10])) };
     };
-    const off = count();
+    const off = withShapes(count, false); // SHAPES-1 flip: the off world set off (it ships on)
     const on = withShapes(count);
     console.log(`S9 POOL off ${JSON.stringify(off)}`);
     console.log(`S9 POOL on ${JSON.stringify(on)}`);
@@ -103,7 +104,7 @@ describe("SHAPES-1 R4: merge, sell and price", () => {
   });
 
   it("ASSEMBLY LINE costs 4 G as an I3 (a SMALL factory keeps its slots); GANTRY PRESS keeps 7 G and gets 4/5/6 slots", () => {
-    expect([ITEMS.assembly.price, valueOf("assembly", 2), sellValue("assembly", 2)]).toEqual([5, 10, 5]);
+    withShapes(() => expect([ITEMS.assembly.price, valueOf("assembly", 2), sellValue("assembly", 2)]).toEqual([5, 10, 5]), false); // SHAPES-1 flip: off set off
     withShapes(() => {
       expect([ITEMS.assembly.price, valueOf("assembly", 2), sellValue("assembly", 2)]).toEqual([4, 8, 4]);
       expect([footOf(ITEMS.assembly), footOf(ITEMS.gantry), ITEMS.gantry.price]).toEqual(["I3", "2x3", 7]);
@@ -114,9 +115,10 @@ describe("SHAPES-1 R4: merge, sell and price", () => {
   });
 });
 
-/** A par deck (the par player's dusk deck, SHAPES off) for the fixtures below. */
+/** A par deck (the par player's dusk deck, SHAPES off) for the fixtures below. SHAPES-1 flip: built with SHAPES set off
+ *  (it ships on), as before the flip. */
 function parDeck(hero: HeroId, day: number, seed: number): Build {
-  return cloneBuild(playerRun(hero, day, seed)[day - 1].build);
+  return withShapes(() => cloneBuild(playerRun(hero, day, seed)[day - 1].build), false);
 }
 
 /** The first spot (row order, rot 0 first) where `def` fits on `b` with SHAPES as it stands, or null. */
@@ -132,11 +134,12 @@ function spotFor(b: Build, def: string, rots = [0, 1, 2, 3], avoid: (k: number) 
 describe("SHAPES-1 S5: TURRET INTAKE (cap's ruling 4ef9d32165edfd0d)", () => {
   it("SHAPES on: a new drop on an intake cell is refused for every piece; off: 0.9.9's rule (legal)", () => {
     const b = parDeck("furnace", 3, 1);
-    const free = [...Array(10).keys()].map((x) => x).find((x) => isIntakeCell(b, x) && canPlaceItem(b, "whetstone", x, 0).ok);
+    // SHAPES-1 flip: the free cells are found, and 0.9.9's rule checked, with SHAPES set off (it ships on)
+    const free = withShapes(() => [...Array(10).keys()].map((x) => x).find((x) => isIntakeCell(b, x) && canPlaceItem(b, "whetstone", x, 0).ok), false);
     expect(free, "a free intake cell on the par deck").toBeDefined();
-    expect(canPlaceItem(b, "whetstone", free!, 0)).toEqual({ ok: true });
+    expect(withShapes(() => canPlaceItem(b, "whetstone", free!, 0), false)).toEqual({ ok: true });
     // a NAIL STRIP whose two cells are free, one of them an intake (OCCUPIED and BELT IN THE WAY come first)
-    const two = [...Array(9).keys()].find((x) => (isIntakeCell(b, x) || isIntakeCell(b, x + 1)) && canPlaceItem(b, "whetstone", x, 0).ok && canPlaceItem(b, "whetstone", x + 1, 0).ok);
+    const two = withShapes(() => [...Array(9).keys()].find((x) => (isIntakeCell(b, x) || isIntakeCell(b, x + 1)) && canPlaceItem(b, "whetstone", x, 0).ok && canPlaceItem(b, "whetstone", x + 1, 0).ok), false);
     withShapes(() => {
       expect(canPlaceItem(b, "whetstone", free!, 0)).toEqual({ ok: false, reason: "TURRET INTAKE" });
       if (two !== undefined) expect(canPlaceItem(b, "nailstrip", two, 0)).toEqual({ ok: false, reason: "TURRET INTAKE" });
@@ -144,18 +147,19 @@ describe("SHAPES-1 S5: TURRET INTAKE (cap's ruling 4ef9d32165edfd0d)", () => {
       const old: Placed = { uid: 900, def: "whetstone", x: free!, y: 0 };
       const withRig = { ...cloneBuild(b), items: [...b.items, old] };
       expect(canPlaceItem(withRig, "whetstone", free!, 0, 900, 1)).toEqual({ ok: true });
-      const other = [...Array(10).keys()].find((x) => x !== free && isIntakeCell(b, x) && canPlaceItem(b, "whetstone", x, 0).ok);
+      const other = withShapes(() => [...Array(10).keys()].find((x) => x !== free && isIntakeCell(b, x) && canPlaceItem(b, "whetstone", x, 0).ok), false);
       if (other !== undefined) expect(canPlaceItem(withRig, "whetstone", other, 0, 900)).toEqual({ ok: false, reason: "TURRET INTAKE" });
     });
   });
 
   it("the validator refuses a shaped piece on an intake cell (SHAPES on) but not a 1-cell rig; KARSK days 9-10 gain no error", () => {
     const pairAt = (bb: Build) => [...Array(9).keys()].find((x) => (isIntakeCell(bb, x) || isIntakeCell(bb, x + 1)) && canPlaceItem(bb, "whetstone", x, 0).ok && canPlaceItem(bb, "whetstone", x + 1, 0).ok);
-    const b = [1, 2, 3, 4, 5, 6].flatMap((q) => [parDeck("furnace", 6, q), parDeck("weaver", 6, q)]).find((bb) => pairAt(bb) !== undefined && !bb.items.some((p) => RESHAPED.includes(p.def)))!;
+    // SHAPES-1 flip: the fixture deck is chosen, and its base errors taken, with SHAPES set off (it ships on)
+    const b = withShapes(() => [1, 2, 3, 4, 5, 6].flatMap((q) => [parDeck("furnace", 6, q), parDeck("weaver", 6, q)]).find((bb) => pairAt(bb) !== undefined && !bb.items.some((p) => RESHAPED.includes(p.def)))!, false);
     expect(b, "a par deck with two free row-0 cells, one an intake").toBeDefined();
     const k = withShapes(() => [...Array(10).keys()].find((x) => isIntakeCell(b, x) && canPlaceItem(b, "whetstone", x, 0).ok)!, false);
     const rig = { ...cloneBuild(b), items: [...b.items, { uid: 901, def: "whetstone", x: k, y: 0 }] };
-    const base = validateBuild(b, 6, "strict").errors;
+    const base = withShapes(() => validateBuild(b, 6, "strict").errors, false);
     const day6 = 6;
     withShapes(() => {
       expect(validateBuild(rig, 6, "strict").errors.filter((e) => e.includes("TURRET INTAKE"))).toEqual([]);
@@ -175,7 +179,7 @@ describe("SHAPES-1 S5: TURRET INTAKE (cap's ruling 4ef9d32165edfd0d)", () => {
         expect(onErr.concat(onUp).filter((e) => e.startsWith("placement"))).toEqual([]);
       }
     });
-    expect(validateBuild(b, 6, "strict").errors).toEqual(base);
+    expect(withShapes(() => validateBuild(b, 6, "strict").errors, false)).toEqual(base);
   });
 });
 
@@ -198,8 +202,10 @@ describe("SHAPES-1 S4: the rot rule and the rules gate", () => {
   it("SHAPES_RULES is this build's rules until the bump; the three rigs travel only with the switch on and under rules that have them", () => {
     expect(SHAPES_RULES).toBe(RULES_VERSION);
     const deck = { items: [{ uid: 1, def: "nailstrip", x: 0, y: 1 }] };
-    expect(shapesGateProblem(RULES_VERSION, deck)).toBe("shaped rigs (NAIL STRIP, EMBER TROUGH, SPIKE RAIL): not in this rules version yet");
-    expect(shapesGateProblem(RULES_VERSION, { items: [] })).toBeNull();
+    withShapes(() => { // SHAPES-1 flip: the switch set off (it ships on)
+      expect(shapesGateProblem(RULES_VERSION, deck)).toBe("shaped rigs (NAIL STRIP, EMBER TROUGH, SPIKE RAIL): not in this rules version yet");
+      expect(shapesGateProblem(RULES_VERSION, { items: [] })).toBeNull();
+    }, false);
     withShapes(() => {
       expect(shapesGateProblem(RULES_VERSION, deck)).toBeNull();
       expect(shapesGateProblem("bb-0.9.3", deck)).toBe(`rules bb-0.9.3 predate ${SHAPES_RULES}: shaped rigs (NAIL STRIP, EMBER TROUGH, SPIKE RAIL) need ${SHAPES_RULES} or later`);
@@ -209,18 +215,21 @@ describe("SHAPES-1 S4: the rot rule and the rules gate", () => {
       expect(inShapesWorld(RULES_VERSION, () => shapesRules())).toBe(true);
       expect(shapesRules()).toBe(true);
     });
-    expect(shapesWorld(RULES_VERSION)).toBe(false);
+    expect(withShapes(() => shapesWorld(RULES_VERSION), false)).toBe(false); // SHAPES-1 flip: set off
+    expect(shapesWorld(RULES_VERSION)).toBe(true); // SHAPES-1 flip: on as it ships
   });
 });
 
 describe("SHAPES-1 S6: the load migration on par decks", () => {
   it("every par deck (four heroes, seeds 1-12, days 5 and 10) holding GANTRY PRESS or ASSEMBLY LINE migrates to a legal deck", () => {
     const decks: { tag: string; b: Build; day: number }[] = [];
-    for (const h of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) for (const day of [5, 10]) {
-      parField(h, day).forEach((b, i) => {
-        if (b.items.some((p) => p.def === "gantry" || p.def === "assembly")) decks.push({ tag: `${h}/${day}/${i + 1}`, b: cloneBuild(b), day });
-      });
-    }
+    withShapes(() => { // SHAPES-1 flip: the decks are built with SHAPES set off (it ships on), then migrated with it on
+      for (const h of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) for (const day of [5, 10]) {
+        parField(h, day).forEach((b, i) => {
+          if (b.items.some((p) => p.def === "gantry" || p.def === "assembly")) decks.push({ tag: `${h}/${day}/${i + 1}`, b: cloneBuild(b), day });
+        });
+      }
+    }, false);
     const stat = { decks: decks.length, gantry: 0, assembly: 0, stayed: 0, moved: 0, cargoed: 0, beltsLost: 0, decksLosingBelt: 0, belts: 0 };
     const lines: string[] = [];
     withShapes(() => {
@@ -268,15 +277,16 @@ describe("SHAPES-1 S6: the load migration on par decks", () => {
     console.log(`S6 MIGRATION ${JSON.stringify(stat)}`);
     for (const l of lines) console.log(`S6 MOVE ${l}`);
     expect(stat.decks).toBeGreaterThan(0);
-    // off: nothing runs
-    expect(migrateShapedFactories(cloneBuild(decks[0].b))).toEqual([]);
+    // off: nothing runs (SHAPES-1 flip: set off)
+    withShapes(() => expect(migrateShapedFactories(cloneBuild(decks[0].b))).toEqual([]), false);
   }, 600_000);
 
   it("a save holding a 2x2 GANTRY PRESS loads re-placed with SHAPES on, as before with it off; a deck made with SHAPES on never moves", () => {
-    const d = playerRun("furnace", 10, 1).find((x) => x.build.items.some((p) => p.def === "gantry" || p.def === "assembly"));
+    // SHAPES-1 flip: the save is made, and loaded once, with SHAPES set off (it ships on), as before the flip
+    const d = withShapes(() => playerRun("furnace", 10, 1).find((x) => x.build.items.some((p) => p.def === "gantry" || p.def === "assembly")), false);
     const b = d ? cloneBuild(d.build) : parDeck("furnace", 10, 1);
     const raw = () => ({ version: 8, build: cloneBuild(b), shop: { offers: [] }, inventory: [], gold: 0, day: d?.day ?? 10, lives: 3, seed: 1, hero: "furnace" });
-    const off = migrateRun(raw());
+    const off = withShapes(() => migrateRun(raw()), false);
     expect(off!.build).toEqual(b);
     withShapes(() => {
       clearMigrationLog();
@@ -308,10 +318,11 @@ function fixtures(): { name: string; s: GhostSnapshot; on: boolean }[] {
   // the first par seed whose day-6 deck holds neither reshaped factory (so its own shapes are the same both ways)
   // (and with two free row-0 cells, one an intake, for the intake fixture)
   const pairAt = (bb: Build) => [...Array(9).keys()].find((x) => (isIntakeCell(bb, x) || isIntakeCell(bb, x + 1)) && canPlaceItem(bb, "whetstone", x, 0).ok && canPlaceItem(bb, "whetstone", x + 1, 0).ok);
-  const seed = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].find((q) => {
+  // SHAPES-1 flip: the seed is chosen with SHAPES set off (it ships on), as before the flip
+  const seed = withShapes(() => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].find((q) => {
     const bb = parDeck(hero, day, q);
     return !bb.items.some((p) => RESHAPED.includes(p.def)) && pairAt({ ...bb, items: bb.items.filter((p) => ITEMS[p.def].kind !== "gate") }) !== undefined;
-  })!;
+  })!, false);
   const base = parDeck(hero, day, seed);
   base.items = base.items.filter((p) => ITEMS[p.def].kind !== "gate");
   const snap = (name: string, build: Build): GhostSnapshot => ({
@@ -431,15 +442,18 @@ describe("SHAPES-1 S4: the server pins (the client check and POST /v1/ghosts, bo
         expect(client.ok, `${f.name} ${on ? "on" : "off"}: ${JSON.stringify(client.errors)}`).toBe(on && f.on);
       }
     }
-    setShapes(false);
+    setShapes(SHAPES); // SHAPES-1 flip: the shipped value
     for (const r of rows) console.log(`S4 PIN ${r}`);
   }, 120_000);
 });
 
 describe("SHAPES-1 S1: switch off, nothing moved", () => {
   it("SHAPES off: GANTRY PRESS and ASSEMBLY LINE 2x2 at 7 and 5 G; no rot on a factory; footprints of 0.9.9", () => {
-    expect(shapesRules()).toBe(false);
-    expect([footOf(ITEMS.gantry), footOf(ITEMS.assembly), ITEMS.gantry.price, ITEMS.assembly.price]).toEqual(["2x2", "2x2", 7, 5]);
-    expect(Object.values(ITEMS).filter((d) => d.foot !== undefined).map((d) => d.id)).toEqual([]);
+    expect(shapesRules()).toBe(true); // SHAPES-1 flip: it ships on; the off world is set off below
+    withShapes(() => {
+      expect(shapesRules()).toBe(false);
+      expect([footOf(ITEMS.gantry), footOf(ITEMS.assembly), ITEMS.gantry.price, ITEMS.assembly.price]).toEqual(["2x2", "2x2", 7, 5]);
+      expect(Object.values(ITEMS).filter((d) => d.foot !== undefined).map((d) => d.id)).toEqual([]);
+    }, false);
   });
 });

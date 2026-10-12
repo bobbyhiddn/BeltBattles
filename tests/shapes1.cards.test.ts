@@ -66,8 +66,10 @@ describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ
       expect(kindLine(ITEMS.whetstone)).toBe("COMMON RIG");
       expect(kindLine(ITEMS.press)).toBe(`${ITEMS.press.rarity.toUpperCase()} FACTORY`);
     });
-    expect(kindLine(ITEMS.gantry)).toBe(`${ITEMS.gantry.rarity.toUpperCase()} FACTORY`);
-    expect(shapeWord("gantry")).toBeNull();
+    withShapes(() => { // SHAPES-1 flip: the off world set off (it ships on)
+      expect(kindLine(ITEMS.gantry)).toBe(`${ITEMS.gantry.rarity.toUpperCase()} FACTORY`);
+      expect(shapeWord("gantry")).toBeNull();
+    }, false);
     // a turret is not a deck piece: a size-2 turret's type line never names a shape, with SHAPES on or off
     withShapes(() => {
       for (const d of Object.values(ITEMS).filter((q) => q.kind !== "gate" && q.kind !== "factory")) {
@@ -140,16 +142,18 @@ describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ
 describe("SHAPES-1 S1: with SHAPES off no face, line, note or type line moves", () => {
   it("the three have no face, PLAIN_RIGS is the base's, and every shape helper is empty", () => {
     expect([...PLAIN_RIGS]).toEqual(["whetstone", "temper", "barbed"]);
-    for (const d of SHAPED_PLAIN_RIGS) {
-      expect(ITEMS[d]).toBeUndefined();
-      expect(hasFace(d)).toBe(false);
-      expect(isPlainRig(d)).toBe(false);
-      expect(plainRigStats(d)).toBeNull();
-    }
-    for (const d of Object.keys(ITEMS)) {
-      expect(shapeLines(d)).toEqual([]);
-      expect(shapeNotes(d)).toEqual([]);
-      expect(shapeWord(d)).toBeNull();
-    }
+    withShapes(() => { // SHAPES-1 flip: the off world set off (it ships on)
+      for (const d of SHAPED_PLAIN_RIGS) {
+        expect(ITEMS[d]).toBeUndefined();
+        expect(hasFace(d)).toBe(false);
+        expect(isPlainRig(d)).toBe(false);
+        expect(plainRigStats(d)).toBeNull();
+      }
+      for (const d of Object.keys(ITEMS)) {
+        expect(shapeLines(d)).toEqual([]);
+        expect(shapeNotes(d)).toEqual([]);
+        expect(shapeWord(d)).toBeNull();
+      }
+    }, false);
   });
 });

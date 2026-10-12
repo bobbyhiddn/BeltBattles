@@ -71,9 +71,11 @@ describe("SHAPES-1 S2: turning a shaped piece around its anchor", () => {
       expect(["nailstrip", "spikerail", "gantry", "assembly"].map(shapedPiece)).toEqual([true, true, true, true]);
       expect(["whetstone", "kiln", "press"].map(shapedPiece)).toEqual([false, false, false]);
     });
-    // off: nothing is shaped, GANTRY PRESS and ASSEMBLY LINE are 2x2 and don't turn
-    expect(Object.keys(ITEMS).filter(shapedPiece)).toEqual([]);
-    expect([canTurn("gantry"), canTurn("assembly"), canTurn("whetstone")]).toEqual([false, false, true]);
+    // off: nothing is shaped, GANTRY PRESS and ASSEMBLY LINE are 2x2 and don't turn (SHAPES-1 flip: set off; it ships on)
+    withShapes(() => {
+      expect(Object.keys(ITEMS).filter(shapedPiece)).toEqual([]);
+      expect([canTurn("gantry"), canTurn("assembly"), canTurn("whetstone")]).toEqual([false, false, true]);
+    }, false);
   });
 
   it("turnFit: a NAIL STRIP beside the belt turns to the next turn that fits (rot 2 would cover the belt: it goes to 3)", () => {
@@ -318,8 +320,10 @@ describe("SHAPES-1 S1: with SHAPES off the editor is 0.9.9's", () => {
   });
 
   it("no factory panel has ROTATE with SHAPES off; a 2x3 GANTRY PRESS's has it first with SHAPES on", () => {
-    const off = furnace([{ uid: 9, def: "gantry", x: 0, y: 7 }]);
-    expect(itemPanel(off, 9)!.labels).toEqual(["TO CARGO"]);
+    withShapes(() => { // SHAPES-1 flip: the off world set off (it ships on)
+      const off = furnace([{ uid: 9, def: "gantry", x: 0, y: 7 }]);
+      expect(itemPanel(off, 9)!.labels).toEqual(["TO CARGO"]);
+    }, false);
     withShapes(() => {
       const on = furnace([{ uid: 9, def: "gantry", x: 0, y: 7 }, { uid: 10, def: "assembly", x: 0, y: 4 }]);
       expect(itemPanel(on, 9)!.labels).toEqual(["ROTATE", "TO CARGO"]);

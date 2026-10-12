@@ -129,7 +129,7 @@ describe("SHAPES-1 R1: the rot rule", () => {
       expect(rotField("assembly", 1)).toEqual({ rot: 1 });
       expect(rotField("spikerail", 2)).toEqual({ rot: 2 });
     });
-    expect(rotField("gantry", 1)).toEqual({}); // switch off: 2x2
+    withShapes(() => expect(rotField("gantry", 1)).toEqual({}), false); // switch off: 2x2 (set off since the flip)
   });
 });
 
@@ -202,8 +202,10 @@ describe("SHAPES-1 R3: the belt-slot rule and the start cells", () => {
   });
 
   it("GANTRY PRESS 3/4/5 slots off, 4/5/6 on (2x3); ASSEMBLY LINE 2/3/4 both ways (a SMALL factory keeps its slots)", () => {
-    expect([1, 2, 3].map((s) => outputsAt("gantry", s))).toEqual([3, 4, 5]);
-    expect([1, 2, 3].map((s) => outputsAt("assembly", s))).toEqual([2, 3, 4]);
+    withShapes(() => { // SHAPES-1 flip: the off world set off (it ships on)
+      expect([1, 2, 3].map((s) => outputsAt("gantry", s))).toEqual([3, 4, 5]);
+      expect([1, 2, 3].map((s) => outputsAt("assembly", s))).toEqual([2, 3, 4]);
+    }, false);
     withShapes(() => {
       expect([1, 2, 3].map((s) => outputsAt("gantry", s))).toEqual([4, 5, 6]);
       expect([1, 2, 3].map((s) => outputsAt("assembly", s))).toEqual([2, 3, 4]);
@@ -244,37 +246,45 @@ describe("SHAPES-1 R2 guard: no long multiplying rig; every existing rig stays 1
 });
 
 describe("SHAPES-1 S1: the switch", () => {
-  it("SHAPES is off by default and nothing sees the pieces", () => {
-    expect(SHAPES).toBe(false);
-    expect(shapesRules()).toBe(false);
-    for (const id of SHAPES_IDS) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(false);
-    expect(ITEMS.gantry.foot).toBeUndefined();
-    expect(ITEMS.assembly.foot).toBeUndefined();
-    expect([ITEMS.gantry.price, ITEMS.assembly.price]).toEqual([7, 5]);
+  it("SHAPES ships on since the flip (step 8); set off, nothing sees the pieces", () => {
+    expect(SHAPES).toBe(true); // SHAPES-1 flip: was false until step 8
+    expect(shapesRules()).toBe(true);
+    for (const id of SHAPES_IDS) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
+    expect([ITEMS.gantry.foot, ITEMS.assembly.foot]).toEqual(["2x3", "I3"]);
+    withShapes(() => {
+      expect(shapesRules()).toBe(false);
+      for (const id of SHAPES_IDS) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(false);
+      expect(ITEMS.gantry.foot).toBeUndefined();
+      expect(ITEMS.assembly.foot).toBeUndefined();
+      expect([ITEMS.gantry.price, ITEMS.assembly.price]).toEqual([7, 5]);
+    }, false);
     expect(RESHAPED_IDS).toEqual(["gantry", "assembly"]);
   });
 
   it("on: the three rigs join ITEMS after every other def, GANTRY PRESS is 2x3, ASSEMBLY LINE I3 at 1 G less; off again: as before", () => {
-    const keys0 = Object.keys(ITEMS), gantry0 = ITEMS.gantry, assembly0 = ITEMS.assembly;
-    withShapes(() => {
-      expect(shapesRules()).toBe(true);
-      expect(Object.keys(ITEMS)).toEqual([...keys0, "nailstrip", "embertrough", "spikerail"]);
-      expect(ITEMS.nailstrip).toBe(SHAPES_ITEMS.nailstrip);
-      expect(ITEMS.gantry).toEqual({ ...gantry0, foot: "2x3" });
-      expect(ITEMS.assembly).toEqual({ ...assembly0, foot: "I3", price: 4 });
-      expect(footprintCells(ITEMS.gantry, 0, 1).length).toBe(6);
-    });
-    expect(shapesRules()).toBe(false);
-    expect(Object.keys(ITEMS)).toEqual(keys0);
-    expect(ITEMS.gantry).toBe(gantry0);
-    expect(ITEMS.assembly).toBe(assembly0);
+    withShapes(() => { // SHAPES-1 flip: start from the off world (set off), then on and off again
+      const keys0 = Object.keys(ITEMS), gantry0 = ITEMS.gantry, assembly0 = ITEMS.assembly;
+      withShapes(() => {
+        expect(shapesRules()).toBe(true);
+        expect(Object.keys(ITEMS)).toEqual([...keys0, "nailstrip", "embertrough", "spikerail"]);
+        expect(ITEMS.nailstrip).toBe(SHAPES_ITEMS.nailstrip);
+        expect(ITEMS.gantry).toEqual({ ...gantry0, foot: "2x3" });
+        expect(ITEMS.assembly).toEqual({ ...assembly0, foot: "I3", price: 4 });
+        expect(footprintCells(ITEMS.gantry, 0, 1).length).toBe(6);
+      });
+      expect(shapesRules()).toBe(false);
+      expect(Object.keys(ITEMS)).toEqual(keys0);
+      expect(ITEMS.gantry).toBe(gantry0);
+      expect(ITEMS.assembly).toBe(assembly0);
+    }, false);
+    expect(shapesRules()).toBe(true); // back to the shipped value
   });
 
   it("withShapes puts the switch back even on a throw; setShapes to the state it has does nothing", () => {
-    expect(() => withShapes(() => { throw new Error("x"); })).toThrow("x");
-    expect(shapesRules()).toBe(false);
-    setShapes(false);
-    expect(shapesRules()).toBe(false);
+    expect(() => withShapes(() => { throw new Error("x"); }, false)).toThrow("x");
+    expect(shapesRules()).toBe(SHAPES); // SHAPES-1 flip: back to the shipped value, on
+    setShapes(SHAPES);
+    expect(shapesRules()).toBe(SHAPES);
   });
 
   it("R4's numbers: the three rigs' rarity, price, foot, arrows and star rows", () => {
