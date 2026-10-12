@@ -86,6 +86,7 @@ import { loadavg } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
 import { VIEWS } from "./shots-list.mjs";
 import { settle, sleep } from "./playthrough.mjs";
+import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -1953,7 +1954,7 @@ async function speedView(browsers, origin, vname) {
   await press(page, cdp, centre(await regionOf(page, "next")));
   await settle(page, "build", 15000);
   // the dawn's rune pick (and LAST CHANCE) take every tap first: take the first card, as playthrough's takeDawnRune does
-  for (let i = 0; i < 2 && (await regionOf(page, "runepick-0")); i++) await press(page, cdp, centre(await regionOf(page, "runepick-0")));
+  log(`[${at()}] ${V}: the dawn's rune pick (CARD-4: its bar after the guard, scripts/runeTake.mjs): ${JSON.stringify((await takeRuneCard(page, (p) => press(page, cdp, p))) ?? "none pending")}`);
   await sleep(200);
   await press(page, cdp, centre(await regionOf(page, "fight")));
   await settle(page, "fork", 15000);
@@ -2107,7 +2108,7 @@ async function foeCardPlain(browsers, origin, vname) {
   viewNow = V;
   await page.evaluate(() => window.bb.openDawn({ hero: "furnace", day: 3, gold: 9, seed: 31 }));
   await settle(page, "build", 15000);
-  for (let i = 0; i < 2 && (await regionOf(page, "runepick-0")); i++) await press(page, cdp, centre(await regionOf(page, "runepick-0")));
+  log(`[${at()}] ${V}: the dawn's rune pick (CARD-4: its bar after the guard, scripts/runeTake.mjs): ${JSON.stringify((await takeRuneCard(page, (p) => press(page, cdp, p))) ?? "none pending")}`);
   await page.waitForFunction(() => window.bb.game.screen.caravan.ready, null, { timeout: 10000 });
   await sleep(300);
   let f = await page.evaluate(() => window.bb.foeView());

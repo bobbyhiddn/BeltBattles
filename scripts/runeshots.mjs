@@ -19,6 +19,7 @@ import { chromium } from "playwright-core";
 import { readFile, mkdir } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
+import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -249,9 +250,9 @@ async function main() {
     check(!!p && p.open === 1, `${vname}: a tap on a card opens it (its reminder and TAP AGAIN TO TAKE IT)`);
     await onScreen(page, vname, "picker-open");
     await shot(page, vname, "picker-open");
-    // ---- taken: tapped again
+    // ---- taken: tapped again (CARD-4, REQ-BFG-081 P: on its TAP AGAIN bar, after the guard: scripts/runeTake.mjs)
     const id = p.ids[1];
-    await tap(page, cdp, await cardAt(page, 1));
+    await takeRuneCard(page, (q) => tap(page, cdp, q), { card: 1 });
     await frames(page, 4);
     const t = await page.evaluate(() => ({ runes: (window.bb.game.run.build.runes ?? []).map((q) => q.id), pick: window.bb.game.run.runeDay ?? null, toast: window.bb.game.toastLog.slice(-1)[0] ?? "", saved: localStorage.getItem("beltbattles.run.v7") ?? Object.keys(localStorage).filter((x) => x.includes("run")).map((x) => localStorage.getItem(x)).join("") }));
     p = await picker(page);
