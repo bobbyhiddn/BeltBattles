@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { SideStats } from "../src/sim/battle";
 import { ITEMS, RUN_DAYS } from "../src/sim/content";
 import { DROP_CHANCE, rollDrop, withNpcDay } from "../src/sim/npcDay";
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: 0.9.7's day with SHAPES off
 import { EVENT_IDS } from "../src/game/eventDefs";
 import { choicesFor, eventFor, makeEvent, pickChoice } from "../src/game/events";
 import { finishDay, ghostOf } from "../src/game/day";
@@ -79,12 +80,14 @@ const digest097 = (seed: number): string => {
   return `${hashSeed(back).toString(16)}:${back.length}`;
 };
 describe("NPC-1 with the switch off: 0.9.7's day", () => {
-  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withNpcDay(() => {
+  // SHAPES-1 flip (step 8): 0.9.7's day has no shaped pieces, so the script runs with SHAPES off too (withShapes(fn, false)):
+  // with it on the caravan's offers and so the decks move (9701 read 74ff6a55:6293); the pins stay npc1-base's
+  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withNpcDay(() => withShapes(() => {
     expect(digest097(9701)).toBe("5865119d:6292");
     expect(digest097(4242)).toBe("6ab6cc53:6243");
     expect(digest097(31337)).toBe("8a31722d:6331");
     expect(scriptDigest(9701)).toBe("16c756d4:6295"); // AZ-BUMP: the bump, the rules string alone (was "5865119d:6292")
-  }, false));
+  }, false), false));
 
   it("the fork keeps its event stop, Hard its pick of 2, REFIT its sales, and the snapshot has no road", () => withNpcDay(() => {
     expect([...forkPicks()]).toEqual([...ROAD_PICKS]);
