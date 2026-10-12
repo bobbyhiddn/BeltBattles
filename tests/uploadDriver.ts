@@ -30,13 +30,21 @@
 // draws exactly what it drew before). Each dusk records the taken card as the upload carries it (Dusk.lastChance, as
 // day.ts ghostOf writes snapshot.lastChance). Before, the driver never took it: the pending pick held back every later
 // dawn's rune, so those decks missed runes.
+//
+// SHAPES-1 (REQ-BFG-086, step 8's flip): with SHAPES on the caravan sells shaped pieces (NAIL STRIP, EMBER TROUGH, SPIKE
+// RAIL, a 2x3 GANTRY PRESS, an I3 ASSEMBLY LINE), so the driver places, moves and turns them as the editor does: checked
+// at the turn they land with (randomCell), turned by the editor's turnFit, belts drawn from a factory's turned cells. With
+// SHAPES off no shaped piece exists and every draw is as before.
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, REROLL_COST, RUN_DAYS, type HeroId } from "../src/sim/content";
 import {
   canExtend, canFitGear, canJoin, canPlaceItem, cloneBuild, commitRoute, connectorFree, hullSlots, isRig, joinTiles, key, kx, ky,
-  moveItem, occupancy, placeItem, removeRoute, rotField, routesOf, setJoin, setRot, footprint, turretSlots, type Build,
+  moveItem, occupancy, placeItem, removeRoute, rotField, routesOf, setJoin, setRot, turretSlots, type Build,
+  cellsOf, isShaped, // SHAPES-1 (REQ-BFG-086 R1): a placed piece's turned cells; a shaped piece
 } from "../src/sim/deck";
+import { footBox } from "../src/sim/foot"; // SHAPES-1: a turned footprint's box
+import { canTurn, turnFit, turnsOf } from "../src/screens/build/shapeEdit"; // SHAPES-1 (S2): the editor's turn rules
 import { outputsAt, starField, starsOf } from "../src/sim/stars";
 import {
   buyOffer, fitCore, installFromCargo, moveInstalled, newRun, reroll, rotateRig, sellInstalled, sellInventory, storeMod,
@@ -92,8 +100,21 @@ const bump = (op: string, n = 1): void => {
   OPS[op] = (OPS[op] ?? 0) + n;
 };
 
-/** Up to `tries` random cells where `def` may stand (canPlaceItem, the editor's rule); a rig also gets a rotation. */
+/** Up to `tries` random cells where `def` may stand (canPlaceItem, the editor's rule); a rig also gets a rotation.
+ *  SHAPES-1 (REQ-BFG-086 R1, step 8's flip): a shaped piece (a long rig, a 2x3 or I3 factory) draws its turn first and is
+ *  checked at that turn (its turned footprint, as the editor checks a carried piece at the turn it shows), so it never lands
+ *  turned where only its rot-0 footprint fits. Before, the turn was drawn after a rot-0 check, so a SPIKE RAIL could land
+ *  over another piece or off the deck. A 1-cell rig and a 2x2 draw exactly as before. */
 function randomCell(b: Build, def: string, rng: Rng, tries = 10, ignoreUid = -1): { x: number; y: number; rot?: number } | null {
+  if (isShaped(ITEMS[def])) {
+    for (let t = 0; t < tries; t++) {
+      const rot = rng.int(turnsOf(def));
+      const { w, h } = footBox(ITEMS[def], rot);
+      const x = rng.int(GRID - w + 1), y = rng.int(GRID - h + 1);
+      if (canPlaceItem(b, def, x, y, ignoreUid, rot).ok) return { x, y, rot };
+    }
+    return null;
+  }
   const size = ITEMS[def].size;
   for (let t = 0; t < tries; t++) {
     const x = rng.int(GRID - size + 1), y = rng.int(GRID - size + 1);
@@ -228,9 +249,27 @@ function moveSome(run: Run, rng: Rng): void {
   const p = rng.pick(b.items);
   const c = randomCell(b, p.def, rng, 6, p.uid);
   if (!c) return;
+  // SHAPES-1 (R1, S2): a shaped piece lands at the turn randomCell checked (moveItem turns it; a factory's covered belts drop)
+  if (isShaped(ITEMS[p.def])) {
+    moveItem(b, p.uid, c.x, c.y, c.rot ?? 0);
+    return;
+  }
   moveItem(b, p.uid, c.x, c.y);
   const q = b.items.find((i) => i.uid === p.uid);
   if (q && isRig(q.def)) setRot(q, c.rot ?? 0);
+}
+
+/** Turn a placed piece as the build screen's ROTATE does (actions.ts rotate): a 1-cell rig by run.ts rotateRig. SHAPES-1
+ *  (S2): a shaped piece turns around its anchor to the next turn that fits there (shapeEdit.ts turnFit, then moveItem);
+ *  none fits: it stays put. Before, the driver turned a shaped rig by rotateRig, unchecked, as a 1-cell rig turns. */
+function turnPiece(run: Run, uid: number): void {
+  const p = run.build.items.find((q) => q.uid === uid);
+  if (p && isShaped(ITEMS[p.def])) {
+    const t = turnFit(run.build, uid);
+    if (t.ok) moveItem(run.build, uid, p.x, p.y, t.rot);
+    return;
+  }
+  rotateRig(run, uid);
 }
 
 /**
@@ -263,7 +302,7 @@ function drawRoute(run: Run, rng: Rng, joinP = 0.4): void {
     joinTile = joinAt(k);
     return joinTile >= 0;
   };
-  const fp = new Set(footprint(ITEMS[f.def], f.x, f.y));
+  const fp = new Set(cellsOf(f)); // SHAPES-1 (R1): the factory's turned footprint (a 2x2's is footprint's, as before)
   const starts: number[] = [];
   for (const k of fp) {
     for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
@@ -330,8 +369,9 @@ function caravan(run: Run, rng: Rng, reserve: number): void {
       if (run.inventory.length) sellInventory(run, rng.pick(run.inventory).uid);
     } else if (a < 0.62) storeSome(run, rng);
     else if (a < 0.66) {
-      const rigs = run.build.items.filter((p) => isRig(p.def));
-      if (rigs.length) rotateRig(run, rng.pick(rigs).uid);
+      // SHAPES-1 (S2): a shaped factory turns too (build.ts's R: a rig, or a shaped piece that can turn)
+      const rigs = run.build.items.filter((p) => isRig(p.def) || (isShaped(ITEMS[p.def]) && canTurn(p.def)));
+      if (rigs.length) turnPiece(run, rng.pick(rigs).uid);
     } else if (a < 0.70) moveSome(run, rng);
     else if (a < 0.82) drawRoute(run, rng);
     else if (a < 0.85) {
