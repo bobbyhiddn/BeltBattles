@@ -180,7 +180,8 @@ describe("SHAPES-1 S5: TURRET INTAKE (cap's ruling 4ef9d32165edfd0d)", () => {
       }
     });
     expect(withShapes(() => validateBuild(b, 6, "strict").errors, false)).toEqual(base);
-  });
+  }, 120_000); // SHAPES-1 run 4 (def6e73's timeout rule): up to 12 par runs and KARSK's two days validated 4 ways: ~15 s at low
+  // load, 37 s alone on a 4-CPU sandbox at load 30 (logs/suite-f35eb9f-alone-a.log), past the 30 s default
 });
 
 describe("SHAPES-1 S4: the rot rule and the rules gate", () => {
