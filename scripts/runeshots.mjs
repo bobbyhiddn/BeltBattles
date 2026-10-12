@@ -141,8 +141,9 @@ const findTiers = (page) => page.evaluate(({ prefer }) => {
  *  the rune bar's chip edges (a chip's bottom edge); the read-out's frame and height. */
 const look = (page) => page.evaluate(({ RAR, SL4 }) => {
   const game = window.bb.game, s = game.screen, g = game.g;
+  const k = game.view.sub ?? 1; // R4-1: canvas px per art px (the view's canvas grid; 1 without one)
   const hex = (d, i) => "#" + [d[i], d[i + 1], d[i + 2]].map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
-  const px = (x, y) => hex(g.getImageData(Math.floor(x), Math.floor(y), 1, 1).data, 0);
+  const px = (x, y) => hex(g.getImageData(Math.floor(x) * k, Math.floor(y) * k, 1, 1).data, 0);
   const out = {};
   const info = s.runePicker?.info(s);
   if (info) {
@@ -150,17 +151,17 @@ const look = (page) => page.evaluate(({ RAR, SL4 }) => {
     out.edges = L.cards.map((c) => px(c.x + c.w / 2, c.y + 1));
     out.heights = L.cards.map((c) => c.h);
     out.heads = L.cards.map((c, i) => {
-      const d = g.getImageData(c.x + c.w - 5, c.y + 6, 3, 19).data;
+      const d = g.getImageData((c.x + c.w - 5) * k, (c.y + 6) * k, 3 * k, 19 * k).data;
       let n = 0;
       for (let j = 0; j < d.length; j += 4) if (hex(d, j) === out.edges[i] || hex(d, j) === SL4) n++;
-      return n;
+      return n / (k * k);
     });
-    const band = g.getImageData(0, L.top + 11, game.W, 7).data;
+    const band = g.getImageData(0, (L.top + 11) * k, game.W * k, 7 * k).data;
     out.word = {};
     for (const [t, col] of Object.entries(RAR)) {
       let n = 0;
       for (let j = 0; j < band.length; j += 4) if (hex(band, j) === col) n++;
-      out.word[t] = n;
+      out.word[t] = n / (k * k);
     }
   }
   const B = s.runeBar?.layout(s);
@@ -175,10 +176,13 @@ const look = (page) => page.evaluate(({ RAR, SL4 }) => {
  *  and no name or tag running into a card's right margin. `open`: the opened card (-1 none). */
 async function tierLook(page, vname, name, tier, open) {
   const lk = await look(page), col = RARITY[tier], T = tier.toUpperCase();
+  // CARD-4 (REQ-BFG-081, P1): the opened card's TAP AGAIN band is runeBar.ts runeBarBand(runeTapOf(s)): 13 on the desk; on
+  // a phone, or after a finger's press, a finger's target (tapPx) less 1. The open card's height counts it in place of 13.
+  const hb = await page.evaluate(() => { const s = window.bb.game.screen, v = window.bb.game.view, c = v.scale / v.dpr; return Math.max(13, (s.touch || Math.min(v.W, v.H) * c < 500 ? Math.ceil(44 / c) : 0) - 1); });
   check(!!lk.edges?.length && lk.edges.every((e) => e === col), `${vname} ${name}: every card framed in the ${T} colour ${col} (${lk.edges?.join(" ")})`);
   check((lk.word?.[tier] ?? 0) >= 30, `${vname} ${name}: the dawn line's "${T} RUNES" in that colour (${lk.word?.[tier]} px)`);
-  check(!!lk.heights && lk.heights.every((h, i) => (i === open ? h >= 58 && (h - 58) % 7 === 0 : h === 44)),
-    `${vname} ${name}: every card's effect on one line (card heights ${lk.heights?.join(" ")} art px)`);
+  check(!!lk.heights && lk.heights.every((h, i) => (i === open ? h >= 45 + hb && (h - 45 - hb) % 7 === 0 : h === 44)),
+    `${vname} ${name}: every card's effect on one line (card heights ${lk.heights?.join(" ")} art px; the hint's band ${hb})`);
   check(!!lk.heads && lk.heads.every((n) => n === 0), `${vname} ${name}: no card's name or tag runs into its right edge (${lk.heads?.join(" ")} px there)`);
 }
 
@@ -356,7 +360,10 @@ async function main() {
       const rc = await regionC(page, `rune-${ri}`);
       if (rc) await tap(page, cdp, { x: rc.cx, y: rc.cy });
       lk = await look(page);
-      check(!!rc && (await page.evaluate(() => window.bb.game.screen.runeBar.open)) === ri && !!lk.readout && lk.readout.edge === RARITY[rt] && (lk.readout.h - 45) % 7 === 0,
+      // CARD-4 run 4: since CARD-3 (REQ-BFG-089, E) the bar's read-out ends after its last line while no note shows (44 art
+      // px for one effect line) and makes the reminder's room (45 + 7 a line) only while one does
+      const roH = (h) => h === 44 || (h >= 52 && (h - 45) % 7 === 0);
+      check(!!rc && (await page.evaluate(() => window.bb.game.screen.runeBar.open)) === ri && !!lk.readout && lk.readout.edge === RARITY[rt] && roH(lk.readout.h),
         `${vname}: a tap on chip ${ri + 1} (${T.picks[ri]}) opens its ${rt.toUpperCase()} read-out (TAKEN DAY ${ri + 1}), framed ${lk.readout?.edge}, its effect on one line (${lk.readout?.h} art px)`);
       await onScreen(page, vname, "bar10-tiers-readout");
       await shot(page, vname, "bar10-tiers-readout");
