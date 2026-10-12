@@ -5,6 +5,7 @@
 //   Y7b2 (the words): LOAD TIME retired since: its row is gone and neither SALVO RACK's sentence nor TEMPO's line names it.
 // - S2: TESLA ARC's SHOT tap says its arc's share of the shot's damage, read from its data (25 / 25 / 30%), in the band.
 // - S3: the SMUGGLER card's NONE ON OFFER line leaves (cards.ts cardNote); the guard stays (the choice is still blocked).
+//   SHAPES-1 (oracle f08800ccfebab0ab): the line is back, since with SHAPES on about 0.3% of runs draw no SHOCK ware.
 // - The rating (deckRating.ts, STAR_EQ's note): SEAM WELDER on pairs only, EXT. CHAMBER's shot capped by its chamber, DRAKE
 //   NOZZLE's BURN for bonus damage; HOPPER, TWIN TRIGGER, ROTARY, ANVIL and STEAM from the switch's data.
 import { describe, expect, it } from "vitest";
@@ -129,15 +130,17 @@ describe("Y4 S2: TESLA ARC's tap note (REVIEW-Y1 ruling 3)", () => {
   });
 });
 
-describe("Y4 S3: the SMUGGLER card's NONE ON OFFER line leaves; the guard stays", () => {
-  // an old save's run that drew no BURN or SHOCK ware (since FIX-ABE no real run does): both choices are empty
+describe("Y4 S3, SHAPES-1 (oracle f08800ccfebab0ab): the SMUGGLER card's NONE ON OFFER line is back; the guard stays", () => {
+  // a run that drew no BURN or SHOCK ware (SHAPES-1: with SHAPES on about 0.3% of real runs draw no SHOCK ware again; an old
+  // save too): both choices are empty
   const ev: EventState = { day: 3, id: "smuggler", roll: 0.5, pick: 0.5, picked: -1 };
   const oldSave = { wares: {}, day: 3 } as unknown as Run;
   const choices = () => EVENTS.smuggler.choices(oldSave, ev);
 
-  it("on, a SMUGGLER choice with none on offer is still blocked (the guard) but its card draws no line (off: NONE ON OFFER)", () => {
+  it("a SMUGGLER choice with none on offer is blocked (the guard) and its card says NONE ON OFFER (Y4 hid it while no real run reached it)", () => {
     const [burnOn, shockOn] = choices();
-    for (const c of [burnOn, shockOn]) expect([c.blocked, c.quiet, cardNote(c)]).toEqual(["NONE ON OFFER", true, undefined]);
+    // SHAPES-1 (cap's ruling, oracle f08800ccfebab0ab): a blocked card must say why (was ["NONE ON OFFER", true, undefined])
+    for (const c of [burnOn, shockOn]) expect([c.blocked, c.quiet, cardNote(c)]).toEqual(["NONE ON OFFER", undefined, "NONE ON OFFER"]);
   });
 
   it("on, a run with wares of both effects offers both, unblocked, as before; the pools are untouched", () => {

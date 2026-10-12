@@ -197,15 +197,16 @@ function partChoice(label: string, cost: Delta[], def: string | undefined, note?
 }
 
 /**
- * Y4 (release Y; REVIEW-REDOX answer 3; BRIEF-Y4 S3): a SMUGGLER choice. Since FIX-ABE the ALCHEMIST's rare tier always holds
- * 4+ BURN and SHOCK wares, so no real run reaches its NONE ON OFFER case. That line leaves the card (`quiet`: cards.ts
- * drawChoiceCard draws no line for it); the guard stays: the choice is still blocked (an old save without such a ware
- * can't pick it; events.ts pickChoice). The pools are untouched.
+ * A SMUGGLER choice. Y4 (release Y; REVIEW-REDOX answer 3; BRIEF-Y4 S3) hid its NONE ON OFFER line (`quiet`) only because,
+ * since FIX-ABE, the ALCHEMIST's rare tier always held 4+ BURN and SHOCK wares and no real run reached it. SHAPES-1 (cap's
+ * ruling, oracle f08800ccfebab0ab): with SHAPES on, NAIL STRIP and EMBER TROUGH grow the ALCHEMIST's stock 9 -> 11, its
+ * rare tier's quota can fall to 3, and about 0.3% of runs draw no SHOCK ware (REQ-BFG-033 always allowed such runs). A
+ * blocked card must say why, so the line is back, as 0.8.0 drew it and as partChoice draws it for every other event (no
+ * `quiet`). The guard stays: a blocked choice can't be picked (events.ts pickChoice). The `quiet` field and cards.ts
+ * cardNote stay as they are; the pools are untouched.
  */
 function smugglerChoice(label: string, cost: Delta[], def: string | undefined): Choice {
-  const c = partChoice(label, cost, def);
-  if (c.blocked) c.quiet = true;
-  return c;
+  return partChoice(label, cost, def);
 }
 
 export interface Good {
