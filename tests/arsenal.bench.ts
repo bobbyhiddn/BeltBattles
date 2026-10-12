@@ -213,7 +213,9 @@ export function gantryBench(stars: number, mods: [string, number][] = [], hullBo
   return b;
 }
 
-/** GANTRY PRESS on a Weaver: the Loom parked off-route at (0,8), the Gantry (uid 7) at (4,6) on the first `n` of columns 4, 1 and 8. */
+/** GANTRY PRESS on a Weaver: the Loom parked off-route at (0,8), the Gantry (uid 7) at (4,6) on the first `n` of columns 4, 1 and 8.
+ *  SHAPES-1 flip: the 2x3 GANTRY PRESS lies 2 wide and 3 deep (rot 1: (4,6)-(5,8)), so its belts start where the 2x2's
+ *  did (north (4,5), west (3,6), east (6,6), which a 3-wide press would cover); with SHAPES off rotField gives no rot. */
 export function gantryWeaver(stars: number, n = 3, hullBonus = 0): Build {
   const cols = [
     [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)],
@@ -221,7 +223,7 @@ export function gantryWeaver(stars: number, n = 3, hullBonus = 0): Build {
     [K(6, 6), K(7, 6), K(8, 6), K(8, 5), K(8, 4), K(8, 3), K(8, 2), K(8, 1), K(8, 0)],
   ];
   return {
-    hero: "weaver", items: [{ uid: 1, def: "loom", x: 0, y: 8 }, { uid: 7, def: "gantry", x: 4, y: 6, ...starField(stars) }],
+    hero: "weaver", items: [{ uid: 1, def: "loom", x: 0, y: 8 }, { uid: 7, def: "gantry", x: 4, y: 6, ...rotField("gantry", 1), ...starField(stars) }],
     routes: cols.slice(0, n).map((cells) => ({ factory: 7, cells })), mods: [], beltCap: 30, hullBonus,
   };
 }

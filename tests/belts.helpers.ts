@@ -3,9 +3,9 @@
 // factory sends down each belt in a battle, its casts, the loads each turret takes and the fusions.
 import { Rng } from "../src/core/rng";
 import { HEROES, ITEMS, TICK, type HeroId } from "../src/sim/content";
-import { type Build, type BuildTurret } from "../src/sim/deck";
+import { cellsOf, type Build, type BuildTurret } from "../src/sim/deck";
 import { isSignatureFactory, signatureOf, starField } from "../src/sim/stars";
-import { blockedCells, freeConnectors, randomPath, shortestTiles, startCells } from "../src/sim/harness/path";
+import { blockedCells, freeConnectors, randomPath, shortestTiles, startCellsFor } from "../src/sim/harness/path";
 import type { Battle } from "../src/sim/battle";
 import { SEED, barge, run } from "./arsenal.bench";
 
@@ -38,8 +38,12 @@ export function wideDeck(hero: HeroId, def: string, stars: number, n: number, hu
     ...(sig && stars > 1 ? { upgrades: { factory: stars } } : {}),
   };
   const rng = new Rng(1234 + n);
+  // SHAPES-1 flip: the start cells round the factory's own footprint (path.ts startCellsFor, deck.ts cellsOf; was
+  // startCells(4, 6, 2, bl), a 2x2's): the same cells in the same order for a 2x2, and round the 2x3 GANTRY PRESS's six
+  // cells (room for its 6 belts at ★3 and one more) and the I3 ASSEMBLY LINE's three
+  const fp = cellsOf(b.items.find((p) => p.uid === 7)!);
   for (let i = 0; i < n; i++) {
-    const bl = blockedCells(b), starts = startCells(4, 6, 2, bl);
+    const bl = blockedCells(b), starts = startCellsFor(fp, bl);
     const cols = freeConnectors(b).map((c) => ({ c, len: shortestTiles(bl, starts, c) })).filter((x) => Number.isFinite(x.len)).sort((x, y) => x.len - y.len || x.c - y.c);
     let cells: number[] | null = null;
     for (const { c, len } of cols) if ((cells = randomPath(bl, starts, c, len, rng))) break;

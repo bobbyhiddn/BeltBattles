@@ -324,8 +324,9 @@ describe("D3: the belt X (touch only)", () => {
 describe("D4: drags out of a factory", () => {
   // bb-0.8.3 (REQ-BFG-042): the KILN 2 (was 1), the LOOM 3 (3), GANTRY PRESS 3 / 4 at ★2 (2 / 3), TWIN MOULD 2 / 4 at ★3 (2 / 3)
   it("the outputs: the KILN 2, the LOOM 3, GANTRY PRESS 3 (4 at ★2), TWIN MOULD 2 (4 at ★3) (outputsAt, as validate.ts)", () => {
+    // SHAPES-1 flip: GANTRY PRESS is 2x3, one slot more (foot.ts footSlots): 4 at ★1, 5 at ★2 (was [2, 3, 3, 4, 2, 4])
     expect([outputsAt("kiln", 1), outputsAt("loom", 1), outputsAt("gantry", 1), outputsAt("gantry", 2), outputsAt("twinmould", 1), outputsAt("twinmould", 3)])
-      .toEqual([2, 3, 3, 4, 2, 4]);
+      .toEqual([2, 3, 4, 5, 2, 4]);
     expect([freeOutputs(furnace().build, 1), freeOutputs(weaver().build, 1)]).toEqual([1, 2]);
   });
 

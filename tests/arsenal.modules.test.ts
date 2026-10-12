@@ -505,7 +505,9 @@ describe("0.6.1c: the six factories' special rules", () => {
   // bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS's lead of one belt over every bought factory: 3 / 4 (FOURTH ARM) / 5, so its
   // three routes on the WEAVER are legal at every star (tests/belts.slots.test.ts refuses the belt past its slots)
   it("GANTRY PRESS: outputs 3 / 4 (FOURTH ARM) / 5; its three routes are legal at every star; every route fed in turn", () => {
-    expect([1, 2, 3].map((s) => outputsAt("gantry", s))).toEqual([3, 4, 5]);
+    // SHAPES-1 flip: GANTRY PRESS is 2x3, one slot more (foot.ts footSlots: every 2 cells beyond 4) on its lead: 4 / 5 / 6
+    // (was [3, 4, 5]); gantryWeaver lays it 2 wide and 3 deep (rot 1), so its three belts start where they did
+    expect([1, 2, 3].map((s) => outputsAt("gantry", s))).toEqual([4, 5, 6]);
     for (const s of [1, 2, 3]) {
       const b = gantryWeaver(s, 3);
       expect(routeProblems(b).map((p) => p.route), `${s}`).toEqual([]);
@@ -534,6 +536,7 @@ describe("0.6.1c: the six factories' special rules", () => {
     gainModule(w, "gantry");
     expect(starsOf(w.build.items.find((p) => p.def === "gantry"))).toBe(2);
     expect(routeProblems(w.build)).toEqual([]); // FOURTH ARM: four outputs, three used
-    expect(outputsAt("gantry", 2) - w.build.routes.filter((r) => r.factory === 7).length).toBe(1);
+    // SHAPES-1 flip: the 2x3 GANTRY PRESS has 5 outputs at ★2 (footSlots +1), three used, two free (was 1)
+    expect(outputsAt("gantry", 2) - w.build.routes.filter((r) => r.factory === 7).length).toBe(2);
   });
 });
