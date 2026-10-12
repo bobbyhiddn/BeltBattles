@@ -190,15 +190,19 @@ describe("Y-INT: the four revived runes' texts with the switch on", () => {
     const retired = new RegExp(`\\b(${RETIRED.join("|")})\\b`);
     for (const id of FOUR) {
       const r = RUNES[id];
-      expect(RUNE_TEXT[id], id).toBeUndefined();
+      // CARD-2 (REQ-BFG-081, K3 a): SEARING's START: line says FIGHT START: on the card (runeText.ts RUNE_TEXT; RuneDef.text
+      // stays), as every START: rune's does; the other three read RuneDef.text (was toBeUndefined for all four)
+      if (id === "searing") expect(RUNE_TEXT[id], id).toBe(r.text.replace(/^START: /, "FIGHT START: "));
+      else expect(RUNE_TEXT[id], id).toBeUndefined();
       const onT = [runeLine(r), runeTextOf(r), runeReminder(r)];
       for (const t of onT) expect(t, id).not.toMatch(retired);
       const drawn = runeSentenceSpans(r).map((l) => l.map((sp) => sp.t).join(""));
       for (const l of drawn) expect(px(l), `${id}: ${l}`).toBeLessThanOrEqual(BAND);
     }
     // SHATTER SHOT's reminder is its own (glossary.ts RUNE_NOTE), not SHIELD's row, on as off
-    expect(runeReminder(RUNES.shatter_shot)).toBe("SHIELD: IT BREAKS; THE HIT STILL LANDS.");
-    expect(runeSentenceSpans(RUNES.searing).map((l) => l.map((sp) => sp.t).join(""))).toEqual(["START: THE FOE HAS 5 BURN.", "FOE WITH YOUR BURN: NO HEAL."]);
-    expect(runeSentenceSpans(RUNES.shatter_shot).map((l) => l.map((sp) => sp.t).join(""))).toEqual(["YOUR SHOTS: +14% DMG.", "YOUR HITS SHATTER SHIELD."]);
+    expect(runeReminder(RUNES.shatter_shot)).toBe("WARD: IT BREAKS; THE HIT STILL LANDS.");
+    // CARD-2 (REQ-BFG-081, K3 a): the fight's start (was "START: THE FOE HAS 5 BURN.")
+    expect(runeSentenceSpans(RUNES.searing).map((l) => l.map((sp) => sp.t).join(""))).toEqual(["FIGHT START: THE FOE HAS 5 BURN.", "FOE WITH YOUR BURN: NO HEAL."]);
+    expect(runeSentenceSpans(RUNES.shatter_shot).map((l) => l.map((sp) => sp.t).join(""))).toEqual(["YOUR SHOTS: +14% DMG.", "YOUR HITS SHATTER WARD."]);
   });
 });

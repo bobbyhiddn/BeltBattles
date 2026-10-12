@@ -4,7 +4,8 @@ import { newRun, type Run } from "../src/game/run";
 import { AMMO, HEROES, ITEMS, type HeroId } from "../src/sim/content";
 import { effectAt, fusible, FUSE_MAX, outputsAt } from "../src/sim/stars";
 import { gearSlotsOf } from "../src/sim/deck";
-import { ICON, ICON_COLOUR, KEYWORDS, stripIcons, textWidth } from "../src/render/font";
+import { ICON, ICON_COLOUR, KEYWORDS, PLAYER_WORD, stripIcons, textWidth } from "../src/render/font"; // CARD-3: PLAYER_WORD
+import { NAMES_KEPT } from "../src/ui/gameWords"; // CARD-3 (REQ-BFG-107)
 import { STAT_ROW_MAX } from "../src/ui/icons";
 import { cardText, percent } from "../src/ui/abilityText"; // NUM-4 (REQ-BFG-047): n1 and n2 are deleted (were imported here)
 import { captureFormats, fmtCount, fmtDmg, fmtGold, fmtPct, fmtSec, fmtSpeed, FORMATTERS } from "../src/ui/statFormat";
@@ -265,10 +266,12 @@ describe("U2a the faces keep REQ-BFG-032's four rules", () => {
   });
 
   it("a keyword draws from one source: a rule names it in panel style (its icon then its word), never as a bare word", () => {
+    // CARD-3 (REQ-BFG-107): the drawn word is the player's (font.ts PLAYER_WORD: SHIELD on ICON.PLATE, WARD on ICON.SHIELD)
     for (const t of all()) for (const k of KEYWORDS) {
-      for (const m of t.matchAll(new RegExp(`${k}`, "g"))) {
+      const tn = NAMES_KEPT.reduce((x, n) => x.split(n).join(" ".repeat(n.length)), t); // a name (WARDWORKS) holds no keyword
+      for (const m of tn.matchAll(new RegExp(`\\b${PLAYER_WORD[k]}(?:S|ED)?\\b`, "g"))) {
         const before = t[m.index! - 1];
-        expect(before, `${k} in ${stripIcons(t)}`).toBe(ICON[k]); // always the icon glued before the word
+        expect(before, `${PLAYER_WORD[k]} in ${stripIcons(t)}`).toBe(ICON[k]); // always the icon glued before the word
       }
     }
   });
@@ -297,7 +300,7 @@ describe("U2a the faces keep REQ-BFG-032's four rules", () => {
   it("hero select: WEAVER's face is LOOM SLUGS HAVE FRAY 1 (review call 5); PLAYSTYLE in three words (C6)", () => {
     expect(stripIcons(heroFace("weaver")!.rules[0].text)).toBe(`${ITEMS.loom.name} SLUGS HAVE FRAY ${AMMO.thread.fray}.`);
     expect(heroFace("bastion")!.rules[0].label).toBe("LOAD:");
-    expect(PLAYABLE_HEROES.map(heroPlaystyle)).toEqual([HEROES.furnace.pattern, "THREADS FRAY HULLS", "PAIRS FUSE STRONGER", HEROES.bastion.pattern]);
+    expect(PLAYABLE_HEROES.map(heroPlaystyle)).toEqual([HEROES.furnace.pattern, "THREADS FRAY HULLS", "PAIRS FUSE STRONGER", "SHIELD AND ENDURE"]); // CARD-3 (REQ-BFG-107): BASTION's PLAYSTYLE override
   });
 });
 
@@ -324,7 +327,7 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
     // WORDS-1 (REQ-BFG-081; READ-1 4: a reader took HIT for the rig's label): EVERY LATER SHOT THAT HITS THE HULL (was "EVERY
     // LATER HIT"); its cap's form is unchanged
     expect(REMINDER.FRAY()).toBe(`EACH {*FRAY}: EVERY LATER SHOT THAT HITS THE HULL +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`);
-    expect(REMINDER.PLATE()).toBe(`{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`);
+    expect(REMINDER.PLATE()).toBe(`{*PLATE}: SOAKS HULL DAMAGE POINT FOR POINT. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`); // CARD-3 (REQ-BFG-107)
     for (const def of FACE_IDS) for (const s of starsOf(def)) for (const r of faceLines(def, s)!.reminders) expect(r.includes("UP TO"), r).toBe(false);
   });
 

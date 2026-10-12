@@ -22,7 +22,7 @@ import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour";
 import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
 import { faceLines } from "../src/ui/faces"; // U2a
 import { speedPair } from "../src/ui/faces"; // U2c step 4: the installed turret's stat row
-import { statRow } from "../src/ui/icons"; // U2c step 4
+import { turretRow as statRow } from "../src/screens/build/faceBlocks"; // U2c step 4. CARD-2 (REQ-BFG-081, K4): the installed turret's row is labelled (RATE n  HOLDS n  GEAR SLOTS n; was icons.ts statRow)
 import { fmtCount, fmtDmg, fmtSec } from "../src/ui/statFormat"; // U2c step 4; NUM-1: fmtDmg
 import { icons, stripIcons } from "../src/render/font"; // U2c step 4
 import { resolveCore } from "../src/sim/cores"; // U2c step 4
@@ -877,7 +877,14 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // ("FIRES AT ONCE, SPINS UP TO 67% FASTER", was "SPINS UP TO 67% FASTER AS IT FIRES"), which leaves the hint room
     // SHAPES-1 flip: 2021, measured on cd59be0 (the run with SHAPES off reads 1952 and the same 49): the three shaped plain
     // rigs' 69 desk panels join, each with its hint and each showing it; the 49 missing are the same list (was 1952)
-    expect([withHint, missing.length]).toEqual([2021, 49]);
+    // CARD-2 (REQ-BFG-081, K4): 60 missing (was 49), measured: the turret row in words (RATE n  HOLDS n  GEAR SLOTS n) takes
+    // one label a line in the 118 px desk column (the brief's rule), two lines more, so 11 more installed turrets' kept
+    // blocks leave no room for the hint (all "installed ..."; the hint gives way whole, and its tip and NOTES keep it). K3 g:
+    // 61, measured: one more of the allowed kinds (a turret with GATLING SPOOL's two lines)
+    // SHAPES-1 x c099-card3 (RUN5 2: the merge of c099-card3-accepted into shapes1), measured on the merged tree: 2021 (was
+    // c099-card3's 1952): the three shaped plain rigs' 69 desk panels join, each with its hint and each showing it; the 61
+    // missing are c099-card3's 61 name for name (the test's F4 log line, diffed against ref/c099card3/logs/suite-957b034.log)
+    expect([withHint, missing.length]).toEqual([2021, 61]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -932,7 +939,15 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // hint on the 69 px band (their placed panels list a hit per cell and UP TO n HITS, so most give it way), and 8 GANTRY
     // PRESS panels lose it (placed ★1-★3 and cargo ★3, spare 0 and 1: its face's two new lines, FEEDS n BELTS IN TURN. and
     // BIGGER: +1 BELT, take the optional hint's room; the hint gives way first, as ever): 1040 - 8 + 25 (was 1040)
-    expect(hints).toBe(1057);
+    // CARD-2 (REQ-BFG-081, K3 g), measured: 1046 (was 1048): GATLING SPOOL's two lines (FIRES EACH LOAD AS IT COMES. and its
+    // spin, was one) take the optional hint's room on 2 phone panels of the fixed band; the hint gives way first, as ever
+    // MERGE-099D (c099 + card3-accepted; BRIEF-MERGE-099D 1f: measured on the merged tree): 1038, c099's 1040 less CARD-2's
+    // 2 (GATLING SPOOL's two lines on 2 phone panels of the fixed band, as above); CARD-3 adds no line to these panels
+    // SHAPES-1 x c099-card3 (RUN5 2: the merge of c099-card3-accepted into shapes1), measured on the merged tree: 1055 of
+    // 2049 panels (c099-card3: 1038 of 1980; the three shaped plain rigs' 69 panels join): net +17, as the flip's on c099
+    // (1040 -> 1057: the shaped rigs' panels that keep the hint less GANTRY PRESS's that give it way); CARD-2's GATLING
+    // SPOOL panels as at c099-card3
+    expect(hints).toBe(1055);
   });
 });
 
@@ -949,7 +964,7 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       if (!/^[+-]?\d+(\.\d+)?%?$/.test(w)) return [];
       const next = ws[i + 1] ?? "";
       if (w.endsWith("%")) return /^(DAMAGE|FASTER|SLOWER|SHORTER|SPEED)$/.test(next) ? [] : [w];
-      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|RIGS?|STUNS)$/.test(next) ? [] : [w];
+      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|SHIELD|RIGS?|STUNS)$/.test(next) ? [] : [w];
     });
   };
   /** 0.6.2rel2: turret `def` (★ts) in a FURNACE's slot 1 with `core` (★cs) and `gear` in its hardpoints, in order. */

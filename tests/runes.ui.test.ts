@@ -65,7 +65,8 @@ describe("rune text (runeText.ts)", () => {
     expect(runeReminder(spare)).toBe(PLAIN_REMINDER);
     expect(tierWord("common")).toBe("COMMON");
     // U2c (REQ-BFG-046): the reminders are the glossary's (RUNE_REMINDER), each in "WORD: ..." form, as every other keyword's
-    expect(runeReminder(RUNE_LIST.find((d) => d.id === "rivet_hoard")!)).toMatch(/^PLATE: /);
+    // CARD-3 (REQ-BFG-107): the soak layer's word is SHIELD (was /^PLATE: /)
+    expect(runeReminder(RUNE_LIST.find((d) => d.id === "rivet_hoard")!)).toMatch(/^SHIELD: /);
   });
 
   it("every effect is one line in the 5x7 face on the op view's card (and the desk's), with no '·' chain", () => {

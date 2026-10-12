@@ -9,6 +9,7 @@ import {
   ICON, ICON_BASE, ICON_COLOUR, KEYWORDS, drawText, faceChars, glyphRows, icons, isIcon, keywordColour, stripIcons, textWidth, wrap,
   type FontId, type IconName,
 } from "../src/render/font";
+import { PLAYER_WORD } from "../src/render/font"; // CARD-3 (REQ-BFG-107)
 import { KEYWORD_COLOUR, NUMBER_COLOUR, PERK_COLOUR, colourize, lineText, wrapRich, wrapText, type Span } from "../src/ui/richText";
 import { STAT_ROW_MAX, statRow } from "../src/ui/icons";
 import { G, fresh, installRaster } from "./raster.helpers";
@@ -171,7 +172,7 @@ describe("U1 icons: markup", () => {
 
   it("{*NAME} is a keyword in panel style: its icon, then its word; \"alone\" mode gives the icon alone", () => {
     for (const k of KEYWORDS) {
-      expect(icons(`{*${k}}`), k).toBe(ICON[k] + k);
+      expect(icons(`{*${k}}`), k).toBe(ICON[k] + PLAYER_WORD[k]); // CARD-3 (REQ-BFG-107): the player's word
       expect(icons(`{*${k}}`, "alone"), k).toBe(ICON[k]);
       expect(icons(`{${k}}`, "alone"), k).toBe(ICON[k]);
     }
@@ -205,8 +206,8 @@ describe("U1 icons: colour", () => {
   it("colourize: a keyword in panel style takes the keyword's colour; the bare words colour as today", () => {
     for (const k of KEYWORDS) {
       const s = colourize(icons(`HIT: 2 {*${k}}.`), C.bone);
-      expect(colourOf(s, ICON[k] + k), k).toBe(ICON_COLOUR[ICON[k]]);
-      expect(keywordColour(ICON[k] + k), k).toBe(ICON_COLOUR[ICON[k]]);
+      expect(colourOf(s, ICON[k] + PLAYER_WORD[k]), k).toBe(ICON_COLOUR[ICON[k]]); // CARD-3 (REQ-BFG-107)
+      expect(keywordColour(ICON[k] + PLAYER_WORD[k]), k).toBe(ICON_COLOUR[ICON[k]]);
     }
     expect(keywordColour(`${ICON.STUN}BURN`)).toBeUndefined();
     expect(keywordColour(ICON.BURN)).toBeUndefined();

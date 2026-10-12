@@ -210,8 +210,8 @@ describe("the result card", () => {
     const GAINED = 416, SPENT = 400;
     const rows = resultRows({ player: s, enemy: s, shocks: [1, 2], race: { fused: [12, null], plated: [null, GAINED], spent: [null, SPENT] } });
     expect(rows.slice(0, CARD_ROWS)).toEqual(base);
-    expect(rows.slice(CARD_ROWS)).toEqual([["FUSED SLUGS", "12", "-"], ["PLATING GAINED", "-", String(GAINED)], ["PLATING SPENT", "-", String(SPENT)]]);
-    expect(resultRows({ player: s, enemy: s, race: { plated: [30, 32], spent: [28, 30] } }).slice(CARD_ROWS).map((r) => r[0])).toEqual(["PLATING GAINED", "PLATING SPENT"]);
+    expect(rows.slice(CARD_ROWS)).toEqual([["FUSED SLUGS", "12", "-"], ["SHIELD GAINED", "-", String(GAINED)], ["SHIELD SPENT", "-", String(SPENT)]]);
+    expect(resultRows({ player: s, enemy: s, race: { plated: [30, 32], spent: [28, 30] } }).slice(CARD_ROWS).map((r) => r[0])).toEqual(["SHIELD GAINED", "SHIELD SPENT"]);
   });
 
   it("the card is 0.6.2's 170 px for seven rows on any screen; race rows add a pitch each, closing up on a short screen", () => {

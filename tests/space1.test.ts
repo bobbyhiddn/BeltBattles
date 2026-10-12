@@ -247,7 +247,10 @@ describe("SPACE-1: clear space between the descriptions on cards and panels (REQ
         const p = detailsPlan(ctx, sel, null, area)!.plan;
         const tag = `${name} runes ${runes} DART GUN ${what}`;
         expect(fullText(p), tag).toBe(true);
-        expect(p.gaps.slots, tag).toBeGreaterThan(2);
+        // CARD-3 (REQ-BFG-080, C): on a portrait band the new tip's hint is drawn in its strip just above the panel, no
+        // longer an item of it, so DART GUN's band panel has its tips-done slots (the tag's and INNER COLUMN's); the desk
+        // column keeps the hint (was > 2 on every view)
+        expect(p.gaps.slots, tag).toBeGreaterThan(f.portrait ? 1 : 2);
         expect(p.gaps.px, `${tag}: every gap at G`).toBe(p.gaps.G);
         expect(cutOrOverlap(p, p.rects?.length ?? 0, f.tap), tag).toEqual([]);
         if (p.famHead?.at === "sub") expect(visibleLines(p)[0].y - (p.r.y + 25), `${tag}: the tag's clear space`).toBe(p.gaps.px);

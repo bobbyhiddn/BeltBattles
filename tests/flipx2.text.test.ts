@@ -55,17 +55,19 @@ describe("FLIP-X2 step 1b: the bar's and the tray's chips sized from the word (R
     const at = (i: number) => ({ x: x0 + i * pitch, y: top + 3, w: chip, h: chip });
     return { bar, chip, chips: Array.from({ length: shown }, (_, i) => at(i)), shown, more: n > shown ? at(shown) : null };
   }
-  const SHIELD_IDS = ["ward_stone", "bulwark_ward", "tick_guard", "shatter_shot"];
-  const shields = () => SHIELD_IDS.map((id) => RUNES[id]);
-  const others = () => withSustain(() => runeList().filter((d) => runeKeyword(d) !== "SHIELD"));
+  // CARD-3 (REQ-BFG-107): the chip word SHIELD (23 px) is the soak layer's now (token PLATE); the block's runes draw WARD
+  // (15 px) at 22. The "SHIELD runes" below are the soak runes, four of them first, so every measure keeps its shape
+  const SHIELD_IDS = () => withSustain(() => runeList().filter((d) => runeKeyword(d) === "PLATE").map((d) => d.id));
+  const shields = () => SHIELD_IDS().slice(0, 4).map((id) => RUNES[id]);
+  const others = () => withSustain(() => runeList().filter((d) => runeKeyword(d) !== "PLATE"));
 
   it("only a SHIELD chip widens: 26 on the desk's bar and in the tray, 27 (unchanged) on the phone's bar", () => {
     expect([runeChip(OP), runeChip(DESK), RUNE_CHIP_MIN]).toEqual([27, 22, 22]);
     // the SHIELD runes: the three the dawn offers (runeList) and SHATTER SHOT, dormant since step 3b (its card still draws)
     // BAL-2 (the lines: DORMANT_RUNES empty): SHATTER SHOT is offered again, so the dawn offers all four (was the first three)
-    expect(withSustain(() => runeList().filter((d) => runeKeyword(d) === "SHIELD").map((d) => d.id))).toEqual(SHIELD_IDS);
-    expect(runeKeyword(RUNES.shatter_shot)).toBe("SHIELD");
-    for (const d of shields()) expect([runeChipW(d, runeChip(DESK)), runeChipW(d, RUNE_CHIP_MIN), runeChipW(d, runeChip(OP))], d.id).toEqual([26, 26, 27]);
+    expect(SHIELD_IDS().length).toBeGreaterThanOrEqual(4); // CARD-3: the soak runes the dawn offers
+    expect([runeKeyword(RUNES.shatter_shot), KEYWORD_WORD.SHIELD, KEYWORD_WORD.PLATE]).toEqual(["SHIELD", "WARD", "SHIELD"]);
+    for (const d of SHIELD_IDS().map((id) => RUNES[id])) expect([runeChipW(d, runeChip(DESK)), runeChipW(d, RUNE_CHIP_MIN), runeChipW(d, runeChip(OP))], d.id).toEqual([26, 26, 27]);
     for (const d of others()) expect([runeChipW(d, 22), runeChipW(d, 27)], d.id).toEqual([22, 27]);
   });
 

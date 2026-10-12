@@ -14,6 +14,9 @@ import { RUNE_REMINDER, glossaryEntry } from "./glossary"; // U2c: the keyword c
 import { RUNE_NOTE } from "./glossary"; // Y-FURN: a rune's own reminder (SHATTER SHOT's)
 import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): a max-hull amount on the day's hull
 import { dmgShown, sustShown } from "../sim/hullScale"; // HULL-1d (REQ-BFG-079): a rune's + DMG x D(d), its HEAL / REGEN / PLATE x S(d)
+import { FRAY_MAX } from "../sim/content"; // CARD-2 (REQ-BFG-081, K3 c): SNARE KNOT's FULL, named
+import { fmtCount } from "./statFormat"; // CARD-2 (K3 c): the one formatter for a count
+import { gameWords } from "./gameWords"; // CARD-3 (REQ-BFG-107): a sim string in the player's words
 
 /** A whole number as the game writes it. No rounding here: a rune whose amount is not whole shows it, and
  *  tests/runes.ui.test.ts (every number in every rune text is whole) catches it. */
@@ -40,9 +43,11 @@ export const RUNE_UNIT_TEXT: Readonly<Record<RuneUnit, (n: number) => string>> =
 // stays only as a glossary alias of STUN
 export type RuneKeyword = "HULL" | "BELT" | "GOLD" | "DMG" | "RATE" | "PLATE" | "PAIR" | "HEAT" | "FRAY" | "BURN" | "RIDE" | "STUN"
   | "SHIELD" | "HEAL" | "REGEN";
+// CARD-3 (REQ-BFG-107): the tokens keep their internal names; the soak layer (PLATE) reads SHIELD and the block (SHIELD)
+// reads WARD, as font.ts PLAYER_WORD draws the faces' keywords (each keeps its colour: the glossary row of its word)
 export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
-  HULL: "HULL", BELT: "BELT", GOLD: "GOLD", DMG: "DMG", RATE: "RATE", PLATE: "PLATE", PAIR: "PAIR", HEAT: "HEAT", FRAY: "FRAY",
-  BURN: "BURN", RIDE: "RIDE", STUN: "STUN", SHIELD: "SHIELD", HEAL: "HEAL", REGEN: "REGEN",
+  HULL: "HULL", BELT: "BELT", GOLD: "GOLD", DMG: "DMG", RATE: "RATE", PLATE: "SHIELD", PAIR: "PAIR", HEAT: "HEAT", FRAY: "FRAY",
+  BURN: "BURN", RIDE: "RIDE", STUN: "STUN", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN",
 };
 
 /**
@@ -68,12 +73,15 @@ export const RUNE_TEXT: Readonly<Record<string, string>> = {
   ember_shot: "FIRST SHOT AFTER A GUN LOADS: +{N} {*BURN}.",
   first_blood: "FIRST SHOT AFTER A GUN LOADS: +{N} {DMG}.",
   // MERGED: runes.ts:566-569 counts each placed, fitted or installed piece at ★2 or ★3 (cargo is not the build's), once;
-  // IN USE, and its opened card says what that is (RUNE_NOTE)
-  scrap_halo: "+{N} {HULL} FOR EACH ★2 OR ★3 PIECE IN USE.",
-  scrap_saint: "+{N} {DMG} FOR EACH ★2 OR ★3 PIECE IN USE.",
+  // IN USE, and its opened card says what that is (RUNE_NOTE). CARD-2 (K3 d): SCRAP HALO's and SCRAP SAINT's one row each
+  // is below (was "+{N} {HULL} FOR EACH ★2 OR ★3 PIECE IN USE." and "+{N} {DMG} FOR EACH ★2 OR ★3 PIECE IN USE." here; a
+  // second key in the literal, which tsc refuses, TS1117)
   // STAMP: battle.ts:1096 each slug through a factory's one-slug stamp (batches' too, 1033-1049); a cast (TWIN MOULD,
   // 1045-1047) or a pour (CRUCIBLE, races/foundry.ts:68-121) gives none: its opened card says so (RUNE_NOTE)
-  forge_ward: "EACH SLUG YOUR FACTORY MAKES: +{N} {*PLATE}.",
+  // CARD-3 (REQ-BFG-107): "EACH SLUG FROM YOUR FACTORY" (was "EACH SLUG YOUR FACTORY MAKES"): with the word SHIELD (one
+  // letter more than PLATE) the old line took 225 px, past the op view card's 223 (one line, tests/runes.ui.test.ts); this
+  // one 219. The same claim: battle.ts:1096 each slug a factory of the rune holder's side stamps adds N (PLATE_CAP holds)
+  forge_ward: "EACH SLUG FROM YOUR FACTORY: +{N} {*PLATE}.",
   // MACHINES: battle.ts:570 every impact whose target is not the hull (belt tiles, rigs, factories, turrets): ENEMY PARTS,
   // and its opened card says what a part is (RUNE_NOTE; the PART row's words)
   scrap_biter: "YOUR HITS ON ENEMY PARTS: +{N} {DMG}.",
@@ -83,9 +91,39 @@ export const RUNE_TEXT: Readonly<Record<string, string>> = {
   thread_storm: "YOUR HITS THAT ADD NO {*FRAY} ADD {N} {*FRAY}.",
   // READ-1 6.2: REGEN merged into HEAL: battle.ts:1441-1454 GREEN THREAD's amount goes through heal() each whole second
   green_thread: "YOUR HULL: {*HEAL} {N} EACH SEC.",
+  // CARD-2 (REQ-BFG-081, K3 a; READ-3 4.1, 6: Haiku hedged between the run and the fight on START): every "START:" line is
+  // the fight's start, one label for all: battle.ts:497-511, Battle's constructor (one Battle per fight: arena.ts:130)
+  // adds the PLATE, the foe's FRAY and BURN and the SHIELD ("battle-start runes"). FIGHT START: fits every card (171 px of
+  // 5x7 at most, under the 390-wide phones' 216); EACH FIGHT: fits too, but reads as a state held all fight ("EACH FIGHT:
+  // THE FOE HAS 5 FRAY"), where the FRAY is added once, at the start
+  rivet_hoard: "FIGHT START: +{N} {*PLATE}.",
+  grave_plates: "FIGHT START: +{N} {*PLATE}.",
+  loose_thread: "FIGHT START: THE FOE HAS {N} {*FRAY}.",
+  tangle_wire: "FIGHT START: THE FOE HAS {N} {*FRAY}.",
+  ash_kindle: "FIGHT START: THE FOE HAS {N} {BURN}.",
+  ward_stone: "FIGHT START: +{N} {*SHIELD}.",
+  bulwark_ward: "FIGHT START: +{N} {*SHIELD}.",
+  searing: "FIGHT START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}.",
+  // CARD-2 (K3 c; READ-3 6: FULL): the number FULL is: battle.ts:571 runeHit adds the rune's DMG while the foe's hull holds
+  // its FRAY cap (frayMax), which makeSide sets to FRAY_MAX (content.ts: 15) and impact (2068) raises only for a payload's
+  // frayCap, which no piece has since Y3 (content.ts:694). The number from the sim's constant, never a literal
+  snare_knot: `AT ${fmtCount(FRAY_MAX)} {*FRAY} (FULL): YOUR HITS +{N} {DMG}.`,
+  // CARD-2 (K3 d; READ-3 6: ★2 and ★3 not read as merged): runes.ts:566-569 mergedPieces counts each placed, fitted or
+  // installed piece at ★2 or more (★3 is the top), once; battle.ts:841 (HULL) and 540 (+n% DMG a merged piece). MERGED is
+  // the MERGE badge's word (glossary.ts CORE_WORDS); IN USE keeps its note on the opened card. 223 px: one line on the op
+  // card (the 390-wide phones wrap it, as WORDS-1's 217 px line did)
+  scrap_halo: "+{N} {HULL} PER MERGED (★2/★3) PIECE IN USE.",
+  scrap_saint: "+{N} {DMG} PER MERGED (★2/★3) PIECE IN USE.",
+  // CARD-2 (K3 e; READ-2 7.1: each load counts its own rigs; Haiku read it as all damage rising): battle.ts:540 runeMul
+  // multiplies a shot by priorPct x p.prior, the gates that payload passed (1693: p.prior++ at each rig hit on it)
+  toll_road: "EACH LOAD: +{N} {DMG} PER RIG IT PASSED.",
+  // CARD-2 (K3 f; READ-2 7.1: Haiku read PAIR: as once a fight): battle.ts:639 runeHeal heals the rune's n on each PAIR shot
+  // that lands (payload.paired), every time
+  twin_salve: "EACH {PAIR}: {*HEAL} {N}.",
 };
 /** A rune's effect line in R1b-2's tokens: its RUNE_TEXT row, else RuneDef.text. */
-export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? def.text;
+// CARD-3 (REQ-BFG-107): RuneDef.text (src/sim) through the one display function (its tokens and names untouched)
+export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? gameWords(def.text);
 /** Each keyword's colour (render/palette.ts C): the hull's red, gold's yellow, the belts' brass, damage white, speed's yellow
  *  (richText.ts KEYWORD_COLOUR.faster), BASTION's plating, FOUNDRY's pair cyan, FURNACE's fire, WEAVER's plum. RUNES-2a:
  *  BURN in richText's burn colour (fire, as HEAT), RIDE in the belts' wood, STUN in shock's cyan (was the STALL token).

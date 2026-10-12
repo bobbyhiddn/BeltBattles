@@ -227,7 +227,9 @@ describe("NUM-2 SPEED: the timers carry their remainder (Battle.chambers, Battle
 // with. STEAM BREECH's plated rate and GATLING SPOOL's spin move during a fight: their rule lines say them (whole %s).
 describe("NUM-4: the turret panel's {RATE}n is the battle's TurretState.speed (levels x speed gear)", () => {
   it("every starting turret, TURRET SPEED 1-4, no gear / CALIBRATION / ESCAPEMENT at each star", () => {
-    const rateIn = (text: string): number => Number(new RegExp(`${ICON.RATE}(\\d+)`).exec(text)?.[1] ?? NaN);
+    // CARD-3 review (cap): CARD-2 labels the stat row ("RATE 30  HOLDS 3  GEAR SLOTS 1"), so the number follows the
+    // word RATE or, as before, the RATE icon; either way it must be the battle's TurretState speed.
+    const rateIn = (text: string): number => Number(new RegExp(`(?:${ICON.RATE}|\\bRATE )(\\d+)`).exec(text)?.[1] ?? NaN);
     let n = 0;
     for (const hero of ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"] as HeroId[]) {
       const run = newRun(hero, 6262);

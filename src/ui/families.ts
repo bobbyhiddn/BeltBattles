@@ -11,6 +11,9 @@ import type { Span } from "./richText";
 
 export interface Family {
   tag: ModuleTag;
+  /** CARD-3 (REQ-BFG-107): the tag as the player reads it (the PLATE family reads SHIELD, as its keyword does); the
+   *  content tag stays in the code (content.ts ModuleTag). */
+  word: string;
   colour: string;
   /** The 3x3 mark, row by row ("x" lit). */
   mark: readonly [string, string, string];
@@ -23,7 +26,7 @@ export const FAMILY_ORDER: readonly ModuleTag[] = ["FORGE", "HARASS", "SWARM", "
 
 export const FAMILY: Readonly<Record<ModuleTag, Family>> = {
   FORGE: {
-    tag: "FORGE", colour: C.fire3, mark: [".x.", "xxx", "xxx"], // a flame
+    tag: "FORGE", word: "FORGE", colour: C.fire3, mark: [".x.", "xxx", "xxx"], // a flame
     // Y6 (release Y; DESIGN-Y 4.1; BRIEF-Y6 words): POISON is retired (glossary.ts), so the line drops it (was "ADDS
     // DAMAGE, BURN, POISON OR FRAY ..."; a getter behind the star switch until the flip, Y7b2)
     // WORDS-1 (REQ-BFG-081; READ-1 3.2): plain words, and the line is the tag's tap note now (keywords.ts familyTargets): was
@@ -31,45 +34,55 @@ export const FAMILY: Readonly<Record<ModuleTag, Family>> = {
     glossary: "ADDS DAMAGE, {*BURN} OR {*FRAY} TO SLUGS ON THE BELT, OR MORE DAMAGE THE LONGER A SLUG RIDES.",
   },
   HARASS: {
-    tag: "HARASS", colour: C.ice, mark: ["xx.", ".x.", ".xx"], // a bolt
+    tag: "HARASS", word: "HARASS", colour: C.ice, mark: ["xx.", ".x.", ".xx"], // a bolt
     // NUM-3 (R1's STUN fold): every stop is a STUN (was "STALLS, FREEZES, SLOWS, WRECKS OR RIPS ...")
     // WORDS-1: was "STUNS, WRECKS OR RIPS ENEMY MACHINES; PAYS FOR DOING IT; OR STOPS THE ENEMY DOING IT TO YOU."
     glossary: "STOPS OR ROBS ENEMY RIGS, FACTORIES, GUNS AND BELTS, PAYS FOR DOING IT, OR GUARDS YOURS.",
   },
   SWARM: {
-    tag: "SWARM", colour: C.lime, mark: ["x.x", "...", "x.x"], // many
+    tag: "SWARM", word: "SWARM", colour: C.lime, mark: ["x.x", "...", "x.x"], // many
     // WORDS-1: was "MORE PAYLOADS AND MORE HITS: SECOND FACTORIES, BATCHES, COPIES, PELLETS AND LIGHT GUNS, AND WHAT PAYS FOR
     // EACH PAYLOAD."
     glossary: "MORE SLUGS AND MORE HITS: MORE FACTORIES, SPLIT SLUGS, PELLETS AND LIGHT GUNS, AND WHAT PAYS FOR EACH SLUG.",
   },
   BURST: {
-    tag: "BURST", colour: C.red, mark: [".x.", "xxx", ".x."], // a burst
+    tag: "BURST", word: "BURST", colour: C.red, mark: [".x.", "xxx", ".x."], // a burst
     // WORDS-1: was "FEWER, BIGGER HITS: HEAVY SLUGS AND ROUNDS, RIG CHAINS ON ONE PAYLOAD, FULL-CHAMBER VOLLEYS, PACKED AND
     // CHARGED SHELLS, HEAVY GUNS."
     glossary: "FEWER, BIGGER HITS: HEAVY SLUGS, MANY RIGS ON ONE SLUG, A FULL CHAMBER FIRED AT ONCE, AND HEAVY GUNS.",
   },
   TEMPO: {
-    tag: "TEMPO", colour: C.yellow, mark: ["xxx", ".x.", "xxx"], // an hourglass
+    tag: "TEMPO", word: "TEMPO", colour: C.yellow, mark: ["xxx", ".x.", "xxx"], // an hourglass
     // Y7b2 (the words): LOAD TIME retires (glossary.ts RETIRED) and COMMISSION is an engine word, so the line says what each
     // is (was "..., FIRE RATE, LOAD TIME, COMMISSIONING, PULSES AND FUSES.")
     // WORDS-1: was "WHEN THINGS HAPPEN: BELT SPEED, FIRE RATE, HOW LONG A GUN WAITS TO FIRE, WHEN RIGS START, PULSES AND FUSES."
     glossary: "WHEN THINGS HAPPEN: BELT SPEED, HOW OFTEN A GUN FIRES, HOW LONG IT WAITS, WHEN RIGS START, AND TIMERS.",
   },
   TWIN: {
-    tag: "TWIN", colour: C.blue, mark: ["x.x", "x.x", "x.x"], // two belts
+    tag: "TWIN", word: "TWIN", colour: C.blue, mark: ["x.x", "x.x", "x.x"], // two belts
     // WORDS-1: was "TWO BELTS INTO ONE GUN: MATCHED BELTS, PAIRS THAT ARRIVE TOGETHER, AND WHAT PAYS FOR A PAIR."
     glossary: "TWO BELTS INTO ONE GUN: BELTS AS LONG AS EACH OTHER, A {*PAIR}, AND WHAT PAYS FOR ONE.",
   },
   PLATE: {
-    tag: "PLATE", colour: C.plate3, mark: ["xxx", "x.x", "xxx"], // a plate
+    tag: "PLATE", word: "SHIELD", colour: C.plate3, mark: ["xxx", "x.x", "xxx"], // a plate
     // WORDS-1: was "A HULL THAT OUTLASTS THE FIGHT: PLATING, REPAIR AND GUARDS, AND WHAT TURNS PLATING INTO DAMAGE."
-    glossary: "A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*HEAL} AND GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.",
+    // CARD-3 (REQ-BFG-107): the tag reads SHIELD, and the line names what its members give (content.ts tags, checked):
+    // SHIELD (PLATE ROLLER, ARMOR PRESS, SEAM WELDER, IRON WALL), WARD (WARD BELL), HEAL (RIVETER, MEND PRESS, MENDING
+    // LOOM), guards (TOLLBOOTH, FLAK SCREEN, MANTLET, BRACE FRAME), and what turns SHIELD into damage (PLATE BREAKER,
+    // ANVIL BREECH, STEAM BREECH, IRON WALL; SPALL CATCHER the damage the ship takes). Was "... {*PLATE}, {*HEAL} AND
+    // GUARDS, ..."
+    glossary: "A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.",
   },
 };
 
 /** WORDS-1 (REQ-BFG-081; READ-1 3.2: the family tags drew 403 of round A's 1,172 "not understood" flags; cap's design call
  *  4): what a tap on a family tag in a panel's header shows (keywords.ts familyTargets): its name, then its line. */
-export const familyNote = (tag: ModuleTag): string => `${tag}: ${FAMILY[tag].glossary}`;
+export const familyNote = (tag: ModuleTag): string => `${FAMILY[tag].word}: ${FAMILY[tag].glossary}`; // CARD-3: the player's tag
+
+/** CARD-3 (REQ-BFG-107): a family's tag as the player reads it (FAMILY.word). */
+export const familyWord = (tag: ModuleTag): string => FAMILY[tag].word;
+/** CARD-3: the family a player tag names ("SHIELD" -> PLATE), else undefined. */
+const familyOfWord = (word: string): ModuleTag | undefined => FAMILY_ORDER.find((t) => FAMILY[t].word === word);
 
 /** A module's families in FAMILY_ORDER ([] for a generalist, a supply or an unknown id). */
 export function familiesOf(def: string): ModuleTag[] {
@@ -79,7 +92,7 @@ export function familiesOf(def: string): ModuleTag[] {
 
 /** A module's families line, "FORGE, TEMPO" ("" for none). Commas, not "·": T2 keeps the middle dot out of player text. */
 export function familiesText(def: string): string {
-  return familiesOf(def).join(", ");
+  return familiesOf(def).map(familyWord).join(", "); // CARD-3: the player's tags
 }
 
 /** A families line as spans: each name in its family's colour, the commas between in `sep`. */
@@ -87,7 +100,8 @@ export function familySpans(text: string, sep: string = C.slate3): Span[] {
   const out: Span[] = [];
   text.split(", ").forEach((name, i) => {
     if (i) out.push({ t: ", ", c: sep });
-    out.push({ t: name, c: FAMILY[name as ModuleTag]?.colour ?? sep, whole: true });
+    const tag = familyOfWord(name); // CARD-3: the line holds the player's tags
+    out.push({ t: name, c: tag ? FAMILY[tag].colour : sep, whole: true });
   });
   return out;
 }

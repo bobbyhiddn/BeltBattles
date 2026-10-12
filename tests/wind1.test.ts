@@ -289,10 +289,10 @@ describe("WIND-1 call 6: BLOCKED pops, the colours, VIEW BATTLEFIELD's rows", ()
     for (const side of [0, 1] as Side[]) {
       const rows = summaryRows(a, side), m = Object.fromEntries(rows);
       expect(rows.length).toBe(SUMMARY_ROWS);
-      expect(rows.map((r) => r[0])).toEqual(["DAMAGE DEALT", "SHOTS", "HULL LOST", "WIND TAKEN", "PLATE BLOCKED", "SHIELD BLOCKED"]);
+      expect(rows.map((r) => r[0])).toEqual(["DAMAGE DEALT", "SHOTS", "HULL LOST", "WIND TAKEN", "SHIELD BLOCKED", "WARD BLOCKED"]);
       expect(m["WIND TAKEN"]).toBe(fmtDmg(a.b.sides[side].stats.windTaken));
-      expect(m["PLATE BLOCKED"]).toBe(fmtDmg(a.b.sides[side].plate.absorbed));
-      expect(m["SHIELD BLOCKED"]).toBe(String(a.b.sides[side].blocked ?? 0));
+      expect(m["SHIELD BLOCKED"]).toBe(fmtDmg(a.b.sides[side].plate.absorbed));
+      expect(m["WARD BLOCKED"]).toBe(String(a.b.sides[side].blocked ?? 0));
     }
     expect(summaryRows(a, 0)[3][1]).toBe(summaryRows(a, 1)[3][1]); // the same wind on both
     for (const [name, w, h, dpr] of VIEWS) {

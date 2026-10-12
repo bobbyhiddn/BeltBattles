@@ -13,7 +13,7 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - **A wider view of the fight:** the camera pulls back while the carriers fight, so both ships and the setting around
   them show with room to spare. Your plates, the clock and the speed controls keep their size.
 - **VIEW BATTLEFIELD after every fight:** a new button on the result card shows both carriers as the fight left them,
-  with each side's damage dealt, shots, hull lost, plating soaked and SHIELD stops. Tap a part to read it; a turret also
+  with each side's damage dealt, shots, hull lost, SHIELD soaked and WARD stops. Tap a part to read it; a turret also
   says how much damage it dealt in how many shots. BACK returns to the card, or go on from the view.
 - **Your battle speed holds:** the speed you pick in a battle (0.5X, 1X, 2X or 4X) stays for the rest of the run, warlord
   fights too, and after a reload or CONTINUE. A new run starts at 1X; a replay keeps its own speed.
@@ -24,9 +24,9 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - DARK WIND · HITS BOTH HULLS shows between the carriers when the wind rises, in replays too (it was a blinking banner over
   the boards).
 - Each plate shows its hull as a number, with its max where there is room ("805/2100").
-- SHIELD shows its count beside its pips, and plating shows its amount beside the bar. A hit plating soaks pops BLOCKED and
-  the amount; a hit a SHIELD stops pops BLOCKED.
-- VIEW BATTLEFIELD adds WIND TAKEN. Its plating and SHIELD rows read PLATE BLOCKED and SHIELD BLOCKED.
+- WARD shows its count beside its pips, and SHIELD shows its amount beside the bar. A hit SHIELD soaks pops BLOCKED and
+  the amount; a hit a WARD stops pops BLOCKED.
+- VIEW BATTLEFIELD adds WIND TAKEN. Its SHIELD and WARD rows read SHIELD BLOCKED and WARD BLOCKED.
 - **The dark wind looks fair on every screen:** when the carriers sit side by side (a desktop, a laptop, a phone held
   sideways), the storm rolls in from both sides of the screen, so it covers both boards alike. It used to cover only
   your board there. A phone held upright looks as before.
@@ -35,6 +35,18 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
   foe's hull number shows in full.
 - **One fight clock:** the playback bar and the result card read the same second at the end of a fight (a 69-second
   fight read 1:08 on the bar and 69S on the card).
+- The battle shows each fight's counts as numbers: a status row on each plate (BURN stacks, FRAY out of 15, parts stunned);
+  the foe's statuses were drawn off the screen before.
+- Each gun shows the slugs waiting at it; it turns amber when 4 are backed up and red with JAM until it fires again.
+- Each belt shows the slugs on it while the fight runs.
+- Tap or hover a plate's counts, a gun or a belt to read each count's rule.
+- A PAIR shows on the board: both belts' last tiles flash blue, a bracket joins them at the gun, PAIR's mark pops over
+  it, and each hit of the paired shot carries the mark.
+- A load waiting for its partner makes its belt's last tile glow until its window closes.
+- A gun with a PAIR reader shows PAIR's rule under its count when you tap or hover it.
+- Hit numbers always draw over the gun and belt counts.
+- The foe's gun counts sit off its board on the desk and on a phone held sideways.
+- A tap or a hover on the paused chip no longer reaches a count under it.
 - **Your carrier up close:** the build screen shows your carrier as big as the screen has room for. On a desktop the
   board is two thirds bigger, and on most phones a fifth bigger. The shop, your hero card, NEXT BATTLE and FIGHT keep
   their size.
@@ -62,6 +74,20 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - **Cleaner cards:** a card shows its stats and its own rules. Flavour, a turret's ammo and gear lines and how-to tips
   move to NOTES in the ⓘ view (on a desktop, rest the mouse on the card's icon). A tip shows until you've done it once.
 - **WHETSTONE, TEMPER and BARBED SPOOL** show their bonus as a stat.
+- **SHIELD and WARD:** plating, the layer that soaks damage point for point before your hull, is now called SHIELD (it
+  was PLATE). The old SHIELD, the block that stops all of one hit's damage and then breaks, is now called WARD. Both
+  words have new definitions, and if you have played before, a one-time notice tells you the new names.
+- **Phone shop cards say what they do:** every core, every piece of gear and four rigs (TOLLBOOTH, SORTING ARM, BRACE
+  FRAME and OVERDRIVE) now name what they do on their shop card, in words where the picture was (SPLASHES, HULL ONLY,
+  ALL LOADS, ...).
+- **More details fit on a small phone:** more parts' details now fit the strip between the shop and your carrier, so
+  fewer grow up over the shop. Some use the small letters to fit, and a how-to tip shows just above the details instead
+  of making them taller. An idle rig's fix (TURN IT OR MOVE IT BESIDE A BELT.) moves to NOTES.
+- A word's definition now opens just above its line when it would cover that word, and on a rune card it keeps clear
+  of TAP AGAIN TO TAKE IT.
+- LAST CHANCE's part and hull cards leave clear space between their items, the box under a hovered shop card on a
+  desktop leaves space under its family line, and a rune's read-out from the rune bar ends after its last line unless a
+  note shows.
 - No rule changed: every fight plays exactly as in 0.9.8, and online play is unchanged.
 
 ## 0.9.8: styles you earn

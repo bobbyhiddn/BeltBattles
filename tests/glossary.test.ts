@@ -7,7 +7,9 @@ import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { effectAt, fusible } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
 import { C } from "../src/render/palette";
-import { ICON, ICON_COLOUR, KEYWORDS, icons, stripIcons, textWidth } from "../src/render/font";
+import { ICON, ICON_COLOUR, KEYWORDS, PLAYER_WORD, icons, stripIcons, textWidth } from "../src/render/font";
+import { PLATE_CAP } from "../src/sim/races/bastion"; // CARD-3 (REQ-BFG-107): SHIELD's MAX
+import { NAMES_KEPT } from "../src/ui/gameWords"; // CARD-3: a name is never a keyword
 import { KEYWORD_COLOUR, colourize, wrapRich } from "../src/ui/richText";
 import { FACE_IDS, faceAt, faceLines } from "../src/ui/faces"; // Y7b2 (the flip): SIM's import went with its poison constants
 import { captureFormats, FORMATTERS, fmtCount, fmtSec } from "../src/ui/statFormat";
@@ -40,7 +42,8 @@ const linesOf = (markup: string): number => wrapRich(colourize(icons(markup), C.
 function shownTexts(): { id: string; text: string }[] {
   const out = GLOSSARY.map((r) => ({ id: r.word, text: r.def }));
   for (const def of FACE_IDS) for (const o of contexts(def)) for (const s of starsOf(def)) {
-    for (const k of KEYWORDS) if (faceAt(def, s, o)!.reminders.some((r) => r.includes(`{*${k}}`))) out.push({ id: `${def} ★${s} ${k}`, text: glossaryText(k, { def, stars: s, o })! });
+    // CARD-3 (REQ-BFG-107): a tap reaches the word as drawn (PLAYER_WORD)
+    for (const k of KEYWORDS) if (faceAt(def, s, o)!.reminders.some((r) => r.includes(`{*${k}}`))) out.push({ id: `${def} ★${s} ${k}`, text: glossaryText(PLAYER_WORD[k], { def, stars: s, o })! });
     const n = TAP_NOTES[def];
     if (n) out.push({ id: `${def} ★${s} note`, text: glossaryText(n.word, { def, stars: s, o })! });
   }
@@ -85,15 +88,17 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
   it("the face keywords' rows are their reminders (faces.ts REMINDER) and one sentence; each in its icon's colour", () => {
     for (const k of KEYWORDS) {
       const r = keywordRow(k);
-      expect(r.word, k).toBe(k);
+      expect(r.word, k).toBe(PLAYER_WORD[k]); // CARD-3 (REQ-BFG-107): PLATE reads SHIELD, SHIELD reads WARD
       expect(r.colour, k).toBe(ICON_COLOUR[ICON[k]]); // font.ts, the one source (REQ-BFG-032 rule 3)
       expect(r.def.startsWith(`{*${k}}:`) || r.def.startsWith(`EACH {*${k}}:`), r.def).toBe(true);
       if (r.extra) expect((r.extra.match(/\.(?=\s|$)/g) ?? []).length, `${k}: at most one sentence`).toBeLessThanOrEqual(1);
     }
   });
 
-  it("the same mechanic is one row: SHOCK and STALL are STUN's (one disrupt timer), PLATING PLATE's, FIRE RATE and WORKS FASTER RATE's, MACHINE PART's", () => {
-    for (const [form, word] of [["SHOCK", "STUN"], ["STALL", "STUN"], ["STALLED", "STUN"], ["PLATING", "PLATE"], ["FIRE RATE", "RATE"], ["WORKS FASTER", "RATE"], ["MACHINE", "PART"]]) {
+  it("the same mechanic is one row: SHOCK and STALL are STUN's (one disrupt timer), SHIELDS and SHIELDED SHIELD's, WARDS WARD's, FIRE RATE and WORKS FASTER RATE's, MACHINE PART's", () => {
+    // CARD-3 (REQ-BFG-107): PLATE, PLATES, PLATED and PLATING name no row (the word PLATE is in no player text)
+    for (const w of ["PLATE", "PLATES", "PLATED", "PLATING"]) expect(glossaryEntry(w), w).toBeUndefined();
+    for (const [form, word] of [["SHOCK", "STUN"], ["STALL", "STUN"], ["STALLED", "STUN"], ["SHIELDS", "SHIELD"], ["SHIELDED", "SHIELD"], ["WARDS", "WARD"], ["FIRE RATE", "RATE"], ["WORKS FASTER", "RATE"], ["MACHINE", "PART"]]) {
       expect(glossaryEntry(form)!.word, form).toBe(word);
     }
     // JAM keeps one meaning, an over-fed gun skipping a shot; STUN keeps today's (the part stops)
@@ -117,12 +122,14 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
     const same: Record<string, string> = {
       // WORDS-1 (REQ-BFG-081; READ-1 4): PAIR from two belts (was "TWO LOADS REACH ONE TURRET AT ONCE"), FRAY on the hull's
       // later shots (was "LATER HIT": HIT read as the rig's label)
-      PLATE: "BEFORE YOUR HULL", PAIR: "TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE", HEAT: "FOR EACH SEC IT RIDES", FRAY: "EVERY LATER SHOT",
+      PLATE: "POINT FOR POINT", PAIR: // CARD-3 (REQ-BFG-107): the genre's words, in both (was "BEFORE YOUR HULL")
+        "TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE", HEAT: "FOR EACH SEC IT RIDES", FRAY: "EVERY LATER SHOT",
       // U2d F4: RIDE's row reworded (cap), its reminder its first sentence; was "CINDER SLUG'S OWN"
       RATE: "HOW OFTEN A GUN FIRES OR A FACTORY WORKS", BURN: "HULL DAMAGE", RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE", STUN: "STOPS FOR A WHILE", // FLIP-X2 N4-d: STUN (was STALL)
       // SUS-B (REQ-BFG-069): the sustain keywords' rune reminders (SUSTAIN-1 4.1)
       // NUM-4 (REVIEW-SUSB F1): a SHIELD blocks one hit's DAMAGE (was "STOPS ONE WHOLE HIT")
-      SHIELD: "BLOCKS ONE HIT'S DAMAGE", HEAL: "NEVER PAST FULL", REGEN: "EACH SEC",
+      // CARD-2 (REQ-BFG-081, K3 b): ALL OF one hit's damage, in the reminder and the row alike (was "BLOCKS ONE HIT'S DAMAGE")
+      SHIELD: "BLOCKS ALL OF ONE HIT'S DAMAGE", HEAL: "NEVER PAST FULL", REGEN: "EACH SEC",
     };
     // U2d F4 (cap, seen in crop-keywords-rune-op): RIDE's row in cap's words, whole (2 lines of 5x7 at 225 px: the fit test below)
     expect(glossaryEntry("RIDE")!.def).toBe("RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.");
@@ -131,16 +138,18 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
       const rem = RUNE_REMINDER[k];
       // FLIP-X2 (N4-d): its word first, the keyword's own name again (the STALL token is STUN now, so NUM-4's "the word the
       // rune card draws" form, KEYWORD_WORD[k], is no longer needed: every rune keyword's word is its name)
-      expect(rem.startsWith(`${k}: `), rem).toBe(true);
-      expect(KEYWORD_WORD[k as RuneKeyword], k).toBe(k);
+      // CARD-3 (REQ-BFG-107): the word a card draws is the keyword's player word (PLATE reads SHIELD, SHIELD reads WARD)
+      const w = KEYWORD_WORD[k as RuneKeyword];
+      expect(rem.startsWith(`${w}: `), rem).toBe(true);
+      expect(w, k).toBe(({ PLATE: "SHIELD", SHIELD: "WARD" } as Record<string, string>)[k] ?? k);
       expect(rem, k).not.toMatch(/\d/);
       expect(rem, k).toContain(phrase);
-      expect(stripIcons(icons(glossaryEntry(k)!.def)).replace(/  +/g, " "), k).toContain(phrase);
+      expect(stripIcons(icons(glossaryEntry(w)!.def)).replace(/  +/g, " "), k).toContain(phrase);
     }
     // the rune card reads them: a rune naming PLATE shows PLATE's reminder, its word in PLATE's colour
     const plate = RUNE_LIST.find((d) => d.id === "rivet_hoard")!;
     expect(runeReminder(plate)).toBe(RUNE_REMINDER.PLATE);
-    expect(runeReminderSpans(plate)[0]).toEqual({ t: "PLATE", c: ICON_COLOUR[ICON.PLATE] });
+    expect(runeReminderSpans(plate)[0]).toEqual({ t: "SHIELD", c: ICON_COLOUR[ICON.PLATE] }); // CARD-3: SHIELD, in the soak's colour
   });
 });
 
@@ -157,7 +166,7 @@ describe("U2c the glossary: numbers, digits and fit", () => {
     }
     for (const def of FACE_IDS) for (const o of contexts(def)) for (const s of starsOf(def)) {
       // the keywords this face names (its own reminder fills in its number) and its tap note
-      const kws = KEYWORDS.filter((k) => faceAt(def, s, o)!.reminders.some((r) => r.includes(`{*${k}}`)));
+      const kws = KEYWORDS.filter((k) => faceAt(def, s, o)!.reminders.some((r) => r.includes(`{*${k}}`))).map((k) => PLAYER_WORD[k]); // CARD-3
       for (const word of [...kws, ...(TAP_NOTES[def] ? [TAP_NOTES[def].word] : [])]) {
         const { value: text, records: rec } = captureFormats(() => glossaryText(word, { def, stars: s, o }));
         if (!text) continue;
@@ -194,9 +203,10 @@ describe("U2c the glossary: numbers, digits and fit", () => {
     expect(over, over.join(" | ")).toEqual([]);
     // REQ-BFG-032 rule 3: a face keyword draws in its icon's colour, so a text names it in panel style (its icon glued before
     // it), never as a bare word (a piece's name aside: HEAT JACKET)
+    // CARD-3 (REQ-BFG-107): the word as drawn (PLAYER_WORD: SHIELD, WARD), a whole word, never inside a name (NAMES_KEPT)
     for (const { id, text } of shownTexts()) for (const k of KEYWORDS) {
-      const t = icons(text).replace(/HEAT JACKET/g, "");
-      for (const m of t.matchAll(new RegExp(`${k}`, "g"))) expect(t[m.index! - 1], `${id}: ${k} in ${stripIcons(t)}`).toBe(ICON[k]);
+      const t = NAMES_KEPT.reduce((x, n) => x.split(n).join(""), icons(text).replace(/HEAT JACKET/g, ""));
+      for (const m of t.matchAll(new RegExp(`\\b${PLAYER_WORD[k]}(?:S|ED)?\\b`, "g"))) expect(t[m.index! - 1], `${id}: ${k} in ${stripIcons(t)}`).toBe(ICON[k]);
     }
     console.log(`U2c glossary fit: ${n} texts, each 2 lines or fewer at ${GLOSSARY_WRAP_W} px (the longest ${widest} px unwrapped)`);
   });
@@ -207,15 +217,22 @@ describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND
   // test above), the row says it another way: REGEN GIVES BACK, a hull with BURN GETS HALF, IT STOPS, NO HEAL IN IT
   const want: Record<string, { def: string; aliases: string[]; colour: string }> = {
     // NUM-4 (REVIEW-SUSB F1): BLOCKS ONE HIT'S DAMAGE (was "STOPS ONE WHOLE HIT"); the extra {*BURN} GOES PAST IT. stays
-    SHIELD: { def: `EACH {*SHIELD}: BLOCKS ONE HIT'S DAMAGE. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}. {*BURN} GOES PAST IT.`, aliases: ["SHIELDS"], colour: ICON_COLOUR[ICON.SHIELD] },
+    // CARD-2 (REQ-BFG-081, K3 b; READ-3 6: SHIELD read as plate that soaks): ALL OF one hit's damage (was "BLOCKS ONE HIT'S")
+    // CARD-3 (REQ-BFG-107): the soak layer is SHIELD (point for point; which acts first), the one-hit block WARD (CARD-2's
+    // words with its cap); THE DARK WIND GOES PAST IT moved to the DARK WIND row
+    SHIELD: { def: `{*PLATE}: SOAKS HULL DAMAGE POINT FOR POINT. MAX ${fmtDmg(PLATE_CAP)} {PLATE}. A {*SHIELD} GOES FIRST.`, aliases: ["SHIELDS", "SHIELDED"], colour: ICON_COLOUR[ICON.PLATE] },
+    WARD: { def: `{*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}. {*BURN} GOES PAST IT.`, aliases: ["WARDS"], colour: ICON_COLOUR[ICON.SHIELD] },
     HEAL: { def: "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL. A HULL WITH {*BURN} GETS HALF.", aliases: ["HEALS", "HEALED", "HEALING", "REPAIR", "REPAIRS"], colour: ICON_COLOUR[ICON.HEAL] },
     REGEN: { def: "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC. IT STOPS IN THE DARK WIND.", aliases: [], colour: ICON_COLOUR[ICON.REGEN] },
     // AZ-BUMP (the flip, HULL_SCALE): "HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT." -> "EACH HULL LOSES A GROWING % OF ITS MAX
     // EACH SEC. NO {*HEAL}.": with HULL_SCALE on the wind is a share of each hull's own max, and the row says so (glossary.ts,
     // HULL-1c's words; tests/hull1c.windhud). The switch off still reads SUS-B's words (DARK_WIND_OFF, the tap test below)
-    "DARK WIND": { def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, EACH HULL LOSES A GROWING % OF ITS MAX EACH SEC. NO {*HEAL}.`, aliases: [], colour: C.bone },
+    // CARD-3 (REQ-BFG-107): + PAST {*PLATE} (the soak row's THE DARK WIND GOES PAST IT moved here). MERGE-099D (cap's ruling,
+    // oracle 19ddc7af83f1dba3): in both rows; the ON row reads HULLS LOSE A GROWING % OF MAX EACH SEC so it keeps 2 lines
+    "DARK WIND": { def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULLS LOSE A GROWING % OF MAX EACH SEC, PAST {*PLATE}. NO {*HEAL}.`, aliases: [], colour: C.bone },
   };
-  const DARK_WIND_OFF = `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`;
+  // MERGE-099D (1f; cap's ruling, oracle 19ddc7af83f1dba3): the switch off reads CARD-3's words, + PAST {*PLATE}
+  const DARK_WIND_OFF = `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS, PAST {*PLATE}. NO {*HEAL} IN IT.`;
 
   it("each row: its word first, its aliases, its colour (the icon's; DARK WIND none), its definition in markup", () => {
     for (const [word, w] of Object.entries(want)) {
@@ -238,13 +255,15 @@ describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND
       report.push(`${word} ${textWidth(glyphs, "5")} px unwrapped, ${lines.length} lines (${lines.map((l) => textWidth(l.map((s) => s.t).join(""), "5")).join(" + ")} px)`);
     }
     // the rune reminders the cards draw are number-free, each its word first (the rune-keywords test above pins the phrase)
-    for (const k of ["SHIELD", "HEAL", "REGEN"]) expect(RUNE_REMINDER[k].startsWith(`${k}: `) && !/\d/.test(RUNE_REMINDER[k]), k).toBe(true);
+    for (const k of ["PLATE", "SHIELD", "HEAL", "REGEN"]) expect(RUNE_REMINDER[k].startsWith(`${KEYWORD_WORD[k as RuneKeyword]}: `) && !/\d/.test(RUNE_REMINDER[k]), k).toBe(true); // CARD-3
     console.log(`SUS-B rows: ${report.join("; ")}`);
   });
 
   it("a tap on each label shows its LABEL: EFFECT text: the row's, an alias's, and a kept text's word (RIVETER's old REPAIRS)", () => {
     expect(glossaryText("SHIELD")).toBe(want.SHIELD.def);
     expect(glossaryText("SHIELDS")).toBe(want.SHIELD.def);
+    expect(glossaryText("WARD")).toBe(want.WARD.def); // CARD-3 (REQ-BFG-107)
+    expect(glossaryText("WARDS")).toBe(want.WARD.def);
     expect(glossaryText("HEALING")).toBe(want.HEAL.def);
     expect(glossaryText("REPAIRS")).toBe(want.HEAL.def);
     expect(glossaryText("REGEN")).toBe(want.REGEN.def);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs"; // U2e step 1
 import {
-  IDLE_HEAD, IDLE_SHORT, IDLE_WARNING, mergeLine, nextLine, offerPanel, planPanel, portraitButtons, rigPanel, visibleLines,
+  IDLE_FIX, IDLE_HEAD, IDLE_SHORT, mergeLine, nextLine, offerPanel, planPanel, portraitButtons, rigPanel, visibleLines,
   type PLine,
 } from "../src/screens/build/inspector";
 import { cargoPanel } from "../src/screens/build/inspector"; // U2e step 1
@@ -339,8 +339,12 @@ describe("P11: a rig's panel order, and the phone band", () => {
       "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", faceLines("longhaul", 1)!.rules[0].text, TURN, // U2e: no NEXT★, no merge progress
     ]);
     // an IDLE ★2 TEMPER: the amber warning leads
+    // CARD-3 (REQ-BFG-080, B's lever 1): the face's warning is the rig's own state (IDLE_SHORT); its fix, true of every rig,
+    // is a "kind" note (NOTES; explainPanel hides it). Was one block, "IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT
+    // BESIDE ONE." (IDLE_WARNING)
     const idle = rigPanel(rigRun("temper", 2, 0, 9, 0, 0), 10)!;
-    expect([idle.body[0].role, idle.body[0].text]).toEqual(["warn", IDLE_WARNING]);
+    expect([idle.body[0].role, idle.body[0].text, idle.body[0].keep]).toEqual(["warn", IDLE_SHORT, true]);
+    expect([idle.body[1].role, idle.body[1].text, idle.body[1].note]).toEqual(["warn", IDLE_FIX, "kind"]);
     // U2c (U2b's faces): its face's rule line (faceLines), BURN's reminder (REMINDER.BURN) and NEXT★ (faceNext); were
     // "ADDS 2 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS.", "NEXT STAR:
     // ADDS 4 BURN."
@@ -348,7 +352,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): TEMPER's plain face, its hit stat as a stat row (faces.ts plainRigStats; was its
     // face's rule line `HIT: +2 {BURN}.`, faceLines("temper", 2).rules[0].text). The builder's body: the drawn face hides the
     // hint once its tip is done (inspector.ts explainPanel; tests/explain1.test.ts)
-    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE_WARNING, statRow(plainRigStats("temper", 2)!), TURN]);
+    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE_SHORT, IDLE_FIX, statRow(plainRigStats("temper", 2)!), TURN]); // CARD-3 (B): was [IDLE_WARNING, ...]
     expect(faceLines("temper", 2)!.reminders).toEqual([icons(REMINDER.BURN())]);
     expect([idle.sub, idle.subColor, idle.idle, idle.labels]).toEqual(["RIG · IDLE", C.amber, true, ["ROTATE", "TO CARGO"]]);
     // a ★3 X OVERDRIVE at (5,3): no next star past ★3, no ROTATE for an X
@@ -468,7 +472,8 @@ describe("P11: a rig's panel order, and the phone band", () => {
     const fl = faceLines("coil", 2)!;
     expect(drawn.join(" ")).toContain(fl.rules[0].text);
     const g2 = effectAt("coil", 2).gate!;
-    expect(stripIcons(fl.rules[0].text)).toBe(`HIT: STUN ${fmtSec(g2.shockTime!)} ON ${fmtCount(1 + g2.jump!)} PARTS.`);
+    // CARD-2 (REQ-BFG-081, K3 (g); READ-2 7.1's words): whose STUN on which parts (was `HIT: STUN ${sec} ON ${n} PARTS.`)
+    expect(stripIcons(fl.rules[0].text)).toBe(`HIT: ITS  STUNS ${fmtCount(1 + g2.jump!)} PARTS ${fmtSec(g2.shockTime!)}.`);
     expect(fl.clause).toBeUndefined();
     expect(drawn.join(" ")).not.toContain("SPARK JUMP");
     expect(drawn.join(" ")).not.toContain("NEXT ★");

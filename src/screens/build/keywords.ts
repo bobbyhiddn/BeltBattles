@@ -31,12 +31,12 @@ import { resolveCore } from "../../sim/cores";
 import { gradeOf, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { rect, frame, type G } from "../../render/pixel";
-import { ICON, KEYWORDS, drawText, icons, textWidth, type FontId } from "../../render/font";
+import { ICON, KEYWORDS, PLAYER_WORD, drawText, icons, textWidth, type FontId } from "../../render/font";
 import { colourize, drawRich, lineText, lineWidth, wrapRich, type RichLine } from "../../ui/richText";
 import { glossaryEntry, glossaryHits, glossaryText, keywordRow, tapNote } from "../../ui/glossary";
 import { STAT_ICONS, statIconNote } from "../../ui/glossary"; // WORDS-1 (REQ-BFG-081): the stat icons' notes
 import { ICON_COLOUR } from "../../render/font"; // WORDS-1: a stat icon's underline in its colour ({RATE} yellow)
-import { FAMILY, familyNote } from "../../ui/families"; // WORDS-1: the family tags' taps (familyTargets)
+import { FAMILY, familyNote, familyWord } from "../../ui/families"; // WORDS-1: the family tags' taps (familyTargets)
 import type { ModuleTag } from "../../sim/content"; // WORDS-1
 import { tapRect, inside, type Rect, type UI } from "../../ui/ui";
 import type { TextOpts } from "../../ui/abilityText";
@@ -50,6 +50,10 @@ import { fusible } from "../../sim/stars"; // U2e step 5
 import type { BuildLayout } from "./layout"; // U2f: the room the ⓘ view grows into (infoFree)
 import { GAP } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries
 import { isPlainRig } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): HIT on the plain rigs' KEYWORDS (SHAPES-1: isPlainRig)
+import { PLAIN_RIGS } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): HIT on the plain rigs' KEYWORDS
+import { RIG_SENTENCE, faceLines } from "../../ui/faces"; // CARD-2 (REQ-BFG-004, K1): the rig sentence on the first rig
+import { rigSeen, sawRig, sawWord, sightWord } from "../../ui/firstSight"; // CARD-2 (K1): the first-sight notes
+import { TURRET_LABELS } from "./faceBlocks"; // CARD-2 (REQ-BFG-081, K4): a turret row label's target
 
 /** The piece a panel shows (its number fills in a keyword's reminder; its tap note): an offer, a part in cargo, a placed
  *  part, a fitted core or gear piece, an installed turret's bought core. */
@@ -158,8 +162,10 @@ function matches(text: string, l: PLine, first: boolean, piece: Piece | null): {
     out.push({ at, end, word, text: shown, colour: row?.colour ?? C.bone });
   };
   // the keywords as drawn: the icon and its word (panel style), or the icon alone
+  // CARD-3 (REQ-BFG-107): the word glued to the icon is the player's (font.ts PLAYER_WORD: SHIELD, WARD)
   for (const k of KEYWORDS) {
-    for (let i = text.indexOf(ICON[k]); i >= 0; i = text.indexOf(ICON[k], i + 1)) add(i, text.startsWith(k, i + 1) ? i + 1 + k.length : i + 1, k);
+    const w = PLAYER_WORD[k];
+    for (let i = text.indexOf(ICON[k]); i >= 0; i = text.indexOf(ICON[k], i + 1)) add(i, text.startsWith(w, i + 1) ? i + 1 + w.length : i + 1, w);
   }
   const b = l.block;
   // WORDS-1 (REQ-BFG-081; cap's design call 3): the stat icons {RATE}, {SLUG} and {GEAR} on an ability line (a face's stat
@@ -169,7 +175,9 @@ function matches(text: string, l: PLine, first: boolean, piece: Piece | null): {
     const kind = piece ? ITEMS[piece.def]?.kind : undefined, gunRow = text.includes(ICON.GEAR) && text.includes(ICON.RATE);
     for (const k of STAT_ICONS) {
       for (let i = text.indexOf(ICON[k]); i >= 0; i = text.indexOf(ICON[k], i + 1)) {
-        if (free(i, i + 1)) out.push({ at: i, end: i + 1, word: k, text: statIconNote(k, kind, gunRow), colour: ICON_COLOUR[ICON[k]] ?? C.bone });
+        // CARD-2 (REQ-BFG-081, K4): on the turret row's labels the target is the icon and its word (HOLDS: {SLUG}'s note)
+        const label = b.pairs ? TURRET_LABELS[k] : "", end = label && text.startsWith(label, i + 1) ? i + 1 + label.length : i + 1;
+        if (free(i, end)) out.push({ at: i, end, word: k, text: statIconNote(k, kind, gunRow), colour: ICON_COLOUR[ICON[k]] ?? C.bone });
       }
     }
   }
@@ -229,6 +237,10 @@ const clamp = (r: Rect, within: Rect): Rect | null => {
   const x1 = Math.min(r.x + r.w, within.x + within.w), y1 = Math.min(r.y + r.h, within.y + within.h);
   return x1 > x && y1 > y ? { x, y, w: x1 - x, h: y1 - y } : null;
 };
+
+/** CARD-2 (REQ-BFG-081, K2): U2c's target rules, for the rune cards' word targets (runeBar.ts runeWordTargets). */
+export const clampRect = clamp;
+export const clipOutRect = clipOut;
 
 /**
  * The tap targets of a planned panel (pure; drawDetails and the tests): every word its visible lines name (see the file
@@ -296,17 +308,17 @@ export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: rea
     for (const a of avoid) if (q) q = clipOut(q, a);
     for (const t of out) if (q && overlaps(q, t.r)) q = clipOut(q, t.r);
     if (q && inside(q, Math.floor(glyph.x + glyph.w / 2), Math.floor(glyph.y + glyph.h / 2))) {
-      out.push({ word: `${tag} FAMILY`, text: familyNote(tag), colour: FAMILY[tag].colour, glyph, r: q });
+      out.push({ word: `${familyWord(tag)} FAMILY`, text: familyNote(tag), colour: FAMILY[tag].colour, glyph, r: q }); // CARD-3: the player's tag
     }
   };
   if (fh.names) {
     // drawFamHead: "FORGE, TEMPO" in 3x5, under the sub line (x + 23, y + 19), or right-aligned on the sub line's second row
     // (y + 19) or the title's (y + 5)
-    const text = fh.tags.join(", "), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3");
+    const words = fh.tags.map(familyWord), text = words.join(", "), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3"); // CARD-3
     const y0 = r.y + (fh.at === "title" ? 5 : 19);
     fh.tags.forEach((tag, i) => {
-      const before = i ? textWidth(`${fh.tags.slice(0, i).join(", ")}, `, "3") + 1 : 0;
-      push(tag, { x: x0 + before, y: y0, w: textWidth(tag, "3"), h: GLYPH_H["3"] });
+      const before = i ? textWidth(`${words.slice(0, i).join(", ")}, `, "3") + 1 : 0;
+      push(tag, { x: x0 + before, y: y0, w: textWidth(words[i], "3"), h: GLYPH_H["3"] });
     });
     return out;
   }
@@ -372,18 +384,24 @@ export function panelWords(body: readonly Block[], piece: Piece | null): KwWord[
 
 // ------------------------------------------------------------------------------------------------- state and drawing
 
-/** The panel's tap state: which panel (its selection), the word shown, the KEYWORDS view's page. */
+/** The panel's tap state: which panel (its selection), the word shown, the KEYWORDS view's page. CARD-2 (REQ-BFG-004, K1):
+ *  `opened`, this open's first sight is decided (a fresh state is a new open: another panel, or this one again after the
+ *  panel closed, keywordsIdle); `auto`, a desk's first-sight word (its definition in the hover tooltip's look; on touch
+ *  the first sight is `word` itself, as a tap's); `rig`, the rig sentence's box by the icon. */
 interface KwState {
   key: string;
   word: string | null;
   page: number | null;
   hover: string | null;
+  opened: boolean;
+  auto: string | null;
+  rig: boolean;
 }
 const STATE = new WeakMap<object, KwState>();
 const stateOf = (owner: object, key: string): KwState => {
   let s = STATE.get(owner);
   if (!s || s.key !== key) {
-    s = { key, word: null, page: null, hover: null };
+    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false };
     STATE.set(owner, s);
   }
   return s;
@@ -392,13 +410,42 @@ const stateOf = (owner: object, key: string): KwState => {
 /** The ids this layer's regions use (BuildScreen.pressed keeps a press on one from closing what it opens). */
 export const KW_REGION = "kw:";
 export const isKeywordRegion = (id: string | null): boolean => !!id && id.startsWith(KW_REGION);
+/** CARD-2 (K1): a first-sight box's region (the desk's word box, the rig sentence's): a UI region, so a press on it never
+ *  reaches the board; like a tapped word's box (`kwdef`) it is no keyword region, so the press closes it. */
+export const SIGHT_REGION = "kwsight";
 
-/** BuildScreen.pressed: a press anywhere but on a word, `?` or the KEYWORDS view closes the definition and the view. */
+/** BuildScreen.pressed: a press anywhere but on a word, `?` or the KEYWORDS view closes the definition and the view.
+ *  CARD-2 (K1): any press closes a first-sight box (on touch the box is the shown word's: it closes as a tapped one). */
 export function keywordsPressed(owner: object, region: string | null): void {
   const s = STATE.get(owner);
-  if (!s || isKeywordRegion(region)) return;
+  if (!s) return;
+  s.auto = null;
+  s.rig = false;
+  if (isKeywordRegion(region)) return;
   s.word = null;
   s.page = null;
+}
+
+/** CARD-2 (REQ-BFG-004, K1): drawDetails with no panel to draw: the panel closed, so its next draw is a new open (its first
+ *  sight decided again). */
+export function keywordsIdle(owner: object): void {
+  STATE.delete(owner);
+}
+
+/** CARD-2 (K1): the reading order of a panel's word targets (top to bottom, left to right). */
+const reading = (a: KwTarget, b: KwTarget): number => a.glyph.y - b.glyph.y || a.glyph.x - b.glyph.x;
+
+/**
+ * CARD-2 (REQ-BFG-004, K1): a rig the rig sentence is true of (faces.ts RIG_SENTENCE: each arrow on a belt tile gives its
+ * stats to every slug on that tile, one hit an arrow): a plain stat rig (WHETSTONE, TEMPER, BARBED SPOOL) or a rig whose
+ * face's rule is a HIT: rule. Not a STOKER (its arrows work factories) nor a speed or timer rig (no HIT:).
+ */
+export function rigSentenceRig(piece: Piece | null): boolean {
+  if (!piece) return false;
+  const e = ITEMS[piece.def];
+  if (e?.kind !== "gate" || e.gate?.stoke) return false;
+  if (PLAIN_RIGS.includes(piece.def)) return true;
+  return !!faceLines(piece.def, piece.stars, piece.o)?.rules.some((r) => r.label === "HIT:");
 }
 
 /** What the layer shows now (tests and tooling). */
@@ -431,6 +478,16 @@ export function definitionBox(r: Rect, bottom: number, lines: number): Rect {
   return { x: r.x + 2, y: bottom - h, w: r.w - 4, h };
 }
 
+/** CARD-3 (REQ-BFG-087, D1): definition box `box` (definitionBox's, at the panel's foot), moved to end 2 px above the top
+ *  of the explained word's line where it would cover one of `own` (the targets of the word it explains); the panel's
+ *  frame (r.y + 1) the highest it goes, else it stays at the foot. Pure (drawKeywordLayer, tests). */
+export function defBoxClear(box: Rect, r: Rect, own: readonly { glyph: Rect }[]): Rect {
+  const hit = own.filter((t) => overlaps(t.glyph, box));
+  if (!hit.length) return box;
+  const y = Math.min(...hit.map((t) => t.glyph.y)) - 2 - box.h;
+  return y >= r.y + 1 ? { ...box, y } : box;
+}
+
 /** The KEYWORDS view's pages: as many whole definitions as fit the body's height (`h`) each, the header row first. */
 export function viewPages(words: readonly KwWord[], w: number, h: number): KwWord[][] {
   const pages: KwWord[][] = [];
@@ -461,20 +518,28 @@ export interface InfoItem {
   word?: KwWord;
   /** EXPLAIN-1: a NOTES line's text (markup or glyphs, as the panel's text holds it). */
   note?: string;
+  /** CARD-2 (REQ-BFG-081, K5): its lines' face: NOTES in 3x5 (a 7 px pitch), as the hidden lines were drawn on the face;
+   *  LEVELS and KEYWORDS in 5x7 (absent: "5", a 9 px pitch). */
+  font?: FontId;
 }
+
+/** CARD-2 (K5): an entry's line pitch: 7 px for a 3x5 entry (NOTES), 9 for a 5x7 one. */
+const pitchOf = (it: Pick<InfoItem, "font">): number => (it.font === "3" ? 7 : 9);
 
 /** The ⓘ view's entries at text width `w`: EXPLAIN-1 (E4) the NOTES lines first (each a separate entry, wrapped in 5x7 as a
  *  definition is), then the LEVELS lines (each wrapped in 5x7), then the KEYWORDS definitions. */
 export function infoItems(levels: readonly LevelLine[], words: readonly KwWord[], w: number, notes: readonly string[] = []): InfoItem[] {
   return [
-    ...notes.map((note): InfoItem => ({ section: "NOTES", lines: definitionLines(note, w), gap: 2, note })),
+    // CARD-2 (REQ-BFG-081, K5; READ-3 fix 5, EXPLAIN-1 open item 2): NOTES in the 3x5 face (each line its own entry, its
+    // keyword in its colour), so most views fit one page; was definitionLines (5x7)
+    ...notes.map((note): InfoItem => ({ section: "NOTES", lines: wrapRich(colourize(icons(note), C.bone), w, "3"), gap: 2, note, font: "3" })),
     ...levels.map((level, i): InfoItem => ({ section: "LEVELS", lines: wrapRich(levelSpans(level), w, "5"), gap: i === levels.length - 1 ? 2 : 0, level })),
     ...words.map((word): InfoItem => ({ section: "KEYWORDS", lines: definitionLines(word.text, w), gap: 2, word })),
   ];
 }
 
 /** The height an entry takes on a page after `prev` (its section's 9 px header row when it opens the page or a section). */
-const itemNeed = (it: InfoItem, prev: InfoItem | undefined): number => (prev?.section === it.section ? 0 : 9) + it.lines.length * 9 + it.gap;
+const itemNeed = (it: InfoItem, prev: InfoItem | undefined): number => (prev?.section === it.section ? 0 : 9) + it.lines.length * pitchOf(it) + it.gap;
 
 /** The ⓘ view's pages: as many whole entries as fit the body's height (`h`), each section's header row before its first
  *  entry on a page (U2c's viewPages, with LEVELS before KEYWORDS); a page footer's room where there are more. */
@@ -604,9 +669,11 @@ function underline(g: G, t: KwTarget): void {
  * definition or the KEYWORDS view; on the desk, the hover tooltip and the `help` cursor. `owner`: the screen (its state);
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
-export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan },
+export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
-  free: Rect | null = null, screen?: { W: number; H: number }): void {
+  free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
+  // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
+  // screen in its caravan; a fight's VIEW BATTLEFIELD, the foe's carrier and every other caller never ask)
   const { plan } = d, r = plan.r;
   const piece = panelPiece(run, d.show);
   const own = explainWords(d.t, piece); // EXPLAIN-1 (E4, E9): the face's words before any line was hidden; HIT on a plain rig
@@ -641,10 +708,30 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // WORDS-1 (REQ-BFG-081): the header's family tags too, each with its families.ts line (familyTargets)
   const body = keywordTargets(lines, plan, piece, avoid);
   const targets = [...body, ...familyTargets(plan, [...avoid, ...body.map((t) => t.r)])];
+  // CARD-2 (REQ-BFG-004, K1): THE FIRST SIGHT, decided once per open (a fresh state). None where the screen doesn't ask
+  // (`sight`) or where the panel shows a how-to tip this time (E5's hint drawn); else the rig sentence on the first rig
+  // panel (a rig it is true of), else the first effect keyword not yet seen, in reading order, its definition opened as a
+  // finger's tap opens it (touch: `word`, definitionBox at the panel's foot) or as a resting mouse shows it (the desk:
+  // drawHoverTip under the word). One box per open; the next waits for the next open.
+  if (!s.opened) {
+    s.opened = true;
+    // CARD-3 (REQ-BFG-080, C): a band panel draws its hint in a strip above it (detailsPlan's `hint`): that is a how-to
+    // tip shown this time too
+    if (sight && !d.hint && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) {
+      if (rigSentenceRig(piece) && !rigSeen()) s.rig = true;
+      else {
+        const w = sightWord([...body].sort(reading).map((t) => t.word));
+        if (w && tap) s.word = glossaryEntry(w)?.word ?? w;
+        else if (w) s.auto = w;
+      }
+    }
+  }
   // the shown definition covers the panel's bottom rows: the words under it are not targets meanwhile
   const shown = s.word ? words.find((w) => w.word === s.word) ?? targets.find((t) => t.word === s.word) : undefined;
   const defLines = shown ? definitionLines(shown.text, r.w - 10) : [];
-  const box = shown ? definitionBox(r, bottom, defLines.length) : null;
+  // CARD-3 (REQ-BFG-087, D1; REVIEW-CARD2 open item 1): the box sits at the panel's foot, unless it would cover the word it
+  // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1): then just above that word's line
+  const box = shown ? defBoxClear(definitionBox(r, bottom, defLines.length), r, targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word)) : null;
   targets.forEach((t, i) => {
     if (box && overlaps(t.glyph, box)) return;
     underline(g, t);
@@ -668,11 +755,38 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
     drawIconTip(g, tipItems, tr);
     ui.add({ id: `${KW_REGION}tip`, r: tr, block: true });
     s.hover = "ⓘ";
+    // CARD-2 (K1): the player's own look at NOTES: the rig sentence there counts as seen; a first-sight box gives way
+    if (tipItems.includes(RIG_SENTENCE)) sawRig();
+    s.auto = null;
+    s.rig = false;
     return setCursor(canvas, true);
   }
+  // a word's own definition on screen (its tap, its hover, or its first sight) is done (firstSight.ts)
+  if (shown && box) sawWord(shown.word);
   s.hover = hov ? hov.word : null;
   setCursor(canvas, !!hov);
-  if (hov) drawHoverTip(g, hov, r);
+  if (hov) {
+    drawHoverTip(g, hov, r);
+    sawWord(hov.word);
+    s.auto = null; // the player's own hover replaces a first-sight box
+    s.rig = false;
+  }
+  if (box) s.auto = null;
+  if (s.page !== null || box) s.rig = false;
+  // the desk's first-sight box: the word's definition in the hover tooltip's look, under the word, a UI region
+  const at = s.auto ? targets.find((t) => t.word === s.auto) : undefined;
+  if (s.auto && !at) s.auto = null;
+  if (at) {
+    ui.add({ id: SIGHT_REGION, r: drawHoverTip(g, at, r), block: true });
+    sawWord(at.word);
+  }
+  // the rig sentence's box: by the panel's icon, in the icon tooltip's look (iconTipRect, drawIconTip), a UI region
+  if (s.rig) {
+    const items = [RIG_SENTENCE], tr = iconTipRect(items, r, screen);
+    drawIconTip(g, items, tr);
+    ui.add({ id: SIGHT_REGION, r: tr, block: true });
+    sawRig();
+  }
 }
 
 /** FLIP-X1 (N4-b): one text row the ⓘ view draws: a section's header (3x5, `section`) or one line of an entry (5x7,
@@ -683,6 +797,8 @@ export interface InfoRow {
   h: number;
   section?: InfoItem["section"];
   line?: RichLine;
+  /** CARD-2 (K5): the line's face (NOTES "3"; absent: "5"). */
+  font?: FontId;
 }
 
 /** FLIP-X1 (N4-b): page `page` of the ⓘ view as drawView draws it: its areas and pages (infoView), each area's box (null
@@ -742,9 +858,10 @@ export function infoDrawn(items: readonly InfoItem[], r: Rect, top: number, bott
         rows.push({ area: ai, y: y + 1, h: 5, section: it.section });
         y += 9;
       }
+      // CARD-2 (K5): a NOTES entry's lines in 3x5 (5 px tall, a 7 px pitch)
       for (const ln of it.lines) {
-        rows.push({ area: ai, y, h: 7, line: ln });
-        y += 9;
+        rows.push({ area: ai, y, h: it.font === "3" ? 5 : 7, line: ln, ...(it.font === "3" ? { font: "3" as FontId } : {}) });
+        y += pitchOf(it);
       }
       y += it.gap + (i < its.length - 1 ? px : 0);
     });
@@ -774,7 +891,7 @@ function drawView(g: G, ui: UI, s: KwState, items: readonly InfoItem[], r: Rect,
     for (const row of rows) {
       if (row.area !== ai) continue;
       if (row.section) drawText(g, row.section, r.x + 5, row.y, C.brass3, { font: "3" });
-      else if (row.line) drawRich(g, row.line, r.x + 5, row.y, "5");
+      else if (row.line) drawRich(g, row.line, r.x + 5, row.y, row.font ?? "5");
     }
     ui.add({ id: `${KW_REGION}view`, r: box, onTap: turn });
   });
@@ -825,17 +942,30 @@ export function drawIconTip(g: G, items: readonly string[], tr: Rect): void {
 }
 
 /** The desk's hover tooltip (shop.ts drawTooltip's style: night, an ink frame and shadow) under the word, as the shop's
- *  sits under its card (the panel's title and the word stay in sight). */
-function drawHoverTip(g: G, t: KwTarget, r: Rect): void {
-  const lines = wrapRich(colourize(icons(t.text), C.bone), 150, "3");
+ *  sits under its card (the panel's title and the word stay in sight). CARD-2 (K1): returns its rect (a first-sight box
+ *  in this look is a UI region). */
+function drawHoverTip(g: G, t: KwTarget, r: Rect): Rect {
+  return drawWordTip(g, t.text, t.colour, t.glyph, r);
+}
+
+/** CARD-2 (REQ-BFG-081, K1, K2): drawHoverTip's box for a definition `text` (markup) of a word drawn at `glyph` on panel or
+ *  card `r`, its top edge in the word's `colour`; on `screen` where given, kept on it (a rune card on a narrow screen).
+ *  Returns its rect. */
+export function drawWordTip(g: G, text: string, colour: string, glyph: Rect, r: Rect, screen?: { W: number; H: number }, avoid?: Rect | null): Rect {
+  const lines = wrapRich(colourize(icons(text), C.bone), 150, "3");
   const w = Math.max(...lines.map((l) => lineWidth(l, "3"))) + 10, h = 8 + lines.length * 7;
-  const x = Math.max(2, Math.min(r.x + r.w + 200 - w, t.glyph.x - 4));
-  const y = t.glyph.y + t.glyph.h + 4;
+  let x = Math.max(2, Math.min(r.x + r.w + 200 - w, glyph.x - 4));
+  if (screen) x = Math.max(2, Math.min(screen.W - w - 2, x));
+  let y = glyph.y + glyph.h + 4;
+  // CARD-3 (REQ-BFG-087, D2; REVIEW-CARD2 open item 3): under the word it would cover `avoid` (a rune card's TAP AGAIN TO
+  // TAKE IT bar, its shadow 2 px included): then above the word, where the screen's top allows
+  if (avoid && overlaps({ x, y, w: w + 2, h: h + 2 }, avoid) && glyph.y - 4 - h >= 2) y = glyph.y - 4 - h;
   rect(g, x + 2, y + 2, w, h, C.ink);
   rect(g, x, y, w, h, C.ink);
   rect(g, x + 1, y + 1, w - 2, h - 2, C.night);
-  rect(g, x + 1, y + 1, w - 2, 1, t.colour === C.bone ? C.slate3 : t.colour);
+  rect(g, x + 1, y + 1, w - 2, 1, colour === C.bone ? C.slate3 : colour);
   lines.forEach((l, i) => drawRich(g, l, x + 5, y + 4 + i * 7, "3"));
+  return { x, y, w, h };
 }
 
 let cursorHelp = false;

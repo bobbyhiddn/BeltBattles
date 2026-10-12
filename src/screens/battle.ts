@@ -43,6 +43,8 @@ import { TitleScreen } from "./title";
 import { NOTE_ROW, SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, notePlace, plateSource, type BarState } from "./battleHud";
 import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout; the plates drawn
 import { BattleFaces, drawSummaries, drawViewBar, fingerPx, summaryRects } from "./battleScout"; // SCOUT-1 (REQ-BFG-076)
+import { BattleCounters, plateKeep } from "./battleCounters"; // COUNT-1 (REQ-BFG-100): the counters
+import { PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board
 import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
 import type { Rect } from "../ui/ui";
 
@@ -64,6 +66,9 @@ const LOWER_S = 0.25;
 /** MOTION-2 (REQ-BFG-071): how far past its hull box a carrier starts its sail-in (its bow reaches 18 px past the box, its
  *  bow wave 3 more). */
 const SAIL_IN_PAD = 24;
+
+/** PAIR-CUE (REQ-BFG-100): the paused chip's body, a blocking region (a press on it reaches nothing under it). */
+export const PAUSE_CHIP = "pchip";
 
 export class BattleScreen implements Screen {
   readonly arena: Arena;
@@ -108,6 +113,8 @@ export class BattleScreen implements Screen {
   windCallR: Rect | null = null;
   /** WIND-1 tooling (bb.windInfo): each plate as drawn this frame (battleHud.ts drawPlate), [yours, the foe's]. */
   readonly plateRows: [PlateInfo | null, PlateInfo | null] = [null, null];
+  /** COUNT-1 (REQ-BFG-100; display only): the status rows, the guns' and belts' counts and their panels. */
+  readonly counters = new BattleCounters();
 
   constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
@@ -155,6 +162,9 @@ export class BattleScreen implements Screen {
     };
     this.relayout();
     this.arena.off = [this.driveIn[0], this.driveIn[1]];
+    // PAIR-CUE (REQ-BFG-100; REVIEW-COUNT1 ruling 3): the board counters draw under every number (ArenaMotion.underNumbers)
+    this.motion.underNumbers = (g) => this.drawBoardCounters(g);
+    this.arena.cue = new PairWatch(); // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board, in the fight phase
     this.useSpeed(runSpeed(run)); // SCOUT-1b (REQ-BFG-083): the speed picked earlier in this run, from the first step
     if (w?.result) {
       // reloaded on the result card: show the stored result, never fight or pay again
@@ -360,7 +370,8 @@ export class BattleScreen implements Screen {
     this.driveIn = [this.L.hulls[0].x + this.L.hulls[0].w + SAIL_IN_PAD - left, this.L.hulls[1].x + this.L.hulls[1].w + SAIL_IN_PAD + 28 - left];
     this.src = this.placeSource();
     this.arena.setFrames(this.L.frames, this.L.enter);
-    this.motion.windKeep = { plates: this.L.plates, bar: this.L.bar }; // WIND-1 (REQ-BFG-093): the wind's numbers keep clear
+    // WIND-1 (REQ-BFG-093): the wind's numbers keep clear. COUNT-1 (REQ-BFG-100): of each plate's status row too
+    this.motion.windKeep = { plates: plateKeep(this.L), bar: this.L.bar };
   }
 
   /** The player's pick (a bar button, the cycle button, keys 1-4). SCOUT-1b (REQ-BFG-083): it holds for the rest of the
@@ -422,6 +433,7 @@ export class BattleScreen implements Screen {
     }
     if (this.phase !== "fight") return;
     this.arena.paused = false;
+    this.counters.reset(); // COUNT-1: the skipped steps' jams are not shown
     for (const e of this.arena.finish()) if (e.type === "end") this.end();
   }
 
@@ -472,6 +484,7 @@ export class BattleScreen implements Screen {
       }
     } else if (this.phase === "fight") {
       const ev = a.update(dt); // reused array, valid until the next update()
+      this.counters.events(ev); // COUNT-1 (REQ-BFG-053): the guns' jams, read only
       for (let i = 0; i < ev.length; i++) {
         const e = ev[i];
         if (e.type === "end" && this.phase === "fight") this.end();
@@ -492,6 +505,8 @@ export class BattleScreen implements Screen {
     const { W, H } = this.game;
     const a = this.arena;
     const m = this.motion;
+    this.counters.begin(); // COUNT-1: no counter groups yet this frame (PAIR-CUE: the board's are drawn inside m.draw)
+    if (a.cue) a.cue.on = this.phase === "fight"; // PAIR-CUE: never in the intro, the outro, the card or VIEW BATTLEFIELD
     // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion. FIELD-1: the battle's setting,
     // through the camera
     m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed, a);
@@ -539,6 +554,9 @@ export class BattleScreen implements Screen {
     }
     if (this.phase === "view" && !lowering) this.faces.draw(g, this.game, this.arena, this.L, true);
     else this.faces.last = null;
+    // COUNT-1 (REQ-BFG-100): a counter group's panel (a tap's, or the desk's hover), during the fight only
+    if (this.phase === "fight" && !this.menu) this.counters.drawPanel(g, this.game, a, this.plateRows);
+    else this.counters.open = null;
     if (this.paused && this.phase !== "result" && this.phase !== "view") this.drawPaused(g);
     if (this.menu) this.drawMenu(g);
   }
@@ -570,7 +588,36 @@ export class BattleScreen implements Screen {
     panel(g, r, "dark");
     drawText(g, "PAUSED", r.x + 6, r.y + 4, C.yellow, { scale: 2, outline: C.ink });
     drawText(g, hint, r.x + 6, r.y + 20, C.slate4, { font: "3" });
+    // PAIR-CUE (REQ-BFG-100; REVIEW-COUNT1, gap 4): the chip's body swallows a press, so a counter target under it (added
+    // earlier this frame) is never reached through it; MENU, added after, still wins on its own button
+    ui.add({ id: PAUSE_CHIP, r, block: true });
     button(ui, g, "pmenu", { x: r.x + r.w - 34, y: r.y + 5, w: 30, h: 18 }, "MENU", { font: "3", onTap: this.openMenu });
+  }
+
+  /** The plates as drawn this frame: they ride with their cruiser during the drive-in (FIELD-1: at the camera's zoom, as
+   *  the cruiser moves on screen). */
+  private placePlates(): void {
+    const L = this.L, z = this.motion.camera?.zoom ?? 1;
+    for (let s = 0; s < 2; s++) {
+      const p = L.plates[s], r = this.plateR[s];
+      r.x = p.x + Math.round(this.arena.enter[s][0] * this.arena.off[s] * z);
+      r.y = p.y + Math.round(this.arena.enter[s][1] * this.arena.off[s] * z);
+      r.w = p.w;
+      r.h = p.h;
+    }
+  }
+
+  /**
+   * COUNT-1 (REQ-BFG-100): the guns' and belts' counts while the fight runs, under the plates and the bar (clear of both,
+   * of the status rows and of the wind's numbers); their tap targets clear of the bar's buttons. PAIR-CUE (REVIEW-COUNT1
+   * ruling 3): drawn from inside ArenaMotion.draw (underNumbers), after the world and the dark wind and before every number,
+   * so a hit number is always whole over a box; the plates, the bar and the DARK WIND callout still draw over them.
+   */
+  private drawBoardCounters(g: G): void {
+    const L = this.L;
+    this.placePlates();
+    const live = this.phase === "fight" && !this.menu;
+    this.counters.drawBoard(g, this.game, this.arena, this.motion, [...plateKeep({ plates: [this.plateR[0], this.plateR[1]], hulls: L.hulls }), L.bar], [L.bar], live);
   }
 
   private drawHud(g: G): void {
@@ -583,21 +630,16 @@ export class BattleScreen implements Screen {
         this.hpText[s] = fmtDmg(hp);
       }
     }
-    // plates ride with their cruiser during the drive-in (FIELD-1: at the camera's zoom, as the cruiser moves on screen)
-    const z = this.motion.camera?.zoom ?? 1;
-    for (let s = 0; s < 2; s++) {
-      const p = L.plates[s], r = this.plateR[s];
-      r.x = p.x + Math.round(this.arena.enter[s][0] * this.arena.off[s] * z);
-      r.y = p.y + Math.round(this.arena.enter[s][1] * this.arena.off[s] * z);
-      r.w = p.w;
-      r.h = p.h;
-    }
+    this.placePlates();
+    const live = this.phase === "fight" && !this.menu;
     // 0.7.0a step 6 (online only): the foe's source in small text by its plate, online ghost or offline stand-in; 0.7.0
     // (R1 M1): where sourceLine() puts it, riding with the plate
     const src = this.src, p1 = this.plateR[1];
     this.plateRows[1] = drawPlate(g, this.game, this.arena, p1, 1, src?.place === "plate" ? src.name : this.foeName, this.hpText[1], src?.place === "plate" ? src.tag : undefined);
     if (src?.place === "above") drawText(g, src.text, p1.x + 3, p1.y - (NOTE_ROW - 1), C.slate4, { font: "3", outline: C.ink });
     this.plateRows[0] = drawPlate(g, this.game, this.arena, this.plateR[0], 0, HEROES[this.game.run!.hero].name, this.hpText[0]);
+    // COUNT-1 (REQ-BFG-100): each plate's status row (C1 the foe's, C2 yours) on its hull side, and its tap target
+    this.counters.drawRows(g, this.game, this.arena, L, this.plateR, this.plateRows, [L.bar], live);
     const sec = clockSec(b.t); // WIND-2 (REQ-BFG-093): whole ticks, then whole seconds (was Math.floor(b.t): 1:08 at 69 s)
     if (sec !== this.clockSec) {
       this.clockSec = sec;
@@ -660,6 +702,7 @@ export class BattleScreen implements Screen {
   /** SCOUT-1: every press, before it is routed: a press off the face's keyword targets closes its open definition. */
   pressed(_x: number, _y: number, region: string | null): void {
     if (this.faces.open) this.faces.pressed(region);
+    this.counters.pressed(region); // COUNT-1: a press off a counter group closes its panel
   }
 
   key(k: string): void {

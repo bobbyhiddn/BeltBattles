@@ -7,17 +7,20 @@ import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the A
 import type { ShopBadge } from "../../game/run";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
-import { ICON, drawText, textWidth, wrap } from "../../render/font";
+import { ICON, drawText, icons, textWidth, wrap } from "../../render/font";
 import { coinIcon, itemIcon } from "../../render/sprites";
 import type { Rect } from "../../ui/ui";
 import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
 import { drawFamilyMarks, familiesText, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
 import { faceLines } from "../../ui/faces"; // TXT-095: the offer's tooltip, faces first (offerTooltip)
+import { plainRigStats } from "../../ui/faces"; // CARD-2 (REQ-BFG-084, K6): a plain rig's tooltip is its stat row
+import { statRow } from "../../ui/icons"; // CARD-2 (K6)
 import { abilityText, type TextOpts } from "../../ui/abilityText"; // TXT-095: its fallback, the kept opening sentence
 import { CARD_W } from "./layout";
 import { shapeWord } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-086.1): the type line's shape
 import { miniShape } from "../../ui/shapePic"; // SHAPES-1: the card's mini shape
 import { shapedPiece } from "./shapeEdit"; // SHAPES-1
+import { GAP } from "../../ui/spacing"; // CARD-3 (REQ-BFG-087, D4): the tooltip's family line's gap
 
 export const MERCHANT_COLOR: Record<MerchantId, string> = {
   ironmonger: C.steel2,
@@ -83,7 +86,15 @@ export interface CardState {
    *  don't fit beside it and the price: the panel's header names the families), the price in the right corner; on the wide
    *  face left of the price, where it fits beside the badge (the marks stay). Absent: today's card. */
   chip?: string;
+  /** CARD-3 (REQ-BFG-081, A): the phone card's gist (chips.ts phoneGist, in markup): on the narrow face, row A (the mechanic
+   *  in words) where the art was, row B (the chip, or a word) in the chip's place. Absent: the chip as before. */
+  gist?: readonly [string, string];
 }
+
+/** CARD-3 (A): the narrow face's gist rows (3x5): row A at y + 25 (the art gives up its room; the name moves up under the
+ *  badge's row, from y + 13), row B on the chip's row (CARD_CHIP_Y). */
+export const CARD_GIST_Y = 25;
+export const CARD_GIST_NAME_Y = 13;
 
 /** U2c: the narrow face's chip row (3x5, its glyphs on the price's last five rows: y + 32 .. 36 on a 42 px card). */
 export const CARD_CHIP_Y = 32;
@@ -202,6 +213,16 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
     cardEffectLines(s.effect!, r.w, s.sold ? C.slate2 : C.bone).slice(0, CARD_EFFECT_LINES).forEach((ln, i) =>
       drawRich(g, s.sold ? ln.map((sp) => ({ ...sp, c: C.slate2 })) : ln, x + 2, y + CARD_EFFECT_Y + i * 6, "3"));
     if (s.badge && !s.sold) drawBadge(g, x + 3, y + r.h - 11, r.w - 30, s.badge, t);
+  } else if (s.gist && !s.sold) {
+    // CARD-3 (REQ-BFG-081, A): the gist's face: no art; the badge's row (y + 5) as before, the name under it, row A over
+    // row B (the chip's row, beside the price), each in the 3x5 face (keywords in their colours, numbers white)
+    if (s.badge) drawBadge(g, x + 1, y + 5, r.w - 8, s.badge, t);
+    let ny = y + CARD_GIST_NAME_Y;
+    for (const ln of cardName(def, r.w - 4)) {
+      drawText(g, ln, x + r.w / 2, ny, C.bone, { font: "3", align: "center" });
+      ny += 6;
+    }
+    drawRich(g, colourize(icons(s.gist[0]), C.bone), x + CARD_MARK_X, y + CARD_GIST_Y, "3");
   } else {
     const lines = cardName(def, r.w - 4);
     const two = lines.length > 1;
@@ -219,8 +240,10 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   // centred price, under the name; wide: under the effect's second line, a clear row between (0.8.0 B1 M4), over the
   // badge and the price); the panel and the hover tooltip name them (ui/families.ts)
   // U2c (C4): on the narrow face a chip takes the marks' place (the price moves to the right corner)
-  const chip = s.chip && !s.sold ? s.chip : null;
-  if (chip && !wide) drawText(g, chip, x + CARD_MARK_X, y + CARD_CHIP_Y, C.white, { font: "3" });
+  const gistB = !wide && s.gist && !s.sold ? s.gist[1] : null; // CARD-3 (A): row B in the chip's place
+  const chip = gistB !== null ? icons(gistB, "alone") : s.chip && !s.sold ? s.chip : null;
+  if (gistB !== null) drawRich(g, colourize(icons(gistB, "alone"), C.white), x + CARD_MARK_X, y + CARD_CHIP_Y, "3");
+  else if (chip && !wide) drawText(g, chip, x + CARD_MARK_X, y + CARD_CHIP_Y, C.white, { font: "3" });
   else drawFamilyMarks(g, def.id, x + CARD_MARK_X, y + CARD_MARK_Y, s.sold);
   if (chip && wide) {
     // U2c: the wide face's chip, left of the price on its row, where it clears the badge (else the effect line says it)
@@ -259,6 +282,12 @@ export function tooltipLines(text: string): RichLine[] {
  *  a face with no rule line, a stat row only: the factories PRESS, DOUBLE STAMP, GANTRY and DRAG CHAIN, and the 13 guns),
  *  else "". Was abilityText(...).sentences[0] alone. */
 export function offerTooltip(def: string, o: TextOpts = {}): string {
+  // CARD-2 (REQ-BFG-084, K6; REVIEW-EXPLAIN1 open item 1): a plain stat rig (WHETSTONE, TEMPER, BARBED SPOOL) shows its plain
+  // face, the panel's stat row ({DMG}+20), not faceLines' HIT: rule (faces.ts plainRigStats)
+  // MERGE-099D (BRIEF-MERGE-099D 1c): on the run's day (`o.day`), as faceLines' rule lines below and faceBlocks read it
+  // (MERGE-099C 6ed6e27: WHETSTONE's + DAMAGE x D(d) with HULL_SCALE on)
+  const plain = plainRigStats(def, 1, o.day);
+  if (plain) return statRow(plain);
   return faceLines(def, 1, o)?.rules[0]?.text ?? abilityText(def, 1, o).sentences[0] ?? "";
 }
 
@@ -267,8 +296,10 @@ export function offerTooltip(def: string, o: TextOpts = {}): string {
  *  TXT-095: an offer's `text` is offerTooltip's (its face's first rule line first), as a pack's is (chrome.ts). */
 export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text = ""): void {
   const lines = tooltipLines(text);
-  // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families, named in their colours under its kind (none: no line)
-  const fam = familiesText(def.id), famLine = fam ? familySpans(fam) : null, fh = famLine ? 7 : 0;
+  // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families, named in their colours under its kind (none: no line).
+  // CARD-3 (REQ-BFG-087, D4; SPACE-1 open item 7): the family line and the effect are separate items: the gap G (3x5's)
+  // between them (the effect's first line sat right under the names: 2 px, the pitch's)
+  const fam = familiesText(def.id), famLine = fam ? familySpans(fam) : null, fh = famLine ? 7 + GAP["3"] : 0;
   const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(describe(def), "3"), famLine ? lineWidth(famLine, "3") : 0) + 10;
   const h = 22 + fh + lines.length * 7;
   const x = Math.max(2, Math.min(W - w - 2, Math.round(r.x + r.w / 2 - w / 2)));

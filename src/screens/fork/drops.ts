@@ -14,6 +14,7 @@ import { panel, type Rect } from "../../ui/ui";
 import { isPhone, tapPx } from "../../ui/tap";
 import { itemName } from "../event/cards";
 import { DROP_CLASS_LABEL, pctText, type DropLine, type DropTable } from "../../sim/npcDay";
+import { gameWords } from "../../ui/gameWords"; // MERGE-099D (1d): the drop classes' words
 
 /** The short drop line: "DROP 75%", or "NO DROP" when the deck has nothing that drops. */
 export function dropLine(t: DropTable): string {
@@ -24,7 +25,9 @@ export function dropLine(t: DropTable): string {
 export const dropStarText = (t: DropTable): string => (t.lines.length && (t.stars ?? 1) > 1 ? ` ★${t.stars}` : "");
 
 /** A line's class in the player's words. */
-export const classText = (l: DropLine): string => (l.cls === "legendary" ? "LEGENDARY" : DROP_CLASS_LABEL[l.cls]);
+// MERGE-099D (BRIEF-MERGE-099D 1d): a sim string (npcDay.ts DROP_CLASS_LABEL) on the screen goes through the one display
+// function, as CARD-3's sim strings do (src/ui/gameWords.ts; none of these labels holds a renamed word today)
+export const classText = (l: DropLine): string => (l.cls === "legendary" ? "LEGENDARY" : gameWords(DROP_CLASS_LABEL[l.cls]));
 
 /** The ⓘ list's rows (and the tests'): "SPLITTER · RARE RIGS AND GEAR · 12%", most likely first. */
 export function dropListText(t: DropTable): string[] {

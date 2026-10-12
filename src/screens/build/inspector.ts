@@ -20,7 +20,7 @@ import { record } from "../../game/day";
 import { FINDING_GHOST } from "../../game/session"; // 0.7.0a: the NEXT BATTLE card online
 import { HEROES, ITEMS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import type { ModuleTag } from "../../sim/content"; // 0.8.0 I1 M4: the families in the header
-import { drawFamilyMark, familiesOf, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
+import { drawFamilyMark, familiesOf, familySpans, familyWord } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import {
   arrowsOf, beltUsed, canSellTurret, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo,
@@ -34,6 +34,7 @@ import { effectAt } from "../../sim/stars"; // 0.8.0 I1 M4: a STOKER's stoke at 
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { infoFree } from "./keywords"; // U2f (REQ-BFG-070): the room the ⓘ view grows into
+import { keywordsIdle } from "./keywords"; // CARD-2 (REQ-BFG-004, K1): a closed panel's next draw is a new open
 import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
 
 /**
@@ -105,6 +106,9 @@ import { arrowCellsOf } from "../../sim/deck"; // SHAPES-1 (R2): a long rig's ar
 import { tapRect } from "../../ui/ui"; // shoptap (D5): a finger's tap target around a drawn button
 import { tapPx } from "../../ui/tap"; // shoptap (D5)
 import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks"; // U2a (REQ-BFG-046): the new faces
+import { PAIR_GAP, turretRow } from "./faceBlocks"; // CARD-2 (REQ-BFG-081, K4): the turret row's labels
+import { ICON_COLOUR } from "../../render/font"; // CARD-2 (K4): a label's icon in its colour
+import { NUMBER_COLOUR } from "../../ui/richText"; // CARD-2 (K4): a label's number
 import { faceGist, heroPlaystyle, ruleSpans } from "../../ui/faces"; // U2a
 import { speedPair } from "../../ui/faces"; // U2c step 4: the installed turret's stat row
 import { salvoSpeed } from "../../sim/cores"; // Y1: SALVO RACK's volley pace, in a SPEED's one rounding; Y4 (S1): the sim's helper
@@ -185,9 +189,13 @@ export interface Block {
    *  its TILES, HITS: line) and their note, the gun end's next readout row. Presentation only: no plan reads it. */
   tie?: boolean;
   /** EXPLAIN-1 (REQ-BFG-089, E1, E4): default rules text, drawn only in the ⓘ view's NOTES (explainPanel takes it off the
-   *  face): "kind", a line true of every piece of its kind (a turret's HOLDS and SLOT lines, an empty slot's); "rig", a
+   *  face): "kind", a line true of every piece of its kind (a turret's HOLDS and SLOT lines, an empty slot's; CARD-3: an
+   *  IDLE rig's fix, IDLE_FIX); "rig", a
    *  plain rig's rig sentence (faces.ts RIG_SENTENCE), first in NOTES. */
   note?: "rig" | "kind";
+  /** CARD-2 (REQ-BFG-081, K4): a turret's labelled stat row (faceBlocks.ts turretRow): its pairs never split; one line where
+   *  the row fits, else one pair a line (the desk column). */
+  pairs?: boolean;
 }
 
 /** Each role's base colour and whether it always takes the small (3x5) face: the flavour dimmer than the ability text,
@@ -351,13 +359,18 @@ export function nextLine(run: Run, def: string, stars: number): string | null {
   return b.length ? `${b[0].text}${b[0].perk ? ` ${b[0].perk}` : ""}` : null;
 }
 
-/** 0.6.2 BELTSIDE: the IDLE warning, and its phone-band form (the sub line says IDLE in amber; the turn hint follows). */
-export const IDLE_WARNING = "IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.";
+/** 0.6.2 BELTSIDE: the IDLE warning (the sub line says IDLE in amber; the turn hint follows). CARD-3 (REQ-BFG-080, B's
+ *  lever 1; REQ-BFG-089): the face draws the rig's own state, IDLE_SHORT (was IDLE_SHORT plus "TURN IT OR MOVE IT BESIDE
+ *  ONE.", 2 lines of the phone band's 5x7 face). The fix says how every rig works (its arrows work the belt tiles they
+ *  reach), so it is a NOTES line (IDLE_FIX: the ⓘ view and the desk hover), as EXPLAIN-1 made the other kind lines. */
 export const IDLE_SHORT = "IDLE: NO ARROW REACHES A BELT.";
+/** CARD-3 (B, lever 1): the IDLE warning's fix, a NOTES line (rigPanel). */
+export const IDLE_FIX = "TURN IT OR MOVE IT BESIDE A BELT.";
 /** 0.6.2t: the IDLE warning where it moves up into a narrow header (the desk column's). */
 export const IDLE_HEAD = "IDLE: NO ARROW ON A BELT.";
-/** 0.8.0 P1 (E3): a STOKER's IDLE warning (it works factories, never belts), in the same three forms. */
-export const STOKER_IDLE = { warning: "IDLE: NO ARROW REACHES A FACTORY. TURN IT OR MOVE IT BESIDE ONE.", short: "IDLE: NO ARROW REACHES A FACTORY.", head: "IDLE: NO ARROW ON A FACTORY." };
+/** 0.8.0 P1 (E3): a STOKER's IDLE warning (it works factories, never belts), in the same forms. CARD-3 (B, lever 1): its
+ *  fix a NOTES line too. */
+export const STOKER_IDLE = { short: "IDLE: NO ARROW REACHES A FACTORY.", head: "IDLE: NO ARROW ON A FACTORY.", fix: "TURN IT OR MOVE IT BESIDE A FACTORY." };
 
 /** 0.6.2t (0b.4): which belt a walk is on: locked (METRONOME, speed-locked), slag (a SLAG POT's fixed speed) or free. */
 export function beltKind(w: RouteWalk): BeltKind {
@@ -443,9 +456,11 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
   const on = shaped ? new Set(hits.map((h) => `${h.from ?? -1}:${h.dir}`)).size : new Set(hits.map((h) => h.dir)).size;
   const hl = hitLines(hits);
   // 0.8.0 P1 (E3): a STOKER beside no factory warns about factories (its arrows never work belts, so it has no belt hits)
-  const warn = d.gate?.stoke ? STOKER_IDLE : { warning: IDLE_WARNING, short: IDLE_SHORT, head: IDLE_HEAD };
-  // SPACE-1 (D1): a rig's hits are one list (the next hit ties to the one above it)
-  const lead: Block[] = idle ? [{ role: "warn", text: warn.warning, keep: true }] : hl.full.map((t, i): Block => ({ role: "hits", text: t, keep: true, ...(i ? { tie: true } : {}) }));
+  const warn = d.gate?.stoke ? STOKER_IDLE : { short: IDLE_SHORT, head: IDLE_HEAD, fix: IDLE_FIX };
+  // SPACE-1 (D1): a rig's hits are one list (the next hit ties to the one above it). CARD-3 (B, lever 1): IDLE's fix is a
+  // NOTES line (a "kind" note: explainPanel hides it from every face)
+  const lead: Block[] = idle ? [{ role: "warn", text: warn.short, keep: true }, { role: "warn", text: warn.fix, note: "kind" }]
+    : hl.full.map((t, i): Block => ({ role: "hits", text: t, keep: true, ...(i ? { tie: true } : {}) }));
   const leadTight: Block[] = idle ? [{ role: "warn", text: warn.short, keep: true }]
     : hits.length > 1 ? [{ role: "hits", text: hl.compact, keep: true }] : lead;
   const rest = [
@@ -576,8 +591,10 @@ export function stokeCapBlocks(run: Run, factories: readonly number[]): Block[] 
     // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): "THE KILN'S GUN IS FULL: IT WORKS ONLY 8% FASTER." (was
     // "..., SO IT WORKS ONLY 8% FASTER."), the same meaning and numbers
     const text = effectAt(p.def, starsOf(p)).factory?.plate
-      ? none ? `${name} GUN IS FULL: ONLY ITS PLATING WORKS ${percent(stoke)} FASTER.`
-      : `${name} GUN IS FULL: IT STAMPS ONLY ${effPct} FASTER, BUT PLATES ${percent(stoke)} FASTER.`
+      // CARD-3 (REQ-BFG-107): its SHIELD timer (factory.plate.every, stokedPace) in SHIELD's words (was "ONLY ITS PLATING WORKS
+      // n FASTER" and "BUT PLATES n FASTER")
+      ? none ? `${name} GUN IS FULL: ONLY ITS SHIELD COMES ${percent(stoke)} FASTER.`
+      : `${name} GUN IS FULL: IT STAMPS ONLY ${effPct} FASTER, BUT ITS SHIELD COMES ${percent(stoke)} FASTER.`
       : none ? `${name} GUN IS FULL: IT WORKS NO FASTER.` : `${name} GUN IS FULL: IT WORKS ONLY ${effPct} FASTER.`;
     return [{ role: "warn", text, rank: 1 }];
   });
@@ -946,7 +963,8 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   const stats: Block[] = [
     // NUM-4 (REQ-BFG-047): the RATE pair is the SPEED the battle uses (TurretState.speed: every gear piece, the core, the
     // long belt and the TURRET SPEED level, rounded once); Y1: a SALVO RACK's, its volley pace (above)
-    { role: "ability", text: statRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true },
+    // CARD-2 (REQ-BFG-081, K4): in words, its own numbers (faceBlocks.ts turretRow: RATE n  HOLDS n  GEAR SLOTS n)
+    { role: "ability", text: turretRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true, pairs: true },
     ...(note ? [{ role: "note", text: icons(note), keep: true } as Block] : []),
   ];
   // a clash (a piece of gear that does nothing here) and the shield. 0.6.2rel2 (the rehearsal's nit 1): the desk column
@@ -1073,6 +1091,19 @@ function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = fal
     // one pair a line, the values aligned after the widest label
     const lw = Math.max(gp.l0, gp.l1) + gap;
     return b.cells.map(([l, v]) => ({ spans: [], font, block: b, pitch, cells: [{ at: 0, label: l, spans: colourize(v, base), vx: lw }] }));
+  }
+  if (b.pairs) {
+    // CARD-2 (REQ-BFG-081, K4): the turret row's labelled pairs ("{RATE}RATE 55"), each its icon in its colour, its word in
+    // the line's colour and its number white, never split: one line where the row fits, else one pair a line (the desk
+    // column's 118 px)
+    const ps = b.text.split(PAIR_GAP).map((p): Span[] => {
+      const at = p.lastIndexOf(" "), icon = p[0], ic = ICON_COLOUR[icon];
+      const label = ic ? p.slice(1, at) : p.slice(0, at);
+      return [...(ic ? [{ t: icon, c: ic }] : []), { t: `${label} `, c: base }, { t: p.slice(at + 1), c: NUMBER_COLOUR }];
+    });
+    const one = ps.flatMap((s, i) => (i ? [{ t: PAIR_GAP, c: base }, ...s] : s));
+    if (lineWidth(one, font) <= width) return [{ spans: one, font, block: b, pitch }];
+    return ps.map((spans) => ({ spans, font, block: b, pitch }));
   }
   if (b.role === "row") {
     const indent = b.label ? cols.labelW : 0;
@@ -1216,9 +1247,10 @@ function choose(all: readonly Laid[], avail: number, width: number, main: FontId
  * every kept block whole and the rest whole or absent; where the kept blocks don't fit, the first compact variant whose
  * do (else the last, drawn until the space ends: a phone cut). A tight variant has 1 px more (its body starts 1 px
  * higher). `subFits` says whether a variant's header sub line fits the header (else that variant is skipped).
+ * CARD-3 (REQ-BFG-080, B's lever 3): `small`, the band's face only: the 5x7 face is not tried (planPanel's `inBand`).
  */
 export function planBody(body: readonly Block[], variants: readonly Variant[] | undefined, width: number, avail: number,
-  subFits: (s: string) => boolean = () => true, keepBig = false): BodyPlan {
+  subFits: (s: string) => boolean = () => true, keepBig = false, small = false): BodyPlan {
   const finish = (font: FontId, chosen: Laid[], fits: boolean, variant: number, from: readonly Laid[], v?: Variant): BodyPlan => {
     const lines: (PLine | "rule")[] = [];
     let big = false, ruled = false;
@@ -1244,12 +1276,12 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
   const deskKept = (bs: readonly Block[]): Block[] =>
     (keepBig && bs.some((b) => b.deskKeep) ? bs.map((b) => (b.deskKeep ? { ...b, keep: true } : b)) : [...bs]);
   const big = lay(deskKept(body), width, "5");
-  if (heightOf(big) <= avail) return finish("5", big, true, 0, big);
+  if (!small && heightOf(big) <= avail) return finish("5", big, true, 0, big);
   // 0.6.2t: the desk column (keepBig) keeps the readable 5x7 face while its kept blocks fit it: the optional blocks
   // give way first, each whole or not at all, least important first (the flavour, then the ability's later sentences,
   // then the hint: 0.6.2t2 F4, deskRank); only then does the text drop to the 3x5 face
   const texts: Variant[] = [{ body: deskKept(body) }, ...(variants ?? []).map((t) => ({ ...t, body: deskKept(t.body) }))];
-  if (keepBig) {
+  if (keepBig && !small) {
     for (let v = 0; v < texts.length; v++) {
       const t = texts[v];
       if (t.tight || (t.sub && !subFits(t.sub))) continue; // the tight pitch is the 3x5 face's
@@ -1450,8 +1482,26 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  a touch press's target height in logical px: the column's buttons are that tall (columnButtonH; the portrait band's
  *  keep their size, and drawDetails grows their tap targets instead, so the band keeps its text). shoptap2: `o.band`,
  *  a portrait screen's panel: the band's layout however tall it is (a finger's panel grown past the band, layout.ts
- *  panelArea, keeps its buttons in its header row, not under its text). */
-export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [], o: { tap?: number; band?: boolean; gaps?: boolean } = {}): PanelPlan {
+ *  panelArea, keeps its buttons in its header row, not under its text).
+ *  CARD-3 (REQ-BFG-080, B's lever 3; SPACE-1 open item 2): `o.inBand`, a finger's panel on a phone's band itself
+ *  (detailsPlan: layout.ts panelArea's L.info). A body that takes the 5x7 face there with its gaps under 5x7's GAP_MIN
+ *  (it would grow over the shop rows, D4) stays in the band in the band's face, 3x5, where that shows its full text
+ *  (fullText) with its gaps at least 3x5's GAP_MIN; else the plan is as before. A grown panel still reads in 5x7. The
+ *  face is chosen with the gaps on, whatever `o.gaps` asks, so the content is the same with the gaps off and on (SPACE-1's
+ *  content first: the gaps never change what a plan shows). */
+export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [],
+  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean } = {}): PanelPlan {
+  const p = planIn(sp, area, families, o, false);
+  if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5") return p;
+  const on = { ...o, gaps: true }, big = o.gaps === false ? planIn(sp, area, families, on, false) : p;
+  if (gapsAtLeast(big, big.gaps.min)) return p;
+  const s = planIn(sp, area, families, on, true);
+  if (!fullText(s) || !gapsAtLeast(s, s.gaps.min)) return p;
+  return o.gaps === false ? planIn(sp, area, families, o, true) : s;
+}
+
+/** planPanel's plan; `small` (CARD-3, B's lever 3): the body in the 3x5 face only (planBody's `small`). */
+function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
   const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
   const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
@@ -1478,7 +1528,7 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   // the body starts at y + 25 + shift (a tight variant's 1 px higher). The column grows to its text (27 + shift + body +
   // extra, as 0.6.1r sized it); the band's text ends 4 px above its bottom edge. A variant's sub line must fit the header
   const body = planBody(sp.body, sp.variants, wrapW, column ? area.h - 27 - shift - extra : area.h - 27 - shift,
-    (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column);
+    (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column, small);
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families sit in the header and never in the body (planned above,
   // exactly as without them), named where they fit, else as their marks (ui/families.ts, the card's own), in the first
   // place free with a clear pixel all round: the band under a one-line sub line (y+19..y+23, when the body starts at
@@ -1488,7 +1538,7 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   // y+20..y+22; the body starts at y+24)
   const tags = [...families];
   const strip = !column && area.y + 25 + shift + 5 > area.y + area.h - 4 && !!sp.headerOnly;
-  const namesW = textWidth(tags.join(", "), "3"), marksW = tags.length * 4 - 1;
+  const namesW = textWidth(tags.map(familyWord).join(", "), "3"), marksW = tags.length * 4 - 1; // CARD-3: the player's tags
   const titleFree = column || !labels.length || !!port?.shift;
   const beside = (text: string, font: FontId, free: boolean, gap = 6) => (w: number) => free && 23 + textWidth(text, font) + gap + w <= area.w - 4;
   const bySub2 = beside(subs[1] ?? "", "3", column && subs.length === 2), byTitle = beside(sp.title, "5", titleFree);
@@ -1713,25 +1763,69 @@ export function selFamilies(run: Run, show: Sel): ModuleTag[] {
  *  labels, and the panel's plan with the shown module's families in its header (selFamilies); null for the idle panel.
  *  Exported for the tests. */
 export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect,
-  o: { gaps?: boolean } = {}): { show: Sel; sp: Spec; t: PanelText; plan: PanelPlan } | null {
+  o: { gaps?: boolean } = {}): { show: Sel; sp: Spec; t: PanelText; plan: PanelPlan; hint: string | null } | null {
   const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
   const sp = spec(ctx, show, !!hover);
   if (!sp) return null;
   const t: PanelText = { ...sp.text, labels: sp.actions.map((a) => a.label) };
+  // CARD-3 (REQ-BFG-080, REQ-BFG-004, C; EXPLAIN-1 open item 3): on a portrait band a how-to hint (its tip new) no longer
+  // grows the panel: the panel is planned without it, so it is sized as with its tip done, and drawDetails draws the hint
+  // in a strip just above the panel (hintStrip). The hint keeps its words, its once-only rule and its store (tips.ts);
+  // `t` keeps it (NOTES, KEYWORDS, the tests' face). The landscape column keeps it as its last item, as before
+  const hint = ctx.L?.portrait ? t.body.find((b) => b.role === "hint")?.text ?? null : null;
+  const r = detailsPlanOf(ctx, show, sp, t, area, o, hint);
+  return r && { ...r, hint };
+}
+
+/** CARD-3 (C): a panel's text without its how-to hint (the body and every variant; a variant that shared the body's
+ *  blocks shares the new body, as explainPanel keeps them, so planBody's fullBody reads the same). */
+function withoutHint(t: PanelText): PanelText {
+  const cut = new Map<readonly Block[], Block[]>();
+  const f = (bs: readonly Block[]): Block[] => {
+    let out = cut.get(bs);
+    if (!out) cut.set(bs, (out = bs.filter((b) => b.role !== "hint")));
+    return out;
+  };
+  return { ...t, body: f(t.body), ...(t.variants ? { variants: t.variants.map((v) => ({ ...v, body: f(v.body) })) } : {}) };
+}
+
+/** detailsPlan's plan of `t` in `area` (CARD-3, C: without the hint where `hint` is set). */
+function detailsPlanOf(ctx: Ctx, show: Sel, sp: Spec, t: PanelText, area: Rect, o: { gaps?: boolean }, hint: string | null): { show: Sel; sp: Spec; t: PanelText; plan: PanelPlan } {
+  const planned = (x: PanelText): PanelText => (hint ? withoutHint(x) : x);
   // 0.8.0 I1 M4: the families in its header; shoptap (D5): on touch, a finger's button height; shoptap2: a portrait
   // screen's panel keeps the band's layout however tall a finger's panel grows (layout.ts panelArea). SPACE-1: `o.gaps`
   // false plans it without the gaps (tests: the content is the same either way)
   const fams = selFamilies(ctx.run, show), tap = touchTap(ctx), band = !!ctx.L?.portrait, gaps = o.gaps !== false;
-  const plan = planPanel(t, area, fams, { tap, band, gaps });
+  // CARD-3 (REQ-BFG-080, B's lever 3): a finger's panel on a phone's band itself (panelArea's L.info, by its rect: the
+  // tests and BuildScreen pass the same rect) may stay in the band in 3x5 (planPanel's `inBand`)
+  const I = ctx.L?.info, inBand = !!ctx.L?.phone && tap > 0 && !!I && area.x === I.x && area.y === I.y && area.w === I.w && area.h === I.h;
+  const plan = planPanel(planned(t), area, fams, { tap, band, gaps, inBand });
   // shoptap (D2): on the phone band a touch panel's optional button (TO CARGO) gives way where keeping it would cut the
   // panel's kept text (the extra button pushes the row under the sub line); its kept text always shows whole
   if (tap && !plan.column && !keptWhole(plan) && sp.actions.some((a) => a.optional)) {
     const lean: Spec = { ...sp, actions: sp.actions.filter((a) => !a.optional) };
     const lt: PanelText = { ...sp.text, labels: lean.actions.map((a) => a.label) };
-    const lp = planPanel(lt, area, fams, { tap, band, gaps });
+    const lp = planPanel(planned(lt), area, fams, { tap, band, gaps, inBand });
     if (keptWhole(lp)) return { show, sp: lean, t: lt, plan: lp };
   }
   return { show, sp, t, plan };
+}
+
+/** CARD-3 (REQ-BFG-080, REQ-BFG-004, C): a band panel's how-to hint strip by its panel `r`: the hint's words in 3x5 in
+ *  the hint's colour, wrapped to the panel's text width, in a frame as wide as the panel: just above it (as the ⓘ icon's
+ *  tooltip goes above a phone panel), else just below it, on a screen `H` tall. Pure (drawDetails, tests). */
+export function hintStrip(text: string, r: Rect, H?: number): { lines: Span[][]; r: Rect } {
+  const lines = wrapRich([{ t: text, c: ROLE.hint.colour }], r.w - 10, "3");
+  const h = 2 + 7 * lines.length;
+  const y = r.y - h >= 2 ? r.y - h : Math.max(2, Math.min((H ?? r.y + r.h + h) - h, r.y + r.h));
+  return { lines, r: { x: r.x, y, w: r.w, h } };
+}
+
+/** CARD-3 (C): draw a hint strip (hintStrip): an ink frame, night inside, the lines from 2 px under its top edge. */
+function drawHintStrip(g: G, s: ReturnType<typeof hintStrip>): void {
+  rect(g, s.r.x, s.r.y, s.r.w, s.r.h, C.ink);
+  rect(g, s.r.x + 1, s.r.y + 1, s.r.w - 2, s.r.h - 2, C.night);
+  s.lines.forEach((ln, i) => drawRich(g, ln, s.r.x + 5, s.r.y + 2 + i * 7, "3"));
 }
 
 /**
@@ -1796,7 +1890,10 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   const column = !ctx.L?.portrait && area.h >= 70;
   const d = detailsPlan(ctx, sel, hover, area);
   const pid = skinOf(ctx.skin).panel; // CUSTOM-2a (REQ-BFG-072): the player's panel style (ctx.skin, set by the build screen)
-  if (!d) return drawIdle(g, ctx.run, area, column, foe, note, pid);
+  if (!d) {
+    keywordsIdle(ctx); // CARD-2 (REQ-BFG-004, K1): the panel closed: its next draw is a new open
+    return drawIdle(g, ctx.run, area, column, foe, note, pid);
+  }
   const { sp, t, plan } = d;
   const r = plan.r;
   statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072): the part panel
@@ -1847,12 +1944,16 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
     if (v.line === "rule") rect(g, r.x + 5, v.y + 1, r.w - 10, 1, C.slate1);
     else drawLine(g, v.line, r.x + 5, v.y);
   }
+  // CARD-3 (REQ-BFG-080, REQ-BFG-004, C): a band panel's how-to hint (its tip new), outside the panel's plan, just above it
+  if (d.hint) drawHintStrip(g, hintStrip(d.hint, r, ctx.game?.H));
   // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
   // shown definition or the KEYWORDS view, the desk's hover tooltip
   // U2f (REQ-BFG-070): the ⓘ view may grow past the panel (infoFree: above it on the phone, down the column on the desk)
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
+  // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
+  // build screen between a fight's rounds; a fight's own faces never come here)
   drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, d, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
-    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined);
+    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 
 /** 0.8.0 I1 M4 (REQ-BFG-023 part 2): draw plan.famHead, the shown module's families in the panel's header: each name in
@@ -1864,7 +1965,7 @@ export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead">): void 
   const fh = plan.famHead, r = plan.r;
   if (!fh) return;
   if (fh.names) {
-    const spans = familySpans(fh.tags.join(", "), C.slate4);
+    const spans = familySpans(fh.tags.map(familyWord).join(", "), C.slate4); // CARD-3 (REQ-BFG-107): the player's tags
     if (fh.at === "sub") drawRich(g, spans, r.x + 23, r.y + 19, "3");
     else drawRich(g, spans, r.x + r.w - 4 - lineWidth(spans, "3"), r.y + (fh.at === "sub2" ? 19 : 5), "3");
     return;

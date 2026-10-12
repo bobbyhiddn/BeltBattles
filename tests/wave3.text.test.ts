@@ -202,7 +202,10 @@ describe("0.8.0 P1: STOKER's panel and TWIN TRIGGER's clash", () => {
     expect(panel("rig stoker ★1 kiln spare0").sub).toBe("RIG · 1/2 ARROWS ON FACTORIES");
     for (const lay of ["belts", "idle"]) {
       const t = panel(`rig stoker ★1 ${lay} spare0`) as PanelText & { idle: boolean };
-      expect([t.idle, t.body[0].role, t.body[0].text], lay).toEqual([true, "warn", STOKER_IDLE.warning]);
+      // CARD-3 (REQ-BFG-080, B's lever 1): the face's warning is its own state; the fix is a "kind" note (NOTES). Was one
+      // block, STOKER_IDLE.warning ("IDLE: NO ARROW REACHES A FACTORY. TURN IT OR MOVE IT BESIDE ONE.")
+      expect([t.idle, t.body[0].role, t.body[0].text], lay).toEqual([true, "warn", STOKER_IDLE.short]);
+      expect([t.body[1].text, t.body[1].note], lay).toEqual([STOKER_IDLE.fix, "kind"]);
     }
     // its offer and cargo hints say where it goes
     expect(panel("offer stoker held[]").body.at(-1)!.text).toBe("TAP A CELL BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT, OR DRAG IT THERE.");
@@ -235,7 +238,7 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
       if (!/^[+-]?\d+(\.\d+)?%?$/.test(w)) return [];
       const next = ws[i + 1] ?? "";
       if (w.endsWith("%")) return /^(DAMAGE|FASTER|SLOWER|SHORTER)$/.test(next) ? [] : [w];
-      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|RIGS?)$/.test(next) ? [] : [w];
+      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|SHIELD|RIGS?)$/.test(next) ? [] : [w];
     });
   };
 
@@ -259,9 +262,9 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
   it("the rows, written out: the walk's damage, and what the rig does that the walk can't count", () => {
     const h = (def: string, stars: number, more: object = {}) => hitText({ uid: 1, def, dir: 1, stars, tier: 1, ...more } as Parameters<typeof hitText>[0], "free");
     // NUM-1: x10 (the walk's hit values and the rows were 1.1 / 1, 12, 3 / 3, 1 / 1, 5, 3 / 2.2 / 4, 1)
-    expect(h("plateroller", 2, { plate: 11 })).toBe("PLATE ROLLER +11 PLATING");
+    expect(h("plateroller", 2, { plate: 11 })).toBe("PLATE ROLLER +11 SHIELD");
     // SUS-B (cap's answer 3 to SUSTAIN-1): SHIELD WALL is IRON WALL (the name; the id and the row stay)
-    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 PLATING, +30 DAMAGE AT 120 PLATING");
+    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 SHIELD, +30 DAMAGE AT 120 SHIELD");
     // Y7b2 (the flip): TWIN GAUGE's floor left, so the walk gives an unmatched belt flat 0 and its row says it does nothing
     // there (was the hit { flat: 10, matched: false } and "TWIN GAUGE +10 DAMAGE")
     expect([h("twingauge", 1, { flat: 30, matched: true }), h("twingauge", 1, { flat: 0, matched: false })])
@@ -279,7 +282,7 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
     expect(h("twinlatch", 2, { flat: 0, hold: 2 })).toBe("TWIN LATCH HOLDS UP TO 2 SEC");
     // NUM-1: battle.ts spends 10 plating (was 1). Y7b2 (the flip): no floor (was "PLATE BREAKER +40 DAMAGE FOR 10 PLATING,
     // ELSE +10 DAMAGE")
-    expect(h("platebreaker", 1, { flat: 40 })).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING");
+    expect(h("platebreaker", 1, { flat: 40 })).toBe("PLATE BREAKER +40 DAMAGE FOR 10 SHIELD"); // CARD-3 (REQ-BFG-107)
     // each row's numbers are the spec's at that star. Y7b2 (the flip): one, its STUNs' cut (was 2, with the plated cut)
     for (const s of STARS) expect(numbers(h("braceframe", s)).length).toBe(1);
   });
@@ -297,7 +300,8 @@ describe("0.8.0 P1: the switch keeps wave 3's text out of the game while it is o
     // no floor), so its panel draws the face's line, "HIT: +20 {DMG} FOR EACH OTHER RIG ON ITS TILE." (was "ADDS 10 DAMAGE TO
     // EACH PAYLOAD IT HITS, AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE.")
     expect(t.body.find((b) => b.role === "ability")!.text).toBe(faceLines("pincer", 1)!.rules[0].text);
-    expect(stripIcons(faceLines("pincer", 1)!.rules[0].text)).toBe(`HIT: +${fmtDmg(ITEMS.pincer.gate!.pincer!.each)}  FOR EACH OTHER RIG ON ITS TILE.`);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1: ITS TILE, whose): HITTING IT (was "... FOR EACH OTHER RIG ON ITS TILE.")
+    expect(stripIcons(faceLines("pincer", 1)!.rules[0].text)).toBe(`HIT: +${fmtDmg(ITEMS.pincer.gate!.pincer!.each)}  FOR EACH OTHER RIG HITTING IT.`);
     const placed: Placed = { uid: 10, def: "pincer", x: 3, y: 3 };
     expect(placed.def in ITEMS).toBe(true);
   });

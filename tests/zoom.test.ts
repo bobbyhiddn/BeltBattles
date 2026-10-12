@@ -406,7 +406,8 @@ function panels(): { id: string; run: Run; sel: Sel; part: "offer" | "cargo" | "
 }
 
 describe("U2d: phoneBand(W) is what the tallest touch panel needs at W, and no more (re-measured with the new faces)", () => {
-  it("at each step of the table and either side of it, the tallest fullest form of the 885 panels needs exactly phoneBand(W)", () => {
+  // CARD-3 (REQ-BFG-080, C): "needs exactly phoneBand(W)" became "needs at most phoneBand(W)", with the measured heights
+  it("at each step of the table and either side of it, the tallest fullest form of the 885 panels needs at most phoneBand(W) (exactly until CARD-3's C)", () => {
     const all = panels();
     // the band's layout at art width W (x5 at DPR 3: a finger's 27 px target), its height grown until the plan is fullest()
     const need = (W: number): [number, string] => {
@@ -434,7 +435,12 @@ describe("U2d: phoneBand(W) is what the tallest touch panel needs at W, and no m
     const widths = [186, 193, 194, 236, 237, 241, 280, 281, 315, 316, 319, 320, 340], tallest: string[] = [];
     const got = widths.map((W) => { const [n, who] = need(W); tallest.push(`${W}: ${n} ${who}`); return [W, n]; });
     console.log(`U2d phoneBand: ${tallest.join(" | ")}`);
-    expect(got).toEqual(widths.map((W) => [W, phoneBand(W)]));
+    // CARD-3 (REQ-BFG-080, C): a new tip's how-to hint is drawn in its strip above a band panel, no longer in its plan, so
+    // the tallest fullest form (THUNDERER ★3 with a core and gear; RAIL GUN ★3 at 316-319) needs 123 at W 186-315, 116 at
+    // 316-319 and 111 at 320-340 (was exactly phoneBand(W): 148 at 186-193, 141 at 194-315, 134 at 316-319, 129 at 320-340).
+    // phoneBand keeps its table (the bands of the tallest views and PICKS are unchanged): it holds the tallest panel with room
+    expect(got).toEqual(widths.map((W) => [W, W <= 315 ? 123 : W <= 319 ? 116 : 111]));
+    expect(got.every(([W, n]) => n <= phoneBand(W)), "within phoneBand(W)").toBe(true);
     // Y7b2 (the words; cap's ruling e66379fbf3184e56): was 155, 155, 148, 148, 141, 141, 141, 141, 141, 134, 134, 129, 129
     expect(widths.map(phoneBand)).toEqual([148, 148, 141, 141, 141, 141, 141, 141, 141, 134, 134, 129, 129]); // was 169, 169, 162, 162, 155, 148, 148, 141, 141, 136, 136; x1: 148 at 241-280
   }, 120_000);
@@ -524,7 +530,16 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // 390x664: the same 8 turrets with a core and gear; 402x690: the THUNDERER ★3 with a core and gear). GANTRY PRESS's two
         // new lines and ASSEMBLY LINE's type line move none of their panels out of the band or its fullest form. Was
         // 390x660 [104, 860, 891], 390x664 [106, 866, 891], 402x690 [122, 887, 898], 430x739 and 390x844 [141, 899, 899]
-        "390x660": [104, 899, 930], "390x664": [106, 905, 930], "402x690": [122, 926, 937], "430x739": [141, 938, 938], "390x844": [141, 938, 938],
+        // CARD-3 (REQ-BFG-080, C; B's lever 1): a new tip's hint is drawn in its strip above a band panel, so it never gives
+        // way there, and an IDLE rig's face is one line shorter: more panels in their fullest form, 390x660 860 -> 887,
+        // 390x664 866 -> 887, 402x690 887 -> 898 (was [104, 860, 891], [106, 866, 891], [122, 887, 898]); the bands and the
+        // panels in the band unchanged
+        // SHAPES-1 x c099-card3 (RUN5 2: the merge of c099-card3-accepted into shapes1), measured on the merged tree: 938
+        // panels (c099-card3's 899 and the three shaped plain rigs' 39), the 39 all in the band in their fullest form at
+        // every view: c099-card3's fullest and in-the-band +39 each (390x660 and 390x664 [.., 887, 891] -> [.., 926, 930],
+        // 402x690 [122, 898, 898] -> [122, 937, 937], 430x739 and 390x844 [141, 899, 899] -> [141, 938, 938]); the bands and
+        // the number of grown panels (8, 8, 1, 0, 0) unchanged
+        "390x660": [104, 926, 930], "390x664": [106, 926, 930], "402x690": [122, 937, 937], "430x739": [141, 938, 938], "390x844": [141, 938, 938],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

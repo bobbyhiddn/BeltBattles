@@ -87,8 +87,9 @@ export const NUMBER_COLOURS: [string, string][] = [["WHITE", C.white], ["BONE", 
 /** Every keyword colour (font.ts ICON_COLOUR: the 9 keywords and RATE/GOLD), the hull bars and the plate's grey tag. */
 export const KEYWORD_COLOURS: [string, string][] = [
   ["BURN", ICON_COLOUR[ICON.BURN]], ["STUN", ICON_COLOUR[ICON.STUN]], ["HEAT", ICON_COLOUR[ICON.HEAT]],
-  ["FRAY", ICON_COLOUR[ICON.FRAY]], ["PLATE", ICON_COLOUR[ICON.PLATE]], ["PAIR", ICON_COLOUR[ICON.PAIR]],
-  ["SHIELD", ICON_COLOUR[ICON.SHIELD]], ["HEAL", ICON_COLOUR[ICON.HEAL]], ["REGEN", ICON_COLOUR[ICON.REGEN]],
+  // CARD-3 (REQ-BFG-107): named by the player's words; each check keeps its colour (SHIELD plate3, WARD rune3)
+  ["FRAY", ICON_COLOUR[ICON.FRAY]], ["SHIELD", ICON_COLOUR[ICON.PLATE]], ["PAIR", ICON_COLOUR[ICON.PAIR]],
+  ["WARD", ICON_COLOUR[ICON.SHIELD]], ["HEAL", ICON_COLOUR[ICON.HEAL]], ["REGEN", ICON_COLOUR[ICON.REGEN]],
   ["RATE", ICON_COLOUR[ICON.RATE]], ["LIME BAR", C.lime], ["RED BAR", C.red], ["ENEMY NAME", C.red], ["TAG", C.slate4],
 ];
 

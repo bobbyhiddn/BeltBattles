@@ -46,6 +46,8 @@ interface Toast {
   text: string;
   color: string;
   t: number;
+  /** CARD-3 (REQ-BFG-107): its full time (s), from which the rise is timed (absent: 1.6, every toast before CARD-3). */
+  from?: number;
 }
 
 const PERF_N = 600;
@@ -113,8 +115,9 @@ export class Game implements InputSink {
     this.wipeDir = 1;
   }
 
-  toast(text: string, color: string = C.bone, sfx?: Sfx): void {
-    this.toastMsg = { text, color, t: 1.6 };
+  toast(text: string, color: string = C.bone, sfx?: Sfx, secs = 1.6): void {
+    // CARD-3 (REQ-BFG-107): `secs`, how long it shows (the rename notice's 6 s); 1.6 s as before
+    this.toastMsg = { text, color, t: secs, from: secs };
     this.toastLog.push(text); // tooling: the scripted runs log merge toasts
     if (this.toastLog.length > 200) this.toastLog.shift();
     if (sfx) this.audio.play(sfx);
@@ -233,7 +236,7 @@ export class Game implements InputSink {
     const m = this.toastMsg;
     if (!m) return;
     const y = Math.round(this.screen.toastY ?? this.H / 2 - 8);
-    const lift = Math.max(0, Math.round((m.t - 1.45) * 40));
+    const lift = Math.max(0, Math.round((m.t - ((m.from ?? 1.6) - 0.15)) * 40)); // CARD-3: from its own start (1.45 at 1.6 s)
     if (m.t < 0.25 && Math.floor(m.t * 20) % 2) return;
     // shoptap: a toast wider than the screen in the 5x7 face (a long one on a portrait phone was cut at both ends) takes
     // the 3x5 face, on two lines where one won't hold it, growing upward from the one-line toast's bottom. Every toast

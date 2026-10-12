@@ -17,6 +17,7 @@ import { colourize, wrapRich } from "../src/ui/richText"; // WORDS-1: a face lin
 import { C } from "../src/render/palette"; // WORDS-1
 import { statRow } from "../src/ui/icons";
 import { glossaryText } from "../src/ui/glossary";
+import { fmtSec } from "../src/ui/statFormat"; // CARD-2 (REQ-BFG-081, K3 g): SABOT's STUN seconds on its second line
 import { barge, bench } from "./arsenal.bench";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's face with the switch off
 
@@ -114,7 +115,8 @@ describe("Y2 row 9: SCRAPPER counts STUNs only, with no queue cap and no BIG HAU
   });
 
   it("face: +1 SLUG FOR EACH STUN YOU LAND, no caveat, no BIG HAUL clause; ladders RATE 10/12/15, DMG 60/95/135", () => {
-    expect(lines("scrapper")).toEqual(STARS.map(() => ["+1 {SLUG} FOR EACH {*STUN} YOU LAND."]));
+    // CARD-2 (REQ-BFG-081, K3 g): the trigger first, READ-2 7.1's words (was "+1 {SLUG} FOR EACH {*STUN} YOU LAND.")
+    expect(lines("scrapper")).toEqual(STARS.map(() => ["EACH {*STUN} YOU LAND: 1 EXTRA {SLUG}."]));
     oneLine("scrapper");
     // Y7b2 (the words): was [..., "{BELT} [2]/3/4", "★3 BIG HAUL", `NEXT ★2: ...`] (the name left with its rule)
     expect(levels("scrapper", 1)).toEqual(["{RATE} [10]/12/15", "{DMG} [60]/95/135", "{BELT} [2]/3/4",
@@ -171,8 +173,12 @@ describe("Y2 row 11: SABOT FOUNDRY ★3 drops SHRAPNEL and works at RATE 20", ()
 
   it("face: ITS ROUNDS WRECK RIGS FOR THE FIGHT at every star, no SHRAPNEL clause; ladder RATE 5/11/20", () => {
     // WORDS-1 (REQ-BFG-081; READ-1 6.1, round D: WRECK): plain words (was "ITS ROUNDS WRECK RIGS FOR THE FIGHT.")
-    expect(lines("sabot")).toEqual(STARS.map(() => ["ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT."]));
-    oneLine("sabot", 2); // WORDS-1 (REQ-BFG-081): READ-1 6.1's plain words, two lines of the band (was one)
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.4: two effects under one icon): both, a line each (was ["ITS ROUNDS STOP AN ENEMY
+    // RIG FOR THE WHOLE FIGHT."])
+    expect(lines("sabot")).toEqual(STARS.map((s) => ["A RIG IT HITS STOPS FOR THE WHOLE FIGHT.", `ANY OTHER PART IT HITS: {*STUN} ${fmtSec((effectAt("sabot", s).factory!.round as { seconds: number }).seconds)}{SEC}.`]));
+    // WORDS-1 (REQ-BFG-081): READ-1 6.1's plain words, two lines of the band (was one). CARD-2 (K3 g): two rules now, one
+    // line of the band each (was oneLine("sabot", 2): one rule on two lines)
+    for (const s of STARS) expect(faceAt("sabot", s)!.rules.map((r) => lines2(r.text)), `sabot ★${s}`).toEqual([1, 1]);
     expect(levels("sabot", 3)).toEqual(["{RATE} 5/11/[20]", "{BELT} 2/3/[4]"]); // Y7b2 (the words): was ["{RATE} 5/11/[20]", "{BELT} 2/3/[4]", "★3 SHRAPNEL"]
     expect(faceAt("sabot", 3)!.stats2).toEqual([["STUN", "4"]]);
   });
@@ -246,7 +252,8 @@ describe("Y2 row 13: LIMPET WORKS' DMG is its blast; its stall becomes blast dam
   });
 
   it("face: RATE 13, DMG 100, BELT 2; ITS SLUG BLAST THE HULL 3 SEC AFTER THEY HIT; ladder DMG 100/230/360", () => {
-    expect(lines("limpet")).toEqual(STARS.map(() => ["ITS {SLUG} BLAST THE HULL 3{SEC} AFTER THEY HIT."]));
+    // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: THE HULL, THEY): the foe's hull, after a hit (was "... THE HULL 3{SEC} AFTER THEY HIT.")
+    expect(lines("limpet")).toEqual(STARS.map(() => ["ITS {SLUG} BLAST THE FOE'S HULL 3{SEC} AFTER A HIT."]));
     oneLine("limpet");
     expect(faceAt("limpet", 1)!.stats).toEqual([["RATE", "13"], ["DMG", "100"], ["BELT", "2"]]);
     expect(levels("limpet", 2)).toEqual(["{DMG} 100/[230]/360", "{BELT} 2/[3]/4", `NEXT ★3: ${statRow([["DMG", "360"], ["BELT", "4"]])}`]);
@@ -382,7 +389,9 @@ describe("Y2 row 17: SPOTTER re-aims 1/2/3 times, no factory weighting, no sure 
 
   it("face: SHOTS AT BARE HULL GET 1/2/3 MORE AIM(S), no clause; ladder 1/2/3 MORE AIMS", () => {
     // WORDS-1 (REQ-BFG-081; READ-1 6.1's one-offs: BARE HULL): AIMED AT NO PART (was "SHOTS AT BARE HULL GET ...")
-    expect(lines("spotter")).toEqual([["SHOTS AIMED AT NO PART GET 1 MORE AIM."], ["SHOTS AIMED AT NO PART GET 2 MORE AIMS."], ["SHOTS AIMED AT NO PART GET 3 MORE AIMS."]]);
+    // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1: AIM AGAIN): was "... GET 1 MORE AIM." / "2 MORE AIMS." / "3 MORE AIMS." (the
+    // ladder keeps its words)
+    expect(lines("spotter")).toEqual([["SHOTS AIMED AT NO PART AIM AGAIN ONCE."], ["SHOTS AIMED AT NO PART AIM AGAIN TWICE."], ["SHOTS AIMED AT NO PART AIM AGAIN 3 TIMES."]]);
     oneLine("spotter");
     // Y7b2 (the words): was ["[1]/2/3 MORE AIMS", "★2 FACTORY SPOT", "★3 EAGLE EYE", "NEXT ★2: 2 MORE AIMS ★2 FACTORY SPOT"]
     expect(levels("spotter", 1)).toEqual(["[1]/2/3 MORE AIMS", "NEXT ★2: 2 MORE AIMS"]);

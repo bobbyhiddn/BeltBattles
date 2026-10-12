@@ -31,9 +31,11 @@ const S = ICON.SEC;
  *  each card line. Y-FURN: a card starts each sentence on its own line (runeBar.ts runeTextLines), so SEARING's and SHATTER
  *  SHOT's two lines have a width each (was one width a rune: every text one line). */
 const TABLE: readonly [string, string, string, string, string, string, number, string, string, readonly number[]][] = [
-  ["bulwark_ward", "BULWARK WARD", "common", "bastion", "startShield", "count", 2, "START: +{N} {*SHIELD}.", "START: +2 SHIELD.", [89]],
-  ["tick_guard", "TICK GUARD", "rare", "bastion", "shieldEvery", "sec", 6, "EVERY {N}: A {*SHIELD}.", `EVERY 6${S}: A SHIELD.`, [99]],
-  ["twin_salve", "TWIN SALVE", "common", "foundry", "pairHeal", "hull", 20, "{PAIR}: {*HEAL} {N}.", "PAIR: HEAL 20.", [71]],
+  // CARD-2 (REQ-BFG-081, K3 a, f): the card's line says FIGHT START: (runeText.ts RUNE_TEXT; was "START: +2 SHIELD.", 89) and
+  // TWIN SALVE's EACH PAIR: (was "PAIR: HEAL 20.", 71); RuneDef.text stays
+  ["bulwark_ward", "BULWARK WARD", "common", "bastion", "startShield", "count", 2, "START: +{N} {*SHIELD}.", "FIGHT START: +2 WARD.", [111]], // CARD-3 (REQ-BFG-107): WARD, 12 px narrower than SHIELD
+  ["tick_guard", "TICK GUARD", "rare", "bastion", "shieldEvery", "sec", 6, "EVERY {N}: A {*SHIELD}.", `EVERY 6${S}: A WARD.`, [87]], // CARD-3
+  ["twin_salve", "TWIN SALVE", "common", "foundry", "pairHeal", "hull", 20, "{PAIR}: {*HEAL} {N}.", "EACH PAIR: HEAL 20.", [99]],
   ["scrap_medic", "SCRAP MEDIC", "rare", "armor", "halfHeal", "hull", 300, "FIRST TIME BELOW HALF {HULL}: {*HEAL} {N}.", "FIRST TIME BELOW HALF HULL: HEAL 300.", [201]],
   // FLIP-X2 (TUNE-X line 4, REVIEW-SUSD answer 3): rare at 15 (was "epic", 20, "... HEAL 20."); the line's width is the same
   ["leech_vow", "LEECH VOW", "rare", "turrets", "hitHeal", "hull", 15, "EACH SHOT THAT LANDS: {*HEAL} {N}.", "EACH SHOT THAT LANDS: HEAL 15.", [161]],
@@ -44,12 +46,13 @@ const TABLE: readonly [string, string, string, string, string, string, number, s
   // {*HEAL}.", "FOE WITH YOUR BURN: NO HEAL.", 149); its second line is the old one
   // BAL-2 (the lines: cap's REVIEW-BAL1 row 5, SEARING searBurn 6 -> 5): 5, "... HAS 5 BURN. ..." (was 6, "... HAS 6 BURN.
   // ..."); the widths measured unchanged, 137 / 149
-  ["searing", "SEARING", "rare", "furnace", "searBurn", "count", 5, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}.", "START: THE FOE HAS 5 BURN. FOE WITH YOUR BURN: NO HEAL.", [137, 149]],
+  // CARD-2 (K3 a): FIGHT START: (was "START: THE FOE HAS 5 BURN. ...", 137 / 149)
+  ["searing", "SEARING", "rare", "furnace", "searBurn", "count", 5, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}.", "FIGHT START: THE FOE HAS 5 BURN. FOE WITH YOUR BURN: NO HEAL.", [171, 149]],
   // Y-FURN (FURN-Y row 4; REVIEW-STARD's amendment, no PIERCE): shatterPct 15, two lines (was "shieldPierce", "count", 1,
   // "YOUR SHOTS: BREAK A {*SHIELD} AND STILL HIT.", "YOUR SHOTS: BREAK A SHIELD AND STILL HIT.", 223)
   // BAL-2 (the lines: cap's ruling f894080daebfa8c0, SHATTER SHOT shatterPct 15 -> 14): 14, "YOUR SHOTS: +14% DMG." (was
   // 15, "+15% DMG."); the widths measured unchanged, 111 / 139
-  ["shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", "pct", 14, "YOUR SHOTS: +{N} {DMG}. YOUR HITS SHATTER {*SHIELD}.", "YOUR SHOTS: +14% DMG. YOUR HITS SHATTER SHIELD.", [111, 139]],
+  ["shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", "pct", 14, "YOUR SHOTS: +{N} {DMG}. YOUR HITS SHATTER {*SHIELD}.", "YOUR SHOTS: +14% DMG. YOUR HITS SHATTER WARD.", [111, 127]], // CARD-3
 ];
 
 describe("SUS-D: the sustain runes in the catalogue", () => {
@@ -275,7 +278,8 @@ describe("SUS-D: the words on the rune cards (measured: phone 402x690 @3 and the
     }
     expect(TABLE.filter((r) => r[9].length > 1).map((r) => r[0])).toEqual(["searing", "shatter_shot"]);
     // WARD STONE's line as before (SUS-B's), now from runes.ts
-    expect([runeLine(RUNES.ward_stone), textWidth(runeLine(RUNES.ward_stone), "5")]).toEqual(["START: +3 SHIELD.", 89]);
+    // CARD-2 (K3 a): FIGHT START: (was ["START: +3 SHIELD.", 89])
+    expect([runeLine(RUNES.ward_stone), textWidth(runeLine(RUNES.ward_stone), "5")]).toEqual(["FIGHT START: +3 WARD.", 111]); // CARD-3 (REQ-BFG-107): WARD
   });
 
   it("TICK GUARD writes its seconds with the SEC icon after the number (WARD BELL's cadence form), in the number's colour", () => {
@@ -309,16 +313,18 @@ describe("SUS-D: the words on the rune cards (measured: phone 402x690 @3 and the
       widths[at] = textWidth(runeReminder(d), "3");
       expect(widths[at], d.id).toBeLessThanOrEqual(opW);
     }
-    expect(runeReminder(byId("shatter_shot"))).toBe("SHIELD: IT BREAKS; THE HIT STILL LANDS.");
+    expect(runeReminder(byId("shatter_shot"))).toBe("WARD: IT BREAKS; THE HIT STILL LANDS.");
     expect(runeReminderSpans(byId("shatter_shot"))).toEqual([
-      { t: "SHIELD", c: RUNE_KEYWORD_COLOUR.SHIELD }, { t: ": IT BREAKS; THE HIT STILL LANDS.", c: C.slate4 },
+      { t: "WARD", c: RUNE_KEYWORD_COLOUR.SHIELD }, { t: ": IT BREAKS; THE HIT STILL LANDS.", c: C.slate4 }, // CARD-3
     ]);
     // x2a (cap, REVIEW-SUSD F-e): SHIELD re-measured after NUM-4's RUNE_REMINDER.SHIELD reword (REVIEW-SUSB F1,
     // "BLOCKS ONE HIT'S DAMAGE, THEN BREAKS."): 152 -> 166, still one line under opW 223
     // Y-FURN: SHIELD's 166 is BULWARK WARD's and TICK GUARD's; SHATTER SHOT's own reminder 144 (was SHIELD's 166 too)
     // WORDS-1 (REQ-BFG-081): GREEN THREAD's line says HEAL now (REGEN merged into HEAL), so its reminder is HEAL's 144 and no
     // sustain rune shows REGEN's (was { ..., REGEN: 118, ... })
-    expect(widths).toEqual({ SHIELD: 166, HEAL: 144, BURN: 205, shatter_shot: 144 });
+    // CARD-2 (REQ-BFG-081, K3 b): SHIELD's reminder says ALL OF one hit's damage: 166 -> 192, still one line under opW 223
+    // CARD-3 (REQ-BFG-107): the block's reminder reads WARD: 192 -> 184
+    expect(widths).toEqual({ SHIELD: 184, HEAL: 144, BURN: 205, shatter_shot: 136 });
     expect(runeTag(byId("leech_vow"))).toBe("RARE · TURRETS"); // FLIP-X2 (TUNE-X line 4): rare (was "EPIC · TURRETS")
   });
 });

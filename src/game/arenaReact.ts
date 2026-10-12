@@ -302,6 +302,7 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       }
       if (e.x > -2 && e.x < 122 && e.y > -2 && e.y < 122) fx.scorch(x, y, e.big ? 6 : e.heavy ? 5 : 3);
       if (e.burn > 0) fx.embers(x, y, 4);
+      const pops0 = fx.popCount; // PAIR-CUE (REQ-BFG-100): this hit's number is the pool's next pop
       // 0.8.0 H1 M3: BASTION's plating took (part of) this hit before the hull did: plate chips and a rune-blue number (0
       // on every hull without plating, which draws exactly as before)
       const soak = a.takeSoak(e.side, e.dmg);
@@ -315,6 +316,8 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       a.sfx[e.side].shieldStop = false;
       if (soak > 0) fx.popup(x, y - 6 - (e.big ? 16 : 9), `${BLOCKED} ${fmtDmg(soak)}`, PLATE_COLOUR);
       else if (stop && e.dmg === 0) fx.popup(x, y - 6 - (e.big ? 16 : 9), BLOCKED, SHIELD_COLOUR);
+      // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): a PAIR shot's hit number carries PAIR's glyph beside it (game/pairCue.ts)
+      if (a.cue?.marks(e) && fx.popCount > pops0) a.cue.marked1(fx.pairPop(0, 0, fx.popList[pops0]));
       // shake scales with the damage dealt: the landing frame shows exactly 1 px for a light
       // bolt and 2+ px for a heavy shell or 60+ damage (NUM-2: x10); big hits add their trauma on top
       hitShake(fx, dmg, e.heavy, -dx, -dy);

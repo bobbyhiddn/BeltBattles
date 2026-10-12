@@ -124,3 +124,58 @@ export const shopChipGlyphs = (def: string, o: TextOpts = {}): string | null => 
   const c = shopChip(def, o);
   return c ? icons(c, "alone") : null;
 };
+
+/**
+ * CARD-3 (REQ-BFG-081, A; READ-2 7.3: a card read alone scored 59% on the phone and 77% on the desk; cores 40% against 87%):
+ * THE PHONE CARD'S GIST, for every core and piece of gear and the five rigs whose chip leaves the target open (TOLLBOOTH,
+ * SORTING ARM, MANTLET, BRACE FRAME, OVERDRIVE): two rows of the 3x5 face in place of the chip. Row A names the mechanic in
+ * words (at most 10 capitals, the card's 40 px; no digit: a number is the face's own), row B keeps the chip (its number, the
+ * face's: shopChip) or a word, beside the price (25 px, 19 at a two-digit price: tests/card3.test.ts). Each says what its
+ * face and desk line say (faces.ts, abilityText.ts cardText; the REPORT's table gives each sim check). Turrets, factories
+ * and the other rigs keep their chips. On the narrow card the art gives up its room for row A (shop.ts drawCard).
+ */
+export const PHONE_GISTS: Readonly<Record<string, (chip: string, f: Face) => readonly [string, string]>> = {
+  // cores
+  lance: (c) => ["+ A COLUMN", c], // SHOT: ALSO HITS 1 WHOLE COLUMN, 20% DMG
+  mortar: (c) => ["SPLASHES", c], // SHOT: ALSO HITS 1 MORE TARGET FOR 50% DMG
+  salvo: (c) => ["ALL LOADS", c], // SHOT: FIRES THE CHAMBER AT +20 DMG EACH
+  scatter: (c) => ["PELLETS", c], // SHOT: BURSTS INTO 3 PELLETS, 40% DMG EACH
+  rotary: (c) => ["PART-FULL", c], // FIRES PART-FULL CHAMBERS 50% SOONER
+  pressure: (c) => ["{SLUG}WAITING", c], // SHOT: +12 DMG FOR EACH SLUG WAITING
+  gatling: (c) => ["SPINS UP", c], // SPINS UP TO 67% FASTER (and fires each load as it comes)
+  hullbreaker: (c) => ["HULL ONLY", c], // SHOT: HITS ONLY THE HULL, FOR +30% DMG
+  drake: () => ["RIG DAMAGE", "TO{BURN}"], // SHOT: EACH 25 DAMAGE RIGS ADDED TO ITS SLUG BECOMES 1 BURN
+  grapnel: (c) => ["FOE BELTS", c], // SHOT: ON A BELT OR RIG, RIPS 1 SLUG (an enemy's)
+  tesla: (c) => ["ARCS", c], // SHOT: ALSO ARCS TO 1 PART: STUN 1
+  capacitor: (c) => ["CHARGES UP", c], // SHOT: +20 DMG FOR EACH SEC IT SAT EMPTY
+  compound: (c) => ["ONE SHELL", c], // SHOT: FIRES 2 SLUG AS 1 SHOT AT +15% DMG
+  anvil: (c) => ["DMG FROM", c], // SHOT: +25 DMG, +100% OF YOUR SHIELD (the chip: the SHIELD icon, +100%)
+  steambreech: (c) => ["IF {*PLATE}", c], // FIRES 40% FASTER IF YOU HAVE SHIELD
+  // gear
+  chamber: (c) => ["SHOTS FIRE", c], // EACH SHOT FIRES 2 SLUG
+  calibrate: (c) => ["FIRE RATE", c], // FIRES 33% FASTER
+  escapement: (c) => ["FIRE RATE", c], // FIRES 11% FASTER
+  flak: (_c, f) => ["FOE {*STUN}", `-${numOf(f, "intercept")}`], // SHOOTS DOWN 25% OF ENEMY STUN SHOTS (its face's number)
+  spotter: (c) => ["AT NO PART", c], // SHOTS AIMED AT NO PART AIM AGAIN ONCE
+  hopper: (c) => ["CHAMBER", c], // ITS CHAMBER HOLDS +1 SLUG
+  mantlet: (c) => ["ITS GUN", c], // STUN CAN'T STOP ITS GUN OR LAST 1 TILE
+  ram: (c) => ["LAST {SLUG}", c], // SHOT: THE CHAMBER'S LAST SLUG +40% DMG
+  longcase: (c) => ["LONG RIDES", c], // SHOT: +15 DMG IF ITS SLUG RODE 2s
+  twintrigger: (c) => ["{*PAIR}", c], // PAIR: +30% DMG
+  spallcatcher: (c) => ["HITS TAKEN", c], // EVERY 40 DMG YOU TAKE: NEXT SHOT +10 DMG
+  seamwelder: (c) => ["{*PAIR}", c], // PAIR: +10 SHIELD (the chip: the SHIELD icon, +10)
+  wardbell: (c) => ["OVER TIME", c], // EVERY 8s: +1 WARD (the chip: the WARD icon, +1)
+  mendingloom: (c) => ["EACH SEC", c], // YOUR HULL: HEAL 10 EACH SEC
+  // the five rigs whose chip leaves the target open (READ-2 7.3 item 2)
+  tollbooth: (c) => ["ITS BELT", c], // THE FIRST 2 STUN ON ITS BELT'S PARTS EACH FIGHT DO NOTHING
+  sorting: (c) => ["ITS BELTS", c], // HIT: OF EVERY 3 SLUG, ONE BECOMES 2 (on every belt its arrows reach)
+  braceframe: (c) => ["ITS TILES", c], // ENEMY STUN ON ITS TILES: 50% SHORTER
+  overdrive: (c) => ["ITS BELTS", c], // ITS BELTS RUN 3 TIMES AS FAST FROM THESE TILES ON
+};
+
+/** CARD-3 (A): the phone card's gist for `def` at ★1 (rows A and B, in markup), or null (the card keeps its chip). */
+export function phoneGist(def: string, o: TextOpts = {}): readonly [string, string] | null {
+  const g = PHONE_GISTS[def], c = shopChip(def, o);
+  if (!g || !c) return null;
+  return g(c, faceAt(def, 1, o)!);
+}

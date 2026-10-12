@@ -220,7 +220,9 @@ export class ForkScreen implements Screen {
     drawRich(g, captainSpans(title, C.yellow), r.x + 5, r.y + 5, "3"); // U2b: a keyword in its colour (REQ-BFG-032 rule 3)
     let y = r.y + 14;
     // U2b: a captain's blurb (the first line) in rich text, its keywords in their colours; the rest as before
-    const rows = lines.flatMap((l, n) => (i > 0 && n === 0 ? wrapRich(captainSpans(l, C.bone), r.w - 74, "3")
+    // MERGE-099D (BRIEF-MERGE-099D 1d): a warlord card's (p !== "event"; was i > 0, card 0 being the ROAD EVENT): with NPC_DAY
+    // on card 0 is the EASY warlord (road.ts forkPicks), whose blurb went past captainSpans (captainText, gameWords)
+    const rows = lines.flatMap((l, n) => (p !== "event" && n === 0 ? wrapRich(captainSpans(l, C.bone), r.w - 74, "3")
       : wrap(l, r.w - 74, "3").map((ln): Span[] => [{ t: ln, c: ln.startsWith("!") ? C.amber : C.bone }])));
     for (const ln of rows.slice(0, 7)) {
       drawRich(g, ln, r.x + 5, y, "3");

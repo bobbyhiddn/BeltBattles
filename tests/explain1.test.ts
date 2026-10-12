@@ -41,6 +41,8 @@ import {
 } from "../src/screens/build/inspector";
 import { emptySlotPanel } from "../src/screens/build/turretPanel";
 import { faceBlocks } from "../src/screens/build/faceBlocks";
+import { turretRow } from "../src/screens/build/faceBlocks"; // CARD-2 (REQ-BFG-081, K4): the turret row's labels
+import { turretStats } from "../src/ui/faces"; // CARD-2 (K4)
 import { levelLines, levelText } from "../src/screens/build/levels";
 import {
   explainWords, iconTipItems, iconTipRect, infoItems, infoLevels, keywordState, keywordsPressed, panelPiece, panelWords, questionRect,
@@ -209,6 +211,12 @@ describe("EXPLAIN-1 (a, b): the default faces, and nothing lost", () => {
           if (b.note || b.role === "flavour" || b.role === "reminder" || b.role === "caveat") bad.push(`${c.id}: drew ${b.role}`);
           if (b.role === "hint") hints++;
         }
+        // CARD-3 (REQ-BFG-080, C): the band draws a new tip's hint in its strip just above the panel (detailsPlan's `hint`,
+        // the face's own hint), no longer in the panel's plan: it shows there (was counted in visibleLines only)
+        if (d.hint) {
+          hints++;
+          if (!d.t.body.some((b) => b.role === "hint" && b.text === d.hint)) bad.push(`${c.id}: a strip that is not its hint`);
+        }
         const want = raw.body.filter((b) => !hiddenBlock(b)).map((b) => key(b.role === "caveat" ? { ...b, role: "ability" } : b));
         if (JSON.stringify(d.t.body.map(key)) !== JSON.stringify(want)) bad.push(`${c.id}: body`);
         if (raw.body.some((b) => b.role === "hint") && !d.t.body.some((b) => b.role === "hint")) bad.push(`${c.id}: its new tip's hint left the face`);
@@ -276,10 +284,13 @@ describe("EXPLAIN-1 (a, b): the default faces, and nothing lost", () => {
     const run = furnace();
     run.inventory = [{ uid: 900, def: "dartgun" }];
     const t = explainPanel(cargoPanel(run, 900, true)!);
-    expect(t.body.map((b) => b.text)).toEqual([faceLines("dartgun", 1)!.stats, INNER, "DRAG IT ONTO A TURRET SLOT TO INSTALL IT."]);
+    // CARD-2 (REQ-BFG-081, K4): the stat row reads in words (faceBlocks.ts turretRow: RATE 55  HOLDS 2  GEAR SLOTS 1; was
+    // faceLines' icon row, which the face data keeps)
+    const row = turretRow(turretStats("dartgun", 1));
+    expect(t.body.map((b) => b.text)).toEqual([row, INNER, "DRAG IT ONTO A TURRET SLOT TO INSTALL IT."]);
     expect(t.notes!.map((b) => b.text)).toEqual([...faceLines("dartgun", 1)!.plain!, "DRAG IT ONTO A TURRET SLOT TO INSTALL IT."]);
     setTipsForTests("done");
-    expect(explainPanel(cargoPanel(run, 900, true)!).body.map((b) => b.text)).toEqual([faceLines("dartgun", 1)!.stats, INNER]);
+    expect(explainPanel(cargoPanel(run, 900, true)!).body.map((b) => b.text)).toEqual([row, INNER]);
   });
 });
 

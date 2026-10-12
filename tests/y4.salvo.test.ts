@@ -10,7 +10,7 @@ import { ROUTINES, salvoReload, salvoSpeed } from "../src/sim/cores";
 import { newRun, type Run } from "../src/game/run";
 import { turretPanel } from "../src/screens/build/inspector";
 import { speedPair } from "../src/ui/faces";
-import { statRow } from "../src/ui/icons";
+import { turretRow as statRow } from "../src/screens/build/faceBlocks"; // CARD-2 (REQ-BFG-081, K4): the turret panel's row is labelled (was icons.ts statRow)
 import { fmtCount } from "../src/ui/statFormat";
 import { SEED, barge, furnaceBench, withMod } from "./wave3.helpers";
 
