@@ -17,6 +17,7 @@ import { PLAYER_DAYS, playerRun } from "../src/sim/harness/player";
 import { LADDER_DEFS, LADDER_FIX, ladderFixRules, setLadderFix, withLadderFix } from "../src/sim/ladderFix";
 import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip, NPC_DAY): the par player's bb-0.9.7 runs, the NPC day off
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): the same runs, 0.9.7's gold table
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the same runs, SHAPES off
 import { effectAt } from "../src/sim/stars";
 import { barge, bench, SEED } from "./arsenal.bench";
 import { K, item, withItem, withMod } from "./wave3.helpers";
@@ -280,7 +281,9 @@ describe("HULL-1b the par player's six runs (tests/harness.player's buy floor: n
     // player fights the Medium warlord every day (road gold and drops in its deck) and HULL_SCALE moves its gold table
     // (maxGoldByDay), so the off half sets all three off (LADDER_FIX off alone read 13 / 15 / 16 / 17 / 14 / 16, the other
     // two on); the on half is the shipped game, every switch on
-    const off = withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false), on = withLadderFix(buys);
+    // SHAPES-1 flip: SHAPES ships on too, so the off half sets it off as well (the tripwire kept at its old point, as AZ-BUMP's
+    // flip kept it; with SHAPES on in the off half the shaped pieces are in the caravan and it read 16 / 15 / 15 / 15 / 11 / 14)
+    const off = withShapes(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false), false), on = withLadderFix(buys);
     log(`BUYS FURNACE s1-s3, WEAVER s1-s3: off ${off.join(" / ")}; on ${on.join(" / ")}`);
     expect(off).toEqual([12, 15, 13, 14, 10, 16]); // bb-0.9.7's, as tests/harness.player pins them
     for (const n of on) expect(n).toBeGreaterThan(0);

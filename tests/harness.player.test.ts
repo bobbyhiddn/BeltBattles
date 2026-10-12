@@ -25,13 +25,17 @@ import { rotFacing } from "../src/sim/beltside";
 import { npcDayRules, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the switches, through their setters
 import { withHullScale } from "../src/sim/hullScale";
 import { withLadderFix } from "../src/sim/ladderFix";
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the buy floor's tripwire and the off world, SHAPES off
 
 const HEROES = ["furnace", "weaver"] as const;
 // AZ-BUMP S7: Y7B2_BOUGHT (the Y7b2 tripwire's six buy counts, 12 15 13 / 14 10 16 under bb-0.9.7) is gone with the tripwire
 
 /** AZ-BUMP (the flip): `fn` in bb-0.9.7's world, every switch off (NPC_DAY, HULL_SCALE and LADDER_FIX ship on), each put
  *  back after it, even on a throw. */
-const offWorld = <T>(fn: () => T): T => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false);
+const offWorld = <T>(fn: () => T): T => withShapes(() => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false), false);
+// SHAPES-1 flip: SHAPES ships on too (cd59be0), so the off world has it off as well (with it on, the 0.9.7 par deck that the
+// fightTime test reads is built with the shaped pieces in the caravan and holds a sustain piece: rateOn 1089071.40 vs
+// rateDeck 1087524.21 on weaver s1 d10)
 // AZ-BUMP (the flip, NPC_DAY): the par player fights the Medium warlord every day (player.ts parNpcDay), so its deck is
 // road-fed. The day's budget is maxGoldByDay + the runes' dawn gold + the road's gold and drops by that dusk (playerRun's
 // budget + roadGold + roadDrops), and the gold adds up with the value left in cargo (d.cargo); all three are absent with
@@ -47,7 +51,10 @@ describe("par player (playerBuild): a real run through the caravan", () => {
   // bb-0.9.7, 12 15 13 / 14 10 16, counted with every switch off, WEAVER s2's 10 under the floor), with its rules key and its
   // all-off world (offWorld, which the flip's re-pin gave it until S7). The six runs are the shipped par player's (every
   // switch on), and the floor is "at least 10 buys" for all six, with no rules key
-  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => {
+  // SHAPES-1 flip: the tripwire stays at its old point with SHAPES off (as AZ-BUMP's flip kept it with its switches off):
+  // with SHAPES on the par player buys the shaped pieces (4 G and 6 G rigs, a 2x3 GANTRY, an I3 ASSEMBLY LINE at 4 G),
+  // fewer and dearer, and FURNACE s2 makes 9 buys, under the floor; the integrity checks themselves hold either way
+  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => withShapes(() => {
     const boughtAll: string[] = [];
     for (const hero of HEROES) {
       for (const seed of [1, 2, 3]) {
@@ -79,8 +86,8 @@ describe("par player (playerBuild): a real run through the caravan", () => {
         expect(playerRun(hero, PLAYER_DAYS, seed)[PLAYER_DAYS - 1].rerollGold).toBe(rerolls * REROLL_COST);
       }
     }
-    console.log(`AZBUMP-S7 the par player's caravan buys, every switch on: ${boughtAll.join(", ")}`);
-  });
+    console.log(`AZBUMP-S7 the par player's caravan buys, every switch on but SHAPES: ${boughtAll.join(", ")}`);
+  }, false));
 
   it("every day's deck is legal (validateBuild, no unfused pair) and the gold adds up to maxGoldByDay", () => {
     for (const hero of HEROES) {
