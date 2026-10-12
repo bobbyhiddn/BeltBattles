@@ -477,7 +477,11 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
 
   it("the in-band counts on the four zoomed phones (tips done and new); 402x690 @3 with a rune: at least 720 of 899 with tips done; every in-band finger panel shows its full text with its gaps at least its face's Gmin; lever 3's panels in 3x5", () => {
     const all = allPanels(), rows: string[] = [];
-    expect(all.length).toBe(899);
+    // SHAPES-1 x c099-card3 (RUN6 1.1): +39 = the shaped three's placed panels (zoom's +39 in 8dcf439): NAIL STRIP, EMBER
+    // TROUGH and SPIKE RAIL join the buyable modules with SHAPES on, 13 panels each (an offer, and at each star a cargo panel
+    // and 3 placed ones), as explain1, space1, zoom1 and zoom count them: 899 + 39 = 938, measured on the merged tree (the
+    // 720 floor and the 5-point rule below keep their point; run 6's measured counts: REPORT-SHAPES1 "Run 6")
+    expect(all.length).toBe(938);
     const counts: Record<string, number> = {};
     for (const mode of ["done", "new"] as const) {
       setTipsForTests(mode);

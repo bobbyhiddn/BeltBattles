@@ -27,6 +27,7 @@ import { textWidth } from "../src/render/font";
 import { C } from "../src/render/palette";
 import { contrast } from "../src/render/styleContrast";
 import { tapPx } from "../src/ui/tap";
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 x c099-card3 (RUN6 1.2): the fight is built with SHAPES off
 
 const ROOT = join(new URL("..", import.meta.url).pathname);
 const deck = (hero: HeroId, day: number, i: number): Build => structuredClone(parRefs(hero, day, "field", 4)[i]);
@@ -36,8 +37,15 @@ const deck = (hero: HeroId, day: number, i: number): Build => structuredClone(pa
  *  LADDER_FIX) those par decks fight otherwise (that foe holds no LODESTONE and your side never jams), so the fight is
  *  re-picked on the merged tree by every condition below (W/kit-099d/zz-099d-c1pick.test.ts, scratch: FURNACE v WEAVER,
  *  FOUNDRY and BASTION both ways, days 6-10, seeds 1-3): the one that meets them all is your WEAVER par deck 3 v the foe's
- *  FURNACE par deck 1 (a LODESTONE aboard), day 10, seed 3. Every assertion is kept. */
-const fight = (): Battle => new Battle(deck("weaver", 10, 2), deck("furnace", 10, 0), 3);
+ *  FURNACE par deck 1 (a LODESTONE aboard), day 10, seed 3. Every assertion is kept.
+ *  SHAPES-1 x c099-card3 (RUN6 1.2; tests only): with SHAPES on, as it ships since SHAPES-1's flip, the par player buys and
+ *  places the shaped pieces, so these par decks change: the foe's FURNACE par deck 1 buys no LODESTONE, and your WEAVER par
+ *  deck 3 holds an EMBER TROUGH and an I3 ASSEMBLY LINE. That fight has no LODESTONE hit, no jam and no STUN reader (7.8 s,
+ *  the foe wins), so three fixture guards fail. The fight is kept in the SHAPES-off world it was picked in: its decks and
+ *  the Battle are built with SHAPES off, as SHAPES-1's 22ca218 kept harness.player's tripwires. The Battle reads shapes
+ *  only when it is built (makeSide: occupancy, rigHits, routeInfo, footBox), and this fight steps the same with SHAPES on
+ *  and off (770 ticks, the same 493 events; run 6's probe). S8 moves the par field again: re-pick then as MERGE-099D did. */
+const fight = (): Battle => withShapes(() => new Battle(deck("weaver", 10, 2), deck("furnace", 10, 0), 3), false);
 
 type Priv = { applyHit: (...a: unknown[]) => unknown; fire: (...a: unknown[]) => unknown };
 
