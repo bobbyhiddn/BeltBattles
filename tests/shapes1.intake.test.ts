@@ -6,12 +6,29 @@ import { afterEach, describe, expect, it } from "vitest";
 import { newRun, installFromCargo, intakeToast, moveInstalled, sweepIntakes, type Run } from "../src/game/run";
 import { canPlaceItem, cloneBuild, isIntakeCell, itemByUid, key as K, moveTurret, turretSlots } from "../src/sim/deck";
 import { SHAPES, setShapes, withShapes } from "../src/sim/shapes";
+import { ITEMS } from "../src/sim/content";
+import { effectAt } from "../src/sim/stars";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import { casualRun } from "../src/sim/harness/casual";
 import { installAt } from "../src/screens/build/turretActions";
 import type { Ctx } from "../src/screens/build/actions";
 
 afterEach(() => setShapes(SHAPES)); // SHAPES-1 flip: the shipped value (on)
+
+// RUN3-SHAPES1 section 5 (run 4): can a turret's fuse (star-up) or a swap make a new intake cell? A slot's intake columns
+// are deck.ts turretDefIn's slotIntakes(slot, effectAt(def, stars).turret.intake); a fuse (fuse.ts setStars) changes only
+// an installed turret's stars, and no turret's star row changes its intake (they change its speed), so a star-up keeps
+// its intake cells; a swap between slots is moveInstalled, which runs the sweep. So neither needs the sweep; this pins it.
+describe("SHAPES-1 S5b: a turret's star-up never makes a new intake cell", () => {
+  it("every turret's intake is the same at ★1, ★2 and ★3", () => {
+    const turrets = Object.values(ITEMS).filter((d) => d.kind === "turret");
+    expect(turrets.length).toBeGreaterThan(10);
+    for (const d of turrets) {
+      const i1 = effectAt(d.id, 1).turret!.intake;
+      for (const s of [2, 3]) expect(effectAt(d.id, s).turret!.intake, `${d.id} ★${s}`).toBe(i1);
+    }
+  });
+});
 
 /** WEAVER's start (slot 3 empty) with a NAIL STRIP (★2) standing up at (7,0)-(7,1) and a RAMPART in cargo. */
 function weaver(rig = "nailstrip"): Run {
