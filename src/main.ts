@@ -13,7 +13,7 @@ import { settings, setReducedMotion } from "./core/settings";
 import { VERSION } from "./version";
 import { addGhosts, clearPool, pinClassicFoe, playOut, setupFork, setupRun, setupWarlord, showcaseRun, type GhostSpec, type RunSpec } from "./tooling";
 import { placeShapedDemo } from "./tooling"; // SHAPES-1 (REQ-BFG-086) tooling: bb.shapesDemo
-import { setShapes } from "./sim/shapes"; // SHAPES-1 tooling: bb.shapes
+import { setShapes, shapesRules } from "./sim/shapes"; // SHAPES-1 tooling: bb.shapes
 import { footBox } from "./sim/foot"; // SHAPES-1 tooling: bb.carryShape
 import { footX, footY } from "./render/frame"; // SHAPES-1 tooling
 import { toScreen } from "./screens/build/layout"; // SHAPES-1 tooling
@@ -157,14 +157,17 @@ game.start();
     game.go(screen === "battle" ? new BattleScreen(game) : new BuildScreen(game));
   },
   /** SHAPES-1 (REQ-BFG-086) tooling (pictures, read-only for the player: no player path calls these): SHAPES on or off
-   *  (src/sim/shapes.ts setShapes). */
-  shapes(on = true): void {
-    setShapes(on);
+   *  (src/sim/shapes.ts setShapes). Since SHAPES-1's flip SHAPES ships on and the setter is dev-only
+   *  (import.meta.env.DEV), as AZ-BUMP's flip did for bb.openNpcDay and bb.hullScale (cap's ruling on AZ-BUMP run 4's
+   *  Q4): on a production page this only reports the switch. */
+  shapes(on = true): boolean {
+    if (import.meta.env.DEV) setShapes(on);
+    return shapesRules();
   },
   /** SHAPES-1 tooling: SHAPES on, showcase deck `name` in the build screen with the shaped pieces placed where the bots
    *  would put them (tooling.ts placeShapedDemo); returns what was placed. */
   shapesDemo(name = "twobelts"): string[] {
-    setShapes(true);
+    if (import.meta.env.DEV) setShapes(true); // a no-op since the flip (SHAPES ships on); dev-only as bb.shapes
     clearPool();
     game.run = showcaseRun(name);
     const placed = placeShapedDemo(game.run);

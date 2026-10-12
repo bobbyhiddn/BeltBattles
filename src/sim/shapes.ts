@@ -15,8 +15,8 @@
 //    content swap: while the switch is on ITEMS[id] is the reshaped def (built from the base def), while it is off the
 //    base def, untouched; stars.ts's star cache is cleared at each swap. The six signature factories stay 2x2.
 //
-// THE SWITCH: SHAPES (false), in npcDay.ts's form: shapesRules(), setShapes(on) and withShapes(fn, on = true), which puts
-// the switch back even on a throw. Off, the module does nothing at load: no pool, shop, offer, drop, LAST CHANCE card,
+// THE SWITCH: SHAPES (true since SHAPES-1's flip, step 8), in npcDay.ts's form: shapesRules(), setShapes(on) and
+// withShapes(fn, on = true), which puts the switch back even on a throw. Off, no pool, shop, offer, drop, LAST CHANCE card,
 // stand-in, captain, validator, text sheet or save sees the three rigs, GANTRY PRESS and ASSEMBLY LINE keep 2x2 and
 // their price, no migration runs and TURRET INTAKE doesn't apply. The validator's shape rules also read
 // rulesGate.ts SHAPES_RULES (a record under older rules is judged in 0.9.9's shapes).
@@ -26,9 +26,10 @@
 import { ITEMS, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
 
-/** THE switch (REQ-BFG-086): off until SHAPES-1's flip. Its setter, withShapes and the off path stay, for older records
- *  and the tests that measure the off world. */
-export const SHAPES: boolean = false;
+/** THE switch (REQ-BFG-086): ON since SHAPES-1's flip (BRIEF-SHAPES1 S1 and step 8, as AZ-BUMP's def6e73 flipped NPC_DAY,
+ *  HULL_SCALE and LADDER_FIX). Its setter, withShapes and the off path stay, for older records (a record under rules
+ *  before SHAPES_RULES is judged with it off: validate.ts inShapesWorld) and the tests that measure the off world. */
+export const SHAPES: boolean = true;
 
 /** R4: the three shaped plain stat rigs (REQ-BFG-084). No desc, so no ability line: a stat row (faces.ts PLAIN_RIGS'
  *  path). Merchants and tags follow the base's plain rigs of their kind (WHETSTONE and TEMPER: alchemist, FORGE) and
