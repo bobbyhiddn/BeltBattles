@@ -1019,6 +1019,18 @@ function turretCand(run: Run, def: string, pol: PolicyKnobs, rng: Rng, base: num
   return best;
 }
 
+/** CAND-A: `b` with factory plan `fp`'s factory (uid `uid`, def `fdef`) and its lines: the deck pairCand rates a turret and
+ *  factory pair on. SHAPES-1 flip fix: the factory stands at the plan's rot (rotField), as factoryCand places it. It was
+ *  pushed at rot 0, so a turned 2x3 GANTRY PRESS or I3 ASSEMBLY LINE (factoryPlan's spot, scanned at every rot) overlapped a
+ *  piece, left the deck or stood away from its own lines' start in the deck being rated (par runs s1-s6: BASTION d5, METRONOME
+ *  d6, SIPHON d8). A 2x2 plan's rot is 0, so its deck is exactly as before. */
+export function withFactoryPlan(b: Build, uid: number, fdef: string, fp: { x: number; y: number; rot: number; routes: readonly { cells: number[] }[] }): Build {
+  const after = cloneBuild(b);
+  after.items.push({ uid, def: fdef, x: fp.x, y: fp.y, ...rotField(fdef, fp.rot) });
+  for (const l of fp.routes) commitRoute(after, uid, l.cells, -1);
+  return after;
+}
+
 /**
  * CAND-A: a turret for an empty slot, judged with a factory offer the purse also covers whose own line would feed it
  * (factoryPlan into that turret's intakes on the deck with it installed). The plan installs the turret unfed; the
@@ -1035,9 +1047,7 @@ function pairCand(run: Run, def: string, fdef: string, pol: PolicyKnobs, rng: Rn
     if (!installFromCargo(sim, g.survivor, v.slot).ok) continue;
     const fp = factoryPlan(sim.build, fdef, rng, pol.line, turretSlots(sim.build)[v.slot].intakes);
     if (!fp) continue;
-    const after = cloneBuild(sim.build), uid = sim.nextUid;
-    after.items.push({ uid, def: fdef, x: fp.x, y: fp.y });
-    for (const l of fp.routes) commitRoute(after, uid, l.cells, -1);
+    const after = withFactoryPlan(sim.build, sim.nextUid, fdef, fp); // SHAPES-1 flip fix: the plan's factory at its rot
     if (keep && (!keep(after) || !keep(sim.build))) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
     const rel = relOf(after, base, run.day);
     if (!best || rel > best.rel) best = { plan: { copy: g.survivor, slot: v.slot, into: "extra", refit: [], sell: [], sold: false, build: sim.build }, rel };

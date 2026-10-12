@@ -26,6 +26,10 @@ import { npcDayRules, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the fli
 import { withHullScale } from "../src/sim/hullScale";
 import { withLadderFix } from "../src/sim/ladderFix";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the buy floor's tripwire and the off world, SHAPES off
+import { withFactoryPlan } from "../src/sim/harness/player"; // SHAPES-1 flip fix: the pair candidate's deck
+import { heroStartBuild } from "../src/sim/harness/heroes";
+import { cellsOf } from "../src/sim/deck";
+import { footprintCells } from "../src/sim/foot";
 
 const HEROES = ["furnace", "weaver"] as const;
 // AZ-BUMP S7: Y7B2_BOUGHT (the Y7b2 tripwire's six buy counts, 12 15 13 / 14 10 16 under bb-0.9.7) is gone with the tripwire
@@ -479,6 +483,21 @@ describe("CAND-A: the rating weighs damage over the day's fight, each belt from 
     expect(firedShare(5)).toBe(SAT_DEEP);
     expect(firedShare(5, true)).toBe(1); // a turret that never jams
     expect(firedShare(5, false, RATING_CLIFF)).toBe(0.85); // FB-C's cliff has no deep segment
+  });
+});
+
+// SHAPES-1 flip (the bug: pairCand rated a turret + factory pair on a deck with factoryPlan's factory pushed at rot 0, so a
+// turned GANTRY PRESS or ASSEMBLY LINE overlapped a piece, left the deck or stood away from its line: BASTION d5, METRONOME
+// d6, SIPHON d8 in the par runs s1-s6). withFactoryPlan builds that deck with the plan's factory at the plan's rot
+describe("SHAPES-1 flip: the pair candidate's deck (withFactoryPlan)", () => {
+  it("a turned 2x3 GANTRY PRESS plan stands at its rot, on the deck; a 2x2 plan as before", () => {
+    const b = heroStartBuild("furnace", 1);
+    const after = withFactoryPlan(b, 500, "gantry", { x: 8, y: 2, rot: 1, routes: [] }); // upright: (8,2)-(9,4); at rot 0 x 8-10
+    const g = after.items.find((p) => p.uid === 500)!;
+    expect(cellsOf(g)).toEqual(footprintCells(ITEMS.gantry, 8, 2, 1));
+    expect(validateBuild(after, 10).errors.filter((e) => e.startsWith("placement"))).toEqual([]);
+    const press = withFactoryPlan(b, 500, "press", { x: 6, y: 2, rot: 0, routes: [] });
+    expect(press.items.find((p) => p.uid === 500)).toEqual({ uid: 500, def: "press", x: 6, y: 2 });
   });
 });
 
