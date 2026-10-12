@@ -169,7 +169,7 @@ export const PHONE_GISTS: Readonly<Record<string, (chip: string, f: Face) => rea
   // the five rigs whose chip leaves the target open (READ-2 7.3 item 2)
   tollbooth: (c) => ["ITS BELT", c], // THE FIRST 2 STUN ON ITS BELT'S PARTS EACH FIGHT DO NOTHING
   sorting: (c) => ["EACH THIRD", c], // HIT: OF EVERY 3 SLUG, ONE BECOMES 2 (on every belt its arrows reach). CARD-4 (T): was ITS BELTS (PPW)
-  braceframe: (c) => ["TILES HIT", c], // FOE STUN ON TILES IT HITS: 50% SHORTER. CARD-4 (T): was ITS TILES (TILES IT HITS: 49 px, past row A's 40)
+  braceframe: (c) => ["ITS TILES", c], // FOE STUN ON TILES IT HITS: 50% SHORTER. CARD-4 run 3 (cap's call): READ-4's ITS TILES back (read RRR with images; TILES HIT read PPP in run 2's small read); the face and the desk line keep TILES IT HITS
   overdrive: (c) => ["ITS BELTS", c], // ITS BELTS RUN 3 TIMES AS FAST FROM THESE TILES ON
 };
 

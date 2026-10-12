@@ -686,13 +686,15 @@ import { runeTextLines, runeCardTextW, runeWordText } from "../src/ui/runeBar";
 import { lineText } from "../src/ui/richText";
 
 describe("CARD-4 (t): the words READ-4 found misread (REQ-BFG-081, REQ-BFG-089; READ-4 3, 5, 8, 11 item 6)", () => {
-  it("BRACE FRAME: TILES IT HITS (its FULL RULE's words) on the face, the desk line and the phone gist; the face one 5x7 line on every phone panel", () => {
+  it("BRACE FRAME: TILES IT HITS (its FULL RULE's words) on the face and the desk line, the phone gist READ-4's ITS TILES; the face one 5x7 line on every phone panel", () => {
     const fl = faceLines("braceframe", 1, {})!;
     const plain = (t: string): string => t.replace(/[^\x20-\x7E]/g, "").replace(/\s+/g, " "); // as drawn, icons and the font's own word glyphs out
     expect(fl.rules.map((r) => plain(r.text))).toEqual(["FOE STUN ON TILES IT HITS: 50% SHORTER."]);
     expect(fl.rules.map((r) => r.text).join(" ")).toMatch(/ON TILES IT HITS: 50% SHORTER\./);
     expect(cardText("braceframe")).toBe("SHORTER STUNS ON TILES IT HITS.");
-    expect(phoneGist("braceframe", {})).toEqual(["TILES HIT", "{STUN}-50%"]);
+    // CARD-4 run 3 (cap's call, RESTART-RUN3 2 (a)) changed this pin by design: the phone gist is READ-4's ITS TILES again
+    // (READ-4 read it RRR with images; run 2's TILES HIT read PPP); the face and the desk line keep TILES IT HITS
+    expect(phoneGist("braceframe", {})).toEqual(["ITS TILES", "{STUN}-50%"]);
     // the sim: Battle.braceCut multiplies an enemy STUN's seconds on a tile its arrows hit by brace.mul (0.5 at ★1)
     expect(ITEMS.braceframe.gate!.brace!.mul).toBe(0.5);
   });
