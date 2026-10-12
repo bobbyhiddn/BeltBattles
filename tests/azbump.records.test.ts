@@ -14,6 +14,7 @@ import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { dropPool, npcDayRules, roadDropValue, setNpcDay, withNpcDay } from "../src/sim/npcDay";
 import { hullScaleRules, withHullScale } from "../src/sim/hullScale";
 import { ladderFixRules, withLadderFix } from "../src/sim/ladderFix";
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: bb-0.9.7's world has SHAPES off
 import { warlordOffer, type Difficulty } from "../src/sim/rivals";
 import { choicesFor, pickChoice } from "../src/game/events";
 import { finishDay, ghostOf } from "../src/game/day";
@@ -37,8 +38,10 @@ afterEach(() => setNpcDay(true)); // the shipped value
 const stored = (s: GhostSnapshot, id = ghostId(s)): StoredRecord => ({
   ref: "ghosts.jsonl:1", kind: "upload", day: s.day, id, playerId: s.playerId, text: encodeRecord(id, 5, s), keyed: false,
 });
-/** `fn` in bb-0.9.7's world: every switch off, each put back after. */
-const old = <T>(fn: () => T): T => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false);
+/** `fn` in bb-0.9.7's world: every switch off, each put back after. SHAPES-1 flip (step 8): SHAPES off too, as the
+ *  validator judges a record before bb-0.10.0 (validate.ts inShapesWorld): with it on the par player bought shaped rigs, which
+ *  bb-0.9.7 refuses (rulesGate.ts shapesGateProblem), and its budget edge read SHAPES' prices. */
+const old = <T>(fn: () => T): T => withNpcDay(() => withHullScale(() => withLadderFix(() => withShapes(fn, false), false), false), false);
 /** `s` with `n` more plates of hull. */
 const plated = (s: GhostSnapshot, n: number): GhostSnapshot => ({ ...s, build: { ...s.build, hullBonus: s.build.hullBonus + n * PLATE } as Build });
 /** The most plates `ok` lets `s` take. */

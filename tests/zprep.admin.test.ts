@@ -10,7 +10,7 @@ import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, type Boon } from "../src/sim/lastChance";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { ghostId, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
-import { validateUpload } from "../src/net/validate";
+import { inShapesWorld, validateUpload } from "../src/net/validate"; // SHAPES-1 flip: an older record's deck in its shapes world
 import { isReachable } from "../src/net/records";
 import { LAST_CHANCE_RULES } from "../src/net/rulesGate"; // Z-BUMP: the gate's words for a record under older rules
 import { uploadProblems, type StoredRecord } from "../server/ghostAdmin";
@@ -93,7 +93,9 @@ describe("Z-PREP: ghosts:admin revalidate and a stored LAST CHANCE upload", () =
     // Z-BUMP (the flip; was: the switch off, the same call clean): the same upload stored under older rules is read by
     // those rules, without LAST CHANCE: their record model carries 1 life into dusk 6, so it revalidates clean under its
     // own rules version (an honest record: the encoder writes it and gives its id; older rules are asked no name)
-    const older: GhostSnapshot = { ...par, rules: OLDER };
+    // SHAPES-1 flip (step 8): its deck is the same par run made in bb-0.9.1's world, SHAPES off (validate.ts inShapesWorld
+    // judges it so); with SHAPES on the par player buys shaped rigs, which rules before bb-0.10.0 refuse (shapesGateProblem)
+    const older: GhostSnapshot = { ...par, rules: OLDER, build: inShapesWorld(OLDER, () => playerRun("furnace", 6, 5)[5].build) };
     expect(uploadProblems(stored(older), OLDER)).toEqual([]);
   });
 

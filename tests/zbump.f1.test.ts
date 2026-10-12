@@ -12,7 +12,7 @@ import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { BOONS, lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { ghostId, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
-import { validateUpload } from "../src/net/validate";
+import { inShapesWorld, validateUpload } from "../src/net/validate"; // SHAPES-1 flip: an older record's deck in its shapes world
 import { isReachable, reachableRecords, recordHasLastChance } from "../src/net/records";
 import { LAST_CHANCE_RULES } from "../src/net/rulesGate";
 import { parseArgs, uploadProblems, UsageError, type StoredRecord } from "../server/ghostAdmin";
@@ -32,8 +32,11 @@ const stored = (s: GhostSnapshot, id = ghostId(s)): StoredRecord => ({
 /** A plain upload (no LAST CHANCE) under `rules`: FURNACE's par deck at dusk 6 with 0 wins and 1 life, the record five
  *  losses leave under rules without LAST CHANCE (the loss at dusk 5 leaves 1 life). */
 function plain(rules: string): GhostSnapshot {
+  // SHAPES-1 flip (step 8): the deck is made in its rules' shapes world (validate.ts inShapesWorld: SHAPES off under
+  // bb-0.9.3, as the validator judges it); with SHAPES on the par player buys shaped rigs, which bb-0.9.3 refuses
+  const build = inShapesWorld(rules, () => playerRun("furnace", 6, 5)[5].build);
   return {
-    v: SNAPSHOT_V3, rules, hero: "furnace", day: 6, wins: 0, lives: 1, build: playerRun("furnace", 6, 5)[5].build,
+    v: SNAPSHOT_V3, rules, hero: "furnace", day: 6, wins: 0, lives: 1, build,
     runId: "zbump-f1-plain", playerId: "p-zbump", createdAt: 1_790_000_000_000, name: TEST_NAME, seed: parRunSeed("furnace", 5),
   };
 }
