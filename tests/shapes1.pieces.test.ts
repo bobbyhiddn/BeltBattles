@@ -99,7 +99,8 @@ describe("SHAPES-1 R4: merge, sell and price", () => {
       }
       expect([1, 2, 3].map((s) => sellValue("nailstrip", s))).toEqual([2, 4, 8]);
       expect([1, 2, 3].map((s) => sellValue("spikerail", s))).toEqual([3, 6, 12]);
-      expect([1, 2, 3].map((s) => valueOf("embertrough", s))).toEqual([4, 8, 16]);
+      // SHAPES-1 (RUN5-SHAPES1 3, cap's ruling 1.1): EMBER TROUGH 4 -> 5 G, so its value is 5 / 10 / 20 (was 4 / 8 / 16)
+      expect([1, 2, 3].map((s) => valueOf("embertrough", s))).toEqual([5, 10, 20]);
     });
   });
 
