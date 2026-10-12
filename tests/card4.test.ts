@@ -776,3 +776,83 @@ describe("CARD-4 (t): the words READ-4 found misread (REQ-BFG-081, REQ-BFG-089; 
     void lineText; void runeCardTextW;
   });
 });
+
+import { AMMO, HEROES } from "../src/sim/content";
+import { PLATE_PER_SLUG } from "../src/sim/races/bastion";
+import { RUNE_SOURCE, runeSourceLine } from "../src/ui/runeText";
+import { runeNoteLines } from "../src/ui/runeBar";
+import { gameWords } from "../src/ui/gameWords";
+import { wrapRich } from "../src/ui/richText";
+
+describe("CARD-4 run 3 (i): the rune source lines (REQ-BFG-081; ref/open1 REPORT-OPEN1 sections 4 and 9; RESTART-RUN3 2 (c), cap's words)", () => {
+  // OPEN-1 section 4's 16 part-keyed runes by family (ref/open1/REPORT-OPEN1.md, the table's rows), and cap's words
+  const OPEN1: Readonly<Record<string, readonly string[]>> = {
+    HEAT: ["coal_chute", "heat_sink"],
+    FRAY: ["double_knot", "snare_knot", "barbed_silk", "widows_web", "loom_of_woe"],
+    PLATE: ["iron_temper", "bulwark_oath"], // the player's SHIELD
+    PAIR: ["twin_nails", "molten_bond", "seam_rivets", "hot_seam", "twin_suns", "molten_vows", "twin_salve"],
+  };
+  const WORDS: Readonly<Record<string, string>> = {
+    HEAT: "WORKS WITH A HEAT JACKET OR FURNACE'S KILN.",
+    FRAY: "WORKS WITH A BARBED SPOOL OR WEAVER'S LOOM.",
+    PLATE: "WORKS WITH A PLATE ROLLER OR BASTION'S WARDWORKS.",
+    PAIR: "WORKS WITH A TURRET THAT TAKES IN FROM TWO BELTS.",
+  };
+
+  it("one table keyed by rune id holds exactly OPEN-1 section 4's 16 runes, each naming its family's keyword, with cap's words; no other rune has a line", () => {
+    const ids = Object.values(OPEN1).flat();
+    expect(ids.length).toBe(16);
+    expect(Object.keys(RUNE_SOURCE).sort()).toEqual([...ids].sort());
+    for (const [fam, list] of Object.entries(OPEN1)) for (const id of list) {
+      expect(RUNES[id]?.text, id).toMatch(new RegExp(`\\{\\*?${fam}\\}`));
+      expect(runeSourceLine(RUNES[id]), id).toBe(WORDS[fam]);
+    }
+    for (const def of RUNE_LIST) if (!RUNE_SOURCE[def.id]) expect(runeSourceLine(def), def.id).toBeNull();
+  });
+
+  it("each named part and factory gives its family in the sim (the jacket's heat, the spool's fray, the roller's SHIELD gain, each hero's own factory), ten turrets take in from both sides, and the names are the display names", () => {
+    const ammo = AMMO as Readonly<Record<string, { rideScale: number; fray: number }>>;
+    expect(ITEMS.heatjacket.gate!.heat).toBeGreaterThan(0); // HEAT: +4 a second ridden after it (battle.ts payloadDamage)
+    expect(HEROES.furnace.factory).toBe("kiln");
+    expect(ammo[ITEMS.kiln.factory!.ammo].rideScale).toBeGreaterThan(0); // the CINDER SLUG heats as it rides
+    expect(ITEMS.barbed.gate!.fray).toBeGreaterThan(0); // FRAY: hits add 1
+    expect(HEROES.weaver.factory).toBe("loom");
+    expect(ammo[ITEMS.loom.factory!.ammo].fray).toBeGreaterThan(0); // THREAD SLUGs fray on hit
+    expect(ITEMS.plateroller.gate!.plate).toBeGreaterThan(0); // the SHIELD (internal plate) it rolls on per load
+    expect(HEROES.bastion.factory).toBe("wardworks");
+    expect(ITEMS.wardworks.factory!.ammo).toBe("bulwark");
+    expect(PLATE_PER_SLUG).toBeGreaterThan(0); // each BULWARK SLUG shields the hull as it arrives
+    const both = Object.values(ITEMS).filter((d) => d.turret?.intake === "both").map((d) => d.name);
+    expect(both.length, both.join(", ")).toBe(10); // so the PAIR line names the kind, not one part
+    for (const s of new Set(Object.values(RUNE_SOURCE))) {
+      const id = Object.keys(RUNE_SOURCE).find((k) => RUNE_SOURCE[k] === s)!, line = runeSourceLine(RUNES[id])!;
+      if (s.twoBelts) continue;
+      expect(line).toBe(`WORKS WITH A ${ITEMS[s.part!].name} OR ${HEROES[s.hero!].name}'S ${ITEMS[s.factory!].name}.`);
+      expect(HEROES[s.hero!].factory, id).toBe(s.factory);
+    }
+  });
+
+  it("the line rides the notes only (under the reminder: the room, the note box and the word boxes count it), never the face; never ONLY; the player's words; it fits every view", () => {
+    const lines: string[] = [];
+    for (const [name, w, h, dpr] of [...PHONES, DESK]) {
+      const f = framed(w, h, dpr, 0), cardW = Math.min(f.W - 8, 300), tw = runeCardTextW(cardW);
+      let most = 0;
+      for (const id of Object.keys(RUNE_SOURCE)) {
+        const def = RUNES[id], line = runeSourceLine(def)!;
+        const note = runeNoteLines(def, tw).map(lineText), src = wrapRich([{ t: line, c: "#fff" }], tw, "3").map(lineText);
+        expect(note.slice(-src.length), `${name} ${id}`).toEqual(src); // under the reminder, on its own lines
+        expect(note.slice(0, note.length - src.length).join(" "), `${name} ${id}`).toBe(runeReminder(def));
+        expect(runeTextLines(def, tw).map(lineText).join(" "), `${name} ${id}: not on the face`).not.toContain("WORKS WITH");
+        expect(runeCardH(def, cardW, { reminder: true }) - runeCardH(def, cardW, {}), `${name} ${id}: the room`).toBe(1 + note.length * 7);
+        most = Math.max(most, src.length);
+      }
+      expect(most, `${name}: at most two 3x5 lines`).toBeLessThanOrEqual(2);
+      lines.push(`${name} (card ${cardW} px, text ${tw}): ${most} line${most > 1 ? "s" : ""}`);
+    }
+    for (const line of new Set(Object.values(RUNE_SOURCE).map((s) => runeSourceLine(RUNES[Object.keys(RUNE_SOURCE).find((k) => RUNE_SOURCE[k] === s)!])!))) {
+      expect(line).not.toMatch(/\bONLY\b/);
+      expect(gameWords(line), line).toBe(line); // no old word outside a name (NAMES_KEPT: PLATE ROLLER, WARDWORKS)
+    }
+    console.log(`CARD-4 run 3 (i): the source line's 3x5 lines per view: ${lines.join("; ")}`);
+  });
+});

@@ -15,6 +15,7 @@ import { RUNE_NOTE } from "./glossary"; // Y-FURN: a rune's own reminder (SHATTE
 import { FRAY_MAX } from "../sim/content"; // CARD-2 (REQ-BFG-081, K3 c): SNARE KNOT's FULL, named
 import { fmtCount } from "./statFormat"; // CARD-2 (K3 c): the one formatter for a count
 import { gameWords } from "./gameWords"; // CARD-3 (REQ-BFG-107): a sim string in the player's words
+import { HEROES, ITEMS, type HeroId } from "../sim/content"; // CARD-4 run 3 (I): the source lines' names, never literals
 
 /** A whole number as the game writes it. No rounding here: a rune whose amount is not whole shows it, and
  *  tests/runes.ui.test.ts (every number in every rune text is whole) catches it. */
@@ -247,6 +248,45 @@ export function runeReminderSpans(def: RuneDef, base: string = C.slate4): Span[]
   const k = runeKeywords(def).find((q) => (note ? s.startsWith(`${KEYWORD_WORD[q]}: `) : REMINDER[q] === s));
   if (!k || !s.startsWith(KEYWORD_WORD[k])) return [{ t: s, c: base }];
   return [{ t: KEYWORD_WORD[k], c: RUNE_KEYWORD_COLOUR[k] }, { t: s.slice(KEYWORD_WORD[k].length), c: base }];
+}
+
+// ---- CARD-4 run 3 (REQ-BFG-081, I; ref/open1 REPORT-OPEN1 sections 4 and 9; cap's words, RESTART-RUN3 2 (c)) ----------
+
+/** A part-keyed rune's source: a shop part and a hero's own factory that give its keyword (by id: the words are their
+ *  display names, ITEMS[...].name and HEROES[...].name, so a later rename follows), or `twoBelts`: a turret fed by two
+ *  belts (ten turrets take in from both sides: content.ts intake "both"; FOUNDRY's CRUCIBLE pours pairs as well). */
+export interface RuneSource {
+  part?: string;
+  hero?: HeroId;
+  factory?: string;
+  twoBelts?: true;
+}
+const HEAT_SOURCE: RuneSource = { part: "heatjacket", hero: "furnace", factory: "kiln" };
+const FRAY_SOURCE: RuneSource = { part: "barbed", hero: "weaver", factory: "loom" };
+const SHIELD_SOURCE: RuneSource = { part: "plateroller", hero: "bastion", factory: "wardworks" }; // the sim's PLATE
+const PAIR_SOURCE: RuneSource = { twoBelts: true };
+
+/** The 16 runes that do something only with a part (OPEN-1 section 4), keyed by rune id: one table. */
+export const RUNE_SOURCE: Readonly<Record<string, RuneSource>> = {
+  coal_chute: HEAT_SOURCE, heat_sink: HEAT_SOURCE,
+  double_knot: FRAY_SOURCE, snare_knot: FRAY_SOURCE, barbed_silk: FRAY_SOURCE, widows_web: FRAY_SOURCE, loom_of_woe: FRAY_SOURCE,
+  iron_temper: SHIELD_SOURCE, bulwark_oath: SHIELD_SOURCE,
+  twin_nails: PAIR_SOURCE, molten_bond: PAIR_SOURCE, seam_rivets: PAIR_SOURCE, hot_seam: PAIR_SOURCE, twin_suns: PAIR_SOURCE,
+  molten_vows: PAIR_SOURCE, twin_salve: PAIR_SOURCE,
+};
+
+/** "A" or "AN" before a name. */
+const aOrAn = (name: string): string => (/^[AEIOU]/.test(name) ? "AN" : "A");
+
+/** CARD-4 run 3 (I): the line under a part-keyed rune's reminder in its notes (the chip's note, the opened card's), never
+ *  on its face (REQ-BFG-089): a part it works with, never "only" (other sources exist: OPEN-1 section 4, the REPORT's sim
+ *  checks). Null for any other rune. */
+export function runeSourceLine(def: Pick<RuneDef, "id">): string | null {
+  const s = RUNE_SOURCE[def.id];
+  if (!s) return null;
+  if (s.twoBelts) return "WORKS WITH A TURRET THAT TAKES IN FROM TWO BELTS."; // LOAD's note's words (TAKES IN FROM A BELT)
+  const part = ITEMS[s.part!].name, hero = HEROES[s.hero!].name, factory = ITEMS[s.factory!].name;
+  return `WORKS WITH ${aOrAn(part)} ${part} OR ${hero}'S ${factory}.`;
 }
 
 /** The tier as a word (FIX-10: the tier shows as a word as well as a colour). */

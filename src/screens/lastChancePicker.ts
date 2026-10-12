@@ -27,7 +27,8 @@ import { drawRuneCard, runeCardH } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the rune card's chip as its icon
 import { drawRuneWordNote, runeHintBand, runeKeywordOf, runeSightWord, runeWordLayer, runeWordLines } from "../ui/runeBar"; // CARD-2 (K2; K1)
 import { TAKE_CLOCK, runeBarBand, runeBarTarget, takeGuardPassed } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): the RUNE card's bar alone takes it
-import { runeReminderSpans, runeTag, tierWord } from "../ui/runeText";
+import { runeTag, tierWord } from "../ui/runeText";
+import { runeNoteLines } from "../ui/runeBar"; // CARD-4 run 3 (REQ-BFG-081, I): the RUNE card's details, the reminder and its source line
 import { textOpts } from "./build/inspector";
 import type { BuildScreen } from "./build/build";
 import { GAP as ITEM_GAP, GAP_MIN as ITEM_GAP_MIN } from "../ui/spacing"; // CARD-3 (REQ-BFG-087, D5, D6): the gaps between a card's items (GAP here is the cards')
@@ -303,7 +304,7 @@ export class LastChancePicker {
     const tw = w - 10;
     return this.boons(o).map((boon, i) => {
       const shown = this.info.has(i);
-      if (boon === "rune") return { boon, lines: [], info: shown ? [wrapRich(runeReminderSpans(RUNES[o.rune!.id]), tw, "3")] : [] };
+      if (boon === "rune") return { boon, lines: [], info: shown ? [runeNoteLines(RUNES[o.rune!.id], tw)] : [] }; // CARD-4 run 3 (I): with the source line
       if (boon === "part") return { boon, lines: partLines(o.part!, tw, run), info: shown ? partInfo(o.part!, tw, run) : [] };
       const now = HEROES[run.hero].hull + run.build.hullBonus;
       return { boon, lines: hullLines(now, o.hull, tw), info: shown ? hullInfo(tw) : [] };

@@ -18,8 +18,7 @@ import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH, runeChipW } from 
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the chip as the card's icon
 import { runeHintBand, runeSightWord, runeWordBoxOn, runeWordLayer, sawRuneNote } from "../ui/runeBar"; // CARD-2 (REQ-BFG-081, K2; K1)
 import { TAKE_CLOCK, runeBarTarget, runeCardTextW, runeNoteBox, runeNoteY, takeGuardPassed } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): only the bar takes, never too soon
-import { wrapRich } from "../ui/richText"; // CARD-4 (P1): the chip's line's box (the bar's target is never under it)
-import { runeReminderSpans } from "../ui/runeText";
+import { runeNoteLines } from "../ui/runeBar"; // CARD-4 (P1): the chip's line's box (the bar's target is never under it); run 3 (I): with the source line
 import { runeTag, tierColour, tierWord } from "../ui/runeText";
 import type { BuildScreen } from "./build/build";
 
@@ -251,7 +250,7 @@ export class RunePicker {
   /** CARD-4 (P1): the note box shown on open card `r` (a word's definition, or the chip's line), else null. */
   private boxOn(r: Rect, def: RuneDef): Rect | null {
     if (this.word) return runeWordBoxOn(r, def, this.word);
-    if (this.note) return runeNoteBox(r, runeNoteY(r, def), wrapRich(runeReminderSpans(def), runeCardTextW(r.w), "3").length);
+    if (this.note) return runeNoteBox(r, runeNoteY(r, def), runeNoteLines(def, runeCardTextW(r.w)).length); // CARD-4 run 3 (I)
     return null;
   }
 

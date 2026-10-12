@@ -19,6 +19,7 @@ import { inside, tapRect, type UI } from "./ui"; // EXPLAIN-1 (REQ-BFG-089, E3):
 import { tapPx, TAP_CSS } from "./tap";
 import { isPhone } from "./tap"; // EXPLAIN-1 (E3): a phone's chip target is a finger's
 import { runeReminder } from "./runeText"; // EXPLAIN-1 (E3): the hidden line the chip shows
+import { runeSourceLine } from "./runeText"; // CARD-4 run 3 (REQ-BFG-081, I): a part-keyed rune's source line, under it
 import { drawIconTip, helpCursor, iconTipRect } from "../screens/build/keywords"; // EXPLAIN-1 (E3): the tooltip's style
 import type { View } from "../core/io";
 import { drawRich, wrapRich, type RichLine } from "./richText";
@@ -237,11 +238,19 @@ export function runeBarTarget(card: Rect, hint: string, tap = 0, box: Rect | nul
   return { x, y: top, w, h: Math.max(1, bottom - top) };
 }
 
+/** CARD-4 run 3 (REQ-BFG-081, I): the chip's note as its 3x5 lines at text width `tw`: the reminder, then, on a line of
+ *  its own, a part-keyed rune's source line (runeText.ts runeSourceLine), in `base`. The room, the note box and the
+ *  word boxes all count these lines. Pure (the pickers, tests). */
+export function runeNoteLines(def: RuneDef, tw: number, base: string = C.slate4): RichLine[] {
+  const src = runeSourceLine(def);
+  return [...wrapRich(runeReminderSpans(def, base), tw, "3"), ...(src ? wrapRich([{ t: src, c: base }], tw, "3") : [])];
+}
+
 /** A rune card's height at width `w` (R1b-2's mock: a 31 px head, 9 px per effect line, 7 per reminder line, the hint
  *  bar 13, 4 at the foot). Pure (tests). CARD-4 (P1): the hint's band runeBarBand(o.tap) (13 on the desk). */
 export function runeCardH(def: RuneDef, w: number, o: Omit<RuneCardOpts, "sub">): number {
   let h = CARD_TEXT_Y + runeTextLines(def, runeCardTextW(w)).length * 9;
-  if (o.reminder) h += 1 + wrapRich(runeReminderSpans(def), runeCardTextW(w), "3").length * 7;
+  if (o.reminder) h += 1 + runeNoteLines(def, runeCardTextW(w)).length * 7; // CARD-4 run 3 (I): with the source line
   if (o.hint) h += runeBarBand(o.tap);
   return h + 4;
 }
@@ -267,7 +276,7 @@ export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void
   }
   if (o.reminder) {
     // EXPLAIN-1 (REQ-BFG-089, E1d): the reminder's room stays, clear; its line draws only while the chip has it open (E3)
-    const ls = wrapRich(runeReminderSpans(def, C.bone), tw, "3");
+    const ls = runeNoteLines(def, tw, C.bone); // CARD-4 run 3 (I): the reminder, then the source line
     // CARD-2 (K2): a keyword's definition (its tap, or K1's first sight) takes the room in place of the chip's line
     const k = o.word ? runeKeywordOf(def, o.word) : null;
     if (k) drawRuneWordNote(g, r, y, ls.length, runeWordLines(def, k, tw));
@@ -324,7 +333,8 @@ export function runeChipIcon(g: G, ui: UI, id: string, card: Rect, def: RuneDef,
   if (toggle) ui.add({ id, r: t, onTap: toggle });
   const p = ui.pointer;
   if (!tap && p.kind === "mouse" && !p.down && inside(t, p.x, p.y)) {
-    const items = [runeReminder(def)], tr = iconTipRect(items, card, screen);
+    const src = runeSourceLine(def); // CARD-4 run 3 (I): the source line under the reminder
+    const items = src ? [runeReminder(def), src] : [runeReminder(def)], tr = iconTipRect(items, card, screen);
     drawIconTip(g, items, tr);
     ui.add({ id: `${id}-tip`, r: tr, block: true });
     helpCursor(canvas, true);
@@ -391,7 +401,7 @@ export function runeWordBoxOn(r: Rect, def: RuneDef, word: string | null): Rect 
   const k = word ? runeKeywordOf(def, word) : null;
   if (!k) return null;
   const tw = runeCardTextW(r.w);
-  return runeWordBox(r, runeNoteY(r, def), wrapRich(runeReminderSpans(def), tw, "3").length, runeWordLines(def, k, tw).length);
+  return runeWordBox(r, runeNoteY(r, def), runeNoteLines(def, tw).length, runeWordLines(def, k, tw).length); // CARD-4 run 3 (I)
 }
 
 /** CARD-2 (K2): one keyword on a rune card's effect lines: its keyword and word, what a tap shows, its colour, its glyphs
