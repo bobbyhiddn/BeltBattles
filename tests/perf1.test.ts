@@ -393,4 +393,14 @@ describe("PERF-1: the build screen draws only what changed (game/retain.ts)", ()
     // only on ZOOM-1's finer grid (sub > 1); at sub 1 (0.9.8's canvas) the build screen draws directly, as before
     expect(game).toMatch(/this\.screen\.retain && !this\.retained\.off && \(this\.view\.sub \?\? 1\) > 1/);
   });
+
+  it("PERF-1 review: a lost or restored canvas context, or the page shown again, draws the next frame whole", () => {
+    // before PERF-1 every frame was drawn whole, so the canvas healed itself; a retained frame draws only what changed,
+    // so anything that can wipe the canvas outside the game must invalidate the recorder (test 7: the next frame whole)
+    const game = readFileSync(decodeURIComponent(new URL("../src/game/game.ts", import.meta.url).pathname), "utf8");
+    expect(game).toMatch(/canvas\.addEventListener\("contextlost", \(\) => this\.retained\.invalidate\(\)\)/);
+    expect(game).toMatch(/canvas\.addEventListener\("contextrestored", \(\) => this\.retained\.invalidate\(\)\)/);
+    expect(game).toMatch(/window\.addEventListener\("pageshow", \(\) => this\.retained\.invalidate\(\)\)/);
+    expect(game).toMatch(/"visibilitychange", \(\) => \{[^}]*this\.retained\.invalidate\(\); \}/);
+  });
 });

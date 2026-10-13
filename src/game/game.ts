@@ -86,7 +86,13 @@ export class Game implements InputSink {
     applyGameView(canvas, this.view);
     bindInput(canvas, () => this.view, this);
     window.addEventListener("resize", () => this.resize());
-    document.addEventListener("visibilitychange", () => { this.last = performance.now(); });
+    document.addEventListener("visibilitychange", () => { this.last = performance.now(); this.retained.invalidate(); });
+    // PERF-1 review (REQ-BFG-080): the canvas can lose its pixels outside the game (a GPU reset or a lost context; a page
+    // brought back from the background or the back-forward cache). A retained frame draws only what changed, so the frame
+    // after any of these is drawn whole (Retained.invalidate), as every frame was before PERF-1.
+    canvas.addEventListener("contextlost", () => this.retained.invalidate());
+    canvas.addEventListener("contextrestored", () => this.retained.invalidate());
+    window.addEventListener("pageshow", () => this.retained.invalidate());
     this.screen.enter?.();
   }
 
