@@ -9,7 +9,7 @@ import { validateBuild, validateUpload, maxHonestSpend } from "../src/net/valida
 import { roadOptions } from "../src/net/roadCap";
 import { floorRecord } from "../src/net/records";
 import { createGhostServer, type GhostServer } from "../server/app";
-import { driveRun } from "./uploadDriver";
+import { driveRun, type DriverRun } from "./uploadDriver";
 import { snap, upSnap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
@@ -44,14 +44,24 @@ const DOCK_PLATING = roadOptions().get("dock")!.find((o) => o.label === "PLATING
 const RIDE_THROUGH = roadOptions().get("storm")!.find((o) => o.label === "RIDE THROUGH")!.hull; // -100 (was -10)
 const PLATE = ITEMS.plating.supply!.hull!; // +250 (was +25)
 
+/** The driver's honest dusks the snapshots below leave out: each holds a warlord's drop that only its road log accounts for
+ *  (NPC-1: with NPC_DAY on a fight's drop counts through the log, never in roadCap), and these snapshots carry no log. */
+const needsLog: DriverRun["dusks"] = [];
+
 /** Honest dusk decks from the driver that the strict check refuses (road hull, road value), as v3 snapshots (FLIP-X2: the
- *  decks hold their dawns' runes, which travel only in v3; was v2). */
+ *  decks hold their dawns' runes, which travel only in v3; was v2).
+ *  SHAPES-1 (RUN5-SHAPES1 3, cap's ruling 1.1: EMBER TROUGH 4 -> 5 G): these snapshots carry no road log, so a dusk whose
+ *  deck is worth more than the log-less ceiling is set aside in `needsLog` (the test checks it passes with its log). Since
+ *  the price, seed 1's FURNACE day-1 dusk is one: a medium win's drop (PLATE ROLLER, 3 G) and SALVAGE's EMBER TROUGH (5 G)
+ *  make 14 G against the log-less 8 + roadCap 5 = 13 (at 4 G it was 13 and passed by a hair) */
 function honestRefusedByStrict(n: number): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
+  needsLog.length = 0;
   for (let seed = 1; out.length < n && seed < 400; seed++) {
     const r = driveRun(seed, seed % 2 ? "furnace" : "weaver");
     for (const d of r.dusks) {
       if (out.length >= n || validateBuild(d.build, d.day).ok) continue;
+      if (!validateUpload(d.build, d.day).ok) { needsLog.push(d); continue; }
       // 0.8.0 H2 (a): 3 lives, or the fewest a run carries into that dusk where 3 is out of reach (day 1: 5, day 2: 4)
       out.push({ v: SNAPSHOT_V3, rules: RULES_VERSION, hero: r.hero, day: d.day, wins: 0, lives: Math.max(3, floorRecord(d.day).lives), build: d.build, runId: `drv-${seed}`, playerId: `p${seed}`, createdAt: 1_790_000_000_000 });
     }
@@ -64,6 +74,10 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
     const me = await testIdentity(0); // v070a: uploads are signed (async-062); each snapshot under the key's playerId
     const decks = honestRefusedByStrict(12);
     expect(decks).toHaveLength(12);
+    // SHAPES-1 (RUN5-SHAPES1 3): the dusk set aside for its road log (measured, run 6), and it passes with that log and its
+    // run seed, as the game's ghostOf sends them (tests/hull1a.server, hull1d.server read the driver's dusks the same way)
+    expect(needsLog.map((d) => `${d.hero} #${d.seed} d${d.day}`)).toEqual(["furnace #1 d1"]);
+    for (const d of needsLog) expect(validateUpload(d.build, d.day, RULES_VERSION, { seed: d.runSeed, road: d.roadLog }).errors, `${d.hero} #${d.seed} d${d.day}`).toEqual([]);
     for (const s of decks) {
       expect(validateUpload(s.build, s.day).ok).toBe(true);
       const res = await submitGhost(base, ownedBy(s, me), me, 3000);
