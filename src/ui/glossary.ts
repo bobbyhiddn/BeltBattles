@@ -37,6 +37,7 @@ import { SIM, type TextOpts } from "./abilityText";
 import { REMINDER, faceAt, hasFace } from "./faces";
 import { fmtCount, fmtPct, fmtSec } from "./statFormat"; // WORDS-1: fmtDmg left with the MARKS row
 import { shownOn } from "./dayShown"; // HULL-1d (REQ-BFG-079): the rows' numbers on the tapped piece's day
+import { onSetScaleRigs, scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): POISON's row, SCALE_RIGS on only
 
 /** One glossary row (see the file comment). */
 export interface GlossaryRow {
@@ -115,6 +116,10 @@ function rowsNow(): GlossaryRow[] {
       def: withExtra(REMINDER.HEAL(), healExtra), scope: "text",
     },
     { word: "REGEN", aliases: [], colour: kwColour("REGEN"), kw: "REGEN", extra: regenExtra, def: withExtra(REMINDER.REGEN(), regenExtra), scope: "text" },
+    // SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): POISON, a face keyword's row in BURN's form, its reminder its whole
+    // definition (faces.ts REMINDER.POISON, the design's text: no extra sentence), so POISON is a hover and tap target
+    // wherever a line writes it; only while SCALE_RIGS is on (off, the table is exactly the base's)
+    ...(scaleRules() ? [{ word: "POISON", aliases: ["POISONS", "POISONED"], colour: kwColour("POISON"), kw: "POISON" as const, def: REMINDER.POISON(), scope: "text" as const }] : []),
     // --------------------------------------------------------------------- the rune keywords that have no row above
     // U2d F4: was "RIDE: A CINDER SLUG'S OWN {*HEAT}, FOR EACH SEC IT RIDES. A HEAT JACKET'S IS APART." (cap: unclear)
     { word: "RIDE", aliases: [], colour: C.wood4, def: "RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.", scope: "rune" },
@@ -237,9 +242,20 @@ export const RUNE_NOTE: Readonly<Record<string, string>> = {
 };
 
 /** Every form (word and aliases) with its row, longest first (so a two-word form wins over its first word). */
-const FORMS: readonly [string, GlossaryRow][] = GLOSSARY
+const formsOf = (rows: readonly GlossaryRow[]): [string, GlossaryRow][] => rows
   .flatMap((r): [string, GlossaryRow][] => [r.word, ...r.aliases].map((w) => [w, r]))
   .sort((a, b) => b[0].length - a[0].length);
+const FORMS: readonly [string, GlossaryRow][] = formsOf(GLOSSARY);
+
+/** SCALE-2b (REQ-BFG-108): POISON's row (rowsNow) is in the table only while SCALE_RIGS is on: at each flip the table
+ *  (GLOSSARY, day 1's) and its forms are rebuilt in place, so off they are exactly the base's. The switch's hook
+ *  (sim/scale.ts onSetScaleRigs). */
+onSetScaleRigs((on) => {
+  const rows = GLOSSARY as GlossaryRow[];
+  if (on === rows.some((r) => r.kw === "POISON")) return;
+  rows.splice(0, rows.length, ...glossaryRows());
+  (FORMS as [string, GlossaryRow][]).splice(0, FORMS.length, ...formsOf(rows));
+});
 
 /** The row for a word or an alias (case-blind), else undefined. */
 export function glossaryEntry(word: string): GlossaryRow | undefined {

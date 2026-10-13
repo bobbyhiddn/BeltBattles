@@ -55,6 +55,8 @@ import { pourAt } from "../sim/stars"; // Y1: a factory's pour as a {SLUG} stat 
 import { gearSlotsOf } from "../sim/deck";
 import { rigArrowCells } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 R2): a long rig's most hits
 import { shapesRules } from "../sim/shapes"; // SHAPES-1: the shaped pieces' faces, lines and notes (SHAPES on only)
+import { scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): VENOM DRIP's plain POISON face (SCALE_RIGS on only)
+import { POISON_DPS } from "../sim/content"; // SCALE-2b: POISON's hull damage a second (its reminder)
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 
@@ -250,6 +252,13 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   SHIELD: () => `{*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
   HEAL: () => "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL.",
   REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC.",
+  // SCALE-2b (REQ-BFG-108; REPORT-SCALE1 section 2, the design's keyword text in CARD-3's words, BURN's form): battle.ts
+  // hullEffects, POISON_DPS (3) a POISON at each whole second x D(d) (dmgNow, as BURN's tick), no decay until the fight
+  // ends; stacks add (impact); straight to hp, never absorb() ({*PLATE}: the soak layer, SHIELD to the player). Read only
+  // while SCALE_RIGS is on (KEYWORDS holds POISON then: VENOM DRIP's face, its glossary row, the status row's chip). The
+  // design's UNTIL THE FIGHT ENDS is UNTIL THE END: the whole text must fit the glossary's 2 lines of 5x7 at 225 px, and
+  // with FIGHT ENDS it takes 3 (SHIELD. alone on the third; measured, REPORT-SCALE2b Findings)
+  POISON: () => `EACH {*POISON}: ${fmtDmg(dmgNow(POISON_DPS))} HULL DAMAGE A SEC UNTIL THE END. THEY ADD UP AND GO PAST {*PLATE}.`,
 };
 
 // ------------------------------------------------------------------------------------------------------ the faces
@@ -749,6 +758,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
   },
   venom: (e) => {
+    // SCALE-2b (REQ-BFG-108; READ-3 E10, PLAIN-1's plain face): with SCALE_RIGS on its def holds POISON (sim/scale.ts
+    // SCALE_DEFS): a plain stat rig, POISON +1/+2/+3 a slug it hits (Battle.applyHit), landing at impact. EMBER TROUGH's
+    // form: the rule keeps LEVELS, NEXT★ and the chip; PLAIN_RIGS' path draws it as a stat row (plainRigStats); its
+    // reminder is POISON's (the NOTES, after the rig sentence)
+    if (gt(e).poison !== undefined) {
+      const n = fmtCount(gt(e).poison!);
+      return rules([hit(`+${n} {*POISON}.`)], [["poison", `+${n} {*POISON}`]], [REMINDER.POISON()]);
+    }
     // DESIGN-Y row 48: Battle.applyHit gives each slug it hits burnPlus seconds; Battle.impact: each BURN stack of that slug's
     // hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %). It adds no BURN of its own. Was the RULES text "ADDS 2 POISON TO
     // EACH PAYLOAD IT HITS." with POISON's two sentences (its pool, its clock)
@@ -934,6 +951,8 @@ export const PLAIN_RIGS: readonly string[] = ["whetstone", "temper", "barbed"];
  *  No day, or HULL_SCALE off: day 1's, as before. */
 export function plainRigStats(def: string, stars = 1, day?: number): Stat[] | null {
   if (shapesRules() && SHAPED_PLAIN_RIGS.includes(def)) return shapedPlainStats(def, stars, day); // SHAPES-1 (REQ-BFG-084)
+  // SCALE-2b (REQ-BFG-108): VENOM DRIP with SCALE_RIGS on, its POISON count (unscaled, as BURN's and FRAY's)
+  if (scaleRules() && SCALE_PLAIN_RIGS.includes(def)) return [["POISON", `+${fmtCount(effectAt(def, stars).gate!.poison!)}`]];
   if (!PLAIN_RIGS.includes(def)) return null;
   const g = effectAt(def, stars).gate!;
   if (def === "whetstone") return [["DMG", `+${fmtDmg(shownOn(day, () => dmgNow(g.flat!)))}`]];
@@ -1043,8 +1062,12 @@ export const SHAPED_PLAIN_RIGS: readonly string[] = ["nailstrip", "embertrough",
 /** SHAPES-1: a plain stat rig, the base's three or (SHAPES on) a shaped one: its face is a stat row and its NOTES lead
  *  with the rig sentence (inspector.ts explainPanel, keywords.ts). */
 export function isPlainRig(def: string): boolean {
-  return PLAIN_RIGS.includes(def) || (shapesRules() && SHAPED_PLAIN_RIGS.includes(def));
+  return PLAIN_RIGS.includes(def) || (shapesRules() && SHAPED_PLAIN_RIGS.includes(def)) || (scaleRules() && SCALE_PLAIN_RIGS.includes(def));
 }
+
+/** SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): the rigs that are plain stat rigs only while SCALE_RIGS is on: VENOM
+ *  DRIP, a POISON stat row (sim/scale.ts SCALE_DEFS). Off, it keeps its Y6 face (ITS BURN LASTS +3s), exactly. */
+export const SCALE_PLAIN_RIGS: readonly string[] = ["venom"];
 
 /** SHAPES-1: a shaped plain rig's stat row at `stars`: NAIL STRIP's and SPIKE RAIL's DMG on `day` (WHETSTONE's rule),
  *  EMBER TROUGH's BURN count (TEMPER's). */

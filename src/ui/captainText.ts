@@ -22,6 +22,9 @@ export const CAPTAIN_FORMS: Readonly<Record<KeywordName, readonly string[]>> = {
   SHIELD: ["WARD", "WARDS"], // CARD-3: the block's
   HEAL: ["HEAL", "HEALS"],
   REGEN: ["REGEN"],
+  // SCALE-2b (REQ-BFG-108): POISON's forms (KEYWORDS holds POISON only while SCALE_RIGS is on; no captain line names it, and
+  // COLOUR_OF below is read once, at load, from the shipped 9)
+  POISON: ["POISON", "POISONED"],
 };
 
 const COLOUR_OF: ReadonlyMap<string, string> = new Map(

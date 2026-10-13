@@ -17,6 +17,8 @@
 //   exposes it as bb.tips(). Pure but for the one module state and the store.
 
 /** The tips, one per action a hint teaches. */
+import { onSetScaleRigs } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): POISON's first sight, SCALE_RIGS on only
+
 export type TipId = "place" | "fit" | "install" | "turn" | "move" | "supply" | "lay" | "cycle" | "swap";
 
 /** One row of the table: the tip, the hint texts it covers, and the action that completes it (in words). */
@@ -82,7 +84,8 @@ const isTipId = (v: unknown): v is TipId => typeof v === "string" && (IDS as rea
  * CARD-2 (REQ-BFG-004, REQ-BFG-081; K1): THE FIRST-SIGHT NOTES share this store. Each effect keyword's definition opens
  * once by itself the first time a face shows it, and the rig sentence on the first rig (src/ui/firstSight.ts). A note is
  * done once its box has been on screen; its id ("kw:PAIR", "rig") then joins the stored list with the tips' ids. The ids
- * live here, with the store (tips.ts imports nothing), so a stored note is never read as an unknown id.
+ * live here, with the store (tips.ts imports nothing but SCALE-2b's switch hook), so a stored note is never read as an
+ * unknown id.
  * With no storage the done set lives in memory for the session, as the tips' does, so a note shows once a session and
  * never on every open.
  */
@@ -111,6 +114,24 @@ export const kwSight = (word: string): SightId => SIGHT_ID_OF[word] ?? `kw:${wor
 /** Every first-sight id this build knows: the rig sentence's, then each word's. */
 export const FIRST_SIGHT_IDS: readonly SightId[] = [RIG_SIGHT, ...FIRST_SIGHT_WORDS.map(kwSight)];
 const SIGHT_IDS = FIRST_SIGHT_IDS;
+/**
+ * SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3, the call is the worker's): POISON's first-sight note, "kw:POISON", after
+ * REGEN's. Both lists hold it only while SCALE_RIGS is on (the switch's hook, sim/scale.ts onSetScaleRigs), so with the
+ * switch off FIRST_SIGHT_WORDS and FIRST_SIGHT_IDS are exactly the base's: no id a player can never meet is known (a stored
+ * "kw:POISON" then reads as an id this build doesn't know, as an old "kw:PLATE" does), and nothing that counts the ids
+ * (sightsDone) sees it. With the switch on, VENOM DRIP's face and the status row's chip are where a player meets it.
+ */
+onSetScaleRigs((on) => {
+  const words = FIRST_SIGHT_WORDS as string[], ids = FIRST_SIGHT_IDS as SightId[], at = words.indexOf("POISON");
+  if (on === at >= 0) return;
+  if (on) {
+    words.splice(words.indexOf("REGEN") + 1, 0, "POISON");
+    ids.splice(ids.indexOf(kwSight("REGEN")) + 1, 0, kwSight("POISON"));
+  } else {
+    words.splice(at, 1);
+    ids.splice(ids.indexOf(kwSight("POISON")), 1);
+  }
+});
 /**
  * CARD-3 (REQ-BFG-107): THE NOTICES, one-time notes kept in this store with E5's rules (done once shown, for good; with no
  * storage, once a session). "rename107": the returning player's note on the rename (BuildScreen.enter, renameNoticeDue).

@@ -49,9 +49,20 @@ const SC_BASE = new Map<string, ItemDef>();
 /** The switch-on defs, built once (so every swap on puts back the same object). */
 const SC_ON = new Map<string, ItemDef>();
 
+/** SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): hooks run after each switch flip, with the new state: the screen's
+ *  lists that gain POISON only while the switch is on (font.ts KEYWORDS, glossary.ts GLOSSARY, tips.ts
+ *  FIRST_SIGHT_WORDS, richText.ts's keyword colours) register here, so this file never imports a screen module. With the
+ *  switch off (as shipped) no hook adds anything: every list is the base's. content.ts onSetWave3's form. */
+const afterScale: ((on: boolean) => void)[] = [];
+/** Register `fn` to run after every flip; it runs once at once with the state now (a module loaded after a flip). */
+export function onSetScaleRigs(fn: (on: boolean) => void): void {
+  afterScale.push(fn);
+  fn(scOn);
+}
+
 /** Turn the scaling hooks on or off. Each sim hook reads the switch through its Battle, where it acts; SCALE-2b: the
  *  defs in SCALE_DEFS swap to their switch-on or base def in ITEMS and the star cache is cleared (shapes.ts setShapes's
- *  form). Setting the state it already has does nothing. */
+ *  form), then the screen's hooks run (onSetScaleRigs). Setting the state it already has does nothing. */
 export function setScaleRigs(on: boolean): void {
   if (on === scOn) return;
   const items = ITEMS as Record<string, ItemDef>;
@@ -63,6 +74,7 @@ export function setScaleRigs(on: boolean): void {
   }
   clearStarCache();
   scOn = on;
+  for (const fn of afterScale) fn(on);
 }
 
 /** Run `fn` with the scaling hooks on (or off), then put the switch back as it was, even if `fn` throws (withShapes's form). */

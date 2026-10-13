@@ -13,6 +13,7 @@ import { ROUTINES } from "../sim/cores";
 import { ICON, type KeywordName } from "../render/font";
 import { C } from "../render/palette";
 import { fmtCount } from "../ui/statFormat";
+import { scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): the POISON chip, SCALE_RIGS on only
 
 /** A count a chip, a gun or a belt shows (the readers table's key too). */
 export type CountKey = "burn" | "poison" | "fray" | "stun" | "plate" | "shield" | "waiting" | "belt";
@@ -122,6 +123,9 @@ export function holds(s: Pick<SideState, "gates" | "factories" | "turrets" | "bu
  *  ("foe"). */
 export function readCount(b: Sides, side: Side, key: CountKey): boolean {
   const own = b.sides[side], foe = b.sides[side === 0 ? 1 : 0];
+  // SCALE-2b (REQ-BFG-108; REPORT-SCALE2a section 10): a POISON reader is a `reads` line counting foePoison (a rig's, or a
+  // gun part's: SCALE-2c's ROT GAUGE and LEECH COIL), held by the foe of the hull whose POISON it reads
+  if (key === "poison" && (foe.gates.some((g) => g.def.gate?.reads?.count === "foePoison") || foe.turrets.some((tu) => !!tu.reads?.some((r) => r.count === "foePoison")))) return true;
   return READERS.some((r) => r.reads === key && holds(r.whose === "own" ? own : foe, r));
 }
 
@@ -153,10 +157,20 @@ export const FRAY_NUM = C.plum5;
 
 const whole = (n: number): ChipText => ({ num: fmtCount(n), tail: "" });
 
-/** The status row's chips, in order: BURN stacks, POISON (reserved: SCALE-2b fills its value), FRAY n/15, STUN. */
+/** SCALE-2b (REQ-BFG-108, REQ-BFG-100 C1): the POISON on `side`'s hull (sim/battle.ts HullState.poison: it only climbs, the
+ *  fight long), or null while SCALE_RIGS is off: the battle's own switch (Battle.scaleRigs, read once when it was made),
+ *  else the switch now. Off, no hull ever holds POISON and the chip is the reserved slot it was (no chip at all). */
+export function poisonStacks(b: Sides, side: Side): number | null {
+  const on = (b as { scaleRigs?: boolean }).scaleRigs ?? scaleRules();
+  return on ? b.sides[side].hull.poison ?? 0 : null;
+}
+
+/** The status row's chips, in order: BURN stacks, POISON (SCALE-2b: SCALE_RIGS on), FRAY n/15, STUN. */
 export const STATUS_CHIPS: readonly StatusChip[] = [
   { key: "burn", icon: ICON.BURN, colour: C.fire3, numColour: C.fire3, value: (b, s) => burnStacks(b.sides[s]), text: whole, reminder: "BURN", order: 10 },
-  { key: "poison", icon: "", colour: C.lime, numColour: C.lime, value: () => null, text: whole, reminder: null, order: 20 },
+  // SCALE-2b (REQ-BFG-108): the reserved slot filled: the drop and its number in venom, beside BURN's; its tap shows POISON's
+  // reminder. With no POISON on the hull and no POISON reader aboard (readCount below), no chip; off, never a chip
+  { key: "poison", icon: ICON.POISON, colour: C.venom, numColour: C.venom, value: poisonStacks, text: whole, reminder: "POISON", order: 20 },
   {
     key: "fray", icon: ICON.FRAY, colour: C.plum4, numColour: FRAY_NUM, value: (b, s) => b.sides[s].hull.fray,
     text: (n) => ({ num: fmtCount(n), tail: `/${fmtCount(FRAY_MAX)}` }), reminder: "FRAY", order: 30,

@@ -454,6 +454,9 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
     case "burn":
       fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.fire3, false, a.b.scaled); // NUM-4; HULL-1d: stacked on the day's hull
       return;
+    case "poison": // SCALE-2b (REQ-BFG-108): the tick's number on the hull in venom, as BURN's (a random spot, the day's stack, silent)
+      fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.venom, false, a.b.scaled);
+      return;
     case "wind":
       // WIND-1 (REQ-BFG-093): both hulls, every tick: one helper per side, each hull's number from windDmg (NUM-4: fmtDmg)
       for (const side of [0, 1] as Side[]) windPop(a, side, windDmg(e, side));
