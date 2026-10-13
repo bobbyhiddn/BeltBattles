@@ -35,14 +35,32 @@ const groups: [string, Entry[]][] = [
 
 const rigFree = (b: Build) => !b.items.some((p) => ITEMS[p.def]?.kind === "gate");
 /** BAL-2 (REQ-BFG-069; cap's oracle d306b1b196dbab38): the historical drift each group shows, exactly (see the BAL-2
- *  paragraph in the test below); a group not named here shows none. */
+ *  paragraph in the test below); a group not named here shows none.
+ *  HULL-ON (bb-0.10.0, FREE_JOINS; src/sim/freeJoins.ts FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9;
+ *  restated by RULING-HULLON-R10 0bbcee55b6ba281a (b)): all 11 rig-free battles fight a WEAVER deck, so WEAVER's hull
+ *  1700 -> 1500 with free joins on moves each one (its E1 row re-recorded with golden.beltside's BB_E1_GOLDEN_WRITE).
+ *  Cause check: with FREE_JOINS_HULL = {} all 11 play as recorded. Measured at 1500: the rival captains' drift is BAL-2's
+ *  five with the new end ticks (SOOTJAW, LACEWING and EMBERLYN 262-304 ticks sooner with their 0.6.0 winner; NETTLE's and
+ *  SPARKFANG's winners flipped) plus RATCHET's winner flipped (1@1716 -> 0@1689); both starting decks and both day-1 par
+ *  decks (FURNACE v WEAVER, 0.6.0's winner WEAVER) now go to FURNACE, 155 ticks sooner. BAL-2's list, at 1700, was:
+ *  "rival/sootjaw/1: 0@1678 -> 0@1568", "rival/nettle/1: 0@1788 -> 1@1680", "rival/sparkfang/1: 1@1719 -> 0@1644",
+ *  "rival/lacewing/1: 1@1819 -> 1@1680", "rival/emberlyn/1: 1@1813 -> 1@1680" (the other groups: none). */
 const HISTORICAL_DRIFT: Record<string, string[]> = {
   "rival captains (planBuild, days 1-10)": [
-    "rival/sootjaw/1: 0@1678 -> 0@1568",
-    "rival/nettle/1: 0@1788 -> 1@1680",
-    "rival/sparkfang/1: 1@1719 -> 0@1644",
-    "rival/lacewing/1: 1@1819 -> 1@1680",
-    "rival/emberlyn/1: 1@1813 -> 1@1680",
+    "rival/sootjaw/1: 0@1678 -> 0@1416",
+    "rival/nettle/1: 0@1788 -> 1@1510",
+    "rival/sparkfang/1: 1@1719 -> 0@1498",
+    "rival/lacewing/1: 1@1819 -> 1@1515",
+    "rival/ratchet/1: 1@1716 -> 0@1689",
+    "rival/emberlyn/1: 1@1813 -> 1@1516",
+  ],
+  "starting decks": [
+    "start/furnace: 1@1883 -> 0@1728",
+    "start/weaver: 0@1883 -> 1@1728",
+  ],
+  "par decks (honestReference)": [
+    "par/furnace/1: 1@1883 -> 0@1728",
+    "par/weaver/1: 0@1883 -> 1@1728",
   ],
 };
 const beltside = JSON.parse(readFileSync(resolve(fileURLToPath(new URL("./fixtures/beltside-062-e1/", import.meta.url)), "golden.json"), "utf8")) as { decks: Record<string, number[]> };

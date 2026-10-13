@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
-import { AMMO, BURN_DPS, BURN_TIME, ITEMS, TICK } from "../src/sim/content";
+import { AMMO, BURN_DPS, BURN_TIME, HEROES, ITEMS, TICK } from "../src/sim/content";
 import { payloadDamage, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates } from "../src/sim/beltside";
 import { PLANS, planBuild } from "../src/sim/rivalBuilds";
@@ -320,6 +320,12 @@ function longKiln(): Build {
   return b;
 }
 const sturdy = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus + 3000 });
+/** HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's rulings 84ad10254e1855c8 = RULING-HULLON-R9 and 0bbcee55b6ba281a
+ *  = RULING-HULLON-R10 (c)): capRows' foe stays the one this test measured, WEAVER's start deck at 4,700 hull in all
+ *  (content.ts's base 1700 + 3000). Its bonus is 3000 plus what the free-joins swap takes off that base (the base read
+ *  with the switch off), so the foe holds for any FREE_JOINS_HULL value (3000 + 200 at 1500). The player's side keeps
+ *  sturdy's +3000. */
+const sturdyFoe = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus + 3000 + withFreeJoins(() => HEROES.weaver.hull, false) - HEROES.weaver.hull });
 const ROWS: { id: string; base: () => Build; x: number; y: number; rises: boolean }[] = [
   { id: "FURNACE start, 6-tile Kiln", base: furnaceStart, x: 6, y: 6, rises: false },
   { id: "FURNACE, 8-tile Kiln", base: longKiln, x: 6, y: 6, rises: true },
@@ -327,13 +333,14 @@ const ROWS: { id: string; base: () => Build; x: number; y: number; rises: boolea
   { id: "shared gun, STOKER on the mould", base: lockjaw, x: 8, y: 6, rises: false },
   { id: "shared gun with room, STOKER on the mould", base: () => withMod(lockjaw(), 60, "calibrate", 0, 3), x: 8, y: 6, rises: true },
 ];
-/** wave3.decks's capRows: mean damage and jams over seeds 1-5, both sides +3000 hull: no stoker, then ★1-★3. */
+/** wave3.decks's capRows: mean damage and jams over seeds 1-5, both sides +3000 hull (the foe at the measured 4,700:
+ *  sturdyFoe): no stoker, then ★1-★3. */
 function capRows(r: (typeof ROWS)[number]): { dmg: number; jams: number }[] {
   return [0, 1, 2, 3].map((s) => {
     let dmg = 0, jams = 0;
     for (const seed of [1, 2, 3, 4, 5]) {
       const b = s ? withItem(r.base(), item(70, "stoker", r.x, r.y, 0, s)) : r.base();
-      const bt = new Battle(sturdy(b), sturdy(weaverStart()), seed);
+      const bt = new Battle(sturdy(b), sturdyFoe(weaverStart()), seed);
       while (!bt.over && bt.ticks < 60 * 200) { bt.step(); bt.events.length = 0; }
       dmg += bt.sides[0].stats.damage;
       jams += bt.sides[0].stats.jams;

@@ -16,6 +16,8 @@ import { spotForTile, stokeSpots } from "../src/sim/beltside";
 import { rigHits, type Build } from "../src/sim/deck";
 import { rateDeck } from "../src/sim/deckRating";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
+import { HEROES } from "../src/sim/content"; // HULL-ON run 6 (FREE_JOINS_HULL): the measured foe's hull
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON run 6 (FREE_JOINS_HULL): the measured foe's hull
 import { K, item, latchDeck, withItem, withMod } from "./wave3.helpers";
 import { starCell, starRows, type StarRow } from "./starRows";
 // AZ-BUMP S7: RULES_VERSION and withLadderFix are gone with the STOKER row's tripwire (its bb-0.9.7 key and its LADDER_FIX-off row)
@@ -121,7 +123,7 @@ function capRows(r: CapRow): { dmg: number; jams: number }[] {
     let dmg = 0, jams = 0;
     for (const seed of SEEDS) {
       const b = s ? withItem(r.base(), item(70, "stoker", r.x, r.y, 0, s)) : r.base();
-      const bt = new Battle(sturdy(b), sturdy(r.foe()), seed);
+      const bt = new Battle(sturdy(b), sturdyFoe(r.foe()), seed);
       while (!bt.over && bt.ticks < 60 * 200) { bt.step(); bt.events.length = 0; }
       dmg += bt.sides[0].stats.damage;
       jams += bt.sides[0].stats.jams;
@@ -155,6 +157,13 @@ function pressFurnace(stars: number): Build {
 
 /** Both sides with +3000 hull: the fight runs its full 120 s (the dark wind can't end it). STOKER's cap rows, own. */
 const sturdy = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus + 3000 });
+/** HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9; R10 0bbcee55b6ba281a
+ *  (c)'s form for tests/hull1b.ladders, applied here by RULING-HULLON-R13 ed10dd26da1a89fb Q7; against the 4,500-hull foe
+ *  the fixed ladder read 3774 / 3924 / 3906 / 4032, the foe dying sooner): capRows' foe (every STOKER row's is WEAVER's
+ *  start deck) stays the one
+ *  these rows measured, 4,700 hull in all (content.ts's base 1700 + 3000): 3000 plus what the free-joins swap takes off
+ *  WEAVER's base (the base read with the switch off). The player's side keeps sturdy's +3000. */
+const sturdyFoe = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus + 3000 + withFreeJoins(() => HEROES[b.hero].hull, false) - HEROES[b.hero].hull });
 
 /** The row's own measure at 1, 2 and 3 stars on P1's fight: both sides +3000 hull, the full 120 s, SEEDS (oracle
  *  a102b9849dffd039). */

@@ -23,23 +23,45 @@
 // as a literal (rulesGate.ts).
 //
 // Shared, pure and dependency-light (no DOM), like npcDay.ts: the client, the server and the tests read the same switch.
+//
+// HULL-ON run 5, H4's hero pass (REQ-BFG-091, REQ-BFG-092; cap's ruling 84ad10254e1855c8, RULING-HULLON-R9, and ruling
+// 19139b4c41a1636f, R7 section 3): WEAVER's hull 1700 -> 1500 behind FREE_JOINS. Free joins are WEAVER's cause: its cross
+// win on the heroes read (OPEN-1's balance method: 48 seeds, field-k 6, days 3-10, every switch on) is 68.1 with the switch
+// on (days 6 and 8-10 over 68) and 50.8 with it off. The THREAD SLUG's base can't hold day 10 at any value read (22: d10
+// 69.7); the hull does, and 1500 is the highest 50-step under 1700 that lands the band (1550: d10 69.8; 1500: mean 61.0,
+// every day 51.1-66.9; FURNACE 61.2, FOUNDRY 60.1, BASTION 44.2 beside it). The one content number this switch swaps
+// (FREE_JOINS_HULL), on guard.ts's RUNE_BASE pattern: setFreeJoins puts it into HEROES.weaver.hull while the switch is on
+// and the captured base (content.ts's 1700) back when it is off; withFreeJoins leaves the state it found. content.ts imports
+// nothing that loads this file, so HEROES is whole when this module's load-time setFreeJoins(FREE_JOINS) runs, and every
+// reader takes HEROES[h].hull at call time (battle.ts makeSide, deckRating, the UI, validate's hull floor under
+// withFreeJoins(freeJoinsFor(rules))), so an older record still reads 1700 under its own rules.
 
-import { JOIN_PACE } from "./content";
+import { HEROES, JOIN_PACE, type HeroId } from "./content";
 
 /** THE switch (REQ-BFG-091): on, from HULL-ON's flip (bb-0.10.0). Its setter, withFreeJoins and the off path stay this
  *  release, for older records (rulesGate.ts freeJoinsFor) and the tests that measure the off world. */
 export const FREE_JOINS: boolean = true;
 
+/** HULL-ON run 5 (cap's ruling 84ad10254e1855c8): the hero hulls with FREE_JOINS on: WEAVER's only (content.ts: 1700). */
+export const FREE_JOINS_HULL: Readonly<Partial<Record<HeroId, number>>> = { weaver: 1500 };
+
 let fjOn = false;
+/** The base hulls (content.ts's own numbers), captured at the first swap, so off puts back exactly content.ts's number. */
+const HULL_BASE = new Map<HeroId, number>();
 
 /** Are free joins in the game now (FREE_JOINS, or a withFreeJoins call)? */
 export function freeJoinsRules(): boolean {
   return fjOn;
 }
 
-/** Turn free joins on or off (no content to swap: every rule reads the switch where it acts). */
+/** Turn free joins on or off. Every rule reads the switch where it acts; the one content number it swaps is WEAVER's hull
+ *  (FREE_JOINS_HULL while on, content.ts's base while off; HULL-ON run 5, cap's ruling 84ad10254e1855c8). */
 export function setFreeJoins(on: boolean): void {
   fjOn = on;
+  for (const h of Object.keys(FREE_JOINS_HULL) as HeroId[]) {
+    if (!HULL_BASE.has(h)) HULL_BASE.set(h, HEROES[h].hull);
+    HEROES[h].hull = on ? FREE_JOINS_HULL[h]! : HULL_BASE.get(h)!;
+  }
 }
 
 /** Run `fn` with free joins on (or off), then put the switch back as it was, even if `fn` throws (withNpcDay's form). */

@@ -19,6 +19,14 @@
 // decks hold pieces whose rules the flip changed), 12 winners flipped. So the record is re-made on y7b2 under bb-0.9.3 with
 // the same decks, pairs, placements and seeds: tests/fixtures/y7b2-wardstone.json (T/output-y7b2/parity/zz-y7b2-ward.test.ts,
 // a one-run scratch generator in BAL-2's generator's form; was bal2-wardstone.json, rules bb-0.9.1). The checks are unchanged.
+// HULL-ON (bb-0.10.0, FREE_JOINS; REQ-BFG-091, REQ-BFG-092; src/sim/freeJoins.ts FREE_JOINS_HULL, cap's ruling
+// 84ad10254e1855c8 = RULING-HULLON-R9, re-pinned by RULING-HULLON-R10 0bbcee55b6ba281a (b)): WEAVER's hull 1700 -> 1500
+// with free joins on moves exactly the 144 battles with a WEAVER deck (2 decks x 6 foes x 2 orders x 3 placements x 2
+// seeds); 16 winners flipped. Cause check: with FREE_JOINS_HULL = {} all 288 replay as recorded. So those 144 rows are
+// re-recorded in this test's replay world (LADDER_FIX and HULL_SCALE off, free joins on as shipped), the same decks,
+// pairs, placements and seeds, and the other 144 are kept byte for byte: tests/fixtures/hullon-wardstone.json
+// (B/kit-hullon/probes/zz-hullon-ward.test.ts, a one-run scratch generator in BAL-2's generator's form; was
+// y7b2-wardstone.json, rules bb-0.9.3; its rules field now bb-0.10.0). The checks are unchanged.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { Battle } from "../src/sim/battle";
@@ -28,13 +36,13 @@ import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip): the record's switch-off world
 
 interface Row { a: number; b: number; ward: [boolean, boolean]; seed: number; winner: number | null; ticks: number; t: number; sides: unknown[] }
-const fx = JSON.parse(readFileSync(new URL("./fixtures/y7b2-wardstone.json", import.meta.url), "utf8")) as // Y7b2 (was bal2-wardstone.json; BAL-2: was num3-wardstone.json)
+const fx = JSON.parse(readFileSync(new URL("./fixtures/hullon-wardstone.json", import.meta.url), "utf8")) as // HULL-ON, FREE_JOINS_HULL (was y7b2-wardstone.json; Y7b2: was bal2-wardstone.json; BAL-2: was num3-wardstone.json)
   { rules: string; decks: { hero: string; kind: string; build: Build }[]; rows: Row[] };
 const ward = (b: Build): Build => ({ ...cloneBuild(b), runes: [...(b.runes ?? []), { id: "ward_stone" }] });
 
 describe("SUS-A parity: WARD STONE as SHIELD battles as recorded (num2's blockHits at susa; re-recorded on num3)", () => {
-  it("the record: 288 battles under bb-0.9.3; no deck holds a RIVETER or any other SHIELD, HEAL or REGEN piece", () => {
-    expect([fx.rules, fx.rows.length, fx.decks.length]).toEqual(["bb-0.9.3", 288, 8]); // Y7b2: re-recorded under bb-0.9.3 (was bb-0.9.1, BAL-2's; bb-0.8.7, NUM-3's)
+  it("the record: 288 battles under bb-0.10.0 (its WEAVER rows; the rest bb-0.9.3's); no deck holds a RIVETER or any other SHIELD, HEAL or REGEN piece", () => {
+    expect([fx.rules, fx.rows.length, fx.decks.length]).toEqual(["bb-0.10.0", 288, 8]); // HULL-ON (FREE_JOINS_HULL, R9 / R10 (b)): its 144 WEAVER rows re-recorded under bb-0.10.0 (was bb-0.9.3, Y7b2's; bb-0.9.1, BAL-2's; bb-0.8.7, NUM-3's)
     for (const d of fx.decks) for (const p of [...d.build.items, ...d.build.mods]) expect(["riveter", ...SUSTAIN_IDS], `${d.hero} ${d.kind}`).not.toContain(p.def);
     expect(fx.rows.filter((r) => r.ward[0] || r.ward[1]).length).toBe(288);
   });

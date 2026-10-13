@@ -20,6 +20,7 @@ import { P1_WAVE3_ITEMS } from "../tools/wave3Defs";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the star-ladder pass's rows, off and on
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): RETUNE-1's rows, off and on
 import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): THE LONG ROAD's rewrite, off and on
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON run 6 (FREE_JOINS_HULL): WEAVER's hull, off and on
 
 interface Row { file: string; id: string; rule: "x10" | "same"; base: number; now: number; rounded?: boolean }
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/num1-base-values.json", import.meta.url), "utf8")) as
@@ -147,6 +148,12 @@ const BAL2_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: numbe
   "HEROES.furnace.hull": { rule: "x10", was: 2000, now: 2100 }, // FURNACE's hull (row 8)
   "HEROES.weaver.hull": { rule: "x10", was: 1800, now: 1700 }, // WEAVER's hull (row 1)
 };
+// HULL-ON (bb-0.10.0, FREE_JOINS; REQ-BFG-091, REQ-BFG-092; src/sim/freeJoins.ts FREE_JOINS_HULL, cap's ruling
+// 84ad10254e1855c8 = RULING-HULLON-R9 Q3, re-pinned by RULING-HULLON-R10 0bbcee55b6ba281a (a)): with free joins on, WEAVER's
+// hull is FREE_JOINS_HULL's 1500 (still a whole x10 value); content.ts keeps BAL-2's 1700, live again with the switch off.
+// So BAL2_MOVED's WEAVER row is checked at its free-joins value, and at BAL-2's with the switch off, as GUARD_MOVED's are.
+// Cause: FREE_JOINS
+const FJ_HULL_MOVED: Record<string, number> = { "HEROES.weaver.hull": 1500 };
 
 // Y7b2 (release Y; REQ-BFG-070, REQ-BFG-046; BRIEF-Y7B2 steps 1 and 7): the flip folded release Y's one-line rules (the star
 // switch's STAR_DIFF) into the base defs, which moved 98 rows after NUM-1's record: 39 to a release-Y value and 59 gone with
@@ -475,12 +482,15 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     }
     // BAL-2: the 3 moved content.ts rows, every one a fixture row recorded at the map's `was` under the map's rule, each
     // live at its 0.9.1 value (was each live at its recorded value)
+    // HULL-ON (FREE_JOINS_HULL, R9 / R10 (a)): WEAVER's hull is live at FREE_JOINS_HULL's 1500 with free joins on (the
+    // shipped world) and at BAL-2's 1700 with them off (was live at 1700)
     const bal2 = rows.filter((r) => r.id in BAL2_MOVED);
     expect(bal2.map((r) => r.id).sort()).toEqual(Object.keys(BAL2_MOVED).sort());
     for (const r of bal2) {
       const m = BAL2_MOVED[r.id];
       expect([r.file, r.rule, r.now], r.id).toEqual(["src/sim/content.ts", m.rule, m.was]);
-      expect(live(r.id), r.id).toBe(m.now);
+      expect(live(r.id), r.id).toBe(r.id in FJ_HULL_MOVED ? FJ_HULL_MOVED[r.id] : m.now);
+      expect(withFreeJoins(() => live(r.id), false), `${r.id}, free joins off`).toBe(m.now);
     }
     const yfurn = rows.filter((r) => r.id in YFURN_MOVED);
     expect(yfurn.map((r) => r.id).sort()).toEqual(Object.keys(YFURN_MOVED).sort());
@@ -610,14 +620,18 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     for (const [id, of] of Object.entries(derived)) expect(live(id), id).toBe(live(of));
   });
 
-  it("the damage family is whole at x10 and its sizes are N1's (hulls 1700-2250, plating cap 240, FRAY 2 a stack)", () => {
+  it("the damage family is whole at x10 and its sizes are N1's (hulls 1500-2250, plating cap 240, FRAY 2 a stack)", () => {
     // Y7b2 (the flip): a row gone with its field (Y7B2_MOVED's now undefined) has no live value to check
     for (const r of rows) if (r.rule === "x10" && !(r.id in Y7B2_MOVED && Y7B2_MOVED[r.id].now === undefined)) expect(Number.isInteger(live(susaNew(r.id))), r.id).toBe(true); // SUS-A: at its new path
     expect(FRAY_BONUS).toBe(2);
     expect(PLATE_CAP).toBe(240);
     expect(PLATE_PER_SLUG).toBe(20);
     // BAL-2 (REVIEW-BAL1 rows 1 and 8): WEAVER 1800 -> 1700, FURNACE 2000 -> 2100 (was [1800, 2000, 2100, 2150, 2200, 2250])
-    expect(Object.values(HEROES).map((h) => h.hull).sort((a, b) => a - b)).toEqual([1700, 2100, 2100, 2150, 2200, 2250]);
+    // HULL-ON (bb-0.10.0, FREE_JOINS_HULL; cap's ruling 84ad10254e1855c8 = R9, R10 (a)): WEAVER 1700 -> 1500 with free joins
+    // on (was [1700, 2100, 2100, 2150, 2200, 2250]); with them off, content.ts's 1700 again
+    const hulls = () => Object.values(HEROES).map((h) => h.hull).sort((a, b) => a - b);
+    expect(hulls()).toEqual([1500, 2100, 2100, 2150, 2200, 2250]);
+    expect(withFreeJoins(hulls, false)).toEqual([1700, 2100, 2100, 2150, 2200, 2250]);
     // the rune amounts: x10 exactly where the unit is dmg, hull or plate (runes.ts header), the rest as they were
     for (const d of RUNE_LIST) {
       const r = byId.get(`RUNE_LIST.${d.id}.amount.n`)!;
