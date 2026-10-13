@@ -372,16 +372,26 @@ import { textWidth } from "../src/render/font";
 
 describe("CARD-3 (a): the phone shop card's gist for cores, gear and five rigs (REQ-BFG-081)", () => {
   const FIVE = ["tollbooth", "sorting", "mantlet", "braceframe", "overdrive"];
-  it("every core and piece of gear shows a gist, and so do the five rigs; turrets, factories and the other rigs keep their chips", () => {
+  // CARD-5 (REQ-BFG-111; GISTS-CARD5): every factory, 19 more rigs and the three inner-column turrets take a gist too
+  // (tests/card5.test.ts pins each by id); the other turrets and rigs keep their chips
+  const CARD5 = ["frostbite", "shottower", "press", "doublestamp", "slagpot", "assembly", "armorpress", "mendpress", "hotswap", "sabot",
+    "scrapper", "dragchain", "limpet", "gantry", "twinmould", "venom", "bellows", "quench", "staticbrush", "pincer", "lodestone",
+    "riveter", "plateroller", "shieldwall", "keg", "counterweight", "stoker", "platebreaker", "longhaul", "surge", "overclocker",
+    "twingauge", "barbed", "twinlatch", "dartgun", "spikegun", "hailgun"];
+  // CARD-5: the 13 rows A whose digit is the face's own number (an EVERY, a HOLD, a batch, a pour, BELT, pellets, a shot;
+  // card5.test.ts checks each digit against its face); every other row A stays in words
+  const FACE_NUMBER_A = ["shottower", "doublestamp", "armorpress", "mendpress", "gantry", "twinmould", "keg", "surge", "overclocker",
+    "twinlatch", "wardbell", "scatter", "chamber"];
+  it("every core and piece of gear shows a gist, and so do the five rigs and CARD-5's 37 pieces; the other turrets and rigs keep their chips", () => {
     const rows: string[] = [];
     for (const d of buyableModules()) {
       const o = d.kind === "core" ? { k: 1 } : {}, gst = phoneGist(d.id, o), chip = shopChip(d.id, o);
-      const wants = d.kind === "core" || d.kind === "mod" || FIVE.includes(d.id);
+      const wants = d.kind === "core" || d.kind === "mod" || FIVE.includes(d.id) || CARD5.includes(d.id);
       expect(!!gst, `${d.id} (${d.kind})`).toBe(wants);
       if (!gst) continue;
       const [a, b] = gst, aw = textWidth(icons(a), "3"), bw = textWidth(icons(b, "alone"), "3");
       const room = cardPriceX(0, CARD_W, d.price, false, true) - CARD_MARK_X - 1; // the chip's room, left of the coin
-      expect(/\d/.test(a), `${d.id}: row A in words`).toBe(false);
+      expect(/\d/.test(a), `${d.id}: row A in words`).toBe(FACE_NUMBER_A.includes(d.id));
       expect(aw, `${d.id} row A ${a}`).toBeLessThanOrEqual(CARD_W - 2 * CARD_MARK_X - 1);
       expect(bw, `${d.id} row B ${b} (room ${room})`).toBeLessThanOrEqual(room);
       rows.push(`${d.id} | ${d.kind} | ${plain(chip ?? "-")} | ${plain(a)} / ${plain(b)} | ${cardText(d.id, o)} | A ${aw} px of ${CARD_W - 2 * CARD_MARK_X - 1}, B ${bw} of ${room}`);

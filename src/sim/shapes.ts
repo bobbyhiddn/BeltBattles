@@ -25,6 +25,7 @@
 
 import { ITEMS, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
+import { DMG_MUL_TENTHS } from "./hullScale"; // FIT-099 (RULING-FIT-R1): D on days 3-5 behind SHAPES (hullScale.ts imports nothing: no cycle)
 
 /** THE switch (REQ-BFG-086): ON since SHAPES-1's flip (BRIEF-SHAPES1 S1 and step 8, as AZ-BUMP's def6e73 flipped NPC_DAY,
  *  HULL_SCALE and LADDER_FIX). Its setter, withShapes and the off path stay, for older records (a record under rules
@@ -77,6 +78,59 @@ export const SHAPE_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = 
 /** The ids SHAPE_DEFS reshapes, in its order. */
 export const RESHAPED_IDS: readonly string[] = Object.keys(SHAPE_DEFS);
 
+/** FIT-099 (REQ-BFG-079, REQ-BFG-086; BRIEF-FIT099 F1 S4a; RULING-FIT-R1, oracle aa0369c46ad69acd; R8 7fb66a391c57fbea):
+ *  D, the damage day term (hullScale.ts DMG_MUL_TENTHS), on days 3-5 while SHAPES is on, in tenths, keyed by day: the only
+ *  cells this switch swaps there (days 1-2 and 6-10, DMG_MUL_TENTHS_LATE and DMG_MUL_STEP_TENTHS keep theirs). Shapes make
+ *  the early fights shorter: par's pooled median read 16.98 / 16.95 / 17.18 s on days 3-5 against S4a's 18-25 s (SHAPES
+ *  off: HULL-ON's 19.17 / 18.77 / 19.33 s); 1.6 / 1.7 / 1.8 is the least D that lands it (18.12 / 18.30 / 18.60 s; the
+ *  probes are in hullScale.ts's comment). FREE_JOINS_HULL's form: setShapes writes these into DMG_MUL_TENTHS while on and
+ *  the captured base (hullScale.ts's 18 / 19 / 20) back while off; withShapes leaves the state it found; every reader takes D
+ *  at call time through dmgMulTenths, so an older record judged with the switch off reads its own D. */
+export const SHAPES_DMG_TENTHS: Readonly<Record<number, number>> = { 3: 16, 4: 17, 5: 18 };
+/** D's base cells (hullScale.ts's own numbers, by table index), captured at the first swap, so off puts back exactly its. */
+const DMG_BASE = new Map<number, number>();
+
+/** FIT-099's captains pass (REQ-BFG-092, REQ-BFG-086; BRIEF-FIT099 F2; RULING-FIT-R1 section 3): the captains' plan numbers
+ *  with SHAPES on, FREE_JOINS_PLANS' form (freeJoins.ts). Each key is a path into rivalBuilds.ts PLANS (the captain, then the
+ *  plan's own keys), each value the number it holds while the switch is on; the plan keeps its own (the base) while it is
+ *  off, so the shapes-off, hull-only and off worlds keep their pins. Only the changed numbers, all counts (J5's measure on
+ *  the D commit 6e27156: parBench --rivals against the four par fields, K 24, every switch on):
+ *  - THANE KARSK: his day-10 road PvE plates 3 -> 2 (pveRoad[10]; with the NPC day his pve[10], 3, reads there): his
+ *    warlord 81.4 -> 79.2 on day 10 (no Hard captain over 80); his stand-in (74.7), days 1-9 and every other captain as
+ *    they were. With SHAPES off he reads 78.8 there (HULL-ON's final), 80.9 with shapes on at fit-base: shapes are the
+ *    cause. rivalBuilds.ts imports this file (rivalBuilds.ts -> deck.ts -> here), so it hands PLANS over as its last
+ *    statement (shapesPlans, freeJoinsPlans' form) and setShapes swaps the listed numbers on the very plan objects. */
+export const SHAPES_PLANS: Readonly<Record<string, number>> = {
+  "karsk.pveRoad.10": 2, // none (pve[10]: 3)
+};
+/** The plans rivalBuilds.ts hands over as the last statement of its load (shapesPlans); null until then. */
+let planDefs: Record<string, unknown> | null = null;
+/** Each path's base number (the plan's own; undefined: the key is absent), captured at the first swap. */
+const PLAN_BASE = new Map<string, number | undefined>();
+
+/** The listed plan numbers to the switch's state `on`: SHAPES_PLANS' or the plan's own, on the very plan objects. */
+function swapPlans(on: boolean): void {
+  const plans = planDefs; // nothing to swap until rivalBuilds.ts has handed its plans over
+  if (!plans) return;
+  for (const [path, n] of Object.entries(SHAPES_PLANS)) {
+    const keys = path.split(".");
+    const last = keys.pop()!;
+    const at = keys.reduce<Record<string, unknown>>((o, k) => o[k] as Record<string, unknown>, plans);
+    if (!PLAN_BASE.has(path)) PLAN_BASE.set(path, at[last] as number | undefined);
+    const base = PLAN_BASE.get(path);
+    if (on) at[last] = n;
+    else if (base === undefined) delete at[last];
+    else at[last] = base;
+  }
+}
+
+/** rivalBuilds.ts hands its PLANS over as the last statement of its load; the listed numbers then take the switch's state
+ *  (freeJoins.ts freeJoinsPlans' form; synchronous, never a timer or a microtask). */
+export function shapesPlans(plans: Readonly<Record<string, unknown>>): void {
+  planDefs = plans as Record<string, unknown>;
+  swapPlans(shOn);
+}
+
 let shOn = false;
 /** The base defs, kept at the first swap (so a swap back restores the very object content.ts made). */
 const BASE = new Map<string, ItemDef>();
@@ -89,7 +143,9 @@ export function shapesRules(): boolean {
 }
 
 /** Turn shapes on or off: the three rigs join ITEMS (after every other def) or leave it, GANTRY PRESS and ASSEMBLY LINE
- *  swap to their reshaped or base def, and the star cache is cleared. Setting the state it already has does nothing. */
+ *  swap to their reshaped or base def, D's days 3-5 swap (SHAPES_DMG_TENTHS or hullScale.ts's own; FIT-099,
+ *  RULING-FIT-R1) and so do the captains' listed plan numbers (SHAPES_PLANS, once rivalBuilds.ts has handed PLANS over;
+ *  FIT-099's captains pass), and the star cache is cleared. Setting the state it already has does nothing. */
 export function setShapes(on: boolean): void {
   if (on === shOn) return;
   const items = ITEMS as Record<string, ItemDef>;
@@ -102,6 +158,13 @@ export function setShapes(on: boolean): void {
     if (!SHAPED.has(id)) SHAPED.set(id, SHAPE_DEFS[id](BASE.get(id)!));
     items[id] = on ? SHAPED.get(id)! : BASE.get(id)!;
   }
+  const dmg = DMG_MUL_TENTHS as number[]; // FIT-099 (RULING-FIT-R1): D on days 3-5, SHAPES_DMG_TENTHS
+  for (const [day, t] of Object.entries(SHAPES_DMG_TENTHS)) {
+    const i = Number(day) - 1;
+    if (!DMG_BASE.has(i)) DMG_BASE.set(i, dmg[i]);
+    dmg[i] = on ? t : DMG_BASE.get(i)!;
+  }
+  swapPlans(on); // FIT-099's captains pass: the captains' plan numbers, SHAPES_PLANS
   clearStarCache();
   shOn = on;
 }

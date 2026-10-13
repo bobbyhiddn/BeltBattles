@@ -34,6 +34,8 @@ import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
 import { holdsPlating } from "../render/wave3Moments"; // 0.8.0 I1 M4: wave 3's plating on any hull
 import type { Battle } from "../sim/battle"; // HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): windReadout's battle
 import { windShareBp } from "../sim/hullScale"; // HULL-1c: the wind's share a second, the bar's read-out
+import { sustShown } from "../sim/hullScale"; // CNT-DAY2 (REQ-BFG-100): the REGEN badge on the fight's day, x S(d)
+import { textDay } from "../ui/fightDay"; // CNT-DAY2: the fight's day (the day's hull only; else none: as before)
 
 /** Playback speeds (REQ-BFG-014, spec §22): presentation only, the sim steps the same fixed ticks. */
 export const SPEEDS = [0.5, 1, 2, 4];
@@ -131,6 +133,64 @@ export function plateRow(o: { x: number; y: number; w: number; h: number; lead: 
   return row!;
 }
 
+/** PANEL-FIT (REQ-BFG-100, REQ-BFG-093; cap's rule 10-13): the least bar (px) the lead gives way to: drawPlate draws the
+ *  bar, and plating's strip on it, only above 8 px. */
+export const LEAD_BAR = 9;
+/** PANEL-FIT: the mark at a cut name's end: ".", one 3x5 glyph (the 3x5 face has no ellipsis glyph). */
+export const CUT_MARK = ".";
+/** PANEL-FIT: a cut name keeps at least its first CUT_KEEP characters. */
+export const CUT_KEEP = 3;
+
+/** PANEL-FIT: the lead's width from the panel's left text edge, as drawPlate draws it: the tag ("ONLINE ·") and 4 px,
+ *  then the name, in the 3x5 face. */
+export const leadWidth = (name: string, tag?: string | null): number => (tag ? textWidth(plateTag(tag), "3") + 4 : 0) + textWidth(name, "3");
+
+/** PANEL-FIT: what fitLead decided. `tag` is the tag drawn (null: none, or dropped). `name` is the name drawn (cut: its
+ *  first characters, then CUT_MARK). `step` is "full" (as before), "tag" (the tag dropped) or "cut" (the tag dropped, the
+ *  name cut). `lead` is the drawn lead's width, and `row` is plateRow's row for it. */
+export interface LeadFit {
+  tag: string | null;
+  name: string;
+  step: "full" | "tag" | "cut";
+  lead: number;
+  row: PlateRow;
+}
+
+/**
+ * PANEL-FIT (REQ-BFG-100, REQ-BFG-093; cap's rule 10-13): nothing is ever drawn over the tag or the name.
+ * 1. plateRow runs with the full lead (tag and name). If its bar keeps LEAD_BAR, that row is used, as before.
+ * 2. Else the tag drops, and plateRow runs with the name alone, so its usual order (/max, WARD's pips, the REGEN badge)
+ *    uses the freed room. If the bar now keeps LEAD_BAR, stop there.
+ * 3. Else the name is cut from its end, just enough that the bar keeps LEAD_BAR in plateRow's last form. The cut is
+ *    marked with CUT_MARK, and the name keeps at least CUT_KEEP characters. The forms are not tried again after a cut:
+ *    the bar is then under BAR_MIN, so plateRow gives its last form.
+ *    Run 2 (cap 10-13): before the mark, a cut part (split at spaces) that holds a digit goes whole, then any end " " or "·".
+ * 4. Where even CUT_KEEP characters can't keep LEAD_BAR, the bar takes what is left.
+ * Pure.
+ */
+export function fitLead(o: Omit<Parameters<typeof plateRow>[0], "lead">, name: string, tag?: string): LeadFit {
+  const full = leadWidth(name, tag), row = plateRow({ ...o, lead: full });
+  if (row.bar.w >= LEAD_BAR) return { tag: tag || null, name, step: "full", lead: full, row };
+  const alone = textWidth(name, "3"), bare = tag ? plateRow({ ...o, lead: alone }) : row;
+  if (bare.bar.w >= LEAD_BAR) return { tag: null, name, step: "tag", lead: alone, row: bare };
+  // the bar is under BAR_MIN, so `bare` is plateRow's last form, whose bar loses 1 px for each px of lead: `most` is the
+  // widest lead that keeps LEAD_BAR. Keep the longest start of the name (CUT_KEEP characters at least) that fits it
+  const chars = Array.from(name), most = alone + bare.bar.w - LEAD_BAR;
+  if (chars.length <= CUT_KEEP) return { tag: null, name, step: tag ? "tag" : "full", lead: alone, row: bare }; // no cut keeps CUT_KEEP: rule 4
+  let k = chars.length - 1;
+  while (k > CUT_KEEP && textWidth(chars.slice(0, k).join("") + CUT_MARK, "3") > most) k--;
+  // never part of a number ("10W" cut to "1"): a part the cut ends inside goes whole if it holds a digit; then no gap at
+  // the end. Shorter only, so the bar only grows; if fewer than CUT_KEEP characters would stay, the raw cut stays
+  let j = k, s = k, e = k;
+  while (s > 0 && chars[s - 1] !== " ") s--;
+  while (e < chars.length && chars[e] !== " ") e++;
+  if (chars[k] !== " " && /\d/.test(chars.slice(s, e).join(""))) j = s;
+  while (j > 0 && (chars[j - 1] === " " || chars[j - 1] === "·")) j--;
+  if (j >= CUT_KEEP) k = j;
+  const cut = chars.slice(0, k).join("") + CUT_MARK, lead = textWidth(cut, "3");
+  return { tag: null, name: cut, step: "cut", lead, row: plateRow({ ...o, lead }) };
+}
+
 /** WIND-1 (REQ-BFG-097): the gap between an icon and its number on the plate (px): flush, the 3x5 PLATE icon and a digit
  *  read as one number ("70" for plating 0). */
 export const ICON_GAP = 2;
@@ -147,6 +207,8 @@ export interface PlateInfo {
   shield: string | null;
   plate: string | null;
   windFlash: boolean;
+  /** PANEL-FIT (REQ-BFG-100): the lead as drawn: the tag (null: none, or dropped), the name (maybe cut), and their box */
+  lead: { tag: string | null; name: string; box: Rect };
 }
 
 /** Name plate: [NAME ▮▮▮▮▮▮▮▮ 147] on a dark panel, player lime / enemy red. 0.7.0 (R1 M1): `tag` (online, the enemy
@@ -159,22 +221,29 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
   const s = a.b.sides[side];
   const f = a.sfx[side];
   statsPanel(g, r, skinOf(a.views[side].skin).panel); // CUSTOM-2a: the player's plate wears its panel style; a foe's the default
-  let tx = r.x + 3;
-  const ty0 = r.y + Math.floor((r.h - 5) / 2);
-  if (tag) {
-    const t = plateTag(tag);
-    drawText(g, t, tx, ty0, C.slate4, { font: "3" });
-    tx += textWidth(t, "3") + 4;
-  }
-  const nameW = textWidth(name, "3");
-  drawText(g, name, tx, ty0, side === 0 ? C.white : C.red, { font: "3" });
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): a side that can hold SHIELD shows its pips before its bar (lit up to its count, the
   // rest of SHIELD_CAP dim; a broken one flashes out), and a side with REGEN (MENDING LOOMs, FLIP-X1: or GREEN THREAD) its
   // REGEN badge before its HP. Their room is kept from the start, so the bar never moves. WIND-1 (REQ-BFG-097): SHIELD's
   // count after its pips; plating's layer (whenever plated() or the side holds any) with its number
+  // CNT-DAY2 (REQ-BFG-100): on the day's hull Battle.heal lands the second's REGEN (sustainTick's one sum) x S(d), rounded
+  // down; the badge shows that heal, and its room (from regenMax, so the bar still never moves) that number's width. No day
+  // (textDay undefined: no day, or the switch off) gives regenNow and regenMax themselves, as before
+  const day = textDay(a.b);
   const shows = showsShield(a, side), plating = plated(a, side) || s.plate.plate > 0;
-  const rmax = regenMax(a, side), regenRoom = rmax > 0 ? textWidth(`+${fmtDmg(rmax)}`, "3") + 3 : 0;
-  const row = plateRow({ x: r.x, y: r.y, w: r.w, h: r.h, lead: tx - (r.x + 3) + nameW, hp: s.hull.hp, max: s.hull.max, shield: shows ? s.shield ?? 0 : null, regenRoom, plate: plating ? s.plate.plate : null });
+  const rmax = sustShown(regenMax(a, side), day), regenRoom = rmax > 0 ? textWidth(`+${fmtDmg(rmax)}`, "3") + 3 : 0;
+  // PANEL-FIT (REQ-BFG-100, REQ-BFG-093; cap's rule 10-13): plateRow's row for the lead that fits (fitLead: the full lead
+  // where the bar keeps LEAD_BAR, as before; else the tag drops; else the name is cut). The tag and the name are drawn
+  // after the row is known, before anything else in the row, as before
+  const fit = fitLead({ x: r.x, y: r.y, w: r.w, h: r.h, hp: s.hull.hp, max: s.hull.max, shield: shows ? s.shield ?? 0 : null, regenRoom, plate: plating ? s.plate.plate : null }, name, tag);
+  let tx = r.x + 3;
+  const ty0 = r.y + Math.floor((r.h - 5) / 2);
+  if (fit.tag) {
+    const t = plateTag(fit.tag);
+    drawText(g, t, tx, ty0, C.slate4, { font: "3" });
+    tx += textWidth(t, "3") + 4;
+  }
+  drawText(g, fit.name, tx, ty0, side === 0 ? C.white : C.red, { font: "3" });
+  const row = fit.row;
   const ty = row.ty;
   drawText(g, row.hull, row.hullX, row.hy, C.white, { font: "5" });
   if (row.max) drawText(g, row.max, row.hullX + textWidth(row.hull, "5") + 1, row.hy + 2, C.bone, { font: "3" });
@@ -191,7 +260,7 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     }
   }
   if (row.regenX !== null) {
-    const now = regenNow(a, side);
+    const now = sustShown(regenNow(a, side), day); // CNT-DAY2: the heal that lands each second on this fight
     if (now > 0) drawText(g, `+${fmtDmg(now)}`, row.regenX, ty, ICON_COLOUR[ICON.REGEN], { font: "3", align: "right" });
   }
   if (row.plate) {
@@ -216,6 +285,7 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     side, r: { ...r }, hull: row.max ? `${row.hull}${row.max}` : row.hull, font: "5", hullBox: { x: row.hullX, y: row.hy, w: hullW, h: 7 },
     bar: { x: bx, y: ty - 1, w: Math.max(0, bw), h: 7 }, shield: row.shield ? row.shield.count : null, plate: row.plate ? row.plate.text : null,
     windFlash: f.windFlash > 0,
+    lead: { tag: fit.tag, name: fit.name, box: { x: r.x + 3, y: ty0, w: fit.lead, h: 5 } },
   };
 }
 

@@ -361,14 +361,17 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     expect(keywordState(p.ctx)!.word, "SEAM WELDER: its first keyword, PAIR, as if tapped").toBe("PAIR");
     expect(ui.regions.some((r) => r.id === "kwdef")).toBe(true);
     expect(sightDone("kw:PAIR")).toBe(true);
-    // a press anywhere closes it, as a tapped word's; the same open shows nothing more
+    // a press anywhere closes it, as a tapped word's. CARD-5 (REQ-BFG-004, K; READ-5 11.1) changed this pin by design: the
+    // panel is still open, so its next keyword not yet seen (PLATE, drawn SHIELD: CARD-3) opens its note the same way, one
+    // box at a time (was: the same open shows nothing more, and SHIELD waited for the next open)
     keywordsPressed(p.ctx, null);
     ui = p.draw();
-    expect([keywordState(p.ctx)!.word, ui.regions.some((r) => r.id === "kwdef" || r.id === SIGHT_REGION)]).toEqual([null, false]);
-    // the next open of this panel: its next keyword not yet seen (PLATE)
+    expect([keywordState(p.ctx)!.word, ui.regions.filter((r) => r.id === "kwdef" || r.id === SIGHT_REGION).length]).toEqual(["SHIELD", 1]);
+    // the next open of this panel: neither again (both done)
+    keywordsPressed(p.ctx, null);
     keywordsIdle(p.ctx);
     p.draw();
-    expect(keywordState(p.ctx)!.word).toBe("SHIELD"); // CARD-3 (REQ-BFG-107)
+    expect(["PAIR", "SHIELD"]).not.toContain(keywordState(p.ctx)!.word);
     // another panel with PAIR (TWIN TRIGGER): PAIR is done, so no PAIR box
     const run2 = cargoRun("foundry", "twintrigger"), p2 = panelCtx(run2, CARGO, f, true);
     p2.draw();
@@ -433,7 +436,7 @@ describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new w
       shottower: [["RIGS HIT EACH OF ITS 3 SLUGS ON ITS OWN."]], // run 2: true on a two-belt tower too (stamp is round-robin)
       assembly: [["FEEDS A GUN: YOUR RIGS WORK 50% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK 75% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK AT ONCE."]],
       sabot: [["A RIG IT HITS STOPS FOR THE WHOLE FIGHT.", "ANY OTHER PART IT HITS: STUN 4."]],
-      scrapper: [["EACH STUN YOU LAND: 1 EXTRA ."]],
+      scrapper: [["EACH STUN YOU LAND: 1 EXTRA .", "ITS  DEAL 30 MORE  THAN PLAIN."]], // CARD-5 (REQ-BFG-081, L): + its scrap damage, by design
       limpet: [["ITS  BLAST THE FOE'S HULL 3 AFTER A HIT."]],
       gatling: [["FIRES EACH LOAD AS IT COMES.", "SPINS UP TO 67% FASTER."]],
       pincer: [["HIT: +20  FOR EACH OTHER RIG HITTING IT."], ["HIT: +44  FOR EACH OTHER RIG HITTING IT."], ["HIT: +70  FOR EACH OTHER RIG HITTING IT."]],

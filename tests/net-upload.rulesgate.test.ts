@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
-import { STAND_IN_POOL_HEROES, standInPool } from "../src/sim/standInPool";
+import { STAND_IN_POOL_HEROES, standInPool, type StandInEntry } from "../src/sim/standInPool";
+import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import { TURRETS_JOINS_RULES, parseRules, rulesAtLeast, rulesFeatures, rulesGateProblem, sustainFeatures } from "../src/net/rulesGate";
 import { SNAPSHOT_V3, checkSnapshot, type GhostSnapshot } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate";
@@ -29,7 +30,7 @@ import { withDawnRunes } from "./runeFill";
 // runes, as an upload under RULES_VERSION (v3: runes travel only in a v3 snapshot). The stand-in pool holds rune-less decks
 // until FLIP-X2's regeneration, after which its decks carry their own runes: old(d) leaves them out, up(d) keeps them.
 
-interface Deck { hero: HeroId; day: number; build: Build }
+interface Deck { hero: HeroId; day: number; build: Build; road?: StandInEntry["road"] } // S8c: road, the entry's road log (T1e's form)
 const hasTurrets = (b: Build) => (b.turrets ?? []).length > 0;
 const hasJoin = (b: Build) => b.routes.some((r) => r.join !== undefined);
 /** FLIP-X2: the deck without runes, as rules before bb-0.8.7 carry it (a no-op on a rune-less pool deck). */
@@ -46,7 +47,7 @@ function poolDeck(turrets: boolean, joins: boolean): Deck {
   for (const hero of STAND_IN_POOL_HEROES) {
     for (let day = 1; day <= RUN_DAYS; day++) {
       for (const e of standInPool(hero, day)) {
-        if (hasTurrets(e.build) === turrets && hasJoin(e.build) === joins && !sustainFeatures({ ...e.build, runes: undefined }).length) return { hero, day, build: e.build };
+        if (hasTurrets(e.build) === turrets && hasJoin(e.build) === joins && !sustainFeatures({ ...e.build, runes: undefined }).length) return { hero, day, build: e.build, road: e.road };
       }
     }
   }
@@ -94,7 +95,19 @@ describe("v070-rel M2 (b): the helper", () => {
   });
 
   it("refuses turrets or a join under older or unreadable rules, naming the rules version and the feature", () => {
-    for (const d of [TURRETS, JOINS, BOTH, NEITHER]) expect(validateBuild(d.build, d.day).ok).toBe(true); // honest decks
+    // S8c (the pools): RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3). a48010b: with NPC_DAY on, a road-fed
+    // deck spends the road's drops too, by design. The regenerated pool's picks are road-fed (P1 83c039d, NPC_DAY on: each
+    // tuple's 7th element is its road log), and all four decks here (furnace d2, d4, d3, d1) cost more than the shop's gold
+    // alone (one "budget: " line each). So each is held to validateBuild's lines minus at most its ONE budget line (only while
+    // NPC_DAY is on: off, the strict check stays whole), AND to validateUpload in the player mode with its road log (a stand-in
+    // carries no run seed). Was: validateBuild(d.build, d.day).ok toBe(true)
+    for (const d of [TURRETS, JOINS, BOTH, NEITHER]) { // honest decks
+      const strict = validateBuild(d.build, d.day).errors;
+      const budget = npcDayRules() ? strict.filter((x) => x.startsWith("budget: ")) : [];
+      expect(budget.length, `${d.hero} d${d.day}: at most its one budget line`).toBeLessThanOrEqual(1);
+      expect(strict.filter((x) => !budget.includes(x)), `${d.hero} d${d.day}: every other strict line`).toEqual([]);
+      expect(validateUpload(d.build, d.day, RULES_VERSION, { ...(d.road ? { road: d.road } : {}) }), `${d.hero} d${d.day}: the player mode with its road log`).toEqual({ ok: true, errors: [] });
+    }
     expect(rulesFeatures(TURRETS.build)).toEqual(["turret slots (build.turrets)"]);
     expect(rulesFeatures(JOINS.build)).toEqual([`belt joins (build.routes[${joinAt(JOINS.build)}].join)`]);
     expect(rulesFeatures(NEITHER.build)).toEqual([]);

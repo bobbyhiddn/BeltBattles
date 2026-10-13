@@ -11,6 +11,7 @@ import { hashSeed } from "../src/core/rng";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { footprint, hullSlots, installTurret, key as K, kx, ky, occupancy, routeInfo, setJoin, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
+import { roadCap } from "../src/net/roadCap"; // S8c (a48010b / the pools): a road-fed pick's spent bound
 import { STAND_IN_POOL_HEROES, decodeStarred as loadStarred, standInPool } from "../src/sim/standInPool";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import {
@@ -506,18 +507,30 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
 
   it("the committed pool: pool v2.1's entries (five elements) have spent = cost; a caravan pool's carry their sixth", () => {
     const legacy = !committedHeader().includes("--source");
+    // S8c (the pools: the stand-in pool regenerated ONCE with every switch on as shipped, P1 83c039d, the first regeneration
+    // since PAR-AZ's 5c57914 added the road log): a caravan pool generated with NPC_DAY on carries a seventh element, the
+    // pick's run's road log, after spent (its header's tuple line names it; the test below), so its tuples hold 7; one
+    // generated with NPC_DAY off still holds 6 (was: legacy ? 5 : 6)
+    const roadFed = STAND_IN_POOL_HEROES.some((h) => standInPool(h, 1).some((e) => e.road !== undefined)); // the loader read a road log
     let n = 0;
     for (const hero of STAND_IN_POOL_HEROES) {
       for (let day = 1; day <= 10; day++) {
         const tuples: readonly (readonly unknown[])[] = STAND_IN_DATA.pools[hero]![day - 1][1], es = standInPool(hero, day);
         expect(es).toHaveLength(tuples.length);
         es.forEach((e, i) => {
-          expect(tuples[i], `${hero} d${day} #${i}`).toHaveLength(legacy ? 5 : 6);
+          expect(tuples[i], `${hero} d${day} #${i}`).toHaveLength(legacy ? 5 : roadFed ? 7 : 6); // S8c (the pools): + the road log
           expect(e.spent, `${hero} d${day} #${i}`).toBe(legacy ? e.cost : tuples[i][5]);
-          expect(e.spent).toBeGreaterThanOrEqual(e.cost);
+          // S8c (a48010b / the pools: P1 83c039d is road-fed, generated with NPC_DAY on as shipped): a road-fed pick's run's
+          // drops sit on its deck at their value, unpaid (spent + drops = deck + rerolls + sale losses + cargo, as the M5 test
+          // above names it), so spent alone can be under the deck's cost (furnace d1: spent 8, cost 11); the bound counts the
+          // pick's road log's drops (0 without a road log: exactly as before). Was: e.spent >= e.cost
+          expect(e.spent + (e.road ? roadDropValue(e.road) : 0), `${hero} d${day} #${i}: spent + its road's drops`).toBeGreaterThanOrEqual(e.cost);
           // FLIP-X2: a pick's gold spent includes the gold its runes paid, so the bound is the day's gold plus its runes'
           // dawn gold (was maxGoldByDay(day): 54 <= 50)
-          expect(e.spent, `${hero} d${day} #${i}`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
+          // S8c (a48010b / the pools: P1 83c039d is road-fed): a road-fed pick's run also spent the road's gold, so its bound
+          // adds roadCap(day), the most extra any honest run can have by that dusk (maxHonestSpend's own term; furnace d2 #0:
+          // spent 20 > 17 without it); 0 without a road log: exactly as before
+          expect(e.spent, `${hero} d${day} #${i}`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold + (e.road ? roadCap(day) : 0));
           n++;
         });
       }
@@ -541,7 +554,12 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
     // the committed module: pool v2.1's legacy lines while it is committed, else the regen's (a caravan pool)
     const committed = readFileSync(new URL("../src/sim/standInPoolData.ts", import.meta.url), "utf8").split("\n");
     const legacy = !committedHeader().includes("--source");
-    expect(committed).toContain(legacy ? TUPLES_V21 : TUPLES_CARAVAN);
-    expect(committed).toContain(legacy ? TYPE_V21 : TYPE_CARAVAN);
+    // S8c (the pools: P1 83c039d, the first regeneration since PAR-AZ's 5c57914, generated with NPC_DAY on as shipped): the
+    // committed caravan pool's lines name the seventh element, the road log (the on lines above); was TUPLES_CARAVAN /
+    // TYPE_CARAVAN (the sixth only). A caravan pool generated with NPC_DAY off would still hold those
+    const roadFed = committed.includes(TUPLES_CARAVAN_ROAD);
+    expect(committed).toContain(legacy ? TUPLES_V21 : roadFed ? TUPLES_CARAVAN_ROAD : TUPLES_CARAVAN);
+    expect(committed).toContain(legacy ? TYPE_V21 : roadFed ? TYPE_CARAVAN_ROAD : TYPE_CARAVAN);
+    expect(legacy || roadFed, "the committed pool (P1) was generated with NPC_DAY on: its lines name the road log").toBe(true);
   });
 });

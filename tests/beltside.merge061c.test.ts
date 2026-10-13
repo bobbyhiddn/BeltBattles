@@ -440,6 +440,9 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     // pool, after the older ones (was [..., "pincer"] and ["temper", "bellows", "quench"]). The fixture above was written
     // with shapes off (with shapes off the live draws equal it: 0 of 108 choices differ; on, 95 differ): it waits for its
     // regeneration (BB_WRITE_ROAD_DRAWS_080=1), not done in the flip
+    // S8 (BRIEF-S8 lane 2, REVIEW-SHAPES1 section 5): regenerated with BB_WRITE_ROAD_DRAWS_080=1 and every switch on as shipped
+    // (bb-0.10.0, the nine on) at 01b0a57: 95 of 108 choices moved (wreck 35, smuggler 36, trader 24), the 3 salvage rows, the
+    // smuggler row and 20 of 79 swaps; cause SHAPES-1's flip cd59be0 (NAIL STRIP and EMBER TROUGH in the pools)
     expect(salvagePool()).toEqual(["temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer", "nailstrip", "embertrough"]);
     expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([
       ["temper", "bellows", "quench", "embertrough"], ["coil", "staticbrush", "lodestone"],

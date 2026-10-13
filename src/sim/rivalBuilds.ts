@@ -23,6 +23,7 @@
 // installTurret, the game's own operation, and T2() buys a matching copy for another star. Captain plans never join belts.
 
 import { freeJoinsPlans } from "./freeJoins"; // HULL-ON run 6 (H4's captain pass): FREE_JOINS_PLANS' hand-over
+import { shapesPlans } from "./shapes"; // FIT-099's captains pass (RULING-FIT-R1): SHAPES_PLANS' hand-over
 import {
   HEROES, ITEMS, START_GOLD, UPGRADE_PRICE, incomeFor, type HeroId, type Upgrades, type UpgradeTrack,
 } from "./content";
@@ -161,57 +162,6 @@ export function roadAllowance(day: number, moment: RoadMoment): number {
   if (!npcDayRules()) return 0;
   const d = Math.max(1, Math.min(NPC_ROAD[moment].length, Math.floor(day)));
   return NPC_ROAD[moment][d - 1];
-}
-
-/** REFIT-AZ: the luck caps' tiers a road count allowance reads (src/sim/harness/luck.ts: ordinary P50, good P90). */
-export type RoadCountTier = "ordinary" | "good";
-type RoadCountRow = Readonly<{ rare: readonly number[]; epic: readonly number[]; star2: readonly number[] }>;
-
-/**
- * REFIT-AZ (REQ-BFG-078, REQ-BFG-024; REVIEW-PARAZ ruling Q1; rulings 388faa07f0f451d1, b77171cd5288623a and 2161b987611d3f6b):
- * THE ROAD COUNT ALLOWANCE, ROADN(hero, day, tier) (index day - 1): how many more rare-or-better, epic-or-better and 2-star
- * parts (luck.ts LuckMeasures rare / epic / star2; star2 by ruling 2161b987611d3f6b, as a ceiling) the road-fed par field
- * holds than the road-less one the luck caps were measured on. With the NPC day on, the captains' luck-cap checks add it to
- * the cap's `rare`, `epic` and `star2` of the cell they already read
- * (capsOf(id, day, tier), the deck's hero): a Hard warlord deck `good`; an Easy warlord deck and every captain's stand-in
- * dusk deck `ordinary`; a Medium warlord deck none (388 item 4: par fights them, and table A is set); the Iron Matriarch has
- * no luck-caps check. Only the checks read it (tests/captains.luck's two overCaps lines, kit-refitaz capsearch check and
- * fill), never a deck; star3, turrets, the value (that is ROAD's) and the ARMOR PACK count are not in it. Off: 0.
- * Provenance (ruling b77171cd5288623a item 1): for hero h, day d, tier t, measure m: own = max(0, the road-fed cap - the
- * committed cap); pooled = the median of own over the four heroes, rounded down; ROADN = min(pooled, own) (so cap + ROADN
- * never exceeds that hero's own road-fed cap). The road-fed caps: kit-refitaz/probes/roadcaps.ts (luckCapsTable(), seeds
- * 1-48 a hero, P50 / P90, every switch on: setHullScale, setLadderFix, setNpcDay) at refitaz 683cd5b, table A2's own par
- * state (output-refitaz/base/roadcaps-683cd5b.json; `bash kit-refitaz/probe1.sh roadcaps 683cd5b --json ...`), clamped by
- * `node kit-refitaz/roadncaps.mjs` on it; the committed caps: luckCapsData.ts, IDENTICAL to that commit's switch-off
- * `npm run luckcaps -- --check` (the subtraction holds only then). Pooled rows: ordinary rare 0 0 0 0 1 1 2 1 1 2, epic 0,
- * star2 0 0 1 0 1 0 1 1 0 1; good rare 0 0 1 1 1 2 1 2 2 3, epic 0 0 0 0 1 0 0 0 0 0, star2 0 0 1 1 1 1 1 1 1 2.
- */
-export const NPC_ROAD_COUNT: Readonly<Record<"furnace" | "weaver" | "foundry" | "bastion", Readonly<Record<RoadCountTier, RoadCountRow>>>> = {
-  furnace: {
-    ordinary: { rare: [0, 0, 0, 0, 1, 1, 2, 1, 1, 1], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], star2: [0, 0, 1, 0, 1, 0, 1, 1, 0, 0] },
-    good: { rare: [0, 0, 1, 1, 1, 2, 1, 2, 2, 1], epic: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0], star2: [0, 0, 1, 1, 1, 1, 1, 1, 1, 2] },
-  },
-  weaver: {
-    ordinary: { rare: [0, 0, 0, 0, 1, 1, 2, 1, 1, 2], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], star2: [0, 0, 1, 0, 1, 0, 1, 1, 0, 1] },
-    good: { rare: [0, 0, 1, 0, 0, 1, 1, 2, 2, 3], epic: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0], star2: [0, 0, 1, 1, 0, 1, 1, 1, 1, 2] },
-  },
-  foundry: {
-    ordinary: { rare: [0, 0, 0, 0, 1, 1, 2, 1, 1, 2], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], star2: [0, 0, 1, 0, 1, 0, 0, 1, 0, 1] },
-    good: { rare: [0, 0, 1, 1, 1, 2, 1, 2, 2, 3], epic: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0], star2: [0, 0, 1, 1, 1, 1, 1, 1, 1, 1] },
-  },
-  bastion: {
-    ordinary: { rare: [0, 0, 0, 0, 1, 1, 1, 1, 1, 2], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], star2: [0, 0, 1, 0, 1, 0, 1, 1, 0, 1] },
-    good: { rare: [0, 0, 1, 1, 1, 2, 1, 2, 2, 3], epic: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], star2: [0, 0, 1, 1, 1, 0, 1, 1, 1, 2] },
-  },
-};
-
-/** REFIT-AZ: ROADN(hero, day, tier) with the NPC day on (days past 10 read day 10's; a hero outside the table 0), 0 with it
- *  off: what a captain deck's luck-cap check adds to the cap's rare and epic (the checks only; see NPC_ROAD_COUNT). */
-export function roadCountAllowance(hero: string, day: number, tier: RoadCountTier): { rare: number; epic: number; star2: number } {
-  const t = (NPC_ROAD_COUNT as Record<string, Readonly<Record<RoadCountTier, RoadCountRow>> | undefined>)[hero]?.[tier];
-  if (!npcDayRules() || !t) return { rare: 0, epic: 0, star2: 0 };
-  const d = Math.max(1, Math.min(t.rare.length, Math.floor(day)));
-  return { rare: t.rare[d - 1], epic: t.epic[d - 1], star2: t.star2[d - 1] };
 }
 
 export interface RivalLoadout {
@@ -1331,13 +1281,13 @@ export const CAPTAIN_LEVELS: Readonly<Record<HeroId, Partial<Record<UpgradeTrack
  * SEAM RIVETS -> IRON SKIN) and the Iron Matriarch (day 5 IRON SKIN -> BULWARK WARD, day 6 SCRAP BITER -> FINAL NAIL).
  */
 export const CAPTAIN_RUNES: Readonly<Partial<Record<RivalId, readonly string[]>>> = {
-  sootjaw: ["scrap_biter", "toll_road", "slow_embers", "war_edge", "searing", "heat_sink", "spare_hull", "pyre_heart", "scrap_medic", "last_stand"], // furnace: SCRAP BITER, TOLL ROAD, SLOW EMBERS, WAR EDGE, SEARING, HEAT SINK, SPARE HULL, PYRE HEART, SCRAP MEDIC, LAST STAND
+  sootjaw: ["scrap_biter", "toll_road", "slow_embers", "war_edge", "searing", "heat_sink", "spare_hull", "pyre_heart", "scrap_medic", "scrap_saint"], // furnace: SCRAP BITER, TOLL ROAD, SLOW EMBERS, WAR EDGE, SEARING, HEAT SINK, SPARE HULL, PYRE HEART, SCRAP MEDIC, SCRAP SAINT
   nettle: ["oiled_cogs", "loose_thread", "scrap_biter", "green_thread", "hair_trigger", "bulkheads", "ember_shot", "snare_knot", "tangle_wire", "double_knot"], // weaver: OILED COGS, LOOSE THREAD, SCRAP BITER, GREEN THREAD, HAIR TRIGGER, BULKHEADS, EMBER SHOT, SNARE KNOT, TANGLE WIRE, DOUBLE KNOT
   grubnose: ["quick_latch", "sharp_scrap", "ash_kindle", "toll_road", "pyre_heart", "bulkheads", "last_stand", "forge_ward", "long_road", "stoked_fires"], // furnace: QUICK LATCH, SHARP SCRAP, ASH KINDLE, TOLL ROAD, PYRE HEART, BULKHEADS, LAST STAND, FORGE WARD, THE LONG ROAD, STOKED FIRES
   mothqueen: ["coin_purse", "loose_thread", "tar_barrel", "sharp_scrap", "loom_of_woe", "thread_storm", "ember_shot", "last_stand", "widows_web", "warlords_due"], // weaver: COIN PURSE, LOOSE THREAD, TAR BARREL, SHARP SCRAP, LOOM OF WOE, THREAD STORM, EMBER SHOT, LAST STAND, WIDOW'S WEB, WARLORD'S DUE
   sparkfang: ["coal_chute", "ash_kindle", "slow_embers", "heat_sink", "iron_skin", "shatter_shot", "thread_storm", "gun_oil", "twin_suns", "scrap_saint"], // furnace: COAL CHUTE, ASH KINDLE, SLOW EMBERS, HEAT SINK, IRON SKIN, SHATTER SHOT, THREAD STORM, GUN OIL, TWIN SUNS, SCRAP SAINT
   lacewing: ["loose_thread", "quick_latch", "tar_barrel", "tangle_wire", "barbed_silk", "steady_iron", "warlords_due", "last_stand", "first_blood", "ward_stone"], // weaver: LOOSE THREAD, QUICK LATCH, TAR BARREL, TANGLE WIRE, BARBED SILK, STEADY IRON, WARLORD'S DUE, LAST STAND, FIRST BLOOD, WARD STONE
-  ratchet: ["coal_chute", "slow_embers", "searing", "heat_sink", "pyre_heart", "steady_iron", "scrap_biter", "last_stand", "hair_trigger", "first_blood"], // furnace: COAL CHUTE, SLOW EMBERS, SEARING, HEAT SINK, PYRE HEART, STEADY IRON, SCRAP BITER, LAST STAND, HAIR TRIGGER, FIRST BLOOD
+  ratchet: ["coal_chute", "slow_embers", "searing", "heat_sink", "pyre_heart", "steady_iron", "iron_skin", "last_stand", "hair_trigger", "first_blood"], // furnace: COAL CHUTE, SLOW EMBERS, SEARING, HEAT SINK, PYRE HEART, STEADY IRON, IRON SKIN, LAST STAND, HAIR TRIGGER, FIRST BLOOD
   emberlyn: ["final_nail", "seam_rivets", "loose_thread", "leech_vow", "scrap_biter", "last_stand", "ember_shot", "widows_web", "scrap_saint", "thread_storm"], // weaver: FINAL NAIL, SEAM RIVETS, LOOSE THREAD, LEECH VOW, SCRAP BITER, LAST STAND, EMBER SHOT, WIDOW'S WEB, SCRAP SAINT, THREAD STORM
   bulwark: ["coal_chute", "quick_latch", "tar_barrel", "heat_sink", "warlords_due", "fat_purse", "searing", "pyre_heart", "ward_stone", "shatter_shot"], // furnace: COAL CHUTE, QUICK LATCH, TAR BARREL, HEAT SINK, WARLORD'S DUE, FAT PURSE, SEARING, PYRE HEART, WARD STONE, SHATTER SHOT
   silkshade: ["final_nail", "loose_thread", "twin_nails", "quick_latch", "toll_road", "barbed_silk", "oiled_cogs", "forge_ward", "loom_of_woe", "ember_shot"], // weaver: FINAL NAIL, LOOSE THREAD, TWIN NAILS, QUICK LATCH, TOLL ROAD, BARBED SILK, OILED COGS, FORGE WARD, LOOM OF WOE, EMBER SHOT
@@ -1392,3 +1342,7 @@ function maxGold(day: number): number {
 // over to freeJoins.ts, whose FREE_JOINS_PLANS holds the captains' plan numbers behind FREE_JOINS (the last statement of
 // this module's load, as runes.ts hands RUNES to guard.ts)
 freeJoinsPlans(PLANS);
+// FIT-099's captains pass (REQ-BFG-092, REQ-BFG-086; BRIEF-FIT099 F2; RULING-FIT-R1 section 3): hand PLANS over to shapes.ts
+// too, whose SHAPES_PLANS holds the captains' plan numbers behind SHAPES (freeJoinsPlans' form, synchronous, the last
+// statement of this module's load)
+shapesPlans(PLANS);

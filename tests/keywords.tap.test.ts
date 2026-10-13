@@ -500,8 +500,12 @@ describe("U2f: the taller ⓘ view", () => {
     // 98 / 35, desk 3 / 51 / 105 / 79 / 69 / 9 -> 3 / 51 / 106 / 87 / 71 / 7 (shapes1 at 94d0492: op 8 / 156 / 96 / 65, desk
     // 0 / 12 / 104 / 114 / 46 / 17 / 11 / 19 / 2). With SHAPES set off the merged tree reads c099-card3's pins (REPORT 10).
     // U2f's view: the next test's pins
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 184, 98, 35]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 51, 106, 87, 71, 7]);
+    // CARD-5 (REQ-BFG-081, L), by design: SCRAPPER's face prints its scrap damage (key `scrap`), so its ⓘ LEVELS gain that
+    // ladder ([30]/65/105 MORE {DMG}) and two op views move one bucket up: [8, 184, 98, 35] -> [8, 184, 96, 37]
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 184, 96, 37]);
+    // CARD-5 (L, by design): SCRAPPER's taller face (its scrap line) and LEVELS move three desk views a bucket: [3, 51, 106,
+    // 87, 71, 7] -> [3, 51, 106, 90, 68, 7]
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 51, 106, 90, 68, 7]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -634,7 +638,7 @@ describe("U2f: the taller ⓘ view", () => {
 // held [142, 183], the same with the switch on (= shapes' side's; c099-card3 [143, 173]);
 // desk [315, 1] (c099-card3) -> [324, 1] (shapes' side [283, 42]). With SHAPES set off the merged tree reads c099-card3's
 // pins (REPORT 10). U2f's aims hold: op most on 1 page and none over 2, a rune held none over 3, desk none over 3
-const U2F_OP = [271, 54]; // SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
+const U2F_OP = [270, 55]; // CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
 // WORDS-1 (REQ-BFG-081), measured: the stat icons' and face words' notes list in the view, so with the worst rune's keywords
 // after them 82 views take a second page (was [304, 12]); none takes a third (U2f's aim: 3 at most with a rune held)
 const U2F_OP_RUNE = [142, 183]; // SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])

@@ -17,7 +17,7 @@ import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../sim/deck"; // 0.6.2 TUNE-M: R
 import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): neither rule in the card with FREE_JOINS on
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
-import { drawText, textWidth } from "../render/font";
+import { drawText, icons, textWidth } from "../render/font";
 import { titleArt } from "../render/sprites";
 import { defaultScale } from "../core/io";
 import { button, panel, para } from "../ui/ui";
@@ -42,9 +42,24 @@ import { HEART_COST_FROM, HEART_COSTS, HEARTS_START, heartsRules } from "../sim/
  *  RULE JOIN PACE, exactly as before; on, neither (a deck holds any number of legal joins, and a join never slows its
  *  factory). */
 export function helpLine3(free = freeJoinsRules()): string {
-  const how = "3  AT DAWN, BUY RIGS FROM THE CARAVAN. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
+  // CARD-5 (REQ-BFG-111; CARD-5 PREP's item 3, HOWTOPLAY-CARD5): the line names the kinds, each clause true in the sim
+  // (Battle.stamp puts a factory's slugs on its belts; a belt's front slug enters the chamber of the turret it reaches,
+  // a joining belt's its chain's; a rig works on slugs or its belt's speed; a turret fires its loads; a core and gear
+  // fit its sockets), with REVIEW-CARD5PREP 5.3's clause FOR THE TURRET THEIR BELT REACHES (REPORT-CARD5 section 7).
+  // The belt sentences and both FREE_JOINS forms' join clauses stay as they were. Was "3  AT DAWN, BUY RIGS FROM THE
+  // CARAVAN. DRAG OUT ..."
+  const how = "3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
   return free ? `${how}.` : `${how} (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`;
 }
+
+/** CARD-5 (REQ-BFG-111, REQ-BFG-089; CARD-5 PREP's item 6): the keyword line, one clause each, drawn with icons() (each
+ *  keyword its icon, then its player word: {*PLATE} draws SHIELD, {*SHIELD} WARD; the icons in their own colours, as
+ *  drawText tints them). Each clause is the keyword's own reminder cut short (faces.ts REMINDER); WARD's keeps the
+ *  reminder's HIT'S DAMAGE, since that hit's BURN, FRAY and STUN still land (battle.ts impact; PREP's draft said BLOCKS
+ *  ALL OF ONE HIT). Rules text a player opens on demand, so no card carries a definition (REQ-BFG-089). */
+export const HELP_KEYWORDS = icons(
+  "6  {*BURN}: HULL DAMAGE OVER TIME. {*STUN}: STOPS THE PART IT HITS FOR A WHILE. {*PLATE}: SOAKS HULL DAMAGE. {*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE. {*PAIR}: SLUGS FROM TWO BELTS REACH ONE TURRET AT ONCE. {*FRAY}: LATER HULL HITS DEAL MORE.",
+);
 
 /** JOINS-1: the rules card the title draws: HELP with line 3 by the switch now (HELP itself with FREE_JOINS off).
  *  RETUNE-1 run 2 (REQ-BFG-096): and line 2 the hearts rule while HEARTS is on (HELP_HEARTS_2, below HELP). HULL-ON (the
@@ -60,8 +75,12 @@ export const HELP = [ // exported for tests/joinpace.test.ts. Line 3 is helpLine
   // 0.6.2 TUNE-M: line 2 states RULE EARLY-LOSS REFUND (day.ts)
   `2  YOU HAVE 5 LIVES. A DUSK LOSS COSTS ONE, A DRAW NONE. LOSE ON DAY 1 OR 2 AND DAY ${REFUND_DAY}'S DAWN GIVES ONE LIFE BACK (ONCE A RUN). YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`,
   helpLine3(), // JOINS-1 (REQ-BFG-091), by the switch at load: shipped (FREE_JOINS on) neither join rule; with FREE_JOINS off exactly as before (RULE JOIN LIMIT and RULE JOIN PACE). The title draws helpLines() (HULL-ON, ruling 22e26ded338944ea)
-  "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
+  // CARD-5 (REQ-BFG-111; CARD-5 PREP's item 4): STUN, the word every card and note says (SHOCK is retired: VOCAB.md; this
+  // line now sits in tests/words1.text.test.ts's sweep), and REVIEW-CARD5PREP 5.3's clause in HIT's words, true of 24 of the
+  // 33 rigs (every HIT rig and STATIC BRUSH; not the speed, timer and STUN-guard rigs nor STOKER: REPORT-CARD5 section 7)
+  "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, STUN, SPLIT, SPEED UP OR SLOW DOWN. MOST RIGS WORK ON EACH SLUG ON A TILE THEIR ARROWS POINT AT. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
   "5  ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3). AT DUSK YOUR CRUISER FIGHTS ON ITS OWN: 0.5X-4X, SKIP, II OR P TO PAUSE.",
+  HELP_KEYWORDS, // CARD-5 (REQ-BFG-111): item 6, the keyword line
 ];
 
 /** RETUNE-1 run 2 (REQ-BFG-096): line 2 with HEARTS on (no run exists on the title, so the switch decides): the hearts rule

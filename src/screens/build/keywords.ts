@@ -407,12 +407,15 @@ interface KwState {
   opened: boolean;
   auto: string | null;
   rig: boolean;
+  /** CARD-5 (REQ-BFG-004, K): this open's first sights are under way: a first-sight note opened by itself, so when no box
+   *  shows while the panel is still open, the next keyword not yet seen opens (one at a time), until none is left. */
+  chain: boolean;
 }
 const STATE = new WeakMap<object, KwState>();
 const stateOf = (owner: object, key: string): KwState => {
   let s = STATE.get(owner);
   if (!s || s.key !== key) {
-    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false };
+    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false };
     STATE.set(owner, s);
   }
   return s;
@@ -755,19 +758,29 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // panel (a rig it is true of), else the first effect keyword not yet seen, in reading order, its definition opened as a
   // finger's tap opens it (touch: `word`, definitionBox at the panel's foot) or as a resting mouse shows it (the desk:
   // drawHoverTip under the word). One box per open; the next waits for the next open.
+  // CARD-3 (REQ-BFG-080, C): a band panel draws its hint in a strip by it (detailsPlan's `hint`). CARD-4 (REQ-BFG-004, K;
+  // READ-4 10.1: the first rigs' keywords never opened before the first fight): a strip is not a note, so the first
+  // sight opens beside it (its box kept off the strip: defBoxPlace); a hint drawn in the body (the column) still waits
+  const sightNow = sight && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint");
+  /** The next first sight: the rig sentence, else the first keyword not yet seen in reading order (true: one opened). */
+  const nextSight = (): boolean => {
+    if (rigSentenceRig(piece) && !rigSeen()) return (s.rig = true);
+    const w = sightWord([...body].sort(reading).map((t) => t.word));
+    if (w && tap) s.word = glossaryEntry(w)?.word ?? w;
+    else if (w) s.auto = w;
+    return !!w;
+  };
   if (!s.opened) {
     s.opened = true;
-    // CARD-3 (REQ-BFG-080, C): a band panel draws its hint in a strip by it (detailsPlan's `hint`). CARD-4 (REQ-BFG-004, K;
-    // READ-4 10.1: the first rigs' keywords never opened before the first fight): a strip is not a note, so the first
-    // sight opens beside it (its box kept off the strip: defBoxPlace); a hint drawn in the body (the column) still waits
-    if (sight && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) {
-      if (rigSentenceRig(piece) && !rigSeen()) s.rig = true;
-      else {
-        const w = sightWord([...body].sort(reading).map((t) => t.word));
-        if (w && tap) s.word = glossaryEntry(w)?.word ?? w;
-        else if (w) s.auto = w;
-      }
-    }
+    if (sightNow) s.chain = nextSight();
+  } else if (s.chain && sightNow && s.word === null && s.auto === null && !s.rig && s.page === null && !onIcon
+    && !(!tap && pm.kind === "mouse" && !pm.down && targets.some((t) => inside(t.r, pm.x, pm.y)))) {
+    // CARD-5 (REQ-BFG-004, K; READ-5 11.1 run F: SPOTTER's AIM never opened, as K1 showed one keyword per open): the note
+    // that opened by itself has closed (any press closes it, a tap on its word too) and no box shows (no word's, no view,
+    // no hover or icon tooltip), while the panel is still open: the next keyword not yet seen opens its note the same way,
+    // one at a time, until none is left; one left when the panel closes opens on a later open, as before. A box the player
+    // opened himself waits for its own close (two boxes never show at once)
+    s.chain = nextSight();
   }
   // the shown definition covers the panel's bottom rows: the words under it are not targets meanwhile
   const shown = s.word ? words.find((w) => w.word === s.word) ?? targets.find((t) => t.word === s.word) : undefined;

@@ -20,6 +20,7 @@ import { choicesFor, eventFor, pickChoice } from "../src/game/events";
 import { floorRecord, isReachable, PATCH_UP_LIVES, reachableRecords } from "../src/net/records";
 import { eligible, noBetterRecord } from "../src/net/matchmaking";
 import { validateBuild, validateUpload } from "../src/net/validate";
+import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import { ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { encodeStarred } from "../src/sim/standInPool";
 import { checkPool, SeedError, seedStore } from "../server/seed";
@@ -146,8 +147,22 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
     expect([SAMPLE.length, FLOOR.length]).toEqual([40, 20]);
     for (const s of POOL) {
       expect(s.rules).toBe(RULES_VERSION);
-      expect(validateUpload(s.build, s.day, s.rules), `${s.playerId} d${s.day}`).toEqual({ ok: true, errors: [] });
-      expect(validateBuild(s.build, s.day).ok).toBe(true);
+      // S8c (RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3); cause a48010b: with NPC_DAY on, a road-fed deck
+      // spends the road's drops too, by design): the seed ghosts are drawn from the stand-in pool regenerated once with every
+      // switch on (P1 83c039d), so a seed ghost is road-fed (its run fought a warlord each day) and its deck may hold the road's
+      // gold and drops. Its drops count through its road log, in the player mode; the strict mode's budget line (the shop's gold
+      // alone) counts neither. So each ghost is held, as seedGhost holds it, to validateUpload in the player mode with its road
+      // log and run seed (seedGhost's check; checkPool's since T1d; was validateUpload(s.build, s.day, s.rules) with no road
+      // log: sample-weaver-0 d1 "budget: build costs 14 gold (items 8, mods 0, 0 crates, 0 plating, turrets 6) but a player's
+      // day 1 allows at most 13 (maxGoldByDay 8 + roadCap 5)") AND to validateBuild's lines minus at most its ONE budget line
+      // (matched by its "budget: " prefix, and only while NPC_DAY is on: off, the strict check stays whole; was
+      // validateBuild(s.build, s.day).ok toBe(true) whole).
+      const up = validateUpload(s.build, s.day, s.rules, { ...(s.seed !== undefined ? { seed: s.seed } : {}), ...(s.road ? { road: s.road } : {}) });
+      expect(up, `${s.playerId} d${s.day}: the player mode with its road log and run seed`).toEqual({ ok: true, errors: [] });
+      const strict = validateBuild(s.build, s.day).errors;
+      const budget = npcDayRules() ? strict.filter((e) => e.startsWith("budget: ")) : [];
+      expect(budget.length, `${s.playerId} d${s.day}: at most its one budget line`).toBeLessThanOrEqual(1);
+      expect(strict.filter((e) => !budget.includes(e)), `${s.playerId} d${s.day}: every other strict line`).toEqual([]);
     }
     expect(checkPool(POOL)).toHaveLength(120); // 0.8.0 RC: was 60
   });
@@ -201,16 +216,21 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // moved; title "the sample ghosts' 4 and 25, plus the floor ghosts' 4 and 16" -> 6 and 26, 3 and 15
   // Z-BUMP (the pools): the stand-in pool regenerated once under bb-0.9.7 (2c4ba76), so the sample and floor decks drawn
   // from it moved; title "the sample ghosts' 6 and 26, plus the floor ghosts' 3 and 15" -> 9 and 23, 2 and 14
-  it("keeps its turret and join decks: the sample ghosts' 9 and 23, plus the floor ghosts' 2 and 14 (each a deck of its own)", () => {
+  // S8c (the pools): the stand-in pool regenerated once with every switch on as shipped (P1 83c039d, NPC_DAY on: road-fed decks),
+  // so the sample and floor decks drawn from it moved; title "the sample ghosts' 9 and 23, plus the floor ghosts' 2 and 14" ->
+  // 23 and 27, 2 and 10
+  it("keeps its turret and join decks: the sample ghosts' 23 and 27, plus the floor ghosts' 2 and 10 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
     // BAL-2 (c5e4780, the pools changed): [3, 24] -> [4, 25]
     // Y7b2 (the pools): was [4, 25] (4d772e4, the pool regenerated on bb-0.9.3)
     // Z-BUMP (the pools): was [6, 26] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
-    expect(carry(SAMPLE)).toEqual([9, 23]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
+    // S8c (the pools): was [9, 23] (P1 83c039d, the stand-in pool regenerated once with every switch on, NPC_DAY on)
+    expect(carry(SAMPLE)).toEqual([23, 27]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
     // BAL-2 (c5e4780, the pools changed): [2, 14] -> [4, 16]
     // Y7b2 (the pools): was [4, 16] (4d772e4, the pool regenerated on bb-0.9.3)
     // Z-BUMP (the pools): was [3, 15] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
-    expect(carry(FLOOR)).toEqual([2, 14]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
+    // S8c (the pools): was [2, 14] (P1 83c039d, the stand-in pool regenerated once with every switch on, NPC_DAY on)
+    expect(carry(FLOOR)).toEqual([2, 10]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
     for (const f of FLOOR) {
       const same = SAMPLE.filter((s) => s.day === f.day && s.hero === f.hero).map((s) => encodeStarred(s.build));
       expect(same).toHaveLength(2);

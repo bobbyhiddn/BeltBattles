@@ -13,6 +13,12 @@
 // is the measured 0.667, not 2/3: the cut is a whole count, and 2/3 would keep 2 of 3 (the bench's 0.6 read, which
 // overshot the 3-win band). R1's mirror for winning records (cap's answer 1, RUN-1's to tune): PickRule.lead, a number
 // pair; absent means off.
+// S8 run 3 (REQ-BFG-092; RULING-S8-R8, cause "PICK_RULE re-tuned on the regenerated pool"): THE NUMBERS NOW are R8's V4,
+// { losing 1, deep 0.5, deepAt 2 }: a record 1 loss behind meets the whole field; 2 or more behind meets the weakest
+// ceil(0.5 x n) of its n eligible ghosts (1 of 1-2, 2 of 3-4, 3 of 5-6). On the regenerated seed pool (S8's c6d3445) the
+// numbers above read c5 >=3W 38% (B/output-s8/bench/bands-r7.md: retune1 --set allon --also open, 96 seeds a hero); R8's
+// rule chose V4 among four variants at 48 seeds (bands-r8v-V3..V6) and it was confirmed at 96 seeds a hero
+// (B/output-s8/bench/bands-r8.md): c5 3.18 wins, 0W 3%, >=3W 74% (in its 60-80% band; no wins count over 40%); par 5.10.
 //
 // THE GRADE: a seed ghost's vsPar (its win rate against the four par fields' first GRADE_K members of its day, GRADE_SEEDS
 // seeds from both sides), written into its snapshot by the seed step (tools/samplePool.ts) only with PICK on, as an
@@ -68,8 +74,9 @@ export interface PickRule {
   lead?: { share: number; at: number };
 }
 
-/** The tuned numbers (output-retune1/bench c5E-allon; REPORT section 4). */
-export const PICK_RULE: Readonly<PickRule> = { losing: 1, deep: 0.667, deepAt: 3 };
+/** The tuned numbers: RULING-S8-R8's V4, re-tuned on the regenerated pool (B/output-s8/bench/bands-r8.md). Was
+ *  { losing: 1, deep: 0.667, deepAt: 3 } (output-retune1/bench c5E-allon; RETUNE-1's REPORT section 4). */
+export const PICK_RULE: Readonly<PickRule> = { losing: 1, deep: 0.5, deepAt: 2 };
 
 /** The seed step's grade: the par fields' first GRADE_K members a hero, GRADE_SEEDS seeds from both sides (cap's answer 5:
  *  the bench was read with K 6 x 1 seed, so the pick ships as measured). */

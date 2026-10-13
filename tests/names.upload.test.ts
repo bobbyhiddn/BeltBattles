@@ -240,7 +240,9 @@ describe("ghosts:admin revalidate: an upload under this build's rules needs its 
     expect(uploadProblems(rec({ ...s, name: "anna" }), RULES_VERSION)).toEqual(["strict decode: name: bad characters"]);
     // FLIP-X2: the older-rules upload is the rune-less v2 deck an older client sent (was the v3 seed deck holding its day's
     // runes under bb-0.6.1, which the rules gate refuses: runes need bb-0.8.7); no runes, so no rune hull/belt and no seed
-    const { seed: _seed, ...rest } = s;
+    // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and no road log, v3 only and
+    // gated by NPC_DAY's rules ("snapshot.road: not allowed in a v2 snapshot")
+    const { seed: _seed, road: _road, ...rest } = s;
     const { runes, ...build } = s.build;
     const g = runeGrants(runes, s.day);
     // HULL-ON (the flip, HEARTS): on its own rules' 5-lives scale: s (day 1, 0W) is the shipped pool's, 10 hearts, which the
