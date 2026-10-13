@@ -54,8 +54,12 @@ export function checkPool(snapshots: readonly unknown[], rules = RULES_VERSION):
       // AZ-BUMP (REQ-BFG-078, REQ-BFG-077; REVIEW-PARAZ N3, BRIEF-AZBUMP S3): with NPC_DAY on a seed ghost carries its run's
       // road log (tools/samplePool.ts), and the player mode counts a deck's drops only through it (validate.ts
       // roadDropValue), so it goes in as ctx.road, as an upload's does (server/app.ts); a snapshot without one: as before
+      // S8 T1d (REQ-BFG-092, REQ-BFG-078; RULING-S8-R1 item 2): and its run seed, when it carries one, as T1a's loader
+      // (src/net/fallback.ts) and seedGhost (tools/samplePool.ts) pass it. With the seed the player mode re-derives the road
+      // log's warlords and seeded drops, each dawn's rune offer and LAST CHANCE's offer (validate.ts roadProblem, runeProblem,
+      // lastChanceProblem); without it only their seed-blind lines run. Each key only when the snapshot carries it
       const lc = snapshot.lastChance;
-      const v = validateUpload(snapshot.build, snapshot.day, snapshot.rules, { ...(lc ? { lastChance: lc } : {}), ...(snapshot.road ? { road: snapshot.road } : {}) });
+      const v = validateUpload(snapshot.build, snapshot.day, snapshot.rules, { ...(snapshot.seed !== undefined ? { seed: snapshot.seed } : {}), ...(lc ? { lastChance: lc } : {}), ...(snapshot.road ? { road: snapshot.road } : {}) });
       if (!v.ok) throw new Error(`validateUpload: ${v.errors.join("; ")}`);
       if (!isReachable(snapshot.day, snapshot.wins, snapshot.lives, { rules: snapshot.rules, ...(lc ? { lastChance: lc.day } : {}) })) {
         throw new Error(`record ${snapshot.wins}W ${snapshot.lives} lives: no run carries it into dusk ${snapshot.day}`);
