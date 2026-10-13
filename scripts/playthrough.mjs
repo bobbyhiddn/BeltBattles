@@ -4,6 +4,9 @@
 // -> DUSK vs the ghost from a pre-seeded local pool (or a stand-in). The run reloads the page once
 // mid-battle, taps CONTINUE and checks it fights the same ghost; day 1 exercises 0.5X, II pause and
 // 4X; later days SKIP. It plays on to the end screen (or stops after `days` days).
+// MERGE-099E (BRIEF-MERGE-099E step 2): with NPC_DAY on (src/sim/npcDay.ts) the ROAD is the fork's warlord, its result's
+// ON TO THE ROAD, the day's event and REFIT before every dusk, as a player plays it (roadstop.mjs, refitToDusk); a dusk
+// deck's honesty counts NPC_DAY's road allowance (foeOf). Off: as before.
 
 import { roadStop } from "./roadstop.mjs";
 import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
@@ -14,7 +17,7 @@ export async function settle(page, screen, timeout = 20000) {
   await page.waitForFunction((s) => window.bb.screen() === s && !window.bb.game.transitioning, screen, { timeout });
 }
 
-async function settleAny(page, screens, timeout = 20000) {
+export async function settleAny(page, screens, timeout = 20000) {
   await page.waitForFunction((s) => s.includes(window.bb.screen()) && !window.bb.game.transitioning, screens, { timeout });
   return page.evaluate(() => window.bb.screen());
 }
@@ -182,9 +185,10 @@ export async function road(page, touch, log, at, state) {
     const sc = window.bb.game.screen, run = window.bb.game.run;
     return { id: run.event.id, day: run.day, gold: run.gold, choices: sc.choices.map((c) => ({ label: c.label, blocked: c.blocked || "", item: c.gain.some((d) => d.k === "item") })) };
   });
-  log(`[${at()}] FIGHT -> ROAD EVENT ${ev.id} (day ${ev.day}, ${ev.gold} gold): ${ev.choices.map((c, i) => `${i + 1} ${c.label}${c.blocked ? ` [${c.blocked}]` : ""}`).join(" | ")}`);
-  // 0.6.0c: the run's `take` list names a choice to take at an event (desk: HERALD's STAKE, SCOUT's SPY)
-  const want = state.take[ev.id];
+  log(`[${at()}] ${state.npcDay ? "ROAD EVENT (after the fight)" : "FIGHT -> ROAD EVENT"} ${ev.id} (day ${ev.day}, ${ev.gold} gold): ${ev.choices.map((c, i) => `${i + 1} ${c.label}${c.blocked ? ` [${c.blocked}]` : ""}`).join(" | ")}`);
+  // 0.6.0c: the run's `take` list names a choice to take at an event (desk: HERALD's STAKE, SCOUT's SPY). MERGE-099E: with
+  // NPC_DAY on an event comes every day, so a take is taken once (the first day its event comes)
+  const want = state.npcDay && state.took[ev.id] ? null : state.take[ev.id];
   let pick = want ? ev.choices.findIndex((c) => c.label === want[0] && !c.blocked) : -1;
   if (want) {
     if (pick >= 0) state.took[ev.id] = ev.day;
@@ -201,12 +205,16 @@ export async function road(page, touch, log, at, state) {
     // 0.6.0b SCOUT: the revealed deck is tonight's stored dusk foe; then FIGHT NOW (dusk must fight it)
     const spied = await page.evaluate(() => { const d = window.bb.game.run.dusk; return { name: d.name, build: JSON.stringify(d.build) }; });
     state.scouted = spied;
-    log(`[${at()}] SCOUT REPORT: tonight's dusk is ${spied.name}; REFIT / FIGHT NOW -> FIGHT NOW`);
-    await page.waitForFunction(() => window.bb.game.screen.pt > 0.7, null, { timeout: 5000 });
-    await tapRegion(page, touch, "fightnow");
-    await settle(page, "battle");
-    return;
+    log(`[${at()}] SCOUT REPORT: tonight's dusk is ${spied.name}; ${state.npcDay ? "REFIT (NPC day: the one way on) -> FIGHT" : "REFIT / FIGHT NOW -> FIGHT NOW"}`);
+    if (!state.npcDay) {
+      await page.waitForFunction(() => window.bb.game.screen.pt > 0.7, null, { timeout: 5000 });
+      await tapRegion(page, touch, "fightnow");
+      await settle(page, "battle");
+      return;
+    }
   }
+  // MERGE-099E (NPC_DAY on): the event's one way on is REFIT (event.ts: no FIGHT NOW, nothing rolls on by itself)
+  if (state.npcDay) return refitToDusk(page, touch, log, at, state, after.item || null);
   if (after.item) {
     await page.waitForFunction(() => window.bb.game.screen.pt > 0.7, null, { timeout: 5000 });
     if (!state.refitDone) {
@@ -225,12 +233,47 @@ export async function road(page, touch, log, at, state) {
   log(`[${at()}] -> DUSK`);
 }
 
+/**
+ * MERGE-099E (BRIEF-MERGE-099E step 2; NPC_DAY on: src/game/road.ts, src/screens/event/event.ts): REFIT comes before every
+ * dusk, the day's event's one way on (or, past an event already picked, where ON TO THE ROAD goes). On the event's
+ * outcome tap REFIT once it shows; on the refit build screen place a part from cargo as a player does, the one today's
+ * road brought (the event's part, `item`, or the warlord's drop, state.drop): the run's first of each, as the road's
+ * REFIT ONCE did before NPC_DAY (state.refitDone, state.warlordRefit); never on the desk run's weaken day (state.bare: its
+ * dusk fights the bare starting deck by construction, 0.6.1r F2); then FIGHT, to dusk.
+ */
+export async function refitToDusk(page, touch, log, at, state, item) {
+  if ((await page.evaluate(() => window.bb.screen())) === "event") {
+    await page.waitForFunction(() => window.bb.game.screen.pt > 0.7 && window.bb.regions().some((r) => r.id === "refit"), null, { timeout: 10000 });
+    await tapRegion(page, touch, "refit");
+  }
+  await settle(page, "build");
+  const first = (item && !state.refitDone) || (state.drop && !state.warlordRefit);
+  let def = null;
+  if (first && !state.bare) {
+    def = await placePlanned(page, touch);
+    if (item && !state.refitDone) state.refitDone = true;
+    if (state.drop && !state.warlordRefit) state.warlordRefit = true;
+  }
+  const brought = [item, state.drop].filter(Boolean).join(" and ");
+  state.drop = null;
+  log(`[${at()}] REFIT${brought ? ` (${brought} in cargo)` : ""} -> ${def ? `placed ${def} from cargo` : state.bare && first ? "nothing placed (the weaken day: the dusk fights the bare starting deck)" : "nothing placed"} -> FIGHT`);
+  await tapRegion(page, touch, "fight");
+  await settle(page, "battle");
+  log(`[${at()}] -> DUSK`);
+}
+
 // M3b: every dusk foe is logged with its hullBonus and deckCost against the day's gold budget
 // STAGE-090 (cap's ruling eaf260a2a192acf6): the rune-aware rule of the unit tests (standin.honest, captains.luck;
 // standins.ts boughtCost). Since FLIP-X2 a stand-in fights with its captain's runes, whose HULL and BELT sit on the build:
 // `bought` is deckCost with the runes' hull and belt taken out (runeGrant(b, 0), as boughtCost), and the budget gains the
 // runes' gold by the dusk (runeGrant(b, day).gold). A rune-less foe reads exactly as before (bought = cost, runeGold 0).
-const foeOf = (page) => page.evaluate(() => {
+// MERGE-099E (NPC_DAY on): the unit tests' rule since AZ-BUMP's flip (tests/standin.honest: boughtCost <= maxGoldByDay(d)
+// + the runes' dawn gold + roadAllowance(d, "dusk")): a dusk deck may also hold the road's value by that dusk (the warlord
+// gold and the drops: REFIT-AZ). The page has no hook for it, so this is src/sim/rivalBuilds.ts NPC_ROAD.dusk (table A2),
+// by day (days past 10 read day 10's); NPC_DAY off: 0, as roadAllowance.
+const NPC_ROAD_DUSK = [3, 10, 15, 20, 24, 29, 35, 40, 44, 48];
+const roadDusk = (day) => NPC_ROAD_DUSK[Math.max(1, Math.min(NPC_ROAD_DUSK.length, Math.floor(day))) - 1];
+const foeOf = (page, npc = false) => page.evaluate(() => {
   const d = window.bb.game.run.dusk;
   if (!d) return d;
   const g = window.bb.runeGrant(d.build, 0);
@@ -242,17 +285,18 @@ const foeOf = (page) => page.evaluate(() => {
     runeGold: window.bb.runeGrant(d.build, d.day).gold,
     mine: window.bb.deckCost(window.bb.game.run.build),
   };
-});
-const honestFoe = (f) => f.hull >= 0 && f.hull % 25 === 0 && f.bought <= f.budget + f.runeGold;
-// STAGE-090: a rune-holding foe shows both numbers, a rune-less one reads as before
-const costLine = (f) => (f.runes ? `deckCost ${f.cost} (bought ${f.bought}) of ${f.budget} + ${f.runeGold} rune gold` : `deckCost ${f.cost} of ${f.budget} gold`);
+}).then((f) => f && { ...f, road: npc ? roadDusk(f.day) : 0 });
+const honestFoe = (f) => f.hull >= 0 && f.hull % 25 === 0 && f.bought <= f.budget + f.runeGold + (f.road || 0);
+// STAGE-090: a rune-holding foe shows both numbers, a rune-less one reads as before. MERGE-099E: NPC_DAY's road allowance
+const roadPart = (f) => (f.road ? ` + ${f.road} road (NPC day)` : "");
+const costLine = (f) => (f.runes ? `deckCost ${f.cost} (bought ${f.bought}) of ${f.budget} + ${f.runeGold} rune gold${roadPart(f)}` : `deckCost ${f.cost} of ${f.budget} gold${roadPart(f)}`);
 // 0.6.2 TUNE-C: a stand-in brings its captain's named build (standInBuild: the plan at ordinary luck, whole paid
 // plating, at most the day's gold); 0.6.0d-0.6.2 it was a full-purse stand-in pool deck (>= ceil(0.9 x budget))
 const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, ${costLine(f)}: ${honestFoe(f) ? "honest" : "NOT HONEST"}${f.kind === "standin" ? `, ${f.name}'s named build` : ""}; your deck ${f.mine}`;
 
 /** Reload the page mid-battle, CONTINUE from the title, and check the same ghost comes back. */
 async function reloadAndContinue(page, touch, log, at, state) {
-  const before = await foeOf(page);
+  const before = await foeOf(page, !!state.npcDay);
   await page.reload();
   await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title", null, { timeout: 15000 });
   const sub = await page.evaluate(() => window.bb.game.screen.save && { day: window.bb.game.screen.save.day, stage: window.bb.game.screen.save.stage });
@@ -262,7 +306,7 @@ async function reloadAndContinue(page, touch, log, at, state) {
   const dawn = await page.evaluate(() => ({ foe: window.bb.game.screen.foe.name, refit: window.bb.game.screen.refit }));
   await tapRegion(page, touch, "fight");
   await road(page, touch, log, at, state);
-  const again = await foeOf(page);
+  const again = await foeOf(page, !!state.npcDay);
   const same = !!before && !!again && before.name === again.name && before.build === again.build && before.day === again.day;
   state.reloadSame = same;
   log(`[${at()}] CONTINUE -> refit build (refit ${dawn.refit}, NEXT BATTLE ${dawn.foe}) -> FIGHT -> dusk vs ${again.name}: same ghost as before the reload (name + build): ${same}`);
@@ -411,7 +455,10 @@ export async function scriptedRun(page, touch, log, opts) {
     const parts = [];
     // keep today's STAKE / SPY affordable when the road goes to that event
     const today = await page.evaluate(() => window.bb.forkInfo().event);
-    const want = ((opts.roads || "")[day - 1] || "v") === "v" ? state.take[today] : null;
+    // MERGE-099E: with NPC_DAY on (state.npcDay, from the first fork) the day's event comes every day, after the fight:
+    // keep a take's gold on any day its event comes, until it is taken
+    const evDay = state.npcDay ? !state.took[today] : ((opts.roads || "")[day - 1] || "v") === "v";
+    const want = evDay ? state.take[today] : null;
     const reserve = want ? want[1] : 0;
     // backing a stake: the dawn before the bounty's Hard warlord spends freely (else 2 gates a day)
     const backing = ((opts.roads || "")[day - 1] || "v") === "h" && !!state.took.herald && !state.bountyLog;
@@ -429,9 +476,10 @@ export async function scriptedRun(page, touch, log, opts) {
     const spent = spend ? await page.evaluate((g) => ({ gold: window.bb.game.run.gold, deck: window.bb.deckCost(window.bb.game.run.build), spent: g - window.bb.game.run.gold }), gold0) : null;
     if (parts.length || reserve || backing) log(`[${at()}] ${touch ? "touch drag" : "drag"}: ${parts.join(", ") || "nothing"}${reserve ? ` (keeping ${reserve} gold for ${today}'s ${want[0]})` : ""}${backing ? " (backing the bounty: buying all it can)" : ""}${spent ? ` [FB-C spend: ${rerolls} reroll(s), gold ${gold0} -> ${spent.gold} (spent ${spent.spent}), deck ${spent.deck}]` : ""}`);
     if (day === opts.weakenDay) state.stored = await weakenDeck(page, touch, log, at, state.startUids);
+    state.bare = day === opts.weakenDay; // MERGE-099E: NPC_DAY's REFIT before this dusk places nothing (refitToDusk)
     await tapRegion(page, touch, "fight");
     await roadStop(page, touch, log, at, state, (opts.roads || "")[day - 1] || "v", day === opts.reloadWarlordDay);
-    const foe = await foeOf(page);
+    const foe = await foeOf(page, !!state.npcDay);
     if (foe.kind === "ghost") state.ghosts++;
     else state.standins++;
     state.foes++;
@@ -497,7 +545,7 @@ export async function scriptedRun(page, touch, log, opts) {
   const days = end.days.length;
   const fp = state.forkPicks;
   log(`[${at()}] road: ${state.dayLog.map((d) => `D${d.day} ${d.road}`).join(" | ")}`);
-  log(`[${at()}] fork picks: event ${fp.v || 0}, easy ${fp.e || 0}, medium ${fp.m || 0}, hard ${fp.h || 0} (by tap: ${state.tapPicks}); warlord losses ${state.warlordLosses.join("; ") || "none"}; lives changed by a warlord: ${state.livesChanged.join(", ") || "never"}; Matriarch met on day(s) ${state.matriarchDays.join(", ") || "-"}; reload mid-warlord kept the fight: ${state.reloadWarlordSame}`);
+  log(`[${at()}] fork picks: event ${fp.v || 0}${state.npcDay ? " (NPC day: the day's event, after its fight)" : ""}, easy ${fp.e || 0}, medium ${fp.m || 0}, hard ${fp.h || 0} (by tap: ${state.tapPicks}); warlord losses ${state.warlordLosses.join("; ") || "none"}; lives changed by a warlord: ${state.livesChanged.join(", ") || "never"}; Matriarch met on day(s) ${state.matriarchDays.join(", ") || "-"}; reload mid-warlord kept the fight: ${state.reloadWarlordSame}`);
   log(`[${at()}] dusk spend (deckCost/budget): ${state.spend.join(" | ")}`);
   if (opts.check === "fresh") {
     // 0.6.0d feel check (logged, not pass/fail): never throws on the outcome
