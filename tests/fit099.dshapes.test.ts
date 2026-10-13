@@ -4,7 +4,9 @@
 // the two rows, D's rules in both, the late table and step unmoved, and withShapes leaving the state it found.
 import { describe, expect, it } from "vitest";
 import { DMG_MUL_STEP_TENTHS, DMG_MUL_TENTHS_LATE, dayMulTenths, dmgMulTenths } from "../src/sim/hullScale";
-import { SHAPES, SHAPES_DMG_TENTHS, shapesRules, withShapes } from "../src/sim/shapes";
+import { SHAPES, SHAPES_DMG_TENTHS, SHAPES_PLANS, shapesRules, withShapes } from "../src/sim/shapes";
+import { PLANS } from "../src/sim/rivalBuilds";
+import { freeJoinsRules } from "../src/sim/freeJoins";
 
 const row = (n = 10): number[] => Array.from({ length: n }, (_, i) => dmgMulTenths(i + 1));
 const ON = [10, 13, 16, 17, 18, 20, 21, 23, 24, 26];
@@ -35,5 +37,22 @@ describe("FIT-099: D on days 3-5 behind SHAPES (RULING-FIT-R1)", () => {
       for (let d = 0; d < 30; d++) expect(D[d]).toBeLessThanOrEqual(M[d]);
       for (let d = 3; d < 10; d++) expect(M[d] / D[d]).toBeGreaterThanOrEqual(M[d - 1] / D[d - 1]);
     }
+  });
+});
+
+// FIT-099's captains pass (REQ-BFG-092, REQ-BFG-086; BRIEF-FIT099 F2; RULING-FIT-R1 section 3), test only: shapes.ts
+// SHAPES_PLANS, handed PLANS by rivalBuilds.ts's last statement: THANE KARSK's day-10 road PvE plates 2 while SHAPES is on
+// (his warlord 81.4 -> 79.2 on J5's measure), none listed while off (pve[10], 3, reads); FREE_JOINS_PLANS' day 9 untouched.
+describe("FIT-099: the captains' plan numbers behind SHAPES (SHAPES_PLANS)", () => {
+  it("KARSK's pveRoad[10] is 2 with SHAPES on and absent with it off; withShapes leaves the state it found", () => {
+    expect(SHAPES_PLANS).toEqual({ "karsk.pveRoad.10": 2 });
+    const was = shapesRules();
+    expect(withShapes(() => PLANS.karsk.pveRoad?.[10], true)).toBe(2);
+    expect(withShapes(() => PLANS.karsk.pveRoad?.[10], false)).toBeUndefined();
+    expect(withShapes(() => Object.keys(PLANS.karsk.pveRoad ?? {}), false)).not.toContain("10");
+    expect(PLANS.karsk.pve?.[10]).toBe(3);
+    expect(shapesRules()).toBe(was);
+    expect(PLANS.karsk.pveRoad?.[10]).toBe(was ? 2 : undefined);
+    expect(PLANS.karsk.pveRoad?.[9]).toBe(freeJoinsRules() ? 1 : 2); // FREE_JOINS_PLANS' own number, not this table's
   });
 });
