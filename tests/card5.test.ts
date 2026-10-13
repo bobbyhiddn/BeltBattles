@@ -272,3 +272,142 @@ describe("CARD-5 (H): HOW TO PLAY names the kinds and the keywords (REQ-BFG-111;
     console.log(`CARD5 (H) the card:\n${out.join("\n")}`);
   });
 });
+
+// --------------------------------------------------------------------------- K: every first-sight note, in turn
+import { afterEach, beforeEach } from "vitest";
+import { newRun, type DuskFoe, type Run } from "../src/game/run";
+import { UI } from "../src/ui/ui";
+import { TAP_CSS } from "../src/ui/tap";
+import { buildLayout, buildScale, panelArea, phoneBarLift, phoneScreen, type Sel } from "../src/screens/build/layout";
+import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar";
+import { drawDetails, panelFit } from "../src/screens/build/inspector";
+import { keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
+import { kwSight, setTipsForTests, sightDone } from "../src/ui/tips";
+import { sightKey } from "../src/ui/firstSight";
+import type { Ctx } from "../src/screens/build/actions";
+import { key as KEY, rotField } from "../src/sim/deck";
+
+/** A localStorage for the store (tests/card4.test.ts's Mem). */
+class Mem {
+  private m = new Map<string, string>();
+  getItem(k: string): string | null { return this.m.has(k) ? this.m.get(k)! : null; }
+  setItem(k: string, v: string): void { this.m.set(k, String(v)); }
+  removeItem(k: string): void { this.m.delete(k); }
+}
+const gl = globalThis as unknown as { localStorage?: unknown };
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+/** The build screen's frame on a CSS viewport (tests/card4.test.ts's framed). */
+function framed(w: number, h: number, dpr: number, runes = 1, offers = 5) {
+  const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr), portrait = ph > pw * 1.05;
+  const fake = { run: { build: { runes: Array.from({ length: runes }, () => ({ id: "many_hands" })) } }, refit: false, offers: () => Array.from({ length: offers }) } as unknown as Parameters<typeof runeRowFits>[0];
+  let S = buildScale(pw, ph, portrait, dpr);
+  while (S > 1 && !runeRowFits(fake, pw, ph, portrait, S, dpr)) S--;
+  const isPh = phoneScreen(pw, ph, dpr), phone = portrait && isPh, tap = isPh ? Math.ceil(TAP_CSS / (S / dpr)) : 0;
+  const v = { scale: S, dpr }, W = Math.floor(pw / S), H = Math.floor(ph / S);
+  const lay = (unit: number) => {
+    const row = runeRowH(v, runes), lift = phone ? phoneBarLift(W, H, offers, tap, runeRowH(v, 1)) : 0;
+    return shiftLayout(buildLayout(W, H - row, portrait, offers, phone, tap, lift, { scale: S, unit }), row, H);
+  };
+  const Z = lay(1).cam.z, unit = gcd(S, Z), sub = S / unit;
+  return { S, W, H, L: lay(unit), tap, phone, portrait, view: { W, H, scale: S, dpr, portrait, sub } };
+}
+/** A build screen's panel (tests/card4.test.ts's panelCtx): each draw a frame, the pointer off the panel. */
+function panelCtx(run: Run, sel: Sel, f: ReturnType<typeof framed>, touch: boolean) {
+  const ctx = { game: { ui: new UI(), t: 0, view: f.view, W: f.W, H: f.H }, run, touch, L: f.L } as unknown as Ctx;
+  const area = panelArea(f.L, sel, { touch, hover: false, busy: false }, panelFit(ctx, sel, !!f.L.phone));
+  const draw = () => {
+    const ui = (ctx.game as unknown as { ui: UI }).ui;
+    ui.pointer.kind = touch ? "touch" : "mouse";
+    Object.assign(ui.pointer, { x: -1, y: -1, down: false });
+    ui.begin();
+    drawDetails(gOf(fresh(f.W, f.H)), ctx, sel, null, area, {} as DuskFoe);
+    ui.end();
+    return ui;
+  };
+  return { ctx, draw };
+}
+/** Plays the panel's first sights: each frame records its note boxes (kwdef: a word's box; kwsight: the desk's first-sight
+ *  box or the rig sentence's) and what opened, then a press off every word closes it (keywordsPressed, as BuildScreen's
+ *  press does), until a frame opens nothing or `presses` run out. */
+function playSights(pc: ReturnType<typeof panelCtx>, touch: boolean, presses = 12): { opened: string[]; most: number } {
+  const opened: string[] = [];
+  let most = 0;
+  for (let i = 0; i <= presses; i++) {
+    const ui = pc.draw(), boxes = ui.regions.filter((q) => q.id === "kwdef" || q.id === "kwsight").length;
+    most = Math.max(most, boxes);
+    const st = keywordState(pc.ctx)!, what = st.rig ? "rig sentence" : touch ? st.word : st.auto;
+    if (!boxes || !what) break;
+    opened.push(what);
+    if (i < presses) keywordsPressed(pc.ctx, null);
+  }
+  return { opened, most };
+}
+const spotterRun = (): Run => {
+  const run = newRun("furnace", 5, "card5-k");
+  run.build.mods = [{ uid: 950, def: "spotter", turret: 0 }];
+  return run;
+};
+const FITTED: Sel = { kind: "fitted", uid: 950 };
+
+describe("CARD-5 (K): every keyword's first-sight note opens, one at a time (REQ-BFG-004)", () => {
+  beforeEach(() => { gl.localStorage = new Mem(); setTipsForTests("sight"); });
+  afterEach(() => { delete gl.localStorage; setTipsForTests("reload"); });
+
+  it("SPOTTER's fitted panel on 402x690 @3 (touch): PART's note, then AIM's when PART's closes while the panel is open; never two boxes; then none", () => {
+    const f = framed(402, 690, 3, 1), pc = panelCtx(spotterRun(), FITTED, f, true);
+    const { opened, most } = playSights(pc, true);
+    console.log(`CARD5 (K) SPOTTER fitted, touch: ${opened.join(" -> ")}`);
+    expect(opened.slice(0, 2)).toEqual(["PART", "AIM"]);
+    expect(new Set(opened).size).toBe(opened.length); // each once
+    expect(most).toBe(1);
+    for (const w of opened) expect(sightDone(kwSight(sightKey(w))), w).toBe(true);
+    // the panel again (closed, then opened): nothing left to open
+    keywordsIdle(pc.ctx);
+    expect(playSights(pc, true).opened).toEqual([]);
+  });
+
+  it("one left when the panel closes still opens on a later open, as before; the desk (mouse) opens them in turn too", () => {
+    const f = framed(402, 690, 3, 1), pc = panelCtx(spotterRun(), FITTED, f, true);
+    pc.draw();
+    expect(keywordState(pc.ctx)!.word).toBe("PART");
+    keywordsIdle(pc.ctx); // the panel closed with PART's note still up (done: its box was on screen)
+    const again = playSights(pc, true);
+    expect(again.opened[0]).toBe("AIM");
+    expect(again.most).toBe(1);
+    setTipsForTests("sight");
+    const d = framed(1440, 900, 1, 1), dk = panelCtx(spotterRun(), FITTED, d, false);
+    const desk = playSights(dk, false);
+    console.log(`CARD5 (K) SPOTTER fitted, desk: ${desk.opened.join(" -> ")}`);
+    expect(desk.opened.slice(0, 2)).toEqual(["PART", "AIM"]);
+    expect(desk.most).toBe(1);
+  });
+
+  it("a rig: the rig sentence first, then each of its keywords in turn (TEMPER placed: HIT, BURN); a box the player opens waits for its own close", () => {
+    const f = framed(402, 690, 3, 1);
+    // tests/card4.test.ts's furnaceRun: a KILN at 4,6 with its belt up column 4; the rig at 3,3 turned to it
+    const run = newRun("furnace", 5, "card5-k");
+    run.build = { hero: "furnace", items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 10, def: "temper", x: 3, y: 3, ...rotField("temper", 1) }],
+      routes: [{ factory: 1, cells: [KEY(4, 5), KEY(4, 4), KEY(4, 3), KEY(4, 2), KEY(4, 1), KEY(4, 0)] }], mods: [], beltCap: 40, hullBonus: 0 };
+    run.inventory = [];
+    const pc = panelCtx(run, { kind: "item", uid: 10 }, f, true);
+    const temper = playSights(pc, true);
+    console.log(`CARD5 (K) TEMPER placed, touch: ${temper.opened.join(" -> ")}`);
+    expect(temper.opened[0]).toBe("rig sentence");
+    expect(temper.opened).toContain("BURN");
+    expect([temper.most, new Set(temper.opened).size]).toEqual([1, temper.opened.length]);
+    // SPOTTER again: PART's note up by itself, the player taps AIM himself: his box takes its place (one box), and when it
+    // closes nothing is left
+    setTipsForTests("sight");
+    const sp = panelCtx(spotterRun(), FITTED, f, true);
+    const ui = sp.draw();
+    expect(keywordState(sp.ctx)!.word).toBe("PART");
+    const aim = ui.regions.find((q) => /^kw:\d+:AIM$/.test(q.id));
+    expect(aim, "AIM's word target").toBeDefined();
+    keywordsPressed(sp.ctx, aim!.id);
+    aim!.onTap?.();
+    const ui2 = sp.draw();
+    expect([keywordState(sp.ctx)!.word, ui2.regions.filter((q) => q.id === "kwdef" || q.id === "kwsight").length]).toEqual(["AIM", 1]);
+    keywordsPressed(sp.ctx, null);
+    expect(playSights(sp, true).opened).toEqual([]);
+  });
+});
