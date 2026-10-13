@@ -17,10 +17,15 @@ afterEach(() => setHullScale(true)); // the shipped value (AZ-BUMP's flip; was f
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 
-/** Five lost dusks (lc1.rule's play("LLLLL")): LAST CHANCE fires at the dusk of day 5 and its pick is pending. */
+/** HULL-ON (the flip, HEARTS): the LAST CHANCE day of a run that loses every dusk, 5 -> 6. A hearts run loses 9 8 7 5 3
+ *  hearts on days 1-5, and the loss of day 6 (it would leave 1 or fewer) fires LAST CHANCE (it sets 1); the 5-life run
+ *  (lc1.rule's play("LLLLL")) fired it at the dusk of day 5. */
+const LC_DAY = 6;
+
+/** LC_DAY lost dusks: LAST CHANCE fires at the dusk of day LC_DAY and its pick is pending. */
 function fired(hero: HeroId, seed: number): Run {
   const run = newRun(hero, seed, `hull1d-${hero}-${seed}`);
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < LC_DAY; i++) {
     const o = pendingRune(run);
     if (o) expect(takeRune(run, o.ids[0]).ok).toBe(true);
     finishDay(run, 1, 20, { ...Z }, { ...Z });
@@ -62,7 +67,7 @@ describe("HULL-1d: LAST CHANCE's PART card at ★2 (HULL_SCALE on only)", () => 
         const star = on ? 2 : 1;
         if (after.length === before.length + 1) expect(after.filter((s) => s === star).length).toBe(before.filter((s) => s === star).length + 1);
         else expect(after.length).toBe(before.length);
-        expect(run.lastChance).toEqual({ day: 5, boon: "part", id: def });
+        expect(run.lastChance).toEqual({ day: LC_DAY, boon: "part", id: def }); // HULL-ON (the flip, HEARTS): day 5 -> 6
         expect(valueOf(def, lastChancePartStars())).toBe(ITEMS[def].price * (on ? 2 : 1));
       }
     }

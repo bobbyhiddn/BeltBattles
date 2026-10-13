@@ -22,6 +22,7 @@
 // T() installs a bought turret in a slot (the extra slot, or replacing a starting turret) through deck.ts
 // installTurret, the game's own operation, and T2() buys a matching copy for another star. Captain plans never join belts.
 
+import { freeJoinsPlans } from "./freeJoins"; // HULL-ON run 6 (H4's captain pass): FREE_JOINS_PLANS' hand-over
 import {
   HEROES, ITEMS, START_GOLD, UPGRADE_PRICE, incomeFor, type HeroId, type Upgrades, type UpgradeTrack,
 } from "./content";
@@ -1386,3 +1387,8 @@ function maxGold(day: number): number {
   for (let d = 1; d < day; d++) g += incomeFor(d, true);
   return g;
 }
+
+// HULL-ON run 6, H4's captain pass (REQ-BFG-092; cap's ruling b1053c5415e8c7dc = RULING-HULLON-R12, RULING-HULLON-R13 ed10dd26da1a89fb): hand PLANS
+// over to freeJoins.ts, whose FREE_JOINS_PLANS holds the captains' plan numbers behind FREE_JOINS (the last statement of
+// this module's load, as runes.ts hands RUNES to guard.ts)
+freeJoinsPlans(PLANS);

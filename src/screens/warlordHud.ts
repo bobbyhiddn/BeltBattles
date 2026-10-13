@@ -17,6 +17,8 @@ import { fightBlock } from "../game/routeCheck";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
 import { drawHearts } from "./battleHud";
 import { VIEW_ROW_H, viewButton } from "./battleHud"; // SCOUT-1 (REQ-BFG-076): VIEW BATTLEFIELD on the card
+import { livesCap } from "../sim/hearts"; // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's 10
+import { lifeWord } from "../ui/stakes"; // RETUNE-1 run 2: HEART on a hearts run
 import { itemName } from "./event/cards";
 import { drawBadge } from "./build/shop";
 import { DROP_STARS, npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078); HULL-1b: DROP_STARS
@@ -75,12 +77,14 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
   drawText(g, w.name, x + 40, yy + 34, nameColor(w.id), { outline: C.ink });
   tag(g, TIER_LABEL[w.tier], x + 40, yy + 45, TIER_COLOR[w.tier]);
   // lives: never touched by a warlord
-  drawHearts(g, x + cw - 10 - START_LIVES * 6, yy + 34, run.lives);
-  drawText(g, "NO LIFE LOST", x + cw - 10, yy + 44, win ? C.slate4 : C.lime, { font: "3", align: "right" });
+  // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's 10 in two rows of 5 (today's width, over the line) and HEART in the words
+  const hc = livesCap(run);
+  drawHearts(g, x + cw - 10 - START_LIVES * 6, yy + (hc > START_LIVES ? 31 : 34), run.lives, 0, -1, -1, hc, START_LIVES);
+  drawText(g, `NO ${lifeWord(run)} LOST`, x + cw - 10, yy + 44, win ? C.slate4 : C.lime, { font: "3", align: "right" });
   let ry = yy + 62;
   rect(g, x + 8, ry - 4, cw - 16, 1, C.slate1);
   if (!win) {
-    drawText(g, "REWARD FORFEIT · WARLORDS NEVER COST A LIFE", W / 2, ry + 2, C.bone, { font: "3", align: "center" });
+    drawText(g, `REWARD FORFEIT · WARLORDS NEVER COST A ${lifeWord(run)}`, W / 2, ry + 2, C.bone, { font: "3", align: "center" });
     ry += 12;
   } else {
     const bounty = r.bountyPaid > 0 ? ` (BOUNTY +${r.bountyPaid})` : "";

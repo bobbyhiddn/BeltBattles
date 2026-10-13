@@ -5,6 +5,14 @@
 // presets, fixtures/beltside-062/inline-presets.json), each through migrateInlineGates (D3). A failure means
 // the BELTSIDE battle or the migration changed. E1 adds Furnace's long-belt cadence, so current battles are
 // frozen separately in fixtures/beltside-062-e1/golden.json. The M1 fixture stays intact.
+// HULL-ON (bb-0.10.0, FREE_JOINS; src/sim/freeJoins.ts FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9;
+// re-recorded by RULING-HULLON-R10 0bbcee55b6ba281a (b)): WEAVER's hull 1700 -> 1500 with free joins on moves every battle
+// with a WEAVER deck: all 172 golden-060 rows (each fights a WEAVER deck; 21 winners flipped) and the six WEAVER warlord
+// matchups' 240 rows (26 flipped; side 0 / side 1 / tie 1700 -> 1500: r5 FURNACE v WEAVER 40 / 0 / 0 and WEAVER v FURNACE
+// 0 / 40 / 0 unchanged, r5 WEAVER mirror 18 / 21 / 1 unchanged, r10 FURNACE v WEAVER 39 / 1 / 0 -> 40 / 0 / 0, r10 WEAVER v
+// FURNACE 1 / 39 / 0 -> 0 / 40 / 0, r10 WEAVER mirror 18 / 22 / 0 -> 24 / 16 / 0), re-recorded with the line below on the
+// HULL-ON WIP; the FURNACE mirrors' 80 rows came out byte-identical. Cause check: with FREE_JOINS_HULL = {} it passes as
+// recorded (c4e8504).
 //   BB_E1_GOLDEN_WRITE=1 npx vitest run tests/golden.beltside.test.ts
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

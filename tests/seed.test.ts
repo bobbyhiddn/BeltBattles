@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RULES_VERSION } from "../src/sim/content";
+import { RULES_VERSION, START_LIVES } from "../src/sim/content"; // HULL-ON (the flip, HEARTS): START_LIVES, older rules' 5 lives
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): every heart a run starts with
 import { ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
 import { runeGrants } from "../src/sim/runes";
 import { createGhostServer } from "../server/app";
@@ -21,12 +22,21 @@ const BUNDLE = POOL.map((s) => ({ id: ghostId(s), snapshot: s }));
 const STALE: GhostSnapshot = { ...POOL[5], createdAt: POOL[5].createdAt + 1 }; // valid, current rules, not in the bundle
 /** FLIP-X2: `s` as a pool of older `rules` held it: the rune-less v2 deck (was the pool deck as is, runes and all). Runes
  *  and a run seed travel only in v3, and rules before bb-0.8.7 refuse a deck holding runes ("predate bb-0.8.7: runes"), so
- *  the runes go, their hull and belt (runeGrants) come back out of hullBonus / beltCap, and the seed goes. */
+ *  the runes go, their hull and belt (runeGrants) come back out of hullBonus / beltCap, and the seed goes.
+ *  HULL-ON (the flip, PICK): with PICK on a seed ghost carries the seed step's grade (snapshot.grade, v3 only, and refused
+ *  under rules before PICK_RULES), which an older pool never held: the copy drops it too. HULL-ON (the flip, HEARTS): the
+ *  pool's records are on 10 hearts now, but under older rules a run has 5 lives and the decoder bounds lives by the rules
+ *  (livesCapFor: 1..9 there; ghostId threw "snapshot.lives: expected an integer in 1..9"), so the copy carries its record
+ *  on that scale: at most START_LIVES (a day-1 deck's 5, as before the flip). */
 function olderRules(s: GhostSnapshot, rules: string): GhostSnapshot {
-  const { seed: _seed, ...rest } = s;
+  const { seed: _seed, grade: _grade, ...rest } = s; // HULL-ON (the flip, PICK): and the grade
   const { runes, ...build } = s.build;
   const g = runeGrants(runes, s.day);
-  return { ...rest, v: SNAPSHOT_VERSION, rules, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
+  return {
+    ...rest, v: SNAPSHOT_VERSION, rules,
+    lives: Math.min(s.lives, START_LIVES), // HULL-ON (the flip, HEARTS): the older rules' 5-lives scale
+    build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt },
+  };
 }
 // another rules version's pool entry. 0.8.0 I1 M3 (oracle 64485b535a06683c): the first plain deck (no turret list, no
 // joined belt), as ghost-admin's OLD_POOL; the regrown pool's POOL[0] joins a belt, which bb-0.3.0 can't carry.
@@ -227,7 +237,9 @@ describe.each([
     for (let day = 1; day <= 10; day++) {
       // 0.7.0a D1: the best record a player can carry into this dusk (day - 1 wins, every life), so every seed ghost of
       // the day is eligible; no runs stated: a new player, matched against the seed pool only (D2)
-      codes.push((await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=${day}&wins=${day - 1}&lives=5&player=seed-check&seen=`)).status);
+      // HULL-ON (the flip, HEARTS): every life is HEARTS_START (10 hearts) under this build's rules (was 5: day 1's seed
+      // ghosts are 0W 10, a better record than 0W 5, so none was eligible and day 1 answered 404)
+      codes.push((await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=${day}&wins=${day - 1}&lives=${HEARTS_START}&player=seed-check&seen=`)).status);
     }
     await app.close();
     expect(codes).toEqual(Array(10).fill(200));

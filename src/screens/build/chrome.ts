@@ -22,6 +22,8 @@ import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
 import { LC_HEART_S } from "../battleHud"; // LC-1 (REQ-BFG-073): the regained heart
+import { START_LIVES } from "../../sim/content"; // RETUNE-1 run 2 (REQ-BFG-096): a row's hearts
+import { livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: a hearts run's 10
 import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
 import { drawDetails, hasDetails, textOpts } from "./inspector";
@@ -75,7 +77,9 @@ function drawTopBar(g: G, s: BuildScreen): void {
   x += 7 + drawText(g, String(run.gold), x + 7, 4 + oy, C.yellow, { outline: C.ink }) + 5;
   // LC-1 (REQ-BFG-073): the heart LAST CHANCE gave back, lit for a few seconds after the pick (lcHeartT: Infinity, none)
   const lcT = (s as { lcHeartT?: number }).lcHeartT ?? Infinity;
-  x += drawHearts(g, x, 4 + oy, run.lives, lcT, -1, lcT < LC_HEART_S ? run.lives - 1 : -1) + 5;
+  // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's 10 hearts in two rows of 5 (today's 5's width, so the bar is as before)
+  const hc = livesCap(run);
+  x += drawHearts(g, x, (hc > START_LIVES ? 1 : 4) + oy, run.lives, lcT, -1, lcT < LC_HEART_S ? run.lives - 1 : -1, hc, START_LIVES) + 5;
   // the W-L record: labelled where it fits, bare beside the hearts on narrow portrait bars (the
   // phone's bar has no room, so its hero card below the shop carries the record)
   const wl = record(run);

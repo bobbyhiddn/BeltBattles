@@ -30,6 +30,7 @@ import { withFactoryPlan } from "../src/sim/harness/player"; // SHAPES-1 flip fi
 import { heroStartBuild } from "../src/sim/harness/heroes";
 import { cellsOf } from "../src/sim/deck";
 import { footprintCells } from "../src/sim/foot";
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the JOIN_PACE bench's day-7 finding
 
 const HEROES = ["furnace", "weaver"] as const;
 // AZ-BUMP S7: Y7B2_BOUGHT (the Y7b2 tripwire's six buy counts, 12 15 13 / 14 10 16 under bb-0.9.7) is gone with the tripwire
@@ -365,7 +366,10 @@ describe("0.6.2 CAND-A: the rating reads turrets and joins as the battle fights 
     // gauntlet at JOIN_PACE 0.7; OUT/tune/pace07) reads F4 - F3L -8.3 / +2.8 [-2.8, +8.3] / -6.9 points on d5/7/10
     // (at full pace: -8.3 / -13.2 / -12.5). So F4 is no better on days 5 and 10, and level with F3L on day 7
     for (const d of [5, 10]) expect(v("F4", d), `d${d}: F4 <= F3L`).toBeLessThanOrEqual(v("F3L", d) * 1.02);
-    expect(Math.abs(v("F4", 7) / v("F3L", 7) - 1), "d7: F4 level with F3L").toBeLessThan(0.06);
+    // HULL-ON (the flip, FREE_JOINS): day 7's "level" is the JOIN_PACE bench's finding (+2.8 [-2.8, +8.3] at pace 0.7), so it
+    // is read with FREE_JOINS off. With no join pace (deck.ts factoryPace is 1) F4's joined DOUBLE STAMP loads at its full
+    // rate and |F4 / F3L - 1| reads 0.170 on day 7 (the bench's full-pace row: -13.2 points)
+    withFreeJoins(() => expect(Math.abs(v("F4", 7) / v("F3L", 7) - 1), "d7: F4 level with F3L (JOIN_PACE)").toBeLessThan(0.06), false);
     // three WEAVER factories into one light turret against one factory per turret (the bench: -21 on day 5, -43 on day 10)
     for (const d of [5, 10]) expect(v("W5", d), `d${d}: W5 < W4`).toBeLessThan(v("W4", d));
   });

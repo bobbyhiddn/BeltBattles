@@ -11,6 +11,7 @@ import { BURN_TIME } from "../src/sim/content";
 import { cloneBuild, payloadDamage, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { RUNES, runeMods } from "../src/sim/runes";
+import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): THE LONG ROAD's base def
 
 const W = (b: Build, ...ids: string[]): Build => ({ ...cloneBuild(b), runes: [...(b.runes ?? []), ...ids.map((id) => ({ id }))] });
 const n = (id: string) => RUNES[id].amount.n;
@@ -30,8 +31,12 @@ describe("FURN-Y: COAL CHUTE and HEAT SINK read the KILN's HEAT", () => {
     for (const id of ["coal_chute", "heat_sink"]) {
       const bt = new Battle(W(f, id), FOE, 1), s = bt.sides[0];
       expect(inner(bt).rideOf(s, pay({ ride: 4 })), id).toBeCloseTo(4 * (1 + n(id) / 100), 9);
-      const road = new Battle(W(f, id, "long_road"), FOE, 1);
-      expect(inner(road).rideOf(road.sides[0], pay({ ride: 4 })), id).toBeCloseTo(4 * 2 * (1 + n(id) / 100), 9);
+      // HULL-ON (the flip, OPEN_RUNES): THE LONG ROAD's x2 ride is its base def, in the catalogue with the switch off; on,
+      // its open rewrite (OPEN_RUNE_DEFS: +6% DMG PER RIG A LOAD PASSES) reads no ride (tests/open1.deadRunes.test.ts)
+      withOpenRunes(() => {
+        const road = new Battle(W(f, id, "long_road"), FOE, 1);
+        expect(inner(road).rideOf(road.sides[0], pay({ ride: 4 })), id).toBeCloseTo(4 * 2 * (1 + n(id) / 100), 9);
+      }, false);
       // the slug's damage: base 40 + its HEAT 12 a second, the HEAT part +n% (N1: whole at fire)
       expect(payloadDamage(40, 12, inner(bt).rideOf(s, pay({ ride: 5 })), 1, 0)).toBe(Math.max(10, Math.round(40 + 12 * 5 * (1 + n(id) / 100))));
     }

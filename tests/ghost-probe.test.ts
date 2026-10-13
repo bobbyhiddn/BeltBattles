@@ -23,6 +23,7 @@ import { warlordDeck, warlordDrop } from "../src/game/road"; // AZ-BUMP: their s
 import { decodeSnapshot, encodeSnapshot, ghostId, SnapshotError, type GhostSnapshot } from "../src/net/snapshot";
 import { isReachable } from "../src/net/records";
 import { validateBuild, validateUpload } from "../src/net/validate";
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (HEARTS; ruling 12a42239093fb6ec): the pre-hearts rows (the off check)
 import type { FakeS3 } from "../tools/fakeS3";
 import { startFake, tigrisFor } from "./netStores";
 
@@ -116,7 +117,9 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     expect(checks[8]).toContain(`| got: 400 snapshot.hero: ${ACCEPTS}, not SIPHON`);
     // Z-BUMP (the flip): the two LAST CHANCE rows, pinned as rows 0 and 3 are
     expect(checks[9]).toMatch(/^PASS {2}lastchance-signed {2}expected: 201 \{"id":"(g[0-9a-f]{14})"\} \| got: 201 \{"id":"\1"\}$/);
-    expect(checks[10]).toContain("| got: 422 record: 0W 2 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 3");
+    // HULL-ON (the flip, HEARTS; cap's ruling 12a42239093fb6ec): the hearts rule's LAST CHANCE row, dusk 7 at 0W 1 heart (was
+    // "0W 2 lives ... dusk 6", the 5-lives row)
+    expect(checks[10]).toContain("| got: 422 record: 0W 1 lives is no record a run carries into dusk 7 after a LAST CHANCE on day 3");
     // AZ-BUMP (the bump): the NPC day's two rows, pinned as rows 0 and 2 are
     expect(checks[11]).toMatch(/^PASS {2}npcday-signed {6}expected: 201 \{"id":"(g[0-9a-f]{14})"\} \| got: 201 \{"id":"\1"\}$/);
     expect(checks[12]).toContain("| got: 422 deck failed validation: road: day 2: the seeded roll of LACEWING gave scatter, not dartgun");
@@ -133,7 +136,7 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     expect(printed).toHaveLength(6); // AZ-BUMP: the bump (was 5). Z-BUMP: the flip (was 4)
     expect(recs.map((r) => r.id).sort()).toEqual([...printed].sort());
     expect(recs.map((r) => `${r.snapshot.hero} d${r.snapshot.day} ${r.snapshot.wins}W ${r.snapshot.lives}L ${r.snapshot.rules}`).sort())
-      .toEqual(["bastion d3 1W 5L bb-0.10.0", "foundry d3 1W 5L bb-0.10.0", "furnace d1 0W 5L bb-0.10.0", "furnace d6 0W 2L bb-0.10.0", "weaver d2 1W 5L bb-0.10.0", "weaver d3 1W 5L bb-0.10.0"]); // AZ-BUMP: the bump (was bb-0.9.7, without the NPC day's "weaver d2 1W 5L"). Z-BUMP: the bump (was bb-0.9.3) // Y7b2: the bump (was bb-0.9.1). Z-BUMP: the flip (was without "furnace d6 0W 2L")
+      .toEqual(["bastion d3 1W 10L bb-0.10.0", "foundry d3 1W 10L bb-0.10.0", "furnace d1 0W 10L bb-0.10.0", "furnace d7 0W 1L bb-0.10.0", "weaver d2 1W 10L bb-0.10.0", "weaver d3 1W 10L bb-0.10.0"]); // HULL-ON (the flip, HEARTS; ruling 12a42239093fb6ec): the rows' lives by heartsFor(PROBE_RULES): the start's 10 hearts, and the LAST CHANCE row at dusk 7 (was 5L each, and "furnace d6 0W 2L"). AZ-BUMP: the bump (was bb-0.9.7, without the NPC day's "weaver d2 1W 5L"). Z-BUMP: the bump (was bb-0.9.3) // Y7b2: the bump (was bb-0.9.1). Z-BUMP: the flip (was without "furnace d6 0W 2L")
     for (const r of recs) {
       expect(r.snapshot.playerId).toBe(player);
       expect(ghostId(decodeSnapshot(JSON.stringify(r.snapshot)))).toBe(r.id);
@@ -233,7 +236,13 @@ describe("the uploads step's probe: refusals and its decks", () => {
     }
     expect(RIVALS[warlordOffer(PROBE_SEED, 2).medium].name).toBe("LACEWING");
     expect(nd.snapshot.road).toEqual(NPC_ROAD);
-    expect(nd.snapshot).toMatchObject({ hero: "weaver", day: 2, wins: 1, lives: 5 });
+    expect(nd.snapshot).toMatchObject({ hero: "weaver", day: 2, wins: 1, lives: 10 }); // HULL-ON (the flip, HEARTS): the start's 10 hearts (was 5)
+    // HULL-ON (the flip, HEARTS; cap's ruling 12a42239093fb6ec, Q2): every row's lives come from the hearts rule through
+    // heartsFor(PROBE_RULES), so a pre-hearts PROBE_RULES (HEARTS off) still gives the 5-lives rows: the unreachable row at 1,
+    // the LAST CHANCE rows at dusk 6 with 2 (a LAST CHANCE on day 5), every other row at 5
+    expect(plan.map((p) => `d${p.snapshot.day} ${p.snapshot.wins}W ${p.snapshot.lives}L`)).toEqual(["d1 0W 10L", "d1 0W 10L", "d1 0W 10L", "d1 0W 1L", "d3 1W 10L", "d3 1W 10L", "d3 1W 10L", "d3 1W 10L", "d3 1W 10L", "d7 0W 1L", "d7 0W 1L", "d2 1W 10L", "d2 1W 10L"]);
+    expect(withHearts(() => probePlan("probe-plan-player", 1_790_000_000_000), false).map((p) => `d${p.snapshot.day} ${p.snapshot.wins}W ${p.snapshot.lives}L ${p.snapshot.lastChance?.day ?? "-"}`))
+      .toEqual(["d1 0W 5L -", "d1 0W 5L -", "d1 0W 5L -", "d1 0W 1L -", "d3 1W 5L -", "d3 1W 5L -", "d3 1W 5L -", "d3 1W 5L -", "d3 1W 5L -", "d6 0W 2L 5", "d6 0W 2L 3", "d2 1W 5L -", "d2 1W 5L -"]);
     expect(validateUpload(nd.snapshot.build, nd.snapshot.day, nd.snapshot.rules, { seed: nd.snapshot.seed, road: nd.snapshot.road })).toEqual({ ok: true, errors: [] });
     expect(nf.snapshot.build).toEqual(nd.snapshot.build);
     expect(nf.snapshot.road?.map((e) => e.drop)).toEqual([undefined, "dartgun"]);

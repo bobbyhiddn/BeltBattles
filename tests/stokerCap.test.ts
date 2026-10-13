@@ -12,6 +12,8 @@ import { buildLayout } from "../src/screens/build/layout";
 import { K, barge, item, withItem, withMod } from "./wave3.helpers";
 import { banned } from "./textRules";
 import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): 30 / speed
+import { HEROES } from "../src/sim/content"; // HULL-ON run 6 (FREE_JOINS_HULL): the measured foe's hull
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON run 6 (FREE_JOINS_HULL): the measured foe's hull
 import { effectAt } from "../src/sim/stars";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's STOKER ★3 beside the shipped one
 
@@ -57,6 +59,12 @@ function twoGuns(belts: "both" | "gun0" | "gun1" = "both"): Build {
   };
 }
 const runOf = (b: Build): Run => { const r = newRun(b.hero, 5, "stoker-cap"); r.build = b; return r; };
+/** HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9; R10 0bbcee55b6ba281a
+ *  (c)'s form for tests/hull1b.ladders, applied here by RULING-HULLON-R13 ed10dd26da1a89fb Q7): the sturdy WEAVER foe these
+ *  battles measured, WEAVER's start deck at 4,700 hull in all (content.ts's base 1700 + 3000): 3000 plus what the free-joins
+ *  swap takes off that base (the base read with the switch off). Against 4,500 the two-guns battle's foe died before 40 s,
+ *  and its `while (bt.t < 40)` loop never ended (the file hung in run 6's suite). The player's side keeps its 3000. */
+const sturdyWeaver = (uid: number): Build => ({ ...heroStartBuild("weaver", uid), hullBonus: 3000 + withFreeJoins(() => HEROES.weaver.hull, false) - HEROES.weaver.hull });
 /** 0.8.0 B1 M4 (oracle aa0494523ab57b7c): a capped line, found by its text. It takes the place of the opening sentence
  *  (the same kept ability block, drawn in the warning's amber: tests/b1.text.test.ts), so its role no longer marks it. */
 // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): "THE KILN'S GUN IS FULL: IT WORKS ..." (was ", SO IT WORKS ..."), the same meaning
@@ -81,7 +89,7 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
   it("the battle plays what the panel says: the capped Kiln stamps about 25% faster than unstoked", () => {
     const gap = (b: Build): number => {
       const t: number[] = [];
-      const bt = new Battle({ ...b, hullBonus: 3000 }, { ...heroStartBuild("weaver", 1), hullBonus: 3000 }, 1);
+      const bt = new Battle({ ...b, hullBonus: 3000 }, sturdyWeaver(1), 1);
       while (bt.t < 20) {
         bt.step();
         for (const e of bt.drainEvents()) if (e.type === "produce" && e.side === 0 && e.factory === 1 && bt.t > 3) t.push(bt.t);
@@ -122,7 +130,7 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
     // and at the pace the kept share gives (30 / 17 s / (1 + 0.44 x keep); NUM-2, was 1.8 s) to the tick
     const gap = (b: Build): number => {
       const t: number[] = [];
-      const bt = new Battle({ ...b, hullBonus: 3000 }, { ...heroStartBuild("weaver", 101), hullBonus: 3000 }, 1);
+      const bt = new Battle({ ...b, hullBonus: 3000 }, sturdyWeaver(101), 1);
       while (bt.t < 40) {
         bt.step();
         for (const e of bt.drainEvents()) if (e.type === "produce" && e.side === 0 && e.factory === 2 && bt.t > 5) t.push(bt.t);

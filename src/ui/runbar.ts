@@ -7,6 +7,7 @@ import type { Run } from "../game/run";
 import { record } from "../game/day";
 import { HEROES, START_LIVES } from "../sim/content";
 import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the hull on the day's hull
+import { livesCap } from "../sim/hearts"; // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's 10 hearts
 import { beltUsed } from "../sim/deck";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
@@ -35,9 +36,12 @@ export function drawRunBar(g: G, game: Game, run: Run, flash: Record<AnchorKind,
   const gs = String(run.gold);
   drawText(g, gs, x + 7, 4, flash.gold > 0 ? C.white : C.yellow, { outline: C.ink });
   x += 7 + textWidth(gs) + 7;
-  for (let i = 0; i < START_LIVES; i++) g.drawImage(heartIcon(i < run.lives), x + i * 6, 4);
+  // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's 10 hearts (hearts.ts livesCap) in two rows of START_LIVES, so they take
+  // today's 5's width and the rest of the bar stays where it was; a lives run's 5 in one row, exactly as before
+  const cap = livesCap(run), rows = Math.ceil(cap / START_LIVES), hy = rows > 1 ? 1 : 4;
+  for (let i = 0; i < cap; i++) g.drawImage(heartIcon(i < run.lives), x + (i % START_LIVES) * 6, hy + Math.floor(i / START_LIVES) * 6);
   out.lives.x = x + 8; out.lives.y = 6;
-  if (flash.lives > 0) rect(g, x - 1, 10, START_LIVES * 6, 1, C.white);
+  if (flash.lives > 0) rect(g, x - 1, rows > 1 ? 12 : 10, START_LIVES * 6, 1, C.white);
   x += START_LIVES * 6 + 5;
   g.drawImage(shieldIcon(), x, 4);
   out.hull.x = x + 2; out.hull.y = 6;

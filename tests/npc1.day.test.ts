@@ -29,6 +29,8 @@ import { scriptedDays } from "./npc1.script"; // AZ-BUMP (the bump): the switch-
 import { hashSeed } from "../src/core/rng"; // AZ-BUMP (the bump): scriptDigest's hash
 import { RULES_VERSION } from "../src/sim/content"; // AZ-BUMP (the bump): the rules string each snapshot stamps
 import type { Difficulty } from "../src/sim/rivals";
+import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): npc1-base's dawn offers
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): npc1-base's 5 lives
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 const reload = (run: Run): Run => migrateRun(JSON.parse(JSON.stringify(run)))!;
@@ -79,14 +81,26 @@ const digest097 = (seed: number): string => {
   const back = s.split(`"rules":"${RULES_VERSION}"`).join(`"rules":"bb-0.9.7"`);
   return `${hashSeed(back).toString(16)}:${back.length}`;
 };
+// HULL-ON (the flip, HEARTS and OPEN_RUNES): the script's run plays on 10 hearts (its snapshots' lives, its day-3 loss) and
+// takes each dawn's first card from the open offer, so npc1-base's day is read with both switches off too, and its pins
+// hold exactly. Measured one switch at a time (NPC_DAY off): HEARTS moves all three digests, OPEN_RUNES seeds 4242 and
+// 31337 (their dawn cards), FREE_JOINS and GUARD none. The shipped world's digests (only NPC_DAY off) are pinned beside them
 describe("NPC-1 with the switch off: 0.9.7's day", () => {
   // SHAPES-1 flip (step 8): 0.9.7's day has no shaped pieces, so the script runs with SHAPES off too (withShapes(fn, false)):
   // with it on the caravan's offers and so the decks move (9701 read 74ff6a55:6293); the pins stay npc1-base's
+  // MERGE-099F (BRIEF-MERGE-099F 1f): HULL-ON's body runs with SHAPES off too: npc1-base's digests inside HEARTS and
+  // OPEN_RUNES off, then the flip's four switch-on digests, which the flip read without shapes, so they hold as pinned
   it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withNpcDay(() => withShapes(() => {
-    expect(digest097(9701)).toBe("5865119d:6292");
-    expect(digest097(4242)).toBe("6ab6cc53:6243");
-    expect(digest097(31337)).toBe("8a31722d:6331");
-    expect(scriptDigest(9701)).toBe("16c756d4:6295"); // AZ-BUMP: the bump, the rules string alone (was "5865119d:6292")
+    withHearts(() => withOpenRunes(() => {
+      expect(digest097(9701)).toBe("5865119d:6292");
+      expect(digest097(4242)).toBe("6ab6cc53:6243");
+      expect(digest097(31337)).toBe("8a31722d:6331");
+      expect(scriptDigest(9701)).toBe("16c756d4:6295"); // AZ-BUMP: the bump, the rules string alone (was "5865119d:6292")
+    }, false), false);
+    expect(digest097(9701)).toBe("d5cc6dfb:6287"); // HULL-ON (the flip, HEARTS): 5865119d:6292 -> d5cc6dfb:6287
+    expect(digest097(4242)).toBe("6d0b1d65:6236"); // HULL-ON (the flip, HEARTS and OPEN_RUNES): 6ab6cc53:6243 -> 6d0b1d65:6236
+    expect(digest097(31337)).toBe("34af6ab5:6333"); // HULL-ON (the flip, HEARTS and OPEN_RUNES): 8a31722d:6331 -> 34af6ab5:6333
+    expect(scriptDigest(9701)).toBe("4528ba60:6290"); // HULL-ON (the flip, HEARTS): 16c756d4:6295 -> 4528ba60:6290
   }, false), false));
 
   it("the fork keeps its event stop, Hard its pick of 2, REFIT its sales, and the snapshot has no road", () => withNpcDay(() => {

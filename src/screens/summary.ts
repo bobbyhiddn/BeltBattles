@@ -25,7 +25,8 @@ import { openReplay, replayAt } from "../game/replays";
 import { foldRunEnd } from "../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072): the run's end, folded once
 import { loadProfile, runUnlockNames } from "../game/profile"; // CUSTOM-2a: the summary's NEW STYLE line
 import { PHONE_CSS, TAP_CSS, isPhone, tapPx } from "../ui/tap"; // shoptap (D5): R1's rule, shared
-import { lastChanceTag, LC_STOP } from "./lastChancePicker"; // LC-1 (REQ-BFG-073): the LAST CHANCE row's mark
+import { livesLeft } from "../ui/stakes"; // RETUNE-1 run 2 (REQ-BFG-096): LIVES or HEARTS LEFT
+import { lastChanceTag, lcStop } from "./lastChancePicker"; // LC-1 (REQ-BFG-073): the LAST CHANCE row's mark (RETUNE-1 run 2: lcStop, LC_STOP on a lives run)
 import { HeroScreen } from "./hero";
 import { ReplayScreen } from "./replay";
 import { TitleScreen } from "./title";
@@ -211,7 +212,7 @@ export class SummaryScreen implements Screen {
       const stop = warlordDay ? "DUSK" : ev ? STOP_LABEL[ev.id] : "DUSK";
       // LC-1 (REQ-BFG-073): the dusk that fired LAST CHANCE: STOP says the life came back, and the row ends with the card taken
       const lc = d.lastChance ? lastChanceTag(d.lastChance) : undefined;
-      out.push({ day: d.day, stop: lc ? LC_STOP : stop, stopColor: lc ? C.lime : warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time, at, replay: this.replays.get(at), ...(lc ? { lc } : {}) });
+      out.push({ day: d.day, stop: lc ? lcStop(run) : stop, stopColor: lc ? C.lime : warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time, at, replay: this.replays.get(at), ...(lc ? { lc } : {}) });
     });
     return out;
   }
@@ -260,7 +261,7 @@ export class SummaryScreen implements Screen {
         const fw = textWidth("FLAWLESS") + 8;
         rect(g, Math.round(cx - fw / 2), y + 31, fw, 11, C.yellow);
         drawText(g, "FLAWLESS", cx, y + 33, C.ink, { align: "center" });
-      } else drawText(g, `${run.lives} ${run.lives === 1 ? "LIFE" : "LIVES"} LEFT · ${run.gold} GOLD`, cx, y + 33, C.slate4, { font: "3", align: "center" });
+      } else drawText(g, `${livesLeft(run)} · ${run.gold} GOLD`, cx, y + 33, C.slate4, { font: "3", align: "center" }); // RETUNE-1 run 2: HEARTS on a hearts run
     } else {
       drawText(g, "THE DARK WIND CATCHES YOU", cx, y + 23, C.bone, { font: "3", align: "center" });
       drawText(g, `ON DAY ${run.day} · ${hero} · W-L ${record(run)}`, cx, y + 32, C.slate4, { font: "3", align: "center" });
@@ -336,7 +337,7 @@ export class SummaryScreen implements Screen {
       ry += rh;
     }
     rect(g, x, ry, w, 1, C.slate1);
-    const lives = `${run.lives} ${run.lives === 1 ? "LIFE" : "LIVES"} LEFT`;
+    const lives = livesLeft(run); // RETUNE-1 run 2 (REQ-BFG-096): "7 HEARTS LEFT" on a hearts run, else as before
     drawText(g, `${lives} · WINS ${run.wins}/${RUN_DAYS}`, x + w / 2, ry + 3, C.white, { font: "3", align: "center" });
   }
 

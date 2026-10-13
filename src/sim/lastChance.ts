@@ -102,15 +102,19 @@ export function lastChanceParts(): ItemDef[] {
  *    one): the first tier with one left. One weighted draw by runeWeight (the hero's style x3, a generic theme x2).
  * 2. The part: one even draw from lastChanceParts() (one rng.int, whatever the catalogue's size, so no later draw moves).
  * 3. The hull: LAST_CHANCE_HULL.
+ * OPEN-1 (REQ-BFG-109): `open` is the caller's offer rule (openRunes.ts: the game's switch, the record's own rules on the
+ * server, the bots' switch). Open, step 1 drops runeFits and the weight: one even draw among the tier's runes left that
+ * aren't held, whatever the hero (rng.weighted takes one number either way, so the part's draw doesn't move). Closed (the
+ * default): as before.
  */
-export function lastChanceOffer(seed: number, day: number, hero: HeroId, held: readonly string[]): LastChanceOffer {
+export function lastChanceOffer(seed: number, day: number, hero: HeroId, held: readonly string[], open = false): LastChanceOffer {
   const rng = new Rng(hashSeed(seed >>> 0, "lastchance", day));
   const list = runeList();
-  const left = (t: Rarity) => list.filter((d) => d.tier === t && runeFits(d, hero) && !held.includes(d.id));
+  const left = (t: Rarity) => list.filter((d) => d.tier === t && (open || runeFits(d, hero)) && !held.includes(d.id));
   const at = RARITIES.indexOf(LAST_CHANCE_TIER);
   const order = [...RARITIES.slice(0, at + 1).reverse(), ...RARITIES.slice(at + 1)];
   const tier = order.find((t) => left(t).length > 0);
-  const r = tier ? rng.weighted(left(tier), (d) => runeWeight(d, hero)) : null;
+  const r = tier ? rng.weighted(left(tier), (d) => runeWeight(d, hero, open)) : null;
   const parts = lastChanceParts();
   const part = parts.length ? parts[rng.int(parts.length)].id : null;
   const ps = lastChancePartStars(); // HULL-1d: ★2 with HULL_SCALE on (no draw: the stream is unchanged)

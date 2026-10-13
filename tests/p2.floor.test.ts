@@ -20,6 +20,11 @@ import { floorRecord } from "../src/net/records";
 import { MAX_DAY, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { checkPool } from "../server/seed";
 import { CASUAL_FLOOR_SEED, CASUAL_FLOOR_TRIES, FLOOR_VARIANT, generateSamplePool } from "../tools/samplePool";
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip): the five switches, through their own with..()
+import { withGuard } from "../src/sim/guard";
+import { withPick } from "../src/net/pick";
+import { withOpenRunes } from "../src/sim/openRunes";
+import { withFreeJoins } from "../src/sim/freeJoins";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 // SHAPES-1 flip (step 8): SHAPES joins "every switch": off in allOff (283cfaf's world had no shaped piece), on in allOn
@@ -39,21 +44,36 @@ const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
 const label = (s: GhostSnapshot) => [s.hero, s.day, s.playerId, s.runId, s.createdAt, s.wins, s.lives, s.rules];
 
 let offPool: GhostSnapshot[] | undefined;
+/** HULL-ON (the flip, PICK; cap's ruling 22e26ded338944ea Q4): the second test's pool builds run with PICK off (withPick(..,
+ *  false)): that test reads no grade, and no value a grade moves (the labels, records, decks, road logs, seeds and
+ *  checkPool's count; samplePool.ts adds the grade last, after the labels and the coverage check, and the floor ghosts are
+ *  v3 either way). So it no longer pays two full gradings (one per NPC_DAY world; the per-process memo keys the world).
+ *  Proved once: the test passes with this wrapper and without it (output-hullon/logs/r4-p2*; run 2's qrun last-p2.floor) */
+const ungradedPool = (): GhostSnapshot[] => withPick(() => generateSamplePool(), false);
 const poolOff = (): GhostSnapshot[] => {
   allOff();
-  offPool ??= generateSamplePool();
+  offPool ??= ungradedPool(); // HULL-ON (PICK; ruling 22e26ded338944ea Q4): reads no grade
   return offPool;
 };
+/** HULL-ON (the flip, HEARTS, GUARD, PICK, OPEN_RUNES, FREE_JOINS): `fn` with the flip's five switches off too, each put
+ *  back after it, even on a throw: the world POOL_OFF_SHA256 was measured in (283cfaf, S7's tip 05021ce: every switch off). */
+const flipOff = <T>(fn: () => T): T =>
+  withHearts(() => withGuard(() => withPick(() => withOpenRunes(() => withFreeJoins(fn, false), false), false), false), false);
 
 describe("LOSS-1 P2: the seed pool's floor ghosts carry the casual player's decks, behind NPC_DAY", () => {
   it("NPC_DAY off: generateSamplePool() is byte for byte 283cfaf's (no casual run is played)", () => {
-    expect(sha(JSON.stringify(poolOff()))).toBe(POOL_OFF_SHA256);
+    // HULL-ON (the flip, HEARTS, GUARD, PICK, OPEN_RUNES, FREE_JOINS): the digest's pool is every switch off, the flip's
+    // five too (was poolOff(), which keeps them on as shipped: PICK writes each ghost's grade in v3, HEARTS labels the
+    // records in hearts, and GUARD, OPEN_RUNES and FREE_JOINS move the par player's decks, the race ghosts' source). The
+    // second test's off labels stay poolOff()'s: the shipped world with NPC_DAY off
+    allOff();
+    expect(sha(JSON.stringify(flipOff(() => generateSamplePool())))).toBe(POOL_OFF_SHA256);
   }, 900_000); // 68 s under LOSS-1's 1.5-CPU quota
 
   it("NPC_DAY on: every floor ghost is its hero's casual deck of its day from one casual run, with its road log, floorRecord(day) and its old labels; distinct from variants 0 and 1; the pool passes checkPool", () => {
     const labels = poolOff().map(label);
     allOn();
-    const pool = generateSamplePool();
+    const pool = ungradedPool(); // HULL-ON (PICK; ruling 22e26ded338944ea Q4): reads no grade
     expect(pool).toHaveLength(120);
     // records, playerIds, runIds, createdAt and their order exactly as with the switch off
     expect(pool.map(label)).toEqual(labels);
@@ -86,6 +106,6 @@ describe("LOSS-1 P2: the seed pool's floor ghosts carry the casual player's deck
     // the seed step's checks (strict decode, rules, validateUpload in the player mode with ctx.road, reachable record, no
     // duplicate), and the same output from a second call
     expect(checkPool(pool)).toHaveLength(120);
-    expect(JSON.stringify(generateSamplePool())).toBe(JSON.stringify(pool));
+    expect(JSON.stringify(ungradedPool())).toBe(JSON.stringify(pool)); // HULL-ON (PICK; ruling 22e26ded338944ea Q4)
   }, 900_000); // 75 s under the quota (68 s off, cached)
 });

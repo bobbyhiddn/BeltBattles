@@ -20,6 +20,7 @@ import { rotFacing } from "../src/sim/beltside";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): v070-rc's switch-off world
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip): v070-rc's switch-off world
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): v070-rc's join pace
 
 const FIXTURE = fileURLToPath(new URL("./fixtures/wave3-guard/v070rc.json", import.meta.url));
 const WRITE = !!process.env.BB_WAVE3_GUARD_WRITE;
@@ -142,7 +143,10 @@ describe("wave-3 guards: decks without a wave-3 part replay v070-rc's battles bi
   // with LADDER_FIX on (was 30): the 4 day-9 rows with FOUNDRY or SIPHON moved (BASTION's and METRONOME's QUENCH works a
   // belt with no BURN), so the battles play with LADDER_FIX off. HULL_SCALE off too, the record's world (these battles
   // have no day, so it moves none of them)
-  const got = withLadderFix(() => withHullScale(() => record(), false), false);
+  // HULL-ON (the flip, FREE_JOINS): the "join pace" deck's STAMP PRESS belt joins the Kiln belt, and with FREE_JOINS on a
+  // factory with a joining belt runs at its normal rate (no JOIN_PACE 0.7), so that row moved (produced 27 -> 29, stalled
+  // 0.15 -> 2.3 s, its time and hulls); v070-rc paced it, so the battles play with FREE_JOINS off too (no other deck joins)
+  const got = withFreeJoins(() => withLadderFix(() => withHullScale(() => record(), false), false), false);
   it("the fixture is v070-rc's and covers every guard deck; each guard rig works the tile it was put beside", () => {
     expect(want.source).toBe("v070-rc");
     expect(want.seeds).toEqual(SEEDS);

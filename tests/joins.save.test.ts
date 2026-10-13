@@ -14,6 +14,7 @@ import * as net from "../src/net/snapshot";
 import { validateBuild } from "../src/net/validate";
 import { routeProblems } from "../src/game/routeCheck";
 import { RULES_VERSION } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the day-1 upload's record
 import { key as K, type Build } from "../src/sim/deck";
 import { simulate } from "../src/sim/battle";
 import { warlordBuild } from "../src/sim/ai";
@@ -36,8 +37,10 @@ function snap(build: Build, v: 1 | 2 = 2): net.GhostSnapshot {
 }
 const netOk = (s: unknown) => { try { net.checkSnapshot(s); return true; } catch { return false; } };
 /** FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): `build` as a day-1 upload: holding day 1's rune (an upload holds
- *  exactly `day` runes; a neutral one, tests/runeFill.ts), so in a v3 snapshot (build.runes travels only in v3). */
-const upload = (build: Build): net.GhostSnapshot => ({ ...snap(withDawnRunes(build, 1)), v: net.SNAPSHOT_V3 });
+ *  exactly `day` runes; a neutral one, tests/runeFill.ts), so in a v3 snapshot (build.runes travels only in v3).
+ *  HULL-ON (the flip, HEARTS): at 0W HEARTS_START (10), the one record a run carries into dusk 1 under this build's rules
+ *  (heartsFor(bb-0.10.0): the hearts record model); snap()'s 0W 5 lives is none, so POST refused the legal deck (422). */
+const upload = (build: Build): net.GhostSnapshot => ({ ...snap(withDawnRunes(build, 1)), v: net.SNAPSHOT_V3, lives: HEARTS_START });
 
 describe("J12: validateBuild", () => {
   it("accepts a legal join: the joining belt claims no connector and is connected through the main belt", () => {

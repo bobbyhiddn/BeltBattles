@@ -11,7 +11,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RULES_VERSION, START_LIVES } from "../src/sim/content";
+import { RULES_VERSION } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a new run's 10 hearts (was START_LIVES)
 import { simulate, type SideStats } from "../src/sim/battle";
 import { battleSeed, migrateRun, newRun, pendingRune, saveRun, SAVE_KEY, takeRune, type Run } from "../src/game/run";
 import { duskFoe, finishDay, ghostOf, startDusk, storedFoe, storeOnlineFoe, ghostName } from "../src/game/day";
@@ -198,7 +199,9 @@ describe("the online session (src/game/online.ts), with fakes", () => {
     expect(url).toBe("https://ghosts.example");
     expect(ms).toBe(FETCH_TIMEOUT_MS);
     expect(FETCH_TIMEOUT_MS).toBe(4000); // D4
-    expect(req).toEqual({ rules: RULES_VERSION, day: 1, wins: 0, lives: START_LIVES, playerId: me.playerId, seen: ["gaaaaaaaaaaaaaa"], hero: "furnace", seed: battleSeed(run), runs: 0 });
+    // HULL-ON (the flip, HEARTS): lives START_LIVES (5) -> HEARTS_START (10): a new run starts with 10 hearts, and the request
+    // states the run's own lives going into the dusk
+    expect(req).toEqual({ rules: RULES_VERSION, day: 1, wins: 0, lives: HEARTS_START, playerId: me.playerId, seen: ["gaaaaaaaaaaaaaa"], hero: "furnace", seed: battleSeed(run), runs: 0 });
     await until(() => s.lastFetch !== null);
     s.tick(run);
     const foe = storedFoe(run)!;

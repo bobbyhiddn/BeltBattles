@@ -93,6 +93,7 @@ export const JOIN_PACE = 0.7;
 // 0.6.2 TUNE-M, RULE JOIN LIMIT (the Prime's decision, oracle ea0abdc95439b4d8): a deck holds at most this many joining
 // belts. deck.ts joinProblem refuses the next one in route order ("2 JOINS PER DECK"); a saved deck with more keeps its
 // first two, and the rest become open ends (pruneJoins on load).
+// JOINS-1 (REQ-BFG-091): FREE_JOINS (freeJoins.ts) drops both rules above when on; with it off both hold as written.
 export const JOIN_LIMIT = 2;
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
@@ -1243,6 +1244,16 @@ export function setSustain(on: boolean): void {
     Object.defineProperty(ITEMS, id, { value: SUSTAIN_ITEMS[id], enumerable: on, writable: true, configurable: true });
   }
   sustainOn = on;
+  for (const fn of afterSustain) fn(); // HULL-ON (cap's ruling 6f4568477e66a600): GUARD's hook
+}
+
+/** HULL-ON (the flip; cap's ruling 6f4568477e66a600): hooks run after each setSustain, setWave3's mechanism (afterWave3).
+ *  setSustain writes SUSTAIN_ITEMS[id] back into ITEMS for every sustain id, WARD BELL's base def among them, while guard.ts
+ *  patches ITEMS[id] in place; its hook puts the guarded def back while GUARD is on (switch off: it does nothing). Declared
+ *  above the load-time setSustain call below (it reads this list). None is set at this module's load. */
+const afterSustain: (() => void)[] = [];
+export function onSetSustain(fn: () => void): void {
+  afterSustain.push(fn);
 }
 
 /** SUS-A: run `fn` with the sustain pieces on (or off), then put the switch back as it was, even if `fn` throws. */

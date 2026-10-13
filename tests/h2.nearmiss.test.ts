@@ -12,14 +12,15 @@
 // health's count, the store's records, every Tigris object, and the near miss's own bucket stay as they were, and the
 // match route has no ghost for it (404).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { RULES_VERSION } from "../src/sim/content";
+import { RULES_VERSION, START_LIVES } from "../src/sim/content";
 import { parseRules, rulesAtLeast } from "../src/net/rulesGate";
 import { encodeSnapshot, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { isReachable } from "../src/net/records";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import type { TigrisStore } from "../server/tigrisStore";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool, raceDeck } from "../tools/samplePool";
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the FOUNDRY deck's join
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
@@ -42,6 +43,13 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
   if (!PATTERN_OK(rules)) return { status: 400, error: /^snapshot\.rules: / };
   const readable = parseRules(rules) !== null;
   if (deck === "turretsJoin" && !readable) return { status: 400, error: /^snapshot\.rules: rules ".*" is not a bb-MAJOR\.MINOR\.PATCH version: turret slots/ };
+  // HULL-ON (the flip, FREE_JOINS): the FOUNDRY deck (the par player's dusk deck, tools/samplePool.ts raceDeck) carries a
+  // belt join now (the par player plans joins with no join pace and no limit), so under rules the gate can't read, the
+  // decoder's first failing check on it is the rules gate's, as on the turrets-and-join deck (was the hero gate's: the
+  // deck carried no join). Same status (400); the hero gate still answers bb-0.7.9 on it (readable, below bb-0.8.0)
+  if (deck === "foundry" && !readable && DECKS.foundry.build.routes.some((r) => r.join !== undefined)) {
+    return { status: 400, error: /^snapshot\.rules: rules ".*" is not a bb-MAJOR\.MINOR\.PATCH version: belt joins/ };
+  }
   // the hero gate's threshold: FOUNDRY travels from bb-0.8.0 on (rulesGate.ts HEROES_RULES), under BELTS's rules too
   if (deck === "foundry" && !rulesAtLeast(rules, "bb-0.8.0")) return { status: 400, error: /^snapshot\.hero: rules .* accept only FURNACE, WEAVER, not FOUNDRY$/ };
   // AZ-BUMP: the server names this build's rules, bb-0.10.0 (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
@@ -53,11 +61,18 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
  *  deck goes up as that client sends it: rune-less v2, no seed (was the pool deck itself), and meets the gates and the
  *  exact rules check as before. AZ-BUMP (the flip, NPC_DAY; REVIEW-PARAZ N3): with NPC_DAY on a seed ghost also carries its
  *  run's road log (`road`, v3 only: "snapshot.road: not allowed in a v2 snapshot"), which a pre-rune client never sent, so
- *  the copy drops it too. */
+ *  the copy drops it too.
+ *  HULL-ON (the flip, PICK): with PICK on a seed ghost carries its grade (snapshot.grade, v3 only, and refused under rules
+ *  before PICK_RULES), which no client ever sends: the copy drops it too. HULL-ON (the flip, HEARTS): the pool's records
+ *  are on 10 hearts now, but under a near miss's rules (any rules before bb-0.10.0) a run has 5 lives, and the decoder
+ *  bounds lives by the rules (livesCapFor: 1..9 there; 10 got 400 "snapshot.lives" before the check the near miss is
+ *  about), so the copy carries its record on that scale: at most START_LIVES (a day-1 deck's 5, as before the flip). */
 function runeless(s: GhostSnapshot): GhostSnapshot {
   const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
   delete out.seed;
   delete out.road; // AZ-BUMP (the flip, NPC_DAY): the road log is v3 only, as the runes and the seed
+  delete out.grade; // HULL-ON (the flip, PICK): the seed step's grade, v3 only (no client uploads one)
+  out.lives = Math.min(s.lives, START_LIVES); // HULL-ON (the flip, HEARTS): an older rules string's 5-lives scale
   delete out.build.runes;
   return out;
 }
@@ -72,6 +87,13 @@ describe("H2 M1b: the near-miss rules strings (pure)", () => {
     expect(NEAR.slice(0, 5).map((r) => [r, PATTERN_OK(r), parseRules(r) !== null])).toEqual([
       ["bb-0.8.1", true, true], ["bb-0.8.0x", true, false], ["bb-0.8", true, false], ["BB-0.8.0", true, false], [" bb-0.8.0", false, false],
     ]);
+    // HULL-ON (the flip, FREE_JOINS): the FOUNDRY deck is the par player's day-1 deck (raceDeck variant 0), which holds 1
+    // join now; with FREE_JOINS off the par player's deck holds none, as before the flip (measured: OPEN_RUNES off or GUARD
+    // off leave the join), and the near misses' expected() reads the deck's join
+    expect(raceDeck("foundry", DECKS.foundry.day, 0).build).toEqual(DECKS.foundry.build);
+    const joinsOf = (b: GhostSnapshot["build"]) => b.routes.filter((r) => r.join !== undefined).length;
+    expect(joinsOf(DECKS.foundry.build)).toBe(1);
+    expect(withFreeJoins(() => joinsOf(raceDeck("foundry", DECKS.foundry.day, 0).build), false)).toBe(0);
   });
 });
 
@@ -130,7 +152,10 @@ describe.each(storeBackends())("H2 M1b: near-miss rules strings on the $name sto
   it("this build's own rules string on the same three decks is taken (201): the refusals above are the rules string's alone", async () => {
     let k = 0;
     for (const deck of Object.keys(DECKS) as (keyof typeof DECKS)[]) {
-      const s = ownedBy({ ...DECKS[deck], runId: `h2-near-ok-${k}`, createdAt: 1_790_400_100_000 + k++ }, me);
+      // HULL-ON (the flip, PICK): the seed step grades the pool's ghosts (snapshot.grade) and POST refuses a graded upload
+      // (422 "grade: only the seed pool's ghosts carry a grade"), so the deck goes up as a player uploads it: ungraded
+      const { grade: _grade, ...uploaded } = DECKS[deck];
+      const s = ownedBy({ ...uploaded, runId: `h2-near-ok-${k}`, createdAt: 1_790_400_100_000 + k++ }, me);
       const body = encodeSnapshot(s);
       const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
       expect(r.status, deck).toBe(201);

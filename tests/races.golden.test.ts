@@ -10,6 +10,8 @@ import type { Build } from "../src/sim/deck";
 // current rig-free Furnace/Weaver battles under the E1 rule. Rig-bearing matchups use the native
 // fixture in golden.beltside.test.ts. The unchanged Weaver mirror still matches ff6914a. (BAL-2: no longer; 0.9.1's
 // WEAVER hull 1700 moves the Weaver mirror too, so every matchup's drift from ff6914a is pinned in the historical check.)
+// (HULL-ON, FREE_JOINS_HULL, cap's rulings 84ad10254e1855c8 = R9 and 0bbcee55b6ba281a = R10 (b): the WEAVER matchups
+// re-recorded at WEAVER's free-joins hull 1500; the FURNACE mirrors byte-identical. See BAL2_DRIFT below.)
 //   BB_E1_GOLDEN_WRITE=1 npx vitest run tests/races.golden.test.ts
 
 const FIXTURE = fileURLToPath(new URL("./fixtures/beltside-062-e1/races.golden.json", import.meta.url));
@@ -102,15 +104,26 @@ describe("E1 golden: rig-free Furnace and Weaver battles under the long-belt cad
   // So the check is restated as what holds: per matchup, the rows where a side is more than one shot off ff6914a, the rows
   // whose winner moved (ties aside) and the rows newly tied are pinned exactly (BAL2_DRIFT), and only a mirror battle may
   // newly tie. Any later move of these battles needs a ruling.
+  // HULL-ON (bb-0.10.0, FREE_JOINS; REQ-BFG-091, REQ-BFG-092; src/sim/freeJoins.ts FREE_JOINS_HULL, cap's ruling
+  // 84ad10254e1855c8 = RULING-HULLON-R9; this move's ruling: RULING-HULLON-R10 0bbcee55b6ba281a (b)): WEAVER's hull
+  // 1700 -> 1500 with free joins on moves every row of the 6 matchups with a WEAVER deck (240 rows, re-recorded with
+  // BB_E1_GOLDEN_WRITE on the HULL-ON WIP); the two FURNACE mirrors' 80 rows came out byte-identical. Cause check: with
+  // FREE_JOINS_HULL = {} every row plays as recorded. Winner split (side 0 / side 1 / tie), 1700 -> 1500: start FURNACE v
+  // WEAVER 30 / 10 / 0 -> 40 / 0 / 0, start WEAVER v FURNACE 10 / 30 / 0 -> 0 / 40 / 0, start WEAVER mirror 20 / 18 / 2 ->
+  // 19 / 15 / 6, round 1 FURNACE v WEAVER 40 / 0 / 0 and WEAVER v FURNACE 0 / 40 / 0 unchanged, round 1 WEAVER mirror
+  // 18 / 18 / 4 -> 16 / 20 / 4. BAL2_DRIFT is restated with the counts measured at 1500 (BAL-2's, at 1700, were: start
+  // FURNACE v WEAVER [40, 30, 0], start WEAVER v FURNACE [40, 30, 0], start FURNACE mirror [0, 0, 4], start WEAVER mirror
+  // [0, 20, 2], round 1 FURNACE v WEAVER [0, 40, 0], round 1 WEAVER v FURNACE [0, 40, 0], round 1 FURNACE mirror [0, 16, 3],
+  // round 1 WEAVER mirror [40, 21, 1]). Still only a mirror battle newly ties.
   const BAL2_DRIFT: Record<string, [number, number, number]> = {
-    "start furnace v weaver": [40, 30, 0],
-    "start weaver v furnace": [40, 30, 0],
+    "start furnace v weaver": [40, 40, 0],
+    "start weaver v furnace": [40, 40, 0],
     "start furnace v furnace": [0, 0, 4],
-    "start weaver v weaver": [0, 20, 2],
-    "warlord r1 furnace v weaver": [0, 40, 0],
-    "warlord r1 weaver v furnace": [0, 40, 0],
+    "start weaver v weaver": [40, 15, 6],
+    "warlord r1 furnace v weaver": [40, 40, 0],
+    "warlord r1 weaver v furnace": [40, 40, 0],
     "warlord r1 furnace v furnace": [0, 16, 3],
-    "warlord r1 weaver v weaver": [40, 21, 1],
+    "warlord r1 weaver v weaver": [40, 19, 3],
   };
   it("all rig-free matchups against the original fixture: shots more than one off, winners moved and new ties exactly as measured (BAL-2), and only a mirror battle may newly tie", () => {
     expect(Object.keys(BAL2_DRIFT).sort()).toEqual(Object.keys(golden.matchups).sort());

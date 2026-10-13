@@ -19,6 +19,8 @@ import { servedSnapshot, type GhostServer } from "../server/app";
 import type { Identity } from "../src/net/identity";
 import { storeBackends } from "./netStores";
 import { signedHeaders, testIdentity } from "./netIdentity";
+import { openRunesFor } from "../src/net/rulesGate"; // HULL-ON (the flip, OPEN_RUNES): the offer rule of this build's rules
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the best record's hearts
 
 type Snap = Record<string, unknown> & { build: Build & Record<string, unknown> };
 const POOL = generateSamplePool();
@@ -39,22 +41,27 @@ function serverOk(s: unknown): boolean {
 const both = (s: unknown) => [clientOk(s), serverOk(s)];
 
 /** A legal pick sequence for (seed, hero) through `days` dawns: each dawn's first card that only acts in battle (so the
- *  pool deck's hull, belt and gold need no change), else its first card. */
+ *  pool deck's hull, belt and gold need no change), else its first card. HULL-ON (the flip, OPEN_RUNES): each dawn's offer
+ *  under this build's rules (open: openRunesFor(RULES_VERSION)), the offer validateUpload re-derives (was runeOffer's
+ *  default, the closed offer, which the upload check no longer derives under bb-0.10.0). */
+const OPEN = openRunesFor(RULES_VERSION);
 function legalRunes(seed: number, hero: HeroId, days: number): { id: string }[] {
   const held: string[] = [];
   for (let d = 1; d <= days; d++) {
-    const ids = runeOffer(seed, d, hero, held).ids;
+    const ids = runeOffer(seed, d, hero, held, OPEN).ids;
     held.push(ids.find((id) => !["hull", "belt", "dawnGold"].includes(RUNES[id].kind)) ?? ids[0]);
   }
   return held.map((id) => ({ id }));
 }
 
 /** FLIP-X2: `s` as a rune-less v2 snapshot (no build.runes, no seed: both are v3 only), the runes' HULL and BELT taken
- *  back out of the build (the deck as an older client held it). */
+ *  back out of the build (the deck as an older client held it). HULL-ON (the flip, PICK): and no grade (v3 only too): the
+ *  seed step writes one on every pool deck with PICK on, and a v2 copy carrying it was refused for it ("snapshot.grade:
+ *  not allowed in a v2 snapshot") instead of being the plain v2 snapshot the callers mean. */
 function bareV2(s: Snap): Snap {
   const { runes, ...build } = s.build;
   const g = runeGrants(runes, s.day as number);
-  const { seed: _seed, ...rest } = s;
+  const { seed: _seed, grade: _grade, ...rest } = s;
   return { ...rest, v: 2, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } as Snap["build"] };
 }
 
@@ -75,7 +82,7 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
   const runes = legalRunes(SEED, hero, 6);
   const legal = withRunes(base, runes);
   const notHeld = (tier: string, not: string[]) => RUNE_LIST.find((d) => d.tier === tier && !not.includes(d.id) && !["hull", "belt", "dawnGold"].includes(d.kind))!;
-  const offered3 = runeOffer(SEED, 3, hero, runes.slice(0, 2).map((q) => q.id)).ids;
+  const offered3 = runeOffer(SEED, 3, hero, runes.slice(0, 2).map((q) => q.id), OPEN).ids; // HULL-ON (the flip, OPEN_RUNES): the open offer
   const wrong3 = notHeld(RUNES[runes[2].id].tier, [...offered3, ...runes.map((q) => q.id)]);
   const swap = (i: number, id: string) => runes.map((q, j) => (j === i ? { id } : q));
   const rows: [string, unknown, boolean][] = [
@@ -140,7 +147,11 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
   it("the canonical copy writes the v3 fields last: name, then seed; the build's runes after every other key", () => {
     const named = { ...legal, name: "TESTER" };
     const text = net.encodeSnapshot(named as never);
-    expect(text.endsWith(`"name":"TESTER","seed":${SEED}}`)).toBe(true);
+    // HULL-ON (the flip, PICK): `legal` is a pool deck, which carries the seed step's grade (written with PICK on), and the
+    // canonical copy writes the grade after the seed, last of all (snapshot.ts gradeField): `"seed":4242}` ->
+    // `"seed":4242,"grade":<its grade>}`. A copy without a grade (every upload, the game's own) still ends name, then seed
+    expect(text.endsWith(`"name":"TESTER","seed":${SEED},"grade":${legal.grade as number}}`)).toBe(true);
+    expect(net.encodeSnapshot({ ...named, grade: undefined } as never).endsWith(`"name":"TESTER","seed":${SEED}}`)).toBe(true);
     const keys = Object.keys(JSON.parse(text).build);
     expect(keys[keys.length - 1]).toBe("runes");
     // a snapshot without any v3 field encodes byte for byte as before
@@ -213,8 +224,10 @@ describe.each(storeBackends().slice(0, 1))("RUNES-1 M3 through POST /v1/ghosts a
     await backend.teardown();
   });
   const base = POOL.find((s) => s.day === 4 && s.build.upgrades === undefined) as unknown as Snap;
+  // HULL-ON (the flip, PICK): `grade: undefined` (JSON leaves it out): the pool deck carries the seed step's grade (written
+  // with PICK on), and an upload carries none (the server refuses one: "grade: only the seed pool's ghosts carry a grade")
   const upload = (runes: { id: string }[], tag: string) =>
-    ({ ...withRunes(base, runes), rules: RULES_VERSION, runId: `runes-${tag}`, playerId: me.playerId, name: "TESTER" });
+    ({ ...withRunes(base, runes), rules: RULES_VERSION, runId: `runes-${tag}`, playerId: me.playerId, name: "TESTER", grade: undefined });
   const post = async (s: unknown) => {
     const body = JSON.stringify(s);
     const r = await fetch(`${url}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
@@ -228,7 +241,7 @@ describe.each(storeBackends().slice(0, 1))("RUNES-1 M3 through POST /v1/ghosts a
     expect(ok.status).toBe(201);
     const held = (await app.store.bucket(RULES_VERSION, 4)).find((e) => e.id === ok.body.id)!;
     expect([held.snapshot.seed, held.snapshot.build.runes]).toEqual([SEED, runes]);
-    const offered = runeOffer(SEED, 4, hero, runes.slice(0, 3).map((q) => q.id)).ids;
+    const offered = runeOffer(SEED, 4, hero, runes.slice(0, 3).map((q) => q.id), OPEN).ids; // HULL-ON (the flip, OPEN_RUNES): the open offer
     const wrong = RUNE_LIST.find((d) => d.tier === RUNES[runes[3].id].tier && !offered.includes(d.id) && !runes.some((q) => q.id === d.id) && !["hull", "belt", "dawnGold"].includes(d.kind))!;
     const bad = await post(upload([...runes.slice(0, 3), { id: wrong.id }], "bad"));
     expect(bad.status).toBe(422);
@@ -238,7 +251,9 @@ describe.each(storeBackends().slice(0, 1))("RUNES-1 M3 through POST /v1/ghosts a
   });
 
   it("the match serves the ghost without its seed; the served copy passes the client's checks (offer rule skipped)", async () => {
-    const r = await fetch(`${url}/v1/ghosts/match?rules=${RULES_VERSION}&day=4&wins=3&lives=5&player=${other.playerId}&runs=99`);
+    // HULL-ON (the flip, HEARTS): lives=5 -> HEARTS_START (10): the best record a run carries into dusk 4 is 3W 10 hearts now
+    // (the pool deck's label is on the hearts scale; D1 never serves a better record than the request's)
+    const r = await fetch(`${url}/v1/ghosts/match?rules=${RULES_VERSION}&day=4&wins=3&lives=${HEARTS_START}&player=${other.playerId}&runs=99`);
     expect(r.status).toBe(200);
     const got = (await r.json()) as { id: string; snapshot: Record<string, unknown> };
     expect("seed" in got.snapshot).toBe(false);

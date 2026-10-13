@@ -6,6 +6,12 @@
 import { describe, expect, it } from "vitest";
 import { PLAYER_DAYS, playerRun } from "../src/sim/harness/player";
 import type { Build } from "../src/sim/deck";
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip): seed 3 in the world before the flip, the five switches off
+import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip)
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip)
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip)
+import { withPick } from "../src/net/pick"; // HULL-ON (the flip)
+import { withShapes } from "../src/sim/shapes"; // MERGE-099F (BRIEF-MERGE-099F 1h): seed 3's world, SHAPES off as well as the five
 
 const holds = (b: Build, def: string): boolean => b.items.some((p) => p.def === def) || b.mods.some((m) => m.def === def);
 const CASES: [("furnace" | "weaver"), string][] = [["furnace", "temper"], ["weaver", "temper"], ["weaver", "dragchain"], ["furnace", "flak"]];
@@ -36,10 +42,22 @@ describe("FIX-ABE E: a forbidden part is refused only when it would be taken", (
   // SHAPES-1 flip: seed 3 -> 12, by the same rule. With the shaped pieces in the caravan (SHAPES on) seed 3's run takes
   // TEMPER on day 9 (first 8); seeds 1-11 all take it (first 3 1 8 1 1 1 5 1 4 0 0), and seed 12 is the first whose run never
   // does, its 10 decks identical with the knob (measured on the flip's src); with SHAPES off seed 3 reads as before
-  it("FURNACE, TEMPER forbidden, seed 12 (SHAPES-1 flip; was seed 3): the run without the knob never takes TEMPER, so all 10 decks are identical (seed 6 drifted on day 9)", () => {
+  // HULL-ON (the flip, GUARD, OPEN_RUNES, FREE_JOINS): seed 3's run without the knob now takes TEMPER on day 9 (first 8, was
+  // never). The three move its picks together: each off alone gives first 10, drift 10 again; HEARTS or PICK off alone,
+  // first 8. As BAL-2 did, the check moves to the first FURNACE seed, counting up from 1, whose run never takes TEMPER in the
+  // shipped game: seed 15 (seeds 1-14 take it on days 1, 2, 9, 2, 2, 5, 6, 2, 5, 1, 1, 5, 2 and 8); both checks exact. Seed
+  // 3 keeps its check in the world it was chosen in, the five switches off (the title keeps seed 3, the red list's key)
+  // MERGE-099F (REQ-BFG-079, -086): SHAPES and HULL-ON's five on together; was seed 12 (SHAPES-1's world, the five off) and
+  // seed 15 (HULL-ON's world, no shapes). By the same rule, measured in the merged shipped world (SHAPES and all eight
+  // switches on; kit-099f/zz-099f-fixabe.test.ts): seeds 1-11 take TEMPER on days 4, 2, 9, 2, 2, 2, 6, 2, 5, 2 and 1, and
+  // seed 12 is the first whose run never does, its 10 decks identical with the knob; both checks exact. Seed 3 keeps its
+  // check in the world it was chosen in: SHAPES off as well as the five
+  it("FURNACE, TEMPER forbidden, seed 3: the run without the knob never takes TEMPER, so all 10 decks are identical (seed 6 drifted on day 9)", () => {
     const { first, drift } = alignment("furnace", "temper", 12);
     expect(first).toBe(PLAYER_DAYS);
     expect(drift).toBe(PLAYER_DAYS);
+    const was = withShapes(() => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(() => alignment("furnace", "temper", 3), false), false), false), false), false), false); // MERGE-099F: SHAPES off too
+    expect([was.first, was.drift]).toEqual([PLAYER_DAYS, PLAYER_DAYS]);
   }, 120_000);
 
   it("forbid.test's four cases on seeds 7-10: identical decks up to the day the run without the knob first takes the part", () => {

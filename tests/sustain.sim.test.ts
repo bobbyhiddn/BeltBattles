@@ -13,6 +13,7 @@ import { KIND_UNIT, RUNES } from "../src/sim/runes";
 import { effectAt } from "../src/sim/stars";
 import { rateDeck } from "../src/sim/deckRating";
 import { validateBuild } from "../src/net/validate";
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): WARD BELL's guarded cadence, and the base one off
 
 const FOE = heroStartBuild("weaver");
 type Heal = Extract<SimEvent, { type: "heal" }>;
@@ -205,7 +206,10 @@ describe("SUS-A: the pieces in battle", () => {
 
   // ★1 is the fallback's 8 s (the design's 6 s; the acceptance bench's typ2r had FURNACE < 45% pooled)
   it("WARD BELL: +1 SHIELD EVERY 8 / 5 / 4 s, the first at t = every; its timer carries (+= every)", () => {
-    for (const [stars, every] of [[1, 8], [2, 5], [3, 4]] as const) {
+    // HULL-ON (the flip, GUARD): 8 / 5 / 4 -> 4 / 2.5 / 2 s, the guarded def's (RETUNE-1, REQ-BFG-097: WARD BELL rings twice
+    // as often, still +1 SHIELD); the same checks run on both, SUS-A's 8 / 5 / 4 s with the switch set off. HULL-ON run 5
+    // (GUARD; cap's ruling 22e26ded338944ea Q6, ruling 19139b4c41a1636f): ★2 rounded 2.5 -> 3 s (4 / 3 / 2)
+    for (const [stars, every, on] of [[1, 4, true], [2, 3, true], [3, 2, true], [1, 8, false], [2, 5, false], [3, 4, false]] as const) withGuard(() => {
       expect(effectAt("wardbell", stars).mod!.shield).toEqual({ every, amount: 1 });
       const bt = new Battle(withGear(heroStartBuild("bastion"), "wardbell", stars), FOE, 3);
       const tu = bt.sides[0].turrets.find((t) => t.bell)!;
@@ -219,7 +223,7 @@ describe("SUS-A: the pieces in battle", () => {
       expect(at).toEqual([1, 2, 3].map((k) => 60 * every * k));
       expect(gains.length).toBeGreaterThan(0);
       for (const g of gains) expect(at).toContain(g); // every SHIELD gain is a bell's (none at the cap)
-    }
+    }, on);
     // the carry: at 1.01 s (not a whole number of ticks) it fires at the first tick past each k x 1.01 s (a reset timer
     // would drift a tick a beat: 61, 122, 183, 244)
     const bt = new Battle(withGear(heroStartBuild("bastion"), "wardbell"), FOE, 3);

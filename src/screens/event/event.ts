@@ -20,6 +20,8 @@ import { blockedButton, button, panel, type Rect } from "../../ui/ui";
 import { fightBlock } from "../../game/routeCheck";
 import { optionsCard } from "../../ui/hud";
 import { drawRunBar, newAnchors, type AnchorKind } from "../../ui/runbar";
+import { heartsWord } from "../../ui/stakes"; // RETUNE-1 run 2 (REQ-BFG-096): PATCH UP's +1 HEART on a hearts run
+import { heartsRun } from "../../sim/hearts"; // RETUNE-1 run 2: the run's mark
 import { deltaIcon, deltaText, drawChoiceCard, itemName, type CardView } from "./cards";
 import { drawReveal } from "./reveal";
 import { storedFoe } from "../../game/day";
@@ -79,7 +81,7 @@ export class EventScreen implements Screen {
       this.pt = 9;
       this.won = ev.won ?? true;
       const c = this.choices[ev.picked];
-      if (c) this.outcome = outcomeText(c, this.won, this.run.day); // HULL-1a: the day's hull
+      if (c) this.outcome = outcomeText(c, this.won, this.run.day, heartsRun(this.run)); // HULL-1a: the day's hull (RETUNE-1 run 2: HEART)
       this.deckItem = ev.item;
       this.reveal = !!ev.reveal;
     }
@@ -128,7 +130,7 @@ export class EventScreen implements Screen {
     this.won = !!res.won;
     this.deckItem = res.deckItem;
     this.reveal = !!this.run.event?.reveal;
-    this.outcome = outcomeText(c, this.won, this.run.day); // HULL-1a: the day's hull
+    this.outcome = outcomeText(c, this.won, this.run.day, heartsRun(this.run)); // HULL-1a: the day's hull (RETUNE-1 run 2: HEART)
     const r = this.L.cards[i];
     const x0 = r.x + r.w / 2, y0 = r.y + 25;
     for (const d of c.cost) if (d.k === "gold") this.ufx.popup(this.anchors.gold.x, this.anchors.gold.y + 16, `-${d.n}`, C.red);
@@ -336,7 +338,7 @@ function gainItem(c: Choice | undefined): string | undefined {
 }
 
 /** HULL-1a (REQ-BFG-079): `day`, the run's day (a hull gain reads the day's number with HULL_SCALE on). */
-export function outcomeText(c: Choice, won: boolean, day?: number): [string, string] {
+export function outcomeText(c: Choice, won: boolean, day?: number, hearts = false): [string, string] {
   if (c.odds !== undefined) {
     const g = c.gain.find((d) => d.k === "gold");
     return won ? [`THE DICE LOVE YOU! +${g && g.k === "gold" ? g.n : 0} GOLD`, C.lime] : ["THE DICE SAY NO", C.red];
@@ -347,7 +349,7 @@ export function outcomeText(c: Choice, won: boolean, day?: number): [string, str
     case "item": return [`GOT ${itemName(d.def)}`, C.lime]; // the outcome panel adds "<PART> IS IN CARGO"
     case "gold": return [`+${d.n} GOLD`, C.yellow];
     case "hull": return [`+${hullShown(d.n, day)} MAX HULL`, C.lime];
-    case "lives": return [`+${d.n} LIFE`, C.lime];
+    case "lives": return [`+${d.n} ${hearts ? heartsWord(d.n) : "LIFE"}`, C.lime]; // RETUNE-1 run 2: `hearts`, a hearts run's PATCH UP
     case "belt": return [`+${d.n} BELT CAPACITY`, C.lime];
     case "bounty": return [`STAKED: +${d.n} ON YOUR NEXT HARD WIN`, C.amber];
     case "sabotage": return ["SAPPERS HIRED: NEXT WARLORD WEAKER", C.lime];

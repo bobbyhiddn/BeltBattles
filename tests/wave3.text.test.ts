@@ -15,6 +15,7 @@ import { STARS, banned, numbers } from "./textRules";
 import { faceLines } from "../src/ui/faces"; // Y7b2 (the flip): PINCER's face
 import { stripIcons } from "../src/render/font"; // Y7b2 (the flip): its line, read as text
 import { fmtDmg } from "../src/ui/statFormat"; // Y7b2 (the flip): its number through the face's formatter
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's base row beside the shipped one
 
 // 0.8.0 P1 (REQ-BFG-032): wave 3's text in the game's panels, with wave 3 turned on (withWave3): T6's phone fit and the
 // desk column for every wave-3 module at every star (placed, in cargo, fitted and on offer), the flavour (none kept), T2
@@ -262,7 +263,10 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
   it("the rows, written out: the walk's damage, and what the rig does that the walk can't count", () => {
     const h = (def: string, stars: number, more: object = {}) => hitText({ uid: 1, def, dir: 1, stars, tier: 1, ...more } as Parameters<typeof hitText>[0], "free");
     // NUM-1: x10 (the walk's hit values and the rows were 1.1 / 1, 12, 3 / 3, 1 / 1, 5, 3 / 2.2 / 4, 1)
-    expect(h("plateroller", 2, { plate: 11 })).toBe("PLATE ROLLER +11 SHIELD");
+    // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): 11 -> 33, GUARD's PLATE ROLLER ★2 (x3 a payload; the row reads
+    // the def's star value); it read 11 before only because a wave-3 toggle wrote the base def back. 11 with GUARD off
+    expect(h("plateroller", 2, { plate: 33 })).toBe("PLATE ROLLER +33 SHIELD");
+    expect(withGuard(() => h("plateroller", 2, { plate: 11 }), false)).toBe("PLATE ROLLER +11 SHIELD");
     // SUS-B (cap's answer 3 to SUSTAIN-1): SHIELD WALL is IRON WALL (the name; the id and the row stay)
     expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 SHIELD, +30 DAMAGE AT 120 SHIELD");
     // Y7b2 (the flip): TWIN GAUGE's floor left, so the walk gives an unmatched belt flat 0 and its row says it does nothing

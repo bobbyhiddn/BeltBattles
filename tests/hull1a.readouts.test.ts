@@ -46,14 +46,18 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
       expect(on(() => f(runOf("furnace", 1, 750)))).toBe("2850");
       expect(on(() => f(runOf("furnace", 10, 750)))).toBe("17100");
       expect(on(() => f(runOf("foundry", 10)))).toBe("13500");
-      expect(on(() => f(runOf("weaver", 5, 250)))).toBe("5460"); // 1950 x 2.8
+      // HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9, R10 (a)): WEAVER's
+      // base is 1500 with free joins on (was "5460", 1950 x 2.8)
+      expect(on(() => f(runOf("weaver", 5, 250)))).toBe("4900"); // 1750 x 2.8
     }
   }, false));
 
   it("NEXT BATTLE's foe hull and the scout report's: on the fight's day", () => withHullScale(() => {
-    expect(foeClass(foeOf("weaver", 10, 250))).toBe("WEAVER · HULL 1950");
-    expect(on(() => foeClass(foeOf("weaver", 1, 250)))).toBe("WEAVER · HULL 1950");
-    expect(on(() => foeClass(foeOf("weaver", 10, 250)))).toBe("WEAVER · HULL 11700");
+    // HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9, R10 (a)): WEAVER's
+    // base is 1500 with free joins on (was 1950 / 1950 / 11700)
+    expect(foeClass(foeOf("weaver", 10, 250))).toBe("WEAVER · HULL 1750");
+    expect(on(() => foeClass(foeOf("weaver", 1, 250)))).toBe("WEAVER · HULL 1750");
+    expect(on(() => foeClass(foeOf("weaver", 10, 250)))).toBe("WEAVER · HULL 10500");
     const belt = heroStartBuild("bastion", 101).beltCap;
     expect(revealLine(foeOf("bastion", 10))).toBe(`BASTION · HULL 2150 · BELT ${belt}`);
     expect(on(() => revealLine(foeOf("bastion", 10)))).toBe(`BASTION · HULL 12900 · BELT ${belt}`);

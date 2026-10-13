@@ -35,7 +35,8 @@
 //
 //   npx vite build --ssr tools/fightBench.ts --outDir tools/dist/fightbench --emptyOutDir --logLevel warn
 //   nice -n 19 node tools/dist/fightbench/fightBench.js --days 1-10 --k 12 --seeds 24 --workers 6 [--warlords]
-//     [--wseeds 4] [--ladder-fix | --hull-scale | --npc-day | --all-on] --label before --json <out.json> --md <out.md>
+//     [--wseeds 4] [--ladder-fix | --hull-scale | --npc-day | --all-on] [--free-joins] --label before --json <out.json> --md <out.md>
+// JOINS-1 (REQ-BFG-091): --free-joins turns FREE_JOINS on (freeJoins.ts setFreeJoins) the same way; --all-on is the three.
 // Battles fan out to worker threads; every result is keyed by its task, so the output never depends on --workers.
 
 import { Worker, isMainThread, parentPort } from "node:worker_threads";
@@ -50,6 +51,7 @@ import { warlordDeck } from "../src/game/road";
 import { setLadderFix } from "../src/sim/ladderFix"; // --ladder-fix (HULL-1b, REQ-BFG-070)
 import { setHullScale } from "../src/sim/hullScale"; // --hull-scale (HULL-1c, REQ-BFG-079)
 import { setNpcDay } from "../src/sim/npcDay"; // --npc-day (HULL-1c, REQ-BFG-078)
+import { setFreeJoins } from "../src/sim/freeJoins"; // --free-joins (JOINS-1, REQ-BFG-091)
 
 const HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 
@@ -164,7 +166,7 @@ async function main(): Promise<void> {
   const k = num("k", 12), S = num("seeds", 24), nw = num("workers", 6), WS = num("wseeds", 4);
   const label = flag("label") ?? (has("ladder-fix") ? "before-ladders" : "before");
   // HULL-1c: which switches this run turned on (each through its module's setter, in every thread)
-  const on = [allOn || has("ladder-fix") ? "LADDER_FIX" : "", allOn || has("hull-scale") ? "HULL_SCALE" : "", allOn || has("npc-day") ? "NPC_DAY" : ""].filter(Boolean);
+  const on = [allOn || has("ladder-fix") ? "LADDER_FIX" : "", allOn || has("hull-scale") ? "HULL_SCALE" : "", allOn || has("npc-day") ? "NPC_DAY" : "", has("free-joins") ? "FREE_JOINS" : ""].filter(Boolean);
   const switches = on.length ? `${on.join(", ")} on; every other switch as committed (off).` : "Every switch as committed (off).";
   const started = new Date().toISOString();
   const t00 = performance.now();
@@ -295,6 +297,8 @@ if (benchRun && (allOn || has("ladder-fix"))) setLadderFix(true);
 // HULL-1c (REQ-BFG-079, REQ-BFG-078): --hull-scale and --npc-day the same way, through each module's setter
 if (benchRun && (allOn || has("hull-scale"))) setHullScale(true);
 if (benchRun && (allOn || has("npc-day"))) setNpcDay(true);
+// JOINS-1 (REQ-BFG-091): --free-joins (FREE_JOINS) the same way; --all-on still means the three above
+if (benchRun && has("free-joins")) setFreeJoins(true);
 if (benchRun && !isMainThread) {
   parentPort!.on("message", (m: { id: number; task: Task }) => parentPort!.postMessage({ id: m.id, out: doTask(m.task) }));
 } else if (benchRun) void main();

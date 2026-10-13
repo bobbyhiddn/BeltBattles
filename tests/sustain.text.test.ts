@@ -29,6 +29,7 @@ import { detailsPlan, fullText } from "../src/screens/build/inspector";
 import { panelPiece, panelWords } from "../src/screens/build/keywords";
 import type { Ctx } from "../src/screens/build/actions";
 import { banned, numbers } from "./textRules";
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): WARD BELL's base text beside the shipped one
 
 installRaster();
 
@@ -79,7 +80,10 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
     const plain = (id: string) => stripIcons(faceLines(id, 1)!.rules[0].text);
     // MERGE-099C: both sides' lines, as c099 ships them: TXT-AZ item 2's FEEDS A GUN (MEND PRESS) and WORDS-1's MENDING LOOM
     // (was "YOUR HULL: REGEN 10."). MERGE-099D (BRIEF-MERGE-099D 1f): CARD-3's word for WARD BELL's block, +1 WARD (was SHIELD)
-    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: HEAL 6.", "EVERY 8: +1 WARD.", "FEEDS A GUN: EVERY 3: HEAL 20.", "YOUR HULL: HEAL 10 EACH SEC."]);
+    // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): EVERY 8 -> EVERY 4, GUARD's WARD BELL ★1; it read 8 before
+    // only because withSustain wrote the base def back. 8 with GUARD off
+    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: HEAL 6.", "EVERY 4: +1 WARD.", "FEEDS A GUN: EVERY 3: HEAL 20.", "YOUR HULL: HEAL 10 EACH SEC."]);
+    expect(withGuard(() => plain("wardbell"), false)).toBe("EVERY 8: +1 WARD.");
   });
 
   it("every number on them is a formatter's, at every star; no bare keyword; each line fits the op band", () => {
@@ -103,8 +107,16 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
     // each LEVELS line as text, its icons dropped (a ladder's icon lead leaves no space behind)
     const at = (id: string, s: number) => levelLines(id, s)!.map((l) => stripIcons(icons(levelText(l))).replace(/ +/g, " ").trim());
     // WARD BELL's ladder is EVERY 8/5/4 (LADDER_SEP: the font has no "»", TEXT-STYLE 5.3)
-    expect(at("wardbell", 1)).toEqual(["EVERY [8]/5/4", "NEXT ★2: EVERY 5"]);
-    expect(at("wardbell", 3)).toEqual(["EVERY 8/5/[4]"]);
+    // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): 8/5/4 -> 4/2.5/2, GUARD's WARD BELL (twice as often); it
+    // read 8/5/4 before only because withSustain wrote the base def back. 8/5/4 with GUARD off
+    // HULL-ON run 5 (GUARD; cap's ruling 22e26ded338944ea Q6, ruling 19139b4c41a1636f): ★2 rounded 2.5 -> 3 (4/3/2)
+    expect(at("wardbell", 1)).toEqual(["EVERY [4]/3/2", "NEXT ★2: EVERY 3"]);
+    expect(at("wardbell", 3)).toEqual(["EVERY 4/3/[2]"]);
+    withGuard(() => {
+      expect(at("wardbell", 1)).toEqual(["EVERY [8]/5/4", "NEXT ★2: EVERY 5"]);
+      expect(at("wardbell", 3)).toEqual(["EVERY 8/5/[4]"]);
+      expect(levelText(levelLines("wardbell", 1)![0])).toBe("EVERY [8]/5/4{SEC}");
+    }, false);
     expect(at("riveter", 2)).toEqual(["6/[13]/21", "NEXT ★3: 21"]);
     expect(at("mendingloom", 1)).toEqual(["[10]/15/20", "NEXT ★2: 15"]);
     const press = at("mendpress", 1);
@@ -113,7 +125,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
     // the icons in the ladders: HEAL's, SHIELD's (in its rule), REGEN's
     expect(levelText(levelLines("riveter", 1)![0])).toBe("{HEAL} [6]/13/21");
     expect(levelText(levelLines("mendingloom", 1)![0])).toBe("{HEAL} [10]/15/20"); // WORDS-1: HEAL's icon (was {REGEN})
-    expect(levelText(levelLines("wardbell", 1)![0])).toBe("EVERY [8]/5/4{SEC}");
+    expect(levelText(levelLines("wardbell", 1)![0])).toBe("EVERY [4]/3/2{SEC}"); // HULL-ON (GUARD): was EVERY [8]/5/4 (off above); run 5: [4]/2.5/2 -> [4]/3/2 (ruling 22e26ded338944ea Q6)
     for (const id of SUSTAIN_FACES) for (const s of STARS) {
       for (const l of levelLines(id, s)!) expect(textWidth(icons(levelText(l, (v) => v)), "5"), `${id} ★${s}`).toBeLessThanOrEqual(NEXT_LINE_W);
       const nx = faceNext(id, s);
@@ -141,8 +153,11 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
       `{HEAL}${fmtDmg(ITEMS.mendpress.factory!.heal!.amount)}`, `{HEAL}${fmtDmg(ITEMS.mendingloom.mod!.regen!)}`, // WORDS-1: {HEAL} (was {REGEN})
     ]);
     expect(SUSTAIN_FACES.map((id) => cardText(id))).toEqual([
-      "HEALS 6 HULL EACH HIT.", "WARDS YOUR HULL EVERY 8 SECONDS." /* FLIP-X2 (cap's ruling 207816b18a9fbfdb C): was "+1 SHIELD EVERY 8 SECONDS." */, "HEALS YOUR HULL EVERY 3 SECONDS.", "HEALS 10 HULL EVERY SECOND.",
+      // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): EVERY 8 -> EVERY 4 SECONDS, GUARD's WARD BELL ★1; it read 8
+      // before only because withSustain wrote the base def back. 8 with GUARD off, below
+      "HEALS 6 HULL EACH HIT.", "WARDS YOUR HULL EVERY 4 SECONDS." /* FLIP-X2 (cap's ruling 207816b18a9fbfdb C): was "+1 SHIELD EVERY 8 SECONDS." */, "HEALS YOUR HULL EVERY 3 SECONDS.", "HEALS 10 HULL EVERY SECOND.",
     ]);
+    expect(withGuard(() => cardText("wardbell"), false)).toBe("WARDS YOUR HULL EVERY 8 SECONDS.");
   });
 });
 
@@ -169,7 +184,10 @@ describe("SUS-B the ability text (the kept sentences, gist, card; RIVETER's word
     expect(abilityText("riveter", 1).sentences).toEqual([
       "HEALS YOUR HULL BY 6 FOR EACH PAYLOAD IT HITS.", "IT NEVER HEALS PAST YOUR FULL HULL.", "A HULL WITH BURN HEALS HALF, AND NOTHING HEALS IN THE DARK WIND.",
     ]);
-    expect(abilityText("wardbell", 1).sentences[0]).toBe(`YOUR HULL GAINS ONE WARD EVERY 8 SECONDS, UP TO ${SHIELD_CAP}.`);
+    // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): EVERY 8 -> EVERY 4 SECONDS, GUARD's WARD BELL ★1; it read 8
+    // before only because withSustain wrote the base def back. 8 with GUARD off
+    expect(abilityText("wardbell", 1).sentences[0]).toBe(`YOUR HULL GAINS ONE WARD EVERY 4 SECONDS, UP TO ${SHIELD_CAP}.`);
+    expect(withGuard(() => abilityText("wardbell", 1).sentences[0], false)).toBe(`YOUR HULL GAINS ONE WARD EVERY 8 SECONDS, UP TO ${SHIELD_CAP}.`);
     expect(abilityText("mendingloom", 2).sentences[0]).toBe("HEALS YOUR HULL BY 15 EVERY SECOND.");
   });
 

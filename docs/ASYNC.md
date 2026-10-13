@@ -99,9 +99,12 @@ Both use deck.ts's own rules, and every error starts with its category:
 - **route**: `routeWellFormed` (starts beside its factory, orthogonal steps, no loops, passes
   only through gates), no crossings, **connected** (ends on a turret connector it claims, or, 0.6.2j, legally
   joins a belt whose chain does; spec §8.1), routes per factory ≤ its outputs, belt tiles ≤ `beltCap`. A join must be
-  legal (`deck.ts joinProblem`: next to its join tile, another belt's tile, no loop), and a deck holds at most
-  `JOIN_LIMIT` (2) joins: the next legal one in route order is refused, "2 JOINS PER DECK" (0.6.2 RULE JOIN LIMIT).
-  A join with an illegal shape keeps its shape reason and never counts. Both modes share this check.
+  legal (`deck.ts joinProblem`: next to its join tile, another belt's tile, no loop). Under bb-0.10.0 (FREE_JOINS,
+  REQ-BFG-091, on from HULL-ON's flip) a deck holds any number of legal joins, and a joined factory runs at its full
+  pace: there is no `JOIN_LIMIT` and no `JOIN_PACE`. A record under older rules keeps its own rule (`rulesGate.ts
+  freeJoinsFor`): at most `JOIN_LIMIT` (2) joins, the next legal one in route order refused, "2 JOINS PER DECK" (0.6.2
+  RULE JOIN LIMIT), and its joined factories at `JOIN_PACE`. A join with an illegal shape keeps its shape reason and
+  never counts. Both modes share this check.
 - **hardpoint**: only turret equipment, on an installed turret; at most that turret's gear slots of gear, never
   two copies of one gear on a turret, one core per socket.
 - **rules** (`validateUpload` only, given the snapshot's `rules`): turret slots (a non-empty `build.turrets`) and belt
