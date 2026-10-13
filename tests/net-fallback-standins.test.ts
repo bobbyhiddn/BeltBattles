@@ -3,7 +3,8 @@ import { HEROES, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { STAND_IN_POOL_HEROES, standInPick } from "../src/sim/standInPool";
 import { STAND_IN_HEROES, fallbackGhost, offlineGhost, rivalHero } from "../src/net/fallback";
-import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
+import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode)
+import { npcDayRules, roadDropValue } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import { generateSamplePool } from "../tools/samplePool";
 import { boughtCost } from "../src/sim/harness/standins";
 import { runeGrants } from "../src/sim/runes";
@@ -37,7 +38,21 @@ describe("fallback stand-ins", () => {
         for (const seed of [0, 1, 7, 99, 4242]) {
           const g = fallbackGhost({ rules: RULES_VERSION, day, wins: 0, lives: 3, playerId: "me", seen: [], hero, seed });
           expect(g.id).toBe(`offline-${g.snapshot.hero}-d${day}`);
-          expect(validateBuild(g.snapshot.build, day).errors, `${hero} d${day} seed ${seed}`).toEqual([]);
+          // S8c (the pools): RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3).
+          // a48010b: with NPC_DAY on, a road-fed deck spends the road's drops too, by design. The regenerated pool's picks are
+          // road-fed (P1 83c039d, NPC_DAY on: each tuple's 7th element is its road log), so a ghost may cost more than the
+          // shop's gold alone, which the strict mode's budget line doesn't count; its drops count through its road log (its
+          // pool entry's), in the player mode. So each ghost is held to validateBuild's lines minus at most its ONE budget line
+          // (matched by its "budget: " prefix, and only while NPC_DAY is on: off, the strict check stays whole), AND to
+          // validateUpload in the player mode with its road log (and its run seed where it carries one; a stand-in carries
+          // none). Was: validateBuild(g.snapshot.build, day).errors toEqual [] (and the two "within the budget" lines below,
+          // for every ghost)
+          const strict = validateBuild(g.snapshot.build, day).errors;
+          const budgetLine = npcDayRules() ? strict.filter((x) => x.startsWith("budget: ")) : [];
+          expect(budgetLine.length, `${hero} d${day} seed ${seed}: at most its one budget line`).toBeLessThanOrEqual(1);
+          expect(strict.filter((x) => !budgetLine.includes(x)), `${hero} d${day} seed ${seed}: every other strict line`).toEqual([]);
+          const road = pickEntry(g.snapshot.hero, day, seed).road, s = g.snapshot;
+          expect(validateUpload(s.build, day, s.rules, { ...(s.seed !== undefined ? { seed: s.seed } : {}), ...(road ? { road } : {}) }).errors, `${hero} d${day} seed ${seed}: the player mode with its road log`).toEqual([]);
           expect(g.snapshot.build.hero).toBe(g.snapshot.hero);
           expect(HEROES[g.snapshot.hero].faction).not.toBe(HEROES[hero].faction);
           expect(g.snapshot.build).toEqual(standInPick(rivalHero(hero, seed), day, seed));
@@ -53,9 +68,11 @@ describe("fallback stand-ins", () => {
           // FLIP-X2: the budget is the day's gold plus the runes' dawn gold (runeGrants(runes, day).gold), as validate.ts
           // budgets a deck (was maxGoldByDay(day) alone: an entry that spent its rune gold read spent 53 against 50)
           const budget = maxGoldByDay(day) + runeGrants(g.snapshot.build.runes, day).gold;
-          expect(e.spent).toBeLessThanOrEqual(budget);
+          // S8c (T1e's form, as above): the gold spent and the value within the budget, whole unless the ghost's one budget
+          // line was left to the player mode above (only while NPC_DAY is on). Was: for every ghost
+          if (!budgetLine.length) expect(e.spent, `${hero} d${day} seed ${seed}: spent within the budget`).toBeLessThanOrEqual(budget);
           expect(value).toBe(e.cost);
-          expect(value).toBeLessThanOrEqual(budget); // FLIP-X2: maxGoldByDay(day) -> the budget above
+          if (!budgetLine.length) expect(value, `${hero} d${day} seed ${seed}: value within the budget`).toBeLessThanOrEqual(budget); // FLIP-X2: maxGoldByDay(day) -> the budget above
           if (POOL_LEGACY) expect(value).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day))); // pool v2.1: the deck itself
         }
       }
@@ -66,7 +83,23 @@ describe("fallback stand-ins", () => {
     // REDO-X step 2 (4.1; the pools changed, the regeneration): WEAVER's seed-3 offline ghost is now a FURNACE day-1 pick
     // holding TAR BARREL (+8 belt), so the deck is valued as bought (boughtCost: the rune's BELT is not crates), as this
     // file's other checks since FLIP-X2: 8 of 8 gold (was buildCost(...).total: 12 with the rune's belt charged as crates)
-    for (const hero of ["furnace", "weaver"] as const) expect(boughtCost(offlineGhost(hero, 1, 3).snapshot.build)).toBe(8);
+    // S8c (the pools): RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3).
+    // a48010b: with NPC_DAY on, a road-fed deck spends the road's drops too, by design. The regenerated pool's day-1 picks
+    // are road-fed (P1 83c039d, NPC_DAY on), so the deck as bought is the full purse (8 of 8 gold, the shop's) plus its road
+    // drops at their value (roadDropValue of its pool entry's road log), which only the player mode counts: the deck is held
+    // to validateBuild's lines minus at most its ONE budget line (only while NPC_DAY is on) AND to validateUpload in the
+    // player mode with its road log. Was: boughtCost(...) toBe 8 for both (the deck the shop's gold alone)
+    const days1 = (["furnace", "weaver"] as const).map((hero) => {
+      const g = offlineGhost(hero, 1, 3), road = pickEntry(g.snapshot.hero, 1, 3).road;
+      const strict = validateBuild(g.snapshot.build, 1).errors;
+      const budgetLine = npcDayRules() ? strict.filter((x) => x.startsWith("budget: ")) : [];
+      expect(budgetLine.length, `${hero}: at most its one budget line`).toBeLessThanOrEqual(1);
+      expect(strict.filter((x) => !budgetLine.includes(x)), `${hero}: every other strict line`).toEqual([]);
+      expect(validateUpload(g.snapshot.build, 1, g.snapshot.rules, { ...(road ? { road } : {}) }).errors, `${hero}: the player mode with its road log`).toEqual([]);
+      return [boughtCost(g.snapshot.build), npcDayRules() ? roadDropValue(road) : 0];
+    });
+    expect(days1).toEqual([[11, 3], [11, 3]]); // S8c (the pools): the deck as bought, its drops: was 8 (and no drops) for both
+    for (const [value, drops] of days1) expect(value - drops, "the shop's part, the full purse").toBe(8);
   });
 
   it("the two sample-pool variants differ for every hero and day", () => {
