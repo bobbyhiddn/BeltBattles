@@ -737,7 +737,7 @@ export function fittedPanel(run: Run, uid: number): PanelText | null {
   const d = ITEMS[m.def], stars = starsOf(m), core = d.kind === "core";
   const k = core ? classFactor(td) : 1;
   const body: Block[] = [
-    ...abilityBlocks(d.id, stars, { k, hero: b.hero as HeroId }),
+    ...abilityBlocks(d.id, stars, { k, hero: b.hero as HeroId, day: run.day }), // CNT-DAY2 (REQ-BFG-100): the run's day, as its word taps (panelPiece's fitted) and textOpts read it
     ...flavourBlocks(d.id, stars, k),
     hintBlock("TAP THE TURRET AGAIN FOR ITS NEXT PART."),
   ];

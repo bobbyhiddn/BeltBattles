@@ -458,18 +458,24 @@ export function tapNote(def: string, word: string): TapNote | undefined {
 
 /** What a tap on `word` shows, in markup, on piece `def` at `stars` (o: the core's class factor k, the run's hero): the
  *  piece's tap note on that word; else its row's: a face keyword on a faced piece takes the piece's own reminder (its
- *  number) and the row's extra sentence; else the row's definition. Undefined for a word with no row. */
-export function glossaryText(word: string, piece?: { def: string; stars: number; o?: TextOpts }): string | undefined {
+ *  number) and the row's extra sentence; else the row's definition. Undefined for a word with no row.
+ *  CNT-DAY2 (REQ-BFG-100, REQ-BFG-082): `day`, the day the panel is read on (keywords.ts: its Run's day, the build
+ *  screen's run.day or a face's faceRun day), for a tap with no piece (a belt's panel, an empty slot, a turret with no
+ *  bought core) or on a piece with no day of its own: the row (and a faced piece's own reminder) on that day. A piece's own
+ *  day (piece.o.day) comes first. No day: as before, byte for byte. */
+export function glossaryText(word: string, piece?: { def: string; stars: number; o?: TextOpts }, day?: number): string | undefined {
   if (piece) {
     const n = tapNote(piece.def, word);
     if (n) return n.text(effectAt(piece.def, piece.stars), { stars: piece.stars, k: piece.o?.k ?? 1 });
   }
   const found = glossaryEntry(word);
   if (!found) return undefined;
+  // CNT-DAY2: the piece's options, with the panel's day where the piece has none (no `day`: the piece's own, as before)
+  const o = day !== undefined && piece?.o?.day === undefined ? { ...piece?.o, day } : piece?.o;
   // built now: its numbers go through the formatters now. HULL-1d: on the piece's day (piece.o.day, the run's)
-  const row = glossaryRows(piece?.o?.day).find((r) => r.word === found.word)!;
+  const row = glossaryRows(o?.day).find((r) => r.word === found.word)!;
   if (row.kw && piece && hasFace(piece.def)) {
-    const own = faceAt(piece.def, piece.stars, piece.o ?? {})?.reminders.find((r) => r.includes(`{*${row.kw}}`));
+    const own = faceAt(piece.def, piece.stars, o ?? {})?.reminders.find((r) => r.includes(`{*${row.kw}}`));
     if (own) return row.extra ? `${own} ${row.extra}` : own;
   }
   return row.def;
