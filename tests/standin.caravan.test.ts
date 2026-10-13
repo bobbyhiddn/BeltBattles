@@ -31,6 +31,7 @@ import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold 
 import { npcDayRules, roadDropValue, setNpcDay, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the caravan runs' NPC day
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the faked deck's par deck, with the switch off
 import { setOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): M5's caravan pool, with the switch off
+import { SHAPES, setShapes } from "../src/sim/shapes"; // MERGE-099F: M5's caravan pool, with SHAPES off too
 
 const HEROES = ["furnace", "weaver"] as const;
 
@@ -420,6 +421,7 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
   const TYPE_CARAVAN_ROAD = "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number, spent: number, road: string];";
   afterEach(() => setNpcDay(true)); // the shipped value (AZ-BUMP's flip): a test below sets NPC_DAY off for itself
   afterEach(() => setOpenRunes(true)); // the shipped value (HULL-ON's flip): the same test sets OPEN_RUNES off for itself
+  afterEach(() => setShapes(SHAPES)); // MERGE-099F: the shipped value (SHAPES-1's flip): the same test sets SHAPES off for itself
 
   it("a caravan pool (fake runner) writes each pick's gold spent as a sixth element, the guard checks it, and the loader returns it", async () => {
     // AZ-BUMP (the flip, NPC_DAY): the gold spent is the shop's (deck + rerolls + sale losses, cargoGold 0), and an
@@ -432,6 +434,11 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
     // candidates' spent tops its cost; with OPEN_RUNES off 2 do, and meet the floor), so it is generated with OPEN_RUNES off
     // too (the afterEach puts it back)
     setOpenRunes(false);
+    // MERGE-099F (REQ-BFG-079, -086; tests only): SHAPES and HULL-ON's five on together: with the shaped pieces in the
+    // caravan as well no base candidate that meets the spend floor over-spends again (over-spend candidates meeting the
+    // floor: 0), so the pool is generated with SHAPES off too, as HULL-ON set OPEN_RUNES off for the same reason (the
+    // afterEach puts it back); was SHAPES on (the merged world) only since the merge
+    setShapes(false);
     // NUM-1 (REQ-BFG-047, cap's oracle 03f2cc3c1884e806): test-only, an over-spend pick is forced in. fakeRun hashes the
     // deck codes, and NUM-1's codes (hull x10) re-rolled it so that no pick over-spent. So first the over-spend candidates
     // (caravan spent > cost) of every hero/day's population (base and growth), keyed by deck code (a code that some
