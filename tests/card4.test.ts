@@ -699,10 +699,12 @@ describe("CARD-4 (t): the words READ-4 found misread (REQ-BFG-081, REQ-BFG-089; 
     expect(ITEMS.braceframe.gate!.brace!.mul).toBe(0.5);
   });
 
-  it("the six phone gists name what each piece does, each row A at most 10 capitals, 40 px, no digit; row B the face's chip", () => {
+  // CARD-5 (REQ-BFG-111; GISTS-CARD5) changed two of CARD-4's six by design: EXT. CHAMBER's is FIRES 2{SLUG} / A SHOT and
+  // TESLA ARC's SHOTS ARC / {STUN}1 now (tests/card5.test.ts pins both, their digits and their fit); the four kept stay here
+  it("CARD-4's phone gists that CARD-5 kept name what each piece does, each row A at most 10 capitals, 40 px, no digit; row B the face's chip", () => {
     const want: Record<string, readonly [string, string]> = {
       spotter: ["AIMS AGAIN", "AIM+1"], anvil: ["DMG + YOUR", "{PLATE}+100%"], compound: ["{SLUG}{SLUG} AS ONE", "{DMG}+15%"],
-      chamber: ["PER SHOT", "{SLUG}2"], tesla: ["ARC STUNS", "{STUN}1"], sorting: ["EACH THIRD", "{SLUG}COPY"],
+      sorting: ["EACH THIRD", "{SLUG}COPY"],
     };
     for (const [d, g] of Object.entries(want)) {
       expect(phoneGist(d, {}), d).toEqual(g);
@@ -723,8 +725,9 @@ describe("CARD-4 (t): the words READ-4 found misread (REQ-BFG-081, REQ-BFG-089; 
     expect(rule("chamber")).toMatch(/EACH SHOT FIRES 2/);
     expect(rule("tesla")).toMatch(/ARCS TO 1 PART: ?STUN ?1/);
     expect(rule("sorting")).toMatch(/OF EVERY 3 ?, ONE BECOMES 2/);
-    // the three READ-4 left alone keep theirs (their notes carry WARD and PAIR)
-    expect([phoneGist("wardbell", {})![0], phoneGist("seamwelder", {})![0], phoneGist("twintrigger", {})![0]]).toEqual(["OVER TIME", "{*PAIR}", "{*PAIR}"]);
+    // the three READ-4 left alone kept theirs (their notes carry WARD and PAIR); CARD-5 (GISTS-CARD5) changed WARD BELL's and
+    // TWIN TRIGGER's by design, SEAM WELDER keeps {*PAIR}
+    expect([phoneGist("wardbell", {})![0], phoneGist("seamwelder", {})![0], phoneGist("twintrigger", {})![0]]).toEqual(["EVERY 4{SEC}", "{*PAIR}", "PAIRED {SLUG}"]);
   });
 
   it("the hull runes say ALL RUN on the card; MERGED, LOAD and RIG are words with notes on their cards; the chips and their lines as before", () => {
