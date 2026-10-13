@@ -7,7 +7,7 @@
 // reminder key, order). SCALE-2b's POISON fills the reserved slot's `value`; SCALE-2c's hits-taken chip (C7) is one more
 // entry: the row's drawing reads the list and never names a chip.
 
-import type { Battle, Side, SideState, TurretState } from "../sim/battle";
+import type { Battle, RouteState, Side, SideState, TurretState } from "../sim/battle";
 import { FRAY_MAX, JAM_THRESHOLD, type ItemDef } from "../sim/content";
 import { ROUTINES } from "../sim/cores";
 import { ICON, type KeywordName } from "../render/font";
@@ -218,17 +218,25 @@ export function tabBelow(plate: { y: number; h: number }, hull: { y: number; h: 
 // ------------------------------------------------------------------------------------------------ the board counters
 
 /** C5's rule (cap's call, both built): "all" draws a belt's slug count on every belt holding a slug while the fight runs;
- *  "readers" only on belts some piece reads (CROWD PRESS, 1E: none live, so nothing shows today). */
+ *  "readers" only on belts some piece reads (CROWD PRESS, 1E: none live, so nothing shows today).
+ *  PAIR-1c (cap's ruling; REQ-BFG-100), under both: a one-tile joining belt (RouteState.join set, fewer than 2 cells: with
+ *  SHAPES on, every par I3 ASSEMBLY LINE's exit) is a connector, so it shows no count unless a belt reader works it. Its
+ *  slugs are counted one tile later, on the belt they join, which has its own box. */
 export type BeltCounts = "all" | "readers";
 export const BELT_COUNTS: BeltCounts = "all";
-/** The belt-count readers (none live at bb-0.9.7: CROWD PRESS is SCALE-2's). */
+/** The belt-count readers (none live at bb-0.9.7: CROWD PRESS is SCALE-2's). A count a piece reads always shows: C5 shows
+ *  on every belt holding a slug that one of them works, under both modes, a one-tile joining belt too. */
 export const BELT_READERS: readonly string[] = [];
 
-/** C5 shows on this belt under `mode`: it holds a slug, and with "readers" a rig in BELT_READERS works it. */
-export function beltShows(s: Pick<SideState, "gates">, route: { index: number; ammo: readonly unknown[] }, mode: BeltCounts): boolean {
+/** C5 shows on this belt under `mode`: it holds a slug, and with "readers" a rig in `readers` (BELT_READERS) works it. Under
+ *  "all" a one-tile joining belt (a `join`, fewer than 2 cells; PAIR-1c) shows only where such a rig works it, as under
+ *  "readers". Multi-tile joining belts and one-tile belts without a join (a gun's intake) keep "all"'s rule. The drawing
+ *  and the belt's tap and hover group read this one rule (screens/battleCounters.ts drawBoard). Pure. */
+export function beltShows(s: Pick<SideState, "gates">, route: Pick<RouteState, "index" | "cells" | "join"> & { ammo: readonly unknown[] },
+  mode: BeltCounts, readers: readonly string[] = BELT_READERS): boolean {
   if (!route.ammo.length) return false;
-  if (mode === "all") return true;
-  return s.gates.some((g) => BELT_READERS.includes(g.def.id) && g.hits.some((h) => h.route === route.index));
+  if (mode === "all" && !(route.join && route.cells.length < 2)) return true;
+  return s.gates.some((g) => readers.includes(g.def.id) && g.hits.some((h) => h.route === route.index));
 }
 
 /** The 3x5 counter box (C5, C6): 9 px tall, text 2 px in and 2 px down; `textW` its text's width. */
