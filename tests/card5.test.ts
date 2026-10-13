@@ -273,6 +273,35 @@ describe("CARD-5 (H): HOW TO PLAY names the kinds and the keywords (REQ-BFG-111;
   });
 });
 
+// --------------------------------------------------------------------------- L: the numbers follow the day
+import { cardText } from "../src/ui/abilityText";
+import { dmgDayScale, dmgMulTenths } from "../src/sim/hullScale";
+
+describe("CARD-5 (L): LIMPET WORKS' desk line and SCRAPPER's panel follow the day (REQ-BFG-081; READ-5 12.6, DAYNUM.md)", () => {
+  const dmgOf = (id: string, day: number): number => Number(faceAt(id, 1, { day })!.stats.find(([ic]) => ic === "DMG")![1]);
+  it("LIMPET WORKS: the desk line's blast is the one the sim lands that day (dmgDayScale with D), as its panel's DMG: day 1 100, day 5 200", () => {
+    const blast = (effectAt("limpet", 1).factory!.round as { blast: number }).blast;
+    for (const [day, n] of [[1, 100], [5, 200]] as const) {
+      expect(dmgDayScale(blast, dmgMulTenths(day), {}), `the sim's blast on day ${day}`).toBe(n);
+      expect(cardText("limpet", { day }), `day ${day}`).toMatch(new RegExp(`^BLASTS THE FOE'S HULL FOR ${n}\\.?$`));
+      expect(dmgOf("limpet", day), `the panel's DMG on day ${day}`).toBe(n);
+    }
+  });
+
+  it("SCRAPPER: its panel prints the desk line's number where its rule is, from the same source: day 1 30, day 5 60; its DMG stat a plain slug's and this", () => {
+    for (const [day, n] of [[1, 30], [5, 60]] as const) {
+      expect(faceAt("scrapper", 1, { day })!.rules.map((r) => r.text), `day ${day}`).toEqual(["EACH {*STUN} YOU LAND: 1 EXTRA {SLUG}.", `ITS {SLUG} DEAL ${n} MORE {DMG} THAN PLAIN.`]);
+      expect(cardText("scrapper", { day }), `day ${day}`).toMatch(new RegExp(`^SCRAP SLUGS, ${n} MORE DAMAGE\\.?$`));
+      expect(dmgOf("scrapper", day) - dmgOf("press", day), `day ${day}: the scrap slug over a plain one`).toBe(n);
+    }
+    // the line fits the panel's one-line band (225 px, the 5x7 face) at every star and day
+    for (const s of [1, 2, 3]) for (const day of DAYS) {
+      const t = faceAt("scrapper", s, { day })!.rules[1].text;
+      expect(textWidth(icons(t), "5"), `★${s} day ${day}: ${t}`).toBeLessThanOrEqual(225);
+    }
+  });
+});
+
 // --------------------------------------------------------------------------- K: every first-sight note, in turn
 import { afterEach, beforeEach } from "vitest";
 import { newRun, type DuskFoe, type Run } from "../src/game/run";
