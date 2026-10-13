@@ -13,8 +13,9 @@ type Belt = Parameters<typeof beltShows>[1];
 type Gates = Pick<SideState, "gates">;
 
 const MODES: BeltCounts[] = ["all", "readers"];
-/** A belt reader for the tests (BELT_READERS is empty today: CROWD PRESS, 1E, will fill it). */
-const READER = "crowdpress";
+/** A belt reader for the tests, passed as `readers`: an id no list holds, so the file stays green when CROWD PRESS (1E)
+ *  fills BELT_READERS (empty today). */
+const READER = "pair1c-reader";
 /** The shaped fight's join (CHECK-COMBINED 3(b)): your route 3 at (2,1) joins route 1 at tile 6. */
 const JOIN: RouteJoin = { route: 1, tile: 6, enter: 6 * CELL, tail: 2 * CELL, feeds: 0 };
 const SLUG = {};
@@ -32,9 +33,12 @@ const oneTileIntake = (slugs = 1): Belt => belt(4, [6], slugs);
 const mainBelt = (slugs = 1): Belt => belt(1, [53, 52, 51, 41, 31, 21, 11, 1], slugs);
 
 describe("PAIR-1c: no belt count on a one-tile joining belt, unless a belt reader works it", () => {
-  it("C5's rule still defaults to all, and no belt reader is live", () => {
+  it("C5's rule still defaults to all, and the readers default to BELT_READERS", () => {
     expect(BELT_COUNTS).toBe("all");
-    expect(BELT_READERS).toEqual([]);
+    // a rig BELT_READERS names, working a one-tile joining belt, shows its count (none live today: CROWD PRESS, 1E)
+    for (const id of BELT_READERS) expect(beltShows(side([id, [3]]), oneTileJoin(), "all"), id).toBe(true);
+    // a rig no list names never does
+    expect(beltShows(side([READER, [3]]), oneTileJoin(), "all")).toBe(false);
   });
 
   it("a one-tile joining belt holding a slug: no count under all (nor under readers)", () => {
@@ -42,11 +46,8 @@ describe("PAIR-1c: no belt count on a one-tile joining belt, unless a belt reade
       expect(beltShows(side(), oneTileJoin(n), "all"), `${n} slugs`).toBe(false);
       expect(beltShows(side(), oneTileJoin(n), "readers"), `${n} slugs`).toBe(false);
     }
-    // a rig that is no belt reader working it changes nothing (a SPIKE RAIL, an EMBER TROUGH)
-    expect(beltShows(side(["spikerail", [3]], ["embertrough", [3, 1]]), oneTileJoin(), "all")).toBe(false);
-    // the default readers are BELT_READERS (empty today): a rig named in no list never makes it show
-    expect(beltShows(side([READER, [3]]), oneTileJoin(), "all")).toBe(false);
-    expect(beltShows(side([READER, [3]]), oneTileJoin(), "all", BELT_READERS)).toBe(false);
+    // rigs that are no belt reader working it change nothing (a SPIKE RAIL, an EMBER TROUGH)
+    expect(beltShows(side(["spikerail", [3]], ["embertrough", [3, 1]]), oneTileJoin(), "all", [READER])).toBe(false);
   });
 
   it("the same belt with a belt reader working it: the count shows, under both modes", () => {
