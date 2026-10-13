@@ -198,6 +198,47 @@ describe("PERF-1: the build screen draws only what changed (game/retain.ts)", ()
     expect(real.log.filter((l) => l === "fillRect").length).toBe(2);
   });
 
+  it("a soft draw (not whole-pixel exact: a fractional scale) is never cut by a box: the box it meets grows to hold it", () => {
+    // in a page, Skia can sample an image drawn at a fractional scale differently where a clip's edge cuts it (the frame
+    // check found 10 px on the 390x660 phone with a rune, where the build screen's grid falls back to sub 1)
+    const real = new SoftCtx(200, 200), rec = new Retained();
+    const img = { width: 10, height: 10, color: 3 };
+    const frame = (x: number) => {
+      const g = rec.begin(real as unknown as CanvasRenderingContext2D);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.imageSmoothingEnabled = false;
+      g.fillStyle = "#2";
+      g.fillRect(0, 0, 200, 200);
+      g.setTransform(1.5, 0, 0, 1.5, 0, 0); // the sprite at x 1.5: device 60..75, soft
+      g.drawImage(img as unknown as CanvasImageSource, 40, 40);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.fillStyle = "#5";
+      g.fillRect(x, 70, 4, 4); // exact
+      rec.end();
+    };
+    frame(150);
+    frame(150);
+    expect(rec.stats.last).toEqual([]);
+    frame(56); // the new place [55, 69, 61, 75] meets the sprite's [59, 59, 76, 76]: it grows to hold it whole
+    expect([...(rec.stats.last as Box[])].sort((p, q) => p[0] - q[0])).toEqual([[55, 59, 76, 76], [149, 69, 155, 75]]);
+    // an exact sprite (a whole scale on pixel lines) is cut freely
+    const rec2 = new Retained(), real2 = new SoftCtx(200, 200);
+    const frame2 = (x: number) => {
+      const g = rec2.begin(real2 as unknown as CanvasRenderingContext2D);
+      g.setTransform(2, 0, 0, 2, 0, 0);
+      g.imageSmoothingEnabled = false;
+      g.fillStyle = "#2";
+      g.fillRect(0, 0, 100, 100);
+      g.drawImage(img as unknown as CanvasImageSource, 30, 30); // device 60..80, exact
+      g.fillStyle = "#5";
+      g.fillRect(x, 35, 2, 2);
+      rec2.end();
+    };
+    frame2(80);
+    frame2(28); // new place [55, 69, 61, 75]: meets the sprite, which is exact, so the box stays
+    expect([...(rec2.stats.last as Box[])].sort((p, q) => p[0] - q[0])).toEqual([[55, 69, 61, 75], [159, 69, 165, 75]]);
+  });
+
   it("each state a draw reads counts: the fill style, alpha, smoothing, the transform, a clip", () => {
     const img = { width: 2, height: 2, color: 9 };
     const variants: [string, (g: CanvasRenderingContext2D) => void][] = [
@@ -314,7 +355,7 @@ describe("PERF-1: the build screen draws only what changed (game/retain.ts)", ()
     const many: Box[] = Array.from({ length: 70 }, (_, i): Box => [i * 3, 0, i * 3 + 1, 1]);
     expect(mergeBoxes(many, 1000, 10)).toEqual([[0, 0, 208, 1]]);
     // a draw added in the middle: only the added draw's box (the head and the tail match)
-    const d = (x: number) => ({ m: "fillRect", a: [x, 0, 1, 1], ver: 0, t: [1, 0, 0, 1, 0, 0], alpha: 1, fill: "#1", smooth: null, misc: "", clip: "", path: "", box: [x, 0, x + 1, 1] as Box });
+    const d = (x: number) => ({ m: "fillRect", a: [x, 0, 1, 1], ver: 0, t: [1, 0, 0, 1, 0, 0], alpha: 1, fill: "#1", smooth: null, misc: "", clip: "", path: "", box: [x, 0, x + 1, 1] as Box, soft: false });
     expect(changedBoxes([d(1), d(2), d(3)], [d(1), d(2), d(9), d(3)])).toEqual([[9, 0, 10, 1]]);
     expect(changedBoxes([d(1), d(2)], [d(1), d(2)])).toBeNull();
   });

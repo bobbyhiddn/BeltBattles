@@ -46,6 +46,9 @@ export interface Draw {
   path: string;
   /** Device px it can touch; null: unbounded (a frame where it changes plays whole). */
   box: Box | null;
+  /** Not whole-pixel exact (a fractional place or scale, smoothing on): a clip's edge through it could change how it is
+   *  sampled, so a box it overlaps grows to hold it whole (settleBoxes). */
+  soft: boolean;
 }
 
 /** The state in force (immutable: a change makes a new level). */
@@ -113,6 +116,52 @@ export function rectBox(t: Mat, x: number, y: number, w: number, h: number): Box
   }
   if (!Number.isFinite(x0) || !Number.isFinite(x1) || !Number.isFinite(y0) || !Number.isFinite(y1)) return null;
   return [Math.floor(x0) - 1, Math.floor(y0) - 1, Math.ceil(x1) + 1, Math.ceil(y1) + 1];
+}
+
+const whole = (v: number): boolean => Math.abs(v - Math.round(v)) < 1e-6;
+
+/** A w x h rect at (x, y) under t lands on whole device px: t axis-aligned and every edge on a pixel line. */
+function exactRect(t: Mat, x: number, y: number, w: number, h: number): boolean {
+  return t[1] === 0 && t[2] === 0 && whole(t[0] * x + t[4]) && whole(t[0] * (+x + +w) + t[4]) && whole(t[3] * y + t[5]) && whole(t[3] * (+y + +h) + t[5]);
+}
+
+/** A drawImage lands whole-pixel exact: its destination on pixel lines, its source on whole texels, and each texel a
+ *  whole number of device px (so a clip's edge can't move which texel a pixel takes). */
+function exactImage(t: Mat, a: unknown[]): boolean {
+  const img = a[0] as { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number };
+  const iw = img.naturalWidth || img.width || 0, ih = img.naturalHeight || img.height || 0;
+  const n = a as number[];
+  let sx = 0, sy = 0, sw = iw, sh = ih, dx: number, dy: number, dw: number, dh: number;
+  if (a.length === 3) { dx = n[1]; dy = n[2]; dw = iw; dh = ih; }
+  else if (a.length === 5) { dx = n[1]; dy = n[2]; dw = n[3]; dh = n[4]; }
+  else if (a.length === 9) { sx = n[1]; sy = n[2]; sw = n[3]; sh = n[4]; dx = n[5]; dy = n[6]; dw = n[7]; dh = n[8]; }
+  else return false;
+  if (!sw || !sh || !whole(sx) || !whole(sy) || !whole(sw) || !whole(sh)) return false;
+  return exactRect(t, dx, dy, dw, dh) && whole((t[0] * dw) / sw) && whole((t[3] * dh) / sh);
+}
+
+/** Boxes grown until none cuts a soft draw of the frame (each soft draw it overlaps lies inside it whole), merged; "all"
+ *  if they don't settle. A clip then never crosses a draw whose sampling it could change. */
+export function settleBoxes(boxes: Box[], cur: Draw[], W: number, H: number): Box[] | "all" {
+  let bs = boxes;
+  for (let pass = 0; pass < 16; pass++) {
+    let grew = false;
+    for (const d of cur) {
+      if (!d.soft || !d.box) continue;
+      const c: Box = [Math.max(0, d.box[0]), Math.max(0, d.box[1]), Math.min(W, d.box[2]), Math.min(H, d.box[3])];
+      if (c[2] <= c[0] || c[3] <= c[1]) continue;
+      for (const b of bs) {
+        const meets = b[0] < c[2] && c[0] < b[2] && b[1] < c[3] && c[1] < b[3];
+        if (meets && (c[0] < b[0] || c[1] < b[1] || c[2] > b[2] || c[3] > b[3])) {
+          b[0] = Math.min(b[0], c[0]); b[1] = Math.min(b[1], c[1]); b[2] = Math.max(b[2], c[2]); b[3] = Math.max(b[3], c[3]);
+          grew = true;
+        }
+      }
+    }
+    bs = mergeBoxes(bs, W, H);
+    if (!grew) return bs;
+  }
+  return "all";
 }
 
 /** drawImage's destination box (its 3-, 5- and 9-argument forms); null for any other. */
@@ -278,8 +327,8 @@ export class Retained {
     let boxes: Box[] | "all" | null = "all";
     if (this.prev && !this.wildFrame && this.stack.length === 0) {
       boxes = changedBoxes(this.prev, this.draws);
+      if (boxes && boxes !== "all") boxes = settleBoxes(mergeBoxes(boxes, W, H), this.draws, W, H);
       if (boxes && boxes !== "all") {
-        boxes = mergeBoxes(boxes, W, H);
         const area = boxes.reduce((s, b) => s + (b[2] - b[0]) * (b[3] - b[1]), 0) / Math.max(1, W * H);
         if (area > WHOLE_SHARE) boxes = "all";
         else if (!boxes.length) boxes = null;
@@ -438,12 +487,14 @@ export class Retained {
 
   private draw(m: string, a: unknown[]): void {
     const lv = this.lv;
-    let box: Box | null = null, ver = 0, path = "";
+    let box: Box | null = null, ver = 0, path = "", soft = false;
     if (m === "drawImage") {
       ver = canvasVersion(a[0]);
       if (!lv.wild) box = imageBox(lv.t, a);
+      soft = lv.smooth !== false || !exactImage(lv.t, a);
     } else if (m === "fillRect" || m === "clearRect") {
       if (!lv.wild) box = rectBox(lv.t, a[0] as number, a[1] as number, a[2] as number, a[3] as number);
+      soft = !exactRect(lv.t, a[0] as number, a[1] as number, a[2] as number, a[3] as number);
     } else if (m === "fill" || m === "stroke" || m === "drawFocusIfNeeded") {
       path = this.path;
       // the last frame's path (no beginPath yet this frame): the clipped play begins a new one, so play this frame whole
@@ -451,7 +502,7 @@ export class Retained {
     } else if (m === "putImageData") this.wildFrame = true; // it ignores the clip: play the frame whole
     this.draws.push({
       m, a, ver, t: lv.t, alpha: lv.alpha, fill: m === "drawImage" ? null : lv.fill, smooth: m === "drawImage" ? lv.smooth : null,
-      misc: lv.miscKey, clip: lv.clip, path, box,
+      misc: lv.miscKey, clip: lv.clip, path, box, soft,
     });
   }
 
