@@ -256,8 +256,11 @@ export function uploadProblems(r: StoredRecord, rules: string): string[] {
   const lc = s.lastChance;
   // NPC-1 (REQ-BFG-077, REQ-BFG-078): an upload with a road log is checked with it, as POST /v1/ghosts checked it (its seed
   // re-derives each drop); one without it (every switch-off upload) is validated exactly as before
-  const v = s.road ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(lc ? { lastChance: lc } : {}), road: s.road })
-    : lc ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, lastChance: lc }) : validateUpload(s.build, s.day, s.rules);
+  // FIRSTDAY-1 (REQ-BFG-004, F4): a first run's flag rides with its seed, as POST /v1/ghosts checked it (absent on every
+  // other upload, which is validated exactly as before)
+  const fr = s.firstRun ? { firstRun: true } : {};
+  const v = s.road ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(lc ? { lastChance: lc } : {}), road: s.road, ...fr })
+    : lc ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, lastChance: lc, ...fr }) : validateUpload(s.build, s.day, s.rules, s.firstRun ? fr : undefined);
   if (!v.ok) out.push(`validateUpload: ${v.errors.join("; ")}`);
   const reachable = isReachable(s.day, s.wins, s.lives, { rules: s.rules, lastChance: lc?.day ?? null });
   if (!reachable) out.push(`record: ${s.wins}W ${s.lives} lives is no record a run carries into dusk ${s.day}${lc ? ` after a LAST CHANCE on day ${lc.day}` : ""}`);

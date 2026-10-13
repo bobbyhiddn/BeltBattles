@@ -57,6 +57,7 @@ import { rigArrowCells } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 R2): a lon
 import { shapesRules } from "../sim/shapes"; // SHAPES-1: the shaped pieces' faces, lines and notes (SHAPES on only)
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
+import { isPlainRig as isPlainSix } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (PLAIN-1F M1: renamed here; faces.ts's own isPlainRig is the face test, and it holds them while they are in ITEMS)
 
 /**
  * The engine's numbers a reminder needs that no spec carries (as abilityText.ts SIM): each quoted from its source.
@@ -193,7 +194,25 @@ export function turretStats(def: string, stars = 1): Stat[] {
  *  place for them, as factoryStats and turretStats are their kinds' (a later chip or cadence pair goes here). */
 export function rigStats(def: string, stars = 1): Stat[] {
   if (!effectAt(def, stars).gate) throw new Error(`rigStats: ${def} is not a rig`);
+  if (isPlainSix(def)) return plainRigStats(def, stars) ?? []; // PLAIN-1 (REQ-BFG-084): the six's row (PLAIN-1F M1: plainRigStats, the one stat-row path)
   return [];
+}
+
+/** PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 P4): the six plain stat rigs' stat row, as PLAIN-1's brief's table reads it: what
+ *  each hit gives each slug ({DMG}, {BURN}, {STUN} and {PLATE}, each with its +; Battle.applyHit), or BALLAST's carrier
+ *  stat, MAX {HULL} +n% while it works (Battle.makeSide). Whole numbers, through the formatters. PLAIN-1F (M1): PLAIN-1's
+ *  plainStats, folded into plainRigStats (the one stat-row path); on `day` as EXPLAIN-1's rows are, and with no day on the
+ *  face's own day (dayShown.ts), as plainStats read it. */
+function sixStats(def: string, stars: number, day?: number): Stat[] {
+  const e = effectAt(def, stars).gate!;
+  const on = <T>(fn: () => T): T => (day === undefined ? fn() : shownOn(day, fn));
+  if (e.maxHullPct) return [["HULL", `+${fmtPct(e.maxHullPct / 100)}`, "MAX"]];
+  if (e.stun) return [["STUN", `+${fmtSec(e.stun)}`]];
+  const out: Stat[] = [];
+  if (e.slugPlate) out.push(["PLATE", `+${fmtDmg(on(() => sustNow(e.slugPlate!)))}`]); // HULL-1d: PLATE x S(d), as PLATE ROLLER's
+  if (e.flat) out.push(["DMG", `+${fmtDmg(on(() => dmgNow(e.flat!)))}`]);
+  if (e.burn) out.push(["BURN", `+${fmtCount(e.burn)}`]);
+  return out;
 }
 
 /** U2b: a piece of turret gear's stat pairs (C4: none; its rule describes the turret it sits on). */
@@ -938,6 +957,7 @@ export const PLAIN_RIGS: readonly string[] = ["whetstone", "temper", "barbed"];
  *  No day, or HULL_SCALE off: day 1's, as before. */
 export function plainRigStats(def: string, stars = 1, day?: number): Stat[] | null {
   if (shapesRules() && SHAPED_PLAIN_RIGS.includes(def)) return shapedPlainStats(def, stars, day); // SHAPES-1 (REQ-BFG-084)
+  if (isPlainSix(def) && Object.prototype.hasOwnProperty.call(ITEMS, def)) return sixStats(def, stars, day); // PLAIN-1 (PLAIN_RIGS on)
   if (!PLAIN_RIGS.includes(def)) return null;
   const g = effectAt(def, stars).gate!;
   if (def === "whetstone") return [["DMG", `+${fmtDmg(shownOn(day, () => dmgNow(g.flat!)))}`]];
@@ -1005,6 +1025,20 @@ export const Y6_PIECES: readonly string[] = ["venom"];
 
 
 
+/** PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 P4, interim): the six plain stat rigs' faces. A face is the stat row (plainStats,
+ *  through rigStats) and no rule line; the ⓘ view's ladder reads the row's numbers, and each keyword keeps its reminder.
+ *  Kept apart from FACES so FACE_IDS (the base's faced pieces, which its tests walk) stays the base's; hasFace and faceOn
+ *  read it only for a plain rig in ITEMS (PLAIN_RIGS on). PLAIN-1F builds the final faces on EXPLAIN-1's hover layer. */
+const PLAIN_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
+  // the numbers are the stat row's (rigStats), which the ⓘ ladder, NEXT★ and the shop chip read: no rule, so no nums
+  rasp: () => rules([], [], [REMINDER.BURN()]),
+  sparkgap: (e) => rules([], [], [REMINDER.STUN(gt(e).stun!)]),
+  scaleguard: () => rules([], [], [REMINDER.PLATE()]),
+  ballast: () => rules([]),
+  grindstone: () => rules([]),
+  brandingiron: () => rules([], [], [REMINDER.BURN()]),
+};
+
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [
   ...Object.keys(FACES),
@@ -1014,7 +1048,9 @@ export const FACE_IDS: readonly string[] = [
 /** True for a piece that draws its new face (every other piece keeps today's text). SHAPES-1: the three shaped plain
  *  rigs too, with SHAPES on (SHAPE_FACES). */
 export function hasFace(def: string): boolean {
-  return FACE_IDS.includes(def) || (shapesRules() && Object.prototype.hasOwnProperty.call(SHAPE_FACES, def));
+  // PLAIN-1 (REQ-BFG-084): a plain stat rig of the six has its face while it is in ITEMS (PLAIN_RIGS on)
+  return FACE_IDS.includes(def) || (shapesRules() && Object.prototype.hasOwnProperty.call(SHAPE_FACES, def))
+    || (isPlainSix(def) && Object.prototype.hasOwnProperty.call(ITEMS, def));
 }
 
 // ------------------------------------------------- SHAPES-1 (REQ-BFG-086, REQ-BFG-084, REQ-BFG-089): the shaped pieces
@@ -1045,9 +1081,11 @@ const SHAPE_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
 export const SHAPED_PLAIN_RIGS: readonly string[] = ["nailstrip", "embertrough", "spikerail"];
 
 /** SHAPES-1: a plain stat rig, the base's three or (SHAPES on) a shaped one: its face is a stat row and its NOTES lead
- *  with the rig sentence (inspector.ts explainPanel, keywords.ts). */
+ *  with the rig sentence (inspector.ts explainPanel, keywords.ts). PLAIN-1F (M1, the isPlainRig fold): and PLAIN-1's six
+ *  while they are in ITEMS (PLAIN_RIGS on; src/sim/plainRigs.ts isPlainRig, imported here as isPlainSix). */
 export function isPlainRig(def: string): boolean {
-  return PLAIN_RIGS.includes(def) || (shapesRules() && SHAPED_PLAIN_RIGS.includes(def));
+  return PLAIN_RIGS.includes(def) || (shapesRules() && SHAPED_PLAIN_RIGS.includes(def))
+    || (isPlainSix(def) && Object.prototype.hasOwnProperty.call(ITEMS, def));
 }
 
 /** SHAPES-1: a shaped plain rig's stat row at `stars`: NAIL STRIP's and SPIKE RAIL's DMG on `day` (WHETSTONE's rule),
@@ -1121,7 +1159,7 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
 
 function faceOn(def: string, stars: number, o: TextOpts): Face {
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero, day: o.day }; // HULL-1a: the day
-  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? SHAPE_FACES[def])(e, x); // SHAPES-1: SHAPE_FACES
+  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? SHAPE_FACES[def] ?? PLAIN_FACES[def])(e, x); // SHAPES-1: SHAPE_FACES; PLAIN-1: the six's
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
     : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)
     : supplyStats(def); // U2b: the rig, gear and supply kinds' data functions

@@ -182,6 +182,12 @@ export interface GateEffect {
   latch?: { hold: number; flat: number }; // TWIN LATCH: holds a payload at most `hold` s for its other belt (E4); + flat on each payload it hits
   stoke?: number; // STOKER: each factory its arrows point at works this share faster (E3); its arrows do nothing to belts
   breaker?: { flat: number; floor: number }; // PLATE BREAKER: 1 plating for + flat; with none, + floor
+  // PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 P1-P3): the plain stat rigs' stats (src/sim/plainRigs.ts; absent on every other rig,
+  // and in ITEMS only while PLAIN_RIGS is on, so every older rig fights exactly as before):
+  stun?: number; // SPARK GAP: + this many STUN seconds on each payload it hits (they add up; Battle.applyHit, the shock rule)
+  slugPlate?: number; // SCALE GUARD: + this much PLATE carried by each payload it hits (Payload.plate), given to your hull at
+  // the gun by the bulwark rule (races/bastion.ts plateFor)
+  maxHullPct?: number; // BALLAST: + this whole % of your max hull while it works (Battle.makeSide; a carrier stat, no hit)
 }
 
 /**

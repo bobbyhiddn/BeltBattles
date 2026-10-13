@@ -300,6 +300,11 @@ export function migrateRun(raw: unknown): Run | null {
   // it ({ lives, boon?, id? }) stay when well formed and are dropped otherwise, so no load trips over them; a save
   // without them (every save before LC-1, every switch-off run) loads exactly as before. Save v8, no bump.
   if (r.lastChance !== undefined && !lastChanceShapeOk(r.lastChance)) delete r.lastChance;
+  // FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F2): a first run's flag is `true` and its first day-1 rig a part id; anything
+  // else is dropped (the run is then a normal run), so a reload keeps a first run and no load trips over either. Every
+  // other save has neither and loads exactly as before. Save v8, no bump.
+  if (r.firstRun !== undefined && r.firstRun !== true) delete r.firstRun;
+  if (r.firstRig !== undefined && typeof r.firstRig !== "string") delete r.firstRig;
   for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {
     if (h && typeof h === "object" && h.lastChance !== undefined && !(h.lastChance && typeof h.lastChance === "object" && typeof h.lastChance.lives === "number")) delete h.lastChance;
   }

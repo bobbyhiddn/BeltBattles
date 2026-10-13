@@ -24,9 +24,11 @@ export function newPlateState(): PlateState {
   return { plate: 0, gained: 0, absorbed: 0, peak: 0 };
 }
 
-/** Plating a payload adds when it arrives at the chamber (0 for non-bulwark ammo). */
+/** Plating a payload adds when it arrives at the chamber (0 for non-bulwark ammo). PLAIN-1 (REQ-BFG-084, cap's ruling P2):
+ *  plus the PLATE its rig hits put on it (Payload.plate: SCALE GUARD's, absent on every other payload), which reaches your
+ *  hull here, by the same rule (S(day), the cap, BULWARK OATH), on any hero's side (Battle.slugPlate). */
 export function plateFor(p: Payload): number {
-  return p.ammo === "bulwark" ? roundHalfUp(PLATE_PER_SLUG * p.mult) : 0; // NUM-1: x the split share, rounded half up once
+  return (p.ammo === "bulwark" ? roundHalfUp(PLATE_PER_SLUG * p.mult) : 0) + (p.plate ?? 0); // NUM-1: x the split share, rounded half up once
 }
 
 /** Chamber arrival: add plating, respecting the cap. Returns the plating actually added. */

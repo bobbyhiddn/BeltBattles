@@ -56,6 +56,7 @@ import { hullScaleRules } from "../hullScale"; // HULL-1c (REQ-BFG-079): the cac
 import { ladderFixRules } from "../ladderFix"; // HULL-1c: the cache key
 import { guardRules } from "../guard"; // RETUNE-1 (REQ-BFG-097): the cache key
 import { openRunesRules } from "../openRunes"; // OPEN-1 (REQ-BFG-109): the bots' offer rule, and the cache key
+import { plainRigsRules } from "../plainRigs"; // PLAIN-1 (REQ-BFG-084): the cache key (the six in the shop move every par run)
 import { npcDayRules } from "../npcDay"; // HULL-1d (REQ-BFG-073): the REFIT swap of LAST CHANCE's part (refitSwap)
 import { freeJoinsRules } from "../freeJoins"; // JOINS-1 (REQ-BFG-091): no join limit with FREE_JOINS on; the cache key
 import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
@@ -1726,12 +1727,15 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // HULL-1c (REQ-BFG-079): the switches that move the par decks (HULL_SCALE's economy, LADDER_FIX's walk) are in the key,
   // so a run made with a switch off is never reused with it on; off, the key exactly as before
   // PAR-AZ (REQ-BFG-078): NPC_DAY moves every par run now (parNpcDay), so it is in the key; off, the key exactly as before
+  // PLAIN-1 (REQ-BFG-084): so does PLAIN_RIGS (the six join the shop's pool); off, the key exactly as before
   const nd = npcDayRules();
   // RETUNE-1 (REQ-BFG-097): GUARD moves the par decks (the rating reads PLATE ROLLER's and WARD BELL's numbers); off, the
   // key exactly as before
   // JOINS-1 (REQ-BFG-091): FREE_JOINS moves the par decks (no join pace, no join limit), so it is in the key; off, the key
   // exactly as before
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}`; // SHAPES-1: "|sh"
+  // PLAIN-1 (REQ-BFG-084): PLAIN_RIGS moves the par decks (the six in the shop), so "|pr" is appended last; PLAIN-1F (M1):
+  // off, the key is c099's byte for byte
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);

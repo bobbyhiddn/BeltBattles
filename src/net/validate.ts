@@ -29,6 +29,7 @@ import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, lastChanceGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules; Z-BUMP: LAST CHANCE by the rules
+import { firstRunGateProblem } from "./rulesGate"; // FIRSTDAY-1 (REQ-BFG-004, F4): the first-run flag by the gate
 import { runeGrants, runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with the client's check
 import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, lastChanceRuneAt, type TakenLastChance } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { lastChancePartStars } from "../sim/lastChance"; // HULL-1d (REQ-BFG-073): the PART card's star (★2 with HULL_SCALE on)
@@ -75,6 +76,9 @@ export interface ValidateContext {
    *  dawn offer and LAST CHANCE's rune card are re-derived open (hero-blind) when true. validateUpload sets it from the
    *  snapshot's own rules; absent: closed, today's weighted offers. */
   openRunes?: boolean;
+  /** FIRSTDAY-1 (REQ-BFG-004, F4): the snapshot's first-run flag (absent: every other deck): with the seed, days 1-2's
+   *  rune offers are re-derived by F3's rule (runes.ts runeProblem); refused while the first-run gate is off. */
+  firstRun?: boolean;
 }
 
 /**
@@ -183,6 +187,9 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // (rulesGate.ts shapesGateProblem); a deck under older rules is judged in 0.9.9's shapes (inShapesWorld)
   const shGate = shapesGateProblem(rules, build);
   if (shGate) return { ok: false, errors: [`rules: ${shGate}`] };
+  // FIRSTDAY-1 (REQ-BFG-004, F4): a first-run flag travels only with the first-run gate on
+  const frGate = ctx.firstRun ? firstRunGateProblem() : null;
+  if (frGate) return { ok: false, errors: [`firstRun: ${frGate}`] };
   // AZ-BUMP (S6, the stored records): the budget, the road and the events by the deck's own rules (inRulesWorld): under
   // rules before bb-0.10.0 with the hull release's three switches off; under this build's as they stand
   // OPEN-1 (REQ-BFG-109): the deck's runes are re-derived on the offers of its own rules (openRunesFor: the switch AND
@@ -190,6 +197,7 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // JOINS-1 (REQ-BFG-091): and the deck check runs under its own rules' answer to free joins (freeJoinsFor)
   // SHAPES-1 (REQ-BFG-086; cap's RUN2 note 1.2): the shapes world nests inside the rules world, so a record under rules
   // before bb-0.10.0 is judged with SHAPES off too; c099's merge keeps HULL-ON's call inside both (release lane)
+  // PLAIN-1F (M1): FIRSTDAY-1's ctx.firstRun rides through to validateBuild's runeProblem in the ctx spread
   return inRulesWorld(rules, () => inShapesWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules)))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested
 }
 
@@ -344,7 +352,8 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     if (rd) return { ok: false, errors: [rd] };
   }
   const lcAt = lastChanceRuneAt(lc);
-  const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost", false, lcAt, open);
+  // FIRSTDAY-1: a first run's dawns 1-2; PLAIN-1F (M1): the first-run flag rides 9th, after OPEN-1's `open` (runes.ts runeProblem)
+  const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost", false, lcAt, open, ctx.firstRun === true);
   if (rp) return { ok: false, errors: [`rune: ${rp}`] };
   // what the runes gave: HULL and BELT runes sit in hullBonus / beltCap (run.ts takeRune), so the supply and budget
   // blocks below read the bought hull and belt (`bought`); dawn-gold runes add their gold to the day's budget. LC-1: the
