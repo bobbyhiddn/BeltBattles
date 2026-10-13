@@ -20,9 +20,12 @@
 //  never come back to life under a belt drawn later.
 
 import { RUN_DAYS, START_LIVES, type HeroId } from "../sim/content";
+import { ITEMS } from "../sim/content"; // SHAPES-1 (Q4): a reshaped factory's name in its load notice
 import { pruneJoins, type Build } from "../sim/deck"; // 0.6.2j
 import { warlordName } from "../sim/ai";
 import { logMigration, migrateDeck, migrateInlineGates } from "../sim/beltside";
+import { logShapes, migrateShapedFactories } from "../sim/beltside"; // SHAPES-1 (REQ-BFG-086 S6): the load migration
+import { shapesRules } from "../sim/shapes"; // SHAPES-1 (S1): the switch
 import { starField, starsOf, valueOf } from "../sim/stars";
 import { ID_PATTERN, toId } from "./ghostSnapshot";
 import { fuseAll } from "./fuse";
@@ -134,6 +137,48 @@ export function beltsideRun(r: Raw): { moved: number; cargoed: number; refunded:
   return { moved: m.moved.length, cargoed, refunded, dropped };
 }
 
+/**
+ * SHAPES-1 (REQ-BFG-086 S6), at the save boundary: with SHAPES on, the run's GANTRY PRESS and ASSEMBLY LINE take their new
+ * shapes (beltside.ts migrateShapedFactories: kept where they fit with every belt, else the spot that keeps the most belts;
+ * a belt it can't keep is removed whole). One that fits nowhere goes to cargo with its belts removed (refunded, as
+ * beltsideRun's stranded rigs, once cargo holds MIGRATE_CARGO_CAP parts). The stored dusk foe and warlord decks re-place
+ * theirs too (one that fits nowhere is dropped, logged). Every load, idempotent; a run without them is untouched. Off: no
+ * call (migrateRun reads the switch).
+ */
+export function shapesRun(r: Raw): { moved: number; cargoed: number; refunded: number; lost: number } {
+  const moves = migrateShapedFactories(r.build);
+  let cargoed = 0, refunded = 0;
+  const notices: string[] = []; // SHAPES-1 (cap's RUN2 note, Q4): one line a factory that moved or left
+  for (const v of moves) {
+    const name = ITEMS[v.def]?.name ?? v.def;
+    if (v.to) {
+      const put = v.to.x === v.from.x && v.to.y === v.from.y && v.to.rot === v.from.rot;
+      if (!put || v.lost) notices.push(shapeNotice(name, { lost: v.lost }));
+      continue;
+    }
+    const p = { uid: v.uid, def: v.def };
+    if (r.inventory.length < MIGRATE_CARGO_CAP) {
+      r.inventory.push({ ...p, ...starField(v.stars ?? 1) });
+      cargoed++;
+      notices.push(shapeNotice(name, { cargo: true }));
+    } else {
+      const g = valueOf(v.def, v.stars ?? 1);
+      r.gold = (Number(r.gold) || 0) + g;
+      refunded++;
+      notices.push(shapeNotice(name, { sold: g }));
+    }
+  }
+  logShapes("save:shapes", moves, { cargoed, refunded });
+  // SHAPES-1 (Q4): the player's save only, once, on the first build screen after this load (nextFuseToast holds them
+  // there, as BELTSIDE_TOAST), at most two lines; nothing for a factory that stayed put
+  if (notices.length) r.fuseFx = [...(Array.isArray(r.fuseFx) ? r.fuseFx : []), ...notices.slice(0, 2)];
+  for (const [b, src] of [[r.dusk?.build, "save:dusk:shapes"], [r.warlord?.build, "save:warlord:shapes"]] as [Raw | undefined, string][]) {
+    if (!b || !Array.isArray(b.items) || !Array.isArray(b.routes)) continue;
+    logShapes(src, migrateShapedFactories(b as never));
+  }
+  return { moved: moves.filter((v) => v.to).length, cargoed, refunded, lost: moves.reduce((n, v) => n + v.lost, 0) };
+}
+
 function v6to7(r: Raw): void {
   r.version = 7;
   const fx = Array.isArray(r.fuseFx) ? r.fuseFx : [];
@@ -161,6 +206,19 @@ function v7to8(r: Raw): void {
   }
 }
 
+/** SHAPES-1 (REQ-BFG-086 S6; cap's RUN2 note, Q4, cap's words): the load notice for a reshaped factory in the player's
+ *  save: moved (`GANTRY PRESS HAS A NEW SHAPE. IT MOVED TO FIT.`, with `AND LOST 2 BELTS` / `LOST 1 BELT`), into cargo
+ *  (`... HAS A NEW SHAPE AND NO ROOM. IT'S IN YOUR CARGO.`) or sold with a full cargo (`... IT WAS SOLD FOR 7 G.`). */
+export function shapeNotice(name: string, o: { lost?: number; cargo?: boolean; sold?: number }): string {
+  if (o.cargo) return `${name} HAS A NEW SHAPE AND NO ROOM. IT'S IN YOUR CARGO.`;
+  if (o.sold !== undefined) return `${name} HAS A NEW SHAPE AND NO ROOM. IT WAS SOLD FOR ${o.sold} G.`;
+  const n = o.lost ?? 0;
+  return n ? `${name} HAS A NEW SHAPE. IT MOVED TO FIT AND LOST ${n} BELT${n > 1 ? "S" : ""}.` : `${name} HAS A NEW SHAPE. IT MOVED TO FIT.`;
+}
+
+/** SHAPES-1 (Q4): a shape notice waits for the build screen, as the save-migration notices do. */
+const SHAPE_NOTICE = " HAS A NEW SHAPE";
+
 /** 0.6.1a, cosmetic: take the next queued merge toast for the screen on show (game.ts). MERGED
  *  toasts show on any settled screen; the migration notice waits for the next build screen. */
 export function nextFuseToast(run: Run, onBuildScreen: boolean, held = false): string | undefined {
@@ -168,7 +226,7 @@ export function nextFuseToast(run: Run, onBuildScreen: boolean, held = false): s
   // with every NPC win able to drop a part, a drop's merge toast covered the card's "+4 GOLD" line; it waits for the next screen
   if (held) return undefined;
   const fx = run.fuseFx;
-  const i = fx ? fx.findIndex((t) => (t !== MIGRATE_TOAST && t !== BELTSIDE_TOAST) || onBuildScreen) : -1;
+  const i = fx ? fx.findIndex((t) => (t !== MIGRATE_TOAST && t !== BELTSIDE_TOAST && !t.includes(SHAPE_NOTICE)) || onBuildScreen) : -1; // SHAPES-1 (Q4): + the shape notices
   return i < 0 ? undefined : fx!.splice(i, 1)[0];
 }
 
@@ -255,6 +313,8 @@ export function migrateRun(raw: unknown): Run | null {
   if (!STAGES.includes(r.stage)) r.stage = "caravan";
   if (r.stage === "warlord" && !(r.warlord && r.warlord.day === r.day)) r.stage = "fork";
   if (Array.isArray(r.build.items) && Array.isArray(r.build.routes)) beltsideRun(r); // 0.6.2 BELTSIDE (D3): every load, idempotent
+  // SHAPES-1 (REQ-BFG-086 S6): with SHAPES on, GANTRY PRESS and ASSEMBLY LINE in their new shapes; every load, idempotent
+  if (shapesRules() && Array.isArray(r.build.items) && Array.isArray(r.build.routes)) shapesRun(r);
   if (Array.isArray(r.build.routes) && r.build.routes.some((q: Raw) => q && q.join !== undefined)) {
     try {
       pruneJoins(r.build as Build); // 0.6.2j (J8, J12): every load, idempotent; a deck without joins never gets here

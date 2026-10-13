@@ -13,6 +13,7 @@ import { drawWares, unlocked, waresOk, type Wares } from "../src/game/wares";
 import { migrateRun, newRun, type Run } from "../src/game/run";
 import { EVENTS, smugglerParts, smugglerPool, smugglerStock, type SmugglerKind } from "../src/game/eventDefs";
 import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 (oracle f08800ccfebab0ab): the old-rules world's tripwire
 
 const KINDS: SmugglerKind[] = ["BURN", "SHOCK"];
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
@@ -130,7 +131,11 @@ describe("the SMUGGLER's contraband rule (0.8.0 B1 M4, REQ-BFG-033)", () => {
     // blocked path is checked by the made-up no-SHOCK run below, and the lines above prove "never blocked, always one part"
     // on every real run. A tripwire: if a later pool or tier change makes such a run possible again this goes red on
     // purpose, and that is a stop-and-ask, not a re-pin (was toBeGreaterThan(0): 3 of these 120 seeds before 74e14a1)
-    expect(blocked).toBe(0);
+    // SHAPES-1 (cap's ruling, oracle f08800ccfebab0ab): SHAPES' NAIL STRIP and EMBER TROUGH grow the ALCHEMIST's stock 9 ->
+    // 11, so its rare tier's quota can fall to 3, and 7 of the 2,000 table seeds draw no SHOCK ware (0 with SHAPES off): of
+    // these 120, TABLE_SEEDS[37], blocked on 7 days x 4 picks = 28; BURN is never empty (EMBER TROUGH joins its pool).
+    // Still a tripwire: the next pool or tier change is a stop-and-ask again (was 0 since 74e14a1)
+    expect(blocked).toBe(28);
     // a run that drew no SHOCK ware: SHOCK is blocked on every day, BURN is not
     const w = drawWares(TABLE_SEEDS[7]);
     const noShock: Wares = Object.fromEntries(Object.entries(w).filter(([id]) => !smugglerPool("SHOCK").includes(id)));
@@ -252,7 +257,9 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
     // (16.75%), BURN 133 (6.65%) as before (SIFTER alone gave [121, 324] at step 1b) (was [133, 349])
     // REDO-X (cap's ruling on FIX-ABE F3 / b1.smuggler, REVIEW-FIXABE): the stand-ins (74e14a1) open more BURN and SHOCK
     // wares on day 1: BURN with no unlocked ware on day 1 52 (2.60%), SHOCK 131 (6.55%) (was [133, 335])
-    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([52, 131]);
+    // SHAPES-1 (cap's ruling, oracle f08800ccfebab0ab): the same cause (the ALCHEMIST's stock 9 -> 11 moves the per-run draw's
+    // tier quotas): BURN with no unlocked ware on day 1 26, SHOCK 165 (was [52, 131])
+    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([26, 165]);
     // about 2% expected (VERIFIED-I1's call 4): a run drew none of an effect's three rigs. REDO-X (cap's ruling
     // 9bbe787110a51646): I1's ~2% has been 0 since 74e14a1 (FIX-ABE's stand-ins: ALCHEMIST's rare tier always holds at least
     // 4 of COIL, VENOM, BELLOWS, QUENCH TANK and STATIC BRUSH). A tripwire: if a later pool or tier change makes a no-BURN or
@@ -260,6 +267,12 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
     // [25, 38] of these 2,000 before 74e14a1)
     expect(noneS / n).toBeLessThan(0.04);
     expect(noneB / n).toBeLessThan(0.04);
-    expect([noneB, noneS]).toEqual([0, 0]);
+    // SHAPES-1 (cap's ruling, oracle f08800ccfebab0ab): SHAPES' NAIL STRIP and EMBER TROUGH grow the ALCHEMIST's stock 9 -> 11,
+    // so its rare tier's quota can fall to 3, and 7 of these 2,000 seeds draw no SHOCK ware; BURN is never empty (EMBER
+    // TROUGH joins its pool). Exact, so the next pool or tier change is a stop-and-ask again (was [0, 0])
+    expect([noneB, noneS]).toEqual([0, 7]);
+    // and the old-rules world (SHAPES off) keeps its tripwire: no run draws none of an effect
+    const offNone = withShapes(() => [TABLE_SEEDS.filter((s) => !drawnOf(drawWares(s), "BURN").length).length, TABLE_SEEDS.filter((s) => !drawnOf(drawWares(s), "SHOCK").length).length], false);
+    expect(offNone).toEqual([0, 0]);
   });
 });

@@ -489,7 +489,9 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
       EXPECT[`${w}x${h}`] = { band: L.info.h, fullest: fullestN, inBand, grown };
       // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): the sweep walks the buyable modules: SIFTER's 13 panels leave (dormant;
       // 872 at step 1b) and the 3 sustain pieces' 27 join (the switch on): 885 -> 899
-      expect(all.length).toBe(899);
+      // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable modules, 13 panels each (an offer, and at each
+      // star a cargo panel and 3 placed ones): 899 + 39 = 938; GANTRY PRESS's and ASSEMBLY LINE's 7 each are reshaped
+      expect(all.length).toBe(938);
       // the band at 390x844 holds every panel in its fullest form; at 430x739 every one in the band; the shortest views'
       // band can't hold the longest turret panels (a THUNDERER ★3's full text needs 144 px): they take the fallback
       // (grown at 390x660 and 390x664: 30 installed turrets with a core and gear and 8 ★2 rigs and factories, 38 of 885; at
@@ -523,11 +525,21 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // turrets with a core and gear); the other three views unchanged
         // Y7b2 (the words, the new faces; cap's ruling e66379fbf3184e56): phoneBand re-measured (148 -> 141 at W 194-236):
         // 390x844's band 148 -> 141, still holding all 899 panels in their fullest form; the other four views unchanged
+        // SHAPES-1 flip, measured on cd59be0: 938 panels (the three shaped plain rigs' 39 in), the 39 all in the band in their
+        // fullest form at every view: fullest and in the band +39 each; the bands and the grown panels unchanged (390x660 and
+        // 390x664: the same 8 turrets with a core and gear; 402x690: the THUNDERER ★3 with a core and gear). GANTRY PRESS's two
+        // new lines and ASSEMBLY LINE's type line move none of their panels out of the band or its fullest form. Was
+        // 390x660 [104, 860, 891], 390x664 [106, 866, 891], 402x690 [122, 887, 898], 430x739 and 390x844 [141, 899, 899]
         // CARD-3 (REQ-BFG-080, C; B's lever 1): a new tip's hint is drawn in its strip above a band panel, so it never gives
         // way there, and an IDLE rig's face is one line shorter: more panels in their fullest form, 390x660 860 -> 887,
         // 390x664 866 -> 887, 402x690 887 -> 898 (was [104, 860, 891], [106, 866, 891], [122, 887, 898]); the bands and the
         // panels in the band unchanged
-        "390x660": [104, 887, 891], "390x664": [106, 887, 891], "402x690": [122, 898, 898], "430x739": [141, 899, 899], "390x844": [141, 899, 899],
+        // SHAPES-1 x c099-card3 (RUN5 2: the merge of c099-card3-accepted into shapes1), measured on the merged tree: 938
+        // panels (c099-card3's 899 and the three shaped plain rigs' 39), the 39 all in the band in their fullest form at
+        // every view: c099-card3's fullest and in-the-band +39 each (390x660 and 390x664 [.., 887, 891] -> [.., 926, 930],
+        // 402x690 [122, 898, 898] -> [122, 937, 937], 430x739 and 390x844 [141, 899, 899] -> [141, 938, 938]); the bands and
+        // the number of grown panels (8, 8, 1, 0, 0) unchanged
+        "390x660": [104, 926, 930], "390x664": [106, 926, 930], "402x690": [122, 937, 937], "430x739": [141, 938, 938], "390x844": [141, 938, 938],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

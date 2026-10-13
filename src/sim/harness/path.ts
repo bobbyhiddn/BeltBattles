@@ -6,13 +6,14 @@
 import type { Rng } from "../../core/rng";
 import { GRID, ITEMS } from "../content";
 import { DX, DY, footprint, hero, inGrid, key, kx, ky, type Build } from "../deck";
+import { cellsOf } from "../deck"; // SHAPES-1 (REQ-BFG-086 R1): a placed piece's turned footprint
 
 const dist = (a: number, b: number) => Math.abs(kx(a) - kx(b)) + Math.abs(ky(a) - ky(b));
 
 /** Cells a new or rerouted belt may not use: machinery, other routes' belts, the forward row. */
 export function blockedCells(b: Build, skipRoute = -1): Uint8Array {
   const bl = new Uint8Array(GRID * GRID);
-  for (const p of b.items) for (const k of footprint(ITEMS[p.def], p.x, p.y)) if (k >= 0 && k < bl.length) bl[k] = 1;
+  for (const p of b.items) for (const k of cellsOf(p)) if (k >= 0 && k < bl.length) bl[k] = 1; // SHAPES-1: turned footprints
   b.routes.forEach((r, i) => {
     if (i !== skipRoute) for (const k of r.cells) bl[k] = 1;
   });
@@ -22,8 +23,16 @@ export function blockedCells(b: Build, skipRoute = -1): Uint8Array {
 
 /** Free cells orthogonally adjacent to a size x size footprint at (fx, fy). */
 export function startCells(fx: number, fy: number, size: number, bl: Uint8Array): number[] {
-  const fp = new Set<number>();
-  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) fp.add(key(fx + i, fy + j));
+  const fp: number[] = [];
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) fp.push(key(fx + i, fy + j));
+  return startCellsFor(fp, bl);
+}
+
+/** SHAPES-1 (REQ-BFG-086 R3, S7.2): free cells orthogonally adjacent to any footprint (its cells: foot.ts footprintCells,
+ *  deck.ts cellsOf), row by row: where a belt may start, the start cells from the turned edge. A size x size square
+ *  gives startCells' cells in its order. */
+export function startCellsFor(cells: readonly number[], bl: Uint8Array): number[] {
+  const fp = new Set<number>(cells);
   const out: number[] = [];
   for (let y = 0; y < GRID; y++) {
     for (let x = 0; x < GRID; x++) {
@@ -51,7 +60,7 @@ export function freeConnectors(b: Build, except = -1): number[] {
     const last = r.cells[r.cells.length - 1];
     if (ky(last) === 0) taken.add(kx(last));
   });
-  for (const p of b.items) for (const k of footprint(ITEMS[p.def], p.x, p.y)) if (ky(k) === 0) taken.add(kx(k));
+  for (const p of b.items) for (const k of cellsOf(p)) if (ky(k) === 0) taken.add(kx(k)); // SHAPES-1: turned footprints
   return hero(b).turrets.flatMap((t) => t.connectors).filter((c) => !taken.has(c)); // 0.6.2s: installed intakes
 }
 

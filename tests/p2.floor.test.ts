@@ -12,6 +12,7 @@ import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { setHullScale } from "../src/sim/hullScale";
 import { setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
+import { setShapes } from "../src/sim/shapes";
 import { encodeStarred } from "../src/sim/standInPool";
 import { CASUAL_TUNE, casualRun } from "../src/sim/harness/casual";
 import { parRunSeed, playerRoadLog } from "../src/sim/harness/player";
@@ -21,8 +22,9 @@ import { checkPool } from "../server/seed";
 import { CASUAL_FLOOR_SEED, CASUAL_FLOOR_TRIES, FLOOR_VARIANT, generateSamplePool } from "../tools/samplePool";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
-const allOff = (): void => { setNpcDay(false); setHullScale(false); setLadderFix(false); };
-const allOn = (): void => { setNpcDay(true); setHullScale(true); setLadderFix(true); };
+// SHAPES-1 flip (step 8): SHAPES joins "every switch": off in allOff (283cfaf's world had no shaped piece), on in allOn
+const allOff = (): void => { setNpcDay(false); setHullScale(false); setLadderFix(false); setShapes(false); };
+const allOn = (): void => { setNpcDay(true); setHullScale(true); setLadderFix(true); setShapes(true); };
 afterEach(allOff);
 
 /** sha256 of JSON.stringify(generateSamplePool()) with every switch off at 283cfaf, the hull release's work tip before P2

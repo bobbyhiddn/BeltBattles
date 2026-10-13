@@ -53,6 +53,10 @@ import { columnButtons } from "./inspector"; // EXPLAIN-1 tooling: the column's 
 import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a pack bought completes the supply tip
 import { completeNotice, RENAME_NOTICE, renameNoticeDue } from "../../ui/tips"; // CARD-3 (REQ-BFG-107): the rename notice
 import { suggestCell } from "./cues";
+import { canTurn, shapedPiece, wheelPx, wheelTurn, type WheelState } from "./shapeEdit"; // SHAPES-1 (REQ-BFG-086 S2, S3)
+import { shapesRules } from "../../sim/deck"; // SHAPES-1 (S3): the wheel turns a carried piece with SHAPES on
+import { footBox } from "../../sim/foot"; // SHAPES-1 (R1): a turned footprint's box
+import { boxRect } from "../../render/frame"; // SHAPES-1
 import { BattleScreen, duskScreen } from "../battle";
 import { EventScreen } from "../event/event";
 import { RuneBar, runeRowFits, runeRowH, shiftLayout } from "../../ui/runeBar"; // RUNES-1 (REQ-BFG-058): the rune bar
@@ -621,7 +625,10 @@ export class BuildScreen implements Screen, EditHost {
       const p = itemByUid(b, s.uid);
       if (!p || this.ed.carry) return;
       const size = defOf(p).size;
-      frame(g, Math.round(footX(L.frame, p.x, p.y, size)) - 1, Math.round(footY(L.frame, p.x, p.y, size)) - 1, size * 12 + 2, size * 12 + 2, col);
+      if (shapedPiece(p.def)) { // SHAPES-1 (REQ-BFG-086 R1): the frame round its turned footprint's box
+        const fb = footBox(defOf(p), p.rot ?? 0), r = boxRect(L.frame, p.x, p.y, fb.w, fb.h);
+        frame(g, Math.round(r.x) - 1, Math.round(r.y) - 1, r.w + 2, r.h + 2, col);
+      } else frame(g, Math.round(footX(L.frame, p.x, p.y, size)) - 1, Math.round(footY(L.frame, p.x, p.y, size)) - 1, size * 12 + 2, size * 12 + 2, col);
       // 0.6.2 BELTSIDE (V4): the belt tiles the selected rig works
       if (isRig(p.def)) {
         for (const h of hitsOfRig(b, p.uid, rigHits(b))) {
@@ -770,6 +777,10 @@ export class BuildScreen implements Screen, EditHost {
       const p = this.run.build.items.find((q) => q.uid === step.survivor);
       if (!p) return null;
       const d = defOf(p);
+      if (shapedPiece(p.def)) { // SHAPES-1 (R1): its turned footprint's box's middle
+        const fb = footBox(d, p.rot ?? 0), r = boxRect(this.L.frame, p.x, p.y, fb.w, fb.h);
+        return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+      }
       const s = d.size * 12;
       return { x: footX(this.L.frame, p.x, p.y, d.size) + s / 2, y: footY(this.L.frame, p.x, p.y, d.size) + s / 2 };
     }
@@ -849,6 +860,20 @@ export class BuildScreen implements Screen, EditHost {
     this.ed.cancel();
   }
 
+  private wheelS: WheelState = { sum: 0, last: -1 };
+  /** SHAPES-1 (REQ-BFG-086 S3): with SHAPES on, the desk's mouse wheel turns the carried piece, as R does, by cap's wheel
+   *  guard (RUN3-SHAPES1 1.5; shapeEdit.ts wheelTurn): a quarter turn per notch (100 px of deltaY summed, a line 100/3 px),
+   *  at most one every 0.15 s, so a trackpad's swipe can't spin it. With nothing carried, or SHAPES off, the wheel does
+   *  nothing here, as before. */
+  wheel(dy: number, mode = 0): boolean {
+    if (!shapesRules() || !this.ed.carry || dy === 0 || this.foeView.open || this.modalUp()) {
+      this.wheelS.sum = 0;
+      return false;
+    }
+    if (wheelTurn(this.wheelS, wheelPx(dy, mode), this.t)) this.ed.rotateCarry();
+    return true;
+  }
+
   key(k: string): void {
     if (this.foeView.open) return this.foeView.key(k); // SCOUT-1c: Escape closes the face, then the view; no FIGHT under it
     if (this.modalUp()) return; // RUNES-1: the rune picker can't be skipped (no FIGHT, reroll or Escape under it); LC-1: nor LAST CHANCE
@@ -863,7 +888,8 @@ export class BuildScreen implements Screen, EditHost {
       if (this.ed.rotateCarry()) return;
       const s = this.sel;
       const p = s.kind === "item" ? itemByUid(this.run.build, s.uid) : undefined;
-      if (p && isRig(p.def)) rotate(this, p.uid);
+      // SHAPES-1 (REQ-BFG-086 S2): R turns a selected shaped factory (2x3, I3) as it turns a rig
+      if (p && (isRig(p.def) || (shapedPiece(p.def) && canTurn(p.def)))) rotate(this, p.uid);
       else this.doReroll();
     }
     else if (k === "Delete" || k === "Backspace") {

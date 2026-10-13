@@ -36,6 +36,9 @@
 import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
 import { npcDayRules } from "../sim/npcDay"; // NPC-1: the switch
+// SHAPES-1 (REQ-BFG-086 S1): the shapes switch and its pieces (SHAPES_RULES below is the literal "bb-0.10.0" since the
+// merge of c099-pre8: AZ-BUMP S6's bump, cap's RUN2 note 1.3)
+import { isShapesPiece, shapesRules } from "../sim/shapes";
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
@@ -188,6 +191,46 @@ export function npcDayGateProblem(rules: unknown): string | null {
   if (rulesAtLeast(rules, NPC_DAY_RULES)) return null;
   const what = `the road log (snapshot.road) needs ${NPC_DAY_RULES} or later`;
   return parseRules(rules) ? `rules ${String(rules)} predate ${NPC_DAY_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S1, S4): the first rules version with shaped rigs and factories (NAIL STRIP, EMBER TROUGH and
+ * SPIKE RAIL; GANTRY PRESS 2x3 and ASSEMBLY LINE I3; rot on a shaped factory; TURRET INTAKE): the release's one bump,
+ * bb-0.10.0, written as a literal as AZ-BUMP S6 wrote NPC_DAY_RULES (cap's RUN2 note 1.3; until the merge of c099-pre8 it
+ * read RULES_VERSION). A deck under older rules is judged in 0.9.9's shapes (shapesWorld false: validate.ts
+ * inShapesWorld, nested in inRulesWorld), and the three rigs are refused under them (shapesGateProblem). It gains no
+ * RULES_ROWS row (tests/runes.followups.test.ts pins the rows): like NPC_DAY_RULES, it is its own gate.
+ */
+export const SHAPES_RULES = "bb-0.10.0";
+
+/** SHAPES-1: the shaped rigs a build carries, by name (items whose def is one of shapes.ts SHAPES_IDS). Reads a raw
+ *  (undecoded) build safely, like rulesFeatures. */
+export function shapesFeatures(build: unknown): string[] {
+  if (typeof build !== "object" || build === null) return [];
+  const items = (build as { items?: unknown }).items;
+  if (!Array.isArray(items)) return [];
+  const held = items.some((p) => {
+    const d = typeof p === "object" && p !== null ? (p as Record<string, unknown>).def : undefined;
+    return typeof d === "string" && isShapesPiece(d);
+  });
+  return held ? ["shaped rigs (NAIL STRIP, EMBER TROUGH, SPIKE RAIL)"] : [];
+}
+
+/** Why a build under `rules` can't carry the shaped rigs, or null: none held; the switch off ("not in this rules version
+ *  yet"); or rules before SHAPES_RULES (the reason names both, as rulesGateProblem's do). */
+export function shapesGateProblem(rules: unknown, build: unknown): string | null {
+  const f = shapesFeatures(build);
+  if (!f.length) return null;
+  if (!shapesRules()) return `${f.join(" and ")}: not in this rules version yet`;
+  if (rulesAtLeast(rules, SHAPES_RULES)) return null;
+  const what = `${f.join(" and ")} need ${SHAPES_RULES} or later`;
+  return parseRules(rules) ? `rules ${String(rules)} predate ${SHAPES_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}
+
+/** SHAPES-1: does a deck under `rules` play the shaped rules (footprints, rot on shaped factories, TURRET INTAKE)? The
+ *  switch on and rules at or after SHAPES_RULES; otherwise it is judged in 0.9.9's shapes. */
+export function shapesWorld(rules: unknown): boolean {
+  return shapesRules() && rulesAtLeast(rules, SHAPES_RULES);
 }
 
 /** The gate's rows: what a build may carry and the first rules version that takes it, oldest first. RUNES-2a adds the

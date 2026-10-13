@@ -38,6 +38,8 @@ export interface Screen {
   up?(x: number, y: number): void;
   cancel?(): void;
   key?(k: string): void;
+  /** SHAPES-1 (REQ-BFG-086 S3): the mouse wheel (deltaY, deltaMode); true when the screen used it. */
+  wheel?(dy: number, mode?: number): boolean;
 }
 
 interface Toast {
@@ -322,6 +324,20 @@ export class Game implements InputSink {
     this.ui.pointer.down = false;
     this.ui.pressed = null;
     this.screen.cancel?.();
+  }
+
+  /** SHAPES-1 (REQ-BFG-086 S3): a second finger's press while the first is down: a region a second finger may press
+   *  (Region.second: the floating ROTATE button of a touch carry) takes it; anything else ignores it, as before. */
+  pointerExtra(x: number, y: number): void {
+    if (this.wipeDir !== 0 || this.nameEntry) return;
+    const r = this.ui.hit(x, y);
+    if (r && r.second && r.onTap) r.onTap();
+  }
+
+  /** SHAPES-1 (S3): the mouse wheel goes to the screen (the build screen turns a carried piece with it). */
+  wheel(dy: number, mode = 0): boolean {
+    if (this.wipeDir !== 0 || this.nameEntry) return false;
+    return !!this.screen.wheel?.(dy, mode);
   }
 
   key(k: string): void {

@@ -18,6 +18,7 @@ import { HULL_FLOOR } from "../src/net/roadCap";
 import { EQ, MEAN_PLATE, MEAN_PLATE_OTHER, ROUND_EQ } from "../src/sim/deckRating";
 import { P1_WAVE3_ITEMS } from "../tools/wave3Defs";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the star-ladder pass's rows, off and on
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the reshape's moved row and the shaped rigs' fields, off and on
 
 interface Row { file: string; id: string; rule: "x10" | "same"; base: number; now: number; rounded?: boolean }
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/num1-base-values.json", import.meta.url), "utf8")) as
@@ -296,6 +297,21 @@ const LADDER_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: num
   "ITEMS.quench.gate.quench.perBurn": { rule: "x10", was: 30, now: 40 },
 };
 const LADDER_ADDED: Record<string, number> = { "ITEMS.overdrive.levels.2.gate.rideKeep": 0.5, "ITEMS.overdrive.levels.3.gate.rideKeep": 1 };
+// SHAPES-1 flip (REQ-BFG-086; src/sim/shapes.ts, SHAPES on): with the switch on ITEMS holds ASSEMBLY LINE's reshaped def (I3,
+// 1 G less: SHAPE_DEFS), which moved one row after NUM-1's record, the fixture untouched (NUM-1's record; the script can't
+// re-record, it would scale again): its price 5 -> 4 (a "same" row, gold). It is checked at its SHAPES value, and at its
+// recorded one with the switch off, as LADDER_MOVED's is; GANTRY PRESS's reshape moves no number (its foot is a string, its
+// 4/5/6 slots foot.ts footSlots). The three shaped plain rigs (SHAPES_ITEMS) were born on the N1 scale after NUM-1's script
+// ran (NAIL STRIP 12/25/40 and SPIKE RAIL 10/20/35 DAMAGE, whole), so their 6 damage fields have no fixture row and no x10:
+// N1-native, classified here and checked live below, as SUSTAIN_N1's and LADDER_ADDED's are (their price, size and EMBER
+// TROUGH's BURN counts are "same" fields, waved through as every other one). With the switch off none exists. Cause: SHAPES
+const SHAPES_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: number }> = {
+  "ITEMS.assembly.price": { rule: "same", was: 5, now: 4 },
+};
+const SHAPES_ADDED: Record<string, number> = {
+  "ITEMS.nailstrip.gate.flat": 12, "ITEMS.nailstrip.levels.2.gate.flat": 25, "ITEMS.nailstrip.levels.3.gate.flat": 40,
+  "ITEMS.spikerail.gate.flat": 10, "ITEMS.spikerail.levels.2.gate.flat": 20, "ITEMS.spikerail.levels.3.gate.flat": 35,
+};
 
 // FLIP-X2 (REQ-BFG-069, the sustain switch on): ITEMS lists WARD BELL, MEND PRESS and MENDING LOOM now, so the walk meets
 // their numeric fields. SUS-A wrote them after NUM-1's script and NUM-2's (content.ts SUSTAIN_ITEMS: "on the N1 scale",
@@ -398,8 +414,19 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // AZ-BUMP: and a row TXT-AZ item 5 removed (ITEM5_MOVED: BRACE FRAME's plated) as gone below
     // AZ-BUMP (the flip, LADDER_FIX): and a row the star-ladder pass moved (LADDER_MOVED: QUENCH ★1's perBurn) at its fixed
     // value below
-    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && !(r.id in BAL2_MOVED) && !(r.id in Y7B2_MOVED) && !(r.id in ITEM5_MOVED) && !(r.id in LADDER_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
+    // SHAPES-1 flip: and a row the reshape moved (SHAPES_MOVED: ASSEMBLY LINE's price) at its SHAPES value below
+    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && !(r.id in BAL2_MOVED) && !(r.id in Y7B2_MOVED) && !(r.id in ITEM5_MOVED) && !(r.id in LADDER_MOVED) && !(r.id in SHAPES_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
     expect(bad).toEqual([]);
+    // SHAPES-1 flip: the moved row, a fixture row of content.ts recorded at the map's `was` under the map's rule, live at its
+    // SHAPES value; with the switch off, at its recorded one (0.9.9's)
+    const shaped = rows.filter((r) => r.id in SHAPES_MOVED);
+    expect(shaped.map((r) => r.id).sort()).toEqual(Object.keys(SHAPES_MOVED).sort());
+    for (const r of shaped) {
+      const m = SHAPES_MOVED[r.id];
+      expect([r.file, r.rule, r.now], r.id).toEqual(["src/sim/content.ts", m.rule, m.was]);
+      expect(live(r.id), r.id).toBe(m.now);
+      expect(withShapes(() => live(r.id), false), `${r.id}, off`).toBe(m.was);
+    }
     // AZ-BUMP (the flip, LADDER_FIX): the moved row, a fixture row of content.ts recorded at the map's `was` under the map's
     // rule, live at its fixed value; with the switch off, at its recorded one (bb-0.9.7's)
     const ladder = rows.filter((r) => r.id in LADDER_MOVED);
@@ -521,6 +548,7 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
       && !sustainNative.has(id) // FLIP-X2: a sustain piece's field is N1-native (SUSTAIN_N1), checked below
       && !(id in Y7B2_ADDED) // Y7b2: a field the flip added (Y7B2_ADDED), checked below
       && !(id in LADDER_ADDED) // AZ-BUMP (the flip, LADDER_FIX): a field the star-ladder pass added (LADDER_ADDED), checked below
+      && !(id in SHAPES_ADDED) // SHAPES-1 flip: a shaped plain rig's N1-native damage field (SHAPES_ADDED), checked below
       && (ruleOf(id, NUM2_RULES) === N2 ? !num2To.has(id) : ruleOf(id) !== "same"));
     expect(missing).toEqual([]);
     // FLIP-X1 (F-d), the sustain-on pins: two-sided, the scan meets the 8 and none is a fixture row (under either name)
@@ -540,6 +568,11 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     expect(ids.filter((id) => id in LADDER_ADDED).sort()).toEqual(Object.keys(LADDER_ADDED).sort());
     for (const [id, v] of Object.entries(LADDER_ADDED)) expect([byId.has(id), live(id)], id).toEqual([false, v]);
     expect(withLadderFix(() => Object.keys(LADDER_ADDED).map((id) => live(id)), false)).toEqual([undefined, undefined]);
+    // SHAPES-1 flip: two-sided: the scan meets the 6 fields SHAPES_ADDED names, none is a fixture row, each live at its value
+    // and whole (the N1 scale); with the switch off none exists (0.9.9's ITEMS has no shaped rig)
+    expect(ids.filter((id) => id in SHAPES_ADDED).sort()).toEqual(Object.keys(SHAPES_ADDED).sort());
+    for (const [id, v] of Object.entries(SHAPES_ADDED)) expect([byId.has(id), live(id), Number.isInteger(v)], id).toEqual([false, v, true]);
+    expect(withShapes(() => Object.keys(SHAPES_ADDED).map((id) => live(id)), false)).toEqual(Object.keys(SHAPES_ADDED).map(() => undefined));
     // NUM-3 (R1's STUN fold, N1 2.2): two-sided: the scan meets every field of num3New and none is a fixture row; measured
     // 8 (BELLOWS' burn and per at ★1-★3, SABOT's round.seconds at ★1 and ★3), each live at its value. Unclassified, SABOT's
     // two would pass the line above as "same" (factory.round.seconds is FROSTBITE's and DRAG CHAIN's rule).

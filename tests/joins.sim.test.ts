@@ -312,9 +312,12 @@ describe("J7: race hooks see a joined payload as on the main belt", () => {
   });
 
   it("ASSEMBLY LINE: one whose belt joins a connected belt runs (its commissioning factor holds; its own belt's rigs at 0 s)", () => {
-    const joined = deck([], { joiner: "assembly" });
+    // SHAPES-1 flip: ASSEMBLY LINE is an I3 now (was a 2x2): at deck()'s (0, 6) its row (0,6)-(2,6) covers R's first tile
+    // (2, 6), so the fixture stands it upright beside R's start instead, (1,6)-(1,8) at rot 1, as the 2x2 at (0, 6) stood
+    const upright = (b: Build): Build => ({ ...b, items: b.items.map((p) => (p.uid === 2 ? { uid: 2, def: p.def, x: 1, y: 6, ...rotField(p.def, 1) } : p)) });
+    const joined = upright(deck([], { joiner: "assembly" }));
     expect(assemblyLines(joined)).toEqual({ factor: 0.5, own: new Map([[1, 0]]) });
-    expect(assemblyLines(deck([], { joiner: "assembly", joined: false }))).toEqual({ factor: 1, own: new Map() });
+    expect(assemblyLines(upright(deck([], { joiner: "assembly", joined: false })))).toEqual({ factor: 1, own: new Map() });
   });
 
   it("E1: a joining belt feeds FURNACE's Breech as a long belt when its journey (not its own tiles) runs 8 tiles or more", () => {

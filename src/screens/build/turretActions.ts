@@ -5,6 +5,7 @@
 // feedback: sounds, the selection, and which belt a swap left without an intake (it blocks FIGHT until fixed).
 
 import { buyOffer, installFromCargo, moveInstalled, sellInstalled, storeTurret } from "../../game/run";
+import { intakeToast } from "../../game/run"; // SHAPES-1 S5b: the intake sweep's toast
 import { REFIT_NO_SHOP, shopShut } from "../../game/run"; // NPC-1 (REQ-BFG-077)
 import { ITEMS } from "../../sim/content";
 import { deadEndsAt, turretSlots, type TurretOpResult } from "../../sim/deck";
@@ -27,10 +28,17 @@ export function deadEndsAfter(ctx: Ctx, slots: number[]): number[] {
 }
 
 /** One toast for a finished turret operation: a new dead end first (it blocks FIGHT), else what went to cargo. */
-function report(ctx: Ctx, r: TurretOpResult, slots: number[]): void {
+function report(ctx: Ctx, r: TurretOpResult & { swept?: string[] }, slots: number[]): void {
   const dead = deadEndsAfter(ctx, slots);
   if (dead.length) {
     ctx.game.toast(`BELT ${dead.map((i) => i + 1).join(" AND ")} IS A DEAD END NOW`, C.amber);
+    return;
+  }
+  // SHAPES-1 S5b (cap's ruling, oracle 7f2a91a61910e167): the shaped pieces the turret's new intake sent to cargo, after a
+  // dead end (one toast shows at a time) and before the parts the turret operation itself sent back
+  const sw = intakeToast(r.swept ?? []);
+  if (sw) {
+    ctx.game.toast(sw, C.yellow);
     return;
   }
   const back = r.turrets.length + r.mods.length;

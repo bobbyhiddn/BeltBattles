@@ -8,6 +8,7 @@
 import type { Block } from "./inspector";
 import { faceLines, faceMerge, faceNext, hasFace } from "../../ui/faces";
 import { plainRigStats } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b): the three plain stat rigs
+import { shapeLines } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-086.1): a shaped piece's own lines
 import { statRow } from "../../ui/icons"; // EXPLAIN-1: a plain rig's stat row
 import type { TextOpts } from "../../ui/abilityText";
 import { livePerk } from "../../ui/abilityText";
@@ -66,7 +67,10 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   // EXPLAIN-1 (REQ-BFG-084 step 0b; PIECES-1 3.3): WHETSTONE, TEMPER and BARBED SPOOL draw a plain face: their hit stat as
   // a stat row ({DMG}+20), no HIT: rule line (faces.ts PLAIN_RIGS; faceAt keeps the rule, so LEVELS and the chip stay)
   const plainRig = plainRigStats(def, stars, o.day); // MERGE-099C: on the read-out's day (HULL-1d), as the rule line
-  if (plainRig) return [{ role: "ability", text: statRow(plainRig), keep: true }];
+  // SHAPES-1 (REQ-BFG-086.1, REQ-BFG-089): a shaped piece's own lines (UP TO 2 HITS; GANTRY PRESS's FEEDS 4 BELTS IN TURN.
+  // and BIGGER: +1 {BELT}) follow its stat row, kept; [] for every other piece and with SHAPES off
+  const own: Block[] = shapeLines(def, stars).map((r) => ({ role: "ability", text: r.text, keep: true, ...(r.label ? { brass: r.label } : {}) }));
+  if (plainRig) return [{ role: "ability", text: statRow(plainRig), keep: true }, ...own];
   // CARD-2 (REQ-BFG-081, K4): a turret's row in words (RATE 55  HOLDS 2  GEAR SLOTS 1), from the sim at this star; the
   // ladder stays in LEVELS, the phone shop chip keeps {RATE}n (chips.ts), and faceLines (the face data) is unchanged
   if (fl.stats && ITEMS[def]?.kind === "turret") out.push({ role: "ability", text: turretRow(turretStats(def, stars)), keep: true, pairs: true });
@@ -79,6 +83,7 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   // text (true of every turret), marked `note: "kind"`: a drawn panel (inspector.ts explainPanel) moves them to its ⓘ NOTES
   for (const text of fl.plain ?? []) out.push({ role: "ability", text, keep: true, note: "kind" });
   for (const r of fl.rules) out.push({ role: "ability", text: r.text, keep: true, ...(r.label ? { brass: r.label } : {}) });
+  out.push(...own); // SHAPES-1: a shaped factory's own lines after its rule lines
   if (perk && out.length) out[out.length - 1] = { ...out[out.length - 1], perk };
   // U2b F6: the perk clause, its label "★2 SPARK JUMP:" in brass, kept (a face never says less than the sim)
   if (fl.clause) out.push({ role: "ability", text: fl.clause.text, keep: true, brass: fl.clause.label });

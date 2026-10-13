@@ -74,7 +74,8 @@ describe("D1-D3, D10: belt slots by level, the one rule (stars.ts outputsAt)", (
       "sabot", "scrapper", "shottower", "slagpot", "twinmould",
     ]);
     for (const d of BOUGHT) {
-      const lead = d.id === "gantry" ? 1 : 0;
+      // SHAPES-1 flip: GANTRY PRESS's lead (1) and its 2x3's slot (foot.ts footSlots, +1): 4 / 5 / 6 (was 1: 3 / 4 / 5)
+      const lead = d.id === "gantry" ? 2 : 0;
       expect([1, 2, 3].map((s) => outputsAt(d.id, s)), d.id).toEqual([2 + lead, 3 + lead, 4 + lead]);
       expect(fusible(d.id), d.id).toBe(true);
       // its grade is its stars (no build level reaches it), and a 4th "star" doesn't exist: ★3's slots
@@ -87,7 +88,8 @@ describe("D1-D3, D10: belt slots by level, the one rule (stars.ts outputsAt)", (
     }
     expect(FUSE_MAX).toBe(3);
     expect(Math.min(...FACTORIES.flatMap((d) => [1, 2, 3].map((s) => outputsAt(d.id, s))))).toBe(2); // the floor of 2
-    expect(Math.max(...FACTORIES.map((d) => outputsAt(d.id, 1)))).toBe(3); // the LOOM and GANTRY PRESS lead
+    // the LOOM and GANTRY PRESS lead; SHAPES-1 flip: the 2x3 GANTRY PRESS 4 at ★1 (footSlots +1), the LOOM 3 (was 3)
+    expect(Math.max(...FACTORIES.map((d) => outputsAt(d.id, 1)))).toBe(4);
   });
 
   it("no signature factory merges or has stars; each has FACTORY levels 1-4: 2 / 3 / 4 / 5 slots, the LOOM 3 / 4 / 5 / 6", () => {

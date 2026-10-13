@@ -32,6 +32,7 @@
 
 import { GRID, HEROES, ITEMS, type HeroId } from "../content";
 import { rotOf, setTurretList, startingTurrets, type Build, type BuildTurret, type ModPlacement, type Placed, type RouteDef } from "../deck";
+import { footOf, footTurns } from "../foot"; // SHAPES-1 (REQ-BFG-086 S4): a shaped factory's rot
 import { starsOf } from "../stars";
 import { upgradeWord, upgradesOf } from "../standInPool"; // bb-0.8.3 (REQ-BFG-043 D10): the levels' head word
 import { headWords, runeWord, runesOf } from "../standInPool"; // BOTS-X (REQ-BFG-058): the runes' head word
@@ -95,7 +96,8 @@ export function decodeStarred(hero: HeroId, code: string): Build {
   const items: Placed[] = words(itemPart).map((w, i) => {
     const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?(?:\*([23]))?$/.exec(w);
     if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad item "${w}"`);
-    if (m[4] && ITEMS[m[1]].kind !== "gate") throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
+    // SHAPES-1 (REQ-BFG-086 S4): a shaped factory (one whose footprint changes when turned) carries its rot too
+    if (m[4] && ITEMS[m[1]].kind !== "gate" && footTurns(footOf(ITEMS[m[1]])) === 1) throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
     return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}), ...star(m[5]) };
   });
   const routes: RouteDef[] = words(routePart).map((w) => {

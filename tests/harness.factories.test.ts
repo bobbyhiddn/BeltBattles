@@ -16,7 +16,9 @@ import { fullPurseBuild, randomBuild, shopBuild } from "../src/sim/harness/gen";
 import { HARNESS_HEROES, heroStartBuild, shopFactories } from "../src/sim/harness/heroes";
 import { applyLever, canApply, factoryToBuy, mergeableDefs } from "../src/sim/harness/levers";
 import { cargoValue, unfusedWithCargo, type InvItem } from "../src/sim/harness/merge";
-import { blockedCells, freeConnectors, shortestTiles, startCells } from "../src/sim/harness/path";
+import { blockedCells, freeConnectors, shortestTiles } from "../src/sim/harness/path";
+import { startCellsFor } from "../src/sim/harness/path"; // SHAPES-1 flip: a 2x3 GANTRY's start cells (was startCells(x, y, 2))
+import { cellsOf } from "../src/sim/deck"; // SHAPES-1 flip: a placed piece's turned footprint
 import { Shopper, fixedSpeedCells, isSpeedGate } from "../src/sim/harness/shopper";
 import { STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, maxStarsOf, standInCandidate, standInCommand, writtenProblems, type HeroDay, type StandInOpts } from "../src/sim/harness/standins";
 import { encodeStarred } from "../src/sim/harness/standinCode";
@@ -287,7 +289,10 @@ describe("harness factories (0.6.1c): the factory paths", () => {
       expect(problems(s.b, s.cargo, 10), `seed ${seed} after the press`).toEqual([]);
       if (routesOf(s.b, g.uid).length !== 2 || freeConnectors(s.b).length !== 1) continue;
       tried++;
-      const bl = blockedCells(s.b), can = shortestTiles(bl, startCells(g.x, g.y, 2, bl), freeConnectors(s.b)[0]) !== Infinity;
+      // SHAPES-1 flip: GANTRY PRESS is a 2x3 now (was 2x2), so the probe reads its belt start cells from its own footprint
+      // (path.ts startCellsFor(cellsOf(g)), as moreRoutes does); a 2x2 probe missed the cells beside its third row. With
+      // SHAPES off cellsOf(g) is the 2x2 and this is startCells(g.x, g.y, 2) exactly
+      const bl = blockedCells(s.b), can = shortestTiles(bl, startCellsFor(cellsOf(g), bl), freeConnectors(s.b)[0]) !== Infinity;
       if (can) reachable++;
       expect(applyLever(s, "merge")).toBe(true);
       expect(starsOf(s.b.items.find((p) => p.uid === g.uid))).toBe(2);

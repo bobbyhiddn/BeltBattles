@@ -65,6 +65,8 @@ import {
 import { hero as deckHero, routesOf, turretForColumn } from "../deck"; // bb-0.8.3 (D7): the bots' belts
 import { beltIndex, freeForRig, hitsIfPlaced, intakeCell, placeRigAt, rotFacing, rotations, type RigSpot } from "../beltside";
 import { stokeSpots } from "../beltside"; // 0.8.0 P1 (E3): STOKER's place beside factories
+import { shapedSpot } from "../beltside"; // SHAPES-1 (REQ-BFG-086 S7.1): the shaped-rig solver
+import { shapesRules } from "../shapes"; // SHAPES-1 (S1): the par-run cache key
 import type { SideStats } from "../battle";
 import { FUSE_MAX, fusible, gradeOf, starsOf, valueOf } from "../stars";
 import { beltPolicy, botSlots, reachCols, upgradePolicy } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7, REQ-BFG-043 D7')
@@ -80,6 +82,10 @@ import {
 import { UPGRADE_TRACKS, type UpgradeTrack } from "../content"; // bb-0.8.3 (REQ-BFG-043 D7')
 import { MAX_TILES, Shopper } from "./shopper";
 import { blockedCells, freeConnectors, randomPath, shortestTiles, startCells } from "./path";
+import { startCellsFor } from "./path"; // SHAPES-1 (REQ-BFG-086 S7.2): start cells beside any footprint
+import { cellsOf, rotField, type Placed } from "../deck"; // SHAPES-1: a placed piece's turned footprint; the stored rot
+import { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "../foot"; // SHAPES-1: the footprint engine
+import type { ItemDef } from "../content";
 import { syncOf, syncedTurrets } from "../syncEstimate"; // 0.8.0 B1 M1: FOUNDRY's sync guard (syncKeeper)
 import { BOT_RUNES, botTakeRune, runeGrants } from "../runes"; // RUNES-2a (REQ-BFG-058): the bots' dawn rune, behind BOT_RUNES
 import { lastChanceOffer, lastChanceRuneAt, type Boon } from "../lastChance"; // LC-1 (REQ-BFG-073)
@@ -449,6 +455,18 @@ function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = 
   const out: RigSpot[] = [];
   const seen = new Set<string>();
   let tiles = s.rigTilesFor(ITEMS[def], s.rigTiles(), false);
+  // SHAPES-1 (REQ-BFG-086 S7.1): a multi-cell rig takes the shaped-rig solver's placement (beltside.ts shapedSpot):
+  // "tile" (typical) the best one that hits one random belt tile (its one draw, as for any rig), "best" (sharp) the global
+  // best; a speed rig never hits a slag belt (P20)
+  if (footOf(ITEMS[def]) !== "1") {
+    const slag = s.slagRoutesFor(ITEMS[def]);
+    const accept = slag ? (hs: { route: number }[]) => !hs.some((h) => slag[h.route]) : undefined;
+    const t = rng ? (tiles.length ? rng.pick(tiles) : null) : undefined;
+    if (t === null) return out;
+    const sp = shapedSpot(s.b, def, s.connected(), accept, t);
+    if (sp && (!ok || ok(sp))) out.push(sp);
+    return out;
+  }
   // 0.8.0 B1 M1: with FOUNDRY's sync guard, only the tiles whose spot keeps every synced gun in sync (a speed rig never
   // lands on one belt of a synced pair); without it (every deck without a synced gun) the tiles as before
   if (ok) tiles = tiles.filter(([ri, ti]) => { const sp = s.rigSpot(def, ri, ti); return !!sp && ok(sp); });
@@ -500,6 +518,7 @@ function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = 
  * (the game's drop auto-aims; a speed rig never hits a slag belt, P20). Of those swaps, the best-rated; null: none.
  */
 function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, base: number, day: number, keep?: (after: Build) => boolean, stars = 1): Omit<Cand, "wagon" | "slot" | "price"> | null {
+  if (footOf(ITEMS[def]) !== "1") return null; // SHAPES-1 (S7.3): one freed cell can't hold a multi-cell rig
   const slag = s.slagRoutesFor(ITEMS[def]);
   const belts = beltIndex(b, s.connected());
   let best: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
@@ -526,11 +545,46 @@ function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, 
 /** Belt tiles free under the deck's belt capacity. */
 const beltFree = (b: Build): number => b.beltCap - b.routes.reduce((s, r) => s + r.cells.length, 0);
 
+/**
+ * SHAPES-1 (REQ-BFG-086 S7.3): does a shaped piece of `def` fit anywhere useful on `b`: a multi-cell rig a placement
+ * that hits a connected belt (beltside.ts shapedSpot), a shaped factory a spot with a line into a free intake
+ * (factoryPlan)? A 1-cell rig, a 2x2 factory and anything else: true (their own rules apply, as before). The buy policy
+ * checks it before it buys a shape, so a shape the deck can't hold stays in the caravan.
+ */
+export function fitsSomewhere(b: Build, def: string, rng: Rng = new Rng(1)): boolean {
+  const d = ITEMS[def];
+  if (!d || !isShaped(d)) return true;
+  if (d.kind === "gate") {
+    const claims = connectorClaims(b), occ = occupancy(b);
+    return shapedSpot(b, def, (ri) => routeInfo(b, ri, claims, occ).connected) !== null;
+  }
+  return d.kind === "factory" ? factoryPlan(b, def, rng) !== null : true;
+}
+
 /** blockedCells of the deck with a `def` factory put at (x, y) as well: `bl` (blockedCells of the deck) with its
  *  footprint blocked, without copying the deck (CAND-A: the spot searches try every free spot). */
 function withFactory(bl: Uint8Array, def: string, x: number, y: number): Uint8Array {
   const out = bl.slice();
   for (const k of footprint(ITEMS[def], x, y)) if (k >= 0 && k < out.length) out[k] = 1;
+  return out;
+}
+
+/** SHAPES-1 (REQ-BFG-086 S7.2): `bl` with `cells` blocked as well (withFactory for any footprint). */
+function withCells(bl: Uint8Array, cells: readonly number[]): Uint8Array {
+  const out = bl.slice();
+  for (const k of cells) if (k >= 0 && k < out.length) out[k] = 1;
+  return out;
+}
+
+/** SHAPES-1 (REQ-BFG-086 S7.2): every spot of `d`'s footprint off the forward row, in scan order (row y from 1, then column
+ *  x, then rot 0..footTurns-1), with its cells (foot.ts footprintCells): factoryPlan's scan over every anchor x rot. A 2x2
+ *  (one rot) gives 0.9.9's scan exactly: rows 1-8, columns 0-8. */
+function factorySpots(d: ItemDef): { x: number; y: number; rot: number; cells: number[] }[] {
+  const out: { x: number; y: number; rot: number; cells: number[] }[] = [];
+  const turns = footTurns(footOf(d));
+  for (let y = 1; y < GRID; y++) for (let x = 0; x < GRID; x++) for (let rot = 0; rot < turns; rot++) {
+    if (footOnDeck(d, x, y, rot)) out.push({ x, y, rot, cells: footprintCells(d, x, y, rot) });
+  }
   return out;
 }
 
@@ -567,26 +621,26 @@ function fedTurrets(b: Build): Set<number> {
  * the spare belt covers (ties: the first spot in row order), and for a factory with more outputs (GANTRY PRESS) the
  * next shortest belts into the other free intakes, while the belt lasts. null when none fits.
  */
-function factoryPlan(b: Build, def: string, rng: Rng, line: PolicyKnobs["line"] = "short", only?: readonly number[]): { x: number; y: number; routes: Line[] } | null {
+function factoryPlan(b: Build, def: string, rng: Rng, line: PolicyKnobs["line"] = "short", only?: readonly number[]): { x: number; y: number; rot: number; routes: Line[] } | null {
   const d = ITEMS[def];
   const cols = freeConnectors(b).filter((c) => !only || only.includes(c)); // CAND-A: `only`, one turret's free intakes
   if (!cols.length) return null;
   const occ = occupancy(b), bl0 = blockedCells(b);
-  let best: { x: number; y: number; col: number; len: number } | null = null;
-  for (let y = 1; y + d.size <= 10; y++) {
-    for (let x = 0; x + d.size <= 10; x++) {
-      if (footprint(d, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
-      const bl = withFactory(bl0, def, x, y), starts = startCells(x, y, d.size, bl);
-      for (const col of cols) {
-        const len = shortestTiles(bl, starts, col);
-        if (len > beltFree(b)) continue;
-        if (!best || len < best.len) best = { x, y, col, len };
-      }
+  let best: { x: number; y: number; rot: number; col: number; len: number } | null = null;
+  // SHAPES-1 (REQ-BFG-086 S7.2): every anchor x rot of the footprint (factorySpots; a 2x2: 0.9.9's scan), start cells
+  // from the turned edge (startCellsFor)
+  for (const sp of factorySpots(d)) {
+    if (sp.cells.some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
+    const bl = withCells(bl0, sp.cells), starts = startCellsFor(sp.cells, bl);
+    for (const col of cols) {
+      const len = shortestTiles(bl, starts, col);
+      if (len > beltFree(b)) continue;
+      if (!best || len < best.len) best = { x: sp.x, y: sp.y, rot: sp.rot, col, len };
     }
   }
   if (!best) return null;
   const trial = cloneBuild(b);
-  trial.items.push({ uid: -1, def, x: best.x, y: best.y });
+  trial.items.push({ uid: -1, def, x: best.x, y: best.y, ...rotField(def, best.rot) });
   const routes: Line[] = [];
   let spare = beltFree(b);
   // bb-0.8.3 (REQ-BFG-042 D7): up to the bots' slots (belts.ts); under "reach" each further line into another turret
@@ -594,7 +648,7 @@ function factoryPlan(b: Build, def: string, rng: Rng, line: PolicyKnobs["line"] 
   for (const col of [best.col, ...cols.filter((c) => c !== best!.col)]) {
     if (routes.length >= outputs) break;
     if (policy === "reach" && fed.has(turretForColumn(h, col))) continue;
-    const bl = blockedCells(trial), starts = startCells(best.x, best.y, d.size, bl);
+    const bl = blockedCells(trial), starts = startCellsFor(footprintCells(d, best.x, best.y, best.rot), bl);
     const len = shortestTiles(bl, starts, col);
     if (len > spare) continue;
     // a winding line: shortest + random slack within the spare belt (a path of the drawn length may not exist: shorter)
@@ -607,7 +661,7 @@ function factoryPlan(b: Build, def: string, rng: Rng, line: PolicyKnobs["line"] 
     spare -= cells.length;
     fed.add(turretForColumn(h, col));
   }
-  return routes.length ? { x: best.x, y: best.y, routes } : null;
+  return routes.length ? { x: best.x, y: best.y, rot: best.rot, routes } : null;
 }
 
 /**
@@ -625,7 +679,7 @@ function moreBelt(b: Build, day: number, rng: Rng, base: number, keep?: (after: 
     // bb-0.8.3 (REQ-BFG-044 D7'): at its grade (the hero factory's FACTORY level opens slots like a star does)
     if (ITEMS[p.def]?.kind !== "factory" || routesOf(b, p.uid).length >= botSlots(p.def, gradeOf(b, p), b.hero, policy)) continue;
     const cols = policy === "reach" ? reachCols(b, p.uid) : freeConnectors(b);
-    const bl = blockedCells(b), starts = startCells(p.x, p.y, ITEMS[p.def].size, bl);
+    const bl = blockedCells(b), starts = startCellsFor(cellsOf(p), bl);
     for (const col of cols) {
       const len = shortestTiles(bl, starts, col);
       if (!Number.isFinite(len) || len > spare) continue;
@@ -699,14 +753,14 @@ function joinLine(b: Build, dist: Int32Array, prev: Int32Array, m: number, tile:
  * connected belt at a tile up to its rig row, from the free spot whose line there is shortest (ties: row order); the
  * best-rated plan. The editor's commitRoute writes each belt. null when none fits.
  */
-function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKnobs, base: number, day: number, keep?: (after: Build) => boolean): { x: number; y: number; routes: Line[]; rel: number } | null {
-  const place = (x: number, y: number, routes: Line[]): Build => {
+function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKnobs, base: number, day: number, keep?: (after: Build) => boolean): { x: number; y: number; rot: number; routes: Line[]; rel: number } | null {
+  const place = (x: number, y: number, routes: Line[], rot = 0): Build => {
     const after = cloneBuild(b);
-    after.items.push({ uid, def, x, y });
+    after.items.push({ uid, def, x, y, ...rotField(def, rot) }); // SHAPES-1: a shaped factory's rot
     for (const l of routes) commitRoute(after, uid, l.cells, -1, l.join);
     return after;
   };
-  let best: { x: number; y: number; routes: Line[]; rel: number } | null = null;
+  let best: { x: number; y: number; rot: number; routes: Line[]; rel: number } | null = null;
   const free = freeConnectors(b);
   const groups: (readonly number[] | undefined)[] = [undefined];
   for (const v of installedTurrets(b)) {
@@ -716,7 +770,7 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
   for (const only of groups) {
     const own = factoryPlan(b, def, rng, pol.line, only);
     if (!own) continue;
-    const after = place(own.x, own.y, own.routes);
+    const after = place(own.x, own.y, own.routes, own.rot);
     if (keep && !keep(after)) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
     const rel = relOf(after, base, day);
     if (!best || rel > best.rel) best = { ...own, rel };
@@ -728,25 +782,23 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
   const d = ITEMS[def], occ = occupancy(b), spare = beltFree(b);
   const targets = joinTargets(b);
   if (!targets.length) return best;
-  const near = targets.map(() => null as { x: number; y: number; line: Line } | null);
+  const near = targets.map(() => null as { x: number; y: number; rot: number; line: Line } | null);
   const bl0 = blockedCells(b);
-  for (let y = 1; y + d.size <= 10; y++) {
-    for (let x = 0; x + d.size <= 10; x++) {
-      if (footprint(d, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
-      const bl = withFactory(bl0, def, x, y), { dist, prev } = bfs(bl, startCells(x, y, d.size, bl));
-      targets.forEach((t, i) => {
-        const l = joinLine(b, dist, prev, t.route, t.tile);
-        if (l && l.cells.length <= spare && (!near[i] || l.cells.length < near[i]!.line.cells.length)) near[i] = { x, y, line: l };
-      });
-    }
+  for (const sp of factorySpots(d)) { // SHAPES-1 (S7.2): every anchor x rot (a 2x2: 0.9.9's scan)
+    if (sp.cells.some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
+    const bl = withCells(bl0, sp.cells), { dist, prev } = bfs(bl, startCellsFor(sp.cells, bl));
+    targets.forEach((t, i) => {
+      const l = joinLine(b, dist, prev, t.route, t.tile);
+      if (l && l.cells.length <= spare && (!near[i] || l.cells.length < near[i]!.line.cells.length)) near[i] = { x: sp.x, y: sp.y, rot: sp.rot, line: l };
+    });
   }
   for (const n of near) {
     if (!n) continue;
-    const after = place(n.x, n.y, [n.line]);
+    const after = place(n.x, n.y, [n.line], n.rot);
     if (newJoinProblem(after, after.routes.length - 1) !== null) continue;
     if (keep && !keep(after)) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
     const rel = relOf(after, base, day);
-    if (!best || rel > best.rel) best = { x: n.x, y: n.y, routes: [n.line], rel };
+    if (!best || rel > best.rel) best = { x: n.x, y: n.y, rot: n.rot, routes: [n.line], rel };
   }
   return best;
 }
@@ -775,7 +827,7 @@ function joinRedraw(b: Build, ri: number, day: number, rng: Rng, base: number, b
   const lifted = cloneBuild(b), s = editor(lifted, day, rng);
   const riders = s.ridersOf(ri);
   s.lift(riders);
-  const bl = blockedCells(lifted, ri), { dist, prev } = bfs(bl, startCells(f.x, f.y, ITEMS[f.def].size, bl));
+  const bl = blockedCells(lifted, ri), { dist, prev } = bfs(bl, startCellsFor(cellsOf(f), bl));
   const room = r.cells.length + beltFree(b);
   for (const t of joinTargets(lifted, ri)) {
     const l = joinLine(lifted, dist, prev, t.route, t.tile);
@@ -807,7 +859,7 @@ function feedPlans(b: Build, slot: number, day: number, rng: Rng): Build[] {
     if (joinersOf(b, ri).length || !routeInfo(b, ri, claims).connected) return;
     const f = itemByUid(b, r.factory);
     if (!f) return;
-    const bl = blockedCells(b, ri), starts = startCells(f.x, f.y, ITEMS[f.def].size, bl);
+    const bl = blockedCells(b, ri), starts = startCellsFor(cellsOf(f), bl);
     for (const col of cols) {
       const len = shortestTiles(bl, starts, col);
       if (!Number.isFinite(len) || len > r.cells.length + free) continue;
@@ -828,29 +880,29 @@ function feedPlans(b: Build, slot: number, day: number, rng: Rng): Build[] {
 function moveFactoryPlan(b: Build, ri: number, cols: readonly number[], room: number, day: number, rng: Rng): Build | null {
   const r = b.routes[ri], f = itemByUid(b, r.factory);
   if (!f || f.def === HEROES[b.hero].factory || b.routes.some((q, i) => i !== ri && q.factory === f.uid)) return null;
-  const size = ITEMS[f.def].size;
+  const fd = ITEMS[f.def];
   const lifted = cloneBuild(b), s = editor(lifted, day, rng);
   const riders = s.ridersOf(ri);
   s.lift(riders);
   lifted.items = lifted.items.filter((p) => p.uid !== f.uid);
   lifted.routes[ri] = { factory: f.uid, cells: [] };
   const occ = occupancy(lifted), bl0 = blockedCells(lifted, ri);
-  let best: { x: number; y: number; col: number; len: number } | null = null;
-  for (let y = 1; y + size <= GRID; y++) {
-    for (let x = 0; x + size <= GRID; x++) {
-      if (footprint(ITEMS[f.def], x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
-      const bl = withFactory(bl0, f.def, x, y), starts = startCells(x, y, size, bl);
-      for (const col of cols) {
-        const len = shortestTiles(bl, starts, col);
-        if (len <= room && (!best || len < best.len)) best = { x, y, col, len };
-      }
+  let best: { x: number; y: number; rot: number; col: number; len: number } | null = null;
+  for (const sp of factorySpots(fd)) { // SHAPES-1 (S7.2): every anchor x rot (a 2x2: 0.9.9's scan)
+    if (sp.cells.some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
+    const bl = withCells(bl0, sp.cells), starts = startCellsFor(sp.cells, bl);
+    for (const col of cols) {
+      const len = shortestTiles(bl, starts, col);
+      if (len <= room && (!best || len < best.len)) best = { x: sp.x, y: sp.y, rot: sp.rot, col, len };
     }
   }
   if (!best) return null;
   const trial = cloneBuild(lifted);
-  trial.items.push({ ...f, x: best.x, y: best.y });
+  const moved: Placed = { ...f, x: best.x, y: best.y };
+  delete moved.rot;
+  trial.items.push({ ...moved, ...rotField(f.def, best.rot) });
   const bl = blockedCells(trial, ri);
-  const cells = randomPath(bl, startCells(best.x, best.y, size, bl), best.col, best.len, rng);
+  const cells = randomPath(bl, startCellsFor(footprintCells(fd, best.x, best.y, best.rot), bl), best.col, best.len, rng);
   if (!cells) return null;
   trial.routes[ri] = { factory: f.uid, cells };
   if (editor(trial, day, rng).reseat(riders.map((p) => ({ ...p })), ri) < riders.length) return null;
@@ -865,7 +917,7 @@ function rerouteDeadEnds(b: Build, t: number, day: number, rng: Rng): boolean {
     if (r.join !== undefined || joinersOf(b, ri).length) return false;
     const f = itemByUid(b, r.factory);
     if (!f) return false;
-    const bl = blockedCells(b, ri), starts = startCells(f.x, f.y, ITEMS[f.def].size, bl);
+    const bl = blockedCells(b, ri), starts = startCellsFor(cellsOf(f), bl);
     const tries = freeConnectors(b, ri).map((col) => ({ col, len: shortestTiles(bl, starts, col) }))
       .filter((c) => Number.isFinite(c.len) && c.len <= r.cells.length + beltFree(b)).sort((x, y) => x.len - y.len || x.col - y.col);
     if (!tries.some((c) => editor(b, day, rng).moveRoute(ri, c.len, c.col))) return false;
@@ -967,6 +1019,18 @@ function turretCand(run: Run, def: string, pol: PolicyKnobs, rng: Rng, base: num
   return best;
 }
 
+/** CAND-A: `b` with factory plan `fp`'s factory (uid `uid`, def `fdef`) and its lines: the deck pairCand rates a turret and
+ *  factory pair on. SHAPES-1 flip fix: the factory stands at the plan's rot (rotField), as factoryCand places it. It was
+ *  pushed at rot 0, so a turned 2x3 GANTRY PRESS or I3 ASSEMBLY LINE (factoryPlan's spot, scanned at every rot) overlapped a
+ *  piece, left the deck or stood away from its own lines' start in the deck being rated (par runs s1-s6: BASTION d5, METRONOME
+ *  d6, SIPHON d8). A 2x2 plan's rot is 0, so its deck is exactly as before. */
+export function withFactoryPlan(b: Build, uid: number, fdef: string, fp: { x: number; y: number; rot: number; routes: readonly { cells: number[] }[] }): Build {
+  const after = cloneBuild(b);
+  after.items.push({ uid, def: fdef, x: fp.x, y: fp.y, ...rotField(fdef, fp.rot) });
+  for (const l of fp.routes) commitRoute(after, uid, l.cells, -1);
+  return after;
+}
+
 /**
  * CAND-A: a turret for an empty slot, judged with a factory offer the purse also covers whose own line would feed it
  * (factoryPlan into that turret's intakes on the deck with it installed). The plan installs the turret unfed; the
@@ -983,9 +1047,7 @@ function pairCand(run: Run, def: string, fdef: string, pol: PolicyKnobs, rng: Rn
     if (!installFromCargo(sim, g.survivor, v.slot).ok) continue;
     const fp = factoryPlan(sim.build, fdef, rng, pol.line, turretSlots(sim.build)[v.slot].intakes);
     if (!fp) continue;
-    const after = cloneBuild(sim.build), uid = sim.nextUid;
-    after.items.push({ uid, def: fdef, x: fp.x, y: fp.y });
-    for (const l of fp.routes) commitRoute(after, uid, l.cells, -1);
+    const after = withFactoryPlan(sim.build, sim.nextUid, fdef, fp); // SHAPES-1 flip fix: the plan's factory at its rot
     if (keep && (!keep(after) || !keep(sim.build))) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
     const rel = relOf(after, base, run.day);
     if (!best || rel > best.rel) best = { plan: { copy: g.survivor, slot: v.slot, into: "extra", refit: [], sell: [], sold: false, build: sim.build }, rel };
@@ -1124,7 +1186,8 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
         const busy = kw ? busiestRoute(b, day) : undefined;
         const ok = keepSpot ? keepSpot(o.def) : undefined;
         const spotOk = kw ? (sp: RigSpot) => busy !== undefined && sp.hits.some((h) => h.route === busy) && (!ok || ok(sp)) : ok;
-        for (const sp of rigSpots(s, o.def, pol.place === "tile" ? rng : undefined, pol.aim, pol.aimTop, spotOk)) {
+        // SHAPES-1 (S7.3): a shape the deck can't hold is no candidate (fitsSomewhere; a 1-cell rig always passes)
+        for (const sp of !isShaped(d) || fitsSomewhere(b, o.def) ? rigSpots(s, o.def, pol.place === "tile" ? rng : undefined, pol.aim, pol.aimTop, spotOk) : []) {
           const after = cloneBuild(b);
           placeRigAt(after, run.nextUid, o.def, sp);
           const r = relOf(after, base, day);
@@ -1171,7 +1234,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
         // BOTS-X (rule 5): MEND PRESS where ARMOR PRESS would go, only where it adds a line: a free spot and a free intake,
         // never a join (cap's answer 2 to SUS-A)
         const fp = factoryCand(b, o.def, run.nextUid, rng, kw ? { ...pol, join: 0 } : pol, base, day, keep);
-        if (fp) c = { def: o.def, kind: "factory", merge: false, at: { x: fp.x, y: fp.y }, routes: fp.routes, rel: fp.rel };
+        if (fp) c = { def: o.def, kind: "factory", merge: false, at: { x: fp.x, y: fp.y, ...(fp.rot ? { rot: fp.rot } : {}) }, routes: fp.routes, rel: fp.rel };
       } else if (d.kind === "turret" && pol.turret) {
         const tp = turretCand(run, o.def, pol, rng, base, keep);
         let extra = tp.extra;
@@ -1470,7 +1533,7 @@ function drawKilnBelt(run: Run, rng: Rng, tiles: number): void {
   const ri = kiln ? b.routes.findIndex((r) => r.factory === kiln.uid) : -1;
   if (b.hero !== "furnace" || !kiln || ri < 0 || b.routes[ri].cells.length >= tiles) return;
   const target = Math.min(tiles, b.beltCap - (b.routes.reduce((s, r) => s + r.cells.length, 0) - b.routes[ri].cells.length));
-  const bl = blockedCells(b, ri), starts = startCells(kiln.x, kiln.y, ITEMS[kiln.def].size, bl);
+  const bl = blockedCells(b, ri), starts = startCellsFor(cellsOf(kiln), bl);
   const cols = HEROES.furnace.turrets[0].connectors;
   for (let t = 0; t < 24; t++) {
     const cells = randomPath(bl, starts, cols[rng.int(cols.length)], target, rng);
@@ -1571,6 +1634,19 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
         continue;
       }
     }
+    // SHAPES-1 (REQ-BFG-086 S7.3; PIECES-1 5.3): the room knob's one more trigger, "the piece on offer fits nowhere useful":
+    // an affordable shaped piece the deck can't hold (fitsSomewhere) makes the player lengthen its best belt once (the same
+    // once a day) and look again; if it still fits nowhere it stays in the caravan. Off: never (shapesRules first)
+    if (!roomy && pol.room && shapesRules() && beltFree(run.build) > 0
+      && run.shop.wagons.some((w) => w.offers.some((o) => !o.sold && o.price <= run.gold && !!ITEMS[o.def] && isShaped(ITEMS[o.def]) && !fitsSomewhere(run.build, o.def)))) {
+      roomy = true;
+      const g = growBelt(run.build, run.day, rng, rateOn(run.build, run.day));
+      if (g && g.rel >= -pol.harmless) {
+        run.build.items = g.build.items;
+        run.build.routes = g.build.routes;
+        continue;
+      }
+    }
     const allowed = rolls < pol.rerolls && run.gold >= REROLL_COST + 3
       && spent.reroll + REROLL_COST <= pol.rerollShare * budget
       && value + run.gold - REROLL_COST >= target;
@@ -1646,7 +1722,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // so a run made with a switch off is never reused with it on; off, the key exactly as before
   // PAR-AZ (REQ-BFG-078): NPC_DAY moves every par run now (parNpcDay), so it is in the key; off, the key exactly as before
   const nd = npcDayRules();
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}`;
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${shapesRules() ? "|sh" : ""}`; // SHAPES-1: "|sh"
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
@@ -1914,7 +1990,7 @@ export function refeedRoute(b: Build, ri: number, day: number, seed: number, joi
   const r = b.routes[ri], f = r ? itemByUid(b, r.factory) : undefined;
   if (!r || !f) return false;
   const rng = new Rng(hashSeed("par-refeed", b.hero, day, ri, seed));
-  const bl = blockedCells(b, ri), starts = startCells(f.x, f.y, ITEMS[f.def].size, bl);
+  const bl = blockedCells(b, ri), starts = startCellsFor(cellsOf(f), bl);
   const room = r.cells.length + beltFree(b);
   const tries = freeConnectors(b, ri).map((col) => ({ col, len: shortestTiles(bl, starts, col) }))
     .filter((c) => Number.isFinite(c.len) && c.len <= room).sort((x, y) => x.len - y.len || x.col - y.col);

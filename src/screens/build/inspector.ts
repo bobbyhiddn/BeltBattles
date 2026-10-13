@@ -101,6 +101,8 @@ import {
 } from "./turretPanel"; // 0.6.2s; 0.6.2rel: its panels are PanelText too
 import { touchSlotHint } from "./turretPanel"; // shoptap (REQ-BFG-035)
 import { sellFitted, sellPlaced, storeFitted } from "./actions"; // shoptap (D2, REQ-BFG-035): SELL on the carrier's panels
+import { canTurn, shapedPiece } from "./shapeEdit"; // SHAPES-1 (REQ-BFG-086 S2): a shaped factory's ROTATE
+import { arrowCellsOf } from "../../sim/deck"; // SHAPES-1 (R2): a long rig's arrows, one per (cell, direction)
 import { tapRect } from "../../ui/ui"; // shoptap (D5): a finger's tap target around a drawn button
 import { tapPx } from "../../ui/tap"; // shoptap (D5)
 import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks"; // U2a (REQ-BFG-046): the new faces
@@ -115,7 +117,15 @@ import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; //
 import { icons } from "../../render/font"; // U2c step 4
 import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items
 import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
-import { PLAIN_RIGS, RIG_SENTENCE, turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' rig sentence and kind lines
+import { RIG_SENTENCE, turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' rig sentence and kind lines
+import { isPlainRig, shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
+import { shapePic } from "../../ui/shapePic"; // SHAPES-1 (REQ-BFG-086.1): the panel face's shape picture
+
+/** SHAPES-1 (REQ-BFG-086.1, S8): a panel's header picture: a shaped piece's shape with its arrows (ui/shapePic.ts), in the
+ *  header's 16x16 box where every other piece keeps its icon. */
+function panelIcon(def: string): HTMLCanvasElement {
+  return shapedPiece(def) ? shapePic(def) : itemIcon(def);
+}
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -303,7 +313,10 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
     if (!out) faces.set(bs, (out = bs.filter((b) => !hiddenBlock(b)).map(rule)));
     return out;
   };
-  const extra: Block[] = [...(def && PLAIN_RIGS.includes(def) ? [{ role: "ability", text: RIG_SENTENCE, note: "rig" } as Block] : []), ...(t.notes ?? [])];
+  // SHAPES-1 (REQ-BFG-089, S8): a shaped plain rig leads with the rig sentence too (isPlainRig), then a shaped piece's
+  // shape or size rule (faces.ts shapeNotes): default rules text, behind the hover or tap
+  const shaped: Block[] = def ? shapeNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : [];
+  const extra: Block[] = [...(def && isPlainRig(def) ? [{ role: "ability", text: RIG_SENTENCE, note: "rig" } as Block] : []), ...shaped, ...(t.notes ?? [])];
   const hidden = t.body.filter((b) => !!b.note || b.role === "flavour" || b.role === "hint");
   const notes = [...extra, ...hidden].map((b, i) => ({ b, i })).sort((p, q) => noteOrder(p.b) - noteOrder(q.b) || p.i - q.i).map((x) => x.b);
   return {
@@ -433,12 +446,14 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
   if (d.kind !== "gate") return null;
   const stars = starsOf(p);
   const hits = hitsOfRig(run.build, p.uid);
-  const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
+  const arrows = shapedPiece(d.id) ? arrowCellsOf(p).length : arrowsOf(p).length, x = rigShape(d) === "X"; // SHAPES-1: per cell
   // 0.8.0 P1 (E3): a STOKER works factories, not belts: its factory hits take off the IDLE mark and lead its panel
   const stokes = d.gate?.stoke ? stokeHits(run.build).filter((h) => h.uid === p.uid) : [];
   if (stokes.length) return stokerPanel(run, p.uid, stokes.map((h) => h.factory), arrows, touch);
   const idle = hits.length === 0;
-  const on = new Set(hits.map((h) => h.dir)).size;
+  // SHAPES-1 (REQ-BFG-086 R2): a long rig's arrows are its (cell, direction) pairs (deck.ts arrowCellsOf), each one hit
+  const shaped = shapedPiece(d.id);
+  const on = shaped ? new Set(hits.map((h) => `${h.from ?? -1}:${h.dir}`)).size : new Set(hits.map((h) => h.dir)).size;
   const hl = hitLines(hits);
   // 0.8.0 P1 (E3): a STOKER beside no factory warns about factories (its arrows never work belts, so it has no belt hits)
   const warn = d.gate?.stoke ? STOKER_IDLE : { short: IDLE_SHORT, head: IDLE_HEAD, fix: IDLE_FIX };
@@ -684,7 +699,8 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
     sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${outputsAt(d.id, grade) || 1}`,
     body,
     variants: tightForms(body),
-    labels: sig ? (up ? [up] : []) : ["TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
+    // SHAPES-1 (REQ-BFG-086 S2): a shaped factory that turns (2x3, I3) has ROTATE first, as a rig's panel does
+    labels: sig ? (up ? [up] : []) : [...(shapedPiece(d.id) && canTurn(d.id) ? ["ROTATE"] : []), "TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
   };
 }
 
@@ -1631,7 +1647,7 @@ function baseSpec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       if (!t || !o) return null;
       const can = !o.sold && run.gold >= o.price;
       return {
-        icon: itemIcon(o.def), text: t,
+        icon: panelIcon(o.def), text: t, // SHAPES-1 (REQ-BFG-086.1): a shaped piece's panel shows its shape
         actions: hovering ? [] : [{
           id: "buy", label: t.labels[0], primary: can, disabled: !can,
           onTap: () => {
@@ -1645,7 +1661,7 @@ function baseSpec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const t = cargoPanel(run, show.uid, touch);
       const it = run.inventory.find((i) => i.uid === show.uid);
       if (!t || !it) return null;
-      return { icon: itemIcon(it.def), text: t, actions: [{ id: "sell", label: t.labels[0], onTap: () => sell(ctx, it.uid) }] };
+      return { icon: panelIcon(it.def), text: t, actions: [{ id: "sell", label: t.labels[0], onTap: () => sell(ctx, it.uid) }] }; // SHAPES-1
     }
     case "item": {
       const p = itemByUid(b, show.uid);
@@ -1662,8 +1678,12 @@ function baseSpec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
           { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid), ...(touch ? { optional: true } : {}) },
           ...sellIt,
         ]
-        : t.labels.length ? [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid), ...(touch ? { optional: true } : {}) }, ...sellIt] : [];
-      return { icon: itemIcon(d.id), text: t, actions };
+        : t.labels.length ? [
+          // SHAPES-1 (REQ-BFG-086 S2): a shaped factory's ROTATE (its panel's first label)
+          ...(shapedPiece(d.id) && canTurn(d.id) ? [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }] : []),
+          { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid), ...(touch ? { optional: true } : {}) }, ...sellIt,
+        ] : [];
+      return { icon: panelIcon(d.id), text: t, actions }; // SHAPES-1: a shaped piece's shape picture
     }
     case "fitted": {
       // shoptap (REQ-BFG-035): a turret's core or gear piece, picked by a touch tap on the selected turret

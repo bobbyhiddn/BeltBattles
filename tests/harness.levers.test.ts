@@ -9,6 +9,7 @@ import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "../src/sim/harness
 import { applyLever, gateSeq, routesOutOfOrder, speedProfile } from "../src/sim/harness/levers";
 import { Shopper, isFlatGate, isSplitter } from "../src/sim/harness/shopper";
 import { exceptPairs } from "./harnessLegacy";
+import { footprintCells } from "../src/sim/foot"; // SHAPES-1 flip: the order lever's swap of a shaped rig
 
 // Balance harness v1 levers: Crucible sync, rig order, signature-route drop; no idle rigs.
 // 0.6.2 BELTSIDE: rigs stand beside the belt (H2); a speed profile lists the speed rigs landing on each tile.
@@ -97,6 +98,30 @@ describe("harness levers", () => {
     expect(b.items.map((p) => K(p.x, p.y)).sort()).toEqual(cells); // the same cells, swapped
     expect(buildCost(b).total).toBe(cost);
     expect(validateBuild(b, 4).errors).toEqual([]);
+  });
+
+  // SHAPES-1 flip (the bug the flip's property tests found: harness.cores/factories/gen/merge/sync/pool2 and the stand-in
+  // candidates, "NAIL STRIP at 4,9: OFF THE DECK", "NAIL STRIP overlaps uid 1"): the order lever's swap put a multi-cell flat
+  // rig on a 1-cell Splitter's anchor and turned it, so it left the deck or covered a piece or a belt. A swap the shaped rig
+  // can't take is undone (levers.ts sortRoute, fitsTurned); the deck stays legal and the route as it was
+  it("order (SHAPES on): a NAIL STRIP never swaps onto a Splitter's cell it can't hold; the deck stays legal", () => {
+    const b = heroStartBuild("furnace", 1); // Kiln route: (4,5) .. (4,0)
+    b.items.push(
+      { uid: 60, def: "splitter", x: 3, y: 4 }, // works tile 1 (4,4)
+      { uid: 61, def: "whetstone", x: 3, y: 5, rot: 1 }, // works tile 0 (4,5); below the Splitter, so an I2 there can't stand upright
+    );
+    const s = new Shopper(b, maxGoldByDay(4), 4, new Rng(5));
+    const ns = s.placeRig("nailstrip", 0, 3)!; // the shaped-rig solver's spot working tile 3 (4,2), after the Splitter
+    expect(ns).not.toBeNull();
+    expect(ITEMS.nailstrip.foot).toBe("I2");
+    expect(validateBuild(b, 4).errors).toEqual([]);
+    expect(routesOutOfOrder(b)).toEqual([0]); // the Splitter's hit (tile 1) comes before the NAIL STRIP's flat one
+    const before = JSON.stringify(b.items);
+    applyLever(s, "order");
+    // at (3, 4) an I2 covers the belt tile (4, 4) lying down or the WHETSTONE's (3, 5) standing up: no swap
+    expect(validateBuild(b, 4).errors).toEqual([]);
+    expect(JSON.stringify(b.items)).toBe(before);
+    expect(new Set(b.items.flatMap((p) => footprintCells(ITEMS[p.def], p.x, p.y, p.rot ?? 0))).size).toBe(b.items.reduce((n, p) => n + footprintCells(ITEMS[p.def], p.x, p.y, p.rot ?? 0).length, 0));
   });
 
   it("order: ordered builds (flat gates, then a Splitter) turn up in every population from day 3", () => {

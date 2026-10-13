@@ -12,13 +12,14 @@
 // (BuildScreen.levelMarks, scripts/touchcheck.mjs) and tests/belts.marker.test.ts read it.
 
 import { CELL, type UpgradeTrack } from "../sim/content";
-import { defOf, hero, turretSlots, type Build } from "../sim/deck";
+import { defOf, hero, rotOf, turretSlots, type Build } from "../sim/deck";
+import { footBox } from "../sim/foot"; // SHAPES-1 (R1): a factory's turned box
 import { isSignatureFactory, upgradeLevel } from "../sim/stars";
 import { levelMark } from "../ui/upgradeText";
 import { C } from "./palette";
 import { rect, type G } from "./pixel";
 import { drawText } from "./font";
-import { TURRET_LY, footX, footY, sx, sy, type DeckFrame } from "./frame";
+import { TURRET_LY, boxRect, sx, sy, type DeckFrame } from "./frame";
 import { pipColumn } from "./raceArt";
 
 /** A level mark's plate, screen px: the 3x5 numeral and a 1 px ink margin. */
@@ -64,9 +65,10 @@ export function levelMarks(b: Build, f: DeckFrame, hideItem = -1): readonly Leve
   if (fl >= 2) {
     for (const p of b.items) {
       if (p.uid === hideItem || !isSignatureFactory(p.def)) continue;
-      const size = defOf(p).size;
-      const x = Math.round(footX(f, p.x, p.y, size)), y = Math.round(footY(f, p.x, p.y, size));
-      out.push({ track: "factory", level: fl, text: levelMark(fl), uid: p.uid, x: x + 1, y: y + size * CELL - 1 - MARK_H, w: MARK_W, h: MARK_H });
+      // SHAPES-1 (R1): the turned footprint's screen box (a 2x2's is footX/footY(size 2)'s 24x24, as before)
+      const bx = footBox(defOf(p), rotOf(p)), r = boxRect(f, p.x, p.y, bx.w, bx.h);
+      const x = Math.round(r.x), y = Math.round(r.y);
+      out.push({ track: "factory", level: fl, text: levelMark(fl), uid: p.uid, x: x + 1, y: y + r.h - 1 - MARK_H, w: MARK_W, h: MARK_H });
     }
   }
   if (tl >= 2) {

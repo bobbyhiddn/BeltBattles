@@ -18,7 +18,7 @@ import { panel, type Rect } from "../ui/ui";
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
 import { faceLines } from "../ui/faces";
 import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block on the cards' panel
-import { PLAIN_RIGS, RIG_SENTENCE, plainRigStats } from "../ui/faces"; // CARD-2 (REQ-BFG-084, K6): the plain rigs' faces
+import { isPlainRig, RIG_SENTENCE, plainRigStats } from "../ui/faces"; // CARD-2 (REQ-BFG-084, K6): the plain rigs' faces (SHAPES-1 x c099-card3, RUN5 2: isPlainRig)
 import { statRow } from "../ui/icons"; // CARD-2 (K6)
 import { HEROES, ITEMS, type Rarity } from "../sim/content";
 import { RUNES } from "../sim/runes";
@@ -114,7 +114,7 @@ export function partLines(def: string, tw: number, run: Pick<Run, "hero" | "buil
  *  as its panel's ⓘ NOTES lead with it). CARD-3 (D5): each sentence an item. */
 export function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1): Items { // CARD-3: exported for the tests
   const fl = faceLines(def, stars, textOpts(run as Run));
-  const rem = [...(PLAIN_RIGS.includes(def) ? [RIG_SENTENCE] : []), ...(fl?.reminders ?? []), `FREE. IT GOES TO CARGO AT ★${stars}; PLACE IT AS ANY PART.`];
+  const rem = [...(isPlainRig(def) ? [RIG_SENTENCE] : []), ...(fl?.reminders ?? []), `FREE. IT GOES TO CARGO AT ★${stars}; PLACE IT AS ANY PART.`];
   return rem.map((t) => wrapRich(colourize(icons(t), C.slate4), tw, "3"));
 }
 

@@ -26,6 +26,8 @@ import { gearStats, turretAt } from "../sim/battle"; // 0.6.1p: the gear's windo
 import { anvilSparks, wave3GearFace, type Wave3RigState } from "./wave3Art"; // 0.8.0 A1: wave 3's gear on the gun
 import { ANVIL_TIME, gearMoment, steamPlated, type Wave3Fx } from "./wave3Moments"; // 0.8.0 I1 M4: A1's battle moments
 import { matchedRoutes } from "../sim/deck"; // 0.8.0 I1 M4: TWIN GAUGE's matched belt in the build view
+import { arrowCellsOf, type RigArrow } from "../sim/deck"; // SHAPES-1 (R2): a shaped rig's arrows, cell by cell
+import { isShaped } from "../sim/foot"; // SHAPES-1: a rig of 2+ cells
 
 /** 0.6.1p: the hardpoint box colour per gear (catalogue.json art); anything else keeps 0.6.0's cyan. */
 const GEAR_BOX: Record<string, string> = { chamber: C.lime, hopper: C.brass3, mantlet: C.steel3, ram: C.red };
@@ -58,6 +60,10 @@ export interface RigModel {
   // 0.8.0 I1 M4 (A1's battle moments, build view): a TWIN GAUGE on a matched belt (deck.ts matchedRoutes), and the other
   // rigs on a PINCER's tile (every rig online there). Set on those two only, when there is something to show.
   w3?: Wave3RigState;
+  // SHAPES-1 (REQ-BFG-086 R2, S8): a shaped rig's every arrow (deck.ts rigArrowCells: the cell it shines from, its
+  // direction, the cell it points at, in its order) and whether it lands on a belt tile (a hit with that `from` and
+  // `dir`). `dirs`/`hit` stay per direction as for every rig. Set on a rig of 2+ cells only (never with SHAPES off).
+  arrows?: (RigArrow & { hit: boolean })[];
 }
 
 export interface CruiserModel {
@@ -122,6 +128,7 @@ export function cruiserModel(b: Build): CruiserModel {
     const rm: RigModel = { dirs, hit: dirs.map((d) => mine.some((h) => h.dir === d)) };
     const own = stokes.filter((h) => h.uid === p.uid);
     if (own.length) rm.stoke = dirs.map((d) => own.some((h) => h.dir === d));
+    if (isShaped(ITEMS[p.def])) rm.arrows = arrowCellsOf(p).map((a) => ({ ...a, hit: mine.some((h) => h.dir === a.dir && h.from === a.from) }));
     // 0.8.0 I1 M4 (A1's moments in the build view): TWIN GAUGE on a matched belt; the other rigs on PINCER's tiles
     if (p.def === "twingauge" && matched && mine.some((h) => matched[h.route])) rm.w3 = { matched: true };
     if (p.def === "pincer") {

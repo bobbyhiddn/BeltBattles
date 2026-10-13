@@ -170,14 +170,23 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
     // U2c group 0 fix 5: the KILN's face says HEAT, so its tip keeps only the breech's half (battle.ts FURNACE_LONG_BELT)
     expect(flavour("kiln")).toEqual(["A LONG BELT SPEEDS UP THE GUN IT FEEDS."]);
     expect(flavour("loom")).toEqual(["IT FEEDS ONE BELT MORE THAN MOST FACTORIES."]);
-    expect(Math.max(...Object.values(ITEMS).filter((d) => d.kind === "factory").map((d) => outputsAt(d.id, 1)))).toBe(outputsAt("loom", 1));
+    // SHAPES-1 flip: GANTRY PRESS is 2x3, its size's +1 belt slot (foot.ts footSlots) makes 4/5/6, so at ★1 it feeds the
+    // most, 4, one more than the LOOM's 3 (was the LOOM's 3, which GANTRY PRESS tied). The LOOM's tip, ONE BELT MORE THAN
+    // MOST FACTORIES, still holds: most factories feed one belt fewer than it at ★1
+    const outs1 = Object.values(ITEMS).filter((d) => d.kind === "factory").map((d) => outputsAt(d.id, 1));
+    expect(Math.max(...outs1)).toBe(outputsAt("gantry", 1));
+    expect([outputsAt("gantry", 1), outputsAt("loom", 1)]).toEqual([4, 3]);
+    expect(outs1.filter((n) => n === outputsAt("loom", 1) - 1).length).toBeGreaterThan(outs1.length / 2);
     expect([ITEMS.loom.desc, ITEMS.gantry.desc, ITEMS.mimic.desc, ITEMS.twinmould.desc].map((d) => d.join(" "))).toEqual([
       "WEAVES THREAD SLUGS THAT FRAY THE HULL ONTO MANY BELTS.",
       "A FAST PRESS THAT FEEDS ONE BELT MORE THAN MOST, IN TURN.",
       "STAMPS YOUR HERO'S SIGNATURE AMMO FROM A SECOND FACTORY.",
       "CASTS PLAIN SLUGS SEVERAL AT A TIME, ONE BELT EACH.",
     ]);
-    for (const s of [1, 2, 3]) expect(outputsAt("gantry", s)).toBe(outputsAt("press", s) + 1);
+    // SHAPES-1 flip: GANTRY PRESS keeps its lead on STAMP PRESS (+1) and its 2x3 size adds +1 more (footSlots): 4/5/6 (was
+    // STAMP PRESS's + 1, 3/4/5). Its desc above (ONE BELT MORE THAN MOST) is drawn nowhere (KEPT_FLAVOUR's gantry row is [];
+    // its face says FEEDS 4 BELTS IN TURN.), so it stays as written
+    for (const s of [1, 2, 3]) expect(outputsAt("gantry", s)).toBe(outputsAt("press", s) + 2);
     expect([1, 2, 3].map((s) => effectAt("twinmould", s).factory!.pour)).toEqual([2, 2, 3]);
   });
 });

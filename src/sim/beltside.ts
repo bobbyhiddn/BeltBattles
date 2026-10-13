@@ -7,9 +7,13 @@
 
 import { GRID, ITEMS, SHAPE_ARROWS, rigShape } from "./content";
 import {
-  adjacentToFactory, arrowCell, dirBetween, footprint, hero, inGrid, key, kx, ky, occupancy, opposite, rigArrows,
+  adjacentToFactory, arrowCell, dirBetween, hero, inGrid, key, kx, ky, occupancy, opposite, rigArrows,
   rotField, turretForColumn, type Build, type Dir, type Placed,
 } from "./deck";
+import { cellsOf, pruneJoins, rigArrowCells, rotOf } from "./deck"; // SHAPES-1 (REQ-BFG-086 R1-R2, S6): cells; per-cell arrows
+// SHAPES-1: the footprint engine (foot.ts) and the switch (shapes.ts), through deck.ts: this file imports only ./content
+// and ./deck (the stand-in loader's portability, tests/standInPool.gen.test.ts)
+import { RESHAPED_IDS, footOf, footOnDeck, footprintCells, footTurns, shapesRules } from "./deck";
 
 // ---------------------------------------------------------------- the D3 migration
 
@@ -73,7 +77,7 @@ export function migrateInlineGates(b: Build): Migration {
   for (const p of b.items) {
     const d = ITEMS[p.def];
     if (!d || moving.has(p.uid)) continue;
-    for (const k of footprint(d, p.x, p.y)) taken.add(k);
+    for (const k of cellsOf(p)) taken.add(k); // SHAPES-1: the turned footprint
   }
   const strandedUids = new Set<number>();
   for (const p of inline) {
@@ -150,11 +154,138 @@ export function clearMigrationLog(): void {
 /**
  * Migrate a ghost, stand-in or preset deck at its load boundary (D3): stranded rigs are dropped and the
  * drop is logged under `source`. Returns the same (mutated) deck, so builders can `return migrated(b, s)`.
+ * SHAPES-1 (REQ-BFG-086 S6): with SHAPES on, its GANTRY PRESS and ASSEMBLY LINE take their new shapes too
+ * (migrateShapedFactories; one that fits nowhere is dropped with its belts, logged under `source`:shapes). Off: as before.
  */
 export function migrateDeck<T extends Build>(b: T, source: string): T {
   const m = migrateInlineGates(b);
   logMigration(source, m, { dropped: m.stranded.length });
+  if (shapesRules()) logShapes(`${source}:shapes`, migrateShapedFactories(b));
   return b;
+}
+
+// ---------------------------------------------------------------- SHAPES-1 (S6): the load migration
+
+/** SHAPES-1 (S6): what migrateShapedFactories did to one reshaped factory. */
+export interface ReshapedMove {
+  uid: number;
+  def: string;
+  from: { x: number; y: number; rot: number };
+  to: { x: number; y: number; rot: number } | null; // null: it fits nowhere and left the deck with its belts (the caller cargoes it)
+  kept: number; // its belts kept
+  lost: number; // its belts removed, each whole
+  stars?: number; // the copy's stars (2 or 3), for the caller that cargoes it; absent = 1
+}
+
+/** One candidate placement of a reshaped factory: its anchor, rot and the indices of its own belts it keeps. */
+interface Spot { x: number; y: number; rot: number; keep: number[] }
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S6): with SHAPES on, every GANTRY PRESS and ASSEMBLY LINE (shapes.ts RESHAPED_IDS) on a deck made
+ * in 0.9.9's shapes is re-placed in its new shape, as migrateInlineGates re-placed BELTSIDE's gates. A spot is an anchor
+ * and a rot (0..footTurns - 1) whose cells are all on the deck, off other machinery, off other factories' belts and off
+ * the turret intake cells (cap's ruling 4ef9d32165edfd0d, 4: an intake cell "doesn't fit"). The factory's own belts may be
+ * covered: a belt is kept when its first tile is still beside the footprint and no cell of the footprint covers one of its
+ * tiles (and, for a belt that joins one of the factory's own belts, when that belt is kept). First the anchor at its own rot: if it fits there and keeps every belt, it stays (so the migration is idempotent
+ * and a deck made with SHAPES on never moves). Otherwise the spot that keeps the most belts wins; ties go to the nearest
+ * anchor to the old one (|dx| + |dy|), then the lower rot, then row order. A belt it can't keep is removed whole (and
+ * pruneJoins frees a belt that joined it), as when a factory is moved today. With no spot, the factory leaves the deck with
+ * its belts (`to: null`; the caller cargoes, refunds or drops it). Mutates `b`; deck order is kept. Off: nothing.
+ */
+export function migrateShapedFactories(b: Build): ReshapedMove[] {
+  const out: ReshapedMove[] = [];
+  if (!shapesRules()) return out;
+  for (const p of b.items.filter((q) => RESHAPED_IDS.includes(q.def))) {
+    const d = ITEMS[p.def];
+    const own = b.routes.map((r, i) => (r.factory === p.uid ? i : -1)).filter((i) => i >= 0);
+    const blocked = new Set<number>();
+    for (const q of b.items) if (q.uid !== p.uid) for (const k of cellsOf(q)) blocked.add(k);
+    b.routes.forEach((r, i) => { if (r.factory !== p.uid) for (const k of r.cells) blocked.add(k); });
+    const h = hero(b);
+    const spotAt = (x: number, y: number, rot: number): Spot | null => {
+      if (!footOnDeck(d, x, y, rot)) return null;
+      const cells = footprintCells(d, x, y, rot);
+      if (cells.some((k) => blocked.has(k) || (ky(k) === 0 && turretForColumn(h, kx(k)) >= 0))) return null;
+      const fp = new Set(cells);
+      const beside = (k: number) => !fp.has(k) && [0, 1, 2, 3].some((dir) => {
+        const nx = kx(k) - [0, 1, 0, -1][dir], ny = ky(k) - [-1, 0, 1, 0][dir];
+        return inGrid(nx, ny) && fp.has(key(nx, ny));
+      });
+      let keep = own.filter((i) => {
+        const r = b.routes[i];
+        return r.cells.length > 0 && beside(r.cells[0]) && !r.cells.some((k) => fp.has(k));
+      });
+      // a belt that joins one of its own belts it can't keep would be left an open end: it goes too (whole), down the chain
+      for (let changed = true; changed;) {
+        changed = false;
+        for (const i of keep) {
+          const j = b.routes[i].join;
+          const into = j === undefined ? -1 : b.routes.findIndex((q) => q.cells.includes(j));
+          if (into >= 0 && own.includes(into) && !keep.includes(into)) {
+            keep = keep.filter((q) => q !== i);
+            changed = true;
+            break;
+          }
+        }
+      }
+      return { x, y, rot, keep };
+    };
+    const from = { x: p.x, y: p.y, rot: rotOf(p) };
+    let best = spotAt(p.x, p.y, rotOf(p));
+    if (!best || best.keep.length < own.length) {
+      best = null;
+      const turns = footTurns(footOf(d));
+      let bestDist = Infinity;
+      for (let rot = 0; rot < turns; rot++) {
+        for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+          const s = spotAt(x, y, rot);
+          if (!s) continue;
+          const dist = Math.abs(x - p.x) + Math.abs(y - p.y);
+          const better = !best || s.keep.length > best.keep.length
+            || (s.keep.length === best.keep.length && (dist < bestDist || (dist === bestDist && rot < best.rot)));
+          if (better) {
+            best = s;
+            bestDist = dist;
+          }
+        }
+      }
+    }
+    if (!best) {
+      b.items = b.items.filter((q) => q.uid !== p.uid);
+      b.routes = b.routes.filter((r) => r.factory !== p.uid);
+      pruneJoins(b);
+      out.push({ uid: p.uid, def: p.def, from, to: null, kept: 0, lost: own.length, ...(p.stars && p.stars > 1 ? { stars: p.stars } : {}) });
+      continue;
+    }
+    const keep = new Set(best.keep);
+    const lost = own.filter((i) => !keep.has(i));
+    if (best.x !== p.x || best.y !== p.y || best.rot !== rotOf(p) || lost.length) {
+      p.x = best.x;
+      p.y = best.y;
+      const f = rotField(p.def, best.rot);
+      if (f.rot === undefined) delete p.rot;
+      else p.rot = f.rot;
+      if (lost.length) {
+        const drop = new Set(lost);
+        b.routes = b.routes.filter((_, i) => !drop.has(i));
+        pruneJoins(b);
+      }
+      out.push({ uid: p.uid, def: p.def, from, to: { x: best.x, y: best.y, rot: best.rot }, kept: best.keep.length, lost: lost.length });
+    }
+  }
+  return out;
+}
+
+/** SHAPES-1 (S6): log one deck's re-placed factories (the migration log's `moved`; `dropped` for one that fit nowhere). */
+export function logShapes(source: string, moves: ReshapedMove[], extra: { cargoed?: number; refunded?: number } = {}): void {
+  if (!moves.length) return;
+  const gone = moves.filter((m) => !m.to);
+  const m: Migration = { moved: [], stranded: [] };
+  for (const v of moves) {
+    if (v.to) m.moved.push({ uid: v.uid, def: v.def, from: key(v.from.x, v.from.y), to: key(v.to.x, v.to.y), rot: v.to.rot });
+    else m.stranded.push({ uid: v.uid, def: v.def, x: v.from.x, y: v.from.y });
+  }
+  logMigration(source, m, extra.cargoed !== undefined || extra.refunded !== undefined ? extra : { dropped: gone.length });
 }
 
 // ---------------------------------------------------------------- placement helpers
@@ -165,6 +296,7 @@ export interface WouldHit {
   cell: number;
   route: number;
   tile: number;
+  from?: number; // SHAPES-1 (R2): the rig cell the arrow shines from; written only for a multi-cell rig
 }
 
 /** Belt cell -> [route, tile] for routes accepted by `only` (default: every route). */
@@ -181,6 +313,17 @@ export function beltIndex(b: Build, only?: (ri: number) => boolean): Map<number,
  *  for a stoking rig (STOKER), whose arrows do nothing to belts: stokesIfPlaced reads its factory hits. */
 export function hitsIfPlaced(b: Build, def: string, x: number, y: number, rot: number, belts = beltIndex(b)): WouldHit[] {
   const out: WouldHit[] = [];
+  const d = ITEMS[def];
+  if (d && footOf(d) !== "1") {
+    // SHAPES-1 (REQ-BFG-086 R2): a multi-cell rig's arrows shine from every outside edge of its cells (rigArrowCells);
+    // none while a cell is off the deck or on a belt
+    if (!footOnDeck(d, x, y, rot) || d.gate?.stoke || cellsOf({ uid: -1, def, x, y, rot }).some((k) => belts.has(k))) return out;
+    for (const a of rigArrowCells(d, x, y, rot)) {
+      const w = a.to >= 0 ? belts.get(a.to) : undefined;
+      if (w) out.push({ dir: a.dir, cell: a.to, route: w[0], tile: w[1], from: a.from });
+    }
+    return out;
+  }
   if (!inGrid(x, y) || belts.has(key(x, y)) || ITEMS[def]?.gate?.stoke) return out;
   for (const dir of rigArrows(def, rot)) {
     const k = arrowCell(x, y, dir);
@@ -245,6 +388,8 @@ export function spotForTile(
   const r = b.routes[ri];
   const k0 = r?.cells[ti];
   if (k0 === undefined) return null;
+  // SHAPES-1 (REQ-BFG-086 S7.1): a multi-cell rig takes the shaped-rig solver's best placement that hits this tile
+  if (ITEMS[def] && footOf(ITEMS[def]) !== "1") return shapedSpot(b, def, only, accept, [ri, ti]);
   const belts = beltIndex(b, only);
   let best: RigSpot | null = null;
   for (const d of neighbourOrder(b, ri, ti)) {
@@ -293,11 +438,12 @@ export interface WouldStoke {
 export function stokesIfPlaced(b: Build, def: string, x: number, y: number, rot: number): WouldStoke[] {
   const out: WouldStoke[] = [];
   if (!ITEMS[def]?.gate?.stoke || !inGrid(x, y)) return out;
-  for (const dir of rigArrows(def, rot)) {
-    const k = arrowCell(x, y, dir);
+  // SHAPES-1 (R2): every arrow of the rig (rigArrowCells; a 1-cell rig's are its arrows from its cell, as before)
+  for (const a of rigArrowCells(def, x, y, rot)) {
+    const k = a.to;
     if (k < 0) continue;
-    const f = b.items.find((p) => ITEMS[p.def]?.kind === "factory" && footprint(ITEMS[p.def], p.x, p.y).includes(k));
-    if (f) out.push({ dir, cell: k, factory: f.uid });
+    const f = b.items.find((p) => ITEMS[p.def]?.kind === "factory" && cellsOf(p).includes(k));
+    if (f) out.push({ dir: a.dir, cell: k, factory: f.uid });
   }
   return out;
 }
@@ -323,7 +469,7 @@ export function stokeSpots(b: Build, def: string, occ = occupancy(b)): StokeSpot
   for (const f of b.items) {
     const d = ITEMS[f.def];
     if (d?.kind !== "factory") continue;
-    const fp = new Set(footprint(d, f.x, f.y));
+    const fp = new Set(cellsOf(f)); // SHAPES-1: the turned footprint
     for (const k of fp) for (const dir of [0, 1, 2, 3] as Dir[]) {
       const c = arrowCell(kx(k), ky(k), dir);
       if (c < 0 || fp.has(c) || seen.has(c) || !freeForRig(b, c, occ) || intakeCell(b, c)) continue;
@@ -337,6 +483,50 @@ export function stokeSpots(b: Build, def: string, occ = occupancy(b)): StokeSpot
     }
   }
   return out.sort((a, c) => c.stokes.length - a.stokes.length); // stable: deck order within a count
+}
+
+// ---------------------------------------------------------------- SHAPES-1 (S7.1): the shaped-rig solver
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S7.1; PIECES-1 5.3 "How bots and par builders place shapes"): where a multi-cell rig of `def` goes
+ * on `b`. Every placement, anchor x, y x rot (rotations: 0-3), at most 400, whose cells are all free (no machinery, no
+ * belt), on the deck and off the turret intakes. Its score: the sum over its hits on the belts `only` accepts of a hit's
+ * value, minus 0.5 for each of its cells beside a belt that no arrow of it hits a belt from (the room it takes). A hit's
+ * value is 1: a plain rig's flat and per-tile terms (estimateRoute's) are the same for every hit of one def, so each hit
+ * counts alike; `accept` rules placements out by their hits, as H2's does (a speed rig's on a slag belt, P20). The best
+ * wins; ties go to its first hit tile in H2's order (route, then tile), then that tile's D3 neighbour order
+ * (neighbourOrder: the side its arrow shines from), then the lower rot, then row order, as H2 (bestSpot, spotForTile)
+ * breaks ties. `tile` ([route, tile]): only placements that hit that tile (the "typical" player's random belt tile).
+ * null when no placement hits a belt.
+ */
+export function shapedSpot(
+  b: Build, def: string, only?: (ri: number) => boolean, accept?: (hits: WouldHit[]) => boolean, tile?: readonly [number, number],
+): RigSpot | null {
+  const d = ITEMS[def];
+  if (!d) return null;
+  const belts = beltIndex(b, only), occ = occupancy(b), h = hero(b);
+  const beside = (k: number) => [0, 1, 2, 3].some((dir) => {
+    const n = arrowCell(kx(k), ky(k), dir as Dir);
+    return n >= 0 && occ[n].route >= 0;
+  });
+  let best: { spot: RigSpot; score: number; order: number[] } | null = null;
+  for (const rot of rotations(def)) {
+    for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+      if (!footOnDeck(d, x, y, rot)) continue;
+      const cells = footprintCells(d, x, y, rot);
+      if (cells.some((k) => occ[k].item >= 0 || occ[k].route >= 0 || (ky(k) === 0 && turretForColumn(h, kx(k)) >= 0))) continue;
+      const hits = hitsIfPlaced(b, def, x, y, rot, belts);
+      if (!hits.length || (accept && !accept(hits))) continue;
+      if (tile && !hits.some((q) => q.route === tile[0] && q.tile === tile[1])) continue;
+      const wasted = cells.filter((k) => beside(k) && !hits.some((q) => (q.from ?? key(x, y)) === k)).length;
+      const score = hits.length - 0.5 * wasted;
+      const first = [...hits].sort((p, q) => p.route - q.route || p.tile - q.tile)[0];
+      const order = [first.route, first.tile, neighbourOrder(b, first.route, first.tile).indexOf(opposite(first.dir)), rot];
+      const before = (o: number[]) => { for (let i = 0; i < o.length; i++) if (order[i] !== o[i]) return order[i] < o[i]; return false; };
+      if (!best || score > best.score || (score === best.score && before(best.order))) best = { spot: { x, y, rot, hits }, score, order };
+    }
+  }
+  return best ? best.spot : null;
 }
 
 /** Place a rig at a spot (the caller checked it is free): the item with its rot field. */

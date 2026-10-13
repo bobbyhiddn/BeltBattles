@@ -23,6 +23,7 @@ import type { GhostSnapshot } from "../src/game/ghostSnapshot";
 import { barge, factoryBench, gantryWeaver, SEED } from "./arsenal.bench";
 import { roadDraws, type RoadDraws } from "./beltside.roadDraws";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): P8's walk with the switch off
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the 062b history check runs with shapes off (in062b)
 
 const J = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const st = (s: number) => (s > 1 ? { stars: s } : {});
@@ -359,11 +360,13 @@ function refuse062b(say: (msg: string) => void = console.warn): boolean {
  * call, put back after it, also on a throw). Release X's SIFTER dormancy empties it from SALVAGE and the wreck's draws, and
  * the sustain switch adds 3 parts to the trader's swaps; neither is the 0.6.1c -> 0.6.2b history this check pins.
  */
+// SHAPES-1 flip: and with shapes off (withShapes(fn, false)): the three shaped rigs are no part of 0.6.2b's catalogue (EMBER
+// TROUGH would join the SMUGGLER's BURN pool and both commons SALVAGE's, and the draws would move)
 function in062b<T>(fn: () => T): T {
   const dormant = DORMANT_ITEMS as Set<string>, was = [...dormant];
   dormant.delete("sifter");
   try {
-    return withSustain(() => withWave3(fn, false), false);
+    return withShapes(() => withSustain(() => withWave3(fn, false), false), false);
   } finally {
     dormant.clear();
     for (const id of was) dormant.add(id);
@@ -433,9 +436,13 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     // the pools: wave 3's three common rigs join SALVAGE; the SMUGGLER keeps the same six (keyed by effect)
     // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant, so SALVAGE never draws it (was [..., "tollbooth", "sifter", ...]);
     // the live fixture above was regenerated with BB_WRITE_ROAD_DRAWS_080=1 on flipx2 (release X's catalogue)
-    expect(salvagePool()).toEqual(["temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer"]);
+    // SHAPES-1 flip: + NAIL STRIP and EMBER TROUGH (common rigs) in SALVAGE, + EMBER TROUGH (it burns) in the SMUGGLER's BURN
+    // pool, after the older ones (was [..., "pincer"] and ["temper", "bellows", "quench"]). The fixture above was written
+    // with shapes off (with shapes off the live draws equal it: 0 of 108 choices differ; on, 95 differ): it waits for its
+    // regeneration (BB_WRITE_ROAD_DRAWS_080=1), not done in the flip
+    expect(salvagePool()).toEqual(["temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer", "nailstrip", "embertrough"]);
     expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([
-      ["temper", "bellows", "quench"], ["coil", "staticbrush", "lodestone"],
+      ["temper", "bellows", "quench", "embertrough"], ["coil", "staticbrush", "lodestone"],
     ]);
     // the per-run draw moved the event draws themselves (the run's wares), not only the pools
     expect(roadDraws(true).choices).not.toEqual(live.choices);

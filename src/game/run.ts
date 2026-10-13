@@ -20,6 +20,9 @@ import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from 
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold (dayPool)
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
+import { cellsOf, isIntakeCell, shapesRules } from "../sim/deck"; // SHAPES-1 S5b: the intake sweep
+import { canPlaceItem } from "../sim/deck"; // SHAPES-1 (R1, S2): rotateRig turns a long rig only where it fits
+import { isShaped } from "../sim/foot"; // SHAPES-1 S5b
 import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
 import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type LastChance, type LastChanceOffer } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT has no shop
@@ -650,6 +653,19 @@ export function storePlaced(run: Run, uid: number): boolean {
 export function rotateRig(run: Run, uid: number): boolean {
   const p = run.build.items.find((q) => q.uid === uid);
   if (!p || rigShape(p.def) === undefined || rigShape(p.def) === "X") return false;
+  // SHAPES-1 (REQ-BFG-086 R1, S2; found by the flip's upload-driver fix): a long rig's turn moves its footprint, so it turns
+  // around its anchor only to a turn that fits there (the editor's rule, shapeEdit.ts turnFit): the next one that fits;
+  // none fits: it stays put (false). A 1-cell rig turns as before. (The build screen sends shaped pieces to turnFit.)
+  if (isShaped(ITEMS[p.def])) {
+    for (let k = 1; k < 4; k++) {
+      const r = (rotOf(p) + k) % 4;
+      if (canPlaceItem(run.build, p.def, p.x, p.y, uid, r).ok) {
+        setRot(p, r);
+        return true;
+      }
+    }
+    return false;
+  }
   setRot(p, rotOf(p) + 1);
   return true;
 }
@@ -707,29 +723,71 @@ function backToCargo(run: Run, r: TurretOpResult): void {
   for (const m of r.mods) run.inventory.push({ uid: m.uid, def: m.def, ...starField(starsOf(m)) });
 }
 
-/** Install cargo turret `uid` in slot `slot` (an occupied slot swaps: its turret goes to cargo). */
-export function installFromCargo(run: Run, uid: number, slot: number): TurretOpResult {
+/**
+ * SHAPES-1 S5b (REQ-BFG-086; cap's ruling, oracle 7f2a91a61910e167): after any change to the turret slots, every SHAPED
+ * piece (a rig of 2+ cells, a factory not 2x2: foot.ts isShaped) that covers a row-0 intake cell of an installed turret
+ * goes to cargo by the to-cargo path (storePlaced: the same uid, its stars, a factory's belts with it, never fuses), in
+ * ascending uid so seeded runs replay alike. 1-cell rigs and 2x2 factories on an intake stay (S5's ruling, point 2). A
+ * turret always goes in. Returns the names of the pieces it sent, for the toast (intakeToast). With SHAPES off nothing is
+ * shaped: a no-op, so every pin holds.
+ */
+export function sweepIntakes(run: Run): string[] {
+  if (!shapesRules()) return [];
+  const b = run.build;
+  const uids = b.items.filter((p) => {
+    const d = ITEMS[p.def];
+    return !!d && (d.kind === "gate" || d.kind === "factory") && isShaped(d) && cellsOf(p).some((k) => isIntakeCell(b, k));
+  }).map((p) => p.uid).sort((x, y) => x - y);
+  const out: string[] = [];
+  for (const uid of uids) {
+    const p = b.items.find((q) => q.uid === uid);
+    if (p && storePlaced(run, uid)) out.push(ITEMS[p.def].name);
+  }
+  return out;
+}
+
+/** SHAPES-1 S5b: the sweep's toast (yellow, as CUT LOOSE; cap's words): `NAIL STRIP WENT TO CARGO · TURRET INTAKE`, or
+ *  `2 PARTS WENT TO CARGO · TURRET INTAKE`; null when nothing went. */
+export function intakeToast(names: readonly string[]): string | null {
+  if (!names.length) return null;
+  return `${names.length === 1 ? names[0] : `${names.length} PARTS`} WENT TO CARGO · TURRET INTAKE`;
+}
+
+/** A turret operation's result, and (SHAPES-1 S5b) the shaped pieces its intake sweep sent to cargo. */
+export type RunTurretOp = TurretOpResult & { swept?: string[] };
+
+/** SHAPES-1 S5b: the sweep after a turret operation that went through, its names on the result. */
+function swept(run: Run, r: TurretOpResult): RunTurretOp {
+  if (!r.ok) return r;
+  const names = sweepIntakes(run);
+  return names.length ? { ...r, swept: names } : r;
+}
+
+/** Install cargo turret `uid` in slot `slot` (an occupied slot swaps: its turret goes to cargo). SHAPES-1 S5b: then the
+ *  intake sweep. */
+export function installFromCargo(run: Run, uid: number, slot: number): RunTurretOp {
   const it = run.inventory.find((i) => i.uid === uid);
   if (!it || !isTurretDef(it.def)) return { ok: false, reason: "NOT A TURRET IN CARGO", turrets: [], mods: [] };
   const r = installTurret(run.build, it, slot);
   if (!r.ok) return r;
   takeFromInventory(run, uid);
   backToCargo(run, r);
-  return r;
+  return swept(run, r);
 }
 
-/** Move the turret in slot `from` to slot `to` (an occupied target swaps). */
-export function moveInstalled(run: Run, from: number, to: number): TurretOpResult {
+/** Move the turret in slot `from` to slot `to` (an occupied target swaps). SHAPES-1 S5b: then the intake sweep. */
+export function moveInstalled(run: Run, from: number, to: number): RunTurretOp {
   const r = moveTurret(run.build, from, to);
   if (r.ok) backToCargo(run, r);
-  return r;
+  return swept(run, r);
 }
 
-/** Take the turret in slot `slot` to cargo (its slot's core and gear go to cargo too). */
-export function storeTurret(run: Run, slot: number): TurretOpResult {
+/** Take the turret in slot `slot` to cargo (its slot's core and gear go to cargo too). SHAPES-1 S5b: then the intake
+ *  sweep (a removal makes no intake, so it finds none; every turret-slot path runs it). */
+export function storeTurret(run: Run, slot: number): RunTurretOp {
   const r = removeTurret(run.build, slot);
   if (r.ok) backToCargo(run, r);
-  return r;
+  return swept(run, r);
 }
 
 /** Sell the turret in slot `slot` at turretSellValue; the slot's core and gear go to cargo. 0 (nothing changes) when
@@ -743,6 +801,7 @@ export function sellInstalled(run: Run, slot: number): number {
   for (const m of r.mods) run.inventory.push({ uid: m.uid, def: m.def, ...starField(starsOf(m)) });
   const v = turretSellValue(t);
   run.gold += v;
+  sweepIntakes(run); // SHAPES-1 S5b: every turret-slot path runs the sweep (a removal makes no intake: it finds none)
   return v;
 }
 

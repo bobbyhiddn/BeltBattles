@@ -14,6 +14,9 @@ import { npcDayRules } from "./sim/npcDay"; // NPC-1
 import { gainModule } from "./game/fuse";
 import type { Difficulty } from "./sim/rivals";
 import { key as K, rotField, type Build, type Placed } from "./sim/deck";
+import { canPlaceItem } from "./sim/deck"; // SHAPES-1 tooling: placeShapedDemo
+import { GRID, ITEMS } from "./sim/content"; // SHAPES-1 tooling
+import { shapedSpot } from "./sim/beltside"; // SHAPES-1 tooling: where the bots put a long rig
 import { LAST_CHANCE_AT, LAST_CHANCE_LIVES } from "./sim/lastChance"; // LC-1 (REQ-BFG-073): a tooling ghost's lives
 
 // ------------------------------------------------------------------ 0.6.2 BELTSIDE showcase decks (shots)
@@ -97,6 +100,34 @@ export const SHOWCASE: Record<string, { hero: HeroId; day: number; build: () => 
     },
   },
 };
+
+/**
+ * SHAPES-1 (REQ-BFG-086) tooling (pictures; the game never calls it): with SHAPES on, the run's deck gains a SPIKE RAIL, a
+ * NAIL STRIP and an EMBER TROUGH where the bots would put them (beltside.ts shapedSpot, best hits), then a GANTRY PRESS (2x3)
+ * and an ASSEMBLY LINE (I3) at the first spot that fits, scanning from the back row (no belts of their own). Returns what
+ * it placed as `id@x,y rN` (a piece with no spot is left out).
+ */
+export function placeShapedDemo(run: Run): string[] {
+  const b = run.build, out: string[] = [];
+  const add = (def: string, x: number, y: number, rot: number) => {
+    b.items.push({ uid: run.nextUid++, def, x, y, ...rotField(def, rot) });
+    out.push(`${def}@${x},${y} r${rot}`);
+  };
+  for (const def of ["spikerail", "nailstrip", "embertrough"]) {
+    const s = ITEMS[def] ? shapedSpot(b, def) : null;
+    if (s) add(def, s.x, s.y, s.rot);
+  }
+  for (const def of ["gantry", "assembly"]) {
+    let done = false;
+    for (let y = GRID - 1; y >= 1 && !done; y--) for (let x = 0; x < GRID && !done; x++) for (let rot = 0; rot < 2 && !done; rot++) {
+      if (canPlaceItem(b, def, x, y, -1, rot).ok) {
+        add(def, x, y, rot);
+        done = true;
+      }
+    }
+  }
+  return out;
+}
 
 /** A run at the dawn of the showcase deck's day with that deck on board (and, for a battle, `foe` as
  *  tonight's stored dusk opponent: another showcase deck, or the classic warlord). */

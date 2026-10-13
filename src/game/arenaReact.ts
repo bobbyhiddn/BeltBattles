@@ -5,7 +5,9 @@
 import { settings } from "../core/settings";
 import type { Side, SimEvent, TargetKind } from "../sim/battle";
 import { CELL } from "../sim/content";
-import { DX, DY } from "../sim/deck";
+import { DX, DY, kx, ky, rotOf } from "../sim/deck";
+import type { ItemDef } from "../sim/content";
+import { footBox, isShaped } from "../sim/foot"; // SHAPES-1 (R1): a shaped piece's effects sit at its turned box's centre
 import { C } from "../render/palette";
 import { hullBox, hullX, hullY, sx, sy } from "../render/frame";
 import { muzzleX, muzzleY } from "../render/cruiser";
@@ -85,14 +87,32 @@ export function windCall(a: Arena): void {
   if (a.windCallT < 0) a.windCallT = 0;
 }
 
+/**
+ * SHAPES-1 (REQ-BFG-086 R1): the deck-local middle of a rig or factory standing at (q.x, q.y) on side `side`: a shaped
+ * piece's (a rig of 2+ cells, a factory not 2x2) is the centre of its turned footprint's box (footBox at its placed rot);
+ * any other's is exactly as before: a 1-cell rig's cell centre (+0.5 cell), a factory's size / 2 (a 2x2's +1 cell).
+ */
+export function pieceMid(a: Arena, side: Side, q: { uid: number; x: number; y: number; def: ItemDef }): [number, number] {
+  if (!isShaped(q.def)) {
+    const n = q.def.kind === "factory" ? q.def.size / 2 : 0.5;
+    return [(q.x + n) * CELL, (q.y + n) * CELL];
+  }
+  const p = a.b.sides[side].build.items.find((v) => v.uid === q.uid);
+  const bx = footBox(q.def, p ? rotOf(p) : 0);
+  return [(q.x + bx.w / 2) * CELL, (q.y + bx.h / 2) * CELL];
+}
+
 /** SUS-B: where a heal's float rises: RIVETER's rig, MEND PRESS's factory, else (REGEN) the hull a little above centre. */
 export function healPoint(a: Arena, e: Extract<SimEvent, { type: "heal" }>): [number, number] {
   const fr = a.drawn[e.side], s = a.b.sides[e.side];
   const g = e.gate !== undefined ? s.gates.find((v) => v.uid === e.gate) : undefined;
-  if (g) return [sx(fr, (g.x + 0.5) * CELL, (g.y + 0.5) * CELL), sy(fr, (g.x + 0.5) * CELL, (g.y + 0.5) * CELL)];
+  if (g) {
+    const [lx, ly] = pieceMid(a, e.side, g); // SHAPES-1: a 1-cell rig's cell centre, as before
+    return [sx(fr, lx, ly), sy(fr, lx, ly)];
+  }
   const f = e.factory !== undefined ? s.factories.find((q) => q.uid === e.factory) : undefined;
   if (f) {
-    const lx = (f.x + f.def.size / 2) * CELL, ly = (f.y + f.def.size / 2) * CELL;
+    const [lx, ly] = pieceMid(a, e.side, f); // SHAPES-1: its turned box's centre (a 2x2's as before)
     return [sx(fr, lx, ly), sy(fr, lx, ly)];
   }
   return [hullCx(a, e.side), hullCy(a, e.side) - 10];
@@ -172,7 +192,7 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       const f = a.b.sides[e.side].factories.find((q) => q.uid === e.factory);
       if (!f) return;
       const fr = a.drawn[e.side];
-      const lx = (f.x + f.def.size / 2) * CELL, ly = (f.y + f.def.size / 2) * CELL;
+      const [lx, ly] = pieceMid(a, e.side, f); // SHAPES-1: its turned box's centre (a 2x2's as before)
       const x = sx(fr, lx, ly), y = sy(fr, lx, ly);
       fx.smoke(x + 5, y - 9, 1, true, 10);
       if (f.def.id === "kiln") fx.embers(x, y - 6, 2);
@@ -186,7 +206,10 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       if (e.def === "platebreaker") a.sfx[e.side].w3.spent.set(e.gate, spendOf(prev, e.side));
       const fr = a.drawn[e.side];
       // 0.6.2 BELTSIDE (V3): at the arrow's tip, where the rig works the belt tile it hit
-      const lx = (gs.x + 0.5 + DX[e.dir] * 0.6) * CELL, ly = (gs.y + 0.5 + DY[e.dir] * 0.6) * CELL;
+      // SHAPES-1 (R2): a shaped rig's arrow shines from one of its cells: the same point, read back from the tile it hit
+      const tk = isShaped(gs.def) ? a.b.sides[e.side].build.routes[e.route]?.cells[e.tile] : undefined;
+      const lx = tk !== undefined ? (kx(tk) + 0.5 - DX[e.dir] * 0.4) * CELL : (gs.x + 0.5 + DX[e.dir] * 0.6) * CELL;
+      const ly = tk !== undefined ? (ky(tk) + 0.5 - DY[e.dir] * 0.4) * CELL : (gs.y + 0.5 + DY[e.dir] * 0.6) * CELL;
       const x = sx(fr, lx, ly), y = sy(fr, lx, ly);
       if (e.def === "temper") {
         fx.embers(x, y, 3);
@@ -201,7 +224,8 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       const gs = a.b.sides[e.side].gates.find((q) => q.uid === e.gate);
       if (!gs) return;
       const fr = a.drawn[e.side];
-      fx.sparkle(sx(fr, (gs.x + 0.5) * CELL, (gs.y + 0.5) * CELL), sy(fr, (gs.x + 0.5) * CELL, (gs.y + 0.5) * CELL));
+      const [lx, ly] = pieceMid(a, e.side, gs); // SHAPES-1: a shaped rig's box centre; a 1-cell rig's cell centre as before
+      fx.sparkle(sx(fr, lx, ly), sy(fr, lx, ly));
       if (e.side === 0) snd?.play("commission");
       return;
     }

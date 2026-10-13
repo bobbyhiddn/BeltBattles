@@ -34,6 +34,11 @@ import { gradeOf, starsOf } from "../stars";
 import { beltPolicy, botSlots, reachCols } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7): the bots' belts
 import { fusibleCopies, gainInto, previewMerge } from "./merge";
 import { blockedCells, freeConnectors, shortestTiles, startCells } from "./path";
+import { startCellsFor } from "./path"; // SHAPES-1 (REQ-BFG-086 S7.2)
+import { cellsOf } from "../deck"; // SHAPES-1: a placed piece's turned footprint
+import { footOnDeck } from "../foot"; // SHAPES-1: every cell on the deck
+import { footOf, footprintCells } from "../foot"; // SHAPES-1 (flip fix): sortRoute's swap of a multi-cell rig
+import { intakeCell } from "../beltside"; // SHAPES-1 (flip fix): no shaped rig turned onto a turret intake
 import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Accept, type Shopper } from "./shopper";
 import type { GainAt } from "../../game/fuse";
 
@@ -323,14 +328,31 @@ export function routesOutOfOrder(b: Build): number[] {
   return b.routes.map((_, ri) => ri).filter((ri) => outOfOrder(gateSeq(b, ri, hits)));
 }
 
+/** SHAPES-1 (REQ-BFG-086 S7.1, flip fix): may placed rig p stand at its x, y turned `rot`? A 1-cell rig: yes, as before
+ *  (sortRoute swaps two rigs' cells, each freed by the other). A multi-cell rig (NAIL STRIP, EMBER TROUGH, SPIKE RAIL):
+ *  every cell of its turned footprint (foot.ts footprintCells) on the deck, on no other piece's cell, no belt and no
+ *  turret intake (shapedSpot's rule). Checked against each other piece's own cells (cellsOf), not occupancy(), which
+ *  shows one piece per cell while sortRoute's swap has the two rigs half-moved. */
+function fitsTurned(b: Build, p: Placed, rot: number): boolean {
+  const d = ITEMS[p.def];
+  if (!d || footOf(d) === "1") return true;
+  if (!footOnDeck(d, p.x, p.y, rot)) return false;
+  const taken = new Set<number>();
+  for (const q of b.items) if (q.uid !== p.uid) for (const k of cellsOf(q)) taken.add(k);
+  for (const r of b.routes) for (const k of r.cells) taken.add(k);
+  return footprintCells(d, p.x, p.y, rot).every((k) => !taken.has(k) && !intakeCell(b, k));
+}
+
 /** Turn rig p (where it stands) to work belt cell `tile`: of the rotations that reach it, the one with the
- *  fewest hits `bad` rejects, then the most hits (H2), then its current rotation. */
+ *  fewest hits `bad` rejects, then the most hits (H2), then its current rotation. SHAPES-1: a multi-cell rig only
+ *  at a rotation its footprint fits (fitsTurned); a 1-cell rig as before. */
 function aimAt(b: Build, p: Placed, tile: number, bad: (h: WouldHit) => boolean): void {
   const belts = beltIndex(b), cur = rotOf(p);
   let best: { rot: number; bad: number; n: number } | null = null;
   for (const rot of [cur, ...rotations(p.def).filter((r) => r !== cur)]) {
     const hs = hitsIfPlaced(b, p.def, p.x, p.y, rot, belts);
     if (!hs.some((h) => h.cell === tile)) continue;
+    if (!fitsTurned(b, p, rot)) continue; // SHAPES-1: never a turn that leaves the deck or covers a piece, belt or intake
     const nb = hs.filter(bad).length;
     if (!best || nb < best.bad || (nb === best.bad && hs.length > best.n)) best = { rot, bad: nb, n: hs.length };
   }
@@ -340,7 +362,11 @@ function aimAt(b: Build, p: Placed, tile: number, bad: (h: WouldHit) => boolean)
 /** Flat-bonus rigs first, then Splitters, on the cells those rigs already hold: the first Splitter that a
  *  flat-bonus hit follows swaps cells with the last such flat-bonus rig, and each is turned to work the tile
  *  the other worked (the Splitter reaching as little before it as it can, the flat rig as little after).
- *  Repeats until the route is in order (a bounded number of swaps). Returns whether anything moved. */
+ *  Repeats until the route is in order (a bounded number of swaps). Returns whether anything moved.
+ *  SHAPES-1 (REQ-BFG-086 S7.1, flip fix): a multi-cell flat rig (NAIL STRIP, SPIKE RAIL) on a 1-cell rig's anchor covers
+ *  more cells than the one it was given: a swap that leaves either rig on a cell it may not hold (fitsTurned: off the
+ *  deck, on a piece, a belt or an intake) is undone and the route stays as it was (nothing illegal is ever kept). Two
+ *  1-cell rigs swap exactly as before, so a deck without a shaped rig (SHAPES off) sorts byte for byte as it did. */
 function sortRoute(b: Build, ri: number): boolean {
   let moved = false;
   for (let guard = 0; guard < 8; guard++) {
@@ -351,9 +377,14 @@ function sortRoute(b: Build, ri: number): boolean {
     if (si < 0 || fi < si) return moved;
     const S = itemByUid(b, seq[si].uid)!, F = itemByUid(b, seq[fi].uid)!;
     const sTile = b.routes[ri].cells[seq[si].ci], fTile = b.routes[ri].cells[seq[fi].ci];
+    const was = [{ ...S }, { ...F }]; // SHAPES-1: to undo a swap a shaped rig can't take
     [S.x, S.y, F.x, F.y] = [F.x, F.y, S.x, S.y];
     aimAt(b, S, fTile, (h) => h.route === ri && h.tile < seq[fi].ci);
     aimAt(b, F, sTile, (h) => h.route === ri && h.tile > seq[si].ci);
+    if (!fitsTurned(b, S, rotOf(S)) || !fitsTurned(b, F, rotOf(F))) {
+      for (const [p, w] of [[S, was[0]], [F, was[1]]] as const) { p.x = w.x; p.y = w.y; setRot(p, rotOf(w)); }
+      return moved;
+    }
     moved = true;
   }
   return moved;
@@ -483,7 +514,7 @@ function moreRoutes(s: Shopper, uid: number, merged: boolean): void {
   for (;;) {
     const f = b.items.find((p) => p.uid === uid);
     if (!f || routesOf(b, uid).length >= botSlots(f.def, gradeOf(b, f), b.hero, policy)) return; // bb-0.8.3: its grade
-    const bl = blockedCells(b), starts = startCells(f.x, f.y, ITEMS[f.def].size, bl);
+    const bl = blockedCells(b), starts = startCellsFor(cellsOf(f), bl); // SHAPES-1: the turned footprint
     let cells: number[] | null = null;
     if (policy === "reach") {
       // (c): the next belt only into an installed turret this factory doesn't feed yet, at its shortest (or 2 tiles longer)
@@ -547,13 +578,13 @@ function pressLine(s: Shopper, carried: Placed[]): boolean {
   for (let tries = 0; tries < 8; tries++) {
     const x = s.rng.int(GRID - 1), y = 1 + s.rng.int(GRID - 2);
     const occ = occupancy(b);
-    if (footprint(def, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
+    if (!footOnDeck(def, x, y) || footprint(def, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue; // SHAPES-1: a 2x3 or I3 fits on the deck (a 2x2 always does here)
     const snap = cloneBuild(b);
     const uid = s.uid; // gainInto (stars on) mints this same uid; the raw push (off) mints it too
     if (s.stars) gainInto(s, b, def.id, { x, y }, s.cargo); // no twin (checked above): lands at x,y, as pushed
     else { b.items.push({ uid, def: def.id, x, y }); s.uid++; }
     const bl = blockedCells(b);
-    const cells = s.drawRoute(-1, startCells(x, y, def.size, bl), bl, s.left());
+    const cells = s.drawRoute(-1, startCellsFor(footprint(def, x, y), bl), bl, s.left()); // SHAPES-1: start cells from its edge
     if (cells) {
       s.buyBelt(-1, cells.length);
       b.routes.push({ factory: uid, cells });

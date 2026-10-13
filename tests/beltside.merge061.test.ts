@@ -59,7 +59,8 @@ function family(b: Build, last: number, route = 0, secs = 110): Payload[] {
 describe("P1: stars resolve first; shape is kept at every star (R10)", () => {
   it("effectAt keeps `shape` at 1-3 stars for every rig def, so a merge never adds arrows", () => {
     const rigs = Object.values(ITEMS).filter((d) => d.kind === "gate");
-    expect(rigs).toHaveLength(31); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23)
+    // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23)
+    expect(rigs).toHaveLength(34); // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL, the three shaped rigs (was 31)
     for (const d of rigs) {
       for (const s of [1, 2, 3]) {
         const e = effectAt(d.id, s);

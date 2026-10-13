@@ -417,6 +417,20 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => [`ADDS ${damage(g(e).flat!)} TO EACH PAYLOAD IT HITS.`],
     gist: (e) => `ADDS ${damage(g(e).flat!)}`,
   },
+  // SHAPES-1 (REQ-BFG-086, REQ-BFG-084): the three shaped plain rigs' card and gist lines, in WHETSTONE's and TEMPER's
+  // words (new rows; their ids are in ITEMS only with SHAPES on, so nothing asks for them otherwise)
+  nailstrip: {
+    text: (e) => [`ADDS ${damage(g(e).flat!)} TO EACH PAYLOAD IT HITS.`],
+    gist: (e) => `ADDS ${damage(g(e).flat!)}`,
+  },
+  embertrough: {
+    text: (e) => [`ADDS ${g(e).burn} BURN TO EACH PAYLOAD IT HITS.`, S.burn],
+    gist: (e) => `ADDS ${g(e).burn} BURN`,
+  },
+  spikerail: {
+    text: (e) => [`ADDS ${damage(g(e).flat!)} TO EACH PAYLOAD IT HITS.`],
+    gist: (e) => `ADDS ${damage(g(e).flat!)}`,
+  },
   grease: {
     text: (e) => [`MAKES ${belts(e)} PAST IT ${speedText(g(e).speed!)}.`, S.locked(g(e).lockedFlat!)],
     gist: (e) => speedText(g(e).speed!),

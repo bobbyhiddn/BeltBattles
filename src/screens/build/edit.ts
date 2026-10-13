@@ -32,6 +32,8 @@ import { C } from "../../render/palette";
 import { cellAt, footX, footY } from "../../render/frame";
 import { inside } from "../../ui/ui";
 import { drop, dropCell, rigRotAt, rotate, type Carry, type Ctx, type Src } from "./actions";
+import { aimCarry, carryTarget } from "./actions"; // SHAPES-1 (REQ-BFG-086 S2, S3)
+import { canTurn, carryTurn, carriedRot, shapedPiece } from "./shapeEdit"; // SHAPES-1 (S2)
 import type { Sel } from "./layout";
 import { toDeck } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
@@ -176,7 +178,9 @@ export class Editor {
     if (p && p.src.from === "factory" && p.t > 0.38) {
       const f = itemByUid(this.h.run.build, p.src.uid);
       this.press = null;
-      if (f) this.lift({ src: { from: "deck", uid: f.uid }, def: f.def, uid: f.uid });
+      // SHAPES-1 (S2, S3): a shaped factory keeps its turn, and a finger's lift is a touch carry
+      const sh = f && shapedPiece(f.def) ? { rot: rotOf(f), ...(direct(p.kind) ? { touch: true } : {}) } : {};
+      if (f) this.lift({ src: { from: "deck", uid: f.uid }, def: f.def, uid: f.uid, ...sh });
       if (f) this.h.select({ kind: "item", uid: f.uid });
     } else if (p && p.src.from === "turret" && !this.selectedCarry() && p.t > 0.38) {
       // 0.6.2s (REQ-BFG-031 S5): hold an installed turret to lift the turret itself (a drag lifts its gear first);
@@ -252,13 +256,37 @@ export class Editor {
   private aim(): void {
     const c = this.carry;
     if (!c || c.manual || !isRig(c.def) || !inside(this.h.L.hull, this.px, this.py)) return;
+    if (shapedPiece(c.def)) { // SHAPES-1 (S2): a long rig aims where its whole footprint would land
+      const r = aimCarry(this.h.L, this.h.run.build, c, this.px, this.py);
+      if (r !== undefined) c.rot = r;
+      return;
+    }
     const cell = dropCell(this.h.L, this.px, this.py, 1);
     if (cell) c.rot = rigRotAt(this.h.run.build, c, cell);
   }
 
-  /** 0.6.2 BELTSIDE (B2): R while carrying a rig turns its preview a quarter turn clockwise, by hand from then on. */
+  /** 0.6.2 BELTSIDE (B2): R while carrying a rig turns its preview a quarter turn clockwise, by hand from then on.
+   *  SHAPES-1 (REQ-BFG-086 S2, S3): any carried shaped piece turns too (R, the mouse wheel, the floating ROTATE button):
+   *  to the next turn that fits where it would land (shapeEdit.ts carryTurn); none fits: it stays and says why. */
   rotateCarry(): boolean {
     const c = this.carry;
+    if (c && shapedPiece(c.def)) {
+      if (!canTurn(c.def)) return true;
+      const b = this.h.run.build, L = this.h.L, px = this.px, py = this.py;
+      const over = inside(L.hull, px, py);
+      const t = carryTurn(b, c.def, carriedRot(c.def, c.rot), (rot) => {
+        if (!over) return null;
+        const q = carryTarget(L, b, { ...c, rot }, px, py);
+        return q ? { x: q.x, y: q.y } : null;
+      }, c.src.from === "deck" ? c.uid : -1);
+      if (t.reason) this.warn(t.reason);
+      else {
+        c.rot = t.rot;
+        c.manual = true;
+        this.h.game.audio.play("belt");
+      }
+      return true;
+    }
     if (!c || !isRig(c.def)) return false;
     if (rigShape(c.def) !== "X") {
       c.rot = ((c.rot ?? 0) + 1) % 4;
@@ -336,7 +364,12 @@ export class Editor {
         if (p && isRig(p.def)) rotate(h, p.uid);
         return s({ kind: "item", uid: src.uid });
       }
-      case "factory": return s({ kind: "item", uid: src.uid });
+      case "factory": {
+        // SHAPES-1 (REQ-BFG-086 S2): a click on the selected shaped factory (2x3, I3) turns it, as a click turns a rig
+        const f = itemByUid(h.run.build, src.uid);
+        if (f && canTurn(f.def) && cur.kind === "item" && cur.uid === f.uid) rotate(h, f.uid);
+        return s({ kind: "item", uid: src.uid });
+      }
       case "route": return s({ kind: "route", index: src.index });
       case "turret": return s({ kind: "turret", index: src.index });
       default: return s({ kind: "none" });
@@ -366,7 +399,12 @@ export class Editor {
         if (p && isRig(p.def) && cur.kind === "item" && cur.uid === p.uid) rotate(h, p.uid);
         return s({ kind: "item", uid: src.uid });
       }
-      case "factory": return s({ kind: "item", uid: src.uid });
+      case "factory": {
+        // SHAPES-1 (REQ-BFG-086 S3): a tap on the selected shaped factory turns it, as for a rig
+        const f = itemByUid(b, src.uid);
+        if (f && canTurn(f.def) && cur.kind === "item" && cur.uid === f.uid) rotate(h, f.uid);
+        return s({ kind: "item", uid: src.uid });
+      }
       case "route": {
         s({ kind: "route", index: src.index });
         const r = b.routes[src.index], cell = r?.cells[src.cell];
@@ -389,23 +427,27 @@ export class Editor {
   private begin(src: Src, kind: PointerKind = "mouse"): void {
     const { run, game } = this.h;
     const b = run.build;
+    // SHAPES-1 (REQ-BFG-086 S3): a shaped piece a finger or pen lifts is a touch carry (its ghost above the finger, the snap,
+    // the floating ROTATE button); every other carry is exactly as before
+    const touch = (def: string) => (direct(kind) && shapedPiece(def) ? { touch: true } : {});
     switch (src.from) {
       case "offer": {
         const o = run.shop.wagons[src.wagon]?.offers[src.slot];
         if (!o || o.sold) return;
         if (run.gold < o.price) return this.h.invalid(`NEED ${o.price - run.gold} MORE GOLD`);
-        this.lift({ src, def: o.def, uid: -1 });
+        this.lift({ src, def: o.def, uid: -1, ...touch(o.def) });
         this.h.select({ kind: "offer", wagon: src.wagon, slot: src.slot });
         return;
       }
       case "cargo": {
         const it = run.inventory.find((i) => i.uid === src.uid);
-        if (it) this.lift({ src, def: it.def, uid: it.uid });
+        if (it) this.lift({ src, def: it.def, uid: it.uid, ...touch(it.def) });
         return;
       }
       case "deck": {
         const p = itemByUid(b, src.uid);
-        if (p) this.lift({ src, def: p.def, uid: p.uid, ...(isRig(p.def) ? { rot: rotOf(p) } : {}) }); // 0.6.2: a rig keeps its aim
+        // 0.6.2: a rig keeps its aim (SHAPES-1: a shaped piece its turn)
+        if (p) this.lift({ src, def: p.def, uid: p.uid, ...(isRig(p.def) || shapedPiece(p.def) ? { rot: rotOf(p) } : {}), ...touch(p.def) });
         return;
       }
       case "turret": {

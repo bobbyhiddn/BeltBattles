@@ -81,6 +81,14 @@ export function footY(f: DeckFrame, cx: number, cy: number, size = 1): number {
   }
 }
 
+/** SHAPES-1 (REQ-BFG-086 R1): the screen rect of a deck box `w` cells along x and `h` along y with its top-left cell at
+ *  (cx, cy) (a turned footprint's bounding box, foot.ts footBox): footX/footY read `size` as the box's depth in y, so they
+ *  place any box; facing 1 and 3 swap its screen width and height. A size x size box is footX/footY's square. */
+export function boxRect(f: DeckFrame, cx: number, cy: number, w: number, h: number): { x: number; y: number; w: number; h: number } {
+  const across = f.facing === 0 || f.facing === 2;
+  return { x: footX(f, cx, cy, h), y: footY(f, cx, cy, h), w: (across ? w : h) * CELL, h: (across ? h : w) * CELL };
+}
+
 /** Screen point -> deck-local lx / ly (inverse of sx/sy). */
 export function localX(f: DeckFrame, x: number, y: number): number {
   return f.facing === 0 || f.facing === 2 ? x - f.dx : y - f.dy;

@@ -5,7 +5,7 @@
 // all-on LAST CHANCE bench (kit-hull1d/probes/lcpart.ts): a gear piece on a deck with every gear slot taken, and a rig on
 // a deck where no free cell rates a gain. HULL_SCALE and LADDER_FIX on (as the bench); NPC_DAY on and off (each through
 // its own setter, all put back after each test).
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { cloneBuild, type Build } from "../src/sim/deck";
@@ -13,12 +13,18 @@ import { placeFreePart, playerRun, rateOn } from "../src/sim/harness/player";
 import { setHullScale } from "../src/sim/hullScale";
 import { setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
+import { SHAPES, setShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the bench's states with SHAPES off
 import { newRun, type Run } from "../src/game/run";
 
+// SHAPES-1 flip (step 8): the two states are HULL-1c's bench's, found with SHAPES off (their point is the REFIT swap, not a
+// shape); with SHAPES on the par player buys shaped pieces, so seed 151's and seed 58's day-7 boards are other decks, where
+// no swap rates a gain. So each test runs with SHAPES off, put back after
+beforeEach(() => setShapes(false));
 afterEach(() => { // the shipped values (AZ-BUMP's flip; were false); place() sets every switch itself
   setNpcDay(true);
   setHullScale(true);
   setLadderFix(true);
+  setShapes(SHAPES); // SHAPES-1 flip: the shipped value
 });
 
 /** A run around `board` on `day` (harness/lastChance.ts boardRun's form: cargo empty, uids after the board's). */

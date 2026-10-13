@@ -25,13 +25,21 @@ import { rotFacing } from "../src/sim/beltside";
 import { npcDayRules, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the switches, through their setters
 import { withHullScale } from "../src/sim/hullScale";
 import { withLadderFix } from "../src/sim/ladderFix";
+import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the buy floor's tripwire and the off world, SHAPES off
+import { withFactoryPlan } from "../src/sim/harness/player"; // SHAPES-1 flip fix: the pair candidate's deck
+import { heroStartBuild } from "../src/sim/harness/heroes";
+import { cellsOf } from "../src/sim/deck";
+import { footprintCells } from "../src/sim/foot";
 
 const HEROES = ["furnace", "weaver"] as const;
 // AZ-BUMP S7: Y7B2_BOUGHT (the Y7b2 tripwire's six buy counts, 12 15 13 / 14 10 16 under bb-0.9.7) is gone with the tripwire
 
 /** AZ-BUMP (the flip): `fn` in bb-0.9.7's world, every switch off (NPC_DAY, HULL_SCALE and LADDER_FIX ship on), each put
  *  back after it, even on a throw. */
-const offWorld = <T>(fn: () => T): T => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false);
+const offWorld = <T>(fn: () => T): T => withShapes(() => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false), false);
+// SHAPES-1 flip: SHAPES ships on too (cd59be0), so the off world has it off as well (with it on, the 0.9.7 par deck that the
+// fightTime test reads is built with the shaped pieces in the caravan and holds a sustain piece: rateOn 1089071.40 vs
+// rateDeck 1087524.21 on weaver s1 d10)
 // AZ-BUMP (the flip, NPC_DAY): the par player fights the Medium warlord every day (player.ts parNpcDay), so its deck is
 // road-fed. The day's budget is maxGoldByDay + the runes' dawn gold + the road's gold and drops by that dusk (playerRun's
 // budget + roadGold + roadDrops), and the gold adds up with the value left in cargo (d.cargo); all three are absent with
@@ -47,7 +55,10 @@ describe("par player (playerBuild): a real run through the caravan", () => {
   // bb-0.9.7, 12 15 13 / 14 10 16, counted with every switch off, WEAVER s2's 10 under the floor), with its rules key and its
   // all-off world (offWorld, which the flip's re-pin gave it until S7). The six runs are the shipped par player's (every
   // switch on), and the floor is "at least 10 buys" for all six, with no rules key
-  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => {
+  // SHAPES-1 flip: the tripwire stays at its old point with SHAPES off (as AZ-BUMP's flip kept it with its switches off):
+  // with SHAPES on the par player buys the shaped pieces (4 G and 6 G rigs, a 2x3 GANTRY, an I3 ASSEMBLY LINE at 4 G),
+  // fewer and dearer, and FURNACE s2 makes 9 buys, under the floor; the integrity checks themselves hold either way
+  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => withShapes(() => {
     const boughtAll: string[] = [];
     for (const hero of HEROES) {
       for (const seed of [1, 2, 3]) {
@@ -79,8 +90,8 @@ describe("par player (playerBuild): a real run through the caravan", () => {
         expect(playerRun(hero, PLAYER_DAYS, seed)[PLAYER_DAYS - 1].rerollGold).toBe(rerolls * REROLL_COST);
       }
     }
-    console.log(`AZBUMP-S7 the par player's caravan buys, every switch on: ${boughtAll.join(", ")}`);
-  });
+    console.log(`AZBUMP-S7 the par player's caravan buys, every switch on but SHAPES: ${boughtAll.join(", ")}`);
+  }, false));
 
   it("every day's deck is legal (validateBuild, no unfused pair) and the gold adds up to maxGoldByDay", () => {
     for (const hero of HEROES) {
@@ -472,6 +483,21 @@ describe("CAND-A: the rating weighs damage over the day's fight, each belt from 
     expect(firedShare(5)).toBe(SAT_DEEP);
     expect(firedShare(5, true)).toBe(1); // a turret that never jams
     expect(firedShare(5, false, RATING_CLIFF)).toBe(0.85); // FB-C's cliff has no deep segment
+  });
+});
+
+// SHAPES-1 flip (the bug: pairCand rated a turret + factory pair on a deck with factoryPlan's factory pushed at rot 0, so a
+// turned GANTRY PRESS or ASSEMBLY LINE overlapped a piece, left the deck or stood away from its line: BASTION d5, METRONOME
+// d6, SIPHON d8 in the par runs s1-s6). withFactoryPlan builds that deck with the plan's factory at the plan's rot
+describe("SHAPES-1 flip: the pair candidate's deck (withFactoryPlan)", () => {
+  it("a turned 2x3 GANTRY PRESS plan stands at its rot, on the deck; a 2x2 plan as before", () => {
+    const b = heroStartBuild("furnace", 1);
+    const after = withFactoryPlan(b, 500, "gantry", { x: 8, y: 2, rot: 1, routes: [] }); // upright: (8,2)-(9,4); at rot 0 x 8-10
+    const g = after.items.find((p) => p.uid === 500)!;
+    expect(cellsOf(g)).toEqual(footprintCells(ITEMS.gantry, 8, 2, 1));
+    expect(validateBuild(after, 10).errors.filter((e) => e.startsWith("placement"))).toEqual([]);
+    const press = withFactoryPlan(b, 500, "press", { x: 6, y: 2, rot: 0, routes: [] });
+    expect(press.items.find((p) => p.uid === 500)).toEqual({ uid: 500, def: "press", x: 6, y: 2 });
   });
 });
 

@@ -3,6 +3,7 @@
 
 import { DORMANT_ITEMS, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, type RaceHeroId } from "./races/data"; // races:
 import { hullScaleRules, incomeOn } from "./hullScale"; // HULL-1c (REQ-BFG-079): the economy behind HULL_SCALE (no imports there)
+import type { FootId } from "./foot"; // SHAPES-1 (REQ-BFG-086): ItemDef.foot (a type only: foot.ts reads this file)
 
 // bb-0.4.0: hulls +33% (and warlord hull steps / plating to match) so rounds 1-3 last
 // 20-45 s at 1x instead of 16-18 s; every win/loss in the balance probe is unchanged.
@@ -377,6 +378,7 @@ export interface ItemDef {
   rarity: Rarity;
   price: number;
   size: 1 | 2; // footprint (cells per side)
+  foot?: FootId; // SHAPES-1 (REQ-BFG-086 R1): the footprint shape (foot.ts); absent = from size (1 cell, or 2x2)
   desc: string[]; // short lines, uppercase-friendly
   merchant?: MerchantId; // who sells it (undefined = not sold)
   shape?: RigShape; // 0.6.2 BELTSIDE: a rig's arrow shape (kind "gate" only); absent = RARITY_SHAPE[rarity]

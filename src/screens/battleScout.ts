@@ -17,7 +17,8 @@ import type { Run } from "../game/run";
 import type { Side } from "../sim/battle";
 import { CELL, ITEMS } from "../sim/content";
 import { inGrid, key, kx, ky, occupancy, turretSlots, type Build } from "../sim/deck";
-import { itemByUid, defOf } from "../sim/deck";
+import { itemByUid, defOf, rotOf } from "../sim/deck";
+import { footBox } from "../sim/foot"; // SHAPES-1 (R1): a piece's turned box
 import { TURRET_LY } from "../render/frame";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
@@ -93,8 +94,8 @@ export function partsOnScreen(a: Arena, m: ArenaMotion, side: Side): { sel: Part
     if (s.td) at({ kind: "turret", index: i }, s.turret ? ITEMS[s.turret.def]?.name ?? "TURRET" : "TURRET", (s.col0 + s.width / 2) * CELL, TURRET_LY);
   });
   for (const p of b.items) {
-    const d = defOf(p), n = d.size ?? 1;
-    at({ kind: "item", uid: p.uid }, d.name, (p.x + n / 2) * CELL, (p.y + n / 2) * CELL);
+    const d = defOf(p), bx = footBox(d, rotOf(p)); // SHAPES-1 (R1): its turned box's centre (1-cell and 2x2 as before)
+    at({ kind: "item", uid: p.uid }, d.name, (p.x + bx.w / 2) * CELL, (p.y + bx.h / 2) * CELL);
   }
   b.routes.forEach((r, i) => {
     const k = r.cells[Math.floor(r.cells.length / 2)];

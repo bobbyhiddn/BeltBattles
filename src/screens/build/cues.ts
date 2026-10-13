@@ -16,6 +16,15 @@ import { inside, type Rect } from "../../ui/ui";
 import { dropCell, type Carry } from "./actions";
 import type { BuildLayout } from "./layout";
 import { inCarrier } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom
+// SHAPES-1 (REQ-BFG-086 S2, S3): the shaped ghost, its tag and the floating ROTATE button
+import { carryTarget } from "./actions";
+import { screenRect } from "./layout";
+import { rigArrowCells } from "../../sim/deck";
+import { footBox, footprintCells } from "../../sim/foot";
+import { boxRect } from "../../render/frame";
+import { disc, ring } from "../../render/pixel";
+import { canTurn, machineryArrows, shapedPiece, shapeTag, turnsOf } from "./shapeEdit";
+import { pieceRect, screenMask, shapedFactorySprite, shapedRigBody } from "../../render/shapeArt"; // SHAPES-1: the ghost's body
 
 /** A deck cell; for a rig, with the rotation it would take there. */
 type Cell = { x: number; y: number; rot?: number };
@@ -31,10 +40,106 @@ export function suggestCell(b: Build, defId: string): Cell | null {
     for (let k = 0; k < GRID * GRID; k++) if (canPlaceItem(b, defId, kx(k), ky(k)).ok) return { x: kx(k), y: ky(k), rot: 0 };
     return null;
   }
+  if (def.kind === "factory" && shapedPiece(defId)) {
+    // SHAPES-1 (REQ-BFG-086 S2): a shaped factory: the same scan (back rows first) at each of its turns
+    for (let y = GRID - 1; y >= 0; y--) for (let x = 0; x < GRID; x++) for (let rot = 0; rot < turnsOf(defId); rot++) {
+      if (canPlaceItem(b, defId, x, y, -1, rot).ok) return { x, y, rot };
+    }
+    return null;
+  }
   if (def.kind === "factory") {
     for (let y = GRID - def.size; y >= 0; y--) for (let x = 0; x <= GRID - def.size; x++) if (canPlaceItem(b, defId, x, y).ok) return { x, y };
   }
   return null;
+}
+
+/** SHAPES-1 (S2): what a shaped ghost drew: its hits, its arrows at machinery and its box (carrier space). */
+export interface ShapeGhost {
+  hits: number;
+  machinery: number;
+  box: Rect;
+}
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S2; the mock ref/pieces1/img/board-3-rotate-preview.png): a shaped piece's ghost at (x, y) turned
+ * `rot`, in the carrier's space: its footprint as one body at `alpha` (70%), its one icon in the middle (never one per
+ * cell), the footprint's outline white where it fits and red (blinking) where refused, and for a rig every arrow on each
+ * edge it shines from (bright on a hit tile, dim when idle) with its lit hit tiles.
+ */
+export function drawShapeGhost(g: G, L: BuildLayout, b: Build, defId: string, x: number, y: number, rot: number, ok: boolean, ignoreUid: number, t: number, alpha = 0.7): ShapeGhost {
+  const f = L.frame, d = ITEMS[defId];
+  const pts = footprintCells(d, x, y, rot).map((k) => ({ x: Math.round(footX(f, kx(k), ky(k))), y: Math.round(footY(f, kx(k), ky(k))) }));
+  const at = new Set(pts.map((p) => `${p.x},${p.y}`));
+  const bx = footBox(d, rot), box = boxRect(f, x, y, bx.w, bx.h);
+  // its body as the deck draws it (render/shapeArt.ts: one body over the turned box), at the ghost's alpha
+  g.globalAlpha = alpha;
+  const pl = { uid: -1, def: defId, x, y, ...(rot ? { rot } : {}) };
+  const pr = pieceRect(L.frame, pl);
+  const body = d.kind === "factory" ? shapedFactorySprite(defId, 0, false, 1, pr.w, pr.h) : shapedRigBody(defId, pr.w, pr.h, 0, false, screenMask(L.frame, pl, pr));
+  g.drawImage(body, Math.round(pr.x), Math.round(pr.y));
+  g.globalAlpha = 1;
+  let hits: { dir: number; cell: number; from?: number }[] = [], machinery = 0;
+  if (isRig(defId)) {
+    hits = ok ? hitsIfPlaced(b, defId, x, y, rot, beltIndex(b)) : [];
+    machinery = ok ? machineryArrows(b, defId, x, y, rot, ignoreUid) : 0;
+    const pulse = Math.floor(t * 6) % 2 === 1;
+    for (const h of hits) {
+      const tx = Math.round(footX(f, kx(h.cell), ky(h.cell))), ty = Math.round(footY(f, kx(h.cell), ky(h.cell)));
+      g.globalAlpha = 0.3;
+      rect(g, tx, ty, 12, 12, C.yellow);
+      g.globalAlpha = 1;
+      frame(g, tx, ty, 12, 12, pulse ? C.yellow : C.fire4);
+      g.drawImage(rigTip(sdir(f, h.dir), 1), tx, ty);
+    }
+    for (const a of rigArrowCells(defId, x, y, rot)) {
+      if (a.from < 0) continue;
+      const lit = hits.some((h) => h.dir === a.dir && h.from === a.from);
+      g.drawImage(rigNozzle(sdir(f, a.dir), lit ? 1 : 0), Math.round(footX(f, kx(a.from), ky(a.from))), Math.round(footY(f, kx(a.from), ky(a.from))));
+    }
+  }
+  // the footprint's outline: each cell side with no cell of the piece beyond it (the screen's own sides, any facing)
+  const col = ok ? C.white : Math.floor(t * 8) % 2 === 1 ? C.red : C.maroon;
+  for (const p of pts) {
+    if (!at.has(`${p.x},${p.y - 12}`)) rect(g, p.x - 1, p.y - 1, 14, 1, col);
+    if (!at.has(`${p.x},${p.y + 12}`)) rect(g, p.x - 1, p.y + 12, 14, 1, col);
+    if (!at.has(`${p.x - 12},${p.y}`)) rect(g, p.x - 1, p.y - 1, 1, 14, col);
+    if (!at.has(`${p.x + 12},${p.y}`)) rect(g, p.x + 12, p.y - 1, 1, 14, col);
+  }
+  return { hits: hits.length, machinery, box };
+}
+
+/** SHAPES-1 (S2): a shaped ghost's tag above its box: the refusal's reason (red), a rig's `2 HITS` (lime; with an arrow
+ *  at machinery `2 HITS · 1 ARROW IDLES`) or `IDLE: NO BELT IN REACH` (amber); a factory that fits has none. */
+function drawShapeTag(g: G, defId: string, sg: ShapeGhost, ok: boolean, reason: string | undefined): void {
+  const label = !ok ? reason ?? "" : isRig(defId) ? shapeTag(sg.hits, sg.machinery) : "";
+  if (!label) return;
+  const color = !ok ? C.red : sg.hits ? C.lime : C.amber;
+  drawText(g, label, sg.box.x + sg.box.w / 2, sg.box.y - 7, color, { font: "3", align: "center", outline: C.ink });
+}
+
+/**
+ * SHAPES-1 (REQ-BFG-086 S3): the floating ROTATE button a touch carry shows: a round button at least TAP_CSS (44 CSS
+ * px) across (`tap`: TAP_CSS in logical px; drawn 50 CSS px, the mock's), beside the ghost's box (`box`, on screen), on
+ * the side away from the finger at `fx` (a finger under the box's middle: the side away from the nearer screen edge),
+ * level with the box's middle, kept on screen (`W`). A second finger presses it (game.ts pointerExtra).
+ */
+export function rotateButtonRect(box: Rect, fx: number, W: number, tap: number): Rect {
+  const d = Math.max(tap, Math.ceil((tap * 50) / 44));
+  const mid = box.x + box.w / 2;
+  const left = fx > mid + 2 || (Math.abs(fx - mid) <= 2 && mid > W / 2);
+  const x = Math.max(0, Math.min(W - d, left ? box.x - 4 - d : box.x + box.w + 4));
+  // level with the box's middle, but never above its top: the tag stands over the box (drawShapeTag), clear of the button
+  const y = Math.max(0, Math.round(box.y) - 1, Math.round(box.y + box.h / 2 - d / 2));
+  return { x: Math.round(x), y, w: d, h: d };
+}
+
+/** SHAPES-1 (S3): the floating ROTATE button drawn: a slate disc with an ink rim and a light ring, ROTATE across it. */
+export function drawRotateButton(g: G, r: Rect): void {
+  const cx = Math.round(r.x + r.w / 2), cy = Math.round(r.y + r.h / 2), rad = Math.floor(r.w / 2);
+  disc(g, cx, cy, rad, C.ink);
+  disc(g, cx, cy, rad - 1, C.slate2);
+  ring(g, cx, cy, rad - 2, C.slate4);
+  drawText(g, "ROTATE", cx, cy - 2, C.white, { font: "3", align: "center", outline: C.ink });
 }
 
 function ghostSprite(defId: string, t: number): HTMLCanvasElement {
@@ -69,6 +174,12 @@ export function drawRigPreview(g: G, L: BuildLayout, b: Build, defId: string, ce
 /** Ghost of an item at a deck cell with a bracket: lime = works here, amber = inert (a rig: IDLE, no arrow
  *  reaches a belt), red = refused. A rig shows its arrows at `cell.rot` (drawRigPreview). */
 export function drawGhostAt(g: G, L: BuildLayout, b: Build, defId: string, cell: Cell, ignoreUid: number, t: number, alpha = 0.75, lift = 0): boolean {
+  if (shapedPiece(defId)) { // SHAPES-1 (REQ-BFG-086 S2): its whole footprint, outlined, with its arrows and tag
+    const rot = cell.rot ?? 0;
+    const chk = canPlaceItem(b, defId, cell.x, cell.y, ignoreUid, rot);
+    drawShapeTag(g, defId, drawShapeGhost(g, L, b, defId, cell.x, cell.y, rot, chk.ok, ignoreUid, t, alpha), chk.ok, chk.reason);
+    return chk.ok;
+  }
   const d = ITEMS[defId];
   const ok = canPlaceItem(b, defId, cell.x, cell.y, ignoreUid).ok;
   const x = Math.round(footX(L.frame, cell.x, cell.y, d.size)), y = Math.round(footY(L.frame, cell.x, cell.y, d.size));
@@ -145,11 +256,30 @@ export function drawLifted(g: G, defId: string, x: number, y: number, lift: numb
  *  cell, which keeps its bracket and a faint 1x ghost of the exact footprint. 0.6.2 BELTSIDE (B1): a
  *  carried rig shows its arrows at the snap cell (drawRigPreview) at the rotation the editor aims it to,
  *  and hovers one cell higher, so the tile its forward arrow would work stays in sight. */
-export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, py: number, t: number, turretAt: (x: number, y: number) => number): void {
+export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, py: number, t: number, turretAt: (x: number, y: number) => number, screen?: { W: number; tap: number }): Rect | null {
   const def = ITEMS[c.def];
   const bob = Math.floor(t * 4) % 2;
   const lift = Math.min(8, Math.round(3 + 30 * Math.min(0.15, t)));
   const rig = isRig(c.def);
+  // SHAPES-1 (REQ-BFG-086 S2, S3): a shaped piece over the deck: its ghost (70%, white frame; red and the reason where
+  // refused) where carryTarget says it lands (above a finger), its tag, and on touch the floating ROTATE button (returned:
+  // the screen registers it as a target a second finger presses)
+  if (shapedPiece(c.def) && inside(L.hull, px, py)) {
+    const tg = carryTarget(L, b, c, px, py);
+    if (tg) {
+      let sg: ShapeGhost | null = null;
+      inCarrier(g, L, () => {
+        sg = drawShapeGhost(g, L, b, c.def, tg.x, tg.y, tg.rot, tg.ok, c.src.from === "deck" ? c.uid : -1, t, 0.7);
+        drawShapeTag(g, c.def, sg, tg.ok, tg.reason);
+      });
+      if (c.touch && screen && sg && canTurn(c.def)) {
+        const r = rotateButtonRect(screenRect(L, (sg as ShapeGhost).box), px, screen.W, screen.tap);
+        drawRotateButton(g, r);
+        return r;
+      }
+      return null;
+    }
+  }
   // ZOOM-1 (REQ-BFG-080): what snaps to the deck (the ghost, the lifted tile over its cell, the turret brackets) draws in
   // the carrier's space at its zoom (inCarrier); the tile under the pointer, off the deck, at the UI's scale
   if ((def.kind === "gate" || def.kind === "factory") && inside(L.hull, px, py)) {
@@ -162,7 +292,7 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
         drawLifted(g, c.def, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half,
           half + 4 + bob + (rig ? 12 : 0), 1, rig ? liftedArrows(L, b, c, at) : undefined);
       });
-      return;
+      return null;
     }
   }
   if (def.kind === "mod" || def.kind === "core") {
@@ -190,6 +320,7 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
   if (def.kind === "supply" && inside(L.hull, px, py)) frame(g, L.hull.x - 2, L.hull.y - 2, L.hull.w + 4, L.hull.h + 4, C.lime);
   // lifted: the 2x tile above the pointer, contact shadow under the pointer
   drawLifted(g, c.def, px, py, 4 + lift + bob, 1, rig ? liftedArrows(L, b, c, null) : undefined);
+  return null;
 }
 
 /** Ghost preview + bouncing arrow at the suggested cell for the selected card / cargo item. */
@@ -219,6 +350,7 @@ export function drawSuggestion(g: G, L: BuildLayout, b: Build, defId: string, t:
   if (!cell) return;
   const pulse = 0.35 + 0.25 * Math.sin(t * 6);
   drawGhostAt(g, L, b, defId, cell, -1, t, pulse);
+  if (shapedPiece(defId)) return; // SHAPES-1 (S2): a shaped ghost is its own preview (its body, arrows and tag)
   // the selected item is "picked up": the same 2x lifted tile bobs over the suggested cell (0.6.2: a rig with
   // its arrows, one cell higher)
   const half = (def.size * 12) / 2;

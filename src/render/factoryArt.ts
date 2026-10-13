@@ -64,8 +64,9 @@ function drawWave2Factory(id: string, f: number, flash: boolean, stars: number):
   return c;
 }
 
-/** The 5x5 brass gear (ASSEMBLY LINE's roof emblem, belt part and icon), top-left lit, ink hub. */
-function gear(g: G, x: number, y: number): void {
+/** The 5x5 brass gear (ASSEMBLY LINE's roof emblem, belt part and icon), top-left lit, ink hub. SHAPES-1: exported for
+ *  shapeArt.ts's I3 ASSEMBLY LINE. */
+export function gear(g: G, x: number, y: number): void {
   g.drawImage(fromRows(["h.h.b", ".hbb.", "hbkbd", ".bbd.", "b.d.d"], {
     h: C.brass4, b: C.brass3, d: C.brass1, k: C.ink,
   }), x, y);

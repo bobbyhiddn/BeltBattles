@@ -12,6 +12,12 @@ import { FUSE_MAX, fusible } from "./sim/stars";
 import { settings, setReducedMotion } from "./core/settings";
 import { VERSION } from "./version";
 import { addGhosts, clearPool, pinClassicFoe, playOut, setupFork, setupRun, setupWarlord, showcaseRun, type GhostSpec, type RunSpec } from "./tooling";
+import { placeShapedDemo } from "./tooling"; // SHAPES-1 (REQ-BFG-086) tooling: bb.shapesDemo
+import { setShapes, shapesRules } from "./sim/shapes"; // SHAPES-1 tooling: bb.shapes
+import { footBox } from "./sim/foot"; // SHAPES-1 tooling: bb.carryShape
+import { footX, footY } from "./render/frame"; // SHAPES-1 tooling
+import { toScreen } from "./screens/build/layout"; // SHAPES-1 tooling
+import { shapedSpot } from "./sim/beltside"; // SHAPES-1 tooling: bb.shapeSpot
 import { ForkScreen } from "./screens/fork/fork";
 import { forkFor } from "./game/road";
 import type { Difficulty } from "./sim/rivals";
@@ -150,6 +156,48 @@ game.start();
     clearPool();
     game.run = showcaseRun(name, o);
     game.go(screen === "battle" ? new BattleScreen(game) : new BuildScreen(game));
+  },
+  /** SHAPES-1 (REQ-BFG-086) tooling (pictures, read-only for the player: no player path calls these): SHAPES on or off
+   *  (src/sim/shapes.ts setShapes). Since SHAPES-1's flip SHAPES ships on and the setter is dev-only
+   *  (import.meta.env.DEV), as AZ-BUMP's flip did for bb.openNpcDay and bb.hullScale (cap's ruling on AZ-BUMP run 4's
+   *  Q4): on a production page this only reports the switch. */
+  shapes(on = true): boolean {
+    if (import.meta.env.DEV) setShapes(on);
+    return shapesRules();
+  },
+  /** SHAPES-1 tooling: SHAPES on, showcase deck `name` in the build screen with the shaped pieces placed where the bots
+   *  would put them (tooling.ts placeShapedDemo); returns what was placed. */
+  shapesDemo(name = "twobelts"): string[] {
+    if (import.meta.env.DEV) setShapes(true); // a no-op since the flip (SHAPES ships on); dev-only as bb.shapes
+    clearPool();
+    game.run = showcaseRun(name);
+    const placed = placeShapedDemo(game.run);
+    game.go(new BuildScreen(game));
+    return placed;
+  },
+  /** SHAPES-1 tooling: where the bots would put a long rig of `def` on the run's deck now (beltside.ts shapedSpot). */
+  shapeSpot(def: string): { x: number; y: number; rot: number; hits: number } | null {
+    const r = game.run, s = r && ITEMS[def] ? shapedSpot(r.build, def) : null;
+    return s ? { x: s.x, y: s.y, rot: s.rot, hits: s.hits.length } : null;
+  },
+  /** SHAPES-1 tooling: on the build screen, `def` (gained into cargo) carried over deck cell (x, y) at `rot` (a finger's
+   *  carry when `touch`: its ghost above the finger, the floating ROTATE button), as a drag would hold it. */
+  carryShape(def: string, x: number, y: number, rot = 0, touch = false): void {
+    const s = game.screen as unknown as { ed?: { carry: unknown; px: number; py: number; carryT: number }; L?: Parameters<typeof toScreen>[0] & { frame: Parameters<typeof footX>[0] } };
+    const run = game.run;
+    if (!run || !s.ed || !s.L) return;
+    // a fresh cargo part (pushed, not gained: gainModule would merge it into a placed twin)
+    const uid = run.nextUid++;
+    run.inventory.push({ uid, def });
+    const box = footBox(ITEMS[def], rot);
+    const across = s.L.frame.facing === 0 || s.L.frame.facing === 2;
+    const sw = (across ? box.w : box.h) * 12, sh = (across ? box.h : box.w) * 12;
+    const at = toScreen(s.L, footX(s.L.frame, x, y, box.h) + sw / 2, footY(s.L.frame, x, y, box.h) + sh / 2);
+    const lift = touch ? (sh / 2 + 18) * (toScreen(s.L, 0, 12).y - toScreen(s.L, 0, 0).y) / 12 : 0;
+    s.ed.carry = { src: { from: "cargo", uid }, def, uid, rot, manual: true, ...(touch ? { touch: true } : {}) };
+    s.ed.px = at.x;
+    s.ed.py = at.y + lift;
+    s.ed.carryT = 1;
   },
   /** MIRROR-1 (REQ-BFG-093) tooling: a read-only dev hook that rides the release beside openShowcase and windInfo
    *  (WIND-2: scripts/mirror1shots.mjs opens it for the mirror check; no player path calls it). The operator's mirror

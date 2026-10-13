@@ -47,7 +47,8 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): + MEND PRESS (factories 15 -> 16), WARD BELL and MENDING LOOM (gear 12 -> 14)
     const byKind: Record<string, number> = {};
     for (const d of SOLD) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
-    expect(byKind).toEqual({ gate: 30, factory: 16, core: 15, mod: 14, turret: 13, supply: 2 });
+    // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL (src/sim/shapes.ts) are sold with SHAPES on, 30 -> 33 rigs
+    expect(byKind).toEqual({ gate: 33, factory: 16, core: 15, mod: 14, turret: 13, supply: 2 });
   });
 
   it("0.6.2rel2: each turret's kept claim holds against the TurretDefs at every star (and FB-B's four keep nothing)", () => {
@@ -85,7 +86,9 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): the 3 sustain pieces' 9 module-stars join, none with flavour (each has
     // a face, so flavour() shows none): 257 -> 266
     // WORDS-1 (REQ-BFG-081): SABOT FOUNDRY's three stars keep none now: 16 (was 19)
-    expect(counts).toEqual({ moduleStars: 266, withFlavour: 16, sentences: 16 });
+    // SHAPES-1 flip: the three shaped plain rigs' 9 module-stars (3 rigs x 3 stars) join, none with flavour (their
+    // KEPT_FLAVOUR rows are [], as TEMPER's): 266 -> 275
+    expect(counts).toEqual({ moduleStars: 275, withFlavour: 16, sentences: 16 });
   });
 
   it("a kept sentence is one whole sentence under T2's rules and quotes no number", () => {

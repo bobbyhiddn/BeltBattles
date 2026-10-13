@@ -9,6 +9,7 @@ import {
 } from "../src/game/eventDefs";
 import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
 import { migrateRun, newRun, rollShop, shopBadge, type Run } from "../src/game/run";
+import { unlocked } from "../src/game/wares"; // SHAPES-1 flip: SALVAGE's 35% read on the draws it applies to
 
 /**
  * 0.8.0 I1 M3 (oracle 47ddf8622ecd67d9): an old save, a run with no wares, whose road grants read the whole catalogue
@@ -76,7 +77,9 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
     for (const [kind, test] of [["BURN", BURNS], ["SHOCK", SHOCKS]] as const) {
       expect(smugglerPool(kind)).toEqual(ids(buyable().filter((d) => d.kind === "gate" && test(d))));
     }
-    expect(smugglerPool("BURN")).toEqual(["temper", "bellows", "quench"]);
+    // SHAPES-1 flip: + EMBER TROUGH, a buyable gate whose effect burns ({ burn: 1 }), after the three (catalogue order) (was
+    // ["temper", "bellows", "quench"])
+    expect(smugglerPool("BURN")).toEqual(["temper", "bellows", "quench", "embertrough"]);
     expect(smugglerPool("SHOCK")).toEqual(["coil", "staticbrush", "lodestone"]);
     for (const seed of SEEDS.slice(0, 50)) for (const day of DAYS) {
       const [burn, shock] = choicesFor(atEvent("smuggler", seed, day, [], true)); // 0.8.0 I1 M3: old save
@@ -160,24 +163,34 @@ describe("SALVAGE: fresh first, 35% a held gate that merges (MERGE badge)", () =
     }
   });
 
+  // SHAPES-1 flip: the band is read on the draws the 35% applies to (eventDefs.ts salvagePart: the run's unlocked SALVAGE
+  // pool holds a held gate that merges and a fresh one), not on all 3000. The held TEMPER and WHETSTONE are ALCHEMIST
+  // commons, and with NAIL STRIP and EMBER TROUGH in the ALCHEMIST's commons the per-run draw holds them less often: the
+  // all-draws share fell 0.311 -> 0.292 (876 of 3000, under the 0.30 floor) while the rule's own share reads 0.350 (876
+  // of the 2501 draws with a held and a fresh gate on offer) (was owned / n in 0.30-0.40)
   it("with fresh gates and ones that merge, SALVAGE draws a held one 35% of the time (3000 draws, band 0.30-0.40), marked MERGE", () => {
-    let owned = 0, n = 0;
+    let owned = 0, n = 0, both = 0, bothOwned = 0;
     const seen = new Set<string>();
+    const held = (id: string) => id === "temper" || id === "whetstone";
     for (const seed of SEEDS) for (const day of DAYS) {
       const run = atEvent("wreck", seed, day, ["temper", "whetstone"]);
       const def = salvageOf(run);
+      const pool = salvagePool().filter((id) => unlocked(run, id, day)); // eventDefs.ts inWares
+      const rule = pool.some(held) && pool.some((id) => !held(id)); // SHAPES-1 flip: the draws the 35% applies to
       seen.add(def);
       n++;
+      if (rule) both++;
       if (def === "temper" || def === "whetstone") {
         owned++;
+        if (rule) bothOwned++;
         expect(shopBadge(run, def)).toEqual({ kind: "merge", toStars: 2 });
       } else expect(shopBadge(run, def)).toBeNull();
     }
     expect(n).toBe(3000);
     // eslint-disable-next-line no-console
-    console.log(`SALVAGE drew a held gate that merges in ${owned} of ${n} draws (${((100 * owned) / n).toFixed(1)}%)`);
-    expect(owned / n).toBeGreaterThanOrEqual(0.3);
-    expect(owned / n).toBeLessThanOrEqual(0.4);
+    console.log(`SALVAGE drew a held gate that merges in ${owned} of ${n} draws (${((100 * owned) / n).toFixed(1)}%); ${bothOwned} of the ${both} draws with a held and a fresh gate on offer (${((100 * bothOwned) / both).toFixed(1)}%)`);
+    expect(bothOwned / both).toBeGreaterThanOrEqual(0.3);
+    expect(bothOwned / both).toBeLessThanOrEqual(0.4);
     expect([...seen].sort()).toEqual([...salvagePool()].sort());
   });
 
