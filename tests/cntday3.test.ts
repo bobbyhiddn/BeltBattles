@@ -12,7 +12,8 @@
 //  (c) the fit (BRIEF-CNTDAY3 step 2): CNT-DAY2's day-10 sweep (every name a panel draws, each with its hero's REGEN bound;
 //      day-10 hulls; WARD's pips or none; SHIELD's number or none) on the three views, both sides, and days 8 and 9 the same
 //      way: drawn by drawPlate (the day's room) and set against cntday3-base's room (plateRow with the day-1 room). Forms,
-//      never pixel literals.
+//      never pixel literals. PANEL-FIT (cap's rule 10-13): drawPlate draws fitLead's row (plateRow's with the full lead
+//      where its bar keeps 9 px; else the tag drops or the name is cut: tests/panelfit); the rows compared here are plateRow's.
 // Everything is built here (start decks, set-up runs); never fights.json and never a par deck. Every day number is
 // computed (sustShown, hullAt); only day 1's are pinned.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -50,6 +51,7 @@ import type { Game } from "../src/game/game";
 import { setupRun } from "../src/tooling";
 import { RIVALS } from "../src/sim/rivals";
 import { BAR_MIN, ICON_GAP, SHIELD_PIPS_W, drawPlate, notePlace, plateRow, plateSource, plateTag, regenMax, regenNow, type PlateInfo, type PlateRow } from "../src/screens/battleHud";
+import { LEAD_BAR, fitLead } from "../src/screens/battleHud"; // PANEL-FIT (REQ-BFG-100): (c)'s panels are drawn with the lead that fits
 
 installRaster();
 afterEach(() => { vi.restoreAllMocks(); });
@@ -264,10 +266,15 @@ describe("CNT-DAY3 (c) the fit: the day's badge on days 8, 9 and 10, three views
               s.turrets.forEach((tu, i) => { tu.regen = i === 0 ? c.regen : 0; });
               expect(regenMax(a, side)).toBe(c.regen);
               const p = panel(a, side, L, src.name, src.tag), at = `d${day} ${tagOf} ${c.who} "${src.tag ? `${src.tag} · ` : ""}${src.name}" hull ${hpN}/${maxN} WARD ${sh ?? "-"} SHIELD ${pl ?? "-"} REGEN +${c.regen} -> ${dayBadge}`;
+              // PANEL-FIT (REQ-BFG-100, REQ-BFG-093; cap's rule 10-13): drawPlate draws fitLead's row with the day's room: plateRow's
+              // with the full lead where its bar keeps LEAD_BAR (b1 itself), else the row for the lead that fits (the tag dropped,
+              // or the name cut), so nothing is drawn over the lead
+              const d1 = fitLead({ x: r.x, y: r.y, w: r.w, h: r.h, hp: hpN, max: maxN, shield: sh, regenRoom: ra, plate: pl }, src.name, src.tag).row;
+              if (b1.bar.w >= LEAD_BAR) expect(JSON.stringify(d1), `${at}: a fitting panel keeps plateRow's row`).toBe(JSON.stringify(b1));
               const drawnForm: Form = { max: p.info.hull.includes("/"), pips: sh === null ? null : p.ward === SHIELD_CAP, badge: p.badge !== null };
-              expect(formText(drawnForm), `${at}: drawn as plateRow with the day's room`).toBe(formText(f1));
-              expect([p.info.bar.x, p.info.bar.w, p.info.hullBox.x], at).toEqual([b1.bar.x, Math.max(0, b1.bar.w), b1.hullX]);
-              if (p.badge) expect([p.badge.s, p.badge.x], at).toEqual([dayBadge, b1.regenX]);
+              expect(formText(drawnForm), `${at}: drawn as plateRow with the day's room`).toBe(formText(formOf(d1)));
+              expect([p.info.bar.x, p.info.bar.w, p.info.hullBox.x], at).toEqual([d1.bar.x, Math.max(0, d1.bar.w), d1.hullX]);
+              if (p.badge) expect([p.badge.s, p.badge.x], at).toEqual([dayBadge, d1.regenX]);
               // plateRow's order: a part gives way, never comes back (the day's room is never smaller than day 1's)
               expect(ra, at).toBeGreaterThanOrEqual(rb);
               expect([!f0.max && f1.max, f0.pips === false && f1.pips === true, !f0.badge && f1.badge], `${at}: nothing comes back`).toEqual([false, false, false]);
