@@ -35,6 +35,7 @@ import {
 } from "./build/inspector";
 import { slotIcon } from "./build/turretPanel";
 import { INFO_FREE_MIN, drawKeywordLayer, keywordsPressed } from "./build/keywords";
+import { textDay } from "../ui/fightDay"; // CNT-DAY (REQ-BFG-082, REQ-BFG-079): a face's numbers on the fight's day
 
 /** A part on one side's board: a placed item (a factory or a rig), a belt route or an installed turret. */
 export type PartSel = Extract<Sel, { kind: "item" } | { kind: "route" } | { kind: "turret" }>;
@@ -46,9 +47,11 @@ export const BACK_LABEL = "BACK";
 
 /** A side's build as the build screen's panels read it: they read the run's build and hero only, so a run made of the
  *  side's own build (the enemy's for an enemy part: its stars, its hero's class factor, its upgrades and runes) gives
- *  that side's face. Nothing of the player's own shop, cargo or gold is in it. */
-export function faceRun(build: Build): Run {
-  return { hero: build.hero, build, gold: 0, inventory: [], shop: { wagons: [], free: 0 } } as unknown as Run;
+ *  that side's face. Nothing of the player's own shop, cargo or gold is in it. CNT-DAY (REQ-BFG-082, REQ-BFG-079): `day`,
+ *  the day the face is read on (a fight's: fightDay.ts textDay; the scouted foe's: the run's), as the panels read run.day
+ *  (inspector.ts textOpts, keywords.ts panelPiece): their numbers x D(d) and S(d) on that day. No day: day 1's, as before. */
+export function faceRun(build: Build, day?: number): Run {
+  return { hero: build.hero, build, gold: 0, inventory: [], shop: { wagons: [], free: 0 }, day } as unknown as Run;
 }
 
 /** The part under a point in a board's deck px (its local frame): an installed turret's mount (above the grid's first
@@ -117,10 +120,11 @@ export function fightLine(a: Pick<Arena, "partShots" | "partDamage">, pick: Face
  * A part's face, read only: the build screen's panel for it (inspector.ts itemPanel, rigPanel via itemPanel, turretPanel,
  * routePanel) on the side's own build, without its buttons (ROTATE, TO CARGO, SELL, UPGRADE, REMOVE CORE, REMOVE GEAR,
  * REMOVE BELT) and without the hints that tell its owner how to turn, move, drag or lay belt; its ⓘ view stays (the
- * keyword layer). `line`: VIEW BATTLEFIELD's fight line, kept, first. Null: no such part.
+ * keyword layer). `line`: VIEW BATTLEFIELD's fight line, kept, first. Null: no such part. CNT-DAY (REQ-BFG-082): `day`, the
+ * day it is read on (faceRun's), so its numbers are that day's; no day: day 1's, as before.
  */
-export function faceText(build: Build, sel: PartSel, line: string | null = null): PanelText | null {
-  const run = faceRun(build);
+export function faceText(build: Build, sel: PartSel, line: string | null = null, day?: number): PanelText | null {
+  const run = faceRun(build, day);
   const t = sel.kind === "turret" ? turretPanel(run, sel.index) : sel.kind === "item" ? itemPanel(run, sel.uid) : routePanel(run, sel.index);
   if (!t) return null;
   const head: Block[] = line ? [{ role: "note", text: line, keep: true, colour: C.yellow }] : [];
@@ -308,24 +312,26 @@ export class BattleFaces {
     }
     const fa = faceArea(L, o.side);
     // the panel wears its side's panel style, as its plate does (the player's chosen style; a foe's the default)
-    this.drawOn(g, game, a.b.sides[o.side].build, fa, (r) => faceFree(L, fa.area, r), skinOf(a.views[o.side].skin).panel, view ? fightLine(a, o) : null);
+    // CNT-DAY (REQ-BFG-082, REQ-BFG-079): its numbers on the fight's day (textDay), as the fight line's damage landed
+    this.drawOn(g, game, a.b.sides[o.side].build, fa, (r) => faceFree(L, fa.area, r), skinOf(a.views[o.side].skin).panel, view ? fightLine(a, o) : null, textDay(a.b));
   }
 
   /** SCOUT-1c (REQ-BFG-082): the one face path. The open face on `build` in `fa` (planPanel's area, and whether it is a
    *  band), its ⓘ view growing into free(panel rect), in panel style `style`; `line`: VIEW BATTLEFIELD's fight line. The
-   *  battle (draw above) and the build screen's scouted foe (build/foeView.ts) both draw through it. */
-  drawOn(g: G, game: Game, build: Build, fa: { area: Rect; band: boolean }, free: (r: Rect) => Rect | null, style: PanelId, line: string | null): void {
+   *  battle (draw above) and the build screen's scouted foe (build/foeView.ts) both draw through it. CNT-DAY: `day`, the
+   *  day its text is read on (faceRun's), for the text, its planned box and its keyword layer alike. */
+  drawOn(g: G, game: Game, build: Build, fa: { area: Rect; band: boolean }, free: (r: Rect) => Rect | null, style: PanelId, line: string | null, day?: number): void {
     const o = this.open;
     if (!o) {
       this.last = null;
       return;
     }
-    const t = faceText(build, o.sel, line);
+    const t = faceText(build, o.sel, line, day);
     if (!t) {
       this.close();
       return;
     }
-    const run = faceRun(build), tp = fingerPx(game);
+    const run = faceRun(build, day), tp = fingerPx(game);
     const plan: PanelPlan = planPanel(t, fa.area, selFamilies(run, o.sel), { tap: tp, band: fa.band });
     const r = plan.r, ui = game.ui;
     statsPanel(g, r, style);
