@@ -134,7 +134,7 @@ export const C = {
   // yellow), HEAL's green, SHIELD's rune3, plating's plate3 and the plum UI (plum4, which the wind's streaks wear)
   windHit: "#E07BFF",
   // SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): POISON's venom, a bright yellow-green (hue about 74 degrees): clear of
-  // lime #28FF64 (your HP bar, SWARM; about 134), HEAL's green #59DF67 (about 126), BURN's fire3 #FF9B2A (about 32) and the
+  // lime #28FF64 (your HP bar, SWARM; about 137), HEAL's green #59DF67 (about 126), BURN's fire3 #FF9B2A (about 32) and the
   // yellow #F6CF48 (about 47); about 13:1 on the counter box's navy and 15:1 on the board's ink, so its icon and number
   // read on the dark board, the status row and a hull. Drawn only while SCALE_RIGS is on
   venom: "#C4F032",
