@@ -73,6 +73,7 @@ import { guardRules } from "../src/sim/guard";
 import { openRunesRules } from "../src/sim/openRunes";
 import { freeJoinsRules } from "../src/sim/freeJoins";
 import { BOT_RUNES } from "../src/sim/runes";
+import { shapesRules } from "../src/sim/shapes"; // MERGE-099F: the grade memo's world reads SHAPES too (already loaded above)
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -414,12 +415,14 @@ export function gradeSamplePool(pool: readonly GhostSnapshot[], k: number = GRAD
  * switch player.ts's CACHE key reads (the bots' runes, sustain, HULL_SCALE, LADDER_FIX, NPC_DAY, GUARD, OPEN_RUNES,
  * FREE_JOINS), plus wave 3, HEARTS and PICK. A missing part would serve stale grades, an extra one only re-grades. No grade
  * and no pool changes; nothing is written.
+ * MERGE-099F (cap's ruling on oracle a9203a0c46474cc4): and SHAPES, last: player.ts's CACHE key reads it ("|sh") since
+ * SHAPES-1 and HULL-ON met in c099, so the par fields the grades read move with it. The key only; no grade, no pool.
  */
 const GRADE_MEMO = new Map<string, number[]>();
 
 function gradeMemoKey(pool: readonly GhostSnapshot[], k: number, seeds: number): string {
   const world = [BOT_RUNES, sustainLive(), wave3Live(), hullScaleRules(), ladderFixRules(), npcDayRules(), guardRules(),
-    openRunesRules(), freeJoinsRules(), heartsRules(), pickRules()].map((on) => (on ? "1" : "0")).join("");
+    openRunesRules(), freeJoinsRules(), heartsRules(), pickRules(), shapesRules()].map((on) => (on ? "1" : "0")).join("");
   return `${k}|${seeds}|${world}|${pool.map((s) => ghostId(s)).join(",")}`;
 }
 
