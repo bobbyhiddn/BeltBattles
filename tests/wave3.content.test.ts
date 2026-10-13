@@ -22,7 +22,9 @@ import { RIVALS, RIVAL_IDS, rivalBuild, rivalDays, standInBuild } from "../src/s
 import { warlordBuild } from "../src/sim/ai";
 import { standInPool } from "../src/sim/standInPool";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
-import { validateBuild } from "../src/net/validate";
+import { validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode)
+import { RULES_VERSION } from "../src/sim/content"; // S8c: the rules a stand-in travels under (fallback.ts offlineGhost)
+import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import { effectAt } from "../src/sim/stars";
 import { key, type Build } from "../src/sim/deck";
 import { familyTable } from "../tools/luckReport";
@@ -296,7 +298,9 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
   // BAL-2, and 13 again after the regeneration at 4d772e4)
   // Z-BUMP (the pools): title "the regrown stand-in pool holds the 13 pinned below" -> 12 (SHIELD WALL went out at the
   // regeneration at 2c4ba76; "the 13" before it are BASE's captains and stay)
-  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds the 12 pinned below, and the switch off refuses each such deck for them alone", () => {
+  // S8c (the pools): title "the regrown stand-in pool holds the 12 pinned below" -> 14 (SHIELD WALL and TWIN LATCH came in
+  // at the regeneration at P1 83c039d; "the 13" before it are BASE's captains and stay)
+  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds the 14 pinned below, and the switch off refuses each such deck for them alone", () => {
     const parts = (b: Build) => [...b.items.map((p) => p.def), ...b.mods.map((m) => m.def), ...(b.turrets ?? []).map((t) => t.def)];
     const family = (b: Build) => parts(b).filter((d) => isWave3(d) && (ITEMS[d].tags ?? []).some((t) => t === "TWIN" || t === "PLATE"));
     for (const id of RIVAL_IDS) for (const day of rivalDays(id)) {
@@ -321,8 +325,24 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
         if (!w3.length) continue;
         decks++;
         for (const p of w3) inPool.add(p.def);
-        expect(validateBuild(e.build, day), `${hero} day ${day} #${i}, switch on`).toMatchObject({ ok: true, errors: [] });
-        expect(withWave3(() => validateBuild(e.build, day), false), `${hero} day ${day} #${i}, switch off`).toEqual({
+        // S8c (the pools): RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3).
+        // a48010b: with NPC_DAY on, a road-fed deck spends the road's drops too, by design. The regenerated pool's picks are
+        // road-fed (P1 83c039d, NPC_DAY on: each tuple's 7th element is its road log), so a deck may cost more than the shop's
+        // gold alone, which the strict mode's budget line doesn't count; its drops count through its road log, in the player
+        // mode. So each deck is held, switch on, to validateBuild's lines minus at most its ONE budget line (matched by its
+        // "budget: " prefix, and only while NPC_DAY is on: off, the strict check stays whole), AND to validateUpload in the
+        // player mode with its road log (a stand-in carries no run seed); switch off, its strict lines less at most its one
+        // budget line (only for a deck whose budget line was left out above) are the wave-3 lines alone. Was: validateBuild(
+        // e.build, day) toMatchObject { ok: true, errors: [] } on, and toEqual { ok: false, errors: <the wave-3 lines> } off
+        const strict = validateBuild(e.build, day).errors;
+        const budget = npcDayRules() ? strict.filter((x) => x.startsWith("budget: ")) : [];
+        expect(budget.length, `${hero} day ${day} #${i}: at most its one budget line`).toBeLessThanOrEqual(1);
+        expect(strict.filter((x) => !budget.includes(x)), `${hero} day ${day} #${i}, switch on: every other strict line`).toEqual([]);
+        expect(validateUpload(e.build, day, RULES_VERSION, { ...(e.road ? { road: e.road } : {}) }).errors, `${hero} day ${day} #${i}, switch on: the player mode with its road log`).toEqual([]);
+        const off = withWave3(() => validateBuild(e.build, day), false);
+        const offBudget = budget.length ? off.errors.filter((x) => x.startsWith("budget: ")) : []; // that deck's one budget line
+        expect(offBudget.length, `${hero} day ${day} #${i}, switch off: at most its one budget line`).toBeLessThanOrEqual(1);
+        expect({ ok: off.ok, errors: off.errors.filter((x) => !offBudget.includes(x)) }, `${hero} day ${day} #${i}, switch off`).toEqual({
           ok: false, errors: w3.map((p) => `item: uid ${p.uid} ${ITEMS[p.def].name} is not in the game yet`),
         });
       }
@@ -344,9 +364,12 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
     // Z-BUMP (the pools): S6 lane 1 (2c4ba76; the regeneration on bb-0.9.7, the only file it changed): 12 of the 15, the
     // regrown set: SHIELD WALL (IRON WALL) no longer reaches a stand-in pick (it is still sold in the shops); none came in
     // (was the 13 with "shieldwall")
+    // S8c (the pools): the stand-in pool regenerated once with every switch on as shipped (P1 83c039d, NPC_DAY on): 14 of
+    // the 15, the regrown set: SHIELD WALL (IRON WALL) and TWIN LATCH reach a stand-in pick again; none went out (STEAM
+    // BREECH still reaches none; it is still sold in the shops) (was the 12 without "shieldwall" and "twinlatch")
     expect([...inPool].sort()).toEqual([
-      "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder",
-      "spallcatcher", "stoker", "twingauge", "twinmould", "twintrigger",
+      "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder", "shieldwall",
+      "spallcatcher", "stoker", "twingauge", "twinlatch", "twinmould", "twintrigger",
     ]);
     expect(inPool.has("stoker")).toBe(true);
     expect(decks).toBeGreaterThan(0);

@@ -1,5 +1,5 @@
 // RETUNE-1 T5 (REQ-BFG-092): the server with PICK. GET /v1/ghosts/match picks with pick.ts matchPick: with PICK on, a
-// record 3+ losses behind is served from the weakest share of its eligible seed ghosts (by grade), exactly the ghost
+// record deep behind (PICK_RULE: 2+ since RULING-S8-R8; was 3+) is served from the weakest share of its eligible seed ghosts (by grade), exactly the ghost
 // matchPick names for that request and seed; with PICK off, pickGhost's ghost (as today). POST /v1/ghosts refuses an
 // upload that carries a grade: 400 at decode with PICK off (the field is not in this rules version), 422 with it on (only
 // the seed pool's ghosts carry a grade). Every switch is put back off after each test.
@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
-import { matchPick, setPick } from "../src/net/pick";
+import { PICK_RULE, matchPick, setPick } from "../src/net/pick"; // S8 run 3 (RULING-S8-R8): + PICK_RULE (the cut's share)
 import { eligible, matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { ghostId, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
@@ -59,11 +59,12 @@ describe("RETUNE-1 PICK: the server's routes", () => {
       const want = matchPick(graded, m, new Rng(matchSeed(m, 0)))!;
       expect(await match(wins, lives)).toBe(want.id);
     }
-    // the deep loser's ghost is one of the weakest ceil(0.667 x n) by grade
+    // the deep loser's ghost is one of the weakest ceil(PICK_RULE.deep x n) by grade. S8 run 3 (RULING-S8-R8: PICK_RULE
+    // re-tuned on the regenerated pool): the cut reads PICK_RULE.deep (0.5; was 0.667 written in)
     const deep = request(1, 3);
     const ok = eligible(graded, deep).map((e) => e.snapshot.grade!).sort((a, b) => a - b);
     const served = graded.find((e) => e.id === matchPick(graded, deep, new Rng(matchSeed(deep, 0)))!.id)!;
-    expect(ok.slice(0, Math.ceil(0.667 * ok.length))).toContain(served.snapshot.grade);
+    expect(ok.slice(0, Math.ceil(PICK_RULE.deep * ok.length))).toContain(served.snapshot.grade);
     setPick(false);
     const plain = entries(false);
     await app.store.replacePool(RULES_VERSION, plain);

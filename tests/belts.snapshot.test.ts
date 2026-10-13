@@ -29,7 +29,11 @@ describe("BELTS D10: the upgrade levels in a snapshot, local and strict checks a
   // HULL-ON (the flip, PICK): with PICK on every seed ghost carries its grade (samplePool.ts: v3, `grade`, the graded pick's
   // rank), which a v1 or v2 snapshot refuses ("snapshot.grade: not allowed in a v2 snapshot"), so the v2 and v1 rows take an
   // ungraded copy of the snapshot too (was { ...base, v, ... }: v2 turret 2 refused on both sides, [false, false])
-  const { grade: _grade, ...ungraded } = base as typeof base & { grade?: number };
+  // S8 (the pools: P1 83c039d's tuples carry a road log, so the regenerated seed ghosts do too; `base` is furnace d1
+  // sample-run-furnace-0, with its day-1 road): and no road log, v3 only and gated by NPC_DAY's rules ("snapshot.road: not
+  // allowed in a v2 snapshot"; RULING-S8-R5 section 2 item 2) (was { grade, ...ungraded }: v2 turret 2 refused on both
+  // sides, [false, false] for [true, true])
+  const { grade: _grade, road: _road, ...ungraded } = base as typeof base & { grade?: number; road?: unknown };
   const withUp = (v: 1 | 2, upgrades: unknown) => ({ ...ungraded, v, build: { ...runeless, upgrades } });
   const cases: [string, unknown, boolean][] = [
     ["turret 2", { turret: 2 }, true], ["factory 4", { factory: UPGRADE_MAX }, true], ["both 3", { turret: 3, factory: 3 }, true],

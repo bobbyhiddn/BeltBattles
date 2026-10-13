@@ -47,6 +47,9 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
   const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
   delete out.seed;
   delete out.grade; // HULL-ON (the flip, PICK): the seed step's grade, v3 only (no client uploads one)
+  // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and the road log, v3 only and
+  // gated by NPC_DAY's rules, which a pre-rune client never sends ("snapshot.road: not allowed in a v2 snapshot")
+  delete out.road;
   out.lives = Math.min(s.lives, START_LIVES); // HULL-ON (the flip, HEARTS): an older rules string's 5-lives scale
   delete out.build.runes;
   return out;

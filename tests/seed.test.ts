@@ -29,7 +29,9 @@ const STALE: GhostSnapshot = { ...POOL[5], createdAt: POOL[5].createdAt + 1 }; /
  *  (livesCapFor: 1..9 there; ghostId threw "snapshot.lives: expected an integer in 1..9"), so the copy carries its record
  *  on that scale: at most START_LIVES (a day-1 deck's 5, as before the flip). */
 function olderRules(s: GhostSnapshot, rules: string): GhostSnapshot {
-  const { seed: _seed, grade: _grade, ...rest } = s; // HULL-ON (the flip, PICK): and the grade
+  // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and the road log, v3 only and
+  // gated by NPC_DAY's rules, which an older client never sends (encodeSnapshot threw "snapshot.road: not allowed in a v2 snapshot")
+  const { seed: _seed, grade: _grade, road: _road, ...rest } = s; // HULL-ON (the flip, PICK): and the grade
   const { runes, ...build } = s.build;
   const g = runeGrants(runes, s.day);
   return {

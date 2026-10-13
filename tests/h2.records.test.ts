@@ -51,6 +51,9 @@ const deckOf = (day: number): GhostSnapshot => {
 function runeless(s: GhostSnapshot): GhostSnapshot {
   const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
   delete out.seed;
+  // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and the road log, v3 only and
+  // gated by NPC_DAY's rules, which a pre-rune client never sends ("snapshot.road: not allowed in a v2 snapshot")
+  delete out.road;
   delete out.build.runes;
   return out;
 }

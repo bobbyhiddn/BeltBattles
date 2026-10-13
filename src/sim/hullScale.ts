@@ -183,6 +183,18 @@ export function incomeOn(day: number, won: boolean): number {
  * day 8 alone at 2.2 read 20.5 22.6 23.8 25.6%; 2.1 2.2 2.4 2.5 read 16.8 22.3 19.4 22.9%; 2.1 2.3 2.4 2.5 read 16.8 17.2
  * 18.8 21.3%; 2.1 2.3 2.4 2.6 read 16.8 17.2 18.8 17.3% (medians 22.1 21.9 21.2 20.9 s). D's rules hold (never falls;
  * D <= M; M / D on days 3-10: 1.00 1.16 1.40 1.70 1.90 2.00 2.17 2.31).
+ * FIT-099 (REQ-BFG-079, REQ-BFG-086; BRIEF-FIT099 F1 S4a; RULING-FIT-R1, oracle aa0369c46ad69acd; R8 7fb66a391c57fbea):
+ * with SHAPES on, D(3-5) 1.8 1.9 2.0 -> 1.6 1.7 1.8 (shapes.ts SHAPES_DMG_TENTHS: setShapes writes those three cells into
+ * this table while the switch is on and puts this row's own numbers back while it is off; days 1-2 and 6-10,
+ * DMG_MUL_TENTHS_LATE and DMG_MUL_STEP_TENTHS don't move). This row stays the SHAPES-off row (HULL-ON's accepted fit, the
+ * shapes-off, hull-only and off worlds' pins). Why: shapes make the early fights shorter: at fit-base e866408 (every switch
+ * on) the pooled par median read 16.98 16.95 17.18 s on days 3-5 against the 18-25 s target (pooled DPS on day 5 405,
+ * 355 with SHAPES off); the SHAPES-off export read HULL-ON's 19.17 18.77 19.33 s number for number. The fit, the fewest
+ * tenths off each day (kit-fit/fbx.sh: fightBench, 96 seeds, days 1-10, --all-on, on exports with this line edited;
+ * 2026-10-13 09:54-09:57Z): 1.7 1.8 1.9 read 17.50 17.58 17.73 s; 1.7 1.7 1.9 read 17.50 18.30 17.82 s; 1.6 1.7 1.8 read
+ * 18.12 18.30 18.60 s (wind 4.1 5.1 5.3%; days 6-10 18.75-19.43 s, wind <= 12.4%; no hard stop). D's rules hold in both
+ * rows: SHAPES on 1.0 1.3 1.6 1.7 1.8 2.0 2.1 2.3 2.4 2.6 (never falls; D <= M; M / D on days 3-10: 1.13 1.29 1.56 1.70
+ * 1.90 2.00 2.17 2.31); SHAPES off this row (as above). Every reader takes D at call time through dmgMulTenths.
  */
 export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 21, 23, 24, 26];
 

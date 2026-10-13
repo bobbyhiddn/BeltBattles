@@ -21,7 +21,7 @@ import {
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
 import { furnaceDeck, playerCheck } from "./netHelpers";
 import { withDawnRunes } from "./runeFill";
-import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's road where a test means it
+import { npcDayRules, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's road where a test means it; S8c: npcDayRules, the budget line is left to the player mode only while NPC_DAY is on
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): 0.9.7's gold beside it
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 (RUN5-SHAPES1 3): the ceiling before EMBER TROUGH's 5 G, SHAPES off
 
@@ -334,8 +334,19 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
       for (let day = 1; day <= RUN_DAYS; day++) {
         for (const e of standInPool(hero, day)) {
           n++;
-          expect(validateBuild(e.build, day), `${hero} d${day}`).toEqual({ ok: true, errors: [] });
-          expect(validateUpload(e.build, day), `${hero} d${day}`).toEqual({ ok: true, errors: [] });
+          // S8c (the pools): RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3).
+          // a48010b: with NPC_DAY on, a road-fed deck spends the road's drops too, by design. The regenerated pool's picks are
+          // road-fed (P1 83c039d, NPC_DAY on: each tuple's 7th element is its road log), so a deck may cost more than the
+          // shop's gold alone, which the strict mode's budget line doesn't count; its drops count through its road log, in the
+          // player mode. So each deck is held to validateBuild's lines minus at most its ONE budget line (matched by its
+          // "budget: " prefix, and only while NPC_DAY is on: off, the strict check stays whole), AND to validateUpload in the
+          // player mode with its road log (a stand-in carries no run seed). Was: validateBuild(e.build, day) and
+          // validateUpload(e.build, day) (no road log) each toEqual { ok: true, errors: [] }
+          const strict = validateBuild(e.build, day).errors;
+          const budget = npcDayRules() ? strict.filter((x) => x.startsWith("budget: ")) : [];
+          expect(budget.length, `${hero} d${day}: at most its one budget line`).toBeLessThanOrEqual(1);
+          expect(strict.filter((x) => !budget.includes(x)), `${hero} d${day}: every other strict line`).toEqual([]);
+          expect(validateUpload(e.build, day, RULES_VERSION, { ...(e.road ? { road: e.road } : {}) }), `${hero} d${day}: the player mode with its road log`).toEqual({ ok: true, errors: [] });
           const t = (e.build.turrets ?? []).length > 0, j = e.build.routes.filter((r) => r.join !== undefined).length;
           carry.turrets += t ? 1 : 0;
           carry.bought += (e.build.turrets ?? []).some((x) => !x.free) ? 1 : 0;
@@ -358,13 +369,20 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
     let turrets = 0, joined = 0;
     for (const { snapshot: s } of load.entries) {
       expect(s.rules).toBe(RULES_VERSION);
-      expect(validateUpload(s.build, s.day), `${s.hero} d${s.day}`).toEqual({ ok: true, errors: [] });
+      // S8 T1c (REQ-BFG-092; cause a48010b, BRIEF-AZBUMP-S8L): with NPC_DAY on a seed ghost is road-fed, and the player mode
+      // counts its drops only through its road log, so it goes in as ctx.road with its run seed, as the seed step's checks pass
+      // them (tools/samplePool.ts seedGhost; server/seed.ts checkPool)
+      expect(validateUpload(s.build, s.day, s.rules, { ...(s.road ? { road: s.road } : {}), ...(s.seed !== undefined ? { seed: s.seed } : {}) }), `${s.hero} d${s.day}`).toEqual({ ok: true, errors: [] });
       turrets += (s.build.turrets ?? []).length > 0 ? 1 : 0;
       joined += s.build.routes.some((r) => r.join !== undefined) ? 1 : 0;
     }
     console.log(`v070-rel: the bundled ghost pool: ${load.entries.length} snapshots; ${turrets} carry a turret list, ${joined} a joined belt`);
     expect([turrets, joined]).toEqual(GHOST_POOL_CARRIES);
-  });
+    // S8c (the GATE RULE, test only; as T1e gave net-pool's generateSamplePool() reader, 92f1948): 600 s. Cause: with PICK on
+    // (HULL-ON's flip 9ffda51) samplePoolJson() builds and grades the whole seed pool, the file's one grading: 96 s and 107 s
+    // here beside other lanes (r3a-b-netupload, r3a-3-a2), over vitest's 30-s default; its packet red (GHOST_POOL_CARRIES, an
+    // assertion) hid the time until S8c made it pass
+  }, 600_000);
 
   it("a harness sample (all six heroes, stars, cores and factories on): every deck strict accepts, player accepts", () => {
     let strict = 0, n = 0;
@@ -506,7 +524,9 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // bought 10, joined 75, joins 113, both 11
 // Z-BUMP (the pools): the stand-in pool regenerated once under bb-0.9.7 (2c4ba76; S6 lane 1, the regeneration): was
 // turrets 15, bought 9, joined 81, joins 122, both 8
-const POOL_CARRIES = { turrets: 16, bought: 9, joined: 77, joins: 121, both: 7 };
+// S8c (the pools): the stand-in pool regenerated once with every switch on as shipped (P1 83c039d, NPC_DAY on; its
+// picks road-fed): was turrets 16, bought 9, joined 77, joins 121, both 7
+const POOL_CARRIES = { turrets: 72, bought: 31, joined: 81, joins: 185, both: 51 };
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
 // 0.7.0a D5: the seed pool's 40 sample ghosts carry turret lists and joined belts; its 20 floor ghosts add theirs
 // (tests/seed.records.test.ts checks the split). 0.8.0 I1 M3 (oracle 64485b535a06683c): from the regrown pool, the sample
@@ -535,4 +555,6 @@ const POOL_CARRIES = { turrets: 16, bought: 9, joined: 77, joins: 121, both: 7 }
 // Z-BUMP (the pools): the seed pool regenerated once under bb-0.9.7 (2c4ba76) from the regenerated stand-in pool and the
 // par player with the overfeed (sample 9 and 23, floor 2 and 14, race 4 and 25; the race's one more joined deck than
 // Y7b2's 24 is the overfeed's, S1b's [13, 66]): was 13, 65
-const GHOST_POOL_CARRIES = [15, 62]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61
+// S8c (the pools): the seed pool regenerated once with every switch on as shipped (c6d3445; NPC_DAY on, its seed ghosts
+// road-fed) from the stand-in pool regenerated at P1 83c039d: was 15, 62
+const GHOST_POOL_CARRIES = [51, 69]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61

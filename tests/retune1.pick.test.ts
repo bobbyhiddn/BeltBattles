@@ -1,6 +1,7 @@
 // RETUNE-1 T5 (REQ-BFG-092): PICK, the graded pick (src/net/pick.ts), behind its switch (off) and its rules gate
 // (rulesGate.ts PICK_RULES, pickFor). With the switch off, or under older rules, matchPick is pickGhost exactly (the same
 // picks as today on a fixed pool and seed). With it on: a record 3+ losses behind draws from the weakest ceil(0.667 x n)
+// [S8 run 3, RULING-S8-R8 (PICK_RULE re-tuned on the regenerated pool): 2+ behind, ceil(0.5 x n); 1 behind the whole field]
 // of its eligible ghosts by grade, then the nearest-record pick; 1-2 behind and at or above even, today's pick; an
 // ungraded ghost counts as its bucket's median grade; the mirror (lead) is a number pair, absent = off. The grade travels
 // in the snapshot (v3, last, only with PICK on and under rules with it; ghostId leaves it out): the strict decoder and the
@@ -61,18 +62,23 @@ describe("RETUNE-1 PICK: the switch, the gate and the numbers", () => {
     expect(pickRules()).toBe(true); // HULL-ON (the flip, PICK): withPick puts back the shipped value, on (was false)
   });
 
-  it("PICK_RULE is the tuned read (losing 1, deep 0.667, deepAt 3; no mirror) and the grade is K 6 x 1 seed", () => {
-    expect(PICK_RULE).toEqual({ losing: 1, deep: 0.667, deepAt: 3 });
+  // S8 run 3 (RULING-S8-R8: PICK_RULE re-tuned on the regenerated pool; B/output-s8/bench/bands-r8.md): was the tuned read
+  // { losing 1, deep 0.667, deepAt 3 } (RETUNE-1's c5E-allon)
+  it("PICK_RULE is the tuned read (losing 1, deep 0.5, deepAt 2: RULING-S8-R8's V4; no mirror) and the grade is K 6 x 1 seed", () => {
+    expect(PICK_RULE).toEqual({ losing: 1, deep: 0.5, deepAt: 2 });
     expect(PICK_RULE.lead).toBeUndefined();
     expect([GRADE_K, GRADE_SEEDS, GRADE_MAX]).toEqual([6, 1, 1000]);
   });
 
-  it("the share by record: 3+ behind 0.667, 1-2 behind and even or ahead the whole field; the mirror only when given", () => {
+  // S8 run 3 (RULING-S8-R8: PICK_RULE re-tuned on the regenerated pool): deepAt 3 -> 2 and deep 0.667 -> 0.5, so 2 behind is
+  // deep now (was "3+ behind 0.667, 1-2 behind ... the whole field")
+  it("the share by record: 2+ behind 0.5, 1 behind and even or ahead the whole field; the mirror only when given", () => {
     expect(lossesOf({ day: 6, wins: 1 })).toBe(4);
-    expect(pickShare({ day: 6, wins: 1 })).toEqual({ share: 0.667, strong: false }); // 4 losses, 1 win: 3 behind
+    expect(pickShare({ day: 6, wins: 1 })).toEqual({ share: 0.5, strong: false }); // 4 losses, 1 win: 3 behind
     expect(pickShare({ day: 6, wins: 2 })).toEqual({ share: 1, strong: false }); // 3 losses, 2 wins: 1 behind (losing 1)
-    expect(pickShare({ day: 6, wins: 0 })).toEqual({ share: 0.667, strong: false }); // 5 behind
-    expect(pickShare({ day: 4, wins: 0 })).toEqual({ share: 0.667, strong: false }); // 3 behind on day 4
+    expect(pickShare({ day: 5, wins: 1 })).toEqual({ share: 0.5, strong: false }); // 3 losses, 1 win: 2 behind (deepAt 2)
+    expect(pickShare({ day: 6, wins: 0 })).toEqual({ share: 0.5, strong: false }); // 5 behind
+    expect(pickShare({ day: 4, wins: 0 })).toEqual({ share: 0.5, strong: false }); // 3 behind on day 4
     expect(pickShare({ day: 6, wins: 4 })).toEqual({ share: 1, strong: false }); // ahead, no mirror
     const mirror = { ...PICK_RULE, lead: { share: 0.5, at: 3 } };
     expect(pickShare({ day: 6, wins: 4 }, mirror)).toEqual({ share: 0.5, strong: true }); // 4 wins, 1 loss: 3 ahead
@@ -94,12 +100,13 @@ describe("RETUNE-1 PICK: matchPick", () => {
     }
   });
 
-  it("on: a record 3+ behind meets only the weakest ceil(0.667 x n) of its eligible ghosts, then the nearest record", () => {
+  // S8 run 3 (RULING-S8-R8: PICK_RULE re-tuned on the regenerated pool): the cut reads PICK_RULE.deep (0.5; was 0.667 written in)
+  it("on: a deep record (3 behind here) meets only the weakest ceil(PICK_RULE.deep x n) of its eligible ghosts, then the nearest record", () => {
     withPick(() => {
       const p = pool();
       const r = req(1, 3); // day 6, 1 win, 4 losses: 3 behind
       const ok = eligible(p, r);
-      const keep = Math.ceil(0.667 * ok.length);
+      const keep = Math.ceil(PICK_RULE.deep * ok.length);
       const weakest = ok.map((e) => e.snapshot.grade!).sort((a, b) => a - b).slice(0, keep);
       const seenGrades = new Set<number>();
       for (let seed = 1; seed <= 60; seed++) {
@@ -113,8 +120,10 @@ describe("RETUNE-1 PICK: matchPick", () => {
     });
   });
 
-  it("the cut is a whole count: 0.667 keeps all of 1-3 eligible ghosts, 3 of 4, 4 of 5, 5 of 6", () => {
-    expect([1, 2, 3, 4, 5, 6].map((n) => Math.max(1, Math.ceil(PICK_RULE.deep * n)))).toEqual([1, 2, 3, 3, 4, 5]);
+  // S8 run 3 (RULING-S8-R8: PICK_RULE re-tuned on the regenerated pool): was "0.667 keeps all of 1-3 eligible ghosts, 3 of 4, 4
+  // of 5, 5 of 6" ([1, 2, 3, 3, 4, 5])
+  it("the cut is a whole count: 0.5 keeps 1 of 1-2 eligible ghosts, 2 of 3-4, 3 of 5-6", () => {
+    expect([1, 2, 3, 4, 5, 6].map((n) => Math.max(1, Math.ceil(PICK_RULE.deep * n)))).toEqual([1, 1, 2, 2, 3, 3]);
   });
 
   it("an ungraded ghost counts as its bucket's median grade; with no grade at all, the pick is today's", () => {

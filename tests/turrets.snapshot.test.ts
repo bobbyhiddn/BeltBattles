@@ -20,8 +20,13 @@ import { POOL_LEGACY } from "./standInPool.helpers";
 const POOL = sampleGhosts();
 /** Step 5 M5: the sample pool as pool v2.1 gave it: generateSamplePool's snapshots (records, ids, times) with the decks
  *  frozen in tests/fixtures/samplePool.v2.1.ts, so the old-snapshot test keeps testing turret-less snapshots whatever
- *  pool is committed (a caravan-bound pool's decks may carry Build.turrets). While v2.1 is committed it is POOL. */
-const POOL_V21 = POOL.map((s) => net.checkSnapshot({ ...s, build: decodeStarred(s.hero, SAMPLE_POOL_V21[s.hero as "furnace" | "weaver"][Number(s.playerId.slice(-1))][s.day - 1]) }));
+ *  pool is committed (a caravan-bound pool's decks may carry Build.turrets). While v2.1 is committed it is POOL.
+ *  S8 run 3 (re-pinned by cause the pools, test only; RULING-S8-R5 section 2 item 2's least change, section 3 item 2): the
+ *  stand-in pool regenerated once with every switch on (P1 83c039d) gives each deck its road log (the tuple's seventh element;
+ *  tools/samplePool.ts roadOf), so a sample ghost now carries v3's `road`. It is the regenerated deck's, not the frozen v2.1
+ *  deck's (pool v2.1 had none), so the v2.1 copy drops it, as an older copy drops the seed, the grade and the runes. Was
+ *  { ...s, build } (furnace d1 v3 then encoded its road log, which legacyText never writes, and its v1 copy was refused). */
+const POOL_V21 = POOL.map(({ road: _road, ...s }) => net.checkSnapshot({ ...s, build: decodeStarred(s.hero, SAMPLE_POOL_V21[s.hero as "furnace" | "weaver"][Number(s.playerId.slice(-1))][s.day - 1]) }));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 function netOk(s: unknown): boolean {

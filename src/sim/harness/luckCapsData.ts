@@ -7,55 +7,55 @@ import type { LuckCapsTable } from "./luck";
 
 export const LUCK_CAPS: LuckCapsTable = {
   seeds: 48,
-  fingerprint: { furnace: "259ad767", weaver: "6a2647fb", foundry: "a8c816ba", bastion: "b11e581b" },
+  fingerprint: { furnace: "8ffb1f71", weaver: "3df8d5a7", foundry: "080c2660", bastion: "98bbc65c" },
   caps: {
     furnace: [
-      { ordinary: { value: 7, star2: 0, star3: 0, rare: 0, epic: 0, turrets: 0 }, good: { value: 8, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 } }, // day 1
-      { ordinary: { value: 16, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 17, star2: 1, star3: 0, rare: 2, epic: 0, turrets: 0 } }, // day 2
-      { ordinary: { value: 25, star2: 0, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 27, star2: 1, star3: 0, rare: 3, epic: 1, turrets: 0 } }, // day 3
-      { ordinary: { value: 37, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 38, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 } }, // day 4
-      { ordinary: { value: 49, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 52, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 1 } }, // day 5
-      { ordinary: { value: 63, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 }, good: { value: 67, star2: 3, star3: 0, rare: 5, epic: 1, turrets: 1 } }, // day 6
-      { ordinary: { value: 76, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 }, good: { value: 81, star2: 3, star3: 0, rare: 6, epic: 2, turrets: 1 } }, // day 7
-      { ordinary: { value: 90, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 96, star2: 4, star3: 0, rare: 7, epic: 2, turrets: 1 } }, // day 8
-      { ordinary: { value: 104, star2: 3, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 111, star2: 4, star3: 0, rare: 8, epic: 3, turrets: 1 } }, // day 9
-      { ordinary: { value: 118, star2: 3, star3: 0, rare: 7, epic: 1, turrets: 0 }, good: { value: 126, star2: 4, star3: 0, rare: 9, epic: 3, turrets: 1 } }, // day 10
+      { ordinary: { value: 10, star2: 0, star3: 0, rare: 0, epic: 0, turrets: 0 }, good: { value: 13, star2: 1, star3: 0, rare: 1, epic: 0, turrets: 0 } }, // day 1
+      { ordinary: { value: 25, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 29, star2: 1, star3: 0, rare: 3, epic: 1, turrets: 0 } }, // day 2
+      { ordinary: { value: 40, star2: 1, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 45, star2: 2, star3: 0, rare: 3, epic: 1, turrets: 0 } }, // day 3
+      { ordinary: { value: 55, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 60, star2: 3, star3: 0, rare: 5, epic: 1, turrets: 1 } }, // day 4
+      { ordinary: { value: 71, star2: 2, star3: 0, rare: 4, epic: 0, turrets: 0 }, good: { value: 78, star2: 3, star3: 0, rare: 6, epic: 1, turrets: 1 } }, // day 5
+      { ordinary: { value: 87, star2: 2, star3: 0, rare: 5, epic: 0, turrets: 0 }, good: { value: 99, star2: 4, star3: 1, rare: 7, epic: 1, turrets: 1 } }, // day 6
+      { ordinary: { value: 107, star2: 3, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 120, star2: 4, star3: 1, rare: 7, epic: 2, turrets: 1 } }, // day 7
+      { ordinary: { value: 124, star2: 3, star3: 0, rare: 7, epic: 1, turrets: 0 }, good: { value: 141, star2: 5, star3: 1, rare: 8, epic: 2, turrets: 1 } }, // day 8
+      { ordinary: { value: 145, star2: 3, star3: 0, rare: 7, epic: 1, turrets: 0 }, good: { value: 166, star2: 5, star3: 1, rare: 9, epic: 2, turrets: 1 } }, // day 9
+      { ordinary: { value: 166, star2: 4, star3: 0, rare: 8, epic: 1, turrets: 0 }, good: { value: 186, star2: 6, star3: 1, rare: 10, epic: 3, turrets: 1 } }, // day 10
     ],
     weaver: [
-      { ordinary: { value: 8, star2: 0, star3: 0, rare: 0, epic: 0, turrets: 0 }, good: { value: 8, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 } }, // day 1
-      { ordinary: { value: 16, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 17, star2: 1, star3: 0, rare: 2, epic: 1, turrets: 0 } }, // day 2
-      { ordinary: { value: 26, star2: 0, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 27, star2: 1, star3: 0, rare: 3, epic: 1, turrets: 0 } }, // day 3
-      { ordinary: { value: 37, star2: 1, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 38, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 } }, // day 4
-      { ordinary: { value: 49, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 50, star2: 3, star3: 0, rare: 5, epic: 1, turrets: 0 } }, // day 5
-      { ordinary: { value: 62, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 }, good: { value: 63, star2: 3, star3: 0, rare: 6, epic: 2, turrets: 0 } }, // day 6
-      { ordinary: { value: 76, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 }, good: { value: 77, star2: 3, star3: 0, rare: 7, epic: 2, turrets: 0 } }, // day 7
-      { ordinary: { value: 90, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 92, star2: 4, star3: 0, rare: 7, epic: 2, turrets: 0 } }, // day 8
-      { ordinary: { value: 103, star2: 3, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 107, star2: 4, star3: 0, rare: 8, epic: 3, turrets: 0 } }, // day 9
-      { ordinary: { value: 117, star2: 3, star3: 0, rare: 7, epic: 1, turrets: 0 }, good: { value: 123, star2: 4, star3: 0, rare: 9, epic: 3, turrets: 0 } }, // day 10
+      { ordinary: { value: 8, star2: 0, star3: 0, rare: 0, epic: 0, turrets: 0 }, good: { value: 13, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 1 } }, // day 1
+      { ordinary: { value: 22, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 28, star2: 1, star3: 0, rare: 2, epic: 1, turrets: 1 } }, // day 2
+      { ordinary: { value: 37, star2: 0, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 47, star2: 2, star3: 0, rare: 3, epic: 1, turrets: 1 } }, // day 3
+      { ordinary: { value: 54, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 61, star2: 3, star3: 0, rare: 4, epic: 1, turrets: 1 } }, // day 4
+      { ordinary: { value: 69, star2: 2, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 77, star2: 3, star3: 0, rare: 5, epic: 1, turrets: 1 } }, // day 5
+      { ordinary: { value: 89, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 }, good: { value: 96, star2: 4, star3: 0, rare: 7, epic: 2, turrets: 1 } }, // day 6
+      { ordinary: { value: 108, star2: 3, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 118, star2: 5, star3: 0, rare: 8, epic: 2, turrets: 1 } }, // day 7
+      { ordinary: { value: 130, star2: 3, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 141, star2: 5, star3: 1, rare: 10, epic: 2, turrets: 1 } }, // day 8
+      { ordinary: { value: 149, star2: 3, star3: 0, rare: 7, epic: 1, turrets: 0 }, good: { value: 165, star2: 6, star3: 1, rare: 11, epic: 3, turrets: 1 } }, // day 9
+      { ordinary: { value: 170, star2: 4, star3: 0, rare: 8, epic: 1, turrets: 0 }, good: { value: 188, star2: 7, star3: 1, rare: 11, epic: 3, turrets: 1 } }, // day 10
     ],
     foundry: [
-      { ordinary: { value: 8, star2: 0, star3: 0, rare: 0, epic: 0, turrets: 0 }, good: { value: 8, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 } }, // day 1
-      { ordinary: { value: 16, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 17, star2: 1, star3: 0, rare: 2, epic: 1, turrets: 0 } }, // day 2
-      { ordinary: { value: 25, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 27, star2: 1, star3: 0, rare: 2, epic: 1, turrets: 0 } }, // day 3
-      { ordinary: { value: 37, star2: 1, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 38, star2: 2, star3: 0, rare: 3, epic: 1, turrets: 0 } }, // day 4
-      { ordinary: { value: 48, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 50, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 } }, // day 5
-      { ordinary: { value: 61, star2: 2, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 63, star2: 3, star3: 0, rare: 5, epic: 2, turrets: 0 } }, // day 6
-      { ordinary: { value: 76, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 }, good: { value: 77, star2: 3, star3: 1, rare: 6, epic: 2, turrets: 0 } }, // day 7
-      { ordinary: { value: 89, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 91, star2: 3, star3: 1, rare: 7, epic: 2, turrets: 0 } }, // day 8
-      { ordinary: { value: 103, star2: 2, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 106, star2: 4, star3: 1, rare: 7, epic: 2, turrets: 0 } }, // day 9
-      { ordinary: { value: 118, star2: 2, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 121, star2: 4, star3: 1, rare: 8, epic: 2, turrets: 0 } }, // day 10
+      { ordinary: { value: 8, star2: 0, star3: 0, rare: 0, epic: 0, turrets: 0 }, good: { value: 11, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 } }, // day 1
+      { ordinary: { value: 21, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 25, star2: 1, star3: 0, rare: 2, epic: 1, turrets: 0 } }, // day 2
+      { ordinary: { value: 35, star2: 1, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 43, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 } }, // day 3
+      { ordinary: { value: 52, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 59, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 } }, // day 4
+      { ordinary: { value: 68, star2: 2, star3: 0, rare: 4, epic: 0, turrets: 0 }, good: { value: 78, star2: 3, star3: 0, rare: 5, epic: 2, turrets: 0 } }, // day 5
+      { ordinary: { value: 86, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 96, star2: 3, star3: 0, rare: 6, epic: 2, turrets: 1 } }, // day 6
+      { ordinary: { value: 105, star2: 2, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 117, star2: 4, star3: 1, rare: 8, epic: 3, turrets: 1 } }, // day 7
+      { ordinary: { value: 124, star2: 3, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 139, star2: 4, star3: 1, rare: 9, epic: 3, turrets: 1 } }, // day 8
+      { ordinary: { value: 144, star2: 3, star3: 0, rare: 7, epic: 1, turrets: 0 }, good: { value: 162, star2: 4, star3: 1, rare: 10, epic: 3, turrets: 1 } }, // day 9
+      { ordinary: { value: 166, star2: 3, star3: 0, rare: 8, epic: 2, turrets: 0 }, good: { value: 184, star2: 5, star3: 1, rare: 11, epic: 3, turrets: 1 } }, // day 10
     ],
     bastion: [
-      { ordinary: { value: 8, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 8, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 } }, // day 1
-      { ordinary: { value: 16, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 17, star2: 1, star3: 0, rare: 2, epic: 0, turrets: 0 } }, // day 2
-      { ordinary: { value: 26, star2: 0, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 27, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 } }, // day 3
-      { ordinary: { value: 37, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 38, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 } }, // day 4
-      { ordinary: { value: 49, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 50, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 } }, // day 5
-      { ordinary: { value: 61, star2: 2, star3: 0, rare: 4, epic: 0, turrets: 0 }, good: { value: 63, star2: 3, star3: 0, rare: 6, epic: 1, turrets: 0 } }, // day 6
-      { ordinary: { value: 76, star2: 2, star3: 0, rare: 4, epic: 0, turrets: 0 }, good: { value: 77, star2: 3, star3: 0, rare: 7, epic: 2, turrets: 1 } }, // day 7
-      { ordinary: { value: 90, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 92, star2: 3, star3: 0, rare: 7, epic: 2, turrets: 1 } }, // day 8
-      { ordinary: { value: 104, star2: 3, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 107, star2: 4, star3: 1, rare: 7, epic: 2, turrets: 1 } }, // day 9
-      { ordinary: { value: 117, star2: 3, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 126, star2: 4, star3: 1, rare: 8, epic: 2, turrets: 1 } }, // day 10
+      { ordinary: { value: 8, star2: 0, star3: 0, rare: 0, epic: 0, turrets: 0 }, good: { value: 13, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 1 } }, // day 1
+      { ordinary: { value: 22, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 }, good: { value: 26, star2: 1, star3: 0, rare: 2, epic: 1, turrets: 1 } }, // day 2
+      { ordinary: { value: 38, star2: 1, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 42, star2: 2, star3: 0, rare: 3, epic: 1, turrets: 1 } }, // day 3
+      { ordinary: { value: 54, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 61, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 1 } }, // day 4
+      { ordinary: { value: 70, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 79, star2: 3, star3: 0, rare: 5, epic: 2, turrets: 1 } }, // day 5
+      { ordinary: { value: 89, star2: 2, star3: 0, rare: 4, epic: 0, turrets: 0 }, good: { value: 98, star2: 3, star3: 1, rare: 7, epic: 2, turrets: 1 } }, // day 6
+      { ordinary: { value: 107, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 118, star2: 4, star3: 1, rare: 7, epic: 2, turrets: 1 } }, // day 7
+      { ordinary: { value: 127, star2: 3, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 138, star2: 4, star3: 1, rare: 8, epic: 2, turrets: 1 } }, // day 8
+      { ordinary: { value: 146, star2: 3, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 161, star2: 5, star3: 1, rare: 8, epic: 2, turrets: 1 } }, // day 9
+      { ordinary: { value: 166, star2: 4, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 184, star2: 5, star3: 1, rare: 9, epic: 2, turrets: 1 } }, // day 10
     ],
   },
 };
