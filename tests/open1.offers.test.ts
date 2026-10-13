@@ -303,8 +303,10 @@ describe("OPEN-1: the bots follow the switch", () => {
 
 describe("OPEN-1: the captains keep today's weighted offer", () => {
   it("tools/genCaptainRunes.ts's output and the CAPTAIN_RUNES table are byte-identical with OPEN_RUNES on and off", () => {
+    // S8 (REQ-BFG-109; cause: HULL-ON's flip 9ffda51, OPEN_RUNES ships on): the off side is set explicitly, so "on and
+    // off" still compares the two; before the flip the default was off. The table is S8 lane 2's regenerated one.
     const table = JSON.stringify(CAPTAIN_RUNES);
-    const off = captainRunesText();
+    const off = withOpenRunes(() => captainRunesText(), false);
     const on = withOpenRunes(() => captainRunesText());
     expect(on).toBe(off);
     expect(withOpenRunes(() => JSON.stringify(CAPTAIN_RUNES))).toBe(table);
@@ -315,9 +317,9 @@ describe("OPEN-1: the captains keep today's weighted offer", () => {
       // the whole list passes the closed check on the captain's seed, with the switch on and off (every prefix: the
       // generator's own check)
       const runes = CAPTAIN_RUNES[id]!.map((q) => ({ id: q })), hero = RIVALS[id].hero;
-      expect(runeProblem(runes, 10, hero, captainRuneSeed(id), "exact"), id).toBeNull();
+      expect(withOpenRunes(() => runeProblem(runes, 10, hero, captainRuneSeed(id), "exact"), false), id).toBeNull();
       expect(withOpenRunes(() => runeProblem(runes, 10, hero, captainRuneSeed(id), "exact")), id).toBeNull();
     }
-    expect(openRunesRules()).toBe(false);
+    expect(openRunesRules()).toBe(OPEN_RUNES); // withOpenRunes put the switch back to its shipped value (on since 9ffda51)
   }, 120_000);
 });
