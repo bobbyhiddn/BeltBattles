@@ -19,7 +19,7 @@ import { tapPx } from "../src/ui/tap";
 import { cargoPanel, fittedPanel, itemPanel, keptWhole, offerPanel, planPanel, type PanelText } from "../src/screens/build/inspector";
 
 afterEach(() => {
-  setGuard(false);
+  setGuard(true); // HULL-ON (the flip, GUARD): the shipped value (HULL-ON's flip; was false); a test that reads off sets it
   setHullScale(false);
 });
 
@@ -28,7 +28,13 @@ const bell = (s: number) => effectAt("wardbell", s).mod!.shield!;
 
 describe("RETUNE-1 GUARD: the values", () => {
   it("off by default: PLATE ROLLER 5 / 11 / 17, WARD BELL every 8 / 5 / 4 s (+1 SHIELD)", () => {
-    expect(GUARD).toBe(false);
+    // HULL-ON (the flip, GUARD): ships on (was toBe(false) twice: "off by default"), at the guarded numbers 15 / 33 / 51 and
+    // 4 / 2.5 / 2 s; the off numbers below are read with the switch set off here (the afterEach puts the shipped value back)
+    expect(GUARD).toBe(true);
+    expect(guardRules()).toBe(true);
+    expect([1, 2, 3].map(plate)).toEqual([15, 33, 51]);
+    expect([1, 2, 3].map((s) => bell(s).every)).toEqual([4, 2.5, 2]);
+    setGuard(false);
     expect(guardRules()).toBe(false);
     expect([1, 2, 3].map(plate)).toEqual([5, 11, 17]);
     expect([1, 2, 3].map((s) => bell(s).every)).toEqual([8, 5, 4]);
@@ -37,6 +43,9 @@ describe("RETUNE-1 GUARD: the values", () => {
   });
 
   it("on: PLATE ROLLER 15 / 33 / 51 (x3), WARD BELL every 4 / 2.5 / 2 s (twice as often), still +1 SHIELD; SHIELD_CAP 3", () => {
+    // HULL-ON (the flip, GUARD): runs from the switch set off, as it ran from the default before the flip (withGuard turns it
+    // on for the call and puts it back off: 5 / 11 / 17 after it); the afterEach puts the shipped value back
+    setGuard(false);
     withGuard(() => {
       expect(guardRules()).toBe(true);
       expect([1, 2, 3].map(plate)).toEqual([15, 33, 51]);
@@ -54,6 +63,7 @@ describe("RETUNE-1 GUARD: the values", () => {
   });
 
   it("the setter puts back the exact defs (the very objects), the catalogue's order and listing unchanged", () => {
+    setGuard(false); // HULL-ON (the flip, GUARD): from the base defs, the switch set off (it read the default, which ships on)
     const pr = ITEMS.plateroller, wb = ITEMS.wardbell;
     const json = JSON.stringify([pr, wb]);
     const keys = Object.keys(ITEMS).join();
@@ -115,6 +125,7 @@ function panels(day: number): { id: string; t: PanelText }[] {
 
 describe("RETUNE-1 GUARD: the faces and the details text read the new numbers, and fit", () => {
   it("the details text and the face lines read 15 / 33 / 51 and 4 / 2.5 / 2 s with GUARD on", () => {
+    setGuard(false); // HULL-ON (the flip, GUARD): the off text ("17") after withGuard's call, the switch set off (was the default)
     withGuard(() => {
       expect(abilityText("plateroller", 3).sentences.join(" ")).toContain("51");
       expect(abilityText("plateroller", 1).sentences.join(" ")).toContain("15");

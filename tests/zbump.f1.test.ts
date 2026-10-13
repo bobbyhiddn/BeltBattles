@@ -19,9 +19,14 @@ import { parseArgs, uploadProblems, UsageError, type StoredRecord } from "../ser
 import { encodeRecord } from "../server/store";
 import { TEST_NAME } from "./netIdentity";
 import type { Build } from "../src/sim/deck";
+import { openRunesRules } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the par player's card rule
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the 5-life model's off check
 
 const OLD = "bb-0.9.3"; // release Y's rules (0.9.3-0.9.5), the last without LAST CHANCE
-const D = 5; // five losses (the early-loss refund lifts day 3) leave 1 life at dusk 5
+// HULL-ON (the flip, HEARTS): 5 -> 6, this build's rules read the hearts record model (heartsFor): six losses leave
+// 9 8 7 5 3 hearts and then 1 or fewer at dusk 6, where LAST CHANCE fires and sets 1 heart (on 5 lives five losses, the
+// early-loss refund lifting day 3, left 1 life at dusk 5)
+const D = 6;
 const PLATE = ITEMS.plating.supply!.hull!;
 
 /** `s` as the store holds an upload (JSON lines: {id, at, snapshot}). */
@@ -38,16 +43,19 @@ function plain(rules: string): GhostSnapshot {
   };
 }
 
-/** An honest upload at dusk 6 after a LAST CHANCE on day D that took `boon` (the par player's own run, as
+/** An honest upload at dusk 7 after a LAST CHANCE on day D that took `boon` (the par player's own run, as
  *  tests/zprep.admin.test.ts makes it), filled with plates to its budget's edge. */
 function honest(boon: Boon, hero: HeroId): GhostSnapshot {
   const seed = 5, runSeed = parRunSeed(hero, seed);
   const before = playerRun(hero, D, seed)[D - 1].build;
-  const offer = lastChanceOffer(runSeed, D, hero, (before.runes ?? []).map((q) => q.id));
+  // HULL-ON (the flip, OPEN_RUNES): the par player takes the card on the switch's offer rule (open: no runeFits filter), the
+  // rule the server re-derives for this build's rules (openRunesFor(RULES_VERSION))
+  const offer = lastChanceOffer(runSeed, D, hero, (before.runes ?? []).map((q) => q.id), openRunesRules());
   const build = playerRun(hero, D + 1, seed, { lastChance: { day: D, boon } })[D].build;
   const id = boon === "rune" ? offer.rune!.id : boon === "part" ? offer.part! : undefined;
   const s: GhostSnapshot = {
-    v: SNAPSHOT_V3, rules: RULES_VERSION, hero, day: D + 1, wins: 0, lives: 2, build, runId: `zbump-f1-${hero}-${boon}`,
+    // HULL-ON (the flip, HEARTS): lives 2 -> 1 (LAST CHANCE sets 1 heart)
+    v: SNAPSHOT_V3, rules: RULES_VERSION, hero, day: D + 1, wins: 0, lives: 1, build, runId: `zbump-f1-${hero}-${boon}`,
     playerId: "p-zbump", createdAt: 1_790_000_000_000, name: TEST_NAME, seed: runSeed, lastChance: { day: D, boon, ...(id ? { id } : {}) },
   };
   const check = (x: GhostSnapshot) => validateUpload(x.build, x.day, x.rules, { seed: x.seed, lastChance: x.lastChance });
@@ -65,10 +73,17 @@ describe("Z-BUMP F1 (REVIEW-ZPREP): revalidate's record check knows the record's
     // dusk 5 fires LAST CHANCE, so that run carries 2 lives, never 1
     expect([isReachable(6, 0, 1, { rules: OLD, lastChance: null }), isReachable(6, 0, 1, { rules: OLD })]).toEqual([true, true]);
     expect([isReachable(6, 0, 1, { lastChance: null }), isReachable(6, 0, 1, { rules: RULES_VERSION, lastChance: null })]).toEqual([false, false]);
-    expect([isReachable(6, 0, 2, { lastChance: D }), isReachable(6, 0, 2, { lastChance: 3 })]).toEqual([true, false]);
+    // HULL-ON (the flip, HEARTS): this build's rules read the hearts model (heartsFor): 0W 1 heart at dusk 7 after a LAST
+    // CHANCE on day 6, never after one on day 3 (was 0W 2 lives at dusk 6 after one on day 5); that 5-life LAST CHANCE
+    // model is now bb-0.9.7's own (LAST_CHANCE_RULES, before HEARTS_RULES), read the same
+    expect([isReachable(7, 0, 1, { lastChance: D }), isReachable(7, 0, 1, { lastChance: 3 })]).toEqual([true, false]);
+    expect([isReachable(6, 0, 2, { rules: LAST_CHANCE_RULES, lastChance: 5 }), isReachable(6, 0, 2, { rules: LAST_CHANCE_RULES, lastChance: 3 })]).toEqual([true, false]);
     // the whole model, dusks 1-10: 178 records under bb-0.9.3 (the model before the flip), 172 under bb-0.9.7
     const count = (rules?: string) => Array.from({ length: 10 }, (_, i) => reachableRecords(i + 1, { rules }).length).reduce((a, b) => a + b, 0);
-    expect([count(OLD), count(RULES_VERSION), count()]).toEqual([178, 172, 172]);
+    // HULL-ON (the flip, HEARTS): this build's rules 172 -> 324 (the hearts model, 1..10 hearts); bb-0.9.7's own rules keep
+    // 172, as this build's rules do with HEARTS off
+    expect([count(OLD), count(RULES_VERSION), count(), count(LAST_CHANCE_RULES)]).toEqual([178, 324, 324, 172]);
+    expect(withHearts(() => count(RULES_VERSION), false)).toBe(172);
   });
 
   it("a bb-0.9.3 record at 0W 1L on dusk 6 revalidates clean (uploadProblems under --rules bb-0.9.3); the CLI itself takes only this build's rules (AZ-BUMP: bb-0.10.0; was bb-0.9.7)", () => {

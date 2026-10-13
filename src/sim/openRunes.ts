@@ -32,8 +32,9 @@
 
 import type { RuneDef } from "./runes";
 
-/** THE switch (REQ-BFG-109), off in this rules version (bb-0.9.7). */
-export const OPEN_RUNES: boolean = false;
+/** THE switch (REQ-BFG-109): on, from HULL-ON's flip (bb-0.10.0). Its setter, withOpenRunes and the off path stay this
+ *  release, for older records (rulesGate.ts openRunesFor), the captains (closed) and the tests that measure the off world. */
+export const OPEN_RUNES: boolean = true;
 
 let orOn = false;
 /** runes.ts's swap of the rewritten defs (bindOpenRuneDefs), absent until runes.ts has loaded. */

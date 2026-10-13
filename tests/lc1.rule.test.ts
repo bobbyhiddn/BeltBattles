@@ -2,6 +2,9 @@
 // Z-BUMP (the flip): it is the game's rule and its switch is deleted, so the switch-on tests are plain tests. A test that
 // compared a run with the switch-off game compares it with the same seed's run whose LAST CHANCE is already spent
 // (playSpent), which no loss fires: the dusks the game played before LAST CHANCE.
+// HULL-ON (the flip, HEARTS): these are LC-1's rule on a 5-life run (1 life left, 1 back, the day-3 refund), so every run
+// here starts with HEARTS off (newRun's mark: a run plays on the scale it started on, as a run saved before the flip
+// does); the hearts trigger (the first loss to 1 heart or fewer, which sets 1) is tests/retune1.hearts.test.ts's.
 import { describe, expect, it } from "vitest";
 import type { SideStats } from "../src/sim/battle";
 import { HEROES, ITEMS, RUN_DAYS, START_LIVES, buyableModules, type HeroId } from "../src/sim/content";
@@ -17,6 +20,8 @@ import {
 import { migrateRun } from "../src/game/save";
 import { PATCH_UP_LIVES } from "../src/net/records";
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): LC-1's ★1 PART card, HULL_SCALE off
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): LC-1's runs start on 5 lives
+import { openRunesRules, withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the offer rule
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 type R = "W" | "L" | "D";
@@ -33,7 +38,7 @@ function dusk(run: Run, r: R, pick: Boon = "hull"): void {
 
 /** A run of `rs` dusks (it stops when the run ends). */
 function play(rs: string, hero: HeroId = "furnace", seed = 4242, pick: Boon = "hull"): Run {
-  const run = newRun(hero, seed, `lc1-${hero}-${seed}`);
+  const run = withHearts(() => newRun(hero, seed, `lc1-${hero}-${seed}`), false); // HULL-ON (the flip, HEARTS): a 5-life run
   for (const r of rs) {
     if (run.over) break;
     dusk(run, r as R, pick);
@@ -47,7 +52,7 @@ const reload = (run: Run): Run => migrateRun(JSON.parse(JSON.stringify(run)))!;
  *  all the rule reads, so no hull is added). No loss fires it, so its dusks are the game's without LAST CHANCE: the twin a
  *  firing run is compared with, now that no switch turns the rule off (Z-BUMP). */
 function playSpent(rs: string, hero: HeroId = "furnace", seed = 4242): Run {
-  const run = newRun(hero, seed, `lc1-${hero}-${seed}`);
+  const run = withHearts(() => newRun(hero, seed, `lc1-${hero}-${seed}`), false); // HULL-ON (the flip, HEARTS): a 5-life run
   run.lastChance = { day: 1, boon: "hull" };
   for (const r of rs) {
     if (run.over) break;
@@ -122,18 +127,22 @@ describe("LC-1: the trigger", () => {
 
 describe("LC-1: the offer", () => {
   it("is deterministic and survives a reload: the same seed, day, hero and runes give the same three cards", () => {
-    const run = play("LLLLL", "weaver", 77);
-    const a = pendingLastChance(run)!;
-    expect(a).toEqual(lastChanceOffer(run.seed, 5, "weaver", (run.build.runes ?? []).map((q) => q.id)));
-    expect(pendingLastChance(reload(run))).toEqual(a);
-    expect(reload(run).lastChance).toEqual({ day: 5 });
-    // the cards: an epic rune that fits WEAVER and isn't held; an epic part of the catalogue; +LAST_CHANCE_HULL hull
-    const d = RUNES[a.rune!.id];
-    expect([d.tier, a.rune!.tier, runeFits(d, "weaver"), (run.build.runes ?? []).some((q) => q.id === d.id)]).toEqual(["epic", "epic", true, false]);
-    expect(lastChanceParts().map((p) => p.id)).toContain(a.part);
-    expect(a.hull).toBe(LAST_CHANCE_HULL);
-    // another day or seed may differ; the same arguments never do
-    for (let s = 1; s <= 30; s++) expect(lastChanceOffer(s, 6, "bastion", [])).toEqual(lastChanceOffer(s, 6, "bastion", []));
+    // HULL-ON (the flip, OPEN_RUNES): LC-1's card is the closed one (an epic rune that fits the hero), so OPEN_RUNES is off
+    // here; the open card (no runeFits filter: the game's with the switch on) is tests/open1.offers.test.ts's
+    withOpenRunes(() => {
+      const run = play("LLLLL", "weaver", 77);
+      const a = pendingLastChance(run)!;
+      expect(a).toEqual(lastChanceOffer(run.seed, 5, "weaver", (run.build.runes ?? []).map((q) => q.id)));
+      expect(pendingLastChance(reload(run))).toEqual(a);
+      expect(reload(run).lastChance).toEqual({ day: 5 });
+      // the cards: an epic rune that fits WEAVER and isn't held; an epic part of the catalogue; +LAST_CHANCE_HULL hull
+      const d = RUNES[a.rune!.id];
+      expect([d.tier, a.rune!.tier, runeFits(d, "weaver"), (run.build.runes ?? []).some((q) => q.id === d.id)]).toEqual(["epic", "epic", true, false]);
+      expect(lastChanceParts().map((p) => p.id)).toContain(a.part);
+      expect(a.hull).toBe(LAST_CHANCE_HULL);
+      // another day or seed may differ; the same arguments never do
+      for (let s = 1; s <= 30; s++) expect(lastChanceOffer(s, 6, "bastion", [])).toEqual(lastChanceOffer(s, 6, "bastion", []));
+    }, false);
   });
 
   it("the rune card falls back a tier (then up) when every fitting epic is held, and says which", () => {
@@ -226,7 +235,7 @@ describe("LC-1: the pick", () => {
   it("is pending until taken: the dawn rune waits, a fight is refused, and a pick is refused when none is pending", () => {
     const run = play("LLLLL");
     // play() took HULL only at the next dusk; re-create a pending one
-    const p = newRun("furnace", 4242, "lc1-pending");
+    const p = withHearts(() => newRun("furnace", 4242, "lc1-pending"), false); // HULL-ON (the flip, HEARTS): a 5-life run
     for (const r of "LLLLL") dusk(p, r as R);
     expect(lastChancePending(p)).toBe(true);
     expect(pendingRune(p)).toBeNull();
@@ -287,14 +296,15 @@ describe("LC-1: the pick", () => {
     const d6 = pendingRune(run)!;
     expect(d6.day).toBe(6);
     expect(d6.ids).not.toContain(id);
-    expect(d6).toEqual(runeOffer(run.seed, 6, "bastion", run.build.runes!.map((q) => q.id)));
+    // HULL-ON (the flip, OPEN_RUNES): the game's dawn offer and the upload rule below are on the switch's offer rule (open)
+    expect(d6).toEqual(runeOffer(run.seed, 6, "bastion", run.build.runes!.map((q) => q.id), openRunesRules()));
     dusk(run, "W", "rune"); // takes day 6's rune, fights
     expect(run.build.runes!.length).toBe(7);
     expect(pendingRune(run)!.day).toBe(7); // day 7 is owed: the dawn count leaves the LAST CHANCE rune out
     dusk(run, "W", "rune");
     expect(run.build.runes!.length).toBe(8);
     // the rune order passes the upload rule with the seed, told where the LAST CHANCE rune is (index 5)
-    expect(runeProblem(run.build.runes, 7, "bastion", run.seed, "exact", false, 5)).toBeNull();
+    expect(runeProblem(run.build.runes, 7, "bastion", run.seed, "exact", false, 5, openRunesRules())).toBeNull();
     expect(runeProblem(run.build.runes, 7, "bastion", run.seed, "exact")).toMatch(/held on day 7/);
     expect(runeDawnOf(4, 5)).toBe(5);
     expect(runeDawnOf(5, 5)).toBe(6);

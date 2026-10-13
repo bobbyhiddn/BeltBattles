@@ -16,6 +16,8 @@ import { DORMANT_RUNES } from "../src/sim/runes"; // FLIP-X2: no dawn offers a d
 import { newRun, pendingRune, takeRune } from "../src/game/run";
 import { finishDay } from "../src/game/day";
 import { battleRecordFor, replay } from "../src/net/replay";
+import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the base defs' reads
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): RIVET HOARD's base 60
 
 const W = (b: Build, ...ids: string[]): Build => ({ ...cloneBuild(b), runes: [...(b.runes ?? []), ...ids.map((id) => ({ id }))] });
 const n = (id: string) => RUNES[id].amount.n;
@@ -59,7 +61,10 @@ describe("RUNES-2a: the catalogue block", () => {
     expect(block.length).toBe(36);
     expect(["common", "rare", "epic", "legendary"].map((t) => block.filter((d) => d.tier === t).length)).toEqual([11, 9, 11, 5]);
     expect([RUNES.ember_shot.tier, RUNES.ember_shot.theme, RUNES.many_hands.theme]).toEqual(["epic", "turrets", "turrets"]);
-    expect(new Set(block.map((d) => d.kind)).size).toBe(36);
+    // HULL-ON (the flip, OPEN_RUNES): 36 -> 35 kinds, THE LONG ROAD's open rewrite (openRunes.ts OPEN_RUNE_DEFS, in the
+    // catalogue while the switch is on) is TOLL ROAD's priorPct on purpose (one effect, one wording); off, 36 as before
+    expect(new Set(block.map((d) => d.kind)).size).toBe(35);
+    expect(withOpenRunes(() => new Set(RUNE_LIST.slice(21).map((d) => d.kind)).size, false)).toBe(36);
     for (const gone of ["hot_iron", "wind_veil", "loose_molds", "saints_oil"]) expect(RUNES[gone], gone).toBeUndefined();
   });
 
@@ -231,7 +236,10 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
   it("BULWARK OATH: every PLATE gain x2 (RIVET HOARD's 60 start as 120; BASTION's bulwark slugs plate twice), PLATE_CAP holds", () => {
     const start = (x: Build) => new Battle(x, FOE, 1).sides[0].plate.plate;
     const f = heroStartBuild("furnace");
-    expect(start(W(f, "rivet_hoard", "bulwark_oath"))).toBe(n("rivet_hoard") * n("bulwark_oath"));
+    // HULL-ON (the flip, GUARD): RIVET HOARD 60 -> 180 (guard.ts GUARD_RUNES), so its gain x n is over PLATE_CAP and the start
+    // holds the cap (240, was 60 x n); the gain's multiplication itself is read with the switch off (60)
+    expect(start(W(f, "rivet_hoard", "bulwark_oath"))).toBe(Math.min(PLATE_CAP, n("rivet_hoard") * n("bulwark_oath")));
+    withGuard(() => expect(start(W(f, "rivet_hoard", "bulwark_oath"))).toBe(n("rivet_hoard") * n("bulwark_oath")), false);
     expect(start(W(f, "rivet_hoard", "grave_plates", "bulwark_oath"))).toBe(PLATE_CAP); // the cap (NUM-1: 240, was a bare 24)
     // BASTION: the plating its bulwark slugs add by the first 3 loads, doubled (both well under the cap)
     const gained = (x: Build) => {
@@ -268,7 +276,9 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     expect(bt.sides[1].hull.burns.some((x) => x.dps === n("ember_shot"))).toBe(true);
   });
 
-  it("THE LONG ROAD: a load's RIDE bonus x2", () => {
+  // HULL-ON (the flip, OPEN_RUNES): the x2 RIDE is THE LONG ROAD's base def, in the catalogue with the switch off; on, its
+  // open rewrite (OPEN_RUNE_DEFS: +6% DMG PER RIG A LOAD PASSES) is there instead (tests/open1.deadRunes.test.ts reads it)
+  it("THE LONG ROAD: a load's RIDE bonus x2", () => withOpenRunes(() => {
     const b = heroStartBuild("furnace");
     const base = fires(b, FOE, 3), road = fires(W(b, "long_road"), FOE, 3);
     base.forEach((p, i) => {
@@ -280,7 +290,7 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
       expect(road[i].dmg).toBe(dmg(p.ride * n("long_road")));
     });
     expect(base.some((p) => p.ride > 0)).toBe(true);
-  });
+  }, false));
 });
 
 describe("RUNES-2a M3: the commons and rares", () => {

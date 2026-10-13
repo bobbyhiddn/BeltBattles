@@ -17,6 +17,8 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { Battle, type Projectile } from "../src/sim/battle";
 import { cloneBuild, type Build } from "../src/sim/deck";
 import { PLATE_CAP } from "../src/sim/races/bastion";
+import { openRunesRules, withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the game's offer rule; the base defs
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): RIVET HOARD's base 60
 
 const PLAYABLE: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const DEF_PATTERN = /^[a-z0-9_]{1,32}$/; // = src/net/snapshot.ts DEF_PATTERN
@@ -39,7 +41,10 @@ describe("RUNES-1 M1: the catalogue", () => {
     // RUNES-2a: no two runes share a kind at one tier, and every kind RUNES-2a added is one rune's (a new hook each)
     const shipped = RUNE_LIST.slice(0, 21).map((d) => d.kind);
     for (const d of RUNE_LIST.slice(21)) expect(shipped, `${d.id} reuses a shipped kind`).not.toContain(d.kind);
-    expect(new Set(RUNE_LIST.slice(21).map((d) => d.kind)).size).toBe(36);
+    // HULL-ON (the flip, OPEN_RUNES): 36 -> 35, THE LONG ROAD's open rewrite (openRunes.ts OPEN_RUNE_DEFS, in the catalogue
+    // while the switch is on) shares TOLL ROAD's priorPct on purpose (one effect, one wording); off, 36 as before
+    expect(new Set(RUNE_LIST.slice(21).map((d) => d.kind)).size).toBe(35);
+    expect(withOpenRunes(() => new Set(RUNE_LIST.slice(21).map((d) => d.kind)).size, false)).toBe(36);
   });
 
   it("no rune shares a name with a shop piece or a hero", () => {
@@ -255,7 +260,9 @@ describe("RUNES-1 M2: the dawn pick in the run", () => {
     }
     expect(run.build.runes!.length).toBe(7);
     expect(new Set(run.build.runes!.map((q) => q.id)).size).toBe(7);
-    expect(runeProblem(run.build.runes, run.day, run.hero, run.seed)).toBeNull();
+    // HULL-ON (the flip, OPEN_RUNES): the game's dawns offer the open pool (run.ts pendingRune reads the switch), so the
+    // check re-derives them on the same rule (runeProblem's `open`: the switch, was the closed default)
+    expect(runeProblem(run.build.runes, run.day, run.hero, run.seed, "atMost", false, -1, openRunesRules())).toBeNull();
   });
 
   it("a run that skipped a dawn (a save from before runes) is never offered one again", () => {
@@ -330,7 +337,9 @@ describe("RUNES-1 M1: the effects in battle (both sides; no RNG; nothing without
     const bt = new Battle(withRunes(b, "rivet_hoard", "grave_plates", "loose_thread"), withRunes(foe, "tangle_wire"), 1);
     // NUM-1: 60 + 120 (was 18), under PLATE_CAP. FLIP-X2 (TUNE-X line 10): GRAVE PLATES 240 (was 120), so 60 + 240 = 300 is
     // over PLATE_CAP and the start's PLATE is capped at 240 (was the sum, 180)
-    expect(RUNES.rivet_hoard.amount.n + RUNES.grave_plates.amount.n).toBe(300);
+    // HULL-ON (the flip, GUARD): 300 -> 420, RIVET HOARD 60 -> 180 (guard.ts GUARD_RUNES); still over PLATE_CAP. Off: 300
+    expect(RUNES.rivet_hoard.amount.n + RUNES.grave_plates.amount.n).toBe(420);
+    expect(withGuard(() => RUNES.rivet_hoard.amount.n + RUNES.grave_plates.amount.n, false)).toBe(300);
     expect(bt.sides[0].plate.plate).toBe(PLATE_CAP);
     expect(bt.sides[1].plate.plate).toBe(0);
     expect(bt.sides[1].hull.fray).toBe(2); // FLIP-X2 (TUNE-X line 9): LOOSE THREAD 2 (was 3)

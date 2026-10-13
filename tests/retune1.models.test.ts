@@ -2,7 +2,8 @@
 // records on the hearts scale with HEARTS on (from the hearts record model) and exactly as before with it off; tools/
 // loss1.ts's hearts ledger (heartsLoss) is the game's own step (hearts.ts heartsDusk), so the bench and the game can't
 // drift. (tools/retune1.ts's ledgers take the same step; generateSamplePool() with every switch off stays byte-identical:
-// tests/p2.floor.test.ts pins it.) HEARTS is set through its setter and put back off after each test.
+// tests/p2.floor.test.ts pins it.) HEARTS is set through its setter and put back after each test. HULL-ON (the flip,
+// HEARTS): put back on, the shipped value; the "HEARTS off" test sets it off itself.
 import { afterEach, describe, expect, it } from "vitest";
 import { START_LIVES } from "../src/sim/content";
 import { HEARTS_START, heartsDusk, setHearts, withHearts } from "../src/sim/hearts";
@@ -11,17 +12,19 @@ import { drawnLabel, reachableLabel } from "../tools/samplePool";
 import { heartCost as benchCost, heartsLoss } from "../tools/loss1";
 import { heartCost } from "../src/sim/hearts";
 
-afterEach(() => setHearts(false));
+afterEach(() => setHearts(true)); // HULL-ON (the flip, HEARTS): the shipped value (HULL-ON's flip; was setHearts(false))
 
 describe("RETUNE-1 T3: the seed pool's drawn labels", () => {
   it("HEARTS off: exactly the 5-life label as before (START_LIVES - min(START_LIVES - 1, lost), snapped)", () => {
-    for (let day = 1; day <= 10; day++) {
-      for (let wins = 0; wins < day; wins++) {
-        for (let lost = 0; lost < day - wins; lost++) {
-          expect(drawnLabel(day, wins, lost)).toEqual(reachableLabel(day, wins, START_LIVES - Math.min(START_LIVES - 1, lost)));
+    withHearts(() => { // HULL-ON (the flip, HEARTS): it ships on, so the off test sets it off itself
+      for (let day = 1; day <= 10; day++) {
+        for (let wins = 0; wins < day; wins++) {
+          for (let lost = 0; lost < day - wins; lost++) {
+            expect(drawnLabel(day, wins, lost)).toEqual(reachableLabel(day, wins, START_LIVES - Math.min(START_LIVES - 1, lost)));
+          }
         }
       }
-    }
+    }, false);
   });
 
   it("HEARTS on: the hearts after losing the dusks just before the day, a record the hearts model reaches", () => {

@@ -1,7 +1,7 @@
 // RETUNE-1 run 2 step 4 (REQ-BFG-096): the upload guard (src/game/ghostGuard.ts). cap's ruling: "A run without the
 // hearts mark, under rules where heartsFor is true, neither uploads its snapshot (online.ts) nor saves its ghost (ghosts.ts
 // saveGhost). Its match requests stay as they are." With HEARTS off (and on a hearts run) both as today. The switch is set
-// through its setter and put back off after each test.
+// through its setter and put back after each test (HULL-ON: to its shipped value, on; the off tests set it off themselves).
 import { readFileSync } from "node:fs";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { RULES_VERSION, START_LIVES } from "../src/sim/content";
@@ -22,7 +22,7 @@ const NOW = 1_790_000_000_000;
 const OLDER = "bb-0.9.6";
 
 afterEach(() => {
-  setHearts(false);
+  setHearts(true); // HULL-ON (the flip, HEARTS): the shipped value (HULL-ON's flip; was false)
   stopOnline();
 });
 
@@ -67,19 +67,23 @@ async function until(cond: () => boolean, ms = 6000): Promise<void> {
   }
 }
 
-/** A run started with the switch off: no mark, 5 lives (a save from before the bump). */
-const livesRun = (seed: number): Run => takeDawnRune(newRun("weaver", seed));
+/** A run started with the switch off: no mark, 5 lives (a save from before the bump). HULL-ON (the flip, HEARTS): started
+ *  under withHearts(fn, false) (the switch ships on now), as heartsRunAt starts its run under withHearts. */
+const livesRun = (seed: number): Run => takeDawnRune(withHearts(() => newRun("weaver", seed), false));
 /** A run started with the switch on: the mark, 10 hearts. */
 const heartsRunAt = (seed: number): Run => takeDawnRune(withHearts(() => newRun("weaver", seed)));
 
 describe("RETUNE-1 run 2: the upload guard (ghostAllowed)", () => {
   it("HEARTS off: every run's snapshot may go up and into the pool, whatever the rules", () => {
-    expect(heartsFor(RULES_VERSION)).toBe(false);
-    for (const run of [{}, { hearts: true }]) {
-      expect(ghostAllowed(run)).toBe(true);
-      expect(ghostAllowed(run, RULES_VERSION)).toBe(true);
-      expect(ghostAllowed(run, OLDER)).toBe(true);
-    }
+    // HULL-ON (the flip, HEARTS): the switch ships on, so this off test sets it off itself (withHearts(fn, false))
+    withHearts(() => {
+      expect(heartsFor(RULES_VERSION)).toBe(false);
+      for (const run of [{}, { hearts: true }]) {
+        expect(ghostAllowed(run)).toBe(true);
+        expect(ghostAllowed(run, RULES_VERSION)).toBe(true);
+        expect(ghostAllowed(run, OLDER)).toBe(true);
+      }
+    }, false);
   });
 
   it("HEARTS on: a run without the mark is refused under hearts rules (this build's, HEARTS_RULES), allowed under older rules; a hearts run always allowed", () => {
@@ -103,10 +107,13 @@ describe("RETUNE-1 run 2: the local ghost save (saveRunGhost, battle.ts)", () =>
     const hr = heartsRunAt(42);
     expect([old.lives, heartsRun(old), hr.lives, heartsRun(hr)]).toEqual([START_LIVES, false, HEARTS_START, true]);
 
-    // HEARTS off: the unmarked run's ghost joins the pool, as saveGhost does today
+    // HEARTS off: the unmarked run's ghost joins the pool, as saveGhost does today. HULL-ON (the flip, HEARTS): the switch
+    // ships on, so this off half sets it off itself (withHearts(fn, false))
     const off = mem();
-    expect(saveRunGhost(old, ghostOf(old, NOW, "p-off"), off)).toBe(true);
-    expect(loadPool(off).map((g) => [g.runId, g.lives])).toEqual([[old.runId, START_LIVES]]);
+    withHearts(() => {
+      expect(saveRunGhost(old, ghostOf(old, NOW, "p-off"), off)).toBe(true);
+      expect(loadPool(off).map((g) => [g.runId, g.lives])).toEqual([[old.runId, START_LIVES]]);
+    }, false);
 
     setHearts(true);
     const st = mem();
@@ -134,6 +141,7 @@ describe("RETUNE-1 run 2: the upload (Online.submitDusk) and the match request (
   });
 
   it("HEARTS off: an unmarked run's deck goes up once per dusk, as ghostOf, as today", async () => {
+    setHearts(false); // HULL-ON (the flip, HEARTS): the switch ships on, so this off test sets it off (afterEach puts it back)
     const f = fakes(me);
     const s = new Online("https://ghosts.example", f.deps);
     await until(() => s.active);
@@ -150,7 +158,7 @@ describe("RETUNE-1 run 2: the upload (Online.submitDusk) and the match request (
     const s = new Online("https://ghosts.example", f.deps);
     await until(() => s.active);
     const run = livesRun(31);
-    const reqOff = s.request(run);
+    const reqOff = withHearts(() => s.request(run), false); // HULL-ON (the flip, HEARTS): today's request, made with the switch off
     setHearts(true);
     const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
     s.submitDusk(run);

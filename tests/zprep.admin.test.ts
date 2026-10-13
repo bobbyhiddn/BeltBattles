@@ -17,19 +17,26 @@ import { uploadProblems, type StoredRecord } from "../server/ghostAdmin";
 import { encodeRecord } from "../server/store";
 import { TEST_NAME } from "./netIdentity";
 import type { Build } from "../src/sim/deck";
+import { openRunesRules } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the par player's card rule
 
-const D = 5; // five losses (the early-loss refund lifts day 3) leave 1 life at dusk 5: LAST CHANCE fires
+// HULL-ON (the flip, HEARTS): 5 -> 6, the record model of this build's rules is the hearts one (heartsFor): six losses
+// leave 9 8 7 5 3 hearts and then 1 or fewer at dusk 6, so LAST CHANCE fires there and sets 1 heart (on 5 lives five losses,
+// the early-loss refund lifting day 3, left 1 life at dusk 5)
+const D = 6;
 const PLATE = ITEMS.plating.supply!.hull!;
 
-/** An honest upload at dusk 6 after a LAST CHANCE on day D that took `boon`: the par player's deck and run seed. */
+/** An honest upload at dusk 7 after a LAST CHANCE on day D that took `boon`: the par player's deck and run seed. */
 function honest(boon: Boon, hero: HeroId = "furnace", seed = 5): GhostSnapshot {
   const runSeed = parRunSeed(hero, seed);
   const before = playerRun(hero, D, seed)[D - 1].build;
-  const offer = lastChanceOffer(runSeed, D, hero, (before.runes ?? []).map((q) => q.id));
+  // HULL-ON (the flip, OPEN_RUNES): the par player takes the card on the switch's offer rule (open: no runeFits filter), the
+  // rule the server re-derives for this build's rules (openRunesFor(RULES_VERSION))
+  const offer = lastChanceOffer(runSeed, D, hero, (before.runes ?? []).map((q) => q.id), openRunesRules());
   const build = playerRun(hero, D + 1, seed, { lastChance: { day: D, boon } })[D].build;
   const id = boon === "rune" ? offer.rune!.id : boon === "part" ? offer.part! : undefined;
   return {
-    v: SNAPSHOT_V3, rules: RULES_VERSION, hero, day: D + 1, wins: 0, lives: 2, build, runId: `zprep-${hero}-${seed}-${boon}`,
+    // HULL-ON (the flip, HEARTS): lives 2 -> 1 (LAST CHANCE sets 1 heart)
+    v: SNAPSHOT_V3, rules: RULES_VERSION, hero, day: D + 1, wins: 0, lives: 1, build, runId: `zprep-${hero}-${seed}-${boon}`,
     playerId: "p-zprep", createdAt: 1_790_000_000_000, name: TEST_NAME, seed: runSeed, lastChance: { day: D, boon, ...(id ? { id } : {}) },
   };
 }
@@ -64,17 +71,19 @@ describe("Z-PREP: ghosts:admin revalidate and a stored LAST CHANCE upload", () =
         // counted as bought, the part's price) ...
         const old = validateUpload(s.build, s.day, s.rules);
         expect(old.ok, `${hero} ${boon}`).toBe(false);
-        expect(old.errors.join(), `${hero} ${boon}`).toMatch(boon === "rune" ? /^rune: runes: 7 held on day 6, at most one a dawn/ : /^(budget|supply): /);
+        // HULL-ON (the flip, HEARTS): 7 held on day 6 -> 8 held on day 7
+        expect(old.errors.join(), `${hero} ${boon}`).toMatch(boon === "rune" ? /^rune: runes: 8 held on day 7, at most one a dawn/ : /^(budget|supply): /);
       }
     }
     // ... and the record check needs its LAST CHANCE day: 0W 2 lives at dusk 6 after one on day 5, never after one on day 3
-    expect([isReachable(6, 0, 2, { lastChance: D }), isReachable(6, 0, 2, { lastChance: 3 })]).toEqual([true, false]);
+    // HULL-ON (the flip, HEARTS): the hearts record, 0W 1 heart at dusk 7 after one on day 6, never after one on day 3
+    expect([isReachable(7, 0, 1, { lastChance: D }), isReachable(7, 0, 1, { lastChance: 3 })]).toEqual([true, false]);
   });
 
   it("a forged one fails, each with POST's line: a LAST CHANCE on day 3, a part not on offer, the hull twice, 1 life with none", () => {
     const h = honest("hull");
-    expect(uploadProblems(stored({ ...h, lastChance: { day: 3, boon: "hull" } }), RULES_VERSION))
-      .toEqual(["record: 0W 2 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 3"]);
+    expect(uploadProblems(stored({ ...h, lastChance: { day: 3, boon: "hull" } }), RULES_VERSION)) // HULL-ON (HEARTS): 0W 2, dusk 6 -> 0W 1, dusk 7
+      .toEqual(["record: 0W 1 lives is no record a run carries into dusk 7 after a LAST CHANCE on day 3"]);
     const p = honest("part");
     const offered = p.lastChance!.id!;
     const wrong = lastChanceParts().find((d) => d.id !== offered)!.id;
@@ -107,8 +116,11 @@ describe("Z-PREP: ghosts:admin revalidate and a stored LAST CHANCE upload", () =
       `strict decode: snapshot.lastChance: rules ${OLDER} predate ${LAST_CHANCE_RULES}: LAST CHANCE (snapshot.lastChance) needs ${LAST_CHANCE_RULES} or later`,
     ]);
     // the same deck without its lastChance: today's checks, today's words (one rune too many for its day)
+    // HULL-ON (the flip, HEARTS): and the record line too: 0W 1 heart at dusk 7 is no hearts record without its LAST
+    // CHANCE (the loss that left it would have fired one; the 5-life record, 0W 2 lives at dusk 6, was one); 7 held on day
+    // 6 -> 8 held on day 7
     const { lastChance: _lc, ...plain } = s;
-    expect(uploadProblems(stored(plain), RULES_VERSION)).toEqual([`validateUpload: ${validateUpload(plain.build, plain.day, plain.rules).errors.join("; ")}`]);
-    expect(uploadProblems(stored(plain), RULES_VERSION)[0]).toMatch(/^validateUpload: rune: runes: 7 held on day 6, at most one a dawn/);
+    expect(uploadProblems(stored(plain), RULES_VERSION)).toEqual([`validateUpload: ${validateUpload(plain.build, plain.day, plain.rules).errors.join("; ")}`, "record: 0W 1 lives is no record a run carries into dusk 7"]);
+    expect(uploadProblems(stored(plain), RULES_VERSION)[0]).toMatch(/^validateUpload: rune: runes: 8 held on day 7, at most one a dawn/);
   });
 });

@@ -17,6 +17,11 @@ import { PLAYER_DAYS, playerRun } from "../src/sim/harness/player";
 import { LADDER_DEFS, LADDER_FIX, ladderFixRules, setLadderFix, withLadderFix } from "../src/sim/ladderFix";
 import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip, NPC_DAY): the par player's bb-0.9.7 runs, the NPC day off
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): the same runs, 0.9.7's gold table
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip): the same runs, all eight switches off (bb-0.9.7's)
+import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip)
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip)
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip)
+import { withPick } from "../src/net/pick"; // HULL-ON (the flip)
 import { effectAt } from "../src/sim/stars";
 import { barge, bench, SEED } from "./arsenal.bench";
 import { K, item, withItem, withMod } from "./wave3.helpers";
@@ -280,7 +285,13 @@ describe("HULL-1b the par player's six runs (tests/harness.player's buy floor: n
     // player fights the Medium warlord every day (road gold and drops in its deck) and HULL_SCALE moves its gold table
     // (maxGoldByDay), so the off half sets all three off (LADDER_FIX off alone read 13 / 15 / 16 / 17 / 14 / 16, the other
     // two on); the on half is the shipped game, every switch on
-    const off = withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false), on = withLadderFix(buys);
+    // HULL-ON (the flip, GUARD, OPEN_RUNES, FREE_JOINS): the all-off world has five more switches now, so the off half sets
+    // them off too (all eight off). One at a time, each off alone beside the three: GUARD 14 / 15 / 13 / 15 / 12 / 15 (its
+    // plate and shield numbers), OPEN_RUNES 14 / 16 / 13 / 15 / 9 / 16 (the open dawn runes), FREE_JOINS 12 / 15 / 13 / 13 /
+    // 12 / 18 (no join limit in its plans), HEARTS and PICK none (14 / 14 / 13 / 15 / 12 / 16, as the five on); all five
+    // off: bb-0.9.7's six
+    const allOff = <T>(f: () => T): T => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(f, false), false), false), false), false);
+    const off = allOff(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false)), on = withLadderFix(buys);
     log(`BUYS FURNACE s1-s3, WEAVER s1-s3: off ${off.join(" / ")}; on ${on.join(" / ")}`);
     expect(off).toEqual([12, 15, 13, 14, 10, 16]); // bb-0.9.7's, as tests/harness.player pins them
     for (const n of on) expect(n).toBeGreaterThan(0);

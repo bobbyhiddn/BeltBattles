@@ -26,8 +26,9 @@
 
 import { JOIN_PACE } from "./content";
 
-/** THE switch (REQ-BFG-091), off in this rules version (bb-0.9.7). */
-export const FREE_JOINS: boolean = false;
+/** THE switch (REQ-BFG-091): on, from HULL-ON's flip (bb-0.10.0). Its setter, withFreeJoins and the off path stay this
+ *  release, for older records (rulesGate.ts freeJoinsFor) and the tests that measure the off world. */
+export const FREE_JOINS: boolean = true;
 
 let fjOn = false;
 

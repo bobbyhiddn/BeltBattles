@@ -13,6 +13,7 @@ import { driveRun } from "./uploadDriver";
 import { snap, upSnap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): day 1's record on hearts
 
 // v070-validate M2: the two call sites that now use the player mode, end to end. POST /v1/ghosts
 // (server/app.ts) and fetchGhost's check of a served ghost (ghostClient.ts) accept an honest player deck the
@@ -73,7 +74,9 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
     // a day-1 deck with the dock's +200 hull (NUM-1: x10, was +20): strict refuses it (off the plating grid), the server stores it
     expect([DOCK_PLATING, RIDE_THROUGH, PLATE]).toEqual([200, -100, 250]); // NUM-1: x10 (was 20, -10, 25)
     // FLIP-X2: upSnap: day 1's rune, v3 (was snap's rune-less v1 deck)
-    const dock = upSnap({ lives: 5, build: { ...snap().build, hullBonus: DOCK_PLATING } }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
+    // 0.8.0 H2 (a): day 1's one reachable record. HULL-ON (the flip, HEARTS): 0W 5 lives -> 0W HEARTS_START (10 hearts):
+    // under this build's rules a run starts with 10 hearts (POST answered 422 "record: 0W 5 lives is no record ...")
+    const dock = upSnap({ lives: HEARTS_START, build: { ...snap().build, hullBonus: DOCK_PLATING } });
     expect(validateBuild(dock.build, 1).ok).toBe(false);
     expect(await submitGhost(base, ownedBy(dock, me), me, 3000)).toMatchObject({ ok: true });
     // over the player ceiling: refused on budget (day 1 allows maxHonestSpend(1) = 13 on 40d2b2c, was 15; 4 plates cost 20)

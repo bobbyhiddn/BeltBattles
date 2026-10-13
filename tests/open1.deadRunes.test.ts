@@ -14,6 +14,11 @@
 //     else (WEAVER: its DART GUNs take one belt each) a par deck with a CARRONADE (two intakes, any hero's shop) in a slot
 //     one of its belts feeds and another of its belts laid anew, shortest, into the other intake (the harness's own path
 //     search), the belts that fed nothing else dropped while the belt is short and cheaper rigs while the budget is.
+// HULL-ON (the flip, FREE_JOINS; cap's ruling 6f4568477e66a600 item 2), the one exception: when a part deck's two ways find
+// nothing on these par decks, the same two ways run on the JOIN-LIMITED par decks (the same parField call with FREE_JOINS
+// off: at most 2 joins per deck, so a deck the hero can build under bb-0.10.0 too), labelled "join-limited par day 9 #1:
+// ...". Everything else is the shipped world's: the par decks of days 3, 6 and 9, the two-intake deck, the foes, every
+// fight and every strict check.
 // Each fights each hero's par deck of that day (member 1, bare) once, from side 0, on a fixed seed; the part decks first.
 // A rune FIRES in a fight when anything in the battle's record differs from the same fight without it (the sim
 // fingerprint's record: the winner, the time, both hulls, every SideStats field and a tally of every sim event). The test
@@ -28,6 +33,7 @@ import { beltUsed, cloneBuild, connectorClaims, feedOf, hero, hullSlots, itemByU
 import { parField } from "../src/sim/harness/par";
 import { blockedCells, randomPath, shortestTiles, startCells } from "../src/sim/harness/path";
 import { LONG_ROAD_PCT, OPEN_RUNE_DEFS, openRunesRules, withOpenRunes } from "../src/sim/openRunes";
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (FREE_JOINS; cap's ruling 6f4568477e66a600 item 2): the part decks' join-limited tier
 import { RUNES, type RuneDef } from "../src/sim/runes";
 import { validateBuild } from "../src/net/validate";
 import { npcDayRules } from "../src/sim/npcDay"; // HULL-ON (NPC_DAY ships on): the par decks' budget line (strictBut)
@@ -78,6 +84,14 @@ const pars = (h: HeroId, day: number): Build[] => {
   if (!PAR.has(k)) PAR.set(k, parField(h, day, MEMBERS, { botRunes: false }));
   return PAR.get(k)!;
 };
+/** HULL-ON (the flip, FREE_JOINS; cap's ruling 6f4568477e66a600 item 2): the join-limited par decks, for the part decks'
+ *  fallback tier only (partDeck). The same parField call with FREE_JOINS off (at most 2 joins per deck), cached under its
+ *  own key, not PAR's: a deck the hero can build under bb-0.10.0 too (the strict check takes any number of legal joins). */
+const joinLimitedPars = (h: HeroId, day: number): Build[] => {
+  const k = `join-limited:${h}:${day}`;
+  if (!PAR.has(k)) PAR.set(k, withFreeJoins(() => parField(h, day, MEMBERS, { botRunes: false }), false));
+  return PAR.get(k)!;
+};
 const foeOf = (h: HeroId, day: number): Build => pars(h, day)[0];
 const seedOf = (h: HeroId, day: number, deck: number, foe: number): number => 7919 * day + 104729 * deck + 31 * foe + HEROES.indexOf(h);
 
@@ -116,16 +130,23 @@ function affordable(c: Build, day: number, keep: ReadonlySet<number>): Build | n
   return null;
 }
 
-/** 2. A part deck (see the header). */
+/** 2. A part deck (see the header): its two ways on the par decks. HULL-ON (the flip, FREE_JOINS; cap's ruling
+ *  6f4568477e66a600 item 2): only when they find nothing, the same two ways on the join-limited par decks (joinLimitedPars);
+ *  the fights and the strict check stay the shipped world's. */
 function partDeck(h: HeroId, part: string, probe: string, mustHold: boolean): Fixed | null {
+  return partTiers(h, part, probe, mustHold, pars, "par") ?? partTiers(h, part, probe, mustHold, joinLimitedPars, "join-limited par");
+}
+
+/** partDeck's two ways on the par decks `src` gives (labelled `name`). */
+function partTiers(h: HeroId, part: string, probe: string, mustHold: boolean, src: (h: HeroId, day: number) => Build[], name: string): Fixed | null {
   for (const day of [9, 6, 3]) {
-    for (const [i, b] of pars(h, day).entries()) {
+    for (const [i, b] of src(h, day).entries()) {
       if (mustHold && !b.items.some((p) => p.def === part)) continue;
-      if (firesIn(h, b, day, probe)) return { label: `par day ${day} #${i + 1}${b.items.some((p) => p.def === part) ? ` (its own ${ITEMS[part].name})` : ""}`, day, build: b };
+      if (firesIn(h, b, day, probe)) return { label: `${name} day ${day} #${i + 1}${b.items.some((p) => p.def === part) ? ` (its own ${ITEMS[part].name})` : ""}`, day, build: b };
     }
   }
   for (const day of [9, 6, 3]) {
-    for (const [i, b] of pars(h, day).entries()) {
+    for (const [i, b] of src(h, day).entries()) {
       for (const p of b.items) {
         const d = ITEMS[p.def];
         if (d.kind !== "gate" || d.size !== 1 || p.def === part) continue;
@@ -138,7 +159,7 @@ function partDeck(h: HeroId, part: string, probe: string, mustHold: boolean): Fi
           if (rot) q.rot = rot;
           else delete q.rot;
           const e = affordable(c, day, new Set([p.uid]));
-          if (e && firesIn(h, e, day, probe)) return { label: `par day ${day} #${i + 1}: its ${d.name} at (${p.x}, ${p.y}) made a ${stars > 1 ? `★${stars} ` : ""}${ITEMS[part].name} (turn ${rot}), ${b.items.length - e.items.length} cheaper rig(s) dropped`, day, build: e };
+          if (e && firesIn(h, e, day, probe)) return { label: `${name} day ${day} #${i + 1}: its ${d.name} at (${p.x}, ${p.y}) made a ${stars > 1 ? `★${stars} ` : ""}${ITEMS[part].name} (turn ${rot}), ${b.items.length - e.items.length} cheaper rig(s) dropped`, day, build: e };
         }
       }
     }
@@ -257,17 +278,22 @@ describe("OPEN-1: no rune is dead for any hero (REQ-BFG-109)", () => {
       }
       return out;
     });
-    expect(openRunesRules()).toBe(false);
+    expect(openRunesRules()).toBe(true); // HULL-ON (the flip, OPEN_RUNES): withOpenRunes puts back the shipped value, on (was false)
     console.log(lines.join("\n"));
-  }, 60_000);
+    // HULL-ON (the flip, FREE_JOINS; cap's ruling 6f4568477e66a600 item 2), rule 6: 60 s -> 140 s. WEAVER's HEAT and PLATE
+    // searches on the shipped par decks now run in full and find nothing, and the join-limited tier adds 3 parField calls
+    // and its own searches: measured 65.7 s in a t1 run of this file alone (19:54Z), so at least 2x that
+  }, 140_000);
 
   it("with OPEN_RUNES on, every rune of the RUNES table fires for every hero in at least one of its fixed decks", () => {
     const dead = withOpenRunes(() => deadPairs());
-    expect(openRunesRules()).toBe(false);
+    expect(openRunesRules()).toBe(true); // HULL-ON (the flip, OPEN_RUNES): withOpenRunes puts back the shipped value, on (was false)
     expect(dead).toEqual([]);
   }, 60_000);
 
-  it("THE LONG ROAD's rewrite: open, +6% DMG PER RIG A LOAD PASSES (priorPct), name, tier, theme kept, its card lines in the band; off, the very base def", () => {
+  // HULL-ON (the flip, OPEN_RUNES): "off, the very base def" needs the switch off; it ships on, so the test sets it off
+  // itself (base = the off catalogue's def, read before the on half and again after it)
+  it("THE LONG ROAD's rewrite: open, +6% DMG PER RIG A LOAD PASSES (priorPct), name, tier, theme kept, its card lines in the band; off, the very base def", () => withOpenRunes(() => {
     const base = RUNES.long_road;
     expect(Object.keys(OPEN_RUNE_DEFS)).toEqual(["long_road"]);
     expect(base.kind).toBe("rideMul");
@@ -283,5 +309,5 @@ describe("OPEN-1: no rune is dead for any hero (REQ-BFG-109)", () => {
       expect(runeReminder(d)).toBe(runeReminder(RUNES.toll_road));
     });
     expect(RUNES.long_road).toBe(base);
-  });
+  }, false));
 });

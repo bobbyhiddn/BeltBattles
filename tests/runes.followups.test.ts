@@ -14,6 +14,7 @@ import { isSnapshot } from "../src/game/ghostSnapshot";
 import { ghostOf, finishDay } from "../src/game/day";
 import { RUNE_FIRST, fightRefusal, newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { RULES_VERSION } from "../src/sim/content";
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the old-rules fixture on its rules' 5 lives
 import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a whole rate % on the speed, 30 / speed
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts setSpeed)
 import { RUNES } from "../src/sim/runes";
@@ -90,7 +91,11 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
   });
 
   it("the client's isSnapshot asks the gate as the strict decoder does: both refuse runes under bb-0.8.6, both take bb-0.8.7", () => {
-    const g = ghostOf(twoRunes(), 1000, "p1", null);
+    // HULL-ON (the flip, HEARTS): the run is made under withHearts(fn, false), so its snapshot and the older-rules copies made
+    // from it (bb-0.8.6, bb-8, bb-0.7.0) carry those rules' scale, 5 lives: a hearts run's 10 is over the decoder's lives bound
+    // under rules before HEARTS_RULES (9, rulesGate.ts livesCapFor), which refused it ("snapshot.lives: expected an integer
+    // in 1..9") before the rules gate under test
+    const g = withHearts(() => ghostOf(twoRunes(), 1000, "p1", null), false);
     expect(g.build.runes!.length).toBe(2);
     expect(isSnapshot(g)).toBe(true);
     expect(refused(g)).toBeNull();

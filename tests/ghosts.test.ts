@@ -9,7 +9,8 @@ import { beginRoad, choicesFor, pickChoice } from "../src/game/events";
 import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad } from "../src/game/road"; // AZ-BUMP (the flip): the NPC day's fight
 import { startingBuild } from "../src/sim/ai";
 import { RIVALS, standInBuild, standInGhost } from "../src/sim/rivals";
-import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES } from "../src/sim/content";
+import { HEROES, RULES_VERSION, RUN_DAYS } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a run's 10 hearts (was START_LIVES, 5)
 import { beltUsed } from "../src/sim/deck";
 import { Battle, simulate, type SideStats } from "../src/sim/battle";
 
@@ -118,7 +119,8 @@ describe("pickGhost", () => {
     expect(f.kind).toBe("ghost");
     expect(f.build).toEqual(g.build);
     // 0.6.0b: a ghost is named by its hero, wins and lives going into dusk (no W-L)
-    expect(f.name).toBe(`GHOST · ${HEROES.weaver.name} · 0W 5♥`);
+    // HULL-ON (the flip, HEARTS): 5♥ -> 10♥: the ghost's run started with HEARTS_START hearts, and the tag reads hearts
+    expect(f.name).toBe(`GHOST · ${HEROES.weaver.name} · 0W ${HEARTS_START}♥`);
     const b = new Battle(me.build, f.build, battleSeed(me));
     while (!b.over && b.ticks < 60 * 200) b.step();
     const ref = simulate(me.build, g.build, battleSeed(me));
@@ -167,7 +169,7 @@ describe("soft-lock sweep: 300 seeded 10-day runs against a filling pool", () =>
         if (pool.length > 300) pool.shift();
         expect(run.gold).toBeGreaterThanOrEqual(0);
         expect(run.lives).toBeGreaterThanOrEqual(0);
-        expect(run.lives).toBeLessThanOrEqual(START_LIVES);
+        expect(run.lives).toBeLessThanOrEqual(HEARTS_START); // HULL-ON (the flip, HEARTS): START_LIVES (5) -> HEARTS_START (10)
         const uids = [...run.inventory.map((i) => i.uid), ...run.build.items.map((p) => p.uid), ...run.build.mods.map((m) => m.uid)];
         expect(new Set(uids).size).toBe(uids.length);
         expect(beltUsed(run.build)).toBeLessThanOrEqual(run.build.beltCap);

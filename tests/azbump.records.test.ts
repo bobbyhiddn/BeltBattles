@@ -9,7 +9,8 @@
 // clean; without its road log, or with a forged drop, it is refused; stamped bb-0.9.7 its road log is the decoder's refusal.
 import { afterEach, describe, expect, it } from "vitest";
 import type { SideStats } from "../src/sim/battle";
-import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
+import { ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): this build's records are on the hearts scale
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { dropPool, npcDayRules, roadDropValue, setNpcDay, withNpcDay } from "../src/sim/npcDay";
 import { hullScaleRules, withHullScale } from "../src/sim/hullScale";
@@ -132,7 +133,11 @@ describe("AZ-BUMP S6: a stored record is judged by its own rules (validate.ts in
     expect(forged[0]).toMatch(new RegExp(`^validateUpload: road: day ${e.day}: the seeded roll of .+ gave ${e.drop}, not ${other}`));
     // the same honest record's text stamped bb-0.9.7: the decoder's gate refuses its road log, before any other check
     const rec = stored(top);
-    const older: StoredRecord = { ...rec, text: rec.text.replace(`"rules":"${RULES_VERSION}"`, `"rules":"${OLD}"`) };
+    // HULL-ON (the flip, HEARTS): the stamped copy also writes the lives its own rules mean. The honest run won every dusk:
+    // HEARTS_START (10) hearts on bb-0.10.0's scale, START_LIVES (5) lives on bb-0.9.7's, whose decoder bound is 9
+    // (rulesGate.ts livesCapFor), so a stamped 10 was refused first ("snapshot.lives: expected an integer in 1..9")
+    expect(top.lives).toBe(HEARTS_START);
+    const older: StoredRecord = { ...rec, text: rec.text.replace(`"rules":"${RULES_VERSION}"`, `"rules":"${OLD}"`).replace(`"lives":${HEARTS_START},`, `"lives":${START_LIVES},`) };
     expect(older.text).not.toBe(rec.text);
     expect(uploadProblems(older, OLD)).toEqual([`strict decode: snapshot.road: rules ${OLD} predate ${NPC_DAY_RULES}: the road log (snapshot.road) needs ${NPC_DAY_RULES} or later`]);
   }, 120_000);

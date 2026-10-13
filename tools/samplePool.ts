@@ -62,6 +62,16 @@ import { GRADE_K, GRADE_SEEDS, pickRules } from "../src/net/pick"; // RETUNE-1 T
 import { parField } from "../src/sim/harness/par"; // RETUNE-1 T5: the grade's par fields
 import { playJob, type Job } from "../src/sim/harness/tournament"; // RETUNE-1 T5: a pairing's points
 import { encodeStarred, standInParIndex, standInPickIndex, standInPool, type StandInEntry } from "../src/sim/standInPool";
+// HULL-ON (REQ-BFG-092; cap's ruling 9c114aab5ba18dfe): the grade memo's world key reads every switch the grades read. Each
+// of these modules is already loaded by the imports above (player.ts, deck.ts, runes.ts), so these lines, last in the
+// list, change no module's load order (Q1's lesson, ruling 12a42239093fb6ec)
+import { sustainLive, wave3Live } from "../src/sim/content";
+import { hullScaleRules } from "../src/sim/hullScale";
+import { ladderFixRules } from "../src/sim/ladderFix";
+import { guardRules } from "../src/sim/guard";
+import { openRunesRules } from "../src/sim/openRunes";
+import { freeJoinsRules } from "../src/sim/freeJoins";
+import { BOT_RUNES } from "../src/sim/runes";
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -377,8 +387,46 @@ const GRADE_HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastio
  * (a draw half) against the four par fields' first `k` members of its day (harness/par.ts parField), `seeds` seeds from
  * both sides (tournament.ts playJob), seeded as tools/retune1.ts --mode pool's grade was (so the pick ships as measured).
  * In-process: K 6 x 1 seed is 24 pairings x 2 battles a ghost, 5,760 battles for the 120-ghost pool.
+ * HULL-ON (REQ-BFG-092; cap's ruling 9c114aab5ba18dfe): memoised per process (GRADE_MEMO below): the same grading, done
+ * once; a hit returns a copy.
  */
 export function gradeSamplePool(pool: readonly GhostSnapshot[], k: number = GRADE_K, seeds: number = GRADE_SEEDS): number[] {
+  const key = gradeMemoKey(pool, k, seeds);
+  const hit = GRADE_MEMO.get(key);
+  if (hit) return hit.slice();
+  const grades = gradePool(pool, k, seeds);
+  GRADE_MEMO.set(key, grades.slice());
+  return grades;
+}
+
+/**
+ * HULL-ON (REQ-BFG-092; cap's ruling 9c114aab5ba18dfe): gradeSamplePool's per-process memo. With PICK on (the flip), every
+ * generateSamplePool() grades its pool (the seed step's default bundle: seedStore, and 31 test files), ~150 s for the 120
+ * ghosts, and the grading was not cached, while the par runs it reads are (player.ts CACHE): seed.test.ts and
+ * ghost-admin.test.ts could no longer finish. The grading is deterministic, so it is done once a process for one key. The
+ * key, made at call time, holds everything the grades read: k and seeds; the pool's ghost ids IN ORDER (the index seeds
+ * the battles; ghostId hashes the snapshot without its grade, so a changed build or day misses); and the world: every
+ * switch player.ts's CACHE key reads (the bots' runes, sustain, HULL_SCALE, LADDER_FIX, NPC_DAY, GUARD, OPEN_RUNES,
+ * FREE_JOINS), plus wave 3, HEARTS and PICK. A missing part would serve stale grades, an extra one only re-grades. No grade
+ * and no pool changes; nothing is written.
+ */
+const GRADE_MEMO = new Map<string, number[]>();
+
+function gradeMemoKey(pool: readonly GhostSnapshot[], k: number, seeds: number): string {
+  const world = [BOT_RUNES, sustainLive(), wave3Live(), hullScaleRules(), ladderFixRules(), npcDayRules(), guardRules(),
+    openRunesRules(), freeJoinsRules(), heartsRules(), pickRules()].map((on) => (on ? "1" : "0")).join("");
+  return `${k}|${seeds}|${world}|${pool.map((s) => ghostId(s)).join(",")}`;
+}
+
+/** HULL-ON (cap's ruling 9c114aab5ba18dfe): the memo's hook for tests/hullon.grademem.test.ts: its size; clear it first
+ *  when `clear` is true. */
+export function gradeMemo(clear = false): number {
+  if (clear) GRADE_MEMO.clear();
+  return GRADE_MEMO.size;
+}
+
+/** The grading itself (gradeSamplePool's body before the memo, unchanged). */
+function gradePool(pool: readonly GhostSnapshot[], k: number, seeds: number): number[] {
   return pool.map((s, gi) => {
     let pts = 0, n = 0;
     for (const h of GRADE_HEROES) {

@@ -24,12 +24,13 @@
 // travels as v3; an upload under any other rules is the rune-less v2 deck an older client sent (runes need bb-0.8.7). The
 // game's own runs take each dawn's rune (pendingRune, takeRune), and a 0.8.4 page's dusk carries neither runes nor a seed.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { HEROES, ITEMS, RULES_VERSION, UPGRADE_TRACKS, type HeroId } from "../src/sim/content";
+import { HEROES, ITEMS, RULES_VERSION, START_LIVES, UPGRADE_TRACKS, type HeroId } from "../src/sim/content";
+import { HEARTS_START, withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): records on each rules' scale
 import { hullSlots, key as K, setTurretList, startingTurrets, type Build, type BuildTurret } from "../src/sim/deck";
 import { simulate, type SideStats } from "../src/sim/battle";
 import { heroRefBuild, heroStartBuild, PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { gradeOf, outputsAt, upgradeGold } from "../src/sim/stars";
-import { HEROES_RULES, heroesFor, parseRules, rulesAtLeast, rulesGateProblem } from "../src/net/rulesGate";
+import { HEROES_RULES, heartsFor, heroesFor, parseRules, rulesAtLeast, rulesGateProblem } from "../src/net/rulesGate";
 import { isReachable } from "../src/net/records";
 import { encodeSnapshot, ghostId, SnapshotError, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { buildCost, maxGoldByDay, maxHonestSpend, validateBuild, validateUpload } from "../src/net/validate";
@@ -66,7 +67,11 @@ const slotError = (name: string, routes: number, outs: number) => `route: ${name
  *  rune-less v2 deck an older client sent (with runes the decoder's rules gate would refuse it first, a 400). */
 function dusk(hero: HeroId, day: number, build: Build, rules = RULES_VERSION, runId = `belts-${hero}-${day}`): GhostSnapshot {
   const now = rules === RULES_VERSION;
-  return { v: now ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives: 5, build: now ? withDawnRunes(build, day) : build, runId, playerId: `p-${hero}`, createdAt: T0 };
+  // HULL-ON (the flip, HEARTS): every fight won is all HEARTS_START (10) hearts under this build's rules (heartsFor: the
+  // hearts record model, where 0W 5 lives is no record a run carries into dusk 1: 422); older rules keep their 5 lives
+  // (their 5-lives model and the decoder's lives bound 9). Was lives: 5 on every rules
+  const lives = heartsFor(rules) ? HEARTS_START : START_LIVES;
+  return { v: now ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives, build: now ? withDawnRunes(build, day) : build, runId, playerId: `p-${hero}`, createdAt: T0 };
 }
 
 /** FLIP-X2: the upload check of `b` holding its day's runes (the rune-less deck fails the exact count first). */
@@ -135,12 +140,17 @@ async function until(cond: () => boolean, ms = 8000): Promise<void> {
  *  FLIP-X2: and its snapshot as a 0.8.4 page writes it: v2, no runes and no seed (bb-0.8.0 had neither; this build's v3
  *  dusk with runes under bb-0.8.0 is refused by the encoder's rules gate before any request). */
 function as080(identity: Identity, sent: GhostSnapshot[] = []): OnlineDeps {
+  // HULL-ON (the flip, HEARTS): a 0.8.4 page plays 0.8.0's 5 lives, so its request and its dusk carry lives on that scale
+  // (at most START_LIVES: day 1's 5). This build's run holds HEARTS_START (10) hearts, past bb-0.8.0's lives bound
+  // (livesCapFor: 9), so the match route answered 400 and the upload would get a 400 before the rules check (was the
+  // run's own lives)
+  const lives080 = (lives: number) => Math.min(lives, START_LIVES);
   return {
-    fetchGhost: (url, req, ms, o) => fetchGhost(url, { ...req, rules: OLD_RULES }, ms, o),
+    fetchGhost: (url, req, ms, o) => fetchGhost(url, { ...req, rules: OLD_RULES, lives: lives080(req.lives) }, ms, o),
     submitGhost: (url, snap, id, ms) => {
       const { seed: _seed, ...rest } = snap;
       const { runes: _runes, ...build } = snap.build;
-      const old = { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build };
+      const old = { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build, lives: lives080(snap.lives) };
       sent.push(old);
       return submitGhost(url, old, id, ms);
     },
@@ -193,7 +203,10 @@ describe("rules bb-0.8.7: the version and its decks", () => {
       expect(validateBuild(b, 1).errors.some((e) => e.startsWith("budget: build costs 60 gold") && e.endsWith("day 1 allows at most 8"))).toBe(true);
       expect(validateBuild(b, 6).errors).toEqual([]);
     }
-    for (const day of [1, 3, 4, 5, 6]) expect(isReachable(day, day - 1, 5), `day ${day}`).toBe(true);
+    // HULL-ON (the flip, HEARTS): dusk()'s record under this build's rules is every fight won at HEARTS_START (was 5 lives:
+    // the hearts record model reaches no 0W 5 at dusk 1); the 5-lives record stays reachable with HEARTS off (the off check)
+    for (const day of [1, 3, 4, 5, 6]) expect(isReachable(day, day - 1, HEARTS_START), `day ${day}`).toBe(true);
+    for (const day of [1, 3, 4, 5, 6]) expect(withHearts(() => isReachable(day, day - 1, START_LIVES), false), `day ${day} off`).toBe(true);
   });
 });
 
@@ -207,7 +220,12 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
     me = await testIdentity(1);
     setPlayerName(TEST_NAME); // PACKS M2 (REQ-BFG-063): the device has a player name, so the game's own client uploads it
     await seedStore(app.store);
-  }, 120_000); // the seed builds the race ghosts (the par player's runs): seconds, more under load
+  }, 600_000); // the seed builds the race ghosts (the par player's runs): seconds, more under load
+  // HULL-ON (the flip, PICK; the GATE RULE, cap's ruling 9c114aab5ba18dfe): 120 s -> 600 s. seedStore's default pool,
+  // generateSamplePool(), grades every seed ghost with PICK on (samplePool.ts gradeSamplePool); the first store's hook pays
+  // that one grading (the second store's hits the per-process memo). Measured alone: the whole file 230 s (cap_alpha,
+  // 18:57-19:01Z, this hook timed out at 120 s), so 600 s is over 2x; under heavy load (four t1 runs at once) both stores'
+  // hooks together took 458 s, green
   afterAll(async () => {
     await app.close();
     await backend.teardown();
@@ -407,7 +425,10 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
     // AZ-BUMP S7L (the cause LOSS-1 P2, 5f3ac64, merged at 3b19771): the floor ghosts now carry their casual run's road log
     // (v3 only: "snapshot.road: not allowed in a v2 snapshot"), which a bb-0.8.0 pool never held, so the copy drops it too,
     // as it drops the runes and the seed (snapshot.contract and h2.nearmiss drop it the same way since the flip)
-    const pool080: GhostSnapshot[] = [...sampleGhosts(), ...floorGhosts()].map((s): GhostSnapshot => {
+    // HULL-ON (the flip, HEARTS): a bb-0.8.0 pool's records are on its rules' 5 lives, so its ghosts are labelled with
+    // HEARTS off (drawnLabel's and floorRecord's 5-lives path, as before the flip). Labelled on hearts they reach 10, past
+    // bb-0.8.0's lives bound (livesCapFor: 9): "snapshot.lives: expected an integer in 1..9" at ghostId
+    const pool080: GhostSnapshot[] = withHearts(() => [...sampleGhosts(), ...floorGhosts()], false).map((s): GhostSnapshot => {
       const { seed: _seed, road: _road, ...rest } = s;
       const { runes, ...build } = s.build;
       const g = runeGrants(runes, s.day);
@@ -426,7 +447,9 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
       const now = await ask(RULES_VERSION, 3); // this build still meets bb-0.8.7 ghosts only
       expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe(RULES_VERSION);
       const run = newRun("weaver", 8081);
-      const up = await submitGhost(base, { ...ghostOf(run, T0, me.playerId), rules: OLD_RULES }, me, 3000);
+      // HULL-ON (the flip, HEARTS): the 0.8.4 page's day-1 dusk on 0.8.0's 5 lives (START_LIVES); this build's new run
+      // holds HEARTS_START (10), past bb-0.8.0's lives bound 9 (was the run's own lives)
+      const up = await submitGhost(base, { ...ghostOf(run, T0, me.playerId), rules: OLD_RULES, lives: START_LIVES }, me, 3000);
       expect(up).toMatchObject({ ok: false, status: 422, error: refused(OLD_RULES) });
     } finally {
       await app.store.replacePool(OLD_RULES, []);

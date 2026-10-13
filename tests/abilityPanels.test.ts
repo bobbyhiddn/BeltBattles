@@ -28,6 +28,7 @@ import { icons, stripIcons } from "../src/render/font"; // U2c step 4
 import { resolveCore } from "../src/sim/cores"; // U2c step 4
 import { glossaryEntry, glossaryText } from "../src/ui/glossary"; // U2c step 4: COMPOUND BREECH's hold, its tap text
 import { MODULES, STARS, SUPPLIES, banned, numbers, repeats, sentencesOf, starsOf } from "./textRules";
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the join pace words with the switch off
 
 // 0.6.2t (REQ-BFG-032): the panels. T6's phone fit for every buyable module at every star (rigs, factories, cores,
 // gear and supplies; placed, in cargo, on offer and fitted), with KNOWN_PHONE_CUTS empty and the flavour whole or absent
@@ -615,8 +616,14 @@ describe("0.6.2rel: the join rows and the turret panels read by the text rules",
     }
     // a joining belt's sub line: two short sentences (the desk column breaks it after the first); 0.6.2rel3: the first
     // says its factory's pace (TUNE-M, RULE JOIN PACE)
-    expect(routePanel(joinRun(), 1)!.sub).toBe("JOINS BELT 1 AT 70% PACE. FEEDS TURRET 1.");
-    expect(planPanel(routePanel(joinRun(), 1)!, DESK).subs).toEqual(["JOINS BELT 1 AT 70% PACE.", "FEEDS TURRET 1."]);
+    // HULL-ON (the flip, FREE_JOINS): "JOINS BELT 1 AT 70% PACE. FEEDS TURRET 1." -> "JOINS BELT 1. FEEDS TURRET 1.", no RULE
+    // JOIN PACE with the switch on (shipped); the desk column still breaks it after the first; with FREE_JOINS off, as before
+    expect(routePanel(joinRun(), 1)!.sub).toBe("JOINS BELT 1. FEEDS TURRET 1.");
+    expect(planPanel(routePanel(joinRun(), 1)!, DESK).subs).toEqual(["JOINS BELT 1.", "FEEDS TURRET 1."]);
+    withFreeJoins(() => {
+      expect(routePanel(joinRun(), 1)!.sub).toBe("JOINS BELT 1 AT 70% PACE. FEEDS TURRET 1.");
+      expect(planPanel(routePanel(joinRun(), 1)!, DESK).subs).toEqual(["JOINS BELT 1 AT 70% PACE.", "FEEDS TURRET 1."]);
+    }, false);
   });
 
   it("0b.2 on the join rows: no lone short word on a last line where pulling one more word down still fits", () => {
@@ -1196,7 +1203,10 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
 
   it("nit 5: every belt's sub is whole sentences: a main belt's ends with a full stop, as a joining belt's does", () => {
     const run = joinRun();
-    expect([routePanel(run, 0)!.sub, routePanel(run, 1)!.sub]).toEqual(["FEEDS TURRET 1.", "JOINS BELT 1 AT 70% PACE. FEEDS TURRET 1."]);
+    // HULL-ON (the flip, FREE_JOINS): "JOINS BELT 1 AT 70% PACE. ..." -> "JOINS BELT 1. ...", no RULE JOIN PACE with the
+    // switch on (shipped); with FREE_JOINS off, as before
+    expect([routePanel(run, 0)!.sub, routePanel(run, 1)!.sub]).toEqual(["FEEDS TURRET 1.", "JOINS BELT 1. FEEDS TURRET 1."]);
+    expect(withFreeJoins(() => routePanel(run, 1)!.sub, false)).toBe("JOINS BELT 1 AT 70% PACE. FEEDS TURRET 1.");
     for (const { id, t } of PANELS.filter((p) => p.kind === "belt")) expect(t.sub, id).toMatch(/^([A-Z0-9% ]+\. )*[A-Z0-9% ]+\.$/);
   });
 

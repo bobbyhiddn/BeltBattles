@@ -3,7 +3,7 @@
 // join refuses a new one past the limit wherever it is drawn (newJoinProblem). A deck with at most 2 joins reads and
 // fights exactly as at RULE JOIN PACE (be69974): the fixture fingerprint OUT/tune/verify/joinfp.test.ts, run in both
 // trees, is byte-identical for 0, 1 and 2 joins and differs for 3. A saved deck with 3 keeps its first two.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { JOIN_LIMIT, JOIN_PACE } from "../src/sim/content";
 import {
@@ -17,7 +17,9 @@ import { parRunSeed, playerRoadLog, playerRun } from "../src/sim/harness/player"
 import { Editor, type EditHost } from "../src/screens/build/edit";
 import type { Sel } from "../src/screens/build/layout";
 import { frame as deckFrame } from "../src/render/frame";
-import { HELP } from "../src/screens/title";
+import { HELP, helpLine3 } from "../src/screens/title";
+import { setFreeJoins, withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the rule holds with the switch off
+import { openRunesRules } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the par decks' dawn runes
 
 // FURNACE (tests/joins.sim.test.ts's deck): M = the KILN's belt up column 4 into the turret; R1..R3 = the belts of a
 // STAMP PRESS, a DOUBLE STAMP and a SHOT TOWER (three defs: validateBuild refuses an unfused pair) joining M at (4,4),
@@ -40,6 +42,12 @@ function deck(routes: RouteDef[]): Build {
 const legalJoins = (b: Build): number => b.routes.filter((_, i) => joinOf(b, i) !== undefined).length;
 const FOE: Build = { hero: "weaver", items: [{ uid: 1, def: "loom", x: 4, y: 6 }], routes: [], mods: [], beltCap: 24, hullBonus: 100000 };
 
+// HULL-ON (the flip, FREE_JOINS): FREE_JOINS ships on (no RULE JOIN LIMIT, no RULE JOIN PACE; tests/freejoins.test.ts), and
+// older rules keep both (freeJoinsFor). This file measures RULE JOIN LIMIT, so each test runs with the switch off, and the
+// afterEach puts the shipped value back. Where it is cheap a line reads the on value beside it (withFreeJoins)
+beforeEach(() => setFreeJoins(false));
+afterEach(() => setFreeJoins(true)); // the shipped value (HULL-ON's flip)
+
 describe("RULE JOIN LIMIT: at most 2 joining belts a deck", () => {
   it("the 3rd joining belt in route order is refused (2 JOINS PER DECK); the first two stay legal", () => {
     expect(JOIN_LIMIT).toBe(2);
@@ -61,6 +69,8 @@ describe("RULE JOIN LIMIT: at most 2 joining belts a deck", () => {
     const why = `route 3 can't join cell ${K(4, 2)}: ${JOIN_OVER_LIMIT}`;
     expect(validateBuild(b, 10).errors).toContain(`route: ${why}`);
     expect(routeProblems(b).map((p) => p.why)).toContain(why);
+    // HULL-ON (the flip, FREE_JOINS): on (shipped), no limit: all three joins stand
+    expect(withFreeJoins(() => [1, 2, 3].map((i) => joinProblem(b, i)))).toEqual([null, null, null]);
   });
 
   it("a new join past the limit is refused wherever it is drawn: canJoin, setJoin, joinTiles", () => {
@@ -84,6 +94,8 @@ describe("RULE JOIN LIMIT: at most 2 joining belts a deck", () => {
     expect(canJoin(one, 4, R3.cells, K(4, 2), 2)).toMatchObject({ ok: true, route: 0 });
     expect(setJoin(one, 2, K(4, 2))).toBeNull();
     expect(legalJoins(one)).toBe(2);
+    // HULL-ON (the flip, FREE_JOINS): on (shipped), the third join is fine too
+    expect(withFreeJoins(() => canJoin(deck([R1, R2, open(R3)]), 4, R3.cells, K(4, 2), 3))).toMatchObject({ ok: true, route: 0 });
   });
 
   it("the build screen: a drag into a third join is refused with a 2 JOINS PER DECK toast", () => {
@@ -140,6 +152,8 @@ describe("RULE JOIN LIMIT: at most 2 joining belts a deck", () => {
     expect(fightBlock(back.build)).toBe(NOWHERE);
     // idempotent: a second load changes nothing
     expect(JSON.stringify(migrateRun(JSON.parse(JSON.stringify(back)))!.build)).toBe(JSON.stringify(back.build));
+    // HULL-ON (the flip, FREE_JOINS): on (shipped), the loader keeps all three
+    expect(withFreeJoins(() => migrateRun(JSON.parse(JSON.stringify(run)))!.build.routes.map((r) => r.join))).toEqual([undefined, K(4, 4), K(4, 3), K(4, 2)]);
   });
 
   it("the par player never plans a join past the limit, and its decks pass validateBuild", () => {
@@ -156,7 +170,9 @@ describe("RULE JOIN LIMIT: at most 2 joining belts a deck", () => {
           // design; the deck is checked as its upload is (REVIEW-PARAZ N3, tools/samplePool.ts seedGhost): validateBuild's
           // player mode with the run's road log (player.ts playerRoadLog) and run seed. The join lines are the same in both modes
           const log = playerRoadLog(days, d.day);
-          expect(validateBuild(b, d.day, "player", { seed: parRunSeed(hero, seed), ...(log.length ? { road: log } : {}) }).errors, `${hero} s${seed} d${d.day}`).toEqual([]);
+          // HULL-ON (the flip, OPEN_RUNES): the par player takes its dawn rune from the open offer (player.ts, openRunesRules()),
+          // so the check re-derives each rune on the same rule (validateUpload passes its rules' openRunesFor); absent, closed
+          expect(validateBuild(b, d.day, "player", { seed: parRunSeed(hero, seed), ...(log.length ? { road: log } : {}), openRunes: openRunesRules() }).errors, `${hero} s${seed} d${d.day}`).toEqual([]);
           if (legalJoins(b) === JOIN_LIMIT) atLimit++;
         }
       }
@@ -165,7 +181,10 @@ describe("RULE JOIN LIMIT: at most 2 joining belts a deck", () => {
   }, 120_000);
 
   it("the player reads the limit: the rules card says it, in the words JOIN (never MERGE)", () => {
-    expect(HELP[2]).toContain(`JOIN THEM (${JOIN_OVER_LIMIT}).`);
+    // HULL-ON (the flip, FREE_JOINS): HELP is the card at load, the shipped one, with no limit ("... TO JOIN THEM."); the
+    // card's line 3 with the switch off (helpLine3, read now) says the limit, as before
+    expect(helpLine3()).toContain(`JOIN THEM (${JOIN_OVER_LIMIT}).`);
+    expect(HELP[2]).not.toMatch(/JOINS PER DECK/);
     expect(JOIN_OVER_LIMIT).not.toMatch(/MERGE/);
     expect(HELP[2]).not.toMatch(/MERGE/);
   });

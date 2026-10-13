@@ -4,6 +4,9 @@
 // FREE_JOINS_RULES is bb-0.9.8 and a bb-0.9.7 record is an OLDER record: with the switch on, its deck past 2 joins is still
 // refused (validateUpload checks it under its own rules), its joined factories still run at JOIN_PACE, and its battle
 // record is refused outright by the exact rules check (replay.ts). A bb-0.9.8 upload takes the same deck.
+// HULL-ON (the flip, FREE_JOINS): the bump came at bb-0.10.0, and the flip wrote FREE_JOINS_RULES as that literal
+// (rulesGate.ts), so the mocked RULES_VERSION (bb-0.9.8, kept) no longer moves it: the new rules below are bb-0.10.0, and
+// bb-0.9.7 is still an older record. The switch ships on
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/sim/content", async (importOriginal) => {
@@ -20,7 +23,7 @@ import { RulesMismatchError, replay } from "../src/net/replay";
 import { Battle } from "../src/sim/battle";
 import { withDawnRunes } from "./runeFill";
 
-afterEach(() => setFreeJoins(false));
+afterEach(() => setFreeJoins(true)); // the shipped value (HULL-ON's flip)
 
 // tests/net-upload.joinlimit.test.ts's FURNACE deck: M = the KILN's belt; R1..R3 join M at (4,4), (4,3) and (4,2)
 const M = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
@@ -44,9 +47,10 @@ const third = `route: route 3 can't join cell ${K(4, 2)}: ${JOIN_OVER_LIMIT}`;
 describe("JOINS-1 (3): after the bump, a bb-0.9.7 record keeps both join rules", () => {
   it("the bump's rules: FREE_JOINS_RULES is the new version; bb-0.9.7 predates it", () => {
     expect(RULES_VERSION).toBe("bb-0.9.8");
-    expect(FREE_JOINS_RULES).toBe("bb-0.9.8");
+    // HULL-ON (the flip, FREE_JOINS): "bb-0.9.8" -> "bb-0.10.0", the literal the flip wrote (it read RULES_VERSION until then)
+    expect(FREE_JOINS_RULES).toBe("bb-0.10.0");
     withFreeJoins(() => {
-      expect(freeJoinsFor("bb-0.9.8")).toBe(true);
+      expect(freeJoinsFor("bb-0.10.0")).toBe(true);
       expect(freeJoinsFor("bb-0.9.7")).toBe(false);
     });
   });
@@ -57,13 +61,14 @@ describe("JOINS-1 (3): after the bump, a bb-0.9.7 record keeps both join rules",
     const old = validateUpload(b, DAY, "bb-0.9.7");
     expect(old.ok).toBe(false);
     expect(old.errors.filter((e) => e.includes(JOIN_OVER_LIMIT))).toEqual([third]);
-    expect(validateUpload(b, DAY, "bb-0.9.8")).toEqual({ ok: true, errors: [] });
+    expect(validateUpload(b, DAY, "bb-0.10.0")).toEqual({ ok: true, errors: [] }); // HULL-ON (FREE_JOINS): the literal (was bb-0.9.8)
     // the check ran the old record under its own rules and put the switch back
     expect(withFreeJoins(() => factoryPace(b, 2))).toBe(1);
   });
 
   it("a bb-0.9.7 battle record is refused outright (the exact rules check), the switch on or off", () => {
     const rec = { rules: "bb-0.9.7", seed: 7, builds: [deck([R1, R2, R3]), FOE] as [Build, Build] };
+    setFreeJoins(false); // HULL-ON (the flip, FREE_JOINS): the off check sets the switch off itself (it ships on)
     expect(() => replay(rec)).toThrow(RulesMismatchError);
     setFreeJoins(true);
     expect(() => replay(rec)).toThrow(RulesMismatchError);
@@ -74,7 +79,7 @@ describe("JOINS-1 (3): after the bump, a bb-0.9.7 record keeps both join rules",
     const base = s.factories[0].pace;
     expect(s.factories.map((f) => Math.round((100 * f.pace) / base))).toEqual([100, 100 * JOIN_PACE, 100 * JOIN_PACE, 100]);
     expect(s.routes.filter((r) => r.join).length).toBe(2);
-    const n = side(freeJoinsFor("bb-0.9.8"));
+    const n = side(freeJoinsFor("bb-0.10.0")); // HULL-ON (FREE_JOINS): the literal (was bb-0.9.8)
     expect(n.factories.map((f) => f.pace)).toEqual([base, base, base, base]);
     expect(n.routes.filter((r) => r.join).length).toBe(3);
   });

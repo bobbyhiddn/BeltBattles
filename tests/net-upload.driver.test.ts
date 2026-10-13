@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS, RUN_DAYS } from "../src/sim/content";
+import { RULES_VERSION } from "../src/sim/content"; // HULL-ON (the flip, OPEN_RUNES): this build's rules' offer rule
+import { openRunesFor } from "../src/net/rulesGate"; // HULL-ON (the flip, OPEN_RUNES)
 import { playerFits, roadCap } from "../src/net/roadCap";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload, type ValidateContext, type Validation } from "../src/net/validate";
 import { runeGrants } from "../src/sim/runes";
@@ -34,12 +36,16 @@ const PATH_RUNS = Number(process.env.V070_DRIVER_PATH_RUNS ?? 36);
  *  hero (netHelpers.ts uploadRulesFor); for a hero no rules version accepts yet, the player mode with the same context, as
  *  netHelpers.ts playerCheck does. Was playerCheck(d.build, d.day): no seed, no LAST CHANCE.
  *  AZ-BUMP (the flip, NPC_DAY): and its road log (snapshot.road, as ghostOf writes it: Dusk.roadLog, with NPC_DAY on), as
- *  server/app.ts passes it: the player mode counts a deck's drops only through it (validate.ts roadDropValue). */
+ *  server/app.ts passes it: the player mode counts a deck's drops only through it (validate.ts roadDropValue).
+ *  HULL-ON (the flip, OPEN_RUNES): the player mode for a hero no rules version accepts (METRONOME, SIPHON) gets the offer
+ *  rule of this build's rules, as validateUpload sets it from a snapshot's rules (ctx.openRunes = openRunesFor(rules)):
+ *  the driver's runs take each dawn's rune from the open offers (run.ts pendingRune reads the switch), and without it
+ *  validateBuild re-derives the closed, weighted offers ("rune: runes[0]: GUN OIL was not offered at the dawn of day 1"). */
 function postCheck(r: DriverRun, d: Dusk): Validation {
   const seed = r.run.seed >>> 0;
   const ctx: ValidateContext = { ...(seed ? { seed } : {}), ...(d.lastChance ? { lastChance: d.lastChance } : {}), ...(d.roadLog ? { road: d.roadLog } : {}) };
   const rules = uploadRulesFor(d.hero);
-  return rules ? validateUpload(d.build, d.day, rules, ctx) : validateBuild(d.build, d.day, "player", ctx);
+  return rules ? validateUpload(d.build, d.day, rules, ctx) : validateBuild(d.build, d.day, "player", { ...ctx, openRunes: openRunesFor(RULES_VERSION) });
 }
 
 interface Tally {

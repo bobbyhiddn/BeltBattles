@@ -1,5 +1,6 @@
 // RETUNE-1 (REQ-BFG-096): HEARTS, the rule and the game (src/sim/hearts.ts; day.ts finishDay, run.ts newRun, events.ts
-// PATCH UP, save.ts). The switch is set through its setter and put back off after each test.
+// PATCH UP, save.ts). The switch is set through its setter and put back after each test. HULL-ON (the flip, HEARTS): put
+// back on, the shipped value; a test (or half) about a 5-lives run makes it with HEARTS off itself.
 import { afterEach, describe, expect, it } from "vitest";
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 import {
@@ -15,7 +16,7 @@ import { finishWarlord, pickRoad } from "../src/game/road";
 import type { SideStats } from "../src/sim/battle";
 
 const S = {} as SideStats;
-afterEach(() => setHearts(false));
+afterEach(() => setHearts(true)); // HULL-ON (the flip, HEARTS): the shipped value (HULL-ON's flip; was setHearts(false))
 
 /** A fresh run with HEARTS on (the run's mark set by newRun). */
 const heartsRunAt = (seed = 11): Run => withHearts(() => newRun("furnace", seed));
@@ -24,14 +25,20 @@ const dusk = (run: Run, o: "win" | "loss" | "draw") => finishDay(run, o === "win
 
 describe("RETUNE-1 HEARTS: the switch and the rule", () => {
   it("is off by default; the setter and withHearts put it back", () => {
-    expect(HEARTS).toBe(false);
-    expect(heartsRules()).toBe(false);
+    // HULL-ON (the flip, HEARTS): ships on now (was off): HEARTS and heartsRules() true; withHearts(fn, false) runs fn off
+    // and puts it back on, even on a throw; startLives() is HEARTS_START on, START_LIVES off
+    expect(HEARTS).toBe(true);
+    expect(heartsRules()).toBe(true);
+    expect(withHearts(() => heartsRules(), false)).toBe(false);
+    expect(heartsRules()).toBe(true);
+    expect(() => withHearts(() => { throw new Error("x"); }, false)).toThrow("x");
+    expect(heartsRules()).toBe(true);
     expect(withHearts(() => heartsRules())).toBe(true);
+    setHearts(false);
     expect(heartsRules()).toBe(false);
-    expect(() => withHearts(() => { throw new Error("x"); })).toThrow("x");
-    expect(heartsRules()).toBe(false);
-    expect(startLives()).toBe(START_LIVES);
-    expect(withHearts(() => startLives())).toBe(HEARTS_START);
+    setHearts(true);
+    expect(startLives()).toBe(HEARTS_START);
+    expect(withHearts(() => startLives(), false)).toBe(START_LIVES);
   });
 
   it("a loss costs 1 heart on days 1-3, 2 on days 4-6, 3 from day 7", () => {
@@ -74,14 +81,16 @@ describe("RETUNE-1 HEARTS: the switch and the rule", () => {
 
 describe("RETUNE-1 HEARTS: the game (finishDay, newRun, PATCH UP, the save)", () => {
   it("switch off: a new run has 5 lives, no mark, and a loss costs 1 with the early-loss refund at dawn 3 (as today)", () => {
-    const run = newRun("furnace", 11);
-    expect(run.lives).toBe(START_LIVES);
-    expect("hearts" in run).toBe(false);
-    expect(heartsRun(run)).toBe(false);
-    dusk(run, "loss");
-    dusk(run, "loss");
-    expect(run.lives).toBe(START_LIVES - 2 + 1); // the refund at dawn 3
-    expect(run.refund).toEqual({ day: 3, lives: 1 });
+    withHearts(() => { // HULL-ON (the flip, HEARTS): it ships on, so the off test sets it off itself
+      const run = newRun("furnace", 11);
+      expect(run.lives).toBe(START_LIVES);
+      expect("hearts" in run).toBe(false);
+      expect(heartsRun(run)).toBe(false);
+      dusk(run, "loss");
+      dusk(run, "loss");
+      expect(run.lives).toBe(START_LIVES - 2 + 1); // the refund at dawn 3
+      expect(run.refund).toEqual({ day: 3, lives: 1 });
+    }, false);
   });
 
   it("switch on: a new run starts with 10 hearts and its mark; the mark, not the switch, rules the run", () => {
@@ -90,7 +99,7 @@ describe("RETUNE-1 HEARTS: the game (finishDay, newRun, PATCH UP, the save)", ()
     expect(run.hearts).toBe(true);
     expect(livesCap(run)).toBe(HEARTS_START);
     // a lives run started before the switch keeps its scale with the switch on (a save from before the bump)
-    const old = newRun("furnace", 11);
+    const old = withHearts(() => newRun("furnace", 11), false); // HULL-ON (the flip, HEARTS): started off (was the default)
     withHearts(() => {
       dusk(old, "loss");
       expect(old.lives).toBe(START_LIVES - 1);
@@ -173,7 +182,7 @@ describe("RETUNE-1 HEARTS: the game (finishDay, newRun, PATCH UP, the save)", ()
     expect(blockReason(run, patch)).toBe("HEARTS FULL");
     run.lives = 9;
     expect(blockReason(run, patch)).toBeUndefined();
-    const lives = newRun("furnace", 1);
+    const lives = withHearts(() => newRun("furnace", 1), false); // HULL-ON (the flip, HEARTS): a lives run starts off
     lives.gold = 20;
     expect(blockReason(lives, patch)).toBe("LIVES FULL");
     lives.lives = 4;
@@ -184,7 +193,8 @@ describe("RETUNE-1 HEARTS: the game (finishDay, newRun, PATCH UP, the save)", ()
     const run = heartsRunAt();
     const back = migrateRun(JSON.parse(JSON.stringify(run)))!;
     expect([back.lives, back.hearts]).toEqual([10, true]);
-    const forged = migrateRun(JSON.parse(JSON.stringify({ ...newRun("furnace", 1), lives: 10 })))!;
+    // HULL-ON (the flip, HEARTS): the forged save is a lives run's (no mark), so it starts with HEARTS off
+    const forged = migrateRun(JSON.parse(JSON.stringify({ ...withHearts(() => newRun("furnace", 1), false), lives: 10 })))!;
     expect([forged.lives, forged.hearts]).toEqual([START_LIVES, undefined]);
     const bad = migrateRun(JSON.parse(JSON.stringify({ ...run, hearts: "yes" })))!;
     expect([bad.lives, bad.hearts]).toEqual([START_LIVES, undefined]);

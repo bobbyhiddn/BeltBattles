@@ -31,19 +31,24 @@ const ids = (b: Build): string[] => (b.runes ?? []).map((q) => q.id);
 const otherStyle = (id: string, hero: HeroId): boolean => !GENERIC_THEMES.includes(RUNES[id].theme) && RUNES[id].theme !== HERO_STYLE[hero];
 
 describe("OPEN-1: the switch and its rules row", () => {
-  it("OPEN_RUNES is off in this rules version; withOpenRunes puts the switch back, even on a throw", () => {
-    expect(OPEN_RUNES).toBe(false);
-    expect(openRunesRules()).toBe(false);
+  // HULL-ON (the flip, OPEN_RUNES): the switch ships on (was off; the title was "OPEN_RUNES is off in this rules version;
+  // ..."), so the default reads on and the put-back is read from on: off for one call, even on a throw
+  it("OPEN_RUNES ships on (HULL-ON's flip, bb-0.10.0); withOpenRunes puts the switch back, even on a throw", () => {
+    expect(OPEN_RUNES).toBe(true);
+    expect(openRunesRules()).toBe(true);
     expect(withOpenRunes(() => openRunesRules())).toBe(true);
     expect(withOpenRunes(() => openRunesRules(), false)).toBe(false);
-    expect(openRunesRules()).toBe(false);
-    expect(() => withOpenRunes(() => { throw new Error("boom"); })).toThrow("boom");
-    expect(openRunesRules()).toBe(false);
+    expect(openRunesRules()).toBe(true);
+    expect(() => withOpenRunes(() => { throw new Error("boom"); }, false)).toThrow("boom");
+    expect(openRunesRules()).toBe(true);
   });
 
   it("openRunesFor(rules): the switch AND rules at or after OPEN_RUNES_RULES (RULES_VERSION until BUMP-1D writes it)", () => {
     expect(OPEN_RUNES_RULES).toBe(RULES_VERSION);
-    for (const r of [RULES_VERSION, OLD_RULES, "bb-99.0.0", "nonsense", undefined]) expect(openRunesFor(r), String(r)).toBe(false);
+    // HULL-ON (the flip, OPEN_RUNES): "false whatever the rules" is the switch-off half, so it sets the switch off itself
+    withOpenRunes(() => {
+      for (const r of [RULES_VERSION, OLD_RULES, "bb-99.0.0", "nonsense", undefined]) expect(openRunesFor(r), String(r)).toBe(false);
+    }, false);
     withOpenRunes(() => {
       expect(openRunesFor(RULES_VERSION)).toBe(true);
       expect(openRunesFor("bb-99.0.0")).toBe(true);
@@ -126,8 +131,10 @@ describe("OPEN-1: the dawn offer, on and off", () => {
   it("the game follows the switch: pendingRune shows the open offer with OPEN_RUNES on, today's with it off", () => {
     for (const h of HEROES4) for (const seed of [1, 42, 20261011]) {
       const run = newRun(h, seed);
-      expect(pendingRune(run)?.ids, `${h} ${seed}`).toEqual(runeOffer(seed, 1, h, []).ids);
+      // HULL-ON (the flip, OPEN_RUNES): today's offer is the switch-off half (it read the default, now on); the default is open
+      expect(withOpenRunes(() => pendingRune(run)?.ids, false), `${h} ${seed}`).toEqual(runeOffer(seed, 1, h, []).ids);
       expect(withOpenRunes(() => pendingRune(run)?.ids), `${h} ${seed}`).toEqual(runeOffer(seed, 1, h, [], true).ids);
+      expect(pendingRune(run)?.ids, `${h} ${seed}`).toEqual(runeOffer(seed, 1, h, [], true).ids);
     }
   });
 });
@@ -163,8 +170,10 @@ describe("OPEN-1: LAST CHANCE's rune card, on and off", () => {
 
   it("the game follows the switch: pendingLastChance shows the open card with OPEN_RUNES on, today's with it off", () => {
     const run = { seed: 1, hero: "bastion" as HeroId, build: { runes: [] } as unknown as Build, lastChance: { day: 8 }, over: false };
-    expect(pendingLastChance(run)?.rune?.id).toBe("scab_iron");
+    // HULL-ON (the flip, OPEN_RUNES): today's card is the switch-off half (it read the default, now on); the default is open
+    expect(withOpenRunes(() => pendingLastChance(run)?.rune?.id, false)).toBe("scab_iron");
     expect(withOpenRunes(() => pendingLastChance(run)?.rune?.id)).toBe("scrap_saint");
+    expect(pendingLastChance(run)?.rune?.id).toBe("scrap_saint");
   });
 });
 
@@ -194,19 +203,25 @@ describe("OPEN-1: the server's checks read the record's own rules", () => {
       expect(up(s, OLD_RULES).errors).toEqual(refused);
       expect(isSnapshot({ ...s, rules: OLD_RULES })).toBe(false);
     });
-    expect(up(s).errors).toEqual(refused);
-    expect(isSnapshot(s)).toBe(false);
+    // HULL-ON (the flip, OPEN_RUNES): "with the switch off, refused" sets the switch off itself (it read the default, now on)
+    withOpenRunes(() => {
+      expect(up(s).errors).toEqual(refused);
+      expect(isSnapshot(s)).toBe(false);
+    }, false);
     // BASTION, par seed 1, day 4: MANY HANDS at the first dawn
     const b = parDeck("bastion", 1, 4, true);
     withOpenRunes(() => expect(up(b).ok).toBe(true));
-    expect(up(b).errors).toEqual(["rune: runes[0]: MANY HANDS was not offered at the dawn of day 1"]);
+    withOpenRunes(() => expect(up(b).errors).toEqual(["rune: runes[0]: MANY HANDS was not offered at the dawn of day 1"]), false); // HULL-ON (OPEN_RUNES): off
   });
 
   it("a record of today's offers keeps passing under older rules with the switch on, and under every rules with it off", () => {
     const t = parDeck("foundry", 2, 4, false);
     expect(runeProblem(t.build.runes, 4, "foundry", t.seed, "exact")).toBeNull();
-    expect(up(t).ok).toBe(true);
-    expect(up(t, OLD_RULES).ok).toBe(true);
+    // HULL-ON (the flip, OPEN_RUNES): "under every rules with it off" sets the switch off itself (it read the default, now on)
+    withOpenRunes(() => {
+      expect(up(t).ok).toBe(true);
+      expect(up(t, OLD_RULES).ok).toBe(true);
+    }, false);
     withOpenRunes(() => {
       expect(up(t, OLD_RULES).ok).toBe(true);
       expect(isSnapshot({ ...t, rules: OLD_RULES })).toBe(true);
@@ -238,13 +253,14 @@ describe("OPEN-1: the server's checks read the record's own rules", () => {
         const v = up(o);
         expect(v.ok, v.errors.join("; ")).toBe(true);
       });
-      expect(up(o).errors[0]).toBe(`lastChance: rune ${o.lastChance!.id} was not in the LAST CHANCE offer of day ${D} (it offered ${closedCard})`);
+      // HULL-ON (the flip, OPEN_RUNES): "refused closed" and "accepted with the switch off" set the switch off themselves
+      withOpenRunes(() => expect(up(o).errors[0]).toBe(`lastChance: rune ${o.lastChance!.id} was not in the LAST CHANCE offer of day ${D} (it offered ${closedCard})`), false);
       // the check itself, both ways (validate.ts lastChanceProblem's `open`)
       expect(lastChanceProblem(o.lastChance as { day: number; boon: "rune"; id: string }, o.build, o.day, o.seed, true)).toBeNull();
       expect(lastChanceProblem(o.lastChance as { day: number; boon: "rune"; id: string }, o.build, o.day, o.seed, false)).not.toBeNull();
       // today's card for the same hero and seed: accepted with the switch off
       const c = lcRun(hero, seed, false);
-      expect(up(c).ok).toBe(true);
+      withOpenRunes(() => expect(up(c).ok).toBe(true), false);
       const openCard = lastChanceOffer(c.seed!, D, hero, ids(c.build).slice(0, D), true).rune!.id;
       if (openCard !== c.lastChance!.id) withOpenRunes(() => expect(up(c).ok).toBe(false));
     }
@@ -256,7 +272,8 @@ describe("OPEN-1: the bots follow the switch", () => {
   it("the par player's dawn runes come from the open offers with OPEN_RUNES on (its cache keeps the two apart), today's with it off", () => {
     const seed = parRunSeed("foundry", 2);
     const on = withOpenRunes(() => playerRun("foundry", 4, 2)[3].build.runes);
-    const off = playerRun("foundry", 4, 2)[3].build.runes;
+    const off = withOpenRunes(() => playerRun("foundry", 4, 2)[3].build.runes, false); // HULL-ON (the flip, OPEN_RUNES): off itself (was the default)
+    expect(playerRun("foundry", 4, 2)[3].build.runes).toEqual(on); // HULL-ON (the flip, OPEN_RUNES): the default follows the switch, on
     expect(on).not.toEqual(off);
     expect(runeProblem(on, 4, "foundry", seed, "exact", false, -1, true)).toBeNull();
     expect(runeProblem(on, 4, "foundry", seed, "exact")).not.toBeNull();

@@ -1242,6 +1242,16 @@ export function setSustain(on: boolean): void {
     Object.defineProperty(ITEMS, id, { value: SUSTAIN_ITEMS[id], enumerable: on, writable: true, configurable: true });
   }
   sustainOn = on;
+  for (const fn of afterSustain) fn(); // HULL-ON (cap's ruling 6f4568477e66a600): GUARD's hook
+}
+
+/** HULL-ON (the flip; cap's ruling 6f4568477e66a600): hooks run after each setSustain, setWave3's mechanism (afterWave3).
+ *  setSustain writes SUSTAIN_ITEMS[id] back into ITEMS for every sustain id, WARD BELL's base def among them, while guard.ts
+ *  patches ITEMS[id] in place; its hook puts the guarded def back while GUARD is on (switch off: it does nothing). Declared
+ *  above the load-time setSustain call below (it reads this list). None is set at this module's load. */
+const afterSustain: (() => void)[] = [];
+export function onSetSustain(fn: () => void): void {
+  afterSustain.push(fn);
 }
 
 /** SUS-A: run `fn` with the sustain pieces on (or off), then put the switch back as it was, even if `fn` throws. */

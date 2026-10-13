@@ -9,6 +9,8 @@ import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
+import { setFreeJoins, withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the limit's world
+import { floorRecord } from "../src/net/records"; // HULL-ON (the flip, HEARTS): a record dusk 5 reaches on hearts
 
 // v070-rel M2 (a), REQ-BFG-027: the join limit in the player-upload check. A deck holds at most JOIN_LIMIT (2) joining
 // belts (0.6.2 TUNE-M, RULE JOIN LIMIT). rel-062-final's validateBuild already refuses the next one in route order with
@@ -54,15 +56,22 @@ describe("v070-rel M2 (a): at most JOIN_LIMIT joins per uploaded deck (validateB
 
   it("3 joins: both modes refuse the third in route order, with validateBuild's reason (2 JOINS PER DECK)", () => {
     const b = deck([R1, R2, R3]);
-    for (const [mode, v] of modes(b)) {
-      expect(v.ok, mode).toBe(false);
-      expect(v.errors, mode).toContain(overLimit(3, K(4, 2)));
-      expect(v.errors.filter((e) => e.includes(JOIN_OVER_LIMIT)), mode).toEqual([overLimit(3, K(4, 2))]); // only the third
-    }
-    expect(validateUpload(b, DAY).errors).toEqual(validateBuild(b, DAY).errors); // the strict mode's words, verbatim
-    // route order decides which join is the third, not where it joins: R3 first keeps R3 and R1 and refuses R2
-    const reordered = deck([R3, R1, R2]);
-    for (const [mode, v] of modes(reordered)) expect(v.errors.filter((e) => e.includes(JOIN_OVER_LIMIT)), mode).toEqual([overLimit(3, K(4, 3))]);
+    // HULL-ON (the flip, FREE_JOINS): under this build's rules there is no join limit, so both modes take the three legal
+    // joins (both refused the third). The limit is older rules' (rulesGate.ts freeJoinsFor: the switch AND bb-0.10.0 or
+    // later): an upload under bb-0.9.7 still meets it with the switch on, and the checks as they were run with it off
+    for (const [mode, v] of modes(b)) expect(v, `${mode}, shipped`).toEqual({ ok: true, errors: [] });
+    expect(validateUpload(b, DAY, "bb-0.9.7").errors).toContain(overLimit(3, K(4, 2)));
+    withFreeJoins(() => {
+      for (const [mode, v] of modes(b)) {
+        expect(v.ok, mode).toBe(false);
+        expect(v.errors, mode).toContain(overLimit(3, K(4, 2)));
+        expect(v.errors.filter((e) => e.includes(JOIN_OVER_LIMIT)), mode).toEqual([overLimit(3, K(4, 2))]); // only the third
+      }
+      expect(validateUpload(b, DAY).errors).toEqual(validateBuild(b, DAY).errors); // the strict mode's words, verbatim
+      // route order decides which join is the third, not where it joins: R3 first keeps R3 and R1 and refuses R2
+      const reordered = deck([R3, R1, R2]);
+      for (const [mode, v] of modes(reordered)) expect(v.errors.filter((e) => e.includes(JOIN_OVER_LIMIT)), mode).toEqual([overLimit(3, K(4, 3))]);
+    }, false);
   });
 
   it("a deck whose extra join has an illegal shape keeps its shape reason; that join never counts toward the limit", () => {
@@ -100,16 +109,28 @@ describe("v070-rel M2 (a) at the upload path", () => {
     const me = await testIdentity(0); // v070a: uploads are signed (async-062); the snapshot carries the key's playerId
     const post = async (b: Build, who: string) => {
       // FLIP-X2: v3 (was 2): the deck holds its runes, which travel only in a v3 snapshot
-      const s: GhostSnapshot = { v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: DAY, wins: 0, lives: 3, build: b, runId: `joins-${who}`, playerId: `p-${who}`, createdAt: 1_790_000_000_000 };
+      // HULL-ON (the flip, HEARTS): 3 lives, or the fewest a run carries into dusk 5 where 3 is out of reach (on hearts a
+      // 0W run holds at least 5 there; POST answered 422 "record: 0W 3 lives ..." to the 2-join deck)
+      const s: GhostSnapshot = { v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: DAY, wins: 0, lives: Math.max(3, floorRecord(DAY).lives), build: b, runId: `joins-${who}`, playerId: `p-${who}`, createdAt: 1_790_000_000_000 };
       const body = JSON.stringify(ownedBy(s, me));
       const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
       return { status: r.status, body: (await r.json()) as { id?: string; errors?: string[] } };
     };
     expect((await post(deck([R1, R2]), "two")).status).toBe(201);
-    const three = await post(deck([R1, R2, R3]), "three");
-    expect(three.status).toBe(422);
-    expect(three.body.errors).toEqual(validateUpload(deck([R1, R2, R3]), DAY).errors);
-    expect(three.body.errors).toContain(overLimit(3, K(4, 2)));
-    expect(app.store.size).toBe(1);
+    // HULL-ON (the flip, FREE_JOINS): the third join's refusal is the limit older rules keep, so it runs with the switch off
+    // (set and put back by hand: withFreeJoins can't hold it across the server's await)
+    setFreeJoins(false);
+    try {
+      const three = await post(deck([R1, R2, R3]), "three");
+      expect(three.status).toBe(422);
+      expect(three.body.errors).toEqual(validateUpload(deck([R1, R2, R3]), DAY).errors);
+      expect(three.body.errors).toContain(overLimit(3, K(4, 2)));
+      expect(app.store.size).toBe(1);
+    } finally {
+      setFreeJoins(true); // the shipped value (HULL-ON's flip)
+    }
+    // HULL-ON (the flip, FREE_JOINS): under this build's rules there is no join limit: the 3-join deck is stored
+    expect((await post(deck([R1, R2, R3]), "three-on")).status).toBe(201);
+    expect(app.store.size).toBe(2);
   });
 });

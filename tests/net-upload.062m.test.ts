@@ -22,6 +22,7 @@ import { floorRecord } from "../src/net/records";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { furnaceDeck, playerCheck, uploadRulesFor } from "./netHelpers";
 import { heroesFor } from "../src/net/rulesGate";
+import { openRunesFor } from "../src/net/rulesGate"; // HULL-ON (the flip, OPEN_RUNES): the offer rule of this build's rules
 import { driveRuns, type Dusk } from "./uploadDriver";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
@@ -106,12 +107,16 @@ const HONEST_HERE: Dusk[] = HONEST.filter((d) => heroesFor(RULES_VERSION).includ
  *  taken LAST CHANCE and its road log (Dusk.runSeed / lastChance / roadLog, as day.ts ghostOf writes the snapshot's seed,
  *  lastChance and road), since with NPC_DAY on the player mode counts a deck's drops only through its road log (validate.ts
  *  roadDropValue); under the rules that accept its hero, else the player mode with the same context (netHelpers.ts
- *  playerCheck's form). Was playerCheck(d.build, d.day): no seed, no LAST CHANCE, no road log. */
+ *  playerCheck's form). Was playerCheck(d.build, d.day): no seed, no LAST CHANCE, no road log.
+ *  HULL-ON (the flip, OPEN_RUNES): the player mode for a hero no rules version accepts (METRONOME, SIPHON) gets the offer
+ *  rule of this build's rules, as validateUpload sets it from a snapshot's rules (ctx.openRunes = openRunesFor(rules)):
+ *  the driver's runs take each dawn's rune from the open offers (run.ts pendingRune reads the switch), and without it
+ *  validateBuild re-derives the closed, weighted offers ("rune: runes[1]: LAST WALL was not offered at the dawn of day 2"). */
 function postCheck(d: Dusk): Validation {
   const seed = (d.runSeed ?? 0) >>> 0;
   const ctx: ValidateContext = { ...(seed ? { seed } : {}), ...(d.lastChance ? { lastChance: d.lastChance } : {}), ...(d.roadLog ? { road: d.roadLog } : {}) };
   const rules = uploadRulesFor(d.hero);
-  return rules ? validateUpload(d.build, d.day, rules, ctx) : validateBuild(d.build, d.day, "player", ctx);
+  return rules ? validateUpload(d.build, d.day, rules, ctx) : validateBuild(d.build, d.day, "player", { ...ctx, openRunes: openRunesFor(RULES_VERSION) });
 }
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
 const core = (errors: string[]) => errors.filter((e) => !/^(supply|budget):/.test(e));

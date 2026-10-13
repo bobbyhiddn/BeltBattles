@@ -4,12 +4,15 @@
 // revalidate (both read the record's own rules). Honest decks are the par player's runs (player.ts playerRun, with
 // opts.lastChance for a LAST CHANCE card), as tests/lc1.server.test.ts builds them. HEARTS is set through its setter and
 // put back off after each test. The server's data dir is under os.tmpdir() (run with TMPDIR set).
+// HULL-ON (the flip, HEARTS): HEARTS ships on, so the afterEach puts it back ON (the shipped value) and each switch-off
+// half sets it off itself (withHearts(fn, false)); the switch-on tests are plain tests.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { HEARTS_START, setHearts, withHearts } from "../src/sim/hearts";
+import { openRunesRules } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the par player's card rule
 import { lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { runeFits, runeList } from "../src/sim/runes";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
@@ -26,7 +29,7 @@ import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 /** A rules version before HEARTS_RULES (it stays older after the bump; LAST CHANCE predates it too). */
 const OLD_RULES = "bb-0.9.1";
 const LC_DAY = 6; // a run that loses every dusk: 9 8 7 5 3, then 1 at dusk 6: LAST CHANCE (the earliest it can fire)
-afterEach(() => setHearts(false));
+afterEach(() => setHearts(true)); // the shipped value (HULL-ON's flip; was false): a switch-off half sets it off itself
 
 const recs = (day: number, opts = {}) => reachableRecords(day, opts).map((r) => `${r.wins}W${r.lives}`).join(" ");
 
@@ -37,7 +40,9 @@ function honest(boon: Boon | null, hero: HeroId = "furnace", seed = 5): GhostSna
   const base = { v: SNAPSHOT_V3, rules: RULES_VERSION, hero, wins: 0, runId: `rt1-${hero}-${seed}-${boon ?? "none"}`, playerId: "p-rt1", createdAt: 1_790_000_000_000, seed: runSeed } as const;
   if (!boon) return { ...base, day: 6, lives: 3, build: playerRun(hero, 6, seed)[5].build };
   const before = playerRun(hero, LC_DAY, seed)[LC_DAY - 1].build;
-  const offer = lastChanceOffer(runSeed, LC_DAY, hero, (before.runes ?? []).map((q) => q.id));
+  // HULL-ON (the flip, OPEN_RUNES): the par player takes the card on the switch's offer rule (open: no runeFits filter),
+  // the rule the server re-derives for this build's rules (openRunesFor(RULES_VERSION))
+  const offer = lastChanceOffer(runSeed, LC_DAY, hero, (before.runes ?? []).map((q) => q.id), openRunesRules());
   const build = playerRun(hero, LC_DAY + 1, seed, { lastChance: { day: LC_DAY, boon } })[LC_DAY].build;
   const id = boon === "rune" ? offer.rune!.id : boon === "part" ? offer.part! : undefined;
   return { ...base, day: LC_DAY + 1, lives: 1, build, lastChance: { day: LC_DAY, boon, ...(id ? { id } : {}) } };
@@ -48,7 +53,8 @@ const record = (s: GhostSnapshot) => isReachable(s.day, s.wins, s.lives, { rules
 describe("RETUNE-1 HEARTS: the rules gate and the bounds", () => {
   it("heartsFor: the switch on AND rules at or after HEARTS_RULES (RULES_VERSION until BUMP-1D writes the literal)", () => {
     expect(HEARTS_RULES).toBe(RULES_VERSION);
-    expect(heartsFor(RULES_VERSION)).toBe(false); // off
+    expect(heartsFor(RULES_VERSION)).toBe(true); // HULL-ON (the flip, HEARTS): false -> true, the switch ships on
+    expect(withHearts(() => heartsFor(RULES_VERSION), false)).toBe(false); // off
     withHearts(() => {
       expect(heartsFor(RULES_VERSION)).toBe(true);
       expect(heartsFor(OLD_RULES)).toBe(false);
@@ -56,7 +62,9 @@ describe("RETUNE-1 HEARTS: the rules gate and the bounds", () => {
       expect(livesCapFor(RULES_VERSION, MAX_LIVES)).toBe(HEARTS_START);
       expect(livesCapFor(OLD_RULES, MAX_LIVES)).toBe(MAX_LIVES);
     });
-    expect(livesCapFor(RULES_VERSION, MAX_LIVES)).toBe(MAX_LIVES);
+    // HULL-ON (the flip, HEARTS): MAX_LIVES -> HEARTS_START, the switch ships on (withHearts put it back on); off, MAX_LIVES
+    expect(livesCapFor(RULES_VERSION, MAX_LIVES)).toBe(HEARTS_START);
+    expect(withHearts(() => livesCapFor(RULES_VERSION, MAX_LIVES), false)).toBe(MAX_LIVES);
   });
 
   it("an old-rules forgery (day 2, 0 wins, 10 lives) is refused by the decoder, the client's check and the record model; so is 11 hearts", () => {
@@ -73,14 +81,17 @@ describe("RETUNE-1 HEARTS: the rules gate and the bounds", () => {
       expect(() => checkSnapshot({ ...s, lives: 11 })).toThrow("snapshot.lives");
       expect(isSnapshot({ ...s, lives: 11 })).toBe(false);
     });
-    // switch off: 10 is refused under every rules version, as today
-    const s = { ...honest(null), day: 2, lives: 10, build: playerRun("furnace", 2, 5)[1].build };
-    expect(() => checkSnapshot(s)).toThrow("snapshot.lives");
+    // switch off: 10 is refused under every rules version, as today (HULL-ON (the flip, HEARTS): set off here, it ships on)
+    withHearts(() => {
+      const s = { ...honest(null), day: 2, lives: 10, build: playerRun("furnace", 2, 5)[1].build };
+      expect(() => checkSnapshot(s)).toThrow("snapshot.lives");
+    }, false);
   }, 120_000);
 
   it("the match route's lives bound follows the request's rules", () => {
     const q = (rules: string, lives: number) => new URLSearchParams({ rules, day: "3", wins: "0", lives: String(lives), player: "p1" });
-    expect(() => parseMatchQuery(q(RULES_VERSION, 10))).toThrow("lives: expected an integer in 0..9");
+    // HULL-ON (the flip, HEARTS): the switch-off bound, set off here (it ships on)
+    withHearts(() => expect(() => parseMatchQuery(q(RULES_VERSION, 10))).toThrow("lives: expected an integer in 0..9"), false);
     withHearts(() => {
       expect(parseMatchQuery(q(RULES_VERSION, 10)).lives).toBe(10);
       expect(() => parseMatchQuery(q(RULES_VERSION, 11))).toThrow("lives: expected an integer in 0..10");
@@ -115,15 +126,19 @@ describe("RETUNE-1 HEARTS: the record model", () => {
   });
 
   it("switch off, and old rules with it on: today's 5-life model, unchanged", () => {
-    const today = Array.from({ length: 10 }, (_, i) => recs(i + 1));
-    const todayLc = Array.from({ length: 10 }, (_, i) => recs(i + 1, { lastChance: 5 }));
-    expect(recs(1)).toBe("0W5");
+    // HULL-ON (the flip, HEARTS): the test starts from the switch off itself (it ships on); the inner withHearts turns it
+    // on and puts it back off, as before
     withHearts(() => {
-      expect(Array.from({ length: 10 }, (_, i) => recs(i + 1, { rules: OLD_RULES }))).toEqual(Array.from({ length: 10 }, (_, i) => withHearts(() => recs(i + 1, { rules: OLD_RULES }), false)));
-      expect(recs(1)).toBe("0W10");
-    });
-    expect(Array.from({ length: 10 }, (_, i) => recs(i + 1))).toEqual(today);
-    expect(Array.from({ length: 10 }, (_, i) => recs(i + 1, { lastChance: 5 }))).toEqual(todayLc);
+      const today = Array.from({ length: 10 }, (_, i) => recs(i + 1));
+      const todayLc = Array.from({ length: 10 }, (_, i) => recs(i + 1, { lastChance: 5 }));
+      expect(recs(1)).toBe("0W5");
+      withHearts(() => {
+        expect(Array.from({ length: 10 }, (_, i) => recs(i + 1, { rules: OLD_RULES }))).toEqual(Array.from({ length: 10 }, (_, i) => withHearts(() => recs(i + 1, { rules: OLD_RULES }), false)));
+        expect(recs(1)).toBe("0W10");
+      });
+      expect(Array.from({ length: 10 }, (_, i) => recs(i + 1))).toEqual(today);
+      expect(Array.from({ length: 10 }, (_, i) => recs(i + 1, { lastChance: 5 }))).toEqual(todayLc);
+    }, false);
   });
 });
 
@@ -168,7 +183,8 @@ describe("RETUNE-1 HEARTS: honest hearts uploads pass; forgeries are refused", (
   it("the seed step's checkPool and the record's own rules: a hearts pool entry passes with HEARTS on, fails with it off", () => {
     const s = { ...honest(null), lives: 6 }; // day 6, 0W: 6 hearts (losses on days 1, 2 and 4); no 5-life run holds 6
     withHearts(() => expect(checkPool([s]).length).toBe(1));
-    expect(() => checkPool([s])).toThrow("record 0W 6 lives: no run carries it into dusk 6");
+    // HULL-ON (the flip, HEARTS): the switch-off half sets it off itself (it ships on)
+    withHearts(() => expect(() => checkPool([s])).toThrow("record 0W 6 lives: no run carries it into dusk 6"), false);
   }, 300_000);
 });
 

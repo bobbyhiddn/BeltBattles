@@ -18,6 +18,7 @@ import { FUSE_MULT, SYNC_WINDOW } from "../src/sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { RACE_AMMO } from "../src/sim/races/data";
 import { heroStartBuild } from "../src/sim/heroBuilds";
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the joined press's pace
 import { dummyFoe, shots } from "./races.helpers";
 
 const rig = (uid: number, def: string, x: number, y: number, rot = 0, stars = 1): Placed =>
@@ -166,8 +167,20 @@ describe("FOUNDRY on today's rules", () => {
     // fusion lands at 29.78 s (was 30.43 s), inside the 30 s, and its alloy still waits in gun 1's loading window at 30 s (it
     // fires at 31.2 s). Every fusion is one alloy slug, fired or held in a chamber: measured 17 fired + 1 held = 18 fusions
     const held = bt.sides[0].turrets.flatMap((tu) => [...tu.stack, ...tu.store]).filter((p) => p.ammo === "alloy").length;
-    expect(held).toBe(1); // NUM-2: measured (was 0: every fusion's alloy fired by 30 s)
+    // HULL-ON (the flip, FREE_JOINS): 1 -> 0: no join pace now (JOIN_PACE 0.7 gone), so the joining STAMP PRESS makes its
+    // slugs at its full rate: more plain slugs on the joined route (15 fired by 30 s, was 13) and, with right of way at the
+    // join tile, fewer fusions by 30 s (16, was 18). Measured: 16 fusions, 16 alloy fired, none held. The same 1:1
+    expect(held).toBe(0); // HULL-ON (the flip, FREE_JOINS): measured (NUM-2's 1 is the off half's, below)
     expect(fired.filter((s) => s.ammo === "alloy").length + held).toBe(bt.sides[0].race!.foundry.fusions);
+    // off (the press at 70% pace, as NUM-2 measured it): 18 fusions, 17 alloy fired and 1 held, the same 1:1
+    withFreeJoins(() => {
+      const off = new Battle(b, dummyFoe(), 7);
+      const offFired = shots(off, 30);
+      const offHeld = off.sides[0].turrets.flatMap((tu) => [...tu.stack, ...tu.store]).filter((p) => p.ammo === "alloy").length;
+      expect(off.sides[0].race!.foundry.fusions).toBeGreaterThan(5);
+      expect(offHeld).toBe(1);
+      expect(offFired.filter((s) => s.ammo === "alloy").length + offHeld).toBe(off.sides[0].race!.foundry.fusions);
+    }, false);
   });
 });
 

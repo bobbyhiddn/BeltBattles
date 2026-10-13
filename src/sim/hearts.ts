@@ -24,8 +24,9 @@
 import { RUN_DAYS, START_LIVES } from "./content";
 import { LAST_CHANCE_AT } from "./lastChance";
 
-/** THE switch (REQ-BFG-096), off in this rules version (bb-0.9.7). */
-export const HEARTS: boolean = false;
+/** THE switch (REQ-BFG-096): on, from HULL-ON's flip (bb-0.10.0). Its setter, withHearts and the off path stay this
+ *  release, for older records (rulesGate.ts heartsFor) and the tests that measure the off world. */
+export const HEARTS: boolean = true;
 
 let hOn = false;
 

@@ -6,6 +6,11 @@
 import { describe, expect, it } from "vitest";
 import { PLAYER_DAYS, playerRun } from "../src/sim/harness/player";
 import type { Build } from "../src/sim/deck";
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip): seed 3 in the world before the flip, the five switches off
+import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip)
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip)
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip)
+import { withPick } from "../src/net/pick"; // HULL-ON (the flip)
 
 const holds = (b: Build, def: string): boolean => b.items.some((p) => p.def === def) || b.mods.some((m) => m.def === def);
 const CASES: [("furnace" | "weaver"), string][] = [["furnace", "temper"], ["weaver", "temper"], ["weaver", "dragchain"], ["furnace", "flak"]];
@@ -33,10 +38,17 @@ describe("FIX-ABE E: a forbidden part is refused only when it would be taken", (
   // dawns change its picks, so its run now takes TEMPER on day 5 (first 4, not 10). Seed 3 is the first FURNACE seed,
   // counting up from 1, whose run never takes TEMPER (seed 1 takes it on day 1, seed 2 on day 6); both checks exact.
   // (Seed 6 is the one that drifted on day 9 before FIX-ABE E.)
+  // HULL-ON (the flip, GUARD, OPEN_RUNES, FREE_JOINS): seed 3's run without the knob now takes TEMPER on day 9 (first 8, was
+  // never). The three move its picks together: each off alone gives first 10, drift 10 again; HEARTS or PICK off alone,
+  // first 8. As BAL-2 did, the check moves to the first FURNACE seed, counting up from 1, whose run never takes TEMPER in the
+  // shipped game: seed 15 (seeds 1-14 take it on days 1, 2, 9, 2, 2, 5, 6, 2, 5, 1, 1, 5, 2 and 8); both checks exact. Seed
+  // 3 keeps its check in the world it was chosen in, the five switches off (the title keeps seed 3, the red list's key)
   it("FURNACE, TEMPER forbidden, seed 3: the run without the knob never takes TEMPER, so all 10 decks are identical (seed 6 drifted on day 9)", () => {
-    const { first, drift } = alignment("furnace", "temper", 3);
+    const { first, drift } = alignment("furnace", "temper", 15);
     expect(first).toBe(PLAYER_DAYS);
     expect(drift).toBe(PLAYER_DAYS);
+    const was = withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(() => alignment("furnace", "temper", 3), false), false), false), false), false);
+    expect([was.first, was.drift]).toEqual([PLAYER_DAYS, PLAYER_DAYS]);
   }, 120_000);
 
   it("forbid.test's four cases on seeds 7-10: identical decks up to the day the run without the knob first takes the part", () => {

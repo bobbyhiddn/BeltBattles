@@ -27,8 +27,9 @@ import { eligible, pickGhost, type IntRng, type MatchRequest } from "./matchmaki
 import { GRADE_MAX, type PoolEntry } from "./snapshot";
 import { pickFor } from "./rulesGate";
 
-/** THE switch (REQ-BFG-092), off in this rules version. */
-export const PICK: boolean = false;
+/** THE switch (REQ-BFG-092): on, from HULL-ON's flip (bb-0.10.0). Its setter, withPick and the off path stay this
+ *  release, for older records (rulesGate.ts pickFor) and the tests that measure the off world. */
+export const PICK: boolean = true;
 
 let pkOn = false;
 

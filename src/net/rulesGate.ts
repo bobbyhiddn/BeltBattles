@@ -38,10 +38,18 @@
 // alone: validateUpload checks the deck under its rules' answer, the bundled pool loader under each snapshot's, and a
 // battle record replays under its own (replay.ts). A record under older rules keeps both rules: its third join is
 // refused ("2 JOINS PER DECK") and its joined factories run at JOIN_PACE.
+// HULL-ON (REQ-BFG-096, the combined 0.9.9's flip under bb-0.10.0): HEARTS_RULES is written as the literal bb-0.10.0 (it
+// read RULES_VERSION until the flip): a record under older rules reads 5 lives and keeps the lives bound 9 (heartsFor,
+// livesCapFor), whatever the switch.
+// HULL-ON (REQ-BFG-092): PICK_RULES is written as the literal bb-0.10.0: a match request or a snapshot under older rules
+// picks as before, and a grade (snapshot.grade) is refused under them (pickFor, pickGateProblem).
+// HULL-ON (REQ-BFG-109): OPEN_RUNES_RULES is written as the literal bb-0.10.0: a record under older rules is checked on the
+// weighted, hero-fit offers (openRunesFor); the captains stay closed (genCaptainRunes passes the closed rule).
+// HULL-ON (REQ-BFG-091): FREE_JOINS_RULES is written as the literal bb-0.10.0: a record under older rules keeps RULE JOIN
+// LIMIT and RULE JOIN PACE (freeJoinsFor). GUARD (REQ-BFG-097) has no gate: it changes content values no record carries.
 
 import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
-import { RULES_VERSION } from "../sim/content"; // HULL-ON: the rows at the end read it until the flip (AZ-BUMP dropped NPC-1's import with NPC_DAY_RULES' literal)
 import { npcDayRules } from "../sim/npcDay"; // NPC-1: the switch
 import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): the switch
 
@@ -200,12 +208,11 @@ export function npcDayGateProblem(rules: unknown): string | null {
 
 /**
  * JOINS-1 (REQ-BFG-091): the first rules version with free joins (FREE_JOINS, src/sim/freeJoins.ts: a joining belt
- * never slows its factory, and a deck holds any number of legal joins). As NPC_DAY_RULES is until its flip: it reads
- * RULES_VERSION here, so with the switch on in a test an honest record under this build's rules gets free joins. THE
- * RULES BUMP THAT TURNS FREE_JOINS ON WRITES ITS OWN VERSION HERE AS A LITERAL (as Z-BUMP wrote LAST_CHANCE_RULES), so
- * from then on every older record (bb-0.9.7 among them) keeps RULE JOIN PACE and RULE JOIN LIMIT, whatever the switch.
+ * never slows its factory, and a deck holds any number of legal joins): FREE_JOINS' row (HULL-ON). HULL-ON wrote it as a
+ * literal at the flip (it read RULES_VERSION until then, as NPC_DAY_RULES did), so it stays put at later bumps: every
+ * older record (bb-0.9.7 among them) keeps RULE JOIN PACE and RULE JOIN LIMIT, whatever the switch.
  */
-export const FREE_JOINS_RULES: string = RULES_VERSION;
+export const FREE_JOINS_RULES: string = "bb-0.10.0";
 
 /** Do free joins hold for a record, snapshot or upload under `rules`? The switch on AND `rules` a readable version at or
  *  after FREE_JOINS_RULES. False with the switch off, whatever the rules (every record then plays as at bb-0.9.7). */
@@ -239,11 +246,14 @@ export function rulesGateProblem(rules: unknown, build: unknown): string | null 
 // ---- RETUNE-1 (REQ-BFG-096, REQ-BFG-092): the next rules release's rows, at the end of the file (a small merge surface:
 // JOINS-1 adds FREE_JOINS_RULES beside NPC_DAY_RULES above). Not RULES_ROWS rows: they refuse no build feature. Each
 // literal reads RULES_VERSION until the bump that turns its switch on (BUMP-1D) writes that version here as a literal, as
-// Z-BUMP wrote LAST_CHANCE_RULES; from then on every older record keeps today's rule, whatever the switch.
+// Z-BUMP wrote LAST_CHANCE_RULES; from then on every older record keeps today's rule, whatever the switch. HULL-ON's flip
+// wrote them (bb-0.10.0).
 import { heartsRules, HEARTS_START } from "../sim/hearts"; // RETUNE-1: the HEARTS switch (src/sim/hearts.ts)
 
-/** RETUNE-1 (REQ-BFG-096): the first rules version with hearts (10 hearts, a loss costs 1/2/3 by day). */
-export const HEARTS_RULES: string = RULES_VERSION;
+/** RETUNE-1 (REQ-BFG-096): the first rules version with hearts (10 hearts, a loss costs 1/2/3 by day): HEARTS' row.
+ *  HULL-ON wrote it as a literal at the flip (it read RULES_VERSION until then), so it stays put at later bumps: every
+ *  older record (bb-0.9.7 among them) reads 5 lives, whatever the switch. */
+export const HEARTS_RULES: string = "bb-0.10.0";
 
 /** Do hearts hold for a record, snapshot or match request under `rules`? The switch on AND `rules` a readable version at
  *  or after HEARTS_RULES. False with the switch off, whatever the rules (every record then reads 5 lives, as today). */
@@ -260,8 +270,10 @@ export function livesCapFor(rules: unknown, cap: number): number {
 
 import { pickRules } from "./pick"; // RETUNE-1 T5: the PICK switch (src/net/pick.ts)
 
-/** RETUNE-1 T5 (REQ-BFG-092): the first rules version with the graded pick (R1) and the seed pool's grades. */
-export const PICK_RULES: string = RULES_VERSION;
+/** RETUNE-1 T5 (REQ-BFG-092): the first rules version with the graded pick (R1) and the seed pool's grades: PICK's row.
+ *  HULL-ON wrote it as a literal at the flip (it read RULES_VERSION until then), so it stays put at later bumps: every
+ *  older match request or snapshot (bb-0.9.7 among them) picks as before and carries no grade, whatever the switch. */
+export const PICK_RULES: string = "bb-0.10.0";
 
 /** Does the graded pick hold for a match request or a graded snapshot under `rules`? The switch on AND `rules` a readable
  *  version at or after PICK_RULES. False with the switch off, whatever the rules (every pick then as today). */
@@ -282,9 +294,10 @@ export function pickGateProblem(rules: unknown): string | null {
 import { openRunesRules } from "../sim/openRunes"; // OPEN-1: the OPEN_RUNES switch (src/sim/openRunes.ts)
 
 /** OPEN-1 (REQ-BFG-109): the first rules version whose rune offers are open (hero-blind: no style weight, no FIX-10 redraw,
- *  no fit filter on LAST CHANCE's rune card). It reads RULES_VERSION until BUMP-1D writes the bump's version here as a
- *  literal (as Z-BUMP wrote LAST_CHANCE_RULES); from then on every older record keeps today's weighted offers. */
-export const OPEN_RUNES_RULES: string = RULES_VERSION;
+ *  no fit filter on LAST CHANCE's rune card): OPEN_RUNES' row. HULL-ON wrote it as a literal at the flip (it read
+ *  RULES_VERSION until then, as Z-BUMP wrote LAST_CHANCE_RULES); from then on every older record keeps today's weighted
+ *  offers. */
+export const OPEN_RUNES_RULES: string = "bb-0.10.0";
 
 /** Are the rune offers open for a record or upload under `rules`? The switch on AND `rules` a readable version at or after
  *  OPEN_RUNES_RULES. False with the switch off, whatever the rules (every record is then checked on today's offers). */

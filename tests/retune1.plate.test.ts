@@ -13,7 +13,7 @@ import { pickLayout } from "../src/screens/runePicker";
 import { buildScale, phoneScreen } from "../src/screens/build/layout";
 
 afterEach(() => {
-  setGuard(false);
+  setGuard(true); // HULL-ON (the flip, GUARD): the shipped value (HULL-ON's flip; was false); a test that reads off sets it
   setHullScale(false);
 });
 
@@ -31,7 +31,11 @@ const DESK = view(1280, 800, 1);
 
 describe("RETUNE-1 GUARD: the common PLATE runes", () => {
   it("off: 60 / 80 / 10; on: 180 / 140 / 30, through the battle's runeMods and the catalogue's own defs", () => {
-    expect(guardRules()).toBe(false);
+    // HULL-ON (the flip, GUARD): ships on (was toBe(false): the default was off), at the guarded 180 / 140 / 30; the rest runs
+    // from the switch set off here, as it ran from the default before the flip (the afterEach puts the shipped value back)
+    expect(guardRules()).toBe(true);
+    expect(IDS.map(n)).toEqual([180, 140, 30]);
+    setGuard(false);
     expect(IDS.map(n)).toEqual([60, 80, 10]);
     expect(GUARD_RUNES).toEqual({ rivet_hoard: 180, last_wall: 140, seam_rivets: 30 });
     withGuard(() => {
@@ -48,6 +52,7 @@ describe("RETUNE-1 GUARD: the common PLATE runes", () => {
   });
 
   it("the switch puts back the exact amount objects on the very defs; units and texts unchanged", () => {
+    setGuard(false); // HULL-ON (the flip, GUARD): from the base amounts, the switch set off (it read the default, which ships on)
     const defs = IDS.map((id) => RUNES[id]), amounts = defs.map((d) => d.amount);
     const json = JSON.stringify(defs);
     setGuard(true);
@@ -65,6 +70,7 @@ describe("RETUNE-1 GUARD: the common PLATE runes", () => {
   });
 
   it("the rune text reads the new numbers (x S(d) with HULL_SCALE), and nothing else in the line moves", () => {
+    setGuard(false); // HULL-ON (the flip, GUARD): the off lines with the switch set off (they read the default, which ships on)
     const off = IDS.map((id) => runeLine(RUNES[id]));
     withGuard(() => {
       IDS.forEach((id, i) => {

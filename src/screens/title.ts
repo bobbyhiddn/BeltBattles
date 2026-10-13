@@ -56,11 +56,11 @@ export function helpLines(): string[] {
   return lines.every((ln, i) => ln === HELP[i]) ? HELP : lines;
 }
 
-export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line 3 states RULE JOIN PACE; JOINS-1: at load)
+export const HELP = [ // exported for tests/joinpace.test.ts. Line 3 is helpLine3() read at load (JOINS-1): as the game ships (FREE_JOINS on) the free line, with FREE_JOINS off 0.6.2 TUNE-M's RULE JOIN PACE and RULE JOIN LIMIT (HULL-ON, ruling 22e26ded338944ea)
   "1  SURVIVE 10 DAYS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.",
   // 0.6.2 TUNE-M: line 2 states RULE EARLY-LOSS REFUND (day.ts)
   `2  YOU HAVE 5 LIVES. A DUSK LOSS COSTS ONE, A DRAW NONE. LOSE ON DAY 1 OR 2 AND DAY ${REFUND_DAY}'S DAWN GIVES ONE LIFE BACK (ONCE A RUN). YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`,
-  helpLine3(), // JOINS-1 (REQ-BFG-091): with FREE_JOINS off exactly as before (RULE JOIN LIMIT and RULE JOIN PACE)
+  helpLine3(), // JOINS-1 (REQ-BFG-091), by the switch at load: shipped (FREE_JOINS on) neither join rule; with FREE_JOINS off exactly as before (RULE JOIN LIMIT and RULE JOIN PACE). The title draws helpLines() (HULL-ON, ruling 22e26ded338944ea)
   "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
   "5  ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3). AT DUSK YOUR CRUISER FIGHTS ON ITS OWN: 0.5X-4X, SKIP, II OR P TO PAUSE.",
 ];

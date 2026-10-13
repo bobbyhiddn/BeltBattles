@@ -759,3 +759,9 @@ export function botRuneList(seed: number, hero: HeroId, boardOf: (day: number) =
   }
   return picks;
 }
+
+// HULL-ON (the flip; cap's ruling 12a42239093fb6ec): GUARD's rune amounts (guard.ts) take the switch's state here, as the
+// last statement of this module's load, after the catalogue and OPEN-1's rewrites are in. guard.ts imports only this
+// file's types, so it has always loaded by now (deck.ts loads it; this import makes the hand-off direct).
+import { guardRunes } from "./guard";
+guardRunes(RUNES);

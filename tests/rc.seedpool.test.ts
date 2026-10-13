@@ -30,7 +30,8 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { POOL_RULES, RULES_VERSION, type HeroId } from "../src/sim/content";
+import { POOL_RULES, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a new run's start; START_LIVES for the older-rules copies
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { PAR_K, parSeeds } from "../src/sim/harness/par";
 import { parRunSeed, playerBuild } from "../src/sim/harness/player";
@@ -59,6 +60,11 @@ import { testIdentity } from "./netIdentity";
 const POOL = generateSamplePool();
 const STANDIN_PART = POOL.slice(0, 60);
 const RACE_PART = POOL.slice(60);
+/** HULL-ON (the flip, PICK): a seed ghost without the seed step's grade (generateSamplePool writes it last, PICK on). */
+const ungraded = (s: GhostSnapshot): GhostSnapshot => {
+  const { grade: _grade, ...u } = s;
+  return u;
+};
 // FLIP-X2: NUM-2's NUM2_GHOSTS_DIFFER (11) and NUM2_RACE_PART_SHA256, NUM-3's NUM3_GHOSTS_DIFFER (9) and
 // NUM3_RACE_PART_SHA256, their tripwire (EXCEPTIONS_RULES bb-0.8.7), BASE_DECKS (runes.parity's bb-0.8.6 fixture), RUNES-1's
 // carried() (rules normalised to POOL_RULES) and NUM-1's preNum1 (/10) are deleted: the pool is regenerated, not carried.
@@ -115,14 +121,18 @@ describe("the bb-0.10.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
   // Y7b2 (the bump, the pools): title bb-0.9.1 -> bb-0.9.3
   // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7
   it("FURNACE and WEAVER's 60 come first: the sample and floor ghosts of the bb-0.9.7 stand-in pool, pinned by their digest", () => {
-    expect(STANDIN_PART).toEqual([...sampleGhosts(), ...floorGhosts()]);
+    // HULL-ON (the flip, PICK): every seed ghost carries the seed step's grade (generateSamplePool, written last), which
+    // the sample and floor ghosts' own generators don't write, so the parts compare without it; the digest below still
+    // reads the pool as generated (graded): S8's, as at 66cc267
+    expect(STANDIN_PART.every((s) => typeof s.grade === "number")).toBe(true);
+    expect(STANDIN_PART.map(ungraded)).toEqual([...sampleGhosts(), ...floorGhosts()]);
     expect(STANDIN_PART.every((s) => s.hero === "furnace" || s.hero === "weaver")).toBe(true);
     expect(POOL_RULES).toBe(RULES_VERSION); // FLIP-X2: nothing carried (was "bb-0.8.6")
     expect(sha(samplePoolJson(STANDIN_PART))).toBe(STANDIN_PART_SHA256);
   });
 
   it("each FOUNDRY and BASTION ghost is the par player's dusk deck of its day from a par-field run; three distinct decks per hero and day", () => {
-    expect(RACE_PART).toEqual(raceGhosts());
+    expect(RACE_PART.map(ungraded)).toEqual(raceGhosts()); // HULL-ON (the flip, PICK): without the seed step's grade (above)
     // FLIP-X2: the regenerated race part, pinned by its own digest (NUM-2/NUM-3's changed-deck lists and tripwire deleted)
     expect(sha(samplePoolJson(RACE_PART))).toBe(RACE_PART_SHA256);
     const field = parSeeds(PAR_K);
@@ -152,11 +162,16 @@ describe("the bb-0.10.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
       expect(heroGateProblem(s.rules, s.hero), at).toBeNull();
       // FLIP-X2: a bb-0.6.2 client holds no runes (they need bb-0.8.7), so the hero-gate check reads the ghost as such a
       // client sent it: v2, without its runes and seed (was { ...s, rules: "bb-0.6.2" }); with its runes it is refused first
-      expect(() => checkSnapshot({ ...s, rules: "bb-0.6.2" }), at).toThrow(/runes \(build\.runes\) need bb-0\.8\.7 or later/);
+      // HULL-ON (the flip, HEARTS, PICK): the bb-0.6.2 copies carry the record on their own rules' 5-lives scale (lives
+      // min(lives, START_LIVES), as seed.test.ts and h2.nearmiss: the decoder bounds lives at 9 before hearts, so a copy
+      // keeping its 10 hearts was refused "snapshot.lives: expected an integer in 1..9" before the gate under test), and
+      // without the seed step's grade (no client before PICK sends one)
+      const older = { ...ungraded(s), lives: Math.min(s.lives, START_LIVES) };
+      expect(() => checkSnapshot({ ...older, rules: "bb-0.6.2" }), at).toThrow(/runes \(build\.runes\) need bb-0\.8\.7 or later/);
       const { runes: _runes, ...bare } = s.build;
       // AZ-BUMP S7L (the cause LOSS-1 P2, 5f3ac64, merged at 3b19771): the floor ghosts now carry their casual run's road
       // log (v3 only), which a bb-0.6.2 client never sent, so the copy drops it too, as the runes and the seed
-      const { seed: _seed, road: _road, ...rest } = s;
+      const { seed: _seed, road: _road, ...rest } = older; // HULL-ON (HEARTS, PICK): the copy above
       const old = { ...rest, v: 2, rules: "bb-0.6.2", build: bare };
       // FLIP-X2: a deck holding a sustain piece (WARD BELL, MEND PRESS, MENDING LOOM; SUSTAIN_LIVE) can't travel under
       // bb-0.6.2 at all: the rules gate (bb-0.9.0's row) refuses it before the hero gate is read
@@ -285,7 +300,9 @@ describe("online against the in-process server with the seed pool (uploads close
     for (const hero of RACE_SEED_HEROES) {
       const met = new Set<string>();
       for (let day = 1; day <= 10; day++) for (let k = 0; k < 12; k++) {
-        const r = await fetchGhost(base, { rules: RULES_VERSION, day, wins: 0, lives: 5, playerId: device.playerId, seen: [], hero, seed: k, runs: 0 }, 3000);
+        // HULL-ON (the flip, HEARTS): lives 5 -> HEARTS_START: a new run's start (was START_LIVES' 5 by hand). The seed ghosts
+        // carry hearts labels (day 1's are 0W 10), so on 5 lives every one was a better record and D1 left none (fallback)
+        const r = await fetchGhost(base, { rules: RULES_VERSION, day, wins: 0, lives: HEARTS_START, playerId: device.playerId, seen: [], hero, seed: k, runs: 0 }, 3000);
         expect(r.source, `${hero} d${day}`).toBe("server");
         met.add(r.snapshot.hero);
       }

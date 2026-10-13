@@ -5,7 +5,7 @@
 // ungraded ghost counts as its bucket's median grade; the mirror (lead) is a number pair, absent = off. The grade travels
 // in the snapshot (v3, last, only with PICK on and under rules with it; ghostId leaves it out): the strict decoder and the
 // client's check take it only then; POST /v1/ghosts refuses an upload carrying one; the match route and the client's
-// fallback both pick with matchPick. Every switch is put back off after each test.
+// fallback both pick with matchPick. Every switch is put back to its shipped value (on, HULL-ON's flip) after each test.
 import { afterEach, describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
@@ -17,9 +17,11 @@ import { isSnapshot } from "../src/game/ghostSnapshot";
 import { fallbackGhost } from "../src/net/fallback";
 import { setHearts } from "../src/sim/hearts";
 
+// HULL-ON (the flip, PICK and HEARTS): the shipped value (HULL-ON's flip) after each test (was false); a test that needs
+// a switch off sets it itself
 afterEach(() => {
-  setPick(false);
-  setHearts(false);
+  setPick(true);
+  setHearts(true);
 });
 
 /** A small v3 seed ghost for day `day` with record (wins, lives); `grade` only when given. */
@@ -40,12 +42,15 @@ function pool(graded = true): PoolEntry[] {
 const req = (wins: number, lives: number, day = 6, rules = RULES_VERSION): MatchRequest => ({ rules, day, wins, lives, playerId: "me", seen: [] });
 
 describe("RETUNE-1 PICK: the switch, the gate and the numbers", () => {
-  it("off by default; pickFor needs the switch and rules at or after PICK_RULES", () => {
-    expect(PICK).toBe(false);
-    expect(pickRules()).toBe(false);
+  it("on from HULL-ON's flip; pickFor needs the switch and rules at or after PICK_RULES", () => {
+    // HULL-ON (the flip, PICK): PICK ships on (was false), so the default reads on; the off gate is read with the switch off
+    expect(PICK).toBe(true);
+    expect(pickRules()).toBe(true);
     expect(PICK_RULES).toBe(RULES_VERSION);
-    expect(pickFor(RULES_VERSION)).toBe(false);
-    expect(pickGateProblem(RULES_VERSION)).toBe("not in this rules version yet");
+    withPick(() => {
+      expect(pickFor(RULES_VERSION)).toBe(false);
+      expect(pickGateProblem(RULES_VERSION)).toBe("not in this rules version yet");
+    }, false);
     withPick(() => {
       expect(pickFor(RULES_VERSION)).toBe(true);
       expect(pickFor("bb-0.9.1")).toBe(false);
@@ -53,7 +58,7 @@ describe("RETUNE-1 PICK: the switch, the gate and the numbers", () => {
       expect(pickGateProblem(RULES_VERSION)).toBeNull();
       expect(pickGateProblem("bb-0.9.1")).toMatch(/predate/);
     });
-    expect(pickRules()).toBe(false);
+    expect(pickRules()).toBe(true); // HULL-ON (the flip, PICK): withPick puts back the shipped value, on (was false)
   });
 
   it("PICK_RULE is the tuned read (losing 1, deep 0.667, deepAt 3; no mirror) and the grade is K 6 x 1 seed", () => {
@@ -141,14 +146,15 @@ describe("RETUNE-1 PICK: matchPick", () => {
 });
 
 describe("RETUNE-1 PICK: the grade in the snapshot", () => {
-  it("off: a grade is refused by the strict decoder (400) and the client's check; an ungraded snapshot is unchanged", () => {
+  // HULL-ON (the flip, PICK): PICK ships on, so this off test sets it off itself (it ran off after the first test's afterEach)
+  it("off: a grade is refused by the strict decoder (400) and the client's check; an ungraded snapshot is unchanged", () => withPick(() => {
     const s = ghost(1, 6, 1, 3, 420);
     expect(() => checkSnapshot(s)).toThrow(/snapshot\.grade: not in this rules version yet/);
     expect(isSnapshot(s)).toBe(false);
     const u = ghost(1, 6, 1, 3);
     expect(isSnapshot(u)).toBe(true);
     expect(encodeSnapshot(u)).not.toContain("grade");
-  });
+  }, false));
 
   it("on: taken under rules with PICK, last, 0..1000 whole, v3 only; refused under older rules; ghostId leaves it out", () => {
     withPick(() => {

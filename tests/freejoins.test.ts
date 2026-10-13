@@ -33,8 +33,11 @@ import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the rules card's line 2 as before
 
-afterEach(() => setFreeJoins(false)); // every test starts and ends with the switch as committed (off)
+// HULL-ON (the flip, FREE_JOINS): the switch ships on, so every test ends with the shipped value (HULL-ON's flip), and a
+// test whose first half reads the off world sets the switch off itself (was setFreeJoins(false), "as committed (off)")
+afterEach(() => setFreeJoins(true)); // the shipped value (HULL-ON's flip)
 
 const FOE: Build = { hero: "weaver", items: [{ uid: 1, def: "loom", x: 4, y: 6 }], routes: [], mods: [], beltCap: 24, hullBonus: 100000 };
 
@@ -92,12 +95,20 @@ const overLimit = (route: number, cell: number) => `route: route ${route} can't 
 
 describe("JOINS-1: the switch", () => {
   it("FREE_JOINS is off as committed; its rules read RULES_VERSION until the bump; every record asks its own rules", () => {
-    expect(FREE_JOINS).toBe(false);
-    expect(freeJoinsRules()).toBe(false);
-    expect(joinedPace()).toBe(JOIN_PACE);
-    expect(FREE_JOINS_RULES).toBe(RULES_VERSION); // as NPC_DAY_RULES until its flip
+    // HULL-ON (the flip, FREE_JOINS): the switch ships on (false -> true) and FREE_JOINS_RULES is the literal bb-0.10.0 (was
+    // RULES_VERSION until the flip; rulesGate.ts), this build's rules and NPC_DAY_RULES; the title keeps its key
+    expect(FREE_JOINS).toBe(true);
+    expect(freeJoinsRules()).toBe(true);
+    expect(joinedPace()).toBe(1);
+    expect(FREE_JOINS_RULES).toBe("bb-0.10.0");
+    expect(FREE_JOINS_RULES).toBe(RULES_VERSION);
     expect(FREE_JOINS_RULES).toBe(NPC_DAY_RULES);
-    expect(freeJoinsFor(RULES_VERSION)).toBe(false); // the switch off: no rules version has free joins
+    expect(freeJoinsFor(RULES_VERSION)).toBe(true);
+    expect(freeJoinsFor("bb-0.9.7")).toBe(false); // the rules before the flip keep both join rules
+    withFreeJoins(() => {
+      expect(joinedPace()).toBe(JOIN_PACE);
+      expect(freeJoinsFor(RULES_VERSION)).toBe(false); // the switch off: no rules version has free joins
+    }, false);
     withFreeJoins(() => {
       expect(joinedPace()).toBe(1);
       expect(freeJoinsFor(RULES_VERSION)).toBe(true);
@@ -106,14 +117,15 @@ describe("JOINS-1: the switch", () => {
       expect(freeJoinsFor("0.9.7")).toBe(false); // unreadable: never "at least" anything
       expect(freeJoinsFor(undefined)).toBe(false);
     });
-    expect(freeJoinsRules()).toBe(false); // put back
-    expect(() => withFreeJoins(() => { throw new Error("x"); })).toThrow("x");
-    expect(freeJoinsRules()).toBe(false); // put back even on a throw
+    expect(freeJoinsRules()).toBe(true); // put back (HULL-ON: the shipped value)
+    expect(() => withFreeJoins(() => { throw new Error("x"); }, false)).toThrow("x"); // HULL-ON: off inside, so the put-back shows
+    expect(freeJoinsRules()).toBe(true); // put back even on a throw
   });
 });
 
 describe("JOINS-1 (1): no RULE JOIN PACE with FREE_JOINS on", () => {
   it("a factory whose belt joins runs at full pace in battle: its pace is 1 and it makes the loads of the same factory unjoined", () => {
+    setFreeJoins(false); // HULL-ON (the flip, FREE_JOINS): the off half sets the switch off itself (it ships on)
     expect(new Battle(paceDeck(), FOE, 7).sides[0].factories.map((f) => f.pace)).toEqual([1, JOIN_PACE]); // off: as before
     setFreeJoins(true);
     expect(new Battle(paceDeck(), FOE, 7).sides[0].factories.map((f) => f.pace)).toEqual([1, 1]);
@@ -132,6 +144,7 @@ describe("JOINS-1 (1): no RULE JOIN PACE with FREE_JOINS on", () => {
     // the rating's payloads a second on each belt (RateOut.arrival, after J5's own-first share of the main belt): the
     // joined PRESS belt at JOIN_PACE / PRESS with the switch off, at 1 / PRESS (the PRESS's full rate) with it on
     const flat = { satLo: 100, satHi: 101, saturated: 1 };
+    setFreeJoins(false); // HULL-ON (the flip, FREE_JOINS): the off readings set the switch off themselves (it ships on)
     const arrivals = (): number[] => {
       const out: RateOut = { stokeKeep: new Map(), arrival: new Map() };
       rateDeck(paceDeck(), flat, 1e4, out);
@@ -151,6 +164,7 @@ describe("JOINS-1 (1): no RULE JOIN PACE with FREE_JOINS on", () => {
 
   it("a battle record replays under its own rules' answer, and its playback keeps the pace it started with", () => {
     const record: BattleRecord = { rules: RULES_VERSION, seed: 7, builds: [paceDeck(), FOE] };
+    setFreeJoins(false); // HULL-ON (the flip, FREE_JOINS): the off half sets the switch off itself (it ships on)
     const offOutcome = outcomeOf(simulate(paceDeck(), FOE, 7, 60 * 40));
     const onOutcome = withFreeJoins(() => outcomeOf(simulate(paceDeck(), FOE, 7, 60 * 40)));
     expect(onOutcome).not.toEqual(offOutcome); // the pace moves the fight
@@ -167,6 +181,7 @@ describe("JOINS-1 (1): no RULE JOIN PACE with FREE_JOINS on", () => {
 
 describe("JOINS-1 (2, 4): no RULE JOIN LIMIT with FREE_JOINS on", () => {
   it("decks with 3, 4 and 5 legal joins validate: validateBuild and the upload check under the new rules", () => {
+    setFreeJoins(false); // HULL-ON (the flip, FREE_JOINS): the off half sets the switch off itself (it ships on)
     for (const n of [3, 4, 5]) {
       const b = limitDeck(JOINERS.slice(0, n));
       // off (as committed): the joins past 2 are refused, in route order, in both checks
@@ -255,6 +270,7 @@ describe("JOINS-1 (5): the words follow the switch", () => {
     return rn;
   }
   it("the inspector shows no pace line: the factory and belt panels, the belt's sub", () => {
+    setFreeJoins(false); // HULL-ON (the flip, FREE_JOINS): the off half sets the switch off itself (it ships on)
     expect(joinPaceLines(paceDeck(), 2).map(([t]) => t)).toEqual([JOIN_PACE_LINE, `FEWER LOADS REACH THIS BELT: ${JOIN_PACE_PCT}% AS MANY.`]); // off
     expect(beltPanel(run(), 1)!.sub).toBe(`JOINS BELT 1 AT ${JOIN_PACE_PCT}% PACE. FEEDS TURRET 1.`); // off
     setFreeJoins(true);
@@ -270,13 +286,18 @@ describe("JOINS-1 (5): the words follow the switch", () => {
   });
 
   it("the join toast and the rules card say no pace and no limit", () => {
-    expect(helpLines()).toEqual(HELP); // off: the card exactly as before
-    expect(HELP[2]).toContain(`(${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
+    // HULL-ON (the flip, FREE_JOINS and HEARTS): HELP is the card at load, so its line 3 is the shipped one now (no limit, no
+    // pace), and HEARTS gives line 2 the hearts rule (helpLines). So the card as before is read with both switches off: HELP
+    // with line 3 as the switch-off card says it (was helpLines() toEqual HELP and HELP[2], with FREE_JOINS off)
+    const before = withHearts(() => withFreeJoins(() => helpLines(), false), false);
+    expect(before).toEqual(HELP.map((ln, i) => (i === 2 ? helpLine3(false) : ln))); // off: the card exactly as before
+    expect(before[2]).toContain(`(${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
     setFreeJoins(true);
     expect(helpLine3()).toBe("3  AT DAWN, BUY RIGS FROM THE CARAVAN. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM.");
     expect(helpLines()[2]).toBe(helpLine3());
+    expect(HELP[2]).toBe(helpLine3()); // HULL-ON (the flip, FREE_JOINS): the card at load is the shipped one
     expect(helpLines().join(" ")).not.toMatch(/JOINS PER DECK|PACE/);
-    expect(helpLines().filter((_, i) => i !== 2)).toEqual(HELP.filter((_, i) => i !== 2));
+    expect(withHearts(() => helpLines(), false).filter((_, i) => i !== 2)).toEqual(before.filter((_, i) => i !== 2)); // HULL-ON (HEARTS): its line 2 read off
     // the editor's toast where the join is made (tests/joins.ui.test.ts's drag)
     const rn = run();
     rn.build.routes = [rn.build.routes[0]];
@@ -348,6 +369,7 @@ describe("JOINS-1 (2) at the upload path", () => {
       return { status: r.status, body: (await r.json()) as { id?: string; errors?: string[] } };
     };
     const four = limitDeck(JOINERS.slice(0, 4));
+    setFreeJoins(false); // HULL-ON (the flip, FREE_JOINS): the off half sets the switch off itself (it ships on)
     const off = await post(four, "off");
     expect(off.status).toBe(422);
     expect(off.body.errors).toEqual(validateUpload(four, DAY).errors);
