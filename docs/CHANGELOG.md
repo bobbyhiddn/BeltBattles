@@ -38,7 +38,8 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - The battle shows each fight's counts as numbers: a status row on each plate (BURN stacks, FRAY out of 15, parts stunned);
   the foe's statuses were drawn off the screen before.
 - Each gun shows the slugs waiting at it; it turns amber when 4 are backed up and red with JAM until it fires again.
-- Each belt shows the slugs on it while the fight runs.
+- Each belt shows the slugs on it while the fight runs. A one-tile belt that joins another shows none: its slugs are
+  counted on the belt they join.
 - Tap or hover a plate's counts, a gun or a belt to read each count's rule.
 - A PAIR shows on the board: both belts' last tiles flash blue, a bracket joins them at the gun, PAIR's mark pops over
   it, and each hit of the paired shot carries the mark.
@@ -110,6 +111,8 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - In a saved run, GANTRY PRESS and ASSEMBLY LINE move to a spot where their new shape fits, and the build screen says
   so. A belt that can't stay is removed, and a factory with no room goes to your cargo.
 - When a run has no part of a kind for the SMUGGLER to sell, its card says NONE ON OFFER again.
+- The build screen runs smoothly again on slower phones: it now redraws only the parts of the picture that move, so it
+  looks exactly the same.
 - No rule changed: every fight plays exactly as in 0.9.8, and online play is unchanged.
 
 ## 0.9.8: styles you earn
