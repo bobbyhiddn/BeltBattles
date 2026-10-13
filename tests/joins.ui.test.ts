@@ -14,6 +14,7 @@ import { Editor, type EditHost } from "../src/screens/build/edit";
 import { beltPanel, itemPanel, type Block } from "../src/screens/build/inspector";
 import type { Sel } from "../src/screens/build/layout";
 import { C } from "../src/render/palette";
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the pace lines with the switch off
 
 const rig = (uid: number, def: string, x: number, y: number, rot = 0): Placed => ({ uid, def, x, y, ...rotField(def, rot) });
 const M = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
@@ -75,7 +76,10 @@ describe("J3: drawing a join in the build screen", () => {
     expect(rn.build.routes[1]).toEqual({ factory: 2, cells: R, join: K(4, 4) });
     expect(routeInfo(rn.build, 1)).toMatchObject({ connected: true, turret: 0 });
     // 0.6.2 TUNE-M, RULE JOIN PACE: the toast where the join is made says the joining factory's pace
-    expect(log).toContain(`toast:JOINS BELT 1 · FACTORY AT ${JOIN_PACE_PCT}% PACE`);
+    // HULL-ON (the flip, FREE_JOINS): "JOINS BELT 1 · FACTORY AT 70% PACE" -> "JOINS BELT 1", no RULE JOIN PACE with the switch
+    // on (tests/freejoins.test.ts JOINS-1 (5) reads the same toast)
+    expect(log).toContain("toast:JOINS BELT 1");
+    expect(log.join(" ")).not.toMatch(/PACE/);
     expect(h.sel).toEqual({ kind: "route", index: 1 });
   });
 
@@ -169,6 +173,17 @@ describe("J10: the inspector's readouts through a join", () => {
   const note = (n: number) => `+${n} MORE HIT TILE${n === 1 ? "" : "S"} (NUMBERED ON THE DECK)`;
 
   it("the joining belt: its own hits, JOINS BELT n AT TILE t, the main belt's hits from there, and the gun end", () => {
+    // HULL-ON (the flip, FREE_JOINS): with the switch on (shipped) no RULE JOIN PACE, so no pace in the sub ("JOINS BELT 1
+    // AT 70% PACE." -> "JOINS BELT 1.") and no pace line in either panel; the same rows. The pace lines are read below as
+    // before, with FREE_JOINS off
+    const on = beltPanel(run({ r: true, items }), 1)!;
+    expect(on.sub).toBe("JOINS BELT 1. FEEDS TURRET 1.");
+    expect(on.subShort).toBe("JOINS BELT 1.");
+    expect(txt(on.head)).toEqual(["4 TILES, 2 HITS:"]);
+    expect(txt(on.rows)).toEqual(["T2: TEMPER +1 BURN", "JOINS BELT 1 AT TILE 2.", "T2: WHETSTONE +20 DAMAGE"]);
+    const ro = run({ r: true, items });
+    expect(itemPanel(ro, ro.build.routes[1].factory)!.body.map((x) => x.text)).not.toContain(JOIN_PACE_LINE);
+    withFreeJoins(() => {
     const bp = beltPanel(run({ r: true, items }), 1)!;
     expect(bp.sub).toBe(`JOINS BELT 1 AT ${JOIN_PACE_PCT}% PACE. FEEDS TURRET 1.`);
     expect(bp.subShort).toBe("JOINS BELT 1.");
@@ -190,6 +205,7 @@ describe("J10: the inspector's readouts through a join", () => {
     const r = run({ r: true, items });
     expect(itemPanel(r, r.build.routes[1].factory)!.body[0]).toMatchObject({ text: JOIN_PACE_LINE, colour: C.cyan, keep: true });
     expect(itemPanel(r, r.build.routes[0].factory)!.body.map((x) => x.text)).not.toContain(JOIN_PACE_LINE);
+    }, false); // HULL-ON (the flip, FREE_JOINS): the pace lines, with the switch off
   });
 
   it("the main belt says which belts join it; its own lines don't change", () => {

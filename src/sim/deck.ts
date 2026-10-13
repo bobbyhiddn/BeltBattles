@@ -9,6 +9,8 @@ import {
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake, type Upgrades,
 } from "./content";
 import { ladderFixRules, rideKeepOf } from "./ladderFix"; // LADDER_FIX (cap's oracle d306b1b196dbab38): the walk rides tick by tick; HULL-1b: OVERDRIVE's ride-keep
+import "./guard"; // RETUNE-1 (REQ-BFG-097): GUARD's content patch (guard.ts) loads with the deck rules, so GUARD = true takes hold everywhere
+import { freeJoinsRules } from "./freeJoins"; // JOINS-1 (REQ-BFG-091): FREE_JOINS drops RULE JOIN LIMIT and RULE JOIN PACE
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
@@ -1499,10 +1501,13 @@ function rawJoin(b: Build, i: number, occ: Occ[]): number {
  * and routeCheck report them, pruneJoins clears them on load), and a deck with at most JOIN_LIMIT reads exactly as
  * before. The battle (routeInfo / joinOf), the rating, the save loader, validateBuild (client and server upload),
  * routeCheck's FIGHT gate and every way to make a join (canJoin, setJoin, joinTiles, the par player) go through it.
+ * JOINS-1 (REQ-BFG-091): with FREE_JOINS on (freeJoins.ts) there is no limit: a join is refused only by the 0.6.2j
+ * rules, so every legal join holds, however many. Off, exactly as before.
  */
 export function joinProblem(b: Build, i: number, occ = occupancy(b)): string | null {
   const why = joinShapeProblem(b, i, occ);
   if (why !== null || b.routes[i]?.join === undefined) return why;
+  if (freeJoinsRules()) return null; // JOINS-1: FREE_JOINS, no RULE JOIN LIMIT
   let before = 0;
   for (let k = 0; k < i && before < JOIN_LIMIT; k++) {
     if (b.routes[k].join !== undefined && joinShapeProblem(b, k, occ) === null) before++;
@@ -1515,8 +1520,10 @@ export function joinProblem(b: Build, i: number, occ = occupancy(b)): string | n
  * rules, so one of them is past the limit. A new join must not do that, wherever it is drawn: a redraw of an early
  * belt into a join would otherwise push a later belt's join past the limit (canJoin, setJoin, joinTiles and the par
  * player refuse it with JOIN_OVER_LIMIT).
+ * JOINS-1 (REQ-BFG-091): never, with FREE_JOINS on (no limit).
  */
 export function overJoinLimit(b: Build, occ = occupancy(b)): boolean {
+  if (freeJoinsRules()) return false; // JOINS-1: FREE_JOINS, no RULE JOIN LIMIT
   let n = 0;
   for (let k = 0; k < b.routes.length; k++) {
     if (b.routes[k].join !== undefined && joinShapeProblem(b, k, occ) === null && ++n > JOIN_LIMIT) return true;
@@ -1524,7 +1531,8 @@ export function overJoinLimit(b: Build, occ = occupancy(b)): boolean {
   return false;
 }
 
-/** 0.6.2 TUNE-M, RULE JOIN LIMIT: the deck's joining belts, those whose join is legal (joinOf): at most JOIN_LIMIT. */
+/** 0.6.2 TUNE-M, RULE JOIN LIMIT: the deck's joining belts, those whose join is legal (joinOf): at most JOIN_LIMIT
+ *  (JOINS-1: any number with FREE_JOINS on). */
 export function joinCount(b: Build, occ = occupancy(b)): number {
   let n = 0;
   for (let k = 0; k < b.routes.length; k++) if (b.routes[k].join !== undefined && joinProblem(b, k, occ) === null) n++;
@@ -1610,8 +1618,11 @@ export function journeyTiles(b: Build, i: number, occ = occupancy(b)): number {
  * belt (a legal join, joinOf), else 1. A factory counts once, however long its chain (a joining belt whose main belt
  * joins on in turn still paces only its own factory, once). Battle.makeSide runs the factory's timers at this pace;
  * the build screen's belt and factory panels and the par player's rating (deckRating.ts) read it.
+ * JOINS-1 (REQ-BFG-091): 1 for every factory with FREE_JOINS on (a joining belt never slows its factory); off, exactly
+ * as before.
  */
 export function factoryPace(b: Build, uid: number, occ = occupancy(b)): number {
+  if (freeJoinsRules()) return 1; // JOINS-1: FREE_JOINS, no RULE JOIN PACE
   for (let i = 0; i < b.routes.length; i++) {
     if (b.routes[i].factory === uid && b.routes[i].join !== undefined && joinOf(b, i, occ)) return JOIN_PACE;
   }

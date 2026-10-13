@@ -9,7 +9,9 @@
 //    ARMOR-greedy and BELT-greedy policies: 201 for each day's dusk deck); one ARMOR PACK more than the day's gold allows
 //    is refused with the budget message; a hull or a belt that no road mix plus whole packs can make stays refused.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
+import { HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): records on each rules' scale
+import { heartsFor } from "../src/net/rulesGate"; // HULL-ON (the flip, HEARTS): which scale a record's rules read
 import { VERSION } from "../src/version";
 import type { Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
@@ -33,9 +35,14 @@ const NEAR = [OLD_RULES, "bb-0.8.5", "bb-0.8.6", "bb-0.8.6x", "BB-0.8.6", " bb-0
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
 const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.10.0`; // AZ-BUMP: the server names bb-0.10.0 (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
 
-/** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. */
+/** A dusk snapshot on a record a run carries into it: every fight won, all its lives (5, or HEARTS_START hearts). */
 function dusk(hero: HeroId, day: number, build: Build, rules = RULES_VERSION, runId = `packs-${hero}-${day}`): GhostSnapshot {
-  return { v: SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives: 5, build, runId, playerId: `p-${hero}`, createdAt: T0 };
+  // HULL-ON (the flip, HEARTS; tests/belts.rules.test.ts's dusk() pattern): every fight won is all HEARTS_START (10) hearts
+  // under this build's rules (heartsFor: the hearts record model, where 0W 5 lives is no record a run carries into dusk 1:
+  // 422 "record: 0W 5 lives ..."); older and garbled rules keep their 5 lives (their 5-lives model). Was lives: 5 on every
+  // rules
+  const lives = heartsFor(rules) ? HEARTS_START : START_LIVES;
+  return { v: SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives, build, runId, playerId: `p-${hero}`, createdAt: T0 };
 }
 
 /** FLIP-X2 (validateUpload's player mode wants exactly `day` runes; runes travel only in v3): dusk() as an upload under
@@ -77,7 +84,12 @@ describe.each(storeBackends())("rules bb-0.8.7 and the packs on the $name store 
     base = `http://127.0.0.1:${await app.listen(0)}`;
     me = await testIdentity(1);
     await seedStore(app.store);
-  }, 120_000);
+  }, 600_000);
+  // HULL-ON (the flip, PICK; cap's ruling 9c114aab5ba18dfe, tests/belts.rules.test.ts's same hook): 120 s -> 600 s.
+  // seedStore's default pool, generateSamplePool(), grades every seed ghost with PICK on (samplePool.ts gradeSamplePool);
+  // the first store's hook pays that one grading (the second store's hits the per-process memo). belts.rules' identical
+  // hook measured the whole file 230 s alone unpinned (HULL-ON run 2), so 600 s is over 2x; here the jsonl hook timed out
+  // at 120 s in HULL-ON run 4's suite (pinned: the file 185 s)
   afterAll(async () => {
     await app.close();
     await backend.teardown();

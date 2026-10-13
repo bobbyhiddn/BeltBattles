@@ -113,6 +113,37 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - When a run has no part of a kind for the SMUGGLER to sell, its card says NONE ON OFFER again.
 - The build screen runs smoothly again on slower phones: it now redraws only the parts of the picture that move, so it
   looks exactly the same.
+- **Hull grows with the day:** every carrier's max hull is multiplied by the day: x1.4 on day 2, then x1.8, x2.2, x2.8,
+  x3.4, x4, x4.6 and x5.2 on days 3 to 9, and x6 on day 10. Damage grows too, more slowly: x1.3 on day 2, x1.8 on day 3,
+  x1.9 on day 4, x2 on days 5 and 6, then x2.1, x2.3, x2.4 and x2.6 on days 7 to 10. Heals, SHIELD and WARD don't grow.
+  In 0.9.8 neither hull nor damage grew.
+- The dark wind now takes the same share of every hull's maximum, so a bigger hull no longer outlasts a smaller one when
+  the wind rises: from 25 seconds, 0.1% of each max hull a second, and 0.6% more every 5 seconds.
+- Each day's gold keeps growing to day 10: 6 gold plus the day's number, up to 10, and 2 more after a win. In 0.9.8 it
+  stopped growing after day 6.
+- **A warlord every day:** after the caravan, the road always has a warlord fight: pick Easy, Medium or Hard (the stop
+  with only a road event is gone). The day's road event follows, then REFIT, where you can rearrange your carrier but
+  can't buy, sell or reroll, and then dusk.
+- A warlord you beat drops one part of the deck it fought with, 60%, 75% or 90% of the time (Easy, Medium, Hard), into
+  your cargo: at ★1, or at ★2 from Hard. It replaces Hard's pick of 2 parts.
+- Star steps that didn't pay now do: QUENCH TANK ★1 turns each BURN on the payloads it hits into 40 damage (30 in 0.9.8,
+  no more than the BURN itself), STOKER ★3 makes the factories its arrows point at up to 85% faster (70%), and at ★2 and
+  ★3 a payload OVERDRIVE speeds up keeps 50% and 100% of the ride the speed cuts, for its ride bonuses.
+- **10 hearts:** runs now start with 10 hearts. Early losses cost 1 heart, later ones 2 or 3 (days 1-3, 4-6, and from
+  day 7); draws and road fights cost none. LAST CHANCE comes once, at the first loss before the last day that would leave
+  you 1 heart or fewer, and keeps you on 1 heart. In 0.9.8 a run had 5 lives and every loss cost 1.
+- Runs on a losing streak now meet weaker ghosts (once your losses are 3 or more ahead of your wins).
+- **Open rune offers:** rune offers are open now: any hero can be offered any rune. THE LONG ROAD now gives +6% damage
+  per rig a load passes (in 0.9.8 it doubled your ride bonus).
+- **Free joins:** joins are free now: a joined factory keeps its full pace, and a deck can hold as many joins as you
+  build. In 0.9.8 a joined factory ran at 70% pace and a deck held 2 joins.
+- **More SHIELD and WARD:** PLATE ROLLER now rolls 15, 33 or 51 SHIELD onto your hull for each payload it hits at ★1, ★2
+  or ★3 (5, 11 or 17 in 0.9.8), and WARD BELL gives your hull one WARD every 4, 3 or 2 seconds (8, 5 or 4). RIVET
+  HOARD's FIGHT START is +180 SHIELD (+60), LAST WALL's AT HALF HULL +140 SHIELD (+80), and SEAM RIVETS' EACH PAIR +30
+  SHIELD (+10).
+- WEAVER's hull is now 1500 (1700 in 0.9.8), so a road event that costs hull says HULL TOO WEAK sooner: an event can't
+  take your hull below 1000.
+- THANE KARSK and THISTLEMAIL carry fewer ARMOR PACKs late in a run.
 - No rule changed: every fight plays exactly as in 0.9.8, and online play is unchanged.
 
 ## 0.9.8: styles you earn

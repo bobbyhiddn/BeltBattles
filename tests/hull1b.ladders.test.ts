@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
-import { AMMO, BURN_DPS, BURN_TIME, ITEMS, TICK } from "../src/sim/content";
+import { AMMO, BURN_DPS, BURN_TIME, HEROES, ITEMS, TICK } from "../src/sim/content";
 import { payloadDamage, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates } from "../src/sim/beltside";
 import { PLANS, planBuild } from "../src/sim/rivalBuilds";
@@ -18,6 +18,11 @@ import { LADDER_DEFS, LADDER_FIX, ladderFixRules, setLadderFix, withLadderFix } 
 import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip, NPC_DAY): the par player's bb-0.9.7 runs, the NPC day off
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): the same runs, 0.9.7's gold table
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the same runs, SHAPES off
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip): the same runs, all eight switches off (bb-0.9.7's)
+import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip)
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip)
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip)
+import { withPick } from "../src/net/pick"; // HULL-ON (the flip)
 import { effectAt } from "../src/sim/stars";
 import { barge, bench, SEED } from "./arsenal.bench";
 import { K, item, withItem, withMod } from "./wave3.helpers";
@@ -283,10 +288,19 @@ describe("HULL-1b the par player's six runs (tests/harness.player's buy floor: n
     // two on); the on half is the shipped game, every switch on
     // SHAPES-1 flip: SHAPES ships on too, so the off half sets it off as well (the tripwire kept at its old point, as AZ-BUMP's
     // flip kept it; with SHAPES on in the off half the shaped pieces are in the caravan and it read 16 / 15 / 15 / 15 / 11 / 14)
-    const off = withShapes(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false), false), on = withLadderFix(buys);
+    // HULL-ON (the flip, GUARD, OPEN_RUNES, FREE_JOINS): the all-off world has five more switches now, so the off half sets
+    // them off too (all eight off). One at a time, each off alone beside the three: GUARD 14 / 15 / 13 / 15 / 12 / 15 (its
+    // plate and shield numbers), OPEN_RUNES 14 / 16 / 13 / 15 / 9 / 16 (the open dawn runes), FREE_JOINS 12 / 15 / 13 / 13 /
+    // 12 / 18 (no join limit in its plans), HEARTS and PICK none (14 / 14 / 13 / 15 / 12 / 16, as the five on); all five
+    // off: bb-0.9.7's six
+    const allOff = <T>(f: () => T): T => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(f, false), false), false), false), false);
+    const off = withShapes(() => allOff(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false)), false), on = withLadderFix(buys);
     log(`BUYS FURNACE s1-s3, WEAVER s1-s3: off ${off.join(" / ")}; on ${on.join(" / ")}`);
     expect(off).toEqual([12, 15, 13, 14, 10, 16]); // bb-0.9.7's, as tests/harness.player pins them
     for (const n of on) expect(n).toBeGreaterThan(0);
+    // MERGE-099F (REQ-BFG-079, -086): SHAPES and HULL-ON's five on together; was 14 / 14 / 13 / 15 / 12 / 16 (HULL-ON's
+    // world, no shapes: the comment above; neither side checked the on half exactly, BRIEF-MERGE-099F 1g pins it here)
+    expect(on).toEqual([15, 14, 17, 14, 16, 17]);
     // AZ-BUMP (the flip): 300 s, the on half's six runs fight a warlord every day; a host timeout under the 1.5-CPU quota
     // (30 s hit in run 5's group check), not the rule
   }, 300_000);
@@ -312,6 +326,12 @@ function longKiln(): Build {
   return b;
 }
 const sturdy = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus + 3000 });
+/** HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's rulings 84ad10254e1855c8 = RULING-HULLON-R9 and 0bbcee55b6ba281a
+ *  = RULING-HULLON-R10 (c)): capRows' foe stays the one this test measured, WEAVER's start deck at 4,700 hull in all
+ *  (content.ts's base 1700 + 3000). Its bonus is 3000 plus what the free-joins swap takes off that base (the base read
+ *  with the switch off), so the foe holds for any FREE_JOINS_HULL value (3000 + 200 at 1500). The player's side keeps
+ *  sturdy's +3000. */
+const sturdyFoe = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus + 3000 + withFreeJoins(() => HEROES.weaver.hull, false) - HEROES.weaver.hull });
 const ROWS: { id: string; base: () => Build; x: number; y: number; rises: boolean }[] = [
   { id: "FURNACE start, 6-tile Kiln", base: furnaceStart, x: 6, y: 6, rises: false },
   { id: "FURNACE, 8-tile Kiln", base: longKiln, x: 6, y: 6, rises: true },
@@ -319,13 +339,14 @@ const ROWS: { id: string; base: () => Build; x: number; y: number; rises: boolea
   { id: "shared gun, STOKER on the mould", base: lockjaw, x: 8, y: 6, rises: false },
   { id: "shared gun with room, STOKER on the mould", base: () => withMod(lockjaw(), 60, "calibrate", 0, 3), x: 8, y: 6, rises: true },
 ];
-/** wave3.decks's capRows: mean damage and jams over seeds 1-5, both sides +3000 hull: no stoker, then ★1-★3. */
+/** wave3.decks's capRows: mean damage and jams over seeds 1-5, both sides +3000 hull (the foe at the measured 4,700:
+ *  sturdyFoe): no stoker, then ★1-★3. */
 function capRows(r: (typeof ROWS)[number]): { dmg: number; jams: number }[] {
   return [0, 1, 2, 3].map((s) => {
     let dmg = 0, jams = 0;
     for (const seed of [1, 2, 3, 4, 5]) {
       const b = s ? withItem(r.base(), item(70, "stoker", r.x, r.y, 0, s)) : r.base();
-      const bt = new Battle(sturdy(b), sturdy(weaverStart()), seed);
+      const bt = new Battle(sturdy(b), sturdyFoe(weaverStart()), seed);
       while (!bt.over && bt.ticks < 60 * 200) { bt.step(); bt.events.length = 0; }
       dmg += bt.sides[0].stats.damage;
       jams += bt.sides[0].stats.jams;

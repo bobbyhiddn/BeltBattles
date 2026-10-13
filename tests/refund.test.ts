@@ -9,14 +9,18 @@ import {
 import { START_LIVES } from "../src/sim/content";
 import type { SideStats } from "../src/sim/battle";
 import { HELP } from "../src/screens/title";
+import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the refund is the 5-lives rule
 
 const STATS = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 0, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
 const W = 0 as const, L = 1 as const, D = -1 as const;
 type Out = typeof W | typeof L | typeof D;
 const reload = (run: Run): Run => migrateRun(JSON.parse(JSON.stringify(run)))!;
 
-/** Play dusk results (0 win, 1 loss, -1 draw) through the day loop, from `run` (a fresh FURNACE run by default). */
-function play(results: Out[], run: Run = newRun("furnace", 42, "refund-run")): Run {
+/** Play dusk results (0 win, 1 loss, -1 draw) through the day loop, from `run` (a fresh FURNACE run by default).
+ *  HULL-ON (the flip, HEARTS): HEARTS ships on and removes the refund (a hearts run has no day-3 refund: retune1.hearts
+ *  pins that), so the default run is a 5-lives run, started with HEARTS off. A run keeps the scale it started on (its
+ *  Run.hearts mark), so every dusk below plays the 5-lives rules, the refund's world. */
+function play(results: Out[], run: Run = withHearts(() => newRun("furnace", 42, "refund-run"), false)): Run {
   for (const r of results) {
     if (run.over) break;
     startDusk(run, []);

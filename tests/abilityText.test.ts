@@ -32,6 +32,7 @@ import { roundHalfUp } from "../src/sim/pct"; // NUM-2: MIMIC's speed rounds hal
 // Y7b2 (the flip): `pct as simPct` (NUM-4: GRAPNEL's salvage as the sim rounds it) left with that salvage, its one reader
 import { PEAK_SHIFT } from "../src/sim/races/data"; // NUM-4: METRONOME's peak shift, a hidden timer no sentence quotes
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's sentences beside the shipped ones
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's base sentence beside the shipped one
 
 // 0.6.2t (REQ-BFG-032): the ability text of every buyable module (0.8.0: 31 rigs, 15 factories, 15 cores, 12 mods) at 1, 2
 // and 3 stars, and of each supply: its numbers are that star's real values, it opens with one plain sentence, it uses
@@ -649,7 +650,10 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     const at = (def: string, s = 1, k = 1) => abilityText(def, s, { k }).sentences;
     // NUM-1 (REQ-BFG-047): every damage and plating number below is x10 (fixtures/num1-base-values.json); %, times,
     // counts and ANVIL's perPlate (damage per plating, a ratio) as they were
-    expect(at("plateroller", 3)[0]).toBe("ROLLS 17 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS."); // was 1.7
+    // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): 17 -> 51, GUARD's PLATE ROLLER (x3 a payload); it read 17
+    // before only because a wave-3 toggle wrote the base def back. The base sentence with GUARD off (was 1.7)
+    expect(at("plateroller", 3)[0]).toBe("ROLLS 51 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.");
+    expect(withGuard(() => at("plateroller", 3)[0], false)).toBe("ROLLS 17 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.");
     // was 2.2, 6.6. Y7b2 (the flip): TWIN GAUGE's floor left, the matched bonus alone (was "ADDS 22 DAMAGE TO EACH PAYLOAD
     // IT HITS, OR 66 DAMAGE ON A MATCHED BELT.")
     expect(at("twingauge", 2)[0]).toBe("ADDS 66 DAMAGE TO EACH PAYLOAD IT HITS ON A MATCHED BELT.");
@@ -726,7 +730,10 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // NUM-1: was 1, 0.2. Y7b2 (the flip): a lone load rolls none (was "..., AND ANY OTHER LOAD ROLLS 2.")
     expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 10 SHIELD ONTO YOUR HULL.");
     // the next-star lines DESIGN 3.3 gives
-    expect([1, 2].map((s) => nextStarText("plateroller", s))).toEqual(["NEXT STAR: ROLLS 11 SHIELD FOR EACH PAYLOAD.", "NEXT STAR: ROLLS 17 SHIELD FOR EACH PAYLOAD."]); // NUM-1: was 1.1, 1.7
+    // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): 11 / 17 -> 33 / 51, GUARD's PLATE ROLLER; it read 11 / 17
+    // before only because a wave-3 toggle wrote the base def back. 11 / 17 with GUARD off (NUM-1: was 1.1, 1.7)
+    expect([1, 2].map((s) => nextStarText("plateroller", s))).toEqual(["NEXT STAR: ROLLS 33 SHIELD FOR EACH PAYLOAD.", "NEXT STAR: ROLLS 51 SHIELD FOR EACH PAYLOAD."]);
+    expect(withGuard(() => [1, 2].map((s) => nextStarText("plateroller", s)), false)).toEqual(["NEXT STAR: ROLLS 11 SHIELD FOR EACH PAYLOAD.", "NEXT STAR: ROLLS 17 SHIELD FOR EACH PAYLOAD."]);
     // NUM-1: was 3.5, 10.5. Y7b2 (the flip): no floor (was "NEXT STAR: ADDS 35 DAMAGE, OR 105 ON A MATCHED BELT.")
     expect(nextStarText("twingauge", 2)).toBe("NEXT STAR: 105 DAMAGE ON A MATCHED BELT.");
     // Y7b2 (the flip): no plated multiplier (was "NEXT STAR: 70% SHORTER, 85% WHILE PLATED.")

@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): every heart a run starts with
 import { encodeSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { readConfig } from "../server/config";
@@ -55,7 +56,9 @@ describe.each(storeBackends())("uploads closed, $name store", (backend) => {
     const r = await seedStore(app.store);
     expect(r.written + r.unchanged).toBe(POOL.length); // 0.7.0a D5: the 60-ghost seed pool
     // 0.7.0a D1: a record a player can carry into dusk 2 (won day 1, every life): every seed ghost of day 2 is eligible
-    const m = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=2&wins=1&lives=5&player=closed-check&seen=`);
+    // HULL-ON (the flip, HEARTS): every life is HEARTS_START (10 hearts) under this build's rules (was 5, which left day 2's
+    // 1W 10 ghosts ineligible: a better record than 1W 5)
+    const m = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=2&wins=1&lives=${HEARTS_START}&player=closed-check&seen=`);
     expect(m.status).toBe(200);
     expect((await m.json()).snapshot.day).toBe(2);
   });
@@ -210,7 +213,10 @@ describe("uploads closed on Tigris makes no storage call", () => {
     const open = createGhostServer({ store: tigrisFor(fake), log: () => {} });
     const ob = await started(open);
     const me = await testIdentity(0); // open uploads are signed: POOL[0] under the key's playerId
-    const body = encodeSnapshot(ownedBy(POOL[0], me));
+    // HULL-ON (the flip, PICK): the seed step grades every pool ghost (snapshot.grade) and POST refuses a graded upload
+    // (422 "grade: only the seed pool's ghosts carry a grade"), so POOL[0] goes up as a player uploads it: ungraded
+    const { grade: _grade, ...deck } = POOL[0];
+    const body = encodeSnapshot(ownedBy(deck, me));
     const r2 = await fetch(`${ob}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
     expect(await (await fetch(`${ob}/v1/health`)).json()).toMatchObject({ uploads: "open" });
     await open.close();

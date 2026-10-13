@@ -8,6 +8,8 @@ import { DESK_BAR_W, DESK_WIND_W } from "../game/battleLayout"; // HULL-1d (REQ-
 import type { DayResult } from "../game/run";
 import { record, refundCardLine } from "../game/day";
 import { lastChanceCardLine } from "../game/day"; // LC-1 (REQ-BFG-073)
+import { livesCap } from "../sim/hearts"; // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's 10 hearts on the dusk card
+import { heartsWord } from "../ui/stakes"; // RETUNE-1 run 2: "-3 HEARTS"
 import { SOURCE_OFFLINE, SOURCE_ONLINE } from "../game/session";
 import { settings } from "../core/settings";
 import { START_LIVES, WIND_START } from "../sim/content";
@@ -413,22 +415,29 @@ export function hudRects(L: BattleLayout): { plates: [Rect, Rect]; bar: Rect } {
 
 /** Lives as hearts at a 6 px pitch; `lost` (>= 0) marks the heart just lost: it stays empty and
  *  flashes a white rim for a moment (no flash with Reduced Motion). */
-export function drawHearts(g: G, x: number, y: number, lives: number, t = 0, lost = -1, gained = -1): number {
-  for (let i = 0; i < START_LIVES; i++) {
-    const hx = x + i * 6;
+export function drawHearts(g: G, x: number, y: number, lives: number, t = 0, lost = -1, gained = -1, slots = START_LIVES, perRow = slots): number {
+  // RETUNE-1 run 2 (REQ-BFG-096): `slots` hearts (a hearts run's 10: hearts.ts livesCap), `perRow` to a row at a 6 px pitch
+  // (the bars: two rows of 5); by default START_LIVES in one row, exactly as before
+  for (let i = 0; i < slots; i++) {
+    const hx = x + (i % perRow) * 6, hy = y + Math.floor(i / perRow) * 6;
     if (i === lost) {
-      rect(g, hx - 1, y - 1, 7, 7, C.red);
-      if (!settings.reducedMotion && t < 1.4 && Math.floor(t * 6) % 2 === 0) rect(g, hx - 1, y - 1, 7, 7, C.white);
+      rect(g, hx - 1, hy - 1, 7, 7, C.red);
+      if (!settings.reducedMotion && t < 1.4 && Math.floor(t * 6) % 2 === 0) rect(g, hx - 1, hy - 1, 7, 7, C.white);
     }
     // LC-1 (REQ-BFG-073): the heart LAST CHANCE gave back, lit lime (blinking white at first, as a lost one blinks)
     if (i === gained) {
-      rect(g, hx - 1, y - 1, 7, 7, C.lime);
-      if (!settings.reducedMotion && t < 1.4 && Math.floor(t * 6) % 2 === 1) rect(g, hx - 1, y - 1, 7, 7, C.white);
+      rect(g, hx - 1, hy - 1, 7, 7, C.lime);
+      if (!settings.reducedMotion && t < 1.4 && Math.floor(t * 6) % 2 === 1) rect(g, hx - 1, hy - 1, 7, 7, C.white);
     }
-    g.drawImage(heartIcon(i < lives), hx, y);
+    g.drawImage(heartIcon(i < lives), hx, hy);
   }
-  return START_LIVES * 6 - 1;
+  return Math.min(slots, perRow) * 6 - 1;
 }
+
+/** RETUNE-1 run 2 (REQ-BFG-096): the dusk card's loss line beside the hearts: "-N HEARTS" ("-1 HEART") on a hearts run's loss
+ *  (DayResult.heartsLost, what the loss cost), else "-1 LIFE" as before. */
+export const lossLine = (r: Pick<DayResult, "heartsLost">): string =>
+  r.heartsLost !== undefined ? `-${r.heartsLost} ${heartsWord(r.heartsLost)}` : "-1 LIFE";
 
 /** The dusk result card's rows: [label, you, foe]. 0.6.2 RULE SHOCK ROW: SHOCK STUNS (NUM-4; was SHOCK STALLS), beside the damage and Burn rows:
  *  the enemy machines each side's Shock stalled (DayResult.shocks, counted by the Arena; "-" in a result saved before
@@ -531,8 +540,10 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   const after = run.lives - (r.refund ?? 0);
   // LC-1 (REQ-BFG-073): a LAST CHANCE dusk's heart came straight back: lit lime, not lost (the line below says why)
   const lc = !!r.lastChance;
-  drawHearts(g, hx, yy + 42, after, pt, loss && !lc ? after : -1, lc ? after - 1 : -1);
-  if (loss) drawText(g, "-1 LIFE", hx + START_LIVES * 6 + 4, yy + 42, C.red, { font: "3", outline: C.ink });
+  // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's 10 hearts in one row and what the loss cost ("-3 HEARTS"); else as before
+  const slots = livesCap(run);
+  drawHearts(g, hx, yy + 42, after, pt, loss && !lc ? after : -1, lc ? after - 1 : -1, slots);
+  if (loss) drawText(g, lossLine(r), hx + slots * 6 + 4, yy + 42, C.red, { font: "3", outline: C.ink });
   drawText(g, `W-L ${record(run)}`, x + w - 10, yy + 42, C.white, { font: "3", align: "right" });
   let ry = yy + 53;
   drawText(g, "YOU", x + w - 52, ry, C.lime, { font: "3", align: "right" });

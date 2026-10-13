@@ -5,7 +5,7 @@
 import { Rng } from "../core/rng";
 import {
   AMMO, AMMO_SPACING, BATTLE_CAP, BELT_SPEED, BURN_TIME, CELL, COMMISSION_BASE, COMMISSION_STEP,
-  DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, JOIN_PACE, RULES_VERSION,
+  DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, RULES_VERSION,
   TICK, WIND_START, WIND_WARN, WINDOW_TIME,
   SPEED_K, rateMul, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type AmmoKind, type CoreRoutine, type FactorySpec, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
@@ -22,6 +22,7 @@ import { matchedRoutes, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's E3 (sto
 import { rotOf } from "./deck"; // SHAPES-1 (REQ-BFG-086 R1): a piece's turn, for its footprint's box
 import { footBox } from "./foot"; // SHAPES-1: the turned footprint's box (a target's centre)
 import { ladderFixRules, rideKeepOf } from "./ladderFix"; // HULL-1b (REQ-BFG-070): OVERDRIVE's ride-keep, LADDER_FIX on only
+import { joinedPace } from "./freeJoins"; // JOINS-1 (REQ-BFG-091): RULE JOIN PACE's JOIN_PACE, or 1 with FREE_JOINS on
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
 import { mergedPieces, runeMods, type RuneMods } from "./runes"; // RUNES-1 (REQ-BFG-058); RUNES-2a: merged pieces
@@ -225,7 +226,8 @@ export interface FactoryState {
   triggerQueue: number;
   triggerCooldown: number;
   // 0.6.2 TUNE-M, RULE JOIN PACE: the pace its timers run at (produce: the stamping timer and a trigger's cooldown):
-  // JOIN_PACE when one of its belts joins another belt, else 1 (exactly as before: dt x 1 is dt)
+  // JOIN_PACE when one of its belts joins another belt, else 1 (exactly as before: dt x 1 is dt). JOINS-1 (REQ-BFG-091):
+  // 1 for every factory with FREE_JOINS on (freeJoins.ts joinedPace, read once in makeSide)
   pace: number;
   // 0.8.0 P1 (E3): the STOKER arrows pointing at it and the share each adds (set only on a stoked factory); its timers run
   // at pace x (1 + the stokes of the active ones). `stoked`: the extra seconds of work they gave it (a counter, not stats)
@@ -791,8 +793,9 @@ export class Battle {
         routes: routes.filter((r) => r.factory === p.uid).map((r) => r.index),
         timer: 0.35, rr: 0, disrupted: 0, frozen: 0, flash: 0, stalled: false, produced: 0,
         pending: 0, cycleIdx: 0, seenHarass: 0, triggerQueue: 0, triggerCooldown: 0,
-        // 0.6.2 TUNE-M, RULE JOIN PACE: one of its belts joins another (a legal join: joinStates set RouteState.join)
-        pace: routes.some((r) => r.factory === p.uid && r.join) ? JOIN_PACE : 1,
+        // 0.6.2 TUNE-M, RULE JOIN PACE: one of its belts joins another (a legal join: joinStates set RouteState.join).
+        // JOINS-1 (REQ-BFG-091): joinedPace() is JOIN_PACE with FREE_JOINS off (exactly as before), 1 with it on
+        pace: routes.some((r) => r.factory === p.uid && r.join) ? joinedPace() : 1,
       }));
     // 0.8.0 P1, ARMOR PRESS: "IT NEEDS A BELT TO A TURRET TO WORK": its plating timer runs only with such a belt
     for (const f of factories) {
@@ -1545,7 +1548,7 @@ export class Battle {
    * the turret its route feeds can take"): the pace of a stoked factory's stamp timer and trigger cooldown. Each turret
    * its belts reach takes 1 / loadPace loads a second (read live); the other factories feeding it use their share of that
    * (their stamp rate now x the loads a stamp sends there), and this factory may use what is left. With I0 its unstoked
-   * stamp interval (JOIN_PACE included) and Imin the shortest interval that leaves no turret over its pace (the largest
+   * stamp interval (JOIN_PACE included; JOINS-1: 1 with FREE_JOINS on) and Imin the shortest interval that leaves no turret over its pace (the largest
    * over its turrets; Infinity where nothing is left), it stamps every max(I0 / (1 + stoke), min(I0, Imin)): the full
    * stoke where the guns have room, never faster than they can take, never slower than unstoked. A factory with no belt
    * to a turret keeps the full stoke. Counts the extra work in f.stoked.

@@ -3,8 +3,14 @@
 // and one par run's dusks. About 10 s (two full pattern tables through the day loop and one par run).
 // Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE is the game's rule, so the run code's rules are GAME (RULES plus LAST CHANCE's
 // life) and every check against the run code reads them; RULES stays the 0.6.2 rules of the hand-computed cases.
+// HULL-ON (the flip, HEARTS): the tool's model (LifeRules) is the 5-lives model: START_LIVES, one life a loss, the day-3
+// refund, LAST CHANCE giving one back at exactly 1 life. It does not follow HEARTS (10 hearts, heartCost 1/2/3 by day, no
+// refund, LAST CHANCE setting 1 at 1 or fewer): with HEARTS on, lifeAudit throws "the model doesn't cover these rules".
+// So every check of the model against the run code reads the run code with HEARTS off (offHearts: its runs are 5-lives
+// runs), the world the model covers. LOOK (cap): the tool's survival model does not follow HEARTS (tools/ not edited).
 import { describe, expect, it } from "vitest";
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
+import { withHearts } from "../src/sim/hearts";
 import { standInFoe } from "../src/game/ghosts";
 import {
   checkBag, constLoss, eventDayOdds, lifeAudit, lostOf, modelCompletes, modelTable, patternTable, roundsInto, runPattern,
@@ -17,6 +23,8 @@ const RULES: LifeRules = { startLives: 5, days: 10, lossLives: 1, refundDay: 3, 
 /** Z-BUMP (the flip): the game's rules now, as lifeAudit reads them off the run code: RULES and LAST CHANCE's 1 life. */
 const GAME: LifeRules = { ...RULES, lastChance: 1 };
 const choose = (n: number, k: number): number => (k < 0 || k > n ? 0 : k === 0 ? 1 : (choose(n - 1, k - 1) * n) / k);
+/** HULL-ON (the flip, HEARTS): a test body run with HEARTS off (its runs start as 5-lives runs), put back on after. */
+const offHearts = (fn: () => void) => (): void => withHearts(fn, false);
 
 describe("--survival: the exact model on hand-computed cases", () => {
   it("2 days and 2 lives: only losing both ends the run; a day-1 refund saves even that", () => {
@@ -76,7 +84,7 @@ describe("--survival: the exact model on hand-computed cases", () => {
 });
 
 describe("--survival: the model against the run code (newRun + startDusk + finishDay)", () => {
-  it("reads the rules off the run code, and no build gains from losing days 1-2", () => {
+  it("reads the rules off the run code, and no build gains from losing days 1-2", offHearts(() => { // HULL-ON (HEARTS): off
     const a = lifeAudit("furnace", 20260926);
     expect(a.rules).toEqual(GAME); // Z-BUMP: the flip (was RULES: the audit now reads LAST CHANCE's life off the run code too)
     expect(a.dusk).toEqual({ win: 0, loss: -1, draw: 0 });
@@ -88,20 +96,20 @@ describe("--survival: the model against the run code (newRun + startDusk + finis
       expect(x.lives).toBeLessThanOrEqual(ww.lives);
       expect(x.gold).toBeLessThanOrEqual(ww.gold);
     }
-  });
+  }));
 
-  it("every loss pattern completes in the run code exactly when the model says so (no DOCK)", () => {
+  it("every loss pattern completes in the run code exactly when the model says so (no DOCK)", offHearts(() => { // HULL-ON (HEARTS): off
     const run = patternTable("weaver", 7);
     expect(run.complete).toEqual(modelTable(GAME)); // Z-BUMP: the flip (was modelTable(RULES))
     // Z-BUMP: the flip (was 582 / 1024, the 0.6.2 rules' above). With LAST CHANCE a run survives at most 5 losses (638
     // patterns), or exactly 6 with one on day 1 or 2 (C(10, 6) - C(8, 6) = 182): 820
     expect(survivalFrom(run.complete, constLoss(0.5))).toBe(820 / 1024);
-  });
+  }));
 
   // Z-BUMP (REQ-BFG-073, the flip): LAST CHANCE gives back the life of the first loss to 1 life, so the no-refund model
   // now survives losing days 1-5 too (5 -> 4 -> 3 -> 2 -> 1 (LAST CHANCE) 2 -> 1); one more loss keeps each sequence's point:
   // days 1-6 (was days 1-5, lives [4, 4, 3, 2, 1, 1, 1, 1, 1, 1]) and days 3-8 (was days 3-7, lost after 7 dusks)
-  it("the refund decides scripted sequences: losing days 1-6 survives with it, the no-refund model would end the run", () => {
+  it("the refund decides scripted sequences: losing days 1-6 survives with it, the no-refund model would end the run", offHearts(() => { // HULL-ON (HEARTS): off
     const m = 0b111111; // lose days 1-6, win 7-10: 5 -> 4 -> 3 -> (refund) 4 -> 3 -> 2 -> 1 (LAST CHANCE) 2 -> 1
     const r = runPattern("furnace", 11, m);
     expect(r.complete).toBe(true);
@@ -112,9 +120,9 @@ describe("--survival: the model against the run code (newRun + startDusk + finis
     const late = runPattern("furnace", 11, 0b11111100);
     expect([late.complete, late.lives[late.lives.length - 1]]).toEqual([false, 0]);
     expect(late.lives.length).toBe(8);
-  });
+  }));
 
-  it("draws keep lives like wins; PATCH UP through the road event matches the model on its DOCK day", () => {
+  it("draws keep lives like wins; PATCH UP through the road event matches the model on its DOCK day", offHearts(() => { // HULL-ON (HEARTS): off
     for (const m of [0, 0b11111, 0b1111100, 0b1010101010, 0b1111111111, 0b0110110110]) {
       expect(runPattern("furnace", 3, m, 0, -1).lives).toEqual(runPattern("furnace", 3, m, 0, 0).lives);
     }
@@ -124,7 +132,7 @@ describe("--survival: the model against the run code (newRun + startDusk + finis
     // below 5 lives at day 4's road: 5 of the 8 day 1-3 patterns (LLW, WWL, LWL, WLL, LLL; LWW and WLW are refilled by
     // the refund at dawn 3), so 5/8 of the 1024
     expect(t.patched).toBe(640);
-  });
+  }));
 });
 
 describe("--survival: the DOCK's day (eventSequence's first bag)", () => {
@@ -147,7 +155,7 @@ describe("--survival: the DOCK's day (eventSequence's first bag)", () => {
 });
 
 describe("--survival: one par run's dusks are the game's own", () => {
-  it("fights standInFoe(run.seed, day) every day and keeps lives by finishDay", () => {
+  it("fights standInFoe(run.seed, day) every day and keeps lives by finishDay", offHearts(() => { // HULL-ON (HEARTS): off
     const r = survJob({ hero: "furnace", seed: 3 });
     expect(r.res.length).toBe(RUN_DAYS);
     expect(r.foes).toEqual(Array.from({ length: RUN_DAYS }, (_, i) => standInFoe(r.runSeed, i + 1).name));
@@ -155,5 +163,5 @@ describe("--survival: one par run's dusks are the game's own", () => {
     expect(r.complete).toBe(modelCompletes(GAME, lostOf(mask, RUN_DAYS))); // Z-BUMP: the flip (was RULES)
     expect(r.lives[0]).toBe(START_LIVES - (r.res[0] === 1 ? 1 : 0));
     expect(survJob({ hero: "furnace", seed: 3 })).toEqual(r); // deterministic
-  });
+  }));
 });

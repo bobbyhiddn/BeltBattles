@@ -29,6 +29,7 @@ import { familyTable } from "../tools/luckReport";
 import { WAVE3_DESIGN, tagsFor } from "../tools/wave3";
 import { LADDER_DEFS, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): STOKER's fixed def
 import { SHAPES_IDS, isShapesPiece, withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the three shaped rigs follow sustain
+import { GUARD_DEFS, withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's guarded def
 
 const FAMS: ModuleTag[] = ["FORGE", "HARASS", "SWARM", "BURST", "TEMPO", "TWIN", "PLATE"];
 const ids = (ds: { id: string }[]) => ds.map((d) => d.id);
@@ -57,6 +58,12 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
       if (Object.prototype.hasOwnProperty.call(LADDER_DEFS, id)) {
         expect(withLadderFix(() => ITEMS[id], false), id).toBe(WAVE3_ITEMS[id]);
         expect(ITEMS[id], id).toEqual(LADDER_DEFS[id](WAVE3_ITEMS[id]));
+      } else if (Object.prototype.hasOwnProperty.call(GUARD_DEFS, id)) {
+        // HULL-ON (the flip, GUARD): ITEMS.plateroller is its guarded def, a new object built from WAVE3_ITEMS.plateroller
+        // (guard.ts GUARD_DEFS.plateroller: gate.plate 5 / 11 / 17 -> 15 / 33 / 51), so its identity (the very entry, as
+        // merged) is read with GUARD off and its on entry is compared with that guarded def, as STOKER's above
+        expect(withGuard(() => ITEMS[id], false), id).toBe(WAVE3_ITEMS[id]);
+        expect(ITEMS[id], id).toEqual(GUARD_DEFS[id](WAVE3_ITEMS[id]));
       } else expect(ITEMS[id], id).toBe(WAVE3_ITEMS[id]);
       expect(ITEMS[id].id).toBe(id);
       expect(effectAt(id, 3).id).toBe(id);

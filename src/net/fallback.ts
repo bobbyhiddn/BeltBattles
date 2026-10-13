@@ -8,9 +8,14 @@ import { migrateDeck } from "../sim/beltside";
 import { HEROES, RULES_VERSION, START_LIVES, type HeroId } from "../sim/content";
 import { cloneBuild } from "../sim/deck";
 import { standInPick } from "../sim/standInPool";
-import { pickGhost, type MatchRequest } from "./matchmaking";
+import { type MatchRequest } from "./matchmaking";
+import { matchPick } from "./pick"; // RETUNE-1 T5 (REQ-BFG-092): the one pick, shared with the server's match route
 import { checkSnapshot, MAX_DAY, MAX_LIVES, SNAPSHOT_V3, SNAPSHOT_VERSION, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
+import { heartsFor, livesCapFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the stand-in's mirrored hearts
+import { HEARTS_START } from "../sim/hearts"; // RETUNE-1
+import { freeJoinsFor } from "./rulesGate"; // JOINS-1 (REQ-BFG-091): free joins by each snapshot's own rules
+import { withFreeJoins } from "../sim/freeJoins"; // JOINS-1
 
 /**
  * Heroes a stand-in (or sample-pool) ghost may play. Each needs decks in the stand-in pool (STAND_IN_POOL_HEROES),
@@ -43,7 +48,8 @@ export function offlineGhost(hero: HeroId, day: number, seed: number, record?: {
   const d = Math.min(MAX_DAY, Math.max(1, Math.floor(day)));
   const foe = rivalHero(hero, seed);
   const wins = Math.min(d - 1, Math.max(0, Math.floor(record?.wins ?? 0)));
-  const lives = Math.min(MAX_LIVES, Math.max(1, Math.floor(record?.lives ?? START_LIVES)));
+  // RETUNE-1 (REQ-BFG-096): under rules with hearts the mirror holds up to HEARTS_START (10), and starts there
+  const lives = Math.min(livesCapFor(RULES_VERSION, MAX_LIVES), Math.max(1, Math.floor(record?.lives ?? (heartsFor(RULES_VERSION) ? HEARTS_START : START_LIVES))));
   const build = standInPick(foe, d, seed);
   const snapshot = checkSnapshot({
     // the 0.6.1 flip: a pool deck may carry merge stars, and (0.6.2 BELTSIDE, DESIGN-beltside D1) its rigs `rot`; only
@@ -93,7 +99,8 @@ export function loadGhostPool(json: string | unknown): PoolLoad {
     try {
       const snapshot = migrateV1(checkSnapshot(item)); // 0.6.2 BELTSIDE: D3 before validateBuild
       if (snapshot.rules !== RULES_VERSION) throw new SnapshotError(`rules ${snapshot.rules} is not ${RULES_VERSION}`);
-      const v = validateBuild(snapshot.build, snapshot.day);
+      // JOINS-1 (REQ-BFG-091): checked under the snapshot's own rules' answer to free joins (rulesGate.ts freeJoinsFor)
+      const v = withFreeJoins(() => validateBuild(snapshot.build, snapshot.day), freeJoinsFor(snapshot.rules));
       if (!v.ok) throw new SnapshotError(v.errors.join("; "));
       const id = ghostId(snapshot);
       if (ids.has(id)) return;
@@ -113,7 +120,9 @@ export interface FallbackRequest extends MatchRequest {
 
 /** Best offline opponent: a matching bundled-pool ghost, else the stand-in pool's deck (offlineGhost). */
 export function fallbackGhost(req: FallbackRequest, pool: readonly PoolEntry[] = []): PoolEntry {
-  const hit = pickGhost(pool, req, new Rng(req.seed));
+  // RETUNE-1 T5 (REQ-BFG-092): the server's pick (pick.ts matchPick: the graded pick under rules with PICK, else
+  // pickGhost exactly). The stand-in below needs no grade: it never follows a record past D1's lives and wins.
+  const hit = matchPick(pool, req, new Rng(req.seed));
   return hit ?? offlineGhost(req.hero, req.day, req.seed, { wins: req.wins, lives: req.lives });
 }
 

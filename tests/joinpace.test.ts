@@ -3,7 +3,7 @@
 // once, however long its chain; a factory none of whose belts joins runs exactly as before. The build screen says it
 // where the join is made, in the factory's and its belts' panels and in the rules card; its load estimate and the par
 // player's rating (deckRating.ts) model it.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Battle, type SideState } from "../src/sim/battle";
 import { ITEMS, JOIN_PACE } from "../src/sim/content";
 import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a factory's seconds a stamp, 30 / speed
@@ -13,8 +13,9 @@ import {
 import { rateDeck } from "../src/sim/deckRating";
 import { joinPaceLines } from "../src/screens/build/inspector";
 import { seconds } from "../src/ui/abilityText"; // 0.6.2rel3: REQ-BFG-032's seconds
-import { HELP } from "../src/screens/title";
+import { HELP, helpLine3 } from "../src/screens/title";
 import { C } from "../src/render/palette";
+import { setFreeJoins, withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the rule holds with the switch off
 
 // tests/joins.sim.test.ts's deck: FURNACE, the KILN's belt M up column 4 into the turret; a STAMP PRESS west of it feeds
 // R, which ends at (3,4) and joins M's tile 1 (4,4)
@@ -45,6 +46,13 @@ function produced(b: Build, uid: number, seconds: number, setup?: (s: SideState)
 }
 const PRESS = secPer(ITEMS.press.factory!.speed); // NUM-2 (was ITEMS.press.factory!.interval, 1.4 s): 30 / 21 = 1.43 s at 1 star
 
+// HULL-ON (the flip, FREE_JOINS): FREE_JOINS ships on (no RULE JOIN PACE: a joined factory runs at its normal rate;
+// tests/freejoins.test.ts), and older rules keep the pace (freeJoinsFor). This file measures RULE JOIN PACE, so each test
+// runs with the switch off, and the afterEach puts the shipped value back. Where it is cheap a line reads the on value
+// beside it (withFreeJoins)
+beforeEach(() => setFreeJoins(false));
+afterEach(() => setFreeJoins(true)); // the shipped value (HULL-ON's flip)
+
 describe("RULE JOIN PACE: what a joined factory makes", () => {
   it("a joined factory makes JOIN_PACE x the loads of the same factory unjoined, over a fixed window", () => {
     expect(JOIN_PACE).toBeGreaterThan(0);
@@ -61,6 +69,8 @@ describe("RULE JOIN PACE: what a joined factory makes", () => {
     expect(pace(2)).toBe(JOIN_PACE); // the PRESS, whose belt joins
     expect(pace(1)).toBe(1); // the KILN, whose belt is joined
     expect([factoryPace(deck(), 2), factoryPace(deck(), 1)]).toEqual([JOIN_PACE, 1]);
+    // HULL-ON (the flip, FREE_JOINS): on (shipped), no pace: the PRESS at 1 in the battle and the walk
+    expect(withFreeJoins(() => [new Battle(deck(), FOE, 7).sides[0].factories.find((f) => f.uid === 2)!.pace, factoryPace(deck(), 2)])).toEqual([1, 1]);
     // the main belt's own factory makes its loads as without the join
     expect(produced(deck(), 1, 30)).toBe(produced(deck(false), 1, 30));
   });
@@ -84,6 +94,7 @@ describe("RULE JOIN PACE: the estimate and the rating", () => {
     const b = deck();
     const every = loadEvery(b, 1);
     expect(every).toBeCloseTo(PRESS / JOIN_PACE, 9);
+    expect(withFreeJoins(() => loadEvery(b, 1))).toBeCloseTo(PRESS, 9); // HULL-ON (the flip, FREE_JOINS): on (shipped), unpaced
     expect(loadEvery(b, 0)).toBeCloseTo(secPer(ITEMS.kiln.factory!.speed), 9); // the main belt's factory: unpaced (NUM-2: 30 / 24 = 1.25 s; was ITEMS.kiln.factory!.interval)
     expect(loadEvery(deck(false), 1)).toBeCloseTo(PRESS, 9);
     for (const [uid, index, setup] of [[2, 1, quiet(1)], [1, 0, undefined]] as const) {
@@ -120,8 +131,12 @@ describe("RULE JOIN PACE: the player reads it", () => {
     ]);
     expect(joinPaceLines(deck(), 1)).toEqual([]);
     expect(joinPaceLines(deck(false), 2)).toEqual([]);
+    expect(withFreeJoins(() => joinPaceLines(deck(), 2))).toEqual([]); // HULL-ON (the flip, FREE_JOINS): on (shipped), no line at all
     // the rules card, where joins are explained
+    // HULL-ON (the flip, FREE_JOINS): HELP is the card at load, the shipped one, with no pace; the card's line 3 with the
+    // switch off (helpLine3, read now) states the pace, as before
     expect(HELP[2]).toContain("DRAG A BELT INTO ANOTHER TO JOIN THEM");
-    expect(HELP[2]).toContain(`A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
+    expect(HELP[2]).not.toMatch(/PACE/);
+    expect(helpLine3()).toContain(`A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
   });
 });

@@ -21,6 +21,7 @@ import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { DROP_STARS, dropClass, dropPool, roadDropValue, setNpcDay, npcDayRules, type RoadEntry } from "../src/sim/npcDay";
 import { dayMulTenths, hullAt, hullScaleRules, incomeOn, scaleTenths, setHullScale } from "../src/sim/hullScale";
 import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a run that never lost holds 10 hearts
 import { LAST_CHANCE_HULL, LAST_CHANCE_PART_STARS, lastChanceParts, lastChancePartStars, type Boon } from "../src/sim/lastChance";
 import { RUNES, runeFits, runeList } from "../src/sim/runes";
 import { starField, starsOf, valueOf } from "../src/sim/stars";
@@ -43,7 +44,10 @@ const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0
 const HEROS: readonly HeroId[] = PLAYABLE_HEROES;
 const PLATE = ITEMS.plating.supply!.hull!, PLATE_GOLD = ITEMS.plating.price; // an ARMOR PACK: +250 max hull, 5 gold
 const CRATE = ITEMS.beltcrate.supply!.belt!, CRATE_GOLD = ITEMS.beltcrate.price; // a BELT PACK: +4 belt, 2 gold
-const D = 5; // the LAST CHANCE day of a scripted LAST CHANCE run: five dusk losses (the day-3 refund between) leave 1 life
+// the LAST CHANCE day of a scripted LAST CHANCE run. HULL-ON (the flip, HEARTS): 5 -> 6. A hearts run that loses every dusk
+// holds 9 8 7 5 3 hearts after days 1-5, and the loss of day 6 (it would leave 1 or fewer) fires LAST CHANCE, which sets 1;
+// on 5 lives five dusk losses (the day-3 refund between) left 1 life at dusk 5
+const D = 6;
 
 afterEach(() => { // the shipped values (AZ-BUMP's flip; were false); every test sets its switches itself (every())
   setNpcDay(true);
@@ -368,21 +372,25 @@ describe("HULL-1d (g)2: forgeries are refused with every switch on, each with it
   it("a second LAST CHANCE in the record: a second life back after the one on day 5 (4 lives at dusk 9; PATCH UP gives 3 at most)", () => {
     const { s } = lcDusk("hull", 9);
     every();
-    expect([s.wins, s.lives, record(s)]).toEqual([3, 2, true]); // lost days 1-5, LAST CHANCE (2 lives), won days 6-8
-    expect(record({ ...s, lives: 3 })).toBe(true); // the DOCK's PATCH UP on a later road: 3 is honest
-    const forged = { ...s, lives: 4 };
+    // HULL-ON (the flip, HEARTS): [3, 2] -> [2, 1], PATCH UP's 3 -> 2 and the forged 4 -> 3: a hearts LAST CHANCE sets 1
+    // heart (it gives none back), and after it only PATCH UP lifts the hearts, once
+    expect([s.wins, s.lives, record(s)]).toEqual([2, 1, true]); // lost days 1-6, LAST CHANCE (1 heart), won days 7-8
+    expect(record({ ...s, lives: 2 })).toBe(true); // the DOCK's PATCH UP on a later road: 2 is honest
+    const forged = { ...s, lives: 3 };
     expect(deck(forged).ok).toBe(true); // the deck is honest ...
     expect(record(forged)).toBe(false); // ... the record is not: one LAST CHANCE gives one life, once a run
   });
 
   it("a boon without the qualifying loss: a LAST CHANCE on a run that never lost to 1 life (the record refuses it)", () => {
     every();
-    const won = scripted().find((p) => !p.run.lastChance && p.dusks[D].s.lives === 5)!;
-    const s = won.dusks[D].s; // dusk 6, five wins, 5 lives
+    // HULL-ON (the flip, HEARTS): a run that never lost holds HEARTS_START (10) hearts (5 lives before)
+    const won = scripted().find((p) => !p.run.lastChance && p.dusks[D].s.lives === HEARTS_START)!;
+    const s = won.dusks[D].s; // dusk 7, six wins, 10 hearts
     const hull = { ...s, lastChance: { day: D, boon: "hull" as Boon }, build: { ...s.build, hullBonus: s.build.hullBonus + LAST_CHANCE_HULL } };
     expect(deck(hull).ok).toBe(true); // the HULL card is always offered: the deck alone can't tell
     expect(record(hull)).toBe(false);
-    // the honest LAST CHANCE run's dusk 6 claiming it fired on day 4 (2 lives left at dusk 4: no loss to 1 life)
+    // the honest LAST CHANCE run's dusk 7 claiming it fired on day 4 (HULL-ON, HEARTS: 5 hearts left at dusk 4, no loss to
+    // 1 or fewer)
     const { s: lc } = lcDusk("hull");
     const early = { ...lc, lastChance: { day: 4, boon: "hull" as Boon } };
     expect(deck(early).ok).toBe(true);
@@ -625,18 +633,20 @@ describe("HULL-1d (g)2: through POST /v1/ghosts with every switch on", () => {
       const r = await post(s, `hull1d-${card}`);
       expect(r.status, `${card}: ${r.text}`).toBe(201);
     }
-    const won = runs.find((p) => !p.run.lastChance && p.dusks[D].s.lives === 5)!.dusks[D].s;
+    const won = runs.find((p) => !p.run.lastChance && p.dusks[D].s.lives === HEARTS_START)!.dusks[D].s; // HULL-ON (HEARTS): 5 -> 10
     expect((await post(won, "hull1d-won")).status).toBe(201);
     expect(app.store.size).toBe(4);
-    // a boon without the qualifying loss: the record line
+    // a boon without the qualifying loss: the record line (HULL-ON (the flip, HEARTS): 5W 5 lives, dusk 6, day 5 -> 6W 10
+    // lives, dusk 7, day 6)
     const boon = await post({ ...won, lastChance: { day: D, boon: "hull" }, build: { ...won.build, hullBonus: won.build.hullBonus + LAST_CHANCE_HULL } }, "hull1d-boon");
     expect(boon.status).toBe(422);
-    expect(boon.text).toMatch(/record: 5W 5 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 5/);
-    // a second LAST CHANCE's life: 4 lives at dusk 9 after one on day 5
+    expect(boon.text).toMatch(/record: 6W 10 lives is no record a run carries into dusk 7 after a LAST CHANCE on day 6/);
+    // a second LAST CHANCE's life: 3 hearts at dusk 9 after one on day 6 (HULL-ON (the flip, HEARTS): was 4 lives after
+    // one on day 5; a hearts LAST CHANCE sets 1, PATCH UP lifts it to 2 at most)
     const nine = lcDusk("hull", 9).s;
-    const second = await post({ ...nine, lives: 4 }, "hull1d-second");
+    const second = await post({ ...nine, lives: 3 }, "hull1d-second");
     expect(second.status).toBe(422);
-    expect(second.text).toMatch(/record: 3W 4 lives is no record a run carries into dusk 9 after a LAST CHANCE on day 5/);
+    expect(second.text).toMatch(/record: 2W 3 lives is no record a run carries into dusk 9 after a LAST CHANCE on day 6/);
     // the field as a list of two: the decoder's 400
     const list = await post({ ...nine, lastChance: [nine.lastChance, nine.lastChance] } as unknown as GhostSnapshot, "hull1d-list");
     expect(list.status).toBe(400);
@@ -646,7 +656,7 @@ describe("HULL-1d (g)2: through POST /v1/ghosts with every switch on", () => {
     const other = lastChanceParts().find((d) => d.id !== part.lastChance!.id)!.id;
     const offer = await post({ ...part, lastChance: { ...part.lastChance!, id: other } }, "hull1d-offer");
     expect(offer.status).toBe(422);
-    expect(offer.text).toMatch(new RegExp(`lastChance: part ${other} was not in the LAST CHANCE offer of day 5`));
+    expect(offer.text).toMatch(new RegExp(`lastChance: part ${other} was not in the LAST CHANCE offer of day ${D}`)); // HULL-ON (HEARTS): 5 -> D (6)
     // a drop the seeded roll didn't give
     const s = runs.find((p) => !p.run.lastChance)!.dusks[9].s;
     const pool = (e: RoadEntry) => dropPool(warlordDeck(warlordOf(s.road!, s.seed!, e), e.day, !!e.sabotaged));

@@ -173,8 +173,18 @@ export function incomeOn(day: number, won: boolean): number {
  * at 20.9%. D's rules hold (never falls; D <= M; M / D on days 3-10: 1.00 1.16 1.40 1.70 2.00 2.19 2.26 2.50). The run at
  * 2.1 2.3 2.4 is the re-check of every target on all days: par medians 19.2-21.4 s on days 3-10, wind 2.1-19.9% on days
  * 3-10 (13.0% on day 2), no hard stop (AZ-BUMP REPORT section 5).
+ * HULL-ON run 5 (REQ-BFG-079; BRIEF-HULLON H3 S4a; cap's ruling 7fb66a391c57fbea, RULING-HULLON-R8, and ruling
+ * 19139b4c41a1636f, R7): D(7-10)
+ * 2.0 2.1 2.3 2.4 -> 2.1 2.3 2.4 2.6 (days 1-6 kept; days 11-18 follow the new D(10) / M(10) = 2.31: 2.9 3.3 3.6 4.0 4.5
+ * 5.0 5.5 6.1, was 2.7 3.0 3.4 3.7 4.2 4.6 5.1 5.6; the step past day 18 stays 0.5). Why: with every switch on (the flip
+ * 9ffda51 and WARD BELL ★2 at 3 s, ecb43d1) the fights decided by the wind on days 7-10 read 20.5 24.9 23.1 24.3% over the
+ * 20% ceiling; GUARD is the cause (GUARD alone off: 16.8 19.2 16.9 15.4%). The fit, the fewest tenths up on each day
+ * (kit-hullon/fbx.sh: fightBench, 96 seeds, days 1-10, --all-on, on exports with this line edited; 2026-10-13 01:48-01:54Z):
+ * day 8 alone at 2.2 read 20.5 22.6 23.8 25.6%; 2.1 2.2 2.4 2.5 read 16.8 22.3 19.4 22.9%; 2.1 2.3 2.4 2.5 read 16.8 17.2
+ * 18.8 21.3%; 2.1 2.3 2.4 2.6 read 16.8 17.2 18.8 17.3% (medians 22.1 21.9 21.2 20.9 s). D's rules hold (never falls;
+ * D <= M; M / D on days 3-10: 1.00 1.16 1.40 1.70 1.90 2.00 2.17 2.31).
  */
-export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 20, 21, 23, 24];
+export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 21, 23, 24, 26];
 
 /** HULL-1c: D past day 10 holds day 10's M / D: D(d) = M(d) x D(10) / M(10), in whole tenths (rounded half up), for days
  *  11-18 (DMG_MUL_TENTHS_LATE) and a per-day step from day 19 (DMG_MUL_STEP_TENTHS), as M has. */

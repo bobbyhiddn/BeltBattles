@@ -37,6 +37,8 @@ import type { Identity } from "../src/net/identity";
 import { driveRuns } from "./uploadDriver";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
+import { START_LIVES } from "../src/sim/content"; // HULL-ON (the flip, HEARTS): an older-rules snapshot's 5-lives scale
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): this build's uploads carry hearts
 
 const NEW: readonly HeroId[] = ["foundry", "bastion"];
 const OLD: readonly HeroId[] = ["furnace", "weaver"];
@@ -52,6 +54,11 @@ function snap(hero: HeroId, day: number, rules: string, build: Build = heroRefBu
 }
 /** FLIP-X2: `hero`'s reference deck of `day` holding its day's neutral runes (an upload under RULES_VERSION). */
 const refUp = (hero: HeroId, day: number): Build => withDawnRunes(heroRefBuild(hero, day), day);
+/** HULL-ON (the flip, HEARTS): `hero`'s upload of `day` under RULES_VERSION (refUp's deck) at 0W with every heart kept,
+ *  HEARTS_START (10), a record the hearts model reaches at every dusk (a run of draws). Was snap's 0W 5 lives, which no
+ *  hearts run carries into dusk 1 or 3 (POST: 422 "record: ..."). snap() keeps 5 lives for the older rules it writes and
+ *  for the served ghosts below (a served ghost may hold no better record than the request's 5 lives). */
+const upNow = (hero: HeroId, day: number): GhostSnapshot => ({ ...snap(hero, day, RULES_VERSION, refUp(hero, day)), lives: HEARTS_START });
 /** FLIP-X2: a new run that took day 1's dawn rune, as the picker takes it (the first card, as tooling.ts playOut). */
 function dawned(run: Run): Run {
   expect(takeRune(run, pendingRune(run)!.ids[0]).ok).toBe(true);
@@ -201,16 +208,17 @@ describe("the server and the client, both ways", () => {
       expect(was.status, `${hero} d${day} ${HEROES_RULES}`).toBe(422);
       expect(was.body.error).toBe(`rules ${HEROES_RULES} not accepted: this server validates ${RULES_VERSION}`);
       // FLIP-X2: under this server's rules the upload holds its day's runes, as a v3 snapshot (was the rune-less v2 deck)
-      const now = await post(snap(hero, day, RULES_VERSION, refUp(hero, day)));
+      // HULL-ON (the flip, HEARTS): and its record on hearts, 0W 10 (upNow; was snap's 0W 5 lives)
+      const now = await post(upNow(hero, day));
       expect(now.status, `${hero} d${day} ${RULES_VERSION}`).toBe(201);
-      expect(now.body.id).toBe(ghostId(ownedBy(snap(hero, day, RULES_VERSION, refUp(hero, day)), me)));
+      expect(now.body.id).toBe(ghostId(ownedBy(upNow(hero, day), me)));
     }
     expect(app.store.size).toBe(6);
     const old = await post(snap("furnace", 3, OLD_RULES)); // a 0.7.0 client's upload: decodes, then the exact rules check
     expect(old.status).toBe(422);
     expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates ${RULES_VERSION}`);
     expect(app.store.size).toBe(6);
-    const ok = await submitGhost(base, ownedBy(snap("furnace", 3, RULES_VERSION, refUp("furnace", 3)), me), me, 3000); // FLIP-X2: with its runes
+    const ok = await submitGhost(base, ownedBy(upNow("furnace", 3), me), me, 3000); // FLIP-X2: with its runes; HULL-ON (the flip, HEARTS): 0W 10 hearts (upNow)
     expect(ok).toMatchObject({ ok: true });
     expect(app.store.size).toBe(7);
   });
@@ -274,7 +282,9 @@ describe("the server and the client, both ways", () => {
     const pool = generateSamplePool();
     expect(checkPool(pool)).toHaveLength(120); // 0.8.0 RC: FOUNDRY and BASTION joined FURNACE and WEAVER's 60 (oracle 96e0ebe434a93f2b)
     expect(new Set(pool.map((p) => p.hero))).toEqual(new Set(["furnace", "weaver", "foundry", "bastion"]));
-    const bad = { ...pool[0], rules: OLD_RULES, hero: "foundry", build: heroRefBuild("foundry", pool[0].day) };
+    // HULL-ON (the flip, HEARTS): the bad entry is on bb-0.6.2's 5-lives scale (START_LIVES): pool[0] (day 1, 0W) carries
+    // 10 hearts under this build's rules, which the decoder's lives bound for bb-0.6.2 (1..9) refused before the hero gate
+    const bad = { ...pool[0], rules: OLD_RULES, hero: "foundry", lives: START_LIVES, build: heroRefBuild("foundry", pool[0].day) };
     expect(() => checkPool([...pool, bad])).toThrow(/snapshot\.hero: rules bb-0\.6\.2 accept only FURNACE, WEAVER, not FOUNDRY/);
     // AZ-BUMP (the flip): generateSamplePool's race decks are par runs, longer with the NPC day (a warlord battle every day);
     // a host timeout under the 1.5-CPU quota, not the rule (was the 30 s default)
@@ -284,6 +294,8 @@ describe("the server and the client, both ways", () => {
     const g = ghostOf(newRun("foundry", 3), 0, "p1");
     expect([g.hero, g.rules]).toEqual(["foundry", RULES_VERSION]);
     expect(checkSnapshot(g).hero).toBe("foundry"); // 0.8.0 RC: before the bump (bb-0.6.2) the decoder refused it
-    expect(() => checkSnapshot({ ...g, rules: OLD_RULES })).toThrow(/^snapshot\.hero: /); // under 0.7.0's rules it still can't travel
+    // HULL-ON (the flip, HEARTS): on 0.7.0's 5-lives scale (START_LIVES; the run started with 10 hearts, which the decoder's
+    // lives bound for bb-0.6.2, 1..9, refused before the hero gate)
+    expect(() => checkSnapshot({ ...g, rules: OLD_RULES, lives: START_LIVES })).toThrow(/^snapshot\.hero: /); // under 0.7.0's rules it still can't travel
   });
 });

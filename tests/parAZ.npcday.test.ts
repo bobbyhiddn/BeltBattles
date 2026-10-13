@@ -5,7 +5,8 @@
 // costs no life; no events. With the switch off nothing runs: no road, the day's gold and the cache key as before.
 // The switches are set through their own setters and all put back after each test (on: the shipped value, AZ-BUMP's flip).
 import { afterEach, describe, expect, it } from "vitest";
-import { START_LIVES, type HeroId } from "../src/sim/content";
+import { type HeroId } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the par run starts with 10 hearts
 import { turretList } from "../src/sim/deck";
 import { maxGoldByDay } from "../src/net/validate";
 import { runeGrants } from "../src/sim/runes";
@@ -79,7 +80,9 @@ describe("PAR-AZ: the par player's NPC day, every switch on (the benches' settin
     for (const hero of HEROES) for (const seed of [1, 2]) {
       const { days, run } = traced(hero, PLAYER_DAYS, seed);
       const runSeed = parRunSeed(hero, seed);
-      expect(run.lives, `${hero} s${seed}: a warlord loss costs no life`).toBe(START_LIVES);
+      // HULL-ON (the flip, HEARTS): START_LIVES (5) -> HEARTS_START (10): the par run is a hearts run (newRun with HEARTS on),
+      // and a road (warlord) fight never costs hearts, so it ends where it started
+      expect(run.lives, `${hero} s${seed}: a warlord loss costs no life`).toBe(HEARTS_START);
       expect(run.warlords.length, `${hero} s${seed}: one road log entry a day`).toBe(PLAYER_DAYS);
       let gold = 0, dropValue = 0;
       for (const d of days) {

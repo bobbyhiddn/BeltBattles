@@ -22,6 +22,7 @@ import { newRun } from "../src/game/run";
 import { beltPanel } from "../src/screens/build/inspector";
 import { fmtDmg } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): the belt panel's DMG, whole, as it is
 import { K, SEED, barge, events, item, latchDeck, run, withItem, withMod } from "./wave3.helpers";
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's base plating where a test needs it
 
 // ------------------------------------------------------------------------------------------------------------ decks
 
@@ -309,7 +310,10 @@ describe("PLATE BREAKER", () => {
   const rolled = (s: number) => withItem(breaker(s), rig(30, "plateroller", 3, 4, 1));
 
   it("C-breaker-edge: PLATE BREAKER takes plating only when the hull holds at least 1: with 0 < plating < 1 it adds its floor and takes nothing", () => {
-    for (const [s, big, floor] of NUMS) {
+    // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): half a plating needs the base PLATE ROLLER (5 a payload).
+    // GUARD's 15 never leaves 0 < plating < 10 at the breaker (0 such hits, the test wants 4 or more), so the deck plays
+    // with GUARD off; it passed before only because legal()'s withWave3 wrote the base def back
+    withGuard(() => { for (const [s, big, floor] of NUMS) {
       const b = rolled(s);
       legal(b, `★${s}`);
       // each hit of the breaker: the plating it found, the plating it took, and the damage its payload gained
@@ -343,7 +347,7 @@ describe("PLATE BREAKER", () => {
       for (const h of whole) expect([h.took, h.gain], `★${s} t ${h.t.toFixed(3)}`).toEqual([10, big]);
       expect(hits.length).toBe(half.length + whole.length);
       note(`breaker-edge | ★${s}: ${hits.length} hits in 20 s: ${half.length} at ${roll} plating (took 0, +${floor}), ${whole.length} at 10 (took 10, +${big}); payloads ${hits.slice(0, 6).map((h) => h.gain).join(", ")} ...`);
-    }
+    } }, false);
   });
 
   // 0.8.0 B1 M2 (G1's F1, ref/BRIEF-v080-B1.md 3.4, approved there): the walk still counts the big number on a deck that
@@ -505,7 +509,11 @@ describe("OVERCLOCKER on wave 3's rigs (overclock.ts)", () => {
     // in a battle: the plating rig on the Kiln belt's tile 2 is the OVERCLOCKER's next boostable rig, and each boost rolls
     // twice the plating (the hull stays under the cap in 20 s)
     // NUM-1 (REQ-BFG-047): each rig's ★1 plating read from the data, x10 (were the literals 0.5 and 1; now 5, 10)
-    for (const id of ["plateroller", "shieldwall"] as const) {
+    // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): PLATE ROLLER's battle plays with GUARD off. GUARD's 15 / 30
+    // a payload fill the hull to PLATE_CAP in 20 s (the rolls sum 240), so the cap would clip a roll; it passed before only
+    // because legal()'s withWave3 wrote the base def back. GUARD's doubling is checked above (effectAt). SHIELD WALL is not
+    // GUARD's: it plays the shipped world
+    for (const id of ["plateroller", "shieldwall"] as const) withGuard(() => {
       const plate = effectAt(id, 1).gate!.plate!;
       const b = withItem(oc(furnace()), rig(30, id, 3, 3, 1)); // at (3,3), facing east onto (4,3)
       legal(b, id);
@@ -515,6 +523,6 @@ describe("OVERCLOCKER on wave 3's rigs (overclock.ts)", () => {
       expect(rolls.filter((r) => r === 2 * plate).length, id).toBeGreaterThanOrEqual(3);
       expect(sum(rolls)).toBeLessThan(PLATE_CAP);
       note(`oc-plate | ${id}: rolls ${rolls.join(", ")}`);
-    }
+    }, id !== "plateroller");
   });
 });

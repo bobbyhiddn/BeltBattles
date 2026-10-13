@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import * as local from "../src/game/ghostSnapshot";
 import * as net from "../src/net/snapshot";
 import { START_LIVES } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the pool's records are on 10 hearts
 import { generateSamplePool } from "../tools/samplePool";
 
 const POOL = generateSamplePool();
@@ -50,7 +51,12 @@ function starred(s: net.GhostSnapshot, v: 1 | 2, stars: unknown): unknown {
 
 describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snapshot.ts", () => {
   it("the same keys in the canonical order, the same version, ID pattern and bounds", () => {
-    expect(Object.keys(net.checkSnapshot(POOL[0]))).toEqual([...local.SNAPSHOT_KEYS]);
+    // HULL-ON (the flip, PICK): with PICK on the seed step grades every seed ghost (tools/samplePool.ts generateSamplePool:
+    // `grade`, net.GRADE_FIELD, v3, written last of all), so POOL[0]'s keys are SNAPSHOT_KEYS and then the grade (was
+    // SNAPSHOT_KEYS alone); its ungraded copy (as with PICK off) has SNAPSHOT_KEYS exactly
+    expect(Object.keys(net.checkSnapshot(POOL[0]))).toEqual([...local.SNAPSHOT_KEYS, net.GRADE_FIELD]);
+    const { grade: _grade, ...ungraded } = POOL[0];
+    expect(Object.keys(net.checkSnapshot(ungraded))).toEqual([...local.SNAPSHOT_KEYS]);
     expect(local.SNAPSHOT_VERSION).toBe(net.SNAPSHOT_VERSION);
     expect(String(local.ID_PATTERN)).toBe(String(net.ID_PATTERN));
     expect([local.MAX_DAY, local.MAX_LIVES]).toEqual([net.MAX_DAY, net.MAX_LIVES]);
@@ -62,7 +68,9 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     for (const s of POOL) {
       expect(local.isSnapshot(s), `local ${s.hero} d${s.day}`).toBe(true);
       expect(netOk(s), `net ${s.hero} d${s.day}`).toBe(true);
-      expect(s.lives, `${s.hero} d${s.day}`).toBeLessThanOrEqual(START_LIVES);
+      // HULL-ON (the flip, HEARTS): START_LIVES (5) -> HEARTS_START (10): with HEARTS on the pool draws its records on the
+      // hearts scale (samplePool.ts drawnLabel), which both checks bound by livesCapFor (10 under bb-0.10.0)
+      expect(s.lives, `${s.hero} d${s.day}`).toBeLessThanOrEqual(HEARTS_START);
     }
   });
 
@@ -102,8 +110,10 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
       // for [true, true])
       // AZ-BUMP (the flip, NPC_DAY; REVIEW-PARAZ N3): and a seed ghost carries its run's road log (`road`, v3 only: a race
       // ghost's v2 round trip below threw "snapshot.road: not allowed in a v2 snapshot"), so the copy drops it too
+      // HULL-ON (the flip, PICK): and a seed ghost's grade (v3 only: "snapshot.grade: not allowed in a v1 snapshot", so v1
+      // furnace d1 was [false, false] for [true, true]), so the copy drops it too
       const { runes: _runes, ...runeless } = s3.build;
-      const { seed: _seed, road: _road, ...seedless } = s3;
+      const { seed: _seed, road: _road, grade: _grade, ...seedless } = s3;
       const s: net.GhostSnapshot = { ...seedless, build: runeless };
       // 0.6.2 BELTSIDE: a v1 copy loads on both sides unless a rig carries `rot`, which only v2 allows; since the 0.6.1
       // flip it may not carry merge stars either. beltside-062-on-061: both rules at once, on each side separately
@@ -135,6 +145,7 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     delete plain.build.runes; // FLIP-X2: the runes are v3-only (was kept: POOL[0], furnace d1, holds TAR BARREL)
     delete plain.seed; // FLIP-X2: so is a race ghost's run seed (was kept)
     delete plain.road; // AZ-BUMP (the flip, NPC_DAY): and a seed ghost's road log (NPC_DAY on; v3 only)
+    delete plain.grade; // HULL-ON (the flip, PICK): and its grade (PICK on; v3 only)
     expect([local.isSnapshot({ ...plain, v: 1 }), netOk({ ...plain, v: 1 })]).toEqual([true, true]);
     expect(bad).toEqual([]);
   });

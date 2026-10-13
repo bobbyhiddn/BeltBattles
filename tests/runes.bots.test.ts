@@ -18,6 +18,7 @@ import {
 import { validateBuild } from "../src/net/validate";
 import { newRun, pendingRune, takeRune } from "../src/game/run";
 import { captainRuneSeed, captainRunes, captainRunesText } from "../tools/genCaptainRunes";
+import { openRunesRules } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the bots' and the game's offer rule
 
 /** A hand-made board: no items, routes or gear; the hero's starting turrets (Build.turrets absent). */
 const board = (hero: HeroId, extra: Partial<Build> = {}): Build => ({ hero, items: [], routes: [], mods: [], beltCap: 0, hullBonus: 0, ...extra });
@@ -97,7 +98,9 @@ describe("RUNES-2a botTakeRune: applied as run.ts takeRune applies a pick", () =
       for (const seed of [1, 7, 12345]) {
         const run = newRun(hero, seed, `bots-${hero}-${seed}`);
         const b = cloneBuild(run.build);
-        const got = botTakeRune(b, run.seed, 1, hero, true)!;
+        // HULL-ON (the flip, OPEN_RUNES): the game's dawn offer is the open one (run.ts pendingRune reads the switch), so the
+        // bot takes from the same offer: botTakeRune's `open` is the switch, as the par player passes it (was the closed default)
+        const got = botTakeRune(b, run.seed, 1, hero, true, false, 0, openRunesRules())!;
         expect(pendingRune(run)!.ids).toContain(got.id);
         const gold = run.gold;
         expect(takeRune(run, got.id).ok).toBe(true);
@@ -149,20 +152,22 @@ describe("RUNES-2a the par player behind the switch", () => {
       for (const d of days) {
         const runes = d.build.runes ?? [];
         expect(runes.length).toBe(d.day);
-        expect(runeProblem(runes, d.day, hero, runSeed(hero, seed))).toBeNull();
+        // HULL-ON (the flip, OPEN_RUNES): the par player's dawn runes follow the switch (player.ts: botTakeRune's `open`), so
+        // each dawn is re-derived on the open offers (runeProblem's and the player mode's `open`; was the closed default)
+        expect(runeProblem(runes, d.day, hero, runSeed(hero, seed), "atMost", false, -1, openRunesRules())).toBeNull();
         // AZ-BUMP (the flip, NPC_DAY): the par run fights the Medium warlord every day (PAR-AZ), so its deck holds road gold and
         // drops, which the strict mode's budget (the shop's gold and its runes' alone) refuses by design; the deck is checked
         // as its upload is (REVIEW-PARAZ N3, tools/samplePool.ts seedGhost): the player mode, with the run seed (each dawn's
         // offer re-derived, exactly one rune a dawn) and the run's road log (player.ts playerRoadLog). Was the strict mode
         const log = playerRoadLog(days, d.day);
-        const v = validateBuild(d.build, d.day, "player", { seed: runSeed(hero, seed), ...(log.length ? { road: log } : {}) });
+        const v = validateBuild(d.build, d.day, "player", { seed: runSeed(hero, seed), ...(log.length ? { road: log } : {}), openRunes: openRunesRules() });
         expect(v.errors).toEqual([]);
         // the run keeps every rune: each dusk's list extends the day before's
         if (d.day > 1) expect(runes.slice(0, d.day - 1)).toEqual(days[d.day - 2].build.runes);
       }
       // day 1's pick is the picker's on day 1's offer and the starting deck
       const start = heroStartBuild(hero, 1);
-      expect(days[0].build.runes![0].id).toBe(botRunePick(runeOffer(runSeed(hero, seed), 1, hero, []), hero, start));
+      expect(days[0].build.runes![0].id).toBe(botRunePick(runeOffer(runSeed(hero, seed), 1, hero, [], openRunesRules()), hero, start)); // HULL-ON (OPEN_RUNES): the switch's offer
     }
   });
 });
@@ -176,7 +181,8 @@ describe("RUNES-2a the caravan stand-ins inherit the par player's switch", () =>
       expect(off.build.runes).toBeUndefined();
       expect(caravanCandidate("weaver", 6, 1, idx, 2)).toEqual(on);
       expect(on.build.runes).toHaveLength(6);
-      expect(runeProblem(on.build.runes, 6, "weaver", runSeed("weaver", on.meta.seed))).toBeNull();
+      // HULL-ON (the flip, OPEN_RUNES): the candidate's par run takes its dawn runes on the switch's offers (was closed)
+      expect(runeProblem(on.build.runes, 6, "weaver", runSeed("weaver", on.meta.seed), "atMost", false, -1, openRunesRules())).toBeNull();
       expect(on.meta.cargoGold).toBe(off.meta.cargoGold); // the dawn-gold runes' gold is in the day's gold (runeGrants)
     }
     // AZ-BUMP (the flip): 600 s, a host timeout under the 1.5-CPU quota (the GATE RULE; 30 s hit in run 5's group check:

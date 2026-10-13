@@ -23,15 +23,22 @@ import { ICON, ICON_COLOUR, glyphRows } from "../src/render/font";
 import { C } from "../src/render/palette";
 import { fmtDmg } from "../src/ui/statFormat";
 import { transform } from "../tools/sustainBench";
+import { withShapes } from "../src/sim/shapes"; // MERGE-099F: fight() is built with SHAPES off
 
 installRaster();
 
 const DAY = 3;
 /** The heavy2r deck on side 0 against BASTION's par deck without sustain (side 1), on a fixed seed. */
+// MERGE-099F (REQ-BFG-079, -086; tests only): SHAPES and HULL-ON's five on together move FURNACE's day-3 par deck so the
+// foe's plate shows WARD too ("the foe's plate none" read [true, true]); in each side's own world it had none. The fight is
+// kept in the world its premise holds in, SHAPES off (the merged tree with SHAPES off is hullon-accepted's shipped world,
+// BRIEF-MERGE-099F step 4, where this file passed as it stands), as SHAPES-1 kept its own fixtures: the decks and the Arena
+// are built with SHAPES off (a battle reads shapes only when it is built). Was built with SHAPES on (the merged world)
+// only since the merge
 function fight(): { a: Arena; events: SimEvent[]; pops: { text: string; colour: string }[] } {
-  const heavy = transform("heavy2r", DAY, parField("weaver", DAY, 1)[0], hashSeed("susb-hud", DAY)).b;
-  const foe = parField("furnace", DAY, 1)[0];
-  const a = new Arena(heavy, foe, 11, null);
+  const heavy = withShapes(() => transform("heavy2r", DAY, parField("weaver", DAY, 1)[0], hashSeed("susb-hud", DAY)).b, false);
+  const foe = withShapes(() => parField("furnace", DAY, 1)[0], false);
+  const a = withShapes(() => new Arena(heavy, foe, 11, null), false);
   a.quiet = true;
   const events: SimEvent[] = [], pops: { text: string; colour: string }[] = [];
   const drain = a.b.drainEvents.bind(a.b);
