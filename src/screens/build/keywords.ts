@@ -44,6 +44,7 @@ import { hasFace } from "../../ui/faces";
 import type { Sel } from "./layout";
 import { RUNES } from "../../sim/runes";
 import { KEYWORD_WORD, runeKeywords } from "../../ui/runeText";
+import { WORD_ONLY } from "../../ui/runeText"; // CARD-4 (REQ-BFG-081, T)
 import type { Block, PLine, PanelPlan, PanelText } from "./inspector";
 import { levelLines, levelSpans, type LevelLine } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS
 import { fusible } from "../../sim/stars"; // U2e step 5
@@ -336,6 +337,7 @@ export function runeWords(run: Run): KwWord[] {
     const d = RUNES[h.id];
     if (!d) continue;
     for (const k of runeKeywords(d)) {
+      if (WORD_ONLY.has(k)) continue; // CARD-4 (REQ-BFG-081, T): a word-only keyword (TOLL ROAD's LOAD) is no row of the view
       const row = glossaryEntry(KEYWORD_WORD[k]);
       if (row && !out.some((w) => w.word === row.word)) out.push({ word: row.word, text: row.def, colour: row.colour });
     }
@@ -485,6 +487,34 @@ export function defBoxClear(box: Rect, r: Rect, own: readonly { glyph: Rect }[])
   if (!hit.length) return box;
   const y = Math.min(...hit.map((t) => t.glyph.y)) - 2 - box.h;
   return y >= r.y + 1 ? { ...box, y } : box;
+}
+
+/**
+ * CARD-4 (REQ-BFG-087, D; REVIEW-CARD3 D1; READ-4 F step 11: SPEED's box over BRAKE SHOE's title, ⓘ and BUY): where a shown
+ * definition's box goes (a tap's or a first sight's), in place of defBoxClear: never over the panel's header (`head`: its
+ * rows down to the body's top, and the drawn buttons), never over its own word's row (`own`, the explained word's
+ * targets), never over the how-to strip (`strip`; CARD-4 K: a strip is not a note, so a first-sight box may show beside
+ * it), and on the screen (`H`). In order: the panel's foot (definitionBox, as before) where that is clear; else just under
+ * the word's line (past the panel's foot, onto the deck side, where it must); else just above the line, where that misses
+ * the header; else just under the header (a word in the header itself: a family tag); else just under the strip; else
+ * just under the line as the screen allows (`fits` false: the tests list it). Pure (drawKeywordLayer, tests).
+ */
+export function defBoxPlace(box: Rect, own: readonly { glyph: Rect }[], head: readonly Rect[], strip: Rect | null, H = Infinity): { box: Rect; fits: boolean } {
+  const clear = (b: Rect): boolean => b.y >= 0 && b.y + b.h <= H && !head.some((q) => overlaps(b, q)) && !own.some((t) => overlaps(t.glyph, b)) && !(strip && overlaps(b, strip));
+  if (clear(box)) return { box, fits: true };
+  const top = own.length ? Math.min(...own.map((t) => t.glyph.y)) : box.y;
+  const bot = own.length ? Math.max(...own.map((t) => t.glyph.y + t.glyph.h)) : box.y + box.h;
+  const headBot = head.length ? Math.max(...head.map((q) => q.y + q.h)) : bot;
+  const at = (y: number): Rect => ({ ...box, y });
+  for (const b of [at(bot + 2), at(top - 2 - box.h), at(headBot + 1), ...(strip ? [at(strip.y + strip.h + 1)] : [])]) if (clear(b)) return { box: b, fits: true };
+  return { box: at(Math.max(0, Math.min(H - box.h, bot + 2))), fits: false };
+}
+
+/** CARD-4 (D): a planned panel's header as defBoxPlace avoids it: its rows from the panel's top to the body's (the title,
+ *  the sub line, the families, the ⓘ icon), and the drawn buttons (the band's in the header; the column's under the text). */
+export function panelHead(plan: Pick<PanelPlan, "r" | "y" | "rects" | "column">, buttons: readonly Rect[] = []): Rect[] {
+  const r = plan.r;
+  return [{ x: r.x, y: r.y, w: r.w, h: Math.max(1, plan.y - r.y) }, ...(plan.rects ?? []), ...(plan.column ? buttons : [])];
 }
 
 /** The KEYWORDS view's pages: as many whole definitions as fit the body's height (`h`) each, the header row first. */
@@ -668,7 +698,7 @@ function underline(g: G, t: KwTarget): void {
  * definition or the KEYWORDS view; on the desk, the hover tooltip and the `help` cursor. `owner`: the screen (its state);
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
-export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null },
+export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
   free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
   // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
@@ -714,9 +744,10 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // drawHoverTip under the word). One box per open; the next waits for the next open.
   if (!s.opened) {
     s.opened = true;
-    // CARD-3 (REQ-BFG-080, C): a band panel draws its hint in a strip above it (detailsPlan's `hint`): that is a how-to
-    // tip shown this time too
-    if (sight && !d.hint && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) {
+    // CARD-3 (REQ-BFG-080, C): a band panel draws its hint in a strip by it (detailsPlan's `hint`). CARD-4 (REQ-BFG-004, K;
+    // READ-4 10.1: the first rigs' keywords never opened before the first fight): a strip is not a note, so the first
+    // sight opens beside it (its box kept off the strip: defBoxPlace); a hint drawn in the body (the column) still waits
+    if (sight && !lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) {
       if (rigSentenceRig(piece) && !rigSeen()) s.rig = true;
       else {
         const w = sightWord([...body].sort(reading).map((t) => t.word));
@@ -729,8 +760,10 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   const shown = s.word ? words.find((w) => w.word === s.word) ?? targets.find((t) => t.word === s.word) : undefined;
   const defLines = shown ? definitionLines(shown.text, r.w - 10) : [];
   // CARD-3 (REQ-BFG-087, D1; REVIEW-CARD2 open item 1): the box sits at the panel's foot, unless it would cover the word it
-  // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1): then just above that word's line
-  const box = shown ? defBoxClear(definitionBox(r, bottom, defLines.length), r, targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word)) : null;
+  // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1). CARD-4 (REQ-BFG-087, D): then just
+  // under the word's line, or above it only where that misses the header, never over the header or the hint strip
+  const box = shown ? defBoxPlace(definitionBox(r, bottom, defLines.length), targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word),
+    panelHead(plan, buttons), d.strip ?? null, screen?.H).box : null;
   targets.forEach((t, i) => {
     if (box && overlaps(t.glyph, box)) return;
     underline(g, t);
@@ -779,9 +812,11 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
     ui.add({ id: SIGHT_REGION, r: drawHoverTip(g, at, r), block: true });
     sawWord(at.word);
   }
-  // the rig sentence's box: by the panel's icon, in the icon tooltip's look (iconTipRect, drawIconTip), a UI region
+  // the rig sentence's box: by the panel's icon, in the icon tooltip's look (iconTipRect, drawIconTip), a UI region.
+  // CARD-4 run 2 (REQ-BFG-087): where the screen has no room beside the panel (a phone's band panel), under the panel and
+  // its strip, off the shop (rigTipRect)
   if (s.rig) {
-    const items = [RIG_SENTENCE], tr = iconTipRect(items, r, screen);
+    const items = [RIG_SENTENCE], tr = rigTipRect(items, r, screen, d.strip ?? null);
     drawIconTip(g, items, tr);
     ui.add({ id: SIGHT_REGION, r: tr, block: true });
     sawRig();
@@ -921,6 +956,25 @@ export function iconTipRect(items: readonly string[], r: Rect, screen?: { W: num
   const x = Math.max(2, Math.min(W - w - 2, r.x));
   if (r.y - h - 6 >= 2) return { x, y: r.y - h - 6, w, h };
   return { x, y: Math.max(2, Math.min(H - h - 2, r.y + r.h + 4)), w, h };
+}
+
+/**
+ * CARD-4 run 2 (REQ-BFG-087, REQ-BFG-004; RESTART-RUN2 3 (b): READ-4 F step 7, run 1's tip1 and tip2): the rig sentence's
+ * first-sight box. Beside the panel where the screen has room (iconTipRect's place: the desk's column); where it hasn't (a
+ * phone's band panel spans the screen) just under the panel and its how-to strip, on the deck side, where the screen holds
+ * it (iconTipRect put it above the panel, over shop cards 4 and 5, their prices and REROLL's edge); else just above the
+ * panel and its strip; else iconTipRect's place. Never over the panel (its header, its word's row) or the strip where one
+ * of those fits. Any press closes it (keywordsPressed), as before. Pure (drawKeywordLayer, tests).
+ */
+export function rigTipRect(items: readonly string[], r: Rect, screen?: { W: number; H: number }, strip: Rect | null = null): Rect {
+  const tr = iconTipRect(items, r, screen);
+  if (tr.x >= r.x + r.w || tr.x + tr.w <= r.x) return tr;
+  const H = screen?.H ?? Infinity;
+  const below = Math.max(r.y + r.h, strip && strip.y >= r.y + r.h ? strip.y + strip.h : 0) + 4;
+  if (below + tr.h + 2 <= H) return { ...tr, y: below };
+  const above = Math.min(r.y, strip && strip.y < r.y ? strip.y : r.y) - tr.h - 6;
+  if (above >= 2) return { ...tr, y: above };
+  return tr;
 }
 
 /** EXPLAIN-1 (E3): the icon's hover tooltip in `tr` (iconTipRect), drawHoverTip's style: an ink frame and shadow, night,

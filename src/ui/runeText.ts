@@ -17,6 +17,7 @@ import { dmgShown, sustShown } from "../sim/hullScale"; // HULL-1d (REQ-BFG-079)
 import { FRAY_MAX } from "../sim/content"; // CARD-2 (REQ-BFG-081, K3 c): SNARE KNOT's FULL, named
 import { fmtCount } from "./statFormat"; // CARD-2 (K3 c): the one formatter for a count
 import { gameWords } from "./gameWords"; // CARD-3 (REQ-BFG-107): a sim string in the player's words
+import { HEROES, ITEMS, type HeroId } from "../sim/content"; // CARD-4 run 3 (I): the source lines' names, never literals
 
 /** A whole number as the game writes it. No rounding here: a rune whose amount is not whole shows it, and
  *  tests/runes.ui.test.ts (every number in every rune text is whole) catches it. */
@@ -42,13 +43,21 @@ export const RUNE_UNIT_TEXT: Readonly<Record<RuneUnit, (n: number) => string>> =
 // FLIP-X2 (N4-d, REVIEW-NUM4 section 4): the STALL token is STUN now (STEADY IRON's {*STUN}), one word for one stop; STALL
 // stays only as a glossary alias of STUN
 export type RuneKeyword = "HULL" | "BELT" | "GOLD" | "DMG" | "RATE" | "PLATE" | "PAIR" | "HEAT" | "FRAY" | "BURN" | "RIDE" | "STUN"
-  | "SHIELD" | "HEAL" | "REGEN";
+  | "SHIELD" | "HEAL" | "REGEN"
+  // CARD-4 (REQ-BFG-081, T; READ-4 11 item 6): word-only keywords, a word target with a note on the cards that name them
+  // (SCRAP HALO's and SCRAP SAINT's MERGED, TOLL ROAD's LOAD and RIG), never a rune's chip word or its chip's line
+  // (WORD_ONLY): glossary.ts RUNE_WORD_NOTE has their notes
+  | "MERGED" | "LOAD" | "RIG";
 // CARD-3 (REQ-BFG-107): the tokens keep their internal names; the soak layer (PLATE) reads SHIELD and the block (SHIELD)
 // reads WARD, as font.ts PLAYER_WORD draws the faces' keywords (each keeps its colour: the glossary row of its word)
 export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
   HULL: "HULL", BELT: "BELT", GOLD: "GOLD", DMG: "DMG", RATE: "RATE", PLATE: "SHIELD", PAIR: "PAIR", HEAT: "HEAT", FRAY: "FRAY",
   BURN: "BURN", RIDE: "RIDE", STUN: "STUN", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN",
+  MERGED: "MERGED", LOAD: "LOAD", RIG: "RIG", // CARD-4 (T)
 };
+/** CARD-4 (REQ-BFG-081, T): the keywords that are only words with a note (a target on the card): never the chip's word
+ *  (runeKeyword), never the chip's line (runeReminder), never a row of the panels' KEYWORDS view (keywords.ts runeWords). */
+export const WORD_ONLY: ReadonlySet<RuneKeyword> = new Set<RuneKeyword>(["MERGED", "LOAD", "RIG"]);
 
 /**
  * SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.2): a rune's effect line as the cards draw it, where it differs from
@@ -112,11 +121,19 @@ export const RUNE_TEXT: Readonly<Record<string, string>> = {
   // installed piece at ★2 or more (★3 is the top), once; battle.ts:841 (HULL) and 540 (+n% DMG a merged piece). MERGED is
   // the MERGE badge's word (glossary.ts CORE_WORDS); IN USE keeps its note on the opened card. 223 px: one line on the op
   // card (the 390-wide phones wrap it, as WORDS-1's 217 px line did)
-  scrap_halo: "+{N} {HULL} PER MERGED (★2/★3) PIECE IN USE.",
-  scrap_saint: "+{N} {DMG} PER MERGED (★2/★3) PIECE IN USE.",
+  // CARD-4 (REQ-BFG-081, T; READ-4 11 item 6: no note said what merging is): MERGED a word with a note (RUNE_WORD_NOTE);
+  // the line's words and width are as before
+  scrap_halo: "+{N} {HULL} PER {MERGED} (★2/★3) PIECE IN USE.",
+  scrap_saint: "+{N} {DMG} PER {MERGED} (★2/★3) PIECE IN USE.",
   // CARD-2 (K3 e; READ-2 7.1: each load counts its own rigs; Haiku read it as all damage rising): battle.ts:540 runeMul
   // multiplies a shot by priorPct x p.prior, the gates that payload passed (1693: p.prior++ at each rig hit on it)
-  toll_road: "EACH LOAD: +{N} {DMG} PER RIG IT PASSED.",
+  // CARD-4 (T; READ-4 11 item 6): LOAD and RIG words with notes (RUNE_WORD_NOTE); the line as before
+  toll_road: "EACH {LOAD}: +{N} {DMG} PER {RIG} IT PASSED.",
+  // CARD-4 (REQ-BFG-081, REQ-BFG-089, T; READ-4 3: a reader hedged on whether +150 HULL lasts; its KEPT ALL RUN was behind the
+  // chip): the rune's own fact on its face. runes.ts:704 / run.ts:211 add the amount to build.hullBonus when it is taken, the
+  // max hull every fight starts full at (LAST CHANCE's +500 MAX HULL is the same field), for the rest of the run (104 px)
+  iron_skin: "+{N} MAX {HULL}, ALL RUN.",
+  spare_hull: "+{N} MAX {HULL}, ALL RUN.",
   // CARD-2 (K3 f; READ-2 7.1: Haiku read PAIR: as once a fight): battle.ts:639 runeHeal heals the rune's n on each PAIR shot
   // that lands (payload.paired), every time
   twin_salve: "EACH {PAIR}: {*HEAL} {N}.",
@@ -233,7 +250,7 @@ export function runeKeyword(def: RuneDef): RuneKeyword | null {
   const text = runeTextOf(def); // SUS-B: WARD STONE's SHIELD line (RUNE_TEXT)
   const starred = /\{\*([A-Z]+)\}/.exec(text)?.[1];
   if (starred && isKeyword(starred)) return starred;
-  const all = [...text.matchAll(TOKEN)].map((m) => m[2]).filter(isKeyword);
+  const all = [...text.matchAll(TOKEN)].map((m) => m[2]).filter(isKeyword).filter((k) => !WORD_ONLY.has(k)); // CARD-4 (T)
   return all.length ? all[all.length - 1] : null;
 }
 
@@ -246,7 +263,7 @@ export const PLAIN_REMINDER = "KEPT ALL RUN.";
  *  Y-FURN: a rune's own reminder (glossary.ts RUNE_NOTE: SHATTER SHOT's) comes first. */
 export function runeReminder(def: RuneDef): string {
   if (RUNE_NOTE[def.id]) return RUNE_NOTE[def.id];
-  for (const k of runeKeywords(def)) if (REMINDER[k]) return REMINDER[k]!;
+  for (const k of runeKeywords(def)) if (REMINDER[k] && !WORD_ONLY.has(k)) return REMINDER[k]!; // CARD-4 (T): never a word-only one's
   return PLAIN_REMINDER;
 }
 
@@ -257,6 +274,45 @@ export function runeReminderSpans(def: RuneDef, base: string = C.slate4): Span[]
   const k = runeKeywords(def).find((q) => (note ? s.startsWith(`${KEYWORD_WORD[q]}: `) : REMINDER[q] === s));
   if (!k || !s.startsWith(KEYWORD_WORD[k])) return [{ t: s, c: base }];
   return [{ t: KEYWORD_WORD[k], c: RUNE_KEYWORD_COLOUR[k] }, { t: s.slice(KEYWORD_WORD[k].length), c: base }];
+}
+
+// ---- CARD-4 run 3 (REQ-BFG-081, I; ref/open1 REPORT-OPEN1 sections 4 and 9; cap's words, RESTART-RUN3 2 (c)) ----------
+
+/** A part-keyed rune's source: a shop part and a hero's own factory that give its keyword (by id: the words are their
+ *  display names, ITEMS[...].name and HEROES[...].name, so a later rename follows), or `twoBelts`: a turret fed by two
+ *  belts (ten turrets take in from both sides: content.ts intake "both"; FOUNDRY's CRUCIBLE pours pairs as well). */
+export interface RuneSource {
+  part?: string;
+  hero?: HeroId;
+  factory?: string;
+  twoBelts?: true;
+}
+const HEAT_SOURCE: RuneSource = { part: "heatjacket", hero: "furnace", factory: "kiln" };
+const FRAY_SOURCE: RuneSource = { part: "barbed", hero: "weaver", factory: "loom" };
+const SHIELD_SOURCE: RuneSource = { part: "plateroller", hero: "bastion", factory: "wardworks" }; // the sim's PLATE
+const PAIR_SOURCE: RuneSource = { twoBelts: true };
+
+/** The 16 runes that do something only with a part (OPEN-1 section 4), keyed by rune id: one table. */
+export const RUNE_SOURCE: Readonly<Record<string, RuneSource>> = {
+  coal_chute: HEAT_SOURCE, heat_sink: HEAT_SOURCE,
+  double_knot: FRAY_SOURCE, snare_knot: FRAY_SOURCE, barbed_silk: FRAY_SOURCE, widows_web: FRAY_SOURCE, loom_of_woe: FRAY_SOURCE,
+  iron_temper: SHIELD_SOURCE, bulwark_oath: SHIELD_SOURCE,
+  twin_nails: PAIR_SOURCE, molten_bond: PAIR_SOURCE, seam_rivets: PAIR_SOURCE, hot_seam: PAIR_SOURCE, twin_suns: PAIR_SOURCE,
+  molten_vows: PAIR_SOURCE, twin_salve: PAIR_SOURCE,
+};
+
+/** "A" or "AN" before a name. */
+const aOrAn = (name: string): string => (/^[AEIOU]/.test(name) ? "AN" : "A");
+
+/** CARD-4 run 3 (I): the line under a part-keyed rune's reminder in its notes (the chip's note, the opened card's), never
+ *  on its face (REQ-BFG-089): a part it works with, never "only" (other sources exist: OPEN-1 section 4, the REPORT's sim
+ *  checks). Null for any other rune. */
+export function runeSourceLine(def: Pick<RuneDef, "id">): string | null {
+  const s = RUNE_SOURCE[def.id];
+  if (!s) return null;
+  if (s.twoBelts) return "WORKS WITH A TURRET THAT TAKES IN FROM TWO BELTS."; // LOAD's note's words (TAKES IN FROM A BELT)
+  const part = ITEMS[s.part!].name, hero = HEROES[s.hero!].name, factory = ITEMS[s.factory!].name;
+  return `WORKS WITH ${aOrAn(part)} ${part} OR ${hero}'S ${factory}.`;
 }
 
 /** The tier as a word (FIX-10: the tier shows as a word as well as a colour). */

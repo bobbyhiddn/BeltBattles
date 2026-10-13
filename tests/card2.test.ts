@@ -26,7 +26,7 @@ import type { RuneDef } from "../src/sim/runes";
 const runeTextLinesOf = (def: RuneDef, cw: number): string[] => runeTextLines(def, runeCardTextW(cw)).map(lineText);
 import { panelArea, type Sel } from "../src/screens/build/layout";
 import { detailsPlan, drawDetails, panelFit } from "../src/screens/build/inspector";
-import { SIGHT_REGION, iconTipRect, keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
+import { SIGHT_REGION, rigTipRect, keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
 import { RIG_SENTENCE } from "../src/ui/faces";
 import { plainRigStats } from "../src/ui/faces"; // MERGE-099D (BRIEF-MERGE-099D 1f): (k6) at the LAST CHANCE offer's star
 import { statRow } from "../src/ui/icons"; // MERGE-099D (1f)
@@ -77,6 +77,8 @@ function detailsPlanOf(f: ReturnType<typeof framed>, def: string) {
   return panelCtx(run, CARGO, f, true).d();
 }
 import { RunePicker, PICK_DEF } from "../src/screens/runePicker";
+import { PICK_BAR } from "../src/screens/runePicker"; // CARD-4 (REQ-BFG-081, P1)
+import { WORD_ONLY } from "../src/ui/runeText"; // CARD-4 (REQ-BFG-081, T)
 import { LastChancePicker } from "../src/screens/lastChancePicker";
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, TIPS_KEY, setTipsForTests, sightDone, sightsDone, tipsDone } from "../src/ui/tips";
 import { sawWord, sightWord } from "../src/ui/firstSight";
@@ -210,15 +212,22 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
     picker.pressed("runepick");
     expect(picker.word).toBeNull();
     expect(state(run)).toBe(before);
-    // the take tap, on the card off its words, still takes it (the real offer)
-    const real = new RunePicker();
+    // the take tap, off the words, still takes it (the real offer). CARD-4 (REQ-BFG-081, P1, P2) changed what this checks:
+    // the open card's body takes nothing; its TAP AGAIN bar's target does, once the guard after the open has passed
+    // (tests/card4.test.ts (p) checks the rule itself)
+    const real = new RunePicker(), clock = sc.s as unknown as { t: number };
+    clock.t = 0;
     let u2 = sc.frame(real as never);
     const id0 = real.info(sc.s as never)!.ids[0];
     u2.regions.find((r) => r.id === "runepick-0")!.onTap!();
     u2 = sc.frame(real as never);
     const card = u2.regions.find((r) => r.id === "runepick-0")!;
     expect(u2.hit(card.r.x + card.r.w - 3, card.r.y + card.r.h - 3)?.id).toBe("runepick-0");
-    card.onTap!();
+    expect(card.onTap, "CARD-4: the open card's body takes nothing").toBeUndefined();
+    const bar = u2.regions.find((r) => r.id === PICK_BAR)!;
+    expect(u2.hit(bar.r.x + bar.r.w / 2, bar.r.y + bar.r.h / 2)?.id).toBe(PICK_BAR);
+    clock.t = 1;
+    bar.onTap!();
     expect((run.build.runes ?? []).map((q) => q.id)).toContain(id0);
   });
 
@@ -268,8 +277,9 @@ describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): ne
         expect(got, `${id} at ${cw}`).toEqual(lines);
       }
       rows.push(`${id}: ${lines.map((l) => `"${l}" ${textWidth(l, "5")} px`).join(" / ")}`);
-      // the tokens and the amount are RuneDef's: no keyword, number or rule moved
-      expect(runeKeywordsOf(def).sort(), id).toEqual([...new Set([...def.text.matchAll(/\{\*?([A-Z]+)\}/g)].map((m) => m[1]).filter((k) => k !== "N"))].sort());
+      // the tokens and the amount are RuneDef's: no keyword, number or rule moved (CARD-4, T: the word-only keywords aside,
+      // MERGED, LOAD and RIG, words with a note: runeText.ts WORD_ONLY)
+      expect(runeKeywordsOf(def).filter((k) => !WORD_ONLY.has(k)).sort(), id).toEqual([...new Set([...def.text.matchAll(/\{\*?([A-Z]+)\}/g)].map((m) => m[1]).filter((k) => k !== "N"))].sort());
     }
     console.log(`CARD-2 (k3) rune lines (5x7 px; the op card's text is 223 px, the 390-wide phones' 216):\n${rows.join("\n")}`);
     expect(runeReminderOf(RUNES.ward_stone)).toBe("WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS."); // CARD-3
@@ -371,7 +381,10 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     let ui = p.draw();
     const box = ui.regions.find((r) => r.id === SIGHT_REGION);
     expect([keywordState(p.ctx)!.rig, keywordState(p.ctx)!.word]).toEqual([true, null]);
-    expect(box!.r).toEqual(iconTipRect([RIG_SENTENCE], p.d().plan.r, { W: f.W, H: f.H }));
+    // CARD-4 run 2 (by design): on the phone, with no room beside the panel, under it (rigTipRect; iconTipRect put it above,
+    // over the shop: READ-4 F step 7); no strip here (tips done)
+    expect(box!.r).toEqual(rigTipRect([RIG_SENTENCE], p.d().plan.r, { W: f.W, H: f.H }, null));
+    expect(box!.r.y).toBeGreaterThanOrEqual(p.d().plan.r.y + p.d().plan.r.h);
     expect(sightDone("rig")).toBe(true);
     // a press on the box is a UI region's (it closes it; nothing else)
     expect(ui.hit(box!.r.x + 2, box!.r.y + 2)?.id).toBe(SIGHT_REGION);
@@ -382,11 +395,13 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     expect([keywordState(p.ctx)!.rig, keywordState(p.ctx)!.word]).toEqual([false, "BURN"]);
     expect(sightDone("kw:BURN")).toBe(true);
     expect(state(run)).toBe(before);
-    // a panel that shows a how-to tip (the place hint, tips new) shows no first-sight box
+    // a panel that shows a how-to tip (the place hint, tips new). CARD-4 (REQ-BFG-004, K) changed what this checks: on the
+    // phone the tip is a strip by the panel, and a strip is not a note, so the first sight opens beside it (here the rig
+    // sentence by the icon; tests/card4.test.ts (k) checks the box keeps off the strip)
     setTipsForTests("new");
     const p2 = panelCtx(cargoRun("furnace", "temper"), CARGO, f, true);
     ui = p2.draw();
-    expect([keywordState(p2.ctx)!.rig, keywordState(p2.ctx)!.word, ui.regions.some((r) => r.id === SIGHT_REGION)]).toEqual([false, null, false]);
+    expect([keywordState(p2.ctx)!.rig, keywordState(p2.ctx)!.word, ui.regions.some((r) => r.id === SIGHT_REGION)]).toEqual([true, null, true]);
     // a refit (the build screen between a fight's rounds): none
     setTipsForTests("sight");
     const r3 = cargoRun("furnace", "temper");
@@ -497,21 +512,30 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     expect(ui.regions.some((r) => r.id === PICK_DEF)).toBe(true);
     expect(sightDone("kw:PAIR"), "done once its box was on screen").toBe(true);
     expect(sightDone("kw:SHIELD.107"), "the next one waits for the next open").toBe(false); // CARD-3
-    // the next open: TWIN SALVE (PAIR: HEAL 20.): PAIR is done, so HEAL
+    // the next open: TWIN SALVE (PAIR: HEAL 20.): PAIR is done, so HEAL. CARD-4 (REQ-BFG-081, P3) changed what this
+    // checks: while PAIR's note (opened by itself) is up, the next press only closes it; the press after opens the card
+    picker.pressed("runepick-1");
+    ui.regions.find((r) => r.id === "runepick-1")!.onTap!();
+    expect([picker.open, picker.word], "CARD-4 (P3): that press only closed PAIR's note").toEqual([0, null]);
+    ui = sc.frame(picker as never);
     picker.pressed("runepick-1");
     ui.regions.find((r) => r.id === "runepick-1")!.onTap!();
     expect(picker.word).toBe("HEAL");
     sc.frame(picker as never);
-    // SEAM RIVETS again: PLATE now; HOT SEAM after: BURN (PAIR done)
+    // SEAM RIVETS again: PLATE now; HOT SEAM after: BURN (PAIR done). CARD-4 (P3): a press on the picker's background
+    // first closes each note that opened by itself
+    picker.pressed("runepick");
     picker.pressed("runepick-0");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-0")!.onTap!();
     expect(picker.word).toBe("SHIELD"); // CARD-3 (REQ-BFG-107)
     sc.frame(picker as never);
+    picker.pressed("runepick");
     picker.pressed("runepick-2");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-2")!.onTap!();
     expect(picker.word).toBe("BURN");
     sc.frame(picker as never);
     // every keyword seen: an open shows none, never on every open
+    picker.pressed("runepick");
     picker.pressed("runepick-0");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-0")!.onTap!();
     expect(picker.word).toBeNull();
@@ -550,7 +574,8 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     sawWord("PAIR");
     expect(sightWord(["PAIR"])).toBeNull();
     expect(FIRST_SIGHT_WORDS.every((w) => !["RATE", "DMG", "SLUG", "GEAR", "BELT", "HULL", "GOLD"].includes(w))).toBe(true);
-    expect(Object.values(KEYWORD_WORD).filter((w) => FIRST_SIGHT_WORDS.includes(w)).sort()).toEqual(["BURN", "FRAY", "HEAL", "HEAT", "PAIR", "REGEN", "RIDE", "SHIELD", "STUN", "WARD"]); // CARD-3
+    // CARD-4 (REQ-BFG-081, T) changed this list: LOAD is a rune word now (TOLL ROAD's), its first sight the LOAD label's
+    expect(Object.values(KEYWORD_WORD).filter((w) => FIRST_SIGHT_WORDS.includes(w)).sort()).toEqual(["BURN", "FRAY", "HEAL", "HEAT", "LOAD", "PAIR", "REGEN", "RIDE", "SHIELD", "STUN", "WARD"]); // CARD-3
   });
 });
 

@@ -27,7 +27,9 @@ import { pendingLastChance, takeLastChance, type Run } from "../game/run";
 import { drawRuneCard, runeCardH } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the rune card's chip as its icon
 import { drawRuneWordNote, runeHintBand, runeKeywordOf, runeSightWord, runeWordLayer, runeWordLines } from "../ui/runeBar"; // CARD-2 (K2; K1)
-import { runeReminderSpans, runeTag, tierWord } from "../ui/runeText";
+import { TAKE_CLOCK, runeBarBand, runeBarTarget, takeGuardPassed } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): the RUNE card's bar alone takes it
+import { runeTag, tierWord } from "../ui/runeText";
+import { runeNoteLines } from "../ui/runeBar"; // CARD-4 run 3 (REQ-BFG-081, I): the RUNE card's details, the reminder and its source line
 import { textOpts } from "./build/inspector";
 import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the HULL card on the day's hull
 import type { BuildScreen } from "./build/build";
@@ -180,9 +182,17 @@ function drawHead(g: G, r: Rect, edge: string, icon: CanvasImageSource | string,
   drawText(g, sub, r.x + 31, r.y + 18, C.slate4, { font: "3" });
 }
 
+/** CARD-4 (P1): the RUNE card's TAP AGAIN target region (the one press that takes its rune). */
+export const LC_BAR = "lcrune-take";
+/** CARD-4 (P2): the build screen's clock (BuildScreen.t, game seconds); 0 where a caller's screen has none (tests). */
+const clock = (s: object): number => {
+  const t = (s as { t?: unknown }).t;
+  return typeof t === "number" ? t : 0;
+};
+
 /** Lines, then the details, then the take bar, from the card's text top. CARD-3 (REQ-BFG-087, D5): the gap `gap` between
- *  two items (lcGaps), the pitch inside one. */
-function drawBody(g: G, r: Rect, lines: Items, info: Items, hint: string | null, gap = lcGaps()): void {
+ *  two items (lcGaps), the pitch inside one. CARD-4 (P1): the bar centred in its band `band` (13: y + 1, as before). */
+function drawBody(g: G, r: Rect, lines: Items, info: Items, hint: string | null, gap = lcGaps(), band = 13): void {
   let y = r.y + HEAD;
   lines.forEach((it, i) => {
     if (i) y += gap.lines;
@@ -202,7 +212,7 @@ function drawBody(g: G, r: Rect, lines: Items, info: Items, hint: string | null,
     });
   }
   if (hint) {
-    const hw = textWidth(hint) + 8, hb = { x: Math.round(r.x + r.w / 2 - hw / 2), y: y + 1, w: hw, h: 11 };
+    const hw = textWidth(hint) + 8, hb = { x: Math.round(r.x + r.w / 2 - hw / 2), y: y + Math.floor((band - 11) / 2), w: hw, h: 11 };
     rect(g, hb.x, hb.y, hb.w, hb.h, C.yellow);
     drawText(g, hint, hb.x + 4, hb.y + 2, C.ink);
   }
@@ -217,7 +227,32 @@ export class LastChancePicker {
    *  first sight when the card opened), in its details' room (over its effect lines' foot while its details are closed:
    *  the card keeps its size); null for none. Any other press closes it (each region's tap, and the screen's). */
   word: string | null = null;
+  /** CARD-4 (REQ-BFG-081, P3): `word`'s note opened by itself (K1, when the RUNE card opened), not by a tap. */
+  auto = false;
+  /** CARD-4 (P3): this press only closed a note that opened by itself: its tap does nothing else. */
+  private eaten = false;
+  /** CARD-4 (P2): when the open card opened (the build screen's game seconds; TAKE_CLOCK: the wall's ms). */
+  private openedAt = 0;
+  private openedWall = 0;
   private key = "";
+
+  /** CARD-4 (REQ-BFG-081, P3): every press while the picker is up (BuildScreen.pressed): while a note that opened by
+   *  itself is on screen, the press only closes it (its tap then does nothing: eat). */
+  pressed(_region: string | null): void {
+    this.eaten = false;
+    if (this.auto && this.word) {
+      this.word = null;
+      this.eaten = true;
+    }
+    this.auto = false;
+  }
+
+  /** CARD-4 (P3): true (once) when this press only closed a self-opened note: the caller's tap does nothing. */
+  private eat(): boolean {
+    if (!this.eaten) return false;
+    this.eaten = false;
+    return true;
+  }
 
   /** The pending offer while the run is at its caravan (not a refit), else null. */
   offer(s: Pick<BuildScreen, "run" | "refit">): LastChanceOffer | null {
@@ -235,14 +270,36 @@ export class LastChancePicker {
     return BOONS.filter((b) => (b === "rune" ? !!o.rune : b === "part" ? !!o.part : true));
   }
 
-  /** A tap on card i: open it, or take it when it is open already. */
+  /** A tap on card i: open it, or take it when it is open already. CARD-4 (REQ-BFG-081, P1): not the RUNE card: a tap on
+   *  its open body takes nothing; only its TAP AGAIN bar does (take). */
   tap(s: BuildScreen, i: number, boon: Boon, o: LastChanceOffer): void {
+    if (this.eat()) return;
     if (this.open !== i) {
       this.open = i;
       // CARD-2 (K1): an opened RUNE card shows its first effect keyword not yet seen, by itself (no tap is counted)
       this.word = boon === "rune" && o.rune ? runeSightWord(RUNES[o.rune.id]) : null;
+      this.auto = !!this.word; // CARD-4 (P3)
+      this.openedAt = clock(s); // CARD-4 (P2)
+      this.openedWall = TAKE_CLOCK.wall();
       return;
     }
+    if (boon === "rune") {
+      this.word = null; // CARD-4 (P1): a press on the open RUNE card's body closes an open note, nothing more
+      return;
+    }
+    this.takeBoon(s, boon, o);
+  }
+
+  /** CARD-4 (REQ-BFG-081, P1, P2): the open RUNE card's TAP AGAIN bar: take it, unless it opened under TAKE_GUARD_S ago (a
+   *  double tap's second tap: ignored) or this press only closed a self-opened note (P3). */
+  take(s: BuildScreen, i: number, o: LastChanceOffer): void {
+    if (this.eat()) return;
+    if (this.open !== i || !takeGuardPassed(clock(s) - this.openedAt, TAKE_CLOCK.wall() - this.openedWall)) return;
+    this.takeBoon(s, "rune", o);
+  }
+
+  /** The pick itself (run.ts takeLastChance), the open card's. */
+  private takeBoon(s: BuildScreen, boon: Boon, o: LastChanceOffer): void {
     this.word = null;
     const r = takeLastChance(s.run, boon);
     if (!r.ok) {
@@ -262,19 +319,20 @@ export class LastChancePicker {
     const tw = w - 10;
     return this.boons(o).map((boon, i) => {
       const shown = this.info.has(i);
-      if (boon === "rune") return { boon, lines: [], info: shown ? [wrapRich(runeReminderSpans(RUNES[o.rune!.id]), tw, "3")] : [] };
+      if (boon === "rune") return { boon, lines: [], info: shown ? [runeNoteLines(RUNES[o.rune!.id], tw)] : [] }; // CARD-4 run 3 (I): with the source line
       if (boon === "part") return { boon, lines: partLines(o.part!, tw, run, o.partStars ?? 1), info: shown ? partInfo(o.part!, tw, run, o.partStars ?? 1) : [] }; // HULL-1d
       const [now, next] = lcHullNow(run, o.hull, run.day); // HULL-1a: the day's numbers
       return { boon, lines: hullLines(now, next - now, tw), info: shown ? hullInfo(tw) : [] };
     });
   }
 
-  layout(s: Pick<BuildScreen, "run" | "game">, o: LastChanceOffer): LcLayout {
+  layout(s: Pick<BuildScreen, "run" | "game" | "touch">, o: LastChanceOffer): LcLayout {
     const { W, H } = s.game;
     const w = Math.min(W - 8, 300);
     const texts = this.texts(s.run, o, w);
+    const tap = s.game.view ? runeTapOf(s) : 0; // CARD-4 (P1): the open RUNE card's bar band holds a finger's target on touch
     const hs = (gap: { lines: number; info: number }) => texts.map((t, i) => (t.boon === "rune"
-      ? runeCardH(RUNES[o.rune!.id], w, i === this.open ? { hint: LC_TAKE, day: s.run.day } : { day: s.run.day }) + (t.info.length ? 1 + lineCount(t.info) * 7 + gapCount(t.info) * gap.info : 0)
+      ? runeCardH(RUNES[o.rune!.id], w, i === this.open ? { hint: LC_TAKE, tap, day: s.run.day } : { day: s.run.day }) + (t.info.length ? 1 + lineCount(t.info) * 7 + gapCount(t.info) * gap.info : 0)
       : cardH(t.lines, t.info, i === this.open, gap)));
     // CARD-3 (REQ-BFG-087, D5, D6): the gaps at G; Gmin where three cards with G would overrun the screen
     const L = lcLayout(W, H, hs(lcGaps()));
@@ -307,25 +365,31 @@ export class LastChancePicker {
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;
     // CARD-2 (K2): a press anywhere off the RUNE card's words closes a word's definition (the regions over it close it too)
-    ui.add({ id: "lcpick", r: { x: 0, y: 0, w: W, h: H }, block: true, onTap: () => { this.word = null; } });
+    ui.add({ id: "lcpick", r: { x: 0, y: 0, w: W, h: H }, block: true, onTap: () => { if (!this.eat()) this.word = null; } });
     const cx = Math.round(W / 2);
     drawTitlePlate(g, W, L.top, L.cardW); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint
     drawText(g, LC_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
     drawText(g, LC_LINE, cx, L.top + 11, C.lime, { align: "center" });
     drawText(g, lcHint(o.day), cx, L.top + 22, C.slate4, { font: "3", align: "center" });
     const texts = this.texts(s.run, o, L.cardW);
+    const tap = runeTapOf(s); // CARD-4 (P1)
+    let take: Rect | null = null;
     texts.forEach((t, i) => {
       const r = L.cards[i], open = i === this.open, hint = open ? LC_TAKE : null;
       if (t.boon === "rune") {
         const def = RUNES[o.rune!.id];
         drawRuneCard(g, r, def, { sub: `${runeTag(def)} · FREE`, open, hint: undefined, day: s.run.day }); // HULL-1a
-        // the rune card's own body is drawRuneCard's; its details and the take bar follow its text
+        // the rune card's own body is drawRuneCard's; its details and the take bar follow its text (CARD-4, P1: the bar
+        // centred in a band that holds a finger's target on touch)
         const base = runeCardH(def, r.w, { day: s.run.day }) - 4;
-        drawBody(g, { ...r, y: r.y + base - HEAD }, [], t.info, hint, L.gap);
+        drawBody(g, { ...r, y: r.y + base - HEAD }, [], t.info, hint, L.gap, runeBarBand(open ? tap : 0));
         // CARD-2 (K2; K1): the shown keyword's definition, in the details' room (its lines' place: drawBody's y + 1), or,
         // with the details closed, over the effect lines' foot, growing up: whole, and the card keeps its size
         const k = open && this.word ? runeKeywordOf(def, this.word) : null;
         if (k) this.wordBox = drawRuneWordNote(g, r, t.info.length ? r.y + base + 1 : r.y + base - 2, lineCount(t.info), runeWordLines(def, k, r.w - 10));
+        // CARD-4 (REQ-BFG-081, P1): the open RUNE card's body takes nothing; its bar's target alone takes it (never under
+        // the word's box)
+        if (open) take = runeBarTarget(r, LC_TAKE, tap, this.wordBox);
       } else if (t.boon === "part") {
         const def = ITEMS[o.part!];
         drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity, o.partStars ?? 1), open); // HULL-1d
@@ -335,12 +399,14 @@ export class LastChancePicker {
         drawBody(g, r, t.lines, t.info, hint, L.gap);
       }
       ui.add({ id: `lcpick-${t.boon}`, r, onTap: () => this.tap(s, i, t.boon, o) });
+      if (t.boon === "rune" && open && take) ui.add({ id: LC_BAR, r: take, onTap: () => this.take(s, i, o) });
       drawInfo(g, L.infos[i], this.info.has(i));
       // the ⓘ's target, over the card's: its box and 4 px round it, and on a phone a finger's square (tap.ts tapPx) in the
       // card's top-right corner (the rest of the card stays the card's)
       const ir = L.infos[i], side = Math.max(ir.w + 8, isPhone(s.game.view) ? tapPx(s.game.view) : 0);
       const right = r.x + r.w, tr = { x: right - side, y: r.y, w: side, h: Math.min(side, r.h) };
       ui.add({ id: `lcinfo-${t.boon}`, r: tr, onTap: () => {
+        if (this.eat()) return; // CARD-4 (P3)
         this.word = null; // CARD-2 (K2): another press closes a word's definition
         if (this.info.has(i)) this.info.delete(i);
         else this.info.add(i);
@@ -352,17 +418,20 @@ export class LastChancePicker {
     // over the tooltip)
     texts.forEach((t, i) => {
       if (t.boon !== "rune") return;
-      runeChipIcon(g, ui, "lcchip-rune", L.cards[i], RUNES[o.rune!.id], runeTapOf(s), () => {
+      runeChipIcon(g, ui, "lcchip-rune", L.cards[i], RUNES[o.rune!.id], tap, () => {
+        if (this.eat()) return; // CARD-4 (P3)
         this.word = null; // CARD-2 (K2): the chip's line replaces a word's definition
         if (this.info.has(i)) this.info.delete(i);
         else this.info.add(i);
       }, { W, H }, s.game.canvas);
       // CARD-2 (REQ-BFG-081, K2): the open RUNE card's keywords are word targets, over the card's region (a tap on one shows
-      // or hides its definition and never picks the card); a closed card's are not (a tap on it opens it, as before)
+      // or hides its definition and never picks the card); a closed card's are not (a tap on it opens it, as before).
+      // CARD-4 (P4): finger-tall on touch, clear of the bar's target
       if (i === this.open) {
-        runeWordLayer(g, ui, "lcrune-", L.cards[i], RUNES[o.rune!.id], runeTapOf(s), this.word, this.word ? this.wordBox : null, (wd) => {
+        runeWordLayer(g, ui, "lcrune-", L.cards[i], RUNES[o.rune!.id], tap, this.word, this.word ? this.wordBox : null, (wd) => {
+          if (this.eat()) return;
           this.word = this.word === wd ? null : wd;
-        }, { W, H }, s.game.canvas, () => { this.word = null; }, runeHintBand(L.cards[i]), s.run.day); // CARD-3 (REQ-BFG-087, D2); MERGE-099D: the card's day
+        }, { W, H }, s.game.canvas, () => { if (!this.eat()) this.word = null; }, runeHintBand(L.cards[i], tap), take, s.run.day); // CARD-3 (REQ-BFG-087, D2); MERGE-099D: the card's day
       }
     });
   }

@@ -118,7 +118,22 @@ const SIGHT_IDS = FIRST_SIGHT_IDS;
 export const NOTICE_IDS: readonly SightId[] = ["rename107"];
 /** CARD-3: the rename notice's words (REQ-BFG-107). */
 export const RENAME_NOTICE = "PLATE IS NOW CALLED SHIELD. THE OLD SHIELD IS NOW WARD.";
-const isSightId = (v: unknown): v is SightId => typeof v === "string" && (SIGHT_IDS.includes(v) || NOTICE_IDS.includes(v));
+/**
+ * CARD-4 (REQ-BFG-107, N; READ-4 10.1): WHO THE RENAME NOTICE IS FOR. The live build is 0.9.8 (tag r098): it has no tips
+ * store, so "a how-to tip done" never meant a 0.9.8 player, and a new player's own first run made it true (placing a
+ * piece completes a tip; a finished run makes finishedRuns 1). What a 0.9.8 (or older) device's store holds: the profile
+ * (game/profile.ts PROFILE_KEY), the saved run (game/save.ts SAVE_KEY v7, and the v3-v6 keys its loader still reads), the
+ * settings (core/settings.ts) and the sound (audio/audio.ts); every one is r098's own name.
+ */
+export const OLD_STORE_KEYS: readonly string[] = [
+  "beltbattles.profile.v1", "beltbattles.run.v7", "beltbattles.run.v6", "beltbattles.run.v5", "beltbattles.run.v4",
+  "beltbattles.run.v3", "beltbattles.settings.v1", "beltbattles.sound",
+];
+/** CARD-4 (N): the decision, stored once with the notes (ids only this build writes): a returning player, or a new one. */
+export const PLAYER_IDS = { returning: "rename107.returning", fresh: "rename107.new" } as const;
+const DECISION_IDS: readonly SightId[] = [PLAYER_IDS.returning, PLAYER_IDS.fresh];
+const isSightId = (v: unknown): v is SightId =>
+  typeof v === "string" && (SIGHT_IDS.includes(v) || NOTICE_IDS.includes(v) || DECISION_IDS.includes(v));
 
 /** The done tips: null until read (the first ask reads the store once). */
 let done: Set<TipId> | null = null;
@@ -175,13 +190,36 @@ export function completeSight(id: SightId): void {
 }
 
 /**
- * CARD-3 (REQ-BFG-107): whether the returning player's rename notice is due: not shown yet on this device, and the store
- * shows earlier play: any how-to tip done, or `finishedRuns` > 0 (game/profile.ts counters.runsFinished). A new player
- * never sees it. Pure but for the store.
+ * CARD-4 (REQ-BFG-107, N): decide ONCE whether this device's player is returning, from what the store held when this
+ * build first ran: the decision already stored (PLAYER_IDS), else returning = any of OLD_STORE_KEYS present now, stored at
+ * once, so no later session decides again (whatever this build writes afterwards: tips, runs, a profile, settings). It
+ * must run before this build writes anything: src/ui/firstRun.ts calls it, main.ts's first import (an ES module runs
+ * before the modules imported after it, so before the title screen's profile fold, the audio and the settings). With no
+ * storage (a read that throws) nothing is decided and the notice never shows. Returns whether the player is returning.
  */
-export function renameNoticeDue(finishedRuns: number): boolean {
-  const tips = state();
-  return !seen.has("rename107") && (IDS.some((id) => tips.has(id)) || finishedRuns > 0);
+export function decidePlayer(): boolean {
+  state();
+  if (seen.has(PLAYER_IDS.returning)) return true;
+  if (seen.has(PLAYER_IDS.fresh)) return false;
+  let back: boolean;
+  try {
+    back = OLD_STORE_KEYS.some((k) => localStorage.getItem(k) !== null);
+  } catch {
+    return false;
+  }
+  seen.add(back ? PLAYER_IDS.returning : PLAYER_IDS.fresh);
+  write();
+  return back;
+}
+
+/**
+ * CARD-3 (REQ-BFG-107): whether the returning player's rename notice is due: not shown yet on this device, and (CARD-4, N)
+ * the player decided returning at this build's first run (decidePlayer: a 0.9.8 store). A new player never sees it,
+ * whatever they do afterwards; with nothing decided (no storage, no decision yet) it is not due. Pure but for the store.
+ */
+export function renameNoticeDue(): boolean {
+  state();
+  return !seen.has("rename107") && seen.has(PLAYER_IDS.returning);
 }
 
 /** CARD-3: the rename notice has been on screen: done, for good (the store's rules). */
@@ -227,7 +265,7 @@ export function completeTip(id: TipId): void {
 export const tipsDone = (): TipId[] => IDS.filter((id) => state().has(id));
 
 /**
- * The test hook (tooling: bb.tips; tests): "new", every tip new (the store cleared); "done", every tip done (the store
+ * The test hook (tooling: bb.tips; tests): "new", every tip new (CARD-4: the store holds only the new player's decision); "done", every tip done (the store
  * written); "reload", forget what was read, so the next ask reads the store again (a page reload). Returns the done tips.
  * CARD-2 (K1): "new" and "done" cover the first-sight notes too (every note new, or every note done), so every capture
  * can start with all new or all done; "sight", every tip done and every first-sight note new (a panel that shows a how-to
@@ -239,11 +277,12 @@ export function setTipsForTests(mode: "new" | "done" | "reload" | "sight"): TipI
     return tipsDone();
   }
   done = new Set(mode === "done" || mode === "sight" ? IDS : []);
-  // CARD-3 (REQ-BFG-107): the notices are done with the tips ("done", "sight"), new with "new"
-  seen = new Set(mode === "done" ? [...SIGHT_IDS, ...NOTICE_IDS] : mode === "sight" ? NOTICE_IDS : []);
+  // CARD-3 (REQ-BFG-107): the notices are done with the tips ("done", "sight"), new with "new". CARD-4 (N): "new" is a new
+  // player as this build's first run leaves the store: every tip, note and notice new and the player decided new (stored,
+  // so a page reload keeps it; the notice never shows)
+  seen = new Set(mode === "done" ? [...SIGHT_IDS, ...NOTICE_IDS] : mode === "sight" ? NOTICE_IDS : [PLAYER_IDS.fresh]);
   try {
-    if (mode !== "new") localStorage.setItem(TIPS_KEY, JSON.stringify([...done, ...seen]));
-    else localStorage.removeItem(TIPS_KEY);
+    localStorage.setItem(TIPS_KEY, JSON.stringify([...done, ...seen]));
   } catch { /* ignore */ }
   return tipsDone();
 }

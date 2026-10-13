@@ -819,7 +819,7 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
       plateroller: "SHIELDS YOUR HULL AS SLUGS PASS.", twingauge: "DAMAGE IF ANOTHER BELT IS AS LONG.", pincer: "DAMAGE FOR OTHER RIGS HITTING IT.", /* CARD-3 (REQ-BFG-081, D3) */
       // NUM-4 (REVIEW-NUM3 F2): one word for one stop, STUNS (was "SHORTER STALLS ON ITS TILES.")
       // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.3 item 4): TWIN LATCH's desk line says what it does (was "LETS TWO BELTS GO TOGETHER.")
-      braceframe: "SHORTER STUNS ON ITS TILES.", twinlatch: "HOLDS A SLUG TO PAIR TWO BELTS.", stoker: "MAKES FACTORIES WORK FASTER.",
+      braceframe: "SHORTER STUNS ON TILES IT HITS.", twinlatch: "HOLDS A SLUG TO PAIR TWO BELTS.", stoker: "MAKES FACTORIES WORK FASTER.",
       platebreaker: "TURNS SHIELD INTO DAMAGE.", shieldwall: "ADDS SHIELD, HITS HARDER.", twinmould: "CASTS TWO SLUGS AT ONCE.", // CARD-3 (REQ-BFG-107): the words
       armorpress: "SHIELDS YOUR HULL EVERY 3 SECONDS.", anvil: "MORE DAMAGE THE MORE SHIELD.", steambreech: "FIRES FASTER WHILE SHIELDED.",
       twintrigger: "PAIRS HIT 30% HARDER.", spallcatcher: "HITS YOU TAKE CHARGE ITS SHOT.", seamwelder: "PAIRS SHIELD YOUR HULL.",

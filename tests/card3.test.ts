@@ -29,6 +29,7 @@ import { CARD_EFFECT_LINES, cardEffectLines, cardEffectWidth } from "../src/scre
 import { lineText, lineWidth } from "../src/ui/richText";
 import { wideCardW } from "../src/screens/build/layout";
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, NOTICE_IDS, RENAME_NOTICE, TIPS_KEY, completeNotice, completeTip, kwSight, noticeDone, renameNoticeDue, setTipsForTests, sightDone } from "../src/ui/tips";
+import { decidePlayer } from "../src/ui/tips"; // CARD-4 (REQ-BFG-107, N)
 import { sightWord } from "../src/ui/firstSight";
 
 /** The words that must not stand in a player text outside a name (REQ-BFG-107). */
@@ -177,25 +178,34 @@ describe("CARD-3 (r): SHIELD and WARD (REQ-BFG-107)", () => {
     expect([sightWord(["PAIR", "SHIELD"]), sightWord(["SHIELDS"]), sightWord(["WARD"])]).toEqual(["SHIELD", "SHIELDS", "WARD"]);
   });
 
-  it("the returning player's notice: once, only after earlier play (a how-to tip done, or a finished run), kept in E5's store", () => {
+  // CARD-4 (REQ-BFG-107, N) changed what this checks: a done tip or a finished run no longer counts as earlier play (both
+  // fire for a new player: READ-4 10.1); only a player this build's first run found returning (a 0.9.8 store) is due.
+  // tests/card4.test.ts checks the decision itself (each 0.9.8 key alone, a fresh store through a finished run, reloads)
+  it("the returning player's notice: once, only for a player decided returning (CARD-4: a 0.9.8 store), kept in E5's store", () => {
     expect(RENAME_NOTICE).toBe("PLATE IS NOW CALLED SHIELD. THE OLD SHIELD IS NOW WARD.");
     expect(NOTICE_IDS).toEqual(["rename107"]);
     setTipsForTests("new");
-    expect([renameNoticeDue(0), renameNoticeDue(1)]).toEqual([false, true]); // a new player never; a finished run counts
+    expect(renameNoticeDue()).toBe(false); // a new player never
     completeTip("place");
-    expect(renameNoticeDue(0)).toBe(true);
+    expect(renameNoticeDue()).toBe(false); // CARD-4: a done tip is a new player's own first run, not earlier play
+    // a 0.9.8 store (its profile), decided at this build's first run (src/ui/firstRun.ts)
+    g.localStorage = new Mem();
+    localStorage.setItem("beltbattles.profile.v1", "{}");
+    setTipsForTests("reload");
+    expect(decidePlayer()).toBe(true);
+    expect(renameNoticeDue()).toBe(true);
     completeNotice("rename107");
-    expect([renameNoticeDue(0), noticeDone("rename107")]).toEqual([false, true]);
+    expect([renameNoticeDue(), noticeDone("rename107")]).toEqual([false, true]);
     expect(JSON.parse(localStorage.getItem(TIPS_KEY)!)).toContain("rename107");
     setTipsForTests("reload");
-    expect(renameNoticeDue(3)).toBe(false); // stored: never again
+    expect(renameNoticeDue()).toBe(false); // stored: never again
     setTipsForTests("done");
-    expect(renameNoticeDue(3)).toBe(false); // "done" covers it, so every capture with tips done is as before
+    expect(renameNoticeDue()).toBe(false); // "done" covers it, so every capture with tips done is as before
     setTipsForTests("sight");
-    expect(renameNoticeDue(3)).toBe(false);
+    expect(renameNoticeDue()).toBe(false);
     // where it shows: the build screen's caravan dawn with no toast of its own, as a toast (no press on it does anything)
     const src = readFileSync("src/screens/build/build.ts", "utf8"), enter = src.slice(src.indexOf("  enter(): void {"), src.indexOf("  select(s: Sel): void {"));
-    expect(enter).toMatch(/if \(refund \|\| scout\) this\.game\.toast\([^\n]+\n(?:\s*\/\/[^\n]*\n)*\s*else if \(renameNoticeDue\(finishedRuns\(\)\)\) \{\n\s*this\.game\.toast\(RENAME_NOTICE, C\.yellow, undefined, 6\);\n\s*completeNotice\("rename107"\);/);
+    expect(enter).toMatch(/if \(refund \|\| scout\) this\.game\.toast\([^\n]+\n(?:\s*\/\/[^\n]*\n)*\s*else if \(renameNoticeDue\(\)\) \{\n\s*this\.game\.toast\(RENAME_NOTICE, C\.yellow, undefined, 6\);\n\s*completeNotice\("rename107"\);/);
     expect(src.match(/renameNoticeDue|completeNotice/g)!.length).toBe(4); // the import's two, enter()'s two
   });
 });
@@ -299,17 +309,19 @@ describe("CARD-3 (d1, d2): a definition never covers its own word; a word's tool
         const ui = p.draw(), def = ui.regions.find((q) => q.id === "kwdef");
         if (!def) { st.word = null; continue; }
         words++;
+        // CARD-4 (REQ-BFG-087, D) changed what this counts: a box off the panel's foot moves under its word's line (or above
+        // it only where that misses the header), so "moved" counts boxes off the foot either way
         const foot = definitionBox(p.d().plan.r, p.d().plan.maxY + 2, 1);
-        if (def.r.y + def.r.h < foot.y + foot.h - 1) moved++;
+        if (def.r.y + def.r.h !== foot.y + foot.h) moved++;
         // the word's own targets are still targets (a target under the box is not: drawKeywordLayer)
         const mine = ui.regions.filter((q) => /^kw:\d+:/.test(q.id) && (glossaryEntry(q.id.split(":")[2])?.word ?? q.id.split(":")[2]) === st.word);
         expect(mine.length, `${d.id} ★${s} ${w}: its own word under its box`).toBeGreaterThan(0);
-        if (def.r.y + def.r.h < foot.y + foot.h - 1 && out.length < 12) out.push(`${d.id} ★${s} ${w}`);
+        if (def.r.y + def.r.h !== foot.y + foot.h && out.length < 12) out.push(`${d.id} ★${s} ${w}`);
         st.word = null;
       }
       keywordsIdle(p.ctx);
     }
-    console.log(`CARD3 (d1): ${panels} phone panels, ${words} definitions opened, ${moved} moved above their word (e.g. ${out.join(", ")})`);
+    console.log(`CARD3 (d1): ${panels} phone panels, ${words} definitions opened, ${moved} moved off the panel's foot, clear of their word (e.g. ${out.join(", ")})`);
     expect(moved).toBeGreaterThan(0);
   });
 
@@ -525,7 +537,7 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
     expect(fresh1.area).toEqual(done.area); // sized as with the tip done
     expect(visibleLines(d.plan).some((v) => v.line !== "rule" && v.line.block.role === "hint")).toBe(false);
     const s = hintStrip(d.hint!, d.plan.r, f.H);
-    expect([s.r.x, s.r.w, s.r.y + s.r.h]).toEqual([d.plan.r.x, d.plan.r.w, d.plan.r.y]); // just above the panel
+    expect([s.r.x, s.r.w, s.r.y]).toEqual([d.plan.r.x, d.plan.r.w, d.plan.r.y + d.plan.r.h]); // CARD-4 (REQ-BFG-087, S) changed this: just under the panel (was just above, over the shop's prices)
     expect(s.lines.map(lineText).join(" ")).toBe(TOUCH_TURN);
     expect(s.lines.every((l) => lineWidth(l, "3") <= d.plan.r.w - 10)).toBe(true);
     // the strip takes no press: drawDetails registers nothing over it (a press there reaches what is under it)

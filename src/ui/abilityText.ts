@@ -1199,7 +1199,7 @@ const ENTRIES: Record<string, Entry> = {
     // Y2 (release Y; DESIGN-Y row 16): no plated multiplier and no brace of itself
     text: (e) => [`ENEMY STUNS ON THE BELT TILES IT HITS LAST ${percent(1 - g(e).brace!.mul)} SHORTER.`],
     gist: (e) => `${percent(1 - g(e).brace!.mul)} SHORTER`,
-    card: () => "SHORTER STUNS ON ITS TILES",
+    card: () => "SHORTER STUNS ON TILES IT HITS", // CARD-4 (REQ-BFG-081, T): the FULL RULE's words (was ON ITS TILES)
   },
   twinlatch: {
     // E4 (Battle.latchTick): it holds only while both arrows hit belts, each payload at most `hold` seconds. Into one

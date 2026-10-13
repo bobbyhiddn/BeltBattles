@@ -1770,7 +1770,7 @@ export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: nu
   const t: PanelText = { ...sp.text, labels: sp.actions.map((a) => a.label) };
   // CARD-3 (REQ-BFG-080, REQ-BFG-004, C; EXPLAIN-1 open item 3): on a portrait band a how-to hint (its tip new) no longer
   // grows the panel: the panel is planned without it, so it is sized as with its tip done, and drawDetails draws the hint
-  // in a strip just above the panel (hintStrip). The hint keeps its words, its once-only rule and its store (tips.ts);
+  // in a strip by the panel (hintStrip; CARD-4 S: just under it). The hint keeps its words, its once-only rule and its store (tips.ts);
   // `t` keeps it (NOTES, KEYWORDS, the tests' face). The landscape column keeps it as its last item, as before
   const hint = ctx.L?.portrait ? t.body.find((b) => b.role === "hint")?.text ?? null : null;
   const r = detailsPlanOf(ctx, show, sp, t, area, o, hint);
@@ -1812,12 +1812,15 @@ function detailsPlanOf(ctx: Ctx, show: Sel, sp: Spec, t: PanelText, area: Rect, 
 }
 
 /** CARD-3 (REQ-BFG-080, REQ-BFG-004, C): a band panel's how-to hint strip by its panel `r`: the hint's words in 3x5 in
- *  the hint's colour, wrapped to the panel's text width, in a frame as wide as the panel: just above it (as the ⓘ icon's
- *  tooltip goes above a phone panel), else just below it, on a screen `H` tall. Pure (drawDetails, tests). */
+ *  the hint's colour, wrapped to the panel's text width, in a frame as wide as the panel, on a screen `H` tall. Pure
+ *  (drawDetails, keywords.ts's box, tests). CARD-4 (REQ-BFG-087, S; READ-4 F steps 7-16): just UNDER the panel, on the deck
+ *  side (above it, the strip covered the shop's last row: REROLL, a pack, two cards' prices), where the screen holds it;
+ *  else just above it, as before. */
 export function hintStrip(text: string, r: Rect, H?: number): { lines: Span[][]; r: Rect } {
   const lines = wrapRich([{ t: text, c: ROLE.hint.colour }], r.w - 10, "3");
   const h = 2 + 7 * lines.length;
-  const y = r.y - h >= 2 ? r.y - h : Math.max(2, Math.min((H ?? r.y + r.h + h) - h, r.y + r.h));
+  const under = r.y + r.h, room = H ?? under + h + 2;
+  const y = under + h <= room - 2 ? under : r.y - h >= 2 ? r.y - h : Math.max(2, Math.min(room - h, under));
   return { lines, r: { x: r.x, y, w: r.w, h } };
 }
 
@@ -1944,15 +1947,17 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
     if (v.line === "rule") rect(g, r.x + 5, v.y + 1, r.w - 10, 1, C.slate1);
     else drawLine(g, v.line, r.x + 5, v.y);
   }
-  // CARD-3 (REQ-BFG-080, REQ-BFG-004, C): a band panel's how-to hint (its tip new), outside the panel's plan, just above it
-  if (d.hint) drawHintStrip(g, hintStrip(d.hint, r, ctx.game?.H));
+  // CARD-3 (REQ-BFG-080, REQ-BFG-004, C): a band panel's how-to hint (its tip new), outside the panel's plan (CARD-4, S:
+  // just under it). CARD-4 (K, D): the keyword layer keeps a shown note's box clear of it
+  const strip = d.hint ? hintStrip(d.hint, r, ctx.game?.H) : null;
+  if (strip) drawHintStrip(g, strip);
   // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
   // shown definition or the KEYWORDS view, the desk's hover tooltip
   // U2f (REQ-BFG-070): the ⓘ view may grow past the panel (infoFree: above it on the phone, down the column on the desk)
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
   // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
   // build screen between a fight's rounds; a fight's own faces never come here)
-  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, d, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
+  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 

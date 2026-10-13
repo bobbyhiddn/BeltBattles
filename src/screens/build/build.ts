@@ -2,7 +2,6 @@
 // bow. Drag and drop or tap-to-place; contextual cues replace the old instruction text.
 
 import { playerSkin } from "../../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
-import { loadProfile } from "../../game/profile"; // CARD-3 (REQ-BFG-107): a finished run counts as earlier play
 import type { Skin } from "../../render/styles"; // CUSTOM-2a
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
@@ -75,15 +74,6 @@ interface FuseAnimState {
   step: FuseStep;
   t: number;
   fired: boolean; // the flash/ring/sparkle one-shot has fired for this step
-}
-
-/** CARD-3 (REQ-BFG-107): the runs this device finished (game/profile.ts counters.runsFinished; 0 with no store). */
-function finishedRuns(): number {
-  try {
-    return loadProfile().counters.runsFinished;
-  } catch {
-    return 0;
-  }
 }
 
 export class BuildScreen implements Screen, EditHost {
@@ -341,9 +331,9 @@ export class BuildScreen implements Screen, EditHost {
       const refund = refundNotice(this.run) ?? "";
       if (refund || scout) this.game.toast([refund, scout].filter(Boolean).join(" · "), C.lime);
       // CARD-3 (REQ-BFG-107): the returning player's notice, once on this device: on the first caravan whose dawn has no
-      // toast of its own (toasts replace each other), when the store shows earlier play (a how-to tip done, or a finished
-      // run). A toast takes no press, so nothing on it can change the run
-      else if (renameNoticeDue(finishedRuns())) {
+      // toast of its own (toasts replace each other). CARD-4 (N): only for a player this build's first run found returning
+      // (tips.ts decidePlayer: a 0.9.8 store), never a new one. A toast takes no press, so nothing on it can change the run
+      else if (renameNoticeDue()) {
         this.game.toast(RENAME_NOTICE, C.yellow, undefined, 6);
         completeNotice("rename107");
       }
@@ -838,7 +828,12 @@ export class BuildScreen implements Screen, EditHost {
     if (this.foeView.open) return this.foeView.faces.pressed(region); // SCOUT-1c: a press off a face's word closes it
     // RUNES-1: the rune picker takes every press (LC-1: the LAST CHANCE picker too). EXPLAIN-1 (REQ-BFG-089, E3): a press
     // anywhere but the opened card's chip closes the line it shows
-    if (this.modalUp()) return this.runePicker.pressed(region);
+    // CARD-4 (REQ-BFG-081, P3): LAST CHANCE hears every press too (a press while its note that opened by itself is up
+    // only closes it)
+    if (this.modalUp()) {
+      this.lastChancePicker.pressed(region);
+      return this.runePicker.pressed(region);
+    }
     if (region !== "beltx") this.ed.dropX();
     this.runeBar.pressed(region); // RUNES-1: a press off the rune bar closes its read-out
     keywordsPressed(this, region); // U2c (REQ-BFG-045): a press off a word, `?` or the KEYWORDS view closes them

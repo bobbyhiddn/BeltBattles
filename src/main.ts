@@ -1,6 +1,7 @@
 // Entry point: boots the game shell on #game and exposes a small hook for tooling
 // (screenshots / smoke tests / metrics): window.bb.open("build", "furnace").
 
+import "./ui/firstRun"; // CARD-4 (REQ-BFG-107, N): FIRST, before any module that reads or writes the store (firstRun.ts)
 import { Game } from "./game/game";
 import { newRun } from "./game/run";
 import { gainModule } from "./game/fuse";
