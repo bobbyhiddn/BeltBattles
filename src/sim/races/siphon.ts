@@ -8,6 +8,7 @@ import type { FactoryState, Payload, RouteState, SideState, Target } from "../ba
 import { FUSE_MULT, type SimCtx } from "./foundry";
 import { RACE_AMMO } from "./data";
 import { pct } from "../pct"; // NUM-1 (REQ-BFG-047)
+import { flatOf } from "../scale"; // SCALE-2a (REQ-BFG-110): the flat bonus's sum (stat rows + FOR EACH)
 
 export const DRAG_MULT = 0.25; // a dragged segment runs at x0.25 of its speed state
 export const DRAG_TIME = 3.0; // s; a re-hit refreshes it, never stacks
@@ -162,7 +163,7 @@ export function newEchoState(): EchoState {
 /** The flat damage a payload gained from processing. An alloy slug keeps its fused base in flat. */
 export function addedFlat(p: Payload): number {
   const fused = p.ammo === "alloy" ? pct(2 * RACE_AMMO.blank.base, 100 * FUSE_MULT) : 0; // NUM-1: as foundry.ts fuse rounds it
-  return Math.max(0, p.flat - fused);
+  return Math.max(0, flatOf(p) - fused); // SCALE-2a: the sum (flatOf)
 }
 
 /** Echo memory of payload `p` (overwrites the last one; never consumed). */

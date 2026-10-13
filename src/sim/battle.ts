@@ -38,6 +38,7 @@ import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-
 import { dayMulTenths, dayScaled, scaleTenths, windShareBp, windShareDamage } from "./hullScale";
 import { dmgDayScale, dmgMulTenths } from "./hullScale"; // HULL-1c (REQ-BFG-079; cap b6be918372b006f3): D(d), the damage day term
 import { sustDayScale, sustMulTenths, sustUnit } from "./hullScale"; // HULL-1d (REQ-BFG-079; REVIEW-HULL1C Q5): S(d), the sustain day term
+import { flatOf, scaleRules } from "./scale"; // SCALE-2a (REQ-BFG-110, REQ-BFG-098): the scaling hooks' switch; the flat bonus's sum
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -69,6 +70,10 @@ export interface Payload {
   ride: number; // eligible ride time (moving on belts)
   mult: number; // split multiplier
   flat: number; // flat damage
+  // SCALE-2a (REQ-BFG-110): the FOR EACH DMG (step 4 of the order: a count read at a rig's hit), kept apart from `flat`
+  // (the slug's own and the stat rows' DMG, step 2) so DRAKE NOZZLE converts `flat` only. Set only while SCALE_RIGS is on
+  // (Battle.scale); every other reader of the flat bonus reads both (scale.ts flatOf). Copies keep it; a split scales it.
+  each?: number;
   burn: number;
   shock: boolean;
   prior: number; // gates visited
@@ -512,6 +517,9 @@ export class Battle {
    *  sustMulTenths), else 10 (S = 1: every heal and PLATE amount exactly as before). */
   readonly sustTenths: number;
   private windBp = 0; // HULL-1a: the wind's share blown since its last whole tick, in basis-point ticks (scaled only)
+  /** SCALE-2a (REQ-BFG-110, REQ-BFG-098): are the scaling hooks on in this fight (SCALE_RIGS, or withScaleRigs, where it
+   *  was made)? Read once, here: the FOR EACH accumulator, the counts and `reads`. Off: every hook is inert. */
+  readonly scale: boolean = scaleRules();
 
   /** RUNES-2a: `wins`, the wins each side carried into the fight (the run's own, a ghost's snapshot `wins`; 0 for a
    *  stand-in or a warlord), read only by a side holding WARLORD'S DUE; the record keeps them only then (replay.ts), so a
@@ -1675,6 +1683,14 @@ export class Battle {
     }
   }
 
+  /** SCALE-2a (REQ-BFG-110, the order of operations): a FOR EACH add (step 4: a count read at this hit; the slug keeps it)
+   *  goes to the payload's second accumulator while SCALE_RIGS is on, so DRAKE NOZZLE (step 3) never converts it; off, it
+   *  adds to `flat` exactly as before. */
+  private forEach(p: Payload, n: number): void {
+    if (this.scale) p.each = (p.each ?? 0) + n;
+    else p.flat += n;
+  }
+
   /**
    * One rig arrow processes payload `a` (0.6.1p's applyGate body, unchanged); returns the copies a SPLITTER hit
    * makes (copies - 1 of them: 1 at every star since 0.6.1f, 2 while HOT START overclocks it), else [].
@@ -1698,8 +1714,12 @@ export class Battle {
     if (s.race?.speedLock && e.lockedFlat) p.flat += e.lockedFlat;
     // 0.8.0 P1, wave 3 (R7 tier 1, additive; each field exists only on its wave-3 rig):
     if (e.gauge) p.flat += h.matched ? e.gauge.matched : e.gauge.flat; // E6 TWIN GAUGE: more on a matched belt
-    // E5 PINCER. Y3 (release Y; DESIGN-Y row 20): its def has no `max` (and flat 0), so every other working rig counts
-    if (e.pincer) p.flat += e.pincer.flat + e.pincer.each * Math.min(e.pincer.max ?? Infinity, this.crossfire(s, h));
+    // E5 PINCER. Y3 (release Y; DESIGN-Y row 20): its def has no `max` (and flat 0), so every other working rig counts.
+    // SCALE-2a (REQ-BFG-110): its `flat` is a stat row (step 2), its `each` a FOR EACH add (step 4: this.forEach)
+    if (e.pincer) {
+      const each = e.pincer.each * Math.min(e.pincer.max ?? Infinity, this.crossfire(s, h));
+      if (this.scale) { p.flat += e.pincer.flat; this.forEach(p, each); } else p.flat += e.pincer.flat + each;
+    }
     if (e.latch) p.flat += e.latch.flat; // TWIN LATCH: each payload it hits (its hold is E4, after the tile's hits)
     if (e.plate) this.addPlate(s, e.plate); // PLATE ROLLER, SHIELD WALL: plating for each payload it hits (E1)
     // HULL-1d: SHIELD WALL's 12+ and PLATE BREAKER's 1 plating are pool units, on the pool's S (sustUnit; S = 1: as before)
@@ -1711,8 +1731,8 @@ export class Battle {
         p.flat += e.breaker.flat;
       } else p.flat += e.breaker.floor;
     }
-    // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap)
-    if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
+    // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap). SCALE-2a: a FOR EACH add (step 4)
+    if (e.perPriorGate) this.forEach(p, e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior));
     if (e.burn) p.burn += e.burn;
     // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP (its only source), on poison's old path: two add up, and a doubled
     // hit (overclocked) adds twice
@@ -1726,7 +1746,9 @@ export class Battle {
     if (e.quench) { // 0.6.2 FB-B: + flat on every payload; up to `stacks` Burn stacks at perBurn each, the rest stays Burn
       // Y3 (DESIGN-Y row 23): its def has no `stacks` (and flat 0), so every BURN stack turns
       const spent = Math.min(p.burn, e.quench.stacks ?? Infinity);
-      p.flat += e.quench.flat + spent * e.quench.perBurn;
+      // SCALE-2a (REQ-BFG-110): its `flat` is a stat row (step 2), its perBurn part a FOR EACH add (step 4)
+      const each = spent * e.quench.perBurn;
+      if (this.scale) { p.flat += e.quench.flat; this.forEach(p, each); } else p.flat += e.quench.flat + each;
       p.burn -= spent;
     }
     if (e.staticTime) { p.static = true; p.staticTime = Math.max(p.staticTime ?? 0, e.staticTime); }
@@ -1736,12 +1758,12 @@ export class Battle {
       const foe = this.sides[s.side === 0 ? 1 : 0];
       const stunned = [...foe.gates.filter((g) => !g.wrecked), ...foe.factories, ...foe.turrets].filter((m) => m.disrupted > 0 || m.frozen > 0).length +
         foe.routes.reduce((n, r) => n + r.cellDisrupt.filter((t) => t > 0).length, 0);
-      p.flat += stunned * e.perStalled.each;
+      this.forEach(p, stunned * e.perStalled.each); // SCALE-2a (REQ-BFG-110): a FOR EACH add (step 4)
     }
     if (e.fray) { p.fray = (p.fray ?? 0) + e.fray; p.frayCap = Math.max(p.frayCap ?? 0, e.frayCap ?? 0); }
     // 0.6.2j (J14 (a)): COUNTERWEIGHT counts the tiles ridden on the payload's own journey. Y5 (release Y; DESIGN-Y row 41):
-    // its def has no `max`, so every tile counts
-    if (e.perTile) p.flat += Math.min(e.perTile.max ?? Infinity, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each);
+    // its def has no `max`, so every tile counts. SCALE-2a (REQ-BFG-110): a FOR EACH add (step 4)
+    if (e.perTile) this.forEach(p, Math.min(e.perTile.max ?? Infinity, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each));
     if (e.shock) {
       p.shock = true;
       // 0.6.1p: GALVANIC COIL ★2/★3: the longest stall and jump passed wins (a 1-star coil sets neither)
@@ -1765,6 +1787,7 @@ export class Battle {
     if (e.split) {
       p.mult *= e.split.mult; // a share: payloadDamage rounds the slug's damage once, at fire
       p.flat = pct(p.flat, 100 * e.split.mult); // NUM-1: the flat bonus so far x the split's %, rounded half up once
+      if (p.each) p.each = pct(p.each, 100 * e.split.mult); // SCALE-2a (REQ-BFG-110): a split is a copy: both accumulators
       p.copy = true;
       for (let c = 1; c < e.split.copies; c++) { // generic: copies - 1 new ones (an overclocked split makes one more)
         const cp: Payload = { ...p, id: this.nextId++, ...(p.debuffs ? { debuffs: { ...p.debuffs } } : {}),
@@ -1913,7 +1936,7 @@ export class Battle {
     const ammo = AMMO[p.ammo];
     let dmg = ammo.rideCurve // races: PENDULUM curve
       ? raceCurveDamage(ammo, s, tu, p)
-      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, flatOf(p) + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor; SCALE-2a: the sum (flatOf)
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     // NUM-1 (REQ-BFG-047): payloadDamage made the slug's damage whole at fire (its HEAT and split share rounded once); each
     // % below rounds half up once, where it applies (pct)
@@ -1986,10 +2009,12 @@ export class Battle {
     const ammo = AMMO[p.ammo];
     const c = tu.core.spec, routine = tu.core.routine;
     if (routine === "grapnel") p.rip = { count: c.rip ?? 1, reach: c.reach ?? 1 };
+    // SCALE-2a (REQ-BFG-110, the guard): DRAKE NOZZLE converts the stat rows' DMG only (step 3 sees step 2: p.flat); the FOR
+    // EACH DMG (step 4: p.each, set only while SCALE_RIGS is on) stays DMG on the shot. Off, p.each is never set: as before
     const conv = routine === "drake" ? drakeConvert(c, p.flat) : { stacks: 0, used: 0 };
     let dmg = ammo.rideCurve
       ? Math.max(10, raceCurveDamage(ammo, s, tu, p) - conv.used) // NUM-1: the least shot x10 (curveDamage's floor)
-      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat - conv.used + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, flatOf(p) - conv.used + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
     // NUM-1 (REQ-BFG-047): the core's numbers are whole at install (cores.ts scaleCore); every % or rate here rounds half
@@ -2003,7 +2028,7 @@ export class Battle {
     else if (routine === "capacitor") { dmg += roundHalfUp((c.perSecond ?? 0) * tu.charge); tu.charge = 0; }
     else if (routine === "compound" && p.compound) {
       const q = p.compound, qa = AMMO[q.ammo];
-      const qd = qa.rideCurve ? raceCurveDamage(qa, s, tu, q) : payloadDamage(q.base ?? qa.base, qa.rideScale, this.rideOf(s, q), q.mult, q.flat + (q.heatBonus ?? 0), shotFloor(q.ammo)); // Y2: shotFloor
+      const qd = qa.rideCurve ? raceCurveDamage(qa, s, tu, q) : payloadDamage(q.base ?? qa.base, qa.rideScale, this.rideOf(s, q), q.mult, flatOf(q) + (q.heatBonus ?? 0), shotFloor(q.ammo)); // Y2: shotFloor; SCALE-2a: the sum
       dmg = pct(debuffedDamage(dmg, p.debuffs) + debuffedDamage(qd, q.debuffs), 100 * (c.mult ?? 1));
       p.burn += q.burn;
       burn += q.burn;

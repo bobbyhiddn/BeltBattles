@@ -16,7 +16,7 @@
 //
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same helpers.
 
-import type { HullState } from "./battle";
+import type { HullState, Payload } from "./battle";
 
 /** THE switch (REQ-BFG-098, REQ-BFG-110): off in this rules version (bb-0.10.0); BUMP-1E turns it on. */
 export const SCALE_RIGS: boolean = false;
@@ -53,4 +53,11 @@ export function burnStacks(hull: Pick<HullState, "burns">): number {
   let n = 0;
   for (const b of hull.burns) n += b.dps;
   return n;
+}
+
+/** SCALE-2a (REQ-BFG-110): a payload's whole flat bonus: the stat rows' DMG (`flat`, step 2 of the order) plus its FOR
+ *  EACH DMG (`each`, step 4; set only while SCALE_RIGS is on). Every reader of the flat bonus reads this, the sum it read
+ *  before, except DRAKE NOZZLE (step 3), which converts `flat` alone. With the switch off it is `flat` itself. */
+export function flatOf(p: Pick<Payload, "flat" | "each">): number {
+  return p.each ? p.flat + p.each : p.flat;
 }
