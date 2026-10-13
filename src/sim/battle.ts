@@ -426,16 +426,28 @@ export interface Projectile {
   lance?: { columns: number; share: number; col: number };
 }
 
+/** SCALE-2a (REQ-BFG-100, C11; REPORT-COUNT1 section 3): what a count-driven term gave on one hit or shot (after an
+ *  OVERCLOCKER's doubling): DMG to the slug, PLATE or HEAL to your hull. Display data: the battle view pops `+n`. */
+export interface ReadAdd {
+  amount: number;
+  kind: "dmg" | "plate" | "heal";
+}
+
 export type SimEvent =
   | { type: "produce"; side: Side; factory: number }
-  | { type: "process"; side: Side; gate: number; def: string; dir: Dir; route: number; tile: number } // 0.6.2: the arrow and the tile it hit
+  // 0.6.2: the arrow and the tile it hit. SCALE-2a (REQ-BFG-100, C11): `add`, set only when a count-driven term gave
+  // something on this hit (perStalled, perPriorGate, pincer.each, perTile, quench.perBurn, a `reads` line), whether
+  // SCALE_RIGS is on or off
+  | { type: "process"; side: Side; gate: number; def: string; dir: Dir; route: number; tile: number; add?: ReadAdd }
   | { type: "commission"; side: Side; gate: number }
   | { type: "load"; side: Side; turret: number }
   | { type: "fuse"; side: Side; turret: number; dmg: number } // races: two alloy blanks fused (FOUNDRY)
   // 0.8.0 H1 M3 (display only: the CLANK): a bulwark slug that loaded plated the hull by `amount` (BASTION; races/index.ts
   // raceLoaded, after the `load` event). Only a bulwark slug plates, so Furnace and Weaver never emit one.
   | { type: "plate"; side: Side; turret: number; amount: number }
-  | { type: "fire"; side: Side; turret: number; heavy: boolean; dmg: number; proj: number; core?: CoreRoutine } // 0.6.1b: core set by a bought core
+  // 0.6.1b: core set by a bought core. SCALE-2a (REQ-BFG-100, C11): `add`, set only when a gun part's count term gave
+  // something on this shot (PRESSURE BREECH's perQueued, a `reads` line), whether SCALE_RIGS is on or off
+  | { type: "fire"; side: Side; turret: number; heavy: boolean; dmg: number; proj: number; core?: CoreRoutine; add?: ReadAdd }
   | { type: "impact"; side: Side; x: number; y: number; dmg: number; heavy: boolean; kind: TargetKind; shock: boolean; burn: number; big: boolean }
   | { type: "jam"; side: Side; turret: number }
   | { type: "disrupt"; side: Side; kind: TargetKind; ref: number; cell: number }
@@ -1767,6 +1779,7 @@ export class Battle {
     const doubled = !!booster || g.hotUntil !== undefined && this.t < g.hotUntil;
     const e = doubled ? overclocked(g.def.gate!) : g.def.gate!;
     const copies: BeltAmmo[] = [];
+    let addDmg = 0; // SCALE-2a (REQ-BFG-100, C11): the DMG this hit's count-driven terms give (the process event's `add`)
     if (e.flat) p.flat += e.flat;
     if (s.race?.speedLock && e.lockedFlat) p.flat += e.lockedFlat;
     // 0.8.0 P1, wave 3 (R7 tier 1, additive; each field exists only on its wave-3 rig):
@@ -1776,6 +1789,7 @@ export class Battle {
     if (e.pincer) {
       const each = e.pincer.each * Math.min(e.pincer.max ?? Infinity, this.crossfire(s, h));
       if (this.scale) { p.flat += e.pincer.flat; this.forEach(p, each); } else p.flat += e.pincer.flat + each;
+      addDmg += each;
     }
     if (e.latch) p.flat += e.latch.flat; // TWIN LATCH: each payload it hits (its hold is E4, after the tile's hits)
     if (e.plate) this.addPlate(s, e.plate); // PLATE ROLLER, SHIELD WALL: plating for each payload it hits (E1)
@@ -1789,7 +1803,11 @@ export class Battle {
       } else p.flat += e.breaker.floor;
     }
     // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap). SCALE-2a: a FOR EACH add (step 4)
-    if (e.perPriorGate) this.forEach(p, e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior));
+    if (e.perPriorGate) {
+      const n = e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
+      this.forEach(p, n);
+      addDmg += n;
+    }
     if (e.burn) p.burn += e.burn;
     // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP (its only source), on poison's old path: two add up, and a doubled
     // hit (overclocked) adds twice
@@ -1806,6 +1824,7 @@ export class Battle {
       // SCALE-2a (REQ-BFG-110): its `flat` is a stat row (step 2), its perBurn part a FOR EACH add (step 4)
       const each = spent * e.quench.perBurn;
       if (this.scale) { p.flat += e.quench.flat; this.forEach(p, each); } else p.flat += e.quench.flat + each;
+      addDmg += each;
       p.burn -= spent;
     }
     if (e.staticTime) { p.static = true; p.staticTime = Math.max(p.staticTime ?? 0, e.staticTime); }
@@ -1815,16 +1834,22 @@ export class Battle {
       const foe = this.sides[s.side === 0 ? 1 : 0];
       const stunned = [...foe.gates.filter((g) => !g.wrecked), ...foe.factories, ...foe.turrets].filter((m) => m.disrupted > 0 || m.frozen > 0).length +
         foe.routes.reduce((n, r) => n + r.cellDisrupt.filter((t) => t > 0).length, 0);
-      this.forEach(p, stunned * e.perStalled.each); // SCALE-2a (REQ-BFG-110): a FOR EACH add (step 4)
+      const n = stunned * e.perStalled.each;
+      this.forEach(p, n); // SCALE-2a (REQ-BFG-110): a FOR EACH add (step 4)
+      addDmg += n;
     }
     if (e.fray) { p.fray = (p.fray ?? 0) + e.fray; p.frayCap = Math.max(p.frayCap ?? 0, e.frayCap ?? 0); }
     // 0.6.2j (J14 (a)): COUNTERWEIGHT counts the tiles ridden on the payload's own journey. Y5 (release Y; DESIGN-Y row 41):
     // its def has no `max`, so every tile counts. SCALE-2a (REQ-BFG-110): a FOR EACH add (step 4)
-    if (e.perTile) this.forEach(p, Math.min(e.perTile.max ?? Infinity, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each));
+    if (e.perTile) {
+      const n = Math.min(e.perTile.max ?? Infinity, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each);
+      this.forEach(p, n);
+      addDmg += n;
+    }
     // SCALE-2a (REQ-BFG-098): a scaling rig's reader line, its count read at this hit (step 4: before a split, which scales
     // it); ignored with SCALE_RIGS off
     const read = this.scale && e.reads ? this.giveRead(s, e.reads, this.readCount(s, e.reads.count, { g, route: h.route }), p, g.uid) : undefined;
-    void read; // C11's `add` (step 6)
+    if (read?.kind === "dmg") addDmg += read.amount;
     if (e.shock) {
       p.shock = true;
       // 0.6.1p: GALVANIC COIL ★2/★3: the longest stall and jump passed wins (a 1-star coil sets neither)
@@ -1860,7 +1885,10 @@ export class Battle {
     for (const c of copies) c.p.prior = p.prior;
     g.flash = 0.22;
     g.arrowFlash[h.dir] = 0.22;
-    this.events.push({ type: "process", side: s.side, gate: g.uid, def: g.def.id, dir: h.dir, route: h.route, tile: h.tile });
+    // SCALE-2a (REQ-BFG-100, C11): the count-driven DMG this hit gave (a `reads` PLATE or HEAL line's only when no DMG came);
+    // no `add` at 0. Display data, set with SCALE_RIGS on or off (the pinned fp tallies event types only)
+    const add: ReadAdd | undefined = addDmg > 0 ? { amount: addDmg, kind: "dmg" } : read?.kind !== "dmg" ? read : undefined;
+    this.events.push({ type: "process", side: s.side, gate: g.uid, def: g.def.id, dir: h.dir, route: h.route, tile: h.tile, ...(add ? { add } : {}) });
     return copies; // beltside-062 B3
   }
 
@@ -1996,8 +2024,7 @@ export class Battle {
     // DMG before its damage is made (step 4: DRAKE NOZZLE never converts it; step 5's % applies once, to the total).
     // Ignored with SCALE_RIGS off
     const read = this.scale && tu.reads ? this.shotReads(s, tu, p, queued) : undefined;
-    void read; // C11's `add` (step 6)
-    if (tu.core.bought) return this.fireCore(s, tu, p, k, queued, fin); // 0.6.1b; the identity shot below is unchanged
+    if (tu.core.bought) return this.fireCore(s, tu, p, k, queued, fin, read); // 0.6.1b; the identity shot below is unchanged
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
     let dmg = ammo.rideCurve // races: PENDULUM curve
@@ -2037,7 +2064,7 @@ export class Battle {
     s.stats.shots++;
     s.stats.payloadSum += dmg;
     if (s.stats.firstShot < 0) s.stats.firstShot = this.t;
-    this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg, proj: proj.id });
+    this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg, proj: proj.id, ...(read ? { add: read } : {}) }); // SCALE-2a: C11's `add`
     if (p.paired && s.rune?.pairTwice) this.echo(s, proj); // RUNES-2a: MOLTEN VOWS
   }
 
@@ -2082,7 +2109,7 @@ export class Battle {
    * - DRAKE: the flat bonus becomes Burn (1 stack per flatPerBurn), + addBurn, lasting burnTime; flight x flightMul.
    * ROTARY and GATLING fire like the identity shot (their hooks are in the chamber).
    */
-  private fireCore(s: SideState, tu: TurretState, p: Payload, k: number, queued: number, fin = false): void {
+  private fireCore(s: SideState, tu: TurretState, p: Payload, k: number, queued: number, fin = false, read?: ReadAdd): void {
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
     const c = tu.core.spec, routine = tu.core.routine;
@@ -2097,7 +2124,9 @@ export class Battle {
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
     // NUM-1 (REQ-BFG-047): the core's numbers are whole at install (cores.ts scaleCore); every % or rate here rounds half
     // up once (ANVIL's plating %, HULLBREAKER, CAPACITOR's idle seconds, COMPOUND)
-    if (routine === "pressure") dmg += pressureBonus(c, queued);
+    // SCALE-2a (REQ-BFG-100, C11): PRESSURE BREECH's perQueued is a count-driven term: the fire event's `add`
+    const queuedAdd = routine === "pressure" ? pressureBonus(c, queued) : 0;
+    if (routine === "pressure") dmg += queuedAdd;
     else if (routine === "salvo") dmg += c.volleyFlat ?? 0;
     // HULL-1d: with S above 1 ANVIL reads its pool back in day-1 units (pool x 10 / S, rounded down): its damage takes D at
     // impact, not S as well
@@ -2137,6 +2166,10 @@ export class Battle {
     }
     if (routine !== "compound" || !p.compound) dmg = debuffedDamage(dmg, p.debuffs);
     const heavy = tu.def.kind === "heavy";
+    // SCALE-2a (REQ-BFG-100, C11): this shot's count-driven add (perQueued plus the gun parts' `reads` DMG; a PLATE or HEAL
+    // line's only when no DMG came), on the first pellet's fire event only; none at 0
+    const addDmg = queuedAdd + (read?.kind === "dmg" ? read.amount : 0);
+    const add: ReadAdd | undefined = addDmg > 0 ? { amount: addDmg, kind: "dmg" } : read?.kind !== "dmg" ? read : undefined;
     for (let j = 0; j < pellets; j++) {
       const target = routine === "hullbreaker" ? hullTarget() : this.pickTarget(foe, !!p.harass, tu);
       let tx = target.x, ty = target.y;
@@ -2164,7 +2197,7 @@ export class Battle {
       this.projectiles.push(proj);
       s.stats.shots++;
       s.stats.payloadSum += pd;
-      this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg: pd, proj: proj.id, core: routine });
+      this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg: pd, proj: proj.id, core: routine, ...(j === 0 && add ? { add } : {}) });
       if (paired && s.rune?.pairTwice) this.echo(s, proj); // RUNES-2a: MOLTEN VOWS, each pellet
     }
     tu.recoil = 1;
