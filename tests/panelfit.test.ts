@@ -1,17 +1,24 @@
-// PANEL-FIT (REQ-BFG-100, REQ-BFG-093; BRIEF-PANELFIT, cap's rule 10-13): nothing is ever drawn over the tag or the name
-// on the battle HUD's panel. drawPlate (battleHud.ts) asks fitLead for the lead that fits:
+// PANEL-FIT (REQ-BFG-100, REQ-BFG-093; BRIEF-PANELFIT, cap's rule 10-13; BRIEF-PANELFIT2, cap's addendum 10-13): nothing
+// is ever drawn over the tag or the name on the battle HUD's panel, and a cut name never shows part of a number or ends on
+// a gap. drawPlate (battleHud.ts) asks fitLead for the lead that fits:
 //  1. plateRow with the full lead (tag and name): where its bar keeps LEAD_BAR (9 px, drawPlate's own `bw > 8`), as before;
 //  2. else the tag drops, and plateRow runs with the name alone (its usual order uses the freed room);
-//  3. else the name is cut from its end, just enough that the bar keeps LEAD_BAR in plateRow's last form, marked with
-//     CUT_MARK, keeping at least CUT_KEEP characters; the forms are not tried again;
+//  3. else the name is cut: run 1's raw cut (the longest start of the name, CUT_KEEP characters at least, whose width with
+//     CUT_MARK keeps LEAD_BAR in plateRow's last form); then (run 2) a part (the name split at spaces) the raw cut ends
+//     inside goes whole if it holds a digit, then every space and "·" left at the end; then the mark. If fewer than
+//     CUT_KEEP characters would stay, the raw cut stays (listed). plateRow runs once with the final lead;
 //  4. else the bar takes what is left.
 //  (a) tests/cntday3 (c)'s sweep (its inputs, its three views, both sides) on days 1, 5, 8 and 10, drawn by drawPlate, by
 //      source (ONLINE ghost, OFFLINE stand-in, warlord, yours), and a census of real ONLINE ghosts (every hero, 0-10 wins,
 //      1-10 hearts, plated or not, WARD or not, the day's hull): no negative bar; 9 px unless listed under rule 4; nothing
-//      overlaps the lead; the tag drops before any cut; a cut keeps CUT_KEEP characters and ends with the mark; each cut is
-//      the smallest.
+//      overlaps the lead; the tag drops before any cut; a cut keeps CUT_KEEP characters and ends with the mark; the raw cut
+//      is the smallest; the drawn name is the raw cut, minus a partial part that holds a digit, minus the gap at the end,
+//      plus the mark; no drawn cut has a space or "·" before the mark; none ends inside a part that holds a digit.
 //  (b) every swept panel whose base bar (plateRow with the full lead: panelfit-base's drawPlate) is 9 px or more draws the
-//      same drawText calls (text, x, y, colour) as panelfit-base's drawPlate expressions, on every view.
+//      same drawText calls (text, x, y, colour) as panelfit-base's drawPlate expressions, on every view. (b2) every swept
+//      panel that keeps its full lead or only drops its tag draws the same calls as panelfit-done's drawPlate (run 1's
+//      fitLead, copied here as prevFit): only cut panels can differ from run 1, and only where run 1's cut ended on a gap
+//      or inside a part that holds a digit.
 //  (c) the real paths: battle.ts's foe panel for an ONLINE ghost (sourceLine, plateSource) and an OFFLINE stand-in on a
 //      phone, and replay.ts's foe label: the drawn tag and name, and the panel's tap group.
 // Everything is built here (start decks, set-up runs); never fights.json and never a par deck. Every day number is
@@ -103,8 +110,49 @@ function candidates(): { yours: Cand[]; foes: Cand[] } {
 const sourceOf = (c: Cand, side: Side, L: BattleLayout): { name: string; tag?: string } =>
   side === 1 && c.note && notePlace(L) === "plate" ? plateSource(c.name, c.note) : { name: c.name };
 
-/** The rule's checks on one fit (pure): the problems found (none: []). `rule4` collects the panels under rule 4. */
-function ruleProblems(o: RowIn, name: string, tag: string | undefined, f: LeadFit, rule4: string[], at: string): string[] {
+/** run 1's fitLead (panelfit-done battleHud.ts :170-183), copied: panelfit-done's lead (b2), and the raw cut. */
+function prevFit(o: RowIn, name: string, tag?: string): LeadFit {
+  const full = leadWidth(name, tag), row = plateRow({ ...o, lead: full });
+  if (row.bar.w >= LEAD_BAR) return { tag: tag || null, name, step: "full", lead: full, row };
+  const alone = textWidth(name, "3"), bare = tag ? plateRow({ ...o, lead: alone }) : row;
+  if (bare.bar.w >= LEAD_BAR) return { tag: null, name, step: "tag", lead: alone, row: bare };
+  const chars = Array.from(name), most = alone + bare.bar.w - LEAD_BAR;
+  if (chars.length <= CUT_KEEP) return { tag: null, name, step: tag ? "tag" : "full", lead: alone, row: bare };
+  let k = chars.length - 1;
+  while (k > CUT_KEEP && textWidth(chars.slice(0, k).join("") + CUT_MARK, "3") > most) k--;
+  const cut = chars.slice(0, k).join("") + CUT_MARK, lead = textWidth(cut, "3");
+  return { tag: null, name: cut, step: "cut", lead, row: plateRow({ ...o, lead }) };
+}
+type End = "gap" | "digit" | "word" | "letters";
+/** How a cut `drawn` (its kept text, then the mark) of `name` ends: on a gap (a space or "·"); inside a part (the name
+ *  split at spaces) that holds a digit; on a whole part; inside a part made only of letters. */
+function endOf(name: string, drawn: string): End {
+  const kept = drawn.slice(0, -CUT_MARK.length);
+  if (/[ ·]$/.test(kept)) return "gap";
+  const i = kept.split(" ").length - 1, part = name.split(" ")[i];
+  if (kept.split(" ")[i] === part) return "word";
+  return /\d/.test(part) ? "digit" : "letters";
+}
+/** The addendum on a raw cut of `k` characters (a reference, written apart from fitLead): the drawn name, and whether the
+ *  raw cut stays because fewer than CUT_KEEP characters would. */
+function addendum(name: string, k: number): { name: string; fallback: boolean } {
+  const chars = Array.from(name), raw = chars.slice(0, k).join("");
+  let kept = raw, at = 0;
+  for (const part of name.split(" ")) {
+    const n = Array.from(part).length;
+    if (k > at && k < at + n && /\d/.test(part)) kept = chars.slice(0, at).join(""); // the raw cut ends inside this part
+    at += n + 1;
+  }
+  kept = kept.replace(/[ ·]+$/, "");
+  return Array.from(kept).length < CUT_KEEP ? { name: raw + CUT_MARK, fallback: true } : { name: kept + CUT_MARK, fallback: false };
+}
+/** plateRow's last form: no /max, WARD's count after one glyph, no badge. */
+const lastForm = (q: PlateRow): boolean => q.max === null && !(q.shield && q.shield.pips) && q.regenX === null;
+type Lists = { rule4: string[]; notLast: string[]; fallbacks: string[] };
+
+/** The rule's checks on one fit (pure): the problems found (none: []). `lists` collects the panels under rule 4, the cut
+ *  rows that are not plateRow's last form, and the raw cuts kept because fewer than CUT_KEEP characters would stay. */
+function ruleProblems(o: RowIn, name: string, tag: string | undefined, f: LeadFit, lists: Lists, at: string): string[] {
   const bad: string[] = [];
   const b0 = plateRow({ ...o, lead: leadWidth(name, tag) }), q = f.row;
   if (q.bar.w < 0) bad.push("negative bar");
@@ -124,18 +172,38 @@ function ruleProblems(o: RowIn, name: string, tag: string | undefined, f: LeadFi
   } else if (f.step === "cut") {
     // the tag drops before any cut: the name alone left the bar under 9 px
     if (alone.bar.w >= LEAD_BAR) bad.push("cut where dropping the tag was enough");
-    const kept = Array.from(f.name.slice(0, -CUT_MARK.length));
+    const kept = Array.from(f.name.slice(0, -CUT_MARK.length)), chars = Array.from(name);
     if (!f.name.endsWith(CUT_MARK)) bad.push("no mark");
     if (kept.length < CUT_KEEP) bad.push("fewer than CUT_KEEP characters");
-    if (!name.startsWith(kept.join("")) || kept.length >= Array.from(name).length) bad.push("not a cut of the name");
-    // the forms are not tried again: the cut row is plateRow's last form
-    if (q.max !== null || (q.shield && q.shield.pips) || q.regenX !== null) bad.push("a form came back after the cut");
-    // the smallest cut: one more character would push the bar under 9 px
-    const more = Array.from(name).slice(0, kept.length + 1).join("") + CUT_MARK;
-    if (q.bar.w >= LEAD_BAR && plateRow({ ...o, lead: textWidth(more, "3") }).bar.w >= LEAD_BAR) bad.push("cut more than needed");
-    if (q.bar.w < LEAD_BAR && kept.length !== CUT_KEEP) bad.push("under 9 px with more than CUT_KEEP characters");
+    if (!name.startsWith(kept.join("")) || kept.length >= chars.length) bad.push("not a cut of the name");
+    // the forms are not tried again: plateRow runs once with the final lead, and its bar is then under BAR_MIN, so the cut
+    // row is plateRow's last form. Run 2 allows another form only where plateRow's own rule gives it (its bar keeps
+    // BAR_MIN), and lists it
+    if (!lastForm(q)) {
+      lists.notLast.push(`${at}: "${f.name}" bar ${q.bar.w}`);
+      if (q.bar.w < BAR_MIN) bad.push("a form came back after the cut");
+    }
+    // the raw cut (run 1's) is the smallest: it keeps 9 px (else it has CUT_KEEP characters: rule 4), and one more
+    // character pushes the bar under 9 px
+    const p = prevFit(o, name, tag), rawK = Array.from(p.name).length - CUT_MARK.length, rawBar = p.row.bar.w;
+    if (p.step !== "cut") bad.push("run 1 did not cut");
+    if (rawBar < LEAD_BAR && rawK !== CUT_KEEP) bad.push("under 9 px with more than CUT_KEEP characters");
+    const more = chars.slice(0, rawK + 1).join("") + CUT_MARK;
+    if (rawBar >= LEAD_BAR && plateRow({ ...o, lead: textWidth(more, "3") }).bar.w >= LEAD_BAR) bad.push("the raw cut is more than needed");
+    // the drawn name: the raw cut, minus a partial part that holds a digit, minus the gap at the end, plus the mark
+    const want = addendum(name, rawK);
+    if (f.name !== want.name) bad.push(`drawn "${f.name}", the addendum gives "${want.name}"`);
+    if (want.fallback) lists.fallbacks.push(`${at}: "${f.name}"`);
+    else {
+      // no space or "·" before the mark, and never part of a number
+      if (/[ ·]$/.test(kept.join(""))) bad.push("a gap before the mark");
+      if (endOf(name, f.name) === "digit") bad.push("ends inside a part that holds a digit");
+    }
+    // the kept text only gets shorter, so the bar only grows
+    if (q.bar.w < rawBar) bad.push("the bar shrank");
+    if (q.bar.w < LEAD_BAR && kept.length !== CUT_KEEP) bad.push("under 9 px with more than CUT_KEEP characters drawn");
   } else if (q.bar.w < LEAD_BAR && (tag || Array.from(name).length > CUT_KEEP)) bad.push("step full under 9 px");
-  if (q.bar.w < LEAD_BAR) rule4.push(`${at}: "${f.name}" bar ${q.bar.w}`);
+  if (q.bar.w < LEAD_BAR) lists.rule4.push(`${at}: "${f.name}" bar ${q.bar.w}`);
   // nothing overlaps the lead: the first figure (WARD's glyph, or else the bar) starts 3 px after it
   const first = q.shield ? q.shield.x : q.bar.x;
   if (o.x + 3 + f.lead + 3 > first) bad.push("the lead runs into the first figure");
@@ -198,12 +266,18 @@ const leftOf = (c: (typeof rec.text)[number]): number => (c.align === "right" ? 
 // ------------------------------------------------------------------------------------- (a) and (b): the sweep
 
 describe("PANEL-FIT (a) and (b): the sweep at the tip, days 1, 5, 8 and 10, three views, both panels", () => {
-  it("(a) no negative bar; 9 px unless under rule 4; nothing over the lead; the tag drops first; the smallest cut. (b) a fitting panel draws as the base did", () => {
+  it("(a) no negative bar; 9 px unless under rule 4; nothing over the lead; the tag drops first; the raw cut is the smallest; a cut ends on a whole part. (b) a fitting panel draws as the base did. (b2) only cuts differ from run 1", () => {
     const { yours, foes } = candidates();
     const widest = (font: "3" | "5"): string => [..."9876543210"].sort((p, q) => textWidth(q, font) - textWidth(p, font))[0];
     const hp5 = Number(widest("5").repeat(5)), max5 = Number(widest("3").repeat(5));
-    const table: string[] = [], census: string[] = [], rule4: string[] = [], cutsSeen: string[] = [];
-    let shortest: string | null = null, kept = 0, cuts = 0, drops = 0, tip0 = 0, cutAtGap = 0;
+    const table: string[] = [], census: string[] = [], cutsSeen: string[] = [], lists: Lists = { rule4: [], notLast: [], fallbacks: [] };
+    let shortest: string | null = null, kept = 0, cuts = 0, drops = 0, tip0 = 0;
+    // run 2: how the cuts end, at the tip and in run 1 (prevFit); the cut panels drawn anew against panelfit-done
+    const zero = (): Record<End, number> => ({ gap: 0, digit: 0, word: 0, letters: 0 });
+    const ends = { tip: zero(), run1: zero(), censusTip: zero(), censusRun1: zero() };
+    const fmtEnds = (e: Record<End, number>): string => `on a gap ${e.gap}, inside a part with a digit ${e.digit}, clean ${e.word + e.letters} (a whole part ${e.word}, inside a letters part ${e.letters})`;
+    let anew = 0, sameAsRun1 = 0, censusAnew = 0;
+    const lastDay = DAYS[DAYS.length - 1], namesTip = new Map<string, number>(), namesRun1 = new Map<string, number>();
     for (const day of DAYS) {
       const plateNum = sustShown(PLATE_CAP, day);
       for (const [nm, L] of VIEWS) {
@@ -237,7 +311,7 @@ describe("PANEL-FIT (a) and (b): the sweep at the tip, days 1, 5, 8 and 10, thre
               leadCalls.push({ s: f.name, x: r.x + 3 + (f.tag ? textWidth(plateTag(f.tag), "3") + 4 : 0), y: ty0, color: side ? C.red : C.white });
               expect(calls.slice(0, leadCalls.length).map(strip), `${at}: the lead drawn first`).toEqual(leadCalls);
               // (a) the rule, and nothing drawn over the lead: every other call starts 3 px after it
-              expect(ruleProblems(o, src.name, src.tag, f, rule4, at), at).toEqual([]);
+              expect(ruleProblems(o, src.name, src.tag, f, lists, at), at).toEqual([]);
               expect(rowProblems(o, f.row, calls.find((q) => q.color === ICON_COLOUR[ICON.REGEN])?.s ?? `+${fmtDmg(sustShown(c.regen, day))}`), at).toEqual([]);
               const leadEnd = r.x + 3 + f.lead;
               const over = calls.slice(leadCalls.length).filter((q) => leftOf(q) < leadEnd + 3);
@@ -245,6 +319,22 @@ describe("PANEL-FIT (a) and (b): the sweep at the tip, days 1, 5, 8 and 10, thre
               if (info.bar.w > 8) expect(info.bar.x, at).toBeGreaterThanOrEqual(leadEnd + 3);
               // (b) a panel whose base bar keeps 9 px draws as panelfit-base drew it, call for call
               if (b0.bar.w >= LEAD_BAR) expect(calls.map(strip), `${at}: byte for byte`).toEqual(baseCalls(a, side, r, src.name, src.tag, b0));
+              // (b2) a panel that keeps its full lead or only drops its tag draws as panelfit-done drew it (run 1's fitLead,
+              // through panelfit-done's drawPlate expressions, which are the base's), call for call; a cut panel is drawn
+              // anew only where run 1's cut ended on a gap or inside a part that holds a digit
+              const p = prevFit(o, src.name, src.tag), prevCalls = baseCalls(a, side, r, p.name, p.tag ?? undefined, p.row);
+              if (f.step !== "cut") {
+                expect(f, `${at}: (b2) fitLead as run 1's`).toEqual(p);
+                expect(calls.map(strip), `${at}: (b2) as panelfit-done drew it`).toEqual(prevCalls);
+              } else {
+                const differs = JSON.stringify(calls.map(strip)) !== JSON.stringify(prevCalls), e1 = endOf(src.name, p.name);
+                const fallback = addendum(src.name, Array.from(p.name).length - CUT_MARK.length).fallback;
+                expect(differs, `${at}: (b2) run 1 drew "${p.name}" (${e1}), now "${f.name}"`).toBe((e1 === "gap" || e1 === "digit") && !fallback);
+                if (differs) anew++;
+                else sameAsRun1++;
+                ends.run1[e1]++;
+                ends.tip[endOf(src.name, f.name)]++;
+              }
               T.panels++;
               if (b0.bar.w < LEAD_BAR) T.b9++;
               if (b0.bar.w < 0) T.b0++;
@@ -254,9 +344,8 @@ describe("PANEL-FIT (a) and (b): the sweep at the tip, days 1, 5, 8 and 10, thre
               if (f.step === "cut") {
                 T.cut++;
                 cuts++;
-                if (/[ ·]$/.test(f.name.slice(0, -CUT_MARK.length))) cutAtGap++;
                 if (shortest === null || Array.from(f.name).length < Array.from(shortest).length) shortest = f.name;
-                if (cutsSeen.length < 8 && day === DAYS[DAYS.length - 1] && nm === VIEWS[0][0]) cutsSeen.push(`${at}: bar ${b0.bar.w} -> "${f.name}" bar ${f.row.bar.w}`);
+                if (cutsSeen.length < 8 && day === lastDay && nm === VIEWS[0][0]) cutsSeen.push(`${at}: bar ${b0.bar.w} -> run 1 "${p.name}" bar ${p.row.bar.w} -> "${f.name}" bar ${f.row.bar.w}`);
               }
               if (b0.bar.w >= LEAD_BAR) kept++;
             }
@@ -272,7 +361,7 @@ describe("PANEL-FIT (a) and (b): the sweep at the tip, days 1, 5, 8 and 10, thre
           const o: RowIn = { x: r.x, y: r.y, w: r.w, h: r.h, hp: bare, max: bare, shield: sh, regenRoom: roomOf(sustShown(bound(hero), day)), plate: pl };
           const b0 = plateRow({ ...o, lead: leadWidth(src.name, src.tag) }), f = fitLead(o, src.name, src.tag);
           const at = `census d${day} ${nm} "${src.name}" WARD ${sh ?? "-"} SHIELD ${pl ?? "-"}`;
-          expect(ruleProblems(o, src.name, src.tag, f, rule4, at), at).toEqual([]);
+          expect(ruleProblems(o, src.name, src.tag, f, lists, at), at).toEqual([]);
           expect(rowProblems(o, f.row, `+${fmtDmg(sustShown(bound(hero), day))}`), at).toEqual([]);
           K.n++;
           if (b0.bar.w < LEAD_BAR) K.b9++;
@@ -280,22 +369,47 @@ describe("PANEL-FIT (a) and (b): the sweep at the tip, days 1, 5, 8 and 10, thre
           if (f.row.bar.w < LEAD_BAR) K.t9++;
           if (f.row.bar.w < 0) K.t0++;
           if (f.step === "tag") K.tag++;
-          if (f.step === "cut") K.cut++;
+          if (f.step === "cut") {
+            K.cut++;
+            const p = prevFit(o, src.name, src.tag);
+            ends.censusRun1[endOf(src.name, p.name)]++;
+            ends.censusTip[endOf(src.name, f.name)]++;
+            if (f.name !== p.name) censusAnew++;
+            if (day === lastDay && nm === VIEWS[0][0]) {
+              namesTip.set(f.name, (namesTip.get(f.name) ?? 0) + 1);
+              namesRun1.set(p.name, (namesRun1.get(p.name) ?? 0) + 1);
+            }
+          }
         }
         census.push(`d${day} ${nm} (the note ${notePlace(L) === "plate" ? "in the panel" : "above it"}): ${K.n} ONLINE ghosts; bar <9 / <0: base ${K.b9} / ${K.b0}, tip ${K.t9} / ${K.t0}; tag dropped ${K.tag}, name cut ${K.cut}`);
         expect(K.t0, `census d${day} ${nm}: no negative bar`).toBe(0);
       }
     }
-    console.log(`PANELFIT (a) the sweep, by day, view, side and source:\n${table.join("\n")}\nthe census:\n${census.join("\n")}\nsweep: ${kept} panels keep their row (base bar 9 px or more), ${drops} drop the tag, ${cuts} cut the name (${cutAtGap} of the cuts end on a space or "·" before the mark); the shortest name kept: "${shortest}"\nday ${DAYS[DAYS.length - 1]} phone cuts (first ${cutsSeen.length}):\n${cutsSeen.join("\n")}\nrule 4 (bar under 9 px after the rule): ${rule4.length}${rule4.length ? `\n${rule4.join("\n")}` : ""}`);
+    const top = (m: Map<string, number>): string => [...m].sort((p, q) => q[1] - p[1] || (p[0] < q[0] ? -1 : 1)).slice(0, 10).map(([k, v], i) => `  ${i + 1}. "${k}" x ${v}`).join("\n");
+    console.log(`PANELFIT (a) the sweep, by day, view, side and source:\n${table.join("\n")}\nthe census:\n${census.join("\n")}
+sweep: ${kept} panels keep their row (base bar 9 px or more), ${drops} drop the tag, ${cuts} cut the name; the shortest name kept: "${shortest}"
+sweep cuts, how they end: run 1 (panelfit-done): ${fmtEnds(ends.run1)}; the tip: ${fmtEnds(ends.tip)}
+(b2) sweep cut panels drawn anew against panelfit-done: ${anew} (the same calls: ${sameAsRun1}); every other panel draws as panelfit-done drew it
+census cuts (${DAYS.length} days x ${VIEWS.length} views), how they end: run 1: ${fmtEnds(ends.censusRun1)}; the tip: ${fmtEnds(ends.censusTip)}; drawn anew: ${censusAnew}
+day ${lastDay} ${VIEWS[0][0]} census, the 10 most common cut names: run 1 (${namesRun1.size} names):\n${top(namesRun1)}\nthe tip (${namesTip.size} names):\n${top(namesTip)}
+day ${lastDay} phone cuts (first ${cutsSeen.length}):\n${cutsSeen.join("\n")}
+rule 4 (bar under 9 px after the rule): ${lists.rule4.length}${lists.rule4.length ? `\n${lists.rule4.join("\n")}` : ""}
+raw cuts kept (steps 1-2 would leave fewer than CUT_KEEP characters): ${lists.fallbacks.length}${lists.fallbacks.length ? `\n${lists.fallbacks.join("\n")}` : ""}
+cut rows that are not plateRow's last form: ${lists.notLast.length}${lists.notLast.length ? `\n${lists.notLast.join("\n")}` : ""}`);
     expect(tip0, "no negative bar at the tip").toBe(0);
     // not vacuous: the rule acts (the base has negative bars; the tip drops tags and cuts names), and most panels keep
     expect(drops, "some panels drop the tag").toBeGreaterThan(0);
     expect(cuts, "some panels cut the name").toBeGreaterThan(0);
     expect(kept, "most panels keep their row").toBeGreaterThan(drops + cuts);
     expect(Array.from(shortest!.slice(0, -CUT_MARK.length)).length).toBeGreaterThanOrEqual(CUT_KEEP);
+    // run 2: no cut ends on a gap or inside a part that holds a digit (but a raw cut kept and listed); run 1 had both, so
+    // the addendum acts (not vacuous)
+    expect(ends.tip.gap + ends.tip.digit + ends.censusTip.gap + ends.censusTip.digit, "cuts that end on a gap or inside a number: only raw cuts kept (listed)").toBe(lists.fallbacks.length);
+    expect(ends.run1.gap * ends.run1.digit * anew, "run 1's sweep had both kinds, and the tip draws them anew").toBeGreaterThan(0);
+    expect(anew + sameAsRun1).toBe(cuts);
   });
 
-  it("the helper on its own: a short lead keeps its row; the tag drops first; the cut is the smallest; a name of CUT_KEEP characters is never cut", () => {
+  it("the helper on its own: a short lead keeps its row; the tag drops first; the raw cut is the smallest and the cut ends on a whole part; a name of CUT_KEEP characters is never cut; the brief's names on every panel width", () => {
     const L = VIEWS[0][1], r = L.plates[1], day = DAYS[DAYS.length - 1];
     const hull = hullAt(HEROES.weaver.hull, day);
     const o: RowIn = { x: r.x, y: r.y, w: r.w, h: r.h, hp: hull, max: hull, shield: SHIELD_CAP, regenRoom: 0, plate: sustShown(PLATE_CAP, day) };
@@ -303,7 +417,8 @@ describe("PANEL-FIT (a) and (b): the sweep at the tip, days 1, 5, 8 and 10, thre
     const short = fitLead(o, "ABC");
     expect([short.step, short.tag, short.name]).toEqual(["full", null, "ABC"]);
     expect(short.row).toEqual(plateRow({ ...o, lead: textWidth("ABC", "3") }));
-    // the longest ghost lead: the tag drops, then the name is cut, marked, and the smallest cut
+    // the longest ghost lead: the tag drops, then the name is cut: the raw cut is the smallest, and the drawn cut is the raw
+    // cut without a partial part that holds a digit and without the gap at its end, then the mark
     const heroes = Object.keys(HEROES) as HeroId[];
     const longest = heroes.map((h) => plateSource(ghostName({ hero: h, wins: 10, lives: 10 }), SOURCE_ONLINE)).sort((p, q) => textWidth(q.name, "3") - textWidth(p.name, "3"))[0];
     const f = fitLead(o, longest.name, longest.tag);
@@ -312,9 +427,42 @@ describe("PANEL-FIT (a) and (b): the sweep at the tip, days 1, 5, 8 and 10, thre
     if (f.step === "cut") {
       expect(f.name.endsWith(CUT_MARK)).toBe(true);
       expect(f.row.bar.w).toBeGreaterThanOrEqual(LEAD_BAR);
-      const k = Array.from(f.name).length - 1;
-      expect(plateRow({ ...o, lead: textWidth(Array.from(longest.name).slice(0, k + 1).join("") + CUT_MARK, "3") }).bar.w).toBeLessThan(LEAD_BAR);
+      const raw = prevFit(o, longest.name, longest.tag), k = Array.from(raw.name).length - 1;
+      expect(raw.row.bar.w, "the raw cut keeps 9 px").toBeGreaterThanOrEqual(LEAD_BAR);
+      expect(plateRow({ ...o, lead: textWidth(Array.from(longest.name).slice(0, k + 1).join("") + CUT_MARK, "3") }).bar.w, "one more character").toBeLessThan(LEAD_BAR);
+      expect(f.name).toBe(addendum(longest.name, k).name);
+      expect(["word", "letters"]).toContain(endOf(longest.name, f.name));
+      expect(f.row.bar.w).toBeGreaterThanOrEqual(raw.row.bar.w);
     } else expect(f.row.bar.w).toBeGreaterThanOrEqual(LEAD_BAR);
+    // the brief's names ("METRONOME · 10W 10♥", "FURNACE · 10W 10♥", after the ONLINE tag drops) on every panel width from
+    // 40 px to twice the phone's: a cut reads "NAME · 10W." or "NAME." (or, on a panel too narrow for the hero's name, a
+    // cut of that name, letters only), never "NAME · 1." or "NAME · ."; both whole forms are met
+    const brief: string[] = [];
+    for (const hero of ["metronome", "furnace"] as HeroId[]) {
+      const wins = 10, src = plateSource(ghostName({ hero, wins, lives: 10 }), SOURCE_ONLINE), hn = HEROES[hero].name;
+      const whole = [`${hn} · ${wins}W${CUT_MARK}`, `${hn}${CUT_MARK}`], met = new Set<string>();
+      for (let w = 40; w <= 2 * r.w; w++) {
+        const fw = fitLead({ ...o, w }, src.name, src.tag);
+        if (fw.step !== "cut") continue;
+        const kept = fw.name.slice(0, -CUT_MARK.length);
+        const lettersCut = Array.from(kept).length >= CUT_KEEP && kept.length < hn.length && hn.startsWith(kept);
+        expect(whole.includes(fw.name) || lettersCut, `${hero} w ${w}: "${fw.name}"`).toBe(true);
+        expect([`${hn} · 1${CUT_MARK}`, `${hn} · ${CUT_MARK}`, `${hn} ·${CUT_MARK}`]).not.toContain(fw.name);
+        met.add(fw.name);
+      }
+      for (const s of whole) expect(met.has(s), `${hero}: "${s}" is met`).toBe(true);
+      brief.push(`"${plateTag(src.tag)} ${src.name}": ${[...met].map((s) => `"${s}"`).join(", ")}`);
+    }
+    // the CUT_KEEP floor: where steps 1-2 would leave fewer than CUT_KEEP characters, the raw cut stays, as run 1 drew it
+    let floors = 0;
+    for (let w = 40; w <= r.w; w++) {
+      const ow = { ...o, w }, fw = fitLead(ow, "AB 123456789"), raw = prevFit(ow, "AB 123456789");
+      if (fw.step !== "cut") continue;
+      const want = addendum("AB 123456789", Array.from(raw.name).length - CUT_MARK.length);
+      expect(fw.name, `w ${w}`).toBe(want.name);
+      if (want.fallback) { floors++; expect(fw.name).toBe(raw.name); }
+    }
+    expect(floors, "the floor is met on narrow panels").toBeGreaterThan(0);
     // a panel too narrow for anything: a name of CUT_KEEP characters is kept whole, the bar takes what is left (rule 4)
     const tight: RowIn = { ...o, w: 70 };
     const t3 = fitLead(tight, "ABC", "ONLINE");
@@ -322,7 +470,8 @@ describe("PANEL-FIT (a) and (b): the sweep at the tip, days 1, 5, 8 and 10, thre
     const t9 = fitLead(tight, "ABCDEFGHIJ", "ONLINE");
     expect([t9.tag, t9.step, Array.from(t9.name).length]).toEqual([null, "cut", CUT_KEEP + 1]);
     expect(t9.name).toBe(`ABC${CUT_MARK}`);
-    console.log(`PANELFIT the helper: "${plateTag(longest.tag)} ${longest.name}" -> ${f.step} "${f.name}" bar ${f.row.bar.w}; a 70 px panel: "ABC" bar ${t3.row.bar.w}, "ABCDEFGHIJ" -> "${t9.name}" bar ${t9.row.bar.w}`);
+    console.log(`PANELFIT the helper: "${plateTag(longest.tag)} ${longest.name}" -> ${f.step} "${f.name}" bar ${f.row.bar.w} (run 1: "${prevFit(o, longest.name, longest.tag).name}"); a 70 px panel: "ABC" bar ${t3.row.bar.w}, "ABCDEFGHIJ" -> "${t9.name}" bar ${t9.row.bar.w}
+the brief's names, the cuts met on panels 40-${2 * r.w} px wide:\n${brief.join("\n")}\nthe CUT_KEEP floor ("AB 123456789"): the raw cut kept on ${floors} widths`);
   });
 });
 
@@ -396,7 +545,14 @@ describe("PANEL-FIT (c) the real paths: battle.ts's foe panel and replay.ts's fo
     const rowTexts = calls.filter((q) => q.y === ty0 && q.x >= r.x && q.x < r.x + r.w);
     expect(rowTexts.some((q) => q.s === plateTag("ONLINE")), "no ONLINE tag drawn").toBe(false);
     expect(rowTexts.find((q) => q.color === C.red)?.s, "the drawn name").toBe(fit.name);
+    // run 2: the expected strings: the name ends on a whole part, then the mark: "METRONOME · 10W." or "METRONOME.", never
+    // part of a number ("METRONOME · 1.") or a gap ("METRONOME · ."); run 1 drew its raw cut
+    const hn = HEROES[hero].name, run1 = prevFit(o, plateSource(name, SOURCE_ONLINE).name, "ONLINE");
+    expect([`${hn} · 10W${CUT_MARK}`, `${hn}${CUT_MARK}`], "the drawn name").toContain(info.lead.name);
+    expect(endOf(plateSource(name, SOURCE_ONLINE).name, info.lead.name)).toBe("word");
+    expect(info.lead.name).toBe(addendum(plateSource(name, SOURCE_ONLINE).name, Array.from(run1.name).length - CUT_MARK.length).name);
     expect(info.bar.w, "the bar keeps 9 px").toBeGreaterThanOrEqual(LEAD_BAR);
+    expect(info.bar.w, "and only grows from run 1's").toBeGreaterThanOrEqual(Math.max(0, run1.row.bar.w));
     expect(info.lead.box.x + info.lead.box.w + 3).toBeLessThanOrEqual(info.bar.x);
     // the tap group: one target for the panel, a finger tall, over the drawn counters (the status row, WARD, SHIELD's number)
     const targets = s.counters.last.targets.filter((t) => t.id === "cnt:plate1");
@@ -409,7 +565,7 @@ describe("PANEL-FIT (c) the real paths: battle.ts's foe panel and replay.ts's fo
     expect(holds(targets[0].r, shield.x + 1, shield.y + 2), "SHIELD's number is under the target").toBe(true);
     const tab = s.counters.last.tabs[1];
     if (tab) expect(holds(targets[0].r, tab.r.x + 1, tab.r.y + 1), "the status row is under the target").toBe(true);
-    console.log(`PANELFIT (c) ONLINE ghost on a day-${day} phone: "${plateTag("ONLINE")} ${src!.place === "plate" ? src!.name : name}" -> "${info.lead.name}" (tag ${info.lead.tag}), bar ${info.bar.w} px at x ${info.bar.x}; tap target ${JSON.stringify(targets[0].r)}`);
+    console.log(`PANELFIT (c) ONLINE ghost on a day-${day} phone: "${plateTag("ONLINE")} ${src!.place === "plate" ? src!.name : name}" -> "${info.lead.name}" (tag ${info.lead.tag}), bar ${info.bar.w} px at x ${info.bar.x} (run 1: "${run1.name}", bar ${run1.row.bar.w}); tap target ${JSON.stringify(targets[0].r)}`);
   });
 
   it("an OFFLINE stand-in with the longest captain name on a phone: the tag and the name as fitLead says", () => {
@@ -423,6 +579,9 @@ describe("PANEL-FIT (c) the real paths: battle.ts's foe panel and replay.ts's fo
     const r = (s as unknown as Hud).plateR[1], info = s.plateRows[1]!;
     const fit = fitLead(rowIn(s.arena, 1, r), name, "OFFLINE");
     expect([info.lead.tag, info.lead.name, info.bar.x, info.bar.w]).toEqual([fit.tag, fit.name, fit.row.bar.x, Math.max(0, fit.row.bar.w)]);
+    // the expected strings: the tag drops and the name stays whole (not a cut), as run 1 drew it
+    expect([fit.step, info.lead.tag, info.lead.name], "the tag drops, the name is whole").toEqual(["tag", null, name]);
+    expect(fit, "as run 1").toEqual(prevFit(rowIn(s.arena, 1, r), name, "OFFLINE"));
     const ty0 = r.y + Math.floor((r.h - 5) / 2);
     const rowTexts = calls.filter((q) => q.y === ty0 && q.x >= r.x && q.x < r.x + r.w);
     expect(rowTexts.some((q) => q.s === plateTag("OFFLINE"))).toBe(fit.tag !== null);
@@ -450,6 +609,11 @@ describe("PANEL-FIT (c) the real paths: battle.ts's foe panel and replay.ts's fo
     expect(plateRow({ ...o, lead: textWidth(name, "3") }).bar.w, "the base drew it under 9 px").toBeLessThan(LEAD_BAR);
     expect([info.lead.tag, info.lead.name, info.bar.x, info.bar.w]).toEqual([null, fit.name, fit.row.bar.x, Math.max(0, fit.row.bar.w)]);
     expect(fit.step).toBe("cut");
+    // the expected string: a cut inside a part made only of letters ("GHOST · METR.") stays as run 1 drew it
+    const run1 = prevFit(o, name);
+    expect(info.lead.name, "as run 1 drew it").toBe(run1.name);
+    expect(endOf(name, info.lead.name), "a letters cut").toBe("letters");
+    expect(info.lead.name.startsWith(`GHOST · ${HEROES[hero].name.slice(0, CUT_KEEP)}`)).toBe(true);
     const ty0 = r.y + Math.floor((r.h - 5) / 2);
     expect(calls.filter((q) => q.y === ty0 && q.x >= r.x && q.x < r.x + r.w).find((q) => q.color === C.red)?.s).toBe(fit.name);
     expect(info.bar.w).toBeGreaterThanOrEqual(LEAD_BAR);
