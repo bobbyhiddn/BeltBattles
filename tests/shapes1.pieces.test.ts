@@ -35,6 +35,13 @@ import { migrateRun, shapesRun } from "../src/game/save";
 import { nextFuseToast, shapeNotice } from "../src/game/save"; // SHAPES-1 (Q4): the load notice
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
+import { withGuard } from "../src/sim/guard"; // MERGE-099F: the migration's par decks with HULL-ON's five off too
+import { withOpenRunes } from "../src/sim/openRunes"; // MERGE-099F
+import { withFreeJoins } from "../src/sim/freeJoins"; // MERGE-099F
+import { withHearts } from "../src/sim/hearts"; // MERGE-099F
+import { withPick } from "../src/net/pick"; // MERGE-099F
+/** MERGE-099F: HULL-ON's five switches off around `f` (tests/hull1b.ladders' allOff). */
+const offFive = <T>(f: () => T): T => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(f, false), false), false), false), false);
 
 afterEach(() => setShapes(SHAPES)); // SHAPES-1 flip: the shipped value (on); a test that needs SHAPES off sets it itself
 
@@ -225,13 +232,25 @@ describe("SHAPES-1 S4: the rot rule and the rules gate", () => {
 describe("SHAPES-1 S6: the load migration on par decks", () => {
   it("every par deck (four heroes, seeds 1-12, days 5 and 10) holding GANTRY PRESS or ASSEMBLY LINE migrates to a legal deck", () => {
     const decks: { tag: string; b: Build; day: number }[] = [];
-    withShapes(() => { // SHAPES-1 flip: the decks are built with SHAPES set off (it ships on), then migrated with it on
+    // MERGE-099F (REQ-BFG-079, -086; cap's ruling on oracle a9203a0c46474cc4; tests only): the decks are built with HULL-ON's
+    // five off as well as SHAPES. In production the load migration only meets decks made before 0.9.9 (0.9.8 saves and
+    // their stored dusk and warlord decks), made with SHAPES and the five off; HULL-ON never shipped without SHAPES, and a
+    // deck built with SHAPES on never moves, so this world samples what players load (19 decks, 0 failing). With the five
+    // on (SHAPES off alone, a world no saved deck comes from) foundry/10/5 failed the strict check: its GANTRY PRESS moved
+    // (4,1) -> (5,4) and lost both its belts (routes 2 and 3), and factory 106's 1-cell belt, which joined route 2, was freed
+    // and kept: "route 2 does not end on a free turret connector (disconnected)". That is SHAPES-1's contract (beltside.ts
+    // :189-193 and save.ts:143-144: a belt it can't keep is removed whole and pruneJoins frees a belt that joined it, as when
+    // a factory is moved today; deck.ts:1790-1792: a freed belt becomes an open-ended, unconnected belt, NOWHERE on the
+    // build screen, which the player re-lays); this test's strict "every belt connected" check is stricter than it. Whether
+    // the migration should also drop such a freed belt is the PIECES lane's question after 0.9.9 (MERGE-099F REPORT). Was
+    // built with SHAPES off alone (the five on since the merge)
+    withShapes(() => offFive(() => { // SHAPES-1 flip: the decks are built with SHAPES set off (it ships on), then migrated with it on
       for (const h of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) for (const day of [5, 10]) {
         parField(h, day).forEach((b, i) => {
           if (b.items.some((p) => p.def === "gantry" || p.def === "assembly")) decks.push({ tag: `${h}/${day}/${i + 1}`, b: cloneBuild(b), day });
         });
       }
-    }, false);
+    }), false);
     const stat = { decks: decks.length, gantry: 0, assembly: 0, stayed: 0, moved: 0, cargoed: 0, beltsLost: 0, decksLosingBelt: 0, belts: 0 };
     const lines: string[] = [];
     withShapes(() => {
