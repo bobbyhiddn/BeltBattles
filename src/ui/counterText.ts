@@ -8,6 +8,7 @@ import { JAM_THRESHOLD } from "../sim/content";
 import { ICON, type KeywordName } from "../render/font";
 import { C } from "../render/palette";
 import { GLOSSARY, glossaryText, type GlossaryRow } from "./glossary";
+import { glossaryRows } from "./glossary"; // CNT-DAY (REQ-BFG-100, REQ-BFG-079): a reminder on the fight's day
 import { fmtCount } from "./statFormat";
 
 /** The glossary row of a face keyword, by its internal key (faces.ts REMINDER's; glossary.ts `kw`). */
@@ -26,11 +27,15 @@ export interface CounterEntry {
 }
 
 /** A keyword count's entry: "BURN 12" over BURN's reminder (the glossary's definition, as the build view's word tap shows
- *  it with no piece). Null: no row for that key. */
-export function keywordEntry(kw: KeywordName, count: string): CounterEntry | null {
+ *  it with no piece). Null: no row for that key. CNT-DAY (REQ-BFG-100, REQ-BFG-079): `day`, the fight's (fightDay.ts
+ *  textDay): the reminder is that day's row (glossaryRows(day): BURN's damage a second and FRAY's bonus x D(d), the soak
+ *  layer's MAX x S(d), as faces.ts REMINDER builds them inside shownOn), so the panel shows the fight's numbers; the words
+ *  are the row's, as before. No day: today's text (day 1's), byte for byte. */
+export function keywordEntry(kw: KeywordName, count: string, day?: number): CounterEntry | null {
   const row = keywordRow(kw);
   if (!row) return null;
-  return { icon: ICON[kw], word: row.word, colour: row.colour, count, body: glossaryText(row.word) ?? row.def };
+  const body = day === undefined ? glossaryText(row.word) : glossaryRows(day).find((r) => r.word === row.word)?.def;
+  return { icon: ICON[kw], word: row.word, colour: row.colour, count, body: body ?? row.def };
 }
 
 /** C6's tap text: the slugs waiting at the gun (PRESSURE BREECH's count), then the jam rule where the gun can jam (its
@@ -53,7 +58,8 @@ export const sentenceEntry = (body: string): CounterEntry => ({ icon: "", word: 
 
 /** PAIR-CUE (REQ-BFG-100, REQ-BFG-081; REQ-BFG-089: rules text only on a tap or hover): the line a gun with a pair reader
  *  adds to its C6 panel: PAIR's icon and word over PAIR's reminder, both from the glossary's row for its keyword key (no
- *  count: the cue on the board shows each pair as it happens). No new string: the words are the glossary's. */
-export function pairEntry(): CounterEntry | null {
-  return keywordEntry("PAIR", "");
+ *  count: the cue on the board shows each pair as it happens). No new string: the words are the glossary's. CNT-DAY: `day`,
+ *  the fight's, as keywordEntry's (PAIR's reminder holds no number today, so its text is the same on every day). */
+export function pairEntry(day?: number): CounterEntry | null {
+  return keywordEntry("PAIR", "", day);
 }

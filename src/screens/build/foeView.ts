@@ -153,7 +153,8 @@ export class FoeView {
       const q = { x: r.x + 2, y: r.y + r.h + 1, w: r.w - 4, h: R.area.y + R.area.h - (r.y + r.h + 1) };
       return q.h >= INFO_FREE_MIN ? q : null;
     };
-    this.faces.drawOn(g, s.game, foe.build, { area: R.area, band: R.band }, free, DEFAULT_SKIN.panel, null);
+    // CNT-DAY (REQ-BFG-082, REQ-BFG-079): the face on the run's day (s.run is the game's run: tonight's dusk is on it)
+    this.faces.drawOn(g, s.game, foe.build, { area: R.area, band: R.band }, free, DEFAULT_SKIN.panel, null, s.run.day);
     this.last = { card: R.cardHit, back: R.backHit, area: R.area };
   }
 
