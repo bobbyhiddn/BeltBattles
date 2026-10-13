@@ -10,6 +10,9 @@ import { clearStarCache, effectAt } from "../src/sim/stars";
 import { dmgMulTenths } from "../src/sim/hullScale";
 import { boostable, overclocked } from "../src/sim/overclock";
 import { fuse } from "../src/sim/races/foundry";
+import { ECHO_CAP, echoOf, echoOnLoad, newEchoState } from "../src/sim/races/siphon";
+import { drakeConvert } from "../src/sim/cores";
+import { heroStartBuild } from "../src/sim/heroBuilds";
 import { type Build } from "../src/sim/deck";
 import { readerStyle } from "../src/game/arenaReact";
 import { SEED, barge, furnaceBench, item, withItem, withMod } from "./wave3.helpers";
@@ -430,5 +433,48 @@ describe("SCALE-2b (g): the reader foePoison", () => {
     expect(heals.length).toBeGreaterThan(3);
     expect(heals.slice(0, 2)).toEqual([20, 20]);
     expect(heals.slice(2).every((h) => h === 10)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------- step 3 (F2)
+
+describe("SCALE-2b step 3 (REPORT-SCALE2a F2): SIPHON's ECHO keeps stat DMG and FOR EACH DMG apart", () => {
+  it("echoOf: stat part first, FOR EACH part filling the rest of the cap; echoOnLoad: stat to p.flat, FOR EACH to p.each, so DRAKE converts the stat part only; without `each` (the switch off) exactly as today", () => {
+    expect(ECHO_CAP.flat).toBe(30);
+    // a slug without FOR EACH DMG (every slug with SCALE_RIGS off): as today, no `each` in the memory
+    expect(echoOf(slug(1, { flat: 20 }), false)).toEqual({ flat: 20, burn: 0, shock: false, fray: 0 });
+    expect(echoOf(slug(1, { flat: 100, burn: 7 }), false)).toEqual({ flat: 30, burn: 2, shock: false, fray: 0 });
+    // with it (SCALE_RIGS on): stat first, then FOR EACH up to the one cap of 30
+    expect(echoOf(slug(1, { flat: 20, each: 25 }), false)).toEqual({ flat: 20, burn: 0, shock: false, fray: 0, each: 10 });
+    expect(echoOf(slug(1, { flat: 40, each: 5 }), false)).toMatchObject({ flat: 30, each: 0 });
+    expect(echoOf(slug(1, { flat: 5, each: 8 }), false)).toMatchObject({ flat: 5, each: 8 });
+    expect(echoOf(slug(1, { ammo: "alloy", flat: 91, each: 30 }), false)).toMatchObject({ flat: 10, each: 20 }); // an alloy's fused 81 is no DMG added
+    // the leech: stat to flat, FOR EACH to each (x its split share)
+    const st = newEchoState();
+    st.mem = echoOf(slug(1, { flat: 20, each: 25 }), false);
+    const leech = slug(2, { ammo: "leechEcho" }), half = slug(3, { ammo: "leechEcho", mult: 0.5 });
+    echoOnLoad(st, leech);
+    echoOnLoad(st, half);
+    expect([leech.flat, leech.each]).toEqual([20, 10]);
+    expect([half.flat, half.each]).toEqual([10, 5]);
+    // DRAKE NOZZLE ★1 (25 DMG a BURN) on the SIPHON gun: the stat 20 makes no BURN; the old memory (30, all stat) made 1
+    const c = effectAt("drake", 1).core!;
+    expect(drakeConvert(c, leech.flat).stacks).toBe(0);
+    expect(drakeConvert(c, 30).stacks).toBe(1);
+    // a memory without `each` loads as today: the leech's FOR EACH accumulator is never set
+    st.mem = echoOf(slug(1, { flat: 20 }), false);
+    const plain = slug(4, { ammo: "leechEcho" });
+    echoOnLoad(st, plain);
+    expect([plain.flat, plain.each]).toEqual([20, undefined]);
+    // live: a WHETSTONE + LONG HAUL slug (20 stat, 10 FOR EACH) striking a SIPHON hull, switch on, is remembered in parts
+    const lh = withItem(withItem(furnaceBench(), east(30, "whetstone", 5)), item(31, "longhaul", 3, 3, 0));
+    const bt = withScaleRigs(() => new Battle(lh, heroStartBuild("siphon"), SEED));
+    let mem: ReturnType<typeof echoOf> | null = null;
+    while (bt.t < 20 && !bt.over && !mem?.each) { bt.step(); bt.drainEvents(); mem = bt.sides[1].race?.echo.mem ?? null; }
+    expect(mem).toMatchObject({ flat: 20, each: 10 });
+    const off = new Battle(lh, heroStartBuild("siphon"), SEED);
+    let offMem: ReturnType<typeof echoOf> | null = null;
+    while (off.t < 20 && !off.over && !(offMem && offMem.flat >= 30)) { off.step(); off.drainEvents(); offMem = off.sides[1].race?.echo.mem ?? null; }
+    expect(offMem).toEqual({ flat: 30, burn: 0, shock: false, fray: 0 }); // off: the 20 + 10 as one stat flat, as today
   });
 });
