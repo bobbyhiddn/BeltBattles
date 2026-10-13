@@ -37,7 +37,8 @@ function checkSeed(seed: unknown): number {
  *  wins each side carried in, kept only when a build holds WARLORD'S DUE (runes.ts winDmgPct), so a replay is exact and
  *  every other record is as before. HULL-1a (REQ-BFG-079): `day`, the fight's day, kept only when the fight plays the
  *  day's hull (HULL_SCALE on: hullScale.ts dayScaled), so every other record is as before. */
-export function battleRecordFor(player: Build, ghost: Build, seed: number, wins?: readonly [number, number], day?: number): BattleRecord {
+export function battleRecordFor(player: Build, ghost: Build, seed: number, wins?: readonly [number, number], day?: number, lost?: readonly [number, number]): BattleRecord {
+  void lost; // SCALE-2a (REQ-BFG-098): hearts lost, kept only when a side reads them (step 5)
   const reads = !!(runeMods(player.runes)?.winDmgPct || runeMods(ghost.runes)?.winDmgPct);
   return {
     rules: RULES_VERSION, seed: checkSeed(seed), builds: [cloneBuild(player), cloneBuild(ghost)],

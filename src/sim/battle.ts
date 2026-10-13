@@ -163,6 +163,10 @@ export interface GateState {
   latch?: LatchState; // E4 TWIN LATCH, when both its arrows hit belts: the payload each arrow holds and since when
   // Y3 (release Y; DESIGN-Y row 28): a SURGE VALVE's last pulse (its pulsePhase cycle)
   surged?: number;
+  // SCALE-2a (REQ-BFG-098): this rig's hits this fight, one per `process` event it causes (one arrow, one hit; a shaped rig
+  // is one piece, one count), this hit included when it reads (ReadCount "ownHits": POWDER KEG). Kept only while
+  // SCALE_RIGS is on; a GateState lives one battle, so it starts at 0 each fight
+  ownHits?: number;
 }
 
 /** 0.8.0 P1 (E4): a TWIN LATCH whose two arrows hit belts. Arrow i is the latch's hits[i]. */
@@ -388,6 +392,9 @@ export interface SideState {
   // SUS-D (REQ-BFG-069), set only on a side whose runes need them:
   guardTimer?: number; // TICK GUARD: seconds to its next SHIELD (carries its remainder)
   halfHealed?: boolean; // SCRAP MEDIC: its HEAL has come
+  // SCALE-2a (REQ-BFG-098), kept only while SCALE_RIGS is on, and off SideStats (the pinned fp reads every SideStats key):
+  hitsTaken?: number; // every enemy impact on this ship this fight, any target, blocked or not (SPALL CATCHER, SCAR TISSUE)
+  heartsLost?: number; // the hearts this side had lost coming into the fight (Battle's `lost`; GRUDGE ROD)
 }
 
 export interface Projectile {
@@ -526,8 +533,9 @@ export class Battle {
    *  replay is exact and every other battle and record is as before.
    *  HULL-1a (REQ-BFG-079): `day`, the day the fight is on (the run's for the dusk, a warlord and the arena; a replay's
    *  record's). With HULL_SCALE on it sets M(day) on both hulls and the wind's share, and the record keeps it; with the
-   *  switch off, or no day, the fight and its record are 0.9.7's (M = 1). */
-  constructor(player: Build, enemy: Build, seed: number, wins?: readonly [number, number], day?: number) {
+   *  switch off, or no day, the fight and its record are 0.9.7's (M = 1).
+   *  SCALE-2a (REQ-BFG-098): `lost`, each side's hearts lost coming in (as `wins`; read only with SCALE_RIGS on). */
+  constructor(player: Build, enemy: Build, seed: number, wins?: readonly [number, number], day?: number, lost?: readonly [number, number]) {
     this.scaled = dayScaled(day);
     this.mulTenths = this.scaled ? dayMulTenths(day) : 10;
     this.dmgTenths = this.scaled ? dmgMulTenths(day) : 10; // HULL-1c: D(day) on the day's hull only
@@ -538,6 +546,10 @@ export class Battle {
     let reads = false;
     for (const s of this.sides) if (s.rune?.winDmgPct) { s.wins = Math.max(0, Math.floor(wins?.[s.side] ?? 0)); reads = true; }
     if (reads && wins) this.record.wins = [Math.max(0, Math.floor(wins[0])), Math.max(0, Math.floor(wins[1]))];
+    // SCALE-2a (REQ-BFG-098): `lost`, the hearts each side had lost coming in, passed in the way `wins` is (the run's own,
+    // a ghost's from its snapshot's lives: scale.ts heartsLost; nothing from a stand-in, a warlord, the bots, the harness
+    // or the tools: 0), kept on each side only while SCALE_RIGS is on (GRUDGE ROD's count), whole and never below 0
+    if (this.scale) for (const s of this.sides) s.heartsLost = Math.max(0, Math.floor(lost?.[s.side] ?? 0));
     if (this.scaled) this.record.day = day; // HULL-1a: only a fight on the day's hull keeps its day
     raceLink(this.sides); // races: a side facing SIPHON gets Drag state
     // RUNES-1 (REQ-BFG-058): battle-start runes (no RNG; nothing happens on a side without runes)
@@ -1700,6 +1712,7 @@ export class Battle {
     // 0.6.1c ASSEMBLY LINE ★3 HOT START: while it lasts the gate's effect applies twice (overclock.ts, ARSENAL.md §3.4).
     // beltside-062c (DESIGN §12 P7): hotUntil is the rig's, so every arrow of the rig is overclocked, on any belt
     const p = a.p;
+    if (this.scale) g.ownHits = (g.ownHits ?? 0) + 1; // SCALE-2a (REQ-BFG-098): this hit counts, before anything reads it
     if (g.def.gate?.overclockCooldown) (p.boosters ??= []).push(g.uid);
     const booster = g.boostedBy.find(({ booster, route }) => route === h.route && p.boosters?.includes(booster.uid) && booster.online &&
       !booster.wrecked && booster.disrupted <= 0 && booster.frozen <= 0 && booster.cooldown <= 0);
@@ -2155,6 +2168,9 @@ export class Battle {
   private impact(pr: Projectile): void {
     const atk = this.sides[pr.from];
     const def = this.sides[pr.from === 0 ? 1 : 0];
+    // SCALE-2a (REQ-BFG-098): every enemy impact on def's ship counts (each `impact` event: a splash, arc or lance part too),
+    // any target, before a SHIELD can stop it (a block counts)
+    if (this.scale) def.hitsTaken = (def.hitsTaken ?? 0) + 1;
     const ammo = AMMO[pr.payload.ammo];
     const hit = pr.lance ? hullTarget() : pr.target;
     // 0.6.1b: a SCATTER pellet's Fray bonus x its share, so Fray isn't multiplied (absent on identity shots)
@@ -2805,8 +2821,8 @@ export function gearStats(b: Build, i: number): GearStats {
 }
 
 /** Headless run to completion (tests / balance). HULL-1a (REQ-BFG-079): `day`, the day the fight is on (Battle's). */
-export function simulate(player: Build, enemy: Build, seed: number, maxTicks = 60 * 200, wins?: readonly [number, number], day?: number): Battle {
-  const b = new Battle(player, enemy, seed, wins, day); // RUNES-2a: `wins` for WARLORD'S DUE (Battle's constructor); HULL-1a: `day`
+export function simulate(player: Build, enemy: Build, seed: number, maxTicks = 60 * 200, wins?: readonly [number, number], day?: number, lost?: readonly [number, number]): Battle {
+  const b = new Battle(player, enemy, seed, wins, day, lost); // RUNES-2a: `wins` for WARLORD'S DUE (Battle's constructor); HULL-1a: `day`; SCALE-2a: `lost`
   while (!b.over && b.ticks < maxTicks) {
     b.step();
     b.events.length = 0;

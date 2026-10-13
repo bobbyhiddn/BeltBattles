@@ -17,6 +17,7 @@
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same helpers.
 
 import type { HullState, Payload } from "./battle";
+import { START_LIVES } from "./content";
 
 /** THE switch (REQ-BFG-098, REQ-BFG-110): off in this rules version (bb-0.10.0); BUMP-1E turns it on. */
 export const SCALE_RIGS: boolean = false;
@@ -60,4 +61,19 @@ export function burnStacks(hull: Pick<HullState, "burns">): number {
  *  before, except DRAKE NOZZLE (step 3), which converts `flat` alone. With the switch off it is `flat` itself. */
 export function flatOf(p: Pick<Payload, "flat" | "each">): number {
   return p.each ? p.flat + p.each : p.flat;
+}
+
+/** SCALE-2a (REQ-BFG-098): THE one function that gives a run's start hearts, which hearts lost count from: the base's
+ *  START_LIVES today. MERGE NOTE: when HULL-ON brings RETUNE-1's src/sim/hearts.ts into 0.9.9, its body becomes
+ *  `return run ? livesCap(run) : startLives();` (hearts.ts: 10 with HEARTS on, a run on the scale it started on), and
+ *  nothing else changes. `run` is the run whose scale counts (unread until then). */
+export function startHearts(run?: { lives: number; hearts?: boolean }): number {
+  void run;
+  return START_LIVES;
+}
+
+/** SCALE-2a (REQ-BFG-098): the hearts lost by a side holding `lives` (the run's Run.lives, or a ghost snapshot's `lives`,
+ *  1..MAX_LIVES, against the same start), from startHearts(run); whole, never below 0. What the Battle's `lost` carries. */
+export function heartsLost(lives: number, run?: { lives: number; hearts?: boolean }): number {
+  return Math.max(0, startHearts(run) - Math.floor(lives));
 }

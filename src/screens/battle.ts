@@ -46,6 +46,7 @@ import { BattleFaces, drawSummaries, drawViewBar, fingerPx, summaryRects } from 
 import { BattleCounters, plateKeep } from "./battleCounters"; // COUNT-1 (REQ-BFG-100): the counters
 import { PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board
 import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
+import { heartsLost } from "../sim/scale"; // SCALE-2a (REQ-BFG-098): hearts lost, passed into the Battle as wins are
 import type { Rect } from "../ui/ui";
 
 /** 0.7.0 (R1 M1): the enemy plate's source line as BattleScreen draws it (see placeSource). */
@@ -138,9 +139,12 @@ export class BattleScreen implements Screen {
     // RUNES-2a (REQ-BFG-058): the wins each side carries in, for WARLORD'S DUE: the run's own, a ghost's from its snapshot
     // (DuskFoe.record), 0 for a stand-in or a warlord; the record keeps them only when a side holds it (replay.ts)
     const wins: [number, number] = [run.wins, w ? 0 : this.foe.record?.wins ?? 0];
+    // SCALE-2a (REQ-BFG-098): hearts lost, passed in as wins are: the run's own, a ghost's from its snapshot's lives against
+    // the same start (scale.ts heartsLost); 0 for a stand-in or a warlord. Read only with SCALE_RIGS on (GRUDGE ROD)
+    const lost: [number, number] = [heartsLost(run.lives, run), w || !this.foe.record ? 0 : heartsLost(this.foe.record.lives, run)];
     // 0.7.0a: the dusk's battle record (both decks as they fight, the seed) for the summary's REPLAY; online only
     // HULL-1a (REQ-BFG-079): the dusk and a warlord fight are on the run's day (the record keeps it with HULL_SCALE on)
-    this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed, wins, run.day) : null;
+    this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed, wins, run.day, lost) : null;
     this.note = w ? null : foeNote(run, this.foe);
     this.wact = {
       take: [0, 1].map((i) => () => this.take(i)),
@@ -148,7 +152,7 @@ export class BattleScreen implements Screen {
       fight: () => this.toDusk(),
       road: () => this.toRoad(), // NPC-1 (REQ-BFG-077): ON TO THE ROAD (NPC_DAY on)
     };
-    this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins, run.day);
+    this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins, run.day, lost);
     this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): the player's board and plate; the foe's stay the defaults
     this.arena.off = [60, 260];
     // FIELD-1 (REQ-BFG-075): the setting this battle's seed picks (its replay plays the same seed: the same setting)
