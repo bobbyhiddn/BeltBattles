@@ -17,7 +17,9 @@ installRaster();
 
 // --------------------------------------------------------------------------- G: the phone shop card's gists
 /** GISTS-CARD5.md's 57 rows with REVIEW-CARD5PREP section 4's two changes (LIMPET WORKS takes its B; DRAKE NOZZLE keeps
- *  today's), as built: id -> [row A, row B] in markup at ★1 on day 5 (READ-5's scene; a core at k 1). */
+ *  today's), as built: id -> [row A, row B] in markup at ★1 on day 5 (READ-5's scene; a core at k 1). Day 5's
+ *  {DMG} numbers here and in (L) re-pinned at the c099 merge by cause FIT-099's D (6e27156: days 3-5 1.8 / 1.9 / 2.0
+ *  -> 1.6 / 1.7 / 1.8 behind SHAPES), each the number the game prints (release lane 4228a395, 2026-10-13). */
 const ROWS: Readonly<Record<string, readonly [string, string]>> = {
   // group 1: the factories (15, all new)
   frostbite: ["MAKES {STUN}{SLUG}", "{STUN}2{SEC}"], shottower: ["MAKES 3{SLUG}", "{RATE}20"], press: ["MAKES {SLUG}", "{RATE}21"],
@@ -26,12 +28,12 @@ const ROWS: Readonly<Record<string, readonly [string, string]>> = {
   sabot: ["KILLS RIGS", "{STUN}4"], scrapper: ["MAKES +{DMG}{SLUG}", "+{SLUG}PER{STUN}"], dragchain: ["MAKES {STUN}{SLUG}", "{STUN}1{SEC}"],
   limpet: ["BOMB {SLUG}", "3{SEC}FUSE"], gantry: ["4 BELTS", "{RATE}25"], twinmould: ["2 BELTS", "{SLUG}EACH"],
   // group 2: the conditional rigs (17: 16 new, TOLLBOOTH changed below)
-  venom: ["EXTENDS {BURN}", "+3{SEC}"], bellows: ["RIDE TIME", "{BURN}+1"], quench: ["SPENDS {BURN}", "{DMG}+80"],
-  staticbrush: ["HULL HITS:", "{STUN}A GUN"], pincer: ["PER RIG", "{DMG}+40"], lodestone: ["PER {STUN}", "{DMG}+20"],
+  venom: ["EXTENDS {BURN}", "+3{SEC}"], bellows: ["RIDE TIME", "{BURN}+1"], quench: ["SPENDS {BURN}", "{DMG}+72"],
+  staticbrush: ["HULL HITS:", "{STUN}A GUN"], pincer: ["PER RIG", "{DMG}+36"], lodestone: ["PER {STUN}", "{DMG}+18"],
   riveter: ["PER SLUG", "{HEAL}16"], plateroller: ["PER SLUG", "{PLATE}+42"], shieldwall: ["PER SLUG", "{PLATE}+28"],
-  keg: ["EVERY 12{SEC}", "{DMG}+120"], counterweight: ["PER {BELT} RODE", "{DMG}+6"], stoker: ["AT FACTORY", "{RATE}+20%"],
-  platebreaker: ["YOUR {PLATE}→{DMG}", "{DMG}+80"], longhaul: ["PRIOR RIGS", "{DMG}+20"], surge: ["EVERY 3{SEC}", "{DMG}+20"],
-  overclocker: ["EVERY 4{SEC}:", "RIG x2"], twingauge: ["BELT=BELT", "{DMG}+60"],
+  keg: ["EVERY 12{SEC}", "{DMG}+108"], counterweight: ["PER {BELT} RODE", "{DMG}+5"], stoker: ["AT FACTORY", "{RATE}+20%"],
+  platebreaker: ["YOUR {PLATE}→{DMG}", "{DMG}+72"], longhaul: ["PRIOR RIGS", "{DMG}+18"], surge: ["EVERY 3{SEC}", "{DMG}+18"],
+  overclocker: ["EVERY 4{SEC}:", "RIG x2"], twingauge: ["BELT=BELT", "{DMG}+54"],
   // group 3: the keyword cards (7)
   tollbooth: ["ITS BELT", "2{STUN}FAIL"], barbed: ["WEARS HULL", "{FRAY}+1"], twinlatch: ["WAITS 1{SEC}", "{PAIR}PAIR"],
   seamwelder: ["{*PAIR}", "{PLATE}+28"], twintrigger: ["PAIRED {SLUG}", "{DMG}+30%"], wardbell: ["EVERY 4{SEC}", "{SHIELD}WARD"],
@@ -39,11 +41,11 @@ const ROWS: Readonly<Record<string, readonly [string, string]>> = {
   // group 5: the inner-column turrets (3, new)
   dartgun: ["ONE INTAKE", "{RATE}55"], spikegun: ["ONE INTAKE", "{RATE}50"], hailgun: ["ONE INTAKE", "{RATE}67"],
   // group 4: the cores and gear (15)
-  drake: ["RIG DAMAGE", "TO{BURN}"], tesla: ["SHOTS ARC", "{STUN}1"], capacitor: ["EMPTY TIME", "{DMG}+40/{SEC}"],
+  drake: ["RIG DAMAGE", "TO{BURN}"], tesla: ["SHOTS ARC", "{STUN}1"], capacitor: ["EMPTY TIME", "{DMG}+36/{SEC}"],
   lance: ["WHOLE LINE", "{DMG}20%"], scatter: ["3 PELLETS", "{DMG}40%"], rotary: ["PART-FULL", "SOONER"],
-  pressure: ["PER {SLUG} HELD", "{DMG}+24"], salvo: ["FIRES ALL", "{DMG}+40"], grapnel: ["FOE BELTS", "{SLUG}RIP"],
+  pressure: ["PER {SLUG} HELD", "{DMG}+21"], salvo: ["FIRES ALL", "{DMG}+36"], grapnel: ["FOE BELTS", "{SLUG}RIP"],
   mendingloom: ["YOUR HULL", "{HEAL}28/{SEC}"], chamber: ["FIRES 2{SLUG}", "A SHOT"], spotter: ["AIMS AGAIN", "AIM+1"],
-  hopper: ["GUN HOLDS", "{SLUG}+1"], spallcatcher: ["HURT→SHOT", "{DMG}+20"], ram: ["LAST LOAD", "{DMG}+40%"],
+  hopper: ["GUN HOLDS", "{SLUG}+1"], spallcatcher: ["HURT→SHOT", "{DMG}+18"], ram: ["LAST LOAD", "{DMG}+40%"],
 };
 /** The 37 pieces with a new entry (every factory, 19 rigs, the 3 inner-column turrets), the 15 changed, the 5 kept. */
 const NEW = ["frostbite", "shottower", "press", "doublestamp", "slagpot", "assembly", "armorpress", "mendpress", "hotswap", "sabot",
@@ -279,17 +281,17 @@ import { dmgDayScale, dmgMulTenths } from "../src/sim/hullScale";
 
 describe("CARD-5 (L): LIMPET WORKS' desk line and SCRAPPER's panel follow the day (REQ-BFG-081; READ-5 12.6, DAYNUM.md)", () => {
   const dmgOf = (id: string, day: number): number => Number(faceAt(id, 1, { day })!.stats.find(([ic]) => ic === "DMG")![1]);
-  it("LIMPET WORKS: the desk line's blast is the one the sim lands that day (dmgDayScale with D), as its panel's DMG: day 1 100, day 5 200", () => {
+  it("LIMPET WORKS: the desk line's blast is the one the sim lands that day (dmgDayScale with D), as its panel's DMG: day 1 100, day 5 180", () => {
     const blast = (effectAt("limpet", 1).factory!.round as { blast: number }).blast;
-    for (const [day, n] of [[1, 100], [5, 200]] as const) {
+    for (const [day, n] of [[1, 100], [5, 180]] as const) {
       expect(dmgDayScale(blast, dmgMulTenths(day), {}), `the sim's blast on day ${day}`).toBe(n);
       expect(cardText("limpet", { day }), `day ${day}`).toMatch(new RegExp(`^BLASTS THE FOE'S HULL FOR ${n}\\.?$`));
       expect(dmgOf("limpet", day), `the panel's DMG on day ${day}`).toBe(n);
     }
   });
 
-  it("SCRAPPER: its panel prints the desk line's number where its rule is, from the same source: day 1 30, day 5 60; its DMG stat a plain slug's and this", () => {
-    for (const [day, n] of [[1, 30], [5, 60]] as const) {
+  it("SCRAPPER: its panel prints the desk line's number where its rule is, from the same source: day 1 30, day 5 54; its DMG stat a plain slug's and this", () => {
+    for (const [day, n] of [[1, 30], [5, 54]] as const) {
       expect(faceAt("scrapper", 1, { day })!.rules.map((r) => r.text), `day ${day}`).toEqual(["EACH {*STUN} YOU LAND: 1 EXTRA {SLUG}.", `ITS {SLUG} DEAL ${n} MORE {DMG} THAN PLAIN.`]);
       expect(cardText("scrapper", { day }), `day ${day}`).toMatch(new RegExp(`^SCRAP SLUGS, ${n} MORE DAMAGE\\.?$`));
       expect(dmgOf("scrapper", day) - dmgOf("press", day), `day ${day}: the scrap slug over a plain one`).toBe(n);
