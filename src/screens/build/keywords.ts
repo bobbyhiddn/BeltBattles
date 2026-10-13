@@ -150,13 +150,15 @@ function heroKOf(run: Run): number {
 const faceRoles = new Set(["ability", "reminder", "caveat", "next", "merges"]);
 const isFaceLine = (b: Block, piece: Piece | null): boolean => !!piece && hasFace(piece.def) && faceRoles.has(b.role);
 
-/** The spans [at, end) of a line's text that name a word, each with what a tap shows. */
-function matches(text: string, l: PLine, first: boolean, piece: Piece | null): { at: number; end: number; word: string; text: string; colour: string }[] {
+/** The spans [at, end) of a line's text that name a word, each with what a tap shows. CNT-DAY2 (REQ-BFG-100,
+ *  REQ-BFG-082): `day`, the day the panel is read on (its Run's: drawKeywordLayer's run.day), for a word with no piece
+ *  (glossaryText's `day`); undefined: as before. */
+function matches(text: string, l: PLine, first: boolean, piece: Piece | null, day?: number): { at: number; end: number; word: string; text: string; colour: string }[] {
   const out: { at: number; end: number; word: string; text: string; colour: string }[] = [];
   const free = (a: number, b: number) => !out.some((m) => a < m.end && m.at < b);
   const add = (at: number, end: number, word: string) => {
     if (end <= at || !free(at, end)) return;
-    const shown = glossaryText(word, piece ?? undefined);
+    const shown = glossaryText(word, piece ?? undefined, day); // CNT-DAY2: the panel's day where there is no piece
     if (!shown) return;
     const row = glossaryEntry(word);
     out.push({ at, end, word, text: shown, colour: row?.colour ?? C.bone });
@@ -246,10 +248,11 @@ export const clipOutRect = clipOut;
  * The tap targets of a planned panel (pure; drawDetails and the tests): every word its visible lines name (see the file
  * comment), each its glyphs grown to its line's pitch and at least a pitch wide, the nearest winning where two meet, inside
  * the panel `r` (1 px in from its frame) and clear of `avoid` (the buttons' grown rects and the `?` button's). A target
- * whose rect would be empty is left out (its word is still in the KEYWORDS view).
+ * whose rect would be empty is left out (its word is still in the KEYWORDS view). CNT-DAY2 (REQ-BFG-100, REQ-BFG-082):
+ * `day`, the panel's (its Run's) day, for the words with no piece (matches); undefined: as before.
  */
 export function keywordTargets(lines: readonly { line: PLine | "rule"; y: number }[], plan: Pick<PanelPlan, "r">, piece: Piece | null,
-  avoid: readonly Rect[] = []): KwTarget[] {
+  avoid: readonly Rect[] = [], day?: number): KwTarget[] {
   const r = plan.r, x0 = r.x + 5;
   const firsts = new Set<Block>();
   const raw: (KwTarget & { cx: number; cy: number })[] = [];
@@ -258,7 +261,7 @@ export function keywordTargets(lines: readonly { line: PLine | "rule"; y: number
     const l = v.line, text = lineText(l.spans), first = !firsts.has(l.block);
     firsts.add(l.block);
     const lx = x0 + (l.indent ?? 0), gh = GLYPH_H[l.font];
-    for (const m of matches(text, l, first, piece)) {
+    for (const m of matches(text, l, first, piece, day)) {
       const gx = lx + (m.at > 0 ? textWidth(text.slice(0, m.at), l.font) + 1 : 0);
       const glyph = { x: gx, y: v.y, w: textWidth(text.slice(m.at, m.end).replace(/[:]$/, ""), l.font), h: gh };
       const hit = grow({ x: glyph.x - 1, y: glyph.y, w: glyph.w + 2, h: gh }, l.pitch, l.pitch);
@@ -350,11 +353,13 @@ export function runeWords(run: Run): KwWord[] {
  * text's `words` (inspector.ts explainPanel: the face's blocks before any was hidden, then the NOTES lines no face drew),
  * so a hidden line's words keep their definitions; and on a plain rig (faces.ts PLAIN_RIGS), whose face no longer prints
  * the HIT: label, HIT first, as its label led the line (its definition as today's: glossary.ts glossaryText).
+ * CNT-DAY2 (REQ-BFG-100, REQ-BFG-082): `day`, the panel's (its Run's) day, for the words with no piece; undefined: as
+ * before.
  */
-export function explainWords(t: Pick<PanelText, "body" | "words">, piece: Piece | null): KwWord[] {
-  const own = panelWords(t.words ?? t.body, piece);
+export function explainWords(t: Pick<PanelText, "body" | "words">, piece: Piece | null, day?: number): KwWord[] {
+  const own = panelWords(t.words ?? t.body, piece, day);
   if (!piece || !isPlainRig(piece.def) || own.some((w) => w.word === "HIT")) return own; // SHAPES-1: isPlainRig (+ the shaped three, SHAPES on)
-  const row = glossaryEntry("HIT"), text = glossaryText("HIT", piece);
+  const row = glossaryEntry("HIT"), text = glossaryText("HIT", piece, day);
   return row && text ? [{ word: row.word, text, colour: row.colour }, ...own] : own;
 }
 
@@ -367,13 +372,14 @@ export function iconTipItems(t: Pick<PanelText, "notes">, words: readonly KwWord
 }
 
 /** Every word a panel's text names (all of its body's blocks, shown or given way), once, in reading order, with what a tap
- *  on it shows: for the KEYWORDS view (and the test that every word a panel names can be reached). */
-export function panelWords(body: readonly Block[], piece: Piece | null): KwWord[] {
+ *  on it shows: for the KEYWORDS view (and the test that every word a panel names can be reached). CNT-DAY2: `day`, the
+ *  panel's (its Run's) day, for the words with no piece (matches); undefined: as before. */
+export function panelWords(body: readonly Block[], piece: Piece | null, day?: number): KwWord[] {
   const seen = new Set<string>(), out: KwWord[] = [];
   const fake = (b: Block): PLine => ({ spans: [{ t: b.text, c: C.bone }], font: "5", block: b, pitch: 9 });
   for (const b of body) {
     if (b.cells) continue;
-    for (const m of matches(b.text, fake(b), true, piece).sort((p, q) => p.at - q.at)) {
+    for (const m of matches(b.text, fake(b), true, piece, day).sort((p, q) => p.at - q.at)) {
       const key = glossaryEntry(m.word)?.word ?? m.word;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -705,7 +711,10 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // screen in its caravan; a fight's VIEW BATTLEFIELD, the foe's carrier and every other caller never ask)
   const { plan } = d, r = plan.r;
   const piece = panelPiece(run, d.show);
-  const own = explainWords(d.t, piece); // EXPLAIN-1 (E4, E9): the face's words before any line was hidden; HIT on a plain rig
+  // CNT-DAY2 (REQ-BFG-100, REQ-BFG-082): a word with no piece (a belt's panel, an empty slot, a turret with no bought core)
+  // reads the run's day as a piece's does (the build screen's run; a face's faceRun: the fight's day, the scouted foe's run
+  // day); no day: as before
+  const own = explainWords(d.t, piece, run.day); // EXPLAIN-1 (E4, E9): the face's words before any line was hidden; HIT on a plain rig
   // the view lists the held runes' keywords after the panel's own words (BRIEF-U2c step 2: the rune keywords too)
   const words = [...own, ...runeWords(run).filter((w) => !own.some((o) => o.word === w.word))];
   const s = stateOf(owner, JSON.stringify(d.show));
@@ -735,7 +744,7 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   const tipItems = iconTipItems(d.t, words, piece);
   const onIcon = !tap && pm.kind === "mouse" && !pm.down && !!qr && tipItems.length > 0 && inside(qr, pm.x, pm.y);
   // WORDS-1 (REQ-BFG-081): the header's family tags too, each with its families.ts line (familyTargets)
-  const body = keywordTargets(lines, plan, piece, avoid);
+  const body = keywordTargets(lines, plan, piece, avoid, run.day); // CNT-DAY2: the run's day for a word with no piece
   const targets = [...body, ...familyTargets(plan, [...avoid, ...body.map((t) => t.r)])];
   // CARD-2 (REQ-BFG-004, K1): THE FIRST SIGHT, decided once per open (a fresh state). None where the screen doesn't ask
   // (`sight`) or where the panel shows a how-to tip this time (E5's hint drawn); else the rig sentence on the first rig
