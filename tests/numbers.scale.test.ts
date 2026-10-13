@@ -302,14 +302,15 @@ const LADDER_ADDED: Record<string, number> = { "ITEMS.overdrive.levels.2.gate.ri
 // runes' amounts are RETUNE-1's, which moved three runes.ts rows after NUM-1's record, the fixture untouched: RIVET HOARD
 // 60 -> 180, LAST WALL 80 -> 140, SEAM RIVETS 10 -> 30 (x10 rows, still whole). Each is checked at its guarded value, and at
 // its recorded one with the switch off, as LADDER_MOVED's are. WARD BELL's SHIELD cadence (a SUSTAIN_N1 field, no fixture
-// row) is the guarded def's too: 8 / 5 / 4 -> 4 / 2.5 / 2 s (GUARD_SUSTAIN, checked below, SUSTAIN_N1's with the switch off)
+// row) is the guarded def's too: 8 / 5 / 4 -> 4 / 2.5 / 2 s (GUARD_SUSTAIN, checked below, SUSTAIN_N1's with the switch off);
+// HULL-ON run 5 (GUARD; cap's ruling 22e26ded338944ea Q6, ruling 19139b4c41a1636f): ★2 rounded to 3, so 4 / 3 / 2 s
 const GUARD_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: number }> = {
   "RUNE_LIST.rivet_hoard.amount.n": { rule: "x10", was: 60, now: 180 },
   "RUNE_LIST.last_wall.amount.n": { rule: "x10", was: 80, now: 140 },
   "RUNE_LIST.seam_rivets.amount.n": { rule: "x10", was: 10, now: 30 },
 };
 const GUARD_SUSTAIN: Record<string, number> = {
-  "ITEMS.wardbell.mod.shield.every": 4, "ITEMS.wardbell.levels.2.mod.shield.every": 2.5, "ITEMS.wardbell.levels.3.mod.shield.every": 2,
+  "ITEMS.wardbell.mod.shield.every": 4, "ITEMS.wardbell.levels.2.mod.shield.every": 3, "ITEMS.wardbell.levels.3.mod.shield.every": 2,
 };
 // HULL-ON (the flip, OPEN_RUNES; REQ-BFG-109, src/sim/openRunes.ts OPEN_RUNE_DEFS): with the switch on, THE LONG ROAD is
 // OPEN-1's rewrite in the catalogue ("+6% DMG PER RIG A LOAD PASSES", LONG_ROAD_PCT; was "YOUR RIDE BONUS: x2"), which moved
@@ -577,7 +578,7 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     expect(ids.filter((id) => sustainNative.has(id)).sort()).toEqual([...sustainNative.keys()].sort());
     expect([sustainNative.size, [...sustainNative.keys()].filter((id) => byId.has(id) || num2To.has(id)).length]).toEqual([18, 0]);
     // HULL-ON (the flip, GUARD): WARD BELL's 3 SHIELD cadences live at the guarded def's (GUARD_SUSTAIN: 8 / 5 / 4 -> 4 / 2.5
-    // / 2 s), each at SUSTAIN_N1's with the switch off
+    // / 2 s; run 5, ruling 22e26ded338944ea Q6: 4 / 3 / 2 s), each at SUSTAIN_N1's with the switch off
     for (const [id, v] of sustainNative) expect(live(id), id).toBe(id in GUARD_SUSTAIN ? GUARD_SUSTAIN[id] : v);
     expect(withGuard(() => Object.keys(GUARD_SUSTAIN).map((id) => live(id)), false)).toEqual(Object.keys(GUARD_SUSTAIN).map((id) => SUSTAIN_N1[id]));
     // Y7b2 (the flip): two-sided: the scan meets the 4 fields Y7B2_ADDED names, none is a fixture row, each live at its value

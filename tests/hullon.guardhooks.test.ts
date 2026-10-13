@@ -31,16 +31,17 @@ describe("HULL-ON: GUARD survives the wave-3 and sustain toggles (ruling 6f45684
     expect([plate(1), plate(2), plate(3)]).toEqual([15, 33, 51]);
   });
 
-  it("GUARD on: after withSustain(.., false) and after setSustain(true), WARD BELL rings every 4 / 2.5 / 2 s", () => {
+  // HULL-ON run 5 (GUARD; cap's ruling 22e26ded338944ea Q6, ruling 19139b4c41a1636f): ★2 rounded 2.5 -> 3 s (was 4 / 2.5 / 2)
+  it("GUARD on: after withSustain(.., false) and after setSustain(true), WARD BELL rings every 4 / 3 / 2 s", () => {
     expect([every(1), every(2), every(3)]).toEqual([GUARD_BELL_EVERY[1], GUARD_BELL_EVERY[2], GUARD_BELL_EVERY[3]]);
     withSustain(() => {
       expect(Object.keys(ITEMS)).not.toContain("wardbell");
     }, false);
     expect(Object.keys(ITEMS)).toContain("wardbell");
     expect(ITEMS.wardbell).not.toBe(SUSTAIN_ITEMS.wardbell);
-    expect([every(1), every(2), every(3)]).toEqual([4, 2.5, 2]);
+    expect([every(1), every(2), every(3)]).toEqual([4, 3, 2]);
     setSustain(true);
-    expect([every(1), every(2), every(3)]).toEqual([4, 2.5, 2]);
+    expect([every(1), every(2), every(3)]).toEqual([4, 3, 2]);
   });
 
   it("GUARD off: the toggles leave exactly the base defs (WAVE3_ITEMS.plateroller, SUSTAIN_ITEMS.wardbell), as before", () => {

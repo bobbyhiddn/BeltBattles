@@ -1,5 +1,6 @@
 // RETUNE-1 (REQ-BFG-097): GUARD (src/sim/guard.ts): PLATE ROLLER x3 (15 / 33 / 51 a payload) and WARD BELL twice as often
-// (every 4 / 2.5 / 2 s), content values only, in ladderFix.ts's form. The values with the switch on and off; the setter
+// (every 4 / 2.5 / 2 s; HULL-ON run 5 rounds ★2 to 3 s, so 4 / 3 / 2 s: cap's ruling 22e26ded338944ea Q6, ruling
+// 19139b4c41a1636f), content values only, in ladderFix.ts's form. The values with the switch on and off; the setter
 // puts back the exact defs; the card faces and the details text read the new numbers and still fit (REQ-BFG-070's card
 // rules: the U2a fit check of tests/faceText.test.ts on the phone band and the op view), with HULL_SCALE's S(d) on day 10
 // (the largest number a face shows). Each switch is set through its setter and put back off after each test.
@@ -29,11 +30,12 @@ const bell = (s: number) => effectAt("wardbell", s).mod!.shield!;
 describe("RETUNE-1 GUARD: the values", () => {
   it("off by default: PLATE ROLLER 5 / 11 / 17, WARD BELL every 8 / 5 / 4 s (+1 SHIELD)", () => {
     // HULL-ON (the flip, GUARD): ships on (was toBe(false) twice: "off by default"), at the guarded numbers 15 / 33 / 51 and
-    // 4 / 2.5 / 2 s; the off numbers below are read with the switch set off here (the afterEach puts the shipped value back)
+    // 4 / 2.5 / 2 s; the off numbers below are read with the switch set off here (the afterEach puts the shipped value back).
+    // HULL-ON run 5 (GUARD; ruling 22e26ded338944ea Q6): ★2 rounded 2.5 -> 3 s, so 4 / 3 / 2 s
     expect(GUARD).toBe(true);
     expect(guardRules()).toBe(true);
     expect([1, 2, 3].map(plate)).toEqual([15, 33, 51]);
-    expect([1, 2, 3].map((s) => bell(s).every)).toEqual([4, 2.5, 2]);
+    expect([1, 2, 3].map((s) => bell(s).every)).toEqual([4, 3, 2]);
     setGuard(false);
     expect(guardRules()).toBe(false);
     expect([1, 2, 3].map(plate)).toEqual([5, 11, 17]);
@@ -42,16 +44,18 @@ describe("RETUNE-1 GUARD: the values", () => {
     expect(SHIELD_CAP).toBe(3);
   });
 
-  it("on: PLATE ROLLER 15 / 33 / 51 (x3), WARD BELL every 4 / 2.5 / 2 s (twice as often), still +1 SHIELD; SHIELD_CAP 3", () => {
+  it("on: PLATE ROLLER 15 / 33 / 51 (x3), WARD BELL every 4 / 3 / 2 s (twice as often, ★2 rounded), still +1 SHIELD; SHIELD_CAP 3", () => {
     // HULL-ON (the flip, GUARD): runs from the switch set off, as it ran from the default before the flip (withGuard turns it
-    // on for the call and puts it back off: 5 / 11 / 17 after it); the afterEach puts the shipped value back
+    // on for the call and puts it back off: 5 / 11 / 17 after it); the afterEach puts the shipped value back.
+    // HULL-ON run 5 (GUARD; cap's ruling 22e26ded338944ea Q6, ruling 19139b4c41a1636f): the bell's [4, 2.5, 2] -> [4, 3, 2]
+    // (REQ-BFG-047: every printed number whole; 3 is the only whole second between 4 and 2); the title read "4 / 2.5 / 2 s"
     setGuard(false);
     withGuard(() => {
       expect(guardRules()).toBe(true);
       expect([1, 2, 3].map(plate)).toEqual([15, 33, 51]);
       expect([GUARD_PLATE[1], GUARD_PLATE[2], GUARD_PLATE[3]]).toEqual([15, 33, 51]);
-      expect([1, 2, 3].map((s) => bell(s).every)).toEqual([4, 2.5, 2]);
-      expect([GUARD_BELL_EVERY[1], GUARD_BELL_EVERY[2], GUARD_BELL_EVERY[3]]).toEqual([4, 2.5, 2]);
+      expect([1, 2, 3].map((s) => bell(s).every)).toEqual([4, 3, 2]);
+      expect([GUARD_BELL_EVERY[1], GUARD_BELL_EVERY[2], GUARD_BELL_EVERY[3]]).toEqual([4, 3, 2]);
       expect([1, 2, 3].map((s) => bell(s).amount)).toEqual([1, 1, 1]);
       expect(SHIELD_CAP).toBe(3);
       // everything else on the two defs is as before
@@ -124,13 +128,16 @@ function panels(day: number): { id: string; t: PanelText }[] {
 }
 
 describe("RETUNE-1 GUARD: the faces and the details text read the new numbers, and fit", () => {
-  it("the details text and the face lines read 15 / 33 / 51 and 4 / 2.5 / 2 s with GUARD on", () => {
+  it("the details text and the face lines read 15 / 33 / 51 and 4 / 3 / 2 s with GUARD on", () => {
     setGuard(false); // HULL-ON (the flip, GUARD): the off text ("17") after withGuard's call, the switch set off (was the default)
     withGuard(() => {
       expect(abilityText("plateroller", 3).sentences.join(" ")).toContain("51");
       expect(abilityText("plateroller", 1).sentences.join(" ")).toContain("15");
       const bellLines = JSON.stringify(faceLines("wardbell", 2));
-      expect(bellLines).toContain("2.5");
+      // HULL-ON run 5 (GUARD; cap's ruling 22e26ded338944ea Q6, ruling 19139b4c41a1636f): ★2 rings every 3 s, printed whole
+      // (was toContain("2.5"); the title read "4 / 2.5 / 2 s")
+      expect(bellLines).toContain("EVERY 3");
+      expect(bellLines).not.toContain("2.5");
       expect(JSON.stringify(faceLines("wardbell", 3))).toContain("EVERY 2");
     });
     expect(abilityText("plateroller", 3).sentences.join(" ")).toContain("17");

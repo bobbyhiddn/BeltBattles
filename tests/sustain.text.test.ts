@@ -104,8 +104,9 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
     // WARD BELL's ladder is EVERY 8/5/4 (LADDER_SEP: the font has no "»", TEXT-STYLE 5.3)
     // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): 8/5/4 -> 4/2.5/2, GUARD's WARD BELL (twice as often); it
     // read 8/5/4 before only because withSustain wrote the base def back. 8/5/4 with GUARD off
-    expect(at("wardbell", 1)).toEqual(["EVERY [4]/2.5/2", "NEXT ★2: EVERY 2.5"]);
-    expect(at("wardbell", 3)).toEqual(["EVERY 4/2.5/[2]"]);
+    // HULL-ON run 5 (GUARD; cap's ruling 22e26ded338944ea Q6, ruling 19139b4c41a1636f): ★2 rounded 2.5 -> 3 (4/3/2)
+    expect(at("wardbell", 1)).toEqual(["EVERY [4]/3/2", "NEXT ★2: EVERY 3"]);
+    expect(at("wardbell", 3)).toEqual(["EVERY 4/3/[2]"]);
     withGuard(() => {
       expect(at("wardbell", 1)).toEqual(["EVERY [8]/5/4", "NEXT ★2: EVERY 5"]);
       expect(at("wardbell", 3)).toEqual(["EVERY 8/5/[4]"]);
@@ -119,7 +120,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
     // the icons in the ladders: HEAL's, SHIELD's (in its rule), REGEN's
     expect(levelText(levelLines("riveter", 1)![0])).toBe("{HEAL} [6]/13/21");
     expect(levelText(levelLines("mendingloom", 1)![0])).toBe("{REGEN} [10]/15/20");
-    expect(levelText(levelLines("wardbell", 1)![0])).toBe("EVERY [4]/2.5/2{SEC}"); // HULL-ON (GUARD): was EVERY [8]/5/4 (off above)
+    expect(levelText(levelLines("wardbell", 1)![0])).toBe("EVERY [4]/3/2{SEC}"); // HULL-ON (GUARD): was EVERY [8]/5/4 (off above); run 5: [4]/2.5/2 -> [4]/3/2 (ruling 22e26ded338944ea Q6)
     for (const id of SUSTAIN_FACES) for (const s of STARS) {
       for (const l of levelLines(id, s)!) expect(textWidth(icons(levelText(l, (v) => v)), "5"), `${id} ★${s}`).toBeLessThanOrEqual(NEXT_LINE_W);
       const nx = faceNext(id, s);

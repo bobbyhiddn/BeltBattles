@@ -2,7 +2,10 @@
 // nerfed... it just isn't doing anything". LOSS-1's S3 (REPORT-LOSS1 section 11; REVIEW-LOSS1-R2 Q5, cap's call):
 //  - PLATE ROLLER (content.ts WAVE3_ITEMS.plateroller): gate.plate 5 / 11 / 17 -> 15 / 33 / 51 a payload (x3);
 //  - WARD BELL (content.ts SUSTAIN_ITEMS.wardbell): mod.shield.every 8 / 5 / 4 s -> 4 / 2.5 / 2 s (twice as often), still
-//    +1 SHIELD a ring.
+//    +1 SHIELD a ring. HULL-ON run 5 rounds ★2 to 3 s: 4 / 3 / 2 s (GUARD_BELL_EVERY below).
+// HULL-ON run 5 (cap's ruling 22e26ded338944ea Q6, ruling 19139b4c41a1636f item 1; REQ-BFG-047, NUM-4: every printed number
+// is whole): WARD BELL ★2 rings every 3 s, not 2.5. 3 is the only whole second between ★1's 4 and ★3's 2, so the stars keep
+// their order. Numbers only, behind GUARD: with the switch off the bell is SUS-A's 8 / 5 / 4 s, as before.
 // SHIELD_CAP stays 3 (LOSS-1 measured that the cap almost never binds) and battle.ts is untouched: both changes are
 // content-table values. The day multiplier that REQ-BFG-097 asks for is the hull release's: HULL_SCALE's S(d) multiplies
 // PLATE in the fight (battle.ts, hullScale.ts), and a SHIELD stops a whole hit whatever its size.
@@ -42,8 +45,9 @@ export const GUARD: boolean = true;
 
 /** PLATE ROLLER's plate a payload by star with GUARD on (x3 of 5 / 11 / 17). */
 export const GUARD_PLATE: Readonly<Record<1 | 2 | 3, number>> = { 1: 15, 2: 33, 3: 51 };
-/** WARD BELL's ring interval in seconds by star with GUARD on (half of 8 / 5 / 4). */
-export const GUARD_BELL_EVERY: Readonly<Record<1 | 2 | 3, number>> = { 1: 4, 2: 2.5, 3: 2 };
+/** WARD BELL's ring interval in seconds by star with GUARD on: half of 8 / 5 / 4, with ★2's 2.5 rounded to 3 (HULL-ON run 5,
+ *  cap's ruling 22e26ded338944ea Q6: every printed number whole; was { 1: 4, 2: 2.5, 3: 2 }). */
+export const GUARD_BELL_EVERY: Readonly<Record<1 | 2 | 3, number>> = { 1: 4, 2: 3, 3: 2 };
 
 /** The guarded defs, each built from its base def (the switch-off def, as content.ts writes it). */
 export const GUARD_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = {

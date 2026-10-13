@@ -15,7 +15,7 @@ import { shopChip } from "../src/ui/chips";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { GLOSSARY, glossaryText } from "../src/ui/glossary";
 import { KEYWORDS } from "../src/render/font";
-import { GUARD_BELL_EVERY, withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): WARD BELL's 2.5 s, and its base cadence
+import { GUARD_BELL_EVERY, withGuard } from "../src/sim/guard"; // HULL-ON (GUARD): WARD BELL's guarded ★2 cadence (3 s from run 5), and its base cadence
 
 const HERO_IDS = Object.keys(HEROES) as HeroId[];
 /** Every class factor a real turret has at any star (cores.ts scaleCore reads it as a whole %). */
@@ -77,15 +77,12 @@ describe("numbers.faces (NUM-4): every number a piece's text prints is whole, th
     const isBad = (r: FmtRecord): boolean => (r.unit === "pct"
       ? Math.abs(r.value * 100 - Math.round(r.value * 100)) > 1e-6 || r.printed !== `${Math.round(r.value * 100)}%`
       : !Number.isInteger(r.value) || r.printed !== String(r.value));
-    // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): [] -> GUARD's WARD BELL ★2 interval, 2.5 s (half of 5), the
-    // one number a face prints that is not whole, printed as it is ("2.5"); it was [] before only because withSustain wrote
-    // the base def back. With GUARD off WARD BELL prints whole numbers only (8 / 5 / 4): the off check below
-    const guarded = (r: FmtRecord): boolean => r.site.startsWith("wardbell ") && r.unit === "sec" && r.value === GUARD_BELL_EVERY[2] && r.printed === "2.5";
-    expect([...new Set(records.filter(isBad).map((r) => `${r.site.split(" ")[0]} ${r.unit} ${r.value} printed ${r.printed}`))]).toEqual(["wardbell sec 2.5 printed 2.5"]);
-    const bad = records.filter((r) => isBad(r) && !guarded(r));
-    // the whole formatters met that one fraction too (fmtSec), and no other
-    expect([...new Set(FRACTIONAL.map((r) => `${r.site.split(" ")[0]} ${r.unit} ${r.value} printed ${r.printed}`))]).toEqual(["wardbell sec 2.5 printed 2.5"]);
-    const fractional = FRACTIONAL.filter((r) => !guarded(r));
+    // HULL-ON run 5 (GUARD; cap's ruling 22e26ded338944ea Q6, ruling 19139b4c41a1636f item 1): no exception. GUARD's WARD
+    // BELL ★2 rang every 2.5 s, the one number a face printed that was not whole, pinned here from the flip to run 5 as
+    // "H4's (GUARD, ruling 22e26ded338944ea Q6)"; it rings every 3 s now, so every record is whole with GUARD on, as with it
+    // off (8 / 5 / 4: the off check below). The sweep meets the guarded ★2 cadence, printed whole
+    const bad = records.filter(isBad);
+    expect(records.some((r) => r.site.startsWith("wardbell ★2") && r.unit === "sec" && r.value === GUARD_BELL_EVERY[2] && r.printed === "3")).toBe(true);
     const metBefore = FRACTIONAL.length;
     const off = withSustain(() => withGuard(() => [1, 2, 3].flatMap((s) => captureFormats(() => readAll(ITEMS.wardbell, s, {}), `wardbell ★${s}`).records), false));
     expect(off.length).toBeGreaterThan(0);
@@ -98,7 +95,7 @@ describe("numbers.faces (NUM-4): every number a piece's text prints is whole, th
       return [...m].map(([k, v]) => `${k} (first at ${v.site}, ${v.n} records)`);
     };
     expect(once(bad)).toEqual([]);
-    expect(once(fractional)).toEqual([]); // HULL-ON (GUARD): GUARD's 2.5 s aside, above (was once(FRACTIONAL))
+    expect(once(FRACTIONAL)).toEqual([]); // HULL-ON run 5 (GUARD, ruling 22e26ded338944ea Q6): no exception left (was once(fractional), the 2.5 s aside)
     expect(texts).toBeGreaterThan(2000);
     expect(records.length).toBeGreaterThan(3000);
     expect(KS.length).toBeGreaterThan(3);
