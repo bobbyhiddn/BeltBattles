@@ -44,6 +44,7 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - A counter's panel and a part's face in battle show that day's numbers, as the build screen does.
 - Word notes on a belt's panel, the ⓘ view's rune words and a fitted part's panel now show that day's numbers too.
 - The hull panel's REGEN badge now shows the heal that lands each second on that day's hull.
+- A long foe name on the battle panel now makes room instead of being drawn over by the numbers: its ONLINE or OFFLINE tag goes first, then the end of the name, marked with a dot.
 - A PAIR shows on the board: both belts' last tiles flash blue, a bracket joins them at the gun, PAIR's mark pops over
   it, and each hit of the paired shot carries the mark.
 - A load waiting for its partner makes its belt's last tile glow until its window closes.
