@@ -65,6 +65,7 @@ import { panelWords } from "../src/screens/build/keywords";
 import { statIconNote, glossaryText } from "../src/ui/glossary";
 import { faceLines } from "../src/ui/faces";
 import { cardText as cardTextOf } from "../src/ui/abilityText";
+import { withGuard } from "../src/sim/guard"; // MERGE-099F (REQ-BFG-097): RIVET HOARD's base line with GUARD off
 import { colourize, wrapRich } from "../src/ui/richText";
 import { C } from "../src/render/palette";
 import { stripIcons as stripIconsOf } from "../src/render/font";
@@ -261,8 +262,11 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
 
 describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): new words, one line on the op card and the desk", () => {
   it("FIGHT START on every START: rune; SHIELD's reminder; SNARE KNOT's 15; MERGED; TOLL ROAD's load; TWIN SALVE's EACH PAIR", () => {
+    // MERGE-099F (REQ-BFG-097, -081): HULL-ON's GUARD on in c099's CARD-2 lines: RIVET HOARD's FIGHT START is GUARD's 180
+    // (src/sim/guard.ts GUARD_RUNES); was +60 (c099's world, no GUARD), read below with GUARD off, as HULL-ON's flip
+    // re-pinned its own GUARD text (cap's ruling 6f4568477e66a600)
     const want: Record<string, string[]> = {
-      rivet_hoard: ["FIGHT START: +60 SHIELD."], grave_plates: ["FIGHT START: +240 SHIELD."], loose_thread: ["FIGHT START: THE FOE HAS 2 FRAY."],
+      rivet_hoard: ["FIGHT START: +180 SHIELD."], grave_plates: ["FIGHT START: +240 SHIELD."], loose_thread: ["FIGHT START: THE FOE HAS 2 FRAY."],
       tangle_wire: ["FIGHT START: THE FOE HAS 5 FRAY."], ash_kindle: ["FIGHT START: THE FOE HAS 4 BURN."], ward_stone: ["FIGHT START: +3 WARD."],
       bulwark_ward: ["FIGHT START: +2 WARD."], searing: ["FIGHT START: THE FOE HAS 5 BURN.", "FOE WITH YOUR BURN: NO HEAL."],
       snare_knot: ["AT 15 FRAY (FULL): YOUR HITS +20 DMG."], scrap_halo: ["+60 HULL PER MERGED (★2/★3) PIECE IN USE."],
@@ -281,6 +285,8 @@ describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): ne
       // MERGED, LOAD and RIG, words with a note: runeText.ts WORD_ONLY)
       expect(runeKeywordsOf(def).filter((k) => !WORD_ONLY.has(k)).sort(), id).toEqual([...new Set([...def.text.matchAll(/\{\*?([A-Z]+)\}/g)].map((m) => m[1]).filter((k) => k !== "N"))].sort());
     }
+    // MERGE-099F: RIVET HOARD's base line with GUARD off, on both cards (the c099 pin)
+    expect(withGuard(() => [233, 300].map((cw) => runeTextLinesOf(RUNES.rivet_hoard, cw)), false)).toEqual([["FIGHT START: +60 SHIELD."], ["FIGHT START: +60 SHIELD."]]);
     console.log(`CARD-2 (k3) rune lines (5x7 px; the op card's text is 223 px, the 390-wide phones' 216):\n${rows.join("\n")}`);
     expect(runeReminderOf(RUNES.ward_stone)).toBe("WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS."); // CARD-3
     expect(textWidth(runeReminderOf(RUNES.ward_stone), "3")).toBeLessThanOrEqual(223);
