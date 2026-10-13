@@ -163,11 +163,15 @@ describe("D3: stranded rigs at each load boundary", () => {
     };
     expect(validateBuild(g.build as Build, 3).ok).toBe(false); // as written: a gate on a belt tile
     const load = loadGhostPool([J(g)]);
-    expect(load.rejected).toEqual([]);
-    const s = load.entries[0].snapshot;
+    // S8 T1a (REQ-BFG-092; cause a48010b): the loader checks an entry in the player mode, the seed step's rule (was the strict
+    // mode), whose rune count wants one rune a dawn; runes travel only in v3, so a v1 entry (rune-less) is refused on that
+    // count alone, after its migration: its only line is the count, not the unmigrated gate's placement. The migrated deck
+    // is read from migrateV1, the loader's first step (was the loaded entry)
+    expect(load.rejected).toEqual([{ index: 0, error: "rune: runes: 0 held on day 3, one a dawn (3)" }]);
+    expect(migrationLog().stats.find((x) => x.source === "ghost:net")).toMatchObject({ decks: 1, moved: 1, dropped: 0 });
+    const s = migrateV1(checkSnapshot(J(g)), "ghost:s8-t1a");
     expect([s.v, s.build.items[1].x, s.build.items[1].y, s.build.items[1].rot]).toEqual([2, 3, 3, 1]);
     expect(validateBuild(s.build, 3).ok).toBe(true);
-    expect(migrationLog().stats.find((x) => x.source === "ghost:net")).toMatchObject({ decks: 1, moved: 1, dropped: 0 });
     // v2 (and a v1 with nothing on a belt) passes unchanged
     const native = checkSnapshot({ ...J(g), v: 2, build: furnace([{ uid: 5, def: "temper", x: 3, y: 3, rot: 1 }]) });
     expect(migrateV1(native)).toBe(native);

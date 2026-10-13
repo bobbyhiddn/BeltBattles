@@ -5,7 +5,7 @@ import { fallbackGhost, loadGhostPool, offlineGhost, rivalHero } from "../src/ne
 import { encodeSnapshot, ghostId } from "../src/net/snapshot";
 import { validateBuild } from "../src/net/validate";
 import { generateSamplePool, samplePoolJson } from "../tools/samplePool";
-import { snap } from "./netHelpers";
+import { snap, upSnap } from "./netHelpers"; // S8 T1a: upSnap, an entry as an upload travels
 
 describe("sample pool and offline fallback", () => {
   it("generates 120 valid snapshots across days 1-10 for the four playable heroes, reproducibly", () => {
@@ -28,8 +28,11 @@ describe("sample pool and offline fallback", () => {
   });
 
   it("rejects bad pool entries and keeps the good ones", () => {
-    const good = snap({ day: 2, wins: 1 });
-    const overBudget = snap({ build: { ...good.build, hullBonus: 1000 } }); // NUM-1: four plates of 250 (was 100)
+    // S8 T1a (REQ-BFG-092; cause a48010b): the loader checks an entry in the player mode, the seed step's rule (was the
+    // strict mode), whose rune count wants one rune a dawn: the good entry and the over-budget one travel as an upload does
+    // (netHelpers upSnap: v3 holding its day's neutral runes, no seed; was snap's rune-less v1)
+    const good = upSnap({ day: 2, wins: 1 });
+    const overBudget = upSnap({ build: { ...good.build, hullBonus: 1000 } }); // NUM-1: four plates of 250 (was 100); day 1
     const foreignRules = snap({ rules: "bb-0.3.0" });
     const raw = [good, { ...good, extra: 1 }, overBudget, foreignRules, good, "junk"].map((s) => JSON.parse(JSON.stringify(s)));
     const load = loadGhostPool(raw);
