@@ -358,7 +358,10 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
     let turrets = 0, joined = 0;
     for (const { snapshot: s } of load.entries) {
       expect(s.rules).toBe(RULES_VERSION);
-      expect(validateUpload(s.build, s.day), `${s.hero} d${s.day}`).toEqual({ ok: true, errors: [] });
+      // S8 T1c (REQ-BFG-092; cause a48010b, BRIEF-AZBUMP-S8L): with NPC_DAY on a seed ghost is road-fed, and the player mode
+      // counts its drops only through its road log, so it goes in as ctx.road with its run seed, as the seed step's checks pass
+      // them (tools/samplePool.ts seedGhost; server/seed.ts checkPool)
+      expect(validateUpload(s.build, s.day, s.rules, { ...(s.road ? { road: s.road } : {}), ...(s.seed !== undefined ? { seed: s.seed } : {}) }), `${s.hero} d${s.day}`).toEqual({ ok: true, errors: [] });
       turrets += (s.build.turrets ?? []).length > 0 ? 1 : 0;
       joined += s.build.routes.some((r) => r.join !== undefined) ? 1 : 0;
     }
