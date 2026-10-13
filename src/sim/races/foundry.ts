@@ -59,6 +59,8 @@ export function fuse(a: Payload, b: Payload): void {
   // two VENOMs on one slug sum), so every VENOM that hit either blank counts, whichever fuses first. Was: `a` kept its own
   // and `b`'s was dropped, so belt B's VENOM counted only when belt A's blank fused second
   if (b.burnPlus) a.burnPlus = (a.burnPlus ?? 0) + b.burnPlus;
+  // SCALE-2b (REQ-BFG-108): both blanks' POISON add up on the alloy, as their BURN (set only while SCALE_RIGS is on)
+  if (b.poison) a.poison = (a.poison ?? 0) + b.poison;
   a.shock = a.shock || b.shock;
   a.prior = Math.max(a.prior, b.prior);
   a.copy = a.copy || b.copy;

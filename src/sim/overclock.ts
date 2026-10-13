@@ -25,7 +25,9 @@ export function boostable(e: GateEffect): boolean {
       // STOKER and BRACE FRAME act on no payload, so they stay unboostable.
       e.plate || e.gauge || e.pincer || e.latch || e.breaker ||
       // SCALE-2a (REQ-BFG-098): a scaling rig's reader line, only while SCALE_RIGS is on (off, `reads` is ignored)
-      (!!e.reads && scaleRules()));
+      (!!e.reads && scaleRules()) ||
+      // SCALE-2b (REQ-BFG-108): VENOM DRIP's POISON (its switch-on def), only while SCALE_RIGS is on, as `reads`
+      (!!e.poison && scaleRules()));
 }
 
 const cache = new WeakMap<GateEffect, GateEffect>();
@@ -61,6 +63,7 @@ export function overclocked(e: GateEffect): GateEffect {
   if (e.latch) o.latch = { ...e.latch, flat: e.latch.flat * 2 };
   if (e.breaker) o.breaker = { flat: e.breaker.flat * 2, floor: e.breaker.floor * 2 };
   if (e.reads) o.reads = { ...e.reads, each: e.reads.each * 2 }; // SCALE-2a: twice its `each` (read only with SCALE_RIGS on)
+  if (e.poison) o.poison = e.poison * 2; // SCALE-2b (REQ-BFG-108): VENOM DRIP's POISON doubles, as its burnPlus did (switch on only)
   cache.set(e, o);
   return o;
 }

@@ -32,6 +32,7 @@ import { overclocked } from "./overclock";
 import { debuffedDamage, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): BURN per stack each second
+import { POISON_DPS } from "./content"; // SCALE-2b (REQ-BFG-108): POISON's hull damage a stack each second
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047, N1 2.1): the integer damage pipeline's one rounding
 import { SHIELD_CAP } from "./content"; // SUS-A (REQ-BFG-069): SHIELD's MAX
 import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-046): harassment is a STUN
@@ -98,6 +99,10 @@ export interface Payload {
   // Y6 (release Y; DESIGN-Y section 4.1): the seconds VENOM DRIPs add to each BURN stack of this payload's hit
   // (Battle.impact); copies keep it (the spread), a COMPOUND shell adds both loads'
   burnPlus?: number;
+  // SCALE-2b (REQ-BFG-108): the POISON this slug lands on the foe's hull at impact (Battle.impact, beside its BURN). Set only
+  // while SCALE_RIGS is on (VENOM DRIP's switch-on def, Battle.applyHit); copies keep it, a fuse and a COMPOUND shell add
+  // both, an OVERCLOCKER doubles the rig's, a SCATTER shot splits it as BURN (Projectile.poison). Absent: none
+  poison?: number;
   fray?: number;
   frayCap?: number;
   staticTime?: number;
@@ -319,6 +324,10 @@ export interface HullState {
   burnShown: number;
   windShown: number;
   flash: number; // render
+  // SCALE-2b (REQ-BFG-108): the POISON on this hull: it adds up as poisoned slugs land (Battle.impact), never decays and
+  // ends with the fight (a new Battle's hull starts without it); at each whole second the hull takes POISON_DPS x it
+  // (Battle.hullEffects). Set only while SCALE_RIGS is on; absent: 0 (the pinned fp writes a hull's hp only)
+  poison?: number;
 }
 
 export type TargetKind = "hull" | "belt" | "gate" | "factory" | "turret";
@@ -397,6 +406,9 @@ export interface SideState {
   // SCALE-2a (REQ-BFG-098), kept only while SCALE_RIGS is on, and off SideStats (the pinned fp reads every SideStats key):
   hitsTaken?: number; // every enemy impact on this ship this fight, any target, blocked or not (SPALL CATCHER, SCAR TISSUE)
   heartsLost?: number; // the hearts this side had lost coming into the fight (Battle's `lost`; GRUDGE ROD)
+  // SCALE-2b (REQ-BFG-108), kept only while SCALE_RIGS is on and off SideStats (as above): the hull damage this side's
+  // POISON dealt the foe this fight (its ticks, after D(day)); SideStats.damage takes it too, as it takes BURN's
+  poisonDealt?: number;
 }
 
 export interface Projectile {
@@ -416,6 +428,7 @@ export interface Projectile {
   share?: number; // SCATTER pellet: its share of the payload, which also scales the Fray bonus
   burn?: number; // Burn stacks it lands, instead of payload.burn (SCATTER splits them, DRAKE adds)
   burnTime?: number; // their duration, instead of BURN_TIME (DRAKE)
+  poison?: number; // SCALE-2b (REQ-BFG-108): the POISON it lands, instead of payload.poison (a SCATTER pellet's split, as `burn`; a COMPOUND shell's both loads'); absent without POISON
   noFray?: boolean; // SCATTER: only the first pellet applies the ammo's Fray stacks
   finisher?: boolean; // 0.6.1p: a FINISHER RAM finisher (render: a 1 px red trail); absent otherwise
   runeBurn?: number; // RUNES-2a: EMBER SHOT's BURN stacks on this volley-opening shot; absent otherwise
@@ -462,6 +475,9 @@ export type SimEvent =
   | { type: "arc" | "lance" | "splash"; side: Side; x: number; y: number }
   | { type: "wreck" | "rip" | "limpet"; side: Side; kind: TargetKind; ref: number; cell: number; payload?: number }
   | { type: "burn"; side: Side; dmg: number }
+  // SCALE-2b (REQ-BFG-108): a POISON tick on side `side`'s hull (whole, after D(day)), once a second; emitted only while
+  // SCALE_RIGS is on (no hull holds POISON otherwise)
+  | { type: "poison"; side: Side; dmg: number }
   | { type: "keg"; side: Side; gate: number }
   // 0.8.0 P1, wave 3: fired only by wave-3 parts (a race hero fires what it fired before)
   | { type: "plate"; side: Side; amount: number; plate: number } // E1: plating added (+) or spent (-); `plate`: the pool after
@@ -1728,7 +1744,8 @@ export class Battle {
       case "heartsLost": return s.heartsLost ?? 0;
       case "wins": return s.wins ?? 0;
       case "waiting": return at.queued ?? 0;
-      case "foePoison": return 0; // SCALE-2b: the POISON stacks on the foe's hull, once the hull carries them
+      // SCALE-2b (REQ-BFG-108): the POISON on the foe's hull at this hit or shot (HullState.poison; 0 until one lands)
+      case "foePoison": return this.sides[s.side === 0 ? 1 : 0].hull.poison ?? 0;
     }
   }
 
@@ -1812,6 +1829,9 @@ export class Battle {
     // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP (its only source), on poison's old path: two add up, and a doubled
     // hit (overclocked) adds twice
     if (e.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + e.burnPlus;
+    // SCALE-2b (REQ-BFG-108): VENOM DRIP's POISON (its switch-on def, scale.ts SCALE_DEFS), on the payload: two add up, and a
+    // doubled hit (overclocked) adds twice; it lands at impact. Ignored with SCALE_RIGS off (no shipped def holds it then)
+    if (this.scaleRigs && e.poison) p.poison = (p.poison ?? 0) + e.poison;
     if (e.burnPerRide) {
       const original = g.def.gate!.burnPerRide!;
       // Y3 (release Y; DESIGN-Y row 22): + burn for each whole `per` s ridden (1/2/3 for each 2 s), no cap
@@ -2122,6 +2142,7 @@ export class Battle {
       : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, flatOf(p) - conv.used + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
+    let poison = p.poison ?? 0; // SCALE-2b (REQ-BFG-108): the shot's POISON, as `burn` (0 with SCALE_RIGS off)
     // NUM-1 (REQ-BFG-047): the core's numbers are whole at install (cores.ts scaleCore); every % or rate here rounds half
     // up once (ANVIL's plating %, HULLBREAKER, CAPACITOR's idle seconds, COMPOUND)
     // SCALE-2a (REQ-BFG-100, C11): PRESSURE BREECH's perQueued is a count-driven term: the fire event's `add`
@@ -2140,6 +2161,7 @@ export class Battle {
       p.burn += q.burn;
       burn += q.burn;
       if (q.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + q.burnPlus; // Y6 (DESIGN-Y 4.1): the shell keeps both loads'
+      if (q.poison) { p.poison = (p.poison ?? 0) + q.poison; poison += q.poison; } // SCALE-2b (REQ-BFG-108): both loads' POISON, as BURN
       p.shock ||= q.shock;
       p.static ||= q.static;
       p.staticTime = Math.max(p.staticTime ?? 0, q.staticTime ?? 0) || undefined;
@@ -2186,6 +2208,7 @@ export class Battle {
         id: this.nextId++, from: s.side, turret: tu.index, payload: p, dmg: pd, t: 0, flight, target, tx, ty, heavy,
         core: routine, burn: pellets > 1 ? Math.ceil(burn / pellets) : burn,
         ...(burnTime !== undefined ? { burnTime } : {}),
+        ...(poison > 0 ? { poison: pellets > 1 ? Math.ceil(poison / pellets) : poison } : {}), // SCALE-2b: split as BURN (SCATTER)
         ...(pellets > 1 ? { share, noFray: j > 0 } : {}),
         ...(fin ? { finisher: true } : {}), // 0.6.1p
         ...(j === 0 && open && s.rune?.volleyBurn ? { runeBurn: s.rune.volleyBurn } : {}), // RUNES-2a: EMBER SHOT, its first pellet
@@ -2310,6 +2333,11 @@ export class Battle {
         burn += more;
       }
     }
+    // SCALE-2b (REQ-BFG-108; REPORT-SCALE1 section 2): POISON lands at the moment the hit's BURN lands, on a hull hit or a
+    // part hit (a splash, arc or lance part too, as BURN), and a SHIELD (WARD) that blocked this hit's damage above doesn't
+    // stop it. It adds up on the hull, no cap and no decay (HullState.poison); 0 lands nothing. Only while SCALE_RIGS is on
+    const poison = pr.poison ?? pr.payload.poison ?? 0;
+    if (poison > 0 && this.scaleRigs) def.hull.poison = (def.hull.poison ?? 0) + poison;
     if (atk.rune && (atk.rune.hitHeal || atk.rune.pairHeal)) this.runeHeal(atk, pr); // SUS-D: LEECH VOW, TWIN SALVE
     let shocked = false;
     if (pr.payload.shock && hit.kind !== "hull") {
@@ -2607,6 +2635,22 @@ export class Battle {
           const shown = Math.floor(s.hull.burnShown);
           s.hull.burnShown -= shown;
           this.events.push({ type: "burn", side: s.side, dmg: shown });
+        }
+      }
+      // SCALE-2b (REQ-BFG-108; REPORT-SCALE1 section 2): POISON's tick, in BURN's once-a-second pass: at each whole second
+      // of the fight (every TICKS_PER_SEC ticks on the integer tick count, REGEN's clock) the hull takes POISON_DPS x its
+      // POISON as one number, with D(day) as BURN's tick (no % and no TIMES: PYRE HEART and ASH CLOAK stay BURN's). Past the
+      // soak layer, the way the dark wind goes: straight to hp, never through absorb(), so it never takes the plate; and,
+      // as the wind, it charges no SPALL CATCHER. A tick isn't a hit, so a SHIELD (WARD) never blocks it. SideStats.damage
+      // takes it as BURN's; the POISON-dealt tally lives off SideStats (SideState.poisonDealt). One `poison` event a tick
+      if (s.hull.poison && this.scaleRigs && this.ticks % TICKS_PER_SEC === 0) {
+        let tick = s.hull.poison * POISON_DPS;
+        if (this.dmgTenths !== 10) tick = dmgDayScale(tick, this.dmgTenths, s); // HULL-1c (REQ-BFG-079): D(day), as BURN's tick
+        if (tick > 0) {
+          s.hull.hp -= tick;
+          foe.stats.damage += tick;
+          foe.poisonDealt = (foe.poisonDealt ?? 0) + tick;
+          this.events.push({ type: "poison", side: s.side, dmg: tick });
         }
       }
     }

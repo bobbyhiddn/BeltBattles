@@ -17,9 +17,9 @@
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same helpers.
 
 import type { HullState, Payload } from "./battle";
-import { ITEMS, START_LIVES, type ReadCount } from "./content";
+import { ITEMS, START_LIVES, type ItemDef, type ReadCount } from "./content";
 import type { Build } from "./deck";
-import { effectAt, starsOf } from "./stars";
+import { clearStarCache, effectAt, starsOf } from "./stars";
 
 /** THE switch (REQ-BFG-098, REQ-BFG-110): off in this rules version (bb-0.10.0); BUMP-1E turns it on. */
 export const SCALE_RIGS: boolean = false;
@@ -31,8 +31,37 @@ export function scaleRules(): boolean {
   return scOn;
 }
 
-/** Turn the scaling hooks on or off (no content to swap: each hook reads the switch, through its Battle, where it acts). */
+/** SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 2): the live defs the switch changes, each built from its base def (the
+ *  switch-off def, as content.ts writes it), in SHAPES-1's form (shapes.ts SHAPE_DEFS): while the switch is on ITEMS[id] is
+ *  this def, while it is off the base def object itself, untouched, so every reader (effectAt, the faces, the bots, the
+ *  pools) sees one def through one lookup and the off world is byte for byte the base's.
+ *  - VENOM DRIP becomes POISON's source again: POISON +1 / +2 / +3 by star and no burnPlus (SLOW EMBERS still lengthens
+ *    BURN); rarity, price, merchant, size, foot, desc and tags as the base's. */
+export const SCALE_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = {
+  venom: (b) => ({ ...b, gate: { poison: 1 }, levels: { 2: { gate: { poison: 2 } }, 3: { gate: { poison: 3 } } } }),
+};
+
+/** The ids SCALE_DEFS changes, in its order. */
+export const SCALE_DEF_IDS: readonly string[] = Object.keys(SCALE_DEFS);
+
+/** The base defs, kept at the first swap (so a swap back restores the very object content.ts made). */
+const SC_BASE = new Map<string, ItemDef>();
+/** The switch-on defs, built once (so every swap on puts back the same object). */
+const SC_ON = new Map<string, ItemDef>();
+
+/** Turn the scaling hooks on or off. Each sim hook reads the switch through its Battle, where it acts; SCALE-2b: the
+ *  defs in SCALE_DEFS swap to their switch-on or base def in ITEMS and the star cache is cleared (shapes.ts setShapes's
+ *  form). Setting the state it already has does nothing. */
 export function setScaleRigs(on: boolean): void {
+  if (on === scOn) return;
+  const items = ITEMS as Record<string, ItemDef>;
+  for (const id of SCALE_DEF_IDS) {
+    if (!items[id] && !SC_BASE.has(id)) continue; // a world without the def (none today): nothing to swap
+    if (!SC_BASE.has(id)) SC_BASE.set(id, items[id]);
+    if (!SC_ON.has(id)) SC_ON.set(id, SCALE_DEFS[id](SC_BASE.get(id)!));
+    items[id] = on ? SC_ON.get(id)! : SC_BASE.get(id)!;
+  }
+  clearStarCache();
   scOn = on;
 }
 

@@ -76,6 +76,10 @@ export const BURN_TIME = 3.0; // a Burn stack's seconds where its source sets no
 /** NUM-1 (REQ-BFG-047, N1 2.1): the damage a Burn stack deals each second (x10 of 1), once a second (Battle.hullEffects):
  *  BURN_DPS x BURN_TIME a stack, the same total as before, in whole ticks. */
 export const BURN_DPS = 10;
+/** SCALE-2b (REQ-BFG-108; ref/scale1/REPORT-SCALE1.md section 2): the hull damage one POISON deals at each whole second of
+ *  the fight (Battle.hullEffects: the hull takes POISON_DPS x its POISON as one number, then D(day)). Read only while
+ *  SCALE_RIGS is on (scale.ts): with it off no hull ever holds POISON. SCALE-2e benches the 3; no tuning here. */
+export const POISON_DPS = 3;
 export const FRAY_BONUS = 2; // extra damage per Fray stack on every later hit
 export const FRAY_MAX = 15;
 export const WIND_WARN = 20; // dark wind warning (s)
@@ -187,6 +191,11 @@ export interface GateEffect {
   // BURN_TIME + burnPlus, then SLOW EMBERS' %); it rides the payload (two add up, an OVERCLOCKER doubles it, copies keep
   // it, a COMPOUND shell adds both loads')
   burnPlus?: number;
+  // SCALE-2b (REQ-BFG-108): POISON added to each payload it hits (VENOM DRIP's def while SCALE_RIGS is on: scale.ts
+  // SCALE_DEFS); it rides the payload (two add up, an OVERCLOCKER doubles it, copies keep it, a fuse and a COMPOUND shell
+  // add both, a SCATTER shot splits it as BURN) and lands on the foe's hull at impact (Battle.impact). Read only with the
+  // switch on (Battle.applyHit)
+  poison?: number;
   overclockCooldown?: number;
   // POWDER KEG. Y5 (release Y; DESIGN-Y row 46): every `fuse` s from the battle's start it blasts + flat onto its belts
   // (battle.ts kegTick); `burn` and `wide` (0.9.2's one blast, its BURN and ★3 WIDE BLAST) are held by no def since the flip
