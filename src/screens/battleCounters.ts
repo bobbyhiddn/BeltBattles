@@ -29,6 +29,7 @@ import {
   overlap, readCount, shownChips, slugsWaiting, statusTab, tabBelow, type BeltCounts, type CountKey, type GunState, type ShownChip,
 } from "../game/counters";
 import { JAM_TAG, beltText, keywordEntry, pairEntry, sentenceEntry, waitingText, type CounterEntry } from "../ui/counterText";
+import { textDay } from "../ui/fightDay"; // CNT-DAY (REQ-BFG-100, REQ-BFG-079): the panels' reminders on the fight's day
 import { GLOW_A, type PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100): an intake's cue on its belt's box
 import { PAIR_COLOUR } from "../render/fx";
 import type { PlateInfo } from "./battleHud";
@@ -255,29 +256,30 @@ export class BattleCounters {
 
   // ------------------------------------------------------------------------------------------------------- the panel
 
-  /** The entries of a group's panel, from the state now. */
+  /** The entries of a group's panel, from the state now. CNT-DAY (REQ-BFG-100, REQ-BFG-079): each keyword's reminder on
+   *  the fight's day (textDay: the day the Battle was built with on the day's hull; none on a fight without it). */
   private entries(grp: Group, a: Arena, rows: readonly (PlateInfo | null)[]): CounterEntry[] {
-    const s = a.b.sides[grp.side];
+    const s = a.b.sides[grp.side], day = textDay(a.b);
     if (grp.kind === "belt") return [sentenceEntry(beltText(s.routes[grp.ref]?.ammo.length ?? 0))];
     if (grp.kind === "gun") {
       const tu = s.turrets.find((q) => q.index === grp.ref);
       if (!tu) return [];
       const out = [sentenceEntry(waitingText(slugsWaiting(tu), canJam(tu)))];
       // PAIR-CUE (REQ-BFG-100, REQ-BFG-081, REQ-BFG-089): a gun with a pair reader adds PAIR's reminder, by its keyword key
-      const pair = tu.pairing ? pairEntry() : null;
+      const pair = tu.pairing ? pairEntry(day) : null;
       if (pair) out.push(pair);
       return out;
     }
     const out: CounterEntry[] = [];
     for (const c of shownChips(a.b, grp.side, undefined, (b, sd, k) => this.readsCount(a, sd, k))) {
       if (!c.chip.reminder) continue;
-      const t = c.chip.text(c.n), e = keywordEntry(c.chip.reminder, t.num + t.tail);
+      const t = c.chip.text(c.n), e = keywordEntry(c.chip.reminder, t.num + t.tail, day);
       if (e) out.push(e);
     }
     const row = rows[grp.side];
     // C3 and C4 by their internal keys (REQ-BFG-107: the glossary's words for them, whatever they are)
-    if (row?.plate) { const e = keywordEntry("PLATE", row.plate); if (e) out.push(e); }
-    if (row?.shield) { const e = keywordEntry("SHIELD", row.shield); if (e) out.push(e); }
+    if (row?.plate) { const e = keywordEntry("PLATE", row.plate, day); if (e) out.push(e); }
+    if (row?.shield) { const e = keywordEntry("SHIELD", row.shield, day); if (e) out.push(e); }
     return out;
   }
 
