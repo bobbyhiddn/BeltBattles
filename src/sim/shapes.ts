@@ -25,6 +25,7 @@
 
 import { ITEMS, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
+import { DMG_MUL_TENTHS } from "./hullScale"; // FIT-099 (RULING-FIT-R1): D on days 3-5 behind SHAPES (hullScale.ts imports nothing: no cycle)
 
 /** THE switch (REQ-BFG-086): ON since SHAPES-1's flip (BRIEF-SHAPES1 S1 and step 8, as AZ-BUMP's def6e73 flipped NPC_DAY,
  *  HULL_SCALE and LADDER_FIX). Its setter, withShapes and the off path stay, for older records (a record under rules
@@ -77,6 +78,18 @@ export const SHAPE_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = 
 /** The ids SHAPE_DEFS reshapes, in its order. */
 export const RESHAPED_IDS: readonly string[] = Object.keys(SHAPE_DEFS);
 
+/** FIT-099 (REQ-BFG-079, REQ-BFG-086; BRIEF-FIT099 F1 S4a; RULING-FIT-R1, oracle aa0369c46ad69acd; R8 7fb66a391c57fbea):
+ *  D, the damage day term (hullScale.ts DMG_MUL_TENTHS), on days 3-5 while SHAPES is on, in tenths, keyed by day: the only
+ *  cells this switch swaps there (days 1-2 and 6-10, DMG_MUL_TENTHS_LATE and DMG_MUL_STEP_TENTHS keep theirs). Shapes make
+ *  the early fights shorter: par's pooled median read 16.98 / 16.95 / 17.18 s on days 3-5 against S4a's 18-25 s (SHAPES
+ *  off: HULL-ON's 19.17 / 18.77 / 19.33 s); 1.6 / 1.7 / 1.8 is the least D that lands it (18.12 / 18.30 / 18.60 s; the
+ *  probes are in hullScale.ts's comment). FREE_JOINS_HULL's form: setShapes writes these into DMG_MUL_TENTHS while on and
+ *  the captured base (hullScale.ts's 18 / 19 / 20) back while off; withShapes leaves the state it found; every reader takes D
+ *  at call time through dmgMulTenths, so an older record judged with the switch off reads its own D. */
+export const SHAPES_DMG_TENTHS: Readonly<Record<number, number>> = { 3: 16, 4: 17, 5: 18 };
+/** D's base cells (hullScale.ts's own numbers, by table index), captured at the first swap, so off puts back exactly its. */
+const DMG_BASE = new Map<number, number>();
+
 let shOn = false;
 /** The base defs, kept at the first swap (so a swap back restores the very object content.ts made). */
 const BASE = new Map<string, ItemDef>();
@@ -89,7 +102,8 @@ export function shapesRules(): boolean {
 }
 
 /** Turn shapes on or off: the three rigs join ITEMS (after every other def) or leave it, GANTRY PRESS and ASSEMBLY LINE
- *  swap to their reshaped or base def, and the star cache is cleared. Setting the state it already has does nothing. */
+ *  swap to their reshaped or base def, D's days 3-5 swap (SHAPES_DMG_TENTHS or hullScale.ts's own; FIT-099,
+ *  RULING-FIT-R1), and the star cache is cleared. Setting the state it already has does nothing. */
 export function setShapes(on: boolean): void {
   if (on === shOn) return;
   const items = ITEMS as Record<string, ItemDef>;
@@ -101,6 +115,12 @@ export function setShapes(on: boolean): void {
     if (!BASE.has(id)) BASE.set(id, items[id]);
     if (!SHAPED.has(id)) SHAPED.set(id, SHAPE_DEFS[id](BASE.get(id)!));
     items[id] = on ? SHAPED.get(id)! : BASE.get(id)!;
+  }
+  const dmg = DMG_MUL_TENTHS as number[]; // FIT-099 (RULING-FIT-R1): D on days 3-5, SHAPES_DMG_TENTHS
+  for (const [day, t] of Object.entries(SHAPES_DMG_TENTHS)) {
+    const i = Number(day) - 1;
+    if (!DMG_BASE.has(i)) DMG_BASE.set(i, dmg[i]);
+    dmg[i] = on ? t : DMG_BASE.get(i)!;
   }
   clearStarCache();
   shOn = on;
