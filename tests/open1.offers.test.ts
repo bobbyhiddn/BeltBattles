@@ -21,6 +21,7 @@ import { CAPTAIN_RUNES } from "../src/sim/rivalBuilds";
 import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
 import { allCaptainRunes, captainRuneSeed, captainRunes, captainRunesText } from "../tools/genCaptainRunes";
 import { PROBE_RULES, PROBE_SEED, probeRunes } from "../server/ghostProbe";
+import { withShapes } from "../src/sim/shapes"; // MERGE-099F: the server-check records built with SHAPES off (parDeck)
 
 const HEROES4: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 /** A rules version before OPEN_RUNES_RULES (RULES_VERSION until BUMP-1D; it stays older after the bump). */
@@ -179,9 +180,14 @@ describe("OPEN-1: LAST CHANCE's rune card, on and off", () => {
 
 // ---------------------------------------------------------------- the server's checks, both ways
 
-/** An honest upload at dusk D: the par player's day-D deck (one rune a dawn) and its run seed, under `open`. */
+/** An honest upload at dusk D: the par player's day-D deck (one rune a dawn) and its run seed, under `open`.
+ *  MERGE-099F (REQ-BFG-109, -086; tests only): SHAPES and HULL-ON's five on together put shaped rigs in these par decks
+ *  (FOUNDRY seed 2's day-4 deck holds a shaped rig), so under OLD_RULES the shapes gate refuses the
+ *  record before the rune check these tests read ("rules: rules bb-0.9.3 predate bb-0.10.0: shaped rigs ..."). The decks
+ *  are built in the world OPEN-1's tests were written in, SHAPES off (the merged tree with SHAPES off is hullon-accepted's
+ *  shipped world: BRIEF-MERGE-099F step 4); was built with SHAPES on (the merged world) only since the merge. */
 function parDeck(hero: HeroId, seed: number, D: number, open: boolean): GhostSnapshot {
-  const build = withOpenRunes(() => playerRun(hero, D, seed)[D - 1].build, open);
+  const build = withShapes(() => withOpenRunes(() => playerRun(hero, D, seed)[D - 1].build, open), false);
   return {
     v: SNAPSHOT_V3, rules: RULES_VERSION, hero, day: D, wins: D - 1, lives: 5, build, runId: `open1-${hero}-${seed}`,
     playerId: "p-open1", createdAt: 1_790_000_000_000, seed: parRunSeed(hero, seed),
