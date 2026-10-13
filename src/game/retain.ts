@@ -137,7 +137,9 @@ function exactImage(t: Mat, a: unknown[]): boolean {
   else if (a.length === 9) { sx = n[1]; sy = n[2]; sw = n[3]; sh = n[4]; dx = n[5]; dy = n[6]; dw = n[7]; dh = n[8]; }
   else return false;
   if (!sw || !sh || !whole(sx) || !whole(sy) || !whole(sw) || !whole(sh)) return false;
-  return exactRect(t, dx, dy, dw, dh) && whole((t[0] * dw) / sw) && whole((t[3] * dh) / sh);
+  const kx = Math.abs((t[0] * dw) / sw), ky = Math.abs((t[3] * dh) / sh);
+  // a texel of 1 device px is a 1:1 sprite blit, which Skia blends by another path where a clip's edge cuts it: soft
+  return exactRect(t, dx, dy, dw, dh) && whole(kx) && whole(ky) && !(kx === 1 && ky === 1);
 }
 
 /** Boxes grown until none cuts a soft draw of the frame (each soft draw it overlaps lies inside it whole), merged; "all"

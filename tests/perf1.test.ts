@@ -237,6 +237,22 @@ describe("PERF-1: the build screen draws only what changed (game/retain.ts)", ()
     frame2(80);
     frame2(28); // new place [55, 69, 61, 75]: meets the sprite, which is exact, so the box stays
     expect([...(rec2.stats.last as Box[])].sort((p, q) => p[0] - q[0])).toEqual([[55, 69, 61, 75], [159, 69, 165, 75]]);
+    // a 1:1 sprite (a texel per device px: Skia's sprite blit, another blend path where a clip cuts it) is soft too
+    const rec3 = new Retained(), real3 = new SoftCtx(200, 200);
+    const frame3 = (x: number) => {
+      const g = rec3.begin(real3 as unknown as CanvasRenderingContext2D);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.imageSmoothingEnabled = false;
+      g.fillStyle = "#2";
+      g.fillRect(0, 0, 200, 200);
+      g.drawImage(img as unknown as CanvasImageSource, 60, 60); // device 60..70, 1:1
+      g.fillStyle = "#5";
+      g.fillRect(x, 62, 4, 4);
+      rec3.end();
+    };
+    frame3(150);
+    frame3(57); // new place [56, 61, 62, 67] meets the sprite's [59, 59, 71, 71]: grows to [56, 59, 71, 71]
+    expect([...(rec3.stats.last as Box[])].sort((p, q) => p[0] - q[0])).toEqual([[56, 59, 71, 71], [149, 61, 155, 67]]);
   });
 
   it("each state a draw reads counts: the fill style, alpha, smoothing, the transform, a clip", () => {
@@ -374,6 +390,7 @@ describe("PERF-1: the build screen draws only what changed (game/retain.ts)", ()
     const asks = files.filter((f) => /readonly retain = true/.test(readFileSync(f, "utf8")));
     expect(asks.map((f) => f.slice(root.length + 1))).toEqual(["build/build.ts"]);
     const game = readFileSync(decodeURIComponent(new URL("../src/game/game.ts", import.meta.url).pathname), "utf8");
-    expect(game).toMatch(/this\.screen\.retain && !this\.retained\.off/);
+    // only on ZOOM-1's finer grid (sub > 1); at sub 1 (0.9.8's canvas) the build screen draws directly, as before
+    expect(game).toMatch(/this\.screen\.retain && !this\.retained\.off && \(this\.view\.sub \?\? 1\) > 1/);
   });
 });

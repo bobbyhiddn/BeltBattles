@@ -224,8 +224,10 @@ export class Game implements InputSink {
   render(): void {
     // PERF-1 (REQ-BFG-080): a retained screen (the build screen) draws its whole frame, the name screen, the toast and the
     // wipe included, through the recorder, which draws on the canvas only where the frame changed (game/retain.ts); any
-    // other screen draws directly, as before
-    const ret = this.screen.retain && !this.retained.off ? this.retained : null;
+    // other screen draws directly, as before. Only on ZOOM-1's finer grid (sub > 1), where the raster costs: at sub 1 the
+    // canvas is 0.9.8's size, and there a sprite lands 1:1, which Skia blends by another path where a clip's edge cuts it
+    // (a 1 in 255 difference at the edge, found by the frame check), so sub 1 draws directly, as before
+    const ret = this.screen.retain && !this.retained.off && (this.view.sub ?? 1) > 1 ? this.retained : null;
     if (!ret) this.retained.invalidate();
     this.drawFrame(ret ? ret.begin(this.g) : this.g);
     ret?.end();
