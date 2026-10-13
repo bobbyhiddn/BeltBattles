@@ -7,8 +7,9 @@ import { describe, expect, it } from "vitest";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import {
   SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5, SAVE_KEY_V6, buyOffer, firstRunGated, firstRunGear, firstRunOwnPieces,
-  migrateRun, newRun, pendingRune, reroll, shopBadge, takeRune, type Run,
+  migrateRun, newRun, pendingRune, reroll, sellInventory, shopBadge, takeRune, type Run,
 } from "../src/game/run";
+import { mergePreview } from "../src/game/fuse"; // FIRSTDAY-1 Q4 (PLAIN-1F M2): the copy only while it would merge
 import { finishDay } from "../src/game/day";
 import { FIRST_RUN, FIRST_RUN_COMMONS, FIRST_RUN_RUNES, firstRunGate, firstRunRules, withFirstRun } from "../src/sim/firstRun";
 import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs";
@@ -305,6 +306,99 @@ describe("F3: dawn 1 and dawn 2's caravans, across many seeds", () => {
     }
     expect(copies).toBe(240);
   }), 180_000);
+});
+
+describe("FIRSTDAY-1 Q4 (REVIEW-FIRSTDAY1; PLAIN-1F M2): dawn 2's copy of the first rig only while buying it would merge", () => {
+  /** The run as it would be with no first rig (a JSON copy, as a reload makes it): its caravans are the usual gated ones,
+   *  so a run whose caravan equals this copy's got no copy, and the copy's slot took the usual plain-common refill. */
+  const noFirst = (run: Run): Run => {
+    const r = JSON.parse(JSON.stringify(run)) as Run;
+    delete r.firstRig;
+    return r;
+  };
+  const slots = (run: Run) => run.shop.wagons.flatMap((w, wi) => w.offers.map((o, oi) => ({ wi, oi, def: o.def })));
+  /** Dawn 1's first plain rig on offer, bought into cargo: its def and the cargo item's uid (none if it merged at once). */
+  const buyFirst = (run: Run) => {
+    const rig = slots(run).find((s) => ITEMS[s.def].kind === "gate" && PLAIN_RIG_IDS.concat(FIRST_RUN_COMMONS).includes(s.def))!;
+    const res = buyOffer(run, rig.wi, rig.oi);
+    expect(res.ok).toBe(true);
+    expect(run.firstRig).toBe(rig.def);
+    return { def: rig.def, uid: res.item?.uid };
+  };
+  const toDawn2 = (...runs: Run[]) => {
+    for (const r of runs) {
+      expect(takeRune(r, "coin_purse").ok).toBe(true);
+      dusk(r);
+    }
+  };
+
+  it("sold before dawn 2: no copy (the slot is refilled as usual)", () => both(() => {
+    let n = 0;
+    for (const hero of HEROES) {
+      for (let seed = 1; seed <= 20; seed++) {
+        const run = newRun(hero, seed, "r", true);
+        const rig = buyFirst(run);
+        if (rig.uid === undefined) continue;
+        expect(sellInventory(run, rig.uid)).toBeGreaterThan(0);
+        const ref = noFirst(run);
+        toDawn2(run, ref);
+        expect(mergePreview(run, rig.def), `${hero} ${seed}`).toBeNull();
+        expect(offers(run), `${hero} ${seed}`).toEqual(offers(ref));
+        expect(run.firstRig).toBe(rig.def); // the first rig stays recorded; only its copy is gone
+        n++;
+      }
+    }
+    expect(n).toBeGreaterThanOrEqual(60);
+  }), 120_000);
+
+  it("merged on day 1 through a reroll: no copy", () => both(() => {
+    let n = 0;
+    for (const hero of HEROES) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const run = newRun(hero, seed, "r", true);
+        const rig = buyFirst(run);
+        run.gold = 99;
+        let again: { wi: number; oi: number } | undefined;
+        for (let k = 0; k < 8 && !again; k++) {
+          expect(reroll(run)).toBe(true);
+          again = slots(run).find((s) => s.def === rig.def);
+        }
+        if (!again) continue;
+        expect(mergePreview(run, rig.def)?.toStars, `${hero} ${seed}`).toBe(2); // buying it now merges
+        expect(buyOffer(run, again.wi, again.oi).ok).toBe(true);
+        const ref = noFirst(run);
+        toDawn2(run, ref);
+        expect(mergePreview(run, rig.def), `${hero} ${seed}`).toBeNull();
+        expect(offers(run), `${hero} ${seed}`).toEqual(offers(ref));
+        n++;
+      }
+    }
+    expect(n).toBeGreaterThanOrEqual(10);
+  }), 120_000);
+
+  it("bought on day 2: a later reroll doesn't bring it back", () => both(() => {
+    let n = 0;
+    for (const hero of HEROES) {
+      for (let seed = 1; seed <= 20; seed++) {
+        const run = newRun(hero, seed, "r", true);
+        const rig = buyFirst(run);
+        toDawn2(run);
+        const copy = slots(run).find((s) => s.def === rig.def);
+        expect(copy, `${hero} ${seed}: the copy`).toBeDefined();
+        run.gold = 99;
+        expect(buyOffer(run, copy!.wi, copy!.oi).ok).toBe(true);
+        expect(mergePreview(run, rig.def), `${hero} ${seed}`).toBeNull();
+        for (let k = 1; k <= 3; k++) {
+          const ref = noFirst(run);
+          expect(reroll(run)).toBe(true);
+          expect(reroll(ref)).toBe(true);
+          expect(offers(run), `${hero} ${seed} reroll ${k}`).toEqual(offers(ref));
+        }
+        n++;
+      }
+    }
+    expect(n).toBe(80);
+  }), 120_000);
 });
 
 describe("F3: day 3 on, the offers of a normal run with the same seed and the same buys", () => {

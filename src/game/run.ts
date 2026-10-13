@@ -251,6 +251,9 @@ export function firstRunGear(run: Pick<Run, "build">): string | null {
  * - Dawn 2 first places its two extra offers: the cheapest turret or gear the hero can use (firstRunGear) and, when the
  *   run bought a rig on day 1, a copy of the first one (run.firstRig), so the MERGE ★2 badge shows. Each takes the first
  *   slot to refill (caravan order), else the last kept slot; one already on offer is not added twice.
+ *   FIRSTDAY-1 Q4 (REVIEW-FIRSTDAY1; PLAIN-1F M2): the copy only while buying it would merge (fuse.ts mergePreview, the
+ *   test shopBadge's MERGE reads), checked on the dawn roll and on every day-2 reroll: once the first rig is sold, merged
+ *   on day 1 or bought again on day 2, no copy is added, and its slot takes the usual plain-common refill.
  * - The other slots are refilled with the plain commons in a seeded order ("first-run-shop", day, rerolls: a reroll
  *   draws from the same gated set), never one already in the caravan. With 6 plain commons and at most 5 slots no slot is
  *   ever left unfillable; were one, it would keep the base's offer.
@@ -270,7 +273,8 @@ export function firstRunCaravan(run: Run, priceOf: (d: { price: number }) => num
   if (run.day === 2) {
     const gear = firstRunGear(run);
     if (gear) extras.push(gear);
-    if (run.firstRig && ITEMS[run.firstRig]) extras.push(run.firstRig);
+    // FIRSTDAY-1 Q4: only while buying the copy would merge (mergePreview, as shopBadge's MERGE)
+    if (run.firstRig && ITEMS[run.firstRig] && mergePreview(run, run.firstRig) !== null) extras.push(run.firstRig);
   }
   for (const def of extras) {
     if (shown.has(def)) continue;
