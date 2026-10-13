@@ -204,3 +204,71 @@ describe("CARD-5 (G): the phone shop card's gists (REQ-BFG-111)", () => {
     }
   });
 });
+
+// --------------------------------------------------------------------------- H: HOW TO PLAY
+import { ICON, wrap } from "../src/render/font";
+import { REMINDER } from "../src/ui/faces";
+import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../src/sim/deck";
+import { computeView, defaultScale } from "../src/core/io";
+import { HELP, HELP_HEARTS_2, HELP_KEYWORDS, helpLine3, helpLines } from "../src/screens/title";
+import { helpCard, titleScale } from "../src/screens/titleLayout";
+
+/** card5-base's card as the title drew it (helpLines: FREE_JOINS and HEARTS on, as shipped): before. */
+const HELP_BEFORE = [HELP[0], HELP_HEARTS_2,
+  "3  AT DAWN, BUY RIGS FROM THE CARAVAN. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM.",
+  "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
+  HELP[4]];
+/** The title's view as the game computes it (TitleScreen.pickScale; intro.title.test.ts's titleView). */
+function titleView(cssW: number, cssH: number, dpr: number): { W: number; H: number; k: number } {
+  const v = computeView(cssW, cssH, dpr, (pw, ph, p) => titleScale(pw, ph, p, dpr));
+  const menu = defaultScale(Math.floor(cssW * dpr), Math.floor(cssH * dpr), v.portrait);
+  return { W: v.W, H: v.H, k: menu / v.scale };
+}
+const SCREENS: Readonly<Record<string, [number, number, number]>> = {
+  "402x690 @3": [402, 690, 3], "390x844 @3": [390, 844, 3], "390x660 @3": [390, 660, 3], "844x390 @3": [844, 390, 3],
+  "360x640 @2": [360, 640, 2], "desk 1440x900 @1": [1440, 900, 1], "desk 1440x900 @2": [1440, 900, 2], "desk 1280x720 @1": [1280, 720, 1],
+};
+
+describe("CARD-5 (H): HOW TO PLAY names the kinds and the keywords (REQ-BFG-111; REQ-BFG-089 holds: rules text on demand)", () => {
+  it("items 3, 4 and 6 as drafted, with the two clauses and WARD's HIT'S DAMAGE; both FREE_JOINS forms keep their join clauses", () => {
+    const three = "3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
+    expect(helpLine3(true)).toBe(`${three}.`);
+    expect(helpLine3(false)).toBe(`${three} (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
+    expect(HELP[3]).toBe("4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, STUN, SPLIT, SPEED UP OR SLOW DOWN. MOST RIGS WORK ON EACH SLUG ON A TILE THEIR ARROWS POINT AT. LONGER CINDER ROUTES COOK HOTTER SLUGS.");
+    expect(HELP_KEYWORDS).toBe(`6  ${ICON.BURN}BURN: HULL DAMAGE OVER TIME. ${ICON.STUN}STUN: STOPS THE PART IT HITS FOR A WHILE. ${ICON.PLATE}SHIELD: SOAKS HULL DAMAGE. ${ICON.SHIELD}WARD: BLOCKS ALL OF ONE HIT'S DAMAGE. ${ICON.PAIR}PAIR: SLUGS FROM TWO BELTS REACH ONE TURRET AT ONCE. ${ICON.FRAY}FRAY: LATER HULL HITS DEAL MORE.`);
+    expect([HELP.length, helpLines().length, helpLines()[5]]).toEqual([6, 6, HELP_KEYWORDS]);
+    expect(helpLines().slice(0, 5).map((l, i) => (i === 2 || i === 3 ? "" : l))).toEqual(HELP_BEFORE.map((l, i) => (i === 2 || i === 3 ? "" : l))); // items 1, 2, 5 as before
+  });
+
+  it("each clause true where the sim says it: item 6 is each keyword's own reminder cut short; MOST RIGS: more than half the buyable rigs work on each slug on a tile their arrows point at (a HIT: rule)", () => {
+    const r = (k: keyof typeof REMINDER) => REMINDER[k]();
+    expect(r("BURN")).toMatch(/HULL DAMAGE A SEC FOR/);
+    expect(r("STUN")).toMatch(/THE ENEMY PART IT HITS STOPS FOR/);
+    expect(r("PLATE")).toMatch(/SOAKS HULL DAMAGE/);
+    expect(r("SHIELD")).toMatch(/BLOCKS ALL OF ONE HIT'S DAMAGE/);
+    expect(r("PAIR")).toMatch(/TWO LOADS REACH ONE TURRET FROM TWO BELTS AT ONCE/);
+    expect(r("FRAY")).toMatch(/EVERY LATER SHOT THAT HITS THE HULL \+/);
+    const rigs = buyableModules().filter((m) => m.kind === "gate");
+    const hit = rigs.filter((m) => faceAt(m.id, 1, {})!.rules.some((x) => x.label === "HIT:"));
+    expect(hit.length * 2).toBeGreaterThan(rigs.length);
+    console.log(`CARD5 (H) rigs with a HIT: rule ${hit.length} of ${rigs.length}; without: ${rigs.filter((m) => !hit.includes(m)).map((m) => m.id).join(", ")}`);
+  });
+
+  it("the card fits on 402x690 @3 and on the desk: on screen, 20 px clear, no line cut, every glyph in its face, today's row pitch and item gap", () => {
+    const out: string[] = [];
+    for (const [name, [w, h, dpr]] of Object.entries(SCREENS)) {
+      const v = titleView(w, h, dpr), lines = helpLines();
+      const c = helpCard(v.W, v.H, v.k, lines), b = helpCard(v.W, v.H, v.k, HELP_BEFORE);
+      expect(c.x >= 0 && c.x + c.w <= v.W && c.y >= 20 && c.y + c.h <= v.H - 20, `${name}: card ${JSON.stringify(c)} on ${v.W}x${v.H}`).toBe(true);
+      expect([c.row, c.font, c.w], name).toEqual([b.row, b.font, b.w]); // the pitch, the face and the width as before
+      const rows = lines.map((ln) => wrap(ln, c.w - 16, c.font));
+      for (const rr of rows) for (const row of rr) {
+        expect(textWidth(row, c.font), `${name}: ${row}`).toBeLessThanOrEqual(c.w - 16);
+        for (const ch of row) if (ch !== " ") expect(glyphRows(ch, c.font), `${name}: ${JSON.stringify(ch)}`).toBeDefined();
+      }
+      expect(c.h, name).toBe(20 + rows.flat().length * c.row + lines.length * 3 + 5); // the item gap: 3, as before
+      out.push(`${name} (${v.W}x${v.H}, k ${v.k.toFixed(2)}, ${c.font === "5" ? "5x7" : "3x5"}): before ${b.h} px (${b.y} to ${b.y + b.h}), after ${c.h} px (${c.y} to ${c.y + c.h}); rows per item ${rows.map((x) => x.length).join(", ")}`);
+    }
+    console.log(`CARD5 (H) the card:\n${out.join("\n")}`);
+  });
+});
