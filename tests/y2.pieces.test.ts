@@ -116,11 +116,22 @@ describe("Y2 row 9: SCRAPPER counts STUNs only, with no queue cap and no BIG HAU
 
   it("face: +1 SLUG FOR EACH STUN YOU LAND, no caveat, no BIG HAUL clause; ladders RATE 10/12/15, DMG 60/95/135", () => {
     // CARD-2 (REQ-BFG-081, K3 g): the trigger first, READ-2 7.1's words (was "+1 {SLUG} FOR EACH {*STUN} YOU LAND.")
-    expect(lines("scrapper")).toEqual(STARS.map(() => ["EACH {*STUN} YOU LAND: 1 EXTRA {SLUG}."]));
-    oneLine("scrapper");
+    // CARD-5 (REQ-BFG-081, L; READ-5 12.6) added the desk line's number by design, after the trigger: the scrap damage
+    // (scrapFlat 30/65/105; its DMG ladder 60/95/135 is a plain slug's 30 and this)
+    expect(lines("scrapper")).toEqual([30, 65, 105].map((n) => ["EACH {*STUN} YOU LAND: 1 EXTRA {SLUG}.", `ITS {SLUG} DEAL ${n} MORE {DMG} THAN PLAIN.`]));
+    // CARD-5: two rule lines now (was oneLine("scrapper")), each in the band; no clause, caveat or perk on the face
+    for (const s of STARS) {
+      const f = faceAt("scrapper", s)!;
+      for (const r of f.rules) expect(px(r.text), `scrapper ★${s}: ${r.text}`).toBeLessThanOrEqual(BAND);
+      expect([f.clause, f.caveats], `scrapper ★${s}`).toEqual([undefined, undefined]);
+      expect(faceBlocks("scrapper", s, {})!.some((b) => b.perk), `scrapper ★${s} perk on the face`).toBe(false);
+    }
     // Y7b2 (the words): was [..., "{BELT} [2]/3/4", "★3 BIG HAUL", `NEXT ★2: ...`] (the name left with its rule)
-    expect(levels("scrapper", 1)).toEqual(["{RATE} [10]/12/15", "{DMG} [60]/95/135", "{BELT} [2]/3/4",
-      `NEXT ★2: ${statRow([["RATE", "12"], ["DMG", "95"], ["BELT", "3"]])}`]); // NEXT★'s changed stats are a stat row (glyphs)
+    // CARD-5 (REQ-BFG-081, L): the scrap damage's key adds its ladder and its NEXT★ number, by design
+    const lv = levels("scrapper", 1);
+    expect(lv.slice(0, 4)).toEqual(["{RATE} [10]/12/15", "{DMG} [60]/95/135", "{BELT} [2]/3/4", "[30]/65/105 MORE {DMG}"]);
+    expect(lv.length).toBe(5);
+    expect(lv[4].startsWith(`NEXT ★2: ${statRow([["RATE", "12"], ["DMG", "95"], ["BELT", "3"]])}, 65 MORE`), lv[4]).toBe(true); // NEXT★'s changed stats are a stat row (glyphs)
   });
 });
 

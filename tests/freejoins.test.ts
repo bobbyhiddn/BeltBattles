@@ -293,7 +293,9 @@ describe("JOINS-1 (5): the words follow the switch", () => {
     expect(before).toEqual(HELP.map((ln, i) => (i === 2 ? helpLine3(false) : ln))); // off: the card exactly as before
     expect(before[2]).toContain(`(${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
     setFreeJoins(true);
-    expect(helpLine3()).toBe("3  AT DAWN, BUY RIGS FROM THE CARAVAN. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM.");
+    // CARD-5 (REQ-BFG-111) changed the line's first sentence by design (it names the kinds; tests/card5.test.ts pins it):
+    // was "3  AT DAWN, BUY RIGS FROM THE CARAVAN. DRAG OUT ..."; the join sentences are as before
+    expect(helpLine3()).toBe("3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM.");
     expect(helpLines()[2]).toBe(helpLine3());
     expect(HELP[2]).toBe(helpLine3()); // HULL-ON (the flip, FREE_JOINS): the card at load is the shipped one
     expect(helpLines().join(" ")).not.toMatch(/JOINS PER DECK|PACE/);

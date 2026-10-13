@@ -332,13 +332,18 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // NUM-3 (R1's STUN fold, REQ-BFG-046, REQ-BFG-070): the four STUN-fold factories. A SABOT, FROST or CHAIN round's STUN is
   // its own payload's, a stat ({STUN} in the second stat row, carryStats: R1's "ITS ROUNDS: {STUN} 2.5." line is a stat in
   // U2e's split); the reminder, with the round's seconds, stays for the tap
-  scrapper: () => {
+  scrapper: (e) => {
     // Battle.produce: one more stamp for each harassment its side lands (acceptHarassment); that wrecks and rips count too
     // and the queue's cap are interim caveats, ★3 BIG HAUL's wreck a clause. Its slugs' scrapFlat is in its DMG stat
     const n = fmtCount(FACE_SIM.scrapPerHarass);
+    // CARD-5 (REQ-BFG-081, L; READ-5 12.6, parts/DAYNUM.md): the scrap damage the desk line says (abilityText.ts scrapper
+    // card: moreDamage(scrapFlat), x D(d) on the read-out's day: day 1 30, day 5 60), printed where its rule is, from the
+    // same source (battle.ts stamp adds scrapFlat to each slug it stamps; D grows the whole hit as it lands). The DMG stat
+    // keeps the slug's whole damage (a plain slug's and this)
+    const more = fmtDmg(dmgNow(f(e).scrapFlat ?? 0));
     // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 2): the trigger first, as READ-2's words (its own slugs never stun; was
     // "+1 {SLUG} FOR EACH {*STUN} YOU LAND.")
-    return rules([{ text: `EACH {*STUN} YOU LAND: ${n} EXTRA {SLUG}.` }]);
+    return rules([{ text: `EACH {*STUN} YOU LAND: ${n} EXTRA {SLUG}.` }, { text: `ITS {SLUG} DEAL ${more} MORE {DMG} THAN PLAIN.` }], [["scrap", `${more} MORE {DMG}`]]);
   },
   sabot: (e) => {
     // Battle.roundImpact: a round on a rig wrecks it for the battle; on any other part, a STUN of round.seconds (its stat)
