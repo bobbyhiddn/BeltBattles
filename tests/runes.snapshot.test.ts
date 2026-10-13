@@ -21,24 +21,29 @@ import { storeBackends } from "./netStores";
 import { signedHeaders, testIdentity } from "./netIdentity";
 import { openRunesFor } from "../src/net/rulesGate"; // HULL-ON (the flip, OPEN_RUNES): the offer rule of this build's rules
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the best record's hearts
+import { npcDayRules } from "../src/sim/npcDay"; // S8 (RULING-S8-R9): the budget line is left to the player mode only while NPC_DAY is on
+import { pickEntry } from "./standInPool.helpers"; // S8 (RULING-S8-R9): a stand-in's road log is its pool entry's
 
 type Snap = Record<string, unknown> & { build: Build & Record<string, unknown> };
 const POOL = generateSamplePool();
 const SEED = 4242;
+type Road = NonNullable<Parameters<typeof validateUpload>[3]>["road"]; // S8 (RULING-S8-R9): a road log, as validateUpload takes it
 
-function clientOk(s: unknown): boolean {
+// S8 (the pools: road-fed (a48010b), T1e's form; RULING-S8-R9): `road`, given, goes to validateUpload as the server passes
+// a snapshot's road log (server/app.ts POST /v1/ghosts). Was: the seed only (every caller but the pool loop still passes none)
+function clientOk(s: unknown, road?: Road): boolean {
   if (!local.isSnapshot(s)) return false;
-  return validateUpload(s.build, s.day, s.rules, { seed: s.seed }).ok;
+  return validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(road ? { road } : {}) }).ok;
 }
-function serverOk(s: unknown): boolean {
+function serverOk(s: unknown, road?: Road): boolean {
   try {
     const c = net.checkSnapshot(s);
-    return validateUpload(c.build, c.day, c.rules, { seed: c.seed }).ok;
+    return validateUpload(c.build, c.day, c.rules, { seed: c.seed, ...(road ? { road } : {}) }).ok;
   } catch {
     return false;
   }
 }
-const both = (s: unknown) => [clientOk(s), serverOk(s)];
+const both = (s: unknown, road?: Road) => [clientOk(s, road), serverOk(s, road)];
 
 /** A legal pick sequence for (seed, hero) through `days` dawns: each dawn's first card that only acts in battle (so the
  *  pool deck's hull, belt and gold need no change), else its first card. HULL-ON (the flip, OPEN_RUNES): each dawn's offer
@@ -54,6 +59,17 @@ function legalRunes(seed: number, hero: HeroId, days: number): { id: string }[] 
   return held.map((id) => ({ id }));
 }
 
+/** S8 (the pools: the made-up seed offered a pool rune; RULING-S8-R9): `seed`'s day-1 offer for `hero`, nothing held (this
+ *  build's open offer, the one validateUpload re-derives), and the made-up seed for a deck that stores no run seed: the
+ *  lowest from 7921 up whose day-1 offer holds no rune the deck holds (searched 1000 seeds up; the caller asserts the rule) */
+const dayOneOffer = (seed: number, hero: HeroId) => runeOffer(seed, 1, hero, [], OPEN).ids;
+function madeUpSeed(hero: HeroId, build: Build): number {
+  const held = (build.runes ?? []).map((q) => q.id);
+  let n = 7921;
+  while (n < 8921 && dayOneOffer(n, hero).some((id) => held.includes(id))) n++;
+  return n;
+}
+
 /** FLIP-X2: `s` as a rune-less v2 snapshot (no build.runes, no seed: both are v3 only), the runes' HULL and BELT taken
  *  back out of the build (the deck as an older client held it). HULL-ON (the flip, PICK): and no grade (v3 only too): the
  *  seed step writes one on every pool deck with PICK on, and a v2 copy carrying it was refused for it ("snapshot.grade:
@@ -61,7 +77,9 @@ function legalRunes(seed: number, hero: HeroId, days: number): { id: string }[] 
 function bareV2(s: Snap): Snap {
   const { runes, ...build } = s.build;
   const g = runeGrants(runes, s.day as number);
-  const { seed: _seed, grade: _grade, ...rest } = s;
+  // S8 (the pools: P1 83c039d's tuples carry a road log, so the regenerated seed ghosts do too): and no road log, v3 only
+  // and gated by NPC_DAY's rules ("snapshot.road: not allowed in a v2 snapshot"; RULING-S8-R5 section 2 item 2)
+  const { seed: _seed, grade: _grade, road: _road, ...rest } = s;
   return { ...rest, v: 2, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } as Snap["build"] };
 }
 
@@ -127,17 +145,47 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
   });
 
   it("every seed-pool ghost and every stand-in passes both checks, as v2 and as v3 with a seed", () => {
-    const standIns = STAND_IN_HEROES.flatMap((h) => Array.from({ length: 10 }, (_, i) => offlineGhost(h, i + 1, 900 + i).snapshot));
+    // S8 (the pools: road-fed (a48010b), T1e's form; RULING-S8-R9): each stand-in with its pool entry's road log (a pool
+    // ghost carries its own), as tests/net-fallback-standins.test.ts reads it. Was: the stand-ins' snapshots alone
+    const roads = new Map<unknown, Road>();
+    const standIns = STAND_IN_HEROES.flatMap((h) => Array.from({ length: 10 }, (_, i) => {
+      const g = offlineGhost(h, i + 1, 900 + i).snapshot;
+      roads.set(g, pickEntry(g.hero, g.day, 900 + i).road);
+      return g;
+    }));
     expect(POOL.length).toBeGreaterThan(100);
     for (const s of [...POOL, ...standIns]) {
       const tag = `${s.hero} d${s.day} ${s.runId}`;
-      expect(both(s), tag).toEqual([true, true]);
+      // S8 (the pools: road-fed (a48010b), T1e's form; RULING-S8-R9): with NPC_DAY on a seed ghost or stand-in is road-fed,
+      // so its deck may hold the road's gold and drops, which count only through its road log (weaver d1
+      // sample-run-weaver-0, sample-run-weaver-1 and the stand-in offline-384: "budget: build costs 14 gold ... at most 13
+      // (maxGoldByDay 8 + roadCap 5)" without it). So the lines both sides read without the road log lose at most its ONE
+      // "budget: " line, and only while NPC_DAY is on (off, they stay whole); AND the deck passes both checks in the player
+      // mode with its own road log (a stand-in's: its pool entry's) and its run seed where it carries one, as
+      // server/app.ts POST /v1/ghosts passes them. Was: expect(both(s), tag).toEqual([true, true]) (no road log)
+      const road = roads.has(s) ? roads.get(s) : (s as { road?: Road }).road;
+      const plain = validateUpload(s.build, s.day, s.rules, { seed: s.seed }).errors;
+      const budget = npcDayRules() ? plain.filter((e) => e.startsWith("budget: ")) : [];
+      expect(budget.length, `${tag}: at most its one budget line`).toBeLessThanOrEqual(1);
+      expect(plain.filter((e) => !budget.includes(e)), `${tag}: every other line`).toEqual([]);
+      expect(both(s, road), `${tag}: the player mode with its road log and run seed`).toEqual([true, true]);
       // FLIP-X2: the seed pool (94e0cbf) and the stand-ins (eb22262) are v3 now, each deck holding its day's runes. v3
       // with a seed: a race ghost's own par-run seed passes (the offer rule holds); a sample, floor or stand-in deck
       // stores no run seed (its runes follow none), so a made-up seed (1 + day * 7919) is refused by the offer rule on
       // both sides (was [true, true] for every ghost: the decks held no runes)
+      // S8 (the pools: the made-up seed offered a pool rune; RULING-S8-R9): the made-up seed is chosen by a stated rule, the
+      // lowest from 7921 up whose day-1 offer (madeUpSeed) holds no rune the deck holds, so the offer rule refuses its
+      // day-1 rune; the precondition is asserted, naming the deck and the rune, so a pool regeneration fails plainly here.
+      // No single seed serves every deck in the test (together they hold 64 of the 65 runes), so per deck. Was 1 + day *
+      // 7919: day 1's 7920 offers gun_oil, which furnace d1 sample-run-furnace-0 and the stand-in offline-384 now hold
+      // ([true, true]). A race ghost keeps its own seed. Every expected value unchanged
       const seeded = typeof s.seed === "number";
-      expect(both({ ...s, v: 3, seed: seeded ? s.seed : 1 + (s.day * 7919) }), `${tag} v3`).toEqual(seeded ? [true, true] : [false, false]);
+      const made = seeded ? (s.seed as number) : madeUpSeed(s.hero as HeroId, s.build);
+      if (!seeded) {
+        const hit = dayOneOffer(made, s.hero as HeroId).filter((id) => (s.build.runes ?? []).some((q) => q.id === id));
+        expect(hit, `${tag}: the made-up seed ${made}'s day-1 offer holds its rune ${hit.join(", ")}`).toEqual([]);
+      }
+      expect(both({ ...s, v: 3, seed: made }), `${tag} v3`).toEqual(seeded ? [true, true] : [false, false]);
       // FLIP-X2: as v2 the deck can't hold its runes (build.runes is v3 only): its rune-less v2 copy is refused on both
       // sides by the exact count (cap's ruling 5d6d83ef57d1494c: 0 held on day N) (was: the stored v2 ghost, [true, true])
       expect(both(bareV2(s as unknown as Snap)), `${tag} v2`).toEqual([false, false]);
@@ -150,8 +198,12 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
     // HULL-ON (the flip, PICK): `legal` is a pool deck, which carries the seed step's grade (written with PICK on), and the
     // canonical copy writes the grade after the seed, last of all (snapshot.ts gradeField): `"seed":4242}` ->
     // `"seed":4242,"grade":<its grade>}`. A copy without a grade (every upload, the game's own) still ends name, then seed
-    expect(text.endsWith(`"name":"TESTER","seed":${SEED},"grade":${legal.grade as number}}`)).toBe(true);
-    expect(net.encodeSnapshot({ ...named, grade: undefined } as never).endsWith(`"name":"TESTER","seed":${SEED}}`)).toBe(true);
+    // S8 (the pools: P1 83c039d's tuples carry a road log, so the regenerated seed ghosts do too): `legal`'s pool deck
+    // (weaver d6 sample-run-weaver-0) carries its run's road log, which the canonical copy writes after the seed and before
+    // the grade (snapshot.ts roadField, gradeField): was `"seed":4242,"grade":<its grade>}` and `"seed":4242}`
+    const road = `"road":${JSON.stringify(legal.road)}`;
+    expect(text.endsWith(`"name":"TESTER","seed":${SEED},${road},"grade":${legal.grade as number}}`)).toBe(true);
+    expect(net.encodeSnapshot({ ...named, grade: undefined } as never).endsWith(`"name":"TESTER","seed":${SEED},${road}}`)).toBe(true);
     const keys = Object.keys(JSON.parse(text).build);
     expect(keys[keys.length - 1]).toBe("runes");
     // a snapshot without any v3 field encodes byte for byte as before
@@ -226,8 +278,13 @@ describe.each(storeBackends().slice(0, 1))("RUNES-1 M3 through POST /v1/ghosts a
   const base = POOL.find((s) => s.day === 4 && s.build.upgrades === undefined) as unknown as Snap;
   // HULL-ON (the flip, PICK): `grade: undefined` (JSON leaves it out): the pool deck carries the seed step's grade (written
   // with PICK on), and an upload carries none (the server refuses one: "grade: only the seed pool's ghosts carry a grade")
+  // S8 (the pools: a road log is valid only with its own run seed; RULING-S8-R9): and `road: undefined`, as for the grade:
+  // the pool deck (furnace d4 sample-run-furnace-0) carries its run's road log, rolled under its own run seed, which the
+  // server re-rolls under the upload's seed 4242 and refuses (422 "road: day 3: the seeded roll of EMBERLYN gave
+  // whetstone, not no drop"; then nothing stored, the match 404). Before P1 (83c039d) the pool decks carried no road log
+  // (7cc41c6). Was: the upload carried the pool deck's road log
   const upload = (runes: { id: string }[], tag: string) =>
-    ({ ...withRunes(base, runes), rules: RULES_VERSION, runId: `runes-${tag}`, playerId: me.playerId, name: "TESTER", grade: undefined });
+    ({ ...withRunes(base, runes), rules: RULES_VERSION, runId: `runes-${tag}`, playerId: me.playerId, name: "TESTER", grade: undefined, road: undefined });
   const post = async (s: unknown) => {
     const body = JSON.stringify(s);
     const r = await fetch(`${url}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
