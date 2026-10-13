@@ -5,6 +5,7 @@
 import { Audio, type Sfx } from "../audio/audio";
 import { bindInput, type InputSink, type PointerKind } from "../core/io";
 import { applyGameView, viewWithSub, type GameView } from "./viewGrid"; // FIELD-1 (REQ-BFG-075): the battle's finer canvas grid
+import { Retained } from "./retain"; // PERF-1 (REQ-BFG-080): the build screen draws only what changed
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap } from "../render/font";
@@ -23,6 +24,9 @@ export interface Screen {
   /** FIELD-1 (REQ-BFG-075): canvas px per logical px (game/viewGrid.ts GameView.sub; the battle's camera grid); 1 when
    *  absent. */
   pickSub?(pw: number, ph: number, portrait: boolean, scale: number): number;
+  /** PERF-1 (REQ-BFG-080): draw this screen's frames through game/retain.ts (only where a frame changed); absent: every
+   *  frame is drawn directly, as before. */
+  retain?: boolean;
   enter?(): void;
   update(dt: number): void;
   draw(g: G): void;
@@ -101,7 +105,12 @@ export class Game implements InputSink {
   resize(): void {
     this.view = this.computeView();
     applyGameView(this.canvas, this.view);
+    this.retained.invalidate(); // PERF-1: the next frame is drawn whole
   }
+
+  /** PERF-1 (REQ-BFG-080): the recorder a retained screen (Screen.retain) draws through (game/retain.ts); tooling reads its
+   *  stats and can turn it off (Retained.off) to compare. */
+  readonly retained = new Retained();
 
   go(next: Screen): void {
     if (this.pending) return;
@@ -213,7 +222,22 @@ export class Game implements InputSink {
   }
 
   render(): void {
-    const g = this.g;
+    // PERF-1 (REQ-BFG-080): a retained screen (the build screen) draws its whole frame, the name screen, the toast and the
+    // wipe included, through the recorder, which draws on the canvas only where the frame changed (game/retain.ts); any
+    // other screen draws directly, as before
+    const ret = this.screen.retain && !this.retained.off ? this.retained : null;
+    if (!ret) this.retained.invalidate();
+    this.drawFrame(ret ? ret.begin(this.g) : this.g);
+    ret?.end();
+  }
+
+  /** PERF-1 tooling (the frame checks): this frame drawn directly on `g` (a canvas of this one's size), as render() drew
+   *  every frame before PERF-1; the game's own canvas and its recorder are not touched. */
+  renderTo(g: G): void {
+    this.drawFrame(g);
+  }
+
+  private drawFrame(g: G): void {
     const s = this.view.sub ?? 1; // FIELD-1: the battle's finer grid draws each logical px as s canvas px (1 elsewhere)
     g.setTransform(s, 0, 0, s, 0, 0);
     g.imageSmoothingEnabled = false;

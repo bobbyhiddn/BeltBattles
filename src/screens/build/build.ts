@@ -78,6 +78,10 @@ export class BuildScreen implements Screen, EditHost {
   readonly refit: boolean;
   /** 0.6.1a: the build screen shows the save-migration notice ("YOUR SPARE PARTS MERGED"). */
   readonly mergeNotice = true;
+  /** PERF-1 (REQ-BFG-080, REVIEW-STAGE099 F1): its frames go through game/retain.ts, which draws on ZOOM-1's fine canvas
+   *  only where a frame changed (the whole frame is still drawn, every frame, as before: nothing here changes what it
+   *  draws or when). */
+  readonly retain = true;
   L: BuildLayout;
   readonly wfx = new Fx();
   readonly ufx = new Fx();
