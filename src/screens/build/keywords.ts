@@ -54,6 +54,7 @@ import { isPlainRig } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, 
 import { RIG_SENTENCE, faceLines } from "../../ui/faces"; // CARD-2 (REQ-BFG-004, K1): the rig sentence on the first rig
 import { rigSeen, sawRig, sawWord, sightWord } from "../../ui/firstSight"; // CARD-2 (K1): the first-sight notes
 import { TURRET_LABELS } from "./faceBlocks"; // CARD-2 (REQ-BFG-081, K4): a turret row label's target
+import { dayScaled } from "../../sim/hullScale"; // CNT-DAY2 (REQ-BFG-100): runeWords reads the run's day on the day's hull only
 
 /** The piece a panel shows (its number fills in a keyword's reminder; its tap note): an offer, a part in cargo, a placed
  *  part, a fitted core or gear piece, an installed turret's bought core. */
@@ -333,7 +334,9 @@ export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: rea
 }
 
 /** The keywords of the runes the run holds (runeText.ts runeKeywords), in pick order, each with its glossary row's
- *  definition: the KEYWORDS view lists them after the panel's own words (BURN, RIDE, STUN, ...). */
+ *  definition: the KEYWORDS view lists them after the panel's own words (BURN, RIDE, STUN, ...). CNT-DAY2 (REQ-BFG-100,
+ *  REQ-BFG-082): on the day's hull (the switch on and a run day) the row is read on the run's day, as a word with no piece
+ *  is (glossaryText's `day`: BURN's and FRAY's damage, SHIELD's MAX); no day, or the switch off: the table's, as before. */
 export function runeWords(run: Run): KwWord[] {
   const out: KwWord[] = [];
   for (const h of run.build.runes ?? []) {
@@ -342,7 +345,8 @@ export function runeWords(run: Run): KwWord[] {
     for (const k of runeKeywords(d)) {
       if (WORD_ONLY.has(k)) continue; // CARD-4 (REQ-BFG-081, T): a word-only keyword (TOLL ROAD's LOAD) is no row of the view
       const row = glossaryEntry(KEYWORD_WORD[k]);
-      if (row && !out.some((w) => w.word === row.word)) out.push({ word: row.word, text: row.def, colour: row.colour });
+      const text = row && dayScaled(run.day) ? glossaryText(row.word, undefined, run.day) ?? row.def : row?.def; // CNT-DAY2
+      if (row && text && !out.some((w) => w.word === row.word)) out.push({ word: row.word, text, colour: row.colour });
     }
   }
   return out;
