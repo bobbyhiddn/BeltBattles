@@ -113,7 +113,9 @@ describe("SHAPES-1 S5b: the intake sweep", () => {
       // through installFromCargo (and so the sweep) it now keeps the NAIL STRIP and takes a HAILGUN there on day 9.
       // SHAPES-1 (RUN5-SHAPES1 3, cap's ruling 1.1): EMBER TROUGH 4 -> 5 G moves this casual run's buys, so slot 3 now takes a
       // RAMPART on day 10 (was HAILGUN on days 9-10; measured, run 6); every day still validates with no TURRET INTAKE error
-      expect(days.map((d) => turretSlots(d.build)[3]?.turret?.def ?? "-").join(" ")).toBe("- - - - - - - - - rampart");
+      // MERGE-099F (REQ-BFG-079, -086): SHAPES and HULL-ON's five on together; was "- - - - - - - - - rampart" (SHAPES-1's
+      // world, the five off): the casual run's buys move again and slot 3 takes no turret; every day still validates below
+      expect(days.map((d) => turretSlots(d.build)[3]?.turret?.def ?? "-").join(" ")).toBe("- - - - - - - - - -");
       for (const d of days) {
         expect(validateBuild(d.build, d.day, "strict").errors.filter((e) => /TURRET INTAKE/.test(e)), `day ${d.day}`).toEqual([]);
         expect(validateUpload(d.build, d.day).errors.filter((e) => /TURRET INTAKE/.test(e)), `day ${d.day}`).toEqual([]);
