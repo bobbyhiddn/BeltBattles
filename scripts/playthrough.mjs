@@ -7,6 +7,9 @@
 // MERGE-099E (BRIEF-MERGE-099E step 2): with NPC_DAY on (src/sim/npcDay.ts) the ROAD is the fork's warlord, its result's
 // ON TO THE ROAD, the day's event and REFIT before every dusk, as a player plays it (roadstop.mjs, refitToDusk); a dusk
 // deck's honesty counts NPC_DAY's road allowance (foeOf). Off: as before.
+// BROWSE-099F (BRIEF-BROWSE-099F step 4): with HULL-ON's HEARTS on (src/sim/hearts.ts; a run marked run.hearts) the run
+// is checked on hearts: 10 at the start, each dusk's hearts as hearts.ts's rule, the desk's forced day-2 loss 10 -> 9 and
+// no day-3 refund (heartsDusk below). A run without the mark: as before.
 
 import { roadStop } from "./roadstop.mjs";
 import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
@@ -294,6 +297,22 @@ const costLine = (f) => (f.runes ? `deckCost ${f.cost} (bought ${f.bought}) of $
 // plating, at most the day's gold); 0.6.0d-0.6.2 it was a full-purse stand-in pool deck (>= ceil(0.9 x budget))
 const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, ${costLine(f)}: ${honestFoe(f) ? "honest" : "NOT HONEST"}${f.kind === "standin" ? `, ${f.name}'s named build` : ""}; your deck ${f.mine}`;
 
+// BROWSE-099F: HULL-ON's HEARTS ships on (src/sim/hearts.ts HEARTS, bb-0.10.0). A run started with it on is marked
+// run.hearts = true and plays on hearts: HEARTS_START (10) at the start; a lost dusk costs heartCost(day) (1 on days 1-3,
+// 2 on days 4-6, 3 from day 7); a win, a draw or a warlord fight costs none; LAST CHANCE fires at the first dusk loss that
+// leaves LAST_CHANCE_AT (1) heart or fewer before the run's last day (RUN_DAYS), once a run, and SETS the hearts to 1;
+// there is no day-3 early-loss refund (day.ts finishHeartsDay). The page has no hook for the rule, so this is hearts.ts
+// heartsDusk with its numbers (HEARTS_START, HEART_COST_FROM, HEART_COSTS; lastChance.ts LAST_CHANCE_AT; content.ts
+// RUN_DAYS), as NPC_ROAD_DUSK above carries rivalBuilds.ts's table: if HULL-ON's numbers change, these follow.
+const HEARTS_START = 10, HEART_COST_FROM = [1, 4, 7], HEART_COSTS = [1, 2, 3], LAST_CHANCE_AT = 1, RUN_DAYS = 10;
+const heartCost = (day) => (day >= HEART_COST_FROM[2] ? HEART_COSTS[2] : day >= HEART_COST_FROM[1] ? HEART_COSTS[1] : HEART_COSTS[0]);
+const heartsDusk = (hearts, day, outcome, lcUsed) => {
+  if (outcome !== "loss") return hearts;
+  const left = Math.max(0, hearts - heartCost(day));
+  return left <= LAST_CHANCE_AT && day < RUN_DAYS && !lcUsed ? LAST_CHANCE_AT : left;
+};
+const heartsWord = (n) => (n === 1 ? "HEART" : "HEARTS"); // ui/stakes.ts heartsWord: the result card's "-N HEARTS"
+
 /** Reload the page mid-battle, CONTINUE from the title, and check the same ghost comes back. */
 async function reloadAndContinue(page, touch, log, at, state) {
   const before = await foeOf(page, !!state.npcDay);
@@ -410,6 +429,8 @@ export async function scriptedRun(page, touch, log, opts) {
     take: opts.take || {}, took: {}, bountyLog: null, scoutFought: false,
     // 0.6.0d feel check: one row per day (foe, deckCost/budget, result, lives)
     feel: [],
+    // BROWSE-099F: a hearts run's ledger: dusks that moved the hearts as hearts.ts says, and any that didn't
+    heartsOk: 0, heartsWrong: [],
   };
   const n = await page.evaluate((pool) => { window.bb.clearPool(); return window.bb.addGhosts(pool); }, opts.pool);
   log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ") || "none (a fresh player: every dusk is a stand-in)"}`);
@@ -437,12 +458,24 @@ export async function scriptedRun(page, touch, log, opts) {
     if (await takeDawnRune(page, touch)) state.runes = (state.runes ?? 0) + 1; // RUNES-1: the dawn pick, before the shop
     const dawn = await page.evaluate(() => {
       const run = window.bb.game.run, s = window.bb.game.screen;
-      return { day: run.day, gold: run.gold, lives: run.lives, wl: `${run.wins}-${run.losses}`, foe: s.foe.name, kind: s.foe.kind, seed: run.seed, refund: run.refund ?? null };
+      return { day: run.day, gold: run.gold, lives: run.lives, wl: `${run.wins}-${run.losses}`, foe: s.foe.name, kind: s.foe.kind, seed: run.seed, refund: run.refund ?? null, hearts: run.hearts === true };
     });
     log(`[${at()}] DAWN · DAY ${dawn.day}/10: ${dawn.gold} gold, ${dawn.lives} lives, W-L ${dawn.wl}; NEXT BATTLE ${dawn.foe} (${dawn.kind})${day === 1 ? `, seed ${dawn.seed}` : ""}`);
+    // BROWSE-099F: the run's scale, from its own mark (hearts.ts heartsRun); a hearts run starts on HEARTS_START
+    if (day === 1) {
+      state.hearts = dawn.hearts;
+      if (dawn.hearts && dawn.lives !== HEARTS_START) state.heartsWrong.push(`day 1's dawn: ${dawn.lives} hearts, not ${HEARTS_START}`);
+      log(`[${at()}] HEARTS: ${dawn.hearts ? `a hearts run (run.hearts), ${dawn.lives} at the start (want ${HEARTS_START})` : `a lives run (no run.hearts), ${dawn.lives} lives`}`);
+    }
     // STAGE-090 (cap's ruling eaf260a2a192acf6): the desk run's forced day-2 loss earns the early-loss refund (day.ts
     // REFUND_DAY 3, REFUND_LIVES 1): day 3's dawn reads 5 lives, and run.refund is { day: 3, lives: 1 }
-    if (opts.check === "desk" && day === 3) {
+    // BROWSE-099F: a hearts run has no early-loss refund (day.ts finishHeartsDay): day 3's dawn reads the hearts the forced
+    // loss left (HEARTS_START - heartCost(weakenDay): 10 -> 9), and run.refund stays unset
+    if (opts.check === "desk" && day === 3 && dawn.hearts) {
+      const want = HEARTS_START - heartCost(opts.weakenDay);
+      state.refund3 = dawn.lives === want && dawn.refund === null;
+      log(`[${at()}] NO REFUND at dawn 3 (a hearts run): ${dawn.lives} hearts (want ${want}), run.refund ${JSON.stringify(dawn.refund)}: ${state.refund3 ? "as expected" : "NOT as expected"}`);
+    } else if (opts.check === "desk" && day === 3) {
       state.refund3 = dawn.lives === 5 && dawn.refund?.day === 3 && dawn.refund?.lives === 1;
       log(`[${at()}] REFUND at dawn 3: ${dawn.lives} lives, run.refund ${JSON.stringify(dawn.refund)}: ${state.refund3 ? "as expected" : "NOT as expected"}`);
     }
@@ -494,6 +527,9 @@ export async function scriptedRun(page, touch, log, opts) {
     if (!honestFoe(foe)) state.dishonest.push(`day ${foe.day}`);
     log(`[${at()}] DUSK · DAY ${foe.day}: vs ${foe.name} (${foeLine(foe)}), same as the dawn preview: ${foe.name === dawn.foe}`);
     if (day === opts.reloadDay) await reloadAndContinue(page, touch, log, at, state);
+    // BROWSE-099F: the hearts going into this dusk (after the road: an event may give one back) and whether LAST CHANCE
+    // was used (day.ts finishHeartsDay's own test), for the hearts ledger at the result card
+    const pre = await page.evaluate(() => ({ lives: window.bb.game.run.lives, lcUsed: window.bb.game.run.lastChance !== undefined }));
     const ph = await pressFight(page, touch); // SCOUT-1b (REQ-BFG-082): the sail-in runs into the count, no FIGHT step
     if (day === 1) log(`[${at()}] SCOUT-1b: the sail-in runs into the count by itself (${ph}${ph === "scout" ? "; FIGHT pressed: a SCOUT-1 page" : "; no FIGHT step"})`);
     // SCOUT-1b (REQ-BFG-083): the bar's speed at the dusk's start: 1X on day 1 (a new run), then day 1's last pick (4X)
@@ -516,14 +552,23 @@ export async function scriptedRun(page, touch, log, opts) {
     await page.waitForFunction(() => window.bb.regions().some((r) => r.id === "next"), null, { timeout: 5000 });
     const r = await page.evaluate(() => {
       const run = window.bb.game.run, h = run.history[run.history.length - 1];
-      return { day: h.day, outcome: h.outcome, time: h.time.toFixed(1), income: h.income, lives: run.lives, refund: h.refund ?? 0, wl: `${run.wins}-${run.losses}`, over: run.over };
+      return { day: h.day, outcome: h.outcome, time: h.time.toFixed(1), income: h.income, lives: run.lives, refund: h.refund ?? 0, wl: `${run.wins}-${run.losses}`, over: run.over, heartsLost: h.heartsLost ?? null };
     });
     // STAGE-090 (cap's ruling eaf260a2a192acf6): a loss is the lives that dusk left, before the dawn's refund (finishDay
     // gives the early-loss refund as day becomes 3, so run.lives already reads it on the result card): run.lives -
     // h.refund, the result card's own hearts (battleHud.ts)
     if (r.outcome === "loss") state.losses.push(`day ${r.day}: ${dawn.lives} -> ${r.lives - r.refund} lives${r.refund ? ` (+${r.refund} at dawn ${r.day + 1}: early-loss refund)` : ""}`);
+    // BROWSE-099F: on a hearts run every dusk moves the hearts as hearts.ts's heartsDusk says (a loss costs heartCost(day),
+    // recorded as the row's heartsLost; LAST CHANCE sets 1, once; a win or a draw costs none)
+    if (state.hearts) {
+      const want = heartsDusk(pre.lives, r.day, r.outcome, pre.lcUsed), cost = r.outcome === "loss" ? heartCost(r.day) : null;
+      if (r.lives === want && r.heartsLost === cost) state.heartsOk++;
+      else state.heartsWrong.push(`day ${r.day} ${r.outcome}: ${pre.lives} -> ${r.lives} hearts, heartsLost ${r.heartsLost} (hearts.ts: ${want}, cost ${cost})`);
+    }
     state.feel.push(`D${foe.day} ${foe.kind === "ghost" ? "ghost" : foe.name} (${foe.hero}) ${foe.cost}/${foe.budget}g vs yours ${foe.mine}g: ${r.outcome.toUpperCase()} ${r.time}s, ${r.lives} lives`);
-    log(`[${at()}] RESULT CARD: ${r.outcome === "win" ? "WIN" : r.outcome === "loss" ? "LOSS -1 LIFE" : "DRAW"} (${r.time}s sim), income +${r.income}G, lives ${r.lives}, W-L ${r.wl}${r.over ? `, run ${r.over}` : ""}`);
+    // BROWSE-099F: a hearts run's loss line as the card draws it (battleHud.ts lossLine: "-N HEARTS"), else "-1 LIFE"
+    const lossWords = r.heartsLost !== null ? `LOSS -${r.heartsLost} ${heartsWord(r.heartsLost)}` : "LOSS -1 LIFE";
+    log(`[${at()}] RESULT CARD: ${r.outcome === "win" ? "WIN" : r.outcome === "loss" ? lossWords : "DRAW"} (${r.time}s sim), income +${r.income}G, lives ${r.lives}, W-L ${r.wl}${r.over ? `, run ${r.over}` : ""}`);
     if (r.over || (day >= opts.days && (!opts.untilLoss || state.losses.length))) break;
     await tapRegion(page, touch, "next");
   }
@@ -537,7 +582,7 @@ export async function scriptedRun(page, touch, log, opts) {
     log(`[${at()}] END SCREEN: ${end.over === "complete" ? "RUN COMPLETE" : "RUN LOST"} on day ${end.day}, W-L ${end.wl}, ${end.lives} lives`);
   } else log(`[${at()}] stopped after day ${end.day - 1 || end.day} as planned (run continues), W-L ${end.wl}, ${end.lives} lives`);
   log(`[${at()}] days: ${end.days.join(" | ")}`);
-  log(`[${at()}] checks: event picks ${state.picks}, REFIT ${state.refitDone}, dusk losses ${state.losses.join("; ") || "none"}, reload kept the ghost ${state.reloadSame}, pool ghosts met ${state.ghosts}, stand-ins ${state.standins}, parts placed ${state.placed}, honest dusk decks ${state.foes - state.dishonest.length}/${state.foes}${state.dishonest.length ? ` (NOT HONEST: ${state.dishonest.join(", ")})` : ""}`);
+  log(`[${at()}] checks: event picks ${state.picks}, REFIT ${state.refitDone}, dusk losses ${state.losses.join("; ") || "none"}, reload kept the ghost ${state.reloadSame}, pool ghosts met ${state.ghosts}, stand-ins ${state.standins}, parts placed ${state.placed}, honest dusk decks ${state.foes - state.dishonest.length}/${state.foes}${state.dishonest.length ? ` (NOT HONEST: ${state.dishonest.join(", ")})` : ""}${state.hearts ? `, hearts as hearts.ts ${state.heartsOk}/${state.foes} dusks${state.heartsWrong.length ? ` (NOT AS THE RULE: ${state.heartsWrong.join("; ")})` : ""}` : ""}`);
   // REQ-BFG-073 (REVIEW-ZBUMP Q2): whether this run met the LAST CHANCE picker, and the card it took
   const lcs = lastChances.slice(lc0);
   state.lastChances = lcs;
@@ -555,6 +600,7 @@ export async function scriptedRun(page, touch, log, opts) {
   const sis = await page.evaluate(() => window.bb.standInSpend(window.bb.game.run.seed));
   log(`[${at()}] this run's stand-in captain per day (used when no pool ghost matches; 0.6.2 TUNE-C: the captain's named build, standInBuild, deckCost/budget): ${sis.map((s) => `D${s.day} ${s.name} +${s.hull} ${s.cost}/${s.budget}${s.pool ? " (stand-in pool deck)" : ""}`).join(" | ")}`);
   if (state.livesChanged.length) throw new Error(`a warlord fight changed lives (${state.livesChanged.join(", ")})`);
+  if (state.heartsWrong.length) throw new Error(`hearts not as src/sim/hearts.ts's rule (${state.heartsWrong.join("; ")})`); // BROWSE-099F
   if (days < 3) throw new Error("scripted run played fewer than 3 days");
   if (opts.check === "desk" && (["v", "e", "m", "h"].some((k) => (fp[k] || 0) < 2) || !state.warlordLosses.length || !state.matriarchDays.includes(8) || days < 10)) {
     throw new Error("desk run missed a required step (each tier twice, an event twice, a warlord loss, the Matriarch on day 8, 10 days)");
@@ -563,10 +609,13 @@ export async function scriptedRun(page, touch, log, opts) {
     // 0.6.0c: the 0.6.0a throws are back (a dusk loss from 5 to 4 lives; CONTINUE after the dusk
     // reload meets the same ghost), and the takes: HERALD's STAKE paid out or lost on the next Hard
     // warlord, SCOUT's SPY followed by a dusk against the scouted deck
+    // BROWSE-099F: on a hearts run the forced loss goes HEARTS_START -> HEARTS_START - heartCost(weakenDay) (10 -> 9) and
+    // day 3's dawn has no refund; on a lives run, 5 -> 4 and the refund, as before
+    const forced = state.hearts ? `${HEARTS_START} -> ${HEARTS_START - heartCost(opts.weakenDay)}` : "5 -> 4";
     const took = Object.entries(state.took).map(([id, d]) => `${id} ${state.take[id][0]} on day ${d}`);
-    log(`[${at()}] takes: ${took.join(", ") || "none"}; bounty: ${state.bountyLog || "-"}; dusk fought the scouted deck: ${state.scoutFought}; dusk lost 5 -> 4: ${state.losses.some((l) => l.includes("5 -> 4"))}; dusk reload kept the ghost: ${state.reloadSame}`);
-    if (!state.losses.some((l) => l.includes("5 -> 4"))) throw new Error("desk run never lost a dusk fight from 5 to 4 lives");
-    if (!state.refund3) throw new Error("desk run: day 3's dawn did not read 5 lives with run.refund { day: 3, lives: 1 }"); // STAGE-090
+    log(`[${at()}] takes: ${took.join(", ") || "none"}; bounty: ${state.bountyLog || "-"}; dusk fought the scouted deck: ${state.scoutFought}; dusk lost ${forced}: ${state.losses.some((l) => l.includes(forced))}; dusk reload kept the ghost: ${state.reloadSame}`);
+    if (!state.losses.some((l) => l.includes(forced))) throw new Error(`desk run never lost a dusk fight from ${forced} ${state.hearts ? "hearts" : "lives"}`);
+    if (!state.refund3) throw new Error(state.hearts ? `desk run: day 3's dawn did not read ${HEARTS_START - heartCost(opts.weakenDay)} hearts with no early-loss refund (a hearts run)` : "desk run: day 3's dawn did not read 5 lives with run.refund { day: 3, lives: 1 }"); // STAGE-090
     if (!state.reloadSame) throw new Error("desk run: CONTINUE after the dusk reload did not meet the same ghost");
     for (const id of Object.keys(state.take)) if (!state.took[id]) throw new Error(`desk run did not take ${id}'s ${state.take[id][0]}`);
     if (state.took.herald && !state.bountyLog) throw new Error("desk run: the staked bounty never met a Hard warlord");
