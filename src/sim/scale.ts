@@ -1,7 +1,7 @@
 // SCALE-2a (REQ-BFG-098, REQ-BFG-110, REQ-BFG-050, REQ-BFG-100; BRIEF-SCALE2a; ref/scale1/REPORT-SCALE1.md 3.2, 8 S2):
 // THE SCALING RELEASE'S SIM HOOKS ("1E"), behind one switch.
 //
-// What the switch turns on (battle.ts reads it once, when a Battle is made: Battle.scale):
+// What the switch turns on (battle.ts reads it once, when a Battle is made: Battle.scaleRigs):
 //  - REQ-BFG-110's order of operations: FOR EACH DMG rides its own accumulator (Payload.each), so DRAKE NOZZLE converts
 //    only the DMG from rigs' stat rows (Payload.flat); every other reader of the flat bonus reads the sum (flatOf);
 //  - the counts the readers need: a rig's own hits (GateState.ownHits) and hits taken (SideState.hitsTaken), kept off

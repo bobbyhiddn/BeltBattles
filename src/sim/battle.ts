@@ -73,7 +73,7 @@ export interface Payload {
   flat: number; // flat damage
   // SCALE-2a (REQ-BFG-110): the FOR EACH DMG (step 4 of the order: a count read at a rig's hit), kept apart from `flat`
   // (the slug's own and the stat rows' DMG, step 2) so DRAKE NOZZLE converts `flat` only. Set only while SCALE_RIGS is on
-  // (Battle.scale); every other reader of the flat bonus reads both (scale.ts flatOf). Copies keep it; a split scales it.
+  // (Battle.scaleRigs); every other reader of the flat bonus reads both (scale.ts flatOf). Copies keep it; a split scales it.
   each?: number;
   burn: number;
   shock: boolean;
@@ -541,7 +541,7 @@ export class Battle {
   private windBp = 0; // HULL-1a: the wind's share blown since its last whole tick, in basis-point ticks (scaled only)
   /** SCALE-2a (REQ-BFG-110, REQ-BFG-098): are the scaling hooks on in this fight (SCALE_RIGS, or withScaleRigs, where it
    *  was made)? Read once, here: the FOR EACH accumulator, the counts and `reads`. Off: every hook is inert. */
-  readonly scale: boolean = scaleRules();
+  readonly scaleRigs: boolean = scaleRules();
 
   /** RUNES-2a: `wins`, the wins each side carried into the fight (the run's own, a ghost's snapshot `wins`; 0 for a
    *  stand-in or a warlord), read only by a side holding WARLORD'S DUE; the record keeps them only then (replay.ts), so a
@@ -560,14 +560,14 @@ export class Battle {
     this.sides = [this.makeSide(0, cloneBuild(player)), this.makeSide(1, cloneBuild(enemy))];
     let reads = false;
     // SCALE-2a (REQ-BFG-098): with SCALE_RIGS on, a `reads` wins piece (TROPHY CHAIN) reads them as WARLORD'S DUE does
-    for (const s of this.sides) if (s.rune?.winDmgPct || this.scale && this.sideReads(s, "wins")) { s.wins = Math.max(0, Math.floor(wins?.[s.side] ?? 0)); reads = true; }
+    for (const s of this.sides) if (s.rune?.winDmgPct || this.scaleRigs && this.sideReads(s, "wins")) { s.wins = Math.max(0, Math.floor(wins?.[s.side] ?? 0)); reads = true; }
     if (reads && wins) this.record.wins = [Math.max(0, Math.floor(wins[0])), Math.max(0, Math.floor(wins[1]))];
     // SCALE-2a (REQ-BFG-098): `lost`, the hearts each side had lost coming in, passed in the way `wins` is (the run's own,
     // a ghost's from its snapshot's lives: scale.ts heartsLost; nothing from a stand-in, a warlord, the bots, the harness
     // or the tools: 0), kept on each side only while SCALE_RIGS is on (GRUDGE ROD's count), whole and never below 0
-    if (this.scale) for (const s of this.sides) s.heartsLost = Math.max(0, Math.floor(lost?.[s.side] ?? 0));
+    if (this.scaleRigs) for (const s of this.sides) s.heartsLost = Math.max(0, Math.floor(lost?.[s.side] ?? 0));
     // ... and the record keeps them only when a side reads them (a `reads` heartsLost piece), as `wins` (replay.ts)
-    if (this.scale && lost && this.sides.some((s) => this.sideReads(s, "heartsLost"))) this.record.lost = [this.sides[0].heartsLost!, this.sides[1].heartsLost!];
+    if (this.scaleRigs && lost && this.sides.some((s) => this.sideReads(s, "heartsLost"))) this.record.lost = [this.sides[0].heartsLost!, this.sides[1].heartsLost!];
     if (this.scaled) this.record.day = day; // HULL-1a: only a fight on the day's hull keeps its day
     raceLink(this.sides); // races: a side facing SIPHON gets Drag state
     // RUNES-1 (REQ-BFG-058): battle-start runes (no RNG; nothing happens on a side without runes)
@@ -1755,7 +1755,7 @@ export class Battle {
    *  goes to the payload's second accumulator while SCALE_RIGS is on, so DRAKE NOZZLE (step 3) never converts it; off, it
    *  adds to `flat` exactly as before. */
   private forEach(p: Payload, n: number): void {
-    if (this.scale) p.each = (p.each ?? 0) + n;
+    if (this.scaleRigs) p.each = (p.each ?? 0) + n;
     else p.flat += n;
   }
 
@@ -1768,7 +1768,7 @@ export class Battle {
     // 0.6.1c ASSEMBLY LINE ★3 HOT START: while it lasts the gate's effect applies twice (overclock.ts, ARSENAL.md §3.4).
     // beltside-062c (DESIGN §12 P7): hotUntil is the rig's, so every arrow of the rig is overclocked, on any belt
     const p = a.p;
-    if (this.scale) g.ownHits = (g.ownHits ?? 0) + 1; // SCALE-2a (REQ-BFG-098): this hit counts, before anything reads it
+    if (this.scaleRigs) g.ownHits = (g.ownHits ?? 0) + 1; // SCALE-2a (REQ-BFG-098): this hit counts, before anything reads it
     if (g.def.gate?.overclockCooldown) (p.boosters ??= []).push(g.uid);
     const booster = g.boostedBy.find(({ booster, route }) => route === h.route && p.boosters?.includes(booster.uid) && booster.online &&
       !booster.wrecked && booster.disrupted <= 0 && booster.frozen <= 0 && booster.cooldown <= 0);
@@ -1788,7 +1788,7 @@ export class Battle {
     // SCALE-2a (REQ-BFG-110): its `flat` is a stat row (step 2), its `each` a FOR EACH add (step 4: this.forEach)
     if (e.pincer) {
       const each = e.pincer.each * Math.min(e.pincer.max ?? Infinity, this.crossfire(s, h));
-      if (this.scale) { p.flat += e.pincer.flat; this.forEach(p, each); } else p.flat += e.pincer.flat + each;
+      if (this.scaleRigs) { p.flat += e.pincer.flat; this.forEach(p, each); } else p.flat += e.pincer.flat + each;
       addDmg += each;
     }
     if (e.latch) p.flat += e.latch.flat; // TWIN LATCH: each payload it hits (its hold is E4, after the tile's hits)
@@ -1823,7 +1823,7 @@ export class Battle {
       const spent = Math.min(p.burn, e.quench.stacks ?? Infinity);
       // SCALE-2a (REQ-BFG-110): its `flat` is a stat row (step 2), its perBurn part a FOR EACH add (step 4)
       const each = spent * e.quench.perBurn;
-      if (this.scale) { p.flat += e.quench.flat; this.forEach(p, each); } else p.flat += e.quench.flat + each;
+      if (this.scaleRigs) { p.flat += e.quench.flat; this.forEach(p, each); } else p.flat += e.quench.flat + each;
       addDmg += each;
       p.burn -= spent;
     }
@@ -1848,7 +1848,7 @@ export class Battle {
     }
     // SCALE-2a (REQ-BFG-098): a scaling rig's reader line, its count read at this hit (step 4: before a split, which scales
     // it); ignored with SCALE_RIGS off
-    const read = this.scale && e.reads ? this.giveRead(s, e.reads, this.readCount(s, e.reads.count, { g, route: h.route }), p, g.uid) : undefined;
+    const read = this.scaleRigs && e.reads ? this.giveRead(s, e.reads, this.readCount(s, e.reads.count, { g, route: h.route }), p, g.uid) : undefined;
     if (read?.kind === "dmg") addDmg += read.amount;
     if (e.shock) {
       p.shock = true;
@@ -2023,7 +2023,7 @@ export class Battle {
     // SCALE-2a (REQ-BFG-098): the gun parts' reader lines, each count read at this shot; their DMG joins the slug's FOR EACH
     // DMG before its damage is made (step 4: DRAKE NOZZLE never converts it; step 5's % applies once, to the total).
     // Ignored with SCALE_RIGS off
-    const read = this.scale && tu.reads ? this.shotReads(s, tu, p, queued) : undefined;
+    const read = this.scaleRigs && tu.reads ? this.shotReads(s, tu, p, queued) : undefined;
     if (tu.core.bought) return this.fireCore(s, tu, p, k, queued, fin, read); // 0.6.1b; the identity shot below is unchanged
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
@@ -2268,7 +2268,7 @@ export class Battle {
     const def = this.sides[pr.from === 0 ? 1 : 0];
     // SCALE-2a (REQ-BFG-098): every enemy impact on def's ship counts (each `impact` event: a splash, arc or lance part too),
     // any target, before a SHIELD can stop it (a block counts)
-    if (this.scale) def.hitsTaken = (def.hitsTaken ?? 0) + 1;
+    if (this.scaleRigs) def.hitsTaken = (def.hitsTaken ?? 0) + 1;
     const ammo = AMMO[pr.payload.ammo];
     const hit = pr.lance ? hullTarget() : pr.target;
     // 0.6.1b: a SCATTER pellet's Fray bonus x its share, so Fray isn't multiplied (absent on identity shots)

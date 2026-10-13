@@ -117,8 +117,8 @@ describe("SCALE-2a: the switch", () => {
     expect(() => withScaleRigs(() => { throw new Error("x"); })).toThrow("x");
     expect(scaleRules()).toBe(false);
     const on = withScaleRigs(() => new Battle(furnaceBench(), barge(), SEED));
-    expect(on.scale).toBe(true);
-    expect(new Battle(furnaceBench(), barge(), SEED).scale).toBe(false);
+    expect(on.scaleRigs).toBe(true);
+    expect(new Battle(furnaceBench(), barge(), SEED).scaleRigs).toBe(false);
   });
 });
 
