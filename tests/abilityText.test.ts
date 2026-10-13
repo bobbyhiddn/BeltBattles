@@ -49,7 +49,10 @@ describe("the glossary's engine numbers (SIM) are the sim's", () => {
     // pr.payload.poison)`, `def.hull.poison.t = ${SIM.poisonTime};`, `damage = po.stacks * ${SIM.poisonTick};` and
     // `damage = roundHalfUp(po.stacks * ${SIM.poisonTick} * po.acc);`)
     for (const gone of ["poisonMax", "poisonTime", "poisonTick", "scrapQueue"]) expect(SIM, gone).not.toHaveProperty(gone);
-    expect(battle).not.toMatch(/hull\.poison/);
+    // SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 2): POISON comes back behind SCALE_RIGS as a count on the hull
+    // (HullState.poison, a number: battle.ts impact and hullEffects), so the guard is on the old pool's own fields
+    // (was /hull\.poison/): the Y7b2 pool (stacks, a timer, a capped tick) stays gone
+    expect(battle).not.toMatch(/hull\.poison\.(stacks|t|acc)\b/);
     // NUM-3 (R1's STUN fold): SABOT's 5 / 4 / 3 s stalls and bare-hull +60, DRAG CHAIN's factory +0.8 s and turret +0.5 s
     // delays, SNAG's x0.8 and CHILL's x0.75 left the sim and SIM (sabotBelt, sabotFactory, sabotTurret, sabotHull,
     // chainFactory, chainTurret, snag, chill). Their checks become: a sabot, frost or chain round STUNs for its own data's

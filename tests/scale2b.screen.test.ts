@@ -107,7 +107,9 @@ function hue(h: string): number {
 describe("SCALE-2b screen: the venom colour", () => {
   it("a yellow-green apart from lime (HP, SWARM), HEAL's green, BURN's fire3 and the yellow; it reads on the dark board", () => {
     expect(C.venom).toBe("#C4F032");
-    expect(ICON_COLOUR[ICON.POISON]).toBe(C.venom);
+    expect(ICON_COLOUR[ICON.POISON]).toBeUndefined(); // off: ICON_COLOUR is the base's table
+    on(() => expect(ICON_COLOUR[ICON.POISON]).toBe(C.venom));
+    expect(ICON_COLOUR).not.toHaveProperty(ICON.POISON);
     const h = hue(C.venom);
     expect(h).toBeGreaterThan(65);
     expect(h).toBeLessThan(85);
@@ -126,6 +128,7 @@ describe("SCALE-2b screen: the keyword, its reminder and its glossary row", () =
   it("off: KEYWORDS is the shipped 9, {*POISON} stays markup, no POISON row, colour word or sight", () => {
     expect(SCALE_RIGS).toBe(false);
     expect([...KEYWORDS]).toEqual(SHIPPED_KEYWORDS);
+    expect(PLAYER_WORD).not.toHaveProperty("POISON");
     expect(icons("{*POISON}")).toBe("{*POISON}");
     expect(glossaryEntry("POISON")).toBeUndefined();
     expect(glossaryWordsIn("THE FOE HAS 4 POISON NOW")).toEqual([]);

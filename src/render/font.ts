@@ -80,8 +80,7 @@ export const KEYWORDS: readonly KeywordName[] = KEYWORD_NAMES.slice(0, 9);
  */
 export const PLAYER_WORD: Readonly<Record<KeywordName, string>> = {
   BURN: "BURN", STUN: "STUN", HEAT: "HEAT", FRAY: "FRAY", PLATE: "SHIELD", PAIR: "PAIR", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN",
-  POISON: "POISON", // SCALE-2b (REQ-BFG-108): itself (read only while SCALE_RIGS is on: KEYWORDS holds POISON only then)
-};
+} as Record<KeywordName, string>; // SCALE-2b (REQ-BFG-108): + POISON: "POISON" while SCALE_RIGS is on (the hook below)
 /** CARD-3 (REQ-BFG-107): the internal keyword a player word names ("SHIELD" -> PLATE, "WARD" -> SHIELD), else undefined. */
 export const keywordOfWord = (word: string): KeywordName | undefined =>
   KEYWORDS.find((k) => PLAYER_WORD[k] === word);
@@ -297,10 +296,9 @@ export const ICON_COLOUR: Readonly<Record<string, string>> = {
   [ICON.SHIELD]: C.rune3,
   [ICON.HEAL]: C.green,
   [ICON.REGEN]: C.verd3,
-  // SCALE-2b (REQ-BFG-108): POISON the venom yellow-green (palette.ts C.venom), clear of your HP bar's lime, HEAL's green
-  // and BURN's fire3; looked up only for its glyph, which nothing draws with SCALE_RIGS off
-  [ICON.POISON]: C.venom,
 };
+// SCALE-2b (REQ-BFG-108): ICON_COLOUR[ICON.POISON] is the venom yellow-green (palette.ts C.venom), clear of your HP bar's
+// lime, HEAL's green and BURN's fire3, set while SCALE_RIGS is on (the hook below; off, the table is the base's)
 
 /** The private-use icons (HULL ♥ and STAR ★ are ordinary text: "★2" stays a star mark, as today). SCALE-2b: + POISON's
  *  drop (ICON.POISON is not enumerable), so a line holding it measures and strips it as an icon. */
@@ -310,13 +308,22 @@ const KEYWORD_SET = new Set<string>(KEYWORDS);
 
 // SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): POISON joins the keywords while SCALE_RIGS is on (the 10th of the
 // budget's 12), after REGEN; off, KEYWORDS is the shipped 9, exactly. The switch's hook (sim/scale.ts onSetScaleRigs).
+// So do POISON's player word (PLAYER_WORD) and its colour (ICON_COLOUR): tests/card3.test.ts (r) and icons.test.ts pin
+// both tables, as shipped.
 onSetScaleRigs((on) => {
-  const list = KEYWORDS as KeywordName[];
+  const list = KEYWORDS as KeywordName[], words = PLAYER_WORD as Record<string, string>, colours = ICON_COLOUR as Record<string, string>;
   const at = list.indexOf("POISON");
   if (on && at < 0) list.push("POISON");
   if (!on && at >= 0) list.splice(at, 1);
-  if (on) KEYWORD_SET.add("POISON");
-  else KEYWORD_SET.delete("POISON");
+  if (on) {
+    KEYWORD_SET.add("POISON");
+    words.POISON = "POISON";
+    colours[ICON.POISON] = C.venom;
+  } else {
+    KEYWORD_SET.delete("POISON");
+    delete words.POISON;
+    delete colours[ICON.POISON];
+  }
 });
 
 /** U1: whether `ch` (one UTF-16 unit) is a private-use icon glyph (DMG .. PAIR). */
