@@ -54,9 +54,13 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     // HULL-ON (the flip, PICK): with PICK on the seed step grades every seed ghost (tools/samplePool.ts generateSamplePool:
     // `grade`, net.GRADE_FIELD, v3, written last of all), so POOL[0]'s keys are SNAPSHOT_KEYS and then the grade (was
     // SNAPSHOT_KEYS alone); its ungraded copy (as with PICK off) has SNAPSHOT_KEYS exactly
-    expect(Object.keys(net.checkSnapshot(POOL[0]))).toEqual([...local.SNAPSHOT_KEYS, net.GRADE_FIELD]);
+    // S8 run 3 (re-pinned by cause the pools, test only; RULING-S8-R5 section 3 item 2): the stand-in pool regenerated once
+    // with every switch on (P1 83c039d) carries each deck's road log (its tuple's seventh element), so POOL[0] (furnace d1
+    // sample-run-furnace-0) carries it too, as v3's `road` (net.ROAD_FIELD, after createdAt and before the grade). Was
+    // [...SNAPSHOT_KEYS, grade] and, ungraded, SNAPSHOT_KEYS exactly (green at 7cc41c6)
+    expect(Object.keys(net.checkSnapshot(POOL[0]))).toEqual([...local.SNAPSHOT_KEYS, net.ROAD_FIELD, net.GRADE_FIELD]);
     const { grade: _grade, ...ungraded } = POOL[0];
-    expect(Object.keys(net.checkSnapshot(ungraded))).toEqual([...local.SNAPSHOT_KEYS]);
+    expect(Object.keys(net.checkSnapshot(ungraded))).toEqual([...local.SNAPSHOT_KEYS, net.ROAD_FIELD]);
     expect(local.SNAPSHOT_VERSION).toBe(net.SNAPSHOT_VERSION);
     expect(String(local.ID_PATTERN)).toBe(String(net.ID_PATTERN));
     expect([local.MAX_DAY, local.MAX_LIVES]).toEqual([net.MAX_DAY, net.MAX_LIVES]);
