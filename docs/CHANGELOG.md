@@ -41,6 +41,7 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - Each belt shows the slugs on it while the fight runs. A one-tile belt that joins another shows none: its slugs are
   counted on the belt they join.
 - Tap or hover a plate's counts, a gun or a belt to read each count's rule.
+- A counter's panel and a part's face in battle show that day's numbers, as the build screen does.
 - A PAIR shows on the board: both belts' last tiles flash blue, a bracket joins them at the gun, PAIR's mark pops over
   it, and each hit of the paired shot carries the mark.
 - A load waiting for its partner makes its belt's last tile glow until its window closes.
