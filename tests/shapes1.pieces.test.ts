@@ -403,9 +403,16 @@ describe("SHAPES-1 S1/S4 after the merge of c099-pre8 (cap's RUN2 note 1.3-1.4):
       const old = validateUpload(rigs.build, rigs.day, "bb-0.9.7", { seed: rigs.seed });
       expect(old.ok).toBe(false);
       expect(old.errors[0]).toMatch(/^rules: .*shaped rigs/);
+      // MERGE-099F (REQ-BFG-109, -086): HULL-ON's OPEN_RUNES judges a bb-0.9.7 record's runes on the closed (weighted)
+      // offers (rulesGate.ts openRunesFor), and this fixture's runes are the merged world's open offers (its par deck plays
+      // with OPEN_RUNES on), so with the seed the rune check refuses it first; was the rot error (c099's world, no
+      // OPEN_RUNES). The rot rule is read without the seed (no offer re-derived), as before
       const oldG = validateUpload(gantry.build, gantry.day, "bb-0.9.7", { seed: gantry.seed });
       expect(oldG.ok).toBe(false);
-      expect(oldG.errors.some((e) => /only rigs turn/.test(e)), oldG.errors.join(" | ")).toBe(true);
+      expect(oldG.errors[0]).toBe("rune: runes[5]: ASH CLOAK was not offered at the dawn of day 6");
+      const oldR = validateUpload(gantry.build, gantry.day, "bb-0.9.7");
+      expect(oldR.ok).toBe(false);
+      expect(oldR.errors.some((e) => /only rigs turn/.test(e)), oldR.errors.join(" | ")).toBe(true);
       expect(inShapesWorld("bb-0.9.7", () => shapesRules())).toBe(false);
       expect(shapesRules()).toBe(true); // put back after
     });
