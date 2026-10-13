@@ -47,8 +47,12 @@ function deckDigest(): string {
   }
   return h.digest("hex").slice(0, 16);
 }
-/** The base's digest with every switch off: parAZ-accepted 5c57914 (kit-refitaz/probe1.sh deckdigest parAZ-accepted). */
-const BASE_DIGEST_OFF = "3b4f48c519581dc8";
+/** The base's digest with every switch off: parAZ-accepted 5c57914 (kit-refitaz/probe1.sh deckdigest parAZ-accepted).
+ *  S8 run 3 (re-pinned by cause, test only): "S8 lane 2: CAPTAIN_RUNES regenerated with every switch on (NPC_DAY moved
+ *  SOOTJAW d10 last_stand -> scrap_saint and RATCHET d7 scrap_biter -> iron_skin); one table for every world; RULING-S8-R3"
+ *  (item 2: the all-off world's warlord runes move with the one table; a9dfbcb, rivalBuild = captainRunesOn(...,
+ *  CAPTAIN_RUNES[id], day)). Was "3b4f48c519581dc8" (green at acdae00); the same new digest at a9dfbcb and at s8's tip. */
+const BASE_DIGEST_OFF = "2892e67f4593a421";
 
 /** tests/captains.luck.test.ts's firstOfferDay: the first day the caravan can offer `d`. */
 function firstOfferDay(d: ItemDef): number {
