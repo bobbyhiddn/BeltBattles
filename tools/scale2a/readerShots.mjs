@@ -39,16 +39,18 @@ async function serve(route) {
 
 /** Open a fight and step it (1X, frame by frame) until its battle reaches `tick` (or ends), then `extra` frames more. */
 const stepTo = (page, f, tick, extra) => page.evaluate(([f, tick, extra]) => {
-  const bb = window.bb, g = bb.game;
+  const bb = window.bb, g = bb.game, was = g.screen;
   if (!bb.openFight(f.a, f.b, f.seed, { day: f.day })) return { ok: false };
-  const a = g.screen.arena;
   let guard = 0;
+  while ((g.screen === was || g.pending) && guard++ < 600) g.step(1 / 60); // game.go: the wipe, then the replay screen
+  const a = g.screen.arena;
+  guard = 0;
   while (a.b.ticks < tick && !a.b.over && guard++ < 30000) g.step(1 / 60);
   for (let i = 0; i < extra; i++) g.step(1 / 60);
   g.render();
   const fx = a.fx, live = fx.popList.slice(0, fx.popCount);
   return {
-    ok: true, ticks: a.b.ticks, t: +a.b.t.toFixed(3), popCount: fx.popCount, readerCount: fx.readerCount ?? null,
+    ok: a.b.record.seed === f.seed, ticks: a.b.ticks, t: +a.b.t.toFixed(3), popCount: fx.popCount, readerCount: fx.readerCount ?? null,
     readers: live.filter((p) => p.reader).map((p) => ({ text: p.text, x: Math.round(p.x), y: Math.round(p.y), age: +p.t.toFixed(3), side: p.side, big: p.big, color: p.color })),
   };
 }, [f, tick, extra]);
@@ -85,9 +87,12 @@ async function main() {
       const rows = [];
       for (const f of fights) {
         const r = await page.evaluate((f) => {
-          const bb = window.bb, g = bb.game;
+          const bb = window.bb, g = bb.game, was = g.screen;
           if (!bb.openFight(f.a, f.b, f.seed, { day: f.day })) return { ok: false };
+          let wait = 0;
+          while ((g.screen === was || g.pending) && wait++ < 600) g.step(1 / 60); // game.go: the wipe, then the replay screen
           const a = g.screen.arena, fx = a.fx;
+          if (a.b.record.seed !== f.seed) return { ok: false, why: "not the fight's screen" };
           let high = 0, readers = 0, full = 0, frames = 0, after = 0, guard = 0;
           while (after < 90 && guard++ < 40000) {
             g.step(1 / 60);
