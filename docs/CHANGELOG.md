@@ -88,6 +88,28 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - LAST CHANCE's part and hull cards leave clear space between their items, the box under a hovered shop card on a
   desktop leaves space under its family line, and a rune's read-out from the rune bar ends after its last line unless a
   note shows.
+- The first time you meet a keyword on a rune card or a piece's panel, its meaning opens by itself, and the first rig you
+  look at explains what rigs do. Every keyword on a rune card can be tapped for its meaning, and turrets show RATE, HOLDS
+  and GEAR SLOTS in words.
+- Rune cards: only the TAP AGAIN TO TAKE IT bar takes a rune now, so a tap on the card or on one of its words no longer
+  takes it by mistake, and on phones a card's words are easier to tap. A rune that needs a part now says which in its
+  note (COAL CHUTE: WORKS WITH A HEAT JACKET OR FURNACE'S KILN). Notes and the how-to strip no longer cover a panel's
+  title, BUY, prices or REROLL. The note about the SHIELD and WARD rename now shows once, and only to players coming back
+  from 0.9.8. Card words that playtesters misread are clearer.
+- Three new rigs take more than one deck cell: NAIL STRIP and EMBER TROUGH (2 cells, common) and SPIKE RAIL (3 cells,
+  rare). Each arrow shines from every cell, so a long rig laid along a belt hits more of it.
+- GANTRY PRESS is now 2 by 3 cells and feeds one more belt at every star.
+- ASSEMBLY LINE is now 3 cells in a line and costs 1 gold less.
+- Long rigs and the bigger factories turn: tap the piece, press R or turn the mouse wheel. If a turn doesn't fit there,
+  the next one is tried.
+- On a phone, a long piece you drag shows above your finger and snaps to the nearest spot where it fits. A ROTATE button
+  floats beside it: tap it with a second finger.
+- Cards show each piece's shape and how many hits it can make.
+- No rig or factory can be dropped on a turret's intake any more (a rig already there may stay). A turret put in over a
+  long rig or a big factory sends that piece to your cargo.
+- In a saved run, GANTRY PRESS and ASSEMBLY LINE move to a spot where their new shape fits, and the build screen says
+  so. A belt that can't stay is removed, and a factory with no room goes to your cargo.
+- When a run has no part of a kind for the SMUGGLER to sell, its card says NONE ON OFFER again.
 - No rule changed: every fight plays exactly as in 0.9.8, and online play is unchanged.
 
 ## 0.9.8: styles you earn
