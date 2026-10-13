@@ -16,6 +16,8 @@
 //
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same helpers.
 
+import type { HullState } from "./battle";
+
 /** THE switch (REQ-BFG-098, REQ-BFG-110): off in this rules version (bb-0.10.0); BUMP-1E turns it on. */
 export const SCALE_RIGS: boolean = false;
 
@@ -43,3 +45,12 @@ export function withScaleRigs<T>(fn: () => T, on = true): T {
 }
 
 setScaleRigs(SCALE_RIGS);
+
+/** SCALE-2a (REQ-BFG-098; REPORT-SCALE1 1.1): the BURN stacks on a hull: the sum of `dps` over its entries (each burning
+ *  impact pushes one entry holding that hit's stacks: battle.ts HullState.burns), not `burns.length`, which counts entries.
+ *  The count KINDLING and CINDER MAIL read (ReadCount "foeBurn"). counters.ts's C1 keeps its own sum (COUNT-1). */
+export function burnStacks(hull: Pick<HullState, "burns">): number {
+  let n = 0;
+  for (const b of hull.burns) n += b.dps;
+  return n;
+}
