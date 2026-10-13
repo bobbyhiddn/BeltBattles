@@ -34,8 +34,6 @@ import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
 import { holdsPlating } from "../render/wave3Moments"; // 0.8.0 I1 M4: wave 3's plating on any hull
 import type { Battle } from "../sim/battle"; // HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): windReadout's battle
 import { windShareBp } from "../sim/hullScale"; // HULL-1c: the wind's share a second, the bar's read-out
-import { sustShown } from "../sim/hullScale"; // CNT-DAY2 (REQ-BFG-100): the REGEN badge on the fight's day, x S(d)
-import { textDay } from "../ui/fightDay"; // CNT-DAY2: the fight's day (the day's hull only; else none: as before)
 
 /** Playback speeds (REQ-BFG-014, spec §22): presentation only, the sim steps the same fixed ticks. */
 export const SPEEDS = [0.5, 1, 2, 4];
@@ -174,12 +172,8 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
   // rest of SHIELD_CAP dim; a broken one flashes out), and a side with REGEN (MENDING LOOMs, FLIP-X1: or GREEN THREAD) its
   // REGEN badge before its HP. Their room is kept from the start, so the bar never moves. WIND-1 (REQ-BFG-097): SHIELD's
   // count after its pips; plating's layer (whenever plated() or the side holds any) with its number
-  // CNT-DAY2 (REQ-BFG-100): on the day's hull Battle.heal lands the second's REGEN (sustainTick's one sum) x S(d), rounded
-  // down; the badge shows that heal, and its room (from regenMax, so the bar still never moves) that number's width. No day
-  // (textDay undefined: no day, or the switch off) gives regenNow and regenMax themselves, as before
-  const day = textDay(a.b);
   const shows = showsShield(a, side), plating = plated(a, side) || s.plate.plate > 0;
-  const rmax = sustShown(regenMax(a, side), day), regenRoom = rmax > 0 ? textWidth(`+${fmtDmg(rmax)}`, "3") + 3 : 0;
+  const rmax = regenMax(a, side), regenRoom = rmax > 0 ? textWidth(`+${fmtDmg(rmax)}`, "3") + 3 : 0;
   const row = plateRow({ x: r.x, y: r.y, w: r.w, h: r.h, lead: tx - (r.x + 3) + nameW, hp: s.hull.hp, max: s.hull.max, shield: shows ? s.shield ?? 0 : null, regenRoom, plate: plating ? s.plate.plate : null });
   const ty = row.ty;
   drawText(g, row.hull, row.hullX, row.hy, C.white, { font: "5" });
@@ -197,7 +191,7 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     }
   }
   if (row.regenX !== null) {
-    const now = sustShown(regenNow(a, side), day); // CNT-DAY2: the heal that lands each second on this fight
+    const now = regenNow(a, side);
     if (now > 0) drawText(g, `+${fmtDmg(now)}`, row.regenX, ty, ICON_COLOUR[ICON.REGEN], { font: "3", align: "right" });
   }
   if (row.plate) {
