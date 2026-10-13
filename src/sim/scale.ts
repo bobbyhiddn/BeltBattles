@@ -17,7 +17,9 @@
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same helpers.
 
 import type { HullState, Payload } from "./battle";
-import { START_LIVES } from "./content";
+import { ITEMS, START_LIVES, type ReadCount } from "./content";
+import type { Build } from "./deck";
+import { effectAt, starsOf } from "./stars";
 
 /** THE switch (REQ-BFG-098, REQ-BFG-110): off in this rules version (bb-0.10.0); BUMP-1E turns it on. */
 export const SCALE_RIGS: boolean = false;
@@ -76,4 +78,15 @@ export function startHearts(run?: { lives: number; hearts?: boolean }): number {
  *  1..MAX_LIVES, against the same start), from startHearts(run); whole, never below 0. What the Battle's `lost` carries. */
 export function heartsLost(lives: number, run?: { lives: number; hearts?: boolean }): number {
   return Math.max(0, startHearts(run) - Math.floor(lives));
+}
+
+/** SCALE-2a (REQ-BFG-098): does build b hold a piece whose reader line counts `count` at its stars (a rig's
+ *  GateEffect.reads, a gun part's ModSpec.reads)? The battle record keeps `wins` and `lost` only then (replay.ts). */
+export function buildReads(b: Build, count: ReadCount): boolean {
+  const reads = (def: string, stars: number): boolean => {
+    if (!ITEMS[def]) return false;
+    const d = effectAt(def, stars);
+    return d.gate?.reads?.count === count || d.mod?.reads?.count === count;
+  };
+  return b.items.some((p) => reads(p.def, starsOf(p))) || b.mods.some((m) => reads(m.def, starsOf(m)));
 }

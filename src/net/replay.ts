@@ -9,6 +9,7 @@ import { checkBuildShape, MAX_DAY } from "./snapshot";
 import { runeMods } from "../sim/runes"; // RUNES-2a (REQ-BFG-058): WARLORD'S DUE's wins travel in the record
 import { rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules
 import { dayScaled, hullScaleRules } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the record's day
+import { buildReads, scaleRules } from "../sim/scale"; // SCALE-2a (REQ-BFG-098): wins and hearts lost for `reads` pieces
 
 export interface BattleOutcome {
   winner: Side | -1 | null; // null only if the tick budget ran out first
@@ -38,12 +39,15 @@ function checkSeed(seed: unknown): number {
  *  every other record is as before. HULL-1a (REQ-BFG-079): `day`, the fight's day, kept only when the fight plays the
  *  day's hull (HULL_SCALE on: hullScale.ts dayScaled), so every other record is as before. */
 export function battleRecordFor(player: Build, ghost: Build, seed: number, wins?: readonly [number, number], day?: number, lost?: readonly [number, number]): BattleRecord {
-  void lost; // SCALE-2a (REQ-BFG-098): hearts lost, kept only when a side reads them (step 5)
-  const reads = !!(runeMods(player.runes)?.winDmgPct || runeMods(ghost.runes)?.winDmgPct);
+  // SCALE-2a (REQ-BFG-098): with SCALE_RIGS on, a `reads` piece's wins (TROPHY CHAIN) and hearts lost (GRUDGE ROD) travel
+  // too, as WARLORD'S DUE's wins do (the Battle keeps them on the same rule)
+  const scale = scaleRules(), on = (count: "wins" | "heartsLost"): boolean => scale && (buildReads(player, count) || buildReads(ghost, count));
+  const reads = !!(runeMods(player.runes)?.winDmgPct || runeMods(ghost.runes)?.winDmgPct) || on("wins");
   return {
     rules: RULES_VERSION, seed: checkSeed(seed), builds: [cloneBuild(player), cloneBuild(ghost)],
     ...(reads && wins ? { wins: [checkWins(wins[0]), checkWins(wins[1])] as [number, number] } : {}),
     ...(dayScaled(day) ? { day: checkDay(day) } : {}),
+    ...(lost && on("heartsLost") ? { lost: [checkWins(lost[0]), checkWins(lost[1])] as [number, number] } : {}),
   };
 }
 
@@ -77,12 +81,16 @@ export function checkRecord(record: BattleRecord): BattleRecord {
   // HULL-1a (REQ-BFG-079): the record's day, read only with HULL_SCALE on (a record without one plays at M = 1); with the
   // switch off the key is passed over, as every unknown key was before
   const d = hullScaleRules() ? (record as { day?: unknown }).day : undefined;
+  // SCALE-2a (REQ-BFG-098): the record's hearts lost, read only with SCALE_RIGS on (passed over otherwise, as `day` is)
+  const l = scaleRules() ? (record as { lost?: unknown }).lost : undefined;
+  if (l !== undefined && (!Array.isArray(l) || l.length !== 2)) throw new Error("battle record: lost must be two integers");
   return {
     rules: record.rules,
     seed: checkSeed(record.seed),
     builds: [checkBuildShape(record.builds[0], "builds[0]"), checkBuildShape(record.builds[1], "builds[1]")],
     ...(w !== undefined ? { wins: [checkWins(w[0]), checkWins(w[1])] as [number, number] } : {}),
     ...(d !== undefined ? { day: checkDay(d) } : {}),
+    ...(l !== undefined ? { lost: [checkWins(l[0]), checkWins(l[1])] as [number, number] } : {}),
   };
 }
 
@@ -93,11 +101,11 @@ export function outcomeOf(b: Battle): BattleOutcome {
 /** A fresh, unstepped Battle for animated playback of a stored record. */
 export function replayBattle(record: BattleRecord): Battle {
   const r = checkRecord(record);
-  return new Battle(r.builds[0], r.builds[1], r.seed, r.wins, r.day); // RUNES-2a: r.wins for WARLORD'S DUE; HULL-1a: r.day
+  return new Battle(r.builds[0], r.builds[1], r.seed, r.wins, r.day, r.lost); // RUNES-2a: r.wins for WARLORD'S DUE; HULL-1a: r.day; SCALE-2a: r.lost
 }
 
 /** Headless replay to the end; same result as the original simulate() call. */
 export function replay(record: BattleRecord, maxTicks?: number): BattleOutcome {
   const r = checkRecord(record);
-  return outcomeOf(simulate(r.builds[0], r.builds[1], r.seed, maxTicks, r.wins, r.day)); // HULL-1a: the record's day
+  return outcomeOf(simulate(r.builds[0], r.builds[1], r.seed, maxTicks, r.wins, r.day, r.lost)); // HULL-1a: the record's day; SCALE-2a: its hearts lost
 }

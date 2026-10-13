@@ -10,6 +10,7 @@ import {
   SPEED_K, rateMul, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type AmmoKind, type CoreRoutine, type FactorySpec, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
 } from "./content";
+import type { ReadCount, ReadSpec } from "./content"; // SCALE-2a (REQ-BFG-098): the reader field
 import { drakeConvert, pressureBonus, resolveCore, ROUTINES, spinInterval, steamInterval, type TurretCore } from "./cores"; // 0.6.1b
 import { salvoReload } from "./cores"; // Y4 (release Y; BRIEF-Y4 S1): SALVO RACK's volley reload, one helper with the turret row
 import {
@@ -38,12 +39,12 @@ import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-
 import { dayMulTenths, dayScaled, scaleTenths, windShareBp, windShareDamage } from "./hullScale";
 import { dmgDayScale, dmgMulTenths } from "./hullScale"; // HULL-1c (REQ-BFG-079; cap b6be918372b006f3): D(d), the damage day term
 import { sustDayScale, sustMulTenths, sustUnit } from "./hullScale"; // HULL-1d (REQ-BFG-079; REVIEW-HULL1C Q5): S(d), the sustain day term
-import { flatOf, scaleRules } from "./scale"; // SCALE-2a (REQ-BFG-110, REQ-BFG-098): the scaling hooks' switch; the flat bonus's sum
+import { burnStacks, flatOf, scaleRules } from "./scale"; // SCALE-2a (REQ-BFG-110, REQ-BFG-098): the scaling hooks' switch; the flat bonus's sum
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
 /** SUS-A (REQ-BFG-069): what a heal came from (the `heal` event's `source`). */
-export type HealSource = "riveter" | "mendpress" | "regen" | "rune"; // SUS-D: "rune" (TWIN SALVE, SCRAP MEDIC, LEECH VOW)
+export type HealSource = "riveter" | "mendpress" | "regen" | "rune" | "reads"; // SUS-D: "rune" (TWIN SALVE, SCRAP MEDIC, LEECH VOW); SCALE-2a: "reads" (a `reads` heal: its rig in `gate`)
 
 /** SUS-A: one side's sustain counters (made at its first SHIELD gain or heal; nothing in play reads them: the bench, the HUD). */
 export interface HealCounts {
@@ -305,6 +306,7 @@ export interface TurretState {
   // SUS-A (REQ-BFG-069), from its gear (absent without it). A STUN, freeze or disruption on the turret pauses both.
   bell?: { every: number; amount: number; timer: number }; // WARD BELL: + amount SHIELD when `timer` runs out (it then adds `every`)
   regen?: number; // MENDING LOOM: REGEN on your hull at each whole second (Battle.sustainTick)
+  reads?: ReadSpec[]; // SCALE-2a (REQ-BFG-098): its gun parts' reader lines, read at each shot (SCALE_RIGS on only; absent without one)
 }
 
 export interface HullState {
@@ -465,6 +467,7 @@ export interface BattleRecord {
   seed: number;
   builds: [Build, Build];
   wins?: [number, number]; // RUNES-2a: the wins each side carried in, only when a side holds WARLORD'S DUE (Battle)
+  lost?: [number, number]; // SCALE-2a (REQ-BFG-098): the hearts each side had lost, only when a side reads them (SCALE_RIGS on)
   // HULL-1a (REQ-BFG-079): the day the fight was on, kept only when it played the day's hull (HULL_SCALE on and a day
   // given); a record without it plays at M = 1 (replay.ts)
   day?: number;
@@ -544,12 +547,15 @@ export class Battle {
     this.record = { rules: RULES_VERSION, seed, builds: [cloneBuild(player), cloneBuild(enemy)] };
     this.sides = [this.makeSide(0, cloneBuild(player)), this.makeSide(1, cloneBuild(enemy))];
     let reads = false;
-    for (const s of this.sides) if (s.rune?.winDmgPct) { s.wins = Math.max(0, Math.floor(wins?.[s.side] ?? 0)); reads = true; }
+    // SCALE-2a (REQ-BFG-098): with SCALE_RIGS on, a `reads` wins piece (TROPHY CHAIN) reads them as WARLORD'S DUE does
+    for (const s of this.sides) if (s.rune?.winDmgPct || this.scale && this.sideReads(s, "wins")) { s.wins = Math.max(0, Math.floor(wins?.[s.side] ?? 0)); reads = true; }
     if (reads && wins) this.record.wins = [Math.max(0, Math.floor(wins[0])), Math.max(0, Math.floor(wins[1]))];
     // SCALE-2a (REQ-BFG-098): `lost`, the hearts each side had lost coming in, passed in the way `wins` is (the run's own,
     // a ghost's from its snapshot's lives: scale.ts heartsLost; nothing from a stand-in, a warlord, the bots, the harness
     // or the tools: 0), kept on each side only while SCALE_RIGS is on (GRUDGE ROD's count), whole and never below 0
     if (this.scale) for (const s of this.sides) s.heartsLost = Math.max(0, Math.floor(lost?.[s.side] ?? 0));
+    // ... and the record keeps them only when a side reads them (a `reads` heartsLost piece), as `wins` (replay.ts)
+    if (this.scale && lost && this.sides.some((s) => this.sideReads(s, "heartsLost"))) this.record.lost = [this.sides[0].heartsLost!, this.sides[1].heartsLost!];
     if (this.scaled) this.record.day = day; // HULL-1a: only a fight on the day's hull keeps its day
     raceLink(this.sides); // races: a side facing SIPHON gets Drag state
     // RUNES-1 (REQ-BFG-058): battle-start runes (no RNG; nothing happens on a side without runes)
@@ -1513,7 +1519,7 @@ export class Battle {
     s.hull.hp += add;
     c.healed += add;
     this.events.push({ type: "heal", side: s.side, amount: add, source,
-      ...(from === undefined ? {} : source === "riveter" ? { gate: from } : { factory: from }) });
+      ...(from === undefined ? {} : source === "riveter" || source === "reads" ? { gate: from } : { factory: from }) });
     return add;
   }
 
@@ -1695,6 +1701,44 @@ export class Battle {
     }
   }
 
+  /** SCALE-2a (REQ-BFG-098; content.ts ReadCount, REPORT-SCALE1 3.2): what `count` reads for side s now: at a rig's hit
+   *  (`at.g` the rig, `at.route` the belt it hits) or at a gun's shot (`at.queued`, PRESSURE BREECH's sum). */
+  private readCount(s: SideState, count: ReadCount, at: { g?: GateState; route?: number; queued?: number }): number {
+    switch (count) {
+      case "foeBurn": return burnStacks(this.sides[s.side === 0 ? 1 : 0].hull);
+      // the hit slug is on the belt (and those backed up at its gun), so never below 1; a gun part has no belt: 0
+      case "beltSlugs": return at.route === undefined ? 0 : Math.max(1, s.routes[at.route].ammo.length);
+      // in day-1 units, as ANVIL BREECH reads the pool (fireCore): its DMG takes D at impact, not S as well
+      case "ownPlate": return this.sustTenths === 10 ? s.plate.plate : Math.floor((s.plate.plate * 10) / this.sustTenths);
+      case "ownShield": return s.shield ?? 0;
+      case "hitsTaken": return s.hitsTaken ?? 0;
+      case "ownHits": return at.g?.ownHits ?? 0;
+      case "heartsLost": return s.heartsLost ?? 0;
+      case "wins": return s.wins ?? 0;
+      case "waiting": return at.queued ?? 0;
+      case "foePoison": return 0; // SCALE-2b: the POISON stacks on the foe's hull, once the hull carries them
+    }
+  }
+
+  /** SCALE-2a (REQ-BFG-098): a `reads` line gives `each` for every one counted (every `per`, rounded down): DMG to the
+   *  slug's FOR EACH accumulator, PLATE onto side s's hull (addPlate: PLATE_CAP), HEAL to its hull (heal(): BURN halves
+   *  it). Returns what it actually gave (C11's `add`), or undefined when nothing. Called only while SCALE_RIGS is on. */
+  private giveRead(s: SideState, r: ReadSpec, count: number, p: Payload, gate?: number): { amount: number; kind: "dmg" | "plate" | "heal" } | undefined {
+    const amount = r.each * (r.per ? Math.floor(count / r.per) : count);
+    if (!(amount > 0)) return undefined;
+    if (r.give === "dmg") {
+      this.forEach(p, amount);
+      return { amount, kind: "dmg" };
+    }
+    const got = r.give === "plate" ? this.addPlate(s, amount) : this.heal(s, amount, "reads", gate);
+    return got > 0 ? { amount: got, kind: r.give } : undefined;
+  }
+
+  /** SCALE-2a (REQ-BFG-098): does side s hold a piece whose `reads` counts `count` (a rig, or a gun part)? */
+  private sideReads(s: SideState, count: ReadCount): boolean {
+    return s.gates.some((g) => g.def.gate?.reads?.count === count) || s.turrets.some((tu) => !!tu.reads?.some((r) => r.count === count));
+  }
+
   /** SCALE-2a (REQ-BFG-110, the order of operations): a FOR EACH add (step 4: a count read at this hit; the slug keeps it)
    *  goes to the payload's second accumulator while SCALE_RIGS is on, so DRAKE NOZZLE (step 3) never converts it; off, it
    *  adds to `flat` exactly as before. */
@@ -1777,6 +1821,10 @@ export class Battle {
     // 0.6.2j (J14 (a)): COUNTERWEIGHT counts the tiles ridden on the payload's own journey. Y5 (release Y; DESIGN-Y row 41):
     // its def has no `max`, so every tile counts. SCALE-2a (REQ-BFG-110): a FOR EACH add (step 4)
     if (e.perTile) this.forEach(p, Math.min(e.perTile.max ?? Infinity, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each));
+    // SCALE-2a (REQ-BFG-098): a scaling rig's reader line, its count read at this hit (step 4: before a split, which scales
+    // it); ignored with SCALE_RIGS off
+    const read = this.scale && e.reads ? this.giveRead(s, e.reads, this.readCount(s, e.reads.count, { g, route: h.route }), p, g.uid) : undefined;
+    void read; // C11's `add` (step 6)
     if (e.shock) {
       p.shock = true;
       // 0.6.1p: GALVANIC COIL ★2/★3: the longest stall and jump passed wins (a 1-star coil sets neither)
@@ -1944,6 +1992,11 @@ export class Battle {
   }
 
   private fire(s: SideState, tu: TurretState, p: Payload, k: number, queued: number, fin = false): void {
+    // SCALE-2a (REQ-BFG-098): the gun parts' reader lines, each count read at this shot; their DMG joins the slug's FOR EACH
+    // DMG before its damage is made (step 4: DRAKE NOZZLE never converts it; step 5's % applies once, to the total).
+    // Ignored with SCALE_RIGS off
+    const read = this.scale && tu.reads ? this.shotReads(s, tu, p, queued) : undefined;
+    void read; // C11's `add` (step 6)
     if (tu.core.bought) return this.fireCore(s, tu, p, k, queued, fin); // 0.6.1b; the identity shot below is unchanged
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
@@ -1986,6 +2039,18 @@ export class Battle {
     if (s.stats.firstShot < 0) s.stats.firstShot = this.t;
     this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg, proj: proj.id });
     if (p.paired && s.rune?.pairTwice) this.echo(s, proj); // RUNES-2a: MOLTEN VOWS
+  }
+
+  /** SCALE-2a (REQ-BFG-098): turret tu's gun parts' reader lines at this shot, in fitting order; what they gave together
+   *  (DMG summed; a PLATE or HEAL line's only when no DMG was given), or undefined. */
+  private shotReads(s: SideState, tu: TurretState, p: Payload, queued: number): { amount: number; kind: "dmg" | "plate" | "heal" } | undefined {
+    let dmg = 0, other: { amount: number; kind: "dmg" | "plate" | "heal" } | undefined;
+    for (const r of tu.reads!) {
+      const got = this.giveRead(s, r, this.readCount(s, r.count, { queued }), p);
+      if (got?.kind === "dmg") dmg += got.amount;
+      else if (got && !other) other = got;
+    }
+    return dmg > 0 ? { amount: dmg, kind: "dmg" } : other;
   }
 
   /** RUNES-1 (REQ-BFG-058): the flat damage side s's runes add to one shot of turret tu (before the debuffs, like the
@@ -2740,6 +2805,7 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     // SUS-A (REQ-BFG-069): WARD BELL (its first SHIELD at t = every) and MENDING LOOM (absent without them)
     ...(g.shield ? { bell: { every: g.shield.every, amount: g.shield.amount, timer: g.shield.every } } : {}),
     ...(g.regen ? { regen: g.regen } : {}),
+    ...(g.reads ? { reads: g.reads } : {}), // SCALE-2a (REQ-BFG-098): read at each shot, SCALE_RIGS on only (Battle.fire)
   };
 }
 
@@ -2787,6 +2853,7 @@ export interface GearStats {
   // SUS-A (REQ-BFG-069; absent without them):
   shield?: { every: number; amount: number }; // WARD BELL
   regen?: number; // MENDING LOOM
+  reads?: ReadSpec[]; // SCALE-2a (REQ-BFG-098): each gun part's reader line, in fitting order (absent without one)
 }
 
 export function gearStats(b: Build, i: number): GearStats {
@@ -2816,6 +2883,7 @@ export function gearStats(b: Build, i: number): GearStats {
     if (md?.spall) out.spall = md.spall; // SPALL CATCHER
     if (md?.shield) out.shield = md.shield; // SUS-A: WARD BELL (a turret holds one copy of a def)
     if (md?.regen) out.regen = md.regen; // SUS-A: MENDING LOOM
+    if (md?.reads) (out.reads ??= []).push(md.reads); // SCALE-2a (REQ-BFG-098): a scaling gun part's reader line
   }
   return out;
 }

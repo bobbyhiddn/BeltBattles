@@ -3,6 +3,7 @@
 // during the first seconds), so it is inert unless a 3-star Assembly Line is on the deck. Pure: no RNG, no state.
 
 import type { GateEffect } from "./content";
+import { scaleRules } from "./scale"; // SCALE-2a (REQ-BFG-098): a `reads` line doubles only while SCALE_RIGS is on
 
 /** Y3 (release Y; DESIGN-Y row 29): does doubling `e` change any of its numbers (the bots' deck rating: a charge spent on a
  *  rig with nothing to double is worth nothing)? A TWIN LATCH (flat 0) or a speed rig: no; a damage rig: yes. */
@@ -22,7 +23,9 @@ export function boostable(e: GateEffect): boolean {
       e.burnPlus || // Y6 (release Y; DESIGN-Y 4.1): VENOM DRIP's BURN seconds, as its poison was
       // 0.8.0 P1, wave 3 (DESIGN-wave3.md 3.2): plating, the gauge, the pincer, the latch's damage and the breaker.
       // STOKER and BRACE FRAME act on no payload, so they stay unboostable.
-      e.plate || e.gauge || e.pincer || e.latch || e.breaker);
+      e.plate || e.gauge || e.pincer || e.latch || e.breaker ||
+      // SCALE-2a (REQ-BFG-098): a scaling rig's reader line, only while SCALE_RIGS is on (off, `reads` is ignored)
+      (!!e.reads && scaleRules()));
 }
 
 const cache = new WeakMap<GateEffect, GateEffect>();
@@ -57,6 +60,7 @@ export function overclocked(e: GateEffect): GateEffect {
   if (e.pincer) o.pincer = { ...e.pincer, flat: e.pincer.flat * 2, each: e.pincer.each * 2 };
   if (e.latch) o.latch = { ...e.latch, flat: e.latch.flat * 2 };
   if (e.breaker) o.breaker = { flat: e.breaker.flat * 2, floor: e.breaker.floor * 2 };
+  if (e.reads) o.reads = { ...e.reads, each: e.reads.each * 2 }; // SCALE-2a: twice its `each` (read only with SCALE_RIGS on)
   cache.set(e, o);
   return o;
 }
