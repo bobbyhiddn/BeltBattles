@@ -33,7 +33,7 @@ import { cornerTap } from "../screens/build/layout"; // TAP-093b (backlog #340):
 import { OFFERS } from "../sim/content";
 import type { BuildScreen } from "../screens/build/build";
 import { glossaryEntry, RUNE_NOTE, RUNE_REMINDER } from "./glossary"; // CARD-2 (REQ-BFG-081, K2): a rune word's definition
-import { RUNE_WORD_NOTE } from "./glossary"; // CARD-4 (REQ-BFG-081, T): the numbered notes, the word-only keywords' notes
+import { runeWordNote } from "./glossary"; // CARD-4 (REQ-BFG-081, T): the numbered notes, the word-only keywords' notes (FIX-099G: on the card's day)
 import { lineText } from "./richText"; // CARD-2 (K2): where a keyword sits on a drawn line
 import { runeKeywords, runeTextOf as runeTextOfDef, type RuneKeyword } from "./runeText"; // CARD-2 (K2)
 import { sightWord, sawWord } from "./firstSight"; // CARD-2 (REQ-BFG-004, K1): the first-sight notes on rune cards
@@ -281,7 +281,7 @@ export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void
     const ls = runeNoteLines(def, tw, C.bone); // CARD-4 run 3 (I): the reminder, then the source line
     // CARD-2 (K2): a keyword's definition (its tap, or K1's first sight) takes the room in place of the chip's line
     const k = o.word ? runeKeywordOf(def, o.word) : null;
-    if (k) drawRuneWordNote(g, r, y, ls.length, runeWordLines(def, k, tw));
+    if (k) drawRuneWordNote(g, r, y, ls.length, runeWordLines(def, k, tw, o.day)); // FIX-099G: the card's day's note
     else if (o.noteOpen) drawRuneNote(g, r, y, ls);
     y += 1 + ls.length * 7;
   }
@@ -368,18 +368,20 @@ export function runeWordOrder(def: RuneDef): string[] {
  * with that word (glossary.ts RUNE_NOTE: SHATTER SHOT's SHIELD, whose hits break a SHIELD), else the keyword's rune
  * reminder (RUNE_REMINDER: what its glossary row says, number-free, its word first), else its glossary row (HULL, BELT,
  * GOLD and DMG, plain words). Pure.
+ * FIX-099G (REQ-BFG-079, REQ-BFG-081; REVIEW-MERGE099E ruling 1): `day`, the day the card is read on (drawRuneCard's
+ * `day`), so FRAY's and BURN's damage is that day's, as the panels show it (glossary.ts runeWordNote); no day: day 1's.
  */
-export function runeWordText(def: RuneDef, k: RuneKeyword): string {
+export function runeWordText(def: RuneDef, k: RuneKeyword, day?: number): string {
   const w = KEYWORD_WORD[k], note = RUNE_NOTE[def.id];
   if (note && note.startsWith(`${w}: `)) return note;
   // CARD-4 (REQ-BFG-081, T): FRAY's and BURN's with their numbers, and the word-only keywords' notes (RUNE_WORD_NOTE)
-  return RUNE_WORD_NOTE[k] ?? RUNE_REMINDER[k] ?? glossaryEntry(w)?.def ?? w;
+  return runeWordNote(k, day) ?? RUNE_REMINDER[k] ?? glossaryEntry(w)?.def ?? w;
 }
 
 /** CARD-2 (K2): the definition's 3x5 lines at text width `tw`: its word in the keyword's colour, the rest bone, as the
- *  chip's line draws in the room (runeReminderSpans with C.bone). Pure. */
-export function runeWordLines(def: RuneDef, k: RuneKeyword, tw: number): RichLine[] {
-  const t = runeWordText(def, k), w = KEYWORD_WORD[k];
+ *  chip's line draws in the room (runeReminderSpans with C.bone). Pure. FIX-099G: `day`, the card's (runeWordText). */
+export function runeWordLines(def: RuneDef, k: RuneKeyword, tw: number, day?: number): RichLine[] {
+  const t = runeWordText(def, k, day), w = KEYWORD_WORD[k];
   return wrapRich(t.startsWith(w) ? [{ t: w, c: RUNE_KEYWORD_COLOUR[k] }, { t: t.slice(w.length), c: C.bone }] : [{ t, c: C.bone }], tw, "3");
 }
 
@@ -401,12 +403,13 @@ export function drawRuneWordNote(g: G, r: Rect, y: number, room: number, ls: rea
 
 /** CARD-2 (K2): the shown definition's box on a card with a note room (the picker's opened card, the bar's read-out), or
  *  null when `word` is none of the card's keywords. Pure (the screens' regions, tests). MERGE-099D (1c): `day`, the card's
- *  (drawRuneCard's `day`), so the box's region sits where the card draws it. */
+ *  (drawRuneCard's `day`), so the box's region sits where the card draws it. FIX-099G: and its height holds that day's
+ *  lines (FRAY's and BURN's numbers: runeWordLines), so the TAP AGAIN target's top (runeBarTarget) follows them. */
 export function runeWordBoxOn(r: Rect, def: RuneDef, word: string | null, day?: number): Rect | null {
   const k = word ? runeKeywordOf(def, word) : null;
   if (!k) return null;
   const tw = runeCardTextW(r.w);
-  return runeWordBox(r, runeNoteY(r, def, day), runeNoteLines(def, tw).length, runeWordLines(def, k, tw).length); // CARD-4 run 3 (I)
+  return runeWordBox(r, runeNoteY(r, def, day), runeNoteLines(def, tw).length, runeWordLines(def, k, tw, day).length); // CARD-4 run 3 (I); FIX-099G: the day's lines
 }
 
 /** CARD-2 (K2): one keyword on a rune card's effect lines: its keyword and word, what a tap shows, its colour, its glyphs
@@ -448,7 +451,7 @@ export function runeWordTargets(r: Rect, def: RuneDef, avoid: readonly Rect[] = 
         const glyph = { x: gx, y, w: textWidth(w, "5"), h: 7 };
         const nw = Math.max(glyph.w + 2, 9);
         const hit = { x: glyph.x - 1 - Math.floor((nw - glyph.w - 2) / 2), y: y - 1 - Math.floor((th - 9) / 2), w: nw, h: th };
-        raw.push({ k, word: w, text: runeWordText(def, k), colour: c, glyph, r: hit, cx: glyph.x + glyph.w / 2, cy: y + 3.5 });
+        raw.push({ k, word: w, text: runeWordText(def, k, day), colour: c, glyph, r: hit, cx: glyph.x + glyph.w / 2, cy: y + 3.5 }); // FIX-099G: the day's note
       }
     }
   });

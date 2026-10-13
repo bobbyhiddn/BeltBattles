@@ -38,7 +38,9 @@ import { KEYWORD_COLOUR } from "./richText";
 import { SIM, type TextOpts } from "./abilityText";
 import { REMINDER, faceAt, hasFace } from "./faces";
 import { fmtCount, fmtPct, fmtSec } from "./statFormat"; // WORDS-1: fmtDmg left with the MARKS row
+import { fmtDmg } from "./statFormat"; // FIX-099G (REQ-BFG-079): FRAY's and BURN's word notes, as faces.ts REMINDER prints them
 import { shownOn } from "./dayShown"; // HULL-1d (REQ-BFG-079): the rows' numbers on the tapped piece's day
+import { dmgNow } from "./dayShown"; // FIX-099G (REQ-BFG-079): FRAY's and BURN's word notes on the card's day
 
 /** One glossary row (see the file comment). */
 export interface GlossaryRow {
@@ -230,14 +232,37 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
  * fitted or installed piece at ★2 or more), LOAD (VOCAB: a load is one slug a turret takes in from a belt) and RIG (the
  * place hint's words: its arrows work the belt tiles they point at). Each its word first; each fits the note room of every
  * card that shows it (tests/card4.test.ts (t)).
+ * FIX-099G (REQ-BFG-079, REQ-BFG-081; REVIEW-MERGE099E ruling 1): this table is day 1's (no day). A card's tap reads
+ * runeWordNote, so FRAY's and BURN's damage is the card's day's, as the panels show it.
  */
 export const RUNE_WORD_NOTE: Readonly<Record<string, string>> = {
-  FRAY: `FRAY: EACH ONE ADDS +${FRAY_BONUS} DAMAGE TO EVERY LATER SHOT ON THE HULL. MAX ${FRAY_MAX}.`,
-  BURN: `BURN: EACH ONE DEALS ${BURN_DPS} HULL DAMAGE A SEC FOR ${BURN_TIME} SEC.`,
+  FRAY: shownOn(undefined, frayNote),
+  BURN: shownOn(undefined, burnNote),
   MERGED: `MERGED: A ★${FUSE_MAX - 1} OR ★${FUSE_MAX} PIECE, MADE BY MERGING COPIES.`, // stars.ts FUSE_MAX: ★3 the top
   LOAD: "LOAD: ONE SLUG A TURRET TAKES IN FROM A BELT.",
   RIG: "RIG: A PART BESIDE A BELT. ITS ARROWS WORK THE BELT TILES THEY POINT AT.",
 };
+
+/** FIX-099G (REQ-BFG-079): FRAY's and BURN's notes, their words CARD-4's, each damage number the panels' own on the
+ *  read-out's day: FRAY_BONUS on every later shot, BURN_DPS a second (faces.ts REMINDER: fmtDmg(dmgNow(FRAY_BONUS)),
+ *  fmtDmg(dmgNow(FACE_SIM.burnTick)), and FACE_SIM.burnTick is BURN_DPS). Read inside shownOn (dayShown.ts). */
+function frayNote(): string {
+  return `FRAY: EACH ONE ADDS +${fmtDmg(dmgNow(FRAY_BONUS))} DAMAGE TO EVERY LATER SHOT ON THE HULL. MAX ${FRAY_MAX}.`;
+}
+function burnNote(): string {
+  return `BURN: EACH ONE DEALS ${fmtDmg(dmgNow(BURN_DPS))} HULL DAMAGE A SEC FOR ${BURN_TIME} SEC.`;
+}
+const DAY_NOTES: Readonly<Record<string, () => string>> = { FRAY: frayNote, BURN: burnNote };
+
+/** FIX-099G (REQ-BFG-079, REQ-BFG-081): the note a tap on rune word `k` shows on a card read on `day` (the card's: the
+ *  dawn's on a picker, the run's on the bar's read-out and LAST CHANCE). FRAY's and BURN's are built for that day, so
+ *  with HULL_SCALE on their damage is the day's x D(d), rounded down (dmgNow), as faces.ts REMINDER and abilityText.ts
+ *  show it. Every other note is RUNE_WORD_NOTE's. Undefined for a word with no note. No day, or the switch off:
+ *  RUNE_WORD_NOTE[k], day 1's, byte for byte. */
+export function runeWordNote(k: string, day?: number): string | undefined {
+  const f = DAY_NOTES[k];
+  return f ? shownOn(day, f) : RUNE_WORD_NOTE[k];
+}
 
 /** Y-FURN (REQ-BFG-070; release Y): a rune's own reminder, where its keyword's would say the opposite of its rule (runeText.ts
  *  runeReminder reads it first). SHATTER SHOT's hits shatter a SHIELD: SHIELD's reminder says a SHIELD blocks the hit, so

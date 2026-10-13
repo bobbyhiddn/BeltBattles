@@ -386,7 +386,7 @@ export class LastChancePicker {
         // CARD-2 (K2; K1): the shown keyword's definition, in the details' room (its lines' place: drawBody's y + 1), or,
         // with the details closed, over the effect lines' foot, growing up: whole, and the card keeps its size
         const k = open && this.word ? runeKeywordOf(def, this.word) : null;
-        if (k) this.wordBox = drawRuneWordNote(g, r, t.info.length ? r.y + base + 1 : r.y + base - 2, lineCount(t.info), runeWordLines(def, k, r.w - 10));
+        if (k) this.wordBox = drawRuneWordNote(g, r, t.info.length ? r.y + base + 1 : r.y + base - 2, lineCount(t.info), runeWordLines(def, k, r.w - 10, s.run.day)); // FIX-099G: the card's day's note (cap, oracle f65b53f23c6b70c1)
         // CARD-4 (REQ-BFG-081, P1): the open RUNE card's body takes nothing; its bar's target alone takes it (never under
         // the word's box)
         if (open) take = runeBarTarget(r, LC_TAKE, tap, this.wordBox);
