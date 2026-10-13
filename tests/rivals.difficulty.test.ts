@@ -201,6 +201,13 @@ const LADDER_X_OPEN: readonly LadderOpen[] = [
   { rule: "matriarchLowest", day: 10, a: "silkshade", v: 0.0524, ceiling: 0.0724 }, // carried (0.9.7 0.0524)
   { rule: "pacing", day: 3, a: "grimhold", b: "furnace", v: 0.2758, ceiling: 0.2958 }, // carried (0.9.7 0.2758); pacing pin, cap's ruling ebdb9a49d368e029
   { rule: "pacing", day: 3, a: "grimhold", b: "weaver", v: 0.9558, ceiling: 0.9758 }, // carried (0.9.7 0.9558); pacing pin, cap's ruling ebdb9a49d368e029
+  // HULL-ON H4, the captains pass (REQ-BFG-092; cap's rulings 6f4568477e66a600 = RULING-HULLON-R3 section 3's fallback and
+  // ed10dd26da1a89fb = RULING-HULLON-R13 Q9 (b)): three pacing pins, each v measured on the captains commit, ceiling v + 0.02.
+  // No captain number reaches them: GRIMHOLD has no count or level on days 1-2 (his first pack is day 3), and SOOTJAW has
+  // none that slows his day-3 damage. The bounds stay (15-45 s).
+  { rule: "pacing", day: 2, a: "grimhold", b: "furnace", v: 0.2783, ceiling: 0.2983 }, // cause GUARD (R3: 16.26 s with GUARD off); 14.7217 s, as at c4e8504
+  { rule: "pacing", day: 2, a: "grimhold", b: "weaver", v: 0.2867, ceiling: 0.3067 }, // cause GUARD with FREE_JOINS (WEAVER's pacing deck at FREE_JOINS_HULL's 1500): 14.7133 s; holds with either off (GUARD off 19.2 s, FREE_JOINS_HULL = {} 16.3 s)
+  { rule: "pacing", day: 3, a: "sootjaw", b: "weaver", v: 1.3167, ceiling: 1.3367 }, // cause FREE_JOINS (WEAVER's pacing deck at FREE_JOINS_HULL's 1500): 13.6833 s; holds with FREE_JOINS_HULL = {}, fails with GUARD off too
   { rule: "parBeatsEasy", day: 5, v: 0.0877, ceiling: 0.1077 }, // carried (0.9.7 0.0747); 0.0747 -> 0.0877: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
   { rule: "parBeatsEasy", day: 6, v: 0.1275, ceiling: 0.1475 }, // carried (0.9.7 0.0595); 0.0595 -> 0.1275: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
   { rule: "parBeatsEasy", day: 7, v: 0.2045, ceiling: 0.2245 }, // carried (0.9.7 0.1946); 0.1946 -> 0.2045: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
@@ -213,6 +220,11 @@ const LADDER_X_OPEN: readonly LadderOpen[] = [
   { rule: "poolBand", day: 8, v: 0.0058, ceiling: 0.0258 }, // carried (0.9.7 0.0122); 0.0122 -> 0.0058: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
   { rule: "slotGap", day: 2, a: "medium", b: "hard", v: 0.0464, ceiling: 0.0664 }, // carried (0.9.7 0.0464)
   { rule: "slotGap", day: 3, a: "medium", b: "hard", v: 0.2016, ceiling: 0.2216 }, // carried (0.9.7 0.2759); 0.2759 -> 0.2016: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
+  // HULL-ON H4, the captains pass (cap's rulings 6f4568477e66a600 = R3 section 3's fallback and ed10dd26da1a89fb = R13 Q9
+  // (b)): v measured on the captains commit, ceiling v + 0.02. Cause GUARD (R3: +0.063 with GUARD off at the flip) with
+  // FREE_JOINS a co-cause (WEAVER's hull at FREE_JOINS_HULL's 1500: the gap -0.021 -> -0.026; GUARD off on the WEAVER tree
+  // +0.043, still under 0.05). No least change clears it: three day-4 PvE plates moved 0.030 of the 0.076 needed.
+  { rule: "slotGap", day: 4, a: "medium", b: "hard", v: 0.0763, ceiling: 0.0963 },
   { rule: "slotGap", day: 5, a: "easy", b: "medium", v: 0.1465, ceiling: 0.1665 }, // carried (0.9.7 0.1488); 0.1488 -> 0.1465: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
   { rule: "slotGap", day: 6, a: "easy", b: "medium", v: 0.1097, ceiling: 0.1297 }, // carried (0.9.7 0.0326); 0.0326 -> 0.1097: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
   { rule: "slotGap", day: 7, a: "easy", b: "medium", v: 0.0064, ceiling: 0.0264 }, // carried (0.9.7 0.0033); 0.0033 -> 0.0064: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
