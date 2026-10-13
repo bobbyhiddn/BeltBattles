@@ -1,20 +1,22 @@
 // CNT-DAY2 (REQ-BFG-100, REQ-BFG-082; REQ-BFG-079; BRIEF-CNTDAY2 step 5): the last two day gaps, display only.
 // With HULL_SCALE on, a fight on day d lands each heal x S(d) (Battle.heal) and the texts read the day's numbers (dayShown.ts).
-//  (a) L1, the plate's REGEN badge (battleHud.ts drawPlate), STOPPED by the brief's fit rule (step 1) and reverted: the
-//      badge and its room stay cntday2-base's on every fight (regenNow, regenMax, day-1 units), while the heal that lands
-//      each second on a fight on the day's hull is Battle.sustainTick's one sum x S(d), rounded down (measured here, for the
-//      REPORT). The drawn badge is read off drawText (a pass-through mock below).
+//  (a) L1, the plate's REGEN badge (battleHud.ts drawPlate). CNT-DAY3 (cap's ruling, BRIEF-CNTDAY3): restored, the badge
+//      and its room follow the fight's day: sustShown(regenNow, d) and sustShown(regenMax, d) (regenNow and regenMax stay in
+//      day-1 units), and the badge equals the heal that lands each second on a fight on the day's hull, Battle.sustainTick's
+//      one sum x S(d), rounded down. No day, or the switch off: cntday2-base's. The drawn badge is read off drawText (a
+//      pass-through mock below).
 //  (b) L2, a word tap with no piece (keywords.ts matches through glossaryText's `day`): a belt's panel and a turret with its
 //      signature core, on the build screen (run.day 7), on VIEW BATTLEFIELD's face of a day-7 fight and on the scouted foe
 //      (FoeView, run.day 7) read glossaryRows(7)'s rows (the counters' panels' keywordEntry(.., 7)); no day or the switch
 //      off: today's text, byte for byte. The taps are read off glossaryText (a pass-through mock below) as the real draw
 //      paths make them (drawDetails, BattleFaces.draw, FoeView.draw). Also the sweep's two fixes: runeWords (the ⓘ view's
 //      rune keywords) and fittedPanel (a fitted core's or gear piece's touch panel) on the run's day.
-//  (c) L1's fit, measured (why L1 stopped): the largest REGEN a real build holds (4 turret slots x a ★3 MENDING LOOM +
-//      GREEN THREAD; each hero's own: its slots) on day 10, on the op phone (402x690), a landscape phone (844x390) and the
-//      desk (1920x1080), both plates, with WARD's pips, SHIELD's number and the longest name and tag: the brief's worst case
-//      drops the badge already at the base, and across real day-10 plates the day's wider badge would change some plates'
-//      form (/max or the pips give way, or the badge drops), so its room can't come from the bar alone.
+//  (c) L1's fit, measured: the largest REGEN a real build holds (4 turret slots x a ★3 MENDING LOOM + GREEN THREAD; each
+//      hero's own: its slots) on day 10, on the op phone (402x690), a landscape phone (844x390) and the desk (1920x1080),
+//      both plates, with WARD's pips, SHIELD's number and the longest name and tag: the brief's worst case drops the badge
+//      at the base and with the day's room, and across real day-10 plates the day's wider badge changes some plates' form
+//      (/max or the pips give way, or the badge drops). CNT-DAY3 (cap's ruling): that is plateRow's existing give-way order
+//      deciding what fits; tests/cntday3 (c) sweeps it.
 // Everything is built here (start decks, set-up runs, a scouted foe whose deck the test sets); never fights.json and never a
 // par deck. Every day number is computed (sustShown, dmgShown, glossaryRows(day)); only day 1's are pinned.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -145,8 +147,8 @@ function nextSecond(a: Arena, side: Side): number {
 /** The badge's room for a REGEN of `n` (drawPlate's: its widest number and 3 px). */
 const roomOf = (n: number): number => textWidth(`+${fmtDmg(n)}`, "3") + 3;
 
-describe("CNT-DAY2 (a) L1 (stopped, reverted): the plate's REGEN badge stays cntday2-base's", () => {
-  it("days 1, 5, 7 and 10, switch on: the badge and its room are today's (regenNow, regenMax); the heal that lands is n x S(d)", () => {
+describe("CNT-DAY2 (a) L1 (CNT-DAY3: restored): the plate's REGEN badge on the fight's day", () => {
+  it("days 1, 5, 7 and 10, switch on: the badge and its room are the day's (sustShown of regenNow, regenMax); the badge is the heal that lands, n x S(d)", () => {
     expect(hullScaleRules(), "0.9.9 ships HULL_SCALE on").toBe(true);
     const out: string[] = [];
     for (const day of [1, 5, 7, 10]) {
@@ -166,32 +168,33 @@ describe("CNT-DAY2 (a) L1 (stopped, reverted): the plate's REGEN badge stays cnt
         // so the hull's carried remainder never adds a point)
         expect(landed, `d${day}: n x S(d), rounded down`).toBe(sustShown(n, day));
         expect(landed).toBe(Math.floor((n * sustMulTenths(day)) / 10));
-        // the badge: cntday2-base's, today's text and room (L1 reverted)
-        expect(p.badge?.s, `d${day} second ${k + 1}: today's badge`).toBe(`+${fmtDmg(n)}`);
+        // the badge: the day's text and room (CNT-DAY3): the heal that lands each second
+        expect(p.badge?.s, `d${day} second ${k + 1}: the day's badge`).toBe(`+${fmtDmg(sustShown(n, day))}`);
+        expect(p.badge?.s, `d${day} second ${k + 1}: the badge is the heal that landed`).toBe(`+${fmtDmg(landed)}`);
         expect(p.badge!.x).toBe(p.info.hullBox.x - 3);
-        expect(p.info.bar.x + p.info.bar.w, `d${day}: today's room`).toBe(p.badge!.x - roomOf(regenMax(a, 0)));
+        expect(p.info.bar.x + p.info.bar.w, `d${day}: the day's room`).toBe(p.badge!.x - roomOf(sustShown(regenMax(a, 0), day)));
         expect(p.info.bar, `d${day}: the bar never moves`).toEqual(first.info.bar);
       }
       // a frozen loom pauses (sustainTick): the badge and the heal drop by its share; the bar stays
       const tu = s0.turrets.find((t) => t.regen === 20)!;
       tu.frozen = 5;
       const p = plate(a);
-      expect(p.badge?.s, `d${day}: a frozen loom`).toBe(`+${fmtDmg(n - 20)}`);
+      expect(p.badge?.s, `d${day}: a frozen loom`).toBe(`+${fmtDmg(sustShown(n - 20, day))}`);
       expect(nextSecond(a, 0)).toBe(sustShown(n - 20, day));
       expect(p.info.bar).toEqual(first.info.bar);
       tu.frozen = 0;
-      out.push(`d${day}: badge ${first.badge?.s} (unchanged); heals landed ${seen.join(", ")} a second (n ${n} x S ${sustMulTenths(day) / 10}); room ${roomOf(n)} px, bar ${first.info.bar.w} px`);
+      out.push(`d${day}: badge ${first.badge?.s} (the day's); heals landed ${seen.join(", ")} a second (n ${n} x S ${sustMulTenths(day) / 10}); room ${roomOf(sustShown(n, day))} px, bar ${first.info.bar.w} px`);
     }
     console.log(`CNTDAY2 (a) the badge beside the heal that lands:\n${out.join("\n")}`);
   });
 
-  it("a real dusk on day 7 (setupRun, its stand-in foe): the badge is today's regenNow", () => {
+  it("a real dusk on day 7 (setupRun, its stand-in foe): the badge is the day's, sustShown(regenNow, 7)", () => {
     const run = setupRun({ hero: "weaver", day: 7, seed: 7 });
     run.build = loomDeck();
     const foe = startDusk(run, []);
     const a = new Arena(run.build, foe.build, battleSeed(run), null, undefined, undefined, run.day);
     expect(textDay(a.b)).toBe(7);
-    expect(plate(a).badge?.s).toBe(`+${fmtDmg(regenNow(a, 0))}`);
+    expect(plate(a).badge?.s).toBe(`+${fmtDmg(sustShown(regenNow(a, 0), 7))}`);
   });
 
   it("no day, day 1, or the switch off on day 7: today's text and room, byte for byte", () => {
@@ -445,7 +448,7 @@ function framed(w: number, h: number, dpr: number, runes = 1, offers = 5): { L: 
 // ------------------------------------------------------------------------------------------------- (c) L1's fit
 
 describe("CNT-DAY2 (c) L1's fit: day 10's largest REGEN on the phone, a landscape phone and the desk", () => {
-  it("the badge's room takes its width from the bar only: every other part keeps its place and form, the badge shows", () => {
+  it("the day's room (drawPlate's, CNT-DAY3): the worst case drops the badge at the base and on the day; elsewhere plateRow's give-way order decides", () => {
     // the bound: the most turret slots a hull has (HULL_SLOTS), one MENDING LOOM a turret (validate.ts: never two copies of
     // one gear def on a turret; gearStats keeps one), at ★3; plus GREEN THREAD (no rune is held twice; the one REGEN rune)
     const slots = Math.max(...Object.values(HULL_SLOTS).map((s) => s.length));
@@ -505,7 +508,7 @@ describe("CNT-DAY2 (c) L1's fit: day 10's largest REGEN on the phone, a landscap
         if (least) table.push(`${tag}: plate ${r.w}x${r.h}; least bar: ${least.c.who} "${least.c.name}" lead ${least.ld} px, REGEN ${least.c.regen} -> ${sustShown(least.c.regen, day)} (room ${roomOf(least.c.regen)} -> ${roomOf(sustShown(least.c.regen, day))} px), ${least.form}, bar ${least.before} -> ${least.bar} px (BAR_MIN ${BAR_MIN})`);
         // the brief's independent worst (the longest name with the most REGEN any build holds), reported, not a real build
         const ldMax = Math.max(...(side === 0 ? yours : foes).map(leadOf)), b0 = row(ldMax, roomBefore), b1 = row(ldMax, roomAfter);
-        worst.push(`${tag}: lead ${ldMax} px with REGEN ${most} -> ${dayMost}: before /max ${b0.max ? "yes" : "no"} pips ${b0.shield?.pips ? "yes" : "no"} bar ${b0.bar.w}; after /max ${b1.max ? "yes" : "no"} pips ${b1.shield?.pips ? "yes" : "no"} bar ${b1.bar.w} badge ${b1.regenX === null ? "DROPPED" : "shown"}`);
+        worst.push(`${tag}: lead ${ldMax} px with REGEN ${most} -> ${dayMost}: before /max ${b0.max ? "yes" : "no"} pips ${b0.shield?.pips ? "yes" : "no"} bar ${b0.bar.w} badge ${b0.regenX === null ? "DROPPED" : "shown"}; after /max ${b1.max ? "yes" : "no"} pips ${b1.shield?.pips ? "yes" : "no"} bar ${b1.bar.w} badge ${b1.regenX === null ? "DROPPED" : "shown"}`);
       }
     }
     // the sweep: every name above with its own REGEN, a day-10 hull (its hero's bare max hullAt(base, 10) at full, the
@@ -537,11 +540,12 @@ describe("CNT-DAY2 (c) L1's fit: day 10's largest REGEN on the phone, a landscap
       }
     }
     console.log(`CNTDAY2 (c) the fit, day 10 (hull ${hp}/${max}, bound ${hullBound}; SHIELD ${plateNum}; WARD ${SHIELD_CAP} pips), each build's own REGEN:\n${table.join("\n")}\nthe independent worst (not one build):\n${worst.join("\n")}\nthe worst case's plates that don't keep the badge in its form (${fails.length}; e.g.):\n${fails.slice(0, 12).join("\n")}\nthe sweep: ${cases} plates, ${shownBoth} keep their form with the badge shown, ${changed.length} change form:\n${changed.join("\n")}`);
-    // why L1 stopped (BRIEF-CNTDAY2 step 1): the brief's worst case can't hold a badge even at the base (every view, both
-    // plates: a 5-digit hull, WARD's pips, SHIELD's number), and on real day-10 plates the day's wider badge would take its
-    // room from /max, the pips or the badge itself, not from the bar alone
-    expect(worst.every((s) => s.endsWith("badge DROPPED")), "the brief's worst case drops the badge at the base").toBe(true);
-    expect(changed.length, "real day-10 plates whose form the day's badge would change").toBeGreaterThan(0);
-    expect(changed.some((s) => / badge yes \(bar \d+\) -> .* badge no /.test(s)), "a badge that shows at the base would drop").toBe(true);
+    // CNT-DAY3 (cap's ruling, BRIEF-CNTDAY3): the badge and its room follow the fight's day, and plateRow's existing order
+    // decides what fits. The brief's worst case holds no badge at the base nor with the day's room (every view, both plates:
+    // a 5-digit hull, WARD's pips, SHIELD's number), and on real day-10 plates the day's wider badge takes its room from
+    // /max, the pips or the badge itself, in that order
+    expect(worst.every((s) => / bar -?\d+ badge DROPPED; after .* badge DROPPED$/.test(s)), "the brief's worst case drops the badge at the base and on the day").toBe(true);
+    expect(changed.length, "real day-10 plates whose form the day's badge changes").toBeGreaterThan(0);
+    expect(changed.some((s) => / badge yes \(bar -?\d+\) -> .* badge no /.test(s)), "a badge that shows at the base drops on the day").toBe(true);
   });
 });
