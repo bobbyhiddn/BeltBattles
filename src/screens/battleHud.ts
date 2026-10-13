@@ -164,6 +164,7 @@ export interface LeadFit {
  * 3. Else the name is cut from its end, just enough that the bar keeps LEAD_BAR in plateRow's last form. The cut is
  *    marked with CUT_MARK, and the name keeps at least CUT_KEEP characters. The forms are not tried again after a cut:
  *    the bar is then under BAR_MIN, so plateRow gives its last form.
+ *    Run 2 (cap 10-13): before the mark, a cut part (split at spaces) that holds a digit goes whole, then any end " " or "·".
  * 4. Where even CUT_KEEP characters can't keep LEAD_BAR, the bar takes what is left.
  * Pure.
  */
@@ -178,6 +179,14 @@ export function fitLead(o: Omit<Parameters<typeof plateRow>[0], "lead">, name: s
   if (chars.length <= CUT_KEEP) return { tag: null, name, step: tag ? "tag" : "full", lead: alone, row: bare }; // no cut keeps CUT_KEEP: rule 4
   let k = chars.length - 1;
   while (k > CUT_KEEP && textWidth(chars.slice(0, k).join("") + CUT_MARK, "3") > most) k--;
+  // never part of a number ("10W" cut to "1"): a part the cut ends inside goes whole if it holds a digit; then no gap at
+  // the end. Shorter only, so the bar only grows; if fewer than CUT_KEEP characters would stay, the raw cut stays
+  let j = k, s = k, e = k;
+  while (s > 0 && chars[s - 1] !== " ") s--;
+  while (e < chars.length && chars[e] !== " ") e++;
+  if (chars[k] !== " " && /\d/.test(chars.slice(s, e).join(""))) j = s;
+  while (j > 0 && (chars[j - 1] === " " || chars[j - 1] === "·")) j--;
+  if (j >= CUT_KEEP) k = j;
   const cut = chars.slice(0, k).join("") + CUT_MARK, lead = textWidth(cut, "3");
   return { tag: null, name: cut, step: "cut", lead, row: plateRow({ ...o, lead }) };
 }
