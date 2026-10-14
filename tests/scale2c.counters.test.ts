@@ -14,6 +14,9 @@ import { setupRun } from "../src/tooling";
 import { BattleScreen } from "../src/screens/battle";
 import { BattleCounters } from "../src/screens/battleCounters";
 import { fakeCanvas, fakeDom, paints } from "./pair1.helpers";
+import { Arena as ArenaReal } from "../src/game/arena";
+import { POISON_POP_DY, react } from "../src/game/arenaReact";
+import { captainKeywordColour } from "../src/ui/captainText";
 import { Battle } from "../src/sim/battle";
 import { withScaleRigs, scaleRules } from "../src/sim/scale";
 import { HEARTS_START } from "../src/sim/hearts";
@@ -210,6 +213,32 @@ describe("SCALE-2c C7 and C8 drawn; C9 on the battle screen (switch on)", () => 
     // off: no GRUDGE ROD or TROPHY CHAIN exists (the ids are in ITEMS only with the switch on): a POWDER KEG deck's plate
     expect([make("keg").counters.record, name(make("keg"))]).toEqual([null, "FURNACE"]);
     expect(withScaleRigs(() => [make("keg").counters.record, name(make("keg"))])).toEqual([null, "FURNACE"]); // no reader: none
+  });
+});
+
+describe("SCALE-2c: the two carried items (REVIEW-SCALE2b section 3)", () => {
+  it("the venom tick's number has its own band under BURN's: a same-second pair never overlaps; BURN's spot as before", () => {
+    withScaleRigs(() => {
+      const cy = (b: { y: number }) => b.y;
+      const burns: number[] = [], venom: number[] = [];
+      for (let i = 0; i < 40; i++) {
+        const a = new ArenaReal(furnaceBench(), barge(), SEED + i, null); // a fresh pool (and random stream) each pair
+        react(a, { type: "burn", side: 1, dmg: 10 });
+        burns.push(cy(a.fx.popList[a.fx.popCount - 1]));
+        react(a, { type: "poison", side: 1, dmg: 12 });
+        venom.push(cy(a.fx.popList[a.fx.popCount - 1]));
+      }
+      // BURN's spot: within 20 px of the hull's centre; the venom one 28-36 px below it: at least a 5x7 number's 7 px apart
+      expect(Math.max(...burns) - Math.min(...venom)).toBeLessThanOrEqual(-7);
+      expect(POISON_POP_DY).toBe(32);
+    });
+  });
+
+  it("captainText: a captain line's POISON takes its venom while the switch is on; off, the shipped 9's map (no colour)", () => {
+    expect(captainKeywordColour("POISON")).toBeUndefined();
+    expect(withScaleRigs(() => captainKeywordColour("POISON,"))).toBe(C.venom);
+    expect(captainKeywordColour("POISON")).toBeUndefined();
+    expect(captainKeywordColour("BURNS")).toBe(C.fire3);
   });
 });
 

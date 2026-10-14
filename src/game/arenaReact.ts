@@ -229,6 +229,9 @@ export function anchorOf(e: SimEvent): number {
 }
 
 /** `prev`: the event before `e` in the same step (null for the step's first): PLATE BREAKER's blow reads it. */
+/** SCALE-2c (REQ-BFG-108): the POISON tick number's band, below the hull's centre (BURN's tick number: the centre +-20). */
+export const POISON_POP_DY = 32;
+
 export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void {
   const fx = a.fx;
   fx.anchor = anchorOf(e); // MOTION-1: the board these effects ride with
@@ -455,7 +458,10 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.fire3, false, a.b.scaled); // NUM-4; HULL-1d: stacked on the day's hull
       return;
     case "poison": // SCALE-2b (REQ-BFG-108): the tick's number on the hull in venom, as BURN's (a random spot, the day's stack, silent)
-      fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.venom, false, a.b.scaled);
+      // SCALE-2c (REQ-BFG-108; REVIEW-SCALE2b section 3, a carried item): its own band under BURN's, so a same-second BURN tick's
+      // number never lands on it: BURN's spot is the hull's centre +-20 px down, this one 28-36 px down (both rise together,
+      // a 5x7 number apart); the same two draws, the same width
+      fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + POISON_POP_DY + (fx.rnd() - 0.5) * 8, fmtDmg(e.dmg), C.venom, false, a.b.scaled);
       return;
     case "wind":
       // WIND-1 (REQ-BFG-093): both hulls, every tick: one helper per side, each hull's number from windDmg (NUM-4: fmtDmg)
