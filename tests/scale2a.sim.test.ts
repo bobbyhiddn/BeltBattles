@@ -40,6 +40,9 @@ const TEST_DEFS: Record<string, ItemDef> = {
   s2aspall: part("s2aspall", { count: "hitsTaken", each: 3, give: "dmg" }), // SPALL CATCHER-style (a gun part, at the shot)
   s2apile: part("s2apile", { count: "waiting", each: 5, give: "dmg" }), // a waiting reader at the shot (PRESSURE's count)
   s2aswap: rig("s2aswap", { count: "foeBurn", each: 8, give: "dmg" }, undefined, { flat: 20 }), // (h): a stat row + a reader
+  // SCALE-2c (REQ-BFG-098): the live QUENCH TANK's def (switch off at this file's load) under a test id: with the switch on
+  // `quench` is KINDLING (scale.ts SCALE_DEFS), so (c)'s live pair keeps QUENCH TANK's rule here
+  s2aquench: { ...ITEMS.quench, id: "s2aquench" },
 };
 const ITEMS_RW = ITEMS as Record<string, ItemDef>;
 beforeAll(() => {
@@ -232,9 +235,10 @@ describe("SCALE-2a (c): THE GUARD, DRAKE NOZZLE never turns FOR EACH DMG into BU
   });
 
   it("the live pair QUENCH TANK ★3 + DRAKE NOZZLE ★3: off, DRAKE converts QUENCH's DMG as today; on, it doesn't", () => {
-    // TEMPER ★3 (4 BURN) at tile 0, QUENCH TANK ★3 (each BURN on the slug becomes 70 DMG) at tile 2, DRAKE ★3 on the gun
-    const b = withMod(withItem(withItem(furnaceBench(), east(30, "temper", 5, 3)), twin(31, "quench", 3, 3)), 40, "drake", GUN, 3);
-    const c = effectAt("drake", 3).core!, q = 4 * effectAt("quench", 3).gate!.quench!.perBurn; // 280
+    // TEMPER ★3 (4 BURN) at tile 0, QUENCH TANK ★3 (each BURN on the slug becomes 70 DMG) at tile 2, DRAKE ★3 on the gun.
+    // SCALE-2c: QUENCH TANK's def under its test id s2aquench (with the switch on `quench` is KINDLING)
+    const b = withMod(withItem(withItem(furnaceBench(), east(30, "temper", 5, 3)), twin(31, "s2aquench", 3, 3)), 40, "drake", GUN, 3);
+    const c = effectAt("drake", 3).core!, q = 4 * effectAt("s2aquench", 3).gate!.quench!.perBurn; // 280
     const off = full(play(() => new Battle(b, barge(), SEED), 12).shots, 2);
     const on = full(play(() => withScaleRigs(() => new Battle(b, barge(), SEED)), 12).shots, 2);
     expect(off.length).toBeGreaterThan(3);

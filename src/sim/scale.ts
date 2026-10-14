@@ -18,9 +18,15 @@
 
 import type { HullState, Payload } from "./battle";
 import { ITEMS, type ItemDef, type ReadCount } from "./content";
+import { WAVE3_ITEMS, onSetWave3, type ReadSpec } from "./content"; // SCALE-2c (REQ-BFG-098): the reworks' wave-3 hook, the reader lines
 import type { Build } from "./deck";
 import { clearStarCache, effectAt, starsOf } from "./stars";
 import { livesCap, startLives } from "./hearts"; // SCALE-2c M0 (REQ-BFG-098): the RETUNE-1 hearts swap (startHearts)
+// SCALE-2c (REQ-BFG-098): ladderFix.ts swaps QUENCH TANK's def too (its ★1 40 a BURN) and builds its fixed def from what
+// ITEMS holds when it loads; loading it first means the switch (on at this module's load once BUMP-1E flips it) always
+// builds KINDLING from the ladder-fixed def and never the reverse (a ladder patch on KINDLING). ladderFix.ts imports only
+// content.ts and stars.ts: no cycle
+import "./ladderFix";
 
 /** THE switch (REQ-BFG-098, REQ-BFG-110): off in this rules version (bb-0.10.0); BUMP-1E turns it on. */
 export const SCALE_RIGS: boolean = false;
@@ -40,7 +46,97 @@ export function scaleRules(): boolean {
  *    BURN); rarity, price, merchant, size, foot, desc and tags as the base's. */
 export const SCALE_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = {
   venom: (b) => ({ ...b, gate: { poison: 1 }, levels: { 2: { gate: { poison: 2 } }, 3: { gate: { poison: 3 } } } }),
+  // SCALE-2c (REQ-BFG-098; BRIEF-SCALE2c section 2; REPORT-SCALE1 3.1-3.2): the five reworks, VENOM DRIP's form: id, rarity,
+  // price, merchant, size, foot, shape (the arrows) and tags kept; the old effect goes and the reader line comes; the desc
+  // (the old effect's catalogue words, drawn by no face) goes with it. Star numbers are REPORT-SCALE1 3.1's (SCALE-2e tunes).
+  // KINDLING (was QUENCH TANK): +3 / +5 / +8 DMG for each BURN on the foe at the hit; QUENCH TANK's spend goes
+  quench: (b) => ({ ...b, name: "KINDLING", desc: [], ...reader("foeBurn", "dmg", [3, 5, 8]) }),
+  // PRESSURE BREECH: MAX 5 dropped: its own perQueued term, uncapped (cores.ts pressureBonus reads no maxCount as no cap),
+  // not a `reads` line: the term is the fire event's C11 `add` already (Battle.fireCore queuedAdd), the turret class
+  // factor k still scales it (cores.ts scaleCore, "today's numbers" on a heavy gun), and it joins the shot before step 5's
+  // % (TWIN TRIGGER, FINISHER RAM, the runes), outside p.flat, so DRAKE NOZZLE (step 3, another core) never converts it.
+  // NEVER JAMS (noJam) stays: the brief names only MAX 5 as going (REPORT Findings)
+  pressure: (b) => {
+    const { maxCount: _cap, ...core } = b.core!;
+    void _cap;
+    return { ...b, desc: [], core };
+  },
+  // IRON WALL: +5 / +11 / +17 DMG for each whole 10 PLATE you have (day-1 units: Battle.readCount ownPlate); its own
+  // plating and the 120 step go
+  shieldwall: (b) => ({ ...b, desc: [], ...reader("ownPlate", "dmg", [5, 11, 17], 10) }),
+  // SPALL CATCHER (a gun part, read at its gun's SHOT): +3 / +7 / +11 DMG for each enemy hit on your ship this fight; the
+  // charge (every 40 DMG taken) goes
+  spallcatcher: (b) => ({ ...b, desc: [], ...readerMod("hitsTaken", "dmg", [3, 7, 11]) }),
+  // POWDER KEG: +3 / +7 / +11 DMG for each of its own hits this fight, this one included; the 12 s fuse (kegTick) goes
+  keg: (b) => ({ ...b, desc: [], ...reader("ownHits", "dmg", [3, 7, 11]) }),
 };
+
+/** SCALE-2c (REQ-BFG-098): a rig's reader line at its three stars: `gate.reads` at ★1 and `levels` 2 and 3, each the whole
+ *  `reads` object (stars.ts effectAt merges a level's gate fields one by one, so a level writes every field). */
+function reader(count: ReadCount, give: ReadSpec["give"], each: readonly [number, number, number], per?: number): Pick<ItemDef, "gate" | "levels"> {
+  const r = (n: number): ReadSpec => ({ count, each: n, ...(per ? { per } : {}), give });
+  return { gate: { reads: r(each[0]) }, levels: { 2: { gate: { reads: r(each[1]) } }, 3: { gate: { reads: r(each[2]) } } } };
+}
+
+/** SCALE-2c (REQ-BFG-098): a gun part's reader line at its three stars (`mod.reads`, read at its gun's SHOT). */
+function readerMod(count: ReadCount, give: ReadSpec["give"], each: readonly [number, number, number]): Pick<ItemDef, "mod" | "levels"> {
+  const r = (n: number): ReadSpec => ({ count, each: n, give });
+  return { mod: { reads: r(each[0]) }, levels: { 2: { mod: { reads: r(each[1]) } }, 3: { mod: { reads: r(each[2]) } } } };
+}
+
+/**
+ * SCALE-2c (REQ-BFG-098, REQ-BFG-106 (GRUDGE ROD), REQ-BFG-108 (ROT GAUGE, LEECH COIL); BRIEF-SCALE2c section 2;
+ * REPORT-SCALE1 3.1): the seven new scaling rigs, each one cell, arrows by rarity (content.ts RARITY_SHAPE: common I, rare
+ * II, epic T), no desc (the face's ability line says it all). They join ITEMS after every other def while the switch is on
+ * and leave it while it is off (shapes.ts SHAPES_ITEMS' form), so with SCALE_RIGS off no listing, pool, shop, save path or
+ * test sees them. cap's F4: LEECH COIL is a new id (RIVETER stays as it is). Tags (the shop's family hint): each one's
+ * nearest live piece's (CINDER MAIL PLATE ROLLER's PLATE and TEMPER's FORGE, ROT GAUGE VENOM DRIP's, LEECH COIL RIVETER's,
+ * AEGIS SPIKE the SHIELD pieces' PLATE).
+ */
+export const SCALE_ITEMS: Readonly<Record<string, ItemDef>> = {
+  cindermail: {
+    id: "cindermail", name: "CINDER MAIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", desc: [], tags: ["FORGE", "PLATE"],
+    ...reader("foeBurn", "plate", [2, 3, 5]), // +2 / +3 / +5 PLATE for each BURN on the foe (addPlate: PLATE_CAP)
+  },
+  rotgauge: {
+    id: "rotgauge", name: "ROT GAUGE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", desc: [], tags: ["SWARM", "FORGE"],
+    ...reader("foePoison", "dmg", [3, 5, 8]), // +3 / +5 / +8 DMG for each POISON on the foe
+  },
+  leechcoil: {
+    id: "leechcoil", name: "LEECH COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", desc: [], tags: ["SWARM", "PLATE"],
+    ...reader("foePoison", "heal", [4, 5, 6]), // HEAL 4 / 5 / 6 times the foe's POISON (heal(): BURN halves it)
+  },
+  crowdpress: {
+    id: "crowdpress", name: "CROWD PRESS", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker", desc: [], tags: ["SWARM", "FORGE"],
+    ...reader("beltSlugs", "dmg", [3, 7, 11]), // +3 / +7 / +11 DMG for each slug on its belt (the hit one too)
+  },
+  aegisspike: {
+    id: "aegisspike", name: "AEGIS SPIKE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker", desc: [], tags: ["PLATE", "FORGE"],
+    ...reader("ownShield", "dmg", [40, 88, 140]), // +40 / +88 / +140 DMG for each SHIELD (the game's WARD) you have
+  },
+  grudgerod: {
+    id: "grudgerod", name: "GRUDGE ROD", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "scrapper", desc: [], tags: ["FORGE"],
+    ...reader("heartsLost", "dmg", [6, 13, 21]), // +6 / +13 / +21 DMG for each heart lost this run
+  },
+  trophychain: {
+    id: "trophychain", name: "TROPHY CHAIN", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "quartermaster", desc: [], tags: ["FORGE", "BURST"],
+    ...reader("wins", "dmg", [8, 18, 28]), // +8 / +18 / +28 DMG for each win this run
+  },
+};
+
+/** SCALE-2c: the seven new ids, in the order they join ITEMS. */
+export const SCALE_IDS: readonly string[] = Object.keys(SCALE_ITEMS);
+
+/** SCALE-2c: is `id` one of the seven new scaling rigs (whatever the switch)? */
+export function isScalePiece(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(SCALE_ITEMS, id);
+}
+
+/** SCALE-2c (REQ-BFG-098): the twelve scaling pieces (BRIEF-SCALE2c section 2's table order): the five reworks, then the
+ *  seven new ids. Tests, the text sheet and the screen read it. */
+export const SCALE_PIECES: readonly string[] = [
+  "quench", "pressure", "shieldwall", "spallcatcher", "keg", "cindermail", "rotgauge", "leechcoil", "crowdpress", "aegisspike", "grudgerod", "trophychain",
+];
 
 /** The ids SCALE_DEFS changes, in its order. */
 export const SCALE_DEF_IDS: readonly string[] = Object.keys(SCALE_DEFS);
@@ -73,10 +169,32 @@ export function setScaleRigs(on: boolean): void {
     if (!SC_ON.has(id)) SC_ON.set(id, SCALE_DEFS[id](SC_BASE.get(id)!));
     items[id] = on ? SC_ON.get(id)! : SC_BASE.get(id)!;
   }
+  // SCALE-2c (REQ-BFG-098): the seven new ids join ITEMS after every other def, or leave it (shapes.ts setShapes's form)
+  for (const id of SCALE_IDS) {
+    if (on) items[id] = SCALE_ITEMS[id];
+    else delete items[id];
+  }
   clearStarCache();
   scOn = on;
   for (const fn of afterScale) fn(on);
 }
+
+// SCALE-2c (REQ-BFG-098): content.ts setWave3 writes WAVE3_ITEMS[id] back into ITEMS for every wave-3 id, IRON WALL and
+// SPALL CATCHER among them, so with the switch on a wave-3 toggle (tools/luckReport.ts, tools/wave3.ts) would leave their
+// base defs in ITEMS. While the switch is on, put back the switch-on def wherever setWave3 just wrote the base def
+// (ladderFix.ts's hook's form). Switch off: nothing.
+onSetWave3(() => {
+  if (!scOn) return;
+  const items = ITEMS as Record<string, ItemDef>;
+  let moved = false;
+  for (const [id, onDef] of SC_ON) {
+    if (items[id] === SC_BASE.get(id) || (WAVE3_ITEMS as Record<string, ItemDef>)[id] === items[id]) {
+      items[id] = onDef;
+      moved = true;
+    }
+  }
+  if (moved) clearStarCache();
+});
 
 /** Run `fn` with the scaling hooks on (or off), then put the switch back as it was, even if `fn` throws (withShapes's form). */
 export function withScaleRigs<T>(fn: () => T, on = true): T {

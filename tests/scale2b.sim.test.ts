@@ -26,6 +26,9 @@ function rig(id: string, reads: ReadSpec): ItemDef {
 const TEST_DEFS: Record<string, ItemDef> = {
   s2brot: rig("s2brot", { count: "foePoison", each: 3, give: "dmg" }), // ROT GAUGE-style: +3 DMG for each POISON on the foe
   s2bleech: rig("s2bleech", { count: "foePoison", each: 4, give: "heal" }), // LEECH COIL-style: HEAL 4 for each POISON on the foe
+  // SCALE-2c (REQ-BFG-098): the live SPALL CATCHER's def (its charge; switch off at this file's load) under a test id: with
+  // the switch on `spallcatcher` is SCALE-2c's hits-taken reader (scale.ts SCALE_DEFS)
+  s2bspall: { ...ITEMS.spallcatcher, id: "s2bspall" },
 };
 const ITEMS_RW = ITEMS as Record<string, ItemDef>;
 beforeAll(() => {
@@ -213,8 +216,9 @@ describe("SCALE-2b (c): past the soak layer, and WARD never blocks a tick", () =
     expect(foe.shield).toBe(2);
     expect(foe.blocked).toBeUndefined();
     expect(foe.hull.hp).toBe(hp - 27);
-    // a SPALL CATCHER side: POISON on its hull charges nothing; a BURN tick does
-    const sp = withScaleRigs(() => new Battle(barge(), withMod(furnaceBench(), 40, "spallcatcher", GUN), SEED));
+    // a SPALL CATCHER-charge side (the live def's charge, under its test id s2bspall: with the switch on `spallcatcher` is
+    // SCALE-2c's hits-taken reader): POISON on its hull charges nothing; a BURN tick does
+    const sp = withScaleRigs(() => new Battle(barge(), withMod(furnaceBench(), 40, "s2bspall", GUN), SEED));
     const tu = sp.sides[1].turrets.find((t) => t.index === GUN)!;
     expect(tu.spall).toBeDefined();
     sp.sides[1].hull.poison = 5;
@@ -223,6 +227,13 @@ describe("SCALE-2b (c): past the soak layer, and WARD never blocks a tick", () =
     sp.sides[1].hull.burns.push({ dps: 1, t: 3 });
     ticks(sp, 2);
     expect(tu.spallCharge ?? 0).toBeGreaterThan(0);
+    // SCALE-2c (REQ-BFG-098): SPALL CATCHER itself (switch on): a tick is no hit on the ship, so its count stays 0
+    const rd = withScaleRigs(() => new Battle(barge(), withMod(furnaceBench(), 40, "spallcatcher", GUN), SEED));
+    rd.sides[1].hull.poison = 5;
+    rd.sides[1].hull.burns.push({ dps: 1, t: 3 });
+    ticks(rd, 2);
+    expect(rd.sides[1].turrets.find((t) => t.index === GUN)!.spall).toBeUndefined();
+    expect(rd.sides[1].hitsTaken ?? 0).toBe(0);
   });
 });
 
