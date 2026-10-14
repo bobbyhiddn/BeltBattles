@@ -6,9 +6,22 @@
 //      THREAD; GREEN THREAD alone), the frames before, at and after the wind's first tick (computed from WIND_START and
 //      TICK as battle.ts computes it, never pinned): the badge shows exactly when Battle.heal would land a heal (a twin
 //      fight asked to heal on that very tick), and on every whole second exactly when the second's heal lands.
+//  (c) Q2's sim-built connector test (PAIR-1c, cap's ruling: a connector opens no panel of its own, oracle
+//      ea629b18bbdf25e4). A rig made by hand with SHAPES on: WEAVER's start deck and an ASSEMBLY LINE (I3 with SHAPES on)
+//      placed by hand at (3,1), turned upright, whose one-tile belt (2,1) joins route 1 at (1,1). Its fight is run as
+//      bb.openFight runs one (a stored record replayed in a ReplayScreen, on a phone and on the desk). A connector's slugs
+//      are counted one tile later, on the belt they join (cap's answer, oracle 1acb3705a9843fd4, replaces the brief's
+//      "the joined belt's count includes them": the sim moves a slug onto the joined belt only as it leaves the
+//      connector). On every frame a slug rides the connector: C5 draws no box on it and gives it no tap group; the joined
+//      belt's box prints exactly that belt's own slug count; a tap on the connector opens no panel of its own (the
+//      joined belt's or none). And each slug that rides the connector, by identity, is in exactly one of the two lists on
+//      every tick from its first tick on the connector through the tick it leaves: the connector's while it rides, the
+//      joined belt's (so its count) from the tick it leaves. Not vacuous: the rig puts a slug on the connector and
+//      carries slugs across (the counts are the REPORT's, not pinned here).
 // Everything is built here (start decks, hand-built rigs); never fights.json and never a par deck.
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { G, fresh, installRaster } from "./raster.helpers";
+import { fakeCanvas, fakeDom } from "./pair1.helpers";
 
 /** What the pass-through mock saw: every drawText call (the badge as drawn). tests/cntday3's. */
 const rec = vi.hoisted(() => ({ text: [] as { s: string; x: number; y: number; color: string; align?: string }[] }));
@@ -21,19 +34,30 @@ vi.mock("../src/render/font", async (importOriginal) => {
   return { ...m, drawText };
 });
 
-import { TICK, WIND_START } from "../src/sim/content";
+import { GRID, TICK, WIND_START } from "../src/sim/content";
 import { sustShown } from "../src/sim/hullScale";
-import type { Build } from "../src/sim/deck";
+import { joinOf, kx, ky, type Build } from "../src/sim/deck";
+import { shapesRules } from "../src/sim/shapes";
+import { footprintCells } from "../src/sim/foot";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { RUNES } from "../src/sim/runes";
-import type { Side } from "../src/sim/battle";
+import { ITEMS } from "../src/sim/content";
+import type { BeltAmmo, Side } from "../src/sim/battle";
+import { validateBuild } from "../src/net/validate";
+import { battleRecordFor } from "../src/net/replay";
 import { ICON, ICON_COLOUR } from "../src/render/font";
-import { fmtDmg } from "../src/ui/statFormat";
+import { fmtCount, fmtDmg } from "../src/ui/statFormat";
 import { textDay } from "../src/ui/fightDay";
+import { UI } from "../src/ui/ui";
 import { Arena } from "../src/game/arena";
-import { battleLayout, battleScale, laneLayout, type BattleLayout } from "../src/game/battleLayout";
-import type { Game } from "../src/game/game";
+import { openReplay } from "../src/game/replays";
+import { viewWithSub } from "../src/game/viewGrid";
+import { battleGrid, battleLayout, battleScale, laneLayout, type BattleLayout } from "../src/game/battleLayout";
+import type { Game, Screen } from "../src/game/game";
+import { BELT_COUNTS, beltShows } from "../src/game/counters";
 import { drawPlate, regenMax, regenNow } from "../src/screens/battleHud";
+import { CNT_REGION } from "../src/screens/battleCounters";
+import { ReplayScreen } from "../src/screens/replay";
 
 installRaster();
 afterEach(() => { vi.restoreAllMocks(); });
@@ -158,6 +182,184 @@ describe("PAIR-2 (b) the REGEN badge on the wind's first tick", () => {
       expect(wholeSeconds).toBe(WIND_TICK / PER_SEC + 1);
       expect(s.hull.hp).toBeGreaterThan(0);
       console.log(`PAIR2 (b) ${label} (badge ${shown}; phone/desk):\n${table.join("\n")}`);
+    });
+  }
+});
+
+// ------------------------------------------------------------------------------- (c) the sim-built connector (Q2)
+
+const K = (x: number, y: number): number => y * GRID + x;
+/** The connector: the rig's fourth belt (route index 3, after the LOOM's three). */
+const CONNECTOR = 3;
+/** The rig, made by hand with SHAPES on: WEAVER's start deck (its LOOM's three belts: route 0 up x 4, route 1 left then up
+ *  x 1, route 2 right then up x 8) and an ASSEMBLY LINE, I3 with SHAPES on, placed by hand at (3,1) and turned upright
+ *  (rot 1: cells (3,1), (3,2), (3,3)) between routes 1 and 0. Its one belt is the one tile (2,1), joining route 1 at
+ *  (1,1). */
+function rig(): Build {
+  const b = heroStartBuild("weaver", 1);
+  b.items.push({ uid: 60, def: "assembly", x: 3, y: 1, rot: 1 });
+  b.routes.push({ factory: 60, cells: [K(2, 1)], join: K(1, 1) });
+  return b;
+}
+/** The foe: FURNACE's start deck. The seed: 7 (bb.openFight's default). */
+const foeDeck = (): Build => heroStartBuild("furnace", 101);
+const SEED = 7;
+/** The fight as bb.openFight runs it (main.ts): the record of the two decks at the seed, replayed. */
+function replayed(): ReturnType<typeof openReplay> & { ok: true } {
+  const r = openReplay(battleRecordFor(rig(), foeDeck(), SEED));
+  expect(r.ok, "the record replays").toBe(true);
+  return r as ReturnType<typeof openReplay> & { ok: true };
+}
+
+/** tests/cntday's stand-in Game: a silent audio, a w x h view at DPR `dpr` (the battle's scale and grid), a UI and a
+ *  recording canvas. */
+const pickSub = (pw: number, ph: number, p: boolean, scale: number): number => { const g = battleGrid(pw, ph, p); return g.close === scale ? g.sub : 1; };
+function fakeGame(w: number, h: number, dpr: number): Game {
+  const view = viewWithSub(w, h, dpr, (pw, ph, p) => battleScale(pw, ph, p), pickSub);
+  const silentAudio = new Proxy({}, { get: () => () => undefined });
+  const g = { audio: silentAudio, view, W: view.W, H: view.H, portrait: view.portrait, t: 0, ui: new UI(), canvas: fakeCanvas() } as unknown as Game;
+  (g as unknown as { go: (s: unknown) => void }).go = () => undefined;
+  return g;
+}
+/** One frame as game.ts draws it: the screen's update (`dt` 0: none, a redraw in place), then the UI's regions rebuilt
+ *  around the screen's draw, on a recording canvas. */
+function frame(game: Game, sc: ReplayScreen, dt = 1 / 60): void {
+  if (dt > 0) sc.update(dt);
+  rec.text.length = 0;
+  game.ui.begin();
+  sc.draw(fakeCanvas().getContext());
+  game.ui.end();
+}
+/** A tap at (x, y) routed as game.ts routes one (pointerDown: the screen's `pressed`, then the region pressed; pointerUp:
+ *  its onTap), then the frame redrawn in place: the group the tap left open and the panel that frame shows (ids; null:
+ *  none). The pointer then leaves the screen and the panel is closed again (test state), so each tap starts from none. */
+function tapAt(game: Game, sc: ReplayScreen, x: number, y: number, kind: "touch" | "mouse"): { open: string | null; panel: string | null } {
+  const ui = game.ui;
+  Object.assign(ui.pointer, { x, y, down: true, kind });
+  ui.pressed = null;
+  const r = ui.hit(x, y);
+  sc.pressed(x, y, r ? r.id : null);
+  if (r) { if (r.onDown) r.onDown(x, y); else ui.pressed = r.id; }
+  ui.pointer.down = false;
+  const id = ui.pressed;
+  ui.pressed = null;
+  if (id) { const q = ui.hit(x, y); if (q && q.id === id && q.onTap) q.onTap(); }
+  frame(game, sc, 0);
+  const out = { open: sc.counters.open, panel: sc.counters.last.panel?.id ?? null };
+  Object.assign(ui.pointer, { x: -1, y: -1 });
+  sc.counters.open = null;
+  return out;
+}
+/** A tile's centre on screen and its four corners 1 px in (logical px, through the camera: ArenaMotion.tileCentre, what a
+ *  tap must hit), from its neighbours' centres, so a turned board turns them too. */
+function tilePoints(sc: ReplayScreen, cell: number): [number, number][] {
+  const m = sc.motion, a = sc.arena, x = kx(cell), y = ky(cell);
+  const c = m.tileCentre(a, 0, x, y), cu = m.tileCentre(a, 0, x + 1, y), cv = m.tileCentre(a, 0, x, y + 1);
+  const u = [cu[0] - c[0], cu[1] - c[1]], v = [cv[0] - c[0], cv[1] - c[1]];
+  const k = Math.max(0, 0.5 - 1 / Math.max(2, Math.hypot(u[0], u[1])));
+  return [c, ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([i, j]) => [c[0] + k * (i * u[0] + j * v[0]), c[1] + k * (i * u[1] + j * v[1])] as [number, number])];
+}
+
+describe("PAIR-2 (c) a sim-built connector: no box and no panel of its own; its slugs counted one tile later, on the belt they join", () => {
+  let restore: () => void = () => undefined;
+  beforeAll(() => { restore = fakeDom(); }); // the replay's canvases record (tests/cntday's); (b)'s raster comes back after
+  afterAll(() => restore());
+
+  it("the rig: SHAPES on, the I3 placed by hand, its one-tile belt joining route 1; a legal deck; in battle, a connector", () => {
+    expect(shapesRules(), "0.9.9 ships SHAPES on").toBe(true);
+    expect(ITEMS.assembly.foot, "ASSEMBLY LINE is I3 with SHAPES on").toBe("I3");
+    const b = rig();
+    expect(footprintCells(ITEMS.assembly, 3, 1, 1)).toEqual([K(3, 1), K(3, 2), K(3, 3)]);
+    for (const day of [1, 7, 8]) expect(validateBuild(b, day), `a legal deck on day ${day}`).toEqual({ ok: true, errors: [] });
+    const link = joinOf(b, CONNECTOR)!;
+    expect(link, "a legal join").toBeTruthy();
+    expect(link.route).toBe(b.routes.findIndex((r) => r.cells.includes(K(1, 1))));
+    expect(link.tile).toBe(b.routes[link.route].cells.indexOf(K(1, 1)));
+    const s = replayed().battle.sides[0], con = s.routes[CONNECTOR];
+    expect(con.cells, "one tile").toEqual([K(2, 1)]);
+    expect([con.join?.route, con.join?.tile, con.connected, con.turret]).toEqual([link.route, link.tile, false, -1]);
+    expect(s.routes[link.route].join, "the belt it joins is no connector").toBeUndefined();
+    expect(s.joiners?.map((r) => r.index)).toEqual([CONNECTOR]);
+    console.log(`PAIR2 (c) the rig: WEAVER start + ASSEMBLY LINE (I3) at (3,1) rot 1 -> cells ${footprintCells(ITEMS.assembly, 3, 1, 1)}; route ${CONNECTOR} cells ${JSON.stringify(con.cells)} joins route ${link.route} at tile ${link.tile} (cell ${K(1, 1)}); join ${JSON.stringify(con.join)}, L ${con.L}`);
+  });
+
+  it("each slug that rides the connector is in exactly one of the two lists on every tick, the joined belt's from the tick it leaves", () => {
+    const b = replayed().battle, s = b.sides[0], con = s.routes[CONNECTOR], main = s.routes[con.join!.route];
+    const state = new Map<BeltAmmo, "riding" | "joined" | "gone">();
+    let carried = 0, ridingTicks = 0, appear = 0, prev = 0, first = -1;
+    while (!b.over && b.ticks < 120 * 60) {
+      b.step();
+      for (const q of con.ammo) if (!state.has(q)) state.set(q, "riding");
+      for (const [q, st] of state) {
+        const inC = con.ammo.includes(q), inM = main.ammo.includes(q), at = `tick ${b.ticks}`;
+        expect(inC && inM, `${at}: never in both lists`).toBe(false);
+        if (st === "riding") {
+          if (inC) continue;
+          expect(inM, `${at}: off the connector, straight into the joined belt's list (never in neither)`).toBe(true);
+          state.set(q, "joined");
+          carried++;
+        } else if (st === "joined") {
+          expect(inC, `${at}: never back on the connector`).toBe(false);
+          if (!inM) state.set(q, "gone"); // on into its turret: counted on the joined belt while it rode it
+        } else expect(inC || inM, `${at}: gone for good`).toBe(false);
+      }
+      const n = con.ammo.length;
+      if (n > 0) { ridingTicks++; if (prev === 0) appear++; if (first < 0) first = b.ticks; }
+      prev = n;
+    }
+    // not vacuous: the rig puts a slug on the connector and carries slugs across (the counts are the REPORT's)
+    expect(ridingTicks, "ticks with a slug on the connector").toBeGreaterThan(0);
+    expect(carried, "slugs carried across").toBeGreaterThan(0);
+    console.log(`PAIR2 (c) per tick: the fight ends at tick ${b.ticks} (t ${b.t.toFixed(2)} s, winner ${b.winner}); a slug rides the connector on ${ridingTicks} ticks (${appear} appearances, the first at tick ${first}); ${state.size} slugs rode it, ${carried} carried across, each into route ${main.index}'s list on the tick it left`);
+  });
+
+  for (const [view, w, h, dpr, kind] of [["phone 402x690", 402, 690, 3, "touch"], ["desk 1920x1080", 1920, 1080, 1, "mouse"]] as const) {
+    it(`${view}: on every frame a slug rides the connector, no box and no group on it, the joined belt's box is its own count, and a ${kind === "touch" ? "tap" : "click"} on it opens no panel of its own`, () => {
+      const game = fakeGame(w, h, dpr), sc = new ReplayScreen(game, null as unknown as Screen, replayed().battle, { day: 8, foe: "FURNACE" });
+      const a = sc.arena, s = a.b.sides[0], con = s.routes[CONNECTOR], main = s.routes[con.join!.route];
+      const own = `${CNT_REGION}belt0:${CONNECTOR}`, joined = `${CNT_REGION}belt0:${main.index}`;
+      expect(BELT_COUNTS, "C5's rule as shipped").toBe("all");
+      let riding = 0, boxesDrawn = 0, joinedShown = 0, appear = 0, prev = 0, taps = 0;
+      const opened = new Map<string, number>();
+      for (let f = 0; f < 120 * 60 && !a.b.over; f++) {
+        frame(game, sc);
+        const n = con.ammo.length, d = sc.counters.last;
+        if (n > 0 && !a.b.over) {
+          riding++;
+          expect(beltShows(s, con, BELT_COUNTS), "PAIR-1c's rule: no count on a one-tile joining belt").toBe(false);
+          expect(d.belts.some((q) => q.side === 0 && q.route === CONNECTOR), `frame ${f}: no box on the connector`).toBe(false);
+          expect(d.targets.some((t) => t.id === own), `frame ${f}: no tap group on the connector`).toBe(false);
+          expect(game.ui.regions.some((q) => q.id === own), `frame ${f}: no region of its own`).toBe(false);
+          if (d.belts.length) boxesDrawn++;
+          const jb = d.belts.find((q) => q.side === 0 && q.route === main.index);
+          if (jb) {
+            joinedShown++;
+            expect(jb.n, `frame ${f}: the joined belt's box prints exactly its own list`).toBe(main.ammo.length);
+            expect(main.ammo.some((q) => con.ammo.includes(q)), "the riding slug is not on the joined belt yet").toBe(false);
+          }
+          if (prev === 0) { // each time a slug comes onto the connector: a tap on its centre and its four corners
+            appear++;
+            for (const [x, y] of tilePoints(sc, con.cells[0])) {
+              const t = tapAt(game, sc, x, y, kind);
+              taps++;
+              const key = `${t.open ?? "none"}/${t.panel ?? "none"}`;
+              opened.set(key, (opened.get(key) ?? 0) + 1);
+              expect(t.open, `frame ${f} (${x.toFixed(1)}, ${y.toFixed(1)}): never the connector's own group`).not.toBe(own);
+              expect(t.panel, `frame ${f} (${x.toFixed(1)}, ${y.toFixed(1)}): never a panel of its own`).not.toBe(own);
+              // cap's ruling: the joined belt's panel, or none; any other group's would be a finding
+              expect([null, joined], "the joined belt's panel or none").toContain(t.open);
+              expect([null, joined], "the joined belt's panel or none").toContain(t.panel);
+            }
+          }
+        }
+        prev = n;
+      }
+      // not vacuous: slugs rode the connector while the board's boxes were drawn, the joined belt's among them, and taps ran
+      expect(riding, "frames with a slug on the connector").toBeGreaterThan(0);
+      expect(boxesDrawn, "frames with board boxes drawn while it rides").toBeGreaterThan(0);
+      expect(joinedShown, "frames with the joined belt's box drawn while it rides").toBeGreaterThan(0);
+      expect(taps).toBeGreaterThan(0);
+      console.log(`PAIR2 (c) ${view}: a slug rides the connector on ${riding} frames (${appear} appearances); board boxes drawn on ${boxesDrawn} of them, the joined belt's (route ${main.index}, ${fmtCount(main.ammo.length)} now) on ${joinedShown}; ${taps} ${kind === "touch" ? "taps" : "clicks"} on its tile: ${[...opened].map(([k, v]) => `${k} x${v}`).join(", ")} (open/panel)`);
     });
   }
 });
