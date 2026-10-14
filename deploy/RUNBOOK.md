@@ -3310,6 +3310,127 @@ The release before v19 is 0.9.7's v18 (image registry.fly.io/beltbattles:deploym
 LIVE-097; its page BeltBattles-0.9.7-567642b421f7-online.html, 717,904 bytes), on bb-0.9.7 too: the same command with
 v18's image returns it, with the same seed line.
 
+## 28. 0.9.9.1: easier starting opponents (server only; rules bb-0.10.0 kept; its own L4)
+
+0.9.9's launch is section 27, in the clone beltbattles-c099/BeltBattles-c099 (branch c099, tip c0182e78fe6c = tags
+stage-099c and live-099). It ran there on its own L4 and must never run again: 0.9.9 is live as release v20 (image
+registry.fly.io/beltbattles:deployment-01M4VY1CPFXG7M6FHY41HJ3WM1, since 2026-10-14 at about 00:48Z, LIVE-099). This
+section is 0.9.9.1's launch, from the clone beltbattles-r0991/BeltBattles-r0991 (branch r0991; r0991-base = live-099 =
+c0182e78fe6c), staged on 2026-10-14.
+
+0.9.9.1 is a **server-only** release: SOFT-1 (REQ-BFG-092) regenerates the seed pool, the 120 ghosts a new player meets
+in their first runs, so they are easier to beat: a typical run now ends around 6 to 7 wins (0.9.9: about 5; 0.9.8: about
+7). "0.9.9.1" names the release in these docs only: the game page is 0.9.9's, byte for byte, and still reads V0.9.9; the
+battle rules stay bb-0.10.0; Shore is not touched.
+
+**What ships.** Branch r0991 at its tip, the release record commit (tag stage-0991; the launch text names its 12 hex):
+r0991-base, SOFT-1 (soft1-accepted 26769d1ab308, one commit on live-099, merged as c86743f8ed69 after a merge-tree
+check) and the release record (this runbook, docs/CHANGELOG.md and deploy/GAME_BUILD.txt's source line;
+tests/tsc-tests-baseline.json stays at 164). The STAGE's gate (kit-r0991/gate0991.sh, item 1) holds every path changed
+since r0991-base to tools/samplePool.ts, server/seedPoolData.ts, tests/**, docs/CHANGELOG.md, deploy/GAME_BUILD.txt and
+deploy/RUNBOOK.md, and RULES_VERSION to bb-0.10.0.
+- **The page** is 0.9.9's online page, unchanged: BeltBattles-0.9.9-814a1b9c065d-online.html, 934,945 bytes, sha256
+  `67612299dd841566…`, staged from ../output-r0991/pages/ (a copy of the page v20 serves; the tip's own build:online
+  and build are cmp-identical to 0.9.9's two pages: gate item 3). GAME_BUILD.txt keeps its bytes and sha256; only its
+  source line names ../output-r0991/pages/ (neither stage.mjs nor the smoke reads that line: they check bytes and
+  sha256).
+- **The rules** stay bb-0.10.0 (RULES_VERSION, src/sim/content.ts:42; PROBE_RULES, server/ghostProbe.ts:69), so every
+  0.9.9 run, save, ghost and upload carries on. PICK_RULE stays { losing 1, deep 0.5, deepAt 2 } (src/net/pick.ts:79):
+  a change there changes the page too (src/net/fallback.ts:12 imports matchPick), which would make it a page release
+  (0.9.10), not this.
+- **The seed pool** is SOFT-1's: server/seedPoolData.ts, 190,272 bytes, sha16 e0318ad8969cbf38 (0.9.9's: 192,209 bytes,
+  71f635fc7bd8f936), 120 ghosts, 12 a day, every one graded. 78 of the 120 are new (pooldiff.sh r0991-base..the tip:
+  78 ids added, 78 removed, 0 regraded, 42 kept). SOFT-1's bench (96 seeds a hero,
+  beltbattles-azbump/output-soft1/bench/bands-soft1.md): par 6.69 (0.9.9: 5.10; 0.9.8: 7.15), c5 3.68 wins (0.9.9:
+  3.18), 0W 3%, >=3W 75%. The fingerprint and parBench are unchanged (857,946 bytes, e731bdca8c7ec442 / 4eab334f): no
+  sim rule moved.
+- **The server bundle**: server/dist differs from v20's in the seed chunk only (seed-<hash>.mjs, which holds the pool;
+  its name moves with its content), in ghost-server.mjs only by that chunk's name, and in gen-ghost-pool.mjs
+  (tools/samplePool.ts, the generator, which the server never runs); the other six files are byte-identical (gate item
+  3). fly.toml, the Dockerfile, .dockerignore, deploy/stage.mjs and every server/*.ts file but seedPoolData.ts are
+  unchanged since c0182e7, so uploads stay open.
+- **Known test reds at the tip (test only).** 13 test files (17 tests) pin the old pool's content; nothing shipped reads
+  them: rc.seedpool, seed.records, net-upload, runes.parity, net-server, snapshot.contract, s8.seedcheck, runes.snapshot,
+  belts.snapshot, turrets.snapshot, h2.records, names.upload and h2.nearmiss. SOFT-1 run 1's whole suite on this patch:
+  397 files, 382 passed, 2 skipped, these 13 red and no other (runes.parity is also red at the base under load: its
+  120 s limit). SOFT-1 run 2 re-pins them by cause on branch soft1, after soft1-accepted; the re-pins ride the next
+  client release.
+
+**The release command** (`node /app/dist/ghost-server.mjs seed`) makes the store's bb-0.10.0 pool match the bundle:
+`seed: rules bb-0.10.0, 120 pool ghosts on tigris (...)` with **`78 written, 42 unchanged, 78 removed`**: a ghost's id
+is its content's (server/seed.ts:67 ghostId), so each changed ghost is a new id written and an old id removed. It lists
+and deletes only ghosts/bb-0.10.0/dNN/pool/ (server/tigrisStore.ts:257-279): uploads (…/player/) are never touched. Any
+later start of the same image reads `0 written, 120 unchanged, 0 removed`. It plays no battle: 0.7 s and 95,536 kB
+peak RSS on one core of the staging host (gate item 5c on this exact pool at the pre-stage 1725a8fd3af7; the STAGE's
+gate measures it again at the tip; 0.9.9's: 2 s, 97,604 kB). A seed that fails aborts the deploy and v20 keeps serving.
+
+**The launch call is the Prime's**: output-r0991/CMD-0991.txt (`CMD_FINAL=1 kit-r0991/mkcmd0991.sh r0991 78 A` at the
+tip; its sha16 in CMD-0991.txt.sha16), rehearsed with Fly stubbed by kit-r0991/cmd-sim0991.sh (`RESULT (099): PASS`,
+three refusal runs first). Run once, under its own operator approval (L4). In order:
+1. set `pipefail`, enter this clone, and refuse unless HEAD is the r0991 tip named at launch (12 hex; tag stage-0991),
+   the tree is clean and ../output-r0991/probe-id.txt holds no earlier probe id;
+2. **the page guard** (in place of section 27's version guard: 0.9.9.1's page is 0.9.9's, so a label can't tell them
+   apart): refuse unless the page Fly serves is byte-identical (cmp) to the staged 0.9.9 online page and /v1/health
+   reads `"rules":"bb-0.10.0"`. It prints `page guard: Fly serves the 0.9.9 page; only the server changes`, or `refused:
+   Fly serves no page (curl exit N)` / `another page than the staged 0.9.9 page (cmp differs)`, `and its health reads
+   …; route A ships the server only, over the 0.9.9 page on rules bb-0.10.0`, and stops before anything is staged.
+   Leave Fly as it is and report it;
+3. stage the page (`node deploy/stage.mjs <the page>`: its size and sha256 against GAME_BUILD.txt; it builds
+   server/dist at the tip);
+4. save `fly releases -a beltbattles --image` to ../output-r0991/releases-before.txt (v20 first: the rollback target);
+5. deploy (`fly deploy --ha=false --remote-only`, its output in ../output-r0991/run-deploy.txt), `fly status`, then
+   print the release command's seed line from `fly logs -a beltbattles --no-tail` (information only, never failing);
+6. the live checks; 7. the pool check; 8. the probe block; then releases-after.
+Every step after the guards is chained with `&&`, so the first failure stops the call.
+
+**The live checks** (section 27's, unchanged): health `{"ok":true,"rules":"bb-0.10.0","store":"tigris",…,"uploads":
+"open",…}` (`--retry 3`); `live page = the staged 0.9.9 online page (cmp)`; days 1-10 for a new player at 0 wins and 10
+hearts, ten `-> 200` lines (../output-r0991/days.txt); day 3 at 1 win and 9 hearts, a v3 bb-0.10.0 snapshot; an unsigned
+POST `-> 401`.
+
+**The pool check (new): is the NEW pool served?** A match answer carries the ghost's id (server/app.ts:360), and a new
+player (runs 0) is matched on the day's seed pool only, by matchPick with an rng seeded by the query and the current
+minute (app.ts:271, matchSeed): one pool and one query give a known set of possible ids. The call asks the ten day
+matches again and checks each served id is one the tip's pool can serve for its day
+(../output-r0991/expect-ids-<tip>.txt, written when the text was made), then asks 3 records whose every possible ghost
+is new in this pool (day 3 at 1 win and 10 hearts, day 4 at 2 wins and 9 hearts, day 5 at 2 wins and 8 hearts): `pool
+check: 3 of 3 records whose every candidate is new in this pool (…) served new ids …the NEW pool is served`. v20's pool
+can't answer those with a new id.
+
+**The probe block** (section 27's, unchanged; the probe-id file is ../output-r0991/probe-id.txt): the probe (16 lines,
+13 of 13, 6 decks), revalidate's dry run (`plan: delete 0 record(s) of bb-0.10.0; keep 120 seed-pool ghost(s) and N
+upload(s)`: N = the probe's 6 plus every real player's upload since 0.9.9 went live, which all pass), remove-player
+--apply of the probe's id (`APPLIED: deleted 6 of 6 record(s).`), `fly apps restart beltbattles`, health, and `list
+--rules bb-0.10.0`: ten day rows of 12, then `all 120 N P` (real players' uploads, never a probe upload).
+
+**The hand clean-up**, if the call stops after the probe's first 201 (up to 6 decks left):
+
+```sh
+set -o pipefail; cd /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r0991/BeltBattles-r0991 && [ -s ../output-r0991/probe-id.txt ] && fly ssh console -a beltbattles -C "node /app/dist/ghost-admin.mjs remove-player $(cat ../output-r0991/probe-id.txt) --rules bb-0.10.0 --apply" && fly apps restart beltbattles && sleep 5 && fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.10.0'
+```
+
+Expect `APPLIED: deleted N of N record(s).` (N = the probe's 201s, at most 6) and a list with no probe upload. Then
+move probe-id.txt away (probe-id-1.txt) before any new probe. If a rollback follows, clean up first.
+
+**Rollback to v20** (its own L4 every time, after telling the operator; never part of the launch call). Check that
+../output-r0991/releases-before.txt lists v20 first; if not, stop and ask the Prime. From this clone:
+
+```sh
+fly deploy --ha=false --remote-only --image registry.fly.io/beltbattles:deployment-01M4VY1CPFXG7M6FHY41HJ3WM1
+```
+
+v20's release command (0.9.9's bundle) puts 0.9.9's pool back: `seed: rules bb-0.10.0, 120 pool ghosts on tigris (...)`
+with **`78 written, 42 unchanged, 78 removed`** (0.9.9's old ids written again, SOFT-1's removed). Rehearsed: gate
+item 5f and cmd-sim0991.sh's rollback step read that line, the store's pool ids by day equal to r0991-base's, and
+`all 120 6 1` (a 0.9.9 player's six uploads kept). Uploads are untouched both ways, and since the rules are the same
+(bb-0.10.0), uploads made under 0.9.9.1 keep meeting experienced players after a rollback. The page is the same bytes,
+so players see no change but their first opponents; an open tab needs no reload. fly.toml is the same bytes as v20's
+(no commit since c0182e7 touches it), so the image route is safe for the server. Before v20: 0.9.8's v19
+(registry.fly.io/beltbattles:deployment-01M4F3CAMZQZW1JXKQZ1R8XXS0, rules bb-0.9.7), section 27's rollback.
+
+**Route B** (0.9.10, a page release, had soft1-accepted moved PICK_RULE's numbers in src/net/pick.ts) was not needed:
+soft1-accepted changes no file under src/ (gate item 1).
+
 ## Troubleshooting
 
 - Release command says `BB_GHOST_STORE=tigris needs …: not set`: a secret is missing; re-check call 2

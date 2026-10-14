@@ -3,6 +3,12 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.9.1: easier first opponents
+
+The starting opponents are easier again: a typical run now ends around 6 to 7 wins (0.9.9: about 5; 0.9.8: about 7).
+Nothing else changes: the game still reads V0.9.9, the battle rules stay bb-0.10.0, and your runs, saved games and
+uploaded ghosts carry on as they are.
+
 ## 0.9.9: 10 hearts, hulls that grow and the battle view
 
 New battle rules: bb-0.10.0 (hulls that grow with the day, a warlord every day, 10 hearts, open rune offers, free joins,
