@@ -75,7 +75,7 @@
 //         wearing it, and the reload keeps the carrier choice. --profile mixed adds carrier styles: ADMIRAL'S BLUE open and
 //         worn, IRONCLAD open and unseen, STORMCALLER and CHAMPION'S GOLD locked.
 // Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names,bar,customize,
-//        newstyle,roadfork,scout,foecard,shaperotate] [--tag after] [--name touchcheck] [--profile none|mixed] [--cviews phone,...,desk]
+//        newstyle,roadfork,scout,foecard,shaperotate,replay] [--tag after] [--name touchcheck] [--profile none|mixed] [--cviews phone,...,desk]
 //        [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json, <name>-mouse.json and the screenshots.
 
@@ -97,8 +97,8 @@ const opt = (name, fallback) => {
 const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "touchcheck"));
 // PACKS M2: + names; TAP-093b: + bar; CUSTOM-2b (REQ-BFG-072): + customize, newstyle, roadfork; SCOUT-1 (REQ-BFG-076): + scout;
-// SCOUT-1c (REQ-BFG-082): + foecard; SHAPES-1 (REQ-BFG-086 S3): + shaperotate
-const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout,foecard,shaperotate").split(",").map((s) => s.trim());
+// SCOUT-1c (REQ-BFG-082): + foecard; SHAPES-1 (REQ-BFG-086 S3): + shaperotate; REPLAY-1 (REQ-BFG-112): + replay
+const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout,foecard,shaperotate,replay").split(",").map((s) => s.trim());
 const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
 /** CUSTOM-2b (REQ-BFG-072): --profile: the player profile (beltbattles.profile.v1) every page of the run starts with,
@@ -2286,6 +2286,173 @@ async function shapeRotateSection(browsers, origin) {
   }
 }
 
+// ------------------------------------------------------------- REPLAY-1: the result card's REPLAY
+/** REPLAY-1 (REQ-BFG-112): a REPLAY on every post-fight result card, by real input on each view: a dusk (2X picked by a
+ *  tap mid-fight: the run's kept speed; then SKIP) and a Hard warlord on the road (4X picked; NPC_DAY's card, ON TO THE
+ *  ROAD). The card's REPLAY on the screen, clear of the card's other targets, 44 CSS px on touch; a tap opens the replay at
+ *  the run's kept speed; a speed picked in it is not kept; SKIP and BACK from its result return to the same card (the same
+ *  screen object, its targets where they were, every beltbattles.* key byte-identical); REPLAY again and BACK while it
+ *  plays; then the card's primary goes on as before (the dawn's build screen; the road's event). replayReload (the phone):
+ *  a reload during a replay lands where a reload on the card lands (CONTINUE: the dawn's build screen for a dusk, the
+ *  stored card again for a warlord). On REPLAY_VIEWS (wk-op-690: the operator's 402x690 in WebKit, where the run has it). */
+const REPLAY_VIEWS = ["phone", "wk-op-690", "phone-land", "desk"];
+const rp1Keys = (page) => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("beltbattles.")).sort().map((k) => `${k}=${localStorage.getItem(k)}`));
+/** The card's own targets: every region drawn after its full-screen blocker (resultbg), in CSS client px. */
+const rp1Card = (page) => page.evaluate(() => { const r = window.bb.regions(), i = r.findIndex((q) => q.id === "resultbg"); return i < 0 ? [] : r.slice(i + 1); });
+const rp1OnCard = (page, timeout = 30000) => page.waitForFunction(() => window.bb.screen(true) === "result" && !window.bb.game.transitioning && window.bb.regions().some((q) => q.id === "cardreplay"), null, { timeout });
+const rp1InReplay = (page, timeout = 15000) => page.waitForFunction(() => window.bb.screen() === "replay" && !window.bb.game.transitioning, null, { timeout });
+const rp1State = (page) => page.evaluate(() => { const s = window.bb.game.screen; return window.bb.screen() === "replay" ? { over: s.over, speed: s.speed, arenaSpeed: s.arena.speed, ticks: s.arena.b.ticks } : null; });
+const rp1Same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/** A speed picked by a real press on the battle's (or replay's) bar: its own button (sp0-sp3), or the compact bar's cycle. */
+async function rp1Speed(page, cdp, i) {
+  const b = await regionOf(page, `sp${i}`);
+  if (b) return press(page, cdp, centre(b));
+  for (let n = 0; n < 4; n++) {
+    const s = await page.evaluate(() => window.bb.game.screen.speed);
+    if (s === i) return;
+    await press(page, cdp, centre(await regionOf(page, "spd")));
+  }
+}
+
+/** The card up: its REPLAY checked, then REPLAY (at the kept speed), a speed picked, SKIP, BACK from the replay's result;
+ *  REPLAY again and BACK while it plays. Returns the card's primary target's id. */
+async function rp1Card2(page, cdp, V, vname, kind) {
+  const vp = VIEW[vname].viewport, touch = !!cdp;
+  await rp1OnCard(page);
+  await sleep(300); // the card at rest (its rise is 0.25 s)
+  const t0 = await rp1Card(page), k0 = await rp1Keys(page), s0 = await scoutState(page);
+  const rep = t0.find((q) => q.id === "cardreplay"), vf = t0.find((q) => q.id === "viewfield");
+  const pid = ["next", "toroad", "refit", "take0"].find((id) => t0.some((q) => q.id === id)), pr = t0.find((q) => q.id === pid);
+  const clear = t0.filter((q) => q.id !== "cardreplay").every((q) => !overlaps(rep, q));
+  check(!!rep && inViewport(rep, vp) && (!touch || (rep.w >= TAP_CSS - 0.01 && rep.h >= TAP_CSS - 0.01)) && clear && !!s0.card && inViewport(s0.card, vp),
+    `${V}: the ${kind} card's REPLAY (${box(rep)}) is on the screen${touch ? ", at least 44 x 44" : ""}, clear of the card's ${t0.length - 1} other targets (VIEW BATTLEFIELD ${box(vf)}, ${pid} ${box(pr)}); the card whole (${box(s0.card)})`);
+  await shot(page, `${TAG}-replay-${vname}-${kind}-card.png`);
+  await page.evaluate(() => { window.__rp1card = window.bb.game.screen; });
+  const kept = await page.evaluate((k) => localStorage.getItem(k), SPEED_KEY);
+  const want = kept ? JSON.parse(kept).speed : 1; // the run's kept speed (1X with none)
+  await press(page, cdp, centre(rep));
+  await rp1InReplay(page);
+  let r = await rp1State(page);
+  check(!!r && !r.over && r.speed === want && r.arenaSpeed === [0.5, 1, 2, 4][want],
+    `${V}: a ${touch ? "tap" : "click"} on REPLAY opens the ${kind}'s replay at the run's kept speed ${SPEED_LABEL[want]} (${r ? `bar ${SPEED_LABEL[r.speed]}, arena ${r.arenaSpeed}X, ${r.ticks} ticks` : "no replay"})`);
+  await shot(page, `${TAG}-replay-${vname}-${kind}-replay.png`);
+  const other = want === 0 ? 1 : 0;
+  await rp1Speed(page, cdp, other);
+  r = await rp1State(page);
+  const kept2 = await page.evaluate((k) => localStorage.getItem(k), SPEED_KEY);
+  check(!!r && r.speed === other && kept2 === kept, `${V}: ${SPEED_LABEL[other]} picked in the replay plays it (bar ${SPEED_LABEL[r?.speed] ?? "?"}) and is not kept (${kept2 ?? "no key"})`);
+  await press(page, cdp, centre(await regionOf(page, "skip")));
+  await page.waitForFunction(() => window.bb.game.screen.over === true && window.bb.regions().some((q) => q.id === "replayback"), null, { timeout: 15000 });
+  await sleep(200);
+  await press(page, cdp, centre(await regionOf(page, "replayback")));
+  await rp1OnCard(page);
+  await sleep(200);
+  let same = await page.evaluate(() => window.bb.game.screen === window.__rp1card), t1 = await rp1Card(page), k1 = await rp1Keys(page);
+  check(same && rp1Same(t1, t0) && rp1Same(k1, k0),
+    `${V}: SKIP, then BACK from the replay's result returns to the same ${kind} card (the same screen: ${same}; its ${t1.length} targets where they were: ${rp1Same(t1, t0)}; all ${k0.length} beltbattles.* keys byte-identical: ${rp1Same(k1, k0)})`);
+  await shot(page, `${TAG}-replay-${vname}-${kind}-back.png`);
+  await press(page, cdp, centre(await regionOf(page, "cardreplay")));
+  await rp1InReplay(page);
+  await sleep(500);
+  r = await rp1State(page);
+  await press(page, cdp, centre(await regionOf(page, "replayleave")));
+  await rp1OnCard(page);
+  await sleep(200);
+  same = await page.evaluate(() => window.bb.game.screen === window.__rp1card);
+  t1 = await rp1Card(page);
+  k1 = await rp1Keys(page);
+  check(!!r && !r.over && same && rp1Same(t1, t0) && rp1Same(k1, k0), `${V}: REPLAY again, BACK while it plays (${r?.ticks ?? "?"} ticks in): the same ${kind} card, its targets and every key as they were`);
+  return pid;
+}
+
+async function replayView(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname, { name: "REPLAY" });
+  const V = `replay ${vname}`;
+  viewNow = V;
+  await page.evaluate(() => window.bb.openDusk({ hero: "furnace", day: 6, seed: 7 }, []));
+  await page.waitForFunction(() => window.bb.screen(true) === "fight", null, { timeout: 20000 });
+  await rp1Speed(page, cdp, 2); // 2X: the run's kept speed from now on
+  await press(page, cdp, centre(await regionOf(page, "skip")));
+  const pid = await rp1Card2(page, cdp, V, vname, "dusk");
+  await press(page, cdp, centre(await regionOf(page, pid)));
+  await settle(page, "build", 15000);
+  check(await page.evaluate(() => window.bb.screen() === "build"), `${V}: then the dusk card's ON TO DAWN (${pid}) goes on to the dawn's build screen, as before`);
+  await page.evaluate(() => { window.bb.game.screen.oldScreen = true; window.bb.openWarlord("hard", { hero: "furnace", day: 4, seed: 9 }); });
+  await page.waitForFunction(() => !window.bb.game.screen.oldScreen && window.bb.screen() === "warlord" && window.bb.screen(true) === "fight", null, { timeout: 20000 });
+  await rp1Speed(page, cdp, 3); // 4X
+  await press(page, cdp, centre(await regionOf(page, "skip")));
+  const wp = await rp1Card2(page, cdp, V, vname, "warlord");
+  await press(page, cdp, centre(await regionOf(page, wp)));
+  await page.waitForFunction(() => ["event", "build"].includes(window.bb.screen()) && !window.bb.game.transitioning, null, { timeout: 15000 });
+  const went = await page.evaluate(() => window.bb.screen());
+  check(wp === "toroad" ? went === "event" : went === "build", `${V}: then the warlord card's ${wp === "toroad" ? "ON TO THE ROAD" : wp} goes on, as before (${went})`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+  await ctx.close();
+}
+
+/** A reload, then the title's CONTINUE: the screen it opens (and its battle phase). */
+async function rp1Reload(page, cdp) {
+  await page.reload();
+  await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
+  await settle(page, "title");
+  await press(page, cdp, centre(await page.waitForFunction(() => window.bb.regions().find((q) => q.id === "cont") ?? null, null, { timeout: 15000 }).then((h) => h.jsonValue())));
+  await page.waitForFunction(() => window.bb.screen() !== "title" && !window.bb.game.transitioning, null, { timeout: 15000 });
+  await sleep(300);
+  return page.evaluate(() => ({ screen: window.bb.screen(), phase: window.bb.screen(true), day: window.bb.game.run?.day ?? null }));
+}
+
+async function replayReload(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname, { name: "REPLAY" });
+  const V = `replay ${vname} reload`;
+  viewNow = V;
+  const to = (o) => `${o.screen}${o.screen === "warlord" ? ` (${o.phase})` : ""}, day ${o.day}`;
+  for (const kind of ["dusk", "warlord"]) {
+    const got = {};
+    for (const where of ["card", "replay"]) {
+      await page.evaluate((k) => {
+        if (window.bb.game.screen) window.bb.game.screen.oldScreen = true;
+        if (k === "dusk") window.bb.openDusk({ hero: "furnace", day: 6, seed: 7 }, []);
+        else window.bb.openWarlord("hard", { hero: "furnace", day: 4, seed: 9 });
+      }, kind);
+      await page.waitForFunction(() => !window.bb.game.screen.oldScreen && window.bb.screen(true) === "fight", null, { timeout: 20000 });
+      await press(page, cdp, centre(await regionOf(page, "skip")));
+      await rp1OnCard(page);
+      await sleep(300);
+      if (where === "replay") {
+        await press(page, cdp, centre(await regionOf(page, "cardreplay")));
+        await rp1InReplay(page);
+        await sleep(400);
+      }
+      got[where] = await rp1Reload(page, cdp);
+    }
+    const want = kind === "dusk" ? got.card.screen === "build" : got.card.screen === "warlord" && got.card.phase === "result";
+    check(want && rp1Same(got.replay, got.card), `${V}: a reload during the ${kind}'s replay lands where a reload on its card lands (CONTINUE: ${to(got.replay)}; on the card: ${to(got.card)})`);
+  }
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+  await ctx.close();
+}
+
+async function replaySection(browsers, origin) {
+  log("");
+  log("## REPLAY-1 (REQ-BFG-112): REPLAY on the result card of a dusk and of a warlord fight, by real input on each view: on the screen, clear of the card's targets, 44 CSS px on touch; the replay at the run's kept speed; a speed picked in it not kept; BACK to the same card (its targets, every key); then the card's primary; a reload during a replay lands where the card's does");
+  for (const v of REPLAY_VIEWS) {
+    if (!browsers[ENGINE(v)]) continue; // its browser didn't launch (a FAIL above)
+    loadLine(`replay ${v}: start`);
+    try {
+      await replayView(browsers, origin, v);
+    } catch (e) {
+      check(false, `replay ${v}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    loadLine(`replay ${v}: end`);
+  }
+  try {
+    await replayReload(browsers, origin, "phone");
+  } catch (e) {
+    check(false, `replay phone reload: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+  }
+}
+
 async function main() {
   const browsers = { chromium: await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] }) };
   const views = ONLY.includes("touch") ? TOUCH_VIEWS : [];
@@ -2294,7 +2461,7 @@ async function main() {
   const custom = ["customize", "newstyle", "roadfork"].some((s) => ONLY.includes(s)); // CUSTOM-2b (REQ-BFG-072)
   // shoptap2: WebKit (Playwright's build of it, with the iPhone descriptors) for the wk- views (PACKS M2: and the names
   // section's; CUSTOM-2b: and the CUSTOMIZE sections' wk- views)
-  if (views.some((v) => ENGINE(v) === "webkit") || ONLY.includes("names") || (custom && CUSTOM_VIEWS.some((v) => ENGINE(v) === "webkit"))) {
+  if (views.some((v) => ENGINE(v) === "webkit") || ONLY.includes("names") || ONLY.includes("replay") || (custom && CUSTOM_VIEWS.some((v) => ENGINE(v) === "webkit"))) {
     try {
       browsers.webkit = await webkit.launch();
     } catch (e) {
@@ -2323,6 +2490,7 @@ async function main() {
     if (ONLY.includes("scout")) await scoutSection(browsers, site.origin); // SCOUT-1 (REQ-BFG-076)
     if (ONLY.includes("foecard")) await foeCardSection(browsers, site.origin); // SCOUT-1c (REQ-BFG-082)
     if (ONLY.includes("shaperotate")) await shapeRotateSection(browsers, site.origin); // SHAPES-1 (REQ-BFG-086 S3)
+    if (ONLY.includes("replay")) await replaySection(browsers, site.origin); // REPLAY-1 (REQ-BFG-112)
   } finally {
     for (const b of Object.values(browsers)) await b.close();
     site.srv.close();
