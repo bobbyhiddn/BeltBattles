@@ -13,6 +13,8 @@
 import type { Rng } from "../../core/rng";
 import { AMMO, ITEMS, type ItemDef } from "../content";
 import { isSustain } from "../content"; // BOTS-X (REQ-BFG-069): the random builder buys no sustain piece
+import { scaleRules } from "../scale"; // SCALE-2d (REQ-BFG-098 098.6, D2): the random builder's readers, SCALE_RIGS on only
+import { hasFeeder, needsFeeder } from "../scaleRating"; // SCALE-2d
 import {
   arrowCell, cloneBuild, connectorClaims, hero, hitsOfRig, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
   type Build, type Dir, type Placed,
@@ -117,9 +119,13 @@ export class Shopper {
     // the best value per gold in an offer row, judged by the deck rating; random levers have neither (the par player,
     // player.ts, does: it is what the caravan stand-ins and the par field play). Switch off, the stock lists none, so
     // these filters keep every list, and every RNG draw, exactly as before
-    this.gates = shopItems(b.hero, "gate").filter(notSustain);
-    this.mods = shopItems(b.hero, "mod").filter(notSustain);
-    this.cores = shopItems(b.hero, "core");
+    // SCALE-2d (REQ-BFG-098 098.6; BRIEF-SCALE2d D2): the same reasoning for the scaling readers, SCALE_RIGS on only: random
+    // levers can't value a feeder+reader pair, so the random builder buys a reader that wants a feeder (scaleRating.ts
+    // READER_FEEDERS) only when the deck it starts from holds one (topUp's deck can). Switch off: every list as before
+    const fedOnly = (d: ItemDef): boolean => !scaleRules() || !needsFeeder(d.id) || hasFeeder(b, d.id);
+    this.gates = shopItems(b.hero, "gate").filter(notSustain).filter(fedOnly);
+    this.mods = shopItems(b.hero, "mod").filter(notSustain).filter(fedOnly);
+    this.cores = shopItems(b.hero, "core").filter(fedOnly);
     this.factories = shopFactories(b.hero).filter(notSustain);
     this.minGate = Math.min(...this.gates.map((g) => g.price));
     this.minMod = Math.min(...this.mods.map((m) => m.price));
