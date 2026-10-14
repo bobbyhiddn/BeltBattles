@@ -25,8 +25,12 @@ const POOL = sampleGhosts();
  *  stand-in pool regenerated once with every switch on (P1 83c039d) gives each deck its road log (the tuple's seventh element;
  *  tools/samplePool.ts roadOf), so a sample ghost now carries v3's `road`. It is the regenerated deck's, not the frozen v2.1
  *  deck's (pool v2.1 had none), so the v2.1 copy drops it, as an older copy drops the seed, the grade and the runes. Was
- *  { ...s, build } (furnace d1 v3 then encoded its road log, which legacyText never writes, and its v1 copy was refused). */
-const POOL_V21 = POOL.map(({ road: _road, ...s }) => net.checkSnapshot({ ...s, build: decodeStarred(s.hero, SAMPLE_POOL_V21[s.hero as "furnace" | "weaver"][Number(s.playerId.slice(-1))][s.day - 1]) }));
+ *  { ...s, build } (furnace d1 v3 then encoded its road log, which legacyText never writes, and its v1 copy was refused).
+ *  SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): FURNACE and WEAVER's sample decks are
+ *  par-field runs' dusk decks now (79 of the 80 picks), so a sample ghost carries its run's seed too, v3's `seed`, which the
+ *  frozen v2.1 deck never had: the copy drops it as well. Was ({ road, ...s }) (furnace d1 v3 encoded its seed, which
+ *  legacyText never writes). */
+const POOL_V21 = POOL.map(({ road: _road, seed: _seed, ...s }) => net.checkSnapshot({ ...s, build: decodeStarred(s.hero, SAMPLE_POOL_V21[s.hero as "furnace" | "weaver"][Number(s.playerId.slice(-1))][s.day - 1]) }));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 function netOk(s: unknown): boolean {

@@ -243,7 +243,11 @@ describe("ghosts:admin revalidate: an upload under this build's rules needs its 
     // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and no road log, v3 only and
     // gated by NPC_DAY's rules ("snapshot.road: not allowed in a v2 snapshot")
     const { seed: _seed, road: _road, ...rest } = s;
-    const { runes, ...build } = s.build;
+    // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): s's deck (furnace d1 variant 0) is a
+    // par-field run's dusk deck now, which holds the starting turret (build.turrets), and bb-0.6.1 predates turret slots
+    // (bb-0.6.2): the older client's deck held none, so the copy drops them too (was { runes, ...build }: "rules bb-0.6.1
+    // predate bb-0.6.2: turret slots (build.turrets) need bb-0.6.2 or later" at ghostId)
+    const { runes, turrets: _turrets, ...build } = s.build;
     const g = runeGrants(runes, s.day);
     // HULL-ON (the flip, HEARTS): on its own rules' 5-lives scale: s (day 1, 0W) is the shipped pool's, 10 hearts, which the
     // decoder's lives bound for bb-0.6.1 (1..9) refuses; the same record under bb-0.6.1 is 0W START_LIVES (5)

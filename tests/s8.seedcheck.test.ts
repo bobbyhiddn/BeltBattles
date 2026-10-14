@@ -70,8 +70,13 @@ describe("S8 T1d: checkPool passes the run seed (RULING-S8-R1 item 2)", () => {
     expect(f, "a seeded ghost with a won drop to forge").toBeDefined();
     console.log(`S8 T1d (b): ${f!.at}\n  the line: ${f!.line}`);
     // the committed file's first such forgery and its line (c6d3445's seed pool; they move only with the pools)
-    expect(f!.at).toBe("furnace day 1 (run seed 238345644), road day 1 (medium): drop tollbooth -> anvil");
-    expect(f!.line).toBe("road: day 1: anvil is not in GRIMHOLD's pool");
+    // SOFT-1: the seed pool softened (REQ-BFG-092; 26769d1's seed pool, tools/samplePool.ts SOFT1_PICKS): FURNACE and WEAVER's
+    // sample decks are par-field runs' dusk decks now, each with its run's seed and road log, so the file's first seeded ghost
+    // with a won drop is furnace day 3's variant 0 (furnace day 1's carries a road win with no drop). Was "furnace day 1 (run
+    // seed 238345644), road day 1 (medium): drop tollbooth -> anvil" (the day-1 floor ghost) and "road: day 1: anvil is not in
+    // GRIMHOLD's pool"
+    expect(f!.at).toBe("furnace day 3 (run seed 1174802828), road day 1 (medium): drop temper -> anvil");
+    expect(f!.line).toBe("road: day 1: anvil is not in EMBERLYN's pool");
     expect(refusal(withoutSeed(f!.forged))).toBeNull(); // without the seed: only the seed-blind lines run, and they pass it
     expect(refusal(f!.forged)).toContain(f!.line); // with it (T1d): refused on its road line (before T1d: passed)
   });

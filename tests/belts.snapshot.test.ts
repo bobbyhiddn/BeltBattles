@@ -33,7 +33,11 @@ describe("BELTS D10: the upgrade levels in a snapshot, local and strict checks a
   // sample-run-furnace-0, with its day-1 road): and no road log, v3 only and gated by NPC_DAY's rules ("snapshot.road: not
   // allowed in a v2 snapshot"; RULING-S8-R5 section 2 item 2) (was { grade, ...ungraded }: v2 turret 2 refused on both
   // sides, [false, false] for [true, true])
-  const { grade: _grade, road: _road, ...ungraded } = base as typeof base & { grade?: number; road?: unknown };
+  // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): `base` (furnace d1 sample-run-furnace-0)
+  // is a par-field run's dusk deck now, so it carries that run's seed, a v3 field too ("snapshot.seed: not allowed in a v2
+  // snapshot"), and the v2 and v1 rows drop it as well (was { grade, road, ...ungraded }: v2 turret 2 refused on both sides,
+  // [false, false] for [true, true])
+  const { grade: _grade, road: _road, seed: _seed, ...ungraded } = base as typeof base & { grade?: number; road?: unknown };
   const withUp = (v: 1 | 2, upgrades: unknown) => ({ ...ungraded, v, build: { ...runeless, upgrades } });
   const cases: [string, unknown, boolean][] = [
     ["turret 2", { turret: 2 }, true], ["factory 4", { factory: UPGRADE_MAX }, true], ["both 3", { turret: 3, factory: 3 }, true],
