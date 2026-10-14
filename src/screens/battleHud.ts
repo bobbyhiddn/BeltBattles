@@ -13,6 +13,7 @@ import { heartsWord } from "../ui/stakes"; // RETUNE-1 run 2: "-3 HEARTS"
 import { SOURCE_OFFLINE, SOURCE_ONLINE } from "../game/session";
 import { settings } from "../core/settings";
 import { START_LIVES, WIND_START } from "../sim/content";
+import { TICK } from "../sim/content"; // PAIR-2 (REQ-BFG-100): regenNow's wind test on the tick count, as Battle.heal's
 import type { Side } from "../sim/battle";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
@@ -363,12 +364,18 @@ export function showsShield(a: Pick<Arena, "b">, side: Side): boolean {
   return s.shield !== undefined || s.turrets.some((tu) => !!tu.bell);
 }
 
+/** PAIR-2 (REQ-BFG-100; CNT-DAY3 finding 7.2): the dark wind's first tick on the battle's integer tick count, as battle.ts
+ *  WIND_TICKS (Battle.heal's rule: nothing heals from it): 1500, where the float clock b.t is still a hair under WIND_START. */
+const WIND_TICKS = Math.round(WIND_START / TICK);
+
 /** SUS-B (REQ-BFG-069): the REGEN the side's working MENDING LOOMs (TurretState.regen; a STUN or freeze on the turret
  *  pauses one, Battle.sustainTick) give its living hull now; 0 in the dark wind, where nothing heals. FLIP-X1 (F-b): plus
- *  its rune's REGEN (GREEN THREAD, SideState.rune.regen, which nothing pauses), as Battle.sustainTick sums them. */
+ *  its rune's REGEN (GREEN THREAD, SideState.rune.regen, which nothing pauses), as Battle.sustainTick sums them. PAIR-2
+ *  (REQ-BFG-100): the wind is Battle.heal's own test, the tick count (b.ticks >= WIND_TICKS), so the badge is gone on the
+ *  wind's first tick, where that second's heal is lost; it read the float clock, b.t >= WIND_START, one frame late. */
 export function regenNow(a: Pick<Arena, "b">, side: Side): number {
   const s = a.b.sides[side];
-  if (a.b.t >= WIND_START || s.hull.hp <= 0) return 0;
+  if (a.b.ticks >= WIND_TICKS || s.hull.hp <= 0) return 0;
   let n = s.rune?.regen ?? 0; // F-b: GREEN THREAD's REGEN starts the sum, as in Battle.sustainTick
   for (const tu of s.turrets) if (tu.regen && !(tu.disrupted > 0) && !(tu.frozen > 0)) n += tu.regen;
   return n;

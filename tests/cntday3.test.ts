@@ -130,9 +130,11 @@ describe("CNT-DAY3 (a) a scaled fight's REGEN badge is the heal that lands each 
           // the heal that lands: the one sum x S(d), rounded down (exact: REGEN sums are multiples of 5, S(d)'s tenths even)
           expect(landed, `d${day} side ${side} second ${k}`).toBe(sustShown(k >= 10 && k <= 12 ? n - 20 : n, day));
         } else expect(landed, "the dark wind: nothing heals").toBe(0);
-        // regenNow reads the float clock (b.t, a hair under WIND_START on the wind's first tick), the wind's rule the tick
-        // count: on that one frame the badge still shows (cntday3-base's regenNow, unchanged); a frame later it is gone
-        if (k > WIND_START) expect(now, "the dark wind: no badge").toBe(0);
+        // PAIR-2 (REQ-BFG-100; CNT-DAY3 finding 7.2, now fixed): regenNow reads the tick count, as the wind's rule in
+        // Battle.heal does, so the badge is gone on the wind's first tick itself (b.t a hair under WIND_START there), where
+        // that second's heal is lost. Until PAIR-2 it read the float clock, and on that one frame still showed the heal
+        // (cntday3-base's regenNow: "+55" at the base); a frame later it was gone (tests/pair2 (b) has the frame table)
+        if (k >= WIND_START) expect(now, "the dark wind, from its first tick: no badge").toBe(0);
         if (k === 1 || k === 10 || k === WIND_START) seen.push(`s${k} +${landed}${k === WIND_START ? ` (regenNow ${now} at t ${a.b.t})` : ""}`);
         VIEWS.forEach(([nm, L], i) => {
           const p = panel(a, side, L), at = `${nm} d${day} side ${side} second ${k}`;
