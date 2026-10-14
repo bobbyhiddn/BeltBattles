@@ -112,7 +112,7 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(hitText(row("pincer", 1, { flat: 0, others: 0 }), "free")).toBe("PINCER: NO OTHER RIG ON ITS TILE");
     expect(hitText(row("pincer", 2, { flat: 44, others: 1 }), "free")).toBe("PINCER +44 DAMAGE, CROSSFIRE WITH 1 RIG");
     expect(hitText(row("twinlatch", 3, { flat: 0 }), "free")).toBe("TWIN LATCH HOLDS UP TO 3 SEC");
-    expect(hitText(row("platebreaker", 1, { flat: 0 }), "free")).toBe("SHIELD-FED +40 DAMAGE FOR 10 SHIELD"); // PLAIN-1F (M6): the name (was PLATE BREAKER)
+    expect(hitText(row("platebreaker", 1, { flat: 0 }), "free")).toBe("SHIELD FUEL +40 DAMAGE FOR 10 SHIELD"); // PLAIN-1F (M6, M8): the name (was PLATE BREAKER)
     expect(hitText(row("brake", 3), "free")).toBe("BRAKE SHOE AT 30% SPEED"); // Y7b2 (the words): was "BRAKE SHOE 70% SLOWER"
     expect(hitText(row("longhaul", 2, { flat: 160, prior: 8 }), "free")).toBe("LONG HAUL +160 DAMAGE (8 HITS BEFORE)");
     for (const def of Y3_PIECES.filter((d) => ITEMS[d].kind === "gate")) for (const s of STARS) {

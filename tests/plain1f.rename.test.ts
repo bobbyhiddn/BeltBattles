@@ -1,7 +1,7 @@
 // PLAIN-1F (M6; REQ-BFG-107, REQ-BFG-084; BRIEF-PLAIN1F M6, PLAIN1F-NAMES, READ-4 call 7): PLATE BREAKER's display name is
-// SHIELD-FED, a WORKING NAME until the cold read's round C picks among the candidates (one commit swaps it then). The key
+// SHIELD FUEL, the cold read's round C's pick (M8: 6 of 6 R, none reading the foe; tied with SHIELD SPENDER, the shorter wins). The key
 // stays platebreaker (saves, snapshots, the server, the phone gist's row); src/ui/gameWords.ts NAMES_KEPT keeps the name
-// whole (it holds SHIELD: gameWords would make it WARD-FED). The name fits every surface that draws it: the phone shop card
+// whole (it holds SHIELD: gameWords would make it WARD FUEL). The name fits every surface that draws it: the phone shop card
 // (46x42: at most two lines of 3x5 in CARD_W - 4 = 42 px, tests/shopRow.test.ts's rule), the desk's wide card, and the
 // panel title (no wider than PLATE BREAKER's was); the cargo strip draws icons only.
 import { describe, expect, it } from "vitest";
@@ -13,10 +13,10 @@ import { NAMES_KEPT, gameWords } from "../src/ui/gameWords";
 import { phoneGist } from "../src/ui/chips";
 import { RENAME_NOTICE } from "../src/ui/tips";
 
-const NAME = "SHIELD-FED";
+const NAME = "SHIELD FUEL";
 
 describe("PLAIN-1F (M6): PLATE BREAKER's display name", () => {
-  it("is SHIELD-FED; the key stays platebreaker; the kept-name list holds it and gameWords leaves it whole", () => {
+  it("is SHIELD FUEL; the key stays platebreaker; the kept-name list holds it and gameWords leaves it whole", () => {
     expect(ITEMS.platebreaker.id).toBe("platebreaker");
     expect(ITEMS.platebreaker.name).toBe(NAME);
     expect(Object.values(ITEMS).filter((d) => d.name === "PLATE BREAKER")).toEqual([]);

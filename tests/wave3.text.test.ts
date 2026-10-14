@@ -286,7 +286,7 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
     expect(h("twinlatch", 2, { flat: 0, hold: 2 })).toBe("TWIN LATCH HOLDS UP TO 2 SEC");
     // NUM-1: battle.ts spends 10 plating (was 1). Y7b2 (the flip): no floor (was "PLATE BREAKER +40 DAMAGE FOR 10 PLATING,
     // ELSE +10 DAMAGE")
-    expect(h("platebreaker", 1, { flat: 40 })).toBe("SHIELD-FED +40 DAMAGE FOR 10 SHIELD"); // CARD-3 (REQ-BFG-107); PLAIN-1F (M6): the name (was PLATE BREAKER)
+    expect(h("platebreaker", 1, { flat: 40 })).toBe("SHIELD FUEL +40 DAMAGE FOR 10 SHIELD"); // CARD-3 (REQ-BFG-107); PLAIN-1F (M6, M8): the name (was PLATE BREAKER)
     // each row's numbers are the spec's at that star. Y7b2 (the flip): one, its STUNs' cut (was 2, with the plated cut)
     for (const s of STARS) expect(numbers(h("braceframe", s)).length).toBe(1);
   });

@@ -958,7 +958,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // by its arrows line (inspector.ts rigPanel, longIdle) leave 18 more of the three shaped plain rigs' placed phone panels
     // room for the hint; no other panel moves
     // PLAIN-1F (M6), measured: 1075 (was 1073 at the M4 tip, whose src differs from this one only in PLATE BREAKER's display
-    // name): SHIELD-FED is shorter (its ★3 title 74 px, was 91), so 2 more of its phone panels have room for the hint
+    // name): SHIELD-FED is shorter (its ★3 title 74 px, was 91), so 2 more of its phone panels have room for the hint.
+    // PLAIN-1F (M8, the cold read's pick), measured: still 1075: SHIELD FUEL's ★3 title is 79 px, still under PLATE
+    // BREAKER's 91, and the same 2 panels keep the hint
     expect(hints).toBe(1075);
   });
 });

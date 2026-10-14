@@ -9,9 +9,9 @@
  * section 8 lists what each gives). tests/card3.test.ts holds this list to every catalogue name that holds a word.
  */
 export const NAMES_KEPT: readonly string[] = [
-  // PLAIN-1F (M6; REQ-BFG-107): PLATE BREAKER's display name is SHIELD-FED (a working name until the cold read picks; the
-  // key stays platebreaker): it holds SHIELD, so it is kept (gameWords would make it WARD-FED); was "PLATE BREAKER"
-  "PLATE ROLLER", "SHIELD-FED", "GRAVE PLATES", "SHIP'S PLATE", "TREAD PLATE",
+  // PLAIN-1F (M6, M8; REQ-BFG-107): PLATE BREAKER's display name is SHIELD FUEL (the cold read's round C pick; the key
+  // stays platebreaker): it holds SHIELD, so it is kept (gameWords would make it WARD FUEL); was "PLATE BREAKER"
+  "PLATE ROLLER", "SHIELD FUEL", "GRAVE PLATES", "SHIP'S PLATE", "TREAD PLATE",
   "WARD BELL", "WARD STONE", "FORGE WARD", "BULWARK WARD", "WARDWORKS",
 ];
 

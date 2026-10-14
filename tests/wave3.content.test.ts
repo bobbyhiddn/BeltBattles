@@ -134,8 +134,8 @@ describe("the 15 entries are D1's (DESIGN-wave3.md 3.1)", () => {
   it("kind, rarity, price, merchant, rig shape and tags; 8 rigs, 2 factories, 2 cores, 3 mods; arrows by rarity (R2)", () => {
     expect(WAVE3_DESIGN.map((h) => h.id)).toEqual([...WAVE3_IDS]);
     // PLAIN-1F (M6; REQ-BFG-107): a display name renamed since D1's table (the key and every other field as D1's): PLATE
-    // BREAKER is SHIELD-FED (a working name until the cold read picks; content.ts platebreaker)
-    const RENAMED: Record<string, string> = { platebreaker: "SHIELD-FED" };
+    // BREAKER is SHIELD FUEL (the cold read's pick, M8; content.ts platebreaker)
+    const RENAMED: Record<string, string> = { platebreaker: "SHIELD FUEL" };
     for (const h of WAVE3_DESIGN) {
       const d = ITEMS[h.id];
       expect({ id: d.id, name: d.name, kind: d.kind, rarity: d.rarity, price: d.price, merchant: d.merchant, shape: d.shape, tags: d.tags }, h.id)

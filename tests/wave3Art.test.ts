@@ -185,8 +185,8 @@ const FLIPPED: Record<string, Record<string, unknown>> = {
   seamwelder: { mod: { seam: { pair: 10, lone: 0 } }, levels: { 2: { mod: { seam: { pair: 22, lone: 0 } } }, 3: { mod: { seam: { pair: 35, lone: 0 } } } } },
 };
 /** PLAIN-1F (M6; REQ-BFG-107): a display name renamed since A1's copy (the key and every number as they were): PLATE
- *  BREAKER is SHIELD-FED (a working name until the cold read picks; content.ts platebreaker). */
-const RENAMED: Record<string, Record<string, unknown>> = { platebreaker: { name: "SHIELD-FED" } };
+ *  BREAKER is SHIELD FUEL (the cold read's pick, M8; content.ts platebreaker). */
+const RENAMED: Record<string, Record<string, unknown>> = { platebreaker: { name: "SHIELD FUEL" } };
 
 // ======================================================================================================= this branch
 
