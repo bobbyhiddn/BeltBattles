@@ -167,7 +167,7 @@ export class SummaryScreen implements Screen {
   }
 
   get complete(): boolean {
-    return this.run.over === "complete";
+    return this.run.over === "complete" || this.run.over === "won"; // RUN-1 (REQ-BFG-059): a long run's WON
   }
 
   enter(): void {

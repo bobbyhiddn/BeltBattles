@@ -13,6 +13,7 @@ import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (
 import { LAST_CHANCE_LIVES, lastChanceFires } from "../sim/lastChance"; // LC-1 (REQ-BFG-073); Z-BUMP: no switch
 import { npcDayRules, roadLog } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's road log
 import { heartsDusk, heartsRun } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a hearts run's dusk
+import { lcLastDay, longRun, longRunEnd } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a long run's end and LAST CHANCE
 import { LAST_CHANCE_AT } from "../sim/lastChance"; // RETUNE-1 run 2: the dusk card's LAST CHANCE line on a hearts run
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -184,13 +185,15 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
   }
   // LC-1 (REQ-BFG-073), RULE LAST CHANCE (lastChance.ts; Z-BUMP: the game's rule, no switch): a loss that leaves exactly 1 life on a
   // day before RUN_DAYS gives one back at once, once a run; the card pick waits for the next dawn's screen
-  if (lastChanceFires(run.day, outcome, run.lives, run.lastChance !== undefined)) {
+  // RUN-1 (REQ-BFG-059): on a long run any day (lcLastDay: no last day)
+  if (lastChanceFires(run.day, outcome, run.lives, run.lastChance !== undefined, lcLastDay(run))) {
     run.lives += LAST_CHANCE_LIVES;
     run.lastChance = { day: run.day };
     res.lastChance = { lives: LAST_CHANCE_LIVES };
   }
   run.gold += income;
-  if (run.lives <= 0) run.over = "lost";
+  if (longRun(run)) run.over = longRunEnd(run); // RUN-1: WON at WIN_GOAL wins, LOST at 0 lives; never by the day
+  else if (run.lives <= 0) run.over = "lost";
   else if (run.day >= RUN_DAYS) run.over = "complete";
   if (!run.over) {
     nextDawn(run);
@@ -225,7 +228,8 @@ function nextDawn(run: Run): void {
  *  row records the hearts it gave back (0 when the loss left exactly 1) and the hearts it saved the run on (`hearts`). */
 function finishHeartsDay(run: Run, res: DayResult, outcome: DayResult["outcome"], income: number): DayResult {
   if (outcome === "loss") run.losses++;
-  const step = heartsDusk(run.lives, run.day, outcome, run.lastChance !== undefined);
+  // RUN-1 (REQ-BFG-059): hearts.ts's lastDay re-pointed: on a long run LAST CHANCE can fire on any day (lcLastDay)
+  const step = heartsDusk(run.lives, run.day, outcome, run.lastChance !== undefined, { lastDay: lcLastDay(run) });
   if (step.cost > 0) res.heartsLost = step.cost;
   if (step.lastChance) {
     res.lastChance = { lives: step.hearts - Math.max(0, run.lives - step.cost) };
@@ -233,13 +237,18 @@ function finishHeartsDay(run: Run, res: DayResult, outcome: DayResult["outcome"]
   }
   run.lives = step.hearts;
   run.gold += income;
-  if (run.lives <= 0) run.over = "lost";
+  if (longRun(run)) run.over = longRunEnd(run); // RUN-1: WON at WIN_GOAL wins, LOST at 0 hearts; never by the day
+  else if (run.lives <= 0) run.over = "lost";
   else if (run.day >= RUN_DAYS) run.over = "complete";
   if (!run.over) nextDawn(run);
   return res;
 }
 
-/** A 10-0 run. */
+/** A 10-0 run. RUN-1 (REQ-BFG-059): a long run is flawless when won with 0 losses. */
 export function flawless(run: Run): boolean {
+  if (longRun(run)) return run.over === "won" && run.losses === 0;
   return run.over === "complete" && run.losses === 0 && run.wins === RUN_DAYS;
 }
+
+/** RUN-1 (REQ-BFG-059): did the run end won? A long run's "won", or a 10-day run's "complete" (it survived day 10). */
+export const runWon = (run: Pick<Run, "over">): boolean => run.over === "won" || run.over === "complete";

@@ -347,3 +347,21 @@ export const OPEN_RUNES_RULES: string = "bb-0.10.0";
 export function openRunesFor(rules: unknown): boolean {
   return openRunesRules() && rulesAtLeast(rules, OPEN_RUNES_RULES);
 }
+
+// ---- RUN-1 (REQ-BFG-059, REQ-BFG-116): the long run's row, on its own lines. Not a RULES_ROWS row: it refuses no build
+// feature; it says which run rule a record came from (won at 10 wins with no day limit, or the 10-day run), so the record
+// check (records.ts), the snapshot's bounds (snapshot.ts maxDayFor) and the match request read a record by its own rule.
+import { longRunRules } from "../sim/longRun"; // RUN-1: the LONG_RUN switch (src/sim/longRun.ts)
+import { RULES_VERSION as LONG_RUN_RULES_NOW } from "../sim/content";
+
+/** RUN-1 (REQ-BFG-059): the first rules version whose runs are won at 10 wins with no day limit: LONG_RUN's row. It reads
+ *  RULES_VERSION until the release bump that turns LONG_RUN on writes that version here as a literal (as HULL-ON wrote
+ *  HEARTS_RULES and PICK_RULES); from then on every older record keeps the 10-day rule, whatever the switch. */
+export const LONG_RUN_RULES: string = LONG_RUN_RULES_NOW;
+
+/** Does the long run hold for a record, snapshot or match request under `rules`? The switch on AND `rules` a readable
+ *  version at or after LONG_RUN_RULES. False with the switch off, whatever the rules (every record then reads the 10-day
+ *  run, as today). */
+export function longRunFor(rules: unknown): boolean {
+  return longRunRules() && rulesAtLeast(rules, LONG_RUN_RULES);
+}
