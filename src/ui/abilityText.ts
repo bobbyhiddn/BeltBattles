@@ -585,8 +585,15 @@ const ENTRIES: Record<string, Entry> = {
     // Y6 (release Y; DESIGN-Y section 4.1): it gives each payload it hits burnPlus seconds (Battle.impact): each BURN stack
     // of that payload's hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %); it adds no BURN, so alone it deals nothing; no
     // POISON (retired). The card is the gist
-    text: (e) => [`EACH BURN ON THE PAYLOADS IT HITS LASTS ${seconds(g(e).burnPlus!)} LONGER.`, "IT ADDS NO BURN OF ITS OWN.", S.burn],
-    gist: (e) => `BURN LASTS ${seconds(g(e).burnPlus!)} LONGER`,
+    // SCALE-2f (REQ-BFG-089, REQ-BFG-108; the cold read's fix round): with SCALE_RIGS on the def holds `poison` and no
+    // burnPlus (sim/scale.ts SCALE_DEFS.venom), and the desk card read "BURN LASTS undefined SECONDS" (two of three
+    // readers then gave it a BURN effect it lacks). So the words follow the def: TEMPER's form, ADDS n POISON. With the
+    // switch off the def has no `poison`, and every word is the Y6 one, exactly.
+    text: (e) =>
+      g(e).poison
+        ? [`ADDS ${g(e).poison} POISON TO EACH PAYLOAD IT HITS.`]
+        : [`EACH BURN ON THE PAYLOADS IT HITS LASTS ${seconds(g(e).burnPlus!)} LONGER.`, "IT ADDS NO BURN OF ITS OWN.", S.burn],
+    gist: (e) => (g(e).poison ? `ADDS ${g(e).poison} POISON` : `BURN LASTS ${seconds(g(e).burnPlus!)} LONGER`),
   },
   overclocker: {
     // Battle.makeSide: each OVERCLOCKER boosts the first later boostable rig on its belt (overclock.ts boostable);

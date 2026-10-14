@@ -187,7 +187,10 @@ export const PHONE_GISTS: Readonly<Record<string, (chip: string, f: Face) => rea
   braceframe: (c) => ["ITS TILES", c], // FOE STUN ON TILES IT HITS: 50% SHORTER. CARD-4 run 3 (cap's call): READ-4's ITS TILES back (read RRR with images; TILES HIT read PPP in run 2's small read); the face and the desk line keep TILES IT HITS
   overdrive: (c) => ["ITS BELTS", c], // ITS BELTS RUN 3 TIMES AS FAST FROM THESE TILES ON
   // CARD-5: the other rigs READ-5 worked on (GISTS-CARD5 group 2 and 3)
-  venom: (_c, f) => ["EXTENDS {BURN}", `${numOf(f, "plus")}{SEC}`], // HIT: ITS BURN LASTS +3s
+  // HIT: ITS BURN LASTS +3s. SCALE-2f (REQ-BFG-089, REQ-BFG-108; the cold read's fix round): with SCALE_RIGS on, VENOM
+  // DRIP gives +1 POISON and no BURN time, and the card read EXTENDS {BURN} over a bare {SEC}. So: TO SLUGS over its chip
+  // ({POISON}+1, the face's own). Off: CARD-5's row, exactly (tests/card5.test.ts)
+  venom: (c, f) => (scaleRules() ? ["TO SLUGS", c] : ["EXTENDS {BURN}", `${numOf(f, "plus")}{SEC}`]),
   bellows: (c) => ["RIDE TIME", c], // HIT: +1 BURN FOR EACH 2s THE SLUG RODE
   quench: (c) => ["SPENDS {BURN}", c], // HIT: EACH BURN ON THE SLUG BECOMES +40 DMG
   staticbrush: () => ["HULL HITS:", "{STUN}A GUN"], // ITS SLUGS THAT HIT BARE HULL STUN A RANDOM ENEMY TURRET 1s
