@@ -1061,7 +1061,11 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
     levels: { 2: { gate: { stoke: 0.44 } }, 3: { gate: { stoke: 0.7 } } },
   },
   platebreaker: {
-    id: "platebreaker", name: "PLATE BREAKER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "scrapper", shape: "T",
+    // PLAIN-1F (M6; REQ-BFG-107; BRIEF-PLAIN1F M6, PLAIN1F-NAMES, READ-4 call 7): the display name only, a WORKING NAME until
+    // the cold read's round C picks among the candidates (one commit swaps it then). PLATE BREAKER read as breaking the FOE's
+    // shields (3 of 3 READ-4 seats on the phone shop card alone); it spends 10 of YOUR SHIELD for +DMG. The key stays
+    // platebreaker (saves, snapshots, the server); src/ui/gameWords.ts NAMES_KEPT holds the name. Was "PLATE BREAKER"
+    id: "platebreaker", name: "SHIELD-FED", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "scrapper", shape: "T",
     desc: ["TURNS YOUR HULL'S", "PLATING INTO", "PAYLOAD DAMAGE."], tags: ["PLATE", "FORGE"],
     // Y3 (release Y; DESIGN-Y row 26; folded at the flip, Y7b2): the ELSE floor goes (floor 0); it spends 10 PLATE for +40/+88/+140
     gate: { breaker: { flat: 40, floor: 0 } },
