@@ -427,8 +427,11 @@ describe("P11: a rig's panel order, and the phone band", () => {
    *  belt a layout hits once per cell for each arrow on a belt: NAIL STRIP and EMBER TROUGH (I2, one arrow) hit 2 where a
    *  1-cell rig hits 1; SPIKE RAIL (I3, II) 3 beside the Kiln's belt and 6 between the two belts (3 on each, its UP TO 6
    *  HITS); IDLE is 0 as for any rig. Measured on cd59be0 (the hits lines: BELT 1 TILES 2-3; BELT 1 TILES 1-3; and BELT 2's
-   *  too) */
-  const SHAPED_HITS: Record<string, Record<string, number>> = { nailstrip: { "1hit": 2 }, embertrough: { "1hit": 2 }, spikerail: { "1hit": 3, "2hit": 6 } };
+   *  too). PLAIN-1F (M4; REQ-BFG-080; BRIEF-PLAIN1F M4): a long rig's hits are ONE line on its placed panel now (the grouped
+   *  form: "→ BELT 1 TILES 2 AND 3"; inspector.ts rigPanel), however many they are, so each of these layouts draws 1 hits
+   *  block (was NAIL STRIP and EMBER TROUGH 2, SPIKE RAIL 3 and 6); `HITS_OF`, the hits each layout makes, keeps their count */
+  const SHAPED_HITS: Record<string, Record<string, number>> = { nailstrip: { "1hit": 1 }, embertrough: { "1hit": 1 }, spikerail: { "1hit": 1, "2hit": 1 } };
+  const HITS_OF: Record<string, Record<string, number>> = { nailstrip: { "1hit": 2 }, embertrough: { "1hit": 2 }, spikerail: { "1hit": 3, "2hit": 6 } };
 
   it("phone: every buyable rig's hits (or IDLE), ability text, perk, next star and merge progress show whole", () => {
     const rigs = buyableModules().filter((d) => d.kind === "gate").map((d) => d.id);
@@ -441,6 +444,8 @@ describe("P11: a rig's panel order, and the phone band", () => {
         const id = `${def} ★${s} ${lay} spare${spare}`;
         const rp = rigPanel(rigRun(def, s, x, y, rot, spare, extra), 10)!;
         expect(rp.idle ? 0 : rp.body.filter((b) => b.role === "hits").length, `${id}: hits`).toBe(SHAPED_HITS[def]?.[lay] ?? want); // SHAPES-1 flip: a long rig's hits (SHAPED_HITS)
+        // PLAIN-1F (M4): the one line still names every hit's tile (the arrows line says how many: RIG · x/n ARROWS ON BELTS)
+        if (HITS_OF[def]?.[lay] && !rp.idle) expect(rp.sub, `${id}: sub`).toMatch(new RegExp(`^RIG · ${HITS_OF[def][lay]}/\\d+ ARROWS ON BELTS$`));
         const plan = planPanel(rp, band);
         const drawn = new Set(visibleLines(plan).map((v) => v.line));
         const whole = plan.body.shown.filter((l) => l.b.keep).every((l) => l.lines.every((ln) => drawn.has(ln)));

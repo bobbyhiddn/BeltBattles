@@ -481,7 +481,11 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   gantry: {
     id: "gantry", name: "GANTRY PRESS", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
-    desc: ["A FAST PRESS THAT", "FEEDS ONE BELT MORE", "THAN MOST, IN TURN."], tags: ["SWARM", "TWIN"], // bb-0.8.3 (M4): was "ONE PRESS, TWO OUTPUTS: FEEDS TWO INTAKES BY TURNS."
+    // PLAIN-1F (M5; REQ-BFG-086.1, REQ-BFG-107; BRIEF-PLAIN1F M5): true in 0.9.9's world. With SHAPES on it is 2x3 and feeds
+    // 4/5/6 belts (its face: FEEDS 4 BELTS IN TURN.), two more than a bought 2x2 factory's 2/3/4 and more than LOOM's 3/4/5:
+    // the most of any factory at every star (with SHAPES off, 3/4/5, it ties LOOM's, still the most). Its speed 25 beats STAMP
+    // PRESS's 21, so FAST stays. Was "A FAST PRESS THAT / FEEDS ONE BELT MORE / THAN MOST, IN TURN." (two more with SHAPES on)
+    desc: ["A FAST PRESS THAT", "FEEDS THE MOST", "BELTS, IN TURN."], tags: ["SWARM", "TWIN"], // bb-0.8.3 (M4): was "ONE PRESS, TWO OUTPUTS: FEEDS TWO INTAKES BY TURNS."
     // base 3: the plain slug's. bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS keeps a lead of one belt over every bought
     // factory at every star (3 / 4 / 5); ★2 is FOURTH ARM (4 belts, interval 0.7 as THIRD ARM's), ★3 HEAVY GANTRY (5)
     factory: { ammo: "plain", speed: 25, lead: 1 },

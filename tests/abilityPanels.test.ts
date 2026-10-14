@@ -954,7 +954,10 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // 2049 panels (c099-card3: 1038 of 1980; the three shaped plain rigs' 69 panels join): net +17, as the flip's on c099
     // (1040 -> 1057: the shaped rigs' panels that keep the hint less GANTRY PRESS's that give it way); CARD-2's GATLING
     // SPOOL panels as at c099-card3
-    expect(hints).toBe(1055);
+    // PLAIN-1F (M4; REQ-BFG-080), measured: 1073 (was 1055): a placed long rig's hits on one line and its UP TO n HITS said
+    // by its arrows line (inspector.ts rigPanel, longIdle) leave 18 more of the three shaped plain rigs' placed phone panels
+    // room for the hint; no other panel moves
+    expect(hints).toBe(1073);
   });
 });
 
