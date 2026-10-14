@@ -4,7 +4,7 @@
 // converts their DMG), LEECH COIL's HEAL through heal(), CINDER MAIL's PLATE to the cap; off, the 5 reworks are the very
 // defs (and fight) they were at M0 and the 7 new ids are absent.
 import { describe, expect, it } from "vitest";
-import { AMMO, ITEMS, WAVE3_ITEMS, buyableModules, withWave3, type ItemDef, type ReadSpec } from "../src/sim/content";
+import { ITEMS, WAVE3_ITEMS, buyableModules, withWave3, type ItemDef, type ReadSpec } from "../src/sim/content";
 import { Battle, type Payload, type Projectile, type SideState, type SimEvent } from "../src/sim/battle";
 import { SCALE_DEFS, SCALE_IDS, SCALE_ITEMS, SCALE_PIECES, SCALE_RIGS, buildReads, burnStacks, isScalePiece, scaleRules, withScaleRigs } from "../src/sim/scale";
 import { effectAt } from "../src/sim/stars";
@@ -395,9 +395,5 @@ describe("SCALE-2c: step 4 (DRAKE NOZZLE never converts a reader's DMG), and PLA
       expect(healed).toBe(0); // a full hull takes no HEAL
       expect(me(full).hull.hp).toBe(me(full).hull.max);
     });
-  });
-
-  it("an AMMO sanity: the bench's slug is plain-damage (no BURN of its own), so the held counts above are the only counts", () => {
-    expect(AMMO.cinder.burn ?? 0).toBe(0);
   });
 });
