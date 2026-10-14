@@ -41,6 +41,11 @@
 //    v3 snapshot with that run's road log and run seed, as a race deck does, and passes the same checks (seedGhost). The
 //    records, playerIds, runIds and createdAt order are as before; a floor ghost's id (ghostId, its content's hash) moves
 //    with its deck. With NPC_DAY off, no casual run is played: every snapshot exactly as before.
+//  - SOFT-1 (REQ-BFG-092; BRIEF-SOFT1, RULING-SOFT1-R1's C2bw; B/output-soft1/bench/bands-soft1.md), the softer seed pool, a
+//    server-only update after 0.9.9: every playable hero's variant 0 and 1 decks are the candidates graded nearest
+//    SOFT_TARGET (400 permille) in their own slot, from the par field's 12 decks of the day (a stand-in hero's 6 stand-in
+//    pool entries too), shipped as SOFT1_PICKS in the world it was read in (see "SOFT-1" below). The floor ghosts, the
+//    records, the ghost count and every check are unchanged; in any other world every snapshot is as before.
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
@@ -197,8 +202,10 @@ function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: Dusk
   return snap;
 }
 
-/** The 40 sample ghosts: variants 0 and 1 of each hero and day. */
-export function sampleGhosts(): GhostSnapshot[] {
+/** The 40 sample ghosts: variants 0 and 1 of each hero and day. SOFT-1 (REQ-BFG-092): in the shipped world each deck is
+ *  SOFT1_PICKS' (softPicked; a par-field deck carries its run's seed, as a race ghost's); elsewhere as before. The records
+ *  are drawn exactly as before. */
+export function sampleGhosts(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
   for (const hero of STAND_IN_HEROES) {
     for (let v = 0; v < SAMPLE_VARIANTS; v++) {
@@ -206,12 +213,166 @@ export function sampleGhosts(): GhostSnapshot[] {
         const seed = sampleSeed(hero, v, day);
         const rng = new Rng(seed);
         if (v === 1) shopper(hero, day, rng); // replay the retired shopper's draws: records unchanged
-        const entry = sampleEntry(hero, day, v, seed); // AZ-BUMP (N3): the deck and its run's road log
         const wins = rng.int(day);
-        out.push(seedGhost(hero, day, v, entry.build, drawnLabel(day, wins, rng.int(day - wins)), EPOCH + out.length * 1000, undefined, roadOf(entry.road)));
+        const rec = drawnLabel(day, wins, rng.int(day - wins));
+        // AZ-BUMP (N3): the deck and its run's road log; SOFT-1: the shipped world's pick
+        const entry: SoftDeck = softPicked(hero, day, o.botRunes)?.[v] ?? sampleEntry(hero, day, v, seed);
+        out.push(seedGhost(hero, day, v, entry.build, rec, EPOCH + out.length * 1000, entry.seed !== undefined ? (parRunSeed(hero, entry.seed) >>> 0) || undefined : undefined, roadOf(entry.road)));
       }
     }
   }
+  return out;
+}
+
+// ---------------------------------------------------------------- SOFT-1 (REQ-BFG-092): the softer seed pool
+/**
+ * SOFT-1 (REQ-BFG-092; BRIEF-SOFT1, RULING-SOFT1-R1's candidate C2bw; THE table: B/output-soft1/bench/bands-soft1.md): every
+ * playable hero's variant 0 and 1 seed decks are softened, so a typical run ends around 6-7 wins again (0.9.9's bands-r8:
+ * par 5.10, c5 3.18; this pool at 96 seeds a hero: par 6.69, c5 3.68, c5's runs with no win 3%, with 3 or more 75%).
+ * THE RULE (softDecks): for each hero, day and variant 0 or 1, the candidate deck (softCandidates: a stand-in hero's 6
+ * stand-in pool entries, then every hero's par field, the 12 runs' dusk decks of the day) whose grade is nearest SOFT_TARGET,
+ * graded exactly as the seed step grades it in that variant's slot (gradeOne at seedSlot), so the grade that picks a deck is
+ * the grade it ships with; ties go to the lower grade, then the earlier candidate; variant 1 never takes variant 0's deck.
+ * The floor ghosts (variant 2), the records, the ghost count (120) and every check the generator runs are unchanged.
+ * THE TABLE (SOFT1_PICKS): the rule grades ~57,600 battles (~7 minutes in one process) and about 40 test files call
+ * generateSamplePool(), so its 80 picks ship as a table read off the rule's own pool (kit-soft1/s1-picks.ts). The generator
+ * reads the table (softPicked) and checks each pick against its deck's code hash, so a moved stand-in pool or par field
+ * throws instead of shipping a stale pick: run the rule again (tests/soft1.picks.test.ts with BB_SOFT1_RULE=1 prints the
+ * table), then gen:ghosts.
+ * THE COMMIT FORM (RULING-SOFT1-R2): this rule, the table below with its stale checks (softStaleCheck, softPicked), and
+ * tests/soft1.picks.test.ts (the world-key pin, the table's shape, every pick resolving, and the opt-in rule test).
+ * THE WORLD: the table holds the shipped world's picks (SOFT1_WORLD: worldKey() with every switch on, and the bots' runes).
+ * In any other world (a test's switch-off world) the decks are as before SOFT-1 (sampleEntry, raceDeck): those pools don't move.
+ */
+export const SOFT_TARGET = 400;
+
+/** SOFT-1: the world SOFT1_PICKS were read in (worldKey(): the bots' runes, sustain, wave 3, HULL_SCALE, LADDER_FIX, NPC_DAY,
+ *  GUARD, OPEN_RUNES, FREE_JOINS, HEARTS, PICK, SHAPES), with the par player's runes on. */
+export const SOFT1_WORLD = "111111111111";
+
+/** SOFT-1: the rule's 80 picks in SOFT1_WORLD, per hero, day 1-10: [variant 0, variant 1], each "s<i>" (the i-th entry of
+ *  standInPool(hero, day)) or "f<seed>" (the par field's run of that field seed), ":" the hash of its deck's code (softHash).
+ *  Read off the rule's pool by kit-soft1/s1-picks.ts (B/output-soft1/pool/C2bw/picks.json). */
+export const SOFT1_PICKS: Readonly<Record<string, readonly (readonly [string, string])[]>> = {
+  furnace: [["f12:dbd45ce3", "f2:c0739505"], ["f1:a6ec6b45", "f2:fae160d7"], ["f11:f7db9c56", "f1:1f1273c1"], ["f8:cb1a8605", "f6:cc5fb2bc"], ["s0:467835f4", "f1:84b54dca"], ["f5:c8d0f239", "f1:b2f707ea"], ["f11:d6c4c596", "f5:f2d0d96d"], ["f5:76b63007", "f4:c0b10ab7"], ["f4:45b01e0b", "f5:2cc4e1b2"], ["f2:a0b48cd1", "f4:aa81731d"]],
+  weaver: [["f1:798ba01b", "f3:a355ac5c"], ["f2:4e42387c", "f4:c72ae298"], ["f8:75ea2130", "f4:602083c1"], ["f4:469f79ed", "f2:003bfb5b"], ["f10:3caf44f0", "f3:a2983e35"], ["f10:8554750b", "f6:fb807683"], ["f9:cfda00f2", "f1:3b064aca"], ["f2:7919babf", "f9:984ce663"], ["f4:68ba45a0", "f3:5eed7c0d"], ["f4:1fb29b03", "f3:50d00a6f"]],
+  foundry: [["f8:129e6069", "f11:1c69eec0"], ["f9:07206be5", "f8:65f3e9c6"], ["f6:528f8e3e", "f10:74a21852"], ["f11:d93852f5", "f10:a1e12507"], ["f4:ff811417", "f6:5b8c181d"], ["f4:97d4eb0c", "f10:5a2e15cf"], ["f10:f6ddb123", "f3:593682a9"], ["f9:0bbb3241", "f11:1877ce24"], ["f3:ca680b4a", "f11:ed1402ef"], ["f10:665bbc19", "f2:599dd867"]],
+  bastion: [["f2:0a8e66de", "f6:17826ae2"], ["f12:66cc8dd4", "f3:7732863c"], ["f6:87c505c9", "f5:8d3a7a02"], ["f5:b84ce089", "f7:21ae63d4"], ["f5:30ef1282", "f10:7967cb27"], ["f10:aeffdab7", "f3:36188818"], ["f11:4392ef4c", "f5:27a85e62"], ["f3:6c44a6e9", "f6:2297ce46"], ["f11:88a0e088", "f3:693329dc"], ["f5:5cfdd713", "f9:158a179a"]],
+};
+
+/** SOFT-1: a deck code's hash in SOFT1_PICKS (8 hex digits). */
+export const softHash = (code: string): string => (hashSeed("soft1-pick", code) >>> 0).toString(16).padStart(8, "0");
+
+/** SOFT-1: is this SOFT1_PICKS' world (and the par player's runes as they were read)? */
+export const softWorld = (botRunes?: boolean): boolean => worldKey() === SOFT1_WORLD && (botRunes ?? BOT_RUNES);
+
+/** SOFT-1 (RULING-SOFT1-R2 R2.1): how SOFT1_PICKS is rebuilt; every stale message names it. */
+export const SOFT1_REBUILD = "BB_SOFT1_RULE=1 npx vitest run tests/soft1.picks.test.ts (runs the rule, softDecks, and prints its table), paste the printed rows into SOFT1_PICKS and SOFT1_WORLD's worldKey() (tools/samplePool.ts), then npm run gen:ghosts";
+
+/**
+ * SOFT-1 (RULING-SOFT1-R2 R2.1 item 3, the softening never vanishes quietly): throws the stale message unless this process
+ * is SOFT1_PICKS' world. A switch or rules change that moves the shipped world's worldKey() would otherwise stop the table
+ * applying and ship the old, harder picks without a sound: tests/soft1.picks.test.ts calls it in the default suite, and
+ * seedPoolModuleText (gen:ghosts' bundled file) calls it, so gen:ghosts refuses to write the seed pool in another world.
+ */
+export function softStaleCheck(): void {
+  if (!softWorld()) {
+    throw new Error(`SOFT-1: stale: SOFT1_PICKS was read in world ${SOFT1_WORLD} with the bots' runes on; this process is ${worldKey()} (BOT_RUNES ${BOT_RUNES}), so the softer seed picks would not apply. Re-run the pick tool: ${SOFT1_REBUILD}`);
+  }
+}
+
+/** SOFT-1: a candidate's key in SOFT1_PICKS ("s<i>" or "f<seed>", ":" softHash of its code). */
+export function softPickKey(hero: HeroId, day: number, deck: SoftDeck): string {
+  const code = encodeStarred(deck.build);
+  const key = deck.seed !== undefined ? `f${deck.seed}` : `s${standInPool(hero, day).findIndex((e) => encodeStarred(e.build) === code)}`;
+  return `${key}:${softHash(code)}`;
+}
+
+/** SOFT-1: (hero, day)'s variant 0 and 1 decks from SOFT1_PICKS in its world (null in any other world: the decks as before).
+ *  Throws if a pick no longer matches its deck's code hash (a stale table). */
+export function softPicked(hero: HeroId, day: number, botRunes?: boolean): [SoftDeck, SoftDeck] | null {
+  if (!softWorld(botRunes)) return null;
+  const row = SOFT1_PICKS[hero]?.[day - 1];
+  if (!row) throw new Error(`SOFT-1: SOFT1_PICKS holds no pick for ${hero} day ${day}`);
+  return [softDeckOf(hero, day, row[0], botRunes), softDeckOf(hero, day, row[1], botRunes)];
+}
+
+function softDeckOf(hero: HeroId, day: number, pick: string, botRunes?: boolean): SoftDeck {
+  const m = /^([sf])(\d+):([0-9a-f]{8})$/.exec(pick);
+  if (!m) throw new Error(`SOFT-1: bad pick "${pick}" for ${hero} day ${day}`);
+  let deck: SoftDeck | undefined;
+  if (m[1] === "s") {
+    const e = standInPool(hero, day)[Number(m[2])];
+    deck = e && { build: e.build, ...(e.road ? { road: e.road as RoadEntry[] } : {}) };
+  } else {
+    const seed = Number(m[2]), d = Math.max(1, Math.min(MAX_DAY, Math.floor(day)));
+    const days = playerRun(hero, d, seed, botRunes !== undefined ? { botRunes } : {});
+    deck = { build: days[d - 1].build, seed, ...(npcDayRules() ? { road: playerRoadLog(days, d) } : {}) };
+  }
+  if (!deck || softHash(encodeStarred(deck.build)) !== m[3]) {
+    throw new Error(`SOFT-1: stale: the pick ${pick} for ${hero} day ${day} no longer matches its deck (the stand-in pool or the par field moved). Re-run the pick tool: ${SOFT1_REBUILD}`);
+  }
+  return deck;
+}
+
+/** SOFT-1: a seed ghost's slot, its index in generateSamplePool()'s order (the grade's battle seeds read it). */
+export function seedSlot(hero: HeroId, v: number, day: number): number {
+  const s = STAND_IN_HEROES.indexOf(hero);
+  if (s >= 0) return (s * SAMPLE_VARIANTS + v) * MAX_DAY + day - 1;
+  return STAND_IN_HEROES.length * (SAMPLE_VARIANTS + 1) * MAX_DAY + (RACE_SEED_HEROES.indexOf(hero) * RACE_VARIANTS + v) * MAX_DAY + day - 1;
+}
+
+/** SOFT-1: a candidate seed deck: its build, its par-field run's field seed (absent for a stand-in pool entry), its road log. */
+export interface SoftDeck { build: Build; seed?: number; road?: RoadEntry[] }
+
+/** SOFT-1: (hero, day)'s candidate decks, distinct (encodeStarred), in order: a stand-in hero's stand-in pool entries
+ *  (standInPool, by pct), then the par field (parSeeds(PAR_K), the par player's dusk deck of `day` from each run, with its
+ *  road log), for every hero. */
+export function softCandidates(hero: HeroId, day: number, botRunes?: boolean): SoftDeck[] {
+  const out: SoftDeck[] = [];
+  const seen = new Set<string>();
+  const add = (c: SoftDeck) => { const k = encodeStarred(c.build); if (!seen.has(k)) { seen.add(k); out.push(c); } };
+  if (STAND_IN_HEROES.includes(hero)) {
+    for (const e of standInPool(hero, day)) add({ build: e.build, ...(e.road ? { road: e.road as RoadEntry[] } : {}) });
+  }
+  const d = Math.max(1, Math.min(MAX_DAY, Math.floor(day)));
+  for (const seed of parSeeds(PAR_K)) {
+    const days = playerRun(hero, d, seed, botRunes !== undefined ? { botRunes } : {});
+    add({ build: days[d - 1].build, seed, ...(npcDayRules() ? { road: playerRoadLog(days, d) } : {}) });
+  }
+  return out;
+}
+
+const SOFT_MEMO = new Map<string, [SoftDeck, SoftDeck]>();
+
+/**
+ * SOFT-1 THE RULE (REQ-BFG-092): (hero, day)'s variant 0 and 1 decks: for each variant, the candidate (softCandidates) whose
+ * grade is nearest SOFT_TARGET, graded exactly as the seed step grades it in that variant's slot (gradeOne at seedSlot: K
+ * GRADE_K x GRADE_SEEDS seeds against the four par fields, the slot's battle seeds), so the grade that picks a deck is the
+ * grade it ships with. Ties go to the lower grade, then the earlier candidate; variant 1 never takes variant 0's deck.
+ * Memoised per process (worldKey() and botRunes). The generator reads its picks from SOFT1_PICKS (softPicked); this is the
+ * rule that table comes from (tests/soft1.picks.test.ts, opt-in).
+ */
+export function softDecks(hero: HeroId, day: number, botRunes?: boolean): [SoftDeck, SoftDeck] {
+  const key = `${hero}|${day}|${botRunes}|${worldKey()}`;
+  const hit = SOFT_MEMO.get(key);
+  if (hit) return hit;
+  const cands = softCandidates(hero, day, botRunes);
+  if (cands.length < SAMPLE_VARIANTS) throw new Error(`SOFT-1: ${hero} day ${day} has ${cands.length} candidate decks`);
+  const pick = (v: number, not?: string): SoftDeck => {
+    const gi = seedSlot(hero, v, day);
+    let best: SoftDeck | undefined, bg = 0;
+    for (const c of cands) {
+      if (not !== undefined && encodeStarred(c.build) === not) continue;
+      const g = gradeOne(c.build, day, gi, GRADE_K, GRADE_SEEDS);
+      const dg = Math.abs(g - SOFT_TARGET), db = Math.abs(bg - SOFT_TARGET);
+      if (best === undefined || dg < db || (dg === db && g < bg)) { best = c; bg = g; }
+    }
+    return best!;
+  };
+  const v0 = pick(0);
+  const out: [SoftDeck, SoftDeck] = [v0, pick(1, encodeStarred(v0.build))];
+  SOFT_MEMO.set(key, out);
   return out;
 }
 
@@ -255,8 +416,9 @@ function casualFloorGhost(hero: HeroId, day: number, cf: CasualFloor, at: number
 export function floorGhosts(first = STAND_IN_HEROES.length * SAMPLE_VARIANTS * MAX_DAY, o: { botRunes?: boolean } = {}): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
   for (const hero of STAND_IN_HEROES) {
+    // SOFT-1: the day's variant 0 and 1 decks are sampleGhosts' (SOFT1_PICKS' in its world)
     const cf = npcDayRules()
-      ? casualFloorRun(hero, (day) => new Set([0, 1].map((v) => encodeStarred(sampleDeck(hero, day, v, sampleSeed(hero, v, day))))), o.botRunes)
+      ? casualFloorRun(hero, (day) => new Set([0, 1].map((v) => encodeStarred(softPicked(hero, day, o.botRunes)?.[v].build ?? sampleDeck(hero, day, v, sampleSeed(hero, v, day))))), o.botRunes)
       : null;
     for (let day = 1; day <= MAX_DAY; day++) {
       if (cf) {
@@ -372,8 +534,13 @@ export function uncoveredStates(pool: readonly GhostSnapshot[], min = MIN_ELIGIB
  *  off) reaches the race decks' par player (raceDeck); the stand-in heroes' decks come from the bundled stand-in pool.
  *  LOSS-1 P2: with NPC_DAY on, o.botRunes reaches the casual floor runs too (every hero's floor ghost). */
 export function generateSamplePool(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
-  const races = o.botRunes === undefined ? raceGhosts() : raceGhosts(undefined, (h, d, v) => raceDeck(h, d, v, o.botRunes), o);
-  const pool = [...sampleGhosts(), ...floorGhosts(undefined, o), ...races];
+  // SOFT-1: in SOFT1_PICKS' world a race hero's variant 0 and 1 decks are its picks (par-field runs); elsewhere raceDeck's
+  const deckOf = (h: HeroId, d: number, v: number): RaceDeck => {
+    const c = v < SAMPLE_VARIANTS ? softPicked(h, d, o.botRunes)?.[v] : undefined;
+    return c ? { build: c.build, seed: c.seed!, ...(c.road ? { road: c.road } : {}) } : raceDeck(h, d, v, o.botRunes);
+  };
+  const races = raceGhosts(undefined, deckOf, o);
+  const pool = [...sampleGhosts(o), ...floorGhosts(undefined, o), ...races];
   const gaps = uncoveredStates(pool);
   if (gaps.length) {
     throw new Error(`the seed pool leaves ${gaps.length} reachable states with fewer than ${MIN_ELIGIBLE} eligible ghosts: `
@@ -421,9 +588,13 @@ export function gradeSamplePool(pool: readonly GhostSnapshot[], k: number = GRAD
 const GRADE_MEMO = new Map<string, number[]>();
 
 function gradeMemoKey(pool: readonly GhostSnapshot[], k: number, seeds: number): string {
-  const world = [BOT_RUNES, sustainLive(), wave3Live(), hullScaleRules(), ladderFixRules(), npcDayRules(), guardRules(),
+  return `${k}|${seeds}|${worldKey()}|${pool.map((s) => ghostId(s)).join(",")}`;
+}
+
+/** The grade memo's world (gradeMemoKey's, unchanged): every switch the grades read. SOFT-1 C2: softDecks' memo reads it too. */
+function worldKey(): string {
+  return [BOT_RUNES, sustainLive(), wave3Live(), hullScaleRules(), ladderFixRules(), npcDayRules(), guardRules(),
     openRunesRules(), freeJoinsRules(), heartsRules(), pickRules(), shapesRules()].map((on) => (on ? "1" : "0")).join("");
-  return `${k}|${seeds}|${world}|${pool.map((s) => ghostId(s)).join(",")}`;
 }
 
 /** HULL-ON (cap's ruling 9c114aab5ba18dfe): the memo's hook for tests/hullon.grademem.test.ts: its size; clear it first
@@ -433,19 +604,22 @@ export function gradeMemo(clear = false): number {
   return GRADE_MEMO.size;
 }
 
-/** The grading itself (gradeSamplePool's body before the memo, unchanged). */
+/** The grading itself (gradeSamplePool's body before the memo, unchanged; SOFT-1 C2: one ghost's grade is gradeOne). */
 function gradePool(pool: readonly GhostSnapshot[], k: number, seeds: number): number[] {
-  return pool.map((s, gi) => {
-    let pts = 0, n = 0;
-    for (const h of GRADE_HEROES) {
-      parField(h, s.day, k).forEach((b, m) => {
-        const job: Job = { a: 0, b: 1, seeds: Array.from({ length: seeds }, (_, x) => hashSeed("rt1-grade", s.day, gi, h, m, x)), day: s.day };
-        pts += playJob([s.build, b], job) / (2 * seeds);
-        n++;
-      });
-    }
-    return Math.round((pts / n) * GRADE_MAX);
-  });
+  return pool.map((s, gi) => gradeOne(s.build, s.day, gi, k, seeds));
+}
+
+/** SOFT-1 C2: the grade of `build` on `day` in slot `gi` (gradePool's per-ghost body, moved here unchanged). */
+export function gradeOne(build: Build, day: number, gi: number, k: number = GRADE_K, seeds: number = GRADE_SEEDS): number {
+  let pts = 0, n = 0;
+  for (const h of GRADE_HEROES) {
+    parField(h, day, k).forEach((b, m) => {
+      const job: Job = { a: 0, b: 1, seeds: Array.from({ length: seeds }, (_, x) => hashSeed("rt1-grade", day, gi, h, m, x)), day };
+      pts += playJob([build, b], job) / (2 * seeds);
+      n++;
+    });
+  }
+  return Math.round((pts / n) * GRADE_MAX);
 }
 
 /** One canonical snapshot per line inside a JSON array (diff-friendly). */
@@ -465,6 +639,7 @@ export const SEED_POOL_MODULE = "server/seedPoolData.ts";
  * byte (server/seed.ts bundledSeedPoolJson; tests/s8.seedfile.test.ts pins it equal to generateSamplePool()'s output).
  */
 export function seedPoolModuleText(pool: readonly GhostSnapshot[]): string {
+  softStaleCheck(); // SOFT-1 (RULING-SOFT1-R2 R2.1 item 3): gen:ghosts writes the bundled seed pool only in SOFT1_PICKS' world
   const graded = pool.filter((s) => typeof s.grade === "number").length;
   return [
     "// GENERATED by `npm run gen:ghosts` (tools/genGhostPool.ts; tools/samplePool.ts seedPoolModuleText). Do not edit: run",
