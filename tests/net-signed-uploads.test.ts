@@ -13,6 +13,7 @@ import { generateSamplePool } from "../tools/samplePool";
 import { snap, upSnap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { startFake, tigrisFor } from "./netStores";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): day 1's record on hearts
 
 // 0.7.0, REQ-BFG-016: what the client sends for a signed upload, and what the server keeps of it.
 
@@ -108,7 +109,9 @@ describe("a signed upload is stored in the record format it always had: no key, 
   // expectRecord: the server's validateUpload wants exactly `day` runes, so the rune-less upload was a 422, not the 201
   async function uploadOnce(app: GhostServer): Promise<{ id: string; key: string; sig: string }> {
     const base = `http://127.0.0.1:${await app.listen(0)}`;
-    const mine = ownedBy(upSnap({ lives: 5 }), ME); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
+    // 0.8.0 H2 (a): day 1's one reachable record. HULL-ON (the flip, HEARTS): 0W 5 lives -> 0W HEARTS_START (10 hearts),
+    // here and in expectRecord: under this build's rules a run starts with 10 hearts (POST answered 422 on 5 lives)
+    const mine = ownedBy(upSnap({ lives: HEARTS_START }), ME);
     const body = encodeSnapshot(mine);
     const headers = await signedHeaders(ME, body);
     const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers, body });
@@ -122,7 +125,7 @@ describe("a signed upload is stored in the record format it always had: no key, 
     const rec = JSON.parse(text) as Record<string, unknown>;
     expect(Object.keys(rec)).toEqual(["id", "at", "snapshot"]);
     expect(rec.id).toBe(id);
-    expect(rec.snapshot).toEqual(ownedBy(upSnap({ lives: 5 }), ME)); // 0.8.0 H2: the posted fixture, echoed (oracle 9c95e37aab0a70fb)
+    expect(rec.snapshot).toEqual(ownedBy(upSnap({ lives: HEARTS_START }), ME)); // 0.8.0 H2: the posted fixture, echoed (oracle 9c95e37aab0a70fb)
     expect(text).not.toContain(key);
     expect(text).not.toContain(sig);
     expect(text).not.toContain(key.slice(0, 20)); // not even part of the key
@@ -153,7 +156,13 @@ describe("a signed upload is stored in the record format it always had: no key, 
 const V2 = generateSamplePool().find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined));
 
 describe("0.6.2: a v2 snapshot with turrets and a join signs and verifies on the exact bytes sent", () => {
-  const mine = () => ownedBy(V2!, ME);
+  // HULL-ON (the flip, PICK): with PICK on every seed-pool ghost carries the seed step's grade (snapshot.grade), which no
+  // upload carries (POST /v1/ghosts: 422 "grade: only the seed pool's ghosts carry a grade"), so the upload is the pool
+  // deck without it, as a player's snapshot is (was the pool ghost as it stood, which had no grade)
+  const mine = () => {
+    const { grade: _grade, ...s } = V2!;
+    return ownedBy(s, ME);
+  };
   /** Index of the first digit after `marker` in the encoded body: a turret slot, or a join cell. */
   const digitAfter = (text: string, marker: string) => {
     const at = text.indexOf(marker);

@@ -25,10 +25,14 @@
 // (onToTheRoad), then REFIT. The runs pick a warlord, fight it, then take a random choice of the day's event; each dusk is
 // checked with its road log too (snapshot.road, as server/app.ts passes it). Before: a random pick of ROAD_PICKS, the event
 // instead of a fight (0.9.7's road).
+// HULL-ON (REQ-BFG-096; the flip, HEARTS): the runs are hearts runs: 10 hearts at dusk 1, a loss costs 1/2/3 by day, no
+// early-loss refund (none is given), and the record model is the hearts model (records.ts heartsRecords, this build's
+// rules): 324 records over dusks 1-10 (was 172 on 5 lives), every one met; its LAST CHANCE-only records are listed below.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
 import { Rng, hashSeed } from "../src/core/rng";
-import { RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
+import { RULES_VERSION, type HeroId } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a run's 10 hearts (was START_LIVES, 5)
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import type { SideStats } from "../src/sim/battle";
 import { buyOffer, fightRefusal, newRun, pendingLastChance, pendingRune, takeLastChance, takeRune, type Run } from "../src/game/run";
@@ -192,9 +196,10 @@ describe("H2: real runs through the run code only ever upload records POST /v1/g
     expect(summary.complete).toBeGreaterThan(0);
     expect(summary.lost).toBeGreaterThan(0);
     expect(summary.patchUps).toBeGreaterThan(0); // the DOCK's PATCH UP was bought
-    expect(summary.refunds).toBeGreaterThan(0); // the early-loss refund was given
+    expect(summary.refunds).toBe(0); // HULL-ON (the flip, HEARTS): a hearts run has no early-loss refund (was > 0, given)
     for (const b of BOONS) expect(summary.lastChance[b], `LAST CHANCE ${b}`).toBeGreaterThan(0); // Z-BUMP: each card was taken
-    for (const p of runs) expect(p.snaps[0]).toMatchObject({ rules: RULES_VERSION, day: 1, wins: 0, lives: START_LIVES });
+    // HULL-ON (the flip, HEARTS): START_LIVES (5) -> HEARTS_START (10) going into dusk 1
+    for (const p of runs) expect(p.snaps[0]).toMatchObject({ rules: RULES_VERSION, day: 1, wins: 0, lives: HEARTS_START });
   });
 
   // Z-BUMP (the flip): 172 (was 178): the record model with LAST CHANCE (reachableRecords: either, with or without one)
@@ -204,15 +209,17 @@ describe("H2: real runs through the run code only ever upload records POST /v1/g
       for (const { wins, lives } of reachableRecords(day)) if (!met.has(key(day, wins, lives))) missing.push(`d${day} ${wins}W ${lives}L`);
     }
     expect(missing).toEqual([]);
-    expect(met.size).toBe(172);
-    expect(sample).toHaveLength(172);
+    expect(met.size).toBe(324); // HULL-ON (the flip, HEARTS): the hearts record model's 324 (was 172)
+    expect(sample).toHaveLength(324);
     const perHero = Object.fromEntries(PLAYABLE_HEROES.map((h) => [h, sample.filter((s) => s.hero === h).length]));
     for (const h of PLAYABLE_HEROES) expect(perHero[h], `${h} in the sample`).toBeGreaterThanOrEqual(30);
     // Z-BUMP: 13 of them only a run that had its LAST CHANCE carries (1 life at dusks 7-10): their snapshots carry it
+    // HULL-ON (the flip, HEARTS): 17 on the hearts model (was 13): still 1 heart at dusks 7-10, now with up to 3 more wins
+    // (a day-7+ loss costs 3, so LAST CHANCE fires from 4 hearts or fewer: d8 3W, d9 4W, d10 5W and 6W are new)
     const lcOnly = sample.filter((s) => !isReachable(s.day, s.wins, s.lives, { lastChance: null }));
     expect(lcOnly.map((s) => `d${s.day} ${s.wins}W ${s.lives}L`)).toEqual([
-      "d10 0W 1L", "d10 1W 1L", "d10 2W 1L", "d10 3W 1L", "d10 4W 1L", "d7 0W 1L", "d8 0W 1L", "d8 1W 1L", "d8 2W 1L",
-      "d9 0W 1L", "d9 1W 1L", "d9 2W 1L", "d9 3W 1L",
+      "d10 0W 1L", "d10 1W 1L", "d10 2W 1L", "d10 3W 1L", "d10 4W 1L", "d10 5W 1L", "d10 6W 1L", "d7 0W 1L", "d8 0W 1L",
+      "d8 1W 1L", "d8 2W 1L", "d8 3W 1L", "d9 0W 1L", "d9 1W 1L", "d9 2W 1L", "d9 3W 1L", "d9 4W 1L",
     ]);
     for (const s of lcOnly) expect(s.lastChance, `d${s.day} ${s.wins}W ${s.lives}L`).toBeDefined();
   });
@@ -231,15 +238,15 @@ describe("H2: real runs through the run code only ever upload records POST /v1/g
 
     // Z-BUMP (the flip): 172 (was 178); each snapshot goes up as the game uploads it, with its lastChance where it has one
     it("one snapshot per record met (172, all four heroes), signed as the game signs them: 201 each, all stored", async () => {
-      expect(sample).toHaveLength(172);
+      expect(sample).toHaveLength(324); // HULL-ON (the flip, HEARTS): 324 records met on the hearts model (was 172)
       for (const s of sample) {
         const body = encodeSnapshot(s);
         const lc = s.lastChance ? ` LAST CHANCE ${s.lastChance.day} ${s.lastChance.boon}` : "";
         const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
         expect([r.status, await r.json()], `${s.hero} d${s.day} ${s.wins}W ${s.lives}L${lc}`).toEqual([201, { id: ghostId(s) }]);
       }
-      expect(backend.storedRecords()).toBe(172);
-      expect(app.store.size).toBe(172);
+      expect(backend.storedRecords()).toBe(324); // HULL-ON (the flip, HEARTS): was 172
+      expect(app.store.size).toBe(324);
     }, 60_000);
   });
 });

@@ -50,7 +50,9 @@ describe("ghostOf: the player's own v1 snapshot", () => {
     finishDay(run, 1, 30, STATS, STATS); // day 2: a loss
     startDusk(run, []);
     const wins = run.wins, lives = run.lives;
-    expect([run.day, wins, lives]).toEqual([3, 1, 5]); // 0.6.2 RULE EARLY-LOSS REFUND: day 3's dawn gave day 2's life back
+    // 0.6.2 RULE EARLY-LOSS REFUND: day 3's dawn gave day 2's life back. HULL-ON (the flip, HEARTS): 5 -> 9: 10 hearts, day
+    // 2's loss costs heartCost(2) = 1, and a hearts run has no refund
+    expect([run.day, wins, lives]).toEqual([3, 1, 9]);
     const g = ghostOf(run, 1234.9, "p-me");
     expect(keysOf(g)).toEqual([...KEYS, "seed"].sort()); // RUNES-1 (snapshot v3): and the run seed, last
     expect(SNAPSHOT_VERSION).toBe(2); // 0.6.1a: v2 (stars ride in the build); a snapshot without v3 fields still travels as v2
@@ -60,7 +62,7 @@ describe("ghostOf: the player's own v1 snapshot", () => {
     expect(g.build).not.toBe(run.build); // a copy: later refits do not reach the pool
     expect(isSnapshot(g)).toBe(true);
     finishDay(run, 1, 30, STATS, STATS); // tonight's loss does not reach the snapshot
-    expect([run.wins, run.lives]).toEqual([1, 4]);
+    expect([run.wins, run.lives]).toEqual([1, 8]); // HULL-ON (the flip, HEARTS): 4 -> 8 (9 hearts, day 3's loss costs 1)
     expect([g.wins, g.lives]).toEqual([wins, lives]);
     const d = ghostOf(run); // default stamp (the clock) and this device's id
     expect(isSnapshot(d)).toBe(true);

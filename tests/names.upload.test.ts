@@ -27,6 +27,8 @@ import { storeBackends } from "./netStores";
 import { signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
 import { runeGrants } from "../src/sim/runes";
+import { START_LIVES } from "../src/sim/content"; // HULL-ON (the flip, HEARTS): an older-rules upload's 5-lives scale
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): this build's uploads carry hearts
 
 const T0 = 1_790_000_000_000;
 const rot13 = (s: string) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(((c.charCodeAt(0) - 65 + 13) % 26) + 65));
@@ -79,10 +81,12 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
     await backend.teardown();
   });
 
-  /** A day-1 dusk of `me` (0W, 5 lives), its own runId each time, with `name` (absent when undefined). FLIP-X2: its deck
-   *  holds day 1's rune, so it travels as v3 (was the rune-less v2 deck, which the exact count now refuses). */
+  /** A day-1 dusk of `me` (0W, 10 hearts), its own runId each time, with `name` (absent when undefined). FLIP-X2: its deck
+   *  holds day 1's rune, so it travels as v3 (was the rune-less v2 deck, which the exact count now refuses).
+   *  HULL-ON (the flip, HEARTS): 5 lives -> HEARTS_START (10): day 1's one reachable record under this build's rules is
+   *  0W 10 hearts (POST answered 422 "record: 0W 5 lives is no record a run carries into dusk 1"). */
   const dusk = (name?: unknown): Record<string, unknown> => ({
-    v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: 1, wins: 0, lives: 5, build: withDawnRunes(heroStartBuild("furnace"), 1),
+    v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: 1, wins: 0, lives: HEARTS_START, build: withDawnRunes(heroStartBuild("furnace"), 1),
     runId: `names-${k++}`, playerId: me.playerId, createdAt: T0, ...(name === undefined ? {} : { name }),
   });
   /** POST exactly this JSON, signed by `me`. */
@@ -136,7 +140,9 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
     expect(r403.status).toBe(403);
     // FLIP-X2: foreign rules as an older client sends them: bb-0.8.3 had no runes, so its dusk is the rune-less v2 deck
     // (this build's dusk holds a rune, which the decoder's rules gate refuses under bb-0.8.3 with a 400, before this check)
-    const old = JSON.stringify({ ...s, v: SNAPSHOT_VERSION, build: heroStartBuild("furnace"), rules: "bb-0.8.3" });
+    // HULL-ON (the flip, HEARTS): and on its own rules' 5-lives scale (START_LIVES): dusk() now carries 10 hearts, which the
+    // decoder's lives bound for bb-0.8.3 (1..9) refuses with a 400, before this check
+    const old = JSON.stringify({ ...s, v: SNAPSHOT_VERSION, build: heroStartBuild("furnace"), rules: "bb-0.8.3", lives: START_LIVES });
     const r422 = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, old), body: old });
     expect([r422.status, ((await r422.json()) as { error: string }).error]).toEqual([422, `rules bb-0.8.3 not accepted: this server validates ${RULES_VERSION}`]);
   });
@@ -160,7 +166,9 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
       const s1 = new Online(url, deps(d1));
       await until(() => s1.active);
       setPlayerName("ANNA"); // as the name screen stores it
-      const run = runAt("furnace", 4242, 4, 2, 4); // dusk 4 at 2 wins, 1 loss
+      // HULL-ON (the flip, HEARTS): 4 -> 9 lives: the run (newRun under the flip) plays on hearts, and its one loss on days
+      // 1-3 costs 1 heart (10 -> 9); 4 lives is no record a hearts run carries into dusk 4 (POST: 422)
+      const run = runAt("furnace", 4242, 4, 2, 9); // dusk 4 at 2 wins, 1 loss
       startDusk(run, [], { ghost: null });
       s1.submitDusk(run);
       await until(() => s1.lastUpload !== null);
@@ -182,7 +190,7 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
       // a second device, past the new-player runs, at dusk 4 with the same record: it meets ANNA's ghost
       const s2 = new Online(url, deps(d2, 5));
       await until(() => s2.active);
-      const theirs = runAt("weaver", 77, 4, 2, 4);
+      const theirs = runAt("weaver", 77, 4, 2, 9); // HULL-ON (the flip, HEARTS): the same record on hearts (was 4 lives)
       s2.tick(theirs);
       await until(() => s2.lastFetch !== null);
       s2.tick(theirs);
@@ -232,10 +240,14 @@ describe("ghosts:admin revalidate: an upload under this build's rules needs its 
     expect(uploadProblems(rec({ ...s, name: "anna" }), RULES_VERSION)).toEqual(["strict decode: name: bad characters"]);
     // FLIP-X2: the older-rules upload is the rune-less v2 deck an older client sent (was the v3 seed deck holding its day's
     // runes under bb-0.6.1, which the rules gate refuses: runes need bb-0.8.7); no runes, so no rune hull/belt and no seed
-    const { seed: _seed, ...rest } = s;
+    // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and no road log, v3 only and
+    // gated by NPC_DAY's rules ("snapshot.road: not allowed in a v2 snapshot")
+    const { seed: _seed, road: _road, ...rest } = s;
     const { runes, ...build } = s.build;
     const g = runeGrants(runes, s.day);
-    const old: GhostSnapshot = { ...rest, v: SNAPSHOT_VERSION, rules: "bb-0.6.1", build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
+    // HULL-ON (the flip, HEARTS): on its own rules' 5-lives scale: s (day 1, 0W) is the shipped pool's, 10 hearts, which the
+    // decoder's lives bound for bb-0.6.1 (1..9) refuses; the same record under bb-0.6.1 is 0W START_LIVES (5)
+    const old: GhostSnapshot = { ...rest, v: SNAPSHOT_VERSION, rules: "bb-0.6.1", lives: START_LIVES, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
     expect(uploadProblems(rec(old), "bb-0.6.1").some((p) => p.startsWith("name:"))).toBe(false);
   });
 });

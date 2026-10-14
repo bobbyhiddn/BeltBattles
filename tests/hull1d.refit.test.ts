@@ -14,6 +14,8 @@ import { setHullScale } from "../src/sim/hullScale";
 import { setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
 import { SHAPES, setShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the bench's states with SHAPES off
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the bench's boards, joins limited
+import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the bench's boards, weighted runes
 import { newRun, type Run } from "../src/game/run";
 
 // SHAPES-1 flip (step 8): the two states are HULL-1c's bench's, found with SHAPES off (their point is the REFIT swap, not a
@@ -41,7 +43,14 @@ function place(hero: HeroId, seed: number, day: number, def: string, npcDay: boo
   setHullScale(true);
   setLadderFix(true);
   setNpcDay(false);
-  const board = playerRun(hero, 10, seed)[day - 1].build;
+  // HULL-ON (the flip, FREE_JOINS, OPEN_RUNES): the boards are HULL-1c's bench states, measured before both. With FREE_JOINS
+  // on the par player plans joins with no limit, and with OPEN_RUNES on it takes its dawn runes from the open pool, so its
+  // day-7 decks are other decks: FOUNDRY 151's has 9 pieces (GREASE and a MEND PRESS, no SHOT TOWER; was 8), on which no
+  // swap rates a gain (placed false). Proved one switch at a time: FREE_JOINS off alone gives a 7-piece deck with a free
+  // gear slot (the part placed with NPC_DAY off too), GUARD, OPEN_RUNES, HEARTS or PICK off alone the 9-piece one; FREE_JOINS
+  // and OPEN_RUNES off give the bench's 8 (both cases green). So the board is built with both off; the placement plays the
+  // shipped world
+  const board = withFreeJoins(() => withOpenRunes(() => playerRun(hero, 10, seed)[day - 1].build, false), false);
   setNpcDay(npcDay);
   const run = boardRun(board, hero, day);
   const r = placeFreePart(run, def, new Rng(hashSeed("lastchance-place", hero, run.seed, day)));

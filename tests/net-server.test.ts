@@ -3,7 +3,8 @@ import { mkdtempSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RULES_VERSION, START_LIVES } from "../src/sim/content";
+import { RULES_VERSION } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a run's best record holds 10 hearts (was START_LIVES)
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { NEW_PLAYER_RUNS, noBetterRecord } from "../src/net/matchmaking";
 import { KEY_HEADER, SIG_HEADER, type Identity } from "../src/net/identity";
@@ -82,7 +83,10 @@ afterAll(async () => {
       for (;;) {
         // 0.7.0a: the best record a player can carry into this dusk (D1: every ghost of the day is eligible), and a
         // player past the new-player pool (D2: uploads are matched only from NEW_PLAYER_RUNS finished runs)
-        const g = await fetchGhost(base, req({ day, playerId: me, seen: [...seen], wins: day - 1, lives: START_LIVES, runs: NEW_PLAYER_RUNS }), 3000);
+        // HULL-ON (the flip, HEARTS): lives START_LIVES (5) -> HEARTS_START (10): the best record a run carries into a dusk is
+        // 10 hearts now, and the sample ghosts carry hearts labels (day 1's: 0W 10), so 5 was a worse record than theirs
+        // (D1: none eligible, an at-once fallback); the match route takes 10 under bb-0.10.0 (rulesGate.ts livesCapFor)
+        const g = await fetchGhost(base, req({ day, playerId: me, seen: [...seen], wins: day - 1, lives: HEARTS_START, runs: NEW_PLAYER_RUNS }), 3000);
         if (g.source === "fallback") {
           expect(g.error).toMatch(/no ghost/);
           expect(g.id).toBe(`offline-weaver-d${day}`);
@@ -224,7 +228,9 @@ afterAll(async () => {
     const before = stored();
     // FLIP-X2: snap() -> upSnap() (v1 rune-less -> v3 holding day 1's one neutral rune): the server's validateUpload wants
     // exactly `day` runes, so the rune-less upload was a 422 on the count instead of the 201 under test
-    const mine = upSnap({ playerId: ME.playerId, createdAt: 1_790_000_000_004, lives: 5, name: TEST_NAME }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives (PACKS M2: with a player name)
+    // HULL-ON (the flip, HEARTS): lives 5 -> HEARTS_START (10): under bb-0.10.0's hearts, day 1's one reachable record is
+    // 0W 10 hearts (the server refused 5: "record: 0W 5 lives is no record a run carries into dusk 1", a 422)
+    const mine = upSnap({ playerId: ME.playerId, createdAt: 1_790_000_000_004, lives: HEARTS_START, name: TEST_NAME }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives (PACKS M2: with a player name)
     const body = encodeSnapshot(mine);
     const first = await upload(body, await signedHeaders(ME, body));
     expect(first).toEqual({ status: 201, body: { id: ghostId(mine) } });

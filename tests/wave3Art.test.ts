@@ -35,6 +35,7 @@ import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
 import { P1_WAVE3_IDS, P1_WAVE3_ITEMS } from "../tools/wave3Defs"; // 0.8.0 I1: A1's copy, compared with the real defs
 import type { ItemDef } from "../src/sim/content"; // AZ-BUMP (the flip, LADDER_FIX): A1's copy as a def, for LADDER_DEFS
 import { LADDER_DEFS, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): STOKER's fixed def
+import { GUARD_DEFS, withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's guarded def
 
 // ------------------------------------------------------------------------------------------------- a software raster
 
@@ -202,10 +203,15 @@ describe("wave 3's 15 modules: P1's ids, drawn at the game's entry points (P1's 
       // P1's def as merged (ladderFix.ts LADDER_DEFS.stoker: ★3 stoke 0.7 -> 0.85, nothing else), so it is compared with
       // that fixed def of A1's copy; every other wave-3 entry as before. Off, STOKER is A1's copy itself (after the loop)
       const merged = { ...P1_WAVE3_ITEMS[id], ...FLIPPED[id] } as unknown as ItemDef;
-      expect(ITEMS[id], id).toEqual(Object.prototype.hasOwnProperty.call(LADDER_DEFS, id) ? LADDER_DEFS[id](merged) : merged); // Y7b2 (the flip): was P1_WAVE3_ITEMS[id]
+      // HULL-ON (the flip, GUARD): PLATE ROLLER's entry is its guarded def (guard.ts GUARD_DEFS.plateroller: gate.plate
+      // 5 / 11 / 17 -> 15 / 33 / 51, nothing else), built from the def as merged, so it is compared with that guarded def of
+      // A1's copy; off, PLATE ROLLER is A1's copy itself (after the loop)
+      const fixed = Object.prototype.hasOwnProperty.call(LADDER_DEFS, id) ? LADDER_DEFS[id](merged) : merged;
+      expect(ITEMS[id], id).toEqual(Object.prototype.hasOwnProperty.call(GUARD_DEFS, id) ? GUARD_DEFS[id](fixed) : fixed); // Y7b2 (the flip): was P1_WAVE3_ITEMS[id]
       expect(isWave3Art(id), id).toBe(true);
     }
     expect(withLadderFix(() => ITEMS.stoker, false)).toEqual(P1_WAVE3_ITEMS.stoker);
+    expect(withGuard(() => ITEMS.plateroller, false)).toEqual(P1_WAVE3_ITEMS.plateroller); // HULL-ON (the flip, GUARD): off
     for (const id of [...DEFS.map((d) => d.id), "zz-none", "constructor", "toString"]) expect(isWave3Art(id), id).toBe(false);
   });
 

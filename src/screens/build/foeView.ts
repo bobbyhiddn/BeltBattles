@@ -21,6 +21,7 @@ import { drawMachinery } from "../../render/machinery";
 import { drawStillCarrier } from "../../render/ship";
 import { DEFAULT_SKIN } from "../../render/styles";
 import { tag } from "../../ui/captain";
+import { duskStakes } from "../../ui/stakes"; // c099-hullon: drawFoeCard's hearts at stake
 import { tapPx } from "../../ui/tap";
 import { button, tapRect, type Rect } from "../../ui/ui";
 import { BACK_LABEL, BattleFaces, partAt, type PartSel } from "../battleScout";
@@ -80,7 +81,7 @@ export function foePartsOnScreen(L: BuildLayout, foe: DuskFoe): { sel: PartSel; 
 /** The NEXT BATTLE card (chrome.ts, both places it draws): inspector.ts drawFoe as before; with a revealed foe also a
  *  lime frame, the SCOUTED tag where it fits, and its tap target, which opens the view. */
 export function drawFoeCard(g: G, s: BuildScreen, r: Rect): void {
-  drawFoe(g, s.foe, r, s.note());
+  drawFoe(g, s.foe, r, s.note(), duskStakes(s.run)); // c099-hullon: RETUNE-1 run 2 (REQ-BFG-096), the hearts at stake on the NEXT BATTLE card
   const foe = scoutedFoe(s.run);
   if (!foe || foe !== s.foe || s.modalUp()) return; // without a reveal: exactly as before
   frame(g, r.x, r.y, r.w, r.h, C.lime);
@@ -152,7 +153,8 @@ export class FoeView {
       const q = { x: r.x + 2, y: r.y + r.h + 1, w: r.w - 4, h: R.area.y + R.area.h - (r.y + r.h + 1) };
       return q.h >= INFO_FREE_MIN ? q : null;
     };
-    this.faces.drawOn(g, s.game, foe.build, { area: R.area, band: R.band }, free, DEFAULT_SKIN.panel, null);
+    // CNT-DAY (REQ-BFG-082, REQ-BFG-079): the face on the run's day (s.run is the game's run: tonight's dusk is on it)
+    this.faces.drawOn(g, s.game, foe.build, { area: R.area, band: R.band }, free, DEFAULT_SKIN.panel, null, s.run.day);
     this.last = { card: R.cardHit, back: R.backHit, area: R.area };
   }
 

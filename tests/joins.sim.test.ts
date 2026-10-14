@@ -14,6 +14,7 @@ import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { DRAG_MULT, dragSpans } from "../src/sim/races/siphon";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { cruiserModel } from "../src/render/cruiser";
+import { joinedPace, withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the joined factory's pace
 
 const rig = (uid: number, def: string, x: number, y: number, rot = 0): Placed => ({ uid, def, x, y, ...rotField(def, rot) });
 // a foe that never fires (no belts) and never falls
@@ -40,7 +41,9 @@ const quiet = (uid: number) => (s: SideState) => { s.factories.find((f) => f.uid
 // 0.6.2 TUNE-M, RULE JOIN PACE: a joined factory stamps at JOIN_PACE of its rate. The J14 (a) comparisons below run the
 // continuous belt's factory at the same pace, so both decks stamp in step and the journeys compare tick for tick (the
 // pace itself: tests/joinpace.test.ts)
-const paced = (uid: number) => (s: SideState) => { s.factories.find((f) => f.uid === uid)!.pace = JOIN_PACE; };
+// HULL-ON (the flip, FREE_JOINS): JOIN_PACE -> joinedPace(), the joined factory's pace now: 1 with FREE_JOINS on (no RULE
+// JOIN PACE, as shipped), JOIN_PACE with it off, so the two decks still stamp in step (J15 checks the off world too)
+const paced = (uid: number) => (s: SideState) => { s.factories.find((f) => f.uid === uid)!.pace = joinedPace(); };
 
 interface Load { tick: number; id: number; factory: number; ride: number; prior: number; flat: number; burn: number; heat: number; ammo: string }
 interface Run { bt: Battle; loads: Load[]; seenOn: Map<number, number> }
@@ -414,6 +417,13 @@ describe("J14 (a): the payload's own journey", () => {
     const c = run(single(joined), 60 * 30, paced(2)).loads.filter((l) => l.factory === 2);
     expect(a.length).toBeGreaterThan(5);
     expect(a.map(pick)).toEqual(c.slice(0, a.length).map(pick));
+    // HULL-ON (the flip, FREE_JOINS): with the switch off both stamp at JOIN_PACE, in step as before
+    withFreeJoins(() => {
+      expect(joinedPace()).toBe(JOIN_PACE);
+      const a0 = run(joined, 60 * 30, quiet(1)).loads.filter((l) => l.factory === 2), c0 = run(single(joined), 60 * 30, paced(2)).loads.filter((l) => l.factory === 2);
+      expect(a0.length).toBeGreaterThan(5);
+      expect(a0.map(pick)).toEqual(c0.slice(0, a0.length).map(pick));
+    }, false);
   });
 });
 

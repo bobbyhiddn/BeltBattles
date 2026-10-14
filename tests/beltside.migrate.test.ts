@@ -12,11 +12,13 @@ import { arrowCell, arrowsOf, cloneBuild, key as K, kx, ky, rotField, type Build
 import {
   clearMigrationLog, migrateDeck, migrateInlineGates, migrationLog, neighbourOrder, rotFacing,
 } from "../src/sim/beltside";
-import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
+import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate"; // S8 run 3: + validateUpload (the player mode)
+import { npcDayRules } from "../src/sim/npcDay"; // S8 run 3: the budget line is left to the player mode only while NPC_DAY is on
 import { checkSnapshot, decodeSnapshot, encodeSnapshot, SnapshotError } from "../src/net/snapshot";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { exceptPairs } from "./harnessLegacy";
-import { decodeStandIn, decodeStarredRaw, encodeStandIn } from "../src/sim/standInPool";
+// S8 run 3: + standInPool and StandInEntry (a pool deck's road log, StandInEntry.road)
+import { decodeStandIn, decodeStarredRaw, encodeStandIn, standInPool, type StandInEntry } from "../src/sim/standInPool";
 import { migrateRun, newRun, type Run } from "../src/game/run";
 import { BELTSIDE_TOAST, MIGRATE_CARGO_CAP } from "../src/game/save";
 import { isSnapshot, migrateSnapshot, type GhostSnapshot } from "../src/game/ghostSnapshot";
@@ -163,11 +165,15 @@ describe("D3: stranded rigs at each load boundary", () => {
     };
     expect(validateBuild(g.build as Build, 3).ok).toBe(false); // as written: a gate on a belt tile
     const load = loadGhostPool([J(g)]);
-    expect(load.rejected).toEqual([]);
-    const s = load.entries[0].snapshot;
+    // S8 T1a (REQ-BFG-092; cause a48010b): the loader checks an entry in the player mode, the seed step's rule (was the strict
+    // mode), whose rune count wants one rune a dawn; runes travel only in v3, so a v1 entry (rune-less) is refused on that
+    // count alone, after its migration: its only line is the count, not the unmigrated gate's placement. The migrated deck
+    // is read from migrateV1, the loader's first step (was the loaded entry)
+    expect(load.rejected).toEqual([{ index: 0, error: "rune: runes: 0 held on day 3, one a dawn (3)" }]);
+    expect(migrationLog().stats.find((x) => x.source === "ghost:net")).toMatchObject({ decks: 1, moved: 1, dropped: 0 });
+    const s = migrateV1(checkSnapshot(J(g)), "ghost:s8-t1a");
     expect([s.v, s.build.items[1].x, s.build.items[1].y, s.build.items[1].rot]).toEqual([2, 3, 3, 1]);
     expect(validateBuild(s.build, 3).ok).toBe(true);
-    expect(migrationLog().stats.find((x) => x.source === "ghost:net")).toMatchObject({ decks: 1, moved: 1, dropped: 0 });
     // v2 (and a v1 with nothing on a belt) passes unchanged
     const native = checkSnapshot({ ...J(g), v: 2, build: furnace([{ uid: 5, def: "temper", x: 3, y: 3, rot: 1 }]) });
     expect(migrateV1(native)).toBe(native);
@@ -178,14 +184,15 @@ describe("D3: stranded rigs at each load boundary", () => {
 
 // ---------------------------------------------------------------- the corpus
 
-interface Rec { source: string; key: string; hero: HeroId; day: number; deck: Build }
+interface Rec { source: string; key: string; hero: HeroId; day: number; deck: Build; road?: StandInEntry["road"] }
 const here = (f: string) => fileURLToPath(new URL(f, import.meta.url));
 const presets = (JSON.parse(readFileSync(here("./fixtures/beltside-062/inline-presets.json"), "utf8")) as { decks: Rec[] }).decks;
 const golden = ["rivals", "par", "standins", "starts"].flatMap((f) =>
   (JSON.parse(readFileSync(here(`./fixtures/golden-060/${f}.json`), "utf8")) as { entries: Rec[] }).entries.map((e) => ({ ...e, source: "golden-060" })));
 const pool: Rec[] = (Object.keys(STAND_IN_DATA.pools) as HeroId[]).flatMap((hero) =>
   // beltside-062-on-061 (P15): pool v2 carries stars, so its decks are read as generated with the star-aware raw decode
-  STAND_IN_DATA.pools[hero]!.flatMap((d, i) => d[1].map((t, j) => ({ source: "standin", key: `standin/${hero}/${i + 1}/${j}`, hero, day: i + 1, deck: decodeStarredRaw(hero, t[3]) }))));
+  // S8 run 3: + its road log (the tuple's seventh element, StandInEntry.road; standInPool's entries in the tuples' order)
+  STAND_IN_DATA.pools[hero]!.flatMap((d, i) => d[1].map((t, j) => ({ source: "standin", key: `standin/${hero}/${i + 1}/${j}`, hero, day: i + 1, deck: decodeStarredRaw(hero, t[3]), road: standInPool(hero, i + 1)[j]!.road }))));
 
 /** A PvE deck (a road warlord's hull ramp is no whole plating and may be negative): judged as a deck on day 10 with no plating. */
 const pve = (r: Rec) => /^(ai\/warlord|rival\/warlord|rival\/)/.test(r.key);
@@ -197,6 +204,20 @@ function legacyErrors(b: Build, day: number): string[] {
   const errs = validateBuild({ ...cloneBuild(b), items: b.items.filter((p) => !inline.has(p)) }, day).errors.filter((e) => !e.startsWith("budget:"));
   if (buildCost(b).total > maxGoldByDay(day)) errs.push(`budget: ${buildCost(b).total} > ${maxGoldByDay(day)}`);
   return errs;
+}
+
+/** S8 run 3 (RULING-S8-R5 section 3 item 1, T1e's form (RULING-S8-R1 item 3); cause a48010b: with NPC_DAY on, a road-fed
+ *  deck spends the road's drops too, by design): the stand-in pool was regenerated once with every switch on (P1 83c039d),
+ *  so a deck may hold the road's gold and drops, which the budget line (the shop's gold alone) doesn't count; its drops count
+ *  through its road log (StandInEntry.road), in the player mode. So a stand-in deck is held to its lines minus at most its
+ *  ONE budget line (matched by its "budget: " prefix, and only while NPC_DAY is on: off, the lines stay whole) AND to
+ *  validateUpload in the player mode with its road log (a stand-in carries no run seed); one that fails the player mode keeps
+ *  every line. Was: the lines whole (standin: 0 of 120 valid, each on its one budget line alone, furnace d1 #0 "budget:
+ *  11 > 8"; all 120 pass the player mode). Other sources: unchanged. */
+function lessBudget(r: Rec, b: Build, day: number, errs: string[]): string[] {
+  const budget = r.source === "standin" && npcDayRules() ? errs.filter((e) => e.startsWith("budget: ")) : [];
+  if (budget.length !== 1) return errs;
+  return validateUpload(b, day, RULES_VERSION, r.road ? { road: r.road } : {}).errors.length ? errs : errs.filter((e) => e !== budget[0]);
 }
 
 interface Row { source: string; decks: number; validBefore: number; validAfter: number; migrated: number; rigs: number; moved: number; cargoed: number; refunded: number; dropped: number; valueDropped: number }
@@ -218,7 +239,7 @@ describe("D3 over every deck that was valid before the pivot", () => {
         const before = J(r.deck);
         row.rigs += before.items.filter((p) => ITEMS[p.def].kind === "gate").length;
         const [jb, day] = judged(r, before);
-        const wasValid = rules(legacyErrors(jb, day)).length === 0;
+        const wasValid = rules(lessBudget(r, jb, day, legacyErrors(jb, day))).length === 0; // S8 run 3: lessBudget (T1e's form)
         const after = J(r.deck);
         const m = migrateInlineGates(after);
         const again = J(r.deck);
@@ -239,7 +260,7 @@ describe("D3 over every deck that was valid before the pivot", () => {
         if (!wasValid) continue;
         row.validBefore++;
         const [ja, dayA] = judged(r, after);
-        const errs = rules(validateBuild(ja, dayA).errors);
+        const errs = rules(lessBudget(r, ja, dayA, validateBuild(ja, dayA).errors)); // S8 run 3: lessBudget (T1e's form)
         if (!errs.length) row.validAfter++;
         else bad.push(`${r.key}: ${errs[0]}`);
       }

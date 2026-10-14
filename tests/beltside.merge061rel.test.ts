@@ -11,10 +11,12 @@ import { AMMO, BELT_SPEED, ITEMS, POOL_RULES, RULES_VERSION, TICK } from "../src
 import { hitsOfRig, key as K, occupancy, payloadDamage, rigHits, rotField, stokeHits, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { beltKind, hitLabel } from "../src/screens/build/inspector";
-import { validateBuild } from "../src/net/validate";
+import { validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode)
+import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import { decodeSnapshot, encodeSnapshot, checkSnapshot, SNAPSHOT_V3, SNAPSHOT_VERSION } from "../src/net/snapshot"; // FLIP-X2: SNAPSHOT_V3
 import { offlineGhost } from "../src/net/fallback";
-import { decodeStarred, decodeStarredRaw, encodeStarred, STAND_IN_POOL_HEROES } from "../src/sim/standInPool";
+// S8c: + standInPool and standInPickIndex (a pool deck's road log, StandInEntry.road)
+import { decodeStarred, decodeStarredRaw, encodeStarred, standInPickIndex, standInPool, STAND_IN_POOL_HEROES } from "../src/sim/standInPool";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { decodeStarred as harnessDecode, encodeStarred as harnessEncode } from "../src/sim/harness/standinCode";
 import { fullPurseBuild, randomBuild } from "../src/sim/harness/gen";
@@ -286,7 +288,21 @@ describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeSt
           // NUM-1 (cap's oracle bcc36c430b4f3a01) validated the pre-NUM-1 codes with this test's own inline x10 of hullBonus.
           // FLIP-X2 (steps 4.1 and 4.5): the pool is regenerated in native N1 units (BUNDLED_POOL_HULL_SCALE deleted), so the
           // deck is validated as stored (was { ...loaded, hullBonus: loaded.hullBonus * 10 }: furnace d1 #3 failed on its hull x10)
-          expect(validateBuild(loaded, day).errors, `${hero} d${day} #${i}`).toEqual([]);
+          // S8c (RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3); cause a48010b: with NPC_DAY on, a road-fed deck
+          // spends the road's drops too, by design): the pool was regenerated once with every switch on (P1 83c039d), so a deck may
+          // hold the road's gold and drops, which the strict mode's budget line (the shop's gold alone) doesn't count; its drops
+          // count through its road log (its tuple's seventh element, StandInEntry.road), in the player mode. So each deck is held
+          // to validateBuild's lines minus at most its ONE budget line (matched by its "budget: " prefix, and only while NPC_DAY
+          // is on: off, the strict check stays whole) AND to validateUpload in the player mode with its road log (a stand-in
+          // carries no run seed). Was: validateBuild(loaded, day).errors toEqual [] whole (furnace d1 #0: "budget: build costs 11
+          // gold (items 7, mods 0, 2 crates, 0 plating) but day 1 allows at most 8")
+          const strict = validateBuild(loaded, day).errors;
+          const budget = npcDayRules() ? strict.filter((e) => e.startsWith("budget: ")) : [];
+          expect(budget.length, `${hero} d${day} #${i}: at most its one budget line`).toBeLessThanOrEqual(1);
+          expect(strict.filter((e) => !budget.includes(e)), `${hero} d${day} #${i}: every other strict line`).toEqual([]);
+          const road = npcDayRules() ? standInPool(hero, day)[i]!.road : undefined; // as tools/samplePool.ts roadOf: NPC_DAY on only
+          const up = validateUpload(loaded, day, RULES_VERSION, road ? { road } : {});
+          expect(up.errors, `${hero} d${day} #${i}: the player mode with its road log`).toEqual([]);
           const belt = new Set(loaded.routes.flatMap((r) => r.cells)), occ = occupancy(loaded);
           expect([...belt].filter((k) => occ[k].item >= 0), `${hero} d${day} #${i}: machinery on a belt tile`).toEqual([]);
           expect(encodeStarred(loaded), `${hero} d${day} #${i}`).toBe(encodeStarred(mig)); // the loader = raw + D3 (+ renumber)
@@ -423,7 +439,23 @@ describe("P17: offline ghosts carry stars and rotation (v2 snapshots)", () => {
       // so a deck with runes is a SNAPSHOT_V3 ghost and a rune-less one still SNAPSHOT_VERSION (was SNAPSHOT_VERSION for all:
       // offlineGhost threw "snapshot.build.runes: not allowed in a v2 snapshot" before eb22262)
       expect(s.v, `${hero} d${day} #${seed}`).toBe(s.build.runes?.length ? SNAPSHOT_V3 : SNAPSHOT_VERSION);
-      expect(validateBuild(s.build, s.day).errors, `${hero} d${day} #${seed}`).toEqual([]);
+      // S8c (RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3); cause a48010b: with NPC_DAY on, a road-fed deck
+      // spends the road's drops too, by design): an offline ghost's deck is a stand-in pool deck (standInPick), road-fed since
+      // the pool's regeneration with every switch on (P1 83c039d). The snapshot carries no road log (fallback.ts offlineGhost),
+      // so the deck's road log is its pool entry's (standInPickIndex; StandInEntry.road). Each ghost is held to validateBuild's
+      // lines minus at most its ONE budget line (matched by its "budget: " prefix, and only while NPC_DAY is on: off, the strict
+      // check stays whole) AND to validateUpload in the player mode with that road log, and its run seed where it carries one
+      // (an offline ghost carries none). Was: validateBuild(s.build, s.day).errors toEqual [] whole (furnace d1 #0: "budget:
+      // build costs 12 gold (items 12, mods 0, 0 crates, 0 plating) but day 1 allows at most 9")
+      const strict = validateBuild(s.build, s.day).errors;
+      const budget = npcDayRules() ? strict.filter((e) => e.startsWith("budget: ")) : [];
+      expect(budget.length, `${hero} d${day} #${seed}: at most its one budget line`).toBeLessThanOrEqual(1);
+      expect(strict.filter((e) => !budget.includes(e)), `${hero} d${day} #${seed}: every other strict line`).toEqual([]);
+      const entry = standInPool(s.hero, s.day)[standInPickIndex(s.hero, s.day, seed)]!;
+      expect(entry.build, `${hero} d${day} #${seed}: the pool entry offlineGhost picked`).toEqual(s.build);
+      const road = npcDayRules() ? entry.road : undefined; // as tools/samplePool.ts roadOf: NPC_DAY on only
+      const up = validateUpload(s.build, s.day, s.rules, { ...(s.seed !== undefined ? { seed: s.seed } : {}), ...(road ? { road } : {}) });
+      expect(up.errors, `${hero} d${day} #${seed}: the player mode with its road log`).toEqual([]);
       const back = decodeSnapshot(encodeSnapshot(s));
       expect(back).toEqual(s);
       expect(JSON.stringify(back)).toBe(JSON.stringify(s));

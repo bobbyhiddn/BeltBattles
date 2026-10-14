@@ -43,7 +43,7 @@ describe("MERGE-099D follow-up: CARD-2's rune word targets on the card's day (HU
         if (!runeKeywords(def).length) continue;
         for (const day of DAYS) {
           const drawn = drawnWords(id, day);
-          const ts = runeWordTargets(CARD, def, [], day);
+          const ts = runeWordTargets(CARD, def, [], 0, day); // MERGE-099E: CARD-4's `tap` (0: the desk's targets) comes before the day
           for (const t of ts) expect(drawn, `${id} day ${day}: ${t.word}`).toContain(`${t.word}@${t.glyph.x},${t.glyph.y}`);
           checked += ts.length;
           // day 1's targets (the call without a day, as the screens made it before this follow-up)

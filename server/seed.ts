@@ -10,12 +10,18 @@
 // 0.7.0a D5 (REQ-BFG-016): a seed ghost must pass validateUpload in the player (honest) mode, the check
 // POST /v1/ghosts runs on a player's upload, and carry a record label a run reaches under 0.6.2's run
 // rules (src/net/records.ts). tools/samplePool.ts's generator applies the shop's strict rules too.
+// S8 T1b (REQ-BFG-092; REVIEW-R3 ruling 4, BRIEF-S8 T1b): the bundle is a FILE now, server/seedPoolData.ts, which gen:ghosts
+// writes (tools/genGhostPool.ts: generateSamplePool()'s snapshots, with PICK on each with the seed step's grade). The seed
+// command loads it, checks it (checkPool, below) and stores it with NO battles: nothing is generated, played or graded at
+// boot (until S8 it ran generateSamplePool() here, which played the par and casual runs and, with PICK on, graded every
+// ghost: 5,760 battles). Grades are written by the server (this command), never uploaded: POST /v1/ghosts refuses a
+// snapshot that carries one (server/app.ts), so a graded ghost in the store is a seed ghost, in the rules' pool.
 
 import { RULES_VERSION } from "../src/sim/content";
 import { isReachable } from "../src/net/records";
 import { checkSnapshot, ghostId, type PoolEntry } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
-import { generateSamplePool } from "../tools/samplePool";
+import { SEED_POOL, SEED_POOL_RULES } from "./seedPoolData"; // S8 T1b: the bundled pool file (was tools/samplePool.ts generateSamplePool)
 import type { GhostStore, SeedCounts } from "./store";
 
 export class SeedError extends Error {
@@ -48,8 +54,12 @@ export function checkPool(snapshots: readonly unknown[], rules = RULES_VERSION):
       // AZ-BUMP (REQ-BFG-078, REQ-BFG-077; REVIEW-PARAZ N3, BRIEF-AZBUMP S3): with NPC_DAY on a seed ghost carries its run's
       // road log (tools/samplePool.ts), and the player mode counts a deck's drops only through it (validate.ts
       // roadDropValue), so it goes in as ctx.road, as an upload's does (server/app.ts); a snapshot without one: as before
+      // S8 T1d (REQ-BFG-092, REQ-BFG-078; RULING-S8-R1 item 2): and its run seed, when it carries one, as T1a's loader
+      // (src/net/fallback.ts) and seedGhost (tools/samplePool.ts) pass it. With the seed the player mode re-derives the road
+      // log's warlords and seeded drops, each dawn's rune offer and LAST CHANCE's offer (validate.ts roadProblem, runeProblem,
+      // lastChanceProblem); without it only their seed-blind lines run. Each key only when the snapshot carries it
       const lc = snapshot.lastChance;
-      const v = validateUpload(snapshot.build, snapshot.day, snapshot.rules, { ...(lc ? { lastChance: lc } : {}), ...(snapshot.road ? { road: snapshot.road } : {}) });
+      const v = validateUpload(snapshot.build, snapshot.day, snapshot.rules, { ...(snapshot.seed !== undefined ? { seed: snapshot.seed } : {}), ...(lc ? { lastChance: lc } : {}), ...(snapshot.road ? { road: snapshot.road } : {}) });
       if (!v.ok) throw new Error(`validateUpload: ${v.errors.join("; ")}`);
       if (!isReachable(snapshot.day, snapshot.wins, snapshot.lives, { rules: snapshot.rules, ...(lc ? { lastChance: lc.day } : {}) })) {
         throw new Error(`record ${snapshot.wins}W ${snapshot.lives} lives: no run carries it into dusk ${snapshot.day}`);
@@ -68,8 +78,24 @@ export function checkPool(snapshots: readonly unknown[], rules = RULES_VERSION):
   return [...byId.values()];
 }
 
-/** Seed `store` with `snapshots` (default: the bundled sample pool) for `rules`. */
-export async function seedStore(store: GhostStore, snapshots: readonly unknown[] = generateSamplePool(), rules = RULES_VERSION): Promise<SeedResult> {
+/** S8 T1b: the bundled pool file's text, `[` + one canonical snapshot a line + `]` (samplePoolJson's form, byte for byte). */
+export function bundledSeedPoolJson(): string {
+  return "[\n" + SEED_POOL.join(",\n") + "\n]\n";
+}
+
+/**
+ * S8 T1b (REQ-BFG-092; REVIEW-R3 ruling 4): the bundled pool file's snapshots (server/seedPoolData.ts), parsed, no battles.
+ * A file dealt under other rules than this build's fails loudly here (re-run gen:ghosts), before any entry is checked.
+ */
+export function bundledSeedPool(): unknown[] {
+  if (SEED_POOL_RULES !== RULES_VERSION) {
+    throw new SeedError(`the bundled seed pool (server/seedPoolData.ts) was dealt under ${SEED_POOL_RULES}, not ${RULES_VERSION}: run gen:ghosts and commit it; nothing was written`);
+  }
+  return SEED_POOL.map((line) => JSON.parse(line) as unknown);
+}
+
+/** Seed `store` with `snapshots` (default: the bundled pool file, S8 T1b: loaded and checked, no battles) for `rules`. */
+export async function seedStore(store: GhostStore, snapshots: readonly unknown[] = bundledSeedPool(), rules = RULES_VERSION): Promise<SeedResult> {
   const entries = checkPool(snapshots, rules);
   const counts = await store.replacePool(rules, entries);
   return { rules, entries: entries.length, ...counts };

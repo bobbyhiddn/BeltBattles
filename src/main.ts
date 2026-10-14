@@ -1,6 +1,7 @@
 // Entry point: boots the game shell on #game and exposes a small hook for tooling
 // (screenshots / smoke tests / metrics): window.bb.open("build", "furnace").
 
+import "./ui/firstRun"; // CARD-4 (REQ-BFG-107, N): FIRST, before any module that reads or writes the store (firstRun.ts)
 import { Game } from "./game/game";
 import { newRun } from "./game/run";
 import { gainModule } from "./game/fuse";
@@ -546,7 +547,7 @@ game.start();
     return {
       colour: C.windHit, flash: [a.sfx[0].windFlash, a.sfx[1].windFlash], callT: a.windCallT, call: css(s.windCallR),
       numbers: s.motion.windDrawn.map((n) => ({ side: n.side, text: n.text, beside: n.beside, r: css(n) })),
-      plates: s.plateRows.map((p) => (p ? { ...p, r: css(p.r), bar: css(p.bar), hullBox: css(p.hullBox) } : null)),
+      plates: s.plateRows.map((p) => (p ? { ...p, r: css(p.r), bar: css(p.bar), hullBox: css(p.hullBox), lead: { ...p.lead, box: css(p.lead.box) } } : null)), // PANEL-FIT: the lead as drawn
     };
   },
   /** Current screen name (for harness assertions). SCOUT-1 (REQ-BFG-076): `phase` true, on a battle its phase instead

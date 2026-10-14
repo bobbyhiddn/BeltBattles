@@ -5,7 +5,8 @@ import { hashSeed } from "../src/core/rng";
 import { simulate } from "../src/sim/battle";
 import { POOL_RULES, RULES_VERSION, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
-import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
+import { buildCost, maxGoldByDay, roadCap, validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode), roadCap
+import { npcDayRules, roadDropValue } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import { POOL_NATIVE, poolLoss, poolRaw } from "./beltside.helpers";
 import { POOL_LEGACY, POOL_PAR, POOL_PAR_BAND, POOL_PAR_SHORT, POOL_SOURCE } from "./standInPool.helpers";
 import { heroRefBuild } from "../src/sim/heroBuilds";
@@ -104,6 +105,20 @@ async function parVsPar(hero: HeroId, day: number): Promise<{ vsPar: number; sam
 // NUM-2's NUM2_PAR_EXCEPTIONS (weaver d4), NUM-3's NUM3_PAR_EXCEPTIONS (furnace d2, weaver d4) and their tripwire are gone.
 const PAR_TOLERANCE = 0;
 
+/**
+ * S8c (the pools: the stand-in pool regenerated once with every switch on as shipped, P1 83c039d, NPC_DAY on): three of the
+ * spread's four pars re-simulate here past PAR_TOLERANCE against the par field (furnace d2 re-simulates exactly). Each is
+ * pinned exactly, as NUM-3 pinned its exceptions, under this rules version only (the tripwire): old (its stored vsPar, which
+ * the exact check expected) -> new (re-simulated).
+ */
+const S8_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {
+  "weaver|4": { stored: 0.5733, resim: 0.6583 }, // +0.085
+  "furnace|7": { stored: 0.5433, resim: 0.5692 }, // +0.0259
+  "weaver|9": { stored: 0.555, resim: 0.6067 }, // +0.0517
+};
+/** The rules version the exceptions were measured under (the tripwire: red at the next bump). */
+const S8_EXCEPTIONS_RULES = "bb-0.10.0";
+
 /** Step 5 M5: test 2 for a caravan pool: the spread's pars re-simulated exactly, and every par at least parFloor and
  *  inside the header's --par-band, unless its hero/day is listed short. */
 async function caravanPars(): Promise<void> {
@@ -114,6 +129,13 @@ async function caravanPars(): Promise<void> {
     const diff = r4(r4(r.vsPar) - stored); // NUM-1 (oracle 03f2cc3c1884e806): stored, re-simulated and their difference, per par
     lines.push(`${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff} (10-seed sample ${r4(r.sample)}${r.idx === undefined ? "" : `, robust re-play of candidate #${r.idx}`}; ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
     console.log(`stand-in par ${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff}`);
+    // S8c (the pools): a listed par is pinned exactly (stored and re-simulated), under this rules version only
+    const ex = S8_PAR_EXCEPTIONS[`${hero}|${day}`];
+    if (ex) {
+      expect(RULES_VERSION, "S8c tripwire: a rules bump with the pools' par exceptions left").toBe(S8_EXCEPTIONS_RULES);
+      if (!isDeepStrictEqual([stored, r4(r.vsPar)], [ex.stored, ex.resim])) over.push(`${hero} d${day}: exception ${JSON.stringify(ex)}, now stored ${stored}, re-simulated ${r4(r.vsPar)}`);
+      continue;
+    }
     // NUM-3: every par past the tolerance listed before one assertion (the loop stopped at the first and hid the rest)
     if (Math.abs(diff) > PAR_TOLERANCE) over.push(`${hero} d${day}: its stored vsPar ${stored}, re-simulated against the par field ${r4(r.vsPar)}: difference ${diff}, past ${PAR_TOLERANCE}`);
   }
@@ -148,7 +170,20 @@ describe("stand-in pool", () => {
     for (const hero of STAND_IN_POOL_HEROES) {
       for (const day of DAYS) {
         for (const [i, e] of standInPool(hero, day).entries()) {
-          expect(validateBuild(e.build, day).errors, `${hero} d${day}`).toEqual([]);
+          // S8c (RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3); cause a48010b: with NPC_DAY on, a road-fed deck
+          // spends the road's drops too, by design): the pool was regenerated once with every switch on (P1 83c039d), so a deck
+          // may hold the road's gold and drops, which the strict mode's budget line (the shop's gold alone) doesn't count; its
+          // drops count through its road log (its tuple's seventh element, StandInEntry.road), in the player mode. So each entry
+          // is held to validateBuild's lines minus at most its ONE budget line (matched by its "budget: " prefix, and only while
+          // NPC_DAY is on: off, the strict check stays whole) AND to validateUpload in the player mode with its road log (a
+          // stand-in carries no run seed). Was: validateBuild(e.build, day).errors toEqual [] whole.
+          const strict = validateBuild(e.build, day).errors;
+          const budget = npcDayRules() ? strict.filter((x) => x.startsWith("budget: ")) : [];
+          expect(budget.length, `${hero} d${day} #${i}: at most its one budget line`).toBeLessThanOrEqual(1);
+          expect(strict.filter((x) => !budget.includes(x)), `${hero} d${day} #${i}: every other strict line`).toEqual([]);
+          const road = npcDayRules() ? e.road : undefined; // as tools/samplePool.ts roadOf: NPC_DAY on only
+          const up = validateUpload(e.build, day, RULES_VERSION, road ? { road } : {});
+          expect(up.errors, `${hero} d${day} #${i}: the player mode with its road log`).toEqual([]);
           expect(e.hero).toBe(hero);
           expect(e.build.hero).toBe(hero);
           expect(e.day).toBe(day);
@@ -159,13 +194,25 @@ describe("stand-in pool", () => {
           expect(e.cost).toBe(boughtCost(raw));
           expect(boughtCost(e.build), `${hero} d${day} #${i}`).toBe(e.cost - poolLoss(hero, day, i));
           if (POOL_NATIVE) expect(poolLoss(hero, day, i)).toBe(0);
-          expect(e.cost, `${hero} d${day} #${i}: the deck's value`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
+          // S8c (RULING-S8-R5 section 3 item 1, T1e's form; cause a48010b: with NPC_DAY on, a road-fed deck spends the road's
+          // drops too, by design): the deck's value against the shop's gold alone (+ its runes' gold) is the strict budget line
+          // restated (furnace d1 #0: 11 of 8). With NPC_DAY on it is left, as that line is, to the player mode above, which counts
+          // the road's gold and drops through its road log (the generator's own bound adds them too: standins.ts writtenProblems,
+          // PAR-AZ); off, it stays whole. Was: the bound whole.
+          if (!npcDayRules()) expect(e.cost, `${hero} d${day} #${i}: the deck's value`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
           expect(e.build.runes?.length, `${hero} d${day} #${i}: one rune a dawn`).toBe(day); // FLIP-X2: the content guarantee
-          expect(e.spent, `${hero} d${day} #${i}: gold spent covers the deck`).toBeGreaterThanOrEqual(e.cost);
+          // S8c (the same cause, a48010b): a road-fed deck holds the road's drops, which its run didn't buy (furnace d1 #0: spent 8
+          // of its 11), so with NPC_DAY on its gold spent and its road log's drops, at the value the upload budget counts them
+          // (npcDay.ts roadDropValue), cover the deck; off (no road log), exactly as before. Was: e.spent >= e.cost.
+          const drops = npcDayRules() ? roadDropValue(e.road) : 0;
+          expect(e.spent + drops, `${hero} d${day} #${i}: gold spent (+ its road's drops) covers the deck`).toBeGreaterThanOrEqual(e.cost);
           // FLIP-X2: the caravan run took a rune each dawn, and its gold spent includes the gold its runes paid (COIN PURSE,
           // FAT PURSE, RUNE TITHE ...), so the bound is the day's gold plus its runes' dawn gold (was maxGoldByDay(day);
           // furnace d5 #0 spent 54 of 50 + its runes' gold)
-          expect(e.spent, `${hero} d${day} #${i}: gold spent`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
+          // S8c (the same cause, a48010b): a road-fed run also spends the road's gold (furnace d2 #0: spent 20 of 17), so with
+          // NPC_DAY on the bound adds roadCap(day), the most any honest run's road adds by that dusk, as the player mode's budget
+          // does (maxGoldByDay + roadCap); off, exactly as before. Was: maxGoldByDay(day) + its runes' dawn gold.
+          expect(e.spent, `${hero} d${day} #${i}: gold spent`).toBeLessThanOrEqual(maxGoldByDay(day) + (npcDayRules() ? roadCap(day) : 0) + runeGrants(e.build.runes, day).gold);
           if (POOL_LEGACY) expect(e.spent).toBe(e.cost); // pool v2.1: full purse, its gold spent is its cost
           if (!short.has(`${hero}|${day}|${e.cost}`)) {
             expect(e.spent, `${hero} d${day} #${i}: gold spent`).toBeGreaterThanOrEqual(floor(day));

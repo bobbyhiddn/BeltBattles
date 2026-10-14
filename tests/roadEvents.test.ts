@@ -7,6 +7,7 @@ import { battleSeed, migrateRun, newRun, reroll, rollShop, type Run } from "../s
 import { chooseFoe, finishDay, startDusk } from "../src/game/day";
 import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad } from "../src/game/road"; // AZ-BUMP (the flip): the NPC day's fight
 import { ITEMS, START_LIVES } from "../src/sim/content";
+import { HEARTS_START, withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): PATCH UP's cap on a hearts run
 import type { SideStats } from "../src/sim/battle";
 
 const SEEDS = Array.from({ length: 300 }, (_, i) => 1 + i * 7919);
@@ -164,9 +165,15 @@ describe("road events: every choice applies exactly what it shows", () => {
     expect(pickChoice(run, 1).ok).toBe(false);
     expect(run.gold).toBe(4);
     const dock = atEvent("dock");
-    dock.lives = START_LIVES; // PATCH UP heals up to START_LIVES (5)
-    expect(choicesFor({ ...dock, lives: START_LIVES - 1 })[1].blocked).toBe(undefined);
-    expect(choicesFor(dock)[1].blocked).toBe("LIVES FULL");
+    // HULL-ON (the flip, HEARTS): a new run is a hearts run, and PATCH UP heals up to HEARTS_START (10): full at 10, "HEARTS
+    // FULL" (was START_LIVES (5), "LIVES FULL"); a 5-lives run (started with HEARTS off) still says LIVES FULL at 5
+    dock.lives = HEARTS_START;
+    expect(choicesFor({ ...dock, lives: HEARTS_START - 1 })[1].blocked).toBe(undefined);
+    expect(choicesFor(dock)[1].blocked).toBe("HEARTS FULL");
+    const livesDock = withHearts(() => atEvent("dock"), false);
+    livesDock.lives = START_LIVES; // PATCH UP heals up to START_LIVES (5)
+    expect(choicesFor({ ...livesDock, lives: START_LIVES - 1 })[1].blocked).toBe(undefined);
+    expect(choicesFor(livesDock)[1].blocked).toBe("LIVES FULL");
     const trader = atEvent("trader");
     trader.inventory = [];
     trader.build.mods = [];

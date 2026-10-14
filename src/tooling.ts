@@ -18,6 +18,7 @@ import { canPlaceItem } from "./sim/deck"; // SHAPES-1 tooling: placeShapedDemo
 import { GRID, ITEMS } from "./sim/content"; // SHAPES-1 tooling
 import { shapedSpot } from "./sim/beltside"; // SHAPES-1 tooling: where the bots put a long rig
 import { LAST_CHANCE_AT, LAST_CHANCE_LIVES } from "./sim/lastChance"; // LC-1 (REQ-BFG-073): a tooling ghost's lives
+import { heartsAfterLosses, heartsRules } from "./sim/hearts"; // RETUNE-1 (REQ-BFG-096): a tooling ghost's hearts
 
 // ------------------------------------------------------------------ 0.6.2 BELTSIDE showcase decks (shots)
 
@@ -164,7 +165,8 @@ export function makeGhost(s: GhostSpec): GhostSnapshot {
   return {
     // 0.6.2 BELTSIDE: rigs carrying `rot` need v2 (DESIGN-beltside D1)
     // LC-1 (REQ-BFG-073): a ghost whose losses brought it to 1 life (or past it) had its life back (Z-BUMP: no switch)
-    v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero, day: s.day, wins: s.wins ?? 0, lives: Math.max(1, START_LIVES - losses + (START_LIVES - losses <= LAST_CHANCE_AT ? LAST_CHANCE_LIVES : 0)),
+    // RETUNE-1 (REQ-BFG-096): with HEARTS on, the hearts its losses leave (hearts.ts heartsAfterLosses: losses first)
+    v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero, day: s.day, wins: s.wins ?? 0, lives: heartsRules() ? heartsAfterLosses(losses) : Math.max(1, START_LIVES - losses + (START_LIVES - losses <= LAST_CHANCE_AT ? LAST_CHANCE_LIVES : 0)),
     build, runId: s.runId ?? "tool-pool", playerId: "tool-player", createdAt: Date.now(),
   };
 }
@@ -197,7 +199,7 @@ export interface RunSpec {
 export function setupRun(o: RunSpec = {}): Run {
   const run = newRun(o.hero ?? "furnace", o.seed ?? 12345);
   run.day = o.day ?? 1;
-  run.lives = o.lives ?? START_LIVES;
+  run.lives = o.lives ?? run.lives; // RETUNE-1: newRun's START_LIVES, or HEARTS_START on a hearts run
   run.wins = o.wins ?? 0;
   run.losses = o.losses ?? 0;
   run.gold = o.gold ?? run.gold;

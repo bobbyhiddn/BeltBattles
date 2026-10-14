@@ -8,6 +8,7 @@ import { lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { lastChancePartStars } from "../src/sim/lastChance"; // AZ-BUMP (the flip, HULL_SCALE): the PART card's star
 import { valueOf } from "../src/sim/stars";
 import { withHullScale } from "../src/sim/hullScale";
+import { openRunesRules } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the par player's card rule
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { runeGrants } from "../src/sim/runes";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
@@ -22,7 +23,10 @@ const PLATE = ITEMS.plating.supply!.hull!;
 function honest(boon: Boon, hero: HeroId = "furnace", seed = 5): GhostSnapshot {
   const runSeed = parRunSeed(hero, seed);
   const before = playerRun(hero, D, seed)[D - 1].build;
-  const offer = lastChanceOffer(runSeed, D, hero, (before.runes ?? []).map((q) => q.id));
+  // HULL-ON (the flip, OPEN_RUNES): the par player takes the card on the switch's offer rule (open: no runeFits filter), the
+  // rule the server re-derives for this build's rules (openRunesFor(RULES_VERSION)). (HEARTS: no check here reads the
+  // record, so the day-5 LAST CHANCE stays; the hearts record of one is lc1.server's)
+  const offer = lastChanceOffer(runSeed, D, hero, (before.runes ?? []).map((q) => q.id), openRunesRules());
   const build = playerRun(hero, D + 1, seed, { lastChance: { day: D, boon } })[D].build;
   const id = boon === "rune" ? offer.rune!.id : boon === "part" ? offer.part! : undefined;
   return {

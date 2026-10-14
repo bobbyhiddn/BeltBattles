@@ -27,6 +27,8 @@ import { COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, WINDOW_TIME, type Item
 import { WIND_START } from "../sim/content"; // SUS-B (REQ-BFG-069): the DARK WIND row
 import { SPEED_K } from "../sim/content"; // NUM-4 (REQ-BFG-047): the RATE row's 30 seconds
 import { hullScaleRules } from "../sim/hullScale"; // HULL-1c (REQ-BFG-079; REVIEW-HULL1A N3): the DARK WIND row's share
+import { BURN_DPS, BURN_TIME, FRAY_BONUS, FRAY_MAX } from "../sim/content"; // CARD-4 (REQ-BFG-081, T): the rune word notes' numbers
+import { FUSE_MAX } from "../sim/stars"; // CARD-4 (T): MERGED's ★2 and ★3
 import { SYNC_WINDOW } from "../sim/races/foundry";
 import { scaleCore } from "../sim/cores";
 import { effectAt } from "../sim/stars";
@@ -36,8 +38,10 @@ import { KEYWORD_COLOUR } from "./richText";
 import { SIM, type TextOpts } from "./abilityText";
 import { REMINDER, faceAt, hasFace } from "./faces";
 import { fmtCount, fmtPct, fmtSec } from "./statFormat"; // WORDS-1: fmtDmg left with the MARKS row
+import { fmtDmg } from "./statFormat"; // FIX-099G (REQ-BFG-079): FRAY's and BURN's word notes, as faces.ts REMINDER prints them
 import { shownOn } from "./dayShown"; // HULL-1d (REQ-BFG-079): the rows' numbers on the tapped piece's day
 import { onSetScaleRigs, scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): POISON's row, SCALE_RIGS on only
+import { dmgNow } from "./dayShown"; // FIX-099G (REQ-BFG-079): FRAY's and BURN's word notes on the card's day
 
 /** One glossary row (see the file comment). */
 export interface GlossaryRow {
@@ -223,6 +227,47 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   HEAL: "HEAL: GIVES BACK HULL, NEVER PAST FULL.",
   REGEN: "REGEN: GIVES BACK HULL EACH SEC.",
 };
+
+/**
+ * CARD-4 (REQ-BFG-081, T; READ-4 5 and 11 item 6): what a tap on a rune card's word shows, where it is not the chip's
+ * number-free reminder (RUNE_REMINDER, which the chip's line keeps): FRAY's and BURN's with their glossary rows' numbers
+ * (content.ts FRAY_BONUS a stack on every later shot on the hull, FRAY_MAX stacks; BURN_DPS hull damage a second for
+ * BURN_TIME seconds a stack: battle.ts:2053, 2354-2365), from the sim's constants; and the word-only keywords' notes
+ * (runeText.ts WORD_ONLY): MERGED (stars.ts: copies merge into a ★2, a ★2 into a ★3; runes.ts mergedPieces counts a placed,
+ * fitted or installed piece at ★2 or more), LOAD (VOCAB: a load is one slug a turret takes in from a belt) and RIG (the
+ * place hint's words: its arrows work the belt tiles they point at). Each its word first; each fits the note room of every
+ * card that shows it (tests/card4.test.ts (t)).
+ * FIX-099G (REQ-BFG-079, REQ-BFG-081; REVIEW-MERGE099E ruling 1): this table is day 1's (no day). A card's tap reads
+ * runeWordNote, so FRAY's and BURN's damage is the card's day's, as the panels show it.
+ */
+export const RUNE_WORD_NOTE: Readonly<Record<string, string>> = {
+  FRAY: shownOn(undefined, frayNote),
+  BURN: shownOn(undefined, burnNote),
+  MERGED: `MERGED: A ★${FUSE_MAX - 1} OR ★${FUSE_MAX} PIECE, MADE BY MERGING COPIES.`, // stars.ts FUSE_MAX: ★3 the top
+  LOAD: "LOAD: ONE SLUG A TURRET TAKES IN FROM A BELT.",
+  RIG: "RIG: A PART BESIDE A BELT. ITS ARROWS WORK THE BELT TILES THEY POINT AT.",
+};
+
+/** FIX-099G (REQ-BFG-079): FRAY's and BURN's notes, their words CARD-4's, each damage number the panels' own on the
+ *  read-out's day: FRAY_BONUS on every later shot, BURN_DPS a second (faces.ts REMINDER: fmtDmg(dmgNow(FRAY_BONUS)),
+ *  fmtDmg(dmgNow(FACE_SIM.burnTick)), and FACE_SIM.burnTick is BURN_DPS). Read inside shownOn (dayShown.ts). */
+function frayNote(): string {
+  return `FRAY: EACH ONE ADDS +${fmtDmg(dmgNow(FRAY_BONUS))} DAMAGE TO EVERY LATER SHOT ON THE HULL. MAX ${FRAY_MAX}.`;
+}
+function burnNote(): string {
+  return `BURN: EACH ONE DEALS ${fmtDmg(dmgNow(BURN_DPS))} HULL DAMAGE A SEC FOR ${BURN_TIME} SEC.`;
+}
+const DAY_NOTES: Readonly<Record<string, () => string>> = { FRAY: frayNote, BURN: burnNote };
+
+/** FIX-099G (REQ-BFG-079, REQ-BFG-081): the note a tap on rune word `k` shows on a card read on `day` (the card's: the
+ *  dawn's on a picker, the run's on the bar's read-out and LAST CHANCE). FRAY's and BURN's are built for that day, so
+ *  with HULL_SCALE on their damage is the day's x D(d), rounded down (dmgNow), as faces.ts REMINDER and abilityText.ts
+ *  show it. Every other note is RUNE_WORD_NOTE's. Undefined for a word with no note. No day, or the switch off:
+ *  RUNE_WORD_NOTE[k], day 1's, byte for byte. */
+export function runeWordNote(k: string, day?: number): string | undefined {
+  const f = DAY_NOTES[k];
+  return f ? shownOn(day, f) : RUNE_WORD_NOTE[k];
+}
 
 /** Y-FURN (REQ-BFG-070; release Y): a rune's own reminder, where its keyword's would say the opposite of its rule (runeText.ts
  *  runeReminder reads it first). SHATTER SHOT's hits shatter a SHIELD: SHIELD's reminder says a SHIELD blocks the hit, so
@@ -429,18 +474,24 @@ export function tapNote(def: string, word: string): TapNote | undefined {
 
 /** What a tap on `word` shows, in markup, on piece `def` at `stars` (o: the core's class factor k, the run's hero): the
  *  piece's tap note on that word; else its row's: a face keyword on a faced piece takes the piece's own reminder (its
- *  number) and the row's extra sentence; else the row's definition. Undefined for a word with no row. */
-export function glossaryText(word: string, piece?: { def: string; stars: number; o?: TextOpts }): string | undefined {
+ *  number) and the row's extra sentence; else the row's definition. Undefined for a word with no row.
+ *  CNT-DAY2 (REQ-BFG-100, REQ-BFG-082): `day`, the day the panel is read on (keywords.ts: its Run's day, the build
+ *  screen's run.day or a face's faceRun day), for a tap with no piece (a belt's panel, an empty slot, a turret with no
+ *  bought core) or on a piece with no day of its own: the row (and a faced piece's own reminder) on that day. A piece's own
+ *  day (piece.o.day) comes first. No day: as before, byte for byte. */
+export function glossaryText(word: string, piece?: { def: string; stars: number; o?: TextOpts }, day?: number): string | undefined {
   if (piece) {
     const n = tapNote(piece.def, word);
     if (n) return n.text(effectAt(piece.def, piece.stars), { stars: piece.stars, k: piece.o?.k ?? 1 });
   }
   const found = glossaryEntry(word);
   if (!found) return undefined;
+  // CNT-DAY2: the piece's options, with the panel's day where the piece has none (no `day`: the piece's own, as before)
+  const o = day !== undefined && piece?.o?.day === undefined ? { ...piece?.o, day } : piece?.o;
   // built now: its numbers go through the formatters now. HULL-1d: on the piece's day (piece.o.day, the run's)
-  const row = glossaryRows(piece?.o?.day).find((r) => r.word === found.word)!;
+  const row = glossaryRows(o?.day).find((r) => r.word === found.word)!;
   if (row.kw && piece && hasFace(piece.def)) {
-    const own = faceAt(piece.def, piece.stars, piece.o ?? {})?.reminders.find((r) => r.includes(`{*${row.kw}}`));
+    const own = faceAt(piece.def, piece.stars, o ?? {})?.reminders.find((r) => r.includes(`{*${row.kw}}`));
     if (own) return row.extra ? `${own} ${row.extra}` : own;
   }
   return row.def;

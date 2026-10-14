@@ -2,12 +2,36 @@
 
 export type G = CanvasRenderingContext2D;
 
+/** PERF-1 (REQ-BFG-080): the draws each canvas makeCanvas made has taken. game/retain.ts keys each drawImage of a frame by
+ *  its source and this count, so a frame that draws a sprite drawn into since the last frame redraws where it lands. */
+const DRAWN = new WeakMap<object, { n: number }>();
+const COUNTED = ["fillRect", "strokeRect", "clearRect", "drawImage", "fill", "stroke", "fillText", "strokeText", "putImageData"];
+
+/** PERF-1: a makeCanvas canvas's draw count (-1: not one of makeCanvas's). */
+export function canvasVersion(c: unknown): number {
+  if (typeof c !== "object" || c === null) return -1;
+  return DRAWN.get(c)?.n ?? -1;
+}
+
 export function makeCanvas(w: number, h: number): [HTMLCanvasElement, G] {
   const c = document.createElement("canvas");
   c.width = Math.max(1, Math.ceil(w));
   c.height = Math.max(1, Math.ceil(h));
   const g = c.getContext("2d")!;
   g.imageSmoothingEnabled = false;
+  // PERF-1: count its draws (the same calls reach the canvas; only the count is added)
+  const n = { n: 0 };
+  DRAWN.set(c, n);
+  const r = g as unknown as Record<string, (...a: unknown[]) => unknown>;
+  for (const m of COUNTED) {
+    const f = r[m];
+    if (typeof f !== "function") continue;
+    r[m] = function (this: unknown) {
+      n.n++;
+      // eslint-disable-next-line prefer-rest-params
+      return f.apply(this, arguments as unknown as unknown[]);
+    };
+  }
   return [c, g];
 }
 

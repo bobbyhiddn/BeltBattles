@@ -23,6 +23,7 @@ import { Rng } from "../src/core/rng";
 import { RATING_CURVE, SUSTAIN_FOE, SUSTAIN_FOE_HS, fightTime, foeOn, rateDeck, sustainKeyword, type RateOut } from "../src/sim/deckRating";
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): SUSTAIN_FOE, the switch-off table, with HULL_SCALE off
 import { boughtCost } from "../src/sim/harness/standins"; // AZ-BUMP (the flip): a deck with runes valued as bought
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): WARD BELL's base cadence beside the shipped one
 import {
   HERO_SUSTAIN, SHIELD_MAX, SUSTAIN_LEAN, SUSTAIN_MAX, busiestRoute, playerBuild, playerRun, quietTurret, secondSource, sustainPieces,
   sustainRule, type PlayerOffer,
@@ -163,8 +164,14 @@ describe("BOTS-X step 2: the bots' sustain value (deckRating.ts, SUSTAIN-1 4.8 r
     const read = (b: Build, day: number): RateOut => { const o: RateOut = { stokeKeep: new Map() }; rateDeck(b, RATING_CURVE, fightTime(day), o, undefined, day); return o; };
     withSustain(() => {
       const f5 = foeOn(5);
-      expect(read(withGear("wardbell"), 5).sustain!.shield).toBeCloseTo(Math.floor(f5.fight / 8) * f5.hit, 9); // 2 x 80.7
-      expect(read(withGear("wardbell", 3), 5).sustain!.shield).toBeCloseTo(Math.floor(f5.fight / 4) * f5.hit, 9); // 5 x 80.7
+      // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): every 8 -> 4 s (★1) and 4 -> 2 s (★3), GUARD's WARD BELL;
+      // it read 8 / 4 before only because withSustain wrote the base def back. 8 / 4 with GUARD off
+      expect(read(withGear("wardbell"), 5).sustain!.shield).toBeCloseTo(Math.floor(f5.fight / 4) * f5.hit, 9);
+      expect(read(withGear("wardbell", 3), 5).sustain!.shield).toBeCloseTo(Math.floor(f5.fight / 2) * f5.hit, 9);
+      withGuard(() => {
+        expect(read(withGear("wardbell"), 5).sustain!.shield).toBeCloseTo(Math.floor(f5.fight / 8) * f5.hit, 9); // 2 x 80.7
+        expect(read(withGear("wardbell", 3), 5).sustain!.shield).toBeCloseTo(Math.floor(f5.fight / 4) * f5.hit, 9); // 5 x 80.7
+      }, false);
       expect(read(withGear("mendingloom"), 5).sustain!.regen).toBeCloseTo(10 * f5.fight * (1 - f5.burn / 2), 9);
       const f1 = foeOn(1); // day 1's fight is longer than the wind's 25 s: REGEN counts 25 s
       expect(read(withGear("mendingloom", 2), 1).sustain!.regen).toBeCloseTo(15 * 25 * (1 - f1.burn / 2), 9);

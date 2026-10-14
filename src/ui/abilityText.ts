@@ -926,7 +926,10 @@ const ENTRIES: Record<string, Entry> = {
     },
     // CARD-3 (REQ-BFG-081, D3): whose hull, as the face says (CARD-2 K3 g): battle.ts roundImpact pushes the charge onto the
     // hit side, and hullEffects blasts that side's hull, the foe's (content.ts blast 100 at ★1). Was "BLASTS THE HULL FOR 100"
-    card: (e) => `BLASTS THE FOE'S HULL FOR ${fmtDmg(round<{ blast: number }>(e).blast)}`, // 2 lines at the 69 px wide card
+    // CARD-5 (REQ-BFG-081, L; READ-5 12.6, parts/DAYNUM.md): the blast on the read-out's day, the number the sim blasts
+    // (battle.ts hullEffects: dmgDayScale(blast, D(d)), D = HULL-1c's day term), as SCRAPPER's line already does
+    // (moreDamage) and its panel's [DMG] stat: day 1 100, day 5 200. Was fmtDmg(blast): 100 on every day
+    card: (e) => `BLASTS THE FOE'S HULL FOR ${fmtDmg(dmgNow(round<{ blast: number }>(e).blast))}`, // 2 lines at the 69 px wide card
   },
   // -------------------------------------------------------------------------------------------------- turret cores
   scatter: {
@@ -1199,7 +1202,7 @@ const ENTRIES: Record<string, Entry> = {
     // Y2 (release Y; DESIGN-Y row 16): no plated multiplier and no brace of itself
     text: (e) => [`ENEMY STUNS ON THE BELT TILES IT HITS LAST ${percent(1 - g(e).brace!.mul)} SHORTER.`],
     gist: (e) => `${percent(1 - g(e).brace!.mul)} SHORTER`,
-    card: () => "SHORTER STUNS ON ITS TILES",
+    card: () => "SHORTER STUNS ON TILES IT HITS", // CARD-4 (REQ-BFG-081, T): the FULL RULE's words (was ON ITS TILES)
   },
   twinlatch: {
     // E4 (Battle.latchTick): it holds only while both arrows hit belts, each payload at most `hold` seconds. Into one

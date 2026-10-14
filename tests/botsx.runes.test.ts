@@ -56,7 +56,10 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // Z-BUMP (the pools): the stand-in pool regenerated once on bb-0.9.7, release Z's rules (2c4ba76, S6 lane 1; the pools
 // changed, the regeneration), so POOL_DIGEST is that pool's reads, taken on zbump 2c4ba76 (was
 // fbc8bdf3bbde0518069a21e68daa84a78a09c03e8a384b50043889b2b6093276 on y7b2 4d772e4)
-const POOL_DIGEST = "9728ce453a2ce0a0ddb8a76b92262a755b4b0e0348c2373e43ce2cf6fcedabf0";
+// S8c (the pools: the stand-in pool regenerated ONCE under bb-0.10.0 with every switch on as shipped and the bots placing
+// shapes, P1 83c039d; BRIEF-S8 S8c, RULING-S8-R5 section 3 item 2), so POOL_DIGEST is that pool's reads, taken on s8 (was
+// 9728ce453a2ce0a0... on zbump 2c4ba76)
+const POOL_DIGEST = "12ab3c0afe42a0354db940622a3f91716dfa23dc304ab496158e909cc0338f5d";
 const V11_DIGEST = "89b371a4b0720d4686dc934273c9033448b239bc5dc8f99d68b1fddd3abe15a2";
 /** Rune-less codes the encoders wrote on bx e1e1004 (see "a rune-less deck encodes byte for byte as on bx"). */
 const RICH_CODE = "18 0 u23/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1";

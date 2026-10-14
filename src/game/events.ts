@@ -14,6 +14,7 @@ import { loadPool } from "./ghosts";
 import { online, onlineMode } from "./session"; // 0.7.0a: the SCOUT's reveal online
 import { gainModule } from "./fuse";
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): the event after the fight
+import { heartsRun, livesCap } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): PATCH UP's cap on a hearts run
 
 /** 0.6.0d: HERALD (ELITE BOUNTY) or SAPPERS (SABOTAGE) would be a dud on the last day: no warlord
  *  is left for the stake or the sabotage (blockReason's NO WARLORD LEFT). */
@@ -111,7 +112,8 @@ export function blockReason(run: Run, c: Choice): string | undefined {
     if (d.k === "belt" && run.build.beltCap - d.n < beltUsed(run.build)) return "BELTS IN USE";
     if (d.k === "item" && !owns(run, d)) return "NOTHING TO TRADE";
   }
-  for (const d of c.gain) if (d.k === "lives" && run.lives + d.n > START_LIVES) return "LIVES FULL";
+  // RETUNE-1 (REQ-BFG-096): a hearts run's cap is HEARTS_START (hearts.ts livesCap), and its words say HEARTS
+  for (const d of c.gain) if (d.k === "lives" && run.lives + d.n > livesCap(run)) return heartsRun(run) ? "HEARTS FULL" : "LIVES FULL";
   return undefined;
 }
 
@@ -148,7 +150,7 @@ function pay(run: Run, d: Delta): void {
 function receive(run: Run, d: Delta, c: Choice): void {
   switch (d.k) {
     case "gold": run.gold += d.n; break;
-    case "lives": run.lives = Math.min(START_LIVES, run.lives + d.n); break;
+    case "lives": run.lives = Math.min(livesCap(run), run.lives + d.n); break; // RETUNE-1: HEARTS_START on a hearts run
     case "hull": run.build.hullBonus += d.n; break;
     case "belt": run.build.beltCap += d.n; break;
     case "item": queueFuseAnim(run, gainModule(run, d.def)); break; // 0.6.1a: item rewards and the trader's SWAP merge

@@ -26,6 +26,7 @@ import {
 import { canJoin, joinOf } from "../../sim/deck"; // 0.6.2j: belt joins
 import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a successful action completes its first-run tip
 import { JOIN_PACE_PCT } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
+import { freeJoinsRules } from "../../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): no pace words with FREE_JOINS on
 import { ITEMS, UPGRADE_MAX } from "../../sim/content";
 import { FUSE_MAX, gradeOf, isSignatureFactory, outputsAt } from "../../sim/stars";
 import { C } from "../../render/palette";
@@ -597,7 +598,8 @@ export class Editor {
     const info = routeInfo(b, idx);
     if (!info.connected) this.h.game.toast("BELT DOESN'T REACH A TURRET YET", C.yellow);
     // 0.6.2j (J3): no confirmation, just word. 0.6.2 TUNE-M: RULE JOIN PACE, said where the join is made
-    else if (info.join) this.h.game.toast(`JOINS BELT ${info.join.route + 1} · FACTORY AT ${JOIN_PACE_PCT}% PACE`, C.lime);
+    // JOINS-1 (REQ-BFG-091): with FREE_JOINS on the join has no pace to say
+    else if (info.join) this.h.game.toast(freeJoinsRules() ? `JOINS BELT ${info.join.route + 1}` : `JOINS BELT ${info.join.route + 1} · FACTORY AT ${JOIN_PACE_PCT}% PACE`, C.lime);
     this.h.select({ kind: "route", index: idx });
   }
 

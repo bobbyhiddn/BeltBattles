@@ -11,6 +11,7 @@ import { hashSeed } from "../src/core/rng";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { footprint, hullSlots, installTurret, key as K, kx, ky, occupancy, routeInfo, setJoin, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
+import { roadCap } from "../src/net/roadCap"; // S8c (a48010b / the pools): a road-fed pick's spent bound
 import { STAND_IN_POOL_HEROES, decodeStarred as loadStarred, standInPool } from "../src/sim/standInPool";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import {
@@ -29,6 +30,9 @@ import { FUSE_MAX } from "../src/sim/stars";
 import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: the bought deck's value (the runes' HULL and BELT out)
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold in the day's budget
 import { npcDayRules, roadDropValue, setNpcDay, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the caravan runs' NPC day
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the faked deck's par deck, with the switch off
+import { setOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): M5's caravan pool, with the switch off
+import { SHAPES, setShapes } from "../src/sim/shapes"; // MERGE-099F: M5's caravan pool, with SHAPES off too
 
 const HEROES = ["furnace", "weaver"] as const;
 
@@ -222,7 +226,11 @@ describe("M2: turrets and joins pass through the generator (a faked playerBuild 
     const o: StandInOpts = { ...STANDIN_DEFAULTS, source: "caravan", par: "field", per: 2, band: [40, 60] };
     for (const hero of HEROES) {
       const day = 7;
-      const faked = fakedDeckFrom(hero, 4, 3, day);
+      // HULL-ON (the flip, FREE_JOINS): with free joins (no join pace) the par player joins more, and every WEAVER day-4 par
+      // deck of seeds 3-26 holds a join (none is left to fake one into; with FREE_JOINS off s4, s7, s21 and s25 hold none).
+      // So the deck it starts from is the par player's with the switch off; the faked deck (one join, legal either way)
+      // then goes through the generator as shipped
+      const faked = withFreeJoins(() => fakedDeckFrom(hero, 4, 3, day), false);
       expect(faked.turrets?.some((t) => t.def === "deckgun")).toBe(true);
       expect(faked.routes.filter((r) => r.join !== undefined)).toHaveLength(1);
       // the faked deck as a candidate: normalised through the stored code, like every caravan candidate
@@ -413,6 +421,8 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
   const TUPLES_CARAVAN_ROAD = "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1), spent (gold), road log]; each day is";
   const TYPE_CARAVAN_ROAD = "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number, spent: number, road: string];";
   afterEach(() => setNpcDay(true)); // the shipped value (AZ-BUMP's flip): a test below sets NPC_DAY off for itself
+  afterEach(() => setOpenRunes(true)); // the shipped value (HULL-ON's flip): the same test sets OPEN_RUNES off for itself
+  afterEach(() => setShapes(SHAPES)); // MERGE-099F: the shipped value (SHAPES-1's flip): the same test sets SHAPES off for itself
 
   it("a caravan pool (fake runner) writes each pick's gold spent as a sixth element, the guard checks it, and the loader returns it", async () => {
     // AZ-BUMP (the flip, NPC_DAY): the gold spent is the shop's (deck + rerolls + sale losses, cargoGold 0), and an
@@ -421,6 +431,15 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
     // identities hold only without the road. So this pool is generated with NPC_DAY off (the afterEach puts it back);
     // M2's candidate test above reads the gold with the road
     setNpcDay(false);
+    // HULL-ON (the flip, OPEN_RUNES): with the open rune offers no candidate of this pool over-spends (none of its 240
+    // candidates' spent tops its cost; with OPEN_RUNES off 2 do, and meet the floor), so it is generated with OPEN_RUNES off
+    // too (the afterEach puts it back)
+    setOpenRunes(false);
+    // MERGE-099F (REQ-BFG-079, -086; tests only): SHAPES and HULL-ON's five on together: with the shaped pieces in the
+    // caravan as well no base candidate that meets the spend floor over-spends again (over-spend candidates meeting the
+    // floor: 0), so the pool is generated with SHAPES off too, as HULL-ON set OPEN_RUNES off for the same reason (the
+    // afterEach puts it back); was SHAPES on (the merged world) only since the merge
+    setShapes(false);
     // NUM-1 (REQ-BFG-047, cap's oracle 03f2cc3c1884e806): test-only, an over-spend pick is forced in. fakeRun hashes the
     // deck codes, and NUM-1's codes (hull x10) re-rolled it so that no pick over-spent. So first the over-spend candidates
     // (caravan spent > cost) of every hero/day's population (base and growth), keyed by deck code (a code that some
@@ -488,18 +507,30 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
 
   it("the committed pool: pool v2.1's entries (five elements) have spent = cost; a caravan pool's carry their sixth", () => {
     const legacy = !committedHeader().includes("--source");
+    // S8c (the pools: the stand-in pool regenerated ONCE with every switch on as shipped, P1 83c039d, the first regeneration
+    // since PAR-AZ's 5c57914 added the road log): a caravan pool generated with NPC_DAY on carries a seventh element, the
+    // pick's run's road log, after spent (its header's tuple line names it; the test below), so its tuples hold 7; one
+    // generated with NPC_DAY off still holds 6 (was: legacy ? 5 : 6)
+    const roadFed = STAND_IN_POOL_HEROES.some((h) => standInPool(h, 1).some((e) => e.road !== undefined)); // the loader read a road log
     let n = 0;
     for (const hero of STAND_IN_POOL_HEROES) {
       for (let day = 1; day <= 10; day++) {
         const tuples: readonly (readonly unknown[])[] = STAND_IN_DATA.pools[hero]![day - 1][1], es = standInPool(hero, day);
         expect(es).toHaveLength(tuples.length);
         es.forEach((e, i) => {
-          expect(tuples[i], `${hero} d${day} #${i}`).toHaveLength(legacy ? 5 : 6);
+          expect(tuples[i], `${hero} d${day} #${i}`).toHaveLength(legacy ? 5 : roadFed ? 7 : 6); // S8c (the pools): + the road log
           expect(e.spent, `${hero} d${day} #${i}`).toBe(legacy ? e.cost : tuples[i][5]);
-          expect(e.spent).toBeGreaterThanOrEqual(e.cost);
+          // S8c (a48010b / the pools: P1 83c039d is road-fed, generated with NPC_DAY on as shipped): a road-fed pick's run's
+          // drops sit on its deck at their value, unpaid (spent + drops = deck + rerolls + sale losses + cargo, as the M5 test
+          // above names it), so spent alone can be under the deck's cost (furnace d1: spent 8, cost 11); the bound counts the
+          // pick's road log's drops (0 without a road log: exactly as before). Was: e.spent >= e.cost
+          expect(e.spent + (e.road ? roadDropValue(e.road) : 0), `${hero} d${day} #${i}: spent + its road's drops`).toBeGreaterThanOrEqual(e.cost);
           // FLIP-X2: a pick's gold spent includes the gold its runes paid, so the bound is the day's gold plus its runes'
           // dawn gold (was maxGoldByDay(day): 54 <= 50)
-          expect(e.spent, `${hero} d${day} #${i}`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
+          // S8c (a48010b / the pools: P1 83c039d is road-fed): a road-fed pick's run also spent the road's gold, so its bound
+          // adds roadCap(day), the most extra any honest run can have by that dusk (maxHonestSpend's own term; furnace d2 #0:
+          // spent 20 > 17 without it); 0 without a road log: exactly as before
+          expect(e.spent, `${hero} d${day} #${i}`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold + (e.road ? roadCap(day) : 0));
           n++;
         });
       }
@@ -523,7 +554,12 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
     // the committed module: pool v2.1's legacy lines while it is committed, else the regen's (a caravan pool)
     const committed = readFileSync(new URL("../src/sim/standInPoolData.ts", import.meta.url), "utf8").split("\n");
     const legacy = !committedHeader().includes("--source");
-    expect(committed).toContain(legacy ? TUPLES_V21 : TUPLES_CARAVAN);
-    expect(committed).toContain(legacy ? TYPE_V21 : TYPE_CARAVAN);
+    // S8c (the pools: P1 83c039d, the first regeneration since PAR-AZ's 5c57914, generated with NPC_DAY on as shipped): the
+    // committed caravan pool's lines name the seventh element, the road log (the on lines above); was TUPLES_CARAVAN /
+    // TYPE_CARAVAN (the sixth only). A caravan pool generated with NPC_DAY off would still hold those
+    const roadFed = committed.includes(TUPLES_CARAVAN_ROAD);
+    expect(committed).toContain(legacy ? TUPLES_V21 : roadFed ? TUPLES_CARAVAN_ROAD : TUPLES_CARAVAN);
+    expect(committed).toContain(legacy ? TYPE_V21 : roadFed ? TYPE_CARAVAN_ROAD : TYPE_CARAVAN);
+    expect(legacy || roadFed, "the committed pool (P1) was generated with NPC_DAY on: its lines name the road log").toBe(true);
   });
 });

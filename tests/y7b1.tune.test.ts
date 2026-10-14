@@ -14,7 +14,7 @@
 //   the switch on its face is true for every gun and star: ★1 FIRES 2 (exact), ★2/★3 UP TO 3 / UP TO 4; its ⓘ says why.
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
-import { ITEMS } from "../src/sim/content";
+import { HEROES, ITEMS } from "../src/sim/content";
 import { type Build, type TimelineHit } from "../src/sim/deck";
 import { rateDeck } from "../src/sim/deckRating";
 import { effectAt, starField } from "../src/sim/stars";
@@ -25,6 +25,7 @@ import { glossaryText } from "../src/ui/glossary";
 import { STARS, levels, lines, next, oneLine } from "./y3.helpers";
 import { K, barge, furnaceBench, item, withItem, withMod } from "./wave3.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the off checks beside its re-pins
+import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON run 6 (FREE_JOINS_HULL): the measured foe's hull
 
 const SEEDS = [1, 2, 3, 4, 5]; // wave3.decks' capRows: both sides +3000 hull, 120 s
 
@@ -40,12 +41,19 @@ describe("Y7b1 Y7A-R1: STOKER's cap holds with the switch on, at every star (no 
     ], mods: [], beltCap: 30, hullBonus: 0,
   } as Build);
   const sturdy = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus + 3000 });
+  /** HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9; R10 0bbcee55b6ba281a
+   *  (c)'s form for tests/hull1b.ladders, applied here by RULING-HULLON-R13 ed10dd26da1a89fb Q7; against the 4,500-hull foe
+   *  the FURNACE row read 3034 / 3552 / 3626 / 3626 and the shared gun 3774 at every star, the foe dying sooner): the foe
+   *  stays the one these rows measured, WEAVER's start deck at
+   *  4,700 hull in all (content.ts's base 1700 + 3000): 3000 plus what the free-joins swap takes off that base (the base read
+   *  with the switch off). The player's side keeps sturdy's +3000. */
+  const sturdyFoe = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus + 3000 + withFreeJoins(() => HEROES.weaver.hull, false) - HEROES.weaver.hull });
   /** wave3.decks' capRows: mean damage dealt and jams over the seeds, no stoker, then a STOKER at (x, y) at 1-3 stars. */
   const capRows = (base: () => Build, x: number, y: number) => [0, 1, 2, 3].map((s) => {
     let dmg = 0, jams = 0;
     for (const seed of SEEDS) {
       const b = s ? withItem(base(), item(70, "stoker", x, y, 0, s)) : base();
-      const bt = new Battle(sturdy(b), sturdy(weaverStart()), seed);
+      const bt = new Battle(sturdy(b), sturdyFoe(weaverStart()), seed);
       while (!bt.over && bt.ticks < 60 * 200) { bt.step(); bt.events.length = 0; }
       dmg += bt.sides[0].stats.damage;
       jams += bt.sides[0].stats.jams;

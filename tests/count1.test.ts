@@ -28,6 +28,13 @@ import { C } from "../src/render/palette";
 import { contrast } from "../src/render/styleContrast";
 import { tapPx } from "../src/ui/tap";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 x c099-card3 (RUN6 1.2): the fight is built with SHAPES off
+import { withGuard } from "../src/sim/guard"; // MERGE-099F: the fight is built with HULL-ON's five off too
+import { withOpenRunes } from "../src/sim/openRunes"; // MERGE-099F
+import { withFreeJoins } from "../src/sim/freeJoins"; // MERGE-099F
+import { withHearts } from "../src/sim/hearts"; // MERGE-099F
+import { withPick } from "../src/net/pick"; // MERGE-099F
+/** MERGE-099F: HULL-ON's five switches off around `f` (tests/hull1b.ladders' allOff). */
+const offFive = <T>(f: () => T): T => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(f, false), false), false), false), false);
 
 const ROOT = join(new URL("..", import.meta.url).pathname);
 const deck = (hero: HeroId, day: number, i: number): Build => structuredClone(parRefs(hero, day, "field", 4)[i]);
@@ -44,8 +51,14 @@ const deck = (hero: HeroId, day: number, i: number): Build => structuredClone(pa
  *  the foe wins), so three fixture guards fail. The fight is kept in the SHAPES-off world it was picked in: its decks and
  *  the Battle are built with SHAPES off, as SHAPES-1's 22ca218 kept harness.player's tripwires. The Battle reads shapes
  *  only when it is built (makeSide: occupancy, rigHits, routeInfo, footBox), and this fight steps the same with SHAPES on
- *  and off (770 ticks, the same 493 events; run 6's probe). S8 moves the par field again: re-pick then as MERGE-099D did. */
-const fight = (): Battle => withShapes(() => new Battle(deck("weaver", 10, 2), deck("furnace", 10, 0), 3), false);
+ *  and off (770 ticks, the same 493 events; run 6's probe). S8 moves the par field again: re-pick then as MERGE-099D did.
+ *  MERGE-099F (REQ-BFG-079, -086; tests only): with HULL-ON's five on as well (GUARD, OPEN_RUNES and FREE_JOINS move the
+ *  par decks) this fight built with SHAPES off alone has no STUN-lit LODESTONE hit, no jam and no BURN (742 ticks, 713
+ *  events), so the fight is kept in the world it was picked in with the five off as well as SHAPES (as BRIEF-MERGE-099F
+ *  1g and 1h keep their checks): built so, it steps exactly as SHAPES-1 measured, 770 ticks and the same 493 events, both
+ *  stepped as shipped and inside the off world (kit-099f/zz-099f-probe3.test.ts (C)). Was built with SHAPES off alone
+ *  (c099's world, the five absent). */
+const fight = (): Battle => withShapes(() => offFive(() => new Battle(deck("weaver", 10, 2), deck("furnace", 10, 0), 3)), false);
 
 type Priv = { applyHit: (...a: unknown[]) => unknown; fire: (...a: unknown[]) => unknown };
 

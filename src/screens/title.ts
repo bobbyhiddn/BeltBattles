@@ -14,9 +14,10 @@ import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUN
 import { startingBuild, warlordBuild } from "../sim/ai";
 import { HEROES, RUN_DAYS, type HeroId } from "../sim/content";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE and RULE JOIN LIMIT in the rules card
+import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): neither rule in the card with FREE_JOINS on
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
-import { drawText, textWidth } from "../render/font";
+import { drawText, icons, textWidth } from "../render/font";
 import { titleArt } from "../render/sprites";
 import { defaultScale } from "../core/io";
 import { button, panel, para } from "../ui/ui";
@@ -34,16 +35,59 @@ import { ArenaMotion } from "../game/arenaMotion";
 import { minGap } from "../game/battleLayout";
 import { settings } from "../core/settings";
 import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the name screen comes first
+import { HEART_COST_FROM, HEART_COSTS, HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 run 2: the rules card's hearts
 
 
-export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line 3 states RULE JOIN PACE)
+/** JOINS-1 (REQ-BFG-091): the rules card's line 3 under the switch now. FREE_JOINS off: it states RULE JOIN LIMIT and
+ *  RULE JOIN PACE, exactly as before; on, neither (a deck holds any number of legal joins, and a join never slows its
+ *  factory). */
+export function helpLine3(free = freeJoinsRules()): string {
+  // CARD-5 (REQ-BFG-111; CARD-5 PREP's item 3, HOWTOPLAY-CARD5): the line names the kinds, each clause true in the sim
+  // (Battle.stamp puts a factory's slugs on its belts; a belt's front slug enters the chamber of the turret it reaches,
+  // a joining belt's its chain's; a rig works on slugs or its belt's speed; a turret fires its loads; a core and gear
+  // fit its sockets), with REVIEW-CARD5PREP 5.3's clause FOR THE TURRET THEIR BELT REACHES (REPORT-CARD5 section 7).
+  // The belt sentences and both FREE_JOINS forms' join clauses stay as they were. Was "3  AT DAWN, BUY RIGS FROM THE
+  // CARAVAN. DRAG OUT ..."
+  const how = "3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
+  return free ? `${how}.` : `${how} (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`;
+}
+
+/** CARD-5 (REQ-BFG-111, REQ-BFG-089; CARD-5 PREP's item 6): the keyword line, one clause each, drawn with icons() (each
+ *  keyword its icon, then its player word: {*PLATE} draws SHIELD, {*SHIELD} WARD; the icons in their own colours, as
+ *  drawText tints them). Each clause is the keyword's own reminder cut short (faces.ts REMINDER); WARD's keeps the
+ *  reminder's HIT'S DAMAGE, since that hit's BURN, FRAY and STUN still land (battle.ts impact; PREP's draft said BLOCKS
+ *  ALL OF ONE HIT). Rules text a player opens on demand, so no card carries a definition (REQ-BFG-089). */
+export const HELP_KEYWORDS = icons(
+  "6  {*BURN}: HULL DAMAGE OVER TIME. {*STUN}: STOPS THE PART IT HITS FOR A WHILE. {*PLATE}: SOAKS HULL DAMAGE. {*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE. {*PAIR}: SLUGS FROM TWO BELTS REACH ONE TURRET AT ONCE. {*FRAY}: LATER HULL HITS DEAL MORE.",
+);
+
+/** JOINS-1: the rules card the title draws: HELP with line 3 by the switch now (HELP itself with FREE_JOINS off).
+ *  RETUNE-1 run 2 (REQ-BFG-096): and line 2 the hearts rule while HEARTS is on (HELP_HEARTS_2, below HELP). HULL-ON (the
+ *  merge of JOINS-1's and RETUNE-1's helpLines, one function for both lines): while neither line moves it is HELP itself,
+ *  as RETUNE-1's was. */
+export function helpLines(): string[] {
+  const lines = HELP.map((ln, i) => (i === 1 && heartsRules() ? HELP_HEARTS_2 : i === 2 ? helpLine3() : ln));
+  return lines.every((ln, i) => ln === HELP[i]) ? HELP : lines;
+}
+
+export const HELP = [ // exported for tests/joinpace.test.ts. Line 3 is helpLine3() read at load (JOINS-1): as the game ships (FREE_JOINS on) the free line, with FREE_JOINS off 0.6.2 TUNE-M's RULE JOIN PACE and RULE JOIN LIMIT (HULL-ON, ruling 22e26ded338944ea)
   "1  SURVIVE 10 DAYS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.",
   // 0.6.2 TUNE-M: line 2 states RULE EARLY-LOSS REFUND (day.ts)
   `2  YOU HAVE 5 LIVES. A DUSK LOSS COSTS ONE, A DRAW NONE. LOSE ON DAY 1 OR 2 AND DAY ${REFUND_DAY}'S DAWN GIVES ONE LIFE BACK (ONCE A RUN). YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`,
-  `3  AT DAWN, BUY RIGS FROM THE CARAVAN. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`,
-  "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
+  helpLine3(), // JOINS-1 (REQ-BFG-091), by the switch at load: shipped (FREE_JOINS on) neither join rule; with FREE_JOINS off exactly as before (RULE JOIN LIMIT and RULE JOIN PACE). The title draws helpLines() (HULL-ON, ruling 22e26ded338944ea)
+  // CARD-5 (REQ-BFG-111; CARD-5 PREP's item 4): STUN, the word every card and note says (SHOCK is retired: VOCAB.md; this
+  // line now sits in tests/words1.text.test.ts's sweep), and REVIEW-CARD5PREP 5.3's clause in HIT's words, true of 24 of the
+  // 33 rigs (every HIT rig and STATIC BRUSH; not the speed, timer and STUN-guard rigs nor STOKER: REPORT-CARD5 section 7)
+  "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, STUN, SPLIT, SPEED UP OR SLOW DOWN. MOST RIGS WORK ON EACH SLUG ON A TILE THEIR ARROWS POINT AT. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
   "5  ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3). AT DUSK YOUR CRUISER FIGHTS ON ITS OWN: 0.5X-4X, SKIP, II OR P TO PAUSE.",
+  HELP_KEYWORDS, // CARD-5 (REQ-BFG-111): item 6, the keyword line
 ];
+
+/** RETUNE-1 run 2 (REQ-BFG-096): line 2 with HEARTS on (no run exists on the title, so the switch decides): the hearts rule
+ *  (hearts.ts: HEARTS_START, a loss costs heartCost(day), 1/2/3 by day band; no early-loss refund). */
+export const HELP_HEARTS_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${HEART_COSTS[0]} ON DAYS 1-${HEART_COST_FROM[1] - 1}, ${HEART_COSTS[1]} ON DAYS ${HEART_COST_FROM[1]}-${HEART_COST_FROM[2] - 1} AND ${HEART_COSTS[2]} FROM DAY ${HEART_COST_FROM[2]}, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`;
+// The HOW TO PLAY lines (RETUNE-1's helpLines: HELP, with line 2 the hearts rule while HEARTS is on; off, HELP itself) are
+// helpLines above, merged with JOINS-1's line 3 (HULL-ON)
 
 export class TitleScreen implements Screen {
   private arena!: Arena;
@@ -187,11 +231,13 @@ export class TitleScreen implements Screen {
     const { W, H } = this.game;
     // intro: titleLayout.ts helpCard: 0350e5f's card at k = 1 (desk, landscape); where the title steps its scale down
     // (k > 1) the card keeps its CSS width and its text takes the 5x7 face, about as tall in CSS px as the 3x5 face was
-    const { x, y, w, h, font } = helpCard(W, H, this.k, HELP);
+    const help = helpLines(); // RETUNE-1 run 2 (REQ-BFG-096): line 2 says hearts while HEARTS is on; off, HELP
+    // JOINS-1 (REQ-BFG-091): line 3 by the switch now (HELP exactly, with FREE_JOINS off)
+    const { x, y, w, h, font } = helpCard(W, H, this.k, help);
     panel(g, { x, y, w, h }, "raised");
     drawText(g, "HOW TO PLAY", W / 2, y + 6, C.yellow, { align: "center" });
     let yy = y + 20;
-    for (const ln of HELP) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, font, 2) + 3;
+    for (const ln of help) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, font, 2) + 3;
     this.game.ui.add({ id: "helpcard", r: { x, y, w, h }, onTap: () => { this.help = false; } });
   }
 

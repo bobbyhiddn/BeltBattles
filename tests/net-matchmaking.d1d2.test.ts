@@ -14,7 +14,8 @@ import { eligible, isNewPlayer, NEW_PLAYER_RUNS, noBetterRecord, pickGhost, type
 import { fetchGhost, matchUrl, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { fallbackGhost } from "../src/net/fallback";
 import { decodeSnapshot, encodeSnapshot, ghostId, MAX_LIVES, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
-import { isReachable } from "../src/net/records";
+import { isReachable, reachableRecords } from "../src/net/records"; // HULL-ON (HEARTS): reachableRecords, the POST rows' count
+import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS; ruling 22e26ded338944ea Q3): the records' lives scale
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
@@ -154,12 +155,24 @@ describe.each(storeBackends())("the match route (D1, D2), $name store", (backend
     expect((await seedStore(app.store)).entries).toBe(SEED_POOL.length);
     players = [await testIdentity(1), await testIdentity(2)];
     // one signed upload per record a day-3 snapshot can carry (wins 0..2, lives 1..5), from two players
+    // HULL-ON (the flip, HEARTS; cap's ruling 22e26ded338944ea Q3): the records are re-shaped to the hearts scale: lives
+    // 1..HEARTS_START (was 1..5, the 5-lives scale, where no hearts run carries any of them into dusk 3, so all 15 were
+    // planted). isReachable reads this build's rules on the hearts model (records.ts heartsRecords, the game's heartsDusk
+    // step), so the records the hearts rule reaches on day 3 (0W 8-10, 1W 9-10, 2W 10) go through the signed POST again;
+    // the other rows stay planted below (store.add): their point is a store that still holds an unreachable record. The
+    // spread stays lives 1..10 at each win count, so D1 serves 27 of its 28 request states, as at 66cc267.
+    // HULL-ON (the flip, PICK): every row's deck is BASE_DECK as a player uploads it, ungraded (BASE_DECK is a seed ghost,
+    // which carries the seed step's grade, and POST refuses a graded upload: 422 "grade: only the seed pool's ghosts carry
+    // a grade"; a planted row goes in exactly as a POST would store it, so ungraded too)
+    const { grade: _grade, ...uploadDeck } = BASE_DECK;
+    let posted = 0;
     for (let w = 0; w < DAY; w++) {
-      for (let l = 1; l <= 5; l++) {
+      for (let l = 1; l <= HEARTS_START; l++) {
         const who = players[(w + l) % 2];
-        const s = ownedBy({ ...BASE_DECK, wins: w, lives: l, runId: `up-${w}-${l}` }, who);
+        const s = ownedBy({ ...uploadDeck, wins: w, lives: l, runId: `up-${w}-${l}` }, who);
         if (!isReachable(DAY, w, l)) {
-          // 0.8.0 H2 (P1, oracle 9c95e37aab0a70fb): POST /v1/ghosts now refuses (422) these 11 records: no run carries
+          // 0.8.0 H2 (P1, oracle 9c95e37aab0a70fb): POST /v1/ghosts now refuses (422) these 11 records (HULL-ON, HEARTS: 24 on
+          // the hearts grid): no run carries
           // them into dusk 3. A store can still hold such a ghost: one uploaded before that check (until ghosts:admin
           // revalidate clears it) or one an admin planted. The match route must still work with them there, so they go
           // in exactly as a POST stores them: the snapshot decoded from the bytes submitGhost sends, then store.add.
@@ -172,9 +185,14 @@ describe.each(storeBackends())("the match route (D1, D2), $name store", (backend
         const r = await submitGhost(base, s, who, 3000);
         expect(r.ok, `${w}W ${l}L`).toBe(true);
         if (r.ok) uploads.push({ id: r.id, snapshot: s });
+        posted++;
       }
     }
-    expect(uploads).toHaveLength(15);
+    // HULL-ON (the flip, HEARTS; ruling 22e26ded338944ea Q3): 15 -> DAY * HEARTS_START (30) rows, and every record the
+    // hearts rule reaches on day 3 went up through the signed POST (reachableRecords: 6)
+    expect(uploads).toHaveLength(DAY * HEARTS_START);
+    expect(posted).toBe(reachableRecords(DAY).length);
+    expect(posted).toBeGreaterThan(0);
   });
 
   afterAll(async () => {

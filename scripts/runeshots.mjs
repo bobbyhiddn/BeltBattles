@@ -19,6 +19,7 @@ import { chromium } from "playwright-core";
 import { readFile, mkdir } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { autoFight } from "./scouthook.mjs"; // SCOUT-1 (REQ-BFG-076): the FIGHT step (bb.fight(true): battles skip scouting)
+import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -175,10 +176,13 @@ const look = (page) => page.evaluate(({ RAR, SL4 }) => {
  *  and no name or tag running into a card's right margin. `open`: the opened card (-1 none). */
 async function tierLook(page, vname, name, tier, open) {
   const lk = await look(page), col = RARITY[tier], T = tier.toUpperCase();
+  // CARD-4 (REQ-BFG-081, P1): the opened card's TAP AGAIN band is runeBar.ts runeBarBand(runeTapOf(s)): 13 on the desk; on
+  // a phone, or after a finger's press, a finger's target (tapPx) less 1. The open card's height counts it in place of 13.
+  const hb = await page.evaluate(() => { const s = window.bb.game.screen, v = window.bb.game.view, c = v.scale / v.dpr; return Math.max(13, (s.touch || Math.min(v.W, v.H) * c < 500 ? Math.ceil(44 / c) : 0) - 1); });
   check(!!lk.edges?.length && lk.edges.every((e) => e === col), `${vname} ${name}: every card framed in the ${T} colour ${col} (${lk.edges?.join(" ")})`);
   check((lk.word?.[tier] ?? 0) >= 30, `${vname} ${name}: the dawn line's "${T} RUNES" in that colour (${lk.word?.[tier]} px)`);
-  check(!!lk.heights && lk.heights.every((h, i) => (i === open ? h >= 58 && (h - 58) % 7 === 0 : h === 44)),
-    `${vname} ${name}: every card's effect on one line (card heights ${lk.heights?.join(" ")} art px)`);
+  check(!!lk.heights && lk.heights.every((h, i) => (i === open ? h >= 45 + hb && (h - 45 - hb) % 7 === 0 : h === 44)),
+    `${vname} ${name}: every card's effect on one line (card heights ${lk.heights?.join(" ")} art px; the hint's band ${hb})`);
   check(!!lk.heads && lk.heads.every((n) => n === 0), `${vname} ${name}: no card's name or tag runs into its right edge (${lk.heads?.join(" ")} px there)`);
 }
 
@@ -250,9 +254,9 @@ async function main() {
     check(!!p && p.open === 1, `${vname}: a tap on a card opens it (its reminder and TAP AGAIN TO TAKE IT)`);
     await onScreen(page, vname, "picker-open");
     await shot(page, vname, "picker-open");
-    // ---- taken: tapped again
+    // ---- taken: tapped again (CARD-4, REQ-BFG-081 P: on its TAP AGAIN bar, after the guard: scripts/runeTake.mjs)
     const id = p.ids[1];
-    await tap(page, cdp, await cardAt(page, 1));
+    await takeRuneCard(page, (q) => tap(page, cdp, q), { card: 1 });
     await frames(page, 4);
     const t = await page.evaluate(() => ({ runes: (window.bb.game.run.build.runes ?? []).map((q) => q.id), pick: window.bb.game.run.runeDay ?? null, toast: window.bb.game.toastLog.slice(-1)[0] ?? "", saved: localStorage.getItem("beltbattles.run.v7") ?? Object.keys(localStorage).filter((x) => x.includes("run")).map((x) => localStorage.getItem(x)).join("") }));
     p = await picker(page);
@@ -356,7 +360,10 @@ async function main() {
       const rc = await regionC(page, `rune-${ri}`);
       if (rc) await tap(page, cdp, { x: rc.cx, y: rc.cy });
       lk = await look(page);
-      check(!!rc && (await page.evaluate(() => window.bb.game.screen.runeBar.open)) === ri && !!lk.readout && lk.readout.edge === RARITY[rt] && (lk.readout.h - 45) % 7 === 0,
+      // CARD-4 run 4: since CARD-3 (REQ-BFG-089, E) the bar's read-out ends after its last line while no note shows (44 art
+      // px for one effect line) and makes the reminder's room (45 + 7 a line) only while one does
+      const roH = (h) => h === 44 || (h >= 52 && (h - 45) % 7 === 0);
+      check(!!rc && (await page.evaluate(() => window.bb.game.screen.runeBar.open)) === ri && !!lk.readout && lk.readout.edge === RARITY[rt] && roH(lk.readout.h),
         `${vname}: a tap on chip ${ri + 1} (${T.picks[ri]}) opens its ${rt.toUpperCase()} read-out (TAKEN DAY ${ri + 1}), framed ${lk.readout?.edge}, its effect on one line (${lk.readout?.h} art px)`);
       await onScreen(page, vname, "bar10-tiers-readout");
       await shot(page, vname, "bar10-tiers-readout");

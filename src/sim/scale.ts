@@ -17,9 +17,10 @@
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same helpers.
 
 import type { HullState, Payload } from "./battle";
-import { ITEMS, START_LIVES, type ItemDef, type ReadCount } from "./content";
+import { ITEMS, type ItemDef, type ReadCount } from "./content";
 import type { Build } from "./deck";
 import { clearStarCache, effectAt, starsOf } from "./stars";
+import { livesCap, startLives } from "./hearts"; // SCALE-2c M0 (REQ-BFG-098): the RETUNE-1 hearts swap (startHearts)
 
 /** THE switch (REQ-BFG-098, REQ-BFG-110): off in this rules version (bb-0.10.0); BUMP-1E turns it on. */
 export const SCALE_RIGS: boolean = false;
@@ -106,13 +107,13 @@ export function flatOf(p: Pick<Payload, "flat" | "each">): number {
   return p.each ? p.flat + p.each : p.flat;
 }
 
-/** SCALE-2a (REQ-BFG-098): THE one function that gives a run's start hearts, which hearts lost count from: the base's
- *  START_LIVES today. MERGE NOTE: when HULL-ON brings RETUNE-1's src/sim/hearts.ts into 0.9.9, its body becomes
- *  `return run ? livesCap(run) : startLives();` (hearts.ts: 10 with HEARTS on, a run on the scale it started on), and
- *  nothing else changes. `run` is the run whose scale counts (unread until then). */
+/** SCALE-2a (REQ-BFG-098): THE one function that gives a run's start hearts, which hearts lost count from.
+ *  SCALE-2c M0 (REQ-BFG-098): the RETUNE-1 hearts swap (SCALE-2a's merge note), now that live-099 (HULL-ON) brings
+ *  src/sim/hearts.ts: a run's cap on the scale it started on (livesCap: HEARTS_START 10 on a hearts run, else
+ *  START_LIVES 5), or without a run the switch's start (startLives: 10 with HEARTS on). Nothing else changes: both
+ *  callers already pass the run. */
 export function startHearts(run?: { lives: number; hearts?: boolean }): number {
-  void run;
-  return START_LIVES;
+  return run ? livesCap(run) : startLives();
 }
 
 /** SCALE-2a (REQ-BFG-098): the hearts lost by a side holding `lives` (the run's Run.lives, or a ghost snapshot's `lives`,

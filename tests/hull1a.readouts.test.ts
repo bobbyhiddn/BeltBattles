@@ -46,14 +46,18 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
       expect(on(() => f(runOf("furnace", 1, 750)))).toBe("2850");
       expect(on(() => f(runOf("furnace", 10, 750)))).toBe("17100");
       expect(on(() => f(runOf("foundry", 10)))).toBe("13500");
-      expect(on(() => f(runOf("weaver", 5, 250)))).toBe("5460"); // 1950 x 2.8
+      // HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9, R10 (a)): WEAVER's
+      // base is 1500 with free joins on (was "5460", 1950 x 2.8)
+      expect(on(() => f(runOf("weaver", 5, 250)))).toBe("4900"); // 1750 x 2.8
     }
   }, false));
 
   it("NEXT BATTLE's foe hull and the scout report's: on the fight's day", () => withHullScale(() => {
-    expect(foeClass(foeOf("weaver", 10, 250))).toBe("WEAVER · HULL 1950");
-    expect(on(() => foeClass(foeOf("weaver", 1, 250)))).toBe("WEAVER · HULL 1950");
-    expect(on(() => foeClass(foeOf("weaver", 10, 250)))).toBe("WEAVER · HULL 11700");
+    // HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9, R10 (a)): WEAVER's
+    // base is 1500 with free joins on (was 1950 / 1950 / 11700)
+    expect(foeClass(foeOf("weaver", 10, 250))).toBe("WEAVER · HULL 1750");
+    expect(on(() => foeClass(foeOf("weaver", 1, 250)))).toBe("WEAVER · HULL 1750");
+    expect(on(() => foeClass(foeOf("weaver", 10, 250)))).toBe("WEAVER · HULL 10500");
     const belt = heroStartBuild("bastion", 101).beltCap;
     expect(revealLine(foeOf("bastion", 10))).toBe(`BASTION · HULL 2150 · BELT ${belt}`);
     expect(on(() => revealLine(foeOf("bastion", 10)))).toBe(`BASTION · HULL 12900 · BELT ${belt}`);
@@ -83,8 +87,10 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
 
   it("HULL rune text: IRON SKIN, SPARE HULL, BULKHEADS and SCRAP HALO read M(d) x N; a REGEN rune doesn't scale", () => withHullScale(() => {
     const want: Record<string, [string, string]> = {
-      iron_skin: ["+150 HULL.", "+900 HULL."],
-      spare_hull: ["+300 HULL.", "+1800 HULL."],
+      // MERGE-099E (BRIEF-MERGE-099E 1b): CARD-4's words (T, REQ-BFG-081; runeText.ts RUNE_TEXT iron_skin and spare_hull,
+      // "+{N} MAX {HULL}, ALL RUN."; was "+{N} {HULL}."), HULL-1a's numbers
+      iron_skin: ["+150 MAX HULL, ALL RUN.", "+900 MAX HULL, ALL RUN."],
+      spare_hull: ["+300 MAX HULL, ALL RUN.", "+1800 MAX HULL, ALL RUN."],
       bulkheads: ["+50 HULL PER TURRET YOU HAVE.", "+300 HULL PER TURRET YOU HAVE."],
       // MERGE-099C: WORDS-1's words (REQ-BFG-081; runeText.ts: was "PER MERGED PIECE."), HULL-1a's numbers. MERGE-099D
       // (BRIEF-MERGE-099D 1f): CARD-2's words (K3 d, runeText.ts RUNE_TEXT scrap_halo; was "FOR EACH ★2 OR ★3 PIECE IN USE."),
@@ -108,8 +114,8 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
     expect(on(() => runeLine(regen, 10))).toBe(runeLine(regen).replace(` ${regen.amount.n} `, ` ${on(() => sustShown(regen.amount.n, 10))} `));
     // the cards' lines (runeBar.ts runeTextLines) carry the day too
     const flat = (day?: number) => runeTextLines(RUNES.spare_hull, 200, day).map((l) => l.map((s) => s.t).join("")).join(" ");
-    expect(on(() => flat(10))).toBe("+1800 HULL.");
-    expect(flat(10)).toBe("+300 HULL.");
+    expect(on(() => flat(10))).toBe("+1800 MAX HULL, ALL RUN."); // MERGE-099E: CARD-4's words (T)
+    expect(flat(10)).toBe("+300 MAX HULL, ALL RUN.");
   }, false));
 
   it("LAST CHANCE's HULL card: +500 becomes M(d) x 500 (its name, YOUR HULL line and toast)", () => withHullScale(() => {

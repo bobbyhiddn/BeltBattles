@@ -57,6 +57,24 @@ interface LadderOpen { rule: LadderRule; day: number; a?: string; b?: string; v:
  * them: cap re-trims the packs on the flipped field in its own job (CATCHUP's capsearch method), which deletes this list.
  */
 const LADDER_X_OPEN: readonly LadderOpen[] = [
+  // S8b (REQ-BFG-092; BRIEF-S8 S8b, Y7b2 step 8's re-measure; R3's LADDER_X_OPEN form: RULING-HULLON-R3 section 3 and R13
+  // Q9 (b)): re-measured at s8 c1c93e4 (the regenerated stand-in pool P1 83c039d and seed pool c6d3445) with an uncommitted
+  // copy of these rules with no exception list (B/output-s8/logs/r3x-coll-c1c93e4.r3x.txt): 104 -> 64 entries, ceiling =
+  // measured v + 0.02. By rule (HULL-ON H4's list -> now): easyOverHard 75 -> 46, matriarchLowest 7 -> 0, pacing 5 -> 5 (no
+  // new pacing pair), parBeatsEasy 6 -> 0, parLosesToHard 2 -> 4, poolBand 2 -> 4, slotGap 7 -> 5. The cause, read with the
+  // same collector at each step: the pools move nothing here (7cc41c6, 83c039d and c1c93e4 read line for line the same).
+  // What moved, moved before s8-base e866408 ("s8-base": the 0.9.9 flips, AZ-BUMP's, HULL-ON's and SHAPES' worlds merged at
+  // MERGE-099F; the file was red there, its LADDER_X_OPEN test stopping at its first line) or, on days 7-10 only, after it:
+  // "FIT-099" (S8 T3's merge acdae00: KARSK's day-10 road PvE plates, D days 3-5) and "CAPTAIN_RUNES" (S8 lane 2's
+  // regeneration, a9dfbcb). Out (pass now) 62: easyOverHard 44 (d1 1, d2 2, d3 8, d4 5, d6 3, d7 6, d8 7, d9 6, d10 6),
+  // matriarchLowest 7, parBeatsEasy 6, poolBand d8, slotGap easy / medium d5, d6, d7 and d10. New 22, each red at s8-base
+  // already: easyOverHard 15, parLosesToHard d4 and d5, poolBand d2-d4, slotGap medium / hard d5 and d7. Over the old
+  // ceiling 7: easyOverHard d3 GRUBNOSE v BULWARK and RATCHET v SILKSHADE, pacing d3 GRIMHOLD v both decks (HULL-ON:
+  // hullon-accepted 1e5fe4f reads both), parLosesToHard d2 and d3, poolBand d1. R13's three pacing pins read their v
+  // unchanged; its slotGap d4 0.0763 -> 0.0721. No captain was tuned. Each line's comment: "carried (its old v)" or "new",
+  // then each move "-> v step"; beside s8-base, the v on its two merged lines, both on AZ-BUMP (merge base c44046f):
+  // HULL-ON's (hullon-accepted 1e5fe4f) and c099's with SHAPES before MERGE-099F (41a600a); "passes" = the rule holds
+  // there (a v under 0 likewise). Before, CATCHUP-098's note:
   // CATCHUP-098 (REQ-BFG-024; the captain pass on 0.9.7's rules, backlog #377; cap's rulings 3c58471c74bdc4ed Q4 (i) and
   // REVIEW-CATCHUP097 ruling 3: walls, the Hard band and the named stand-ins rank before the ladder): re-measured at
   // catchup098 13ec8db (the FURNACE par count re-fit, the day-10 lever, MOTH QUEEN's day-4 SPLITTER (cap's yes for roadCap,
@@ -117,106 +135,78 @@ const LADDER_X_OPEN: readonly LadderOpen[] = [
   // and the captain fit; W/output-bal2/ladder/ladder.json): 90 ladder rules + 2 pacing pins, v and ceiling = v + 0.02.
   // The pacing entries are non-ladder pins: the days 1-3 pacing floor (15 s), a = the captain, b = the pacing deck's hero;
   // v = 15 - the mean fight (GRIMHOLD's day-3 pins stay: no least change of his own plan clears them in this job).
-  { rule: "easyOverHard", day: 1, a: "brasswick", b: "karsk", v: 0.0153, ceiling: 0.0353 }, // carried (0.9.7 0.0153)
-  { rule: "easyOverHard", day: 1, a: "nettle", b: "highspire", v: 0.0249, ceiling: 0.0449 }, // carried (0.9.7 0.0249)
-  { rule: "easyOverHard", day: 1, a: "nettle", b: "karsk", v: 0.1666, ceiling: 0.1866 }, // carried (0.9.7 0.1666)
-  { rule: "easyOverHard", day: 1, a: "nettle", b: "mothqueen", v: 0.0542, ceiling: 0.0742 }, // carried (0.9.7 0.0542)
-  { rule: "easyOverHard", day: 1, a: "ratchet", b: "karsk", v: 0.0586, ceiling: 0.0786 }, // carried (0.9.7 0.0586)
-  { rule: "easyOverHard", day: 2, a: "brasswick", b: "karsk", v: 0.1921, ceiling: 0.2121 }, // carried (0.9.7 0.1921)
-  { rule: "easyOverHard", day: 2, a: "brasswick", b: "longtooth", v: 0.0848, ceiling: 0.1048 }, // carried (0.9.7 0.0848)
-  { rule: "easyOverHard", day: 2, a: "grubnose", b: "karsk", v: 0.0707, ceiling: 0.0907 }, // carried (0.9.7 0.0707)
-  { rule: "easyOverHard", day: 2, a: "nettle", b: "karsk", v: 0.0095, ceiling: 0.0295 }, // carried (0.9.7 0.0095)
-  { rule: "easyOverHard", day: 3, a: "brasswick", b: "bulwark", v: 0.1296, ceiling: 0.1496 }, // carried (0.9.7 0.2420); 0.2420 -> 0.1296: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 3, a: "brasswick", b: "highspire", v: 0.1525, ceiling: 0.1725 }, // carried (0.9.7 0.1525)
-  { rule: "easyOverHard", day: 3, a: "brasswick", b: "karsk", v: 0.1667, ceiling: 0.1867 }, // carried (0.9.7 0.1667)
-  { rule: "easyOverHard", day: 3, a: "brasswick", b: "mothqueen", v: 0.0863, ceiling: 0.1063 }, // carried (0.9.7 0.0863)
-  { rule: "easyOverHard", day: 3, a: "brasswick", b: "voss", v: 0.1226, ceiling: 0.1426 }, // carried (0.9.7 0.1226)
-  { rule: "easyOverHard", day: 3, a: "grubnose", b: "bulwark", v: 0.0231, ceiling: 0.0431 }, // carried (0.9.7 0.1356); 0.1356 -> 0.0231: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 3, a: "grubnose", b: "highspire", v: 0.0460, ceiling: 0.0660 }, // carried (0.9.7 0.0460)
-  { rule: "easyOverHard", day: 3, a: "grubnose", b: "karsk", v: 0.0603, ceiling: 0.0803 }, // carried (0.9.7 0.0603)
-  { rule: "easyOverHard", day: 3, a: "grubnose", b: "voss", v: 0.0161, ceiling: 0.0361 }, // carried (0.9.7 0.0161)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "bulwark", v: 0.1520, ceiling: 0.1720 }, // carried (0.9.7 0.2644); 0.2644 -> 0.1520: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "highspire", v: 0.1749, ceiling: 0.1949 }, // carried (0.9.7 0.1749)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "karsk", v: 0.1891, ceiling: 0.2091 }, // carried (0.9.7 0.1891)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "longtooth", v: 0.0092, ceiling: 0.0292 }, // carried (0.9.7 0.4167); 0.4167 -> 0.0092: LONGTOOTH's re-plan (targets 2-4)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "mothqueen", v: 0.1086, ceiling: 0.1286 }, // carried (0.9.7 0.1086)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "silkshade", v: 0.0194, ceiling: 0.0394 }, // carried (0.9.7 0.0194)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "voss", v: 0.1450, ceiling: 0.1650 }, // carried (0.9.7 0.1450)
-  { rule: "easyOverHard", day: 4, a: "brasswick", b: "bulwark", v: 0.2561, ceiling: 0.2761 }, // carried (0.9.7 0.3356); 0.3356 -> 0.2561: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 4, a: "brasswick", b: "highspire", v: 0.0065, ceiling: 0.0265 }, // carried (0.9.7 0.0065)
-  { rule: "easyOverHard", day: 4, a: "brasswick", b: "karsk", v: 0.0181, ceiling: 0.0381 }, // carried (0.9.7 0.0181)
-  { rule: "easyOverHard", day: 4, a: "brasswick", b: "mothqueen", v: 0.0125, ceiling: 0.0325 }, // carried (0.9.7 0.2618); 0.2618 -> 0.0125: MOTH QUEEN's SPLITTER on day 4 (target 3)
-  { rule: "easyOverHard", day: 4, a: "ratchet", b: "bulwark", v: 0.0801, ceiling: 0.1001 }, // carried (0.9.7 0.1596); 0.1596 -> 0.0801: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "bulwark", v: 0.5542, ceiling: 0.5742 }, // carried (0.9.7 0.5842); 0.5842 -> 0.5542: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "highspire", v: 0.4179, ceiling: 0.4379 }, // carried (0.9.7 0.4179)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "karsk", v: 0.4489, ceiling: 0.4689 }, // carried (0.9.7 0.4489)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "longtooth", v: 0.3229, ceiling: 0.3429 }, // carried (0.9.7 0.4823); 0.4823 -> 0.3229: LONGTOOTH's re-plan (targets 2-4)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "mothqueen", v: 0.3053, ceiling: 0.3253 }, // carried (0.9.7 0.3053)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "silkshade", v: 0.4992, ceiling: 0.5192 }, // carried (0.9.7 0.4992)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "voss", v: 0.4697, ceiling: 0.4897 }, // carried (0.9.7 0.5034); 0.5034 -> 0.4697: MASTER VOSS's COUNTERWEIGHT -> VENOM DRIP (target 3) and day-10 LIMPET WORKS (target 2)
-  { rule: "easyOverHard", day: 5, a: "ratchet", b: "bulwark", v: 0.0293, ceiling: 0.0493 }, // carried (0.9.7 0.0593); 0.0593 -> 0.0293: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "bulwark", v: 0.4047, ceiling: 0.4247 }, // carried (0.9.7 0.4227); 0.4227 -> 0.4047: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "highspire", v: 0.3464, ceiling: 0.3664 }, // carried (0.9.7 0.3464)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "karsk", v: 0.4270, ceiling: 0.4470 }, // carried (0.9.7 0.4270)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "longtooth", v: 0.3071, ceiling: 0.3271 }, // carried (0.9.7 0.4145); 0.4145 -> 0.3071: LONGTOOTH's re-plan (targets 2-4)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "mothqueen", v: 0.3357, ceiling: 0.3557 }, // carried (0.9.7 0.3357)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "silkshade", v: 0.0746, ceiling: 0.0946 }, // carried (0.9.7 0.0746)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "voss", v: 0.3202, ceiling: 0.3402 }, // carried (0.9.7 0.2861); 0.2861 -> 0.3202: MASTER VOSS's COUNTERWEIGHT -> VENOM DRIP (target 3) and day-10 LIMPET WORKS (target 2)
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "bulwark", v: 0.2304, ceiling: 0.2504 }, // carried (0.9.7 0.2433); 0.2433 -> 0.2304: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "highspire", v: 0.2382, ceiling: 0.2582 }, // carried (0.9.7 0.2382)
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "karsk", v: 0.3201, ceiling: 0.3401 }, // carried (0.9.7 0.3201)
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "longtooth", v: 0.2136, ceiling: 0.2336 }, // carried (0.9.7 0.2394); 0.2394 -> 0.2136: LONGTOOTH's re-plan (targets 2-4)
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "mothqueen", v: 0.1711, ceiling: 0.1911 }, // carried (0.9.7 0.1711)
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "silkshade", v: 0.1791, ceiling: 0.1991 }, // carried (0.9.7 0.1791)
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "voss", v: 0.2557, ceiling: 0.2757 }, // carried (0.9.7 0.1744); 0.1744 -> 0.2557: MASTER VOSS's COUNTERWEIGHT -> VENOM DRIP (target 3) and day-10 LIMPET WORKS (target 2)
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "bulwark", v: 0.2959, ceiling: 0.3159 }, // carried (0.9.7 0.2741); 0.2741 -> 0.2959: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "highspire", v: 0.3180, ceiling: 0.3380 }, // carried (0.9.7 0.3180)
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "karsk", v: 0.3824, ceiling: 0.4024 }, // carried (0.9.7 0.3824)
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "longtooth", v: 0.3167, ceiling: 0.3367 }, // carried (0.9.7 0.3068); 0.3068 -> 0.3167: LONGTOOTH's re-plan (targets 2-4)
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "matriarch", v: 0.1696, ceiling: 0.1896 }, // carried (0.9.7 0.1696)
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "mothqueen", v: 0.2799, ceiling: 0.2999 }, // carried (0.9.7 0.2799)
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "silkshade", v: 0.1818, ceiling: 0.2018 }, // carried (0.9.7 0.1818)
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "voss", v: 0.2589, ceiling: 0.2789 }, // carried (0.9.7 0.2573); 0.2573 -> 0.2589: MASTER VOSS's COUNTERWEIGHT -> VENOM DRIP (target 3) and day-10 LIMPET WORKS (target 2)
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "bulwark", v: 0.2190, ceiling: 0.2390 }, // carried (0.9.7 0.2201); 0.2201 -> 0.2190: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "highspire", v: 0.2508, ceiling: 0.2708 }, // carried (0.9.7 0.2508)
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "karsk", v: 0.2676, ceiling: 0.2876 }, // carried (0.9.7 0.2676)
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "longtooth", v: 0.2442, ceiling: 0.2642 }, // carried (0.9.7 0.2335); 0.2335 -> 0.2442: LONGTOOTH's re-plan (targets 2-4)
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "matriarch", v: 0.1614, ceiling: 0.1814 }, // carried (0.9.7 0.1910); 0.1910 -> 0.1614: the Iron Matriarch's day-9 plate (target 6)
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "mothqueen", v: 0.1976, ceiling: 0.2176 }, // carried (0.9.7 0.1976)
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "silkshade", v: 0.0018, ceiling: 0.0218 }, // carried (0.9.7 0.0018)
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "voss", v: 0.2993, ceiling: 0.3193 }, // carried (0.9.7 0.2827); 0.2827 -> 0.2993: MASTER VOSS's COUNTERWEIGHT -> VENOM DRIP (target 3) and day-10 LIMPET WORKS (target 2)
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "bulwark", v: 0.0853, ceiling: 0.1053 }, // carried (0.9.7 0.0630); 0.0630 -> 0.0853: OLD BULWARK's VENOM DRIP -> POWDER KEG (target 3) and his day-8 / day-10 packs (target 2)
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "highspire", v: 0.1241, ceiling: 0.1441 }, // carried (0.9.7 0.1241)
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "karsk", v: 0.2118, ceiling: 0.2318 }, // carried (0.9.7 0.2118)
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "longtooth", v: 0.1633, ceiling: 0.1833 }, // carried (0.9.7 0.1394); 0.1394 -> 0.1633: LONGTOOTH's re-plan (targets 2-4)
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "matriarch", v: 0.0151, ceiling: 0.0351 }, // carried (0.9.7 0.0151)
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "mothqueen", v: 0.1429, ceiling: 0.1629 }, // carried (0.9.7 0.1429)
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "voss", v: 0.0489, ceiling: 0.0689 }, // carried (0.9.7 0.1775); 0.1775 -> 0.0489: MASTER VOSS's COUNTERWEIGHT -> VENOM DRIP (target 3) and day-10 LIMPET WORKS (target 2)
-  { rule: "matriarchLowest", day: 8, a: "brasswick", v: 0.1696, ceiling: 0.1896 }, // carried (0.9.7 0.1696)
-  { rule: "matriarchLowest", day: 8, a: "sootjaw", v: 0.0298, ceiling: 0.0498 }, // carried (0.9.7 0.0298)
-  { rule: "matriarchLowest", day: 9, a: "brasswick", v: 0.1614, ceiling: 0.1814 }, // carried (0.9.7 0.1910); 0.1910 -> 0.1614: the Iron Matriarch's day-9 plate (target 6)
-  { rule: "matriarchLowest", day: 9, a: "silkshade", v: 0.1596, ceiling: 0.1796 }, // carried (0.9.7 0.1892); 0.1892 -> 0.1596: the Iron Matriarch's day-9 plate (target 6)
-  { rule: "matriarchLowest", day: 9, a: "thistlemail", v: 0.0076, ceiling: 0.0276 }, // carried (0.9.7 0.0372); 0.0372 -> 0.0076: the Iron Matriarch's day-9 plate (target 6)
-  { rule: "matriarchLowest", day: 10, a: "brasswick", v: 0.0151, ceiling: 0.0351 }, // carried (0.9.7 0.0151)
-  { rule: "matriarchLowest", day: 10, a: "silkshade", v: 0.0524, ceiling: 0.0724 }, // carried (0.9.7 0.0524)
-  { rule: "pacing", day: 3, a: "grimhold", b: "furnace", v: 0.2758, ceiling: 0.2958 }, // carried (0.9.7 0.2758); pacing pin, cap's ruling ebdb9a49d368e029
-  { rule: "pacing", day: 3, a: "grimhold", b: "weaver", v: 0.9558, ceiling: 0.9758 }, // carried (0.9.7 0.9558); pacing pin, cap's ruling ebdb9a49d368e029
-  { rule: "parBeatsEasy", day: 5, v: 0.0877, ceiling: 0.1077 }, // carried (0.9.7 0.0747); 0.0747 -> 0.0877: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "parBeatsEasy", day: 6, v: 0.1275, ceiling: 0.1475 }, // carried (0.9.7 0.0595); 0.0595 -> 0.1275: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "parBeatsEasy", day: 7, v: 0.2045, ceiling: 0.2245 }, // carried (0.9.7 0.1946); 0.1946 -> 0.2045: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "parBeatsEasy", day: 8, v: 0.2483, ceiling: 0.2683 }, // carried (0.9.7 0.2361); 0.2361 -> 0.2483: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "parBeatsEasy", day: 9, v: 0.1614, ceiling: 0.1814 }, // carried (0.9.7 0.1502); 0.1502 -> 0.1614: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "parBeatsEasy", day: 10, v: 0.1267, ceiling: 0.1467 }, // carried (0.9.7 0.1193); 0.1193 -> 0.1267: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "parLosesToHard", day: 2, v: 0.1417, ceiling: 0.1617 }, // carried (0.9.7 0.1417)
-  { rule: "parLosesToHard", day: 3, v: 0.1613, ceiling: 0.1813 }, // carried (0.9.7 0.2356); 0.2356 -> 0.1613: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "poolBand", day: 1, v: 0.0266, ceiling: 0.0466 }, // carried (0.9.7 0.0266)
-  { rule: "poolBand", day: 8, v: 0.0058, ceiling: 0.0258 }, // carried (0.9.7 0.0122); 0.0122 -> 0.0058: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "slotGap", day: 2, a: "medium", b: "hard", v: 0.0464, ceiling: 0.0664 }, // carried (0.9.7 0.0464)
-  { rule: "slotGap", day: 3, a: "medium", b: "hard", v: 0.2016, ceiling: 0.2216 }, // carried (0.9.7 0.2759); 0.2759 -> 0.2016: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "slotGap", day: 5, a: "easy", b: "medium", v: 0.1465, ceiling: 0.1665 }, // carried (0.9.7 0.1488); 0.1488 -> 0.1465: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "slotGap", day: 6, a: "easy", b: "medium", v: 0.1097, ceiling: 0.1297 }, // carried (0.9.7 0.0326); 0.0326 -> 0.1097: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "slotGap", day: 7, a: "easy", b: "medium", v: 0.0064, ceiling: 0.0264 }, // carried (0.9.7 0.0033); 0.0033 -> 0.0064: the slots' means (this pass's Hard decks; NETTLE's and EMBERLYN's dusk decks, target 4)
-  { rule: "slotGap", day: 10, a: "easy", b: "medium", v: 0.0234, ceiling: 0.0434 }, // new: SOOTJAW's and SPARKFANG's day-10 packs (target 2: the FURNACE par count)
+  { rule: "easyOverHard", day: 1, a: "nettle", b: "highspire", v: 0.0183, ceiling: 0.0383 }, // carried (0.0249); 0.0249 -> 0.0183 s8-base (1e5fe4f 0.0212, 41a600a 0.0224)
+  { rule: "easyOverHard", day: 1, a: "nettle", b: "karsk", v: 0.0114, ceiling: 0.0314 }, // carried (0.1666); 0.1666 -> 0.0114 s8-base (1e5fe4f -0.0098, 41a600a 0.1520)
+  { rule: "easyOverHard", day: 1, a: "nettle", b: "mothqueen", v: 0.0252, ceiling: 0.0452 }, // carried (0.0542); 0.0542 -> 0.0252 s8-base (1e5fe4f 0.0408, 41a600a 0.0454)
+  { rule: "easyOverHard", day: 1, a: "ratchet", b: "highspire", v: 0.0356, ceiling: 0.0556 }, // new (red at s8-base: 0.0356; 1e5fe4f 0.0168, 41a600a passes)
+  { rule: "easyOverHard", day: 1, a: "ratchet", b: "karsk", v: 0.0288, ceiling: 0.0488 }, // carried (0.0586); 0.0586 -> 0.0288 s8-base (1e5fe4f -0.0142, 41a600a 0.0704)
+  { rule: "easyOverHard", day: 1, a: "ratchet", b: "mothqueen", v: 0.0426, ceiling: 0.0626 }, // new (red at s8-base: 0.0426; 1e5fe4f 0.0364, 41a600a passes)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "bulwark", v: 0.0185, ceiling: 0.0385 }, // new (red at s8-base: 0.0185; 1e5fe4f passes, 41a600a passes)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "highspire", v: 0.0462, ceiling: 0.0662 }, // new (red at s8-base: 0.0462; 1e5fe4f 0.0926, 41a600a 0.0399)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "karsk", v: 0.0315, ceiling: 0.0515 }, // carried (0.1921); 0.1921 -> 0.0315 s8-base (1e5fe4f 0.0431, 41a600a 0.1107)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "longtooth", v: 0.0482, ceiling: 0.0682 }, // carried (0.0848); 0.0848 -> 0.0482 s8-base (1e5fe4f 0.0883, 41a600a 0.0634)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "mothqueen", v: 0.0383, ceiling: 0.0583 }, // new (red at s8-base: 0.0383; 1e5fe4f 0.0589, 41a600a 0.0272)
+  { rule: "easyOverHard", day: 3, a: "brasswick", b: "bulwark", v: 0.0601, ceiling: 0.0801 }, // carried (0.1296); 0.1296 -> 0.0601 s8-base (1e5fe4f 0.0803, 41a600a -0.0250)
+  { rule: "easyOverHard", day: 3, a: "brasswick", b: "highspire", v: 0.0427, ceiling: 0.0627 }, // carried (0.1525); 0.1525 -> 0.0427 s8-base (1e5fe4f 0.0378, 41a600a -0.0838)
+  { rule: "easyOverHard", day: 3, a: "grubnose", b: "bulwark", v: 0.0494, ceiling: 0.0694 }, // carried (0.0231); 0.0231 -> 0.0494 s8-base (1e5fe4f 0.0075, 41a600a 0.0172)
+  { rule: "easyOverHard", day: 3, a: "grubnose", b: "highspire", v: 0.0320, ceiling: 0.0520 }, // carried (0.0460); 0.0460 -> 0.0320 s8-base (1e5fe4f -0.0350, 41a600a -0.0417)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "bulwark", v: 0.1244, ceiling: 0.1444 }, // carried (0.1520); 0.1520 -> 0.1244 s8-base (1e5fe4f 0.1343, 41a600a 0.1218)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "highspire", v: 0.1070, ceiling: 0.1270 }, // carried (0.1749); 0.1749 -> 0.1070 s8-base (1e5fe4f 0.0918, 41a600a 0.0629)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "mothqueen", v: 0.0539, ceiling: 0.0739 }, // carried (0.1086); 0.1086 -> 0.0539 s8-base (1e5fe4f 0.0604, 41a600a 0.0768)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "silkshade", v: 0.0537, ceiling: 0.0737 }, // carried (0.0194); 0.0194 -> 0.0537 s8-base (1e5fe4f 0.0225, 41a600a 0.0392)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "bulwark", v: 0.2992, ceiling: 0.3192 }, // carried (0.5542); 0.5542 -> 0.2992 s8-base (1e5fe4f 0.3670, 41a600a 0.1560)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "highspire", v: 0.1014, ceiling: 0.1214 }, // carried (0.4179); 0.4179 -> 0.1014 s8-base (1e5fe4f 0.0458, 41a600a -0.0420)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "karsk", v: 0.0511, ceiling: 0.0711 }, // carried (0.4489); 0.4489 -> 0.0511 s8-base (1e5fe4f 0.1612, 41a600a 0.0151)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "longtooth", v: 0.0951, ceiling: 0.1151 }, // carried (0.3229); 0.3229 -> 0.0951 s8-base (1e5fe4f 0.1325, 41a600a -0.0144)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "mothqueen", v: 0.0968, ceiling: 0.1168 }, // carried (0.3053); 0.3053 -> 0.0968 s8-base (1e5fe4f 0.0386, 41a600a 0.0281)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "silkshade", v: 0.1294, ceiling: 0.1494 }, // carried (0.4992); 0.4992 -> 0.1294 s8-base (1e5fe4f 0.1613, 41a600a -0.0804)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "voss", v: 0.3499, ceiling: 0.3699 }, // carried (0.4697); 0.4697 -> 0.3499 s8-base (1e5fe4f 0.2542, 41a600a 0.2801)
+  { rule: "easyOverHard", day: 5, a: "ratchet", b: "bulwark", v: 0.0387, ceiling: 0.0587 }, // carried (0.0293); 0.0293 -> 0.0387 s8-base (1e5fe4f 0.0231, 41a600a -0.0379)
+  { rule: "easyOverHard", day: 5, a: "ratchet", b: "voss", v: 0.0894, ceiling: 0.1094 }, // new (red at s8-base: 0.0894; 1e5fe4f passes, 41a600a 0.0862)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "bulwark", v: 0.2302, ceiling: 0.2502 }, // carried (0.4047); 0.4047 -> 0.2302 s8-base (1e5fe4f 0.3318, 41a600a 0.1521)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "karsk", v: 0.1999, ceiling: 0.2199 }, // carried (0.4270); 0.4270 -> 0.1999 s8-base (1e5fe4f 0.1921, 41a600a 0.1643)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "longtooth", v: 0.1683, ceiling: 0.1883 }, // carried (0.3071); 0.3071 -> 0.1683 s8-base (1e5fe4f 0.2297, 41a600a 0.0936)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "mothqueen", v: 0.0741, ceiling: 0.0941 }, // carried (0.3357); 0.3357 -> 0.0741 s8-base (1e5fe4f 0.0698, 41a600a 0.0557)
+  { rule: "easyOverHard", day: 6, a: "grubnose", b: "bulwark", v: 0.0155, ceiling: 0.0355 }, // new (red at s8-base: 0.0155; 1e5fe4f 0.0673, 41a600a passes)
+  { rule: "easyOverHard", day: 7, a: "brasswick", b: "karsk", v: 0.0221, ceiling: 0.0421 }, // carried (0.3201); 0.3201 -> 0.0221 s8-base (1e5fe4f 0.0336, 41a600a -0.0464)
+  { rule: "easyOverHard", day: 7, a: "nettle", b: "karsk", v: 0.0035, ceiling: 0.0235 }, // new (red at s8-base: 0.0035; 1e5fe4f passes, 41a600a 0.0006)
+  { rule: "easyOverHard", day: 8, a: "brasswick", b: "longtooth", v: 0.0233, ceiling: 0.0433 }, // carried (0.3167); 0.3167 -> 0.0192 s8-base (1e5fe4f 0.0838, 41a600a -0.0056) -> 0.0233 FIT-099
+  { rule: "easyOverHard", day: 8, a: "grubnose", b: "longtooth", v: 0.1931, ceiling: 0.2131 }, // new (red at s8-base: 0.2107; 1e5fe4f 0.2037, 41a600a passes) -> 0.1931 FIT-099
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "karsk", v: 0.2157, ceiling: 0.2357 }, // carried (0.2676); 0.2676 -> 0.1736 s8-base (1e5fe4f 0.0160, 41a600a 0.1339) -> 0.2157 FIT-099
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "longtooth", v: 0.2107, ceiling: 0.2307 }, // carried (0.2442); 0.2442 -> 0.1606 s8-base (1e5fe4f 0.0842, 41a600a 0.0980) -> 0.2107 FIT-099
+  { rule: "easyOverHard", day: 9, a: "grubnose", b: "karsk", v: 0.2101, ceiling: 0.2301 }, // new (red at s8-base: 0.2148; 1e5fe4f passes, 41a600a 0.0739) -> 0.2101 FIT-099
+  { rule: "easyOverHard", day: 9, a: "grubnose", b: "longtooth", v: 0.2051, ceiling: 0.2251 }, // new (red at s8-base: 0.2018; 1e5fe4f 0.0268, 41a600a 0.0380) -> 0.2051 FIT-099
+  { rule: "easyOverHard", day: 10, a: "brasswick", b: "karsk", v: 0.0209, ceiling: 0.0409 }, // carried (0.2118); 0.2118 -> -0.0089 s8-base (1e5fe4f -0.0977, 41a600a 0.0583) -> 0.0209 FIT-099
+  { rule: "easyOverHard", day: 10, a: "grubnose", b: "karsk", v: 0.1567, ceiling: 0.1767 }, // new (red at s8-base: 0.1320; 1e5fe4f passes, 41a600a passes) -> 0.1567 FIT-099
+  { rule: "easyOverHard", day: 10, a: "grubnose", b: "longtooth", v: 0.0551, ceiling: 0.0751 }, // new (red at s8-base: 0.0645; 1e5fe4f passes, 41a600a passes) -> 0.0551 FIT-099
+  { rule: "easyOverHard", day: 10, a: "ratchet", b: "karsk", v: 0.1363, ceiling: 0.1563 }, // new (red at s8-base: 0.0866; 1e5fe4f passes, 41a600a 0.1535) -> 0.1355 FIT-099 -> 0.1363 CAPTAIN_RUNES
+  { rule: "easyOverHard", day: 10, a: "ratchet", b: "longtooth", v: 0.0347, ceiling: 0.0547 }, // new (red at s8-base: 0.0192; 1e5fe4f passes, 41a600a 0.1646) -> 0.0339 FIT-099 -> 0.0347 CAPTAIN_RUNES
+  { rule: "pacing", day: 3, a: "grimhold", b: "furnace", v: 2.5175, ceiling: 2.5375 }, // carried (0.2758); 0.2758 -> 2.5175 s8-base (1e5fe4f 2.5175, 41a600a 0.2758)
+  { rule: "pacing", day: 3, a: "grimhold", b: "weaver", v: 4.7292, ceiling: 4.7492 }, // carried (0.9558); 0.9558 -> 4.7292 s8-base (1e5fe4f 4.7292, 41a600a 0.9558)
+  // HULL-ON H4, the captains pass (REQ-BFG-092; cap's rulings 6f4568477e66a600 = RULING-HULLON-R3 section 3's fallback and
+  // ed10dd26da1a89fb = RULING-HULLON-R13 Q9 (b)): three pacing pins, each v measured on the captains commit, ceiling v + 0.02.
+  // No captain number reaches them: GRIMHOLD has no count or level on days 1-2 (his first pack is day 3), and SOOTJAW has
+  // none that slows his day-3 damage. The bounds stay (15-45 s).
+  { rule: "pacing", day: 2, a: "grimhold", b: "furnace", v: 0.2783, ceiling: 0.2983 }, // cause GUARD (R3: 16.26 s with GUARD off); 14.7217 s, as at c4e8504
+  { rule: "pacing", day: 2, a: "grimhold", b: "weaver", v: 0.2867, ceiling: 0.3067 }, // cause GUARD with FREE_JOINS (WEAVER's pacing deck at FREE_JOINS_HULL's 1500): 14.7133 s; holds with either off (GUARD off 19.2 s, FREE_JOINS_HULL = {} 16.3 s)
+  { rule: "pacing", day: 3, a: "sootjaw", b: "weaver", v: 1.3167, ceiling: 1.3367 }, // cause FREE_JOINS (WEAVER's pacing deck at FREE_JOINS_HULL's 1500): 13.6833 s; holds with FREE_JOINS_HULL = {}, fails with GUARD off too
+  { rule: "parLosesToHard", day: 2, v: 0.3170, ceiling: 0.3370 }, // carried (0.1417); 0.1417 -> 0.3170 s8-base (1e5fe4f 0.2599, 41a600a 0.2390)
+  { rule: "parLosesToHard", day: 3, v: 0.2462, ceiling: 0.2662 }, // carried (0.1613); 0.1613 -> 0.2462 s8-base (1e5fe4f 0.2299, 41a600a 0.1733)
+  { rule: "parLosesToHard", day: 4, v: 0.0222, ceiling: 0.0422 }, // new (red at s8-base: 0.0222; 1e5fe4f 0.0480, 41a600a passes)
+  { rule: "parLosesToHard", day: 5, v: 0.0878, ceiling: 0.1078 }, // new (red at s8-base: 0.0878; 1e5fe4f 0.1085, 41a600a 0.0519)
+  { rule: "poolBand", day: 1, v: 0.0934, ceiling: 0.1134 }, // carried (0.0266); 0.0266 -> 0.0934 s8-base (1e5fe4f 0.0633, 41a600a 0.0486)
+  { rule: "poolBand", day: 2, v: 0.0760, ceiling: 0.0960 }, // new (red at s8-base: 0.0760; 1e5fe4f 0.0307, 41a600a 0.0182)
+  { rule: "poolBand", day: 3, v: 0.1137, ceiling: 0.1337 }, // new (red at s8-base: 0.1137; 1e5fe4f 0.0971, 41a600a 0.0428)
+  { rule: "poolBand", day: 4, v: 0.0036, ceiling: 0.0236 }, // new (red at s8-base: 0.0036; 1e5fe4f 0.0018, 41a600a passes)
+  { rule: "slotGap", day: 2, a: "medium", b: "hard", v: 0.0601, ceiling: 0.0801 }, // carried (0.0464); 0.0464 -> 0.0601 s8-base (1e5fe4f 0.0363, 41a600a 0.0033)
+  { rule: "slotGap", day: 3, a: "medium", b: "hard", v: 0.0605, ceiling: 0.0805 }, // carried (0.2016); 0.2016 -> 0.0605 s8-base (1e5fe4f 0.0738, 41a600a 0.0362)
+  // HULL-ON H4, the captains pass (cap's rulings 6f4568477e66a600 = R3 section 3's fallback and ed10dd26da1a89fb = R13 Q9
+  // (b)): v measured on the captains commit, ceiling v + 0.02. Cause GUARD (R3: +0.063 with GUARD off at the flip) with
+  // FREE_JOINS a co-cause (WEAVER's hull at FREE_JOINS_HULL's 1500: the gap -0.021 -> -0.026; GUARD off on the WEAVER tree
+  // +0.043, still under 0.05). No least change clears it: three day-4 PvE plates moved 0.030 of the 0.076 needed.
+  { rule: "slotGap", day: 4, a: "medium", b: "hard", v: 0.0721, ceiling: 0.0921 }, // carried (0.0763); 0.0763 -> 0.0721 s8-base (1e5fe4f 0.0763, 41a600a -0.0350)
+  { rule: "slotGap", day: 5, a: "medium", b: "hard", v: 0.0570, ceiling: 0.0770 }, // new (red at s8-base: 0.0570; 1e5fe4f passes, 41a600a passes)
+  { rule: "slotGap", day: 7, a: "medium", b: "hard", v: 0.0118, ceiling: 0.0318 }, // new (red at s8-base: 0.0118; 1e5fe4f passes, 41a600a 0.0116)
 ];
 const open = (rule: LadderRule, day: number, a?: string, b?: string): LadderOpen | undefined =>
   LADDER_X_OPEN.find((x) => x.rule === rule && x.day === day && x.a === a && x.b === b);

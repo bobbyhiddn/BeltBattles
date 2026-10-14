@@ -3,15 +3,22 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
-## 0.9.9: the battle view
+## 0.9.9: 10 hearts, hulls that grow and the battle view
 
-Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 0.9.9 players.
+New battle rules: bb-0.10.0 (hulls that grow with the day, a warlord every day, 10 hearts, open rune offers, free joins,
+more SHIELD and WARD, WEAVER's hull 1500). Ghosts and uploads from 0.9.8 no longer meet 0.9.9 players, and the stand-in
+and seed pools were rebuilt for the new rules, with the new long rigs and bigger factories: 78 of the 120 stand-ins hold
+one (FURNACE 36 of 60, WEAVER 42 of 60), and so do 68 of the 120 seed ghosts. You'll fight that fresh pool of 120 ghosts
+at first, then other players' 0.9.9 runs as they come in. The captains' runes were rebuilt with them: SOOTJAW carries
+SCRAP SAINT in place of LAST STAND on day 10, and RATCHET IRON SKIN in place of SCRAP BITER from day 7. A browser still
+on the 0.9.8 page keeps meeting 0.9.8's ghosts, but its runs no longer go online until it reloads. A run you started in
+0.9.8 finishes on its 5 lives, and its decks stay off the server.
 - **Battle settings:** every battle now has its own setting, picked at random: on water (OPEN SEA, STORM SEA or EMBER
   SEA), on the ground (FOREST, DESERT or BADLANDS) or in the air (SKY or STORM CLOUDS). Your carrier rolls on tracks over
   the ground and flies on engine pods through the air. A replay shows its battle's setting, and the title's demo fight
   tours them all.
 - **A wider view of the fight:** the camera pulls back while the carriers fight, so both ships and the setting around
-  them show with room to spare. Your plates, the clock and the speed controls keep their size.
+  them show with room to spare. The hull panels, the clock and the speed controls keep their size.
 - **VIEW BATTLEFIELD after every fight:** a new button on the result card shows both carriers as the fight left them,
   with each side's damage dealt, shots, hull lost, SHIELD soaked and WARD stops. Tap a part to read it; a turret also
   says how much damage it dealt in how many shots. BACK returns to the card, or go on from the view.
@@ -23,7 +30,7 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
   drawn over the storm, and both hull bars flash.
 - DARK WIND · HITS BOTH HULLS shows between the carriers when the wind rises, in replays too (it was a blinking banner over
   the boards).
-- Each plate shows its hull as a number, with its max where there is room ("805/2100").
+- Each hull panel shows its hull as a number, with its max where there is room ("805/2100").
 - WARD shows its count beside its pips, and SHIELD shows its amount beside the bar. A hit SHIELD soaks pops BLOCKED and
   the amount; a hit a WARD stops pops BLOCKED.
 - VIEW BATTLEFIELD adds WIND TAKEN. Its SHIELD and WARD rows read SHIELD BLOCKED and WARD BLOCKED.
@@ -31,15 +38,22 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
   sideways), the storm rolls in from both sides of the screen, so it covers both boards alike. It used to cover only
   your board there. A phone held upright looks as before.
 - **Every number shows over the dark wind:** hits, BURN, heals and BLOCKED are never dimmed by the storm.
-- **In a replay, BACK keeps off the foe's plate:** on a desktop or laptop it sits in the bottom right corner, so the
+- **In a replay, BACK keeps off the foe's panel:** on a desktop or laptop it sits in the bottom right corner, so the
   foe's hull number shows in full.
 - **One fight clock:** the playback bar and the result card read the same second at the end of a fight (a 69-second
   fight read 1:08 on the bar and 69S on the card).
-- The battle shows each fight's counts as numbers: a status row on each plate (BURN stacks, FRAY out of 15, parts stunned);
-  the foe's statuses were drawn off the screen before.
+- The battle shows each fight's counts as numbers: a status row on each hull panel (BURN stacks, FRAY out of 15, parts
+  stunned); the foe's statuses were drawn off the screen before.
 - Each gun shows the slugs waiting at it; it turns amber when 4 are backed up and red with JAM until it fires again.
-- Each belt shows the slugs on it while the fight runs.
-- Tap or hover a plate's counts, a gun or a belt to read each count's rule.
+- Each belt shows the slugs on it while the fight runs. A one-tile belt that joins another shows none: its slugs are
+  counted on the belt they join.
+- Tap or hover a panel's counts, a gun or a belt to read each count's rule.
+- A counter's panel and a part's face in battle show that day's numbers, as the build screen does.
+- Word notes on a belt's panel, the ⓘ view's rune words and a fitted part's panel now show that day's numbers too.
+- Rune cards: tapping FRAY or BURN shows that day's damage, the same number the pieces' panels show.
+- The hull panel's REGEN badge now shows the heal that lands each second on that day's hull.
+- A long foe name on the battle panel now makes room instead of being drawn over by the numbers: its ONLINE or OFFLINE
+  tag goes first, then the end of the name, marked with a dot.
 - A PAIR shows on the board: both belts' last tiles flash blue, a bracket joins them at the gun, PAIR's mark pops over
   it, and each hit of the paired shot carries the mark.
 - A load waiting for its partner makes its belt's last tile glow until its window closes.
@@ -76,19 +90,107 @@ Same battle rules as 0.9.8 (bb-0.9.7), so 0.9.8's ghosts and uploads still meet 
 - **WHETSTONE, TEMPER and BARBED SPOOL** show their bonus as a stat.
 - **SHIELD and WARD:** plating, the layer that soaks damage point for point before your hull, is now called SHIELD (it
   was PLATE). The old SHIELD, the block that stops all of one hit's damage and then breaks, is now called WARD. Both
-  words have new definitions, and if you have played before, a one-time notice tells you the new names.
+  words have new definitions, and if you played 0.9.8 or earlier on this device, a one-time notice tells you the new
+  names.
 - **Phone shop cards say what they do:** every core, every piece of gear and four rigs (TOLLBOOTH, SORTING ARM, BRACE
   FRAME and OVERDRIVE) now name what they do on their shop card, in words where the picture was (SPLASHES, HULL ONLY,
   ALL LOADS, ...).
+- Every factory's phone shop card now says what it makes, and 19 more rigs, the inner-column guns and most cores and
+  gear say what they do in two short rows. HOW TO PLAY names the kinds of pieces and the six keywords, a fitted piece's
+  keyword notes now open one after another, and LIMPET WORKS' and SCRAPPER's numbers follow the day.
 - **More details fit on a small phone:** more parts' details now fit the strip between the shop and your carrier, so
-  fewer grow up over the shop. Some use the small letters to fit, and a how-to tip shows just above the details instead
-  of making them taller. An idle rig's fix (TURN IT OR MOVE IT BESIDE A BELT.) moves to NOTES.
+  fewer grow up over the shop. Some use the small letters to fit, and a how-to tip shows just under the details, on your
+  carrier's side (just above them where the screen has no room there), instead of making them taller. An idle rig's fix
+  (TURN IT OR MOVE IT BESIDE A BELT.) moves to NOTES.
 - A word's definition now opens just above its line when it would cover that word, and on a rune card it keeps clear
   of TAP AGAIN TO TAKE IT.
 - LAST CHANCE's part and hull cards leave clear space between their items, the box under a hovered shop card on a
   desktop leaves space under its family line, and a rune's read-out from the rune bar ends after its last line unless a
   note shows.
-- No rule changed: every fight plays exactly as in 0.9.8, and online play is unchanged.
+- The first time you meet a keyword on a rune card or a piece's panel, its meaning opens by itself, and the first rig you
+  look at explains what rigs do. Every keyword on a rune card can be tapped for its meaning, and turrets show RATE, HOLDS
+  and GEAR SLOTS in words.
+- Rune cards: only the TAP AGAIN TO TAKE IT bar takes a rune now, so a tap on the card or on one of its words no longer
+  takes it by mistake, and on phones a card's words are easier to tap. A rune that needs a part now says which in its
+  note (COAL CHUTE: WORKS WITH A HEAT JACKET OR FURNACE'S KILN). Notes and the how-to strip no longer cover a panel's
+  title, BUY, prices or REROLL. Card words that playtesters misread are clearer.
+- Three new rigs take more than one deck cell: NAIL STRIP and EMBER TROUGH (2 cells, common) and SPIKE RAIL (3 cells,
+  rare). Each arrow shines from every cell, so a long rig laid along a belt hits more of it.
+- GANTRY PRESS is now 2 by 3 cells and feeds one more belt at every star.
+- ASSEMBLY LINE is now 3 cells in a line and costs 1 gold less.
+- Long rigs and the bigger factories turn: tap the piece, press R or turn the mouse wheel. If a turn doesn't fit there,
+  the next one is tried.
+- On a phone, a long piece you drag shows above your finger and snaps to the nearest spot where it fits. A ROTATE button
+  floats beside it: tap it with a second finger.
+- Cards show each piece's shape and how many hits it can make.
+- No rig or factory can be dropped on a turret's intake any more (a rig already there may stay). A turret put in over a
+  long rig or a big factory sends that piece to your cargo.
+- In a saved run, GANTRY PRESS and ASSEMBLY LINE move to a spot where their new shape fits, and the build screen says
+  so. A belt that can't stay is removed, and a factory with no room goes to your cargo.
+- When a run has no part of a kind for the SMUGGLER to sell, its card says NONE ON OFFER again.
+- The build screen runs smoothly again on slower phones: it now redraws only the parts of the picture that move, so it
+  looks exactly the same.
+- **Hull grows with the day:** every carrier's max hull grows with the day: on day 2 it is 140% of day 1's, then 180%,
+  220%, 280%, 340%, 400%, 460% and 520% on days 3 to 9, and 600% on day 10. Damage grows too, more slowly: 130% on day
+  2, 160% on day 3, 170% on day 4, 180% on day 5, 200% on day 6, then 210%, 230%, 240% and 260% on days 7 to 10. Heals
+  and SHIELD grow with the day just as max hull does: every heal, from RIVETER, MEND PRESS, MENDING LOOM, GREEN THREAD,
+  TWIN SALVE, SCRAP MEDIC and LEECH VOW (SCRAP MEDIC's 300 HEAL is 1,800 on day 10), and every SHIELD you gain (PLATE
+  ROLLER's 15 a payload is 90 on day 10). WARD doesn't grow: it blocks a whole hit, however hard. The numbers in these
+  notes are day 1's; cards show each day's. In 0.9.8 none of these grew.
+- With shapes on, days 3-5 hit a little softer, so those fights keep their pace.
+- The dark wind now takes the same share of every hull's maximum, so a bigger hull no longer outlasts a smaller one when
+  the wind rises.
+- Each day's gold keeps growing to day 10: 6 gold plus the day's number, up to 10, and 2 more after a win. In 0.9.8 it
+  stopped growing after day 6.
+- **A warlord every day:** after the caravan, the road always has a warlord fight: pick Easy, Medium or Hard (the stop
+  with only a road event is gone). The day's road event follows, then REFIT, where you can rearrange your carrier but
+  can't buy, sell or reroll, and then dusk.
+- The fork names the day's event under the warlords (AFTER THE FIGHT: and the event's name), and REFIT's bar reads
+  REFIT · DAY n/10.
+- A warlord you beat drops one part of the deck it fought with, 60%, 75% or 90% of the time (Easy, Medium, Hard), into
+  your cargo: at ★1, or at ★2 from Hard. It replaces Hard's pick of 2 parts.
+- What a warlord drops: common rigs most often, then rare rigs and gear, and least often epic parts, turrets and
+  factories (from Easy and Medium they weigh 6, 3, 1 and 1; from Hard 5, 3, 2 and 2), each part in a group as likely as
+  the next. Signature factories, supplies and legendary parts never drop, and the IRON MATRIARCH still pays her
+  legendary part. The fork shows each warlord's drop chance (DROP 75%), its ⓘ the odds of each part, and the victory
+  card the drop (DROP · TO CARGO · ★2 from Hard).
+- Star steps that didn't pay now do: QUENCH TANK ★1 turns each BURN on the payloads it hits into 40 damage (30 in 0.9.8,
+  no more than the BURN itself), STOKER ★3 makes the factories its arrows point at up to 85% faster (70%), and at ★2 and
+  ★3 a payload OVERDRIVE speeds up keeps 50% and 100% of the ride the speed cuts, for its ride bonuses.
+- **10 hearts:** runs now start with 10 hearts. Early losses cost 1 heart, later ones 2 or 3 (days 1-3, 4-6, and from
+  day 7); draws and road fights cost none. LAST CHANCE comes once, at the first loss before the last day that would leave
+  you 1 heart or fewer, and keeps you on 1 heart. In 0.9.8 a run had 5 lives and every loss cost 1.
+- Hearts on screen: your hero card counts them (7/10 HEARTS), and NEXT BATTLE and the dusk fight's intro show what
+  tonight's loss costs (-1, -2 or -3 and a heart) and say LAST CHANCE SAVES YOU when it would. PATCH UP at the FIELD
+  DOCK gives 1 heart, up to 10 (1 life, up to 5, in 0.9.8).
+- The early-loss refund is gone: in 0.9.8 a life lost on day 1 or 2 came back at the dawn of day 3, once a run.
+- **LAST CHANCE:** once a run, the first dusk loss before day 10 that would leave you 1 heart or fewer leaves you on 1
+  heart instead (day 6 at the earliest: six losses in a row cost 9 of your 10 hearts). The dusk card says LAST CHANCE:
+  1 HEART, and at the next dawn, before your rune, you take one of three free cards: an epic RUNE, which can be any
+  hero's now; an epic PART (a rig, turret or gear) into your cargo at ★2; or the HULL card, +500 max hull for the rest
+  of the run that grows with the day as your hull does (+700 on day 2, then +900, +1,100, +1,400, +1,700, +2,000,
+  +2,300 and +2,600 on days 3 to 9, and +3,000 on day 10), so it is +2,000 to +3,000 on the dawns it can come (days 7
+  to 10). In 0.9.8 it came when a loss left you on your last life and gave that life back; its RUNE fitted your hero,
+  its PART came at ★1 and its HULL card was +500 on every day.
+- Players on a losing streak now meet opponents they can beat: the bottom of the ghost pool is built from a casual
+  player's decks. Once your losses are 2 or more ahead of your wins, you meet the weaker half of the ghosts you could
+  be matched with.
+- The opening opponents were rebuilt for 0.9.9's rules, so a typical run is tougher than in 0.9.8: it now ends around 5
+  wins, against about 7 in 0.9.8.
+- **Open rune offers:** rune offers are open now: any hero can be offered any rune. THE LONG ROAD now gives +6% damage
+  per rig a load passes (in 0.9.8 it doubled your ride bonus).
+- **Free joins:** joins are free now: a joined factory keeps its full pace, and a deck can hold as many joins as you
+  build. In 0.9.8 a joined factory ran at 70% pace and a deck held 2 joins.
+- **More SHIELD and WARD:** PLATE ROLLER now rolls 15, 33 or 51 SHIELD onto your hull for each payload it hits at ★1, ★2
+  or ★3 (5, 11 or 17 in 0.9.8), and WARD BELL gives your hull one WARD every 4, 3 or 2 seconds (8, 5 or 4). RIVET
+  HOARD's FIGHT START is +180 SHIELD (+60), LAST WALL's AT HALF HULL +140 SHIELD (+80), and SEAM RIVETS' EACH PAIR +30
+  SHIELD (+10).
+- WEAVER's hull is now 1500 on day 1 (1700 in 0.9.8), so a road event that costs hull says HULL TOO WEAK sooner: an
+  event can't take your max hull below 1,000 on day 1, a floor that grows with the day as your hull does (2,800 on day
+  5, 6,000 on day 10).
+- THANE KARSK and THISTLEMAIL carry fewer ARMOR PACKs late in a run.
+- **Online:** 0.9.9's runs go online under the new rules, and the server checks each one by them: its hearts, its LAST
+  CHANCE and every warlord drop it claims (a drop must be the one that warlord's roll gave).
 
 ## 0.9.8: styles you earn
 

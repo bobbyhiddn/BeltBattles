@@ -17,6 +17,7 @@ import { walkRoute, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { K, SEED, barge, furnaceBench, item, latchDeck, pastTile, run, twoPress, withItem, withMod } from "./wave3.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): STOKER ★3's off check
+import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's off check
 
 type Metric = number | number[];
 interface Row { id: string; headline: string; band?: [number, number]; at: (stars: number) => Metric }
@@ -279,12 +280,15 @@ describe("wave 3 at 1, 2 and 3 stars: each module's headline number rises (REQ-B
 
 describe("wave 3's named rules", () => {
   it("PLATE ROLLER: 0.5 / 1.1 / 1.7 plating for each payload it hits, never past 24", () => {
-    for (const [s, want] of [[1, 5], [2, 11], [3, 17]] as const) { // NUM-1: x10 (was 0.5 / 1.1 / 1.7)
+    // HULL-ON (the flip, GUARD): 5 / 11 / 17 -> 15 / 33 / 51 a payload (x3, REQ-BFG-097's plate patch, guard.ts GUARD_PLATE);
+    // the cap stays 240. With GUARD off, 5 at 1 star, as before (below)
+    for (const [s, want] of [[1, 15], [2, 33], [3, 51]] as const) { // NUM-1: x10 (was 0.5 / 1.1 / 1.7)
       const ps = plates(onTile3("plateroller", s), 100); // a Kiln slug every 1.25 s: 240 plating within 61 s even at 1 star
       expect(ps[0].amount).toBe(want);
       expect(ps.reduce((a, p) => a + p.amount, 0)).toBe(240); // it filled the 240 cap, and no more (NUM-1: whole, x10 of 24)
       expect(ps.at(-1)!.amount).toBeLessThanOrEqual(want); // the last roll only topped it up
     }
+    expect(withGuard(() => plates(onTile3("plateroller", 1), 100)[0].amount, false)).toBe(5); // HULL-ON (GUARD): off, as before
   });
 
   // NUM-3 (R1's STUN fold): the title's "stalls, freezes and chain slows" is every STUN now (FROSTBITE's and DRAG CHAIN's

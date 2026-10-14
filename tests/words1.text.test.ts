@@ -28,6 +28,7 @@ import { FAMILY, FAMILY_ORDER, familiesOf, familyNote } from "../src/ui/families
 import { runeLine, runeReminder, runeTag } from "../src/ui/runeText";
 import { shopChip } from "../src/ui/chips";
 import { fmtCount } from "../src/ui/statFormat";
+import { HELP, HELP_HEARTS_2, helpLine3, helpLines } from "../src/screens/title"; // CARD-5 (REQ-BFG-111): HOW TO PLAY in the sweep
 import { buildLayout, buildScale, panelArea, type BuildLayout, type Sel } from "../src/screens/build/layout";
 import { columnButtons, detailsPlan, fullText, visibleLines, type PanelPlan } from "../src/screens/build/inspector";
 import { offerPanel, cargoPanel } from "../src/screens/build/inspector";
@@ -141,6 +142,13 @@ describe("WORDS-1: the new lines", () => {
     }
     for (const t of FAMILY_ORDER) for (const re of RETIRED) expect(familyNote(t), t).not.toMatch(re);
     expect(n).toBeGreaterThan(400);
+  });
+
+  // CARD-5 (REQ-BFG-111; REVIEW-CARD5PREP 5.3): HOW TO PLAY was outside this sweep, which is how item 4's SHOCK outlived it
+  it("no retired coined word in HOW TO PLAY: HELP, the card the title draws (helpLines), HEARTS' line 2 and line 3 in both FREE_JOINS forms", () => {
+    const texts = [...HELP, ...helpLines(), HELP_HEARTS_2, helpLine3(true), helpLine3(false)];
+    for (const t of texts) for (const re of RETIRED) expect(t, t).not.toMatch(re);
+    expect(texts.join(" ")).toMatch(/\bSTUN\b/);
   });
 
   it("a panel names a core's and gear's kind in plain words and no merchant: the desk's wagon tags keep the names", () => {

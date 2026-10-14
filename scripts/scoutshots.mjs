@@ -23,6 +23,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
 
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
@@ -159,7 +160,7 @@ const nextAt2x = async (page, touch) => {
   must(r.phase === "result", `the dusk's card (${r.phase})`);
   await steps(page, 40);
   await tapRegion(page, "next", touch, 60); // ON TO DAWN · DAY 7, the dawn's build screen (its wipe)
-  for (let i = 0; i < 2 && (await region(page, "runepick-0")); i++) await tapRegion(page, "runepick-0", touch, 20); // a dawn rune pick, if up
+  await takeRuneCard(page, async (p) => { await tap(page, p.x, p.y, touch); await steps(page, 20); }); // a dawn rune pick, if up (CARD-4: its bar after the guard)
   await tapRegion(page, "fight", touch, 60); // FIGHT!: the road fork
   must((await page.evaluate(() => window.bb.screen())) === "fork", "the road fork");
   for (let i = 0; i < (touch ? 2 : 1); i++) await tapRegion(page, "fork1", touch, 30); // EASY: the warlord's battle
@@ -344,7 +345,7 @@ async function tour(browser) {
   await tapId("viewnext", "ON TO DAWN in the view");
   await hold(3.0);
   await mark("ON TO DAWN: the next day's build screen");
-  for (let i = 0; i < 2 && (await region(page, "runepick-0")); i++) { await tapId("runepick-0", "the dawn's rune"); await hold(0.8); }
+  await takeRuneCard(page, async (p) => { await tapAt(p); await frame(); }, { wait: (ms) => hold(ms / 1000) }); // the dawn's rune, if up (CARD-4: its bar after the guard)
   await tapId("fight", "the build screen's FIGHT!");
   await hold(1.8);
   await mark("the road fork");

@@ -8,6 +8,7 @@ import type { SideStats } from "../src/sim/battle";
 import type { GhostSnapshot } from "../src/game/ghosts";
 import { RULES_VERSION } from "../src/sim/content";
 import { startingBuild } from "../src/sim/ai";
+import { HEARTS_START, withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a run starts with 10 hearts
 
 const STATS = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 0, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -29,7 +30,10 @@ describe("the 10-day run", () => {
     expect(RUN_DAYS).toBe(10);
     expect(START_LIVES).toBe(5);
     const run = newRun("weaver", 7);
-    expect([run.day, run.lives, run.wins, run.losses, run.over, run.dusk]).toEqual([1, 5, 0, 0, null, null]);
+    // HULL-ON (the flip, HEARTS): 5 -> 10: a run starts with HEARTS_START hearts (Run.lives holds them); off, START_LIVES
+    expect([run.day, run.lives, run.wins, run.losses, run.over, run.dusk]).toEqual([1, HEARTS_START, 0, 0, null, null]);
+    expect(HEARTS_START).toBe(10);
+    expect(withHearts(() => newRun("weaver", 7), false).lives).toBe(START_LIVES);
     expect(run.version).toBe(8); // 0.6.1a: save v7 (RUN_VERSION = 7, module stars); 0.6.0b's v6 added the road fork fields; NUM-1: v8 (hull x10)
   });
 
@@ -38,15 +42,17 @@ describe("the 10-day run", () => {
     const g0 = run.gold;
     startDusk(run, []);
     const r1 = finishDay(run, L, 30, STATS, STATS);
-    expect([run.lives, run.losses, run.wins, run.day]).toEqual([4, 1, 0, 2]);
+    // HULL-ON (the flip, HEARTS): 4 -> 9: 10 hearts, and a day-1 loss costs heartCost(1) = 1 heart
+    expect([run.lives, run.losses, run.wins, run.day]).toEqual([9, 1, 0, 2]);
     expect(r1.income).toBe(incomeFor(1, false));
     startDusk(run, []);
     finishDay(run, D, 30, STATS, STATS);
     // 0.6.2 RULE EARLY-LOSS REFUND (tests/refund.test.ts): day 3's dawn gives back the life lost on day 1 (4 -> 5)
-    expect([run.lives, run.losses, run.wins, run.day]).toEqual([5, 1, 0, 3]);
+    // HULL-ON (the flip, HEARTS): 5 -> 9: a hearts run has no day-3 refund (refund.test.ts plays it with HEARTS off)
+    expect([run.lives, run.losses, run.wins, run.day]).toEqual([9, 1, 0, 3]);
     startDusk(run, []);
     const r3 = finishDay(run, W, 30, STATS, STATS);
-    expect([run.lives, run.losses, run.wins, run.day]).toEqual([5, 1, 1, 4]);
+    expect([run.lives, run.losses, run.wins, run.day]).toEqual([9, 1, 1, 4]); // HULL-ON (the flip, HEARTS): 5 -> 9, as above
     expect(r3.income).toBe(incomeFor(3, true));
     expect(run.gold - g0).toBe(incomeFor(1, false) + incomeFor(2, false) + incomeFor(3, true));
     expect(record(run)).toBe("1-1");
@@ -60,11 +66,13 @@ describe("the 10-day run", () => {
     expect(flawless(perfect)).toBe(true);
     const bumpy = play([L, W, L, W, D, L, W, W, L, W]);
     expect(bumpy.over).toBe("complete");
-    expect([bumpy.wins, bumpy.losses, bumpy.lives]).toEqual([5, 4, 2]); // 0.6.2: day 1's loss refunded at day 3's dawn
+    // 0.6.2: day 1's loss refunded at day 3's dawn. HULL-ON (the flip, HEARTS): 2 -> 3: 10 hearts, the losses on days 1, 3,
+    // 6 and 9 cost 1 + 1 + 2 + 3 (heartCost by day), and no refund
+    expect([bumpy.wins, bumpy.losses, bumpy.lives]).toEqual([5, 4, 3]);
     expect(flawless(bumpy)).toBe(false);
     expect(bumpy.history.map((h) => h.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     const draws = play(Array(10).fill(D));
-    expect([draws.over, draws.wins, draws.losses, draws.lives]).toEqual(["complete", 0, 0, 5]);
+    expect([draws.over, draws.wins, draws.losses, draws.lives]).toEqual(["complete", 0, 0, HEARTS_START]); // HULL-ON (the flip, HEARTS): 5 -> 10
   });
 
   it("at 0 lives the run is lost on that day, even on day 10", () => {
@@ -77,11 +85,14 @@ describe("the 10-day run", () => {
     expect(lost.over).toBe("lost");
     expect([lost.day, lost.lives, lost.losses]).toEqual([8, 0, 7]); // Z-BUMP: the flip (was [7, 0, 6])
     expect(lost.history.length).toBe(8); // Z-BUMP: the flip (was 7)
-    expect(lost.lastChance).toEqual({ day: 6 }); // its LAST CHANCE fired at dusk 6 (1 -> 2 lives); 0 lives still ends it
+    // HULL-ON (the flip, HEARTS): the same two runs end the same way on 10 hearts (1/2/3 a loss by day): `lost` is at 9 8 8
+    // 6 4 2, its day-7 loss (2 - 3) fires LAST CHANCE (sets 1) and day 8's ends it; `late` is at 9 7 5 2, its day-9 loss
+    // fires LAST CHANCE and day 10's ends it. So LAST CHANCE's day moves: 6 -> 7 and 8 -> 9
+    expect(lost.lastChance).toEqual({ day: 7 }); // its LAST CHANCE fired at dusk 7 (sets 1 heart); 0 hearts still ends it
     const late = play([W, W, L, W, L, L, W, L, L, L]);
     expect(late.over).toBe("lost");
     expect(late.day).toBe(10);
-    expect(late.lastChance).toEqual({ day: 8 }); // its LAST CHANCE fired at dusk 8
+    expect(late.lastChance).toEqual({ day: 9 }); // its LAST CHANCE fired at dusk 9 (HULL-ON, HEARTS: was 8)
   });
 
   it("no 12-round cap and no 7-win finish: a run is exactly as long as its days", () => {

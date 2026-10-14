@@ -8,6 +8,8 @@ import { Battle, simulate, type BattleRecord, type Side } from "../sim/battle";
 import { checkBuildShape, MAX_DAY } from "./snapshot";
 import { runeMods } from "../sim/runes"; // RUNES-2a (REQ-BFG-058): WARLORD'S DUE's wins travel in the record
 import { rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules
+import { freeJoinsFor } from "./rulesGate"; // JOINS-1 (REQ-BFG-091): free joins by the record's own rules
+import { withFreeJoins } from "../sim/freeJoins"; // JOINS-1
 import { dayScaled, hullScaleRules } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the record's day
 import { buildReads, scaleRules } from "../sim/scale"; // SCALE-2a (REQ-BFG-098): wins and hearts lost for `reads` pieces
 
@@ -101,11 +103,16 @@ export function outcomeOf(b: Battle): BattleOutcome {
 /** A fresh, unstepped Battle for animated playback of a stored record. */
 export function replayBattle(record: BattleRecord): Battle {
   const r = checkRecord(record);
-  return new Battle(r.builds[0], r.builds[1], r.seed, r.wins, r.day, r.lost); // RUNES-2a: r.wins for WARLORD'S DUE; HULL-1a: r.day; SCALE-2a: r.lost
+  // JOINS-1 (REQ-BFG-091): built under the record's own rules' answer to free joins (rulesGate.ts freeJoinsFor); the
+  // battle reads the join pace and the joins once, where it starts (makeSide), so its playback keeps them
+  // SCALE-2c M0 (REQ-BFG-098): both sides kept: JOINS-1's withFreeJoins around SCALE-2a's r.lost
+  return withFreeJoins(() => new Battle(r.builds[0], r.builds[1], r.seed, r.wins, r.day, r.lost), freeJoinsFor(r.rules)); // RUNES-2a: r.wins for WARLORD'S DUE; HULL-1a: r.day; SCALE-2a: r.lost
 }
 
 /** Headless replay to the end; same result as the original simulate() call. */
 export function replay(record: BattleRecord, maxTicks?: number): BattleOutcome {
   const r = checkRecord(record);
-  return outcomeOf(simulate(r.builds[0], r.builds[1], r.seed, maxTicks, r.wins, r.day, r.lost)); // HULL-1a: the record's day; SCALE-2a: its hearts lost
+  // JOINS-1 (REQ-BFG-091): under the record's own rules' answer to free joins, as replayBattle
+  // SCALE-2c M0 (REQ-BFG-098): both sides kept: JOINS-1's withFreeJoins around SCALE-2a's r.lost
+  return outcomeOf(withFreeJoins(() => simulate(r.builds[0], r.builds[1], r.seed, maxTicks, r.wins, r.day, r.lost), freeJoinsFor(r.rules))); // HULL-1a: the record's day; SCALE-2a: its hearts lost
 }

@@ -25,7 +25,7 @@ import { dirname, join, resolve } from "node:path";
 import { FakeS3 } from "./fakeS3";
 import { generateSamplePool } from "./samplePool";
 import { KEY_HEADER, SIG_HEADER, loadIdentity, memoryKeyStore } from "../src/net/identity";
-import { encodeSnapshot, ghostId, SNAPSHOT_V3 } from "../src/net/snapshot";
+import { encodeSnapshot, ghostId, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { RULES_VERSION, START_LIVES } from "../src/sim/content";
 // 0.7.0a: the game's side of the server (section 6, and the closed upload in section 3)
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
@@ -57,6 +57,15 @@ const say = (s = "") => {
 const check = (ok: boolean, what: string) => {
   say(`${ok ? "PASS" : "FAIL"}  ${what}`);
   if (!ok) failures++;
+};
+
+// STAGE-099C PREP F1 (release lane 4228a395, 2026-10-13): an upload never carries a grade. With PICK on,
+// generateSamplePool() grades every seed ghost (tools/samplePool.ts:382-385), and POST /v1/ghosts refuses a graded
+// upload with 422 (server/app.ts:330, RETUNE-1 T5: only the seed step grades a ghost). So each upload below sends its
+// sample ghost without the grade; every other field is the sample's.
+const ungraded = (s: GhostSnapshot): GhostSnapshot => {
+  const { grade: _grade, ...upload } = s;
+  return upload;
 };
 
 interface Run {
@@ -300,13 +309,13 @@ async function main(): Promise<void> {
   check(fake.requests.length === beforeSecond, "a second match within the cache TTL makes no storage call");
 
   const ghost = join(tmp, "ghost.json");
-  writeFileSync(ghost, encodeSnapshot({ ...generateSamplePool()[0], playerId: "smoke-player", name: TEST_NAME }));
+  writeFileSync(ghost, encodeSnapshot({ ...ungraded(generateSamplePool()[0]), playerId: "smoke-player", name: TEST_NAME }));
   const p = await shell(`curl -sS -i -X POST -H 'content-type: application/json' --data-binary @ghost.json ${base}/v1/ghosts`, "curl",
     ["-sS", "-i", "-X", "POST", "-H", "content-type: application/json", "--data-binary", `@${ghost}`, `${base}/v1/ghosts`]);
   check(/HTTP\/1\.1 403/.test(p.out) && p.out.includes('{"error":"uploads are not open yet"}'), "POST /v1/ghosts: 403, uploads are not open yet");
   // 0.7.0a: the game's own upload (submitGhost, signed by a fresh device key) meets the same 403 while closed
   const closedDevice = await loadIdentity(memoryKeyStore());
-  const closedSub = closedDevice ? await submitGhost(base, { ...generateSamplePool()[1], runId: "smoke-closed", playerId: closedDevice.playerId, name: TEST_NAME }, closedDevice, 4000) : null;
+  const closedSub = closedDevice ? await submitGhost(base, { ...ungraded(generateSamplePool()[1]), runId: "smoke-closed", playerId: closedDevice.playerId, name: TEST_NAME }, closedDevice, 4000) : null;
   say(`  the game's submitGhost while closed: ${JSON.stringify(closedSub)}`);
   check(!!closedSub && !closedSub.ok && closedSub.status === 403, "0.7.0a: the game's signed upload (submitGhost) while closed: 403");
   check(fake.keys("bb-smoke").every((k) => !k.includes("/player/")), "no player object was written");
@@ -345,7 +354,7 @@ async function main(): Promise<void> {
     // 0.6.2's v2 snapshot: the first pool deck with turrets and a join, so the signature covers both
     const v2 = generateSamplePool().find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined));
     if (!v2) throw new Error("the sample pool has no deck with turrets and a join");
-    const mine = { ...v2, runId: "smoke-run", playerId: device.playerId, name: TEST_NAME };
+    const mine = { ...ungraded(v2), runId: "smoke-run", playerId: device.playerId, name: TEST_NAME };
     const bytes = new TextEncoder().encode(encodeSnapshot(mine));
     say(`ghost.json: ${mine.hero} day ${mine.day}, snapshot v${mine.v}, ${bytes.length} bytes, ${mine.build.turrets?.length ?? 0} turret(s), `
       + `${mine.build.routes.filter((r) => r.join !== undefined).length} joining belt(s)`);
@@ -415,7 +424,7 @@ async function main(): Promise<void> {
     say(`  no eligible ghost: ${none.source} (${none.error}) -> ${fallback.kind} ${fallback.name}`);
     check(none.source === "fallback" && /no ghost/.test(none.error ?? "") && fallback.kind === "standin" && fallback.name === standInFoe(run.seed, day).name,
       "no eligible ghost: 404, and the game fights 0.6.2's own stand-in (standInFoe)");
-    const up2 = await submitGhost(base2, { ...generateSamplePool()[1], runId: "smoke-run-2", playerId: player2.playerId, name: TEST_NAME }, player2, 4000);
+    const up2 = await submitGhost(base2, { ...ungraded(generateSamplePool()[1]), runId: "smoke-run-2", playerId: player2.playerId, name: TEST_NAME }, player2, 4000);
     say(`  the game's submitGhost while open: ${JSON.stringify(up2)}`);
     check(up2.ok && players().length === 2, "the game's signed upload (submitGhost) while open: 201, stored");
 

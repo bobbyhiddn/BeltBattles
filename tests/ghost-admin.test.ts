@@ -3,7 +3,7 @@ import { TEST_NAME } from "./netIdentity"; // PACKS M2 (REQ-BFG-063)
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RULES_VERSION } from "../src/sim/content";
+import { RULES_VERSION, START_LIVES } from "../src/sim/content"; // HULL-ON (the flip, HEARTS): START_LIVES, bb-0.6.1's 5 lives
 import { isReachable } from "../src/net/records";
 import { validateUpload } from "../src/net/validate";
 import { ghostId, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot"; // FLIP-X2: SNAPSHOT_VERSION (runeless)
@@ -25,16 +25,32 @@ import { FAKE_CREDS, startFake, tigrisFor } from "./netStores";
 const POOL = generateSamplePool(); // the seed pool: 120 ghosts of RULES_VERSION (0.8.0 RC: the four heroes; was 60)
 const OLD = "bb-0.6.1";
 const plain = POOL.filter((s) => !s.build.turrets && !s.build.routes.some((r) => r.join !== undefined)); // valid under bb-0.6.1 too
-const own = (s: GhostSnapshot, playerId: string, runId = `run-${playerId}`): GhostSnapshot => ({ ...s, playerId, runId, name: TEST_NAME }); // PACKS M2: uploads carry a name
+// HULL-ON (the flip, PICK): with PICK on every seed-pool ghost carries the seed step's grade (snapshot.grade), which no
+// upload carries (POST /v1/ghosts: 422 "grade: only the seed pool's ghosts carry a grade"), so an upload made from a pool
+// ghost goes without it, as POST stores one (ghostId leaves the grade out: every id is as before)
+const ungraded = (s: GhostSnapshot): GhostSnapshot => {
+  const { grade: _grade, ...u } = s;
+  return u;
+};
+const own = (s: GhostSnapshot, playerId: string, runId = `run-${playerId}`): GhostSnapshot => ({ ...ungraded(s), playerId, runId, name: TEST_NAME }); // PACKS M2: uploads carry a name; HULL-ON (PICK): no grade
 // honest uploads (as POST stores them): 3 by 2 players
 const HONEST = [own(POOL[0], "honest-1"), own(POOL.find((s) => s.day === 4)!, "honest-1"), own(POOL.find((s) => s.day === 7)!, "honest-2")];
 // another rules version's pool ghost and upload
 // FLIP-X2: the pool decks now hold their day's runes (the seed pool is v3, with its run seed) and rules before bb-0.8.7
 // refuse a deck holding runes, so bb-0.6.1's ghosts are the pool decks as a pre-rune client sends them: rune-less v2, no
 // seed (was { ...plain[0], rules: OLD } and { ...own(plain[1], "honest-1"), rules: OLD }, the pool decks as they were).
+// HULL-ON (the flip, PICK): and no grade (v3 only, refused under rules before PICK_RULES). HULL-ON (the flip, HEARTS): the
+// pool's records are on 10 hearts now, but under bb-0.6.1 a run has 5 lives and the decoder bounds lives by the rules
+// (livesCapFor: 1..9 there; ghostId threw "snapshot.lives: expected an integer in 1..9" in populate), so the copies carry
+// their record on that scale: at most START_LIVES (a day-1 deck's 5, as before the flip)
 function runeless(s: GhostSnapshot): GhostSnapshot {
   const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
   delete out.seed;
+  delete out.grade; // HULL-ON (the flip, PICK): the seed step's grade, v3 only (no client uploads one)
+  // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and the road log, v3 only and
+  // gated by NPC_DAY's rules, which a pre-rune client never sends ("snapshot.road: not allowed in a v2 snapshot")
+  delete out.road;
+  out.lives = Math.min(s.lives, START_LIVES); // HULL-ON (the flip, HEARTS): an older rules string's 5-lives scale
   delete out.build.runes;
   return out;
 }

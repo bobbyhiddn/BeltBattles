@@ -28,6 +28,14 @@
 //   npcday-forged       the same with day 2's drop forged (DARTGUN, another part of that warlord's pool)
 //                                                                                              -> 422, the road error
 // Under rules before NPC_DAY_RULES the plan would be exactly the eleven rows above, in that order, byte for byte.
+// HULL-ON (REQ-BFG-096; the flip, HEARTS; cap's ruling 12a42239093fb6ec, Q2): the probe writes its records under
+// PROBE_RULES, and the server judges each by the rules gate heartsFor(PROBE_RULES) (records.ts: the hearts model, runs start
+// at HEARTS_START), so every row's lives go through that gate (probeHasHearts) and come from the hearts rule, never typed:
+// the honest, dishonest, hero and NPC-day rows hold a run's start (HEARTS_START: 10 hearts), the unreachable row stays
+// day 1 at 1 (no run holds less than its start at dusk 1, on either scale) and is refused with the server's own message,
+// and the LAST CHANCE rows sit at the first dusk after LAST CHANCE fires on a run that loses every dusk, stepped with
+// heartsDusk until heartsLastChanceFires (day 6: 9 8 7 5 3, then 1), so dusk 7 at 0 wins and 1 heart (probeLastChance).
+// Under rules without hearts (heartsFor false) the rows are the 5-lives rows above, as before.
 // Exactly six decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
 // FURNACE's LAST CHANCE deck and WEAVER's NPC-day deck (five under rules without the NPC day, four without LAST CHANCE).
 // Built by `npm run build:server` beside ghost-admin.mjs:  node server/dist/ghost-probe.mjs <base-url> <id-file>
@@ -49,6 +57,11 @@ import { LAST_CHANCE_HULL } from "../src/sim/lastChance"; // Z-PREP (REQ-BFG-073
 import { lastChanceGateProblem } from "../src/net/rulesGate"; // Z-BUMP (REQ-BFG-073): the two rows by PROBE_RULES, through the rules gate
 import { npcDayGateProblem } from "../src/net/rulesGate"; // AZ-BUMP (REQ-BFG-077, REQ-BFG-078): the NPC day's two rows, through the rules gate
 import type { RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP: the NPC-day rows' road log
+import { openRunesFor } from "../src/net/rulesGate"; // OPEN-1 (REQ-BFG-109): the honest decks' offer rule, by PROBE_RULES
+// HULL-ON (REQ-BFG-096; cap's ruling 12a42239093fb6ec, Q2): the rows' lives by PROBE_RULES's hearts gate, from the hearts rule
+import { heartsFor } from "../src/net/rulesGate";
+import { HEARTS_START, heartsDusk, heartsLastChanceFires } from "../src/sim/hearts";
+import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 
 /** The rules this probe's expectations are written for: the hull release's (bb-0.10.0, AZ-BUMP's bump, with the NPC day's
  *  two rows; release Z's bb-0.9.7 with LAST CHANCE's two rows, release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's
@@ -63,7 +76,8 @@ export const PROBE_SEED = 20261005;
 export function probeRunes(build: GhostSnapshot["build"], day: number): GhostSnapshot["build"] {
   const b: GhostSnapshot["build"] = JSON.parse(JSON.stringify(build));
   for (let d = 1; d <= day; d++) {
-    if (!botTakeRune(b, PROBE_SEED, d, b.hero, true)) throw new Error(`ghost-probe: no rune for ${b.hero} at the dawn of day ${d}`);
+    // OPEN-1 (REQ-BFG-109): the offers of the probe's own rules (openRunesFor), the rule the server checks them by
+    if (!botTakeRune(b, PROBE_SEED, d, b.hero, true, false, 0, openRunesFor(PROBE_RULES))) throw new Error(`ghost-probe: no rune for ${b.hero} at the dawn of day ${d}`);
   }
   return b;
 }
@@ -72,17 +86,46 @@ export const PROBE_ACCEPTED = "FURNACE, WEAVER, FOUNDRY, BASTION";
 /** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.10.0 refuses (400), in posting order. */
 export const STORED_HEROES: readonly HeroId[] = ["weaver", "foundry", "bastion"];
 export const REFUSED_HEROES: readonly HeroId[] = ["metronome", "siphon"];
-/** The hero rows' dusk: day 3 at 1 win and 5 lives, a record a run carries into dusk 3. */
+/** The hero rows' dusk: day 3 at 1 win and 5 lives, a record a run carries into dusk 3. HULL-ON (HEARTS): the rows before
+ *  hearts; under rules with hearts the plan reads probeDusk(HERO_DUSK) (the start's hearts: a win and a draw). */
 export const HERO_DUSK = { day: 3, wins: 1, lives: 5 } as const;
-/** The unreachable row's dusk: day 1 with 1 life (every run starts day 1 with 5 lives). */
+/** The unreachable row's dusk: day 1 with 1 life (every run starts day 1 with 5 lives). HULL-ON (HEARTS): on both scales:
+ *  dusk 1 holds only a run's start (probeStartLives: 10 hearts, or 5 lives before hearts), never 1. */
 export const UNREACHABLE_DUSK = { day: 1, wins: 0, lives: 1 } as const;
+/** HULL-ON (REQ-BFG-096; the flip, HEARTS; cap's ruling 12a42239093fb6ec, Q2): do the probe's records read on hearts? The
+ *  server judges a record under PROBE_RULES by the rules gate heartsFor(PROBE_RULES) (records.ts reachableRecords), so the
+ *  probe asks the same gate (as OPEN-1's rows ask openRunesFor): false before HEARTS_RULES or with the switch off. */
+export const probeHasHearts = (): boolean => heartsFor(PROBE_RULES);
+/** HULL-ON (HEARTS): a run's lives at its start under the probe's rules: HEARTS_START with hearts, else START_LIVES (5). */
+export const probeStartLives = (): number => (probeHasHearts() ? HEARTS_START : START_LIVES);
+/** HULL-ON (HEARTS): a start-lives row's dusk (the honest, dishonest, hero and NPC-day rows: no heart lost, a run's
+ *  start) under the probe's rules: `d` as written (5 lives) without hearts; with hearts, its lives are the start's. */
+export const probeDusk = (d: { day: number; wins: number; lives: number }): { day: number; wins: number; lives: number } =>
+  ({ ...d, lives: probeStartLives() });
 /** The decks the probe stores when every check passes: FURNACE's and STORED_HEROES'. */
 export const PROBE_STORED = 1 + STORED_HEROES.length;
 /** Z-PREP (REQ-BFG-073): the LAST CHANCE rows' dusk (five losses: the early-loss refund lifts day 3, the loss at dusk 5
  *  leaves 1 life and LAST CHANCE gives one back), the honest row's LAST CHANCE day and the forged row's. */
 export const LC_DUSK = { day: 6, wins: 0, lives: 2 } as const;
 export const LC_DAY = 5;
+/** HULL-ON (HEARTS): the forged row's LAST CHANCE day, before the earliest one on either scale (day 5 on 5 lives, day 6
+ *  on hearts: probeLastChance), so no run carries it. */
 export const LC_FORGED_DAY = 3;
+/** HULL-ON (REQ-BFG-096; the flip, HEARTS; cap's ruling 12a42239093fb6ec, Q2): the LAST CHANCE rows' dusk and the honest
+ *  row's LAST CHANCE day under the probe's rules. With hearts (probeHasHearts), derived from the hearts rule as the server's
+ *  record model steps it (records.ts heartsRecords): a run that loses every dusk from day 1, from HEARTS_START, each loss
+ *  heartsDusk's step, until the first loss on which heartsLastChanceFires (day 6: 9 8 7 5 3, then 1); its dusk is the next
+ *  day's, at 0 wins and the hearts LAST CHANCE leaves (1). Without hearts: LC_DUSK and LC_DAY, as before. */
+export function probeLastChance(): { dusk: { day: number; wins: number; lives: number }; day: number } {
+  if (!probeHasHearts()) return { dusk: LC_DUSK, day: LC_DAY };
+  let hearts = HEARTS_START;
+  for (let d = 1; d < RUN_DAYS; d++) {
+    const step = heartsDusk(hearts, d, "loss", false);
+    if (heartsLastChanceFires(d, "loss", Math.max(0, hearts - step.cost), false)) return { dusk: { day: d + 1, wins: 0, lives: step.hearts }, day: d };
+    hearts = step.hearts;
+  }
+  throw new Error("ghost-probe: LAST CHANCE never fires on the hearts rule before the run's last day");
+}
 /** Z-BUMP (REQ-BFG-073): does the probe's rules version have LAST CHANCE (the rules gate: PROBE_RULES at or after
  *  LAST_CHANCE_RULES)? The switch is gone; this asks what the switch asked. */
 export const probeHasLastChance = (): boolean => lastChanceGateProblem(PROBE_RULES) === null;
@@ -213,9 +256,10 @@ function dusk(playerId: string, hero: HeroId, d: { day: number; wins: number; li
  *  day 6, uploaded at dusk 6 (0W 2L) with a LAST CHANCE on `lcDay`. Only while the switch is on (the encoder and the
  *  decoder refuse the field otherwise). */
 function lastChanceDusk(playerId: string, lcDay: number, runId: string, now: number): GhostSnapshot {
-  const build = probeRunes(heroStartBuild("furnace"), LC_DUSK.day);
+  const lcDusk = probeLastChance().dusk; // HULL-ON (HEARTS; ruling 12a42239093fb6ec): the hearts rule's LAST CHANCE dusk (was LC_DUSK)
+  const build = probeRunes(heroStartBuild("furnace"), lcDusk.day);
   build.hullBonus += LAST_CHANCE_HULL;
-  return { ...dusk(playerId, "furnace", LC_DUSK, build, runId, now), lastChance: { day: lcDay, boon: "hull" } };
+  return { ...dusk(playerId, "furnace", lcDusk, build, runId, now), lastChance: { day: lcDay, boon: "hull" } };
 }
 
 /** AZ-BUMP (REQ-BFG-077, REQ-BFG-078): WEAVER's start deck with its dawn runes of days 1..2, uploaded at dusk 2 (1W 5L) with
@@ -223,7 +267,8 @@ function lastChanceDusk(playerId: string, lcDay: number, runId: string, now: num
  *  encoder and the decoder refuse the field otherwise). */
 function npcDayDusk(playerId: string, road: readonly RoadEntry[], runId: string, now: number): GhostSnapshot {
   const build = probeRunes(heroStartBuild(NPC_HERO), NPC_DUSK.day);
-  return { ...dusk(playerId, NPC_HERO, NPC_DUSK, build, runId, now), road: road.map((e) => ({ ...e })) };
+  // HULL-ON (HEARTS; ruling 12a42239093fb6ec): day 1 won, so the start's lives (probeDusk: 10 hearts; 5 before hearts)
+  return { ...dusk(playerId, NPC_HERO, probeDusk(NPC_DUSK), build, runId, now), road: road.map((e) => ({ ...e })) };
 }
 
 /** The nine POSTs, in order, for `playerId` at time `now` (eleven with LAST CHANCE; thirteen with the NPC day too, as
@@ -234,13 +279,14 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
   // 1-2. an honest FURNACE deck, as the game's submitGhost sends it (the canonical bytes), signed and then unsigned
   // FLIP-X2: the start deck with its day-1 rune (probeRunes), so the exact count passes and each later row fails on the
   // one rule it exists to test (the budget, the record)
-  const honest = dusk(playerId, "furnace", { day: 1, wins: 0, lives: 5 }, probeRunes(heroStartBuild("furnace"), 1), run, now);
+  // HULL-ON (HEARTS; cap's ruling 12a42239093fb6ec): day 1 at the start's lives (probeDusk: 10 hearts; 5 before hearts)
+  const honest = dusk(playerId, "furnace", probeDusk({ day: 1, wins: 0, lives: 5 }), probeRunes(heroStartBuild("furnace"), 1), run, now);
   const honestText = encodeSnapshot(honest);
   const id = ghostId(honest);
   plan.push({ name: "furnace-signed", snapshot: honest, text: honestText, signed: true, expected: `201 {"id":"${id}"}`, pass: (a) => a.status === 201 && a.id === id });
   plan.push({ name: "furnace-unsigned", snapshot: honest, text: honestText, signed: false, expected: `401 ${UNSIGNED_ERROR}`, pass: (a) => a.status === 401 && a.error === UNSIGNED_ERROR });
   // 3. dishonest: the same deck with 1000 hull (4 ARMOR PACKs; NUM-1 hull x10, was 100) more than day 1's budget pays for
-  const over = dusk(playerId, "furnace", { day: 1, wins: 0, lives: 5 }, { ...honest.build, hullBonus: honest.build.hullBonus + 1000 }, `${run}-over`, now);
+  const over = dusk(playerId, "furnace", probeDusk({ day: 1, wins: 0, lives: 5 }), { ...honest.build, hullBonus: honest.build.hullBonus + 1000 }, `${run}-over`, now); // HULL-ON (HEARTS): the honest row's record
   plan.push({
     name: "dishonest-signed", snapshot: over, text: encodeSnapshot(over), signed: true, expected: "422 deck failed validation: budget: ...",
     pass: (a) => a.status === 422 && a.error === "deck failed validation" && (a.errors ?? []).some((e) => e.startsWith("budget: ")),
@@ -251,23 +297,25 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
   plan.push({ name: "unreachable-signed", snapshot: far, text: encodeSnapshot(far), signed: true, expected: `422 ${farError}`, pass: (a) => a.status === 422 && a.error === farError });
   // 5-7. the other heroes bb-0.9.1 takes: their honest day-3 reference decks, each stored as its own record
   for (const hero of STORED_HEROES) {
-    const s = dusk(playerId, hero, HERO_DUSK, probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes
+    // HULL-ON (HEARTS; ruling 12a42239093fb6ec): probeDusk(HERO_DUSK), a win and a draw at the start's lives (10 hearts)
+    const s = dusk(playerId, hero, probeDusk(HERO_DUSK), probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes
     const hid = ghostId(s);
     plan.push({ name: `hero-${hero.toUpperCase()}`, snapshot: s, text: encodeSnapshot(s), signed: true, expected: `201 {"id":"${hid}"}`, pass: (a) => a.status === 201 && a.id === hid });
   }
   // 8-9. the heroes bb-0.9.1 refuses: the same honest reference decks, as the canonical text built by hand
   for (const hero of REFUSED_HEROES) {
-    const s = dusk(playerId, hero, HERO_DUSK, probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes
+    const s = dusk(playerId, hero, probeDusk(HERO_DUSK), probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes; HULL-ON (HEARTS): probeDusk
     const want = heroError(hero);
     plan.push({ name: `hero-${hero.toUpperCase()}`, snapshot: s, text: canonicalText(s), signed: true, expected: `400 ${want}`, pass: (a) => a.status === 400 && a.error === want });
   }
   // 10-11. Z-PREP (REQ-BFG-073): LAST CHANCE's rows, under rules with LAST CHANCE (Z-BUMP: the rules gate, not the switch)
   if (probeHasLastChance()) {
-    const lc = lastChanceDusk(playerId, LC_DAY, `${run}-lastchance`, now);
+    const plc = probeLastChance(); // HULL-ON (HEARTS; ruling 12a42239093fb6ec): the hearts rule's LAST CHANCE (was LC_DUSK, LC_DAY)
+    const lc = lastChanceDusk(playerId, plc.day, `${run}-lastchance`, now);
     const lid = ghostId(lc);
     plan.push({ name: "lastchance-signed", snapshot: lc, text: encodeSnapshot(lc), signed: true, expected: `201 {"id":"${lid}"}`, pass: (a) => a.status === 201 && a.id === lid });
     const forged = lastChanceDusk(playerId, LC_FORGED_DAY, `${run}-lastchance-day3`, now);
-    const fErr = lcRecordError(LC_DUSK, LC_FORGED_DAY);
+    const fErr = lcRecordError(plc.dusk, LC_FORGED_DAY);
     plan.push({ name: "lastchance-day3", snapshot: forged, text: encodeSnapshot(forged), signed: true, expected: `422 ${fErr}`, pass: (a) => a.status === 422 && a.error === fErr });
   }
   // 12-13. AZ-BUMP (REQ-BFG-077, REQ-BFG-078): the NPC day's rows, under rules with the NPC day (the rules gate): an honest

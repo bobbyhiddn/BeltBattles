@@ -173,8 +173,30 @@ export function incomeOn(day: number, won: boolean): number {
  * at 20.9%. D's rules hold (never falls; D <= M; M / D on days 3-10: 1.00 1.16 1.40 1.70 2.00 2.19 2.26 2.50). The run at
  * 2.1 2.3 2.4 is the re-check of every target on all days: par medians 19.2-21.4 s on days 3-10, wind 2.1-19.9% on days
  * 3-10 (13.0% on day 2), no hard stop (AZ-BUMP REPORT section 5).
+ * HULL-ON run 5 (REQ-BFG-079; BRIEF-HULLON H3 S4a; cap's ruling 7fb66a391c57fbea, RULING-HULLON-R8, and ruling
+ * 19139b4c41a1636f, R7): D(7-10)
+ * 2.0 2.1 2.3 2.4 -> 2.1 2.3 2.4 2.6 (days 1-6 kept; days 11-18 follow the new D(10) / M(10) = 2.31: 2.9 3.3 3.6 4.0 4.5
+ * 5.0 5.5 6.1, was 2.7 3.0 3.4 3.7 4.2 4.6 5.1 5.6; the step past day 18 stays 0.5). Why: with every switch on (the flip
+ * 9ffda51 and WARD BELL ★2 at 3 s, ecb43d1) the fights decided by the wind on days 7-10 read 20.5 24.9 23.1 24.3% over the
+ * 20% ceiling; GUARD is the cause (GUARD alone off: 16.8 19.2 16.9 15.4%). The fit, the fewest tenths up on each day
+ * (kit-hullon/fbx.sh: fightBench, 96 seeds, days 1-10, --all-on, on exports with this line edited; 2026-10-13 01:48-01:54Z):
+ * day 8 alone at 2.2 read 20.5 22.6 23.8 25.6%; 2.1 2.2 2.4 2.5 read 16.8 22.3 19.4 22.9%; 2.1 2.3 2.4 2.5 read 16.8 17.2
+ * 18.8 21.3%; 2.1 2.3 2.4 2.6 read 16.8 17.2 18.8 17.3% (medians 22.1 21.9 21.2 20.9 s). D's rules hold (never falls;
+ * D <= M; M / D on days 3-10: 1.00 1.16 1.40 1.70 1.90 2.00 2.17 2.31).
+ * FIT-099 (REQ-BFG-079, REQ-BFG-086; BRIEF-FIT099 F1 S4a; RULING-FIT-R1, oracle aa0369c46ad69acd; R8 7fb66a391c57fbea):
+ * with SHAPES on, D(3-5) 1.8 1.9 2.0 -> 1.6 1.7 1.8 (shapes.ts SHAPES_DMG_TENTHS: setShapes writes those three cells into
+ * this table while the switch is on and puts this row's own numbers back while it is off; days 1-2 and 6-10,
+ * DMG_MUL_TENTHS_LATE and DMG_MUL_STEP_TENTHS don't move). This row stays the SHAPES-off row (HULL-ON's accepted fit, the
+ * shapes-off, hull-only and off worlds' pins). Why: shapes make the early fights shorter: at fit-base e866408 (every switch
+ * on) the pooled par median read 16.98 16.95 17.18 s on days 3-5 against the 18-25 s target (pooled DPS on day 5 405,
+ * 355 with SHAPES off); the SHAPES-off export read HULL-ON's 19.17 18.77 19.33 s number for number. The fit, the fewest
+ * tenths off each day (kit-fit/fbx.sh: fightBench, 96 seeds, days 1-10, --all-on, on exports with this line edited;
+ * 2026-10-13 09:54-09:57Z): 1.7 1.8 1.9 read 17.50 17.58 17.73 s; 1.7 1.7 1.9 read 17.50 18.30 17.82 s; 1.6 1.7 1.8 read
+ * 18.12 18.30 18.60 s (wind 4.1 5.1 5.3%; days 6-10 18.75-19.43 s, wind <= 12.4%; no hard stop). D's rules hold in both
+ * rows: SHAPES on 1.0 1.3 1.6 1.7 1.8 2.0 2.1 2.3 2.4 2.6 (never falls; D <= M; M / D on days 3-10: 1.13 1.29 1.56 1.70
+ * 1.90 2.00 2.17 2.31); SHAPES off this row (as above). Every reader takes D at call time through dmgMulTenths.
  */
-export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 20, 21, 23, 24];
+export const DMG_MUL_TENTHS: readonly number[] = [10, 13, 18, 19, 20, 20, 21, 23, 24, 26];
 
 /** HULL-1c: D past day 10 holds day 10's M / D: D(d) = M(d) x D(10) / M(10), in whole tenths (rounded half up), for days
  *  11-18 (DMG_MUL_TENTHS_LATE) and a per-day step from day 19 (DMG_MUL_STEP_TENTHS), as M has. */

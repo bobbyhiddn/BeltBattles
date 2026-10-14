@@ -17,6 +17,7 @@ import { RIVAL_IDS, RUN_DAYS, maxGoldByDay, rivalBuild, rivalDays, rivalLoadout,
 import { npcDayRules, setNpcDay } from "../src/sim/npcDay";
 import { setHullScale } from "../src/sim/hullScale";
 import { setLadderFix } from "../src/sim/ladderFix";
+import { FREE_JOINS, setFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (H4's captain pass): FREE_JOINS_PLANS, off and on
 import { runeGrants } from "../src/sim/runes";
 import { boughtCost } from "../src/sim/harness/standins";
 import { legalityProblems, SOLD } from "./rivals.legality";
@@ -27,6 +28,7 @@ afterEach(() => {
   setNpcDay(true);
   setHullScale(true);
   setLadderFix(true);
+  setFreeJoins(FREE_JOINS); // HULL-ON (H4's captain pass): the shipped value
 });
 const allOn = (): void => {
   setHullScale(true);
@@ -45,8 +47,12 @@ function deckDigest(): string {
   }
   return h.digest("hex").slice(0, 16);
 }
-/** The base's digest with every switch off: parAZ-accepted 5c57914 (kit-refitaz/probe1.sh deckdigest parAZ-accepted). */
-const BASE_DIGEST_OFF = "3b4f48c519581dc8";
+/** The base's digest with every switch off: parAZ-accepted 5c57914 (kit-refitaz/probe1.sh deckdigest parAZ-accepted).
+ *  S8 run 3 (re-pinned by cause, test only): "S8 lane 2: CAPTAIN_RUNES regenerated with every switch on (NPC_DAY moved
+ *  SOOTJAW d10 last_stand -> scrap_saint and RATCHET d7 scrap_biter -> iron_skin); one table for every world; RULING-S8-R3"
+ *  (item 2: the all-off world's warlord runes move with the one table; a9dfbcb, rivalBuild = captainRunesOn(...,
+ *  CAPTAIN_RUNES[id], day)). Was "3b4f48c519581dc8" (green at acdae00); the same new digest at a9dfbcb and at s8's tip. */
+const BASE_DIGEST_OFF = "2892e67f4593a421";
 
 /** tests/captains.luck.test.ts's firstOfferDay: the first day the caravan can offer `d`. */
 function firstOfferDay(d: ItemDef): number {
@@ -67,6 +73,11 @@ describe("REFIT-AZ: the road allowance, behind NPC_DAY", () => {
     // AZ-BUMP (the flip): the switches ship on, so the off test sets them off itself: NPC_DAY (the road additions), and
     // HULL_SCALE and LADDER_FIX too, as BASE_DIGEST_OFF was taken with every switch off (HULL_SCALE's gold table moves
     // maxGoldByDay from day 8, and with it the captains' gold levels, rivalBuilds.ts planBuild's room)
+    // HULL-ON, H4's captain pass (REQ-BFG-092; cap's rulings b1053c5415e8c7dc = RULING-HULLON-R12 and ed10dd26da1a89fb =
+    // RULING-HULLON-R13 Q9): FREE_JOINS now swaps six captain plan counts (freeJoins.ts FREE_JOINS_PLANS: KARSK's PvE plates
+    // and dusk packs, THISTLEMAIL's packs), so "every switch off" includes it too; with it off every plan is the base's and
+    // the digest is BASE_DIGEST_OFF, untouched (with it on: KARSK's and THISTLEMAIL's decks move by those counts)
+    setFreeJoins(false);
     setNpcDay(false);
     setHullScale(false);
     setLadderFix(false);

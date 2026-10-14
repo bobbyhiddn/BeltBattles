@@ -4,8 +4,9 @@
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import type { Build } from "../src/sim/deck";
-import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
-import { POOL_RULES } from "../src/sim/content";
+import { buildCost, maxGoldByDay, unfusedPairs, validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode)
+import { POOL_RULES, RULES_VERSION } from "../src/sim/content";
+import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import {
   decodeStandIn, decodeStandInRaw, decodeStarred as loadStarred, decodeStarredRaw, encodeStandIn, standInPool, STAND_IN_POOL_HEROES,
 } from "../src/sim/standInPool";
@@ -102,7 +103,19 @@ describe("star-aware stand-in code (F2)", () => {
           expect(JSON.stringify(raw)).toBe(JSON.stringify(decodeStarredRaw(hero, code!))); // = the loader's raw layer
           expect(encodeStarred(raw)).toBe(code); // round-trips byte for byte
           expect(encodeStarred(e.build)).toBe(encodeStarred(x10(loadStarred(hero, code!)))); // NUM-1: the loader's x10
-          expect(validateBuild(e.build, day).errors, `${hero} d${day}`).toEqual([]);
+          // S8c (the pools): RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3).
+          // a48010b: with NPC_DAY on, a road-fed deck spends the road's drops too, by design. The regenerated pool's picks are
+          // road-fed (P1 83c039d, NPC_DAY on: each tuple's 7th element is its road log), so a deck may cost more than the shop's
+          // gold alone, which the strict mode's budget line doesn't count; its drops count through its road log, in the player
+          // mode. So each deck is held to validateBuild's lines minus at most its ONE budget line (matched by its "budget: "
+          // prefix, and only while NPC_DAY is on: off, the strict check stays whole), AND to validateUpload in the player mode
+          // with its road log (a stand-in carries no run seed). Was: validateBuild(e.build, day).errors toEqual [] (and the
+          // cost within the day's gold below, for every deck)
+          const strict = validateBuild(e.build, day).errors;
+          const budget = npcDayRules() ? strict.filter((x) => x.startsWith("budget: ")) : [];
+          expect(budget.length, `${hero} d${day}: at most its one budget line`).toBeLessThanOrEqual(1);
+          expect(strict.filter((x) => !budget.includes(x)), `${hero} d${day}: every other strict line`).toEqual([]);
+          expect(validateUpload(e.build, day, RULES_VERSION, { ...(e.road ? { road: e.road } : {}) }).errors, `${hero} d${day}: the player mode with its road log`).toEqual([]);
           expect(maxStars(e.build)).toBeLessThanOrEqual(2);
           // the stored cost is the deck as generated; the loaded deck is that minus the rigs D3 dropped (no free cell)
           const dropped = migrateInlineGates(JSON.parse(JSON.stringify(raw)) as Build).stranded;
@@ -110,7 +123,9 @@ describe("star-aware stand-in code (F2)", () => {
           // (boughtCost: the runes' grants out; was buildCost(...) === e.cost), against the day's gold plus its runes' dawn gold
           expect(boughtCost(x10(raw))).toBe(e.cost);
           expect(boughtCost(e.build) + dropped.reduce((g, p) => g + valueOf(p.def, starsOf(p)), 0)).toBe(e.cost);
-          expect(e.cost).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
+          // S8c (T1e's form, as above): within the day's gold (the strict budget's sum on the stored cost), whole unless the
+          // deck's one budget line was left to the player mode above (only while NPC_DAY is on). Was: every deck
+          if (!budget.length) expect(e.cost, `${hero} d${day}: within the day's gold`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
           if (maxStars(e.build) > 1) starred++;
           n++;
         });

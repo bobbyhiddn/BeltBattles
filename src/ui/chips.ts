@@ -95,10 +95,11 @@ export const PLAIN_CHIPS: Readonly<Record<string, (f: Face) => string>> = {
 export function shopChip(def: string, o: TextOpts = {}): string | null {
   if (!hasFace(def) || ITEMS[def]?.kind === "supply") return null;
   const f = faceAt(def, 1, o);
-  if (!f) return null;
-  const c = ruleChip(f);
-  return c ?? PLAIN_CHIPS[def]?.(f) ?? null;
+  return f ? chipOn(def, f) : null;
 }
+
+/** CARD-5: the chip rule on face `f` of `def` (any star): ruleChip, else its PLAIN_CHIPS row, else null. */
+const chipOn = (def: string, f: Face): string | null => ruleChip(f) ?? PLAIN_CHIPS[def]?.(f) ?? null;
 
 /** The chip rule (U2c, U2d F2) on a face at ★1, or null. */
 function ruleChip(f: Face): string | null {
@@ -133,49 +134,109 @@ export const shopChipGlyphs = (def: string, o: TextOpts = {}): string | null => 
  * face's: shopChip) or a word, beside the price (25 px, 19 at a two-digit price: tests/card3.test.ts). Each says what its
  * face and desk line say (faces.ts, abilityText.ts cardText; the REPORT's table gives each sim check). Turrets, factories
  * and the other rigs keep their chips. On the narrow card the art gives up its room for row A (shop.ts drawCard).
+ *
+ * CARD-5 (REQ-BFG-111, REQ-BFG-081; CARD-5 PREP's GISTS-CARD5.md with REVIEW-CARD5PREP section 4's two changes): the words
+ * READ-5's 57 weakest phone cards were given by cold reads of text mock-ups. Every factory now says what it makes, 19 more
+ * rigs and the three inner-column turrets take a gist, and TOLLBOOTH, TWIN TRIGGER, WARD BELL, FLAK SCREEN and 11 cores
+ * and gear change theirs (SEAM WELDER, ROTARY BREECH, GRAPNEL GUN, SPOTTER and DRAKE NOZZLE keep theirs). A number in a row
+ * is its face's own, never typed: numOf(f, key) (a keyed rule number), statOf / stat2Of (the stat row or its second row),
+ * or the chip `c` (shopChip's rule on the same face), so it follows the star and the day (HULL_SCALE). Row A may hold a
+ * digit only where it is such a face number (13 rows: an EVERY, a HOLD, a batch, a pour, BELT, pellets, a shot). The one
+ * literal number is OVERCLOCKER's x2: overclock.ts overclocked() doubles each effect, a rule with no named constant
+ * (src/sim stays as it is), pinned at exactly x2 at every star by tests/card5.test.ts. Each row's sim check is in
+ * REPORT-CARD5 section 6; tests/card5.test.ts pins each entry by id, its fit at every star and day, and its digits.
  */
 export const PHONE_GISTS: Readonly<Record<string, (chip: string, f: Face) => readonly [string, string]>> = {
   // cores
-  lance: (c) => ["+ A COLUMN", c], // SHOT: ALSO HITS 1 WHOLE COLUMN, 20% DMG
+  lance: (c) => ["WHOLE LINE", c], // SHOT: ALSO HITS 1 WHOLE COLUMN, 20% DMG. CARD-5: was + A COLUMN
   mortar: (c) => ["SPLASHES", c], // SHOT: ALSO HITS 1 MORE TARGET FOR 50% DMG
-  salvo: (c) => ["ALL LOADS", c], // SHOT: FIRES THE CHAMBER AT +20 DMG EACH
-  scatter: (c) => ["PELLETS", c], // SHOT: BURSTS INTO 3 PELLETS, 40% DMG EACH
+  salvo: (c) => ["FIRES ALL", c], // SHOT: FIRES THE CHAMBER AT +20 DMG EACH. CARD-5: was ALL LOADS
+  scatter: (c, f) => [`${numOf(f, "pellets")} PELLETS`, c], // SHOT: BURSTS INTO 3 PELLETS, 40% DMG EACH. CARD-5: was PELLETS
   rotary: (c) => ["PART-FULL", c], // FIRES PART-FULL CHAMBERS 50% SOONER
-  pressure: (c) => ["{SLUG}WAITING", c], // SHOT: +12 DMG FOR EACH SLUG WAITING
+  pressure: (c) => ["PER {SLUG} HELD", c], // SHOT: +12 DMG FOR EACH SLUG WAITING. CARD-5: was {SLUG}WAITING
   gatling: (c) => ["SPINS UP", c], // SPINS UP TO 67% FASTER (and fires each load as it comes)
   hullbreaker: (c) => ["HULL ONLY", c], // SHOT: HITS ONLY THE HULL, FOR +30% DMG
-  drake: () => ["RIG DAMAGE", "TO{BURN}"], // SHOT: EACH 25 DAMAGE RIGS ADDED TO ITS SLUG BECOMES 1 BURN
+  drake: () => ["RIG DAMAGE", "TO{BURN}"], // SHOT: EACH 25 DAMAGE RIGS ADDED TO ITS SLUG BECOMES 1 BURN (CARD-5: kept, REVIEW-CARD5PREP 4)
   grapnel: (c) => ["FOE BELTS", c], // SHOT: ON A BELT OR RIG, RIPS 1 SLUG (an enemy's)
-  tesla: (c) => ["ARCS", c], // SHOT: ALSO ARCS TO 1 PART: STUN 1
-  capacitor: (c) => ["CHARGES UP", c], // SHOT: +20 DMG FOR EACH SEC IT SAT EMPTY
-  compound: (c) => ["ONE SHELL", c], // SHOT: FIRES 2 SLUG AS 1 SHOT AT +15% DMG
-  anvil: (c) => ["DMG FROM", c], // SHOT: +25 DMG, +100% OF YOUR SHIELD (the chip: the SHIELD icon, +100%)
+  tesla: (c) => ["SHOTS ARC", c], // SHOT: ALSO ARCS TO 1 PART: STUN 1. CARD-5: was ARC STUNS
+  // SHOT: +20 DMG FOR EACH SEC IT SAT EMPTY (the chip, /SEC after it). CARD-5: was CHARGES UP. A three-digit number (★2-★3
+  // from day 3; a shop offers ★1, which fits every day) drops its + (27 px > the 26 px room; 23 px without it)
+  capacitor: (c) => ["EMPTY TIME", `${/\d{3}/.test(c) ? c.replace("+", "") : c}/{SEC}`],
+  compound: (c) => ["{SLUG}{SLUG} AS ONE", c], // SHOT: FIRES 2 SLUG AS 1 SHOT AT +15% DMG. CARD-4 (T): was ONE SHELL (PPW)
+  anvil: (c) => ["DMG + YOUR", c], // SHOT: +25 DMG, +100% OF YOUR SHIELD (the chip: the SHIELD icon, +100%). CARD-4 (T): was DMG FROM (RPW)
   steambreech: (c) => ["IF {*PLATE}", c], // FIRES 40% FASTER IF YOU HAVE SHIELD
   // gear
-  chamber: (c) => ["SHOTS FIRE", c], // EACH SHOT FIRES 2 SLUG
+  chamber: (_c, f) => [`FIRES ${numOf(f, "shot")}{SLUG}`, "A SHOT"], // EACH SHOT FIRES UP TO 2 SLUG. CARD-5: was PER SHOT / {SLUG}2
   calibrate: (c) => ["FIRE RATE", c], // FIRES 33% FASTER
   escapement: (c) => ["FIRE RATE", c], // FIRES 11% FASTER
-  flak: (_c, f) => ["FOE {*STUN}", `-${numOf(f, "intercept")}`], // SHOOTS DOWN 25% OF ENEMY STUN SHOTS (its face's number)
-  spotter: (c) => ["AT NO PART", c], // SHOTS AIMED AT NO PART AIM AGAIN ONCE
-  hopper: (c) => ["CHAMBER", c], // ITS CHAMBER HOLDS +1 SLUG
+  flak: (_c, f) => ["SHOOT DOWN", `{STUN}-${numOf(f, "intercept")}`], // SHOOTS DOWN 25% OF ENEMY STUN SHOTS. CARD-5: was FOE {*STUN} / -25%
+  spotter: (c) => ["AIMS AGAIN", c], // SHOTS AIMED AT NO PART AIM AGAIN ONCE. CARD-4 (T): was AT NO PART (WPW: read as wasted shots)
+  hopper: (c) => ["GUN HOLDS", c], // ITS CHAMBER HOLDS +1 SLUG. CARD-5: was CHAMBER
   mantlet: (c) => ["ITS GUN", c], // STUN CAN'T STOP ITS GUN OR LAST 1 TILE
-  ram: (c) => ["LAST {SLUG}", c], // SHOT: THE CHAMBER'S LAST SLUG +40% DMG
+  ram: (c) => ["LAST LOAD", c], // SHOT: THE CHAMBER'S LAST SLUG +40% DMG. CARD-5: was LAST {SLUG}
   longcase: (c) => ["LONG RIDES", c], // SHOT: +15 DMG IF ITS SLUG RODE 2s
-  twintrigger: (c) => ["{*PAIR}", c], // PAIR: +30% DMG
-  spallcatcher: (c) => ["HITS TAKEN", c], // EVERY 40 DMG YOU TAKE: NEXT SHOT +10 DMG
+  twintrigger: (c) => ["PAIRED {SLUG}", c], // PAIR: +30% DMG. CARD-5: was {*PAIR}
+  spallcatcher: (c) => ["HURT→SHOT", c], // EVERY 40 DMG YOU TAKE: NEXT SHOT +10 DMG. CARD-5: was HITS TAKEN
   seamwelder: (c) => ["{*PAIR}", c], // PAIR: +10 SHIELD (the chip: the SHIELD icon, +10)
-  wardbell: (c) => ["OVER TIME", c], // EVERY 8s: +1 WARD (the chip: the WARD icon, +1)
-  mendingloom: (c) => ["EACH SEC", c], // YOUR HULL: HEAL 10 EACH SEC
+  wardbell: (_c, f) => [`EVERY ${numOf(f, "every")}{SEC}`, "{SHIELD}WARD"], // EVERY 4s: +1 WARD. CARD-5: was OVER TIME / {SHIELD}+1
+  mendingloom: (c) => ["YOUR HULL", `${c}/{SEC}`], // YOUR HULL: HEAL 10 EACH SEC (the chip, /SEC after it). CARD-5: was EACH SEC / {HEAL}10
   // the five rigs whose chip leaves the target open (READ-2 7.3 item 2)
-  tollbooth: (c) => ["ITS BELT", c], // THE FIRST 2 STUN ON ITS BELT'S PARTS EACH FIGHT DO NOTHING
-  sorting: (c) => ["ITS BELTS", c], // HIT: OF EVERY 3 SLUG, ONE BECOMES 2 (on every belt its arrows reach)
-  braceframe: (c) => ["ITS TILES", c], // ENEMY STUN ON ITS TILES: 50% SHORTER
+  tollbooth: (_c, f) => ["ITS BELT", `${numOf(f, "toll")}{STUN}FAIL`], // THE FIRST 2 STUN ON ITS BELT'S PARTS EACH FIGHT DO NOTHING. CARD-5: was {STUN}BLOCK
+  sorting: (c) => ["EACH THIRD", c], // HIT: OF EVERY 3 SLUG, ONE BECOMES 2 (on every belt its arrows reach). CARD-4 (T): was ITS BELTS (PPW)
+  braceframe: (c) => ["ITS TILES", c], // FOE STUN ON TILES IT HITS: 50% SHORTER. CARD-4 run 3 (cap's call): READ-4's ITS TILES back (read RRR with images; TILES HIT read PPP in run 2's small read); the face and the desk line keep TILES IT HITS
   overdrive: (c) => ["ITS BELTS", c], // ITS BELTS RUN 3 TIMES AS FAST FROM THESE TILES ON
+  // CARD-5: the other rigs READ-5 worked on (GISTS-CARD5 group 2 and 3)
+  venom: (_c, f) => ["EXTENDS {BURN}", `${numOf(f, "plus")}{SEC}`], // HIT: ITS BURN LASTS +3s
+  bellows: (c) => ["RIDE TIME", c], // HIT: +1 BURN FOR EACH 2s THE SLUG RODE
+  quench: (c) => ["SPENDS {BURN}", c], // HIT: EACH BURN ON THE SLUG BECOMES +40 DMG
+  staticbrush: () => ["HULL HITS:", "{STUN}A GUN"], // ITS SLUGS THAT HIT BARE HULL STUN A RANDOM ENEMY TURRET 1s
+  pincer: (c) => ["PER RIG", c], // HIT: +20 DMG FOR EACH OTHER RIG HITTING THE TILE
+  lodestone: (c) => ["PER {STUN}", c], // HIT: +10 DMG FOR EACH ENEMY PART STUNNED
+  riveter: (c) => ["PER SLUG", c], // HIT: HEAL YOUR HULL 6 FOR EACH SLUG
+  plateroller: (c) => ["PER SLUG", c], // HIT: +15 SHIELD ON YOUR HULL FOR EACH SLUG
+  shieldwall: (c) => ["PER SLUG", c], // HIT: +10 SHIELD ON YOUR HULL FOR EACH SLUG (IRON WALL)
+  keg: (c, f) => [`EVERY ${numOf(f, "every")}{SEC}`, c], // EVERY 12s: +60 DMG TO SLUGS ON ITS BELTS
+  counterweight: (c) => ["PER {BELT} RODE", c], // HIT: +3 DMG FOR EACH BELT TILE THE SLUG RODE
+  stoker: (c) => ["AT FACTORY", c], // THE FACTORY ITS ARROWS POINT AT WORKS UP TO 20% FASTER
+  platebreaker: (c) => ["YOUR {PLATE}→{DMG}", c], // HIT: SPENDS YOUR SHIELD FOR +40 DMG
+  longhaul: (c) => ["PRIOR RIGS", c], // HIT: +10 DMG FOR EACH RIG THE SLUG PASSED
+  surge: (c, f) => [`EVERY ${numOf(f, "every")}{SEC}`, c], // EVERY 3s: +10 DMG TO SLUGS ON ITS BELTS
+  overclocker: (_c, f) => [`EVERY ${numOf(f, "every")}{SEC}:`, "RIG x2"], // EVERY 4s: THE NEXT RIG DOWN ITS BELT HITS TWICE (x2: overclocked())
+  twingauge: (c) => ["BELT=BELT", c], // HIT: +30 DMG IF ITS BELT IS AS LONG AS ANOTHER INTO THE SAME TURRET
+  barbed: (c) => ["WEARS HULL", c], // HIT: +1 FRAY
+  twinlatch: (c, f) => [`WAITS ${numOf(f, "hold")}{SEC}`, c], // HIT: HOLDS A SLUG UP TO 1s TO MAKE A PAIR
+  // CARD-5: the factories (GISTS-CARD5 group 1): what each makes
+  frostbite: (_c, f) => ["MAKES {STUN}{SLUG}", `{STUN}${stat2Of(f, "STUN")}{SEC}`], // its rounds STUN the part they hit 2s
+  shottower: (c, f) => [`MAKES ${stat2Of(f, "SLUG")}{SLUG}`, c], // a batch of 3 slugs
+  press: (c) => ["MAKES {SLUG}", c], // plain slugs (STAMP PRESS)
+  doublestamp: (c, f) => [`MAKES ${stat2Of(f, "SLUG")}{SLUG}`, c], // a batch of 2 slugs
+  slagpot: (c) => ["HEAVY {SLUG}", c], // slag slugs, 70 DMG
+  assembly: () => ["RIGS START", "SOONER"], // YOUR RIGS START 50% SOONER (ASSEMBLY LINE)
+  armorpress: (c, f) => [`EVERY ${numOf(f, "every")}{SEC}`, c], // FEEDS A GUN: EVERY 3s: +30 SHIELD
+  mendpress: (c, f) => [`EVERY ${numOf(f, "every")}{SEC}`, c], // FEEDS A GUN: EVERY 3s: HEAL 20
+  hotswap: (_c, f) => ["MAKES {BURN}/{STUN}", `{BURN}${stat2Of(f, "BURN")} {STUN}${stat2Of(f, "STUN")}`], // ALTERNATES BURN AND STUN SLUGS
+  sabot: (c) => ["KILLS RIGS", c], // ITS ROUNDS WRECK A RIG FOR THE FIGHT; ANY OTHER PART: STUN 4
+  scrapper: () => ["MAKES +{DMG}{SLUG}", "+{SLUG}PER{STUN}"], // SCRAP SLUGS; EACH STUN YOU LAND: 1 EXTRA SLUG
+  dragchain: (_c, f) => ["MAKES {STUN}{SLUG}", `{STUN}${stat2Of(f, "STUN")}{SEC}`], // its rounds STUN the part they hit 1s
+  limpet: (_c, f) => ["BOMB {SLUG}", `${numOf(f, "delay")}{SEC}FUSE`], // ITS SLUGS BLAST THE FOE'S HULL 3s AFTER A HIT (REVIEW-CARD5PREP 4: B)
+  gantry: (c, f) => [`${statOf(f, "BELT")} BELTS`, c], // FEEDS 4 BELTS IN TURN
+  twinmould: (_c, f) => [`${stat2Of(f, "SLUG")} BELTS`, "{SLUG}EACH"], // CASTS ITS 2 SLUG ONTO SEPARATE BELTS AT ONCE
+  // CARD-5: the inner-column turrets (GISTS-CARD5 group 5)
+  dartgun: (c) => ["ONE INTAKE", c],
+  spikegun: (c) => ["ONE INTAKE", c],
+  hailgun: (c) => ["ONE INTAKE", c],
 };
 
-/** CARD-3 (A): the phone card's gist for `def` at ★1 (rows A and B, in markup), or null (the card keeps its chip). */
-export function phoneGist(def: string, o: TextOpts = {}): readonly [string, string] | null {
-  const g = PHONE_GISTS[def], c = shopChip(def, o);
-  if (!g || !c) return null;
-  return g(c, faceAt(def, 1, o)!);
+/** CARD-5: a stat's number as the face's stat row prints it (GANTRY PRESS's BELT 4), or "". */
+const statOf = (f: Face, icon: IconName): string => String(f.stats.find(([ic]) => ic === icon)?.[1] ?? "");
+/** CARD-5: a stat's number as the face's second stat row prints it (a batch's or a pour's SLUG, HOT SWAP's BURN), or "". */
+const stat2Of = (f: Face, icon: IconName): string => String(f.stats2?.find(([ic]) => ic === icon)?.[1] ?? "");
+
+/** CARD-3 (A): the phone card's gist for `def` (rows A and B, in markup), or null (the card keeps its chip). CARD-5: at
+ *  `stars` (the shop's offers are ★1; tests read ★2 and ★3 too), every number from the face at that star and o.day. */
+export function phoneGist(def: string, o: TextOpts = {}, stars = 1): readonly [string, string] | null {
+  const g: ((chip: string, f: Face) => readonly [string, string]) | undefined = PHONE_GISTS[def];
+  if (!g || !hasFace(def) || ITEMS[def]?.kind === "supply") return null;
+  const f = faceAt(def, stars, o), c = f ? chipOn(def, f) : null;
+  return f && c ? g(c, f) : null;
 }

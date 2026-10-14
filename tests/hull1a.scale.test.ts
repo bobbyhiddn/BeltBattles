@@ -91,7 +91,9 @@ describe("HULL-1a: the day on Battle", () => {
     const bt = withHullScale(() => new Battle(a, b, 7, undefined, 10));
     expect(bt.scaled).toBe(true);
     expect(bt.mulTenths).toBe(60);
-    expect(bt.sides.map((s) => s.hull.max)).toEqual([(2100 + 750) * 6, (1700 + 250) * 6]);
+    // HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9, R10 (a)): WEAVER's
+    // base is 1500 with free joins on (was (1700 + 250) * 6)
+    expect(bt.sides.map((s) => s.hull.max)).toEqual([(2100 + 750) * 6, (1500 + 250) * 6]);
     expect(bt.sides.map((s) => s.hull.hp)).toEqual(bt.sides.map((s) => s.hull.max));
     expect(bt.record.day).toBe(10);
     // every bb-0.9.7 hero, days 1-10, with no hullBonus and with the par player's plating (refBuilds.ts refHull)
@@ -187,7 +189,9 @@ describe("HULL-1a: the dark wind as a share of each hull's own max", () => {
   it("switch on, day 10: nothing before 25 s; then once a second each hull loses the same share of its own max, the step every 5 s, straight to hp (PLATE and SHIELD don't absorb it)", () => {
     const bt = withHullScale(() => new Battle(silent("furnace", 1), silent("weaver", 101), 7, undefined, 10));
     const [p, e] = bt.sides;
-    expect([p.hull.max, e.hull.max]).toEqual([12600, 10200]);
+    // HULL-ON (bb-0.10.0, FREE_JOINS; FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9, R10 (a)): WEAVER's
+    // day-10 hull is 6 x 1500 = 9000 with free joins on (was 6 x 1700 = 10200, and [13, 10] / 255 below)
+    expect([p.hull.max, e.hull.max]).toEqual([12600, 9000]);
     bt.addPlate(p, 100);
     bt.addPlate(e, 100);
     bt.gainShield(p, 1);
@@ -206,7 +210,7 @@ describe("HULL-1a: the dark wind as a share of each hull's own max", () => {
         expect(ev.dmg).toBe(ev.dmgs![0]);
         beats.push({ t: bt.t, dmgs: ev.dmgs! });
       }
-      if (bt.t < WIND_START) expect([p.hull.hp, e.hull.hp]).toEqual([12600, 10200]);
+      if (bt.t < WIND_START) expect([p.hull.hp, e.hull.hp]).toEqual([12600, 9000]);
       bt.events.length = 0;
     }
     expect(beats.length).toBe(20);
@@ -214,9 +218,9 @@ describe("HULL-1a: the dark wind as a share of each hull's own max", () => {
     // HULL-1c re-pinned in place (the tuned constants, BRIEF-HULL1C 2 (c)); was 0.5 / 1 / 1.5 / 2% and [63, 51]
     beats.forEach((x, k) => {
       const bp = WIND_SHARE_START_BP + WIND_SHARE_STEP_BP * Math.floor(k / 5);
-      expect(x.dmgs).toEqual([Math.round((bp * 12600) / 10000), Math.round((bp * 10200) / 10000)]);
+      expect(x.dmgs).toEqual([Math.round((bp * 12600) / 10000), Math.round((bp * 9000) / 10000)]);
     });
-    expect(beats.slice(0, 2).map((x) => x.dmgs)).toEqual([[13, 10], [13, 10]]);
+    expect(beats.slice(0, 2).map((x) => x.dmgs)).toEqual([[13, 9], [13, 9]]);
     // the amounts differ (the max hulls differ); each side's windTaken is the sum of its own, and its whole hp loss
     expect(p.stats.windTaken).toBe(beats.reduce((s, x) => s + x.dmgs[0], 0));
     expect(e.stats.windTaken).toBe(beats.reduce((s, x) => s + x.dmgs[1], 0));
@@ -231,7 +235,7 @@ describe("HULL-1a: the dark wind as a share of each hull's own max", () => {
     expect([p.shield, e.shield]).toEqual(shield);
     // the HUD's WIND n/S: side 0's share a second of its own max
     expect(bt.windDps()).toBe(Math.round((250 * 12600) / 10000));
-    expect(bt.windDps(1)).toBe(Math.round((250 * 10200) / 10000));
+    expect(bt.windDps(1)).toBe(Math.round((250 * 9000) / 10000));
   });
 
   it("the switch off, or no day: 0.9.7's flat wind, the same amount on both hulls (#368's test holds)", () => {

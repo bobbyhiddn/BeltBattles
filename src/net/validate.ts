@@ -35,6 +35,9 @@ import { lastChancePartStars } from "../sim/lastChance"; // HULL-1d (REQ-BFG-073
 // NPC-1 (REQ-BFG-077, REQ-BFG-078): the road log's check
 import { dropPool, npcDayRules, roadDropValue, type RoadEntry } from "../sim/npcDay";
 import { npcDayGateProblem } from "./rulesGate";
+import { openRunesFor } from "./rulesGate"; // OPEN-1 (REQ-BFG-109): the offer rule of a deck's own rules
+import { freeJoinsFor } from "./rulesGate"; // JOINS-1 (REQ-BFG-091): free joins by the upload's own rules
+import { withFreeJoins } from "../sim/freeJoins"; // JOINS-1: the deck check runs under that answer
 import { RIVALS, warlordOffer } from "../sim/rivals";
 import { topParts, warlordDeck, warlordDrop } from "../game/road";
 import { eventFor } from "../game/events";
@@ -68,6 +71,10 @@ export interface ValidateContext {
   /** NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's road log (absent: none, every switch-off deck): with the seed each
    *  entry's warlord, deck and drop are re-derived (roadProblem), and its drops count toward the budget at their value. */
   road?: RoadEntry[];
+  /** OPEN-1 (REQ-BFG-109): the offer rule the deck's rules give (rulesGate.ts openRunesFor): with the seed, each held rune's
+   *  dawn offer and LAST CHANCE's rune card are re-derived open (hero-blind) when true. validateUpload sets it from the
+   *  snapshot's own rules; absent: closed, today's weighted offers. */
+  openRunes?: boolean;
 }
 
 /**
@@ -122,8 +129,10 @@ export function roadProblem(road: readonly RoadEntry[], day: number, seed?: numb
  * day's dawn pick, runeProblem's lcAt); a part boon's part one of the PART card's catalogue; and, with the uploader's
  * seed, the boon must be the card the seed's offer gave (lastChanceOffer on the runes held before it). Z-BUMP: the
  * switch's line is gone; a deck under older rules is validateUpload's rules gate (lastChanceGateProblem).
+ * OPEN-1 (REQ-BFG-109): `open`, the offer rule of the deck's rules (ValidateContext.openRunes): the seeded card is
+ * re-derived under it (lastChanceOffer's `open`); closed by default, as before.
  */
-export function lastChanceProblem(lc: TakenLastChance, b: Build, day: number, seed?: number): string | null {
+export function lastChanceProblem(lc: TakenLastChance, b: Build, day: number, seed?: number, open = false): string | null {
   if (!Number.isInteger(lc.day) || lc.day < 1 || lc.day >= MAX_DAY) return `lastChance: day ${lc.day}: LAST CHANCE comes only before day ${MAX_DAY}`;
   if (lc.day >= day) return `lastChance: day ${lc.day} is not before the deck's day ${day}`;
   const runes = (b.runes ?? []).map((q) => q.id);
@@ -131,7 +140,7 @@ export function lastChanceProblem(lc: TakenLastChance, b: Build, day: number, se
   if (lc.boon === "part" && !lastChanceParts().some((d) => d.id === lc.id)) return `lastChance: ${String(lc.id)} is no LAST CHANCE part (an epic rig, turret or gear of the shop's catalogue)`;
   if (lc.boon === "hull" && lc.id !== undefined) return "lastChance: a hull boon names no id";
   if (seed === undefined) return null;
-  const offer = lastChanceOffer(seed, lc.day, b.hero, runes.slice(0, lc.day));
+  const offer = lastChanceOffer(seed, lc.day, b.hero, runes.slice(0, lc.day), open);
   if (lc.boon === "rune" && offer.rune?.id !== lc.id) return `lastChance: rune ${String(lc.id)} was not in the LAST CHANCE offer of day ${lc.day} (it offered ${offer.rune?.id ?? "no rune"})`;
   if (lc.boon === "part" && offer.part !== lc.id) return `lastChance: part ${String(lc.id)} was not in the LAST CHANCE offer of day ${lc.day} (it offered ${offer.part ?? "no part"})`;
   return null;
@@ -153,6 +162,9 @@ export type ValidationMode = "strict" | "player";
  * travels under (its snapshot's; default this build's RULES_VERSION). A deck with turret slots or belt joins under rules
  * that predate bb-0.6.2, or that can't be read, is refused with one "rules:" error naming both (rulesGate.ts). Joins
  * past JOIN_LIMIT are validateBuild's own (deck.ts joinProblem: "2 JOINS PER DECK"), in both modes.
+ * JOINS-1 (REQ-BFG-091): the deck is checked under ITS rules' answer to free joins (rulesGate.ts freeJoinsFor: FREE_JOINS
+ * on and `rules` at or after FREE_JOINS_RULES), never the switch alone: under such rules any number of legal joins
+ * passes; under older rules a join past JOIN_LIMIT is refused as before. With the switch off, exactly as before.
  */
 export function validateUpload(build: Build, day: number, rules: string = RULES_VERSION, ctx: ValidateContext = {}): Validation {
   const why = rulesGateProblem(rules, build);
@@ -172,10 +184,13 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   const shGate = shapesGateProblem(rules, build);
   if (shGate) return { ok: false, errors: [`rules: ${shGate}`] };
   // AZ-BUMP (S6, the stored records): the budget, the road and the events by the deck's own rules (inRulesWorld): under
-  // rules before bb-0.10.0 with the hull release's three switches off; under this build's as they stand. SHAPES-1 (the
-  // merge of c099-pre8, cap's RUN2 note 1.2): both worlds nested, so a bb-0.9.7 record is judged with NPC_DAY, HULL_SCALE,
-  // LADDER_FIX and SHAPES off
-  return inRulesWorld(rules, () => inShapesWorld(rules, () => validateBuild(build, day, "player", ctx)));
+  // rules before bb-0.10.0 with the hull release's three switches off; under this build's as they stand
+  // OPEN-1 (REQ-BFG-109): the deck's runes are re-derived on the offers of its own rules (openRunesFor: the switch AND
+  // rules at or after OPEN_RUNES_RULES), so an older record keeps today's weighted offers whatever the switch
+  // JOINS-1 (REQ-BFG-091): and the deck check runs under its own rules' answer to free joins (freeJoinsFor)
+  // SHAPES-1 (REQ-BFG-086; cap's RUN2 note 1.2): the shapes world nests inside the rules world, so a record under rules
+  // before bb-0.10.0 is judged with SHAPES off too; c099's merge keeps HULL-ON's call inside both (release lane)
+  return inRulesWorld(rules, () => inShapesWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules)))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested
 }
 
 /**
@@ -318,8 +333,9 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   // LC-1 (REQ-BFG-073): a deck's LAST CHANCE first (its rune's place, its card, with the seed its offer); without one
   // (every switch-off deck) nothing below changes: lcAt -1, no hull, no free part
   const lc = ctx.lastChance;
+  const open = ctx.openRunes === true; // OPEN-1 (REQ-BFG-109): the offer rule of the deck's rules (absent: closed)
   if (lc) {
-    const lp = lastChanceProblem(lc, b, day, ctx.seed);
+    const lp = lastChanceProblem(lc, b, day, ctx.seed, open);
     if (lp) return { ok: false, errors: [lp] };
   }
   // NPC-1 (REQ-BFG-077, REQ-BFG-078): the road log next (absent on every switch-off deck: nothing below changes)
@@ -328,7 +344,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     if (rd) return { ok: false, errors: [rd] };
   }
   const lcAt = lastChanceRuneAt(lc);
-  const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost", false, lcAt);
+  const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost", false, lcAt, open);
   if (rp) return { ok: false, errors: [`rune: ${rp}`] };
   // what the runes gave: HULL and BELT runes sit in hullBonus / beltCap (run.ts takeRune), so the supply and budget
   // blocks below read the bought hull and belt (`bought`); dawn-gold runes add their gold to the day's budget. LC-1: the

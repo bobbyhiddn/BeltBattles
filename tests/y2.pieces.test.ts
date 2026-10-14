@@ -116,11 +116,22 @@ describe("Y2 row 9: SCRAPPER counts STUNs only, with no queue cap and no BIG HAU
 
   it("face: +1 SLUG FOR EACH STUN YOU LAND, no caveat, no BIG HAUL clause; ladders RATE 10/12/15, DMG 60/95/135", () => {
     // CARD-2 (REQ-BFG-081, K3 g): the trigger first, READ-2 7.1's words (was "+1 {SLUG} FOR EACH {*STUN} YOU LAND.")
-    expect(lines("scrapper")).toEqual(STARS.map(() => ["EACH {*STUN} YOU LAND: 1 EXTRA {SLUG}."]));
-    oneLine("scrapper");
+    // CARD-5 (REQ-BFG-081, L; READ-5 12.6) added the desk line's number by design, after the trigger: the scrap damage
+    // (scrapFlat 30/65/105; its DMG ladder 60/95/135 is a plain slug's 30 and this)
+    expect(lines("scrapper")).toEqual([30, 65, 105].map((n) => ["EACH {*STUN} YOU LAND: 1 EXTRA {SLUG}.", `ITS {SLUG} DEAL ${n} MORE {DMG} THAN PLAIN.`]));
+    // CARD-5: two rule lines now (was oneLine("scrapper")), each in the band; no clause, caveat or perk on the face
+    for (const s of STARS) {
+      const f = faceAt("scrapper", s)!;
+      for (const r of f.rules) expect(px(r.text), `scrapper ★${s}: ${r.text}`).toBeLessThanOrEqual(BAND);
+      expect([f.clause, f.caveats], `scrapper ★${s}`).toEqual([undefined, undefined]);
+      expect(faceBlocks("scrapper", s, {})!.some((b) => b.perk), `scrapper ★${s} perk on the face`).toBe(false);
+    }
     // Y7b2 (the words): was [..., "{BELT} [2]/3/4", "★3 BIG HAUL", `NEXT ★2: ...`] (the name left with its rule)
-    expect(levels("scrapper", 1)).toEqual(["{RATE} [10]/12/15", "{DMG} [60]/95/135", "{BELT} [2]/3/4",
-      `NEXT ★2: ${statRow([["RATE", "12"], ["DMG", "95"], ["BELT", "3"]])}`]); // NEXT★'s changed stats are a stat row (glyphs)
+    // CARD-5 (REQ-BFG-081, L): the scrap damage's key adds its ladder and its NEXT★ number, by design
+    const lv = levels("scrapper", 1);
+    expect(lv.slice(0, 4)).toEqual(["{RATE} [10]/12/15", "{DMG} [60]/95/135", "{BELT} [2]/3/4", "[30]/65/105 MORE {DMG}"]);
+    expect(lv.length).toBe(5);
+    expect(lv[4].startsWith(`NEXT ★2: ${statRow([["RATE", "12"], ["DMG", "95"], ["BELT", "3"]])}, 65 MORE`), lv[4]).toBe(true); // NEXT★'s changed stats are a stat row (glyphs)
   });
 });
 
@@ -358,9 +369,10 @@ describe("Y2 row 16: BRACE FRAME cuts enemy STUNs on its tiles 50%/70%/85%, plat
     expect(Math.round(left(false, true) * 60)).toBe(240);
   });
 
-  it("face (new with the switch on): ENEMY STUN ON ITS TILES: 50% SHORTER; ladder 50%/70%/85% SHORTER", () => {
+  // CARD-4 (REQ-BFG-081, T) changed this pin: the FULL RULE's TILES IT HITS (was ON ITS TILES: READ-4 3, PPR)
+  it("face (new with the switch on): FOE STUN ON TILES IT HITS: 50% SHORTER; ladder 50%/70%/85% SHORTER", () => {
     expect(hasFace("braceframe")).toBe(true);
-    expect(lines("braceframe")).toEqual(["50%", "70%", "85%"].map((p) => [`ENEMY {*STUN} ON ITS TILES: ${p} SHORTER.`]));
+    expect(lines("braceframe")).toEqual(["50%", "70%", "85%"].map((p) => [`FOE {*STUN} ON TILES IT HITS: ${p} SHORTER.`]));
     oneLine("braceframe");
     expect(levels("braceframe", 1)).toEqual(["[50%]/70%/85% SHORTER", "NEXT ★2: 70% SHORTER"]);
     expect(levels("braceframe", 3)).toEqual(["50%/70%/[85%] SHORTER"]);

@@ -8,6 +8,7 @@ import {
   SCALE_RIGS, burnStacks, buildReads, flatOf, heartsLost, scaleRules, startHearts, withScaleRigs,
 } from "../src/sim/scale";
 import { clearStarCache, effectAt } from "../src/sim/stars";
+import { HEARTS_START } from "../src/sim/hearts"; // SCALE-2c M0 (REQ-BFG-098): the hearts swap
 import { drakeConvert, pressureBonus } from "../src/sim/cores";
 import { payloadDamage, type Build } from "../src/sim/deck";
 import { boostable, overclocked } from "../src/sim/overclock";
@@ -315,12 +316,18 @@ describe("SCALE-2a (f): hearts lost, passed in the way wins are", () => {
     expect(off.sides[0].heartsLost).toBeUndefined();
   });
 
-  it("the start-hearts function and heartsLost: START_LIVES today, never below 0", () => {
-    expect(startHearts()).toBe(START_LIVES);
-    expect(heartsLost(START_LIVES)).toBe(0);
-    expect(heartsLost(START_LIVES - 3)).toBe(3);
-    expect(heartsLost(1)).toBe(START_LIVES - 1);
-    expect(heartsLost(9)).toBe(0); // a snapshot's lives up to MAX_LIVES 9: clamped
+  // SCALE-2c M0 (REQ-BFG-098): the RETUNE-1 hearts swap. Before live-099 this pinned START_LIVES (5) start hearts; with
+  // HEARTS on (HULL-ON) a run starts on HEARTS_START (10), and a run started before the bump keeps its own 5 (livesCap).
+  it("the start-hearts function and heartsLost: HEARTS_START with HEARTS on, a run's own scale, never below 0", () => {
+    expect(startHearts()).toBe(HEARTS_START);
+    expect(startHearts({ lives: 7, hearts: true })).toBe(HEARTS_START);
+    expect(startHearts({ lives: 3 })).toBe(START_LIVES); // a run started before HEARTS: 5
+    expect(heartsLost(HEARTS_START)).toBe(0);
+    expect(heartsLost(HEARTS_START - 3)).toBe(3);
+    expect(heartsLost(1)).toBe(HEARTS_START - 1);
+    expect(heartsLost(12)).toBe(0); // never below 0
+    expect(heartsLost(6, { lives: 6, hearts: true })).toBe(4);
+    expect(heartsLost(3, { lives: 3 })).toBe(START_LIVES - 3);
   });
 
   it("the record keeps them (and wins) only when a side reads them, and a replay of it reads them back", () => {

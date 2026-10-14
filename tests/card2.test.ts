@@ -26,7 +26,7 @@ import type { RuneDef } from "../src/sim/runes";
 const runeTextLinesOf = (def: RuneDef, cw: number): string[] => runeTextLines(def, runeCardTextW(cw)).map(lineText);
 import { panelArea, type Sel } from "../src/screens/build/layout";
 import { detailsPlan, drawDetails, panelFit } from "../src/screens/build/inspector";
-import { SIGHT_REGION, iconTipRect, keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
+import { SIGHT_REGION, rigTipRect, keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
 import { RIG_SENTENCE } from "../src/ui/faces";
 import { plainRigStats } from "../src/ui/faces"; // MERGE-099D (BRIEF-MERGE-099D 1f): (k6) at the LAST CHANCE offer's star
 import { statRow } from "../src/ui/icons"; // MERGE-099D (1f)
@@ -65,6 +65,7 @@ import { panelWords } from "../src/screens/build/keywords";
 import { statIconNote, glossaryText } from "../src/ui/glossary";
 import { faceLines } from "../src/ui/faces";
 import { cardText as cardTextOf } from "../src/ui/abilityText";
+import { withGuard } from "../src/sim/guard"; // MERGE-099F (REQ-BFG-097): RIVET HOARD's base line with GUARD off
 import { colourize, wrapRich } from "../src/ui/richText";
 import { C } from "../src/render/palette";
 import { stripIcons as stripIconsOf } from "../src/render/font";
@@ -77,6 +78,8 @@ function detailsPlanOf(f: ReturnType<typeof framed>, def: string) {
   return panelCtx(run, CARGO, f, true).d();
 }
 import { RunePicker, PICK_DEF } from "../src/screens/runePicker";
+import { PICK_BAR } from "../src/screens/runePicker"; // CARD-4 (REQ-BFG-081, P1)
+import { WORD_ONLY } from "../src/ui/runeText"; // CARD-4 (REQ-BFG-081, T)
 import { LastChancePicker } from "../src/screens/lastChancePicker";
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, TIPS_KEY, setTipsForTests, sightDone, sightsDone, tipsDone } from "../src/ui/tips";
 import { sawWord, sightWord } from "../src/ui/firstSight";
@@ -210,15 +213,22 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
     picker.pressed("runepick");
     expect(picker.word).toBeNull();
     expect(state(run)).toBe(before);
-    // the take tap, on the card off its words, still takes it (the real offer)
-    const real = new RunePicker();
+    // the take tap, off the words, still takes it (the real offer). CARD-4 (REQ-BFG-081, P1, P2) changed what this checks:
+    // the open card's body takes nothing; its TAP AGAIN bar's target does, once the guard after the open has passed
+    // (tests/card4.test.ts (p) checks the rule itself)
+    const real = new RunePicker(), clock = sc.s as unknown as { t: number };
+    clock.t = 0;
     let u2 = sc.frame(real as never);
     const id0 = real.info(sc.s as never)!.ids[0];
     u2.regions.find((r) => r.id === "runepick-0")!.onTap!();
     u2 = sc.frame(real as never);
     const card = u2.regions.find((r) => r.id === "runepick-0")!;
     expect(u2.hit(card.r.x + card.r.w - 3, card.r.y + card.r.h - 3)?.id).toBe("runepick-0");
-    card.onTap!();
+    expect(card.onTap, "CARD-4: the open card's body takes nothing").toBeUndefined();
+    const bar = u2.regions.find((r) => r.id === PICK_BAR)!;
+    expect(u2.hit(bar.r.x + bar.r.w / 2, bar.r.y + bar.r.h / 2)?.id).toBe(PICK_BAR);
+    clock.t = 1;
+    bar.onTap!();
     expect((run.build.runes ?? []).map((q) => q.id)).toContain(id0);
   });
 
@@ -252,8 +262,11 @@ describe("CARD-2 (k2): every keyword on a rune card can be reached", () => {
 
 describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): new words, one line on the op card and the desk", () => {
   it("FIGHT START on every START: rune; SHIELD's reminder; SNARE KNOT's 15; MERGED; TOLL ROAD's load; TWIN SALVE's EACH PAIR", () => {
+    // MERGE-099F (REQ-BFG-097, -081): HULL-ON's GUARD on in c099's CARD-2 lines: RIVET HOARD's FIGHT START is GUARD's 180
+    // (src/sim/guard.ts GUARD_RUNES); was +60 (c099's world, no GUARD), read below with GUARD off, as HULL-ON's flip
+    // re-pinned its own GUARD text (cap's ruling 6f4568477e66a600)
     const want: Record<string, string[]> = {
-      rivet_hoard: ["FIGHT START: +60 SHIELD."], grave_plates: ["FIGHT START: +240 SHIELD."], loose_thread: ["FIGHT START: THE FOE HAS 2 FRAY."],
+      rivet_hoard: ["FIGHT START: +180 SHIELD."], grave_plates: ["FIGHT START: +240 SHIELD."], loose_thread: ["FIGHT START: THE FOE HAS 2 FRAY."],
       tangle_wire: ["FIGHT START: THE FOE HAS 5 FRAY."], ash_kindle: ["FIGHT START: THE FOE HAS 4 BURN."], ward_stone: ["FIGHT START: +3 WARD."],
       bulwark_ward: ["FIGHT START: +2 WARD."], searing: ["FIGHT START: THE FOE HAS 5 BURN.", "FOE WITH YOUR BURN: NO HEAL."],
       snare_knot: ["AT 15 FRAY (FULL): YOUR HITS +20 DMG."], scrap_halo: ["+60 HULL PER MERGED (★2/★3) PIECE IN USE."],
@@ -268,9 +281,12 @@ describe("CARD-2 (k3): the words READ-3's readers missed, rune lines (a)-(f): ne
         expect(got, `${id} at ${cw}`).toEqual(lines);
       }
       rows.push(`${id}: ${lines.map((l) => `"${l}" ${textWidth(l, "5")} px`).join(" / ")}`);
-      // the tokens and the amount are RuneDef's: no keyword, number or rule moved
-      expect(runeKeywordsOf(def).sort(), id).toEqual([...new Set([...def.text.matchAll(/\{\*?([A-Z]+)\}/g)].map((m) => m[1]).filter((k) => k !== "N"))].sort());
+      // the tokens and the amount are RuneDef's: no keyword, number or rule moved (CARD-4, T: the word-only keywords aside,
+      // MERGED, LOAD and RIG, words with a note: runeText.ts WORD_ONLY)
+      expect(runeKeywordsOf(def).filter((k) => !WORD_ONLY.has(k)).sort(), id).toEqual([...new Set([...def.text.matchAll(/\{\*?([A-Z]+)\}/g)].map((m) => m[1]).filter((k) => k !== "N"))].sort());
     }
+    // MERGE-099F: RIVET HOARD's base line with GUARD off, on both cards (the c099 pin)
+    expect(withGuard(() => [233, 300].map((cw) => runeTextLinesOf(RUNES.rivet_hoard, cw)), false)).toEqual([["FIGHT START: +60 SHIELD."], ["FIGHT START: +60 SHIELD."]]);
     console.log(`CARD-2 (k3) rune lines (5x7 px; the op card's text is 223 px, the 390-wide phones' 216):\n${rows.join("\n")}`);
     expect(runeReminderOf(RUNES.ward_stone)).toBe("WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS."); // CARD-3
     expect(textWidth(runeReminderOf(RUNES.ward_stone), "3")).toBeLessThanOrEqual(223);
@@ -345,14 +361,17 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     expect(keywordState(p.ctx)!.word, "SEAM WELDER: its first keyword, PAIR, as if tapped").toBe("PAIR");
     expect(ui.regions.some((r) => r.id === "kwdef")).toBe(true);
     expect(sightDone("kw:PAIR")).toBe(true);
-    // a press anywhere closes it, as a tapped word's; the same open shows nothing more
+    // a press anywhere closes it, as a tapped word's. CARD-5 (REQ-BFG-004, K; READ-5 11.1) changed this pin by design: the
+    // panel is still open, so its next keyword not yet seen (PLATE, drawn SHIELD: CARD-3) opens its note the same way, one
+    // box at a time (was: the same open shows nothing more, and SHIELD waited for the next open)
     keywordsPressed(p.ctx, null);
     ui = p.draw();
-    expect([keywordState(p.ctx)!.word, ui.regions.some((r) => r.id === "kwdef" || r.id === SIGHT_REGION)]).toEqual([null, false]);
-    // the next open of this panel: its next keyword not yet seen (PLATE)
+    expect([keywordState(p.ctx)!.word, ui.regions.filter((r) => r.id === "kwdef" || r.id === SIGHT_REGION).length]).toEqual(["SHIELD", 1]);
+    // the next open of this panel: neither again (both done)
+    keywordsPressed(p.ctx, null);
     keywordsIdle(p.ctx);
     p.draw();
-    expect(keywordState(p.ctx)!.word).toBe("SHIELD"); // CARD-3 (REQ-BFG-107)
+    expect(["PAIR", "SHIELD"]).not.toContain(keywordState(p.ctx)!.word);
     // another panel with PAIR (TWIN TRIGGER): PAIR is done, so no PAIR box
     const run2 = cargoRun("foundry", "twintrigger"), p2 = panelCtx(run2, CARGO, f, true);
     p2.draw();
@@ -371,7 +390,10 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     let ui = p.draw();
     const box = ui.regions.find((r) => r.id === SIGHT_REGION);
     expect([keywordState(p.ctx)!.rig, keywordState(p.ctx)!.word]).toEqual([true, null]);
-    expect(box!.r).toEqual(iconTipRect([RIG_SENTENCE], p.d().plan.r, { W: f.W, H: f.H }));
+    // CARD-4 run 2 (by design): on the phone, with no room beside the panel, under it (rigTipRect; iconTipRect put it above,
+    // over the shop: READ-4 F step 7); no strip here (tips done)
+    expect(box!.r).toEqual(rigTipRect([RIG_SENTENCE], p.d().plan.r, { W: f.W, H: f.H }, null));
+    expect(box!.r.y).toBeGreaterThanOrEqual(p.d().plan.r.y + p.d().plan.r.h);
     expect(sightDone("rig")).toBe(true);
     // a press on the box is a UI region's (it closes it; nothing else)
     expect(ui.hit(box!.r.x + 2, box!.r.y + 2)?.id).toBe(SIGHT_REGION);
@@ -382,11 +404,13 @@ describe("CARD-2 (k1): the first-sight notes on the build screen's panels, and t
     expect([keywordState(p.ctx)!.rig, keywordState(p.ctx)!.word]).toEqual([false, "BURN"]);
     expect(sightDone("kw:BURN")).toBe(true);
     expect(state(run)).toBe(before);
-    // a panel that shows a how-to tip (the place hint, tips new) shows no first-sight box
+    // a panel that shows a how-to tip (the place hint, tips new). CARD-4 (REQ-BFG-004, K) changed what this checks: on the
+    // phone the tip is a strip by the panel, and a strip is not a note, so the first sight opens beside it (here the rig
+    // sentence by the icon; tests/card4.test.ts (k) checks the box keeps off the strip)
     setTipsForTests("new");
     const p2 = panelCtx(cargoRun("furnace", "temper"), CARGO, f, true);
     ui = p2.draw();
-    expect([keywordState(p2.ctx)!.rig, keywordState(p2.ctx)!.word, ui.regions.some((r) => r.id === SIGHT_REGION)]).toEqual([false, null, false]);
+    expect([keywordState(p2.ctx)!.rig, keywordState(p2.ctx)!.word, ui.regions.some((r) => r.id === SIGHT_REGION)]).toEqual([true, null, true]);
     // a refit (the build screen between a fight's rounds): none
     setTipsForTests("sight");
     const r3 = cargoRun("furnace", "temper");
@@ -412,7 +436,7 @@ describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new w
       shottower: [["RIGS HIT EACH OF ITS 3 SLUGS ON ITS OWN."]], // run 2: true on a two-belt tower too (stamp is round-robin)
       assembly: [["FEEDS A GUN: YOUR RIGS WORK 50% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK 75% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK AT ONCE."]],
       sabot: [["A RIG IT HITS STOPS FOR THE WHOLE FIGHT.", "ANY OTHER PART IT HITS: STUN 4."]],
-      scrapper: [["EACH STUN YOU LAND: 1 EXTRA ."]],
+      scrapper: [["EACH STUN YOU LAND: 1 EXTRA .", "ITS  DEAL 30 MORE  THAN PLAIN."]], // CARD-5 (REQ-BFG-081, L): + its scrap damage, by design
       limpet: [["ITS  BLAST THE FOE'S HULL 3 AFTER A HIT."]],
       gatling: [["FIRES EACH LOAD AS IT COMES.", "SPINS UP TO 67% FASTER."]],
       pincer: [["HIT: +20  FOR EACH OTHER RIG HITTING IT."], ["HIT: +44  FOR EACH OTHER RIG HITTING IT."], ["HIT: +70  FOR EACH OTHER RIG HITTING IT."]],
@@ -497,21 +521,30 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     expect(ui.regions.some((r) => r.id === PICK_DEF)).toBe(true);
     expect(sightDone("kw:PAIR"), "done once its box was on screen").toBe(true);
     expect(sightDone("kw:SHIELD.107"), "the next one waits for the next open").toBe(false); // CARD-3
-    // the next open: TWIN SALVE (PAIR: HEAL 20.): PAIR is done, so HEAL
+    // the next open: TWIN SALVE (PAIR: HEAL 20.): PAIR is done, so HEAL. CARD-4 (REQ-BFG-081, P3) changed what this
+    // checks: while PAIR's note (opened by itself) is up, the next press only closes it; the press after opens the card
+    picker.pressed("runepick-1");
+    ui.regions.find((r) => r.id === "runepick-1")!.onTap!();
+    expect([picker.open, picker.word], "CARD-4 (P3): that press only closed PAIR's note").toEqual([0, null]);
+    ui = sc.frame(picker as never);
     picker.pressed("runepick-1");
     ui.regions.find((r) => r.id === "runepick-1")!.onTap!();
     expect(picker.word).toBe("HEAL");
     sc.frame(picker as never);
-    // SEAM RIVETS again: PLATE now; HOT SEAM after: BURN (PAIR done)
+    // SEAM RIVETS again: PLATE now; HOT SEAM after: BURN (PAIR done). CARD-4 (P3): a press on the picker's background
+    // first closes each note that opened by itself
+    picker.pressed("runepick");
     picker.pressed("runepick-0");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-0")!.onTap!();
     expect(picker.word).toBe("SHIELD"); // CARD-3 (REQ-BFG-107)
     sc.frame(picker as never);
+    picker.pressed("runepick");
     picker.pressed("runepick-2");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-2")!.onTap!();
     expect(picker.word).toBe("BURN");
     sc.frame(picker as never);
     // every keyword seen: an open shows none, never on every open
+    picker.pressed("runepick");
     picker.pressed("runepick-0");
     sc.frame(picker as never).regions.find((r) => r.id === "runepick-0")!.onTap!();
     expect(picker.word).toBeNull();
@@ -550,7 +583,8 @@ describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/ti
     sawWord("PAIR");
     expect(sightWord(["PAIR"])).toBeNull();
     expect(FIRST_SIGHT_WORDS.every((w) => !["RATE", "DMG", "SLUG", "GEAR", "BELT", "HULL", "GOLD"].includes(w))).toBe(true);
-    expect(Object.values(KEYWORD_WORD).filter((w) => FIRST_SIGHT_WORDS.includes(w)).sort()).toEqual(["BURN", "FRAY", "HEAL", "HEAT", "PAIR", "REGEN", "RIDE", "SHIELD", "STUN", "WARD"]); // CARD-3
+    // CARD-4 (REQ-BFG-081, T) changed this list: LOAD is a rune word now (TOLL ROAD's), its first sight the LOAD label's
+    expect(Object.values(KEYWORD_WORD).filter((w) => FIRST_SIGHT_WORDS.includes(w)).sort()).toEqual(["BURN", "FRAY", "HEAL", "HEAT", "LOAD", "PAIR", "REGEN", "RIDE", "SHIELD", "STUN", "WARD"]); // CARD-3
   });
 });
 

@@ -18,14 +18,16 @@ import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import type { Build } from "../src/sim/deck";
 import { GHOST_KEY, loadPool, saveGhost, type GhostSnapshot } from "../src/game/ghosts";
+import { openRunesFor } from "../src/net/rulesGate"; // HULL-ON (the flip, OPEN_RUNES): an upload's offer rule
 
 const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const SEED = 4242;
 
-/** `b` with the bots' picks at the dawns of days 1..day on run seed SEED (botTakeRune: the grants on the build). */
-function withPicks(b: Build, day: number): Build {
+/** `b` with the bots' picks at the dawns of days 1..day on run seed SEED (botTakeRune: the grants on the build). HULL-ON
+ *  (the flip, OPEN_RUNES): `open`, the offers' rule (botTakeRune's last argument; the closed offers by default, as before). */
+function withPicks(b: Build, day: number, open = false): Build {
   const out: Build = JSON.parse(JSON.stringify(b));
-  for (let d = 1; d <= day; d++) expect(botTakeRune(out, SEED, d, out.hero, true), `${out.hero} dawn ${d}`).not.toBeNull();
+  for (let d = 1; d <= day; d++) expect(botTakeRune(out, SEED, d, out.hero, true, false, 0, open), `${out.hero} dawn ${d}`).not.toBeNull();
   return out;
 }
 
@@ -88,13 +90,17 @@ describe("FLIP-X2 step 2: the switches", () => {
 
 describe("FLIP-X2 step 2: the rune count (cap's ruling 5d6d83ef57d1494c)", () => {
   it("an upload holds exactly `day` runes: a missing runes field at day >= 1 and a skipped pick (day - 1 runes) are refused", () => {
+    // HULL-ON (the flip, OPEN_RUNES): an upload under RULES_VERSION is re-derived on the open offers (validate.ts
+    // openRunesFor(rules)), so its picks are the bots' on the switch's rule, as the par player takes them (was the closed
+    // default: "rune: runes[2]: OILED COGS was not offered at the dawn of day 3")
+    const open = openRunesFor(RULES_VERSION);
     for (const hero of HEROES4) {
-      const d1 = withPicks(heroStartBuild(hero), 1);
+      const d1 = withPicks(heroStartBuild(hero), 1, open);
       expect(validateUpload(d1, 1, RULES_VERSION, { seed: SEED }).errors, `${hero} d1`).toEqual([]);
       const { runes: _drop, ...bare } = d1;
       // (a) a missing field counts as 0 (the hull and belt the rune gave are left, so only the count can refuse it)
       expect(validateUpload(bare as Build, 1, RULES_VERSION, { seed: SEED }).errors, `${hero} d1, no field`).toEqual(["rune: runes: 0 held on day 1, one a dawn (1)"]);
-      const d3 = withPicks(heroRefBuild(hero, 3), 3);
+      const d3 = withPicks(heroRefBuild(hero, 3), 3, open);
       expect(validateUpload(d3, 3, RULES_VERSION, { seed: SEED }).errors, `${hero} d3`).toEqual([]);
       // (b) a skipped pick: day - 1 runes
       expect(validateUpload({ ...d3, runes: d3.runes!.slice(0, 2) }, 3, RULES_VERSION, { seed: SEED }).errors, `${hero} d3, 2 runes`).toEqual(["rune: runes: 2 held on day 3, one a dawn (3)"]);
