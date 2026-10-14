@@ -351,7 +351,12 @@ const core = (e: ItemDef, x: { k: number }) => scaleCore(e.core!, x.k);
 export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // cores.ts pressure: + perQueued for each queued load, at most maxCount of them; it never jams (noJam)
   // U2d F5: as the turret panel's note (was "SHOT: AT MOST 5 LOADS WAITING COUNT, AND IT NEVER JAMS.")
-  pressure: { word: "SHOT", text: (e, x) => `SHOT: IT COUNTS UP TO ${fmtCount(core(e, x).maxCount!)} WAITING LOADS, AND IT NEVER JAMS.` },
+  // SCALE-2c (REQ-BFG-098): with SCALE_RIGS on its def has no maxCount (MAX 5 dropped: scale.ts SCALE_DEFS): no cap to say
+  pressure: {
+    word: "SHOT",
+    text: (e, x) => core(e, x).maxCount === undefined ? "SHOT: IT COUNTS EVERY WAITING LOAD, AND IT NEVER JAMS."
+      : `SHOT: IT COUNTS UP TO ${fmtCount(core(e, x).maxCount!)} WAITING LOADS, AND IT NEVER JAMS.`,
+  },
   // cores.ts compound: a lone load fires on its own after `hold` s; a shell carries both loads' burn and shock
   compound: { word: "SHOT", text: (e, x) => `SHOT: A LONE LOAD FIRES ALONE AFTER ${fmtSec(core(e, x).hold!)}{SEC}. A SHELL KEEPS BOTH LOADS' {*BURN} AND {*STUN}.` },
   // battle.ts applyHit: one count for every payload its arrows hit, on every belt they reach; the copies at full strength
@@ -382,9 +387,11 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   },
   // WORDS-1 (REQ-BFG-081; READ-1 6.1: POWDER KEG's ITS BELTS read as the tiles by it): battle.ts:1146 its blast reaches every
   // slug on the belts its arrows hit, wherever it is, as SURGE VALVE's pulse does (the same note's words)
+  // SCALE-2c (REQ-BFG-098): with SCALE_RIGS on POWDER KEG has no fuse and its face no EVERY (a HIT: reader line), so this
+  // note never matches a word there; "" keeps a sweep over the notes from reading a fuse it doesn't have
   keg: {
     word: "EVERY",
-    text: (e) => `EVERY ${fmtSec(e.gate!.keg!.fuse)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.`,
+    text: (e) => (e.gate?.keg ? `EVERY ${fmtSec(e.gate.keg.fuse)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.` : ""),
   },
   // battle.ts rip: a hit on an enemy belt tile or rig rips the nearest payloads within reach. Y2 (release Y; DESIGN-Y row
   // 19): a hit POWDER KEG is no longer disarmed, so the tap doesn't say it

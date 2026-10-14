@@ -28,6 +28,8 @@ import { familiesOf, familyNote } from "../src/ui/families"; // WORDS-1: the fam
 import { CORE_WORDS, HERO_WORDS } from "../src/ui/glossary"; // WORDS-1: the core list
 import { runeTag } from "../src/ui/runeText"; // WORDS-1: LAST STAND's tag
 import { setShapes } from "../src/sim/shapes"; // SHAPES-1: BB_SHAPES=1
+import { setScaleRigs } from "../src/sim/scale"; // SCALE-2c (REQ-BFG-098): BB_SCALE=1
+import { scaleNotes } from "../src/ui/faces"; // SCALE-2c (REQ-BFG-089): the readers' NOTES line (SCALE_RIGS on only)
 
 const NAME_OF = new Map<string, string>(Object.entries(ICON).map(([k, v]) => [v as string, k]));
 /** Markup or glyphs as plain text: each private-use icon as [NAME]. */
@@ -58,6 +60,8 @@ function piece(d: ItemDef, out: string[]): void {
       // blocks by keywords.ts panelWords (the keywords as drawn, the labels, a tap note, the stat icons, every glossary word a
       // face line prints), so the sheet lists what a tap shows on that card (was a list built here: labels, keywords, note)
       for (const w of panelWords(faceBlocks(d.id, s, o) ?? [], { def: d.id, stars: s, o })) out.push(`  - ⓘ KEYWORDS ${w.word}: \`${plain(w.text)}\``);
+      // SCALE-2c (REQ-BFG-089): a scaling piece's count line, its ⓘ NOTES (faces.ts scaleNotes; none with SCALE_RIGS off)
+      for (const n of scaleNotes(d.id)) out.push(`  - ⓘ NOTES: \`${plain(n)}\``);
     } else {
       const at = abilityText(d.id, s, o);
       out.push(`  - kept text: ${at.sentences.map((t) => `\`${t}\``).join(" ")}${at.perk ? ` (perk ★${at.perk.stars} ${at.perk.name})` : ""}`);
@@ -104,6 +108,8 @@ if ((process.argv[1] ?? "").endsWith("textSheet.js")) {
   // SHAPES-1 (REQ-BFG-086, S8): BB_SHAPES=1 makes the sheet with SHAPES on (the three shaped rigs, GANTRY PRESS 2x3, ASSEMBLY
   // LINE I3), as the brief's text-sheet check asks; unset, the sheet is as before
   if (process.env.BB_SHAPES === "1") setShapes(true);
+  // SCALE-2c (REQ-BFG-098): BB_SCALE=1 makes the sheet with SCALE_RIGS on (the 12 scaling pieces); unset, as before
+  if (process.env.BB_SCALE === "1") setScaleRigs(true);
   const text = sheet();
   writeFileSync(path, text);
   console.log(`text sheet: ${text.split("\n").length} lines -> ${path}`);

@@ -18,6 +18,7 @@
 import { ITEMS } from "../../sim/content";
 import { gameWords } from "../../ui/gameWords"; // CARD-3 (REQ-BFG-107)
 import { hasFace } from "../../ui/faces"; // U2b F2
+import { SCALE_IDS, onSetScaleRigs } from "../../sim/scale"; // SCALE-2c (REQ-BFG-098): the new readers' rows, switch on only
 
 /**
  * The kept flavour of every buyable module and supply, by id: whole sentences (T2's rules, no numbers), the same at every
@@ -170,6 +171,17 @@ const SIGNATURE_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
 };
 
 const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
+// SCALE-2c (REQ-BFG-098): the seven new scaling rigs (sim/scale.ts SCALE_ITEMS) are sold only with SCALE_RIGS on, so their
+// rows join KEPT_FLAVOUR then and leave it with the switch off (tests/flavour.test.ts: the rows are the sold modules'
+// exactly). None kept, as the reworks keep none: each draws a face and has an empty desc
+onSetScaleRigs((on) => {
+  const rows = KEPT_FLAVOUR as Record<string, readonly string[]>;
+  for (const id of SCALE_IDS) {
+    if (on) rows[id] = [];
+    else delete rows[id];
+  }
+});
 
 /**
  * A module's flavour at `stars` (on a turret of class factor `k`): its kept sentences (KEPT_FLAVOUR; [] when nothing is

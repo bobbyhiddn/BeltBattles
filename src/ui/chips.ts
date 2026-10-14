@@ -26,6 +26,7 @@ import { KEYWORDS, icons, type IconName } from "../render/font";
 import { ITEMS } from "../sim/content";
 import type { TextOpts } from "./abilityText";
 import { faceAt, hasFace, type Face } from "./faces";
+import { scaleRules } from "../sim/scale"; // SCALE-2c (REQ-BFG-098): the 12 readers' phone gists, SCALE_RIGS on only
 
 /** A number as the face prints it (signed, decimal, a percentage). */
 const NUM = /[+-]?\d+(?:\.\d+)?%?/;
@@ -232,10 +233,32 @@ const statOf = (f: Face, icon: IconName): string => String(f.stats.find(([ic]) =
 /** CARD-5: a stat's number as the face's second stat row prints it (a batch's or a pour's SLUG, HOT SWAP's BURN), or "". */
 const stat2Of = (f: Face, icon: IconName): string => String(f.stats2?.find(([ic]) => ic === icon)?.[1] ?? "");
 
+/**
+ * SCALE-2c (REQ-BFG-098, REQ-BFG-081; BRIEF-SCALE2c section 3): the 12 scaling pieces' phone gists, read before
+ * PHONE_GISTS only while SCALE_RIGS is on (phoneGist), so with it off every row (tests/card5.test.ts's pins) is CARD-5's.
+ * Row A says what the piece counts, in words (at most 39 px of 3x5, no digit: IRON WALL's per 10 is its face's, not row
+ * A's); row B is the chip, the face's own number (shopChip's rule on the reader face: {DMG}+3, {PLATE}+2, {HEAL}4).
+ */
+export const SCALE_GISTS: Readonly<Record<string, (chip: string, f: Face) => readonly [string, string]>> = {
+  quench: (c) => ["PER FOE {BURN}", c], // KINDLING: HIT: +3 DMG FOR EACH BURN ON THE FOE
+  pressure: (c) => ["PER {SLUG} HELD", c], // SHOT: +12 DMG FOR EACH SLUG WAITING (MAX 5 dropped; CARD-5's words)
+  shieldwall: (c) => ["YOUR {PLATE}", c], // IRON WALL: HIT: +5 DMG FOR EACH 10 SHIELD YOU HAVE
+  spallcatcher: (c) => ["HITS TAKEN", c], // SHOT: +3 DMG FOR EACH HIT ON YOU
+  keg: (c) => ["ITS HITS", c], // POWDER KEG: HIT: +3 DMG FOR EACH OF ITS HITS
+  cindermail: (c) => ["PER FOE {BURN}", c], // HIT: +2 SHIELD FOR EACH BURN ON THE FOE
+  rotgauge: (c) => ["PER FOE {POISON}", c], // HIT: +3 DMG FOR EACH POISON ON THE FOE
+  leechcoil: (c) => ["PER FOE {POISON}", c], // HIT: HEAL 4 TIMES THE FOE'S POISON
+  crowdpress: (c) => ["{SLUG} ON BELT", c], // HIT: +3 DMG FOR EACH SLUG ON ITS BELT
+  aegisspike: (c) => ["YOUR {SHIELD}", c], // HIT: +40 DMG FOR EACH WARD YOU HAVE
+  grudgerod: (c) => ["{HULL} LOST", c], // HIT: +6 DMG FOR EACH HEART LOST (the run bar's heart)
+  trophychain: (c) => ["PER WIN", c], // HIT: +8 DMG FOR EACH WIN
+};
+
 /** CARD-3 (A): the phone card's gist for `def` (rows A and B, in markup), or null (the card keeps its chip). CARD-5: at
  *  `stars` (the shop's offers are ★1; tests read ★2 and ★3 too), every number from the face at that star and o.day. */
 export function phoneGist(def: string, o: TextOpts = {}, stars = 1): readonly [string, string] | null {
-  const g: ((chip: string, f: Face) => readonly [string, string]) | undefined = PHONE_GISTS[def];
+  const g: ((chip: string, f: Face) => readonly [string, string]) | undefined =
+    scaleRules() && Object.prototype.hasOwnProperty.call(SCALE_GISTS, def) ? SCALE_GISTS[def] : PHONE_GISTS[def]; // SCALE-2c
   if (!g || !hasFace(def) || ITEMS[def]?.kind === "supply") return null;
   const f = faceAt(def, stars, o), c = f ? chipOn(def, f) : null;
   return f && c ? g(c, f) : null;

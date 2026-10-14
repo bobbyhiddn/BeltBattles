@@ -368,7 +368,16 @@ export function rigTip(d: number, st: ArrowState): Cv {
   });
 }
 
+/** SCALE-2c (REQ-BFG-098; BRIEF-SCALE2c section 2, cap's F4): the seven new scaling rigs' stand-in art, ref/scale1/data/
+ *  rigs.json's `artFrom`: each draws that live rig's picture (its deck sprite, its icon's idle frame) until its own is made.
+ *  Asked for only with SCALE_RIGS on (the ids are in ITEMS only then). LEECH COIL draws RIVETER's. */
+export const SCALE_ART_FROM: Readonly<Record<string, string>> = {
+  cindermail: "plateroller", rotgauge: "heatjacket", leechcoil: "riveter", crowdpress: "pincer", aegisspike: "braceframe",
+  grudgerod: "counterweight", trophychain: "overclocker",
+};
+
 function drawGate(g: G, id: string, f: number, active: boolean): void {
+  if (Object.prototype.hasOwnProperty.call(SCALE_ART_FROM, id)) id = SCALE_ART_FROM[id]; // SCALE-2c: the stand-in art
   switch (id) {
     case "venom": {
       bevel(g, 1, 1, 10, 10, C.green, C.lime, C.oil0, C.ink);
