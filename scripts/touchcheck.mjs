@@ -2294,7 +2294,10 @@ async function shapeRotateSection(browsers, origin) {
  *  screen object, its targets where they were, every beltbattles.* key byte-identical); REPLAY again and BACK while it
  *  plays; then the card's primary goes on as before (the dawn's build screen; the road's event). replayReload (the phone):
  *  a reload during a replay lands where a reload on the card lands (CONTINUE: the dawn's build screen for a dusk, the
- *  stored card again for a warlord). On REPLAY_VIEWS (wk-op-690: the operator's 402x690 in WebKit, where the run has it). */
+ *  stored card again for a warlord). On REPLAY_VIEWS (wk-op-690: the operator's 402x690 in WebKit, where the run has it).
+ *  REPLAY-1b (REQ-BFG-112; REVIEW-REPLAY1 rulings 1 and 2): on touch the card's primary is pressed in its target's grown part
+ *  and checked at least 44 x 44 CSS px (rp1bPrimary); after replayReload's warlord reloads, the card CONTINUE reopens offers
+ *  no REPLAY and its VIEW BATTLEFIELD still opens (rp1bReopened). */
 const REPLAY_VIEWS = ["phone", "wk-op-690", "phone-land", "desk"];
 const rp1Keys = (page) => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("beltbattles.")).sort().map((k) => `${k}=${localStorage.getItem(k)}`));
 /** The card's own targets: every region drawn after its full-screen blocker (resultbg), in CSS client px. */
@@ -2303,6 +2306,32 @@ const rp1OnCard = (page, timeout = 30000) => page.waitForFunction(() => window.b
 const rp1InReplay = (page, timeout = 15000) => page.waitForFunction(() => window.bb.screen() === "replay" && !window.bb.game.transitioning, null, { timeout });
 const rp1State = (page) => page.evaluate(() => { const s = window.bb.game.screen; return window.bb.screen() === "replay" ? { over: s.over, speed: s.speed, arenaSpeed: s.arena.speed, ticks: s.arena.b.ticks } : null; });
 const rp1Same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+/** REPLAY-1b (REQ-BFG-112; REVIEW-REPLAY1 ruling 2): a point in the card's primary target 1 CSS px over its foot: on a touch
+ *  view, where the target grew down past its drawn button (battleHud.ts primaryTap: 1 logical px or more, 1.67 CSS px or
+ *  more on these views), its grown part. */
+const rp1bFoot = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h - 1 });
+
+/** REPLAY-1b (ruling 2): on a touch view, the card's primary target `r` (at rest, among the card's targets `card`) is at
+ *  least 44 x 44 CSS px, on the screen and clear of the card's other targets, and the tap in its grown part (rp1bFoot)
+ *  went on (`went`). */
+function rp1bPrimary(V, kind, pid, r, card, vp, went) {
+  const clear = !!r && card.filter((q) => q.id !== pid).every((q) => !overlaps(r, q));
+  check(!!r && r.w >= TAP_CSS - 0.01 && r.h >= TAP_CSS - 0.01 && inViewport(r, vp) && clear && went,
+    `${V}: the ${kind} card's primary (${pid}) has a finger's target, ${box(r)}: at least 44 x 44 CSS px, on the screen, clear of the card's ${card.length - 1} other targets; a tap 1 CSS px over its foot (its grown part) goes on`);
+}
+
+/** REPLAY-1b (REQ-BFG-112; REVIEW-REPLAY1 ruling 1): the warlord card CONTINUE reopens after a reload (a card restored from a
+ *  save, `landed`) offers no REPLAY; ON TO THE ROAD is there, and VIEW BATTLEFIELD still opens (a real press). */
+async function rp1bReopened(page, cdp, V, where, landed) {
+  const ids = await page.waitForFunction(() => (window.bb.screen(true) === "result" && !window.bb.game.transitioning && window.bb.regions().some((q) => q.id === "viewfield") ? window.bb.regions().map((q) => q.id) : null), null, { timeout: 15000 }).then((h) => h.jsonValue()).catch(() => []);
+  let view = false;
+  if (ids.includes("viewfield")) {
+    await press(page, cdp, centre(await regionOf(page, "viewfield")));
+    view = await page.waitForFunction(() => window.bb.screen(true) === "view", null, { timeout: 10000 }).then(() => true).catch(() => false);
+  }
+  check(ids.length > 0 && !ids.includes("cardreplay") && ids.includes("toroad") && view,
+    `${V}: after the reload ${where === "replay" ? "during the warlord's replay" : "on the warlord's card"}, the card CONTINUE reopens (${landed}) offers no REPLAY (a card restored from a save); ON TO THE ROAD is there and VIEW BATTLEFIELD still opens (${ids.filter((q) => q !== "resultbg").join(", ") || "no card"}; view: ${view})`);
+}
 
 /** A speed picked by a real press on the battle's (or replay's) bar: its own button (sp0-sp3), or the compact bar's cycle. */
 async function rp1Speed(page, cdp, i) {
@@ -2368,25 +2397,31 @@ async function rp1Card2(page, cdp, V, vname, kind) {
 
 async function replayView(browsers, origin, vname) {
   const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname, { name: "REPLAY" });
-  const V = `replay ${vname}`;
+  const V = `replay ${vname}`, touch = !!cdp, vp = VIEW[vname].viewport;
   viewNow = V;
   await page.evaluate(() => window.bb.openDusk({ hero: "furnace", day: 6, seed: 7 }, []));
   await page.waitForFunction(() => window.bb.screen(true) === "fight", null, { timeout: 20000 });
   await rp1Speed(page, cdp, 2); // 2X: the run's kept speed from now on
   await press(page, cdp, centre(await regionOf(page, "skip")));
   const pid = await rp1Card2(page, cdp, V, vname, "dusk");
-  await press(page, cdp, centre(await regionOf(page, pid)));
+  // REPLAY-1b (ruling 2): on touch the primary is pressed in its target's grown part (rp1bFoot), on the desk at its centre
+  const dc = await rp1Card(page), dr = dc.find((q) => q.id === pid);
+  await press(page, cdp, touch ? rp1bFoot(dr) : centre(dr));
   await settle(page, "build", 15000);
-  check(await page.evaluate(() => window.bb.screen() === "build"), `${V}: then the dusk card's ON TO DAWN (${pid}) goes on to the dawn's build screen, as before`);
+  const dWent = await page.evaluate(() => window.bb.screen() === "build");
+  check(dWent, `${V}: then the dusk card's ON TO DAWN (${pid}) goes on to the dawn's build screen, as before`);
+  if (touch) rp1bPrimary(V, "dusk", pid, dr, dc, vp, dWent);
   await page.evaluate(() => { window.bb.game.screen.oldScreen = true; window.bb.openWarlord("hard", { hero: "furnace", day: 4, seed: 9 }); });
   await page.waitForFunction(() => !window.bb.game.screen.oldScreen && window.bb.screen() === "warlord" && window.bb.screen(true) === "fight", null, { timeout: 20000 });
   await rp1Speed(page, cdp, 3); // 4X
   await press(page, cdp, centre(await regionOf(page, "skip")));
   const wp = await rp1Card2(page, cdp, V, vname, "warlord");
-  await press(page, cdp, centre(await regionOf(page, wp)));
+  const wc = await rp1Card(page), wr = wc.find((q) => q.id === wp);
+  await press(page, cdp, touch ? rp1bFoot(wr) : centre(wr)); // REPLAY-1b: as the dusk card's
   await page.waitForFunction(() => ["event", "build"].includes(window.bb.screen()) && !window.bb.game.transitioning, null, { timeout: 15000 });
   const went = await page.evaluate(() => window.bb.screen());
   check(wp === "toroad" ? went === "event" : went === "build", `${V}: then the warlord card's ${wp === "toroad" ? "ON TO THE ROAD" : wp} goes on, as before (${went})`);
+  if (touch) rp1bPrimary(V, "warlord", wp, wr, wc, vp, wp === "toroad" ? went === "event" : went === "build");
   check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
   await ctx.close();
 }
@@ -2425,6 +2460,7 @@ async function replayReload(browsers, origin, vname) {
         await sleep(400);
       }
       got[where] = await rp1Reload(page, cdp);
+      if (kind === "warlord") await rp1bReopened(page, cdp, V, where, to(got[where])); // REPLAY-1b (ruling 1)
     }
     const want = kind === "dusk" ? got.card.screen === "build" : got.card.screen === "warlord" && got.card.phase === "result";
     check(want && rp1Same(got.replay, got.card), `${V}: a reload during the ${kind}'s replay lands where a reload on its card lands (CONTINUE: ${to(got.replay)}; on the card: ${to(got.card)})`);
@@ -2435,7 +2471,7 @@ async function replayReload(browsers, origin, vname) {
 
 async function replaySection(browsers, origin) {
   log("");
-  log("## REPLAY-1 (REQ-BFG-112): REPLAY on the result card of a dusk and of a warlord fight, by real input on each view: on the screen, clear of the card's targets, 44 CSS px on touch; the replay at the run's kept speed; a speed picked in it not kept; BACK to the same card (its targets, every key); then the card's primary; a reload during a replay lands where the card's does");
+  log("## REPLAY-1 (REQ-BFG-112): REPLAY on the result card of a dusk and of a warlord fight, by real input on each view: on the screen, clear of the card's targets, 44 CSS px on touch; the replay at the run's kept speed; a speed picked in it not kept; BACK to the same card (its targets, every key); then the card's primary; a reload during a replay lands where the card's does. REPLAY-1b: the card's primary a finger's target on touch (44 x 44 CSS px; a tap in its grown part goes on); the warlord card CONTINUE reopens offers no REPLAY");
   for (const v of REPLAY_VIEWS) {
     if (!browsers[ENGINE(v)]) continue; // its browser didn't launch (a FAIL above)
     loadLine(`replay ${v}: start`);
