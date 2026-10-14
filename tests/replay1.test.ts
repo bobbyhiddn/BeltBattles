@@ -63,7 +63,9 @@ import { SummaryScreen } from "../src/screens/summary";
 import { CARD_REPLAY, REPLAY_GAP, REPLAY_LABEL, SPEEDS, cardReplayRow } from "../src/screens/battleHud";
 import { ON_TO_THE_ROAD } from "../src/screens/warlordHud";
 import { RUN_SPEED_1X, keepRunSpeed, runSpeed } from "../src/game/runSpeed";
-import { setupRun, setupWarlord } from "../src/tooling";
+import { makeGhost, setupRun, setupWarlord } from "../src/tooling";
+import { simulate } from "../src/sim/battle"; // REPLAY-1b: (e)'s Hard win, found
+import { warlordSeed } from "../src/game/road"; // REPLAY-1b
 import { setSession, type Session } from "../src/game/session";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { hullScaleRules } from "../src/sim/hullScale";
@@ -418,6 +420,28 @@ describe("REPLAY-1 (d): the replay starts at the run's kept speed", () => {
   });
 });
 
+/** REPLAY-1b (REQ-BFG-112): a Hard warlord fight (NPC_DAY off: call it inside withNpcDay(.., false)) that the run wins on
+ *  the screen, for (e)'s pick card: the first day (2 .. RUN_DAYS - 1) and seed (1 .. 8) whose fight it wins (sim/battle.ts
+ *  simulate on the screen's Arena's inputs), found once. A starter deck didn't beat a Hard warlord in REPLAY-1b's exploration,
+ *  so the run fields tooling's strong honest deck for its day (makeGhost power 2, as tests/replay1b.test.ts warlordRun). */
+let hardWin: { day: number; seed: number } | null = null;
+function hardPickRun(): Run {
+  const at = (day: number, seed: number): Run => {
+    const run = setupWarlord("hard", { hero: "furnace", day, seed, wins: Math.floor((day - 1) / 2) });
+    run.build = makeGhost({ hero: run.hero, day: run.day, power: 2 }).build;
+    run.nextUid = 1 + Math.max(0, ...run.build.items.map((p) => p.uid), ...run.build.mods.map((m) => m.uid));
+    return run;
+  };
+  for (let day = 2; day <= RUN_DAYS - 1 && !hardWin; day++) {
+    for (let seed = 1; seed <= 8 && !hardWin; seed++) {
+      const run = at(day, seed), w = run.warlord!;
+      if (!w.reward.legendary && w.reward.parts.length && simulate(run.build, w.build, warlordSeed(run), 60 * 200, [run.wins, 0], run.day).winner === 0) hardWin = { day, seed };
+    }
+  }
+  expect(hardWin, "a Hard win within the search").toBeTruthy();
+  return at(hardWin!.day, hardWin!.seed);
+}
+
 describe("REPLAY-1 (e): the REPLAY button on every view", () => {
   const VIEWS: [number, number, number][] = [[402, 690, 3], [390, 844, 3], [430, 932, 3], [360, 780, 3], [844, 390, 3], [690, 402, 3], [932, 430, 3], [1920, 1080, 1], [1366, 768, 1], [1280, 720, 1]];
 
@@ -463,11 +487,13 @@ describe("REPLAY-1 (e): the REPLAY button on every view", () => {
         toCard(s);
         check(`${tag} ${kind}`, game, s);
       }
-      // NPC_DAY off: a Hard win's pick of 2 (take0, take1) under the PICK line (on day 4, as tests/scout1.flow's)
+      // NPC_DAY off: a Hard win's pick of 2 (take0, take1) under the PICK line. REPLAY-1b (REQ-BFG-112; REVIEW-REPLAY1
+      // ruling 1): a card restored from a save offers no REPLAY, so this card is no longer built on a stored result
+      // (setupWarlord's `outcome`: day 4, seed 9, as tests/scout1.flow's) but after a Hard win played on the screen
       withNpcDay(() => {
-        const run = setupWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 });
+        const run = hardPickRun();
         const game = fakeGame(run, ...v), s = new BattleScreen(game, "warlord");
-        for (let i = 0; i < 30; i++) s.update(DT);
+        toCard(s);
         const ids = frame(game, s).regions.map((q) => q.id);
         expect(ids).toContain("take0");
         check(`${tag} warlord pick (NPC_DAY off)`, game, s);

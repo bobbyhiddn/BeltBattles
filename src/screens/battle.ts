@@ -99,7 +99,8 @@ export class BattleScreen implements Screen {
   private readonly record: BattleRecord | null;
   /** REPLAY-1 (REQ-BFG-112; display only): the fight's record for the result card's REPLAY, for every kind (the dusk online
    *  and offline, the warlord), made exactly as the Arena is made; never saved (the history keeps `record`, as before).
-   *  Null only if battleRecordFor refuses the fight's inputs: the card then offers no REPLAY. */
+   *  Null if battleRecordFor refuses the fight's inputs, or (REPLAY-1b) when this screen opens on a stored result: the card
+   *  then offers no REPLAY. */
   private readonly cardRecord: BattleRecord | null;
   /** REPLAY-1: the card's REPLAY is open; BACK re-enters this screen at its card (enter()). */
   private replayOut = false;
@@ -151,7 +152,11 @@ export class BattleScreen implements Screen {
     // 0.7.0a: the dusk's battle record (both decks as they fight, the seed) for the summary's REPLAY; online only
     // HULL-1a (REQ-BFG-079): the dusk and a warlord fight are on the run's day (the record keeps it with HULL_SCALE on)
     this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed, wins, run.day) : null;
-    this.cardRecord = cardRecordFor(run.build, this.foe.build, this.seed, wins, run.day); // REPLAY-1: every kind, display only
+    // REPLAY-1: every kind, display only. REPLAY-1b (REQ-BFG-112; REVIEW-REPLAY1 ruling 1): a card restored from a save (a
+    // warlord that already has its result: CONTINUE, or any way in that builds this screen then) offers no REPLAY: run.build
+    // is the deck after finishWarlord gave the win's drop and merged it, so a record made now could differ from the fight
+    // that was watched. A fight played on this screen keeps its record, cloned here at its start, as before.
+    this.cardRecord = w?.result ? null : cardRecordFor(run.build, this.foe.build, this.seed, wins, run.day);
     this.note = w ? null : foeNote(run, this.foe);
     this.wact = {
       take: [0, 1].map((i) => () => this.take(i)),
@@ -343,7 +348,8 @@ export class BattleScreen implements Screen {
     this.game.audio.play("horn");
   }
 
-  /** REPLAY-1 (REQ-BFG-112): REPLAY is offered: on the result card (dusk or warlord), with a record for the fight. */
+  /** REPLAY-1 (REQ-BFG-112): REPLAY is offered: on the result card (dusk or warlord), with a record for the fight (REPLAY-1b:
+   *  never on a card restored from a save: cardRecord). */
   canReplay(): boolean {
     return this.phase === "result" && !!this.cardRecord && !this.leaving;
   }
