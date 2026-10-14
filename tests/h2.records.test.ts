@@ -31,6 +31,7 @@ import { RULES_VERSION } from "../src/sim/content";
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the 5-lives checks
 import { LAST_CHANCE_HULL } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): the HULL card
 import { floorRecord, isReachable, reachableRecords } from "../src/net/records";
+import { rulesGateProblem } from "../src/net/rulesGate"; // SOFT-1 (REQ-BFG-092): the 0.7.0 page's deck
 import { decodeSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import type { Identity } from "../src/net/identity";
@@ -260,7 +261,12 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     // rules: a bb-0.6.2 FURNACE snapshot with an unreachable record meets the rules 422 (what a 0.7.0 page meets)
     // FLIP-X2: the seed pool's decks now hold their day's runes (v3, with a seed) and bb-0.6.2 predates runes (bb-0.8.7),
     // so the 0.7.0 page's snapshot is the deck as it sends it: rune-less v2, no seed (was { ...bad, rules: "bb-0.6.2" })
-    const old = await post({ ...runeless(bad), rules: "bb-0.6.2" });
+    // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): deckOf(3) is FURNACE d3 variant 1 now, a
+    // par-field run's dusk deck holding sustain pieces (WARD BELL, MEND PRESS, MENDING LOOM: bb-0.9.0 on), which no 0.7.0
+    // page sent, so the page's snapshot carries the first FURNACE day-3 seed deck the bb-0.6.2 gate takes, with bad's record
+    // and ids (was runeless(bad): "rules bb-0.6.2 predate bb-0.9.0: sustain pieces" at encodeSnapshot)
+    const deck062 = POOL.find((s) => s.hero === "furnace" && s.day === 3 && rulesGateProblem("bb-0.6.2", runeless(s).build) === null)!;
+    const old = await post({ ...runeless({ ...bad, build: deck062.build }), rules: "bb-0.6.2" });
     expect(old).toEqual({ status: 422, body: { error: `rules bb-0.6.2 not accepted: this server validates ${RULES_VERSION}` } });
     // deck: over the player ceiling with an unreachable record: the deck's 422 and its errors
     const rich = await post({ ...bad, build: { ...bad.build, hullBonus: bad.build.hullBonus + 5000 } }); // NUM-1: hull x10 (was + 500)

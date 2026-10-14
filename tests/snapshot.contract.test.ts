@@ -58,9 +58,12 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     // with every switch on (P1 83c039d) carries each deck's road log (its tuple's seventh element), so POOL[0] (furnace d1
     // sample-run-furnace-0) carries it too, as v3's `road` (net.ROAD_FIELD, after createdAt and before the grade). Was
     // [...SNAPSHOT_KEYS, grade] and, ungraded, SNAPSHOT_KEYS exactly (green at 7cc41c6)
-    expect(Object.keys(net.checkSnapshot(POOL[0]))).toEqual([...local.SNAPSHOT_KEYS, net.ROAD_FIELD, net.GRADE_FIELD]);
+    // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): POOL[0]'s deck is a par-field run's dusk
+    // deck now, so it carries that run's seed (v3's `seed`, after createdAt and before the road log), as the race ghosts do.
+    // Was [...SNAPSHOT_KEYS, road, grade] and, ungraded, [...SNAPSHOT_KEYS, road] (green at c0182e7)
+    expect(Object.keys(net.checkSnapshot(POOL[0]))).toEqual([...local.SNAPSHOT_KEYS, "seed", net.ROAD_FIELD, net.GRADE_FIELD]);
     const { grade: _grade, ...ungraded } = POOL[0];
-    expect(Object.keys(net.checkSnapshot(ungraded))).toEqual([...local.SNAPSHOT_KEYS, net.ROAD_FIELD]);
+    expect(Object.keys(net.checkSnapshot(ungraded))).toEqual([...local.SNAPSHOT_KEYS, "seed", net.ROAD_FIELD]);
     expect(local.SNAPSHOT_VERSION).toBe(net.SNAPSHOT_VERSION);
     expect(String(local.ID_PATTERN)).toBe(String(net.ID_PATTERN));
     expect([local.MAX_DAY, local.MAX_LIVES]).toEqual([net.MAX_DAY, net.MAX_LIVES]);

@@ -19,7 +19,7 @@ import { isReachable } from "../src/net/records";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import type { TigrisStore } from "../server/tigrisStore";
-import { generateSamplePool, raceDeck } from "../tools/samplePool";
+import { generateSamplePool, raceDeck, softPicked } from "../tools/samplePool"; // SOFT-1 (REQ-BFG-092): + softPicked
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the FOUNDRY deck's join
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
@@ -90,9 +90,14 @@ describe("H2 M1b: the near-miss rules strings (pure)", () => {
     // HULL-ON (the flip, FREE_JOINS): the FOUNDRY deck is the par player's day-1 deck (raceDeck variant 0), which holds 1
     // join now; with FREE_JOINS off the par player's deck holds none, as before the flip (measured: OPEN_RUNES off or GUARD
     // off leave the join), and the near misses' expected() reads the deck's join
-    expect(raceDeck("foundry", DECKS.foundry.day, 0).build).toEqual(DECKS.foundry.build);
+    // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): in the shipped world the FOUNDRY deck is
+    // SOFT1_PICKS' day-1 variant 0 (softPicked: the par field's run "f8", still a par player's day-1 deck), which holds no
+    // join; expected() reads that, and the statuses below are the same. Outside SOFT1_PICKS' world (FREE_JOINS off) the pool's
+    // deck is raceDeck's again, with no join. Was raceDeck("foundry", day, 0).build (the run hashSeed picks, 1 join) and
+    // joinsOf toBe(1)
+    expect(softPicked("foundry", DECKS.foundry.day)![0].build).toEqual(DECKS.foundry.build);
     const joinsOf = (b: GhostSnapshot["build"]) => b.routes.filter((r) => r.join !== undefined).length;
-    expect(joinsOf(DECKS.foundry.build)).toBe(1);
+    expect(joinsOf(DECKS.foundry.build)).toBe(0);
     expect(withFreeJoins(() => joinsOf(raceDeck("foundry", DECKS.foundry.day, 0).build), false)).toBe(0);
   });
 });

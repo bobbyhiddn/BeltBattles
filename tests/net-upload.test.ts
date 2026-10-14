@@ -557,4 +557,7 @@ const POOL_CARRIES = { turrets: 72, bought: 31, joined: 81, joins: 185, both: 51
 // Y7b2's 24 is the overfeed's, S1b's [13, 66]): was 13, 65
 // S8c (the pools): the seed pool regenerated once with every switch on as shipped (c6d3445; NPC_DAY on, its seed ghosts
 // road-fed) from the stand-in pool regenerated at P1 83c039d: was 15, 62
-const GHOST_POOL_CARRIES = [51, 69]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61
+// SOFT-1: the seed pool softened (REQ-BFG-092; 26769d1, tools/samplePool.ts SOFT1_PICKS): every hero's variant 0 and 1 decks
+// are the softer picks, 79 of 80 par-field runs' dusk decks (sample 22 and 23, floor 2 and 10 as before, race 19 and 30;
+// tests/seed.records.test.ts): was 51, 69
+const GHOST_POOL_CARRIES = [43, 63]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61

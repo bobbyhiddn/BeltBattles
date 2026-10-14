@@ -95,7 +95,11 @@ function withRunes(s: Snap, runes: { id: string }[], seed: number | null = SEED)
 }
 
 describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", () => {
-  const base = POOL.find((s) => s.day === 6 && s.build.upgrades === undefined && (s.build.mods?.length ?? 0) > 0) as unknown as Snap;
+  // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): the first such day-6 deck (weaver d6
+  // sample-weaver-1) is a par-field run's dusk deck now and carries that run's seed, while every row sets its own (SEED, or
+  // none for a served ghost), so `base` is the deck without it (was the pool ghost as it is: "the same without its seed"
+  // kept the par run's seed and met its offers: [false, false] for [true, true])
+  const { seed: _parSeed, ...base } = POOL.find((s) => s.day === 6 && s.build.upgrades === undefined && (s.build.mods?.length ?? 0) > 0) as unknown as Snap;
   const hero = base.hero as HeroId;
   const runes = legalRunes(SEED, hero, 6);
   const legal = withRunes(base, runes);

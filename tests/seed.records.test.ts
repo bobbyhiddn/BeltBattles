@@ -11,7 +11,7 @@
 //    records it lifts to 2; a record under rules before LAST_CHANCE_RULES is still read by the model before the flip.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { RULES_VERSION, START_LIVES } from "../src/sim/content";
+import { RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content"; // SOFT-1: + HeroId
 import type { SideStats } from "../src/sim/battle";
 import { newRun, type Run } from "../src/game/run";
 import { finishDay, startDusk, REFUND_DAY, REFUND_LIVES } from "../src/game/day";
@@ -25,7 +25,10 @@ import { ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { encodeStarred } from "../src/sim/standInPool";
 import { checkPool, SeedError, seedStore } from "../server/seed";
 import type { GhostServer } from "../server/app";
-import { floorGhosts, generateSamplePool, MIN_ELIGIBLE, raceGhosts, reachableLabel, sampleGhosts, uncoveredStates } from "../tools/samplePool";
+import {
+  floorGhosts, generateSamplePool, MIN_ELIGIBLE, raceDeck, raceGhosts, reachableLabel, SAMPLE_VARIANTS, sampleGhosts, softPicked, uncoveredStates,
+  type RaceDeck,
+} from "../tools/samplePool"; // SOFT-1 (REQ-BFG-092): + raceDeck, SAMPLE_VARIANTS, softPicked, RaceDeck (the race part's decks)
 import { lifeAudit } from "../tools/scorecard/survival";
 import { storeBackends } from "./netStores";
 import { LAST_CHANCE_AT, LAST_CHANCE_LIVES } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): the flip
@@ -34,7 +37,15 @@ import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): t
 const POOL = generateSamplePool();
 const SAMPLE = sampleGhosts();
 const FLOOR = floorGhosts();
-const RACE = raceGhosts(); // 0.8.0 RC: FOUNDRY and BASTION's 60 (tests/rc.seedpool.test.ts)
+// SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): in the shipped world generateSamplePool takes
+// each race hero's variant 0 and 1 decks from SOFT1_PICKS (softPicked: par-field runs, each with its run's field seed and road
+// log) and variant 2 (the floor ghost) as before, so the race part is raceGhosts over those decks, as the generator's own
+// deckOf gives them (was raceGhosts(), raceDeck's decks: the pool's 40 race variant 0 and 1 decks differed)
+const softDeckOf = (h: HeroId, d: number, v: number): RaceDeck => {
+  const c = v < SAMPLE_VARIANTS ? softPicked(h, d)?.[v] : undefined;
+  return c ? { build: c.build, seed: c.seed!, ...(c.road ? { road: c.road } : {}) } : raceDeck(h, d, v);
+};
+const RACE = raceGhosts(undefined, softDeckOf); // 0.8.0 RC: FOUNDRY and BASTION's 60 (tests/rc.seedpool.test.ts)
 const NOSTATS = {} as SideStats; // finishDay only stores the dusk's stats
 
 /** Every (wins, lives) the run code carries into each dusk 1..maxDay over every win / loss / draw history; on `dockDay`
@@ -219,13 +230,17 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // S8c (the pools): the stand-in pool regenerated once with every switch on as shipped (P1 83c039d, NPC_DAY on: road-fed decks),
   // so the sample and floor decks drawn from it moved; title "the sample ghosts' 9 and 23, plus the floor ghosts' 2 and 14" ->
   // 23 and 27, 2 and 10
-  it("keeps its turret and join decks: the sample ghosts' 23 and 27, plus the floor ghosts' 2 and 10 (each a deck of its own)", () => {
+  // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): the sample decks are the softer picks, 39 of
+  // 40 par-field runs' dusk decks; the floor ghosts' decks are unchanged; title "the sample ghosts' 23 and 27, plus the floor
+  // ghosts' 2 and 10" -> 22 and 23, 2 and 10
+  it("keeps its turret and join decks: the sample ghosts' 22 and 23, plus the floor ghosts' 2 and 10 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
     // BAL-2 (c5e4780, the pools changed): [3, 24] -> [4, 25]
     // Y7b2 (the pools): was [4, 25] (4d772e4, the pool regenerated on bb-0.9.3)
     // Z-BUMP (the pools): was [6, 26] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
     // S8c (the pools): was [9, 23] (P1 83c039d, the stand-in pool regenerated once with every switch on, NPC_DAY on)
-    expect(carry(SAMPLE)).toEqual([23, 27]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
+    // SOFT-1 (the seed pool softened, REQ-BFG-092): was [23, 27] (S8c's sample decks)
+    expect(carry(SAMPLE)).toEqual([22, 23]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
     // BAL-2 (c5e4780, the pools changed): [2, 14] -> [4, 16]
     // Y7b2 (the pools): was [4, 16] (4d772e4, the pool regenerated on bb-0.9.3)
     // Z-BUMP (the pools): was [3, 15] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)

@@ -9,7 +9,7 @@ import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClie
 import { NEW_PLAYER_RUNS, noBetterRecord } from "../src/net/matchmaking";
 import { KEY_HEADER, SIG_HEADER, type Identity } from "../src/net/identity";
 import { encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
-import { createGhostServer, type GhostServer } from "../server/app";
+import { createGhostServer, servedSnapshot, type GhostServer } from "../server/app"; // SOFT-1: + servedSnapshot (FIX-6)
 import { sampleGhosts } from "../tools/samplePool";
 import { snap, upSnap } from "./netHelpers";
 import { identitiesFor, ownedBy, signedHeaders, testIdentity, TEST_NAME } from "./netIdentity";
@@ -93,7 +93,10 @@ afterAll(async () => {
           break;
         }
         expect(ids.has(g.id)).toBe(true);
-        expect(g.snapshot).toEqual(ids.get(g.id));
+        // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): FURNACE and WEAVER's sample decks are
+        // par-field runs' dusk decks now, so each stored ghost carries its run's seed, which the match serves without
+        // (server/app.ts servedSnapshot, FIX-6). Was toEqual(ids.get(g.id)) (10 keys served, 11 stored: the seed)
+        expect(g.snapshot).toEqual(servedSnapshot(ids.get(g.id)!));
         expect(g.snapshot.day).toBe(day);
         expect(g.snapshot.playerId).not.toBe(me);
         expect(seen).not.toContain(g.id);
