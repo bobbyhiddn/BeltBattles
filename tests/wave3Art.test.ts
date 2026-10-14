@@ -184,6 +184,9 @@ const FLIPPED: Record<string, Record<string, unknown>> = {
   spallcatcher: { mod: { spall: { every: 40, add: 10 } }, levels: { 2: { mod: { spall: { every: 40, add: 22 } } }, 3: { mod: { spall: { every: 40, add: 35 } } } } },
   seamwelder: { mod: { seam: { pair: 10, lone: 0 } }, levels: { 2: { mod: { seam: { pair: 22, lone: 0 } } }, 3: { mod: { seam: { pair: 35, lone: 0 } } } } },
 };
+/** PLAIN-1F (M6; REQ-BFG-107): a display name renamed since A1's copy (the key and every number as they were): PLATE
+ *  BREAKER is SHIELD-FED (a working name until the cold read picks; content.ts platebreaker). */
+const RENAMED: Record<string, Record<string, unknown>> = { platebreaker: { name: "SHIELD-FED" } };
 
 // ======================================================================================================= this branch
 
@@ -202,7 +205,7 @@ describe("wave 3's 15 modules: P1's ids, drawn at the game's entry points (P1's 
       // AZ-BUMP (the flip, LADDER_FIX): with the star-ladder pass on, STOKER's entry is its fixed def, a new object built from
       // P1's def as merged (ladderFix.ts LADDER_DEFS.stoker: ★3 stoke 0.7 -> 0.85, nothing else), so it is compared with
       // that fixed def of A1's copy; every other wave-3 entry as before. Off, STOKER is A1's copy itself (after the loop)
-      const merged = { ...P1_WAVE3_ITEMS[id], ...FLIPPED[id] } as unknown as ItemDef;
+      const merged = { ...P1_WAVE3_ITEMS[id], ...FLIPPED[id], ...RENAMED[id] } as unknown as ItemDef; // PLAIN-1F (M6): RENAMED
       // HULL-ON (the flip, GUARD): PLATE ROLLER's entry is its guarded def (guard.ts GUARD_DEFS.plateroller: gate.plate
       // 5 / 11 / 17 -> 15 / 33 / 51, nothing else), built from the def as merged, so it is compared with that guarded def of
       // A1's copy; off, PLATE ROLLER is A1's copy itself (after the loop)

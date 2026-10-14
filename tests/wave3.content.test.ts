@@ -133,10 +133,13 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
 describe("the 15 entries are D1's (DESIGN-wave3.md 3.1)", () => {
   it("kind, rarity, price, merchant, rig shape and tags; 8 rigs, 2 factories, 2 cores, 3 mods; arrows by rarity (R2)", () => {
     expect(WAVE3_DESIGN.map((h) => h.id)).toEqual([...WAVE3_IDS]);
+    // PLAIN-1F (M6; REQ-BFG-107): a display name renamed since D1's table (the key and every other field as D1's): PLATE
+    // BREAKER is SHIELD-FED (a working name until the cold read picks; content.ts platebreaker)
+    const RENAMED: Record<string, string> = { platebreaker: "SHIELD-FED" };
     for (const h of WAVE3_DESIGN) {
       const d = ITEMS[h.id];
       expect({ id: d.id, name: d.name, kind: d.kind, rarity: d.rarity, price: d.price, merchant: d.merchant, shape: d.shape, tags: d.tags }, h.id)
-        .toEqual({ id: h.id, name: h.name, kind: h.kind, rarity: h.rarity, price: h.price, merchant: h.merchant, shape: h.shape, tags: [...h.tags] });
+        .toEqual({ id: h.id, name: RENAMED[h.id] ?? h.name, kind: h.kind, rarity: h.rarity, price: h.price, merchant: h.merchant, shape: h.shape, tags: [...h.tags] });
       expect(d.size).toBe(d.kind === "factory" ? 2 : 1);
       if (d.kind === "gate") expect(SHAPE_ARROWS[rigShape(d)!].length, h.id).toBe(RARITY_ARROWS[d.rarity]);
       for (const s of [2, 3] as const) expect(d.levels?.[s], `${h.id} ★${s}`).toBeDefined(); // every module has 1-3 stars
