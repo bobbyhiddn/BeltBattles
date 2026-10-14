@@ -48,6 +48,8 @@ import { BattleFaces, drawSummaries, drawViewBar, fingerPx, summaryRects } from 
 import { BattleCounters, plateKeep } from "./battleCounters"; // COUNT-1 (REQ-BFG-100): the counters
 import { PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board
 import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
+import { openReplay } from "../game/replays"; // REPLAY-1 (REQ-BFG-112): the result card's REPLAY
+import { ReplayScreen } from "./replay"; // REPLAY-1
 import type { Rect } from "../ui/ui";
 
 /** 0.7.0 (R1 M1): the enemy plate's source line as BattleScreen draws it (see placeSource). */
@@ -95,6 +97,12 @@ export class BattleScreen implements Screen {
   private readonly seed: number;
   /** 0.7.0a, online only: the dusk's battle record, stored with its result for the summary's REPLAY. */
   private readonly record: BattleRecord | null;
+  /** REPLAY-1 (REQ-BFG-112; display only): the fight's record for the result card's REPLAY, for every kind (the dusk online
+   *  and offline, the warlord), made exactly as the Arena is made; never saved (the history keeps `record`, as before).
+   *  Null only if battleRecordFor refuses the fight's inputs: the card then offers no REPLAY. */
+  private readonly cardRecord: BattleRecord | null;
+  /** REPLAY-1: the card's REPLAY is open; BACK re-enters this screen at its card (enter()). */
+  private replayOut = false;
   /** 0.7.0a, online only: where the foe came from, in small text under the enemy plate. */
   private readonly note: string | null;
   readonly warlord: WarlordFight | null = null;
@@ -143,6 +151,7 @@ export class BattleScreen implements Screen {
     // 0.7.0a: the dusk's battle record (both decks as they fight, the seed) for the summary's REPLAY; online only
     // HULL-1a (REQ-BFG-079): the dusk and a warlord fight are on the run's day (the record keeps it with HULL_SCALE on)
     this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed, wins, run.day) : null;
+    this.cardRecord = cardRecordFor(run.build, this.foe.build, this.seed, wins, run.day); // REPLAY-1: every kind, display only
     this.note = w ? null : foeNote(run, this.foe);
     this.wact = {
       take: [0, 1].map((i) => () => this.take(i)),
@@ -323,9 +332,47 @@ export class BattleScreen implements Screen {
 
   enter(): void {
     this.relayout();
+    if (this.replayOut) {
+      // REPLAY-1 (REQ-BFG-112): BACK from the card's REPLAY: the same card as it was, quiet as end() left it (no horn, no
+      // battle music, no outro or sting: the phase and the card's clock are where REPLAY left them)
+      this.replayOut = false;
+      this.game.audio.music(null);
+      return;
+    }
     this.game.audio.music("battle");
     this.game.audio.play("horn");
   }
+
+  /** REPLAY-1 (REQ-BFG-112): REPLAY is offered: on the result card (dusk or warlord), with a record for the fight. */
+  canReplay(): boolean {
+    return this.phase === "result" && !!this.cardRecord && !this.leaving;
+  }
+
+  /**
+   * REPLAY-1 (REQ-BFG-112): the card's REPLAY: the fight just played, from its card record (openReplay: a fresh Battle, the
+   * summary's path), in a ReplayScreen whose BACK returns here, to this card as it was. Read only: nothing is saved, kept,
+   * folded or sent. It starts at the run's kept speed (REQ-BFG-083: runSpeed); a pick inside plays that replay only
+   * (ReplayScreen.setSpeed never calls keepRunSpeed). Returns the replay opened, or null (no card, or openReplay refused:
+   * its reason is toasted, as the summary does).
+   */
+  openCardReplay(): ReplayScreen | null {
+    if (!this.canReplay()) return null;
+    const o = openReplay(this.cardRecord!);
+    if (!o.ok) {
+      this.game.toast(o.why, C.amber);
+      return null;
+    }
+    const w = this.warlord, r = this.result;
+    const label = w ? { day: w.day, foe: w.name } : { day: r?.day ?? this.foe.day, foe: r?.foe ?? this.foeName };
+    const rp = new ReplayScreen(this.game, this, o.battle, label);
+    rp.setSpeed(runSpeed(this.game.run!));
+    this.replayOut = true;
+    this.game.audio.play("click");
+    this.game.go(rp);
+    return rp;
+  }
+
+  private onReplay = () => { this.openCardReplay(); };
 
   private plateR = [{ x: 0, y: 0, w: 0, h: 0 }, { x: 0, y: 0, w: 0, h: 0 }];
   private src: SourceLine | null = null;
@@ -540,9 +587,10 @@ export class BattleScreen implements Screen {
     const lowering = this.phase === "view" && this.viewT < LOWER_S;
     const view = this.canView() || lowering ? this.onView : undefined; // lowering: the card keeps its row (no button drawn)
     const cardT = lowering ? LOWER_S - this.viewT : this.pt;
+    const replay = this.canReplay() ? this.onReplay : undefined; // REPLAY-1 (REQ-BFG-112): the card's REPLAY, on its card
     const sr = this.scoutRects;
     sr.card = null; // SCOUT-1b tooling: the card's box as drawn
-    if ((this.phase === "result" || lowering) && this.warlord?.result) sr.card = drawWarlordResult(g, this.game, this.warlord, cardT, this.wact, view, fingerPx(this.game));
+    if ((this.phase === "result" || lowering) && this.warlord?.result) sr.card = drawWarlordResult(g, this.game, this.warlord, cardT, this.wact, view, fingerPx(this.game), replay);
     const oc = this.outcome();
     if (this.phase === "outro" && oc && this.pt > 0.55) {
       const o = oc;
@@ -550,7 +598,7 @@ export class BattleScreen implements Screen {
       banner(g, W, cy - 18, o === "win" ? "VICTORY!" : o === "loss" ? "DEFEAT" : "DRAW", o === "win" ? C.lime : o === "loss" ? C.red : C.bone, o === "win" ? "THEIR HULL BREAKS" : o === "loss" ? "YOUR HULL BREAKS" : undefined, k, 3);
     }
     if ((this.phase === "result" || lowering) && this.result) {
-      sr.card = drawResult(g, this.game, this.result, cardT, run.over ? "SEE THE RUN" : `ON TO DAWN · DAY ${run.day}`, this.onNext, view, fingerPx(this.game));
+      sr.card = drawResult(g, this.game, this.result, cardT, run.over ? "SEE THE RUN" : `ON TO DAWN · DAY ${run.day}`, this.onNext, view, fingerPx(this.game), replay);
     }
     // SCOUT-1: VIEW BATTLEFIELD's summaries and faces
     sr.summaries = [];
@@ -721,6 +769,17 @@ export class BattleScreen implements Screen {
     else if ((k === "Enter" || k === " ") && this.phase === "result" && this.pt > 0.35) this.next();
     else if ((k === "Enter" || k === " ") && this.phase === "view" && this.viewT >= LOWER_S) this.viewPrimary()?.onTap(); // SCOUT-1
     else if ((k === "Backspace" || k === "b" || k === "B") && this.phase === "view") this.closeView(); // SCOUT-1: BACK
+  }
+}
+
+/** REPLAY-1 (REQ-BFG-112): the card's REPLAY record: battleRecordFor on the Arena's own inputs (both decks as they fight,
+ *  the seed, the wins each side carries in, the run's day), or null where it refuses them (a battle is never stopped for
+ *  its REPLAY). */
+function cardRecordFor(...a: Parameters<typeof battleRecordFor>): BattleRecord | null {
+  try {
+    return battleRecordFor(...a);
+  } catch {
+    return null;
   }
 }
 

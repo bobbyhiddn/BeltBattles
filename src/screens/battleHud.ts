@@ -581,8 +581,9 @@ export const LC_HEART_S = 4;
 /** Dusk result card: WIN, LOSS (-1 LIFE) or DRAW; the fight's numbers; income; then the next DAWN. SCOUT-1 (REQ-BFG-076):
  *  `onView`, VIEW BATTLEFIELD: its own row right above the primary action (never in its place), the card a row taller;
  *  absent, the card exactly as before. Its tap target is `viewHit` px tall at least (a finger's, TAP_CSS). SCOUT-1b
- *  tooling: returns the card's box as drawn this frame. */
-export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void, onView?: () => void, viewHit = 0): Rect {
+ *  tooling: returns the card's box as drawn this frame. REPLAY-1 (REQ-BFG-112): `onReplay`, the card's REPLAY, at the
+ *  right end of VIEW BATTLEFIELD's row (viewRow); absent, that row exactly as before. */
+export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void, onView?: () => void, viewHit = 0, onReplay?: () => void): Rect {
   const { W, H, ui } = game;
   const run = game.run!;
   const rows = resultRows(r);
@@ -630,8 +631,40 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   const back = refundCardLine(r) ?? lastChanceCardLine(r); // LC-1: "LAST CHANCE: +1 LIFE" (never both: day 2 v 5-9)
   if (back) drawText(g, back, x + w - 10, ry + 3, C.lime, { align: "right" });
   if (pt > 0.35) button(ui, g, "next", { x: x + 10, y: yy + h - 27, w: w - 20, h: 21 }, label, { primary: true, onTap: onNext });
-  if (pt > 0.35 && onView) viewButton(ui, g, { x: x + 10, y: yy + h - 27 - VIEW_ROW_H, w: w - 20, h: 21 }, { x, y: yy, w, h }, onView, viewHit);
+  if (pt > 0.35 && onView) viewRow(ui, g, { x: x + 10, y: yy + h - 27 - VIEW_ROW_H, w: w - 20, h: 21 }, { x, y: yy, w, h }, onView, viewHit, onReplay);
   return { x, y: yy, w, h };
+}
+
+/** REPLAY-1 (REQ-BFG-112): the card's REPLAY button: its label and its UI region's id. */
+export const REPLAY_LABEL = "REPLAY", CARD_REPLAY = "cardreplay";
+/** REPLAY-1: the gap between VIEW BATTLEFIELD and REPLAY in their row (the row's own gap over the primary action). */
+export const REPLAY_GAP = 4;
+
+/**
+ * REPLAY-1 (REQ-BFG-112): VIEW BATTLEFIELD's row `b` shared with the card's REPLAY, a secondary button at the row's right
+ * end, so the card keeps its size and every row and the primary action keep their places: REPLAY as wide as its label
+ * needs (+ 12) and at least `hit` (a finger's, so on a phone it is TAP_CSS wide), REPLAY_GAP px after VIEW BATTLEFIELD,
+ * which keeps the rest of the row. Where that would leave VIEW BATTLEFIELD's label less than 3 px a side (a card under
+ * 165 px; none of the game's views today), REPLAY takes the 3x5 face and 4 px a side. Pure (tests).
+ */
+export function cardReplayRow(b: Rect, hit = 0): { view: Rect; replay: Rect; font: "5" | "3" } {
+  let font: "5" | "3" = "5", rw = Math.max(hit, textWidth(REPLAY_LABEL) + 12);
+  if (b.w - rw - REPLAY_GAP < textWidth("VIEW BATTLEFIELD") + 6) {
+    font = "3";
+    rw = Math.max(hit, textWidth(REPLAY_LABEL, "3") + 8);
+  }
+  return { view: { x: b.x, y: b.y, w: b.w - rw - REPLAY_GAP, h: b.h }, replay: { x: b.x + b.w - rw, y: b.y, w: rw, h: b.h }, font };
+}
+
+/** REPLAY-1: VIEW BATTLEFIELD's row on a result card (dusk or warlord): with `onReplay`, VIEW BATTLEFIELD and REPLAY side
+ *  by side (cardReplayRow), each tap target grown to `hit` px inside the card as viewButton grows VIEW BATTLEFIELD's (never
+ *  onto the primary action's row below); without, VIEW BATTLEFIELD alone, exactly as before. */
+export function viewRow(ui: Game["ui"], g: G, b: Rect, card: Rect, onView: () => void, hit = 0, onReplay?: () => void): void {
+  if (!onReplay) return viewButton(ui, g, b, card, onView, hit);
+  const row = cardReplayRow(b, hit), q = row.replay;
+  viewButton(ui, g, row.view, card, onView, hit);
+  const within = { x: card.x, y: card.y, w: card.w, h: q.y + q.h + 2 - card.y };
+  button(ui, g, CARD_REPLAY, q, REPLAY_LABEL, { font: row.font, onTap: onReplay, ...(hit ? { hit: tapRect(q, hit, within, hit) } : {}) });
 }
 
 /** SCOUT-1: the card's VIEW BATTLEFIELD row (a 21 px button and its 4 px gap above the primary action). */
