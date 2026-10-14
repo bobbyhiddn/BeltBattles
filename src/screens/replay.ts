@@ -117,6 +117,13 @@ export class ReplayScreen implements Screen {
     return battleScale(pw, ph, portrait);
   }
 
+  /** REPLAY-1 (REQ-BFG-112): the queued merge toasts wait as on the screen BACK returns to (game.ts nextFuseToast): a result
+   *  card's REPLAY holds them, as the card does (none is taken from the run while it plays); the summary holds none, so its
+   *  REPLAY is as before. */
+  get holdsMerges(): boolean {
+    return !!this.back.holdsMerges;
+  }
+
   private gridPick: { grid: Grid; W: number; H: number; portrait: boolean } | null = null;
 
   /** FIELD-1 (REQ-BFG-075): the battle's canvas grid (game/viewGrid.ts GameView.sub), as BattleScreen.pickSub. */

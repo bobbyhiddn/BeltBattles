@@ -581,8 +581,10 @@ export const LC_HEART_S = 4;
 /** Dusk result card: WIN, LOSS (-1 LIFE) or DRAW; the fight's numbers; income; then the next DAWN. SCOUT-1 (REQ-BFG-076):
  *  `onView`, VIEW BATTLEFIELD: its own row right above the primary action (never in its place), the card a row taller;
  *  absent, the card exactly as before. Its tap target is `viewHit` px tall at least (a finger's, TAP_CSS). SCOUT-1b
- *  tooling: returns the card's box as drawn this frame. */
-export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void, onView?: () => void, viewHit = 0): Rect {
+ *  tooling: returns the card's box as drawn this frame. REPLAY-1 (REQ-BFG-112): `onReplay`, the card's REPLAY, at the
+ *  right end of VIEW BATTLEFIELD's row (viewRow); absent, that row exactly as before. REPLAY-1b (REVIEW-REPLAY1 ruling 2):
+ *  the primary's target is `viewHit` px tall at least too (primaryTap), its drawing as before. */
+export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void, onView?: () => void, viewHit = 0, onReplay?: () => void): Rect {
   const { W, H, ui } = game;
   const run = game.run!;
   const rows = resultRows(r);
@@ -629,9 +631,45 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   // 0.6.2 RULE EARLY-LOSS REFUND: said here too, on the card that leads to that dawn
   const back = refundCardLine(r) ?? lastChanceCardLine(r); // LC-1: "LAST CHANCE: +1 LIFE" (never both: day 2 v 5-9)
   if (back) drawText(g, back, x + w - 10, ry + 3, C.lime, { align: "right" });
-  if (pt > 0.35) button(ui, g, "next", { x: x + 10, y: yy + h - 27, w: w - 20, h: 21 }, label, { primary: true, onTap: onNext });
-  if (pt > 0.35 && onView) viewButton(ui, g, { x: x + 10, y: yy + h - 27 - VIEW_ROW_H, w: w - 20, h: 21 }, { x, y: yy, w, h }, onView, viewHit);
+  const nb = { x: x + 10, y: yy + h - 27, w: w - 20, h: 21 }, vb = { x: x + 10, y: yy + h - 27 - VIEW_ROW_H, w: w - 20, h: 21 };
+  // REPLAY-1b (REQ-BFG-112; REVIEW-REPLAY1 ruling 2): the primary's target a finger's tall on a phone (primaryTap: down
+  // first, never onto VIEW BATTLEFIELD's or REPLAY's targets, never off the screen); the button drawn as before
+  const nh = primaryTap(nb, viewHit, H, onView ? viewFloor(vb) : nb.y);
+  if (pt > 0.35) button(ui, g, "next", nb, label, { primary: true, onTap: onNext, ...(nh !== nb ? { hit: nh } : {}) });
+  if (pt > 0.35 && onView) viewRow(ui, g, vb, { x, y: yy, w, h }, onView, viewHit, onReplay);
   return { x, y: yy, w, h };
+}
+
+/** REPLAY-1 (REQ-BFG-112): the card's REPLAY button: its label and its UI region's id. */
+export const REPLAY_LABEL = "REPLAY", CARD_REPLAY = "cardreplay";
+/** REPLAY-1: the gap between VIEW BATTLEFIELD and REPLAY in their row (the row's own gap over the primary action). */
+export const REPLAY_GAP = 4;
+
+/**
+ * REPLAY-1 (REQ-BFG-112): VIEW BATTLEFIELD's row `b` shared with the card's REPLAY, a secondary button at the row's right
+ * end, so the card keeps its size and every row and the primary action keep their places: REPLAY as wide as its label
+ * needs (+ 12) and at least `hit` (a finger's, so on a phone it is TAP_CSS wide), REPLAY_GAP px after VIEW BATTLEFIELD,
+ * which keeps the rest of the row. Where that would leave VIEW BATTLEFIELD's label less than 3 px a side (a card under
+ * 165 px; none of the game's views today), REPLAY takes the 3x5 face and 4 px a side. Pure (tests).
+ */
+export function cardReplayRow(b: Rect, hit = 0): { view: Rect; replay: Rect; font: "5" | "3" } {
+  let font: "5" | "3" = "5", rw = Math.max(hit, textWidth(REPLAY_LABEL) + 12);
+  if (b.w - rw - REPLAY_GAP < textWidth("VIEW BATTLEFIELD") + 6) {
+    font = "3";
+    rw = Math.max(hit, textWidth(REPLAY_LABEL, "3") + 8);
+  }
+  return { view: { x: b.x, y: b.y, w: b.w - rw - REPLAY_GAP, h: b.h }, replay: { x: b.x + b.w - rw, y: b.y, w: rw, h: b.h }, font };
+}
+
+/** REPLAY-1: VIEW BATTLEFIELD's row on a result card (dusk or warlord): with `onReplay`, VIEW BATTLEFIELD and REPLAY side
+ *  by side (cardReplayRow), each tap target grown to `hit` px inside the card as viewButton grows VIEW BATTLEFIELD's (never
+ *  onto the primary action's row below); without, VIEW BATTLEFIELD alone, exactly as before. */
+export function viewRow(ui: Game["ui"], g: G, b: Rect, card: Rect, onView: () => void, hit = 0, onReplay?: () => void): void {
+  if (!onReplay) return viewButton(ui, g, b, card, onView, hit);
+  const row = cardReplayRow(b, hit), q = row.replay;
+  viewButton(ui, g, row.view, card, onView, hit);
+  const within = { x: card.x, y: card.y, w: card.w, h: viewFloor(q) - card.y };
+  button(ui, g, CARD_REPLAY, q, REPLAY_LABEL, { font: row.font, onTap: onReplay, ...(hit ? { hit: tapRect(q, hit, within, hit) } : {}) });
 }
 
 /** SCOUT-1: the card's VIEW BATTLEFIELD row (a 21 px button and its 4 px gap above the primary action). */
@@ -640,6 +678,27 @@ export const VIEW_ROW_H = 25;
 /** SCOUT-1: VIEW BATTLEFIELD on a result card (dusk or warlord): a secondary button, its tap target grown to `hit` px
  *  inside the card (never onto the primary action's row below it). */
 export function viewButton(ui: Game["ui"], g: G, b: Rect, card: Rect, onTap: () => void, hit = 0): void {
-  const within = { x: card.x, y: card.y, w: card.w, h: b.y + b.h + 2 - card.y };
+  const within = { x: card.x, y: card.y, w: card.w, h: viewFloor(b) - card.y };
   button(ui, g, "viewfield", b, "VIEW BATTLEFIELD", { onTap, ...(hit ? { hit: tapRect(b, hit, within, hit) } : {}) });
+}
+
+/** REPLAY-1b (REQ-BFG-112): the lowest edge (exclusive) VIEW BATTLEFIELD's and REPLAY's grown targets reach for their row
+ *  `b`: 2 px into the 4 px gap over the primary action (viewButton's and viewRow's `within`, as SCOUT-1 and REPLAY-1 set
+ *  it), so a primary's target that starts there or lower (primaryTap's `top`) never covers them. */
+export const viewFloor = (b: Rect): number => b.y + b.h + 2;
+
+/**
+ * REPLAY-1b (REQ-BFG-112; REVIEW-REPLAY1 ruling 2): the tap target of a result card's primary button drawn `b` (the dusk's
+ * ON TO DAWN · DAY n or SEE THE RUN, 21 px; the warlord's ON TO THE ROAD, 20 px). Where `hit` (a finger's: fingerPx, TAP_CSS,
+ * as VIEW BATTLEFIELD's and REPLAY's) is taller, the target grows to `hit` and the drawing stays as it is: down first, into
+ * the card's bottom margin and on over the full-screen blocker (resultbg) below the card, never past the screen's bottom
+ * `H`; then, only where that is not enough, up into the gap over the button, never above `top` (viewFloor of VIEW
+ * BATTLEFIELD's row, so their targets are never covered; the button's own top where the card has no such row). Its width is
+ * the button's (the card's less 20 px: far wider than a finger). `b` itself where it is already that tall. Pure (tests).
+ */
+export function primaryTap(b: Rect, hit: number, H: number, top = b.y): Rect {
+  if (!(hit > b.h)) return b;
+  const down = Math.max(0, Math.min(hit - b.h, H - (b.y + b.h)));
+  const up = Math.max(0, Math.min(hit - b.h - down, b.y - top));
+  return down + up > 0 ? { x: b.x, y: b.y - up, w: b.w, h: b.h + down + up } : b;
 }

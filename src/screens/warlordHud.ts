@@ -16,7 +16,9 @@ import { fmtClock } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock, 
 import { fightBlock } from "../game/routeCheck";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
 import { drawHearts } from "./battleHud";
-import { VIEW_ROW_H, viewButton } from "./battleHud"; // SCOUT-1 (REQ-BFG-076): VIEW BATTLEFIELD on the card
+import { VIEW_ROW_H } from "./battleHud"; // SCOUT-1 (REQ-BFG-076): VIEW BATTLEFIELD on the card
+import { viewRow } from "./battleHud"; // REPLAY-1 (REQ-BFG-112): VIEW BATTLEFIELD's row, with the card's REPLAY
+import { primaryTap, viewFloor } from "./battleHud"; // REPLAY-1b (REQ-BFG-112): ON TO THE ROAD's finger target
 import { livesCap } from "../sim/hearts"; // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's 10
 import { lifeWord } from "../ui/stakes"; // RETUNE-1 run 2: HEART on a hearts run
 import { itemName } from "./event/cards";
@@ -53,8 +55,10 @@ export const ON_TO_THE_ROAD = "ON TO THE ROAD";
  *  FIGHT NOW, or ON TO DUSK: never in their place; the pick works as before), the card a row taller; `viewHit`, its tap
  *  target's least height. Absent, the card exactly as before. SCOUT-1b (REQ-BFG-082): with a part pick, its line "PICK 1
  *  PART FROM THEIR DECK:" sits right over the picks it heads, and VIEW BATTLEFIELD's row right above that line. Tooling:
- *  returns the card's box as drawn this frame. */
-export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions, onView?: () => void, viewHit = 0): Rect {
+ *  returns the card's box as drawn this frame. REPLAY-1 (REQ-BFG-112): `onReplay`, the card's REPLAY, at the right end of
+ *  VIEW BATTLEFIELD's row (battleHud.ts viewRow); absent, that row exactly as before. REPLAY-1b (REVIEW-REPLAY1 ruling 2):
+ *  ON TO THE ROAD's target is `viewHit` px tall at least too (primaryTap); NPC_DAY off, the buttons are as before. */
+export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number, a: WarlordActions, onView?: () => void, viewHit = 0, onReplay?: () => void): Rect {
   const { W, H, ui } = game;
   const run = game.run!;
   const r = w.result!;
@@ -110,10 +114,13 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
   const box = { x, y: yy, w: cw, h: ch };
   if (pt <= 0.35) return box;
   const by = yy + ch - 26, bw = Math.floor((cw - 24) / 2);
-  if (onView) viewButton(ui, g, { x: x + 10, y: warlordRows(yy, ch, pick, true).view, w: cw - 20, h: 21 }, { x, y: yy, w: cw, h: ch }, onView, viewHit);
+  const vb = { x: x + 10, y: warlordRows(yy, ch, pick, true).view, w: cw - 20, h: 21 };
+  if (onView) viewRow(ui, g, vb, { x, y: yy, w: cw, h: ch }, onView, viewHit, onReplay);
   if (npc) {
-    // NPC-1 (REQ-BFG-077): one way on, win or lose: the day's event (then REFIT, then dusk)
-    button(ui, g, "toroad", { x: x + 10, y: by, w: cw - 20, h: 20 }, ON_TO_THE_ROAD, { primary: true, onTap: a.road ?? a.fight });
+    // NPC-1 (REQ-BFG-077): one way on, win or lose: the day's event (then REFIT, then dusk). REPLAY-1b (REQ-BFG-112;
+    // REVIEW-REPLAY1 ruling 2): its target a finger's tall on a phone (battleHud.ts primaryTap), the button drawn as before
+    const rb = { x: x + 10, y: by, w: cw - 20, h: 20 }, rh = primaryTap(rb, viewHit, H, onView ? viewFloor(vb) : by);
+    button(ui, g, "toroad", rb, ON_TO_THE_ROAD, { primary: true, onTap: a.road ?? a.fight, ...(rh !== rb ? { hit: rh } : {}) });
     return box;
   }
   if (pick) {
