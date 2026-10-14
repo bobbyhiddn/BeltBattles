@@ -12,6 +12,12 @@ import { freeJoinsFor } from "./rulesGate"; // JOINS-1 (REQ-BFG-091): free joins
 import { withFreeJoins } from "../sim/freeJoins"; // JOINS-1
 import { dayScaled, hullScaleRules } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the record's day
 import { buildReads, scaleRules } from "../sim/scale"; // SCALE-2a (REQ-BFG-098): wins and hearts lost for `reads` pieces
+// SCALE-2d (REQ-BFG-098, REQ-BFG-106; D5): the counts' bounds (readCountsProblem)
+import { MAX_LIVES } from "./snapshot";
+import { heartsFor, heartsLostCapFor } from "./rulesGate";
+import { reachableRecords } from "./records";
+import { START_LIVES } from "../sim/content";
+import { HEARTS_START } from "../sim/hearts";
 
 export interface BattleOutcome {
   winner: Side | -1 | null; // null only if the tick budget ran out first
@@ -86,7 +92,7 @@ export function checkRecord(record: BattleRecord): BattleRecord {
   // SCALE-2a (REQ-BFG-098): the record's hearts lost, read only with SCALE_RIGS on (passed over otherwise, as `day` is)
   const l = scaleRules() ? (record as { lost?: unknown }).lost : undefined;
   if (l !== undefined && (!Array.isArray(l) || l.length !== 2)) throw new Error("battle record: lost must be two integers");
-  return {
+  const out: BattleRecord = {
     rules: record.rules,
     seed: checkSeed(record.seed),
     builds: [checkBuildShape(record.builds[0], "builds[0]"), checkBuildShape(record.builds[1], "builds[1]")],
@@ -94,6 +100,34 @@ export function checkRecord(record: BattleRecord): BattleRecord {
     ...(d !== undefined ? { day: checkDay(d) } : {}),
     ...(l !== undefined ? { lost: [checkWins(l[0]), checkWins(l[1])] as [number, number] } : {}),
   };
+  // SCALE-2d (REQ-BFG-098, REQ-BFG-106; BRIEF-SCALE2d D5): with SCALE_RIGS on, the counts the record carries into the fight
+  // are held to the run's own bounds (readCountsProblem); off, the record is read exactly as before
+  if (scaleRules()) {
+    const why = readCountsProblem(out.rules, out.day, out.wins, out.lost);
+    if (why) throw new Error(why);
+  }
+  return out;
+}
+
+/**
+ * SCALE-2d (REQ-BFG-098, REQ-BFG-106; BRIEF-SCALE2d D5): GRUDGE ROD reads a side's hearts lost and TROPHY CHAIN its wins, so a
+ * forged count is a forged damage number. Why the counts a record (or a fight's inputs) under `rules` carries can't stand,
+ * or null: hearts lost past heartsLostCapFor(rules, MAX_LIVES) (the run's start hearts less one); with the fight's day
+ * (1..MAX_DAY; later modes' days are not bounded here) wins past day - 1, or more hearts lost than any run can have lost
+ * before that day's fight (records.ts reachableRecords under `rules`: the start less its fewest hearts, LAST CHANCE
+ * included). Read only while SCALE_RIGS is on.
+ */
+export function readCountsProblem(rules: unknown, day: number | undefined, wins?: readonly number[], lost?: readonly number[]): string | null {
+  const cap = heartsLostCapFor(rules, MAX_LIVES);
+  for (const n of lost ?? []) if (n > cap) return `battle record: hearts lost ${n} is past ${cap} (the run's start hearts less one)`;
+  if (day === undefined || day > MAX_DAY) return null;
+  for (const n of wins ?? []) if (n > day - 1) return `battle record: ${n} wins can't come before day ${day}'s fight`;
+  if (lost?.length) {
+    const start = heartsFor(rules) ? HEARTS_START : START_LIVES;
+    const most = start - Math.min(...reachableRecords(day, { rules }).map((r) => r.lives));
+    for (const n of lost) if (n > most) return `battle record: hearts lost ${n} is more than a run can lose before day ${day}'s fight (${most})`;
+  }
+  return null;
 }
 
 export function outcomeOf(b: Battle): BattleOutcome {

@@ -347,3 +347,52 @@ export const OPEN_RUNES_RULES: string = "bb-0.10.0";
 export function openRunesFor(rules: unknown): boolean {
   return openRunesRules() && rulesAtLeast(rules, OPEN_RUNES_RULES);
 }
+
+// ---- SCALE-2d (REQ-BFG-098 098.6, REQ-BFG-106; BRIEF-SCALE2d D5): the scaling release's gate, SHAPES-1's form (shapesGate
+// above), at the end of the file (a small merge surface). The seven new scaling rigs travel only with SCALE_RIGS on and under
+// rules that have them; with the switch off they are not in ITEMS, so validateBuild refuses each as an unknown item, as at
+// the base (this gate says nothing then: off, every verdict and its words are the base's).
+import { RULES_VERSION, START_LIVES } from "../sim/content"; // SCALE-2d: SCALE_RULES reads it until BUMP-1E; old records' start lives
+import { SCALE_ITEMS, isScalePiece, scaleRules } from "../sim/scale"; // SCALE-2d: the switch and the seven new ids
+
+/** SCALE-2d: the first rules version with the 12 scaling pieces. It reads RULES_VERSION until the bump that turns
+ *  SCALE_RIGS on (BUMP-1E) writes that version here as a literal (RETUNE-1's rows' form, as HULL-ON wrote HEARTS_RULES), so
+ *  from then on a record under older rules keeps the base's pieces whatever the switch. */
+export const SCALE_RULES: string = RULES_VERSION;
+
+/** SCALE-2d: the new scaling rigs a build carries, by name (items whose def is one of scale.ts SCALE_IDS). Reads a raw
+ *  (undecoded) build safely, like shapesFeatures. */
+export function scaleFeatures(build: unknown): string[] {
+  if (typeof build !== "object" || build === null) return [];
+  const items = (build as { items?: unknown }).items;
+  if (!Array.isArray(items)) return [];
+  const names = new Set<string>();
+  for (const p of items) {
+    const d = typeof p === "object" && p !== null ? (p as Record<string, unknown>).def : undefined;
+    if (typeof d === "string" && isScalePiece(d)) names.add(SCALE_ITEMS[d].name);
+  }
+  return names.size ? [`scaling rigs (${[...names].join(", ")})`] : [];
+}
+
+/** SCALE-2d: why a build under `rules` can't carry the new scaling rigs, or null: none held; the switch off (null: they are
+ *  unknown items then, validateBuild's own words, as at the base); or rules before SCALE_RULES (the reason names both). */
+export function scaleGateProblem(rules: unknown, build: unknown): string | null {
+  if (!scaleRules()) return null;
+  const f = scaleFeatures(build);
+  if (!f.length || rulesAtLeast(rules, SCALE_RULES)) return null;
+  const what = `${f.join(" and ")} need ${SCALE_RULES} or later`;
+  return parseRules(rules) ? `rules ${String(rules)} predate ${SCALE_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}
+
+/** SCALE-2d: does a deck under `rules` play the scaling pieces? The switch on and rules at or after SCALE_RULES; otherwise
+ *  it is judged with the switch off (validate.ts inScaleWorld). */
+export function scaleWorld(rules: unknown): boolean {
+  return scaleRules() && rulesAtLeast(rules, SCALE_RULES);
+}
+
+/** SCALE-2d (REQ-BFG-106: GRUDGE ROD reads it): the most hearts lost a count under `rules` may carry into a fight: the run's
+ *  start hearts less one (a run at 0 is over), HEARTS_START under rules with hearts, START_LIVES under older ones, and never
+ *  past what livesCapFor(rules, cap) lets a snapshot state (cap: the contract's MAX_LIVES, 9). */
+export function heartsLostCapFor(rules: unknown, cap: number): number {
+  return Math.min(livesCapFor(rules, cap), heartsFor(rules) ? HEARTS_START : START_LIVES) - 1;
+}

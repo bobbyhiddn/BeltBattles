@@ -25,6 +25,8 @@ import { isIntakeCell, rotOf } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S4, 
 import { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "../sim/foot"; // SHAPES-1 (R1): the turned footprint
 import { shapesRules, withShapes } from "../sim/shapes"; // SHAPES-1 (S1): the switch
 import { shapesGateProblem, shapesWorld } from "./rulesGate"; // SHAPES-1 (S1, S4): SHAPES_RULES' gate
+import { scaleGateProblem, scaleWorld } from "./rulesGate"; // SCALE-2d (REQ-BFG-098 098.6, D5): SCALE_RULES' gate
+import { scaleRules, withScaleRigs } from "../sim/scale"; // SCALE-2d: the scaling world of a deck's rules (inScaleWorld)
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
@@ -183,6 +185,11 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // (rulesGate.ts shapesGateProblem); a deck under older rules is judged in 0.9.9's shapes (inShapesWorld)
   const shGate = shapesGateProblem(rules, build);
   if (shGate) return { ok: false, errors: [`rules: ${shGate}`] };
+  // SCALE-2d (REQ-BFG-098 098.6; BRIEF-SCALE2d D5): the seven new scaling rigs travel only with SCALE_RIGS on and under rules
+  // that have them (rulesGate.ts scaleGateProblem; with the switch off they are unknown items, validateBuild's words, as at
+  // the base); a deck under older rules is judged with the switch off (inScaleWorld, nested in the shapes world)
+  const scGate = scaleGateProblem(rules, build);
+  if (scGate) return { ok: false, errors: [`rules: ${scGate}`] };
   // AZ-BUMP (S6, the stored records): the budget, the road and the events by the deck's own rules (inRulesWorld): under
   // rules before bb-0.10.0 with the hull release's three switches off; under this build's as they stand
   // OPEN-1 (REQ-BFG-109): the deck's runes are re-derived on the offers of its own rules (openRunesFor: the switch AND
@@ -190,7 +197,14 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // JOINS-1 (REQ-BFG-091): and the deck check runs under its own rules' answer to free joins (freeJoinsFor)
   // SHAPES-1 (REQ-BFG-086; cap's RUN2 note 1.2): the shapes world nests inside the rules world, so a record under rules
   // before bb-0.10.0 is judged with SHAPES off too; c099's merge keeps HULL-ON's call inside both (release lane)
-  return inRulesWorld(rules, () => inShapesWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules)))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested
+  return inRulesWorld(rules, () => inShapesWorld(rules, () => inScaleWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested; SCALE-2d: inScaleWorld inside it
+}
+
+/** SCALE-2d (REQ-BFG-098; BRIEF-SCALE2d D5): run `fn` in the scaling world of `rules` (rulesGate.ts scaleWorld): with
+ *  SCALE_RIGS on and rules before SCALE_RULES, with the switch off (the base's pieces), the world the deck was made in;
+ *  otherwise as the switch stands (off: fn itself). The switch is put back after, even on a throw (withScaleRigs). */
+export function inScaleWorld<T>(rules: unknown, fn: () => T): T {
+  return scaleRules() && !scaleWorld(rules) ? withScaleRigs(fn, false) : fn();
 }
 
 /**

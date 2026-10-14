@@ -9,6 +9,8 @@ import { KEY_HEADER, SIG_HEADER, type Identity } from "./identity";
 import { noBetterRecord } from "./matchmaking";
 import { checkSnapshot, encodeSnapshot, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateUpload } from "./validate";
+import { isReachable } from "./records"; // SCALE-2d (REQ-BFG-098, D5): a served ghost's record, with SCALE_RIGS on
+import { scaleRules } from "../sim/scale"; // SCALE-2d
 
 export type GhostRequest = FallbackRequest;
 
@@ -68,6 +70,12 @@ function problem(body: unknown, req: GhostRequest): string | PoolEntry {
   if (req.seen.includes(id)) return "server returned a ghost already fought this run";
   // 0.7.0a D1 on the client too: never fight a ghost with a better record (a server without D1 falls back here)
   if (!noBetterRecord(s, req)) return `server returned a ghost with a better record (${s.wins}W ${s.lives} lives)`;
+  // SCALE-2d (REQ-BFG-098, REQ-BFG-106; BRIEF-SCALE2d D5): with SCALE_RIGS on a ghost's wins and lives reach the fight (TROPHY
+  // CHAIN, GRUDGE ROD), so its record must be one a run carries into this dusk: the server's own check at upload (records.ts
+  // isReachable), again here. Off: as before
+  if (scaleRules() && !isReachable(s.day, s.wins, s.lives, { lastChance: s.lastChance?.day ?? null, rules: s.rules })) {
+    return `server returned a ghost whose record (${s.wins}W ${s.lives} lives) no run carries into dusk ${s.day}`;
+  }
   // never simulate an unvalidated foreign deck; a served ghost is a player's deck: the player mode (0.7.0)
   const v = validateUpload(s.build, s.day, undefined, { ...(s.lastChance ? { lastChance: s.lastChance } : {}), ...(s.road ? { road: s.road } : {}) }); // LC-1: its LAST CHANCE (no seed: served ghosts carry none); NPC-1: its road log
   if (!v.ok) return `ghost deck invalid: ${v.errors[0]}`;
