@@ -49,6 +49,7 @@ import { BattleCounters, plateKeep } from "./battleCounters"; // COUNT-1 (REQ-BF
 import { PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board
 import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
 import { heartsLost } from "../sim/scale"; // SCALE-2a (REQ-BFG-098): hearts lost, passed into the Battle as wins are
+import { recordTag, runRecord } from "../game/counters"; // SCALE-2c (REQ-BFG-100, C9): your plate's run record
 import type { Rect } from "../ui/ui";
 
 /** 0.7.0 (R1 M1): the enemy plate's source line as BattleScreen draws it (see placeSource). */
@@ -118,6 +119,8 @@ export class BattleScreen implements Screen {
   readonly plateRows: [PlateInfo | null, PlateInfo | null] = [null, null];
   /** COUNT-1 (REQ-BFG-100; display only): the status rows, the guns' and belts' counts and their panels. */
   readonly counters = new BattleCounters();
+  /** SCALE-2c (REQ-BFG-100, C9): your plate's name: your hero's, with your run record after it where C9 shows. */
+  private plateName = "";
 
   constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
@@ -155,6 +158,11 @@ export class BattleScreen implements Screen {
       road: () => this.toRoad(), // NPC-1 (REQ-BFG-077): ON TO THE ROAD (NPC_DAY on)
     };
     this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins, run.day, lost);
+    // SCALE-2c (REQ-BFG-100, C9): your run record (wins, hearts left of the run's start, hearts lost), fixed for the fight,
+    // while a GRUDGE ROD or TROPHY CHAIN is aboard with the switch on (game/counters.ts runRecord; null otherwise): your
+    // plate writes it after your name as the ghost's plate writes its own, and your plate's tap says it
+    this.counters.record = runRecord(this.arena.b, 0, run);
+    this.plateName = this.counters.record ? `${HEROES[run.hero].name} · ${recordTag(this.counters.record)}` : HEROES[run.hero].name;
     this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): the player's board and plate; the foe's stay the defaults
     this.arena.off = [60, 260];
     // FIELD-1 (REQ-BFG-075): the setting this battle's seed picks (its replay plays the same seed: the same setting)
@@ -647,7 +655,7 @@ export class BattleScreen implements Screen {
     const src = this.src, p1 = this.plateR[1];
     this.plateRows[1] = drawPlate(g, this.game, this.arena, p1, 1, src?.place === "plate" ? src.name : this.foeName, this.hpText[1], src?.place === "plate" ? src.tag : undefined);
     if (src?.place === "above") drawText(g, src.text, p1.x + 3, p1.y - (NOTE_ROW - 1), C.slate4, { font: "3", outline: C.ink });
-    this.plateRows[0] = drawPlate(g, this.game, this.arena, this.plateR[0], 0, HEROES[this.game.run!.hero].name, this.hpText[0]);
+    this.plateRows[0] = drawPlate(g, this.game, this.arena, this.plateR[0], 0, this.plateName, this.hpText[0]); // SCALE-2c: + C9
     // COUNT-1 (REQ-BFG-100): each plate's status row (C1 the foe's, C2 yours) on its hull side, and its tap target
     this.counters.drawRows(g, this.game, this.arena, L, this.plateR, this.plateRows, [L.bar], live);
     const sec = clockSec(b.t); // WIND-2 (REQ-BFG-093): whole ticks, then whole seconds (was Math.floor(b.t): 1:08 at 69 s)

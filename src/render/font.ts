@@ -48,12 +48,16 @@ const SHIPPED_ICONS = {
   STAR: "★",
 } as const;
 /** The icons by name: the 19 shipped (SHIPPED_ICONS, ICON's enumerable keys) and SCALE-2b's POISON (below). */
-export const ICON = SHIPPED_ICONS as typeof SHIPPED_ICONS & { readonly POISON: string };
+export const ICON = SHIPPED_ICONS as typeof SHIPPED_ICONS & { readonly POISON: string; readonly CRACK: string };
 // SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): POISON's drop at pua(15), U+E00F (free; pua(14) is claimed in comments).
 // It is ICON.POISON by name everywhere, so "{*POISON}" and the status row's chip draw it; but it is not enumerable: ICON's
 // keys stay the 19 shipped names (tests/icons.test.ts pins them), and nothing that lists the icons meets it. Nothing draws
 // it with SCALE_RIGS off (no text holds "{POISON}" then, and no hull holds POISON).
 Object.defineProperty(ICON, "POISON", { value: pua(15), enumerable: false, writable: false, configurable: false });
+// SCALE-2c (REQ-BFG-100, C7; BRIEF-SCALE2c section 4): the hits-taken chip's crack at pua(19), U+E013, the next free slot
+// (pua(14) is claimed in comments; 15 is POISON's, 16-18 SUS-B's), not enumerable as POISON's: ICON's keys stay the 19
+// shipped names, and nothing draws it with SCALE_RIGS off (the chip shows only with a hits-taken reader aboard, switch on)
+Object.defineProperty(ICON, "CRACK", { value: pua(19), enumerable: false, writable: false, configurable: false });
 export type IconName = keyof typeof ICON;
 /** U1 (MEMO C1): the keywords. "{*NAME}" draws one as its icon then its word, both in the keyword's colour. SUS-B
  *  (REQ-BFG-069; cap's answer 1 to SUSTAIN-1: a budget of 12): + SHIELD, HEAL and REGEN, 9 in all. SCALE-2b
@@ -184,6 +188,7 @@ const F5: GlyphMap = {
   // SCALE-2b (REQ-BFG-108): POISON's drop, an outline (a solid drop sits 3 px from BURN's flame); drawn only while
   // SCALE_RIGS is on
   [ICON.POISON]: "..#..|..#..|.#.#.|#...#|#...#|#...#|.###.", // a drop
+  [ICON.CRACK]: "#.#..|.#.#.|..#..|.##..|...#.|..#.#|.#...", // SCALE-2c (REQ-BFG-100, C7): a crack, the hits on your hull
 };
 
 // 3x5
@@ -276,6 +281,7 @@ const F3: GlyphMap = {
   [ICON.HEAL]: "...|.#.|###|.#.|###", // a cross on a bar
   [ICON.REGEN]: ".#.|###|.#.|...|#.#", // a cross with two tick dots
   [ICON.POISON]: ".#.|.#.|###|###|.#.", // SCALE-2b (REQ-BFG-108): a drop, its point up (SCALE_RIGS on only)
+  [ICON.CRACK]: "#.#|.#.|.##|..#|.#.", // SCALE-2c (REQ-BFG-100, C7): a crack (SCALE_RIGS on only)
 };
 
 /** U1: an icon's own colour, where it has one. RATE is KEYWORD_COLOUR's FASTER (richText.ts), GOLD the shop's price colour
@@ -302,7 +308,7 @@ export const ICON_COLOUR: Readonly<Record<string, string>> = {
 
 /** The private-use icons (HULL ♥ and STAR ★ are ordinary text: "★2" stays a star mark, as today). SCALE-2b: + POISON's
  *  drop (ICON.POISON is not enumerable), so a line holding it measures and strips it as an icon. */
-const ICON_CHARS: ReadonlySet<string> = new Set([...Object.values(ICON), ICON.POISON].filter((ch) => ch.charCodeAt(0) >= ICON_BASE));
+const ICON_CHARS: ReadonlySet<string> = new Set([...Object.values(ICON), ICON.POISON, ICON.CRACK].filter((ch) => ch.charCodeAt(0) >= ICON_BASE)); // SCALE-2c: + CRACK
 /** The keywords "{*NAME}" draws (KEYWORDS now: SCALE-2b's hook keeps it in step). */
 const KEYWORD_SET = new Set<string>(KEYWORDS);
 

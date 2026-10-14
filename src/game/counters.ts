@@ -14,9 +14,12 @@ import { ICON, type KeywordName } from "../render/font";
 import { C } from "../render/palette";
 import { fmtCount } from "../ui/statFormat";
 import { scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): the POISON chip, SCALE_RIGS on only
+import { onSetScaleRigs } from "../sim/scale"; // SCALE-2c (REQ-BFG-100, C7): the hits chip joins the row, SCALE_RIGS on only
+import { heartsLost, startHearts } from "../sim/scale"; // SCALE-2c (REQ-BFG-100, C9): the run record's hearts
+import type { ReadCount } from "../sim/content"; // SCALE-2c: the `reads` counts that light a chip (READ_CHIPS)
 
 /** A count a chip, a gun or a belt shows (the readers table's key too). */
-export type CountKey = "burn" | "poison" | "fray" | "stun" | "plate" | "shield" | "waiting" | "belt";
+export type CountKey = "burn" | "poison" | "fray" | "stun" | "plate" | "shield" | "waiting" | "belt" | "hits"; // SCALE-2c: + hits (C7)
 
 type Sides = Pick<Battle, "sides">;
 
@@ -124,9 +127,26 @@ export function holds(s: Pick<SideState, "gates" | "factories" | "turrets" | "bu
 export function readCount(b: Sides, side: Side, key: CountKey): boolean {
   const own = b.sides[side], foe = b.sides[side === 0 ? 1 : 0];
   // SCALE-2b (REQ-BFG-108; REPORT-SCALE2a section 10): a POISON reader is a `reads` line counting foePoison (a rig's, or a
-  // gun part's: SCALE-2c's ROT GAUGE and LEECH COIL), held by the foe of the hull whose POISON it reads
-  if (key === "poison" && (foe.gates.some((g) => g.def.gate?.reads?.count === "foePoison") || foe.turrets.some((tu) => !!tu.reads?.some((r) => r.count === "foePoison")))) return true;
+  // gun part's: SCALE-2c's ROT GAUGE and LEECH COIL), held by the foe of the hull whose POISON it reads. SCALE-2c
+  // (REQ-BFG-100; BRIEF-SCALE2c section 2): the same rule for every `reads` count a chip shows (READ_CHIPS): KINDLING and
+  // CINDER MAIL light the foe's BURN chip, ROT GAUGE and LEECH COIL its POISON chip, SPALL CATCHER your hits chip (C7)
+  for (const rc of READ_CHIPS) if (rc.key === key && readsLine(rc.whose === "own" ? own : foe, rc.count)) return true;
   return READERS.some((r) => r.reads === key && holds(r.whose === "own" ? own : foe, r));
+}
+
+/** SCALE-2c (REQ-BFG-100): the `reads` counts (content.ts ReadCount) a status-row chip shows, and whose row: the reader's
+ *  foe's (BURN and POISON on the foe's hull) or its own (the hits on your hull). Data-only reader lines exist only with
+ *  SCALE_RIGS on (scale.ts), so off this adds nothing. */
+export const READ_CHIPS: readonly { key: CountKey; count: ReadCount; whose: "own" | "foe" }[] = [
+  { key: "burn", count: "foeBurn", whose: "foe" },
+  { key: "poison", count: "foePoison", whose: "foe" },
+  { key: "hits", count: "hitsTaken", whose: "own" },
+];
+
+/** SCALE-2c: side `s` holds a piece whose `reads` line counts `count`: a rig's (gate.reads) or a gun part's (a turret's
+ *  `reads`, gearStats). */
+export function readsLine(s: Pick<SideState, "gates" | "turrets">, count: ReadCount): boolean {
+  return s.gates.some((g) => g.def.gate?.reads?.count === count) || s.turrets.some((tu) => !!tu.reads?.some((r) => r.count === count));
 }
 
 // ------------------------------------------------------------------------------------------------------ the status row
@@ -149,6 +169,8 @@ export interface StatusChip {
   reminder: KeywordName | null;
   /** left to right in the tab */
   order: number;
+  /** SCALE-2c (C7): a chip with no keyword (reminder null): its tap's sentence, with its count */
+  sentence?: ChipSentence;
 }
 
 /** FRAY's number: plum4 (its icon's colour) reads 3.51:1 on the counter box's navy, under 4.5:1 for a number at phone
@@ -156,6 +178,12 @@ export interface StatusChip {
 export const FRAY_NUM = C.plum5;
 
 const whole = (n: number): ChipText => ({ num: fmtCount(n), tail: "" });
+
+/** SCALE-2c (C7): the hits chip's number colour: C.red's own step where it reads 4.5:1 on the counter box's navy, else a
+ *  lighter one (FRAY_NUM's rule; tests/scale2c.counters.test.ts measures it). */
+export const HITS_NUM = C.red;
+/** SCALE-2c (C7): the hits chip's tap sentence. */
+export const hitsText = (n: number): string => `HITS ON YOU THIS FIGHT: ${fmtCount(n)}.`;
 
 /** SCALE-2b (REQ-BFG-108, REQ-BFG-100 C1): the POISON on `side`'s hull (sim/battle.ts HullState.poison: it only climbs, the
  *  fight long), or null while SCALE_RIGS is off: the battle's own switch (Battle.scaleRigs, read once when it was made),
@@ -165,7 +193,20 @@ export function poisonStacks(b: Sides, side: Side): number | null {
   return on ? b.sides[side].hull.poison ?? 0 : null;
 }
 
-/** The status row's chips, in order: BURN stacks, POISON (SCALE-2b: SCALE_RIGS on), FRAY n/15, STUN. */
+/** SCALE-2c (REQ-BFG-100, C7; BRIEF-SCALE2c section 4; REPORT-SCALE1 1.2): the hits on your hull this fight (sim/battle.ts
+ *  SideState.hitsTaken: every enemy impact, any target, blocked or not; kept only while the battle's switch is on), on your
+ *  row (side 0's, C2) while you hold a hits-taken reader (SPALL CATCHER), else null (no chip at all): off, never. */
+export function hitsShown(b: Sides, side: Side): number | null {
+  const on = (b as { scaleRigs?: boolean }).scaleRigs ?? scaleRules();
+  if (!on || side !== 0 || !readsLine(b.sides[side], "hitsTaken")) return null;
+  return b.sides[side].hitsTaken ?? 0;
+}
+
+/** SCALE-2c (C7): the hits chip's tap sentence (ui/counterText.ts's words, built here so the chip carries them). */
+export type ChipSentence = (n: number) => string;
+
+/** The status row's chips, in order: BURN stacks, POISON (SCALE-2b: SCALE_RIGS on), FRAY n/15, STUN, the hits on you
+ *  (SCALE-2c's C7: SCALE_RIGS on, with a hits-taken reader aboard). */
 export const STATUS_CHIPS: readonly StatusChip[] = [
   { key: "burn", icon: ICON.BURN, colour: C.fire3, numColour: C.fire3, value: (b, s) => burnStacks(b.sides[s]), text: whole, reminder: "BURN", order: 10 },
   // SCALE-2b (REQ-BFG-108): the reserved slot filled: the drop and its number in venom, beside BURN's; its tap shows POISON's
@@ -177,6 +218,19 @@ export const STATUS_CHIPS: readonly StatusChip[] = [
   },
   { key: "stun", icon: ICON.STUN, colour: C.cyan, numColour: C.cyan, value: (b, s) => stunnedParts(b.sides[s]), text: whole, reminder: "STUN", order: 40 },
 ];
+
+/** SCALE-2c (REQ-BFG-100, C7): the hits chip: the crack (font.ts ICON.CRACK, not enumerable) and its count in red, order 50
+ *  (after STUN); no keyword (HITS has no glossary row), so its tap is its own sentence, "HITS ON YOU THIS FIGHT: 14.". It
+ *  joins STATUS_CHIPS only while SCALE_RIGS is on (the switch's hook below), so with the switch off the list is COUNT-1's
+ *  four (tests/count1.test.ts pins them) and every row is as before. */
+export const HITS_CHIP: StatusChip = {
+  key: "hits", icon: ICON.CRACK, colour: C.red, numColour: HITS_NUM, value: hitsShown, text: whole, reminder: null, order: 50, sentence: hitsText,
+};
+onSetScaleRigs((on) => {
+  const list = STATUS_CHIPS as StatusChip[], at = list.indexOf(HITS_CHIP);
+  if (on && at < 0) list.push(HITS_CHIP);
+  else if (!on && at >= 0) list.splice(at, 1);
+});
 
 /** A chip as the row shows it now: its count and whether it is dimmed (0, shown because a piece reads it). */
 export interface ShownChip { chip: StatusChip; n: number; dim: boolean }
@@ -291,6 +345,51 @@ export function keepOnScreen(ax: number, ay: number, x: number, y: number, w: nu
 /** Two rects overlap. */
 export const overlap = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }): boolean =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+// ------------------------------------------------- SCALE-2c (REQ-BFG-100): C8, a reader's running bonus; C9, the run record
+
+/**
+ * C8 (BRIEF-SCALE2c section 4; REPORT-SCALE1 1.2): a reader whose count only the piece itself shows wears a red badge with
+ * the bonus it gives on its next hit or shot: POWDER KEG (its own hits, a rig) and SPALL CATCHER (the hits on your ship, a
+ * gun part), any `reads` line counting ownHits or hitsTaken. On your side (side 0) only, with the battle's switch on (the
+ * counts are kept only then). `bonus` is in the sim's own units, as C11's pop for the same piece (its `add`):
+ *  - a rig counting its own hits: `each` x (hits so far + 1), what its next hit adds, its count including that hit;
+ *  - a gun part counting hits taken: `each` x the hits on you now (its gun's next shot reads the count then; more may land
+ *    first). A gun with two such parts shows their sum.
+ * Pure; [] off.
+ */
+export interface RampBadge { kind: "rig" | "gun"; ref: number; bonus: number; count: number }
+export function rampBadges(b: Sides, side: Side): RampBadge[] {
+  const on = (b as { scaleRigs?: boolean }).scaleRigs ?? scaleRules();
+  if (!on || side !== 0) return [];
+  const s = b.sides[side], out: RampBadge[] = [];
+  for (const g of s.gates) {
+    const r = g.def.gate?.reads;
+    if (!r || g.wrecked) continue;
+    if (r.count === "ownHits") { const n = g.ownHits ?? 0; out.push({ kind: "rig", ref: g.uid, bonus: r.each * (n + 1), count: n }); }
+    else if (r.count === "hitsTaken") { const n = s.hitsTaken ?? 0; out.push({ kind: "rig", ref: g.uid, bonus: r.each * n, count: n }); }
+  }
+  for (const tu of s.turrets) {
+    const each = (tu.reads ?? []).filter((r) => r.count === "hitsTaken").reduce((a, r) => a + r.each, 0);
+    if (each > 0) { const n = s.hitsTaken ?? 0; out.push({ kind: "gun", ref: tu.index, bonus: each * n, count: n }); }
+  }
+  return out;
+}
+
+/** C9 (BRIEF-SCALE2c section 4): the run record your plate shows, `4W 6♥`, while a GRUDGE ROD or TROPHY CHAIN (any reader of
+ *  hearts lost or wins) is aboard your side, with the battle's switch on; else null. `run`: the run's wins and hearts
+ *  (Run.wins, Run.lives) and its hearts mark (scale.ts startHearts: 10 on a hearts run). Fixed for the fight. Pure. */
+export interface RunRecord { wins: number; left: number; of: number; lost: number }
+export function runRecord(b: Sides, side: Side, run: { wins: number; lives: number; hearts?: boolean } | null | undefined): RunRecord | null {
+  const on = (b as { scaleRigs?: boolean }).scaleRigs ?? scaleRules();
+  if (!on || side !== 0 || !run) return null;
+  const s = b.sides[side];
+  if (!readsLine(s, "heartsLost") && !readsLine(s, "wins")) return null;
+  return { wins: Math.max(0, Math.floor(run.wins)), left: Math.max(0, Math.floor(run.lives)), of: startHearts(run), lost: heartsLost(run.lives, run) };
+}
+
+/** C9's tag after your name, as the ghost's plate writes its record (game/day.ts ghostName: `0W 5♥`). */
+export const recordTag = (r: RunRecord): string => `${fmtCount(r.wins)}W ${fmtCount(r.left)}♥`;
 
 // ---------------------------------------------------------------------------------------------- C11, a reader's add
 
