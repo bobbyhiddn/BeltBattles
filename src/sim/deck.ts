@@ -8,6 +8,7 @@ import {
   factorySpeed, levelSpeed, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake, type Upgrades,
 } from "./content";
+import type { ReadSpec } from "./content"; // SCALE-2d (REQ-BFG-098): TimelineHit.reads
 import { ladderFixRules, rideKeepOf } from "./ladderFix"; // LADDER_FIX (cap's oracle d306b1b196dbab38): the walk rides tick by tick; HULL-1b: OVERDRIVE's ride-keep
 import "./guard"; // RETUNE-1 (REQ-BFG-097): GUARD's content patch (guard.ts) loads with the deck rules, so GUARD = true takes hold everywhere
 import { freeJoinsRules } from "./freeJoins"; // JOINS-1 (REQ-BFG-091): FREE_JOINS drops RULE JOIN LIMIT and RULE JOIN PACE
@@ -17,6 +18,7 @@ import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer da
 // SHAPES-1 (REQ-BFG-086 R1-R2): the footprint engine (foot.ts) and the SHAPES switch (shapes.ts, loaded with the sim)
 import { canonicalRot, footOf, footOffsets, footOnDeck, footprintCells } from "./foot";
 import { shapesRules } from "./shapes";
+import { scaleRules } from "./scale"; // SCALE-2d (REQ-BFG-110): the walk keeps FOR EACH DMG apart while SCALE_RIGS is on
 // re-exported, so the portable stand-in loader and beltside.ts keep importing only ./content and ./deck
 // (tests/standInPool.gen.test.ts)
 export { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "./foot";
@@ -595,6 +597,10 @@ export interface RouteEstimate {
   burn: number;
   shock: boolean;
   flat?: number; // Y4 (release Y): the payload's bonus damage (rigs, splits, pulses; not HEAT)
+  // SCALE-2d (REQ-BFG-110, SCALE-2a F3): with SCALE_RIGS on, the payload's FOR EACH DMG (step 4: LONG HAUL, PINCER's count
+  // part, COUNTERWEIGHT, QUENCH's per-BURN part), which `flat` then leaves out, so DRAKE NOZZLE's price (deckRating.ts
+  // drakeGain on `flat`) converts the stat rows only, as Battle.fireCore does; `dmg` holds both. Absent off, or when 0
+  each?: number;
 }
 
 /** 0.6.2 BELTSIDE (V4): what one hit did to the payload in the single-payload walk (walkRoute). */
@@ -625,6 +631,9 @@ export interface TimelineHit {
   breaker?: { flat: number; floor: number }; // PLATE BREAKER: both numbers (flat holds the one the walk counts: platedDeck)
   brace?: { mul: number }; // BRACE FRAME: what it does to enemy stalls on this tile (no damage)
   hold?: number; // TWIN LATCH: the seconds it may hold a payload here (when both its arrows hit belts)
+  // SCALE-2d (REQ-BFG-098): a scaling rig's reader line (its count, `each` and what it gives), set only while SCALE_RIGS is
+  // on. Display data: the walk adds nothing for it (the count is battle state; the bots' rating prices it, deckRating.ts)
+  reads?: ReadSpec;
 }
 
 /**
@@ -699,6 +708,10 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   const fixed = ammo.fixedSpeed;
   let time = 0, ride = 0, speed = fixed ?? 1, mult = 1, flat = 0, copies = 1, burn = 0, shock = false, prior = 0;
   let heat = 0, heatBonus = 0;
+  // SCALE-2d (REQ-BFG-110; SCALE-2a F3): with SCALE_RIGS on, FOR EACH DMG rides `each` (Battle.forEach's p.each), apart from
+  // the stat rows' `flat`, so the estimate's `flat` is what DRAKE NOZZLE converts; the damage counts both. Off: each stays 0
+  const step4 = scaleRules();
+  let each = 0;
   // 0.6.1c HOT SWAP: its slugs alternate EMBER and SPARK, so the walk shows the ember's Burn and the spark's Shock
   for (const pr of fs?.cycle ?? []) {
     if (pr.burn) burn = Math.max(burn, pr.burn);
@@ -796,7 +809,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         // beltside-062 D2 (DESIGN §11 P3): LONG HAUL ★2/★3 counts at most priorCap prior HITS (every earlier
         // arrow application, this tile's tier-1 hits included), exactly as Battle.applyHit does
         const counted = e.priorCap !== undefined ? Math.min(prior, e.priorCap) : prior;
-        flat += e.perPriorGate * counted;
+        if (step4) each += e.perPriorGate * counted; // SCALE-2d: a FOR EACH add (Battle.forEach)
+        else flat += e.perPriorGate * counted;
         th.flat = (th.flat ?? 0) + e.perPriorGate * counted;
         th.prior = counted;
         if (e.priorCap !== undefined && prior > e.priorCap) th.capped = e.priorCap;
@@ -816,7 +830,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       if (e.quench) { // 0.6.2 FB-B: as Battle.applyHit (+ flat; up to `stacks` Burn at perBurn each; the rest stays Burn)
         const spent = Math.min(burn, e.quench.stacks ?? Infinity); // Y3 (DESIGN-Y row 23): no `stacks`
         const amount = e.quench.flat + spent * e.quench.perBurn;
-        flat += amount;
+        if (step4) { flat += e.quench.flat; each += spent * e.quench.perBurn; } // SCALE-2d: its flat a stat row, the rest FOR EACH
+        else flat += amount;
         th.flat = (th.flat ?? 0) + amount;
         th.quenched = spent;
         burn -= spent;
@@ -825,7 +840,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       if (e.fray) th.fray = e.fray;
       if (e.perTile) { // Y5 (release Y; DESIGN-Y row 41): as Battle.applyHit, no cap (its def has no max)
         const amount = Math.min(e.perTile.max ?? Infinity, i * e.perTile.each);
-        flat += amount;
+        if (step4) each += amount; // SCALE-2d: a FOR EACH add (Battle.forEach)
+        else flat += amount;
         th.flat = (th.flat ?? 0) + amount;
       }
       if (e.overclockCooldown) th.timed = `X2 EVERY ${e.overclockCooldown}S`;
@@ -849,7 +865,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       if (e.pincer) { // E5: every other rig's hit on this tile (Y3, DESIGN-Y row 20: its def has no max)
         const others = Math.min(e.pincer.max ?? Infinity, (hits[ri]?.[tile] ?? []).filter((o) => o.uid !== h.uid).length);
         const amount = e.pincer.flat + e.pincer.each * others;
-        flat += amount;
+        if (step4) { flat += e.pincer.flat; each += e.pincer.each * others; } // SCALE-2d: as Battle.applyHit with the switch on
+        else flat += amount;
         th.flat = (th.flat ?? 0) + amount;
         th.others = others;
       }
@@ -868,6 +885,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         th.breaker = { ...e.breaker };
       }
       if (e.brace) th.brace = { ...e.brace };
+      if (step4 && e.reads) th.reads = { ...e.reads }; // SCALE-2d: the reader line, display data (nothing added here)
       if (e.heat) heat += e.heat;
       if (e.sort) copies *= 1 + (e.sort.copies - 1) / e.sort.every;
       if (e.pulse) surgeHits.set(h.uid, th); // Y3 (DESIGN-Y row 28): no speed; its pulses are counted after the walk
@@ -875,6 +893,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         copies *= e.split.copies;
         mult *= e.split.mult;
         flat = pct(flat, 100 * e.split.mult); // NUM-1: as Battle.applyHit, the flat so far x the split's %, rounded half up once
+        if (each) each = pct(each, 100 * e.split.mult); // SCALE-2d: a split is a copy: both accumulators (Battle.applyHit)
         th.split = { ...e.split };
       }
       if (e.speed) {
@@ -928,11 +947,11 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     }
   }
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
-    ? curveDamage(ammo, ride, mult, flat + heatBonus, pendulumShift(b, info.turret)) // 0.6.2: HEAT JACKET on the curve too
-    : payloadDamage(base, ammo.rideScale, ride, mult, flat + heatBonus, shotFloor(fs?.ammo ?? "plain")); // includes HEAT JACKET's downstream ride (Y2: shotFloor)
+    ? curveDamage(ammo, ride, mult, flat + each + heatBonus, pendulumShift(b, info.turret)) // 0.6.2: HEAT JACKET on the curve too; SCALE-2d: + each (0 off)
+    : payloadDamage(base, ammo.rideScale, ride, mult, flat + each + heatBonus, shotFloor(fs?.ammo ?? "plain")); // includes HEAT JACKET's downstream ride (Y2: shotFloor); SCALE-2d: + each (0 off)
   // Y4 (release Y; DESIGN-Y row 40): the estimate also carries the payload's bonus damage, `flat` (what a DRAKE NOZZLE
-  // turns into BURN at fire: Battle.fireCore's drakeConvert(p.flat)), for the bots' rating
-  const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock, flat }, timeline, speedEnd: speed, locked };
+  // turns into BURN at fire: Battle.fireCore's drakeConvert(p.flat)), for the bots' rating. SCALE-2d: and `each` (switch on, when not 0)
+  const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock, flat, ...(each ? { each } : {}) }, timeline, speedEnd: speed, locked };
   if (fixed !== undefined) walk.fixed = fixed; // beltside-062c (P8)
   if (joins.length) walk.joins = joins; // 0.6.2j
   return walk;
