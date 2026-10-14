@@ -121,8 +121,9 @@ import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; //
 import { icons } from "../../render/font"; // U2c step 4
 import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items
 import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
-import { RIG_SENTENCE, turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' rig sentence and kind lines
-import { isPlainRig, shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
+import { turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' kind lines (PLAIN-1F M3: the rig sentence comes through plainNotes)
+import { shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
+import { plainNotes } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (was isPlainRig's rig sentence)
 import { shapePic } from "../../ui/shapePic"; // SHAPES-1 (REQ-BFG-086.1): the panel face's shape picture
 
 /** SHAPES-1 (REQ-BFG-086.1, S8): a panel's header picture: a shaped piece's shape with its arrows (ui/shapePic.ts), in the
@@ -320,7 +321,9 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
   // SHAPES-1 (REQ-BFG-089, S8): a shaped plain rig leads with the rig sentence too (isPlainRig), then a shaped piece's
   // shape or size rule (faces.ts shapeNotes): default rules text, behind the hover or tap
   const shaped: Block[] = def ? shapeNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : [];
-  const extra: Block[] = [...(def && isPlainRig(def) ? [{ role: "ability", text: RIG_SENTENCE, note: "rig" } as Block] : []), ...shaped, ...(t.notes ?? [])];
+  // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead is faces.ts plainNotes: the rig sentence (as before for every
+  // plain rig with PLAIN_RIGS off), SCALE GUARD's carry line after it, BALLAST's own line in its place
+  const extra: Block[] = [...(def ? plainNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []), ...shaped, ...(t.notes ?? [])];
   const hidden = t.body.filter((b) => !!b.note || b.role === "flavour" || b.role === "hint");
   const notes = [...extra, ...hidden].map((b, i) => ({ b, i })).sort((p, q) => noteOrder(p.b) - noteOrder(q.b) || p.i - q.i).map((x) => x.b);
   return {

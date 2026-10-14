@@ -36,6 +36,7 @@ import { dmgNow, shownOn, sustNow } from "./dayShown"; // HULL-1d (REQ-BFG-079):
 import { upToLoads } from "./abilityText"; // Y7b1 (release Y; ruling Y7A-R2): EXT. CHAMBER's UP TO n with the star switch on
 import { SIM } from "./abilityText"; // NUM-3: SCRAPPER's queue cap and SABOT's SHRAPNEL STUN (each checked against battle.ts)
 import { startIn } from "./abilityText"; // TXT-096: ASSEMBLY LINE's "50% SOONER" / "AT ONCE", its sentence's words
+import { cardText } from "./abilityText"; // PLAIN-1F (M3, F5): the desk card's effect line (cardEffect)
 import {
   AMMO, BURN_TIME, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, type HeroId, type ItemDef, type PayloadPreset,
 } from "../sim/content";
@@ -974,6 +975,48 @@ export function plainRigStats(def: string, stars = 1, day?: number): Stat[] | nu
  *  leads a plain rig's ⓘ NOTES (inspector.ts explainPanel). Checked clause by clause against src/sim (REPORT section 10). */
 export const RIG_SENTENCE = "EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS STATS TO EVERY SLUG ON THAT TILE. ONE ARROW, ONE HIT.";
 
+/** PLAIN-1F (REQ-BFG-084, REQ-BFG-089, M3; BRIEF-PLAIN1F M3, run 2's F8): SCALE GUARD's carry line, NOTES after the rig
+ *  sentence, in CARD-3's words ({*PLATE} draws SHIELD). Checked against src/sim: battle.ts applyHit adds its slugPlate to
+ *  the slug (Payload.plate, a split keeps its share); at your gun's chamber Battle.slugPlate gives it to your hull's pool
+ *  by the bulwark rule (races/bastion.ts plateOnLoad: plateFor, x S(day), the pool's cap: {*PLATE}'s reminder says MAX). */
+export const CARRY_LINE = "EACH SLUG IT HITS CARRIES THE {*PLATE} TO YOUR GUN. YOUR SHIP GAINS IT AS THE SLUG LOADS.";
+
+/** PLAIN-1F (REQ-BFG-084, REQ-BFG-089, M3; BRIEF-PLAIN1F M3 BALLAST, REVIEW-PLAIN1 D4; PLAIN-1's ship line): BALLAST's
+ *  NOTES line, when it works. Its stat is your ship's, never a slug's, so the rig sentence (GIVES ITS STATS TO EVERY SLUG)
+ *  is not true of it and this line takes its place. Checked against src/sim: Battle.makeSide adds the working BALLASTs'
+ *  % of the max hull to hull and max at the fight's start; a BALLAST works with at least one arrow on a belt tile (g.hits,
+ *  the IDLE rule, read from the layout at the fight's start); else it is IDLE and gives nothing. */
+export const BALLAST_LINE = "WHILE AN ARROW POINTS AT A BELT TILE, IT RAISES YOUR SHIP'S MAX {HULL}. NO ARROW ON A BELT: IT IS IDLE.";
+
+/** PLAIN-1F (M3): a plain rig whose stats ride the slugs it hits, so the rig sentence and HIT are true of it: every plain
+ *  rig (isPlainRig) but a carrier stat's (BALLAST's max hull, GateEffect.maxHullPct). With PLAIN_RIGS off it is isPlainRig
+ *  exactly (no base plain rig has a carrier stat). */
+export function plainSlugRig(def: string): boolean {
+  return isPlainRig(def) && !effectAt(def, 1).gate?.maxHullPct;
+}
+
+/** PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead, default rules text behind the ⓘ, the desk hover or a tap
+ *  (inspector.ts explainPanel, LAST CHANCE's partInfo): the rig sentence for a slug-stat rig (plainSlugRig), then SCALE
+ *  GUARD's carry line where the rig puts {*PLATE} on the slug; BALLAST's own line in the rig sentence's place; [] for every
+ *  other piece. With PLAIN_RIGS off: [RIG_SENTENCE] for a plain rig, as before (no base plain rig carries PLATE). */
+export function plainNotes(def: string): string[] {
+  if (!isPlainRig(def)) return [];
+  const g = effectAt(def, 1).gate;
+  if (g?.maxHullPct) return [BALLAST_LINE];
+  return g?.slugPlate ? [RIG_SENTENCE, CARRY_LINE] : [RIG_SENTENCE];
+}
+
+/** PLAIN-1F (REQ-BFG-089, M3; cap's call on run 2's F5): the desk's wide shop card's effect line (chrome.ts drawCaravan):
+ *  abilityText's cardText, else a plain rig's stat row at ★1 on the run's day (plainRigStats, in glyphs), so a plain rig
+ *  with no kept text (the six) draws the wide face with its own numbers, not the narrow face inside the wide card (shop.ts
+ *  drawCard's `wide` needs an effect), and no empty rule block. Every piece with a cardText line keeps it byte for byte. */
+export function cardEffect(def: string, o: TextOpts = {}): string {
+  const t = cardText(def, o);
+  if (t) return t;
+  const plain = plainRigStats(def, 1, o.day);
+  return plain ? statRow(plain) : "";
+}
+
 // ------------------------------------------------------------- Y2 (release Y): the STUN pieces with the switch on
 
 /**
@@ -1030,18 +1073,29 @@ export const Y6_PIECES: readonly string[] = ["venom"];
 
 
 
-/** PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 P4, interim): the six plain stat rigs' faces. A face is the stat row (plainStats,
- *  through rigStats) and no rule line; the ⓘ view's ladder reads the row's numbers, and each keyword keeps its reminder.
+/** PLAIN-1F (REQ-BFG-089, M3; cap's call on run 2's F7): a plain six's reminders at the star shown, one for each keyword
+ *  its stat row holds at that star (sixStats' order: {*PLATE}, {*BURN}, {*STUN} with its own seconds), so a star without
+ *  the keyword shows no reminder for it: BRANDING IRON's ★1 (DMG only, FIRSTDAY-1 F7) has none, on every surface that reads
+ *  a face's reminders (LAST CHANCE's info box, a word's tap or hover box: glossary.ts glossaryText). Was a fixed list a
+ *  rig (BRANDING IRON's BURN at every star). */
+const sixReminders = (e: ItemDef): Rules => {
+  const g = gt(e);
+  return rules([], [], [...(g.slugPlate ? [REMINDER.PLATE()] : []), ...(g.burn ? [REMINDER.BURN()] : []), ...(g.stun ? [REMINDER.STUN(g.stun)] : [])]);
+};
+
+/** PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 P4): the six plain stat rigs' faces. A face is the stat row (plainRigStats, through
+ *  rigStats) and no rule line; the ⓘ view's ladder reads the row's numbers, and each keyword keeps its reminder.
  *  Kept apart from FACES so FACE_IDS (the base's faced pieces, which its tests walk) stays the base's; hasFace and faceOn
- *  read it only for a plain rig in ITEMS (PLAIN_RIGS on). PLAIN-1F builds the final faces on EXPLAIN-1's hover layer. */
+ *  read it only for a plain rig in ITEMS (PLAIN_RIGS on). PLAIN-1F (M3): the final faces, on EXPLAIN-1's layer: the
+ *  reminders follow the star (sixReminders), the NOTES lead is plainNotes. */
 const PLAIN_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // the numbers are the stat row's (rigStats), which the ⓘ ladder, NEXT★ and the shop chip read: no rule, so no nums
-  rasp: () => rules([], [], [REMINDER.BURN()]),
-  sparkgap: (e) => rules([], [], [REMINDER.STUN(gt(e).stun!)]),
-  scaleguard: () => rules([], [], [REMINDER.PLATE()]),
-  ballast: () => rules([]),
-  grindstone: () => rules([]),
-  brandingiron: () => rules([], [], [REMINDER.BURN()]),
+  rasp: sixReminders,
+  sparkgap: sixReminders,
+  scaleguard: sixReminders,
+  ballast: sixReminders,
+  grindstone: sixReminders,
+  brandingiron: sixReminders,
 };
 
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */

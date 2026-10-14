@@ -1,6 +1,7 @@
 // PLAIN-1 (REQ-BFG-084.1; BRIEF-PLAIN1 P4, step 4): the six plain stat rigs' interim faces and icons, with the switch on.
-// A face is the stat row and no ability line (faces.ts plainStats through rigStats; PLAIN-1F moves the shared rig sentence
-// behind a hover on EXPLAIN-1's layer). Every line of the six fits the sizes the base's checks use: the op card's chip
+// A face is the stat row and no ability line (faces.ts plainRigStats through rigStats since PLAIN-1F's M1 fold; PLAIN-1F M3
+// puts the shared rig sentence behind the ⓘ, the hover or a tap on EXPLAIN-1's layer: "PLAIN-1F (M3)" below, and
+// tests/explain1 (f), card2 (k6), card3 (r)). Every line of the six fits the sizes the base's checks use: the op card's chip
 // (tests/shopChips.test.ts's rule) and the op view's 225 px band in 5x7 (NEXT_LINE_W, tests/faceText.test.ts's rule). Each
 // has its own icon (plainArt.ts): six pictures, none another rig's.
 import { describe, expect, it } from "vitest";
@@ -14,6 +15,16 @@ import { CARD_MARK_X, cardPriceX } from "../src/screens/build/shop";
 import { CARD_W } from "../src/screens/build/layout";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { gateSprite, itemIcon } from "../src/render/sprites";
+// PLAIN-1F (M3): the final faces
+import { buyableModules } from "../src/sim/content";
+import { icons } from "../src/render/font";
+import { REMINDER, cardEffect, plainRigStats } from "../src/ui/faces";
+import { cardText } from "../src/ui/abilityText";
+import { statRow } from "../src/ui/icons";
+import { CARD_EFFECT_LINES, cardEffectLines, cardEffectWidth } from "../src/screens/build/shop";
+import { wideCardW } from "../src/screens/build/layout";
+import { lineText, lineWidth } from "../src/ui/richText";
+import { familiesOf, familyNote } from "../src/ui/families";
 
 installRaster();
 const on = <T>(fn: () => T): T => withPlainRigs(fn);
@@ -66,6 +77,71 @@ describe("P4: the interim faces", () => {
     }
     console.log(`PLAIN1 stat rows (5x7 px): ${widest.join(", ")}`);
   }));
+});
+
+// PLAIN-1F (REQ-BFG-084.1, REQ-BFG-089, M3): the six's final faces on the card lane's layer, re-pinned on the one plain path
+// (faces.ts plainRigStats through rigStats, isPlainRig; EXPLAIN-1's NOTES; tests/explain1 (f), card2 (k6) and card3 (r) walk
+// the panel, LAST CHANCE's card and the words): the desk's wide shop card draws the stat row as its effect line (cap's call on
+// run 2's F5), BALLAST has one reading, MAX ♥+8% (REVIEW-PLAIN1 D4), and a reminder shows only on a star whose stats hold
+// its keyword (F7). With PLAIN_RIGS off nothing moves.
+describe("PLAIN-1F (M3): the final faces", () => {
+  it("the desk's wide card draws the stat row as its effect, in at most two lines at every landscape width; every other piece keeps cardText", () => {
+    const out: string[] = [];
+    on(() => {
+      for (const id of PLAIN_RIG_IDS) {
+        expect(cardText(id), id).toBe(""); // no kept text: the wide face needs an effect (shop.ts drawCard's `wide`)
+        expect(cardEffect(id), id).toBe(statRow(plainRigStats(id, 1)!));
+        expect(cardEffect(id), id).not.toContain("HIT:");
+        let most = 0;
+        for (let W = 430; W <= 480; W++) {
+          const w = wideCardW(W, 5), ls = cardEffectLines(cardEffect(id), w);
+          expect(ls.length, `${id} at ${w}`).toBeLessThanOrEqual(CARD_EFFECT_LINES);
+          for (const l of ls) expect(lineWidth(l, "3"), `${id} at ${w}: ${lineText(l)}`).toBeLessThanOrEqual(cardEffectWidth(w));
+          most = Math.max(most, ls.length);
+        }
+        out.push(`${id} "${plain(cardEffect(id))}" ${most} line(s), ${textWidth(cardEffect(id), "3")} px`);
+      }
+      expect(plain(cardEffect("ballast"))).toBe("MAX ♥+8%");
+    });
+    // every buyable piece with or without the six: cardEffect is its cardText where it has one (WHETSTONE's "ADDS 20 DAMAGE.")
+    for (const d of buyableModules()) if (cardText(d.id)) expect(cardEffect(d.id), d.id).toBe(cardText(d.id));
+    expect(cardEffect("whetstone")).toBe("ADDS 20 DAMAGE.");
+    console.log(`PLAIN1F desk cards: ${out.join("; ")}`);
+  });
+
+  it("BALLAST reads MAX ♥ on its stat row, ladder, NEXT★ and desk card; its chip keeps ♥+8% (MAX doesn't fit the chip room)", () => on(() => {
+    expect([1, 2, 3].map((s) => plain(faceLines("ballast", s)!.stats!))).toEqual(["MAX ♥+8%", "MAX ♥+16%", "MAX ♥+25%"]);
+    expect([1, 2, 3].map((s) => levelLines("ballast", s)!.filter((l) => l.kind === "ladder").map((l) => plain(icons(levelText(l)))))).toEqual([
+      ["MAX ♥ [+8%]/+16%/+25%"], ["MAX ♥ +8%/[+16%]/+25%"], ["MAX ♥ +8%/+16%/[+25%]"],
+    ]);
+    expect(plain(faceNext("ballast", 1)!.text)).toBe("NEXT ★2: MAX ♥+16%");
+    const chip = shopChipGlyphs("ballast")!, room = cardPriceX(0, CARD_W, ITEMS.ballast.price, false, true) - CARD_MARK_X - 2;
+    expect(plain(chip)).toBe("♥+8%");
+    expect(textWidth(`MAX ${chip}`, "3"), "MAX ♥+8% would not fit the phone card's chip room").toBeGreaterThan(room);
+    console.log(`PLAIN1F BALLAST chip: ${textWidth(chip, "3")} px; with MAX ${textWidth(`MAX ${chip}`, "3")} px; room ${room} px`);
+  }));
+
+  it("a reminder only where the star's stats hold its keyword: BRANDING IRON's BURN from ★2; RASP BURN, SPARK GAP STUN (its seconds), SCALE GUARD SHIELD", () => on(() => {
+    const rem = (id: string) => [1, 2, 3].map((s) => faceAt(id, s)!.reminders);
+    expect(rem("brandingiron")).toEqual([[], [REMINDER.BURN()], [REMINDER.BURN()]]);
+    expect(rem("rasp")).toEqual([[REMINDER.BURN()], [REMINDER.BURN()], [REMINDER.BURN()]]);
+    expect(rem("sparkgap")).toEqual([1, 2, 3].map((s) => [REMINDER.STUN(s)]));
+    expect(rem("scaleguard")).toEqual([[REMINDER.PLATE()], [REMINDER.PLATE()], [REMINDER.PLATE()]]);
+    expect(rem("ballast")).toEqual([[], [], []]);
+    expect(rem("grindstone")).toEqual([[], [], []]);
+    // the ⓘ ladder keeps BRANDING IRON's dash at ★1 (brief M3: "no burn yet")
+    expect(levelLines("brandingiron", 1)!.filter((l) => l.kind === "ladder").map((l) => plain(icons(levelText(l))))).toEqual(["[DMG] [+15]/+30/+50", "[BURN] [-]/+1/+2"]);
+  }));
+
+  it("the SHIELD family's line names MAX ♥ while BALLAST is in it (PLAIN_RIGS on); off, the line is the base's", () => {
+    const base = "SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
+    expect(familyNote("PLATE")).toBe(base);
+    on(() => {
+      expect(familiesOf("ballast")).toEqual(["PLATE"]); // the tag stays (tools/luckReport.ts and tools/wave3.ts read tags)
+      expect(familyNote("PLATE")).toBe("SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX {HULL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.");
+    });
+    expect(familyNote("PLATE")).toBe(base);
+  });
 });
 
 describe("P4: six icons, each its own", () => {
