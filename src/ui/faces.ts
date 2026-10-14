@@ -1190,7 +1190,8 @@ function readerFace(e: ItemDef): Rules {
   }
   const kws: KeywordName[] = [];
   for (const m of text.matchAll(/\{\*([A-Z]+)\}/g)) if (!kws.includes(m[1] as KeywordName)) kws.push(m[1] as KeywordName);
-  return rules([label(text)], [["each", `${num} EACH`]], kws.map((k) => REMINDER[k]()));
+  // the ladder's words: "+3/+5/+8 {DMG} EACH", LEECH COIL's "{HEAL} 4/5/6 TIMES" (TIMES says it: no EACH after it)
+  return rules([label(text)], [["each", r.give === "heal" ? num : `${num} EACH`]], kws.map((k) => REMINDER[k]()));
 }
 
 /** SCALE-2c (REQ-BFG-098): the seven new scaling rigs' faces (scale.ts SCALE_ITEMS), apart from FACES so FACE_IDS (the
