@@ -17,7 +17,6 @@
 //   exposes it as bb.tips(). Pure but for the one module state and the store.
 
 /** The tips, one per action a hint teaches. */
-import { onSetScaleRigs } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): POISON's first sight, SCALE_RIGS on only
 
 export type TipId = "place" | "fit" | "install" | "turn" | "move" | "supply" | "lay" | "cycle" | "swap";
 
@@ -116,22 +115,13 @@ export const FIRST_SIGHT_IDS: readonly SightId[] = [RIG_SIGHT, ...FIRST_SIGHT_WO
 const SIGHT_IDS = FIRST_SIGHT_IDS;
 /**
  * SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3, the call is the worker's): POISON's first-sight note, "kw:POISON", after
- * REGEN's. Both lists hold it only while SCALE_RIGS is on (the switch's hook, sim/scale.ts onSetScaleRigs), so with the
- * switch off FIRST_SIGHT_WORDS and FIRST_SIGHT_IDS are exactly the base's: no id a player can never meet is known (a stored
- * "kw:POISON" then reads as an id this build doesn't know, as an old "kw:PLATE" does), and nothing that counts the ids
- * (sightsDone) sees it. With the switch on, VENOM DRIP's face and the status row's chip are where a player meets it.
+ * REGEN's. Both lists hold it only while SCALE_RIGS is on, so with the switch off FIRST_SIGHT_WORDS and FIRST_SIGHT_IDS are
+ * exactly the base's: no id a player can never meet is known (a stored "kw:POISON" then reads as an id this build doesn't
+ * know, as an old "kw:PLATE" does), and nothing that counts the ids (sightsDone) sees it. With the switch on, VENOM DRIP's
+ * face and the status row's chip are where a player meets it. SCALE-2c M0 follow-up (REQ-BFG-107; live-099's
+ * tests/card4.test.ts (n): this file imports nothing, so the rename notice's decision runs before anything this build
+ * writes): the switch's hook lives in firstSight.ts, which imports this file and sim/scale.ts.
  */
-onSetScaleRigs((on) => {
-  const words = FIRST_SIGHT_WORDS as string[], ids = FIRST_SIGHT_IDS as SightId[], at = words.indexOf("POISON");
-  if (on === at >= 0) return;
-  if (on) {
-    words.splice(words.indexOf("REGEN") + 1, 0, "POISON");
-    ids.splice(ids.indexOf(kwSight("REGEN")) + 1, 0, kwSight("POISON"));
-  } else {
-    words.splice(at, 1);
-    ids.splice(ids.indexOf(kwSight("POISON")), 1);
-  }
-});
 /**
  * CARD-3 (REQ-BFG-107): THE NOTICES, one-time notes kept in this store with E5's rules (done once shown, for good; with no
  * storage, once a session). "rename107": the returning player's note on the rename (BuildScreen.enter, renameNoticeDue).
