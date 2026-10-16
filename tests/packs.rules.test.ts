@@ -69,9 +69,9 @@ function packed(hero: HeroId, armors: number, belts = 0): Build {
 }
 
 describe("rules bb-0.8.7: the version", () => {
-  it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.9.9 since the Prime staged it (the 0.9.9 label commit)", () => {
+  it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.9.10 since the Prime staged it (the 0.9.10 label commit; 0.9.9 before)", () => {
     expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
-    expect(VERSION).toBe("0.9.9");
+    expect(VERSION).toBe("0.9.10");
   });
 });
 

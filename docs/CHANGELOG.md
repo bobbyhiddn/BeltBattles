@@ -3,6 +3,17 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.10: REPLAY after every fight
+
+- **REPLAY after every fight:** the result card that follows a fight, the dusk and the warlord on the road, now has REPLAY
+  beside VIEW BATTLEFIELD. It plays the fight you just watched again, exactly as it went, at your battle speed. A speed you
+  pick in it holds for that replay only, and pause and SKIP work as in any replay. BACK returns to the same card, and you
+  can watch it as often as you like. Nothing in your run changes. A warlord's card reopened with CONTINUE has no REPLAY. On
+  phones, ON TO DAWN, SEE THE RUN and ON TO THE ROAD are easier to tap.
+
+The battle rules stay bb-0.10.0, so 0.9.9 and 0.9.10 players still meet each other's ghosts, and your runs and saved
+games carry on as they are.
+
 ## 0.9.9.1: easier first opponents
 
 The starting opponents are easier again: a typical run now ends around 6 to 7 wins (0.9.9: about 5; 0.9.8: about 7).
