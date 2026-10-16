@@ -90,6 +90,18 @@ describe("RUN-1: honest long runs through the game's own code upload only what t
     }
   });
 
+  it("the gold budget still bites past day 10: an honest day-12+ deck with 150 more plates (+37,500 hull) is refused", () => {
+    // the bag reset widens what the road can have given a long run (a second bag's events), it does not lift the ceiling
+    const deckAt = runs.flatMap((r) => r.snaps).filter((x) => x.day >= 12).slice(0, 8);
+    expect(deckAt.length).toBeGreaterThan(3);
+    for (const s of deckAt) {
+      const rich = { ...s.build, hullBonus: s.build.hullBonus + 150 * 250 };
+      const v = validateUpload(rich, s.day, s.rules, { seed: s.seed, ...(s.lastChance ? { lastChance: s.lastChance } : {}), ...(s.road ? { road: s.road } : {}) });
+      expect(v.ok, `${s.hero} d${s.day}`).toBe(false);
+      expect(v.errors[0], `${s.hero} d${s.day}`).toMatch(/^(budget|supply): /);
+    }
+  });
+
   it("the runs took the road past day 10 more than once: the dock's PLATING or PATCH UP in a second bag", () => {
     const second = runs.filter((r) => r.run.history.length > 10); // played day 11 or later: a second event bag
     expect(second.length).toBeGreaterThan(5);
