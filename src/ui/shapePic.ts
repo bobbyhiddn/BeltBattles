@@ -3,7 +3,7 @@
 // every outside edge it shines from (rule set B, R2).
 // - shapePic: the panel face's picture, in the panel header's 16x16 box (inspector.ts drawDetails draws `icon` there): 4 px
 //   a cell, so every shape of this release fits the box's 14x14 inside (a 2x3 is 12x8, SPIKE RAIL 8x12 with its arrows);
-// - miniShape: the shop card's corner mark (shop.ts drawCard), 3 px a cell, no arrows.
+// - (miniShape, the shop card's 3 px corner mark, was removed by SHOPCARD-1: the card draws G1's grid, below.)
 // Only shaped pieces (foot.ts isShaped) have one; nothing else draws them, so with SHAPES off nothing changes.
 
 import { ITEMS } from "../sim/content";
@@ -70,17 +70,12 @@ export function shapePic(defId: string): HTMLCanvasElement {
   return c;
 }
 
-/** SHAPES-1: the shop card's mini shape (3 px a cell, no arrows), cached per def. */
-export function miniShape(defId: string): HTMLCanvasElement {
-  const k = `mini:${defId}`;
-  let c = CACHE.get(k);
-  if (!c) CACHE.set(k, (c = draw(defId, 3, false)));
-  return c;
-}
-
-/** The pictures' sizes in px, without drawing (tests, layout): w x h cells at `s` px plus the arrow margin. */
-export function shapePicSize(defId: string, mini = false): { w: number; h: number } {
-  const cells = cellsAt0(defId), s = mini ? 3 : 4, [mt, mr, mb, ml] = margins(defId, !mini);
+/** The panel picture's size in px, without drawing (tests, layout): w x h cells at 4 px plus the arrow margin.
+ *  SHOPCARD-1 (G5): miniShape, the shop card's 3 px corner mark, is gone (the card draws G1's grid below); the panel's own
+ *  picture stays (4 px a cell, its arrows as ticks): G1's grid at 5 px a cell is 16 px wide for GANTRY PRESS and ASSEMBLY LINE and
+ *  16 px tall for SPIKE RAIL, past the header box's 14x14 inside. */
+export function shapePicSize(defId: string): { w: number; h: number } {
+  const cells = cellsAt0(defId), s = 4, [mt, mr, mb, ml] = margins(defId, true);
   return { w: (Math.max(...cells.map((c) => c[0])) + 1) * s + ml + mr, h: (Math.max(...cells.map((c) => c[1])) + 1) * s + mt + mb };
 }
 

@@ -111,14 +111,13 @@ describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ
     });
   });
 
-  it("the shape pictures fit the panel header's 14x14 inside and the card's corner", () => {
+  it("the shape pictures fit the panel header's 14x14 inside (the card's corner mark is the grid now: tests/shopcard1.test.ts)", () => {
     withShapes(() => {
       expect(shapePicSize("nailstrip")).toEqual({ w: 8, h: 6 });
       expect(shapePicSize("spikerail")).toEqual({ w: 8, h: 12 });
       expect(shapePicSize("gantry")).toEqual({ w: 12, h: 8 });
       expect(shapePicSize("assembly")).toEqual({ w: 12, h: 4 });
-      expect(shapePicSize("gantry", true)).toEqual({ w: 9, h: 6 });
-      expect(shapePicSize("spikerail", true)).toEqual({ w: 3, h: 9 });
+      // SHOPCARD-1 (G5): the card's mini shape (3 px a cell) is gone: the card draws shapePic.ts's grid (tests/shopcard1.test.ts)
     });
   });
 
