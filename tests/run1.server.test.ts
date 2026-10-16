@@ -80,6 +80,16 @@ describe("RUN-1: honest long runs through the game's own code upload only what t
     expect(Math.max(...deep.map((s) => s.day))).toBeGreaterThanOrEqual(14);
   }, 600_000);
 
+  it("LAST CHANCE on day 10 or later (D3) is among the honest uploads, and they pass: the deck's rune at its place, the record's day", () => {
+    const late = runs.flatMap((r) => r.snaps).filter((s) => s.lastChance && s.lastChance.day >= 10);
+    expect(late.length, "honest dusks after a LAST CHANCE on day 10 or later").toBeGreaterThan(0);
+    for (const s of late) {
+      expect(s.day).toBeGreaterThan(s.lastChance!.day);
+      expect(problem(s), `${s.hero} d${s.day} LAST CHANCE ${s.lastChance!.day}`).toBeNull();
+      expect(isReachable(s.day, s.wins, s.lives, { lastChance: s.lastChance!.day, rules: s.rules, losses: s.losses })).toBe(true);
+    }
+  });
+
   it("the runs took the road past day 10 more than once: the dock's PLATING or PATCH UP in a second bag", () => {
     const second = runs.filter((r) => r.run.history.length > 10); // played day 11 or later: a second event bag
     expect(second.length).toBeGreaterThan(5);

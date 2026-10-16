@@ -426,6 +426,8 @@ interface DpResult {
  */
 function planDP(days: number, mix: Mix, mode: "deck" | "liquid", trace = false, hoard = false): DpResult {
   if (npcDayRules()) return npcPlanDP(days, mix, mode, trace, hoard); // NPC-1 (REQ-BFG-077): a fight and the event every day
+  // RUN-1: the plan below (NPC_DAY off: 0.9.7's road, only a test or a record under rules before bb-0.10.0 reads it) is the
+  // 10-day run's alone: one event bag, no mask reset. A long run's rules are bb-0.10.0 or later, which always play the NPC day.
   const all = roadOptions();
   const discountEvents = new Set([...all].filter(([, l]) => l.some((o) => o.discount > 0)).map(([e]) => e));
   const events = EVENT_IDS.filter((e) => mode === "deck" || !discountEvents.has(e));
