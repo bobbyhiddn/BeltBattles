@@ -15,6 +15,7 @@ import { online, onlineMode } from "./session"; // 0.7.0a: the SCOUT's reveal on
 import { gainModule } from "./fuse";
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): the event after the fight
 import { heartsRun, livesCap } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): PATCH UP's cap on a hearts run
+import { longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a long run's events (no last day)
 
 /** 0.6.0d: HERALD (ELITE BOUNTY) or SAPPERS (SABOTAGE) would be a dud on the last day: no warlord
  *  is left for the stake or the sabotage (blockReason's NO WARLORD LEFT). */
@@ -39,24 +40,26 @@ function keepDudsOffLastDay(order: EventId[]): void {
 /** A run's event order (0.6.0b): shuffled bags of the bag events, from day 1 (no intro rule).
  *  Never the same twice in a row. 0.6.0d: never HERALD or SAPPERS on day 10 (keepDudsOffLastDay,
  *  applied once the bag holding day 10 is drawn, before the next bag's no-repeat check). */
-export function eventSequence(seed: number, n: number): EventId[] {
+export function eventSequence(seed: number, n: number, long = false): EventId[] {
   const out: EventId[] = [];
-  const want = Math.max(n, RUN_DAYS); // day 10 is always drawn: the swap can reach back to any day
+  // RUN-1 (REQ-BFG-059, D5): a long run (`long`: the run's mark, or a record's rules) has no last day, so no dud swap: its
+  // bags follow one another as drawn (each bag every event once, never the same event two days running)
+  const want = long ? n : Math.max(n, RUN_DAYS); // day 10 is always drawn: the swap can reach back to any day
   for (let bag = 0; out.length < want; bag++) {
     const ids = new Rng(hashSeed(seed, "event-bag", bag)).shuffle([...BAG_IDS]);
     if (ids[0] === out[out.length - 1]) [ids[0], ids[1]] = [ids[1], ids[0]];
     const before = out.length;
     out.push(...ids);
-    if (before < RUN_DAYS && out.length >= RUN_DAYS) keepDudsOffLastDay(out);
+    if (!long && before < RUN_DAYS && out.length >= RUN_DAYS) keepDudsOffLastDay(out);
   }
   return out.slice(0, n);
 }
 
 /** The road event on a day's fork (0.6.0b): every day has one (no quiet-road skip). 0.6.0d: day 10
  *  is never HERALD or SAPPERS (eventSequence). */
-export function eventFor(seed: number, day: number): EventId {
+export function eventFor(seed: number, day: number, long = false): EventId {
   const d = Math.max(1, Math.floor(day) || 1);
-  return eventSequence(seed, d)[d - 1];
+  return eventSequence(seed, d, long)[d - 1]; // RUN-1: `long`, a long run's sequence (no dud swap)
 }
 
 /** An event's own rolls come from hashSeed(seed, "event", day): fixed, so reloading can't re-roll them. */
@@ -77,7 +80,7 @@ export function beginRoad(run: Run): boolean {
   }
   if (!run.road || run.road.day !== run.day) run.road = { day: run.day, pick: "event" };
   if (run.road.pick !== "event") return false;
-  if (!run.event || run.event.day !== run.day) run.event = makeEvent(run.seed, run.day, eventFor(run.seed, run.day));
+  if (!run.event || run.event.day !== run.day) run.event = makeEvent(run.seed, run.day, eventFor(run.seed, run.day, longRun(run)));
   const open = run.event.picked < 0;
   run.stage = open ? "event" : "battle";
   return open;
@@ -87,7 +90,7 @@ export function beginRoad(run: Run): boolean {
  *  on its own stream, as beginRoad's), the stage "event" while its choice is open, else "refit" (REFIT before every dusk).
  *  True while the choice is open. */
 export function beginDayEvent(run: Run): boolean {
-  if (!run.event || run.event.day !== run.day) run.event = makeEvent(run.seed, run.day, eventFor(run.seed, run.day));
+  if (!run.event || run.event.day !== run.day) run.event = makeEvent(run.seed, run.day, eventFor(run.seed, run.day, longRun(run)));
   const open = run.event.picked < 0;
   run.stage = open ? "event" : "refit";
   return open;
@@ -105,7 +108,8 @@ function owns(run: Run, d: Extract<Delta, { k: "item" }>): boolean {
  *  eventFor no longer draws HERALD or SAPPERS on day 10; the block stays as a safety net (a saved
  *  run whose day-10 HERALD or SAPPERS was already stored in run.event, or a tooling-opened event). */
 export function blockReason(run: Run, c: Choice): string | undefined {
-  if (run.day >= RUN_DAYS && c.gain.some((d) => d.k === "bounty" || d.k === "sabotage")) return "NO WARLORD LEFT";
+  // RUN-1 (REQ-BFG-059, D5): never on a long run (a warlord comes every day)
+  if (!longRun(run) && run.day >= RUN_DAYS && c.gain.some((d) => d.k === "bounty" || d.k === "sabotage")) return "NO WARLORD LEFT";
   for (const d of c.cost) {
     if (d.k === "gold" && run.gold < d.n) return `NEED ${d.n - run.gold} MORE GOLD`;
     if (d.k === "hull" && HEROES[run.hero].hull + run.build.hullBonus - d.n < 1000) return "HULL TOO WEAK"; // NUM-1: hull x10 (roadCap.ts HULL_FLOOR)

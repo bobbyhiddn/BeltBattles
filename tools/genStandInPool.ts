@@ -53,11 +53,12 @@ import {
 } from "../src/sim/harness/standins";
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the budget check's runes' dawn gold
 import { CARAVAN_MIX, deckStats, type CaravanPolicy } from "../src/sim/harness/caravan";
-import { STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
+import { STAND_IN_POOL_DAYS, STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool"; // RUN-1: the committed depth
 import { flag, num, serveJobs, workerRunner } from "./workers";
 import { npcDayRules, setNpcDay } from "../src/sim/npcDay"; // HULL-1d (REQ-BFG-079): --all-on
 import { hullScaleRules, setHullScale } from "../src/sim/hullScale"; // HULL-1d: --all-on
 import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix"; // HULL-1d: --all-on
+import { longRunRules, setLongRun } from "../src/sim/longRun"; // RUN-1 (REQ-BFG-059): --long-run
 
 const DATA = "src/sim/standInPoolData.ts";
 
@@ -68,8 +69,12 @@ const DATA = "src/sim/standInPoolData.ts";
 // (STANDINS_SWITCHES, which a worker thread inherits when it starts; tools/parBench.ts's PARBENCH_SWITCHES). Without the
 // flag the main thread clears the variable, so no thread sets anything.
 const SWITCHES_ENV = "STANDINS_SWITCHES";
+// RUN-1 (REQ-BFG-059, D5): --long-run (with --dry only) also turns the LONG_RUN switch on, in the main thread and every worker
+// ("long" in the same list), so the par runs the caravan candidates are made of are long runs (newRun marks them) and the days
+// past 10 get their own content (rivals.ts clampDay, refBuilds.ts refDay): the dry sample for days 11-16 (--days 16 --from-day 11).
 if (isMainThread) {
-  if (process.argv.includes("--all-on")) process.env[SWITCHES_ENV] = "npc,hull,ladder";
+  const list = [...(process.argv.includes("--all-on") ? ["npc", "hull", "ladder"] : []), ...(process.argv.includes("--long-run") ? ["long"] : [])];
+  if (list.length) process.env[SWITCHES_ENV] = list.join(",");
   else delete process.env[SWITCHES_ENV];
 }
 {
@@ -77,12 +82,13 @@ if (isMainThread) {
   if (sw.has("npc")) setNpcDay(true);
   if (sw.has("hull")) setHullScale(true);
   if (sw.has("ladder")) setLadderFix(true);
+  if (sw.has("long")) setLongRun(true);
   if (sw.size && !isMainThread) console.log(`worker thread: ${switchesOn().join(", ")} on (read back from each module)`);
 }
 
 /** HULL-1d: the switches on in this thread, read back from each module (empty with every switch off). */
 function switchesOn(): string[] {
-  return [npcDayRules() ? "NPC_DAY" : "", hullScaleRules() ? "HULL_SCALE" : "", ladderFixRules() ? "LADDER_FIX" : ""].filter(Boolean);
+  return [npcDayRules() ? "NPC_DAY" : "", hullScaleRules() ? "HULL_SCALE" : "", ladderFixRules() ? "LADDER_FIX" : "", longRunRules() ? "LONG_RUN" : ""].filter(Boolean);
 }
 
 if (!isMainThread) serveJobs();
@@ -143,8 +149,16 @@ async function main(): Promise<void> {
     stars: starsFlag,
     cores: coresFlag,
     factories: factoriesFlag,
+    // RUN-1 (REQ-BFG-059, D5): --days N (default the committed pool's STAND_IN_POOL_DAYS, 10) and --from-day N (default 1):
+    // the days the generator makes; a long run's pool goes to STAND_IN_GEN_DAYS (16) at the release bump
+    ...(flag("days") !== undefined ? { days: num("days", STAND_IN_POOL_DAYS) } : {}),
+    ...(flag("from-day") !== undefined ? { fromDay: num("from-day", 1) } : {}),
   };
   if (o.per < 1 || o.pop < o.per) throw new Error("--pop must be at least --per, and --per at least 1");
+  // RUN-1: days past the committed depth are written under --out only (--dry) until the release bump regenerates the pool
+  if (((o.days ?? STAND_IN_POOL_DAYS) > STAND_IN_POOL_DAYS || (o.fromDay ?? 1) > 1) && !process.argv.includes("--dry")) {
+    throw new Error(`--days past ${STAND_IN_POOL_DAYS} or --from-day: a dry run (--dry, written under --out only); the committed pool regenerates at the release bump`);
+  }
   // step 5: --check compares with --against <file> when given (a dry candidate), else with the committed module
   const against = flag("against");
   const checkPath = resolve(against ?? DATA), checkName = against ? checkPath : `committed ${DATA}`;
@@ -155,8 +169,10 @@ async function main(): Promise<void> {
   if (dry && (check || o.stars === "off")) throw new Error("--dry is a stars-on run that writes under --out only: it takes neither --check nor --stars off");
   // HULL-1d: --all-on (the switches the game doesn't play yet) never writes src/sim/standInPoolData.ts and never checks it
   if (process.argv.includes("--all-on") && !dry && !process.argv.includes("--versus")) throw new Error("--all-on turns on switches this rules version keeps off: it runs with --dry (written under --out only) or --versus, never into src and never with --check");
+  // RUN-1 (REQ-BFG-059): --long-run likewise: LONG_RUN is off in this rules version, so it only dry-runs (days 11-16 under --out)
+  if (process.argv.includes("--long-run") && !dry) throw new Error("--long-run turns on a switch this rules version keeps off: it runs with --dry (written under --out only), never into src and never with --check");
   const on = switchesOn();
-  if (on.length) console.log(`switches: ${on.join(", ")} on in the main thread${process.argv.includes("--all-on") ? " (--all-on), and in every worker thread (STANDINS_SWITCHES)" : ""}`);
+  if (on.length) console.log(`switches: ${on.join(", ")} on in the main thread${process.argv.includes("--all-on") || process.argv.includes("--long-run") ? " (--all-on / --long-run), and in every worker thread (STANDINS_SWITCHES)" : ""}`);
   const nw = num("workers", Math.max(1, Math.min(availableParallelism() - 1, 23)));
   const pool = workerRunner(nw, import.meta.url);
   const t0 = performance.now();

@@ -33,7 +33,7 @@ import { hashSeed } from "../../core/rng";
 import { POOL_RULES, type HeroId } from "../content";
 import type { Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
-import { decodeStandIn, encodeStandIn, roadWord, standInPool } from "../standInPool"; // AZ-BUMP (N3): roadWord
+import { decodeStandIn, encodeStandIn, roadWord, standInPool, STAND_IN_POOL_DAYS } from "../standInPool"; // AZ-BUMP (N3): roadWord; RUN-1: the depth
 import { FUSE_MAX, starsOf } from "../stars";
 import {
   CARAVAN_MIX, CARAVAN_POLICY, caravanCandidate, caravanGauntlet, caravanGauntletSeedOf, caravanSeedOf, type CaravanMeta, type StandInSource,
@@ -75,6 +75,10 @@ export interface StandInOpts {
   // step 5 (REQ-BFG-033): the population's source (./caravan.ts). Absent or "fullpurse": standInCandidate, exactly as
   // before; the CLI's --source defaults to "caravan".
   source?: StandInSource;
+  // RUN-1 (REQ-BFG-059, D5): the days the generator makes, fromDay..days (absent: 1..STAND_IN_POOL_DAYS, the committed
+  // pool's 10, exactly as before). A long run's pool goes to STAND_IN_GEN_DAYS (16) at the release bump's regeneration.
+  days?: number;
+  fromDay?: number;
   // step 5 (REQ-BFG-026): off when absent. [lo, hi]: a pick also needs lo <= vsPar <= hi (CLI --par-band lo,hi).
   parBand?: [number, number];
   // RUNES-2a (REQ-BFG-058): the par player's dawn runes (player.ts PlayerOpts.botRunes) for the caravan candidates, the
@@ -339,7 +343,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
   const seedsFor = (...parts: (string | number)[]) => Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-battle", o.seed, ...parts, k));
   const caravan = sourceOf(o) === "caravan";
   if (caravan && o.stars !== "on") throw new Error("the caravan source needs stars on: the par player merges its copies");
-  for (let day = 1; day <= 10; day++) {
+  for (let day = o.fromDay ?? 1; day <= (o.days ?? STAND_IN_POOL_DAYS); day++) { // RUN-1: fromDay..days (default 1..10)
     const saved = hooks?.load?.(day);
     if (saved) {
       out.push(...saved.days);
@@ -468,7 +472,7 @@ export interface VersusRow { day: number; rate: number; battles: number }
  *  come from different pools, and A and B may be the same hero. */
 export async function versus(o: StandInOpts, a: { hero: HeroId; picks: PicksOf }, b: { hero: HeroId; picks: PicksOf }, run: Runner): Promise<VersusRow[]> {
   const out: VersusRow[] = [];
-  for (let day = 1; day <= 10; day++) {
+  for (let day = o.fromDay ?? 1; day <= (o.days ?? STAND_IN_POOL_DAYS); day++) { // RUN-1: fromDay..days (default 1..10)
     const A = a.picks(a.hero, day), B = b.picks(b.hero, day);
     const jobs: Job[] = A.flatMap((_, i) => B.map((_, j): Job => ({
       a: i, b: A.length + j, seeds: Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-pvp", o.seed, day, i, j, k)), day, // HULL-1a

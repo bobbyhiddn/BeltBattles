@@ -208,6 +208,14 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
   return res;
 }
 
+/** RUN-1 (REQ-BFG-059): the benches' par run asked past its own end (the 10th win of a long run, day 10's dusk of a
+ *  10-day run) goes on to the next dawn, so its deck keeps growing on the days a long run reaches (harness/player.ts
+ *  playerRun's depth). Never the game's: a game run ends where finishDay ends it. */
+export function continueRun(run: Run): void {
+  run.over = null;
+  nextDawn(run);
+}
+
 /** The next dawn: a fresh day, its caravan and its rune (finishDay's, for both scales). */
 function nextDawn(run: Run): void {
   run.day++;

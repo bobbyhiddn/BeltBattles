@@ -63,6 +63,14 @@ export const LONG_RUN_DEEPEST_DAY = 17;
 /** The deepest dusk day a long-run record may state: LONG_RUN_DEEPEST_DAY + MAX_RUN_DRAWS (data safety, D4). */
 export const LONG_RUN_MAX_DAY = LONG_RUN_DEEPEST_DAY + MAX_RUN_DRAWS;
 
+/** THE DEPTH THE GENERATORS GO TO (D5): the stand-in pool (standInPool.ts STAND_IN_GEN_DAYS), the par player's run
+ *  (harness/player.ts PLAYER_DAYS_LONG) and the reference builds (races/refBuilds.ts REF_DAYS_LONG): day 16, the deepest dusk
+ *  a run reaches without a draw and without an early PATCH UP. THE RULE FOR A LATER DAY (17 with an early PATCH UP, or after
+ *  draws): the day-16 plan with that day's hull, gold and odds: its deck is day 16's (standInDay clamps to the deepest day
+ *  the pool holds; refDay / playerBuild to this one), its hull is the day's own (the ramp, rampPlates / refHullDay, and
+ *  hullScale's M(d), which every carrier takes on the day), its gold maxGoldByDay(day) and its odds rarityWeights(day). */
+export const LONG_RUN_GEN_DAYS = 16;
+
 /** Does `run` play the long run? Its own mark (Run.longRun, set by newRun while LONG_RUN is on), never the switch. */
 export const longRun = (run: { longRun?: boolean }): boolean => run.longRun === true;
 

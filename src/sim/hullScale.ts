@@ -57,7 +57,8 @@ setHullScale(HULL_SCALE);
 // ------------------------------------------------------------------ M(d), in whole tenths
 
 /** M(d) for days 1-18, in whole tenths: x1.0, 1.4, 1.8, 2.2, 2.8, 3.4, 4.0, 4.6, 5.2, 6.0 (days 1-10, the run), then
- *  x6.8, 7.6, 8.4, 9.2, 10.4, 11.6, 12.8, 14.0 (days 11-18, for later modes: a run is 10 days, snapshot.ts MAX_DAY). */
+ *  x6.8, 7.6, 8.4, 9.2, 10.4, 11.6, 12.8, 14.0 (days 11-18: RUN-1 (REQ-BFG-059), a run is won at 10 wins with no day limit, so
+ *  a long run plays them; it was "for later modes: a run is 10 days"). */
 export const DAY_MUL_TENTHS: readonly number[] = [10, 14, 18, 22, 28, 34, 40, 46, 52, 60, 68, 76, 84, 92, 104, 116, 128, 140];
 /** Each day past the table (19+) adds this many tenths: +1.2 a day. */
 export const DAY_MUL_STEP_TENTHS = 12;
