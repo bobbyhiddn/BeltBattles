@@ -13,6 +13,7 @@ import type { Build } from "../sim/deck";
 import { RIVALS, standInBuild, standInGhost, type RivalId } from "../sim/rivals";
 import { STAND_IN_POOL_HEROES } from "../sim/standInPool";
 import { migrateSnapshot, playerId, type GhostSnapshot } from "./ghostSnapshot";
+import { longRunFor } from "../net/rulesGate"; // RUN-1 (REQ-BFG-059, D6): the long run's widening follows its rules
 
 export type { GhostSnapshot } from "./ghostSnapshot";
 
@@ -72,6 +73,10 @@ export interface GhostQuery {
   wins: number; // going into tonight's dusk
   lives: number; // going into tonight's dusk
   seed: number;
+  /** RUN-1 (REQ-BFG-059, D6): does the query widen a thin day to the nearest earlier one? Absent: the long run's rules decide
+   *  (rulesGate.ts longRunFor(q.rules): the switch on AND rules at or after LONG_RUN_RULES). A caller that knows its run's own
+   *  mark passes it (sim/longRun.ts longRun(run)), so a 10-day run saved before the bump keeps its exact-day pick. */
+  long?: boolean;
 }
 
 /**
@@ -79,12 +84,26 @@ export interface GhostQuery {
  * |lives - q.lives| (as the async matchmaking does); ties by hashSeed(seed, "ghost", day) over the
  * best rank in pool order. (The local pool is this player's own earlier runs, so it excludes the
  * current run, not the player id; the async server excludes the player id.)
+ * RUN-1 (REQ-BFG-059, D6): the client's pick mirrors the server's (src/net/matchmaking.ts matchDays): on a long run a thin day
+ * (no ghost of its own rules, day and not this run) widens to the nearest EARLIER day with one, never a later one; with none
+ * at all the caller's stand-in captain is built for the exact day. The tie-break hash keeps q.day, so an exact-day pick is
+ * the pick it always was.
  */
 export function pickGhost(pool: readonly GhostSnapshot[], q: GhostQuery): GhostSnapshot | null {
+  const widen = q.long ?? longRunFor(q.rules);
+  for (let day = q.day; day >= 1; day--) {
+    const g = pickGhostOn(pool, q, day);
+    if (g || !widen) return g;
+  }
+  return null;
+}
+
+/** The nearest-record pick among the pool's ghosts of day `day` (the whole of the old pickGhost, for one day). */
+function pickGhostOn(pool: readonly GhostSnapshot[], q: GhostQuery, day: number): GhostSnapshot | null {
   let best: GhostSnapshot[] = [];
   let bw = Infinity, bl = Infinity;
   for (const g of pool) {
-    if (g.rules !== q.rules || g.day !== q.day || g.runId === q.runId) continue;
+    if (g.rules !== q.rules || g.day !== day || g.runId === q.runId) continue;
     const dw = Math.abs(g.wins - q.wins), dl = Math.abs(g.lives - q.lives);
     if (dw < bw || (dw === bw && dl < bl)) {
       best = [g];

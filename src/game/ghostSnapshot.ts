@@ -12,6 +12,10 @@ import { heroGateProblem, rulesGateProblem } from "../net/rulesGate"; // RUNES-2
 // RUNES-1 (snapshot v3): the format's constants come from the strict decoder, so the two checks can't drift apart
 import { MAX_SEED, SNAPSHOT_V3, V3_LIVE, V3_PIECE_FIELD, V3_RUNE_COUNTER, V3_SNAPSHOT_FIELDS } from "../net/snapshot";
 import { LAST_CHANCE_FIELD, maxRunes } from "../net/snapshot"; // LC-1 (REQ-BFG-073): the decoder's LAST CHANCE key and rune bound
+// RUN-1 (REQ-BFG-059, D4): ONE source for the day and win bounds and the `losses` field: the strict decoder's (snapshot.ts)
+import { MAX_DAY, maxDayFor, maxWinsFor, v3LiveFor } from "../net/snapshot";
+import { longRunFor } from "../net/rulesGate"; // RUN-1: a long run's LAST CHANCE has no last day
+import { MAX_RUN_DRAWS } from "../sim/longRun"; // RUN-1: the draws an upload may carry
 import { lastChanceGateProblem } from "../net/rulesGate"; // LC-1: the decoder's gate (the switch, then the rules)
 import { lastChanceRuneAt, lastChanceShapeOk, type LastChance, type TakenLastChance } from "../sim/lastChance"; // LC-1
 import { ROAD_FIELD } from "../net/snapshot"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the decoder's road key
@@ -57,8 +61,9 @@ const TURRET_KEYS = ["slot", "def", "uid", "stars", "free"]; // RUNES-1: a turre
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 /** Where the anonymous player id lives (made once per device). */
 export const PLAYER_KEY = "beltbattles.player.v1";
-/** The async contract's bounds (ref/async-snapshot.ts): a run is 10 days; lives cap generously. */
-export const MAX_DAY = 10;
+/** The async contract's bounds (ref/async-snapshot.ts): a run is 10 days; lives cap generously. RUN-1 (D4): MAX_DAY is the
+ *  10-day rules' bound and now has ONE source, src/net/snapshot.ts (a long run's is maxDayFor(rules), used below). */
+export { MAX_DAY };
 export const MAX_LIVES = 9;
 
 export interface GhostSnapshot {
@@ -159,11 +164,11 @@ const growOk = (list: unknown[], v: number): boolean =>
 /** RUNES-1 (snapshot v3): the build's `runes`: absent, or (v3) a list of at most MAX_RUNES strict entries { id } (id
  *  DEF_PATTERN; the counter `n` refused while off), exactly as src/net/snapshot.ts checkBuildShape takes it; and the
  *  build's `gold` refused while off. Which ids are legal is runeProblem's (isSnapshot). */
-function runesOk(q: object, v: number): boolean {
+function runesOk(q: object, v: number, rules?: unknown): boolean {
   if ((q as Raw).gold !== undefined && !v3Ok("gold", v)) return false;
   const list = (q as Raw).runes;
   if (list === undefined) return true;
-  if (!v3Ok("runes", v) || !Array.isArray(list) || list.length > maxRunes()) return false; // LC-1: maxRunes (MAX_RUNES while off)
+  if (!v3Ok("runes", v) || !Array.isArray(list) || list.length > maxRunes(rules)) return false; // LC-1: maxRunes (MAX_RUNES while off); RUN-1: by the snapshot's rules
   return list.every((e) => {
     if (!e || typeof e !== "object" || Array.isArray(e)) return false;
     const keys = Object.keys(e).filter((k) => (e as Raw)[k] !== undefined);
@@ -173,12 +178,12 @@ function runesOk(q: object, v: number): boolean {
   });
 }
 
-function buildOk(b: unknown, v = SNAPSHOT_VERSION): b is Build {
+function buildOk(b: unknown, v = SNAPSHOT_VERSION, rules?: unknown): b is Build {
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
     && Array.isArray(q.mods) && inRange(q.beltCap, 0, MAX_BELT_CAP) && inRange(q.hullBonus, HULL_BONUS_MIN, HULL_BONUS_MAX)
     && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v) && joinOk(q.routes, v)
-    && upgradesOk(q, v) && runesOk(q, v) && growOk(q.items, v) && growOk(q.mods, v); // RUNES-1: runes, gold, grow
+    && upgradesOk(q, v) && runesOk(q, v, rules) && growOk(q.items, v) && growOk(q.mods, v); // RUNES-1: runes, gold, grow; RUN-1: runes by the rules
 }
 
 /** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */
@@ -198,18 +203,24 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   if (!SNAPSHOT_KEYS.every((k) => keys.includes(k)) || keys.some((k) => !extra(k) && !(SNAPSHOT_KEYS as readonly string[]).includes(k))) return false;
   if (q.name !== undefined && nameProblem(q.name) !== null) return false;
   // RUNES-1 (snapshot v3): each present v3 field only in v3 and only while live; `seed` 1..MAX_SEED
-  for (const k of V3_SNAPSHOT_FIELDS) if (q[k] !== undefined && !v3Ok(k, q.v)) return false;
+  // RUN-1 (REQ-BFG-059, D8): `losses` is live under a long run's rules only (snapshot.ts v3LiveFor), as the strict decoder takes it
+  for (const k of V3_SNAPSHOT_FIELDS) if (q[k] !== undefined && !(q.v >= SNAPSHOT_V3 && v3LiveFor(k, q.rules))) return false;
   if (q.seed !== undefined && !inRange(q.seed, 1, MAX_SEED)) return false;
+  // RUN-1 (D4): the dusks lost before this one, 0..day - 1 - wins, and the rest are draws, at most MAX_RUN_DRAWS
+  if (q.losses !== undefined && !(inRange(q.losses, 0, q.day - 1 - q.wins) && q.day - 1 - q.wins - q.losses <= MAX_RUN_DRAWS)) return false;
   // LC-1 (REQ-BFG-073): a LAST CHANCE as src/net/snapshot.ts lastChanceField takes it: v3, the switch and rules gate, a
   // taken card, a day before RUN_DAYS and before the snapshot's own; its rune then sits at index `day` (runeProblem's lcAt)
+  // RUN-1 (D3): under a long run's rules there is no day before which it must come (any day, before the snapshot's own)
   const lc = q[LAST_CHANCE_FIELD] as LastChance | undefined;
-  if (lc !== undefined && !(q.v >= SNAPSHOT_V3 && lastChanceGateProblem(q.rules) === null && lastChanceShapeOk(lc, true) && typeof q.day === "number" && lc.day < q.day)) return false;
+  if (lc !== undefined && !(q.v >= SNAPSHOT_V3 && lastChanceGateProblem(q.rules) === null && lastChanceShapeOk(lc, true, longRunFor(q.rules) ? Infinity : undefined) && typeof q.day === "number" && lc.day < q.day)) return false;
   // NPC-1 (REQ-BFG-077, REQ-BFG-078): a road log as src/net/snapshot.ts roadField takes it: v3, the switch and rules gate
   if (q[ROAD_FIELD] !== undefined && !(q.v >= SNAPSHOT_V3 && npcDayGateProblem(q.rules) === null && roadShapeOk(q[ROAD_FIELD], q.day))) return false;
   // RETUNE-1 T5 (REQ-BFG-092): a grade as src/net/snapshot.ts gradeField takes it: v3, the switch and rules gate, 0..GRADE_MAX
   if (q[GRADE_FIELD] !== undefined && !(q.v >= SNAPSHOT_V3 && pickGateProblem(q.rules) === null && inRange(q[GRADE_FIELD], 0, GRADE_MAX))) return false;
-  return (q.v === 1 || q.v === 2 || q.v === 3) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
-    && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, livesCapFor(q.rules, MAX_LIVES)) && buildOk(q.build, q.v) && q.build.hero === q.hero
+  // RUN-1 (D4): the day and the wins by the snapshot's own rules (snapshot.ts maxDayFor, maxWinsFor): a long run's day is
+  // 1..25 and its wins 0..min(day - 1, 9); the 10-day rules: 1..MAX_DAY and 0..day - 1, as before
+  return (q.v === 1 || q.v === 2 || q.v === 3) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, maxDayFor(q.rules))
+    && inRange(q.wins, 0, maxWinsFor(q.rules, q.day)) && inRange(q.lives, 1, livesCapFor(q.rules, MAX_LIVES)) && buildOk(q.build, q.v, q.rules) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
     && ID_PATTERN.test(q.playerId) && inRange(q.createdAt, 0, Number.MAX_SAFE_INTEGER)
     // RUNES-2a (RUNES-1 Q4): the rules gate, as src/net/snapshot.ts checkSnapshot asks it (its rows: turrets and joins

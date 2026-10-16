@@ -32,7 +32,7 @@ import { HEROES, ITEMS, MERCHANTS, OFFERS, REROLL_COST, buyableModules, itemsSol
 import type { Build } from "../sim/deck";
 import { starsOf, valueOf } from "../sim/stars";
 import { MATRIARCH_DAY, maxGoldByDay as shopGold, warlordPool, type Difficulty, type RivalId } from "../sim/rivals";
-import { EVENTS, EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "../game/eventDefs";
+import { BAG_IDS, EVENTS, EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "../game/eventDefs";
 import { ROAD_PICKS, warlordDeck, warlordDeckDay, warlordReward } from "../game/road";
 import type { WarlordReward } from "../game/roadTypes";
 import { newRun, type Run } from "../game/run";
@@ -41,6 +41,21 @@ import type { BuildCost } from "./validate"; // type only: validate.ts's buildCo
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the NPC day's plans
 import { hullScaleRules } from "../sim/hullScale"; // HULL-1c (REQ-BFG-079): the memo keys carry the switch
 import { shapesRules } from "../sim/shapes"; // SHAPES-1 (REQ-BFG-086 S1): the catalogue memos reset when it moves
+import { longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D6): a long run's events repeat once per bag
+
+// RUN-1 (REQ-BFG-059, REQ-BFG-116; D6): THE EVENT BAGS. A run's events come in shuffled bags of every event once (events.ts
+// eventSequence; BAG_IDS: 10), so days 1-10 are bag 1, days 11-20 bag 2, and so on. The 10-day run never leaves bag 1, and
+// "each event at most once a run" is exact for it. A long run (the world's switch, longRunRules(): validate.ts inRulesWorld puts
+// it to the record's rules) meets every event once per BAG: the event mask below RESETS at each bag boundary (exact for the bag
+// rule, the same state size), and a hull or belt mix may take its event once per bag (roadMixesFor: the dock's PLATING in two
+// bags is 2 x +hull). Without that, an honest day-11+ deck that took a repeated event would be REFUSED. With the switch off
+// every line below reads exactly as before: one bag, each event once.
+const BAG = BAG_IDS.length;
+
+/** RUN-1: the event bags a run of `days` days has reached: ceil(days / BAG) on a long run, 1 on a 10-day run (any `days`). */
+export function bagsFor(days: number): number {
+  return longRunRules() ? Math.max(1, Math.ceil(days / BAG)) : 1;
+}
 
 // ------------------------------------------------------------------ D4: the reviewed model
 
@@ -177,7 +192,7 @@ function shapesMemos(): void {
   if (memoShapes === on) return;
   if (memoShapes !== null) {
     optionsMemo = null;
-    mixMemo = null;
+    mixMemo.clear();
     payMemo.clear();
     dgMemo.clear();
     liquidMemo.clear();
@@ -237,7 +252,7 @@ const payMemo = new Map<string, WarlordPay[]>();
  *  the run day's, as road.ts warlordFight reads it (0.6.2 EASY PAY: SABOTAGE swaps the deck, never the day's pay). */
 export function warlordPays(slot: Difficulty | "matriarch", day: number): readonly WarlordPay[] {
   shapesMemos();
-  const k = `${slot}|${day}|${npcDayRules()}`; // NPC-1: the reward differs with NPC_DAY on (no Hard pick)
+  const k = `${slot}|${day}|${npcDayRules()}|${longRunRules()}`; // NPC-1: the reward differs with NPC_DAY on (no Hard pick); RUN-1: the captains' tables past day 10 differ on a long run
   const hit = payMemo.get(k);
   if (hit) return hit;
   const ids: RivalId[] = slot === "matriarch" ? (day >= MATRIARCH_DAY ? ["matriarch"] : []) : warlordPool(slot);
@@ -329,18 +344,32 @@ export function discountGain(n: number, gold: number): number {
 export interface Mix {
   key: string; // "" for none
   forced: ReadonlyMap<EventId, readonly RoadOption[]>; // each forced event, taken with one of these choices
+  /** RUN-1: how many bags took the forced choice, per forced event (absent: once, a 10-day run's mix). Each use is in a
+   *  different bag (an event comes once per bag), so a count is at most the bags the day has reached (roadMixesFor). */
+  counts?: ReadonlyMap<EventId, number>;
   hull: number; // the mix's hull change
   belt: number; // the mix's belt change
   hullCost: boolean; // a choice pays hull (RIDE THROUGH): the HULL_FLOOR applies
   labels: string[]; // "dock PLATING", ...
 }
 
-let mixMemo: Mix[] | null = null;
+const mixMemo = new Map<number, Mix[]>(); // by bags (RUN-1); bags = 1 is the 10-day run's list
 
 /** Every mix: for each event with a choice that moves hull or belt, not used for them, or one such choice. */
 export function roadMixes(): readonly Mix[] {
+  return roadMixesFor(1);
+}
+
+/**
+ * RUN-1 (REQ-BFG-059, D6): the mixes of a run that has reached `bags` event bags. Each event with a hull or belt choice is not
+ * used for them, or used with one such choice in n of the bags (1..bags): the dock's PLATING in two bags is two plates
+ * (hull x2), the cache's BELT SPOOL in three, a RIDE THROUGH twice. With bags = 1 exactly roadMixes()'s list, in its order
+ * (the 10-day run), with the same keys.
+ */
+export function roadMixesFor(bags: number): readonly Mix[] {
   shapesMemos();
-  if (mixMemo) return mixMemo;
+  const hit = mixMemo.get(bags);
+  if (hit) return hit;
   let out: Mix[] = [{ key: "", forced: new Map(), hull: 0, belt: 0, hullCost: false, labels: [] }];
   for (const [e, list] of roadOptions()) {
     const sigs = new Map<string, RoadOption[]>();
@@ -354,19 +383,22 @@ export function roadMixes(): readonly Mix[] {
     for (const m of out) {
       next.push(m);
       for (const [k, opts] of sigs) {
-        next.push({
-          key: `${m.key}${m.key ? " " : ""}${e}(${k})`,
-          forced: new Map([...m.forced, [e, opts]]),
-          hull: m.hull + opts[0].hull,
-          belt: m.belt + opts[0].belt,
-          hullCost: m.hullCost || opts[0].hull < 0,
-          labels: [...m.labels, `${e} ${[...new Set(opts.map((o) => o.label))].join("/")}`],
-        });
+        for (let n = 1; n <= bags; n++) {
+          next.push({
+            key: `${m.key}${m.key ? " " : ""}${e}(${k})${n > 1 ? `x${n}` : ""}`,
+            forced: new Map([...m.forced, [e, opts]]),
+            ...(bags > 1 ? { counts: new Map([...(m.counts ?? []), [e, n]]) } : {}),
+            hull: m.hull + n * opts[0].hull,
+            belt: m.belt + n * opts[0].belt,
+            hullCost: m.hullCost || opts[0].hull < 0,
+            labels: [...m.labels, `${e} ${[...new Set(opts.map((o) => o.label))].join("/")}${n > 1 ? ` x${n}` : ""}`],
+          });
+        }
       }
     }
     out = next;
   }
-  mixMemo = out;
+  mixMemo.set(bags, out);
   return out;
 }
 
@@ -495,20 +527,57 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
   const discountEvents = new Set([...all].filter(([, l]) => l.some((o) => o.discount > 0)).map(([e]) => e));
   const events = EVENT_IDS.filter((e) => mode === "deck" || !discountEvents.has(e));
   const E = events.length;
-  const opts = events.map((e) => {
+  // RUN-1 (REQ-BFG-059, D6): a long run's bags. `long` resets the event mask at each bag boundary; the mix's forced events may
+  // each be taken with their forced choice in `need[i]` bags (a count tracked in the state's low digits `c`, radix need + 1,
+  // exactly need[i] by the end). A forced event keeps its other (hull- and belt-neutral) choices for the bags it is not
+  // forced in. Not `long` (the 10-day run, or any run of at most one bag's days): the code below is the old one exactly: a
+  // forced event takes only its forced choices and the plan must take it (forcedMask), no counts (C = 1), the same states.
+  const long = longRunRules() && days > BAG; // a run of at most one bag's days never leaves bag 1
+  const isForced = events.map((e) => mode === "deck" && mix.forced.has(e));
+  const need = events.map((e, i) => (long && isForced[i] ? mix.counts?.get(e) ?? 1 : 0));
+  const forcedMask = long ? 0 : isForced.reduce((m, f, i) => (f ? m | (1 << i) : m), 0);
+  const stride: number[] = [];
+  let C = 1;
+  for (let i = 0; i < E; i++) {
+    stride.push(C);
+    C *= need[i] + 1;
+  }
+  const cTarget = need.reduce((t, n, i) => t + n * stride[i], 0);
+  const cnt = (c: number, i: number) => Math.floor(c / stride[i]) % (need[i] + 1);
+  // each event's options: [neutral (or every option, in liquid mode)], and the forced events' forced choices apart
+  const optsNeutral = events.map((e, i) => {
     const list = all.get(e)!;
     if (mode === "liquid") return [...list];
-    return [...(mix.forced.get(e) ?? list.filter((o) => o.hull === 0 && o.belt === 0))];
+    return isForced[i] && !long ? [...mix.forced.get(e)!] : list.filter((o) => o.hull === 0 && o.belt === 0);
   });
-  const forcedMask = events.reduce((m, e, i) => (mix.forced.has(e) ? m | (1 << i) : m), 0);
-  const amounts = [0, ...new Set(opts.flat().filter((o) => o.bounty > 0).map((o) => o.bounty))];
+  const optsForced = events.map((e, i) => (long && isForced[i] ? [...mix.forced.get(e)!] : []));
+  const amounts = [0, ...new Set([...optsNeutral.flat(), ...optsForced.flat()].filter((o) => o.bounty > 0).map((o) => o.bounty))];
   const B = amounts.length;
-  const S = (1 << E) * 2 * B;
-  const at = (mask: number, beaten: number, b: number) => (mask * 2 + beaten) * B + b;
+  const S = (1 << E) * 2 * B * C;
+  const at = (mask: number, beaten: number, b: number, c = 0) => ((mask * 2 + beaten) * B + b) * C + c;
   let cur = new Float64Array(S).fill(-Infinity);
   cur[0] = 0;
   const back: { from: Int32Array; what: (string | undefined)[]; val: Float64Array }[] = [];
+  const collapsed = new Map<number, Int32Array>(); // trace: the day's bag-boundary collapse, new state -> the state it came from
   for (let d = 1; d <= days; d++) {
+    // RUN-1: a new event bag opens on day BAG + 1, 2 BAG + 1, ...: every event is on the road again (the mask forgets), the
+    // Matriarch, the staked bounty and the forced counts carry over
+    if (long && d > 1 && (d - 1) % BAG === 0) {
+      const merged = new Float64Array(S).fill(-Infinity);
+      const arg = trace ? new Int32Array(S).fill(-1) : null;
+      for (let s = 0; s < S; s++) {
+        const v = cur[s];
+        if (v === -Infinity) continue;
+        const c = s % C, r = (s - c) / C, b = r % B, beaten = Math.floor(r / B) % 2;
+        const t = at(0, beaten, b, c);
+        if (v > merged[t]) {
+          merged[t] = v;
+          if (arg) arg[t] = s;
+        }
+      }
+      cur = merged;
+      if (arg) collapsed.set(d, arg);
+    }
     const gold = mode === "liquid" || d < days;
     const caravan = mode === "deck" && d + 1 <= days;
     const parts = !(mode === "liquid" && hoard);
@@ -518,17 +587,22 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
     const queen = d >= MATRIARCH_DAY ? bestPay("matriarch", d, gold, false) : -Infinity;
     // HULL-1c (REQ-BFG-078; REVIEW-HULL1A Q1): `fund`, the day's fight gold that pays the event's gold cost (0: none; see
     // the deck's day below)
-    const options = (fund: number) => opts.map((list) => {
-      const byClass = new Map<number, { v: number; label: string }>();
-      for (const o of list) {
-        let v = (gold ? o.gold : 0) - o.pay + (parts ? o.parts : Math.min(0, o.parts));
-        if (fund > 0) v += Math.min(o.pay, fund); // HULL-1c: the cost counts only past the fight's gold
-        if (caravan) v += o.reroll * REROLL_COST + (o.discount > 0 ? discountGain(o.discount, gmax(d + 1, hoard)) : 0);
-        const cls = o.bounty > 0 ? amounts.indexOf(o.bounty) : -1;
-        const had = byClass.get(cls);
-        if (!had || v > had.v) byClass.set(cls, { v, label: o.label });
+    // RUN-1: each entry says whether it is the event's forced choice (`f`: it adds one to the event's count)
+    const options = (fund: number) => events.map((_, i) => {
+      const out: { cls: number; v: number; label: string; f: boolean }[] = [];
+      for (const [list, f] of [[optsNeutral[i], false], [optsForced[i], true]] as const) {
+        const byClass = new Map<number, { v: number; label: string }>();
+        for (const o of list) {
+          let v = (gold ? o.gold : 0) - o.pay + (parts ? o.parts : Math.min(0, o.parts));
+          if (fund > 0) v += Math.min(o.pay, fund); // HULL-1c: the cost counts only past the fight's gold
+          if (caravan) v += o.reroll * REROLL_COST + (o.discount > 0 ? discountGain(o.discount, gmax(d + 1, hoard)) : 0);
+          const cls = o.bounty > 0 ? amounts.indexOf(o.bounty) : -1;
+          const had = byClass.get(cls);
+          if (!had || v > had.v) byClass.set(cls, { v, label: o.label });
+        }
+        for (const [cls, x] of byClass) out.push({ cls, v: x.v, label: x.label, f });
       }
-      return [...byClass].map(([cls, x]) => ({ cls, v: x.v, label: x.label }));
+      return out;
     });
     const today = options(0);
     const funded = new Map<number, ReturnType<typeof options>>(); // HULL-1c: the deck's day's options by fund
@@ -561,7 +635,8 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
     for (let s = 0; s < S; s++) {
       const v = cur[s];
       if (v === -Infinity) continue;
-      const b = s % B, beaten = Math.floor(s / B) % 2, mask = Math.floor(s / (2 * B));
+      const c = s % C, r = (s - c) / C; // RUN-1: the state's forced counts, then the old index (C = 1: s itself)
+      const b = r % B, beaten = Math.floor(r / B) % 2, mask = Math.floor(r / (2 * B));
       if (!gold) { // HULL-1c: the deck's day (above): the state stays, the richest open fight funds the event
         const queenSlot = d >= MATRIARCH_DAY && !beaten;
         const top = (queenSlot ? queenGold : hardGold) + amounts[b];
@@ -572,8 +647,8 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
       }
       putMid(s, s, v + flat, "easy/medium (or a lost fight)", flat);
       const bounty = gold ? amounts[b] : 0;
-      if (d >= MATRIARCH_DAY && !beaten) putMid(s, at(mask, 1, 0), v + queen + bounty, `matriarch${b ? " + bounty" : ""}`, queen + bounty);
-      else putMid(s, at(mask, beaten, 0), v + hard + bounty, `hard${b ? " + bounty" : ""}`, hard + bounty);
+      if (d >= MATRIARCH_DAY && !beaten) putMid(s, at(mask, 1, 0, c), v + queen + bounty, `matriarch${b ? " + bounty" : ""}`, queen + bounty);
+      else putMid(s, at(mask, beaten, 0, c), v + hard + bounty, `hard${b ? " + bounty" : ""}`, hard + bounty);
     }
     // step 2, the day's event (or none)
     const nxt = new Float64Array(S).fill(-Infinity);
@@ -593,21 +668,29 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
     for (let m = 0; m < S; m++) {
       const v = mid[m];
       if (v === -Infinity) continue;
-      const b = m % B, beaten = Math.floor(m / B) % 2, mask = Math.floor(m / (2 * B));
+      const c = m % C, r = (m - c) / C;
+      const b = r % B, beaten = Math.floor(r / B) % 2, mask = Math.floor(r / (2 * B));
       put(m, m, v, "", 0);
       const list = gold ? today : todayAt(midFund[m]); // HULL-1c: the deck's day: funded by the fight's gold
       for (let i = 0; i < E; i++) {
         if (mask & (1 << i)) continue;
         const m2 = mask | (1 << i);
-        for (const o of list[i]) put(m, at(m2, beaten, o.cls >= 0 ? o.cls : b), v + o.v, `event ${events[i]}: ${o.label}`, o.v);
+        for (const o of list[i]) {
+          if (o.f && cnt(c, i) >= need[i]) continue; // RUN-1: the forced choice is taken in at most `need` bags
+          put(m, at(m2, beaten, o.cls >= 0 ? o.cls : b, o.f ? c + stride[i] : c), v + o.v, `event ${events[i]}: ${o.label}`, o.v);
+        }
       }
     }
     if (trace) back.push({ from, what, val });
     cur = nxt;
   }
+  // the plan ends with every forced choice taken in exactly its count of bags (long), or with every forced event taken, as the
+  // mask says (one bag: the old rule, forcedMask)
   let bestS = -1;
   for (let s = 0; s < S; s++) {
-    const mask = Math.floor(s / (2 * B));
+    const c = s % C;
+    if (c !== cTarget) continue;
+    const mask = Math.floor((s - c) / C / (2 * B));
     if ((mask & forcedMask) === forcedMask && cur[s] > (bestS < 0 ? -Infinity : cur[bestS])) bestS = s;
   }
   if (bestS < 0 || cur[bestS] === -Infinity) return { value: -Infinity, plan: [] };
@@ -618,6 +701,8 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
       const t = back[d - 1];
       plan.unshift({ day: d, pick: t.what[s] ?? "?", value: t.val[s] });
       s = t.from[s];
+      const arg = collapsed.get(d); // RUN-1: step over the bag boundary that opened day d
+      if (arg) s = arg[s];
     }
   }
   return { value: cur[bestS], plan };
@@ -632,7 +717,7 @@ const liquidMemo = new Map<string, number>();
 export function gmax(c: number, hoard = false): number {
   shapesMemos();
   // NPC-1: the NPC day's plans differ. HULL-1c (REQ-BFG-079): so may the day's gold with HULL_SCALE on
-  const k = `${c}|${hoard}|${npcDayRules()}|${hullScaleRules()}`;
+  const k = `${c}|${hoard}|${npcDayRules()}|${hullScaleRules()}|${longRunRules()}`; // RUN-1: the bag reset is the long run's
   const hit = liquidMemo.get(k);
   if (hit !== undefined) return hit;
   const road = c - 2 >= 1 ? Math.max(0, planDP(c - 2, NO_MIX(), "liquid", false, hoard).value) : 0;
@@ -648,7 +733,7 @@ const capMemo = new Map<string, number>();
 export function roadCapFor(day: number, mix: Mix = NO_MIX()): number {
   shapesMemos();
   // NPC-1: the NPC day's plans differ. HULL-1c (REQ-BFG-079): so may the day's gold with HULL_SCALE on
-  const k = `${day}|${mix.key}|${npcDayRules()}|${hullScaleRules()}`;
+  const k = `${day}|${mix.key}|${npcDayRules()}|${hullScaleRules()}|${longRunRules()}`; // RUN-1: the bag reset is the long run's
   const hit = capMemo.get(k);
   if (hit !== undefined) return hit;
   const v = planDP(day, mix, "deck").value;
@@ -683,7 +768,7 @@ export function roadCapHoard(day: number): number {
 /** Tests only: forget every memo (after a test patched the road content). */
 export function resetRoadCapMemo(): void {
   optionsMemo = null;
-  mixMemo = null;
+  mixMemo.clear();
   payMemo.clear();
   dgMemo.clear();
   liquidMemo.clear();
@@ -701,7 +786,7 @@ export function resetRoadCapMemo(): void {
  * price + crates x crate price must be <= maxGoldByDay(day) + roadCapFor(day, mix). Returns the errors (empty: the
  * deck passes).
  */
-export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeGold = 0, freePart = 0, drops = 0, offered?: ReadonlySet<EventId>): string[] {
+export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeGold = 0, freePart = 0, drops = 0, offered?: ReadonlySet<EventId> | ReadonlyMap<EventId, number>): string[] {
   let f: PlayerFits;
   try {
     f = playerFits(b, day, cost, offered); // AZ-PREP: `offered`, the seed's events by `day` (NPC_DAY on; absent: as before)
@@ -765,8 +850,14 @@ export interface PlayerFits {
   unofferedBelt?: string[];
 }
 
-/** The D3 search: every road mix that explains the deck's hull and belt by `day`, costed (throws RoadModelError). */
-export function playerFits(b: Build, day: number, cost: BuildCost, offered?: ReadonlySet<EventId>): PlayerFits {
+/** RUN-1: did the seed offer event `e` at least `n` times by the deck's day? `offered` is the 10-day run's Set (once each) or a
+ *  long run's counts (one per bag: validate.ts offeredEvents). */
+const offeredAtLeast = (offered: ReadonlySet<EventId> | ReadonlyMap<EventId, number>, e: EventId, n: number): boolean =>
+  offered instanceof Map ? (offered.get(e) ?? 0) >= n : (offered as ReadonlySet<EventId>).has(e);
+
+/** The D3 search: every road mix that explains the deck's hull and belt by `day`, costed (throws RoadModelError).
+ *  RUN-1 (D6): on a long run the mixes may take an event once per bag reached by `day` (roadMixesFor(bagsFor(day))). */
+export function playerFits(b: Build, day: number, cost: BuildCost, offered?: ReadonlySet<EventId> | ReadonlyMap<EventId, number>): PlayerFits {
   const h = HEROES[b.hero];
   const plate = ITEMS.plating, crate = ITEMS.beltcrate;
   const plateHull = plate.supply!.hull!, crateBelt = crate.supply!.belt!;
@@ -782,7 +873,7 @@ export function playerFits(b: Build, day: number, cost: BuildCost, offered?: Rea
     return r >= 0 && r % crateBelt === 0;
   };
   const out: PlayerFits = { fits: [], hullOk: false, beltOk: false };
-  for (const m of roadMixes()) {
+  for (const m of roadMixesFor(bagsFor(day))) {
     const hf = hullFits(m), bf = beltFits(m);
     if (!hf && !bf) continue;
     const cap = roadCapFor(day, m);
@@ -790,7 +881,8 @@ export function playerFits(b: Build, day: number, cost: BuildCost, offered?: Rea
     // AZ-PREP (REQ-BFG-078; REVIEW-HULL1D Q1, behind NPC_DAY): given the events the uploader's seed offered by `day`
     // (validate.ts: eventFor(seed, 1..day), only with NPC_DAY on and the seed), a mix that needs another event explains
     // nothing; its labels are kept for the refusal's line. Without `offered`: seed-blind, as before
-    if (offered && [...m.forced.keys()].some((e) => !offered.has(e))) {
+    // RUN-1: and a mix that takes an event in n bags needs the seed to have offered it n times (once per bag)
+    if (offered && [...m.forced.keys()].some((e) => !offeredAtLeast(offered, e, m.counts?.get(e) ?? 1))) {
       if (hf) out.unofferedHull = [...(out.unofferedHull ?? []), m.labels.join(" + ")];
       if (bf) out.unofferedBelt = [...(out.unofferedBelt ?? []), m.labels.join(" + ")];
       continue;

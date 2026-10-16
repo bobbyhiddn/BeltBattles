@@ -35,9 +35,9 @@ import { join } from "node:path";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
 import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
-import { isNewPlayer, matchSeed, type MatchRequest } from "../src/net/matchmaking";
+import { isNewPlayer, matchDays, matchSeed, type MatchRequest } from "../src/net/matchmaking"; // RUN-1 (D6): matchDays, the long run's widening order
 import { matchPick } from "../src/net/pick"; // RETUNE-1 T5 (REQ-BFG-092): the one pick, shared with the client's fallback
-import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, type GhostSnapshot } from "../src/net/snapshot";
+import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, maxDayFor, type GhostSnapshot } from "../src/net/snapshot";
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { isReachable } from "../src/net/records";
 import { validateUpload } from "../src/net/validate";
@@ -212,7 +212,10 @@ export function parseMatchQuery(q: URLSearchParams): MatchRequest {
     throw new HttpError(400, `seen: expected up to ${MAX_SEEN} comma-separated ghost ids`);
   }
   return {
-    rules, day: intParam(q, "day", 1, MAX_DAY), wins: intParam(q, "wins", 0, MAX_DAY),
+    // RUN-1 (REQ-BFG-059, D4): the day bound follows the request's rules (snapshot.ts maxDayFor: LONG_RUN_MAX_DAY, 25, under a
+    // long run's rules, else 10); data safety only, a refusal of the request, never of a run. The wins bound is as before:
+    // a long run's wins into a dusk never pass 9
+    rules, day: intParam(q, "day", 1, maxDayFor(rules)), wins: intParam(q, "wins", 0, MAX_DAY),
     // RETUNE-1 (REQ-BFG-096): the bound follows the request's rules (rulesGate.ts livesCapFor: 10 with hearts, else 9)
     lives: intParam(q, "lives", 0, livesCapFor(rules, MAX_LIVES)), playerId: player, seen,
     // 0.7.0a D2: the client's finished runs; absent counts as 0 (a new player: seed pool only)
@@ -341,10 +344,15 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         // LC-1 (REQ-BFG-073): the record must be reachable with the snapshot's LAST CHANCE (its day, or none): a lastChance
         // whose day can't be a loss to 1 life, or a run at 1 life that never had one, is refused. Z-BUMP: the switch is
         // gone (this was its on side); POST takes RULES_VERSION only, so the record is read by this build's rules
-        const lcDay = { lastChance: snap.lastChance?.day ?? null };
+        // RUN-1 (REQ-BFG-059, D4): under a long run's rules the model is the long run's (records.ts longRunRecords: wins <= 9,
+        // at most MAX_RUN_DRAWS draws, LAST CHANCE on any day, PATCH UP once per event bag), and the snapshot's `losses`, when it
+        // carries one (v3, taken only under those rules), must match: day - 1 = wins + losses + draws. POST takes RULES_VERSION
+        // only, so `rules` is this build's, as before
+        const lcDay = { lastChance: snap.lastChance?.day ?? null, rules: snap.rules, ...(snap.losses !== undefined ? { losses: snap.losses } : {}) };
         if (!isReachable(snap.day, snap.wins, snap.lives, lcDay)) {
           const after = snap.lastChance ? ` after a LAST CHANCE on day ${snap.lastChance.day}` : "";
-          throw new HttpError(422, `record: ${snap.wins}W ${snap.lives} lives is no record a run carries into dusk ${snap.day}${after}`);
+          const lost = snap.losses !== undefined ? ` and ${snap.losses} losses` : "";
+          throw new HttpError(422, `record: ${snap.wins}W ${snap.lives} lives${lost} is no record a run carries into dusk ${snap.day}${after}`);
         }
         const { id, created } = await store.add(snap); // 201 only once the write is durable
         return send(res, created ? 201 : 200, { id });
@@ -354,8 +362,21 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         const m = parseMatchQuery(url.searchParams);
         // 0.7.0a D2: a new player is matched against the seed pool only; D1 holds inside pickGhost (eligible)
         // RETUNE-1 T5 (REQ-BFG-092): matchPick, the graded pick under rules with PICK (pick.ts); otherwise pickGhost exactly
-        const ghosts = await store.bucket(m.rules, m.day, isNewPlayer(m) ? "pool" : "all");
-        const hit = matchPick(ghosts, m, new Rng(matchSeed(m, salt())));
+        // RUN-1 (REQ-BFG-059, D6): a thin day (no eligible ghost) widens, under a long run's rules, to the nearest EARLIER day with
+        // one, never a later: the buckets are read from the request's day down (matchmaking.ts matchDays: its own day only under
+        // the 10-day rules, as before). matchPick takes the whole request each time, so the graded pick judges the record by the
+        // requester's own day; a bucket with no eligible ghost answers null without touching the rng
+        // The request's own day is read alone first (the common case, one bucket); only a thin day reads the earlier ones, all at once
+        const scope = isNewPlayer(m) ? "pool" : "all";
+        const rng = new Rng(matchSeed(m, salt()));
+        const days = matchDays(m);
+        let hit = matchPick(await store.bucket(m.rules, days[0], scope), m, rng);
+        if (!hit && days.length > 1) {
+          for (const bucket of await Promise.all(days.slice(1).map((d) => store.bucket(m.rules, d, scope)))) {
+            hit = matchPick(bucket, m, rng);
+            if (hit) break;
+          }
+        }
         if (!hit) throw new HttpError(404, "no ghost for this rules version, day and record yet");
         return send(res, 200, { id: hit.id, snapshot: servedSnapshot(hit.snapshot) }); // RUNES-1 (FIX-6): no seed
       }

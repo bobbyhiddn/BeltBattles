@@ -8,15 +8,22 @@
 //    device and sent as `runs`) match only seed ghosts, never another player's upload. The server applies
 //    it by matching such a request against its seed pool only (isNewPlayer; server/app.ts).
 
+// RUN-1 (REQ-BFG-059, REQ-BFG-116; D6): GHOSTS PAST DAY 10. Rules and day stay the hard keys and the record the soft key. Under a
+// long run's rules (rulesGate.ts longRunFor) a thin day WIDENS to the nearest EARLIER day with an eligible ghost, never a later
+// one (a later day has more gold), and with none at all the caller's stand-in is built for the exact day (fallback.ts
+// offlineGhost). matchDays is the one order the server (server/app.ts), the client's fallback pick (pickGhost here) and the
+// client's pool pick (src/game/ghosts.ts) all follow. Under the 10-day rules a request reads its own day only, as before.
+
 import { hashSeed } from "../core/rng";
 import type { PoolEntry } from "./snapshot";
+import { longRunFor } from "./rulesGate"; // RUN-1: the widening is the long run's rule
 
 /** D2: a player's first NEW_PLAYER_RUNS runs match only seed ghosts. */
 export const NEW_PLAYER_RUNS = 3;
 
 export interface MatchRequest {
   rules: string; // requester's RULES_VERSION
-  day: number; // requester's current day (1-10)
+  day: number; // requester's current day (1-10; RUN-1: a long run's rules: 1..maxDayFor(rules), snapshot.ts)
   wins: number; // requester's wins going into this dusk
   lives: number; // requester's lives going into this dusk
   playerId: string; // never matched against its own ghosts
@@ -41,7 +48,7 @@ export function isNewPlayer(req: { runs?: number }): boolean {
 }
 
 /** Ghosts the requester may fight at all, in pool order: same rules and day, not its own, not seen this run,
- *  and (D1) no better record than its own. */
+ *  and (D1) no better record than its own. (The exact day only; the long run's widening is eligibleWide's.) */
 export function eligible(pool: readonly PoolEntry[], req: MatchRequest): PoolEntry[] {
   const seen = new Set(req.seen);
   return pool.filter((e) =>
@@ -50,15 +57,55 @@ export function eligible(pool: readonly PoolEntry[], req: MatchRequest): PoolEnt
 }
 
 /**
+ * RUN-1 (D6): the days a request reads, in order: its own day first, and under a long run's rules (rulesGate.ts longRunFor)
+ * every EARLIER day down to 1, never a later one. The 10-day rules: its own day only (as before). A thin day is one with no
+ * eligible ghost: the first day in this list that has one is the day the pick is made on.
+ */
+export function matchDays(req: Pick<MatchRequest, "rules" | "day">): number[] {
+  if (!longRunFor(req.rules)) return [req.day];
+  const top = Math.max(1, Math.floor(req.day));
+  return Array.from({ length: top }, (_, i) => top - i);
+}
+
+/** RUN-1 (D6): does a served ghost of day `ghostDay` fit a request? Its own day; and under a long run's rules any day up to it
+ *  (the widening), never a later one. The client's check of a server answer (ghostClient.ts) and the server's tests ask it. */
+export function ghostDayOk(ghostDay: number, req: Pick<MatchRequest, "rules" | "day">): boolean {
+  return longRunFor(req.rules) ? Number.isInteger(ghostDay) && ghostDay >= 1 && ghostDay <= req.day : ghostDay === req.day;
+}
+
+/** RUN-1 (D6): the day a pick over `pool` is made on: the request's own day when it has an eligible ghost (always, under the
+ *  10-day rules), else under a long run's rules the nearest earlier day that has one; with none at all, the request's day. */
+export function matchDay(pool: readonly PoolEntry[], req: MatchRequest): number {
+  const days = matchDays(req);
+  if (days.length === 1) return req.day;
+  const seen = new Set(req.seen);
+  const has = new Set<number>();
+  for (const e of pool) {
+    const s = e.snapshot;
+    if (s.rules === req.rules && s.day <= req.day && s.playerId !== req.playerId && !seen.has(e.id) && noBetterRecord(s, req)) has.add(s.day);
+  }
+  return days.find((d) => has.has(d)) ?? req.day;
+}
+
+/** RUN-1 (D6): eligible ghosts on the day the pick is made on (matchDay): the exact day, or the long run's nearest earlier day
+ *  with one. Under the 10-day rules exactly `eligible`. */
+export function eligibleWide(pool: readonly PoolEntry[], req: MatchRequest): PoolEntry[] {
+  const d = matchDay(pool, req);
+  return eligible(pool, d === req.day ? req : { ...req, day: d });
+}
+
+/**
  * Pick one ghost: rank eligible ghosts by |wins − req.wins|, then |lives − req.lives|,
  * and choose uniformly among the best rank with rng.int. The best rank is sorted by id
  * first, so the result depends only on the pool's contents, the request and the rng.
- * Returns null when nothing is eligible.
+ * Returns null when nothing is eligible. RUN-1 (D6): under a long run's rules, a thin day widens to the nearest earlier
+ * day with an eligible ghost (eligibleWide); null only when no day up to it has one (the caller's stand-in is then built
+ * for the exact day).
  */
 export function pickGhost(pool: readonly PoolEntry[], req: MatchRequest, rng: IntRng): PoolEntry | null {
   let best: PoolEntry[] = [];
   let bw = Infinity, bl = Infinity;
-  for (const e of eligible(pool, req)) {
+  for (const e of eligibleWide(pool, req)) {
     const dw = Math.abs(e.snapshot.wins - req.wins);
     const dl = Math.abs(e.snapshot.lives - req.lives);
     if (dw < bw || (dw === bw && dl < bl)) {
