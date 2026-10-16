@@ -1,0 +1,186 @@
+// RUN-1 T4 (REQ-BFG-059, REQ-BFG-116; D7): the screens' DRAW calls say the words tests/run1.screens.test.ts pins. drawText is wrapped
+// (every string a screen draws is recorded, then drawn as before), and the fork and the run summary are drawn on a recording canvas
+// with a stand-in Game (replay1b.test.ts's way): a long run (Run.longRun) draws RUN WON / THE ROAD · DAY 12 and the rest of the new
+// words, a run without the mark draws the live ones, whatever the switch says. (The build bar, the banners and the title are pinned
+// by their pure builders in run1.screens.test.ts and by the shots: their screens need a whole Game.)
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { computeView } from "../src/core/io";
+import { finishDay } from "../src/game/day";
+import { newRun, type Run } from "../src/game/run";
+import { UI } from "../src/ui/ui";
+import { SummaryScreen } from "../src/screens/summary";
+import { ForkScreen } from "../src/screens/fork/fork";
+import { BattleScreen } from "../src/screens/battle";
+import { ReplayScreen } from "../src/screens/replay";
+import { battleGrid, battleScale } from "../src/game/battleLayout";
+import { viewWithSub } from "../src/game/viewGrid";
+import { setupRun } from "../src/tooling";
+import { setLongRun, withLongRun } from "../src/sim/longRun";
+import { withHearts } from "../src/sim/hearts";
+import { RIVAL_IDS } from "../src/sim/rivals";
+import type { Game, Screen } from "../src/game/game";
+import type { G } from "../src/render/pixel";
+import type { SideStats } from "../src/sim/battle";
+
+/** Every string drawText was asked to draw, in order (hoisted: the mock factory runs before the imports). */
+const drawn = vi.hoisted(() => [] as string[]);
+vi.mock("../src/render/font", async (importOriginal) => {
+  const m = await importOriginal<typeof import("../src/render/font")>();
+  return { ...m, drawText: (...a: Parameters<typeof m.drawText>) => { drawn.push(String(a[1])); return m.drawText(...a); } };
+});
+
+// ------------------------------------------------------------ a recording canvas (replay1b.test.ts's, text-free: calls only)
+interface RecCanvas { width: number; height: number; calls: string[]; getContext: () => G }
+function recCanvas(): RecCanvas {
+  const c: RecCanvas = { width: 0, height: 0, calls: [], getContext: () => g };
+  const st: Record<string, unknown> = {
+    canvas: c, fillStyle: "#000000", strokeStyle: "#000000", globalAlpha: 1, imageSmoothingEnabled: false, lineWidth: 1,
+    globalCompositeOperation: "source-over", font: "10px sans-serif", textAlign: "start", textBaseline: "alphabetic", filter: "none",
+  };
+  const g = new Proxy(st, {
+    get(t, k) {
+      if (typeof k !== "string") return undefined;
+      if (k in t) return t[k];
+      if (k === "getImageData" || k === "createImageData") return (_x: number, _y: number, w = 1, h = 1) => ({ data: new Uint8ClampedArray(Math.max(4, w * h * 4)), width: w, height: h });
+      if (k === "measureText") return () => ({ width: 0 });
+      if (k === "createLinearGradient" || k === "createRadialGradient" || k === "createPattern") return () => ({ addColorStop() {} });
+      return () => { c.calls.push(k); };
+    },
+    set(t, k, v) {
+      if (typeof k === "string") t[k] = v;
+      return true;
+    },
+  }) as unknown as G;
+  return c;
+}
+
+let restoreDom: () => void = () => undefined;
+beforeAll(() => {
+  const doc = globalThis as { document?: unknown };
+  const prev = doc.document;
+  doc.document = { createElement: () => recCanvas() };
+  restoreDom = () => { doc.document = prev; };
+  vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined, removeItem: () => undefined, key: () => null, length: 0, clear: () => undefined });
+});
+afterAll(() => { restoreDom(); vi.unstubAllGlobals(); });
+beforeEach(() => { drawn.length = 0; });
+afterEach(() => setLongRun(false));
+
+/** A stand-in Game: the run, an audio that does nothing, a view (402x690 @3 by default), a real UI, a recording canvas. */
+function fakeGame(run: Run, w = 402, h = 690, dpr = 3): Game {
+  const view = computeView(w, h, dpr);
+  const audio = new Proxy({}, { get: () => () => undefined });
+  const game = { run, audio, view, W: view.W, H: view.H, portrait: view.portrait, t: 0, ui: new UI(), canvas: recCanvas(), toast() {}, go() {}, error() {}, soundButton() {}, transitioning: false } as unknown as Game;
+  return game;
+}
+
+const S = {} as SideStats;
+const runOf = (long: boolean, seed = 11): Run => withHearts(() => withLongRun(() => newRun("furnace", seed, `run1d-${seed}`), long));
+function play(run: Run, seq: string): Run {
+  for (const c of seq) {
+    if (run.over) break;
+    finishDay(run, c === "W" ? 0 : c === "L" ? 1 : -1, 30, S, S);
+  }
+  return run;
+}
+const drawSummary = (run: Run, w = 402, h = 690, dpr = 3): string[] => {
+  const s = new SummaryScreen(fakeGame(run, w, h, dpr));
+  drawn.length = 0;
+  s.draw(recCanvas().getContext());
+  return [...drawn];
+};
+
+describe("RUN-1 T4: the run summary's draw", () => {
+  it("a long run won on day 13 draws RUN WON, the dusks line, 4 hearts and the foot line; the days past 10 are in the rows", () => {
+    const run = play(runOf(true), "LLL" + "WWWWWWWWWW" + "WWW");
+    expect(run.over).toBe("won");
+    const t = drawSummary(run);
+    expect(t).toContain("RUN WON");
+    expect(t).toContain("FURNACE WON 10 OF 13 DUSKS, ON DAY 13");
+    expect(t).not.toContain("RUN COMPLETE");
+    expect(t.join("|")).not.toMatch(/DAYS SURVIVED/);
+    expect(t).toContain("7 HEARTS LEFT · WINS 10/10");
+    for (const d of ["11", "12", "13"]) expect(t, `the history's day ${d}`).toContain(d);
+    expect(t).toContain("NEW RUN");
+  });
+
+  it("a long run lost on day 12 draws RUN LOST, THE DARK WIND CATCHES YOU and ON DAY 12 · FURNACE · W-L 5-7", () => {
+    const run = play(runOf(true), "LLLLLL" + "WWWWW" + "L" + "WWW");
+    expect(run.over).toBe("lost");
+    const t = drawSummary(run);
+    expect(t).toContain("RUN LOST");
+    expect(t).toContain("THE DARK WIND CATCHES YOU");
+    expect(t).toContain("ON DAY 12 · FURNACE · W-L 5-7");
+    expect(t).not.toContain("RUN WON");
+  });
+
+  it("a 10-day run draws the live words (RUN COMPLETE, 10 DAYS SURVIVED), with the switch off and with it on", () => {
+    const ten = play(runOf(false), "WLWWLWWWLW");
+    expect(ten.over).toBe("complete");
+    for (const on of [false, true]) {
+      const t = withLongRun(() => drawSummary(ten), on);
+      expect(t, `switch ${on}`).toContain("RUN COMPLETE");
+      expect(t, `switch ${on}`).toContain("FURNACE · 10 DAYS SURVIVED · W-L 7-3");
+      expect(t.join("|"), `switch ${on}`).not.toMatch(/RUN WON|WON \d+ OF/);
+    }
+    const lost = play(runOf(false), "LLLLLLLLLL");
+    expect(withLongRun(() => drawSummary(lost), true)).toContain("RUN LOST");
+  });
+
+  it("a long run too deep for the screen draws its folded row; a 10-day run's rows are never folded", () => {
+    const deep = play(runOf(true), "D".repeat(16) + "W".repeat(9));
+    for (let d = 1; d <= 25; d++) deep.warlords.push({ day: d, tier: "easy", id: RIVAL_IDS[0], name: "WARLORD", outcome: "win", time: 20, gold: 0, part: null });
+    const t = drawSummary(deep);
+    expect(t.filter((s) => /^DAYS \d+-\d+ · \d+ W · \d+ L/.test(s)).length).toBe(1);
+    const ten = Object.assign(runOf(false), { history: deep.history, warlords: deep.warlords, over: "lost" as const });
+    expect(drawSummary(ten).some((s) => s.startsWith("DAYS "))).toBe(false);
+  });
+});
+
+/** A stand-in Game for the battle and the replay: the view with the battle's own grid (replay1b.test.ts's fakeGame). */
+function battleGame(run: Run, w = 402, h = 690, dpr = 3): Game {
+  const pickSub = (pw: number, ph: number, p: boolean, scale: number): number => { const gr = battleGrid(pw, ph, p); return gr.close === scale ? gr.sub : 1; };
+  const view = viewWithSub(w, h, dpr, (pw, ph, p) => battleScale(pw, ph, p), pickSub);
+  const audio = new Proxy({}, { get: () => () => undefined });
+  return { run, audio, view, W: view.W, H: view.H, portrait: view.portrait, t: 0, ui: new UI(), canvas: recCanvas(), toast() {}, go() {}, error() {}, transitioning: false } as unknown as Game;
+}
+
+describe("RUN-1 T4: the fight intro's and the replay's banners (the screens read the run on the game, not the switch)", () => {
+  for (const long of [true, false]) {
+    it(`${long ? "a long run on day 12" : "a 10-day run on day 3"}: DUSK · DAY ${long ? "12" : "3/10"} over the intro, REPLAY · DAY ${long ? "12" : "3/10"} over its replay`, () => {
+      const day = long ? 12 : 3;
+      // made with the switch on or off, drawn with it off: the mark on the run says which words
+      const run = withHearts(() => withLongRun(() => setupRun({ hero: "furnace", day, seed: 7, wins: 3 }), long));
+      expect(run.longRun === true).toBe(long);
+      const game = battleGame(run), s = new BattleScreen(game);
+      for (let i = 0; i < 40; i++) s.update(1 / 60);
+      expect(s.phase).toBe("intro");
+      drawn.length = 0;
+      s.draw(recCanvas().getContext());
+      expect(drawn).toContain(`DUSK · DAY ${long ? "12" : "3/10"}`);
+      expect(drawn.join("|")).not.toContain(long ? "DAY 12/10" : "DAY 3|");
+      // the replay of that dusk's fight (REPLAY-1's: a stand-in Screen to go back to)
+      const rp = new ReplayScreen(game, {} as unknown as Screen, s.arena.b, { day, foe: "FOE" });
+      for (let i = 0; i < 30; i++) rp.update(1 / 60);
+      drawn.length = 0;
+      rp.draw(recCanvas().getContext());
+      expect(drawn).toContain(`REPLAY · DAY ${long ? "12" : "3/10"}`);
+      expect(drawn).not.toContain(long ? "REPLAY · DAY 12/10" : "REPLAY · DAY 3");
+    });
+  }
+});
+
+describe("RUN-1 T4: the fork's draw", () => {
+  it("a long run on day 12 draws THE ROAD · DAY 12; a 10-day run THE ROAD · DAY 7/10", () => {
+    const long = Object.assign(runOf(true), { day: 12, wins: 3, stage: "fork" as const });
+    const ten = Object.assign(runOf(false), { day: 7, wins: 3, stage: "fork" as const });
+    for (const [run, want, other] of [[long, "THE ROAD · DAY 12", "THE ROAD · DAY 12/10"], [ten, "THE ROAD · DAY 7/10", "THE ROAD · DAY 7"]] as const) {
+      const s = new ForkScreen(fakeGame(run));
+      drawn.length = 0;
+      s.draw(recCanvas().getContext());
+      expect(drawn, want).toContain(want);
+      expect(drawn, want).not.toContain(other);
+      expect(drawn).toContain("PICK ONE FIGHT · WARLORDS NEVER COST A HEART");
+    }
+  });
+});
