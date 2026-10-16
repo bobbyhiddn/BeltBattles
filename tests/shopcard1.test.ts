@@ -375,3 +375,102 @@ describe("SHOPCARD-1 (REQ-BFG-115, F5): the desk's hover tooltip carries the who
     expect(a.px.join()).toBe(b.px.join());
   });
 });
+
+// ------------------------------------------------------------------------------------------------------ G4: every other card
+import { itemSlot } from "../src/ui/ui";
+import { hasGrid, shapeGrid } from "../src/ui/shapePic";
+import { lcPartPlate, lcPartSub } from "../src/screens/lastChancePicker";
+import { drawChoiceCard } from "../src/screens/event/cards";
+import { drawDropCard, drawDropIcons } from "../src/screens/fork/drops";
+import { textWidth } from "../src/render/font";
+
+describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface that draws its icon", () => {
+  const fillOf = (id: string): string => (ITEMS[id].kind === "gate" ? C.wood2 : C.steel2);
+  const limeIn = (c: RasterCanvas, b: Box): number => { let n = 0; for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (c.at(x, y) === C.lime) n++; return n; };
+
+  it("hasGrid is shapeEdit's shapedPiece for every id, and only the five shaped pieces have one", () => {
+    for (const id of Object.keys(ITEMS)) expect(hasGrid(id), id).toBe(shapedPiece(id));
+    expect(hasGrid("no-such-piece")).toBe(false);
+    expect(Object.keys(ITEMS).filter(hasGrid).sort()).toEqual(["assembly", "embertrough", "gantry", "nailstrip", "spikerail"]);
+  });
+
+  it("the cargo slot: the grid in the slot's top-left corner inside its 16 px face, the star pips over it; a piece without one draws none", () => {
+    for (const id of shaped()) {
+      const geom = gridGeom(gridSpecOf(id), GRID_CELL);
+      expect(geom.w, `${id}: the grid fits the 16 px face`).toBeLessThanOrEqual(16);
+      expect(geom.h, id).toBeLessThanOrEqual(16);
+      const c = fresh(24, 24);
+      itemSlot(G(c), 2, 2, id, false, 0, 1);
+      for (const t of geom.tiles) expect(c.at(2 + 1 + t.x + 1, 2 + 1 + t.y + 1), `${id}: a tile of the grid in the slot`).toBe(fillOf(id));
+      const arrows = gridSpecOf(id).arrows.length;
+      expect(limeIn(c, { x: 2, y: 2, w: 18, h: 18 }), `${id}: ${arrows} arrowheads`).toBeGreaterThanOrEqual(arrows * 7);
+      // the pips (★3: three, a gold rim) stay over the grid
+      const three = fresh(24, 24);
+      itemSlot(G(three), 2, 2, id, false, 0, 3);
+      expect([three.at(2 + 5, 2 + 13), three.at(2 + 8, 2 + 13), three.at(2 + 11, 2 + 13)], `${id}: ★3 pips`).toEqual([C.yellow, C.yellow, C.yellow]);
+    }
+    const plain = fresh(24, 24);
+    itemSlot(G(plain), 2, 2, "whetstone", false, 0, 1);
+    expect(limeIn(plain, { x: 2, y: 2, w: 18, h: 18 }), "a plain rig's slot: no arrowhead").toBe(0);
+    expect(R(shapeGrid("nailstrip")).width).toBe(gridGeom(gridSpecOf("nailstrip"), GRID_CELL).w);
+  });
+
+  it("LAST CHANCE: the plate on the part card's head, left of the ⓘ box, clear of the name and the sub line, at every card width the screen gives (178-300 px; it gives way before it would touch the words)", () => {
+    const rows: string[] = [];
+    for (const id of shaped()) for (const cardW of [178, 200, 233, 260, 300]) {
+      const d = ITEMS[id], r = { x: 4, y: 10, w: cardW, h: 80 }, sub = lcPartSub(d.rarity, 1);
+      const pl = lcPartPlate(r, id, d.name, sub);
+      const info = { x: r.x + r.w - 11 - 3, y: r.y + 4, w: 11, h: 11 }, icon = { x: r.x + 5, y: r.y + 6, w: 22, h: 22 };
+      if (!pl) { rows.push(`${id} ${cardW}: none (the words win)`); expect(cardW, `${id}: no room only on a narrow card`).toBeLessThan(240); continue; }
+      expect(pl.x + pl.w, `${id} ${cardW}`).toBeLessThanOrEqual(r.x + r.w);
+      expect(clear(pl, info), `${id} ${cardW}: clear of the ⓘ box`).toBe(true);
+      expect(clear(pl, icon), `${id} ${cardW}: clear of the icon box`).toBe(true);
+      expect(pl.x, `${id} ${cardW}: clear of the name and the sub line`).toBeGreaterThanOrEqual(r.x + 31 + Math.max(textWidth(d.name), textWidth(sub, "3")) + 3);
+      expect(pl.y + pl.h, `${id}: inside the 31 px head`).toBeLessThanOrEqual(r.y + 31);
+      rows.push(`${id} ${cardW}: plate ${pl.w}x${pl.h} at +${pl.x - r.x},+${pl.y - r.y}`);
+    }
+    expect(lcPartPlate({ x: 0, y: 0, w: 233, h: 80 }, "whetstone", "WHETSTONE", "COMMON PART")).toBeNull();
+    console.log(`SHOPCARD1 (G4) LAST CHANCE plates, ${rows.length}:\n${rows.join("\n")}`);
+  });
+
+  it("a road event's choice card: the plate at the card's right end under the badge row, the exchange line stops short of it (phone 190x42, desk 160x50)", () => {
+    for (const [r, wn] of [[{ x: 3, y: 4, w: 190, h: 42 }, "phone"], [{ x: 3, y: 4, w: 160, h: 50 }, "desk"]] as [Box, string][]) for (const id of shaped()) {
+      const v = { hover: false, pressed: false, state: "open" as const, won: false, shake: 0, t: 0, flash: false };
+      const c = fresh(r.w + 8, r.h + 10);
+      drawChoiceCard(G(c), r, { label: "TRADE", cost: [{ k: "gold", n: 3 }], gain: [{ k: "item", def: id }] }, 0, v);
+      const sz = shapeGridSize(id), plate: Box = { x: r.x + r.w - 4 - (sz.w + 2), y: r.y + 15, w: sz.w + 2, h: sz.h + 2 };
+      expect(c.at(plate.x, plate.y), `${id} ${wn}: plate corner`).toBe(C.ink);
+      const geom = gridGeom(gridSpecOf(id), GRID_CELL);
+      for (const t of geom.tiles) expect(c.at(plate.x + 1 + t.x + 1, plate.y + 1 + t.y + 1), `${id} ${wn}: tile`).toBe(fillOf(id));
+      expect(plate.y + plate.h, `${id} ${wn}: above the note line`).toBeLessThanOrEqual(r.y + r.h - 9);
+      // the exchange line (its chips and the part's name) ends before the plate: nothing but the plate's own px inside it
+      const arrows = gridSpecOf(id).arrows.length;
+      expect(limeIn(c, plate), `${id} ${wn}: only the plate's arrowheads are lime there (gold is yellow, the part's icon is clear)`).toBeGreaterThanOrEqual(arrows * 7);
+    }
+    // a choice with no shaped part draws no plate (the same card, a plain part)
+    const a = fresh(200, 60);
+    drawChoiceCard(G(a), { x: 3, y: 4, w: 190, h: 42 }, { label: "TRADE", cost: [{ k: "gold", n: 3 }], gain: [{ k: "item", def: "whetstone" }] }, 0, { hover: false, pressed: false, state: "open", won: false, shake: 0, t: 0, flash: false });
+    expect(a.at(3 + 190 - 5, 4 + 16)).toBe(C.slate0);
+  });
+
+  it("the drop surfaces: the victory drop card's plate where the words leave room, the drop icons' grid over the box's corner", () => {
+    for (const id of shaped()) {
+      const r = { x: 3, y: 3, w: 200 }, c = fresh(210, 30);
+      drawDropCard(G(c), id, false, r.x, r.y, r.w, 1);
+      const sz = shapeGridSize(id), plate: Box = { x: r.x + r.w - 4 - (sz.w + 2), y: r.y + 1, w: sz.w + 2, h: sz.h + 2 };
+      expect(c.at(plate.x, plate.y), `${id}: the drop card's plate`).toBe(C.ink);
+      expect(plate.y + plate.h, id).toBeLessThanOrEqual(r.y + 22);
+      for (const t of gridGeom(gridSpecOf(id), GRID_CELL).tiles) expect(c.at(plate.x + 1 + t.x + 1, plate.y + 1 + t.y + 1), `${id}: drop card tile`).toBe(fillOf(id));
+      // a card too narrow for the words and the plate keeps its words and draws no plate
+      const n = fresh(120, 30);
+      drawDropCard(G(n), id, false, 3, 3, 110, 1);
+      const t = { name: ITEMS[id].name, sub: "DROP · TO CARGO · ★1" }, pw = sz.w + 2, px = 3 + 110 - 4 - pw;
+      const roomy = 3 + 23 + Math.max(textWidth(t.name), textWidth(t.sub, "3")) + 4 <= px;
+      expect(n.at(px, 3 + 1) === C.ink, `${id}: a 110 px card draws the plate only where the words leave room`).toBe(roomy);
+      // the icons' row: the grid over the first box's corner
+      const row = fresh(60, 30);
+      drawDropIcons(G(row), { chance: 0.5, lines: [{ def: id, cls: "rare", odds: 0.1 }] }, 3, 3, 50);
+      for (const t of gridGeom(gridSpecOf(id), GRID_CELL).tiles) expect(row.at(3 + t.x + 1, 3 + t.y + 1), `${id}: drop icon tile`).toBe(fillOf(id));
+    }
+  });
+});

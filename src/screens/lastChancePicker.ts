@@ -13,6 +13,7 @@ import { frame, rect } from "../render/pixel";
 import { C, RARITY_COLOR } from "../render/palette";
 import { drawText, icons, textWidth } from "../render/font";
 import { itemIcon } from "../render/sprites";
+import { drawShapePlate, hasGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
 import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on a phone
 import { panel, type Rect } from "../ui/ui";
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
@@ -174,6 +175,15 @@ function drawInfo(g: G, r: Rect, on: boolean): void {
   rect(g, x + 1, y + 2, 1, 3, c);
   rect(g, x, y + 2, 1, 1, c);
   rect(g, x, y + 4, 3, 1, c);
+}
+
+/** SHOPCARD-1 (REQ-BFG-113, G4): where a shaped part's grid plate sits on its card `r` (null: not a shaped piece, or no room): in
+ *  the head's free room, left of the ⓘ box (INFO and 3 px in, 4 px clear), 7 px under the card's top, and 3 px clear of the name
+ *  (5x7) and the sub line (3x5) that start 31 px in (on a card too narrow for both, the words win and the plate gives way). Pure (tests). */
+export function lcPartPlate(r: Rect, defId: string, name: string, sub: string): Rect | null {
+  if (!hasGrid(defId)) return null;
+  const sz = shapeGridSize(defId), w = sz.w + 2, x = r.x + r.w - 3 - INFO - 4 - w;
+  return x < r.x + 31 + Math.max(textWidth(name), textWidth(sub, "3")) + 3 ? null : { x, y: r.y + 7, w, h: sz.h + 2 };
 }
 
 /** A part or hull card's frame and head: the dark panel with `edge` top and bottom, the icon box, the name and sub. */
@@ -402,6 +412,10 @@ export class LastChancePicker {
       } else if (t.boon === "part") {
         const def = ITEMS[o.part!];
         drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity, o.partStars ?? 1), open); // HULL-1d
+        // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its ink plate in the head's free room, left of the ⓘ box, 7 px under
+        // the card's top (the head is 31 px: the tallest plate, SPIKE RAIL's 18, ends 25 px down); the name and the sub line end well before it
+        const plate = lcPartPlate(r, def.id, def.name, lcPartSub(def.rarity, o.partStars ?? 1));
+        if (plate) drawShapePlate(g, def.id, plate.x, plate.y);
         drawBody(g, r, t.lines, t.info, hint, L.gap);
       } else {
         drawHead(g, r, C.lime, icons("{HULL}"), lcHullName(o, s.run.day), C.lime, LC_HULL_SUB, open); // HULL-1a: the day's

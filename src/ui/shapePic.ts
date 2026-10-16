@@ -8,7 +8,7 @@
 
 import { ITEMS } from "../sim/content";
 import { rigArrowCells } from "../sim/deck";
-import { footOffsets } from "../sim/foot";
+import { footOffsets, isShaped } from "../sim/foot";
 import { C } from "../render/palette";
 import { makeCanvas, rect, type G } from "../render/pixel";
 
@@ -201,6 +201,23 @@ export function shapeGrid(defId: string, cell = GRID_CELL): HTMLCanvasElement {
 export function shapeGridSize(defId: string, cell = GRID_CELL): { w: number; h: number } {
   const geom = gridGeom(gridSpecOf(defId), cell);
   return { w: geom.w, h: geom.h };
+}
+
+/** G4: does `defId`'s card show the grid? A rig or a factory whose foot is not its 1-cell or 2x2 default (foot.ts isShaped:
+ *  shapeEdit.ts shapedPiece's rule, here so the drawing layers need not import a screen). False for an unknown id. */
+export function hasGrid(defId: string): boolean {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, defId) ? ITEMS[defId] : undefined;
+  return !!d && (d.kind === "gate" || d.kind === "factory") && isShaped(d);
+}
+
+/** G4: a shaped piece's grid (no plate) at the right end of a row `x`..`x + w` whose top is `y`, where it clears `left` (the row's
+ *  own words end there) and ends above `floor` (a badge's top): the warlord's pick buttons. Returns whether it drew. */
+export function drawGridRight(g: G, defId: string, x: number, y: number, w: number, left: number, floor = Infinity): boolean {
+  if (!hasGrid(defId)) return false;
+  const sz = shapeGridSize(defId), px = x + w - 3 - sz.w;
+  if (px < left || y + sz.h > floor) return false;
+  g.drawImage(shapeGrid(defId), px, y);
+  return true;
 }
 
 /** G3: the grid on an ink plate (a 1 px ink margin round its box: an arrowhead stays readable over an icon's corner) with the

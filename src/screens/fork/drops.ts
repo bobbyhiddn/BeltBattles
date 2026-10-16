@@ -10,6 +10,7 @@ import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth } from "../../render/font";
 import { itemIcon } from "../../render/sprites";
+import { drawShapePlate, hasGrid, shapeGrid, shapeGridSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the drop surfaces
 import { panel, type Rect } from "../../ui/ui";
 import { isPhone, tapPx } from "../../ui/tap";
 import { itemName } from "../event/cards";
@@ -44,6 +45,7 @@ export function drawDropIcons(g: G, t: DropTable, x: number, y: number, w: numbe
     rect(g, px, y, 14, 14, C.ink);
     rect(g, px + 1, y + 1, 12, 12, l.cls === "legendary" ? C.plum1 : C.slate0);
     g.drawImage(ic, px + 7 - Math.floor(ic.width / 2), y + 7 - Math.floor(ic.height / 2));
+    if (hasGrid(l.def)) g.drawImage(shapeGrid(l.def), px, y); // SHOPCARD-1 (G4): over the box's corner, inside the 19 px pitch and over the odds' row
     drawText(g, pctText(l.odds), px + 7, y + 16, C.bone, { font: "3", align: "center" });
     px += 19;
     n++;
@@ -96,6 +98,8 @@ export function drawDropList(g: G, game: Game, title: string, t: DropTable, onCl
     drawText(g, itemName(l.def), x + 24, yy + 1, C.white, { font: "3" });
     drawText(g, classText(l), x + 24, yy + 8, C.slate4, { font: "3" });
     drawText(g, pctText(l.odds), x + w - 6, yy + 4, C.bone, { align: "right" });
+    // SHOPCARD-1 (G4): a shaped part's grid in its row (the 16 px pitch holds the tallest, 16), between the words and the odds
+    if (hasGrid(l.def)) g.drawImage(shapeGrid(l.def), x + w - 6 - textWidth(pctText(l.odds)) - 4 - shapeGridSize(l.def).w, yy);
     yy += 16;
   }
   drawText(g, "TAP TO CLOSE", x + w / 2, y + h - 8, C.slate3, { font: "3", align: "center" });
@@ -124,4 +128,10 @@ export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: n
   drawText(g, t.name, x + 23, y + 3, legendary ? C.amber : C.white, { outline: C.ink });
   drawText(g, t.sub, x + 23, y + 13, C.lime, { font: "3" });
   if (textWidth(t.name) > w - 26) rect(g, x + w - 2, y + 1, 1, 20, C.ink);
+  // SHOPCARD-1 (G4): a shaped drop's grid on its ink plate at the card's right end, where the name and the sub line leave room
+  // (the 22 px card holds the tallest plate, 20)
+  if (hasGrid(drop)) {
+    const pw = shapeGridSize(drop).w + 2, px = x + w - 4 - pw;
+    if (x + 23 + Math.max(textWidth(t.name), textWidth(t.sub, "3")) + 4 <= px) drawShapePlate(g, drop, px, y + 1);
+  }
 }
