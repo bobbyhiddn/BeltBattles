@@ -48,7 +48,9 @@ export function helpLine3(free = freeJoinsRules()): string {
   // fit its sockets), with REVIEW-CARD5PREP 5.3's clause FOR THE TURRET THEIR BELT REACHES (REPORT-CARD5 section 7).
   // The belt sentences and both FREE_JOINS forms' join clauses stay as they were. Was "3  AT DAWN, BUY RIGS FROM THE
   // CARAVAN. DRAG OUT ..."
-  const how = "3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
+  // SHOPCARD-1 (REQ-BFG-115, H): the shop cards show only a piece's icon and price (the words moved to the panel a tap opens
+  // and the desk's hover tooltip), so the line says how to read one: TAP A CARD TO READ IT (ON A DESK, POINT AT IT)
+  const how = "3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. TAP A CARD TO READ IT (ON A DESK, POINT AT IT). DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
   return free ? `${how}.` : `${how} (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`;
 }
 
@@ -78,7 +80,9 @@ export const HELP = [ // exported for tests/joinpace.test.ts. Line 3 is helpLine
   // CARD-5 (REQ-BFG-111; CARD-5 PREP's item 4): STUN, the word every card and note says (SHOCK is retired: VOCAB.md; this
   // line now sits in tests/words1.text.test.ts's sweep), and REVIEW-CARD5PREP 5.3's clause in HIT's words, true of 24 of the
   // 33 rigs (every HIT rig and STATIC BRUSH; not the speed, timer and STUN-guard rigs nor STOKER: REPORT-CARD5 section 7)
-  "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, STUN, SPLIT, SPEED UP OR SLOW DOWN. MOST RIGS WORK ON EACH SLUG ON A TILE THEIR ARROWS POINT AT. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
+  // SHOPCARD-1 (REQ-BFG-113, H): a shaped piece's card draws its footprint, a rig's arrows as green arrowheads (shapePic.ts:
+  // foot.ts footOffsets at rot 0 and deck.ts rigArrowCells), so the line says what that picture is
+  "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, STUN, SPLIT, SPEED UP OR SLOW DOWN. A SHAPE ON A CARD IS THE CELLS THAT PIECE FILLS, WITH A RIG'S ARROWS IN GREEN. MOST RIGS WORK ON EACH SLUG ON A TILE THEIR ARROWS POINT AT. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
   "5  ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3). AT DUSK YOUR CRUISER FIGHTS ON ITS OWN: 0.5X-4X, SKIP, II OR P TO PAUSE.",
   HELP_KEYWORDS, // CARD-5 (REQ-BFG-111): item 6, the keyword line
 ];
