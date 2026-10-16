@@ -12,6 +12,8 @@ import { SummaryScreen } from "../src/screens/summary";
 import { ForkScreen } from "../src/screens/fork/fork";
 import { BattleScreen } from "../src/screens/battle";
 import { ReplayScreen } from "../src/screens/replay";
+import { TitleScreen } from "../src/screens/title";
+import { titleScale } from "../src/screens/titleLayout";
 import { drawTopBar } from "../src/screens/build/chrome";
 import { buildLayout, buildScale, phoneScreen } from "../src/screens/build/layout";
 import type { BuildScreen } from "../src/screens/build/build";
@@ -77,10 +79,12 @@ beforeAll(() => {
   const prev = doc.document;
   doc.document = { createElement: () => recCanvas() };
   restoreDom = () => { doc.document = prev; };
-  vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined, removeItem: () => undefined, key: () => null, length: 0, clear: () => undefined });
+  vi.stubGlobal("localStorage", { getItem: (k: string) => (k === "beltbattles.run.v7" ? saved : null), setItem: () => undefined, removeItem: () => undefined, key: () => null, length: 0, clear: () => undefined });
 });
+/** The saved run the title's CONTINUE reads (the game's own save key holds the run's JSON); null: no save. */
+let saved: string | null = null;
 afterAll(() => { restoreDom(); vi.unstubAllGlobals(); });
-beforeEach(() => { drawn.length = 0; placed.length = 0; });
+beforeEach(() => { drawn.length = 0; placed.length = 0; saved = null; });
 afterEach(() => setLongRun(false));
 
 /** A stand-in Game: the run, an audio that does nothing, a view (402x690 @3 by default), a real UI, a recording canvas. */
@@ -233,6 +237,48 @@ describe("RUN-1 T4: the build bar's draw (chrome.ts drawTopBar)", () => {
     const old = at(false, 6, 3);
     const t = withLongRun(() => drawBar(old, 402, 690, 3).pieces.map((p) => p.s));
     expect(t.slice(0, 2)).toEqual(["DAWN", " · DAY 6/10"]);
+  });
+});
+
+/** The title drawn on a 402x690 @3 phone: the saved run (the CONTINUE button's line) and HOW TO PLAY open or shut; every string drawn. */
+function drawTitle(save: Run | null, help: boolean, w = 402, h = 690, dpr = 3): string[] {
+  saved = save ? JSON.stringify(save) : null;
+  const view = computeView(w, h, dpr, (pw, ph, p) => titleScale(pw, ph, p, dpr));
+  const audio = new Proxy({}, { get: () => () => undefined });
+  const game = { run: null, audio, view, W: view.W, H: view.H, portrait: view.portrait, t: 0, ui: new UI(), canvas: recCanvas(), toast() {}, go() {}, error() {}, soundButton() {}, openName() {}, transitioning: false } as unknown as Game;
+  const s = new TitleScreen(game);
+  s.pickScale(Math.floor(w * dpr), Math.floor(h * dpr), view.portrait);
+  s.help = help;
+  for (let i = 0; i < 3; i++) s.update(1 / 60);
+  drawn.length = 0;
+  s.draw(recCanvas().getContext());
+  return [...drawn];
+}
+
+describe("RUN-1 T4: the title's draw (the CONTINUE line, HOW TO PLAY)", () => {
+  it("a long run's save draws CONTINUE with WINS 3/10 · DAY 12 · FURNACE · 3-6, whatever the switch; an old save draws DAY 6/10 · FURNACE · 3-2", () => {
+    const long = Object.assign(runOf(true), { day: 12, wins: 3, losses: 6 });
+    const old = Object.assign(runOf(false), { day: 6, wins: 3, losses: 2 });
+    for (const on of [false, true]) {
+      const a = withLongRun(() => drawTitle(long, false), on), b = withLongRun(() => drawTitle(old, false), on);
+      expect(a, `switch ${on}`).toContain("WINS 3/10 · DAY 12 · FURNACE · 3-6");
+      expect(a.join("|"), `switch ${on}`).not.toMatch(/DAY 12\/10/);
+      expect(b, `switch ${on}`).toContain("DAY 6/10 · FURNACE · 3-2");
+      expect(b.join("|"), `switch ${on}`).not.toMatch(/WINS 3\/10 ·/);
+    }
+    expect(drawTitle(null, false)).not.toContain("CONTINUE");
+  });
+
+  it("HOW TO PLAY draws the long run's lines with the switch on, the live card with it off", () => {
+    const sentence = (t: string[]) => t.join(" ");
+    const on = withLongRun(() => sentence(drawTitle(null, true)));
+    expect(on).toContain("WIN 10 DUSK FIGHTS.");
+    expect(on).toContain("THE RUN IS WON AT 10 WINS AND LOST WHEN YOUR HEARTS RUN OUT. THERE IS NO DAY LIMIT. 10-0 IS FLAWLESS.");
+    expect(on).not.toContain("SURVIVE 10 DAYS");
+    const off = sentence(drawTitle(null, true));
+    expect(off).toContain("SURVIVE 10 DAYS.");
+    expect(off).toContain("YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).");
+    expect(off).not.toContain("THERE IS NO DAY LIMIT");
   });
 });
 
