@@ -4,7 +4,7 @@
 import { foldRunEnd } from "../../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072)
 import { packPrice, saveRun, shopBadge, shopShut, type Run } from "../../game/run";
 import { record } from "../../game/day";
-import { ITEMS, PACK_IDS, PACK_ITEM, REROLL_COST, RUN_DAYS } from "../../sim/content";
+import { ITEMS, PACK_IDS, PACK_ITEM, REROLL_COST } from "../../sim/content";
 import { packRects } from "./layout"; // bb-0.8.6 (REQ-BFG-051 P5): the two fixed pack slots
 import { beltUsed } from "../../sim/deck";
 import { starsOf } from "../../sim/stars";
@@ -24,6 +24,8 @@ import { drawHearts } from "../battleHud";
 import { LC_HEART_S } from "../battleHud"; // LC-1 (REQ-BFG-073): the regained heart
 import { START_LIVES } from "../../sim/content"; // RETUNE-1 run 2 (REQ-BFG-096): a row's hearts
 import { livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: a hearts run's 10
+import { WIN_GOAL, longRun } from "../../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): a long run's bar reads WINS n/10 and DAY n
+import { dayText, onLongRoad } from "../runDay"; // RUN-1: the day's words, "DAY 3/10" or a long run's "DAY 12"
 import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
 import { drawDetails, hasDetails, textOpts } from "./inspector";
@@ -46,8 +48,18 @@ export function packTip(def: string, run: Run): string {
 /** AZ-PREP (REQ-BFG-077; REVIEW-NPC1 Q4): the build bar's stage word: REFIT in REFIT with NPC_DAY on, else DAWN. */
 export const barStage = (run: Pick<Run, "stage">): "REFIT" | "DAWN" => (shopShut(run) ? "REFIT" : "DAWN");
 
+/** RUN-1 (REQ-BFG-059, REQ-BFG-116; D7): the bar's run progress after the stage word, as [text, colour] pieces. A 10-day run
+ *  (no mark; every switch-off run and an old save): " · DAY 3/10" exactly as before. A long run: " · WINS 3/10" (the goal
+ *  carries the /10) then " · DAY 12" (never "/N"; amber from day 11, the long road). */
+export function barRun(run: Pick<Run, "day" | "wins" | "longRun">): [string, string][] {
+  const long = longRun(run);
+  if (!long) return [[` · ${dayText(run.day, false)}`, C.bone]];
+  return [[` · WINS ${run.wins}/${WIN_GOAL}`, C.bone], [` · ${dayText(run.day, true)}`, onLongRoad(run.day, true) ? C.amber : C.bone]];
+}
+
 /** Status bar: DAWN (REFIT) · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
- *  the hero card below the shop), belt use when there is room, then MENU and SND. */
+ *  the hero card below the shop), belt use when there is room, then MENU and SND. RUN-1: a long run's reads
+ *  DAWN (REFIT) · WINS n/10 · DAY n (barRun). */
 function drawTopBar(g: G, s: BuildScreen): void {
   const { W, ui } = s.game;
   const run = s.run;
@@ -69,9 +81,12 @@ function drawTopBar(g: G, s: BuildScreen): void {
   const end = corner ? W - 1 : menuX; // where the status line stops
   let x = corner ? menuX + menuW + 4 : 4;
   // AZ-PREP (REQ-BFG-077; REVIEW-NPC1 Q4 and N2): in REFIT with NPC_DAY on (the shop shut, run.ts shopShut) the bar names
-  // the stage: REFIT · DAY n/10. Off, or at the dawn, DAWN as before (0.9.7's road REFIT keeps DAWN, as it keeps its sales)
+  // the stage: REFIT · DAY n/10 (RUN-1: a long run's REFIT · WINS n/10 · DAY n). Off, or at the dawn, DAWN as before (0.9.7's
+  // road REFIT keeps DAWN, as it keeps its sales)
   x += drawText(g, barStage(run), x, 5 + oy, C.amber, { font: "3" });
-  x += drawText(g, ` · DAY ${run.day}/${RUN_DAYS}`, x, 5 + oy, C.bone, { font: "3" }) + 5;
+  // RUN-1 (REQ-BFG-059, D7): a long run's WINS n/10 and DAY n beside the stage (barRun); a 10-day run's DAY n/10, as before
+  for (const [text, colour] of barRun(run)) x += drawText(g, text, x, 5 + oy, colour, { font: "3" });
+  x += 5;
   g.drawImage(coinIcon(), x, 4 + oy);
   s.coinX = x + 5;
   x += 7 + drawText(g, String(run.gold), x + 7, 4 + oy, C.yellow, { outline: C.ink }) + 5;

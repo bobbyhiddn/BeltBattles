@@ -12,7 +12,9 @@ import { Arena } from "../game/arena";
 import { loadRun } from "../game/run";
 import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUND in the rules card
 import { startingBuild, warlordBuild } from "../sim/ai";
-import { HEROES, RUN_DAYS, type HeroId } from "../sim/content";
+import { HEROES, type HeroId } from "../sim/content";
+import { WIN_GOAL, longRun, longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): the rules card and the continue card of a long run
+import { dayText } from "./runDay";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE and RULE JOIN LIMIT in the rules card
 import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): neither rule in the card with FREE_JOINS on
 import { C } from "../render/palette";
@@ -66,7 +68,10 @@ export const HELP_KEYWORDS = icons(
  *  merge of JOINS-1's and RETUNE-1's helpLines, one function for both lines): while neither line moves it is HELP itself,
  *  as RETUNE-1's was. */
 export function helpLines(): string[] {
-  const lines = HELP.map((ln, i) => (i === 1 && heartsRules() ? HELP_HEARTS_2 : i === 2 ? helpLine3() : ln));
+  // RUN-1 (REQ-BFG-059, D7): with LONG_RUN on (a new run has no mark yet, so the switch decides: a card for the run the
+  // player is about to start) line 1 names the win and line 2 the hearts rule's words ending in the run's end; off, neither moves
+  const long = longRunRules();
+  const lines = HELP.map((ln, i) => (i === 0 && long ? HELP_LONG_1 : i === 1 && heartsRules() ? (long ? HELP_LONG_2 : HELP_HEARTS_2) : i === 2 ? helpLine3() : ln));
   return lines.every((ln, i) => ln === HELP[i]) ? HELP : lines;
 }
 
@@ -86,6 +91,20 @@ export const HELP = [ // exported for tests/joinpace.test.ts. Line 3 is helpLine
 /** RETUNE-1 run 2 (REQ-BFG-096): line 2 with HEARTS on (no run exists on the title, so the switch decides): the hearts rule
  *  (hearts.ts: HEARTS_START, a loss costs heartCost(day), 1/2/3 by day band; no early-loss refund). */
 export const HELP_HEARTS_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${HEART_COSTS[0]} ON DAYS 1-${HEART_COST_FROM[1] - 1}, ${HEART_COSTS[1]} ON DAYS ${HEART_COST_FROM[1]}-${HEART_COST_FROM[2] - 1} AND ${HEART_COSTS[2]} FROM DAY ${HEART_COST_FROM[2]}, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`;
+
+/** RUN-1 (REQ-BFG-059, REQ-BFG-116; D7): the rules card of a long run (title.ts helpLines with LONG_RUN on): line 1 says what wins
+ *  the run (10 dusk fights, not 10 days); line 2 is the hearts rule's own words (HELP_HEARTS_2's, up to "A DRAW NONE.") and then
+ *  how the run ends: WON at 10 wins, LOST when the hearts run out, no day limit. Was "1  SURVIVE 10 DAYS. ..." and, ending line 2,
+ *  "YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS)." The hearts rule's numbers don't change. */
+export const HELP_LONG_1 = `1  WIN ${WIN_GOAL} DUSK FIGHTS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.`;
+export const HELP_LONG_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${HEART_COSTS[0]} ON DAYS 1-${HEART_COST_FROM[1] - 1}, ${HEART_COSTS[1]} ON DAYS ${HEART_COST_FROM[1]}-${HEART_COST_FROM[2] - 1} AND ${HEART_COSTS[2]} FROM DAY ${HEART_COST_FROM[2]}, A DRAW NONE. THE RUN IS WON AT ${WIN_GOAL} WINS AND LOST WHEN YOUR HEARTS RUN OUT. THERE IS NO DAY LIMIT. ${WIN_GOAL}-0 IS FLAWLESS.`;
+
+/** RUN-1 (REQ-BFG-059, D7): the CONTINUE button's second line for a saved run: "DAY 3/10 · FURNACE · 3-8" for a 10-day run, exactly as
+ *  before; "WINS 3/10 · DAY 12 · FURNACE · 3-8" for a long run's save (its mark, Run.longRun; never "/N" on the day). */
+export const continueSub = (save: { day: number; wins: number; losses: number; hero: HeroId; longRun?: boolean }): string =>
+  longRun(save)
+    ? `WINS ${save.wins}/${WIN_GOAL} · ${dayText(save.day, true)} · ${HEROES[save.hero].name} · ${save.wins}-${save.losses}`
+    : `${dayText(save.day, false)} · ${HEROES[save.hero].name} · ${save.wins}-${save.losses}`;
 // The HOW TO PLAY lines (RETUNE-1's helpLines: HELP, with line 2 the hearts rule while HEARTS is on; off, HELP itself) are
 // helpLines above, merged with JOINS-1's line 3 (HULL-ON)
 
@@ -210,7 +229,7 @@ export class TitleScreen implements Screen {
     button(ui, g, "new", b.new, "NEW RUN", { primary: true, onTap: () => this.gate(() => game.go(new HeroScreen(game))) });
     if (save && b.cont) {
       button(ui, g, "cont", b.cont, "CONTINUE", {
-        sub: `DAY ${save.day}/${RUN_DAYS} · ${HEROES[save.hero].name} · ${save.wins}-${save.losses}`,
+        sub: continueSub(save), // RUN-1 (REQ-BFG-059, D7): a long run's save reads WINS n/10 · DAY n · HERO · W-L
         onTap: () => this.gate(() => this.continueRun()),
       });
     }

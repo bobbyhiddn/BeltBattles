@@ -28,7 +28,9 @@ import { onToTheRoad } from "../game/road"; // NPC-1 (REQ-BFG-077): the event af
 import { npcDayRules } from "../sim/npcDay"; // NPC-1
 import { hullScaleRules } from "../sim/hullScale"; // HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot
 import { EventScreen } from "./event/event"; // NPC-1: ON TO THE ROAD opens the day's event
-import { HEROES, RUN_DAYS } from "../sim/content";
+import { HEROES } from "../sim/content";
+import { longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): a long run's banners say DAY n, never DAY n/10
+import { dayText } from "./runDay";
 import { C } from "../render/palette";
 import type { G } from "../render/pixel";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
@@ -73,6 +75,10 @@ const SAIL_IN_PAD = 24;
 
 /** PAIR-CUE (REQ-BFG-100): the paused chip's body, a blocking region (a press on it reaches nothing under it). */
 export const PAUSE_CHIP = "pchip";
+
+/** RUN-1 (REQ-BFG-059, D7): the fight intro's banner (and the online wait's): "DUSK · DAY 3/10" for the dusk, "ROAD · DAY 3/10"
+ *  for a warlord on the road, exactly as before; on a long run (its mark) "DUSK · DAY 12" / "ROAD · DAY 12", never "/N". */
+export const fightHead = (warlord: boolean, day: number, long: boolean): string => `${warlord ? "ROAD" : "DUSK"} · ${dayText(day, long)}`;
 
 export class BattleScreen implements Screen {
   readonly arena: Arena;
@@ -573,7 +579,7 @@ export class BattleScreen implements Screen {
     if (this.phase === "intro") {
       const k = Math.min(1, this.pt / 0.35);
       const w = this.warlord;
-      const head = w ? `ROAD · DAY ${this.foe.day}/${RUN_DAYS}` : `DUSK · DAY ${this.foe.day}/${RUN_DAYS}`;
+      const head = fightHead(!!w, this.foe.day, longRun(run)); // RUN-1: "DAY 12" on a long run, "DAY 3/10" as before
       // PACKS M2 (REQ-BFG-063): a ghost is NAME#TAG · W-L, or WANDERER · W-L without a name (day.ts foeTitle); a warlord keeps its tier line
       const sub = w ? `VS ${this.foeName} · ${TIER_LABEL[w.tier]} WARLORD` : `VS ${foeTitle(this.foe)}`;
       banner(g, W, cy - 16, head, w ? C.amber : C.yellow, sub, k);
@@ -828,6 +834,7 @@ export class DuskWaitScreen implements Screen {
     const { W, H } = this.game;
     g.fillStyle = C.ink;
     g.fillRect(0, 0, W, H);
-    banner(g, W, Math.round(H / 2) - 16, `DUSK · DAY ${this.game.run!.day}/${RUN_DAYS}`, C.yellow, FINDING_GHOST, 1);
+    const run = this.game.run!;
+    banner(g, W, Math.round(H / 2) - 16, fightHead(false, run.day, longRun(run)), C.yellow, FINDING_GHOST, 1); // RUN-1: DUSK · DAY 12
   }
 }

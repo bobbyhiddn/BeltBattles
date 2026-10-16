@@ -16,7 +16,9 @@ import { battleScene } from "../render/scenery"; // FIELD-1 (REQ-BFG-075): the r
 import { cameraGrid, type Grid } from "../render/camera"; // FIELD-1: the battle camera, at WIDE as the dusk was
 import { settings } from "../core/settings";
 import type { Battle } from "../sim/battle";
-import { HEROES, RUN_DAYS } from "../sim/content";
+import { HEROES } from "../sim/content";
+import { longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): a long run's replay banner says DAY n, never DAY n/10
+import { dayText } from "./runDay";
 import { hullScaleRules } from "../sim/hullScale"; // HULL-1d (REQ-BFG-079; ruling Q4): the desk bar's wind slot
 import { C } from "../render/palette";
 import type { G } from "../render/pixel";
@@ -66,6 +68,10 @@ export function replayLeaveRect(L: BattleLayout, v: Pick<View, "W" | "H" | "scal
   return { x: Math.max(0, Math.min(W - w, p.x + p.w - w)), y: Math.min(H - h, p.y + p.h + 1), w, h };
 }
 
+/** RUN-1 (REQ-BFG-059, D7): the replay banner: "REPLAY · DAY 3/10" for a 10-day run's dusk, exactly as before; "REPLAY · DAY 12"
+ *  for a long run's (never "/N"). */
+export const replayHead = (day: number, long: boolean): string => `REPLAY · ${dayText(day, long)}`;
+
 export class ReplayScreen implements Screen {
   readonly arena: Arena;
   L!: BattleLayout;
@@ -91,6 +97,14 @@ export class ReplayScreen implements Screen {
   cardClock = "";
   /** COUNT-1 (REQ-BFG-100; display only): the status rows, the guns' and belts' counts and their panels, as in the battle. */
   readonly counters = new BattleCounters();
+
+  /** RUN-1 (REQ-BFG-059, D7): the replayed dusk is the run's own (the summary's and the result card's REPLAY, tooling's
+   *  openReplay), so the run on the game says which words: a long run's mark (Run.longRun), never the switch. No run (a
+   *  stand-in game, a stored record opened bare): the 10-day words, as before. */
+  private get long(): boolean {
+    const run = this.game.run;
+    return !!run && longRun(run);
+  }
 
   constructor(private game: Game, private back: Screen, battle: Battle, private label: { day: number; foe: string }) {
     const [mine, theirs] = battle.record.builds;
@@ -247,7 +261,7 @@ export class ReplayScreen implements Screen {
     drawBar(g, this.game, a, this.L.bar, this.clockText, st);
     const cy = Math.round(H / 2);
     this.windCallR = drawWindCall(g, a, this.L, m, settings.reducedMotion); // WIND-1 (REQ-BFG-093): the callout, as the battle
-    if (!this.over && this.pt < 1.6) banner(g, W, cy - 16, `REPLAY · DAY ${this.label.day}/${RUN_DAYS}`, C.ice, `VS ${this.label.foe}`, Math.min(1, this.pt / 0.35));
+    if (!this.over && this.pt < 1.6) banner(g, W, cy - 16, replayHead(this.label.day, this.long), C.ice, `VS ${this.label.foe}`, Math.min(1, this.pt / 0.35));
     drawText(g, "REPLAY", 4, 4, C.ice, { font: "3", outline: C.ink });
     // COUNT-1 (REQ-BFG-100): a counter group's panel (a tap's, or the desk's hover) while the replay runs
     if (live) this.counters.drawPanel(g, this.game, a, this.plateRows);
