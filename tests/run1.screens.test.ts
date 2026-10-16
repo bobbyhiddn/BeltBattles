@@ -21,7 +21,7 @@ import { forkHead } from "../src/screens/fork/fork";
 import { fightHead } from "../src/screens/battle";
 import { replayHead } from "../src/screens/replay";
 import { HELP, HELP_HEARTS_2, HELP_KEYWORDS, HELP_LONG_1, HELP_LONG_2, continueSub, helpLine3, helpLines } from "../src/screens/title";
-import { SummaryScreen, endTitle, foldRows, foldText, lostLine, summaryLayout, wonLine, type HistoryRow } from "../src/screens/summary";
+import { SummaryScreen, endTitle, foldRows, foldText, footLine, lostLine, summaryLayout, wonLine, type HistoryRow } from "../src/screens/summary";
 import { LONG_ROAD_FROM, dayText, onLongRoad } from "../src/screens/runDay";
 import { duskStakes } from "../src/ui/stakes";
 import { RIVAL_IDS } from "../src/sim/rivals";
@@ -235,6 +235,14 @@ describe("RUN-1 T4: the end card", () => {
     expect(lostLine(run)).toBe("ON DAY 12 · FURNACE · W-L 5-7");
   });
 
+  it("the history's foot line: '<n> HEARTS LEFT · WINS w/10' for both rules (the 10 is the goal, WIN_GOAL on a long run)", () => {
+    const ten = play(runOf(false), "WWWWWWWWWW"), long = play(runOf(true), "LLL" + "WWWWWWWWWW" + "WWW");
+    expect(footLine(ten)).toBe("10 HEARTS LEFT · WINS 10/10");
+    expect(footLine(long)).toBe("7 HEARTS LEFT · WINS 10/10"); // three losses on days 1-3 cost one heart each
+    expect(footLine(Object.assign(runOf(true), { wins: 3, lives: 1 }))).toBe("1 HEART LEFT · WINS 3/10");
+    expect(footLine(Object.assign(runOf(false), { wins: 3, lives: 6 }))).toBe(`6 HEARTS LEFT · WINS 3/${RUN_DAYS}`);
+  });
+
   it("the screen reads a long run's WON as a win (complete) and a lost run as not", () => {
     const stub = (run: Run): SummaryScreen => new SummaryScreen({ run, view: computeView(402, 690, 3) } as unknown as Game);
     expect(stub(play(runOf(true), "LLL" + "WWWWWWWWWW" + "WWW")).complete).toBe(true);
@@ -264,6 +272,17 @@ describe("RUN-1 T4: the run history from day 11 on", () => {
     const g = foldRows(rows, 9); // 16 fold, the day boundary is already there
     expect(g.length).toBe(9);
     expect(g[0].fold).toEqual(f[0].fold);
+  });
+
+  it("a fold of one day takes a second (DAYS 1-1 would say no more than its rows)", () => {
+    const deep: HistoryRow[] = []; // 24 days, a warlord row and a drawn dusk each: 48 rows, one short of fitting
+    for (let d = 1; d <= 24; d++) { deep.push(row(d, "win", false)); deep.push(row(d, "draw", true)); }
+    const h = foldRows(deep, 47);
+    expect(h.length).toBe(45);
+    expect(h[0].fold).toEqual({ from: 1, to: 2, w: 0, l: 0, d: 2 });
+    expect(foldText(h[0].fold!)).toBe("DAYS 1-2 · 0 W · 0 L · 2 D");
+    expect(h.slice(1)).toEqual(deep.slice(4));
+    expect(foldRows(deep, 48)).toBe(deep); // all fit: no fold
   });
 
   it("a fold never hides the run's last row, even when almost nothing fits, and counts dusks only (warlord rows have no `at`)", () => {

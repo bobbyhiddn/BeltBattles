@@ -11,7 +11,7 @@ import { saveRun, type Run } from "../game/run";
 import { flawless, record } from "../game/day";
 import type { EventId } from "../game/eventDefs";
 import { HEROES, RUN_DAYS } from "../sim/content";
-import { longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): the run's own mark picks the end card's words
+import { WIN_GOAL, longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): the run's own mark picks the end card's words
 import { onLongRoad } from "./runDay"; // RUN-1: a long run's days past 10 are marked in the history
 import { Fx } from "../render/fx";
 import { C } from "../render/palette";
@@ -149,6 +149,11 @@ export function wonLine(run: Pick<Run, "hero" | "wins" | "losses" | "day" | "his
   return `${hero} WON ${run.wins} OF ${Math.max(run.history.length, run.wins + run.losses)} DUSKS, ON DAY ${run.day}`;
 }
 
+/** The history's foot line: "7 HEARTS LEFT · WINS 3/10" (RETUNE-1 run 2: HEARTS on a hearts run, else LIVES). RUN-1 (D2): the 10 is the
+ *  goal, WIN_GOAL on a long run (it was RUN_DAYS, also 10): the text is the same either way. */
+export const footLine = (run: Pick<Run, "hearts" | "lives" | "wins" | "longRun">): string =>
+  `${livesLeft(run)} · WINS ${run.wins}/${longRun(run) ? WIN_GOAL : RUN_DAYS}`;
+
 /** A lost run's second line: "ON DAY 12 · FURNACE · W-L 6-6" (its day and record; either rule's, unchanged by RUN-1). */
 export const lostLine = (run: Pick<Run, "hero" | "wins" | "losses" | "day">): string => `ON DAY ${run.day} · ${HEROES[run.hero].name} · W-L ${record(run)}`;
 
@@ -168,13 +173,20 @@ export interface HistoryRow {
 
 /** RUN-1 (REQ-BFG-059, D7): `rows` as the card draws them when only `keep` rows fit: the same rows when they all fit, else the
  *  earliest `rows.length - keep + 1` of them folded into one row ("DAYS 1-8 · 6 W · 2 L", the dusks only: a warlord fight is no
- *  dusk) and the latest `keep - 1` kept whole (`keep` is at least 2: the run's last row always stays). The fold takes whole days:
- *  a day's warlord row and its dusk are never split, so the fold may take one row more than it must. */
+ *  dusk) and the latest `keep - 1` kept whole (`keep` is at least 2: the run's last row always stays). The fold takes whole days
+ *  (a day's warlord row and its dusk are never split) and at least two of them ("DAYS 1-1" says no more than its rows do), so it
+ *  may take a few rows more than it must. */
 export function foldRows(rows: HistoryRow[], keep: number): HistoryRow[] {
   const k = Math.max(2, keep);
   if (rows.length <= k) return rows;
-  let n = rows.length - k + 1;
-  while (n < rows.length - 1 && rows[n].day === rows[n - 1].day) n++; // a day folds whole (the last row always stays)
+  const last = rows.length - 1;
+  const whole = (n: number): number => { // the cut at `n` rows, moved on to the end of the day it falls in (never past the last row)
+    let m = Math.min(n, last);
+    while (m < last && rows[m].day === rows[m - 1].day) m++;
+    return m;
+  };
+  let n = whole(rows.length - k + 1);
+  if (rows[n - 1].day === rows[0].day) n = whole(n + 1); // one day: take a second
   const first = rows.slice(0, n), dusks = first.filter((r) => r.at !== undefined);
   const count = (o: HistoryRow["outcome"]): number => dusks.filter((r) => r.outcome === o).length;
   const row: HistoryRow = {
@@ -407,8 +419,7 @@ export class SummaryScreen implements Screen {
       ry += rh;
     }
     rect(g, x, ry, w, 1, C.slate1);
-    const lives = livesLeft(run); // RETUNE-1 run 2 (REQ-BFG-096): "7 HEARTS LEFT" on a hearts run, else as before
-    drawText(g, `${lives} · WINS ${run.wins}/${RUN_DAYS}`, x + w / 2, ry + 3, C.white, { font: "3", align: "center" });
+    drawText(g, footLine(run), x + w / 2, ry + 3, C.white, { font: "3", align: "center" });
   }
 
   key(k: string): void {
