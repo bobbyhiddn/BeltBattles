@@ -26,7 +26,7 @@ import { START_LIVES } from "../../sim/content"; // RETUNE-1 run 2 (REQ-BFG-096)
 import { livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: a hearts run's 10
 import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerFace } from "./shop"; // SHOPCARD-1: offerFace (was TXT-095's offerTooltip)
-import { drawDetails, hasDetails, textOpts } from "./inspector";
+import { drawDetails, hasDetails, offerMergeNote, textOpts } from "./inspector";
 import { drawFoeCard } from "./foeView"; // SCOUT-1c (REQ-BFG-082): the NEXT BATTLE card opens a scouted foe
 import { abilityText } from "../../ui/abilityText"; // 0.6.2t (T5): the pack tooltip's fallback sentence (SHOPCARD-1: no longer the card's effect line)
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
@@ -288,7 +288,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     // (shop.ts offerTooltip; was that opening sentence alone)
     // SHOPCARD-1 (REQ-BFG-115, F5): the card shows only its icon and price, so the tooltip shows its whole face (offerFace: every
     // line the panel's face draws), kept on screen (L.H); a click still selects the card and opens its panel (BuildScreen.up)
-    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerFace(o.def, textOpts(s.run)), L.H);
+    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, [...offerFace(o.def, textOpts(s.run)), ...(o.sold ? [] : [offerMergeNote(s.run, o.def)].filter((n): n is string => !!n))], L.H);
   }
   // bb-0.8.6 (REQ-BFG-051, PACKS P5): a mouse over a pack slot: its name and one-line text, as an offer's tooltip reads
   const ph = s.refit || c ? -1 : PACK_IDS.findIndex((id) => ui.hover === `pack-${id}`);

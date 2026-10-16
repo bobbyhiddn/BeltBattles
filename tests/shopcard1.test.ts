@@ -34,7 +34,7 @@ import {
   iconX2, offerFace, ownedMarkAt, tooltipLines, type CardState,
 } from "../src/screens/build/shop";
 import { shapedPiece } from "../src/screens/build/shapeEdit";
-import { explainPanel, offerPanel, textOpts } from "../src/screens/build/inspector";
+import { OWNED_NOTE, explainPanel, mergeLine, offerMergeNote, offerPanel, textOpts } from "../src/screens/build/inspector";
 import { GRID_CELL, HEAD_LEN, drawGrid, drawShapePlate, gridGeom, gridSpecOf, shapeGridSize, type GridSpec } from "../src/ui/shapePic";
 import { lineText } from "../src/ui/richText";
 
@@ -349,6 +349,31 @@ describe("SHOPCARD-1 (REQ-BFG-115, F5): the desk's hover tooltip carries the who
     }
     expect(pieces).toBe(buyableModules().length);
     console.log(`SHOPCARD1 (F5) tooltip faces: ${pieces} buyable pieces x 3 days, ${lines} lines`);
+  });
+
+  it("the merge mark and the owned marker in words (the old card's MERGE ★n and MAX): the panel's NOTES and the tooltip's last line", () => {
+    const run = runOn("temper", 5);
+    expect(offerMergeNote(run, "temper"), "no copy held: nothing to say").toBeNull();
+    expect(offerPanel(run, 0, 0)!.notes, "no copy held: no note").toBeUndefined();
+    // a ★1 copy in cargo: buying merges it into ★2 (the merge mark's two pips)
+    run.inventory = [{ uid: 900, def: "temper" }];
+    const merge = offerMergeNote(run, "temper")!;
+    expect(merge).toBe(mergeLine(run, "temper"));
+    expect(merge).toMatch(/^MERGES INTO ★2: /);
+    expect(offerPanel(run, 0, 0)!.notes!.map((b) => b.text)).toEqual([merge]);
+    expect(explainPanel(offerPanel(run, 0, 0)!, "temper").notes!.map((b) => b.text), "NOTES carry it").toContain(merge);
+    // a ★2 copy alone, and a ★3 copy alone: the owned marker's two cases (a new copy won't merge with either)
+    for (const stars of [2, 3]) {
+      run.inventory = [{ uid: 900, def: "temper", stars }];
+      expect(offerMergeNote(run, "temper"), `★${stars} held`).toBe(OWNED_NOTE);
+      expect(offerPanel(run, 0, 0)!.notes!.map((b) => b.text)).toEqual([OWNED_NOTE]);
+    }
+    // a ★1 and a ★2 copy: buying merges the pair into ★3 (the merge mark's three pips)
+    run.inventory = [{ uid: 900, def: "temper" }, { uid: 901, def: "temper", stars: 2 }];
+    expect(offerMergeNote(run, "temper")).toMatch(/^MERGES INTO ★3: /);
+    // a sold offer says nothing
+    run.shop.wagons[0].offers[0].sold = true;
+    expect(offerPanel(run, 0, 0)!.notes).toBeUndefined();
   });
 
   it("the tooltip draws every line of the face (each wrapped to its width), after the name, the kind and the families; it keeps on screen and a string is still one item", () => {

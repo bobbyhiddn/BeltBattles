@@ -614,6 +614,17 @@ function mergeBlock(run: Run, def: string): Block | null {
   return { role: "merges", text: mergesWithText(def, to, textOpts(run)), keep: true, ...(perk ? { perk: `★${to} ${perk}` } : {}) };
 }
 
+/** SHOPCARD-1 (REQ-BFG-115, F5): what the shop card said in words about owning a copy, now that its merge mark and owned marker
+ *  (shop.ts drawMergeMark, drawOwnedMarker) are wordless: a sentence for the panel's NOTES and the desk's hover tooltip. An offer
+ *  that merges on purchase says into which star (mergeLine: "MERGES INTO ★2: +2 BURN.", faces.ts faceMerge); an offer of a piece
+ *  the run holds (not a starting copy) that a new copy won't merge with, the owned marker's cases (run.ts shopBadge "wait" and
+ *  "max": mergePreview is null, so gainModule makes no merge), says so. null: no copy held, or the offer is sold. */
+export const OWNED_NOTE = "YOU OWN ONE ALREADY: A NEW COPY WON'T MERGE WITH IT.";
+export function offerMergeNote(run: Run, def: string): string | null {
+  const b = shopBadge(run, def);
+  return b?.kind === "merge" ? mergeLine(run, def) : b ? OWNED_NOTE : null;
+}
+
 /** A shop offer's panel, the phone's tap preview (T5): the module's 1-star ability text, the MERGES WITH line when it
  *  merges on purchase, the hint and the flavour; on the header-only 360x640 strip, its one-line effect. shoptap (D2):
  *  `touch`, the drag hint (a touch tap never places). */
@@ -631,7 +642,9 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
     ...flavourBlocks(d.id, 1, opts.k ?? 1),
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),
   ];
+  const own = o.sold ? null : offerMergeNote(run, o.def); // SHOPCARD-1 (F5): the card's merge mark and owned marker, in words, in NOTES
   return {
+    ...(own ? { notes: [{ role: "note", text: own } as Block] } : {}),
     // WORDS-1 (REQ-BFG-081; READ-1 6.2: merchant names drew 40 "not understood" flags): no merchant's name on the panel (the
     // desk's wagon tags keep them), and a core's or gear's kind in plain words (shop.ts panelKind). Was `${describe(d)} ·
     // ${merchant}`, subShort describe(d)
