@@ -3,7 +3,8 @@
 // off); the reworked five fight as their switch-on defs, and the decks themselves are the same decks (the switch changes no
 // authored deck: rivalBuilds.ts and ai.ts read no rating). With the switch on every captain's deck passes the strict check
 // with exactly the base's problems. The holders by day are written to TABLE_OUT for the REPORT (D3: which captains J5 can
-// move through a rework).
+// move through a changed def: the five reworks and VENOM DRIP, SCALE-2b's POISON source; the table names a piece as the
+// base and the switch-on defs do, QUENCH TANK -> KINDLING).
 import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "../src/sim/content";
@@ -14,7 +15,6 @@ import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { SCALE_DEF_IDS, SCALE_IDS, withScaleRigs } from "../src/sim/scale";
 import { validateBuild } from "../src/net/validate";
 
-const REWORKS = SCALE_DEF_IDS.filter((id) => id !== "venom");
 const held = (b: Build, ids: readonly string[]): string[] => [...new Set([...b.items.map((p) => p.def), ...b.mods.map((m) => m.def)].filter((d) => ids.includes(d)))];
 const decks = (): { key: string; b: Build }[] => {
   const out: { key: string; b: Build }[] = [];
@@ -45,15 +45,17 @@ describe("SCALE-2d D3: captains and warlords", () => {
     expect(withScaleRigs(() => check())).toEqual(off);
   });
 
-  it("the holders of a rework by day (TABLE_OUT)", () => {
+  it("the holders of a changed def (the five reworks and VENOM DRIP) by day (TABLE_OUT)", () => {
     const rows: string[] = [];
     const by = new Map<string, string[]>();
+    const nameOn = withScaleRigs(() => new Map(SCALE_DEF_IDS.map((id) => [id, ITEMS[id].name])));
+    const nameOf = (id: string): string => (ITEMS[id].name === nameOn.get(id) ? ITEMS[id].name : `${ITEMS[id].name}->${nameOn.get(id)}`);
     for (const x of decks()) {
-      const h = held(x.b, REWORKS);
+      const h = held(x.b, SCALE_DEF_IDS);
       if (!h.length) continue;
       const [kind, who, day] = x.key.split("/");
       const k = `${kind}/${who}`;
-      by.set(k, [...(by.get(k) ?? []), `d${day} ${h.map((id) => ITEMS[id].name).join("+")}`]);
+      by.set(k, [...(by.get(k) ?? []), `d${day} ${h.map(nameOf).join("+")}`]);
     }
     for (const [k, v] of [...by.entries()].sort()) rows.push(`- ${k}: ${v.join(", ")}`);
     if (process.env.TABLE_OUT) writeFileSync(process.env.TABLE_OUT, rows.join("\n") + "\n");
