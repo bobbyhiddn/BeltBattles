@@ -12,6 +12,13 @@ import { SummaryScreen } from "../src/screens/summary";
 import { ForkScreen } from "../src/screens/fork/fork";
 import { BattleScreen } from "../src/screens/battle";
 import { ReplayScreen } from "../src/screens/replay";
+import { drawTopBar } from "../src/screens/build/chrome";
+import { buildLayout, buildScale, phoneScreen } from "../src/screens/build/layout";
+import type { BuildScreen } from "../src/screens/build/build";
+import { RuneBar } from "../src/ui/runeBar";
+import { TAP_CSS } from "../src/ui/tap";
+import { OFFERS } from "../src/sim/content";
+import { C } from "../src/render/palette";
 import { battleGrid, battleScale } from "../src/game/battleLayout";
 import { viewWithSub } from "../src/game/viewGrid";
 import { setupRun } from "../src/tooling";
@@ -22,11 +29,21 @@ import type { Game, Screen } from "../src/game/game";
 import type { G } from "../src/render/pixel";
 import type { SideStats } from "../src/sim/battle";
 
-/** Every string drawText was asked to draw, in order (hoisted: the mock factory runs before the imports). */
+/** Every string drawText was asked to draw, in order, and where (x, the width it returned, its colour): hoisted, since the mock
+ *  factory runs before the imports. */
 const drawn = vi.hoisted(() => [] as string[]);
+const placed = vi.hoisted(() => [] as { s: string; x: number; w: number; colour: string }[]);
 vi.mock("../src/render/font", async (importOriginal) => {
   const m = await importOriginal<typeof import("../src/render/font")>();
-  return { ...m, drawText: (...a: Parameters<typeof m.drawText>) => { drawn.push(String(a[1])); return m.drawText(...a); } };
+  return {
+    ...m,
+    drawText: (...a: Parameters<typeof m.drawText>) => {
+      const w = m.drawText(...a);
+      drawn.push(String(a[1]));
+      placed.push({ s: String(a[1]), x: Number(a[2]), w, colour: String(a[4]) });
+      return w;
+    },
+  };
 });
 
 // ------------------------------------------------------------ a recording canvas (replay1b.test.ts's, text-free: calls only)
@@ -63,7 +80,7 @@ beforeAll(() => {
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined, removeItem: () => undefined, key: () => null, length: 0, clear: () => undefined });
 });
 afterAll(() => { restoreDom(); vi.unstubAllGlobals(); });
-beforeEach(() => { drawn.length = 0; });
+beforeEach(() => { drawn.length = 0; placed.length = 0; });
 afterEach(() => setLongRun(false));
 
 /** A stand-in Game: the run, an audio that does nothing, a view (402x690 @3 by default), a real UI, a recording canvas. */
@@ -168,6 +185,55 @@ describe("RUN-1 T4: the fight intro's and the replay's banners (the screens read
       expect(drawn).not.toContain(long ? "REPLAY · DAY 12/10" : "REPLAY · DAY 3");
     });
   }
+});
+
+/** The build screen's top bar drawn (chrome.ts drawTopBar) with a stand-in screen holding only what the bar reads: the run, the
+ *  layout the game computes for the view, an empty rune bar. Returns what it drew, with each piece's place. */
+function drawBar(run: Run, w: number, h: number, dpr: number): { view: ReturnType<typeof computeView>; pieces: typeof placed; L: ReturnType<typeof buildLayout> } {
+  const view = computeView(w, h, dpr, (pw, ph, p, d) => buildScale(pw, ph, p, d ?? dpr));
+  const phone = phoneScreen(Math.floor(w * dpr), Math.floor(h * dpr), dpr);
+  const tap = phone ? Math.ceil(TAP_CSS / (view.scale / dpr)) : 0;
+  const L = buildLayout(view.W, view.H, view.portrait, OFFERS, phone, tap);
+  const game = { W: view.W, H: view.H, view, ui: new UI(), soundButton() {} } as unknown as Game;
+  const s = { game, run, L, coinX: 0, cornerMenu: null, menu: false, runeBar: new RuneBar(), panelArea: () => L.info } as unknown as BuildScreen;
+  placed.length = 0;
+  drawTopBar(recCanvas().getContext(), s);
+  return { view, pieces: [...placed], L };
+}
+
+describe("RUN-1 T4: the build bar's draw (chrome.ts drawTopBar)", () => {
+  const at = (long: boolean, day: number, wins: number, gold = 64): Run => Object.assign(runOf(long), { day, wins, gold, lives: 4 });
+
+  it("a long run on day 12: DAWN · WINS 3/10 · DAY 12, the day amber, then the gold; a 10-day run: DAWN · DAY 3/10, as live", () => {
+    const { pieces } = drawBar(at(true, 12, 3), 402, 690, 3);
+    const head = pieces.slice(0, 3);
+    expect(head.map((p) => p.s)).toEqual(["DAWN", " · WINS 3/10", " · DAY 12"]);
+    expect(head.map((p) => p.colour)).toEqual([C.amber, C.bone, C.amber]);
+    expect(pieces.find((p) => p.s === "64"), "the gold follows the status").toBeTruthy();
+    const ten = drawBar(at(false, 3, 1), 402, 690, 3).pieces;
+    expect(ten.slice(0, 2).map((p) => p.s)).toEqual(["DAWN", " · DAY 3/10"]);
+    expect(ten.slice(0, 2).map((p) => p.colour)).toEqual([C.amber, C.bone]);
+    expect(ten.map((p) => p.s).join("|")).not.toMatch(/WINS/);
+  });
+
+  it("the status line (stage, WINS, DAY, gold, the hearts) ends inside the screen on every phone the build screen frames, for the widest long-run content", () => {
+    // day 25 (the deepest an upload may state), 9 wins, 3-digit gold; REFIT is a letter longer than DAWN
+    const run = Object.assign(at(true, 25, 9, 300), { lives: 3 });
+    for (const [name, w, h, dpr] of [["402x690 @3", 402, 690, 3], ["310x640 @3 (W 186)", 310, 640, 3], ["320x568 @2", 320, 568, 2], ["360x640 @2", 360, 640, 2], ["390x844 @3", 390, 844, 3], ["844x390 @3", 844, 390, 3]] as const) {
+      const { view, pieces } = drawBar(run, w, h, dpr);
+      const gold = pieces.find((p) => p.s === "300");
+      expect(gold, name).toBeTruthy();
+      // the hearts are two rows of five (6 px each) after the gold and 5 px; they must end before the screen's last column
+      expect(gold!.x + gold!.w + 5 + 30, `${name}: the hearts end at ${gold!.x + gold!.w + 35} of ${view.W}`).toBeLessThanOrEqual(view.W - 1);
+      expect(pieces.slice(0, 3).map((p) => p.s), name).toEqual(["DAWN", " · WINS 9/10", " · DAY 25"]);
+    }
+  });
+
+  it("the bar reads the run's mark, not the switch (an old run keeps DAY n/10 while the switch is on)", () => {
+    const old = at(false, 6, 3);
+    const t = withLongRun(() => drawBar(old, 402, 690, 3).pieces.map((p) => p.s));
+    expect(t.slice(0, 2)).toEqual(["DAWN", " · DAY 6/10"]);
+  });
 });
 
 describe("RUN-1 T4: the fork's draw", () => {

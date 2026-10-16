@@ -59,8 +59,8 @@ export function barRun(run: Pick<Run, "day" | "wins" | "longRun">): [string, str
 
 /** Status bar: DAWN (REFIT) · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
  *  the hero card below the shop), belt use when there is room, then MENU and SND. RUN-1: a long run's reads
- *  DAWN (REFIT) · WINS n/10 · DAY n (barRun). */
-function drawTopBar(g: G, s: BuildScreen): void {
+ *  DAWN (REFIT) · WINS n/10 · DAY n (barRun). (Exported for tests/run1.screens.draw.test.ts.) */
+export function drawTopBar(g: G, s: BuildScreen): void {
   const { W, ui } = s.game;
   const run = s.run;
   // TAP-093 (backlog #340, REQ-BFG-040): a portrait phone's bar is L.bar.h tall: BAR_H, or a finger's target where the
