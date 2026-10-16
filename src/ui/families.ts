@@ -5,6 +5,7 @@
 // ModuleTag). The shop card shows the marks (shop.ts drawCard), the desk's hover tooltip the names, and each module's
 // panel the names in its header, or the marks where the names have no room (inspector.ts planPanel).
 import { ITEMS, type ModuleTag } from "../sim/content";
+import { plainRigsRules } from "../sim/plainRigs"; // PLAIN-1F (M3, F6): the SHIELD family's line with BALLAST in it
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import type { Span } from "./richText";
@@ -71,7 +72,14 @@ export const FAMILY: Readonly<Record<ModuleTag, Family>> = {
     // LOOM), guards (TOLLBOOTH, FLAK SCREEN, MANTLET, BRACE FRAME), and what turns SHIELD into damage (PLATE BREAKER,
     // ANVIL BREECH, STEAM BREECH, IRON WALL; SPALL CATCHER the damage the ship takes). Was "... {*PLATE}, {*HEAL} AND
     // GUARDS, ..."
-    glossary: "A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.",
+    // PLAIN-1F (REQ-BFG-084, M3; cap's call on run 2's F6): with PLAIN_RIGS on BALLAST joins the family (plainRigs.ts tags
+    // PLATE; kept, since tools/luckReport.ts and tools/wave3.ts read the tags), so the line names what it gives too: MAX
+    // {HULL}, its stat row's words. Off: the line as before, byte for byte
+    get glossary(): string {
+      return plainRigsRules()
+        ? "A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX {HULL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE."
+        : "A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
+    },
   },
 };
 

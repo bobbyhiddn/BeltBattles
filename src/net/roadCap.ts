@@ -41,6 +41,17 @@ import type { BuildCost } from "./validate"; // type only: validate.ts's buildCo
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the NPC day's plans
 import { hullScaleRules } from "../sim/hullScale"; // HULL-1c (REQ-BFG-079): the memo keys carry the switch
 import { shapesRules } from "../sim/shapes"; // SHAPES-1 (REQ-BFG-086 S1): the catalogue memos reset when it moves
+import { plainRigsRules } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the memos hold one switch state (plainMemo)
+
+/** PLAIN-1 (REQ-BFG-084): the memos below read the catalogue (the TRADER's goods, the scout's discount), which PLAIN_RIGS
+ *  changes, so they hold one switch state: a call made in the other state forgets them first (resetRoadCapMemo). With the
+ *  switch never moved (the game, the server) this never resets anything. */
+let memoPlain = plainRigsRules();
+function plainMemo(): void {
+  if (plainRigsRules() === memoPlain) return;
+  resetRoadCapMemo();
+  memoPlain = plainRigsRules();
+}
 
 // ------------------------------------------------------------------ D4: the reviewed model
 
@@ -190,6 +201,7 @@ function shapesMemos(): void {
  *  (a blocked choice is skipped: it can't be taken in that state). */
 export function roadOptions(): ReadonlyMap<EventId, readonly RoadOption[]> {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   if (optionsMemo) return optionsMemo;
   checkRoadModel();
   const out = new Map<EventId, RoadOption[]>();
@@ -237,6 +249,7 @@ const payMemo = new Map<string, WarlordPay[]>();
  *  the run day's, as road.ts warlordFight reads it (0.6.2 EASY PAY: SABOTAGE swaps the deck, never the day's pay). */
 export function warlordPays(slot: Difficulty | "matriarch", day: number): readonly WarlordPay[] {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   const k = `${slot}|${day}|${npcDayRules()}`; // NPC-1: the reward differs with NPC_DAY on (no Hard pick)
   const hit = payMemo.get(k);
   if (hit) return hit;
@@ -277,6 +290,7 @@ const dgMemo = new Map<string, number>();
  */
 export function discountGain(n: number, gold: number): number {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   const G = Math.max(0, Math.floor(gold));
   const key = `${n}|${G}`;
   const hit = dgMemo.get(key);
@@ -340,6 +354,7 @@ let mixMemo: Mix[] | null = null;
 /** Every mix: for each event with a choice that moves hull or belt, not used for them, or one such choice. */
 export function roadMixes(): readonly Mix[] {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   if (mixMemo) return mixMemo;
   let out: Mix[] = [{ key: "", forced: new Map(), hull: 0, belt: 0, hullCost: false, labels: [] }];
   for (const [e, list] of roadOptions()) {
@@ -631,6 +646,7 @@ const liquidMemo = new Map<string, number>();
  *  stay on the deck. */
 export function gmax(c: number, hoard = false): number {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   // NPC-1: the NPC day's plans differ. HULL-1c (REQ-BFG-079): so may the day's gold with HULL_SCALE on
   const k = `${c}|${hoard}|${npcDayRules()}|${hullScaleRules()}`;
   const hit = liquidMemo.get(k);
@@ -647,6 +663,7 @@ const capMemo = new Map<string, number>();
  *  -Infinity when the mix's events can't all fit in `day` road stops. */
 export function roadCapFor(day: number, mix: Mix = NO_MIX()): number {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   // NPC-1: the NPC day's plans differ. HULL-1c (REQ-BFG-079): so may the day's gold with HULL_SCALE on
   const k = `${day}|${mix.key}|${npcDayRules()}|${hullScaleRules()}`;
   const hit = capMemo.get(k);

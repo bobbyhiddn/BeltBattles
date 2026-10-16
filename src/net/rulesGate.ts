@@ -55,6 +55,7 @@ import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): the
 // SHAPES-1 (REQ-BFG-086 S1): the shapes switch and its pieces (SHAPES_RULES below is the literal "bb-0.10.0" since the
 // merge of c099-pre8: AZ-BUMP S6's bump, cap's RUN2 note 1.3)
 import { isShapesPiece, shapesRules } from "../sim/shapes";
+import { firstRunGate } from "../sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004): the first-run gate (FIRST_RUN and PLAIN_RIGS)
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
@@ -261,6 +262,13 @@ export function shapesGateProblem(rules: unknown, build: unknown): string | null
  *  switch on and rules at or after SHAPES_RULES; otherwise it is judged in 0.9.9's shapes. */
 export function shapesWorld(rules: unknown): boolean {
   return shapesRules() && rulesAtLeast(rules, SHAPES_RULES);
+}
+
+/** FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F4): why a snapshot can't carry the first-run flag, or null: the gate off
+ *  (FIRST_RUN or PLAIN_RIGS off: a first run is then a normal run, so no deck may claim one). BUMP-1D ties it to 1D's
+ *  rules version when it flips both switches. */
+export function firstRunGateProblem(): string | null {
+  return firstRunGate() ? null : "not in this rules version yet";
 }
 
 /** The gate's rows: what a build may carry and the first rules version that takes it, oldest first. RUNES-2a adds the

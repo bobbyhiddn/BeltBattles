@@ -16,6 +16,8 @@ import { C } from "../src/render/palette";
 import { ICON, ICON_COLOUR, ICON_WORD, KEYWORDS, PLAYER_WORD, glyphRows, icons, keywordColour, keywordOfWord } from "../src/render/font";
 import { PLATE_COLOUR, SHIELD_COLOUR } from "../src/game/arenaReact";
 import { REMINDER, faceAt, hasFace, heroPlaystyle } from "../src/ui/faces";
+import { BALLAST_LINE, CARRY_LINE, cardEffect, plainNotes } from "../src/ui/faces"; // PLAIN-1F (M3): (r) for the six
+import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1F (M3)
 import { abilityText, cardText, gist, hasAbilityText, heroTrick, nextStarText } from "../src/ui/abilityText";
 import { flavour } from "../src/screens/build/flavour";
 import { GLOSSARY, RUNE_NOTE, RUNE_REMINDER, glossaryEntry, glossaryText, keywordRow } from "../src/ui/glossary";
@@ -141,6 +143,23 @@ describe("CARD-3 (r): SHIELD and WARD (REQ-BFG-107)", () => {
     expect(texts.length).toBeGreaterThan(1500);
     console.log(`CARD3 (r) sweep: ${texts.length} player texts, 0 with PLATE outside a name (${NAMES_KEPT.length} names kept)`);
   });
+
+  // PLAIN-1F (REQ-BFG-107, REQ-BFG-089, M3): the same sweep with PLAIN_RIGS on (the six's faces, reminders and card lines),
+  // plus the six's NOTES lead (faces.ts plainNotes), the desk card's line (cardEffect) and the SHIELD family's line with
+  // BALLAST in it (families.ts): no old word, and each new line's SHIELD is the {*PLATE} token, never a bare word
+  it("PLAIN-1F (M3): with PLAIN_RIGS on, the six's texts, NOTES and desk lines use no PLATE word; a new SHIELD is the {*PLATE} token", () => withPlainRigs(() => {
+    const texts = playerTexts();
+    for (const id of PLAIN_RIG_IDS) {
+      for (const n of plainNotes(id)) texts.push([`${id} notes`, plain(n)]);
+      texts.push([`${id} desk card`, plain(cardEffect(id))]);
+    }
+    texts.push(["family PLATE (PLAIN_RIGS on)", plain(familyNote("PLATE"))]);
+    const bad = texts.filter(([, t]) => OLD.test(unnamed(t)));
+    expect(bad.map(([w, t]) => `${w}: ${t}`)).toEqual([]);
+    expect(texts.filter(([w]) => PLAIN_RIG_IDS.some((id) => w.startsWith(`${id} `))).length).toBeGreaterThan(20);
+    for (const n of [CARRY_LINE, BALLAST_LINE, FAMILY.PLATE.glossary]) expect(/\b(SHIELD|SHIELDS|WARD)\b/.test(n.replace(/\{\*?[A-Z]+\}/g, " ")), n).toBe(false);
+    expect(familyNote("PLATE")).toContain("MAX {HULL}");
+  }));
 
   it("the definitions (sim-checked: races/bastion.ts absorb, PLATE_CAP 240; Battle.shieldHit, SHIELD_CAP 3; impact's order)", () => {
     expect(REMINDER.PLATE()).toBe("{*PLATE}: SOAKS HULL DAMAGE POINT FOR POINT. MAX 240 {PLATE}.");

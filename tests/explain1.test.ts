@@ -49,7 +49,8 @@ import {
 } from "../src/screens/build/keywords";
 import { PLAIN_RIGS, RIG_SENTENCE, faceLines, hasFace, plainRigStats, turretPlainOf } from "../src/ui/faces";
 import { SHAPED_PLAIN_RIGS, isPlainRig, shapeLines } from "../src/ui/faces"; // SHAPES-1 flip: the shaped plain rigs (E9's path)
-import { withShapes } from "../src/sim/shapes"; // SHAPES-1 (RUN5 1.2): (e)'s point on the shipped panels, SHAPES off
+import { BALLAST_LINE, CARRY_LINE, plainNotes, plainSlugRig } from "../src/ui/faces"; // PLAIN-1F (M3): the six's NOTES lead
+import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1F (M3): the six, PLAIN_RIGS on
 import { TIPS, TIPS_KEY, completeTip, hintShows, hintTips, setTipsForTests, tipDone, tipsDone } from "../src/ui/tips";
 import { buy, rotate, type Ctx } from "../src/screens/build/actions";
 import { tapRect } from "../src/ui/ui";
@@ -590,34 +591,23 @@ describe("EXPLAIN-1 (e): the band", () => {
       const pin = phoneBand90(W), fit = hs.filter((n) => n <= pin).length;
       return { pin, p90: hs[Math.ceil(0.9 * hs.length) - 1], fit, share: fit / hs.length };
     };
-    // SHAPES-1 x c099-card3 (RUN5-SHAPES1 1.2, cap's ruling: no layout or panel-code change in SHAPES-1; layout.ts
-    // phoneBand90 stays): the band was sized on the shipped panel set, so (e) keeps its point with SHAPES set off, on the 899
-    // panels without the shaped three (the same rule as SHAPES-1's off-world tripwires, 22ca218)
-    withShapes(() => {
-      const shipped = panels();
-      expect(shipped.length).toBe(899);
-      for (const W of widths) {
-        const { pin, p90 } = measure(shipped, W);
-        rows.push(`${W}: pin ${pin}, measured 90th ${p90} (tips done)`);
-        expect(p90, `W ${W}`).toBeLessThanOrEqual(pin);
-      }
-    }, false);
-    console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES off): ${rows.join(" | ")}`);
-    // SHAPES-1 flip (a LIMIT, cap's call; zoom1.test.ts has the numbers): tips done as tips new, the three shaped plain rigs'
-    // 27 placed panels lift the 90th past the pin at some widths (run 4 at cd59be0: W 186 67, 236-239 60, 240 57, 250 48).
-    // SHAPES-1 x c099-card3 (RUN5 1.2): one assertion pins the merged tree's measured fit with SHAPES on (as it ships) at
-    // the widths that move: each width whose 90th passes the pin, with its fit (panels of 938 at or under the pin) and its
-    // 90th. The way back to 90% is PLAIN-1F's (a long rig's hit lines compacted)
+    // PLAIN-1F (M4; REQ-BFG-080; BRIEF-PLAIN1F M4): the band is back to 90% on the panels as they ship, SHAPES on, so (e)
+    // checks that alone (SHAPES-1 x c099-card3's SHAPES-off half, RUN5-SHAPES1 1.2, is dropped: it kept the point while the
+    // shaped three's placed panels lifted the 90th past the pin, W 250 88.59%, W 258-340 89.87% at c099-card5b's panels).
+    // PLAIN-1F's way back is content only, no layout.ts change: a placed long rig's hits on one line, its UP TO n HITS said
+    // by its arrows line (inspector.ts rigPanel, longIdle). Measured after it (run 3): every width at or under its pin, 90.94%
+    // fit at W 246-247 the least, 91.15% at W 250, 92.75% at W 258-340
     const on: string[] = [], moved: Record<number, string> = {};
     for (const W of widths) {
       const { pin, p90, fit, share } = measure(all, W);
       on.push(`${W}: pin ${pin}, measured 90th ${p90}, ${(share * 100).toFixed(2)}% fit (tips done)`);
       if (p90 > pin) moved[W] = `${fit} of ${all.length}, 90th ${p90}`;
+      expect(share, `W ${W}`).toBeGreaterThanOrEqual(0.9);
     }
-    console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES on): ${on.join(" | ")}`);
-    // measured on the merged tree (run 6, after b81b420), tips done the same as zoom1's tips new: W 186-249 at or under the
-    // pin; from W 250 the 90th is 48 over the pin 45 (88.59% fit at W 250, 89.87% at W 258-340)
-    expect(moved).toEqual({ 250: "831 of 938, 90th 48", 258: "843 of 938, 90th 48", 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48" });
+    rows.push(...on);
+    console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES on, as shipped): ${rows.join(" | ")}`);
+    expect(all.length).toBe(938);
+    expect(moved).toEqual({});
   }, 900_000);
 });
 
@@ -684,5 +674,64 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
     expect(SHAPED_PLAIN_RIGS.map((d) => shapeLines(d, 1).map((r) => r.text))).toEqual([["UP TO 2 HITS"], ["UP TO 2 HITS"], ["UP TO 6 HITS"]]);
     for (const def of ["heatjacket", "plateroller", "riveter"]) expect(faceLines(def, 1)!.rules[0].text.startsWith("HIT:"), def).toBe(true);
     expect(rigs.length).toBeGreaterThan(20);
+  });
+
+  // PLAIN-1F (REQ-BFG-084, REQ-BFG-089, M3): PLAIN-1's six with PLAIN_RIGS on, beside the three (PLAIN_RIGS, the face list,
+  // stays the three: pinned above): E9's path, as WHETSTONE's. The face is the stat row alone; LEVELS reads the sim's numbers
+  // star by star (BALLAST's MAX leads its ladder, its one reading: REVIEW-PLAIN1 D4); KEYWORDS leads with HIT and NOTES with
+  // the rig sentence, SCALE GUARD's carry line after it; BALLAST, whose stat is the ship's, has its own NOTES line and no HIT
+  it("PLAIN-1F (M3): the six, with PLAIN_RIGS on: stat row and no HIT:; LEVELS from the sim; KEYWORDS HIT first, NOTES the rig sentence (BALLAST: its own line, no HIT)", () => withPlainRigs(() => {
+    setTipsForTests("done");
+    const LADDERS: Record<string, string[]> = {
+      rasp: ["{DMG} +10/+20/+35", "{BURN} +1/+2/+3"],
+      sparkgap: ["{STUN} +1/+2/+3"],
+      scaleguard: ["{PLATE} +3/+7/+11", "{DMG} +10/+20/+35"],
+      ballast: ["MAX {HULL} +8%/+16%/+25%"],
+      grindstone: ["{DMG} +25/+55/+90"],
+      brandingiron: ["{DMG} +15/+30/+50", "{BURN} -/+1/+2"], // FIRSTDAY-1 F7: the BURN comes at ★2; the dash says "none yet"
+    };
+    // the ladders' numbers are the sim's (plainRigs.ts PLAIN_DEFS, through the formatters)
+    expect([1, 2, 3].map((s) => `+${fmtDmg(effectAt("rasp", s).gate!.flat!)}`).join("/")).toBe("+10/+20/+35");
+    expect([1, 2, 3].map((s) => effectAt("ballast", s).gate!.maxHullPct).join("/")).toBe("8/16/25");
+    for (const def of PLAIN_RIG_IDS) for (const s of [1, 2, 3]) {
+      expect(isPlainRig(def) && hasFace(def), def).toBe(true);
+      const fb = faceBlocks(def, s, {})!;
+      expect(fb.map((b) => b.text), `${def} ★${s}`).toEqual([statRow(plainRigStats(def, s)!)]);
+      expect(fb.some((b) => b.text.includes("HIT:") || b.brass), `${def} ★${s}`).toBe(false);
+      const ladder = levelLines(def, s, {})!.filter((l) => l.kind === "ladder").map((l) => levelText(l, (v) => v));
+      expect(ladder, `${def} ★${s}`).toEqual(LADDERS[def]);
+      const run = furnace();
+      run.inventory = [{ uid: 900, def, ...(s > 1 ? { stars: s } : {}) }];
+      const f = framed(402, 690, 3, 1), c = { run, sel: { kind: "cargo", uid: 900 } as Sel };
+      const { d } = placed(c, f), piece = panelPiece(run, d.show)!;
+      const words = explainWords(d.t, piece);
+      expect(d.t.notes!.slice(0, plainNotes(def).length).map((b) => b.text), `${def} ★${s}`).toEqual(plainNotes(def));
+      if (def === "ballast") {
+        expect(plainSlugRig(def)).toBe(false);
+        expect(words.some((w) => w.word === "HIT"), `${def} ★${s}`).toBe(false);
+        expect(d.t.notes![0].text).toBe(BALLAST_LINE);
+        expect(iconTipItems(d.t, words, piece)).toEqual(d.t.notes!.map((b) => b.text));
+      } else {
+        expect(plainSlugRig(def)).toBe(true);
+        expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", colour: words[0].colour });
+        expect(d.t.notes![0].text, `${def} ★${s}`).toBe(RIG_SENTENCE);
+        expect(iconTipItems(d.t, words, piece).slice(-1)[0]).toBe(words[0].text);
+      }
+      // the KEYWORDS name a keyword only where the star's stats hold it (BRANDING IRON: BURN from ★2)
+      const kw = words.map((w) => w.word);
+      expect(kw.includes("BURN"), `${def} ★${s} BURN`).toBe(def === "rasp" || (def === "brandingiron" && s > 1));
+      expect(kw.includes("STUN"), `${def} ★${s} STUN`).toBe(def === "sparkgap");
+      expect(kw.includes("SHIELD"), `${def} ★${s} SHIELD`).toBe(def === "scaleguard");
+    }
+    expect(CARRY_LINE).toBe("EACH SLUG IT HITS CARRIES THE {*PLATE} TO YOUR GUN. YOUR SHIP GAINS IT AS THE SLUG LOADS.");
+    expect(BALLAST_LINE).toBe("WHILE AN ARROW POINTS AT A BELT TILE, IT RAISES YOUR SHIP'S MAX {HULL}. NO ARROW ON A BELT: IT IS IDLE.");
+  }));
+
+  it("PLAIN-1F (M3): with PLAIN_RIGS off nothing moves: the NOTES lead of every plain rig is the rig sentence, HIT is isPlainRig's", () => {
+    for (const d of buyableModules().filter((x) => x.kind === "gate")) {
+      expect(plainNotes(d.id), d.id).toEqual(isPlainRig(d.id) ? [RIG_SENTENCE] : []);
+      expect(plainSlugRig(d.id), d.id).toBe(isPlainRig(d.id));
+    }
+    for (const id of PLAIN_RIG_IDS) expect(isPlainRig(id) || plainNotes(id).length > 0, id).toBe(false);
   });
 });

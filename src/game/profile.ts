@@ -253,6 +253,47 @@ export function saveProfile(p: Profile, s?: Store | null, now = Date.now()): boo
   }
 }
 
+// ------------------------------------------------------------------------------------------- FIRSTDAY-1: a new player
+
+/** The run save's keys, newest first (save.ts SAVE_KEY and its older keys; tests/firstday1.rules.test.ts pins them equal).
+ *  Read only. */
+export const FIRST_RUN_SAVE_KEYS: readonly string[] = [SEED_SAVE_KEY, "beltbattles.run.v6", "beltbattles.run.v5", "beltbattles.run.v4", "beltbattles.run.v3"];
+
+/**
+ * FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F2): does this device hold no record of any run? The hero screen asks it for a
+ * new run (run.ts newRun's `firstRun`, which makes a first run only with the gate on). New only when every record reads
+ * empty: no run in progress (any run save key), a profile (if stored) with every counter 0, no hero won or finished and no
+ * fold, an empty local ghost pool and no online run count. A profile from before 1D that holds any record is never new.
+ * Where it can't tell (no storage, an unreadable value, a profile newer than this build) the player is not new. Online
+ * and offline read the same records. Reads only; writes nothing.
+ */
+export function isNewPlayer(s?: Store | null): boolean {
+  const st = storage(s);
+  if (!st) return false;
+  try {
+    for (const k of FIRST_RUN_SAVE_KEYS) if (st.getItem(k) !== null) return false;
+    const raw = st.getItem(PROFILE_KEY);
+    if (raw !== null) {
+      const p = migrateProfile(JSON.parse(raw));
+      if (!p || p.v > PROFILE_V) return false;
+      if (COUNTERS.some((k) => p.counters[k] > 0) || p.heroesWon.length || p.heroesFinished.length || p.folded.length || p.runNew) return false;
+    }
+    const pool = st.getItem(SEED_GHOST_KEY);
+    if (pool !== null) {
+      const a: unknown = JSON.parse(pool);
+      if (!Array.isArray(a) || a.length > 0) return false;
+    }
+    const runs = st.getItem(SEED_RUNS_KEY);
+    if (runs !== null) {
+      const r: unknown = JSON.parse(runs);
+      if (!isObj(r) || count(r.runs) > 0) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ------------------------------------------------------------------------------------------------------ the folds
 
 /** What a fold reads from the run (the caller passes the run's own records; nothing here reads the sim). */

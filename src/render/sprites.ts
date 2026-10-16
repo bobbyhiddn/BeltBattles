@@ -9,6 +9,7 @@ import { drawTurretIcon } from "./turretIcon"; // 0.6.2s (REQ-BFG-031)
 import { drawFactoryArt, drawFactoryIcon } from "./factoryArt"; // 0.6.1c: the wave-1 factories
 import { raceFactoryArt } from "./raceArt"; // 0.8.0 H1: CRUCIBLE and WARDWORKS
 import { drawWave3Gate, drawWave3Icon, wave3FactoryArt } from "./wave3Art"; // 0.8.0 A1: wave 3's 15 modules
+import { drawPlainGate } from "./plainArt"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs
 import { beltStyle, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook: belt styles
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
@@ -588,6 +589,7 @@ function drawGate(g: G, id: string, f: number, active: boolean): void {
     }
     default: {
       if (drawWave3Gate(g, id, f, active)) break; // 0.8.0 A1: wave 3's eight rigs (wave3Art.ts)
+      if (drawPlainGate(g, id, f, active)) break; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (plainArt.ts)
       bevel(g, 1, 1, 10, 10, C.steel1, C.steel2, C.steel0, C.ink);
     }
   }

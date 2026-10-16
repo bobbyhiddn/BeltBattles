@@ -182,6 +182,12 @@ export interface GateEffect {
   latch?: { hold: number; flat: number }; // TWIN LATCH: holds a payload at most `hold` s for its other belt (E4); + flat on each payload it hits
   stoke?: number; // STOKER: each factory its arrows point at works this share faster (E3); its arrows do nothing to belts
   breaker?: { flat: number; floor: number }; // PLATE BREAKER: 1 plating for + flat; with none, + floor
+  // PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 P1-P3): the plain stat rigs' stats (src/sim/plainRigs.ts; absent on every other rig,
+  // and in ITEMS only while PLAIN_RIGS is on, so every older rig fights exactly as before):
+  stun?: number; // SPARK GAP: + this many STUN seconds on each payload it hits (they add up; Battle.applyHit, the shock rule)
+  slugPlate?: number; // SCALE GUARD: + this much PLATE carried by each payload it hits (Payload.plate), given to your hull at
+  // the gun by the bulwark rule (races/bastion.ts plateFor)
+  maxHullPct?: number; // BALLAST: + this whole % of your max hull while it works (Battle.makeSide; a carrier stat, no hit)
 }
 
 /**
@@ -475,7 +481,11 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   gantry: {
     id: "gantry", name: "GANTRY PRESS", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
-    desc: ["A FAST PRESS THAT", "FEEDS ONE BELT MORE", "THAN MOST, IN TURN."], tags: ["SWARM", "TWIN"], // bb-0.8.3 (M4): was "ONE PRESS, TWO OUTPUTS: FEEDS TWO INTAKES BY TURNS."
+    // PLAIN-1F (M5; REQ-BFG-086.1, REQ-BFG-107; BRIEF-PLAIN1F M5): true in 0.9.9's world. With SHAPES on it is 2x3 and feeds
+    // 4/5/6 belts (its face: FEEDS 4 BELTS IN TURN.), two more than a bought 2x2 factory's 2/3/4 and more than LOOM's 3/4/5:
+    // the most of any factory at every star (with SHAPES off, 3/4/5, it ties LOOM's, still the most). Its speed 25 beats STAMP
+    // PRESS's 21, so FAST stays. Was "A FAST PRESS THAT / FEEDS ONE BELT MORE / THAN MOST, IN TURN." (two more with SHAPES on)
+    desc: ["A FAST PRESS THAT", "FEEDS THE MOST", "BELTS, IN TURN."], tags: ["SWARM", "TWIN"], // bb-0.8.3 (M4): was "ONE PRESS, TWO OUTPUTS: FEEDS TWO INTAKES BY TURNS."
     // base 3: the plain slug's. bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS keeps a lead of one belt over every bought
     // factory at every star (3 / 4 / 5); ★2 is FOURTH ARM (4 belts, interval 0.7 as THIRD ARM's), ★3 HEAVY GANTRY (5)
     factory: { ammo: "plain", speed: 25, lead: 1 },
@@ -1051,7 +1061,11 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
     levels: { 2: { gate: { stoke: 0.44 } }, 3: { gate: { stoke: 0.7 } } },
   },
   platebreaker: {
-    id: "platebreaker", name: "PLATE BREAKER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "scrapper", shape: "T",
+    // PLAIN-1F (M6, M8; REQ-BFG-107; BRIEF-PLAIN1F M6, PLAIN1F-NAMES, READ-4 call 7): the display name only. PLATE BREAKER
+    // read as breaking the FOE's shields (3 of 3 READ-4 seats on the phone shop card alone; 2 of 3 in PLAIN-1F's round C);
+    // it spends 10 of YOUR SHIELD for +DMG. SHIELD FUEL is the cold read's round C's pick (M8: 6 of 6 R, none reading the foe; tied with SHIELD SPENDER, the shorter wins). The key stays platebreaker (saves,
+    // snapshots, the server); src/ui/gameWords.ts NAMES_KEPT holds the name. Was "PLATE BREAKER"
+    id: "platebreaker", name: "SHIELD FUEL", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "scrapper", shape: "T",
     desc: ["TURNS YOUR HULL'S", "PLATING INTO", "PAYLOAD DAMAGE."], tags: ["PLATE", "FORGE"],
     // Y3 (release Y; DESIGN-Y row 26; folded at the flip, Y7b2): the ELSE floor goes (floor 0); it spends 10 PLATE for +40/+88/+140
     gate: { breaker: { flat: 40, floor: 0 } },

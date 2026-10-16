@@ -14,6 +14,7 @@ import { LAST_CHANCE_LIVES, lastChanceFires } from "../sim/lastChance"; // LC-1 
 import { npcDayRules, roadLog } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's road log
 import { heartsDusk, heartsRun } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a hearts run's dusk
 import { LAST_CHANCE_AT } from "../sim/lastChance"; // RETUNE-1 run 2: the dusk card's LAST CHANCE line on a hearts run
+import { firstRunGate } from "../sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004, F4): the snapshot's first-run flag
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -106,6 +107,9 @@ export function ghostOf(run: Run, createdAt = Date.now(), player = playerId(), n
     // NPC-1 (REQ-BFG-077, REQ-BFG-078): with NPC_DAY on, the road log, last: one entry per day reached (its tier, outcome
     // and drop), so the server re-derives each warlord and drop from the seed; off, every snapshot is as before
     ...(npcDayRules() && run.warlords.length ? { road: roadLog(run.warlords) } : {}),
+    // FIRSTDAY-1 (REQ-BFG-004, F4): a first run's flag, last of all, on every snapshot of that run (the server re-derives
+    // its days 1-2 rune offers by F3's rule); every other run, and every run with the gate off, snapshots as before
+    ...(run.firstRun === true && firstRunGate() ? { firstRun: true as const } : {}),
   };
 }
 

@@ -179,14 +179,19 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
     expect(outs1.filter((n) => n === outputsAt("loom", 1) - 1).length).toBeGreaterThan(outs1.length / 2);
     expect([ITEMS.loom.desc, ITEMS.gantry.desc, ITEMS.mimic.desc, ITEMS.twinmould.desc].map((d) => d.join(" "))).toEqual([
       "WEAVES THREAD SLUGS THAT FRAY THE HULL ONTO MANY BELTS.",
-      "A FAST PRESS THAT FEEDS ONE BELT MORE THAN MOST, IN TURN.",
+      "A FAST PRESS THAT FEEDS THE MOST BELTS, IN TURN.",
       "STAMPS YOUR HERO'S SIGNATURE AMMO FROM A SECOND FACTORY.",
       "CASTS PLAIN SLUGS SEVERAL AT A TIME, ONE BELT EACH.",
     ]);
     // SHAPES-1 flip: GANTRY PRESS keeps its lead on STAMP PRESS (+1) and its 2x3 size adds +1 more (footSlots): 4/5/6 (was
-    // STAMP PRESS's + 1, 3/4/5). Its desc above (ONE BELT MORE THAN MOST) is drawn nowhere (KEPT_FLAVOUR's gantry row is [];
-    // its face says FEEDS 4 BELTS IN TURN.), so it stays as written
+    // STAMP PRESS's + 1, 3/4/5). Its desc is drawn nowhere (KEPT_FLAVOUR's gantry row is []; its face says FEEDS 4 BELTS IN
+    // TURN.). PLAIN-1F (M5; BRIEF-PLAIN1F M5): reworded true in 0.9.9's world anyway (was "... FEEDS ONE BELT MORE THAN MOST,
+    // IN TURN.", two more with SHAPES on): it feeds the most belts of any factory at every star, LOOM's included
     for (const s of [1, 2, 3]) expect(outputsAt("gantry", s)).toBe(outputsAt("press", s) + 2);
+    for (const s of [1, 2, 3]) {
+      const outs = Object.values(ITEMS).filter((d) => d.kind === "factory" && d.id !== "gantry").map((d) => outputsAt(d.id, s));
+      expect(outputsAt("gantry", s), `★${s}: the most belts`).toBeGreaterThan(Math.max(...outs));
+    }
     expect([1, 2, 3].map((s) => effectAt("twinmould", s).factory!.pour)).toEqual([2, 2, 3]);
   });
 });
