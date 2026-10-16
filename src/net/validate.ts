@@ -25,6 +25,8 @@ import { isIntakeCell, rotOf } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S4, 
 import { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "../sim/foot"; // SHAPES-1 (R1): the turned footprint
 import { shapesRules, withShapes } from "../sim/shapes"; // SHAPES-1 (S1): the switch
 import { shapesGateProblem, shapesWorld } from "./rulesGate"; // SHAPES-1 (S1, S4): SHAPES_RULES' gate
+import { shapes2Rules, withShapes2 } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114 S1): the six more shaped rigs' switch
+import { shapes2GateProblem, shapes2World } from "./rulesGate"; // SHAPES-2 (S1): SHAPES2_RULES' gate
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
@@ -187,6 +189,10 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // (rulesGate.ts shapesGateProblem); a deck under older rules is judged in 0.9.9's shapes (inShapesWorld)
   const shGate = shapesGateProblem(rules, build);
   if (shGate) return { ok: false, errors: [`rules: ${shGate}`] };
+  // SHAPES-2 (REQ-BFG-114 S1): and the six more shaped rigs only with SHAPES2 on and under rules that have them
+  // (rulesGate.ts shapes2GateProblem); a deck under older rules is judged without them (inShapes2World)
+  const s2Gate = shapes2GateProblem(rules, build);
+  if (s2Gate) return { ok: false, errors: [`rules: ${s2Gate}`] };
   // FIRSTDAY-1 (REQ-BFG-004, F4): a first-run flag travels only with the first-run gate on
   const frGate = ctx.firstRun ? firstRunGateProblem() : null;
   if (frGate) return { ok: false, errors: [`firstRun: ${frGate}`] };
@@ -198,7 +204,7 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // SHAPES-1 (REQ-BFG-086; cap's RUN2 note 1.2): the shapes world nests inside the rules world, so a record under rules
   // before bb-0.10.0 is judged with SHAPES off too; c099's merge keeps HULL-ON's call inside both (release lane)
   // PLAIN-1F (M1): FIRSTDAY-1's ctx.firstRun rides through to validateBuild's runeProblem in the ctx spread
-  return inRulesWorld(rules, () => inShapesWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules)))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested
+  return inRulesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested
 }
 
 /**
@@ -208,7 +214,20 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
  * after, even on a throw (withShapes).
  */
 export function inShapesWorld<T>(rules: unknown, fn: () => T): T {
-  return shapesRules() && !shapesWorld(rules) ? withShapes(fn, false) : fn();
+  // SHAPES-2 (REQ-BFG-114 S1): SHAPES2 needs SHAPES (its six are shaped rigs), so the world before SHAPES_RULES has the six
+  // off too (withShapes2 outside, so the switches come back in the reverse of their order and ITEMS keeps its order); with
+  // SHAPES2 off (the pins) withShapes2 does nothing
+  return shapesRules() && !shapesWorld(rules) ? withShapes2(() => withShapes(fn, false), false) : fn();
+}
+
+/**
+ * SHAPES-2 (REQ-BFG-114 S1): run `fn` in the SHAPES2 world of `rules` (rulesGate.ts shapes2World), inShapesWorld's form: with
+ * SHAPES2 on and rules before SHAPES2_RULES, with the switch off (the six are unknown pieces, and refused first by
+ * shapes2GateProblem), the world the deck was made in; otherwise as the switch stands. The switch is put back after, even
+ * on a throw (withShapes2).
+ */
+export function inShapes2World<T>(rules: unknown, fn: () => T): T {
+  return shapes2Rules() && !shapes2World(rules) ? withShapes2(fn, false) : fn();
 }
 
 export interface Validation {

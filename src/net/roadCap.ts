@@ -42,15 +42,18 @@ import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078)
 import { hullScaleRules } from "../sim/hullScale"; // HULL-1c (REQ-BFG-079): the memo keys carry the switch
 import { shapesRules } from "../sim/shapes"; // SHAPES-1 (REQ-BFG-086 S1): the catalogue memos reset when it moves
 import { plainRigsRules } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the memos hold one switch state (plainMemo)
+import { shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114): the six more shaped rigs change the catalogue too (plainMemo)
 
 /** PLAIN-1 (REQ-BFG-084): the memos below read the catalogue (the TRADER's goods, the scout's discount), which PLAIN_RIGS
  *  changes, so they hold one switch state: a call made in the other state forgets them first (resetRoadCapMemo). With the
  *  switch never moved (the game, the server) this never resets anything. */
 let memoPlain = plainRigsRules();
+let memoShapes2 = shapes2Rules(); // SHAPES-2 (REQ-BFG-114): SHAPES2 adds six rigs to the catalogue, so it keys the memos the same way
 function plainMemo(): void {
-  if (plainRigsRules() === memoPlain) return;
+  if (plainRigsRules() === memoPlain && shapes2Rules() === memoShapes2) return;
   resetRoadCapMemo();
   memoPlain = plainRigsRules();
+  memoShapes2 = shapes2Rules();
 }
 
 // ------------------------------------------------------------------ D4: the reviewed model

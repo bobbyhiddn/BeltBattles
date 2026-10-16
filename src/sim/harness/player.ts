@@ -71,6 +71,7 @@ import { beltIndex, freeForRig, hitsIfPlaced, intakeCell, placeRigAt, rotFacing,
 import { stokeSpots } from "../beltside"; // 0.8.0 P1 (E3): STOKER's place beside factories
 import { shapedSpot } from "../beltside"; // SHAPES-1 (REQ-BFG-086 S7.1): the shaped-rig solver
 import { shapesRules } from "../shapes"; // SHAPES-1 (S1): the par-run cache key
+import { shapes2Rules } from "../shapes2"; // SHAPES-2 (REQ-BFG-114): the par-run cache key (the six in the shop move every par run)
 import type { SideStats } from "../battle";
 import { FUSE_MAX, fusible, gradeOf, starsOf, valueOf } from "../stars";
 import { beltPolicy, botSlots, reachCols, upgradePolicy } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7, REQ-BFG-043 D7')
@@ -1735,7 +1736,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // exactly as before
   // PLAIN-1 (REQ-BFG-084): PLAIN_RIGS moves the par decks (the six in the shop), so "|pr" is appended last; PLAIN-1F (M1):
   // off, the key is c099's byte for byte
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2" (last; off: the key as before)
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);

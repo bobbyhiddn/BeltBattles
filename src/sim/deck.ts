@@ -18,6 +18,7 @@ import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer da
 // SHAPES-1 (REQ-BFG-086 R1-R2): the footprint engine (foot.ts) and the SHAPES switch (shapes.ts, loaded with the sim)
 import { canonicalRot, footOf, footOffsets, footOnDeck, footprintCells } from "./foot";
 import { shapesRules } from "./shapes";
+import "./shapes2"; // SHAPES-2 (REQ-BFG-114): loads SHAPES2's switch, so its six defs are in ITEMS whenever it is on (after SHAPES' three)
 // re-exported, so the portable stand-in loader and beltside.ts keep importing only ./content and ./deck
 // (tests/standInPool.gen.test.ts)
 export { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "./foot";
