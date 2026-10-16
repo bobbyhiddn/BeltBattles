@@ -807,7 +807,8 @@ export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeG
   const errors: string[] = [];
   // AZ-PREP (REQ-BFG-078; REVIEW-HULL1D Q1): a hull or belt only a mix the seed didn't offer could explain says so, with the
   // seed's events by the day (NPC_DAY on); any other unreachable one keeps its line
-  const seedRoad = offered ? [...offered].join(", ") : "";
+  // RUN-1: a long run's `offered` counts the offers per event (one per bag): "dock x2, wreck"
+  const seedRoad = offered ? (offered instanceof Map ? [...offered].map(([e, n]) => (n > 1 ? `${e} x${n}` : e)) : [...offered]).join(", ") : "";
   if (!f.hullOk) {
     errors.push(f.unofferedHull?.length
       ? `supply: hullBonus ${b.hullBonus} needs ${f.unofferedHull.join(" or ")}, which this run's seed did not offer by day ${day} (its road: ${seedRoad})`
