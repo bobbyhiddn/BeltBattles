@@ -408,6 +408,9 @@ import { lcPartPlate, lcPartSub } from "../src/screens/lastChancePicker";
 import { drawChoiceCard } from "../src/screens/event/cards";
 import { drawDropCard, drawDropIcons } from "../src/screens/fork/drops";
 import { textWidth } from "../src/render/font";
+import { drawGridRight } from "../src/ui/shapePic";
+import { drawReveal } from "../src/screens/event/reveal";
+import type { DuskFoe } from "../src/game/run";
 
 describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface that draws its icon", () => {
   const fillOf = (id: string): string => (ITEMS[id].kind === "gate" ? C.wood2 : C.steel2);
@@ -497,5 +500,33 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
       drawDropIcons(G(row), { chance: 0.5, lines: [{ def: id, cls: "rare", odds: 0.1 }] }, 3, 3, 50);
       for (const t of gridGeom(gridSpecOf(id), GRID_CELL).tiles) expect(row.at(3 + t.x + 1, 3 + t.y + 1), `${id}: drop icon tile`).toBe(fillOf(id));
     }
+  });
+
+  it("the scout report's deck: the grid over the icon box's corner for a shaped part, none for a plain one", () => {
+    const foe = (defs: string[]) => ({ day: 5, kind: "standin", name: "GRUBNOSE", hero: "furnace", build: { hero: "furnace", items: defs.map((def, i) => ({ uid: i + 1, def, x: i, y: 1 })), routes: [], mods: [], beltCap: 14, hullBonus: 0 } }) as unknown as DuskFoe;
+    for (const id of shaped()) {
+      const c = fresh(160, 80);
+      drawReveal(G(c), { x: 0, y: 0, w: 150, h: 72 }, foe([id]));
+      const ix = 5, iy = 14 + 24 + 4; // the first deck icon's box (reveal.ts: x + 5, y + 14 + the 24 px portrait + 4)
+      for (const t of gridGeom(gridSpecOf(id), GRID_CELL).tiles) expect(c.at(ix + t.x + 1, iy + t.y + 1), `${id}: scout deck tile`).toBe(fillOf(id));
+    }
+    const plain = fresh(160, 80);
+    drawReveal(G(plain), { x: 0, y: 0, w: 150, h: 72 }, foe(["whetstone"]));
+    expect(limeIn(plain, { x: 0, y: 0, w: 160, h: 80 }), "a plain part: no arrowhead").toBe(0);
+  });
+
+  it("drawGridRight (the warlord's pick buttons): the grid at the row's right end, only where it clears the words and a badge", () => {
+    const id = "gantry", sz = shapeGridSize(id), c = fresh(140, 40);
+    // a roomy row: drawn 3 px in from the right edge, at the top
+    expect(drawGridRight(G(c), id, 4, 6, 120, 4 + 18 + 40, Infinity)).toBe(true);
+    const gx = 4 + 120 - 3 - sz.w, geom = gridGeom(gridSpecOf(id), GRID_CELL);
+    for (const t of geom.tiles) expect(c.at(gx + t.x + 1, 6 + t.y + 1)).toBe(fillOf(id));
+    // the words reach it: not drawn
+    const w = fresh(140, 40);
+    expect(drawGridRight(G(w), id, 4, 6, 120, gx + 1, Infinity)).toBe(false);
+    expect(w.px.every((p) => p === null)).toBe(true);
+    // a badge's top above the grid's foot: not drawn; not a shaped piece: not drawn
+    expect(drawGridRight(G(fresh(140, 40)), id, 4, 6, 120, 0, 6 + sz.h - 1)).toBe(false);
+    expect(drawGridRight(G(fresh(140, 40)), "whetstone", 4, 6, 120, 0, Infinity)).toBe(false);
   });
 });
