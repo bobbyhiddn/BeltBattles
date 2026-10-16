@@ -92,9 +92,12 @@ export function shapePicSize(defId: string, mini = false): { w: number; h: numbe
 // forward is up the picture, 1 right, 2 down, 3 left). It works for any footprint (the tests draw I2, I3 both ways, L, T, 2x2
 // and 2x3 with arrows on every side: GridSpec is plain data), not only the shaped pieces of this release.
 
-/** G2: the grid's cell pitch in art px: a 3 px tile and a 1 px seam at 4. Measured (REPORT section 6): one art px is at least
- *  1.5 CSS px on every phone view the build screen draws (402x690 @3: 1.67), so a cell is at least 6 CSS px. */
-export const GRID_CELL = 4;
+/** G2: the grid's cell pitch in art px: a 4 px tile and a 1 px seam at 5. The build screen draws an art px at 1.667 CSS px on
+ *  a portrait phone at dpr 3 (402x690, 360x640: x5), 1.5 at dpr 2 (x3) and 1.333 on a landscape phone at dpr 3 (844x390: x4),
+ *  so a cell of 4 would be 5.33 CSS px there (under the 6 of REQ-BFG-113): 5 art px is the least that gives at least 6 CSS px
+ *  a cell on all three of the brief's views (8.33, 7.50 and 6.67 CSS px; REPORT section 6 holds the whole table, with the
+ *  small landscape views at dpr 2 where even 5 falls under 6). */
+export const GRID_CELL = 5;
 /** G1: an arrowhead's length in art px (at least 3), measured out from the edge of the cell it shines from. */
 export const HEAD_LEN = 3;
 

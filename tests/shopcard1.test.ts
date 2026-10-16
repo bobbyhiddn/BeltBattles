@@ -116,7 +116,7 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       expect(icon.x).toBe(Math.floor((w - CARD_ICON) / 2));
       expect(icon.y).toBeGreaterThanOrEqual(5);
       expect(icon.y + icon.h).toBeLessThanOrEqual(h - 13);
-      const centre: Box = { x: icon.x + 8, y: icon.y + 8, w: 8, h: 8 }; // the picture's centre: the icon's middle 8x8
+      const centre: Box = { x: icon.x + 9, y: icon.y + 9, w: 6, h: 6 }; // the picture's centre: the icon's middle 6x6 (its 3x3 art px)
       const owned: Box = { ...ownedMarkAt(h), w: OWNED_MARK_W, h: OWNED_MARK_H };
       expect(inBox(z.merge, owned.x, owned.y) && inBox(z.merge, owned.x + owned.w - 1, owned.y + owned.h - 1), `${wn}: the owned marker lies in the merge plate`).toBe(true);
       for (let price = 1; price <= 11; price++) { // the dearest piece costs 11 (two digits)
@@ -135,9 +135,11 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       // every shaped piece's plate (and every synthetic footprint's, below) clears the gem, the marks and the picture's centre
       for (const id of shaped()) {
         const pl = plateAt(id, z.grid);
-        for (const [n, m] of [["gem", z.gem], ["merge", z.merge], ["sale", z.sale], ["owned", owned], ["centre", centre], ["price", cardPriceBox(w, h, 11)]] as [string, Box][]) {
+        for (const [n, m] of [["gem", z.gem], ["merge", z.merge], ["sale", z.sale], ["owned", owned], ["price", cardPriceBox(w, h, 11)]] as [string, Box][]) {
           expect(clear(pl, m), `${wn} ${id}: the grid's plate clear of the ${n}`).toBe(true);
         }
+        // the plate reaches over the icon's corner only: it never overlaps the picture's centre (touching its edge is fine)
+        expect(pl.x + pl.w <= centre.x || pl.y + pl.h <= centre.y, `${wn} ${id}: the grid's plate off the picture's centre`).toBe(true);
       }
     }
   });
@@ -180,7 +182,7 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
   it("the five shaped pieces: the grid on its ink plate in the picture area's top-left corner, at GRID_CELL, its tiles and arrowheads where gridGeom puts them; at most 25% of the icon's opaque px hidden", () => {
     const ids = shaped();
     expect(ids.sort()).toEqual(["assembly", "embertrough", "gantry", "nailstrip", "spikerail"]);
-    expect(GRID_CELL).toBeGreaterThanOrEqual(4);
+    expect(GRID_CELL).toBe(5); // G2: 5 art px = 8.33 / 7.50 / 6.67 CSS px at 402x690 @3, 360x640 @2 and 844x390 @3 (REPORT section 6)
     const rows: string[] = [];
     for (const id of ids) for (const [wn, w, h] of WIDTHS) {
       const c = draw(id, w, h, {}), z = cardZones(w, h), d = ITEMS[id], rig = d.kind === "gate";
@@ -206,7 +208,8 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
       for (const hd of geom.heads) {
         let lime = 0;
         for (let y = 0; y < hd.h; y++) for (let x = 0; x < hd.w; x++) if (c.at(gx + hd.x + x, gy + hd.y + y) === C.lime) lime++;
-        expect(lime, `${id} ${wn}: an arrowhead of ${HEAD_LEN} rows (1 + 3 + 3 px)`).toBe(7);
+        const t = GRID_CELL - 1;
+        expect(lime, `${id} ${wn}: an arrowhead of ${HEAD_LEN} rows (${t % 2 ? 1 : 2} + ${t} + ${t} px)`).toBe((t % 2 ? 1 : 2) + 2 * t);
         expect(hd.dir === 0 || hd.dir === 2 ? hd.h : hd.w, `${id}: the head is ${HEAD_LEN} long`).toBe(HEAD_LEN);
       }
       // G3: the share of the icon's opaque px the plate hides
