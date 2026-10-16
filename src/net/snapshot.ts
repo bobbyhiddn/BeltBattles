@@ -40,6 +40,10 @@ import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL, longRunRules } from "../sim/
 // it switches it on. SNAPSHOT_VERSION stays the version a snapshot WITHOUT any v3 field travels as (the pools, the
 // stand-ins and the probe: unchanged bytes and ids); the player's own snapshot (day.ts ghostOf) carries its seed and so
 // travels as SNAPSHOT_V3.
+// RUN-1 (REQ-BFG-059, REQ-BFG-116; D4, D8): one exception to that table: R1e's `losses` (the dusks the run lost before this
+// one) is TAKEN under a long run's rules (v3LiveFor: the switch on AND rules at or after LONG_RUN_RULES), where the record
+// check needs it (records.ts: day - 1 = wins + losses + draws, at most MAX_RUN_DRAWS draws); under every other rules version it
+// stays reserved and refused (V3_LIVE.losses is false), and a v3 snapshot without it stays valid everywhere.
 export const SNAPSHOT_VERSION = 2;
 export const SNAPSHOT_V3 = 3;
 export const SNAPSHOT_VERSIONS: readonly number[] = [1, 2, 3];
