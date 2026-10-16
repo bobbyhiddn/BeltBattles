@@ -13,6 +13,8 @@ import { bevel, flipX, hline, line, makeCanvas, px, rect, rot90, silhouette, vli
 import { boxRect, footX, footY, type DeckFrame } from "./frame";
 import { factorySprite, itemIcon } from "./sprites";
 import { gear } from "./factoryArt";
+import { SHAPES2_ANIMATED, shapes2BodyH } from "./shapes2Art"; // SHAPES-2 (REQ-BFG-114): the six more shaped rigs' bodies
+import { isShapes2Piece } from "../sim/shapes2";
 
 type Cv = HTMLCanvasElement;
 const cache = new Map<string, Cv>();
@@ -114,6 +116,7 @@ function rigCell(g: G, id: string, ox: number, oy: number, f: number, active: bo
 
 /** A rig body drawn lying along x, W x H px (cells: the covered cells in this orientation). */
 function drawRigBodyH(id: string, W: number, H: number, cells: [number, number][], full: boolean, f: number, active: boolean): Cv {
+  if (isShapes2Piece(id)) return shapes2BodyH(id, W, H, cells, full, f, active); // SHAPES-2 (REQ-BFG-114): the six more shaped rigs' own bodies (shapes2Art.ts)
   const [c, g] = makeCanvas(W, H);
   if (id === "nailstrip") {
     plate(g, W, H, cells, full, C.wood1, C.wood3, C.wood0);
@@ -149,7 +152,7 @@ function drawRigBodyH(id: string, W: number, H: number, cells: [number, number][
  */
 export function shapedRigBody(id: string, w: number, h: number, frameIdx: number, active: boolean, mask = ""): Cv {
   const f = ((frameIdx % 8) + 8) % 8;
-  const fr = id === "embertrough" ? f : 0; // only the trough animates
+  const fr = id === "embertrough" || SHAPES2_ANIMATED.includes(id) ? f : 0; // the trough animates, and (SHAPES-2) the spark, the ember and the jaws
   return cached(`srig:${id}:${w}x${h}:${mask}:${fr}:${active ? 1 : 0}`, () => {
     const tr = h > w;
     const W = tr ? h : w, H = tr ? w : h;

@@ -19,6 +19,16 @@ function cellsAt0(defId: string): readonly (readonly [number, number])[] {
   return footOffsets(ITEMS[defId], 0);
 }
 
+/** SHAPES-2 (REQ-BFG-114): the panel header's box holds 14x14 px inside; PICKAXE's T with its seven arrows is 16 wide at 4 px a
+ *  cell, so the panel picture takes 3 px a cell where 4 would not fit (every other shape of this and the last release fits
+ *  at 4). */
+const PIC_BOX = 14;
+function picCell(defId: string): number {
+  const cells = cellsAt0(defId), [mt, mr, mb, ml] = margins(defId, true);
+  const w = Math.max(...cells.map((c) => c[0])) + 1, h = Math.max(...cells.map((c) => c[1])) + 1;
+  return w * 4 + ml + mr > PIC_BOX || h * 4 + mt + mb > PIC_BOX ? 3 : 4;
+}
+
 /** The picture: `s` px a cell, `m` px of margin for the arrow ticks; tiles in the kind's colours (a rig the wood plate of
  *  the house's rigs, a factory steel), a 1 px ink outline round the shape and the seams between cells. */
 /** The arrow margins (px) on each side, in direction order (0 top, 1 right, 2 bottom, 3 left): 2 where an arrow points. */
@@ -66,7 +76,7 @@ function draw(defId: string, s: number, arrows: boolean): HTMLCanvasElement {
 export function shapePic(defId: string): HTMLCanvasElement {
   const k = `pic:${defId}`;
   let c = CACHE.get(k);
-  if (!c) CACHE.set(k, (c = draw(defId, 4, true)));
+  if (!c) CACHE.set(k, (c = draw(defId, picCell(defId), true)));
   return c;
 }
 
@@ -80,6 +90,6 @@ export function miniShape(defId: string): HTMLCanvasElement {
 
 /** The pictures' sizes in px, without drawing (tests, layout): w x h cells at `s` px plus the arrow margin. */
 export function shapePicSize(defId: string, mini = false): { w: number; h: number } {
-  const cells = cellsAt0(defId), s = mini ? 3 : 4, [mt, mr, mb, ml] = margins(defId, !mini);
+  const cells = cellsAt0(defId), s = mini ? 3 : picCell(defId), [mt, mr, mb, ml] = margins(defId, !mini);
   return { w: (Math.max(...cells.map((c) => c[0])) + 1) * s + ml + mr, h: (Math.max(...cells.map((c) => c[1])) + 1) * s + mt + mb };
 }

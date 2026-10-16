@@ -29,6 +29,7 @@ import { CORE_WORDS, HERO_WORDS } from "../src/ui/glossary"; // WORDS-1: the cor
 import { runeTag } from "../src/ui/runeText"; // WORDS-1: LAST STAND's tag
 import { setShapes } from "../src/sim/shapes"; // SHAPES-1: BB_SHAPES=1
 import { plainRigsRules, setPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): --plain-rigs
+import { setShapes2, shapes2Rules } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): --shapes2
 
 const NAME_OF = new Map<string, string>(Object.entries(ICON).map(([k, v]) => [v as string, k]));
 /** Markup or glyphs as plain text: each private-use icon as [NAME]. */
@@ -78,6 +79,9 @@ function sheet(): string {
   // PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 P4): with --plain-rigs the six plain stat rigs are on (PLAIN_RIGS), listed after
   // every base piece in catalogue order; without it the sheet is the base's, line for line
   if (plainRigsRules()) out.push("PLAIN-1: PLAIN_RIGS is on (--plain-rigs): the six plain stat rigs are listed after the base's pieces.", "");
+  // SHAPES-2 (REQ-BFG-114; BRIEF-SHAPES2 S5): with --shapes2 the six more shaped plain rigs are on (SHAPES2), listed after
+  // every other piece in catalogue order; without it the sheet is the base's, line for line
+  if (shapes2Rules()) out.push("SHAPES-2: SHAPES2 is on (--shapes2): the six more shaped plain rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE) are listed after the other pieces.", "");
   out.push("## Keywords", "");
   for (const k of KEYWORDS) out.push(`- ${k}: U+${ICON[k].charCodeAt(0).toString(16).toUpperCase()}, colour ${ICON_COLOUR[ICON[k]]}`);
   out.push("", "## Glossary rows (what a tap shows, no piece)", "");
@@ -104,11 +108,12 @@ function sheet(): string {
 
 if ((process.argv[1] ?? "").endsWith("textSheet.js")) {
   const path = process.argv[2];
-  if (!path) throw new Error("usage: node tools/dist/textsheet/textSheet.js <out.md> [--plain-rigs]");
+  if (!path) throw new Error("usage: node tools/dist/textsheet/textSheet.js <out.md> [--plain-rigs] [--shapes2]");
   // SHAPES-1 (REQ-BFG-086, S8): BB_SHAPES=1 makes the sheet with SHAPES on (the three shaped rigs, GANTRY PRESS 2x3, ASSEMBLY
   // LINE I3), as the brief's text-sheet check asks; unset, the sheet is as before
   if (process.env.BB_SHAPES === "1") setShapes(true);
   if (process.argv.includes("--plain-rigs")) setPlainRigs(true); // PLAIN-1 (REQ-BFG-084): the six in ITEMS
+  if (process.argv.includes("--shapes2")) setShapes2(true); // SHAPES-2 (REQ-BFG-114): the six more in ITEMS (after PLAIN-1's, when both are on)
   const text = sheet();
   writeFileSync(path, text);
   console.log(`text sheet: ${text.split("\n").length} lines -> ${path}`);

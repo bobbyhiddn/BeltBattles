@@ -56,6 +56,7 @@ import { pourAt } from "../sim/stars"; // Y1: a factory's pour as a {SLUG} stat 
 import { gearSlotsOf } from "../sim/deck";
 import { rigArrowCells } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 R2): a long rig's most hits
 import { shapesRules } from "../sim/shapes"; // SHAPES-1: the shaped pieces' faces, lines and notes (SHAPES on only)
+import { isShapes2Piece, shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114): the six more shaped plain rigs: the same stat-row face path as PLAIN-1's six
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 import { isPlainRig as isPlainSix } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (PLAIN-1F M1: renamed here; faces.ts's own isPlainRig is the face test, and it holds them while they are in ITEMS)
@@ -195,7 +196,7 @@ export function turretStats(def: string, stars = 1): Stat[] {
  *  place for them, as factoryStats and turretStats are their kinds' (a later chip or cadence pair goes here). */
 export function rigStats(def: string, stars = 1): Stat[] {
   if (!effectAt(def, stars).gate) throw new Error(`rigStats: ${def} is not a rig`);
-  if (isPlainSix(def)) return plainRigStats(def, stars) ?? []; // PLAIN-1 (REQ-BFG-084): the six's row (PLAIN-1F M1: plainRigStats, the one stat-row path)
+  if (isPlainSix(def) || isShapes2Piece(def)) return plainRigStats(def, stars) ?? []; // PLAIN-1 (REQ-BFG-084): the six's row (PLAIN-1F M1: plainRigStats, the one stat-row path); SHAPES-2: and the six more's
   return [];
 }
 
@@ -963,7 +964,7 @@ export const PLAIN_RIGS: readonly string[] = ["whetstone", "temper", "barbed"];
  *  No day, or HULL_SCALE off: day 1's, as before. */
 export function plainRigStats(def: string, stars = 1, day?: number): Stat[] | null {
   if (shapesRules() && SHAPED_PLAIN_RIGS.includes(def)) return shapedPlainStats(def, stars, day); // SHAPES-1 (REQ-BFG-084)
-  if (isPlainSix(def) && Object.prototype.hasOwnProperty.call(ITEMS, def)) return sixStats(def, stars, day); // PLAIN-1 (PLAIN_RIGS on)
+  if ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)) return sixStats(def, stars, day); // PLAIN-1 (PLAIN_RIGS on); SHAPES-2 (SHAPES2 on): the six more's rows read the same way (slugPlate, flat, burn, stun)
   if (!PLAIN_RIGS.includes(def)) return null;
   const g = effectAt(def, stars).gate!;
   if (def === "whetstone") return [["DMG", `+${fmtDmg(shownOn(day, () => dmgNow(g.flat!)))}`]];
@@ -1096,6 +1097,13 @@ const PLAIN_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   ballast: sixReminders,
   grindstone: sixReminders,
   brandingiron: sixReminders,
+  // SHAPES-2 (REQ-BFG-114): the six more shaped plain rigs, the same face: the stat row, and a reminder for each keyword it holds
+  elbowguard: sixReminders,
+  sawbar: sixReminders,
+  sparkcomb: sixReminders,
+  cinderhook: sixReminders,
+  jawcrusher: sixReminders,
+  pickaxe: sixReminders,
 };
 
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
@@ -1109,7 +1117,7 @@ export const FACE_IDS: readonly string[] = [
 export function hasFace(def: string): boolean {
   // PLAIN-1 (REQ-BFG-084): a plain stat rig of the six has its face while it is in ITEMS (PLAIN_RIGS on)
   return FACE_IDS.includes(def) || (shapesRules() && Object.prototype.hasOwnProperty.call(SHAPE_FACES, def))
-    || (isPlainSix(def) && Object.prototype.hasOwnProperty.call(ITEMS, def));
+    || ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)); // SHAPES-2: the six more while in ITEMS (SHAPES2 on)
 }
 
 // ------------------------------------------------- SHAPES-1 (REQ-BFG-086, REQ-BFG-084, REQ-BFG-089): the shaped pieces
@@ -1144,7 +1152,7 @@ export const SHAPED_PLAIN_RIGS: readonly string[] = ["nailstrip", "embertrough",
  *  while they are in ITEMS (PLAIN_RIGS on; src/sim/plainRigs.ts isPlainRig, imported here as isPlainSix). */
 export function isPlainRig(def: string): boolean {
   return PLAIN_RIGS.includes(def) || (shapesRules() && SHAPED_PLAIN_RIGS.includes(def))
-    || (isPlainSix(def) && Object.prototype.hasOwnProperty.call(ITEMS, def));
+    || ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)); // SHAPES-2 (REQ-BFG-114): and the six more (SHAPES2 on)
 }
 
 /** SHAPES-1: a shaped plain rig's stat row at `stars`: NAIL STRIP's and SPIKE RAIL's DMG on `day` (WHETSTONE's rule),
@@ -1186,13 +1194,16 @@ export function shapeLines(def: string, stars = 1): FaceRule[] {
 /** SHAPES-1 (REQ-BFG-089; S8): the default rules text for a shaped piece, behind the hover or tap (EXPLAIN-1's ⓘ NOTES):
  *  the shape rule for a long rig, the size rule for a shaped factory. */
 export const SHAPE_RULE = "A LONG RIG'S ARROWS SHINE FROM EVERY OUTSIDE EDGE OF ITS CELLS.";
+/** SHAPES-2 (REQ-BFG-114): the same rule in words that fit an L, a T and a 2x2 as well as a line ("LONG" would not): with SHAPES2
+ *  on every shaped rig's NOTES read it (one rule, one sentence); with it off SHAPES-1's SHAPE_RULE stands, byte for byte. */
+export const SHAPE_RULE_ANY = "A SHAPED RIG'S ARROWS SHINE FROM EVERY OUTSIDE EDGE OF ITS CELLS.";
 export const SIZE_RULE = `A FACTORY'S EVERY ${fmtCount(SLOT_EVERY_CELLS)} CELLS PAST ${fmtCount(SLOT_FROM_CELLS)} ADD A BELT SLOT.`;
 
 /** SHAPES-1: a shaped piece's NOTES sentences ([] for every other piece and with SHAPES off). */
 export function shapeNotes(def: string): string[] {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   if (!d || !shapesRules() || !deckShaped(d)) return [];
-  return d.kind === "gate" ? [SHAPE_RULE] : d.kind === "factory" ? [SIZE_RULE] : [];
+  return d.kind === "gate" ? [shapes2Rules() ? SHAPE_RULE_ANY : SHAPE_RULE] : d.kind === "factory" ? [SIZE_RULE] : []; // SHAPES-2: SHAPE_RULE_ANY while SHAPES2 is on
 }
 
 /** SHAPES-1 (REQ-BFG-086.1): the shape in a type line: `2 CELLS`, `3 CELLS` for a line or a bent shape, `2X3`, `3X3` for a
