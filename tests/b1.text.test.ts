@@ -477,31 +477,9 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
 
 // ------------------------------------------------------------------------------------- tag polish (VERIFIED-I1 call 7)
 
-describe("the desk's wide card: a clear row between the effect's second line and the family marks (VERIFIED-I1 call 7)", () => {
-  it("every module, sold or with a merge badge: the row over the marks is the bare face, the effect's lines end above it, the icon keeps its clear row", () => {
-    const base: CardState = { sold: false, affordable: true, selected: false, hover: false, pulse: false, hidden: false, shake: 0, badge: null };
-    const OX = 3, OY = 4, W = WIDE_CARD_MAX_W, H = WIDE_CARD_H;
-    let cards = 0;
-    for (const d of buyableModules()) for (const s of [{}, { sold: true }, { badge: { kind: "merge", toStars: 2 } as CardState["badge"] }]) {
-      const c = fresh(OX + W + 4, OY + H + 4);
-      drawCard(G(c), { x: OX, y: OY, w: W, h: H }, ITEMS[d.id], d.price, d.merchant!, { ...base, effect: cardText(d.id), ...s }, 0);
-      const face = "sold" in s ? C.night : C.slate0, what = `${d.id} ${JSON.stringify(s)}`;
-      const row = (y: number) => Array.from({ length: W - 4 }, (_, i) => c.at(OX + 2 + i, OY + y));
-      // the clear rows: under the icon and the name (over the effect), and between the effect and the marks
-      expect(row(CARD_EFFECT_Y - 1).filter((p) => p !== face), `${what}: the row over the effect`).toEqual([]);
-      expect(row(CARD_MARK_Y - 1).filter((p) => p !== face), `${what}: the row over the marks`).toEqual([]);
-      // the effect's two lines are drawn on their rows (5 rows each, a row apart), and the marks on theirs
-      const ink = (y0: number, n: number) => Array.from({ length: n }, (_, j) => row(y0 + j)).flat().filter((p) => p !== face).length;
-      expect(ink(CARD_EFFECT_Y, 5), what).toBeGreaterThan(0);
-      if (cardText(d.id).length > 20) expect(ink(CARD_EFFECT_Y + 6, 5), what).toBeGreaterThan(0);
-      expect(CARD_EFFECT_Y + 6 + 5, "the effect's second line ends two rows over the marks").toBe(CARD_MARK_Y - 1);
-      const marks = Array.from({ length: 3 }, (_, v) => Array.from({ length: 4 * familiesOf(d.id).length - 1 }, (_, i) => c.at(OX + CARD_MARK_X + i, OY + CARD_MARK_Y + v))).flat();
-      expect(marks.filter((p) => p !== face).length, what).toBeGreaterThan(0);
-      cards++;
-    }
-    expect(cards).toBe(buyableModules().length * 3);
-  });
-});
+// SHOPCARD-1 (REQ-BFG-115): retired: "the desk's wide card: a clear row between the effect's second line and the family marks
+// (VERIFIED-I1 call 7)" pinned the wide face's effect lines and family marks, which the card no longer draws (the one face is
+// its icon and price; tests/shopcard1.test.ts pins it at both widths, every state, with no text but the price's digits).
 
 describe("DRAG CHAIN FOUNDRY at 3 stars on the phone shows its families (VERIFIED-I1 call 7)", () => {
   const PHONE = BANDS[0][1];

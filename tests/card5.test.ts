@@ -187,22 +187,21 @@ describe("CARD-5 (G): the phone shop card's gists (REQ-BFG-111)", () => {
     expect(phoneGist("overclocker", { day: 1 }, 3)![1]).toBe("RIG x2");
   });
 
-  it("every gist card keeps its 46x42 size: row A and row B drawn inside it, no art, nothing outside (day 5)", () => {
+  // SHOPCARD-1 (REQ-BFG-115): retired as a drawing test (the gist rows A and B are not drawn on the card any more: the tap
+  // panel keeps them); every gist's piece still draws a card of its size, the same with or without its gist, inside it.
+  it("every gist's piece draws a 46x42 card, nothing outside it, the same with or without its gist (SHOPCARD-1: the card is its icon and price, day 5)", () => {
     expect([CARD_W, CARD_H]).toEqual([46, 42]);
     const st = { sold: false, affordable: true, selected: false, hover: false, pulse: false, hidden: false, shake: 0 };
     for (const id of Object.keys(PHONE_GISTS)) {
       const d = ITEMS[id], gst = phoneGist(id, optsFor(id, 5))!;
-      const c = fresh(60, 60), r = { x: 5, y: 5, w: CARD_W, h: CARD_H };
+      const r = { x: 5, y: 5, w: CARD_W, h: CARD_H };
+      const c = fresh(60, 60), plain = fresh(60, 60);
       drawCard(gOf(c), r, d, d.price, d.merchant ?? "ironmonger", { ...st, gist: gst }, 0);
-      let outside = 0, rowA = 0, rowB = 0;
-      for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) {
-        const px = c.at(x, y);
-        if (px === null) continue;
-        if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) outside++;
-        if (y >= r.y + CARD_GIST_Y && y < r.y + CARD_GIST_Y + 5 && x > r.x + 2 && x < r.x + r.w - 3 && px !== C.slate0) rowA++;
-        if (y >= r.y + CARD_CHIP_Y && y < r.y + CARD_CHIP_Y + 5 && x > r.x + 2 && x < cardPriceX(r.x, r.w, d.price, false, true) && px !== C.slate0) rowB++;
-      }
-      expect([outside, rowA > 0, rowB > 0], id).toEqual([0, true, true]);
+      drawCard(gOf(plain), r, d, d.price, d.merchant ?? "ironmonger", st, 0);
+      expect(c.px.join(), id).toBe(plain.px.join());
+      let outside = 0;
+      for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) if (c.at(x, y) !== null && (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h)) outside++;
+      expect(outside, id).toBe(0);
     }
   });
 });

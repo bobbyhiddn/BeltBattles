@@ -25,15 +25,14 @@ import { LC_HEART_S } from "../battleHud"; // LC-1 (REQ-BFG-073): the regained h
 import { START_LIVES } from "../../sim/content"; // RETUNE-1 run 2 (REQ-BFG-096): a row's hearts
 import { livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: a hearts run's 10
 import type { BuildScreen } from "./build";
-import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
+import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerFace } from "./shop"; // SHOPCARD-1: offerFace (was TXT-095's offerTooltip)
 import { drawDetails, hasDetails, textOpts } from "./inspector";
 import { drawFoeCard } from "./foeView"; // SCOUT-1c (REQ-BFG-082): the NEXT BATTLE card opens a scouted foe
-import { abilityText, cardText } from "../../ui/abilityText"; // 0.6.2t (T5): the card's one-line effect, the tooltip's
+import { abilityText } from "../../ui/abilityText"; // 0.6.2t (T5): the pack tooltip's fallback sentence (SHOPCARD-1: no longer the card's effect line)
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 import { drawBeltX } from "./beltx"; // shoptap (D3)
 import { deleteRoute } from "./actions"; // shoptap (D3): the X removes the belt as REMOVE BELT does
 import { faceLines } from "../../ui/faces"; // U2c group 0 fix 3: the packs' faces in their tooltips
-import { phoneGist, shopChipGlyphs } from "../../ui/chips"; // U2c (C4): the shop cards' stat chips
 
 /** bb-0.8.6 (PACKS P5; U2c group 0 fix 3): a pack slot's tooltip text: the pack's face ("+4 BELT TILES FOR THE RUN.",
  *  "+250 {HULL} FOR THE RUN."), else its first sentence. AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q3): on the run's day
@@ -143,9 +142,10 @@ function drawShop(g: G, s: BuildScreen): void {
       sold: o.sold, affordable: run.gold >= o.price, selected: sel && !carry, hover: !!s.hover && s.hover.wagon === wagon && s.hover.slot === slot,
       pulse: !s.boughtOnce && s.sel.kind === "none", hidden: !!carry && carry.src.from === "offer" && carry.src.wagon === wagon && carry.src.slot === slot, shake,
       badge: o.sold ? null : shopBadge(run, o.def), // 0.6.1d: live, never stored on the offer
-      effect: cardText(o.def, textOpts(run)), // 0.6.2t (T5): drawn on a wide (landscape) card
-      chip: shopChipGlyphs(o.def, textOpts(run)) ?? undefined, // U2c (C4): the stat chip
-      gist: phoneGist(o.def, textOpts(run)) ?? undefined, // CARD-3 (REQ-BFG-081, A): the phone card's gist (the narrow face)
+      // SHOPCARD-1 (REQ-BFG-115): the card is the icon and the price and wordless marks, so the effect, the stat chip and the
+      // gist rows that fed the old faces are no longer built here every frame; its sale mark: a scout's deal (run.shop.discount)
+      // made this offer cheaper than its list price (run.ts priceOf)
+      sale: !o.sold && o.price < ITEMS[o.def].price,
     }, t);
   }
   const rr = { ...L.reroll, x: L.reroll.x + s.caravan.dx(list.length, L.W) };
@@ -286,7 +286,9 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     // 0.6.2t (T5): the offer's opening sentence, as its panel and card read it. TXT-095 (REQ-BFG-070, REQ-BFG-046): faces
     // first, as the pack tooltip below: the face's first rule line (with the run's TextOpts), else that sentence
     // (shop.ts offerTooltip; was that opening sentence alone)
-    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerTooltip(o.def, textOpts(s.run)));
+    // SHOPCARD-1 (REQ-BFG-115, F5): the card shows only its icon and price, so the tooltip shows its whole face (offerFace: every
+    // line the panel's face draws), kept on screen (L.H); a click still selects the card and opens its panel (BuildScreen.up)
+    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerFace(o.def, textOpts(s.run)), L.H);
   }
   // bb-0.8.6 (REQ-BFG-051, PACKS P5): a mouse over a pack slot: its name and one-line text, as an offer's tooltip reads
   const ph = s.refit || c ? -1 : PACK_IDS.findIndex((id) => ui.hover === `pack-${id}`);

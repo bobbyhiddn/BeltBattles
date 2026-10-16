@@ -10,7 +10,7 @@ import { ITEMS } from "../sim/content";
 import { rigArrowCells } from "../sim/deck";
 import { footOffsets } from "../sim/foot";
 import { C } from "../render/palette";
-import { makeCanvas, rect } from "../render/pixel";
+import { makeCanvas, rect, type G } from "../render/pixel";
 
 const CACHE = new Map<string, HTMLCanvasElement>();
 
@@ -82,4 +82,131 @@ export function miniShape(defId: string): HTMLCanvasElement {
 export function shapePicSize(defId: string, mini = false): { w: number; h: number } {
   const cells = cellsAt0(defId), s = mini ? 3 : 4, [mt, mr, mb, ml] = margins(defId, !mini);
   return { w: (Math.max(...cells.map((c) => c[0])) + 1) * s + ml + mr, h: (Math.max(...cells.map((c) => c[1])) + 1) * s + mt + mb };
+}
+
+// ------------------------------------------------------------------------------------------------ SHOPCARD-1: THE GRID
+// SHOPCARD-1 (REQ-BFG-113; BRIEF-SHOPCARD1 G1): ONE function draws a piece's footprint as the grid every card shows: the
+// footprint at rot 0, square tiles in the kind's colours (a rig the house's wood, a factory steel), a 1 px seam between two
+// cells, a 1 px ink outline round the whole shape and, for a rig, one lime arrowhead for each arrow (deck.ts rigArrowCells),
+// outside the edge it shines from and pointing out the way the board's placement cue points it (cues.ts drawShapeGhost:
+// forward is up the picture, 1 right, 2 down, 3 left). It works for any footprint (the tests draw I2, I3 both ways, L, T, 2x2
+// and 2x3 with arrows on every side: GridSpec is plain data), not only the shaped pieces of this release.
+
+/** G2: the grid's cell pitch in art px: a 3 px tile and a 1 px seam at 4. Measured (REPORT section 6): one art px is at least
+ *  1.5 CSS px on every phone view the build screen draws (402x690 @3: 1.67), so a cell is at least 6 CSS px. */
+export const GRID_CELL = 4;
+/** G1: an arrowhead's length in art px (at least 3), measured out from the edge of the cell it shines from. */
+export const HEAD_LEN = 3;
+
+/** One arrow of a piece: the cell it shines from, as [dx, dy] in the footprint, and its direction in the picture
+ *  (0 up, 1 right, 2 down, 3 left, as deck.ts rigArrowCells' `dir` at rot 0). */
+export interface GridArrow { cell: readonly [number, number]; dir: number }
+/** A footprint to draw: its cells ([dx, dy], bounding box at 0, 0), its arrows, and whether it is a rig (wood tiles). */
+export interface GridSpec { cells: readonly (readonly [number, number])[]; arrows: readonly GridArrow[]; rig: boolean }
+/** Where the grid's parts fall in its own box, in px from the box's top-left (tests, layout). */
+export interface GridGeom {
+  w: number;
+  h: number;
+  /** The first cell's tile top-left (the margin the outline and any arrowhead take above and left of it). */
+  ox: number;
+  oy: number;
+  /** Each cell's tile (cell - 1 px square), in `cells` order. */
+  tiles: { x: number; y: number; w: number; h: number }[];
+  /** Each arrowhead's bounding box (HEAD_LEN long, its base the tile's width) and direction, in `arrows` order. */
+  heads: { x: number; y: number; w: number; h: number; dir: number }[];
+}
+
+/** G1: a piece's footprint and arrows as plain data (its foot at rot 0: foot.ts footOffsets; a rig's arrows: rigArrowCells). */
+export function gridSpecOf(defId: string): GridSpec {
+  const d = ITEMS[defId];
+  const rig = d.kind === "gate";
+  const arrows: GridArrow[] = [];
+  if (rig) for (const a of rigArrowCells(defId, 0, 0, 0)) if (a.from >= 0) arrows.push({ cell: [a.from % 10, Math.floor(a.from / 10)], dir: a.dir });
+  return { cells: cellsAt0(defId), arrows, rig };
+}
+
+/** G1: the geometry of `spec` drawn at `cell` px a cell. The tile is cell - 1 px; the last px of a cell's block is the seam
+ *  (or the outline where no cell lies beyond). A side with an arrow takes HEAD_LEN px of margin, any other 1 px (the outline). */
+export function gridGeom(spec: GridSpec, cell: number): GridGeom {
+  const W = Math.max(...spec.cells.map((c) => c[0])) + 1, H = Math.max(...spec.cells.map((c) => c[1])) + 1;
+  const has = [false, false, false, false];
+  for (const a of spec.arrows) has[a.dir] = true;
+  const ox = has[3] ? HEAD_LEN : 1, oy = has[0] ? HEAD_LEN : 1, t = cell - 1;
+  const w = ox + W * cell + (has[1] ? HEAD_LEN - 1 : 0), h = oy + H * cell + (has[2] ? HEAD_LEN - 1 : 0);
+  const tiles = spec.cells.map(([cx, cy]) => ({ x: ox + cx * cell, y: oy + cy * cell, w: t, h: t }));
+  const heads = spec.arrows.map(({ cell: [cx, cy], dir }) => {
+    const x = ox + cx * cell, y = oy + cy * cell;
+    if (dir === 0) return { x, y: y - HEAD_LEN, w: t, h: HEAD_LEN, dir };
+    if (dir === 2) return { x, y: y + t, w: t, h: HEAD_LEN, dir };
+    if (dir === 1) return { x: x + t, y, w: HEAD_LEN, h: t, dir };
+    return { x: x - HEAD_LEN, y, w: HEAD_LEN, h: t, dir };
+  });
+  return { w, h, ox, oy, tiles, heads };
+}
+
+/** G1: the arrowhead's rows from the tip to the base: the tip is 1 px (2 on an even tile), then the tile's whole width twice
+ *  (a pointer 3 px long that never passes its tile, so two cells' heads side by side keep the seam's px between them). */
+function headRows(t: number): number[] {
+  return [t % 2 ? 1 : 2, t, t];
+}
+
+/** G1: draw `spec` at (x, y), the box's top-left, `cell` px a cell. No background: the caller puts a plate under it (the
+ *  shop card's ink plate, drawShapePlate). */
+export function drawGrid(g: G, spec: GridSpec, x: number, y: number, cell: number): { w: number; h: number } {
+  const geom = gridGeom(spec, cell), t = cell - 1;
+  const [fill, hi, seam] = spec.rig ? [C.wood2, C.wood3, C.wood0] : [C.steel2, C.steel3, C.steel0];
+  const at = new Set(spec.cells.map(([cx, cy]) => `${cx},${cy}`));
+  const has = (cx: number, cy: number): boolean => at.has(`${cx},${cy}`);
+  // the outline: each cell's block grown 1 px up and left (the seams and tiles go over it)
+  for (const tl of geom.tiles) rect(g, x + tl.x - 1, y + tl.y - 1, cell + 1, cell + 1, C.ink);
+  spec.cells.forEach(([cx, cy], i) => {
+    const tl = geom.tiles[i], px = x + tl.x, py = y + tl.y;
+    rect(g, px, py, t, t, fill);
+    rect(g, px, py, t, 1, hi);
+    const r = has(cx + 1, cy), d = has(cx, cy + 1);
+    rect(g, px + t, py, 1, t, r ? seam : C.ink); // the block's last column: a seam, or the outline
+    rect(g, px, py + t, t, 1, d ? seam : C.ink); // ... and last row
+    rect(g, px + t, py + t, 1, 1, r && d && has(cx + 1, cy + 1) ? seam : C.ink); // the corner px: a seam only inside the shape
+  });
+  // the arrowheads: lime, base on the tile's edge, tip outward
+  spec.arrows.forEach((a, i) => {
+    const hd = geom.heads[i], rows = headRows(t);
+    for (let k = 0; k < HEAD_LEN; k++) { // k = 0 at the tile's edge (the base), HEAD_LEN - 1 at the tip
+      const run = rows[HEAD_LEN - 1 - k], off = Math.floor((t - run) / 2);
+      if (a.dir === 0) rect(g, x + hd.x + off, y + hd.y + (HEAD_LEN - 1 - k), run, 1, C.lime);
+      else if (a.dir === 2) rect(g, x + hd.x + off, y + hd.y + k, run, 1, C.lime);
+      else if (a.dir === 1) rect(g, x + hd.x + k, y + hd.y + off, 1, run, C.lime);
+      else rect(g, x + hd.x + (HEAD_LEN - 1 - k), y + hd.y + off, 1, run, C.lime);
+    }
+  });
+  return { w: geom.w, h: geom.h };
+}
+
+/** G1: the grid as a canvas (cached per piece and cell): its box is gridGeom's. Only for a shaped piece. */
+export function shapeGrid(defId: string, cell = GRID_CELL): HTMLCanvasElement {
+  const k = `grid:${defId}:${cell}`;
+  let c = CACHE.get(k);
+  if (!c) {
+    const spec = gridSpecOf(defId), geom = gridGeom(spec, cell), [cv, g] = makeCanvas(geom.w, geom.h);
+    drawGrid(g, spec, 0, 0, cell);
+    CACHE.set(k, (c = cv));
+  }
+  return c;
+}
+
+/** G1: the grid's box in px, without drawing (tests, layout). */
+export function shapeGridSize(defId: string, cell = GRID_CELL): { w: number; h: number } {
+  const geom = gridGeom(gridSpecOf(defId), cell);
+  return { w: geom.w, h: geom.h };
+}
+
+/** G3: the grid on an ink plate (a 1 px ink margin round its box: an arrowhead stays readable over an icon's corner) with the
+ *  plate's top-left at (x, y). Returns the plate's rect. `alpha` dims it (a sold card). */
+export function drawShapePlate(g: G, defId: string, x: number, y: number, cell = GRID_CELL, alpha = 1): { x: number; y: number; w: number; h: number } {
+  const { w, h } = shapeGridSize(defId, cell);
+  if (alpha < 1) g.globalAlpha = alpha;
+  rect(g, x, y, w + 2, h + 2, C.ink);
+  g.drawImage(shapeGrid(defId, cell), x + 1, y + 1);
+  if (alpha < 1) g.globalAlpha = 1;
+  return { x, y, w: w + 2, h: h + 2 };
 }

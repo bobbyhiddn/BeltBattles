@@ -56,9 +56,12 @@ describe("TXT-095 (ii): the shop card's hover tooltip reads faces first, as the 
     expect(offerTooltip("salvo", { k: 0.55 })).not.toBe(offerTooltip("salvo", { k: 1 }));
   });
 
-  it("chrome.ts draws it at the shop card (no more sentences[0] there); the pack tooltip's line is as before", () => {
+  // SHOPCARD-1 (REQ-BFG-115, F5): the card shows no words, so chrome.ts draws the tooltip with the offer's whole face (offerFace:
+  // every line the tap panel's face draws; tests/shopcard1.test.ts pins it line for line); offerTooltip (the first rule line
+  // alone) stays pinned above as data. Was: drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerTooltip(o.def, textOpts(s.run))).
+  it("chrome.ts draws the whole face at the shop card (no more sentences[0] there); the pack tooltip's line is as before", () => {
     const src = readFileSync("src/screens/build/chrome.ts", "utf8");
-    expect(src).toContain("drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerTooltip(o.def, textOpts(s.run)));");
+    expect(src).toContain("drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerFace(o.def, textOpts(s.run)), L.H);");
     expect(src).not.toContain("abilityText(o.def, 1, textOpts(s.run)).sentences[0]");
     // AZ-PREP (REVIEW-HULL1D Q3): the pack tooltip's line, face first then its sentence, now on the run's day (chrome.ts
     // packTip; was faceLines(def, 1)?.rules[0]?.text ?? abilityText(def, 1, textOpts(s.run)).sentences[0] ?? "")

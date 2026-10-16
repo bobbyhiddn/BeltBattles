@@ -6,7 +6,7 @@ import { ITEMS, MERCHANTS, PACK_ITEM, REROLL_COST, type ItemDef, type MerchantId
 import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the ARMOR PACK's amount on the day's hull
 import type { ShopBadge } from "../../game/run";
 import { C, RARITY_COLOR } from "../../render/palette";
-import { frame, rect, type G } from "../../render/pixel";
+import { frame, makeCanvas, rect, type G } from "../../render/pixel";
 import { ICON, drawText, icons, textWidth, wrap } from "../../render/font";
 import { coinIcon, itemIcon } from "../../render/sprites";
 import type { Rect } from "../../ui/ui";
@@ -17,8 +17,9 @@ import { plainRigStats } from "../../ui/faces"; // CARD-2 (REQ-BFG-084, K6): a p
 import { statRow } from "../../ui/icons"; // CARD-2 (K6)
 import { abilityText, type TextOpts } from "../../ui/abilityText"; // TXT-095: its fallback, the kept opening sentence
 import { CARD_W } from "./layout";
+import { faceBlocks } from "./faceBlocks"; // SHOPCARD-1 (REQ-BFG-115, F5): the panel's own face blocks, for the hover tooltip's whole face
 import { shapeWord } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-086.1): the type line's shape
-import { miniShape } from "../../ui/shapePic"; // SHAPES-1: the card's mini shape
+import { GRID_CELL, drawShapePlate } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G1): the card's shape grid (was SHAPES-1's miniShape)
 import { shapedPiece } from "./shapeEdit"; // SHAPES-1
 import { GAP } from "../../ui/spacing"; // CARD-3 (REQ-BFG-087, D4): the tooltip's family line's gap
 
@@ -80,14 +81,18 @@ export interface CardState {
   hidden: boolean; // being dragged away
   shake: number; // red shake time left (invalid drop)
   badge?: ShopBadge | null; // 0.6.1d: live from run.ts:shopBadge (mergePreview), never stored on the offer
-  /** 0.6.2t (T5): the offer's one-line effect (abilityText.ts cardText), shown on a wide (landscape) card. */
+  /** SHOPCARD-1 (REQ-BFG-115, F4): the offer is cheaper than its list price (a scout's deal: run.shop.discount, run.ts priceOf):
+   *  the small sale mark in the bottom-right corner. No other card state marks it. Absent: no mark. */
+  sale?: boolean;
+  /** SHOPCARD-1 (REQ-BFG-115): the three fields below fed the old faces (the wide face's effect lines, U2c's chip, CARD-3's
+   *  gist rows). The card draws none of them now (every word moved to the tap panel and the desk's hover tooltip), so drawCard
+   *  ignores them; they stay so the callers and tests that set them still compile (BRIEF-SHOPCARD1 rule 2: PLAIN-1F's and
+   *  the next rules job's rows are not touched). */
+  /** @deprecated SHOPCARD-1: not drawn. */
   effect?: string;
-  /** U2c (R1 MEMO C4): the stat chip (src/ui/chips.ts, in glyphs): on the narrow face in the family marks' place (they
-   *  don't fit beside it and the price: the panel's header names the families), the price in the right corner; on the wide
-   *  face left of the price, where it fits beside the badge (the marks stay). Absent: today's card. */
+  /** @deprecated SHOPCARD-1: not drawn. */
   chip?: string;
-  /** CARD-3 (REQ-BFG-081, A): the phone card's gist (chips.ts phoneGist, in markup): on the narrow face, row A (the mechanic
-   *  in words) where the art was, row B (the chip, or a word) in the chip's place. Absent: the chip as before. */
+  /** @deprecated SHOPCARD-1: not drawn. */
   gist?: readonly [string, string];
 }
 
@@ -179,6 +184,96 @@ function cardFrame(g: G, x: number, y: number, w: number, h: number, stripe: str
   rect(g, x + 1, y + h - 3, w - 2, 2, dim ? C.slate1 : rarity);
 }
 
+// ------------------------------------------------------------------------------------------------ SHOPCARD-1: THE FACE
+// SHOPCARD-1 (REQ-BFG-115, REQ-BFG-113; BRIEF-SHOPCARD1 F): every shop card, phone (46x42) and desk (up to 70x46), is ONE
+// face drawn by this one function: the piece's icon at x2 (24x24), its price, and only these wordless marks (each with a clear
+// px round it, none over the price, the picture's centre or another mark): the rarity gem and bar, the shape grid of a shaped
+// piece (top-left of the picture area), the merge mark or the owned marker (bottom-left), the sale mark (bottom-right). The only
+// text on it is the price's digits. The name, the stat chip, the gist rows, the effect lines and the family marks moved to the
+// tap panel (inspector.ts offerPanel) and the desk's hover tooltip (drawTooltip with offerFace).
+
+/** F2: the icon's size on a card: itemIcon's 12x12 at x2. */
+export const CARD_ICON = 24;
+const ICON2 = new Map<string, HTMLCanvasElement>();
+/** F2: the piece's icon doubled, pixel for pixel (nearest neighbour), cached per piece. */
+export function iconX2(id: string): HTMLCanvasElement {
+  let c = ICON2.get(id);
+  if (!c) {
+    const src = itemIcon(id), [cv, g] = makeCanvas(src.width * 2, src.height * 2);
+    g.drawImage(src, 0, 0, src.width, src.height, 0, 0, src.width * 2, src.height * 2);
+    ICON2.set(id, (c = cv));
+  }
+  return c;
+}
+
+/** F4: the merge mark's plate (an up arrow over the target's star pips), the sale mark's plate (a down arrow), and the dim a
+ *  sold card's picture and grid draw at. */
+export const MERGE_W = 10, MERGE_H = 8, SALE_W = 7, SALE_H = 6, SOLD_ALPHA = 0.4;
+
+export interface CardZones {
+  /** The picture area: under the stripe and the bevel, above the price row. */
+  pic: Rect;
+  /** F2: the icon's box (CARD_ICON square), centred in the picture area. */
+  icon: Rect;
+  /** The rarity gem's ink box. */
+  gem: Rect;
+  /** G3: the shape grid's plate, top-left of the picture area (its box depends on the piece: shapeGridSize + 2). */
+  grid: { x: number; y: number };
+  /** F4: the merge mark's plate (the owned marker, 5x7, takes its left-bottom corner). */
+  merge: Rect;
+  /** F4: the sale mark's plate. */
+  sale: Rect;
+}
+
+/** The zone map of a card `w` x `h` px, in px from its top-left (REPORT section 4; pure, tests). The price row is the old
+ *  card's: the coin at h - 11, the digits (7 rows, their outline one more) from h - 12; the rarity bar fills h - 3 and h - 2. */
+export function cardZones(w: number, h: number): CardZones {
+  const picH = h - 13 - 5; // rows 5 .. h - 14 (24 on the phone's 42, 28 on the desk's 46)
+  return {
+    pic: { x: 2, y: 5, w: w - 4, h: picH },
+    icon: { x: Math.floor((w - CARD_ICON) / 2), y: 5 + Math.floor((picH - CARD_ICON) / 2), w: CARD_ICON, h: CARD_ICON },
+    gem: { x: w - 6, y: 6, w: 4, h: 4 },
+    grid: { x: 2, y: 5 },
+    merge: { x: 3, y: h - 13, w: MERGE_W, h: MERGE_H },
+    sale: { x: w - 3 - SALE_W, y: h - 11, w: SALE_W, h: SALE_H },
+  };
+}
+
+/** The price's box (the coin and the digits with their outline), in px from the card's top-left: the clear px round it are the
+ *  marks' margin. Pure (tests). */
+export function cardPriceBox(w: number, h: number, price: number): Rect {
+  const px = cardPriceX(0, w, price, false, false);
+  return { x: px, y: h - 13, w: 7 + textWidth(String(price)) + 1, h: 9 };
+}
+
+/** F4: the owned marker's corner: bottom-left, its 7 rows on the price digits' rows (cardZones' merge plate holds it). */
+export const ownedMarkAt = (h: number): { x: number; y: number } => ({ x: 3, y: h - 12 });
+
+/** F4 (REQ-BFG-115): the merge mark, wordless: an up arrow over the target's star pips (★2: two, ★3: three, as the cargo
+ *  slot's pips: 2x1 yellow, 1 px apart), amber on an ink plate (MERGE_W x MERGE_H at (x, y)); a ★3 chain flashes amber and
+ *  yellow at 2 Hz as the badge did. */
+export function drawMergeMark(g: G, x: number, y: number, toStars: number, t: number): void {
+  const col = toStars >= 3 && Math.floor(t * 4) % 2 ? C.yellow : C.amber;
+  rect(g, x, y, MERGE_W, MERGE_H, C.ink);
+  rect(g, x + 4, y + 1, 1, 1, col); // the arrow's tip, its 3-wide, its 5-wide row and its stem
+  rect(g, x + 3, y + 2, 3, 1, col);
+  rect(g, x + 2, y + 3, 5, 1, col);
+  rect(g, x + 4, y + 4, 1, 1, col);
+  const n = toStars >= 3 ? 3 : 2, w = n * 2 + (n - 1);
+  let px = x + Math.round((MERGE_W - w) / 2);
+  for (let i = 0; i < n; i++, px += 3) rect(g, px, y + 6, 2, 1, col);
+}
+
+/** F4: the sale mark, wordless: a lime down arrow on an ink plate (SALE_W x SALE_H at (x, y)): this offer is cheaper than its
+ *  list price (a scout's deal). */
+export function drawSaleMark(g: G, x: number, y: number): void {
+  rect(g, x, y, SALE_W, SALE_H, C.ink);
+  rect(g, x + 3, y + 1, 1, 1, C.lime);
+  rect(g, x + 1, y + 2, 5, 1, C.lime);
+  rect(g, x + 2, y + 3, 3, 1, C.lime);
+  rect(g, x + 3, y + 4, 1, 1, C.lime);
+}
+
 export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: MerchantId, s: CardState, t: number): void {
   if (s.hidden) {
     // empty cradle while the card is carried
@@ -196,67 +291,27 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
     rect(g, r.x + r.w, r.y + 2, 1, r.h - 1, C.ink);
   }
   cardFrame(g, x, y, r.w, r.h, MERCHANT_COLOR[merchant], RARITY_COLOR[def.rarity], s.sold);
+  const z = cardZones(r.w, r.h);
   // rarity gem
-  rect(g, x + r.w - 6, y + 6, 4, 4, C.ink);
-  rect(g, x + r.w - 5, y + 7, 2, 2, s.sold ? C.slate1 : RARITY_COLOR[def.rarity]);
-  const icon = itemIcon(def.id);
-  const wide = !!s.effect && r.w > CARD_W;
-  if (wide) {
-    // 0.6.2t (T5) the wide face: the icon at the left with the name beside it, then the one-line effect in 2 lines
-    // of the 3x5 face (numbers white, keywords in their battle colours); the merge badge at the bottom left and the
-    // price at the bottom right (a badge over the icon would cover the name here). 0.8.0 B1 M4 (VERIFIED-I1 call 7): the
-    // effect starts at CARD_EFFECT_Y, a row higher than before, so a clear row lies between its second line and the
-    // family marks (and one still between the icon and its first line)
-    const nameLines = cardName(def, r.w - 26);
-    g.drawImage(icon, x + 4, y + 7);
-    nameLines.forEach((ln, i) => drawText(g, ln, x + 18, y + (nameLines.length > 1 ? 7 : 10) + i * 6, s.sold ? C.slate2 : C.bone, { font: "3" }));
-    cardEffectLines(s.effect!, r.w, s.sold ? C.slate2 : C.bone).slice(0, CARD_EFFECT_LINES).forEach((ln, i) =>
-      drawRich(g, s.sold ? ln.map((sp) => ({ ...sp, c: C.slate2 })) : ln, x + 2, y + CARD_EFFECT_Y + i * 6, "3"));
-    if (s.badge && !s.sold) drawBadge(g, x + 3, y + r.h - 11, r.w - 30, s.badge, t);
-  } else if (s.gist && !s.sold) {
-    // CARD-3 (REQ-BFG-081, A): the gist's face: no art; the badge's row (y + 5) as before, the name under it, row A over
-    // row B (the chip's row, beside the price), each in the 3x5 face (keywords in their colours, numbers white)
-    if (s.badge) drawBadge(g, x + 1, y + 5, r.w - 8, s.badge, t);
-    let ny = y + CARD_GIST_NAME_Y;
-    for (const ln of cardName(def, r.w - 4)) {
-      drawText(g, ln, x + r.w / 2, ny, C.bone, { font: "3", align: "center" });
-      ny += 6;
-    }
-    drawRich(g, colourize(icons(s.gist[0]), C.bone), x + CARD_MARK_X, y + CARD_GIST_Y, "3");
-  } else {
-    const lines = cardName(def, r.w - 4);
-    const two = lines.length > 1;
-    g.drawImage(icon, Math.round(x + r.w / 2 - 6), y + (two ? 5 : 8));
-    if (shapedPiece(def.id)) g.drawImage(miniShape(def.id), x + 3, y + 5); // SHAPES-1 (REQ-BFG-086.1): the card's mini shape, top left
-    // review-061 F1: the badge sits on top of the icon, or the icon hides its label
-    if (s.badge && !s.sold) drawBadge(g, x + 1, y + 5, r.w - 8, s.badge, t);
-    let ny = y + (two ? 18 : 22);
-    for (const ln of lines) {
-      drawText(g, ln, x + r.w / 2, ny, s.sold ? C.slate2 : C.bone, { font: "3", align: "center" });
-      ny += 6;
-    }
-  }
-  // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the family marks, a row at the bottom left of either face (narrow: left of the
-  // centred price, under the name; wide: under the effect's second line, a clear row between (0.8.0 B1 M4), over the
-  // badge and the price); the panel and the hover tooltip name them (ui/families.ts)
-  // U2c (C4): on the narrow face a chip takes the marks' place (the price moves to the right corner)
-  const gistB = !wide && s.gist && !s.sold ? s.gist[1] : null; // CARD-3 (A): row B in the chip's place
-  const chip = gistB !== null ? icons(gistB, "alone") : s.chip && !s.sold ? s.chip : null;
-  if (gistB !== null) drawRich(g, colourize(icons(gistB, "alone"), C.white), x + CARD_MARK_X, y + CARD_CHIP_Y, "3");
-  else if (chip && !wide) drawText(g, chip, x + CARD_MARK_X, y + CARD_CHIP_Y, C.white, { font: "3" });
-  else drawFamilyMarks(g, def.id, x + CARD_MARK_X, y + CARD_MARK_Y, s.sold);
-  if (chip && wide) {
-    // U2c: the wide face's chip, left of the price on its row, where it clears the badge (else the effect line says it)
-    const cx = cardPriceX(x, r.w, price, true, true) - 3 - textWidth(chip, "3");
-    if (cx >= x + 3 + (s.badge ? badgeW(s.badge, r.w - 30) + 2 : 0)) drawText(g, chip, cx, y + r.h - 10, C.white, { font: "3" });
-  }
-  if (s.sold) {
-    drawText(g, "SOLD", x + r.w / 2, y + r.h - 11, C.maroon, { font: "3", align: "center" });
-  } else {
-    const txt = String(price);
-    const px = cardPriceX(x, r.w, price, wide, !!chip); // 0.6.2t: the wide face's price sits right; U2c: a chip's too
+  rect(g, x + z.gem.x, y + z.gem.y, 4, 4, C.ink);
+  rect(g, x + z.gem.x + 1, y + z.gem.y + 1, 2, 2, s.sold ? C.slate1 : RARITY_COLOR[def.rarity]);
+  // F2: the picture, the icon at x2 (dim on a sold card); G3: a shaped piece's grid on its ink plate, top-left of the picture
+  // area (over the icon's corner where the two meet), dim on a sold card
+  if (s.sold) g.globalAlpha = SOLD_ALPHA;
+  g.drawImage(iconX2(def.id), x + z.icon.x, y + z.icon.y);
+  g.globalAlpha = 1;
+  if (shapedPiece(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, GRID_CELL, s.sold ? SOLD_ALPHA : 1);
+  if (!s.sold) {
+    // F4: the bottom-left corner holds the merge mark (MERGE ★2, ★3) or the owned marker (a copy that won't merge yet, or
+    // only ★3 copies: was the MAX word); the bottom-right corner the sale mark, where no merge mark is
+    const b = s.badge;
+    if (b?.kind === "merge") drawMergeMark(g, x + z.merge.x, y + z.merge.y, b.toStars, t);
+    else if (b) drawOwnedMarker(g, x + ownedMarkAt(r.h).x, y + ownedMarkAt(r.h).y);
+    else if (s.sale) drawSaleMark(g, x + z.sale.x, y + z.sale.y);
+    // the price stays at the bottom centre on both widths (a sold card shows none: it dims, and says no word)
+    const px = cardPriceX(x, r.w, price, false, false);
     g.drawImage(coinIcon(), px, y + r.h - 11);
-    drawText(g, txt, px + 7, y + r.h - 12, s.affordable ? C.yellow : C.red, { outline: C.ink });
+    drawText(g, String(price), px + 7, y + r.h - 12, s.affordable ? C.yellow : C.red, { outline: C.ink });
   }
   if (s.shake > 0) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, Math.floor(t * 20) % 2 ? C.red : C.maroon);
   else if (s.selected) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, Math.floor(t * 6) % 2 ? C.white : C.yellow);
@@ -291,19 +346,35 @@ export function offerTooltip(def: string, o: TextOpts = {}): string {
   return faceLines(def, 1, o)?.rules[0]?.text ?? abilityText(def, 1, o).sentences[0] ?? "";
 }
 
+/** SHOPCARD-1 (REQ-BFG-115, F5; the operator: "they should always be their icon and price"): a shop offer's whole face, for the
+ *  desk's hover tooltip (chrome.ts): the text of every item the tap panel's default face draws for that offer (inspector.ts
+ *  offerPanel through explainPanel: the stat row(s), every rule line, a shaped piece's own lines, the interim caveats; not the
+ *  NOTES the panel keeps behind its ⓘ), at ★1 with the run's TextOpts (a core's number is the run's gun's; the day's numbers on
+ *  the run's day), so the card says nothing the tooltip leaves out. A piece with no face draws its kept text's sentences, as
+ *  the panel does (abilityText). faceBlocks.ts is the panel's own source, so the two read one text. */
+export function offerFace(def: string, o: TextOpts = {}): string[] {
+  const blocks = faceBlocks(def, 1, o);
+  return blocks ? blocks.filter((b) => !b.note).map((b) => b.text) : abilityText(def, 1, o).sentences;
+}
+
 /** Floating hover tooltip under a card (mouse only). 0.6.2t (T5): `text` is the offer's opening sentence from the
  *  glossary (abilityText.ts, at 1 star and the hero's class factor), wrapped by the one helper, as its panel reads it.
- *  TXT-095: an offer's `text` is offerTooltip's (its face's first rule line first), as a pack's is (chrome.ts). */
-export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text = ""): void {
-  const lines = tooltipLines(text);
+ *  TXT-095: an offer's `text` is offerTooltip's (its face's first rule line first), as a pack's is (chrome.ts).
+ *  SHOPCARD-1 (F5): an offer's `text` is its whole face (offerFace): a list, one item per face line, each wrapped to
+ *  TOOLTIP_TEXT_W and set apart from the next by the item gap G (SPACE-1's, 3x5: 4 px) over the lines' pitch; `H`, the screen's
+ *  height, keeps the box on screen (it moves up over its card rather than run off the foot). A string is one item, as before. */
+export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text: string | readonly string[] = "", H = 0): void {
+  const items = (typeof text === "string" ? [text] : text).map(tooltipLines).filter((l) => l.length);
+  const lines = items.flat();
+  const apart = Math.max(0, items.length - 1) * GAP["3"];
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families, named in their colours under its kind (none: no line).
   // CARD-3 (REQ-BFG-087, D4; SPACE-1 open item 7): the family line and the effect are separate items: the gap G (3x5's)
   // between them (the effect's first line sat right under the names: 2 px, the pitch's)
   const fam = familiesText(def.id), famLine = fam ? familySpans(fam) : null, fh = famLine ? 7 + GAP["3"] : 0;
   const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(describe(def), "3"), famLine ? lineWidth(famLine, "3") : 0) + 10;
-  const h = 22 + fh + lines.length * 7;
+  const h = 22 + fh + lines.length * 7 + apart;
   const x = Math.max(2, Math.min(W - w - 2, Math.round(r.x + r.w / 2 - w / 2)));
-  const y = r.y + r.h + 4;
+  const y = H ? Math.max(2, Math.min(r.y + r.h + 4, H - 2 - h)) : r.y + r.h + 4;
   rect(g, x + 2, y + 2, w, h, C.ink);
   rect(g, x, y, w, h, C.ink);
   rect(g, x + 1, y + 1, w - 2, h - 2, C.night);
@@ -311,7 +382,11 @@ export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text = ""): 
   drawText(g, def.name, x + 5, y + 4, RARITY_COLOR[def.rarity], { outline: C.ink });
   drawText(g, describe(def), x + 5, y + 13, C.slate4, { font: "3" });
   if (famLine) drawRich(g, famLine, x + 5, y + 21, "3");
-  lines.forEach((l, i) => drawRich(g, l, x + 5, y + 21 + fh + i * 7, "3"));
+  let ly = y + 21 + fh;
+  items.forEach((item, k) => {
+    if (k) ly += GAP["3"];
+    item.forEach((l) => { drawRich(g, l, x + 5, ly, "3"); ly += 7; });
+  });
 }
 
 export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pressed: boolean, free = false): void {
