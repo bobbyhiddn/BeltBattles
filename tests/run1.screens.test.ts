@@ -8,8 +8,11 @@
 //     and continue card (continueSub), the end card (summary.ts endTitle, wonLine, lostLine), the history rows from day 11 on
 //     (amber day, foldRows for a run too deep for the screen), and the stakes line on day 10 and later (stakes.ts duskStakes).
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { computeView } from "../src/core/io";
+import { computeView, defaultScale } from "../src/core/io";
+import { glyphRows, textWidth, wrap } from "../src/render/font";
+import { helpCard, titleLayout, titleScale } from "../src/screens/titleLayout";
 import { C } from "../src/render/palette";
 import { HEROES, RUN_DAYS } from "../src/sim/content";
 import { HEARTS_START, heartCost, heartsRules, withHearts } from "../src/sim/hearts";
@@ -28,6 +31,7 @@ import { RIVAL_IDS } from "../src/sim/rivals";
 import type { Game } from "../src/game/game";
 import type { SideStats } from "../src/sim/battle";
 
+const ROOT = join(new URL("..", import.meta.url).pathname);
 const S = {} as SideStats;
 afterEach(() => setLongRun(false)); // the shipped value
 
@@ -189,6 +193,53 @@ describe("RUN-1 T4: the title's rules card and continue card", () => {
     expect(continueSub({ ...old, day: 12, wins: 3, losses: 8, longRun: true })).toBe("WINS 3/10 · DAY 12 · FURNACE · 3-8");
     expect(continueSub({ ...old, day: 3, wins: 1, losses: 1, longRun: true })).toBe("WINS 1/10 · DAY 3 · FURNACE · 1-1");
     withLongRun(() => expect(continueSub(old)).toBe("DAY 6/10 · FURNACE · 3-2")); // the switch is not the save's mark
+  });
+});
+
+/** The title's view as the game computes it (TitleScreen.pickScale; card5.test.ts's titleView). */
+function titleView(cssW: number, cssH: number, dpr: number): { W: number; H: number; k: number; portrait: boolean } {
+  const v = computeView(cssW, cssH, dpr, (pw, ph, p) => titleScale(pw, ph, p, dpr));
+  const menu = defaultScale(Math.floor(cssW * dpr), Math.floor(cssH * dpr), v.portrait);
+  return { W: v.W, H: v.H, k: menu / v.scale, portrait: v.portrait };
+}
+/** card5.test.ts's eight screens, plus the narrowest phones (310x640 @3 and an iPhone SE's 320x568 @2). */
+const SCREENS: Readonly<Record<string, [number, number, number]>> = {
+  "402x690 @3": [402, 690, 3], "390x844 @3": [390, 844, 3], "390x660 @3": [390, 660, 3], "844x390 @3": [844, 390, 3],
+  "360x640 @2": [360, 640, 2], "desk 1440x900 @1": [1440, 900, 1], "desk 1440x900 @2": [1440, 900, 2], "desk 1280x720 @1": [1280, 720, 1],
+  "310x640 @3": [310, 640, 3], "320x568 @2": [320, 568, 2],
+};
+
+describe("RUN-1 T4: the long run's cards fit the screens the live cards fit", () => {
+  it("the rules card (LONG_RUN on) is on screen with 20 px clear, no line cut, every glyph in its face, on ten screens", () => {
+    const lines = withLongRun(() => helpLines());
+    const live = helpLines();
+    let grew = 0;
+    for (const [name, [w, h, dpr]] of Object.entries(SCREENS)) {
+      const v = titleView(w, h, dpr);
+      const c = helpCard(v.W, v.H, v.k, lines), b = helpCard(v.W, v.H, v.k, live);
+      expect(c.x >= 0 && c.x + c.w <= v.W && c.y >= 20 && c.y + c.h <= v.H - 20, `${name}: card ${JSON.stringify(c)} on ${v.W}x${v.H}`).toBe(true);
+      expect([c.row, c.font, c.w], name).toEqual([b.row, b.font, b.w]); // the pitch, the face and the width as the live card's
+      const rows = lines.map((ln) => wrap(ln, c.w - 16, c.font));
+      for (const rr of rows) for (const row of rr) {
+        expect(textWidth(row, c.font), `${name}: ${row}`).toBeLessThanOrEqual(c.w - 16);
+        for (const ch of row) if (ch !== " ") expect(glyphRows(ch, c.font), `${name}: ${JSON.stringify(ch)}`).toBeDefined();
+      }
+      expect(c.h, name).toBe(20 + rows.flat().length * c.row + lines.length * 3 + 5);
+      if (c.h > b.h) grew++;
+    }
+    expect(grew).toBeGreaterThan(0); // the longer line 2 takes a row or two more somewhere (the live card was measured on the same screens)
+  });
+
+  it("the continue card's second line fits its button on those screens, for the longest hero name and a wide record", () => {
+    const hero = (Object.keys(HEROES) as (keyof typeof HEROES)[]).reduce((a, b) => (HEROES[b].name.length > HEROES[a].name.length ? b : a));
+    const sub = continueSub({ day: 17, wins: 9, losses: 8, hero, longRun: true });
+    expect(sub).toBe(`WINS 9/10 · DAY 17 · ${HEROES[hero].name} · 9-8`);
+    for (const [name, [w, h, dpr]] of Object.entries(SCREENS)) {
+      const v = titleView(w, h, dpr);
+      const L = titleLayout(v.W, v.H, v.portrait, true, v.k);
+      const b = L.buttons.cont!;
+      expect(textWidth(sub, "3"), `${name}: "${sub}" in a ${b.w} px button`).toBeLessThanOrEqual(b.w - 8);
+    }
   });
 });
 
@@ -362,7 +413,7 @@ describe("RUN-1 T4: no screen draws a day as n/10 past the helpers", () => {
   const FILES = ["src/screens/build/chrome.ts", "src/screens/fork/fork.ts", "src/screens/battle.ts", "src/screens/replay.ts", "src/screens/title.ts"];
   it("the five screens build their DAY words with dayText (no `DAY ${...}/${RUN_DAYS}` of their own)", () => {
     for (const f of FILES) {
-      const src = readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+      const src = readFileSync(join(ROOT, f), "utf8");
       expect(src, f).not.toMatch(/DAY \$\{[^}]*\}\/\$\{RUN_DAYS\}/);
     }
   });
