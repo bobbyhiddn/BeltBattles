@@ -172,12 +172,14 @@ export const SHOTS = [
   ]),
   ...["desk", "phone"].flatMap((v) => [
     ["warlord-matriarch-win", v, "title", 0, WARLORD("hard", { day: 8, wins: 5, losses: 2, lives: 3, outcome: 0 }, 60)],
-    ["fork-inspect", v, "title", 0, FORK({ day: 5, wins: 3, losses: 1, lives: 4 }, [], "bb.game.screen.sel = 3;")],
+    // STAGE-0910 (STAGE-099C F4): the fork's cards are the three warlords since NPC_DAY (src/screens/fork/fork.ts:40; 0.9.7's
+    // fork held four, the road event first), so the Hard card is 2: sel = 3 read RIVALS[undefined] and stopped the run at 36 shots
+    ["fork-inspect", v, "title", 0, FORK({ day: 5, wins: 3, losses: 1, lives: 4 }, [], "bb.game.screen.sel = 2;")],
     // B3: the retargeted events, SCOUT's reveal (SPY, then REFIT / FIGHT NOW), and a fork with a
     // pending ELITE BOUNTY and SABOTAGE (inspecting the Hard card)
     ["event-sappers", v, "title", 0, EVENT("sappers", { round: 4, gold: 9 })],
     ["event-scout-reveal", v, "title", 0, EVENT("scout", { round: 3, gold: 5 }, 2, 70)],
-    ["fork-pending", v, "title", 0, FORK({ day: 6, wins: 3, losses: 2, lives: 3, bounty: true, sabotage: true }, [], "bb.game.screen.sel = 3;")],
+    ["fork-pending", v, "title", 0, FORK({ day: 6, wins: 3, losses: 2, lives: 3, bounty: true, sabotage: true }, [], "bb.game.screen.sel = 2;")], // STAGE-0910 F4: the Hard card (above)
   ]),
   ...["laptop", "small"].flatMap((v) => [
     ["event-scout-reveal", v, "title", 0, EVENT("scout", { round: 3, gold: 5 }, 2, 70)],
