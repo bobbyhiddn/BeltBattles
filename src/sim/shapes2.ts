@@ -77,6 +77,21 @@ export const SHAPES2_DEFS: Readonly<Record<string, ItemDef>> = {
 /** The six ids, in the order they join ITEMS. */
 export const SHAPES2_IDS: readonly string[] = Object.keys(SHAPES2_DEFS);
 
+/**
+ * THE OFFER LEVER (BRIEF-SHAPES2 S3; REQ-BFG-114 (2): a typical run sees at least 5 shaped-rig offers across its shops, bar:
+ * the median run at least 6 and at least 75% of runs at least 5, on every hero). Lever (b), the per-run draw (wares.ts
+ * holdShaped): while SHAPES2 is on, the run's wares always hold at least `minStock` of the shaped rigs (the nine). The bench
+ * (tools/shapes2/offers.ts; REPORT section 5): with none, the median run sees 5 and 57-61% see 5 or more; 6 holds the median
+ * but only 71% see 5 or more (seeds 1-3000); 7 is the least that passes (median 6, 80.5%). Off, or at 0, the draw is exactly
+ * as it was. The bench sets it for its trials (--k); the shipped value is the one below.
+ */
+export const SHAPES2_ODDS: { minStock: number } = { minStock: 7 };
+
+/** Is `d` a shaped rig: a rig whose foot is more than one cell (a rig has the foot "1" unless a def says otherwise)? */
+export function isShapedRig(d: ItemDef | undefined): boolean {
+  return !!d && d.kind === "gate" && !!d.foot && d.foot !== "1";
+}
+
 let s2On = false;
 
 /** Are the six more shaped rigs in the game now (SHAPES2, or a withShapes2 call)? */
