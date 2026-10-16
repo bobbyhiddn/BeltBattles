@@ -31,7 +31,9 @@ const named = (g: Pick<GhostSnapshot, "name">): { name?: string } => (g.name !==
  *  build (ghosts.ts standInFoe: standInBuild since 0.6.2 TUNE-C; the stand-in pool's standInPick
  *  from 0.6.0d). Pure: the caller stores it in run.dusk, so the deck never re-rolls. */
 export function chooseFoe(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
-  const g = pickGhost(pool, { rules: RULES_VERSION, day: run.day, runId: run.runId, wins: run.wins, lives: run.lives, seed: run.seed });
+  // RUN-1 (REQ-BFG-059, D6): the run's own mark decides the widening (a thin day widens to the nearest earlier day on a long run;
+  // a 10-day run saved before the bump keeps its exact-day pick)
+  const g = pickGhost(pool, { rules: RULES_VERSION, day: run.day, runId: run.runId, wins: run.wins, lives: run.lives, seed: run.seed, long: longRun(run) });
   if (g) {
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
@@ -101,6 +103,9 @@ export function ghostOf(run: Run, createdAt = Date.now(), player = playerId(), n
     // RUNES-1 (REQ-BFG-058, snapshot v3): the run seed, last (left out when zero), so the server re-derives the rune
     // offers (runes.ts runeProblem). FIX-5 (a server-issued seed) is a later job: this is the client's run seed.
     ...(seed ? { seed } : {}),
+    // RUN-1 (REQ-BFG-059, D4): a long run's snapshot states its losses (snapshot.ts: R1e's `losses`, taken under long-run rules only),
+    // so the record check can tell a loss from a draw; a 10-day run's snapshot is exactly as before
+    ...(longRun(run) ? { losses: run.losses } : {}),
     // LC-1 (REQ-BFG-073): a taken LAST CHANCE, after the seed (the server re-derives its offer and finds its rune); a run
     // without one (every switch-off run) snapshots exactly as before
     ...(run.lastChance?.boon ? { lastChance: { day: run.lastChance.day, boon: run.lastChance.boon, ...(run.lastChance.id !== undefined ? { id: run.lastChance.id } : {}) } } : {}),

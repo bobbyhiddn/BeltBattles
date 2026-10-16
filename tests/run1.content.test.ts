@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { BAG_IDS, blockReason, eventFor, eventSequence } from "../src/game/events";
 import { WARLORD_EVENT_IDS, type Choice } from "../src/game/eventDefs";
 import { forkFor } from "../src/game/road";
+import { chooseFoe, ghostOf } from "../src/game/day";
 import { newRun, pendingRune } from "../src/game/run";
 import { LONG_RUN_DEEPEST_DAY, LONG_RUN_GEN_DAYS, longRunRules, setLongRun, withLongRun } from "../src/sim/longRun";
 import { ITEMS, RUN_DAYS, incomeFor, rarityWeights, type HeroId } from "../src/sim/content";
@@ -330,5 +331,33 @@ describe("RUN-1 D5: the written rule for a day past the deepest generated day", 
   it("16 is the deepest day a run reaches without a draw (17 with an early PATCH UP): the generators stop one short of it", () => {
     expect(LONG_RUN_GEN_DAYS).toBe(16);
     expect(LONG_RUN_DEEPEST_DAY).toBe(LONG_RUN_GEN_DAYS + 1);
+  });
+});
+
+describe("RUN-1 T3b: the client side of D4 and D6 (day.ts)", () => {
+  it("a long run's snapshot states its losses (the record check tells a loss from a draw); a 10-day run's snapshot is as before", () => {
+    const long = withLongRun(() => newRun("furnace", 21, "run1-ghostof-long"));
+    const ten = newRun("furnace", 21, "run1-ghostof-ten");
+    for (const r of [long, ten]) { r.day = 12; r.wins = 5; r.losses = 4; }
+    const g = ghostOf(long, 1_000, "p-long", null), h = ghostOf(ten, 1_000, "p-ten", null);
+    expect(g.losses).toBe(4);
+    expect("losses" in h).toBe(false);
+    expect(Object.keys(g).filter((k) => k !== "losses")).toEqual(Object.keys(h)); // the same fields otherwise, in the same order
+  });
+
+  it("the client's pool pick widens a thin day on a long run (the nearest earlier day), never on a 10-day run, and never to a later day", () => {
+    const other = withLongRun(() => newRun("furnace", 22, "run1-pool-other"));
+    other.day = 10;
+    const pool = [ghostOf(other, 1_000, "p-other", null)];
+    const long = withLongRun(() => newRun("furnace", 21, "run1-pick-long"));
+    long.day = 12;
+    const ten = newRun("furnace", 21, "run1-pick-ten");
+    ten.day = 12;
+    expect(chooseFoe(long, pool).kind).toBe("ghost");
+    expect(chooseFoe(long, pool).build).toEqual(pool[0].build);
+    expect(withLongRun(() => chooseFoe(long, pool)).day).toBe(12); // the foe is tonight's, whatever day its ghost was made on
+    expect(chooseFoe(ten, pool).kind).toBe("standin");
+    long.day = 8; // a ghost of day 10 is a LATER day for a day-8 dusk: never widened to
+    expect(chooseFoe(long, pool).kind).toBe("standin");
   });
 });
