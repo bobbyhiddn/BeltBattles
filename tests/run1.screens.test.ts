@@ -375,6 +375,28 @@ describe("RUN-1 T4: the run history from day 11 on", () => {
     expect(t.rows().length).toBe(50);
   });
 
+  it("an online long run (a stored dusk each day: the REPLAY strip under the history, one 44 px button a dusk) fits 402x690 from day 11 to day 25 by folding the earliest days", () => {
+    const view = computeView(402, 690, 3);
+    const folded: number[] = [];
+    for (let days = 11; days <= 25; days++) {
+      // `days` dusks, a warlord fight each day, all drawn but the last nine won-able dusks: hearts and wins don't matter to the card
+      const run = play(runOf(true), "D".repeat(days - 1) + "W");
+      for (let d = 1; d <= days; d++) run.warlords.push({ day: d, tier: "easy", id: RIVAL_IDS[0], name: "WARLORD", outcome: "win", time: 20, gold: 0, part: null });
+      const s = new SummaryScreen({ run, view } as unknown as Game);
+      const replays = (s as unknown as { replays: Map<number, unknown> }).replays;
+      for (let i = 0; i < days; i++) replays.set(i, { record: {}, why: null }); // the stored records an online run keeps (the strip counts them)
+      const rows = s.rows(), all = s.fights();
+      expect(all.length, `${days} days`).toBe(2 * days);
+      const L = summaryLayout(view, rows.length, days, 0);
+      expect(L.card.y + L.card.h, `${days} days: ${rows.length} of ${all.length} rows, ${L.strip?.length} strip buttons`).toBeLessThanOrEqual(view.H - 4);
+      expect(L.strip?.length, `${days} days`).toBe(days);
+      expect(L.strip!.every((b) => b.y >= L.card.y && b.y + b.h <= L.card.y + L.card.h && b.x >= L.card.x && b.x + b.w <= L.card.x + L.card.w), `${days} days: every REPLAY button in the card`).toBe(true);
+      if (rows.length < all.length) { expect(rows[0].fold, `${days} days`).toBeTruthy(); folded.push(days); }
+    }
+    expect(folded.length).toBeGreaterThan(0); // a run this deep, with a strip, can't show every row on a phone: the earliest fold
+    expect(folded[0]).toBeGreaterThan(11); // and a run into the teens still shows its whole history
+  });
+
   it("a run into the teens of days (13 days, a warlord every day) fits 402x690 whole and the desk whole", () => {
     const run = play(runOf(true), "LLL" + "WWWWWWWWWW" + "WWW");
     for (let d = 1; d <= 13; d++) run.warlords.push({ day: d, tier: "easy", id: RIVAL_IDS[0], name: "WARLORD", outcome: "win", time: 20, gold: 0, part: null });
