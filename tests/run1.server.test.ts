@@ -221,6 +221,21 @@ describe.each(storeBackends())("RUN-1 D6: the match route on the $name store wid
     expect((await get(14, { wins: "0", lives: "10" })).status).toBe(404);
   });
 
+  it("data safety on the stores: Tigris keeps a day bucket past 10 only under a long run's rules (the JSON-lines store keeps any day)", async () => {
+    const id12 = ghostId(g12); // (its id needs the long run's rules to encode)
+    expect((await app.store.bucket(RULES_VERSION, 12)).map((e) => e.id)).toEqual([id12]);
+    expect(await app.store.bucket(RULES_VERSION, 26)).toEqual([]); // past the bound: nothing can be stored there
+    expect(await app.store.bucket("bb-0.9.7", 12)).toEqual([]); // older rules keep 10 (and hold no ghost)
+    setLongRun(false); // the 10-day rules: the switch off reads every record's day as at most 10
+    try {
+      const at12 = await app.store.bucket(RULES_VERSION, 12);
+      if (backend.name === "tigris") expect(at12).toEqual([]);
+      else expect(at12.map((e) => e.id)).toEqual([id12]);
+    } finally {
+      setLongRun(true);
+    }
+  });
+
   it("the day bound follows the request's rules: 25 is taken, 26 is refused (400), older rules keep 10", async () => {
     expect((await get(25)).status).toBe(200);
     expect((await get(26)).status).toBe(400);
