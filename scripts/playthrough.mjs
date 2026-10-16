@@ -13,6 +13,7 @@
 
 import { roadStop } from "./roadstop.mjs";
 import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
+import { judgeFoe, loadServerCheck } from "./serverCheck.mjs"; // STAGE-0910 F10: a ghost the server served is judged by the server's own check
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -276,7 +277,13 @@ export async function refitToDusk(page, touch, log, at, state, item) {
 // by day (days past 10 read day 10's); NPC_DAY off: 0, as roadAllowance.
 const NPC_ROAD_DUSK = [3, 10, 15, 20, 24, 29, 35, 40, 44, 48];
 const roadDusk = (day) => NPC_ROAD_DUSK[Math.max(1, Math.min(NPC_ROAD_DUSK.length, Math.floor(day))) - 1];
-const foeOf = (page, npc = false) => page.evaluate(() => {
+// STAGE-0910 (STAGE-099C F10): `state` carries the run's flags (npcDay) and, for a ghost the ghost server served, where its
+// snapshot is (state.store, state.answers; scriptedRun). A served ghost (run.dusk.source "online" + ghostId, src/game/day.ts
+// onlineFoe) is judged by the server's own check (scripts/serverCheck.mjs: src/net/validate.ts:169 validateUpload with the
+// ctx of server/seed.ts:61-62), not by the table above, which counted a day-1 road allowance of 3 where the server counts
+// roadCap 5 plus the ghost's own road-log drops (0.9.9: rcruns on 32 of 35). A stand-in and a tooling pool ghost (no source)
+// keep the rule below: the unit tests' (tests/standin.honest).
+const foeOf = (page, state = {}) => page.evaluate(() => {
   const d = window.bb.game.run.dusk;
   if (!d) return d;
   const g = window.bb.runeGrant(d.build, 0);
@@ -287,15 +294,31 @@ const foeOf = (page, npc = false) => page.evaluate(() => {
     bought: g.hull || g.belt ? window.bb.deckCost({ ...d.build, hullBonus: d.build.hullBonus - g.hull, beltCap: d.build.beltCap - g.belt }) : window.bb.deckCost(d.build),
     runeGold: window.bb.runeGrant(d.build, d.day).gold,
     mine: window.bb.deckCost(window.bb.game.run.build),
+    source: d.source ?? null, ghostId: d.ghostId ?? null, // a ghost the server served (day.ts onlineFoe)
   };
-}).then((f) => f && { ...f, road: npc ? roadDusk(f.day) : 0 });
-const honestFoe = (f) => f.hull >= 0 && f.hull % 25 === 0 && f.bought <= f.budget + f.runeGold + (f.road || 0);
+}).then(async (f) => {
+  if (!f) return f;
+  const foe = { ...f, road: state.npcDay ? roadDusk(f.day) : 0 };
+  if (foe.kind !== "ghost" || foe.source !== "online" || !foe.ghostId) return foe;
+  return { ...foe, server: await judgeFoe(foe, state) };
+});
+const honestFoe = (f) => (f.server ? f.server.ok : f.hull >= 0 && f.hull % 25 === 0 && f.bought <= f.budget + f.runeGold + (f.road || 0));
 // STAGE-090: a rune-holding foe shows both numbers, a rune-less one reads as before. MERGE-099E: NPC_DAY's road allowance
 const roadPart = (f) => (f.road ? ` + ${f.road} road (NPC day)` : "");
-const costLine = (f) => (f.runes ? `deckCost ${f.cost} (bought ${f.bought}) of ${f.budget} + ${f.runeGold} rune gold${roadPart(f)}` : `deckCost ${f.cost} of ${f.budget} gold${roadPart(f)}`);
+const costLine = (f) => (f.server ? `deckCost ${f.cost}${f.runes ? ` (bought ${f.bought})` : ""}, by the server's check (src/net/validate.ts:169 validateUpload; ctx of server/seed.ts:61-62 from ${f.server.from})`
+  : f.runes ? `deckCost ${f.cost} (bought ${f.bought}) of ${f.budget} + ${f.runeGold} rune gold${roadPart(f)}` : `deckCost ${f.cost} of ${f.budget} gold${roadPart(f)}`);
 // 0.6.2 TUNE-C: a stand-in brings its captain's named build (standInBuild: the plan at ordinary luck, whole paid
 // plating, at most the day's gold); 0.6.0d-0.6.2 it was a full-purse stand-in pool deck (>= ceil(0.9 x budget))
-const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, ${costLine(f)}: ${honestFoe(f) ? "honest" : "NOT HONEST"}${f.kind === "standin" ? `, ${f.name}'s named build` : ""}; your deck ${f.mine}`;
+// F10: a served ghost's verdict carries the server's reason in brackets
+const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, ${costLine(f)}: ${honestFoe(f) ? "honest" : "NOT HONEST"}${f.server ? ` (${f.server.why})` : ""}${f.kind === "standin" ? `, ${f.name}'s named build` : ""}; your deck ${f.mine}`;
+// F10: once a process (the first served ghost judged), the same check on that deck plus 10000 hull (40 ARMOR PACKs, 200 G over
+// any day's ceiling) is logged and must read NOT HONEST: a dishonest deck still does (serverCheck.mjs OVER_HULL; selftest)
+const controlLine = (f, log, at) => {
+  const c = f.server?.control;
+  if (!c) return;
+  log(`[${at()}] F10 CONTROL (once a process): ${f.name}'s deck + 10000 hull (40 ARMOR PACKs, 200 G over): ${c.ok ? "honest" : "NOT HONEST"} (${c.why})`);
+  if (c.ok) throw new Error("F10 control: the server's check admitted a deck 200 G over its ceiling");
+};
 
 // BROWSE-099F: HULL-ON's HEARTS ships on (src/sim/hearts.ts HEARTS, bb-0.10.0). A run started with it on is marked
 // run.hearts = true and plays on hearts: HEARTS_START (10) at the start; a lost dusk costs heartCost(day) (1 on days 1-3,
@@ -315,7 +338,8 @@ const heartsWord = (n) => (n === 1 ? "HEART" : "HEARTS"); // ui/stakes.ts hearts
 
 /** Reload the page mid-battle, CONTINUE from the title, and check the same ghost comes back. */
 async function reloadAndContinue(page, touch, log, at, state) {
-  const before = await foeOf(page, !!state.npcDay);
+  const before = await foeOf(page, state);
+  if (before) controlLine(before, log, at); // F10
   await page.reload();
   await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title", null, { timeout: 15000 });
   const sub = await page.evaluate(() => window.bb.game.screen.save && { day: window.bb.game.screen.save.day, stage: window.bb.game.screen.save.stage });
@@ -325,7 +349,8 @@ async function reloadAndContinue(page, touch, log, at, state) {
   const dawn = await page.evaluate(() => ({ foe: window.bb.game.screen.foe.name, refit: window.bb.game.screen.refit }));
   await tapRegion(page, touch, "fight");
   await road(page, touch, log, at, state);
-  const again = await foeOf(page, !!state.npcDay);
+  const again = await foeOf(page, state);
+  controlLine(again, log, at); // F10
   const same = !!before && !!again && before.name === again.name && before.build === again.build && before.day === again.day;
   state.reloadSame = same;
   log(`[${at()}] CONTINUE -> refit build (refit ${dawn.refit}, NEXT BATTLE ${dawn.foe}) -> FIGHT -> dusk vs ${again.name}: same ghost as before the reload (name + build): ${same}`);
@@ -431,7 +456,16 @@ export async function scriptedRun(page, touch, log, opts) {
     feel: [],
     // BROWSE-099F: a hearts run's ledger: dusks that moved the hearts as hearts.ts says, and any that didn't
     heartsOk: 0, heartsWrong: [],
+    // STAGE-0910 F10: where a ghost the server served is looked up: the ghost server's data dir when the caller runs it
+    // (rcruns.mjs opts.store: the snapshot with its seed), else the /v1/ghosts/match answers this page gets (scriptedRun below)
+    store: opts.store ?? null, answers: [],
   };
+  page.on("response", (r) => {
+    if (r.status() !== 200 || !new URL(r.url()).pathname.endsWith("/v1/ghosts/match")) return;
+    state.answers.push(r.json().catch(() => null)); // { id, snapshot } (server/app.ts:360; the seed is not served)
+    loadServerCheck().catch(() => {}); // F10: bundled before the dusk needs it (an error shows at the verdict)
+  });
+  if (state.store) loadServerCheck().catch(() => {});
   const n = await page.evaluate((pool) => { window.bb.clearPool(); return window.bb.addGhosts(pool); }, opts.pool);
   log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ") || "none (a fresh player: every dusk is a stand-in)"}`);
   await tapRegion(page, touch, "new");
@@ -512,7 +546,7 @@ export async function scriptedRun(page, touch, log, opts) {
     state.bare = day === opts.weakenDay; // MERGE-099E: NPC_DAY's REFIT before this dusk places nothing (refitToDusk)
     await tapRegion(page, touch, "fight");
     await roadStop(page, touch, log, at, state, (opts.roads || "")[day - 1] || "v", day === opts.reloadWarlordDay);
-    const foe = await foeOf(page, !!state.npcDay);
+    const foe = await foeOf(page, state);
     if (foe.kind === "ghost") state.ghosts++;
     else state.standins++;
     state.foes++;
@@ -526,6 +560,7 @@ export async function scriptedRun(page, touch, log, opts) {
     }
     if (!honestFoe(foe)) state.dishonest.push(`day ${foe.day}`);
     log(`[${at()}] DUSK · DAY ${foe.day}: vs ${foe.name} (${foeLine(foe)}), same as the dawn preview: ${foe.name === dawn.foe}`);
+    controlLine(foe, log, at); // F10: the once-a-process over-ceiling control, logged after the first served ghost's verdict
     if (day === opts.reloadDay) await reloadAndContinue(page, touch, log, at, state);
     // BROWSE-099F: the hearts going into this dusk (after the road: an event may give one back) and whether LAST CHANCE
     // was used (day.ts finishHeartsDay's own test), for the hearts ledger at the result card

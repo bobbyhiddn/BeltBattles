@@ -140,7 +140,8 @@ async function onlineRuns(browser, online, data) {
         await c.page.goto(`${srv.base}/`);
         await c.page.waitForFunction(() => !!window.bb && window.bb.screen() === "title", null, { timeout: 15000 });
         await c.page.waitForFunction(() => window.bb.online()?.active === true, null, { timeout: 15000 });
-        const r = await scriptedRun(c.page, !!view.hasTouch, (s) => log(`  ${s}`), { days: 3, roads: "vev", check: "fresh", hero, buys: 8, pool: [] });
+        // STAGE-0910 F10: store = the server's data dir, so a served ghost is judged by the server's own check with its seed
+        const r = await scriptedRun(c.page, !!view.hasTouch, (s) => log(`  ${s}`), { days: 3, roads: "vev", check: "fresh", hero, buys: 8, pool: [], store: data });
         await c.page.screenshot({ path: join(OUT, `online-${hero}-${vname}-day3.png`) });
         await c.page.waitForFunction(() => (window.bb.online()?.uploads ?? 0) >= 3 && window.bb.online()?.lastUpload, null, { timeout: 15000 });
         for (let i = 0; i < 100 && posts201(srv.out) - before < 3; i++) await sleep(100); // the third upload is fire and forget
@@ -183,7 +184,7 @@ async function laterRun(browser, online, data) {
       try {
         await c.page.goto(`${srv.base}/`);
         await c.page.waitForFunction(() => window.bb?.online()?.active === true, null, { timeout: 15000 });
-        await scriptedRun(c.page, !!view.hasTouch, (s) => log(`  ${s}`), { days: 1, roads: "v", check: "fresh", hero: "weaver", buys: 8, pool: [] }).catch((e) => {
+        await scriptedRun(c.page, !!view.hasTouch, (s) => log(`  ${s}`), { days: 1, roads: "v", check: "fresh", hero: "weaver", buys: 8, pool: [], store: only }).catch((e) => { // F10: store = this server's data dir
           if (!/fewer than 3 days/.test(e.message)) throw e; // one dusk is the point here
         });
         const o = await c.page.evaluate(() => window.bb.online());
