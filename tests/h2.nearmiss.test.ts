@@ -29,7 +29,10 @@ const plainOf = (s: GhostSnapshot) => !s.build.turrets?.length && !s.build.route
 const twoFeatures = (s: GhostSnapshot) => !!s.build.turrets?.length && s.build.routes.some((r) => r.join !== undefined);
 const DECKS: Record<"plain" | "turretsJoin" | "foundry", GhostSnapshot> = {
   plain: POOL.find((s) => s.hero === "furnace" && plainOf(s))!,
-  turretsJoin: POOL.find((s) => s.hero === "furnace" && twoFeatures(s))!,
+  // BUMP-1D (LONG_RUN ships on): and whose record a plain upload carries (a seed ghost has no lastChance; under bb-0.11.0 the server reads the
+  // record with its stated `losses`): the first furnace deck with both, d13 1W 1 heart after 7 losses, needs a LAST CHANCE or a PATCH UP
+  // (422 "record: 1W 1 lives and 7 losses is no record a run carries into dusk 13" on this build's own rules string); was the first with both
+  turretsJoin: POOL.find((s) => s.hero === "furnace" && twoFeatures(s) && isReachable(s.day, s.wins, s.lives, { lastChance: null, losses: s.losses }))!,
   foundry: POOL.find((s) => s.hero === "foundry")!,
 };
 
@@ -52,8 +55,8 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
   }
   // the hero gate's threshold: FOUNDRY travels from bb-0.8.0 on (rulesGate.ts HEROES_RULES), under BELTS's rules too
   if (deck === "foundry" && !rulesAtLeast(rules, "bb-0.8.0")) return { status: 400, error: /^snapshot\.hero: rules .* accept only FURNACE, WEAVER, not FOUNDRY$/ };
-  // AZ-BUMP: the server names this build's rules, bb-0.10.0 (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
-  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.10\\.0$`) };
+  // BUMP-1D: the server names this build's rules, bb-0.11.0 (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
+  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.11\\.0$`) };
 }
 
 /** FLIP-X2: the pool decks now hold their day's runes (v3, with a run seed), and rules before bb-0.8.7 (or unreadable)
@@ -72,6 +75,7 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
   delete out.seed;
   delete out.road; // AZ-BUMP (the flip, NPC_DAY): the road log is v3 only, as the runes and the seed
   delete out.grade; // HULL-ON (the flip, PICK): the seed step's grade, v3 only (no client uploads one)
+  delete out.losses; // BUMP-1D (LONG_RUN ships on): the seed ghost states its dusks lost (bb-0.11.0), which an older client never sends and a v2 snapshot cannot hold ("snapshot.losses: not allowed in a v2 snapshot": 400 on "bb-0.8.1" plain, was 422)
   out.lives = Math.min(s.lives, START_LIVES); // HULL-ON (the flip, HEARTS): an older rules string's 5-lives scale
   delete out.build.runes;
   return out;
@@ -79,7 +83,7 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
 
 describe("H2 M1b: the near-miss rules strings (pure)", () => {
   it("are all different from RULES_VERSION, and the three decks are honest bb-0.8.3 seed decks with a reachable record", () => {
-    expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     for (const r of NEAR) expect(r).not.toBe(RULES_VERSION);
     expect(new Set(NEAR).size).toBe(NEAR.length);
     for (const s of Object.values(DECKS)) expect([s.rules, isReachable(s.day, s.wins, s.lives)]).toEqual([RULES_VERSION, true]);
@@ -163,7 +167,7 @@ describe.each(storeBackends())("H2 M1b: near-miss rules strings on the $name sto
       const s = ownedBy({ ...uploaded, runId: `h2-near-ok-${k}`, createdAt: 1_790_400_100_000 + k++ }, me);
       const body = encodeSnapshot(s);
       const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
-      expect(r.status, deck).toBe(201);
+      expect(r.status, `${deck}: ${JSON.stringify(await r.clone().json())}`).toBe(201); // BUMP-1D: the refusal's own words ride on the message
     }
   });
 });

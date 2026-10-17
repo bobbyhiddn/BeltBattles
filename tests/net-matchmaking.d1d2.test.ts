@@ -169,8 +169,14 @@ describe.each(storeBackends())("the match route (D1, D2), $name store", (backend
     for (let w = 0; w < DAY; w++) {
       for (let l = 1; l <= HEARTS_START; l++) {
         const who = players[(w + l) % 2];
-        const s = ownedBy({ ...uploadDeck, wins: w, lives: l, runId: `up-${w}-${l}` }, who);
-        if (!isReachable(DAY, w, l)) {
+        // BUMP-1D (LONG_RUN ships on): BASE_DECK is a bb-0.11.0 seed ghost, which states its OWN `losses`, and a long run's upload states
+        // the dusks the run lost (day - 1 = wins + losses + draws; records.ts): a row keeps BASE_DECK's only by chance, so each row states
+        // the losses of a run that reaches its (wins, lives): the first count 0..DAY - 1 - w for which isReachable holds with it (reachableRecords
+        // reads `losses`); a record no run reaches (a planted row, below) states 0. Was { ...uploadDeck, wins: w, lives: l } (POST answered 422
+        // "0W 10 lives and N losses is no record a run carries into dusk 3" for the rows whose records BASE_DECK's losses did not fit)
+        const reached = Array.from({ length: DAY - w }, (_, x) => x).find((x) => isReachable(DAY, w, l, { losses: x }));
+        const s = ownedBy({ ...uploadDeck, wins: w, lives: l, losses: reached ?? 0, runId: `up-${w}-${l}` }, who);
+        if (reached === undefined) {
           // 0.8.0 H2 (P1, oracle 9c95e37aab0a70fb): POST /v1/ghosts now refuses (422) these 11 records (HULL-ON, HEARTS: 24 on
           // the hearts grid): no run carries
           // them into dusk 3. A store can still hold such a ghost: one uploaded before that check (until ghosts:admin
