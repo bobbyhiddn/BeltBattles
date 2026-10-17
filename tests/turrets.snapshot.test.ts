@@ -10,6 +10,7 @@ import { migrateRun, newRun } from "../src/game/run";
 import { startingBuild } from "../src/sim/ai";
 import { RULES_VERSION } from "../src/sim/content";
 import { startingTurrets, turretSlots, type Build, type BuildTurret } from "../src/sim/deck";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the 10-day run's ghost, kept beside the long run's
 import { decodeStarred } from "../src/sim/standInPool";
 import { sampleGhosts } from "../tools/samplePool";
 import { SAMPLE_POOL_V21 } from "./fixtures/samplePool.v2.1";
@@ -207,6 +208,19 @@ describe("turret slots in the save and in ghosts", () => {
     expect(g.build.turrets).toEqual(TURRETS);
     expect(net.decodeSnapshot(net.encodeSnapshot(g))).toEqual(g);
     const { seed: _seed, ...plain } = ghostOf(newRun("furnace", 9, "plain-ghost"), 5, "p-plain"); // RUNES-1: the v3 seed aside
-    expect(net.encodeSnapshot(plain)).toBe(legacyText(plain));
+    // BUMP-1D (LONG_RUN ships on; RULING-BUMP-R3 R3.4 (b)): newRun marks the run long, so ghostOf states its `losses` (RUN-1, D4: day.ts ghostOf
+    // adds `losses: run.losses` for a long run; 0 on a new run), v3's field right after the seed (aside here), i.e. the last key of this
+    // ghost, which legacyText (the pre-turret text) never writes; still no `turrets` key. Was
+    // expect(net.encodeSnapshot(plain)).toBe(legacyText(plain)): that line is the 10-day run's now (the next test, under withLongRun false)
+    expect(plain.losses).toBe(0);
+    expect(net.encodeSnapshot(plain)).toBe(legacyText(plain).replace(/"createdAt":5\}$/, `"createdAt":5,"losses":0}`));
+  });
+
+  it("BUMP-1D: a 10-day run's ghost (withLongRun false, the old world) states no losses and encodes exactly as the pre-turret text", () => {
+    withLongRun(() => {
+      const { seed: _seed, ...plain } = ghostOf(newRun("furnace", 9, "plain-ghost"), 5, "p-plain"); // RUNES-1: the v3 seed aside
+      expect("losses" in plain).toBe(false);
+      expect(net.encodeSnapshot(plain)).toBe(legacyText(plain));
+    }, false);
   });
 });
