@@ -437,19 +437,35 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
  * and a belt carries). {GEAR} is a turret's gear slots (deck.ts gearSlotsOf: one piece of gear a slot; a core has its own
  * place, cores.ts resolveCore).
  */
-export type StatIcon = "RATE" | "SLUG" | "GEAR";
-export const STAT_ICONS: readonly StatIcon[] = ["RATE", "SLUG", "GEAR"];
+export type StatIcon = "RATE" | "SLUG" | "GEAR" | "BELT";
+export const STAT_ICONS: readonly StatIcon[] = ["RATE", "SLUG", "GEAR", "BELT"];
 export const SLUG_NOTES = {
   gun: "{SLUG}: THE LOADS ITS CHAMBER HOLDS. A LOAD IS ONE SLUG FROM A BELT.",
   load: "{SLUG}: A SLUG ITS TURRET TAKES IN, ONE LOAD.",
   slug: "{SLUG}: A SLUG, WHAT A FACTORY MAKES AND A BELT CARRIES TO A GUN.",
 } as const;
 export const GEAR_NOTE = "{GEAR}: ITS GEAR SLOTS. EACH HOLDS ONE PIECE OF TURRET GEAR.";
+/**
+ * SHOPCARD-1e (REQ-BFG-081; READ-12 fix 5, E1): the factory stat row's {BELT}n had no tap note: all 12 LIMPET WORKS readers of
+ * READ-12's rounds A and T listed `[BELT]2` as unclear ("what does the 2 count?", "belt tiles? number of belts?"), and the
+ * ⓘ KEYWORDS page listed RATE and left BELT undefined (A haiku 2: "belt tiles? number of belts?"). The number is stars.ts
+ * outputsAt (BELT_SLOTS by grade, plus the spec's lead, plus foot.ts footSlots): the belts the factory can feed (validate.ts
+ * lets you lay no more routes from it). So the note says how many belts, and that they are not belt tiles (the build screen's
+ * "BELT 6/14 TILES" is tiles; the word BELT's rune-only note, "BELT: YOUR BELT TILES, SHARED BY ALL YOUR BELTS.", scope "rune"
+ * above, is about tiles too and stays as it is). Not "IN TURN" (the brief's example): battle.ts stamp (1123-1149) puts one
+ * slug on its next belt in turn (`f.rr`, round-robin), but a pour factory puts slugs on several belts on one tick (battle.ts
+ * 1104-1106 pourAll, TWIN MOULD; races/foundry.ts the CRUCIBLE: "POURS ONTO ALL ITS BELTS AT ONCE."), so "in turn" is true of
+ * GANTRY PRESS's own face line ("FEEDS 4 BELTS IN TURN.", faces.ts shapeLines) and false of those, and a note on every
+ * factory's {BELT} says only the count. The note is the stat icon's, on a factory's stat row (and GANTRY PRESS's BIGGER: +1
+ * {BELT}), as {SLUG}'s and {GEAR}'s are theirs. Its icon leads it, like theirs.
+ */
+export const BELT_NOTE = "{BELT}: HOW MANY BELTS IT CAN FEED, NOT BELT TILES.";
 
 /** What a tap on stat icon `k` shows on a line (`gunRow`: the line is a turret's stat row) of piece kind `kind`. */
 export function statIconNote(k: StatIcon, kind: string | undefined, gunRow: boolean): string {
   if (k === "RATE") return glossaryRows().find((r) => r.word === "RATE")!.def;
   if (k === "GEAR") return GEAR_NOTE;
+  if (k === "BELT") return BELT_NOTE; // SHOPCARD-1e (E1)
   return gunRow || kind === "turret" ? SLUG_NOTES.gun : kind === "core" || kind === "mod" ? SLUG_NOTES.load : SLUG_NOTES.slug;
 }
 

@@ -439,7 +439,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // fight, and 979-981 brings a rig online (it works) once t >= commissionAt: so EACH FIGHT, YOUR RIGS START WORKING 50% SOONER, and at
     // ★3 (factor 0) AT ONCE. Two rows (328 px; ★3 310 px): no one-row form says when ("FEEDS A GUN: YOUR RIGS START 50% SOONER." is
     // 217 px, "... EACH FIGHT, YOUR RIGS START 50% SOONER." 282, "FEEDS A GUN: RIGS START 50% SOONER EACH FIGHT." 251)
-    return rules([{ text: `FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING ${soon}.` }], [["soon", soon]]);
+    // SHOPCARD-1e (REQ-BFG-081; READ-12 fix 1, E2): 3 of the 5 READ-12 answers below R were this line, all Haiku, in rounds A and T:
+    // "I can't tell whether 'your rigs' means all of them or only those on its gun's belt." The truth is every rig on your side, the
+    // ones on its own belt too (battle.ts makeSide 714-736: each rig's commissionAt x the best running line's factor, with no belt
+    // test), so the line says ALL: 350 px at ★1 and ★2, 332 px at ★3 (AT ONCE), two rows of the 225 px band (was 328 and 310)
+    return rules([{ text: `FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${soon}.` }], [["soon", soon]]);
   },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
