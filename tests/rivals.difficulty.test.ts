@@ -20,6 +20,10 @@ import { parField } from "../src/sim/harness/par";
 // fought as the player (side 0), 3 seeds per member: 24 battles per captain-day (20 before). The old reference,
 // honestReference(the other faction, day), spends 0-51% of the day's gold: every retimed plan beats it from day 2, so
 // its margins no longer order the ladder (OUT/CAPTAINS-REPORT.md lists this change with the --rivals table).
+// BUMP-1D (rules bb-0.11.0; cap's ruling R2.3 Q4): the ladder's pins are re-keyed to the values measured on the 10-wins rules
+// release, each with a "BUMP-1D: was ..." trail, in LADDER_X_OPEN below (the par field moved with the twelve new pieces; no
+// captain was tuned; the rule of every check, the +-0.25 pool band included, is unchanged). This file is on BUMP-1E's tuning
+// list: BUMP-1E re-reads the stand-in ladder in its regeneration, and the pins are re-measured there.
 
 const REF_K = 8;
 const SEEDS = Array.from({ length: 3 }, (_, i) => (i + 1) * 7919);
@@ -57,6 +61,28 @@ interface LadderOpen { rule: LadderRule; day: number; a?: string; b?: string; v:
  * them: cap re-trims the packs on the flipped field in its own job (CATCHUP's capsearch method), which deletes this list.
  */
 const LADDER_X_OPEN: readonly LadderOpen[] = [
+  // BUMP-1D (rules bb-0.11.0; cap's ruling R2.3 Q4: re-key to the measured values, each line with a "BUMP-1D: was ..." trail and
+  // a one-line reason; the pool band is pinned at the measured value (its +-0.25 rule stays, the excess is a poolBand line); no
+  // rivals or ladder number in src/ was changed): re-measured at the BUMP-1D tip (LONG_RUN, PLAIN_RIGS and SHAPES2 on) with a
+  // temporary collector, an uncommitted copy of these rules with no exception list (this file's own helpers;
+  // W/output-bump/logs/p7-r3-smug-3.log): 64 -> 65 entries, ceiling = measured v + 0.02.
+  // By rule (old -> new): easyOverHard 46 -> 43, pacing 5 -> 5, parLosesToHard 4 -> 6, poolBand 4 -> 7, slotGap 5 -> 4.
+  // Out (pass now) 9: easyOverHard d1 NETTLE v KARSK, d5 BRASSWICK v SILKSHADE, d6 GRUBNOSE v BULWARK, d7 NETTLE v KARSK, d8
+  // BRASSWICK v LONGTOOTH, d10 BRASSWICK v KARSK, d10 GRUBNOSE v KARSK, d10 GRUBNOSE v LONGTOOTH; slotGap d7 medium / hard. New 10:
+  // easyOverHard d3 BRASSWICK v MOTH QUEEN, d6 NETTLE and GRUBNOSE v LONGTOOTH, d9 BRASSWICK and GRUBNOSE v VOSS; parLosesToHard
+  // d6 and d7 (the Hard mean +0.1711 and +0.2220; day 8 still holds, -0.0025); poolBand d5, d6 and d7 (the pool mean +0.3925,
+  // +0.3093 and +0.3180 against the +-0.25 band, whose rule stays). Over the old ceiling 21: easyOverHard on days 2, 3, 5 and 6
+  // against the Hard captains BULWARK, HIGHSPIRE, KARSK and LONGTOOTH (12), parLosesToHard d2-d5, poolBand d1-d4, slotGap d5
+  // medium / hard. Each line's comment: "BUMP-1D: was v (ceiling c)" (the pin before this job), a one-line reason, the mean for a
+  // rule that pins one, then "before:" the line's earlier history; a new line says what its rule read before (a negative v: it held).
+  // THE CAUSE (an A/B with the same collector, W/output-bump/logs/p7-r3-smug-4.log and -5.log): with PLAIN_RIGS and SHAPES2 off
+  // (the twelve new pieces out of the shop; LONG_RUN on or off; the regenerated 16-day stand-in pool data and every other switch
+  // as shipped) all 64 old pins read to four decimals as pinned, so the old path is intact. The captains did not move (their five
+  // pacing pins read unchanged); the FURNACE par field did: the par player shops the 103-module catalogue now, so every margin
+  // against it moved (day 1 Easy / Medium / Hard means +0.5137 / +0.4436 / +0.3878, were +0.4850 / +0.4092 / +0.3433; Hard on day 6
+  // +0.1711, was -0.0850; the pool mean on day 5 +0.3925, was +0.1813). The regenerated stand-in pool data moves none of this
+  // file's numbers. No captain, part or plan was tuned for any of it. BUMP-1E re-reads the stand-in ladder in its regeneration:
+  // this file is on its tuning list, and these pins are the ladder as it stands on bb-0.11.0, not a target. Before, S8b's note:
   // S8b (REQ-BFG-092; BRIEF-S8 S8b, Y7b2 step 8's re-measure; R3's LADDER_X_OPEN form: RULING-HULLON-R3 section 3 and R13
   // Q9 (b)): re-measured at s8 c1c93e4 (the regenerated stand-in pool P1 83c039d and seed pool c6d3445) with an uncommitted
   // copy of these rules with no exception list (B/output-s8/logs/r3x-coll-c1c93e4.r3x.txt): 104 -> 64 entries, ceiling =
@@ -135,52 +161,49 @@ const LADDER_X_OPEN: readonly LadderOpen[] = [
   // and the captain fit; W/output-bal2/ladder/ladder.json): 90 ladder rules + 2 pacing pins, v and ceiling = v + 0.02.
   // The pacing entries are non-ladder pins: the days 1-3 pacing floor (15 s), a = the captain, b = the pacing deck's hero;
   // v = 15 - the mean fight (GRIMHOLD's day-3 pins stay: no least change of his own plan clears them in this job).
-  { rule: "easyOverHard", day: 1, a: "nettle", b: "highspire", v: 0.0183, ceiling: 0.0383 }, // carried (0.0249); 0.0249 -> 0.0183 s8-base (1e5fe4f 0.0212, 41a600a 0.0224)
-  { rule: "easyOverHard", day: 1, a: "nettle", b: "karsk", v: 0.0114, ceiling: 0.0314 }, // carried (0.1666); 0.1666 -> 0.0114 s8-base (1e5fe4f -0.0098, 41a600a 0.1520)
-  { rule: "easyOverHard", day: 1, a: "nettle", b: "mothqueen", v: 0.0252, ceiling: 0.0452 }, // carried (0.0542); 0.0542 -> 0.0252 s8-base (1e5fe4f 0.0408, 41a600a 0.0454)
-  { rule: "easyOverHard", day: 1, a: "ratchet", b: "highspire", v: 0.0356, ceiling: 0.0556 }, // new (red at s8-base: 0.0356; 1e5fe4f 0.0168, 41a600a passes)
-  { rule: "easyOverHard", day: 1, a: "ratchet", b: "karsk", v: 0.0288, ceiling: 0.0488 }, // carried (0.0586); 0.0586 -> 0.0288 s8-base (1e5fe4f -0.0142, 41a600a 0.0704)
-  { rule: "easyOverHard", day: 1, a: "ratchet", b: "mothqueen", v: 0.0426, ceiling: 0.0626 }, // new (red at s8-base: 0.0426; 1e5fe4f 0.0364, 41a600a passes)
-  { rule: "easyOverHard", day: 2, a: "brasswick", b: "bulwark", v: 0.0185, ceiling: 0.0385 }, // new (red at s8-base: 0.0185; 1e5fe4f passes, 41a600a passes)
-  { rule: "easyOverHard", day: 2, a: "brasswick", b: "highspire", v: 0.0462, ceiling: 0.0662 }, // new (red at s8-base: 0.0462; 1e5fe4f 0.0926, 41a600a 0.0399)
-  { rule: "easyOverHard", day: 2, a: "brasswick", b: "karsk", v: 0.0315, ceiling: 0.0515 }, // carried (0.1921); 0.1921 -> 0.0315 s8-base (1e5fe4f 0.0431, 41a600a 0.1107)
-  { rule: "easyOverHard", day: 2, a: "brasswick", b: "longtooth", v: 0.0482, ceiling: 0.0682 }, // carried (0.0848); 0.0848 -> 0.0482 s8-base (1e5fe4f 0.0883, 41a600a 0.0634)
-  { rule: "easyOverHard", day: 2, a: "brasswick", b: "mothqueen", v: 0.0383, ceiling: 0.0583 }, // new (red at s8-base: 0.0383; 1e5fe4f 0.0589, 41a600a 0.0272)
-  { rule: "easyOverHard", day: 3, a: "brasswick", b: "bulwark", v: 0.0601, ceiling: 0.0801 }, // carried (0.1296); 0.1296 -> 0.0601 s8-base (1e5fe4f 0.0803, 41a600a -0.0250)
-  { rule: "easyOverHard", day: 3, a: "brasswick", b: "highspire", v: 0.0427, ceiling: 0.0627 }, // carried (0.1525); 0.1525 -> 0.0427 s8-base (1e5fe4f 0.0378, 41a600a -0.0838)
-  { rule: "easyOverHard", day: 3, a: "grubnose", b: "bulwark", v: 0.0494, ceiling: 0.0694 }, // carried (0.0231); 0.0231 -> 0.0494 s8-base (1e5fe4f 0.0075, 41a600a 0.0172)
-  { rule: "easyOverHard", day: 3, a: "grubnose", b: "highspire", v: 0.0320, ceiling: 0.0520 }, // carried (0.0460); 0.0460 -> 0.0320 s8-base (1e5fe4f -0.0350, 41a600a -0.0417)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "bulwark", v: 0.1244, ceiling: 0.1444 }, // carried (0.1520); 0.1520 -> 0.1244 s8-base (1e5fe4f 0.1343, 41a600a 0.1218)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "highspire", v: 0.1070, ceiling: 0.1270 }, // carried (0.1749); 0.1749 -> 0.1070 s8-base (1e5fe4f 0.0918, 41a600a 0.0629)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "mothqueen", v: 0.0539, ceiling: 0.0739 }, // carried (0.1086); 0.1086 -> 0.0539 s8-base (1e5fe4f 0.0604, 41a600a 0.0768)
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "silkshade", v: 0.0537, ceiling: 0.0737 }, // carried (0.0194); 0.0194 -> 0.0537 s8-base (1e5fe4f 0.0225, 41a600a 0.0392)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "bulwark", v: 0.2992, ceiling: 0.3192 }, // carried (0.5542); 0.5542 -> 0.2992 s8-base (1e5fe4f 0.3670, 41a600a 0.1560)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "highspire", v: 0.1014, ceiling: 0.1214 }, // carried (0.4179); 0.4179 -> 0.1014 s8-base (1e5fe4f 0.0458, 41a600a -0.0420)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "karsk", v: 0.0511, ceiling: 0.0711 }, // carried (0.4489); 0.4489 -> 0.0511 s8-base (1e5fe4f 0.1612, 41a600a 0.0151)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "longtooth", v: 0.0951, ceiling: 0.1151 }, // carried (0.3229); 0.3229 -> 0.0951 s8-base (1e5fe4f 0.1325, 41a600a -0.0144)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "mothqueen", v: 0.0968, ceiling: 0.1168 }, // carried (0.3053); 0.3053 -> 0.0968 s8-base (1e5fe4f 0.0386, 41a600a 0.0281)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "silkshade", v: 0.1294, ceiling: 0.1494 }, // carried (0.4992); 0.4992 -> 0.1294 s8-base (1e5fe4f 0.1613, 41a600a -0.0804)
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "voss", v: 0.3499, ceiling: 0.3699 }, // carried (0.4697); 0.4697 -> 0.3499 s8-base (1e5fe4f 0.2542, 41a600a 0.2801)
-  { rule: "easyOverHard", day: 5, a: "ratchet", b: "bulwark", v: 0.0387, ceiling: 0.0587 }, // carried (0.0293); 0.0293 -> 0.0387 s8-base (1e5fe4f 0.0231, 41a600a -0.0379)
-  { rule: "easyOverHard", day: 5, a: "ratchet", b: "voss", v: 0.0894, ceiling: 0.1094 }, // new (red at s8-base: 0.0894; 1e5fe4f passes, 41a600a 0.0862)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "bulwark", v: 0.2302, ceiling: 0.2502 }, // carried (0.4047); 0.4047 -> 0.2302 s8-base (1e5fe4f 0.3318, 41a600a 0.1521)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "karsk", v: 0.1999, ceiling: 0.2199 }, // carried (0.4270); 0.4270 -> 0.1999 s8-base (1e5fe4f 0.1921, 41a600a 0.1643)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "longtooth", v: 0.1683, ceiling: 0.1883 }, // carried (0.3071); 0.3071 -> 0.1683 s8-base (1e5fe4f 0.2297, 41a600a 0.0936)
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "mothqueen", v: 0.0741, ceiling: 0.0941 }, // carried (0.3357); 0.3357 -> 0.0741 s8-base (1e5fe4f 0.0698, 41a600a 0.0557)
-  { rule: "easyOverHard", day: 6, a: "grubnose", b: "bulwark", v: 0.0155, ceiling: 0.0355 }, // new (red at s8-base: 0.0155; 1e5fe4f 0.0673, 41a600a passes)
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "karsk", v: 0.0221, ceiling: 0.0421 }, // carried (0.3201); 0.3201 -> 0.0221 s8-base (1e5fe4f 0.0336, 41a600a -0.0464)
-  { rule: "easyOverHard", day: 7, a: "nettle", b: "karsk", v: 0.0035, ceiling: 0.0235 }, // new (red at s8-base: 0.0035; 1e5fe4f passes, 41a600a 0.0006)
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "longtooth", v: 0.0233, ceiling: 0.0433 }, // carried (0.3167); 0.3167 -> 0.0192 s8-base (1e5fe4f 0.0838, 41a600a -0.0056) -> 0.0233 FIT-099
-  { rule: "easyOverHard", day: 8, a: "grubnose", b: "longtooth", v: 0.1931, ceiling: 0.2131 }, // new (red at s8-base: 0.2107; 1e5fe4f 0.2037, 41a600a passes) -> 0.1931 FIT-099
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "karsk", v: 0.2157, ceiling: 0.2357 }, // carried (0.2676); 0.2676 -> 0.1736 s8-base (1e5fe4f 0.0160, 41a600a 0.1339) -> 0.2157 FIT-099
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "longtooth", v: 0.2107, ceiling: 0.2307 }, // carried (0.2442); 0.2442 -> 0.1606 s8-base (1e5fe4f 0.0842, 41a600a 0.0980) -> 0.2107 FIT-099
-  { rule: "easyOverHard", day: 9, a: "grubnose", b: "karsk", v: 0.2101, ceiling: 0.2301 }, // new (red at s8-base: 0.2148; 1e5fe4f passes, 41a600a 0.0739) -> 0.2101 FIT-099
-  { rule: "easyOverHard", day: 9, a: "grubnose", b: "longtooth", v: 0.2051, ceiling: 0.2251 }, // new (red at s8-base: 0.2018; 1e5fe4f 0.0268, 41a600a 0.0380) -> 0.2051 FIT-099
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "karsk", v: 0.0209, ceiling: 0.0409 }, // carried (0.2118); 0.2118 -> -0.0089 s8-base (1e5fe4f -0.0977, 41a600a 0.0583) -> 0.0209 FIT-099
-  { rule: "easyOverHard", day: 10, a: "grubnose", b: "karsk", v: 0.1567, ceiling: 0.1767 }, // new (red at s8-base: 0.1320; 1e5fe4f passes, 41a600a passes) -> 0.1567 FIT-099
-  { rule: "easyOverHard", day: 10, a: "grubnose", b: "longtooth", v: 0.0551, ceiling: 0.0751 }, // new (red at s8-base: 0.0645; 1e5fe4f passes, 41a600a passes) -> 0.0551 FIT-099
-  { rule: "easyOverHard", day: 10, a: "ratchet", b: "karsk", v: 0.1363, ceiling: 0.1563 }, // new (red at s8-base: 0.0866; 1e5fe4f passes, 41a600a 0.1535) -> 0.1355 FIT-099 -> 0.1363 CAPTAIN_RUNES
-  { rule: "easyOverHard", day: 10, a: "ratchet", b: "longtooth", v: 0.0347, ceiling: 0.0547 }, // new (red at s8-base: 0.0192; 1e5fe4f passes, 41a600a 0.1646) -> 0.0339 FIT-099 -> 0.0347 CAPTAIN_RUNES
+  { rule: "easyOverHard", day: 1, a: "nettle", b: "highspire", v: 0.0236, ceiling: 0.0436 }, // BUMP-1D: was 0.0183 (ceiling 0.0383); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0249); 0.0249 -> 0.0183 s8-base (1e5fe4f 0.0212, 41a600a 0.0224)
+  { rule: "easyOverHard", day: 1, a: "nettle", b: "mothqueen", v: 0.0273, ceiling: 0.0473 }, // BUMP-1D: was 0.0252 (ceiling 0.0452); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0542); 0.0542 -> 0.0252 s8-base (1e5fe4f 0.0408, 41a600a 0.0454)
+  { rule: "easyOverHard", day: 1, a: "ratchet", b: "highspire", v: 0.0478, ceiling: 0.0678 }, // BUMP-1D: was 0.0356 (ceiling 0.0556); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.0356; 1e5fe4f 0.0168, 41a600a passes)
+  { rule: "easyOverHard", day: 1, a: "ratchet", b: "karsk", v: 0.0115, ceiling: 0.0315 }, // BUMP-1D: was 0.0288 (ceiling 0.0488); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0586); 0.0586 -> 0.0288 s8-base (1e5fe4f -0.0142, 41a600a 0.0704)
+  { rule: "easyOverHard", day: 1, a: "ratchet", b: "mothqueen", v: 0.0515, ceiling: 0.0715 }, // BUMP-1D: was 0.0426 (ceiling 0.0626); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.0426; 1e5fe4f 0.0364, 41a600a passes)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "bulwark", v: 0.0958, ceiling: 0.1158 }, // BUMP-1D: was 0.0185 (ceiling 0.0385); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.0185; 1e5fe4f passes, 41a600a passes)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "highspire", v: 0.0852, ceiling: 0.1052 }, // BUMP-1D: was 0.0462 (ceiling 0.0662); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.0462; 1e5fe4f 0.0926, 41a600a 0.0399)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "karsk", v: 0.0401, ceiling: 0.0601 }, // BUMP-1D: was 0.0315 (ceiling 0.0515); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.1921); 0.1921 -> 0.0315 s8-base (1e5fe4f 0.0431, 41a600a 0.1107)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "longtooth", v: 0.0674, ceiling: 0.0874 }, // BUMP-1D: was 0.0482 (ceiling 0.0682); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0848); 0.0848 -> 0.0482 s8-base (1e5fe4f 0.0883, 41a600a 0.0634)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "mothqueen", v: 0.0533, ceiling: 0.0733 }, // BUMP-1D: was 0.0383 (ceiling 0.0583); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.0383; 1e5fe4f 0.0589, 41a600a 0.0272)
+  { rule: "easyOverHard", day: 3, a: "brasswick", b: "bulwark", v: 0.1265, ceiling: 0.1465 }, // BUMP-1D: was 0.0601 (ceiling 0.0801); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.1296); 0.1296 -> 0.0601 s8-base (1e5fe4f 0.0803, 41a600a -0.0250)
+  { rule: "easyOverHard", day: 3, a: "brasswick", b: "highspire", v: 0.0646, ceiling: 0.0846 }, // BUMP-1D: was 0.0427 (ceiling 0.0627); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.1525); 0.1525 -> 0.0427 s8-base (1e5fe4f 0.0378, 41a600a -0.0838)
+  { rule: "easyOverHard", day: 3, a: "brasswick", b: "mothqueen", v: 0.0044, ceiling: 0.0244 }, // BUMP-1D: new (the rule held before: v -0.0103); the stand-in ladder moved (par field: the 12 new pieces)
+  { rule: "easyOverHard", day: 3, a: "grubnose", b: "bulwark", v: 0.0951, ceiling: 0.1151 }, // BUMP-1D: was 0.0494 (ceiling 0.0694); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0231); 0.0231 -> 0.0494 s8-base (1e5fe4f 0.0075, 41a600a 0.0172)
+  { rule: "easyOverHard", day: 3, a: "grubnose", b: "highspire", v: 0.0332, ceiling: 0.0532 }, // BUMP-1D: was 0.0320 (ceiling 0.0520); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0460); 0.0460 -> 0.0320 s8-base (1e5fe4f -0.0350, 41a600a -0.0417)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "bulwark", v: 0.1941, ceiling: 0.2141 }, // BUMP-1D: was 0.1244 (ceiling 0.1444); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.1520); 0.1520 -> 0.1244 s8-base (1e5fe4f 0.1343, 41a600a 0.1218)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "highspire", v: 0.1322, ceiling: 0.1522 }, // BUMP-1D: was 0.1070 (ceiling 0.1270); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.1749); 0.1749 -> 0.1070 s8-base (1e5fe4f 0.0918, 41a600a 0.0629)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "mothqueen", v: 0.0720, ceiling: 0.0920 }, // BUMP-1D: was 0.0539 (ceiling 0.0739); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.1086); 0.1086 -> 0.0539 s8-base (1e5fe4f 0.0604, 41a600a 0.0768)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "silkshade", v: 0.0444, ceiling: 0.0644 }, // BUMP-1D: was 0.0537 (ceiling 0.0737); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0194); 0.0194 -> 0.0537 s8-base (1e5fe4f 0.0225, 41a600a 0.0392)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "bulwark", v: 0.3441, ceiling: 0.3641 }, // BUMP-1D: was 0.2992 (ceiling 0.3192); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.5542); 0.5542 -> 0.2992 s8-base (1e5fe4f 0.3670, 41a600a 0.1560)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "highspire", v: 0.0584, ceiling: 0.0784 }, // BUMP-1D: was 0.1014 (ceiling 0.1214); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.4179); 0.4179 -> 0.1014 s8-base (1e5fe4f 0.0458, 41a600a -0.0420)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "karsk", v: 0.0795, ceiling: 0.0995 }, // BUMP-1D: was 0.0511 (ceiling 0.0711); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.4489); 0.4489 -> 0.0511 s8-base (1e5fe4f 0.1612, 41a600a 0.0151)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "longtooth", v: 0.1330, ceiling: 0.1530 }, // BUMP-1D: was 0.0951 (ceiling 0.1151); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.3229); 0.3229 -> 0.0951 s8-base (1e5fe4f 0.1325, 41a600a -0.0144)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "mothqueen", v: 0.0777, ceiling: 0.0977 }, // BUMP-1D: was 0.0968 (ceiling 0.1168); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.3053); 0.3053 -> 0.0968 s8-base (1e5fe4f 0.0386, 41a600a 0.0281)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "voss", v: 0.2214, ceiling: 0.2414 }, // BUMP-1D: was 0.3499 (ceiling 0.3699); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.4697); 0.4697 -> 0.3499 s8-base (1e5fe4f 0.2542, 41a600a 0.2801)
+  { rule: "easyOverHard", day: 5, a: "ratchet", b: "bulwark", v: 0.1611, ceiling: 0.1811 }, // BUMP-1D: was 0.0387 (ceiling 0.0587); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0293); 0.0293 -> 0.0387 s8-base (1e5fe4f 0.0231, 41a600a -0.0379)
+  { rule: "easyOverHard", day: 5, a: "ratchet", b: "voss", v: 0.0384, ceiling: 0.0584 }, // BUMP-1D: was 0.0894 (ceiling 0.1094); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.0894; 1e5fe4f passes, 41a600a 0.0862)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "bulwark", v: 0.1564, ceiling: 0.1764 }, // BUMP-1D: was 0.2302 (ceiling 0.2502); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.4047); 0.4047 -> 0.2302 s8-base (1e5fe4f 0.3318, 41a600a 0.1521)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "karsk", v: 0.1015, ceiling: 0.1215 }, // BUMP-1D: was 0.1999 (ceiling 0.2199); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.4270); 0.4270 -> 0.1999 s8-base (1e5fe4f 0.1921, 41a600a 0.1643)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "longtooth", v: 0.2078, ceiling: 0.2278 }, // BUMP-1D: was 0.1683 (ceiling 0.1883); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.3071); 0.3071 -> 0.1683 s8-base (1e5fe4f 0.2297, 41a600a 0.0936)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "mothqueen", v: 0.0792, ceiling: 0.0992 }, // BUMP-1D: was 0.0741 (ceiling 0.0941); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.3357); 0.3357 -> 0.0741 s8-base (1e5fe4f 0.0698, 41a600a 0.0557)
+  { rule: "easyOverHard", day: 6, a: "grubnose", b: "longtooth", v: 0.0222, ceiling: 0.0422 }, // BUMP-1D: new (the rule held before: v -0.0464); the stand-in ladder moved (par field: the 12 new pieces)
+  { rule: "easyOverHard", day: 6, a: "nettle", b: "longtooth", v: 0.0074, ceiling: 0.0274 }, // BUMP-1D: new (the rule held before: v -0.1468); the stand-in ladder moved (par field: the 12 new pieces)
+  { rule: "easyOverHard", day: 7, a: "brasswick", b: "karsk", v: 0.0034, ceiling: 0.0234 }, // BUMP-1D: was 0.0221 (ceiling 0.0421); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.3201); 0.3201 -> 0.0221 s8-base (1e5fe4f 0.0336, 41a600a -0.0464)
+  { rule: "easyOverHard", day: 8, a: "grubnose", b: "longtooth", v: 0.0033, ceiling: 0.0233 }, // BUMP-1D: was 0.1931 (ceiling 0.2131); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.2107; 1e5fe4f 0.2037, 41a600a passes) -> 0.1931 FIT-099
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "karsk", v: 0.0241, ceiling: 0.0441 }, // BUMP-1D: was 0.2157 (ceiling 0.2357); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.2676); 0.2676 -> 0.1736 s8-base (1e5fe4f 0.0160, 41a600a 0.1339) -> 0.2157 FIT-099
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "longtooth", v: 0.0891, ceiling: 0.1091 }, // BUMP-1D: was 0.2107 (ceiling 0.2307); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.2442); 0.2442 -> 0.1606 s8-base (1e5fe4f 0.0842, 41a600a 0.0980) -> 0.2107 FIT-099
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "voss", v: 0.1916, ceiling: 0.2116 }, // BUMP-1D: new (the rule held before: v -0.0704); the stand-in ladder moved (par field: the 12 new pieces)
+  { rule: "easyOverHard", day: 9, a: "grubnose", b: "karsk", v: 0.0055, ceiling: 0.0255 }, // BUMP-1D: was 0.2101 (ceiling 0.2301); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.2148; 1e5fe4f passes, 41a600a 0.0739) -> 0.2101 FIT-099
+  { rule: "easyOverHard", day: 9, a: "grubnose", b: "longtooth", v: 0.0705, ceiling: 0.0905 }, // BUMP-1D: was 0.2051 (ceiling 0.2251); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.2018; 1e5fe4f 0.0268, 41a600a 0.0380) -> 0.2051 FIT-099
+  { rule: "easyOverHard", day: 9, a: "grubnose", b: "voss", v: 0.1730, ceiling: 0.1930 }, // BUMP-1D: new (the rule held before: v -0.0760); the stand-in ladder moved (par field: the 12 new pieces)
+  { rule: "easyOverHard", day: 10, a: "ratchet", b: "karsk", v: 0.0348, ceiling: 0.0548 }, // BUMP-1D: was 0.1363 (ceiling 0.1563); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.0866; 1e5fe4f passes, 41a600a 0.1535) -> 0.1355 FIT-099 -> 0.1363 CAPTAIN_RUNES
+  { rule: "easyOverHard", day: 10, a: "ratchet", b: "longtooth", v: 0.0369, ceiling: 0.0569 }, // BUMP-1D: was 0.0347 (ceiling 0.0547); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.0192; 1e5fe4f passes, 41a600a 0.1646) -> 0.0339 FIT-099 -> 0.0347 CAPTAIN_RUNES
   { rule: "pacing", day: 3, a: "grimhold", b: "furnace", v: 2.5175, ceiling: 2.5375 }, // carried (0.2758); 0.2758 -> 2.5175 s8-base (1e5fe4f 2.5175, 41a600a 0.2758)
   { rule: "pacing", day: 3, a: "grimhold", b: "weaver", v: 4.7292, ceiling: 4.7492 }, // carried (0.9558); 0.9558 -> 4.7292 s8-base (1e5fe4f 4.7292, 41a600a 0.9558)
   // HULL-ON H4, the captains pass (REQ-BFG-092; cap's rulings 6f4568477e66a600 = RULING-HULLON-R3 section 3's fallback and
@@ -190,23 +213,27 @@ const LADDER_X_OPEN: readonly LadderOpen[] = [
   { rule: "pacing", day: 2, a: "grimhold", b: "furnace", v: 0.2783, ceiling: 0.2983 }, // cause GUARD (R3: 16.26 s with GUARD off); 14.7217 s, as at c4e8504
   { rule: "pacing", day: 2, a: "grimhold", b: "weaver", v: 0.2867, ceiling: 0.3067 }, // cause GUARD with FREE_JOINS (WEAVER's pacing deck at FREE_JOINS_HULL's 1500): 14.7133 s; holds with either off (GUARD off 19.2 s, FREE_JOINS_HULL = {} 16.3 s)
   { rule: "pacing", day: 3, a: "sootjaw", b: "weaver", v: 1.3167, ceiling: 1.3367 }, // cause FREE_JOINS (WEAVER's pacing deck at FREE_JOINS_HULL's 1500): 13.6833 s; holds with FREE_JOINS_HULL = {}, fails with GUARD off too
-  { rule: "parLosesToHard", day: 2, v: 0.3170, ceiling: 0.3370 }, // carried (0.1417); 0.1417 -> 0.3170 s8-base (1e5fe4f 0.2599, 41a600a 0.2390)
-  { rule: "parLosesToHard", day: 3, v: 0.2462, ceiling: 0.2662 }, // carried (0.1613); 0.1613 -> 0.2462 s8-base (1e5fe4f 0.2299, 41a600a 0.1733)
-  { rule: "parLosesToHard", day: 4, v: 0.0222, ceiling: 0.0422 }, // new (red at s8-base: 0.0222; 1e5fe4f 0.0480, 41a600a passes)
-  { rule: "parLosesToHard", day: 5, v: 0.0878, ceiling: 0.1078 }, // new (red at s8-base: 0.0878; 1e5fe4f 0.1085, 41a600a 0.0519)
-  { rule: "poolBand", day: 1, v: 0.0934, ceiling: 0.1134 }, // carried (0.0266); 0.0266 -> 0.0934 s8-base (1e5fe4f 0.0633, 41a600a 0.0486)
-  { rule: "poolBand", day: 2, v: 0.0760, ceiling: 0.0960 }, // new (red at s8-base: 0.0760; 1e5fe4f 0.0307, 41a600a 0.0182)
-  { rule: "poolBand", day: 3, v: 0.1137, ceiling: 0.1337 }, // new (red at s8-base: 0.1137; 1e5fe4f 0.0971, 41a600a 0.0428)
-  { rule: "poolBand", day: 4, v: 0.0036, ceiling: 0.0236 }, // new (red at s8-base: 0.0036; 1e5fe4f 0.0018, 41a600a passes)
-  { rule: "slotGap", day: 2, a: "medium", b: "hard", v: 0.0601, ceiling: 0.0801 }, // carried (0.0464); 0.0464 -> 0.0601 s8-base (1e5fe4f 0.0363, 41a600a 0.0033)
-  { rule: "slotGap", day: 3, a: "medium", b: "hard", v: 0.0605, ceiling: 0.0805 }, // carried (0.2016); 0.2016 -> 0.0605 s8-base (1e5fe4f 0.0738, 41a600a 0.0362)
+  { rule: "parLosesToHard", day: 2, v: 0.3843, ceiling: 0.4043 }, // BUMP-1D: was 0.3170 (ceiling 0.3370); the stand-in ladder moved (par field: the 12 new pieces); Hard mean +0.3843 (was +0.3170); before: carried (0.1417); 0.1417 -> 0.3170 s8-base (1e5fe4f 0.2599, 41a600a 0.2390)
+  { rule: "parLosesToHard", day: 3, v: 0.3472, ceiling: 0.3672 }, // BUMP-1D: was 0.2462 (ceiling 0.2662); the stand-in ladder moved (par field: the 12 new pieces); Hard mean +0.3472 (was +0.2462); before: carried (0.1613); 0.1613 -> 0.2462 s8-base (1e5fe4f 0.2299, 41a600a 0.1733)
+  { rule: "parLosesToHard", day: 4, v: 0.2114, ceiling: 0.2314 }, // BUMP-1D: was 0.0222 (ceiling 0.0422); the stand-in ladder moved (par field: the 12 new pieces); Hard mean +0.2114 (was +0.0222); before: new (red at s8-base: 0.0222; 1e5fe4f 0.0480, 41a600a passes)
+  { rule: "parLosesToHard", day: 5, v: 0.3292, ceiling: 0.3492 }, // BUMP-1D: was 0.0878 (ceiling 0.1078); the stand-in ladder moved (par field: the 12 new pieces); Hard mean +0.3292 (was +0.0878); before: new (red at s8-base: 0.0878; 1e5fe4f 0.1085, 41a600a 0.0519)
+  { rule: "parLosesToHard", day: 6, v: 0.1711, ceiling: 0.1911 }, // BUMP-1D: new (the rule held before: v -0.0850); the stand-in ladder moved (par field: the 12 new pieces); Hard mean +0.1711 (was -0.0850)
+  { rule: "parLosesToHard", day: 7, v: 0.2220, ceiling: 0.2420 }, // BUMP-1D: new (the rule held before: v -0.0418); the stand-in ladder moved (par field: the 12 new pieces); Hard mean +0.2220 (was -0.0418)
+  { rule: "poolBand", day: 1, v: 0.1308, ceiling: 0.1508 }, // BUMP-1D: was 0.0934 (ceiling 0.1134); the stand-in ladder moved (par field: the 12 new pieces); pool mean +0.3808 against the +-0.25 band (was +0.3434); before: carried (0.0266); 0.0266 -> 0.0934 s8-base (1e5fe4f 0.0633, 41a600a 0.0486)
+  { rule: "poolBand", day: 2, v: 0.1454, ceiling: 0.1654 }, // BUMP-1D: was 0.0760 (ceiling 0.0960); the stand-in ladder moved (par field: the 12 new pieces); pool mean +0.3954 against the +-0.25 band (was +0.3260); before: new (red at s8-base: 0.0760; 1e5fe4f 0.0307, 41a600a 0.0182)
+  { rule: "poolBand", day: 3, v: 0.1841, ceiling: 0.2041 }, // BUMP-1D: was 0.1137 (ceiling 0.1337); the stand-in ladder moved (par field: the 12 new pieces); pool mean +0.4341 against the +-0.25 band (was +0.3637); before: new (red at s8-base: 0.1137; 1e5fe4f 0.0971, 41a600a 0.0428)
+  { rule: "poolBand", day: 4, v: 0.1533, ceiling: 0.1733 }, // BUMP-1D: was 0.0036 (ceiling 0.0236); the stand-in ladder moved (par field: the 12 new pieces); pool mean +0.4033 against the +-0.25 band (was +0.2536); before: new (red at s8-base: 0.0036; 1e5fe4f 0.0018, 41a600a passes)
+  { rule: "poolBand", day: 5, v: 0.1425, ceiling: 0.1625 }, // BUMP-1D: new (the rule held before: v -0.0687); the stand-in ladder moved (par field: the 12 new pieces); pool mean +0.3925 against the +-0.25 band (was +0.1813)
+  { rule: "poolBand", day: 6, v: 0.0593, ceiling: 0.0793 }, // BUMP-1D: new (the rule held before: v -0.1887); the stand-in ladder moved (par field: the 12 new pieces); pool mean +0.3093 against the +-0.25 band (was +0.0613)
+  { rule: "poolBand", day: 7, v: 0.0680, ceiling: 0.0880 }, // BUMP-1D: new (the rule held before: v -0.1792); the stand-in ladder moved (par field: the 12 new pieces); pool mean +0.3180 against the +-0.25 band (was +0.0708)
+  { rule: "slotGap", day: 2, a: "medium", b: "hard", v: 0.0456, ceiling: 0.0656 }, // BUMP-1D: was 0.0601 (ceiling 0.0801); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0464); 0.0464 -> 0.0601 s8-base (1e5fe4f 0.0363, 41a600a 0.0033)
+  { rule: "slotGap", day: 3, a: "medium", b: "hard", v: 0.0679, ceiling: 0.0879 }, // BUMP-1D: was 0.0605 (ceiling 0.0805); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.2016); 0.2016 -> 0.0605 s8-base (1e5fe4f 0.0738, 41a600a 0.0362)
   // HULL-ON H4, the captains pass (cap's rulings 6f4568477e66a600 = R3 section 3's fallback and ed10dd26da1a89fb = R13 Q9
   // (b)): v measured on the captains commit, ceiling v + 0.02. Cause GUARD (R3: +0.063 with GUARD off at the flip) with
   // FREE_JOINS a co-cause (WEAVER's hull at FREE_JOINS_HULL's 1500: the gap -0.021 -> -0.026; GUARD off on the WEAVER tree
   // +0.043, still under 0.05). No least change clears it: three day-4 PvE plates moved 0.030 of the 0.076 needed.
-  { rule: "slotGap", day: 4, a: "medium", b: "hard", v: 0.0721, ceiling: 0.0921 }, // carried (0.0763); 0.0763 -> 0.0721 s8-base (1e5fe4f 0.0763, 41a600a -0.0350)
-  { rule: "slotGap", day: 5, a: "medium", b: "hard", v: 0.0570, ceiling: 0.0770 }, // new (red at s8-base: 0.0570; 1e5fe4f passes, 41a600a passes)
-  { rule: "slotGap", day: 7, a: "medium", b: "hard", v: 0.0118, ceiling: 0.0318 }, // new (red at s8-base: 0.0118; 1e5fe4f passes, 41a600a 0.0116)
+  { rule: "slotGap", day: 4, a: "medium", b: "hard", v: 0.0601, ceiling: 0.0801 }, // BUMP-1D: was 0.0721 (ceiling 0.0921); the stand-in ladder moved (par field: the 12 new pieces); before: carried (0.0763); 0.0763 -> 0.0721 s8-base (1e5fe4f 0.0763, 41a600a -0.0350)
+  { rule: "slotGap", day: 5, a: "medium", b: "hard", v: 0.0862, ceiling: 0.1062 }, // BUMP-1D: was 0.0570 (ceiling 0.0770); the stand-in ladder moved (par field: the 12 new pieces); before: new (red at s8-base: 0.0570; 1e5fe4f passes, 41a600a passes)
 ];
 const open = (rule: LadderRule, day: number, a?: string, b?: string): LadderOpen | undefined =>
   LADDER_X_OPEN.find((x) => x.rule === rule && x.day === day && x.a === a && x.b === b);

@@ -9,6 +9,7 @@ import {
 } from "../src/sim/rivals";
 import { PLANS, roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP: the road allowance
 import { battleSeed, newRun } from "../src/game/run";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: the 10-day world's clamp is pinned with the long run off
 import { legalityProblems } from "./rivals.legality";
 
 const other = (h: HeroId): HeroId => (h === "furnace" ? "weaver" : "furnace");
@@ -180,8 +181,19 @@ describe("road-stop warlords and stand-in ghosts (200 seeds)", () => {
     // every road captain is offered in some run; 0.8.0 N1: the two stand-in-only captains never are
     expect(seen.size).toBe(RIVAL_IDS.filter((id) => !RIVALS[id].standInOnly).length);
     for (const id of ["lockjaw", "thistlemail"] as RivalId[]) expect(seen.has(id), id).toBe(false);
-    expect(warlordOffer(7, 0)).toEqual(warlordOffer(7, 1)); // days clamp to 1-10
-    expect(warlordOffer(7, 99)).toEqual(warlordOffer(7, 10));
+    expect(warlordOffer(7, 0)).toEqual(warlordOffer(7, 1)); // a day below 1 is day 1, in either world
+    // BUMP-1D: was `expect(warlordOffer(7, 99)).toEqual(warlordOffer(7, 10))` ("days clamp to 1-10"). LONG_RUN ships on (bb-0.11.0)
+    // and a long run has no top clamp (rivals.ts clampDay: day 11 and later get their own offers, and the Iron Matriarch holds
+    // the Hard slot from day 8 until she is beaten), so day 99 is its own day, not day 10's offer repeated. Days 1-10 are the
+    // same in both worlds; the 10-day world (LONG_RUN off) keeps its clamp, pinned beside it.
+    expect(warlordOffer(7, 99)).toEqual(warlordOffers(7, 99)[98]);
+    expect(warlordOffer(7, 99)).not.toEqual(warlordOffer(7, 10));
+    expect(warlordOffer(7, 99).hard).toBe("matriarch");
+    expect(warlordOffer(7, 10)).toEqual(warlordOffers(7)[9]);
+    withLongRun(() => {
+      expect(warlordOffer(7, 99)).toEqual(warlordOffer(7, 10)); // the 10-day world: days clamp to 1-10 (as before BUMP-1D)
+      expect(warlordOffer(7, 10)).toEqual(warlordOffers(7)[9]);
+    }, false);
   });
 
   it("the Matriarch is offered only in the Hard slot, and only on days 8-10 (always then)", () => {
