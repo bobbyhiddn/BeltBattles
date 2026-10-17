@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a new run's 10 hearts (was START_LIVES)
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: the 10-day run's save, kept beside the long run's
 import { simulate, type SideStats } from "../src/sim/battle";
 import { battleSeed, migrateRun, newRun, pendingRune, saveRun, SAVE_KEY, takeRune, type Run } from "../src/game/run";
 import { duskFoe, finishDay, ghostOf, startDusk, storedFoe, storeOnlineFoe, ghostName } from "../src/game/day";
@@ -208,7 +209,10 @@ describe("the online session (src/game/online.ts), with fakes", () => {
     expect(foe).toMatchObject({ day: 1, kind: "ghost", name: ghostName(SERVED), hero: SERVED.hero, source: "online", ghostId: ghostId(SERVED) });
     expect(foe.build).toEqual(SERVED.build);
     expect(foe.build).not.toBe(SERVED.build); // a cloned build
-    expect(foe.record).toEqual({ wins: SERVED.wins, lives: SERVED.lives, runId: SERVED.runId, playerId: SERVED.playerId, createdAt: SERVED.createdAt });
+    // BUMP-1D: a served seed ghost states its losses now (the long run's pool: every ghost does), and the dusk foe's record stamp
+    // carries a snapshot's stated losses, one optional key, last (b4b8dd4: day.ts `stated`, DuskFoe.record.losses; foeTitle prints
+    // W-L from it) (was { wins, lives, runId, playerId, createdAt } alone)
+    expect(foe.record).toEqual({ wins: SERVED.wins, lives: SERVED.lives, runId: SERVED.runId, playerId: SERVED.playerId, createdAt: SERVED.createdAt, ...(SERVED.losses !== undefined ? { losses: SERVED.losses } : {}) });
     expect(run.seenGhosts).toEqual(["gaaaaaaaaaaaaaa", ghostId(SERVED)]);
     expect(f.calls.saves).toBe(1);
     expect(foeNote(run, foe)).toBe(SOURCE_ONLINE);
@@ -405,13 +409,29 @@ describe("save v7: online play's fields are optional; every older save still loa
     expect(back.seenGhosts).toEqual(["g00112233445566", "g0123456789abcd"]);
     expect(back.uploaded).toBe(1);
     expect(back.dusk).toMatchObject({ source: "online", ghostId: "g0123456789abcd" });
-    const junk = migrateRun({ ...JSON.parse(JSON.stringify(live)), seenGhosts: "x", uploaded: 99, dusk: { ...live.dusk, source: "elsewhere", ghostId: "?" }, history: [{ day: 1, outcome: "win", income: 9, time: 20, foe: "x", ghost: false, player: {}, enemy: {}, record: { rules: 5 }, hulls: [1] }] })!;
+    // BUMP-1D: this run is a long run (bb-0.11.0, LONG_RUN on: run.longRun true), whose save keeps any integer `uploaded` from 1 on ("a long
+    // run uploads on any day", save.ts normalizeOnline: no RUN_DAYS bound), so 99 is no junk here: the malformed value is 0 (below 1); the
+    // 99 case is the 10-day run's, kept in the twin below (was uploaded: 99)
+    const junk = migrateRun({ ...JSON.parse(JSON.stringify(live)), seenGhosts: "x", uploaded: 0, dusk: { ...live.dusk, source: "elsewhere", ghostId: "?" }, history: [{ day: 1, outcome: "win", income: 9, time: 20, foe: "x", ghost: false, player: {}, enemy: {}, record: { rules: 5 }, hulls: [1] }] })!;
     expect(junk.seenGhosts).toBeUndefined();
     expect(junk.uploaded).toBeUndefined();
     expect(junk.dusk!.source).toBeUndefined();
     expect(junk.dusk!.ghostId).toBeUndefined();
     expect(junk.history[0].record).toBeUndefined();
     expect(junk.history[0].hulls).toBeUndefined();
+  });
+
+  it("BUMP-1D: an `uploaded` past RUN_DAYS (99) is dropped from a 10-day run's save (withLongRun false: the old world) and kept in a long run's (no day bound)", () => {
+    const ten = withLongRun(() => newRun("furnace", 11), false);
+    expect(ten.longRun).toBeUndefined();
+    const long = newRun("furnace", 11);
+    expect(long.longRun).toBe(true);
+    const save = (r: Run, uploaded: number) => migrateRun({ ...JSON.parse(JSON.stringify(r)), uploaded })!;
+    expect(save(ten, 99).uploaded).toBeUndefined(); // the old world: 99 is past the 10 days
+    expect(save(ten, 10).uploaded).toBe(10); // and the last day of it is not
+    expect(save(long, 99).uploaded).toBe(99); // a long run uploads on any day
+    expect(save(long, 0).uploaded).toBeUndefined();
+    expect(save(long, 1.5).uploaded).toBeUndefined();
   });
 
   it("v3, v4, v5 and v6 saves load as before, with none of the new fields", () => {
