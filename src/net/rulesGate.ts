@@ -273,7 +273,7 @@ export function shapesWorld(rules: unknown): boolean {
  * in inShapesWorld), and the six are refused under them (shapes2GateProblem). It gains no RULES_ROWS row: like SHAPES_RULES,
  * it is its own gate.
  */
-export const SHAPES2_RULES: string = "bb-0.10.0";
+export const SHAPES2_RULES: string = "bb-0.11.0"; // BUMP-1D wrote 1D's RULES_VERSION here (it was bb-0.10.0)
 
 /** SHAPES-2: the six shaped rigs a build carries, by name (items whose def is one of shapes2.ts SHAPES2_IDS). Reads a raw
  *  (undecoded) build safely, like shapesFeatures. */
@@ -401,12 +401,11 @@ export function openRunesFor(rules: unknown): boolean {
 // feature; it says which run rule a record came from (won at 10 wins with no day limit, or the 10-day run), so the record
 // check (records.ts), the snapshot's bounds (snapshot.ts maxDayFor) and the match request read a record by its own rule.
 import { longRunRules } from "../sim/longRun"; // RUN-1: the LONG_RUN switch (src/sim/longRun.ts)
-import { RULES_VERSION as LONG_RUN_RULES_NOW } from "../sim/content";
 
-/** RUN-1 (REQ-BFG-059): the first rules version whose runs are won at 10 wins with no day limit: LONG_RUN's row. It reads
- *  RULES_VERSION until the release bump that turns LONG_RUN on writes that version here as a literal (as HULL-ON wrote
- *  HEARTS_RULES and PICK_RULES); from then on every older record keeps the 10-day rule, whatever the switch. */
-export const LONG_RUN_RULES: string = LONG_RUN_RULES_NOW;
+/** RUN-1 (REQ-BFG-059): the first rules version whose runs are won at 10 wins with no day limit: LONG_RUN's row. It read
+ *  RULES_VERSION until the release bump that turned LONG_RUN on wrote that version here as a literal (as HULL-ON wrote
+ *  HEARTS_RULES and PICK_RULES): BUMP-1D, "bb-0.11.0"; from then on every older record keeps the 10-day rule, whatever the switch. */
+export const LONG_RUN_RULES: string = "bb-0.11.0";
 
 /** Does the long run hold for a record, snapshot or match request under `rules`? The switch on AND `rules` a readable
  *  version at or after LONG_RUN_RULES. False with the switch off, whatever the rules (every record then reads the 10-day

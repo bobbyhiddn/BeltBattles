@@ -39,7 +39,12 @@ import type { FootId } from "./foot"; // SHAPES-1 (REQ-BFG-086): ItemDef.foot (a
 // once with them. The three switches are on for good (AZ-BUMP's flip; their off paths stay this release for older
 // records). The rules string is cap's call; the release lane picks the label at staging. Ghosts and records made under
 // bb-0.9.7 don't mix.
-export const RULES_VERSION = "bb-0.10.0";
+// bb-0.11.0 (the 10-wins release, job BUMP-1D; REQ-BFG-059, REQ-BFG-116, REQ-BFG-092, REQ-BFG-114): a run is won at the 10th
+// dusk win and lost at 0 hearts, with no day limit (LONG_RUN); the six plain rigs (PLAIN_RIGS) and the six more shaped rigs
+// (SHAPES2) are in the shops; a lost dusk costs 1 heart on days 1-3 and 2 from day 4 on (HEART_COSTS [1, 2, 2]) and the seed
+// ghosts are a little softer (SOFT_TARGET 250); every pool regenerated once with them. The rules string is cap's call; the
+// release lane picks the label at staging. Ghosts and records made under bb-0.10.0 don't mix.
+export const RULES_VERSION = "bb-0.11.0";
 /**
  * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
  * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player

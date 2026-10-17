@@ -31,8 +31,8 @@ import { ITEMS, type ItemDef } from "./content";
 import { SHAPES_ITEMS } from "./shapes"; // run 2: NAIL STRIP's number patch (SHAPES2_PATCHES); shapes.ts imports nothing of this file
 import { clearStarCache } from "./stars";
 
-/** THE switch (REQ-BFG-114), off in this rules version (bb-0.10.0). */
-export const SHAPES2: boolean = false;
+/** THE switch (REQ-BFG-114): on since bb-0.11.0 (BUMP-1D turned it on with PLAIN_RIGS and LONG_RUN). */
+export const SHAPES2: boolean = true;
 
 /** The six shaped plain stat rigs (BRIEF-SHAPES2's table; the numbers are the bench's starting values). No `shape`: the
  *  arrows follow the rarity (RARITY_SHAPE: common I, rare II, epic T), as SHAPES_ITEMS' do. No desc: a stat row (faces.ts). */

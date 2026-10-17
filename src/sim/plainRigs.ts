@@ -32,8 +32,8 @@
 import { ITEMS, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
 
-/** THE switch (REQ-BFG-084), off in this rules version (bb-0.9.7). */
-export const PLAIN_RIGS: boolean = false;
+/** THE switch (REQ-BFG-084): on since bb-0.11.0 (BUMP-1D turned it on with SHAPES2 and LONG_RUN). */
+export const PLAIN_RIGS: boolean = true;
 
 /** The six plain stat rigs (BRIEF-PLAIN1's table; the numbers are the bench's starting values). */
 export const PLAIN_DEFS: Readonly<Record<string, ItemDef>> = {

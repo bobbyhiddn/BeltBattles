@@ -20,8 +20,8 @@
 
 import { RUN_DAYS } from "./content";
 
-/** THE switch (REQ-BFG-059): off. The release bump turns it on (and writes rulesGate.ts LONG_RUN_RULES as a literal). */
-export const LONG_RUN: boolean = false;
+/** THE switch (REQ-BFG-059): on since bb-0.11.0 (BUMP-1D turned it on and wrote rulesGate.ts LONG_RUN_RULES as the literal "bb-0.11.0"). */
+export const LONG_RUN: boolean = true;
 
 let lrOn = false;
 
