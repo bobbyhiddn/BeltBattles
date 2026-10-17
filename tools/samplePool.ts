@@ -46,6 +46,21 @@
 //    SOFT_TARGET (400 permille) in their own slot, from the par field's 12 decks of the day (a stand-in hero's 6 stand-in
 //    pool entries too), shipped as SOFT1_PICKS in the world it was read in (see "SOFT-1" below). The floor ghosts, the
 //    records, the ghost count and every check are unchanged; in any other world every snapshot is as before.
+//  - RUN-1 T8 (REQ-BFG-059, REQ-BFG-116; RULING-RUN1-R1 R1.1), the long run: the generator makes days 1..poolDepth(): MAX_DAY (10)
+//    with the long run off, LONG_RUN_GEN_DAYS (16) under long-run rules (longRun.ts longRunRules(), a test's withLongRun or
+//    tools/genGhostPool.ts --long-run). EVERY day loop and index formula reads the depth (sampleGhosts, floorGhosts, raceGhosts,
+//    raceDeck, softCandidates, softDeckOf, casualFloorRun, seedSlot's stride, uncoveredStates), so with the switch off the output
+//    is byte for byte the committed server/seedPoolData.ts (output-run1/T8-proof.md). Under long-run rules: (1) a drawn record
+//    keeps 0..WIN_GOAL-1 wins (a run ghost is a dusk BEFORE its 10th win), reads LAST CHANCE on any day, and is snapped to a record
+//    the long model reaches (records.ts longRunRecords: at most MAX_RUN_DRAWS draws, PATCH UP once per event bag); (2) every seed
+//    ghost STATES its `losses` (v3; statedLosses: the drawn count when a run with exactly that many reaches the record, else the
+//    nearest count that does), as an honest long-run upload does (POST requires it under those rules: records.ts lossesProblem);
+//    (3) uncoveredStates runs on the long model to the generator's depth (>= MIN_ELIGIBLE eligible ghosts at every reachable state
+//    of days 1-16; days past 16 are D6's widening); (4) the day 11-16 picks of SOFT-1's rule come in as a SCRATCH INPUT through
+//    the override BB_SOFT1_PICKS_FILE (softPickRows; tests/run1.seedpool.test.ts runs the rule for days 11-16 in the long-run
+//    world and writes the rows), never committed here: SOFT1_PICKS' rows and SOFT1_WORLD do not change in RUN-1 (the release
+//    bump re-reads the whole table, days 1-16, in its own world). Without the override a long-run day past SOFT1_PICKS' range
+//    takes the decks as before SOFT-1 (sampleEntry: standInDay's clamp, day 10's decks; raceDeck: the par field's run of the day).
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
@@ -62,12 +77,12 @@ import { STAND_IN_HEROES } from "../src/net/fallback";
 import { eligible } from "../src/net/matchmaking";
 import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
-import { checkSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { checkSnapshot, encodeSnapshot, ghostId, longRunFor, MAX_DAY, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot"; // RUN-1 T8: + longRunFor (snapshot.ts re-exports the rules gate's)
 import { GRADE_MAX } from "../src/net/snapshot"; // RETUNE-1 T5 (REQ-BFG-092): the grade's bound
 import { GRADE_K, GRADE_SEEDS, pickRules } from "../src/net/pick"; // RETUNE-1 T5: the switch and the grade's K and seeds
 import { parField } from "../src/sim/harness/par"; // RETUNE-1 T5: the grade's par fields
 import { playJob, type Job } from "../src/sim/harness/tournament"; // RETUNE-1 T5: a pairing's points
-import { encodeStarred, standInParIndex, standInPickIndex, standInPool, type StandInEntry } from "../src/sim/standInPool";
+import { STAND_IN_POOL_DAYS, encodeStarred, standInParIndex, standInPickIndex, standInPool, type StandInEntry } from "../src/sim/standInPool"; // RUN-1 T8: + STAND_IN_POOL_DAYS
 // HULL-ON (REQ-BFG-092; cap's ruling 9c114aab5ba18dfe): the grade memo's world key reads every switch the grades read. Each
 // of these modules is already loaded by the imports above (player.ts, deck.ts, runes.ts), so these lines, last in the
 // list, change no module's load order (Q1's lesson, ruling 12a42239093fb6ec)
@@ -79,6 +94,10 @@ import { openRunesRules } from "../src/sim/openRunes";
 import { freeJoinsRules } from "../src/sim/freeJoins";
 import { BOT_RUNES } from "../src/sim/runes";
 import { shapesRules } from "../src/sim/shapes"; // MERGE-099F: the grade memo's world reads SHAPES too (already loaded above)
+// RUN-1 T8 (REQ-BFG-059, REQ-BFG-116): the generator's depth and the draws' bounds follow the long run (src/sim/longRun.ts, already
+// loaded by snapshot.ts above, so this line, last in the list, changes no module's load order)
+import { LONG_RUN_GEN_DAYS, WIN_GOAL, longRunRules } from "../src/sim/longRun";
+import { readFileSync } from "node:fs"; // RUN-1 T8: the scratch pick rows (BB_SOFT1_PICKS_FILE)
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -95,7 +114,16 @@ export const FLOOR_VARIANT = 2;
 /** D5: every reachable state at every dusk has at least this many eligible seed ghosts under the record rule (D1). */
 export const MIN_ELIGIBLE = 2;
 
-const sampleSeed = (hero: HeroId, v: number, day: number): number => hashSeed("sample-pool", hero, v, day);
+/**
+ * RUN-1 T8 (RULING-RUN1-R1 R1.1): the days the generator makes, 1..poolDepth(): MAX_DAY (10) with the long run off (the committed
+ * seed pool, byte for byte), LONG_RUN_GEN_DAYS (16) under long-run rules (longRun.ts longRunRules(): the module switch, a test's
+ * withLongRun, tools/genGhostPool.ts --long-run). Read at call time, never at load: every day loop and every index formula (the
+ * slot stride, the pool order's `first`) takes it, so a pool is internally consistent in whichever world it is made. Days past
+ * it are the written rule's (D5/D6: the day-16 plan with the day's own hull, gold and odds; a thin day widens to an earlier one).
+ */
+export const poolDepth = (): number => (longRunRules() ? LONG_RUN_GEN_DAYS : MAX_DAY);
+
+const sampleSeed =(hero: HeroId, v: number, day: number): number => hashSeed("sample-pool", hero, v, day);
 
 /** The sample deck: variant 0 = the par; variant v >= 1 = standInPick's entry for `seed`, stepped deterministically to the
  *  next entry while it is the same deck as the par (or, from variant 2, as an earlier variant's deck). */
@@ -113,6 +141,20 @@ export function sampleEntry(hero: HeroId, day: number, v: number, seed: number):
   let i = standInPickIndex(hero, day, seed);
   for (let step = 0; step < pool.length && taken.has(encodeStarred(pool[i].build)); step++) i = (i + 1) % pool.length;
   return pool[i];
+}
+
+/**
+ * RUN-1 T8: a stand-in hero's variant `v` (0 or 1) sample deck of `day` with its run's road log: SOFT-1's pick in its world
+ * (softPicked), else the stand-in pool's (sampleEntry); and for a day the stand-in pool does not hold (past STAND_IN_POOL_DAYS: 10
+ * until the release bump regenerates it to 16) the par field's run of the day (raceDeck, as a race hero's decks): standInDay's clamp
+ * serves a FOE on such a day, but a day-10 stand-in deck is no GHOST of day 11 (it holds 10 runes, a day-11 ghost 11: validate.ts
+ * runeProblem). Days 1-10: exactly softPicked ?? sampleEntry, as before.
+ */
+function sampleDeckOf(hero: HeroId, day: number, v: number, botRunes?: boolean): SoftDeck {
+  const picked = softPicked(hero, day, botRunes)?.[v];
+  if (picked) return picked;
+  if (day > STAND_IN_POOL_DAYS) return raceDeck(hero, day, v, botRunes);
+  return sampleEntry(hero, day, v, sampleSeed(hero, v, day));
 }
 
 /** AZ-BUMP (N3): the road log a seed ghost carries: its run's, with NPC_DAY on only (off: none, the snapshot as before). */
@@ -150,7 +192,14 @@ function shopper(hero: HeroId, day: number, rng: Rng): Build {
  *  (the higher one on a tie). Every wins count 0..day-1 is reachable with every life kept, so one always exists. */
 export function reachableLabel(day: number, wins: number, lives: number): DuskRecord {
   if (isReachable(day, wins, lives)) return { wins, lives };
-  const same = reachableRecords(day).filter((r) => r.wins === wins);
+  let same = reachableRecords(day).filter((r) => r.wins === wins);
+  if (!same.length && longRunFor(RULES_VERSION)) {
+    // RUN-1 T8: the long model bounds the draws, so on a deep day a wins count can have no record at all (day 16 with 0 wins needs
+    // 7 losses): the label keeps the nearest wins count a run does reach (the higher on a tie), then the nearest lives, as above
+    const all = reachableRecords(day);
+    const near = all.reduce((a, b) => (Math.abs(b.wins - wins) < Math.abs(a.wins - wins) || (Math.abs(b.wins - wins) === Math.abs(a.wins - wins) && b.wins > a.wins) ? b : a), all[0]);
+    same = near ? all.filter((r) => r.wins === near.wins) : [];
+  }
   if (!same.length) throw new Error(`no reachable record with ${wins} wins at dusk ${day}`);
   return same.reduce((a, b) => (Math.abs(b.lives - lives) < Math.abs(a.lives - lives) || (Math.abs(b.lives - lives) === Math.abs(a.lives - lives) && b.lives > a.lives) ? b : a));
 }
@@ -165,12 +214,41 @@ export function reachableLabel(day: number, wins: number, lives: number): DuskRe
 export function drawnLabel(day: number, wins: number, lost: number): DuskRecord {
   if (!heartsRules()) return reachableLabel(day, wins, START_LIVES - Math.min(START_LIVES - 1, lost));
   let h = HEARTS_START, lc = false;
+  // RUN-1 T8: under a long run's rules LAST CHANCE fires on ANY day (the record model's own step: records.ts longStates); the 10-day
+  // rules pass no option, so heartsDusk's default last day (RUN_DAYS) stands, exactly as before
+  const step = longRunFor(RULES_VERSION) ? { lastDay: Infinity } : {};
   for (let d = day - lost; d < day; d++) {
-    const r = heartsDusk(h, d, "loss", lc);
+    const r = heartsDusk(h, d, "loss", lc, step);
     h = r.hearts;
     lc = lc || r.lastChance;
   }
   return reachableLabel(day, wins, Math.max(1, h));
+}
+
+/**
+ * RUN-1 T8: the (wins, lost) a seed ghost draws at `day`: wins 0..day-1, and the dusks lost among the others (the same draws as
+ * ever for days 1-10). A run ghost is a dusk BEFORE the run's WIN_GOAL-th win (snapshot.ts maxWinsFor), so under a long run's
+ * rules the wins stay 0..WIN_GOAL-1 (day 11 on); with the long run off, `day` is at most 10 and the draw is exactly as before.
+ */
+export function drawRecord(day: number, rng: Rng): { wins: number; lost: number } {
+  const wins = rng.int(longRunFor(RULES_VERSION) ? Math.min(day, WIN_GOAL) : day);
+  return { wins, lost: rng.int(day - wins) };
+}
+
+/**
+ * RUN-1 T8 (R1.2): the dusks lost a long-run seed ghost STATES (snapshot.losses, v3), as an honest long-run upload does. `lost`, the
+ * count its record was drawn from, when a run with exactly that many losses reaches (day, wins, lives) (records.ts: day - 1 =
+ * wins + losses + draws, at most MAX_RUN_DRAWS draws), else the nearest count that does (the larger on a tie). undefined when the
+ * 10-day rules apply (the field is reserved there: the ghost is as before) or no count reaches it.
+ */
+export function statedLosses(day: number, rec: DuskRecord, lost: number): number | undefined {
+  if (!longRunFor(RULES_VERSION)) return undefined;
+  let best: number | undefined;
+  for (let l = 0; l <= day - 1 - rec.wins; l++) {
+    if (!isReachable(day, rec.wins, rec.lives, { losses: l })) continue;
+    if (best === undefined || Math.abs(l - lost) < Math.abs(best - lost) || (Math.abs(l - lost) === Math.abs(best - lost) && l > best)) best = l;
+  }
+  return best;
 }
 
 /** One seed ghost, checked: the strict shop rules and the player mode (D5), and a reachable label. FLIP-X2 (RUNES-2a
@@ -179,15 +257,18 @@ export function drawnLabel(day: number, wins: number, lost: number): DuskRecord 
  *  re-derives every dawn's offer; a stand-in pool deck stores no run seed, so its ghost carries none (the count rule
  *  still holds it to one rune a dawn). A rune-less deck is v2 exactly as before. AZ-BUMP (REQ-BFG-078; REVIEW-PARAZ N3):
  *  `road`, its run's road log (NPC_DAY on only; see the header), travels in a v3 snapshot's `road` and goes to the
- *  player-mode check as ctx.road, as an upload's does; and the strict check's budget line is left to that check. */
-function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number, seed?: number, road?: RoadEntry[]): GhostSnapshot {
+ *  player-mode check as ctx.road, as an upload's does; and the strict check's budget line is left to that check.
+ *  RUN-1 T8: `losses` (long-run rules only, statedLosses; v3, after the run seed as an upload writes it): the dusks the ghost's run
+ *  lost, so the record check holds it to exactly that count (isReachable's `losses`), as POST holds an honest long-run upload. */
+function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number, seed?: number, road?: RoadEntry[], losses?: number): GhostSnapshot {
   const runes = (build.runes?.length ?? 0) > 0;
   const snap = checkSnapshot({
     // v2: pool decks carry stars (the 0.6.1 flip) and rigs their `rot` (0.6.2 BELTSIDE, DESIGN-beltside D1)
     // AZ-BUMP (N3): a road log is v3 only (snapshot.ts roadField), written last
-    v: runes || road ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
+    v: runes || road || losses !== undefined ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
     runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: at,
     ...(runes && seed !== undefined ? { seed } : {}),
+    ...(losses !== undefined ? { losses } : {}),
     ...(road ? { road } : {}),
   });
   // AZ-BUMP (N3): with NPC_DAY on, the strict budget line (the shop's gold alone) is left to the player mode below, which
@@ -198,7 +279,10 @@ function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: Dusk
   // D5: an honest player could have uploaded it. AZ-BUMP (N3): with its road log, as an upload carries it
   const up = validateUpload(snap.build, day, snap.rules, { seed: snap.seed, ...(snap.road ? { road: snap.road } : {}) });
   if (!up.ok) throw new Error(`sample ghost ${hero} v${v} day ${day} fails validateUpload (player mode): ${up.errors.join("; ")}`);
-  if (!isReachable(day, snap.wins, snap.lives)) throw new Error(`sample ghost ${hero} v${v} day ${day}: ${snap.wins}W ${snap.lives} lives is not a record a run can carry into that dusk`);
+  // RUN-1 T8: and, when it states them, with exactly its losses (a long run's ghost; the seed step's checkPool holds it the same way)
+  if (!isReachable(day, snap.wins, snap.lives, snap.losses !== undefined ? { losses: snap.losses } : {})) {
+    throw new Error(`sample ghost ${hero} v${v} day ${day}: ${snap.wins}W ${snap.lives} lives${snap.losses !== undefined ? ` and ${snap.losses} losses` : ""} is not a record a run can carry into that dusk`);
+  }
   return snap;
 }
 
@@ -207,17 +291,18 @@ function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: Dusk
  *  are drawn exactly as before. */
 export function sampleGhosts(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
+  const depth = poolDepth(); // RUN-1 T8: days 1..depth (10 with the long run off)
   for (const hero of STAND_IN_HEROES) {
     for (let v = 0; v < SAMPLE_VARIANTS; v++) {
-      for (let day = 1; day <= MAX_DAY; day++) {
+      for (let day = 1; day <= depth; day++) {
         const seed = sampleSeed(hero, v, day);
         const rng = new Rng(seed);
         if (v === 1) shopper(hero, day, rng); // replay the retired shopper's draws: records unchanged
-        const wins = rng.int(day);
-        const rec = drawnLabel(day, wins, rng.int(day - wins));
-        // AZ-BUMP (N3): the deck and its run's road log; SOFT-1: the shipped world's pick
-        const entry: SoftDeck = softPicked(hero, day, o.botRunes)?.[v] ?? sampleEntry(hero, day, v, seed);
-        out.push(seedGhost(hero, day, v, entry.build, rec, EPOCH + out.length * 1000, entry.seed !== undefined ? (parRunSeed(hero, entry.seed) >>> 0) || undefined : undefined, roadOf(entry.road)));
+        const { wins, lost } = drawRecord(day, rng);
+        const rec = drawnLabel(day, wins, lost);
+        // AZ-BUMP (N3): the deck and its run's road log; SOFT-1: the shipped world's pick (RUN-1 T8: sampleDeckOf)
+        const entry: SoftDeck = sampleDeckOf(hero, day, v, o.botRunes);
+        out.push(seedGhost(hero, day, v, entry.build, rec, EPOCH + out.length * 1000, entry.seed !== undefined ? (parRunSeed(hero, entry.seed) >>> 0) || undefined : undefined, roadOf(entry.road), statedLosses(day, rec, lost)));
       }
     }
   }
@@ -292,9 +377,54 @@ export function softPickKey(hero: HeroId, day: number, deck: SoftDeck): string {
  *  Throws if a pick no longer matches its deck's code hash (a stale table). */
 export function softPicked(hero: HeroId, day: number, botRunes?: boolean): [SoftDeck, SoftDeck] | null {
   if (!softWorld(botRunes)) return null;
-  const row = SOFT1_PICKS[hero]?.[day - 1];
-  if (!row) throw new Error(`SOFT-1: SOFT1_PICKS holds no pick for ${hero} day ${day}`);
+  // RUN-1 T8: a row of the scratch override (BB_SOFT1_PICKS_FILE: the rule read for a long-run day) wins, then SOFT1_PICKS'; a long
+  // run's day past both takes the decks as before SOFT-1 (null: sampleEntry / raceDeck), the written fallback (R1.1)
+  const row = softPickRow(hero, day);
+  if (!row) {
+    if (longRunRules() && day > (SOFT1_PICKS[hero]?.length ?? 0)) return null; // past the committed table's own days (10)
+    throw new Error(`SOFT-1: SOFT1_PICKS holds no pick for ${hero} day ${day}`);
+  }
   return [softDeckOf(hero, day, row[0], botRunes), softDeckOf(hero, day, row[1], botRunes)];
+}
+
+/** RUN-1 T8: the environment variable that names the scratch pick rows (see softPickRows). */
+export const SOFT1_PICKS_FILE_ENV = "BB_SOFT1_PICKS_FILE";
+
+/** RUN-1 T8: the scratch rows' file: JSON { world: SOFT1_WORLD, picks: { <hero>: { "<day>": [v0, v1], ... } } }, the rule's rows for the
+ *  days it was run for in the long-run world, as tests/run1.seedpool.test.ts (BB_SOFT1_LONG_RULE=1) writes them. */
+export interface SoftPickRows { world: string; picks: Record<string, Record<string, [string, string]>> }
+
+const ROWS_MEMO = new Map<string, SoftPickRows>();
+
+/**
+ * RUN-1 T8 (RULING-RUN1-R1 R1.1): the scratch pick rows named by BB_SOFT1_PICKS_FILE (one path, or several joined by ",": their rows are
+ * merged), or null when it is unset. This is the ONLY way rows for days past SOFT1_PICKS' enter the generator, and they are never
+ * committed: SOFT1_PICKS' committed rows and SOFT1_WORLD do not change in RUN-1. A file of another world than SOFT1_WORLD is stale and
+ * throws with the rebuild command; a row whose deck moved fails softDeckOf's hash check as any pick does.
+ */
+export function softPickRows(): SoftPickRows | null {
+  const spec = process.env[SOFT1_PICKS_FILE_ENV];
+  if (!spec) return null;
+  let rows = ROWS_MEMO.get(spec);
+  if (!rows) {
+    rows = { world: SOFT1_WORLD, picks: {} };
+    for (const file of spec.split(",").filter(Boolean)) {
+      const j = JSON.parse(readFileSync(file, "utf8")) as SoftPickRows;
+      if (j.world !== SOFT1_WORLD || typeof j.picks !== "object" || j.picks === null) {
+        throw new Error(`SOFT-1: ${SOFT1_PICKS_FILE_ENV} ${file} is not a pick-rows file of world ${SOFT1_WORLD} (world ${String(j.world)}). Re-run the rule for the long run: BB_SOFT1_LONG_RULE=1 BB_SOFT1_LONG_OUT=<file> npx vitest run tests/run1.seedpool.test.ts`);
+      }
+      for (const [hero, byDay] of Object.entries(j.picks)) rows.picks[hero] = { ...(rows.picks[hero] ?? {}), ...byDay };
+    }
+    ROWS_MEMO.set(spec, rows);
+  }
+  return rows;
+}
+
+/** RUN-1 T8: (hero, day)'s pick row: the scratch override's when it holds the day, else SOFT1_PICKS' committed row, else undefined. */
+function softPickRow(hero: HeroId, day: number): readonly [string, string] | undefined {
+  const rows = longRunRules() ? softPickRows() : null; // the long-run world's only: with the switch off the committed table, always
+  const scratch = rows?.picks[hero]?.[String(day)];
+  return scratch ?? SOFT1_PICKS[hero]?.[day - 1];
 }
 
 function softDeckOf(hero: HeroId, day: number, pick: string, botRunes?: boolean): SoftDeck {
@@ -303,9 +433,11 @@ function softDeckOf(hero: HeroId, day: number, pick: string, botRunes?: boolean)
   let deck: SoftDeck | undefined;
   if (m[1] === "s") {
     const e = standInPool(hero, day)[Number(m[2])];
+    // RUN-1 T8: a stand-in deck of day 10 is no ghost of day 11 (standInDay clamps; one rune a dawn, validate.ts runeProblem)
+    if (e && e.day !== day) throw new Error(`SOFT-1: the pick ${pick} for ${hero} day ${day} is a stand-in deck of day ${e.day} (the pool holds ${STAND_IN_POOL_DAYS} days): not a ghost of day ${day}. Re-run the rule: ${SOFT1_REBUILD}`);
     deck = e && { build: e.build, ...(e.road ? { road: e.road as RoadEntry[] } : {}) };
   } else {
-    const seed = Number(m[2]), d = Math.max(1, Math.min(MAX_DAY, Math.floor(day)));
+    const seed = Number(m[2]), d = Math.max(1, Math.min(poolDepth(), Math.floor(day))); // RUN-1 T8: the depth, not MAX_DAY
     const days = playerRun(hero, d, seed, botRunes !== undefined ? { botRunes } : {});
     deck = { build: days[d - 1].build, seed, ...(npcDayRules() ? { road: playerRoadLog(days, d) } : {}) };
   }
@@ -317,9 +449,9 @@ function softDeckOf(hero: HeroId, day: number, pick: string, botRunes?: boolean)
 
 /** SOFT-1: a seed ghost's slot, its index in generateSamplePool()'s order (the grade's battle seeds read it). */
 export function seedSlot(hero: HeroId, v: number, day: number): number {
-  const s = STAND_IN_HEROES.indexOf(hero);
-  if (s >= 0) return (s * SAMPLE_VARIANTS + v) * MAX_DAY + day - 1;
-  return STAND_IN_HEROES.length * (SAMPLE_VARIANTS + 1) * MAX_DAY + (RACE_SEED_HEROES.indexOf(hero) * RACE_VARIANTS + v) * MAX_DAY + day - 1;
+  const s = STAND_IN_HEROES.indexOf(hero), depth = poolDepth(); // RUN-1 T8: the stride is the pool's depth (10 off, 16 under the long run)
+  if (s >= 0) return (s * SAMPLE_VARIANTS + v) * depth + day - 1;
+  return STAND_IN_HEROES.length * (SAMPLE_VARIANTS + 1) * depth + (RACE_SEED_HEROES.indexOf(hero) * RACE_VARIANTS + v) * depth + day - 1;
 }
 
 /** SOFT-1: a candidate seed deck: its build, its par-field run's field seed (absent for a stand-in pool entry), its road log. */
@@ -333,9 +465,11 @@ export function softCandidates(hero: HeroId, day: number, botRunes?: boolean): S
   const seen = new Set<string>();
   const add = (c: SoftDeck) => { const k = encodeStarred(c.build); if (!seen.has(k)) { seen.add(k); out.push(c); } };
   if (STAND_IN_HEROES.includes(hero)) {
-    for (const e of standInPool(hero, day)) add({ build: e.build, ...(e.road ? { road: e.road as RoadEntry[] } : {}) });
+    // RUN-1 T8: only the entries OF the day: standInPool clamps a later day to the deepest day it holds (10), and a day-10 deck is no
+    // ghost of day 11 (it holds 10 runes, a day-11 ghost 11). The 10-day world: every entry's day is `day`, exactly as before
+    for (const e of standInPool(hero, day)) if (e.day === day) add({ build: e.build, ...(e.road ? { road: e.road as RoadEntry[] } : {}) });
   }
-  const d = Math.max(1, Math.min(MAX_DAY, Math.floor(day)));
+  const d = Math.max(1, Math.min(poolDepth(), Math.floor(day))); // RUN-1 T8: the depth, not MAX_DAY
   for (const seed of parSeeds(PAR_K)) {
     const days = playerRun(hero, d, seed, botRunes !== undefined ? { botRunes } : {});
     add({ build: days[d - 1].build, seed, ...(npcDayRules() ? { road: playerRoadLog(days, d) } : {}) });
@@ -354,7 +488,7 @@ const SOFT_MEMO = new Map<string, [SoftDeck, SoftDeck]>();
  * rule that table comes from (tests/soft1.picks.test.ts, opt-in).
  */
 export function softDecks(hero: HeroId, day: number, botRunes?: boolean): [SoftDeck, SoftDeck] {
-  const key = `${hero}|${day}|${botRunes}|${worldKey()}`;
+  const key = `${hero}|${day}|${botRunes}|${worldKey()}${longRunRules() ? "|long" : ""}`; // RUN-1 T8: the long run's rule is its own (off: the key as before)
   const hit = SOFT_MEMO.get(key);
   if (hit) return hit;
   const cands = softCandidates(hero, day, botRunes);
@@ -383,50 +517,56 @@ export const CASUAL_FLOOR_SEED = 9001;
 /** LOSS-1 P2: the seeds casualFloorRun tries (CASUAL_FLOOR_SEED, +1, ...) before it throws. */
 export const CASUAL_FLOOR_TRIES = 16;
 
-/** LOSS-1 P2: a hero's casual floor run: its field seed and its days 1..MAX_DAY (casual.ts casualRun). */
+/** LOSS-1 P2: a hero's casual floor run: its field seed and its days 1..poolDepth() (casual.ts casualRun; RUN-1 T8: was MAX_DAY). */
 export interface CasualFloor { seed: number; days: PlayerDay[] }
 
 /**
  * LOSS-1 P2 (REQ-BFG-092; BRIEF-LOSS1-ADD2 B), NPC_DAY on: the one casual run whose dusk deck of day d is `hero`'s floor
  * ghost of day d. The seed rule: the first seed from CASUAL_FLOOR_SEED up (at most CASUAL_FLOOR_TRIES) whose deck on every
- * day 1..MAX_DAY differs (encodeStarred: parts, cells and stars) from every deck in `taken(day)`, that day's variant 0 and
- * 1 decks, so the floor ghost is never the same deck as another seed ghost of its hero and day and all ten come from one
- * run. casualRun is playerRun with the casual knobs, so its runs are cached per process (player.ts CACHE). `botRunes`
+ * day 1..poolDepth() (RUN-1 T8; was MAX_DAY) differs (encodeStarred: parts, cells and stars) from every deck in `taken(day)`,
+ * that day's variant 0 and 1 decks, so the floor ghost is never the same deck as another seed ghost of its hero and day and
+ * all of them come from one run. casualRun is playerRun with the casual knobs, so its runs are cached per process (player.ts CACHE). `botRunes`
  * (absent: runes.ts BOT_RUNES) reaches the casual player as it reaches the race decks' par player. Throws if no seed fits.
  */
 export function casualFloorRun(hero: HeroId, taken: (day: number) => ReadonlySet<string>, botRunes?: boolean): CasualFloor {
+  const depth = poolDepth(); // RUN-1 T8: every day the pool holds (10 with the long run off)
   for (let seed = CASUAL_FLOOR_SEED; seed < CASUAL_FLOOR_SEED + CASUAL_FLOOR_TRIES; seed++) {
-    const days = casualRun(hero, MAX_DAY, seed, CASUAL_TUNE, botRunes !== undefined ? { botRunes } : {});
+    const days = casualRun(hero, depth, seed, CASUAL_TUNE, botRunes !== undefined ? { botRunes } : {});
     if (days.every((d) => !taken(d.day).has(encodeStarred(d.build)))) return { seed, days };
   }
-  throw new Error(`casual floor run ${hero}: no seed in ${CASUAL_FLOOR_SEED}-${CASUAL_FLOOR_SEED + CASUAL_FLOOR_TRIES - 1} gives ${MAX_DAY} decks that differ from the day's variants 0 and 1`);
+  throw new Error(`casual floor run ${hero}: no seed in ${CASUAL_FLOOR_SEED}-${CASUAL_FLOOR_SEED + CASUAL_FLOOR_TRIES - 1} gives ${depth} decks that differ from the day's variants 0 and 1`);
 }
 
 /** LOSS-1 P2: the floor ghost of `day` from a casual floor run: its deck, its run seed (in the v3 snapshot, as a race
  *  ghost's, so the upload check re-derives every dawn's rune offer) and its road log by that dusk. */
 function casualFloorGhost(hero: HeroId, day: number, cf: CasualFloor, at: number): GhostSnapshot {
   const seed = (parRunSeed(hero, cf.seed) >>> 0) || undefined;
-  return seedGhost(hero, day, FLOOR_VARIANT, cf.days[day - 1].build, floorRecord(day), at, seed, roadOf(playerRoadLog(cf.days, day)));
+  return seedGhost(hero, day, FLOOR_VARIANT, cf.days[day - 1].build, floorRecord(day), at, seed, roadOf(playerRoadLog(cf.days, day)), floorLosses(day));
 }
+
+/** RUN-1 T8: the dusks a floor ghost states it lost under long-run rules: the most a run with its record (no wins, the fewest
+ *  lives) can have lost (statedLosses prefers day - 1); undefined with the long run off. */
+const floorLosses = (day: number): number | undefined => statedLosses(day, floorRecord(day), day - 1);
 
 /** D5: one floor ghost per hero and day (variant FLOOR_VARIANT, its own stand-in pool deck), with floorRecord(day).
  *  `first`: its createdAt index, after the sample ghosts, so their records and ids never move. LOSS-1 P2: with NPC_DAY on,
  *  the deck is the hero's casual floor run's (casualFloorRun, distinct from the day's variants 0 and 1); o.botRunes reaches
- *  that run. Off: exactly as before (no casual run is played). */
-export function floorGhosts(first = STAND_IN_HEROES.length * SAMPLE_VARIANTS * MAX_DAY, o: { botRunes?: boolean } = {}): GhostSnapshot[] {
+ *  that run. Off: exactly as before (no casual run is played). RUN-1 T8: days 1..poolDepth(). */
+export function floorGhosts(first = STAND_IN_HEROES.length * SAMPLE_VARIANTS * poolDepth(), o: { botRunes?: boolean } = {}): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
+  const depth = poolDepth();
   for (const hero of STAND_IN_HEROES) {
     // SOFT-1: the day's variant 0 and 1 decks are sampleGhosts' (SOFT1_PICKS' in its world)
     const cf = npcDayRules()
-      ? casualFloorRun(hero, (day) => new Set([0, 1].map((v) => encodeStarred(softPicked(hero, day, o.botRunes)?.[v].build ?? sampleDeck(hero, day, v, sampleSeed(hero, v, day))))), o.botRunes)
+      ? casualFloorRun(hero, (day) => new Set([0, 1].map((v) => encodeStarred(sampleDeckOf(hero, day, v, o.botRunes).build))), o.botRunes)
       : null;
-    for (let day = 1; day <= MAX_DAY; day++) {
+    for (let day = 1; day <= depth; day++) {
       if (cf) {
         out.push(casualFloorGhost(hero, day, cf, EPOCH + (first + out.length) * 1000));
         continue;
       }
       const entry = sampleEntry(hero, day, FLOOR_VARIANT, sampleSeed(hero, FLOOR_VARIANT, day)); // AZ-BUMP (N3): + its road log
-      out.push(seedGhost(hero, day, FLOOR_VARIANT, entry.build, floorRecord(day), EPOCH + (first + out.length) * 1000, undefined, roadOf(entry.road)));
+      out.push(seedGhost(hero, day, FLOOR_VARIANT, entry.build, floorRecord(day), EPOCH + (first + out.length) * 1000, undefined, roadOf(entry.road), floorLosses(day)));
     }
   }
   return out;
@@ -457,7 +597,7 @@ export function raceDeck(hero: HeroId, day: number, v: number, botRunes?: boolea
   let i = hashSeed("race-seed-pool", hero, v, day) % seeds.length;
   for (let step = 0; step < seeds.length; step++, i = (i + 1) % seeds.length) {
     // AZ-BUMP (N3): the run itself (playerBuild's deck is its dusk of `day`), for its road log
-    const d = Math.max(1, Math.min(MAX_DAY, Math.floor(day)));
+    const d = Math.max(1, Math.min(poolDepth(), Math.floor(day))); // RUN-1 T8: the depth, not MAX_DAY
     const days = playerRun(hero, d, seeds[i], botRunes !== undefined ? { botRunes } : {});
     const build = days[d - 1].build;
     if (!taken.has(encodeStarred(build))) return { build, seed: seeds[i], ...(npcDayRules() ? { road: playerRoadLog(days, d) } : {}) };
@@ -470,18 +610,19 @@ export function raceDeck(hero: HeroId, day: number, v: number, botRunes?: boolea
  *  of the first one, after the stand-in heroes' sample and floor ghosts. `deckOf`: the deck source (raceDeck; tests pass
  *  their own to show that every deck goes through seedGhost's checks). LOSS-1 P2: with NPC_DAY on, variant FLOOR_VARIANT's
  *  deck is the hero's casual floor run's (casualFloorRun, distinct from the day's variant 0 and 1 decks from `deckOf`), not
- *  deckOf's; o.botRunes reaches that run. Off: exactly as before. */
+ *  deckOf's; o.botRunes reaches that run. Off: exactly as before. RUN-1 T8: days 1..poolDepth(). */
 export function raceGhosts(
-  first = STAND_IN_HEROES.length * (SAMPLE_VARIANTS + 1) * MAX_DAY, deckOf: (hero: HeroId, day: number, v: number) => RaceDeck = raceDeck,
+  first = STAND_IN_HEROES.length * (SAMPLE_VARIANTS + 1) * poolDepth(), deckOf: (hero: HeroId, day: number, v: number) => RaceDeck = raceDeck,
   o: { botRunes?: boolean } = {},
 ): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
   const p2 = npcDayRules(); // LOSS-1 P2
+  const depth = poolDepth(); // RUN-1 T8
   for (const hero of RACE_SEED_HEROES) {
     const taken = new Map<number, Set<string>>(); // LOSS-1 P2: each day's variant 0 and 1 decks (encodeStarred)
     let cf: CasualFloor | undefined;
     for (let v = 0; v < RACE_VARIANTS; v++) {
-      for (let day = 1; day <= MAX_DAY; day++) {
+      for (let day = 1; day <= depth; day++) {
         if (p2 && v === FLOOR_VARIANT) {
           // LOSS-1 P2: the casual floor run, played once per hero after every day's variants 0 and 1 are known
           cf ??= casualFloorRun(hero, (d) => taken.get(d) ?? new Set<string>(), o.botRunes);
@@ -495,13 +636,16 @@ export function raceGhosts(
         }
         const seed = (parRunSeed(hero, field) >>> 0) || undefined; // FLIP-X2: that par run's own run seed, in the v3 snapshot
         let rec: DuskRecord;
-        if (v === FLOOR_VARIANT) rec = floorRecord(day);
-        else {
-          const rng = new Rng(sampleSeed(hero, v, day));
-          const wins = rng.int(day);
-          rec = drawnLabel(day, wins, rng.int(day - wins));
+        let losses: number | undefined; // RUN-1 T8: long-run rules only
+        if (v === FLOOR_VARIANT) {
+          rec = floorRecord(day);
+          losses = floorLosses(day);
+        } else {
+          const { wins, lost } = drawRecord(day, new Rng(sampleSeed(hero, v, day)));
+          rec = drawnLabel(day, wins, lost);
+          losses = statedLosses(day, rec, lost);
         }
-        out.push(seedGhost(hero, day, v, build, rec, EPOCH + (first + out.length) * 1000, seed, roadOf(road)));
+        out.push(seedGhost(hero, day, v, build, rec, EPOCH + (first + out.length) * 1000, seed, roadOf(road), losses));
       }
     }
   }
@@ -516,11 +660,14 @@ export interface CoverageGap {
 }
 
 /** D5: every reachable (day, wins, lives) at a dusk with fewer than `min` eligible ghosts in `pool` (matchmaking.ts
- *  eligible: same rules and day, another player, nothing seen yet, no better record). Empty: the pool covers them. */
-export function uncoveredStates(pool: readonly GhostSnapshot[], min = MIN_ELIGIBLE): CoverageGap[] {
+ *  eligible: same rules and day, another player, nothing seen yet, no better record). Empty: the pool covers them.
+ *  RUN-1 T8: days 1..`depth` (default poolDepth(): 10 off, 16 under long-run rules), and the reachable states are the world's
+ *  own: under long-run rules the long record model (records.ts longRunRecords, reachableRecords' first line). Days past the
+ *  depth are D6's widening, not the pool's. */
+export function uncoveredStates(pool: readonly GhostSnapshot[], min = MIN_ELIGIBLE, depth = poolDepth()): CoverageGap[] {
   const entries = pool.map((s) => ({ id: ghostId(s), snapshot: s }));
   const out: CoverageGap[] = [];
-  for (let day = 1; day <= MAX_DAY; day++) {
+  for (let day = 1; day <= depth; day++) {
     for (const r of reachableRecords(day)) {
       const n = eligible(entries, { rules: RULES_VERSION, day, wins: r.wins, lives: r.lives, playerId: "coverage-check", seen: [] }).length;
       if (n < min) out.push({ day, wins: r.wins, lives: r.lives, eligible: n });
@@ -588,7 +735,7 @@ export function gradeSamplePool(pool: readonly GhostSnapshot[], k: number = GRAD
 const GRADE_MEMO = new Map<string, number[]>();
 
 function gradeMemoKey(pool: readonly GhostSnapshot[], k: number, seeds: number): string {
-  return `${k}|${seeds}|${worldKey()}|${pool.map((s) => ghostId(s)).join(",")}`;
+  return `${k}|${seeds}|${worldKey()}${longRunRules() ? "|long" : ""}|${pool.map((s) => ghostId(s)).join(",")}`; // RUN-1 T8: "|long" only under the long run (off: the key as before)
 }
 
 /** The grade memo's world (gradeMemoKey's, unchanged): every switch the grades read. SOFT-1 C2: softDecks' memo reads it too. */
