@@ -355,7 +355,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // day: the only digit is the delay, 3 at every star). Other forms measured (px): "... AFTER ITS SLUG HITS." 381, "... AFTER ITS SLUG
     // HITS THE FOE." 425, "... AFTER A SHOT WITH ITS SLUG HITS." 447 (second row 222 of 225), "... AFTER ITS SLUG HITS ANYTHING." 433,
     // "... AFTER ONE OF ITS SLUGS HITS THE FOE." 469 (three rows), "... AFTER EACH HIT BY ITS SLUGS." 425 (was "... AFTER A HIT.", 335)
-    return rules([{ text: `THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, ${delay}{SEC} AFTER ONE OF ITS SLUGS HITS.` }], [["delay", `${delay}{SEC}`]]);
+    return rules([{ text: `THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, ${delay}{SEC} AFTER ITS SLUG HITS ANYTHING.` }], [["delay", `${delay}{SEC}`]]);
   },
   // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
   // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
@@ -846,7 +846,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // {*BURN} ON A {SLUG} FOR +72 {DMG}." 217 (223 at 3 digits), "... SPENDS EACH ... FOR" 213, "... TRADES EACH ... FOR" 213, "... TURNS EACH ...
     // INTO +72 {DMG}, USING IT UP." 282 (two rows), "... TURNS EACH ... INTO +72 {DMG}, AND THE {*BURN} IS GONE." 338, "... EACH {*BURN}
     // ON A {SLUG} IS USED UP FOR +72 {DMG}." 233 (two rows) (was "... TURNS EACH ... INTO +72 {DMG}.", 213)
-    return rules([hit(`SWAPS EACH {*BURN} ON A {SLUG} FOR +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
+    return rules([hit(`USES UP EACH {*BURN} ON A {SLUG} FOR +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
   },
   twinlatch: (e) => {
     // DESIGN-Y row 30: Battle.latchTick: while both its arrows hit belts it holds a slug at most `hold` s for its other belt,

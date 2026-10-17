@@ -22,7 +22,7 @@ import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAG
 import { isPlainRig, RIG_SENTENCE, plainRigStats } from "../ui/faces"; // CARD-2 (REQ-BFG-084, K6): the plain rigs' faces (SHAPES-1 x c099-card3, RUN5 2: isPlainRig)
 import { statRow } from "../ui/icons"; // CARD-2 (K6)
 import { HEROES, ITEMS, type Rarity } from "../sim/content";
-import { RUNES } from "../sim/runes";
+import { RUNES, type RuneDef } from "../sim/runes";
 import { BOONS, LAST_CHANCE_HULL, type Boon, type LastChanceOffer } from "../sim/lastChance";
 import { LAST_CHANCE_AT } from "../sim/lastChance"; // RETUNE-1 run 2 (REQ-BFG-096): a hearts run's line
 import { heartsRun } from "../sim/hearts"; // RETUNE-1 run 2: the run's mark
@@ -30,6 +30,7 @@ import { pendingLastChance, takeLastChance, type Run } from "../game/run";
 import { drawRuneCard, runeCardH } from "../ui/runeBar";
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the rune card's chip as its icon
 import { drawRuneWordNote, runeHintBand, runeKeywordOf, runeSightWord, runeWordLayer, runeWordLines } from "../ui/runeBar"; // CARD-2 (K2; K1)
+import { runeWordRows } from "../ui/runeBar"; // SHOPCARD-1f (F7): the open RUNE card's room for its longest keyword definition
 import { TAKE_CLOCK, runeBarBand, runeBarTarget, takeGuardPassed } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): the RUNE card's bar alone takes it
 import { runeTag, tierWord } from "../ui/runeText";
 import { runeNoteLines } from "../ui/runeBar"; // CARD-4 run 3 (REQ-BFG-081, I): the RUNE card's details, the reminder and its source line
@@ -96,6 +97,22 @@ const gapCount = (items: Items): number => Math.max(0, items.length - 1);
 /** CARD-3 (D5, D6): the gaps a card's items take: G (src/ui/spacing.ts GAP, 5x7 5 between its lines' items, 3x5 4
  *  between its details'), or Gmin (3 and 2) where the screen can't hold three cards with G (LastChancePicker.layout). */
 export const lcGaps = (min = false): { lines: number; info: number } => (min ? { lines: ITEM_GAP_MIN["5"], info: ITEM_GAP_MIN["3"] } : { lines: ITEM_GAP["5"], info: ITEM_GAP["3"] });
+
+/**
+ * SHOPCARD-1f (REQ-BFG-081; F7, REVIEW-FIX099G open item 1): the rows of the room under the open RUNE card's effect lines, where its details (ⓘ: the chip's
+ * note, `info`) and a keyword's definition (a word's tap) show. CARD-2's K2 box grew UP over the effect lines when the card had no room (the details
+ * closed: every definition, from the row it needs; the details open: one longer than they are), and on a phone's 233 px card LOOSE THREAD's two-line
+ * FRAY note hid its one-line effect and half its sub line. The open card now keeps room for the longest definition its keywords have (runeWordRows), so
+ * the box sits under the effect lines and nothing above it is covered; a closed card, and a card with no keyword, are as before. Pure (layout, draw, tests).
+ */
+export function lcRoomRows(def: RuneDef, cardW: number, open: boolean, info: Items, day?: number): number {
+  return open ? Math.max(lineCount(info), runeWordRows(def, cardW - 10, day)) : lineCount(info);
+}
+/** SHOPCARD-1f (F7): `info` with `pad` blank 3x5 rows added to its first item (or as one item): drawBody keeps the room under the effect lines. */
+const padInfo = (info: Items, pad: number): Items => {
+  const blank = Array.from({ length: pad }, () => [] as RichLine);
+  return info.length ? [[...info[0], ...blank], ...info.slice(1)] : [blank];
+};
 
 /** The PART card's lines at text width `tw`: the stat row(s) as icons, then each rule (its brass label first). CARD-2
  *  (REQ-BFG-084, K6; REVIEW-EXPLAIN1 open item 1): a plain stat rig (faces.ts PLAIN_RIGS: WHETSTONE, TEMPER, BARBED SPOOL)
@@ -350,9 +367,12 @@ export class LastChancePicker {
     const w = Math.min(W - 8, 300);
     const texts = this.texts(s.run, o, w);
     const tap = s.game.view ? runeTapOf(s) : 0; // CARD-4 (P1): the open RUNE card's bar band holds a finger's target on touch
-    const hs = (gap: { lines: number; info: number }) => texts.map((t, i) => (t.boon === "rune"
-      ? runeCardH(RUNES[o.rune!.id], w, i === this.open ? { hint: LC_TAKE, tap, day: s.run.day } : { day: s.run.day }) + (t.info.length ? 1 + lineCount(t.info) * 7 + gapCount(t.info) * gap.info : 0)
-      : cardH(t.lines, t.info, i === this.open, gap)));
+    const hs = (gap: { lines: number; info: number }) => texts.map((t, i) => {
+      if (t.boon !== "rune") return cardH(t.lines, t.info, i === this.open, gap);
+      // SHOPCARD-1f (F7): the open RUNE card keeps a room for its longest keyword definition (lcRoomRows), details shown or not
+      const rows = lcRoomRows(RUNES[o.rune!.id], w, i === this.open, t.info, s.run.day);
+      return runeCardH(RUNES[o.rune!.id], w, i === this.open ? { hint: LC_TAKE, tap, day: s.run.day } : { day: s.run.day }) + (rows ? 1 + rows * 7 + gapCount(t.info) * gap.info : 0);
+    });
     // CARD-3 (REQ-BFG-087, D5, D6): the gaps at G; Gmin where three cards with G would overrun the screen
     const L = lcLayout(W, H, hs(lcGaps()));
     if (L.bottom <= H) return { ...L, gap: lcGaps() };
@@ -401,11 +421,13 @@ export class LastChancePicker {
         // the rune card's own body is drawRuneCard's; its details and the take bar follow its text (CARD-4, P1: the bar
         // centred in a band that holds a finger's target on touch)
         const base = runeCardH(def, r.w, { day: s.run.day }) - 4;
-        drawBody(g, { ...r, y: r.y + base - HEAD }, [], t.info, hint, L.gap, runeBarBand(open ? tap : 0));
-        // CARD-2 (K2; K1): the shown keyword's definition, in the details' room (its lines' place: drawBody's y + 1), or,
-        // with the details closed, over the effect lines' foot, growing up: whole, and the card keeps its size
+        // SHOPCARD-1f (F7): the open card's room under its effect lines holds its longest keyword definition (lcRoomRows), blank rows after the details' own
+        const rows = lcRoomRows(def, r.w, open, t.info, s.run.day), pad = rows - lineCount(t.info);
+        drawBody(g, { ...r, y: r.y + base - HEAD }, [], pad > 0 ? padInfo(t.info, pad) : t.info, hint, L.gap, runeBarBand(open ? tap : 0));
+        // CARD-2 (K2; K1): the shown keyword's definition, in the details' room (its lines' place: drawBody's y + 1). SHOPCARD-1f (F7): that room is the
+        // card's own (was, with the details closed, over the effect lines' foot, growing up and hiding them): whole, and the card keeps its size
         const k = open && this.word ? runeKeywordOf(def, this.word) : null;
-        if (k) this.wordBox = drawRuneWordNote(g, r, t.info.length ? r.y + base + 1 : r.y + base - 2, lineCount(t.info), runeWordLines(def, k, r.w - 10, s.run.day)); // FIX-099G: the card's day's note (cap, oracle f65b53f23c6b70c1)
+        if (k) this.wordBox = drawRuneWordNote(g, r, r.y + base + 1, rows, runeWordLines(def, k, r.w - 10, s.run.day)); // FIX-099G: the card's day's note (cap, oracle f65b53f23c6b70c1)
         // CARD-4 (REQ-BFG-081, P1): the open RUNE card's body takes nothing; its bar's target alone takes it (never under
         // the word's box)
         if (open) take = runeBarTarget(r, LC_TAKE, tap, this.wordBox);
