@@ -10,6 +10,9 @@
 //             up with whichever pair was stored first.
 //   playerId  base64url without padding of SHA-256(raw public key): 43 characters (ID_PATTERN).
 //   message   the UTF-8 bytes of UPLOAD_PREFIX ("bb-ghost-upload-1\n"), then the exact body bytes.
+//             PROFILE-UP (REQ-BFG-074 clause 4): the profile upload signs in its own domain, PROFILE_PREFIX
+//             ("bb-profile-1\n") then the exact body bytes, so a signature made for one can never pass for the
+//             other. The default domain is the ghost's: every existing call is unchanged.
 //   headers   x-bb-key: base64url(raw public key: 65 bytes, uncompressed 0x04 || x || y)
 //             x-bb-sig: base64url(the 64-byte signature in WebCrypto's r || s form)
 //
@@ -17,6 +20,11 @@
 // and the caller must not upload: on a plain-http link the game plays offline.
 
 export const UPLOAD_PREFIX = "bb-ghost-upload-1\n";
+/** PROFILE-UP: the signature domain of PUT /v1/profile. Neither prefix starts with the other, so no body can make a
+ *  signature over one domain's message equal one over the other's. */
+export const PROFILE_PREFIX = "bb-profile-1\n";
+/** The domains a signature may be made in (a closed set: the prefix is never caller text). */
+export type SignDomain = typeof UPLOAD_PREFIX | typeof PROFILE_PREFIX;
 export const KEY_HEADER = "x-bb-key";
 export const SIG_HEADER = "x-bb-sig";
 export const IDENTITY_DB = "beltbattles-identity";
@@ -47,8 +55,9 @@ export interface Identity {
   readonly playerId: string;
   /** The raw public key: 65 bytes, uncompressed. */
   readonly publicKey: Uint8Array;
-  /** Sign UPLOAD_PREFIX + these exact body bytes; returns the x-bb-key and x-bb-sig values. */
-  sign(body: Uint8Array): Promise<SignedUpload>;
+  /** Sign UPLOAD_PREFIX + these exact body bytes; returns the x-bb-key and x-bb-sig values. PROFILE-UP: with a `domain`,
+   *  that domain's prefix instead (PROFILE_PREFIX for PUT /v1/profile); without one, the ghost's, as ever. */
+  sign(body: Uint8Array, domain?: SignDomain): Promise<SignedUpload>;
 }
 
 export type VerifyResult = { ok: true; playerId: string } | { ok: false; error: string };
@@ -98,13 +107,19 @@ function isRawKey(raw: Uint8Array): boolean {
   return raw.length === PUBLIC_KEY_BYTES && raw[0] === 0x04;
 }
 
-const PREFIX_BYTES = new TextEncoder().encode(UPLOAD_PREFIX);
+const PREFIX_BYTES: Record<SignDomain, Uint8Array> = {
+  [UPLOAD_PREFIX]: new TextEncoder().encode(UPLOAD_PREFIX),
+  [PROFILE_PREFIX]: new TextEncoder().encode(PROFILE_PREFIX),
+};
 
-/** The bytes a signature covers: UPLOAD_PREFIX in UTF-8, then the exact body bytes. */
-export function uploadMessage(body: Uint8Array): Uint8Array<ArrayBuffer> {
-  const m = new Uint8Array(PREFIX_BYTES.length + body.length);
-  m.set(PREFIX_BYTES, 0);
-  m.set(body, PREFIX_BYTES.length);
+/** The bytes a signature covers: the domain's prefix in UTF-8 (UPLOAD_PREFIX unless a domain is given), then the exact
+ *  body bytes. */
+export function uploadMessage(body: Uint8Array, domain: SignDomain = UPLOAD_PREFIX): Uint8Array<ArrayBuffer> {
+  const prefix = PREFIX_BYTES[domain];
+  if (!prefix) throw new Error("uploadMessage: not a signature domain");
+  const m = new Uint8Array(prefix.length + body.length);
+  m.set(prefix, 0);
+  m.set(body, prefix.length);
   return m;
 }
 
@@ -138,8 +153,8 @@ export async function loadIdentity(store: KeyStore, subtle: MaybeSubtle = webSub
     return {
       playerId,
       publicKey,
-      async sign(body: Uint8Array): Promise<SignedUpload> {
-        const sig = new Uint8Array(await crypto.sign(SIG_ALG, privateKey, uploadMessage(body)));
+      async sign(body: Uint8Array, domain: SignDomain = UPLOAD_PREFIX): Promise<SignedUpload> {
+        const sig = new Uint8Array(await crypto.sign(SIG_ALG, privateKey, uploadMessage(body, domain)));
         return { key, sig: toBase64Url(sig) };
       },
     };
@@ -162,12 +177,9 @@ export function uploadHeaderError(key: string | null | undefined, sig: string | 
   return null;
 }
 
-/**
- * Check one upload: `sig` must be the signature of `key` over UPLOAD_PREFIX + these exact body
- * bytes. On success, the key's playerId. Never throws; every failure is { ok: false }.
- */
-export async function verifyUpload(
-  body: Uint8Array, key: string | null | undefined, sig: string | null | undefined, subtle: MaybeSubtle = webSubtle(),
+/** verifyUpload and verifyProfile: one check, the domain's prefix the only difference. */
+async function verifyIn(
+  domain: SignDomain, body: Uint8Array, key: string | null | undefined, sig: string | null | undefined, subtle: MaybeSubtle,
 ): Promise<VerifyResult> {
   const malformed = uploadHeaderError(key, sig);
   if (malformed) return { ok: false, error: malformed };
@@ -181,13 +193,33 @@ export async function verifyUpload(
     return { ok: false, error: `${KEY_HEADER}: not a public key on the P-256 curve` };
   }
   try {
-    if (!(await subtle.verify(SIG_ALG, publicKey, signature, uploadMessage(body)))) {
+    if (!(await subtle.verify(SIG_ALG, publicKey, signature, uploadMessage(body, domain)))) {
       return { ok: false, error: `${SIG_HEADER}: the signature does not match this body and key` };
     }
     return { ok: true, playerId: await playerIdFromKey(raw, subtle) };
   } catch {
     return { ok: false, error: `${SIG_HEADER}: the signature could not be checked` };
   }
+}
+
+/**
+ * Check one upload: `sig` must be the signature of `key` over UPLOAD_PREFIX + these exact body
+ * bytes. On success, the key's playerId. Never throws; every failure is { ok: false }.
+ */
+export function verifyUpload(
+  body: Uint8Array, key: string | null | undefined, sig: string | null | undefined, subtle: MaybeSubtle = webSubtle(),
+): Promise<VerifyResult> {
+  return verifyIn(UPLOAD_PREFIX, body, key, sig, subtle);
+}
+
+/**
+ * PROFILE-UP: check one profile upload: `sig` must be the signature of `key` over PROFILE_PREFIX + these exact body
+ * bytes. A ghost upload's signature fails here, and this one's fails verifyUpload. Never throws.
+ */
+export function verifyProfile(
+  body: Uint8Array, key: string | null | undefined, sig: string | null | undefined, subtle: MaybeSubtle = webSubtle(),
+): Promise<VerifyResult> {
+  return verifyIn(PROFILE_PREFIX, body, key, sig, subtle);
 }
 
 /** A KeyStore in memory, for tests and tools: the key lives as long as the process. */
