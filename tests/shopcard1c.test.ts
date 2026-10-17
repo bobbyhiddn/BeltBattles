@@ -156,7 +156,7 @@ describe("SHOPCARD-1c G2 (READ-10 fix 2): the merge mark is a solid up triangle 
 
   it("the zone rules hold at every price 1-13 and every card width (46, 69, 70): a clear px round the merge plate and the owned marker, none over the price, the picture's centre, the gem, the sale plate or a shaped piece's grid plate; the plate's rect is given", () => {
     const shaped = buyableModules().filter((d) => shapedPiece(d.id)).map((d) => d.id);
-    expect(shaped.length).toBe(5);
+    expect(shaped.length).toBe(11); // SC-0912: was 5 (SHOPCARD-1's NAIL STRIP, EMBER TROUGH, SPIKE RAIL, GANTRY PRESS, ASSEMBLY LINE); 0.9.11's SHAPES2 adds ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER and PICKAXE
     for (const [w, h] of SIZES) {
       const z0 = cardZones(w, h), icon = z0.icon, centre: Box = { x: icon.x + 9, y: icon.y + 9, w: 6, h: 6 };
       expect(z0.merge, `${w}x${h}: the merge plate's rect`).toEqual({ x: 2, y: h - 18, w: 11, h: 13 });

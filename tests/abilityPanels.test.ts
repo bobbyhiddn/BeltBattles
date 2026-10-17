@@ -992,7 +992,12 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // are COIL's and PLATE BREAKER's merge offers ("offer coil held[1]", "held[2,1]", "offer platebreaker held[1]", "held[2,1]"). The ASSEMBLY
     // LINE line (ALL YOUR RIGS, 350 px, two rows as before) and the {BELT} note (a tap, no panel row) take no phone panel's hint. (A first
     // form, MERGE TO ★n: nG at 54 px, 8 px wider than BUY+MERGE, moved 18 merge offers' buttons to the second row: 1013.) The desk count above is unchanged
-    expect(hints).toBe(1227); // SC-0912 placeholder (0.9.11's 1249 less SHOPCARD-1's net -22): replaced by the measured pin in the re-pin commit
+    // SC-0912 (SHOPCARD-1e merged onto 0.9.11, r0911-bump), measured on the merged tree: 1229 of 2337 panels (was 1249 on 0.9.11, BUMP-1D's
+    // pin; 1035 on shopcard1e-accepted; PACKET-SHOPCARD1 item 3 measured 1053 on 1e + PLAIN-1F alone). SHOPCARD-1b-1e take 20 from 0.9.11's
+    // 1249 (the same -20 as on their own tree, 1055 -> 1035: the placed BRACE FRAME, PINCER, ASSEMBLY LINE and TWIN LATCH panels give the
+    // optional hint way, the merge offers of COIL and PLATE BREAKER (now SHIELD FUEL) keep it); the twelve new rigs' panels add no further
+    // move on top (not traced panel by panel). The desk count above is unchanged by the merge: 2309 / 62 (BUMP-1D's 2309 with 1b's 62nd missing)
+    expect(hints).toBe(1229);
   });
 });
 

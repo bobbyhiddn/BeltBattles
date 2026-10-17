@@ -190,7 +190,8 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
 describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped piece", () => {
   it("the five shaped pieces: the grid on its ink plate in the picture area's top-left corner, at GRID_CELL, its tiles and arrowheads where gridGeom puts them; at most 25% of the icon's opaque px hidden", () => {
     const ids = shaped();
-    expect(ids.sort()).toEqual(["assembly", "embertrough", "gantry", "nailstrip", "spikerail"]);
+    // SC-0912: eleven, not five: SHOPCARD-1's five and 0.9.11's SHAPES2 six (the six more shaped rigs, src/sim/shapes2.ts)
+    expect(ids.sort()).toEqual(["assembly", "cinderhook", "elbowguard", "embertrough", "gantry", "jawcrusher", "nailstrip", "pickaxe", "sawbar", "sparkcomb", "spikerail"]);
     expect(GRID_CELL).toBe(5); // G2: 5 art px = 8.33 / 7.50 / 6.67 CSS px at 402x690 @3, 360x640 @2 and 844x390 @3 (REPORT section 6)
     const rows: string[] = [];
     for (const id of ids) for (const [wn, w, h] of WIDTHS) {
@@ -213,7 +214,11 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
       }
       // the arrowheads: lime, HEAD_LEN (3) px long, one per arrow, none on a factory
       expect(geom.heads.length, id).toBe(rig ? spec.arrows.length : 0);
-      if (rig) expect(spec.arrows.length, `${id}: a rig's arrows`).toBe(id === "spikerail" ? 6 : 2);
+      // SC-0912: SHAPES2's six join (arrows by rule set B, deck.ts rigArrowCells: every outward edge a rig's arrow direction faces): SAW BAR
+      // (I3, forward) 3, CINDER HOOK (L3, left and right) 4, JAW CRUSHER (2x2, left and right) 4, PICKAXE (T4, forward, left and right) 7;
+      // ELBOW GUARD (L3, forward) and SPARK COMB (I2, forward) 2 as NAIL STRIP and EMBER TROUGH; SPIKE RAIL 6 as before
+      const ARROWS: Record<string, number> = { spikerail: 6, sawbar: 3, cinderhook: 4, jawcrusher: 4, pickaxe: 7 };
+      if (rig) expect(spec.arrows.length, `${id}: a rig's arrows`).toBe(ARROWS[id] ?? 2);
       for (const hd of geom.heads) {
         let lime = 0;
         for (let y = 0; y < hd.h; y++) for (let x = 0; x < hd.w; x++) if (c.at(gx + hd.x + x, gy + hd.y + y) === C.lime) lime++;
@@ -428,7 +433,8 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
   it("hasGrid is shapeEdit's shapedPiece for every id, and only the five shaped pieces have one", () => {
     for (const id of Object.keys(ITEMS)) expect(hasGrid(id), id).toBe(shapedPiece(id));
     expect(hasGrid("no-such-piece")).toBe(false);
-    expect(Object.keys(ITEMS).filter(hasGrid).sort()).toEqual(["assembly", "embertrough", "gantry", "nailstrip", "spikerail"]);
+    // SC-0912: eleven, not five (SHAPES2's six join: ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE)
+    expect(Object.keys(ITEMS).filter(hasGrid).sort()).toEqual(["assembly", "cinderhook", "elbowguard", "embertrough", "gantry", "jawcrusher", "nailstrip", "pickaxe", "sawbar", "sparkcomb", "spikerail"]);
   });
 
   it("the cargo slot: the grid in the slot's top-left corner inside its 16 px face, the star pips over it; a piece without one draws none", () => {

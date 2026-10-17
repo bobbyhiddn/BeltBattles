@@ -518,7 +518,10 @@ describe("U2f: the taller ⓘ view", () => {
     // lists one definition more beside RATE: 25 op views take one page more (7 from 2 to 3 pages, 18 from 3 to 4: press, doublestamp, twinmould,
     // armorpress, mendpress, hotswap, frostbite, dragchain, scrapper, sabot, limpet and assembly, and the placed factory's) and 47 desk views take
     // one more (the 15 factories' cargo views and MIMIC FORGE's two): op [8, 183, 97, 37] -> [8, 176, 86, 55]
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 188, 122, 43]); // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit
+    // SC-0912 (SHOPCARD-1e merged onto 0.9.11, r0911-bump), measured on the merged tree (the same 361 panels): op [8, 188, 122, 43] (BUMP-1D's)
+    // -> [8, 180, 112, 61]. By the histogram's arithmetic 8 views move from 2 pages to 3 and 18 from 3 to 4 (1e's own tree: [8, 183, 97, 37] ->
+    // [8, 176, 86, 55], 7 and 18: SHOPCARD-1e's {BELT} definition on every factory's ⓘ view); not traced view by view. U2f's aims hold below
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 180, 112, 61]);
     // CARD-5 (L, by design): SCRAPPER's taller face (its scrap line) and LEVELS move three desk views a bucket: [3, 51, 106,
     // 87, 71, 7] -> [3, 51, 106, 90, 68, 7]
     // SHOPCARD-1b (REQ-BFG-081), measured: the desk column sizes to its text, and 20 cargo panels' longer face lines (SEAM WELDER's YOUR HULL:,
@@ -535,7 +538,9 @@ describe("U2f: the taller ⓘ view", () => {
     // SHOPCARD-1e (E1), measured as above: the {BELT} definition (two rows at the op band's 225 px, three or four in the desk column) lists in every
     // factory's ⓘ view: 47 desk views (the 15 factories' cargo views at ★1-★3, MIMIC FORGE's two more) take one page more (16 from 5 to 6, 14
     // from 4 to 5, 12 from 3 to 4, 3 from 2 to 3, 2 from 6 to 7): desk [3, 62, 106, 82, 65, 7] -> [3, 59, 97, 80, 63, 21, 2]
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 51, 109, 104, 81, 13]); // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit
+    // SC-0912, measured on the merged tree (361 panels): desk [3, 51, 109, 104, 81, 13] (BUMP-1D's) -> [3, 59, 108, 91, 74, 24, 2] (SHOPCARD-1b-1e's
+    // longer face lines and the {BELT} definition moved 1e's own tree [3, 51, 106, 90, 68, 7] (1a) -> [3, 59, 97, 80, 63, 21, 2], above); not traced view by view
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 59, 108, 91, 74, 24, 2]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -672,17 +677,17 @@ describe("U2f: the taller ⓘ view", () => {
 // the worst rune held (and the same with the switch on) [142, 183] -> [145, 216], desk [324, 1] -> [357, 4]. U2f's aims hold: op most
 // on 1 page and none over 2, a rune held none over 3, desk none over 3
 // SHOPCARD-1e (E1; measured per panel against shopcard1d-accepted's list): every factory's ⓘ view lists the {BELT} definition now, so 24 op views move from one page to two: was [270, 55]; the extra {BELT} definition moves 6 more op views (with the worst rune held) from one page to two: was [145, 180]; SHOPCARD-1b: LIMPET WORKS' 3 views lose the SLUG note's definition, so each fits one page with the worst rune held (was [142, 183])
-const U2F_OP = [300, 61]; // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit. BUMP-1D: was [270, 55]. CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
+const U2F_OP = [276, 85]; // SC-0912 (SHOPCARD-1e merged onto 0.9.11), measured on the merged tree (361 panels): was [300, 61] (BUMP-1D's); 1e's own tree [270, 55] -> [246, 79]: the {BELT} definition moves 24 factory views from one page to two (here 24: 300 -> 276). BUMP-1D: was [270, 55]. CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
 // WORDS-1 (REQ-BFG-081), measured: the stat icons' and face words' notes list in the view, so with the worst rune's keywords
 // after them 82 views take a second page (was [304, 12]); none takes a third (U2f's aim: 3 at most with a rune held)
-const U2F_OP_RUNE = [145, 216]; // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit. BUMP-1D: was [142, 183]. SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
+const U2F_OP_RUNE = [142, 219]; // SC-0912, measured on the merged tree: was [145, 216] (BUMP-1D's): 3 more views take a second page with the worst rune held (1e's own tree [145, 180] -> [139, 186]: 6 more); not traced view by view. BUMP-1D: was [142, 183]. SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
  *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
  *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). EXPLAIN-1: still the same (was [234, 82]). */
 // SHOPCARD-1e (E1): as U2F_OP_RUNE (the worst rune held, the switch on: [139, 186] on SHOPCARD-1e's tree, was [145, 180]; SHOPCARD-1b: [142, 183]); the factories' extra {BELT} definition moves 4 desk views from one page to two: [324, 1] -> [320, 5]
-const U2F_OP_RUNE_ON = [145, 216]; // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit. BUMP-1D: was [142, 183], still the same as RUNE_LIST's. SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
-const U2F_DESK = [357, 4]; // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit. BUMP-1D: was [324, 1]. SHAPES-1 x c099-card3: was [315, 1] (SHAPES-1 flip: was [277, 39] -> [283, 42]; CARD-2 (K5): was [277, 39] -> [315, 1]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
+const U2F_OP_RUNE_ON = [142, 219]; // SC-0912, measured on the merged tree: was [145, 216] (BUMP-1D's), still the same as RUNE_LIST's (U2F_OP_RUNE). BUMP-1D: was [142, 183]. SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
+const U2F_DESK = [353, 8]; // SC-0912, measured on the merged tree: was [357, 4] (BUMP-1D's); 1e's own tree [324, 1] -> [320, 5]: the {BELT} definition moves 4 desk views from one page to two (here 4: 357 -> 353). BUMP-1D: was [324, 1]. SHAPES-1 x c099-card3: was [315, 1] (SHAPES-1 flip: was [277, 39] -> [283, 42]; CARD-2 (K5): was [277, 39] -> [315, 1]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
 // the screen (the test above), but on the 1920x1080 desk WARD BELL's last KEYWORDS line (a held rune's HULL) drew partly
