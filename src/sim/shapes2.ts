@@ -28,6 +28,7 @@
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same defs.
 
 import { ITEMS, type ItemDef } from "./content";
+import { SHAPES_ITEMS } from "./shapes"; // run 2: NAIL STRIP's number patch (SHAPES2_PATCHES); shapes.ts imports nothing of this file
 import { clearStarCache } from "./stars";
 
 /** THE switch (REQ-BFG-114), off in this rules version (bb-0.10.0). */
@@ -49,8 +50,11 @@ export const SHAPES2_DEFS: Readonly<Record<string, ItemDef>> = {
   sawbar: {
     id: "sawbar", name: "SAW BAR", kind: "gate", rarity: "common", price: 5, size: 1, foot: "I3", merchant: "gunsmith",
     desc: [], tags: ["FORGE"],
-    gate: { flat: 8 }, // one arrow, forward: laid along a straight run it hits 3 tiles
-    levels: { 2: { gate: { flat: 16 } }, 3: { gate: { flat: 28 } } },
+    // run 2 (S6c): DMG 10/20/35, a quarter above the brief's starting 8/16/28. At its best spot on a fitting deck (FURNACE, WEAVER,
+    // FOUNDRY) 8 was worth 0.89x (d6) and 0.69x (d10) of a WHETSTONE at its best spot (the target 1.0-1.2x, a raise under 0.8x);
+    // at 10 it reads 1.11x / 0.86x (O/bench/s6c-*.md). One arrow, forward: laid along a straight run it hits 3 tiles
+    gate: { flat: 10 },
+    levels: { 2: { gate: { flat: 20 } }, 3: { gate: { flat: 35 } } },
   },
   sparkcomb: {
     id: "sparkcomb", name: "SPARK COMB", kind: "gate", rarity: "common", price: 5, size: 1, foot: "I2", merchant: "arcane",
@@ -67,16 +71,47 @@ export const SHAPES2_DEFS: Readonly<Record<string, ItemDef>> = {
   jawcrusher: {
     id: "jawcrusher", name: "JAW CRUSHER", kind: "gate", rarity: "rare", price: 6, size: 1, foot: "2x2", merchant: "scrapper",
     desc: [], tags: ["FORGE", "BURST"],
-    gate: { flat: 12 }, // two arrows, left and right, from both cells of each side: between two belts two cells apart, 4 hits
-    levels: { 2: { gate: { flat: 25 } }, 3: { gate: { flat: 42 } } },
+    // run 2 (S6c): DMG 15/31/52, a quarter above the brief's starting 12/25/42 (12 was worth 0.69x / 0.59x of a GRINDSTONE at its
+    // best spot on a fitting deck on days 6 / 10; at 15, 0.86x / 0.74x). Two arrows, left and right, from both cells of each
+    // side: between two belts two cells apart, 4 hits
+    gate: { flat: 15 },
+    levels: { 2: { gate: { flat: 31 } }, 3: { gate: { flat: 52 } } },
   },
   pickaxe: {
     id: "pickaxe", name: "PICKAXE", kind: "gate", rarity: "epic", price: 8, size: 1, foot: "T4", merchant: "quartermaster",
     desc: [], tags: ["FORGE", "BURST"],
-    gate: { flat: 14 }, // three arrows (forward, left, right), from the T's outside edges: belt on three sides, up to 7 hits
-    levels: { 2: { gate: { flat: 28 } }, 3: { gate: { flat: 48 } } },
+    // run 2 (S6c): DMG 17/34/58, a fifth above the brief's starting 14/28/48 (14 was worth 0.72x / 0.64x of a GRINDSTONE at its best
+    // spot on a fitting deck on days 6 / 10; at 17, 0.87x / 0.76x: held short of 1.0 by the guard, whose day 3 is thin here).
+    // Three arrows (forward, left, right), from the T's outside edges: belt on three sides, up to 7 hits
+    gate: { flat: 17 },
+    levels: { 2: { gate: { flat: 34 } }, 3: { gate: { flat: 58 } } },
   },
 };
+
+/**
+ * SHAPES2's number patches on LIVE pieces (run 2; BRIEF-SHAPES2 S6b, PLAIN-1F's REPORT section 10 call "buff NAIL STRIP if it is weak
+ * per gold, within the guard"). NAIL STRIP is SHAPES-1's, live since 0.9.9 (shapes.ts SHAPES_ITEMS: DMG 12/25/40), so its new
+ * numbers live behind this switch: while SHAPES2 is on its stars read DMG 16/33/53 (a third more; per gold it lifted a deck less than
+ * WHETSTONE and TEMPER on every day), and with SHAPES2 off its own numbers stand byte for byte (the pins). The patch is written on
+ * the very def object SHAPES_ITEMS holds (shapes.ts setShapes puts that object in ITEMS and takes it out), so a SHAPES toggle that
+ * leaves SHAPES2 as it is never loses the patch.
+ */
+export const SHAPES2_PATCHES: Readonly<Record<string, Pick<ItemDef, "gate" | "levels">>> = {
+  nailstrip: { gate: { flat: 16 }, levels: { 2: { gate: { flat: 33 } }, 3: { gate: { flat: 53 } } } },
+};
+/** Each patched def's own numbers, kept at the first swap, so a swap back puts exactly them back. */
+const PATCH_BASE = new Map<string, Pick<ItemDef, "gate" | "levels">>();
+
+/** The patches to the state `on` says: SHAPES2_PATCHES' numbers or the def's own, on the def object SHAPES_ITEMS holds. */
+function swapPatches(on: boolean): void {
+  for (const [id, p] of Object.entries(SHAPES2_PATCHES)) {
+    const d = SHAPES_ITEMS[id] as ItemDef;
+    if (!PATCH_BASE.has(id)) PATCH_BASE.set(id, { gate: d.gate, levels: d.levels });
+    const to = on ? p : PATCH_BASE.get(id)!;
+    d.gate = to.gate;
+    d.levels = to.levels;
+  }
+}
 
 /** The six ids, in the order they join ITEMS. */
 export const SHAPES2_IDS: readonly string[] = Object.keys(SHAPES2_DEFS);
@@ -108,8 +143,8 @@ export function isShapes2Piece(id: string): boolean {
   return Object.prototype.hasOwnProperty.call(SHAPES2_DEFS, id);
 }
 
-/** Turn the six on or off: add their defs to ITEMS (after every other def) or delete them, and clear the star cache.
- *  Setting the state it already has does nothing. */
+/** Turn the six on or off: add their defs to ITEMS (after every other def) or delete them, swap the patched numbers of the live
+ *  piece (NAIL STRIP, SHAPES2_PATCHES) and clear the star cache. Setting the state it already has does nothing. */
 export function setShapes2(on: boolean): void {
   if (on === s2On) return;
   const items = ITEMS as Record<string, ItemDef>;
@@ -117,6 +152,7 @@ export function setShapes2(on: boolean): void {
     if (on) items[id] = SHAPES2_DEFS[id];
     else delete items[id];
   }
+  swapPatches(on);
   clearStarCache();
   s2On = on;
 }

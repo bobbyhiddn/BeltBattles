@@ -52,8 +52,11 @@ export const PLAIN_DEFS: Readonly<Record<string, ItemDef>> = {
   scaleguard: {
     id: "scaleguard", name: "SCALE GUARD", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "ironmonger", shape: "I",
     desc: [], tags: ["PLATE", "FORGE"],
-    gate: { slugPlate: 3, flat: 10 },
-    levels: { 2: { gate: { slugPlate: 7, flat: 20 } }, 3: { gate: { slugPlate: 11, flat: 35 } } },
+    // SHAPES-2 run 2 (BRIEF-SHAPES2 S6b, PLAIN-1F's REPORT section 10 call, cap's: SCALE GUARD toward 75-100% of PLATE ROLLER's
+    // lift on days 6 and 10): the PLATE 3/7/11 -> 5/12/18 (the DMG stays). At 3/7/11 it lifted a deck +3.7 (d6) / +0.8 (d10)
+    // points against PLATE ROLLER's +5.1 / +3.4; at 5 (O/bench/presence-sweepA.md) +5.5 / +2.0 against +3.9 / +3.2
+    gate: { slugPlate: 5, flat: 10 },
+    levels: { 2: { gate: { slugPlate: 12, flat: 20 } }, 3: { gate: { slugPlate: 18, flat: 35 } } },
   },
   ballast: {
     id: "ballast", name: "BALLAST", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "quartermaster", shape: "I",

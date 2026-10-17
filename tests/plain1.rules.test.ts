@@ -107,7 +107,7 @@ describe("merging and selling (P1, REQ-BFG-084.3): a star raises only the number
     const rows: Record<string, unknown[]> = {
       rasp: [{ flat: 10, burn: 1 }, { flat: 20, burn: 2 }, { flat: 35, burn: 3 }],
       sparkgap: [{ stun: 1 }, { stun: 2 }, { stun: 3 }],
-      scaleguard: [{ slugPlate: 3, flat: 10 }, { slugPlate: 7, flat: 20 }, { slugPlate: 11, flat: 35 }],
+      scaleguard: [{ slugPlate: 5, flat: 10 }, { slugPlate: 12, flat: 20 }, { slugPlate: 18, flat: 35 }], // SHAPES-2 run 2: PLATE 3/7/11 -> 5/12/18
       ballast: [{ maxHullPct: 8 }, { maxHullPct: 16 }, { maxHullPct: 25 }],
       grindstone: [{ flat: 25 }, { flat: 55 }, { flat: 90 }],
       brandingiron: [{ flat: 15 }, { flat: 30, burn: 1 }, { flat: 50, burn: 2 }], // FIRSTDAY-1 F7: the burn comes with the first merge
@@ -235,9 +235,10 @@ describe("BALLAST (P3): max hull x (1 + the working BALLASTs' %), on top of the 
 });
 
 describe("SCALE GUARD (P2): its PLATE rides the slug and reaches your ship at the gun, by the bulwark rule", () => {
-  it("each slug past it carries 3 PLATE and +10 DMG; the hull gains 3 for each slug that loads, none before", () => on(() => {
+  it("each slug past it carries 5 PLATE and +10 DMG; the hull gains 5 for each slug that loads, none before", () => on(() => {
+    // SHAPES-2 run 2 (BRIEF-SHAPES2 S6b, PLAIN-1F's section 10 call): the PLATE 3/7/11 -> 5/12/18
     const b = bench(item(30, "scaleguard", 3, 3, 1));
-    for (const p of pastTilePlain(b, 0, 2)) expect([p.flat, p.plate]).toEqual([10, 3]);
+    for (const p of pastTilePlain(b, 0, 2)) expect([p.flat, p.plate]).toEqual([10, 5]);
     const bt = new Battle(b, barge(), SEED);
     let loads = 0, plated = 0;
     while (bt.t < 12 && !bt.over) {
@@ -245,13 +246,13 @@ describe("SCALE GUARD (P2): its PLATE rides the slug and reaches your ship at th
       for (const e of bt.drainEvents()) {
         if (e.type === "load" && e.side === 0) loads++;
         if (e.type === "plate" && e.side === 0) {
-          expect((e as { amount: number }).amount).toBe(3);
+          expect((e as { amount: number }).amount).toBe(5);
           expect((e as { turret?: number }).turret).toBe(0);
           plated++;
         }
       }
-      // the pool holds what landed (each load lands 3; firing spends none: the barge never shoots back)
-      expect(bt.sides[0].plate.gained).toBe(3 * plated);
+      // the pool holds what landed (each load lands 5; firing spends none: the barge never shoots back)
+      expect(bt.sides[0].plate.gained).toBe(5 * plated);
     }
     expect(loads).toBeGreaterThan(3);
     expect(plated).toBe(loads);
@@ -264,6 +265,6 @@ describe("SCALE GUARD (P2): its PLATE rides the slug and reaches your ship at th
     expect(plateFor(p("bulwark", 3))).toBe(23);
     expect(plateFor(p("cinder", 7))).toBe(7);
     expect(plateFor(p("cinder"))).toBe(0);
-    expect(on(() => overclocked(effectAt("scaleguard", 1).gate!))).toMatchObject({ slugPlate: 6, flat: 20 });
+    expect(on(() => overclocked(effectAt("scaleguard", 1).gate!))).toMatchObject({ slugPlate: 10, flat: 20 });
   });
 });

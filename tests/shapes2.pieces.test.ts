@@ -13,7 +13,7 @@ import { GRID, ITEMS, RULES_VERSION, buyableModules, itemsSoldBy, rigShape, sell
 import { canPlaceItem, key as K, rigArrowCells, rigArrows, rigHits, type Build, type Placed } from "../src/sim/deck";
 import { footBox, footOf, footOnDeck, footprintCells } from "../src/sim/foot";
 import { hitsIfPlaced } from "../src/sim/beltside";
-import { SHAPES2, SHAPES2_DEFS, SHAPES2_IDS, isShapes2Piece, setShapes2, shapes2Rules, withShapes2 } from "../src/sim/shapes2";
+import { SHAPES2, SHAPES2_DEFS, SHAPES2_IDS, SHAPES2_PATCHES, isShapes2Piece, setShapes2, shapes2Rules, withShapes2 } from "../src/sim/shapes2";
 import { SHAPES_IDS, shapesRules, withShapes } from "../src/sim/shapes";
 import { withPlainRigs, PLAIN_RIG_IDS } from "../src/sim/plainRigs";
 import { effectAt, fusible, valueOf } from "../src/sim/stars";
@@ -113,12 +113,58 @@ describe("SHAPES-2 S1: the defs (BRIEF-SHAPES2's table)", () => {
       }
       const row3 = (id: string) => [1, 2, 3].map((s) => effectAt(id, s).gate);
       expect(row3("elbowguard")).toEqual([{ slugPlate: 8 }, { slugPlate: 16 }, { slugPlate: 28 }]); // step 6 (S6c): 2/4/7 was the brief's starting value
-      expect(row3("sawbar")).toEqual([{ flat: 8 }, { flat: 16 }, { flat: 28 }]);
+      expect(row3("sawbar")).toEqual([{ flat: 10 }, { flat: 20 }, { flat: 35 }]); // run 2 (S6c): 8/16/28 was the brief's starting value
       expect(row3("sparkcomb")).toEqual([{ stun: 1 }, { stun: 2 }, { stun: 3 }]);
       expect(row3("cinderhook")).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
-      expect(row3("jawcrusher")).toEqual([{ flat: 12 }, { flat: 25 }, { flat: 42 }]);
-      expect(row3("pickaxe")).toEqual([{ flat: 14 }, { flat: 28 }, { flat: 48 }]);
+      expect(row3("jawcrusher")).toEqual([{ flat: 15 }, { flat: 31 }, { flat: 52 }]); // run 2 (S6c): 12/25/42
+      expect(row3("pickaxe")).toEqual([{ flat: 17 }, { flat: 34 }, { flat: 58 }]); // run 2 (S6c): 14/28/48
     });
+  });
+});
+
+describe("SHAPES-2 run 2 (S6b, PLAIN-1F's section 10 call): NAIL STRIP's buff is behind the switch", () => {
+  const row = (id: string) => [1, 2, 3].map((s) => effectAt(id, s).gate);
+  const LIVE = [{ flat: 12 }, { flat: 25 }, { flat: 40 }];
+  const BUFFED = [{ flat: 16 }, { flat: 33 }, { flat: 53 }];
+
+  it("off: SHAPES-1's 12/25/40 byte for byte (the live piece); on: 16/33/53; off again: 12/25/40, the def as it was", () => {
+    const before = JSON.stringify(ITEMS.nailstrip);
+    expect(row("nailstrip")).toEqual(LIVE);
+    withShapes2(() => {
+      expect(row("nailstrip")).toEqual(BUFFED);
+      // nothing but the numbers: price, rarity, foot, merchant, tags and the empty ability line are SHAPES-1's
+      const d = ITEMS.nailstrip;
+      expect([d.rarity, d.price, footOf(d), d.merchant, d.desc, d.tags]).toEqual(["common", 4, "I2", "alchemist", [], ["FORGE"]]);
+      expect(SHAPES2_PATCHES.nailstrip.gate).toEqual({ flat: 16 });
+    });
+    expect(row("nailstrip")).toEqual(LIVE);
+    expect(JSON.stringify(ITEMS.nailstrip)).toBe(before);
+  });
+
+  it("only NAIL STRIP moves: EMBER TROUGH, SPIKE RAIL and every older piece keep their numbers with SHAPES2 on", () => {
+    const keys = Object.keys(ITEMS).filter((id) => id !== "nailstrip");
+    const was = keys.map((id) => JSON.stringify(ITEMS[id]));
+    withShapes2(() => {
+      expect(row("embertrough")).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
+      expect(row("spikerail")).toEqual([{ flat: 10 }, { flat: 20 }, { flat: 35 }]);
+      expect(keys.map((id) => JSON.stringify(ITEMS[id]))).toEqual(was);
+    });
+  });
+
+  it("a SHAPES toggle that leaves SHAPES2 on does not lose the patch (the def object is the one SHAPES-1 adds and removes)", () => {
+    withShapes2(() => {
+      withShapes(() => expect(Object.prototype.hasOwnProperty.call(ITEMS, "nailstrip")).toBe(false), false);
+      expect(shapesRules()).toBe(true);
+      expect(row("nailstrip")).toEqual(BUFFED);
+    });
+    expect(row("nailstrip")).toEqual(LIVE);
+    // and the validator's order (SHAPES2 off before SHAPES goes off, back in the reverse order) keeps both
+    inShapesWorld("bb-0.9.7", () => expect(Object.prototype.hasOwnProperty.call(ITEMS, "nailstrip")).toBe(false));
+    withShapes2(() => inShapesWorld("bb-0.9.7", () => {
+      expect(Object.prototype.hasOwnProperty.call(ITEMS, "nailstrip")).toBe(false);
+    }));
+    withShapes2(() => expect(row("nailstrip")).toEqual(BUFFED));
+    expect(row("nailstrip")).toEqual(LIVE);
   });
 });
 

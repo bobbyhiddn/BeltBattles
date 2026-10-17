@@ -45,11 +45,11 @@ function furnace(items: Run["build"]["items"] = [], cargo: string[] = []): Run {
 
 const WANT: Record<string, { rows: string[]; hits: number; kind: string }> = {
   elbowguard: { rows: ["[PLATE]+8", "[PLATE]+16", "[PLATE]+28"], hits: 2, kind: "COMMON RIG · 3 CELLS" }, // step 6: SHIELD 8/16/28 (was 2/4/7)
-  sawbar: { rows: ["[DMG]+8", "[DMG]+16", "[DMG]+28"], hits: 3, kind: "COMMON RIG · 3 CELLS" },
+  sawbar: { rows: ["[DMG]+10", "[DMG]+20", "[DMG]+35"], hits: 3, kind: "COMMON RIG · 3 CELLS" }, // run 2 (S6c): 8/16/28 was the brief's starting value
   sparkcomb: { rows: ["[STUN]+1", "[STUN]+2", "[STUN]+3"], hits: 2, kind: "COMMON RIG · 2 CELLS" },
   cinderhook: { rows: ["[BURN]+1", "[BURN]+2", "[BURN]+3"], hits: 4, kind: "RARE RIG · 3 CELLS" },
-  jawcrusher: { rows: ["[DMG]+12", "[DMG]+25", "[DMG]+42"], hits: 4, kind: "RARE RIG · 2X2" },
-  pickaxe: { rows: ["[DMG]+14", "[DMG]+28", "[DMG]+48"], hits: 7, kind: "EPIC RIG · 4 CELLS" },
+  jawcrusher: { rows: ["[DMG]+15", "[DMG]+31", "[DMG]+52"], hits: 4, kind: "RARE RIG · 2X2" }, // run 2 (S6c): 12/25/42 was the brief's
+  pickaxe: { rows: ["[DMG]+17", "[DMG]+34", "[DMG]+58"], hits: 7, kind: "EPIC RIG · 4 CELLS" }, // run 2 (S6c): 14/28/48 was the brief's
 };
 
 describe("SHAPES-2 S5: the six faces", () => {

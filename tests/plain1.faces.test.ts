@@ -38,7 +38,7 @@ describe("P4: the interim faces", () => {
     const want: Record<string, string[]> = {
       rasp: ["[DMG]+10 [BURN]+1", "[DMG]+20 [BURN]+2", "[DMG]+35 [BURN]+3"],
       sparkgap: ["[STUN]+1", "[STUN]+2", "[STUN]+3"],
-      scaleguard: ["[PLATE]+3 [DMG]+10", "[PLATE]+7 [DMG]+20", "[PLATE]+11 [DMG]+35"],
+      scaleguard: ["[PLATE]+5 [DMG]+10", "[PLATE]+12 [DMG]+20", "[PLATE]+18 [DMG]+35"], // SHAPES-2 run 2: PLATE 3/7/11 -> 5/12/18
       ballast: ["MAX ♥+8%", "MAX ♥+16%", "MAX ♥+25%"],
       grindstone: ["[DMG]+25", "[DMG]+55", "[DMG]+90"],
       brandingiron: ["[DMG]+15", "[DMG]+30 [BURN]+1", "[DMG]+50 [BURN]+2"], // FIRSTDAY-1 F7: the burn comes with the first merge
