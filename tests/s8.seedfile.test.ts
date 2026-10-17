@@ -34,14 +34,15 @@ describe("S8 T1b: the grades in the bundled pool (REVIEW-R3 ruling 4)", () => {
       const r = await seedStore(store);
       const ms = performance.now() - t0;
       console.log(`S8 T1b: the seed command's step stored the bundled file (${SEED_POOL.length} ghosts) in ${ms.toFixed(0)} ms, with no battles`);
-      expect(r).toEqual({ rules: RULES_VERSION, entries: 120, written: 120, unchanged: 0, removed: 0 });
+      // BUMP-1D: the bundled file is the long world's (LONG_RUN ships on): 192 ghosts over days 1-16 (was 120 over days 1-10)
+      expect(r).toEqual({ rules: RULES_VERSION, entries: 192, written: 192, unchanged: 0, removed: 0 });
       expect(gradeMemo(), "no grading at boot").toBe(memo);
       // the store holds exactly the file's ghosts, each with the file's grade
       const want = new Map(bundledSeedPool().map((raw) => { const s = checkSnapshot(raw); return [ghostId(s), s.grade] as const; }));
       const got = new Map<string, number | undefined>();
-      for (let day = 1; day <= 10; day++) for (const e of await store.bucket(RULES_VERSION, day, "pool")) got.set(e.id, e.snapshot.grade);
+      for (let day = 1; day <= 16; day++) for (const e of await store.bucket(RULES_VERSION, day, "pool")) got.set(e.id, e.snapshot.grade); // BUMP-1D: days 1-16 (was 1-10)
       expect(got).toEqual(want);
-      expect(await seedStore(store)).toMatchObject({ written: 0, unchanged: 120, removed: 0 }); // idempotent, as the release command
+      expect(await seedStore(store)).toMatchObject({ written: 0, unchanged: 192, removed: 0 }); // idempotent, as the release command
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -50,7 +51,7 @@ describe("S8 T1b: the grades in the bundled pool (REVIEW-R3 ruling 4)", () => {
   it("the file's ghosts are this build's rules, v3, each with a grade in 0..GRADE_MAX", () => {
     expect(SEED_POOL_RULES).toBe(RULES_VERSION);
     const pool = bundledSeedPool().map((raw) => checkSnapshot(raw));
-    expect(pool).toHaveLength(120);
+    expect(pool).toHaveLength(192); // BUMP-1D: the long world's pool (4 heroes x 16 days x 3 variants; was 120, days 1-10)
     for (const s of pool) {
       expect([s.rules, s.v], `${s.hero} d${s.day}`).toEqual([RULES_VERSION, SNAPSHOT_V3]);
       expect(Number.isInteger(s.grade) && s.grade! >= 0 && s.grade! <= GRADE_MAX, `${s.hero} d${s.day} grade ${s.grade}`).toBe(true);
@@ -61,5 +62,5 @@ describe("S8 T1b: the grades in the bundled pool (REVIEW-R3 ruling 4)", () => {
     const pool = withPick(() => generateSamplePool(), true);
     expect(bundledSeedPoolJson()).toBe(samplePoolJson(pool));
     expect(readFileSync(new URL(`../${SEED_POOL_MODULE}`, import.meta.url), "utf8")).toBe(seedPoolModuleText(pool));
-  }, 900_000); // the 120 ghosts' grading (5,760 battles) and their runs: 70-110 s alone; room for a loaded suite
+  }, 900_000); // the 120 ghosts' grading (5,760 battles) and their runs: 70-110 s alone; room for a loaded suite (BUMP-1D: now 192 ghosts, days 1-16: about 2 minutes alone, more loaded)
 });
