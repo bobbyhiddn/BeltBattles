@@ -267,8 +267,8 @@ function drawStars(g: G, x: number, y: number, n: number, gap: number, col: stri
 /** F4 (REQ-BFG-115): the merge mark, wordless: an up arrow over the target's stars (SHOPCARD-1b, F8 (b): ★2: two stars, ★3: three,
  *  the font's 3x5 ★ instead of the pips READ-9's readers took for a level only once in three), amber on an ink plate
  *  (MERGE_W x MERGE_H at (x, y)): the arrow in rows 1-4, the stars in rows 6-10, 1 px of ink round the art; the two stars stand 1 px
- *  apart (7 px) and the three touch (9 px, the most that clears a two-digit price); a ★3 chain flashes amber and yellow at 2 Hz as
- *  the badge did. */
+ *  apart (7 px) and the three touch (9 px, the most that clears a two-digit price, the middle one in the other tone); a ★3 chain
+ *  flashes amber and yellow at 2 Hz as the badge did. */
 export function drawMergeMark(g: G, x: number, y: number, toStars: number, t: number): void {
   const col = toStars >= 3 && Math.floor(t * 4) % 2 ? C.yellow : C.amber;
   const mid = (MERGE_W - 1) / 2; // the plate's middle column, 5
@@ -278,7 +278,9 @@ export function drawMergeMark(g: G, x: number, y: number, toStars: number, t: nu
   rect(g, x + mid - 2, y + 3, 5, 1, col);
   rect(g, x + mid, y + 4, 1, 1, col);
   const n = toStars >= 3 ? 3 : 2, gap = n >= 3 ? 0 : 1, w = n * STAR_W + (n - 1) * gap;
-  drawStars(g, x + Math.round((MERGE_W - w) / 2), y + 6, n, gap, col);
+  const sx = x + Math.round((MERGE_W - w) / 2), alt = col === C.yellow ? C.amber : C.yellow;
+  // the three touching stars alternate their tone (the middle one in the other of amber and gold), so the eye counts three, not a chain
+  for (let i = 0; i < n; i++) drawStars(g, sx + i * (STAR_W + gap), y + 6, 1, 0, n >= 3 && i % 2 ? alt : col);
 }
 
 /** F4: the sale mark, wordless: a lime down arrow on an ink plate (SALE_W x SALE_H at (x, y)): this offer is cheaper than its

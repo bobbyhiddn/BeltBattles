@@ -152,10 +152,16 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
         const c = fresh(w + 8, h + 8);
         drawCard(G(c), { x: OX, y: OY, w, h }, ITEMS.whetstone, 3, "alchemist", { ...BASE, badge: { kind: "merge", toStars: stars } as ShopBadge }, t);
         const col = stars >= 3 && Math.floor(t * 4) % 2 ? C.yellow : C.amber;
-        let on = 0;
-        for (let y = 0; y < MERGE_H; y++) for (let x = 0; x < MERGE_W; x++) { const p = px(c, z.merge, x, y); if (p === col) on++; else expect([C.ink, col], `${wn} ★${stars} t ${t}: ${x},${y}`).toContain(p); }
-        // SHOPCARD-1b (REQ-BFG-115, F8 (b)): the stars are the font's 3x5 ★ (9 px each), not 2x1 pips; the arrow is on the plate's middle column
-        expect(on, `${wn} ★${stars}: the arrow's 1+3+5+1 px and ${stars} stars of 9`).toBe(10 + 9 * stars);
+        // SHOPCARD-1b (REQ-BFG-115, F8 (b)): the stars are the font's 3x5 ★ (9 px each), not 2x1 pips; the arrow is on the plate's middle
+        // column; the three touching ★3 stars alternate their tone (the middle one in the other of amber and gold)
+        const alt = col === C.yellow ? C.amber : C.yellow;
+        let on = 0, other = 0;
+        for (let y = 0; y < MERGE_H; y++) for (let x = 0; x < MERGE_W; x++) {
+          const p = px(c, z.merge, x, y);
+          if (p === col) on++; else if (stars >= 3 && p === alt) other++; else expect([C.ink, col], `${wn} ★${stars} t ${t}: ${x},${y}`).toContain(p);
+        }
+        expect(on, `${wn} ★${stars}: the arrow's 1+3+5+1 px and ${stars === 2 ? "2" : "the outer 2"} stars of 9`).toBe(10 + 18);
+        expect(other, `${wn} ★${stars}: the middle star's 9 px in the other tone at ★3, none at ★2`).toBe(stars >= 3 ? 9 : 0);
         expect(px(c, z.merge, 5, 1), "the arrow's tip").toBe(col);
         expect(px(c, z.merge, 5, 0), "ink over the tip").toBe(C.ink);
       }

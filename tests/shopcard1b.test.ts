@@ -255,15 +255,24 @@ describe("SHOPCARD-1b F8 (READ-9 fix 8): the sale mark and the merge mark", () =
     const c3 = fresh(13, 14), c3b = fresh(13, 14);
     drawMergeMark(G(c3), 1, 1, 3, 0);
     drawMergeMark(G(c3b), 1, 1, 3, 0.3);
+    // the three touching stars alternate their tone: the outer two in the flash's colour, the middle one in the other of amber and gold
     expect(ink(c3, 1, 1, MERGE_W, MERGE_H).slice(6)).toEqual([
-      ".A.AA.AA.A.",
-      "..A..A..A..",
-      ".AAAAAAAAA.",
-      "..A..A..A..",
-      ".A.AA.AA.A.",
+      ".A.AY.YA.A.",
+      "..A..Y..A..",
+      ".AAAYYYAAA.",
+      "..A..Y..A..",
+      ".A.AY.YA.A.",
       "...........",
     ]);
-    expect(ink(c3b, 1, 1, MERGE_W, MERGE_H).slice(1, 5).join("").includes("Y")).toBe(true); // ★3 flashes gold at t 0.3
+    expect(ink(c3b, 1, 1, MERGE_W, MERGE_H).slice(1, 5).join("").includes("Y")).toBe(true); // the arrow flashes gold at t 0.3
+    expect(ink(c3b, 1, 1, MERGE_W, MERGE_H).slice(6)).toEqual([
+      ".Y.YA.AY.Y.",
+      "..Y..A..Y..",
+      ".YYYAAAYYY.",
+      "..Y..A..Y..",
+      ".Y.YA.AY.Y.",
+      "...........",
+    ]);
   });
 
   it("both marks keep SHOPCARD-1's rules: a clear px round each, none over the price, the picture's centre or each other, at every price, on every card width", () => {
