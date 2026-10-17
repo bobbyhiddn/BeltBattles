@@ -327,12 +327,15 @@ const controlLine = (f, log, at) => {
 // there is no day-3 early-loss refund (day.ts finishHeartsDay). The page has no hook for the rule, so this is hearts.ts
 // heartsDusk with its numbers (HEARTS_START, HEART_COST_FROM, HEART_COSTS; lastChance.ts LAST_CHANCE_AT; content.ts
 // RUN_DAYS), as NPC_ROAD_DUSK above carries rivalBuilds.ts's table: if HULL-ON's numbers change, these follow.
-const HEARTS_START = 10, HEART_COST_FROM = [1, 4, 7], HEART_COSTS = [1, 2, 3], LAST_CHANCE_AT = 1, RUN_DAYS = 10;
+// STAGE-0911 (ruling 22; scripts only): the 10-wins release follows. HEART_COSTS is [1, 2, 2] since BUMP-1D (src/sim/hearts.ts:61: days 7+
+// cost 2, was 3), and a LONG run (run.longRun, src/sim/longRun.ts lcLastDay) has no last day: LAST CHANCE fires on any day, so the model takes
+// the run's own mark (`long`) and RUN_DAYS only bounds a 10-day run (a run saved before this release). K/runnercopies.sh compares these copies.
+const HEARTS_START = 10, HEART_COST_FROM = [1, 4, 7], HEART_COSTS = [1, 2, 2], LAST_CHANCE_AT = 1, RUN_DAYS = 10;
 const heartCost = (day) => (day >= HEART_COST_FROM[2] ? HEART_COSTS[2] : day >= HEART_COST_FROM[1] ? HEART_COSTS[1] : HEART_COSTS[0]);
-const heartsDusk = (hearts, day, outcome, lcUsed) => {
+const heartsDusk = (hearts, day, outcome, lcUsed, long = false) => {
   if (outcome !== "loss") return hearts;
   const left = Math.max(0, hearts - heartCost(day));
-  return left <= LAST_CHANCE_AT && day < RUN_DAYS && !lcUsed ? LAST_CHANCE_AT : left;
+  return left <= LAST_CHANCE_AT && (long || day < RUN_DAYS) && !lcUsed ? LAST_CHANCE_AT : left;
 };
 const heartsWord = (n) => (n === 1 ? "HEART" : "HEARTS"); // ui/stakes.ts heartsWord: the result card's "-N HEARTS"
 
@@ -494,7 +497,7 @@ export async function scriptedRun(page, touch, log, opts) {
       const run = window.bb.game.run, s = window.bb.game.screen;
       return { day: run.day, gold: run.gold, lives: run.lives, wl: `${run.wins}-${run.losses}`, foe: s.foe.name, kind: s.foe.kind, seed: run.seed, refund: run.refund ?? null, hearts: run.hearts === true };
     });
-    log(`[${at()}] DAWN · DAY ${dawn.day}/10: ${dawn.gold} gold, ${dawn.lives} lives, W-L ${dawn.wl}; NEXT BATTLE ${dawn.foe} (${dawn.kind})${day === 1 ? `, seed ${dawn.seed}` : ""}`);
+    log(`[${at()}] DAWN · DAY ${dawn.day}: ${dawn.gold} gold, ${dawn.lives} lives, W-L ${dawn.wl}; NEXT BATTLE ${dawn.foe} (${dawn.kind})${day === 1 ? `, seed ${dawn.seed}` : ""}`);
     // BROWSE-099F: the run's scale, from its own mark (hearts.ts heartsRun); a hearts run starts on HEARTS_START
     if (day === 1) {
       state.hearts = dawn.hearts;
@@ -564,7 +567,7 @@ export async function scriptedRun(page, touch, log, opts) {
     if (day === opts.reloadDay) await reloadAndContinue(page, touch, log, at, state);
     // BROWSE-099F: the hearts going into this dusk (after the road: an event may give one back) and whether LAST CHANCE
     // was used (day.ts finishHeartsDay's own test), for the hearts ledger at the result card
-    const pre = await page.evaluate(() => ({ lives: window.bb.game.run.lives, lcUsed: window.bb.game.run.lastChance !== undefined }));
+    const pre = await page.evaluate(() => ({ lives: window.bb.game.run.lives, lcUsed: window.bb.game.run.lastChance !== undefined, long: window.bb.game.run.longRun === true })); // STAGE-0911: the run's own long-run mark
     const ph = await pressFight(page, touch); // SCOUT-1b (REQ-BFG-082): the sail-in runs into the count, no FIGHT step
     if (day === 1) log(`[${at()}] SCOUT-1b: the sail-in runs into the count by itself (${ph}${ph === "scout" ? "; FIGHT pressed: a SCOUT-1 page" : "; no FIGHT step"})`);
     // SCOUT-1b (REQ-BFG-083): the bar's speed at the dusk's start: 1X on day 1 (a new run), then day 1's last pick (4X)
@@ -596,7 +599,7 @@ export async function scriptedRun(page, touch, log, opts) {
     // BROWSE-099F: on a hearts run every dusk moves the hearts as hearts.ts's heartsDusk says (a loss costs heartCost(day),
     // recorded as the row's heartsLost; LAST CHANCE sets 1, once; a win or a draw costs none)
     if (state.hearts) {
-      const want = heartsDusk(pre.lives, r.day, r.outcome, pre.lcUsed), cost = r.outcome === "loss" ? heartCost(r.day) : null;
+      const want = heartsDusk(pre.lives, r.day, r.outcome, pre.lcUsed, pre.long), cost = r.outcome === "loss" ? heartCost(r.day) : null;
       if (r.lives === want && r.heartsLost === cost) state.heartsOk++;
       else state.heartsWrong.push(`day ${r.day} ${r.outcome}: ${pre.lives} -> ${r.lives} hearts, heartsLost ${r.heartsLost} (hearts.ts: ${want}, cost ${cost})`);
     }
@@ -614,7 +617,7 @@ export async function scriptedRun(page, touch, log, opts) {
   if (end.over) {
     await tapRegion(page, touch, "next");
     await settle(page, "summary");
-    log(`[${at()}] END SCREEN: ${end.over === "complete" ? "RUN COMPLETE" : "RUN LOST"} on day ${end.day}, W-L ${end.wl}, ${end.lives} lives`);
+    log(`[${at()}] END SCREEN: ${end.over === "won" ? "RUN WON" : end.over === "complete" ? "RUN COMPLETE" : "RUN LOST"} on day ${end.day}, W-L ${end.wl}, ${end.lives} lives`); // STAGE-0911: a long run ends "won" at 10 wins
   } else log(`[${at()}] stopped after day ${end.day - 1 || end.day} as planned (run continues), W-L ${end.wl}, ${end.lives} lives`);
   log(`[${at()}] days: ${end.days.join(" | ")}`);
   log(`[${at()}] checks: event picks ${state.picks}, REFIT ${state.refitDone}, dusk losses ${state.losses.join("; ") || "none"}, reload kept the ghost ${state.reloadSame}, pool ghosts met ${state.ghosts}, stand-ins ${state.standins}, parts placed ${state.placed}, honest dusk decks ${state.foes - state.dishonest.length}/${state.foes}${state.dishonest.length ? ` (NOT HONEST: ${state.dishonest.join(", ")})` : ""}${state.hearts ? `, hearts as hearts.ts ${state.heartsOk}/${state.foes} dusks${state.heartsWrong.length ? ` (NOT AS THE RULE: ${state.heartsWrong.join("; ")})` : ""}` : ""}`);
