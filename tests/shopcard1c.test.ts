@@ -12,6 +12,13 @@
 //   G10 QUENCH TANK: whose BURN (the slug's)
 import { describe, expect, it } from "vitest";
 import { G, fresh, installRaster } from "./raster.helpers";
+import { TAP_CSS } from "../src/ui/tap";
+import { buildLayout, buildScale, phoneBarLift, phoneScreen, type Sel } from "../src/screens/build/layout";
+import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar";
+import { UI } from "../src/ui/ui";
+import { detailsPlan, panelFit, visibleLines } from "../src/screens/build/inspector";
+import { panelArea } from "../src/screens/build/layout";
+import type { Ctx } from "../src/screens/build/actions";
 import { newRun } from "../src/game/run";
 import { gainModule, mergePreview } from "../src/game/fuse";
 import { ITEMS, buyableModules } from "../src/sim/content";
@@ -315,5 +322,57 @@ describe("SHOPCARD-1c: the tooltip and the panel carry the changed lines whole (
         at = i + word.length;
       }
     }
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ the panel's second rows
+/** The build screen as the game frames it (tests/card2.test.ts's framed). */
+function framed(w: number, h: number, dpr: number, runes = 1, offers = 5) {
+  const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+  const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr), portrait = ph > pw * 1.05;
+  const fake = { run: { build: { runes: Array.from({ length: runes }, () => ({ id: "many_hands" })) } }, refit: false, offers: () => Array.from({ length: offers }) } as unknown as Parameters<typeof runeRowFits>[0];
+  let S = buildScale(pw, ph, portrait, dpr);
+  while (S > 1 && !runeRowFits(fake, pw, ph, portrait, S, dpr)) S--;
+  const isPh = phoneScreen(pw, ph, dpr), phone = portrait && isPh, tap = isPh ? Math.ceil(TAP_CSS / (S / dpr)) : 0;
+  const v = { scale: S, dpr }, W = Math.floor(pw / S), H = Math.floor(ph / S);
+  const lay = (unit: number) => {
+    const row = runeRowH(v, runes), lift = phone ? phoneBarLift(W, H, offers, tap, runeRowH(v, 1)) : 0;
+    return shiftLayout(buildLayout(W, H - row, portrait, offers, phone, tap, lift, { scale: S, unit }), row, H);
+  };
+  const Z = lay(1).cam.z, unit = gcd(S, Z), sub = S / unit;
+  return { S, W, H, L: lay(unit), tap, phone, portrait, view: { W, H, scale: S, dpr, portrait, sub } };
+}
+
+describe("SHOPCARD-1c (BRIEF rule 4): a second row lays out whole: no overlap, no clip, at every star on days 1, 5 and 10, on the finger's panel and the desk's column", () => {
+  const VIEWS: [string, number, number, number, boolean][] = [["phone 402x690", 402, 690, 3, true], ["phone 360x640", 360, 640, 2, true], ["desk 1920x1080", 1920, 1080, 1, false]];
+  it("STOKER, GRAPNEL GUN and ASSEMBLY LINE (two rows) and LIMPET WORKS, QUENCH TANK (one): every row of the face's rule is among the panel's visible lines, one under the other, each inside the panel's reach", () => {
+    let panels = 0;
+    for (const [vn, w, h, dpr, touch] of VIEWS) for (const day of [1, 5, 10]) for (const s of STARS) for (const def of ["stoker", "grapnel", "limpet", "assembly", "quench"]) {
+      const run = newRun("furnace", day, `shopcard1c-${def}-${s}`);
+      run.inventory = [{ uid: 900, def, ...(s > 1 ? { stars: s } : {}) }];
+      const sel: Sel = { kind: "cargo", uid: 900 }, f = framed(w, h, dpr);
+      const ctx = { game: { ui: new UI(), t: 0, view: f.view, W: f.W, H: f.H }, run, touch, L: f.L } as unknown as Ctx;
+      const area = panelArea(f.L, sel, { touch, hover: false, busy: false }, panelFit(ctx, sel, !!f.L.phone));
+      const plan = detailsPlan(ctx, sel, null, area)!.plan;
+      const vis = visibleLines(plan).flatMap((v) => (v.line === "rule" ? [] : [{ y: v.y, line: v.line }]));
+      const rule = rules(def, s, day)[0], want = rows(rule); // the rows the face's line takes at the panel's 225 px text width
+      const text = (l: { line: { spans: { t: string }[] } }): string => l.line.spans.map((sp) => sp.t).join("");
+      const joined = vis.map(text).join(" ").replace(/\s+/g, " ");
+      // the words (a number is the day's: the panel's own day sets it, this test is about the rows)
+      const words = stripIcons(icons(rule)).replace(/\s+/g, " ").split(" ").filter((x) => x && !/\d/.test(x));
+      let at = 0;
+      for (const word of words) {
+        const i = joined.indexOf(word, at);
+        expect(i, `${vn} day ${day} ★${s} ${def}: "${word}" among the visible lines (${want} row(s) of the rule)`).toBeGreaterThanOrEqual(0);
+        at = i + word.length;
+      }
+      // no overlap: every visible line starts a full pitch under the one before; no clip: its glyphs end by the panel's last y
+      vis.forEach((l, i) => {
+        if (i) expect(l.y - vis[i - 1].y, `${vn} day ${day} ★${s} ${def}: line ${i} under line ${i - 1}`).toBeGreaterThanOrEqual((vis[i - 1].line as unknown as { pitch: number }).pitch);
+        expect(l.y + ((l.line as unknown as { font: string }).font === "5" ? 7 : 5), `${vn} day ${day} ★${s} ${def}: line ${i} inside the panel`).toBeLessThanOrEqual(plan.maxY);
+      });
+      panels++;
+    }
+    expect(panels).toBe(VIEWS.length * 3 * STARS.length * 5);
   });
 });
