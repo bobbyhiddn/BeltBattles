@@ -44,6 +44,10 @@ const NOJAM_OFF = arg("--nojam", "on") === "off";
 const FOES: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const sets: string[] = [];
 process.argv.forEach((a, i) => { if (a === "--set") sets.push(process.argv[i + 1]); });
+// --cand "id=a,b,c;id2=d,e,f" (repeatable): star-number candidates read on the decks already built: for every row whose reader is
+// named, the pair decks are fought again with the numbers patched (then put back); the row is written as "<tag> @<cand>"
+const cands: string[] = [];
+process.argv.forEach((a, i) => { if (a === "--cand") cands.push(process.argv[i + 1]); });
 const log = (s: string): void => console.log(`pairs ${HERO} d${DAY} ★${STAR}: ${s}`);
 
 // --allow-off: the DRAKE bench (group "drake") reads both switch states, so it runs on an export with the constant as shipped (false)
@@ -230,6 +234,22 @@ for (const [p, list] of builtOf) {
   const pp = (x: number): string => (Number.isNaN(x) ? "-" : `${x >= 0 ? "+" : ""}${(100 * x).toFixed(1)}`);
   const lp = mean(ok.map((d) => d.pair - d.base)), lf = mean(ok.map((d) => d.feeder - d.base)), lt = mean(ok.map((d) => d.temper - d.base));
   (out.rows as unknown[]).push({ reader: p.reader, tag: p.tag ?? p.reader, feeders: p.feeders, runes: p.runes ?? [], decks });
+  for (const c of cands) {
+    const parts = c.split(";").map((x) => x.split("="));
+    if (!parts.some(([id]) => id === p.reader)) continue;
+    const saved = parts.map(([id]) => [id, ITEMS[id]] as const);
+    for (const [id, v] of parts) patchStars(id, v.split(",").map(Number));
+    const cdecks = list.map((b, k) => {
+      const d = decks[k] as { i: number; placedFeeder: boolean; placedPair: boolean; base: number; temper: number; whet: number; feeder: number; n: number; tBase: number[] };
+      const pf = b.pair ? fight(b.pair, b.i, true) : null;
+      return { ...d, pair: pf ? pf.pts : NaN, tPair: pf ? pf.ts : [] };
+    });
+    for (const [id, was] of saved) (ITEMS as Record<string, ItemDef>)[id] = was;
+    clearStarCache();
+    (out.rows as unknown[]).push({ reader: p.reader, tag: `${p.tag ?? p.reader} @${c}`, feeders: p.feeders, runes: p.runes ?? [], decks: cdecks });
+    const okc = cdecks.filter((d) => !Number.isNaN(d.pair));
+    log(`${(p.tag ?? p.reader).padEnd(14)} @${c}: reader ${pp(mean(okc.map((d) => d.pair - d.feeder)))} pts (pair ${pp(mean(okc.map((d) => d.pair - d.base)))}) | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  }
   log(`${(p.tag ?? p.reader).padEnd(14)} n ${ok.length}/${list.length} | pair ${pp(lp)} feeder ${pp(lf)} reader ${pp(lp - lf)} TEMPER ${pp(lt)} pts | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 }
 out.seconds = Math.round((Date.now() - t0) / 1000);
