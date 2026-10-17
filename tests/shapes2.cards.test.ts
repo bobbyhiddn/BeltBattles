@@ -45,11 +45,11 @@ function furnace(items: Run["build"]["items"] = [], cargo: string[] = []): Run {
 
 const WANT: Record<string, { rows: string[]; hits: number; kind: string }> = {
   elbowguard: { rows: ["[PLATE]+8", "[PLATE]+16", "[PLATE]+28"], hits: 2, kind: "COMMON RIG · 3 CELLS" }, // step 6: SHIELD 8/16/28 (was 2/4/7)
-  sawbar: { rows: ["[DMG]+10", "[DMG]+20", "[DMG]+35"], hits: 3, kind: "COMMON RIG · 3 CELLS" }, // run 2 (S6c): 8/16/28 was the brief's starting value
+  sawbar: { rows: ["[DMG]+9", "[DMG]+18", "[DMG]+31"], hits: 3, kind: "COMMON RIG · 3 CELLS" }, // run 2 (S6c, S6b): 8/16/28 was the brief's starting value
   sparkcomb: { rows: ["[STUN]+1", "[STUN]+2", "[STUN]+3"], hits: 2, kind: "COMMON RIG · 2 CELLS" },
-  cinderhook: { rows: ["[BURN]+1", "[BURN]+2", "[BURN]+3"], hits: 4, kind: "RARE RIG · 3 CELLS" },
-  jawcrusher: { rows: ["[DMG]+15", "[DMG]+31", "[DMG]+52"], hits: 4, kind: "RARE RIG · 2X2" }, // run 2 (S6c): 12/25/42 was the brief's
-  pickaxe: { rows: ["[DMG]+17", "[DMG]+34", "[DMG]+58"], hits: 7, kind: "EPIC RIG · 4 CELLS" }, // run 2 (S6c): 14/28/48 was the brief's
+  cinderhook: { rows: ["[DMG]+10", "[DMG]+20 [BURN]+1", "[DMG]+35 [BURN]+2"], hits: 4, kind: "RARE RIG · 3 CELLS" }, // run 2 (S6b): the BURN from ★2 (BRANDING IRON's form); [BURN]+1/+2/+3 was the brief's
+  jawcrusher: { rows: ["[DMG]+20", "[DMG]+42", "[DMG]+70"], hits: 4, kind: "RARE RIG · 2X2" }, // run 2 (S6c): 12/25/42 was the brief's
+  pickaxe: { rows: ["[DMG]+15", "[DMG]+30", "[DMG]+51"], hits: 7, kind: "EPIC RIG · 4 CELLS" }, // run 2 (S6c, S6b): 14/28/48 was the brief's
 };
 
 describe("SHAPES-2 S5: the six faces", () => {
@@ -173,10 +173,12 @@ describe("SHAPES-2 S5: fit, spacing and words", () => {
     });
   });
 
-  it("a reminder shows for each keyword a star's stat row holds (BURN on CINDER HOOK, STUN on SPARK COMB, SHIELD on ELBOW GUARD), none on the DMG rigs", () => {
+  it("a reminder shows for each keyword a star's stat row holds (BURN on CINDER HOOK from ★2, STUN on SPARK COMB, SHIELD on ELBOW GUARD), none on the DMG rigs", () => {
     on(() => {
       const rem = (id: string) => faceLines(id, 1)!.reminders.map((r) => r.replace(/[^A-Z{}*]+/g, " ").slice(0, 14));
-      expect(rem("cinderhook").length).toBe(1);
+      expect(rem("cinderhook").length, "CINDER HOOK ★1 is DMG alone (the BURN comes with the first merge)").toBe(0);
+      expect(faceLines("cinderhook", 2)!.reminders.length, "★2 holds BURN").toBe(1);
+      expect(faceLines("cinderhook", 3)!.reminders.length, "★3 holds BURN").toBe(1);
       expect(rem("sparkcomb").length).toBe(1);
       expect(rem("elbowguard").length).toBe(1);
       for (const id of ["sawbar", "jawcrusher", "pickaxe"]) expect(faceLines(id, 1)!.reminders, id).toEqual([]);

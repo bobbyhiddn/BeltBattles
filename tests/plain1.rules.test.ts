@@ -105,7 +105,7 @@ describe("PLAIN_RIGS on (P1): the six join the shared pool like any rig of their
 describe("merging and selling (P1, REQ-BFG-084.3): a star raises only the numbers", () => {
   it("each star's stat row is the table's, and nothing else changes", () => on(() => {
     const rows: Record<string, unknown[]> = {
-      rasp: [{ flat: 10, burn: 1 }, { flat: 20, burn: 2 }, { flat: 35, burn: 3 }],
+      rasp: [{ flat: 8, burn: 1 }, { flat: 16, burn: 2 }, { flat: 28, burn: 3 }], // SHAPES-2 run 2: DMG 10/20/35 -> 8/16/28
       sparkgap: [{ stun: 1 }, { stun: 2 }, { stun: 3 }],
       scaleguard: [{ slugPlate: 5, flat: 10 }, { slugPlate: 12, flat: 20 }, { slugPlate: 18, flat: 35 }], // SHAPES-2 run 2: PLATE 3/7/11 -> 5/12/18
       ballast: [{ maxHullPct: 8 }, { maxHullPct: 16 }, { maxHullPct: 25 }],
@@ -144,12 +144,12 @@ describe("merging and selling (P1, REQ-BFG-084.3): a star raises only the number
 
 describe("a hit gives its stats once per arrow that points at a belt tile (P1, REQ-BFG-084.2)", () => {
   // FURNACE's bench: the Kiln at (4,6), its belt up column 4: tile 0 (4,5), 1 (4,4), 2 (4,3), 3 (4,2), 4 (4,1), 5 (4,0)
-  it("RASP beside the belt: each slug past its tile carries +10 DMG and +1 BURN, once; an IDLE RASP gives nothing", () => on(() => {
+  it("RASP beside the belt: each slug past its tile carries +8 DMG and +1 BURN, once; an IDLE RASP gives nothing", () => on(() => { // SHAPES-2 run 2: DMG 10 -> 8
     const b = bench(item(30, "rasp", 3, 3, 1)); // its arrow points east at (4,3), tile 2
     expect(rigHits(b).flat(2).filter((h) => h.uid === 30).map((h) => h.tile)).toEqual([2]);
     const past = pastTilePlain(b, 0, 2);
     expect(past.length).toBeGreaterThan(3);
-    for (const p of past) expect([p.flat, p.burn]).toEqual([10, 1]);
+    for (const p of past) expect([p.flat, p.burn]).toEqual([8, 1]);
     const idle = bench(item(30, "rasp", 0, 9)); // its arrow points at (0,8): no belt
     expect(rigHits(idle).flat(2).some((h) => h.uid === 30)).toBe(false);
     for (const p of pastTilePlain(idle, 0, 5)) expect([p.flat, p.burn]).toEqual([0, 0]);

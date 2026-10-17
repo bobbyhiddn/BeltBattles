@@ -36,7 +36,7 @@ describe("P4: the interim faces", () => {
   it("off, none has a face; on, each draws its stat row as the table reads it and no ability line", () => {
     for (const id of PLAIN_RIG_IDS) expect(hasFace(id), id).toBe(false);
     const want: Record<string, string[]> = {
-      rasp: ["[DMG]+10 [BURN]+1", "[DMG]+20 [BURN]+2", "[DMG]+35 [BURN]+3"],
+      rasp: ["[DMG]+8 [BURN]+1", "[DMG]+16 [BURN]+2", "[DMG]+28 [BURN]+3"], // SHAPES-2 run 2: DMG 10/20/35 -> 8/16/28
       sparkgap: ["[STUN]+1", "[STUN]+2", "[STUN]+3"],
       scaleguard: ["[PLATE]+5 [DMG]+10", "[PLATE]+12 [DMG]+20", "[PLATE]+18 [DMG]+35"], // SHAPES-2 run 2: PLATE 3/7/11 -> 5/12/18
       ballast: ["MAX ♥+8%", "MAX ♥+16%", "MAX ♥+25%"],

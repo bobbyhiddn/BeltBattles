@@ -113,40 +113,48 @@ describe("SHAPES-2 S1: the defs (BRIEF-SHAPES2's table)", () => {
       }
       const row3 = (id: string) => [1, 2, 3].map((s) => effectAt(id, s).gate);
       expect(row3("elbowguard")).toEqual([{ slugPlate: 8 }, { slugPlate: 16 }, { slugPlate: 28 }]); // step 6 (S6c): 2/4/7 was the brief's starting value
-      expect(row3("sawbar")).toEqual([{ flat: 10 }, { flat: 20 }, { flat: 35 }]); // run 2 (S6c): 8/16/28 was the brief's starting value
+      expect(row3("sawbar")).toEqual([{ flat: 9 }, { flat: 18 }, { flat: 31 }]); // run 2 (S6c, then S6b's day-3 guard): 8/16/28 was the brief's starting value
       expect(row3("sparkcomb")).toEqual([{ stun: 1 }, { stun: 2 }, { stun: 3 }]);
-      expect(row3("cinderhook")).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
-      expect(row3("jawcrusher")).toEqual([{ flat: 15 }, { flat: 31 }, { flat: 52 }]); // run 2 (S6c): 12/25/42
-      expect(row3("pickaxe")).toEqual([{ flat: 17 }, { flat: 34 }, { flat: 58 }]); // run 2 (S6c): 14/28/48
+      // run 2 (S6b): BRANDING IRON's form, the BURN comes with the first merge (the brief's starting BURN 1/2/3 was over the guard)
+      expect(row3("cinderhook")).toEqual([{ flat: 10 }, { flat: 20, burn: 1 }, { flat: 35, burn: 2 }]);
+      expect(row3("jawcrusher")).toEqual([{ flat: 20 }, { flat: 42 }, { flat: 70 }]); // run 2 (S6c): 12/25/42
+      expect(row3("pickaxe")).toEqual([{ flat: 15 }, { flat: 30 }, { flat: 51 }]); // run 2 (S6c, then S6b's day-3 guard): 14/28/48
     });
   });
 });
 
-describe("SHAPES-2 run 2 (S6b, PLAIN-1F's section 10 call): NAIL STRIP's buff is behind the switch", () => {
+describe("SHAPES-2 run 2 (S6b, PLAIN-1F's section 10 call): NAIL STRIP's buff and SPIKE RAIL's cut are behind the switch", () => {
   const row = (id: string) => [1, 2, 3].map((s) => effectAt(id, s).gate);
   const LIVE = [{ flat: 12 }, { flat: 25 }, { flat: 40 }];
   const BUFFED = [{ flat: 16 }, { flat: 33 }, { flat: 53 }];
+  const SPIKE_LIVE = [{ flat: 10 }, { flat: 20 }, { flat: 35 }];
+  const SPIKE_CUT = [{ flat: 8 }, { flat: 16 }, { flat: 28 }];
 
-  it("off: SHAPES-1's 12/25/40 byte for byte (the live piece); on: 16/33/53; off again: 12/25/40, the def as it was", () => {
-    const before = JSON.stringify(ITEMS.nailstrip);
+  it("off: SHAPES-1's 12/25/40 and 10/20/35 byte for byte (the live pieces); on: NAIL STRIP 16/33/53, SPIKE RAIL 8/16/28; off again: as they were", () => {
+    const before = [JSON.stringify(ITEMS.nailstrip), JSON.stringify(ITEMS.spikerail)];
     expect(row("nailstrip")).toEqual(LIVE);
+    expect(row("spikerail")).toEqual(SPIKE_LIVE);
     withShapes2(() => {
       expect(row("nailstrip")).toEqual(BUFFED);
+      expect(row("spikerail")).toEqual(SPIKE_CUT);
       // nothing but the numbers: price, rarity, foot, merchant, tags and the empty ability line are SHAPES-1's
-      const d = ITEMS.nailstrip;
+      const d = ITEMS.nailstrip, s = ITEMS.spikerail;
       expect([d.rarity, d.price, footOf(d), d.merchant, d.desc, d.tags]).toEqual(["common", 4, "I2", "alchemist", [], ["FORGE"]]);
+      expect([s.rarity, s.price, footOf(s), s.merchant, s.desc, s.tags]).toEqual(["rare", 6, "I3", "tinker", [], ["FORGE", "BURST"]]);
       expect(SHAPES2_PATCHES.nailstrip.gate).toEqual({ flat: 16 });
+      expect(SHAPES2_PATCHES.spikerail.gate).toEqual({ flat: 8 });
     });
     expect(row("nailstrip")).toEqual(LIVE);
-    expect(JSON.stringify(ITEMS.nailstrip)).toBe(before);
+    expect(row("spikerail")).toEqual(SPIKE_LIVE);
+    expect([JSON.stringify(ITEMS.nailstrip), JSON.stringify(ITEMS.spikerail)]).toEqual(before);
   });
 
-  it("only NAIL STRIP moves: EMBER TROUGH, SPIKE RAIL and every older piece keep their numbers with SHAPES2 on", () => {
-    const keys = Object.keys(ITEMS).filter((id) => id !== "nailstrip");
+  it("only those two move: EMBER TROUGH and every older piece keep their numbers with SHAPES2 on", () => {
+    const keys = Object.keys(ITEMS).filter((id) => id !== "nailstrip" && id !== "spikerail");
     const was = keys.map((id) => JSON.stringify(ITEMS[id]));
     withShapes2(() => {
       expect(row("embertrough")).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
-      expect(row("spikerail")).toEqual([{ flat: 10 }, { flat: 20 }, { flat: 35 }]);
+      expect(Object.keys(SHAPES2_PATCHES)).toEqual(["nailstrip", "spikerail"]);
       expect(keys.map((id) => JSON.stringify(ITEMS[id]))).toEqual(was);
     });
   });

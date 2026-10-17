@@ -50,11 +50,12 @@ export const SHAPES2_DEFS: Readonly<Record<string, ItemDef>> = {
   sawbar: {
     id: "sawbar", name: "SAW BAR", kind: "gate", rarity: "common", price: 5, size: 1, foot: "I3", merchant: "gunsmith",
     desc: [], tags: ["FORGE"],
-    // run 2 (S6c): DMG 10/20/35, a quarter above the brief's starting 8/16/28. At its best spot on a fitting deck (FURNACE, WEAVER,
-    // FOUNDRY) 8 was worth 0.89x (d6) and 0.69x (d10) of a WHETSTONE at its best spot (the target 1.0-1.2x, a raise under 0.8x);
-    // at 10 it reads 1.11x / 0.86x (O/bench/s6c-*.md). One arrow, forward: laid along a straight run it hits 3 tiles
-    gate: { flat: 10 },
-    levels: { 2: { gate: { flat: 20 } }, 3: { gate: { flat: 35 } } },
+    // run 2 (S6c, then S6b): DMG 9/18/31, an eighth above the brief's starting 8/16/28. At its best spot on a fitting deck (FURNACE,
+    // WEAVER, FOUNDRY) 8 was worth 0.89x (d6) and 0.69x (d10) of a WHETSTONE at its best spot (the target 1.0-1.2x, a raise under
+    // 0.8x); 10 would meet it (1.11x / 0.86x) but read +19.3 points on day 3 (22 decks, k 64) against TEMPER's +18.4, so 9 (1.0x /
+    // 0.78x). One arrow, forward: laid along a straight run it hits 3 tiles
+    gate: { flat: 9 },
+    levels: { 2: { gate: { flat: 18 } }, 3: { gate: { flat: 31 } } },
   },
   sparkcomb: {
     id: "sparkcomb", name: "SPARK COMB", kind: "gate", rarity: "common", price: 5, size: 1, foot: "I2", merchant: "arcane",
@@ -65,26 +66,35 @@ export const SHAPES2_DEFS: Readonly<Record<string, ItemDef>> = {
   cinderhook: {
     id: "cinderhook", name: "CINDER HOOK", kind: "gate", rarity: "rare", price: 6, size: 1, foot: "L3", merchant: "alchemist",
     desc: [], tags: ["FORGE"],
-    gate: { burn: 1 }, // two arrows, left and right, from the L's outside edges: round a bend it hits up to 4 tiles
-    levels: { 2: { gate: { burn: 2 } }, 3: { gate: { burn: 3 } } },
+    // run 2 (S6b): the BURN comes with the first merge, BRANDING IRON's form (FIRSTDAY-1 ruling F7: REVIEW-PLAIN1 D1, REQ-BFG-084.5).
+    // The brief's starting ★1 BURN 1 is the floor of a burn and lifted a deck +23.6 (d3, 25 decks) / +12.0 (d6, 54) / +7.1 (d10, 75)
+    // points at k 64 (O/bench/presence-k64a.md), over TEMPER's +18.4 and the 10-point line on days 3 and 6: two hits a deck make it
+    // two TEMPERs in one slot, and neither a price (7 G: +22.3 / +12.5 / +7.7, sweep B) nor a smaller number can move a burn of 1.
+    // So ★1 is DMG 10 (cut from the burn), ★2 DMG 20 + BURN 1, ★3 DMG 35 + BURN 2. Two arrows, left and right, from the L's
+    // outside edges: round a bend it hits up to 4 tiles
+    gate: { flat: 10 },
+    levels: { 2: { gate: { flat: 20, burn: 1 } }, 3: { gate: { flat: 35, burn: 2 } } },
   },
   jawcrusher: {
     id: "jawcrusher", name: "JAW CRUSHER", kind: "gate", rarity: "rare", price: 6, size: 1, foot: "2x2", merchant: "scrapper",
     desc: [], tags: ["FORGE", "BURST"],
-    // run 2 (S6c): DMG 15/31/52, a quarter above the brief's starting 12/25/42 (12 was worth 0.69x / 0.59x of a GRINDSTONE at its
-    // best spot on a fitting deck on days 6 / 10; at 15, 0.86x / 0.74x). Two arrows, left and right, from both cells of each
-    // side: between two belts two cells apart, 4 hits
-    gate: { flat: 15 },
-    levels: { 2: { gate: { flat: 31 } }, 3: { gate: { flat: 52 } } },
+    // run 2 (S6c): DMG 20/42/70, two thirds above the brief's starting 12/25/42 (12 was worth 0.69x / 0.59x of a GRINDSTONE at its
+    // best spot on a fitting deck on days 6 / 10; at 20, 1.15x / 0.99x). The guard's room is wide (at 15: +11.3 / +5.7 / +3.3 points
+    // on days 3 / 6 / 10 against 18.4 / 10 / 10, k 64): a slug on one belt meets only that belt's hits, so its hits a deck are
+    // worth less than the other shapes'. Two arrows, left and right, from both cells of each side: between two belts two cells
+    // apart, 4 hits
+    gate: { flat: 20 },
+    levels: { 2: { gate: { flat: 42 } }, 3: { gate: { flat: 70 } } },
   },
   pickaxe: {
     id: "pickaxe", name: "PICKAXE", kind: "gate", rarity: "epic", price: 8, size: 1, foot: "T4", merchant: "quartermaster",
     desc: [], tags: ["FORGE", "BURST"],
-    // run 2 (S6c): DMG 17/34/58, a fifth above the brief's starting 14/28/48 (14 was worth 0.72x / 0.64x of a GRINDSTONE at its best
-    // spot on a fitting deck on days 6 / 10; at 17, 0.87x / 0.76x: held short of 1.0 by the guard, whose day 3 is thin here).
+    // run 2 (S6c, then S6b): DMG 15/30/51, a fourteenth above the brief's starting 14/28/48 (14 was worth 0.72x / 0.64x of a GRINDSTONE at
+    // its best spot on a fitting deck on days 6 / 10). 17 would have met 0.8x but a free copy lifted a deck +20.9 points on day 3 (32
+    // decks, the holders being 7, k 64) against TEMPER's +18.4 (inserted +15.3), so 15: held short of 0.8x by the guard's day 3.
     // Three arrows (forward, left, right), from the T's outside edges: belt on three sides, up to 7 hits
-    gate: { flat: 17 },
-    levels: { 2: { gate: { flat: 34 } }, 3: { gate: { flat: 58 } } },
+    gate: { flat: 15 },
+    levels: { 2: { gate: { flat: 30 } }, 3: { gate: { flat: 51 } } },
   },
 };
 
@@ -98,6 +108,10 @@ export const SHAPES2_DEFS: Readonly<Record<string, ItemDef>> = {
  */
 export const SHAPES2_PATCHES: Readonly<Record<string, Pick<ItemDef, "gate" | "levels">>> = {
   nailstrip: { gate: { flat: 16 }, levels: { 2: { gate: { flat: 33 } }, 3: { gate: { flat: 53 } } } },
+  // S6b: SPIKE RAIL (SHAPES-1, DMG 10/20/35, 6 G) lifted a deck +21.2 (16 decks) / +9.2 (29) / +6.5 (38) points on days 3 / 6 / 10 at
+  // k 64 (O/bench/presence-k64a.md), over TEMPER's +18.4 on day 3 and at the edge of 10 on day 6; its three hits a deck make it
+  // three WHETSTONEs of 10, and a price does not move a lift. ★1 cut a fifth, the ladder with it: 8/16/28 (off, 10/20/35 byte for byte)
+  spikerail: { gate: { flat: 8 }, levels: { 2: { gate: { flat: 16 } }, 3: { gate: { flat: 28 } } } },
 };
 /** Each patched def's own numbers, kept at the first swap, so a swap back puts exactly them back. */
 const PATCH_BASE = new Map<string, Pick<ItemDef, "gate" | "levels">>();

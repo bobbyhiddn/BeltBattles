@@ -40,8 +40,11 @@ export const PLAIN_DEFS: Readonly<Record<string, ItemDef>> = {
   rasp: {
     id: "rasp", name: "RASP", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist", shape: "I",
     desc: [], tags: ["FORGE"],
-    gate: { flat: 10, burn: 1 },
-    levels: { 2: { gate: { flat: 20, burn: 2 } }, 3: { gate: { flat: 35, burn: 3 } } },
+    // SHAPES-2 run 2 (BRIEF-SHAPES2 S6b, PLAIN-1F's REPORT section 10 call, "re-read RASP's day 3 and trim only if over"): the DMG
+    // 10/20/35 -> 8/16/28 (the BURN stays, 1 is its floor). At k 64 (O/bench/presence-k64b.md) a deck holding it was +20.3 points
+    // better on day 3 (42 decks) against TEMPER's +18.4: TEMPER's burn and 10 DMG more, for the same 3 G
+    gate: { flat: 8, burn: 1 },
+    levels: { 2: { gate: { flat: 16, burn: 2 } }, 3: { gate: { flat: 28, burn: 3 } } },
   },
   sparkgap: {
     id: "sparkgap", name: "SPARK GAP", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "scrapper", shape: "I",

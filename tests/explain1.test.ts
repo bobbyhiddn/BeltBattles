@@ -683,7 +683,7 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
   it("PLAIN-1F (M3): the six, with PLAIN_RIGS on: stat row and no HIT:; LEVELS from the sim; KEYWORDS HIT first, NOTES the rig sentence (BALLAST: its own line, no HIT)", () => withPlainRigs(() => {
     setTipsForTests("done");
     const LADDERS: Record<string, string[]> = {
-      rasp: ["{DMG} +10/+20/+35", "{BURN} +1/+2/+3"],
+      rasp: ["{DMG} +8/+16/+28", "{BURN} +1/+2/+3"], // SHAPES-2 run 2: DMG 10/20/35 -> 8/16/28
       sparkgap: ["{STUN} +1/+2/+3"],
       scaleguard: ["{PLATE} +5/+12/+18", "{DMG} +10/+20/+35"], // SHAPES-2 run 2: PLATE 3/7/11 -> 5/12/18
       ballast: ["MAX {HULL} +8%/+16%/+25%"],
@@ -691,7 +691,7 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
       brandingiron: ["{DMG} +15/+30/+50", "{BURN} -/+1/+2"], // FIRSTDAY-1 F7: the BURN comes at ★2; the dash says "none yet"
     };
     // the ladders' numbers are the sim's (plainRigs.ts PLAIN_DEFS, through the formatters)
-    expect([1, 2, 3].map((s) => `+${fmtDmg(effectAt("rasp", s).gate!.flat!)}`).join("/")).toBe("+10/+20/+35");
+    expect([1, 2, 3].map((s) => `+${fmtDmg(effectAt("rasp", s).gate!.flat!)}`).join("/")).toBe("+8/+16/+28");
     expect([1, 2, 3].map((s) => effectAt("ballast", s).gate!.maxHullPct).join("/")).toBe("8/16/25");
     for (const def of PLAIN_RIG_IDS) for (const s of [1, 2, 3]) {
       expect(isPlainRig(def) && hasFace(def), def).toBe(true);
