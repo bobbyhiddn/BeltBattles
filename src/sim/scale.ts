@@ -56,10 +56,13 @@ export const SCALE_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = 
   // factor k still scales it (cores.ts scaleCore, "today's numbers" on a heavy gun), and it joins the shot before step 5's
   // % (TWIN TRIGGER, FINISHER RAM, the runes), outside p.flat, so DRAKE NOZZLE (step 3, another core) never converts it.
   // NEVER JAMS (noJam) stays: the brief names only MAX 5 as going (REPORT Findings)
+  // SCALE-2e E4 (REQ-BFG-098 098.3): ★2's perQueued 26 -> 14 ("today's numbers" 12 / 26 / 42 -> 12 / 14 / 42). The pairs bench (pool 150, 41 decks with
+  // SPLITTER) read the reader's lift +17.2 (SE 2.1) on day 6 against TEMPER's +6.5 (G1); see REPORT-SCALE2e section 6
   pressure: (b) => {
     const { maxCount: _cap, ...core } = b.core!;
     void _cap;
-    return { ...b, desc: [], core };
+    const lv2 = b.levels![2]!;
+    return { ...b, desc: [], core, levels: { ...b.levels, 2: { ...lv2, core: { ...lv2.core, perQueued: 14 } } } };
   },
   // IRON WALL: +5 / +11 / +17 DMG for each whole 10 PLATE you have (day-1 units: Battle.readCount ownPlate); its own
   // plating and the 120 step go

@@ -124,7 +124,7 @@ describe("SCALE-2c screen: the 12 faces with the switch on", () => {
 
   it("LEVELS / NEXT★ read the switch-on numbers (★2's and ★3's)", () => {
     const next: Record<string, [string, string]> = {
-      quench: ["+5", "+8"], pressure: ["+26", "+42"], shieldwall: ["+6", "+17"], spallcatcher: ["+3", "+7"], keg: ["+5", "+11"], // SCALE-2e E4: IRON WALL 3/6/17, SPALL CATCHER 2/3/7, POWDER KEG 2/5/11
+      quench: ["+5", "+8"], pressure: ["+14", "+42"], shieldwall: ["+6", "+17"], spallcatcher: ["+3", "+7"], keg: ["+5", "+11"], // SCALE-2e E4: IRON WALL 3/6/17, SPALL CATCHER 2/3/7, POWDER KEG 2/5/11
       cindermail: ["+3", "+5"], rotgauge: ["+5", "+8"], leechcoil: ["5", "6"], crowdpress: ["+7", "+11"], aegisspike: ["+88", "+140"],
       grudgerod: ["+13", "+21"], trophychain: ["+12", "+28"], // SCALE-2e E4: TROPHY CHAIN 8/12/28
     };
