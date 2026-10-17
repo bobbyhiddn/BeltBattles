@@ -8,6 +8,7 @@
 //                + price(beltcrate) × ceil((beltCap − hero.belt) / beltcrate.belt)
 //                + price(plating)   × ceil(hullBonus / plating.hull)
 //                + Σ turretValue(installed turrets)   (0.6.2s S7; 0 for a build without `turrets`)
+//                + ENCHANTER_PRICE × (held words past the free ones)   (ENCHANT-1, E6.4; only for a caller that passes the free count)
 //   valid iff cost(build) ≤ maxGold(day)
 // Sales refund at most half the price and rerolls only spend, so no sequence of shop
 // actions can put more purchase value on the deck than the gold ever received.
@@ -29,6 +30,7 @@ import { shapes2Rules, withShapes2 } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG
 import { shapes2GateProblem, shapes2World } from "./rulesGate"; // SHAPES-2 (S1): SHAPES2_RULES' gate
 import { enchantKindOf, enchantProblem, enchantRules, withEnchant, wideSlots } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): the switch, the legal kinds
 import { enchantGateProblem, enchantWorld } from "./rulesGate"; // ENCHANT-1: ENCHANT_RULES' gate
+import { enchantBudgetNote, enchantFreeWords, enchantGold, enchantProblems } from "./enchantCheck"; // ENCHANT-1 (REQ-BFG-085, E6.2-E6.5): the count, the offers, the gold, GROWING's counter
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D3, D4): the long run's world. A deck under a long run's rules (rulesGate.ts longRunFor) is
 // judged with the long-run switch on (the content past day 10, LAST CHANCE on any day, the day bound LONG_RUN_MAX_DAY); under
@@ -299,10 +301,19 @@ export interface BuildCost {
   // bb-0.8.3 (REQ-BFG-043 D10): the gold the build's upgrade levels paid (stars.ts upgradeGold: 0 / 10 / 30 / 60 a
   // track). Present only when the build carries `upgrades`, so a build without them breaks down exactly as before.
   upgrades?: number;
+  // ENCHANT-1 (REQ-BFG-085, E6.4): the gold the deck's words cost at the ENCHANTER (enchantCheck.ts enchantGold: ENCHANTER_PRICE each
+  // past the free sources' bound). Present only when above 0 (and only for a caller that asks, buildCost's `enchantFree`), so a build
+  // without a bought word breaks down exactly as before.
+  enchants?: number;
   total: number; // gold
 }
 
-export function buildCost(b: Build): BuildCost {
+/**
+ * The deck's cost (see the header). ENCHANT-1 (REQ-BFG-085, E6.4): `enchantFree`, when given, is the number of held words the free sources
+ * (the warlord picks the day allows and LAST CHANCE's part) can have given; every held word past it was bought at the ENCHANTER and joins
+ * the cost (`enchants`, and `total`), so maxGoldByDay covers it. Absent (every other caller), or with ENCHANT off, there is no such term.
+ */
+export function buildCost(b: Build, enchantFree?: number): BuildCost {
   const h = HEROES[b.hero];
   const crate = ITEMS.beltcrate, plate = ITEMS.plating;
   // 0.6.1a: value = price x 2^(stars - 1) (stars.ts valueOf; unknown ids 0), so a merged module costs exactly its copies
@@ -314,9 +325,11 @@ export function buildCost(b: Build): BuildCost {
   // bb-0.8.3 (REQ-BFG-043 D10): the upgrade gold paid counts like any purchase (the upload budget reads total)
   const up = b.upgrades ? { upgrades: upgradeGold(b) } : {};
   const paid = up.upgrades ?? 0;
-  if (!b.turrets) return { items, mods, crates, plates, ...up, total: total + paid };
+  const en = enchantFree === undefined ? 0 : enchantGold(b, enchantFree); // ENCHANT-1 (REQ-BFG-085, E6.4): the ENCHANTER's gold; 0 off, without `enchantFree`, or with no bought word
+  const ench = en ? { enchants: en } : {}; // ENCHANT-1: after the upgrades, before the total
+  if (!b.turrets) return { items, mods, crates, plates, ...up, ...ench, total: total + paid + en };
   const turrets = turretsCost(b);
-  return { items, mods, crates, plates, turrets, ...up, total: total + turrets + paid };
+  return { items, mods, crates, plates, turrets, ...up, ...ench, total: total + turrets + paid + en };
 }
 
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
@@ -430,6 +443,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   const bought: Build = grant.hull || grant.belt ? { ...b, hullBonus: b.hullBonus - grant.hull, beltCap: b.beltCap - grant.belt } : b;
   const errors: string[] = [];
   const h = HEROES[b.hero];
+  const enchFree = enchantFreeWords(day, lc); // ENCHANT-1 (REQ-BFG-085, E6.4): the held words the free sources can have given (buildCost prices the rest)
 
   // items exist, uids unique (deck.ts helpers throw on unknown defs, so stop here if not)
   const uids = new Set<number>();
@@ -519,6 +533,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     const why = enchantProblem(ITEMS[t.def], t.ench);
     if (why) errors.push(`turret: uid ${t.uid} ${ITEMS[t.def].name} can't take ${t.ench.toUpperCase()}: ${why}`);
   }
+  errors.push(...enchantProblems(b, day, ctx)); // ENCHANT-1 (REQ-BFG-085): E6.2 the count, E6.3 the offers (with the seed), E6.5 GROWING's counter (enchantCheck.ts); [] with no word
 
   // purchasability and the signature factory
   let own = 0;
@@ -629,7 +644,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     // RUN-1 (D6): and a long run's events repeat once per bag (eventDefs.ts BAG_IDS): `offered` counts how many times each was
     // offered by `day` (a Map), so a deck that took an event in two bags is checked against two offers; the 10-day run: the Set
     const offered = npcDayRules() && ctx.seed !== undefined ? offeredEvents(ctx.seed, day) : undefined;
-    errors.push(...playerSupplyBudget(bought, day, buildCost(bought), runeGrant.gold, freeGold, roadDropValue(ctx.road), offered));
+    errors.push(...playerSupplyBudget(bought, day, buildCost(bought, enchFree), runeGrant.gold, freeGold, roadDropValue(ctx.road), offered).map((e) => enchantBudgetNote(e, bought, enchFree))); // ENCHANT-1 (E6.4): the ENCHANTER's gold is in the cost; its budget line says so
     return { ok: errors.length === 0, errors };
   }
 
@@ -644,10 +659,11 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   }
 
   // gold budget (RUNES-1: the bought deck's cost; the dawn-gold runes' gold joins the day's most)
-  const cost = buildCost(bought), max = maxGoldByDay(day) + grant.gold;
+  const cost = buildCost(bought, enchFree), max = maxGoldByDay(day) + grant.gold; // ENCHANT-1 (E6.4): the ENCHANTER's gold is in the cost
   if (cost.total > max) {
     const turrets = cost.turrets ? `, turrets ${cost.turrets}` : ""; // 0.6.2s: only when the turrets cost anything
-    errors.push(`budget: build costs ${cost.total} gold (items ${cost.items}, mods ${cost.mods}, ${cost.crates} crates, ${cost.plates} plating${turrets}) but day ${day} allows at most ${max}`);
+    const enchants = cost.enchants ? `, enchantments ${cost.enchants}` : ""; // ENCHANT-1: only when words were bought
+    errors.push(`budget: build costs ${cost.total} gold (items ${cost.items}, mods ${cost.mods}, ${cost.crates} crates, ${cost.plates} plating${turrets}${enchants}) but day ${day} allows at most ${max}`);
   }
   return { ok: errors.length === 0, errors };
 }

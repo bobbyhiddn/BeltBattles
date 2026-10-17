@@ -52,7 +52,7 @@ function fixtures(): { name: string; s: GhostSnapshot; ok: boolean }[] {
   const side = freeSides(ITEMS[wideRig!.def])[0];
   out.push({ name: "rig-wide", s: snap("rig-wide", put(wideRig!.uid, { ench: "wide", enchDir: side })), ok: true });
   out.push({ name: "factory-massive", s: snap("factory-massive", put(factory.uid, { ench: "massive" })), ok: true });
-  out.push({ name: "turret-braced", s: snap("turret-braced", turretWith({ ench: "braced" })), ok: true });
+  out.push({ name: "turret-echoing", s: snap("turret-echoing", turretWith({ ench: "echoing" })), ok: true });
   out.push({ name: "rig-growing", s: snap("rig-growing", put(rigs[0].uid, { ench: "growing", grow: 1 })), ok: true });
   // refused either way
   out.push({ name: "rig-massive", s: snap("rig-massive", put(rigs[0].uid, { ench: "massive" })), ok: false });
@@ -92,7 +92,7 @@ describe("ENCHANT-1 E2: the client check and POST /v1/ghosts agree on the words,
   it("ENCHANT_RULES: the literal of this rules version; the fixtures hold each kind of piece and the refusals", () => {
     expect(ENCHANT_RULES).toBe(RULES_VERSION);
     const fx = fixtures();
-    expect(fx.filter((f) => f.ok).map((f) => f.name)).toEqual(["rig-fiery", "rig-wide", "factory-massive", "turret-braced", "rig-growing"]);
+    expect(fx.filter((f) => f.ok).map((f) => f.name)).toEqual(["rig-fiery", "rig-wide", "factory-massive", "turret-echoing", "rig-growing"]);
     expect(fx.filter((f) => !f.ok).length).toBeGreaterThanOrEqual(7);
   });
 
