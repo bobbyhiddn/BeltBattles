@@ -5,6 +5,9 @@
 // - off: nothing sees a gate: no ware, no card, whatever the lever says; the draw is exactly what it was;
 // - on: never in day 1's shop or among day 1's wares; each card is its own merchant's; a run without wares (a save from before 0.8.0)
 //   holds them to the same day;
+// - the bar (BRIEF G5), on the game's own rollShop, seeds 1-300, days 1-10, the first roll of each shop, buying nothing: on every hero the
+//   median run sees at least 3 gate cards and at least 75% of runs see at least 1 by day 5 (the shipped lever: the SCATTER MILL the
+//   TINKER's, lever (a), and minStock 3, lever (b)); the draw alone, and the merchants alone, are under it;
 // - the lever: every run holds the minimum, and nothing is displaced (every ware the draw made stays, with its day; only gates are
 //   added), the per-run draw stays in REQ-BFG-022's band (55-70) and day 1 holds 17+ buyable parts, and it is deterministic.
 import { afterEach, describe, expect, it } from "vitest";
@@ -170,4 +173,55 @@ describe("GATES-1 G5: the lever (the per-run draw keeps gates in stock)", () => 
       for (const id of GATES_IDS) expect(merchants.has(ITEMS[id].merchant!), id).toBe(true);
     });
   });
+});
+
+describe("GATES-1 G5: the bar (the operator must meet gates in a run) on the game's own rollShop", () => {
+  const pct = (xs: number[], q: number): number => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.max(0, Math.ceil(q * xs.length) - 1))];
+  const HEROES: [HeroId, number][] = [["furnace", 300], ["weaver", 300], ["foundry", 300], ["bastion", 300]];
+  /** [gate cards over days 1-10, gate cards over days 1-5] of every run. */
+  const counts = (hero: HeroId, n: number, from = 1): [number, number][] =>
+    Array.from({ length: n }, (_, i) => {
+      const cs = cards(hero, from + i);
+      return [cs.filter(([, , def]) => isGate(def)).length, cs.filter(([d, , def]) => d <= 5 && isGate(def)).length];
+    });
+
+  it("the shipped lever: the SCATTER MILL is the TINKER's (a) and the draw keeps all three in stock (b)", () => {
+    expect(GATES_ODDS.minStock).toBe(3);
+    withGates(() => {
+      expect(ITEMS.scattermill.merchant).toBe("tinker");
+      expect(ITEMS.fuser.merchant).toBe("tinker");
+      expect(ITEMS.smelter.merchant).toBe("alchemist");
+    });
+  });
+
+  it("on every hero the median run sees 3+ gate cards and 75%+ of runs see one by day 5 (seeds 1-300)", () => {
+    withGates(() => {
+      for (const [hero, n] of HEROES) {
+        const c = counts(hero, n);
+        const median = pct(c.map((x) => x[0]), 0.5), by5 = c.filter((x) => x[1] > 0).length / n;
+        console.log(`GATES-1 offers ${hero} seeds 1-${n}: median ${median}, p25 ${pct(c.map((x) => x[0]), 0.25)}, ${(100 * by5).toFixed(1)}% with 1+ by day 5`);
+        expect(median, `${hero} median`).toBeGreaterThanOrEqual(3);
+        expect(by5, `${hero} share with 1+ by day 5`).toBeGreaterThanOrEqual(0.75);
+      }
+    });
+  }, 60_000);
+
+  it("the draw alone (minStock 0) is under the bar, and so is the stock floor at 2: the lever is needed and the smallest that passes is 3", () => {
+    withGates(() => {
+      for (const k of [0, 2]) {
+        GATES_ODDS.minStock = k;
+        const c = counts("furnace", 300);
+        const median = pct(c.map((x) => x[0]), 0.5), by5 = c.filter((x) => x[1] > 0).length / 300;
+        expect(median < 3 || by5 < 0.75, `minStock ${k}: median ${median}, ${(100 * by5).toFixed(1)}% by day 5`).toBe(true);
+      }
+    });
+  }, 60_000);
+
+  it("every gate can be offered: all three show up across a few hundred runs, each a card of its own merchant", () => {
+    withGates(() => {
+      const seen: Record<string, number> = { fuser: 0, scattermill: 0, smelter: 0 };
+      for (let seed = 1; seed <= 150; seed++) for (const [, merchant, def] of cards("furnace", seed)) if (isGate(def)) { seen[def]++; expect(ITEMS[def].merchant).toBe(merchant); }
+      for (const id of THREE) expect(seen[id], id).toBeGreaterThan(20);
+    });
+  }, 60_000);
 });

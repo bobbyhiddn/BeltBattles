@@ -7,7 +7,7 @@
 // migrateInlineGates moves every kind "gate" off a belt tile at every load). Each is 1x1, stands on one tile of a belt,
 // takes slugs in and puts slugs out, and spends 1 whole second a conversion (the cost of its power):
 //  - FUSER        (rare,   6 G, tinker):    2 slugs in, 1 out that deals both, + 50% / 75% / 100% (the fused slug rides on as two);
-//  - SCATTER MILL (common, 4 G, scrapper):  1 slug in, 3 pellets out, each at 50% / 60% of its DMG (4 pellets at 50% at ★3);
+//  - SCATTER MILL (common, 4 G, tinker):    1 slug in, 3 pellets out, each at 50% / 60% of its DMG (4 pellets at 50% at ★3);
 //  - SMELTER      (rare,   5 G, alchemist): 1 in, 1 out, the slug gains +3 / +5 / +8 BURN.
 // The numbers are the brief's starting values; the bench (tools/gates1) and the presence guard set the shipped ones. They
 // merge like any module and sell at sellValue (stars.ts fusible; content.ts sellValue). What a conversion does is
@@ -40,7 +40,7 @@ export const GATES_DEFS: Readonly<Record<string, ItemDef>> = {
     levels: { 2: { converter: { bonus: 75 } }, 3: { converter: { bonus: 100 } } },
   },
   scattermill: {
-    id: "scattermill", name: "SCATTER MILL", kind: "converter", rarity: "common", price: 4, size: 1, merchant: "scrapper",
+    id: "scattermill", name: "SCATTER MILL", kind: "converter", rarity: "common", price: 4, size: 1, merchant: "tinker", // G5 lever (a): the TINKER rides most caravans and sells few commons (bench O/bench/offers-lever-*)
     desc: [], tags: ["SWARM"],
     // 1 slug in, 3 pellets out at half its DMG each (SPLITTER's copy rule: convert.ts pelletPayloads); ★3 four pellets
     converter: { how: "pellet", in: 1, out: 3, secs: 1, share: 50 },
@@ -60,12 +60,16 @@ export const GATES_IDS: readonly string[] = Object.keys(GATES_DEFS);
 
 /**
  * THE OFFER LEVER (BRIEF-GATES1 G5; REQ-BFG-052: the operator must actually meet gates in a run). The bar, on every hero: the
- * median run sees at least 3 gate cards across its shops, and at least 75% of runs see at least 1 by day 5. Lever (b), the
- * per-run draw (src/game/wares.ts holdGates), in SHAPES2_ODDS' form: while GATES is on, the run's wares always hold at least
- * `minStock` of the three. Off, or at 0, the draw is exactly as it was. The bench (tools/gates1/offers.ts) sets it for its
+ * median run sees at least 3 gate cards across its shops, and at least 75% of runs see at least 1 by day 5. The draw alone is
+ * under it (GATES on, minStock 0, seeds 1-3000: median 1, 47.7% by day 5). Lever (a), the merchants: the SCATTER MILL is the
+ * TINKER's (the merchant that rides in most shops, and sells few commons); it alone is still under (median 1, 55.7% by day 5).
+ * Lever (b), the per-run draw (src/game/wares.ts holdGates), in SHAPES2_ODDS' form: while GATES is on, the run's wares always
+ * hold at least `minStock` of the three. At 2 it is under (median 2, 58.8% by day 5 with the SCATTER MILL at the tinker); at 3
+ * it passes on every hero (seeds 1-300: median 3, 81.7% by day 5, 54.3% see 3 or more; seeds 1-3000: median 3, 83.3%, 57.4%;
+ * O/bench/offers-lever-*). Off, or at 0, the draw is exactly as it was. The bench (tools/gates1/offers.ts) sets it for its
  * trials (--k); the shipped value is the one below.
  */
-export const GATES_ODDS: { minStock: number } = { minStock: 0 };
+export const GATES_ODDS: { minStock: number } = { minStock: 3 };
 
 let gatesOn = false;
 

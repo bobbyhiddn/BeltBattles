@@ -138,7 +138,7 @@ describe("GATES-1 G4: NOTES, the type line and the panels", () => {
   it("the place hints say where a gate goes, and every hint a panel draws is in the tips table", () => {
     on(() => {
       const r = run([], ["scattermill"]);
-      r.shop.wagons = [{ merchant: "scrapper", offers: [{ def: "scattermill", price: 4, sold: false }] }] as unknown as Run["shop"]["wagons"];
+      r.shop.wagons = [{ merchant: "tinker", offers: [{ def: "scattermill", price: 4, sold: false }] }] as unknown as Run["shop"]["wagons"];
       const cargoHint = cargoPanel(r, 50)!.body.find((b) => b.role === "hint")!.text;
       const offerHint = offerPanel(r, 0, 0)!.body.find((b) => b.role === "hint")!.text;
       const touchHint = offerPanel(r, 0, 0, true)!.body.find((b) => b.role === "hint")!.text;

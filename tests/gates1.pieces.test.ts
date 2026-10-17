@@ -86,7 +86,7 @@ describe("GATES-1 G1: the defs", () => {
     on(() => {
       const row = (id: string) => { const d = ITEMS[id]; return [d.name, d.kind, d.rarity, d.price, d.merchant, d.size]; };
       expect(row("fuser")).toEqual(["FUSER", "converter", "rare", 6, "tinker", 1]);
-      expect(row("scattermill")).toEqual(["SCATTER MILL", "converter", "common", 4, "scrapper", 1]);
+      expect(row("scattermill")).toEqual(["SCATTER MILL", "converter", "common", 4, "tinker", 1]); // G5 lever (a): the TINKER's
       expect(row("smelter")).toEqual(["SMELTER", "converter", "rare", 5, "alchemist", 1]);
       for (const id of THREE) {
         const d = ITEMS[id];
@@ -134,8 +134,8 @@ describe("GATES-1 G1: the pools with the switch on and off", () => {
       const on = ids(buyableModules());
       expect(on.length).toBe(off.length + 3);
       expect(on.filter((id) => !THREE.includes(id))).toEqual(off); // every other piece, in the order it had
-      expect(sold("tinker")).toEqual([...offSold.tinker, "fuser"]);
-      expect(sold("scrapper")).toEqual([...offSold.scrapper, "scattermill"]);
+      expect(sold("tinker")).toEqual([...offSold.tinker, "fuser", "scattermill"]); // G5 lever (a): the SCATTER MILL is the TINKER's
+      expect(sold("scrapper")).toEqual(offSold.scrapper);
       expect(sold("alchemist")).toEqual([...offSold.alchemist, "smelter"]);
     });
     expect(ids(buyableModules())).toEqual(off);
