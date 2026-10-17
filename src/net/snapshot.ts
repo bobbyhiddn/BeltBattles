@@ -16,6 +16,8 @@ import { ROAD_OUTCOMES, type RoadEntry } from "../sim/npcDay"; // NPC-1
 import { livesCapFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the lives bound follows the rules (hearts: 10)
 import { pickGateProblem } from "./rulesGate"; // RETUNE-1 T5 (REQ-BFG-092): a seed ghost's grade by the switch and the rules
 import { longRunFor } from "./rulesGate"; // RUN-1 (REQ-BFG-059): the day bound and the record's `losses` follow the long run's rules
+/** T3d (R1.6): matchmaking.ts takes longRunFor through here (see its import): the decoder stays the first module to import the gate. */
+export { longRunFor };
 import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL, longRunRules } from "../sim/longRun"; // RUN-1: the long run's bounds
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any

@@ -15,8 +15,12 @@
 // client's pool pick (src/game/ghosts.ts) all follow. Under the 10-day rules a request reads its own day only, as before.
 
 import { hashSeed } from "../core/rng";
-import type { PoolEntry } from "./snapshot";
-import { longRunFor } from "./rulesGate"; // RUN-1: the widening is the long run's rule
+// RUN-1 (D6): the widening is the long run's rule (rulesGate.ts longRunFor). T3d (R1.6): taken THROUGH snapshot.ts, which re-exports
+// it, and not from ./rulesGate: this file used to import nothing but ../core/rng, so snapshot.ts (the strict decoder) was always the
+// first module to import the gate, and a test that mocks ../src/net/rulesGate (tests/ghost-probe.misbehave.test.ts: heroGateProblem
+// wrapped over importOriginal) reached the decoder. An import of ./rulesGate here, ahead of snapshot.ts, makes the decoder bind to
+// the real gate (rulesGate.ts -> pick.ts -> snapshot.ts is a cycle: the module that loads first gets the mock, the rest the real gate).
+import { longRunFor, type PoolEntry } from "./snapshot";
 
 /** D2: a player's first NEW_PLAYER_RUNS runs match only seed ghosts. */
 export const NEW_PLAYER_RUNS = 3;
