@@ -60,6 +60,9 @@ import { isShapes2Piece, shapes2Rules } from "../sim/deck"; // SHAPES-2 (REQ-BFG
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 import { isPlainRig as isPlainSix } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (PLAIN-1F M1: renamed here; faces.ts's own isPlainRig is the face test, and it holds them while they are in ITEMS)
+import { shotFloor } from "../sim/deck"; // ENCHANT-1 (REQ-BFG-085): the least a slug deals, for a MASSIVE or SWIFT factory's DMG
+import { enchantRate, enchantRules, isEnchantId } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): the word's rate, the switch
+import { ENCHANT_NOTES, fieryBurn, grownDmg, slugDmg, type WordOn } from "./enchantFaces"; // ENCHANT-1 (REQ-BFG-085): the NOTES, the word's numbers
 
 /**
  * The engine's numbers a reminder needs that no spec carries (as abilityText.ts SIM): each quoted from its source.
@@ -133,20 +136,28 @@ const showsBelts = (def: string): boolean => !fusible(def) || [1, 2, 3].some((n)
 /** A factory's stat pairs at `stars` (MIMIC FORGE's for `hero`): its stamp's cadence, its slug's damage and, where it
  *  shows them, its belts. The slug damage is its dies' (FactorySpec.base), else its ammo's (Battle.stamp), and a
  *  SCRAPPER's scrapFlat on top (NUM-3: Battle.stamp adds it to each slug it stamps). */
-export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
+export function factoryStats(def: string, stars = 1, hero?: HeroId, w?: WordOn): Stat[] {
   const fs = effectAt(def, stars).factory!;
-  let speed = fs.speed, dmg = (fs.base ?? AMMO[fs.ammo].base) + (fs.scrapFlat ?? 0); // NUM-4 (REQ-BFG-047): its SPEED (RATE)
+  let speed = fs.speed, base = fs.base ?? AMMO[fs.ammo].base, flat = fs.scrapFlat ?? 0, ammo = fs.ammo; // NUM-4 (REQ-BFG-047): its SPEED (RATE)
   if (def === "mimic") {
     // Battle.factoryDef: the hero's ammo at its own factory's interval x intervalMul; no hero, no cadence to show
     const h = hero ? HEROES[hero] : undefined, sig = h ? ITEMS[h.factory]?.factory : undefined;
     if (!h || !sig) return [["BELT", fmtCount(outputsAt(def, stars))]];
     speed = factorySpeed(def, fs, hero!); // NUM-2: the hero factory's speed x its rate %, rounded once
-    dmg = AMMO[h.ammo].base;
+    base = AMMO[h.ammo].base;
+    flat = 0;
+    ammo = h.ammo;
   }
+  // ENCHANT-1 (REQ-BFG-085; E7): `w`, the word the piece holds: MASSIVE and SWIFT work it at the other rate and share its slug's DMG (the
+  // battle's: enchant.ts enchantRate, enchantFx.ts scaleShare, which slugDmg reads), GROWING adds its grown DMG, WIDE one belt slot.
+  // Without a word every number below is the plain piece's, as before
+  let dmg = w ? slugDmg(w, base, flat, shotFloor(ammo)) : base + flat;
+  if (w) speed = enchantRate(w.id, speed);
   // Y2 (release Y; DESIGN-Y row 13): a LIMPET WORKS' DMG is its charge's blast (its base is 0: the 20 on impact joined the
   // blast)
   if (fs.round?.kind === "limpet") dmg += fs.round.blast;
-  return [speedPair(speed), ["DMG", fmtDmg(dmgNow(dmg))], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
+  const wide = w?.id === "wide" ? 1 : 0; // ENCHANT-1: WIDE's belt slot (enchant.ts wideSlots)
+  return [speedPair(speed), ["DMG", fmtDmg(dmgNow(dmg))], ...(showsBelts(def) || wide ? [["BELT", fmtCount(outputsAt(def, stars) + wide)] as Stat] : [])];
 }
 
 /**
@@ -157,7 +168,7 @@ export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
  * damage and belts). PLATE always lands on your hull, so ARMOR PRESS's and WARDWORKS' plating stays an ability. Null for
  * a piece whose payloads carry nothing of their own.
  */
-export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null {
+export function carryStats(def: string, stars = 1, hero?: HeroId, w?: WordOn): Stat[] | null {
   const fs = effectAt(def, stars).factory;
   if (!fs) return null;
   // Battle.factoryDef: MIMIC FORGE stamps the hero's ammo (factoryStats), so its slugs carry what the hero's carry
@@ -183,13 +194,18 @@ export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null
   const ammo = AMMO[h ? h.ammo : fs.ammo];
   if (ammo?.rideScale) out.push(["HEAT", fmtDmg(dmgNow(ammo.rideScale))]);
   if (ammo?.fray) out.push(["FRAY", fmtCount(ammo.fray)]);
+  // ENCHANT-1 (REQ-BFG-085; E7): FIERY's BURN rides each of the factory's slugs (Battle.made): its stat, last in the row, signed as a rig's
+  if (w?.id === "fiery") out.push(["BURN", `+${fmtCount(fieryBurn(w.stars))}`]);
   return out.length ? out : null;
 }
 
 /** A turret's stat pairs at `stars`: how often it fires, the loads its chamber holds, its gear slots (deck.ts). */
-export function turretStats(def: string, stars = 1): Stat[] {
+export function turretStats(def: string, stars = 1, w?: WordOn): Stat[] {
   const t = effectAt(def, stars).turret!;
-  return [speedPair(t.speed), ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, stars))]]; // NUM-4: its SPEED (RATE)
+  // ENCHANT-1 (REQ-BFG-085; E7): `w`, the word the turret holds: MASSIVE and SWIFT fire it at the other rate (enchant.ts enchantRate, as
+  // deck.ts resolveSlots patches the battle's), WIDE gives one more gear slot (resolveSlots' gearSlots)
+  const rate = w ? enchantRate(w.id, t.speed) : t.speed, wide = w?.id === "wide" ? 1 : 0;
+  return [speedPair(rate), ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, stars) + wide)]]; // NUM-4: its SPEED (RATE)
 }
 
 /** U2b: a rig's stat pairs (R1 C4: "Rigs and gear: none"): a rig's numbers are its rule's. This is the rig kind's one
@@ -1161,6 +1177,77 @@ export function plainNotes(def: string): string[] {
   const g = effectAt(def, 1).gate;
   if (g?.maxHullPct) return [BALLAST_LINE];
   return g?.slugPlate ? [RIG_SENTENCE, CARRY_LINE] : [RIG_SENTENCE];
+}
+
+// ------------------------------------------------------------ ENCHANT-1 (REQ-BFG-085; BRIEF-ENCHANT1 E7): an enchanted piece's face
+
+/** ENCHANT-1 (REQ-BFG-085; E7): an enchanted piece's NOTES, in plainNotes' and shapeNotes' form: default rules text behind the hover or the
+ *  tap (inspector.ts explainPanel; enchantFaces.ts ENCHANT_NOTES: what an enchantment is, and that a new one replaces it). `word`: the
+ *  word the piece holds (an ENCHANT_IDS id); [] for a piece with none, and for everything with the switch off. */
+export function enchantNotes(word: string | undefined): string[] {
+  return enchantRules() && isEnchantId(word) ? [...ENCHANT_NOTES] : [];
+}
+
+/** A stat row's pair for `pair`'s icon: it replaces that icon's pair (the place kept), else it goes at the row's end. */
+const withPair = (row: readonly Stat[], pair: Stat): Stat[] =>
+  row.some(([k]) => k === pair[0]) ? row.map((st) => (st[0] === pair[0] ? pair : st)) : [...row, pair];
+
+/** ENCHANT-1: a rig's stat row with its word: FIERY's BURN joins the row's BURN (TEMPER's) or ends the row; GROWING's grown DMG joins the
+ *  row's DMG (WHETSTONE's) or ends the row, once it has grown (a hit's DMG is the rig's flat plus +5 x the dusk fights x the stars). */
+function rigWordRow(def: string, stars: number, w: WordOn, plain: Stat[]): Stat[] {
+  const g = effectAt(def, stars).gate, has = (k: string): boolean => plain.some(([n]) => n === k);
+  let row = plain;
+  if (w.id === "fiery") row = withPair(row, ["BURN", `+${fmtCount((has("BURN") ? g?.burn ?? 0 : 0) + fieryBurn(w.stars))}`]);
+  if (w.id === "growing" && w.grow > 0) row = withPair(row, ["DMG", `+${fmtDmg(dmgNow((has("DMG") ? g?.flat ?? 0 : 0) + grownDmg(w)))}`]);
+  return row;
+}
+
+/** ENCHANT-1: a turret's stat row with its word's added stat at the end: FIERY's BURN, and GROWING's grown DMG once it has grown. */
+function turretWordRow(row: Stat[], w: WordOn): Stat[] {
+  if (w.id === "fiery") return [...row, ["BURN", `+${fmtCount(fieryBurn(w.stars))}`]];
+  if (w.id === "growing" && w.grow > 0) return [...row, ["DMG", `+${fmtDmg(dmgNow(grownDmg(w)))}`]];
+  return row;
+}
+
+/** ENCHANT-1 (E7): an INSTALLED turret's stat row (inspector.ts turretPanel: its own numbers, the gear, the core and the TURRET SPEED level
+ *  in, which already carry MASSIVE's and SWIFT's rate and WIDE's gear slot, as deck.ts resolveSlots patches them) with its word's stat at
+ *  the end; `nums`: the indexes of the pairs the word changed or added, whose numbers are drawn in the word's colour. */
+export function wordTurretRow(row: Stat[], w: WordOn): { row: Stat[]; nums: number[] } {
+  const out = turretWordRow(row, w);
+  const rate = w.id === "massive" || w.id === "swift", wide = w.id === "wide";
+  return { row: out, nums: out.flatMap(([k], i) => (i >= row.length || (rate && k === "RATE") || (wide && k === "GEAR") ? [i] : [])) };
+}
+
+/** An enchanted piece's stat rows: `rows` as the word leaves them (a rig's one row, a turret's, a factory's two), `hue` for each row the
+ *  indexes of its pairs the word added or changed, whose numbers are drawn in the word's colour (found by comparing the plain piece's row). */
+export interface WordRows {
+  rows: Stat[][];
+  hue: number[][];
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085; E7): the stat rows of a piece holding the word `w`, at `stars` on `o`'s day and hero. A STAT word adds its stat
+ * at the END of the piece's row (FIERY: `{BURN}+1`, in a factory its second row, the payloads' own); a number the word CHANGES is shown
+ * changed: MASSIVE's and SWIFT's RATE and a factory's DMG (the battle's: factoryStats, turretStats), GROWING's DMG with the grown amount,
+ * WIDE's {BELT} or {GEAR} slots. A row the plain piece has not (a rule rig has no stat row) is made of the word's own pairs alone.
+ */
+export function wordRows(def: string, stars: number, o: TextOpts, w: WordOn): WordRows {
+  return shownOn(o.day, () => {
+    let plain: Stat[][], word: Stat[][];
+    if (w.kind === "turret") {
+      plain = [turretStats(def, stars)];
+      word = [turretWordRow(turretStats(def, stars, w), w)];
+    } else if (w.kind === "factory") {
+      plain = [factoryStats(def, stars, o.hero), carryStats(def, stars, o.hero) ?? []];
+      word = [factoryStats(def, stars, o.hero, w), carryStats(def, stars, o.hero, w) ?? []];
+    } else {
+      const p = plainRigStats(def, stars, o.day) ?? [];
+      plain = [p];
+      word = [rigWordRow(def, stars, w, p)];
+    }
+    const same = (r: number, i: number, st: Stat): boolean => !!plain[r][i] && plain[r][i][0] === st[0] && plain[r][i][1] === st[1];
+    return { rows: word, hue: word.map((row, r) => row.flatMap((st, i) => (same(r, i, st) ? [] : [i]))) };
+  });
 }
 
 /** PLAIN-1F (REQ-BFG-089, M3; cap's call on run 2's F5): the desk's wide shop card's effect line (chrome.ts drawCaravan):

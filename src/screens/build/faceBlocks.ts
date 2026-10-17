@@ -16,6 +16,10 @@ import { turretStats } from "../../ui/faces"; // CARD-2 (REQ-BFG-081, K4): the t
 import type { Stat } from "../../ui/icons"; // CARD-2 (K4)
 import { ICON } from "../../render/font"; // CARD-2 (K4)
 import { ITEMS } from "../../sim/content"; // CARD-2 (K4): a turret's face
+import { STAT_ROW_MAX } from "../../ui/icons"; // ENCHANT-1 (REQ-BFG-085): a word's pairs never make a row past C2's most
+import { icons } from "../../render/font"; // ENCHANT-1: a word's line in glyphs, as faceLines' lines are
+import { wordRows, type WordRows } from "../../ui/faces"; // ENCHANT-1 (E7): the stat rows with the word's numbers
+import { pieceLine, wordColour, type WordOn } from "../../ui/enchantFaces"; // ENCHANT-1 (E7): the word's colour and its line at the piece's stars
 
 /** CARD-2 (REQ-BFG-081, K4; READ-3 section 7, E10): THE TURRET ROW'S LABELS, Batomon-style: each stat's icon, then its word,
  *  then its number. HOLDS is the word that carries the meaning: the bare {SLUG}n never said the chamber holds n (READ-3 3.3:
@@ -29,7 +33,9 @@ export const PAIR_GAP = "  ";
  *  {SLUG}HOLDS 2  {GEAR}GEAR SLOTS 1" in glyphs, two spaces between pairs. Inspector role "ability" with `pairs` (layBlock
  *  draws it as it is, never splitting a pair: one line where it fits, else one pair a line, as the desk column needs). */
 export function turretRow(stats: readonly Stat[]): string {
-  return stats.map(([k, v]) => `${ICON[k as keyof typeof ICON]}${TURRET_LABELS[k as keyof typeof TURRET_LABELS] ?? k} ${v}`).join(PAIR_GAP);
+  // ENCHANT-1 (REQ-BFG-085, E7): a word's own stat (FIERY's {BURN}+n, GROWING's {DMG}+n) joins the row as its icon and number, no label word:
+  // the labelled row (`RATE 55  HOLDS 2  GEAR SLOTS 1`, 181 px at most) plus a labelled fourth pair would pass the op view's 225 px
+  return stats.map(([k, v]) => `${ICON[k as keyof typeof ICON]}${TURRET_LABELS[k as keyof typeof TURRET_LABELS] ?? (k === "BURN" || k === "DMG" ? "" : k)} ${v}`).join(PAIR_GAP);
 }
 
 /** The reminder's rank among a panel's optional blocks: after an ability's later sentences (2) and a turret's notes'
@@ -58,7 +64,7 @@ export function perkInfoOnly(_def: string): boolean {
  *  line (or the stat row, on a face without one), as today's perk follows the sentence it names (not for PERK_INFO_ONLY's
  *  pieces; Y7b2: perkInfoOnly holds for every piece, so none). U2b: then the star's interim perk clause (F6, kept; it names
  *  its perk itself) and the interim caveats (F5, kept, 3x5). U2e step 4: no reminders (they were F4's optional blocks). */
-export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | null {
+export function faceBlocks(def: string, stars: number, o: TextOpts, w?: WordOn): Block[] | null {
   const fl = faceLines(def, stars, o);
   if (!fl) return null;
   const perkName = stars > 1 && !perkInfoOnly(def) ? livePerk(def, stars) : undefined;
@@ -70,14 +76,19 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   // SHAPES-1 (REQ-BFG-086.1, REQ-BFG-089): a shaped piece's own lines (UP TO 2 HITS; GANTRY PRESS's FEEDS 4 BELTS IN TURN.
   // and BIGGER: +1 {BELT}) follow its stat row, kept; [] for every other piece and with SHAPES off
   const own: Block[] = shapeLines(def, stars).map((r) => ({ role: "ability", text: r.text, keep: true, ...(r.label ? { brass: r.label } : {}) }));
-  if (plainRig) return [{ role: "ability", text: statRow(plainRig), keep: true }, ...own];
+  // ENCHANT-1 (REQ-BFG-085; E7): a piece holding a word (`w`): its stat rows carry the word's stat or changed numbers in the word's colour (the
+  // rows are faces.ts wordRows'), and its one line (a LINE word) goes under the piece's own lines. Without `w` every block below is as before
+  const wr = w ? wordRows(def, stars, o, w) : null;
+  const wline = wordLineBlocks(w);
+  if (plainRig) return [...(wr ? wordStatBlocks(wr, w!, false) : [{ role: "ability", text: statRow(plainRig), keep: true } as Block]), ...own, ...wline];
   // CARD-2 (REQ-BFG-081, K4): a turret's row in words (RATE 55  HOLDS 2  GEAR SLOTS 1), from the sim at this star; the
   // ladder stays in LEVELS, the phone shop chip keeps {RATE}n (chips.ts), and faceLines (the face data) is unchanged
-  if (fl.stats && ITEMS[def]?.kind === "turret") out.push({ role: "ability", text: turretRow(turretStats(def, stars)), keep: true, pairs: true });
+  if (wr) out.push(...wordStatBlocks(wr, w!, ITEMS[def]?.kind === "turret")); // ENCHANT-1: the rows with the word's numbers (a factory's second row too)
+  else if (fl.stats && ITEMS[def]?.kind === "turret") out.push({ role: "ability", text: turretRow(turretStats(def, stars)), keep: true, pairs: true });
   else if (fl.stats) out.push({ role: "ability", text: fl.stats, keep: true });
   // U2e step 2 (REQ-BFG-070): the second stat row, what a factory's own payloads carry ({BURN}2 {STUN}1.6), kept
   // SPACE-1 (REQ-BFG-087, D1): one stat item with the first row (tied: no gap between them)
-  if (fl.stats2) out.push({ role: "ability", text: fl.stats2, keep: true, ...(fl.stats ? { tie: true } : {}) });
+  if (!wr && fl.stats2) out.push({ role: "ability", text: fl.stats2, keep: true, ...(fl.stats ? { tie: true } : {}) });
   // WORDS-1 (REQ-BFG-081; TEXT-STYLE 1.4 as ruled 2026-10-10): the plain lines under the stat row (a turret's loads and gear
   // slots, faces.ts turretPlain), kept, in the ability lines' face and colour. EXPLAIN-1 (REQ-BFG-089, E1c): they are kind
   // text (true of every turret), marked `note: "kind"`: a drawn panel (inspector.ts explainPanel) moves them to its ⓘ NOTES
@@ -85,6 +96,7 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   for (const r of fl.rules) out.push({ role: "ability", text: r.text, keep: true, ...(r.label ? { brass: r.label } : {}) });
   out.push(...own); // SHAPES-1: a shaped factory's own lines after its rule lines
   if (perk && out.length) out[out.length - 1] = { ...out[out.length - 1], perk };
+  out.push(...wline); // ENCHANT-1: the word's line, under the piece's own line(s); [] for a stat word and for a plain piece
   // U2b F6: the perk clause, its label "★2 SPARK JUMP:" in brass, kept (a face never says less than the sim)
   if (fl.clause) out.push({ role: "ability", text: fl.clause.text, keep: true, brass: fl.clause.label });
   // U2b F5: the interim caveats, kept, in 3x5 and the reminder's colour (the "caveat" role)
@@ -92,6 +104,42 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   // U2e step 4 (REQ-BFG-070): no dim reminder on the face (C4's optional block, U2b F4's one a keyword): a word tap, the
   // desk's hover tooltip and the ⓘ view's KEYWORDS show it (REMINDER_RANK and REMINDER_STEP stay for the "reminder" role)
   return out;
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085; E7): the stat-row blocks of a piece holding the word `w` (faces.ts wordRows): each row in glyphs, a row never past
+ * C2's most (STAT_ROW_MAX; the rest goes on a tied row), the numbers the word added or changed in the word's colour (Block.hue); a turret's
+ * row is its labelled one (turretRow). `onlyHued`: the pairs the word added or changed alone (a faceless piece has no stat row of its own).
+ */
+function wordStatBlocks(wr: WordRows, w: WordOn, turret: boolean, onlyHued = false): Block[] {
+  const colour = wordColour(w.id), out: Block[] = [];
+  wr.rows.forEach((row0, r) => {
+    const keepIdx = row0.map((_, i) => i).filter((i) => !onlyHued || wr.hue[r].includes(i));
+    const row = keepIdx.map((i) => row0[i]), hue = wr.hue[r].map((i) => keepIdx.indexOf(i)).filter((i) => i >= 0);
+    if (!row.length) return;
+    if (turret) {
+      out.push({ role: "ability", text: turretRow(row), keep: true, pairs: true, ...(hue.length ? { hue: { colour, nums: hue } } : {}) });
+      return;
+    }
+    for (let at = 0; at < row.length; at += STAT_ROW_MAX) {
+      const nums = hue.filter((i) => i >= at && i < at + STAT_ROW_MAX).map((i) => i - at);
+      out.push({ role: "ability", text: statRow(row.slice(at, at + STAT_ROW_MAX)), keep: true, ...(out.length ? { tie: true } : {}), ...(nums.length ? { hue: { colour, nums } } : {}) });
+    }
+  });
+  return out;
+}
+
+/** ENCHANT-1 (E7): the one line a LINE word says under the piece's own line, at the piece's stars, in the word's colour and always shown
+ *  (kept: it is this piece's own ability); [] for a stat word (FIERY: its stat is in the row), for a plain piece and for no word. */
+export function wordLineBlocks(w: WordOn | undefined): Block[] {
+  const text = w ? pieceLine(w.id, w.kind, w.stars) : null;
+  return w && text ? [{ role: "ability", text: icons(text), keep: true, colour: wordColour(w.id) }] : [];
+}
+
+/** ENCHANT-1 (E7): the blocks of a piece with no face (its kept sentences) with its word: a stat row of the pairs the word adds or changes,
+ *  the sentences as they are, the word's line last. */
+export function wordOnSentences(blocks: Block[], def: string, stars: number, o: TextOpts, w: WordOn): Block[] {
+  return [...wordStatBlocks(wordRows(def, stars, o, w), w, false, true), ...blocks, ...wordLineBlocks(w)];
 }
 
 /** The NEXT★ block (C7), or null: no face, or the top star. A line whose numbers say nothing of the perk that star brings

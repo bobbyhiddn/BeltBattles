@@ -299,7 +299,9 @@ export function enchantLine(id: EnchantId, kind: EnchantKind): string | null {
   }
 }
 
-/** 3 -> "3RD" (the count word in ECHOING's line). */
+/** 3 -> "THIRD" (the count word in ECHOING's line). TEXT-STYLE 8.4 (tests/textRules.ts) bans an ordinal in digits (`3RD`) in face text, so the
+ *  word is spelled out; the brief's own `EVERY 3RD ...` is reworded for it (run 3, logged in REPORT). */
 function ord(n: number): string {
-  return n === 1 ? "1ST" : n === 2 ? "2ND" : n === 3 ? "3RD" : `${n}TH`;
+  const w = ["", "FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH", "SIXTH", "SEVENTH", "EIGHTH", "NINTH", "TENTH"];
+  return w[n] ?? `${n}TH`;
 }

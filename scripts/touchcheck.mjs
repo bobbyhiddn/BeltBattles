@@ -98,7 +98,8 @@ const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "touchcheck"));
 // PACKS M2: + names; TAP-093b: + bar; CUSTOM-2b (REQ-BFG-072): + customize, newstyle, roadfork; SCOUT-1 (REQ-BFG-076): + scout;
 // SCOUT-1c (REQ-BFG-082): + foecard; SHAPES-1 (REQ-BFG-086 S3): + shaperotate; REPLAY-1 (REQ-BFG-112): + replay
-const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout,foecard,shaperotate,replay").split(",").map((s) => s.trim());
+// ENCHANT-1 (REQ-BFG-085): + apply (the ENCHANTER's word cards, APPLY, the replace confirm, the sell confirm; needs a dist with ENCHANT on)
+const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout,foecard,shaperotate,replay,apply").split(",").map((s) => s.trim());
 const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
 /** CUSTOM-2b (REQ-BFG-072): --profile: the player profile (beltbattles.profile.v1) every page of the run starts with,
@@ -2489,6 +2490,191 @@ async function replaySection(browsers, origin) {
   }
 }
 
+// ------------------------------------------------------------------------------------ ENCHANT-1: APPLY (REQ-BFG-085)
+/**
+ * ENCHANT-1 (REQ-BFG-085; BRIEF-ENCHANT1 E5a, E4, E11): the ENCHANTER's word cards and APPLY by real input, on a phone (touch: the 390x844
+ * and the operator's 402x690 in WebKit) and on the 1280x800 desk (a mouse): FURNACE at a day-3 dawn with the wagon's two words (MASSIVE
+ * and FIERY) and a deck of far-apart rigs (one holding RISING) and a FIERY piece in cargo.
+ *  - the wagon's two cards are drawn, inside the screen, clear of the shop's other targets, each at least 44 x 44 CSS px on a phone;
+ *    a tap selects a card (its tap panel: the word, APPLY at least 44 CSS px tall on a phone), a second tap opens APPLY (CANCEL);
+ *  - a refusal: MASSIVE on a rig says NOT ON A RIG (a toast and the panel's line), the gold, the build and the offer unchanged;
+ *  - a legal tap: FIERY on a rig puts the word on it and takes 4 G, only then; on a phone the rig's own box is smaller than a finger,
+ *    so the part's target is measured: the 44 x 44 CSS px square round its centre (its four corners, edges and centre) lands on it
+ *    (the build screen's own hit test and the nearest part within half a finger);
+ *  - the replace confirm: FIERY on the rig holding RISING says REPLACES RISING first, with REPLACE and CANCEL at least 44 CSS px tall on
+ *    a phone; CANCEL changes nothing (the gold included), REPLACE puts the word on and takes the gold;
+ *  - the sell confirm: SELL on the cargo piece holding FIERY reads SELL? FIERY IS LOST and sells nothing, the second press sells (SELL at
+ *    least 44 CSS px tall on a phone).
+ * The dist must be built with ENCHANT on (a throwaway export with src/sim/enchant.ts `ENCHANT = true`); with it off there is no wagon
+ * and the section logs one line and checks nothing. Run it alone: `node scripts/touchcheck.mjs <out> --dist <dir> --only apply
+ * [--aviews phone,wk-op-690,desk-1280]`.
+ */
+const APPLY_VIEWS = opt("aviews", "phone,wk-op-690,desk-1280").split(",").map((s) => s.trim());
+VIEW["desk-1280"] = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 };
+const APPLY_DECK = {
+  hero: "furnace", day: 3, gold: 20, beltCap: 40,
+  items: [
+    { uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 3, def: "temper", x: 3, y: 3, rot: 1 },
+    { uid: 5, def: "whetstone", x: 7, y: 3 }, { uid: 6, def: "whetstone", x: 1, y: 1, ench: "rising" },
+  ],
+  routes: [{ factory: 1, cells: KILN_BELT }], turrets: [{ slot: 0, def: "scrapcannon", uid: 90, free: true }], mods: [],
+  inventory: [{ uid: 60, def: "coil" }, { uid: 61, def: "temper", ench: "fiery" }], offers: [],
+};
+/** The wagon's two words, whatever the seed rolled (the dist has ENCHANT on, so the wagon is there; its words are set here). */
+const setWagon = (page, words) => page.evaluate((w) => {
+  const r = window.bb.game.run;
+  r.shop.enchanter = { day: r.day, offers: w.map((ench) => ({ ench, price: 4, sold: false })) };
+}, words);
+/** A rect of the page's logical px as client CSS px. */
+const clientRect = (page, r) => page.evaluate((q) => { const a = window.bb.toClient(q.x, q.y), b = window.bb.toClient(q.x + q.w, q.y + q.h); return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y }; }, r);
+const wordTargets = (page) => page.evaluate(() => window.bb.game.screen.wordTargets());
+const applyInfo = (page) => page.evaluate(() => window.bb.game.screen.applyInfo());
+/** The word cards' targets in client CSS px (each also clear of the shop's other targets: the cards, REROLL and the packs). */
+async function wordCardsNow(page) {
+  const raw = await wordTargets(page);
+  const clear = await page.evaluate(() => {
+    const s = window.bb.game.screen, L = s.L, hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    return s.wordTargets().map((c) => [...L.cards, L.reroll, ...L.packs, L.info, L.bar].every((o) => !hit(c.hit, o)));
+  });
+  const out = [];
+  for (let i = 0; i < raw.length; i++) out.push({ ...raw[i], css: await clientRect(page, raw[i].hit), clear: clear[i] });
+  return out;
+}
+/** A finger's tap (touch views) or a mouse click (desk) at the client point `p`. */
+async function applyTap(page, cdp, p) {
+  if (cdp) await tap(cdp, p);
+  else {
+    await page.mouse.click(p.x, p.y);
+    await sleep(150);
+  }
+  await nextFrame(page);
+}
+/** Is the 44 x 44 CSS px square round the part's centre all its own? (the build screen's hit test, probed at nine points in APPLY) */
+const partProbe = (page, uid) => page.evaluate(([u, css]) => {
+  const g = window.bb.game, s = g.screen, v = g.view, k = v.scale / v.dpr;
+  const p = g.run.build.items.find((q) => q.uid === u), c = s.tileCentre(p.x, p.y), h = css / 2 / k;
+  return [[-h, -h], [h, -h], [-h, h], [h, h], [0, -h], [0, h], [-h, 0], [h, 0], [0, 0]].map(([dx, dy]) => { const t = s.applyTargetAt(c.x + dx, c.y + dy); return !!t && t.kind === "item" && t.uid === u; });
+}, [uid, TAP_CSS]);
+const runState = (page) => page.evaluate(() => { const r = window.bb.game.run; return JSON.stringify({ gold: r.gold, items: r.build.items, inventory: r.inventory, enchanter: r.shop.enchanter }); });
+
+async function applyView(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  const V = `apply ${vname}`, phone = !!cdp;
+  viewNow = V;
+  try {
+    await openDeck(page, APPLY_DECK);
+    const has = await page.evaluate(() => !!window.bb.game.run.shop.enchanter);
+    if (!has) {
+      log(`${V}: this build has ENCHANT off (no ENCHANTER wagon at the day-3 dawn): nothing to check`);
+      return;
+    }
+    await setWagon(page, ["massive", "fiery"]);
+    await nextFrame(page);
+    const big = (r, what) => !phone || (r.w >= TAP_CSS && r.h >= TAP_CSS);
+    const sz = (r) => `${r.w.toFixed(1)}x${r.h.toFixed(1)}`;
+    // the wagon
+    let cards = await wordCardsNow(page);
+    check(cards.length === 2 && cards.every((c) => !c.pick), `${V}: the ENCHANTER's wagon shows two word cards (${cards.map((c) => c.id).join(", ")})`);
+    check(cards.every((c) => c.clear && c.css.x >= 0 && c.css.y >= 0), `${V}: both cards lie on the screen and clear of the shop's other targets`);
+    check(cards.every((c) => big(c.css)), `${V}: each card's target is ${phone ? "at least 44 x 44 CSS px" : "drawn"} (${cards.map((c) => sz(c.css)).join(", ")})`);
+    await shot(page, `${vname}-apply-wagon.png`);
+    // a tap selects the card: the word's tap panel and APPLY
+    await applyTap(page, cdp, centre(cards[0].css));
+    let l = await look(page);
+    check(l.sel.kind === "word" && l.panel && l.panel.title === "MASSIVE" && l.panel.labels.includes("APPLY"), `${V}: a tap on the first card selects it: its panel is MASSIVE's, with APPLY (${l.panel ? `"${l.panel.title}", ${l.panel.labels.join("/")}` : "no panel"})`);
+    check(l.panel && l.panel.lines.some((t) => t.includes("NOT ON A RIG")) && l.panel.notes.length > 0, `${V}: MASSIVE's panel says NOT ON A RIG and keeps its NOTES behind the (i)`);
+    const ap = await regionDrawn(page, "apply");
+    check(!!ap && big(ap), `${V}: the APPLY button's target is ${phone ? "at least 44 x 44 CSS px" : "drawn"} (${ap ? sz(ap) : "missing"})`);
+    // a second tap on the selected card opens APPLY
+    await applyTap(page, cdp, centre(cards[0].css));
+    let info = await applyInfo(page);
+    check(!!info && info.word === "massive" && info.step === "choose", `${V}: a second tap on the selected card opens APPLY (${info ? `${info.word}, "${info.line}"` : "closed"})`);
+    const cancel = await regionDrawn(page, "applycancel");
+    check(!!cancel && big(cancel), `${V}: CANCEL's target is ${phone ? "at least 44 x 44 CSS px" : "drawn"} (${cancel ? sz(cancel) : "missing"})`);
+    await shot(page, `${vname}-apply-open.png`);
+    // a refusal: MASSIVE on a rig
+    const before = await runState(page), t0 = await page.evaluate(() => window.bb.game.toastLog.length);
+    if (phone) {
+      const probe = await partProbe(page, 5);
+      check(probe.every(Boolean), `${V}: the rig's target (the 44 x 44 CSS px square round it) is all its own: ${probe.filter(Boolean).length} of 9 probe points land on it`);
+    }
+    await applyTap(page, cdp, await cell(page, 7, 3));
+    info = await applyInfo(page);
+    const toasts = await toastsSince(page, t0);
+    check(toasts.includes("NOT ON A RIG") && !!info && info.line === "NOT ON A RIG", `${V}: a tap on a rig with MASSIVE says NOT ON A RIG (toast: ${toasts.join(" | ") || "none"}; panel line: ${info ? info.line : "APPLY closed"})`);
+    check(await runState(page) === before, `${V}: the refusal changed nothing (the gold, the build, cargo and the wagon as they were)`);
+    await shot(page, `${vname}-apply-refused.png`);
+    // CANCEL leaves APPLY with the gold untouched
+    const cr = await regionDrawn(page, "applycancel");
+    await applyTap(page, cdp, centre(cr));
+    check((await applyInfo(page)) === null && (await runState(page)) === before, `${V}: CANCEL leaves APPLY, the gold untouched`);
+    // a legal tap: FIERY on the rig
+    cards = await wordCardsNow(page);
+    await applyTap(page, cdp, centre(cards[1].css));
+    await applyTap(page, cdp, centre(cards[1].css));
+    info = await applyInfo(page);
+    check(!!info && info.word === "fiery", `${V}: the second card (FIERY) opens APPLY the same way`);
+    const gold0 = await page.evaluate(() => window.bb.game.run.gold);
+    await applyTap(page, cdp, await cell(page, 7, 3));
+    const rig = await page.evaluate(() => { const r = window.bb.game.run; return { ench: r.build.items.find((p) => p.uid === 5)?.ench ?? null, gold: r.gold, sold: r.shop.enchanter.offers[1].sold, other: r.shop.enchanter.offers[0].sold }; });
+    check(rig.ench === "fiery" && rig.gold === gold0 - 4 && rig.sold && !rig.other, `${V}: a tap on the rig puts FIERY on it and takes 4 G (rig: ${rig.ench}, gold ${gold0} -> ${rig.gold}, the offer sold: ${rig.sold})`);
+    await shot(page, `${vname}-apply-done.png`);
+    // the replace confirm: FIERY again (a new offer) on the rig that holds RISING
+    await page.evaluate(() => { const r = window.bb.game.run; r.shop.enchanter.offers[0] = { ench: "fiery", price: 4, sold: false }; });
+    await nextFrame(page);
+    cards = await wordCardsNow(page);
+    await applyTap(page, cdp, centre(cards[0].css));
+    await applyTap(page, cdp, centre(cards[0].css));
+    const g1 = await page.evaluate(() => window.bb.game.run.gold), b1 = await runState(page);
+    await applyTap(page, cdp, await cell(page, 1, 1));
+    info = await applyInfo(page);
+    check(!!info && info.step === "replace" && info.line === "REPLACES RISING", `${V}: FIERY on the rig that holds RISING asks first (step ${info ? info.step : "closed"}: "${info ? info.line : ""}")`);
+    check(await runState(page) === b1, `${V}: nothing changed while it asks (the gold ${g1} included)`);
+    const rep = await regionDrawn(page, "applyreplace"), can2 = await regionDrawn(page, "applycancel");
+    check(!!rep && !!can2 && big(rep) && big(can2), `${V}: REPLACE and CANCEL are ${phone ? "at least 44 x 44 CSS px" : "drawn"} (${rep ? sz(rep) : "missing"}, ${can2 ? sz(can2) : "missing"})`);
+    await shot(page, `${vname}-apply-replace.png`);
+    await applyTap(page, cdp, centre(can2));
+    info = await applyInfo(page);
+    check(!!info && info.step === "choose" && (await runState(page)) === b1, `${V}: CANCEL on the confirm changes nothing (the word, the gold and the offer as they were)`);
+    await applyTap(page, cdp, await cell(page, 1, 1));
+    await applyTap(page, cdp, centre(await regionDrawn(page, "applyreplace")));
+    const after = await page.evaluate(() => { const r = window.bb.game.run; return { ench: r.build.items.find((p) => p.uid === 6)?.ench ?? null, gold: r.gold }; });
+    check(after.ench === "fiery" && after.gold === g1 - 4, `${V}: REPLACE puts FIERY on it and takes 4 G (the rig: ${after.ench}, gold ${g1} -> ${after.gold})`);
+    // the sell confirm: the FIERY piece in cargo
+    await applyTap(page, cdp, await slot(page, 1));
+    l = await look(page);
+    const sellR = await regionDrawn(page, "sell");
+    check(l.sel.kind === "cargo" && l.panel && /^SELL \+\d+G$/.test(l.panel.labels[0] ?? "") && !!sellR && big(sellR), `${V}: the cargo piece's panel offers SELL (${l.panel ? l.panel.labels.join("/") : "no panel"}; its target ${sellR ? sz(sellR) : "missing"}${phone ? ", at least 44 x 44 CSS px" : ""})`);
+    const g2 = await page.evaluate(() => window.bb.game.run.gold);
+    await applyTap(page, cdp, centre(sellR));
+    l = await look(page);
+    const still = await page.evaluate(() => window.bb.game.run.inventory.some((i) => i.uid === 61));
+    check(still && l.gold === g2 && l.panel && l.panel.labels[0] === "SELL? FIERY IS LOST", `${V}: the first press sells nothing: the button reads "${l.panel ? l.panel.labels[0] : "?"}", the piece in cargo, the gold ${l.gold}`);
+    await shot(page, `${vname}-apply-sell.png`);
+    await applyTap(page, cdp, centre(await regionDrawn(page, "sell")));
+    const sold = await page.evaluate(() => ({ gone: !window.bb.game.run.inventory.some((i) => i.uid === 61), gold: window.bb.game.run.gold }));
+    check(sold.gone && sold.gold > g2, `${V}: the second press sells it (gold ${g2} -> ${sold.gold})`);
+    check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+  } finally {
+    await ctx.close();
+  }
+}
+
+async function applySection(browsers, origin) {
+  log("");
+  log("## ENCHANT-1 (REQ-BFG-085): the ENCHANTER's word cards and APPLY: a legal tap, a refusal's reason, the replace confirm, the sell confirm; every target at least 44 CSS px on a phone");
+  for (const v of APPLY_VIEWS) {
+    if (!browsers[ENGINE(v)]) continue; // its browser didn't launch (a FAIL above)
+    loadLine(`apply ${v}: start`);
+    try {
+      await applyView(browsers, origin, v);
+    } catch (e) {
+      check(false, `apply ${v}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    loadLine(`apply ${v}: end`);
+  }
+}
+
 async function main() {
   const browsers = { chromium: await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] }) };
   const views = ONLY.includes("touch") ? TOUCH_VIEWS : [];
@@ -2497,7 +2683,7 @@ async function main() {
   const custom = ["customize", "newstyle", "roadfork"].some((s) => ONLY.includes(s)); // CUSTOM-2b (REQ-BFG-072)
   // shoptap2: WebKit (Playwright's build of it, with the iPhone descriptors) for the wk- views (PACKS M2: and the names
   // section's; CUSTOM-2b: and the CUSTOMIZE sections' wk- views)
-  if (views.some((v) => ENGINE(v) === "webkit") || ONLY.includes("names") || ONLY.includes("replay") || (custom && CUSTOM_VIEWS.some((v) => ENGINE(v) === "webkit"))) {
+  if (views.some((v) => ENGINE(v) === "webkit") || ONLY.includes("names") || ONLY.includes("replay") || (ONLY.includes("apply") && APPLY_VIEWS.some((v) => ENGINE(v) === "webkit")) || (custom && CUSTOM_VIEWS.some((v) => ENGINE(v) === "webkit"))) {
     try {
       browsers.webkit = await webkit.launch();
     } catch (e) {
@@ -2527,6 +2713,7 @@ async function main() {
     if (ONLY.includes("foecard")) await foeCardSection(browsers, site.origin); // SCOUT-1c (REQ-BFG-082)
     if (ONLY.includes("shaperotate")) await shapeRotateSection(browsers, site.origin); // SHAPES-1 (REQ-BFG-086 S3)
     if (ONLY.includes("replay")) await replaySection(browsers, site.origin); // REPLAY-1 (REQ-BFG-112)
+    if (ONLY.includes("apply")) await applySection(browsers, site.origin); // ENCHANT-1 (REQ-BFG-085)
   } finally {
     for (const b of Object.values(browsers)) await b.close();
     site.srv.close();

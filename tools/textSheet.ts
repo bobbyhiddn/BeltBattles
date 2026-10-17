@@ -11,10 +11,10 @@
 import { writeFileSync } from "node:fs";
 import { HEROES, ITEMS, RULES_VERSION, SUSTAIN_IDS, buyableModules, withSustain, type ItemDef } from "../src/sim/content";
 import { fusible } from "../src/sim/stars";
-import { ICON, ICON_BASE, ICON_COLOUR, KEYWORDS, icons } from "../src/render/font";
+import { ICON, ICON_BASE, ICON_COLOUR, KEYWORDS, icons, textWidth } from "../src/render/font";
 import { faceLines, hasFace } from "../src/ui/faces";
 import { abilityText, cardText } from "../src/ui/abilityText";
-import { GLOSSARY, RUNE_REMINDER } from "../src/ui/glossary"; // WORDS-1: TAP_NOTES and glossaryText left with the KEYWORDS list (panelWords)
+import { GLOSSARY, GLOSSARY_WRAP_W, RUNE_REMINDER } from "../src/ui/glossary"; // WORDS-1: TAP_NOTES and glossaryText left with the KEYWORDS list (panelWords); ENCHANT-1: GLOSSARY_WRAP_W, the op view's text row
 import { shopChip } from "../src/ui/chips";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { DORMANT_RUNES, RUNE_LIST, SUSTAIN_RUNE_LIST, isSustainRune } from "../src/sim/runes"; // FLIP-X2: the dormant runes marked
@@ -30,6 +30,10 @@ import { runeTag } from "../src/ui/runeText"; // WORDS-1: LAST STAND's tag
 import { setShapes } from "../src/sim/shapes"; // SHAPES-1: BB_SHAPES=1
 import { plainRigsRules, setPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): --plain-rigs
 import { setShapes2, shapes2Rules } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): --shapes2
+import { ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, enchantProblem, enchantRules, replacesText, sellAskText, setEnchant, type EnchantKind } from "../src/sim/enchant"; // ENCHANT-1 (REQ-BFG-085): --enchant
+import { ENCHANT_NOTES, enchantedTitle, wordFace, wordOn } from "../src/ui/enchantFaces"; // ENCHANT-1 (E7): the word cards, the notes, the pieces' words
+import { colourize, lineWidth, wrapRich } from "../src/ui/richText"; // ENCHANT-1 (E7): the fit measures
+import { rigShape } from "../src/sim/content"; // ENCHANT-1: the refusal reasons' example pieces
 
 const NAME_OF = new Map<string, string>(Object.entries(ICON).map(([k, v]) => [v as string, k]));
 /** Markup or glyphs as plain text: each private-use icon as [NAME]. */
@@ -103,17 +107,119 @@ function sheet(): string {
   out.push("", "Rune reminders: " + Object.entries(RUNE_REMINDER).map(([k, v]) => `${k} \`${v}\``).join("; "), "");
   out.push("## Captains", "");
   for (const id of RIVAL_IDS) out.push(`- ${RIVALS[id].name}: trick \`${RIVALS[id].trick}\`, blurb \`${RIVALS[id].blurb}\`${id === "karsk" ? " — SUS-B" : ""}`);
+  if (enchantRules()) enchantSection(out); // ENCHANT-1 (REQ-BFG-085): with --enchant only; without it the sheet is the base's, line for line
   return out.join("\n") + "\n";
+}
+
+// ----------------------------------------------------------------------------------------- ENCHANT-1 (REQ-BFG-085; BRIEF-ENCHANT1 E7)
+
+/** The room each new text is measured against, in art px of the 5x7 face: the op view's tap panel text row (glossary.ts GLOSSARY_WRAP_W: the
+ *  402x690 @3 panel is 235 wide) and the desk column's (a 128 px panel less its two 5 px margins); and a title's room beside the panel's icon box
+ *  (the panel's width less 23 px for the icon and 4 px for the edge: inspector.ts planIn's subMax with no button beside it). */
+const FIT_W = { phone: GLOSSARY_WRAP_W, desk: 118 } as const;
+const TITLE_W = { phone: 208, desk: 101 } as const;
+const overflows: string[] = [];
+
+/** `n rows` at each view for a text in markup or glyphs, wrapped as the panel wraps it; a row wider than its room is an OVERFLOW (listed at the end). */
+function fits(where: string, markup: string, oneLine = false): string {
+  const t = icons(markup);
+  const parts = (["phone", "desk"] as const).map((v) => {
+    const rows = wrapRich(colourize(t, "#FFFFFF"), FIT_W[v], "5"), widest = Math.max(0, ...rows.map((r) => lineWidth(r, "5")));
+    const over = widest > FIT_W[v] || (oneLine && v === "phone" && rows.length > 1);
+    if (over) overflows.push(`${where} (${v}: ${widest} px of ${FIT_W[v]}${rows.length > 1 ? `, ${rows.length} rows` : ""})`);
+    return `${v} ${rows.length} row${rows.length === 1 ? "" : "s"} ${widest} px${over ? " OVERFLOW" : ""}`;
+  });
+  return parts.join(", ");
+}
+
+/** The pieces the words are shown on, one of each kind the allow-list takes: a rig with a stat row, a stamping factory, a turret. */
+const WORD_PIECES: [EnchantKind, string][] = [["rig", "whetstone"], ["factory", "press"], ["turret", "scrapcannon"]];
+
+/**
+ * ENCHANT-1 (E7; run 3): the eight words as a player reads them, with the switch on. For each word: its own card's tap panel (its name in its
+ * colour, its line for each kind, NOT ON A RIG), the NOTES, the REPLACES and SELL? strings; then one enchanted piece of each kind it can go on, at
+ * the stars where its numbers move (★1 and ★3; GROWING with and without a grown counter), as the panel draws it (faceBlocks.ts: the stat rows with
+ * the word's numbers, the word's line), each text with its rows on the phone and desk and any OVERFLOW; then the refusal reasons. The summary
+ * lists every overflow (none expected: the new rows fit both views).
+ */
+function enchantSection(out: string[]): void {
+  out.push("", "## Enchantments (ENCHANT-1, REQ-BFG-085; --enchant)", "");
+  out.push("Generated with ENCHANT on. Icons print as [NAME]. Each text's rows are the wrapped rows of the 5x7 face on the op view's 225 px text row and the desk column's 118 px; a row wider than its room, or a stat row that takes a second row on the phone, is an OVERFLOW (listed at the end). Titles are measured against the room beside the icon box (phone 208 px, desk column 101 px): the 5x7 face where it fits, else the 3x5 face, else the name is cut.", "");
+  out.push("### The default rules text (NOTES, behind the hover or the tap)", "");
+  for (const n of ENCHANT_NOTES) out.push(`- \`${n}\` (${fits("NOTES", n)})`);
+  out.push("", "### The word cards (the ENCHANTER's offer and each warlord pick: the icon and the price on the card; the tap panel says this)", "");
+  for (const id of ENCHANT_IDS) {
+    const f = wordFace(id), d = ENCHANT_DEFS[id];
+    out.push(`- **${f.name}** (${id}, code ~${d.code}; colour ${f.color}; stars ${d.scales ? "multiply its numbers" : "change nothing"}; goes on: ${d.kinds.join(", ")})`);
+    for (const l of f.lines) out.push(`  - ${l.label}${l.legal ? `: \`${plain(l.text)}\` (${fits(`${f.name} ${l.label}`, l.text)})` : ""}`);
+    out.push(`  - ${replacesText(id)} (REPLACES, asked when a new word goes on a piece holding ${f.name}); ${sellAskText(id)} (asked before selling a piece holding it)`);
+  }
+  out.push("", "### One enchanted piece of each kind a word can go on (panel face: title, stat rows, the word's line)", "");
+  const o = { hero: "furnace" as const };
+  for (const id of ENCHANT_IDS) {
+    for (const [kind, def] of WORD_PIECES) {
+      if (!ENCHANT_DEFS[id].kinds.includes(kind)) {
+        out.push(`- ${ENCHANT_DEFS[id].name} on a ${kind}: ${enchantProblem(def, id)}`);
+        continue;
+      }
+      const d = ITEMS[def];
+      for (const [stars, grow] of id === "growing" ? [[1, 0], [1, 2], [3, 2]] as const : [[1, 0], [3, 0]] as const) {
+        const w = wordOn({ ench: id, grow }, d, stars);
+        if (!w) throw new Error(`textSheet: no word ${id} on ${def}`);
+        const title = enchantedTitle(id, `${d.name}${stars > 1 ? ` ${"★".repeat(stars)}` : ""}`);
+        const tw = [textWidth(title), textWidth(title, "3")];
+        const titleFit = (["phone", "desk"] as const).map((v) => (tw[0] <= TITLE_W[v] ? "5x7" : tw[1] <= TITLE_W[v] ? "3x5" : "CUT")).join("/");
+        out.push(`- ${title} (${kind}${grow ? `; GROWING counter ${grow}` : ""}; title ${tw[0]} px in 5x7, ${tw[1]} in 3x5; phone/desk: ${titleFit})`);
+        for (const b of faceBlocks(def, stars, o, w) ?? []) {
+          if (b.note) continue; // kind text (a turret's HOLDS line) is NOTES, not the face
+          const hued = b.hue ? `; ${b.hue.colour} on number${b.hue.nums.length > 1 ? "s" : ""} ${b.hue.nums.map((n) => n + 1).join(", ")}` : "";
+          out.push(`  - ${b.pairs || (!b.brass && !b.colour && /\d/.test(plain(b.text)) && b.text.length < 40) ? "stats" : "line"}: \`${plain(b.text)}\`${b.colour ? ` (${b.colour})` : ""}${hued} (${fits(`${title}: ${plain(b.text)}`, b.text, !!b.pairs)})`);
+        }
+      }
+    }
+  }
+  out.push("", "### The refusal reasons (a tap on a piece the word cannot go on, in APPLY)", "");
+  const first = (pred: (d: ItemDef) => boolean): ItemDef | undefined => Object.values(ITEMS).find(pred);
+  const cases: [string, ItemDef | undefined, string][] = [
+    ["MASSIVE on a rig", ITEMS.whetstone, "massive"], ["SWIFT on a rig", ITEMS.whetstone, "swift"],
+    ["WIDE on an X rig", first((d) => d.kind === "gate" && rigShape(d) === "X"), "wide"],
+    ["a word on gear", first((d) => d.kind === "mod"), "fiery"], ["a word on a core", first((d) => d.kind === "core"), "fiery"], ["a word on a supply", first((d) => d.kind === "supply"), "fiery"],
+  ];
+  for (const [what, d, word] of cases) {
+    const why = d ? enchantProblem(d, word) : null;
+    out.push(`- ${what}${d ? ` (${d.name})` : ""}: ${why ? `\`${why}\` (${fits(what, why, true)})` : "no refusal (not in this sheet's catalogue)"}`);
+  }
+  out.push("", `### Overflows (every new text above, phone and desk): ${overflows.length}`, "");
+  for (const x of overflows) out.push(`- ${x}`);
+  // every piece a word can go on, every legal word, ★1 and ★3: the title as inspector.ts fitTitle draws it (5x7, else 3x5, else the name is cut
+  // with a dot). Informational: a cut title is not a text overflowing its box, but the word first makes the long names longer
+  const cut: string[] = [];
+  let titles = 0;
+  for (const d of Object.values(ITEMS)) {
+    const kind = enchantKindOf(d);
+    if (!kind || !d.price) continue;
+    for (const id of ENCHANT_IDS) {
+      if (!ENCHANT_DEFS[id].kinds.includes(kind)) continue;
+      for (const stars of fusible(d.id) ? [1, 3] : [1]) {
+        const title = enchantedTitle(id, `${d.name}${stars > 1 ? ` ${"★".repeat(stars)}` : ""}`);
+        titles++;
+        for (const v of ["phone", "desk"] as const) if (textWidth(title) > TITLE_W[v] && textWidth(title, "3") > TITLE_W[v]) cut.push(`${title} (${v}: ${textWidth(title, "3")} px in 3x5 against ${TITLE_W[v]})`);
+      }
+    }
+  }
+  out.push("", `### Titles cut (every piece, every legal word, ★1 and ★3: ${titles} titles; the name is cut with a dot where even the 3x5 face is too wide): ${cut.length}`, "");
+  for (const x of cut) out.push(`- ${x}`);
 }
 
 if ((process.argv[1] ?? "").endsWith("textSheet.js")) {
   const path = process.argv[2];
-  if (!path) throw new Error("usage: node tools/dist/textsheet/textSheet.js <out.md> [--plain-rigs] [--shapes2]");
+  if (!path) throw new Error("usage: node tools/dist/textsheet/textSheet.js <out.md> [--plain-rigs] [--shapes2] [--enchant]");
   // SHAPES-1 (REQ-BFG-086, S8): BB_SHAPES=1 makes the sheet with SHAPES on (the three shaped rigs, GANTRY PRESS 2x3, ASSEMBLY
   // LINE I3), as the brief's text-sheet check asks; unset, the sheet is as before
   if (process.env.BB_SHAPES === "1") setShapes(true);
   if (process.argv.includes("--plain-rigs")) setPlainRigs(true); // PLAIN-1 (REQ-BFG-084): the six in ITEMS
   if (process.argv.includes("--shapes2")) setShapes2(true); // SHAPES-2 (REQ-BFG-114): the six more in ITEMS (after PLAIN-1's, when both are on)
+  if (process.argv.includes("--enchant")) setEnchant(true); // ENCHANT-1 (REQ-BFG-085): the eight enchantments' section at the end (the pieces above are as before)
   const text = sheet();
   writeFileSync(path, text);
   console.log(`text sheet: ${text.split("\n").length} lines -> ${path}`);

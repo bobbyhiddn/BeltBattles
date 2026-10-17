@@ -5,6 +5,7 @@ import { C, RARITY_COLOR } from "../render/palette";
 import { bevel, frame, rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap, type FontId } from "../render/font";
 import { itemIcon } from "../render/sprites";
+import { drawSparkAt } from "../render/enchantMarks"; // ENCHANT-1 (REQ-BFG-085, E7): a cargo slot's word spark
 import { hasGrid, shapeGrid } from "./shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid in its cargo slot
 import { ITEMS } from "../sim/content";
 import type { PointerKind } from "../core/io"; // shoptap (D1)
@@ -220,8 +221,9 @@ function starPips(g: G, x: number, y: number, w: number, stars: number): void {
 }
 
 /** Item slot (cargo tray / inspector icon). `stars` defaults to 1 (no pips, no rim). 0.6.1d2:
- *  `survivor` pulses a 1px yellow ring (a hovered/selected shop offer would merge into this copy). */
-export function itemSlot(g: G, x: number, y: number, def: string | null, selected: boolean, t: number, stars = 1, survivor = false): void {
+ *  `survivor` pulses a 1px yellow ring (a hovered/selected shop offer would merge into this copy). ENCHANT-1: `mark`, the
+ *  colour of the word the piece holds (enchantMarks.ts markColour): a spark at the face's top-right corner; absent, as before. */
+export function itemSlot(g: G, x: number, y: number, def: string | null, selected: boolean, t: number, stars = 1, survivor = false, mark?: string): void {
   rect(g, x, y, 18, 18, C.ink);
   rect(g, x + 1, y + 1, 16, 16, C.slate0);
   rect(g, x + 1, y + 16, 16, 1, C.slate1);
@@ -235,6 +237,7 @@ export function itemSlot(g: G, x: number, y: number, def: string | null, selecte
     // the slot's right frame column, inside the 18 px box); the anchor is the same for every piece
     if (hasGrid(def)) g.drawImage(shapeGrid(def), x + 1, y + 1);
     starPips(g, x + 1, y + 13, 16, stars);
+    if (mark) drawSparkAt(g, x + 14, y + 1, mark); // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's word spark at the slot's top-right corner (the cargo tray only; absent: as before)
   }
   if (stars >= 3) frame(g, x, y, 18, 18, C.brass3);
   if (survivor) {

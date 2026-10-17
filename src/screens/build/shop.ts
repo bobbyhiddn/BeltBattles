@@ -174,7 +174,8 @@ export function drawBadge(g: G, x: number, y: number, maxW: number, badge: ShopB
   drawText(g, label, x + w / 2, y + 1, fg, { font: "3", align: "center" });
 }
 
-function cardFrame(g: G, x: number, y: number, w: number, h: number, stripe: string, rarity: string, dim: boolean): void {
+// ENCHANT-1 (REQ-BFG-085): exported for enchantStrip.ts, which draws the ENCHANTER's word cards in a shop card's own frame
+export function cardFrame(g: G, x: number, y: number, w: number, h: number, stripe: string, rarity: string, dim: boolean): void {
   rect(g, x, y, w, h, C.ink);
   rect(g, x + 1, y + 1, w - 2, h - 2, dim ? C.night : C.slate0);
   rect(g, x + 1, y + 1, w - 2, 3, dim ? C.slate1 : stripe);

@@ -25,6 +25,7 @@ import { boxRect } from "../../render/frame";
 import { disc, ring } from "../../render/pixel";
 import { canTurn, machineryArrows, shapedPiece, shapeTag, turnsOf } from "./shapeEdit";
 import { pieceRect, screenMask, shapedFactorySprite, shapedRigBody } from "../../render/shapeArt"; // SHAPES-1: the ghost's body
+import { drawBoardSpark, drawSparkAt, pieceMarkAt } from "../../render/enchantMarks"; // ENCHANT-1 (REQ-BFG-085, E7): the carried piece's word spark
 
 /** A deck cell; for a rig, with the rotation it would take there. */
 type Cell = { x: number; y: number; rot?: number };
@@ -234,7 +235,7 @@ function liftedArrows(L: BuildLayout, b: Build, c: Carry, cell: Cell | null): Li
 /** The picked-up item at 2x: a bolted tile (1 px ink outline, bevel, rarity strip) with the
  *  icon doubled, hovering `lift` px above the contact point (x, y), which gets an ink shadow.
  *  0.6.2 BELTSIDE: a rig shows its arrows at 2x on the tile, and its hits (or IDLE) above it. */
-export function drawLifted(g: G, defId: string, x: number, y: number, lift: number, alpha = 1, arrows?: LiftedArrows): void {
+export function drawLifted(g: G, defId: string, x: number, y: number, lift: number, alpha = 1, arrows?: LiftedArrows, mark?: string): void {
   const ix = Math.round(x - LIFT_W / 2), iy = Math.round(y - lift - LIFT_H);
   // contact shadow on the ground under the item (tighter and darker than the tile)
   g.globalAlpha = 0.5 * alpha;
@@ -249,6 +250,7 @@ export function drawLifted(g: G, defId: string, x: number, y: number, lift: numb
     arrows.dirs.forEach((d, k) => g.drawImage(rigNozzle(d, arrows.states[k]), 0, 0, 12, 12, ix + 2, iy + 2, 24, 24));
     if (arrows.label) drawText(g, arrows.label, x, iy - 7, arrows.color, { font: "3", align: "center", outline: C.ink });
   }
+  if (mark) drawSparkAt(g, ix + LIFT_W - 5, iy + 1, mark); // ENCHANT-1 (REQ-BFG-085, E7): the carried piece's word spark, at the tile's top-right corner
   g.globalAlpha = 1;
 }
 
@@ -256,7 +258,7 @@ export function drawLifted(g: G, defId: string, x: number, y: number, lift: numb
  *  cell, which keeps its bracket and a faint 1x ghost of the exact footprint. 0.6.2 BELTSIDE (B1): a
  *  carried rig shows its arrows at the snap cell (drawRigPreview) at the rotation the editor aims it to,
  *  and hovers one cell higher, so the tile its forward arrow would work stays in sight. */
-export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, py: number, t: number, turretAt: (x: number, y: number) => number, screen?: { W: number; tap: number }): Rect | null {
+export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, py: number, t: number, turretAt: (x: number, y: number) => number, screen?: { W: number; tap: number }, mark?: string): Rect | null {
   const def = ITEMS[c.def];
   const bob = Math.floor(t * 4) % 2;
   const lift = Math.min(8, Math.round(3 + 30 * Math.min(0.15, t)));
@@ -271,6 +273,7 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
       inCarrier(g, L, () => {
         sg = drawShapeGhost(g, L, b, c.def, tg.x, tg.y, tg.rot, tg.ok, c.src.from === "deck" ? c.uid : -1, t, 0.7);
         drawShapeTag(g, c.def, sg, tg.ok, tg.reason);
+        if (mark) { const m = pieceMarkAt(L.frame, { uid: -1, def: c.def, x: tg.x, y: tg.y, ...(tg.rot ? { rot: tg.rot } : {}) }); drawBoardSpark(g, m.spark.x, m.spark.y, mark); } // ENCHANT-1 (REQ-BFG-085, E7): the ghost's word spark, as the board draws it
       });
       if (c.touch && screen && sg && canTurn(c.def)) {
         const r = rotateButtonRect(screenRect(L, (sg as ShapeGhost).box), px, screen.W, screen.tap);
@@ -290,7 +293,7 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
         drawGhostAt(g, L, b, c.def, at, c.src.from === "deck" ? c.uid : -1, t, 0.55);
         const half = (def.size * 12) / 2;
         drawLifted(g, c.def, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half,
-          half + 4 + bob + (rig ? 12 : 0), 1, rig ? liftedArrows(L, b, c, at) : undefined);
+          half + 4 + bob + (rig ? 12 : 0), 1, rig ? liftedArrows(L, b, c, at) : undefined, mark);
       });
       return null;
     }
@@ -319,7 +322,7 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
   }
   if (def.kind === "supply" && inside(L.hull, px, py)) frame(g, L.hull.x - 2, L.hull.y - 2, L.hull.w + 4, L.hull.h + 4, C.lime);
   // lifted: the 2x tile above the pointer, contact shadow under the pointer
-  drawLifted(g, c.def, px, py, 4 + lift + bob, 1, rig ? liftedArrows(L, b, c, null) : undefined);
+  drawLifted(g, c.def, px, py, 4 + lift + bob, 1, rig ? liftedArrows(L, b, c, null) : undefined, mark);
   return null;
 }
 

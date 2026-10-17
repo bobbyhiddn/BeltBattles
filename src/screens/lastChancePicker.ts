@@ -39,6 +39,12 @@ import { textOpts } from "./build/inspector";
 import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the HULL card on the day's hull
 import type { BuildScreen } from "./build/build";
 import { GAP as ITEM_GAP, GAP_MIN as ITEM_GAP_MIN } from "../ui/spacing"; // CARD-3 (REQ-BFG-087, D5, D6): the gaps between a card's items (GAP here is the cards')
+// ENCHANT-1 (REQ-BFG-085, E5c, E7): a rig or turret part arrives enchanted (lastChanceWord): its word's spark on the PART card, the word before the
+// part's name and the word's line in the card's details (ⓘ). Nothing of it with the switch off.
+import { ENCHANT_DEFS, enchantKindOf, enchantRules, type EnchantId } from "../sim/enchant";
+import { lastChanceWord } from "../sim/enchantSources";
+import { wordLine } from "../ui/enchantFaces";
+import { drawBoardSpark } from "../render/enchantMarks";
 
 export const LC_TITLE = "LAST CHANCE";
 /** The line under the title: the life came back, and the pick. */
@@ -142,12 +148,30 @@ export function partLines(def: string, tw: number, run: Pick<Run, "hero" | "buil
 /** The PART card's details (ⓘ): its keywords' reminders, then where it goes (HULL-1d: at the card's star). CARD-2
  *  (REQ-BFG-084, K6): a plain stat rig's rig sentence first (faces.ts RIG_SENTENCE: the trigger its face no longer prints,
  *  as its panel's ⓘ NOTES lead with it). CARD-3 (D5): each sentence an item. */
-export function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1): Items { // CARD-3: exported for the tests
+export function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1, word?: { ench: EnchantId } | null): Items { // CARD-3: exported for the tests
   const fl = faceLines(def, stars, textOpts(run as Run));
   // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (faces.ts plainNotes: the rig sentence, as before with PLAIN_RIGS
   // off; SCALE GUARD's carry line after it; BALLAST's own line in its place), then the reminders at the card's star
   const rem = [...plainNotes(def), ...(fl?.reminders ?? []), `FREE. IT GOES TO CARGO AT ★${stars}; PLACE IT AS ANY PART.`];
-  return rem.map((t) => wrapRich(colourize(icons(t), C.slate4), tw, "3"));
+  const items = rem.map((t) => wrapRich(colourize(icons(t), C.slate4), tw, "3"));
+  const w = word && enchantRules() ? lcWordItem(def, word.ench, tw, stars) : null; // ENCHANT-1: the word it arrives with, first
+  return w ? [w, ...items] : items;
+}
+
+/** ENCHANT-1 (REQ-BFG-085, E5c, E7): the details' first item for a PART that arrives enchanted: `ENCHANTED: FIERY. ITS HIT: {BURN}+1.`,
+ *  the word in its colour and its line for this kind of piece at the card's star (enchantFaces.ts wordLine, the panels' own text). Null
+ *  for a piece that takes no word. */
+export function lcWordItem(def: string, id: EnchantId, tw: number, stars = 1): RichLine[] | null {
+  const kind = enchantKindOf(ITEMS[def]);
+  const line = kind ? wordLine(id, kind, stars) : null;
+  if (!line) return null;
+  return wrapRich([{ t: "ENCHANTED: ", c: C.slate4 }, { t: ENCHANT_DEFS[id].name, c: ENCHANT_DEFS[id].color }, { t: ". ", c: C.slate4 }, ...colourize(icons(line), C.slate4)], tw, "3");
+}
+
+/** ENCHANT-1: the word the PART card's piece arrives with, or null (the switch off, gear, a piece that takes none): re-derived from the
+ *  run's seed and the day LAST CHANCE fired on, as takeLastChance gives it (enchantSources.ts lastChanceWord). */
+export function lcWord(run: Pick<Run, "seed">, o: Pick<LastChanceOffer, "day" | "part">): { ench: EnchantId; enchDir?: number } | null {
+  return enchantRules() && o.part ? lastChanceWord(run.seed, o.day, o.part) : null;
 }
 
 /** The HULL card's line and details (CARD-3, D5: one item each). */
@@ -207,7 +231,7 @@ export function lcPartPlate(r: Rect, defId: string, name: string, sub: string): 
 }
 
 /** A part or hull card's frame and head: the dark panel with `edge` top and bottom, the icon box, the name and sub. */
-function drawHead(g: G, r: Rect, edge: string, icon: CanvasImageSource | string, name: string, nameColour: string, sub: string, open: boolean): void {
+function drawHead(g: G, r: Rect, edge: string, icon: CanvasImageSource | string, name: string, nameColour: string, sub: string, open: boolean, word?: { name: string; color: string }): void {
   panel(g, r, "dark");
   rect(g, r.x + 1, r.y + 1, r.w - 2, 2, edge);
   rect(g, r.x + 1, r.y + r.h - 3, r.w - 2, 2, edge);
@@ -217,7 +241,9 @@ function drawHead(g: G, r: Rect, edge: string, icon: CanvasImageSource | string,
   // a sprite (the part's icon), or a font glyph drawn at twice its size (the HULL card's HULL icon)
   if (typeof icon === "string") drawText(g, icon, r.x + 16, r.y + 11, nameColour, { align: "center", scale: 2, outline: C.ink });
   else g.drawImage(icon, r.x + 16 - Math.floor((icon as { width: number }).width / 2), r.y + 17 - Math.floor((icon as { height: number }).height / 2));
-  drawText(g, name, r.x + 31, r.y + 7, nameColour, { outline: C.ink });
+  // ENCHANT-1 (REQ-BFG-085, E7): a part that arrives enchanted prints its word first, in the word's colour (the name keeps its rarity colour)
+  const wx = word ? drawText(g, word.name, r.x + 31, r.y + 7, word.color, { outline: C.ink }) + textWidth(" ") + 1 : 0;
+  drawText(g, name, r.x + 31 + wx, r.y + 7, nameColour, { outline: C.ink });
   drawText(g, sub, r.x + 31, r.y + 18, C.slate4, { font: "3" });
 }
 
@@ -359,7 +385,7 @@ export class LastChancePicker {
     return this.boons(o).map((boon, i) => {
       const shown = this.info.has(i);
       if (boon === "rune") return { boon, lines: [], info: shown ? [runeNoteLines(RUNES[o.rune!.id], tw)] : [] }; // CARD-4 run 3 (I): with the source line
-      if (boon === "part") return { boon, lines: partLines(o.part!, tw, run, o.partStars ?? 1), info: shown ? partInfo(o.part!, tw, run, o.partStars ?? 1) : [] }; // HULL-1d
+      if (boon === "part") return { boon, lines: partLines(o.part!, tw, run, o.partStars ?? 1), info: shown ? partInfo(o.part!, tw, run, o.partStars ?? 1, lcWord(run, o)) : [] }; // HULL-1d; ENCHANT-1: its word, in the details
       const [now, next] = lcHullNow(run, o.hull, run.day); // HULL-1a: the day's numbers
       return { boon, lines: hullLines(now, next - now, tw), info: shown ? hullInfo(tw) : [] };
     });
@@ -438,12 +464,14 @@ export class LastChancePicker {
         if (open) take = runeBarTarget(r, LC_TAKE, tap, this.wordBox);
       } else if (t.boon === "part") {
         const def = ITEMS[o.part!];
-        drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity, o.partStars ?? 1), open); // HULL-1d
+        const word = lcWord(s.run, o); // ENCHANT-1 (REQ-BFG-085, E5c): the word the part arrives with (null with the switch off)
+        drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity, o.partStars ?? 1), open, word ? ENCHANT_DEFS[word.ench] : undefined); // HULL-1d
         // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its ink plate in the head's free room, left of the ⓘ box, 7 px under
         // the card's top (the head is 31 px: the tallest plate, SPIKE RAIL's 18, ends 25 px down); the name and the sub line end well before it
-        const plate = lcPartPlate(r, def.id, def.name, lcPartSub(def.rarity, o.partStars ?? 1));
+        const plate = lcPartPlate(r, def.id, word ? `${ENCHANT_DEFS[word.ench].name} ${def.name}` : def.name, lcPartSub(def.rarity, o.partStars ?? 1));
         if (plate) drawShapePlate(g, def.id, plate.x, plate.y);
         drawBody(g, r, t.lines, t.info, hint, L.gap);
+        if (word) drawBoardSpark(g, r.x + r.w - 5, r.y - 1, ENCHANT_DEFS[word.ench].color); // ENCHANT-1 (E7): the word's spark on the card's top-right corner (on its ink plate: the open card's frame is yellow)
       } else {
         drawHead(g, r, C.lime, icons("{HULL}"), lcHullName(o, s.run.day), C.lime, LC_HULL_SUB, open); // HULL-1a: the day's
         drawBody(g, r, t.lines, t.info, hint, L.gap);

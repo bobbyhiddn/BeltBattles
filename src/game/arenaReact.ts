@@ -16,6 +16,7 @@ import type { Fx } from "../render/fx";
 import { WIND_POP_MAX } from "../render/fx"; // WIND-1 (REQ-BFG-093): the wind number's longest life
 import { RELEASE_TIME, SHRUG_TIME } from "../render/wave3Moments"; // 0.8.0 I1 M4: A1's battle moments
 import type { Arena } from "./arena";
+import { bracedReact } from "./enchantReact"; // ENCHANT-1 (REQ-BFG-085, E3): a BRACED part's swallowed STUN
 import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): HEAL's and SHIELD's colours, one source
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: a heal's float prints as the faces print HEAL
 
@@ -281,6 +282,9 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       return;
     case "release": // E4: TWIN LATCH lets a payload go: its fingers drop, the lamp turns green
       a.sfx[e.side].w3.release.set(e.gate, RELEASE_TIME);
+      return;
+    case "braced": // ENCHANT-1 (REQ-BFG-085, E3, E7): a BRACED part swallowed an enemy STUN: its ring and its word's pop over the part
+      bracedReact(a, e, (side, q) => pieceMid(a, side, q));
       return;
     case "impact": {
       const fr = a.drawn[e.side];

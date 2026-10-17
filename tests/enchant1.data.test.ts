@@ -80,9 +80,9 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
     expect(enchantLine("rising", "factory")).toBe("EACH SLUG IT MAKES: +5 DMG MORE THAN THE LAST.");
     expect(enchantLine("rising", "turret")).toBe("EACH SHOT: +5 DMG MORE THAN THE LAST.");
     expect(enchantLine("growing", "rig")).toBe("AFTER EACH DUSK FIGHT: ITS HIT +5 DMG, ALL RUN.");
-    expect(enchantLine("echoing", "rig")).toBe("EVERY 3RD SLUG IT HITS GETS ITS STATS TWICE.");
-    expect(enchantLine("echoing", "factory")).toBe("EVERY 3RD TIME IT WORKS: 1 MORE SLUG.");
-    expect(enchantLine("echoing", "turret")).toBe("EVERY 3RD SHOT HITS TWICE.");
+    expect(enchantLine("echoing", "rig")).toBe("EVERY THIRD SLUG IT HITS GETS ITS STATS TWICE.");
+    expect(enchantLine("echoing", "factory")).toBe("EVERY THIRD TIME IT WORKS: 1 MORE SLUG.");
+    expect(enchantLine("echoing", "turret")).toBe("EVERY THIRD SHOT HITS TWICE.");
     expect(enchantLine("massive", "factory")).toBe("WORKS HALF AS OFTEN. ITS SLUGS DEAL 2x DMG.");
     expect(enchantLine("swift", "turret")).toBe("FIRES TWICE AS OFTEN. HALF DMG A SHOT.");
     expect(enchantLine("braced", "rig")).toBe("THE FIRST 2 [STUN]STUNS ON IT EACH FIGHT DO NOTHING.");

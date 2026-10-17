@@ -13,6 +13,7 @@ import { frame, rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
 import { beltIcon, coinIcon } from "../../render/sprites";
 import { button, inside, itemSlot, panel, tapRect } from "../../ui/ui";
+import { carriedMark, markColour } from "../../render/enchantMarks"; // ENCHANT-1 (REQ-BFG-085, E7): a cargo slot's word spark
 import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { heroCardRect } from "./layout"; // zoom (D2)
 import { HERO_MIN, inCarrier } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom; the compact hero card
@@ -36,6 +37,7 @@ import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 import { drawBeltX } from "./beltx"; // shoptap (D3)
 import { deleteRoute } from "./actions"; // shoptap (D3): the X removes the belt as REMOVE BELT does
 import { faceLines } from "../../ui/faces"; // U2c group 0 fix 3: the packs' faces in their tooltips
+import { cargoGlow, drawMergePrompt, drawPick, drawWagon, glow, wordHits } from "./enchantStrip"; // ENCHANT-1 (REQ-BFG-085): the ENCHANTER's wagon, the warlord pick, the merge pick, APPLY's glow
 
 /** bb-0.8.6 (PACKS P5; U2c group 0 fix 3): a pack slot's tooltip text: the pack's face ("+4 BELT TILES FOR THE RUN.",
  *  "+250 {HULL} FOR THE RUN."), else its first sentence. AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q3): on the run's day
@@ -114,7 +116,7 @@ export function drawTopBar(g: G, s: BuildScreen): void {
     // TAP-093: tap px tall from the corner, at least tap wide, clear of every target under the bar (the shop cards,
     // REROLL, the packs, the rune chips) and above a details panel grown over the shop (whose words take taps)
     const B = s.runeBar.layout(s), area = s.panelArea();
-    const others = [...s.L.cards, s.L.reroll, ...s.L.packs, ...(B ? [...B.chips, ...(B.more ? [B.more] : [])] : [])];
+    const others = [...s.L.cards, s.L.reroll, ...s.L.packs, ...wordHits(s), ...(B ? [...B.chips, ...(B.more ? [B.more] : [])] : [])]; // ENCHANT-1 (REQ-BFG-085): + the word cards' targets (none with the switch off)
     const hit = cornerTarget(menuR, tap, others, area !== s.L.info ? area.y : Infinity);
     s.cornerMenu = hit;
     button(ui, g, "menu", menuR, "MENU", { font: "3", onTap: open, hit: hit[0] });
@@ -176,6 +178,7 @@ function drawShop(g: G, s: BuildScreen): void {
     drawPack(g, r, id, run.gold >= packPrice(id), s.game.ui.hover === `pack-${id}`, s.game.ui.pressed === `pack-${id}`, run.day); // HULL-1a
     s.game.ui.add({ id: `pack-${id}`, r, onTap: () => s.doPack(id), block: true });
   });
+  drawWagon(g, s); // ENCHANT-1 (REQ-BFG-085, E5a): the ENCHANTER's wagon (nothing with the switch off or no wagon today)
 }
 
 /** Refit after a road event: the caravan's row becomes one bolted notice (no cards, no reroll). */
@@ -196,6 +199,7 @@ function drawRefitBanner(g: G, s: BuildScreen): void {
   ty += (big ? 14 : 7) + 5;
   for (const ln of info) { drawText(g, ln, cx, ty, C.bone, { font: "3", align: "center" }); ty += 8; }
   for (const ln of hint) { drawText(g, ln, cx, ty, C.slate4, { font: "3", align: "center" }); ty += 8; }
+  drawPick(g, s); // ENCHANT-1 (REQ-BFG-085, E5b): an open warlord pick takes the banner's place (nothing otherwise)
 }
 
 function drawCargo(g: G, s: BuildScreen): void {
@@ -217,8 +221,10 @@ function drawCargo(g: G, s: BuildScreen): void {
       const hidden = carry?.src.from === "cargo" && carry.uid === it.uid;
       const shake = s.shakeT > 0 && s.shakeSrc.kind === "cargo" && s.shakeSrc.uid === it.uid ? Math.round(Math.sin(s.shakeT * 70) * 2) : 0;
       const stars = hidden ? 1 : fc && fc.uid === it.uid ? fc.showStars : starsOf(it);
-      itemSlot(g, sr.x + shake, sr.y, hidden ? null : it.def, s.sel.kind === "cargo" && s.sel.uid === it.uid, s.t, stars, !hidden && it.uid === survivorUid);
+      itemSlot(g, sr.x + shake, sr.y, hidden ? null : it.def, s.sel.kind === "cargo" && s.sel.uid === it.uid, s.t, stars, !hidden && it.uid === survivorUid, hidden ? undefined : markColour(it, it.def)); // ENCHANT-1 (REQ-BFG-085, E7): the word's spark on an enchanted cargo piece
       if (shake) frame(g, sr.x - 1 + shake, sr.y - 1, 20, 20, C.red);
+      const gc = hidden ? null : cargoGlow(s, it.uid); // ENCHANT-1 (REQ-BFG-085, E5): APPLY: a cargo part that takes the word glows
+      if (gc) glow(g, { x: sr.x + shake, y: sr.y, w: 18, h: 18 }, gc, s.t);
     }
     if (items.length > n) drawText(g, `+${items.length - n}`, r.x + r.w - 3, r.y + 8, C.yellow, { font: "3", align: "right" });
   }
@@ -301,6 +307,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     // form (the name over HULL, BELT and FEEDS)
     else if (top.h >= HERO_MIN) drawHeroCard(g, s, top);
   }
+  drawMergePrompt(g, s); // ENCHANT-1 (REQ-BFG-085, E4): FIERY OR RISING? after a merge of two different words (nothing otherwise)
   drawTopBar(g, s);
   // shoptap (D3, REQ-BFG-036): the belt X a touch tap put up; a tap on it removes the whole belt (REMOVE BELT's path)
   const bx = s.ed.beltX(), br = bx ? s.beltXRect(bx) : null;
@@ -309,7 +316,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   if (c) {
     // SHAPES-1 (REQ-BFG-086 S3): a touch carry of a shaped piece shows the floating ROTATE button: a target a second
     // finger presses while the first carries (Region.second; game.ts pointerExtra)
-    const rb = drawCarry(g, L, s.run.build, c, s.ed.px, s.ed.py, s.ed.carryT, (x, y) => s.turretAt(x, y), { W: s.game.view.W, tap: tapPx(s.game.view) });
+    const rb = drawCarry(g, L, s.run.build, c, s.ed.px, s.ed.py, s.ed.carryT, (x, y) => s.turretAt(x, y), { W: s.game.view.W, tap: tapPx(s.game.view) }, carriedMark(s.run, c)); // ENCHANT-1 (REQ-BFG-085, E7): the carried piece's word spark
     if (rb) ui.add({ id: "carryrotate", r: rb, onTap: () => { s.ed.rotateCarry(); }, second: true });
   }
   if (cue) drawFightCue(g, L.fight, L.portrait, s.t);

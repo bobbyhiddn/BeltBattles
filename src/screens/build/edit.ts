@@ -207,6 +207,11 @@ export class Editor {
     this.h.select({ kind: "turret", index });
   }
 
+  /** ENCHANT-1 (REQ-BFG-085): what a press at (x, y) lands on, by this editor's own hit test (APPLY, apply.ts targetAt, reads it). */
+  pickAt(x: number, y: number): Src | null {
+    return this.pick(x, y);
+  }
+
   private pick(x: number, y: number): Src | null {
     const h = this.h;
     const o = h.offerAt(x, y);

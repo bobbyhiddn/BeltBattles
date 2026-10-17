@@ -17,6 +17,7 @@ import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 import { fitCore } from "../../game/run"; // 0.6.1b
 import { canFitGear, gearSlotsAt, turretSlots, type Build } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031)
 import { enchantField } from "../../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): a cargo piece keeps its enchantment on the deck
+import { sellAsk } from "./apply"; // ENCHANT-1 (REQ-BFG-085, E4): selling a piece that holds a word asks first
 import { dropTurret } from "./turretActions"; // 0.6.2s (REQ-BFG-031 S5)
 import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a successful action completes its first-run tip
 
@@ -181,9 +182,10 @@ export function selectGain(ctx: Ctx, g: Gain): void {
   }
 }
 
-export function sell(ctx: Ctx, uid: number): void {
+export function sell(ctx: Ctx, uid: number, asked = false): void {
   if (shopShut(ctx.run)) return ctx.invalid(REFIT_NO_SHOP); // NPC-1 (REQ-BFG-077): no selling in REFIT (NPC_DAY on)
   if (!ctx.run.inventory.some((i) => i.uid === uid)) return;
+  if (!asked && sellAsk(ctx, { kind: "cargo", uid })) return; // ENCHANT-1 (REQ-BFG-085, E4): a piece that holds a word asks first (SELL? FIERY IS LOST); a second press sells
   const v = sellInventory(ctx.run, uid);
   const cp = ctx.coinPos();
   ctx.ufx.popup(cp.x, cp.y + 10, `+${v}`, C.lime);
@@ -207,9 +209,10 @@ export function store(ctx: Ctx, uid: number): void {
  *  signature factory stays aboard. */
 export function sellPlaced(ctx: Ctx, uid: number): void {
   if (shopShut(ctx.run)) return ctx.invalid(REFIT_NO_SHOP); // NPC-1: refused before the part leaves the deck
+  if (sellAsk(ctx, { kind: "item", uid })) return; // ENCHANT-1 (REQ-BFG-085, E4): asks first, before the part leaves the deck
   if (!storePlaced(ctx.run, uid)) return ctx.invalid(STAYS_ABOARD);
   ctx.touched();
-  sell(ctx, uid);
+  sell(ctx, uid, true);
 }
 
 /** shoptap (REQ-BFG-035): TO CARGO on a fitted core's or gear piece's panel: that piece goes to cargo (REMOVE CORE's and
