@@ -539,7 +539,9 @@ describe("U2f: the taller ⓘ view", () => {
     // factory's ⓘ view: 47 desk views (the 15 factories' cargo views at ★1-★3, MIMIC FORGE's two more) take one page more (16 from 5 to 6, 14
     // from 4 to 5, 12 from 3 to 4, 3 from 2 to 3, 2 from 6 to 7): desk [3, 62, 106, 82, 65, 7] -> [3, 59, 97, 80, 63, 21, 2]
     // SC-0912, measured on the merged tree (361 panels): desk [3, 51, 109, 104, 81, 13] (BUMP-1D's) -> [3, 59, 108, 91, 74, 24, 2] (SHOPCARD-1b-1e's
-    // longer face lines and the {BELT} definition moved 1e's own tree [3, 51, 106, 90, 68, 7] (1a) -> [3, 59, 97, 80, 63, 21, 2], above); not traced view by view
+    // longer face lines and the {BELT} definition moved 1e's own tree [3, 51, 106, 90, 68, 7] (1a) -> [3, 59, 97, 80, 63, 21, 2], above); not traced view by
+    // view. At the merge commit itself (00c4eceba80c) the desk read [3, 59, 110, 89, 74, 24, 2]: BALLAST's stat row in words (MAX HULL +8%, commit
+    // e951668, the only src change between the two measures) pages two desk views one more (the third bucket to the fourth)
     expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 59, 108, 91, 74, 24, 2]);
   });
 
