@@ -25,7 +25,8 @@ import { dirname, join, resolve } from "node:path";
 import { FakeS3 } from "./fakeS3";
 import { generateSamplePool } from "./samplePool";
 import { KEY_HEADER, SIG_HEADER, loadIdentity, memoryKeyStore } from "../src/net/identity";
-import { encodeSnapshot, ghostId, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
+import { encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
+import { isReachable } from "../src/net/records"; // BUMP-1D (run 3, P7): the upload fixture's record must be one POST accepts
 import { RULES_VERSION, START_LIVES } from "../src/sim/content";
 // 0.7.0a: the game's side of the server (section 6, and the closed upload in section 3)
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
@@ -352,7 +353,11 @@ async function main(): Promise<void> {
 
     const dir = mkdtempSync(join(tmpdir(), "bb-smoke-open-"));
     // 0.6.2's v2 snapshot: the first pool deck with turrets and a join, so the signature covers both
-    const v2 = generateSamplePool().find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined));
+    // BUMP-1D (run 3, P7): and an upload POST takes: a day of the 10-day span (section 6 below asks with wins = day - 1) whose record a run reaches
+    // WITHOUT a LAST CHANCE (POST reads the snapshot's `lastChance`, absent = none: a seed ghost holds none, and the first deck with turrets and a join
+    // is a day-13 ghost on 1 heart under the long run, which POST refuses as "no record a run carries into dusk 13")
+    const v2 = generateSamplePool().find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined)
+      && s.day <= MAX_DAY && isReachable(s.day, s.wins, s.lives, { lastChance: null, rules: s.rules, ...(s.losses !== undefined ? { losses: s.losses } : {}) }));
     if (!v2) throw new Error("the sample pool has no deck with turrets and a join");
     const mine = { ...ungraded(v2), runId: "smoke-run", playerId: device.playerId, name: TEST_NAME };
     const bytes = new TextEncoder().encode(encodeSnapshot(mine));
