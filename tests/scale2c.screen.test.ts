@@ -2,7 +2,7 @@
 // scaling pieces on the screen with SCALE_RIGS on (withScaleRigs): each face's ability line (REPORT-SCALE1 3.1's, in the
 // tokens), its fit (one line of 5x7 at 225 px at every star and day; the desk shop card's two effect lines; the phone
 // gist's 39 px row A), LEVELS / NEXT★ on the switch-on numbers, the NOTES line (3.2's hover), the flavour rows and the
-// stand-in art; off, every face, line, gist, note and list is as at M0.
+// art (ART-1E: each new id's own, no longer a stand-in's); off, every face, line, gist, note and list is as at M0.
 import { describe, expect, it } from "vitest";
 import { ITEMS, buyableModules, classFactor, type ItemDef } from "../src/sim/content";
 import { SCALE_IDS, SCALE_PIECES, scaleRules, withScaleRigs } from "../src/sim/scale";
@@ -17,7 +17,40 @@ import { CARD_EFFECT_LINES, CARD_MARK_X, cardEffectLines, cardEffectWidth, cardP
 import { CARD_W, wideCardW } from "../src/screens/build/layout";
 import { lineText, lineWidth } from "../src/ui/richText";
 import { explainPanel, type PanelText } from "../src/screens/build/inspector";
-import { SCALE_ART_FROM } from "../src/render/sprites";
+import { gateSprite } from "../src/render/sprites"; // ART-1E: the own-art test below (was SCALE_ART_FROM's stand-in test)
+
+/** ART-1E: the least of a software canvas gateSprite needs (fillRect and a 2-argument drawImage; each pixel kept by its colour
+ *  name), installed as `document` only inside the own-art test below. tests/art1e.test.ts has the whole raster. */
+interface Ctx { fillStyle: string; imageSmoothingEnabled: boolean; fillRect(x: number, y: number, w: number, h: number): void; drawImage(img: Raster, dx: number, dy: number): void }
+class Raster {
+  w = 300;
+  h = 150;
+  px: (string | null)[] = new Array<string | null>(300 * 150).fill(null);
+  private c: Ctx | null = null;
+  get width(): number { return this.w; }
+  set width(v: number) { this.w = v; this.px = new Array<string | null>(this.w * this.h).fill(null); }
+  get height(): number { return this.h; }
+  set height(v: number) { this.h = v; this.px = new Array<string | null>(this.w * this.h).fill(null); }
+  getContext(): Ctx {
+    if (this.c) return this.c;
+    const cv = this;
+    const ctx: Ctx = {
+      fillStyle: "#000000",
+      imageSmoothingEnabled: true,
+      fillRect(x, y, w, h) {
+        for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (i >= 0 && j >= 0 && i < cv.w && j < cv.h) cv.px[j * cv.w + i] = ctx.fillStyle;
+      },
+      drawImage(img, dx, dy) {
+        for (let j = 0; j < img.h; j++) for (let i = 0; i < img.w; i++) {
+          const p = img.px[j * img.w + i];
+          if (p !== null && dx + i >= 0 && dy + j >= 0 && dx + i < cv.w && dy + j < cv.h) cv.px[(dy + j) * cv.w + dx + i] = p;
+        }
+      },
+    };
+    return (this.c = ctx);
+  }
+}
+const pixels = (c: unknown): string => (c as Raster).px.map((p) => p ?? "-").join(",");
 
 /** BRIEF-SCALE2c section 2's face lines at ★1 (day 1, k 1), in markup. */
 const LINE: Record<string, string> = {
@@ -214,12 +247,24 @@ describe("SCALE-2c screen: the 12 faces with the switch on", () => {
     expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual(FLAVOUR_KEYS0);
   });
 
-  it("stand-in art: each new id draws its rigs.json artFrom piece (LEECH COIL RIVETER's)", () => {
-    expect(SCALE_ART_FROM).toEqual({
+  it("own art: each new id draws its own picture, no longer its former stand-in's (SCALE-2c's artFrom map, kept here); the new ids are the seven", () => {
+    // SCALE-2c drew each new id as a live rig's picture (sprites.ts SCALE_ART_FROM, LEECH COIL RIVETER's); ART-1E's render/scaleArt.ts
+    // draws its own (tests/art1e.test.ts: every frame, the icons, the silhouettes)
+    const FORMER: Readonly<Record<string, string>> = {
       cindermail: "plateroller", rotgauge: "heatjacket", leechcoil: "riveter", crowdpress: "pincer", aegisspike: "braceframe",
       grudgerod: "counterweight", trophychain: "overclocker",
-    });
-    for (const id of Object.values(SCALE_ART_FROM)) expect(ITEMS[id]?.kind, id).toBe("gate");
-    expect(Object.keys(SCALE_ART_FROM).sort()).toEqual([...SCALE_IDS].sort());
+    };
+    for (const id of Object.values(FORMER)) expect(ITEMS[id]?.kind, id).toBe("gate");
+    expect(Object.keys(FORMER).sort()).toEqual([...SCALE_IDS].sort());
+    const world = globalThis as unknown as { document: unknown };
+    const was = world.document;
+    world.document = { createElement: () => new Raster() };
+    try {
+      for (const [id, from] of Object.entries(FORMER)) {
+        expect(pixels(gateSprite(id, 0, false)), `${id} still draws ${from}'s picture`).not.toBe(pixels(gateSprite(from, 0, false)));
+      }
+    } finally {
+      world.document = was;
+    }
   });
 });
