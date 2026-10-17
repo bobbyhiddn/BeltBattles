@@ -15,6 +15,10 @@ import { npcDayGateProblem } from "./rulesGate"; // NPC-1 (REQ-BFG-077): the roa
 import { ROAD_OUTCOMES, type RoadEntry } from "../sim/npcDay"; // NPC-1
 import { livesCapFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the lives bound follows the rules (hearts: 10)
 import { pickGateProblem } from "./rulesGate"; // RETUNE-1 T5 (REQ-BFG-092): a seed ghost's grade by the switch and the rules
+import { longRunFor } from "./rulesGate"; // RUN-1 (REQ-BFG-059): the day bound and the record's `losses` follow the long run's rules
+/** T3d (R1.6): matchmaking.ts takes longRunFor through here (see its import): the decoder stays the first module to import the gate. */
+export { longRunFor };
+import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL, longRunRules } from "../sim/longRun"; // RUN-1: the long run's bounds
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -38,6 +42,10 @@ import { pickGateProblem } from "./rulesGate"; // RETUNE-1 T5 (REQ-BFG-092): a s
 // it switches it on. SNAPSHOT_VERSION stays the version a snapshot WITHOUT any v3 field travels as (the pools, the
 // stand-ins and the probe: unchanged bytes and ids); the player's own snapshot (day.ts ghostOf) carries its seed and so
 // travels as SNAPSHOT_V3.
+// RUN-1 (REQ-BFG-059, REQ-BFG-116; D4, D8): one exception to that table: R1e's `losses` (the dusks the run lost before this
+// one) is TAKEN under a long run's rules (v3LiveFor: the switch on AND rules at or after LONG_RUN_RULES), where the record
+// check needs it (records.ts: day - 1 = wins + losses + draws, at most MAX_RUN_DRAWS draws); under every other rules version it
+// stays reserved and refused (V3_LIVE.losses is false), and a v3 snapshot without it stays valid everywhere.
 export const SNAPSHOT_VERSION = 2;
 export const SNAPSHOT_V3 = 3;
 export const SNAPSHOT_VERSIONS: readonly number[] = [1, 2, 3];
@@ -59,12 +67,44 @@ export const MAX_SEED = 2 ** 32 - 1; // RUNES-1: a run seed (run.ts newRun), 1..
 export const MAX_RUNES = 10; // RUNES-1: one a dawn (= MAX_DAY; runes.ts runeProblem holds the day's own bound)
 /** LC-1 (REQ-BFG-073): the most runes a build may list: MAX_RUNES, and one more (a LAST CHANCE rune). A shape bound only:
  *  runes.ts runeProblem holds the day's own bound (one a dawn, and one LAST CHANCE only with the snapshot's lastChance,
- *  which the rules gate refuses under older rules). Z-BUMP: the switch is gone; this was its on side. */
-export const maxRunes = (): number => MAX_RUNES + 1;
+ *  which the rules gate refuses under older rules). Z-BUMP: the switch is gone; this was its on side.
+ *  RUN-1 (REQ-BFG-059, D4): `rules`, the record's rules, when the caller has them: a long run's bound is one rune a dawn up to
+ *  its deepest day (maxDayFor), and one more; without `rules` it follows the switch (a deck check with no snapshot).
+ *  With the switch off, 11, exactly as before. */
+export const maxRunes = (rules?: unknown): number => (rules === undefined ? (longRunRules() ? LONG_RUN_MAX_DAY : MAX_DAY) : maxDayFor(rules)) + 1;
 export const MAX_STARS = 3; // = stars.ts FUSE_MAX
 export const MAX_ROT = 3; // 0.6.2: a rig's rotation in quarter turns
 export const MAX_SNAPSHOT_BYTES = 16 * 1024; // encoded UTF-8 size cap (client, server, pool)
-export const MAX_DAY = 10; // a run is 10 days (ROADMAP §1)
+export const MAX_DAY = 10; // a run is 10 days (ROADMAP §1): the 10-day rules' bound and the depth of the committed tables; RUN-1: a long run's is maxDayFor(rules)
+
+/**
+ * RUN-1 (REQ-BFG-059, REQ-BFG-116; D4: bounds are DATA SAFETY, never rules): the deepest dusk day a snapshot, a battle record
+ * or a match request under `rules` may state. MAX_DAY (10) for the 10-day rules, whatever the switch; for a long run's rules
+ * (rulesGate.ts longRunFor: the switch on AND rules at or after LONG_RUN_RULES) LONG_RUN_MAX_DAY: the deepest day a run
+ * reaches without draws (LONG_RUN_DEEPEST_DAY) plus the draws an upload may carry (MAX_RUN_DRAWS). It refuses an UPLOAD or a
+ * request; it never ends, clamps or changes a run, a save or a day's content (a run past it keeps playing).
+ */
+export function maxDayFor(rules: unknown): number {
+  return longRunFor(rules) ? LONG_RUN_MAX_DAY : MAX_DAY;
+}
+
+/**
+ * RUN-1 (D4): the most wins a run ghost under `rules` may carry INTO a dusk of day `day`. A ghost is a dusk BEFORE its
+ * win, and a long run is over at its WIN_GOAL-th win, so 0..min(day - 1, WIN_GOAL - 1); the 10-day rules: day - 1 (the same
+ * bound for every day up to MAX_DAY, since 9 = WIN_GOAL - 1).
+ */
+export function maxWinsFor(rules: unknown, day: number): number {
+  return longRunFor(rules) ? Math.min(day - 1, WIN_GOAL - 1) : day - 1;
+}
+
+/**
+ * RUN-1 (REQ-BFG-059, D8): is the v3 snapshot field `field` taken under `rules`? V3_LIVE is the table of this rules
+ * version's fields; R1e's `losses` is reserved there (false) and taken only for a long run's rules, where the record check
+ * needs it (records.ts: day - 1 = wins + losses + draws). Every other field: V3_LIVE's answer.
+ */
+export function v3LiveFor(field: string, rules: unknown): boolean {
+  return field === "losses" ? longRunFor(rules) : !!V3_LIVE[field];
+}
 export const MAX_LIVES = 9; // generous cap: 0.4.1 starts with 3 lives, the 10-day run with 5
 export const MAX_ITEMS = 64;
 export const MAX_ROUTES = 16;
@@ -80,8 +120,8 @@ export interface GhostSnapshot {
   v: 1 | 2 | 3; // 0.6.1a: 2 carries stars; 1 still loads. RUNES-1: 3 may carry the v3 fields below
   rules: string; // RULES_VERSION the build fought under
   hero: HeroId;
-  day: number; // 1-10
-  wins: number; // wins going into this day's dusk fight (0..day-1)
+  day: number; // 1-10 (RUN-1: a long run's rules: 1..maxDayFor(rules))
+  wins: number; // wins going into this day's dusk fight (0..day-1; a long run's: 0..min(day-1, WIN_GOAL-1))
   lives: number; // lives left going into the fight (1..MAX_LIVES)
   build: Build;
   runId: string;
@@ -94,6 +134,8 @@ export interface GhostSnapshot {
    *  runeProblem). Private: served ghosts strip it (FIX-6; server/app.ts). */
   seed?: number;
   // RUNES-1 (snapshot v3), refused in this rules version (V3_LIVE): R1e's record and endless fields, R1d's gold
+  /** RUN-1 (REQ-BFG-059, D4, D8): the dusks the run lost before this one (0..day - 1 - wins); taken only under a long run's
+   *  rules (v3LiveFor), where day - 1 - wins - losses are its draws (at most MAX_RUN_DRAWS). Optional: absent = unknown. */
   losses?: number;
   mode?: "run" | "endless";
   endlessWins?: number;
@@ -224,11 +266,11 @@ function grow(o: Obj, path: string, version: number): void {
 
 /** RUNES-1 (snapshot v3): the build's optional `runes`, v3 only: at most MAX_RUNES strict entries { id } in pick order
  *  (GROW-1's counter `n` refused while off); kept as given, last. Which ids are legal is runes.ts runeProblem's. */
-function runes(o: Obj, path: string, version: number): { runes?: { id: string }[] } {
+function runes(o: Obj, path: string, version: number, rules?: unknown): { runes?: { id: string }[] } {
   if (!has(o, "runes") || o.runes === undefined) return {};
   v3Gate(`${path}.runes`, "runes", version);
   return {
-    runes: arr(o.runes, `${path}.runes`, maxRunes()).map((rv, i) => { // LC-1: maxRunes (MAX_RUNES while the switch is off)
+    runes: arr(o.runes, `${path}.runes`, maxRunes(rules)).map((rv, i) => { // LC-1: maxRunes (MAX_RUNES while the switch is off); RUN-1: by the record's rules
       const at = `${path}.runes[${i}]`;
       const e = obj(rv, at, ["id"], [V3_RUNE_COUNTER]);
       if (has(e, V3_RUNE_COUNTER) && e[V3_RUNE_COUNTER] !== undefined) v3Gate(`${at}.${V3_RUNE_COUNTER}`, V3_RUNE_COUNTER, version);
@@ -264,9 +306,10 @@ export function isHeroId(v: unknown): v is HeroId {
  * copy. Legality (placement, routes, budget) is validate.ts's job. 0.6.1a: `version` is the
  * snapshot version the build travels in (default SNAPSHOT_VERSION): from v2 an item or mod may
  * carry `stars` (1..MAX_STARS); in v1 it must be absent. 0.6.2s: from v2 the build may carry `turrets`
- * (see turrets()); the copy has the key only when the input has it, last.
+ * (see turrets()); the copy has the key only when the input has it, last. RUN-1: `rules`, the snapshot's (or record's) rules
+ * when the caller has them, bound the runes list by that run's deepest day (maxRunes); absent: by the switch.
  */
-export function checkBuildShape(v: unknown, path = "build", version: number = SNAPSHOT_V3): Build {
+export function checkBuildShape(v: unknown, path = "build", version: number = SNAPSHOT_V3, rules?: unknown): Build {
   // RUNES-1: the default is the newest version (a build outside a snapshot: validateBuild, a battle record's builds), so
   // a build with runes is shape-legal there; checkSnapshot passes its own snapshot's version
   const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"], ["turrets", "upgrades", ...V3_BUILD_FIELDS]);
@@ -315,18 +358,28 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
     hullBonus: int(o.hullBonus, `${path}.hullBonus`, -10000, 100000),
     ...turrets(o, path, version),
     ...upgrades(o, path, version), // bb-0.8.3 (REQ-BFG-043 D10)
-    ...runes(o, path, version), // RUNES-1 (snapshot v3): last, only when present
+    ...runes(o, path, version, rules), // RUNES-1 (snapshot v3): last, only when present
   };
 }
 
 /** RUNES-1 (snapshot v3): the snapshot-level v3 fields, in V3_SNAPSHOT_FIELDS order, each only when present. `seed` (on):
- *  an integer 1..MAX_SEED (a zero seed is left out). Every other field is refused while off (v3Gate). */
-function v3Fields(o: Obj, version: number): { seed?: number } {
-  const out: { seed?: number } = {};
+ *  an integer 1..MAX_SEED (a zero seed is left out). Every other field is refused while off (v3Gate).
+ *  RUN-1 (REQ-BFG-059, D4, D8): `losses`, R1e's field, is taken under a long run's rules (v3LiveFor): the dusks the run lost
+ *  before this one, an integer 0..day - 1 - wins (0 is allowed: an exact record), and the dusks left over are its draws
+ *  (day - 1 - wins - losses), at most MAX_RUN_DRAWS (anti-forgery; records.ts holds the model). Absent: a snapshot as before
+ *  (every old v3 snapshot stays valid; its draws are unknown and the record check allows any it can reach). */
+function v3Fields(o: Obj, version: number, rules: string, day: number, wins: number): { seed?: number; losses?: number } {
+  const out: { seed?: number; losses?: number } = {};
   for (const k of V3_SNAPSHOT_FIELDS) {
     if (!has(o, k) || o[k] === undefined) continue;
-    v3Gate(`snapshot.${k}`, k, version);
+    if (!v3LiveFor(k, rules)) v3Gate(`snapshot.${k}`, k, version); // RUN-1: `losses` under a long run's rules is live
+    else if (version < SNAPSHOT_V3) throw new SnapshotError(`snapshot.${k}: not allowed in a v${version} snapshot`);
     if (k === "seed") out.seed = int(o.seed, "snapshot.seed", 1, MAX_SEED);
+    if (k === "losses") {
+      out.losses = int(o.losses, "snapshot.losses", 0, day - 1 - wins);
+      const draws = day - 1 - wins - out.losses;
+      if (draws > MAX_RUN_DRAWS) throw new SnapshotError(`snapshot.losses: ${draws} draws in ${day - 1} dusks is past ${MAX_RUN_DRAWS}`);
+    }
   }
   return out;
 }
@@ -355,6 +408,8 @@ export const LAST_CHANCE_FIELD = "lastChance";
  * lastChanceGateProblem), as V3_LIVE refuses an off field; refused as a list (a run has one LAST CHANCE), on day 10 or
  * later, and on a day not before the snapshot's own (it fires at a dusk the snapshot is past). `boon` is rune, part or
  * hull; `id` names the rune or part and is absent for hull. Whether its card was offered is validate.ts's check.
+ * RUN-1 (REQ-BFG-059, D3, D4): under a long run's rules LAST CHANCE can fire on ANY day, so there is no day-10 line: its day
+ * is 1..maxDayFor(rules) and before the snapshot's own day (the one bound left).
  */
 function lastChanceField(o: Obj, version: number, rules: string, day: number): { lastChance?: TakenLastChance } {
   if (!has(o, LAST_CHANCE_FIELD) || o[LAST_CHANCE_FIELD] === undefined) return {};
@@ -365,8 +420,8 @@ function lastChanceField(o: Obj, version: number, rules: string, day: number): {
   const raw = o[LAST_CHANCE_FIELD];
   if (Array.isArray(raw)) throw new SnapshotError(`${at}: a run has one LAST CHANCE, not a list of ${raw.length}`);
   const lc = obj(raw, at, ["day", "boon"], ["id"]);
-  const d = int(lc.day, `${at}.day`, 1, MAX_DAY);
-  if (d >= RUN_DAYS) throw new SnapshotError(`${at}.day: ${d}: LAST CHANCE comes only before day ${RUN_DAYS}`);
+  const d = int(lc.day, `${at}.day`, 1, maxDayFor(rules));
+  if (!longRunFor(rules) && d >= RUN_DAYS) throw new SnapshotError(`${at}.day: ${d}: LAST CHANCE comes only before day ${RUN_DAYS}`);
   if (d >= day) throw new SnapshotError(`${at}.day: ${d} is not before the snapshot's day ${day}`);
   if (typeof lc.boon !== "string" || !BOONS.includes(lc.boon as Boon)) throw new SnapshotError(`${at}.boon: expected one of ${BOONS.join(", ")}`);
   const boon = lc.boon as Boon;
@@ -386,7 +441,7 @@ export const ROAD_FIELD = "road";
  * for byte as before). Refused while NPC_DAY is off and under rules before NPC_DAY_RULES (rulesGate.ts npcDayGateProblem),
  * as LC-1's lastChance was: a SnapshotError, the endpoint's 400. At most MAX_DAY entries; each day 1..MAX_DAY, a tier, an
  * outcome and a part id. Whether the entries can stand (their days, the warlords, the seeded drops) is validate.ts's
- * roadProblem (the endpoint's 422).
+ * roadProblem (the endpoint's 422). RUN-1 (D4): under a long run's rules the entries and their days follow maxDayFor(rules).
  */
 function roadField(o: Obj, version: number, rules: string): { road?: RoadEntry[] } {
   if (!has(o, ROAD_FIELD) || o[ROAD_FIELD] === undefined) return {};
@@ -394,11 +449,12 @@ function roadField(o: Obj, version: number, rules: string): { road?: RoadEntry[]
   if (version < SNAPSHOT_V3) throw new SnapshotError(`${at}: not allowed in a v${version} snapshot`);
   const gate = npcDayGateProblem(rules);
   if (gate) throw new SnapshotError(`${at}: ${gate}`);
+  const top = maxDayFor(rules);
   return {
-    road: arr(o[ROAD_FIELD], at, MAX_DAY).map((rv, i) => {
+    road: arr(o[ROAD_FIELD], at, top).map((rv, i) => {
       const p = `${at}[${i}]`;
       const e = obj(rv, p, ["day", "tier", "outcome"], ["drop", "sabotaged"]); // HULL-1a (REQ-BFG-078, Q3): `sabotaged`
-      const day = int(e.day, `${p}.day`, 1, MAX_DAY);
+      const day = int(e.day, `${p}.day`, 1, top);
       if (typeof e.tier !== "string" || !(["easy", "medium", "hard"] as unknown[]).includes(e.tier)) throw new SnapshotError(`${p}.tier: expected easy, medium or hard`);
       if (typeof e.outcome !== "string" || !(ROAD_OUTCOMES as readonly unknown[]).includes(e.outcome)) throw new SnapshotError(`${p}.outcome: expected ${ROAD_OUTCOMES.join(", ")}`);
       const drop = has(e, "drop") && e.drop !== undefined ? { drop: str(e.drop, `${p}.drop`, DEF_PATTERN) } : {};
@@ -436,10 +492,12 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
   const ver: 1 | 2 | 3 = o.v;
   const rules = str(o.rules, "snapshot.rules", RULES_PATTERN);
   if (!isHeroId(o.hero)) throw new SnapshotError("snapshot.hero: unknown hero");
-  const day = int(o.day, "snapshot.day", 1, MAX_DAY);
-  const wins = int(o.wins, "snapshot.wins", 0, day - 1);
+  // RUN-1 (REQ-BFG-059, D4): under a long run's rules the day is 1..maxDayFor(rules) (25) and a run ghost's wins 0..min(day - 1,
+  // WIN_GOAL - 1) (a dusk BEFORE its 10th win); the 10-day rules: 1..MAX_DAY and 0..day - 1, as before
+  const day = int(o.day, "snapshot.day", 1, maxDayFor(rules));
+  const wins = int(o.wins, "snapshot.wins", 0, maxWinsFor(rules, day));
   const lives = int(o.lives, "snapshot.lives", 1, livesCapFor(rules, MAX_LIVES)); // RETUNE-1: 10 under rules with hearts
-  const build = checkBuildShape(o.build, "snapshot.build", ver);
+  const build = checkBuildShape(o.build, "snapshot.build", ver, rules);
   if (build.hero !== o.hero) throw new SnapshotError("snapshot.build.hero: must equal snapshot.hero");
   const gate = rulesGateProblem(rules, build); // 0.7.0 (v070-rel M2): before any exact RULES_VERSION check of a caller
   if (gate) throw new SnapshotError(`snapshot.rules: ${gate}`);
@@ -453,7 +511,7 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
     playerId: str(o.playerId, "snapshot.playerId", ID_PATTERN),
     createdAt: int(o.createdAt, "snapshot.createdAt", 0, Number.MAX_SAFE_INTEGER),
     ...nameField(o), // PACKS M2 (REQ-BFG-063): last, only when present
-    ...v3Fields(o, ver), // RUNES-1 (snapshot v3): after the name, only when present
+    ...v3Fields(o, ver, rules, day, wins), // RUNES-1 (snapshot v3): after the name, only when present; RUN-1: `losses` under a long run's rules
     ...lastChanceField(o, ver, rules, day), // LC-1 (REQ-BFG-073): last of all, only when present (and the switch on)
     ...roadField(o, ver, rules), // NPC-1 (REQ-BFG-077, REQ-BFG-078): after it, only when present (and NPC_DAY on)
     ...gradeField(o, ver, rules), // RETUNE-1 T5 (REQ-BFG-092): last, only when present (and PICK on)

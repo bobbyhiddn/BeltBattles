@@ -261,7 +261,7 @@ export interface RunFacts {
   hero: HeroId | string;
   /** The run's day now (after finishDay: the next day's, unless the run is over). */
   day: number;
-  over: "complete" | "lost" | null;
+  over: "complete" | "lost" | "won" | null; // RUN-1 (REQ-BFG-059): "won", a long run won at 10 wins
   /** 10-0. */
   flawless: boolean;
   /** Belts on the deck (run.build.routes.length). */
@@ -307,7 +307,7 @@ export function foldWarlord(p: Profile, r: RunFacts, day: number, outcome: "win"
 export function foldEnd(p: Profile, r: RunFacts): string[] {
   return fold(p, `${r.runId}:end`, r.runId, () => {
     p.counters.runs++;
-    if (r.over === "complete") {
+    if (r.over === "complete" || r.over === "won") { // RUN-1: a long run's WON finishes it, as a 10-day run's complete
       p.counters.runsFinished++;
       if (!p.heroesFinished.includes(r.hero)) p.heroesFinished.push(r.hero);
     }

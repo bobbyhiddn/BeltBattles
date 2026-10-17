@@ -5,7 +5,8 @@
 import { RULES_VERSION } from "../sim/content";
 import { cloneBuild, type Build } from "../sim/deck";
 import { Battle, simulate, type BattleRecord, type Side } from "../sim/battle";
-import { checkBuildShape, MAX_DAY } from "./snapshot";
+import { checkBuildShape } from "./snapshot";
+import { WIN_GOAL } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): the wins a record carries into a dusk are bounded by the goal
 import { runeMods } from "../sim/runes"; // RUNES-2a (REQ-BFG-058): WARLORD'S DUE's wins travel in the record
 import { rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules
 import { freeJoinsFor } from "./rulesGate"; // JOINS-1 (REQ-BFG-091): free joins by the record's own rules
@@ -48,16 +49,20 @@ export function battleRecordFor(player: Build, ghost: Build, seed: number, wins?
   };
 }
 
-/** HULL-1a (REQ-BFG-079): a record's day, a whole number 1..RECORD_DAY_MAX (days past MAX_DAY are for later modes). */
+/** HULL-1a (REQ-BFG-079): a record's day, a whole number 1..RECORD_DAY_MAX (days past MAX_DAY are for later modes; RUN-1: a
+ *  long run's days 11-25 are among them, so no change). */
 const RECORD_DAY_MAX = 99;
 function checkDay(d: unknown): number {
   if (typeof d !== "number" || !Number.isInteger(d) || d < 1 || d > RECORD_DAY_MAX) throw new Error(`battle record: day must be an integer in 1..${RECORD_DAY_MAX}`);
   return d;
 }
 
-/** RUNES-2a: a record's wins, an integer 0..MAX_DAY - 1 (the snapshot's bound: wins going into a day's dusk). */
+/** RUNES-2a: a record's wins, an integer 0..MAX_DAY - 1 (the snapshot's bound: wins going into a day's dusk).
+ *  RUN-1 (REQ-BFG-059, D4): the same bound, now named by the run's goal: a dusk is fought BEFORE the 10th win ends the run, so
+ *  0..WIN_GOAL - 1 for a long run's record as for a 10-day one (WIN_GOAL = MAX_DAY = 10: 0..9, a record's day aside, which
+ *  RECORD_DAY_MAX already leaves open to day 99). */
 function checkWins(w: unknown): number {
-  if (typeof w !== "number" || !Number.isInteger(w) || w < 0 || w >= MAX_DAY) throw new Error(`battle record: wins must be integers in 0..${MAX_DAY - 1}`);
+  if (typeof w !== "number" || !Number.isInteger(w) || w < 0 || w >= WIN_GOAL) throw new Error(`battle record: wins must be integers in 0..${WIN_GOAL - 1}`);
   return w;
 }
 

@@ -14,7 +14,9 @@ import { EVENTS, type EventId } from "../../game/eventDefs"; // NPC-1: AFTER THE
 import { rect } from "../../render/pixel"; // NPC-1: the inspect panel's drop rule
 import { saveRun, type Run, type RoadPick } from "../../game/run";
 import { settings } from "../../core/settings";
-import { RIVALS, RUN_DAYS, type Difficulty } from "../../sim/rivals";
+import { RIVALS, type Difficulty } from "../../sim/rivals";
+import { longRun } from "../../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): a long run's header says DAY n, never DAY n/10
+import { dayText } from "../runDay";
 import { C } from "../../render/palette";
 import { type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font"; // HULL-1b: textWidth (the drop row)
@@ -33,6 +35,10 @@ import { drawRich, wrapRich, type Span } from "../../ui/richText"; // U2b: a cap
 import { captainSpans } from "../../ui/captainText"; // U2b: the keyword colours
 
 const IDS = ["fork0", "fork1", "fork2", "fork3"];
+
+/** RUN-1 (REQ-BFG-059, D7): the fork's header: "THE ROAD · DAY 3/10" on a 10-day run, exactly as before; "THE ROAD · DAY 12" on a
+ *  long run (its mark, Run.longRun; never "/N": no day is its last). */
+export const forkHead = (run: Pick<Run, "day" | "longRun">): string => `THE ROAD · ${dayText(run.day, longRun(run))}`;
 
 export class ForkScreen implements Screen {
   readonly run: Run;
@@ -147,7 +153,7 @@ export class ForkScreen implements Screen {
     this.sea.drawStill(g, { W, H, kind: seaForDay(run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
     const L = this.layout();
     const npc = npcDayRules(); // NPC-1 (REQ-BFG-077): one fight to pick; the day's event comes after it
-    drawText(g, `THE ROAD · DAY ${run.day}/${RUN_DAYS}`, W / 2, L.head, C.yellow, { align: "center", outline: C.ink });
+    drawText(g, forkHead(run), W / 2, L.head, C.yellow, { align: "center", outline: C.ink });
     // RETUNE-1 run 2 (REQ-BFG-096): HEART on a hearts run (lifeWord), LIFE as before otherwise
     drawText(g, `${npc ? "PICK ONE FIGHT" : "PICK ONE STOP"} · WARLORDS NEVER COST A ${lifeWord(run)}`, W / 2, L.head + 9, C.slate4, { font: "3", align: "center" });
     if (npc) drawText(g, afterTheFight(f.event), W / 2, L.head + 18, C.amber, { font: "3", align: "center" });

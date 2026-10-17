@@ -11,9 +11,9 @@ import { startingBuild, warlordBuild } from "./ai";
 import type { HeroId } from "./content";
 import type { Build } from "./deck";
 import { isRaceHero } from "./races/data";
-import { PLATE_STEP, REF_DAYS, raceRefBuild, raceStartBuild, rampPlates, refDay } from "./races/refBuilds";
+import { PLATE_STEP, REF_DAYS, REF_DAYS_LONG, raceRefBuild, raceStartBuild, rampPlates, refDay, refHullDay } from "./races/refBuilds";
 
-export { PLATE_STEP, REF_DAYS, rampPlates };
+export { PLATE_STEP, REF_DAYS, REF_DAYS_LONG, rampPlates };
 
 /** Heroes the game offers today: hero select shows them in this order. 0.8.0 H1 (REQ-BFG-011): FOUNDRY (human) and
  *  BASTION (dwarf) joined FURNACE and WEAVER; METRONOME and SIPHON follow in 0.9.0. What reads this list, and what was
@@ -26,9 +26,11 @@ export function heroStartBuild(hero: HeroId, uid0 = 1): Build {
   return isRaceHero(hero) ? raceStartBuild(hero, uid0) : startingBuild(hero, uid0);
 }
 
-/** Reference build of `hero` for `day` (1-10; other days clamp): a deck a player could own that day. */
+/** Reference build of `hero` for `day` (1-10; other days clamp): a deck a player could own that day. RUN-1 (REQ-BFG-059, D5):
+ *  with the long run in the game (longRun.ts), days 1-16 (REF_DAYS_LONG), and a later day is day 16's deck with that day's
+ *  hull ramp. */
 export function heroRefBuild(hero: HeroId, day: number): Build {
   const d = refDay(day);
-  if (isRaceHero(hero)) return raceRefBuild(hero, d);
-  return { ...warlordBuild(hero, d), hullBonus: PLATE_STEP * rampPlates(d) };
+  if (isRaceHero(hero)) return raceRefBuild(hero, refHullDay(day)); // RUN-1: past REF_DAYS, the day's own hull
+  return { ...warlordBuild(hero, d), hullBonus: PLATE_STEP * rampPlates(refHullDay(day)) };
 }

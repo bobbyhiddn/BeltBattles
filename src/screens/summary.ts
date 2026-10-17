@@ -1,6 +1,9 @@
 // Run end (0.6.0): RUN COMPLETE (10 days survived, the W-L record, FLAWLESS at 10-0) or RUN LOST
 // (the dark wind catches you, on day n). The card lists each day: the road event taken, the
 // dusk opponent and the result, beside the cruiser (rolling victor or smoking wreck).
+// RUN-1 (REQ-BFG-059, REQ-BFG-116; D7): a long run (Run.longRun: won at 10 wins, lost at 0 hearts, no day limit) ends RUN WON
+// ("FURNACE WON 10 OF 13 DUSKS, ON DAY 13", FLAWLESS at 10 wins and 0 losses) or RUN LOST (its day and W-L); its history rows
+// from day 11 on are marked (amber day), and a history too long for the screen folds its earliest days into one row.
 
 import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
@@ -8,6 +11,8 @@ import { saveRun, type Run } from "../game/run";
 import { flawless, record } from "../game/day";
 import type { EventId } from "../game/eventDefs";
 import { HEROES, RUN_DAYS } from "../sim/content";
+import { WIN_GOAL, longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): the run's own mark picks the end card's words
+import { onLongRoad } from "./runDay"; // RUN-1: a long run's days past 10 are marked in the history
 import { Fx } from "../render/fx";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
@@ -132,11 +137,68 @@ function fit(s: string, w: number): string {
   return t === s ? s : t.replace(/[ ·]+$/, "") + ".";
 }
 
+/** RUN-1 (REQ-BFG-059, D7): the end card's title: a 10-day run's "RUN COMPLETE" exactly as before; a long run's "RUN WON"; "RUN LOST"
+ *  for either rule's loss. `won`: the run ended won (SummaryScreen.complete); `long`: the run's mark (Run.longRun). */
+export const endTitle = (won: boolean, long: boolean): string => (won ? (long ? "RUN WON" : "RUN COMPLETE") : "RUN LOST");
+
+/** RUN-1 (REQ-BFG-059, D7): a won run's line under the title. A 10-day run: "FURNACE · 10 DAYS SURVIVED · W-L 7-3", exactly as before. A
+ *  long run: "FURNACE WON 10 OF 13 DUSKS, ON DAY 13" (the dusks fought, draws included; the day it ended on). */
+export function wonLine(run: Pick<Run, "hero" | "wins" | "losses" | "day" | "history" | "longRun">): string {
+  const hero = HEROES[run.hero].name;
+  if (!longRun(run)) return `${hero} · ${RUN_DAYS} DAYS SURVIVED · W-L ${record(run)}`;
+  return `${hero} WON ${run.wins} OF ${Math.max(run.history.length, run.wins + run.losses)} DUSKS, ON DAY ${run.day}`;
+}
+
+/** The history's foot line: "7 HEARTS LEFT · WINS 3/10" (RETUNE-1 run 2: HEARTS on a hearts run, else LIVES). RUN-1 (D2): the 10 is the
+ *  goal, WIN_GOAL on a long run (it was RUN_DAYS, also 10): the text is the same either way. */
+export const footLine = (run: Pick<Run, "hearts" | "lives" | "wins" | "longRun">): string =>
+  `${livesLeft(run)} · WINS ${run.wins}/${longRun(run) ? WIN_GOAL : RUN_DAYS}`;
+
+/** A lost run's second line: "ON DAY 12 · FURNACE · W-L 6-6" (its day and record; either rule's, unchanged by RUN-1). */
+export const lostLine = (run: Pick<Run, "hero" | "wins" | "losses" | "day">): string => `ON DAY ${run.day} · ${HEROES[run.hero].name} · W-L ${record(run)}`;
+
 /** 0.7.0a M4: a dusk row's replay: playable, or why not (D6: another rules version says so). */
 interface RowReplay {
   record: BattleRecord;
   why: string | null; // null: REPLAY plays it
 }
+
+/** One row of the run's history (fights()). RUN-1 (D7): `fold`, on a long run too deep for the screen, stands for the earliest days:
+ *  one row that says the days it covers and the dusks' wins, losses and draws there (foldRows). */
+export interface HistoryRow {
+  day: number; stop: string; stopColor: string; foe: string; foeColor: string; outcome: "win" | "loss" | "draw"; time: number;
+  at?: number; replay?: RowReplay; lc?: string;
+  fold?: { from: number; to: number; w: number; l: number; d: number };
+}
+
+/** RUN-1 (REQ-BFG-059, D7): `rows` as the card draws them when only `keep` rows fit: the same rows when they all fit, else the
+ *  earliest `rows.length - keep + 1` of them folded into one row ("DAYS 1-8 · 6 W · 2 L", the dusks only: a warlord fight is no
+ *  dusk) and the latest `keep - 1` kept whole (`keep` is at least 2: the run's last row always stays). The fold takes whole days
+ *  (a day's warlord row and its dusk are never split) and at least two of them ("DAYS 1-1" says no more than its rows do), so it
+ *  may take a few rows more than it must. */
+export function foldRows(rows: HistoryRow[], keep: number): HistoryRow[] {
+  const k = Math.max(2, keep);
+  if (rows.length <= k) return rows;
+  const last = rows.length - 1;
+  const whole = (n: number): number => { // the cut at `n` rows, moved on to the end of the day it falls in (never past the last row)
+    let m = Math.min(n, last);
+    while (m < last && rows[m].day === rows[m - 1].day) m++;
+    return m;
+  };
+  let n = whole(rows.length - k + 1);
+  if (rows[n - 1].day === rows[0].day) n = whole(n + 1); // one day: take a second
+  const first = rows.slice(0, n), dusks = first.filter((r) => r.at !== undefined);
+  const count = (o: HistoryRow["outcome"]): number => dusks.filter((r) => r.outcome === o).length;
+  const row: HistoryRow = {
+    day: first[n - 1].day, stop: "", stopColor: C.slate4, foe: "", foeColor: C.slate4, outcome: "draw", time: 0,
+    fold: { from: first[0].day, to: first[n - 1].day, w: count("win"), l: count("loss"), d: count("draw") },
+  };
+  return [row, ...rows.slice(n)];
+}
+
+/** The words of a folded row: "DAYS 1-8 · 6 W · 2 L" (a draw count only when there was one). */
+export const foldText = (f: NonNullable<HistoryRow["fold"]>): string =>
+  `DAYS ${f.from}-${f.to} · ${f.w} W · ${f.l} L${f.d ? ` · ${f.d} D` : ""}`;
 
 export class SummaryScreen implements Screen {
   private run: Run;
@@ -167,7 +229,7 @@ export class SummaryScreen implements Screen {
   }
 
   get complete(): boolean {
-    return this.run.over === "complete";
+    return this.run.over === "complete" || this.run.over === "won"; // RUN-1 (REQ-BFG-059): a long run's WON
   }
 
   enter(): void {
@@ -200,9 +262,9 @@ export class SummaryScreen implements Screen {
 
   /** 0.6.0b: every fight of the run in order: each day's warlord fight (if one was picked), then its dusk. 0.7.0a: a
    *  dusk row carries its history index (`at`) and, online, its replay. */
-  fights(): { day: number; stop: string; stopColor: string; foe: string; foeColor: string; outcome: "win" | "loss" | "draw"; time: number; at?: number; replay?: RowReplay; lc?: string }[] {
+  fights(): HistoryRow[] {
     const run = this.run;
-    const out: ReturnType<SummaryScreen["fights"]> = [];
+    const out: HistoryRow[] = [];
     run.history.forEach((d, at) => {
       for (const w of run.warlords.filter((q) => q.day === d.day)) {
         out.push({ day: w.day, stop: TIER_LABEL[w.tier], stopColor: TIER_COLOR[w.tier], foe: w.name, foeColor: nameColor(w.id), outcome: w.outcome, time: w.time });
@@ -217,8 +279,23 @@ export class SummaryScreen implements Screen {
     return out;
   }
 
+  /** RUN-1 (REQ-BFG-059, D7): the rows the card draws. A 10-day run's are fights(), whole (the card is laid out for up to 20, as
+   *  before). A long run's are fights() too, unless the card would run off the screen (a run into the high teens of days, the
+   *  strip under it as tall as its stored dusks need): then the earliest days fold into one row (foldRows) until it fits. */
+  rows(): HistoryRow[] {
+    const all = this.fights();
+    if (!longRun(this.run)) return all;
+    const v = this.game.view, replays = this.replays.size, notes = this.noteLines().length;
+    let keep = all.length;
+    for (; keep > 2; keep--) {
+      const L = summaryLayout(v, keep, replays, notes);
+      if (L.card.y + L.card.h <= v.H - 4) break;
+    }
+    return foldRows(all, keep);
+  }
+
   private layout(): SummaryLayout {
-    return summaryLayout(this.game.view, this.fights().length, this.replays.size, this.noteLines().length);
+    return summaryLayout(this.game.view, this.rows().length, this.replays.size, this.noteLines().length);
   }
 
   update(dt: number): void {
@@ -253,10 +330,9 @@ export class SummaryScreen implements Screen {
     const { x, y, w, h } = card;
     const cx = x + w / 2;
     panel(g, card, "raised");
-    drawText(g, won ? "RUN COMPLETE" : "RUN LOST", cx, y + 6, won ? C.lime : C.red, { align: "center", scale: 2, outline: C.ink });
-    const hero = HEROES[run.hero].name;
+    drawText(g, endTitle(won, longRun(run)), cx, y + 6, won ? C.lime : C.red, { align: "center", scale: 2, outline: C.ink }); // RUN-1: RUN WON on a long run
     if (won) {
-      drawText(g, `${hero} · ${RUN_DAYS} DAYS SURVIVED · W-L ${record(run)}`, cx, y + 23, C.bone, { font: "3", align: "center" });
+      drawText(g, wonLine(run), cx, y + 23, C.bone, { font: "3", align: "center" }); // RUN-1: "FURNACE WON 10 OF 13 DUSKS, ON DAY 13" on a long run
       if (flawless(run)) {
         const fw = textWidth("FLAWLESS") + 8;
         rect(g, Math.round(cx - fw / 2), y + 31, fw, 11, C.yellow);
@@ -264,11 +340,11 @@ export class SummaryScreen implements Screen {
       } else drawText(g, `${livesLeft(run)} · ${run.gold} GOLD`, cx, y + 33, C.slate4, { font: "3", align: "center" }); // RETUNE-1 run 2: HEARTS on a hearts run
     } else {
       drawText(g, "THE DARK WIND CATCHES YOU", cx, y + 23, C.bone, { font: "3", align: "center" });
-      drawText(g, `ON DAY ${run.day} · ${hero} · W-L ${record(run)}`, cx, y + 32, C.slate4, { font: "3", align: "center" });
+      drawText(g, lostLine(run), cx, y + 32, C.slate4, { font: "3", align: "center" });
     }
     this.drawDays(g, x + 8, y + 48, w - 16, rowH, !strip);
     // CUSTOM-2a (REQ-BFG-072): the styles this run unlocked, under the lives line (TEXT-STYLE 8.3: LABEL: TEXT.)
-    const ny = y + 58 + Math.max(1, this.fights().length) * rowH + 12;
+    const ny = y + 58 + Math.max(1, this.rows().length) * rowH + 12;
     this.noteLines().forEach((ln, i) => drawText(g, ln, cx, ny + i * NOTE_H, C.yellow, { font: "3", align: "center" }));
     if (strip) this.drawStrip(g, strip);
     const bh = summaryButtonH(this.game.view); // shoptap (D5): 21 px, and on a phone at least 44 CSS px
@@ -313,8 +389,14 @@ export class SummaryScreen implements Screen {
     drawText(g, "TIME", cTime, y, C.slate3, { font: "3", align: "right" });
     rect(g, x, y + 7, w, 1, C.slate1);
     let ry = y + 10;
-    for (const f of this.fights()) {
-      drawText(g, String(f.day), cDay + 8, ry, C.slate4, { font: "3", align: "right" });
+    for (const f of this.rows()) {
+      if (f.fold) {
+        // RUN-1 (D7): the earliest days of a long run too deep for the card, folded: "DAYS 1-8 · 6 W · 2 L", one row
+        drawText(g, foldText(f.fold), cDay, ry, C.slate4, { font: "3" });
+        ry += rh;
+        continue;
+      }
+      drawText(g, String(f.day), cDay + 8, ry, onLongRoad(f.day, longRun(run)) ? C.amber : C.slate4, { font: "3", align: "right" }); // RUN-1: day 11+ of a long run, amber
       drawText(g, fit(f.stop, stopW), cStop, ry, f.stopColor, { font: "3" });
       if (f.lc) {
         // LC-1: the card taken, in lime at the column's end; the foe's name gives way
@@ -337,8 +419,7 @@ export class SummaryScreen implements Screen {
       ry += rh;
     }
     rect(g, x, ry, w, 1, C.slate1);
-    const lives = livesLeft(run); // RETUNE-1 run 2 (REQ-BFG-096): "7 HEARTS LEFT" on a hearts run, else as before
-    drawText(g, `${lives} · WINS ${run.wins}/${RUN_DAYS}`, x + w / 2, ry + 3, C.white, { font: "3", align: "center" });
+    drawText(g, footLine(run), x + w / 2, ry + 3, C.white, { font: "3", align: "center" });
   }
 
   key(k: string): void {

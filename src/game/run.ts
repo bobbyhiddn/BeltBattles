@@ -27,6 +27,7 @@ import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/run
 import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type LastChance, type LastChanceOffer } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT has no shop
 import { HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a new run's hearts
+import { longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a new run's long-run mark
 import { openRunesRules } from "../sim/openRunes"; // OPEN-1 (REQ-BFG-109): the dawn offer's and LAST CHANCE card's rule
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
@@ -107,7 +108,10 @@ export interface DuskFoe {
   hero: HeroId;
   build: Build; // fought exactly as stored
   rival?: RivalId; // a stand-in's captain (portrait, STAND-IN tag)
-  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number; name?: string }; // a pool ghost's stamp (PACKS M2: its player name, when it has one)
+  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number; name?: string; ghostDay?: number }; // a pool ghost's stamp (PACKS M2: its player name, when it has one)
+  // RUN-1 (R1.5, T4b): `ghostDay`, the ghost's OWN day, only when it differs from this dusk's day (D6: a long run's thin day widens to the
+  // nearest earlier day, so a day-12 dusk can meet a day-10 ghost): foeTitle reads the ghost's W-L from it. Absent: the ghost fought on
+  // this dusk's day (every 10-day run, and every exact-day pick), so a save and a record are byte for byte as before.
   // 0.7.0a (online play only; absent offline), save v7, no bump: where tonight's foe came from, shown in small text on
   // the NEXT BATTLE card and under the enemy plate: "online" a ghost from the ghost server, "offline" 0.6.2's stand-in
   // after the fetch fell back (an error, a timeout, a 404 or an unusable answer)
@@ -121,7 +125,7 @@ export interface Run {
   runId: string; // unique per run: a run never meets its own ghosts
   hero: HeroId;
   enemyHero: HeroId; // 0.5.0 warlord hero (the herald's champion; 0.6.0b retargets it)
-  day: number; // 1..RUN_DAYS
+  day: number; // 1..RUN_DAYS; RUN-1: a long run (longRun) has no day limit (1, 2, ...)
   gold: number;
   lives: number;
   wins: number;
@@ -131,7 +135,7 @@ export interface Run {
   shop: Shop;
   nextUid: number;
   history: DayResult[];
-  over: null | "complete" | "lost";
+  over: null | "complete" | "lost" | "won"; // RUN-1: "won" ends a long run at its WIN_GOAL-th win ("complete": a 10-day run)
   stage: Stage;
   event: EventState | null;
   nextShop: { discount: number; free: number };
@@ -174,6 +178,11 @@ export interface Run {
   // newRun while HEARTS is on; true only. Absent: 5 lives, as before (every switch-off run, and a run saved before the
   // bump that turns HEARTS on, which finishes on its own scale). Save v8, no bump (a new optional field, as lastChance).
   hearts?: true;
+  // RUN-1 (REQ-BFG-059, REQ-BFG-116): the run is a long run (src/sim/longRun.ts: won at WIN_GOAL wins, lost at 0 hearts, no
+  // day limit), set by newRun while LONG_RUN is on; true only. Absent: the 10-day run, as before (every switch-off run, and
+  // a run saved before the bump that turns LONG_RUN on, which finishes on its own rule). Save v8, no bump (a new optional
+  // field, as hearts).
+  longRun?: true;
 }
 
 export const RUN_VERSION = 8; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once); NUM-1: hull x10 (save.ts v7to8, once)
@@ -196,6 +205,8 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
     runeDay: 1, // RUNES-1: the first dawn's rune pick
     // RETUNE-1 (REQ-BFG-096): with HEARTS on, HEARTS_START hearts and the run's mark, last; off: exactly as before
     ...(heartsRules() ? { lives: HEARTS_START, hearts: true as const } : {}),
+    // RUN-1 (REQ-BFG-059): with LONG_RUN on, the run's long-run mark, last; off: exactly as before
+    ...(longRunRules() ? { longRun: true as const } : {}),
   };
   rollShop(run);
   return run;

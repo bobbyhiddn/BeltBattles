@@ -61,7 +61,8 @@ export function checkPool(snapshots: readonly unknown[], rules = RULES_VERSION):
       const lc = snapshot.lastChance;
       const v = validateUpload(snapshot.build, snapshot.day, snapshot.rules, { ...(snapshot.seed !== undefined ? { seed: snapshot.seed } : {}), ...(lc ? { lastChance: lc } : {}), ...(snapshot.road ? { road: snapshot.road } : {}) });
       if (!v.ok) throw new Error(`validateUpload: ${v.errors.join("; ")}`);
-      if (!isReachable(snapshot.day, snapshot.wins, snapshot.lives, { rules: snapshot.rules, ...(lc ? { lastChance: lc.day } : {}) })) {
+      // RUN-1 (R1.2, T3c): and its `losses` when it states them (a long run's seed ghost; v3, taken under those rules only), as POST does
+      if (!isReachable(snapshot.day, snapshot.wins, snapshot.lives, { rules: snapshot.rules, ...(lc ? { lastChance: lc.day } : {}), ...(snapshot.losses !== undefined ? { losses: snapshot.losses } : {}) })) {
         throw new Error(`record ${snapshot.wins}W ${snapshot.lives} lives: no run carries it into dusk ${snapshot.day}`);
       }
       const id = ghostId(snapshot);

@@ -15,6 +15,8 @@
 //       the set's seed pool (tools/samplePool.ts generateSamplePool, as the seed step makes it) as { id, snapshot } entries
 //       (ids: ghostId, the server's); with PICK in the set, each seed ghost's grade too: vsPar, its win rate against the four
 //       par fields' first K members of its day, S seeds from both sides (LOSS-1's --mode grade, cut to K and S).
+//       RUN-1 T6/T6c: --committed reads server/seedPoolData.ts (the shipped 10-day pool) and --from <pool.json> a scratch pool
+//       (samplePoolJson's array; tools/genGhostPool.ts --long-run: days 1-16) instead of generating one.
 //   --mode bench --set S --policy par|casual:<tune> --heroes h,.. --seeds a-b --pool pool.json --out cell.json
 //       [--models 10,059] [--hearts-start n] [--refund] [--rule a,b,c]
 //       whole runs, one row per hero, seed and run model: the policy's deck each dusk (player.ts playerRun; casual.ts
@@ -32,6 +34,12 @@
 //        and the day-10 captain when none is left, and the fight is fought at day 10's D(d) and S(d). A LAST CHANCE on day
 //        10 or later takes the HULL card (no dawn is played to place a rune or a part).
 //
+//   long: RUN-1 T6 (REQ-BFG-059, REQ-BFG-116): the REAL game with LONG_RUN on (withLongRun), no approximation: the run ends only
+//        at the 10th dusk win (won) or at 0 lives or hearts (lost); every day is that day's own content (the policy's run is
+//        played day by day to LONG_RUN_MAX_DAY, the foe is the ghost pick on the exact day with D6's widening to the nearest
+//        EARLIER day, the day's stand-in captain when none is left, the fight at that day's M(d), D(d) and S(d)); LAST CHANCE on
+//        any day, with the bots' card taken at the next real dawn. Opponents past day 10: the seed pool holds days 1-10, so a
+//        day-11+ dusk meets day 10's seed ghosts (the widening) until the release bump regenerates the pool deeper.
 // Rows hold every dusk's result (0 win, 1 loss, -1 draw), the foe, the record going in, the end (lost, complete, won,
 // backstop), its day, LAST CHANCE's day and card, and the lives or hearts left; kit-retune1/cells.mjs makes the tables.
 
@@ -54,11 +62,13 @@ import { setHullScale } from "../src/sim/hullScale";
 import { setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
 import { openRunesRules, setOpenRunes } from "../src/sim/openRunes"; // OPEN-1 (REQ-BFG-109): --also open
+import { LONG_RUN_MAX_DAY, withLongRun } from "../src/sim/longRun"; // RUN-1 T6 (REQ-BFG-059): the long model
 import { REFUND_DAY, REFUND_LIVES } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
 import { checkSnapshot, ghostId, GRADE_MAX, type PoolEntry } from "../src/net/snapshot";
 import { pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { generateSamplePool } from "./samplePool";
+import { SEED_POOL, SEED_POOL_RULES } from "../server/seedPoolData"; // RUN-1 T6: --mode pool --committed
 import { serveJobs, workerRunner } from "./workers";
 import type { Job } from "../src/sim/harness/tournament";
 
@@ -113,6 +123,26 @@ const SET = setOf(flag("set") ?? "today", (flag("also") ?? "").split(",").filter
 
 async function modePool(): Promise<unknown> {
   const t0 = Date.now();
+  // RUN-1 T6c (REQ-BFG-059, REQ-BFG-116; R1.1's T6b): --from <pool.json> reads a SCRATCH seed pool (samplePoolJson's array, e.g.
+  // tools/genGhostPool.ts --long-run: days 1-16, every ghost stating its `losses`) as the long run's world holds it (withLongRun: the
+  // day bound and `losses` are the long rules'), instead of --committed's file or a regenerated pool. Same output as --committed
+  // (the file's own grades), marked `long` so --mode bench decodes it in that world too. Nothing is generated or played.
+  const from = flag("from");
+  if (from !== undefined) {
+    const pool = withLongRun(() => (JSON.parse(readFileSync(from, "utf8")) as unknown[]).map((raw) => { const snapshot = checkSnapshot(raw); return { id: ghostId(snapshot), snapshot }; }));
+    console.log(`pool: ${pool.length} scratch seed ghosts (${from}), days ${Math.min(...pool.map((e) => e.snapshot.day))}-${Math.max(...pool.map((e) => e.snapshot.day))}`);
+    const grades = pool.map((e) => ({ id: e.id, hero: e.snapshot.hero, day: e.snapshot.day, wins: e.snapshot.wins, lives: e.snapshot.lives, playerId: e.snapshot.playerId, vsPar: r3((e.snapshot.grade ?? 0) / GRADE_MAX) }));
+    return { pool, grades, gradeK: GRADE_K, gradeSeeds: GRADE_SEEDS, grader: "scratch", long: true };
+  }
+  // RUN-1 T6: --committed reads the bundled seed pool as the game ships it (server/seedPoolData.ts, 120 graded ghosts; the seed
+  // step's pool, byte for byte generateSamplePool() when the pool is in sync: tests/s8.seedfile.test.ts) instead of regenerating
+  // it, so no battle is played for the pool and the grades are the shipped ones
+  if (has("committed")) {
+    const pool = SEED_POOL.map((line) => { const snapshot = checkSnapshot(JSON.parse(line) as unknown); return { id: ghostId(snapshot), snapshot }; });
+    console.log(`pool: ${pool.length} committed seed ghosts (server/seedPoolData.ts, rules ${SEED_POOL_RULES})`);
+    const grades = pool.map((e) => ({ id: e.id, hero: e.snapshot.hero, day: e.snapshot.day, wins: e.snapshot.wins, lives: e.snapshot.lives, playerId: e.snapshot.playerId, vsPar: r3((e.snapshot.grade ?? 0) / GRADE_MAX) }));
+    return { pool, grades, gradeK: GRADE_K, gradeSeeds: GRADE_SEEDS, grader: "committed" };
+  }
   // RETUNE-1 T5: with PICK in the set, generateSamplePool grades every seed ghost itself (samplePool.ts gradeSamplePool:
   // the built grade, K 6 x 1 seed, seeded as run 1's worker grade was), into each snapshot (`grade`, in permille)
   const pool = generateSamplePool().map((snapshot) => ({ id: ghostId(snapshot), snapshot }));
@@ -145,17 +175,27 @@ interface BenchCtx {
   pool: PoolEntry[]; grades: Grades; rule: PickRule; opts: PlayerOpts; hearts: HeartsRule; refund: boolean;
 }
 
+/** RUN-1 T6 (REQ-BFG-059, REQ-BFG-116), the "long" model: the REAL game with LONG_RUN on (runLedger runs it inside withLongRun):
+ *  the run ends ONLY at its WIN_GOAL-th dusk win (won) or at 0 lives or hearts (lost), whatever the day; every day is that day's
+ *  content (the par or casual policy's own run played day by day to this depth, the ghost pick on the exact day with D6's
+ *  widening to the nearest earlier day, the stand-in captain built for the exact day when none is left, the fight at that day's
+ *  M(d), D(d) and S(d)); LAST CHANCE on any day. The depth is the deepest day a record may state (longRun.ts LONG_RUN_MAX_DAY: the
+ *  deepest dusk without a draw plus MAX_RUN_DRAWS draws); a run that is still going there is a "backstop" row (flagged). */
+const LONG_DEPTH = LONG_RUN_MAX_DAY;
+
 /** One run of `hero` (field seed `seed`) on run model `model`. */
-function runLedger(hero: HeroId, seed: number, model: "10" | "059", ctx: BenchCtx): Row {
+function runLedger(hero: HeroId, seed: number, model: "10" | "059" | "long", ctx: BenchCtx): Row {
+  const long = model === "long";
   const runSeed = parRunSeed(hero, seed);
-  const lastDay = model === "10" ? RUN_DAYS : BACKSTOP;
-  let decks = playerRun(hero, RUN_DAYS, seed, ctx.opts).map((d) => d.build);
+  const lastDay = model === "10" ? RUN_DAYS : long ? LONG_DEPTH : BACKSTOP;
+  const decksOf = (opts: PlayerOpts): Build[] => playerRun(hero, long ? LONG_DEPTH : RUN_DAYS, seed, opts).map((d) => d.build);
+  let decks = decksOf(ctx.opts);
   const heartsOn = SET.hearts, cap = heartsOn ? ctx.hearts.start : START_LIVES;
   let left = cap, wins = 0, lcUsed = false, lcDay = 0, boon: string | null = null, early = false, refunded = false, captains = 0;
   let end: Row["end"] = "complete", endDay = 0;
   const seen: string[] = [], res: number[] = [], foes: string[] = [], recs: string[] = [];
   for (let day = 1; day <= lastDay; day++) {
-    const cd = Math.min(day, RUN_DAYS); // days 11+: day 10's content
+    const cd = long ? day : Math.min(day, RUN_DAYS); // the 059 model's days 11+: day 10's content; the long model: the day's own
     // the dawn of REFUND_DAY: the early-loss refund (lives: the game's rule; hearts: only with --refund, cell 4's read)
     if (day === REFUND_DAY && early && !refunded && (!heartsOn || ctx.refund)) {
       left = Math.min(cap, left + REFUND_LIVES);
@@ -184,48 +224,50 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059", ctx: BenchCt
     if (r === 0) wins++;
     let fired = false;
     if (heartsOn) {
-      const s = heartsDusk(left, day, outcome, lcUsed, { rule: ctx.hearts, lastDay });
+      const s = heartsDusk(left, day, outcome, lcUsed, { rule: ctx.hearts, lastDay: long ? Infinity : lastDay }); // RUN-1: the long run has no last day
       left = s.hearts;
       fired = s.lastChance;
     } else if (outcome === "loss") {
       left = Math.max(0, left - 1);
       if (day < REFUND_DAY) early = true;
-      // day.ts finishDay's LAST CHANCE (lastChance.ts lastChanceFires), before the run's last day
-      if (!lcUsed && left === LAST_CHANCE_AT && day < lastDay) { left += LAST_CHANCE_LIVES; fired = true; }
+      // day.ts finishDay's LAST CHANCE (lastChance.ts lastChanceFires), before the run's last day (RUN-1: any day on the long run)
+      if (!lcUsed && left === LAST_CHANCE_AT && (long || day < lastDay)) { left += LAST_CHANCE_LIVES; fired = true; }
     }
     if (heartsOn && outcome === "loss" && day < REFUND_DAY) early = true;
     if (fired) {
       lcUsed = true;
       lcDay = day;
-      if (day < RUN_DAYS) {
+      if (long || day < RUN_DAYS) {
         const offer = lastChanceOffer(runSeed, day, hero, (deck.runes ?? []).map((q) => q.id), openRunesRules()); // OPEN-1: the switch
         boon = botLastChancePick(offer, hero, deck, day, { wins }).boon;
-        decks = playerRun(hero, RUN_DAYS, seed, { ...ctx.opts, lastChance: { day, boon: boon as Boon } }).map((d) => d.build);
+        decks = decksOf({ ...ctx.opts, lastChance: { day, boon: boon as Boon } });
       } else {
         boon = "hull"; // 059 model: no dawn after day 10 is played, so the HULL card (flagged)
         decks = decks.map((b, i) => (i === RUN_DAYS - 1 ? { ...b, hullBonus: b.hullBonus + LAST_CHANCE_HULL } : b));
       }
     }
     if (left <= 0) { end = "lost"; endDay = day; break; }
-    if (model === "059" && wins >= WIN_GOAL) { end = "won"; endDay = day; break; }
+    if ((model === "059" || long) && wins >= WIN_GOAL) { end = "won"; endDay = day; break; }
     if (day >= lastDay) { end = model === "10" ? "complete" : "backstop"; endDay = day; break; }
   }
   return { hero, seed, model, res, foes, recs, wins, end, endDay, lcDay, boon, left, captains };
 }
 
 function loadPoolFile(file: string): { pool: PoolEntry[]; grades: Grades } {
-  const raw = JSON.parse(readFileSync(file, "utf8")) as { data?: { pool: { id: string; snapshot: unknown }[]; grades: { id: string; vsPar: number }[] } };
+  const raw = JSON.parse(readFileSync(file, "utf8")) as { data?: { long?: boolean; pool: { id: string; snapshot: unknown }[]; grades: { id: string; vsPar: number }[] } };
   const d = raw.data!;
   const listed = new Map(d.grades.map((g) => [g.id, g.vsPar]));
-  const pool = d.pool.map((e) => {
+  // RUN-1 T6c: a pool made by --mode pool --from (a long-run scratch pool, days 1-16 with `losses`) is decoded in the long run's world
+  const decode = <T>(fn: () => T): T => (d.long ? withLongRun(fn) : fn());
+  const pool = decode(() => d.pool.map((e) => {
     const snapshot = checkSnapshot(e.snapshot);
     // RETUNE-1 T5: run 1's pools list the grades beside the snapshots: each goes into its snapshot here (in memory), as
     // the seed step writes it; a pool made by the built seed step carries them already
     const vs = listed.get(e.id);
     if (SET.pick && snapshot.grade === undefined && vs !== undefined) snapshot.grade = Math.round(vs * GRADE_MAX);
     return { id: e.id, snapshot };
-  });
-  for (const e of pool) if (ghostId(e.snapshot) !== e.id) throw new Error(`pool ${file}: ${e.id} is not its snapshot's id`);
+  }));
+  decode(() => { for (const e of pool) if (ghostId(e.snapshot) !== e.id) throw new Error(`pool ${file}: ${e.id} is not its snapshot's id`); });
   return { pool, grades: new Map(pool.filter((e) => e.snapshot.grade !== undefined).map((e) => [e.id, e.snapshot.grade! / GRADE_MAX])) };
 }
 
@@ -233,7 +275,7 @@ function modeBench(): unknown {
   const pol = flag("policy") ?? "casual:c5";
   const heroes = (flag("heroes") ?? HEROES4.join(",")).split(",") as HeroId[];
   const seeds = range(flag("seeds") ?? "1-48");
-  const models = (flag("models") ?? "10,059").split(",") as ("10" | "059")[];
+  const models = (flag("models") ?? "10,059").split(",") as ("10" | "059" | "long")[]; // RUN-1 T6: "long", the real days 11+
   const { pool, grades } = loadPoolFile(flag("pool")!);
   if (SET.pick && !grades.size) throw new Error("PICK in the set needs a graded pool (--mode pool with PICK)");
   const rv = flag("rule")?.split(",").map(Number);
@@ -243,7 +285,9 @@ function modeBench(): unknown {
   const rows: Row[] = [];
   const t0 = Date.now();
   for (const hero of heroes) {
-    for (const seed of seeds) for (const m of models) rows.push(runLedger(hero, seed, m, ctx));
+    // RUN-1 T6: the long model runs with the LONG_RUN switch on (newRun marks the par run long, the content has no last day,
+    // the pick widens to earlier days: rulesGate.ts longRunFor); the other models with it off, exactly as before
+    for (const seed of seeds) for (const m of models) rows.push(m === "long" ? withLongRun(() => runLedger(hero, seed, m, ctx)) : runLedger(hero, seed, m, ctx));
     console.log(`bench ${pol} ${flag("set")}${flag("also") ? `+${flag("also")}` : ""}: ${hero} done at ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   }
   return { policy: pol, heroes, seeds: [seeds[0], seeds[seeds.length - 1]], models, rule, hearts, refund: ctx.refund, rows };

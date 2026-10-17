@@ -76,7 +76,8 @@ import { beltPolicy, botSlots, reachCols, upgradePolicy } from "./belts"; // bb-
 import { packPolicy } from "./belts"; // bb-0.8.6 (REQ-BFG-051 P6): the fixed packs
 import { PACK_IDS, PACK_ITEM, type PackId } from "../content"; // bb-0.8.6 (REQ-BFG-051)
 import { buildCost, maxGoldByDay } from "../../net/validate";
-import { finishDay } from "../../game/day";
+import { continueRun, finishDay } from "../../game/day"; // RUN-1: continueRun (a par run past its end)
+import { LONG_RUN_GEN_DAYS, longRunRules } from "../longRun"; // RUN-1 (REQ-BFG-059, D5): the par run's long depth
 import { gainModule, mergePreview, type GainAt } from "../../game/fuse";
 import {
   buyOffer, buyPack, buyUpgrade, fitCore, installFromCargo, newRun, nextUpgrade, packPrice, reroll, sellInventory, storeMod,
@@ -311,6 +312,9 @@ function startRun(hero: HeroId, seed: number): Run {
 /** Dusk won, next dawn: the game's finishDay (a win's income, yesterday's merchants, a fresh caravan). */
 function nextDawn(run: Run): void {
   finishDay(run, 0, FIGHT_T, { ...SIDE0 }, { ...SIDE0 });
+  // RUN-1 (REQ-BFG-059): a run played past its end (playerRun's depth past 10: day 10's dusk of a 10-day run, the 10th win
+  // of a long run) goes on, so the deck keeps growing; a 10-day depth never gets here (its last dawn is day 10's)
+  if (run.over) continueRun(run);
 }
 
 /** A copy of the run whose deck and cargo can change without touching the run (the shop is shared, never written). */
@@ -1711,10 +1715,15 @@ function dawnRune(run: Run): void {
 
 const CACHE = new Map<string, PlayerDay[]>();
 export const PLAYER_DAYS = 10;
+/** RUN-1 (REQ-BFG-059, D5): the par player's depth on a long run, 16 (longRun.ts LONG_RUN_GEN_DAYS): playerRun asked for
+ *  more than PLAYER_DAYS days plays at least this many (one cached run serves days 11-16), and playerBuild reads this deep
+ *  while the long run is in the game. */
+export const PLAYER_DAYS_LONG = LONG_RUN_GEN_DAYS;
 
 /**
- * The par player's run for (hero, seed): one PlayerDay per day 1..days (at most 10). Deterministic: the same arguments
- * give the same decks, and days 1..d of a longer run are exactly the run to day d (the policy never looks ahead).
+ * The par player's run for (hero, seed): one PlayerDay per day 1..days (at most 10; RUN-1: more when asked, at least
+ * PLAYER_DAYS_LONG then). Deterministic: the same arguments give the same decks, and days 1..d of a longer run are exactly
+ * the run to day d (the policy never looks ahead).
  */
 export function playerRun(hero: HeroId, days: number, seed: number, opts: PlayerOpts = {}): PlayerDay[] {
   const policy = opts.policy ?? "typical", maxStars = opts.maxStars ?? FUSE_MAX;
@@ -1731,7 +1740,14 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // key exactly as before
   // JOINS-1 (REQ-BFG-091): FREE_JOINS moves the par decks (no join pace, no join limit), so it is in the key; off, the key
   // exactly as before
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}`; // SHAPES-1: "|sh"
+  // RUN-1 (REQ-BFG-059, D5): a long run's bench asks past day 10: the run is played to `depth` days (PLAYER_DAYS, 10, unless
+  // more are asked: then at least PLAYER_DAYS_LONG, so days 11-16 share one run), and only a deeper run adds "|d<depth>" to
+  // the key, so every 10-day caller is exactly as before (the policy never looks ahead: days 1..10 of a deeper run are the
+  // 10-day run). LONG_RUN moves the par decks too (newRun marks the run long: the fork's event bag, the offers past day 10), so
+  // it is in the key as well ("|long"); off, the key exactly as before
+  const asked = Number.isFinite(days) ? Math.floor(days) : PLAYER_DAYS;
+  const depth = asked <= PLAYER_DAYS ? PLAYER_DAYS : Math.max(PLAYER_DAYS_LONG, asked);
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}`; // SHAPES-1: "|sh"
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
@@ -1741,7 +1757,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
     full = [];
     if (runes) dawnRune(run); // RUNES-2a: day 1's rune first (the game's picker comes before anything at dawn)
     if (persona.beltTiles > 0) drawKilnBelt(run, rng, persona.beltTiles);
-    for (let day = 1; day <= PLAYER_DAYS; day++) {
+    for (let day = 1; day <= depth; day++) {
       if (day > 1) nextDawn(run);
       if (lc && day === lc.day + 1) lastChanceCard(run, lc.day, lc.boon, pol, lc.hull); // LC-1: before the dawn's rune, as the game
       if (runes && day > 1) dawnRune(run);
@@ -1759,12 +1775,13 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
     }
     if (!traced) CACHE.set(key, full);
   }
-  return full.slice(0, Math.max(0, Math.min(PLAYER_DAYS, days))).map((d) => ({ ...d, build: cloneBuild(d.build), buys: d.buys.map((x) => ({ ...x })), ...(d.road ? { road: { ...d.road } } : {}) }));
+  return full.slice(0, Math.max(0, Math.min(depth, days))).map((d) => ({ ...d, build: cloneBuild(d.build), buys: d.buys.map((x) => ({ ...x })), ...(d.road ? { road: { ...d.road } } : {}) }));
 }
 
-/** The par player's deck at dusk of `day` (1-10) for (hero, seed): a fresh copy. */
+/** The par player's deck at dusk of `day` (1-10) for (hero, seed): a fresh copy. RUN-1: with the long run in the game, 1-16
+ *  (PLAYER_DAYS_LONG), and a later day is day 16's deck (the day's own hull is M(day), taken in battle). */
 export function playerBuild(hero: HeroId, day: number, seed: number, opts: PlayerOpts = {}): Build {
-  const d = Math.max(1, Math.min(PLAYER_DAYS, Math.floor(day)));
+  const d = Math.max(1, Math.min(longRunRules() ? PLAYER_DAYS_LONG : PLAYER_DAYS, Math.floor(day)));
   return playerRun(hero, d, seed, opts)[d - 1].build;
 }
 
@@ -1773,7 +1790,7 @@ export function playerBuild(hero: HeroId, day: number, seed: number, opts: Playe
 /** PAR-AZ: the tier the par player fights every day. The par player is the median player; the tiers are tuned so that
  *  Hard's extra drop worth (1.52-1.59x Medium's on days 3-10) pays for its lower odds, so Medium is a fair pick, and one
  *  tier keeps par stable and readable (cap's ruling Q5 on REVIEW-HULL1D). Never Easy, Hard or the Matriarch: the Medium
- *  slot of every day's fork holds a Medium captain (rivals.ts warlordOffers: its own pool, all RUN_DAYS days). */
+ *  slot of every day's fork holds a Medium captain (rivals.ts warlordOffers: its own pool, every day: RUN-1, a long run's too). */
 export const PAR_ROAD_TIER = "medium" as const;
 
 /** AZ-BUMP (REQ-BFG-078, REQ-BFG-077; REVIEW-PARAZ N3, BRIEF-AZBUMP S3): the road log of a par-player run (playerRun's days,

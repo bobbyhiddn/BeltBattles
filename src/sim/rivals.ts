@@ -16,6 +16,7 @@ import { starsOf, upgradeGold, valueOf } from "./stars";
 import { turretsCost, type Build } from "./deck";
 import { warlordBuild, warlordHull } from "./ai";
 import { CAPTAIN_RUNES, PLANS, captainRunesOn, planBuild, type Luck, type RivalLoadout, type RoadMoment } from "./rivalBuilds";
+import { longRunRules } from "./longRun"; // RUN-1 (REQ-BFG-059): the long run's content has no last day
 
 export type RivalId =
   | "sootjaw" | "nettle" | "grubnose" | "mothqueen"
@@ -33,7 +34,8 @@ export type Difficulty = "easy" | "medium" | "hard";
 
 /** Days in a run (ROADMAP §1): declared once in content.ts, re-exported for the roster's callers. */
 export { RUN_DAYS };
-/** The Iron Matriarch is the Hard warlord from this day to RUN_DAYS, and is never met before it. */
+/** The Iron Matriarch is the Hard warlord from this day to RUN_DAYS, and is never met before it. RUN-1 (REQ-BFG-059): on a
+ *  long run she holds the Hard slot from this day until she is beaten, however long the run goes (warlordOffers). */
 export const MATRIARCH_DAY = 8;
 /** The three road-stop slots, easiest first. */
 export const DIFFICULTIES: readonly Difficulty[] = ["easy", "medium", "hard"];
@@ -137,9 +139,13 @@ export const RIVALS: Record<RivalId, RivalDef> = {
 
 export const RIVAL_IDS = Object.keys(RIVALS) as RivalId[];
 
+// RUN-1 (REQ-BFG-059, D5): with the long run in the game (longRunRules: the switch) there is no top clamp: a long run's day
+// 11+ gets its own day (offers, stand-ins and the hull ramp keep growing). With the switch off, day 10 is the last day the
+// tables answer for, exactly as live (a 10-day run never asks for a later day; the tests that pin the clamp stay green).
+// Days 1-10 are the same either way.
 const clampDay = (day: number): number => {
   const d = Math.floor(day);
-  return d >= 1 ? Math.min(RUN_DAYS, d) : 1;
+  return d >= 1 ? (longRunRules() ? d : Math.min(RUN_DAYS, d)) : 1;
 };
 
 /**
@@ -158,10 +164,11 @@ export function difficultyOf(id: RivalId): Difficulty | null {
   return d.tier === 1 ? "easy" : "medium";
 }
 
-/** The days a captain can be met, as a warlord or a stand-in ghost: 1-10, the Matriarch 8-10. */
-export function rivalDays(id: RivalId): number[] {
+/** The days a captain can be met, as a warlord or a stand-in ghost: 1-10, the Matriarch 8-10. RUN-1 (REQ-BFG-059, D5):
+ *  `last`, the last day asked for (a long run's day past 10; default RUN_DAYS): 1..last, the Matriarch from day 8. */
+export function rivalDays(id: RivalId, last: number = RUN_DAYS): number[] {
   const first = id === "matriarch" ? MATRIARCH_DAY : 1;
-  return Array.from({ length: RUN_DAYS - first + 1 }, (_, i) => first + i);
+  return Array.from({ length: Math.max(0, last - first + 1) }, (_, i) => first + i);
 }
 
 /** The captains that fill a slot on days 1-7, in roster order (the Matriarch is never in a pool; 0.8.0 N1: nor is a
@@ -200,9 +207,11 @@ function slotOrder(runSeed: number, slot: Difficulty, n: number): RivalId[] {
  * Once she is beaten, warlordOffer(runSeed, day, matriarchBeatenOn) replaces her; this unbeaten
  * schedule is what standInGhosts() avoids, so stand-ins never depend on the fight's outcome.
  */
-export function warlordOffers(runSeed: number): WarlordOffer[] {
-  const easy = slotOrder(runSeed, "easy", RUN_DAYS);
-  const medium = slotOrder(runSeed, "medium", RUN_DAYS);
+export function warlordOffers(runSeed: number, days: number = RUN_DAYS): WarlordOffer[] {
+  // RUN-1 (REQ-BFG-059, D5): `days` entries (a long run's day past 10); slotOrder is prefix-stable, so days 1-10 are the same
+  // for any `days`, and the Matriarch holds the Hard slot from day 8 until beaten, however long the run
+  const easy = slotOrder(runSeed, "easy", Math.max(RUN_DAYS, days));
+  const medium = slotOrder(runSeed, "medium", Math.max(RUN_DAYS, days));
   const hard = slotOrder(runSeed, "hard", MATRIARCH_DAY - 1);
   return easy.map((e, i) => ({
     easy: e,
@@ -225,7 +234,7 @@ export function warlordOffers(runSeed: number): WarlordOffer[] {
  */
 export function warlordOffer(runSeed: number, day: number, matriarchBeatenOn?: number): WarlordOffer {
   const d = clampDay(day);
-  const offer = warlordOffers(runSeed)[d - 1];
+  const offer = warlordOffers(runSeed, d)[d - 1]; // RUN-1: built to the day asked (days 1-10 as before)
   const beaten = matriarchBeatenOn === undefined ? NaN : Math.floor(matriarchBeatenOn);
   if (!(beaten >= MATRIARCH_DAY) || d <= beaten) return offer;
   let hard: RivalId = "matriarch";
@@ -247,13 +256,26 @@ export function warlordOffer(runSeed: number, day: number, matriarchBeatenOn?: n
  * mirror matches happen. The game fights a stand-in with standInBuild(id, day), never with
  * rivalBuild: an honest deck a player could own on that day (R1).
  */
-export function standInGhosts(runSeed: number): RivalId[] {
+export function standInGhosts(runSeed: number, days: number = RUN_DAYS): RivalId[] {
   const queue = new Rng(hashSeed(runSeed, "standin")).shuffle(RIVAL_IDS.filter((id) => id !== "matriarch"));
-  return warlordOffers(runSeed).map((o) => {
+  let cycle = 0;
+  let yesterday: RivalId | undefined;
+  return warlordOffers(runSeed, days).map((o) => {
     const offered = new Set<RivalId>([o.easy, o.medium, o.hard]);
-    // Always found: day d has 19 - d captains queued (18 on day 1, one fewer each day) and at most 3 of them offered.
-    const i = queue.findIndex((id) => !offered.has(id));
-    return queue.splice(i, 1)[0];
+    // Always found on days 1-10: day d has 19 - d captains queued (18 on day 1, one fewer each day) and at most 3 of them
+    // offered. RUN-1 (REQ-BFG-059, D5): a long run's later days draw a second shuffled queue (hashSeed(runSeed, "standin",
+    // cycle)) whenever every queued captain is offered or the queue is dry (from day 17: the first 16 days use 16 different
+    // captains), so no captain stands in on a day it is offered, and, as slotOrder's cycles do, none two days running
+    // (`yesterday` is never queued on days 1-16, so the extra test changes nothing there). Days 1-10 never reach it: they are
+    // exactly as before.
+    const ok = (id: RivalId): boolean => !offered.has(id) && id !== yesterday;
+    let i = queue.findIndex(ok);
+    while (i < 0) {
+      queue.push(...new Rng(hashSeed(runSeed, "standin", ++cycle)).shuffle(RIVAL_IDS.filter((id) => id !== "matriarch")));
+      i = queue.findIndex(ok);
+    }
+    yesterday = queue.splice(i, 1)[0];
+    return yesterday;
   });
 }
 
@@ -262,7 +284,8 @@ export function standInGhosts(runSeed: number): RivalId[] {
  * standInBuild(id, day), the captain's honest deck for that day (R1), not rivalBuild.
  */
 export function standInGhost(runSeed: number, day: number): RivalId {
-  return standInGhosts(runSeed)[clampDay(day) - 1];
+  const d = clampDay(day);
+  return standInGhosts(runSeed, d)[d - 1]; // RUN-1: built to the day asked (days 1-10 as before)
 }
 
 /**

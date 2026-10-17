@@ -74,9 +74,10 @@ export interface LastChanceOffer {
 }
 
 /** Does a dusk with this result fire LAST CHANCE? The loss has already taken its life (`livesLeft` is after it); `used`:
- *  the run already had its LAST CHANCE. (Z-BUMP: the switch is gone; this was the switch-on side.) */
-export function lastChanceFires(day: number, outcome: "win" | "loss" | "draw", livesLeft: number, used: boolean): boolean {
-  return outcome === "loss" && livesLeft === LAST_CHANCE_AT && day < RUN_DAYS && !used;
+ *  the run already had its LAST CHANCE. (Z-BUMP: the switch is gone; this was the switch-on side.) RUN-1 (REQ-BFG-059):
+ *  `lastDay`, the day it must come before: RUN_DAYS on a 10-day run, none (Infinity) on a long run (longRun.ts lcLastDay). */
+export function lastChanceFires(day: number, outcome: "win" | "loss" | "draw", livesLeft: number, used: boolean, lastDay: number = RUN_DAYS): boolean {
+  return outcome === "loss" && livesLeft === LAST_CHANCE_AT && day < lastDay && !used;
 }
 
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
@@ -128,11 +129,12 @@ export function offeredId(offer: LastChanceOffer, boon: Boon): string | null {
 
 /** Is `lc` a well-formed record (the save's and the client's check; the strict decoder has its own words)? `taken`: a
  *  card must be named (a snapshot's); otherwise a pending one ({ day } alone) passes too. */
-export function lastChanceShapeOk(lc: unknown, taken = false): boolean {
+export function lastChanceShapeOk(lc: unknown, taken = false, lastDay: number = RUN_DAYS): boolean {
   if (!lc || typeof lc !== "object" || Array.isArray(lc)) return false;
   const o = lc as Record<string, unknown>;
   if (Object.keys(o).some((k) => k !== "day" && k !== "boon" && k !== "id")) return false;
-  if (typeof o.day !== "number" || !Number.isInteger(o.day) || o.day < 1 || o.day >= RUN_DAYS) return false;
+  // RUN-1 (REQ-BFG-059): `lastDay`, the day it must come before (a long run's save or record: Infinity, any day)
+  if (typeof o.day !== "number" || !Number.isInteger(o.day) || o.day < 1 || o.day >= lastDay) return false;
   if (o.boon === undefined) return !taken && o.id === undefined;
   if (!BOONS.includes(o.boon as Boon)) return false;
   if (o.boon === "hull") return o.id === undefined;

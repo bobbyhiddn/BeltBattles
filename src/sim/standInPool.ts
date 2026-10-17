@@ -85,6 +85,17 @@ export const STAND_IN_POOL_RULES: string = STAND_IN_DATA.rules;
 /** Heroes with stand-in decks, in pool order. */
 export const STAND_IN_POOL_HEROES: readonly HeroId[] = Object.keys(STAND_IN_DATA.pools) as HeroId[];
 export const STAND_IN_POOL_DAYS = 10;
+/** RUN-1 (REQ-BFG-059, D5): the depth the stand-in generator makes for a long run (harness/standins.ts StandInOpts.days;
+ *  tools/genStandInPool.ts --days): 16, longRun.ts LONG_RUN_GEN_DAYS. A LITERAL on purpose (T2b, R1.6): this loader imports
+ *  only ./content, ./deck, ./beltside and its data (tests/standInPool.gen.test.ts pins that), so it cannot import ./longRun;
+ *  tests/run1.content.test.ts asserts it equals LONG_RUN_GEN_DAYS. The committed pool (standInPoolData.ts) holds
+ *  STAND_IN_POOL_DAYS (10) until the release bump regenerates it to this depth and sets STAND_IN_POOL_DAYS to it.
+ *  THE RULE FOR A DAY PAST THE DEEPEST DAY THE POOL HOLDS (written down, D5; standInDay): the deepest day's plan, i.e. its
+ *  decks (standInDay clamps); the dusk opponent takes the day's own hull (hullScale.ts M(d), which every carrier on the day
+ *  takes, so the day-16 deck on day 19 holds M(19) of its day-1 hull), and the day's own gold and odds are the checks' and
+ *  the shop's: maxGoldByDay(day) (a deck bought on day 16 is always within it), rarityWeights(day). Until the bump
+ *  regenerates the pool, days 11-16 follow the same rule from day 10's decks. */
+export const STAND_IN_GEN_DAYS = 16;
 
 export interface StandInEntry {
   hero: HeroId;
@@ -414,7 +425,8 @@ export function decodeStarredRaw(hero: HeroId, code: string): Build {
   return Object.assign(b, upgradesOf(up), runesOf(rw)); // bb-0.8.3 (D10): the levels; BOTS-X: then the runes, the last key
 }
 
-/** Clamp a day into 1..10. */
+/** Clamp a day into 1..STAND_IN_POOL_DAYS (the deepest day the pool holds: 10 now, STAND_IN_GEN_DAYS after the release bump
+ *  regenerates it; RUN-1's rule for a later day is written at STAND_IN_GEN_DAYS: that day's decks). */
 export function standInDay(day: number): number {
   return Number.isFinite(day) ? Math.max(1, Math.min(STAND_IN_POOL_DAYS, Math.floor(day))) : 1;
 }

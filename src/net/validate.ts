@@ -26,6 +26,11 @@ import { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "../sim/
 import { shapesRules, withShapes } from "../sim/shapes"; // SHAPES-1 (S1): the switch
 import { shapesGateProblem, shapesWorld } from "./rulesGate"; // SHAPES-1 (S1, S4): SHAPES_RULES' gate
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
+// RUN-1 (REQ-BFG-059, REQ-BFG-116; D3, D4): the long run's world. A deck under a long run's rules (rulesGate.ts longRunFor) is
+// judged with the long-run switch on (the content past day 10, LAST CHANCE on any day, the day bound LONG_RUN_MAX_DAY); under
+// older rules, or with the switch off, as the 10-day run. inRulesWorld below puts the module switch to the record's answer.
+import { LONG_RUN_MAX_DAY, longRunRules, withLongRun } from "../sim/longRun";
+import { longRunFor } from "./rulesGate";
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, lastChanceGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules; Z-BUMP: LAST CHANCE by the rules
@@ -40,7 +45,8 @@ import { freeJoinsFor } from "./rulesGate"; // JOINS-1 (REQ-BFG-091): free joins
 import { withFreeJoins } from "../sim/freeJoins"; // JOINS-1: the deck check runs under that answer
 import { RIVALS, warlordOffer } from "../sim/rivals";
 import { topParts, warlordDeck, warlordDrop } from "../game/road";
-import { eventFor } from "../game/events";
+import { eventFor, eventSequence } from "../game/events";
+import type { EventId } from "../game/eventDefs"; // RUN-1: offeredEvents
 // AZ-BUMP (S6, the stored records): a deck under older rules is budgeted in its own rules' world (inRulesWorld below)
 import { NPC_DAY_RULES, rulesAtLeast } from "./rulesGate";
 import { withNpcDay } from "../sim/npcDay";
@@ -55,10 +61,15 @@ import { withLadderFix } from "../sim/ladderFix";
  * never the global switch; this build's rules (and later) run as the switches stand (on, as the build ships; a test's
  * setter otherwise). Each switch is put back after, even on a throw (the with* helpers). roadCap's memo keys carry the
  * switches, so the two worlds never share a memo entry.
+ * RUN-1 (REQ-BFG-059, D1): and the long run's: the module switch (sim/longRun.ts longRunRules, read by the pure content
+ * functions that have no run to ask: rivals.ts clampDay, ...) is put to this record's answer, longRunFor(rules): on for a
+ * record under a long run's rules, off for an older one. With the switch off the answer is always off, equal to the switch,
+ * and nothing is touched: the check is exactly as before.
  */
 export function inRulesWorld<T>(rules: unknown, fn: () => T): T {
-  if (rulesAtLeast(rules, NPC_DAY_RULES)) return fn();
-  return withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false);
+  const world = (): T => (rulesAtLeast(rules, NPC_DAY_RULES) ? fn() : withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false));
+  const long = longRunFor(rules);
+  return long === longRunRules() ? world() : withLongRun(world, long);
 }
 
 /** RUNES-1: what a deck's check knows beside the deck: its snapshot's run `seed` (absent on a served ghost, FIX-6, and
@@ -104,7 +115,7 @@ export function roadProblem(road: readonly RoadEntry[], day: number, seed?: numb
     const id = warlordOffer(seed, e.day, beaten)[e.tier];
     if (id === "matriarch" && e.outcome === "win") beaten = e.day;
     // HULL-1a (Q3): SABOTAGE's deck only after a SAPPERS day (the event comes after the fight: it hits the next warlord)
-    const sapped = e.day > 1 && eventFor(seed, e.day - 1) === "sappers";
+    const sapped = e.day > 1 && eventFor(seed, e.day - 1, longRunRules()) === "sappers"; // RUN-1: a long run's sequence has no day-10 swap
     if (e.sabotaged && !sapped) return `road: day ${e.day}: sabotaged, but ${e.day > 1 ? `day ${e.day - 1} met no SAPPERS` : "no day came before it"}`;
     if (e.outcome !== "win") continue;
     const decks = [warlordDeck(id, e.day, !!e.sabotaged)]; // HULL-1a (Q3): the one deck the entry names
@@ -133,7 +144,9 @@ export function roadProblem(road: readonly RoadEntry[], day: number, seed?: numb
  * re-derived under it (lastChanceOffer's `open`); closed by default, as before.
  */
 export function lastChanceProblem(lc: TakenLastChance, b: Build, day: number, seed?: number, open = false): string | null {
-  if (!Number.isInteger(lc.day) || lc.day < 1 || lc.day >= MAX_DAY) return `lastChance: day ${lc.day}: LAST CHANCE comes only before day ${MAX_DAY}`;
+  // RUN-1 (REQ-BFG-059, D3, D4): on a long run (the world's switch, inRulesWorld) LAST CHANCE can fire on any day, so the one
+  // bound left is the deck's own day (the next line); the 10-day run: before MAX_DAY, as before
+  if (!Number.isInteger(lc.day) || lc.day < 1 || (!longRunRules() && lc.day >= MAX_DAY)) return `lastChance: day ${lc.day}: LAST CHANCE comes only before day ${MAX_DAY}`;
   if (lc.day >= day) return `lastChance: day ${lc.day} is not before the deck's day ${day}`;
   const runes = (b.runes ?? []).map((q) => q.id);
   if (lc.boon === "rune" && runes[lc.day] !== lc.id) return `lastChance: the LAST CHANCE rune ${String(lc.id)} is not at runes[${lc.day}] (after the dawn pick of day ${lc.day})`;
@@ -147,6 +160,19 @@ export function lastChanceProblem(lc: TakenLastChance, b: Build, day: number, se
 }
 
 export { maxHonestSpend, roadCap } from "./roadCap";
+
+/**
+ * AZ-PREP (REVIEW-HULL1D Q1) / RUN-1 (D6): the events a run's seed offered by `day` (eventFor(seed, 1..day)). The 10-day run:
+ * the Set of them, as before. A long run (the world's switch): a Map of how many times each was offered, since its bags
+ * repeat every event once per bag (events.ts eventSequence's `long` sequence has no day-10 swap), so a hull or belt the road
+ * gave twice (the dock's PLATING in two bags) is checked against two offers (roadCap.ts playerFits).
+ */
+export function offeredEvents(seed: number, day: number): ReadonlySet<EventId> | ReadonlyMap<EventId, number> {
+  if (!longRunRules()) return new Set(Array.from({ length: day }, (_, i) => eventFor(seed, i + 1)));
+  const counts = new Map<EventId, number>();
+  for (const e of eventSequence(seed, day, true)) counts.set(e, (counts.get(e) ?? 0) + 1);
+  return counts;
+}
 
 /**
  * 0.7.0 (v070-validate D1): two modes, one validator. "strict" (the default) holds a deck to the shop alone:
@@ -325,7 +351,11 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   } catch (e) {
     return { ok: false, errors: [`shape: ${e instanceof SnapshotError ? e.message : String(e)}`] };
   }
-  if (!Number.isInteger(day) || day < 1 || day > MAX_DAY) return { ok: false, errors: [`shape: day ${day} is not in 1..${MAX_DAY}`] };
+  // RUN-1 (REQ-BFG-059, D4): the day bound follows the world: LONG_RUN_MAX_DAY on a long run (the switch inRulesWorld set to
+  // the record's rules: validateUpload; a strict content check of the long run's own tables reads the switch), else MAX_DAY.
+  // It refuses an upload or a check, never a run
+  const maxDay = longRunRules() ? LONG_RUN_MAX_DAY : MAX_DAY;
+  if (!Number.isInteger(day) || day < 1 || day > maxDay) return { ok: false, errors: [`shape: day ${day} is not in 1..${maxDay}`] };
   // RUNES-1 (REQ-BFG-058): the runes, by runes.ts runeProblem: catalogue ids, no repeats and, with the uploader's seed,
   // each in its dawn's re-derived offer. FLIP-X2 (cap's ruling 5d6d83ef57d1494c): the count comes from the mode, so no
   // upload caller can forget it: exact for uploads (validateUpload's player mode, client and server: one a dawn, `day`
@@ -534,7 +564,9 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     // hull and belt grants (the dock's PLATING, the storm's RIDE THROUGH, the cache's BELT SPOOL) must come from events the
     // seed offered by `day`: each day's event after its fight, eventFor(seed, 1..day). Off, or without the seed (a served
     // ghost): seed-blind, as before
-    const offered = npcDayRules() && ctx.seed !== undefined ? new Set(Array.from({ length: day }, (_, i) => eventFor(ctx.seed!, i + 1))) : undefined;
+    // RUN-1 (D6): and a long run's events repeat once per bag (eventDefs.ts BAG_IDS): `offered` counts how many times each was
+    // offered by `day` (a Map), so a deck that took an event in two bags is checked against two offers; the 10-day run: the Set
+    const offered = npcDayRules() && ctx.seed !== undefined ? offeredEvents(ctx.seed, day) : undefined;
     errors.push(...playerSupplyBudget(bought, day, buildCost(bought), runeGrant.gold, freeGold, roadDropValue(ctx.road), offered));
     return { ok: errors.length === 0, errors };
   }

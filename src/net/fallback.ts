@@ -10,9 +10,9 @@ import { cloneBuild } from "../sim/deck";
 import { standInPick } from "../sim/standInPool";
 import { type MatchRequest } from "./matchmaking";
 import { matchPick } from "./pick"; // RETUNE-1 T5 (REQ-BFG-092): the one pick, shared with the server's match route
-import { checkSnapshot, MAX_DAY, MAX_LIVES, SNAPSHOT_V3, SNAPSHOT_VERSION, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
+import { checkSnapshot, maxDayFor, maxWinsFor, MAX_LIVES, SNAPSHOT_V3, SNAPSHOT_VERSION, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateUpload } from "./validate"; // S8 T1a (cause a48010b): the pool loader takes the seed step's rule (was validateBuild)
-import { heartsFor, livesCapFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the stand-in's mirrored hearts
+import { heartsFor, livesCapFor, longRunFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the stand-in's mirrored hearts; RUN-1: the long run's day
 import { HEARTS_START } from "../sim/hearts"; // RETUNE-1
 // JOINS-1 (REQ-BFG-091): free joins by each snapshot's own rules: since S8 T1a validateUpload applies freeJoinsFor itself
 
@@ -42,14 +42,19 @@ export function rivalHero(hero: HeroId, seed = 0): HeroId {
  * so the ghost travels as SNAPSHOT_VERSION. FLIP-X2 (bb-0.9.0): the regenerated pool's decks hold their dawn runes,
  * which travel only in v3, so a deck holding runes travels as SNAPSHOT_V3 (as tools/samplePool.ts and server/ghostProbe.ts
  * write theirs); a rune-less deck still travels as SNAPSHOT_VERSION.
+ * RUN-1 (REQ-BFG-059, D4, D6): under a long run's rules the stand-in is built for the EXACT day (standInPick's own table
+ * rule says what a day past the deepest generated one gets); only the snapshot's day LABEL is bounded (maxDayFor: data
+ * safety, a wrapper any run past it still fits), and its wins mirror the request's up to WIN_GOAL - 1. The 10-day rules:
+ * the day clamps to MAX_DAY, as before.
  */
 export function offlineGhost(hero: HeroId, day: number, seed: number, record?: { wins: number; lives: number }): PoolEntry {
-  const d = Math.min(MAX_DAY, Math.max(1, Math.floor(day)));
+  const exact = Math.max(1, Math.floor(day));
+  const d = Math.min(maxDayFor(RULES_VERSION), exact);
   const foe = rivalHero(hero, seed);
-  const wins = Math.min(d - 1, Math.max(0, Math.floor(record?.wins ?? 0)));
+  const wins = Math.min(maxWinsFor(RULES_VERSION, d), Math.max(0, Math.floor(record?.wins ?? 0)));
   // RETUNE-1 (REQ-BFG-096): under rules with hearts the mirror holds up to HEARTS_START (10), and starts there
   const lives = Math.min(livesCapFor(RULES_VERSION, MAX_LIVES), Math.max(1, Math.floor(record?.lives ?? (heartsFor(RULES_VERSION) ? HEARTS_START : START_LIVES))));
-  const build = standInPick(foe, d, seed);
+  const build = standInPick(foe, longRunFor(RULES_VERSION) ? exact : d, seed);
   const snapshot = checkSnapshot({
     // the 0.6.1 flip: a pool deck may carry merge stars, and (0.6.2 BELTSIDE, DESIGN-beltside D1) its rigs `rot`; only
     // a v2 snapshot holds either, so the ghost travels as SNAPSHOT_VERSION (2)

@@ -6,7 +6,8 @@
 // Rewards (decision 3): Easy +2 gold (0.6.2 RULE EASY PAY: +3 from day 4), Medium +4, Hard +3 and a pick of 1 of the warlord's 2 most
 // expensive distinct non-signature parts (0.6.0c: always 2; a deck with fewer is filled from the
 // same captain's later decks, see hardParts); the Iron Matriarch +5 and her most expensive part
-// (LEGENDARY). R3: she holds the Hard slot on days 8-10 until beaten (run.matriarchBeatenOn).
+// (LEGENDARY). R3: she holds the Hard slot on days 8-10 until beaten (run.matriarchBeatenOn). RUN-1: on a long run, from day 8
+// until beaten, however long the run.
 // Road events act only on warlords: a pending SABOTAGE weakens the next warlord, a pending ELITE
 // BOUNTY rides on the next Hard warlord. Dusk (day.ts) is unchanged: a ghost runs as submitted.
 // NPC-1 (REQ-BFG-077, REQ-BFG-078), behind NPC_DAY (src/sim/npcDay.ts; off, everything above is unchanged): the fork offers
@@ -17,9 +18,10 @@
 import { hashSeed } from "../core/rng";
 import { HEROES, ITEMS } from "../sim/content";
 import type { Build } from "../sim/deck";
-import { RIVALS, rivalBuild, rivalDays, warlordOffer, type Difficulty, type RivalId, type WarlordOffer } from "../sim/rivals";
+import { RIVALS, RUN_DAYS, rivalBuild, rivalDays, warlordOffer, type Difficulty, type RivalId, type WarlordOffer } from "../sim/rivals";
 import { starsOf, valueOf } from "../sim/stars";
 import { beginDayEvent, beginRoad, eventFor } from "./events";
+import { longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a long run's events
 import { gainModule } from "./fuse";
 import type { EventId } from "./eventDefs";
 import { queueFuseAnim, type Run, type RoadPick, type WarlordFight, type WarlordOutcome, type WarlordReward } from "./run";
@@ -61,10 +63,10 @@ export interface Fork {
   warlords: WarlordOffer;
 }
 
-export function forkFor(run: Pick<Run, "seed" | "day" | "matriarchBeatenOn">): Fork {
+export function forkFor(run: Pick<Run, "seed" | "day" | "matriarchBeatenOn" | "longRun">): Fork {
   return {
     day: run.day,
-    event: eventFor(run.seed, run.day),
+    event: eventFor(run.seed, run.day, longRun(run)), // RUN-1: a long run's sequence
     warlords: warlordOffer(run.seed, run.day, run.matriarchBeatenOn ?? undefined),
   };
 }
@@ -110,7 +112,7 @@ export function onToTheRoad(run: Run): "event" | "refit" | null {
  *  -25 hull when the captain has no deck for the day before. */
 export function warlordDeck(id: RivalId, day: number, sabotaged = false): Build {
   if (!sabotaged) return clone(rivalBuild(id, day));
-  if (rivalDays(id).includes(day - 1)) return clone(rivalBuild(id, day - 1));
+  if (rivalDays(id, Math.max(RUN_DAYS, day)).includes(day - 1)) return clone(rivalBuild(id, day - 1)); // RUN-1: past day 10 too
   const b = clone(rivalBuild(id, day));
   b.hullBonus -= SABOTAGE_HULL;
   return b;
@@ -118,7 +120,7 @@ export function warlordDeck(id: RivalId, day: number, sabotaged = false): Build 
 
 /** The day of the rivalBuild a warlord fights with: day, or day - 1 when SABOTAGE swapped it. */
 export function warlordDeckDay(id: RivalId, day: number, sabotaged = false): number {
-  return sabotaged && rivalDays(id).includes(day - 1) ? day - 1 : day;
+  return sabotaged && rivalDays(id, Math.max(RUN_DAYS, day)).includes(day - 1) ? day - 1 : day; // RUN-1: past day 10 too
 }
 
 /** A deck's n most valuable distinct parts (deck items and turret gear), signature factories and

@@ -29,7 +29,7 @@
 // The switch: PICK (false), pickRules(), setPick(on), withPick(fn, on = true) (src/sim/npcDay.ts's form). P3 (new players
 // and weak uploads) is a design only (output-retune1/t5-design.md; cap's answer 3): not built.
 
-import { eligible, pickGhost, type IntRng, type MatchRequest } from "./matchmaking";
+import { eligibleWide, matchDay, pickGhost, type IntRng, type MatchRequest } from "./matchmaking"; // RUN-1 (D6): the long run's widening is matchmaking's
 import { GRADE_MAX, type PoolEntry } from "./snapshot";
 import { pickFor } from "./rulesGate";
 
@@ -112,14 +112,17 @@ export const gradeOf = (e: PoolEntry, median: number): number => e.snapshot.grad
  * ranked by grade (weakest first; the mirror: strongest first; ties by id), cut to the first ceil(share x n), then
  * pickGhost's nearest-record rank inside them. Otherwise pickGhost exactly. The median for an ungraded ghost is its
  * bucket's (the pool's ghosts of the request's rules and day). Returns null when nothing is eligible.
+ * RUN-1 (D6): under a long run's rules the eligible ghosts and the bucket are those of the day the pick is made on (a thin
+ * day widens to the nearest earlier day with one: matchmaking.ts matchDay); the 10-day rules: the request's own day, as before.
  */
 export function matchPick(pool: readonly PoolEntry[], req: MatchRequest, rng: IntRng, rule: Readonly<PickRule> = PICK_RULE): PoolEntry | null {
   if (!pickFor(req.rules)) return pickGhost(pool, req, rng);
   const { share, strong } = pickShare(req, rule);
   if (share >= 1) return pickGhost(pool, req, rng);
-  const ok = eligible(pool, req);
+  const ok = eligibleWide(pool, req);
   if (!ok.length) return null;
-  const median = medianGrade(pool.filter((e) => e.snapshot.rules === req.rules && e.snapshot.day === req.day));
+  const day = matchDay(pool, req);
+  const median = medianGrade(pool.filter((e) => e.snapshot.rules === req.rules && e.snapshot.day === day));
   const g = (e: PoolEntry) => gradeOf(e, median);
   const ranked = ok.slice().sort((a, b) => (strong ? g(b) - g(a) : g(a) - g(b)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return pickGhost(ranked.slice(0, Math.max(1, Math.ceil(share * ranked.length))), req, rng);

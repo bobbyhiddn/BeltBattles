@@ -259,8 +259,10 @@ export function uploadProblems(r: StoredRecord, rules: string): string[] {
   const v = s.road ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(lc ? { lastChance: lc } : {}), road: s.road })
     : lc ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, lastChance: lc }) : validateUpload(s.build, s.day, s.rules);
   if (!v.ok) out.push(`validateUpload: ${v.errors.join("; ")}`);
-  const reachable = isReachable(s.day, s.wins, s.lives, { rules: s.rules, lastChance: lc?.day ?? null });
-  if (!reachable) out.push(`record: ${s.wins}W ${s.lives} lives is no record a run carries into dusk ${s.day}${lc ? ` after a LAST CHANCE on day ${lc.day}` : ""}`);
+  // RUN-1 (R1.2, T3c): and its `losses` when it states them (a long run's upload; v3, taken under those rules only), as POST checks
+  // it: an honest long-run record is kept, one whose losses contradict its hearts is found. Without `losses`: as before
+  const reachable = isReachable(s.day, s.wins, s.lives, { rules: s.rules, lastChance: lc?.day ?? null, ...(s.losses !== undefined ? { losses: s.losses } : {}) });
+  if (!reachable) out.push(`record: ${s.wins}W ${s.lives} lives${s.losses !== undefined ? ` and ${s.losses} losses` : ""} is no record a run carries into dusk ${s.day}${lc ? ` after a LAST CHANCE on day ${lc.day}` : ""}`);
   // PACKS M2 (REQ-BFG-063): POST /v1/ghosts takes an upload under RULES_VERSION only with its player's name (a bad name
   // is already the strict decode's refusal above); uploads stored under older rules never carried one
   const named = s.rules === RULES_VERSION ? nameProblem(s.name) : null;
