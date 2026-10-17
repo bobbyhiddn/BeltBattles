@@ -18,6 +18,10 @@ export interface Session {
   submitDusk(run: Run): void;
   /** A finished run counts toward the new-player pool (D2). */
   countRun(run: Run): void;
+  /** PROFILE-UP (REQ-BFG-074 clause 4): the profile changed in a way worth uploading: "end" = a run's end was just folded
+   *  (styleFolds.ts; runId dedupes the battle's fold and the summary's), "pick" = CUSTOMIZE wore a style (customize.ts). Fire
+   *  and forget, one try per trigger. Optional: a session without it (a test's stub) uploads nothing. */
+  profileChanged?(why: "end" | "pick", runId?: string): void;
 }
 
 let current: Session | null = null;

@@ -19,13 +19,21 @@
 //     only if validateUpload (the player mode) accepts it, without awaiting it; a refusal is a console.debug line;
 //     403 (closed), 401, 422 and network errors are silent.
 //  4. a finished run (won or lost) counts toward D2 (countRun).
+//  5. PROFILE-UP (REQ-BFG-074 clause 4): the profile goes up, signed in its own domain (net/profileClient.ts putProfile ->
+//     PUT /v1/profile), with the identity of step 1 and only once it has loaded. Two triggers, one try each, never at boot:
+//     a run's end after it was folded (styleFolds.ts calls profileChanged("end", runId): once per run id, though the battle
+//     and the summary both fold it), and a CUSTOMIZE pick (customize.ts: profileChanged("pick"), debounced, and dropped when a
+//     run's end comes first, which carries the pick). Every failure is silent (no dialog, no console line, no retry); a server
+//     that has no such route answers 404 and nothing changes. Upload only: the answer is not merged back. No new storage key.
 
 import { RULES_VERSION } from "../sim/content";
 import { fetchGhost, submitGhost, type FetchedGhost, type GhostRequest, type SubmitResult } from "../net/ghostClient";
 import { indexedDbKeyStore, loadIdentity, type Identity } from "../net/identity";
+import { putProfile, type PutProfileResult } from "../net/profileClient";
 import { validateUpload } from "../net/validate";
 import { ghostOf, storedFoe, storeOnlineFoe } from "./day";
 import { ghostAllowed } from "./ghostGuard"; // RETUNE-1 run 2 (REQ-BFG-096): the upload guard
+import { loadProfile } from "./profile";
 import { battleSeed, saveRun, type Run } from "./run";
 import { online, setSession, type Session } from "./session";
 
@@ -37,6 +45,8 @@ export const RUNS_KEY = "beltbattles.runs.v1";
 export const FETCH_TIMEOUT_MS = 4000;
 /** The upload's deadline (fire and forget: nothing waits for it). */
 export const UPLOAD_TIMEOUT_MS = 4000;
+/** PROFILE-UP: a CUSTOMIZE pick uploads this long after the last pick (a player tapping through styles sends one request). */
+export const PROFILE_DEBOUNCE_MS = 3000;
 /** The build's server URL (D3): VITE_GHOST_SERVER, "" by default (offline). */
 export const BUILD_SERVER: string = import.meta.env.VITE_GHOST_SERVER ?? "";
 
@@ -101,9 +111,11 @@ export interface OnlineDeps {
   submitGhost: typeof submitGhost;
   /** Step 1: the device identity, once (default: loadIdentity(indexedDbKeyStore())). */
   identity: () => Promise<Identity | null>;
-  store: Pick<Storage, "getItem" | "setItem"> | null; // RUNS_KEY
+  store: Pick<Storage, "getItem" | "setItem"> | null; // RUNS_KEY (and where the profile is read from, PROFILE-UP)
   now: () => number;
   save: (run: Run) => void;
+  /** PROFILE-UP: the profile upload (default: net/profileClient.ts putProfile). Absent (a test's own deps): no profile upload. */
+  putProfile?: typeof putProfile;
 }
 
 function browserStore(): Store | null {
@@ -116,7 +128,7 @@ function browserStore(): Store | null {
 
 export function defaultDeps(): OnlineDeps {
   return {
-    fetchGhost, submitGhost,
+    fetchGhost, submitGhost, putProfile,
     identity: () => loadIdentity(indexedDbKeyStore()),
     store: browserStore(), now: () => Date.now(), save: (run) => saveRun(run),
   };
@@ -133,6 +145,11 @@ export class Online implements Session {
   lastUpload: SubmitResult | { ok: false; error: string; refused: true } | null = null;
   fetches = 0;
   uploads = 0;
+  /** PROFILE-UP, tooling and tests: how many profile uploads were started, and the last answer. */
+  profileUploads = 0;
+  lastProfileUpload: PutProfileResult | null = null;
+  private profileEndRun: string | null = null; // the run id whose end already uploaded (in memory only: no storage key)
+  private pickTimer: ReturnType<typeof setTimeout> | null = null;
   private inflight: string | null = null; // "runId|day" being fetched
   private result: { key: string; ghost: FetchedGhost | null } | null = null; // null ghost: the stand-in
 
@@ -234,6 +251,48 @@ export class Online implements Session {
     this.deps.submitGhost(this.url, snap, this.identity, UPLOAD_TIMEOUT_MS).then((r) => {
       this.lastUpload = r; // 403 (closed), 401, 422 and network errors stay silent
     }, () => {});
+  }
+
+  /** Step 5, PROFILE-UP: a trigger from styleFolds.ts ("end": a run's end was folded) or customize.ts ("pick": a style was
+   *  worn). Only in the online state (an identity loaded), never at boot, one try per trigger, fire and forget; never throws. */
+  profileChanged(why: "end" | "pick", runId?: string): void {
+    try {
+      if (!this.identity || !this.deps.putProfile) return;
+      if (why === "end") {
+        if (runId !== undefined && runId === this.profileEndRun) return; // the battle folded this end, and now the summary does
+        this.profileEndRun = runId ?? null;
+        this.dropPickTimer(); // the end carries any pick made before it
+        this.sendProfile();
+        return;
+      }
+      this.dropPickTimer();
+      this.pickTimer = setTimeout(() => {
+        this.pickTimer = null;
+        if (online() === this) this.sendProfile(); // not after the session was stopped
+      }, PROFILE_DEBOUNCE_MS);
+    } catch {
+      /* a trigger never disturbs play */
+    }
+  }
+
+  private dropPickTimer(): void {
+    if (this.pickTimer !== null) clearTimeout(this.pickTimer);
+    this.pickTimer = null;
+  }
+
+  /** The device's profile as it is stored now (the fold or the pick is already committed), uploaded once. No retry. */
+  private sendProfile(): void {
+    const id = this.identity, put = this.deps.putProfile;
+    if (!id || !put) return;
+    try {
+      const profile = loadProfile(this.deps.store);
+      this.profileUploads++;
+      put(this.url, id, profile, UPLOAD_TIMEOUT_MS).then((r) => {
+        this.lastProfileUpload = r; // 404 (an older server), 403 (closed), 401, 422, 5xx and network errors stay silent
+      }, () => {});
+    } catch {
+      /* no profile to send, or the upload could not start: silent */
+    }
   }
 }
 
