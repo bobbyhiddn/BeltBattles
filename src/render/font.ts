@@ -354,7 +354,18 @@ const FACES: Record<FontId, Face> = {
 // glyph and outlined glyphs are cached as one sprite (outline + body), so drawing a
 // string is one drawImage per character with no per-call allocation.
 
+/**
+ * SHOPCARD-1f (REQ-BFG-081, F1; READ-13 round P: all 12 picture readers copied the merge button as `MERGE *2: 7G` and said its mark
+ * "looks like an asterisk"): the 3x5 face's ★ is `#.#|.#.|###|.#.|#.#`, an X with a bar, 3 wide. A button label draws a real star
+ * instead (TextOpts.star5, set by ui.ts button): this 5x5 solid star, the 5x7 face's ★ (above) cut to the 3x5 face's row count. The 3x5
+ * glyph stays as it is for every other 3x5 text (the notes' MERGES INTO ★n, LEVELS, the cards, the help card): nothing else changes.
+ * The sprite's key is a private-use code point no string holds (never in a glyph map, so faceChars and the icon tests don't see it).
+ */
+export const STAR5_ROWS = "..#..|.###.|#####|.###.|.#.#.";
+const STAR5_KEY = "";
+
 function source(font: FontId, ch: string): string | undefined {
+  if (ch === STAR5_KEY) return STAR5_ROWS;
   const face = FACES[font];
   let src = face.map[ch];
   if (src === undefined) src = face.map[ch.toUpperCase()];
@@ -427,19 +438,28 @@ export interface TextOpts {
   scale?: number; // integer
   /** U1: draw icon glyphs in the text's colour too (default: each icon in its own colour, ICON_COLOUR). */
   mono?: boolean;
+  /**
+   * SHOPCARD-1f (F1): in the 3x5 face, draw a ★ that follows a space as the 5x5 star (STAR5_ROWS) instead of the 3-wide glyph. The star
+   * takes the glyph's own slot and the blank columns of the space before it (2 px to the left), so no width changes: textWidth, the
+   * centring, the hook's log and every button's size are those of the 3-wide ★. A ★ with no space before it stays the 3x5 glyph.
+   */
+  star5?: boolean;
 }
 
 /** One pass of a string. U1: `tint`, each icon glyph in its own colour (ICON_COLOUR) where it has one. */
-function pass(g: G, s: string, font: FontId, color: string, outline: string, ox: number, oy: number, scale: number, tint = false): void {
+function pass(g: G, s: string, font: FontId, color: string, outline: string, ox: number, oy: number, scale: number, tint = false, star5 = false): void {
   const adv = FACES[font].adv;
   const pad = outline ? scale : 0;
   let cx = ox;
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
-    const gl = glyph(font, ch, tint && ch.charCodeAt(0) >= ICON_BASE ? ICON_COLOUR[ch] ?? color : color, outline);
+    // SHOPCARD-1f (F1): the 5-wide star sits over the space before it (the 3-wide glyph's columns end where it ends)
+    const big = star5 && font === "3" && ch === "★" && s[i - 1] === " ";
+    const gl = glyph(font, big ? STAR5_KEY : ch, tint && ch.charCodeAt(0) >= ICON_BASE ? ICON_COLOUR[ch] ?? color : color, outline);
     if (gl) {
-      if (scale === 1) g.drawImage(gl, cx - pad, oy - pad);
-      else g.drawImage(gl, 0, 0, gl.width, gl.height, cx - pad, oy - pad, gl.width * scale, gl.height * scale);
+      const left = cx - pad - (big ? 2 * scale : 0);
+      if (scale === 1) g.drawImage(gl, left, oy - pad);
+      else g.drawImage(gl, 0, 0, gl.width, gl.height, left, oy - pad, gl.width * scale, gl.height * scale);
     }
     cx += (glyphWidth(font, ch) + adv) * scale;
   }
@@ -455,8 +475,8 @@ export function drawText(g: G, s: string, x: number, y: number, color: string, o
   if (opts.align === "center") ox = Math.round(x - w / 2);
   else if (opts.align === "right") ox = Math.round(x - w);
   const oy = Math.round(y);
-  if (opts.shadow) pass(g, s, font, opts.shadow, "", ox + scale, oy + scale, scale);
-  pass(g, s, font, color, opts.outline ?? "", ox, oy, scale, !opts.mono); // U1: icons in their own colours
+  if (opts.shadow) pass(g, s, font, opts.shadow, "", ox + scale, oy + scale, scale, false, opts.star5);
+  pass(g, s, font, color, opts.outline ?? "", ox, oy, scale, !opts.mono, opts.star5); // U1: icons in their own colours
   return w;
 }
 

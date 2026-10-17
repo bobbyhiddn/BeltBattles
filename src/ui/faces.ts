@@ -346,7 +346,16 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // THAT LANDS ON THE FOE'S HULL 3{SEC} AFTER A HIT." 329, "THE {DMG} IS A BLAST, NOT A HIT: ..." 376, "THE {DMG} IS ONE BLAST: IT LANDS ON
     // THE FOE'S HULL 3{SEC} AFTER A HIT." 331, "ALL OF THE {DMG} LANDS AS ONE BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT." 354, "THE {DMG} LANDS
     // ONLY AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT." 332
-    return rules([{ text: `THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, ${delay}{SEC} AFTER A HIT.` }], [["delay", `${delay}{SEC}`]]);
+    // SHOPCARD-1f (REQ-BFG-081; READ-13 fix list 3: 12 of 12 readers, rounds A and T, asked which hit the line means, and one T answer
+    // left it in its DOES: "after a hit (I cannot tell which hit)"): the hit is its own slug's. A charge is pushed only when a shot that
+    // carries one of ITS slugs' round hits (battle.ts:2191 impact: `if (pr.payload.harass) this.roundImpact(def, hit, ...)`, the harass
+    // round being the LIMPET WORKS slug's payload) on a part or the hull of the other side; 2350 queues { at: t + round.delay, blast } on
+    // that side, and 2428-2444 hullEffects takes the blast off its hull when `at` comes. A foe's own hit, a rig's hit on a slug or a hit by
+    // any other factory's slug queues nothing. So AFTER ONE OF ITS SLUGS HITS (425 px, two rows: 220 / 200; the same at every star and
+    // day: the only digit is the delay, 3 at every star). Other forms measured (px): "... AFTER ITS SLUG HITS." 381, "... AFTER ITS SLUG
+    // HITS THE FOE." 425, "... AFTER A SHOT WITH ITS SLUG HITS." 447 (second row 222 of 225), "... AFTER ITS SLUG HITS ANYTHING." 433,
+    // "... AFTER ONE OF ITS SLUGS HITS THE FOE." 469 (three rows), "... AFTER EACH HIT BY ITS SLUGS." 425 (was "... AFTER A HIT.", 335)
+    return rules([{ text: `THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, ${delay}{SEC} AFTER ONE OF ITS SLUGS HITS.` }], [["delay", `${delay}{SEC}`]]);
   },
   // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
   // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
@@ -443,7 +452,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // "I can't tell whether 'your rigs' means all of them or only those on its gun's belt." The truth is every rig on your side, the
     // ones on its own belt too (battle.ts makeSide 714-736: each rig's commissionAt x the best running line's factor, with no belt
     // test), so the line says ALL: 350 px at ★1 and ★2, 332 px at ★3 (AT ONCE), two rows of the 225 px band (was 328 and 310)
-    return rules([{ text: `FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${soon}.` }], [["soon", soon]]);
+    // SHOPCARD-1f (REQ-BFG-081; READ-13 fix list 4: 9 of 12 readers asked whether a belt that reaches a turret is enough for FEEDS A GUN):
+    // it IS the whole condition, and it is a standing one: battle.ts:2574-2587 assemblyLines counts a line only while one of its belts
+    // reaches a turret (2582: `routeInfo(b, i, ...).connected`), the best (lowest) commission of those winning (2583), and makeSide
+    // (714-736) reads that once per fight. WHILE IT FEEDS A GUN says it is a standing condition (400 px, two rows: 200 / 195; ★3 AT ONCE
+    // 382). Other forms measured (px, ★1): "WHILE ITS BELT REACHES A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER." 446 (two
+    // rows, 224 / 217 of 225), "WHILE IT FEEDS A GUN, ALL YOUR RIGS START WORKING 50% SOONER EACH FIGHT." 398, "WHILE IT FEEDS A GUN: EACH
+    // FIGHT, ALL YOUR RIGS START 50% SOONER." 354, "WHILE A BELT OF IT REACHES A GUN: ..." 466 (three rows). Kept ALL YOUR RIGS (READ-13: hedges 3 of 12 -> 0)
+    return rules([{ text: `WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${soon}.` }], [["soon", soon]]);
   },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
@@ -540,7 +556,15 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // nothing about the shot's damage. One verb, RIPS, as the ladder ("RIPS 1/2/3") and the SHOT note ("IT RIPS THE NEAREST SLUGS
     // WITHIN 1 TILE OF A HIT") use. Two rows (239 px, 245 at ★2/★3): "SHOT: A FOE BELT OR RIG HIT RIPS 1 SLUG." is 213 px but puts
     // the condition last and reads as a noun phrase; "SHOT: A HIT ON A FOE BELT RIPS 1 SLUG." 201 px drops the rig, a rule (TXT-096)
-    return rules([shot(`A HIT ON A FOE BELT OR RIG RIPS ${rip} SLUG${s(n)}.`)], [["rip", `RIPS ${rip}`]]);
+    // SHOPCARD-1f (REQ-BFG-081; READ-13 fix list 5: 10 of 12 readers asked whether the ripped slug is destroyed or taken for the shooter):
+    // it is destroyed. battle.ts:2190 impact -> 2355-2386 rip(def, ...): `def` is the side that was hit, and `r.ammo.splice(...)` (2377)
+    // takes the picked slugs off ITS belt (the nearest ones within `reach` tiles of the hit: 2366-2374, 1 tile at ★1, 2 at ★2: content.ts:843);
+    // nothing is added to the shooter (Y2, 2189: SALVAGE LINE's next-shot damage is gone, its ★3 name stays as the ⓘ perk name). So DESTROYS,
+    // NEAR IT (the hit belt tile, or a rig's arrows' tiles: an exact "ON IT" is false of a rig). Two rows (307 px; ★2/★3 313: the second
+    // row 85 px of the 225 px band). Forms measured (px, ★1): "... DESTROYS 1 SLUG ON IT." 295, "... KNOCKS 1 SLUG OFF IT." 289, "... DESTROYS 1
+    // FOE SLUG." 285, "... DESTROYS THE NEAREST SLUG." 321, "... RIPS 1 SLUG AND DESTROYS IT." 329, "... RIPS 1 SLUG: IT IS DESTROYED." 331, "...
+    // RIPS 1 SLUG OFF IT FOR GOOD." 327 (was "... RIPS 1 SLUG.", 239). The ⓘ ladder and the SHOT note keep RIPS (LEVELS RIPS 1/2/3; not in this job)
+    return rules([shot(`A HIT ON A FOE BELT OR RIG DESTROYS ${rip} SLUG${s(n)} NEAR IT.`)], [["rip", `RIPS ${rip}`]]);
   },
   tesla: (e, x) => {
     const n = c(e, x).arcs!, arcs = fmtCount(n), t = c(e, x).stall!, stun = fmtSec(t);
@@ -813,7 +837,16 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // it turns is the slug's it hits (battle.ts applyHit: every BURN stack the slug carries turns into perBurn damage on that slug),
     // so ON A {SLUG}. One row at every star on days 1, 5 and 10 (219 px at 3 digits; "ON THE {SLUG}" is 231 px there). Was
     // "HIT: TURNS EACH {*BURN} INTO +72 {DMG}." (177 px)
-    return rules([hit(`TURNS EACH {*BURN} ON A {SLUG} INTO +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
+    // SHOPCARD-1f (REQ-BFG-081; READ-13 fix list 6: the one answer below R in READ-13 was a desk Haiku on this line, "INTO (is the burn
+    // removed or kept)"): it is used up. battle.ts:1729-1734 applyHit: `spent = Math.min(p.burn, e.quench.stacks ?? Infinity)`, `p.flat +=
+    // flat + spent * perBurn`, `p.burn -= spent`: the spent BURN leaves the slug (1733). content.ts:682-687 gives QUENCH TANK no `stacks`
+    // at any star (flat 0, perBurn 30 / 50 / 70), so EVERY stack is spent and none is left over; at a star with `stacks` the rest would
+    // stay on the slug (the line would need an UP TO), and none has it. SWAPS EACH BURN FOR +n DMG says an exchange: the burn goes, the
+    // damage comes (207 px, 213 at 3 digits: one row at every star on days 1, 5 and 10). Forms measured (px, 2 digits): "HIT: USES UP EACH
+    // {*BURN} ON A {SLUG} FOR +72 {DMG}." 217 (223 at 3 digits), "... SPENDS EACH ... FOR" 213, "... TRADES EACH ... FOR" 213, "... TURNS EACH ...
+    // INTO +72 {DMG}, USING IT UP." 282 (two rows), "... TURNS EACH ... INTO +72 {DMG}, AND THE {*BURN} IS GONE." 338, "... EACH {*BURN}
+    // ON A {SLUG} IS USED UP FOR +72 {DMG}." 233 (two rows) (was "... TURNS EACH ... INTO +72 {DMG}.", 213)
+    return rules([hit(`SWAPS EACH {*BURN} ON A {SLUG} FOR +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
   },
   twinlatch: (e) => {
     // DESIGN-Y row 30: Battle.latchTick: while both its arrows hit belts it holds a slug at most `hold` s for its other belt,
@@ -1211,13 +1244,21 @@ export function shapeLines(def: string, stars = 1): FaceRule[] {
 /** SHAPES-1 (REQ-BFG-089; S8): the default rules text for a shaped piece, behind the hover or tap (EXPLAIN-1's ⓘ NOTES):
  *  the shape rule for a long rig, the size rule for a shaped factory. */
 export const SHAPE_RULE = "A LONG RIG'S ARROWS SHINE FROM EVERY OUTSIDE EDGE OF ITS CELLS.";
-export const SIZE_RULE = `A FACTORY'S EVERY ${fmtCount(SLOT_EVERY_CELLS)} CELLS PAST ${fmtCount(SLOT_FROM_CELLS)} ADD A BELT SLOT.`;
+// SHOPCARD-1f (REQ-BFG-081, REQ-BFG-115; READ-13 fix list 2: 4 of 6 phone readers stumbled on `A FACTORY'S EVERY 2 CELLS PAST 4 ADD A BELT
+// SLOT.` in a 3-cell ASSEMBLY LINE's notes: "is a belt slot the same as [BELT]?" (both Opus), "how does a 3-cell factory get BELT 2?" (Haiku)):
+// the note is written with the {BELT} icon the stat row draws (`EVERY 2 CELLS PAST 4 GIVE +1 {BELT}.`, 167 px, one row; was 265 px, two) and
+// shapeNotes gives it only to a factory whose footprint is past SLOT_FROM_CELLS cells, as foot.ts footSlots reads it: outputsAt (stars.ts:161-165)
+// adds footSlots(def) = floor(max(0, cells - 4) / 2) to the belts a factory can feed (GANTRY PRESS's 2x3 is 6 cells: +1, BIGGER: +1 {BELT});
+// a 3-cell ASSEMBLY LINE gets none, so its notes carry no size note. It agrees with GANTRY PRESS's `BIGGER: +1 {BELT}` line (shapeLines: the
+// same icon, the same +1). Stored with its icon glyph as shapeLines' BIGGER line is (the NOTES blocks draw their text as it stands)
+export const SIZE_RULE = icons(`EVERY ${fmtCount(SLOT_EVERY_CELLS)} CELLS PAST ${fmtCount(SLOT_FROM_CELLS)} GIVE +${fmtCount(1)} {BELT}.`); // faceText.test: no digit in a face's string literal
 
-/** SHAPES-1: a shaped piece's NOTES sentences ([] for every other piece and with SHAPES off). */
+/** SHAPES-1: a shaped piece's NOTES sentences ([] for every other piece and with SHAPES off). SHOPCARD-1f: a factory's size note only
+ *  where its size gives a belt (foot.ts footSlots > 0: GANTRY PRESS's 2x3, not ASSEMBLY LINE's 3 cells). */
 export function shapeNotes(def: string): string[] {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   if (!d || !shapesRules() || !deckShaped(d)) return [];
-  return d.kind === "gate" ? [SHAPE_RULE] : d.kind === "factory" ? [SIZE_RULE] : [];
+  return d.kind === "gate" ? [SHAPE_RULE] : d.kind === "factory" && footSlots(d) > 0 ? [SIZE_RULE] : [];
 }
 
 /** SHAPES-1 (REQ-BFG-086.1): the shape in a type line: `2 CELLS`, `3 CELLS` for a line or a bent shape, `2X3`, `3X3` for a
