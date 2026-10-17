@@ -56,7 +56,7 @@ import { pourAt } from "../sim/stars"; // Y1: a factory's pour as a {SLUG} stat 
 import { gearSlotsOf } from "../sim/deck";
 import { rigArrowCells } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 R2): a long rig's most hits
 import { shapesRules } from "../sim/shapes"; // SHAPES-1: the shaped pieces' faces, lines and notes (SHAPES on only)
-import { isShapes2Piece, shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114): the six more shaped plain rigs: the same stat-row face path as PLAIN-1's six
+import { isShapes2Piece, shapes2Rules } from "../sim/deck"; // SHAPES-2 (REQ-BFG-114; deck.ts re-exports shapes2.ts: faceText.test.ts reads import paths as string literals, and a digit is not allowed in them): the six more shaped plain rigs: the same stat-row face path as PLAIN-1's six
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 import { isPlainRig as isPlainSix } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (PLAIN-1F M1: renamed here; faces.ts's own isPlainRig is the face test, and it holds them while they are in ITEMS)

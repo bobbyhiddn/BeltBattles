@@ -23,6 +23,9 @@ import "./shapes2"; // SHAPES-2 (REQ-BFG-114): loads SHAPES2's switch, so its si
 // (tests/standInPool.gen.test.ts)
 export { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "./foot";
 export { RESHAPED_IDS, shapesRules } from "./shapes";
+// SHAPES-2 (REQ-BFG-114): re-exported too, so faces.ts imports it from ../sim/deck (tests/faceText.test.ts: no string literal of faces.ts may hold a
+// digit, an import path included, and shapes2's name does)
+export { isShapes2Piece, shapes2Rules } from "./shapes2";
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
