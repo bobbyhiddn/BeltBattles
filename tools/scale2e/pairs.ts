@@ -49,7 +49,7 @@ const log = (s: string): void => console.log(`pairs ${HERO} d${DAY} ★${STAR}: 
 if (!scaleRules()) { console.error("pairs.ts: SCALE_RIGS is off in this build (set the constant true in the export)"); process.exit(3); }
 
 /** The pair of each reader: its feeder copies (id x n, at the day's star) and what else the pair holds (a rune). */
-interface PairDef { reader: string; feeders: { id: string; n: number }[]; runes?: string[]; tag?: string; hidden?: boolean }
+interface PairDef { reader: string; feeders: { id: string; n: number }[]; runes?: string[]; tag?: string; group?: string }
 const P = (reader: string, feeders: [string, number][] = [], extra: Partial<PairDef> = {}): PairDef => ({ reader, feeders: feeders.map(([id, n]) => ({ id, n })), ...extra });
 const PAIRS: PairDef[] = [
   P("quench", [["temper", 2]]), // KINDLING with 2 TEMPER
@@ -67,14 +67,24 @@ const PAIRS: PairDef[] = [
   // F3 (RETUNE-1's final GUARD): IRON WALL with the SHIELD runes, alone and with the roller pair
   P("shieldwall", [], { runes: ["rivet_hoard"], tag: "shieldwall+RIVET HOARD" }),
   P("shieldwall", [["plateroller", 2]], { runes: ["rivet_hoard"], tag: "shieldwall+2 PLATE ROLLER+RIVET HOARD" }),
+  // SCALE-2b F7 (the multiplying sites): POISON never decays, so a SCATTER ceil, a MORTAR splash, a TESLA arc, a LANCE column or
+  // MOLTEN VOWS' echo multiply a fight-long clock. The tested piece is VENOM DRIP (reader lift = pair - feeder = its lift with
+  // the site), alone and with each site: asked for with --readers venom
+  P("venom", [], { tag: "venom alone", group: "sites" }),
+  P("venom", [["scatter", 1]], { tag: "venom+SCATTER CHOKE", group: "sites" }),
+  P("venom", [["mortar", 1]], { tag: "venom+MORTAR TUBE", group: "sites" }),
+  P("venom", [["tesla", 1]], { tag: "venom+TESLA ARC", group: "sites" }),
+  P("venom", [["lance", 1]], { tag: "venom+LODESTAR LANCE", group: "sites" }),
+  P("venom", [], { runes: ["molten_vows"], tag: "venom+MOLTEN VOWS", group: "sites" }),
   // the CINDER MAIL stack (CM + 2 TEMPER, and with the rune and the rollers) places on few decks (1 of 4 on weaver d6): asked for by tag only
-  P("shieldwall", [["cindermail", 1], ["temper", 2]], { tag: "shieldwall+CINDER MAIL+2 TEMPER", hidden: true }),
-  P("shieldwall", [["cindermail", 1], ["temper", 2], ["plateroller", 2]], { runes: ["rivet_hoard"], tag: "shieldwall+CINDER MAIL+2 TEMPER+2 PLATE ROLLER+RIVET HOARD", hidden: true }),
+  P("shieldwall", [["cindermail", 1], ["temper", 2]], { tag: "shieldwall+CINDER MAIL+2 TEMPER", group: "cm" }),
+  P("shieldwall", [["cindermail", 1], ["temper", 2], ["plateroller", 2]], { runes: ["rivet_hoard"], tag: "shieldwall+CINDER MAIL+2 TEMPER+2 PLATE ROLLER+RIVET HOARD", group: "cm" }),
 ];
 const WANT = arg("--readers", "").split(",").filter(Boolean);
-// --readers a,b: pairs by reader id (an id also takes its tagged variants) or by tag; none given: every pair but the hidden ones; "all": every one
+// --readers a,b: pairs by reader id (an id also takes its tagged variants of the main group) or by tag or by group ("sites": VENOM
+// DRIP beside the multiplying sites; "cm": the CINDER MAIL stacks); none given: the main group; "all": every pair
 const wanted = (p: PairDef): boolean =>
-  WANT.includes("all") || (p.tag !== undefined && WANT.includes(p.tag)) || (WANT.length ? WANT.includes(p.reader) && !p.hidden : !p.hidden);
+  WANT.includes("all") || (p.tag !== undefined && WANT.includes(p.tag)) || (WANT.length ? WANT.includes(p.group ?? "main") || (!p.group && WANT.includes(p.reader)) : !p.group);
 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : NaN);
 const holds = (b: Build, id: string): boolean => b.items.some((p) => p.def === id) || b.mods.some((m) => m.def === id);
@@ -215,4 +225,4 @@ for (const [p, list] of builtOf) {
 out.seconds = Math.round((Date.now() - t0) / 1000);
 writeFileSync(OUT, JSON.stringify(out));
 log(`done in ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${OUT}`);
-void ANSWERS; void POISON;
+void ANSWERS;
