@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a run's best record holds 10 hearts (was START_LIVES)
-import { LONG_RUN_MAX_DAY, longRunRules, setLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): both worlds, the day bound
+import { LONG_RUN_MAX_DAY, longRunRules, setLongRun, withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): both worlds, the day bound (BUMP-1D run 4: + withLongRun, the 10-day ghosts' build)
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { NEW_PLAYER_RUNS, noBetterRecord } from "../src/net/matchmaking";
 import { KEY_HEADER, SIG_HEADER, type Identity } from "../src/net/identity";
@@ -18,6 +18,11 @@ import { storeBackends } from "./netStores";
 
 const SHORE = "http://127.0.0.1:7778";
 const TWENTY = sampleGhosts().filter((s) => s.day <= 5); // 2 heroes x 2 variants x days 1-5 (the sample ghosts, not the floor ghosts)
+// BUMP-1D run 4 (RULING-BUMP-R3 R3.4 b): and the same twenty as the 10-DAY rules make them: sampleGhosts under withLongRun false (the days a
+// 10-day pool holds, and no ghost states `losses`). TWENTY above is a long run's: its ghosts state `losses` (the first one the walk fetched
+// did); with the long run off the client refuses such a ghost ("bad snapshot: snapshot.losses: not in this rules version yet", the 2 reds run
+// 3 left: the 10-day walk fetched TWENTY's ghosts in that world) and a 10-day server would refuse the upload. So the 10-day walk gets these.
+const TWENTY_10DAY = withLongRun(() => sampleGhosts(), false).filter((s) => s.day <= 5);
 
 function req(over: Partial<GhostRequest> = {}): GhostRequest {
   return { rules: RULES_VERSION, day: 1, wins: 0, lives: 3, playerId: "me", seen: [], hero: "furnace", seed: 7, ...over };
@@ -93,7 +98,9 @@ afterAll(async () => {
   // only, 3 ghosts a day, then the stand-in. Long run (RUN-1 D6, matchmaking.ts matchDays): once the day's 3 ghosts are seen the day is
   // thin and the pick WIDENS to the nearest earlier day (a day-2 request then serves day 1's ghosts), never a later one, so day d
   // serves 3 ghosts of d, then 3 of d - 1, ... then 3 of day 1 (3 * d in all) before the stand-in for the exact day d (was 3 for every day).
-  async function matchWalk(long: boolean) {
+  // BUMP-1D run 4: the walk reads the server at `at` and the ghosts stored there (`held`, id -> snapshot): the main store (TWENTY, a long run's
+  // ghosts) by default, which the long-run walk uses as it was; the 10-day walk passes its own store of TWENTY_10DAY.
+  async function matchWalk(long: boolean, at: string = base, held: ReadonlyMap<string, GhostSnapshot> = ids) {
     for (let day = 1; day <= 5; day++) {
       const me = owners.get("sample-furnace-0")!.playerId; // owns one of the 4 ghosts stored for each day (its key's playerId)
       const seen: string[] = [];
@@ -104,17 +111,17 @@ afterAll(async () => {
         // HULL-ON (the flip, HEARTS): lives START_LIVES (5) -> HEARTS_START (10): the best record a run carries into a dusk is
         // 10 hearts now, and the sample ghosts carry hearts labels (day 1's: 0W 10), so 5 was a worse record than theirs
         // (D1: none eligible, an at-once fallback); the match route takes 10 under bb-0.10.0 (rulesGate.ts livesCapFor)
-        const g = await fetchGhost(base, req({ day, playerId: me, seen: [...seen], wins: day - 1, lives: HEARTS_START, runs: NEW_PLAYER_RUNS }), 3000);
+        const g = await fetchGhost(at, req({ day, playerId: me, seen: [...seen], wins: day - 1, lives: HEARTS_START, runs: NEW_PLAYER_RUNS }), 3000);
         if (g.source === "fallback") {
           expect(g.error).toMatch(/no ghost/);
           expect(g.id).toBe(`offline-weaver-d${day}`);
           break;
         }
-        expect(ids.has(g.id)).toBe(true);
+        expect(held.has(g.id)).toBe(true);
         // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): FURNACE and WEAVER's sample decks are
         // par-field runs' dusk decks now, so each stored ghost carries its run's seed, which the match serves without
         // (server/app.ts servedSnapshot, FIX-6). Was toEqual(ids.get(g.id)) (10 keys served, 11 stored: the seed)
-        expect(g.snapshot).toEqual(servedSnapshot(ids.get(g.id)!));
+        expect(g.snapshot).toEqual(servedSnapshot(held.get(g.id)!));
         if (long) expect(g.snapshot.day).toBeLessThanOrEqual(day); // BUMP-1D: the widening (never a later day)
         else expect(g.snapshot.day).toBe(day);
         expect(g.snapshot.playerId).not.toBe(me);
@@ -127,10 +134,35 @@ afterAll(async () => {
         expect(seenDays).toEqual(Array.from({ length: day }, (_, i) => day - i).flatMap((d) => [d, d, d]));
       } else expect(seen).toHaveLength(3);
     }
-    const r = await fetch(`${base}/v1/ghosts/match?rules=bb-0.1.0&day=1&wins=0&lives=3&player=me&seen=`);
+    const r = await fetch(`${at}/v1/ghosts/match?rules=bb-0.1.0&day=1&wins=0&lives=3&player=me&seen=`);
     expect(r.status).toBe(404);
   }
-  it("matches same rules and day, never your own ghost, never a seen one, then falls back (the 10-day world: the exact day only)", () => inWorld(false, () => matchWalk(false)));
+  // BUMP-1D run 4 (RULING-BUMP-R3 R3.4 b): the 10-day world's walk over a store of 10-day ghosts (TWENTY_10DAY: built under withLongRun false, none
+  // states `losses`), a server of its own over fresh storage: the main store holds TWENTY (a long run's ghosts, all stating `losses`), and
+  // with the long run off the client refuses those ("bad snapshot: snapshot.losses: not in this rules version yet"), so the walk fell back at its first
+  // fetch (2 reds, one per store). The 10-day upload is signed by the same four fixed keys (owners), the same four players; the main store is untouched.
+  it("matches same rules and day, never your own ghost, never a seen one, then falls back (the 10-day world: the exact day only)", () =>
+    inWorld(false, async () => {
+      const tenDay = backend.server({ origins: [SHORE], rateLimit: { windowMs: 60_000, max: 1000 }, log: () => {}, matchSalt: () => 0 }, true); // over fresh storage
+      try {
+        const at = `http://127.0.0.1:${await tenDay.listen(0)}`;
+        const held = new Map<string, GhostSnapshot>();
+        for (const s of TWENTY_10DAY) {
+          expect(s.losses, `${s.playerId} day ${s.day}: a 10-day ghost states no losses`).toBeUndefined();
+          const owner = owners.get(s.playerId)!;
+          const mine = ownedBy(s, owner); // signed by its owner's key, under that key's playerId
+          const res = await submitGhost(at, mine, owner, 3000);
+          expect(res, `${s.playerId} day ${s.day}`).toMatchObject({ ok: true });
+          if (res.ok) held.set(res.id, mine);
+        }
+        expect(TWENTY_10DAY).toHaveLength(20);
+        expect(held.size).toBe(20);
+        expect(tenDay.store.size).toBe(20);
+        await matchWalk(false, at, held);
+      } finally {
+        await tenDay.close();
+      }
+    }));
   it("matches same rules and day, never your own ghost, never a seen one, then falls back (a long run: a thin day widens to the nearest earlier day)", () => inWorld(true, () => matchWalk(true)));
 
   it("returns the nearest record first", async () => {
