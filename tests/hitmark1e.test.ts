@@ -12,8 +12,8 @@ import { ICON, ICON_BASE, drawText, faceChars, glyphRows, isIcon, textWidth, typ
 import { HITS_CHIP, STATUS_H } from "../src/game/counters";
 import { G, fresh, installRaster } from "./raster.helpers";
 
-/** The two drawings, as pinned: an arrow, its chevron head's point on a full-height wall. */
-const FIVE = ["....#", ".#..#", "..#.#", "#####", "..#.#", ".#..#", "....#"];
+/** The two drawings, as pinned: an arrow with a solid head (5x7) or its chevron head (3x5), the point on a full-height wall. */
+const FIVE = ["....#", ".#..#", ".##.#", "#####", ".##.#", ".#..#", "....#"];
 const THREE = ["#.#", ".##", "..#", ".##", "#.#"];
 /** SCALE-2c's crack as it was at 6645b6184db1: the mark the round-M readers took for FRAY. */
 const OLD: Record<FontId, string[]> = {
@@ -23,7 +23,7 @@ const OLD: Record<FontId, string[]> = {
 
 /** Per face: the cell, icons.test.ts's rules (letters and digits, punctuation, other icons), and this job's floor under every glyph. */
 const FACES: { font: FontId; name: string; w: number; h: number; rule: { text: number; punct: number; icon: number }; floor: number; fray: number; old: number }[] = [
-  { font: "5", name: "5x7", w: 5, h: 7, rule: { text: 6, punct: 4, icon: 4 }, floor: 8, fray: 12, old: 12 },
+  { font: "5", name: "5x7", w: 5, h: 7, rule: { text: 6, punct: 4, icon: 4 }, floor: 10, fray: 14, old: 14 },
   { font: "3", name: "3x5", w: 3, h: 5, rule: { text: 3, punct: 2, icon: 2 }, floor: 4, fray: 6, old: 5 },
 ];
 
@@ -135,7 +135,7 @@ describe("HITMARK-1E: each differs from every other glyph at its size, FRAY's ab
     it(`${f.name}: at least ${f.fray} px from FRAY's glyph (the two Vs it was taken for), and from BURN's flame, POISON's drop, STUN's bolt and the HULL heart`, () => {
       const mark = rowsOf(ICON.CRACK, f.font);
       expect(dist(mark, rowsOf(ICON.FRAY, f.font)), "FRAY").toBeGreaterThanOrEqual(f.fray);
-      const others = f.font === "5" ? 12 : 4;
+      const others = f.font === "5" ? 11 : 4;
       for (const ch of [ICON.BURN, ICON.POISON, ICON.STUN, ICON.HULL]) expect(dist(mark, rowsOf(ch, f.font)), nameOf(ch)).toBeGreaterThanOrEqual(others);
     });
 

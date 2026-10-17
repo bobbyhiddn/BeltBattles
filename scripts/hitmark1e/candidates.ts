@@ -113,4 +113,18 @@ export const ROUND3: Candidate[] = [
  *  the ring. */
 export const PANEL: Candidate[] = [ROUND1[0], ROUND2[1], ROUND3[1], ROUND3[2], ROUND1[2]];
 
-export const ROUNDS: Record<string, Candidate[]> = { r1: ROUND1, r2: ROUND2, r3: ROUND3, rp: PANEL };
+/** Round 4 (the redraw round, if the cold read misses its bar): the cold read's readers saw the mark at about 25 px in a downscaled
+ *  still. The strong reader named it ("an arrow striking a wall"); a weaker one never described it and read the one unmatched red
+ *  icon as FRAY by elimination. The one lever the glyph has is to be legible at that size: the same idea, bolder. */
+export const ROUND4: Candidate[] = [
+  ROUND1[0],
+  {
+    id: "A8",
+    name: "SOLID HEAD",
+    five: "....#|.#..#|.##.#|#####|.##.#|.#..#|....#",
+    three: "#.#|.##|..#|.##|#.#",
+    idea: "the arrow with a solid head: more ink at the size the readers saw it, the shaft kept so it is no media skip mark",
+  },
+];
+
+export const ROUNDS: Record<string, Candidate[]> = { r1: ROUND1, r2: ROUND2, r3: ROUND3, rp: PANEL, r4: ROUND4 };

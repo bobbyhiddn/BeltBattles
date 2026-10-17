@@ -188,12 +188,13 @@ const F5: GlyphMap = {
   // SCALE-2b (REQ-BFG-108): POISON's drop, an outline (a solid drop sits 3 px from BURN's flame); drawn only while
   // SCALE_RIGS is on
   [ICON.POISON]: "..#..|..#..|.#.#.|#...#|#...#|#...#|.###.", // a drop
-  // HITMARK-1E (REQ-BFG-100, C7; BRIEF-HITMARK1E): the hits-on-you chip's mark, an arrow driving into a wall: a hit landed on your
-  // ship. The icon keeps SCALE-2c's name CRACK and U+E013 (counters.ts HITS_CHIP draws it, red). SCALE-2c's lone jagged line read as
-  // FRAY to all four round-M readers (REPORT-SCALE2f 5). It is not FRAY's pair of Vs, BURN's flame, POISON's drop, STUN's bolt or
-  // the HULL heart, and no burst (BURST's mark is a red plus; the burst-like mark is CRIT-1's U+E00E): 9 px or more from every other
-  // 5x7 glyph, FRAY's 15
-  [ICON.CRACK]: "....#|.#..#|..#.#|#####|..#.#|.#..#|....#", // a hit landing: an arrow into a wall
+  // HITMARK-1E (REQ-BFG-100, C7; BRIEF-HITMARK1E): the hits-on-you chip's mark, an arrow with a solid head driving into a wall: a hit
+  // landed on your ship. The icon keeps SCALE-2c's name CRACK and U+E013 (counters.ts HITS_CHIP draws it, red). SCALE-2c's lone jagged
+  // line read as FRAY to all four round-M readers (REPORT-SCALE2f 5). It is not FRAY's pair of Vs, BURN's flame, POISON's drop,
+  // STUN's bolt or the HULL heart, and no burst (BURST's mark is a red plus; the burst-like mark is CRIT-1's U+E00E): 11 px or more
+  // from every other 5x7 glyph, FRAY's 17. The first pick had a head of single pixels (...#.|..#.#|#####|..#.#|...); the cold
+  // read's readers saw the mark at about 25 px, so the head is solid
+  [ICON.CRACK]: "....#|.#..#|.##.#|#####|.##.#|.#..#|....#", // a hit landing: an arrow into a wall
 };
 
 // 3x5
