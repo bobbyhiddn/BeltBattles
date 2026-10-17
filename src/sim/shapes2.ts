@@ -4,7 +4,7 @@
 // press." 0.9.9 shipped SHAPES-1's engine (foot.ts: every footprint, the per-cell hit rule), but only three shaped rigs, all
 // straight lines (shapes.ts: NAIL STRIP and EMBER TROUGH, I2; SPIKE RAIL, I3). REQ-BFG-114 wants at least eight, with L, T
 // and 2x2 feet as well as lines, and shops that show them. These are the six more, the first rigs with L3, T4 and 2x2 feet:
-//  - ELBOW GUARD  (common, 4 G, L3, I,  ironmonger):    + SHIELD on the slug (GateEffect.slugPlate), at a belt's corner;
+//  - ELBOW GUARD  (common, 4 G, L3, I,  ironmonger):    + SHIELD on the slug (GateEffect.slugPlate; 8/16/28 since step 6), at a belt's corner;
 //  - SAW BAR      (common, 5 G, I3, I,  gunsmith):      + DMG, along a straight run (3 hits);
 //  - SPARK COMB   (common, 5 G, I2, I,  arcane dealer): + STUN seconds, along a belt (2 hits);
 //  - CINDER HOOK  (rare,   6 G, L3, II, alchemist):     + BURN, round a bend (up to 4 hits);
@@ -39,8 +39,12 @@ export const SHAPES2_DEFS: Readonly<Record<string, ItemDef>> = {
   elbowguard: {
     id: "elbowguard", name: "ELBOW GUARD", kind: "gate", rarity: "common", price: 4, size: 1, foot: "L3", merchant: "ironmonger",
     desc: [], tags: ["PLATE"],
-    gate: { slugPlate: 2 }, // one arrow, forward, from two cells of the L: at a belt's corner it hits 2 tiles
-    levels: { 2: { gate: { slugPlate: 4 } }, 3: { gate: { slugPlate: 7 } } },
+    // step 6 (S6c): SHIELD 8/16/28, four times the brief's starting 2/4/7: at 2 the rig lifted a deck by +0.4 points on day 6 (+2.7 d3,
+    // -0.9 d10; k 32 par decks a hero, O/bench/presence-both32.md) and still +1.7 / +2.2 / +1.2 inserted, against SCALE GUARD's +3.7 and
+    // PLATE ROLLER's +5.1 on day 6; at 9 (O/bench/presence-sweepB.md) it reads +2.5 / +2.7 on days 6 and 10 (inserted +3.7 / +3.7) beside
+    // PLATE ROLLER's +3.9 / +3.2. One arrow forward, from two cells of the L: at a belt's corner it hits 2 tiles
+    gate: { slugPlate: 8 },
+    levels: { 2: { gate: { slugPlate: 16 } }, 3: { gate: { slugPlate: 28 } } },
   },
   sawbar: {
     id: "sawbar", name: "SAW BAR", kind: "gate", rarity: "common", price: 5, size: 1, foot: "I3", merchant: "gunsmith",

@@ -44,7 +44,7 @@ function furnace(items: Run["build"]["items"] = [], cargo: string[] = []): Run {
 }
 
 const WANT: Record<string, { rows: string[]; hits: number; kind: string }> = {
-  elbowguard: { rows: ["[PLATE]+2", "[PLATE]+4", "[PLATE]+7"], hits: 2, kind: "COMMON RIG · 3 CELLS" },
+  elbowguard: { rows: ["[PLATE]+8", "[PLATE]+16", "[PLATE]+28"], hits: 2, kind: "COMMON RIG · 3 CELLS" }, // step 6: SHIELD 8/16/28 (was 2/4/7)
   sawbar: { rows: ["[DMG]+8", "[DMG]+16", "[DMG]+28"], hits: 3, kind: "COMMON RIG · 3 CELLS" },
   sparkcomb: { rows: ["[STUN]+1", "[STUN]+2", "[STUN]+3"], hits: 2, kind: "COMMON RIG · 2 CELLS" },
   cinderhook: { rows: ["[BURN]+1", "[BURN]+2", "[BURN]+3"], hits: 4, kind: "RARE RIG · 3 CELLS" },
@@ -167,7 +167,7 @@ describe("SHAPES-2 S5: fit, spacing and words", () => {
       for (const id of SHAPES2_IDS) strings.push(kindLine(ITEMS[id]), ...[1, 2, 3].flatMap((s) => shapeLines(id, s).map((r) => r.text)));
       for (const t of strings) expect(/\b(PLATE|PLATES|PLATED|PLATING|SHIELD)\b/.test(t.replace(/\{\*?[A-Z]+\}/g, "")), `"${t}"`).toBe(false);
       // ELBOW GUARD's face says its SHIELD through the icon, and its reminder is the shared one (written with the {*PLATE} token)
-      expect(plain(faceLines("elbowguard", 1)!.stats!)).toBe("[PLATE]+2");
+      expect(plain(faceLines("elbowguard", 1)!.stats!)).toBe("[PLATE]+8");
       expect(REMINDER.PLATE()).toContain("{*PLATE}");
       expect(faceLines("elbowguard", 1)!.reminders).toHaveLength(1);
     });

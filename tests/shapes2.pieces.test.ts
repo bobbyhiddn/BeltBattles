@@ -112,7 +112,7 @@ describe("SHAPES-2 S1: the defs (BRIEF-SHAPES2's table)", () => {
         }
       }
       const row3 = (id: string) => [1, 2, 3].map((s) => effectAt(id, s).gate);
-      expect(row3("elbowguard")).toEqual([{ slugPlate: 2 }, { slugPlate: 4 }, { slugPlate: 7 }]);
+      expect(row3("elbowguard")).toEqual([{ slugPlate: 8 }, { slugPlate: 16 }, { slugPlate: 28 }]); // step 6 (S6c): 2/4/7 was the brief's starting value
       expect(row3("sawbar")).toEqual([{ flat: 8 }, { flat: 16 }, { flat: 28 }]);
       expect(row3("sparkcomb")).toEqual([{ stun: 1 }, { stun: 2 }, { stun: 3 }]);
       expect(row3("cinderhook")).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
