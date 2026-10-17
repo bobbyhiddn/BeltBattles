@@ -38,8 +38,9 @@ const PLATE = ITEMS.plating.supply!.hull!;
 const STAND_INS = RIVAL_IDS.filter((id) => id !== "matriarch");
 
 describe("RUN-1 D5: with the switch off the 10-day world is exactly as live (the clamps stay)", () => {
-  it("the table depths: REF_DAYS 10, PLAYER_DAYS 10, STAND_IN_POOL_DAYS 10; one generators' depth, 16, behind all three", () => {
-    expect([REF_DAYS, PLAYER_DAYS, STAND_IN_POOL_DAYS]).toEqual([10, 10, 10]);
+  it("the table depths: REF_DAYS 10, PLAYER_DAYS 10, STAND_IN_POOL_DAYS 16 (BUMP-1D: the pool is regenerated to the generators' depth); one generators' depth, 16, behind all three", () => {
+    // BUMP-1D: was [10, 10, 10]: the regenerated stand-in pool holds days 1-16 (standInPool.ts STAND_IN_POOL_DAYS = STAND_IN_GEN_DAYS)
+    expect([REF_DAYS, PLAYER_DAYS, STAND_IN_POOL_DAYS]).toEqual([10, 10, 16]);
     expect([REF_DAYS_LONG, PLAYER_DAYS_LONG, STAND_IN_GEN_DAYS, LONG_RUN_GEN_DAYS]).toEqual([16, 16, 16, 16]);
     expect(longRunRules()).toBe(false);
   });

@@ -5,7 +5,7 @@
 // and the async fallback's source (src/net/fallback.ts, tests/net-fallback-standins.test.ts); its own tests stay here.
 import { describe, expect, it, vi } from "vitest";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
-import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPick, standInPool } from "../src/sim/standInPool";
+import { STAND_IN_GEN_DAYS, STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPick, standInPool } from "../src/sim/standInPool";
 import { POOL_RULES, RUN_DAYS, type HeroId } from "../src/sim/content";
 import { RIVALS, RIVAL_IDS, deckCost, maxGoldByDay, standInBuild, standInGhost } from "../src/sim/rivals";
 import { inStandInPool, standInFoe } from "../src/game/ghosts";
@@ -21,6 +21,8 @@ import { roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP (the flip): t
 import { POOL_LEGACY, POOL_PAR_BAND, POOL_PAR_SHORT } from "./standInPool.helpers";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
+// BUMP-1D: the stand-in POOL holds days 1-16 now (was 1-10); DAYS (1-10) stays for the 10-day captains' standInFoe tests below
+const POOL_DAYS = Array.from({ length: STAND_IN_POOL_DAYS }, (_, i) => i + 1);
 const SEEDS = Array.from({ length: 200 }, (_, n) => 7 + n * 104729); // run seeds are 31-bit, >= 0
 const PLATE = 25; // ARMOR PLATING's hull (standin.honest.test.ts pins it)
 const J = (v: unknown): string => JSON.stringify(v);
@@ -29,7 +31,11 @@ describe("the stand-in pool v1.1 (the reference field and the async fallback)", 
   it("was generated under this build's pool rules: RULES_VERSION, or since RUNES-1 the rules it carries the pool from (content.ts POOL_RULES; a stale pool fails here)", () => {
     expect(STAND_IN_POOL_RULES).toBe(POOL_RULES);
     expect(STAND_IN_DATA.rules).toBe(POOL_RULES);
-    expect(STAND_IN_POOL_DAYS).toBe(RUN_DAYS);
+    // BUMP-1D: was toBe(RUN_DAYS) (10): the pool is regenerated to days 1-16 (STAND_IN_GEN_DAYS), the long run's generator depth
+    expect(STAND_IN_POOL_DAYS).toBe(STAND_IN_GEN_DAYS);
+    expect(STAND_IN_POOL_DAYS).toBe(16);
+    expect(STAND_IN_DATA.rules).toBe("bb-0.11.0");
+    for (const hero of STAND_IN_POOL_HEROES) expect(STAND_IN_DATA.pools[hero]!, hero).toHaveLength(STAND_IN_POOL_DAYS);
   });
 
   // 0.8.0 N1 (oracle 94b9559fbb7da299 (4a)): a stand-in fights its captain's named build (standInBuild), never a pool deck,
@@ -53,7 +59,7 @@ describe("the stand-in pool v1.1 (the reference field and the async fallback)", 
   it("prints the pool's recorded vsPar per hero and day (mean and minimum of standInPool(hero, day); no fights)", () => {
     const pc = (x: number) => `${Math.round(x * 100)}%`;
     const lines = ["stand-in pool v1.1 recorded vsPar (lower win rate vs both par decks), mean / min of 6:"];
-    for (const day of DAYS) {
+    for (const day of POOL_DAYS) { // BUMP-1D: was DAYS (1-10)
       const cols = STAND_IN_POOL_HEROES.map((hero) => {
         const v = standInPool(hero, day).map((e) => e.vsPar);
         const cost = standInPool(hero, day).map((e) => e.cost);
@@ -63,7 +69,7 @@ describe("the stand-in pool v1.1 (the reference field and the async fallback)", 
     }
     // eslint-disable-next-line no-console
     console.log(lines.join("\n"));
-    expect(lines.length).toBe(1 + RUN_DAYS);
+    expect(lines.length).toBe(1 + STAND_IN_POOL_DAYS); // BUMP-1D: was 1 + RUN_DAYS (the pool holds days 1-16 now)
   });
 
   // Step 5 M5 (decisions D1, D4): pool v2.1 lists no hero/day short. A caravan pool may list a day that took its
@@ -77,7 +83,7 @@ describe("the stand-in pool v1.1 (the reference field and the async fallback)", 
       expect(STAND_IN_DATA.pools[s.hero]![s.day - 1][4], `${s.hero} d${s.day}`).toBe("best");
     }
     for (const hero of STAND_IN_POOL_HEROES) {
-      for (const day of DAYS) {
+      for (const day of POOL_DAYS) { // BUMP-1D: was DAYS (1-10): days 11-16 of the regenerated pool are held to the same lines
         const es = standInPool(hero, day), exempt = POOL_PAR_SHORT.has(`${hero}|${day}`);
         expect(es.length).toBe(STAND_IN_DATA.per);
         for (const [i, e] of es.entries()) {
