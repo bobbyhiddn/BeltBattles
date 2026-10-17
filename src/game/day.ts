@@ -26,6 +26,9 @@ export function ghostName(g: Pick<GhostSnapshot, "hero" | "wins" | "lives">): st
 
 /** PACKS M2 (REQ-BFG-063): a ghost's player name for its stored record, when it has one (pool entries have none). */
 const named = (g: Pick<GhostSnapshot, "name">): { name?: string } => (g.name !== undefined ? { name: g.name } : {});
+/** RUN-1 (R1.5, T4b): the ghost's own day, when a widened pick met it on a later day than its own (D6: a long run's thin day
+ *  widens to the nearest EARLIER day); nothing for an exact-day pick, so a 10-day run's record is exactly as before. */
+const widened = (g: Pick<GhostSnapshot, "day">, day: number): { ghostDay?: number } => (g.day !== day ? { ghostDay: g.day } : {});
 
 /** Choose today's dusk opponent from the pool, or else the day's stand-in captain with its named
  *  build (ghosts.ts standInFoe: standInBuild since 0.6.2 TUNE-C; the stand-in pool's standInPick
@@ -37,7 +40,7 @@ export function chooseFoe(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
   if (g) {
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
-      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g) },
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g), ...widened(g, run.day) },
     };
   }
   const s = standInFoe(run.seed, run.day);
@@ -63,7 +66,7 @@ export function onlineFoe(run: Run, fetched: FetchedGhost | null): DuskFoe {
     const g = fetched.snapshot;
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
-      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g) },
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g), ...widened(g, run.day) },
       source: "online", ghostId: fetched.id,
     };
   }
@@ -129,7 +132,8 @@ export function foeTitle(foe: Pick<DuskFoe, "kind" | "name" | "day" | "record">)
   const r = foe.record;
   if (foe.kind !== "ghost" || !r) return foe.name;
   const who = r.name !== undefined && nameProblem(r.name) === null ? displayName(r.name, r.playerId) : WANDERER;
-  return `${who} · ${ghostRecord(foe.day, r.wins)}`;
+  // RUN-1 (R1.5, T4b): a widened ghost's W-L is read at ITS day (the dusks before it that it did not win), not at this dusk's
+  return `${who} · ${ghostRecord(r.ghostDay ?? foe.day, r.wins)}`;
 }
 
 /** Score line: the dusk record, W-L. */
