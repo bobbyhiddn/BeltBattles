@@ -193,6 +193,15 @@ describe("SHAPES-2 S4: captains and warlords with SHAPES2 on", () => {
       }
     });
     console.log(`S4 CAPTAINS where a shaped rig would suit one (a spot with 2+ hits for a common, 3+ for a rare or epic): ${suit.join(" | ")}`);
+    const suitW: string[] = [];
+    on(() => {
+      for (const h of PLAYABLE_HEROES as HeroId[]) for (const day of [6, 10]) {
+        const b = warlordBuild(h, day);
+        const fits = SIX.filter((def) => { const sp = shapedSpot(b, def); return !!sp && sp.hits.length >= (ITEMS[def].rarity === "common" ? 2 : 3); });
+        if (fits.length) suitW.push(`${h} d${day}: ${fits.join(", ")}`);
+      }
+    });
+    console.log(`S4 WARLORDS where a shaped rig would suit one: ${suitW.join(" | ")}`);
   }, 600_000);
 });
 
