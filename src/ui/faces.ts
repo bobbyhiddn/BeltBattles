@@ -248,8 +248,11 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   // CARD-3 (REQ-BFG-107): the block reads WARD ({*SHIELD} draws ICON.SHIELD then WARD), in the rune reminder's words:
   // shieldHit breaks one (SHIELD_CAP 3) and returns 0 for the hit; never "WHOLE HIT" (REVIEW-SUSB F1)
   SHIELD: () => `{*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
-  HEAL: () => "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL.",
-  REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC.",
+  // SHOPCARD-1b (REQ-BFG-081; READ-9 section 7, fix 5): HULL in words, not the {HULL} icon (it draws the heart, and 4 of the 5
+  // readers who opened HEAL's note hedged between the hull and the run's hearts). battle.ts:1479-1501 heal() gives back
+  // s.hull.hp, never past s.hull.max (1494-1496); sustainTick (1519-1537) heals the REGEN each whole second through it
+  HEAL: () => "{*HEAL}: GIVES BACK HULL, NEVER PAST FULL.",
+  REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH HULL EACH SEC.",
 };
 
 // ------------------------------------------------------------------------------------------------------ the faces
@@ -304,7 +307,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   gantry: () => rules([]),
   // WORDS-1 (REQ-BFG-081; READ-1 6.1): STAMPS is a coined word with no note (was "STAMPS YOUR HERO'S SLUGS."); Battle.factoryDef
   // makes the hero's own ammo here, beside the hero's factory: TOO
-  mimic: () => rules([{ text: "MAKES YOUR HERO'S SLUGS TOO." }]),
+  // SHOPCARD-1b (REQ-BFG-081; READ-9 section 3.2 and 9 fix 2: 6 of 6 readers took TOO as "its own slugs plus the hero's"): it
+  // makes ONLY the hero's (battle.ts:929-938 factoryDef swaps its ammo for hero.ammo and its speed for the hero factory's
+  // x its rate %), and the stat rows above are those slugs', so TOO goes
+  mimic: () => rules([{ text: "MAKES YOUR HERO'S SLUGS." }]),
   limpet: (e) => {
     // DESIGN-Y row 13: its charges' blast is its DMG stat (factoryStats: the charge's 20 joined it, content.ts STAR_DIFF);
     // Battle.hullEffects: each charge blasts the enemy hull round.delay s after it hits. Was "CHARGES BLAST THE HULL: 80
@@ -313,7 +319,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: THE HULL, THEY): battle.ts roundImpact pushes a charge on any hit (a part or the
     // hull) and 2342- blasts the hit side's hull (the foe's) round.delay s later: THE FOE'S HULL, AFTER A HIT (225 px, the op
     // band's one line; was "ITS {SLUG} BLAST THE HULL 3{SEC} AFTER THEY HIT.")
-    return rules([{ text: `ITS {SLUG} BLAST THE FOE'S HULL ${delay}{SEC} AFTER A HIT.` }], [["delay", `${delay}{SEC}`]]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 6: 5 of 6 readers couldn't tell whether the DMG number also lands on impact): the number
+    // belongs to the blast. Its charge deals nothing on impact (content.ts limpet: base 0) and the blast is the DMG stat
+    // (factoryStats), so the line says the FOE'S HULL TAKES that number delay s after a hit: battle.ts:2350 roundImpact queues
+    // { at: t + delay, blast } on the hit side, 2431-2441 hullEffects takes blast (x D(day), after plating) off that side's
+    // hull. 225 px of the 225 px band at 3 digits (was "ITS {SLUG} BLAST THE FOE'S HULL 3{SEC} AFTER A HIT.", 225 px)
+    const fs = f(e), blast = fmtDmg(dmgNow((fs.base ?? AMMO[fs.ammo].base) + (fs.round as { blast: number }).blast));
+    return rules([{ text: `THE FOE'S HULL TAKES ${blast} {DMG} ${delay}{SEC} AFTER A HIT.` }], [["delay", `${delay}{SEC}`]]);
   },
   // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
   // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
@@ -321,13 +333,16 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   armorpress: (e) => {
     const p = f(e).plate!, every = fmtSec(p.every), amount = fmtDmg(sustNow(p.amount)); // HULL-1d: x S(d)
     const label = `EVERY ${every}{SEC}:`;
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 3: 1 of 3 readers put the SHIELD on the gun): MENDING LOOM's form without YOUR, "HULL:"
+    // (it read R, R, R with "YOUR HULL:"; that is 249 px at ★3, past the 225 px band, and HULL: is 221). battle.ts:1455-1461
+    // pressPlate -> addPlate(s, pl.amount): plating on the side's own hull (s.plate, 1585-1595)
     // U2d F1: the period's NEXT★ form is SURGE's, without the label's colon (its period is one at every star today)
     // TXT-AZ (REQ-BFG-070; REVIEW-TXT096 Q3, face rule 1; replaces cap's answer 5 to SUS-A): its condition is real, so the line
     // says it in ASSEMBLY LINE's words: battle.ts makeSide starts its plating timer only when one of its belts reaches a gun
     // (connected, or joined into a chain that feeds one), so a press with no belt to a gun gives nothing. The label stays in
     // brass after it (faces.ts ruleSpans, keywords.ts and levels.ts find it anywhere in the line); 185 px of the 225 px band
     // at ★3. Was "EVERY 3{SEC}: +30 {*PLATE}."
-    return rules([{ text: `FEEDS A GUN: ${label} +${amount} {*PLATE}.`, label }], [["every", `EVERY ${every}{SEC}`], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
+    return rules([{ text: `FEEDS A GUN: ${label} HULL: +${amount} {*PLATE}.`, label }], [["every", `EVERY ${every}{SEC}`], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
   },
   // NUM-3 (R1's STUN fold, REQ-BFG-046, REQ-BFG-070): the four STUN-fold factories. A SABOT, FROST or CHAIN round's STUN is
   // its own payload's, a stat ({STUN} in the second stat row, carryStats: R1's "ITS ROUNDS: {STUN} 2.5." line is a stat in
@@ -372,7 +387,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // a gun. 167 px of the 225 px band. Was "EVERY 3{SEC}: {*HEAL} 20."
     const h = f(e).heal!, every = fmtSec(h.every), amount = fmtDmg(sustNow(h.amount)); // HULL-1d: x S(d)
     const label = `EVERY ${every}{SEC}:`;
-    return rules([{ text: `FEEDS A GUN: ${label} {*HEAL} ${amount}.`, label }], [["every", `EVERY ${every}{SEC}`], ["heal", `{*HEAL} ${amount}`]], [REMINDER.HEAL()]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 5): "HULL:" names what it heals, as MENDING LOOM's "YOUR HULL:" does and as ARMOR PRESS's
+    // line now does (YOUR HULL: takes the line to 231 px at 3 digits, past the 225 px band; HULL: is 197). battle.ts:1465-1471
+    // pressHeal -> heal(s, ...): the side's own hull, 1479-1501
+    return rules([{ text: `FEEDS A GUN: ${label} HULL: {*HEAL} ${amount}.`, label }], [["every", `EVERY ${every}{SEC}`], ["heal", `{*HEAL} ${amount}`]], [REMINDER.HEAL()]);
   },
   // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
   assembly: (e) => {
@@ -390,7 +408,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): what starts sooner is the rigs' work (makeSide: each rig
     // comes online at x commission of its time while this feeds a gun): WORK (211 px; START WORKING is 263, past the op
     // band's one line; was "FEEDS A GUN: YOUR RIGS START 50% SOONER.")
-    return rules([{ text: `FEEDS A GUN: YOUR RIGS WORK ${soon}.` }], [["soon", soon]]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 4, round T: all three readers took "WORK 50% SOONER" for earlier along the belt, shorter
+    // timers or rigs acting more often): START says when. battle.ts:714-736 each rig comes online at the fight's start at
+    // COMMISSION_BASE + COMMISSION_STEP x its rank, x the best running ASSEMBLY LINE's factor (assemblyLines, 2574-2587;
+    // battle.ts:979-981 brings it online when t >= commissionAt), so "START 50% SOONER" is that start-up time cut and ★3 (factor
+    // 0) is AT ONCE. START WORKING ... IN EACH FIGHT is 341 px, past the 225 px band; START is 217 (was "YOUR RIGS WORK 50% SOONER.")
+    return rules([{ text: `FEEDS A GUN: YOUR RIGS START ${soon}.` }], [["soon", soon]]);
   },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
@@ -474,7 +497,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // sentence's OR RIG says. WITHIN n TILES stays in its SHOT tap (glossary.ts TAP_NOTES grapnel; rule 3: "... WITHIN 2
     // TILES." is 281 px of the 225 px band). 194 px. Was "SHOT: RIPS 1 SLUG OFF AN ENEMY BELT."
     const n = c(e, x).rip!, rip = fmtCount(n);
-    return rules([shot(`ON A BELT OR RIG, RIPS ${rip} SLUG${s(n)}.`)], [["rip", `RIPS ${rip}`]]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 7: 3 of 3 readers asked whose slug and whether it is destroyed or taken): the foe's belt
+    // or rig LOSES them. battle.ts:2355-2386 rip() takes the nearest slugs off the HIT side's own belts (s.routes[...].ammo, the
+    // foe's: the shot's target is an enemy belt tile or rig) with r.ammo.splice (2377): they are gone, nothing is added to the
+    // shooter (Y2: no salvage), so LOSES, not "takes". DESTROYS 1 FOE SLUG is 234 px and ON A BELT OR RIG, RIPS 1 FOE SLUG 210
+    // (whose, but not what happens); this is 197 px, 203 at ★3. The SHOT tap note keeps RIPS and the reach (was "ON A BELT OR RIG,
+    // RIPS 1 SLUG.", 188 px)
+    return rules([shot(`A FOE BELT OR RIG LOSES ${rip} SLUG${s(n)}.`)], [["rip", `RIPS ${rip}`]]);
   },
   tesla: (e, x) => {
     const n = c(e, x).arcs!, arcs = fmtCount(n), t = c(e, x).stall!, stun = fmtSec(t);
@@ -623,7 +652,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.9): its repair is HEAL, the same numbers (battle.ts heal(): never past your full hull,
     // half with BURN, none in the dark wind; the HEAL row says so); was "HIT: +6 {HULL}." keyed "repair"
     const d = fmtDmg(sustNow(gt(e).heal!)); // HULL-1d: x S(d)
-    return rules([hit(`{*HEAL} ${d}.`)], [["heal", `{*HEAL} ${d}`]], [REMINDER.HEAL()]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 5): "YOUR HULL:" names whose hull, as MENDING LOOM's does (battle.ts:1759 applyHit:
+    // this.heal(s, e.heal, "riveter", g.uid), the rig's own side; 1479-1501 heal())
+    return rules([hit(`YOUR HULL: {*HEAL} ${d}.`)], [["heal", `{*HEAL} ${d}`]], [REMINDER.HEAL()]);
   },
   heatjacket: (e) => {
     const h = gt(e).heat!, d = fmtDmg(dmgNow(h)); // + heat damage a second ridden after it (as KILN's cinder: HEAT)
@@ -661,13 +692,21 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // on the face's one line (the interim caveat "A FACTORY NEVER OUTRUNS ITS GUN." stays off: STAR_GONE_CAVEATS; its ⓘ
     // sentence names the gun). Was today's line "ITS FACTORIES WORK 20% FASTER." with no cap
     const up = fmtPct(gt(e).stoke!);
-    return rules([{ text: `ITS FACTORIES WORK UP TO ${up} FASTER.` }], [["stoke", `${up} FASTER`]]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 4, round T: "ITS FACTORIES" left open which factories): the ones it hits. deck.ts:432-447
+    // stokeHits: a STOKER's arrow counts only where it points at a cell a factory fills (never through a belt), and
+    // battle.ts:808-818 stokes exactly those factories' timers. "THE FACTORIES ITS ARROWS POINT AT" is 311 px, past the 225 px
+    // band; "FACTORIES IT HITS" is 221 (was "ITS FACTORIES WORK UP TO 20% FASTER.", 199 px)
+    return rules([{ text: `FACTORIES IT HITS WORK UP TO ${up} FASTER.` }], [["stoke", `${up} FASTER`]]);
   },
   platebreaker: (e) => {
     // DESIGN-Y row 26: Battle.applyHit: with FACE_SIM.breakerPlate plating on your hull it spends that much for + flat;
     // with less, nothing (the ELSE floor is gone: content.ts STAR_DIFF). Was the same line and "ELSE: +10 {DMG}."
     const spend = fmtDmg(sustNow(FACE_SIM.breakerPlate)), flat = fmtDmg(dmgNow(gt(e).breaker!.flat)); // HULL-1d: a pool unit x S(d)
-    return rules([hit(`SPENDS ${spend} {*PLATE} FOR +${flat} {DMG}.`)], [["flat", `+${flat} {DMG}`]], [REMINDER.PLATE()]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 3: it spends your own hull's SHIELD, and the Haiku reader left whose open): OF YOUR
+    // {*PLATE} (battle.ts:1710-1715 applyHit: spendPlate(s, unit) off the rig's own side's plating, 1598-1605; the shield is
+    // spent, not given, so MENDING LOOM's "YOUR HULL: +n" form doesn't fit). SPENDS ... OF YOUR is 227 px at ★3 (+140), past the
+    // 225 px band; USES is 215 (was "SPENDS 10 {*PLATE} FOR +40 {DMG}.", 177 px)
+    return rules([hit(`USES ${spend} OF YOUR {*PLATE} FOR +${flat} {DMG}.`)], [["flat", `+${flat} {DMG}`]], [REMINDER.PLATE()]);
   },
   // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
   lodestone: (e) => {
@@ -686,7 +725,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // RULE's words, TILES IT HITS (Battle.braceCut: an enemy STUN on a belt tile its arrows hit), in one 5x7 line on every
     // phone panel: FOE, the game's other word for the enemy (ENEMY ... ON TILES IT HITS took 229 px, past the band's 225;
     // ON THE BELT TILES IT HITS 255)
-    return rules([{ text: `FOE {*STUN} ON TILES IT HITS: ${cut} SHORTER.` }], [["cut", `${cut} SHORTER`]]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 4, round T: two readers applied it to the parts on the tiles it hits, turrets and
+    // factories included): BELT tiles. battle.ts:765-769 remembers a brace only on the belt tiles it hits (routes[..].braces) and
+    // 2277-2296 braceCut shortens a STUN only where bracesAt(s, t) finds one, which is t.kind "belt" alone. FOE ... BELT TILES IT
+    // HITS is 245 px, past the 225 px band; FOE leaves (a brace is yours, so the stuns it cuts are the foe's) and the line is 223
+    // (was "FOE {*STUN} ON TILES IT HITS: 50% SHORTER.", 217 px)
+    return rules([{ text: `{*STUN} ON BELT TILES IT HITS: ${cut} SHORTER.` }], [["cut", `${cut} SHORTER`]]);
   },
   pincer: (e) => {
     // DESIGN-Y row 20: Battle.applyHit: + each for each other working rig on its tile (crossfire: a STUNned rig stops, so it
@@ -697,7 +741,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // now; "ON THE SAME TILE" is 253), so the line stays (a known gap of WORDS-1's REPORT)
     // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1 rank 3: ITS TILE, whose): each other working rig hitting the same slug (its tile's
     // rigs), 221 px at ★3 (READ-2's "... HITTING THAT TILE." is 233, past the op band's one line; was "... ON ITS TILE.")
-    return rules([hit(`+${d} {DMG} FOR EACH OTHER RIG HITTING IT.`)], [["each", `+${d} {DMG} EACH`]]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 1c: "IT" was left between the slug and the rig): the tile, as the rule counts it
+    // (battle.ts:1350-1357 crossfire: the other working rigs in the hit's own tile list, s.routes[h.route].gateAt[h.tile];
+    // applied at 1705). "... HITTING THAT TILE." is 261 px, past the 225 px band; "... ON THE TILE." is 225 at ★3 (was
+    // "... HITTING IT.", 221 px)
+    return rules([hit(`+${d} {DMG} FOR EACH OTHER RIG ON THE TILE.`)], [["each", `+${d} {DMG} EACH`]]);
   },
   twingauge: (e) => {
     // DESIGN-Y row 21: Battle.applyHit: + matched on a matched belt (MATCHED: its glossary tap), nothing off one. Was the
@@ -817,7 +865,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const n = md(e).intakeGuard ?? 0, tiles = `${fmtCount(n)} TILE${s(n)}`;
     // WORDS-1 (REQ-BFG-081): READ-1 6.1's one-off (LAST 1 TILE: battle.ts:808-809, the last tiles of each belt into its gun)
     // has no plain form inside the op band's one line (279 px and more), so the line stays (a known gap of WORDS-1's REPORT)
-    return rules([{ text: `{*STUN} CAN'T STOP ITS GUN OR LAST ${tiles}.` }], [["guard", `LAST ${tiles}`]]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 7: "LAST 1 TILE" was read as a stun's length): which tile, and that the {*STUN} is what is
+    // ignored, not a length. battle.ts:852-853 flags the last `intakeGuard` cells of each connected route into the turret
+    // (GUARD_SKIRT), and 2402-2405 skirted() makes them ignore what the gun ignores (2260 the gun itself). LAST BELT TILE is the
+    // belt's end by the gun; "{*STUN} CAN'T STOP ITS GUN OR LAST BELT TILE." is 233 px and "... THE LAST TILE OF EACH BELT INTO
+    // IT." 330, past the 225 px band; this is 221 at ★1 and 218 at ★2/★3 (was "{*STUN} CAN'T STOP ITS GUN OR LAST 1 TILE.", 215 px)
+    const last = n === 1 ? "LAST BELT TILE" : `LAST ${fmtCount(n)} BELT TILES`;
+    return rules([{ text: `ITS GUN${n === 1 ? " AND" : ","} ${last} IGNORE {*STUN}.` }], [["guard", `LAST ${tiles}`]]);
   },
   // Y2-Y6 (release Y; folded at the flip, Y7b2): its first face, from the switch's faces
   hopper: (e) => {
@@ -839,7 +893,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // load's is gone (lone 0). Was the RULES text "EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL, AND ANY OTHER
     // LOAD ROLLS 2." with PAIR's and PLATING's definitions
     const d = fmtDmg(sustNow(md(e).seam!.pair)), label = "{*PAIR}:";
-    return rules([{ text: `${label} +${d} {*PLATE}.`, label }], [["plate", `+${d} {*PLATE}`]], [REMINDER.PAIR(), REMINDER.PLATE()]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 3): "YOUR HULL:", MENDING LOOM's form (battle.ts:1629 loaded() and 1649 fusionPair:
+    // this.addPlate(s, tu.seam.pair), the side's own plating)
+    return rules([{ text: `${label} YOUR HULL: +${d} {*PLATE}.`, label }], [["plate", `+${d} {*PLATE}`]], [REMINDER.PAIR(), REMINDER.PLATE()]);
   },
   longcase: (e) => {
     // DESIGN-Y row 43: Battle.fire / fireCore: a shot from a slug that rode longRideMin s or more deals + longRideFlat (no
@@ -1077,14 +1133,17 @@ export function shapeMaxHits(def: string): number {
 
 /**
  * SHAPES-1 (REQ-BFG-086.1, REQ-BFG-089; BRIEF-SHAPES1 S8; the mock ref/pieces1/cards-phone.png): a shaped piece's own
- * lines, always on its face: a long rig's `UP TO 2 HITS`; a factory that its size gives belt slots (GANTRY PRESS's 2x3)
+ * lines, always on its face: a long rig's `HITS EACH SLUG UP TO 2 TIMES.` (SHOPCARD-1b; was `UP TO 2 HITS`); a factory that its size gives belt slots (GANTRY PRESS's 2x3)
  * `FEEDS 4 BELTS IN TURN.` (its slots at `stars`) and `BIGGER: +1 {BELT}` (foot.ts footSlots). [] for every other piece,
  * so nothing else changes, and for everything with SHAPES off (no shaped piece exists).
  */
 export function shapeLines(def: string, stars = 1): FaceRule[] {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   if (!d || !shapesRules() || !deckShaped(d)) return [];
-  if (d.kind === "gate") return [{ text: `UP TO ${fmtCount(shapeMaxHits(def))} HITS` }];
+  // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 1: "UP TO 2 HITS" was read as a total cap, and a hit as "an arrow or a slug"): the cap is
+  // per slug. A slug that crosses a belt tile's centre takes one hit from each of the rig's arrows pointing at that tile
+  // (battle.ts:1295-1301, 1661-1669), and a tile's centre is crossed once, so one slug takes at most one hit an arrow
+  if (d.kind === "gate") return [{ text: `HITS EACH SLUG UP TO ${fmtCount(shapeMaxHits(def))} TIMES.` }];
   const more = footSlots(d);
   if (d.kind !== "factory" || !more) return [];
   // the markup drawn as faceLines draws a rule's (icons: {BELT} -> its glyph)

@@ -650,8 +650,8 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
       const f = framed(402, 690, 3, 1), c = { run, sel: { kind: "cargo", uid: 900 } as Sel };
       const { d } = placed(c, f), piece = panelPiece(run, d.show)!;
       const words = explainWords(d.t, piece);
-      expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", colour: words[0].colour });
-      expect(glossaryText("HIT", piece)).toBe("HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.");
+      expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: "HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.", colour: words[0].colour }); // SHOPCARD-1b (REQ-BFG-081)
+      expect(glossaryText("HIT", piece)).toBe("HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.");
       expect(d.t.notes![0].text, `${def} ★${s}`).toBe(RIG_SENTENCE);
       // the icon's hover: NOTES, then HIT's definition
       expect(iconTipItems(d.t, words, piece).slice(-1)[0]).toBe(words[0].text);
@@ -681,7 +681,7 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
     expect(SHAPED_PLAIN_RIGS.map((d) => [1, 2, 3].map((s) => plainRigStats(d, s)!.map(([k, v]) => `${k} ${v}`).join()).join("/"))).toEqual([
       "DMG +12/DMG +25/DMG +40", "BURN +1/BURN +2/BURN +3", "DMG +10/DMG +20/DMG +35",
     ]);
-    expect(SHAPED_PLAIN_RIGS.map((d) => shapeLines(d, 1).map((r) => r.text))).toEqual([["UP TO 2 HITS"], ["UP TO 2 HITS"], ["UP TO 6 HITS"]]);
+    expect(SHAPED_PLAIN_RIGS.map((d) => shapeLines(d, 1).map((r) => r.text))).toEqual([["HITS EACH SLUG UP TO 2 TIMES."], ["HITS EACH SLUG UP TO 2 TIMES."], ["HITS EACH SLUG UP TO 6 TIMES."]]); // SHOPCARD-1b (REQ-BFG-081): per slug (was UP TO 2 / 6 HITS)
     for (const def of ["heatjacket", "plateroller", "riveter"]) expect(faceLines(def, 1)!.rules[0].text.startsWith("HIT:"), def).toBe(true);
     expect(rigs.length).toBeGreaterThan(20);
   });

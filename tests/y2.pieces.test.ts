@@ -264,7 +264,7 @@ describe("Y2 row 13: LIMPET WORKS' DMG is its blast; its stall becomes blast dam
 
   it("face: RATE 13, DMG 100, BELT 2; ITS SLUG BLAST THE HULL 3 SEC AFTER THEY HIT; ladder DMG 100/230/360", () => {
     // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: THE HULL, THEY): the foe's hull, after a hit (was "... THE HULL 3{SEC} AFTER THEY HIT.")
-    expect(lines("limpet")).toEqual(STARS.map(() => ["ITS {SLUG} BLAST THE FOE'S HULL 3{SEC} AFTER A HIT."]));
+    expect(lines("limpet")).toEqual([100, 230, 360].map((b) => [`THE FOE'S HULL TAKES ${b} {DMG} 3{SEC} AFTER A HIT.`])); // SHOPCARD-1b (REQ-BFG-081): the blast's number (was ITS {SLUG} BLAST THE FOE'S HULL 3{SEC} AFTER A HIT.)
     oneLine("limpet");
     expect(faceAt("limpet", 1)!.stats).toEqual([["RATE", "13"], ["DMG", "100"], ["BELT", "2"]]);
     expect(levels("limpet", 2)).toEqual(["{DMG} 100/[230]/360", "{BELT} 2/[3]/4", `NEXT ★3: ${statRow([["DMG", "360"], ["BELT", "4"]])}`]);
@@ -296,8 +296,8 @@ describe("Y2 row 14: MANTLET guards its gun and its belts' last 1/2/3 tiles from
   });
 
   it("face: STUN CAN'T STOP ITS GUN OR LAST 1 TILE (2, 3 TILES), no clause; ladder LAST 1/2/3 TILES", () => {
-    expect(lines("mantlet")).toEqual([["{*STUN} CAN'T STOP ITS GUN OR LAST 1 TILE."], ["{*STUN} CAN'T STOP ITS GUN OR LAST 2 TILES."],
-      ["{*STUN} CAN'T STOP ITS GUN OR LAST 3 TILES."]]);
+    expect(lines("mantlet")).toEqual([["ITS GUN AND LAST BELT TILE IGNORE {*STUN}."], ["ITS GUN, LAST 2 BELT TILES IGNORE {*STUN}."],
+      ["ITS GUN, LAST 3 BELT TILES IGNORE {*STUN}."]]); // SHOPCARD-1b (REQ-BFG-081): which tile (was {*STUN} CAN'T STOP ITS GUN OR LAST n TILE(S))
     oneLine("mantlet");
     // (the ⓘ view's NEXT★ line names the perk the next star brings, in brass after its numbers: R-1 keeps names there)
     expect(levels("mantlet", 1)).toEqual(["LAST [1]/2/3 TILES", "★2 FULL GUARD", "★3 BULWARK SKIRT", "NEXT ★2: LAST 2 TILES ★2 FULL GUARD"]);
@@ -372,7 +372,7 @@ describe("Y2 row 16: BRACE FRAME cuts enemy STUNs on its tiles 50%/70%/85%, plat
   // CARD-4 (REQ-BFG-081, T) changed this pin: the FULL RULE's TILES IT HITS (was ON ITS TILES: READ-4 3, PPR)
   it("face (new with the switch on): FOE STUN ON TILES IT HITS: 50% SHORTER; ladder 50%/70%/85% SHORTER", () => {
     expect(hasFace("braceframe")).toBe(true);
-    expect(lines("braceframe")).toEqual(["50%", "70%", "85%"].map((p) => [`FOE {*STUN} ON TILES IT HITS: ${p} SHORTER.`]));
+    expect(lines("braceframe")).toEqual(["50%", "70%", "85%"].map((p) => [`{*STUN} ON BELT TILES IT HITS: ${p} SHORTER.`]));
     oneLine("braceframe");
     expect(levels("braceframe", 1)).toEqual(["[50%]/70%/85% SHORTER", "NEXT ★2: 70% SHORTER"]);
     expect(levels("braceframe", 3)).toEqual(["50%/70%/[85%] SHORTER"]);
@@ -495,7 +495,7 @@ describe("Y2 row 19: GRAPNEL GUN ★3 drops SALVAGE, and a hit keg is no longer 
   it("face: RIPS 1/2/3 SLUG(S), no SALVAGE LINE clause at ★3; ladder RIPS 1/2/3; the tap drops the keg", () => {
     // TXT-096 (REVIEW-TXT095 Q2): a hit on a rig rips too (tests/txt096.faces.test.ts pins it to battle.ts rip); was
     // "SHOT: RIPS 1 SLUG OFF AN ENEMY BELT." (2, 3 SLUGS)
-    expect(lines("grapnel")).toEqual([["SHOT: ON A BELT OR RIG, RIPS 1 SLUG."], ["SHOT: ON A BELT OR RIG, RIPS 2 SLUGS."], ["SHOT: ON A BELT OR RIG, RIPS 3 SLUGS."]]);
+    expect(lines("grapnel")).toEqual([["SHOT: A FOE BELT OR RIG LOSES 1 SLUG."], ["SHOT: A FOE BELT OR RIG LOSES 2 SLUGS."], ["SHOT: A FOE BELT OR RIG LOSES 3 SLUGS."]]); // SHOPCARD-1b (REQ-BFG-081): whose slug, and gone (was ON A BELT OR RIG, RIPS n SLUG(S))
     oneLine("grapnel");
     expect(levels("grapnel", 1)).toEqual(["RIPS [1]/2/3", "NEXT ★2: RIPS 2"]); // Y7b2 (the words): was ["RIPS [1]/2/3", "★3 SALVAGE LINE", "NEXT ★2: RIPS 2"]
     expect(glossaryText("SHOT", { def: "grapnel", stars: 1 })).toBe("SHOT: IT RIPS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT.");

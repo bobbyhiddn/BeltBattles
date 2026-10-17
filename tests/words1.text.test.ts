@@ -97,7 +97,7 @@ describe("WORDS-1: the new lines", () => {
 
   it("READ-1 6.1's plain-word swaps, on the faces and the desk cards", () => {
     const face = (d: string) => stripIcons(faceLines(d, 1, d === "drake" ? { k: 1 } : {})!.rules[0].text);
-    expect(face("mimic")).toBe("MAKES YOUR HERO'S SLUGS TOO.");
+    expect(face("mimic")).toBe("MAKES YOUR HERO'S SLUGS.");
     // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.4): its first line of two (was "ITS ROUNDS STOP AN ENEMY RIG FOR THE WHOLE FIGHT.")
     expect(face("sabot")).toBe("A RIG IT HITS STOPS FOR THE WHOLE FIGHT.");
     expect(face("overclocker")).toBe("EVERY 4: THE NEXT RIG DOWN ITS BELT HITS TWICE.");
@@ -106,7 +106,7 @@ describe("WORDS-1: the new lines", () => {
     expect(face("tollbooth")).toBe("THE FIRST 2 STUN ON ITS BELT'S PARTS EACH FIGHT DO NOTHING.");
     expect(face("mendingloom")).toBe("YOUR HULL: HEAL 50 EACH SEC.".replace("50", String(ITEMS.mendingloom.mod!.regen)));
     expect(["mimic", "sabot", "overclocker", "twingauge", "drake", "tollbooth"].map((d) => cardText(d, { k: 1 }))).toEqual([
-      "MAKES YOUR HERO'S SLUGS TOO.", "STOPS ENEMY RIGS FOR THE FIGHT.", "NEXT RIG DOWN ITS BELT HITS TWICE.", "DAMAGE IF ANOTHER BELT IS AS LONG.",
+      "MAKES YOUR HERO'S SLUGS.", "STOPS ENEMY RIGS FOR THE FIGHT.", "NEXT RIG DOWN ITS BELT HITS TWICE.", "DAMAGE IF ANOTHER BELT IS AS LONG.",
       "TURNS RIG DAMAGE INTO BURN.", "FIRST 2 STUNS ON ITS BELT FAIL."]);
   });
 

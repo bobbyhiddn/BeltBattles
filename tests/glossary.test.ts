@@ -228,8 +228,8 @@ describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND
     // words with its cap); THE DARK WIND GOES PAST IT moved to the DARK WIND row
     SHIELD: { def: `{*PLATE}: SOAKS HULL DAMAGE POINT FOR POINT. MAX ${fmtDmg(PLATE_CAP)} {PLATE}. A {*SHIELD} GOES FIRST.`, aliases: ["SHIELDS", "SHIELDED"], colour: ICON_COLOUR[ICON.PLATE] },
     WARD: { def: `{*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}. {*BURN} GOES PAST IT.`, aliases: ["WARDS"], colour: ICON_COLOUR[ICON.SHIELD] },
-    HEAL: { def: "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL. A HULL WITH {*BURN} GETS HALF.", aliases: ["HEALS", "HEALED", "HEALING", "REPAIR", "REPAIRS"], colour: ICON_COLOUR[ICON.HEAL] },
-    REGEN: { def: "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC. IT STOPS IN THE DARK WIND.", aliases: [], colour: ICON_COLOUR[ICON.REGEN] },
+    HEAL: { def: "{*HEAL}: GIVES BACK HULL, NEVER PAST FULL. A HULL WITH {*BURN} GETS HALF.", aliases: ["HEALS", "HEALED", "HEALING", "REPAIR", "REPAIRS"], colour: ICON_COLOUR[ICON.HEAL] },
+    REGEN: { def: "{*REGEN}: GIVES BACK THIS MUCH HULL EACH SEC. IT STOPS IN THE DARK WIND.", aliases: [], colour: ICON_COLOUR[ICON.REGEN] },
     // AZ-BUMP (the flip, HULL_SCALE): "HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT." -> "EACH HULL LOSES A GROWING % OF ITS MAX
     // EACH SEC. NO {*HEAL}.": with HULL_SCALE on the wind is a share of each hull's own max, and the row says so (glossary.ts,
     // HULL-1c's words; tests/hull1c.windhud). The switch off still reads SUS-B's words (DARK_WIND_OFF, the tap test below)

@@ -434,12 +434,12 @@ describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new w
   it("SHOT TOWER, ASSEMBLY LINE, SABOT, SCRAPPER, LIMPET, GATLING, PINCER, SPOTTER, COIL, TWIN LATCH's desk line, DRAKE's SHOT note", () => {
     const want: Record<string, string[][]> = {
       shottower: [["RIGS HIT EACH OF ITS 3 SLUGS ON ITS OWN."]], // run 2: true on a two-belt tower too (stamp is round-robin)
-      assembly: [["FEEDS A GUN: YOUR RIGS WORK 50% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK 75% SOONER."], ["FEEDS A GUN: YOUR RIGS WORK AT ONCE."]],
+      assembly: [["FEEDS A GUN: YOUR RIGS START 50% SOONER."], ["FEEDS A GUN: YOUR RIGS START 75% SOONER."], ["FEEDS A GUN: YOUR RIGS START AT ONCE."]], // SHOPCARD-1b (REQ-BFG-081): START (was WORK)
       sabot: [["A RIG IT HITS STOPS FOR THE WHOLE FIGHT.", "ANY OTHER PART IT HITS: STUN 4."]],
       scrapper: [["EACH STUN YOU LAND: 1 EXTRA .", "ITS  DEAL 30 MORE  THAN PLAIN."]], // CARD-5 (REQ-BFG-081, L): + its scrap damage, by design
-      limpet: [["ITS  BLAST THE FOE'S HULL 3 AFTER A HIT."]],
+      limpet: [["THE FOE'S HULL TAKES 100  3 AFTER A HIT."]], // SHOPCARD-1b (REQ-BFG-081): the blast's number on the line
       gatling: [["FIRES EACH LOAD AS IT COMES.", "SPINS UP TO 67% FASTER."]],
-      pincer: [["HIT: +20  FOR EACH OTHER RIG HITTING IT."], ["HIT: +44  FOR EACH OTHER RIG HITTING IT."], ["HIT: +70  FOR EACH OTHER RIG HITTING IT."]],
+      pincer: [["HIT: +20  FOR EACH OTHER RIG ON THE TILE."], ["HIT: +44  FOR EACH OTHER RIG ON THE TILE."], ["HIT: +70  FOR EACH OTHER RIG ON THE TILE."]], // SHOPCARD-1b (REQ-BFG-081)
       spotter: [["SHOTS AIMED AT NO PART AIM AGAIN ONCE."], ["SHOTS AIMED AT NO PART AIM AGAIN TWICE."], ["SHOTS AIMED AT NO PART AIM AGAIN 3 TIMES."]],
       coil: [["HIT: ITS  STUNS THE PART IT HITS 2."], ["HIT: ITS  STUNS 2 PARTS 2."], ["HIT: ITS  STUNS 2 PARTS 3."]],
     };

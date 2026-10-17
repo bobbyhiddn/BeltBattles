@@ -51,7 +51,7 @@ describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ
         for (const s of [1, 2, 3]) {
           expect(plainRigStats(def, s)).toEqual([[icon, nums[s - 1]]]);
           const fb = faceBlocks(def, s, {})!;
-          expect(texts(fb), `${def} ★${s}`).toEqual([statRow([[icon, nums[s - 1]]]), `UP TO ${hits} HITS`]);
+          expect(texts(fb), `${def} ★${s}`).toEqual([statRow([[icon, nums[s - 1]]]), `HITS EACH SLUG UP TO ${hits} TIMES.`]); // SHOPCARD-1b (REQ-BFG-081): per slug (was UP TO n HITS)
           expect(fb.every((b) => b.keep)).toBe(true); // a piece's own lines are always visible (REQ-BFG-089)
           expect(fb.some((b) => b.text.includes("HIT:") || b.brass)).toBe(false);
         }
@@ -102,7 +102,7 @@ describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ
       const run = furnace([{ uid: 9, def: "gantry", x: 0, y: 7 }], ["nailstrip"]);
       const rig = explainPanel(cargoPanel(run, 900, true)!, "nailstrip");
       expect(texts(rig.notes ?? [])).toEqual(expect.arrayContaining([RIG_SENTENCE, SHAPE_RULE]));
-      expect(texts(rig.body)).toContain("UP TO 2 HITS");
+      expect(texts(rig.body)).toContain("HITS EACH SLUG UP TO 2 TIMES."); // SHOPCARD-1b (REQ-BFG-081)
       expect(texts(rig.body).some((t) => t === RIG_SENTENCE || t === SHAPE_RULE)).toBe(false);
       const fac = explainPanel(itemPanel(run, 9, false)!, "gantry");
       expect(texts(fac.notes ?? [])).toContain(SIZE_RULE);

@@ -64,7 +64,7 @@ describe("TXT-AZ item 2: the presses' FEEDS A GUN (REQ-BFG-070)", () => {
       for (const feed of ["short", "none"] as const) expect(gives("armorpress", s, feed), `★${s} ${feed}`).toEqual({ timer: undefined, presses: 0, heals: 0, plate: 0 });
       // the face says the condition first, in ASSEMBLY LINE's words, then its timer and plating from the sim's numbers
       const label = `EVERY ${fmtSec(p.every)}{SEC}:`;
-      expect(rule("armorpress", s), `★${s}`).toEqual({ text: `FEEDS A GUN: ${label} +${fmtDmg(p.amount)} {*PLATE}.`, label });
+      expect(rule("armorpress", s), `★${s}`).toEqual({ text: `FEEDS A GUN: ${label} HULL: +${fmtDmg(p.amount)} {*PLATE}.`, label });
     }
   });
 
@@ -75,7 +75,7 @@ describe("TXT-AZ item 2: the presses' FEEDS A GUN (REQ-BFG-070)", () => {
       expect([fed.timer, fed.presses, fed.heals], `★${s} fed`).toEqual([h.every, Math.floor(10 / h.every), Math.floor(10 / h.every)]);
       for (const feed of ["short", "none"] as const) expect(gives("mendpress", s, feed), `★${s} ${feed}`).toEqual({ timer: undefined, presses: 0, heals: 0, plate: 0 });
       const label = `EVERY ${fmtSec(h.every)}{SEC}:`;
-      expect(rule("mendpress", s), `★${s}`).toEqual({ text: `FEEDS A GUN: ${label} {*HEAL} ${fmtDmg(h.amount)}.`, label });
+      expect(rule("mendpress", s), `★${s}`).toEqual({ text: `FEEDS A GUN: ${label} HULL: {*HEAL} ${fmtDmg(h.amount)}.`, label });
     }
   });
 

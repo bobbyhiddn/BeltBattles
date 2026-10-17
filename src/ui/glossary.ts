@@ -171,7 +171,11 @@ function rowsNow(): GlossaryRow[] {
       scope: "text",
     },
     // ------------------------------------------------------------------------- the trigger labels (T1 2.3), brass
-    { word: "HIT", aliases: [], colour: C.brass3, def: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", scope: "label" },
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 1: the weakest reader read HIT: as "a slug hits the rig" on 7 cards, and quoted the old
+    // note back and still did): the rig is the one that hits. battle.ts:1295-1301 a slug that crosses a belt tile's centre takes
+    // the hit of every rig arrow pointing at that tile, one hit an arrow (applyTile 1661-1669, applyHit 1685); a stunned, frozen,
+    // wrecked or not-yet-online rig hits nothing (1665), so "each time this rig hits" carries the old "while it works"
+    { word: "HIT", aliases: [], colour: C.brass3, def: "HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.", scope: "label" },
     { word: "SHOT", aliases: [], colour: C.brass3, def: "SHOT: EACH SHOT THIS TURRET FIRES.", scope: "label" },
     { word: "LOAD", aliases: [], colour: C.brass3, def: "LOAD: A SLUG ENTERS THIS TURRET'S CHAMBER.", scope: "label" },
     { word: "EVERY", aliases: [], colour: C.brass3, def: "EVERY: A TIMER, AGAIN AND AGAIN FOR THE WHOLE FIGHT.", scope: "label" },
@@ -341,7 +345,11 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // battle.ts applyHit: one count for every payload its arrows hit, on every belt they reach; the copies at full strength
   sorting: { word: "HIT", text: () => "HIT: ONE COUNT FOR THE SLUGS IT HITS ON EVERY BELT ITS ARROWS REACH." },
   // battle.ts applyHit: perPriorGate x every rig hit before it on the payload, speed rigs too
-  longhaul: { word: "HIT", text: () => "HIT: EVERY RIG HIT BEFORE IT COUNTS, SPEED RIGS TOO." },
+  // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 1: LONG HAUL is one of the four rigs whose HIT: was read as "a slug hits the rig", and its
+  // own note replaces the HIT row's, so it says when HIT fires itself): p.prior counts every hit the slug has taken (battle.ts:1778
+  // p.prior++ for each applyHit, speed rigs' too) and LONG HAUL adds perPriorGate x it (1718). Was "HIT: EVERY RIG HIT BEFORE IT
+  // COUNTS, SPEED RIGS TOO."
+  longhaul: { word: "HIT", text: () => "HIT: WHEN IT HITS A SLUG, EVERY EARLIER HIT ON THAT SLUG COUNTS, SPEED RIGS TOO." },
   // battle.ts split: each copy keeps the payload's burn and shock. Y6 (release Y; DESIGN-Y 4.1; folded at the flip, Y7b2):
   // POISON is retired, so it names the two a copy keeps (Battle.applyHit's spread: its BURN, with VENOM's seconds, and its
   // STUN); was "... {*BURN}, POISON AND {*STUN}."

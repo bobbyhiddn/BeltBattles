@@ -907,7 +907,8 @@ const ENTRIES: Record<string, Entry> = {
       const more = pour ? `, POURS ${pour} AT ONCE` : "";
       return Math.abs(mul - 1) < 1e-9 ? `AS OFTEN AS YOUR HERO'S FACTORY${more}` : `${rateText(mul)}${more}`;
     },
-    card: () => "MAKES YOUR HERO'S SLUGS TOO", // WORDS-1 (REQ-BFG-081): STAMPS and AMMO in plain words, as its face (was "STAMPS YOUR HERO'S AMMO")
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 2): no TOO, as its face (it makes only the hero's slugs: battle.ts:929-938)
+    card: () => "MAKES YOUR HERO'S SLUGS", // WORDS-1 (REQ-BFG-081): STAMPS and AMMO in plain words, as its face (was "STAMPS YOUR HERO'S AMMO")
   },
   limpet: {
     // Battle.roundImpact / hullEffects: the charge sticks where it lands and blasts the enemy hull `delay` seconds

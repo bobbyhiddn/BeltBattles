@@ -447,10 +447,10 @@ describe("0.6.2t T4: the panels' layout", () => {
     // ended with "★3 TWIN SIGNET", then the rule)
     expect(text[0]).toBe(faceLines("mimic", 3, { hero: "furnace" })!.stats);
     expect(text.filter((l) => l.includes("TWIN SIGNET"))).toEqual([]);
-    // WORDS-1 (REQ-BFG-081; READ-1 6.1: STAMPS in plain words): "MAKES YOUR HERO'S SLUGS TOO." (was "STAMPS YOUR HERO'S
-    // SLUGS."); the desk column wraps it, its last line ends "TOO." (was "SLUGS.")
-    expect(text.join(" ")).toContain("MAKES YOUR HERO'S SLUGS TOO.");
-    const p = text.findIndex((l) => l.endsWith("TOO."));
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1: STAMPS in plain words): "MAKES YOUR HERO'S SLUGS." (was "STAMPS YOUR HERO'S
+    // SLUGS."); the desk column wraps it, its last line ends "SLUGS." (SHOPCARD-1b: TOO went; was "TOO.")
+    expect(text.join(" ")).toContain("MAKES YOUR HERO'S SLUGS.");
+    const p = text.findIndex((l) => l.endsWith("SLUGS."));
     expect([p > 0, text[p + 1]]).toEqual([true, "--"]);
   });
 
@@ -891,7 +891,11 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // SHAPES-1 x c099-card3 (RUN5 2: the merge of c099-card3-accepted into shapes1), measured on the merged tree: 2021 (was
     // c099-card3's 1952): the three shaped plain rigs' 69 desk panels join, each with its hint and each showing it; the 61
     // missing are c099-card3's 61 name for name (the test's F4 log line, diffed against ref/c099card3/logs/suite-957b034.log)
-    expect([withHint, missing.length]).toEqual([2021, 61]);
+    // SHOPCARD-1b (REQ-BFG-081), measured: 62 missing (was 61), the one added is "turret mantlet ★1" (diffed against the base export,
+    // tmp/sc1x-final = shopcard1-accepted): MANTLET's face line now says which tile ("ITS GUN AND LAST BELT TILE IGNORE STUN.",
+    // was "STUN CAN'T STOP ITS GUN OR LAST 1 TILE."), a row longer in the 118 px desk column, so its turret panel's kept blocks
+    // leave no room for the optional hint (of the allowed kinds; the hint gives way whole, and its tip and NOTES keep it)
+    expect([withHint, missing.length]).toEqual([2021, 62]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -954,7 +958,12 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // 2049 panels (c099-card3: 1038 of 1980; the three shaped plain rigs' 69 panels join): net +17, as the flip's on c099
     // (1040 -> 1057: the shaped rigs' panels that keep the hint less GANTRY PRESS's that give it way); CARD-2's GATLING
     // SPOOL panels as at c099-card3
-    expect(hints).toBe(1055);
+    // SHOPCARD-1b (REQ-BFG-081), measured: 1047 (was 1055). The 8 panels that give the optional hint way are the placed rigs
+    // "rig braceframe ★1-★3 1hit spare0/1" (6) and "rig pincer ★3 1hit spare0/1" (2), diffed against the base export
+    // (tmp/sc1x-final = shopcard1-accepted): BRACE FRAME's line now says BELT TILES ("STUN ON BELT TILES IT HITS: 50% SHORTER.", 223 px,
+    // was 217) and PINCER's ON THE TILE (225 px at ★3, was 221), a row longer on this test's narrow phone band; the face keeps its
+    // lines (kept), the hint gives way first, as ever
+    expect(hints).toBe(1047);
   });
 });
 

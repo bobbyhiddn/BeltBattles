@@ -49,7 +49,7 @@ const OPENING = /^EACH FACTORY ITS ARROWS POINT AT WORKS UP TO \d+% FASTER\.$/; 
 /** U2b (REQ-BFG-046): STOKER's face opens with its rule, the N% line in the face's words (faceLines, the registry's numbers).
  *  Y7b2 (the flip): release Y's face says the cap in its one line, "ITS FACTORIES WORK UP TO 20% FASTER." (Y7b1 Y7A-R1;
  *  was /^ITS FACTORIES WORK \d+% FASTER\.$/) */
-const FACE_OPENING = /^ITS FACTORIES WORK UP TO \d+% FASTER\.$/;
+const FACE_OPENING = /^FACTORIES IT HITS WORK UP TO \d+% FASTER\.$/; // SHOPCARD-1b (REQ-BFG-081): which factories (was /^ITS FACTORIES WORK UP TO .../)
 // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): the capped line reads "THE KILN'S GUN IS FULL: IT WORKS ..." (was ", SO IT WORKS ..."), the same meaning
 const CAPPED = /^THE .+'S GUN IS FULL: /;
 

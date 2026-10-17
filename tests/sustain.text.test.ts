@@ -57,7 +57,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
   it("each face at every star, in markup through the formatters: RIVETER HIT: HEAL 6, WARD BELL EVERY 8s: +1 SHIELD, MEND PRESS FEEDS A GUN: EVERY 3s: HEAL 20, MENDING LOOM YOUR HULL: REGEN 10", () => {
     for (const s of STARS) {
       const rv = faceAt("riveter", s)!, heal = fmtDmg(g("riveter", s).gate!.heal!);
-      expect([rv.stats, rv.rules, rv.reminders]).toEqual([[], [{ text: `HIT: {*HEAL} ${heal}.`, label: "HIT:" }], [REMINDER.HEAL()]]);
+      expect([rv.stats, rv.rules, rv.reminders]).toEqual([[], [{ text: `HIT: YOUR HULL: {*HEAL} ${heal}.`, label: "HIT:" }], [REMINDER.HEAL()]]);
       const wb = faceAt("wardbell", s)!, sh = g("wardbell", s).mod!.shield!;
       const every = `EVERY ${fmtSec(sh.every)}{SEC}:`;
       expect([wb.stats, wb.rules, wb.reminders]).toEqual([[], [{ text: `${every} +${fmtCount(sh.amount)} {*SHIELD}.`, label: every }], [REMINDER.SHIELD()]]);
@@ -69,7 +69,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
       // fmtSpeed(secPer(speed))], the interval 30 / speed)
       expect(mp.stats.slice(0, 2)).toEqual([["RATE", fmtSpeed(g("mendpress", s).factory!.speed)], ["DMG", fmtDmg(AMMO.plain.base)]]);
       expect(factoryStats("armorpress", s).map(([ic]) => ic)).toEqual(mp.stats.map(([ic]) => ic));
-      expect([mp.rules, mp.reminders, mp.stats2]).toEqual([[{ text: `FEEDS A GUN: ${pe} {*HEAL} ${fmtDmg(h.amount)}.`, label: pe }], [REMINDER.HEAL()], undefined]);
+      expect([mp.rules, mp.reminders, mp.stats2]).toEqual([[{ text: `FEEDS A GUN: ${pe} HULL: {*HEAL} ${fmtDmg(h.amount)}.`, label: pe }], [REMINDER.HEAL()], undefined]);
       const ml = faceAt("mendingloom", s)!;
       // "YOUR HULL:" says whose, not when: no trigger, so no brass label (TEXT-STYLE 3.2, 3.3)
       // WORDS-1 (REQ-BFG-081; READ-1 6.2: REGEN merged into HEAL, battle.ts:1441-1454 its regen goes through heal() each
@@ -82,7 +82,8 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
     // (was "YOUR HULL: REGEN 10."). MERGE-099D (BRIEF-MERGE-099D 1f): CARD-3's word for WARD BELL's block, +1 WARD (was SHIELD)
     // HULL-ON (the flip, GUARD; cap's ruling 6f4568477e66a600): EVERY 8 -> EVERY 4, GUARD's WARD BELL ★1; it read 8 before
     // only because withSustain wrote the base def back. 8 with GUARD off
-    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: HEAL 6.", "EVERY 4: +1 WARD.", "FEEDS A GUN: EVERY 3: HEAL 20.", "YOUR HULL: HEAL 10 EACH SEC."]);
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 5): RIVETER and MEND PRESS name the hull, as MENDING LOOM does
+    expect(SUSTAIN_FACES.map(plain)).toEqual(["HIT: YOUR HULL: HEAL 6.", "EVERY 4: +1 WARD.", "FEEDS A GUN: EVERY 3: HULL: HEAL 20.", "YOUR HULL: HEAL 10 EACH SEC."]);
     expect(withGuard(() => plain("wardbell"), false)).toBe("EVERY 8: +1 WARD.");
   });
 
@@ -247,7 +248,7 @@ describe("SUS-B a tap on each new label (the panel's own words, as keywords.ts f
       // CARD-2 (REQ-BFG-081, K3 b): ALL OF one hit's damage (was /^EACH SHIELD: BLOCKS ONE HIT'S DAMAGE\./)
       expect(stripIcons(icons(wb.WARD))).toMatch(/^WARD: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS\./); // CARD-3 (REQ-BFG-107)
       expect(wb.EVERY).toBe(glossaryEntry("EVERY")!.def);
-      expect(stripIcons(icons(rv.HEAL))).toMatch(/^HEAL: GIVES BACK ♥, NEVER PAST FULL\./);
+      expect(stripIcons(icons(rv.HEAL))).toMatch(/^HEAL: GIVES BACK HULL, NEVER PAST FULL\./); // SHOPCARD-1b (REQ-BFG-081): HULL in words (was ♥)
       expect(rv.HIT).toBe(glossaryEntry("HIT")!.def);
       expect(mp.HEAL).toBe(rv.HEAL);
       // WORDS-1 (REQ-BFG-081; READ-1 6.2): MENDING LOOM's face says HEAL now (REGEN merged into HEAL), so its tap shows HEAL's
