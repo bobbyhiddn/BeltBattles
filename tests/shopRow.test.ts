@@ -5,7 +5,7 @@ import { computeView } from "../src/core/io";
 import { buildLayout, buildScale, CARD_W, Caravan } from "../src/screens/build/layout";
 import { cardName, describe as kindLine } from "../src/screens/build/shop";
 import { OWNED_MARK_W } from "../src/screens/build/shop"; // U2f: the owned marker
-import { portraitButtons } from "../src/screens/build/inspector";
+import { offerLabel, portraitButtons } from "../src/screens/build/inspector"; // SHOPCARD-1e: offerLabel
 import { textWidth } from "../src/render/font";
 
 // 0.6.2p (item 4): "the phone shop row overflows its right edge" (shot beltside-061c-asm-gantry-phone). Root cause: the
@@ -91,10 +91,14 @@ describe("0.6.2p item 4: a card's contents fit the card", () => {
     expect(OWNED_MARK_W, "the owned marker").toBeLessThanOrEqual(CARD_W - 8);
   });
 
-  it("BUY, BUY+MERGE and BUY+USE labels fit their button beside every title on the phone band, and the small strip's", () => {
+  it("BUY, SALE: BUY, MERGE TO ★n and BUY+USE labels fit their button beside every title on the phone band, and the small strip's", () => {
     const band = { x: 3, y: 100, w: 161, h: 69 }; // the phone's info band (inspectorLines F7)
     for (const d of shopDefs) {
-      for (const label of d.kind === "supply" ? [`BUY+USE ${d.price}G`] : [`BUY ${d.price}G`, `BUY+MERGE ${d.price}G`]) {
+      // SHOPCARD-1e (E3, E4): the labels as the panel draws them (inspector.ts offerLabel; was BUY+MERGE n and BUY n only): a sale (every
+      // price below the list price down to 1G: a scout's deal takes more than 1G off), a merge into ★2 and ★3 (not a supply: never fusible)
+      const prices = Array.from({ length: d.price }, (_, i) => i + 1); // 1..list: every price a cut or a plain offer can show
+      const labels = d.kind === "supply" ? prices.map((p) => offerLabel(d, p, null)) : [...prices.map((p) => offerLabel(d, p, null)), offerLabel(d, d.price, 2), offerLabel(d, d.price, 3)];
+      for (const label of labels) {
         const sub = `${kindLine(d)} · ${MERCHANTS[d.merchant!].name}`;
         const { rects } = portraitButtons(d.name, sub, [label], band);
         expect(rects[0].w, `${d.id}: ${label}`).toBeGreaterThanOrEqual(textWidth(label, "3") + 4);

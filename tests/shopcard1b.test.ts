@@ -132,7 +132,7 @@ describe("SHOPCARD-1b F4 (READ-9 fix 4): the faces carry their one missing claus
   });
   it("ASSEMBLY LINE: YOUR RIGS START n% SOONER / AT ONCE (battle.ts:714-736 and 979-981: each rig comes online at the fight's start at a delay x the line's factor); SHOPCARD-1c G8: EACH FIGHT, START WORKING, two rows", () => {
     expect([1, 2, 3].map((s) => rules("assembly", s)[0])).toEqual([
-      "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 50% SOONER.", "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 75% SOONER.", "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING AT ONCE.",
+      "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER.", "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 75% SOONER.", "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING AT ONCE.", // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     ]);
     for (const s of STARS) expect(rows(rules("assembly", s)[0])).toBe(2);
   });

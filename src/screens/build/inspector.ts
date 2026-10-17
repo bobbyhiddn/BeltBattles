@@ -635,10 +635,10 @@ export function offerMergeNote(run: Run, def: string): string | null {
  *   from the notes, and Haiku led with ★2 on both ★3 offers. The label names the star the buy makes (run.ts shopBadge toStars, the
  *   card's MERGE ★n mark): `MERGE ★3: 7G`. 3x5 face, button = text + 4 px, and the least button is 64 px (the 360x640 strip's
  *   one button; inspector.ts topRowButtons, portraitButtons' even width), so a label holds at most 60 px at every price: the game's
- *   dearest offer is 11G, and `BUY+MERGE ★3 11G` (61 px) is 1 px too wide, `MERGE TO ★3: 11G` is 58 (but 54 at 1 digit, 8 px
- *   wider than the old `BUY+MERGE 7G`: its button no longer fits the phone band's top row beside nine pieces' long titles, so
- *   it moved 18 merge-offer panels' buttons to the second row; tests/shopcard1e.test.ts). `MERGE ★3: 7G` is 43 px (47 at 2
- *   digits), narrower than the old label (46 and 50): no button moves.
+ *   dearest offer is 13G (THUNDERER), and `BUY+MERGE ★3 13G` (61 px) is 1 px too wide, `MERGE TO ★3: 13G` is 58 (but 54 at 1
+ *   digit, 8 px wider than the old `BUY+MERGE 7G`: its button no longer fits the phone band's top row beside nine pieces' long
+ *   titles, so it moved 18 merge-offer panels' buttons to the second row; REPORT section 2). `MERGE ★3: 7G` is 43 px (47 at 2
+ *   digits), narrower than the old label (46 and 50): no button moves down (four panels' move up).
  * - A merge that is also on sale: the MERGE label wins, and the cut price is still the price shown. Same precedence as the card
  *   (shop.ts:338-342: the merge mark, else the owned marker, else the sale mark), and no label says both within 60 px at a
  *   one-digit price and a two-digit one alike (`SALE: MERGE ★3 6G` is 62 px, `SALE MERGE ★3 6G` 60 and 64 at 10G).

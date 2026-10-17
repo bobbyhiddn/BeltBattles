@@ -278,9 +278,9 @@ describe("SHOPCARD-1c G7 (READ-10 fix 7): LIMPET WORKS says ITS DMG, with no sec
 });
 
 describe("SHOPCARD-1c G8 (READ-10 fix 8): ASSEMBLY LINE says when and what", () => {
-  it("FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING n% SOONER. (★3: AT ONCE.), two rows at every star on days 1, 5 and 10 (battle.ts:714-736 commissionAt at each fight's start, 979-981 online at t >= commissionAt)", () => {
+  it("FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING n% SOONER. (★3: AT ONCE.), two rows at every star on days 1, 5 and 10 (battle.ts:714-736 commissionAt at each fight's start, 979-981 online at t >= commissionAt)", () => {
     expect([1, 2, 3].map((s) => rules("assembly", s)[0])).toEqual([
-      "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 50% SOONER.", "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 75% SOONER.", "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING AT ONCE.",
+      "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER.", "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 75% SOONER.", "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING AT ONCE.", // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     ]);
     for (const s of STARS) for (const day of DAYS) expect(rows(rules("assembly", s, day)[0]), `★${s} day ${day}`).toBe(2);
     expect(effectAt("assembly", 1).factory!.commission).toBe(0.5);

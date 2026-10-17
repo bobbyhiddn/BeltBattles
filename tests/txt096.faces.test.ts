@@ -2,7 +2,7 @@
 // Each face line that changed says a real sim rule its sentence said and its face had dropped; each test here reads that
 // rule from the sim side (a sim run, a chamber hook, the rip, the copies), never from the text, so a change to the rule
 // turns it red:
-//   ASSEMBLY LINE    "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 50% SOONER." (★3 "AT ONCE"; SHOPCARD-1c, G8: was "... YOUR RIGS START 50% SOONER."): battle.ts assemblyLines / makeSide
+//   ASSEMBLY LINE    "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER." (★3 "AT ONCE"; SHOPCARD-1c, G8: was "... YOUR RIGS START 50% SOONER."): battle.ts assemblyLines / makeSide
 //   HULLBREAKER      "SHOT: HITS ONLY THE HULL, FOR +30% {DMG}.": Battle.fireCore aims it at hullTarget()
 //   GATLING SPOOL    "FIRES AT ONCE, SPINS UP TO 67% FASTER.": cores.ts gatlingReady against the default ready
 //   GRAPNEL GUN      "SHOT: ON A BELT OR RIG, RIPS 1 SLUG.": Battle.rip on a belt tile or a rig
@@ -62,7 +62,7 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
       expect(pressRigAt(asm(s, false)), `★${s} cut`).toBeCloseTo(COMMISSION_BASE, 9);
       // the face says the condition and the sim's factor, in its sentence's words
       // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): WORK (was "FEEDS A GUN: YOUR RIGS START ...")
-      expect(rule("assembly", s), `★${s}`).toBe(`FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING ${startIn(assemblyLines(asm(s)).factor)}.`); // SHOPCARD-1c (G8): when and what (was FEEDS A GUN: YOUR RIGS START ...)
+      expect(rule("assembly", s), `★${s}`).toBe(`FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${startIn(assemblyLines(asm(s)).factor)}.`); // SHOPCARD-1c (G8): when and what (was FEEDS A GUN: YOUR RIGS START ...) // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     }
   });
 
@@ -72,9 +72,9 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
     expect(working.map((g) => g.commissionAt)).toEqual([0, 0, 0]);
     bt.step();
     expect(working.map((g) => g.online)).toEqual([true, true, true]);
-    expect(rule("assembly", 3)).toBe("FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING AT ONCE."); // CARD-2 (K3 g): WORK (was START); SHOPCARD-1c (G8): EACH FIGHT, START WORKING
+    expect(rule("assembly", 3)).toBe("FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING AT ONCE."); // CARD-2 (K3 g): WORK (was START); SHOPCARD-1c (G8): EACH FIGHT, START WORKING // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     // ★1 and ★2 come online later (their % is the sim's: 1 - commissionAt / its time without one)
-    for (const s of [1, 2]) expect(rule("assembly", s)).toBe(`FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING ${fmtPct(1 - pressRigAt(asm(s)) / pressRigAt(asm(s, false)))} SOONER.`);
+    for (const s of [1, 2]) expect(rule("assembly", s)).toBe(`FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${fmtPct(1 - pressRigAt(asm(s)) / pressRigAt(asm(s, false)))} SOONER.`); // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
   });
 
   // --------------------------------------------------------------------------------------------------- HULLBREAKER

@@ -237,7 +237,7 @@ function drawFight(g: G, s: BuildScreen, cue: boolean): void {
 
 /** SHOPCARD-1e (E5): the offer whose hover tooltip shows this frame, with its card's index in L.cards: a mouse over a card, no
  *  piece carried, the caravan parked (the conditions the tooltip had inline); null when none shows. */
-function tooltipOffer(s: BuildScreen): { idx: number; o: Run["shop"]["wagons"][number]["offers"][number] } | null {
+export function tooltipOffer(s: BuildScreen): { idx: number; o: Run["shop"]["wagons"][number]["offers"][number] } | null {
   if (!s.hover || s.ed.carry || !s.caravan.ready) return null;
   const idx = s.offers().findIndex((q) => q.wagon === s.hover!.wagon && q.slot === s.hover!.slot);
   const o = s.run.shop.wagons[s.hover.wagon]?.offers[s.hover.slot];

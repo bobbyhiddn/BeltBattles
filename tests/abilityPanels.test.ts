@@ -973,7 +973,13 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // its face now says both arrows must point at belts ("HIT: HOLDS A SLUG UP TO 1 SEC TO MAKE A PAIR. BOTH ITS ARROWS MUST POINT AT
     // BELTS.", 415 px), a second row on this test's fixed phone band; the face keeps its lines (kept), the hint gives way first, as ever.
     // LIMPET WORKS' second row ("THE DMG LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 SEC AFTER A HIT.", 335 px) takes no phone panel's hint
-    expect(hints).toBe(1031);
+    // SHOPCARD-1e (REQ-BFG-081; E4), measured: 1035 (was 1031), per panel against 1d's list (output-shopcard1d/parts/ids-1d.txt, ids by
+    // tmp/zz-ap-ids.test.ts). A merge offer's buy label is MERGE ★n: nG (inspector.ts offerLabel; 43 px at one digit, was BUY+MERGE nG, 46), so its
+    // button is 3 px narrower and fits the phone band's top row beside the title where it did not: the 4 panels that keep the optional hint now
+    // are COIL's and PLATE BREAKER's merge offers ("offer coil held[1]", "held[2,1]", "offer platebreaker held[1]", "held[2,1]"). The ASSEMBLY
+    // LINE line (ALL YOUR RIGS, 350 px, two rows as before) and the {BELT} note (a tap, no panel row) take no phone panel's hint. (A first
+    // form, MERGE TO ★n: nG at 54 px, 8 px wider than BUY+MERGE, moved 18 merge offers' buttons to the second row: 1013.) The desk count above is unchanged
+    expect(hints).toBe(1035);
   });
 });
 

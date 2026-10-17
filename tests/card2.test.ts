@@ -434,7 +434,7 @@ describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new w
   it("SHOT TOWER, ASSEMBLY LINE, SABOT, SCRAPPER, LIMPET, GATLING, PINCER, SPOTTER, COIL, TWIN LATCH's desk line, DRAKE's SHOT note", () => {
     const want: Record<string, string[][]> = {
       shottower: [["RIGS HIT EACH OF ITS 3 SLUGS ON ITS OWN."]], // run 2: true on a two-belt tower too (stamp is round-robin)
-      assembly: [["FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 50% SOONER."], ["FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 75% SOONER."], ["FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING AT ONCE."]], // SHOPCARD-1b (REQ-BFG-081): START (was WORK); SHOPCARD-1c (G8): when and what (EACH FIGHT, START WORKING), two rows
+      assembly: [["FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER."], ["FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 75% SOONER."], ["FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING AT ONCE."]], // SHOPCARD-1b (REQ-BFG-081): START (was WORK); SHOPCARD-1c (G8): when and what (EACH FIGHT, START WORKING), two rows // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
       sabot: [["A RIG IT HITS STOPS FOR THE WHOLE FIGHT.", "ANY OTHER PART IT HITS: STUN 4."]],
       scrapper: [["EACH STUN YOU LAND: 1 EXTRA .", "ITS  DEAL 30 MORE  THAN PLAIN."]], // CARD-5 (REQ-BFG-081, L): + its scrap damage, by design
       limpet: [["THE  LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 AFTER A HIT."]], // SHOPCARD-1b (REQ-BFG-081): the blast's number on the line; SHOPCARD-1c (G7): ITS DMG, no number; SHOPCARD-1d (H2): the DMG lands once, as a blast, two rows (335 px)

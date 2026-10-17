@@ -265,7 +265,8 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
         expect(lines.length, `${tag}: a description`).toBeGreaterThanOrEqual(1);
         expect(p.headerOnly, `${tag}: not a header-only strip`).toBeNull();
         for (const b of p.rects ?? []) expect(within(b, p.r), `${tag}: button inside`).toBe(true);
-        if (c.part === "offer") expect(d!.t.labels, tag).toEqual([expect.stringMatching(/^BUY(\+MERGE)? \d+G$/)]);
+        // SHOPCARD-1e (E3, E4): a sale says SALE: and a merge names its star (was /^BUY(\+MERGE)? \d+G$/); a supply is BUY+USE
+        if (c.part === "offer") expect(d!.t.labels, tag).toEqual([expect.stringMatching(/^(SALE: )?BUY( |\+USE )\d+G$|^MERGE ★[23]: \d+G$/)]);
         if (c.part === "cargo") expect(d!.t.labels.at(-1), tag).toMatch(/^SELL \+\d+G$/);
         if (c.part === "carrier" && d!.t.labels.some((l) => /^SELL/.test(l))) sell++;
         n++;

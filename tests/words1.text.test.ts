@@ -194,8 +194,8 @@ describe("WORDS-1: tap reach (TEXT-STYLE 7.4 as ruled 2026-10-10)", () => {
       for (const b of body) {
         if (b.role !== "ability" && b.role !== "caveat") continue;
         for (const h of glossaryHits(b.text)) if (h.row.word !== "RATE" && b.role === "ability") expect(named.has(h.row.word), `${d.id} ★${s}: ${h.row.word} in "${stripIcons(b.text)}"`).toBe(true);
-        // the stat icons a face draws are tappable: {RATE}, {SLUG}, {GEAR}
-        for (const k of ["RATE", "SLUG", "GEAR"] as const) if (b.role === "ability" && b.text.includes(ICON[k])) expect(named.has(k), `${d.id} ★${s}: {${k}}`).toBe(true);
+        // the stat icons a face draws are tappable: {RATE}, {SLUG}, {GEAR}; SHOPCARD-1e (E1): and a factory's {BELT} (its stat row, GANTRY PRESS's BIGGER line)
+        for (const k of ["RATE", "SLUG", "GEAR", "BELT"] as const) if (b.role === "ability" && b.text.includes(ICON[k])) expect(named.has(k), `${d.id} ★${s}: {${k}}`).toBe(true);
       }
     }
     expect(words).toBeGreaterThan(300);
