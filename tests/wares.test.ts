@@ -13,6 +13,7 @@ import { ITEMS, RUN_DAYS, buyableModules, withWave3, type HeroId } from "../src/
 import { SUSTAIN_FIRST_DAY, isSustain } from "../src/sim/content"; // FLIP-X2: the sustain pieces' day-3 hold
 import { DRAW, drawWares, quotas, unlocked, unlockDay, waresOk, type Wares } from "../src/game/wares";
 import { heldPast, seatDay } from "../src/game/wares"; // REDO-X (FIX-ABE F3): the stand-ins' rule
+import { SHAPES2_ODDS, isShapedRig } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on): the offer lever b (wares.ts holdShaped)
 import { RARITIES } from "../src/sim/content"; // REDO-X (FIX-ABE F3): the draw's rarity tiers
 import { migrateRun, newRun, rollShop, type Run } from "../src/game/run";
 import { EVENTS, SALVAGE_OWNED, UPGRADE, salvagePart, salvagePool, smugglerParts, smugglerPool, swapPart, type EventState } from "../src/game/eventDefs";
@@ -64,6 +65,28 @@ function standIns(seed: number, w: Wares): number {
   for (const id of extra) expect(w[id], `seed ${seed}: stand-in ${id}`).toBe(seatDay(held.find((h) => tier(h) === tier(id))!));
   return owed.length;
 }
+/** BUMP-1D (SHAPES2 on): the draw before SHAPES2's offer lever (wares.ts holdShaped: SHAPES2_ODDS.minStock shaped rigs among the
+ *  wares; tests/shapes2.offers.test.ts pins the lever). The lever at 0 draws exactly as the draw did without it, on the live
+ *  catalogue: that is the draw seatsOf / standIns model (D1's, FIX-ABE's), whose every check stands as it was. */
+function beforeLever(seed: number): Wares {
+  const k = SHAPES2_ODDS.minStock;
+  SHAPES2_ODDS.minStock = 0;
+  try { return drawWares(seed); } finally { SHAPES2_ODDS.minStock = k; }
+}
+/** BUMP-1D: `standIns` for the live draw `w` of `seed` (the lever on): the model is checked on the draw before the lever (its seats
+ *  and stand-ins exactly), and the live draw differs from it by the lever's swaps alone: as many shaped rigs in as drawn pieces
+ *  out, none out that is a shaped rig or held past its seat's day. Returns the model's stand-ins (the lever adds none). */
+function standInsLive(seed: number, w: Wares): number {
+  const base = beforeLever(seed), n = standIns(seed, base);
+  const added = Object.keys(w).filter((id) => !(id in base)), dropped = Object.keys(base).filter((id) => !(id in w));
+  expect(added.length, `seed ${seed}: the lever swaps one for one`).toBe(dropped.length);
+  for (const id of added) expect(isShapedRig(ITEMS[id]), `seed ${seed}: ${id} comes in by the lever`).toBe(true);
+  for (const id of dropped) {
+    expect(isShapedRig(ITEMS[id]), `seed ${seed}: ${id} goes out`).toBe(false);
+    expect(heldPast(id), `seed ${seed}: ${id} goes out`).toBe(false);
+  }
+  return n;
+}
 
 describe("the per-run draw: a run's wares (DESIGN-wave3.md 4.1)", () => {
   it("quotas sum to the total, never exceed a group and follow the sizes (D1's)", () => {
@@ -97,7 +120,8 @@ describe("the per-run draw: a run's wares (DESIGN-wave3.md 4.1)", () => {
       const w = drawWares(s), p = poolOf(w);
       // REDO-X (cap's ruling on FIX-ABE F3 / b1.smuggler, REVIEW-FIXABE): exactly 62 wares plus the run's stand-ins (one per
       // held ware that drew a slot, while its tier has a ware left), each open on its slot's day: 62-65 (was DRAW.active, 62)
-      expect(p.active, `seed ${s}`).toBe(DRAW.active + standIns(s, w));
+      // BUMP-1D: the lever (SHAPES2) swaps shaped rigs in for drawn pieces, one for one: the count is the model's (standInsLive)
+      expect(p.active, `seed ${s}`).toBe(DRAW.active + standInsLive(s, w));
       expect(p.active).toBeGreaterThanOrEqual(55);
       expect(p.active).toBeLessThanOrEqual(70);
       expect(p.day1, `seed ${s}`).toBeGreaterThanOrEqual(17);
@@ -344,7 +368,9 @@ describe("a save without wares plays today's rule (DESIGN-wave3.md 4.2: a run in
       const w = drawWares(17);
       // REDO-X (cap's ruling on FIX-ABE F3 / b1.smuggler, REVIEW-FIXABE): exactly 62 wares plus the run's stand-ins, each open
       // on its slot's day: 63 (MENDING LOOM's ALCHEMIST rare slot has one; MEND PRESS's none: both IRONMONGER epics drawn) (was 62)
-      expect(Object.keys(w)).toHaveLength(62 + standIns(17, w));
+      // BUMP-1D: SHAPES2's lever swaps shaped rigs in one for one (seed 17 loses three drawn pieces to it: LODESTONE, COUNTERWEIGHT,
+      // OVERCLOCKER; the model's seats are checked on the draw before it, standInsLive), so the count is the model's
+      expect(Object.keys(w)).toHaveLength(62 + standInsLive(17, w));
       expect(Object.keys(w).every((id) => buyableModules().some((d) => d.id === id))).toBe(true);
     }, false);
   });

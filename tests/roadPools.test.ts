@@ -79,7 +79,10 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
     }
     // SHAPES-1 flip: + EMBER TROUGH, a buyable gate whose effect burns ({ burn: 1 }), after the three (catalogue order) (was
     // ["temper", "bellows", "quench"])
-    expect(smugglerPool("BURN")).toEqual(["temper", "bellows", "quench", "embertrough"]);
+    // BUMP-1D: + RASP (PLAIN_RIGS on: gate { burn: 1 } from ★1), before EMBER TROUGH (the six plain rigs come before the three shaped
+    // ones in the catalogue); BRANDING IRON and CINDER HOOK burn from ★2 only (their ★1 gate has no burn), so not those
+    // (was ["temper", "bellows", "quench", "embertrough"])
+    expect(smugglerPool("BURN")).toEqual(["temper", "bellows", "quench", "rasp", "embertrough"]);
     expect(smugglerPool("SHOCK")).toEqual(["coil", "staticbrush", "lodestone"]);
     for (const seed of SEEDS.slice(0, 50)) for (const day of DAYS) {
       const [burn, shock] = choicesFor(atEvent("smuggler", seed, day, [], true)); // 0.8.0 I1 M3: old save

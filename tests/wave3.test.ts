@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { ITEMS, RARITY_ARROWS, SHAPE_ARROWS, buyableModules, itemsSoldBy, rigShape, type HeroId } from "../src/sim/content";
 import { withSustain } from "../src/sim/content"; // FLIP-X2: D1's catalogue has no sustain piece (inD1 below)
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: ... and no shaped rig (inD1 below)
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: ... and no plain rig (inD1 below)
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: ... and none of the six more shaped rigs (inD1 below)
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { newRun, rollShop, type Run } from "../src/game/run";
 import { Rng } from "../src/core/rng";
@@ -27,7 +29,11 @@ const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome"
 // SHAPES-1 flip: D1's catalogues hold no shaped rig either (no row in D1's maps for NAIL STRIP, EMBER TROUGH or SPIKE RAIL,
 // and D1's counts are without them), so D1's world also has shapes off for the call (withShapes(fn, false)); the live
 // catalogue is pinned with every switch on below
-const inD1 = <T>(fn: () => T): T => withShapes(() => withSustain(fn, false), false);
+// BUMP-1D: D1's catalogues hold none of the twelve rigs PLAIN_RIGS and SHAPES2 put in the catalogue (the six plain stat rigs and
+// the six more shaped ones; no row in D1's maps, and D1's counts are without them), so D1's world also has both switches off for
+// the call (withPlainRigs(fn, false), withShapes2(fn, false)); the live catalogue is pinned with every switch on below. The nesting
+// puts the switches back in ITEMS order (the plain rigs, then the three shaped rigs, then the six more: each swap back appends)
+const inD1 = <T>(fn: () => T): T => withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(fn, false), false), false), false);
 
 describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
   // 0.8.0 I1 M2 (REPORT-P1 section 13, "D1's 71-module counts"): wave 3 is live, so v070-rc's catalogue is the `today`
@@ -49,9 +55,11 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
     // without turrets; buyableModules() 85 -> 88 (the dormant SIFTER is counted, not stocked: sameAsBuyable stays false)
     // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL (rigs): 89 -> 92 counted, 76 -> 79 without turrets,
     // buyableModules() 88 -> 91, rig 31 -> 34 (GANTRY PRESS and ASSEMBLY LINE are reshaped, not added)
-    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([92, 79, 13, false]); // FLIP-X2: SIFTER dormant (was true)
-    expect(buyableModules().length).toBe(91); // FLIP-X2: 89 counted less the dormant SIFTER (was 85); SHAPES-1 flip: was 88
-    expect(live.byKind).toEqual({ rig: 34, factory: 16, core: 15, mod: 14, turret: 13 }); // FLIP-X2: factory 15 -> 16, mod 12 -> 14; SHAPES-1 flip: rig 31 -> 34
+    // BUMP-1D: + the six plain stat rigs (PLAIN_RIGS) and the six more shaped rigs (SHAPES2), twelve rigs: 92 -> 104 counted,
+    // 79 -> 91 without turrets, buyableModules() 91 -> 103, rig 34 -> 46 (the other kinds as before)
+    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([104, 91, 13, false]); // FLIP-X2: SIFTER dormant (was true); BUMP-1D: was [92, 79, 13, false]
+    expect(buyableModules().length).toBe(103); // FLIP-X2: 89 counted less the dormant SIFTER (was 85); SHAPES-1 flip: was 88; BUMP-1D: was 91
+    expect(live.byKind).toEqual({ rig: 46, factory: 16, core: 15, mod: 14, turret: 13 }); // FLIP-X2: factory 15 -> 16, mod 12 -> 14; SHAPES-1 flip: rig 31 -> 34; BUMP-1D: rig 34 -> 46
     expect(inD1(() => catalogueCount()).total).toBe(86); // FLIP-X2: D1's wave-3 catalogue, the switch off
   });
 

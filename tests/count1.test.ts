@@ -28,6 +28,8 @@ import { C } from "../src/render/palette";
 import { contrast } from "../src/render/styleContrast";
 import { tapPx } from "../src/ui/tap";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 x c099-card3 (RUN6 1.2): the fight is built with SHAPES off
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: ... and PLAIN_RIGS off
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: ... and SHAPES2 off
 import { withGuard } from "../src/sim/guard"; // MERGE-099F: the fight is built with HULL-ON's five off too
 import { withOpenRunes } from "../src/sim/openRunes"; // MERGE-099F
 import { withFreeJoins } from "../src/sim/freeJoins"; // MERGE-099F
@@ -58,7 +60,13 @@ const deck = (hero: HeroId, day: number, i: number): Build => structuredClone(pa
  *  1g and 1h keep their checks): built so, it steps exactly as SHAPES-1 measured, 770 ticks and the same 493 events, both
  *  stepped as shipped and inside the off world (kit-099f/zz-099f-probe3.test.ts (C)). Was built with SHAPES off alone
  *  (c099's world, the five absent). */
-const fight = (): Battle => withShapes(() => offFive(() => new Battle(deck("weaver", 10, 2), deck("furnace", 10, 0), 3)), false);
+const fight = (): Battle =>
+  withShapes2(() => withShapes(() => withPlainRigs(() => offFive(() => new Battle(deck("weaver", 10, 2), deck("furnace", 10, 0), 3)), false), false), false);
+// BUMP-1D (PLAIN_RIGS and SHAPES2 on; tests only): the par player buys the twelve plain stat rigs now, so those par decks change
+// again (the three fixture guards below fail: no LODESTONE hit, no jam that a shot ends, no LODESTONE on the foe's side). The
+// fight is kept in the world it was picked in, as it was for SHAPES and the five: its decks and the Battle are built with
+// PLAIN_RIGS and SHAPES2 off as well (was withShapes(() => offFive(...), false)). The nesting puts the switches back in ITEMS
+// order (the plain rigs, the three, the six more: each swap back appends).
 
 type Priv = { applyHit: (...a: unknown[]) => unknown; fire: (...a: unknown[]) => unknown };
 

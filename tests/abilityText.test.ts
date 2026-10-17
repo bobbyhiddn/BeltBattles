@@ -33,6 +33,9 @@ import { roundHalfUp } from "../src/sim/pct"; // NUM-2: MIMIC's speed rounds hal
 import { PEAK_SHIFT } from "../src/sim/races/data"; // NUM-4: METRONOME's peak shift, a hidden timer no sentence quotes
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's sentences beside the shipped ones
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's base sentence beside the shipped one
+import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the six plain stat rigs have a face and no ability text
+import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on): nor have the six more shaped rigs
+import { hasFace } from "../src/ui/faces"; // BUMP-1D: ... their stat row is a face
 
 // 0.6.2t (REQ-BFG-032): the ability text of every buyable module (0.8.0: 31 rigs, 15 factories, 15 cores, 12 mods) at 1, 2
 // and 3 stars, and of each supply: its numbers are that star's real values, it opens with one plain sentence, it uses
@@ -315,8 +318,14 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
       GEAR_SLOTS[d.rarity] + s - 1, 1];
   }])),
 };
+/** BUMP-1D (PLAIN_RIGS and SHAPES2 on): the twelve plain stat rigs (the six plain ones, the six more shaped ones) are buyable modules
+ *  now. Each is a stat row (a face, faces.ts) and no ability line, so it has no ability text, no card line (cardText is "") and no
+ *  NUMBERS row; tests/plain1.faces.test.ts and tests/shapes2.cards.test.ts hold their faces. */
+const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+/** The buyable modules with ability text: all but the twelve (their count and names are pinned in the first test). */
+const TEXTED: ItemDef[] = MODULES.filter((d) => !PLAIN12.includes(d.id));
 /** Every module with ability text: the buyable modules at 1-3 stars, then each supply at its single level. */
-const ALL = [...MODULES, ...SUPPLIES];
+const ALL = [...TEXTED, ...SUPPLIES]; // BUMP-1D: was [...MODULES, ...SUPPLIES]
 /** Each (module, star, class factor) case. */
 const CASES = ALL.flatMap((d) => starsOf(d).flatMap((s) => kOf(d).map((k) => ({ d, s, k, id: `${d.id} ★${s} k${k}` }))));
 /** The landscape details column's text widths (layout.ts: LAND_MIN_W to the capped column; both faces), the phone band's. */
@@ -327,7 +336,12 @@ const FUNCTION_WORDS = new Set(["A", "AN", "THE", "OF", "AT", "TO", "IN", "ON", 
 describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
   // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3 is live: +8 rigs, +2 factories, +2 cores, +3 mods (was 23, 13, 13, 9; 71)
   it("30 rigs, 16 factories, 15 cores, 14 mods, 13 turrets and 2 supplies; each has ability text and an audit row", () => {
-    const by = (kind: string) => MODULES.filter((d) => d.kind === kind).length;
+    // BUMP-1D: the count of the modules with ability text (TEXTED); the twelve plain stat rigs (PLAIN12) have none: they are the
+    // 12 buyable modules without it, 33 + 12 = 45 rigs are sold (was MODULES, all of which had it)
+    const by = (kind: string) => TEXTED.filter((d) => d.kind === kind).length;
+    expect(MODULES.filter((d) => !hasAbilityText(d.id)).map((d) => d.id).sort()).toEqual([...PLAIN12].sort());
+    expect(MODULES.filter((d) => d.kind === "gate")).toHaveLength(45);
+    for (const id of PLAIN12) expect(hasFace(id), id).toBe(true);
     // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER dormant leaves the buyable rigs, 31 -> 30
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): MEND PRESS joins the factories (15 -> 16), WARD BELL and MENDING LOOM the
     // mods (12 -> 14)
@@ -341,6 +355,7 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): + the 3 sustain pieces, 85 -> 88 modules, (88 + 15) * 3 + 2 cases (was
     // (85 + 15) * 3 + 2)
     // SHAPES-1 flip: + the three shaped plain rigs, 88 -> 91 modules, (91 + 15) * 3 + 2 cases (was (88 + 15) * 3 + 2)
+    // BUMP-1D: unchanged, the twelve plain stat rigs (103 modules sold, 91 with ability text) are not in ALL
     expect(CASES).toHaveLength((91 + 15) * 3 + 2); // 91 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
   });
 

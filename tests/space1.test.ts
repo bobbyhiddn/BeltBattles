@@ -183,7 +183,8 @@ describe("SPACE-1: clear space between the descriptions on cards and panels (REQ
   it("the sweep is zoom1.test.ts's 899 panels; the gaps are about half a line: 5x7 G 5 (pitch 9), 3x5 G 4 (pitch 7); G_MIN ceil(G/2)", () => {
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable modules, 13 panels each (an offer, and at each
     // star a cargo panel and 3 placed ones): 899 + 39 = 938; GANTRY PRESS's and ASSEMBLY LINE's 7 each are reshaped, not added
-    expect(all.length).toBe(938);
+    // BUMP-1D: the six plain stat rigs and the six more shaped rigs join the buyable modules, 13 panels each: 938 + 12 x 13 = 1094
+    expect(all.length).toBe(1094);
     expect([GAP["5"], GAP["3"], GAP_MIN["5"], GAP_MIN["3"]]).toEqual([5, 4, 3, 2]);
     expect(GAP_MIN["5"]).toBe(Math.ceil(GAP["5"] / 2));
     expect(GAP_MIN["3"]).toBe(Math.ceil(GAP["3"] / 2));
@@ -206,7 +207,7 @@ describe("SPACE-1: clear space between the descriptions on cards and panels (REQ
     }
     console.log(`SPACE-1 (a) phoneBand90's widths: ${n} plans, ${diffs.length} differ`);
     expect(diffs.slice(0, 10)).toEqual([]);
-    expect(n).toBeGreaterThan(899 * WIDTHS.length * 2);
+    expect(n).toBeGreaterThan(1094 * WIDTHS.length * 2); // BUMP-1D: the sweep's 1094 panels (was 899, a stale count: the sweep held 938)
   }, 600_000);
 
   it("(a) content first on the pinned views, with a rune and without: the band (or column) and the panel's real place (D4), the gaps off and on", () => {

@@ -32,7 +32,7 @@ import { FAMILY, familiesOf } from "../src/ui/families";
 import { UI } from "../src/ui/ui";
 import { abilityText, cardText } from "../src/ui/abilityText";
 import { banned } from "./textRules";
-import { faceLines } from "../src/ui/faces"; // U2b (REQ-BFG-046): STOKER's face
+import { cardEffect, faceLines } from "../src/ui/faces"; // U2b (REQ-BFG-046): STOKER's face; BUMP-1D: cardEffect, the wide card's effect line
 import { SEED, barge, item, run as fight, withItem, withMod } from "./wave3.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the off checks beside STOKER ★3's re-pins
 
@@ -484,7 +484,9 @@ describe("the desk's wide card: a clear row between the effect's second line and
     let cards = 0;
     for (const d of buyableModules()) for (const s of [{}, { sold: true }, { badge: { kind: "merge", toStars: 2 } as CardState["badge"] }]) {
       const c = fresh(OX + W + 4, OY + H + 4);
-      drawCard(G(c), { x: OX, y: OY, w: W, h: H }, ITEMS[d.id], d.price, d.merchant!, { ...base, effect: cardText(d.id), ...s }, 0);
+      // BUMP-1D (PLAIN_RIGS and SHAPES2 on): the wide card's effect line is faces.ts cardEffect (cardText, else a plain rig's stat row),
+      // as the game draws it (chrome.ts drawCaravan); the twelve plain stat rigs have no cardText (was `effect: cardText(d.id)`)
+      drawCard(G(c), { x: OX, y: OY, w: W, h: H }, ITEMS[d.id], d.price, d.merchant!, { ...base, effect: cardEffect(d.id), ...s }, 0);
       const face = "sold" in s ? C.night : C.slate0, what = `${d.id} ${JSON.stringify(s)}`;
       const row = (y: number) => Array.from({ length: W - 4 }, (_, i) => c.at(OX + 2 + i, OY + y));
       // the clear rows: under the icon and the name (over the effect), and between the effect and the marks

@@ -18,6 +18,8 @@ import { LADDER_DEFS, LADDER_FIX, ladderFixRules, setLadderFix, withLadderFix } 
 import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip, NPC_DAY): the par player's bb-0.9.7 runs, the NPC day off
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): the same runs, 0.9.7's gold table
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the same runs, SHAPES off
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: the same runs, PLAIN_RIGS off
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: the same runs, SHAPES2 off
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip): the same runs, all eight switches off (bb-0.9.7's)
 import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip)
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip)
@@ -294,13 +296,19 @@ describe("HULL-1b the par player's six runs (tests/harness.player's buy floor: n
     // 12 / 18 (no join limit in its plans), HEARTS and PICK none (14 / 14 / 13 / 15 / 12 / 16, as the five on); all five
     // off: bb-0.9.7's six
     const allOff = <T>(f: () => T): T => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(f, false), false), false), false), false);
-    const off = withShapes(() => allOff(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false)), false), on = withLadderFix(buys);
+    // BUMP-1D (PLAIN_RIGS and SHAPES2 on): the off half sets the twelve plain stat rigs off as well (the par player buys them
+    // now; the all-off world is bb-0.9.7's, which has none), the nesting putting the switches back in ITEMS order (plain rigs,
+    // the three, the six more: each swap back appends). The on half is the shipped game, every switch on
+    const off = withShapes2(() => withShapes(() => withPlainRigs(() => allOff(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false)), false), false), false), on = withLadderFix(buys);
     log(`BUYS FURNACE s1-s3, WEAVER s1-s3: off ${off.join(" / ")}; on ${on.join(" / ")}`);
     expect(off).toEqual([12, 15, 13, 14, 10, 16]); // bb-0.9.7's, as tests/harness.player pins them
     for (const n of on) expect(n).toBeGreaterThan(0);
     // MERGE-099F (REQ-BFG-079, -086): SHAPES and HULL-ON's five on together; was 14 / 14 / 13 / 15 / 12 / 16 (HULL-ON's
     // world, no shapes: the comment above; neither side checked the on half exactly, BRIEF-MERGE-099F 1g pins it here)
-    expect(on).toEqual([15, 14, 17, 14, 16, 17]);
+    // BUMP-1D (the flip: PLAIN_RIGS, SHAPES2, LONG_RUN, the rules bump), measured: the on half is the shipped game, so the par
+    // player buys the twelve plain stat rigs and the catalogue's draw has 103 modules: 13 / 14 / 15 / 20 / 15 / 15 (was 15 / 14 /
+    // 17 / 14 / 16 / 17); the off half above is bb-0.9.7's six, unchanged
+    expect(on).toEqual([13, 14, 15, 20, 15, 15]);
     // AZ-BUMP (the flip): 300 s, the on half's six runs fight a warlord every day; a host timeout under the 1.5-CPU quota
     // (30 s hit in run 5's group check), not the rule
   }, 300_000);

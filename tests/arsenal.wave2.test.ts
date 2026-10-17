@@ -65,7 +65,8 @@ describe("wave-2 stock and live star data", () => {
     // 12 -> 14; the dormant SIFTER keeps its merchant, so the rigs stay 31 (was [31, 15, 15, 12])
     // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH (alchemist) and SPIKE RAIL (tinker), the three shaped rigs, 31 -> 34 (was
     // [31, 16, 15, 14]); GANTRY PRESS and ASSEMBLY LINE are reshaped, not added
-    expect(counts).toEqual([34, 16, 15, 14]);
+    // BUMP-1D: + the six plain stat rigs (PLAIN_RIGS) and the six more shaped rigs (SHAPES2), all with a merchant, 34 -> 46
+    expect(counts).toEqual([46, 16, 15, 14]);
     for (const id of WAVE) {
       const d = ITEMS[id];
       expect([d.merchant, d.rarity, d.price], id).toEqual(WAVE_STOCK[id]);

@@ -429,7 +429,9 @@ describe("U2f: the taller ⓘ view", () => {
     // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): the text sheet walks buyableModules(): SIFTER's 3 panels leave (dormant),
     // the 3 sustain pieces' 9 join (the switch on): 310 - 3 + 9 = 316 (was 310)
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable modules, a cargo panel at each star: 316 + 9 = 325
-    expect(sheet.length).toBe(325);
+    // BUMP-1D: the twelve plain stat rigs (PLAIN_RIGS' six, SHAPES2's six) join the buyable modules, a cargo panel at each star:
+    // 325 + 36 = 361
+    expect(sheet.length).toBe(361);
     // NUM-3 (R1's STUN fold), measured on num3 with steps 1-3: op 118 / 160 / 27 -> 119 / 167 / 19, desk 72 / 94 / 84 / 25 /
     // 20 / 10 -> 67 / 88 / 87 / 34 / 18 / 10 / 1 (the 7 STUN-fold pieces' faces: their LEVELS ladders and KEYWORDS replace a
     // legacy NEXT STAR sentence, so their body-only views page otherwise; U2f's view below is the one the game draws)
@@ -502,10 +504,13 @@ describe("U2f: the taller ⓘ view", () => {
     // U2f's view: the next test's pins
     // CARD-5 (REQ-BFG-081, L), by design: SCRAPPER's face prints its scrap damage (key `scrap`), so its ⓘ LEVELS gain that
     // ladder ([30]/65/105 MORE {DMG}) and two op views move one bucket up: [8, 184, 98, 35] -> [8, 184, 96, 37]
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 184, 96, 37]);
+    // BUMP-1D (PLAIN_RIGS and SHAPES2 on), re-measured (361 panels: the twelve plain stat rigs' 36 cargo panels join, whose ⓘ views
+    // list their stat keywords and notes): op [8, 184, 96, 37] -> [8, 188, 122, 43], desk [3, 51, 106, 90, 68, 7] -> [3, 51, 109,
+    // 104, 81, 13]. U2f's view, the one the game draws, is the next test's pins
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 188, 122, 43]);
     // CARD-5 (L, by design): SCRAPPER's taller face (its scrap line) and LEVELS move three desk views a bucket: [3, 51, 106,
     // 87, 71, 7] -> [3, 51, 106, 90, 68, 7]
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 51, 106, 90, 68, 7]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 51, 109, 104, 81, 13]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -638,16 +643,19 @@ describe("U2f: the taller ⓘ view", () => {
 // held [142, 183], the same with the switch on (= shapes' side's; c099-card3 [143, 173]);
 // desk [315, 1] (c099-card3) -> [324, 1] (shapes' side [283, 42]). With SHAPES set off the merged tree reads c099-card3's
 // pins (REPORT 10). U2f's aims hold: op most on 1 page and none over 2, a rune held none over 3, desk none over 3
-const U2F_OP = [270, 55]; // CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
+// BUMP-1D (PLAIN_RIGS and SHAPES2 on), measured (361 panels: the twelve plain stat rigs' 36 cargo panels join): op [270, 55] -> [300, 61],
+// the worst rune held (and the same with the switch on) [142, 183] -> [145, 216], desk [324, 1] -> [357, 4]. U2f's aims hold: op most
+// on 1 page and none over 2, a rune held none over 3, desk none over 3
+const U2F_OP = [300, 61]; // BUMP-1D: was [270, 55]. CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
 // WORDS-1 (REQ-BFG-081), measured: the stat icons' and face words' notes list in the view, so with the worst rune's keywords
 // after them 82 views take a second page (was [304, 12]); none takes a third (U2f's aim: 3 at most with a rune held)
-const U2F_OP_RUNE = [142, 183]; // SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
+const U2F_OP_RUNE = [145, 216]; // BUMP-1D: was [142, 183]. SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
  *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
  *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). EXPLAIN-1: still the same (was [234, 82]). */
-const U2F_OP_RUNE_ON = [142, 183]; // SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
-const U2F_DESK = [324, 1]; // SHAPES-1 x c099-card3: was [315, 1] (SHAPES-1 flip: was [277, 39] -> [283, 42]; CARD-2 (K5): was [277, 39] -> [315, 1]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
+const U2F_OP_RUNE_ON = [145, 216]; // BUMP-1D: was [142, 183], still the same as RUNE_LIST's. SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
+const U2F_DESK = [357, 4]; // BUMP-1D: was [324, 1]. SHAPES-1 x c099-card3: was [315, 1] (SHAPES-1 flip: was [277, 39] -> [283, 42]; CARD-2 (K5): was [277, 39] -> [315, 1]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
 // the screen (the test above), but on the 1920x1080 desk WARD BELL's last KEYWORDS line (a held rune's HULL) drew partly
@@ -733,5 +741,6 @@ describe("FLIP-X1 N4-b: every line of every panel's ⓘ view is on screen", () =
       console.log(`N4-b, NUM-4's shot state, the switch ${on ? "on" : "off"}: ${n} views; past an edge: ${out.length}${out.length ? `\n${out.join("\n")}` : ""}`);
       expect(out, `the switch ${on ? "on" : "off"}`).toEqual([]);
     }
-  });
+  }, 120_000); // BUMP-1D (a load timeout, not the flip): 43 s with the sheet's 361 panels at host load ~16, against the global 30 s; its own
+  // limit, as the test above has since FLIP-X2: no check changed
 });

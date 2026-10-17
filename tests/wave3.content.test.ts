@@ -32,6 +32,8 @@ import { WAVE3_DESIGN, tagsFor } from "../tools/wave3";
 import { LADDER_DEFS, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): STOKER's fixed def
 import { SHAPES_IDS, isShapesPiece, withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the three shaped rigs follow sustain
 import { GUARD_DEFS, withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's guarded def
+import { PLAIN_RIG_IDS, isPlainRig, withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D (the flip, PLAIN_RIGS): the six plain stat rigs, after the sustain pieces in ITEMS
+import { SHAPES2_IDS, isShapes2Piece, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D (the flip, SHAPES2): the six more shaped rigs, last in ITEMS
 
 const FAMS: ModuleTag[] = ["FORGE", "HARASS", "SWARM", "BURST", "TEMPO", "TWIN", "PLATE"];
 const ids = (ds: { id: string }[]) => ds.map((d) => d.id);
@@ -78,10 +80,17 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
     // last 15)
     // SHAPES-1 flip: the three shaped rigs join ITEMS after every other def (shapes.ts), so wave 3 is the 15 before the
     // 3 sustain pieces and the 3 rigs (was slice(-15 - SUSTAIN_IDS.length, -SUSTAIN_IDS.length) and slice(-SUSTAIN_IDS.length))
-    const tail = SUSTAIN_IDS.length + SHAPES_IDS.length;
+    // BUMP-1D (the flip, PLAIN_RIGS and SHAPES2): the six plain stat rigs and the six more shaped rigs join ITEMS too. The load
+    // order is deck.ts's: plainRigs.ts first (right after the sustain pieces), then shapes.ts' three, then shapes2.ts' six, so
+    // the tail after wave 3 is the 3 sustain pieces, the 6 plain rigs, the 3 shaped rigs and the 6 more shaped rigs (was the
+    // 3 sustain pieces and the 3 rigs)
+    const nShaped = SHAPES_IDS.length, nShaped2 = SHAPES2_IDS.length, nPlain = PLAIN_RIG_IDS.length;
+    const tail = SUSTAIN_IDS.length + nPlain + nShaped + nShaped2;
     expect(Object.keys(ITEMS).slice(-15 - tail, -tail)).toEqual([...WAVE3_IDS]);
-    expect(Object.keys(ITEMS).slice(-tail, -SHAPES_IDS.length)).toEqual([...SUSTAIN_IDS]);
-    expect(Object.keys(ITEMS).slice(-SHAPES_IDS.length)).toEqual([...SHAPES_IDS]);
+    expect(Object.keys(ITEMS).slice(-tail, -(nPlain + nShaped + nShaped2))).toEqual([...SUSTAIN_IDS]);
+    expect(Object.keys(ITEMS).slice(-(nPlain + nShaped + nShaped2), -(nShaped + nShaped2))).toEqual([...PLAIN_RIG_IDS]);
+    expect(Object.keys(ITEMS).slice(-(nShaped + nShaped2), -nShaped2)).toEqual([...SHAPES_IDS]);
+    expect(Object.keys(ITEMS).slice(-nShaped2)).toEqual([...SHAPES2_IDS]);
     expect(Object.values(ITEMS).filter((d) => isWave3(d.id)).map((d) => d.id)).toEqual([...WAVE3_IDS]);
     expect(JSON.stringify(ITEMS)).toMatch(/plateroller/);
     expect(JSON.stringify(ITEMS)).toMatch(/seamwelder/);
@@ -90,11 +99,12 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
     // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): SIFTER dormant (-1), the 3 sustain pieces in (+3): 86 -> 88, and 71 -> 73
     // with wave 3 off
     // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL, the three shaped rigs: 88 -> 91, and 73 -> 76 with wave 3 off
-    expect(buyableModules()).toHaveLength(91);
+    // BUMP-1D: + the six plain stat rigs and the six more shaped rigs, twelve rigs: 91 -> 103, and 76 -> 88 with wave 3 off
+    expect(buyableModules()).toHaveLength(103);
     withWave3(() => {
       expect(Object.keys(ITEMS).filter(isWave3)).toEqual([]);
       expect(ids(buyableModules()).filter(isWave3)).toEqual([]);
-      expect(buyableModules()).toHaveLength(76); // SHAPES-1 flip: + the three shaped rigs (was 73)
+      expect(buyableModules()).toHaveLength(88); // SHAPES-1 flip: + the three shaped rigs (was 73); BUMP-1D: + twelve (was 76)
     }, false);
   });
 
@@ -104,22 +114,25 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
     // SHAPES-1 flip: the three shaped rigs, newer still, follow the sustain pieces (shapes.ts: after every other def), and
     // stay through wave 3's switch: the older entries, wave 3, sustain, the 3 rigs (was [...before, ...WAVE3_IDS,
     // ...SUSTAIN_IDS], with no rig in `before`); the counts + 3 (was 73 / 88 / 73 / 88)
-    const all = Object.keys(ITEMS), before = all.filter((id) => !isWave3(id) && !isSustain(id) && !isShapesPiece(id));
-    expect(all).toEqual([...before, ...WAVE3_IDS, ...SUSTAIN_IDS, ...SHAPES_IDS]); // ITEMS order: the older entries first, unchanged
+    // BUMP-1D: the six plain stat rigs (after the sustain pieces) and the six more shaped rigs (last) stay through wave 3's
+    // switch too: the older entries, wave 3, sustain, the 6 plain rigs, the 3 rigs, the 6 more rigs (was [...before,
+    // ...WAVE3_IDS, ...SUSTAIN_IDS, ...SHAPES_IDS]); the counts + 12 (was 76 / 91 / 76 / 91)
+    const all = Object.keys(ITEMS), before = all.filter((id) => !isWave3(id) && !isSustain(id) && !isShapesPiece(id) && !isPlainRig(id) && !isShapes2Piece(id));
+    expect(all).toEqual([...before, ...WAVE3_IDS, ...SUSTAIN_IDS, ...PLAIN_RIG_IDS, ...SHAPES_IDS, ...SHAPES2_IDS]); // ITEMS order: the older entries first, unchanged
     withWave3(() => {
       expect(wave3Live()).toBe(false);
-      expect(Object.keys(ITEMS)).toEqual([...before, ...SUSTAIN_IDS, ...SHAPES_IDS]);
-      expect(buyableModules()).toHaveLength(76); // FLIP-X2: 71 - SIFTER + the 3 sustain pieces (was 71); SHAPES-1 flip: + 3 rigs
+      expect(Object.keys(ITEMS)).toEqual([...before, ...SUSTAIN_IDS, ...PLAIN_RIG_IDS, ...SHAPES_IDS, ...SHAPES2_IDS]);
+      expect(buyableModules()).toHaveLength(88); // FLIP-X2: 71 - SIFTER + the 3 sustain pieces (was 71); SHAPES-1 flip: + 3 rigs; BUMP-1D: + 12 (was 76)
       expect(ids(buyableModules()).filter(isWave3)).toEqual([]);
       for (const id of WAVE3_IDS) expect(ids(itemsSoldBy(ITEMS[id].merchant!)), id).not.toContain(id);
-      withWave3(() => expect(buyableModules()).toHaveLength(91)); // nested: on for one call, back off after (FLIP-X2: was 86)
-      expect(buyableModules()).toHaveLength(76);
+      withWave3(() => expect(buyableModules()).toHaveLength(103)); // nested: on for one call, back off after (FLIP-X2: was 86; BUMP-1D: was 91)
+      expect(buyableModules()).toHaveLength(88);
     }, false);
     expect(wave3Live()).toBe(true);
     expect(Object.keys(ITEMS)).toEqual(all);
     expect(() => withWave3(() => { throw new Error("boom"); }, false)).toThrow("boom");
     expect(wave3Live()).toBe(true);
-    expect(buyableModules()).toHaveLength(91); // FLIP-X2: was 86; SHAPES-1 flip: + the three shaped rigs (was 88)
+    expect(buyableModules()).toHaveLength(103); // FLIP-X2: was 86; SHAPES-1 flip: + the three shaped rigs (was 88); BUMP-1D: + twelve (was 91)
   });
 
   it("the upload check takes a wave-3 part with the switch on, and refuses it while the switch is off", () => {
@@ -161,7 +174,11 @@ describe("the 15 entries are D1's (DESIGN-wave3.md 3.1)", () => {
     // - the dormant SIFTER (was ironmonger 13, tinker 13); wave 3's own adds above are unchanged
     // SHAPES-1 flip: + SPIKE RAIL (TINKER) and NAIL STRIP and EMBER TROUGH (ALCHEMIST), on both sides of wave 3's switch, so
     // the adds above hold (was tinker 14, alchemist 9)
-    expect(on).toEqual({ ironmonger: 14, tinker: 15, alchemist: 11, gunsmith: 27, scrapper: 8, quartermaster: 7, arcane: 9 });
+    // BUMP-1D: + the six plain stat rigs and the six more shaped rigs, on both sides of wave 3's switch (the adds above hold):
+    // IRONMONGER + SCALE GUARD, ELBOW GUARD (14 -> 16), TINKER + GRINDSTONE (15 -> 16), ALCHEMIST + RASP, BRANDING IRON, CINDER
+    // HOOK (11 -> 14), GUNSMITH + SAW BAR (27 -> 28), SCRAPPER + SPARK GAP, JAW CRUSHER (8 -> 10), QUARTERMASTER + BALLAST,
+    // PICKAXE (7 -> 9), ARCANE DEALER + SPARK COMB (9 -> 10)
+    expect(on).toEqual({ ironmonger: 16, tinker: 16, alchemist: 14, gunsmith: 28, scrapper: 10, quartermaster: 9, arcane: 10 });
   });
 });
 
@@ -173,7 +190,10 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
     // sustain pieces' own families (BOTS-X's tags in content.ts) are checked after, with the switch on
     // SHAPES-1 flip: D1's catalogue has no shaped rig either, so the map check also runs with shapes off for the call
     // (withShapes(fn, false)); the three rigs' own families are checked after, with every switch on
-    for (const on of [false, true]) withShapes(() => withSustain(() => withWave3(() => {
+    // BUMP-1D: D1's catalogue has none of the twelve rigs PLAIN_RIGS and SHAPES2 add either, so the map check also runs with
+    // both off for the call (withPlainRigs(fn, false), withShapes2(fn, false)); their own families are checked after, with every
+    // switch on. The nesting puts the switches back in ITEMS order (plain rigs, the three rigs, the six more rigs)
+    for (const on of [false, true]) withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(() => withWave3(() => {
       const all = buyableModules();
       expect(all).toHaveLength(on ? 85 : 70);
       for (const d of all) {
@@ -182,16 +202,24 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
         for (const f of t) expect(FAMS).toContain(f);
         expect([...t].sort(), d.id).toEqual([...map[d.id]].sort());
       }
-    }, on), false), false);
+    }, on), false), false), false), false);
     // FLIP-X2: with the switch on (the default now) the buyable modules are D1's and the 3 sustain pieces, each with 1-3
     // distinct families of the seven: WARD BELL and MENDING LOOM PLATE, MEND PRESS PLATE and SWARM
     // SHAPES-1 flip: and the three shaped rigs (shapes.ts SHAPES_ITEMS), after them: NAIL STRIP and EMBER TROUGH FORGE,
     // SPIKE RAIL FORGE and BURST (was the 3 sustain pieces alone)
+    // BUMP-1D: and the six plain stat rigs (plainRigs.ts PLAIN_DEFS) after the sustain pieces, the six more shaped rigs
+    // (shapes2.ts SHAPES2_DEFS) after the three: RASP FORGE, SPARK GAP HARASS, SCALE GUARD PLATE and FORGE, BALLAST PLATE,
+    // GRINDSTONE FORGE and BURST, BRANDING IRON FORGE; ELBOW GUARD PLATE, SAW BAR FORGE, SPARK COMB HARASS, CINDER HOOK FORGE,
+    // JAW CRUSHER and PICKAXE FORGE and BURST
     expect(buyableModules().filter((d) => !(d.id in map)).map((d) => [d.id, d.tags])).toEqual([
       ["wardbell", ["PLATE"]], ["mendpress", ["PLATE", "SWARM"]], ["mendingloom", ["PLATE"]],
+      ["rasp", ["FORGE"]], ["sparkgap", ["HARASS"]], ["scaleguard", ["PLATE", "FORGE"]], ["ballast", ["PLATE"]],
+      ["grindstone", ["FORGE", "BURST"]], ["brandingiron", ["FORGE"]],
       ["nailstrip", ["FORGE"]], ["embertrough", ["FORGE"]], ["spikerail", ["FORGE", "BURST"]],
+      ["elbowguard", ["PLATE"]], ["sawbar", ["FORGE"]], ["sparkcomb", ["HARASS"]], ["cinderhook", ["FORGE"]],
+      ["jawcrusher", ["FORGE", "BURST"]], ["pickaxe", ["FORGE", "BURST"]],
     ]);
-    for (const id of SHAPES_IDS) {
+    for (const id of [...SHAPES_IDS, ...PLAIN_RIG_IDS, ...SHAPES2_IDS]) {
       const t = ITEMS[id].tags ?? [];
       expect(t.length >= 1 && t.length <= 3 && new Set(t).size === t.length && t.every((f) => FAMS.includes(f)), id).toBe(true);
     }
@@ -208,14 +236,19 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
     // MEND PRESS (PLATE, SWARM) in: FORGE 23 -> 22, HARASS 19 -> 18, SWARM 24 -> 25, PLATE 14 -> 16 (still 14-25)
     // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH (FORGE) and SPIKE RAIL (FORGE, BURST): FORGE 22 -> 25, BURST 25 -> 26 (one
     // over D1 3.5's 25; was { FORGE: 22, ..., BURST: 25, ... })
-    expect(size).toEqual({ FORGE: 25, HARASS: 18, SWARM: 25, BURST: 26, TEMPO: 23, TWIN: 18, PLATE: 16 });
+    // BUMP-1D: + the six plain stat rigs and the six more shaped rigs (tags in plainRigs.ts and shapes2.ts): FORGE + RASP, SCALE
+    // GUARD, GRINDSTONE, BRANDING IRON, SAW BAR, CINDER HOOK, JAW CRUSHER, PICKAXE (25 -> 33), HARASS + SPARK GAP, SPARK COMB
+    // (18 -> 20), BURST + GRINDSTONE, JAW CRUSHER, PICKAXE (26 -> 29), PLATE + SCALE GUARD, BALLAST, ELBOW GUARD (16 -> 19);
+    // SWARM, TEMPO and TWIN as they were (FORGE and BURST are over D1 3.5's 25; the bound is not asserted, as since SHAPES-1)
+    expect(size).toEqual({ FORGE: 33, HARASS: 20, SWARM: 25, BURST: 29, TEMPO: 23, TWIN: 18, PLATE: 19 });
     for (const f of t.families) expect(f.kinds.length, f.tag).toBeGreaterThanOrEqual(4);
     // with the switch off the same tags read 7 families too (TWIN and PLATE on the older modules: 13 and 5)
     // FLIP-X2: the same moves with wave 3 off: FORGE 19 -> 18, HARASS 18 -> 17, SWARM 20 -> 21, PLATE 5 -> 7
     // SHAPES-1 flip: the three rigs stay with wave 3 off: FORGE 18 -> 21, BURST 23 -> 24
+    // BUMP-1D: the twelve stay with wave 3 off: FORGE 21 -> 29, HARASS 17 -> 19, BURST 24 -> 27, PLATE 7 -> 10
     const off = withWave3(() => familyTable(), false);
     expect(Object.fromEntries(off.families.map((f) => [f.tag, f.members.length])))
-      .toEqual({ FORGE: 21, HARASS: 17, SWARM: 21, BURST: 24, TEMPO: 19, TWIN: 13, PLATE: 7 });
+      .toEqual({ FORGE: 29, HARASS: 19, SWARM: 21, BURST: 27, TEMPO: 19, TWIN: 13, PLATE: 10 });
   });
 });
 
@@ -223,8 +256,11 @@ describe("the SMUGGLER picks by effect (DESIGN-wave3.md 2.5)", () => {
   it("the same six rigs as v070-rc, switch off and on, and no wave-3 rig in either pool", () => {
     // SHAPES-1 flip: + EMBER TROUGH (gate { burn: 1 }: SMUGGLER_EFFECT.BURN reads its 1-star burn) on both sides of wave
     // 3's switch, after the six (catalogue order); still no wave-3 rig (was ["temper", "bellows", "quench"])
+    // BUMP-1D: + RASP (gate { burn: 1 } from ★1; RASP's BURN is the pool's rule since PLAIN_RIGS is on), before EMBER TROUGH
+    // (catalogue order: the six plain rigs come before the three shaped ones); BRANDING IRON and CINDER HOOK burn from ★2
+    // only, so not those (was ["temper", "bellows", "quench", "embertrough"])
     for (const on of [false, true]) withWave3(() => {
-      expect(smugglerPool("BURN"), `on=${on}`).toEqual(["temper", "bellows", "quench", "embertrough"]);
+      expect(smugglerPool("BURN"), `on=${on}`).toEqual(["temper", "bellows", "quench", "rasp", "embertrough"]);
       expect(smugglerPool("SHOCK"), `on=${on}`).toEqual(["coil", "staticbrush", "lodestone"]);
     }, on);
     for (const id of WAVE3_IDS) {

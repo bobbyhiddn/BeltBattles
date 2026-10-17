@@ -318,7 +318,9 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
     // SHAPES-1 flip: the three shaped plain rigs' rig cases join: NAIL STRIP and EMBER TROUGH (I: 1hit, idle) 12 each and
     // SPIKE RAIL (II: 1hit, 2hit, idle) 18 (3 stars x 2 spares a layout): 522 + 42 = 564; every case fits, as before (cut 0).
     // PANELS 1980 -> 2049: their 69 (the 42, 18 in cargo, 9 on offer)
-    expect([counts.rig, counts.cases]).toEqual([564, PANELS.length]);
+    // BUMP-1D (PLAIN_RIGS and SHAPES2 on), measured: 744 (was 564): the six plain stat rigs' and the six more shaped rigs' rig
+    // cases join, 180 (12 x 15); every case fits, as before (cut 0); PANELS.length is the sweep's own count
+    expect([counts.rig, counts.cases]).toEqual([744, PANELS.length]);
     expect(counts.flavourWhole + counts.flavourAbsent).toBe(counts.cases);
     console.log(`T6 phone fit: ${JSON.stringify(counts)}`);
   });
@@ -891,7 +893,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // SHAPES-1 x c099-card3 (RUN5 2: the merge of c099-card3-accepted into shapes1), measured on the merged tree: 2021 (was
     // c099-card3's 1952): the three shaped plain rigs' 69 desk panels join, each with its hint and each showing it; the 61
     // missing are c099-card3's 61 name for name (the test's F4 log line, diffed against ref/c099card3/logs/suite-957b034.log)
-    expect([withHint, missing.length]).toEqual([2021, 61]);
+    // BUMP-1D (PLAIN_RIGS and SHAPES2 on), measured: 2309 (was 2021): the six plain stat rigs' and the six more shaped rigs' 288
+    // desk panels join (12 x 24), each with its hint and each showing it; the 61 missing are the same count
+    expect([withHint, missing.length]).toEqual([2309, 61]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -961,7 +965,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // name): SHIELD-FED is shorter (its ★3 title 74 px, was 91), so 2 more of its phone panels have room for the hint.
     // PLAIN-1F (M8, the cold read's pick), measured: still 1075: SHIELD FUEL's ★3 title is 79 px, still under PLATE
     // BREAKER's 91, and the same 2 panels keep the hint
-    expect(hints).toBe(1075);
+    // BUMP-1D (PLAIN_RIGS and SHAPES2 on), measured: 1249 (was 1075): the twelve plain stat rigs' phone panels that keep the hint
+    // join, 174 more; no other count moves
+    expect(hints).toBe(1249);
   });
 });
 

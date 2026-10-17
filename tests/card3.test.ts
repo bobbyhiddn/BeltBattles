@@ -522,7 +522,9 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
     // TROUGH and SPIKE RAIL join the buyable modules with SHAPES on, 13 panels each (an offer, and at each star a cargo panel
     // and 3 placed ones), as explain1, space1, zoom1 and zoom count them: 899 + 39 = 938, measured on the merged tree (the
     // 720 floor and the 5-point rule below keep their point; run 6's measured counts: REPORT-SHAPES1 "Run 6")
-    expect(all.length).toBe(938);
+    // BUMP-1D: the six plain stat rigs and the six more shaped rigs join the buyable modules, 13 panels each (an offer, and at each
+    // star a cargo panel and 3 placed ones): 938 + 12 x 13 = 1094
+    expect(all.length).toBe(1094);
     const counts: Record<string, number> = {};
     for (const mode of ["done", "new"] as const) {
       setTipsForTests(mode);

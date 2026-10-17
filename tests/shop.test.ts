@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { buyOffer, migrateRun, newRun, rollShop, RUN_VERSION, shopBadge, type Run } from "../src/game/run";
 import { mergePreview } from "../src/game/fuse";
+import { unlocked } from "../src/game/wares"; // BUMP-1D: the familiar-rate test's condition (the part is one of the run's wares)
 import { ITEMS, OFFERS, itemsSoldBy, type ItemDef, type MerchantId } from "../src/sim/content";
 
 /**
@@ -116,6 +117,11 @@ describe("shop: the familiar slot", () => {
       rollShop(run);
       const merchants = run.shop.wagons.map((w) => w.merchant);
       if (!merchants.includes("tinker")) continue;
+      // BUMP-1D: and GREASE is a ware of the run open on day 5. The per-run draw holds 62 of the catalogue's 103 modules now (was
+      // 91), so GREASE is no ware in more runs, and a held part outside the run's wares is never echoed (tests/wares.test.ts): the
+      // rate over every caravan with the TINKER fell to 0.277, under the band's floor 0.3, with the familiar chance itself
+      // unchanged. Conditioned on the part being a ware, the rate is the design's 50% again (the band below is as it was)
+      if (!unlocked(run, "grease", 5)) continue;
       withTinker++;
       const hits = run.shop.wagons.flatMap((w) => w.offers).filter((o) => o.def === "grease").length;
       expect(hits).toBeLessThanOrEqual(1); // at most one familiar slot per caravan

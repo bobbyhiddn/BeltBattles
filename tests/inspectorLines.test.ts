@@ -24,6 +24,7 @@ import { fmtSpeed } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): a stamp
 import { DISRUPT_TIME, WINDOW_TIME } from "../src/sim/content"; // NUM-3 step 2: HOT SWAP's spark STUN, ROTARY's load time
 import { stripIcons } from "../src/render/font"; // Y1: COIL's one line, read as text
 import { RIDE_KEEP, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's ride-keep words, and off
+import { isShapes2Piece } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2's six more shaped rigs (no SHAPED_HITS row)
 
 // 0.6.1r (review-061 F5, N2, N4) and after: the inspector's ability, next-star, merge-progress and MERGES WITH lines.
 // 0.6.2t (REQ-BFG-032): they read as whole sentences from the glossary (src/ui/abilityText.ts): "NEXT STAR: ADDS 4 BURN.",
@@ -89,7 +90,8 @@ describe("U2e step 1 (was N2 / T5): no panel draws merge progress", () => {
     // lists them now); the dormant SIFTER stays an ITEMS entry, fusible (old decks hold it): 86 -> 89
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL (src/sim/shapes.ts SHAPES_ITEMS) are in ITEMS with SHAPES on,
     // fusible as any rig: 89 -> 92
-    expect(fus).toHaveLength(92);
+    // BUMP-1D: the six plain stat rigs (PLAIN_RIGS) and the six more shaped rigs (SHAPES2) are in ITEMS, fusible as any rig: 92 -> 104
+    expect(fus).toHaveLength(104);
     let panels = 0, lines = 0;
     for (const def of fus) {
       const d = ITEMS[def];
@@ -436,14 +438,21 @@ describe("P11: a rig's panel order, and the phone band", () => {
   it("phone: every buyable rig's hits (or IDLE), ability text, perk, next star and merge progress show whole", () => {
     const rigs = buyableModules().filter((d) => d.kind === "gate").map((d) => d.id);
     // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL with SHAPES on, 30 -> 33
-    expect(rigs).toHaveLength(33); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23); FLIP-X2: SIFTER dormant, 31 -> 30
+    // BUMP-1D: + the six plain stat rigs and the six more shaped rigs, 33 -> 45
+    expect(rigs).toHaveLength(45); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23); FLIP-X2: SIFTER dormant, 31 -> 30
     const band = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
     let cases = 0, nextCases = 0;
     for (const def of rigs) {
       for (const s of [1, 2, 3]) for (const [lay, x, y, rot, want, extra] of layouts(def)) for (const spare of [0, 1]) {
         const id = `${def} ★${s} ${lay} spare${spare}`;
         const rp = rigPanel(rigRun(def, s, x, y, rot, spare, extra), 10)!;
-        expect(rp.idle ? 0 : rp.body.filter((b) => b.role === "hits").length, `${id}: hits`).toBe(SHAPED_HITS[def]?.[lay] ?? want); // SHAPES-1 flip: a long rig's hits (SHAPED_HITS)
+        // BUMP-1D: SHAPES2's six more shaped rigs (L3, I3, I2, 2x2 and T4 feet) have no SHAPED_HITS row: `want` is the 1-cell rig's
+        // count for the layout, which a footprint does not make (ELBOW GUARD's 1hit layout draws no hits block, not idle). Their
+        // hits block is a long rig's, ONE line at most (PLAIN-1F M4, as the three above); the exact per-layout rows belong to
+        // SHAPES-2's own layouts (tests/shapes2.*), so they are held to "one line at most" here and to the phone fit below
+        const hitsBlocks = rp.idle ? 0 : rp.body.filter((b) => b.role === "hits").length;
+        if (isShapes2Piece(def)) expect(hitsBlocks, `${id}: hits`).toBeLessThanOrEqual(1);
+        else expect(hitsBlocks, `${id}: hits`).toBe(SHAPED_HITS[def]?.[lay] ?? want); // SHAPES-1 flip: a long rig's hits (SHAPED_HITS)
         // PLAIN-1F (M4): the one line still names every hit's tile (the arrows line says how many: RIG · x/n ARROWS ON BELTS)
         if (HITS_OF[def]?.[lay] && !rp.idle) expect(rp.sub, `${id}: sub`).toMatch(new RegExp(`^RIG · ${HITS_OF[def][lay]}/\\d+ ARROWS ON BELTS$`));
         const plan = planPanel(rp, band);
@@ -460,7 +469,9 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // view's LEVELS hold it), so none of the 534 has one (was 356, the ★1 and ★2 cases)
     // SHAPES-1 flip: the three shaped rigs' cases join: NAIL STRIP and EMBER TROUGH (I: 1hit, idle) 12 each, SPIKE RAIL (II:
     // 1hit, 2hit, idle) 18, 3 stars x 2 spares each layout: 522 + 42 = 564, none with a next-star line
-    expect([cases, nextCases]).toEqual([564, 0]); // FLIP-X2: SIFTER dormant, its 12 rig cases leave (was 534)
+    // BUMP-1D, measured: the twelve plain stat rigs' cases join, 180 (12 x 15): 564 + 180 = 744, none with a next-star line, every
+    // case fits (the phone-fit asserts above)
+    expect([cases, nextCases]).toEqual([744, 0]); // FLIP-X2: SIFTER dormant, its 12 rig cases leave (was 534)
   });
 
   it("the desktop column keeps the full text in the 5x7 face: the laptop's column (1366x768: text 109 px)", () => {
