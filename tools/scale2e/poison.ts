@@ -86,7 +86,8 @@ const healB = bases.map((x) => ({ ...x, d: assemble(x.hero, x.b, [["venom", 2], 
 const walls: Build[] = [];
 for (let i = 0; i < fields.get("bastion")!.length && walls.length < KW; i++) {
   const b = fields.get("bastion")![i];
-  const w = assemble("bastion", b, [["plateroller", 2], ["armorpress", 1]], `W|${i}`);
+  // a BASTION par deck that already runs an ARMOR PRESS gets the two rollers only; one without gets the press too
+  const w = assemble("bastion", b, holds(b, ["armorpress"]) ? [["plateroller", 2]] : [["plateroller", 2], ["armorpress", 1]], `W|${i}`);
   if (w) walls.push(w);
 }
 const burns: Build[] = [];
