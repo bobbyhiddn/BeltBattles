@@ -9,6 +9,7 @@ import { drawTurretIcon } from "./turretIcon"; // 0.6.2s (REQ-BFG-031)
 import { drawFactoryArt, drawFactoryIcon } from "./factoryArt"; // 0.6.1c: the wave-1 factories
 import { raceFactoryArt } from "./raceArt"; // 0.8.0 H1: CRUCIBLE and WARDWORKS
 import { drawWave3Gate, drawWave3Icon, wave3FactoryArt } from "./wave3Art"; // 0.8.0 A1: wave 3's 15 modules
+import { drawScaleGate } from "./scaleArt"; // ART-1E (REQ-BFG-098): the seven new scaling rigs' own art
 import { beltStyle, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook: belt styles
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
@@ -368,16 +369,8 @@ export function rigTip(d: number, st: ArrowState): Cv {
   });
 }
 
-/** SCALE-2c (REQ-BFG-098; BRIEF-SCALE2c section 2, cap's F4): the seven new scaling rigs' stand-in art, ref/scale1/data/
- *  rigs.json's `artFrom`: each draws that live rig's picture (its deck sprite, its icon's idle frame) until its own is made.
- *  Asked for only with SCALE_RIGS on (the ids are in ITEMS only then). LEECH COIL draws RIVETER's. */
-export const SCALE_ART_FROM: Readonly<Record<string, string>> = {
-  cindermail: "plateroller", rotgauge: "heatjacket", leechcoil: "riveter", crowdpress: "pincer", aegisspike: "braceframe",
-  grudgerod: "counterweight", trophychain: "overclocker",
-};
-
 function drawGate(g: G, id: string, f: number, active: boolean): void {
-  if (Object.prototype.hasOwnProperty.call(SCALE_ART_FROM, id)) id = SCALE_ART_FROM[id]; // SCALE-2c: the stand-in art
+  if (drawScaleGate(g, id, f, active)) return; // ART-1E
   switch (id) {
     case "venom": {
       bevel(g, 1, 1, 10, 10, C.green, C.lime, C.oil0, C.ink);
