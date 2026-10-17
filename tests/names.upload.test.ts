@@ -223,12 +223,18 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
       const foe = storedFoe(run)!;
       expect(foe).toMatchObject({ kind: "ghost", source: "online" });
       expect(foe.record!.name).toBeUndefined();
-      expect(foeTitle(foe)).toBe(`${WANDERER} · ${foe.record!.wins}-${2 - foe.record!.wins}`);
+      // BUMP-1D: the title reads the ghost's STATED losses (b4b8dd4: DuskFoe.record.losses, copied from a snapshot that states it; every
+      // seed ghost of the long run does), the old derived 2 - wins only where the record has none (was `${wins}-${2 - wins}`, which is
+      // wrong for a record holding draws)
+      expect(foeTitle(foe)).toBe(`${WANDERER} · ${foe.record!.wins}-${foe.record!.losses ?? 2 - foe.record!.wins}`);
       // no answer (or a fallback): the day's stand-in captain, by its own name
       const stand = onlineFoe(runAt("weaver", 5, 2, 1, 5), null);
       expect(stand.kind).toBe("standin");
       expect(foeTitle(stand)).toBe(standInFoe(5, 2).name);
-    });
+      // BUMP-1D (test only, time limit only, no assertion moves): 600 s, the GATE RULE's limit for a reader of the pool generators (tests/net-pool.test.ts
+      // carries the same). The first sampleGhosts() + floorGhosts() of the process now plays the long run's casual floor runs (16 days, FLOOR_PICKS): ~21 s
+      // alone, 29.2 s (a hair under the 30 s testTimeout of vite.config.ts) in the 12:59Z whole-suite run, over it under a heavier load
+    }, 600_000);
   });
 });
 
@@ -246,7 +252,10 @@ describe("ghosts:admin revalidate: an upload under this build's rules needs its 
     // runes under bb-0.6.1, which the rules gate refuses: runes need bb-0.8.7); no runes, so no rune hull/belt and no seed
     // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and no road log, v3 only and
     // gated by NPC_DAY's rules ("snapshot.road: not allowed in a v2 snapshot")
-    const { seed: _seed, road: _road, ...rest } = s;
+    // BUMP-1D: and no stated losses, a v3 field too (the seed pool is the long run's now, bb-0.11.0: every ghost states its losses; live only
+    // under a long run's rules, src/net/snapshot.ts v3LiveFor; "snapshot.losses: not allowed in a v2 snapshot" at ghostId), the older
+    // client's deck stated none (was { seed, road, ...rest })
+    const { seed: _seed, road: _road, losses: _losses, ...rest } = s;
     // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): s's deck (furnace d1 variant 0) is a
     // par-field run's dusk deck now, which holds the starting turret (build.turrets), and bb-0.6.1 predates turret slots
     // (bb-0.6.2): the older client's deck held none, so the copy drops them too (was { runes, ...build }: "rules bb-0.6.1

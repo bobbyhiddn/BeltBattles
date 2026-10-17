@@ -293,7 +293,10 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
       await app.store.replacePool(OLD_RULES, []);
     }
     expect(await app.store.bucket(OLD_RULES, 3)).toEqual([]);
-  });
+    // BUMP-1D (test only, time limit only, no assertion moves): 600 s, the GATE RULE's limit for a reader of the pool generators (tests/net-pool.test.ts
+    // carries the same). The first sampleGhosts() + floorGhosts() of the process now plays the long run's casual floor runs (16 days, FLOOR_PICKS): ~20 s
+    // alone (twice, green), 32.3 s in the 12:59Z whole-suite run: red there against the 30 s testTimeout of vite.config.ts (this file was the same then)
+  }, 600_000);
 });
 
 describe("offline play makes no request (no server URL)", () => {
