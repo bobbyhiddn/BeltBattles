@@ -2327,12 +2327,16 @@ async function gateSplitView(browsers, origin, vname) {
     await sleep(200);
   };
   await openDeck(page, GATE_DECK);
-  const kv = await kview(page), cellCss = 12 * kv.k;
-  log(`[${at()}] ${V}: a deck cell is ${cellCss.toFixed(1)} CSS px (${kv.k.toFixed(3)} CSS px per logical px)`);
+  const kv = await kview(page);
+  const tile = await cell(page, 4, 3), tile2 = await cell(page, 4, 4), from = await slot(page, 0);
+  // a deck cell in CSS px, measured between two neighbouring cell centres (the phone's carrier is zoomed, ZOOM-1: not 12 x k)
+  const cellCss = Math.hypot(tile.x - tile2.x, tile.y - tile2.y);
+  log(`[${at()}] ${V}: a deck cell is ${cellCss.toFixed(1)} CSS px (${kv.k.toFixed(3)} CSS px per logical px before the carrier's zoom)`);
   const base = await state();
-  const tile = await cell(page, 4, 3), from = await slot(page, 0);
   const lift = touch ? 2 * cellCss : 0; // fingerLift for a 1x1: half its height plus 1.5 cells; a mouse has none
   const into = (dx, dy = 0) => ({ x: tile.x + dx, y: tile.y + lift + dy });
+  // a logical cell of the deck (the desk's deck is turned: the belt runs along the screen's x there, so offsets go by cell, not by pixel)
+  const intoCell = async (cx, cy) => { const c = await cell(page, cx, cy); return { x: c.x, y: c.y + lift }; };
   const drop = async (pt) => { // a fresh board, the drag from cargo to pt, released
     await openDeck(page, GATE_DECK);
     if (touch) await drag(cdp, [from, pt], true); else await mdrag(from, pt);
@@ -2357,13 +2361,14 @@ async function gateSplitView(browsers, origin, vname) {
     `${V}: dropped on the belt tile (4, 3) the FUSER stands on it (${JSON.stringify(s.at)}); the belt is one route with the same ${s.routes[0].split(",").length} tiles as before; cargo is empty`);
   await shot(page, `${vname}-gatesplit-dropped.png`);
   // (2) a cell beside the belt: a mouse is refused (no snap); a finger one cell off snaps to the belt (the catch)
-  const beside = await drop(into(cellCss));
+  const beside = await drop(await intoCell(5, 3)); // one cell beside the belt (the belt runs up column 4)
   if (touch) check(!!beside.at && beside.at[0] === 4 && beside.at[1] === 3, `${V}: a finger ONE cell beside the belt snaps to the nearest belt tile and the FUSER stands on (4, 3) (${JSON.stringify(beside.at)})`);
   else check(!beside.at && beside.cargo.includes("fuser"), `${V}: a click one cell beside the belt is refused (no snap for a mouse): the FUSER stays in cargo (${JSON.stringify(beside.at)})`);
   // (3) three cells off: nothing in reach on either input: the gate stays in cargo, with the reason
   await openDeck(page, GATE_DECK);
   const t0 = await page.evaluate(() => window.bb.game.toastLog.length);
-  if (touch) await drag(cdp, [from, into(3 * cellCss)], true); else await mdrag(from, into(3 * cellCss));
+  const far = await intoCell(7, 3); // three cells beside the belt
+  if (touch) await drag(cdp, [from, far], true); else await mdrag(from, far);
   await nextFrame(page);
   s = await state();
   const said = await toastsSince(page, t0);
@@ -2377,15 +2382,15 @@ async function gateSplitView(browsers, origin, vname) {
       if (r.at && r.at[0] === 4 && r.at[1] === 3) landed.push(dx);
     }
     const lo = landed.length ? Math.min(...landed) : 0, hi = landed.length ? Math.max(...landed) : 0, width = landed.length ? hi - lo + 3 : 0;
-    log(`[${at()}] ${V}: the CATCH: the drop lands on the belt tile for a finger from ${lo} to ${hi} CSS px of its column's centre: ${width} CSS px wide (a cell is ${cellCss.toFixed(1)} CSS px; the brief's catch is about 60)`);
-    check(width >= 57 && width <= 69, `${V}: the catch is ${width} CSS px wide (3 cells of ${cellCss.toFixed(1)}: at least 57, at most 69), sampled every 3 CSS px, at least a finger's 44 CSS px`);
+    log(`[${at()}] ${V}: the CATCH: the drop lands on the belt tile for a finger from ${lo} to ${hi} CSS px of its column's centre: ${width} CSS px wide (a cell is ${cellCss.toFixed(1)} CSS px; the brief's catch of about 60 assumed 20 px cells: the snap is 1 cell each side, so 3 cells)`);
+    check(Math.abs(width - 3 * cellCss) <= 3 && width >= TAP_CSS, `${V}: the catch is ${width} CSS px wide (3 cells of ${cellCss.toFixed(1)} = ${(3 * cellCss).toFixed(1)}, sampled every 3 CSS px), at least a finger's 44 CSS px`);
   }
   // (5) a placed gate: a tap (a click) opens its panel; TO CARGO and SELL are targets, no ROTATE; SELL puts the belt whole
   await openDeck(page, GATE_PLACED);
   await press(page, cdp, tile);
   const l = await look(page);
   check(l.sel.kind === "item" && l.sel.uid === 30 && shown(l, "FUSER") && /^GATE/.test(l.panel.sub ?? ""), `${V}: ${touch ? "a tap" : "a click"} on the placed FUSER opens its panel (${l.panel ? `${pdesc(l)} · ${l.panel.sub}; buttons ${JSON.stringify(l.panel.labels)}` : `${JSON.stringify(l.sel)}, no panel`})`);
-  const store = await region(page, "store"), sell = await region(page, "sell"), rot = await region(page, "rotate");
+  const store = await region(page, "store"), sell = await region(page, "sellpart"), rot = await region(page, "rotate"); // a placed piece's touch SELL is "sellpart" (inspector.ts)
   check(!!store && (!touch || store.h >= TAP_CSS) && !rot && (!touch || (!!sell && sell.h >= TAP_CSS)), `${V}: TO CARGO ${store ? `${store.w.toFixed(1)}x${store.h.toFixed(1)}` : "missing"}${touch ? `, SELL ${sell ? `${sell.w.toFixed(1)}x${sell.h.toFixed(1)}` : "missing"}` : ""} CSS px, no ROTATE (a gate has no arrows)`);
   await shot(page, `${vname}-gatesplit-panel.png`);
   const g0 = (await state()).gold;
