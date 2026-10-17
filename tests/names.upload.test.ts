@@ -84,9 +84,11 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
   /** A day-1 dusk of `me` (0W, 10 hearts), its own runId each time, with `name` (absent when undefined). FLIP-X2: its deck
    *  holds day 1's rune, so it travels as v3 (was the rune-less v2 deck, which the exact count now refuses).
    *  HULL-ON (the flip, HEARTS): 5 lives -> HEARTS_START (10): day 1's one reachable record under this build's rules is
-   *  0W 10 hearts (POST answered 422 "record: 0W 5 lives is no record a run carries into dusk 1"). */
+   *  0W 10 hearts (POST answered 422 "record: 0W 5 lives is no record a run carries into dusk 1").
+   *  BUMP-1D (LONG_RUN ships on): and `losses: 0`, the dusks lost before day 1's: this build's rules (bb-0.11.0) are a long run's,
+   *  whose upload states them (server/app.ts lossesProblem: 422 "losses: ..." after the name check, so a named dusk was refused). */
   const dusk = (name?: unknown): Record<string, unknown> => ({
-    v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: 1, wins: 0, lives: HEARTS_START, build: withDawnRunes(heroStartBuild("furnace"), 1),
+    v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: 1, wins: 0, lives: HEARTS_START, losses: 0, build: withDawnRunes(heroStartBuild("furnace"), 1),
     runId: `names-${k++}`, playerId: me.playerId, createdAt: T0, ...(name === undefined ? {} : { name }),
   });
   /** POST exactly this JSON, signed by `me`. */
@@ -142,7 +144,9 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
     // (this build's dusk holds a rune, which the decoder's rules gate refuses under bb-0.8.3 with a 400, before this check)
     // HULL-ON (the flip, HEARTS): and on its own rules' 5-lives scale (START_LIVES): dusk() now carries 10 hearts, which the
     // decoder's lives bound for bb-0.8.3 (1..9) refuses with a 400, before this check
-    const old = JSON.stringify({ ...s, v: SNAPSHOT_VERSION, build: heroStartBuild("furnace"), rules: "bb-0.8.3", lives: START_LIVES });
+    // BUMP-1D (LONG_RUN ships on): and without the `losses` this build's dusk states (a bb-0.8.3 client sends none, and the decoder
+    // refuses the field under rules without a long run, 400, before this check; JSON.stringify leaves `undefined` out)
+    const old = JSON.stringify({ ...s, v: SNAPSHOT_VERSION, build: heroStartBuild("furnace"), rules: "bb-0.8.3", lives: START_LIVES, losses: undefined });
     const r422 = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, old), body: old });
     expect([r422.status, ((await r422.json()) as { error: string }).error]).toEqual([422, `rules bb-0.8.3 not accepted: this server validates ${RULES_VERSION}`]);
   });

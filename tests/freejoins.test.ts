@@ -13,7 +13,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { Battle, simulate, type BattleRecord, type SideState } from "../src/sim/battle";
 import { ITEMS, JOIN_LIMIT, JOIN_PACE, RULES_VERSION, secPer } from "../src/sim/content";
 import { FREE_JOINS, freeJoinsRules, joinedPace, setFreeJoins, withFreeJoins } from "../src/sim/freeJoins";
-import { FREE_JOINS_RULES, NPC_DAY_RULES, freeJoinsFor } from "../src/net/rulesGate";
+import { FREE_JOINS_RULES, NPC_DAY_RULES, freeJoinsFor, rulesAtLeast } from "../src/net/rulesGate"; // BUMP-1D: rulesAtLeast, this build's rules are after the literal
 import {
   JOIN_OVER_LIMIT, JOIN_PACE_LINE, JOIN_PACE_PCT, canJoin, cloneBuild, factoryPace, joinOf, joinProblem, joinTiles,
   key as K, loadEvery, newJoinProblem, overJoinLimit, pruneJoins, removeRoute, setJoin, walkRoute, type Build, type RouteDef,
@@ -34,6 +34,7 @@ import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the rules card's line 2 as before
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the rules card's lines 1 and 2 as before
 
 // HULL-ON (the flip, FREE_JOINS): the switch ships on, so every test ends with the shipped value (HULL-ON's flip), and a
 // test whose first half reads the off world sets the switch off itself (was setFreeJoins(false), "as committed (off)")
@@ -101,9 +102,14 @@ describe("JOINS-1: the switch", () => {
     expect(freeJoinsRules()).toBe(true);
     expect(joinedPace()).toBe(1);
     expect(FREE_JOINS_RULES).toBe("bb-0.10.0");
-    expect(FREE_JOINS_RULES).toBe(RULES_VERSION);
+    // BUMP-1D (the bump to bb-0.11.0): FREE_JOINS_RULES is a literal since the flip, so it stays put while RULES_VERSION moves
+    // on: this build's rules (bb-0.11.0) are after it, not equal to it (was expect(FREE_JOINS_RULES).toBe(RULES_VERSION))
+    expect(RULES_VERSION).toBe("bb-0.11.0");
+    expect(FREE_JOINS_RULES).not.toBe(RULES_VERSION);
+    expect(rulesAtLeast(RULES_VERSION, FREE_JOINS_RULES)).toBe(true);
     expect(FREE_JOINS_RULES).toBe(NPC_DAY_RULES);
     expect(freeJoinsFor(RULES_VERSION)).toBe(true);
+    expect(freeJoinsFor("bb-0.10.0")).toBe(true); // BUMP-1D: the hull release's rules, the flip's own, keep free joins
     expect(freeJoinsFor("bb-0.9.7")).toBe(false); // the rules before the flip keep both join rules
     withFreeJoins(() => {
       expect(joinedPace()).toBe(JOIN_PACE);
@@ -289,7 +295,9 @@ describe("JOINS-1 (5): the words follow the switch", () => {
     // HULL-ON (the flip, FREE_JOINS and HEARTS): HELP is the card at load, so its line 3 is the shipped one now (no limit, no
     // pace), and HEARTS gives line 2 the hearts rule (helpLines). So the card as before is read with both switches off: HELP
     // with line 3 as the switch-off card says it (was helpLines() toEqual HELP and HELP[2], with FREE_JOINS off)
-    const before = withHearts(() => withFreeJoins(() => helpLines(), false), false);
+    // BUMP-1D (LONG_RUN ships on): and LONG_RUN, whose card says WIN 10 DUSK FIGHTS on line 1 (title.ts helpLines), is read off
+    // too (withLongRun false): HELP's lines 1 and 2 are the 10-day run's, the card "as before"
+    const before = withLongRun(() => withHearts(() => withFreeJoins(() => helpLines(), false), false), false);
     expect(before).toEqual(HELP.map((ln, i) => (i === 2 ? helpLine3(false) : ln))); // off: the card exactly as before
     expect(before[2]).toContain(`(${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
     setFreeJoins(true);
@@ -299,7 +307,7 @@ describe("JOINS-1 (5): the words follow the switch", () => {
     expect(helpLines()[2]).toBe(helpLine3());
     expect(HELP[2]).toBe(helpLine3()); // HULL-ON (the flip, FREE_JOINS): the card at load is the shipped one
     expect(helpLines().join(" ")).not.toMatch(/JOINS PER DECK|PACE/);
-    expect(withHearts(() => helpLines(), false).filter((_, i) => i !== 2)).toEqual(before.filter((_, i) => i !== 2)); // HULL-ON (HEARTS): its line 2 read off
+    expect(withLongRun(() => withHearts(() => helpLines(), false), false).filter((_, i) => i !== 2)).toEqual(before.filter((_, i) => i !== 2)); // HULL-ON (HEARTS): its line 2 read off; BUMP-1D: and line 1 (LONG_RUN off)
     // the editor's toast where the join is made (tests/joins.ui.test.ts's drag)
     const rn = run();
     rn.build.routes = [rn.build.routes[0]];
@@ -365,7 +373,10 @@ describe("JOINS-1 (2) at the upload path", () => {
   it("POST /v1/ghosts refuses 4 joins with the switch off and stores them with it on (this build's rules)", async () => {
     const me = await testIdentity(0);
     const post = async (b: Build, who: string) => {
-      const s: GhostSnapshot = { v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: DAY, wins: 0, lives: 3, build: b, runId: `joins1-${who}`, playerId: `p-${who}`, createdAt: 1_790_000_000_000 };
+      // BUMP-1D (LONG_RUN ships on): bb-0.11.0 is a long run's rules, whose upload states the dusks the run lost (server/app.ts
+      // lossesProblem: 422 "losses: ..." without): 0 wins at dusk 6 is five lost dusks (10 hearts, 3 left), so losses DAY - 1.
+      // Was no losses
+      const s: GhostSnapshot = { v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: DAY, wins: 0, lives: 3, losses: DAY - 1, build: b, runId: `joins1-${who}`, playerId: `p-${who}`, createdAt: 1_790_000_000_000 };
       const body = JSON.stringify(ownedBy(s, me));
       const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
       return { status: r.status, body: (await r.json()) as { id?: string; errors?: string[] } };

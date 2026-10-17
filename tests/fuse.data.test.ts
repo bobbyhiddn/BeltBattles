@@ -107,7 +107,8 @@ describe("GhostSnapshot v2", () => {
     run.build.items.push({ uid: 700, def: "temper", x: 3, y: 3, rot: 1 }); // today's deck: the rig west of (4,3)
     const legacy = clone(run);
     legacy.build.items[1] = { uid: 700, def: "temper", x: 4, y: 3 }; // the same deck as 0.6.1 wrote it: on the belt
-    const { seed: _seed, ...g1 } = ghostOf(legacy, 5, "p-me"); // RUNES-1: a v1 copy carries no v3 field (the seed)
+    // RUNES-1: a v1 copy carries no v3 field (the seed). BUMP-1D (LONG_RUN ships on): nor `losses`, the other v3 field a long run's snapshot carries
+    const { seed: _seed, losses: _losses, ...g1 } = ghostOf(legacy, 5, "p-me");
     const s = { ...g1, v: 1 as const };
     expect(isSnapshot(s)).toBe(true);
     const back = checkSnapshot(s);

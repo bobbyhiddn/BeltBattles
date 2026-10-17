@@ -10,7 +10,7 @@ import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left
 import { TURRETS_JOINS_RULES, parseRules, rulesAtLeast, rulesFeatures, rulesGateProblem, sustainFeatures } from "../src/net/rulesGate";
 import { SNAPSHOT_V3, checkSnapshot, type GhostSnapshot } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate";
-import { floorRecord } from "../src/net/records"; // Y7b2 (the pools): a record the deck's day can carry
+import { floorRecord, isReachable } from "../src/net/records"; // Y7b2 (the pools): a record the deck's day can carry; BUMP-1D: and the losses that carry it
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { loadGhostPool } from "../src/net/fallback";
 import { battleRecordFor, replay, RulesMismatchError } from "../src/net/replay";
@@ -73,7 +73,16 @@ function snapOf(d: Deck, rules: string, who = "x"): GhostSnapshot {
   // joins (a day-3 deck) can't carry ("record: 0W 3 lives is no record a run carries into dusk 3"); older rules are refused
   // before the record check, so their record stays as it was
   const rec = now ? floorRecord(d.day) : { wins: 0, lives: 3 };
-  return { v: now ? SNAPSHOT_V3 : 2, rules, hero: d.hero, day: d.day, wins: rec.wins, lives: rec.lives, build: now ? up(d) : old(d), runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
+  // BUMP-1D (LONG_RUN ships on): this build's rules are a long run's, whose upload states the dusks the run lost (server/app.ts
+  // lossesProblem: 422 "losses: ..." without it): the fewest losses that carry the record into the deck's dusk (the floor record,
+  // 0 wins and the fewest hearts, is mostly day - 1 losses); older rules (the 10-day run, bb-0.6.x) take no such field
+  const lost = now ? { losses: lossesOf(d.day, rec) } : {};
+  return { v: now ? SNAPSHOT_V3 : 2, rules, hero: d.hero, day: d.day, wins: rec.wins, lives: rec.lives, ...lost, build: now ? up(d) : old(d), runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
+}
+/** BUMP-1D: the fewest dusks lost that the long run's record model (records.ts) carries (wins, lives) into dusk `day` with. */
+function lossesOf(day: number, rec: { wins: number; lives: number }): number {
+  for (let k = 0; k < day; k++) if (isReachable(day, rec.wins, rec.lives, { losses: k })) return k;
+  throw new Error(`no losses carry ${rec.wins}W ${rec.lives} lives into dusk ${day}`);
 }
 
 describe("v070-rel M2 (b): the helper", () => {
@@ -164,7 +173,7 @@ describe("v070-rel M2 (b): every accepting path", () => {
     expect(await post(snapOf(NEITHER, "bb-0.6"))).toEqual({ status: 422, body: { error: `rules bb-0.6 not accepted: this server validates ${RULES_VERSION}` } });
     expect(app.store.size).toBe(0);
     const ok = await post(snapOf(BOTH, RULES_VERSION));
-    expect(ok.status).toBe(201);
+    expect(ok.status, JSON.stringify(ok.body)).toBe(201);
     expect(app.store.size).toBe(1);
     // the client's own upload encoder refuses first, without a request
     expect(await submitGhost(base, ownedBy(snapOf(TURRETS, OLD), me), me, 2000)).toEqual({ ok: false, error: `snapshot.rules: ${TURRET_WHY}` });

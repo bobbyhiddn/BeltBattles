@@ -11,7 +11,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): records on each rules' scale
-import { heartsFor } from "../src/net/rulesGate"; // HULL-ON (the flip, HEARTS): which scale a record's rules read
+import { heartsFor, longRunFor } from "../src/net/rulesGate"; // HULL-ON (the flip, HEARTS): which scale a record's rules read; BUMP-1D: and whether they are a long run's
 import { VERSION } from "../src/version";
 import type { Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
@@ -33,7 +33,7 @@ const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
  *  server's rules now): bb-0.8.6 itself in bb-0.8.7's place. */
 const NEAR = [OLD_RULES, "bb-0.8.5", "bb-0.8.6", "bb-0.8.6x", "BB-0.8.6", " bb-0.8.6", "bb-0.8.6 ", "bb-0.8.06", "bb-0.8.60", "bb-0.8.6.0", "bb-0.8", "bb_0.8.6"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.10.0`; // AZ-BUMP: the server names bb-0.10.0 (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.11.0`; // BUMP-1D: the server names bb-0.11.0 (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
 
 /** A dusk snapshot on a record a run carries into it: every fight won, all its lives (5, or HEARTS_START hearts). */
 function dusk(hero: HeroId, day: number, build: Build, rules = RULES_VERSION, runId = `packs-${hero}-${day}`): GhostSnapshot {
@@ -42,7 +42,10 @@ function dusk(hero: HeroId, day: number, build: Build, rules = RULES_VERSION, ru
   // 422 "record: 0W 5 lives ..."); older and garbled rules keep their 5 lives (their 5-lives model). Was lives: 5 on every
   // rules
   const lives = heartsFor(rules) ? HEARTS_START : START_LIVES;
-  return { v: SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives, build, runId, playerId: `p-${hero}`, createdAt: T0 };
+  // BUMP-1D (LONG_RUN ships on): under a long run's rules (this build's: bb-0.11.0) the upload states the dusks the run lost
+  // (server/app.ts lossesProblem: 422 "losses: ..." without it): every fight won is none. Older and garbled rules take no such
+  // field (the decoder refuses it, 400, ahead of the rules check these tests read), so only the rules that have the long run
+  return { v: SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives, ...(longRunFor(rules) ? { losses: 0 } : {}), build, runId, playerId: `p-${hero}`, createdAt: T0 };
 }
 
 /** FLIP-X2 (validateUpload's player mode wants exactly `day` runes; runes travel only in v3): dusk() as an upload under
@@ -70,7 +73,7 @@ function packed(hero: HeroId, armors: number, belts = 0): Build {
 
 describe("rules bb-0.8.7: the version", () => {
   it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.9.10 since the Prime staged it (the 0.9.10 label commit; 0.9.9 before)", () => {
-    expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     expect(VERSION).toBe("0.9.10");
   });
 });
@@ -103,7 +106,7 @@ describe.each(storeBackends())("rules bb-0.8.7 and the packs on the $name store 
   const fresh = (s: GhostSnapshot): GhostSnapshot => ({ ...s, runId: `${s.runId}-${k++}` });
 
   it("/v1/health names bb-0.8.7; an honest deck under bb-0.8.3 (0.8.5's rules) and every near miss of bb-0.8.6 (bb-0.8.6 itself too) is refused, and nothing is stored", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const before = backend.storedRecords();
     const seen: Record<string, number> = {};
     for (const rules of NEAR) {

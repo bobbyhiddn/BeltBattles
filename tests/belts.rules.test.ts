@@ -24,7 +24,7 @@
 // travels as v3; an upload under any other rules is the rune-less v2 deck an older client sent (runes need bb-0.8.7). The
 // game's own runs take each dawn's rune (pendingRune, takeRune), and a 0.8.4 page's dusk carries neither runes nor a seed.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { HEROES, ITEMS, RULES_VERSION, START_LIVES, UPGRADE_TRACKS, type HeroId } from "../src/sim/content";
+import { HEROES, ITEMS, RULES_VERSION, RUN_DAYS, START_LIVES, UPGRADE_TRACKS, type HeroId } from "../src/sim/content";
 import { HEARTS_START, withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): records on each rules' scale
 import { hullSlots, key as K, setTurretList, startingTurrets, type Build, type BuildTurret } from "../src/sim/deck";
 import { simulate, type SideStats } from "../src/sim/battle";
@@ -59,7 +59,7 @@ const DAYS = [1, 5, 9];
 const NEAR = [OLD_RULES, "bb-0.8.2", "bb-0.8.4", "bb-0.8.3x", "BB-0.8.3", " bb-0.8.3", "bb-0.8.3 ", "bb-0.8.03", "bb-0.8.30", "bb-0.8.3.0", "bb-0.8", "bb_0.8.3"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
 // FLIP-X2: the one bump (was bb-0.8.7; the tests that read it were skipped while the seed pool failed its checks)
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.10.0`; // AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.11.0`; // BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
 const slotError = (name: string, routes: number, outs: number) => `route: ${name} uid 1 feeds ${routes} routes but has ${outs} output(s)`;
 
 /** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. FLIP-X2: under this build's rules the
@@ -71,7 +71,10 @@ function dusk(hero: HeroId, day: number, build: Build, rules = RULES_VERSION, ru
   // hearts record model, where 0W 5 lives is no record a run carries into dusk 1: 422); older rules keep their 5 lives
   // (their 5-lives model and the decoder's lives bound 9). Was lives: 5 on every rules
   const lives = heartsFor(rules) ? HEARTS_START : START_LIVES;
-  return { v: now ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives, build: now ? withDawnRunes(build, day) : build, runId, playerId: `p-${hero}`, createdAt: T0 };
+  // BUMP-1D (LONG_RUN ships on): and under this build's rules (a long run's: bb-0.11.0) the dusks the run lost, which a long run's
+  // upload states (server/app.ts lossesProblem: 422 "losses: ..." without): every fight won is none. Any other rules (bb-0.8.0, the
+  // near misses) take no such field: the decoder refuses it (400) ahead of the rules check these tests read
+  return { v: now ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives, ...(now ? { losses: 0 } : {}), build: now ? withDawnRunes(build, day) : build, runId, playerId: `p-${hero}`, createdAt: T0 };
 }
 
 /** FLIP-X2: the upload check of `b` holding its day's runes (the rune-less deck fails the exact count first). */
@@ -148,7 +151,9 @@ function as080(identity: Identity, sent: GhostSnapshot[] = []): OnlineDeps {
   return {
     fetchGhost: (url, req, ms, o) => fetchGhost(url, { ...req, rules: OLD_RULES, lives: lives080(req.lives) }, ms, o),
     submitGhost: (url, snap, id, ms) => {
-      const { seed: _seed, ...rest } = snap;
+      // BUMP-1D (LONG_RUN ships on): and without the `losses` a long run's snapshot states (a 0.8.4 page sends none, and the encoder
+      // refuses the field under bb-0.8.0's rules before any request: the 422 this test reads would never come)
+      const { seed: _seed, losses: _losses, ...rest } = snap;
       const { runes: _runes, ...build } = snap.build;
       const old = { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build, lives: lives080(snap.lives) };
       sent.push(old);
@@ -167,7 +172,7 @@ function playDusk(run: Run): void {
 
 describe("rules bb-0.8.7: the version and its decks", () => {
   it("RULES_VERSION is bb-0.8.7, after bb-0.8.0 (HEROES_RULES): the same four heroes travel, and the hero table needs no row", () => {
-    expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     expect(HEROES_RULES).toBe(OLD_RULES);
     expect(RULES_VERSION).not.toBe(OLD_RULES);
     expect(rulesAtLeast(RULES_VERSION, OLD_RULES)).toBe(true);
@@ -254,10 +259,10 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
   const fresh = (s: GhostSnapshot): GhostSnapshot => ({ ...s, runId: `${s.runId}-${k++}` });
 
   it("/v1/health names bb-0.8.7; the match route serves bb-0.8.7 seed ghosts, and has none under bb-0.8.0 (a fresh pool)", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const now = await ask(RULES_VERSION);
     expect(now.status).toBe(200);
-    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     for (const day of [1, 3, 10]) {
       const old = await ask(OLD_RULES, day);
       expect(old.status, `day ${day}`).toBe(404);
@@ -429,11 +434,11 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
     // HEARTS off (drawnLabel's and floorRecord's 5-lives path, as before the flip). Labelled on hearts they reach 10, past
     // bb-0.8.0's lives bound (livesCapFor: 9): "snapshot.lives: expected an integer in 1..9" at ghostId
     const pool080: GhostSnapshot[] = withHearts(() => [...sampleGhosts(), ...floorGhosts()], false).map((s): GhostSnapshot => {
-      const { seed: _seed, road: _road, ...rest } = s;
+      const { seed: _seed, road: _road, losses: _losses, ...rest } = s; // BUMP-1D: and no `losses` (a long run's field; bb-0.8.0 takes none)
       const { runes, ...build } = s.build;
       const g = runeGrants(runes, s.day);
       return { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
-    }).filter((s) => rulesGateProblem(OLD_RULES, s.build) === null);
+    }).filter((s) => rulesGateProblem(OLD_RULES, s.build) === null && s.day <= RUN_DAYS); // BUMP-1D (LONG_RUN ships on): and days 1-10 only: the sample pool goes to day 16 now, and bb-0.8.0's snapshot bound is day 10 (ghostId threw "snapshot.day: expected an integer in 1..10")
     await app.store.replacePool(OLD_RULES, pool080.map((s) => ({ id: ghostId(s), snapshot: s })));
     try {
       const ids = new Set(pool080.map(ghostId));
@@ -449,13 +454,18 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
       const run = newRun("weaver", 8081);
       // HULL-ON (the flip, HEARTS): the 0.8.4 page's day-1 dusk on 0.8.0's 5 lives (START_LIVES); this build's new run
       // holds HEARTS_START (10), past bb-0.8.0's lives bound 9 (was the run's own lives)
-      const up = await submitGhost(base, { ...ghostOf(run, T0, me.playerId), rules: OLD_RULES, lives: START_LIVES }, me, 3000);
+      // BUMP-1D (LONG_RUN ships on): and without the `losses` this build's run states (bb-0.8.0 takes no such field)
+      const { losses: _losses, ...g080 } = ghostOf(run, T0, me.playerId);
+      const up = await submitGhost(base, { ...g080, rules: OLD_RULES, lives: START_LIVES }, me, 3000);
       expect(up).toMatchObject({ ok: false, status: 422, error: refused(OLD_RULES) });
     } finally {
       await app.store.replacePool(OLD_RULES, []);
     }
     expect(await app.store.bucket(OLD_RULES, 3)).toEqual([]);
-  });
+    // BUMP-1D (LONG_RUN ships on): 300 s (was the default 30 s), a host timeout, not the rule: sampleGhosts() with HEARTS off is
+    // built, not loaded (the 16-day pool, 45 s measured under the load of the run-2 helpers), as the other generateSamplePool tests
+    // got their 600 s at AZ-BUMP's 4af1683
+  }, 300_000);
 });
 
 describe("offline play makes no request (no server URL), with the gold upgrades", () => {

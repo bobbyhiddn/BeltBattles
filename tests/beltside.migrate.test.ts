@@ -317,7 +317,9 @@ describe("D1: rot round trips", () => {
     const back = decodeSnapshot(encodeSnapshot(g));
     expect(back.build.items.map((p) => p.rot)).toEqual([undefined, 1, 2]);
     expect(back).toEqual(g);
-    const { seed: _seed, ...g2 } = g; // RUNES-1: without the v3 seed, so rot is what v1 refuses
+    // RUNES-1: without the v3 seed, so rot is what v1 refuses. BUMP-1D (LONG_RUN ships on): and without `losses`, the other v3 field
+    // a long run's snapshot carries (a v1 or v2 copy states none: "snapshot.losses: not allowed in a v2 snapshot" refused the copy)
+    const { seed: _seed, losses: _losses, ...g2 } = g;
     expect(isSnapshot({ ...g2, v: 1 })).toBe(false);
     expect(isSnapshot({ ...g2, v: 2 })).toBe(true);
     expect(() => checkSnapshot({ ...g2, v: 1 })).toThrow(/rot: not allowed in a v1 snapshot/);

@@ -486,7 +486,9 @@ describe.each(["jsonl", "tigris"] as const)("PUT /v1/profile on the %s store", (
 
   it("the ghost upload is untouched by the profile route: a ghost POST still answers 201, a profile-domain signature on it is a 401 (cross-domain refusal 2)", async () => {
     const r = await rig(kind);
-    const mine = ownedBy(upSnap({ lives: HEARTS_START }), ME);
+    // BUMP-1D (LONG_RUN ships on): this build's rules are a long run's, whose upload states the dusks the run lost (server/app.ts
+    // lossesProblem: 422 "losses: ..." without it): day 1's dusk comes after none. Was no losses
+    const mine = ownedBy(upSnap({ lives: HEARTS_START, losses: 0 }), ME);
     const body = encodeSnapshot(mine);
     const wrong = await send(r, "POST", "/v1/ghosts", body, await signedBy(ME, body, PROFILE_PREFIX));
     expect(wrong).toMatchObject({ status: 401, json: { error: "x-bb-sig: the signature does not match this body and key" } });
@@ -528,14 +530,14 @@ describe("PUT /v1/profile on Tigris: the S3 client's own log lines", () => {
 
   it("a ghost object's key is still shown whole (only profile objects are masked)", async () => {
     const r = await rig("tigris");
-    const mine = ownedBy(upSnap({ lives: HEARTS_START }), ME);
+    const mine = ownedBy(upSnap({ lives: HEARTS_START, losses: 0 }), ME); // BUMP-1D: and the dusks lost before day 1's (none), as above
     const body = encodeSnapshot(mine);
     fake.failNext(1, 503, "PUT"); // the ghost's own write is refused once
     const res = await send(r, "POST", "/v1/ghosts", body, await signedBy(ME, body, UPLOAD_PREFIX));
     expect(res.status).toBe(201);
     const s3 = r.log.filter((l) => l.startsWith("s3 PUT ghosts/"));
     expect(s3).toHaveLength(1);
-    expect(s3[0]).toMatch(/^s3 PUT ghosts\/bb-0\.10\.0\/d01\/player\/g[0-9a-f]+\.json: HTTP 503/);
+    expect(s3[0]).toMatch(/^s3 PUT ghosts\/bb-0\.11\.0\/d01\/player\/g[0-9a-f]+\.json: HTTP 503/); // BUMP-1D: the key holds this build's rules (was bb-0\.10\.0)
   });
 });
 

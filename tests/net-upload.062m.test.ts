@@ -18,7 +18,7 @@ import { MODELLED_EVENTS, MODELLED_PICKS, playerFits, roadOptions } from "../src
 import { buildCost, maxHonestSpend, validateBuild, validateUpload, type ValidateContext, type Validation } from "../src/net/validate";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
-import { floorRecord } from "../src/net/records";
+import { floorRecord, isReachable } from "../src/net/records"; // BUMP-1D: and the losses that carry a record (lossesOf)
 import { createGhostServer, type GhostServer } from "../server/app";
 import { furnaceDeck, playerCheck, uploadRulesFor } from "./netHelpers";
 import { heroesFor } from "../src/net/rulesGate";
@@ -314,6 +314,11 @@ const snapOf = (d: Dusk, over: Partial<GhostSnapshot> = {}): GhostSnapshot => ({
   v: SNAPSHOT_V3, rules: RULES_VERSION, hero: d.hero, day: d.day, wins: 0, lives: 3, build: d.build, runId: `drv-${d.seed}`, playerId: `p${d.seed}-${d.day}`,
   createdAt: 1_790_000_000_000, ...over,
 });
+/** BUMP-1D (LONG_RUN ships on): the fewest dusks lost that the long run's record model (records.ts) carries (wins, lives) into dusk `day` with. */
+function lossesOf(day: number, wins: number, lives: number): number {
+  for (let k = 0; k < day; k++) if (isReachable(day, wins, lives, { losses: k })) return k;
+  throw new Error(`no losses carry ${wins}W ${lives} lives into dusk ${day}`);
+}
 
 describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and joins", () => {
   it("POST /v1/ghosts stores honest decks with turrets and joins, and refuses illegal ones with validateBuild's reasons", async () => {
@@ -321,7 +326,14 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
     expect(HONEST_HERE.length).toBeGreaterThanOrEqual(16);
     const honest = HONEST_HERE.slice(0, 16);
     // 0.8.0 H2 (a): 3 lives, or the fewest a run carries into that dusk where 3 is out of reach (days 2 and 3: 4)
-    for (const d of honest) expect(await submitGhost(base, ownedBy(snapOf(d, { lives: Math.max(3, floorRecord(d.day).lives) }), me), me, 3000), `${d.hero} #${d.seed} d${d.day}`).toMatchObject({ ok: true });
+    // BUMP-1D (LONG_RUN ships on): this build's rules are a long run's, whose upload states the dusks the run lost (server/app.ts
+    // lossesProblem: 422 "losses: ..." without it): the fewest losses that carry the record into the dusk (the fewest hearts a
+    // run carries there with no wins, or 3, is mostly day - 1 losses on the first days). Was no losses
+    for (const d of honest) {
+      const lives = Math.max(3, floorRecord(d.day).lives);
+      const res = await submitGhost(base, ownedBy(snapOf(d, { lives, losses: lossesOf(d.day, 0, lives) }), me), me, 3000);
+      expect(res, `${d.hero} #${d.seed} d${d.day}: ${JSON.stringify(res)}`).toMatchObject({ ok: true });
+    }
     expect(app.store.size).toBe(honest.length);
     const d = honest[0];
     const post = async (s: GhostSnapshot) => {
@@ -344,7 +356,7 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
     const plain = await post(snapOf(d, { rules: "bb-0.6.1", hero: "furnace", build: furnaceDeck() }));
     expect(plain.status).toBe(422);
     expect(plain.body.error).toBe(`rules bb-0.6.1 not accepted: this server validates ${RULES_VERSION}`);
-    expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
   });
 
   it("fetchGhost fights a served ghost with turrets and joins; it falls back on an illegal one and on other rules", async () => {

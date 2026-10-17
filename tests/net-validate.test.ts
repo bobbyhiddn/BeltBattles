@@ -4,6 +4,7 @@ import { START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { furnaceDeck, K, STRAIGHT } from "./netHelpers";
 import { incomeOn, withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): the day's gold
+import { LONG_RUN_MAX_DAY, withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the day bound, both worlds
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
 const errorsOf = (b: Parameters<typeof validateBuild>[0], day = 10) => validateBuild(b, day).errors.join("\n");
@@ -160,6 +161,13 @@ describe("deck validation: rejections", () => {
     const bad = { ...furnaceDeck(), extra: 1 } as any;
     expect(validateBuild(bad, 1).errors[0]).toMatch(/^shape: build.extra: unknown field/);
     expect(validateBuild(furnaceDeck(), 0).errors[0]).toMatch(/^shape: day 0/);
-    expect(validateBuild(furnaceDeck(), 11).ok).toBe(false);
+    // BUMP-1D (LONG_RUN ships on): the day bound follows the world (validate.ts: LONG_RUN_MAX_DAY on a long run, MAX_DAY off it), so
+    // day 11 is refused in the 10-day run (withLongRun false) and is a long run's day under the shipped switch, whose bound is the
+    // next one up. Was expect(validateBuild(furnaceDeck(), 11).ok).toBe(false) under the shipped (10-day) switch
+    expect(withLongRun(() => validateBuild(furnaceDeck(), 11), false).errors[0]).toMatch(/^shape: day 11 is not in 1\.\.10/);
+    expect(withLongRun(() => validateBuild(furnaceDeck(), 11).ok, false)).toBe(false);
+    expect(validateBuild(furnaceDeck(), 11).ok).toBe(true);
+    expect(validateBuild(furnaceDeck(), LONG_RUN_MAX_DAY).ok).toBe(true);
+    expect(validateBuild(furnaceDeck(), LONG_RUN_MAX_DAY + 1).errors[0]).toMatch(new RegExp(`^shape: day ${LONG_RUN_MAX_DAY + 1} is not in 1\\.\\.${LONG_RUN_MAX_DAY}`));
   });
 });

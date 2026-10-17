@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
 import { HEROES, ITEMS, type HeroId } from "../src/sim/content";
-import { hitsOfRig } from "../src/sim/deck";
+import { hitsOfRig, type Build } from "../src/sim/deck";
 import { buildCost as serverCost, unfusedPairs, validateBuild } from "../src/net/validate";
 import { starsOf } from "../src/sim/stars";
 import { PLATE_STEP, PLAYABLE_HEROES, REF_DAYS, heroRefBuild, heroStartBuild, rampPlates } from "../src/sim/heroBuilds";
 import { isRaceHero } from "../src/sim/races/data";
-import { refHull } from "../src/sim/races/refBuilds";
+import { REF_DAYS_LONG, refDepth, refHull } from "../src/sim/races/refBuilds"; // BUMP-1D (LONG_RUN ships on): the long run's reference depth
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: and the 10-day run's
 import { buildCost, expectLegal, maxGoldByDay } from "./races.helpers";
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): 0.9.7's gold beside the shipped
 
@@ -70,9 +71,29 @@ describe("heroBuilds: one entry point for all six heroes", () => {
   });
 
   it("days outside 1-10 clamp to the nearest reference day", () => {
+    // BUMP-1D (LONG_RUN ships on): the clamp at day 10 is the 10-day run's reference depth (refBuilds.ts refDepth: REF_DAYS with
+    // the switch off); with the switch as shipped the references go to day 16 (the next test), so this reads it off
+    withLongRun(() => {
+      expect(refDepth()).toBe(REF_DAYS);
+      expect(heroRefBuild("siphon", 0)).toEqual(heroRefBuild("siphon", 1));
+      expect(heroRefBuild("foundry", 12)).toEqual(heroRefBuild("foundry", 10));
+      expect(heroRefBuild("weaver", 11)).toEqual(heroRefBuild("weaver", 10));
+    }, false);
+  });
+
+  it("a long run's reference builds go to day 16 (REF_DAYS_LONG): day 0 clamps to day 1, days 11-16 are the day-10 layout with the day's own hull, a later day is day 16's with its own hull", () => {
+    // BUMP-1D (LONG_RUN ships on; refBuilds.ts refDepth, refHullDay): was the clamp at day 10 (the test above, now read with the switch off)
+    expect(refDepth()).toBe(REF_DAYS_LONG);
+    expect(REF_DAYS_LONG).toBe(16);
     expect(heroRefBuild("siphon", 0)).toEqual(heroRefBuild("siphon", 1));
-    expect(heroRefBuild("foundry", 12)).toEqual(heroRefBuild("foundry", 10));
-    expect(heroRefBuild("weaver", 11)).toEqual(heroRefBuild("weaver", 10));
+    const bare = (b: Build): Build => ({ ...b, hullBonus: 0 });
+    for (const h of ALL) {
+      for (const d of [11, 12, 16, 17, 20]) {
+        expect(bare(heroRefBuild(h, d)), `${h} day ${d}: the day-10 layout`).toEqual(bare(heroRefBuild(h, 10)));
+        expect(heroRefBuild(h, d).hullBonus, `${h} day ${d}: the day's own hull`).toBe(PLATE_STEP * rampPlates(d));
+      }
+      expect(heroRefBuild(h, 12).hullBonus, h).toBeGreaterThan(heroRefBuild(h, 10).hullBonus); // the day-12 hull is not day 10's
+    }
   });
 });
 

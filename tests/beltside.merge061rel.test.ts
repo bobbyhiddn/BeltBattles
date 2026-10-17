@@ -477,8 +477,8 @@ describe("P18: RULES_VERSION", () => {
   // Y7b2 (the bump, the pools): title was "is bb-0.8.3, BELTS's bump (the 0.8.0 release step's was bb-0.8.0, BELTSIDE's own
   // bb-0.6.2), and the stand-in pool was scored under it (since RUNES-1's bb-0.8.7: under POOL_RULES, the rules it carries
   // the pool from)"; POOL_RULES is bb-0.9.3 now, the rules the pool was regenerated under (4d772e4), and nothing is carried
-  it("is bb-0.10.0, AZ-BUMP's bump (Z-BUMP's was bb-0.9.7, Y7b2's bb-0.9.3, BELTS's bb-0.8.3, the 0.8.0 release step's bb-0.8.0, BELTSIDE's own bb-0.6.2), and the stand-in pool was scored under it (POOL_RULES: regenerated under bb-0.9.3 at Y7b2, nothing carried since FLIP-X2)", () => {
-    expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+  it("is bb-0.11.0, BUMP-1D's bump (AZ-BUMP's was bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BELTS's bb-0.8.3, the 0.8.0 release step's bb-0.8.0, BELTSIDE's own bb-0.6.2), and the stand-in pool was scored under it (POOL_RULES: regenerated under bb-0.9.3 at Y7b2, nothing carried since FLIP-X2)", () => {
+    expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     // Y7b2 (the pools): STAND_IN_DATA.rules = POOL_RULES = bb-0.9.3 (4d772e4; was bb-0.9.1 at BAL-2's c5e4780). RUNES-1's
     // bb-0.8.7 carried bb-0.8.6's pool (content.ts POOL_RULES_CARRIED, empty since FLIP-X2)
     expect(STAND_IN_DATA.rules).toBe(POOL_RULES);
