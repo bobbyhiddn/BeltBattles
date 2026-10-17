@@ -23,6 +23,8 @@ import { rotOf } from "./deck"; // SHAPES-1 (REQ-BFG-086 R1): a piece's turn, fo
 import { footBox } from "./foot"; // SHAPES-1: the turned footprint's box (a target's centre)
 import { ladderFixRules, rideKeepOf } from "./ladderFix"; // HULL-1b (REQ-BFG-070): OVERDRIVE's ride-keep, LADDER_FIX on only
 import { joinedPace } from "./freeJoins"; // JOINS-1 (REQ-BFG-091): RULE JOIN PACE's JOIN_PACE, or 1 with FREE_JOINS on
+// GATES-1 (REQ-BFG-052): the converters' engine (convert.ts); Battle only calls it from the hooks marked GATES-1
+import { convAt, convertDisrupt, convertLimit, convertMachinery, convertTargets, convertTick, makeConverters, type ConverterState } from "./convert";
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
 import { plateOnLoad } from "./races/bastion"; // PLAIN-1 (REQ-BFG-084, P2): SCALE GUARD's slug PLATE by the bulwark rule
@@ -199,6 +201,7 @@ export interface RouteState {
   holds?: TileHit[][];
   // 0.8.0 P1: per tile, the BRACE FRAMEs hitting it (set only on a route a brace hits), as makeSide writes `guard`
   braces?: GateState[][];
+  conv?: ConverterState[]; // GATES-1 (REQ-BFG-052): the converters standing on this route's tiles, in tile order (absent without)
 }
 
 /** 0.6.2j (J1-J6): a joining belt's link into its main belt, read once in makeSide. */
@@ -317,7 +320,7 @@ export interface HullState {
   flash: number; // render
 }
 
-export type TargetKind = "hull" | "belt" | "gate" | "factory" | "turret";
+export type TargetKind = "hull" | "belt" | "gate" | "factory" | "turret" | "converter"; // GATES-1 (REQ-BFG-052): + "converter" (weight 3, a STUN stalls it)
 
 export interface Target {
   kind: TargetKind;
@@ -362,6 +365,7 @@ export interface SideState {
   stats: SideStats;
   race?: RaceSide; // races: race mechanics state; undefined for Furnace and Weaver
   joiners?: RouteState[]; // 0.6.2j (J5): the joining belts, lowest last-cell key first; absent without joins
+  converters?: ConverterState[]; // GATES-1 (REQ-BFG-052): the converters standing on belt tiles, in route and tile order; absent without
   // 0.8.0 P1 (E1, the Prime's Q4): every side's plating pool, made in makeSide. It stays at 0 without a plating source
   // (absorb then hands back the damage unchanged). A race side's RaceSide.plating IS this object (BASTION's plateOnLoad
   // writes it; H1's plating bar reads either).
@@ -449,6 +453,8 @@ export type SimEvent =
   | { type: "pair"; side: Side; turret: number } // E2: two loads paired in a pair-reading turret (a FOUNDRY fusion too)
   | { type: "hold" | "release"; side: Side; gate: number; route: number } // E4: a TWIN LATCH holds or lets go a payload
   | { type: "brace"; side: Side; gate: number; saved: number } // BRACE FRAME: seconds it took off an enemy STUN (NUM-3: every STUN)
+  // GATES-1 (REQ-BFG-052): a converter finished a conversion (its buffer became `slugs` slugs, waiting to go back on the belt)
+  | { type: "convert"; side: Side; converter: number; def: string; route: number; tile: number; slugs: number }
   // HULL-1a (REQ-BFG-079): with the day's hull (HULL_SCALE on, a day given) each side loses its own share, so `dmgs` holds
   // each side's amount and `dmg` side 0's; absent otherwise (both sides take `dmg`, as in 0.9.7)
   | { type: "wind"; dmg: number; dmgs?: [number, number] }
@@ -769,6 +775,7 @@ export class Battle {
       };
     });
     const joiners = joinStates(routes, links); // 0.6.2j (J1-J6): none without joins
+    const converters = makeConverters(b, routes); // GATES-1 (REQ-BFG-052): the gates standing on belt tiles; [] with GATES off
     // 0.8.0 P1 (E4): a TWIN LATCH whose two arrows both hit belts holds payloads; its tiles are marked on their routes.
     // One arrow on a belt never holds (it only adds damage).
     const latches = gates.filter((g) => g.def.gate?.latch && g.hits.length === 2);
@@ -872,9 +879,11 @@ export class Battle {
     // a gate target (weight 2) at its own cell, hitting a belt or IDLE.
     for (const r of routes) {
       r.cells.forEach((k, ci) => {
+        if (convAt(r, ci)) return; // GATES-1 (REQ-BFG-052): a converter's tile is its own target (below), not a belt target
         targets.push({ kind: "belt", ref: r.index, cell: ci, x: kx(k) * CELL + 6, y: ky(k) * CELL + 6, weight: 1 });
       });
     }
+    targets.push(...convertTargets(converters)); // GATES-1: weight 3, a factory's; a STUN stalls it
     // SHAPES-1 (REQ-BFG-086 R1): a piece's target sits at the centre of its turned footprint's box: a 1-cell rig's cell
     // centre (+6) and a 2x2's centre (+12), as before; a 2x3 GANTRY PRESS's or a long rig's box centre
     const boxOf = (uid: number) => {
@@ -938,6 +947,7 @@ export class Battle {
       limpets: [], stats: emptyStats(),
       race: makeRaceSide(b, plate), // races:
       ...(joiners.length ? { joiners } : {}), // 0.6.2j
+      ...(converters.length ? { converters } : {}), // GATES-1 (REQ-BFG-052)
       plate,
       // 0.8.0 P1, wave 3: E2's pair record only with a pair reader on board; E4's latches; SPALL CATCHER's turrets
       ...(turrets.some((tu) => tu.pairing) ? { pairs: new WeakMap<Payload, { at: number; route: number }>() } : {}),
@@ -1012,6 +1022,7 @@ export class Battle {
     }
     if (s.latches) for (const g of s.latches) this.latchTick(s, g); // 0.8.0 P1 (E4): releases, before this tick's transport
     if (s.surges) for (const g of s.surges) this.surgeTick(s, g); // Y3 (DESIGN-Y row 28): the damage pulses
+    if (s.converters) convertMachinery(s, dt, stunLeft); // GATES-1 (REQ-BFG-052): a converter's STUN counts down like a factory's
     for (const r of s.routes) {
       for (let i = 0; i < r.cellDisrupt.length; i++) {
         const stopped = r.cellDisrupt[i] > 0;
@@ -1085,6 +1096,7 @@ export class Battle {
         for (let d = 0; d < 4; d++) g.arrowFlash[d] = Math.max(0, g.arrowFlash[d] - dt);
       }
       for (const f of s.factories) f.flash = Math.max(0, f.flash - dt);
+      for (const c of s.converters ?? []) c.flash = Math.max(0, c.flash - dt); // GATES-1 (REQ-BFG-052)
       for (const tu of s.turrets) {
         tu.recoil = Math.max(0, tu.recoil - dt * 4);
         tu.jamFx = Math.max(0, tu.jamFx - dt);
@@ -1280,6 +1292,7 @@ export class Battle {
         // 0.8.0 P1 (E4): a held payload stays put; one reaching a free, working TWIN LATCH arrow stops at that tile's
         // centre, so the seconds it waits there are never ride (RACES.md section 0). Only routes a holding latch hits.
         if (r.holds) limit = this.holdLimit(r, a, limit);
+        if (r.conv) limit = convertLimit(r.conv, a.s, limit); // GATES-1 (REQ-BFG-052): a slug stops at a converter's upstream edge
         const ci = Math.min(n - 1, Math.floor(a.s / CELL));
         // 0.6.1c SLAG: a fixed belt speed that speed gates, the speed lock and slows never change (a stalled tile still stops it)
         const fixed = AMMO[a.p.ammo]?.fixedSpeed;
@@ -1334,6 +1347,7 @@ export class Battle {
       }
       r.pressure = pressure;
     }
+    if (s.converters) convertTick(this, s, dt); // GATES-1 (REQ-BFG-052): the converters take, work and put out, after every belt has moved
   }
 
   /**
@@ -2279,8 +2293,9 @@ export class Battle {
     const g = t.kind === "gate" ? s.gates.find((g) => g.uid === t.ref) : undefined;
     const f = t.kind === "factory" ? s.factories.find((f) => f.uid === t.ref) : undefined;
     const tu = t.kind === "turret" ? turretAt(s, t.ref) : undefined; // 0.6.2s: a turret target's ref is its slot
+    const cv = t.kind === "converter" ? s.converters?.find((c) => c.uid === t.ref) : undefined; // GATES-1 (REQ-BFG-052): a converter target's ref is its uid
     if (t.kind === "belt" && (!r || t.cell < 0 || t.cell >= r.cells.length)) return false;
-    if (t.kind === "gate" && !g || t.kind === "factory" && !f || t.kind === "turret" && !tu) return false;
+    if (t.kind === "gate" && !g || t.kind === "factory" && !f || t.kind === "turret" && !tu || t.kind === "converter" && !cv) return false;
     if (g?.wrecked && cause !== "rip") return false;
     // Y2 (release Y; DESIGN-Y section 3, the shared rule): harassment is a STUN. A SABOT wreck (cause "wreck") and a GRAPNEL
     // rip ("rip") still land, but TOLLBOOTH spends no toll on them and an enemy SCRAPPER doesn't count them
@@ -2289,6 +2304,7 @@ export class Battle {
     const routeIds = t.kind === "belt" ? [t.ref]
       : t.kind === "gate" ? [...new Set(g!.hits.map((h) => h.route))]
       : t.kind === "factory" ? f!.routes
+      : t.kind === "converter" ? [cv!.route] // GATES-1: the belt it stands on (a TOLLBOOTH covering that belt covers it)
       : t.kind === "turret" ? s.routes.filter((route) => route.connected && route.turret === t.ref).map((route) => route.index) : [];
     // Y2 (DESIGN-Y row 8, TOLLBOOTH): its belt's factory is covered from ★1
     const toll = stun && s.gates.find((gate) => gate.online && !gate.wrecked && gate.disrupted <= 0 && gate.frozen <= 0 && gate.tolls > 0 &&
@@ -2345,6 +2361,7 @@ export class Battle {
     else if (t.kind === "factory") s.factories.find((f) => f.uid === t.ref)!.disrupted = Math.max(s.factories.find((f) => f.uid === t.ref)!.disrupted, secs);
     else if (t.kind === "turret") turretAt(s, t.ref)!.disrupted = Math.max(turretAt(s, t.ref)!.disrupted, secs);
     else if (t.kind === "belt") s.routes[t.ref].cellDisrupt[t.cell] = Math.max(s.routes[t.ref].cellDisrupt[t.cell], secs);
+    else if (t.kind === "converter") convertDisrupt(s, t.ref, secs); // GATES-1 (REQ-BFG-052): a STUN stalls the whole converter
     this.events.push({ type: "disrupt", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
     return true;
   }
@@ -2367,7 +2384,7 @@ export class Battle {
       } else if (t.kind === "belt") {
         if (!this.disrupt(s, t, round.seconds, "sabot")) return;
         landed = true;
-      } else if (t.kind === "factory" || t.kind === "turret") {
+      } else if (t.kind === "factory" || t.kind === "turret" || t.kind === "converter") { // GATES-1 (REQ-BFG-052): a converter is STUNned, not wrecked
         if (!this.disrupt(s, t, round.seconds, "sabot")) return;
       } else return;
       if (t.kind === "gate") this.events.push({ type: "wreck", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
