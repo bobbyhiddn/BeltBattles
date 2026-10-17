@@ -13,15 +13,18 @@
 // Upload only (v1): the client never merges the server's answer back (REPORT-CUSTOM1 "The upload path").
 
 import { HEROES } from "../sim/content";
-import { emptyProfile, evaluateUnlocks, PROFILE_V, styleByKey, type Counters, type Profile } from "../game/profile";
+import { emptyProfile, evaluateUnlocks, styleByKey, type Counters, type Profile } from "../game/profile";
 import { DEFAULT_SKIN, SURFACES, isStyleId, styleKey, type Surface } from "../render/styles";
 
-/** The wire version this build writes and fully reads (the profile's own PROFILE_V). */
-export const WIRE_V = PROFILE_V;
+/** The wire version this build writes and fully reads. It is the wire's own number, not the device profile's PROFILE_V: a
+ *  device-side bump (REQ-BFG-003's v2) must not make every client send "v":2 to a server that reads 1. Change it only with
+ *  this module's decode (tests/profileup.wire.test.ts pins it). */
+export const WIRE_V = 1;
 
 /** The signed body's byte limit. The largest canonical profile today (every style, every hero, every counter at its
- *  ceiling) is measured in tests/profileup.wire.test.ts and is under 1 KB, so 2048 leaves room for REQ-BFG-003's
- *  namespaced unlocks without a second server change. */
+ *  ceiling) is measured in tests/profileup.wire.test.ts and is under 1 KB, so 2048 leaves room for more styles and heroes.
+ *  REQ-BFG-003's namespaced unlocks ("hero:...", "parts:...") would need this module's id checks extended as well (toWire
+ *  sends style keys only; checkWire refuses any other). */
 export const MAX_PROFILE_BYTES = 2048;
 
 /** The counters in the canonical order (profile.ts's own list; the test pins them equal). */
@@ -194,17 +197,19 @@ function earnedIds(counters: Counters, heroesWon: readonly string[], heroesFinis
   return new Set(p.unlocked);
 }
 
-/** RELATIONS: each is true after every fold in profile.ts, for every honest profile (tests/profileup.wire.test.ts drives
- *  the real fold code at random to check them):
+/** RELATIONS: each is made true by ONE fold function in profile.ts alone, for every honest profile (tests/profileup.wire.test.ts
+ *  drives the real fold code at random to check them):
  *  - runsFinished <= runs: foldEnd adds one to runs on every end and one to runsFinished only on "complete", in the same
  *    fold (the seed leaves runsFinished at 0);
- *  - flawless <= runsFinished: foldEnd adds to flawless only when RunFacts.flawless, and day.ts flawless(run) needs
- *    run.over === "complete", the case that adds to runsFinished in that same fold;
+ *  - flawless <= runs: foldEnd adds one to runs on every end, and to flawless only when the end is flawless, in the same fold;
  *  - matriarchWins <= warlordWins: foldWarlord adds to matriarchWins only inside the win that adds to warlordWins.
- *  Not used, because the code does not make them true: duskWins against runs (a run in progress has folded dusks before
- *  its end, and a run has no win cap), bestDay against runs. */
+ *  Not used, because the fold code alone does not make them true:
+ *  - flawless <= runsFinished holds at r0910-repin only through day.ts:243 flawless(run), which needs run.over === "complete";
+ *    RUN-1 redefines "complete" and flawless (won with 0 losses), and a wrong relation here would refuse every honest flawless
+ *    player for good, so the server asks only flawless <= runs;
+ *  - duskWins against runs (a run in progress has folded dusks before its end, and a run has no win cap), bestDay against runs. */
 const RELATIONS: readonly (readonly [keyof Counters, keyof Counters])[] = [
-  ["runsFinished", "runs"], ["flawless", "runsFinished"], ["matriarchWins", "warlordWins"],
+  ["runsFinished", "runs"], ["flawless", "runs"], ["matriarchWins", "warlordWins"],
 ];
 
 /** Whether `id` can be worn on `surface` given the open (unlocked) style keys: a known style that is the default or open. */

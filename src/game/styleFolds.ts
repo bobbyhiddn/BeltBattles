@@ -6,7 +6,7 @@
 import type { DayResult, Run } from "./run";
 import { flawless } from "./day";
 import { commitFold, foldDusk, foldEnd, foldWarlord, type RunFacts } from "./profile";
-import { online } from "./session"; // PROFILE-UP (REQ-BFG-074 clause 4): types only; null offline, so nothing here then
+import { online } from "./session"; // PROFILE-UP (REQ-BFG-074 clause 4): the page's session (session.ts imports types only), or null offline: then nothing here runs
 
 /** The facts a fold reads from a run. */
 export function runFacts(run: Run): RunFacts {

@@ -59,6 +59,8 @@ interface Rig {
   profileKeys(): string[] | null;
   /** Make the next profile write fail in this backend's own way. */
   breakWrites(): void;
+  /** Make this player's record unreadable in this backend's own way (not absent: a directory in its place, or refused reads). */
+  breakReads(playerId: string): void;
   close(): Promise<void>;
 }
 
@@ -76,7 +78,7 @@ async function rig(kind: Kind, over: Opts = {}): Promise<Rig> {
   } else {
     bucket = `bb-profile-${++buckets}`;
     fake.createBucket(bucket);
-    app = createGhostServer({ ...opts, store: tigrisFor(fake, bucket) });
+    app = createGhostServer({ ...opts, store: tigrisFor(fake, bucket, {}, { log: (l) => log.push(l) }) }); // the S3 client's own retry lines too
   }
   const base = `http://127.0.0.1:${await app.listen(0)}`;
   const dir = kind === "jsonl" ? (app.store as JsonlStore).dataDir : "";
@@ -98,6 +100,10 @@ async function rig(kind: Kind, over: Opts = {}): Promise<Rig> {
     breakWrites() {
       if (kind === "tigris") fake.failNext(3, 503, "PUT"); // the client retries twice: three attempts, all refused
       else writeFileSync(join(dir, "profiles"), "a file where the directory should be"); // mkdir fails
+    },
+    breakReads(id) {
+      if (kind === "tigris") fake.failNext(3, 503, "GET"); // three attempts, all refused
+      else mkdirSync(join(dir, "profiles", `${id}.json`), { recursive: true }); // a directory where the record's file should be: EISDIR
     },
     close: () => app.close(),
   };
@@ -333,7 +339,7 @@ describe.each(["jsonl", "tigris"] as const)("PUT /v1/profile on the %s store", (
       ["bestDay over its ceiling", { ...w, counters: { ...w.counters, bestDay: 1000 } }, "counters.bestDay: 1000 is over the ceiling 999"],
       ["a counter over the million", { ...w, counters: { ...w.counters, duskWins: 1_000_001 } }, "counters.duskWins: 1000001 is over the ceiling 1000000"],
       ["runsFinished past runs", { ...w, counters: { ...w.counters, runs: 2, runsFinished: 3 } }, "counters.runsFinished: 3 is more than counters.runs (2)"],
-      ["flawless past runsFinished", { ...w, counters: { ...w.counters, runsFinished: 1, flawless: 2 } }, "counters.flawless: 2 is more than counters.runsFinished (1)"],
+      ["flawless past runs", { ...w, counters: { ...w.counters, runs: 1, runsFinished: 0, flawless: 2 } }, "counters.flawless: 2 is more than counters.runs (1)"],
       ["matriarchWins past warlordWins", { ...w, counters: { ...w.counters, warlordWins: 0, matriarchWins: 1 } }, "counters.matriarchWins: 1 is more than counters.warlordWins (0)"],
       ["a hero the game does not have", { ...w, heroesWon: ["nobody"] }, 'heroesWon: "nobody" is not a hero'],
       ["a style the catalogue does not have", { ...w, unlocked: ["style:floor.nope"] }, 'unlocked: "style:floor.nope" is not an unlockable style'],
@@ -375,6 +381,20 @@ describe.each(["jsonl", "tigris"] as const)("PUT /v1/profile on the %s store", (
       expect((await putWire(r, W1())).status).toBe(200); // the faults are spent
       expect(await r.stored(ME.playerId)).toBe(record(W1()));
     }
+  });
+
+  it("a record that cannot be read is storage trouble, never 'none': 503, and nothing is written over it", async () => {
+    const r = await rig(kind);
+    r.breakReads(ME.playerId);
+    const res = await putWire(r, W1());
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("5");
+    const lines = r.log.filter((l) => l.startsWith("storage error:"));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^storage error: profile read failed/);
+    expect(r.log.join("\n")).not.toContain(ME.playerId);
+    if (kind === "tigris") expect(r.profileKeys()).toEqual([]); // the write was never tried
+    expect(r.log.filter((l) => l.includes("profiles/") && l.includes(".json"))).toEqual([]);
   });
 
   it("a stored record that is not a record is treated as none (the upload replaces it); one from a newer version is never overwritten (503)", async () => {
@@ -492,6 +512,33 @@ describe.each(["jsonl", "tigris"] as const)("PUT /v1/profile on the %s store", (
   });
 });
 
+describe("PUT /v1/profile on Tigris: the S3 client's own log lines", () => {
+  it("its retry lines do not carry the player id: a refused read and a refused write show profiles/*", async () => {
+    const r = await rig("tigris");
+    fake.failNext(1, 503, "GET"); // refused once, then 404: no record yet
+    fake.failNext(2, 503, "PUT"); // refused twice, then stored
+    const res = await putWire(r, W1());
+    expect(res.status).toBe(200);
+    const s3 = r.log.filter((l) => l.startsWith("s3 "));
+    expect(s3).toHaveLength(3);
+    for (const l of s3) expect(l, l).toMatch(/^s3 (GET|PUT) profiles\/\*: HTTP 503[ A-Za-z]*; retry \d\/2 in \d+ ms$/);
+    expect(r.log.join("\n")).not.toContain(ME.playerId);
+    expect(await r.stored(ME.playerId)).toBe(record(W1()));
+  });
+
+  it("a ghost object's key is still shown whole (only profile objects are masked)", async () => {
+    const r = await rig("tigris");
+    const mine = ownedBy(upSnap({ lives: HEARTS_START }), ME);
+    const body = encodeSnapshot(mine);
+    fake.failNext(1, 503, "PUT"); // the ghost's own write is refused once
+    const res = await send(r, "POST", "/v1/ghosts", body, await signedBy(ME, body, UPLOAD_PREFIX));
+    expect(res.status).toBe(201);
+    const s3 = r.log.filter((l) => l.startsWith("s3 PUT ghosts/"));
+    expect(s3).toHaveLength(1);
+    expect(s3[0]).toMatch(/^s3 PUT ghosts\/bb-0\.10\.0\/d01\/player\/g[0-9a-f]+\.json: HTTP 503/);
+  });
+});
+
 // ---------------------------------------------------------------------------------------- stores and injected failures
 
 describe("a store that fails", () => {
@@ -522,7 +569,10 @@ describe("a store that fails", () => {
     expect(res).toMatchObject({ status: 500, json: { error: "internal error" } });
   });
 
-  it("the default for a ghost store this code does not know is in memory; profileStoreFor reads the real ones", async () => {
+  it("the default for a ghost store this code does not know is in memory, and says so in the log; profileStoreFor reads the real ones", async () => {
+    const lines: string[] = [];
+    expect(profileStoreFor({} as GhostStore, (l) => lines.push(l))).toBeInstanceOf(MemoryProfileStore);
+    expect(lines).toEqual(["profile store: this ghost store is neither the file nor the Tigris store; profiles are kept in memory only"]);
     expect(profileStoreFor({} as GhostStore)).toBeInstanceOf(MemoryProfileStore);
     const mem = new MemoryProfileStore();
     const rec: StoredProfile = { profile: W2(), receivedAt: 7 };

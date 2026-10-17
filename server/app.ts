@@ -73,7 +73,7 @@ export interface ServerOptions {
   /** Mixed into the match seed. Default: the current minute, so a retry gets the same ghost. */
   matchSalt?: () => number | string;
   /**
-   * "closed": POST /v1/ghosts answers 403 without reading the body (seeding still works).
+   * "closed": POST /v1/ghosts and PUT /v1/profile answer 403 without reading the body (seeding still works).
    * Production ran closed until the uploads step (0.8.0 U2: fly.toml BB_GHOST_UPLOADS = "open"); config.ts's default
    * stays closed.
    */

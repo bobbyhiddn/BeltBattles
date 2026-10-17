@@ -8,7 +8,7 @@
 // address. The route does read-merge-write; a lost race between two writes of one key (two uploads in flight, or two
 // machines) is accepted, because every upload is a device's whole profile and the next one merges again.
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ID_PATTERN } from "../src/net/snapshot";
 import { ProfileWireError, decodeWireValue, encodeWire, type WireProfile } from "../src/net/profileWire";
@@ -73,10 +73,11 @@ function readable(text: string, onSkip: () => void): StoredProfile | null {
   }
 }
 
-const errCode = (e: unknown): string => {
+const codeOf = (e: unknown): string | undefined => {
   const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
-  return typeof code === "string" ? ` (${code})` : "";
+  return typeof code === "string" ? code : undefined;
 };
+const errCode = (e: unknown): string => (codeOf(e) ? ` (${codeOf(e)})` : "");
 
 /** The file store: one file per player under <dataDir>/profiles. Writes are tmp + rename, so a reader sees the old record or
  *  the new one. Messages carry the operation only, never the player id or a path. */
@@ -92,9 +93,11 @@ export class FileProfileStore implements ProfileStore {
     const file = this.file(playerId);
     let text: string;
     try {
-      if (!existsSync(file)) return null;
       text = readFileSync(file, "utf8");
     } catch (e) {
+      // no file (or no directory) means no record; any other failure (EACCES, EMFILE, EISDIR...) is storage trouble, never "none":
+      // a record that merely could not be read must not be overwritten by the next upload
+      if (codeOf(e) === "ENOENT" || codeOf(e) === "ENOTDIR") return null;
       throw new StorageError(`profile read failed${errCode(e)}`);
     }
     return readable(text, () => this.skipped++);
@@ -169,5 +172,6 @@ export class MemoryProfileStore implements ProfileStore {
 export function profileStoreFor(ghosts: GhostStore, log: (line: string) => void = () => {}): ProfileStore {
   if (ghosts instanceof JsonlStore) return new FileProfileStore(join(ghosts.dataDir, PROFILE_DIR));
   if (ghosts instanceof TigrisStore) return new TigrisProfileStore(ghosts.s3, log);
+  log("profile store: this ghost store is neither the file nor the Tigris store; profiles are kept in memory only");
   return new MemoryProfileStore();
 }

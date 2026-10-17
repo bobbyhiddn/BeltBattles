@@ -308,6 +308,21 @@ describe("a CUSTOMIZE pick uploads, debounced", () => {
     expect(s.profileUploads).toBe(1);
   });
 
+  it("tapping the style already worn changes nothing and uploads nothing", async () => {
+    const { puts, store } = await rig();
+    vi.useFakeTimers();
+    const cs = new CustomizeState(player(store), store);
+    expect(cs.tapRow("plate")).toBe("worn"); // the default floor is worn already
+    await vi.advanceTimersByTimeAsync(PROFILE_DEBOUNCE_MS * 2);
+    expect(puts).toHaveLength(0);
+    cs.tapRow("timber");
+    await vi.advanceTimersByTimeAsync(PROFILE_DEBOUNCE_MS);
+    expect(puts).toHaveLength(1);
+    cs.tapRow("timber"); // worn already
+    await vi.advanceTimersByTimeAsync(PROFILE_DEBOUNCE_MS * 2);
+    expect(puts).toHaveLength(1);
+  });
+
   it("a run's end before the wait is over sends at once and carries the pick; the pick's own upload never follows", async () => {
     const { puts, store } = await rig();
     vi.useFakeTimers();
@@ -371,6 +386,15 @@ describe("only in the online state; never at boot", () => {
     expect(puts).toHaveLength(0);
     foldRunEnd(ended("lost", 6)); // the next trigger, identity loaded: it goes
     expect(puts).toHaveLength(1);
+  });
+
+  it("a profile written by a newer build is read-only here (profile.ts never writes it back), so nothing is uploaded from it", async () => {
+    const { puts, store } = await rig();
+    store.setItem(PROFILE_KEY, JSON.stringify({ ...emptyProfile(), v: 2, updatedAt: Date.now() }));
+    foldRunEnd(ended());
+    expect(puts).toHaveLength(0);
+    expect(loadProfile(store).v).toBe(2); // and it is still the newer build's, untouched
+    loadProfile(mem()); // a fresh store resets profile.ts's write guard for the tests after this one
   });
 
   it("a session with no profile upload in its deps (a test's own) sends none; a stub session without the method is fine", async () => {

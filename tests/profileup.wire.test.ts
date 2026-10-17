@@ -203,13 +203,17 @@ describe("the plausibility caps: 422, naming the field", () => {
     }
   });
 
-  it("the fold relations: runsFinished <= runs, flawless <= runsFinished, matriarchWins <= warlordWins", () => {
+  it("the fold relations: runsFinished <= runs, flawless <= runs, matriarchWins <= warlordWins (each from one fold function)", () => {
     capped(earnedWire({ runs: 2, runsFinished: 3 }), "counters.runsFinished");
-    capped(earnedWire({ runs: 5, runsFinished: 2, flawless: 3 }), "counters.flawless");
+    capped(earnedWire({ runs: 2, runsFinished: 1, flawless: 3 }), "counters.flawless");
     capped(earnedWire({ warlordWins: 1, matriarchWins: 2 }), "counters.matriarchWins");
     for (const ok of [{ runs: 2, runsFinished: 2, flawless: 2 }, { warlordWins: 4, matriarchWins: 4 }, { runs: 0, runsFinished: 0 }]) {
       expect(() => checkWire(earnedWire(ok), NOW)).not.toThrow();
     }
+  });
+
+  it("flawless <= runsFinished is NOT asked: it holds at this base only through day.ts flawless(), which RUN-1 redefines, and a wrong relation would refuse every honest flawless player", () => {
+    expect(() => checkWire(earnedWire({ runs: 5, runsFinished: 2, flawless: 3 }), NOW)).not.toThrow();
   });
 
   it("heroes are HEROES ids; a hero id the game does not have is a 422 in either list", () => {
@@ -279,7 +283,7 @@ describe("honest profiles under 1D's rules are never refused (RUN-1: no day cap;
 });
 
 describe("the relations hold for what profile.ts's real folds make", () => {
-  it("day.ts flawless(run) needs run.over === 'complete'; a lost or running 10-0 is not flawless (flawless <= runsFinished rests on it)", () => {
+  it("day.ts flawless(run) needs run.over === 'complete'; a lost or running 10-0 is not flawless (so flawless <= runsFinished holds at this base; the server asks only flawless <= runs)", () => {
     const run = (over: Run["over"], losses = 0, wins = RUN_DAYS) => ({ over, losses, wins }) as unknown as Run;
     expect(flawless(run("complete"))).toBe(true);
     expect(flawless(run("lost"))).toBe(false);

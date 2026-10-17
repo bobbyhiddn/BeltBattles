@@ -7,8 +7,8 @@
 //   but never written back: an older build can't wipe a newer one's progress (the trap settings.v1 has).
 // - When the key is absent (or unreadable) it is seeded once from what the game kept: the local ghost pool (GHOST_KEY:
 //   best day, heroes with a win, dusk wins per run, distinct runs) and, online, RUNS_KEY's finished runs. An undercount.
-// - The run save is unchanged (no save version bump). Nothing here is uploaded (REVIEW-CUSTOM1 Q2: the upload is a later
-//   server job). Display only: the sim never reads it, and it imports nothing from the sim but types; callers pass the
+// - The run save is unchanged (no save version bump). Nothing here uploads (PROFILE-UP, REQ-BFG-074: net/profileWire.ts sends the
+//   wire form online, without seen, folded or runNew). Display only: the sim never reads it, and it imports nothing from the sim but types; callers pass the
 //   run's facts (RunFacts), so it reads no sim value, no sim RNG and no Math.random.
 
 import type { HeroId } from "../sim/content";

@@ -132,9 +132,10 @@ export class CustomizeState {
     if (!stylesOf(this.tab).some((s) => s.id === id)) return "none";
     this.pick = id;
     if (!isOpen(this.profile, this.tab, id)) return "preview";
+    const was = this.profile.chosen[this.tab];
     if (wear(this.profile, this.tab, id)) {
       saveProfile(this.profile, this.store);
-      online()?.profileChanged?.("pick"); // PROFILE-UP: debounced; offline there is no session, so nothing
+      if (was !== id) online()?.profileChanged?.("pick"); // PROFILE-UP: a pick that changed, debounced; offline there is no session
     }
     return "worn";
   }

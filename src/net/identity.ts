@@ -206,7 +206,7 @@ async function verifyIn(
  * Check one upload: `sig` must be the signature of `key` over UPLOAD_PREFIX + these exact body
  * bytes. On success, the key's playerId. Never throws; every failure is { ok: false }.
  */
-export function verifyUpload(
+export async function verifyUpload(
   body: Uint8Array, key: string | null | undefined, sig: string | null | undefined, subtle: MaybeSubtle = webSubtle(),
 ): Promise<VerifyResult> {
   return verifyIn(UPLOAD_PREFIX, body, key, sig, subtle);
@@ -216,7 +216,7 @@ export function verifyUpload(
  * PROFILE-UP: check one profile upload: `sig` must be the signature of `key` over PROFILE_PREFIX + these exact body
  * bytes. A ghost upload's signature fails here, and this one's fails verifyUpload. Never throws.
  */
-export function verifyProfile(
+export async function verifyProfile(
   body: Uint8Array, key: string | null | undefined, sig: string | null | undefined, subtle: MaybeSubtle = webSubtle(),
 ): Promise<VerifyResult> {
   return verifyIn(PROFILE_PREFIX, body, key, sig, subtle);

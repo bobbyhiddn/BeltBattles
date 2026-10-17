@@ -33,7 +33,7 @@ import { putProfile, type PutProfileResult } from "../net/profileClient";
 import { validateUpload } from "../net/validate";
 import { ghostOf, storedFoe, storeOnlineFoe } from "./day";
 import { ghostAllowed } from "./ghostGuard"; // RETUNE-1 run 2 (REQ-BFG-096): the upload guard
-import { loadProfile } from "./profile";
+import { loadProfile, PROFILE_V } from "./profile";
 import { battleSeed, saveRun, type Run } from "./run";
 import { online, setSession, type Session } from "./session";
 
@@ -286,6 +286,7 @@ export class Online implements Session {
     if (!id || !put) return;
     try {
       const profile = loadProfile(this.deps.store);
+      if (profile.v > PROFILE_V) return; // a newer build's profile: this build reads part of it and writes none of it (profile.ts), so it sends none either
       this.profileUploads++;
       put(this.url, id, profile, UPLOAD_TIMEOUT_MS).then((r) => {
         this.lastProfileUpload = r; // 404 (an older server), 403 (closed), 401, 422, 5xx and network errors stay silent

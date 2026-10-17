@@ -154,7 +154,7 @@ export const probeHasNpcDay = (): boolean => npcDayGateProblem(PROBE_RULES) === 
  *  the honest NPC-day deck under rules with the NPC day (AZ-BUMP). */
 export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0);
 export const PROBE_TIMEOUT_MS = 15_000;
-export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file>   (base url: http(s)://host[:port], no path; an id file that holds no id yet)";
+export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file> [--profile]   (base url: http(s)://host[:port], no path; an id file that holds no id yet; --profile also PUTs a profile)"; // PROFILE-UP: the opt-in flag
 /** The server's answer to a POST without the signing headers (identity.ts uploadHeaderError). */
 export const UNSIGNED_ERROR = `unsigned upload: the ${KEY_HEADER} and ${SIG_HEADER} headers are required`;
 /** H2's answer to a record no run can carry into that dusk (server/app.ts, POST step 6). */
