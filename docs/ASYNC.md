@@ -629,6 +629,33 @@ node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's 
   0.8.4's probe: bb-0.8.0), and it prints no key material.
 - tests/ghost-probe.test.ts runs it against the in-process server on both stores, open and closed, plus bad arguments
   and a dead port.
+- **0.9.11 (rules bb-0.11.0; BUMP-1D, PROFILE-UP):** the probe now makes **15** POSTs and stores **7** decks (the nine
+  above, plus LAST CHANCE's two, the NPC day's two and the long run's two: `longrun-signed` 201, a day-12 deck with 9
+  wins and 2 draws, and `longrun-nolosses` 422, `losses: a long run's upload states the dusks the run lost ...`). It
+  prints 18 lines; the summary reads `probe: 15 of 15 checks as expected; the server stored 7 deck(s) for this player
+  (expected 7)`. The seven decks sit on days 1, 2, 3 (three), 7 and 12; `remove-player <id> --rules bb-0.11.0 --apply`
+  deletes them (the Tigris store enumerates days 1 to 25). With a third argument, `--profile`, it also PUTs a minimal
+  signed profile (`profile-signed`, expects 200 and the profile as sent) and the same body with a broken signature
+  (`profile-badsig`, 401): `17 of 17`. The server keeps that one profile for the probe's player; **ghost-admin does not
+  know `profiles/`** (Tigris: `profiles/<player id>.json`; the file store: `<data dir>/profiles`), so delete it by hand.
+
+## PUT /v1/profile (PROFILE-UP, 0.9.11)
+
+`PUT /v1/profile` (server/profileRoute.ts; the case in server/app.ts, CORS `Access-Control-Allow-Methods: GET, POST, PUT,
+OPTIONS`) keeps one merged profile per player, upload only. The body is the canonical wire profile
+(src/net/profileWire.ts), signed in its **own domain**: `x-bb-key` and `x-bb-sig` over `"bb-profile-1\n"` + the exact body
+bytes (src/net/identity.ts `verifyProfile`), so a ghost upload's signature never verifies here and the reverse. The body
+carries no player id: the record is the signer's, so a key can only write its own. Refusals, in the order they are checked:
+403 while uploads are closed (the body is not read); 401 for a missing or malformed header, or a signature that does not
+match the exact bytes; 413 over MAX_PROFILE_BYTES; 400 for anything but the canonical wire profile; 422 for a newer `v`
+or a plausibility cap (named); 503 when storage is down. 200 answers the merged profile (counters take the larger, the
+lists the union, `chosen` the newer `updatedAt`, a style only if unlocked). The store is
+`profileStoreFor` (server/profileStore.ts): `<data dir>/profiles` for the file store, `profiles/<playerId>.json` on
+Tigris; a lost race between two writes of one key is accepted, because the next upload merges again. The client
+(src/net/profileClient.ts `putProfile`, called from src/game/online.ts) PUTs once when a run's end is folded and 3 s after
+the last CUSTOMIZE pick, only while online with an identity, never at boot, one try each, silent on every failure. An old
+server answers a new client's PUT with a 404 (nothing changes on screen); an old client never PUTs. **Deploy the server
+first or together with the client, never the client alone** (0.9.11 is a rules release, so they ship together anyway).
 
 ## 0.8.0: rules bb-0.8.0 and the four-hero seed pool
 

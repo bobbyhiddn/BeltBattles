@@ -74,7 +74,14 @@ heroesFinished, unlocked, chosen, seen, folded, runNew, updatedAt }`.
   runs but the one in progress. An undercount.
 - Folds (`src/game/styleFolds.ts`) read the run's own records and count once per `<runId>:<day>` (`:warlord`, `:end`):
   after each dusk (finishDay) and warlord result in the battle screen, and at the run's end (the dusk that ends it, the
-  summary, ABANDON). The run save is unchanged. Nothing is uploaded (Q2: a later server job).
+  summary, ABANDON). The run save is unchanged. **Uploaded since 0.9.11 (PROFILE-UP, REQ-BFG-074 clause 4):** online only
+  (a server configured and a device identity loaded; the offline page makes no request), `src/game/online.ts` calls
+  `putProfile` (`src/net/profileClient.ts`) once when a run's end has been folded (`styleFolds.ts`, once per run id) and,
+  3 s after the last pick, once after a CUSTOMIZE pick that changed a worn style; the body is the canonical wire profile
+  (`src/net/profileWire.ts`: the counters, `heroesWon`, `heroesFinished`, `unlocked`, `chosen`, `updatedAt`) signed in its
+  own domain with the device key; the server (`PUT /v1/profile`, `server/profileRoute.ts`) merges it into that player's
+  record (counters take the larger, the lists the union, the worn styles the newer pick). Upload only: the client never
+  merges the answer back; every failure is silent (no dialog, no console line, no retry); no new storage key.
 
 ## CUSTOMIZE (src/screens/customize.ts)
 
