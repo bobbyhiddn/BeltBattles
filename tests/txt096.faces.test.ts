@@ -2,7 +2,7 @@
 // Each face line that changed says a real sim rule its sentence said and its face had dropped; each test here reads that
 // rule from the sim side (a sim run, a chamber hook, the rip, the copies), never from the text, so a change to the rule
 // turns it red:
-//   ASSEMBLY LINE    "FEEDS A GUN: YOUR RIGS START 50% SOONER." (★3 "AT ONCE"): battle.ts assemblyLines / makeSide
+//   ASSEMBLY LINE    "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 50% SOONER." (★3 "AT ONCE"; SHOPCARD-1c, G8: was "... YOUR RIGS START 50% SOONER."): battle.ts assemblyLines / makeSide
 //   HULLBREAKER      "SHOT: HITS ONLY THE HULL, FOR +30% {DMG}.": Battle.fireCore aims it at hullTarget()
 //   GATLING SPOOL    "FIRES AT ONCE, SPINS UP TO 67% FASTER.": cores.ts gatlingReady against the default ready
 //   GRAPNEL GUN      "SHOT: ON A BELT OR RIG, RIPS 1 SLUG.": Battle.rip on a belt tile or a rig

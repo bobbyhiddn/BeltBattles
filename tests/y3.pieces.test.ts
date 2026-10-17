@@ -143,7 +143,7 @@ describe("Y3 row 23: QUENCH TANK turns each BURN into +30/+50/+70; no floor, no 
     expect([off.flat, off.burn]).toEqual([120, 0]);
   });
 
-  it("face: HIT: TURNS EACH BURN INTO +30/+50/+70 DMG; ladder DMG +30/+50/+70", () => {
+  it("face: HIT: TURNS EACH BURN ON A SLUG INTO +30/+50/+70 DMG; ladder DMG +30/+50/+70", () => {
     // AZ-BUMP (the flip, LADDER_FIX): ★1 +30 -> +40, the star-ladder pass's QUENCH ★1, on its face and its ladder; off, +30
     expect(lines("quench")).toEqual([40, 50, 70].map((d) => [`HIT: TURNS EACH {*BURN} ON A {SLUG} INTO +${d} {DMG}.`])); // SHOPCARD-1c (G10): whose BURN: the slug's it hits (was HIT: TURNS EACH {*BURN} INTO +${d} {DMG}.)
     expect(withLadderFix(() => lines("quench")[0], false)).toEqual(["HIT: TURNS EACH {*BURN} ON A {SLUG} INTO +30 {DMG}."]);
@@ -421,7 +421,7 @@ describe("Y3 row 32: ASSEMBLY LINE: your rigs start 50%/75%/100% sooner, its own
   // TXT-096 (REVIEW-TXT095 Q2): the line says its condition, FEEDS A GUN, and ★3 says AT ONCE (commission 0: the sim test
   // above, online(3) [0, 0, 0]; tests/txt096.faces.test.ts pins both); was "YOUR RIGS START 50%/75%/100% SOONER." with the
   // ladder "[50%]/75%/100% SOONER" (★3's AT ONCE has no number, so the ladder lists the three forms)
-  it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; FEEDS A GUN: YOUR RIGS START 50% SOONER/75% SOONER/AT ONCE; ladders DMG 30/45/60, 50% SOONER/75% SOONER/AT ONCE; no HOT START name, the ⓘ view's too (Y7b2, TXT-096)", () => {
+  it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 50% SOONER/75% SOONER/AT ONCE; ladders DMG 30/45/60, 50% SOONER/75% SOONER/AT ONCE; no HOT START name, the ⓘ view's too (Y7b2, TXT-096)", () => {
     // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): WORK (was "FEEDS A GUN: YOUR RIGS START ...")
     expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING ${p}.`])); // SHOPCARD-1c (G8): when and what (was FEEDS A GUN: YOUR RIGS START ${p}.)
     expect(faceAt("assembly", 1)!.stats).toEqual([["RATE", "17"], ["DMG", "30"], ["BELT", "2"]]);
