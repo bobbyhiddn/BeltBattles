@@ -29,6 +29,8 @@ const K = Number(arg("--k", "6")), KW = Number(arg("--kw", "8")), M = Number(arg
 const STAR = Number(arg("--star", String(DAY <= 4 ? 1 : DAY <= 7 ? 2 : 3)));
 const OUT = arg("--out", `poison-d${DAY}.json`);
 const CHECKS = arg("--checks", "1,2,3").split(",");
+// the fast BURN deck's TEMPERs: ★2 at the check's day 6 (REPORT-SCALE1 section 2); the day's star on the other days (--burnstar overrides)
+const BURNSTAR = Number(arg("--burnstar", String(DAY <= 4 ? 1 : DAY <= 7 ? 2 : 3)));
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const log = (s: string): void => console.log(`poison d${DAY} ★${STAR}: ${s}`);
 if (!scaleRules()) { console.error("poison.ts: SCALE_RIGS is off in this build (set the constant true in the export)"); process.exit(3); }
@@ -93,7 +95,7 @@ for (let i = 0; i < fields.get("bastion")!.length && walls.length < KW; i++) {
 const burns: Build[] = [];
 for (let i = 0; i < fields.get("furnace")!.length && burns.length < KW; i++) {
   const b = fields.get("furnace")![i];
-  const w = assemble("furnace", b, [["temper", 2, 2], ["quench", 1]], `B|${i}`);
+  const w = assemble("furnace", b, [["temper", 2, BURNSTAR], ["quench", 1]], `B|${i}`);
   if (w) burns.push(w);
 }
 log(`decks: ${poisonDecks.length} POISON, ${healA.length} HEAL-A, ${healB.length} HEAL-B, ${walls.length} WALL, ${burns.length} BURN (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
