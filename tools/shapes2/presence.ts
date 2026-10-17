@@ -28,6 +28,7 @@ import { SHAPES_IDS, setShapes, shapesRules } from "../../src/sim/shapes";
 import { SHAPES2_IDS, setShapes2, shapes2Rules } from "../../src/sim/shapes2";
 import { PLAIN_RIG_IDS, plainRigsRules, setPlainRigs } from "../../src/sim/plainRigs";
 import { clearStarCache } from "../../src/sim/stars";
+import { setLongRun } from "../../src/sim/longRun"; // BUMP-1D P3: --long on|off
 import { parSeeds, parField } from "../../src/sim/harness/par";
 import { playerRun } from "../../src/sim/harness/player";
 import { playJob, type Job } from "../../src/sim/harness/tournament";
@@ -48,16 +49,19 @@ const SHAPED = [...SHAPES_IDS, ...(S2 ? SHAPES2_IDS : [])];
 // the 1D load order (PLAIN_RIGS, SHAPES, SHAPES2: ITEMS' order is part of the seeded draws), every other switch as the base ships it
 setShapes2(false); setShapes(false); setPlainRigs(false);
 setPlainRigs(PLAIN); setShapes(true); setShapes2(S2);
+setLongRun(arg("--long", "on") === "on"); // BUMP-1D P3: default on, the bump's world; off: the old 10-day frame SHAPES-2's reads were made in
 // the guard's cuts: --set nailstrip.flat=10 (a ★1 gate number) or --set nailstrip.price=3
 const sets: string[] = [];
 process.argv.forEach((a, i) => { if (a === "--set") sets.push(process.argv[i + 1]); });
 /** Patch one def as `id.field=value` says; returns the def it replaced. */
 const applySet = (s: string): [string, ItemDef] => {
-  const [lhs, v] = s.split("="), [id, field] = lhs.split(".");
+  // id.price=N | id.field=N (a star-1 gate number) | id.L2.field=N, id.L3.field=N (a level's gate number; BUMP-1D P3)
+  const [lhs, v] = s.split("="), parts = lhs.split("."), id = parts[0];
   const was = ITEMS[id];
-  const d: ItemDef = { ...ITEMS[id], gate: { ...ITEMS[id].gate } };
-  if (field === "price") d.price = Number(v);
-  else (d.gate as Record<string, number>)[field] = Number(v);
+  const d: ItemDef = { ...ITEMS[id], gate: { ...ITEMS[id].gate }, levels: { ...ITEMS[id].levels } };
+  if (parts[1] === "price") d.price = Number(v);
+  else if (/^L[23]$/.test(parts[1])) { const lv = Number(parts[1][1]) as 2 | 3; d.levels = { ...d.levels, [lv]: { ...d.levels![lv], gate: { ...d.levels![lv]!.gate, [parts[2]]: Number(v) } } }; }
+  else (d.gate as Record<string, number>)[parts[1]] = Number(v);
   (ITEMS as Record<string, ItemDef>)[id] = d;
   return [id, was];
 };
@@ -104,7 +108,7 @@ interface Pair { deck: number; whole: number[]; other: number[] } // points per 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : NaN);
 
 const t0 = Date.now();
-const label = `SHAPES2 ${S2 ? "+ " : "off, "}PLAIN_RIGS ${PLAIN ? "on" : "off"}, without RUN-1's LONG_RUN, on the old 10-day frame`;
+const label = `SHAPES2 ${S2 ? "+ " : "off, "}PLAIN_RIGS ${PLAIN ? "on" : "off"}, LONG_RUN ${arg("--long", "on")}`;
 const out: Record<string, unknown> = { hero: HERO, s2: S2, plain: PLAIN, shapesRules: shapesRules(), shapes2Rules: shapes2Rules(), plainRigsRules: plainRigsRules(), label, days: DAYS, k: K, m: M, seeds: SEEDS, ins: INS, sets, swap: SWAP_FROM ? `${SWAP_FROM}:${SWAP_TO}` : null, fight: FIGHT, rows: [] as unknown[], cargo: [] as unknown[] };
 for (const day of DAYS) {
   const mine = parField(HERO, day, K);

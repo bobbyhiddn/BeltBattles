@@ -11,9 +11,11 @@
 import { writeFileSync } from "node:fs";
 import { hashSeed } from "../../src/core/rng";
 import { simulate } from "../../src/sim/battle";
-import type { HeroId } from "../../src/sim/content";
+import { ITEMS, type HeroId, type ItemDef } from "../../src/sim/content";
 import type { Build } from "../../src/sim/deck";
 import { setShapes } from "../../src/sim/shapes";
+import { setLongRun } from "../../src/sim/longRun"; // BUMP-1D P3: --long on|off
+import { clearStarCache } from "../../src/sim/stars"; // BUMP-1D P3: --set patches a def
 import { setShapes2, shapes2Rules } from "../../src/sim/shapes2";
 import { plainRigsRules, setPlainRigs } from "../../src/sim/plainRigs";
 import { parField } from "../../src/sim/harness/par";
@@ -28,9 +30,27 @@ const HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 // the 1D load order (PLAIN_RIGS, SHAPES, SHAPES2), every other switch as the base ships it
 setShapes2(false); setShapes(false); setPlainRigs(false);
 setPlainRigs(PLAIN); setShapes(true); setShapes2(ON);
+// BUMP-1D P3: --long on|off (default on, the bump's world; off: the old 10-day frame SHAPES-2's reads were made in) and
+// --set id.field=value (repeatable; a star-1 gate number, or `price`: a price of 99 takes the rig out of reach without moving the seeded draws)
+setLongRun(arg("--long", "on") === "on");
+const sets: string[] = [];
+process.argv.forEach((a, i) => { if (a === "--set") sets.push(process.argv[i + 1]); });
+for (const s of sets) {
+  // id.price=N | id.field=N (a star-1 gate number) | id.L2.field=N, id.L3.field=N (a level's gate number)
+  const [lhs, v] = s.split("="), parts = lhs.split("."), id = parts[0];
+  const d: ItemDef = { ...ITEMS[id], gate: { ...ITEMS[id].gate }, levels: { ...ITEMS[id].levels } };
+  if (parts[1] === "price") d.price = Number(v);
+  else if (/^L[23]$/.test(parts[1])) { const lv = Number(parts[1][1]) as 2 | 3; d.levels = { ...d.levels, [lv]: { ...d.levels![lv], gate: { ...d.levels![lv]!.gate, [parts[2]]: Number(v) } } }; }
+  else (d.gate as Record<string, number>)[parts[1]] = Number(v);
+  (ITEMS as Record<string, ItemDef>)[id] = d;
+}
+// BUMP-1D P3: --drop id,id takes pieces out of ITEMS before any deck is made (the seeded shop draws then differ: a leave-one-out)
+const drops = arg("--drop", "").split(",").filter(Boolean);
+for (const id of drops) delete (ITEMS as Record<string, ItemDef>)[id];
+if (sets.length || drops.length) clearStarCache();
 
 const t0 = Date.now();
-const label = `SHAPES2 ${ON ? "+ " : "off, "}PLAIN_RIGS ${PLAIN ? "on" : "off"}, without RUN-1's LONG_RUN, on the old 10-day frame`;
+const label = `SHAPES2 ${ON ? "+ " : "off, "}PLAIN_RIGS ${PLAIN ? "on" : "off"}, LONG_RUN ${arg("--long", "on")}${sets.length ? `, set ${sets.join(" ")}` : ""}${drops.length ? `, drop ${drops.join(",")}` : ""}`;
 const rows: unknown[] = [];
 for (const day of DAYS) {
   const fields: Build[][] = HEROES.map((h) => parField(h, day, K));
@@ -54,5 +74,5 @@ for (const day of DAYS) {
   rows.push({ day, per, pair });
   console.log(`cross ${ON ? "on " : "off"} d${day} ${HEROES.map((h, i) => `${h} ${(100 * pts[i] / n[i]).toFixed(1)}%`).join(" | ")} (${n[0]} battles a hero) | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 }
-writeFileSync(OUT, JSON.stringify({ s2: ON, plain: PLAIN, shapes2Rules: shapes2Rules(), plainRigsRules: plainRigsRules(), label, days: DAYS, k: K, seeds: S, rows, seconds: Math.round((Date.now() - t0) / 1000) }, null, 1));
+writeFileSync(OUT, JSON.stringify({ s2: ON, plain: PLAIN, sets, drops, shapes2Rules: shapes2Rules(), plainRigsRules: plainRigsRules(), label, days: DAYS, k: K, seeds: S, rows, seconds: Math.round((Date.now() - t0) / 1000) }, null, 1));
 console.log(`cross ${ON ? "on" : "off"}: done in ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${OUT}`);
