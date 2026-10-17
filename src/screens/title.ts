@@ -88,16 +88,28 @@ export const HELP = [ // exported for tests/joinpace.test.ts. Line 3 is helpLine
   HELP_KEYWORDS, // CARD-5 (REQ-BFG-111): item 6, the keyword line
 ];
 
+/** BUMP-1D P6 (RULING-BANDS1-R1 B1.5): the hearts a lost dusk costs, by day band, in words, with neighbouring bands of equal cost
+ *  merged: HEART_COSTS [1, 2, 3] reads "1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7" (the words of the RETUNE-1 card, unchanged),
+ *  [1, 2, 2] reads "1 ON DAYS 1-3 AND 2 FROM DAY 4" (not "2 ON DAYS 4-6 AND 2 FROM DAY 7"). Built from the constants. */
+export function heartCostWords(costs: readonly number[] = HEART_COSTS, from: readonly number[] = HEART_COST_FROM): string {
+  const bands: { cost: number; from: number }[] = [];
+  costs.forEach((cost, i) => {
+    if (!bands.length || bands[bands.length - 1].cost !== cost) bands.push({ cost, from: from[i] });
+  });
+  const parts = bands.map((b, i) => (i === bands.length - 1 ? `${b.cost} FROM DAY ${b.from}` : `${b.cost} ON DAYS ${b.from}-${bands[i + 1].from - 1}`));
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} AND ${parts[parts.length - 1]}`;
+}
+
 /** RETUNE-1 run 2 (REQ-BFG-096): line 2 with HEARTS on (no run exists on the title, so the switch decides): the hearts rule
- *  (hearts.ts: HEARTS_START, a loss costs heartCost(day), 1/2/3 by day band; no early-loss refund). */
-export const HELP_HEARTS_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${HEART_COSTS[0]} ON DAYS 1-${HEART_COST_FROM[1] - 1}, ${HEART_COSTS[1]} ON DAYS ${HEART_COST_FROM[1]}-${HEART_COST_FROM[2] - 1} AND ${HEART_COSTS[2]} FROM DAY ${HEART_COST_FROM[2]}, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`;
+ *  (hearts.ts: HEARTS_START, a loss costs heartCost(day) by day band, heartCostWords; no early-loss refund). */
+export const HELP_HEARTS_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${heartCostWords()}, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`;
 
 /** RUN-1 (REQ-BFG-059, REQ-BFG-116; D7): the rules card of a long run (title.ts helpLines with LONG_RUN on): line 1 says what wins
  *  the run (10 dusk fights, not 10 days); line 2 is the hearts rule's own words (HELP_HEARTS_2's, up to "A DRAW NONE.") and then
  *  how the run ends: WON at 10 wins, LOST when the hearts run out, no day limit. Was "1  SURVIVE 10 DAYS. ..." and, ending line 2,
  *  "YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS)." The hearts rule's numbers don't change. */
 export const HELP_LONG_1 = `1  WIN ${WIN_GOAL} DUSK FIGHTS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.`;
-export const HELP_LONG_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${HEART_COSTS[0]} ON DAYS 1-${HEART_COST_FROM[1] - 1}, ${HEART_COSTS[1]} ON DAYS ${HEART_COST_FROM[1]}-${HEART_COST_FROM[2] - 1} AND ${HEART_COSTS[2]} FROM DAY ${HEART_COST_FROM[2]}, A DRAW NONE. THE RUN IS WON AT ${WIN_GOAL} WINS AND LOST WHEN YOUR HEARTS RUN OUT. THERE IS NO DAY LIMIT. ${WIN_GOAL}-0 IS FLAWLESS.`;
+export const HELP_LONG_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${heartCostWords()}, A DRAW NONE. THE RUN IS WON AT ${WIN_GOAL} WINS AND LOST WHEN YOUR HEARTS RUN OUT. THERE IS NO DAY LIMIT. ${WIN_GOAL}-0 IS FLAWLESS.`;
 
 /** RUN-1 (REQ-BFG-059, D7): the CONTINUE button's second line for a saved run: "DAY 3/10 · FURNACE · 3-8" for a 10-day run, exactly as
  *  before; "WINS 3/10 · DAY 12 · FURNACE · 3-8" for a long run's save (its mark, Run.longRun; never "/N" on the day). */
