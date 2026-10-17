@@ -136,10 +136,12 @@ describe("PLAIN-1F (M3): the final faces", () => {
     expect(levelLines("brandingiron", 1)!.filter((l) => l.kind === "ladder").map((l) => plain(icons(levelText(l))))).toEqual(["[DMG] [+15]/+30/+50", "[BURN] [-]/+1/+2"]);
   }));
 
-  it("the SHIELD family's line names MAX ♥ while BALLAST is in it (PLAIN_RIGS on); off, the line is the base's", () => {
+  it("the SHIELD family's line names MAX HULL (in words) while BALLAST is in it (PLAIN_RIGS on); off, the line is the base's", () => {
     const base = "SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
-    const withBallast = "SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX {HULL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
-    // BUMP-1D: PLAIN_RIGS ships on, so the off world (the base's line) is explicit and the shipped line is the one with MAX ♥
+    // SC-0912b (cap's answer to SC-0912's question 1; REQ-BFG-081): MAX HULL in words, was "... {*HEAL}, MAX {HULL}, GUARDS, ..." (the heart), as BALLAST's own
+    // stat row, ladder and line say it since SC-0912 (READ-9's reason: HEAL and REGEN are words). The off line (base) is byte for byte as before
+    const withBallast = "SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX HULL, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
+    // BUMP-1D: PLAIN_RIGS ships on, so the off world (the base's line) is explicit and the shipped line is the one with MAX HULL (SC-0912b; was MAX ♥)
     withPlainRigs(() => expect(familyNote("PLATE")).toBe(base), false);
     expect(familyNote("PLATE")).toBe(withBallast);
     on(() => {

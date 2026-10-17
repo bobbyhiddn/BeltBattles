@@ -158,7 +158,9 @@ describe("CARD-3 (r): SHIELD and WARD (REQ-BFG-107)", () => {
     expect(bad.map(([w, t]) => `${w}: ${t}`)).toEqual([]);
     expect(texts.filter(([w]) => PLAIN_RIG_IDS.some((id) => w.startsWith(`${id} `))).length).toBeGreaterThan(20);
     for (const n of [CARRY_LINE, BALLAST_LINE, FAMILY.PLATE.glossary]) expect(/\b(SHIELD|SHIELDS|WARD)\b/.test(n.replace(/\{\*?[A-Z]+\}/g, " ")), n).toBe(false);
-    expect(familyNote("PLATE")).toContain("MAX {HULL}");
+    // SC-0912b (cap's answer to SC-0912's question 1): MAX HULL in words, was "MAX {HULL}" (the heart), as BALLAST's own row and line say it
+    expect(familyNote("PLATE")).toContain("MAX HULL");
+    expect(familyNote("PLATE")).not.toContain("MAX {HULL}");
   }));
 
   it("the definitions (sim-checked: races/bastion.ts absorb, PLATE_CAP 240; Battle.shieldHit, SHIELD_CAP 3; impact's order)", () => {
