@@ -65,12 +65,20 @@ export function rotFacing(def: string, dir: Dir): number {
  * free neighbour is removed and returned in `stranded`. Mutates `b` and returns what it did; a deck with
  * no gate on a belt is left exactly as it is (the migration is idempotent). Multi-arrow rigs may now also
  * hit a neighbouring belt; D3 accepts that, since every deck gets the same treatment.
+ * BUMP-1D (cap's ruling R2.3 Q2): "on a belt tile" is a matter of the gate's FOOTPRINT (cellsOf), not of its anchor. A
+ * 1-cell gate's footprint is its anchor cell, so everything above holds for it to the letter. A shaped rig (more than
+ * one cell) has its anchor at the corner of its turned footprint's bounding box, which for an L or T foot at some rots
+ * is a cell it does not occupy: it is inline only when a cell of its turned footprint is a belt tile (a corner on a
+ * belt alone leaves it where it is), and it moves whole (moveShaped): off the first such tile, the neighbours of that
+ * tile in the same order, each with the rot that points its first arrow back at the tile, to the first anchor whose
+ * WHOLE footprint is on the deck, off every belt tile, off the machinery that stays or has moved and off the turret
+ * intake cells; with none, it is stranded. For a shaped rig `to` is its new anchor.
  */
 export function migrateInlineGates(b: Build): Migration {
   const out: Migration = { moved: [], stranded: [] };
   const where = new Map<number, [number, number]>(); // belt cell -> [route, tile]
   b.routes.forEach((r, ri) => r.cells.forEach((k, ti) => { if (!where.has(k)) where.set(k, [ri, ti]); }));
-  const inline = b.items.filter((p) => ITEMS[p.def]?.kind === "gate" && where.has(key(p.x, p.y)));
+  const inline = b.items.filter((p) => ITEMS[p.def]?.kind === "gate" && cellsOf(p).some((k) => where.has(k))); // BUMP-1D: the footprint (was the anchor cell, key(p.x, p.y), the same for a 1-cell gate)
   if (!inline.length) return out;
   const moving = new Set(inline.map((p) => p.uid));
   const taken = new Set<number>(); // cells held by machinery that stays (updated as gates move)
@@ -81,6 +89,15 @@ export function migrateInlineGates(b: Build): Migration {
   }
   const strandedUids = new Set<number>();
   for (const p of inline) {
+    if (footOf(ITEMS[p.def]) !== "1") { // BUMP-1D: a shaped rig moves whole (moveShaped); a 1-cell gate below, as it always did
+      const mv = moveShaped(b, p, where, taken);
+      if (mv) out.moved.push(mv);
+      else {
+        strandedUids.add(p.uid);
+        out.stranded.push({ ...p });
+      }
+      continue;
+    }
     const from = key(p.x, p.y);
     const [ri, ti] = where.get(from)!;
     let placed = false;
@@ -105,6 +122,40 @@ export function migrateInlineGates(b: Build): Migration {
   }
   if (strandedUids.size) b.items = b.items.filter((p) => !strandedUids.has(p.uid));
   return out;
+}
+
+/**
+ * BUMP-1D (R2.3 Q2): D3 for one inline shaped rig `p` (migrateInlineGates; `where` maps each belt cell, `taken` holds the cells
+ * of the machinery that stays or has moved). The tile it leaves is its first footprint cell on a belt. For each neighbour of
+ * that tile in D3's order that is on the deck and neither a belt tile nor taken, the rig turns so its first arrow points back
+ * at the tile (rotFacing; rotField stores it) and its turned footprint's cells are tried in turn, row by row, as the one that
+ * lands on the neighbour: the first anchor whose whole footprint is on the deck, off every belt tile, off `taken` and off the
+ * turret intake cells (a shaped piece may not cover one) is the new place, and the arrow from the neighbour then works the
+ * tile. Moves `p` (x, y, rot) and takes its new footprint into `taken`; null, with `p` untouched, when no neighbour fits it.
+ */
+function moveShaped(b: Build, p: Placed, where: ReadonlyMap<number, [number, number]>, taken: Set<number>): MovedRig | null {
+  const d = ITEMS[p.def];
+  const from = cellsOf(p).find((k) => where.has(k))!;
+  const [ri, ti] = where.get(from)!;
+  for (const dir of neighbourOrder(b, ri, ti)) {
+    const n = arrowCell(kx(from), ky(from), dir);
+    if (n < 0 || where.has(n) || taken.has(n)) continue;
+    const f = rotField(p.def, rotFacing(p.def, opposite(dir)));
+    const rot = f.rot ?? 0;
+    for (const o of footprintCells(d, 0, 0, rot)) { // the turned footprint's cells as offsets from its anchor
+      const x = kx(n) - kx(o), y = ky(n) - ky(o);
+      if (!footOnDeck(d, x, y, rot)) continue;
+      const cells = footprintCells(d, x, y, rot);
+      if (cells.some((c) => where.has(c) || taken.has(c) || intakeCell(b, c))) continue;
+      p.x = x;
+      p.y = y;
+      if (f.rot === undefined) delete p.rot;
+      else p.rot = f.rot;
+      for (const c of cells) taken.add(c);
+      return { uid: p.uid, def: p.def, from, to: key(x, y), rot };
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------- the migration log

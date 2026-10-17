@@ -8,7 +8,7 @@ import { buildCost, maxGoldByDay, unfusedPairs, validateBuild, validateUpload } 
 import { POOL_RULES, RULES_VERSION } from "../src/sim/content";
 import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import {
-  decodeStandIn, decodeStandInRaw, decodeStarred as loadStarred, decodeStarredRaw, encodeStandIn, standInPool, STAND_IN_POOL_HEROES,
+  decodeStandIn, decodeStandInRaw, decodeStarred as loadStarred, decodeStarredRaw, encodeStandIn, standInPool, STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES,
 } from "../src/sim/standInPool";
 import { migrateInlineGates } from "../src/sim/beltside";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
@@ -91,7 +91,7 @@ describe("star-aware stand-in code (F2)", () => {
     let n = 0, starred = 0;
     expect(STAND_IN_DATA.rules).toBe(POOL_RULES); // RUNES-1: RULES_VERSION, or the rules it carries the pool from (content.ts)
     for (const hero of STAND_IN_POOL_HEROES) {
-      for (let day = 1; day <= 10; day++) {
+      for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) { // BUMP-1D: was day <= 10 (the regenerated pool holds days 1-16)
         const codes = STAND_IN_DATA.pools[hero]![day - 1][1].map((t) => t[3]);
         standInPool(hero, day).forEach((e) => {
           // NUM-1 (cap's oracle bcc36c430b4f3a01) converted the pre-NUM-1 stored codes x10 before matching them. FLIP-X2 step
@@ -131,7 +131,7 @@ describe("star-aware stand-in code (F2)", () => {
         });
       }
     }
-    expect(n).toBe(120);
+    expect(n).toBe(192); // BUMP-1D: was 120 (2 heroes x 10 days x 6): the regenerated pool holds days 1-16, 2 x 16 x 6 = 192
     expect(starred).toBeGreaterThan(40); // merged decks are shipped, so a star-blind loader would be caught
   });
 
@@ -141,7 +141,10 @@ describe("star-aware stand-in code (F2)", () => {
     const text = dataModuleText(tiny, res.days);
     expect(writtenProblems(tiny, res.days, text)).toEqual([]);
     const picks = writtenPicks(text);
-    expect(picks).toHaveLength(10 * 2 * tiny.per);
+    // BUMP-1D: was 10 * 2 * tiny.per (40): genStandIns' default depth is STAND_IN_POOL_DAYS, now 16 (the regenerated pool's), so the tiny pool
+    // builds days 1-16 for both heroes: 16 x 2 x per = 64 picks (and plays 1.6 times the battles: ~200 s here)
+    expect(picks).toHaveLength(STAND_IN_POOL_DAYS * 2 * tiny.per);
+    expect(picks).toHaveLength(64);
     let starred = 0;
     for (const w of picks) {
       const back = decodeStarred(w.hero, w.code);
@@ -158,4 +161,6 @@ describe("star-aware stand-in code (F2)", () => {
   }, 600_000); // AZ-BUMP (the flip, HULL_SCALE): the tiny dry pool still builds all 10 days and plays every battle on its day
   // (genStandIns' jobs carry the day), now on the day's hull (M(d) x the hull, D(d) on the hits: longer fights); a host
   // timeout under the 1.5-CPU quota, not the rule (133 s in the flip's shard run, over the 120 s this test had)
+  // BUMP-1D: the tiny dry pool builds all 16 days now (STAND_IN_POOL_DAYS, genStandIns' default depth), 210 s here (run 3, one vitest worker
+  // under the shared slots) against the 600 s timeout, which stays
 });

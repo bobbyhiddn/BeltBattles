@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { loadGhostPool, migrateV1 } from "../src/net/fallback";
-import { arrowCell, arrowsOf, cloneBuild, key as K, kx, ky, rotField, type Build, type Placed } from "../src/sim/deck";
+import { arrowCell, arrowsOf, cellsOf, cloneBuild, key as K, kx, ky, rotField, type Build, type Placed } from "../src/sim/deck";
 import {
   clearMigrationLog, migrateDeck, migrateInlineGates, migrationLog, neighbourOrder, rotFacing,
 } from "../src/sim/beltside";
@@ -33,7 +33,7 @@ function furnace(items: Placed[] = [], cells = SHORT): Build {
 /** Gates standing ON belt tiles (the pre-BELTSIDE placement). */
 const inlineOf = (b: Build): Placed[] => {
   const belt = new Set(b.routes.flatMap((r) => r.cells));
-  return b.items.filter((p) => ITEMS[p.def]?.kind === "gate" && belt.has(K(p.x, p.y)));
+  return b.items.filter((p) => ITEMS[p.def]?.kind === "gate" && cellsOf(p).some((k) => belt.has(k)));
 };
 
 describe("D3: migrateInlineGates", () => {

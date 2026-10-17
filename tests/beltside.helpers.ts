@@ -9,16 +9,18 @@
 // stars (*2), and the loader decodes with decodeStarred, a load boundary exactly as decodeStandIn is. The same rules
 // hold for v2: "as generated" is decodeStarredRaw (the star-aware raw decode), "as loaded" is decodeStarred.
 import { ITEMS, type HeroId } from "../src/sim/content";
-import { arrowCell, hitsOfRig, key, kx, ky, occupancy, opposite, rigHits, setRot, type Build } from "../src/sim/deck";
+import { arrowCell, cellsOf, hitsOfRig, key, kx, ky, occupancy, opposite, rigHits, setRot, type Build } from "../src/sim/deck"; // BUMP-1D: + cellsOf (inlineRigs reads the footprint)
 import { freeForRig, hitsIfPlaced, migrateInlineGates, neighbourOrder, rotations, rotFacing } from "../src/sim/beltside";
 import { buildCost } from "../src/net/validate";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { decodeStarred, decodeStarredRaw, standInPickIndex } from "../src/sim/standInPool";
 
-/** Rigs standing ON a belt tile (the pre-BELTSIDE placement). */
+/** Rigs standing ON a belt tile (the pre-BELTSIDE placement). BUMP-1D (R2.3 Q2): by the rig's FOOTPRINT, as migrateInlineGates reads it now
+ *  (was the anchor cell, key(p.x, p.y), which is the same for a 1-cell rig; a shaped rig's anchor is the corner of its bounding box, which at
+ *  some rots (ELBOW GUARD rot 3, CINDER HOOK rot 2, PICKAXE rots 1 and 2) is a cell it does not occupy). */
 export function inlineRigs(b: Build) {
   const belt = new Set(b.routes.flatMap((r) => r.cells));
-  return b.items.filter((p) => ITEMS[p.def]?.kind === "gate" && belt.has(key(p.x, p.y)));
+  return b.items.filter((p) => ITEMS[p.def]?.kind === "gate" && cellsOf(p).some((k) => belt.has(k)));
 }
 
 const codeOf = (hero: HeroId, day: number, i: number): string => STAND_IN_DATA.pools[hero]![day - 1][1][i][3];

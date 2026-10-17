@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { Battle, type Payload } from "../src/sim/battle";
 import { AMMO, BELT_SPEED, ITEMS, POOL_RULES, RULES_VERSION, TICK } from "../src/sim/content";
-import { hitsOfRig, key as K, occupancy, payloadDamage, rigHits, rotField, stokeHits, walkRoute, type Build, type Placed } from "../src/sim/deck";
+import { cellsOf, hitsOfRig, key as K, occupancy, payloadDamage, rigHits, rotField, stokeHits, walkRoute, type Build, type Placed } from "../src/sim/deck"; // BUMP-1D: + cellsOf (POOL_NATIVE below)
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { beltKind, hitLabel } from "../src/screens/build/inspector";
 import { validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode)
@@ -16,7 +16,7 @@ import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left
 import { decodeSnapshot, encodeSnapshot, checkSnapshot, SNAPSHOT_V3, SNAPSHOT_VERSION } from "../src/net/snapshot"; // FLIP-X2: SNAPSHOT_V3
 import { offlineGhost } from "../src/net/fallback";
 // S8c: + standInPool and standInPickIndex (a pool deck's road log, StandInEntry.road)
-import { decodeStarred, decodeStarredRaw, encodeStarred, standInPickIndex, standInPool, STAND_IN_POOL_HEROES } from "../src/sim/standInPool";
+import { decodeStarred, decodeStarredRaw, encodeStarred, standInPickIndex, standInPool, STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES } from "../src/sim/standInPool"; // BUMP-1D: + STAND_IN_POOL_DAYS (P15 reads every day the pool holds)
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { decodeStarred as harnessDecode, encodeStarred as harnessEncode } from "../src/sim/harness/standinCode";
 import { fullPurseBuild, randomBuild } from "../src/sim/harness/gen";
@@ -24,8 +24,17 @@ import { HARNESS_HEROES, heroStartBuild } from "../src/sim/harness/heroes";
 import { Shopper } from "../src/sim/harness/shopper";
 import { starsOf } from "../src/sim/stars";
 import { barge, bench, factoryBench, SEED } from "./arsenal.bench";
-import { POOL_NATIVE } from "./beltside.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): P13's walk with the switch off, and its tripwire
+
+// BUMP-1D (cap's ruling R2.3 Q2, the footprint check): is the stand-in pool native, i.e. does no deck have a rig standing on a belt
+// tile? Judged by the rig's FOOTPRINT, as migrateInlineGates reads it now. tests/beltside.helpers.ts POOL_NATIVE reads the rig's
+// ANCHOR cell instead, and the anchor of a shaped rig is the corner of its bounding box, a cell it may not occupy: four stored decks
+// hold an ELBOW GUARD at rot 3 whose corner is a belt tile, so that flag reads false for a pool that is native (tests/beltside.shaped.test.ts
+// pins both). So the flag is computed here. Was: import { POOL_NATIVE } from "./beltside.helpers" (which reads false for the regenerated pool).
+const POOL_NATIVE = STAND_IN_POOL_HEROES.every((hero) => STAND_IN_DATA.pools[hero]!.every((d) => d[1].every((t) => {
+  const b = decodeStarredRaw(hero, t[3]), belt = new Set(b.routes.flatMap((r) => r.cells));
+  return !b.items.some((p) => ITEMS[p.def].kind === "gate" && cellsOf(p).some((k) => belt.has(k)));
+})));
 
 const st = (s: number) => (s > 1 ? { stars: s } : {});
 /** A rig at (x, y) whose FIRST arrow points in absolute direction `dir` (0 up, 1 east, 2 down, 3 west). */
@@ -274,11 +283,13 @@ describe("P14: the retuned rows fight on native rigs, each rig working exactly i
 // ---------------------------------------------------------------- P15: pool v2 loads through D3
 
 describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeStarred)", () => {
-  it("all 120 pool v2 decks load into a legal build for their day with nothing on a belt; migrated rigs keep their stars; the drops are counted and listed", () => {
+  // BUMP-1D: title "all 120" -> "all 192", and the days 1-10 of both loops -> every day the pool holds (STAND_IN_POOL_DAYS, 16): the pool
+  // was regenerated for days 1-16 (8fc5e24), 2 heroes x 16 days x 6 = 192 decks; the loader leaves every one as stored (cap's ruling R2.3 Q2)
+  it("all 192 pool v2 decks load into a legal build for their day with nothing on a belt; migrated rigs keep their stars; the drops are counted and listed", () => {
     let decks = 0, migrated = 0, moved = 0, starredMoved = 0;
     const drops: string[] = [];
     for (const hero of STAND_IN_POOL_HEROES) {
-      for (let day = 1; day <= 10; day++) {
+      for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) { // BUMP-1D: was day <= 10
         STAND_IN_DATA.pools[hero]![day - 1][1].forEach((t, i) => {
           const raw = decodeStarredRaw(hero, t[3]); // as generated: gates may stand on belt tiles
           const mig = JSON.parse(JSON.stringify(raw)) as Build;
@@ -318,7 +329,7 @@ describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeSt
       }
     }
     console.log(`P15 pool v2 through D3: ${decks} decks, ${migrated} migrated, ${moved} rigs moved (${starredMoved} of them 2-star), ${drops.length} dropped:\n${drops.join("\n")}`);
-    expect(decks).toBe(120);
+    expect(decks).toBe(192); // BUMP-1D: was 120
     if (!POOL_NATIVE) expect(starredMoved).toBeGreaterThan(0); // stars really travel with migrated rigs
     else {
       // pool v2.1 (the D4 native re-bake): no pool deck needs D3 any more, so the stars check runs on inline copies. Every
@@ -326,7 +337,7 @@ describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeSt
       // code stored a gate), and the loader's D3 step must take it off the belt again with its stars.
       let inlined = 0;
       for (const hero of STAND_IN_POOL_HEROES) {
-        for (let day = 1; day <= 10; day++) {
+        for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) { // BUMP-1D: was day <= 10
           for (const t of STAND_IN_DATA.pools[hero]![day - 1][1]) {
             const b = decodeStarredRaw(hero, t[3]), hits = rigHits(b);
             for (const p of b.items.filter((q) => ITEMS[q.def].kind === "gate" && starsOf(q) > 1)) {
@@ -433,7 +444,8 @@ describe("P16: one harness (harness v2's buying and merging, H2's placement)", (
 describe("P17: offline ghosts carry stars and rotation (v2 snapshots)", () => {
   it("offline ghosts built from 2-star rig decks round-trip through encodeSnapshot, validateBuild and decodeSnapshot unchanged", () => {
     let starRigs = 0;
-    for (const hero of ["furnace", "weaver"] as const) for (let day = 1; day <= 10; day++) for (let seed = 0; seed < 6; seed++) {
+    // BUMP-1D: every day the pool holds (STAND_IN_POOL_DAYS, 16), was day <= 10 (a long run's offline ghost on days 11-16 is a day-11..16 pool deck)
+    for (const hero of ["furnace", "weaver"] as const) for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) for (let seed = 0; seed < 6; seed++) {
       const s = offlineGhost(hero, day, seed).snapshot;
       // FLIP-X2 (eb22262, src/net/fallback.ts offlineGhost): every pool deck holds its dawn runes, which travel only in v3,
       // so a deck with runes is a SNAPSHOT_V3 ghost and a rune-less one still SNAPSHOT_VERSION (was SNAPSHOT_VERSION for all:
@@ -477,10 +489,14 @@ describe("P18: RULES_VERSION", () => {
   // Y7b2 (the bump, the pools): title was "is bb-0.8.3, BELTS's bump (the 0.8.0 release step's was bb-0.8.0, BELTSIDE's own
   // bb-0.6.2), and the stand-in pool was scored under it (since RUNES-1's bb-0.8.7: under POOL_RULES, the rules it carries
   // the pool from)"; POOL_RULES is bb-0.9.3 now, the rules the pool was regenerated under (4d772e4), and nothing is carried
-  it("is bb-0.11.0, BUMP-1D's bump (AZ-BUMP's was bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BELTS's bb-0.8.3, the 0.8.0 release step's bb-0.8.0, BELTSIDE's own bb-0.6.2), and the stand-in pool was scored under it (POOL_RULES: regenerated under bb-0.9.3 at Y7b2, nothing carried since FLIP-X2)", () => {
+  // BUMP-1D (the pools): the title's pool clause was "(POOL_RULES: regenerated under bb-0.9.3 at Y7b2, nothing carried since FLIP-X2)":
+  // the pool was regenerated for days 1-16 under bb-0.11.0 (8fc5e24), so it is scored under the rules of this build and nothing is carried
+  it("is bb-0.11.0, BUMP-1D's bump (AZ-BUMP's was bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BELTS's bb-0.8.3, the 0.8.0 release step's bb-0.8.0, BELTSIDE's own bb-0.6.2), and the stand-in pool was scored under it (POOL_RULES: regenerated under bb-0.11.0 at BUMP-1D, nothing carried since FLIP-X2)", () => {
     expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     // Y7b2 (the pools): STAND_IN_DATA.rules = POOL_RULES = bb-0.9.3 (4d772e4; was bb-0.9.1 at BAL-2's c5e4780). RUNES-1's
     // bb-0.8.7 carried bb-0.8.6's pool (content.ts POOL_RULES_CARRIED, empty since FLIP-X2)
+    // BUMP-1D (the pools): STAND_IN_DATA.rules = POOL_RULES = bb-0.11.0 (8fc5e24, the pool regenerated for days 1-16; was bb-0.9.3)
     expect(STAND_IN_DATA.rules).toBe(POOL_RULES);
+    expect([STAND_IN_DATA.rules, POOL_RULES]).toEqual(["bb-0.11.0", "bb-0.11.0"]);
   });
 });

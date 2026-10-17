@@ -20,7 +20,7 @@ import { newRun, rollShop } from "../src/game/run";
 import { hardParts, topParts, warlordDeck } from "../src/game/road";
 import { RIVALS, RIVAL_IDS, rivalBuild, rivalDays, standInBuild } from "../src/sim/rivals";
 import { warlordBuild } from "../src/sim/ai";
-import { standInPool } from "../src/sim/standInPool";
+import { STAND_IN_POOL_DAYS, standInPool } from "../src/sim/standInPool"; // BUMP-1D: + STAND_IN_POOL_DAYS (the pool holds days 1-16)
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode)
 import { RULES_VERSION } from "../src/sim/content"; // S8c: the rules a stand-in travels under (fallback.ts offlineGhost)
@@ -339,7 +339,9 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
   // regeneration at 2c4ba76; "the 13" before it are BASE's captains and stay)
   // S8c (the pools): title "the regrown stand-in pool holds the 12 pinned below" -> 14 (SHIELD WALL and TWIN LATCH came in
   // at the regeneration at P1 83c039d; "the 13" before it are BASE's captains and stay)
-  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds the 14 pinned below, and the switch off refuses each such deck for them alone", () => {
+  // BUMP-1D (the pools): title "the regrown stand-in pool holds the 14 pinned below" -> "all 15 (days 1-16)" (the pool regenerated
+  // at 8fc5e24 for days 1-16 and read here for every day it holds, was days 1-10; STEAM BREECH reaches a pick again)
+  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool (days 1-16) holds all 15 pinned below, and the switch off refuses each such deck for them alone", () => {
     const parts = (b: Build) => [...b.items.map((p) => p.def), ...b.mods.map((m) => m.def), ...(b.turrets ?? []).map((t) => t.def)];
     const family = (b: Build) => parts(b).filter((d) => isWave3(d) && (ITEMS[d].tags ?? []).some((t) => t === "TWIN" || t === "PLATE"));
     for (const id of RIVAL_IDS) for (const day of rivalDays(id)) {
@@ -356,8 +358,10 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
     expect(RIVAL_IDS.filter((id) => SIX.has(id))).toEqual([...SIX]);
     const inPool = new Set<string>();
     let decks = 0;
-    for (const hero of PLAYABLE_HEROES) for (let day = 1; day <= 10; day++) {
-      expect(parts(warlordBuild(hero, day)).filter(isWave3)).toEqual([]);
+    // BUMP-1D (the pools): the pool holds days 1-16 (was 1-10), so its decks are read for every day it holds; the warlord decks
+    // (ai.ts warlordBuild) are the 10-day run's and are read for days 1-10 as before. Was: day <= 10 for both
+    for (const hero of PLAYABLE_HEROES) for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) {
+      if (day <= 10) expect(parts(warlordBuild(hero, day)).filter(isWave3)).toEqual([]);
       for (const [i, e] of standInPool(hero, day).entries()) {
         const w3 = [...e.build.items, ...e.build.mods].filter((p) => isWave3(p.def));
         expect(parts(e.build).filter(isWave3), `${hero} day ${day} #${i}`).toEqual(w3.map((p) => p.def)); // no wave-3 turret
@@ -406,9 +410,12 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
     // S8c (the pools): the stand-in pool regenerated once with every switch on as shipped (P1 83c039d, NPC_DAY on): 14 of
     // the 15, the regrown set: SHIELD WALL (IRON WALL) and TWIN LATCH reach a stand-in pick again; none went out (STEAM
     // BREECH still reaches none; it is still sold in the shops) (was the 12 without "shieldwall" and "twinlatch")
+    // BUMP-1D (the pools): the stand-in pool regenerated for days 1-16 (8fc5e24, bb-0.11.0) and read for all 16 days: all 15 of the
+    // 15 reach a stand-in pick, STEAM BREECH ("steambreech") among them, which no pool since Y7b2's had; none went out (was the
+    // 14 without it). Days 1-10 alone hold 13 of them (not "seamwelder", "twinlatch"); days 11-16 bring those two
     expect([...inPool].sort()).toEqual([
       "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder", "shieldwall",
-      "spallcatcher", "stoker", "twingauge", "twinlatch", "twinmould", "twintrigger",
+      "spallcatcher", "steambreech", "stoker", "twingauge", "twinlatch", "twinmould", "twintrigger",
     ]);
     expect(inPool.has("stoker")).toBe(true);
     expect(decks).toBeGreaterThan(0);
