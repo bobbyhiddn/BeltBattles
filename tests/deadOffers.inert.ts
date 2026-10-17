@@ -26,7 +26,9 @@ export type Reason =
   // piece does nothing without its engine): a payoff piece whose engine this reference deck lacks
   | "needsEngine"
   // SHAPES-1 flip: a shaped rig (SPIKE RAIL, an I3) that finds no room beside a connected belt on this reference deck
-  | "noRoom";
+  | "noRoom"
+  // BUMP-1D (PLAIN_RIGS on): BALLAST, a carrier stat (max hull), which the audit's quiet foe never tests
+  | "maxHullOnly";
 // Y7b2 (the flip): needsRide is gone with its last pairs (FOUNDRY 6-8 and 10, BASTION 1, FURNACE 1): BELLOWS's +1 BURN for
 // each whole 2 s ridden (was 4 for each 10 s, up to 4) reaches every reference deck's belts, so it is live on every hero, days 1-10
 // FLIP-X2 (REVIEW-NUM3 answer 2): NUM-3's num3Open reason is gone with its 60 rows, all SIFTER's (every hero, days 1-10):
@@ -62,7 +64,21 @@ export const REASONS: Record<Reason, string> = {
   // with the shaped-rig solver's own rule (beltside.ts shapedSpot: every anchor x rot, all cells free, on the deck, off the
   // intakes): 160 and 158 free SPIKE RAIL placements, none with an arrow on a connected belt (day 8: 2; a NAIL STRIP, an I2,
   // still has 1 on days 9-10 and is live)
-  noRoom: "SPIKE RAIL is an I3 rig: it needs three free cells in a line beside a connected belt, and on this deck every free cell beside one is hemmed in by machinery, belts or other rigs, so it can't be put to work anywhere.",
+  // BUMP-1D (SHAPES2 on: SAW BAR, an I3 like SPIKE RAIL, is buyable): the same two days, checked the same way with the solver's own
+  // rule (the diag of W/output-bump/logs/p7-r3-inert-3.log): BASTION day 9 has 160 free SAW BAR placements and day 10 158 (SPIKE RAIL's
+  // 160 and 158, the same free cells), none with an arrow on a belt (day 8: 1 for SAW BAR, 2 for SPIKE RAIL); a NAIL STRIP or SPARK
+  // COMB (I2) still has 1 on days 9-10 and the L3, 2x2 and T4 rigs 2-6, so they are live. noRoom's words were SPIKE RAIL's alone.
+  noRoom: "SPIKE RAIL and SAW BAR are I3 rigs: each needs three free cells in a line with an arrow on a connected belt, and on this deck every free cell beside one is hemmed in by machinery, belts or other rigs, so neither can be put to work anywhere.",
+  // BUMP-1D (PLAIN_RIGS on: BALLAST is buyable). The audit's metrics are offense metrics (BASTION's plating included), and BALLAST puts
+  // +8% on max hull and nothing on a slug (FURNACE 2100 -> 2268 hull), so the only way it can move one is its commissioning rank:
+  // battle.ts ranks the rigs on a route by their first hit (the k-th is online at COMMISSION_BASE 1.2 s + COMMISSION_STEP 0.6 s x
+  // k), so a BALLAST placed before a rig delays it by 0.6 s, and that costs the slugs that pass it first. Checked on the fb / six
+  // diag (p7-r3-inert-3/4.log): FURNACE day 2, BALLAST at belt 0 tile 0: TEMPER online at 1.8 s (was 1.2 s), damage 1084 -> 1054,
+  // Burn dealt 270 -> 240, foe hull 1316 -> 1346 (a loss, so BALLAST reads live there). The 14 inert rows are the decks where no
+  // place costs a slug a rig: FURNACE day 1 and WEAVER day 1 have no rig at all (0 of 6 and 0 of 21 places delay anything);
+  // WEAVER day 2, SIPHON day 1, FOUNDRY 6-10 and BASTION 1, 5, 6, 9 and 10 have rigs, but the delay (0 to 8 of the places) ends
+  // before the first slug reaches the delayed rig, or no place has one behind it (BASTION days 5 and 10: 0 of 8 and 0 of 3 places).
+  maxHullOnly: "BALLAST's whole effect is a bigger max hull (a carrier stat: it puts nothing on a slug and hits nothing), and the audit's quiet foe never hits the hull, so for that no offense metric the audit reads moves. A BALLAST moves one only by its commissioning rank: it comes online first on its belt and every rig already there comes 0.6 s later (the k-th rig on a route is online at 1.2 s + 0.6 s x k), a loss when a slug meets that rig before it is online (FURNACE day 2: damage 1084 to 1054). Here no place it has costs a slug a rig: no rig stands on the belts (FURNACE day 1, WEAVER day 1), or the delay ends before the first slug passes the delayed rig.",
 };
 
 /** The inert pairs: hero, module, its days (ascending), as the audit finds them on the reference decks. */
@@ -132,14 +148,36 @@ export const REASONS: Record<Reason, string> = {
 //   (races/refBuilds.ts), its one fixed piece, which now turns each BURN into 40 damage (was 30), so the day-7 fight moves
 //   and a RAIL GUN in place of a starved gun changes a metric (the audit's battles take no day: HULL_SCALE's rules don't
 //   apply, and NPC_DAY doesn't reach them)
+// BUMP-1D (the 10-wins release, bb-0.11.0: PLAIN_RIGS and SHAPES2 on, so the catalogue holds twelve more buyable pieces, 103
+// modules, was 91; the audit re-run on the tip with every switch on, 1030 rows a hero, was 910: W/output-bump/deadaudit-r3-final/
+// dead-*.jsonl, tests/deadOffers.fb / .six with BB_DEAD_AUDIT_DIR): INERT is re-keyed. 16 rows went in (BALLAST 14, SAW BAR 2),
+// none came out, and no pair of the other 91 modules moved: the second test of each hero (deadOffers.audit.ts) re-runs the
+// audit with LONG_RUN, PLAIN_RIGS and SHAPES2 off, the bb-0.10.0 catalogue, and finds INERT less those two, row for row (the whole
+// table was that world's, 944 rows). NAIL STRIP 16/33/53 and SPIKE RAIL 8/16/28 (SHAPES2_PATCHES) moved none: SPIKE RAIL's two
+// BASTION days stay inert (noRoom). Rows a hero, was -> now: foundry 174 -> 179, bastion 112 -> 119, furnace 119 -> 120, weaver
+// 231 -> 233, metronome 101 -> 101, siphon 207 -> 208 (944 -> 960). What went in, and why the new pieces explain each:
+// - BALLAST (PLAIN_RIGS' carrier rig: +% max hull while an arrow of it is on a belt): 14 rows, reason maxHullOnly (new): foundry
+//   6-10, bastion 1, 5, 6, 9, 10, furnace 1, weaver 1-2, siphon 1. It changes no offense metric of its own (the quiet foe never hits
+//   the hull); it reads live wherever a place makes the rigs behind it come online 0.6 s later (a loss), which is 46 of the 60 pairs.
+// - SAW BAR (SHAPES2's common I3 rig): bastion 9-10, reason noRoom (as SPIKE RAIL's): no I3 placement with an arrow on a belt on
+//   those two days (the same 160 and 158 free cells). Live on the 58 other pairs.
+// - The other ten, RASP, SPARK GAP, SCALE GUARD, GRINDSTONE, BRANDING IRON, ELBOW GUARD, SPARK COMB, CINDER HOOK, JAW CRUSHER and
+//   PICKAXE, change a metric on every hero on every day 1-10 (DMG, BURN, STUN or PLATE on a slug: damage, Burn dealt, the foe's
+//   hull, its stalls, platingGained) at one of the first two places tried; none is inert anywhere (METRONOME gains no pair).
+// No rig of the twelve is inert on every deck: nothing here looks like a game bug.
 export const INERT: Record<HeroId, Record<string, number[]>> = {
-  foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], scrapcannon: [1, 2, 3, 4, 5, 6], rampart: [1, 2, 3, 4, 5, 6], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6], twinneedle: [1, 5, 6], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], railgun: [1, 6], bombard: [1, 2, 3, 4, 5, 6], siegegun: [1, 2, 3, 4, 5, 6], thunderer: [1, 2, 3, 4, 5, 6], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hopper: [1, 2, 3, 4, 5, 6], venom: [5, 6, 7, 8, 9, 10], lodestone: [6, 7, 8, 9, 10], pincer: [6, 7], twinlatch: [6, 7, 8, 9, 10], platebreaker: [6, 7, 8, 9, 10] },
+  foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], scrapcannon: [1, 2, 3, 4, 5, 6], rampart: [1, 2, 3, 4, 5, 6], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6], twinneedle: [1, 5, 6], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], railgun: [1, 6], bombard: [1, 2, 3, 4, 5, 6], siegegun: [1, 2, 3, 4, 5, 6], thunderer: [1, 2, 3, 4, 5, 6], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hopper: [1, 2, 3, 4, 5, 6], venom: [5, 6, 7, 8, 9, 10], lodestone: [6, 7, 8, 9, 10], pincer: [6, 7], twinlatch: [6, 7, 8, 9, 10], platebreaker: [6, 7, 8, 9, 10],
+    ballast: [6, 7, 8, 9, 10] }, // BUMP-1D: was no ballast row; new, BALLAST (PLAIN_RIGS' carrier rig, maxHullOnly): no place delays a rig a slug meets on days 6-10; days 1-5 live (placed ahead of a rig it delays it)
   bastion: { spotter: [1, 2, 3, 4, 5, 6, 7], scrapcannon: [1, 2, 3], deckgun: [1, 2, 3, 4], siegegun: [1, 4], thunderer: [1, 2, 3, 4], longcase: [2, 3, 4], calibrate: [4], rampart: [4], swivel: [4], steambreech: [4], overclocker: [5, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], stoker: [5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], lodestone: [1, 5, 6], hopper: [1, 2, 3, 4], drake: [1, 2], twingauge: [1, 5, 6, 9, 10], twinlatch: [1, 5, 6, 9, 10], twintrigger: [1, 2, 3, 4], seamwelder: [1, 2, 3, 4], pincer: [5, 6, 9, 10], venom: [7, 8, 9, 10], quench: [9, 10],
-    spikerail: [9, 10] }, // SHAPES-1 flip: SPIKE RAIL is buyable (SHAPES on) and finds no room on days 9-10 (noRoom)
-  furnace: { longhaul: [1], overclocker: [1], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5], calibrate: [3, 4, 5, 6], scrapcannon: [3, 4, 5, 6], rampart: [3, 4, 5, 6], swivel: [3, 4, 5, 6], deckgun: [3, 4, 5], siegegun: [3, 4, 5], thunderer: [3, 4, 5], escapement: [3, 4, 5], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [6, 7, 8, 9, 10], spikegun: [6, 7, 8, 9, 10], hailgun: [6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], venom: [1], quench: [1], lodestone: [1], hopper: [1, 2, 3, 4, 5], drake: [1, 2, 3, 4, 5, 6, 7], twingauge: [1], pincer: [1], twinlatch: [1], platebreaker: [1], twintrigger: [1, 2, 3, 4, 5], seamwelder: [1, 2, 3, 4, 5] },
-  weaver: { longhaul: [1], overclocker: [1, 2], chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2, 3], scrapcannon: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], siegegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], thunderer: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [2, 5], twintrigger: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], venom: [1, 2], quench: [1, 2], lodestone: [1, 2], hopper: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], drake: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twingauge: [1, 2], pincer: [1], twinlatch: [1, 2], platebreaker: [1, 2], seamwelder: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+    spikerail: [9, 10], // SHAPES-1 flip: SPIKE RAIL is buyable (SHAPES on) and finds no room on days 9-10 (noRoom)
+    ballast: [1, 5, 6, 9, 10], sawbar: [9, 10] }, // BUMP-1D: was neither row; new, BALLAST (maxHullOnly; days 2-4, 7-8 live) and SAW BAR, SHAPES2's I3 rig (noRoom on days 9-10, as SPIKE RAIL)
+  furnace: { longhaul: [1], overclocker: [1], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5], calibrate: [3, 4, 5, 6], scrapcannon: [3, 4, 5, 6], rampart: [3, 4, 5, 6], swivel: [3, 4, 5, 6], deckgun: [3, 4, 5], siegegun: [3, 4, 5], thunderer: [3, 4, 5], escapement: [3, 4, 5], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [6, 7, 8, 9, 10], spikegun: [6, 7, 8, 9, 10], hailgun: [6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], venom: [1], quench: [1], lodestone: [1], hopper: [1, 2, 3, 4, 5], drake: [1, 2, 3, 4, 5, 6, 7], twingauge: [1], pincer: [1], twinlatch: [1], platebreaker: [1], twintrigger: [1, 2, 3, 4, 5], seamwelder: [1, 2, 3, 4, 5],
+    ballast: [1] }, // BUMP-1D: was no ballast row; new (BALLAST on the bare day-1 deck: no rig to delay); days 2-10 live
+  weaver: { longhaul: [1], overclocker: [1, 2], chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2, 3], scrapcannon: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], siegegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], thunderer: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [2, 5], twintrigger: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], venom: [1, 2], quench: [1, 2], lodestone: [1, 2], hopper: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], drake: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twingauge: [1, 2], pincer: [1], twinlatch: [1, 2], platebreaker: [1, 2], seamwelder: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    ballast: [1, 2] }, // BUMP-1D: was no ballast row; new (BALLAST on the bare day-1 deck, and day 2's one rig, GREASE WORKS, whose delay no slug feels); days 3-10 live
   metronome: { calibrate: [1, 2], spotter: [1, 2, 3], swivel: [1, 2, 3, 4, 5, 6, 7], deckgun: [1, 2, 3, 4, 5, 6, 7], thunderer: [1, 2, 3, 4], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], scrapcannon: [3, 4], rampart: [3, 4, 5, 6, 7], bombard: [3, 4], siegegun: [3, 4], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hopper: [1, 2, 3, 4], drake: [1], twintrigger: [1, 2, 3, 4], seamwelder: [1, 2, 3, 4], venom: [7, 8, 9, 10], quench: [9, 10] },
-  siphon: { chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [1, 2, 3, 4, 5, 6, 9, 10], siegegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], thunderer: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], venom: [1, 4, 5, 6, 7, 8, 9, 10], quench: [1], lodestone: [1], hopper: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], drake: [1, 2, 3, 4], twingauge: [1], twinlatch: [1], platebreaker: [1], twintrigger: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], seamwelder: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+  siphon: { chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [1, 2, 3, 4, 5, 6, 9, 10], siegegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], thunderer: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], wardbell: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mendingloom: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], venom: [1, 4, 5, 6, 7, 8, 9, 10], quench: [1], lodestone: [1], hopper: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], drake: [1, 2, 3, 4], twingauge: [1], twinlatch: [1], platebreaker: [1], twintrigger: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], seamwelder: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    ballast: [1] }, // BUMP-1D: was no ballast row; new (BALLAST on day 1's WHETSTONE and COUNTERWEIGHT, whose 0.6 s delay no slug feels); days 2-10 live
 };
 
 /** NUM-2 (REQ-BFG-047): the (hero, module, days) SPEED made inert (the audit's num2 rows against num1u's INERT), each
@@ -163,6 +201,7 @@ const NEEDS_ENGINE = ["venom", "quench", "twingauge", "pincer", "platebreaker", 
 const byDefault = (id: string): Reason | undefined =>
   STARVED_GUNS.includes(id) ? "starved" : id === "spotter" ? "needsShock" : id === "twinneedle" ? "twinIntake" : id === "overclocker" ? "needsLaterRig"
     : id === "wardbell" || id === "mendingloom" ? "noFoeHits" // FLIP-X2: the sustain pieces
+    : id === "ballast" ? "maxHullOnly" // BUMP-1D: PLAIN_RIGS' carrier rig (every ballast pair has this reason)
     : NEEDS_ENGINE.includes(id) ? "needsEngine" : undefined; // Y7b2 (the flip): + the payoff pieces; BELLOWS (needsRide) left, live everywhere
 
 export const WHY: Partial<Record<HeroId, Record<string, Why>>> = {
@@ -186,7 +225,7 @@ export const WHY: Partial<Record<HeroId, Record<string, Why>>> = {
   bastion: { longcase: "shortRide", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake", stoker: "gunFull", // 0.8.0 I1: STOKER
     scrapcannon: "num1Open", deckgun: [[1, 1, "num1Open"], [5, 6, "starved"], [10, 10, "num1Open"]], thunderer: "num1Open",
     siegegun: [[2, 3, "num1Open"], [4, 4, "starved"]], rampart: "starved", grease: "stampPaced",
-    spikerail: "noRoom" }, // SHAPES-1 flip
+    spikerail: "noRoom", sawbar: "noRoom" }, // SHAPES-1 flip; BUMP-1D: + SAW BAR, the other I3 rig (days 9-10 as SPIKE RAIL's)
   // Y7b2 (the flip): STEAM BREECH on days 1-2 and 7-10, new, needsEngine (no PLATE on the deck; its gun isn't starved:
   // CALIBRATION is live there); its old days keep their reasons (was [[4, 5, "starved"], [6, 10, "num1Open"]])
   furnace: { longhaul: "needsPriorHits", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake",
