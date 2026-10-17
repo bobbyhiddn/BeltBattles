@@ -220,6 +220,14 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       } else fx.sparks(x, y, 3, STEEL, 36);
       return;
     }
+    case "convert": { // GATES-1 (REQ-BFG-052): a gate finished a conversion: sparks on its tile (the board art flashes it: render drawConverters)
+      const cv = a.b.sides[e.side].converters?.find((q) => q.uid === e.converter);
+      if (!cv) return;
+      const fr = a.drawn[e.side], lx = (cv.x + 0.5) * CELL, ly = (cv.y + 0.5) * CELL;
+      fx.sparks(sx(fr, lx, ly), sy(fr, lx, ly), 3, STEEL, 36);
+      if (e.side === 0) snd?.play(e.def === "smelter" ? "sizzle" : "stamp");
+      return;
+    }
     case "commission": {
       const gs = a.b.sides[e.side].gates.find((q) => q.uid === e.gate);
       if (!gs) return;
