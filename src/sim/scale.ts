@@ -63,12 +63,21 @@ export const SCALE_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = 
   },
   // IRON WALL: +5 / +11 / +17 DMG for each whole 10 PLATE you have (day-1 units: Battle.readCount ownPlate); its own
   // plating and the 120 step go
-  shieldwall: (b) => ({ ...b, desc: [], ...reader("ownPlate", "dmg", [5, 11, 17], 10) }),
+  // SCALE-2e E4 (REQ-BFG-098 098.3; the pairs bench, tools/scale2e/pairs.ts): ★1 / ★2 were 5 / 11, now 3 / 6 (★3 17 kept). With the
+  // final GUARD's RIVET HOARD (180 SHIELD at the start) the reader's lift over the same deck was +13.2 / +13.1 / +13.2 points on
+  // days 3 / 6 / 9 (G1: over 10 and over TEMPER's +9.2 / +6.5, and G2: strongest on day 3); at 3 / 6 / 17 it is +7.6 / +8.4 / +13.2
+  // (with 2 PLATE ROLLER also: +7.9 / +9.2 / +11.8), every bar held (REPORT-SCALE2e section 6)
+  shieldwall: (b) => ({ ...b, desc: [], ...reader("ownPlate", "dmg", [3, 6, 17], 10) }),
   // SPALL CATCHER (a gun part, read at its gun's SHOT): +3 / +7 / +11 DMG for each enemy hit on your ship this fight; the
   // charge (every 40 DMG taken) goes
-  spallcatcher: (b) => ({ ...b, desc: [], ...readerMod("hitsTaken", "dmg", [3, 7, 11]) }),
+  // SCALE-2e E4 (REQ-BFG-098 098.3): 3 / 7 / 11 -> 2 / 3 / 7. The reader's lift over the same deck was +12.8 / +18.6 / +15.8 points on
+  // days 3 / 6 / 9 against TEMPER's +9.9 / +7.0 (G1 broken on days 3 and 6, the J5 captains' fall notwithstanding); at 2 / 3 / 7 it is
+  // +9.3 / +10.2 / +13.1 (REPORT-SCALE2e section 6)
+  spallcatcher: (b) => ({ ...b, desc: [], ...readerMod("hitsTaken", "dmg", [2, 3, 7]) }),
   // POWDER KEG: +3 / +7 / +11 DMG for each of its own hits this fight, this one included; the 12 s fuse (kegTick) goes
-  keg: (b) => ({ ...b, desc: [], ...reader("ownHits", "dmg", [3, 7, 11]) }),
+  // SCALE-2e E4 (REQ-BFG-098 098.3): 3 / 7 / 11 -> 2 / 5 / 11. +12.8 points on day 6 against TEMPER's +6.9 broke G1; at 2 / 5 / 11 the
+  // reader's lift is +6.2 / +9.8 / +9.8 on days 3 / 6 / 9
+  keg: (b) => ({ ...b, desc: [], ...reader("ownHits", "dmg", [2, 5, 11]) }),
 };
 
 /** SCALE-2c (REQ-BFG-098): a rig's reader line at its three stars: `gate.reads` at ★1 and `levels` 2 and 3, each the whole
@@ -120,7 +129,9 @@ export const SCALE_ITEMS: Readonly<Record<string, ItemDef>> = {
   },
   trophychain: {
     id: "trophychain", name: "TROPHY CHAIN", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "quartermaster", desc: [], tags: ["FORGE", "BURST"],
-    ...reader("wins", "dmg", [8, 18, 28]), // +8 / +18 / +28 DMG for each win this run
+    // +8 / +12 / +28 DMG for each win this run. SCALE-2e E4 (REQ-BFG-098 098.3): ★2 was 18: +13.9 points on day 6 against TEMPER's +7.8
+    // (G1); at 8 / 12 / 28 the reader's lift is +5.2 / +9.4 / +16.8 on days 3 / 6 / 9
+    ...reader("wins", "dmg", [8, 12, 28]),
   },
 };
 

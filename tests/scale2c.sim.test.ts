@@ -19,16 +19,16 @@ import { SEED, barge, furnaceBench, item, withItem, withMod } from "./wave3.help
 const TABLE: Record<string, { name: string; kind: ItemDef["kind"]; rarity: ItemDef["rarity"]; price: number; merchant: string; count?: ReadSpec["count"]; give?: ReadSpec["give"]; per?: number; each: [number, number, number] }> = {
   quench: { name: "KINDLING", kind: "gate", rarity: "rare", price: 4, merchant: "alchemist", count: "foeBurn", give: "dmg", each: [3, 5, 8] },
   pressure: { name: "PRESSURE BREECH", kind: "core", rarity: "common", price: 4, merchant: "gunsmith", each: [12, 26, 42] },
-  shieldwall: { name: "IRON WALL", kind: "gate", rarity: "legendary", price: 10, merchant: "ironmonger", count: "ownPlate", give: "dmg", per: 10, each: [5, 11, 17] },
-  spallcatcher: { name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, merchant: "quartermaster", count: "hitsTaken", give: "dmg", each: [3, 7, 11] },
-  keg: { name: "POWDER KEG", kind: "gate", rarity: "rare", price: 4, merchant: "scrapper", count: "ownHits", give: "dmg", each: [3, 7, 11] },
+  shieldwall: { name: "IRON WALL", kind: "gate", rarity: "legendary", price: 10, merchant: "ironmonger", count: "ownPlate", give: "dmg", per: 10, each: [3, 6, 17] }, // SCALE-2e E4: was 5 / 11 / 17
+  spallcatcher: { name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, merchant: "quartermaster", count: "hitsTaken", give: "dmg", each: [2, 3, 7] }, // SCALE-2e E4: was 3 / 7 / 11
+  keg: { name: "POWDER KEG", kind: "gate", rarity: "rare", price: 4, merchant: "scrapper", count: "ownHits", give: "dmg", each: [2, 5, 11] }, // SCALE-2e E4: was 3 / 7 / 11
   cindermail: { name: "CINDER MAIL", kind: "gate", rarity: "rare", price: 5, merchant: "ironmonger", count: "foeBurn", give: "plate", each: [2, 3, 5] },
   rotgauge: { name: "ROT GAUGE", kind: "gate", rarity: "rare", price: 5, merchant: "alchemist", count: "foePoison", give: "dmg", each: [3, 5, 8] },
   leechcoil: { name: "LEECH COIL", kind: "gate", rarity: "rare", price: 5, merchant: "ironmonger", count: "foePoison", give: "heal", each: [4, 5, 6] },
   crowdpress: { name: "CROWD PRESS", kind: "gate", rarity: "common", price: 3, merchant: "tinker", count: "beltSlugs", give: "dmg", each: [3, 7, 11] },
   aegisspike: { name: "AEGIS SPIKE", kind: "gate", rarity: "rare", price: 5, merchant: "tinker", count: "ownShield", give: "dmg", each: [40, 88, 140] },
   grudgerod: { name: "GRUDGE ROD", kind: "gate", rarity: "common", price: 3, merchant: "scrapper", count: "heartsLost", give: "dmg", each: [6, 13, 21] },
-  trophychain: { name: "TROPHY CHAIN", kind: "gate", rarity: "epic", price: 7, merchant: "quartermaster", count: "wins", give: "dmg", each: [8, 18, 28] },
+  trophychain: { name: "TROPHY CHAIN", kind: "gate", rarity: "epic", price: 7, merchant: "quartermaster", count: "wins", give: "dmg", each: [8, 12, 28] }, // SCALE-2e E4: was 8 / 18 / 28
 };
 const REWORKS = ["quench", "pressure", "shieldwall", "spallcatcher", "keg"];
 const NEW_IDS = ["cindermail", "rotgauge", "leechcoil", "crowdpress", "aegisspike", "grudgerod", "trophychain"];

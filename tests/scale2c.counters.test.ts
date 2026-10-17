@@ -109,7 +109,7 @@ describe("SCALE-2c C8: a reader's running bonus on the piece (switch on, your si
   it("POWDER KEG: +step x (its hits so far + 1), what its next hit adds; it climbs with its hits", () => {
     withScaleRigs(() => {
       for (const s of [1, 2, 3]) {
-        const each = [3, 7, 11][s - 1];
+        const each = [2, 5, 11][s - 1]; // SCALE-2e E4: POWDER KEG 2 / 5 / 11 (was 3 / 7 / 11)
         const bt = new Battle(aimed(furnaceBench(), 30, "keg", 2, s), barge(), SEED);
         expect(rampBadges(bt, 0)).toEqual([{ kind: "rig", ref: 30, bonus: each, count: 0 }]);
         step(bt, 8);
@@ -126,8 +126,8 @@ describe("SCALE-2c C8: a reader's running bonus on the piece (switch on, your si
     withScaleRigs(() => {
       const bt = new Battle(withMod(furnaceBench(), 40, "spallcatcher", GUN, 2), barge(), SEED);
       bt.sides[0].hitsTaken = 12;
-      expect(rampBadges(bt, 0)).toEqual([{ kind: "gun", ref: GUN, bonus: 7 * 12, count: 12 }]);
-      expect(rampText(84, 12, "gun", false)).toBe("+84 {DMG} ON ITS NEXT SHOT: 12 HITS ON YOU SO FAR.");
+      expect(rampBadges(bt, 0)).toEqual([{ kind: "gun", ref: GUN, bonus: 3 * 12, count: 12 }]); // SCALE-2e E4: SPALL CATCHER ★2 is 3 (was 7)
+      expect(rampText(36, 12, "gun", false)).toBe("+36 {DMG} ON ITS NEXT SHOT: 12 HITS ON YOU SO FAR.");
       expect(rampBadges(new Battle(aimed(furnaceBench(), 30, "quench", 2), barge(), SEED), 0)).toEqual([]); // KINDLING: C1 shows its count
     });
   });
@@ -183,12 +183,12 @@ describe("SCALE-2c C7 and C8 drawn; C9 on the battle screen (switch on)", () => 
       bc.begin();
       bc.drawBoard(cv.getContext(), game, stubArena(b), stubMotion, [], [], true);
       const g0 = b.sides[0].gates.find((g) => g.uid === 30)!;
-      expect(bc.last.badges).toEqual([{ kind: "rig", ref: 30, r: { x: 40 + g0.x * 12 + 2, y: 250 + g0.y * 12 + 1, w: bc.last.badges[0].r.w, h: 9 }, text: "+3" }]);
+      expect(bc.last.badges).toEqual([{ kind: "rig", ref: 30, r: { x: 40 + g0.x * 12 + 2, y: 250 + g0.y * 12 + 1, w: bc.last.badges[0].r.w, h: 9 }, text: "+2" }]); // SCALE-2e E4: POWDER KEG ★1 is 2 (was 3)
       const img = cv.imgs.find((d) => d.x === bc.last.badges[0].r.x && d.y === bc.last.badges[0].r.y)!;
       expect(paints(img, C.red)).toBe(true);
       type Priv = { entries: (g: unknown, a: Arena, rows: readonly unknown[]) => { body: string }[]; groups: { id: string }[] };
       const pv = bc as unknown as Priv, grp = pv.groups.find((q) => q.id === "cnt:piece0:30")!;
-      expect(pv.entries(grp, stubArena(b), [null, null]).map((e) => e.body)).toEqual(["+3 {DMG} ON ITS NEXT HIT: 0 HITS SO FAR."]);
+      expect(pv.entries(grp, stubArena(b), [null, null]).map((e) => e.body)).toEqual(["+2 {DMG} ON ITS NEXT HIT: 0 HITS SO FAR."]);
     });
     const bc = new BattleCounters();
     bc.drawBoard(fakeCanvas().getContext(), game, stubArena(new Battle(deck, barge(), SEED)), stubMotion, [], [], true);
