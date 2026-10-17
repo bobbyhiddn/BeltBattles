@@ -36,6 +36,14 @@
 // and the LAST CHANCE rows sit at the first dusk after LAST CHANCE fires on a run that loses every dusk, stepped with
 // heartsDusk until heartsLastChanceFires (day 6: 9 8 7 5 3, then 1), so dusk 7 at 0 wins and 1 heart (probeLastChance).
 // Under rules without hearts (heartsFor false) the rows are the 5-lives rows above, as before.
+// PROFILE-UP (REQ-BFG-074 clause 4, backlog #371): `--profile` (opt-in; anywhere among the arguments) adds two PUT /v1/profile rows
+// after the POSTs, from the same fresh identity, and nothing else changes without the flag:
+//   profile-signed      a minimal profile (1 run, 1 dusk win, best day 2, FURNACE won; no unlocks), signed in the profile
+//                       domain                                                                   -> 200 and the same bytes back
+//   profile-badsig      the same body with its signature broken (first character changed)        -> 401, the signature error
+// The profile rows store one record, profiles/<probe player id>.json on Tigris (<data>/profiles/<id>.json on jsonl), which
+// ghost-admin's remove-player does not know: delete that object by hand after a --profile probe. The deck count below counts
+// decks only.
 // Exactly six decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
 // FURNACE's LAST CHANCE deck and WEAVER's NPC-day deck (five under rules without the NPC day, four without LAST CHANCE).
 // Built by `npm run build:server` beside ghost-admin.mjs:  node server/dist/ghost-probe.mjs <base-url> <id-file>
@@ -48,7 +56,7 @@
 // URL. Its expectations are written out here, not read from the code under test (the rules gate, the record model).
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { KEY_HEADER, SIG_HEADER, loadIdentity, memoryKeyStore } from "../src/net/identity";
+import { KEY_HEADER, PROFILE_PREFIX, SIG_HEADER, loadIdentity, memoryKeyStore } from "../src/net/identity";
 import { checkBuildShape, encodeSnapshot, ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
@@ -146,7 +154,7 @@ export const probeHasNpcDay = (): boolean => npcDayGateProblem(PROBE_RULES) === 
  *  the honest NPC-day deck under rules with the NPC day (AZ-BUMP). */
 export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0);
 export const PROBE_TIMEOUT_MS = 15_000;
-export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file>   (base url: http(s)://host[:port], no path; an id file that holds no id yet)";
+export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file> [--profile]   (base url: http(s)://host[:port], no path; an id file that holds no id yet; --profile also PUTs a profile)"; // PROFILE-UP: the opt-in flag
 /** The server's answer to a POST without the signing headers (identity.ts uploadHeaderError). */
 export const UNSIGNED_ERROR = `unsigned upload: the ${KEY_HEADER} and ${SIG_HEADER} headers are required`;
 /** H2's answer to a record no run can carry into that dusk (server/app.ts, POST step 6). */
@@ -334,12 +342,42 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
   return plan;
 }
 
-/** One POST /v1/ghosts with these exact body bytes. Throws on no answer (a network error or the timeout). */
-async function post(base: string, body: Uint8Array<ArrayBuffer>, headers: Record<string, string>, timeoutMs: number): Promise<ProbeAnswer> {
+/** PROFILE-UP: the flag that adds the profile rows. */
+export const PROFILE_FLAG = "--profile";
+/** PROFILE-UP: the server's answer to a profile signature that does not verify (identity.ts verifyIn, step 4 of the route). */
+export const BADSIG_ERROR = `${SIG_HEADER}: the signature does not match this body and key`;
+/** PROFILE-UP: the minimal profile's canonical body at `now`, written out (the key order, no spaces: profileWire.ts
+ *  encodeWire; tests/profileup.probe.test.ts pins the two equal). 1 run, 1 dusk win, best day 2, FURNACE won: no style is
+ *  earned, so the picks are the defaults and `unlocked` is empty. */
+export const profileProbeText = (now: number): string =>
+  `{"v":1,"counters":{"runs":1,"runsFinished":0,"flawless":0,"duskWins":1,"bestDay":2,"warlordWins":0,"matriarchWins":0,"mostBelts":0},"heroesWon":["furnace"],"heroesFinished":[],"unlocked":[],"chosen":{"floor":"plate","belt":"iron","panel":"slate","carrier":"war"},"updatedAt":${now}}`;
+
+/** One planned PUT /v1/profile: the exact body text, whether its signature is broken, and what must come back. */
+export interface PlannedPut {
+  name: string;
+  text: string;
+  broken: boolean;
+  expected: string;
+  pass: (a: ProbeAnswer) => boolean;
+}
+
+/** The two profile rows (--profile), in order. Pure: no key, no network. */
+export function profilePlan(now: number): PlannedPut[] {
+  const text = profileProbeText(now);
+  return [
+    { name: "profile-signed", text, broken: false, expected: "200 the profile, as sent", pass: (a) => a.status === 200 && a.text === text },
+    { name: "profile-badsig", text, broken: true, expected: `401 ${BADSIG_ERROR}`, pass: (a) => a.status === 401 && a.error === BADSIG_ERROR },
+  ];
+}
+
+/** One request with these exact body bytes: POST /v1/ghosts unless told otherwise. Throws on no answer (a network error or the timeout). */
+async function post(
+  base: string, body: Uint8Array<ArrayBuffer>, headers: Record<string, string>, timeoutMs: number, method = "POST", path = "/v1/ghosts",
+): Promise<ProbeAnswer> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body, signal: ctl.signal });
+    const res = await fetch(`${base}${path}`, { method, headers: { "content-type": "application/json", ...headers }, body, signal: ctl.signal });
     const text = await res.text();
     let o: Record<string, unknown> = {};
     try {
@@ -371,7 +409,9 @@ function shown(a: ProbeAnswer): string {
  * with what was expected and what came back; a POST with no answer is a failed check. Throws only if no identity can be
  * made or `saveId` throws, before any POST.
  */
-export async function runProbe(base: string, saveId: (playerId: string) => void, timeoutMs = PROBE_TIMEOUT_MS, now = Date.now()): Promise<ProbeResult> {
+export async function runProbe(
+  base: string, saveId: (playerId: string) => void, timeoutMs = PROBE_TIMEOUT_MS, now = Date.now(), opts: { profile?: boolean } = {},
+): Promise<ProbeResult> {
   const me = await loadIdentity(memoryKeyStore());
   if (!me) throw new Error("no WebCrypto (crypto.subtle) here: cannot make a device identity");
   saveId(me.playerId);
@@ -395,12 +435,32 @@ export async function runProbe(base: string, saveId: (playerId: string) => void,
     }
     checks.push({ name: p.name, expected: p.expected, got, ok, status });
   }
-  const stored = checks.filter((c) => c.status === 201 || c.status === 200).length;
+  const stored = checks.filter((c) => c.status === 201 || c.status === 200).length; // decks only: counted before the profile rows
+  if (opts.profile) {
+    // PROFILE-UP: PUT /v1/profile from the same identity, in the profile domain (the second row's signature is then broken)
+    for (const p of profilePlan(now)) {
+      let got: string, ok = false, status: number | undefined;
+      try {
+        const body = utf8(p.text);
+        const signed = await me.sign(body, PROFILE_PREFIX);
+        const sig = p.broken ? `${signed.sig.startsWith("A") ? "B" : "A"}${signed.sig.slice(1)}` : signed.sig;
+        const a = await post(base, body, { [KEY_HEADER]: signed.key, [SIG_HEADER]: sig }, timeoutMs, "PUT", "/v1/profile");
+        status = a.status;
+        got = shown(a);
+        ok = p.pass(a);
+      } catch (e) {
+        got = `no answer (${errText(e)})`;
+      }
+      checks.push({ name: p.name, expected: p.expected, got, ok, status });
+    }
+  }
   return { playerId: me.playerId, checks, ok: checks.every((c) => c.ok), stored };
 }
 
 /** The command line: <base-url> <id-file>. Resolves the exit code (0 every check as expected, 1 not, 2 usage). */
 export async function probeMain(argv: readonly string[], out: (line: string) => void, timeoutMs = PROBE_TIMEOUT_MS): Promise<number> {
+  const profile = argv.includes(PROFILE_FLAG); // PROFILE-UP: opt-in; without it every line below is as it was
+  if (profile) argv = argv.filter((a) => a !== PROFILE_FLAG);
   let base: string, idFile: string;
   try {
     if (argv.length !== 2) throw new ProbeUsageError(`expected 2 arguments, got ${argv.length}`);
@@ -425,9 +485,10 @@ export async function probeMain(argv: readonly string[], out: (line: string) => 
     return 2;
   }
   out(`probe: POST ${base}/v1/ghosts as a fresh device (rules ${RULES_VERSION}); only the FURNACE, WEAVER, FOUNDRY and BASTION decks may be stored`);
+  if (profile) out(`probe: ${PROFILE_FLAG}: then PUT ${base}/v1/profile, a minimal profile and the same body with a broken signature; the server keeps that one profile for this player (delete profiles/<player id>.json by hand)`);
   let r: ProbeResult;
   try {
-    r = await runProbe(base, (playerId) => writeFileSync(idFile, `${playerId}\n`), timeoutMs);
+    r = await runProbe(base, (playerId) => writeFileSync(idFile, `${playerId}\n`), timeoutMs, Date.now(), { profile });
   } catch (e) {
     out(`ghost-probe failed before any upload: ${errText(e)}`);
     return 1;

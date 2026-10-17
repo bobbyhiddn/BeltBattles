@@ -27,6 +27,9 @@
 //                                   0.7.0a: never a ghost with a better record than wins/lives (D1,
 //                                   matchmaking.ts eligible); while runs < NEW_PLAYER_RUNS (absent = 0)
 //                                   only the seed pool is matched, never an upload (D2). None: 404
+//   PUT  /v1/profile                PROFILE-UP (REQ-BFG-074 clause 4): the player's profile, signed in its own domain
+//                                   ("bb-profile-1\n" + the body bytes), merged into the signer's record -> 200 { the
+//                                   merged profile }. 403 / 401 / 413 / 400 / 422 as documented in profileRoute.ts
 //   GET|HEAD / and /index.html      the game page, when staticDir (BB_GHOST_STATIC) is set
 
 import { readFileSync } from "node:fs";
@@ -42,6 +45,8 @@ import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { isReachable, lossesProblem } from "../src/net/records";
 import { validateUpload } from "../src/net/validate";
 import { livesCapFor } from "../src/net/rulesGate"; // RETUNE-1 (REQ-BFG-096): the match route's lives bound
+import { putProfile } from "./profileRoute"; // PROFILE-UP (REQ-BFG-074 clause 4)
+import { profileStoreFor, type ProfileStore } from "./profileStore";
 import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
 
@@ -68,7 +73,7 @@ export interface ServerOptions {
   /** Mixed into the match seed. Default: the current minute, so a retry gets the same ghost. */
   matchSalt?: () => number | string;
   /**
-   * "closed": POST /v1/ghosts answers 403 without reading the body (seeding still works).
+   * "closed": POST /v1/ghosts and PUT /v1/profile answer 403 without reading the body (seeding still works).
    * Production ran closed until the uploads step (0.8.0 U2: fly.toml BB_GHOST_UPLOADS = "open"); config.ts's default
    * stays closed.
    */
@@ -90,6 +95,11 @@ export interface ServerOptions {
    * /v1 stay 404.
    */
   staticDir?: string;
+  /** PROFILE-UP: where PUT /v1/profile keeps each player's merged profile. Default: beside the ghosts, in the same
+   *  backing store (profileStore.ts profileStoreFor: <dataDir>/profiles, or Tigris profiles/<playerId>.json). */
+  profileStore?: ProfileStore;
+  /** PROFILE-UP: the clock the profile route reads (updatedAt's range, the record's receivedAt). Default Date.now. */
+  now?: () => number;
 }
 
 export interface GhostServer {
@@ -274,6 +284,8 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const salt = opts.matchSalt ?? (() => Math.floor(Date.now() / 60_000));
   const store = opts.store ?? openJsonl(opts.dataDir, log);
   const uploads = opts.uploads ?? "open";
+  const profiles = opts.profileStore ?? profileStoreFor(store, log); // PROFILE-UP
+  const clock = opts.now ?? (() => Date.now()); // PROFILE-UP
   const trustProxy = opts.trustProxy ?? "none";
   const page = opts.staticDir === undefined ? null : loadPage(opts.staticDir);
   if (page) log(`serving the game page ${page.file} (${page.body.length} bytes) at / and /index.html`);
@@ -365,6 +377,17 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         const { id, created } = await store.add(snap); // 201 only once the write is durable
         return send(res, created ? 201 : 200, { id });
       }
+      case "/v1/profile": {
+        // PROFILE-UP (REQ-BFG-074 clause 4): the steps are profileRoute.ts's, in POST /v1/ghosts' order (403, 401, 413, 401,
+        // 400, 422, then read-merge-write; StorageError -> 503 below). The request log below stays as it is.
+        only("PUT");
+        const r = await putProfile({
+          uploads, key: firstHeader(req, KEY_HEADER), sig: firstHeader(req, SIG_HEADER), readBody: (max) => readBody(req, max),
+          store: profiles, now: clock,
+        });
+        if (r.status !== 200) throw new HttpError(r.status, r.error);
+        return send(res, 200, r.profile);
+      }
       case "/v1/ghosts/match": {
         only("GET");
         const m = parseMatchQuery(url.searchParams);
@@ -406,7 +429,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     const allowed = origin !== "" && origins.has(origin);
     if (allowed) {
       res.setHeader("access-control-allow-origin", origin);
-      res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
+      res.setHeader("access-control-allow-methods", "GET, POST, PUT, OPTIONS"); // PROFILE-UP: PUT /v1/profile
       res.setHeader("access-control-allow-headers", ["content-type", KEY_HEADER, SIG_HEADER].join(", "));
       res.setHeader("access-control-max-age", 600);
     }

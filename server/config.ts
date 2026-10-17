@@ -7,7 +7,7 @@
 //   BB_GHOST_PORT     listen port (default 7790)                                      --port
 //   BB_GHOST_ORIGINS  CORS allow-list, comma-separated (default the local Shore)      --origins
 //   BB_GHOST_RATE     requests per minute per client IP (default 120)                 --rate
-//   BB_GHOST_UPLOADS  open | closed (default closed): closed answers POST /v1/ghosts with 403;
+//   BB_GHOST_UPLOADS  open | closed (default closed): closed answers POST /v1/ghosts and PUT /v1/profile with 403;
 //                     only an explicit open takes uploads
 //   BB_GHOST_TRUST_PROXY  fly | none (default none): fly takes the client IP from Fly-Client-IP,
 //                     else the socket (X-Forwarded-For is never trusted); none ignores both headers

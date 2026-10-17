@@ -73,6 +73,12 @@ function errorCode(text: string): string | null {
   return m ? m[1] : null;
 }
 
+/** The key as a log line or an error message names it. PROFILE-UP: a profile object is profiles/<playerId>.json, and no log
+ *  line carries a player id, so its name is shown as profiles/*; every other key (ghosts/...) is shown as it is. */
+function shownKey(key: string): string {
+  return key.startsWith("profiles/") ? "profiles/*" : key;
+}
+
 function errText(e: unknown): string {
   if (e instanceof Error) {
     const cause = (e as { cause?: unknown }).cause;
@@ -159,7 +165,7 @@ export class S3Client {
   private async call(op: string, method: string, key: string, query: QueryParams, body?: Uint8Array<ArrayBuffer>, contentType?: string): Promise<Reply> {
     const { url, host, path } = this.target(key, query);
     const payloadHash = body ? sha256Hex(body) : EMPTY_SHA256;
-    const what = `${op} ${key || `${this.bucket}/`}`;
+    const what = `${op} ${key ? shownKey(key) : `${this.bucket}/`}`;
     for (let attempt = 0; ; attempt++) {
       const signed: Record<string, string> = { host, "x-amz-content-sha256": payloadHash, "x-amz-date": amzDate(this.now()) };
       if (contentType) signed["content-type"] = contentType;
@@ -190,7 +196,7 @@ export class S3Client {
 
   private fail(op: string, key: string, r: Reply): S3Error {
     const code = errorCode(r.text);
-    return new S3Error(`${op} ${key || `${this.bucket}/`}: HTTP ${r.status}${code ? ` ${code}` : ""}`, r.status, code);
+    return new S3Error(`${op} ${key ? shownKey(key) : `${this.bucket}/`}: HTTP ${r.status}${code ? ` ${code}` : ""}`, r.status, code);
   }
 
   async put(key: string, body: string, contentType = "application/json"): Promise<void> {
