@@ -43,7 +43,7 @@
 //    with its deck. With NPC_DAY off, no casual run is played: every snapshot exactly as before.
 //  - SOFT-1 (REQ-BFG-092; BRIEF-SOFT1, RULING-SOFT1-R1's C2bw; B/output-soft1/bench/bands-soft1.md), the softer seed pool, a
 //    server-only update after 0.9.9: every playable hero's variant 0 and 1 decks are the candidates graded nearest
-//    SOFT_TARGET (400 permille) in their own slot, from the par field's 12 decks of the day (a stand-in hero's 6 stand-in
+//    SOFT_TARGET (400 permille at 0.9.9; 250 since BUMP-1D, RULING-BANDS1-R1 B1.3) in their own slot, from the par field's 12 decks of the day (a stand-in hero's 6 stand-in
 //    pool entries too), shipped as SOFT1_PICKS in the world it was read in (see "SOFT-1" below). The floor ghosts, the
 //    records, the ghost count and every check are unchanged; in any other world every snapshot is as before.
 //  - RUN-1 T8 (REQ-BFG-059, REQ-BFG-116; RULING-RUN1-R1 R1.1), the long run: the generator makes days 1..poolDepth(): MAX_DAY (10)
@@ -74,6 +74,7 @@ import { npcDayRules, type RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP (N3)
 import { HEARTS_START, heartsDusk, heartsRules } from "../src/sim/hearts"; // RETUNE-1 (REQ-BFG-096): the hearts labels
 import { isShapesPiece } from "../src/sim/shapes"; // SHAPES-1: the retired shopper never draws a shaped rig
 import { isShapes2Piece } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): nor one of the six more
+import { isPlainRig } from "../src/sim/plainRigs"; // BUMP-1D: nor one of PLAIN-1F's six (PLAIN_RIGS is on at load)
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { eligible } from "../src/net/matchmaking";
 import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
@@ -107,8 +108,9 @@ const PLATE = ITEMS.plating.supply!.hull!;
 // SHAPES on at load they would join this list (made once, at load): its draws, and so the records, would move, and with
 // SHAPES then set off a drawn NAIL STRIP would be an unknown item. The list is the same with SHAPES on or off.
 // SHAPES-2 (REQ-BFG-114): the same for SHAPES2's six (made at load, a draw each): the list is the same with SHAPES2 on or off, so
-// the sample records stay as they were. (PLAIN_RIGS' six would join it the same way when that flag is on at load: left to the bump.)
-const GATES = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant && !isShapesPiece(d.id) && !isShapes2Piece(d.id));
+// the sample records stay as they were. BUMP-1D (REPORT-SHAPES2 Questions 5(d)): PLAIN_RIGS' six would join it the same way
+// now that the flag is on at load, so they are excluded too: the list is the same with PLAIN_RIGS on or off.
+const GATES = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant && !isShapesPiece(d.id) && !isShapes2Piece(d.id) && !isPlainRig(d.id));
 const MODS = Object.values(ITEMS).filter((d) => d.kind === "mod" && d.merchant);
 /** SHAPES-2 (REQ-BFG-114; tests/shapes2.pool.test.ts): the retired shopper's gate list by id, as made at load (a test reads it). */
 export const SHOPPER_GATE_IDS: readonly string[] = GATES.map((d) => d.id);
@@ -128,7 +130,7 @@ export const MIN_ELIGIBLE = 2;
  */
 export const poolDepth = (): number => (longRunRules() ? LONG_RUN_GEN_DAYS : MAX_DAY);
 
-const sampleSeed =(hero: HeroId, v: number, day: number): number => hashSeed("sample-pool", hero, v, day);
+const sampleSeed = (hero: HeroId, v: number, day: number): number => hashSeed("sample-pool", hero, v, day);
 
 /** The sample deck: variant 0 = the par; variant v >= 1 = standInPick's entry for `seed`, stepped deterministically to the
  *  next entry while it is the same deck as the par (or, from variant 2, as an earlier variant's deck). */
@@ -334,7 +336,7 @@ export function sampleGhosts(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
  * THE WORLD: the table holds the shipped world's picks (SOFT1_WORLD: worldKey() with every switch on, and the bots' runes).
  * In any other world (a test's switch-off world) the decks are as before SOFT-1 (sampleEntry, raceDeck): those pools don't move.
  */
-export const SOFT_TARGET = 400;
+export const SOFT_TARGET = 250; // BUMP-1D (RULING-BANDS1-R1 B1.1, B1.3; BANDS-1 S123): one constant, every day (was 400)
 
 /** SOFT-1: the world SOFT1_PICKS were read in (worldKey(): the bots' runes, sustain, wave 3, HULL_SCALE, LADDER_FIX, NPC_DAY,
  *  GUARD, OPEN_RUNES, FREE_JOINS, HEARTS, PICK, SHAPES), with the par player's runes on. */
