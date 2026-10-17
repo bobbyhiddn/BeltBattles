@@ -25,6 +25,7 @@ import { DISRUPT_TIME, WINDOW_TIME } from "../src/sim/content"; // NUM-3 step 2:
 import { stripIcons } from "../src/render/font"; // Y1: COIL's one line, read as text
 import { RIDE_KEEP, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's ride-keep words, and off
 import { isShapes2Piece } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2's six more shaped rigs (no SHAPED_HITS row)
+import { GATES_IDS, gatesRules } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): the three gates have a face and no ability text, like the plain twelve (with GATES on)
 
 // 0.6.1r (review-061 F5, N2, N4) and after: the inspector's ability, next-star, merge-progress and MERGES WITH lines.
 // 0.6.2t (REQ-BFG-032): they read as whole sentences from the glossary (src/ui/abilityText.ts): "NEXT STAR: ADDS 4 BURN.",
@@ -91,7 +92,7 @@ describe("U2e step 1 (was N2 / T5): no panel draws merge progress", () => {
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL (src/sim/shapes.ts SHAPES_ITEMS) are in ITEMS with SHAPES on,
     // fusible as any rig: 89 -> 92
     // BUMP-1D: the six plain stat rigs (PLAIN_RIGS) and the six more shaped rigs (SHAPES2) are in ITEMS, fusible as any rig: 92 -> 104
-    expect(fus).toHaveLength(104);
+    expect(fus).toHaveLength(104 + (gatesRules() ? GATES_IDS.length : 0)); // GATES-1: + the three gates (kind converter, fusible) with GATES on
     let panels = 0, lines = 0;
     for (const def of fus) {
       const d = ITEMS[def];

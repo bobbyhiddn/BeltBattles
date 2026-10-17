@@ -10,6 +10,7 @@ import { cargoPanel, itemPanel, rigPanel, type PanelText } from "../src/screens/
 import { abilityText, hasAbilityText } from "../src/ui/abilityText";
 import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the twelve plain stat rigs have a face and no ability text
 import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on)
+import { GATES_IDS, gatesRules } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): the three gates have a face and no ability text, like the plain twelve (with GATES on)
 import { textWidth } from "../src/render/font";
 import { wrapText } from "../src/ui/richText";
 import { STARS, SUPPLIES, banned, numbers, sentencesOf, starsOf } from "./textRules";
@@ -36,7 +37,7 @@ const KEPT: Record<string, string[]> = {
 const SOLD = [...buyableModules(), ...SUPPLIES];
 /** BUMP-1D (PLAIN_RIGS and SHAPES2 on): the twelve plain stat rigs the catalogue sells now. Each is a stat row (a face, faces.ts) and
  *  no ability line: no ability text (abilityText.ts ENTRIES), and no KEPT_FLAVOUR row, since flavour() shows none for a face. */
-const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS, ...(gatesRules() ? GATES_IDS : [])]; // GATES-1: and, with GATES on, the three gates
 /** The landscape details column's text widths (layout.ts: LAND_MIN_W to the capped column) and the phone band's. */
 const WIDTHS: [number, "5" | "3"][] = [[102, "5"], [109, "5"], [116, "5"], [102, "3"], [109, "3"], [116, "3"], [151, "3"]];
 

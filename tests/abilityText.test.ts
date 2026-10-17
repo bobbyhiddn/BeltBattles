@@ -35,6 +35,7 @@ import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADD
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's base sentence beside the shipped one
 import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the six plain stat rigs have a face and no ability text
 import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on): nor have the six more shaped rigs
+import { GATES_IDS, gatesRules } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): the three gates have a face and no ability text, like the plain twelve (with GATES on)
 import { hasFace } from "../src/ui/faces"; // BUMP-1D: ... their stat row is a face
 
 // 0.6.2t (REQ-BFG-032): the ability text of every buyable module (0.8.0: 31 rigs, 15 factories, 15 cores, 12 mods) at 1, 2
@@ -321,7 +322,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
 /** BUMP-1D (PLAIN_RIGS and SHAPES2 on): the twelve plain stat rigs (the six plain ones, the six more shaped ones) are buyable modules
  *  now. Each is a stat row (a face, faces.ts) and no ability line, so it has no ability text, no card line (cardText is "") and no
  *  NUMBERS row; tests/plain1.faces.test.ts and tests/shapes2.cards.test.ts hold their faces. */
-const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS, ...(gatesRules() ? GATES_IDS : [])]; // GATES-1: and, with GATES on, the three gates (a face, no ability text)
 /** The buyable modules with ability text: all but the twelve (their count and names are pinned in the first test). */
 const TEXTED: ItemDef[] = MODULES.filter((d) => !PLAIN12.includes(d.id));
 /** Every module with ability text: the buyable modules at 1-3 stars, then each supply at its single level. */

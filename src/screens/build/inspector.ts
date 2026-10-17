@@ -123,6 +123,9 @@ import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the g
 import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
 import { turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' kind lines (PLAIN-1F M3: the rig sentence comes through plainNotes)
 import { shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
+import { gateNotes } from "../../ui/faces"; // GATES-1 (REQ-BFG-089): a gate's NOTES: the gate rule, the wait, the FUSER's order
+import { beltTile } from "../../sim/split"; // GATES-1 (REQ-BFG-057): the belt a placed gate stands on
+import { key } from "../../sim/deck"; // GATES-1: its cell
 import { shapeLines } from "../../ui/faces"; // PLAIN-1F (M4): a placed long rig's UP TO n HITS, said by its arrows line
 import { plainNotes } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (was isPlainRig's rig sentence)
 import { cardEffect } from "../../ui/faces"; // BUMP-1D P6: the offer panel's header-only one-line effect: cardText, else a plain rig's stat row (the twelve have no ability text)
@@ -322,7 +325,7 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
   };
   // SHAPES-1 (REQ-BFG-089, S8): a shaped plain rig leads with the rig sentence too (isPlainRig), then a shaped piece's
   // shape or size rule (faces.ts shapeNotes): default rules text, behind the hover or tap
-  const shaped: Block[] = def ? shapeNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : [];
+  const shaped: Block[] = def ? [...shapeNotes(def), ...gateNotes(def)].map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []; // GATES-1: and a gate's rule, its wait and the FUSER's order
   // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead is faces.ts plainNotes: the rig sentence (as before for every
   // plain rig with PLAIN_RIGS off), SCALE GUARD's carry line after it, BALLAST's own line in its place
   const extra: Block[] = [...(def ? plainNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []), ...shaped, ...(t.notes ?? [])];
@@ -334,10 +337,18 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
   };
 }
 
+/** GATES-1 (REQ-BFG-057): a gate's place hints: on a mouse (tap a belt tile, or drag) and on a finger (a drag only; it snaps to a belt tile). */
+export const GATE_TAP = "TAP A BELT TILE: THE BELT SPLITS AROUND IT";
+export const GATE_DRAG = "DRAG IT ONTO A BELT: THE BELT SPLITS AROUND IT.";
+/** GATES-1: a placed gate's move hint (its panel): it moves along belts, and TO CARGO puts the belt whole again. */
+export const GATE_MOVE = "DRAG IT TO ANOTHER BELT TILE. TO CARGO JOINS THE BELT.";
+
 /** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo.
  *  shoptap (D2): `touch`: a touch tap never places (it reads), so on a phone a part is dragged where it goes. */
 function placeHint(kind: string, drag: boolean, def?: string, touch = false): string {
   if (kind === "turret") return turretHint(drag, touch); // 0.6.2s (S5): a turret goes into a TURRET SLOT
+  // GATES-1 (REQ-BFG-057): a gate goes ON a belt tile, and the belt splits around it (tips.ts PLACE lists these)
+  if (kind === "converter") return touch ? GATE_DRAG : drag ? `${GATE_TAP}, OR DRAG IT THERE.` : `${GATE_TAP}.`;
   if (touch) {
     return kind === "mod" || kind === "core" ? "DRAG IT ONTO A TURRET TO FIT IT."
       : kind === "gate" && def && ITEMS[def]?.gate?.stoke ? "DRAG IT BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT."
@@ -691,7 +702,7 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
 
 /** The kind as the panels name it (shop.ts describe, without the rarity). */
 const KIND_WORD: Record<string, string> = {
-  gate: "RIG", factory: "FACTORY", mod: "TURRET GEAR", core: "TURRET CORE", supply: "SUPPLY", turret: "TURRET",
+  gate: "RIG", factory: "FACTORY", mod: "TURRET GEAR", core: "TURRET CORE", supply: "SUPPLY", turret: "TURRET", converter: "GATE", // GATES-1
 };
 
 /** A placed deck item: a rig (rigPanel), or a factory with its outputs at its stars (GANTRY PRESS ★2 THIRD ARM feeds 3)
@@ -703,6 +714,7 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   if (!p) return null;
   const d = defOf(p);
   if (d.kind === "gate") return rigPanel(run, uid, touch);
+  if (d.kind === "converter") return gatePanel(run, uid, touch); // GATES-1 (REQ-BFG-052): a gate has its own panel
   const stars = starsOf(p);
   const sig = !fusible(d.id);
   // bb-0.8.3 (REQ-BFG-043, REQ-BFG-044 D10, D11): the hero's own factory reads at its FACTORY level (stars.ts gradeOf: its
@@ -724,6 +736,35 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
     variants: tightForms(body),
     // SHAPES-1 (REQ-BFG-086 S2): a shaped factory that turns (2x3, I3) has ROTATE first, as a rig's panel does
     labels: sig ? (up ? [up] : []) : [...(shapedPiece(d.id) && canTurn(d.id) ? ["ROTATE"] : []), "TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
+  };
+}
+
+/**
+ * GATES-1 (REQ-BFG-052, REQ-BFG-089, REQ-BFG-087; PIECES-1 6.3): a placed gate's panel, beside rigPanel. Its kind line says GATE and
+ * which belt it splits (`GATE · BELT 1`), its own line is always visible (the face: slugs in and out, what it adds), and the
+ * stat row, the star line and the rest follow as for any part; the gate rule, the wait and the FUSER's order are NOTES (behind the
+ * hover or tap). TO CARGO (and SELL on touch) take it off: the belt is whole again with no merge code. No ROTATE: a gate has no
+ * arrows. Exported for tests; null unless `uid` is a placed gate.
+ */
+export function gatePanel(run: Run, uid: number, touch = false): PanelText | null {
+  const p = itemByUid(run.build, uid);
+  if (!p) return null;
+  const d = defOf(p);
+  if (d.kind !== "converter") return null;
+  const stars = starsOf(p);
+  const at = beltTile(run.build, key(p.x, p.y));
+  const body: Block[] = [
+    ...abilityBlocks(d.id, stars, textOpts(run)),
+    ...flavourBlocks(d.id, stars, 1),
+    hintBlock(GATE_MOVE),
+  ];
+  return {
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    sub: at ? `GATE · BELT ${at[0] + 1}` : "GATE · NO BELT", subShort: "GATE",
+    subColor: at ? undefined : C.amber,
+    body,
+    variants: tightForms(body),
+    labels: ["TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
   };
 }
 

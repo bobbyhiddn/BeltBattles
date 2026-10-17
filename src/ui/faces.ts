@@ -57,6 +57,8 @@ import { gearSlotsOf } from "../sim/deck";
 import { rigArrowCells } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 R2): a long rig's most hits
 import { shapesRules } from "../sim/shapes"; // SHAPES-1: the shaped pieces' faces, lines and notes (SHAPES on only)
 import { isShapes2Piece, shapes2Rules } from "../sim/deck"; // SHAPES-2 (REQ-BFG-114; deck.ts re-exports shapes2.ts: faceText.test.ts reads import paths as string literals, and a digit is not allowed in them): the six more shaped plain rigs: the same stat-row face path as PLAIN-1's six
+import { isGatesPiece } from "../sim/deck"; // GATES-1 (REQ-BFG-052; deck.ts re-exports gates.ts): the three gates' faces, while they are in ITEMS (GATES on)
+import { shareWord } from "./abilityText"; // GATES-1: a pellet's share in words, HALF or the whole %
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 import { isPlainRig as isPlainSix } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (PLAIN-1F M1: renamed here; faces.ts's own isPlainRig is the face test, and it holds them while they are in ITEMS)
@@ -1106,6 +1108,58 @@ const PLAIN_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   pickaxe: sixReminders,
 };
 
+// ------------------------------------------------- GATES-1 (REQ-BFG-052, REQ-BFG-089, REQ-BFG-087): the three gates
+
+/** A gate's numbers (the face reads the spec at its stars). */
+const cvs = (e: ItemDef) => e.converter!;
+
+/** A gate's stat row (PIECES-1 6.3; the mock ref/pieces1/cards-phone.png card 5): slugs in and out `{SLUG}2>1`, what it adds
+ *  `{DMG}+50%` (FUSER) or `{BURN}+3` (SMELTER, in place of the slugs), and the time it costs `1{SEC}`. */
+export function converterStats(def: string, stars = 1): Stat[] {
+  const c = effectAt(def, stars).converter;
+  if (!c) throw new Error(`converterStats: ${def} is not a gate`);
+  const secs: Stat = ["SEC", fmtSec(c.secs)];
+  if (c.how === "smelt") return [["BURN", `+${fmtCount(c.burn ?? 0)}`], secs];
+  const io: Stat = ["SLUG", `${fmtCount(c.in)}>${fmtCount(c.out)}`];
+  return c.how === "fuse" ? [io, ["DMG", `+${fmtPct((c.bonus ?? 0) / 100)}`], secs] : [io, secs];
+}
+
+/**
+ * The gates' own lines, always on the face (REQ-BFG-089: a per-piece ability stays visible; PIECES-1 6.3's plainer words):
+ * FUSER `2 SLUGS IN, 1 OUT: IT DEALS BOTH, +50%.`, SCATTER MILL `1 SLUG IN, 3 OUT, EACH AT HALF {DMG}.` (the share's whole % when
+ * it isn't half: ★2), SMELTER `THE {SLUG} GAINS +3 {*BURN}.` with BURN's reminder. The numbers are the stat row's too, keyed so
+ * two stars' faces diff (NEXT★, the ⓘ ladder). The general rule (A GATE: ...) is gateNotes, behind the hover or tap.
+ */
+const CONVERTER_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
+  fuser: (e) => {
+    // its number is the stat row's {DMG}+50% too, so the rule keys none (NEXT★ and the ⓘ ladder read the row once)
+    return rules([{ text: `${fmtCount(cvs(e).in)} SLUGS IN, ${fmtCount(cvs(e).out)} OUT: IT DEALS BOTH, +${fmtPct(cvs(e).bonus! / 100)}.` }]);
+  },
+  scattermill: (e) => rules(
+    [{ text: `${fmtCount(cvs(e).in)} SLUG IN, ${fmtCount(cvs(e).out)} OUT, EACH AT ${shareWord(cvs(e).share!)} {DMG}.` }],
+    [["share", fmtPct(cvs(e).share! / 100)]], // the pellets are the stat row's {SLUG}1>3; the share is only the rule's
+  ),
+  smelter: (e) => {
+    const n = fmtCount(cvs(e).burn!);
+    return rules([{ text: `THE {SLUG} GAINS +${n} {*BURN}.` }], [], [REMINDER.BURN()]); // its number is the stat row's {BURN}+3 too
+  },
+};
+
+/** GATES-1 (REQ-BFG-089, REQ-BFG-087; PIECES-1 6.3): the gate rule, default rules text behind the hover or tap (EXPLAIN-1's NOTES lead). */
+export const GATE_RULE = "A GATE: DROP IT ON A BELT. THE BELT SPLITS AROUND IT.";
+/** GATES-1: what a conversion costs, in the gate's seconds. */
+export const gateWait = (secs: number): string => `EACH SLUG WAITS ${fmtSec(secs)} SEC INSIDE IT.`;
+/** GATES-1: the FUSER's placement puzzle (the fused slug rides on as two: convert.ts fusePayload). */
+export const FUSER_ORDER = "RIGS BEFORE IT COUNT TWICE. RIGS AFTER IT COUNT ONCE.";
+
+/** GATES-1: a gate's NOTES sentences (the gate rule, the wait, and for the FUSER its order); [] for every other piece and with
+ *  GATES off (no gate exists). */
+export function gateNotes(def: string): string[] {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
+  if (!d || d.kind !== "converter" || !d.converter) return [];
+  return [GATE_RULE, gateWait(d.converter.secs), ...(d.converter.how === "fuse" ? [FUSER_ORDER] : [])];
+}
+
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [
   ...Object.keys(FACES),
@@ -1117,7 +1171,7 @@ export const FACE_IDS: readonly string[] = [
 export function hasFace(def: string): boolean {
   // PLAIN-1 (REQ-BFG-084): a plain stat rig of the six has its face while it is in ITEMS (PLAIN_RIGS on)
   return FACE_IDS.includes(def) || (shapesRules() && Object.prototype.hasOwnProperty.call(SHAPE_FACES, def))
-    || ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)); // SHAPES-2: the six more while in ITEMS (SHAPES2 on)
+    || ((isPlainSix(def) || isShapes2Piece(def) || isGatesPiece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)); // SHAPES-2: the six more while in ITEMS (SHAPES2 on); GATES-1: and the three gates (GATES on)
 }
 
 // ------------------------------------------------- SHAPES-1 (REQ-BFG-086, REQ-BFG-084, REQ-BFG-089): the shaped pieces
@@ -1229,9 +1283,10 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
 
 function faceOn(def: string, stars: number, o: TextOpts): Face {
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero, day: o.day }; // HULL-1a: the day
-  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? SHAPE_FACES[def] ?? PLAIN_FACES[def])(e, x); // SHAPES-1: SHAPE_FACES; PLAIN-1: the six's
+  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? SHAPE_FACES[def] ?? PLAIN_FACES[def] ?? CONVERTER_FACES[def])(e, x); // SHAPES-1: SHAPE_FACES; PLAIN-1: the six's; GATES-1: the gates'
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
     : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)
+    : e.kind === "converter" ? converterStats(def, stars) // GATES-1: a gate's slugs in and out, what it adds, what it costs
     : supplyStats(def); // U2b: the rig, gear and supply kinds' data functions
   // U2b F5: the interim caveats (one table)
   const caveats = INTERIM_CAVEATS.filter((cv) => cv.applies(e)).map((cv) => cv.text(e));
