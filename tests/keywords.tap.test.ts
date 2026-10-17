@@ -502,10 +502,16 @@ describe("U2f: the taller ⓘ view", () => {
     // U2f's view: the next test's pins
     // CARD-5 (REQ-BFG-081, L), by design: SCRAPPER's face prints its scrap damage (key `scrap`), so its ⓘ LEVELS gain that
     // ladder ([30]/65/105 MORE {DMG}) and two op views move one bucket up: [8, 184, 98, 35] -> [8, 184, 96, 37]
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 184, 96, 37]);
+    // SHOPCARD-1b (REQ-BFG-081), measured (the same 325 panels; per panel against shopcard1-accepted's export): LIMPET WORKS' face line no longer
+    // prints a {SLUG} icon ("THE FOE'S HULL TAKES 100 DMG 3 SEC AFTER A HIT."), so its ⓘ view lists one definition less and its 2
+    // op views (cargo ★2, ★3) take 2 pages, not 3: op [8, 184, 96, 37] -> [8, 186, 94, 37]
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 186, 94, 37]);
     // CARD-5 (L, by design): SCRAPPER's taller face (its scrap line) and LEVELS move three desk views a bucket: [3, 51, 106,
     // 87, 71, 7] -> [3, 51, 106, 90, 68, 7]
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 51, 106, 90, 68, 7]);
+    // SHOPCARD-1b (REQ-BFG-081), measured: the desk column sizes to its text, and 20 cargo panels' longer face lines (SEAM WELDER's YOUR HULL:,
+    // RIVETER's, PINCER's, STOKER's, LIMPET WORKS', ASSEMBLY LINE's START, the three shaped rigs' HITS EACH SLUG UP TO n TIMES.) make it wider,
+    // so their body-only views page one less: desk [3, 51, 106, 90, 68, 7] -> [3, 56, 113, 81, 65, 7]
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 56, 113, 81, 65, 7]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -641,12 +647,12 @@ describe("U2f: the taller ⓘ view", () => {
 const U2F_OP = [270, 55]; // CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
 // WORDS-1 (REQ-BFG-081), measured: the stat icons' and face words' notes list in the view, so with the worst rune's keywords
 // after them 82 views take a second page (was [304, 12]); none takes a third (U2f's aim: 3 at most with a rune held)
-const U2F_OP_RUNE = [142, 183]; // SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
+const U2F_OP_RUNE = [145, 180]; // SHOPCARD-1b: was [142, 183] (LIMPET WORKS' 3 views lose the SLUG note's definition, so each fits one page with the worst rune held). SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
  *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
  *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). EXPLAIN-1: still the same (was [234, 82]). */
-const U2F_OP_RUNE_ON = [142, 183]; // SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
+const U2F_OP_RUNE_ON = [145, 180]; // SHOPCARD-1b: was [142, 183], as U2F_OP_RUNE. SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
 const U2F_DESK = [324, 1]; // SHAPES-1 x c099-card3: was [315, 1] (SHAPES-1 flip: was [277, 39] -> [283, 42]; CARD-2 (K5): was [277, 39] -> [315, 1]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
