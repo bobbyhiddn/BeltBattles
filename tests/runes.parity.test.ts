@@ -147,7 +147,7 @@ describe("release X parity: the record and its decks", () => {
     const differ = Object.keys(F.decks).filter((k) => !isDeepStrictEqual(now[k], F.decks[k]));
     expect(differ, differ.join(", ")).toEqual([]);
     for (const [k, b] of Object.entries(F.decks)) expect(b.runes?.length, k).toBe(dayOf(k));
-  }, 300_000); // BUMP-1D P6 (RULING-RUN1-R2 R2.3): 300 s, was 120 s (it timed out under load, and passes alone)
+  }, 600_000); // STAGE-0911 (RULING-BUMP-R3 Q2, pre-approved, test-only): 600 s, was 300 s (181-248 s alone, 370 s saturated at BUMP-1D run 4); BUMP-1D P6 (RULING-RUN1-R2 R2.3): 300 s, was 120 s (it timed out under load, and passes alone)
 });
 
 describe("release X parity: the battles", () => {
