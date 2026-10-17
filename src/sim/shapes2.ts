@@ -4,7 +4,7 @@
 // press." 0.9.9 shipped SHAPES-1's engine (foot.ts: every footprint, the per-cell hit rule), but only three shaped rigs, all
 // straight lines (shapes.ts: NAIL STRIP and EMBER TROUGH, I2; SPIKE RAIL, I3). REQ-BFG-114 wants at least eight, with L, T
 // and 2x2 feet as well as lines, and shops that show them. These are the six more, the first rigs with L3, T4 and 2x2 feet:
-//  - ELBOW GUARD  (common, 4 G, L3, I,  ironmonger):    + SHIELD on the slug (GateEffect.slugPlate; 8/16/28 since step 6), at a belt's corner;
+//  - ELBOW GUARD  (common, 4 G, L3, I,  ironmonger):    + SHIELD on the slug (GateEffect.slugPlate; 8/16/28 since step 6) and, since BUMP-1D, + DMG 6/12/21 beside it, at a belt's corner;
 //  - SAW BAR      (common, 5 G, I3, I,  gunsmith):      + DMG, along a straight run (3 hits);
 //  - SPARK COMB   (common, 5 G, I2, I,  arcane dealer): + STUN seconds, along a belt (2 hits);
 //  - CINDER HOOK  (rare,   6 G, L3, II, alchemist):     + BURN, round a bend (up to 4 hits);

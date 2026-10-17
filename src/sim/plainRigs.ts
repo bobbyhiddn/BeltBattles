@@ -5,7 +5,7 @@
 // what each hit gives: each arrow that points at a belt tile gives its stats to every slug on that tile, one arrow one hit
 // (deck.ts rigHits, Battle.applyHit), as WHETSTONE's and TEMPER's hits do. The first six are one cell (size 1) and turn
 // like every rig; their arrows follow REQ-BFG-025 (common I; a rare II, or L as GALVANIC COIL takes it):
-//  - RASP (common, 3 G, I): + DMG and + BURN on each slug it hits (WHETSTONE's flat, TEMPER's burn).
+//  - RASP (common, 4 G since BUMP-1D, was 3 G; I): + DMG and + BURN on each slug it hits (WHETSTONE's flat, TEMPER's burn).
 //  - SPARK GAP (common, 3 G, I): + STUN seconds on each slug it hits (GateEffect.stun). The slug's STUN is the shock rule
 //    every STUN source keeps (Battle.impact: the enemy part it lands on stops that long; a bare-hull hit stops nothing;
 //    TOLLBOOTH, MANTLET, BRACE FRAME and FLAK SCREEN treat it as any STUN). The seconds add up on the slug.
