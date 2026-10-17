@@ -73,7 +73,7 @@ const SWITCHES_ENV = "STANDINS_SWITCHES";
 // ("long" in the same list), so the par runs the caravan candidates are made of are long runs (newRun marks them) and the days
 // past 10 get their own content (rivals.ts clampDay, refBuilds.ts refDay): the dry sample for days 11-16 (--days 16 --from-day 11).
 if (isMainThread) {
-  const list = [...(process.argv.includes("--all-on") ? ["npc", "hull", "ladder"] : []), ...(process.argv.includes("--long-run") ? ["long"] : [])];
+  const list = [...(process.argv.includes("--all-on") ? ["npc", "hull", "ladder"] : [])]; // BUMP-1D: --long-run is gone (LONG_RUN is on in the code)
   if (list.length) process.env[SWITCHES_ENV] = list.join(",");
   else delete process.env[SWITCHES_ENV];
 }
@@ -155,9 +155,10 @@ async function main(): Promise<void> {
     ...(flag("from-day") !== undefined ? { fromDay: num("from-day", 1) } : {}),
   };
   if (o.per < 1 || o.pop < o.per) throw new Error("--pop must be at least --per, and --per at least 1");
-  // RUN-1: days past the committed depth are written under --out only (--dry) until the release bump regenerates the pool
-  if (((o.days ?? STAND_IN_POOL_DAYS) > STAND_IN_POOL_DAYS || (o.fromDay ?? 1) > 1) && !process.argv.includes("--dry")) {
-    throw new Error(`--days past ${STAND_IN_POOL_DAYS} or --from-day: a dry run (--dry, written under --out only); the committed pool regenerates at the release bump`);
+  // BUMP-1D: the guard on days past the committed depth is gone (the release bump regenerates the pool to STAND_IN_GEN_DAYS); a run
+  // that starts after day 1 (--from-day) is still only part of a pool: it is a dry run (--dry, written under --out only)
+  if ((o.fromDay ?? 1) > 1 && !process.argv.includes("--dry")) {
+    throw new Error("--from-day: part of a pool, so a dry run (--dry, written under --out only)");
   }
   // step 5: --check compares with --against <file> when given (a dry candidate), else with the committed module
   const against = flag("against");
@@ -169,10 +170,8 @@ async function main(): Promise<void> {
   if (dry && (check || o.stars === "off")) throw new Error("--dry is a stars-on run that writes under --out only: it takes neither --check nor --stars off");
   // HULL-1d: --all-on (the switches the game doesn't play yet) never writes src/sim/standInPoolData.ts and never checks it
   if (process.argv.includes("--all-on") && !dry && !process.argv.includes("--versus")) throw new Error("--all-on turns on switches this rules version keeps off: it runs with --dry (written under --out only) or --versus, never into src and never with --check");
-  // RUN-1 (REQ-BFG-059): --long-run likewise: LONG_RUN is off in this rules version, so it only dry-runs (days 11-16 under --out)
-  if (process.argv.includes("--long-run") && !dry) throw new Error("--long-run turns on a switch this rules version keeps off: it runs with --dry (written under --out only), never into src and never with --check");
   const on = switchesOn();
-  if (on.length) console.log(`switches: ${on.join(", ")} on in the main thread${process.argv.includes("--all-on") || process.argv.includes("--long-run") ? " (--all-on / --long-run), and in every worker thread (STANDINS_SWITCHES)" : ""}`);
+  if (on.length) console.log(`switches: ${on.join(", ")} on in the main thread${process.argv.includes("--all-on") ? " (--all-on), and in every worker thread (STANDINS_SWITCHES)" : ""}`);
   const nw = num("workers", Math.max(1, Math.min(availableParallelism() - 1, 23)));
   const pool = workerRunner(nw, import.meta.url);
   const t0 = performance.now();
@@ -352,9 +351,13 @@ function resumeHooks(o: StandInOpts, dir: string | undefined): GenHooks | undefi
   // HULL-1d: the switches on (--all-on) are in the key, so a day played with them off is never loaded with them on, nor
   // the other way round; with every switch off the key is exactly as before
   const on = switchesOn();
-  const keyOf = JSON.stringify(on.length ? { o, rules: RULES_VERSION, tool, switches: on } : { o, rules: RULES_VERSION, tool });
+  // BUMP-1D: the key leaves out --days and --from-day (a day's work depends on the other options and the day alone), so runs over
+  // different day ranges, side by side or one after the other, share their saved days
+  const { days: _days, fromDay: _fromDay, ...okey } = o;
+  const keyOf = JSON.stringify(on.length ? { o: okey, rules: RULES_VERSION, tool, switches: on } : { o: okey, rules: RULES_VERSION, tool });
   const key = `${hash53(keyOf)}${hash53(keyOf, 1)}`;
   const file = (day: number) => resolve(at, `day-${day}.json`);
+  const heroFile = (day: number, hero: string) => resolve(at, `day-${day}-${hero}.json`);
   console.log(`resume: days are saved in ${at} (key ${key.slice(0, 12)}, tool ${tool.slice(0, 12)})`);
   return {
     load: (day) => {
@@ -367,6 +370,17 @@ function resumeHooks(o: StandInOpts, dir: string | undefined): GenHooks | undefi
       }
     },
     save: (day, r) => writeFileSync(file(day), JSON.stringify({ key, day, battles: r.battles, days: r.days })),
+    // BUMP-1D: one hero-day on its own (day-<d>-<hero>.json), written as soon as it is finished
+    loadHero: (day, hero) => {
+      if (!existsSync(heroFile(day, hero))) return undefined;
+      try {
+        const saved = JSON.parse(readFileSync(heroFile(day, hero), "utf8")) as { key: string; day: number; hero: string; battles: number; hd: HeroDay };
+        return saved.key === key && saved.day === day && saved.hero === hero ? { hd: saved.hd, battles: saved.battles } : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    saveHero: (day, hero, r) => writeFileSync(heroFile(day, hero), JSON.stringify({ key, day, hero, battles: r.battles, hd: r.hd })),
   };
 }
 
