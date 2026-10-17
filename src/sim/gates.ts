@@ -58,6 +58,15 @@ export const GATES_DEFS: Readonly<Record<string, ItemDef>> = {
 /** The three ids, in the order they join ITEMS. */
 export const GATES_IDS: readonly string[] = Object.keys(GATES_DEFS);
 
+/**
+ * THE OFFER LEVER (BRIEF-GATES1 G5; REQ-BFG-052: the operator must actually meet gates in a run). The bar, on every hero: the
+ * median run sees at least 3 gate cards across its shops, and at least 75% of runs see at least 1 by day 5. Lever (b), the
+ * per-run draw (src/game/wares.ts holdGates), in SHAPES2_ODDS' form: while GATES is on, the run's wares always hold at least
+ * `minStock` of the three. Off, or at 0, the draw is exactly as it was. The bench (tools/gates1/offers.ts) sets it for its
+ * trials (--k); the shipped value is the one below.
+ */
+export const GATES_ODDS: { minStock: number } = { minStock: 0 };
+
 let gatesOn = false;
 
 /** Are the three gates in the game now (GATES, or a withGates call)? */
