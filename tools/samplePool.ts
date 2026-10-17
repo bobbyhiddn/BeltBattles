@@ -537,11 +537,142 @@ export interface CasualFloor { seed: number; days: PlayerDay[] }
  */
 export function casualFloorRun(hero: HeroId, taken: (day: number) => ReadonlySet<string>, botRunes?: boolean): CasualFloor {
   const depth = poolDepth(); // RUN-1 T8: every day the pool holds (10 with the long run off)
+  // BUMP-1D (RULING-BUMP-R2 R2.1): the long run in SOFT1_PICKS' world takes the hero's CHOSEN seed (FLOOR_PICKS, floorRows' rule), not the
+  // first qualifying one; its stale check throws when the casual run moved. Every other world: the loop below, exactly as before.
+  const pick = floorPicked(hero, botRunes);
+  if (pick) {
+    const days = casualRun(hero, depth, pick.seed, CASUAL_TUNE, botRunes !== undefined ? { botRunes } : {});
+    if (floorHash(days) !== pick.hash) {
+      throw new Error(`FLOOR-1: stale: the pick ${pick.seed}:${pick.hash} for ${hero} no longer matches its casual run (hash ${floorHash(days)}: the catalogue, the casual player or the shop moved). Re-run the floor rule: ${FLOOR_REBUILD}`);
+    }
+    const clash = days.find((d) => taken(d.day).has(encodeStarred(d.build)));
+    if (clash) throw new Error(`FLOOR-1: stale: the pick ${pick.seed}:${pick.hash} for ${hero} has the same deck as a variant 0 or 1 ghost on day ${clash.day} (SOFT1_PICKS moved). Re-run the floor rule: ${FLOOR_REBUILD}`);
+    return { seed: pick.seed, days };
+  }
   for (let seed = CASUAL_FLOOR_SEED; seed < CASUAL_FLOOR_SEED + CASUAL_FLOOR_TRIES; seed++) {
     const days = casualRun(hero, depth, seed, CASUAL_TUNE, botRunes !== undefined ? { botRunes } : {});
     if (days.every((d) => !taken(d.day).has(encodeStarred(d.build)))) return { seed, days };
   }
   throw new Error(`casual floor run ${hero}: no seed in ${CASUAL_FLOOR_SEED}-${CASUAL_FLOOR_SEED + CASUAL_FLOOR_TRIES - 1} gives ${depth} decks that differ from the day's variants 0 and 1`);
+}
+
+// ---------------------------------------------------------------- FLOOR-1 (BUMP-1D, RULING-BUMP-R2 R2.1): the casual floor run is chosen
+/**
+ * BUMP-1D (RULING-BUMP-R2 R2.1; cap's read of run 2's bench): casualFloorRun took the FIRST qualifying casual run from CASUAL_FLOOR_SEED, so
+ * which floor decks a pool got was luck. The new catalogue moved every casual run's draws and the floor decks (what a losing run meets
+ * on days 3-7: variant 2, no wins, the fewest hearts) came out strong: c5 at 0 wins lost 87% of its day-5 fights and 85% of its day-7
+ * fights (BANDS-1's pool: 49% and 65%), while LOSS-1 P2's stated intent (above) is a floor record that "meets decks a casual human can
+ * beat". The grade can't steer this (a floor deck grades 0-125 against par, which floors at 0 and cannot tell a pushover from a wall).
+ * THE RULE (floorRows, run offline: tests/floor.picks.test.ts with BB_FLOOR_RULE=1): the candidates are the seeds casualFloorRun tries
+ * (CASUAL_FLOOR_SEED, CASUAL_FLOOR_TRIES) that qualify (every day's deck differs from the day's variants 0 and 1: floorTaken). Each
+ * candidate's dusk decks of days 1..FLOOR_RULE_DAYS are played against a fixed CASUAL reference field (the dusk decks of casualRun,
+ * CASUAL_TUNE, FLOOR_REF_SEEDS, for every playable hero: seeds outside the candidates and outside every bench's 1-96), FLOOR_K seeds a
+ * pairing (each seed both sides), the same battle seeds for every candidate; its score is the mean of the days' mean win rates
+ * (a draw half). The pick is the WEAKEST qualifying run (lowest score). FLOOR_RULE_DAYS is the deepest dusk the floor record reaches
+ * without a draw (records.ts: HEART_COSTS [1,2,2], LAST CHANCE at the first loss leaving 1 heart or fewer: 0 wins at day 7 with 1 heart
+ * is the last); a deeper floor ghost is met only by a run that drew.
+ * THE TABLE (FLOOR_PICKS): the pick per hero, "<seed>:<8 hex of floorHash>", shipped as SOFT1_PICKS is (the rule plays ~8,000 battles a
+ * candidate; every test file that builds the pool must stay as fast as it was). The generator reads it (floorPicked) and throws when the
+ * run's hash moved or a deck equals a variant 0 or 1 deck (a stale table), instead of shipping the old choice in silence.
+ * THE WORLD: the long run in SOFT1_PICKS' world only (floorPicked); with the long run off, or in any other world, casualFloorRun's loop is as
+ * it was, so the 10-day pool is byte for byte what it was.
+ */
+export const FLOOR_RULE_DAYS = 7;
+/** FLOOR-1: the reference field's casual run seeds (12 a hero, 4 heroes: 48 decks a dusk). */
+export const FLOOR_REF_SEEDS: readonly number[] = Array.from({ length: 12 }, (_, i) => 9101 + i);
+/** FLOOR-1: seeds a pairing (each seed plays both sides: 2 x FLOOR_K battles a pairing). */
+export const FLOOR_K = 12;
+/** FLOOR-1: how FLOOR_PICKS is rebuilt; every stale message names it. */
+export const FLOOR_REBUILD = "BB_FLOOR_RULE=1 BB_FLOOR_OUT=<rows.json> npx vitest run tests/floor.picks.test.ts -t \"the rule\" (one process or several, BB_FLOOR_UNITS=hero:from-to,...), join the rows files (kit: floorjoin.mjs), paste the picks into FLOOR_PICKS (tools/samplePool.ts), then npm run gen:ghosts";
+
+/** FLOOR-1: the rule's pick per hero, "<casual floor seed>:<floorHash>", read in the long run's SOFT1_PICKS world (see above). */
+export const FLOOR_PICKS: Readonly<Record<string, string>> = {
+  // BUMP-1D run 3, variant A (the WEAKEST qualifying run: lowest mean win rate against the casual reference field, k 12; kit-run1/floorjoin.mjs
+  // over output-bump/floor/rows-A-*.json): furnace 9005 16.8% (the first seed, 9001, scored 62.5%), weaver 9013 8.7% (9001: 45.4%), foundry 9003 10.7%
+  // (9001: 62.5%), bastion 9004 15.0% (9001: 57.3%); all 16 seeds qualified for every hero.
+  furnace: "9005:9a646ea2",
+  weaver: "9013:fc5b64b7",
+  foundry: "9003:6d010a7d",
+  bastion: "9004:9f86e774",
+};
+
+/** FLOOR-1: a casual run's identity in FLOOR_PICKS: 8 hex digits of the hash of every day's deck code (star-aware), days 1..poolDepth(). */
+export const floorHash = (days: readonly PlayerDay[]): string => (hashSeed("floor-pick", days.map((d) => encodeStarred(d.build)).join("|")) >>> 0).toString(16).padStart(8, "0");
+
+/** FLOOR-1: (hero)'s pick from FLOOR_PICKS in its world (the long run in SOFT1_PICKS' world), else null: casualFloorRun's loop, as before. Throws if the
+ *  world holds no usable pick for the hero. */
+export function floorPicked(hero: HeroId, botRunes?: boolean): { seed: number; hash: string } | null {
+  if (!longRunRules() || !softWorld(botRunes)) return null;
+  const m = /^(\d{4}):([0-9a-f]{8})$/.exec(FLOOR_PICKS[hero] ?? "");
+  const seed = m ? Number(m[1]) : NaN;
+  if (!m || seed < CASUAL_FLOOR_SEED || seed >= CASUAL_FLOOR_SEED + CASUAL_FLOOR_TRIES) {
+    throw new Error(`FLOOR-1: FLOOR_PICKS holds no usable pick for ${hero} (${JSON.stringify(FLOOR_PICKS[hero])}). Re-run the floor rule: ${FLOOR_REBUILD}`);
+  }
+  return { seed, hash: m[2] };
+}
+
+/** FLOOR-1: the decks `hero`'s floor run must differ from, by day: the day's variant 0 and 1 seed decks of the shipped pool (generateSamplePool's
+ *  own: a stand-in hero's sampleDeckOf, a race hero's SOFT-1 pick, else raceDeck), as the generator hands casualFloorRun. */
+export function floorTaken(hero: HeroId, botRunes?: boolean): (day: number) => ReadonlySet<string> {
+  const memo = new Map<number, Set<string>>();
+  return (day) => {
+    let s = memo.get(day);
+    if (!s) {
+      s = new Set<string>();
+      for (let v = 0; v < SAMPLE_VARIANTS; v++) {
+        const build = STAND_IN_HEROES.includes(hero) ? sampleDeckOf(hero, day, v, botRunes).build : (softPicked(hero, day, botRunes)?.[v] ?? raceDeck(hero, day, v, botRunes)).build;
+        s.add(encodeStarred(build));
+      }
+      memo.set(day, s);
+    }
+    return s;
+  };
+}
+
+/** FLOOR-1: the reference field: per dusk (index day - 1, days 1..FLOOR_RULE_DAYS) the casual decks of every playable hero's FLOOR_REF_SEEDS runs. */
+export function floorField(botRunes?: boolean): Build[][] {
+  const field: Build[][] = Array.from({ length: FLOOR_RULE_DAYS }, () => []);
+  for (const h of PLAYABLE_HEROES) {
+    for (const seed of FLOOR_REF_SEEDS) {
+      const days = casualRun(h, FLOOR_RULE_DAYS, seed, CASUAL_TUNE, botRunes !== undefined ? { botRunes } : {});
+      for (let d = 0; d < FLOOR_RULE_DAYS; d++) field[d].push(days[d].build);
+    }
+  }
+  return field;
+}
+
+/** FLOOR-1: one row of the rule: a candidate seed of `hero`'s run (all its days), whether it qualifies, its hash, and (if it does) its score against `field`. */
+export interface FloorRow { seed: number; qualifies: boolean; hash: string; perDay?: number[]; mean?: number; battles?: number }
+
+/** FLOOR-1: the rule's measure of one casual floor run: per dusk d of days 1..FLOOR_RULE_DAYS the mean win rate of its deck of d against the
+ *  reference decks of d (FLOOR_K seeds a pairing, battle seeds a function of (day, reference deck, k) only, so every candidate meets the same
+ *  battles), and the mean of those. */
+export function floorScore(cand: CasualFloor, field: Build[][], k: number = FLOOR_K): { perDay: number[]; mean: number; battles: number } {
+  const perDay: number[] = [];
+  let battles = 0;
+  for (let d = 1; d <= FLOOR_RULE_DAYS; d++) {
+    const refs = field[d - 1];
+    let pts = 0;
+    refs.forEach((ref, m) => {
+      const job: Job = { a: 0, b: 1, seeds: Array.from({ length: k }, (_, x) => hashSeed("floor-rule", d, m, x)), day: d };
+      pts += playJob([cand.days[d - 1].build, ref], job) / (2 * k);
+      battles += 2 * k;
+    });
+    perDay.push(pts / refs.length);
+  }
+  return { perDay, mean: perDay.reduce((a, b) => a + b, 0) / perDay.length, battles };
+}
+
+/** FLOOR-1 THE RULE, one hero: the rows of `seeds` (default every seed casualFloorRun tries) in the process's world, qualifying candidates scored
+ *  against `field` (built once by the caller). A run that doesn't qualify has no score. */
+export function floorRows(hero: HeroId, seeds: readonly number[], field: () => Build[][], k: number = FLOOR_K, botRunes?: boolean): FloorRow[] {
+  const taken = floorTaken(hero, botRunes), depth = poolDepth();
+  return seeds.map((seed) => {
+    const days = casualRun(hero, depth, seed, CASUAL_TUNE, botRunes !== undefined ? { botRunes } : {});
+    const hash = floorHash(days);
+    if (!days.every((d) => !taken(d.day).has(encodeStarred(d.build)))) return { seed, qualifies: false, hash };
+    return { seed, qualifies: true, hash, ...floorScore({ seed, days }, field(), k) };
+  });
 }
 
 /** LOSS-1 P2: the floor ghost of `day` from a casual floor run: its deck, its run seed (in the v3 snapshot, as a race
