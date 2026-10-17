@@ -302,6 +302,9 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
       expect(share, `W ${W}`).toBeGreaterThanOrEqual(0.9);
     }
     console.log(`ZOOM-1 phoneBand90 (SHAPES on, as shipped): ${rows.join(" | ")}`);
+    // SC-0912 (PACKET-SHOPCARD1 item 3): SHOPCARD-1d's `moved` pin here ({250: "822 of 938, 90th 48", 258: "834 of 938, 90th 48",
+    // 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48"}: TWIN LATCH's second row at W 250 and 258, measured before PLAIN-1F) is
+    // dropped, as PLAIN-1F's side drops it: the loop above holds the 90th at or under the pin at every width on this merged tree
   }, 900_000); // PLAIN-1F (M4): one sweep again (SHAPES on), 17 widths x the 938 panels; SHAPES-1 run 5's two took 900 s
 
   it("on the zoomed phones every panel shows its full description: in the band, or grown up over the shop (never over the carrier)", () => {

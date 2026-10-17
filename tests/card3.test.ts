@@ -419,23 +419,25 @@ describe("CARD-3 (a): the phone shop card's gist for cores, gear and five rigs (
     console.log(`CARD3 (a) gists, ${rows.length}:\n${rows.join("\n")}`);
   });
 
-  it("the card keeps its 46x42 size, its price and its touch target; the gist's rows sit inside it, the art gives up its room", () => {
+  // SHOPCARD-1 (REQ-BFG-115): the gist rows are no longer drawn on the card: every word moved to the tap panel, which keeps
+  // them (the PHONE_GISTS rows and phoneGist stay, pinned above; their drawing on the card is retired, as the old face's
+  // constants stay as data). The card keeps its 46x42 size and its price, and a gist or chip handed to drawCard changes nothing.
+  it("the card keeps its 46x42 size and its price; a gist and a chip handed to drawCard are not drawn (SHOPCARD-1: the card is its icon and price)", () => {
     expect([CARD_W, CARD_H]).toEqual([46, 42]);
-    expect([CARD_GIST_NAME_Y, CARD_GIST_Y, CARD_CHIP_Y]).toEqual([13, 25, 32]); // name rows 13..23, row A 25..29, row B 32..36
+    expect([CARD_GIST_NAME_Y, CARD_GIST_Y, CARD_CHIP_Y]).toEqual([13, 25, 32]); // the old face's rows, kept as data (BRIEF-SHOPCARD1 rule 2)
     const st = { sold: false, affordable: true, selected: false, hover: false, pulse: false, hidden: false, shake: 0 };
     for (const id of ["lance", "mortar", "salvo", "steambreech", "overdrive"]) {
       const d = ITEMS[id], gst = phoneGist(id, d.kind === "core" ? { k: 1 } : {})!;
-      const c = fresh(60, 60), r = { x: 5, y: 5, w: CARD_W, h: CARD_H };
-      drawCard(gOf(c), r, d, d.price, d.merchant!, { ...st, gist: gst, chip: shopChip(id) ?? undefined }, 0);
-      let outside = 0, rowA = 0, rowB = 0;
-      for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) {
-        const px = c.at(x, y);
-        if (px === null) continue;
-        if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) outside++;
-        if (y >= r.y + CARD_GIST_Y && y < r.y + CARD_GIST_Y + 5 && x > r.x + 2 && x < r.x + r.w - 3 && px !== C.slate0) rowA++;
-        if (y >= r.y + CARD_CHIP_Y && y < r.y + CARD_CHIP_Y + 5 && x > r.x + 2 && x < cardPriceX(r.x, r.w, d.price, false, true) && px !== C.slate0) rowB++;
-      }
-      expect([outside, rowA > 0, rowB > 0], id).toEqual([0, true, true]);
+      const r = { x: 5, y: 5, w: CARD_W, h: CARD_H };
+      const withGist = fresh(60, 60), without = fresh(60, 60);
+      drawCard(gOf(withGist), r, d, d.price, d.merchant!, { ...st, gist: gst, chip: shopChip(id) ?? undefined }, 0);
+      drawCard(gOf(without), r, d, d.price, d.merchant!, st, 0);
+      expect(withGist.px.join(), id).toBe(without.px.join());
+      let outside = 0;
+      for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) if (withGist.at(x, y) !== null && (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h)) outside++;
+      expect(outside, id).toBe(0);
+      // the price sits at the bottom centre (cardPriceX's narrow rule: no chip any more)
+      expect(withGist.at(cardPriceX(r.x, r.w, d.price, false, false) + 1, r.y + r.h - 9), id).not.toBeNull();
     }
   });
 

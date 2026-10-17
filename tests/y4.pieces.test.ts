@@ -153,7 +153,7 @@ describe("Y4 row 35: SEAM WELDER: PAIR +10/+22/+35 PLATE; a lone load's plating 
   });
 
   it("face: PAIR: +10/+22/+35 PLATE, one line in the band; ladder PLATE +10/+22/+35", () => {
-    expect(lines("seamwelder")).toEqual([10, 22, 35].map((d) => [`{*PAIR}: +${d} {*PLATE}.`]));
+    expect(lines("seamwelder")).toEqual([10, 22, 35].map((d) => [`{*PAIR}: YOUR HULL: +${d} {*PLATE}.`])); // SHOPCARD-1b (REQ-BFG-081): YOUR HULL: (was {*PAIR}: +n {*PLATE}.)
     oneLine("seamwelder");
     expect(levels("seamwelder", 1)).toEqual(["{PLATE} [+10]/+22/+35", next(2, "+22 {PLATE}")]);
     expect(hasFace("seamwelder")).toBe(true);

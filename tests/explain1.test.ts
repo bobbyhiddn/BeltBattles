@@ -615,6 +615,10 @@ describe("EXPLAIN-1 (e): the band", () => {
     rows.push(...on);
     console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES on, as shipped): ${rows.join(" | ")}`);
     expect(all.length).toBe(1094); // BUMP-1D: was 938 (PLAIN_RIGS' six and SHAPES2's six: 12 x 13 more panels)
+    // SC-0912 (PACKET-SHOPCARD1 item 3): SHOPCARD-1b-1d's `moved` pin here ({250: "822 of 938, 90th 48", 258: "834 of 938, 90th 48",
+    // 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48"}: measured before PLAIN-1F, when the band was over its pin from W 250) is
+    // dropped, as PLAIN-1F's side drops it: PLAIN-1F's hits-on-one-line is back to 90% at every width, so on this merged tree
+    // (SHOPCARD-1's plainer words, BUMP-1D's 1094 panels) the 90th is at or under the pin at every width and `moved` stays {}
     expect(moved).toEqual({});
   }, 900_000);
 });
@@ -648,8 +652,8 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
       const f = framed(402, 690, 3, 1), c = { run, sel: { kind: "cargo", uid: 900 } as Sel };
       const { d } = placed(c, f), piece = panelPiece(run, d.show)!;
       const words = explainWords(d.t, piece);
-      expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", colour: words[0].colour });
-      expect(glossaryText("HIT", piece)).toBe("HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.");
+      expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: "HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.", colour: words[0].colour }); // SHOPCARD-1b (REQ-BFG-081)
+      expect(glossaryText("HIT", piece)).toBe("HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.");
       expect(d.t.notes![0].text, `${def} ★${s}`).toBe(RIG_SENTENCE);
       // the icon's hover: NOTES, then HIT's definition
       expect(iconTipItems(d.t, words, piece).slice(-1)[0]).toBe(words[0].text);
@@ -686,7 +690,7 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
     expect(shapedRows()).toEqual([
       "DMG +16/DMG +33/DMG +53", "BURN +1/BURN +2/BURN +3", "DMG +8/DMG +16/DMG +28",
     ]);
-    expect(SHAPED_PLAIN_RIGS.map((d) => shapeLines(d, 1).map((r) => r.text))).toEqual([["UP TO 2 HITS"], ["UP TO 2 HITS"], ["UP TO 6 HITS"]]);
+    expect(SHAPED_PLAIN_RIGS.map((d) => shapeLines(d, 1).map((r) => r.text))).toEqual([["HITS EACH SLUG UP TO 2 TIMES."], ["HITS EACH SLUG UP TO 2 TIMES."], ["HITS EACH SLUG UP TO 6 TIMES."]]); // SHOPCARD-1b (REQ-BFG-081): per slug (was UP TO 2 / 6 HITS)
     for (const def of ["heatjacket", "plateroller", "riveter"]) expect(faceLines(def, 1)!.rules[0].text.startsWith("HIT:"), def).toBe(true);
     expect(rigs.length).toBeGreaterThan(20);
   });

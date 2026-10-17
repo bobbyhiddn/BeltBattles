@@ -5,6 +5,7 @@ import { C, RARITY_COLOR } from "../render/palette";
 import { bevel, frame, rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap, type FontId } from "../render/font";
 import { itemIcon } from "../render/sprites";
+import { hasGrid, shapeGrid } from "./shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid in its cargo slot
 import { ITEMS } from "../sim/content";
 import type { PointerKind } from "../core/io"; // shoptap (D1)
 import { panelSkin, type PanelId } from "../render/styles"; // CUSTOM-1 (REQ-BFG-072) hook: stats panel styles
@@ -227,6 +228,9 @@ export function itemSlot(g: G, x: number, y: number, def: string | null, selecte
     const d = ITEMS[def];
     rect(g, x + 1, y + 16, 16, 1, RARITY_COLOR[d.rarity]);
     g.drawImage(itemIcon(def), x + 3, y + 3);
+    // SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's cargo slot shows its grid (shapePic.ts, GRID_CELL a cell, its arrowheads) in
+    // the slot's top-left corner over the icon; the 16 px face holds the biggest (SPIKE RAIL's 10x16); the star pips go over it
+    if (hasGrid(def)) g.drawImage(shapeGrid(def), x + 1, y + 1);
     starPips(g, x + 1, y + 13, 16, stars);
   }
   if (stars >= 3) frame(g, x, y, 18, 18, C.brass3);

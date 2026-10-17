@@ -90,10 +90,10 @@ describe("Y7b1 Y7A-R1: STOKER's cap holds with the switch on, at every star (no 
     // AZ-BUMP (the flip, LADDER_FIX): ★3 0.7 -> 0.85 and its face 70% -> 85%, the star-ladder pass (ladderFix.ts LADDER_DEFS
     // stoker); with LADDER_FIX off the title's 0.2 / 0.44 / 0.7, as before
     expect(STARS.map((s) => effectAt("stoker", s).gate!.stoke)).toEqual([0.2, 0.44, 0.85]);
-    expect(lines("stoker")).toEqual(["20%", "44%", "85%"].map((p) => [`ITS FACTORIES WORK UP TO ${p} FASTER.`]));
+    expect(lines("stoker")).toEqual(["20%", "44%", "85%"].map((p) => [`FACTORIES ITS ARROWS POINT AT WORK UP TO ${p} FASTER.`])); // SHOPCARD-1c (G5): was FACTORIES IT HITS WORK UP TO
     expect(withLadderFix(() => [STARS.map((s) => effectAt("stoker", s).gate!.stoke), lines("stoker")], false))
-      .toEqual([[0.2, 0.44, 0.7], ["20%", "44%", "70%"].map((p) => [`ITS FACTORIES WORK UP TO ${p} FASTER.`])]);
-    oneLine("stoker");
+      .toEqual([[0.2, 0.44, 0.7], ["20%", "44%", "70%"].map((p) => [`FACTORIES ITS ARROWS POINT AT WORK UP TO ${p} FASTER.`])]);
+    oneLine("stoker", 2); // SHOPCARD-1c (G5): two rows of the band (was one)
     expect(faceAt("stoker", 2)!.caveats).toBeUndefined();
     expect(abilityText("stoker", 1).sentences[1]).toBe("IT NEVER MAKES A FACTORY OUTRUN ITS GUN.");
   });

@@ -507,10 +507,35 @@ describe("U2f: the taller ⓘ view", () => {
     // BUMP-1D (PLAIN_RIGS and SHAPES2 on), re-measured (361 panels: the twelve plain stat rigs' 36 cargo panels join, whose ⓘ views
     // list their stat keywords and notes): op [8, 184, 96, 37] -> [8, 188, 122, 43], desk [3, 51, 106, 90, 68, 7] -> [3, 51, 109,
     // 104, 81, 13]. U2f's view, the one the game draws, is the next test's pins
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 188, 122, 43]);
+    // SHOPCARD-1b (REQ-BFG-081), measured (the same 325 panels; per panel against shopcard1-accepted's export): LIMPET WORKS' face line no longer
+    // prints a {SLUG} icon ("THE FOE'S HULL TAKES 100 DMG 3 SEC AFTER A HIT."), so its ⓘ view lists one definition less and its 2
+    // op views (cargo ★2, ★3) take 2 pages, not 3: op [8, 184, 96, 37] -> [8, 186, 94, 37]
+    // SHOPCARD-1c (REQ-BFG-081, G10), measured per panel against shopcard1b-accepted's export (tmp/zz-kw-pages.test.ts, the same 325
+    // panels): QUENCH TANK's face line now prints a {SLUG} icon ("HIT: TURNS EACH BURN ON A SLUG INTO +40 DMG."), so its ⓘ view lists one
+    // definition more (SLUG) and its 3 op views (cargo ★1-★3) take 3 pages, not 2: op [8, 186, 94, 37] -> [8, 183, 97, 37]
+    // SHOPCARD-1e (REQ-BFG-081; READ-12 fix 5, E1), measured per panel against shopcard1d-accepted's list (output-shopcard1d/parts/pages-1d.txt, the
+    // same 325 panels): a factory's stat row {BELT}n has a tap note now (glossary.ts BELT_NOTE, two 5x7 rows), so every factory panel's ⓘ KEYWORDS
+    // lists one definition more beside RATE: 25 op views take one page more (7 from 2 to 3 pages, 18 from 3 to 4: press, doublestamp, twinmould,
+    // armorpress, mendpress, hotswap, frostbite, dragchain, scrapper, sabot, limpet and assembly, and the placed factory's) and 47 desk views take
+    // one more (the 15 factories' cargo views and MIMIC FORGE's two): op [8, 183, 97, 37] -> [8, 176, 86, 55]
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 188, 122, 43]); // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit
     // CARD-5 (L, by design): SCRAPPER's taller face (its scrap line) and LEVELS move three desk views a bucket: [3, 51, 106,
     // 87, 71, 7] -> [3, 51, 106, 90, 68, 7]
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 51, 109, 104, 81, 13]);
+    // SHOPCARD-1b (REQ-BFG-081), measured: the desk column sizes to its text, and 20 cargo panels' longer face lines (SEAM WELDER's YOUR HULL:,
+    // RIVETER's, PINCER's, STOKER's, LIMPET WORKS', ASSEMBLY LINE's START, the three shaped rigs' HITS EACH SLUG UP TO n TIMES.) make it wider,
+    // so their body-only views page one less: desk [3, 51, 106, 90, 68, 7] -> [3, 56, 113, 81, 65, 7]
+    // SHOPCARD-1c (REQ-BFG-081), measured as above: QUENCH TANK's SLUG definition adds a page to its 3 desk views (4 / 4 / 3 -> 5 / 5 / 4),
+    // and GRAPNEL GUN's longer two-row line ("SHOT: A HIT ON A FOE BELT OR RIG RIPS 1 SLUG.") widens the desk column so its 4 desk views
+    // (cargo ★1/★2, twice) page one less (3 -> 2): desk [3, 56, 113, 81, 65, 7] -> [3, 60, 108, 80, 67, 7]
+    // SHOPCARD-1d (REQ-BFG-081), measured per panel against shopcard1c-accepted's list (tmp/pages-tip.txt, tmp/zz-kw-pages.test.ts, the
+    // same 325 panels): LIMPET WORKS' longer line ("THE DMG LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 SEC AFTER A HIT.", 335 px) and TWIN
+    // LATCH's ("... BOTH ITS ARROWS MUST POINT AT BELTS.", 415 px) widen the desk column, so their cargo ★1 and ★2 desk views page one less:
+    // limpet 3 -> 2 (x2), twinlatch 5 -> 4 (x2); the op views are unchanged (op [8, 183, 97, 37] stands): desk
+    // [3, 60, 108, 80, 67, 7] -> [3, 62, 106, 82, 65, 7]
+    // SHOPCARD-1e (E1), measured as above: the {BELT} definition (two rows at the op band's 225 px, three or four in the desk column) lists in every
+    // factory's ⓘ view: 47 desk views (the 15 factories' cargo views at ★1-★3, MIMIC FORGE's two more) take one page more (16 from 5 to 6, 14
+    // from 4 to 5, 12 from 3 to 4, 3 from 2 to 3, 2 from 6 to 7): desk [3, 62, 106, 82, 65, 7] -> [3, 59, 97, 80, 63, 21, 2]
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 51, 109, 104, 81, 13]); // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -646,16 +671,18 @@ describe("U2f: the taller ⓘ view", () => {
 // BUMP-1D (PLAIN_RIGS and SHAPES2 on), measured (361 panels: the twelve plain stat rigs' 36 cargo panels join): op [270, 55] -> [300, 61],
 // the worst rune held (and the same with the switch on) [142, 183] -> [145, 216], desk [324, 1] -> [357, 4]. U2f's aims hold: op most
 // on 1 page and none over 2, a rune held none over 3, desk none over 3
-const U2F_OP = [300, 61]; // BUMP-1D: was [270, 55]. CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
+// SHOPCARD-1e (E1; measured per panel against shopcard1d-accepted's list): every factory's ⓘ view lists the {BELT} definition now, so 24 op views move from one page to two: was [270, 55]; the extra {BELT} definition moves 6 more op views (with the worst rune held) from one page to two: was [145, 180]; SHOPCARD-1b: LIMPET WORKS' 3 views lose the SLUG note's definition, so each fits one page with the worst rune held (was [142, 183])
+const U2F_OP = [300, 61]; // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit. BUMP-1D: was [270, 55]. CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
 // WORDS-1 (REQ-BFG-081), measured: the stat icons' and face words' notes list in the view, so with the worst rune's keywords
 // after them 82 views take a second page (was [304, 12]); none takes a third (U2f's aim: 3 at most with a rune held)
-const U2F_OP_RUNE = [145, 216]; // BUMP-1D: was [142, 183]. SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
+const U2F_OP_RUNE = [145, 216]; // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit. BUMP-1D: was [142, 183]. SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
  *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
  *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). EXPLAIN-1: still the same (was [234, 82]). */
-const U2F_OP_RUNE_ON = [145, 216]; // BUMP-1D: was [142, 183], still the same as RUNE_LIST's. SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
-const U2F_DESK = [357, 4]; // BUMP-1D: was [324, 1]. SHAPES-1 x c099-card3: was [315, 1] (SHAPES-1 flip: was [277, 39] -> [283, 42]; CARD-2 (K5): was [277, 39] -> [315, 1]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
+// SHOPCARD-1e (E1): as U2F_OP_RUNE (the worst rune held, the switch on: [139, 186] on SHOPCARD-1e's tree, was [145, 180]; SHOPCARD-1b: [142, 183]); the factories' extra {BELT} definition moves 4 desk views from one page to two: [324, 1] -> [320, 5]
+const U2F_OP_RUNE_ON = [145, 216]; // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit. BUMP-1D: was [142, 183], still the same as RUNE_LIST's. SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
+const U2F_DESK = [357, 4]; // SC-0912 placeholder (BUMP-1D's): replaced by the measured pin in the re-pin commit. BUMP-1D: was [324, 1]. SHAPES-1 x c099-card3: was [315, 1] (SHAPES-1 flip: was [277, 39] -> [283, 42]; CARD-2 (K5): was [277, 39] -> [315, 1]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
 // the screen (the test above), but on the 1920x1080 desk WARD BELL's last KEYWORDS line (a held rune's HULL) drew partly

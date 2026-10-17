@@ -65,7 +65,7 @@ describe("Y3 row 20: PINCER: +20 for each other rig on its tile; no floor, no ma
 
   it("face: HIT: +20/+44/+70 DMG FOR EACH OTHER RIG ON ITS TILE, one line in the band; ladder +20/+44/+70 DMG EACH", () => {
     // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.1: ITS TILE, whose): HITTING IT, 221 px at ★3 (was "... FOR EACH OTHER RIG ON ITS TILE.")
-    expect(lines("pincer")).toEqual([20, 44, 70].map((d) => [`HIT: +${d} {DMG} FOR EACH OTHER RIG HITTING IT.`]));
+    expect(lines("pincer")).toEqual([20, 44, 70].map((d) => [`HIT: +${d} {DMG} FOR EACH OTHER RIG ON THE TILE.`]));
     oneLine("pincer");
     expect(levels("pincer", 1)).toEqual(["[+20]/+44/+70 {DMG} EACH", next(2, "+44 {DMG} EACH")]);
     expect(levels("pincer", 3)).toEqual(["+20/+44/[+70] {DMG} EACH"]);
@@ -143,10 +143,10 @@ describe("Y3 row 23: QUENCH TANK turns each BURN into +30/+50/+70; no floor, no 
     expect([off.flat, off.burn]).toEqual([120, 0]);
   });
 
-  it("face: HIT: TURNS EACH BURN INTO +30/+50/+70 DMG; ladder DMG +30/+50/+70", () => {
+  it("face: HIT: TURNS EACH BURN ON A SLUG INTO +30/+50/+70 DMG; ladder DMG +30/+50/+70", () => {
     // AZ-BUMP (the flip, LADDER_FIX): ★1 +30 -> +40, the star-ladder pass's QUENCH ★1, on its face and its ladder; off, +30
-    expect(lines("quench")).toEqual([40, 50, 70].map((d) => [`HIT: TURNS EACH {*BURN} INTO +${d} {DMG}.`]));
-    expect(withLadderFix(() => lines("quench")[0], false)).toEqual(["HIT: TURNS EACH {*BURN} INTO +30 {DMG}."]);
+    expect(lines("quench")).toEqual([40, 50, 70].map((d) => [`HIT: TURNS EACH {*BURN} ON A {SLUG} INTO +${d} {DMG}.`])); // SHOPCARD-1c (G10): whose BURN: the slug's it hits (was HIT: TURNS EACH {*BURN} INTO +${d} {DMG}.)
+    expect(withLadderFix(() => lines("quench")[0], false)).toEqual(["HIT: TURNS EACH {*BURN} ON A {SLUG} INTO +30 {DMG}."]);
     oneLine("quench");
     expect(levels("quench", 1)).toEqual(["{DMG} [+40]/+50/+70", next(2, "+50 {DMG}")]);
     expect(hasFace("quench")).toBe(true);
@@ -214,7 +214,7 @@ describe("Y3 row 26: PLATE BREAKER spends 10 PLATE for +40/+88/+140; no ELSE flo
   });
 
   it("face: HIT: SPENDS 10 PLATE FOR +40/+88/+140 DMG, one line (no ELSE line); ladder DMG +40/+88/+140", () => {
-    expect(lines("platebreaker")).toEqual([40, 88, 140].map((d) => [`HIT: SPENDS 10 {*PLATE} FOR +${d} {DMG}.`]));
+    expect(lines("platebreaker")).toEqual([40, 88, 140].map((d) => [`HIT: USES 10 OF YOUR {*PLATE} FOR +${d} {DMG}.`]));
     oneLine("platebreaker");
     expect(levels("platebreaker", 1)).toEqual(["{DMG} [+40]/+88/+140", next(2, "+88 {DMG}")]);
   });
@@ -357,9 +357,11 @@ describe("Y3 row 30: TWIN LATCH holds a slug up to 1/2/3 s to make a PAIR; no fl
     }
   });
 
-  it("face: HIT: HOLDS A SLUG UP TO 1/2/3 SEC TO MAKE A PAIR, one line; ladder UP TO 1/2/3 SEC", () => {
-    expect(lines("twinlatch")).toEqual([1, 2, 3].map((t) => [`HIT: HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}.`]));
-    oneLine("twinlatch");
+  it("face: HIT: HOLDS A SLUG UP TO 1/2/3 SEC TO MAKE A PAIR. BOTH ITS ARROWS MUST POINT AT BELTS., two rows; ladder UP TO 1/2/3 SEC", () => {
+    // SHOPCARD-1d (H1; READ-11 fix list 1): the face says its condition, in the words of its HIT note (glossary.ts TAP_NOTES.twinlatch);
+    // one rule, two rows of the 225 px band (415 px: the hold sentence is 211 px, the new one 199 px). Was one line (211 px)
+    expect(lines("twinlatch")).toEqual([1, 2, 3].map((t) => [`HIT: HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}. BOTH ITS ARROWS MUST POINT AT BELTS.`]));
+    oneLine("twinlatch", 2);
     expect(levels("twinlatch", 1)).toEqual(["UP TO [1]/2/3{SEC}", next(2, "UP TO 2{SEC}")]);
     expect(hasFace("twinlatch")).toBe(true);
   });
@@ -383,12 +385,12 @@ describe("Y3 row 31: STOKER's factories work 20%/44%/70% faster; Y7b1 (ruling Y7
     expect(Math.round(paceUp(1) * 100) / 100).toBe(1.2); // ★1 fits under the gun
   });
 
-  it("face: ITS FACTORIES WORK UP TO 20%/44%/70% FASTER (Y7A-R1: the cap in its line), no caveat; ladder 20%/44%/70% FASTER", () => {
+  it("face: FACTORIES ITS ARROWS POINT AT WORK UP TO 20%/44%/85% FASTER (Y7A-R1: the cap in its line; SHOPCARD-1c: the arrows named), no caveat; ladder 20%/44%/70% FASTER", () => {
     // AZ-BUMP (the flip, LADDER_FIX): ★3 70% -> 85%, the star-ladder pass's STOKER ★3 (stoke 0.85, was 0.7), on its face and
     // its ladder; off, 70%
-    expect(lines("stoker")).toEqual(["20%", "44%", "85%"].map((p) => [`ITS FACTORIES WORK UP TO ${p} FASTER.`])); // Y7b1 (Y7A-R1): was `ITS FACTORIES WORK ${p} FASTER.`
-    expect(withLadderFix(() => lines("stoker")[2], false)).toEqual(["ITS FACTORIES WORK UP TO 70% FASTER."]);
-    oneLine("stoker");
+    expect(lines("stoker")).toEqual(["20%", "44%", "85%"].map((p) => [`FACTORIES ITS ARROWS POINT AT WORK UP TO ${p} FASTER.`])); // Y7b1 (Y7A-R1): was `ITS FACTORIES WORK ${p} FASTER.`; SHOPCARD-1b: which factories (was ITS FACTORIES WORK UP TO); SHOPCARD-1c (G5): no HIT, the factories its arrows point at (was FACTORIES IT HITS WORK UP TO)
+    expect(withLadderFix(() => lines("stoker")[2], false)).toEqual(["FACTORIES ITS ARROWS POINT AT WORK UP TO 70% FASTER."]);
+    oneLine("stoker", 2); // SHOPCARD-1c (G5): two rows of the band (289 px), the arrows named (was one row, 221 px)
     expect(levels("stoker", 1)).toEqual(["[20%]/44%/85% FASTER", next(2, "44% FASTER")]);
   });
 });
@@ -421,11 +423,11 @@ describe("Y3 row 32: ASSEMBLY LINE: your rigs start 50%/75%/100% sooner, its own
   // TXT-096 (REVIEW-TXT095 Q2): the line says its condition, FEEDS A GUN, and ★3 says AT ONCE (commission 0: the sim test
   // above, online(3) [0, 0, 0]; tests/txt096.faces.test.ts pins both); was "YOUR RIGS START 50%/75%/100% SOONER." with the
   // ladder "[50%]/75%/100% SOONER" (★3's AT ONCE has no number, so the ladder lists the three forms)
-  it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; FEEDS A GUN: YOUR RIGS START 50% SOONER/75% SOONER/AT ONCE; ladders DMG 30/45/60, 50% SOONER/75% SOONER/AT ONCE; no HOT START name, the ⓘ view's too (Y7b2, TXT-096)", () => {
+  it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER/75% SOONER/AT ONCE; ladders DMG 30/45/60, 50% SOONER/75% SOONER/AT ONCE; no HOT START name, the ⓘ view's too (Y7b2, TXT-096)", () => {
     // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): WORK (was "FEEDS A GUN: YOUR RIGS START ...")
-    expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`FEEDS A GUN: YOUR RIGS WORK ${p}.`]));
+    expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${p}.`])); // SHOPCARD-1c (G8): when and what (was FEEDS A GUN: YOUR RIGS START ${p}.) // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     expect(faceAt("assembly", 1)!.stats).toEqual([["RATE", "17"], ["DMG", "30"], ["BELT", "2"]]);
-    oneLine("assembly");
+    oneLine("assembly", 2); // SHOPCARD-1c (G8): two rows of the band (328 px; was one row)
     // Y7b2 (the words): was [..., "[50%]/75%/100% SOONER", "★3 HOT START", `NEXT ★2: ...`] (the name left with its rule)
     expect(levels("assembly", 1)).toEqual(["{DMG} [30]/45/60", "{BELT} [2]/3/4", "[50% SOONER]/75% SOONER/AT ONCE",
       `NEXT ★2: ${statRow([["DMG", "45"], ["BELT", "3"]])}, 75% SOONER`]);

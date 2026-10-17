@@ -174,12 +174,16 @@ function matches(text: string, l: PLine, first: boolean, piece: Piece | null, da
   // WORDS-1 (REQ-BFG-081; cap's design call 3): the stat icons {RATE}, {SLUG} and {GEAR} on an ability line (a face's stat
   // row and rule lines, the turret panel's stat row), each with its note (glossary.ts statIconNote: {SLUG} by the piece's
   // kind; a row with a {GEAR} pair is a turret's stat row)
+  // SHOPCARD-1e (REQ-BFG-081; READ-12 fix 5, E1): {BELT} too, on a factory's stat row (and GANTRY PRESS's BIGGER: +1 {BELT} line):
+  // the belts it can feed (glossary.ts BELT_NOTE). The word BELT's rune-only note (glossary.ts, scope "rune") is untouched: it is
+  // found where a rune card draws that word (runeBar.ts), never here. A factory's only: no other face draws the icon.
   if (b.role === "ability") {
     const kind = piece ? ITEMS[piece.def]?.kind : undefined, gunRow = text.includes(ICON.GEAR) && text.includes(ICON.RATE);
     for (const k of STAT_ICONS) {
+      if (k === "BELT" && kind !== "factory") continue;
       for (let i = text.indexOf(ICON[k]); i >= 0; i = text.indexOf(ICON[k], i + 1)) {
         // CARD-2 (REQ-BFG-081, K4): on the turret row's labels the target is the icon and its word (HOLDS: {SLUG}'s note)
-        const label = b.pairs ? TURRET_LABELS[k] : "", end = label && text.startsWith(label, i + 1) ? i + 1 + label.length : i + 1;
+        const label = b.pairs && k !== "BELT" ? TURRET_LABELS[k] : "", end = label && text.startsWith(label, i + 1) ? i + 1 + label.length : i + 1; // SHOPCARD-1e: a turret row has no {BELT}
         if (free(i, end)) out.push({ at: i, end, word: k, text: statIconNote(k, kind, gunRow), colour: ICON_COLOUR[ICON[k]] ?? C.bone });
       }
     }
