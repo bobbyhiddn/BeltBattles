@@ -12,11 +12,12 @@ import { newRun, type Run } from "../src/game/run";
 import { ITEMS } from "../src/sim/content";
 import { effectAt } from "../src/sim/stars";
 import { withShapes } from "../src/sim/shapes";
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): it patches NAIL STRIP and SPIKE RAIL and changes the shape rule's words
 import { fmtCount, fmtDmg } from "../src/ui/statFormat";
 import { statRow } from "../src/ui/icons";
 import { icons, textWidth } from "../src/render/font";
 import {
-  PLAIN_RIGS, RIG_SENTENCE, SHAPE_RULE, SHAPED_PLAIN_RIGS, SIZE_RULE, hasFace, isPlainRig, plainRigStats, shapeLines,
+  PLAIN_RIGS, RIG_SENTENCE, SHAPE_RULE, SHAPE_RULE_ANY, SHAPED_PLAIN_RIGS, SIZE_RULE, hasFace, isPlainRig, plainRigStats, shapeLines,
   shapeMaxHits, shapeNotes, shapeWord,
 } from "../src/ui/faces";
 import { faceBlocks } from "../src/screens/build/faceBlocks";
@@ -37,8 +38,16 @@ const texts = (bs: { text: string }[]) => bs.map((b) => b.text);
 
 describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ-BFG-089)", () => {
   it("a stat row from the sim's numbers, no HIT: line, and UP TO N HITS (NAIL STRIP and EMBER TROUGH 2, SPIKE RAIL 6)", () => {
-    withShapes(() => {
-      const want: Record<string, ["DMG" | "BURN", string, number]> = { nailstrip: ["DMG", "+12/+25/+40", 2], embertrough: ["BURN", "+1/+2/+3", 2], spikerail: ["DMG", "+10/+20/+35", 6] };
+    // BUMP-1D: SHAPES2 ships on (bb-0.11.0) and patches NAIL STRIP and SPIKE RAIL (shapes2.ts SHAPES2_PATCHES): SHAPES-1's rows
+    // (+12/+25/+40, +10/+20/+35) are measured with SHAPES2 set off, the shipped rows (+16/+33/+53, +8/+16/+28) with it on
+    const ladders = {
+      shapes1: { nailstrip: "+12/+25/+40", embertrough: "+1/+2/+3", spikerail: "+10/+20/+35" },
+      shipped: { nailstrip: "+16/+33/+53", embertrough: "+1/+2/+3", spikerail: "+8/+16/+28" },
+    };
+    for (const [world, s2] of [["shapes1", false], ["shipped", true]] as const) withShapes2(() => withShapes(() => {
+      const want: Record<string, ["DMG" | "BURN", string, number]> = {
+        nailstrip: ["DMG", ladders[world].nailstrip, 2], embertrough: ["BURN", ladders[world].embertrough, 2], spikerail: ["DMG", ladders[world].spikerail, 6],
+      };
       for (const def of SHAPED_PLAIN_RIGS) {
         expect(hasFace(def) && isPlainRig(def)).toBe(true);
         const [icon, ladder, hits] = want[def];
@@ -46,17 +55,17 @@ describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ
           const g = effectAt(def, s).gate!;
           return icon === "BURN" ? `+${fmtCount(g.burn!)}` : `+${fmtDmg(g.flat!)}`;
         });
-        expect(nums.join("/")).toBe(ladder);
+        expect(nums.join("/"), `${world} ${def}`).toBe(ladder);
         expect(shapeMaxHits(def)).toBe(hits);
         for (const s of [1, 2, 3]) {
           expect(plainRigStats(def, s)).toEqual([[icon, nums[s - 1]]]);
           const fb = faceBlocks(def, s, {})!;
-          expect(texts(fb), `${def} ★${s}`).toEqual([statRow([[icon, nums[s - 1]]]), `UP TO ${hits} HITS`]);
+          expect(texts(fb), `${world} ${def} ★${s}`).toEqual([statRow([[icon, nums[s - 1]]]), `UP TO ${hits} HITS`]);
           expect(fb.every((b) => b.keep)).toBe(true); // a piece's own lines are always visible (REQ-BFG-089)
           expect(fb.some((b) => b.text.includes("HIT:") || b.brass)).toBe(false);
         }
       }
-    });
+    }), s2);
   });
 
   it("the type line names the shape; 1-cell rigs and 2x2 factories keep theirs", () => {
@@ -98,17 +107,20 @@ describe("SHAPES-1 S8: the three shaped plain stat rigs' faces (REQ-BFG-084, REQ
   });
 
   it("NOTES (behind the hover or tap) hold the rig sentence and the shape rule; the face keeps the piece's own lines", () => {
-    withShapes(() => {
+    // BUMP-1D: SHAPES2 ships on (bb-0.11.0): while it is on every shaped rig's NOTES read SHAPE_RULE_ANY ("A SHAPED RIG'S ARROWS
+    // ..."; faces.ts shapeNotes), with it set off SHAPES-1's SHAPE_RULE ("A LONG RIG'S ARROWS ...") stands, byte for byte
+    for (const [rule, s2] of [[SHAPE_RULE, false], [SHAPE_RULE_ANY, true]] as const) withShapes2(() => withShapes(() => {
       const run = furnace([{ uid: 9, def: "gantry", x: 0, y: 7 }], ["nailstrip"]);
       const rig = explainPanel(cargoPanel(run, 900, true)!, "nailstrip");
-      expect(texts(rig.notes ?? [])).toEqual(expect.arrayContaining([RIG_SENTENCE, SHAPE_RULE]));
+      expect(texts(rig.notes ?? [])).toEqual(expect.arrayContaining([RIG_SENTENCE, rule]));
+      expect(texts(rig.notes ?? [])).not.toContain(rule === SHAPE_RULE ? SHAPE_RULE_ANY : SHAPE_RULE);
       expect(texts(rig.body)).toContain("UP TO 2 HITS");
-      expect(texts(rig.body).some((t) => t === RIG_SENTENCE || t === SHAPE_RULE)).toBe(false);
+      expect(texts(rig.body).some((t) => t === RIG_SENTENCE || t === SHAPE_RULE || t === SHAPE_RULE_ANY)).toBe(false);
       const fac = explainPanel(itemPanel(run, 9, false)!, "gantry");
       expect(texts(fac.notes ?? [])).toContain(SIZE_RULE);
       expect(texts(fac.body)).toContain("FEEDS 4 BELTS IN TURN.");
       expect(texts(fac.body)).not.toContain(SIZE_RULE);
-    });
+    }), s2);
   });
 
   it("the shape pictures fit the panel header's 14x14 inside and the card's corner", () => {

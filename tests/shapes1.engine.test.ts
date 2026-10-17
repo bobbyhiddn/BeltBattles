@@ -17,6 +17,7 @@ import {
   FOOT_CELLS, FOOT_IDS, canonicalRot, footBox, footOf, footOnDeck, footprintCells, footSlots, footTurns, type FootId,
 } from "../src/sim/foot";
 import { RESHAPED_IDS, SHAPES, SHAPES_IDS, SHAPES_ITEMS, setShapes, shapesRules, withShapes } from "../src/sim/shapes";
+import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): the SHAPES-1 world is measured with it set off
 import { hitsIfPlaced } from "../src/sim/beltside";
 import { outputsAt } from "../src/sim/stars";
 
@@ -233,14 +234,26 @@ describe("SHAPES-1 R2 guard: no long multiplying rig; every existing rig stays 1
   const MULTIPLYING = ["splitter", "sorting", "overclocker", "longhaul", "pincer"];
   for (const on of [false, true]) {
     it(`SHAPES ${on ? "on" : "off"}: SPLITTER, SORTING ARM, OVERCLOCKER, LONG HAUL and PINCER are 1 cell; so is every rig but the three`, () => {
-      withShapes(() => {
+      // BUMP-1D: SHAPES2 ships on (bb-0.11.0) and its six more shaped rigs (SHAPES2_IDS: ELBOW GUARD ... PICKAXE) carry a foot on
+      // their own defs, so they are long rigs whatever SHAPES says. The SHAPES-1 world (SHAPES2 set off) keeps its old assertion
+      // (the three with SHAPES on, none off); the shipped world (SHAPES2 on) adds the six, and the ids are compared sorted because
+      // ITEMS' order of the long rigs depends on which switch was set last (the three are appended each time SHAPES goes on)
+      withShapes2(() => withShapes(() => {
         expect(MULTIPLYING.map((id) => ITEMS[id].name)).toEqual(["SPLITTER", "SORTING ARM", "OVERCLOCKER", "LONG HAUL", "PINCER"]);
         for (const id of MULTIPLYING) expect(footOf(ITEMS[id]), id).toBe("1");
         const rigs = Object.values(ITEMS).filter((d) => d.kind === "gate");
         const long = rigs.filter((d) => footOf(d) !== "1").map((d) => d.id);
         expect(long).toEqual(on ? ["nailstrip", "embertrough", "spikerail"] : []);
         for (const d of rigs) if (!SHAPES_IDS.includes(d.id)) expect(d.foot, d.id).toBeUndefined();
-      }, on);
+      }, on), false);
+      withShapes2(() => withShapes(() => {
+        for (const id of MULTIPLYING) expect(footOf(ITEMS[id]), id).toBe("1");
+        const rigs = Object.values(ITEMS).filter((d) => d.kind === "gate");
+        const long = rigs.filter((d) => footOf(d) !== "1").map((d) => d.id);
+        expect(SHAPES2_IDS).toEqual(["elbowguard", "sawbar", "sparkcomb", "cinderhook", "jawcrusher", "pickaxe"]);
+        expect([...long].sort()).toEqual([...(on ? SHAPES_IDS : []), ...SHAPES2_IDS].sort());
+        for (const d of rigs) if (!SHAPES_IDS.includes(d.id) && !SHAPES2_IDS.includes(d.id)) expect(d.foot, d.id).toBeUndefined();
+      }, on), true);
     });
   }
 });
@@ -293,9 +306,17 @@ describe("SHAPES-1 S1: the switch", () => {
       // EMBER TROUGH 4 -> 5 G: cap's ruling RUN5-SHAPES1 1.1 (two TEMPERs on its cells, one gold less than their 6 G)
       ["NAIL STRIP", "common", 4, "I2"], ["EMBER TROUGH", "common", 5, "I2"], ["SPIKE RAIL", "rare", 6, "I3"],
     ]);
-    expect(row3("nailstrip")).toEqual([{ flat: 12 }, { flat: 25 }, { flat: 40 }]);
+    // BUMP-1D: SHAPES2 ships on (bb-0.11.0) and patches the two live pieces' DMG on their defs (shapes2.ts SHAPES2_PATCHES:
+    // NAIL STRIP 12/25/40 -> 16/33/53, SPIKE RAIL 10/20/35 -> 8/16/28; EMBER TROUGH keeps its BURN). SHAPES-1's rows are
+    // measured with SHAPES2 set off (byte for byte, as the patch's own pin says), the shipped rows with it on
+    withShapes2(() => {
+      expect(row3("nailstrip")).toEqual([{ flat: 12 }, { flat: 25 }, { flat: 40 }]);
+      expect(row3("embertrough")).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
+      expect(row3("spikerail")).toEqual([{ flat: 10 }, { flat: 20 }, { flat: 35 }]);
+    }, false);
+    expect(row3("nailstrip")).toEqual([{ flat: 16 }, { flat: 33 }, { flat: 53 }]); // BUMP-1D: was 12/25/40
     expect(row3("embertrough")).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
-    expect(row3("spikerail")).toEqual([{ flat: 10 }, { flat: 20 }, { flat: 35 }]);
+    expect(row3("spikerail")).toEqual([{ flat: 8 }, { flat: 16 }, { flat: 28 }]); // BUMP-1D: was 10/20/35
     withShapes(() => {
       expect(rigArrowCells("nailstrip", 0, 5, 0).map((a) => a.dir)).toEqual([0, 0]); // one arrow, forward, from each cell
       expect(rigArrowCells("spikerail", 0, 5, 0).map((a) => a.dir)).toEqual([1, 1, 1, 3, 3, 3]); // left and right

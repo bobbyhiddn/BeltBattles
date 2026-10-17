@@ -19,6 +19,8 @@ import { EQ, MEAN_PLATE, MEAN_PLATE_OTHER, ROUND_EQ } from "../src/sim/deckRatin
 import { P1_WAVE3_ITEMS } from "../tools/wave3Defs";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the star-ladder pass's rows, off and on
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the reshape's moved row and the shaped rigs' fields, off and on
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the six plain rigs' fields, off and on
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on): the six more shaped rigs' fields and NAIL STRIP's and SPIKE RAIL's patch, off and on
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): RETUNE-1's rows, off and on
 import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): THE LONG ROAD's rewrite, off and on
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON run 6 (FREE_JOINS_HULL): WEAVER's hull, off and on
@@ -338,9 +340,46 @@ const OPEN_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: numbe
 const SHAPES_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: number }> = {
   "ITEMS.assembly.price": { rule: "same", was: 5, now: 4 },
 };
+// BUMP-1D (bb-0.11.0, SHAPES2 on; shapes2.ts SHAPES2_PATCHES): SHAPES2 patches the two shaped rigs' DMG on their live defs, so
+// SHAPES_ADDED's 6 fields read NAIL STRIP 16/33/53 and SPIKE RAIL 8/16/28 as shipped (was 12/25/40 and 10/20/35, which are
+// SHAPES1_ADDED: live, byte for byte, with SHAPES2 set off). The 6 fields stay N1-native whole damage fields
 const SHAPES_ADDED: Record<string, number> = {
+  "ITEMS.nailstrip.gate.flat": 16, "ITEMS.nailstrip.levels.2.gate.flat": 33, "ITEMS.nailstrip.levels.3.gate.flat": 53,
+  "ITEMS.spikerail.gate.flat": 8, "ITEMS.spikerail.levels.2.gate.flat": 16, "ITEMS.spikerail.levels.3.gate.flat": 28,
+};
+const SHAPES1_ADDED: Record<string, number> = {
   "ITEMS.nailstrip.gate.flat": 12, "ITEMS.nailstrip.levels.2.gate.flat": 25, "ITEMS.nailstrip.levels.3.gate.flat": 40,
   "ITEMS.spikerail.gate.flat": 10, "ITEMS.spikerail.levels.2.gate.flat": 20, "ITEMS.spikerail.levels.3.gate.flat": 35,
+};
+// BUMP-1D (bb-0.11.0, PLAIN_RIGS on; src/sim/plainRigs.ts PLAIN_DEFS): the six plain stat rigs (RASP, SPARK GAP, SCALE GUARD,
+// BALLAST, GRINDSTONE, BRANDING IRON) were born on the N1 scale after NUM-1's script ran, as the shaped rigs were: their 21
+// damage-family or stat fields (DMG, STUN seconds, PLATE, the carried max-hull %: not "same" fields) have no fixture row and no
+// x10, so they are N1-native, classified here and checked live below (their price, size, BURN counts are "same" fields, waved
+// through as every other one). With the switch off none exists. The scan below met these 21 and SHAPES2_ADDED's 21 as the 42
+// fields missing from the fixture (its message says a new piece needs the script re-run, but the script can't re-record: it
+// would scale again, so NUM-1's record stays, as SHAPES-1's flip left it). Cause: PLAIN_RIGS
+const PLAIN_ADDED: Record<string, number> = {
+  "ITEMS.rasp.gate.flat": 8, "ITEMS.rasp.levels.2.gate.flat": 16, "ITEMS.rasp.levels.3.gate.flat": 28,
+  "ITEMS.sparkgap.gate.stun": 1, "ITEMS.sparkgap.levels.2.gate.stun": 2, "ITEMS.sparkgap.levels.3.gate.stun": 3,
+  "ITEMS.scaleguard.gate.slugPlate": 5, "ITEMS.scaleguard.gate.flat": 10,
+  "ITEMS.scaleguard.levels.2.gate.slugPlate": 12, "ITEMS.scaleguard.levels.2.gate.flat": 20,
+  "ITEMS.scaleguard.levels.3.gate.slugPlate": 18, "ITEMS.scaleguard.levels.3.gate.flat": 35,
+  "ITEMS.ballast.gate.maxHullPct": 8, "ITEMS.ballast.levels.2.gate.maxHullPct": 16, "ITEMS.ballast.levels.3.gate.maxHullPct": 25,
+  "ITEMS.grindstone.gate.flat": 25, "ITEMS.grindstone.levels.2.gate.flat": 55, "ITEMS.grindstone.levels.3.gate.flat": 90,
+  "ITEMS.brandingiron.gate.flat": 15, "ITEMS.brandingiron.levels.2.gate.flat": 30, "ITEMS.brandingiron.levels.3.gate.flat": 50,
+};
+// BUMP-1D (bb-0.11.0, SHAPES2 on; src/sim/shapes2.ts SHAPES2_DEFS): the same for the six more shaped rigs (ELBOW GUARD, SAW BAR,
+// SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE): 21 N1-native fields, none a fixture row, gone with the switch off. ELBOW GUARD's
+// SHIELD (slugPlate) 8/16/28 and its DMG row 6/12/21 (BUMP-1D P3), CINDER HOOK's DMG 10/20/35 (its BURN comes at ★2: a "same" count)
+const SHAPES2_ADDED: Record<string, number> = {
+  "ITEMS.elbowguard.gate.slugPlate": 8, "ITEMS.elbowguard.gate.flat": 6,
+  "ITEMS.elbowguard.levels.2.gate.slugPlate": 16, "ITEMS.elbowguard.levels.2.gate.flat": 12,
+  "ITEMS.elbowguard.levels.3.gate.slugPlate": 28, "ITEMS.elbowguard.levels.3.gate.flat": 21,
+  "ITEMS.sawbar.gate.flat": 9, "ITEMS.sawbar.levels.2.gate.flat": 18, "ITEMS.sawbar.levels.3.gate.flat": 31,
+  "ITEMS.sparkcomb.gate.stun": 1, "ITEMS.sparkcomb.levels.2.gate.stun": 2, "ITEMS.sparkcomb.levels.3.gate.stun": 3,
+  "ITEMS.cinderhook.gate.flat": 10, "ITEMS.cinderhook.levels.2.gate.flat": 20, "ITEMS.cinderhook.levels.3.gate.flat": 35,
+  "ITEMS.jawcrusher.gate.flat": 20, "ITEMS.jawcrusher.levels.2.gate.flat": 42, "ITEMS.jawcrusher.levels.3.gate.flat": 70,
+  "ITEMS.pickaxe.gate.flat": 14, "ITEMS.pickaxe.levels.2.gate.flat": 28, "ITEMS.pickaxe.levels.3.gate.flat": 48,
 };
 
 // FLIP-X2 (REQ-BFG-069, the sustain switch on): ITEMS lists WARD BELL, MEND PRESS and MENDING LOOM now, so the walk meets
@@ -605,6 +644,8 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
       && !(id in Y7B2_ADDED) // Y7b2: a field the flip added (Y7B2_ADDED), checked below
       && !(id in LADDER_ADDED) // AZ-BUMP (the flip, LADDER_FIX): a field the star-ladder pass added (LADDER_ADDED), checked below
       && !(id in SHAPES_ADDED) // SHAPES-1 flip: a shaped plain rig's N1-native damage field (SHAPES_ADDED), checked below
+      && !(id in PLAIN_ADDED) // BUMP-1D (PLAIN_RIGS): one of the six plain rigs' N1-native fields (PLAIN_ADDED), checked below
+      && !(id in SHAPES2_ADDED) // BUMP-1D (SHAPES2): one of the six more shaped rigs' N1-native fields (SHAPES2_ADDED), checked below
       && (ruleOf(id, NUM2_RULES) === N2 ? !num2To.has(id) : ruleOf(id) !== "same"));
     expect(missing).toEqual([]);
     // FLIP-X1 (F-d), the sustain-on pins: two-sided, the scan meets the 8 and none is a fixture row (under either name)
@@ -632,6 +673,23 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     expect(ids.filter((id) => id in SHAPES_ADDED).sort()).toEqual(Object.keys(SHAPES_ADDED).sort());
     for (const [id, v] of Object.entries(SHAPES_ADDED)) expect([byId.has(id), live(id), Number.isInteger(v)], id).toEqual([false, v, true]);
     expect(withShapes(() => Object.keys(SHAPES_ADDED).map((id) => live(id)), false)).toEqual(Object.keys(SHAPES_ADDED).map(() => undefined));
+    // BUMP-1D: SHAPES_ADDED's values are the shipped ones (SHAPES2 on: 16/33/53 and 8/16/28); with SHAPES2 set off the same 6
+    // fields read SHAPES-1's numbers (SHAPES1_ADDED: 12/25/40 and 10/20/35), whole as well, and are still no fixture row
+    expect(Object.keys(SHAPES1_ADDED).sort()).toEqual(Object.keys(SHAPES_ADDED).sort());
+    expect(withShapes2(() => Object.keys(SHAPES_ADDED).map((id) => live(id)), false)).toEqual(Object.keys(SHAPES_ADDED).map((id) => SHAPES1_ADDED[id]));
+    for (const [id, v] of Object.entries(SHAPES1_ADDED)) expect([byId.has(id), Number.isInteger(v)], id).toEqual([false, true]);
+    // BUMP-1D: two-sided, as SHAPES_ADDED's: the scan meets the 21 fields PLAIN_ADDED names and the 21 SHAPES2_ADDED names (the 42
+    // the scan found missing from the fixture), none is a fixture row, each live at its value and whole (the N1 scale); with the
+    // switch off none exists (the base catalogue has neither the six plain rigs nor SHAPES2's six)
+    for (const [added, off] of [
+      [PLAIN_ADDED, (f: () => unknown[]) => withPlainRigs(f, false)], [SHAPES2_ADDED, (f: () => unknown[]) => withShapes2(f, false)],
+    ] as const) {
+      expect(Object.keys(added).length).toBe(21);
+      expect(ids.filter((id) => id in added).sort()).toEqual(Object.keys(added).sort());
+      for (const [id, v] of Object.entries(added)) expect([byId.has(id), live(id), Number.isInteger(v)], id).toEqual([false, v, true]);
+      expect(off(() => Object.keys(added).map((id) => live(id)))).toEqual(Object.keys(added).map(() => undefined));
+    }
+    expect(Object.keys(PLAIN_ADDED).some((id) => id in SHAPES2_ADDED || id in SHAPES_ADDED)).toBe(false);
     // NUM-3 (R1's STUN fold, N1 2.2): two-sided: the scan meets every field of num3New and none is a fixture row; measured
     // 8 (BELLOWS' burn and per at ★1-★3, SABOT's round.seconds at ★1 and ★3), each live at its value. Unclassified, SABOT's
     // two would pass the line above as "same" (factory.round.seconds is FROSTBITE's and DRAG CHAIN's rule).

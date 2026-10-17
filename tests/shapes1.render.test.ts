@@ -10,6 +10,7 @@ import { CELL, ITEMS, type ItemDef } from "../src/sim/content";
 import { adjacentToFactory, cellsOf, key as K, type Build, type Placed } from "../src/sim/deck";
 import { isShaped } from "../src/sim/foot";
 import { SHAPES, SHAPES_IDS, setShapes, withShapes } from "../src/sim/shapes";
+import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): its six have a foot of their own, whatever SHAPES says
 import { boxRect, footX, footY, frame, sx, sy, type DeckFrame, type Facing } from "../src/render/frame";
 import { C } from "../src/render/palette";
 import { gateSprite, itemIcon } from "../src/render/sprites";
@@ -118,9 +119,22 @@ describe("SHAPES-1 S8: a shaped rig is one body over its turned box", () => {
 
   it("with SHAPES off no rig model has per-cell arrows and no deck piece (rig or factory) is shaped", () => {
     expect(SHAPES).toBe(true); // SHAPES-1 flip: it ships on; the off world is set off below
-    withShapes(() => {
+    // BUMP-1D: SHAPES2 ships on (bb-0.11.0) and its six (ELBOW GUARD ... PICKAXE) are shaped rigs whatever SHAPES says, so SHAPES-1's
+    // off world (no deck piece shaped) is measured with SHAPES2 set off too
+    withShapes2(() => withShapes(() => {
       for (const id of SHAPES_IDS) expect(ITEMS[id]).toBeUndefined();
       for (const d of Object.values(ITEMS)) if (d.kind === "gate" || d.kind === "factory") expect(isShaped(d), d.id).toBe(false);
+      const b = deck([{ uid: 6, def: "whetstone", x: 2, y: 4 }], [row(3, 1, 4)]);
+      const rm = cruiserModel(b).rigs.get(6)!;
+      expect(rm.arrows).toBeUndefined();
+      expect(Object.keys(rm).sort()).toEqual(["dirs", "hit"]);
+    }, false), false);
+    // BUMP-1D: and with SHAPES2 on (as shipped) and SHAPES off, the only shaped deck pieces are its six, and a 1-cell rig's model
+    // is still 0.9.9's (no per-cell arrows)
+    withShapes(() => {
+      for (const id of SHAPES_IDS) expect(ITEMS[id]).toBeUndefined();
+      const shaped = Object.values(ITEMS).filter((d) => (d.kind === "gate" || d.kind === "factory") && isShaped(d)).map((d) => d.id);
+      expect([...shaped].sort()).toEqual([...SHAPES2_IDS].sort());
       const b = deck([{ uid: 6, def: "whetstone", x: 2, y: 4 }], [row(3, 1, 4)]);
       const rm = cruiserModel(b).rigs.get(6)!;
       expect(rm.arrows).toBeUndefined();
