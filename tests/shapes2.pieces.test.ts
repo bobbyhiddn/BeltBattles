@@ -118,7 +118,7 @@ describe("SHAPES-2 S1: the defs (BRIEF-SHAPES2's table)", () => {
       // run 2 (S6b): BRANDING IRON's form, the BURN comes with the first merge (the brief's starting BURN 1/2/3 was over the guard)
       expect(row3("cinderhook")).toEqual([{ flat: 10 }, { flat: 20, burn: 1 }, { flat: 35, burn: 2 }]);
       expect(row3("jawcrusher")).toEqual([{ flat: 20 }, { flat: 42 }, { flat: 70 }]); // run 2 (S6c): 12/25/42
-      expect(row3("pickaxe")).toEqual([{ flat: 15 }, { flat: 30 }, { flat: 51 }]); // run 2 (S6c, then S6b's day-3 guard): 14/28/48
+      expect(row3("pickaxe")).toEqual([{ flat: 14 }, { flat: 28 }, { flat: 48 }]); // the brief's starting values: run 2's S6c raise (17, then 15) read over the guard
     });
   });
 });

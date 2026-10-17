@@ -89,12 +89,13 @@ export const SHAPES2_DEFS: Readonly<Record<string, ItemDef>> = {
   pickaxe: {
     id: "pickaxe", name: "PICKAXE", kind: "gate", rarity: "epic", price: 8, size: 1, foot: "T4", merchant: "quartermaster",
     desc: [], tags: ["FORGE", "BURST"],
-    // run 2 (S6c, then S6b): DMG 15/30/51, a fourteenth above the brief's starting 14/28/48 (14 was worth 0.72x / 0.64x of a GRINDSTONE at
-    // its best spot on a fitting deck on days 6 / 10). 17 would have met 0.8x but a free copy lifted a deck +20.9 points on day 3 (32
-    // decks, the holders being 7, k 64) against TEMPER's +18.4 (inserted +15.3), so 15: held short of 0.8x by the guard's day 3.
-    // Three arrows (forward, left, right), from the T's outside edges: belt on three sides, up to 7 hits
-    gate: { flat: 15 },
-    levels: { 2: { gate: { flat: 30 } }, 3: { gate: { flat: 51 } } },
+    // run 2 (S6c, then S6b): DMG 14/28/48, the brief's starting values, which the guard held to. S6c would raise them (14 is worth 0.77x /
+    // 0.63x of a GRINDSTONE at its best spot on a fitting deck on days 6 / 10), but 17 read over on day 3 (a free copy +20.9 points
+    // against TEMPER's +18.4, k 64) and 15 read +20.6 (18 decks) / +11.1 (42) on days 3 / 6 against 20.1 / 10.0 (k 128); at 14 it reads
+    // +18.9 / +10.0 (O/bench/presence-k128q.md). Three arrows (forward, left, right), from the T's outside edges: belt on three sides,
+    // up to 7 hits
+    gate: { flat: 14 },
+    levels: { 2: { gate: { flat: 28 } }, 3: { gate: { flat: 48 } } },
   },
 };
 

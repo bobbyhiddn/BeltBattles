@@ -49,7 +49,7 @@ const WANT: Record<string, { rows: string[]; hits: number; kind: string }> = {
   sparkcomb: { rows: ["[STUN]+1", "[STUN]+2", "[STUN]+3"], hits: 2, kind: "COMMON RIG · 2 CELLS" },
   cinderhook: { rows: ["[DMG]+10", "[DMG]+20 [BURN]+1", "[DMG]+35 [BURN]+2"], hits: 4, kind: "RARE RIG · 3 CELLS" }, // run 2 (S6b): the BURN from ★2 (BRANDING IRON's form); [BURN]+1/+2/+3 was the brief's
   jawcrusher: { rows: ["[DMG]+20", "[DMG]+42", "[DMG]+70"], hits: 4, kind: "RARE RIG · 2X2" }, // run 2 (S6c): 12/25/42 was the brief's
-  pickaxe: { rows: ["[DMG]+15", "[DMG]+30", "[DMG]+51"], hits: 7, kind: "EPIC RIG · 4 CELLS" }, // run 2 (S6c, S6b): 14/28/48 was the brief's
+  pickaxe: { rows: ["[DMG]+14", "[DMG]+28", "[DMG]+48"], hits: 7, kind: "EPIC RIG · 4 CELLS" }, // the brief's values (run 2's raises read over the guard)
 };
 
 describe("SHAPES-2 S5: the six faces", () => {
