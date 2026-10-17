@@ -39,7 +39,7 @@ import { isNewPlayer, matchDays, matchSeed, type MatchRequest } from "../src/net
 import { matchPick } from "../src/net/pick"; // RETUNE-1 T5 (REQ-BFG-092): the one pick, shared with the client's fallback
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, maxDayFor, type GhostSnapshot } from "../src/net/snapshot";
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
-import { isReachable } from "../src/net/records";
+import { isReachable, lossesProblem } from "../src/net/records";
 import { validateUpload } from "../src/net/validate";
 import { livesCapFor } from "../src/net/rulesGate"; // RETUNE-1 (REQ-BFG-096): the match route's lives bound
 import { sha256Hex } from "./sigv4";
@@ -354,6 +354,12 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
           const lost = snap.losses !== undefined ? ` and ${snap.losses} losses` : "";
           throw new HttpError(422, `record: ${snap.wins}W ${snap.lives} lives${lost} is no record a run carries into dusk ${snap.day}${after}`);
         }
+        // RUN-1 (R1.2, T3c): and under a long run's rules the upload STATES its losses (records.ts lossesProblem): without them the
+        // record above was judged against any run that reaches it, which cannot tell draws and a PATCH UP from losses. The reason
+        // names the field. After the record check, so an unreachable record keeps its "record:" reason; a 10-day upload (the
+        // switch off, as shipped) is unchanged. The match route and the pool check ask nothing of this kind
+        const unstated = lossesProblem(snap.rules, snap.losses);
+        if (unstated) throw new HttpError(422, unstated);
         const { id, created } = await store.add(snap); // 201 only once the write is durable
         return send(res, created ? 201 : 200, { id });
       }

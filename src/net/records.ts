@@ -251,6 +251,20 @@ export function isReachable(day: number, wins: number, lives: number, opts: { dr
 }
 
 /**
+ * RUN-1 (REQ-BFG-059, REQ-BFG-116; R1.2, T3c): under a long run's rules (rulesGate.ts longRunFor) an UPLOAD must state `losses`
+ * (snapshot v3): without it the record check cannot tell up to MAX_RUN_DRAWS draws plus a PATCH UP from losses, so it takes any
+ * run that reaches (wins, lives) (reachableRecords: `losses` absent keeps every run). The reason names the field. null: nothing
+ * to say, i.e. `losses` is stated, or the rules are the 10-day run's (the switch off, or rules before LONG_RUN_RULES: no live
+ * client sends the field there, the decoder refuses it, and a 10-day upload is unchanged). Only the POST route asks (server/app.ts):
+ * the decoder, the seed pool's check and ghosts:admin's revalidate keep taking a snapshot without `losses` (D8: old v3 snapshots
+ * stay valid), and pass `losses` to isReachable when it is there.
+ */
+export function lossesProblem(rules: unknown, losses: number | undefined): string | null {
+  if (losses !== undefined || !longRunFor(rules)) return null;
+  return "losses: a long run's upload states the dusks the run lost (snapshot.losses is missing; day - 1 = wins + losses + draws needs it)";
+}
+
+/**
  * The weakest record at day `day`'s dusk: no wins and the fewest lives a run can have there. Under the record rule a
  * ghost with this record is eligible for every reachable request of that day (fewer wins, or none and no more lives).
  */
