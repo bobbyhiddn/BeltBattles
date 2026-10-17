@@ -67,7 +67,10 @@ function ladders(faces: Face[], current: number): Ladder[] {
   for (const ic of icons_) {
     const values = faces.map((f) => { const p = pairs(f).find(([i]) => i === ic); return p ? String(p[1]) : "-"; });
     if (values.every((v) => v === values[0])) continue;
-    out.push(ic === "SEC" ? { lead: "", values, tail: "{SEC}", current } : { lead: `{${ic}} `, values, tail: "", current });
+    // PLAIN-1F (REQ-BFG-084, M3; REVIEW-PLAIN1 D4: one reading): a stat's word before its icon leads its ladder too, as the
+    // stat row draws it (BALLAST's "MAX {HULL} +8%/+16%/+25%"; icons.ts Stat's third item, which no other stat has)
+    const pre = faces.map((f) => { const p = pairs(f).find(([i]) => i === ic); return p && p.length > 2 ? p[2] : undefined; }).find((w) => !!w);
+    out.push(ic === "SEC" ? { lead: "", values, tail: "{SEC}", current } : { lead: `${pre ? `${pre} ` : ""}{${ic}} `, values, tail: "", current });
   }
   // the rule's keyed numbers (faces.ts nums, the NEXT★ forms), by key
   const keys: string[] = [];

@@ -30,7 +30,8 @@ import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
 import { drawDetails, hasDetails, textOpts } from "./inspector";
 import { drawFoeCard } from "./foeView"; // SCOUT-1c (REQ-BFG-082): the NEXT BATTLE card opens a scouted foe
-import { abilityText, cardText } from "../../ui/abilityText"; // 0.6.2t (T5): the card's one-line effect, the tooltip's
+import { abilityText } from "../../ui/abilityText"; // 0.6.2t (T5): the tooltip's (PLAIN-1F M3: the card's one-line effect is faces.ts cardEffect)
+import { cardEffect } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3, F5): the wide card's effect: cardText, else a plain six's stat row
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 import { drawBeltX } from "./beltx"; // shoptap (D3)
 import { deleteRoute } from "./actions"; // shoptap (D3): the X removes the belt as REMOVE BELT does
@@ -158,7 +159,7 @@ function drawShop(g: G, s: BuildScreen): void {
       sold: o.sold, affordable: run.gold >= o.price, selected: sel && !carry, hover: !!s.hover && s.hover.wagon === wagon && s.hover.slot === slot,
       pulse: !s.boughtOnce && s.sel.kind === "none", hidden: !!carry && carry.src.from === "offer" && carry.src.wagon === wagon && carry.src.slot === slot, shake,
       badge: o.sold ? null : shopBadge(run, o.def), // 0.6.1d: live, never stored on the offer
-      effect: cardText(o.def, textOpts(run)), // 0.6.2t (T5): drawn on a wide (landscape) card
+      effect: cardEffect(o.def, textOpts(run)), // 0.6.2t (T5): drawn on a wide (landscape) card; PLAIN-1F (M3, F5): cardText, else a plain six's stat row
       chip: shopChipGlyphs(o.def, textOpts(run)) ?? undefined, // U2c (C4): the stat chip
       gist: phoneGist(o.def, textOpts(run)) ?? undefined, // CARD-3 (REQ-BFG-081, A): the phone card's gist (the narrow face)
     }, t);

@@ -188,7 +188,8 @@ describe("Z-PREP (REQ-BFG-073): the PART card draws rigs, turrets and gear only 
   it("the catalogue is exactly the 7 epic rigs, turrets and gear at this tip; by kind, so the 9 left out are the factories and cores", () => {
     const parts = lastChanceParts();
     expect(parts.map((p) => p.id).sort()).toEqual(SEVEN);
-    expect(parts.map((p) => p.name).sort()).toEqual(["EXT. CHAMBER", "HAIL GUN", "PLATE BREAKER", "RAIL GUN", "SIEGE GUN", "SORTING ARM", "SPLITTER"]);
+    // PLAIN-1F (M6, M8): PLATE BREAKER's display name is SHIELD FUEL (the cold read's pick; its key platebreaker stays, above)
+    expect(parts.map((p) => p.name).sort()).toEqual(["EXT. CHAMBER", "HAIL GUN", "RAIL GUN", "SHIELD FUEL", "SIEGE GUN", "SORTING ARM", "SPLITTER"]);
     expect(LAST_CHANCE_PART_KINDS).toEqual(["gate", "turret", "mod"]);
     for (const p of parts) expect([LAST_CHANCE_PART_KINDS.includes(p.kind), p.rarity, p.price > 0, !!p.merchant]).toEqual([true, "epic", true, true]);
     // the rule is the kind: every buyable epic part of those kinds is in, whatever its id (a later one joins by itself) ...

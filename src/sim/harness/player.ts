@@ -56,6 +56,7 @@ import { hullScaleRules } from "../hullScale"; // HULL-1c (REQ-BFG-079): the cac
 import { ladderFixRules } from "../ladderFix"; // HULL-1c: the cache key
 import { guardRules } from "../guard"; // RETUNE-1 (REQ-BFG-097): the cache key
 import { openRunesRules } from "../openRunes"; // OPEN-1 (REQ-BFG-109): the bots' offer rule, and the cache key
+import { plainRigsRules } from "../plainRigs"; // PLAIN-1 (REQ-BFG-084): the cache key (the six in the shop move every par run)
 import { npcDayRules } from "../npcDay"; // HULL-1d (REQ-BFG-073): the REFIT swap of LAST CHANCE's part (refitSwap)
 import { freeJoinsRules } from "../freeJoins"; // JOINS-1 (REQ-BFG-091): no join limit with FREE_JOINS on; the cache key
 import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
@@ -70,6 +71,7 @@ import { beltIndex, freeForRig, hitsIfPlaced, intakeCell, placeRigAt, rotFacing,
 import { stokeSpots } from "../beltside"; // 0.8.0 P1 (E3): STOKER's place beside factories
 import { shapedSpot } from "../beltside"; // SHAPES-1 (REQ-BFG-086 S7.1): the shaped-rig solver
 import { shapesRules } from "../shapes"; // SHAPES-1 (S1): the par-run cache key
+import { shapes2Rules } from "../shapes2"; // SHAPES-2 (REQ-BFG-114): the par-run cache key (the six in the shop move every par run)
 import type { SideStats } from "../battle";
 import { FUSE_MAX, fusible, gradeOf, starsOf, valueOf } from "../stars";
 import { beltPolicy, botSlots, reachCols, upgradePolicy } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7, REQ-BFG-043 D7')
@@ -1735,6 +1737,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // HULL-1c (REQ-BFG-079): the switches that move the par decks (HULL_SCALE's economy, LADDER_FIX's walk) are in the key,
   // so a run made with a switch off is never reused with it on; off, the key exactly as before
   // PAR-AZ (REQ-BFG-078): NPC_DAY moves every par run now (parNpcDay), so it is in the key; off, the key exactly as before
+  // PLAIN-1 (REQ-BFG-084): so does PLAIN_RIGS (the six join the shop's pool); off, the key exactly as before
   const nd = npcDayRules();
   // RETUNE-1 (REQ-BFG-097): GUARD moves the par decks (the rating reads PLATE ROLLER's and WARD BELL's numbers); off, the
   // key exactly as before
@@ -1745,9 +1748,11 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // the key, so every 10-day caller is exactly as before (the policy never looks ahead: days 1..10 of a deeper run are the
   // 10-day run). LONG_RUN moves the par decks too (newRun marks the run long: the fork's event bag, the offers past day 10), so
   // it is in the key as well ("|long"); off, the key exactly as before
-  const asked = Number.isFinite(days) ? Math.floor(days) : PLAYER_DAYS;
+  // PLAIN-1 (REQ-BFG-084): PLAIN_RIGS moves the par decks (the six in the shop), so "|pr" is appended last; PLAIN-1F (M1):
+  // off, the key is c099's byte for byte. SHAPES-2 (REQ-BFG-114): SHAPES2 moves them too ("|s2", after "|pr")
+  const asked =Number.isFinite(days) ? Math.floor(days) : PLAYER_DAYS;
   const depth = asked <= PLAYER_DAYS ? PLAYER_DAYS : Math.max(PLAYER_DAYS_LONG, asked);
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}`; // SHAPES-1: "|sh"
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2" (last; off: the key as before)
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);

@@ -25,6 +25,7 @@ import { ladderFixRules, rideKeepOf } from "./ladderFix"; // HULL-1b (REQ-BFG-07
 import { joinedPace } from "./freeJoins"; // JOINS-1 (REQ-BFG-091): RULE JOIN PACE's JOIN_PACE, or 1 with FREE_JOINS on
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
+import { plateOnLoad } from "./races/bastion"; // PLAIN-1 (REQ-BFG-084, P2): SCALE GUARD's slug PLATE by the bulwark rule
 import { mergedPieces, runeMods, type RuneMods } from "./runes"; // RUNES-1 (REQ-BFG-058); RUNES-2a: merged pieces
 import { inSync, pourAll } from "./races/foundry"; // 0.8.0 P1: E2's pair rule (Foundry's sync rule); TWIN MOULD's pour
 import { effectAt, gradeOf, starsOf } from "./stars";
@@ -107,6 +108,10 @@ export interface Payload {
   // bb-0.8.3 (REQ-BFG-042 D3): an alloy blank stamped alone, one a cycle in turn (Battle.stamp: a MIMIC FORGE below ★3 on
   // FOUNDRY, which doesn't pour): it never fuses with another blank of its own factory (races/foundry.ts tryFuse)
   lone?: boolean;
+  // PLAIN-1 (REQ-BFG-084, cap's ruling P2): the PLATE SCALE GUARD's hits put on this payload (absent on every other one).
+  // Your hull gains it when the payload reaches your gun, by the bulwark rule (races/bastion.ts plateFor, Battle.slugPlate);
+  // a split takes its share as it does of `flat`, and copies keep it
+  plate?: number;
 }
 
 export interface BeltAmmo {
@@ -634,6 +639,16 @@ export class Battle {
     if (k && s.plate.gained > g0) this.addPlate(s, (s.plate.gained - g0) * (k - 1), true);
   }
 
+  /** PLAIN-1 (REQ-BFG-084, cap's ruling P2): a payload's own PLATE (SCALE GUARD's hits, Payload.plate) reaches side s's hull
+   *  at its gun by the bulwark rule (races/bastion.ts plateOnLoad: plateFor, S(day), the pool's cap), with the bulwark
+   *  slugs' `plate` event (the CLANK). A race side's raceLoaded runs the same plateOnLoad on the same pool, so this runs for
+   *  every other load (a FURNACE or WEAVER side) and for a FOUNDRY blank that fuses at the intake instead of loading. Its
+   *  callers wrap it in racePlate, so BULWARK OATH multiplies it as it does every PLATE gain. */
+  private slugPlate(s: SideState, tu: TurretState, p: Payload): void {
+    const plated = plateOnLoad(s.plate, p);
+    if (plated > 0) this.events.push({ type: "plate", side: s.side, turret: tu.index, amount: plated });
+  }
+
   /** LAST WALL: n PLATE once a battle, the first time side s's hull is below half (step, after the hull effects). */
   private runeHalf(s: SideState): void {
     if (!s.rune?.halfPlate || s.halfPlated || s.hull.hp >= s.hull.max / 2) return;
@@ -877,6 +892,16 @@ export class Battle {
     turrets.forEach((tu) => {
       targets.push({ kind: "turret", ref: tu.index, cell: -1, x: (tu.def.col0 + tu.def.width / 2) * CELL, y: -9, weight: 2 });
     });
+    // PLAIN-1 (REQ-BFG-084, cap's ruling P3): BALLAST, a carrier stat. Each one that works (an arrow on a belt tile: the IDLE
+    // rule, g.hits, the layout at the fight's start) adds its whole % of the base's max hull (max0, whatever the switches
+    // make it: on the day's hull HULL_SCALE's M(d) x (base + hullBonus)), the %s summed, the result rounded down, before the
+    // runes' per-unit HULL below (BULKHEADS, SCRAP HALO) adds its amounts. Without a working BALLAST nothing changes
+    const ballast = gates.reduce((n, g) => n + (g.hits.length ? g.def.gate?.maxHullPct ?? 0 : 0), 0);
+    if (ballast > 0) {
+      const add = Math.floor((max0 * ballast) / 100);
+      hull.hp += add;
+      hull.max += add;
+    }
     const plate = newPlateState(); // 0.8.0 P1 (E1): every hull's plating pool, shared with a race side's RaceSide.plating
     // HULL-1d: with S above 1 the pool holds what it soaks: every gain x S (bastion.ts plateOnLoad, addPlate), its cap too
     if (this.sustTenths !== 10) { plate.tenths = this.sustTenths; plate.cap = sustUnit(PLATE_CAP, this.sustTenths); }
@@ -1749,8 +1774,19 @@ export class Battle {
       p.shock = true;
       // 0.6.1p: GALVANIC COIL ★2/★3: the longest stall and jump passed wins (a 1-star coil sets neither)
       if (e.shockTime !== undefined) p.shockTime = Math.max(p.shockTime ?? DISRUPT_TIME, e.shockTime);
+      // PLAIN-1 (REQ-BFG-084): a 1-star coil on a slug a SPARK GAP gave less than DISRUPT_TIME still stalls DISRUPT_TIME.
+      // Only a SPARK GAP sets a shockTime under DISRUPT_TIME, so without one this never runs
+      else if (p.shockTime !== undefined && p.shockTime < DISRUPT_TIME) p.shockTime = DISRUPT_TIME;
       if (e.jump) p.jump = Math.max(p.jump ?? 0, e.jump);
     }
+    // PLAIN-1 (REQ-BFG-084): SPARK GAP adds its STUN seconds to the slug's (the shock rule: a shocked slug's stall, else
+    // none), so two add up and a coil's stall counts too
+    if (e.stun) {
+      p.shockTime = (p.shock ? p.shockTime ?? DISRUPT_TIME : 0) + e.stun;
+      p.shock = true;
+    }
+    // PLAIN-1 (REQ-BFG-084, cap's ruling P2): SCALE GUARD's PLATE rides the slug to your gun (plateFor)
+    if (e.slugPlate) p.plate = (p.plate ?? 0) + e.slugPlate;
     if (e.sift) {
       const removed = siftDebuffs(p.debuffs, e.sift);
       p.flat += removed * (e.siftFlat ?? 0) + (removed === 0 ? e.siftClean ?? 0 : 0);
@@ -1768,6 +1804,7 @@ export class Battle {
     if (e.split) {
       p.mult *= e.split.mult; // a share: payloadDamage rounds the slug's damage once, at fire
       p.flat = pct(p.flat, 100 * e.split.mult); // NUM-1: the flat bonus so far x the split's %, rounded half up once
+      if (p.plate) p.plate = pct(p.plate, 100 * e.split.mult); // PLAIN-1 (P2): the slug's PLATE so far, as its flat
       p.copy = true;
       for (let c = 1; c < e.split.copies; c++) { // generic: copies - 1 new ones (an overclocked split makes one more)
         const cp: Payload = { ...p, id: this.nextId++, ...(p.debuffs ? { debuffs: { ...p.debuffs } } : {}),
@@ -1794,6 +1831,7 @@ export class Battle {
       const alloy = s.race ? raceIntake(this, s, r, tu, front.p) : null; // races: alloy fusion (no slot used)
       if (alloy) {
         r.ammo.shift();
+        if (front.p.plate) this.racePlate(s, () => this.slugPlate(s, tu, front.p)); // PLAIN-1 (P2): the fused blank's PLATE
         if (tu.pairing) this.fusionPair(s, tu, alloy); // 0.8.0 P1 (E2): a FOUNDRY fusion is a pair
         continue;
       }
@@ -1802,6 +1840,7 @@ export class Battle {
         r.ammo.shift();
         this.events.push({ type: "load", side: s.side, turret: tu.index });
         if (s.race) this.racePlate(s, () => raceLoaded(this, s, r, tu, front.p)); // races: blank sync stamp, bulwark plating
+        else if (front.p.plate) this.racePlate(s, () => this.slugPlate(s, tu, front.p)); // PLAIN-1 (P2): any other side
         if (tu.pairing) this.loaded(s, tu, r.index, front.p); // 0.8.0 P1 (E2, SEAM WELDER)
       } else if (tu.phase === "fire" && tu.store.length < tu.storeMax) { // 0.6.2 FB-B: a HOPPER ★2/★3 store takes it
         tu.store.push({ p: front.p, route: r.index });
@@ -1897,6 +1936,7 @@ export class Battle {
       const r = s.routes[it.route];
       const alloy = s.race ? raceIntake(this, s, r, tu, it.p) : null; // races: alloy fusion (no slot used)
       if (alloy) {
+        if (it.p.plate) this.racePlate(s, () => this.slugPlate(s, tu, it.p)); // PLAIN-1 (P2): the fused blank's PLATE
         if (tu.pairing) this.fusionPair(s, tu, alloy); // 0.8.0 P1 (E2)
         continue;
       }
@@ -1906,6 +1946,7 @@ export class Battle {
       }
       tu.stack.push(it.p);
       if (s.race) this.racePlate(s, () => raceLoaded(this, s, r, tu, it.p)); // races: blank sync stamp, bulwark plating
+      else if (it.p.plate) this.racePlate(s, () => this.slugPlate(s, tu, it.p)); // PLAIN-1 (P2): any other side
       if (tu.pairing) this.loaded(s, tu, it.route, it.p); // 0.8.0 P1 (E2): as if it reached its intake now
     }
   }

@@ -22,7 +22,10 @@ export function boostable(e: GateEffect): boolean {
       e.burnPlus || // Y6 (release Y; DESIGN-Y 4.1): VENOM DRIP's BURN seconds, as its poison was
       // 0.8.0 P1, wave 3 (DESIGN-wave3.md 3.2): plating, the gauge, the pincer, the latch's damage and the breaker.
       // STOKER and BRACE FRAME act on no payload, so they stay unboostable.
-      e.plate || e.gauge || e.pincer || e.latch || e.breaker);
+      e.plate || e.gauge || e.pincer || e.latch || e.breaker ||
+      // PLAIN-1 (REQ-BFG-084): SPARK GAP's STUN seconds and SCALE GUARD's slug PLATE are numbers a hit gives, so they
+      // double as flat does (BALLAST's max hull is no hit: it stays unboostable)
+      e.stun || e.slugPlate);
 }
 
 const cache = new WeakMap<GateEffect, GateEffect>();
@@ -57,6 +60,8 @@ export function overclocked(e: GateEffect): GateEffect {
   if (e.pincer) o.pincer = { ...e.pincer, flat: e.pincer.flat * 2, each: e.pincer.each * 2 };
   if (e.latch) o.latch = { ...e.latch, flat: e.latch.flat * 2 };
   if (e.breaker) o.breaker = { flat: e.breaker.flat * 2, floor: e.breaker.floor * 2 };
+  if (e.stun) o.stun = e.stun * 2; // PLAIN-1 (REQ-BFG-084): SPARK GAP
+  if (e.slugPlate) o.slugPlate = e.slugPlate * 2; // PLAIN-1: SCALE GUARD
   cache.set(e, o);
   return o;
 }

@@ -73,6 +73,7 @@ import { CASUAL_TUNE, casualRun } from "../src/sim/harness/casual"; // LOSS-1 P2
 import { npcDayRules, type RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP (N3): the seed ghosts' road logs
 import { HEARTS_START, heartsDusk, heartsRules } from "../src/sim/hearts"; // RETUNE-1 (REQ-BFG-096): the hearts labels
 import { isShapesPiece } from "../src/sim/shapes"; // SHAPES-1: the retired shopper never draws a shaped rig
+import { isShapes2Piece } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): nor one of the six more
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { eligible } from "../src/net/matchmaking";
 import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
@@ -105,8 +106,12 @@ const PLATE = ITEMS.plating.supply!.hull!;
 // replays its rng draws only, so each sample snapshot keeps its record; it never draws one of the three shaped rigs. With
 // SHAPES on at load they would join this list (made once, at load): its draws, and so the records, would move, and with
 // SHAPES then set off a drawn NAIL STRIP would be an unknown item. The list is the same with SHAPES on or off.
-const GATES = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant && !isShapesPiece(d.id));
+// SHAPES-2 (REQ-BFG-114): the same for SHAPES2's six (made at load, a draw each): the list is the same with SHAPES2 on or off, so
+// the sample records stay as they were. (PLAIN_RIGS' six would join it the same way when that flag is on at load: left to the bump.)
+const GATES = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant && !isShapesPiece(d.id) && !isShapes2Piece(d.id));
 const MODS = Object.values(ITEMS).filter((d) => d.kind === "mod" && d.merchant);
+/** SHAPES-2 (REQ-BFG-114; tests/shapes2.pool.test.ts): the retired shopper's gate list by id, as made at load (a test reads it). */
+export const SHOPPER_GATE_IDS: readonly string[] = GATES.map((d) => d.id);
 
 /** sampleGhosts' variants per hero and day (0 the par, 1 a seeded pick); floorGhosts adds variant FLOOR_VARIANT. */
 export const SAMPLE_VARIANTS = 2;

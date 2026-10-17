@@ -42,6 +42,8 @@ import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078)
 import { hullScaleRules } from "../sim/hullScale"; // HULL-1c (REQ-BFG-079): the memo keys carry the switch
 import { shapesRules } from "../sim/shapes"; // SHAPES-1 (REQ-BFG-086 S1): the catalogue memos reset when it moves
 import { longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D6): a long run's events repeat once per bag
+import { plainRigsRules } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the memos hold one switch state (plainMemo)
+import { shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114): the six more shaped rigs change the catalogue too (plainMemo)
 
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D6): THE EVENT BAGS. A run's events come in shuffled bags of every event once (events.ts
 // eventSequence; BAG_IDS: 10), so days 1-10 are bag 1, days 11-20 bag 2, and so on. The 10-day run never leaves bag 1, and
@@ -55,6 +57,18 @@ const BAG = BAG_IDS.length;
 /** RUN-1: the event bags a run of `days` days has reached: ceil(days / BAG) on a long run, 1 on a 10-day run (any `days`). */
 export function bagsFor(days: number): number {
   return longRunRules() ? Math.max(1, Math.ceil(days / BAG)) : 1;
+}
+
+/** PLAIN-1 (REQ-BFG-084): the memos below read the catalogue (the TRADER's goods, the scout's discount), which PLAIN_RIGS
+ *  changes, so they hold one switch state: a call made in the other state forgets them first (resetRoadCapMemo). With the
+ *  switch never moved (the game, the server) this never resets anything. */
+let memoPlain = plainRigsRules();
+let memoShapes2 = shapes2Rules(); // SHAPES-2 (REQ-BFG-114): SHAPES2 adds six rigs to the catalogue, so it keys the memos the same way
+function plainMemo(): void {
+  if (plainRigsRules() === memoPlain && shapes2Rules() === memoShapes2) return;
+  resetRoadCapMemo();
+  memoPlain = plainRigsRules();
+  memoShapes2 = shapes2Rules();
 }
 
 // ------------------------------------------------------------------ D4: the reviewed model
@@ -205,6 +219,7 @@ function shapesMemos(): void {
  *  (a blocked choice is skipped: it can't be taken in that state). */
 export function roadOptions(): ReadonlyMap<EventId, readonly RoadOption[]> {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   if (optionsMemo) return optionsMemo;
   checkRoadModel();
   const out = new Map<EventId, RoadOption[]>();
@@ -252,6 +267,7 @@ const payMemo = new Map<string, WarlordPay[]>();
  *  the run day's, as road.ts warlordFight reads it (0.6.2 EASY PAY: SABOTAGE swaps the deck, never the day's pay). */
 export function warlordPays(slot: Difficulty | "matriarch", day: number): readonly WarlordPay[] {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   const k = `${slot}|${day}|${npcDayRules()}|${longRunRules()}`; // NPC-1: the reward differs with NPC_DAY on (no Hard pick); RUN-1: the captains' tables past day 10 differ on a long run
   const hit = payMemo.get(k);
   if (hit) return hit;
@@ -292,6 +308,7 @@ const dgMemo = new Map<string, number>();
  */
 export function discountGain(n: number, gold: number): number {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   const G = Math.max(0, Math.floor(gold));
   const key = `${n}|${G}`;
   const hit = dgMemo.get(key);
@@ -368,6 +385,7 @@ export function roadMixes(): readonly Mix[] {
  */
 export function roadMixesFor(bags: number): readonly Mix[] {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   const hit = mixMemo.get(bags);
   if (hit) return hit;
   let out: Mix[] = [{ key: "", forced: new Map(), hull: 0, belt: 0, hullCost: false, labels: [] }];
@@ -718,6 +736,7 @@ const liquidMemo = new Map<string, number>();
  *  stay on the deck. */
 export function gmax(c: number, hoard = false): number {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   // NPC-1: the NPC day's plans differ. HULL-1c (REQ-BFG-079): so may the day's gold with HULL_SCALE on
   const k = `${c}|${hoard}|${npcDayRules()}|${hullScaleRules()}|${longRunRules()}`; // RUN-1: the bag reset is the long run's
   const hit = liquidMemo.get(k);
@@ -734,6 +753,7 @@ const capMemo = new Map<string, number>();
  *  -Infinity when the mix's events can't all fit in `day` road stops. */
 export function roadCapFor(day: number, mix: Mix = NO_MIX()): number {
   shapesMemos();
+  plainMemo(); // PLAIN-1
   // NPC-1: the NPC day's plans differ. HULL-1c (REQ-BFG-079): so may the day's gold with HULL_SCALE on
   const k = `${day}|${mix.key}|${npcDayRules()}|${hullScaleRules()}|${longRunRules()}`; // RUN-1: the bag reset is the long run's
   const hit = capMemo.get(k);

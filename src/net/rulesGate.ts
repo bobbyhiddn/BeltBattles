@@ -55,6 +55,8 @@ import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): the
 // SHAPES-1 (REQ-BFG-086 S1): the shapes switch and its pieces (SHAPES_RULES below is the literal "bb-0.10.0" since the
 // merge of c099-pre8: AZ-BUMP S6's bump, cap's RUN2 note 1.3)
 import { isShapesPiece, shapesRules } from "../sim/shapes";
+import { isShapes2Piece, shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114 S1): the six more shaped rigs' switch (SHAPES2_RULES below)
+import { firstRunGate } from "../sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004): the first-run gate (FIRST_RUN and PLAIN_RIGS)
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
@@ -261,6 +263,53 @@ export function shapesGateProblem(rules: unknown, build: unknown): string | null
  *  switch on and rules at or after SHAPES_RULES; otherwise it is judged in 0.9.9's shapes. */
 export function shapesWorld(rules: unknown): boolean {
   return shapesRules() && rulesAtLeast(rules, SHAPES_RULES);
+}
+
+/**
+ * SHAPES-2 (REQ-BFG-114; BRIEF-SHAPES2 S1): the first rules version with the six more shaped rigs (ELBOW GUARD, SAW BAR,
+ * SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE; src/sim/shapes2.ts, the SHAPES2 switch). It is today's rules version written
+ * as a literal, SHAPES_RULES' form; BUMP-1D (the release's one bump) writes 1D's new RULES_VERSION here, so every record
+ * under older rules (bb-0.10.0 among them) is judged without the six: shapes2World false (validate.ts inShapes2World, nested
+ * in inShapesWorld), and the six are refused under them (shapes2GateProblem). It gains no RULES_ROWS row: like SHAPES_RULES,
+ * it is its own gate.
+ */
+export const SHAPES2_RULES: string = "bb-0.10.0";
+
+/** SHAPES-2: the six shaped rigs a build carries, by name (items whose def is one of shapes2.ts SHAPES2_IDS). Reads a raw
+ *  (undecoded) build safely, like shapesFeatures. */
+export function shapes2Features(build: unknown): string[] {
+  if (typeof build !== "object" || build === null) return [];
+  const items = (build as { items?: unknown }).items;
+  if (!Array.isArray(items)) return [];
+  const held = items.some((p) => {
+    const d = typeof p === "object" && p !== null ? (p as Record<string, unknown>).def : undefined;
+    return typeof d === "string" && isShapes2Piece(d);
+  });
+  return held ? ["shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE)"] : [];
+}
+
+/** Why a build under `rules` can't carry the six shaped rigs, or null: none held; the switch off ("not in this rules version
+ *  yet"); or rules before SHAPES2_RULES (the reason names both, as shapesGateProblem's do). */
+export function shapes2GateProblem(rules: unknown, build: unknown): string | null {
+  const f = shapes2Features(build);
+  if (!f.length) return null;
+  if (!shapes2Rules()) return `${f.join(" and ")}: not in this rules version yet`;
+  if (rulesAtLeast(rules, SHAPES2_RULES)) return null;
+  const what = `${f.join(" and ")} need ${SHAPES2_RULES} or later`;
+  return parseRules(rules) ? `rules ${String(rules)} predate ${SHAPES2_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}
+
+/** SHAPES-2: does a deck under `rules` play with the six shaped rigs? The switch on and rules at or after SHAPES2_RULES;
+ *  otherwise it is judged without them (validate.ts inShapes2World). */
+export function shapes2World(rules: unknown): boolean {
+  return shapes2Rules() && rulesAtLeast(rules, SHAPES2_RULES);
+}
+
+/** FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F4): why a snapshot can't carry the first-run flag, or null: the gate off
+ *  (FIRST_RUN or PLAIN_RIGS off: a first run is then a normal run, so no deck may claim one). BUMP-1D ties it to 1D's
+ *  rules version when it flips both switches. */
+export function firstRunGateProblem(): string | null {
+  return firstRunGate() ? null : "not in this rules version yet";
 }
 
 /** The gate's rows: what a build may carry and the first rules version that takes it, oldest first. RUNES-2a adds the

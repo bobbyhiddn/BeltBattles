@@ -29,6 +29,9 @@ import { detailsPlan, drawDetails, panelFit } from "../src/screens/build/inspect
 import { SIGHT_REGION, rigTipRect, keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
 import { RIG_SENTENCE } from "../src/ui/faces";
 import { plainRigStats } from "../src/ui/faces"; // MERGE-099D (BRIEF-MERGE-099D 1f): (k6) at the LAST CHANCE offer's star
+import { BALLAST_LINE, CARRY_LINE, faceAt, plainNotes } from "../src/ui/faces"; // PLAIN-1F (M3): (k6) for the six
+import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1F (M3)
+import { partInfo, partLines } from "../src/screens/lastChancePicker"; // PLAIN-1F (M3): the PART card at each star
 import { statRow } from "../src/ui/icons"; // MERGE-099D (1f)
 import type { Ctx } from "../src/screens/build/actions";
 import type { DuskFoe } from "../src/game/run";
@@ -500,6 +503,30 @@ describe("CARD-2 (k6): the plain rigs' faces on LAST CHANCE's PART card and the 
       expect(info.flat().map((l) => l.map((s) => s.t).join("")).join(" "), id).toMatch(/^EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS STATS TO EVERY SLUG ON THAT TILE\. ONE ARROW, ONE HIT\. /);
     }
   });
+
+  // PLAIN-1F (REQ-BFG-084, REQ-BFG-089, M3): the six plain stat rigs take the same path with PLAIN_RIGS on: the desk hover's
+  // stat row, LAST CHANCE's PART card the stat row at the card's star, its ⓘ box the NOTES lead (faces.ts plainNotes: the
+  // rig sentence, SCALE GUARD's carry line after it, BALLAST's own line in its place), then the reminders at that star
+  // (BRANDING IRON's ★1 has no BURN, so no BURN reminder: cap's call on run 2's F7), then where it goes
+  it("PLAIN-1F (M3): the six, with PLAIN_RIGS on: the hover's stat row, no HIT:; LAST CHANCE's PART card and ⓘ box at every star", () => withPlainRigs(() => {
+    const run = newRun("furnace", 5, "plain1f-k6");
+    const text = (items: { t: string }[][][]): string[] => items.map((it) => it.map((l) => l.map((s) => s.t).join("")).join(" "));
+    for (const id of PLAIN_RIG_IDS) {
+      expect(offerTooltip(id), id).toBe(statRow(plainRigStats(id, 1)!));
+      expect(offerTooltip(id), id).not.toContain("HIT:");
+      for (const s of [1, 2, 3]) {
+        expect(text(partLines(id, 300, run, s)), `${id} ★${s}`).toEqual([statRow(plainRigStats(id, s, run.day)!)]);
+        const want = [...plainNotes(id), ...faceAt(id, s, { day: run.day })!.reminders, `FREE. IT GOES TO CARGO AT ★${s}; PLACE IT AS ANY PART.`];
+        expect(text(partInfo(id, 300, run, s)), `${id} ★${s}`).toEqual(want.map((t) => icons(t)));
+      }
+    }
+    expect(plainNotes("ballast")).toEqual([BALLAST_LINE]);
+    expect(plainNotes("scaleguard")).toEqual([RIG_SENTENCE, CARRY_LINE]);
+    for (const id of ["rasp", "sparkgap", "grindstone", "brandingiron"]) expect(plainNotes(id), id).toEqual([RIG_SENTENCE]);
+    // F7: BRANDING IRON's ⓘ box names BURN only from ★2, where its stat row has BURN
+    const burnAt = [1, 2, 3].map((s) => text(partInfo("brandingiron", 300, run, s)).some((t) => t.includes("BURN")));
+    expect(burnAt).toEqual([false, true, true]);
+  }));
 });
 
 describe("CARD-2 (k1): the first-sight notes on rune cards (the store: src/ui/tips.ts)", () => {

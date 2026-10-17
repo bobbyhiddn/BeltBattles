@@ -6,8 +6,9 @@ import { ICON, type IconName } from "../render/font";
 /** C2's rule: a stat row holds at most 3 icon + number pairs. */
 export const STAT_ROW_MAX = 3;
 
-/** One stat: an icon and its value (a number, or text such as "25%", "+1" or "1/4"). */
-export type Stat = readonly [IconName, number | string];
+/** One stat: an icon and its value (a number, or text such as "25%", "+1" or "1/4"). PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1
+ *  P4): an optional word drawn before the icon, BALLAST's MAX ("MAX ♥+8%"); every other stat has none (its row as before). */
+export type Stat = readonly [IconName, number | string] | readonly [IconName, number | string, string];
 
 /**
  * A stat row from pairs, in glyphs: each icon glued before its value, the pairs one space apart. SEC is the one unit: it
@@ -17,5 +18,8 @@ export type Stat = readonly [IconName, number | string];
  */
 export function statRow(stats: readonly Stat[]): string {
   if (stats.length > STAT_ROW_MAX) throw new Error(`statRow: ${stats.length} pairs; a stat row holds at most ${STAT_ROW_MAX} (MEMO C2)`);
-  return stats.map(([name, v]) => (name === "SEC" ? `${v}${ICON.SEC}` : `${ICON[name]}${v}`)).join(" ");
+  return stats.map((st) => {
+    const [name, v] = st, pre = st.length > 2 ? `${st[2]} ` : ""; // PLAIN-1: BALLAST's MAX (absent on every other stat)
+    return name === "SEC" ? `${pre}${v}${ICON.SEC}` : `${pre}${ICON[name]}${v}`;
+  }).join(" ");
 }

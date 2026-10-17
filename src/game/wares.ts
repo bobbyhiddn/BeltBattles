@@ -22,6 +22,7 @@
 import { hashSeed, Rng } from "../core/rng";
 import { ITEMS, RARITIES, buyableModules, type MerchantId } from "../sim/content";
 import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold
+import { SHAPES2_ODDS, isShapedRig, shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114 S3): the offer lever b
 
 /** The draw's rule: `active` wares a run, `late` of them held back for two restocks; the unlock ladder. */
 export interface DrawRule {
@@ -113,6 +114,7 @@ export function drawWares(seed: number, rule: DrawRule = DRAW): Wares {
       }
     });
   });
+  if (shapes2Rules() && SHAPES2_ODDS.minStock > 0) holdShaped(seed, all, picked, standIns, rule); // SHAPES-2 (REQ-BFG-114 S3, lever b)
   const eligible = all.filter((id) => picked.has(id) && ITEMS[id].rarity !== "legendary" && ITEMS[id].merchant !== "arcane");
   const byKind = KINDS.map((k) => eligible.filter((id) => kindOf(id) === k));
   const lq = quotas(byKind.map((l) => l.length), Math.min(rule.late, eligible.length), new Rng(hashSeed(seed, "late-quota")));
@@ -129,6 +131,37 @@ export function drawWares(seed: number, rule: DrawRule = DRAW): Wares {
     else if (standIns.has(id)) out[id] = seatDay(id, rule);
   }
   return out;
+}
+
+/**
+ * SHAPES-2 (REQ-BFG-114 (2); BRIEF-SHAPES2 S3, lever b): with SHAPES2 on, the per-run draw keeps at least
+ * SHAPES2_ODDS.minStock shaped rigs among the run's wares (all of them when the catalogue holds fewer). Each missing shaped rig
+ * (a seeded shuffle of them, on its own stream `wares-shaped`, so no other draw moves) takes the place of one drawn piece of its
+ * own merchant and rarity that is not a shaped rig and is not held past its seat's day (so no merchant's or rarity's share
+ * changes); where its merchant has none of its rarity, a drawn piece of the merchant, else of the run. The run still holds
+ * DRAW.active wares (a stand-in for a held ware counts as a ware of the run). Called only with the switch on; the draw is
+ * untouched with it off.
+ */
+function holdShaped(seed: number, all: readonly string[], picked: Set<string>, standIns: ReadonlySet<string>, rule: DrawRule): void {
+  const shaped = all.filter((id) => isShapedRig(ITEMS[id]));
+  const held = (id: string): boolean => picked.has(id) || standIns.has(id); // a stand-in is a ware of the run too
+  const need = Math.min(SHAPES2_ODDS.minStock, shaped.length) - shaped.filter(held).length;
+  if (need <= 0) return;
+  const rng = new Rng(hashSeed(seed, "wares-shaped"));
+  const missing = rng.shuffle(shaped.filter((id) => !held(id))).slice(0, need);
+  for (const id of missing) {
+    const d = ITEMS[id];
+    const drawn = all.filter((o) => picked.has(o) && !isShapedRig(ITEMS[o]) && !heldPast(o, rule));
+    const pools = [
+      drawn.filter((o) => ITEMS[o].merchant === d.merchant && ITEMS[o].rarity === d.rarity),
+      drawn.filter((o) => ITEMS[o].merchant === d.merchant),
+      drawn,
+    ];
+    const pool = pools.find((p) => p.length > 0);
+    if (!pool) continue;
+    picked.delete(rng.pick(pool));
+    picked.add(id);
+  }
 }
 
 /**
