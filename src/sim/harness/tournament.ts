@@ -19,6 +19,8 @@ import { rigValues, type RigValue } from "./rigs";
 import { fixedSpeedCells, isSpeedGate, type Cores, type Factories, type SlagCount, type Stars } from "./shopper";
 import { meanCI, wilson, type Rate } from "./stats";
 import { parReference, type ParSource } from "./par";
+import { scaleRules } from "../scale"; // SCALE-2e E1 (REQ-BFG-098): the bench duels' run counts, SCALE_RIGS on only
+import { carryCount, runCounts } from "../scaleRating";
 
 export interface TourneyOpts {
   seed: number;
@@ -55,17 +57,46 @@ export const coresOn = (o: { stars: Stars; cores?: Cores }): boolean => o.stars 
 export const factoriesOn = (o: { stars: Stars; factories?: Factories }): boolean => o.stars === "on" && o.factories === "on";
 
 // field indices. HULL-1a (REQ-BFG-079): `day`, the day the pairing's fights are on (simulate's; the day's hull with
-// HULL_SCALE on, nothing without it); every job maker with a day sets it
-export interface Job { a: number; b: number; seeds: number[]; day?: number }
+// HULL_SCALE on, nothing without it); every job maker with a day sets it.
+// SCALE-2e E1 (REQ-BFG-098; SCALE-2d REPORT section 9 point 2): `wins` and `lost`, the run's counts each side carries into
+// the pairing, [a, b] (means; a fraction is carried per battle by jobCounts). They are read ONLY with SCALE_RIGS on
+// (jobCounts); off a Job passes none, as before, so every bench duel is byte for byte the base's. A Job that sets neither
+// and has a `day` gets the par run model's counts for that day (scaleRating.ts runCounts), both sides alike.
+export interface Job { a: number; b: number; seeds: number[]; day?: number; wins?: readonly [number, number]; lost?: readonly [number, number] }
 /** Plays jobs over a field; returns, per job, a's points (win 1, draw 0.5) over 2 x seeds battles. */
 export type Runner = (field: Build[], jobs: Job[]) => Promise<number[]>;
+
+/** SCALE-2e E1: the counts one battle of a Job passes to simulate() (`wins`, then `lost`; each [side 0, side 1]). */
+export interface JobCounts { wins?: [number, number]; lost?: [number, number] }
+const NO_COUNTS: JobCounts = {};
+/**
+ * SCALE-2e E1 (REQ-BFG-098): what a Job's battle at `seed` passes as the run's counts. SCALE_RIGS off: nothing (the base's
+ * call, exactly). On: the Job's own `wins` / `lost` when it sets either, else the par run model's for its `day` (a 50%
+ * player at the start of the day, COUNTS.md section 8: scaleRating.ts runCounts), both sides alike; none with no day. `flip`
+ * is the battle where the Job's b is the player (the arrays are per side of the battle). Only a piece that reads the count
+ * (GRUDGE ROD, TROPHY CHAIN) or WARLORD'S DUE sees it; every other battle plays as it did.
+ */
+export function jobCounts(j: Job, seed: number, flip = false): JobCounts {
+  if (!scaleRules()) return NO_COUNTS;
+  let w = j.wins, l = j.lost;
+  if (!w && !l) {
+    if (j.day === undefined) return NO_COUNTS;
+    const c = runCounts(j.day);
+    w = [c.wins, c.wins];
+    l = [c.lost, c.lost];
+  }
+  const side = (v: readonly [number, number] | undefined): [number, number] | undefined =>
+    v ? (flip ? [carryCount(v[1], seed), carryCount(v[0], seed)] : [carryCount(v[0], seed), carryCount(v[1], seed)]) : undefined;
+  return { wins: side(w), lost: side(l) };
+}
 
 /** One pairing: every seed from both sides (A as player, then A as enemy). */
 export function playJob(field: Build[], j: Job): number {
   let pts = 0;
   for (const s of j.seeds) {
-    const x = simulate(field[j.a], field[j.b], s, undefined, undefined, j.day).winner;
-    const y = simulate(field[j.b], field[j.a], s, undefined, undefined, j.day).winner;
+    const cx = jobCounts(j, s), cy = jobCounts(j, s, true); // SCALE-2e E1: {} with the switch off
+    const x = simulate(field[j.a], field[j.b], s, undefined, cx.wins, j.day, cx.lost).winner;
+    const y = simulate(field[j.b], field[j.a], s, undefined, cy.wins, j.day, cy.lost).winner;
     pts += (x === 0 ? 1 : x === -1 ? 0.5 : 0) + (y === 1 ? 1 : y === -1 ? 0.5 : 0);
   }
   return pts;
@@ -81,7 +112,8 @@ export type DetailRunner = (field: Build[], jobs: Job[]) => Promise<string[]>;
 export function jobDetail(field: Build[], j: Job): string {
   const out: string[] = [];
   for (const s of j.seeds) {
-    for (const r of [simulate(field[j.a], field[j.b], s, undefined, undefined, j.day), simulate(field[j.b], field[j.a], s, undefined, undefined, j.day)]) {
+    const cx = jobCounts(j, s), cy = jobCounts(j, s, true); // SCALE-2e E1: {} with the switch off
+    for (const r of [simulate(field[j.a], field[j.b], s, undefined, cx.wins, j.day, cx.lost), simulate(field[j.b], field[j.a], s, undefined, cy.wins, j.day, cy.lost)]) {
       out.push(`${r.winner},${r.t},${r.sides[0].hull.hp},${r.sides[1].hull.hp}`);
     }
   }
@@ -98,8 +130,9 @@ export type StatsRunner = (field: Build[], jobs: Job[]) => Promise<JobStats[]>;
 export function jobStats(field: Build[], j: Job): JobStats {
   let pts = 0, dmg = 0, jams = 0;
   for (const s of j.seeds) {
-    const x = simulate(field[j.a], field[j.b], s, undefined, undefined, j.day), y = simulate(field[j.b], field[j.a], s, undefined, undefined, j.day);
-    pts += (x.winner === 0 ? 1 : x.winner === -1 ? 0.5 : 0) + (y.winner === 1 ? 1 : y.winner === -1 ? 0.5 : 0);
+    const cx = jobCounts(j, s), cy = jobCounts(j, s, true); // SCALE-2e E1: {} with the switch off
+    const x = simulate(field[j.a], field[j.b], s, undefined, cx.wins, j.day, cx.lost), y = simulate(field[j.b], field[j.a], s, undefined, cy.wins, j.day, cy.lost);
+    pts +=(x.winner === 0 ? 1 : x.winner === -1 ? 0.5 : 0) + (y.winner === 1 ? 1 : y.winner === -1 ? 0.5 : 0);
     dmg += x.sides[0].stats.damage + y.sides[1].stats.damage;
     jams += x.sides[0].stats.jams + y.sides[1].stats.jams;
   }

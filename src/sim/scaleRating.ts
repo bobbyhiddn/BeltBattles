@@ -12,6 +12,7 @@
 // read the first, days after the last read the last (the par player plays days 1-10).
 // Shared, pure and dependency-light (no DOM).
 
+import { hashSeed } from "../core/rng"; // SCALE-2e E1: carryCount's seeded draw
 import { ITEMS, POISON_DPS, SHIELD_CAP, type ReadCount, type ReadSpec } from "./content";
 import { PLATE_CAP } from "./races/bastion";
 import type { Build } from "./deck";
@@ -102,6 +103,23 @@ export const READ_FED: Readonly<Partial<Record<ReadCount, Curve>>> = {
   hitsTaken: [[3, 20.5]],
   ownHits: [[3, 16.25]],
 };
+
+/**
+ * SCALE-2e E1 (REQ-BFG-098; SCALE-2d REPORT section 9 point 2): the par run model's counts on `day`, as a bench duel
+ * carries them into the fight when it has no run: wins and hearts lost of a 50% player at the start of the day (READ_PAR's
+ * two run curves, COUNTS.md section 8). Means: tournament.ts jobCounts rounds each per battle by a seeded carry. Pure;
+ * called only with SCALE_RIGS on.
+ */
+export function runCounts(day: number): { wins: number; lost: number } {
+  return { wins: onCurve(READ_PAR.wins, day), lost: onCurve(READ_PAR.heartsLost, day) };
+}
+
+/** SCALE-2e E1: a mean count to a whole one for one battle: its floor, plus one with the probability of its fraction, drawn
+ *  from the battle's seed, so the mean over seeds is the model's (a 3.5 is 3 on half the seeds, 4 on the rest). */
+export function carryCount(v: number, seed: number): number {
+  const f = Math.floor(v), r = v - f;
+  return r > 0 && (hashSeed("scale2e-counts", seed, f) % 4096) < r * 4096 ? f + 1 : f;
+}
 
 /** SCALE-2d: SHIELD at a hit for each SHIELD a second your WARD BELLs ring (COUNTS.md 4's bell deck: every 4 s 0.28-0.31,
  *  every 2.5 s 0.49-0.60, every 2 s 0.59-0.65 at a hit: about 1.2 x the rate), at most SHIELD_CAP. */
