@@ -50,7 +50,11 @@ describe("F1: the switch, off by default; off (or PLAIN_RIGS off) a first run is
     expect(FIRST_RUN).toBe(false);
     expect(firstRunRules()).toBe(false);
     expect(firstRunGate()).toBe(false);
-    expect(withFirstRun(() => firstRunGate())).toBe(false); // PLAIN_RIGS off
+    // BUMP-1D: PLAIN_RIGS ships on (bb-0.11.0), so FIRST_RUN alone now opens the gate (was false: "PLAIN_RIGS off", its default
+    // then); the PLAIN_RIGS-off halves are asked for outright, withPlainRigs(fn, false)
+    expect(withFirstRun(() => firstRunGate())).toBe(true); // PLAIN_RIGS on (shipped), FIRST_RUN on
+    expect(withPlainRigs(() => withFirstRun(() => firstRunGate()), false)).toBe(false); // PLAIN_RIGS off (BUMP-1D: the old default)
+    expect(withPlainRigs(() => firstRunGate(), false)).toBe(false); // both off
     expect(withPlainRigs(() => firstRunGate())).toBe(false); // FIRST_RUN off
     expect(both(() => firstRunGate())).toBe(true);
     expect(firstRunRules()).toBe(false); // put back
@@ -59,13 +63,18 @@ describe("F1: the switch, off by default; off (or PLAIN_RIGS off) a first run is
   it("asking for a first run with the gate off gives the normal run, byte for byte (its save, caravan and rune offer)", () => {
     for (const hero of HEROES) {
       for (const seed of [1, 2, 77, 2026, 31337]) {
-        const normal = JSON.stringify(newRun(hero, seed, "r"));
-        expect(JSON.stringify(newRun(hero, seed, "r", true))).toBe(normal); // both off
-        expect(withFirstRun(() => JSON.stringify(newRun(hero, seed, "r", true)))).toBe(normal); // PLAIN_RIGS off
+        // BUMP-1D: PLAIN_RIGS ships on (bb-0.11.0), so "both off", the old default world, is asked for outright (PLAIN_RIGS off), and
+        // FIRST_RUN alone opens the gate in the shipped world (below: a first run is no longer the normal one)
+        withPlainRigs(() => {
+          const normal = JSON.stringify(newRun(hero, seed, "r"));
+          expect(JSON.stringify(newRun(hero, seed, "r", true))).toBe(normal); // both off
+          expect(withFirstRun(() => JSON.stringify(newRun(hero, seed, "r", true)))).toBe(normal); // PLAIN_RIGS off
+        }, false);
         withPlainRigs(() => {
           const plain = JSON.stringify(newRun(hero, seed, "r"));
           expect(JSON.stringify(newRun(hero, seed, "r", true))).toBe(plain); // FIRST_RUN off
           expect(withFirstRun(() => JSON.stringify(newRun(hero, seed, "r")))).toBe(plain); // gate on, not asked
+          expect(withFirstRun(() => JSON.stringify(newRun(hero, seed, "r", true)))).not.toBe(plain); // BUMP-1D: gate on, asked: a first run (PLAIN_RIGS shipped on)
         });
         const run = newRun(hero, seed, "r", true);
         expect(run.firstRun).toBeUndefined();

@@ -2,6 +2,9 @@
 // each hero's trick sentence from the real values; a new run starts from heroStartBuild with the extra turret slot; full
 // 10-day runs through the game's own day loop (the caravan, the road's events and warlords, the dusk, save and load at
 // every step, the run's end); and the dusk foes are the same hero-blind stand-ins every hero meets.
+// BUMP-1D (LONG_RUN on since bb-0.11.0): a new run is a LONG run (won at 10 wins, lost at 0 hearts, no day limit), so the loop
+// that played RUN_DAYS days and expected the run's end now ends the run no more. The 10-day world is kept as it was, under
+// withLongRun(fn, false) ("full 10-day runs ..."), and its twin plays the default world to the run's end ("full long runs ...").
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hashSeed } from "../src/core/rng";
 import { battleSeed, buyOffer, installFromCargo, loadRun, newRun, reroll, saveRun, type Run } from "../src/game/run";
@@ -27,6 +30,7 @@ import { fmtPct } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): FUSE_MULT
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { validateBuild } from "../src/net/validate";
 import { outputsAt } from "../src/sim/stars"; // bb-0.8.3 (REQ-BFG-042): belt slots by stars
+import { LONG_RUN, WIN_GOAL, longRun, withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN on): the 10-day world and the long run side by side
 import { readFileSync } from "node:fs";
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -135,13 +139,20 @@ function shop(run: Run): number {
 
 interface Played { run: Run; dusks: number; buys: number; events: number; warlords: number; foes: string[] }
 
+/** BUMP-1D: the most days one LONG run is played (a 10-day run is played for RUN_DAYS). A long run has no day limit: it ends at
+ *  its WIN_GOAL-th win or at 0 hearts, so a run with at most 3 scripted losses ends at its 10th win (10 to 13 dusks), and one
+ *  on the fights' own results at 10 wins or 0 hearts (LONG_RUN_DEEPEST_DAY, 17, without a draw). 40 is far past both; a run
+ *  still going at it fails the "ends" checks below. */
+const LONG_PLAY_DAYS = 40;
+
 /** One seeded run of `hero` through the game's day loop, a save/load round trip at every step. `scripted`: a scripted
- *  outcome instead of the fight's (at most 3 losses), so the run reaches day 10; the fight is still simulated. */
+ *  outcome instead of the fight's (at most 3 losses), so the run reaches day 10 (BUMP-1D: its end, a long run's 10th win,
+ *  10 to 13 dusks on); the fight is still simulated. The run plays the rule it started on (newRun reads the switch). */
 function play(hero: HeroId, seed: number, scripted: boolean): Played {
   let run = newRun(hero, hashSeed("h1-play", seed), `h1-play-${hero}-${seed}`);
   const out: Played = { run, dusks: 0, buys: 0, events: 0, warlords: 0, foes: [] };
   let losses = 0;
-  for (let guard = 0; guard < RUN_DAYS && !run.over; guard++) {
+  for (let guard = 0; guard < (longRun(run) ? LONG_PLAY_DAYS : RUN_DAYS) && !run.over; guard++) { // BUMP-1D: was guard < RUN_DAYS
     run = roundTrip(run); // dawn
     if (hashSeed(seed, run.day, "h1-reroll") % 3 === 0 && run.gold >= 4) reroll(run);
     out.buys += shop(run);
@@ -185,49 +196,81 @@ function play(hero: HeroId, seed: number, scripted: boolean): Played {
   return out;
 }
 
-describe("full 10-day runs with FOUNDRY and BASTION", () => {
-  let saved: unknown;
-  beforeAll(() => {
-    saved = (globalThis as { localStorage?: unknown }).localStorage;
-    (globalThis as { localStorage?: unknown }).localStorage = memStorage();
-  });
-  afterAll(() => {
-    (globalThis as { localStorage?: unknown }).localStorage = saved;
-  });
+// BUMP-1D: both worlds, side by side. long = false: the 10-day run (the switch off, the pre-bb-0.11.0 world: a run is played to
+// day RUN_DAYS and ends "complete" there or "lost" at 0 hearts), the old tests as they were under withLongRun(fn, false);
+// long = true: the shipped world, a long run (won at WIN_GOAL wins or lost at 0 hearts, any number of days). A run plays the
+// rule it started on, so each test sets the switch around its whole body (newRun reads it once).
+for (const long of [false, true]) {
+  describe(long ? "full long runs (10 wins or 0 hearts, no day limit) with FOUNDRY and BASTION" : "full 10-day runs with FOUNDRY and BASTION", () => {
+    let saved: unknown;
+    beforeAll(() => {
+      saved = (globalThis as { localStorage?: unknown }).localStorage;
+      (globalThis as { localStorage?: unknown }).localStorage = memStorage();
+    });
+    afterAll(() => {
+      (globalThis as { localStorage?: unknown }).localStorage = saved;
+    });
+    /** The run's win: a 10-day run's "complete" (it survived day 10), a long run's "won" (its 10th dusk win). */
+    const WON = long ? "won" : "complete";
 
-  for (const hero of ["foundry", "bastion"] as const) {
-    it(`${hero.toUpperCase()}: 20 runs play every day to the run's end (caravan, road, dusk, save and load at every step)`, () => {
-      let complete = 0, lost = 0, dusks = 0, buys = 0, events = 0, warlords = 0;
-      for (let seed = 1; seed <= 20; seed++) {
-        const p = play(hero, seed, seed % 2 === 0);
-        expect(p.run.over, `${hero} #${seed}`).not.toBe(null);
-        if (p.run.over === "complete") complete++;
-        else lost++;
-        dusks += p.dusks;
-        buys += p.buys;
-        events += p.events;
-        warlords += p.warlords;
-        if (seed % 2 === 0) expect(p.run.over, `${hero} #${seed} (scripted)`).toBe("complete");
-        expect(p.run.hero).toBe(hero);
-        expect(p.run.build.items.filter((x) => x.def === HEROES[hero].factory), `${hero} #${seed}: the signature stays aboard`).toHaveLength(1);
-      }
-      expect(complete).toBeGreaterThanOrEqual(10);
-      expect(dusks).toBeGreaterThan(150);
-      expect(buys).toBeGreaterThan(100);
-      expect(events).toBeGreaterThan(10);
-      expect(warlords).toBeGreaterThan(20);
-      console.log(`${hero}: 20 runs, ${complete} complete, ${lost} lost, ${dusks} dusks, ${buys} buys, ${events} events, ${warlords} warlord fights`);
-    }, 300_000);
-  }
-
-  it("the dusk foes are hero-blind: a FOUNDRY and a BASTION run meet exactly the stand-ins a FURNACE run of the same seed meets", () => {
-    for (let seed = 1; seed <= 12; seed++) {
-      const [fu, fo, ba] = (["furnace", "foundry", "bastion"] as const).map((h) => play(h, seed, true).foes.map((f) => f.split(":").slice(0, 4).join(":")));
-      expect(fo, `seed ${seed}`).toEqual(fu);
-      expect(ba, `seed ${seed}`).toEqual(fu);
-      expect(fu).toHaveLength(RUN_DAYS);
+    for (const hero of ["foundry", "bastion"] as const) {
+      it(`${hero.toUpperCase()}: 20 runs play every day to the run's end (caravan, road, dusk, save and load at every step)`, () => withLongRun(() => {
+        let complete = 0, lost = 0, dusks = 0, buys = 0, events = 0, warlords = 0;
+        for (let seed = 1; seed <= 20; seed++) {
+          const p = play(hero, seed, seed % 2 === 0);
+          expect(p.run.over, `${hero} #${seed}`).not.toBe(null);
+          if (p.run.over === WON) complete++; // BUMP-1D: "complete" on the 10-day run (the old count), "won" on the long run
+          else lost++;
+          dusks += p.dusks;
+          buys += p.buys;
+          events += p.events;
+          warlords += p.warlords;
+          if (seed % 2 === 0) expect(p.run.over, `${hero} #${seed} (scripted)`).toBe(WON);
+          expect(p.run.hero).toBe(hero);
+          expect(p.run.build.items.filter((x) => x.def === HEROES[hero].factory), `${hero} #${seed}: the signature stays aboard`).toHaveLength(1);
+          // BUMP-1D: the run played the rule it started on, and its end is that rule's: a 10-day run ends after day RUN_DAYS or at
+          // 0 hearts; a long run at its WIN_GOAL-th win ("won") or at 0 hearts ("lost"), however many days that took
+          expect(longRun(p.run), `${hero} #${seed}: the run's mark`).toBe(long);
+          if (long) {
+            expect(p.run.over === "won" ? p.run.wins : p.run.lives, `${hero} #${seed}: won at ${WIN_GOAL} wins or lost at 0 hearts`).toBe(p.run.over === "won" ? WIN_GOAL : 0);
+            expect(p.dusks, `${hero} #${seed}: every dusk is a win, a loss or a draw`).toBe(p.run.history.length);
+          } else {
+            expect(p.run.over === "complete" ? p.run.day : p.run.lives, `${hero} #${seed}: complete after day ${RUN_DAYS} or lost at 0 hearts`).toBe(p.run.over === "complete" ? RUN_DAYS : 0);
+          }
+        }
+        expect(complete).toBeGreaterThanOrEqual(10);
+        expect(dusks).toBeGreaterThan(150);
+        expect(buys).toBeGreaterThan(100);
+        expect(events).toBeGreaterThan(10);
+        expect(warlords).toBeGreaterThan(20);
+        console.log(`${hero}: 20 ${long ? "long" : "10-day"} runs, ${complete} ${WON}, ${lost} lost, ${dusks} dusks, ${buys} buys, ${events} events, ${warlords} warlord fights`);
+      }, long), 300_000);
     }
-  }, 300_000);
+
+    it("the dusk foes are hero-blind: a FOUNDRY and a BASTION run meet exactly the stand-ins a FURNACE run of the same seed meets", () => withLongRun(() => {
+      for (let seed = 1; seed <= 12; seed++) {
+        const [fu, fo, ba] = (["furnace", "foundry", "bastion"] as const).map((h) => play(h, seed, true).foes.map((f) => f.split(":").slice(0, 4).join(":")));
+        // BUMP-1D: a 10-day run meets RUN_DAYS foes, one a day. A long run meets one per dusk, 10 wins and the scripted losses
+        // (hashSeed(seed, hero, day): they fall on each hero's own days, so the runs differ in length, 10 to 13): the foes agree
+        // day by day over the shortest run, which reaches at least day RUN_DAYS (and, as the strings name their day, line up)
+        if (!long) expect(fu).toHaveLength(RUN_DAYS);
+        const n = Math.min(fu.length, fo.length, ba.length);
+        expect(n, `seed ${seed}`).toBeGreaterThanOrEqual(RUN_DAYS);
+        expect(fo.slice(0, n), `seed ${seed}`).toEqual(fu.slice(0, n));
+        expect(ba.slice(0, n), `seed ${seed}`).toEqual(fu.slice(0, n));
+      }
+    }, long), 300_000);
+  });
+}
+
+describe("the shipped world is the long run (BUMP-1D)", () => {
+  it("LONG_RUN is on: a new run of each hero is a long run, a 10-day run only under withLongRun(fn, false)", () => {
+    expect(LONG_RUN).toBe(true);
+    for (const h of PLAYABLE_HEROES) {
+      expect(longRun(newRun(h, 7, "start")), h).toBe(true);
+      expect(longRun(withLongRun(() => newRun(h, 7, "start"), false)), h).toBe(false);
+    }
+  });
 });
 
 describe("growing the roster moves no harness number (par.ts) and no foe pool (fallback.ts)", () => {
