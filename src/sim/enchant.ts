@@ -205,6 +205,46 @@ export function wideSlots(p: { ench?: string } | undefined): number {
 /** E4/E6: does a piece hold GROWING (so it may carry `grow`)? */
 export const holdsGrowing = (p: { ench?: string } | undefined): boolean => p?.ench === "growing";
 
+// ---------------------------------------------------------------------------------------------------------------- E4: merge, sell, replace
+
+/** E4: the word a merge keeps when the two copies hold DIFFERENT words: `info.a` is the survivor's, `info.b` the absorbed copy's; it
+ *  returns the fields to keep (one of the two). The bots pass one that values the words (harness/enchantBot.ts); without one the
+ *  survivor keeps its own, and the player is asked after the merge (fuse.ts pickMergedWord). */
+export type WordChooser = (info: { def: string; stars: number; a: EnchantFields; b: EnchantFields }) => EnchantFields;
+
+/** E4: is this the very same word (and, for WIDE on a rig, the same side)? Two pieces without a word are the same. */
+export const sameEnchant = (a: EnchantFields | undefined, b: EnchantFields | undefined): boolean =>
+  a?.ench === b?.ench && (a?.ench !== "wide" || a?.enchDir === b?.enchDir);
+
+/**
+ * E4 (PIECES-1 4.5; the operator's Q3: one per piece, pick one on a merge): the word ONE merged piece keeps. `a` is the survivor's
+ * copy, `b` the absorbed one's (each may hold none). Only one has a word: it is kept (it moves onto the survivor). The same word on
+ * both: kept once; GROWING keeps the HIGHER counter, WIDE the survivor's side. Different words: `choose` picks the one kept (the
+ * bots, by value); without it the survivor's is kept, and `lost` names the other for the player's pick. Numbers use the new stars
+ * (nothing is stored but the word). Returns enchantField's fields (`{}` for none).
+ */
+export function mergeWord(a: EnchantFields | undefined, b: EnchantFields | undefined, choose?: (a: EnchantFields, b: EnchantFields) => EnchantFields): { kept: EnchantFields; lost?: EnchantFields } {
+  const fa = enchantField(a), fb = enchantField(b);
+  if (fa.ench === undefined) return { kept: fb };
+  if (fb.ench === undefined) return { kept: fa };
+  if (fa.ench === fb.ench) {
+    const grow = Math.max(fa.grow ?? 0, fb.grow ?? 0);
+    return { kept: { ...fa, ...(fa.ench === "growing" && grow > 0 ? { grow } : {}) } };
+  }
+  const pick = enchantField(choose ? choose(fa, fb) : fa);
+  const kept = pick.ench === fb.ench ? fb : fa;
+  return { kept, lost: kept === fa ? fb : fa };
+}
+
+/** E4: what a second word on a piece asks first: `REPLACES FIERY` (nothing stacks; the old word is lost). */
+export const replacesText = (id: string): string => `REPLACES ${enchantDef(id)?.name ?? String(id).toUpperCase()}`;
+
+/** E4: what selling an enchanted piece asks first: `SELL? FIERY IS LOST` (a second press on the same button sells). */
+export const sellAskText = (id: string): string => `SELL? ${enchantDef(id)?.name ?? String(id).toUpperCase()} IS LOST`;
+
+/** E4: the word a piece holds while the switch is on (a stray `ench` is ignored when it is off, or when it is not one of the eight). */
+export const liveWord = (p: { ench?: string } | undefined): EnchantId | undefined => (enchantOn && isEnchantId(p?.ench) ? (p!.ench as EnchantId) : undefined);
+
 /**
  * E3: after a dusk fight (a win, a loss or a draw) every piece holding GROWING grows by 1 (`grow` is its count of dusk fights
  * and is written only above 0). Warlord fights don't count: the line says DUSK FIGHT, and the server's bound (E6.5) needs a

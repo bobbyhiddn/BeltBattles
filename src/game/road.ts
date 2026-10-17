@@ -23,6 +23,7 @@ import { starsOf, valueOf } from "../sim/stars";
 import { beginDayEvent, beginRoad, eventFor } from "./events";
 import { longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a long run's events
 import { gainModule } from "./fuse";
+import { openWarlordPick } from "./enchanter"; // ENCHANT-1 (REQ-BFG-085, E5b)
 import type { EventId } from "./eventDefs";
 import { queueFuseAnim, type Run, type RoadPick, type WarlordFight, type WarlordOutcome, type WarlordReward } from "./run";
 // NPC-1 (REQ-BFG-077, REQ-BFG-078): the NPC day and the drops, behind NPC_DAY (off: every function here is 0.9.7's)
@@ -282,6 +283,7 @@ export function finishWarlord(run: Run, winner: 0 | 1 | -1, time: number): Warlo
     if (took) queueFuseAnim(run, gainModule(run, took, undefined, DROP_STARS[w.tier]));
   }
   if (won && w.id === "matriarch") run.matriarchBeatenOn = run.day;
+  openWarlordPick(run, w, won); // ENCHANT-1 (REQ-BFG-085, E5b): a Hard win from day 5 (and the Iron Matriarch's) opens a pick of 1 of 2 words; the gold and the drop above are untouched
   w.result = { outcome, time, gold, bountyPaid, parts: won ? [...w.reward.parts] : [], took };
   run.warlords.push({
     day: run.day, tier: w.tier, id: w.id, name: w.name, outcome, time, gold, part: took,

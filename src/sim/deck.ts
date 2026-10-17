@@ -27,7 +27,7 @@ export { RESHAPED_IDS, shapesRules } from "./shapes";
 // digit, an import path included, and shapes2's name does)
 export { isShapes2Piece, shapes2Rules } from "./shapes2";
 // ENCHANT-1 (REQ-BFG-085): the enchantments' switch and fields; re-exported so the portable stand-in loader (standInPool.ts) imports only ./content and ./deck
-import { enchantField, enchantRate, enchantRules, freeSides } from "./enchant";
+import { enchantField, enchantRate, enchantRules, freeSides, type EnchantFields } from "./enchant";
 export { enchantCodeOf, enchantIdOfCode, enchantField, enchantRules } from "./enchant";
 
 export type Dir = 0 | 1 | 2 | 3;
@@ -1466,6 +1466,22 @@ export function removeTurret(b: Build, t: number): TurretOpResult {
   if (!a) return opFail("EMPTY TURRET SLOT");
   setTurretList(b, list.filter((x) => x !== a));
   return { ok: true, turrets: [copyOfTurret(a)], mods: stripSlot(b, t) };
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085, E3/E4): put a word on the turret in slot t (`fields`: enchantField's keys, `{}` for none), replacing any
+ * it holds. WIDE gives a gear slot, so losing it (a replace, a merge's pick) sends the gear beyond the slots left back for cargo, last
+ * placed first, exactly as trimGear does for a turret that shrinks. Fails on an empty slot.
+ */
+export function setTurretWord(b: Build, t: number, fields: EnchantFields): TurretOpResult {
+  const list = turretList(b);
+  const a = list.find((x) => x.slot === t);
+  if (!a) return opFail("EMPTY TURRET SLOT");
+  delete a.ench;
+  delete a.grow;
+  Object.assign(a, enchantField(fields));
+  setTurretList(b, list);
+  return { ok: true, turrets: [], mods: trimGear(b, t) };
 }
 
 /** S2/S5: the belts whose last tile sits under slot t's columns but that no intake takes any more (dead ends that

@@ -17,10 +17,12 @@ import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
 import { fusible, starField, starsOf, upgradeLevel } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
+import { rollEnchanter } from "./enchanter"; // ENCHANT-1 (REQ-BFG-085, E5a): the ENCHANTER's wagon
+import { lastChanceWord } from "../sim/enchantSources"; // ENCHANT-1 (E5c): LAST CHANCE's part arrives with a seeded word
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold (dayPool)
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
-import { enchantField } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): a piece in cargo keeps its enchantment
+import { enchantField, enchantRules, type EnchantFields, type WordChooser } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): a piece in cargo keeps its enchantment
 import { cellsOf, isIntakeCell, shapesRules } from "../sim/deck"; // SHAPES-1 S5b: the intake sweep
 import { canPlaceItem } from "../sim/deck"; // SHAPES-1 (R1, S2): rotateRig turns a long rig only where it fits
 import { isShaped } from "../sim/foot"; // SHAPES-1 S5b
@@ -62,11 +64,26 @@ export interface Wagon {
   offers: Offer[];
 }
 
+/** ENCHANT-1 (REQ-BFG-085, E5a): one word the ENCHANTER sells today: bought once, at ENCHANTER_PRICE, never discounted or rerolled. */
+export interface EnchantOffer {
+  ench: string;
+  price: number;
+  sold: boolean;
+}
+
+/** ENCHANT-1 (E5a): the ENCHANTER, the 7th merchant's extra wagon (days 3, 5, 7, 9 and every odd day after): its day and two words. It
+ *  is not in Shop.wagons (those are the base's own offers, untouched), so a reroll keeps it as it is. */
+export interface EnchanterWagon {
+  day: number;
+  offers: EnchantOffer[];
+}
+
 export interface Shop {
   wagons: Wagon[];
   rerolls: number;
   discount: number; // every price -n (min 1) in this caravan (a scout's deal)
   free: number; // free rerolls left in this caravan
+  enchanter?: EnchanterWagon; // ENCHANT-1 (REQ-BFG-085, E5a): only with ENCHANT on, on an ENCHANTER day, after the base's wagons; absent otherwise
 }
 
 /** One day's dusk fight. */
@@ -198,6 +215,10 @@ export interface Run {
   // so every other save is as before. Save v8, no bump (new optional fields, as refund and runeDay were).
   firstRun?: true;
   firstRig?: string;
+  // ENCHANT-1 (REQ-BFG-085), all optional and written only with ENCHANT on, so RUN_VERSION stays 8 and every other save is as before:
+  enchMerge?: { uid: number; kept: EnchantFields; lost: EnchantFields }; // E4: a merge of two different words, the pick still open (fuse.ts)
+  enchPick?: { day: number; no: 1 | 2; words: [string, string] }; // E5b: a warlord win's open pick of 1 of 2 words (enchanter.ts)
+  enchPicks?: number[]; // E5b: which of the run's two warlord picks (1, 2) have been opened already
 }
 
 export const RUN_VERSION = 8; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once); NUM-1: hull x10 (save.ts v7to8, once)
@@ -409,7 +430,8 @@ export function takeLastChance(run: Run, boon: Boon): { ok: boolean; reason?: st
     else if (d.kind === "belt") run.build.beltCap += d.amount.n;
     else run.gold += pickGold(d, run.build.runes.length, lastWon(run));
   } else if (boon === "part") {
-    gain = gainModule(run, id, undefined, offer.partStars ?? 1); // HULL-1d: at the card's star (★2 with HULL_SCALE on)
+    const word = enchantRules() ? lastChanceWord(run.seed, offer.day, id) : null; // ENCHANT-1 (REQ-BFG-085, E5c): a rig or turret part arrives enchanted; gear plain
+    gain = gainModule(run, id, undefined, offer.partStars ?? 1, word ? { word } : undefined); // HULL-1d: at the card's star (★2 with HULL_SCALE on)
     queueFuseAnim(run, gain);
   } else run.build.hullBonus += LAST_CHANCE_HULL;
   const day = run.lastChance!.day;
@@ -605,6 +627,7 @@ export function rollShop(run: Run): void {
   }
   run.shop.wagons = wagons.filter((w) => w.offers.length > 0); // 0.6.1r N5: an empty wagon doesn't ride
   if (firstRunGated(run)) firstRunCaravan(run, priceOf); // FIRSTDAY-1 (F3): a first run's days 1-2, after the base's roll
+  rollEnchanter(run); // ENCHANT-1 (REQ-BFG-085, E5a): the ENCHANTER's extra wagon, after the base's, on its own stream (ENCHANT on, an odd day from 3)
 }
 
 export type ShopBadge = { kind: "merge"; toStars: number } | { kind: "wait" } | { kind: "max" };
@@ -729,7 +752,7 @@ export function buyPack(run: Run, id: PackId): { ok: boolean; reason?: string; p
  * ARSENAL.md §4.1 rule 5), except when every twin is in cargo: then the copy is placed at the target
  * first and the merge lands where it was dropped.
  */
-export function buyOffer(run: Run, wagon: number, slot: number, at?: GainAt): BuyResult {
+export function buyOffer(run: Run, wagon: number, slot: number, at?: GainAt, choose?: WordChooser): BuyResult {
   if (shopShut(run)) return { ok: false, reason: REFIT_NO_SHOP }; // NPC-1: no buying in REFIT
   const w = run.shop.wagons[wagon];
   const o = w?.offers[slot];
@@ -747,7 +770,7 @@ export function buyOffer(run: Run, wagon: number, slot: number, at?: GainAt): Bu
   }
   // FIRSTDAY-1 (F3): a first run's first rig bought on day 1 (dawn 2 offers a copy: firstRunCaravan)
   if (d.kind === "gate" && run.day === 1 && run.firstRig === undefined && firstRunGated(run)) run.firstRig = d.id;
-  const gain = gainModule(run, o.def, pv && pv.where !== "cargo" ? undefined : at);
+  const gain = gainModule(run, o.def, pv && pv.where !== "cargo" ? undefined : at, 1, choose ? { choose } : undefined); // ENCHANT-1 (E4): the bots' word pick on a merge
   queueFuseAnim(run, gain);
   const item = gain.where === "cargo" ? run.inventory.find((i) => i.uid === gain.survivor) : undefined;
   return { ok: true, item, gain };
