@@ -4,7 +4,9 @@
 // profile.ts's real fold code at random, and the merge properties (commutative, associative, idempotent; chosen follows
 // the newer) on random valid profiles.
 import { describe, expect, it } from "vitest";
-import { emptyProfile, evaluateUnlocks, foldDusk, foldEnd, foldWarlord, wear, type Profile, type RunFacts } from "../src/game/profile";
+import {
+  SEED_GHOST_KEY, SEED_RUNS_KEY, SEED_SAVE_KEY, emptyProfile, evaluateUnlocks, foldDusk, foldEnd, foldWarlord, seedProfile, wear, type Profile, type RunFacts,
+} from "../src/game/profile";
 import { flawless } from "../src/game/day";
 import type { Run } from "../src/game/run";
 import { DEFAULT_SKIN, SURFACES, stylesOf, styleKey, type Surface } from "../src/render/styles";
@@ -336,6 +338,31 @@ describe("the relations hold for what profile.ts's real folds make", () => {
         expect(bodyOf(w).length).toBeLessThanOrEqual(MAX_PROFILE_BYTES);
       }
     }
+  });
+
+  it("a seeded profile (CUSTOM-2a: built once from the old ghost pool and RUNS_KEY) passes the caps, whatever the pool held", () => {
+    const store = new Map<string, string>();
+    const st = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+    const snap = (runId: string, hero: string, day: number, wins: number) => ({ v: 2, rules: "x", hero, day, wins, lives: 5, build: {}, runId, playerId: "p", createdAt: 0 });
+    store.set(SEED_GHOST_KEY, JSON.stringify([
+      snap("a", "furnace", 1, 0), snap("a", "furnace", 2, 1), snap("a", "furnace", 6, 4), snap("b", "weaver", 3, 2), snap("b", "weaver", 10, 9),
+      snap("c", "retired-hero", 4, 3), // a hero this build does not have: kept on the device, never sent
+      snap("cur", "foundry", 2, 1), { junk: true },
+    ]));
+    store.set(SEED_SAVE_KEY, JSON.stringify({ runId: "cur", version: 8 }));
+    store.set(SEED_RUNS_KEY, JSON.stringify({ runs: 12, last: "z" }));
+    const p = seedProfile(st);
+    expect(p.counters.runs).toBe(12); // max(distinct runs, RUNS_KEY.runs)
+    expect(p.heroesWon).toContain("retired-hero");
+    const w = toWire(p);
+    expect(w.heroesWon).toEqual(["foundry", "furnace", "weaver"]); // sorted; the retired hero is dropped
+    expect(() => checkWire({ ...w, updatedAt: NOW }, NOW)).not.toThrow();
+    expect(w.counters).toEqual(p.counters);
+    // STORMCALLER (4 different heroes won) was earned on the device with the retired hero counted; on the wire only the
+    // three heroes the game has remain, so it is not sent (the server would refuse an unlock the upload does not earn)
+    expect(p.unlocked).toContain("style:carrier.storm");
+    expect(w.unlocked).not.toContain("style:carrier.storm");
+    expect(w.unlocked).toEqual(p.unlocked.filter((k) => k !== "style:carrier.storm").sort());
   });
 
   it("toWire sends only what the server accepts: a stale or foreign id on the device is dropped, not refused", () => {
