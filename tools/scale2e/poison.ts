@@ -28,6 +28,7 @@ const DAY = Number(arg("--day", "6"));
 const K = Number(arg("--k", "6")), KW = Number(arg("--kw", "8")), M = Number(arg("--m", "6")), SEEDS = Number(arg("--seeds", "4"));
 const STAR = Number(arg("--star", String(DAY <= 4 ? 1 : DAY <= 7 ? 2 : 3)));
 const OUT = arg("--out", `poison-d${DAY}.json`);
+const CHECKS = arg("--checks", "1,2,3").split(",");
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const log = (s: string): void => console.log(`poison d${DAY} ★${STAR}: ${s}`);
 if (!scaleRules()) { console.error("poison.ts: SCALE_RIGS is off in this build (set the constant true in the export)"); process.exit(3); }
@@ -85,14 +86,12 @@ const healB = bases.map((x) => ({ ...x, d: assemble(x.hero, x.b, [["venom", 2], 
 const walls: Build[] = [];
 for (let i = 0; i < fields.get("bastion")!.length && walls.length < KW; i++) {
   const b = fields.get("bastion")![i];
-  if (holds(b, ["plateroller", "armorpress"])) continue;
   const w = assemble("bastion", b, [["plateroller", 2], ["armorpress", 1]], `W|${i}`);
   if (w) walls.push(w);
 }
 const burns: Build[] = [];
 for (let i = 0; i < fields.get("furnace")!.length && burns.length < KW; i++) {
   const b = fields.get("furnace")![i];
-  if (holds(b, ["temper", "quench"])) continue;
   const w = assemble("furnace", b, [["temper", 2, 2], ["quench", 1]], `B|${i}`);
   if (w) burns.push(w);
 }
@@ -101,7 +100,7 @@ log(`decks: ${poisonDecks.length} POISON, ${healA.length} HEAL-A, ${healB.length
 const out: Record<string, unknown> = { day: DAY, star: STAR, k: K, kw: KW, m: M, seeds: SEEDS, decks: { poison: poisonDecks.length, healA: healA.length, healB: healB.length, walls: walls.length, burns: burns.length } };
 
 // check 1: POISON against the WALL (and the plain bases against the same walls: the control)
-{
+if (CHECKS.includes("1")) {
   const per: number[] = [], ctrl: number[] = [];
   walls.forEach((w, wi) => {
     poisonDecks.forEach((p, pi) => {
@@ -115,23 +114,25 @@ const out: Record<string, unknown> = { day: DAY, star: STAR, k: K, kw: KW, m: M,
   out.check1 = c1;
   log(`check 1 POISON vs WALL: ${(100 * c1.win).toFixed(1)}% of ${c1.battles} battles (bar >= 55%); the same bases without POISON: ${(100 * c1.control).toFixed(1)}% -> ${c1.pass ? "PASS" : "FAIL"}`);
 }
-// check 2: POISON against BURN by the length of the fight
-{
+// check 2: POISON against BURN by the length of the fight (and the plain bases against the same BURN decks: the control)
+if (CHECKS.includes("2")) {
   const all: Battle1[] = [];
-  burns.forEach((bu, bi) => poisonDecks.forEach((p, pi) => all.push(...duel(p.d, bu, `c2|${pi}|${bi}`))));
+  const ctrl: Battle1[] = [];
+  burns.forEach((bu, bi) => poisonDecks.forEach((p, pi) => { all.push(...duel(p.d, bu, `c2|${pi}|${bi}`)); ctrl.push(...duel(p.b, bu, `c2c|${pi}|${bi}`)); }));
   const early = all.filter((x) => x.t < 15), late = all.filter((x) => x.t > 25);
   const c2 = {
-    battles: all.length, all: mean(all.map((x) => x.pts)),
+    battles: all.length, all: mean(all.map((x) => x.pts)), control: mean(ctrl.map((x) => x.pts)), controlMedian: median(ctrl.map((x) => x.t)), median: median(all.map((x) => x.t)),
+    over20: all.filter((x) => x.t > 20).length, winOver20: mean(all.filter((x) => x.t > 20).map((x) => x.pts)),
     under15: early.length, winUnder15: mean(early.map((x) => x.pts)), over25: late.length, winOver25: mean(late.map((x) => x.pts)),
     bins: [0, 10, 15, 20, 25, 30, 40, 60, 200].slice(0, -1).map((lo, k) => { const hi = [10, 15, 20, 25, 30, 40, 60, 200][k]; const xs = all.filter((x) => x.t >= lo && x.t < hi); return { from: lo, to: hi, n: xs.length, win: mean(xs.map((x) => x.pts)) }; }),
     pass: false,
   };
   c2.pass = c2.winUnder15 <= 0.45 && c2.winOver25 >= 0.55;
   out.check2 = c2;
-  log(`check 2 POISON vs BURN: all ${(100 * c2.all).toFixed(1)}% of ${c2.battles}; under 15 s ${(100 * c2.winUnder15).toFixed(1)}% of ${c2.under15} (bar <= 45%); past 25 s ${(100 * c2.winOver25).toFixed(1)}% of ${c2.over25} (bar >= 55%) -> ${c2.pass ? "PASS" : "FAIL"}`);
+  log(`check 2 POISON vs BURN: all ${(100 * c2.all).toFixed(1)}% of ${c2.battles} (median ${c2.median.toFixed(1)} s; the same bases without POISON ${(100 * c2.control).toFixed(1)}%, median ${c2.controlMedian.toFixed(1)} s); past 20 s ${(100 * c2.winOver20).toFixed(1)}% of ${c2.over20}; under 15 s ${(100 * c2.winUnder15).toFixed(1)}% of ${c2.under15} (bar <= 45%); past 25 s ${(100 * c2.winOver25).toFixed(1)}% of ${c2.over25} (bar >= 55%) -> ${c2.pass ? "PASS" : "FAIL"}`);
 }
 // check 3: no heal stall, against the par fields of every hero
-{
+if (CHECKS.includes("3")) {
   const foes: Build[] = HEROES.flatMap((h) => fields.get(h)!.slice(0, M));
   const run = (decks: { b: Build; d: Build }[], tag: string): { ts: number[]; pts: number[] } => {
     const ts: number[] = [], pts: number[] = [];
