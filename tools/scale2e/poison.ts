@@ -170,6 +170,9 @@ if (CHECKS.includes("4")) {
     { tag: "ROT GAUGE + VENOM DRIP", parts: [["venom", 1], ["rotgauge", 1]], foes: burns, foe: "fast BURN deck" },
     { tag: "LEECH COIL + VENOM DRIP", parts: [["venom", 1], ["leechcoil", 1]], foes: burns, foe: "fast BURN deck" },
   ];
+  // SCALE-2e run 2 (REQ-BFG-108; G4's KINDLING row, 52% / 85% against the SHIELD wall on days 6 / 9): --g4 control reads the feeder alone (2 TEMPER, no
+  // KINDLING) against the same wall decks, to tell the pair's reader from its feeder; --g4 all (the default) is the five pairs as before
+  if (arg("--g4", "all") === "control") PAIRS4.splice(0, PAIRS4.length, { tag: "2 TEMPER alone (no KINDLING; the control)", parts: [["temper", 2]], foes: walls, foe: "SHIELD wall" });
   const rows: unknown[] = [];
   for (const q of PAIRS4) {
     const decks = bases.map((x) => ({ x, d: assemble(x.hero, x.b, q.parts, `G4|${q.tag}|${x.hero}|${x.i}`) })).filter((y): y is { x: typeof bases[number]; d: Build } => !!y.d);
