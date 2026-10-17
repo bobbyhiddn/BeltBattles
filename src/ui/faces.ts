@@ -331,18 +331,22 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // rigs on the belt can add damage to the charge's own impact. One row, 225 px at every star and day (no digits left in it).
     // The brief's "ITS {DMG} LANDS ON THE FOE'S HULL 3 SEC AFTER A HIT." is 241 px (two rows)
     // SHOPCARD-1d (REQ-BFG-081; READ-11 fix list 2: 2 of 6 readers (round A Opus, round T Haiku) still leaned to "a second dose on top
-    // of the hit" or "again", and 2 of 3 tooltip readers asked whose ITS it was): name what lands, and say it is the stat row's DMG
-    // and that it comes later. The hit sticks a charge (battle.ts:2191 impact -> 2318-2350 roundImpact pushes {at: t + delay, blast}
-    // on the hit side for a hit on ANY target); 3 s later (2428-2441 hullEffects) the blast, the stat row's {DMG} (content.ts:532-539
-    // base 0 + round.blast; factoryStats adds the blast to the stat), takes the hit side's hull down, x D(day), after plating. IT is the
-    // charge the line has just named, so no bare ITS. The line does not say the hit itself deals nothing: deck.ts:585-588 shotFloor
-    // is 0 for a LIMPET charge, so its impact deals only what rigs (and runes) added to it (battle.ts:1919 payloadDamage with the
-    // slug's flat, 2133-2151 impact), and the foe's FRAY bonus. Two rows of the 225 px band (361 px; no digit but the delay, so the
-    // same at every star and day). Was "THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT." (225 px, one row). Forms tried (px):
-    // "THE {DMG} LANDS ON THE FOE'S HULL AS A BLAST, 3{SEC} AFTER A HIT." 304, "THE {DMG} IS A BLAST THAT HITS THE FOE'S HULL 3{SEC}
-    // AFTER A HIT." 307, "3{SEC} AFTER A HIT, A BLAST OF THE {DMG} LANDS ON THE FOE'S HULL." 304, "THE {DMG} IS A BLAST THAT LANDS ON THE
-    // FOE'S HULL 3{SEC} AFTER A HIT." 329, "THE {DMG} IS A BLAST, NOT A HIT: ..." 376 (reads as the hit being nothing)
-    return rules([{ text: `A HIT STICKS A CHARGE: ${delay}{SEC} LATER IT BLASTS THE FOE'S HULL FOR THE {DMG}.` }], [["delay", `${delay}{SEC}`]]);
+    // of the hit" or "again", and 2 of 3 tooltip readers asked whose ITS it was): name what lands, and say it lands once, as the blast.
+    // The stat row's {DMG} IS the blast (content.ts:532-539 base 0 + round.blast; factoryStats adds the blast to the stat). A hit queues
+    // one charge (battle.ts:2191 impact -> 2318-2350 roundImpact pushes {at: t + delay, blast} on the hit side, for a hit on ANY target);
+    // delay s later (2428-2441 hullEffects) the blast, x D(day) and after plating, takes the hit side's hull down and the charge is gone
+    // (2434 splice). So the DMG lands once per hit, as a blast on the foe's hull; no bare ITS. The line does not say the hit itself deals
+    // nothing: deck.ts:585-588 shotFloor is 0 for a LIMPET charge, so its impact deals only what rigs (and runes) added to it (battle.ts:1919
+    // payloadDamage with the slug's flat, 2133-2151 impact), and the foe's FRAY bonus. Two rows of the 225 px band (335 px; no digit but
+    // the delay, so the same at every star and day). H3 round 1 (three fresh readers, rounds A and T) tried "A HIT STICKS A CHARGE: 3{SEC}
+    // LATER IT BLASTS THE FOE'S HULL FOR THE {DMG}." (361 px): Sonnet took the stat row's DMG for each slug's own hit and the blast for
+    // "another 180 ... a delayed second hit on top of the normal one" (A) and "a delayed second blast" (T), so this form says the DMG lands
+    // ONCE. Other forms measured (px): "THE {DMG} LANDS ON THE FOE'S HULL AS A BLAST, 3{SEC} AFTER A HIT." 304, "THE {DMG} IS A BLAST THAT HITS
+    // THE FOE'S HULL 3{SEC} AFTER A HIT." 307, "3{SEC} AFTER A HIT, A BLAST OF THE {DMG} LANDS ON THE FOE'S HULL." 304, "THE {DMG} IS A BLAST
+    // THAT LANDS ON THE FOE'S HULL 3{SEC} AFTER A HIT." 329, "THE {DMG} IS A BLAST, NOT A HIT: ..." 376, "THE {DMG} IS ONE BLAST: IT LANDS ON
+    // THE FOE'S HULL 3{SEC} AFTER A HIT." 331, "ALL OF THE {DMG} LANDS AS ONE BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT." 354, "THE {DMG} LANDS
+    // ONLY AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT." 332
+    return rules([{ text: `THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, ${delay}{SEC} AFTER A HIT.` }], [["delay", `${delay}{SEC}`]]);
   },
   // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
   // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
