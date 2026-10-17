@@ -36,6 +36,16 @@
 // and the LAST CHANCE rows sit at the first dusk after LAST CHANCE fires on a run that loses every dusk, stepped with
 // heartsDusk until heartsLastChanceFires (day 6: 9 8 7 5 3, then 1), so dusk 7 at 0 wins and 1 heart (probeLastChance).
 // Under rules without hearts (heartsFor false) the rows are the 5-lives rows above, as before.
+// BUMP-1D (REQ-BFG-059, REQ-BFG-116; the 10-wins release's bump to bb-0.11.0; RULING-BUMP-R1 R1.2): the long run (RUN-1) is the
+// game's rule, so under PROBE_RULES (probeHasLongRun: the rules gate longRunFor) the server asks every upload to STATE its
+// `losses`, the dusks the run lost before this one (snapshot v3; records.ts lossesProblem: 422 without it; the record check
+// reads day - 1 = wins + losses + draws). Every row above now states its own, the dusks that were not wins or draws: 0 on the
+// start rows (the hero rows' second dusk is a draw), and on the LAST CHANCE rows every dusk before theirs (day - 1: all lost, so
+// the hearts rule's steps, below, and `losses` agree). A run has no last day, so two more rows follow the thirteen:
+//   longrun-signed      FURNACE's day-12 reference deck with its twelve dawn runes, dusk 12 at 9 wins, 2 draws and no loss (the
+//                       most wins a run ghost carries: a dusk before the 10th win), with its seed and `losses` 0   -> 201 and its ghost id
+//   longrun-nolosses    the same deck and record without `losses`, which RUN-1's upload check refuses              -> 422, lossesProblem's error
+// Under rules before LONG_RUN_RULES (or with the switch off) the plan would be exactly the thirteen rows above, without `losses`.
 // PROFILE-UP (REQ-BFG-074 clause 4, backlog #371): `--profile` (opt-in; anywhere among the arguments) adds two PUT /v1/profile rows
 // after the POSTs, from the same fresh identity, and nothing else changes without the flag:
 //   profile-signed      a minimal profile (1 run, 1 dusk win, best day 2, FURNACE won; no unlocks), signed in the profile
@@ -44,14 +54,15 @@
 // The profile rows store one record, profiles/<probe player id>.json on Tigris (<data>/profiles/<id>.json on jsonl), which
 // ghost-admin's remove-player does not know: delete that object by hand after a --profile probe. The deck count below counts
 // decks only.
-// Exactly six decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
-// FURNACE's LAST CHANCE deck and WEAVER's NPC-day deck (five under rules without the NPC day, four without LAST CHANCE).
+// Exactly seven decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
+// FURNACE's LAST CHANCE deck, WEAVER's NPC-day deck and FURNACE's day-12 deck (BUMP-1D; six under rules without the long run,
+// five without the NPC day, four without LAST CHANCE).
 // Built by `npm run build:server` beside ghost-admin.mjs:  node server/dist/ghost-probe.mjs <base-url> <id-file>
 // It writes the probe's player id to <id-file> before the first POST, so the clean-up (ghost-admin.mjs remove-player)
 // always has it, and it refuses an <id-file> that already holds an id (that earlier probe's player is not cleaned up yet).
 // It prints one line per check (PASS or FAIL, name, expected, got), then the player id, then a summary with the number of
 // decks the server stored for this player. Exit 0 only if every check matched; 1 if a check failed or got no answer; 2
-// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is bb-0.10.0. There is no secret
+// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is PROBE_RULES (bb-0.11.0; BUMP-1D: was bb-0.10.0). There is no secret
 // to print: the key is non-extractable, and neither the public key nor a signature is printed. No network but the base
 // URL. Its expectations are written out here, not read from the code under test (the rules gate, the record model).
 
@@ -70,6 +81,8 @@ import { openRunesFor } from "../src/net/rulesGate"; // OPEN-1 (REQ-BFG-109): th
 import { heartsFor } from "../src/net/rulesGate";
 import { HEARTS_START, heartsDusk, heartsLastChanceFires } from "../src/sim/hearts";
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
+// BUMP-1D (RUN-1; REQ-BFG-059, REQ-BFG-116): the long run's rows and every row's `losses`, through the rules gate
+import { longRunFor } from "../src/net/rulesGate";
 
 /** The rules this probe's expectations are written for: the hull release's (bb-0.10.0, AZ-BUMP's bump, with the NPC day's
  *  two rows; release Z's bb-0.9.7 with LAST CHANCE's two rows, release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's
@@ -89,9 +102,9 @@ export function probeRunes(build: GhostSnapshot["build"], day: number): GhostSna
   }
   return b;
 }
-/** The heroes bb-0.10.0 takes, as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
+/** The heroes bb-0.11.0 takes (BUMP-1D: the bump adds no hero; was bb-0.10.0), as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
 export const PROBE_ACCEPTED = "FURNACE, WEAVER, FOUNDRY, BASTION";
-/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.10.0 refuses (400), in posting order. */
+/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.11.0 refuses (400), in posting order. */
 export const STORED_HEROES: readonly HeroId[] = ["weaver", "foundry", "bastion"];
 export const REFUSED_HEROES: readonly HeroId[] = ["metronome", "siphon"];
 /** The hero rows' dusk: day 3 at 1 win and 5 lives, a record a run carries into dusk 3. HULL-ON (HEARTS): the rows before
@@ -107,9 +120,19 @@ export const probeHasHearts = (): boolean => heartsFor(PROBE_RULES);
 /** HULL-ON (HEARTS): a run's lives at its start under the probe's rules: HEARTS_START with hearts, else START_LIVES (5). */
 export const probeStartLives = (): number => (probeHasHearts() ? HEARTS_START : START_LIVES);
 /** HULL-ON (HEARTS): a start-lives row's dusk (the honest, dishonest, hero and NPC-day rows: no heart lost, a run's
- *  start) under the probe's rules: `d` as written (5 lives) without hearts; with hearts, its lives are the start's. */
-export const probeDusk = (d: { day: number; wins: number; lives: number }): { day: number; wins: number; lives: number } =>
+ *  start) under the probe's rules: `d` as written (5 lives) without hearts; with hearts, its lives are the start's.
+ *  BUMP-1D (RUN-1): and its `losses`, when the row states them (`stated`), travel with it. */
+export const probeDusk = (d: { day: number; wins: number; lives: number; losses?: number }): { day: number; wins: number; lives: number; losses?: number } =>
   ({ ...d, lives: probeStartLives() });
+/** BUMP-1D (RUN-1; REQ-BFG-059, REQ-BFG-116): does the probe's rules version have the long run (the rules gate: PROBE_RULES at
+ *  or after LONG_RUN_RULES, with the switch on, as the build ships)? Then the server asks every upload to STATE its `losses`
+ *  (records.ts lossesProblem; the decoder takes the field only there), so every row states its own and the plan has the two
+ *  long-run rows (LONG_DUSK). Under older rules, or with the switch off, the decoder refuses the field: the plan is the
+ *  thirteen rows of AZ-BUMP's probe, none stating `losses`. */
+export const probeHasLongRun = (): boolean => longRunFor(PROBE_RULES);
+/** BUMP-1D: a row's `losses` as it states them: `n` under the long run, else none (the field is refused there). Day - 1 =
+ *  wins + losses + draws, so `n` is what the row's record says it lost, whatever else it won or drew. */
+const stated = (n: number): number | undefined => (probeHasLongRun() ? n : undefined);
 /** The decks the probe stores when every check passes: FURNACE's and STORED_HEROES'. */
 export const PROBE_STORED = 1 + STORED_HEROES.length;
 /** Z-PREP (REQ-BFG-073): the LAST CHANCE rows' dusk (five losses: the early-loss refund lifts day 3, the loss at dusk 5
@@ -150,20 +173,33 @@ export const NPC_ROAD_ERROR = `road: day 2: the seeded roll of LACEWING gave sca
 /** AZ-BUMP: does the probe's rules version have the NPC day (the rules gate: PROBE_RULES at or after NPC_DAY_RULES, with the
  *  switch on, as the build ships)? */
 export const probeHasNpcDay = (): boolean => npcDayGateProblem(PROBE_RULES) === null;
-/** The decks the probe stores when every check passes: PROBE_STORED, the honest LAST CHANCE deck under rules with it, and
- *  the honest NPC-day deck under rules with the NPC day (AZ-BUMP). */
-export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0);
+/** BUMP-1D (RUN-1; REQ-BFG-059, REQ-BFG-116): the long-run rows' hero and dusk, written out. A run has no last day, so its
+ *  days go on past 10 (snapshot.ts maxDayFor: 25 under PROBE_RULES): FURNACE's reference deck of day 12 (heroRefBuild: the
+ *  day-10 layout, the day's own hull) with its twelve dawn runes, at the dusk of day 12 after 9 wins and 2 draws, no dusk
+ *  lost. 9 wins is the most a run ghost carries (maxWinsFor: a run is over at its 10th, WIN_GOAL - 1), 2 draws are well under
+ *  the most an upload may state (MAX_RUN_DRAWS, 8), and no heart is lost, so the record holds on both scales (probeDusk:
+ *  the start's lives, 10 hearts, or 5 lives before hearts) and follows no cost of the hearts rule. */
+export const LONG_HERO: HeroId = "furnace";
+export const LONG_DUSK = { day: 12, wins: 9, lives: 5 } as const;
+/** RUN-1's answer to an upload under a long run's rules that does not state `losses` (records.ts lossesProblem, POST step 6,
+ *  after the record check), written out. */
+export const LOSSES_ERROR = "losses: a long run's upload states the dusks the run lost (snapshot.losses is missing; day - 1 = wins + losses + draws needs it)";
+/** The decks the probe stores when every check passes: PROBE_STORED, the honest LAST CHANCE deck under rules with it, the
+ *  honest NPC-day deck under rules with the NPC day (AZ-BUMP), and the honest day-12 deck under rules with the long run
+ *  (BUMP-1D). */
+export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0) + (probeHasLongRun() ? 1 : 0);
 export const PROBE_TIMEOUT_MS = 15_000;
 export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file> [--profile]   (base url: http(s)://host[:port], no path; an id file that holds no id yet; --profile also PUTs a profile)"; // PROFILE-UP: the opt-in flag
 /** The server's answer to a POST without the signing headers (identity.ts uploadHeaderError). */
 export const UNSIGNED_ERROR = `unsigned upload: the ${KEY_HEADER} and ${SIG_HEADER} headers are required`;
-/** H2's answer to a record no run can carry into that dusk (server/app.ts, POST step 6). */
-export const recordError = (d: { day: number; wins: number; lives: number }): string =>
-  `record: ${d.wins}W ${d.lives} lives is no record a run carries into dusk ${d.day}`;
+/** H2's answer to a record no run can carry into that dusk (server/app.ts, POST step 6). BUMP-1D (RUN-1): an upload that
+ *  states its `losses` hears them in it ("... lives and 0 losses is no record ..."); one that does not, as before. */
+export const recordError = (d: { day: number; wins: number; lives: number }, losses?: number): string =>
+  `record: ${d.wins}W ${d.lives} lives${losses !== undefined ? ` and ${losses} losses` : ""} is no record a run carries into dusk ${d.day}`;
 /** Z-PREP (REQ-BFG-073): the same answer for an upload that carries a LAST CHANCE (server/app.ts, POST step 6). */
-export const lcRecordError = (d: { day: number; wins: number; lives: number }, lcDay: number): string =>
-  `${recordError(d)} after a LAST CHANCE on day ${lcDay}`;
-/** The strict decode's answer to a hero bb-0.10.0 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
+export const lcRecordError = (d: { day: number; wins: number; lives: number }, lcDay: number, losses?: number): string =>
+  `${recordError(d, losses)} after a LAST CHANCE on day ${lcDay}`;
+/** The strict decode's answer to a hero bb-0.11.0 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
 export const heroError = (hero: HeroId): string => `snapshot.hero: rules ${PROBE_RULES} accept only ${PROBE_ACCEPTED}, not ${hero.toUpperCase()}`;
 
 export interface ProbeAnswer {
@@ -237,6 +273,9 @@ export function canonicalText(s: GhostSnapshot): string {
     build: checkBuildShape(s.build, "snapshot.build", s.v), runId: s.runId, playerId: s.playerId, createdAt: s.createdAt,
     ...(s.name !== undefined ? { name: s.name } : {}), // PACKS M2: the player's name
     ...(s.seed !== undefined ? { seed: s.seed } : {}), // FLIP-X2: the v3 run seed, after the name (snapshot.ts V3_SNAPSHOT_FIELDS)
+    // BUMP-1D (RUN-1; REQ-BFG-059): the dusks the run lost, right after the seed (snapshot.ts V3_SNAPSHOT_FIELDS: seed, losses, ...),
+    // so the probe's own canonical bytes cover every row that states them as the encoder writes them
+    ...(s.losses !== undefined ? { losses: s.losses } : {}),
     // Z-BUMP (REQ-BFG-073, the flip): the taken LAST CHANCE, last of all { day, boon, id? } (snapshot.ts lastChanceField), so
     // the probe's own canonical bytes cover its two LAST CHANCE rows as the encoder writes them
     ...(s.lastChance !== undefined ? { lastChance: { day: s.lastChance.day, boon: s.lastChance.boon, ...(s.lastChance.id !== undefined ? { id: s.lastChance.id } : {}) } } : {}),
@@ -251,23 +290,29 @@ export function canonicalText(s: GhostSnapshot): string {
 export const PROBE_NAME = "PROBE";
 
 /** The snapshot `playerId` uploads at the dusk of `d.day` with `build`, under this build's rules. FLIP-X2: a build that
- *  holds runes travels as v3 with the run seed (PROBE_SEED), as the game's ghostOf writes it; a rune-less one as before. */
-function dusk(playerId: string, hero: HeroId, d: { day: number; wins: number; lives: number }, build: GhostSnapshot["build"], runId: string, now: number): GhostSnapshot {
+ *  holds runes travels as v3 with the run seed (PROBE_SEED), as the game's ghostOf writes it; a rune-less one as before.
+ *  BUMP-1D (RUN-1): `d.losses`, when the row states them (`stated`), travel with it (v3 only, as ghostOf writes them). */
+function dusk(playerId: string, hero: HeroId, d: { day: number; wins: number; lives: number; losses?: number }, build: GhostSnapshot["build"], runId: string, now: number): GhostSnapshot {
   const runes = (build.runes?.length ?? 0) > 0;
   return {
     v: runes ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day: d.day, wins: d.wins, lives: d.lives, build, runId, playerId, createdAt: now,
     name: PROBE_NAME, ...(runes ? { seed: PROBE_SEED } : {}),
+    ...(d.losses !== undefined ? { losses: d.losses } : {}),
   };
 }
 
+/** BUMP-1D (RUN-1): the `losses` of a record whose every dusk before it was lost (the LAST CHANCE rows: no win, no draw), as
+ *  the row states them: day - 1 - wins. */
+const lostAll = (d: { day: number; wins: number }): number | undefined => stated(d.day - 1 - d.wins);
+
 /** Z-PREP (REQ-BFG-073): FURNACE's start deck with its dawn runes of days 1..6 and the HULL card taken at the dawn of
  *  day 6, uploaded at dusk 6 (0W 2L) with a LAST CHANCE on `lcDay`. Only while the switch is on (the encoder and the
- *  decoder refuse the field otherwise). */
+ *  decoder refuse the field otherwise). BUMP-1D (RUN-1): and its `losses`, every dusk before it (lostAll). */
 function lastChanceDusk(playerId: string, lcDay: number, runId: string, now: number): GhostSnapshot {
   const lcDusk = probeLastChance().dusk; // HULL-ON (HEARTS; ruling 12a42239093fb6ec): the hearts rule's LAST CHANCE dusk (was LC_DUSK)
   const build = probeRunes(heroStartBuild("furnace"), lcDusk.day);
   build.hullBonus += LAST_CHANCE_HULL;
-  return { ...dusk(playerId, "furnace", lcDusk, build, runId, now), lastChance: { day: lcDay, boon: "hull" } };
+  return { ...dusk(playerId, "furnace", { ...lcDusk, losses: lostAll(lcDusk) }, build, runId, now), lastChance: { day: lcDay, boon: "hull" } };
 }
 
 /** AZ-BUMP (REQ-BFG-077, REQ-BFG-078): WEAVER's start deck with its dawn runes of days 1..2, uploaded at dusk 2 (1W 5L) with
@@ -276,11 +321,20 @@ function lastChanceDusk(playerId: string, lcDay: number, runId: string, now: num
 function npcDayDusk(playerId: string, road: readonly RoadEntry[], runId: string, now: number): GhostSnapshot {
   const build = probeRunes(heroStartBuild(NPC_HERO), NPC_DUSK.day);
   // HULL-ON (HEARTS; ruling 12a42239093fb6ec): day 1 won, so the start's lives (probeDusk: 10 hearts; 5 before hearts)
-  return { ...dusk(playerId, NPC_HERO, probeDusk(NPC_DUSK), build, runId, now), road: road.map((e) => ({ ...e })) };
+  // BUMP-1D (RUN-1): and the one dusk fought was won: no loss
+  return { ...dusk(playerId, NPC_HERO, probeDusk({ ...NPC_DUSK, losses: stated(0) }), build, runId, now), road: road.map((e) => ({ ...e })) };
+}
+
+/** BUMP-1D (RUN-1; REQ-BFG-059, REQ-BFG-116): FURNACE's day-12 reference deck with its twelve dawn runes (probeRunes), uploaded
+ *  at LONG_DUSK (9W and 2 draws at the start's lives) with its `losses` (0: `states`), or, for the forged row, without them.
+ *  Only under rules with the long run (the encoder and the decoder refuse a day past 10 otherwise). */
+function longRunDusk(playerId: string, states: boolean, runId: string, now: number): GhostSnapshot {
+  const build = probeRunes(heroRefBuild(LONG_HERO, LONG_DUSK.day), LONG_DUSK.day);
+  return dusk(playerId, LONG_HERO, probeDusk({ ...LONG_DUSK, ...(states ? { losses: 0 } : {}) }), build, runId, now);
 }
 
 /** The nine POSTs, in order, for `playerId` at time `now` (eleven with LAST CHANCE; thirteen with the NPC day too, as
- *  bb-0.10.0 has both). Pure: no key, no network. */
+ *  bb-0.10.0 has both; fifteen with the long run, as bb-0.11.0 has, BUMP-1D). Pure: no key, no network. */
 export function probePlan(playerId: string, now: number): PlannedPost[] {
   const run = `probe-${now}`;
   const plan: PlannedPost[] = [];
@@ -288,31 +342,36 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
   // FLIP-X2: the start deck with its day-1 rune (probeRunes), so the exact count passes and each later row fails on the
   // one rule it exists to test (the budget, the record)
   // HULL-ON (HEARTS; cap's ruling 12a42239093fb6ec): day 1 at the start's lives (probeDusk: 10 hearts; 5 before hearts)
-  const honest = dusk(playerId, "furnace", probeDusk({ day: 1, wins: 0, lives: 5 }), probeRunes(heroStartBuild("furnace"), 1), run, now);
+  // BUMP-1D (RUN-1): and every row states its `losses` (stated: under the long run's rules): no dusk fought, none lost
+  const honest = dusk(playerId, "furnace", probeDusk({ day: 1, wins: 0, lives: 5, losses: stated(0) }), probeRunes(heroStartBuild("furnace"), 1), run, now);
   const honestText = encodeSnapshot(honest);
   const id = ghostId(honest);
   plan.push({ name: "furnace-signed", snapshot: honest, text: honestText, signed: true, expected: `201 {"id":"${id}"}`, pass: (a) => a.status === 201 && a.id === id });
   plan.push({ name: "furnace-unsigned", snapshot: honest, text: honestText, signed: false, expected: `401 ${UNSIGNED_ERROR}`, pass: (a) => a.status === 401 && a.error === UNSIGNED_ERROR });
   // 3. dishonest: the same deck with 1000 hull (4 ARMOR PACKs; NUM-1 hull x10, was 100) more than day 1's budget pays for
-  const over = dusk(playerId, "furnace", probeDusk({ day: 1, wins: 0, lives: 5 }), { ...honest.build, hullBonus: honest.build.hullBonus + 1000 }, `${run}-over`, now); // HULL-ON (HEARTS): the honest row's record
+  const over = dusk(playerId, "furnace", probeDusk({ day: 1, wins: 0, lives: 5, losses: stated(0) }), { ...honest.build, hullBonus: honest.build.hullBonus + 1000 }, `${run}-over`, now); // HULL-ON (HEARTS): the honest row's record; BUMP-1D: and its losses
   plan.push({
     name: "dishonest-signed", snapshot: over, text: encodeSnapshot(over), signed: true, expected: "422 deck failed validation: budget: ...",
     pass: (a) => a.status === 422 && a.error === "deck failed validation" && (a.errors ?? []).some((e) => e.startsWith("budget: ")),
   });
   // 4. unreachable: the honest deck under a record no run carries into that dusk (H2's record check)
-  const far = dusk(playerId, "furnace", UNREACHABLE_DUSK, honest.build, `${run}-unreachable`, now);
-  const farError = recordError(UNREACHABLE_DUSK);
+  // BUMP-1D (RUN-1): it states its losses (0: no dusk is fought before dusk 1), so the record check alone refuses it, and says so
+  // with them (recordError); the losses check (lossesProblem) asks nothing of it
+  const farLost = stated(0);
+  const far = dusk(playerId, "furnace", { ...UNREACHABLE_DUSK, losses: farLost }, honest.build, `${run}-unreachable`, now);
+  const farError = recordError(UNREACHABLE_DUSK, farLost);
   plan.push({ name: "unreachable-signed", snapshot: far, text: encodeSnapshot(far), signed: true, expected: `422 ${farError}`, pass: (a) => a.status === 422 && a.error === farError });
   // 5-7. the other heroes bb-0.9.1 takes: their honest day-3 reference decks, each stored as its own record
   for (const hero of STORED_HEROES) {
     // HULL-ON (HEARTS; ruling 12a42239093fb6ec): probeDusk(HERO_DUSK), a win and a draw at the start's lives (10 hearts)
-    const s = dusk(playerId, hero, probeDusk(HERO_DUSK), probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes
+    // BUMP-1D (RUN-1): so none of its two dusks was lost: losses 0 (day - 1 = 1 win + 0 losses + 1 draw)
+    const s = dusk(playerId, hero, probeDusk({ ...HERO_DUSK, losses: stated(0) }), probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes
     const hid = ghostId(s);
     plan.push({ name: `hero-${hero.toUpperCase()}`, snapshot: s, text: encodeSnapshot(s), signed: true, expected: `201 {"id":"${hid}"}`, pass: (a) => a.status === 201 && a.id === hid });
   }
   // 8-9. the heroes bb-0.9.1 refuses: the same honest reference decks, as the canonical text built by hand
   for (const hero of REFUSED_HEROES) {
-    const s = dusk(playerId, hero, probeDusk(HERO_DUSK), probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes; HULL-ON (HEARTS): probeDusk
+    const s = dusk(playerId, hero, probeDusk({ ...HERO_DUSK, losses: stated(0) }), probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes; HULL-ON (HEARTS): probeDusk; BUMP-1D: and the same losses as the stored heroes
     const want = heroError(hero);
     plan.push({ name: `hero-${hero.toUpperCase()}`, snapshot: s, text: canonicalText(s), signed: true, expected: `400 ${want}`, pass: (a) => a.status === 400 && a.error === want });
   }
@@ -323,7 +382,7 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
     const lid = ghostId(lc);
     plan.push({ name: "lastchance-signed", snapshot: lc, text: encodeSnapshot(lc), signed: true, expected: `201 {"id":"${lid}"}`, pass: (a) => a.status === 201 && a.id === lid });
     const forged = lastChanceDusk(playerId, LC_FORGED_DAY, `${run}-lastchance-day3`, now);
-    const fErr = lcRecordError(plc.dusk, LC_FORGED_DAY);
+    const fErr = lcRecordError(plc.dusk, LC_FORGED_DAY, lostAll(plc.dusk)); // BUMP-1D (RUN-1): the record error names the losses the row states
     plan.push({ name: "lastchance-day3", snapshot: forged, text: encodeSnapshot(forged), signed: true, expected: `422 ${fErr}`, pass: (a) => a.status === 422 && a.error === fErr });
   }
   // 12-13. AZ-BUMP (REQ-BFG-077, REQ-BFG-078): the NPC day's rows, under rules with the NPC day (the rules gate): an honest
@@ -338,6 +397,16 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
       name: "npcday-forged", snapshot: nf, text: encodeSnapshot(nf), signed: true, expected: `422 deck failed validation: ${NPC_ROAD_ERROR}`,
       pass: (a) => a.status === 422 && a.error === "deck failed validation" && (a.errors ?? []).includes(NPC_ROAD_ERROR),
     });
+  }
+  // 14-15. BUMP-1D (RUN-1; REQ-BFG-059, REQ-BFG-116): the long run's rows, under rules with it (the rules gate): an honest upload
+  // on a day past 10 that states its losses (LONG_DUSK: day 12), then the same deck and record without them, which the
+  // upload check of RUN-1 (records.ts lossesProblem, after the record check) refuses on its own: the record is one a run reaches
+  if (probeHasLongRun()) {
+    const lr = longRunDusk(playerId, true, `${run}-longrun`, now);
+    const lrid = ghostId(lr);
+    plan.push({ name: "longrun-signed", snapshot: lr, text: encodeSnapshot(lr), signed: true, expected: `201 {"id":"${lrid}"}`, pass: (a) => a.status === 201 && a.id === lrid });
+    const bare = longRunDusk(playerId, false, `${run}-longrun-nolosses`, now);
+    plan.push({ name: "longrun-nolosses", snapshot: bare, text: encodeSnapshot(bare), signed: true, expected: `422 ${LOSSES_ERROR}`, pass: (a) => a.status === 422 && a.error === LOSSES_ERROR });
   }
   return plan;
 }
@@ -405,7 +474,7 @@ function shown(a: ProbeAnswer): string {
 }
 
 /**
- * The nine checks against `base`. `saveId` gets the probe's player id before the first POST. Resolves every check, each
+ * The checks of probePlan (nine before LAST CHANCE; BUMP-1D: fifteen) against `base`. `saveId` gets the probe's player id before the first POST. Resolves every check, each
  * with what was expected and what came back; a POST with no answer is a failed check. Throws only if no identity can be
  * made or `saveId` throws, before any POST.
  */
