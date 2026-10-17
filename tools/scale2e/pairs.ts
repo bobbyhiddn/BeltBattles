@@ -22,11 +22,11 @@
 import { writeFileSync } from "node:fs";
 import { ITEMS, type HeroId, type ItemDef } from "../../src/sim/content";
 import { simulate } from "../../src/sim/battle";
-import { cloneBuild, type Build } from "../../src/sim/deck";
+import { cloneBuild, turretList, type Build } from "../../src/sim/deck";
 import { hashSeed, Rng } from "../../src/core/rng";
 import { newRun } from "../../src/game/run";
 import { clearStarCache } from "../../src/sim/stars";
-import { scaleRules } from "../../src/sim/scale";
+import { scaleRules, setScaleRigs } from "../../src/sim/scale";
 import { READER_FEEDERS } from "../../src/sim/scaleRating";
 import { parField } from "../../src/sim/harness/par";
 import { placeFreePart } from "../../src/sim/harness/player";
@@ -39,8 +39,9 @@ const K = Number(arg("--k", "16")), M = Number(arg("--m", "6")), SEEDS = Number(
 const STAR = Number(arg("--star", String(DAY <= 4 ? 1 : DAY <= 7 ? 2 : 3)));
 const OUT = arg("--out", `pairs-${HERO}-d${DAY}.json`);
 const ANSWERS = arg("--answers", "off") === "on";
-const POISON = process.argv.includes("--poison");
 const NOJAM_OFF = arg("--nojam", "on") === "off";
+// --drake2 (E4, REQ-BFG-110): DRAKE NOZZLE in BOTH switch states on the very same decks (built with the switch off, fought off then on in one process)
+const DRAKE2 = process.argv.includes("--drake2");
 const FOES: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const sets: string[] = [];
 process.argv.forEach((a, i) => { if (a === "--set") sets.push(process.argv[i + 1]); });
@@ -174,12 +175,62 @@ function patchStars(id: string, nums: number[]): string {
 // ---- main ----------------------------------------------------------------------------------------------------------
 const t0 = Date.now();
 const out: Record<string, unknown> = { hero: HERO, day: DAY, star: STAR, k: K, m: M, seeds: SEEDS, pool: POOL, sets, nojam: NOJAM_OFF ? "off" : "on", rows: [] as unknown[] };
+if (DRAKE2) setScaleRigs(false); // the decks are built in the off world: no scale piece in any deck, DRAKE + rig placed as the base game would
 const bases = parField(HERO, DAY, POOL);
 FIELD = [
   ...bases.slice(0, M).map((b, i) => ({ b, key: `${HERO}:${i}` })),
   ...FOES.filter((h) => h !== HERO).flatMap((h) => parField(h, DAY, M).map((b, i) => ({ b, key: `${h}:${i}` }))),
 ];
 log(`par fields built (${bases.length} bases, ${FIELD.length} foes) in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+
+// ---- --drake2: DRAKE NOZZLE on the same decks, switch off and on (REQ-BFG-110; REVIEW-SCALE1 F5) -------------------------------
+// With the switch on DRAKE converts only the DMG from rigs' stat rows (Payload.flat), never a FOR EACH rig's (Payload.each:
+// LONG HAUL, PINCER, COUNTERWEIGHT, LODESTONE); off it converts all of it. Per clean base deck (no DRAKE, none of the four rigs):
+//   base  the deck;   D0  every turret's core replaced by DRAKE at the day's star;   DX  D0 + one rig X (placed free, as the par player would)
+//   XA    base + X (no DRAKE; the rig's own lift)
+// Each is fought with the switch off and again on (same foes, same seeds). What moves: DX on - DX off (the guard), the rig's lift on
+// a DRAKE deck (DX - D0) in each state, D0 on - D0 off (the control: what the state alone does to a DRAKE deck), XA - base.
+if (DRAKE2) {
+  const XS = ["longhaul", "pincer", "counterweight", "lodestone"];
+  const bs: { i: number; b: Build }[] = [];
+  for (let i = 0; i < bases.length && bs.length < K; i++) if (!holds(bases[i], "drake") && !XS.some((x) => holds(bases[i], x))) bs.push({ i, b: bases[i] });
+  const drakeDeck = (b: Build): Build => {
+    const c = cloneBuild(b);
+    let uid = Math.max(100, ...c.items.map((p) => p.uid), ...c.mods.map((m) => m.uid)) + 1;
+    for (const t of turretList(c)) {
+      const m = c.mods.find((q) => q.turret === t.slot && ITEMS[q.def]?.kind === "core");
+      if (m) { m.def = "drake"; if (STAR > 1) m.stars = STAR; else delete m.stars; }
+      else c.mods.push({ uid: uid++, def: "drake", turret: t.slot, ...(STAR > 1 ? { stars: STAR } : {}) });
+    }
+    return c;
+  };
+  const decks = bs.map(({ i, b }) => {
+    const d0 = drakeDeck(b);
+    return { i, b, d0, x: XS.map((x) => ({ x, dx: addPart(d0, x, STAR, `d2|${x}|${i}`), xa: addPart(b, x, STAR, `d2a|${x}|${i}`) })) };
+  });
+  log(`drake2: ${decks.length} clean bases (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+  type R = { i: number; base: number[]; d0: number[]; dx: Record<string, number[]>; xa: Record<string, number[]> };
+  const res: R[] = decks.map((d) => ({ i: d.i, base: [], d0: [], dx: Object.fromEntries(XS.map((x) => [x, [] as number[]])), xa: Object.fromEntries(XS.map((x) => [x, [] as number[]])) }));
+  for (const on of [false, true]) {
+    setScaleRigs(on);
+    decks.forEach((d, k) => {
+      res[k].base.push(fight(d.b, d.i, false).pts);
+      res[k].d0.push(fight(d.d0, d.i, false).pts);
+      for (const e of d.x) { res[k].dx[e.x].push(e.dx ? fight(e.dx, d.i, false).pts : NaN); res[k].xa[e.x].push(e.xa ? fight(e.xa, d.i, false).pts : NaN); }
+    });
+    log(`drake2: switch ${on ? "on" : "off"} fought (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+  }
+  const pp = (x: number): string => (Number.isNaN(x) ? "-" : `${x >= 0 ? "+" : ""}${(100 * x).toFixed(1)}`);
+  for (const x of XS) {
+    const ok = res.filter((r) => !Number.isNaN(r.dx[x][0]) && !Number.isNaN(r.xa[x][0]));
+    log(`${x.padEnd(13)} n ${ok.length}/${res.length} | rig's lift on a DRAKE deck: off ${pp(mean(ok.map((r) => r.dx[x][0] - r.d0[0])))} on ${pp(mean(ok.map((r) => r.dx[x][1] - r.d0[1])))} | DRAKE+rig on - off ${pp(mean(ok.map((r) => r.dx[x][1] - r.dx[x][0])))} (control D0 on - off ${pp(mean(ok.map((r) => r.d0[1] - r.d0[0])))}) | rig alone - base: off ${pp(mean(ok.map((r) => r.xa[x][0] - r.base[0])))} on ${pp(mean(ok.map((r) => r.xa[x][1] - r.base[1])))}`);
+  }
+  out.drake2 = { xs: XS, res };
+  out.seconds = Math.round((Date.now() - t0) / 1000);
+  writeFileSync(OUT, JSON.stringify(out));
+  log(`done in ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${OUT}`);
+  process.exit(0);
+}
 
 interface Built { i: number; base: Build; feeder: Build | null; pair: Build | null; temper: Build | null; whet: Build | null }
 const builtOf = new Map<PairDef, Built[]>();
