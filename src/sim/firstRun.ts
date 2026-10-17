@@ -23,7 +23,8 @@
 // THE SWITCH: FIRST_RUN (false), declared and read as NPC_DAY is (npcDay.ts): firstRunRules(), setFirstRun(on) and
 // withFirstRun(fn, on = true). It does something only with PLAIN_RIGS on too (F1: its day-1 stock is the plain commons):
 // firstRunGate() is the one test every reader asks. Off (either switch), nothing changes: a first run is a normal run and
-// bb-0.9.7 plays byte for byte. BUMP-1D turns it on with PLAIN_RIGS and 1D's rules bump.
+// bb-0.9.7 plays byte for byte. A later rules release turns it on with PLAIN_RIGS, with its own rules literal (BUMP-1D left
+// it off: RULING-BUMP-R1 R1.1).
 //
 // Shared, pure and dependency-light (no DOM): the client, the server and the tests read the same lists.
 

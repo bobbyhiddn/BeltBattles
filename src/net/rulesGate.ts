@@ -306,8 +306,8 @@ export function shapes2World(rules: unknown): boolean {
 }
 
 /** FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F4): why a snapshot can't carry the first-run flag, or null: the gate off
- *  (FIRST_RUN or PLAIN_RIGS off: a first run is then a normal run, so no deck may claim one). BUMP-1D ties it to 1D's
- *  rules version when it flips both switches. */
+ *  (FIRST_RUN or PLAIN_RIGS off: a first run is then a normal run, so no deck may claim one). A later rules release ties
+ *  it to its own rules version when it flips FIRST_RUN (BUMP-1D left FIRST_RUN off: RULING-BUMP-R1 R1.1). */
 export function firstRunGateProblem(): string | null {
   return firstRunGate() ? null : "not in this rules version yet";
 }
