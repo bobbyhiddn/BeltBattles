@@ -1217,8 +1217,11 @@ const SCALE_NOTES: Readonly<Record<string, (e: ItemDef) => string>> = {
   quench: () => "IT COUNTS THE {*BURN} ON THE FOE'S HULL AT THE HIT. THE SLUG KEEPS THE {DMG}.",
   pressure: () => "IT COUNTS THE {SLUG} IN ITS CHAMBER AND BACKED UP AT ITS INTAKES WHEN IT FIRES. IT NEVER JAMS.",
   shieldwall: (e) => {
-    const per = e.gate!.reads!.per ?? 1, top = PLATE_CAP - 1;
-    return `IT COUNTS YOUR {*PLATE} AT THE HIT, ROUNDED DOWN: ${fmtDmg(top)} {*PLATE} IS ${fmtCount(Math.floor(top / per))} TIMES.`;
+    // SCALE-2e E6 (REQ-BFG-089; SCALE-2f carry-over 2, REPORT-SCALE2f 9.2 b): the example in the face's own units. The face says
+    // FOR EACH <per> SHIELD with the day's per (sustNow: 10 on day 1, 28 on day 5), so the example is 3 x per - 1: it reads 2 TIMES
+    // (day 1: `29 SHIELD IS 2 TIMES`, day 5: `83 SHIELD IS 2 TIMES`), not day 1's `239 SHIELD IS 23 TIMES` against a bigger per
+    const per = Number(fmtDmg(sustNow(e.gate!.reads!.per ?? 1)));
+    return `IT COUNTS YOUR {*PLATE} AT THE HIT, ROUNDED DOWN: ${fmtDmg(3 * per - 1)} {*PLATE} IS ${fmtCount(2)} TIMES.`;
   },
   spallcatcher: () => "IT COUNTS EVERY ENEMY HIT ON YOUR SHIP THIS FIGHT, BLOCKED OR NOT, WHEN IT FIRES.",
   keg: () => "IT COUNTS ITS OWN HITS THIS FIGHT, THIS ONE TOO. THE COUNT SHOWS ON IT.",
