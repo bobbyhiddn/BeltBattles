@@ -3576,14 +3576,17 @@ and six shaped (REQ-BFG-114); softer seed ghosts and a gentler floor (REQ-BFG-09
 rebuilt for days 1-16 (192 seed ghosts); and PROFILE-UP, the signed profile upload (PUT /v1/profile). The label moves
 0.9.10 -> 0.9.11 (src/version.ts:2, package.json:4, package-lock.json:3 and :9), so the title reads V0.9.11.
 
-**What ships.** Branch r0911 at its tip, the release record commit (tag stage-0911; the launch text names its 12 hex):
-r0911-base (live-0910); the merge of bump-accepted (r0911-bump 6a17f7b120f7: 276 files against r0911-base, +17,895
--1,948: src 73, server 10, tools 13, tests 179, docs/CHANGELOG.md; nothing under deploy/ and none of the package files
-or src/version.ts); three test and script commits (f4aab47: runes.parity's decks test 600 s and the harness CPU budget
-240 s, tests only, pre-approved in RULING-BUMP-R3 Q2; 11ff116: asynccheck's slow-server row 20 s and its PUT /v1/profile
-rows; 82620e3: the page smoke's runner takes HEART_COSTS [1, 2, 2] and the run's long-run mark, scripts only); the label
-and CHANGELOG commit 88c2e865e10b; and the release record (this runbook, docs/CUSTOMIZE.md, docs/ASYNC.md and
-deploy/GAME_BUILD.txt).
+**What ships.** Branch r0911 at its tip, the closing docs commit (tag stage-0911; the launch text names its 12 hex; the
+release record is 0be1bbb1b279, two commits before it): r0911-base (live-0910); the merge of bump-accepted (r0911-bump
+6a17f7b120f7: 276 files against r0911-base, +17,895 -1,948: src 73, server 10, tools 13, tests 179, docs/CHANGELOG.md;
+nothing under deploy/ and none of the package files or src/version.ts); three test and script commits (f4aab47:
+runes.parity's decks test 600 s and the harness CPU budget 240 s, tests only, pre-approved in RULING-BUMP-R3 Q2;
+11ff116: asynccheck's slow-server row 20 s and its PUT /v1/profile rows; 82620e3: the page smoke's runner takes
+HEART_COSTS [1, 2, 2] and the run's long-run mark; the last two scripts only); the label and CHANGELOG commit
+88c2e865e10b; the release record 0be1bbb1b279 (this runbook, docs/CUSTOMIZE.md, docs/ASYNC.md and deploy/GAME_BUILD.txt);
+d421a61, made after the release record (scripts only: the page smoke's phone run ends a shaped piece's finger the game's
+finger lift below its plan, so a SPIKE RAIL drag is no longer dropped off the deck; it builds pages byte-identical to
+the record's); and the closing docs commit (this section's tip and checks, nothing else).
 - **The page** is BeltBattles-0.9.11-88c2e865e10b-online.html, 1,014,964 bytes, sha256 `574b7ba79251aee5…`
   (GAME_BUILD.txt holds the whole hash), built at 88c2e86 and staged from ../output-stage0911/pages/. It is 78,357 bytes
   larger than 0.9.10's page (936,607) and the same size as BUMP-1D's own page at 54bd779 (1,014,964: the label is as
@@ -3610,13 +3613,20 @@ deploy/GAME_BUILD.txt).
   tests/run1.rule.test.ts:197-204). It plays the new heart costs (a loss on days 7-10 costs 2, was 3), draws the rest
   of its shops from its saved ware list (so the twelve new rigs are not in them), and its dusk uploads are refused with
   a 422 (a bb-0.11.0 upload must state `losses`, src/net/records.ts:262-265) and stay off the server. (b) *A run saved
-  by 0.9.11 and loaded by v22 (0.9.10, the rollback)*: the same key and version 8, so v22's loader accepts it
-  (r0911-base src/game/save.ts:267); it keeps the unknown `longRun: true` and reads nothing from it, clamps the day to
-  10 (:311), so a long run on day 12 loads as day 10 and ends "complete" after one more dusk, and drops a LAST CHANCE
-  from day 10 on as malformed (:302; lastChanceShapeOk's day bound is RUN_DAYS). A deck holding one of the twelve new rigs names an item v22 does not know: as
-  section 8 records for 0.9.9 on 0.9.8, CONTINUE is expected to do nothing and NEW RUN to replace the save. That pair
-  is **not rehearsed in a browser** (the rollback probe, kit0911/rbprobe, is a browser check: report-only, carried to
-  the STAGE's browser block).
+  by 0.9.11 and loaded by v22 (0.9.10, the rollback)*, **rehearsed in a browser** (kit0911/rbprobe on v22's page,
+  W/ref/pages-0910/BeltBattles-0.9.10-d92ef999a23d.html; the STAGE report's section 15; O/browser/rbprobe-*.log with
+  stills): the same key and version 8, so v22's loader accepts the save and its title offers CONTINUE (`DAY 10/10 ·
+  FURNACE · 5-6` for a day-12 run: the day is clamped to 10, r0911-base src/game/save.ts:311, `longRun: true` is kept and
+  read by nothing, and a LAST CHANCE from day 10 on is dropped as malformed, :302). **What CONTINUE does depends on the
+  rigs the run holds.** A deck holding one of the twelve new rigs (a RASP): CONTINUE does nothing, every time (the title
+  stays; page error `unknown item rasp`), and the save is left as it was. A caravan whose shop offers one (SPARK GAP,
+  BALLAST): CONTINUE opens the build screen and **the screen goes black** (page error `Cannot read properties of
+  undefined (reading 'rarity')`; after a reload the title is back and CONTINUE goes black again), and v22 rewrites the
+  save shorter (1,762 to 942 characters in the probe). Both probe saves had a new rig in their shop, as a save made at a
+  dawn may (the shop draws from the pool the new rigs are in). In every case NEW RUN, from the title (after a reload
+  where the screen is black), starts a normal day-1 run and replaces the save: **a player's 0.9.11 run in progress is
+  lost on the rollback, silently.** A save holding only pieces v22 knows, in its deck and its shop, would load as a
+  day-10 run and end "complete" after one more dusk (from the code, not probed).
 
 **The release command** (`node /app/dist/ghost-server.mjs seed`) finds the live store holding bb-0.10.0's pool (120
 ghosts, 0.9.9.1's) and nothing under bb-0.11.0: `seed: rules bb-0.11.0, 192 pool ghosts on tigris (...)` with
@@ -3626,14 +3636,15 @@ upload under it are left exactly as they are**: the Tigris seed lists and writes
 (server/tigrisStore.ts replacePool, poolPrefix(rules, day)). Rehearsed twice, on the tip's real CLIs and v22's
 (W/ref/v22-dist): (1) on a scratch JSON-lines store (kit0911/seed0911.sh, O/logs/seed0911-<tip>.log): v22's seed on a
 fresh store writes `120 written, 0 unchanged, 0 removed`; the tip's seed over it **`192 written, 0 unchanged, 0
-removed`** in 2.4 s (nice 19, one process, peak RSS 170,128 kB, no battle played) with bb-0.10.0's 120 still listed
+removed`** in 1.9 s (nice 19, one process, peak RSS 171,976 kB, no battle played) with bb-0.10.0's 120 still listed
 and its lines in pool.jsonl untouched; run again **`0 written, 192 unchanged, 0 removed`**; `list --rules bb-0.11.0`
 reads sixteen day rows of 12 and `all 192 0 0`, `--rules bb-0.10.0` `all 120 0 0`; revalidate's dry run `plan: delete 0
 record(s) of bb-0.11.0; keep 192 seed-pool ghost(s) and 0 upload(s)`. (2) **On the Tigris path** (kit0911/tigris-rollback.sh:
 the same CLIs with BB_GHOST_STORE=tigris against the in-process fake S3, tools/fakeS3.ts, SigV4-strict; O/logs/
 tigris-rollback-<tip>.log): the same counts, with bb-0.10.0's 120 objects byte-identical before and after, 192 objects
 under bb-0.11.0, and no DELETE request at all. The seed plays no battle; fly.toml's [[vm]] has 256 MB and this seed's
-peak RSS is 170,128 kB on this host (0.9.10's 120 ghosts: 97,604 kB): the STAGE report has the one-core number at the tip.
+peak RSS is about 171,000 kB on this host (170,128-171,976 kB over the rehearsals; 185,436 kB with the seed pinned to one
+core, kit0911/seedtime.sh at the tip; 0.9.10's 120 ghosts: 97,604 kB): watch the release command's exit at the launch.
 
 **The launch call is the Prime's** (CMD-0911, from CMD-0910's text; run once, under its own operator approval, L4).
 Fly serves 0.9.10's page now (v22), so the guards are: refuse unless Fly serves the 0.9.10 page, byte for byte
@@ -3701,20 +3712,33 @@ unchanged, 192 removed`; O/logs/seed0911-<tip>.log, step e). Never run v22's see
 bb-0.11.0 data. Fly's store is Tigris (fly.toml's BB_GHOST_STORE = "tigris"), where the rollback is clean. An open
 0.9.11 tab keeps its page until it reloads and asks v22's server for bb-0.11.0 ghosts it cannot decode (it fights its
 own stand-in), its uploads answer 422 and its PUT /v1/profile 404, all silent. A run saved by 0.9.11 is the case
-above, (b). fly.toml is unchanged, so the image route is safe for the server. Before v22: v21 = 0.9.9.1 (section 29's
-rollback).
+above, (b): on v22 its CONTINUE does nothing or goes black and NEW RUN replaces it, so a rollback costs every player the
+run in progress. fly.toml is unchanged, so the image route is safe for the server. Before v22: v21 = 0.9.9.1 (section
+29's rollback).
 
 **The server note** (RULING-BUMP-R3 Q3, not a defect): there is no roadCap warm-up at boot, so the first deep upload per
 process pays about 5 s, once. It is on BUMP-1E's list.
 
-**The checks of this STAGE.** At r0911-bump (6a17f7b120f7, the bump's tree): tsc and typecheck:server 0 errors,
-typecheck:tests PASS at 164 (tests/tsc-tests-baseline.json stays 164), the fingerprint (853,244 bytes,
-0c9159c337f8f7c2; 352 decks, 1,056 battles) and all 41 parBench lines (`fingerprint all: 145416d1`) IDENTICAL to the
-bump's pins. At 88c2e86 (the label): the label tests (tests/rc.label, tests/packs.rules: 8 passed), the three builds,
-and the rehearsals above (seedcheck.sh: every `expect:` yes, incl. days 1-16 and the label `0.9.11`). The stand-in check
-(the 16-day pool regenerated day-parallel from the STAGE's own bundle, then `--check`), the gate at the record commit
-(the smoke 45 of 45, luckcaps `regenerated 7412 bytes`), the whole suite and the browser block are in the STAGE report
-(O/STAGE-REPORT.md); none of them changes a file.
+**The checks of this STAGE** (the numbers; the logs are in the STAGE report, O/STAGE-REPORT.md, and none of the checks
+changes a file). At r0911-bump (6a17f7b120f7, the bump's tree): tsc and typecheck:server 0 errors, typecheck:tests PASS
+at 164 (tests/tsc-tests-baseline.json stays 164), the fingerprint (853,244 bytes, 0c9159c337f8f7c2; 352 decks, 1,056
+battles) and all 41 parBench lines (`fingerprint all: 145416d1`) IDENTICAL to the bump's pins. The stand-in check (the
+16-day pool regenerated from the STAGE's own bundle at r0911-bump, then `--check`): **IDENTICAL**, 99,984 bytes,
+4,137,088 battles; no file of its closure (87 files) changed after r0911-bump, so it carries to the tip. At 88c2e86 (the
+label): the label tests (tests/rc.label, tests/packs.rules: 8 passed) and the three builds. At the record commit
+0be1bbb1b279: the gate (tsc 0, typecheck:server 0, typecheck:tests PASS at 164, **the smoke 45 of 45**, luckcaps
+**IDENTICAL**, `regenerated 7412 bytes`), fp and parBench IDENTICAL again, seedcheck.sh 14 of 14 and probecheck.sh 17 of
+17 (every `expect:` yes), the seed rehearsals above, capsearch (report-only) 2 ok of 19, and the whole suite **ALL GREEN:
+432 files, 5,069 tests passed, 7 opt-in skipped**. The page smoke (pages099c.sh off and on at d421a61, whose pages are
+byte-identical to the record's): **4 of 4 runs offline and 4 of 4 online**, 0 console errors, 0 NOT HONEST. The browser
+block at the record commit, with d421a61's runner: touchcheck noprof 2,215 of 2,215 and mixed 2,107 of 2,107 (0.9.9's
+mixed: 2,044; the difference is the REPLAY section's 63 rows), card3check 13 of 13, stylecheck 180 of 180, explaincheck
+35 of 35, surge 4 of 4, asynccheck 62 of 62, rcruns offline 32 of 32 and online 44 of 44, mirror PASS, runeshots 103,
+motiontap 123 of 123, the c1 and p1 stills 0 failed, the field, scout and LAST CHANCE stills, 311 shots, and a
+like-for-like samepixels account against the live build (every differing frame in a class of the brief's ruling 23). The
+mutants: 36 of 36 caught (CM2b's anchor moved with the rules and was re-anchored as CM2c, which is caught). Report-only:
+motionperf against v22's page (60 fps in every scene, p99 16.8 ms) and the rollback probe (the saved-run bullet above,
+(b)).
 
 ## Troubleshooting
 
