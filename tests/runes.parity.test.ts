@@ -137,7 +137,7 @@ describe("release X parity: the record and its decks", () => {
     const differ = Object.keys(F.decks).filter((k) => !isDeepStrictEqual(now[k], F.decks[k]));
     expect(differ, differ.join(", ")).toEqual([]);
     for (const [k, b] of Object.entries(F.decks)) expect(b.runes?.length, k).toBe(dayOf(k));
-  }, 120_000);
+  }, 300_000); // BUMP-1D P6 (RULING-RUN1-R2 R2.3): 300 s, was 120 s (it timed out under load, and passes alone)
 });
 
 describe("release X parity: the battles", () => {
@@ -151,5 +151,5 @@ describe("release X parity: the battles", () => {
     }
     console.log(`runes parity (release X): ${F.battles.length} battles replayed in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${moved.length} rows moved`);
     expect(moved, moved.slice(0, 10).join("\n")).toEqual([]);
-  }, 120_000);
+  }, 300_000); // BUMP-1D P6 (RULING-RUN1-R2 R2.3): 300 s, was 120 s (it timed out under load, and passes alone)
 });
