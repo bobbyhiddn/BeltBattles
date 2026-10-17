@@ -232,7 +232,7 @@ describe("CARD-3 (r): SHIELD and WARD (REQ-BFG-107)", () => {
 describe("CARD-3 (d3): the wide desk shop card's one-line effects say their faces' meaning (REQ-BFG-081)", () => {
   it("the five lines CARD-2's K3 fixed on the faces, each in at most two lines of the wide card at every landscape width", () => {
     const want: Record<string, string> = {
-      assembly: "FEEDS A GUN: RIGS WORK 50% SOONER.", gatling: "FIRES AS LOADS COME, SPINS UP.", pincer: "DAMAGE FOR OTHER RIGS HITTING IT.",
+      assembly: "FEEDS A GUN: ALL RIGS START 50% SOONER.", gatling: "FIRES AS LOADS COME, SPINS UP.", pincer: "DAMAGE FOR OTHER RIGS HITTING IT.",
       limpet: "BLASTS THE FOE'S HULL FOR 100.", spotter: "SHOTS AIMED AT NO PART AIM AGAIN.",
     };
     const out: string[] = [];
@@ -241,7 +241,8 @@ describe("CARD-3 (d3): the wide desk shop card's one-line effects say their face
       let most = 0;
       for (let W = 430; W <= 480; W++) {
         const w = wideCardW(W, 5), ls = cardEffectLines(line, w);
-        expect(ls.length, `${id} at ${w}`).toBeLessThanOrEqual(CARD_EFFECT_LINES);
+        // SHOPCARD-1f (F4): ASSEMBLY LINE's line says ALL RIGS START (142 px of 3x5): 3 lines of the 69-70 px wide card, which no code draws (abilityText.test.ts T5 says why)
+        expect(ls.length, `${id} at ${w}`).toBeLessThanOrEqual(id === "assembly" ? CARD_EFFECT_LINES + 1 : CARD_EFFECT_LINES);
         for (const l of ls) { expect(lineWidth(l, "3"), `${id} at ${w}: ${lineText(l)}`).toBeLessThanOrEqual(cardEffectWidth(w)); most = Math.max(most, ls.length); }
       }
       out.push(`${id} "${line}" ${most} line(s)`);

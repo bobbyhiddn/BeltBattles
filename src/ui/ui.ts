@@ -168,11 +168,12 @@ export function button(ui: UI, g: G, id: string, r: Rect, label: string, o: Butt
   if (o.sub) {
     // centre the label + sub block in the bevel's fill (rows y+2 .. y+h-4)
     const top = r.y + 2 + dy + Math.max(0, Math.floor((r.h - 5 - (fh + 8)) / 2));
-    drawText(g, label, r.x + r.w / 2, top, text, { font, align: "center" });
+    drawText(g, label, r.x + r.w / 2, top, text, { font, align: "center", star5: true });
     drawText(g, o.sub, r.x + r.w / 2, top + fh + 3, o.subColor ?? text, { font: "3", align: "center" });
   } else {
     const blinkOff = o.blink && Math.floor(performance.now() / 300) % 2 === 0;
-    if (!blinkOff) drawText(g, label, r.x + r.w / 2, r.y + Math.floor((r.h - 1 - fh) / 2) + dy, text, { font, align: "center" });
+    // SHOPCARD-1f (F1): a label's ★ is drawn as a real star (font.ts TextOpts.star5; the 3x5 glyph reads as an asterisk), the label's width unchanged
+    if (!blinkOff) drawText(g, label, r.x + r.w / 2, r.y + Math.floor((r.h - 1 - fh) / 2) + dy, text, { font, align: "center", star5: true });
   }
   ui.add({ id, r: o.hit ?? r, onTap: o.disabled ? o.onBlocked : o.onTap, block: true });
 }

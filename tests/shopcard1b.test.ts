@@ -132,7 +132,7 @@ describe("SHOPCARD-1b F4 (READ-9 fix 4): the faces carry their one missing claus
   });
   it("ASSEMBLY LINE: YOUR RIGS START n% SOONER / AT ONCE (battle.ts:714-736 and 979-981: each rig comes online at the fight's start at a delay x the line's factor); SHOPCARD-1c G8: EACH FIGHT, START WORKING, two rows", () => {
     expect([1, 2, 3].map((s) => rules("assembly", s)[0])).toEqual([
-      "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER.", "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 75% SOONER.", "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING AT ONCE.", // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
+      "WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER.", "WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 75% SOONER.", "WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING AT ONCE.", // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     ]);
     for (const s of STARS) expect(rows(rules("assembly", s)[0])).toBe(2);
   });
@@ -175,7 +175,7 @@ describe("SHOPCARD-1b F6 (READ-9 fix 6): LIMPET WORKS' number is the blast's", (
       const dmg = (faceLines("limpet", s, { day })!.stats ?? "");
       const [line] = rules("limpet", s, day);
       // SHOPCARD-1d (H2; READ-11 fix list 2): the DMG lands once, as a blast (was "THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.", 1c)
-      expect(line, `★${s} day ${day}`).toBe("THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT.");
+      expect(line, `★${s} day ${day}`).toBe("THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER ITS SLUG HITS ANYTHING.");
       // 1c: the only number the line holds is the delay; the blast is the stat row's DMG alone (factoryStats: base 0 + the blast, x D(day))
       expect(stripIcons(line).replace(/3/, "").match(/\d/), `★${s} day ${day}: no second number`).toBeNull();
       expect(stripIcons(dmg).length, `★${s} day ${day}: the stat row holds the DMG`).toBeGreaterThan(0);
@@ -198,7 +198,7 @@ describe("SHOPCARD-1b F7 (READ-9 fix 7): MANTLET's tile and GRAPNEL GUN's slug",
   it("GRAPNEL GUN: SHOT: A HIT ON A FOE BELT OR RIG RIPS n SLUG(S) (battle.ts:2355-2386 rip() splices the foe's slugs off its belts; nothing goes to the shooter); SHOPCARD-1c G6: only a hit, one verb, two rows (was LOSES, one row)", () => {
     for (const s of STARS) {
       const n = effectAt("grapnel", s).core!.rip!;
-      expect(rules("grapnel", s), `★${s}`).toEqual([`SHOT: A HIT ON A FOE BELT OR RIG RIPS ${n} SLUG${n === 1 ? "" : "S"}.`]);
+      expect(rules("grapnel", s), `★${s}`).toEqual([`SHOT: A HIT ON A FOE BELT OR RIG DESTROYS ${n} SLUG${n === 1 ? "" : "S"} NEAR IT.`]);
       expect(rows(rules("grapnel", s)[0]), `★${s}`).toBe(2);
     }
   });

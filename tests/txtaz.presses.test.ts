@@ -84,7 +84,9 @@ describe("TXT-AZ item 2: the presses' FEEDS A GUN (REQ-BFG-070)", () => {
     for (const def of ["armorpress", "mendpress"]) for (const s of STARS) {
       const r = rule(def, s);
       expect(r.text.startsWith("FEEDS A GUN: "), `${def} ★${s}`).toBe(true);
-      expect(rule("assembly", s).text.startsWith("FEEDS A GUN: "), `assembly ★${s}`).toBe(true);
+      // SHOPCARD-1f (F4; READ-13 fix list 4: 9 of 12 readers asked whether a belt that reaches a turret is enough): ASSEMBLY LINE's condition is `WHILE IT FEEDS A GUN:` now
+      // (battle.ts:2574-2587 assemblyLines counts it only while a belt of it reaches a turret); the presses keep `FEEDS A GUN:` first (not in 1f's list)
+      expect(rule("assembly", s).text.startsWith("WHILE IT FEEDS A GUN: "), `assembly ★${s}`).toBe(true);
       const w = textWidth(icons(r.text));
       if (w > widest) { widest = w; at = `${def} ★${s}`; }
       expect(w, `${def} ★${s}: ${r.text}`).toBeLessThanOrEqual(NEXT_LINE_W);

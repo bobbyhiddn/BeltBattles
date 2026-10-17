@@ -143,10 +143,10 @@ describe("Y3 row 23: QUENCH TANK turns each BURN into +30/+50/+70; no floor, no 
     expect([off.flat, off.burn]).toEqual([120, 0]);
   });
 
-  it("face: HIT: TURNS EACH BURN ON A SLUG INTO +30/+50/+70 DMG; ladder DMG +30/+50/+70", () => {
+  it("face: HIT: USES UP EACH BURN ON A SLUG FOR +30/+50/+70 DMG; ladder DMG +30/+50/+70", () => {
     // AZ-BUMP (the flip, LADDER_FIX): ★1 +30 -> +40, the star-ladder pass's QUENCH ★1, on its face and its ladder; off, +30
-    expect(lines("quench")).toEqual([40, 50, 70].map((d) => [`HIT: TURNS EACH {*BURN} ON A {SLUG} INTO +${d} {DMG}.`])); // SHOPCARD-1c (G10): whose BURN: the slug's it hits (was HIT: TURNS EACH {*BURN} INTO +${d} {DMG}.)
-    expect(withLadderFix(() => lines("quench")[0], false)).toEqual(["HIT: TURNS EACH {*BURN} ON A {SLUG} INTO +30 {DMG}."]);
+    expect(lines("quench")).toEqual([40, 50, 70].map((d) => [`HIT: USES UP EACH {*BURN} ON A {SLUG} FOR +${d} {DMG}.`])); // SHOPCARD-1c (G10): whose BURN: the slug's it hits (was HIT: TURNS EACH {*BURN} INTO +${d} {DMG}.)
+    expect(withLadderFix(() => lines("quench")[0], false)).toEqual(["HIT: USES UP EACH {*BURN} ON A {SLUG} FOR +30 {DMG}."]);
     oneLine("quench");
     expect(levels("quench", 1)).toEqual(["{DMG} [+40]/+50/+70", next(2, "+50 {DMG}")]);
     expect(hasFace("quench")).toBe(true);
@@ -425,7 +425,7 @@ describe("Y3 row 32: ASSEMBLY LINE: your rigs start 50%/75%/100% sooner, its own
   // ladder "[50%]/75%/100% SOONER" (★3's AT ONCE has no number, so the ladder lists the three forms)
   it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER/75% SOONER/AT ONCE; ladders DMG 30/45/60, 50% SOONER/75% SOONER/AT ONCE; no HOT START name, the ⓘ view's too (Y7b2, TXT-096)", () => {
     // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): WORK (was "FEEDS A GUN: YOUR RIGS START ...")
-    expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${p}.`])); // SHOPCARD-1c (G8): when and what (was FEEDS A GUN: YOUR RIGS START ${p}.) // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
+    expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${p}.`])); // SHOPCARD-1c (G8): when and what (was FEEDS A GUN: YOUR RIGS START ${p}.) // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     expect(faceAt("assembly", 1)!.stats).toEqual([["RATE", "17"], ["DMG", "30"], ["BELT", "2"]]);
     oneLine("assembly", 2); // SHOPCARD-1c (G8): two rows of the band (328 px; was one row)
     // Y7b2 (the words): was [..., "[50%]/75%/100% SOONER", "★3 HOT START", `NEXT ★2: ...`] (the name left with its rule)

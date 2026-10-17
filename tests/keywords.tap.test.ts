@@ -542,7 +542,15 @@ describe("U2f: the taller ⓘ view", () => {
     // longer face lines and the {BELT} definition moved 1e's own tree [3, 51, 106, 90, 68, 7] (1a) -> [3, 59, 97, 80, 63, 21, 2], above); not traced view by
     // view. At the merge commit itself (00c4eceba80c) the desk read [3, 59, 110, 89, 74, 24, 2]: BALLAST's stat row in words (MAX HULL +8%, commit
     // e951668, the only src change between the two measures) pages two desk views one more (the third bucket to the fourth)
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 59, 108, 91, 74, 24, 2]);
+    // SHOPCARD-1f (REQ-BFG-081), measured as above (the same 325 panels): ASSEMBLY LINE's ⓘ NOTES no longer hold the size note (F2: a 3-cell factory gets none), and the
+    // longer face lines of LIMPET WORKS (`... AFTER ITS SLUG HITS ANYTHING.`, 433 px), ASSEMBLY LINE (`WHILE IT FEEDS A GUN: ...`, 400 px) and GRAPNEL GUN (`... DESTROYS n SLUG(S)
+    // NEAR IT.`, 307-313 px) widen the desk column (and QUENCH TANK's `USES UP` line is 4 px longer), so 4 desk views page one less and 2 one more:
+    // desk [3, 59, 97, 80, 63, 21, 2] -> [3, 59, 98, 81, 61, 21, 2] (the op views are unchanged: op [8, 176, 86, 55] stands)
+    // SC-0912b (SHOPCARD-1f merged into sc0912, sc0912-accepted), measured on the merged tree (the same 361 panels): desk [3, 59, 108, 91, 74, 24, 2]
+    // (SC-0912's) -> [3, 59, 109, 92, 72, 24, 2]: the same histogram move as 1f's own tree (+1, +1, -2 in the third to fifth buckets: [3, 59, 97, 80,
+    // 63, 21, 2] -> [3, 59, 98, 81, 61, 21, 2] above), from the same cause (the longer LIMPET WORKS, ASSEMBLY LINE and GRAPNEL GUN lines and ASSEMBLY
+    // LINE's NOTES without the size note); not traced view by view. The op views are unchanged (op [8, 180, 112, 61] stands)
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 59, 109, 92, 72, 24, 2]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
