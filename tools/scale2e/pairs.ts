@@ -49,7 +49,7 @@ const log = (s: string): void => console.log(`pairs ${HERO} d${DAY} ★${STAR}: 
 if (!scaleRules()) { console.error("pairs.ts: SCALE_RIGS is off in this build (set the constant true in the export)"); process.exit(3); }
 
 /** The pair of each reader: its feeder copies (id x n, at the day's star) and what else the pair holds (a rune). */
-interface PairDef { reader: string; feeders: { id: string; n: number }[]; runes?: string[]; tag?: string }
+interface PairDef { reader: string; feeders: { id: string; n: number }[]; runes?: string[]; tag?: string; hidden?: boolean }
 const P = (reader: string, feeders: [string, number][] = [], extra: Partial<PairDef> = {}): PairDef => ({ reader, feeders: feeders.map(([id, n]) => ({ id, n })), ...extra });
 const PAIRS: PairDef[] = [
   P("quench", [["temper", 2]]), // KINDLING with 2 TEMPER
@@ -67,11 +67,14 @@ const PAIRS: PairDef[] = [
   // F3 (RETUNE-1's final GUARD): IRON WALL with the SHIELD runes, alone and with the roller pair
   P("shieldwall", [], { runes: ["rivet_hoard"], tag: "shieldwall+RIVET HOARD" }),
   P("shieldwall", [["plateroller", 2]], { runes: ["rivet_hoard"], tag: "shieldwall+2 PLATE ROLLER+RIVET HOARD" }),
-  P("shieldwall", [["cindermail", 1], ["temper", 2]], { tag: "shieldwall+CINDER MAIL+2 TEMPER" }),
-  P("shieldwall", [["cindermail", 1], ["temper", 2], ["plateroller", 2]], { runes: ["rivet_hoard"], tag: "shieldwall+CINDER MAIL+2 TEMPER+2 PLATE ROLLER+RIVET HOARD" }),
+  // the CINDER MAIL stack (CM + 2 TEMPER, and with the rune and the rollers) places on few decks (1 of 4 on weaver d6): asked for by tag only
+  P("shieldwall", [["cindermail", 1], ["temper", 2]], { tag: "shieldwall+CINDER MAIL+2 TEMPER", hidden: true }),
+  P("shieldwall", [["cindermail", 1], ["temper", 2], ["plateroller", 2]], { runes: ["rivet_hoard"], tag: "shieldwall+CINDER MAIL+2 TEMPER+2 PLATE ROLLER+RIVET HOARD", hidden: true }),
 ];
 const WANT = arg("--readers", "").split(",").filter(Boolean);
-const wanted = (p: PairDef): boolean => !WANT.length || WANT.includes(p.reader) || (p.tag !== undefined && WANT.includes(p.tag)) || WANT.includes("all");
+// --readers a,b: pairs by reader id (an id also takes its tagged variants) or by tag; none given: every pair but the hidden ones; "all": every one
+const wanted = (p: PairDef): boolean =>
+  WANT.includes("all") || (p.tag !== undefined && WANT.includes(p.tag)) || (WANT.length ? WANT.includes(p.reader) && !p.hidden : !p.hidden);
 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : NaN);
 const holds = (b: Build, id: string): boolean => b.items.some((p) => p.def === id) || b.mods.some((m) => m.def === id);
@@ -154,9 +157,9 @@ FIELD = [
 ];
 log(`par fields built (${bases.length} bases, ${FIELD.length} foes) in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 
-interface Built { i: number; base: Build; feeder: Build | null; pair: Build | null; temper: Build | null }
+interface Built { i: number; base: Build; feeder: Build | null; pair: Build | null; temper: Build | null; whet: Build | null }
 const builtOf = new Map<PairDef, Built[]>();
-const temperOf = new Map<number, Build | null>();
+const temperOf = new Map<number, Build | null>(), whetOf = new Map<number, Build | null>();
 for (const p of PAIRS.filter(wanted)) {
   // a clean base: no copy of the reader, of any feeder REPORT-SCALE1 3.3 lists for it, or of the feeders this pair adds
   const need = [p.reader, ...(READER_FEEDERS[p.reader] ?? []), ...p.feeders.map((f) => f.id)];
@@ -168,7 +171,8 @@ for (const p of PAIRS.filter(wanted)) {
     const feeder = p.feeders.length || p.runes?.length ? withFeeders(base, p, key) : base;
     const pair = feeder ? addPart(feeder, p.reader, STAR, `${key}|reader`) : null;
     if (!temperOf.has(i)) temperOf.set(i, addPart(base, "temper", STAR, `temper|${i}`));
-    list.push({ i, base, feeder, pair, temper: temperOf.get(i) ?? null });
+    if (!whetOf.has(i)) whetOf.set(i, addPart(base, "whetstone", STAR, `whet|${i}`));
+    list.push({ i, base, feeder, pair, temper: temperOf.get(i) ?? null, whet: whetOf.get(i) ?? null });
   }
   builtOf.set(p, list);
   log(`${p.tag ?? p.reader}: ${list.length} clean bases, ${list.filter((b) => b.pair).length} pairs placed (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
@@ -186,18 +190,19 @@ for (const s of sets) {
 }
 
 const baseCache = new Map<number, Fights>();
-const temperCache = new Map<number, number>();
+const temperCache = new Map<number, number>(), whetCache = new Map<number, number>();
 const baseFights = (i: number, b: Build): Fights => { if (!baseCache.has(i)) baseCache.set(i, fight(b, i, true)); return baseCache.get(i)!; };
 for (const [p, list] of builtOf) {
   const decks: unknown[] = [];
   for (const b of list) {
     const bf = baseFights(b.i, b.base);
     if (!temperCache.has(b.i)) temperCache.set(b.i, b.temper ? fight(b.temper, b.i, false).pts : NaN);
+    if (!whetCache.has(b.i)) whetCache.set(b.i, b.whet ? fight(b.whet, b.i, false).pts : NaN);
     const ff = b.feeder && b.feeder !== b.base ? fight(b.feeder, b.i, false) : null;
     const pf = b.pair ? fight(b.pair, b.i, true) : null;
     decks.push({
       i: b.i, placedFeeder: !!b.feeder, placedPair: !!b.pair,
-      base: bf.pts, temper: temperCache.get(b.i), feeder: ff ? ff.pts : b.feeder ? bf.pts : NaN, pair: pf ? pf.pts : NaN,
+      base: bf.pts, temper: temperCache.get(b.i), whet: whetCache.get(b.i), feeder: ff ? ff.pts : b.feeder ? bf.pts : NaN, pair: pf ? pf.pts : NaN,
       n: bf.n, tBase: bf.ts, tPair: pf ? pf.ts : [],
     });
   }
