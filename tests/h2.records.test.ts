@@ -26,10 +26,15 @@
 // loss 1/2/3 by day, no refund, LAST CHANCE setting 1): 324 records over dusks 1-10 (was 172 on 5 lives), 17 of them
 // LAST CHANCE-only (was 13), and the decoder's lives bound is 10 (livesCapFor); with HEARTS off, the 5-lives model as
 // before. (PICK): the pool decks carry the seed step's grade, which POST refuses, so `mine` uploads a deck without it.
+// BUMP-1D (LONG_RUN ships on, bb-0.11.0): records read on the long run's model (records.ts longRunRecords): 307 over dusks 1-10 (was 324), 13 of
+// them LAST CHANCE-only (was 17), and an upload states its `losses` (day - 1 = wins + losses + draws; the decoder takes at most MAX_RUN_DRAWS = 8
+// draws, so the plain attempt at a LAST CHANCE-only record states the fewest losses it takes: lossesFor). The seed pool is the committed
+// 192-ghost long-run pool (days 1-16, each ghost stating its own `losses`; was 120 over days 1-10): 131 of its ghosts get 201 as plain
+// uploads (was 96) and 61 the record 422 (was 24), each on 1 heart, which only a run with its LAST CHANCE carries (LAST_CHANCE_SEEDS).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION } from "../src/sim/content";
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the 5-lives checks
-import { withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the 10-day world's models, read with the switch off
+import { MAX_RUN_DRAWS, withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the 10-day world's models, read with the switch off; and the draws an upload may carry (8)
 import { LAST_CHANCE_HULL } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): the HULL card
 import { floorRecord, isReachable, reachableRecords } from "../src/net/records";
 import { rulesGateProblem } from "../src/net/rulesGate"; // SOFT-1 (REQ-BFG-092): the 0.7.0 page's deck
@@ -43,7 +48,9 @@ import { generateSamplePool } from "../tools/samplePool";
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
-const POOL = generateSamplePool(); // the seed pool (bb-0.8.3 since BELTS; the RC's was bb-0.8.0): 120 ghosts, four heroes x days 1-10 x 3
+// the seed pool (bb-0.8.3 since BELTS; the RC's was bb-0.8.0): BUMP-1D: bb-0.11.0's, the committed server/seedPoolData.ts byte for byte
+// (tests/s8.seedfile.test.ts): 192 ghosts, four heroes x days 1-16 x 3, each stating its own `losses` (was 120 ghosts, four heroes x days 1-10 x 3)
+const POOL = generateSamplePool();
 /** An honest deck of `day`: the FURNACE seed ghost of that day without turrets or joins where there is one. */
 const deckOf = (day: number): GhostSnapshot => {
   const ofDay = POOL.filter((s) => s.day === day && s.hero === "furnace");
@@ -64,9 +71,12 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
 // (server/app.ts: "record: 0W 1 lives and 0 losses is no record a run carries into dusk 1"); `losses` absent: the old words (was always those)
 const recordError = (day: number, wins: number, lives: number, losses?: number) => `record: ${wins}W ${lives} lives${losses !== undefined ? ` and ${losses} losses` : ""} is no record a run carries into dusk ${day}`;
 /** BUMP-1D: the `losses` a long run's upload of this record states: the first count 0..day - 1 - wins of a run that reaches (wins, lives) with the
- *  snapshot's LAST CHANCE (reachableRecords reads `losses`); 0 for a record no run reaches (an unreachable row is refused with it). */
+ *  snapshot's LAST CHANCE (reachableRecords reads `losses`). For a record no run reaches with that LAST CHANCE (a row nothing reaches, or the plain
+ *  attempt at a LAST CHANCE-only record, which has no lastChance) the fewest losses the decoder takes: at most MAX_RUN_DRAWS (8) of the dusks
+ *  before the snapshot's are draws, so Math.max(0, day - 1 - wins - 8) (BUMP-1D: was 0, which the decoder refuses at day 10 with 0 wins:
+ *  "snapshot.losses: 9 draws in 9 dusks is past 8"; the same 0 as before for every other row this file posts, whose day - 1 - wins is at most 8). */
 const lossesFor = (s: GhostSnapshot): number =>
-  Array.from({ length: Math.max(0, s.day - s.wins) }, (_, x) => x).find((x) => isReachable(s.day, s.wins, s.lives, { lastChance: s.lastChance?.day ?? null, losses: x })) ?? 0;
+  Array.from({ length: Math.max(0, s.day - s.wins) }, (_, x) => x).find((x) => isReachable(s.day, s.wins, s.lives, { lastChance: s.lastChance?.day ?? null, losses: x })) ?? Math.max(0, s.day - 1 - s.wins - MAX_RUN_DRAWS);
 
 /** Z-BUMP (the flip): a record of dusk `day` that only a run which had its LAST CHANCE carries (reachable, but not with
  *  lastChance null): the first day whose LAST CHANCE the record model accepts for it; null for a record a plain run carries. */
@@ -93,12 +103,24 @@ const LAST_CHANCE_RECORDS_OFF = [
  *  record 422 (generateSamplePool() at this commit; sorted).
  *  HULL-ON (the flip, HEARTS): the pool's labels are hearts labels (samplePool.ts drawnLabel), so 24 (was 22, read from
  *  the run's diff): + bastion d10 4W, foundry d9 4W, furnace d10 5W (a day-7+ loss costs 3, so more wins still fall to 1
- *  heart); - one weaver d7 0W (its drawn losses, 1 or 2 hearts each on days 1-6, leave it more than 1 heart). */
+ *  heart); - one weaver d7 0W (its drawn losses, 1 or 2 hearts each on days 1-6, leave it more than 1 heart).
+ *  BUMP-1D: was 24, now 61 (LONG_RUN ships on): the committed 192-ghost long-run pool (days 1-16, each ghost states its own `losses`, which
+ *  POST holds its record to) holds 61 ghosts on 1 heart, and these are exactly they (the 24 of the 120-ghost pool were its 1-heart ghosts
+ *  too). The hearts model gives 1 heart only to a run whose LAST CHANCE has fired (the first loss that leaves 1 heart or fewer sets the
+ *  hearts to 1, once a run, on any day: records.ts longStates), and a seed ghost carries no lastChance, so a plain upload of each is no
+ *  record; the other 131 are on 2 hearts or more, which a run without a LAST CHANCE carries with the ghost's losses. 19 of the 61 sit at
+ *  dusks 7-10 (5 fewer than the 24: the same ghosts' drawn losses leave bastion d10 4W and one of its d10 0W, foundry d9 4W, furnace d8 2W
+ *  and furnace d10 5W on 4, 2, 2, 2 and 2 hearts now that a day-7+ loss costs 2 hearts, was 3) and 42 at dusks 11-16 (8, 4, 9, 6, 5, 10). */
 const LAST_CHANCE_SEEDS = [
-  "bastion d10 0W 1L", "bastion d10 0W 1L", "bastion d10 4W 1L", "bastion d7 0W 1L", "bastion d8 0W 1L", "bastion d9 0W 1L",
-  "foundry d10 0W 1L", "foundry d7 0W 1L", "foundry d8 0W 1L", "foundry d9 0W 1L", "foundry d9 4W 1L",
-  "furnace d10 0W 1L", "furnace d10 5W 1L", "furnace d7 0W 1L", "furnace d7 0W 1L", "furnace d8 0W 1L", "furnace d8 2W 1L", "furnace d9 0W 1L", "furnace d9 0W 1L",
-  "weaver d10 0W 1L", "weaver d10 3W 1L", "weaver d7 0W 1L", "weaver d8 0W 1L", "weaver d9 0W 1L",
+  "bastion d10 0W 1L", "bastion d11 0W 1L", "bastion d11 3W 1L", "bastion d12 0W 1L", "bastion d13 0W 1L", "bastion d13 0W 1L", "bastion d13 1W 1L",
+  "bastion d14 0W 1L", "bastion d14 4W 1L", "bastion d14 5W 1L", "bastion d15 0W 1L", "bastion d16 0W 1L", "bastion d16 3W 1L", "bastion d16 6W 1L",
+  "bastion d7 0W 1L", "bastion d8 0W 1L", "bastion d9 0W 1L",
+  "foundry d10 0W 1L", "foundry d11 0W 1L", "foundry d11 0W 1L", "foundry d12 0W 1L", "foundry d13 0W 1L", "foundry d13 1W 1L", "foundry d14 0W 1L",
+  "foundry d15 0W 1L", "foundry d15 8W 1L", "foundry d16 0W 1L", "foundry d16 6W 1L", "foundry d7 0W 1L", "foundry d8 0W 1L", "foundry d9 0W 1L",
+  "furnace d10 0W 1L", "furnace d11 0W 1L", "furnace d11 0W 1L", "furnace d12 0W 1L", "furnace d13 0W 1L", "furnace d13 1W 1L", "furnace d14 0W 1L",
+  "furnace d15 0W 1L", "furnace d16 0W 1L", "furnace d16 1W 1L", "furnace d7 0W 1L", "furnace d7 0W 1L", "furnace d8 0W 1L", "furnace d9 0W 1L", "furnace d9 0W 1L",
+  "weaver d10 0W 1L", "weaver d10 3W 1L", "weaver d11 0W 1L", "weaver d11 1W 1L", "weaver d12 0W 1L", "weaver d13 0W 1L", "weaver d13 2W 1L", "weaver d14 0W 1L",
+  "weaver d15 0W 1L", "weaver d16 0W 1L", "weaver d16 2W 1L", "weaver d16 8W 1L", "weaver d7 0W 1L", "weaver d8 0W 1L", "weaver d9 0W 1L",
 ];
 
 /** The brief's unreachable records the decoder takes: [day, wins, lives]. The first is backlog 325's example. */
@@ -120,7 +142,7 @@ describe("H2: the records the check refuses and takes (pure)", () => {
   });
 
   // Z-BUMP (the flip): 172 (was 178, the model without LAST CHANCE, which rules before it still read: 178)
-  it("each day's floorRecord is reachable; 172 reachable records over days 1-10", () => {
+  it("each day's floorRecord is reachable; 307 reachable records over days 1-10 (BUMP-1D: was 172)", () => {
     for (let day = 1; day <= MAX_DAY; day++) {
       const f = floorRecord(day);
       expect(isReachable(day, f.wins, f.lives), `d${day}`).toBe(true);
@@ -327,7 +349,11 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
   // server/seed.ts checkPool reads them), but a seed ghost carries no lastChance, so POST reads each as a plain run's: the
   // 98 a plain run carries are taken (201) and stored (was all 120); the 22 whose label only a LAST CHANCE reaches
   // (LAST_CHANCE_SEEDS: 1 life at dusks 7-10) get the record 422, word for word, and are not stored
-  it("all 120 bb-0.8.3 seed ghosts (generateSamplePool(), the RC's pool's composition), posted as one player's signed dusks: the 98 a plain upload carries are taken (201) and stored, the 22 only a LAST CHANCE reaches get the record 422", async () => {
+  // BUMP-1D (LONG_RUN ships on): the pool is the 192-ghost long-run pool (was 120), each ghost stating its own `losses` (the record is held to
+  // exactly those, `mine(s, false)` keeps them): the 131 a plain run carries (2 hearts or more) are taken (201) and stored (was 96 of 120); the
+  // 61 on 1 heart (LAST_CHANCE_SEEDS: a run is at 1 heart only after its LAST CHANCE, and a seed ghost carries none; dusks 7-16, was 24 at
+  // dusks 7-10) get the record 422, word for word, naming the ghost's losses, and are not stored
+  it("all 192 bb-0.11.0 seed ghosts (generateSamplePool(), the committed long-run pool: days 1-16, was 120 over days 1-10), posted as one player's signed dusks: the 131 a plain upload carries are taken (201) and stored, the 61 only a LAST CHANCE reaches get the record 422", async () => {
     expect(POOL).toHaveLength(192); // BUMP-1D: 4 heroes x days 1-16 x 3 variants (was 120)
     expect(POOL.filter((s) => !isReachable(s.day, s.wins, s.lives, { losses: s.losses })).map((s) => `${s.hero} d${s.day} ${s.wins}W ${s.lives}L`)).toEqual([]);
     const before = await state();
@@ -345,8 +371,9 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     }
     expect(refused.sort()).toEqual(LAST_CHANCE_SEEDS);
     // HULL-ON (the flip, HEARTS): 96 taken and 24 refused (were 98 and 22), the hearts pool's (LAST_CHANCE_SEEDS)
-    expect(statuses).toEqual({ 201: 96, 422: 24 });
+    // BUMP-1D: 131 taken and 61 refused (was 96 and 24 of 120): the 192-ghost long-run pool, 192 - 61 = 131 (LAST_CHANCE_SEEDS holds the 61)
+    expect(statuses).toEqual({ 201: 131, 422: 61 });
     const after = await state();
-    expect([after.ghosts - before.ghosts, after.records - before.records]).toEqual([96, 96]);
+    expect([after.ghosts - before.ghosts, after.records - before.records]).toEqual([131, 131]); // BUMP-1D: was [96, 96]
   }, 120_000);
 });
