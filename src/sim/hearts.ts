@@ -58,7 +58,7 @@ export const HEARTS_START = 10;
 /** The first day of each cost band: days 1-3, 4-6 and 7 on. Day bands, not run-length bounds. */
 export const HEART_COST_FROM: readonly [number, number, number] = [1, 4, 7];
 /** The hearts a lost dusk costs in each band (the operator's 1/2/3). */
-export const HEART_COSTS: readonly [number, number, number] = [1, 2, 3];
+export const HEART_COSTS: readonly [number, number, number] = [1, 2, 2]; // BUMP-1D (RULING-BANDS1-R1 B1.1; BANDS-1 H1): days 7+ cost 2, not 3 (was [1, 2, 3])
 
 /** The hearts rule's numbers. The game reads HEARTS_RULE only; a bench may read another (15 start hearts, H3). */
 export interface HeartsRule {
