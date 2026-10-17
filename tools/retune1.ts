@@ -15,6 +15,8 @@
 //       the set's seed pool (tools/samplePool.ts generateSamplePool, as the seed step makes it) as { id, snapshot } entries
 //       (ids: ghostId, the server's); with PICK in the set, each seed ghost's grade too: vsPar, its win rate against the four
 //       par fields' first K members of its day, S seeds from both sides (LOSS-1's --mode grade, cut to K and S).
+//       RUN-1 T6/T6c: --committed reads server/seedPoolData.ts (the shipped 10-day pool) and --from <pool.json> a scratch pool
+//       (samplePoolJson's array; tools/genGhostPool.ts --long-run: days 1-16) instead of generating one.
 //   --mode bench --set S --policy par|casual:<tune> --heroes h,.. --seeds a-b --pool pool.json --out cell.json
 //       [--models 10,059] [--hearts-start n] [--refund] [--rule a,b,c]
 //       whole runs, one row per hero, seed and run model: the policy's deck each dusk (player.ts playerRun; casual.ts
@@ -121,6 +123,17 @@ const SET = setOf(flag("set") ?? "today", (flag("also") ?? "").split(",").filter
 
 async function modePool(): Promise<unknown> {
   const t0 = Date.now();
+  // RUN-1 T6c (REQ-BFG-059, REQ-BFG-116; R1.1's T6b): --from <pool.json> reads a SCRATCH seed pool (samplePoolJson's array, e.g.
+  // tools/genGhostPool.ts --long-run: days 1-16, every ghost stating its `losses`) as the long run's world holds it (withLongRun: the
+  // day bound and `losses` are the long rules'), instead of --committed's file or a regenerated pool. Same output as --committed
+  // (the file's own grades), marked `long` so --mode bench decodes it in that world too. Nothing is generated or played.
+  const from = flag("from");
+  if (from !== undefined) {
+    const pool = withLongRun(() => (JSON.parse(readFileSync(from, "utf8")) as unknown[]).map((raw) => { const snapshot = checkSnapshot(raw); return { id: ghostId(snapshot), snapshot }; }));
+    console.log(`pool: ${pool.length} scratch seed ghosts (${from}), days ${Math.min(...pool.map((e) => e.snapshot.day))}-${Math.max(...pool.map((e) => e.snapshot.day))}`);
+    const grades = pool.map((e) => ({ id: e.id, hero: e.snapshot.hero, day: e.snapshot.day, wins: e.snapshot.wins, lives: e.snapshot.lives, playerId: e.snapshot.playerId, vsPar: r3((e.snapshot.grade ?? 0) / GRADE_MAX) }));
+    return { pool, grades, gradeK: GRADE_K, gradeSeeds: GRADE_SEEDS, grader: "scratch", long: true };
+  }
   // RUN-1 T6: --committed reads the bundled seed pool as the game ships it (server/seedPoolData.ts, 120 graded ghosts; the seed
   // step's pool, byte for byte generateSamplePool() when the pool is in sync: tests/s8.seedfile.test.ts) instead of regenerating
   // it, so no battle is played for the pool and the grades are the shipped ones
@@ -241,18 +254,20 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059" | "long", ctx
 }
 
 function loadPoolFile(file: string): { pool: PoolEntry[]; grades: Grades } {
-  const raw = JSON.parse(readFileSync(file, "utf8")) as { data?: { pool: { id: string; snapshot: unknown }[]; grades: { id: string; vsPar: number }[] } };
+  const raw = JSON.parse(readFileSync(file, "utf8")) as { data?: { long?: boolean; pool: { id: string; snapshot: unknown }[]; grades: { id: string; vsPar: number }[] } };
   const d = raw.data!;
   const listed = new Map(d.grades.map((g) => [g.id, g.vsPar]));
-  const pool = d.pool.map((e) => {
+  // RUN-1 T6c: a pool made by --mode pool --from (a long-run scratch pool, days 1-16 with `losses`) is decoded in the long run's world
+  const decode = <T>(fn: () => T): T => (d.long ? withLongRun(fn) : fn());
+  const pool = decode(() => d.pool.map((e) => {
     const snapshot = checkSnapshot(e.snapshot);
     // RETUNE-1 T5: run 1's pools list the grades beside the snapshots: each goes into its snapshot here (in memory), as
     // the seed step writes it; a pool made by the built seed step carries them already
     const vs = listed.get(e.id);
     if (SET.pick && snapshot.grade === undefined && vs !== undefined) snapshot.grade = Math.round(vs * GRADE_MAX);
     return { id: e.id, snapshot };
-  });
-  for (const e of pool) if (ghostId(e.snapshot) !== e.id) throw new Error(`pool ${file}: ${e.id} is not its snapshot's id`);
+  }));
+  decode(() => { for (const e of pool) if (ghostId(e.snapshot) !== e.id) throw new Error(`pool ${file}: ${e.id} is not its snapshot's id`); });
   return { pool, grades: new Map(pool.filter((e) => e.snapshot.grade !== undefined).map((e) => [e.id, e.snapshot.grade! / GRADE_MAX])) };
 }
 
