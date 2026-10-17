@@ -104,7 +104,9 @@ export const JOIN_LIMIT = 2;
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 // 0.6.1b: "core" is a turret core (ARSENAL.md §1): it lives in Build.mods, one socket per turret, beside the one mod
 // 0.6.2s (REQ-BFG-031): "turret" is a turret: a module installed in a hull's TURRET SLOT (Build.turrets, deck.ts)
-export type ItemKind = "gate" | "factory" | "mod" | "supply" | "core" | "turret";
+// GATES-1 (REQ-BFG-052): "converter" is a GATE that stands ON a belt tile (FUSER, SCATTER MILL, SMELTER; src/sim/gates.ts, src/sim/convert.ts).
+// Not kind "gate" (a RIG): beltside.ts migrateInlineGates moves every kind "gate" off a belt at every load
+export type ItemKind = "gate" | "factory" | "mod" | "supply" | "core" | "turret" | "converter";
 export type AmmoKind = "cinder" | "thread" | "plain" | "shot" | "slag" | "sabot" | "frost" | "drag" | "limpet" | RaceAmmoKind;
 export type HeroId = "furnace" | "weaver" | RaceHeroId; // races: foundry, bastion, metronome, siphon
 export type Faction = "orc" | "elf" | "human" | "dwarf" | "beastfolk" | "unaligned"; // races: spec §6.2
@@ -350,6 +352,7 @@ export interface ItemLevel {
   mod?: Partial<ModSpec>;
   core?: Partial<CoreSpec>; // 0.6.1b: a turret core's star values
   turret?: Partial<TurretSpec>; // 0.6.2s: a turret's star values
+  converter?: Partial<ConverterSpec>; // GATES-1 (REQ-BFG-052): a converter's star values
   perk?: string;
   pending?: Record<string, number>;
 }
@@ -383,6 +386,24 @@ export interface SlotDef {
 export const TURRET_PRICE: Record<Rarity, number> = { common: 6, rare: 8, epic: 10, legendary: 13 };
 export const GEAR_SLOTS: Record<Rarity, number> = { common: 1, rare: 2, epic: 3, legendary: 4 };
 
+/**
+ * GATES-1 (REQ-BFG-052): what a CONVERTER does to the slugs that pass through it, one idea each (src/sim/convert.ts is the
+ * one place that reads it). It takes `in` slugs off the belt into its buffer, works `secs` whole seconds, then puts `out`
+ * slugs back on the same belt at the tile's downstream edge. `how` is the idea: "fuse" (FUSER: 2 slugs in, 1 out that
+ * deals both, + `bonus` whole %), "pellet" (SCATTER MILL: 1 in, `out` pellets at `share` whole % of its DMG each),
+ * "smelt" (SMELTER: the slug gains `burn` BURN). Only the fields of its `how` are set.
+ */
+export type ConverterHow = "fuse" | "pellet" | "smelt";
+export interface ConverterSpec {
+  how: ConverterHow;
+  in: number; // slugs it takes in before it works (a whole number)
+  out: number; // slugs it puts out (a SCATTER MILL's pellets)
+  secs: number; // whole seconds a conversion takes (the cost of its power)
+  bonus?: number; // FUSER: whole % over both slugs' DMG (50 / 75 / 100)
+  share?: number; // SCATTER MILL: each pellet's whole % of the slug's DMG (50 / 60 / 50)
+  burn?: number; // SMELTER: BURN stacks the slug gains (3 / 5 / 8)
+}
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -399,6 +420,7 @@ export interface ItemDef {
   mod?: ModSpec;
   core?: CoreSpec; // 0.6.1b: a turret core's firing routine (kind "core")
   turret?: TurretSpec; // 0.6.2s: a turret's numbers (kind "turret")
+  converter?: ConverterSpec; // GATES-1 (REQ-BFG-052): a converter's numbers (kind "converter")
   reason?: string; // 0.6.2s: a turret's one-line reason to buy it (player text)
   supply?: { belt?: number; hull?: number };
   // 0.6.1a: star overrides (1 star = the spec above). bb-0.8.3 (REQ-BFG-043 D10): a hero's signature factory's are its
@@ -1548,7 +1570,7 @@ export function rarityWeights(round: number): Record<Rarity, number> {
  * even pick did, so a wagon whose choices hold no turret offers what it did before. The def's kind decides, never
  * the hero (REQ-BFG-021).
  */
-export const FAMILY_WEIGHT: Record<ItemKind, number> = { gate: 1, factory: 1, mod: 1, supply: 1, core: 1, turret: 0.5 };
+export const FAMILY_WEIGHT: Record<ItemKind, number> = { gate: 1, factory: 1, mod: 1, supply: 1, core: 1, turret: 0.5, converter: 1 }; // GATES-1: a GATE draws like a rig
 
 /**
  * 0.6.1a: what a copy sells for, max(1, floor(valueOf(def, stars) / 2)) with valueOf = price x

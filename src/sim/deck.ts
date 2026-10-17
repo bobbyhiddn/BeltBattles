@@ -19,6 +19,8 @@ import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer da
 import { canonicalRot, footOf, footOffsets, footOnDeck, footprintCells } from "./foot";
 import { shapesRules } from "./shapes";
 import "./shapes2"; // SHAPES-2 (REQ-BFG-114): loads SHAPES2's switch, so its six defs are in ITEMS whenever it is on (after SHAPES' three)
+import { gatesRules } from "./gates"; // GATES-1 (REQ-BFG-052): loads GATES's switch, so its three converters are in ITEMS whenever it is on (after SHAPES2's six)
+import { isConverterItem, splitProblem } from "./split"; // GATES-1 (REQ-BFG-057): where a converter may stand (a leaf: no cycle)
 // re-exported, so the portable stand-in loader and beltside.ts keep importing only ./content and ./deck
 // (tests/standInPool.gen.test.ts)
 export { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "./foot";
@@ -26,6 +28,7 @@ export { RESHAPED_IDS, shapesRules } from "./shapes";
 // SHAPES-2 (REQ-BFG-114): re-exported too, so faces.ts imports it from ../sim/deck (tests/faceText.test.ts: no string literal of faces.ts may hold a
 // digit, an import path included, and shapes2's name does)
 export { isShapes2Piece, shapes2Rules } from "./shapes2";
+export { gatesRules, isGatesPiece } from "./gates"; // GATES-1 (REQ-BFG-052): re-exported, as SHAPES2's are
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -209,7 +212,25 @@ export function dirBetween(a: number, b: number): number {
   return -1;
 }
 
-/** R1 (0.6.2 BELTSIDE): no belt runs through machinery of any kind; the old gate-cell exception is gone. */
+/**
+ * GATES-1 (REQ-BFG-052): the pre-0.6.2 gate-cell exception, back for kind "converter" ONLY. The belt may run through cell
+ * `i` of route `r` when the machinery there is a converter that has belt on both sides: not the route's first cell (next to
+ * its factory) or its last (the turret intake, or a joining belt's end), and no other converter on the cell before or
+ * after it. The route stays ONE RouteDef: the converter is a Placed item on one of its cells. `occ` is occupancy(b).
+ */
+export function converterCellOk(b: Build, r: RouteDef, i: number, occ: Occ[]): boolean {
+  const on = (j: number): Placed | undefined => {
+    const u = occ[r.cells[j]]?.item ?? -1;
+    return u < 0 ? undefined : itemByUid(b, u);
+  };
+  const p = on(i);
+  if (!p || !isConverterItem(p)) return false;
+  const nb = (j: number): boolean => { const q = on(j); return !!q && isConverterItem(q); };
+  return i > 0 && i < r.cells.length - 1 && !nb(i - 1) && !nb(i + 1);
+}
+
+/** R1 (0.6.2 BELTSIDE): no belt runs through machinery of any kind; the old gate-cell exception is gone (GATES-1: but for a
+ *  converter, converterCellOk). */
 export function routeWellFormed(b: Build, r: RouteDef): boolean {
   if (!r.cells.length) return false;
   const f = itemByUid(b, r.factory);
@@ -222,7 +243,7 @@ export function routeWellFormed(b: Build, r: RouteDef): boolean {
     if (k < 0 || k >= GRID * GRID || seen.has(k)) return false;
     seen.add(k);
     if (i > 0 && dirBetween(r.cells[i - 1], k) < 0) return false;
-    if (occ[k].item >= 0) return false;
+    if (occ[k].item >= 0 && !converterCellOk(b, r, i, occ)) return false; // GATES-1 (REQ-BFG-052): a converter may stand on a belt tile
   }
   return true;
 }
@@ -379,6 +400,9 @@ export function rigHits(b: Build): RigHit[][][] {
   const out: RigHit[][][] = b.routes.map((r) => r.cells.map(() => []));
   const where = new Map<number, number>(); // cell -> route * 1024 + tile (the last route wins, like occupancy)
   b.routes.forEach((r, ri) => r.cells.forEach((k, ti) => where.set(k, ri * 1024 + ti)));
+  // GATES-1 (REQ-BFG-052): a converter's tile is no belt tile for a rig's arrow: arrows aimed at it idle (R5; a shaped rig
+  // loses only that one hit). Every other tile's hits act on what the converter puts out
+  if (gatesRules()) for (const p of b.items) if (isConverterItem(p)) where.delete(key(p.x, p.y));
   for (const p of b.items) {
     const d = ITEMS[p.def];
     if (!d || d.kind !== "gate") continue;
@@ -958,6 +982,11 @@ export function estimateRoute(b: Build, index: number, hits = rigHits(b)): Route
 export function canPlaceItem(b: Build, defId: string, x: number, y: number, ignoreUid = -1, rot = 0): { ok: boolean; reason?: string } {
   const def = ITEMS[defId];
   if (!def) return { ok: false, reason: "UNKNOWN" };
+  if (def.kind === "converter") { // GATES-1 (REQ-BFG-057): a converter goes only ON a belt tile (split.ts splitProblem)
+    if (!footOnDeck(def, x, y, rot)) return { ok: false, reason: "OFF THE DECK" };
+    const why = splitProblem(b, defId, key(x, y), ignoreUid);
+    return why ? { ok: false, reason: why } : { ok: true };
+  }
   if (def.kind !== "gate" && def.kind !== "factory") return { ok: false, reason: "NOT DECK EQUIPMENT" };
   // SHAPES-1 (REQ-BFG-086 R1): every cell of the turned footprint on the deck (a 1-cell rig or a 2x2: 0.9.9's bounds)
   if (!footOnDeck(def, x, y, rot)) return { ok: false, reason: "OFF THE DECK" };

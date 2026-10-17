@@ -56,6 +56,7 @@ import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): the
 // merge of c099-pre8: AZ-BUMP S6's bump, cap's RUN2 note 1.3)
 import { isShapesPiece, shapesRules } from "../sim/shapes";
 import { isShapes2Piece, shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114 S1): the six more shaped rigs' switch (SHAPES2_RULES below)
+import { gatesRules, isGatesPiece } from "../sim/gates"; // GATES-1 (REQ-BFG-052 G1): the three converters' switch (GATES_RULES below)
 import { firstRunGate } from "../sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004): the first-run gate (FIRST_RUN and PLAIN_RIGS)
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
@@ -303,6 +304,46 @@ export function shapes2GateProblem(rules: unknown, build: unknown): string | nul
  *  otherwise it is judged without them (validate.ts inShapes2World). */
 export function shapes2World(rules: unknown): boolean {
   return shapes2Rules() && rulesAtLeast(rules, SHAPES2_RULES);
+}
+
+/**
+ * GATES-1 (REQ-BFG-052 G1; BRIEF-GATES1): the first rules version with the three converters (FUSER, SCATTER MILL, SMELTER;
+ * src/sim/gates.ts, the GATES switch) and the gate cell they stand on. It is today's rules version written as a literal,
+ * SHAPES2_RULES' form; the rules release after BUMP-1E (the release's one bump) writes its new RULES_VERSION here, so every
+ * record under older rules is judged without them: gatesWorld false (validate.ts inGatesWorld, nested in inShapes2World),
+ * and the three are refused under them (gatesGateProblem). It gains no RULES_ROWS row: like SHAPES2_RULES, it is its own gate.
+ * FOR THE BUMP: this literal and nothing else here changes (REPORT section 11).
+ */
+export const GATES_RULES: string = "bb-0.11.0"; // the bump writes the release's RULES_VERSION here
+
+/** GATES-1: the converters a build carries, by name (items whose def is one of gates.ts GATES_IDS). Reads a raw (undecoded)
+ *  build safely, like shapes2Features. */
+export function gatesFeatures(build: unknown): string[] {
+  if (typeof build !== "object" || build === null) return [];
+  const items = (build as { items?: unknown }).items;
+  if (!Array.isArray(items)) return [];
+  const held = items.some((p) => {
+    const d = typeof p === "object" && p !== null ? (p as Record<string, unknown>).def : undefined;
+    return typeof d === "string" && isGatesPiece(d);
+  });
+  return held ? ["gates (FUSER, SCATTER MILL, SMELTER)"] : [];
+}
+
+/** Why a build under `rules` can't carry the three gates, or null: none held; the switch off ("not in this rules version
+ *  yet"); or rules before GATES_RULES (the reason names both, as shapes2GateProblem's do). */
+export function gatesGateProblem(rules: unknown, build: unknown): string | null {
+  const f = gatesFeatures(build);
+  if (!f.length) return null;
+  if (!gatesRules()) return `${f.join(" and ")}: not in this rules version yet`;
+  if (rulesAtLeast(rules, GATES_RULES)) return null;
+  const what = `${f.join(" and ")} need ${GATES_RULES} or later`;
+  return parseRules(rules) ? `rules ${String(rules)} predate ${GATES_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}
+
+/** GATES-1: does a deck under `rules` play with the three gates? The switch on and rules at or after GATES_RULES; otherwise
+ *  it is judged without them (validate.ts inGatesWorld). */
+export function gatesWorld(rules: unknown): boolean {
+  return gatesRules() && rulesAtLeast(rules, GATES_RULES);
 }
 
 /** FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F4): why a snapshot can't carry the first-run flag, or null: the gate off
