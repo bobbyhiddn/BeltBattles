@@ -120,7 +120,7 @@ export function reachableRecords(day: number, opts: { draws?: boolean; patchUp?:
 
 /**
  * RETUNE-1 (REQ-BFG-096): the hearts model, for records whose rules pass heartsFor (rulesGate.ts): HEARTS_START (10) at
- * the start; a dusk loss costs heartCost(day) (1/2/3), a win or a draw none; LAST CHANCE once a run at the first loss that
+ * the start; a dusk loss costs heartCost(day) (1/2/2 since BUMP-1D, was 1/2/3), a win or a draw none; LAST CHANCE once a run at the first loss that
  * leaves 1 heart or fewer before RUN_DAYS, which sets the hearts to 1 (hearts.ts heartsDusk, the game's own step); out of
  * hearts otherwise ends the run; no early-loss refund; PATCH UP +1 on the road, once a run, never above HEARTS_START.
  * Same options and output as reachableRecords (lives = hearts going into the dusk).
@@ -167,7 +167,7 @@ const longMemo = new Map<string, LongState[]>();
 /**
  * RUN-1 (REQ-BFG-059, REQ-BFG-116; D4, D6): the long run's model. Every (wins, lives) a long run can carry into day `day`'s
  * dusk, sorted by wins, then lives; the same options as reachableRecords. The game's own steps, one per dusk: hearts.ts
- * heartsDusk on the hearts scale (HEARTS_START, a loss costs 1/2/3 from days 1/4/7 so 3 on every day past 10, LAST CHANCE once
+ * heartsDusk on the hearts scale (HEARTS_START, a loss costs 1/2/2 from days 1/4/7 since BUMP-1D (was 1/2/3) so 2 on every day past 10, LAST CHANCE once
  * at the first loss leaving 1 heart or fewer on ANY day, no refund) or, on the lives scale, the lives model's steps, and then:
  *  - a win is the 10th the run is over (WON): no state carries WIN_GOAL wins, so wins <= WIN_GOAL - 1 at every dusk;
  *  - a draw costs nothing, and at most MAX_RUN_DRAWS of them (a run past that keeps playing; only its upload is refused);

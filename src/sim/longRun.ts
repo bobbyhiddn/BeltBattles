@@ -1,7 +1,7 @@
 // RUN-1 (REQ-BFG-059, REQ-BFG-116): LONG_RUN, the run won at 10 wins with no day limit, behind one switch. The operator,
 // 2026-10-14: "A win is only 10 wins." With LONG_RUN on, a run (marked long by newRun) ends ONLY at its WIN_GOAL-th dusk
 // win (over "won") or at 0 hearts (over "lost"). Days go on while hearts remain; nothing ends, clamps or changes a run by
-// its day. The hearts numbers don't change (hearts.ts: 10 at the start, a loss costs 1/2/3 from days 1/4/7, so 3 on every
+// its day. The hearts numbers don't change (hearts.ts: 10 at the start, a loss costs 1/2/2 from days 1/4/7 since BUMP-1D (was 1/2/3), so 2 on every
 // day past 10; PATCH UP +1 capped at 10); LAST CHANCE stays once a run, at the first loss leaving 1 heart or fewer, and on
 // a long run it can fire on ANY day (lcLastDay). A draw still costs nothing. flawless = won with 0 losses.
 // With LONG_RUN off, everything is as live: a run ends after day RUN_DAYS's dusk ("complete") or at 0 hearts.
@@ -55,8 +55,8 @@ export const WIN_GOAL = 10;
  *  only its upload is refused (records.ts). */
 export const MAX_RUN_DRAWS = 8;
 
-/** The deepest dusk a long run reaches without a draw: 9 wins and the most losses 10 hearts survive (a loss costs 1/2/3
- *  from days 1/4/7; LAST CHANCE once; PATCH UP +1 once): 6 losses (day 16), or 7 with an early PATCH UP (day 17). Pinned
+/** The deepest dusk a long run reaches without a draw: 9 wins and the most losses 10 hearts survive (a loss costs 1/2/2 since BUMP-1D, was 1/2/3,
+ *  from days 1/4/7; the same 6 and 7 under both; LAST CHANCE once; PATCH UP +1 once): 6 losses (day 16), or 7 with an early PATCH UP (day 17). Pinned
  *  against the record model (records.ts) by tests/run1.records.test.ts. */
 export const LONG_RUN_DEEPEST_DAY = 17;
 
