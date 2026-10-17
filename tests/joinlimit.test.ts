@@ -186,6 +186,11 @@ describe("RULE JOIN LIMIT: at most 2 joining belts a deck", () => {
     expect(helpLine3()).toContain(`JOIN THEM (${JOIN_OVER_LIMIT}).`);
     expect(HELP[2]).not.toMatch(/JOINS PER DECK/);
     expect(JOIN_OVER_LIMIT).not.toMatch(/MERGE/);
-    expect(HELP[2]).not.toMatch(/MERGE/);
+    // SHOPCARD-1c (REQ-BFG-081, G1): line 3 now says MERGE once, for PIECES (two copies of a piece merge into the next star:
+    // src/game/fuse.ts), never for belts: with that one sentence cut out, the line still has no MERGE (belts JOIN)
+    const merge = " BUY A COPY OF A PIECE YOU OWN TO MERGE THEM INTO ★2 (TWO ★2 MERGE INTO ★3).";
+    expect(HELP[2].split(merge).length, "the one merge sentence, for pieces").toBe(2);
+    expect(HELP[2].replace(merge, "")).not.toMatch(/MERGE/);
+    expect(HELP[2].replace(merge, "")).toMatch(/JOIN THEM/);
   });
 });

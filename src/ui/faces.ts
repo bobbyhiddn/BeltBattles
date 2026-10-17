@@ -324,8 +324,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // (factoryStats), so the line says the FOE'S HULL TAKES that number delay s after a hit: battle.ts:2350 roundImpact queues
     // { at: t + delay, blast } on the hit side, 2431-2441 hullEffects takes blast (x D(day), after plating) off that side's
     // hull. 225 px of the 225 px band at 3 digits (was "ITS {SLUG} BLAST THE FOE'S HULL 3{SEC} AFTER A HIT.", 225 px)
-    const fs = f(e), blast = fmtDmg(dmgNow((fs.base ?? AMMO[fs.ammo].base) + (fs.round as { blast: number }).blast));
-    return rules([{ text: `THE FOE'S HULL TAKES ${blast} {DMG} ${delay}{SEC} AFTER A HIT.` }], [["delay", `${delay}{SEC}`]]);
+    // SHOPCARD-1c (REQ-BFG-081; READ-10 G7, round T R/R/R -> P/P/R: two readers counted two hits of 180, the stat row's DMG and this
+    // line's number): the stat row's [DMG] IS the blast (content.ts:532-539 base 0 + blast; factoryStats), so the line drops the number
+    // and says ITS {DMG} is what the foe's hull takes, delay s after a hit (battle.ts:2350 roundImpact queues {at: t + delay, blast};
+    // 2431-2441 hullEffects takes the blast, x D(day), after plating, off the hit side's hull). It does not say the hit deals nothing:
+    // rigs on the belt can add damage to the charge's own impact. One row, 225 px at every star and day (no digits left in it).
+    // The brief's "ITS {DMG} LANDS ON THE FOE'S HULL 3 SEC AFTER A HIT." is 241 px (two rows)
+    return rules([{ text: `THE FOE'S HULL TAKES ITS {DMG} ${delay}{SEC} AFTER A HIT.` }], [["delay", `${delay}{SEC}`]]);
   },
   // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
   // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
@@ -413,7 +418,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // COMMISSION_BASE + COMMISSION_STEP x its rank, x the best running ASSEMBLY LINE's factor (assemblyLines, 2574-2587;
     // battle.ts:979-981 brings it online when t >= commissionAt), so "START 50% SOONER" is that start-up time cut and ★3 (factor
     // 0) is AT ONCE. START WORKING ... IN EACH FIGHT is 341 px, past the 225 px band; START is 217 (was "YOUR RIGS WORK 50% SOONER.")
-    return rules([{ text: `FEEDS A GUN: YOUR RIGS START ${soon}.` }], [["soon", soon]]);
+    // SHOPCARD-1c (REQ-BFG-081; READ-10 G8, round T P/P/R: "START" still left "start what? when?"): it says WHEN and WHAT. battle.ts:714-736
+    // commissionAt = (COMMISSION_BASE + COMMISSION_STEP x rank) x the best running line's factor, set in makeSide at the start of EACH
+    // fight, and 979-981 brings a rig online (it works) once t >= commissionAt: so EACH FIGHT, YOUR RIGS START WORKING 50% SOONER, and at
+    // ★3 (factor 0) AT ONCE. Two rows (328 px; ★3 310 px): no one-row form says when ("FEEDS A GUN: YOUR RIGS START 50% SOONER." is
+    // 217 px, "... EACH FIGHT, YOUR RIGS START 50% SOONER." 282, "FEEDS A GUN: RIGS START 50% SOONER EACH FIGHT." 251)
+    return rules([{ text: `FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING ${soon}.` }], [["soon", soon]]);
   },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
@@ -503,7 +513,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // shooter (Y2: no salvage), so LOSES, not "takes". DESTROYS 1 FOE SLUG is 234 px and ON A BELT OR RIG, RIPS 1 FOE SLUG 210
     // (whose, but not what happens); this is 197 px, 203 at ★3. The SHOT tap note keeps RIPS and the reach (was "ON A BELT OR RIG,
     // RIPS 1 SLUG.", 188 px)
-    return rules([shot(`A FOE BELT OR RIG LOSES ${rip} SLUG${s(n)}.`)], [["rip", `RIPS ${rip}`]]);
+    // SHOPCARD-1c (REQ-BFG-081; READ-10 G6, round T P/P/P: "LOSES" with no condition was read as "every shot takes a slug"): only a
+    // shot that HITS a foe belt or rig rips a slug, the nearest one within `reach` tiles of the hit (battle.ts:2190 impact -> 2355-2386
+    // rip(): returns 0 unless the target's kind is "belt" or "gate"; it splices the nearest slugs off the foe's belt, 2374-2377), and
+    // the shot's own damage still lands (impact applies it, 2142-2151, before the rip), so the line says what a hit does and
+    // nothing about the shot's damage. One verb, RIPS, as the ladder ("RIPS 1/2/3") and the SHOT note ("IT RIPS THE NEAREST SLUGS
+    // WITHIN 1 TILE OF A HIT") use. Two rows (239 px, 245 at ★2/★3): "SHOT: A FOE BELT OR RIG HIT RIPS 1 SLUG." is 213 px but puts
+    // the condition last and reads as a noun phrase; "SHOT: A HIT ON A FOE BELT RIPS 1 SLUG." 201 px drops the rig, a rule (TXT-096)
+    return rules([shot(`A HIT ON A FOE BELT OR RIG RIPS ${rip} SLUG${s(n)}.`)], [["rip", `RIPS ${rip}`]]);
   },
   tesla: (e, x) => {
     const n = c(e, x).arcs!, arcs = fmtCount(n), t = c(e, x).stall!, stun = fmtSec(t);
@@ -696,7 +713,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // stokeHits: a STOKER's arrow counts only where it points at a cell a factory fills (never through a belt), and
     // battle.ts:808-818 stokes exactly those factories' timers. "THE FACTORIES ITS ARROWS POINT AT" is 311 px, past the 225 px
     // band; "FACTORIES IT HITS" is 221 (was "ITS FACTORIES WORK UP TO 20% FASTER.", 199 px)
-    return rules([{ text: `FACTORIES IT HITS WORK UP TO ${up} FASTER.` }], [["stoke", `${up} FASTER`]]);
+    // SHOPCARD-1c (REQ-BFG-081; READ-10 G5: "FACTORIES IT HITS" was SHOPCARD-1b's one regression: HIT is a rig's word for the slugs on
+    // belt tiles it works, so Haiku stood the rig beside a belt, round A R/R/P; STOKER does nothing to a belt): no HIT, no HITS. It says
+    // the factories its arrows POINT AT (deck.ts:432-447 stokeHits counts an arrow only where it points at a cell a factory fills;
+    // battle.ts:808-818). Two rows of the 225 px band (289 px): no true one-row form keeps FASTER, the word its tap note hangs on
+    // (glossary.ts TAP_NOTES stoker), and names the arrows' target: "ITS ARROWS SPEED UP FACTORIES: UP TO 20%." is 223 px but has
+    // no FASTER, "FACTORIES IT POINTS AT WORK UP TO 20% FASTER." 249 px, "FACTORIES ITS ARROWS POINT AT: UP TO 20% FASTER." 263 px
+    return rules([{ text: `FACTORIES ITS ARROWS POINT AT WORK UP TO ${up} FASTER.` }], [["stoke", `${up} FASTER`]]);
   },
   platebreaker: (e) => {
     // DESIGN-Y row 26: Battle.applyHit: with FACE_SIM.breakerPlate plating on your hull it spends that much for + flat;
@@ -766,7 +789,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH." with
     // "ANY MORE BURN STAYS ON THE PAYLOAD." and BURN's definition
     const d = fmtDmg(dmgNow(gt(e).quench!.perBurn));
-    return rules([hit(`TURNS EACH {*BURN} INTO +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
+    // SHOPCARD-1c (REQ-BFG-081; READ-10 G10, optional: round A's Haiku left "whose BURN" open, UNCLEAR "I assume the target's"): the BURN
+    // it turns is the slug's it hits (battle.ts applyHit: every BURN stack the slug carries turns into perBurn damage on that slug),
+    // so ON A {SLUG}. One row at every star on days 1, 5 and 10 (219 px at 3 digits; "ON THE {SLUG}" is 231 px there). Was
+    // "HIT: TURNS EACH {*BURN} INTO +72 {DMG}." (177 px)
+    return rules([hit(`TURNS EACH {*BURN} ON A {SLUG} INTO +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
   },
   twinlatch: (e) => {
     // DESIGN-Y row 30: Battle.latchTick: while both its arrows hit belts it holds a slug at most `hold` s for its other belt,

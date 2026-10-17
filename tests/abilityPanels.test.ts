@@ -963,7 +963,12 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // (tmp/sc1x-final = shopcard1-accepted): BRACE FRAME's line now says BELT TILES ("STUN ON BELT TILES IT HITS: 50% SHORTER.", 223 px,
     // was 217) and PINCER's ON THE TILE (225 px at ★3, was 221), a row longer on this test's narrow phone band; the face keeps its
     // lines (kept), the hint gives way first, as ever
-    expect(hints).toBe(1047);
+    // SHOPCARD-1c (REQ-BFG-081), measured: 1037 (was 1047). The 10 panels that give the optional hint way are ASSEMBLY LINE's:
+    // "placed assembly ★1-★3 spare0/1" (6) and "cargo assembly ★2/★3 furnace spare0/1" (4), diffed against the base export
+    // (tmp/cd6x8236bfd = shopcard1b-accepted, ids by tmp/zz-ap-ids.test.ts): its line now says when ("FEEDS A GUN: EACH FIGHT, YOUR RIGS
+    // START WORKING 50% SOONER."), a second row on this test's fixed phone band; the face keeps its lines (kept), the hint gives way
+    // first, as ever. STOKER's and GRAPNEL GUN's second rows take no phone panel's hint (the desk count below is unchanged: 2021 / 62)
+    expect(hints).toBe(1037);
   });
 });
 

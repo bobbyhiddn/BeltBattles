@@ -50,7 +50,11 @@ export function helpLine3(free = freeJoinsRules()): string {
   // CARAVAN. DRAG OUT ..."
   // SHOPCARD-1 (REQ-BFG-115, H): the shop cards show only a piece's icon and price (the words moved to the panel a tap opens
   // and the desk's hover tooltip), so the line says how to read one: TAP A CARD TO READ IT (ON A DESK, POINT AT IT)
-  const how = "3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. TAP A CARD TO READ IT (ON A DESK, POINT AT IT). DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
+  // SHOPCARD-1c (REQ-BFG-081, REQ-BFG-115, G1; READ-10: no line a player read said MERGE or what ★2 and ★3 are, so the shop card's
+  // merge mark, an up triangle over a star and a digit, was a picture of nothing): one clause, true by src/game/fuse.ts:1-6 and 113-132
+  // (gainModule/chain: two copies of one piece at the same star merge into one a star higher, 1+1 = 2, 2+2 = 3, 3 the top, as a copy
+  // is gained, that is, bought) and the game's own words (BUY+MERGE, MERGES INTO ★2: inspector.ts, faces.ts faceMerge)
+  const how = "3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. TAP A CARD TO READ IT (ON A DESK, POINT AT IT). BUY A COPY OF A PIECE YOU OWN TO MERGE THEM INTO ★2 (TWO ★2 MERGE INTO ★3). DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
   return free ? `${how}.` : `${how} (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`;
 }
 

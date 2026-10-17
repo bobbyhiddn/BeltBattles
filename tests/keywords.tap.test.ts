@@ -505,13 +505,19 @@ describe("U2f: the taller ⓘ view", () => {
     // SHOPCARD-1b (REQ-BFG-081), measured (the same 325 panels; per panel against shopcard1-accepted's export): LIMPET WORKS' face line no longer
     // prints a {SLUG} icon ("THE FOE'S HULL TAKES 100 DMG 3 SEC AFTER A HIT."), so its ⓘ view lists one definition less and its 2
     // op views (cargo ★2, ★3) take 2 pages, not 3: op [8, 184, 96, 37] -> [8, 186, 94, 37]
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 186, 94, 37]);
+    // SHOPCARD-1c (REQ-BFG-081, G10), measured per panel against shopcard1b-accepted's export (tmp/zz-kw-pages.test.ts, the same 325
+    // panels): QUENCH TANK's face line now prints a {SLUG} icon ("HIT: TURNS EACH BURN ON A SLUG INTO +40 DMG."), so its ⓘ view lists one
+    // definition more (SLUG) and its 3 op views (cargo ★1-★3) take 3 pages, not 2: op [8, 186, 94, 37] -> [8, 183, 97, 37]
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([8, 183, 97, 37]);
     // CARD-5 (L, by design): SCRAPPER's taller face (its scrap line) and LEVELS move three desk views a bucket: [3, 51, 106,
     // 87, 71, 7] -> [3, 51, 106, 90, 68, 7]
     // SHOPCARD-1b (REQ-BFG-081), measured: the desk column sizes to its text, and 20 cargo panels' longer face lines (SEAM WELDER's YOUR HULL:,
     // RIVETER's, PINCER's, STOKER's, LIMPET WORKS', ASSEMBLY LINE's START, the three shaped rigs' HITS EACH SLUG UP TO n TIMES.) make it wider,
     // so their body-only views page one less: desk [3, 51, 106, 90, 68, 7] -> [3, 56, 113, 81, 65, 7]
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 56, 113, 81, 65, 7]);
+    // SHOPCARD-1c (REQ-BFG-081), measured as above: QUENCH TANK's SLUG definition adds a page to its 3 desk views (4 / 4 / 3 -> 5 / 5 / 4),
+    // and GRAPNEL GUN's longer two-row line ("SHOT: A HIT ON A FOE BELT OR RIG RIPS 1 SLUG.") widens the desk column so its 4 desk views
+    // (cargo ★1/★2, twice) page one less (3 -> 2): desk [3, 56, 113, 81, 65, 7] -> [3, 60, 108, 80, 67, 7]
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 60, 108, 80, 67, 7]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {

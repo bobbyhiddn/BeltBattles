@@ -145,8 +145,8 @@ describe("Y3 row 23: QUENCH TANK turns each BURN into +30/+50/+70; no floor, no 
 
   it("face: HIT: TURNS EACH BURN INTO +30/+50/+70 DMG; ladder DMG +30/+50/+70", () => {
     // AZ-BUMP (the flip, LADDER_FIX): ★1 +30 -> +40, the star-ladder pass's QUENCH ★1, on its face and its ladder; off, +30
-    expect(lines("quench")).toEqual([40, 50, 70].map((d) => [`HIT: TURNS EACH {*BURN} INTO +${d} {DMG}.`]));
-    expect(withLadderFix(() => lines("quench")[0], false)).toEqual(["HIT: TURNS EACH {*BURN} INTO +30 {DMG}."]);
+    expect(lines("quench")).toEqual([40, 50, 70].map((d) => [`HIT: TURNS EACH {*BURN} ON A {SLUG} INTO +${d} {DMG}.`])); // SHOPCARD-1c (G10): whose BURN: the slug's it hits (was HIT: TURNS EACH {*BURN} INTO +${d} {DMG}.)
+    expect(withLadderFix(() => lines("quench")[0], false)).toEqual(["HIT: TURNS EACH {*BURN} ON A {SLUG} INTO +30 {DMG}."]);
     oneLine("quench");
     expect(levels("quench", 1)).toEqual(["{DMG} [+40]/+50/+70", next(2, "+50 {DMG}")]);
     expect(hasFace("quench")).toBe(true);
@@ -383,12 +383,12 @@ describe("Y3 row 31: STOKER's factories work 20%/44%/70% faster; Y7b1 (ruling Y7
     expect(Math.round(paceUp(1) * 100) / 100).toBe(1.2); // ★1 fits under the gun
   });
 
-  it("face: ITS FACTORIES WORK UP TO 20%/44%/70% FASTER (Y7A-R1: the cap in its line), no caveat; ladder 20%/44%/70% FASTER", () => {
+  it("face: FACTORIES ITS ARROWS POINT AT WORK UP TO 20%/44%/85% FASTER (Y7A-R1: the cap in its line; SHOPCARD-1c: the arrows named), no caveat; ladder 20%/44%/70% FASTER", () => {
     // AZ-BUMP (the flip, LADDER_FIX): ★3 70% -> 85%, the star-ladder pass's STOKER ★3 (stoke 0.85, was 0.7), on its face and
     // its ladder; off, 70%
-    expect(lines("stoker")).toEqual(["20%", "44%", "85%"].map((p) => [`FACTORIES IT HITS WORK UP TO ${p} FASTER.`])); // Y7b1 (Y7A-R1): was `ITS FACTORIES WORK ${p} FASTER.`; SHOPCARD-1b: which factories (was ITS FACTORIES WORK UP TO)
-    expect(withLadderFix(() => lines("stoker")[2], false)).toEqual(["FACTORIES IT HITS WORK UP TO 70% FASTER."]);
-    oneLine("stoker");
+    expect(lines("stoker")).toEqual(["20%", "44%", "85%"].map((p) => [`FACTORIES ITS ARROWS POINT AT WORK UP TO ${p} FASTER.`])); // Y7b1 (Y7A-R1): was `ITS FACTORIES WORK ${p} FASTER.`; SHOPCARD-1b: which factories (was ITS FACTORIES WORK UP TO); SHOPCARD-1c (G5): no HIT, the factories its arrows point at (was FACTORIES IT HITS WORK UP TO)
+    expect(withLadderFix(() => lines("stoker")[2], false)).toEqual(["FACTORIES ITS ARROWS POINT AT WORK UP TO 70% FASTER."]);
+    oneLine("stoker", 2); // SHOPCARD-1c (G5): two rows of the band (289 px), the arrows named (was one row, 221 px)
     expect(levels("stoker", 1)).toEqual(["[20%]/44%/85% FASTER", next(2, "44% FASTER")]);
   });
 });
@@ -423,9 +423,9 @@ describe("Y3 row 32: ASSEMBLY LINE: your rigs start 50%/75%/100% sooner, its own
   // ladder "[50%]/75%/100% SOONER" (★3's AT ONCE has no number, so the ladder lists the three forms)
   it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; FEEDS A GUN: YOUR RIGS START 50% SOONER/75% SOONER/AT ONCE; ladders DMG 30/45/60, 50% SOONER/75% SOONER/AT ONCE; no HOT START name, the ⓘ view's too (Y7b2, TXT-096)", () => {
     // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): WORK (was "FEEDS A GUN: YOUR RIGS START ...")
-    expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`FEEDS A GUN: YOUR RIGS START ${p}.`]));
+    expect(lines("assembly")).toEqual(["50% SOONER", "75% SOONER", "AT ONCE"].map((p) => [`FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING ${p}.`])); // SHOPCARD-1c (G8): when and what (was FEEDS A GUN: YOUR RIGS START ${p}.)
     expect(faceAt("assembly", 1)!.stats).toEqual([["RATE", "17"], ["DMG", "30"], ["BELT", "2"]]);
-    oneLine("assembly");
+    oneLine("assembly", 2); // SHOPCARD-1c (G8): two rows of the band (328 px; was one row)
     // Y7b2 (the words): was [..., "[50%]/75%/100% SOONER", "★3 HOT START", `NEXT ★2: ...`] (the name left with its rule)
     expect(levels("assembly", 1)).toEqual(["{DMG} [30]/45/60", "{BELT} [2]/3/4", "[50% SOONER]/75% SOONER/AT ONCE",
       `NEXT ★2: ${statRow([["DMG", "45"], ["BELT", "3"]])}, 75% SOONER`]);

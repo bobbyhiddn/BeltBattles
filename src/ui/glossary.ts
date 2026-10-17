@@ -350,6 +350,13 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // p.prior++ for each applyHit, speed rigs' too) and LONG HAUL adds perPriorGate x it (1718). Was "HIT: EVERY RIG HIT BEFORE IT
   // COUNTS, SPEED RIGS TOO."
   longhaul: { word: "HIT", text: () => "HIT: WHEN IT HITS A SLUG, EVERY EARLIER HIT ON THAT SLUG COUNTS, SPEED RIGS TOO." },
+  // SHOPCARD-1c (REQ-BFG-081; READ-10 8.1, its second Opus grader: 3 of 3 TWIN LATCH answers missed the one condition no panel or note
+  // printed, so they went R -> P): battle.ts:757-764 makeSide builds a latch only from a TWIN LATCH whose two arrows both hit belts
+  // (`g.hits.length === 2`; "one arrow on a belt never holds"), 1378-1389 tryHold has each arrow hold the slug that crosses its tile's
+  // centre, and 1399-1420 latchTick lets it go within `hold` s. Its own note, as LONG HAUL's, replaces the HIT row's for this piece
+  // (glossaryText: a piece's tap note first), so it says what HIT does here and the condition, in the HIT row's words (ARROWS POINT AT).
+  // 2 rows of 5x7 at GLOSSARY_WRAP_W. Was the HIT row's "HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT."
+  twinlatch: { word: "HIT", text: () => "HIT: IT HOLDS A SLUG IT HITS, BUT ONLY WHEN BOTH ITS ARROWS POINT AT BELTS." },
   // battle.ts split: each copy keeps the payload's burn and shock. Y6 (release Y; DESIGN-Y 4.1; folded at the flip, Y7b2):
   // POISON is retired, so it names the two a copy keeps (Battle.applyHit's spread: its BURN, with VENOM's seconds, and its
   // STUN); was "... {*BURN}, POISON AND {*STUN}."
