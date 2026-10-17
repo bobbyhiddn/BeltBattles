@@ -76,7 +76,6 @@ import { logMigration, migrateInlineGates } from "./beltside";
 import { logShapes, migrateShapedFactories } from "./beltside"; // SHAPES-1 (REQ-BFG-086 S6): the load migration
 import { footOf, footTurns, shapesRules } from "./deck"; // SHAPES-1 (S1, S4): the switch; a shaped factory's rot (foot.ts, shapes.ts via deck.ts)
 import { STAND_IN_DATA, type StandInDay } from "./standInPoolData";
-import { LONG_RUN_GEN_DAYS } from "./longRun"; // RUN-1 (REQ-BFG-059, D5): the generators' depth (longRun.ts imports only ./content)
 
 /** RULES_VERSION the pool was generated (and scored) under. */
 export const STAND_IN_POOL_RULES: string = STAND_IN_DATA.rules;
@@ -87,14 +86,16 @@ export const STAND_IN_POOL_RULES: string = STAND_IN_DATA.rules;
 export const STAND_IN_POOL_HEROES: readonly HeroId[] = Object.keys(STAND_IN_DATA.pools) as HeroId[];
 export const STAND_IN_POOL_DAYS = 10;
 /** RUN-1 (REQ-BFG-059, D5): the depth the stand-in generator makes for a long run (harness/standins.ts StandInOpts.days;
- *  tools/genStandInPool.ts --days): 16, longRun.ts LONG_RUN_GEN_DAYS. The committed pool (standInPoolData.ts) holds
+ *  tools/genStandInPool.ts --days): 16, longRun.ts LONG_RUN_GEN_DAYS. A LITERAL on purpose (T2b, R1.6): this loader imports
+ *  only ./content, ./deck, ./beltside and its data (tests/standInPool.gen.test.ts pins that), so it cannot import ./longRun;
+ *  tests/run1.content.test.ts asserts it equals LONG_RUN_GEN_DAYS. The committed pool (standInPoolData.ts) holds
  *  STAND_IN_POOL_DAYS (10) until the release bump regenerates it to this depth and sets STAND_IN_POOL_DAYS to it.
  *  THE RULE FOR A DAY PAST THE DEEPEST DAY THE POOL HOLDS (written down, D5; standInDay): the deepest day's plan, i.e. its
  *  decks (standInDay clamps); the dusk opponent takes the day's own hull (hullScale.ts M(d), which every carrier on the day
  *  takes, so the day-16 deck on day 19 holds M(19) of its day-1 hull), and the day's own gold and odds are the checks' and
  *  the shop's: maxGoldByDay(day) (a deck bought on day 16 is always within it), rarityWeights(day). Until the bump
  *  regenerates the pool, days 11-16 follow the same rule from day 10's decks. */
-export const STAND_IN_GEN_DAYS = LONG_RUN_GEN_DAYS;
+export const STAND_IN_GEN_DAYS = 16;
 
 export interface StandInEntry {
   hero: HeroId;
