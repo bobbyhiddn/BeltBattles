@@ -11,7 +11,7 @@
 // with brighter colours (the hit flash): the same silhouette, never a different picture.
 
 import { C } from "./palette";
-import { disc, fromRows, hline, px, rect, type G } from "./pixel";
+import { disc, fromRows, hline, px, rect, vline, type G } from "./pixel";
 
 /** The seven ids this file draws (SCALE_IDS' order: sim/scale.ts). */
 export const SCALE_ART_IDS = ["cindermail", "rotgauge", "leechcoil", "crowdpress", "aegisspike", "grudgerod", "trophychain"] as const;
@@ -276,31 +276,35 @@ function aegisSpike(g: G, f: number, active: boolean): void {
 
 // ========================================================================================================== GRUDGE ROD
 
-/** GRUDGE ROD's notches by idle frame: each of the four on its own phase of a dim glow. */
-const NOTCH = [C.red, C.fire1, C.fire1, C.fire0, C.fire0, C.fire0, C.fire1, C.fire1];
+/** GRUDGE ROD's tally strokes by idle frame: each of the three on its own phase of a slow, dim glow (red at its strongest). */
+const TALLY = [C.red, C.red, C.fire1, C.fire1, C.fire0, C.fire1, C.red, C.red];
 
-/** GRUDGE ROD: a dark iron rod with a round head to the north and four red tally notches cut down its shaft (the heart is not
- *  drawn: font.ts ICON.HULL is the same heart as the run bar's, and it read as hull). Idle the notches glow dimly, each on
- *  its own phase; a hit makes them flare. */
+/** GRUDGE ROD: a straight dark iron rod, headless, four red tally notches cut into its left edge, one for each heart lost (the
+ *  heart itself is not drawn: font.ts ICON.HULL is the same heart as the run bar's, and it read as hull). It is a plain stick
+ *  on purpose: the first cold read took a rod with a domed head and red ticks for a bolt (RIVETER), and a pre-read of the
+ *  other tries took a thick tally bar for a forge (TEMPER) and a mace for a hammer (RIVETER). Idle the notches glow dimly, each
+ *  on its own phase of a slow wave; a hit makes them flare. */
 function grudgeRod(g: G, f: number, active: boolean): void {
   rows(g, 0, 0, [
-    "...kkkkkk...",
-    "..kSSSssdk..",
-    "..kSssssdk..",
-    "..kssssddk..",
+    "....kkkk....",
+    "...kSSssk...",
     "...kSssdk...",
     "...kSssdk...",
     "...kSssdk...",
     "...kSssdk...",
     "...kSssdk...",
     "...kSssdk...",
-    "....kddk....",
-    ".....kk.....",
+    "...kSssdk...",
+    "...kSssdk...",
+    "...kssddk...",
+    "....kkkk....",
   ], { k: C.ink, S: C.steel2, s: C.steel1, d: C.steel0 });
-  [5, 7, 9].forEach((y, i) => {
-    const col = active ? [C.fire5, C.fire4, C.fire4][i] : NOTCH[(f + i * 3) % 8];
-    hline(g, 4, y, 2, col);
-    if (active) { px(g, 4, y, C.white); px(g, 6, y, C.fire3); }
+  // the four notches, cut into the left edge on every other row: red inside, a dark lip under each
+  [3, 5, 7, 9].forEach((y, i) => {
+    const col = active ? [C.fire5, C.fire4, C.fire5, C.fire4][i] : TALLY[(f + [0, 1, 6, 7][i]) % 8];
+    px(g, 3, y, col); px(g, 4, y, col);
+    px(g, 3, y + 1, active ? C.fire3 : C.maroon);
+    if (active) px(g, 4, y, C.white);
   });
 }
 
