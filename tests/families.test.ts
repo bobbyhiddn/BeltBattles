@@ -64,7 +64,8 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
     // (the switch on): 86 - 1 + 3 = 88 (was 86)
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL (src/sim/shapes.ts SHAPES_ITEMS) join the buyable modules with
     // SHAPES on: 88 + 3 = 91
-    expect(MODULES.length).toBe(91);
+    // BUMP-1D: the six plain stat rigs (PLAIN_RIGS) and the six more shaped rigs (SHAPES2) join them, both on: 91 + 12 = 103
+    expect(MODULES.length).toBe(103);
     const counts = [0, 0, 0, 0];
     for (const d of MODULES) {
       const f = familiesOf(d.id);
@@ -78,7 +79,10 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
     // SWARM) join: [0, 31, 50, 5] -> [0, 33, 51, 4]
     // SHAPES-1 flip: NAIL STRIP and EMBER TROUGH (FORGE: 1 family) and SPIKE RAIL (FORGE, BURST: 2) join: [0, 33, 51, 4] ->
     // [0, 35, 52, 4]
-    expect(counts).toEqual([0, 35, 52, 4]);
+    // BUMP-1D: eight of the twelve have 1 family (RASP, BRANDING IRON, SAW BAR, CINDER HOOK FORGE; SPARK GAP, SPARK COMB
+    // HARASS; BALLAST, ELBOW GUARD PLATE) and four have 2 (SCALE GUARD PLATE and FORGE; GRINDSTONE, JAW CRUSHER, PICKAXE
+    // FORGE and BURST): [0, 35, 52, 4] -> [0, 43, 56, 4]
+    expect(counts).toEqual([0, 43, 56, 4]);
     for (const d of Object.values(ITEMS)) for (const t of d.tags ?? []) expect(V2, `${d.id}: ${t}`).toContain(t);
     for (const id of ["zz-none", "constructor", "toString", "__proto__", "hasOwnProperty", ""]) {
       expect(familiesOf(id), id).toEqual([]);

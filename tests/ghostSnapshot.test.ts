@@ -14,6 +14,7 @@ import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain 
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' hull out of the plating, their dawn gold in the budget
 import { roadAllowance } from "../src/sim/rivalBuilds"; // AZ-BUMP (the flip): the dusk deck's road allowance
 import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): a 10-day run's snapshot, and the exact-day pick
 import type { Build } from "../src/sim/deck";
 import type { SideStats } from "../src/sim/battle";
 
@@ -54,7 +55,12 @@ describe("ghostOf: the player's own v1 snapshot", () => {
     // 2's loss costs heartCost(2) = 1, and a hearts run has no refund
     expect([run.day, wins, lives]).toEqual([3, 1, 9]);
     const g = ghostOf(run, 1234.9, "p-me");
-    expect(keysOf(g)).toEqual([...KEYS, "seed"].sort()); // RUNES-1 (snapshot v3): and the run seed, last
+    // RUNES-1 (snapshot v3): and the run seed, last. BUMP-1D (LONG_RUN ships on): this run is a long run (newRun marks it), whose
+    // snapshot states the dusks it lost (day.ts ghostOf; a v3 field taken under long-run rules): one loss, day 2's. A 10-day run
+    // (made with the switch off) states none, as before
+    expect(keysOf(g)).toEqual([...KEYS, "seed", "losses"].sort());
+    expect(g.losses).toBe(1);
+    expect(keysOf(withLongRun(() => ghostOf(newRun("weaver", 4242, "run-a"), 1234.9, "p-me"), false))).toEqual([...KEYS, "seed"].sort());
     expect(SNAPSHOT_VERSION).toBe(2); // 0.6.1a: v2 (stars ride in the build); a snapshot without v3 fields still travels as v2
     expect([g.v, g.rules, g.seed]).toEqual([3, RULES_VERSION, 4242]); // RUNES-1: ghostOf writes v3 (it carries the seed)
     expect([g.hero, g.day, g.wins, g.lives, g.runId, g.playerId, g.createdAt]).toEqual(["weaver", 3, wins, lives, "run-a", "p-me", 1234]);
@@ -72,12 +78,18 @@ describe("ghostOf: the player's own v1 snapshot", () => {
   it("isSnapshot wants exactly the v1 fields, with ids matching ID_PATTERN", () => {
     const g = ghostOf(newRun("furnace", 7, "run-b"), 5, "p-me");
     expect(isSnapshot(g)).toBe(true);
-    expect(isSnapshot({ ...g, losses: 0 })).toBe(false); // an extra (0.6.0a) key
+    // BUMP-1D (LONG_RUN ships on): g is a long run's snapshot and states `losses`, a v3 field taken under long-run rules, so 0.6.0a's
+    // `losses` is no extra key on it; 0.6.0a's `savedAt` is one on every snapshot, and `losses` still is one on a 10-day run's
+    // snapshot (made with the switch off) under the 10-day rules (bb-0.10.0). Was isSnapshot({ ...g, losses: 0 }) false
+    expect(isSnapshot({ ...g, savedAt: 1000 })).toBe(false); // an extra (0.6.0a) key
+    const ten = withLongRun(() => ghostOf(newRun("furnace", 7, "run-b"), 5, "p-me"), false);
+    expect(isSnapshot({ ...ten, rules: "bb-0.10.0" })).toBe(true);
+    expect(isSnapshot({ ...ten, rules: "bb-0.10.0", losses: 0 })).toBe(false); // an extra (0.6.0a) key under the 10-day rules
     const missing: Record<string, unknown> = { ...g };
     delete missing.playerId;
     expect(isSnapshot(missing)).toBe(false);
     expect(isSnapshot({ ...g, v: 4 })).toBe(false); // RUNES-1: v 3 is current (0.6.1a: v 2 was)
-    const { seed: _seed, ...plain } = g; // RUNES-1: the seed is a v3 field
+    const { seed: _seed, losses: _losses, ...plain } = g; // RUNES-1: the seed is a v3 field; BUMP-1D: and so is `losses`
     expect(isSnapshot({ ...g, v: 1 })).toBe(false);
     expect(isSnapshot({ ...plain, v: 1 })).toBe(true); // and a v1 snapshot (no stars, no seed) still loads
     expect(isSnapshot({ ...g, playerId: "not an id!" })).toBe(false);
@@ -178,10 +190,25 @@ describe("pickGhost: nearest wins, then nearest lives, then a seeded tie-break",
   });
 
   it("never another rules version, another day or the current run, however close its record", () => {
+    // BUMP-1D (LONG_RUN ships on): another day is the 10-day rules' exact-day pick, which a run saved before the bump keeps (the
+    // game passes the run's own mark, q.long false); on a long run (below) a thin day widens to an earlier one (D6)
     const wrong = [v1({ rules: "bb-0.5.0" }), v1({ day: 3 }), v1({ day: 5 }), v1({ runId: "me" })];
-    expect(pickGhost(wrong, q)).toBe(null);
+    expect(pickGhost(wrong, { ...q, long: false })).toBe(null);
     const far = v1({ wins: 0, lives: 1, runId: "far" });
-    for (let seed = 0; seed < 40; seed++) expect(pickGhost([...wrong, far, ...wrong], { ...q, seed })).toBe(far);
+    for (let seed = 0; seed < 40; seed++) expect(pickGhost([...wrong, far, ...wrong], { ...q, seed, long: false })).toBe(far);
+  });
+
+  it("on a long run (this build's rules) a thin day widens to the nearest EARLIER day, never a later one, another rules version or the current run", () => {
+    // BUMP-1D (RUN-1 D6; ghosts.ts pickGhost, as the server's matchmaking.ts matchDays): the query's long mark, or by default the
+    // long run's rules (longRunFor(RULES_VERSION): yes), decides
+    const never = [v1({ rules: "bb-0.5.0" }), v1({ day: 5 }), v1({ day: 9 }), v1({ runId: "me" })];
+    expect(pickGhost(never, q)).toBe(null);
+    const d3 = v1({ day: 3, runId: "e3" }), d1 = v1({ day: 1, runId: "e1" });
+    expect(pickGhost([...never, d1, d3], q)).toBe(d3); // day 4 is thin: the nearest earlier day, 3
+    expect(pickGhost([...never, d1], q)).toBe(d1);
+    const far = v1({ wins: 0, lives: 1, runId: "far" }); // day 4: its own day first, whatever the record
+    for (let seed = 0; seed < 40; seed++) expect(pickGhost([...never, d3, far, d1], { ...q, seed })).toBe(far);
+    expect(pickGhost([d3], { ...q, long: false })).toBe(null); // the 10-day mark keeps the exact day
   });
 
   it("ties: hashSeed(seed, 'ghost', day) over the tied ghosts in pool order; deterministic, varies with the seed", () => {

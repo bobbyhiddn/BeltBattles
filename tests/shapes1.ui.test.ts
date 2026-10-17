@@ -14,6 +14,7 @@ import { newRun, rotateRig, type Run } from "../src/game/run";
 import { ITEMS } from "../src/sim/content";
 import { canPlaceItem, isIntakeCell, itemByUid, key as K, rotField, rotOf, type Placed } from "../src/sim/deck";
 import { withShapes } from "../src/sim/shapes";
+import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): its six have a foot of their own, whatever SHAPES says
 import { frame as deckFrame } from "../src/render/frame";
 import { computeView } from "../src/core/io";
 import { Editor, type EditHost } from "../src/screens/build/edit";
@@ -73,8 +74,14 @@ describe("SHAPES-1 S2: turning a shaped piece around its anchor", () => {
       expect(["whetstone", "kiln", "press"].map(shapedPiece)).toEqual([false, false, false]);
     });
     // off: nothing is shaped, GANTRY PRESS and ASSEMBLY LINE are 2x2 and don't turn (SHAPES-1 flip: set off; it ships on)
-    withShapes(() => {
+    // BUMP-1D: SHAPES2 ships on (bb-0.11.0) and its six are shaped pieces whatever SHAPES says, so SHAPES-1's off world (nothing
+    // shaped) is measured with SHAPES2 set off too; with it on, the only shaped pieces are its six and the factories stay 2x2
+    withShapes2(() => withShapes(() => {
       expect(Object.keys(ITEMS).filter(shapedPiece)).toEqual([]);
+      expect([canTurn("gantry"), canTurn("assembly"), canTurn("whetstone")]).toEqual([false, false, true]);
+    }, false), false);
+    withShapes(() => {
+      expect(Object.keys(ITEMS).filter(shapedPiece).sort()).toEqual([...SHAPES2_IDS].sort());
       expect([canTurn("gantry"), canTurn("assembly"), canTurn("whetstone")]).toEqual([false, false, true]);
     }, false);
   });

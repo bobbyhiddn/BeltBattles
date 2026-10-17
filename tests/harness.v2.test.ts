@@ -183,8 +183,11 @@ describe("harness v2: stand-in pool robust re-play", () => {
   }, 60_000);
 
   it("end to end (tiny population): every dry pick is legal - validateBuild ok, unfusedPairs empty, within budget", async () => {
+    // BUMP-1D: days: 10 (the generator's `days` option): genStandIns plays every day of the pool by default now (STAND_IN_POOL_DAYS 16, was 10), which
+    // is 16/10 of the work the 120 s CPU budget was set for (measured 171 to 202 s of CPU for the 16 days under load, over 120 s and over 192 s); this
+    // test keeps its 10 days, its budget and its 10 * heroes count as they were
     const tiny = {
-      ...STANDIN_DEFAULTS, pop: 6, gauntlet: 2, seeds: 1, elites: 2, refSeeds: 2, per: 2, grow: [8], stars: "on" as const,
+      ...STANDIN_DEFAULTS, pop: 6, gauntlet: 2, seeds: 1, elites: 2, refSeeds: 2, per: 2, grow: [8], stars: "on" as const, days: 10,
     };
     const cpu0 = process.cpuUsage();
     const res = await genStandIns(tiny, localRunner);

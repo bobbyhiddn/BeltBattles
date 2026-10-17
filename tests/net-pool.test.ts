@@ -5,15 +5,16 @@ import { fallbackGhost, loadGhostPool, offlineGhost, rivalHero } from "../src/ne
 import { encodeSnapshot, ghostId } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate"; // S8 T1e: + validateUpload (the player mode)
 import { npcDayRules } from "../src/sim/npcDay"; // S8 T1e: the budget line is left to the player mode only while NPC_DAY is on
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: the 10-day world's exact-day pick, kept beside the long run's widening
 import { generateSamplePool, samplePoolJson } from "../tools/samplePool";
 import { snap, upSnap } from "./netHelpers"; // S8 T1a: upSnap, an entry as an upload travels
 
 describe("sample pool and offline fallback", () => {
-  it("generates 120 valid snapshots across days 1-10 for the four playable heroes, reproducibly", () => {
+  it("generates 192 valid snapshots across days 1-16 for the four playable heroes, reproducibly", () => { // BUMP-1D: 192 across days 1-16 (was 120 across days 1-10)
     const pool = generateSamplePool();
-    expect(pool).toHaveLength(120); // 0.7.0a D5: 2 sample variants and 1 floor ghost per hero and day (0.8.0 RC: four heroes, was 60)
+    expect(pool).toHaveLength(192); // 0.7.0a D5: 2 sample variants and 1 floor ghost per hero and day (0.8.0 RC: four heroes, was 60); BUMP-1D: the long run's 16 days (4 x 16 x 3), was 120
     for (const hero of ["furnace", "weaver", "foundry", "bastion"]) { // 0.8.0 RC: was FURNACE and WEAVER
-      for (let day = 1; day <= 10; day++) {
+      for (let day = 1; day <= 16; day++) { // BUMP-1D: was 10
         expect(pool.filter((s) => s.hero === hero && s.day === day)).toHaveLength(3);
       }
     }
@@ -40,8 +41,8 @@ describe("sample pool and offline fallback", () => {
   it("loads the bundled pool JSON with every entry validated", () => {
     const load = loadGhostPool(samplePoolJson());
     expect(load.rejected).toEqual([]);
-    expect(load.entries).toHaveLength(120); // 0.8.0 RC: was 60
-    expect(new Set(load.entries.map((e) => e.id)).size).toBe(120);
+    expect(load.entries).toHaveLength(192); // 0.8.0 RC: was 60; BUMP-1D: the long run's 16 days, was 120
+    expect(new Set(load.entries.map((e) => e.id)).size).toBe(192);
   });
 
   it("rejects bad pool entries and keeps the good ones", () => {
@@ -79,7 +80,15 @@ describe("sample pool and offline fallback", () => {
     expect(hit.snapshot.day).toBe(6);
     expect(hit.id.startsWith("g")).toBe(true);
     const all = entries.filter((e) => e.snapshot.day === 6).map((e) => e.id);
-    const stand = fallbackGhost({ ...req, seen: all }, entries);
+    // BUMP-1D: under the long run's rules (the shipped world) a day whose ghosts are all seen WIDENS to the nearest earlier day that has
+    // one (matchmaking.ts matchDay, D6), so the stand-in comes only when no pool ghost up to the day is left unseen (was: every day-6 ghost
+    // seen -> offline-furnace-d6); the old exact-day behaviour is the 10-day world's, kept under withLongRun false
+    const widened = fallbackGhost({ ...req, seen: all }, entries);
+    expect(widened.id.startsWith("g")).toBe(true);
+    expect(widened.snapshot.day).toBe(5);
+    const stand10 = withLongRun(() => fallbackGhost({ ...req, seen: all }, entries), false);
+    expect(stand10.id).toBe("offline-furnace-d6");
+    const stand = fallbackGhost({ ...req, seen: entries.map((e) => e.id) }, entries);
     expect(stand.id).toBe("offline-furnace-d6");
     expect(fallbackGhost(req).id).toBe("offline-furnace-d6");
   });

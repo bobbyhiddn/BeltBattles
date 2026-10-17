@@ -23,10 +23,12 @@ import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 import { cellsOf, isIntakeCell, shapesRules } from "../sim/deck"; // SHAPES-1 S5b: the intake sweep
 import { canPlaceItem } from "../sim/deck"; // SHAPES-1 (R1, S2): rotateRig turns a long rig only where it fits
 import { isShaped } from "../sim/foot"; // SHAPES-1 S5b
-import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
+import { dawnGold, dawnRuneOffer, pickGold, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058); FIRSTDAY-1: dawnRuneOffer
+import { FIRST_RUN_COMMONS, FIRST_RUN_DAYS, firstRunGate, seededOrder } from "../sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004): F2-F3
 import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type LastChance, type LastChanceOffer } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT has no shop
 import { HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a new run's hearts
+import { longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a new run's long-run mark
 import { openRunesRules } from "../sim/openRunes"; // OPEN-1 (REQ-BFG-109): the dawn offer's and LAST CHANCE card's rule
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
@@ -107,7 +109,12 @@ export interface DuskFoe {
   hero: HeroId;
   build: Build; // fought exactly as stored
   rival?: RivalId; // a stand-in's captain (portrait, STAND-IN tag)
-  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number; name?: string }; // a pool ghost's stamp (PACKS M2: its player name, when it has one)
+  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number; name?: string; ghostDay?: number; losses?: number }; // a pool ghost's stamp (PACKS M2: its player name, when it has one)
+  // RUN-1 (R1.5, T4b): `ghostDay`, the ghost's OWN day, only when it differs from this dusk's day (D6: a long run's thin day widens to the
+  // nearest earlier day, so a day-12 dusk can meet a day-10 ghost): foeTitle reads the ghost's W-L from it. Absent: the ghost fought on
+  // this dusk's day (every 10-day run, and every exact-day pick), so a save and a record are byte for byte as before.
+  // RUN-1 (R2.4): `losses`, the dusks the ghost lost before its dusk, only when its snapshot STATES them (a long run's record does; a draw is
+  // no loss): foeTitle prints W-L from it. Absent: the snapshot stated none (every 10-day ghost), the L is derived as before.
   // 0.7.0a (online play only; absent offline), save v7, no bump: where tonight's foe came from, shown in small text on
   // the NEXT BATTLE card and under the enemy plate: "online" a ghost from the ghost server, "offline" 0.6.2's stand-in
   // after the fetch fell back (an error, a timeout, a 404 or an unusable answer)
@@ -121,7 +128,7 @@ export interface Run {
   runId: string; // unique per run: a run never meets its own ghosts
   hero: HeroId;
   enemyHero: HeroId; // 0.5.0 warlord hero (the herald's champion; 0.6.0b retargets it)
-  day: number; // 1..RUN_DAYS
+  day: number; // 1..RUN_DAYS; RUN-1: a long run (longRun) has no day limit (1, 2, ...)
   gold: number;
   lives: number;
   wins: number;
@@ -131,7 +138,7 @@ export interface Run {
   shop: Shop;
   nextUid: number;
   history: DayResult[];
-  over: null | "complete" | "lost";
+  over: null | "complete" | "lost" | "won"; // RUN-1: "won" ends a long run at its WIN_GOAL-th win ("complete": a 10-day run)
   stage: Stage;
   event: EventState | null;
   nextShop: { discount: number; free: number };
@@ -174,6 +181,17 @@ export interface Run {
   // newRun while HEARTS is on; true only. Absent: 5 lives, as before (every switch-off run, and a run saved before the
   // bump that turns HEARTS on, which finishes on its own scale). Save v8, no bump (a new optional field, as lastChance).
   hearts?: true;
+  // RUN-1 (REQ-BFG-059, REQ-BFG-116): the run is a long run (src/sim/longRun.ts: won at WIN_GOAL wins, lost at 0 hearts, no
+  // day limit), set by newRun while LONG_RUN is on; true only. Absent: the 10-day run, as before (every switch-off run, and
+  // a run saved before the bump that turns LONG_RUN on, which finishes on its own rule). Save v8, no bump (a new optional
+  // field, as hearts).
+  longRun?: true;
+  // FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F2-F3; src/sim/firstRun.ts): a new player's first run (set by newRun only with
+  // the gate live and the hero screen's profile read: profile.ts isNewPlayer), so its days 1-2 offers are gated and its
+  // snapshots carry the flag; and the first rig it bought on day 1 (dawn 2 offers a copy). Both absent on every other run,
+  // so every other save is as before. Save v8, no bump (new optional fields, as refund and runeDay were).
+  firstRun?: true;
+  firstRig?: string;
 }
 
 export const RUN_VERSION = 8; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once); NUM-1: hull x10 (save.ts v7to8, once)
@@ -184,7 +202,10 @@ export function newRunId(seed: number): string {
   return `${(seed >>> 0).toString(36)}-${Date.now().toString(36)}-${(runCounter++).toString(36)}`;
 }
 
-export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run {
+/** A new run. FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F2): `firstRun` is the caller's profile read (the hero screen asks
+ *  profile.ts isNewPlayer; nothing here reads a profile, so the server's, the harness's and the tools' runs never do); it
+ *  makes a first run only while the gate is live (firstRunGate: FIRST_RUN and PLAIN_RIGS), else the run is normal. */
+export function newRun(hero: HeroId, seed: number, runId = newRunId(seed), firstRun = false): Run {
   const run: Run = {
     version: RUN_VERSION, seed, runId, hero, enemyHero: hero === "furnace" ? "weaver" : "furnace",
     day: 1, gold: START_GOLD, lives: START_LIVES, wins: 0, losses: 0,
@@ -196,20 +217,106 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
     runeDay: 1, // RUNES-1: the first dawn's rune pick
     // RETUNE-1 (REQ-BFG-096): with HEARTS on, HEARTS_START hearts and the run's mark, last; off: exactly as before
     ...(heartsRules() ? { lives: HEARTS_START, hearts: true as const } : {}),
+    // RUN-1 (REQ-BFG-059): with LONG_RUN on, the run's long-run mark, after the hearts; off: exactly as before
+    ...(longRunRules() ? { longRun: true as const } : {}),
+    // PLAIN-1F (M1): FIRSTDAY-1's flag after RETUNE-1's hearts (and RUN-1's long-run mark), so it stays the save's last key
+    // (only on a first run)
+    ...(firstRun && firstRunGate() ? { firstRun: true as const } : {}), // FIRSTDAY-1: last, only on a first run
   };
   rollShop(run);
   return run;
+}
+
+// ---- FIRSTDAY-1 (REQ-BFG-004, REQ-BFG-084.4; BRIEF-FIRSTDAY1 F3): a first run's caravan on days 1-2 (src/sim/firstRun.ts) --
+
+/** F3: does this run's caravan (and dawn rune) follow the first-run gate today? A first run, on day 1 or 2, with the gate
+ *  live (FIRST_RUN and PLAIN_RIGS). */
+export function firstRunGated(run: Pick<Run, "firstRun" | "day">): boolean {
+  return run.firstRun === true && run.day <= FIRST_RUN_DAYS && firstRunGate();
+}
+
+/** F3: the hero's own pieces: every part its starting deck holds (its factory, rigs, gear and starting turrets). A first
+ *  run's caravan keeps an offer of one where the base's caravan rolled it (buying it merges). */
+export function firstRunOwnPieces(run: Pick<Run, "hero">): Set<string> {
+  const b = heroStartBuild(run.hero, 1);
+  return new Set([...b.items.map((p) => p.def), ...b.mods.map((m) => m.def), ...turretList(b).map((t) => t.def)]);
+}
+
+/** F3, dawn 2: the cheapest turret or gear piece the hero can use (gear needs a turret to sit on; a turret a free
+ *  hardpoint), among the commons a merchant sells; the first in catalogue order on a tie. Today HOPPER (4 G, "+1 LOAD")
+ *  for every hero (READ-1 6.4); MANTLET ties at 4 G after it. */
+export function firstRunGear(run: Pick<Run, "build">): string | null {
+  const turrets = turretList(run.build).length;
+  const freeHardpoint = turretSlots(run.build).some((s) => !s.turret);
+  let best: ItemDef | null = null;
+  for (const d of Object.values(ITEMS)) {
+    if ((d.kind !== "mod" && d.kind !== "turret") || d.rarity !== "common") continue;
+    if (!d.merchant || !itemsSoldBy(d.merchant).some((x) => x.id === d.id)) continue;
+    if (d.kind === "mod" ? turrets === 0 : !freeHardpoint) continue;
+    if (!best || d.price < best.price) best = d;
+  }
+  return best ? best.id : null;
+}
+
+/**
+ * F3: gate a first run's caravan on days 1-2, after rollShop rolled it by the base's rule (the same stream, merchants,
+ * wagons and slots, so lastMerchants and every later day are the base's). Each offer stays when it is a plain common
+ * (FIRST_RUN_COMMONS, in ITEMS) or one of the hero's own pieces (firstRunOwnPieces); every other slot is refilled.
+ * - Dawn 2 first places its two extra offers: the cheapest turret or gear the hero can use (firstRunGear) and, when the
+ *   run bought a rig on day 1, a copy of the first one (run.firstRig), so the MERGE ★2 badge shows. Each takes the first
+ *   slot to refill (caravan order), else the last kept slot; one already on offer is not added twice.
+ *   FIRSTDAY-1 Q4 (REVIEW-FIRSTDAY1; PLAIN-1F M2): the copy only while buying it would merge (fuse.ts mergePreview, the
+ *   test shopBadge's MERGE reads), checked on the dawn roll and on every day-2 reroll: once the first rig is sold, merged
+ *   on day 1 or bought again on day 2, no copy is added, and its slot takes the usual plain-common refill.
+ * - The other slots are refilled with the plain commons in a seeded order ("first-run-shop", day, rerolls: a reroll
+ *   draws from the same gated set), never one already in the caravan. With 6 plain commons and at most 5 slots no slot is
+ *   ever left unfillable; were one, it would keep the base's offer.
+ * Prices follow the base's rule (the def's price less the caravan's discount, at least 1); no slot is added or removed.
+ */
+export function firstRunCaravan(run: Run, priceOf: (d: { price: number }) => number): void {
+  const own = firstRunOwnPieces(run);
+  const plain = FIRST_RUN_COMMONS.filter((id) => !!ITEMS[id]);
+  const keep = (def: string) => plain.includes(def) || own.has(def);
+  const slots = run.shop.wagons.flatMap((w) => w.offers.map((_, i) => ({ w, i })));
+  const defOf = (s: { w: Wagon; i: number }) => s.w.offers[s.i].def;
+  const put = (s: { w: Wagon; i: number }, def: string) => { s.w.offers[s.i] = { def, price: priceOf(ITEMS[def]), sold: false }; };
+  const kept = slots.filter((s) => keep(defOf(s)));
+  const open = slots.filter((s) => !keep(defOf(s)));
+  const shown = new Set(kept.map(defOf));
+  const extras: string[] = [];
+  if (run.day === 2) {
+    const gear = firstRunGear(run);
+    if (gear) extras.push(gear);
+    // FIRSTDAY-1 Q4: only while buying the copy would merge (mergePreview, as shopBadge's MERGE)
+    if (run.firstRig && ITEMS[run.firstRig] && mergePreview(run, run.firstRig) !== null) extras.push(run.firstRig);
+  }
+  for (const def of extras) {
+    if (shown.has(def)) continue;
+    const s = open.shift() ?? kept.pop();
+    if (!s) break;
+    shown.delete(defOf(s));
+    put(s, def);
+    shown.add(def);
+  }
+  const order = seededOrder(plain, run.seed, "first-run-shop", run.day, run.shop.rerolls);
+  for (const s of open) {
+    const def = order.find((id) => !shown.has(id));
+    if (!def) continue; // never with 6 plain commons and at most 5 slots (tests/firstday1.rules.test.ts)
+    put(s, def);
+    shown.add(def);
+  }
 }
 
 // ---- RUNES-1 (REQ-BFG-058): the dawn rune pick ------------------------------------------------------------------------
 
 /** Today's pending rune offer (runes.ts runeOffer on the run's own "rune" stream), or null when no pick is pending. The
  *  offer is re-derived from (seed, day, hero, held), never stored, so a reload shows the same cards. */
-export function pendingRune(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over" | "lastChance">): RuneOffer | null {
+export function pendingRune(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over" | "lastChance" | "firstRun">): RuneOffer | null {
   if (run.over || run.runeDay !== run.day) return null;
   if (lastChancePending(run)) return null; // LC-1: the LAST CHANCE pick comes first (its offer reads the runes held now)
   // OPEN-1 (REQ-BFG-109): this build's offer rule, the switch (openRunesRules: hero-blind when on)
-  const offer = runeOffer(run.seed, run.day, run.hero, (run.build.runes ?? []).map((q) => q.id), openRunesRules());
+  // FIRSTDAY-1 (F3): a first run's dawns 1-2 (runes.ts dawnRuneOffer); every other run reads runeOffer(..., open), as before
+  const offer = dawnRuneOffer(run.seed, run.day, run.hero, (run.build.runes ?? []).map((q) => q.id), openRunesRules(), run.firstRun === true);
   return offer.ids.length ? offer : null;
 }
 
@@ -243,7 +350,7 @@ export const RUNE_FIRST = "TAKE TODAY'S RUNE FIRST";
  * its dawns. The build screen's FIGHT asks it first (screens/build/build.ts fight, so tooling that calls screen.fight()
  * meets it too); tooling that skips the picker takes the rune first (takeRune, or bb.holdRunes in a browser run).
  */
-export function fightRefusal(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over" | "lastChance">): string | null {
+export function fightRefusal(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over" | "lastChance" | "firstRun">): string | null {
   if (lastChancePending(run)) return LAST_CHANCE_FIRST; // LC-1: never set while the switch is off
   return pendingRune(run) ? RUNE_FIRST : null;
 }
@@ -491,6 +598,7 @@ export function rollShop(run: Run): void {
     }
   }
   run.shop.wagons = wagons.filter((w) => w.offers.length > 0); // 0.6.1r N5: an empty wagon doesn't ride
+  if (firstRunGated(run)) firstRunCaravan(run, priceOf); // FIRSTDAY-1 (F3): a first run's days 1-2, after the base's roll
 }
 
 export type ShopBadge = { kind: "merge"; toStars: number } | { kind: "wait" } | { kind: "max" };
@@ -631,6 +739,8 @@ export function buyOffer(run: Run, wagon: number, slot: number, at?: GainAt): Bu
     if (d.supply?.hull) run.build.hullBonus += d.supply.hull;
     return { ok: true, consumed: d.id };
   }
+  // FIRSTDAY-1 (F3): a first run's first rig bought on day 1 (dawn 2 offers a copy: firstRunCaravan)
+  if (d.kind === "gate" && run.day === 1 && run.firstRig === undefined && firstRunGated(run)) run.firstRig = d.id;
   const gain = gainModule(run, o.def, pv && pv.where !== "cargo" ? undefined : at);
   queueFuseAnim(run, gain);
   const item = gain.where === "cargo" ? run.inventory.find((i) => i.uid === gain.survivor) : undefined;

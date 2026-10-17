@@ -7,14 +7,16 @@ import { ROAD_PICKS, forkFor, leaveCaravan, pickRoad, roadChosen } from "../src/
 import { newRun, reroll, rollShop, type Run } from "../src/game/run";
 import { DIFFICULTIES, rivalBuild, warlordOffer } from "../src/sim/rivals";
 import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's event stop runs with NPC_DAY off
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; the 10-day run's fork is read with it off
 
 const SEEDS = Array.from({ length: 50 }, (_, i) => 3 + i * 104729);
 const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
-/** A fresh run moved to the dawn of `day` (its caravan rolled for that day). */
-function atDay(seed: number, day: number): Run {
-  const run = newRun(seed % 2 ? "furnace" : "weaver", seed);
+/** A fresh run moved to the dawn of `day` (its caravan rolled for that day). BUMP-1D: a long run (the shipped one) unless `long` is
+ *  false: the 10-day run, whose event sequence has the last-day dud swap (events.ts eventFor's third argument is the run's own mark). */
+function atDay(seed: number, day: number, long = true): Run {
+  const run = withLongRun(() => newRun(seed % 2 ? "furnace" : "weaver", seed), long);
   run.day = day;
   rollShop(run);
   return run;
@@ -22,22 +24,25 @@ function atDay(seed: number, day: number): Run {
 
 describe("the road fork: what each day offers", () => {
   it("every day 1-10: the day's bag event and warlordOffer's three warlords, from the run seed alone", () => {
-    for (const seed of SEEDS) {
-      for (const day of DAYS) {
-        const run = atDay(seed, day);
-        const f = forkFor(run);
-        expect(f.day).toBe(day);
-        expect(f.event).toBe(eventFor(seed, day));
-        expect(BAG_IDS).toContain(f.event);
-        expect(f.warlords).toEqual(warlordOffer(seed, day, undefined));
-        expect(f.warlords).toEqual(warlordOffer(seed, day, run.matriarchBeatenOn ?? undefined));
-        // another run on the same seed (another run id), with a rerolled caravan: the same fork
-        const twin = atDay(seed, day);
-        twin.gold = 99;
-        expect(reroll(twin) && reroll(twin)).toBe(true);
-        expect(twin.runId).not.toBe(run.runId);
-        expect(forkFor(twin)).toEqual(f);
-        expect(forkFor(run)).toEqual(f); // asking twice changes nothing
+    // BUMP-1D: both worlds. The 10-day run's event is eventFor(seed, day) as it was; a long run's has no day-10 swap (eventFor(seed, day, true))
+    for (const long of [false, true]) {
+      for (const seed of SEEDS) {
+        for (const day of DAYS) {
+          const run = atDay(seed, day, long);
+          const f = forkFor(run);
+          expect(f.day).toBe(day);
+          expect(f.event).toBe(eventFor(seed, day, long));
+          expect(BAG_IDS).toContain(f.event);
+          expect(f.warlords).toEqual(warlordOffer(seed, day, undefined));
+          expect(f.warlords).toEqual(warlordOffer(seed, day, run.matriarchBeatenOn ?? undefined));
+          // another run on the same seed (another run id), with a rerolled caravan: the same fork
+          const twin = atDay(seed, day, long);
+          twin.gold = 99;
+          expect(reroll(twin) && reroll(twin)).toBe(true);
+          expect(twin.runId).not.toBe(run.runId);
+          expect(forkFor(twin)).toEqual(f);
+          expect(forkFor(run)).toEqual(f); // asking twice changes nothing
+        }
       }
     }
   });

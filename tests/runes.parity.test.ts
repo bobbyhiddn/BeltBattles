@@ -16,6 +16,11 @@
 // Gone with the re-base: NUM-2's NUM2_DECKS_DIFFER (11) and flip cap 25, NUM-3's NUM3_DECKS_DIFFER (9) and flip cap 38, the
 // NUM-1 x10 conversion of the base's decks, CATCHUP-089's stand-in pack allowance (it compared with the base's decks; the
 // record's stand-ins now hold their packs) and the bb-0.8.6 base fixture (tests/fixtures/runes.parity.base.json).
+// BUMP-1D (run 3, r3-pool-c): the record is re-written on the 10-wins release's pools (bb-0.11.0; BB_RUNES_PARITY_WRITE=605f220). The seed pool is
+// 16 days deep now (192 ghosts, LONG_RUN) and the battle plan is RUNES-1's, days 1-10 (12 ghosts and a stand-in a day, 36 battles a day, seeds
+// from the old record), so the record holds the pool's days 1-10 (decksNow: day <= 10; 120 of the 192 ghosts) and the dusk stand-ins of days
+// 1-10: still 130 decks and 360 battles. Days 11-16 are not in the record (the plan's generator was never committed, so its seeds cannot be
+// extended); the sim's replay of them is held by the other pool readers.
 // Re-run after any change to the sim: npx vitest run --maxWorkers=4 tests/runes.parity.test.ts
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
@@ -74,11 +79,13 @@ function asRow(got: ReturnType<typeof fight>, plan: Pick<Row, "kind" | "a" | "b"
   return JSON.parse(JSON.stringify({ kind: plan.kind, a: plan.a, b: plan.b, seed: plan.seed, ...got })) as Row;
 }
 
-/** This build's 130 decks: the seed pool's 120 ghosts (hero-v<variant>-d<day>) and each day's dusk stand-in. */
+/** This build's 130 decks: the seed pool's 120 ghosts of days 1-10 (hero-v<variant>-d<day>; BUMP-1D: the pool is 192 ghosts over 16 days now,
+ *  the record is the plan's days 1-10, so `day <= RECORD_DAYS`) and each day's dusk stand-in. */
+const RECORD_DAYS = 10;
 function decksNow(standInRun: number): Record<string, Build> {
   const out: Record<string, Build> = {};
-  for (const s of generateSamplePool()) out[`${s.hero}-v${s.playerId.slice(-1)}-d${s.day}`] = s.build;
-  for (let day = 1; day <= 10; day++) {
+  for (const s of generateSamplePool()) if (s.day <= RECORD_DAYS) out[`${s.hero}-v${s.playerId.slice(-1)}-d${s.day}`] = s.build; // BUMP-1D: was every ghost (120)
+  for (let day = 1; day <= RECORD_DAYS; day++) {
     const id = standInGhost(standInRun, day);
     out[`standin-${id}-d${day}`] = standInBuild(id, day);
   }
@@ -110,7 +117,10 @@ if (process.env.BB_RUNES_PARITY_WRITE) {
       // CATCHUP-098 (REQ-BFG-024): re-written at 13ec8db (the named stand-ins' dusk decks re-planned, BRIEF-CATCHUP-098 target
       // 4: NETTLE's day-6 deck and LONGTOOTH's day-7 deck are record decks); the seed pool and the battle plan as Z-BUMP left
       // them. Was "Z-BUMP (REQ-BFG-073): the parity record re-written at 2c4ba76 under bb-0.9.7, release Z's rules (LAST CHA..."
-      about: "CATCHUP-098 (REQ-BFG-024): the parity record re-written at 13ec8db under bb-0.9.7 after the captains' plan moves (the named stand-ins' dusk decks); the seed pool and the battle plan (kinds, pairs, seeds) as Z-BUMP left them",
+      // BUMP-1D (run 3): re-written at 605f220 under bb-0.11.0, the 10-wins release's pools (the seed pool's days 1-10 of its 16, the dusk
+      // stand-ins of days 1-10); the battle plan (kinds, pairs, seeds) as Z-BUMP left them. Was "CATCHUP-098 (REQ-BFG-024): the parity record
+      // re-written at 13ec8db under bb-0.9.7 after the captains' plan moves (the named stand-ins' dusk decks); the seed pool and the battle plan..."
+      about: "BUMP-1D (run 3): the parity record re-written at 605f220 under bb-0.11.0, the 10-wins release's pools (the seed pool's days 1-10 of its 16 and the dusk stand-ins of days 1-10); the battle plan (kinds, pairs, seeds) as Z-BUMP left them",
       base: process.env.BB_RUNES_PARITY_WRITE, rules: RULES_VERSION, salt: old.salt, standInRun: old.standInRun,
       decksCount: Object.keys(decks).length, battlesCount: battles.length, decks, battles,
     };
@@ -122,7 +132,7 @@ describe("release X parity: the record and its decks", () => {
   it("was written on flipx2 under this build's rules, the rules its pools were generated under (POOL_RULES; nothing carried)", () => {
     const F = JSON.parse(readFileSync(X_PATH, "utf8")) as Fixture;
     expect(F.rules).toBe(RULES_VERSION);
-    expect(RULES_VERSION).toBe("bb-0.10.0"); // AZ-BUMP: the bump (was bb-0.9.7; the fixture is re-written under it at S8's regeneration). Z-BUMP: the bump and the fixture re-written under it (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+    expect(RULES_VERSION).toBe("bb-0.11.0"); // BUMP-1D: the 10-wins release (was bb-0.10.0; the fixture re-written under it). AZ-BUMP: the bump (was bb-0.9.7; the fixture is re-written under it at S8's regeneration). Z-BUMP: the bump and the fixture re-written under it (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
     expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(F.rules);
     expect([Object.keys(F.decks).length, F.battles.length]).toEqual([F.decksCount, F.battlesCount]);
@@ -137,7 +147,7 @@ describe("release X parity: the record and its decks", () => {
     const differ = Object.keys(F.decks).filter((k) => !isDeepStrictEqual(now[k], F.decks[k]));
     expect(differ, differ.join(", ")).toEqual([]);
     for (const [k, b] of Object.entries(F.decks)) expect(b.runes?.length, k).toBe(dayOf(k));
-  }, 120_000);
+  }, 300_000); // BUMP-1D P6 (RULING-RUN1-R2 R2.3): 300 s, was 120 s (it timed out under load, and passes alone)
 });
 
 describe("release X parity: the battles", () => {
@@ -151,5 +161,5 @@ describe("release X parity: the battles", () => {
     }
     console.log(`runes parity (release X): ${F.battles.length} battles replayed in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${moved.length} rows moved`);
     expect(moved, moved.slice(0, 10).join("\n")).toEqual([]);
-  }, 120_000);
+  }, 300_000); // BUMP-1D P6 (RULING-RUN1-R2 R2.3): 300 s, was 120 s (it timed out under load, and passes alone)
 });

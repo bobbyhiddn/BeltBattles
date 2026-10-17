@@ -33,7 +33,7 @@ import { hashSeed } from "../../core/rng";
 import { POOL_RULES, type HeroId } from "../content";
 import type { Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
-import { decodeStandIn, encodeStandIn, roadWord, standInPool } from "../standInPool"; // AZ-BUMP (N3): roadWord
+import { decodeStandIn, encodeStandIn, roadWord, standInPool, STAND_IN_POOL_DAYS } from "../standInPool"; // AZ-BUMP (N3): roadWord; RUN-1: the depth
 import { FUSE_MAX, starsOf } from "../stars";
 import {
   CARAVAN_MIX, CARAVAN_POLICY, caravanCandidate, caravanGauntlet, caravanGauntletSeedOf, caravanSeedOf, type CaravanMeta, type StandInSource,
@@ -75,6 +75,10 @@ export interface StandInOpts {
   // step 5 (REQ-BFG-033): the population's source (./caravan.ts). Absent or "fullpurse": standInCandidate, exactly as
   // before; the CLI's --source defaults to "caravan".
   source?: StandInSource;
+  // RUN-1 (REQ-BFG-059, D5): the days the generator makes, fromDay..days (absent: 1..STAND_IN_POOL_DAYS, the committed
+  // pool's 10, exactly as before). A long run's pool goes to STAND_IN_GEN_DAYS (16) at the release bump's regeneration.
+  days?: number;
+  fromDay?: number;
   // step 5 (REQ-BFG-026): off when absent. [lo, hi]: a pick also needs lo <= vsPar <= hi (CLI --par-band lo,hi).
   parBand?: [number, number];
   // RUNES-2a (REQ-BFG-058): the par player's dawn runes (player.ts PlayerOpts.botRunes) for the caravan candidates, the
@@ -312,6 +316,11 @@ export interface DayResult { days: HeroDay[]; battles: number }
 export interface GenHooks {
   load?: (day: number) => DayResult | undefined;
   save?: (day: number, r: DayResult) => void;
+  /** BUMP-1D: one hero-day on its own. A hero's picks on a day depend on nothing but the options, the hero and the day (the
+   *  other hero's decks only enter the report line parVsElites, which is worked out again at the end of the day), so a run
+   *  cut off in the middle of a day keeps the heroes it had finished. */
+  loadHero?: (day: number, hero: HeroId) => { hd: HeroDay; battles: number } | undefined;
+  saveHero?: (day: number, hero: HeroId, r: { hd: HeroDay; battles: number }) => void;
 }
 
 /** BOTS-X (REQ-BFG-058; RUNES-2a 3 step 2): the bought deck's value, as ./caravan.ts caravanDeck values a candidate and
@@ -339,7 +348,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
   const seedsFor = (...parts: (string | number)[]) => Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-battle", o.seed, ...parts, k));
   const caravan = sourceOf(o) === "caravan";
   if (caravan && o.stars !== "on") throw new Error("the caravan source needs stars on: the par player merges its copies");
-  for (let day = 1; day <= 10; day++) {
+  for (let day = o.fromDay ?? 1; day <= (o.days ?? STAND_IN_POOL_DAYS); day++) { // RUN-1: fromDay..days (default 1..10)
     const saved = hooks?.load?.(day);
     if (saved) {
       out.push(...saved.days);
@@ -348,14 +357,22 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       continue;
     }
     const before = battles;
+    // BUMP-1D: the hero-days this day already holds (hooks.loadHero) are not played again; with every hero held, the gauntlet and the
+    // references are not even built
+    const kept = new Map<HeroId, { hd: HeroDay; battles: number }>();
+    for (const h of o.heroes) { const k = hooks?.loadHero?.(day, h); if (k) kept.set(h, k); }
+    const needed = kept.size < o.heroes.length;
     // step 5: the caravan gauntlet is typical par-player decks of its own seeds (./caravan.ts)
-    const gauntlet = o.heroes.flatMap((g) => Array.from({ length: o.gauntlet }, (_, i) => norm(caravan ? caravanGauntlet(g, day, o.seed, i, o.botRunes)
+    const gauntlet = !needed ? [] : o.heroes.flatMap((g) => Array.from({ length: o.gauntlet }, (_, i) => norm(caravan ? caravanGauntlet(g, day, o.seed, i, o.botRunes)
       : fullPurseBuild(g, day, hashSeed("standin-gauntlet", o.seed, g, day, i), spendFloor(day), 60, o.stars, FUSE_MAX, coresOf(o), factoriesOf(o)).build, o.stars)));
     // FB-C: the par decks through par.ts parRefs (heroref: heroRefBuild of each pool hero, as before)
-    const { refs, refHero } = standInRefs(o, day);
+    const { refs, refHero } = needed ? standInRefs(o, day) : ({ refs: [], refHero: [] } as unknown as ReturnType<typeof standInRefs>);
     const G = gauntlet.length, R = refs.length;
     const dayOut: HeroDay[] = [];
     for (const hero of o.heroes) {
+      const held = kept.get(hero);
+      if (held) { dayOut.push(held.hd); battles += held.battles; log?.(`${hero} day ${day}: loaded (${held.battles} battles)`); continue; }
+      const heroBefore = battles;
       const refSeeds = refs.map((_, r) => Array.from({ length: o.refSeeds }, (_, k) => hashSeed("standin-ref", o.seed, hero, day, r, k)));
       let capAffected = 0, capWould3 = 0;
       // builds from..to-1 of this hero/day's population, scored vs the gauntlet and measured vs the references
@@ -444,6 +461,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
         elites, parVsRef: { ...picks[par].vsRef }, parVsElites: 0, robustRemoved, robustReplayed, capAffected, capWould3,
       });
       log?.(`${hero} day ${day}: ${relax}, window ${window.join("-")} of ${pop.length}; picks pct ${picks.map((p) => p.pct).join(", ")}; vsPar ${picks.map((p) => p.vsPar).join(", ")}${robustRemoved ? `; robust re-play removed ${robustRemoved}` : ""}`);
+      hooks?.saveHero?.(day, hero, { hd: dayOut[dayOut.length - 1], battles: battles - heroBefore });
     }
     // the par against that day's elites of every pool hero (report only)
     for (const hd of dayOut) {
@@ -468,7 +486,7 @@ export interface VersusRow { day: number; rate: number; battles: number }
  *  come from different pools, and A and B may be the same hero. */
 export async function versus(o: StandInOpts, a: { hero: HeroId; picks: PicksOf }, b: { hero: HeroId; picks: PicksOf }, run: Runner): Promise<VersusRow[]> {
   const out: VersusRow[] = [];
-  for (let day = 1; day <= 10; day++) {
+  for (let day = o.fromDay ?? 1; day <= (o.days ?? STAND_IN_POOL_DAYS); day++) { // RUN-1: fromDay..days (default 1..10)
     const A = a.picks(a.hero, day), B = b.picks(b.hero, day);
     const jobs: Job[] = A.flatMap((_, i) => B.map((_, j): Job => ({
       a: i, b: A.length + j, seeds: Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-pvp", o.seed, day, i, j, k)), day, // HULL-1a

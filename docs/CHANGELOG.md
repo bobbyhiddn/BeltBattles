@@ -3,6 +3,30 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## Next release: a run is won at 10 wins (battle rules bb-0.11.0; the release lane sets the label)
+
+New battle rules: bb-0.11.0. Ghosts and uploads from 0.9.10 and older no longer meet this release's players. The stand-in
+and seed pools were rebuilt for the new rules and now cover days 1 to 16; you'll fight that fresh pool of 192 ghosts at
+first, then other players' runs as they come in.
+- **A run is won at 10 wins:** a run no longer stops at day 10. It ends when you win your 10th fight (RUN WON, and 10-0 is
+  FLAWLESS) or when your hearts run out, and there is no day limit: day 11, 12 and on come as long as you have hearts. The
+  bar reads WINS n/10 beside the day, and the rules card says so.
+- **A lost dusk costs less:** 1 heart on days 1 to 3 and 2 hearts from day 4 on (it was 3 from day 7). A draw costs none.
+- **Softer ghosts, and a fair floor:** the ghosts you meet are a little softer, and a run with no wins yet meets decks a
+  casual player can beat, so more runs reach their 10th win.
+- **Twelve new rigs:** six plain rigs, RASP, SPARK GAP, SCALE GUARD and BALLAST (common), GRINDSTONE and BRANDING IRON
+  (rare), and six shaped rigs, ELBOW GUARD, SAW BAR and SPARK COMB (common), CINDER HOOK and JAW CRUSHER (rare) and PICKAXE
+  (epic). The shaped ones cover more than one square, bent, straight, T-shaped or square, and each arrow shines from every
+  outside edge of the rig that faces its way, so where you place them and which way you turn them matters. Shops show
+  shaped rigs more often: a run's stock always holds at least seven of the nine shaped rigs. CINDER HOOK starts as a plain
+  damage rig and burns from its first merge. LAST CHANCE can now offer PICKAXE among its epic parts.
+- **Numbers that moved:** NAIL STRIP hits harder (16, 33 and 53 damage a hit, was 12, 25 and 40) and SPIKE RAIL a little
+  softer (8, 16 and 28, was 10, 20 and 35). PLATE BREAKER is now called SHIELD FUEL (the same piece).
+- **The foe's record is exact:** on the dusk intro a ghost's record shows the wins and losses it really had, and a draw
+  is not counted as a loss.
+- **Your profile follows you:** your run counts, best day, the heroes you finished and won with, your unlocks and your
+  chosen looks are now saved to the ghost server as you play, signed with your ghost key. Nothing changes on screen.
+
 ## 0.9.10: REPLAY after every fight
 
 - **REPLAY after every fight:** the result card that follows a fight, the dusk and the warlord on the road, now has REPLAY

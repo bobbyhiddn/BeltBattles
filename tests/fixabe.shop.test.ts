@@ -9,7 +9,13 @@ import { ITEMS, OFFERS, SUSTAIN_FIRST_DAY, SUSTAIN_IDS, itemsSoldBy, sustainLive
 import { DRAW, drawWares, heldPast, seatDay, unlockDay, unlocked } from "../src/game/wares";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: A's and B's release-X seeds with shapes off
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: ... and the plain rigs off
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: ... and the six more shaped rigs off
 
+/** BUMP-1D: release X's catalogue (88 modules) for a call: the three shaped rigs (SHAPES), the six plain rigs (PLAIN_RIGS) and the six
+ *  more shaped rigs (SHAPES2) all off, `on` true: all on, the shipped world (was withShapes(fn, on)). The nesting puts the switches
+ *  back in ITEMS order (the plain rigs, the three, the six more: each swap back appends), which the draws read. */
+const world = <T>(fn: () => T, on: boolean): T => withShapes2(() => withShapes(() => withPlainRigs(fn, on), on), on);
 const offersOf = (run: ReturnType<typeof newRun>): string[] => run.shop.wagons.flatMap((w) => w.offers.map((o) => o.def));
 const poolOn = (run: ReturnType<typeof newRun>, m: MerchantId, day: number): string[] => itemsSoldBy(m).filter((d) => unlocked(run, d.id, day)).map((d) => d.id);
 
@@ -31,8 +37,10 @@ describe("FIX-ABE A/B: a locked ware never holds a merchant's ware slot", () => 
   // the edge (without its stand-in the caravan is one short, or the TINKER echoes the GREASE); with shapes on no seed of
   // 1-6000 (days 1-2, rerolls 0-3) has a caravan one short without its stand-ins but for 1268 on day 1 at reroll 1, where
   // it is WARD BELL's TINKER slot, not MENDING LOOM's ALCHEMIST one: A's twin below
+  // BUMP-1D: release X's catalogue has neither the six plain rigs nor the six more shaped ones, so the release-X seeds run with all
+  // three switches off (world(fn, false)); the shipped world's twins are checked after, as SHAPES-1's flip did
   it("A: seed 187, day 1, reroll 2 offers 5 (ALCHEMIST's day-1 pool holds 3: MENDING LOOM's slot has a stand-in)", () => {
-    withShapes(() => {
+    world(() => {
       for (const hero of PLAYABLE_HEROES) {
         const run = newRun(hero, 187);
         run.day = 1;
@@ -48,12 +56,16 @@ describe("FIX-ABE A/B: a locked ware never holds a merchant's ware slot", () => 
     }, false);
     // SHAPES-1 flip: the shipped world's twin: seed 1268, day 1, reroll 1 offers 5 (TINKER's day-1 pool holds 3: WARD
     // BELL's slot has a stand-in; without it, 4 offers)
+    // BUMP-1D: the shipped catalogue has 103 modules now (the six plain stat rigs and the six more shaped rigs, PLAIN_RIGS and
+    // SHAPES2 on, and SHAPES2's offer lever), so seed 1268 is no edge any more; the twin is seed 203 (the first of a scan of seeds
+    // 1-6000 for a run whose WARD BELL is a day-3 ware and whose day-1 caravan, with a TINKER wagon, offers 5 from a TINKER pool
+    // of 3), day 1, no reroll: WARD BELL's slot has a stand-in
     for (const hero of PLAYABLE_HEROES) {
-      const run = newRun(hero, 1268);
+      const run = newRun(hero, 203);
       run.day = 1;
       run.gold = 999;
       rollShop(run);
-      expect(reroll(run)).toBe(true);
+      expect(run.shop.wagons.some((w) => w.merchant === "tinker"), hero).toBe(true);
       expect(offersOf(run), hero).toHaveLength(OFFERS);
       expect(run.wares!.wardbell, hero).toBe(SUSTAIN_FIRST_DAY);
       expect(poolOn(run, "tinker", 1).length, hero).toBe(3);
@@ -63,14 +75,16 @@ describe("FIX-ABE A/B: a locked ware never holds a merchant's ware slot", () => 
 
   it("B: seed 17 (x 65537), day 1: TINKER never echoes the owned GREASE (WARD BELL's slot has a stand-in)", () => {
     // SHAPES-1 flip: seed 17 x 65537 with shapes off (why: above A), then the shipped world's twin, seed 3826 x 65537
-    for (const [seed, on] of [[17, false], [3826, true]] as const) withShapes(() => {
+    // BUMP-1D: the shipped world's twin is seed 14 x 65537 now (the first of a scan of seeds 1-6000 for a TINKER wagon on day 1,
+    // WARD BELL a day-3 ware and a TINKER pool of 4 in the 103-module catalogue); 3826 is no edge there
+    for (const [seed, on] of [[17, false], [14, true]] as const) world(() => {
       const run = newRun("furnace", seed * 65537);
       run.inventory = [{ uid: 900, def: "grease" }];
       run.day = 1;
       rollShop(run);
       expect(offersOf(run), `${seed}`).not.toContain("grease");
       expect(offersOf(run), `${seed}`).toHaveLength(OFFERS);
-      // WARD BELL is still the run's (a day-6 restock at 17; day 3 at 3826)
+      // WARD BELL is still the run's (a day-6 restock at 17; day 3 at 14, was 3826)
       expect(run.wares!.wardbell, `${seed}`).toBeGreaterThanOrEqual(SUSTAIN_FIRST_DAY);
       expect(poolOn(run, "tinker", 1).length, `${seed}`).toBe(4);
     }, on);

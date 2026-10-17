@@ -111,7 +111,9 @@ describe("v070-rel M2 (a) at the upload path", () => {
       // FLIP-X2: v3 (was 2): the deck holds its runes, which travel only in a v3 snapshot
       // HULL-ON (the flip, HEARTS): 3 lives, or the fewest a run carries into dusk 5 where 3 is out of reach (on hearts a
       // 0W run holds at least 5 there; POST answered 422 "record: 0W 3 lives ..." to the 2-join deck)
-      const s: GhostSnapshot = { v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: DAY, wins: 0, lives: Math.max(3, floorRecord(DAY).lives), build: b, runId: `joins-${who}`, playerId: `p-${who}`, createdAt: 1_790_000_000_000 };
+      // BUMP-1D (LONG_RUN ships on): and the dusks the run lost (server/app.ts lossesProblem: this build's rules are a long run's, whose
+      // upload states them, 422 "losses: ..." without): 0 wins at dusk 5 with the floor record's hearts (5, from 10) is four losses
+      const s: GhostSnapshot = { v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: DAY, wins: 0, lives: Math.max(3, floorRecord(DAY).lives), losses: DAY - 1, build: b, runId: `joins-${who}`, playerId: `p-${who}`, createdAt: 1_790_000_000_000 };
       const body = JSON.stringify(ownedBy(s, me));
       const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
       return { status: r.status, body: (await r.json()) as { id?: string; errors?: string[] } };

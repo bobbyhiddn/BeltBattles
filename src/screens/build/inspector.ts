@@ -93,7 +93,7 @@ import { dmgShown } from "../../sim/hullScale"; // HULL-1d (REQ-BFG-079): the be
 import { mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
-  abilityText, cardText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergesWithText,
+  abilityText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergesWithText,
   newPerk, nextStarHeadline, nextStarText, percent, plural, seconds, shieldText, slagPulseExtra, type BeltKind, type TextOpts,
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
@@ -121,8 +121,11 @@ import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; //
 import { icons } from "../../render/font"; // U2c step 4
 import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items
 import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
-import { RIG_SENTENCE, turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' rig sentence and kind lines
-import { isPlainRig, shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
+import { turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' kind lines (PLAIN-1F M3: the rig sentence comes through plainNotes)
+import { shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
+import { shapeLines } from "../../ui/faces"; // PLAIN-1F (M4): a placed long rig's UP TO n HITS, said by its arrows line
+import { plainNotes } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (was isPlainRig's rig sentence)
+import { cardEffect } from "../../ui/faces"; // BUMP-1D P6: the offer panel's header-only one-line effect: cardText, else a plain rig's stat row (the twelve have no ability text)
 import { shapePic } from "../../ui/shapePic"; // SHAPES-1 (REQ-BFG-086.1): the panel face's shape picture
 
 /** SHAPES-1 (REQ-BFG-086.1, S8): a panel's header picture: a shaped piece's shape with its arrows (ui/shapePic.ts), in the
@@ -320,7 +323,9 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
   // SHAPES-1 (REQ-BFG-089, S8): a shaped plain rig leads with the rig sentence too (isPlainRig), then a shaped piece's
   // shape or size rule (faces.ts shapeNotes): default rules text, behind the hover or tap
   const shaped: Block[] = def ? shapeNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : [];
-  const extra: Block[] = [...(def && isPlainRig(def) ? [{ role: "ability", text: RIG_SENTENCE, note: "rig" } as Block] : []), ...shaped, ...(t.notes ?? [])];
+  // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead is faces.ts plainNotes: the rig sentence (as before for every
+  // plain rig with PLAIN_RIGS off), SCALE GUARD's carry line after it, BALLAST's own line in its place
+  const extra: Block[] = [...(def ? plainNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []), ...shaped, ...(t.notes ?? [])];
   const hidden = t.body.filter((b) => !!b.note || b.role === "flavour" || b.role === "hint");
   const notes = [...extra, ...hidden].map((b, i) => ({ b, i })).sort((p, q) => noteOrder(p.b) - noteOrder(q.b) || p.i - q.i).map((x) => x.b);
   return {
@@ -375,6 +380,9 @@ export const IDLE_HEAD = "IDLE: NO ARROW ON A BELT.";
 /** 0.8.0 P1 (E3): a STOKER's IDLE warning (it works factories, never belts), in the same forms. CARD-3 (B, lever 1): its
  *  fix a NOTES line too. */
 export const STOKER_IDLE = { short: "IDLE: NO ARROW REACHES A FACTORY.", head: "IDLE: NO ARROW ON A FACTORY.", fix: "TURN IT OR MOVE IT BESIDE A FACTORY." };
+/** PLAIN-1F (M4; REQ-BFG-080): a long rig's IDLE warning in its arrows line's words (the header's RIG · x/n ARROWS ON BELTS
+ *  when it works), so the placed panel says its n either way and its UP TO n HITS line can leave it (rigPanel). */
+export const longIdle = (arrows: number): string => `IDLE: 0/${arrows} ARROWS ON BELTS.`;
 
 /** 0.6.2t (0b.4): which belt a walk is on: locked (METRONOME, speed-locked), slag (a SLAG POT's fixed speed) or free. */
 export function beltKind(w: RouteWalk): BeltKind {
@@ -460,15 +468,26 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
   const on = shaped ? new Set(hits.map((h) => `${h.from ?? -1}:${h.dir}`)).size : new Set(hits.map((h) => h.dir)).size;
   const hl = hitLines(hits);
   // 0.8.0 P1 (E3): a STOKER beside no factory warns about factories (its arrows never work belts, so it has no belt hits)
-  const warn = d.gate?.stoke ? STOKER_IDLE : { short: IDLE_SHORT, head: IDLE_HEAD, fix: IDLE_FIX };
+  // PLAIN-1F (M4): a long rig's IDLE warning says its arrows, 0/n (longIdle), as its working header says x/n
+  const warn = d.gate?.stoke ? STOKER_IDLE : shaped ? { short: longIdle(arrows), head: longIdle(arrows), fix: IDLE_FIX }
+    : { short: IDLE_SHORT, head: IDLE_HEAD, fix: IDLE_FIX };
   // SPACE-1 (D1): a rig's hits are one list (the next hit ties to the one above it). CARD-3 (B, lever 1): IDLE's fix is a
   // NOTES line (a "kind" note: explainPanel hides it from every face)
+  // PLAIN-1F (M4; REQ-BFG-080, REQ-BFG-089; BRIEF-PLAIN1F M4, RUN5-SHAPES1 1.2): a long rig's placed panel fits the phone
+  // band again by its content alone (no layout change). Its hits are one line, the grouped form (hl.compact: each hit gives
+  // the same stats, so its tiles are listed once, belt by belt), and its UP TO n HITS line leaves this panel: its arrows
+  // line already says n (the header's RIG · x/n ARROWS ON BELTS, or IDLE: 0/n ARROWS ON BELTS.). The stat row stays (the
+  // piece's own numbers); the shop card and every other panel keep UP TO n HITS (faces.ts shapeLines). A one-cell rig's
+  // panel is as before.
+  const long = shaped && hits.length > 1;
   const lead: Block[] = idle ? [{ role: "warn", text: warn.short, keep: true }, { role: "warn", text: warn.fix, note: "kind" }]
+    : long ? [{ role: "hits", text: hl.compact, keep: true }]
     : hl.full.map((t, i): Block => ({ role: "hits", text: t, keep: true, ...(i ? { tie: true } : {}) }));
   const leadTight: Block[] = idle ? [{ role: "warn", text: warn.short, keep: true }]
     : hits.length > 1 ? [{ role: "hits", text: hl.compact, keep: true }] : lead;
+  const upTo = shaped ? shapeLines(d.id, stars).map((r) => r.text) : []; // PLAIN-1F (M4): said by the arrows line
   const rest = [
-    ...abilityBlocks(d.id, stars, textOpts(run)),
+    ...abilityBlocks(d.id, stars, textOpts(run)).filter((b) => !upTo.includes(b.text)),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock(x ? "FACES EVERY SIDE. DRAG TO MOVE." : touch ? TOUCH_TURN : "TAP TO TURN (OR R). DRAG TO MOVE."),
   ];
@@ -623,7 +642,7 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
   const d = ITEMS[o.def];
   const merging = !o.sold && shopBadge(run, o.def)?.kind === "merge";
   const opts = textOpts(run);
-  const one = cardText(d.id, opts);
+  const one = cardEffect(d.id, opts); // BUMP-1D P6: was cardText(d.id, opts); cardEffect is cardText byte for byte wherever cardText has a line, and a plain rig's stat row where it has none (the twelve of PLAIN_RIGS and SHAPES2, on since bb-0.11.0: the 360x640 strip drew no effect for them)
   // U2e step 4 (REQ-BFG-070): no MERGES INTO line on the face: the card's MERGE ★2 badge and BUY+MERGE say it merges, and
   // the ⓘ view's NEXT★ line what the merge gives (mergeBlock and mergeLine stay for tools; no panel draws them)
   const body: Block[] = [

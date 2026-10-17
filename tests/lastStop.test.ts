@@ -9,6 +9,7 @@ import { choicesFor, eventFor, eventSequence, makeEvent } from "../src/game/even
 import { finishWarlord, forkFor, onToTheRoad, pickRoad } from "../src/game/road"; // AZ-BUMP: the event after the fight
 import { newRun } from "../src/game/run";
 import { RUN_DAYS } from "../src/sim/content";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; this file is the 10-day run's rule
 
 const SEEDS = Array.from({ length: 1000 }, (_, n) => 11 + n * 7919);
 const DUDS = new Set<EventId>(["herald", "sappers"]);
@@ -78,8 +79,10 @@ describe("no dud last stop (0.6.0d): HERALD and SAPPERS never land on day 10", (
   });
 
   it("the day-10 fork and road event are never a dud, and the NO WARLORD LEFT block stays as the safety net", () => {
+    // BUMP-1D: the 10-day run's rule (LONG_RUN ships on, and a long run's event sequence has no day-10 swap: tests/run1.content.test.ts),
+    // so these runs are started with the long run off (a run plays on the rule it started on)
     for (const seed of SEEDS.slice(0, 200)) {
-      const run = newRun("furnace", seed);
+      const run = withLongRun(() => newRun("furnace", seed), false);
       run.day = RUN_DAYS;
       expect(DUDS.has(forkFor(run).event)).toBe(false);
       run.gold = 20;
@@ -93,7 +96,7 @@ describe("no dud last stop (0.6.0d): HERALD and SAPPERS never land on day 10", (
       expect(choicesFor(run).some((c) => !c.blocked)).toBe(true);
     }
     for (const id of ["herald", "sappers"] as EventId[]) {
-      const run = newRun("furnace", 4242);
+      const run = withLongRun(() => newRun("furnace", 4242), false);
       run.day = RUN_DAYS;
       run.gold = 20;
       run.event = makeEvent(run.seed, RUN_DAYS, id); // e.g. a saved run that stored it before 0.6.0d

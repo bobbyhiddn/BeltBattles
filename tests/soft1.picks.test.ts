@@ -1,12 +1,12 @@
 // SOFT-1 (REQ-BFG-092; BRIEF-SOFT1, RULING-SOFT1-R1's C2bw; B/output-soft1/bench/bands-soft1.md): the seed pool's softer
-// picks. tools/samplePool.ts ships the rule's 80 picks as SOFT1_PICKS (the rule grades ~57,600 battles, ~7 minutes, too
+// picks. tools/samplePool.ts ships the rule's 128 picks (days 1-16 since BUMP-1D; 80 before) as SOFT1_PICKS (the rule grades ~57,600 battles, ~7 minutes, too
 // slow for every generateSamplePool()); these tests hold the table to the rule.
-//  - always: the table's shape (4 heroes x 10 days x 2 distinct picks, each "s<i>" or "f<seed>" with an 8-hex hash), and every
+//  - always: the table's shape (4 heroes x 16 days (BUMP-1D; was 10) x 2 distinct picks, each "s<i>" or "f<seed>" with an 8-hex hash), and every
 //    pick resolves to its deck in the shipped world (softPicked throws on a stale hash);
 //  - opt-in (BB_SOFT1_RULE=1, ~7-10 minutes): the rule itself (softDecks, the exact grading) gives SOFT1_PICKS, pick for pick.
 //    Run it after a stand-in pool or par field change; on a red it prints the rule's table to paste into SOFT1_PICKS.
 import { describe, expect, it } from "vitest";
-import { MAX_DAY } from "../src/net/snapshot";
+import { LONG_RUN_GEN_DAYS } from "../src/sim/longRun"; // BUMP-1D: the table holds days 1-16 (was MAX_DAY, 10)
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { SAMPLE_VARIANTS, SOFT1_PICKS, softDecks, softPickKey, softPicked, softStaleCheck, softWorld } from "../tools/samplePool";
 
@@ -21,7 +21,7 @@ describe("SOFT-1: the seed pool's picks (SOFT1_PICKS)", () => {
   it("holds two distinct picks a day for every playable hero, each a stand-in entry or a par-field seed with its hash", () => {
     expect(Object.keys(SOFT1_PICKS).sort()).toEqual([...PLAYABLE_HEROES].sort());
     for (const hero of PLAYABLE_HEROES) {
-      expect(SOFT1_PICKS[hero]).toHaveLength(MAX_DAY);
+      expect(SOFT1_PICKS[hero]).toHaveLength(LONG_RUN_GEN_DAYS);
       for (const pair of SOFT1_PICKS[hero]) {
         expect(pair).toHaveLength(SAMPLE_VARIANTS);
         for (const p of pair) expect(p).toMatch(/^(s[0-5]|f([1-9]|1[0-2])):[0-9a-f]{8}$/);
@@ -33,7 +33,7 @@ describe("SOFT-1: the seed pool's picks (SOFT1_PICKS)", () => {
   it("resolves every pick to its deck in the shipped world (no stale hash)", () => {
     expect(softWorld()).toBe(true);
     for (const hero of PLAYABLE_HEROES) {
-      for (let day = 1; day <= MAX_DAY; day++) {
+      for (let day = 1; day <= LONG_RUN_GEN_DAYS; day++) {
         const [a, b] = softPicked(hero, day)!;
         expect([softPickKey(hero, day, a), softPickKey(hero, day, b)]).toEqual([...SOFT1_PICKS[hero][day - 1]]);
       }
@@ -44,7 +44,7 @@ describe("SOFT-1: the seed pool's picks (SOFT1_PICKS)", () => {
     const got: Record<string, [string, string][]> = {};
     for (const hero of PLAYABLE_HEROES) {
       got[hero] = [];
-      for (let day = 1; day <= MAX_DAY; day++) {
+      for (let day = 1; day <= LONG_RUN_GEN_DAYS; day++) {
         const [a, b] = softDecks(hero, day);
         got[hero].push([softPickKey(hero, day, a), softPickKey(hero, day, b)]);
       }

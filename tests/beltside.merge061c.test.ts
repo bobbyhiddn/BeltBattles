@@ -24,6 +24,8 @@ import { barge, factoryBench, gantryWeaver, SEED } from "./arsenal.bench";
 import { roadDraws, type RoadDraws } from "./beltside.roadDraws";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): P8's walk with the switch off
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the 062b history check runs with shapes off (in062b)
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and with the six more shaped rigs off (in062b)
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: and with the six plain stat rigs off (in062b)
 
 const J = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const st = (s: number) => (s > 1 ? { stars: s } : {});
@@ -362,11 +364,14 @@ function refuse062b(say: (msg: string) => void = console.warn): boolean {
  */
 // SHAPES-1 flip: and with shapes off (withShapes(fn, false)): the three shaped rigs are no part of 0.6.2b's catalogue (EMBER
 // TROUGH would join the SMUGGLER's BURN pool and both commons SALVAGE's, and the draws would move)
+// BUMP-1D (PLAIN_RIGS and SHAPES2 ship on): and with both off (withPlainRigs, withShapes2 false): the six plain stat rigs and the six
+// more shaped rigs are no part of 0.6.2b's catalogue either (the commons among them would join SALVAGE's and the SMUGGLER's pools:
+// 96 of the 108 draws moved with them on, where the capture pins 24, the trader's)
 function in062b<T>(fn: () => T): T {
   const dormant = DORMANT_ITEMS as Set<string>, was = [...dormant];
   dormant.delete("sifter");
   try {
-    return withShapes(() => withSustain(() => withWave3(fn, false), false), false);
+    return withPlainRigs(() => withShapes2(() => withShapes(() => withSustain(() => withWave3(fn, false), false), false), false), false);
   } finally {
     dormant.clear();
     for (const id of was) dormant.add(id);
@@ -443,9 +448,17 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     // S8 (BRIEF-S8 lane 2, REVIEW-SHAPES1 section 5): regenerated with BB_WRITE_ROAD_DRAWS_080=1 and every switch on as shipped
     // (bb-0.10.0, the nine on) at 01b0a57: 95 of 108 choices moved (wreck 35, smuggler 36, trader 24), the 3 salvage rows, the
     // smuggler row and 20 of 79 swaps; cause SHAPES-1's flip cd59be0 (NAIL STRIP and EMBER TROUGH in the pools)
-    expect(salvagePool()).toEqual(["temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer", "nailstrip", "embertrough"]);
+    // BUMP-1D (PLAIN_RIGS and SHAPES2 ship on): regenerated with BB_WRITE_ROAD_DRAWS_080=1 and every switch on as shipped (bb-0.11.0,
+    // the eleven on): 96 of 108 choices moved (wreck 36, smuggler 36, trader 24), the 3 salvage rows, the smuggler row, and the swaps
+    // (91 goods now, was 79: the twelve new rigs are goods too); cause the twelve new rigs in the pools: the commons in SALVAGE after
+    // the older ones (SHAPES2's ELBOW GUARD, SAW BAR and SPARK COMB, then PLAIN_RIGS' RASP, SPARK GAP, SCALE GUARD and BALLAST) and
+    // the one whose effect burns in the SMUGGLER's BURN pool (RASP's BURN; SPARK GAP's STUN is no SHOCK pool member: it stays the same three)
+    expect(salvagePool()).toEqual([
+      "temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer", "nailstrip", "embertrough",
+      "elbowguard", "sawbar", "sparkcomb", "rasp", "sparkgap", "scaleguard", "ballast",
+    ]);
     expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([
-      ["temper", "bellows", "quench", "embertrough"], ["coil", "staticbrush", "lodestone"],
+      ["temper", "bellows", "quench", "embertrough", "rasp"], ["coil", "staticbrush", "lodestone"],
     ]);
     // the per-run draw moved the event draws themselves (the run's wares), not only the pools
     expect(roadDraws(true).choices).not.toEqual(live.choices);

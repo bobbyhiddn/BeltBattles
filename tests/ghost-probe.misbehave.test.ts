@@ -17,6 +17,11 @@
 // (npcday-signed 201, npcday-forged 422 after lastchance-day3; was eleven) and stores six decks (was five). A seventh
 // server switches off npcday-forged's own check: validateUpload's road lines (validate.ts roadProblem), as "budget" drops
 // its budget lines.
+// BUMP-1D (REQ-BFG-059, REQ-BFG-116; the bump to bb-0.11.0; RULING-BUMP-R1 R1.2): the long run is the game's rule, so every row
+// states its `losses` and the probe has fifteen rows (longrun-signed 201, longrun-nolosses 422 after npcday-forged; was
+// thirteen) and stores seven decks (was six). An eighth server switches off longrun-nolosses' own check, RUN-1's upload check
+// (records.ts lossesProblem, the mock below): the same deck and record as longrun-signed, which states none, is then taken.
+// Every other row states its losses, so no other switch lets that row through and the new switch lets no other row through.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,7 +30,7 @@ import { createGhostServer, type GhostServer } from "../server/app";
 import { JsonlStore } from "../server/store";
 import { probeMain } from "../server/ghostProbe";
 
-type Off = "signature" | "budget" | "record" | "metronome" | "siphon" | "lastchance-record" | "road"; // Z-BUMP: + lastchance-record; AZ-BUMP: + road
+type Off = "signature" | "budget" | "record" | "metronome" | "siphon" | "lastchance-record" | "road" | "losses"; // Z-BUMP: + lastchance-record; AZ-BUMP: + road; BUMP-1D: + losses
 /** The one check switched off for the next probe (null: none, the real server). */
 const off = vi.hoisted(() => ({ check: null as null | string }));
 
@@ -73,6 +78,9 @@ vi.mock("../src/net/records", async (importOriginal) => {
       const lc = a[3]?.lastChance ?? null;
       return (off.check === "record" && lc === null) || (off.check === "lastchance-record" && lc !== null) || real.isReachable(...a);
     },
+    // BUMP-1D (RUN-1; REQ-BFG-059, R1.2 T3c): the losses check (server/app.ts POST step 6, after the record check): with "losses"
+    // set, an upload under a long run's rules that states no `losses` is taken; every other upload meets the real rule
+    lossesProblem: (...a: Parameters<typeof real.lossesProblem>) => (off.check === "losses" ? null : real.lossesProblem(...a)),
   };
 });
 // the hero gate (rulesGate.ts heroGateProblem, which the strict decoder and validateUpload both ask): with "metronome" or
@@ -83,8 +91,8 @@ vi.mock("../src/net/rulesGate", async (importOriginal) => {
 });
 
 // Z-BUMP: the flip (was the nine rows, without lastchance-signed and lastchance-day3; ghost-probe.test.ts pins the same eleven)
-const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON", "lastchance-signed", "lastchance-day3", "npcday-signed", "npcday-forged"]; // AZ-BUMP: the bump (the NPC day's two rows; was eleven)
-const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400", "201", "422", "201", "422"]; // AZ-BUMP: the bump (the NPC day's 201 and 422; was eleven). Z-BUMP: the flip (was nine, without the last 201 and 422)
+const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON", "lastchance-signed", "lastchance-day3", "npcday-signed", "npcday-forged", "longrun-signed", "longrun-nolosses"]; // BUMP-1D: the bump (the long run's two rows; was thirteen). AZ-BUMP: the bump (the NPC day's two rows; was eleven)
+const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400", "201", "422", "201", "422", "201", "422"]; // BUMP-1D: the bump (the long run's 201 and 422; was thirteen). AZ-BUMP: the bump (the NPC day's 201 and 422; was eleven). Z-BUMP: the flip (was nine, without the last 201 and 422)
 /** Each misbehaving server: the check switched off, the probe row it lets through, and what that POST then gets. */
 const CASES: { off: Off; row: string; status: string }[] = [
   { off: "signature", row: "furnace-unsigned", status: "200" },
@@ -94,6 +102,7 @@ const CASES: { off: Off; row: string; status: string }[] = [
   { off: "siphon", row: "hero-SIPHON", status: "201" },
   { off: "lastchance-record", row: "lastchance-day3", status: "201" }, // Z-BUMP: the flip, the new row's own check
   { off: "road", row: "npcday-forged", status: "201" }, // AZ-BUMP: the bump, the NPC day's forged row's own check
+  { off: "losses", row: "longrun-nolosses", status: "201" }, // BUMP-1D: the bump, the long run's forged row's own check (RUN-1's upload check)
 ];
 
 interface Rig {
@@ -128,13 +137,13 @@ const posts = (log: string[]) => log.filter((l) => / POST \/v1\/ghosts /.test(l)
 const checkLines = (lines: string[]) => lines.filter((l) => /^(PASS|FAIL) {2}/.test(l));
 
 describe("the uploads step's probe against a misbehaving server (one check switched off)", () => {
-  it("no check switched off: the same rig is the correct server, thirteen checks as expected, exit 0, six decks stored", async () => { // AZ-BUMP: the bump (was eleven checks, five decks). Z-BUMP: the flip (was nine checks, four decks)
+  it("no check switched off: the same rig is the correct server, fifteen checks as expected, exit 0, seven decks stored", async () => { // BUMP-1D: the bump (was thirteen checks, six decks). AZ-BUMP: the bump (was eleven checks, five decks). Z-BUMP: the flip (was nine checks, four decks)
     const { base, idFile, log } = await serve();
     const lines: string[] = [];
     expect(await probeMain([base, idFile], (l) => lines.push(l))).toBe(0);
     expect(checkLines(lines).map((l) => l.split(/\s+/).slice(0, 2).join(" "))).toEqual(NAMES.map((n) => `PASS ${n}`));
     expect(posts(log)).toEqual(STATUSES);
-    expect(lines.at(-1)).toBe(`probe: 13 of 13 checks as expected; the server stored 6 deck(s) for this player (expected 6); the player id is in ${idFile}`); // AZ-BUMP: the bump (was 11 of 11, stored 5, expected 5). Z-BUMP: the flip (was 9 of 9, stored 4, expected 4)
+    expect(lines.at(-1)).toBe(`probe: 15 of 15 checks as expected; the server stored 7 deck(s) for this player (expected 7); the player id is in ${idFile}`); // BUMP-1D: the bump (was 13 of 13, stored 6, expected 6). AZ-BUMP: the bump (was 11 of 11, stored 5, expected 5). Z-BUMP: the flip (was 9 of 9, stored 4, expected 4)
   }, 60_000);
 
   it.each(CASES)("a server that takes the $row row (its $off check switched off): the probe exits 1 with FAIL on exactly that row", async ({ off: which, row, status }) => {
@@ -148,6 +157,6 @@ describe("the uploads step's probe against a misbehaving server (one check switc
     // the server misbehaved as meant, and only there: that row's POST was taken, every other answered as the real server's
     expect(posts(log)).toEqual(STATUSES.map((s, i) => (NAMES[i] === row ? status : s)));
     expect(checks[NAMES.indexOf(row)]).toMatch(new RegExp(`^FAIL {2}${row} +expected: \\d{3} .+ \\| got: ${status} \\{"id":"g[0-9a-f]{14}"\\}$`));
-    expect(lines.at(-1)).toBe(`probe: 12 of 13 checks as expected; the server stored 7 deck(s) for this player (expected 6); the player id is in ${idFile}`); // AZ-BUMP: the bump (was 10 of 11, stored 6, expected 5). Z-BUMP: the flip (was 8 of 9, stored 5, expected 4)
+    expect(lines.at(-1)).toBe(`probe: 14 of 15 checks as expected; the server stored 8 deck(s) for this player (expected 7); the player id is in ${idFile}`); // BUMP-1D: the bump (was 12 of 13, stored 7, expected 6). AZ-BUMP: the bump (was 10 of 11, stored 6, expected 5). Z-BUMP: the flip (was 8 of 9, stored 5, expected 4)
   }, 60_000);
 });

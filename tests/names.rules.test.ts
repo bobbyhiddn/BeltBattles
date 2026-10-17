@@ -9,6 +9,7 @@ import * as local from "../src/game/ghostSnapshot";
 import { checkSnapshot, encodeSnapshot, ghostId, NameError, SnapshotError, type GhostSnapshot } from "../src/net/snapshot";
 import { ghostOf } from "../src/game/day";
 import { newRun } from "../src/game/run";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): a 10-day run's snapshot has no `losses`
 import { snap } from "./netHelpers";
 
 const rot13 = (s: string) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(((c.charCodeAt(0) - 65 + 13) % 26) + 65));
@@ -221,7 +222,12 @@ describe("storage: beside the player id, it survives a reload", () => {
     const none = fresh.ghostOf(run, 5, "p-me", null);
     expect("name" in none).toBe(false);
     // RUNES-1 (snapshot v3): the name is the last v2 field; the run seed (a v3 field) follows it
-    expect(Object.keys(fresh.ghostOf(run, 5, "p-me", "ANNA")).slice(-2)).toEqual(["name", "seed"]);
+    // BUMP-1D (LONG_RUN ships on): a long run (newRun marks it) states its `losses` (day.ts ghostOf), after the seed; the 10-day run
+    // (made with the switch off) ends at the seed as before. Was slice(-2) toEqual(["name", "seed"]) on the run made here
+    expect(Object.keys(fresh.ghostOf(run, 5, "p-me", "ANNA")).slice(-3)).toEqual(["name", "seed", "losses"]);
+    const tenDay = withLongRun(() => newRun("furnace", 7), false);
+    expect(Object.keys(fresh.ghostOf(tenDay, 5, "p-me", "ANNA")).slice(-2)).toEqual(["name", "seed"]);
+    expect("losses" in fresh.ghostOf(tenDay, 5, "p-me", "ANNA")).toBe(false);
     expect(ghostOf(run, 5, "p-me", "ANNA").name).toBe("ANNA");
   });
 });

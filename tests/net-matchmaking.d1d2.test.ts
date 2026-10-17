@@ -16,6 +16,7 @@ import { fallbackGhost } from "../src/net/fallback";
 import { decodeSnapshot, encodeSnapshot, ghostId, MAX_LIVES, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
 import { isReachable, reachableRecords } from "../src/net/records"; // HULL-ON (HEARTS): reachableRecords, the POST rows' count
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS; ruling 22e26ded338944ea Q3): the records' lives scale
+import { longRunRules, setLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on; RULING-BUMP-R3 R3.4 b): the D2 test's 10-day half (inWorld below)
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
@@ -142,6 +143,20 @@ const SEED_POOL = generateSamplePool();
 const SEED_IDS = new Set(SEED_POOL.map(ghostId));
 const BASE_DECK = SEED_POOL.find((s) => s.day === DAY)!;
 
+// BUMP-1D (LONG_RUN ships on): run an async body in the 10-day world (long = false: a request reads its own day only, as withLongRun(fn, false)) or
+// in the long run. The server of this file runs in this process and reads the switch when it answers, after the test's `await fetch`, but
+// withLongRun's own finally puts the switch back as soon as its function has returned the promise, before the server has read anything: so the
+// switch is set here around the awaits (tests/net-server.test.ts inWorld does the same), and put back even if an assertion throws.
+async function inWorld<T>(long: boolean, fn: () => Promise<T>): Promise<T> {
+  const was = longRunRules();
+  setLongRun(long);
+  try {
+    return await fn();
+  } finally {
+    setLongRun(was);
+  }
+}
+
 describe.each(storeBackends())("the match route (D1, D2), $name store", (backend) => {
   let app: GhostServer;
   let base: string;
@@ -169,8 +184,14 @@ describe.each(storeBackends())("the match route (D1, D2), $name store", (backend
     for (let w = 0; w < DAY; w++) {
       for (let l = 1; l <= HEARTS_START; l++) {
         const who = players[(w + l) % 2];
-        const s = ownedBy({ ...uploadDeck, wins: w, lives: l, runId: `up-${w}-${l}` }, who);
-        if (!isReachable(DAY, w, l)) {
+        // BUMP-1D (LONG_RUN ships on): BASE_DECK is a bb-0.11.0 seed ghost, which states its OWN `losses`, and a long run's upload states
+        // the dusks the run lost (day - 1 = wins + losses + draws; records.ts): a row keeps BASE_DECK's only by chance, so each row states
+        // the losses of a run that reaches its (wins, lives): the first count 0..DAY - 1 - w for which isReachable holds with it (reachableRecords
+        // reads `losses`); a record no run reaches (a planted row, below) states 0. Was { ...uploadDeck, wins: w, lives: l } (POST answered 422
+        // "0W 10 lives and N losses is no record a run carries into dusk 3" for the rows whose records BASE_DECK's losses did not fit)
+        const reached = Array.from({ length: DAY - w }, (_, x) => x).find((x) => isReachable(DAY, w, l, { losses: x }));
+        const s = ownedBy({ ...uploadDeck, wins: w, lives: l, losses: reached ?? 0, runId: `up-${w}-${l}` }, who);
+        if (reached === undefined) {
           // 0.8.0 H2 (P1, oracle 9c95e37aab0a70fb): POST /v1/ghosts now refuses (422) these 11 records (HULL-ON, HEARTS: 24 on
           // the hearts grid): no run carries
           // them into dusk 3. A store can still hold such a ghost: one uploaded before that check (until ghosts:admin
@@ -244,11 +265,39 @@ describe.each(storeBackends())("the match route (D1, D2), $name store", (backend
     }
     expect(newServed).toBeGreaterThan(30);
     // with every seed ghost already seen, a new player gets 404 (no upload stands in) and an experienced one an upload
-    const seen = SEED_POOL.filter((s) => s.day === DAY).map(ghostId).join(",");
-    for (const runs of [0, 1, 2]) expect((await match({ wins: 2, lives: 5, runs, seen })).status).toBe(404);
-    const vet = await match({ wins: 2, lives: 5, runs: NEW_PLAYER_RUNS, seen });
+    // BUMP-1D (LONG_RUN ships on; RULING-BUMP-R3 R3.4 b): in a long run "every seed ghost" is every seed ghost of days <= DAY (seenAll). Was
+    // `seen` = the seed ghosts of day DAY alone (seenDay), which gave 404 only while a request read its own day: a long run's match WIDENS to
+    // the nearest EARLIER day with an eligible ghost when its own day has none, and a new player's buckets are the seed pool, so with the day-3
+    // seed ghosts seen it was handed a day-2 seed ghost, 200 where 404 was expected (run 3's 2 reds, one per store). The line that widens a long
+    // run's match to earlier days is src/net/matchmaking.ts:71 (36c305e), in matchDays:
+    //     return Array.from({ length: top }, (_, i) => top - i);
+    // the request's own day, then every earlier day down to 1 (line 69 returns [req.day] for the 10-day rules). The match route reads that list at
+    // server/app.ts:403-410 (`const days = matchDays(m)`; with no hit on days[0] it reads the buckets of days.slice(1), in the same scope: "pool" for
+    // a new player). The 404 of the 10-day world (the exact-day rule only) is kept below, under inWorld(false) (= withLongRun false), with seenDay.
+    const seenDay = SEED_POOL.filter((s) => s.day === DAY).map(ghostId).join(",");
+    const seenAll = SEED_POOL.filter((s) => s.day <= DAY).map(ghostId).join(",");
+    // the widening itself, seen from the new player's side: with only the day's own seed ghosts seen it is served an EARLIER day's seed ghost, never an upload
+    const wide = await match({ wins: 2, lives: 5, runs: 0, seen: seenDay });
+    expect(wide.status).toBe(200);
+    expect(SEED_IDS.has(wide.body.id!)).toBe(true);
+    expect(uploadIds.has(wide.body.id!)).toBe(false);
+    expect(wide.body.snapshot!.day).toBeLessThan(DAY);
+    for (const runs of [0, 1, 2]) expect((await match({ wins: 2, lives: 5, runs, seen: seenAll })).status).toBe(404);
+    const vet = await match({ wins: 2, lives: 5, runs: NEW_PLAYER_RUNS, seen: seenAll });
     expect(vet.status).toBe(200);
     expect(uploadIds.has(vet.body.id!)).toBe(true);
+    // the 10-day world (the switch off): a request reads its own day only, so the day's own seed ghosts seen are enough for the 404, as before
+    await inWorld(false, async () => {
+      // a control, so that the 404 below is the exact-day rule's and not a pool this world cannot read: nothing seen, the pool serves the day's own ghost
+      const own = await match({ wins: 2, lives: 5, runs: 0 });
+      expect(own.status).toBe(200);
+      expect(SEED_IDS.has(own.body.id!)).toBe(true);
+      expect(own.body.snapshot!.day).toBe(DAY);
+      for (const runs of [0, 1, 2]) expect((await match({ wins: 2, lives: 5, runs, seen: seenDay })).status).toBe(404);
+      const vet10 = await match({ wins: 2, lives: 5, runs: NEW_PLAYER_RUNS, seen: seenDay });
+      expect(vet10.status).toBe(200);
+      expect(uploadIds.has(vet10.body.id!)).toBe(true);
+    });
   });
 
   it("no eligible ghost: 404, and the client falls back to its stand-in", async () => {

@@ -15,6 +15,7 @@ import { ghostOf, finishDay } from "../src/game/day";
 import { RUNE_FIRST, fightRefusal, newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { RULES_VERSION } from "../src/sim/content";
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the old-rules fixture on its rules' 5 lives
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): and on its rules' 10-day run (no `losses`)
 import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a whole rate % on the speed, 30 / speed
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts setSpeed)
 import { RUNES } from "../src/sim/runes";
@@ -50,7 +51,11 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     // snapshot field (snapshot.road), not a build feature, so it is rulesGate.ts npcDayGateProblem with NPC_DAY_RULES (now a
     // literal), beside RULES_ROWS; HULL_SCALE and LADDER_FIX add no id and no field. This build's rules are bb-0.10.0, at or
     // after every row, LAST_CHANCE_RULES and NPC_DAY_RULES
-    expect(RULES_VERSION).toBe("bb-0.10.0"); // AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3)
+    // BUMP-1D (the bump to bb-0.11.0; REQ-BFG-059, REQ-BFG-084, REQ-BFG-114): RULES_ROWS gains no row either. The long run
+    // (LONG_RUN_RULES), the six plain rigs (PLAIN_RIGS, no gate) and the six more shaped rigs (SHAPES2_RULES) are their own
+    // gates beside RULES_ROWS, as the NPC day's is, and the hearts cost lever adds no id and no field. This build's rules
+    // are bb-0.11.0, at or after every row, LAST_CHANCE_RULES and NPC_DAY_RULES (both literals, left where they were)
+    expect(RULES_VERSION).toBe("bb-0.11.0"); // BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3)
     expect(LAST_CHANCE_RULES).toBe("bb-0.9.7"); // Z-BUMP: LAST CHANCE's row, a literal (AZ-BUMP's bump leaves it)
     expect(lastChanceGateProblem(RULES_VERSION)).toBeNull();
     expect(lastChanceGateProblem("bb-0.9.7")).toBeNull(); // AZ-BUMP: release Z's rules keep LAST CHANCE
@@ -70,7 +75,8 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     expect(rulesGateProblem("bb-0.9.1", b)).toBeNull();
     expect(rulesGateProblem("bb-0.9.3", b)).toBeNull(); // Y7b2: release Y's rules
     expect(rulesGateProblem("bb-0.9.7", b)).toBeNull(); // Z-BUMP: release Z's rules
-    expect(rulesGateProblem("bb-0.10.0", b)).toBeNull(); // AZ-BUMP: this build's rules
+    expect(rulesGateProblem("bb-0.10.0", b)).toBeNull(); // AZ-BUMP: the hull release's rules (BUMP-1D: no longer this build's)
+    expect(rulesGateProblem("bb-0.11.0", b)).toBeNull(); // BUMP-1D: this build's rules
     // BAL-2: the fourth row. A FURNACE rune needs bb-0.9.1 (dormant under bb-0.9.0, other effects before it); others don't
     for (const id of ["coal_chute", "heat_sink", "searing", "shatter_shot"]) {
       const f: Build = { ...heroStartBuild("furnace"), runes: [{ id: "iron_skin" }, { id }] };
@@ -78,7 +84,8 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
       expect(rulesGateProblem("bb-0.9.1", f), id).toBeNull();
       expect(rulesGateProblem("bb-0.9.3", f), id).toBeNull(); // Y7b2: release Y's rules
       expect(rulesGateProblem("bb-0.9.7", f), id).toBeNull(); // Z-BUMP: release Z's rules
-      expect(rulesGateProblem("bb-0.10.0", f), id).toBeNull(); // AZ-BUMP: this build's rules
+      expect(rulesGateProblem("bb-0.10.0", f), id).toBeNull(); // AZ-BUMP: the hull release's rules (BUMP-1D: no longer this build's)
+      expect(rulesGateProblem("bb-0.11.0", f), id).toBeNull(); // BUMP-1D: this build's rules
       expect(rulesGateProblem("bb-0.9.0", f), id).toBe("rules bb-0.9.0 predate bb-0.9.1: FURNACE's runes (COAL CHUTE, HEAT SINK, SEARING, SHATTER SHOT) need bb-0.9.1 or later");
     }
     for (const none of [b, heroStartBuild("furnace"), null, 7, "x", { runes: "x" }, { runes: [{ id: 7 }] }]) expect(furnaceRuneFeatures(none)).toEqual([]);
@@ -95,7 +102,10 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     // from it (bb-0.8.6, bb-8, bb-0.7.0) carry those rules' scale, 5 lives: a hearts run's 10 is over the decoder's lives bound
     // under rules before HEARTS_RULES (9, rulesGate.ts livesCapFor), which refused it ("snapshot.lives: expected an integer
     // in 1..9") before the rules gate under test
-    const g = withHearts(() => ghostOf(twoRunes(), 1000, "p1", null), false);
+    // BUMP-1D (LONG_RUN ships on): and as a 10-day run (withLongRun false): a long run's snapshot states its `losses` (day.ts
+    // ghostOf), a field the older-rules copies below (bb-0.8.6, the rune-less v2) must not carry ("snapshot.losses: not allowed
+    // in a v2 snapshot" refused the bare copy); a client of those rules plays the 10-day run, so the run is made in that world
+    const g = withLongRun(() => withHearts(() => ghostOf(twoRunes(), 1000, "p1", null), false), false);
     expect(g.build.runes!.length).toBe(2);
     expect(isSnapshot(g)).toBe(true);
     expect(refused(g)).toBeNull();

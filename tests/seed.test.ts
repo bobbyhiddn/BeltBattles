@@ -6,6 +6,7 @@ import { RULES_VERSION, START_LIVES } from "../src/sim/content"; // HULL-ON (the
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): every heart a run starts with
 import { ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
 import { runeGrants } from "../src/sim/runes";
+import { WIN_GOAL } from "../src/sim/longRun"; // BUMP-1D: a long run's wins into a dusk never pass WIN_GOAL - 1
 import { createGhostServer } from "../server/app";
 import { checkPool, SeedError, seedStore } from "../server/seed";
 import { encodeRecord, JsonlStore, poolRecord, type GhostStore } from "../server/store";
@@ -16,7 +17,9 @@ import { startFake, tigrisFor } from "./netStores";
 
 // the bundle: 120 ghosts, days 1-10 (0.7.0a D5: 40 sample ghosts and 20 floor ghosts, tools/samplePool.ts; 0.8.0 RC: and
 // FOUNDRY and BASTION's 60, oracle 96e0ebe434a93f2b)
+// BUMP-1D: LONG_RUN ships on, so the bundle is the long world's: 192 ghosts, days 1-16 (4 heroes x 16 days x 3 variants), each stating its losses
 const POOL = generateSamplePool();
+const DAYS = 16; // BUMP-1D: the bundle's days (was 10)
 const N = POOL.length;
 const BUNDLE = POOL.map((s) => ({ id: ghostId(s), snapshot: s }));
 const STALE: GhostSnapshot = { ...POOL[5], createdAt: POOL[5].createdAt + 1 }; // valid, current rules, not in the bundle
@@ -31,7 +34,8 @@ const STALE: GhostSnapshot = { ...POOL[5], createdAt: POOL[5].createdAt + 1 }; /
 function olderRules(s: GhostSnapshot, rules: string): GhostSnapshot {
   // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and the road log, v3 only and
   // gated by NPC_DAY's rules, which an older client never sends (encodeSnapshot threw "snapshot.road: not allowed in a v2 snapshot")
-  const { seed: _seed, grade: _grade, road: _road, ...rest } = s; // HULL-ON (the flip, PICK): and the grade
+  // BUMP-1D: and the stated losses (a long run's v3 field; a v2 snapshot of older rules has none: encodeSnapshot refuses it there)
+  const { seed: _seed, grade: _grade, road: _road, losses: _losses, ...rest } = s; // HULL-ON (the flip, PICK): and the grade
   const { runes, ...build } = s.build;
   const g = runeGrants(runes, s.day);
   return {
@@ -51,8 +55,10 @@ const TURRET_DECKS = BUNDLE.filter((e) => e.snapshot.build.turrets !== undefined
 const JOIN_DECKS = BUNDLE.filter((e) => e.snapshot.build.routes.some((r) => r.join !== undefined));
 
 describe("the bundled pool the seed writes", () => {
-  it("is 120 v3 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
-    expect(N).toBe(120); // 0.7.0a D5 and 0.8.0 RC: 4 heroes x (2 sample variants + 1 floor ghost) x 10 days (was 60)
+  it("is 192 v3 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
+    expect(N).toBe(192); // BUMP-1D: 4 heroes x (2 sample variants + 1 floor ghost) x 16 days (was 120, x 10 days; 0.7.0a D5 and 0.8.0 RC: was 60)
+    expect(new Set(POOL.map((s) => s.day))).toEqual(new Set(Array.from({ length: DAYS }, (_, i) => i + 1)));
+    for (const s of POOL) expect(s.losses, `${s.playerId} d${s.day}: a long-run ghost states its losses`).toBeDefined(); // BUMP-1D
     // FLIP-X2: v2 -> v3 (SNAPSHOT_V3): every pool deck holds its day's runes, and runes travel only in a v3 snapshot
     for (const s of POOL) expect([s.v, s.rules]).toEqual([SNAPSHOT_V3, RULES_VERSION]);
     expect(TURRET_DECKS.length).toBeGreaterThan(0);
@@ -173,7 +179,7 @@ describe.each([
     expect(r).toEqual({ rules: RULES_VERSION, entries: N, written: N, unchanged: 0, removed: 0 });
     expect(h.pool()).toEqual(bundleRecords());
     const store = h.store();
-    for (let day = 1; day <= 10; day++) {
+    for (let day = 1; day <= DAYS; day++) { // BUMP-1D: days 1-16 (was 1-10)
       const b = await store.bucket(RULES_VERSION, day);
       expect(b.map((e) => e.id).sort()).toEqual(BUNDLE.filter((e) => e.snapshot.day === day).map((e) => e.id).sort());
     }
@@ -236,22 +242,23 @@ describe.each([
     const app = createGhostServer({ store: h.store(), log: () => {}, matchSalt: () => 0 });
     const base = `http://127.0.0.1:${await app.listen(0)}`;
     const codes: number[] = [];
-    for (let day = 1; day <= 10; day++) {
+    for (let day = 1; day <= DAYS; day++) { // BUMP-1D: days 1-16 (was 1-10)
       // 0.7.0a D1: the best record a player can carry into this dusk (day - 1 wins, every life), so every seed ghost of
       // the day is eligible; no runs stated: a new player, matched against the seed pool only (D2)
       // HULL-ON (the flip, HEARTS): every life is HEARTS_START (10 hearts) under this build's rules (was 5: day 1's seed
       // ghosts are 0W 10, a better record than 0W 5, so none was eligible and day 1 answered 404)
-      codes.push((await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=${day}&wins=${day - 1}&lives=${HEARTS_START}&player=seed-check&seen=`)).status);
+      // BUMP-1D: a long run's wins into a dusk never pass WIN_GOAL - 1 (9): the best record of day 11-16 is 9 wins
+      codes.push((await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=${day}&wins=${Math.min(day - 1, WIN_GOAL - 1)}&lives=${HEARTS_START}&player=seed-check&seen=`)).status);
     }
     await app.close();
-    expect(codes).toEqual(Array(10).fill(200));
+    expect(codes).toEqual(Array(DAYS).fill(200));
   });
 
   it("decks with turrets and joins are stored and loaded back intact", async () => {
     await seedStore(h.store());
     const store = h.store(); // a fresh process over the same storage
     const loaded = new Map<string, GhostSnapshot>();
-    for (let day = 1; day <= 10; day++) for (const e of await store.bucket(RULES_VERSION, day)) loaded.set(e.id, e.snapshot);
+    for (let day = 1; day <= DAYS; day++) for (const e of await store.bucket(RULES_VERSION, day)) loaded.set(e.id, e.snapshot); // BUMP-1D: days 1-16 (was 1-10)
     expect(loaded.size).toBe(N);
     for (const e of [...TURRET_DECKS, ...JOIN_DECKS]) expect(loaded.get(e.id)).toEqual(e.snapshot);
   });

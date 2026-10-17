@@ -12,7 +12,7 @@ import { ITEMS, type HeroId } from "../src/sim/content";
 import { footprint, hullSlots, installTurret, key as K, kx, ky, occupancy, routeInfo, setJoin, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
 import { roadCap } from "../src/net/roadCap"; // S8c (a48010b / the pools): a road-fed pick's spent bound
-import { STAND_IN_POOL_HEROES, decodeStarred as loadStarred, standInPool } from "../src/sim/standInPool";
+import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, decodeStarred as loadStarred, standInPool } from "../src/sim/standInPool"; // BUMP-1D: + STAND_IN_POOL_DAYS (16)
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import {
   CARAVAN_MIX, CARAVAN_POLICY, caravanCandidate, caravanDeck, caravanGauntlet, caravanGauntletSeedOf, caravanPolicyOf, caravanSeedOf, deckStats,
@@ -275,7 +275,11 @@ describe("M2: turrets and joins pass through the generator (a faked playerBuild 
 const fakeRun: Runner = async (field, jobs) => jobs.map((j) => hashSeed("fake", encodeStarred(field[j.a]), encodeStarred(field[j.b]), ...j.seeds) % (2 * j.seeds.length + 1));
 
 describe("M2: genStandIns --source caravan", () => {
-  const tiny: StandInOpts = { ...STANDIN_DEFAULTS, pop: 8, gauntlet: 1, seeds: 1, elites: 1, refSeeds: 1, per: 2, grow: [12], stars: "on", par: "field", source: "caravan" };
+  // BUMP-1D: days: 10 (the generator's `days` option): genStandIns makes every day of the pool by default now (STAND_IN_POOL_DAYS 16, was 10), which is
+  // 32 hero-days (was 20) and 16/10 of the caravan runs these tests were sized for (the first test alone took 150 s under load at 16 days, the whole
+  // file 287 s); the tests keep their 10 days and their counts (20 hero-days, saved days 1-10), so days 11-16 are not exercised here (the committed
+  // pool's test below reads all 16)
+  const tiny: StandInOpts = { ...STANDIN_DEFAULTS, pop: 8, gauntlet: 1, seeds: 1, elites: 1, refSeeds: 1, per: 2, grow: [12], stars: "on", par: "field", source: "caravan", days: 10 };
 
   it("is deterministic, stores only caravan candidates, every pick legal, fused and within budget; the header replays it", async () => {
     const a = await genStandIns(tiny, fakeRun), b = await genStandIns(tiny, fakeRun);
@@ -411,7 +415,9 @@ async function loaderWith(data: unknown): Promise<typeof import("../src/sim/stan
 const committedHeader = (): string => readFileSync(new URL("../src/sim/standInPoolData.ts", import.meta.url), "utf8").split("\n")[1];
 
 describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full-purse pool doesn't", () => {
-  const tiny: StandInOpts = { ...STANDIN_DEFAULTS, pop: 8, gauntlet: 1, seeds: 1, elites: 1, refSeeds: 1, per: 2, grow: [12], stars: "on", par: "field", source: "caravan" };
+  // BUMP-1D: days: 10, as M2's tiny above (genStandIns makes 16 days by default now, was 10: 32 hero-days where these tests count 20, and 16/10 of the
+  // caravan runs); the over-spend set below is built for days 1-10, so days 11-16 are not exercised by the generated pools here
+  const tiny: StandInOpts = { ...STANDIN_DEFAULTS, pop: 8, gauntlet: 1, seeds: 1, elites: 1, refSeeds: 1, per: 2, grow: [12], stars: "on", par: "field", source: "caravan", days: 10 };
   const TUPLES_CARAVAN = "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1), spent (gold)]; each day is";
   const TUPLES_V21 = "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1)]; each day is";
   const TYPE_CARAVAN = "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number, spent: number];";
@@ -514,7 +520,7 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
     const roadFed = STAND_IN_POOL_HEROES.some((h) => standInPool(h, 1).some((e) => e.road !== undefined)); // the loader read a road log
     let n = 0;
     for (const hero of STAND_IN_POOL_HEROES) {
-      for (let day = 1; day <= 10; day++) {
+      for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) { // BUMP-1D: was day <= 10 (the pool holds days 1-16 now)
         const tuples: readonly (readonly unknown[])[] = STAND_IN_DATA.pools[hero]![day - 1][1], es = standInPool(hero, day);
         expect(es).toHaveLength(tuples.length);
         es.forEach((e, i) => {
@@ -535,7 +541,7 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
         });
       }
     }
-    expect(n).toBe(120);
+    expect(n).toBe(192); // BUMP-1D: 2 heroes x 16 days x 6 decks (was 120: 10 days)
   });
 
   it("the header documents the sixth element: a caravan pool's tuple line and StandInTuple; pool v2.1's lines are unchanged", () => {

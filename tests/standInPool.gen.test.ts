@@ -3,11 +3,11 @@ import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util"; // NUM-3: the exceptions' exact pin
 import { hashSeed } from "../src/core/rng";
 import { simulate } from "../src/sim/battle";
-import { POOL_RULES, RULES_VERSION, type HeroId } from "../src/sim/content";
-import type { Build } from "../src/sim/deck";
+import { ITEMS, POOL_RULES, RULES_VERSION, type HeroId } from "../src/sim/content"; // BUMP-1D: + ITEMS (POOL_NATIVE below)
+import { cellsOf, type Build } from "../src/sim/deck"; // BUMP-1D: + cellsOf (POOL_NATIVE below)
 import { buildCost, maxGoldByDay, roadCap, validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode), roadCap
 import { npcDayRules, roadDropValue } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
-import { POOL_NATIVE, poolLoss, poolRaw } from "./beltside.helpers";
+import { poolLoss, poolRaw } from "./beltside.helpers"; // BUMP-1D: POOL_NATIVE is computed below (was imported from here)
 import { POOL_LEGACY, POOL_PAR, POOL_PAR_BAND, POOL_PAR_SHORT, POOL_SOURCE } from "./standInPool.helpers";
 import { heroRefBuild } from "../src/sim/heroBuilds";
 import {
@@ -18,18 +18,27 @@ import { caravanCandidate } from "../src/sim/harness/caravan";
 import { localRunner, playJob } from "../src/sim/harness/tournament";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import {
-  STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, decodeStandIn, decodeStarred, encodeStandIn, encodeStarred, standInPar, standInParIndex,
+  STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, decodeStandIn, decodeStarred, encodeStandIn, encodeStarred, standInPar, standInParIndex,
   standInPick, standInPickIndex, standInPool,
 } from "../src/sim/standInPool";
 
 // The bundled stand-in pool (0.6.0c dusk stand-ins) and its portable loader. Step 5 M5: the tests hold for pool v2.1
 // (full purse; every v2.1 pin while its legacy header is committed) and for a caravan-bound regen pool (decision D4).
 
-const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
+const DAYS = Array.from({ length: STAND_IN_POOL_DAYS }, (_, i) => i + 1); // BUMP-1D: was length 10; the regenerated pool holds days 1-16
 const floor = (day: number) => Math.ceil(0.9 * maxGoldByDay(day));
 const dayData = (hero: HeroId, day: number) => STAND_IN_DATA.pools[hero]![day - 1];
 // hero/days that took their best-vsPar builds (relaxation "best"), listed with their vsPar values
 const parShort = new Set(STAND_IN_DATA.short.filter((s) => s.vsPar).map((s) => `${s.hero}|${s.day}`));
+// BUMP-1D (cap's ruling R2.3 Q2, the footprint check): is the pool native, i.e. does no deck have a rig standing on a belt tile? Judged by the
+// rig's FOOTPRINT, as the loader's D3 step (beltside.ts migrateInlineGates) reads it now. tests/beltside.helpers.ts POOL_NATIVE reads the rig's
+// ANCHOR cell instead, and the anchor of a shaped rig is the corner of its bounding box, a cell it may not occupy: four stored decks hold an
+// ELBOW GUARD at rot 3 whose corner is a belt tile, so that flag reads false for a pool that is native (tests/beltside.shaped.test.ts pins
+// both). Computed here, the `if (POOL_NATIVE)` lines below run again. Was: import { POOL_NATIVE } from "./beltside.helpers".
+const POOL_NATIVE = STAND_IN_POOL_HEROES.every((hero) => STAND_IN_DATA.pools[hero]!.every((d, di) => d[1].every((_, i) => {
+  const b = poolRaw(hero, di + 1, i), belt = new Set(b.routes.flatMap((r) => r.cells));
+  return !b.items.some((p) => ITEMS[p.def].kind === "gate" && cellsOf(p).some((k) => belt.has(k)));
+})));
 
 /** A's win rate against B over `seeds`, each played from both sides (win 1, draw 0.5). */
 function winRate(a: Build, b: Build, seeds: number[]): number {
@@ -111,13 +120,17 @@ const PAR_TOLERANCE = 0;
  * pinned exactly, as NUM-3 pinned its exceptions, under this rules version only (the tripwire): old (its stored vsPar, which
  * the exact check expected) -> new (re-simulated).
  */
+// BUMP-1D: the pool is regenerated on this build (bb-0.11.0, days 1-16) and the same three hero-days re-simulate past the tolerance
+// again (furnace d2 exactly), so each exception is re-measured and pinned exactly as S8c did. Measured (this build, the new pool):
+// old (stored, re-simulated) -> new: weaver d4 (0.5733, 0.6583) -> (0.5758, 0.6167); furnace d7 (0.5433, 0.5692) -> (0.5558, 0.6333);
+// weaver d9 (0.555, 0.6067) -> (0.5167, 0.4792: now under the 0.5 floor, a re-simulation the pool's stored 0.5167 doesn't reproduce).
 const S8_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {
-  "weaver|4": { stored: 0.5733, resim: 0.6583 }, // +0.085
-  "furnace|7": { stored: 0.5433, resim: 0.5692 }, // +0.0259
-  "weaver|9": { stored: 0.555, resim: 0.6067 }, // +0.0517
+  "weaver|4": { stored: 0.5758, resim: 0.6167 }, // +0.0409 (BUMP-1D: was stored 0.5733, resim 0.6583)
+  "furnace|7": { stored: 0.5558, resim: 0.6333 }, // +0.0775 (BUMP-1D: was stored 0.5433, resim 0.5692)
+  "weaver|9": { stored: 0.5167, resim: 0.4792 }, // -0.0375 (BUMP-1D: was stored 0.555, resim 0.6067)
 };
-/** The rules version the exceptions were measured under (the tripwire: red at the next bump). */
-const S8_EXCEPTIONS_RULES = "bb-0.10.0";
+/** The rules version the exceptions were measured under (the tripwire: red at the next bump). BUMP-1D: was "bb-0.10.0". */
+const S8_EXCEPTIONS_RULES = "bb-0.11.0";
 
 /** Step 5 M5: test 2 for a caravan pool: the spread's pars re-simulated exactly, and every par at least parFloor and
  *  inside the header's --par-band, unless its hero/day is listed short. */
@@ -152,8 +165,13 @@ async function caravanPars(): Promise<void> {
 }
 
 describe("stand-in pool", () => {
-  it("covers FURNACE and WEAVER with 6 entries per day, days 1-10, under this build's pool rules (content.ts POOL_RULES: RULES_VERSION, or the rules it carries the pool from)", () => {
+  it("covers FURNACE and WEAVER with 6 entries per day, days 1-16, under this build's pool rules (content.ts POOL_RULES: RULES_VERSION, or the rules it carries the pool from)", () => {
+    // BUMP-1D: title and days were 1-10: the pool is regenerated to days 1-16 (STAND_IN_POOL_DAYS), under bb-0.11.0 (192 entries)
     expect(STAND_IN_POOL_HEROES).toEqual(["furnace", "weaver"]);
+    expect(STAND_IN_POOL_DAYS).toBe(16);
+    expect(DAYS).toHaveLength(16);
+    for (const hero of STAND_IN_POOL_HEROES) expect(STAND_IN_DATA.pools[hero]!, hero).toHaveLength(16);
+    expect(STAND_IN_DATA.rules).toBe("bb-0.11.0");
     expect(STAND_IN_POOL_RULES).toBe(POOL_RULES);
     expect(STAND_IN_DATA.band).toEqual([40, 60]);
     expect(STAND_IN_DATA.parFloor).toBe(0.5);
@@ -242,9 +260,14 @@ describe("stand-in pool", () => {
     }
   });
 
-  it("days outside 1-10 clamp; a hero not in the pool gets [] and a clear error from pick and par", () => {
+  it("days outside 1-16 clamp; a hero not in the pool gets [] and a clear error from pick and par", () => {
+    // BUMP-1D: was "outside 1-10" and weaver 14 -> weaver 10: the pool holds days 1-16 now, so day 14 is its own day and the clamp is at 16
     expect(standInPool("furnace", 0)).toEqual(standInPool("furnace", 1));
-    expect(standInPool("weaver", 14)).toEqual(standInPool("weaver", 10));
+    expect(standInPool("weaver", 17)).toEqual(standInPool("weaver", 16));
+    expect(standInPool("furnace", 99)).toEqual(standInPool("furnace", 16));
+    expect(standInPool("weaver", 14)).not.toEqual(standInPool("weaver", 10));
+    expect(standInPool("weaver", 14).map((e) => e.day)).toEqual([14, 14, 14, 14, 14, 14]); // day 14 is stored, not a clamp of another day
+    expect(standInPool("furnace", 99).map((e) => e.day)).toEqual([16, 16, 16, 16, 16, 16]);
     expect(standInPool("weaver", NaN)).toEqual(standInPool("weaver", 1));
     expect(standInPool("siphon", 3)).toEqual([]);
     expect(() => standInPick("foundry", 3, 1)).toThrow(/no stand-in decks for hero "foundry"/);
@@ -253,7 +276,7 @@ describe("stand-in pool", () => {
 
   it("standInPick is deterministic, reaches several entries across seeds, and returns fresh copies", () => {
     for (const hero of STAND_IN_POOL_HEROES) {
-      for (const day of [1, 5, 10]) {
+      for (const day of [1, 5, 10, 16]) { // BUMP-1D: + 16 (the pool's deepest day now)
         const seen = new Set<number>();
         for (let seed = 0; seed < 60; seed++) {
           const i = standInPickIndex(hero, day, seed);

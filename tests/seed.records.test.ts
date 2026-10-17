@@ -33,6 +33,7 @@ import { lifeAudit } from "../tools/scorecard/survival";
 import { storeBackends } from "./netStores";
 import { LAST_CHANCE_AT, LAST_CHANCE_LIVES } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): the flip
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the 5-lives model's checks run with it off
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; the 10-day / 5-lives world is read with it off
 
 const POOL = generateSamplePool();
 const SAMPLE = sampleGhosts();
@@ -99,10 +100,21 @@ describe("D5: the records a run can carry into a dusk (src/net/records.ts) are t
     expect(a.dock).toBe("dock");
   }, false));
 
-  it("without the DOCK: every win / loss / draw history through the run code (days 1-10) gives exactly the model's records", () => {
+  it("without the DOCK: every win / loss / draw history through the run code (days 1-10) gives exactly the model's records", () => withLongRun(() => {
+    // BUMP-1D: the 10-day world, explicitly (withLongRun(fn, false)): a run made with the long run off plays 10 days, and its model has no draw bound
     const run = runCodeRecords(1, 10);
     for (let day = 1; day <= 10; day++) expect(run[day], `day ${day}`).toEqual(keys(day, { patchUp: false }));
     expect(run[10].size).toBe(reachableRecords(10, { patchUp: false }).length);
+  }, false), 120_000);
+
+  it("the long run (shipped): the run code's records equal the model's through dusk 9, and at dusk 10 the model leaves out the one record only nine draws reach (MAX_RUN_DRAWS 8)", () => {
+    // BUMP-1D: the shipped world's twin of the test above: a long run's upload may carry at most MAX_RUN_DRAWS (8) draws (longRun.ts: data safety, D4), so
+    // the all-draws record of dusk 10 (nine drawn dusks: 0 wins, 10 hearts) is the run code's alone; dusks 1-9 hold at most 8 draws and agree exactly
+    const run = runCodeRecords(1, 10);
+    for (let day = 1; day <= 9; day++) expect(run[day], `day ${day}`).toEqual(keys(day, { patchUp: false }));
+    const model = keys(10, { patchUp: false });
+    expect([...model].filter((k) => !run[10].has(k)), "no model record the run code cannot reach").toEqual([]);
+    expect([...run[10]].filter((k) => !model.has(k)), "the run code's records past the model's draw bound").toEqual(["0|10"]);
   }, 120_000);
 
   it("with the DOCK on day 2, 3, 5 or 8: the run code (PATCH UP bought or not) gives exactly the model's records", () => {
@@ -124,8 +136,10 @@ describe("D5: the records a run can carry into a dusk (src/net/records.ts) are t
     // the 5-lives model's, still the model for records under rules before hearts, so it is read with HEARTS off, the
     // union of the DOCK days too
     expect(Array.from({ length: 10 }, (_, i) => floorRecord(i + 1).lives)).toEqual([10, 9, 8, 7, 5, 3, 1, 1, 1, 1]);
-    expect(Array.from({ length: 10 }, (_, i) => reachableRecords(i + 1).length).reduce((a, b) => a + b, 0)).toBe(324);
-    withHearts(() => {
+    // BUMP-1D: the shipped world's model is the long run's (records.ts longRunRecords: HEART_COSTS [1, 2, 2], draws bounded by MAX_RUN_DRAWS): 307 records over
+    // dusks 1-10 (was the 10-day hearts model's 324); the 5-lives values below are the 10-day world's, read there (withLongRun(fn, false))
+    expect(Array.from({ length: 10 }, (_, i) => reachableRecords(i + 1).length).reduce((a, b) => a + b, 0)).toBe(307);
+    withLongRun(() => withHearts(() => {
     for (let day = 1; day <= 10; day++) {
       const union = new Set([...keys(day, { patchUp: false }), ...Array.from({ length: 9 }, (_, k) => [...keys(day, { dockDay: k + 2 })]).flat()]);
       expect(keys(day), `5 lives: day ${day}`).toEqual(union);
@@ -144,18 +158,20 @@ describe("D5: the records a run can carry into a dusk (src/net/records.ts) are t
     expect(isReachable(3, 1, 4)).toBe(false);
     expect(isReachable(3, 0, 3)).toBe(false);
     expect(isReachable(3, 0, 4)).toBe(true);
-    }, false); // HULL-ON (the flip, HEARTS): the 5-lives model's values, read with HEARTS off (above)
+    }, false), false); // HULL-ON (the flip, HEARTS): the 5-lives model's values, read with HEARTS off (above); BUMP-1D: and the 10-day world
   });
 });
 
 describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // 0.8.0 RC (oracle 96e0ebe434a93f2b): FOUNDRY and BASTION's 60 race ghosts follow (the pool was [...SAMPLE, ...FLOOR], 60)
-  it("is the 40 sample ghosts, the 20 floor ghosts and the 60 race ghosts, each passing validateUpload in the player mode (and the shop's strict rules)", () => {
+  // BUMP-1D: LONG_RUN ships on, so the pool is the long world's: days 1-16, 4 heroes x 16 days x 3 variants = 192 ghosts: the 64 sample ghosts (2 heroes x
+  // 2 variants x 16), the 32 floor ghosts (2 x 16; FLOOR_PICKS' casual runs) and the 96 race ghosts (2 heroes x 3 variants x 16); each states its losses
+  it("is the 64 sample ghosts, the 32 floor ghosts and the 96 race ghosts, each passing validateUpload in the player mode (and the shop's strict rules)", () => {
     // HULL-ON (the flip, PICK): every seed ghost carries the seed step's grade (generateSamplePool writes it last), which
     // the three parts' own generators don't write, so the pool compares without it
     expect(POOL.every((s) => typeof s.grade === "number")).toBe(true);
     expect(POOL.map(({ grade: _grade, ...s }) => s)).toEqual([...SAMPLE, ...FLOOR, ...RACE]);
-    expect([SAMPLE.length, FLOOR.length]).toEqual([40, 20]);
+    expect([SAMPLE.length, FLOOR.length, RACE.length]).toEqual([64, 32, 96]); // BUMP-1D: was [40, 20] (and 60 race ghosts)
     for (const s of POOL) {
       expect(s.rules).toBe(RULES_VERSION);
       // S8c (RULING-S8-R5 section 3 item 1 (T1e's form, RULING-S8-R1 item 3); cause a48010b: with NPC_DAY on, a road-fed deck
@@ -175,30 +191,34 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
       expect(budget.length, `${s.playerId} d${s.day}: at most its one budget line`).toBeLessThanOrEqual(1);
       expect(strict.filter((e) => !budget.includes(e)), `${s.playerId} d${s.day}: every other strict line`).toEqual([]);
     }
-    expect(checkPool(POOL)).toHaveLength(120); // 0.8.0 RC: was 60
+    expect(checkPool(POOL)).toHaveLength(192); // BUMP-1D: was 120 (0.8.0 RC: was 60)
   });
 
   it("every label is reachable; the three drawn labels the refund rules out keep their wins at the nearest reachable lives", () => {
     for (const s of POOL) expect(isReachable(s.day, s.wins, s.lives), `${s.playerId} d${s.day} ${s.wins}W ${s.lives}`).toBe(true);
+    // BUMP-1D: and with the losses each ghost states (a long run's record check holds it to exactly that count)
+    for (const s of POOL) expect(isReachable(s.day, s.wins, s.lives, { losses: s.losses }), `${s.playerId} d${s.day} ${s.wins}W ${s.lives} losses ${s.losses}`).toBe(true);
     for (const f of FLOOR) expect({ wins: f.wins, lives: f.lives }).toEqual(floorRecord(f.day));
     // HULL-ON (the flip, HEARTS): the refund exists only on the 5-lives model (the hearts rule has none), and the labels
     // below are the 5-lives draws, so these lines run with HEARTS off, the sample ghosts drawn there too (sampleGhosts();
     // with HEARTS on the labels are drawn on hearts and day 3's nearest reachable lives are 8 and up). Every label of the
     // shipped pool is reachable on hearts (above)
-    withHearts(() => {
+    // BUMP-1D: the 5-lives labels are the 10-day world's (LONG_RUN off), read there explicitly (the shipped long run's model has no 5-lives scale)
+    withLongRun(() => withHearts(() => {
     // the draws before D5 (tools/samplePool.ts, unchanged): day 3's furnace v0 drew 0W 3 lives, weaver v0 and v1 1W 4 lives
     expect(reachableLabel(3, 0, 3)).toEqual({ wins: 0, lives: 4 });
     expect(reachableLabel(3, 1, 4)).toEqual({ wins: 1, lives: 5 });
     const d3 = sampleGhosts().filter((s) => s.day === 3).map((s) => `${s.playerId} ${s.wins}W ${s.lives}`);
     expect(d3).toEqual(["sample-furnace-0 0W 4", "sample-furnace-1 2W 5", "sample-weaver-0 1W 5", "sample-weaver-1 1W 5"]);
-    }, false);
+    }, false), false);
   });
 
-  it("covers every reachable state of every dusk 1-10 with at least 4 eligible seed ghosts under the record rule (D1; the generator's floor is 2)", () => {
+  it("covers every reachable state of every dusk 1-16 with at least 4 eligible seed ghosts under the record rule (D1; the generator's floor is 2)", () => {
+    // BUMP-1D: dusks 1-16 (was 1-10), the long run's record model: 823 reachable states (was the hearts model's 324), fewest eligible ghosts 4 (as before)
     expect(MIN_ELIGIBLE).toBe(2);
     const entries = POOL.map((s) => ({ id: ghostId(s), snapshot: s }));
     let states = 0, least = Infinity;
-    for (let day = 1; day <= 10; day++) {
+    for (let day = 1; day <= 16; day++) {
       for (const r of reachableRecords(day)) {
         states++;
         const ok = eligible(entries, { rules: RULES_VERSION, day, wins: r.wins, lives: r.lives, playerId: "new-player", seen: [] });
@@ -207,7 +227,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
         least = Math.min(least, ok.length);
       }
     }
-    expect(states).toBe(324); // HULL-ON (the flip, HEARTS): the hearts model's 324 (h2.records; was 172). Z-BUMP: the flip (was 178: LAST CHANCE takes away six 1-life records, above)
+    expect(states).toBe(823); // BUMP-1D: the long run's 823 over dusks 1-16 (the lead's BB_SEEDPOOL_SCRATCH count; was 324 over dusks 1-10). HULL-ON (the flip, HEARTS): the hearts model's 324 (h2.records; was 172). Z-BUMP: the flip (was 178: LAST CHANCE takes away six 1-life records, above)
     expect(least).toBe(4); // 0.8.0 RC: the race floor ghosts are eligible everywhere too (was 2)
     expect(uncoveredStates(POOL)).toEqual([]);
     // without the floor ghosts the sample ghosts leave states uncovered (why the floor ghosts exist)
@@ -233,19 +253,23 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): the sample decks are the softer picks, 39 of
   // 40 par-field runs' dusk decks; the floor ghosts' decks are unchanged; title "the sample ghosts' 23 and 27, plus the floor
   // ghosts' 2 and 10" -> 22 and 23, 2 and 10
-  it("keeps its turret and join decks: the sample ghosts' 22 and 23, plus the floor ghosts' 2 and 10 (each a deck of its own)", () => {
+  // BUMP-1D (the seed pool regenerated, 5e93e1e: days 1-16, SOFT_TARGET 250's picks, the floor ghosts FLOOR_PICKS' casual runs): title "the sample
+  // ghosts' 22 and 23, plus the floor ghosts' 2 and 10" -> 35 and 47, 27 and 29 (64 sample ghosts and 32 floor ghosts now; counted off the committed file)
+  it("keeps its turret and join decks: the sample ghosts' 35 and 47, plus the floor ghosts' 27 and 29 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
     // BAL-2 (c5e4780, the pools changed): [3, 24] -> [4, 25]
     // Y7b2 (the pools): was [4, 25] (4d772e4, the pool regenerated on bb-0.9.3)
     // Z-BUMP (the pools): was [6, 26] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
     // S8c (the pools): was [9, 23] (P1 83c039d, the stand-in pool regenerated once with every switch on, NPC_DAY on)
     // SOFT-1 (the seed pool softened, REQ-BFG-092): was [23, 27] (S8c's sample decks)
-    expect(carry(SAMPLE)).toEqual([22, 23]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
+    // BUMP-1D (the seed pool regenerated, 5e93e1e): was [22, 23] (SOFT-1's picks over days 1-10)
+    expect(carry(SAMPLE)).toEqual([35, 47]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
     // BAL-2 (c5e4780, the pools changed): [2, 14] -> [4, 16]
     // Y7b2 (the pools): was [4, 16] (4d772e4, the pool regenerated on bb-0.9.3)
     // Z-BUMP (the pools): was [3, 15] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
     // S8c (the pools): was [2, 14] (P1 83c039d, the stand-in pool regenerated once with every switch on, NPC_DAY on)
-    expect(carry(FLOOR)).toEqual([2, 10]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
+    // BUMP-1D (the seed pool regenerated, 5e93e1e: the floor ghosts are FLOOR_PICKS' casual runs over days 1-16): was [2, 10]
+    expect(carry(FLOOR)).toEqual([27, 29]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
     for (const f of FLOOR) {
       const same = SAMPLE.filter((s) => s.day === f.day && s.hero === f.hero).map((s) => encodeStarred(s.build));
       expect(same).toHaveLength(2);
@@ -258,7 +282,9 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
     expect(validateUpload(rich.build, rich.day).ok).toBe(false);
     expect(() => checkPool([...POOL, rich])).toThrow(SeedError);
     expect(() => checkPool([rich])).toThrow(/entry 0 \(furnace day 1\): validateUpload: budget/);
-    const unreachable = { ...SAMPLE.find((s) => s.day === 3)!, wins: 1, lives: 4 };
+    // BUMP-1D: a long-run ghost states its losses, and a day-3 dusk with 1 win leaves at most 1 loss (0..1): the stated 1 keeps the snapshot valid
+    // (the sample ghost's own count was for its drawn record), so the refusal is the record's (was without `losses`)
+    const unreachable = { ...SAMPLE.find((s) => s.day === 3)!, wins: 1, lives: 4, losses: 1 };
     expect(() => checkPool([unreachable])).toThrow(/record 1W 4 lives: no run carries it into dusk 3/);
   });
 });
@@ -270,17 +296,18 @@ describe.each(storeBackends())("D5 end to end on the $name store: a new player g
     await backend.setup();
     app = backend.server({ rateLimit: { windowMs: 60_000, max: 100_000 }, log: () => {}, matchSalt: () => 0 });
     base = `http://127.0.0.1:${await app.listen(0)}`;
-    expect((await seedStore(app.store)).entries).toBe(120); // 0.8.0 RC: was 60
+    expect((await seedStore(app.store)).entries).toBe(192); // BUMP-1D: was 120 (0.8.0 RC: was 60)
   });
   afterAll(async () => {
     await app.close();
     await backend.teardown();
   });
 
-  it("every day 1-10, every reachable record, runs 0: 200 with a seed ghost of no better record", async () => {
+  it("every day 1-16, every reachable record, runs 0: 200 with a seed ghost of no better record", async () => {
+    // BUMP-1D: days 1-16 (was 1-10)
     const ids = new Set(POOL.map(ghostId));
     let n = 0;
-    for (let day = 1; day <= 10; day++) {
+    for (let day = 1; day <= 16; day++) {
       for (const r of reachableRecords(day)) {
         const res = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=${day}&wins=${r.wins}&lives=${r.lives}&player=new-player&seen=&runs=0`);
         expect(res.status, `day ${day} ${r.wins}W ${r.lives}`).toBe(200);
@@ -290,6 +317,6 @@ describe.each(storeBackends())("D5 end to end on the $name store: a new player g
         n++;
       }
     }
-    expect(n).toBe(324); // HULL-ON (the flip, HEARTS): the hearts model's 324 reachable records (was 172). Z-BUMP: the flip (was 178)
+    expect(n).toBe(823); // BUMP-1D: the long run's 823 reachable records over dusks 1-16 (was 324 over dusks 1-10). HULL-ON (the flip, HEARTS): the hearts model's 324 reachable records (was 172). Z-BUMP: the flip (was 178)
   });
 });

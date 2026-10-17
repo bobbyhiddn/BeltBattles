@@ -79,7 +79,9 @@ function bareV2(s: Snap): Snap {
   const g = runeGrants(runes, s.day as number);
   // S8 (the pools: P1 83c039d's tuples carry a road log, so the regenerated seed ghosts do too): and no road log, v3 only
   // and gated by NPC_DAY's rules ("snapshot.road: not allowed in a v2 snapshot"; RULING-S8-R5 section 2 item 2)
-  const { seed: _seed, grade: _grade, road: _road, ...rest } = s;
+  // BUMP-1D: and no stated losses: every seed ghost states them under bb-0.11.0, and `losses` is v3 only too (snapshot.ts V3_SNAPSHOT_FIELDS:
+  // "snapshot.losses: not allowed in a v2 snapshot")
+  const { seed: _seed, grade: _grade, road: _road, losses: _losses, ...rest } = s;
   return { ...rest, v: 2, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } as Snap["build"] };
 }
 
@@ -126,8 +128,13 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
     ["the build's held gold (R1b-2/R1d: off)", { ...legal, build: { ...legal.build, gold: 5 } }, false],
     ["an item's grow (GROW-1: off)", { ...legal, build: { ...legal.build, items: legal.build.items.map((p, j) => (j === 0 ? { ...p, grow: 1 } : p)) } }, false],
     ["a mod's grow (GROW-1: off)", { ...legal, build: { ...legal.build, mods: legal.build.mods.map((p, j) => (j === 0 ? { ...p, grow: 1 } : p)) } }, false],
-    ...(["losses", "mode", "endlessWins", "endlessLives", "victoryDay", "battleGold"] as const).map((k): [string, unknown, boolean] =>
+    // BUMP-1D: `losses` is live under a long run's rules (LONG_RUN_RULES bb-0.11.0; src/net/snapshot.ts v3LiveFor) and every seed ghost
+    // states it, so the row moves out of this list (was "losses" first, refused on both sides): taken under bb-0.11.0, still reserved
+    // (refused) under bb-0.10.0's rules. The other five stay off
+    ...(["mode", "endlessWins", "endlessLives", "victoryDay", "battleGold"] as const).map((k): [string, unknown, boolean] =>
       [`the snapshot's ${k} (R1e/R1d: off)`, { ...legal, [k]: k === "mode" ? "run" : 1 }, false]),
+    ["the snapshot's losses (bb-0.11.0 takes it for a long run's record; was off, R1e/R1d)", { ...legal, losses: 1 }, true],
+    ["the snapshot's losses under bb-0.10.0's rules (reserved there: R1e/R1d)", { ...legal, losses: 1, rules: "bb-0.10.0" }, false],
     ["seed 0 (left out when zero)", { ...legal, seed: 0 }, false],
     ["seed 2^32", { ...legal, seed: 2 ** 32 }, false],
     ["seed 1.5", { ...legal, seed: 1.5 }, false],
@@ -189,7 +196,10 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
         const hit = dayOneOffer(made, s.hero as HeroId).filter((id) => (s.build.runes ?? []).some((q) => q.id === id));
         expect(hit, `${tag}: the made-up seed ${made}'s day-1 offer holds its rune ${hit.join(", ")}`).toEqual([]);
       }
-      expect(both({ ...s, v: 3, seed: made }), `${tag} v3`).toEqual(seeded ? [true, true] : [false, false]);
+      // BUMP-1D: with its road log (`road`, as the first check passes it): every ghost is seeded and road-fed now (192 of 192 carry a run seed), and a
+      // road-fed deck over the road-less budget (weaver d1 sample-run-weaver-0: "budget: build costs 14 gold ... at most 13 (maxGoldByDay 8 + roadCap 5)")
+      // passes only through its log. Was both({ ...s, v: 3, seed: made }) without it
+      expect(both({ ...s, v: 3, seed: made }, road), `${tag} v3`).toEqual(seeded ? [true, true] : [false, false]);
       // FLIP-X2: as v2 the deck can't hold its runes (build.runes is v3 only): its rune-less v2 copy is refused on both
       // sides by the exact count (cap's ruling 5d6d83ef57d1494c: 0 held on day N) (was: the stored v2 ghost, [true, true])
       expect(both(bareV2(s as unknown as Snap)), `${tag} v2`).toEqual([false, false]);
@@ -205,9 +215,11 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
     // S8 (the pools: P1 83c039d's tuples carry a road log, so the regenerated seed ghosts do too): `legal`'s pool deck
     // (weaver d6 sample-run-weaver-0) carries its run's road log, which the canonical copy writes after the seed and before
     // the grade (snapshot.ts roadField, gradeField): was `"seed":4242,"grade":<its grade>}` and `"seed":4242}`
-    const road = `"road":${JSON.stringify(legal.road)}`;
-    expect(text.endsWith(`"name":"TESTER","seed":${SEED},${road},"grade":${legal.grade as number}}`)).toBe(true);
-    expect(net.encodeSnapshot({ ...named, grade: undefined } as never).endsWith(`"name":"TESTER","seed":${SEED},${road}}`)).toBe(true);
+    // BUMP-1D: and every seed ghost states its `losses` (bb-0.11.0), which the canonical copy writes after the seed and before the road
+    // (snapshot.ts v3Fields: seed, then losses): was `"seed":4242,${road},"grade":<its grade>}` and `"seed":4242,${road}}`
+    const road = `"road":${JSON.stringify(legal.road)}`, lost = legal.losses === undefined ? "" : `"losses":${legal.losses as number},`;
+    expect(text.endsWith(`"name":"TESTER","seed":${SEED},${lost}${road},"grade":${legal.grade as number}}`)).toBe(true);
+    expect(net.encodeSnapshot({ ...named, grade: undefined } as never).endsWith(`"name":"TESTER","seed":${SEED},${lost}${road}}`)).toBe(true);
     const keys = Object.keys(JSON.parse(text).build);
     expect(keys[keys.length - 1]).toBe("runes");
     // a snapshot without any v3 field encodes byte for byte as before
@@ -307,7 +319,9 @@ describe.each(storeBackends().slice(0, 1))("RUNES-1 M3 through POST /v1/ghosts a
     const bad = await post(upload([...runes.slice(0, 3), { id: wrong.id }], "bad"));
     expect(bad.status).toBe(422);
     expect(bad.body.errors).toEqual([`rune: runes[3]: ${wrong.name} was not offered at the dawn of day 4`]);
-    const off = await post({ ...upload(runes, "off"), losses: 1 });
+    // BUMP-1D: `losses` is live under bb-0.11.0 (the pool ghost the upload is made from states it, and the "ok" upload above carries it, 201); it is
+    // refused under the older rules this post names (was: the same post under RULES_VERSION)
+    const off = await post({ ...upload(runes, "off"), losses: 1, rules: "bb-0.10.0" });
     expect([off.status, off.body.error]).toEqual([400, "snapshot.losses: not in this rules version yet"]);
   });
 

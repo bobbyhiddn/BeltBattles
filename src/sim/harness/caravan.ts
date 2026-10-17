@@ -86,9 +86,11 @@ export interface CaravanDeck { build: Build; value: number; floorMet: boolean; m
 /** The day-`day` dusk deck of the (hero, policy, seed) run (a fresh copy), with its gold. RUNES-2a: `botRunes` (absent:
  *  runes.ts BOT_RUNES, off) has the player take a rune at each dawn; its dawn-gold runes' gold joins the day's gold. */
 export function caravanDeck(hero: HeroId, day: number, seed: number, policy: CaravanPolicy, maxStars: number, botRunes?: boolean): CaravanDeck {
-  const days = playerRun(hero, PLAYER_DAYS, seed, { ...CARAVAN_POLICY[policy], maxStars, ...(botRunes !== undefined ? { botRunes } : {}) });
+  // RUN-1 (REQ-BFG-059, D5): a long run's pool goes past day 10 (the run is played to the day asked, at least PLAYER_DAYS_LONG
+  // days past day 10: player.ts playerRun); days 1-10 ask for PLAYER_DAYS exactly as before
+  const days = playerRun(hero, Math.max(PLAYER_DAYS, day), seed, { ...CARAVAN_POLICY[policy], maxStars, ...(botRunes !== undefined ? { botRunes } : {}) });
   const d = days[day - 1];
-  if (!d) throw new Error(`caravan deck: no day ${day} in a ${PLAYER_DAYS}-day run`);
+  if (!d) throw new Error(`caravan deck: no day ${day} in a ${Math.max(PLAYER_DAYS, day)}-day run`);
   if (buildCost(d.build).total !== d.value) throw new Error(`caravan deck ${hero} d${day} ${policy} ${seed}: the run's value ${d.value} != buildCost ${buildCost(d.build).total}`);
   // RUNES-2a: as validate.ts reads a deck with runes: the bought deck's value (the HULL and BELT runes' own taken out of
   // hullBonus / beltCap) and the day's gold plus the dawn-gold runes' gold. Without runes both are exactly as before.

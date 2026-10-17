@@ -26,9 +26,15 @@
 // loss 1/2/3 by day, no refund, LAST CHANCE setting 1): 324 records over dusks 1-10 (was 172 on 5 lives), 17 of them
 // LAST CHANCE-only (was 13), and the decoder's lives bound is 10 (livesCapFor); with HEARTS off, the 5-lives model as
 // before. (PICK): the pool decks carry the seed step's grade, which POST refuses, so `mine` uploads a deck without it.
+// BUMP-1D (LONG_RUN ships on, bb-0.11.0): records read on the long run's model (records.ts longRunRecords): 307 over dusks 1-10 (was 324), 13 of
+// them LAST CHANCE-only (was 17), and an upload states its `losses` (day - 1 = wins + losses + draws; the decoder takes at most MAX_RUN_DRAWS = 8
+// draws, so the plain attempt at a LAST CHANCE-only record states the fewest losses it takes: lossesFor). The seed pool is the committed
+// 192-ghost long-run pool (days 1-16, each ghost stating its own `losses`; was 120 over days 1-10): 131 of its ghosts get 201 as plain
+// uploads (was 96) and 61 the record 422 (was 24), each on 1 heart, which only a run with its LAST CHANCE carries (LAST_CHANCE_SEEDS).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION } from "../src/sim/content";
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the 5-lives checks
+import { MAX_RUN_DRAWS, withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the 10-day world's models, read with the switch off; and the draws an upload may carry (8)
 import { LAST_CHANCE_HULL } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): the HULL card
 import { floorRecord, isReachable, reachableRecords } from "../src/net/records";
 import { rulesGateProblem } from "../src/net/rulesGate"; // SOFT-1 (REQ-BFG-092): the 0.7.0 page's deck
@@ -42,7 +48,9 @@ import { generateSamplePool } from "../tools/samplePool";
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
-const POOL = generateSamplePool(); // the seed pool (bb-0.8.3 since BELTS; the RC's was bb-0.8.0): 120 ghosts, four heroes x days 1-10 x 3
+// the seed pool (bb-0.8.3 since BELTS; the RC's was bb-0.8.0): BUMP-1D: bb-0.11.0's, the committed server/seedPoolData.ts byte for byte
+// (tests/s8.seedfile.test.ts): 192 ghosts, four heroes x days 1-16 x 3, each stating its own `losses` (was 120 ghosts, four heroes x days 1-10 x 3)
+const POOL = generateSamplePool();
 /** An honest deck of `day`: the FURNACE seed ghost of that day without turrets or joins where there is one. */
 const deckOf = (day: number): GhostSnapshot => {
   const ofDay = POOL.filter((s) => s.day === day && s.hero === "furnace");
@@ -55,10 +63,20 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
   // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and the road log, v3 only and
   // gated by NPC_DAY's rules, which a pre-rune client never sends ("snapshot.road: not allowed in a v2 snapshot")
   delete out.road;
+  delete out.losses; // BUMP-1D (LONG_RUN ships on): and the dusks lost (v3 only: "snapshot.losses: not allowed in a v2 snapshot")
   delete out.build.runes;
   return out;
 }
-const recordError = (day: number, wins: number, lives: number) => `record: ${wins}W ${lives} lives is no record a run carries into dusk ${day}`;
+// BUMP-1D (LONG_RUN ships on): an upload under this build's rules states the dusks the run lost, and the server's record error names them
+// (server/app.ts: "record: 0W 1 lives and 0 losses is no record a run carries into dusk 1"); `losses` absent: the old words (was always those)
+const recordError = (day: number, wins: number, lives: number, losses?: number) => `record: ${wins}W ${lives} lives${losses !== undefined ? ` and ${losses} losses` : ""} is no record a run carries into dusk ${day}`;
+/** BUMP-1D: the `losses` a long run's upload of this record states: the first count 0..day - 1 - wins of a run that reaches (wins, lives) with the
+ *  snapshot's LAST CHANCE (reachableRecords reads `losses`). For a record no run reaches with that LAST CHANCE (a row nothing reaches, or the plain
+ *  attempt at a LAST CHANCE-only record, which has no lastChance) the fewest losses the decoder takes: at most MAX_RUN_DRAWS (8) of the dusks
+ *  before the snapshot's are draws, so Math.max(0, day - 1 - wins - 8) (BUMP-1D: was 0, which the decoder refuses at day 10 with 0 wins:
+ *  "snapshot.losses: 9 draws in 9 dusks is past 8"; the same 0 as before for every other row this file posts, whose day - 1 - wins is at most 8). */
+const lossesFor = (s: GhostSnapshot): number =>
+  Array.from({ length: Math.max(0, s.day - s.wins) }, (_, x) => x).find((x) => isReachable(s.day, s.wins, s.lives, { lastChance: s.lastChance?.day ?? null, losses: x })) ?? Math.max(0, s.day - 1 - s.wins - MAX_RUN_DRAWS);
 
 /** Z-BUMP (the flip): a record of dusk `day` that only a run which had its LAST CHANCE carries (reachable, but not with
  *  lastChance null): the first day whose LAST CHANCE the record model accepts for it; null for a record a plain run carries. */
@@ -71,10 +89,11 @@ const lastChanceDayFor = (day: number, wins: number, lives: number): number | nu
  *  on day 6 (six losses: 1+1+1+2+2+2 = 9 of 10 hearts), on day 7 with up to 5 dusks lost before (a day-7 loss costs 3),
  *  and on day 9 for d10 6W (three day-7+ losses). */
 const LAST_CHANCE_RECORDS = [
-  "d7 0W 1L @6", "d8 0W 1L @6", "d8 1W 1L @6", "d8 2W 1L @7", "d8 3W 1L @7", "d9 0W 1L @6", "d9 1W 1L @6", "d9 2W 1L @6",
-  "d9 3W 1L @7", "d9 4W 1L @7", "d10 0W 1L @6", "d10 1W 1L @6", "d10 2W 1L @6", "d10 3W 1L @6", "d10 4W 1L @7",
-  "d10 5W 1L @7", "d10 6W 1L @9",
+  "d7 0W 1L @6", "d8 0W 1L @6", "d8 1W 1L @6", "d8 2W 1L @7", "d9 0W 1L @6", "d9 1W 1L @6", "d9 2W 1L @6",
+  "d9 3W 1L @7", "d10 0W 1L @6", "d10 1W 1L @6", "d10 2W 1L @6", "d10 3W 1L @6", "d10 4W 1L @7",
 ];
+// BUMP-1D (HEART_COSTS [1,2,2], measured with the long run's model and with the 10-day hearts model alike): 13 (was the 17 above on [1,2,3]: gone
+// d8 3W, d9 4W, d10 5W and d10 6W, which a day-7+ loss costing 3 had put on 1 heart)
 /** HULL-ON (the flip, HEARTS): the 5-lives model's 13 (HEARTS off), as Z-BUMP pinned them. */
 const LAST_CHANCE_RECORDS_OFF = [
   "d7 0W 1L @5", "d8 0W 1L @5", "d8 1W 1L @5", "d8 2W 1L @6", "d9 0W 1L @5", "d9 1W 1L @5", "d9 2W 1L @5", "d9 3W 1L @6",
@@ -84,12 +103,24 @@ const LAST_CHANCE_RECORDS_OFF = [
  *  record 422 (generateSamplePool() at this commit; sorted).
  *  HULL-ON (the flip, HEARTS): the pool's labels are hearts labels (samplePool.ts drawnLabel), so 24 (was 22, read from
  *  the run's diff): + bastion d10 4W, foundry d9 4W, furnace d10 5W (a day-7+ loss costs 3, so more wins still fall to 1
- *  heart); - one weaver d7 0W (its drawn losses, 1 or 2 hearts each on days 1-6, leave it more than 1 heart). */
+ *  heart); - one weaver d7 0W (its drawn losses, 1 or 2 hearts each on days 1-6, leave it more than 1 heart).
+ *  BUMP-1D: was 24, now 61 (LONG_RUN ships on): the committed 192-ghost long-run pool (days 1-16, each ghost states its own `losses`, which
+ *  POST holds its record to) holds 61 ghosts on 1 heart, and these are exactly they (the 24 of the 120-ghost pool were its 1-heart ghosts
+ *  too). The hearts model gives 1 heart only to a run whose LAST CHANCE has fired (the first loss that leaves 1 heart or fewer sets the
+ *  hearts to 1, once a run, on any day: records.ts longStates), and a seed ghost carries no lastChance, so a plain upload of each is no
+ *  record; the other 131 are on 2 hearts or more, which a run without a LAST CHANCE carries with the ghost's losses. 19 of the 61 sit at
+ *  dusks 7-10 (5 fewer than the 24: the same ghosts' drawn losses leave bastion d10 4W and one of its d10 0W, foundry d9 4W, furnace d8 2W
+ *  and furnace d10 5W on 4, 2, 2, 2 and 2 hearts now that a day-7+ loss costs 2 hearts, was 3) and 42 at dusks 11-16 (8, 4, 9, 6, 5, 10). */
 const LAST_CHANCE_SEEDS = [
-  "bastion d10 0W 1L", "bastion d10 0W 1L", "bastion d10 4W 1L", "bastion d7 0W 1L", "bastion d8 0W 1L", "bastion d9 0W 1L",
-  "foundry d10 0W 1L", "foundry d7 0W 1L", "foundry d8 0W 1L", "foundry d9 0W 1L", "foundry d9 4W 1L",
-  "furnace d10 0W 1L", "furnace d10 5W 1L", "furnace d7 0W 1L", "furnace d7 0W 1L", "furnace d8 0W 1L", "furnace d8 2W 1L", "furnace d9 0W 1L", "furnace d9 0W 1L",
-  "weaver d10 0W 1L", "weaver d10 3W 1L", "weaver d7 0W 1L", "weaver d8 0W 1L", "weaver d9 0W 1L",
+  "bastion d10 0W 1L", "bastion d11 0W 1L", "bastion d11 3W 1L", "bastion d12 0W 1L", "bastion d13 0W 1L", "bastion d13 0W 1L", "bastion d13 1W 1L",
+  "bastion d14 0W 1L", "bastion d14 4W 1L", "bastion d14 5W 1L", "bastion d15 0W 1L", "bastion d16 0W 1L", "bastion d16 3W 1L", "bastion d16 6W 1L",
+  "bastion d7 0W 1L", "bastion d8 0W 1L", "bastion d9 0W 1L",
+  "foundry d10 0W 1L", "foundry d11 0W 1L", "foundry d11 0W 1L", "foundry d12 0W 1L", "foundry d13 0W 1L", "foundry d13 1W 1L", "foundry d14 0W 1L",
+  "foundry d15 0W 1L", "foundry d15 8W 1L", "foundry d16 0W 1L", "foundry d16 6W 1L", "foundry d7 0W 1L", "foundry d8 0W 1L", "foundry d9 0W 1L",
+  "furnace d10 0W 1L", "furnace d11 0W 1L", "furnace d11 0W 1L", "furnace d12 0W 1L", "furnace d13 0W 1L", "furnace d13 1W 1L", "furnace d14 0W 1L",
+  "furnace d15 0W 1L", "furnace d16 0W 1L", "furnace d16 1W 1L", "furnace d7 0W 1L", "furnace d7 0W 1L", "furnace d8 0W 1L", "furnace d9 0W 1L", "furnace d9 0W 1L",
+  "weaver d10 0W 1L", "weaver d10 3W 1L", "weaver d11 0W 1L", "weaver d11 1W 1L", "weaver d12 0W 1L", "weaver d13 0W 1L", "weaver d13 2W 1L", "weaver d14 0W 1L",
+  "weaver d15 0W 1L", "weaver d16 0W 1L", "weaver d16 2W 1L", "weaver d16 8W 1L", "weaver d7 0W 1L", "weaver d8 0W 1L", "weaver d9 0W 1L",
 ];
 
 /** The brief's unreachable records the decoder takes: [day, wins, lives]. The first is backlog 325's example. */
@@ -100,7 +131,9 @@ const UNREACHABLE: readonly [number, number, number][] = [
 describe("H2: the records the check refuses and takes (pure)", () => {
   it("the seven unreachable records pass the strict decoder with an honest deck of their day, and isReachable refuses each", () => {
     for (const [day, wins, lives] of UNREACHABLE) {
-      const s = { ...deckOf(day), wins, lives };
+      // BUMP-1D: + losses 0: the pool deck states its OWN dusks lost (a bb-0.11.0 seed ghost), which the row's record may not fit (the strict
+      // decoder: "snapshot.losses: expected an integer in 0..0" at day 2 with 1 win); 0 fits every row (wins <= day - 1)
+      const s = { ...deckOf(day), wins, lives, losses: 0 };
       expect(validateUpload(s.build, day), `d${day}`).toEqual({ ok: true, errors: [] });
       expect(decodeSnapshot(encodeSnapshot(s)), `d${day} ${wins}W ${lives}L`).toEqual(s);
       expect(isReachable(day, wins, lives), `d${day} ${wins}W ${lives}L`).toBe(false);
@@ -109,20 +142,26 @@ describe("H2: the records the check refuses and takes (pure)", () => {
   });
 
   // Z-BUMP (the flip): 172 (was 178, the model without LAST CHANCE, which rules before it still read: 178)
-  it("each day's floorRecord is reachable; 172 reachable records over days 1-10", () => {
+  it("each day's floorRecord is reachable; 307 reachable records over days 1-10 (BUMP-1D: was 172)", () => {
     for (let day = 1; day <= MAX_DAY; day++) {
       const f = floorRecord(day);
       expect(isReachable(day, f.wins, f.lives), `d${day}`).toBe(true);
     }
     const count = (opts: Parameters<typeof reachableRecords>[1]) => Array.from({ length: MAX_DAY }, (_, i) => reachableRecords(i + 1, opts).length).reduce((a, b) => a + b);
     // HULL-ON (the flip, HEARTS): 172 -> 324, the hearts model's (this build's rules); with HEARTS off, 172 as before
-    expect(count({})).toBe(324);
-    expect(withHearts(() => count({}), false)).toBe(172);
+    // BUMP-1D (LONG_RUN ships on; HEART_COSTS [1,2,2]): 307 over dusks 1-10 (measured), the long run's model (records.ts longRunRecords) under this
+    // build's rules; the 10-day hearts model (switch off) reads 307 too now that a lost dusk costs 1/2/2 hearts (was 324 on 1/2/3); with the
+    // switch off and HEARTS off, the 5-lives model's 172 as before (the long run's model comes first, so HEARTS off is read in the 10-day world)
+    expect(count({})).toBe(307);
+    expect(withLongRun(() => count({}), false)).toBe(307);
+    expect(withLongRun(() => withHearts(() => count({}), false), false)).toBe(172);
     expect(count({ rules: "bb-0.9.1" })).toBe(178); // a record under rules before LAST CHANCE: the model before the flip
     // the 13 only a LAST CHANCE reaches (a plain run, lastChance null, carries the other 159), each with the model's first day
     // HULL-ON (the flip, HEARTS): 17 and 307 on hearts (LAST_CHANCE_RECORDS); with HEARTS off, the 13 and 159 as before
-    expect(count({ lastChance: null })).toBe(307);
-    expect(withHearts(() => count({ lastChance: null }), false)).toBe(159);
+    // BUMP-1D: 13 LAST CHANCE-only records on the 1/2/2 hearts (was 17 on 1/2/3) and 294 for a plain run (was 307)
+    expect(count({ lastChance: null })).toBe(294);
+    expect(withLongRun(() => count({ lastChance: null }), false)).toBe(294);
+    expect(withLongRun(() => withHearts(() => count({ lastChance: null }), false), false)).toBe(159);
     const only = (): string[] => {
       const out: string[] = [];
       for (let day = 1; day <= MAX_DAY; day++) {
@@ -134,7 +173,8 @@ describe("H2: the records the check refuses and takes (pure)", () => {
       return out;
     };
     expect(only()).toEqual(LAST_CHANCE_RECORDS);
-    expect(withHearts(only, false)).toEqual(LAST_CHANCE_RECORDS_OFF);
+    expect(withLongRun(only, false)).toEqual(LAST_CHANCE_RECORDS); // BUMP-1D: the 10-day hearts world on 1/2/2 hearts: the same 13
+    expect(withLongRun(() => withHearts(only, false), false)).toEqual(LAST_CHANCE_RECORDS_OFF);
   });
 });
 
@@ -146,7 +186,8 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     base = `http://127.0.0.1:${await app.listen(0)}`;
     me = await testIdentity(2);
     other = await testIdentity(1);
-    expect(await seedStore(app.store)).toMatchObject({ rules: RULES_VERSION, entries: 120, written: 120 });
+    // BUMP-1D: 192 = 4 heroes x days 1-16 x 3 variants (the long run's seed pool), was 120 (days 1-10)
+    expect(await seedStore(app.store)).toMatchObject({ rules: RULES_VERSION, entries: 192, written: 192 });
   }, 180_000);
   afterAll(async () => {
     await app.close();
@@ -157,9 +198,12 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
   /** `s` as `me` uploads it from a run of its own (a fresh runId and time, so each POST is a new ghost unless resent).
    *  HULL-ON (the flip, PICK): without the seed step's grade, which every pool deck carries with PICK on and no upload
    *  does (POST: 422 "grade: only the seed pool's ghosts carry a grade"): the deck as a player's run uploads it. */
-  const mine = (s: GhostSnapshot): GhostSnapshot => {
+  // BUMP-1D (LONG_RUN ships on): and with the `losses` of a run that reaches the row's record (lossesFor; `stamp` false: the seed ghost's own
+  // stated losses stay), as a long run's upload states them (the pool deck's own `losses` fit the row's record only by chance)
+  const mine = (s: GhostSnapshot, stamp = true): GhostSnapshot => {
     const { grade: _grade, ...plain } = s;
-    return ownedBy({ ...plain, runId: `h2-${backend.name}-${k}`, createdAt: 1_790_200_000_000 + k++ }, me);
+    const row = { ...plain, runId: `h2-${backend.name}-${k}`, createdAt: 1_790_200_000_000 + k++ };
+    return ownedBy(stamp ? { ...row, losses: lossesFor(row) } : row, me);
   };
   const send = async (body: string, headers: Record<string, string>) => {
     const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers, body });
@@ -188,13 +232,14 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     for (const [day, wins, lives] of UNREACHABLE) {
       const s = mine({ ...deckOf(day), wins, lives });
       const r = await post(s);
-      expect(r, `d${day} ${wins}W ${lives}L`).toEqual({ status: 422, body: { error: recordError(day, wins, lives) } });
+      expect(r, `d${day} ${wins}W ${lives}L`).toEqual({ status: 422, body: { error: recordError(day, wins, lives, s.losses) } }); // BUMP-1D: + the stated losses (0 for a record no run reaches)
       expect(await state(), `d${day} ${wins}W ${lives}L: the store is unchanged`).toEqual(before);
       expect((await app.store.bucket(RULES_VERSION, day, "all")).some((e) => e.id === ghostId(s))).toBe(false);
     }
     // backlog 325's example, word for word
     const ex = await post(mine({ ...deckOf(1), wins: 0, lives: 1 }));
-    expect(ex).toEqual({ status: 422, body: { error: "record: 0W 1 lives is no record a run carries into dusk 1" } });
+    // BUMP-1D: and the long run's upload states its losses (0), which the error names (was "record: 0W 1 lives is no record a run carries into dusk 1")
+    expect(ex).toEqual({ status: 422, body: { error: "record: 0W 1 lives and 0 losses is no record a run carries into dusk 1" } });
     expect(await state()).toEqual(before);
   });
 
@@ -214,7 +259,7 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
         const lcDay = lastChanceDayFor(day, wins, lives);
         let s = mine({ ...deck, wins, lives });
         if (lcDay !== null) {
-          expect(await post(s), `d${day} ${wins}W ${lives}L plain`).toEqual({ status: 422, body: { error: recordError(day, wins, lives) } });
+          expect(await post(s), `d${day} ${wins}W ${lives}L plain`).toEqual({ status: 422, body: { error: recordError(day, wins, lives, s.losses) } });
           expect(await state(), `d${day} ${wins}W ${lives}L plain: the store is unchanged`).toEqual(before);
           s = mine({ ...deck, wins, lives, build: { ...deck.build, hullBonus: deck.build.hullBonus + LAST_CHANCE_HULL }, lastChance: { day: lcDay, boon: "hull" } });
           withLastChance.push(`d${day} ${wins}W ${lives}L @${lcDay}`);
@@ -228,7 +273,7 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
         n++;
       }
     }
-    expect(n).toBe(324); // HULL-ON (the flip, HEARTS): the hearts model's 324 (was 172), its 17 LAST CHANCE-only (was 13)
+    expect(n).toBe(307); // HULL-ON (the flip, HEARTS): the hearts model's 324 (was 172), its 17 LAST CHANCE-only (was 13); BUMP-1D: 307 and 13 (1/2/2 hearts, the long run's model)
     expect(withLastChance).toEqual(LAST_CHANCE_RECORDS);
   }, 120_000);
 
@@ -249,7 +294,9 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     // decode: a record the decoder bounds keeps its 400 (wins at most day - 1, lives 1..9), as does an unknown field
     // HULL-ON (the flip, HEARTS): the lives bound under this build's rules is 10 (livesCapFor), so 10 -> 11, the first
     // past it (0W 10 hearts at dusk 3 is a record: two draws); with HEARTS off, 10 is past the bound as before
-    expect(() => withHearts(() => decodeSnapshot(JSON.stringify(mine({ ...deckOf(3), wins: 0, lives: 10 }))), false)).toThrow(/^snapshot\.lives: /);
+    // BUMP-1D (LONG_RUN ships on): the 5-lives bound is the 10-day world's (switch off, HEARTS off), whose snapshot states no `losses`
+    const { losses: _lost, ...tenHearts } = mine({ ...deckOf(3), wins: 0, lives: 10 });
+    expect(() => withLongRun(() => withHearts(() => decodeSnapshot(JSON.stringify(tenHearts)), false), false)).toThrow(/^snapshot\.lives: /);
     for (const [day, wins, lives, field] of [[1, 1, 5, "wins"], [3, 0, 0, "lives"], [3, 0, 11, "lives"], [3, 3, 5, "wins"]] as const) {
       const r = await postRaw(mine({ ...deckOf(day), wins, lives }));
       expect(r.status, `d${day} ${wins}W ${lives}L`).toBe(400);
@@ -273,7 +320,7 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     expect([rich.status, rich.body.error]).toEqual([422, "deck failed validation"]);
     expect(rich.body.errors!.join()).toMatch(/budget/);
     // and only then the record
-    expect(await post(bad)).toEqual({ status: 422, body: { error: recordError(3, 0, 3) } });
+    expect(await post(bad)).toEqual({ status: 422, body: { error: recordError(3, 0, 3, bad.losses) } }); // BUMP-1D: + the stated losses
     expect(await state()).toEqual(before);
   });
 
@@ -282,7 +329,7 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     // record at dusk 5 (two losses cost at most 1 + 2); with HEARTS off, 2W 3 lives as before
     const s = mine({ ...deckOf(5), wins: 2, lives: 8 });
     expect(isReachable(5, 2, 8)).toBe(true);
-    expect([isReachable(5, 2, 3), withHearts(() => isReachable(5, 2, 3), false)]).toEqual([false, true]);
+    expect([isReachable(5, 2, 3), withLongRun(() => withHearts(() => isReachable(5, 2, 3), false), false)]).toEqual([false, true]); // BUMP-1D: the 5-lives model is the 10-day world's (the long run's model comes first)
     const before = await state();
     expect(await post(s)).toEqual({ status: 201, body: { id: ghostId(s) } });
     expect(await post(s)).toEqual({ status: 200, body: { id: ghostId(s) } }); // a fresh signature over the same bytes
@@ -294,7 +341,7 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     const { id, created } = await app.store.add(decodeSnapshot(encodeSnapshot(planted)));
     expect([id, created]).toEqual([ghostId(planted), true]);
     const held = await state();
-    expect(await post(planted)).toEqual({ status: 422, body: { error: recordError(6, 5, 1) } });
+    expect(await post(planted)).toEqual({ status: 422, body: { error: recordError(6, 5, 1, planted.losses) } }); // BUMP-1D: + the stated losses
     expect(await state()).toEqual(held);
   });
 
@@ -302,26 +349,31 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
   // server/seed.ts checkPool reads them), but a seed ghost carries no lastChance, so POST reads each as a plain run's: the
   // 98 a plain run carries are taken (201) and stored (was all 120); the 22 whose label only a LAST CHANCE reaches
   // (LAST_CHANCE_SEEDS: 1 life at dusks 7-10) get the record 422, word for word, and are not stored
-  it("all 120 bb-0.8.3 seed ghosts (generateSamplePool(), the RC's pool's composition), posted as one player's signed dusks: the 98 a plain upload carries are taken (201) and stored, the 22 only a LAST CHANCE reaches get the record 422", async () => {
-    expect(POOL).toHaveLength(120);
-    expect(POOL.filter((s) => !isReachable(s.day, s.wins, s.lives)).map((s) => `${s.hero} d${s.day} ${s.wins}W ${s.lives}L`)).toEqual([]);
+  // BUMP-1D (LONG_RUN ships on): the pool is the 192-ghost long-run pool (was 120), each ghost stating its own `losses` (the record is held to
+  // exactly those, `mine(s, false)` keeps them): the 131 a plain run carries (2 hearts or more) are taken (201) and stored (was 96 of 120); the
+  // 61 on 1 heart (LAST_CHANCE_SEEDS: a run is at 1 heart only after its LAST CHANCE, and a seed ghost carries none; dusks 7-16, was 24 at
+  // dusks 7-10) get the record 422, word for word, naming the ghost's losses, and are not stored
+  it("all 192 bb-0.11.0 seed ghosts (generateSamplePool(), the committed long-run pool: days 1-16, was 120 over days 1-10), posted as one player's signed dusks: the 131 a plain upload carries are taken (201) and stored, the 61 only a LAST CHANCE reaches get the record 422", async () => {
+    expect(POOL).toHaveLength(192); // BUMP-1D: 4 heroes x days 1-16 x 3 variants (was 120)
+    expect(POOL.filter((s) => !isReachable(s.day, s.wins, s.lives, { losses: s.losses })).map((s) => `${s.hero} d${s.day} ${s.wins}W ${s.lives}L`)).toEqual([]);
     const before = await state();
     const statuses: Record<number, number> = {};
     const refused: string[] = [];
     for (const s of POOL) {
-      const r = await post(mine(s));
+      const r = await post(mine(s, false)); // BUMP-1D: a seed ghost states its own losses (the pool's), they are not re-derived
       statuses[r.status] = (statuses[r.status] ?? 0) + 1;
       const what = `${s.hero} d${s.day} ${s.wins}W ${s.lives}L`;
-      if (isReachable(s.day, s.wins, s.lives, { lastChance: null })) expect(r.status, `${what}: ${JSON.stringify(r.body)}`).toBe(201);
+      if (isReachable(s.day, s.wins, s.lives, { lastChance: null, losses: s.losses })) expect(r.status, `${what}: ${JSON.stringify(r.body)}`).toBe(201);
       else {
-        expect(r, what).toEqual({ status: 422, body: { error: recordError(s.day, s.wins, s.lives) } });
+        expect(r, what).toEqual({ status: 422, body: { error: recordError(s.day, s.wins, s.lives, s.losses) } });
         refused.push(what);
       }
     }
     expect(refused.sort()).toEqual(LAST_CHANCE_SEEDS);
     // HULL-ON (the flip, HEARTS): 96 taken and 24 refused (were 98 and 22), the hearts pool's (LAST_CHANCE_SEEDS)
-    expect(statuses).toEqual({ 201: 96, 422: 24 });
+    // BUMP-1D: 131 taken and 61 refused (was 96 and 24 of 120): the 192-ghost long-run pool, 192 - 61 = 131 (LAST_CHANCE_SEEDS holds the 61)
+    expect(statuses).toEqual({ 201: 131, 422: 61 });
     const after = await state();
-    expect([after.ghosts - before.ghosts, after.records - before.records]).toEqual([96, 96]);
+    expect([after.ghosts - before.ghosts, after.records - before.records]).toEqual([131, 131]); // BUMP-1D: was [96, 96]
   }, 120_000);
 });

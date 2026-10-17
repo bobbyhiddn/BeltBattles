@@ -10,6 +10,8 @@ import {
 } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
 import { effectAt } from "../src/sim/stars";
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: the base's rigs with the six plain ones off
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and the six more shaped ones off
 import { hitLabel } from "../src/screens/build/inspector";
 import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2t: the glossary (it replaced levelLine's shorthand)
 import { migrateRun, newRun, type Run } from "../src/game/run";
@@ -60,7 +62,12 @@ describe("P1: stars resolve first; shape is kept at every star (R10)", () => {
   it("effectAt keeps `shape` at 1-3 stars for every rig def, so a merge never adds arrows", () => {
     const rigs = Object.values(ITEMS).filter((d) => d.kind === "gate");
     // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23)
-    expect(rigs).toHaveLength(34); // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL, the three shaped rigs (was 31)
+    // BUMP-1D (PLAIN_RIGS and SHAPES2 ship on): + the six plain stat rigs (RASP, SPARK GAP, SCALE GUARD, BALLAST, GRINDSTONE,
+    // BRANDING IRON) and the six more shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE): 46 (was 34)
+    expect(rigs).toHaveLength(46);
+    // the base's 34 are the catalogue with both switches off, as before
+    const base = withPlainRigs(() => withShapes2(() => Object.values(ITEMS).filter((d) => d.kind === "gate"), false), false);
+    expect(base).toHaveLength(34); // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL, the three shaped rigs (was 31)
     for (const d of rigs) {
       for (const s of [1, 2, 3]) {
         const e = effectAt(d.id, s);

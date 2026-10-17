@@ -19,6 +19,11 @@
 // off: at most 2 joins per deck, so a deck the hero can build under bb-0.10.0 too), labelled "join-limited par day 9 #1:
 // ...". Everything else is the shipped world's: the par decks of days 3, 6 and 9, the two-intake deck, the foes, every
 // fight and every strict check.
+// BUMP-1D (the long run, PLAIN_RIGS and SHAPES2 on), the same exception for the two-intake deck: FURNACE's par decks of days 3, 6
+// and 9 (members 1-2) are now one belt, or one belt and a belt joining it, so neither way finds two belts and an intake to feed;
+// then the two ways run on the join-limited par decks too (twoDeck's second tier, labelled "join-limited par day 9 #2: ...").
+// (Measured: with the long run off, or with PLAIN_RIGS and SHAPES2 off, FURNACE's member 2 of each of the three days is still on
+// two belts into one turret; the par player's draws moved with the three switches on together, not by any rule.)
 // Each fights each hero's par deck of that day (member 1, bare) once, from side 0, on a fixed seed; the part decks first.
 // A rune FIRES in a fight when anything in the battle's record differs from the same fight without it (the sim
 // fingerprint's record: the winner, the time, both hulls, every SideStats field and a tally of every sim event). The test
@@ -174,13 +179,23 @@ function dropRoute(b: Build, r: number): void {
   for (let q = b.routes.length - 1; q >= 0; q--) if (b.routes[q].join !== undefined && cells.has(b.routes[q].join!)) dropRoute(b, q);
 }
 
-/** 3. The two-intake deck (see the header). */
+/** 3. The two-intake deck (see the header): its two ways on the par decks. BUMP-1D (the long run, PLAIN_RIGS and SHAPES2 on; the
+ *  par player's draws moved with the three together): only when they find nothing, the same two ways on the join-limited par
+ *  decks (joinLimitedPars, partDeck's second tier). FURNACE's par decks of days 3, 6 and 9 (members 1-2) are now ONE belt, or one
+ *  belt and a belt joining it (no belt of its own to lay anew into a second intake); the same call with FREE_JOINS off (at most
+ *  2 joins) has FURNACE's member 2 on two belts into one turret on all three days. The fights and the strict check stay the
+ *  shipped world's. */
 function twoDeck(h: HeroId): Fixed | null {
+  return twoTiers(h, pars, "par") ?? twoTiers(h, joinLimitedPars, "join-limited par");
+}
+
+/** twoDeck's two ways on the par decks `src` gives (labelled `name`). */
+function twoTiers(h: HeroId, src: (h: HeroId, day: number) => Build[], name: string): Fixed | null {
   for (const day of [9, 6, 3]) {
-    for (const [i, b] of pars(h, day).entries()) if (twoIntakeFed(b) && firesIn(h, b, day, "twin_nails")) return { label: `par day ${day} #${i + 1} (its own two-intake turret on two belts)`, day, build: b };
+    for (const [i, b] of src(h, day).entries()) if (twoIntakeFed(b) && firesIn(h, b, day, "twin_nails")) return { label: `${name} day ${day} #${i + 1} (its own two-intake turret on two belts)`, day, build: b };
   }
   for (const day of [9, 6, 3]) {
-    for (const [i, b] of pars(h, day).entries()) {
+    for (const [i, b] of src(h, day).entries()) {
       const slots = hullSlots(h);
       for (let s = 0; s < slots.length; s++) {
         const c = cloneBuild(b);
@@ -220,7 +235,7 @@ function twoDeck(h: HeroId): Fixed | null {
           if (beltUsed(e) > e.beltCap || !twoIntakeFed(e)) continue;
           const ok = affordable(e, day, new Set());
           if (ok && twoIntakeFed(ok) && firesIn(h, ok, day, "twin_nails")) {
-            return { label: `par day ${day} #${i + 1}: a CARRONADE in slot ${s + 1}, a belt laid anew into intake ${want} (${b.routes.length - ok.routes.length} belt(s), ${b.items.length - ok.items.length} rig(s) dropped)`, day, build: ok };
+            return { label: `${name} day ${day} #${i + 1}: a CARRONADE in slot ${s + 1}, a belt laid anew into intake ${want} (${b.routes.length - ok.routes.length} belt(s), ${b.items.length - ok.items.length} rig(s) dropped)`, day, build: ok };
           }
         }
       }

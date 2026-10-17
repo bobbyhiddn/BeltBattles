@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { HEARTS_START, heartCost, heartsLastChanceFires, setHearts, withHearts } from "../src/sim/hearts";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; the 10-day card and run are read with it off
 import { LAST_CHANCE_AT } from "../src/sim/lastChance";
 import { duskFoe, finishDay, lastChanceCardLine, REFUND_TEXT, refundCardLine, refundNotice } from "../src/game/day";
 import { newRun, type Run } from "../src/game/run";
@@ -19,7 +20,7 @@ import {
 } from "../src/ui/stakes";
 import { drawHearts, lossLine } from "../src/screens/battleHud";
 import { LC_LINE, LC_LINE_HEARTS, LC_STOP, LC_STOP_HEARTS, lcLayout, lcLine, lcStop } from "../src/screens/lastChancePicker";
-import { HELP, HELP_HEARTS_2, helpLines } from "../src/screens/title";
+import { HELP, HELP_HEARTS_2, HELP_LONG_1, HELP_LONG_2, heartCostWords, helpLines } from "../src/screens/title";
 import { outcomeText } from "../src/screens/event/event";
 import { drawRunBar, newAnchors } from "../src/ui/runbar";
 import { drawFoe } from "../src/screens/build/inspector";
@@ -87,26 +88,37 @@ describe("RETUNE-1 run 2 stakes: HEARTS off (or a run without the mark), every s
   });
 
   it("the title's rules card: HELP itself, line 2 word for word", () => {
-    expect(helpLines()).toBe(HELP);
+    // BUMP-1D: HELP itself is the 10-day card (LONG_RUN ships on, and its card says WIN 10 DUSK FIGHTS on line 1), so it is read with the
+    // long run off; with the long run on and HEARTS off, line 2 is this same 5-lives line and only line 1 is the long card's
+    expect(withLongRun(() => helpLines(), false)).toBe(HELP);
     expect(HELP[1]).toBe("2  YOU HAVE 5 LIVES. A DUSK LOSS COSTS ONE, A DRAW NONE. LOSE ON DAY 1 OR 2 AND DAY 3'S DAWN GIVES ONE LIFE BACK (ONCE A RUN). YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).");
+    const long = helpLines();
+    expect(long[0]).toBe(HELP_LONG_1);
+    expect(long.filter((_, i) => i !== 0)).toEqual(HELP.filter((_, i) => i !== 0));
   });
 });
 
 describe("RETUNE-1 run 2 stakes: a hearts run's words", () => {
   it("the stakes: heartCost(today), and LAST CHANCE exactly when hearts.ts's own trigger fires (every day, heart count and use)", () => {
-    const run = heartsRunAt();
-    for (let day = 1; day <= RUN_DAYS; day++) for (let lives = 1; lives <= HEARTS_START; lives++) for (const used of [false, true]) {
-      run.day = day;
-      run.lives = lives;
-      run.lastChance = used ? ({ day: 1 } as Run["lastChance"]) : undefined;
-      const s = duskStakes(run)!;
-      expect(s.cost, `day ${day}`).toBe(heartCost(day));
-      expect(s.saves, `day ${day} lives ${lives} used ${used}`).toBe(heartsLastChanceFires(day, "loss", Math.max(0, lives - heartCost(day)), used));
+    // BUMP-1D: a 10-day run (made with the long run off) has a last day, RUN_DAYS, and the trigger does not fire on it; a long run (the
+    // shipped one) has none, so its trigger fires on any day (checked here through day 14). Each is held to hearts.ts's own trigger
+    for (const long of [false, true]) {
+      const run = withLongRun(() => heartsRunAt(), long);
+      expect(run.longRun === true).toBe(long);
+      const lastDay = long ? Infinity : RUN_DAYS;
+      for (let day = 1; day <= (long ? RUN_DAYS + 4 : RUN_DAYS); day++) for (let lives = 1; lives <= HEARTS_START; lives++) for (const used of [false, true]) {
+        run.day = day;
+        run.lives = lives;
+        run.lastChance = used ? ({ day: 1 } as Run["lastChance"]) : undefined;
+        const s = duskStakes(run)!;
+        expect(s.cost, `${long ? "long" : "10-day"} day ${day}`).toBe(heartCost(day));
+        expect(s.saves, `${long ? "long" : "10-day"} day ${day} lives ${lives} used ${used}`).toBe(heartsLastChanceFires(day, "loss", Math.max(0, lives - heartCost(day)), used, lastDay));
+      }
     }
     expect([stakesText({ cost: 2, saves: false }), STAKES_SAVES]).toEqual(["-2", "LAST CHANCE SAVES YOU"]);
   });
 
-  it("the stakes shown before each dusk are what the loss then costs (finishDay): -1 HEART, -2 HEARTS, -3 HEARTS, LAST CHANCE: 1 HEART", () => {
+  it("the stakes shown before each dusk are what the loss then costs (finishDay): -1 HEART, -2 HEARTS, LAST CHANCE: 1 HEART", () => {
     const run = heartsRunAt();
     const seen: string[] = [];
     while (!run.over) {
@@ -117,7 +129,10 @@ describe("RETUNE-1 run 2 stakes: a hearts run's words", () => {
       seen.push(`${lossLine(r)}${r.lastChance ? ` ${lastChanceCardLine(r)}` : ""}`);
     }
     // 10 hearts: 9 8 7 (days 1-3), 5 3 (days 4-5), day 6 leaves 1: LAST CHANCE, day 7 out
-    expect(seen).toEqual(["-1 HEART", "-1 HEART", "-1 HEART", "-2 HEARTS", "-2 HEARTS", "-2 HEARTS LAST CHANCE: 1 HEART", "-3 HEARTS"]);
+    // BUMP-1D: day 7's loss costs 2 (HEART_COSTS [1, 2, 2]), so the last entry reads "-2 HEARTS" (was "-3 HEARTS")
+    expect(seen).toEqual(["-1 HEART", "-1 HEART", "-1 HEART", "-2 HEARTS", "-2 HEARTS", "-2 HEARTS LAST CHANCE: 1 HEART", "-2 HEARTS"]);
+    // the old rule's third band, as the line formats it (a bench's rule may cost 3)
+    expect([lossLine({ heartsLost: 3 }), stakesText({ cost: 3, saves: false })]).toEqual(["-3 HEARTS", "-3"]);
     expect(textWidth("LAST CHANCE: 1 HEART")).toBeLessThanOrEqual(textWidth("LAST CHANCE: +1 LIFE")); // the card's room
     expect(LAST_CHANCE_AT).toBe(1);
   });
@@ -148,12 +163,26 @@ describe("RETUNE-1 run 2 stakes: a hearts run's words", () => {
 
   it("the title's rules card with HEARTS on: line 2 is the hearts rule (no lives, no refund), no longer than today's", () => {
     setHearts(true);
-    const lines = helpLines();
+    // BUMP-1D: the 10-day card (the long run off): line 2 is HELP_HEARTS_2, whose cost words are built from the constants with equal
+    // neighbouring bands merged (title.ts heartCostWords): "1 ON DAYS 1-3 AND 2 FROM DAY 4" for HEART_COSTS [1, 2, 2] (was "1 ON DAYS 1-3, 2 ON
+    // DAYS 4-6 AND 3 FROM DAY 7"); the old costs [1, 2, 3] still read that, as an explicit argument
+    const lines = withLongRun(() => helpLines(), false);
     expect(lines[1]).toBe(HELP_HEARTS_2);
-    expect(HELP_HEARTS_2).toBe("2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).");
+    expect(HELP_HEARTS_2).toBe("2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3 AND 2 FROM DAY 4, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).");
+    expect(heartCostWords()).toBe("1 ON DAYS 1-3 AND 2 FROM DAY 4");
+    expect(heartCostWords([1, 2, 3], [1, 4, 7])).toBe("1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7");
+    expect(`2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${heartCostWords([1, 2, 3], [1, 4, 7])}, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`)
+      .toBe("2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).");
     expect(lines.filter((_, i) => i !== 1)).toEqual(HELP.filter((_, i) => i !== 1));
     expect(lines.join(" ")).not.toMatch(/\bLIFE\b|\bLIVES\b|REFUND/);
     expect(HELP_HEARTS_2.length).toBeLessThanOrEqual(HELP[1].length);
+    // the long card (the shipped one): line 1 the long card's, line 2 the same hearts words, then how the run ends; nothing about lives or a refund
+    const long = helpLines();
+    expect(long[0]).toBe(HELP_LONG_1);
+    expect(long[1]).toBe(HELP_LONG_2);
+    expect(HELP_LONG_2.startsWith(HELP_HEARTS_2.slice(0, HELP_HEARTS_2.indexOf("A DRAW NONE.") + "A DRAW NONE.".length))).toBe(true);
+    expect(long.filter((_, i) => i > 1)).toEqual(HELP.filter((_, i) => i > 1));
+    expect(long.join(" ")).not.toMatch(/\bLIFE\b|\bLIVES\b|REFUND/);
   });
 });
 

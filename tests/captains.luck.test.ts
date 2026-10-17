@@ -4,6 +4,15 @@
 // of each luck measure per hero-day (tools/luckCaps.ts, `npm run luckcaps`; src/sim/harness/luck.ts). Here every captain
 // deck is checked against its tier's caps, every plan part against the caravan (merchant stock and the day its rarity and
 // merchant can first ride), and every deck but the Matriarch's against maxGoldByDay (R1).
+//
+// BUMP-1D (the 10-wins rules release, bb-0.11.0; RULING-BUMP-R2 R2.3 Q4): luckCapsData.ts is REGENERATED for the new par field (npm run
+// luckcaps with every switch on: the par player plays the grown catalogue, the twelve new pieces of PLAIN_RIGS and SHAPES2, ELBOW
+// GUARD's DMG row and RASP at 4 G; the seed-1 fingerprints furnace 8ffb1f71 -> 0b23dc4e, weaver 3df8d5a7 -> 883c7bee, foundry
+// 080c2660 -> 4dd85c9f, bastion 98bbc65c -> 6d397e0a). NO CAPTAIN WAS RETUNED IN BUMP-1D: rivalBuilds.ts (the plans) is untouched,
+// no plan buys a piece the release changed (RASP, NAIL STRIP, SPIKE RAIL, ELBOW GUARD), and rivals.ts only carries RUN-1's schedule past
+// day 10, so every captain deck is what 0.9.10 shipped. The ceiling lists below, and the one good-value bound, are re-keyed to the
+// same decks' overshoots of the moved caps, each change with a "BUMP-1D: was ..." trail. BUMP-1E may retune the captains against the
+// new caps (the stand-in ladder is re-read there too); it then drops the entries it fixes: a listed day back under its cap fails.
 
 import { describe, expect, it } from "vitest";
 import { HEROES, ITEMS, rarityWeights, type ItemDef } from "../src/sim/content";
@@ -29,23 +38,50 @@ const capsOf = (id: RivalId, day: number, tier: "ordinary" | "good"): LuckMeasur
 // REFIT-AZ's cap + ROAD/ROADN; RULING-S8-R2. No captain changes in 0.9.9 (the captain re-plan is on the 1D list). Each entry:
 // captain, day, measure, the cap and the measured number at S8. The checks still fail on an over that is not listed, on a
 // listed day above its pinned number (or under a lower cap), and on a listed day back under its cap (remove its entry).
+// BUMP-1D (RULING-BUMP-R2 R2.3 Q4): THE CEILING LISTS, RE-KEYED to the regenerated caps. The same captain decks, read against the
+// caps of the 10-wins release's par field, are over on 30 captain-days (23 stand-in dusk decks, 7 Hard warlord decks; was 31 = 26 + 5).
+// Each list below is that exact set. The checks fail as at S8: on an over that is not listed, on a listed day above its pinned number
+// (or under a lower cap), and on a listed day back under its cap. A pinned number is what the deck measures: every "was" cap below is
+// S8's, and every re-keyed entry's measured number is S8's (the captain is the same).
 type Pinned = readonly [id: RivalId, day: number, measure: keyof LuckMeasures, cap: number, measured: number];
+// BUMP-1D: the 23 dusk entries, against S8's 26. UNCHANGED, cap and number (8): nettle d5 and d6 rare, mothqueen d5 rare, lacewing d5 and
+// d6 rare, emberlyn d5 rare, highspire d5 and d6 rare. NEW (9): sootjaw, grubnose, sparkfang and longtooth d6 rare 5 > 4 (FURNACE's d6
+// rare cap was 5); nettle, highspire and thistlemail d6 value 88 / 89 / 87 > 86 (WEAVER's d6 value cap was 89); lacewing and highspire
+// d8 value 128 > 126 (WEAVER's d8 value cap was 130). RE-KEYED to the new cap (6): mothqueen d2 value cap 22 -> 24 and d3 value 37 -> 38,
+// highspire d7 value 108 -> 106, brasswick d7 value 105 -> 106 and d8 value 124 -> 125, thistlemail d1 value 8 -> 9. REMOVED (12), back
+// under their caps: d10 rare of nettle, mothqueen, lacewing, emberlyn, silkshade and highspire (WEAVER's d10 rare cap 8 -> 9) and
+// lacewing d7 rare (WEAVER's d7 rare cap 5 -> 6); longtooth d8 value and lockjaw d8 value (FURNACE's d8 value cap 124 -> 130);
+// highspire d1 value (WEAVER's d1 value cap 8 -> 9); highspire d2 and thistlemail d2 value (WEAVER's d2 value cap 22 -> 24).
 const DUSK_OVERS: readonly Pinned[] = [
-  ["nettle", 5, "rare", 3, 4], ["nettle", 6, "rare", 4, 5], ["nettle", 10, "rare", 8, 9],
-  ["mothqueen", 2, "value", 22, 26], ["mothqueen", 3, "value", 37, 40], ["mothqueen", 5, "rare", 3, 4], ["mothqueen", 10, "rare", 8, 9],
-  ["lacewing", 5, "rare", 3, 4], ["lacewing", 6, "rare", 4, 5], ["lacewing", 7, "rare", 5, 6], ["lacewing", 10, "rare", 8, 9],
-  ["emberlyn", 5, "rare", 3, 4], ["emberlyn", 10, "rare", 8, 9],
-  ["silkshade", 10, "rare", 8, 9],
-  ["longtooth", 8, "value", 124, 129],
-  ["highspire", 1, "value", 8, 9], ["highspire", 2, "value", 22, 23], ["highspire", 5, "rare", 3, 4], ["highspire", 6, "rare", 4, 5],
-  ["highspire", 7, "value", 108, 109], ["highspire", 10, "rare", 8, 9],
-  ["brasswick", 7, "value", 105, 108], ["brasswick", 8, "value", 124, 128],
-  ["lockjaw", 8, "value", 124, 125],
-  ["thistlemail", 1, "value", 8, 10], ["thistlemail", 2, "value", 22, 23],
+  ["sootjaw", 6, "rare", 4, 5], // BUMP-1D: new
+  ["nettle", 5, "rare", 3, 4], ["nettle", 6, "rare", 4, 5], ["nettle", 6, "value", 86, 88], // BUMP-1D: d6 value new; d10 rare (8, 9) removed
+  ["grubnose", 6, "rare", 4, 5], // BUMP-1D: new
+  ["mothqueen", 2, "value", 24, 26], ["mothqueen", 3, "value", 38, 40], // BUMP-1D: was ["mothqueen", 2, "value", 22, 26], ["mothqueen", 3, "value", 37, 40]
+  ["mothqueen", 5, "rare", 3, 4], // BUMP-1D: d10 rare (8, 9) removed
+  ["sparkfang", 6, "rare", 4, 5], // BUMP-1D: new
+  ["lacewing", 5, "rare", 3, 4], ["lacewing", 6, "rare", 4, 5], ["lacewing", 8, "value", 126, 128], // BUMP-1D: d8 value new; d7 rare (5, 6), d10 rare (8, 9) removed
+  ["emberlyn", 5, "rare", 3, 4], // BUMP-1D: d10 rare (8, 9) removed; silkshade d10 rare (8, 9) removed
+  ["longtooth", 6, "rare", 4, 5], // BUMP-1D: new; d8 value (124, 129) removed
+  ["highspire", 5, "rare", 3, 4], ["highspire", 6, "rare", 4, 5], ["highspire", 6, "value", 86, 89], // BUMP-1D: d6 value new
+  ["highspire", 7, "value", 106, 109], // BUMP-1D: was ["highspire", 7, "value", 108, 109]
+  ["highspire", 8, "value", 126, 128], // BUMP-1D: new; d1 value (8, 9), d2 value (22, 23), d10 rare (8, 9) removed
+  ["brasswick", 7, "value", 106, 108], ["brasswick", 8, "value", 125, 128], // BUMP-1D: was ["brasswick", 7, "value", 105, 108], ["brasswick", 8, "value", 124, 128]
+  // BUMP-1D: lockjaw d8 value (124, 125) removed
+  ["thistlemail", 1, "value", 9, 10], ["thistlemail", 6, "value", 86, 87], // BUMP-1D: d1 value was ["thistlemail", 1, "value", 8, 10]; d6 value new; d2 value (22, 23) removed
 ];
+// BUMP-1D: the 7 warlord entries, against S8's 5. UNCHANGED (4): mothqueen d10 rare, bulwark d9 rare, highspire d10 rare, voss d4 star2.
+// NEW (3): silkshade d4 star2 3 > 2 and d6 star2 4 > 3, highspire d6 star2 4 > 3 (WEAVER's good star2 cap was 3 on d4 and 4 on d6).
+// REMOVED (1): voss d9 star2 (4, 5), back under its cap (FOUNDRY's good d9 star2 cap 4 -> 5).
 const WARLORD_OVERS: readonly Pinned[] = [
   ["mothqueen", 10, "rare", 11, 12], ["bulwark", 9, "rare", 9, 10], ["highspire", 10, "rare", 11, 12],
-  ["voss", 4, "star2", 2, 3], ["voss", 9, "star2", 4, 5],
+  ["voss", 4, "star2", 2, 3], // BUMP-1D: d9 star2 (4, 5) removed
+  ["silkshade", 4, "star2", 2, 3], ["silkshade", 6, "star2", 3, 4], ["highspire", 6, "star2", 3, 4], // BUMP-1D: new
+];
+// BUMP-1D (RULING-BUMP-R2 R2.3 Q4): the day-1 good values over the table bound below (`has both tiers`): [hero, day, bound, measured
+// good value]. Was: no entry (every hero-day's good value at or under maxGoldByDay + maxDawnGold + ROAD(day, dusk)). The checks fail
+// as the ceiling lists': on an over that is not listed, above a pinned number (or under a lower bound), and back inside the bound.
+const GOOD_VALUE_OVERS: readonly (readonly [hero: string, day: number, bound: number, measured: number])[] = [
+  ["furnace", 1, 13, 14], ["weaver", 1, 13, 14], // BUMP-1D: new (their day-1 good value was 13 and 13, the bound exactly)
 ];
 /** overCaps against the caps, less the ceiling list's pinned overs (see above); a listed day back under its cap is reported. */
 const ceilingProblems = (m: LuckMeasures, cap: LuckMeasures, id: RivalId, day: number, list: readonly Pinned[]): string[] => {
@@ -108,6 +144,7 @@ describe("the luck caps table (src/sim/harness/luckCapsData.ts)", () => {
   });
 
   it("has both tiers for every hero-day, good at or above ordinary", () => {
+    const over: string[] = []; // BUMP-1D: the good-value bound's problems, less GOOD_VALUE_OVERS (was an expect per hero-day)
     for (const hero of LUCK_HEROES) {
       const caps = LUCK_CAPS.caps[hero]!;
       expect(caps).toHaveLength(RUN_DAYS);
@@ -120,9 +157,20 @@ describe("the luck caps table (src/sim/harness/luckCapsData.ts)", () => {
         // S8 (RULING-S8-R2 item 4): ROAD(day, dusk) in place of ROAD(day, warlord), the least allowance that holds. Cause: the
         // regenerated caps are the road-fed par field's DUSK decks, which hold the day's warlord drop (NPC_DAY: REFIT places it
         // before the dusk); ROAD(1, warlord) is 0, so day 1 failed for every hero (good value 13 / 13 / 11 / 13 vs 8 + 2 + 0)
-        expect(c.good.value, `${hero} d${i + 1}`).toBeLessThanOrEqual(maxGoldByDay(i + 1) + maxDawnGold(i + 1) + roadAllowance(i + 1, "dusk"));
+        // BUMP-1D (RULING-BUMP-R2 R2.3 Q4): was `expect(c.good.value, `${hero} d${i + 1}`).toBeLessThanOrEqual(bound)` for every
+        // hero-day. The regenerated caps put exactly two hero-days over it, FURNACE's and WEAVER's day 1 (good value 14 against
+        // 8 + 2 + 3 = 13; was 13 and 13, the bound exactly), so those two are pinned (GOOD_VALUE_OVERS) and every other hero-day
+        // still has to fit. The bound adds the MEDIAN road value (ROAD) to a P90 cap, so the thinnest day (the 8 g start) is the one
+        // that gives; from day 2 on every good value keeps a margin of 4 or more (day 2: 29 / 29 / 27 / 29 against 33).
+        const bound = maxGoldByDay(i + 1) + maxDawnGold(i + 1) + roadAllowance(i + 1, "dusk");
+        const p = GOOD_VALUE_OVERS.find((e) => e[0] === hero && e[1] === i + 1);
+        if (c.good.value > bound) {
+          if (!p) over.push(`${hero} d${i + 1}: good value ${c.good.value} > ${bound}`);
+          else if (c.good.value > p[3] || bound < p[2]) over.push(`${hero} d${i + 1}: good value ${c.good.value} > ${bound} (pinned ${p[3]} > ${p[2]}, BUMP-1D)`);
+        } else if (p) over.push(`${hero} d${i + 1}: good value ${c.good.value} <= ${bound}: back inside its bound, remove its GOOD_VALUE_OVERS entry (BUMP-1D)`);
       });
     }
+    expect(over).toEqual([]);
   });
 });
 

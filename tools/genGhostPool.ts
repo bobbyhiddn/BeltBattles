@@ -10,16 +10,31 @@
 // (server/seed.ts seedStore, the Fly release_command) loads, checks and stores that file with no battles. Commit it with the
 // pools it was dealt from. With --bot-runes (a pool other than generateSamplePool()'s default) it is written only when
 // --bundle names a path.
+// RUN-1 T8 (REQ-BFG-059, REQ-BFG-116; RULING-RUN1-R1 R1.1): --long-run makes the pool under long-run rules (src/sim/longRun.ts
+// setLongRun(true)): days 1-16 (tools/samplePool.ts poolDepth), every seed ghost stating its `losses`. LONG_RUN ships OFF and the
+// committed pool is the 10-day one, so this is a SCRATCH tool until the release bump: --long-run NEVER writes
+// server/seedPoolData.ts (like --bot-runes, its bundled file is written only when --bundle names a path, and never that one).
+// --soft1-picks <file> sets BB_SOFT1_PICKS_FILE: the scratch rows of SOFT-1's rule for the long-run days past SOFT1_PICKS' (never
+// committed; tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 writes them). Without the flag and the variable, a long-run day past
+// the table takes the decks as before SOFT-1. With the switch off (no --long-run) nothing here changes: the output is byte for
+// byte the committed server/seedPoolData.ts (output-run1/T8-proof.md).
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { encodeSnapshot } from "../src/net/snapshot";
 import { SEED_POOL_MODULE, generateSamplePool, samplePoolJson, seedPoolModuleText } from "./samplePool";
+import { setLongRun } from "../src/sim/longRun"; // RUN-1 T8: --long-run (last in the list: already loaded above)
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
+
+// RUN-1 T8: the long run's pool (scratch): the switch before anything is generated, the pick rows named before the first pick
+const longRunPool = process.argv.includes("--long-run");
+if (longRunPool) setLongRun(true);
+const picksFile = flag("soft1-picks");
+if (picksFile !== undefined) process.env.BB_SOFT1_PICKS_FILE = picksFile.split(",").map((p) => resolve(p)).join(",");
 
 const out = resolve(flag("out") ?? "server/dist/ghost-pool.sample.json");
 // RUNES-2a (REQ-BFG-058): --bot-runes on|off, the race decks' par player takes a rune at each dawn; absent: runes.ts
@@ -32,9 +47,11 @@ writeFileSync(out, samplePoolJson(pool));
 console.log(`wrote ${pool.length} ghost snapshots (${new Set(pool.map((s) => s.day)).size} days, heroes ${[...new Set(pool.map((s) => s.hero))].join("+")}) to ${out}`);
 
 // S8 T1b: the bundled pool file (the seed command's; see the header)
-const bundle = flag("bundle") ?? (botRunes === undefined ? SEED_POOL_MODULE : "none");
+const bundle = flag("bundle") ?? (botRunes === undefined && !longRunPool ? SEED_POOL_MODULE : "none"); // RUN-1 T8: a long-run pool only to a named path
 if (bundle !== "none") {
   const path = resolve(bundle);
+  // RUN-1 T8: the long run's pool is never the committed file (the release bump writes that one, from its own world)
+  if (longRunPool && path === resolve(SEED_POOL_MODULE)) throw new Error(`--long-run never writes ${SEED_POOL_MODULE}: name a scratch path with --bundle`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, seedPoolModuleText(pool));
   console.log(`wrote the bundled pool file ${path}: ${pool.length} ghosts, ${pool.filter((s) => typeof s.grade === "number").length} with a grade`);

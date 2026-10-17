@@ -5,6 +5,9 @@ import type { SideStats } from "../src/sim/battle";
 import { ITEMS, RUN_DAYS } from "../src/sim/content";
 import { DROP_CHANCE, rollDrop, withNpcDay } from "../src/sim/npcDay";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: 0.9.7's day with SHAPES off
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and SHAPES2 off
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: and PLAIN_RIGS off
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: and the 10-day run
 import { EVENT_IDS } from "../src/game/eventDefs";
 import { choicesFor, eventFor, makeEvent, pickChoice } from "../src/game/events";
 import { finishDay, ghostOf } from "../src/game/day";
@@ -90,18 +93,26 @@ describe("NPC-1 with the switch off: 0.9.7's day", () => {
   // with it on the caravan's offers and so the decks move (9701 read 74ff6a55:6293); the pins stay npc1-base's
   // MERGE-099F (BRIEF-MERGE-099F 1f): HULL-ON's body runs with SHAPES off too: npc1-base's digests inside HEARTS and
   // OPEN_RUNES off, then the flip's four switch-on digests, which the flip read without shapes, so they hold as pinned
-  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withNpcDay(() => withShapes(() => {
+  // BUMP-1D (LONG_RUN, PLAIN_RIGS and SHAPES2 ship on): 0.9.7's day has no long run (the script's snapshots would state `losses`),
+  // no plain stat rig and none of the six more shaped rigs (the caravan's offers and so the decks would move), so the script runs
+  // with those three off too (withLongRun, withPlainRigs, withShapes2 false), as the SHAPES-1 flip ran it with SHAPES off: the
+  // pins stay npc1-base's and the flip's (the first three digests below holding exactly is the check that the world is restored)
+  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withNpcDay(() => withShapes(() => withShapes2(() => withPlainRigs(() => withLongRun(() => {
     withHearts(() => withOpenRunes(() => {
       expect(digest097(9701)).toBe("5865119d:6292");
       expect(digest097(4242)).toBe("6ab6cc53:6243");
       expect(digest097(31337)).toBe("8a31722d:6331");
-      expect(scriptDigest(9701)).toBe("16c756d4:6295"); // AZ-BUMP: the bump, the rules string alone (was "5865119d:6292")
+      // AZ-BUMP: the bump, the rules string alone (was "5865119d:6292"). BUMP-1D: the bump again, the rules string alone (bb-0.11.0 is
+      // as long as bb-0.10.0, so the length stays 6295; was "16c756d4:6295"): the three digests above hold exactly with it put back
+      expect(scriptDigest(9701)).toBe("70587d51:6295");
     }, false), false);
     expect(digest097(9701)).toBe("d5cc6dfb:6287"); // HULL-ON (the flip, HEARTS): 5865119d:6292 -> d5cc6dfb:6287
     expect(digest097(4242)).toBe("6d0b1d65:6236"); // HULL-ON (the flip, HEARTS and OPEN_RUNES): 6ab6cc53:6243 -> 6d0b1d65:6236
     expect(digest097(31337)).toBe("34af6ab5:6333"); // HULL-ON (the flip, HEARTS and OPEN_RUNES): 8a31722d:6331 -> 34af6ab5:6333
-    expect(scriptDigest(9701)).toBe("4528ba60:6290"); // HULL-ON (the flip, HEARTS): 16c756d4:6295 -> 4528ba60:6290
-  }, false), false));
+    // HULL-ON (the flip, HEARTS): 16c756d4:6295 -> 4528ba60:6290. BUMP-1D: the rules string alone again (the same length, 6290): 70587d51:6295
+    // under bb-0.11.0 with HEARTS off (above), 921bd9a5:6290 with it on; was "4528ba60:6290"
+    expect(scriptDigest(9701)).toBe("921bd9a5:6290");
+  }, false), false), false), false), false));
 
   it("the fork keeps its event stop, Hard its pick of 2, REFIT its sales, and the snapshot has no road", () => withNpcDay(() => {
     expect([...forkPicks()]).toEqual([...ROAD_PICKS]);
@@ -254,19 +265,24 @@ describe("NPC-1 the day with the switch on (REQ-BFG-077)", () => {
     });
   });
 
-  it("a 10-day run meets all ten events, one a day after each fight, and its snapshot carries one road entry a day", () => {
-    withNpcDay(() => {
-      let run = newRun("weaver", 1717, "npc1-ten");
-      const log: unknown[] = [];
-      for (let d = 1; d <= RUN_DAYS && !run.over; d++) run = npcDay(run, (["easy", "medium", "hard"] as const)[d % 3], 0, 0, true, log);
-      expect(run.over).toBe("complete");
-      expect(new Set(run.events.map((e) => e.id))).toEqual(new Set(EVENT_IDS));
-      expect(run.events.map((e) => e.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-      const last = log.filter((v) => v && typeof v === "object" && "road" in (v as object)).pop() as { road: unknown[]; day: number };
-      expect(last.day).toBe(10);
-      expect(last.road.length).toBe(10);
+  // BUMP-1D (LONG_RUN ships on): the same ten won days on both rules. The 10-day run (withLongRun false: newRun marks the run) is
+  // "complete" after day 10's dusk; a long run is "won" at its 10th dusk win, here the same dusk; the ten events and the road log's
+  // ten entries are the same. Was the one test below, on the shipped (10-day) switch and expecting "complete"
+  for (const [long, over, title] of [[false, "complete", "a 10-day run"], [true, "won", "a long run's ten won days"]] as const) {
+    it(`${title} meets all ten events, one a day after each fight, and its snapshot carries one road entry a day`, () => {
+      withLongRun(() => withNpcDay(() => {
+        let run = newRun("weaver", 1717, "npc1-ten");
+        const log: unknown[] = [];
+        for (let d = 1; d <= RUN_DAYS && !run.over; d++) run = npcDay(run, (["easy", "medium", "hard"] as const)[d % 3], 0, 0, true, log);
+        expect(run.over).toBe(over);
+        expect(new Set(run.events.map((e) => e.id))).toEqual(new Set(EVENT_IDS));
+        expect(run.events.map((e) => e.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        const last = log.filter((v) => v && typeof v === "object" && "road" in (v as object)).pop() as { road: unknown[]; day: number };
+        expect(last.day).toBe(10);
+        expect(last.road.length).toBe(10);
+      }), long);
     });
-  });
+  }
 });
 
 describe("NPC-1 the screens' words (REQ-BFG-077, REQ-BFG-078)", () => {

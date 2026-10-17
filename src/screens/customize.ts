@@ -16,6 +16,7 @@
 
 import type { Game, Screen } from "../game/game";
 import { loadRun } from "../game/run";
+import { online } from "../game/session"; // PROFILE-UP (REQ-BFG-074 clause 4): a worn style uploads, online only
 import {
   chosenSkin, counterValue, isOpen, loadProfile, markSeen, saveProfile, unseen, wear, type Profile,
 } from "../game/profile";
@@ -131,7 +132,11 @@ export class CustomizeState {
     if (!stylesOf(this.tab).some((s) => s.id === id)) return "none";
     this.pick = id;
     if (!isOpen(this.profile, this.tab, id)) return "preview";
-    if (wear(this.profile, this.tab, id)) saveProfile(this.profile, this.store);
+    const was = this.profile.chosen[this.tab];
+    if (wear(this.profile, this.tab, id)) {
+      saveProfile(this.profile, this.store);
+      if (was !== id) online()?.profileChanged?.("pick"); // PROFILE-UP: a pick that changed, debounced; offline there is no session
+    }
     return "worn";
   }
 

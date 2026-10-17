@@ -14,6 +14,8 @@ import { migrateRun, newRun, type Run } from "../src/game/run";
 import { EVENTS, smugglerParts, smugglerPool, smugglerStock, type SmugglerKind } from "../src/game/eventDefs";
 import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 (oracle f08800ccfebab0ab): the old-rules world's tripwire
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D (bb-0.11.0): SHAPES2 ships on; the worlds before it are measured with it off
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: and PLAIN_RIGS off (the twelve new pieces are those two switches')
 
 const KINDS: SmugglerKind[] = ["BURN", "SHOCK"];
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
@@ -22,6 +24,10 @@ const FEW_PICKS = PICKS.filter((_, j) => j % 2 === 0);
 /** The run seeds of tests/wares.test.ts's SMUGGLER table (I1 REPORT section 8.4). */
 const TABLE_SEEDS = Array.from({ length: 2000 }, (_, i) => hashSeed("i1-smuggler", i + 1));
 const SEEDS = TABLE_SEEDS.slice(0, 240);
+
+/** BUMP-1D: the worlds before the twelve new pieces (PLAIN_RIGS and SHAPES2 add them: 103 buyable modules since bb-0.11.0).
+ *  world(fn, true): bb-0.10.0's (SHAPES on; PLAIN_RIGS and SHAPES2 off); world(fn, false): the world before SHAPES (all three off). */
+const world = <T>(fn: () => T, shapes: boolean): T => withPlainRigs(() => withShapes2(() => withShapes(fn, shapes), false), false);
 
 const has = (w: Wares, id: string): boolean => Object.prototype.hasOwnProperty.call(w, id);
 /** The kind's wares unlocked on `day`, and the kind's wares the run drew at all. */
@@ -110,22 +116,27 @@ describe("the SMUGGLER's contraband rule (0.8.0 B1 M4, REQ-BFG-033)", () => {
   });
 
   it("blocked (NONE ON OFFER) only when the run drew none of that effect, on every day and pick; the other kind still works", () => {
-    let blocked = 0;
-    for (const s of SEEDS.slice(0, 120)) {
-      const w = drawWares(s);
-      for (const day of [1, 2, 3, 5, 6, 8, 10]) {
-        const run = runWith(w, day);
-        for (const pick of PICKS.filter((_, j) => j % 4 === 0)) {
-          const ch = smugglerChoices(run, pick);
-          KINDS.forEach((kind, i) => {
-            const none = drawnOf(w, kind).length === 0;
-            expect(ch[i].blocked, `seed ${s} day ${day} ${kind}`).toBe(none ? "NONE ON OFFER" : undefined);
-            expect(ch[i].gain.length, `seed ${s} day ${day} ${kind}`).toBe(none ? 0 : 1);
-            if (none) blocked++;
-          });
+    // BUMP-1D: the sweep is a function, so the world before the twelve new pieces can be measured with it too (below)
+    const blockedOf120 = (): number => {
+      let blocked = 0;
+      for (const s of SEEDS.slice(0, 120)) {
+        const w = drawWares(s);
+        for (const day of [1, 2, 3, 5, 6, 8, 10]) {
+          const run = runWith(w, day);
+          for (const pick of PICKS.filter((_, j) => j % 4 === 0)) {
+            const ch = smugglerChoices(run, pick);
+            KINDS.forEach((kind, i) => {
+              const none = drawnOf(w, kind).length === 0;
+              expect(ch[i].blocked, `seed ${s} day ${day} ${kind}`).toBe(none ? "NONE ON OFFER" : undefined);
+              expect(ch[i].gain.length, `seed ${s} day ${day} ${kind}`).toBe(none ? 0 : 1);
+              if (none) blocked++;
+            });
+          }
         }
       }
-    }
+      return blocked;
+    };
+    const blocked = blockedOf120();
     // REDO-X (cap's ruling 9bbe787110a51646): since 74e14a1 (FIX-ABE's stand-ins) no run draws none of an effect: ALCHEMIST's
     // rare tier always holds at least 4 of COIL, VENOM, BELLOWS, QUENCH TANK and STATIC BRUSH (0 in 100,000 seeds), so the
     // blocked path is checked by the made-up no-SHOCK run below, and the lines above prove "never blocked, always one part"
@@ -135,8 +146,19 @@ describe("the SMUGGLER's contraband rule (0.8.0 B1 M4, REQ-BFG-033)", () => {
     // 11, so its rare tier's quota can fall to 3, and 7 of the 2,000 table seeds draw no SHOCK ware (0 with SHAPES off): of
     // these 120, TABLE_SEEDS[37], blocked on 7 days x 4 picks = 28; BURN is never empty (EMBER TROUGH joins its pool).
     // Still a tripwire: the next pool or tier change is a stop-and-ask again (was 0 since 74e14a1)
-    expect(blocked).toBe(28);
+    // BUMP-1D (cap's ruling R2.3 Q3: re-pin to the measured values, with this trail; the tripwire's intent stays): 112 (was 28).
+    // The cause is the draw covering a smaller share of a bigger catalogue, not a bug: PLAIN_RIGS and SHAPES2 add twelve pieces
+    // (103 buyable modules), a run's ware draw (DRAW.active) still covers 62 of them, and more runs draw no SHOCK ware. Of these
+    // 120 seeds 4 draw none, TABLE_SEEDS[7], [20], [63] and [114] (was TABLE_SEEDS[37] alone), each blocked on 7 days x 4 picks =
+    // 28, so 112; BURN is never blocked in these 120. Still exact, so the next pool or tier change is a stop-and-ask again, not a
+    // re-pin. A SHOCK source (a ware that guarantees every run a SHOCK ware) is a LATER DESIGN CALL for the pieces lane, which cap
+    // will tell: nothing in this test or the game was changed to make one, and this pin only follows the draw as it is.
+    expect(blocked).toBe(112);
+    // BUMP-1D: the bb-0.10.0 world (SHAPES on; PLAIN_RIGS and SHAPES2 off) keeps SHAPES-1's count, the one seed of the 120
+    expect(world(blockedOf120, true)).toBe(28);
     // a run that drew no SHOCK ware: SHOCK is blocked on every day, BURN is not
+    // BUMP-1D: TABLE_SEEDS[7] is itself one of the four above now (the filter below takes out nothing from its wares); the
+    // made-up run and the real one are the same run, and the check is the same
     const w = drawWares(TABLE_SEEDS[7]);
     const noShock: Wares = Object.fromEntries(Object.entries(w).filter(([id]) => !smugglerPool("SHOCK").includes(id)));
     for (let day = 1; day <= RUN_DAYS; day++) for (const pick of PICKS) {
@@ -146,6 +168,18 @@ describe("the SMUGGLER's contraband rule (0.8.0 B1 M4, REQ-BFG-033)", () => {
       expect(smugglerPool("BURN")).toContain(ch[0].gain.find((g) => g.k === "item")?.def);
     }
     expect(smugglerStock("SHOCK", { wares: noShock, day: 10 })).toEqual([]);
+    // BUMP-1D: and the other way round, now that a real run exists for it: TABLE_SEEDS[929] draws no BURN ware (the only one of the
+    // 2,000 table seeds; it holds 3 SHOCK wares): BURN is blocked on every day, SHOCK is not
+    const noBurn = drawWares(TABLE_SEEDS[929]);
+    expect(drawnOf(noBurn, "BURN")).toEqual([]);
+    expect(drawnOf(noBurn, "SHOCK").length).toBeGreaterThan(0);
+    for (let day = 1; day <= RUN_DAYS; day++) for (const pick of PICKS) {
+      const ch = smugglerChoices(runWith(noBurn, day), pick);
+      expect([ch[0].label, ch[0].blocked, ch[0].gain], `day ${day}`).toEqual(["BURN", "NONE ON OFFER", []]);
+      expect(ch[1].blocked, `day ${day}`).toBeUndefined();
+      expect(smugglerPool("SHOCK")).toContain(ch[1].gain.find((g) => g.k === "item")?.def);
+    }
+    expect(smugglerStock("BURN", { wares: noBurn, day: 10 })).toEqual([]);
   });
 
   it("a kind with an unlocked ware is unchanged: the same part for the same pick as I1's rule, always an unlocked one", () => {
@@ -259,7 +293,13 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
     // wares on day 1: BURN with no unlocked ware on day 1 52 (2.60%), SHOCK 131 (6.55%) (was [133, 335])
     // SHAPES-1 (cap's ruling, oracle f08800ccfebab0ab): the same cause (the ALCHEMIST's stock 9 -> 11 moves the per-run draw's
     // tier quotas): BURN with no unlocked ware on day 1 26, SHOCK 165 (was [52, 131])
-    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([26, 165]);
+    // BUMP-1D (cap's ruling R2.3 Q3: re-pin to the measured values, with this trail): BURN with no unlocked ware on day 1 29
+    // (1.45%), SHOCK 335 (16.75%; was 8.25%) (was [26, 165]). Not a bug: the draw covers a smaller share of a bigger catalogue
+    // (103 buyable modules since PLAIN_RIGS and SHAPES2 add twelve pieces; a run's ware draw covers 62 of them). Measured on
+    // days 1-10, BURN 29, 29, 29, 29, 29, 9, 9, 1, 1, 1 and SHOCK 335, 335, 137, 137, 137, 91, 91, 60, 60, 60: from day 8, the
+    // last restock, no unlocked ware means none drawn, the [noneB, noneS] pinned below. A SHOCK source (a ware that guarantees
+    // every run a SHOCK ware) is a later design call for the pieces lane, which cap will tell; it is not made here
+    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([29, 335]);
     // about 2% expected (VERIFIED-I1's call 4): a run drew none of an effect's three rigs. REDO-X (cap's ruling
     // 9bbe787110a51646): I1's ~2% has been 0 since 74e14a1 (FIX-ABE's stand-ins: ALCHEMIST's rare tier always holds at least
     // 4 of COIL, VENOM, BELLOWS, QUENCH TANK and STATIC BRUSH). A tripwire: if a later pool or tier change makes a no-BURN or
@@ -270,9 +310,22 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
     // SHAPES-1 (cap's ruling, oracle f08800ccfebab0ab): SHAPES' NAIL STRIP and EMBER TROUGH grow the ALCHEMIST's stock 9 -> 11,
     // so its rare tier's quota can fall to 3, and 7 of these 2,000 seeds draw no SHOCK ware; BURN is never empty (EMBER
     // TROUGH joins its pool). Exact, so the next pool or tier change is a stop-and-ask again (was [0, 0])
-    expect([noneB, noneS]).toEqual([0, 7]);
-    // and the old-rules world (SHAPES off) keeps its tripwire: no run draws none of an effect
-    const offNone = withShapes(() => [TABLE_SEEDS.filter((s) => !drawnOf(drawWares(s), "BURN").length).length, TABLE_SEEDS.filter((s) => !drawnOf(drawWares(s), "SHOCK").length).length], false);
+    // BUMP-1D (cap's ruling R2.3 Q3; the same cause, 62 wares drawn from 103 buyable modules): 60 of the 2,000 runs (3.00%) draw
+    // no SHOCK ware (was 7), and one, TABLE_SEEDS[929], draws no BURN ware (was 0: "BURN is never empty" is no longer true, one
+    // run in 2,000), so [1, 60] (was [0, 7]). Still under the 4% bounds above (3.00%; none loosened). Exact, so the next pool
+    // or tier change is a stop-and-ask again, not a re-pin. A SHOCK source (a ware that guarantees every run a SHOCK ware) is a
+    // later design call for the pieces lane, which cap will tell; nothing here makes one
+    expect([noneB, noneS]).toEqual([1, 60]);
+    // BUMP-1D: and the bb-0.10.0 world (SHAPES on; PLAIN_RIGS and SHAPES2 off) keeps SHAPES-1's numbers exactly: day 1 [26, 165]
+    // (BURN, SHOCK with no unlocked ware) and [noneB, noneS] [0, 7]
+    const none = (ws: Wares[]): number[] => [ws.filter((x) => !drawnOf(x, "BURN").length).length, ws.filter((x) => !drawnOf(x, "SHOCK").length).length];
+    const was10 = world(() => {
+      const ws = TABLE_SEEDS.map((s) => drawWares(s));
+      return { day1: [ws.filter((x) => !openOf(x, "BURN", 1).length).length, ws.filter((x) => !openOf(x, "SHOCK", 1).length).length], none: none(ws) };
+    }, true);
+    expect(was10).toEqual({ day1: [26, 165], none: [0, 7] });
+    // and the old-rules world (SHAPES, SHAPES2 and PLAIN_RIGS off; was SHAPES off alone) keeps its tripwire: no run draws none of an effect
+    const offNone = world(() => none(TABLE_SEEDS.map((s) => drawWares(s))), false);
     expect(offNone).toEqual([0, 0]);
   });
 });

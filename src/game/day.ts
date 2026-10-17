@@ -13,7 +13,9 @@ import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (
 import { LAST_CHANCE_LIVES, lastChanceFires } from "../sim/lastChance"; // LC-1 (REQ-BFG-073); Z-BUMP: no switch
 import { npcDayRules, roadLog } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the snapshot's road log
 import { heartsDusk, heartsRun } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a hearts run's dusk
+import { lcLastDay, longRun, longRunEnd } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a long run's end and LAST CHANCE
 import { LAST_CHANCE_AT } from "../sim/lastChance"; // RETUNE-1 run 2: the dusk card's LAST CHANCE line on a hearts run
+import { firstRunGate } from "../sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004, F4): the snapshot's first-run flag
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -25,16 +27,24 @@ export function ghostName(g: Pick<GhostSnapshot, "hero" | "wins" | "lives">): st
 
 /** PACKS M2 (REQ-BFG-063): a ghost's player name for its stored record, when it has one (pool entries have none). */
 const named = (g: Pick<GhostSnapshot, "name">): { name?: string } => (g.name !== undefined ? { name: g.name } : {});
+/** RUN-1 (R1.5, T4b): the ghost's own day, when a widened pick met it on a later day than its own (D6: a long run's thin day
+ *  widens to the nearest EARLIER day); nothing for an exact-day pick, so a 10-day run's record is exactly as before. */
+const widened = (g: Pick<GhostSnapshot, "day">, day: number): { ghostDay?: number } => (g.day !== day ? { ghostDay: g.day } : {});
+/** RUN-1 (R2.4): the ghost's STATED losses, when its snapshot states them (snapshot.ts v3: a long run's record does); nothing when it states
+ *  none (every 10-day ghost, an older snapshot), so such a record is exactly as before. foeTitle prints W-L from it. */
+const stated = (g: Pick<GhostSnapshot, "losses">): { losses?: number } => (typeof g.losses === "number" ? { losses: g.losses } : {});
 
 /** Choose today's dusk opponent from the pool, or else the day's stand-in captain with its named
  *  build (ghosts.ts standInFoe: standInBuild since 0.6.2 TUNE-C; the stand-in pool's standInPick
  *  from 0.6.0d). Pure: the caller stores it in run.dusk, so the deck never re-rolls. */
 export function chooseFoe(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
-  const g = pickGhost(pool, { rules: RULES_VERSION, day: run.day, runId: run.runId, wins: run.wins, lives: run.lives, seed: run.seed });
+  // RUN-1 (REQ-BFG-059, D6): the run's own mark decides the widening (a thin day widens to the nearest earlier day on a long run;
+  // a 10-day run saved before the bump keeps its exact-day pick)
+  const g = pickGhost(pool, { rules: RULES_VERSION, day: run.day, runId: run.runId, wins: run.wins, lives: run.lives, seed: run.seed, long: longRun(run) });
   if (g) {
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
-      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g) },
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g), ...widened(g, run.day), ...stated(g) },
     };
   }
   const s = standInFoe(run.seed, run.day);
@@ -60,7 +70,7 @@ export function onlineFoe(run: Run, fetched: FetchedGhost | null): DuskFoe {
     const g = fetched.snapshot;
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
-      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g) },
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g), ...widened(g, run.day), ...stated(g) },
       source: "online", ghostId: fetched.id,
     };
   }
@@ -100,12 +110,18 @@ export function ghostOf(run: Run, createdAt = Date.now(), player = playerId(), n
     // RUNES-1 (REQ-BFG-058, snapshot v3): the run seed, last (left out when zero), so the server re-derives the rune
     // offers (runes.ts runeProblem). FIX-5 (a server-issued seed) is a later job: this is the client's run seed.
     ...(seed ? { seed } : {}),
+    // RUN-1 (REQ-BFG-059, D4): a long run's snapshot states its losses (snapshot.ts: R1e's `losses`, taken under long-run rules only),
+    // so the record check can tell a loss from a draw; a 10-day run's snapshot is exactly as before
+    ...(longRun(run) ? { losses: run.losses } : {}),
     // LC-1 (REQ-BFG-073): a taken LAST CHANCE, after the seed (the server re-derives its offer and finds its rune); a run
     // without one (every switch-off run) snapshots exactly as before
     ...(run.lastChance?.boon ? { lastChance: { day: run.lastChance.day, boon: run.lastChance.boon, ...(run.lastChance.id !== undefined ? { id: run.lastChance.id } : {}) } } : {}),
     // NPC-1 (REQ-BFG-077, REQ-BFG-078): with NPC_DAY on, the road log, last: one entry per day reached (its tier, outcome
     // and drop), so the server re-derives each warlord and drop from the seed; off, every snapshot is as before
     ...(npcDayRules() && run.warlords.length ? { road: roadLog(run.warlords) } : {}),
+    // FIRSTDAY-1 (REQ-BFG-004, F4): a first run's flag, last of all, on every snapshot of that run (the server re-derives
+    // its days 1-2 rune offers by F3's rule); every other run, and every run with the gate off, snapshots as before
+    ...(run.firstRun === true && firstRunGate() ? { firstRun: true as const } : {}),
   };
 }
 
@@ -123,7 +139,10 @@ export function foeTitle(foe: Pick<DuskFoe, "kind" | "name" | "day" | "record">)
   const r = foe.record;
   if (foe.kind !== "ghost" || !r) return foe.name;
   const who = r.name !== undefined && nameProblem(r.name) === null ? displayName(r.name, r.playerId) : WANDERER;
-  return `${who} · ${ghostRecord(foe.day, r.wins)}`;
+  // RUN-1 (R1.5, T4b): a widened ghost's W-L is read at ITS day (the dusks before it that it did not win), not at this dusk's
+  // RUN-1 (R2.4): a ghost whose snapshot STATED its losses (the stamp's `losses`) shows them (a draw is no loss); without them, as before
+  const wl = typeof r.losses === "number" ? `${r.wins}-${r.losses}` : ghostRecord(r.ghostDay ?? foe.day, r.wins);
+  return `${who} · ${wl}`;
 }
 
 /** Score line: the dusk record, W-L. */
@@ -184,13 +203,15 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
   }
   // LC-1 (REQ-BFG-073), RULE LAST CHANCE (lastChance.ts; Z-BUMP: the game's rule, no switch): a loss that leaves exactly 1 life on a
   // day before RUN_DAYS gives one back at once, once a run; the card pick waits for the next dawn's screen
-  if (lastChanceFires(run.day, outcome, run.lives, run.lastChance !== undefined)) {
+  // RUN-1 (REQ-BFG-059): on a long run any day (lcLastDay: no last day)
+  if (lastChanceFires(run.day, outcome, run.lives, run.lastChance !== undefined, lcLastDay(run))) {
     run.lives += LAST_CHANCE_LIVES;
     run.lastChance = { day: run.day };
     res.lastChance = { lives: LAST_CHANCE_LIVES };
   }
   run.gold += income;
-  if (run.lives <= 0) run.over = "lost";
+  if (longRun(run)) run.over = longRunEnd(run); // RUN-1: WON at WIN_GOAL wins, LOST at 0 lives; never by the day
+  else if (run.lives <= 0) run.over = "lost";
   else if (run.day >= RUN_DAYS) run.over = "complete";
   if (!run.over) {
     nextDawn(run);
@@ -203,6 +224,14 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
     }
   }
   return res;
+}
+
+/** RUN-1 (REQ-BFG-059): the benches' par run asked past its own end (the 10th win of a long run, day 10's dusk of a
+ *  10-day run) goes on to the next dawn, so its deck keeps growing on the days a long run reaches (harness/player.ts
+ *  playerRun's depth). Never the game's: a game run ends where finishDay ends it. */
+export function continueRun(run: Run): void {
+  run.over = null;
+  nextDawn(run);
 }
 
 /** The next dawn: a fresh day, its caravan and its rune (finishDay's, for both scales). */
@@ -225,7 +254,8 @@ function nextDawn(run: Run): void {
  *  row records the hearts it gave back (0 when the loss left exactly 1) and the hearts it saved the run on (`hearts`). */
 function finishHeartsDay(run: Run, res: DayResult, outcome: DayResult["outcome"], income: number): DayResult {
   if (outcome === "loss") run.losses++;
-  const step = heartsDusk(run.lives, run.day, outcome, run.lastChance !== undefined);
+  // RUN-1 (REQ-BFG-059): hearts.ts's lastDay re-pointed: on a long run LAST CHANCE can fire on any day (lcLastDay)
+  const step = heartsDusk(run.lives, run.day, outcome, run.lastChance !== undefined, { lastDay: lcLastDay(run) });
   if (step.cost > 0) res.heartsLost = step.cost;
   if (step.lastChance) {
     res.lastChance = { lives: step.hearts - Math.max(0, run.lives - step.cost) };
@@ -233,13 +263,18 @@ function finishHeartsDay(run: Run, res: DayResult, outcome: DayResult["outcome"]
   }
   run.lives = step.hearts;
   run.gold += income;
-  if (run.lives <= 0) run.over = "lost";
+  if (longRun(run)) run.over = longRunEnd(run); // RUN-1: WON at WIN_GOAL wins, LOST at 0 hearts; never by the day
+  else if (run.lives <= 0) run.over = "lost";
   else if (run.day >= RUN_DAYS) run.over = "complete";
   if (!run.over) nextDawn(run);
   return res;
 }
 
-/** A 10-0 run. */
+/** A 10-0 run. RUN-1 (REQ-BFG-059): a long run is flawless when won with 0 losses. */
 export function flawless(run: Run): boolean {
+  if (longRun(run)) return run.over === "won" && run.losses === 0;
   return run.over === "complete" && run.losses === 0 && run.wins === RUN_DAYS;
 }
+
+/** RUN-1 (REQ-BFG-059): did the run end won? A long run's "won", or a 10-day run's "complete" (it survived day 10). */
+export const runWon = (run: Pick<Run, "over">): boolean => run.over === "won" || run.over === "complete";

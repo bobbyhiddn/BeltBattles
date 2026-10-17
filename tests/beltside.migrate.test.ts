@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { loadGhostPool, migrateV1 } from "../src/net/fallback";
-import { arrowCell, arrowsOf, cloneBuild, key as K, kx, ky, rotField, type Build, type Placed } from "../src/sim/deck";
+import { arrowCell, arrowsOf, cellsOf, cloneBuild, key as K, kx, ky, rotField, type Build, type Placed } from "../src/sim/deck";
 import {
   clearMigrationLog, migrateDeck, migrateInlineGates, migrationLog, neighbourOrder, rotFacing,
 } from "../src/sim/beltside";
@@ -33,7 +33,7 @@ function furnace(items: Placed[] = [], cells = SHORT): Build {
 /** Gates standing ON belt tiles (the pre-BELTSIDE placement). */
 const inlineOf = (b: Build): Placed[] => {
   const belt = new Set(b.routes.flatMap((r) => r.cells));
-  return b.items.filter((p) => ITEMS[p.def]?.kind === "gate" && belt.has(K(p.x, p.y)));
+  return b.items.filter((p) => ITEMS[p.def]?.kind === "gate" && cellsOf(p).some((k) => belt.has(k)));
 };
 
 describe("D3: migrateInlineGates", () => {
@@ -317,7 +317,9 @@ describe("D1: rot round trips", () => {
     const back = decodeSnapshot(encodeSnapshot(g));
     expect(back.build.items.map((p) => p.rot)).toEqual([undefined, 1, 2]);
     expect(back).toEqual(g);
-    const { seed: _seed, ...g2 } = g; // RUNES-1: without the v3 seed, so rot is what v1 refuses
+    // RUNES-1: without the v3 seed, so rot is what v1 refuses. BUMP-1D (LONG_RUN ships on): and without `losses`, the other v3 field
+    // a long run's snapshot carries (a v1 or v2 copy states none: "snapshot.losses: not allowed in a v2 snapshot" refused the copy)
+    const { seed: _seed, losses: _losses, ...g2 } = g;
     expect(isSnapshot({ ...g2, v: 1 })).toBe(false);
     expect(isSnapshot({ ...g2, v: 2 })).toBe(true);
     expect(() => checkSnapshot({ ...g2, v: 1 })).toThrow(/rot: not allowed in a v1 snapshot/);

@@ -14,6 +14,7 @@ import { snap, upSnap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { startFake, tigrisFor } from "./netStores";
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): day 1's record on hearts
+import { isReachable } from "../src/net/records"; // BUMP-1D: the plain upload's record check, for the V2 deck's choice
 
 // 0.7.0, REQ-BFG-016: what the client sends for a signed upload, and what the server keeps of it.
 
@@ -111,7 +112,9 @@ describe("a signed upload is stored in the record format it always had: no key, 
     const base = `http://127.0.0.1:${await app.listen(0)}`;
     // 0.8.0 H2 (a): day 1's one reachable record. HULL-ON (the flip, HEARTS): 0W 5 lives -> 0W HEARTS_START (10 hearts),
     // here and in expectRecord: under this build's rules a run starts with 10 hearts (POST answered 422 on 5 lives)
-    const mine = ownedBy(upSnap({ lives: HEARTS_START }), ME);
+    // BUMP-1D (LONG_RUN ships on): + losses 0, here and in expectRecord: this build's rules are a long run's, whose upload states the
+    // dusks the run lost (day 1: none; the server answered 422 "losses: a long run's upload states the dusks the run lost ...")
+    const mine = ownedBy(upSnap({ lives: HEARTS_START, losses: 0 }), ME);
     const body = encodeSnapshot(mine);
     const headers = await signedHeaders(ME, body);
     const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers, body });
@@ -125,7 +128,7 @@ describe("a signed upload is stored in the record format it always had: no key, 
     const rec = JSON.parse(text) as Record<string, unknown>;
     expect(Object.keys(rec)).toEqual(["id", "at", "snapshot"]);
     expect(rec.id).toBe(id);
-    expect(rec.snapshot).toEqual(ownedBy(upSnap({ lives: HEARTS_START }), ME)); // 0.8.0 H2: the posted fixture, echoed (oracle 9c95e37aab0a70fb)
+    expect(rec.snapshot).toEqual(ownedBy(upSnap({ lives: HEARTS_START, losses: 0 }), ME)); // 0.8.0 H2: the posted fixture, echoed (oracle 9c95e37aab0a70fb)
     expect(text).not.toContain(key);
     expect(text).not.toContain(sig);
     expect(text).not.toContain(key.slice(0, 20)); // not even part of the key
@@ -153,7 +156,10 @@ describe("a signed upload is stored in the record format it always had: no key, 
 
 // 0.6.2's v2 snapshot: a build may carry turrets (REQ-BFG-031) and a route a join (REQ-BFG-027). The
 // first sample-pool deck with both is signed, sent, verified and stored like any other upload.
-const V2 = generateSamplePool().find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined));
+// BUMP-1D (LONG_RUN ships on): and whose record a plain upload carries (the seed ghost has no lastChance, and under bb-0.11.0 the server reads the
+// record with the ghost's stated `losses`: the first such deck in pool order is furnace d13, 1W 1 heart after 7 losses, which only a LAST CHANCE or
+// a PATCH UP reaches: 422 "record: 1W 1 lives and 7 losses is no record a run carries into dusk 13"; was the first deck with both)
+const V2 = generateSamplePool().find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined) && isReachable(s.day, s.wins, s.lives, { lastChance: null, losses: s.losses }));
 
 describe("0.6.2: a v2 snapshot with turrets and a join signs and verifies on the exact bytes sent", () => {
   // HULL-ON (the flip, PICK): with PICK on every seed-pool ghost carries the seed step's grade (snapshot.grade), which no
@@ -230,7 +236,8 @@ describe("0.6.2: a v2 snapshot with turrets and a join signs and verifies on the
     expect(refused.status).toBe(401);
     expect(await refused.json()).toEqual({ error: "x-bb-sig: the signature does not match this body and key" });
     expect(sizeAfterRefusal).toBe(0);
-    expect([first.status, again.status]).toEqual([201, 200]);
+    // BUMP-1D: the refusal's own words ride on the message (the 422 body names the check; a bare [422, 422] does not)
+    expect([first.status, again.status], JSON.stringify(await first.clone().json())).toEqual([201, 200]);
     expect(await first.json()).toEqual({ id: ghostId(mine()) });
     expect(stored).toHaveLength(1);
     const rec = JSON.parse(stored[0]) as { id: string; snapshot: GhostSnapshot };

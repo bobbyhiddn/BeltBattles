@@ -6,6 +6,7 @@
 import type { DayResult, Run } from "./run";
 import { flawless } from "./day";
 import { commitFold, foldDusk, foldEnd, foldWarlord, type RunFacts } from "./profile";
+import { online } from "./session"; // PROFILE-UP (REQ-BFG-074 clause 4): the page's session (session.ts imports types only), or null offline: then nothing here runs
 
 /** The facts a fold reads from a run. */
 export function runFacts(run: Run): RunFacts {
@@ -15,7 +16,9 @@ export function runFacts(run: Run): RunFacts {
 /** After finishDay: the dusk, and the run's end when that dusk ended it. Returns the ids unlocked. */
 export function foldDuskResult(run: Run, res: Pick<DayResult, "day" | "outcome">): string[] {
   const r = runFacts(run);
-  return commitFold((p) => [...foldDusk(p, r, res.day, res.outcome), ...(run.over ? foldEnd(p, r) : [])]);
+  const fresh = commitFold((p) => [...foldDusk(p, r, res.day, res.outcome), ...(run.over ? foldEnd(p, r) : [])]);
+  if (run.over) online()?.profileChanged?.("end", run.runId); // PROFILE-UP: the run's end is committed; online, it uploads
+  return fresh;
 }
 
 /** After finishWarlord: the warlord's result (and the Iron Matriarch). */
@@ -27,5 +30,7 @@ export function foldWarlordResult(run: Run, day: number, outcome: "win" | "loss"
 /** The run's end: the summary (complete or lost) and ABANDON (a run, not a finished one). */
 export function foldRunEnd(run: Run): string[] {
   const r = runFacts(run);
-  return commitFold((p) => foldEnd(p, r));
+  const fresh = commitFold((p) => foldEnd(p, r));
+  online()?.profileChanged?.("end", run.runId); // PROFILE-UP: the run's end (also ABANDON) is committed; one upload per run id
+  return fresh;
 }

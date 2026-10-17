@@ -372,6 +372,11 @@ const SCENARIOS: Record<string, Scenario> = {
   // proof: the foe hits its SHIELDs stopped (`blocked`), the hull its REGEN gave back (`regen`)
   wardbell: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "blocked" },
   mendingloom: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "regen" },
+  // BUMP-1D (PLAIN_RIGS on): BALLAST raises your ship's max hull (GateEffect.maxHullPct) and hits no slug, so the deck deals the
+  // same in the default fight: it is judged on the hull the deck has (ownHull, the quiet foe leaves it whole), as the plating parts
+  // are judged on the defence numbers. The other eleven plain stat rigs (PLAIN_RIGS' other five, SHAPES2's six) give their stats to
+  // the slugs, so the default fight's offence shows them
+  ballast: { metrics: defense },
 };
 
 /**

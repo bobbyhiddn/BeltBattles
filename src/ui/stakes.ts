@@ -7,6 +7,7 @@
 
 import type { Run } from "../game/run";
 import { heartsDusk, heartsRun, livesCap } from "../sim/hearts";
+import { lcLastDay } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): LAST CHANCE can save a long run on any day
 import { drawText, textWidth } from "../render/font";
 import { C } from "../render/palette";
 import type { G } from "../render/pixel";
@@ -20,10 +21,11 @@ export interface DuskStakes {
 
 /** The stakes of `run`'s dusk today, or null on a run without the hearts mark (nothing drawn: as before). A loss's step on
  *  the hearts ledger (heartsDusk): its cost, and LAST CHANCE (the loss would leave 1 heart or fewer, unused, before the
- *  last day). */
-export function duskStakes(run: Pick<Run, "hearts" | "lives" | "day" | "lastChance">): DuskStakes | null {
+ *  last day). RUN-1 (REQ-BFG-059, D7): a long run has no last day (longRun.ts lcLastDay, the step day.ts finishHeartsDay takes), so on
+ *  its day 10 and later the line still says when LAST CHANCE would save the run; a 10-day run's lastDay is RUN_DAYS, the default. */
+export function duskStakes(run: Pick<Run, "hearts" | "lives" | "day" | "lastChance" | "longRun">): DuskStakes | null {
   if (!heartsRun(run)) return null;
-  const step = heartsDusk(run.lives, run.day, "loss", run.lastChance !== undefined);
+  const step = heartsDusk(run.lives, run.day, "loss", run.lastChance !== undefined, { lastDay: lcLastDay(run) });
   return { cost: step.cost, saves: step.lastChance };
 }
 

@@ -4,7 +4,8 @@
 // Ruling 3: every reference build is a deck a player could own that day. Plating and belt come in
 // whole purchases, every item is sold by a merchant (or is the hero's own signature factory),
 // and the purchase cost is within maxGoldByDay(day). Day 1 is a real fight: it spends the start
-// purse, with no handicap. Builds escalate every day through day 10 (a run is 10 days).
+// purse, with no handicap. Builds escalate every day through day 10 (the STEPS table has one entry a day); RUN-1: on a long
+// run (no day limit) days 11-16 keep the day-10 layout and the hull ramp goes on, a later day is day 16's layout.
 // Use src/sim/heroBuilds.ts as the entry point; it covers all six heroes.
 
 import { fuseFrom } from "../../game/fuse";
@@ -14,8 +15,16 @@ import { migrateDeck } from "../beltside";
 import { ITEMS } from "../content";
 import { key as K, rotField, type Build, type Placed, type RouteDef } from "../deck";
 import { RACE_HEROES, type RaceHeroId } from "./data";
+import { LONG_RUN_GEN_DAYS, longRunRules } from "../longRun"; // RUN-1 (REQ-BFG-059): the long run's reference depth
 
+/** The 10-day run's reference depth: the table the STEPS below are written for (one entry a day). */
 export const REF_DAYS = 10;
+/** RUN-1 (REQ-BFG-059, D5): the long run's reference depth, 16 (the deepest day a run reaches without a draw is 16, or 17 with
+ *  an early PATCH UP, longRun.ts LONG_RUN_DEEPEST_DAY): with the long run in the game (longRunRules) the par and reference
+ *  builds go to this day. Days 11-16 hold all 10 STEPS (the day-10 layout) with the day's own hull ramp (refHull); a later
+ *  day is the day-16 layout with that day's hull (refHullDay). Days 1-10 are exactly as before, and with the switch off
+ *  nothing past day 10 changes (refDay clamps to REF_DAYS). */
+export const REF_DAYS_LONG = LONG_RUN_GEN_DAYS;
 const U = 9000; // reference-build uid base (matches the ai.ts warlords)
 const PRESS_AT: [number, number] = [6, 6];
 
@@ -39,9 +48,18 @@ export function refHull(day: number): number {
   return PLATE_STEP * rampPlates(day);
 }
 
-/** Clamp a day into 1..REF_DAYS. */
+/** RUN-1: the last day the reference builds answer for: REF_DAYS_LONG with the long run in the game, else REF_DAYS. */
+export const refDepth = (): number => (longRunRules() ? REF_DAYS_LONG : REF_DAYS);
+
+/** Clamp a day into 1..refDepth() (1..REF_DAYS, 10, with the long run off: exactly as before). */
 export function refDay(day: number): number {
-  return Number.isFinite(day) ? Math.max(1, Math.min(REF_DAYS, Math.floor(day))) : 1;
+  return Number.isFinite(day) ? Math.max(1, Math.min(refDepth(), Math.floor(day))) : 1;
+}
+
+/** RUN-1 (REQ-BFG-059, D5): the day whose hull a reference build holds: with the long run in the game, the day itself past
+ *  REF_DAYS_LONG (the day-16 plan with that day's hull), else refDay (the switch off: day 10's, as before). */
+export function refHullDay(day: number): number {
+  return longRunRules() && Number.isFinite(day) && day > REF_DAYS_LONG ? Math.floor(day) : refDay(day);
 }
 
 /** Column x from row 5 straight up to the forward row. */
@@ -149,9 +167,10 @@ export function raceStartBuild(hero: RaceHeroId, uid0: number): Build {
   return migrateDeck(layoutBuild(hero, START[hero], uid0), "preset:race");
 }
 
-/** Reference build for a day (1-10; other days clamp). Legal, escalating and honestly priced. */
+/** Reference build for a day (1-10; other days clamp; RUN-1: with the long run in the game, 1-16, and a later day is day
+ *  16's layout with that day's hull). Legal, escalating and honestly priced. */
 export function raceRefBuild(hero: RaceHeroId, day: number): Build {
-  const d = refDay(day);
+  const d = refDay(day), hd = refHullDay(day); // RUN-1: past REF_DAYS, the day's own hull
   const b = layoutBuild(hero, REF_BASE[hero], U);
   let uid = U + 10;
   // Preset purchases use the same merge chain as live shop gains. The arriving copy
@@ -173,6 +192,6 @@ export function raceRefBuild(hero: RaceHeroId, day: number): Build {
       fuseFrom(fusion, placed.uid);
     }
   }
-  b.hullBonus = refHull(d);
+  b.hullBonus = refHull(hd);
   return migrateDeck(b, "preset:race"); // 0.6.2 BELTSIDE: a load boundary (D3); a no-op for the native STEPS
 }

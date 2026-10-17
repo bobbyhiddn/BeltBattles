@@ -8,9 +8,10 @@ import type { Build } from "../src/sim/deck";
 import { STAND_IN_POOL_HEROES, standInPool, type StandInEntry } from "../src/sim/standInPool";
 import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import { TURRETS_JOINS_RULES, parseRules, rulesAtLeast, rulesFeatures, rulesGateProblem, sustainFeatures } from "../src/net/rulesGate";
+import { shapes2Features, shapesFeatures } from "../src/net/rulesGate"; // BUMP-1D: the shapes rows are their own gates
 import { SNAPSHOT_V3, checkSnapshot, type GhostSnapshot } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate";
-import { floorRecord } from "../src/net/records"; // Y7b2 (the pools): a record the deck's day can carry
+import { floorRecord, isReachable } from "../src/net/records"; // Y7b2 (the pools): a record the deck's day can carry; BUMP-1D: and the losses that carry it
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { loadGhostPool } from "../src/net/fallback";
 import { battleRecordFor, replay, RulesMismatchError } from "../src/net/replay";
@@ -47,7 +48,12 @@ function poolDeck(turrets: boolean, joins: boolean): Deck {
   for (const hero of STAND_IN_POOL_HEROES) {
     for (let day = 1; day <= RUN_DAYS; day++) {
       for (const e of standInPool(hero, day)) {
-        if (hasTurrets(e.build) === turrets && hasJoin(e.build) === joins && !sustainFeatures({ ...e.build, runes: undefined }).length) return { hero, day, build: e.build, road: e.road };
+        // BUMP-1D: and no shaped rig (SHAPES-1's three, SHAPES-2's six), which validateUpload's own shapes gates refuse first under these
+        // older rules (shapesGateProblem, shapes2GateProblem: they gain no RULES_ROWS row, so rulesGateProblem below never sees them).
+        // The regenerated pool's first deck with turrets and joins (BOTH) holds one: "rules bb-0.6.2 predate bb-0.10.0: shaped rigs
+        // (NAIL STRIP, EMBER TROUGH, SPIKE RAIL) need bb-0.10.0 or later" came before the rune error the line pins
+        if (hasTurrets(e.build) === turrets && hasJoin(e.build) === joins && !sustainFeatures({ ...e.build, runes: undefined }).length
+          && !shapesFeatures(e.build).length && !shapes2Features(e.build).length) return { hero, day, build: e.build, road: e.road };
       }
     }
   }
@@ -73,7 +79,16 @@ function snapOf(d: Deck, rules: string, who = "x"): GhostSnapshot {
   // joins (a day-3 deck) can't carry ("record: 0W 3 lives is no record a run carries into dusk 3"); older rules are refused
   // before the record check, so their record stays as it was
   const rec = now ? floorRecord(d.day) : { wins: 0, lives: 3 };
-  return { v: now ? SNAPSHOT_V3 : 2, rules, hero: d.hero, day: d.day, wins: rec.wins, lives: rec.lives, build: now ? up(d) : old(d), runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
+  // BUMP-1D (LONG_RUN ships on): this build's rules are a long run's, whose upload states the dusks the run lost (server/app.ts
+  // lossesProblem: 422 "losses: ..." without it): the fewest losses that carry the record into the deck's dusk (the floor record,
+  // 0 wins and the fewest hearts, is mostly day - 1 losses); older rules (the 10-day run, bb-0.6.x) take no such field
+  const lost = now ? { losses: lossesOf(d.day, rec) } : {};
+  return { v: now ? SNAPSHOT_V3 : 2, rules, hero: d.hero, day: d.day, wins: rec.wins, lives: rec.lives, ...lost, build: now ? up(d) : old(d), runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
+}
+/** BUMP-1D: the fewest dusks lost that the long run's record model (records.ts) carries (wins, lives) into dusk `day` with. */
+function lossesOf(day: number, rec: { wins: number; lives: number }): number {
+  for (let k = 0; k < day; k++) if (isReachable(day, rec.wins, rec.lives, { losses: k })) return k;
+  throw new Error(`no losses carry ${rec.wins}W ${rec.lives} lives into dusk ${day}`);
 }
 
 describe("v070-rel M2 (b): the helper", () => {
@@ -164,7 +179,7 @@ describe("v070-rel M2 (b): every accepting path", () => {
     expect(await post(snapOf(NEITHER, "bb-0.6"))).toEqual({ status: 422, body: { error: `rules bb-0.6 not accepted: this server validates ${RULES_VERSION}` } });
     expect(app.store.size).toBe(0);
     const ok = await post(snapOf(BOTH, RULES_VERSION));
-    expect(ok.status).toBe(201);
+    expect(ok.status, JSON.stringify(ok.body)).toBe(201);
     expect(app.store.size).toBe(1);
     // the client's own upload encoder refuses first, without a request
     expect(await submitGhost(base, ownedBy(snapOf(TURRETS, OLD), me), me, 2000)).toEqual({ ok: false, error: `snapshot.rules: ${TURRET_WHY}` });

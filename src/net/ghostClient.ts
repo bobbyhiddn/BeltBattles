@@ -6,7 +6,8 @@
 import { RULES_VERSION } from "../sim/content";
 import { fallbackGhost, migrateV1, type FallbackRequest } from "./fallback";
 import { KEY_HEADER, SIG_HEADER, type Identity } from "./identity";
-import { noBetterRecord } from "./matchmaking";
+import { ghostDayOk, noBetterRecord } from "./matchmaking";
+import { longRunFor } from "./rulesGate"; // RUN-1: the long run's widened day
 import { checkSnapshot, encodeSnapshot, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateUpload } from "./validate";
 
@@ -63,7 +64,9 @@ function problem(body: unknown, req: GhostRequest): string | PoolEntry {
     return `bad snapshot: ${errText(e)}`;
   }
   if (s.rules !== req.rules || s.rules !== RULES_VERSION) return `ghost rules ${s.rules} do not match ${req.rules}`;
-  if (s.day !== req.day) return `ghost day ${s.day} is not ${req.day}`;
+  // RUN-1 (REQ-BFG-059, D6): under a long run's rules the server widens a thin day to the nearest EARLIER one: any day up to
+  // the request's passes, never a later one; the 10-day rules: the request's own day, as before
+  if (!ghostDayOk(s.day, req)) return longRunFor(req.rules) ? `ghost day ${s.day} is past ${req.day}` : `ghost day ${s.day} is not ${req.day}`;
   if (s.playerId === req.playerId) return "server returned our own ghost";
   if (req.seen.includes(id)) return "server returned a ghost already fought this run";
   // 0.7.0a D1 on the client too: never fight a ghost with a better record (a server without D1 falls back here)

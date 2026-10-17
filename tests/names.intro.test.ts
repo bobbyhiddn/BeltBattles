@@ -17,11 +17,17 @@ import { NAME_CANCEL_CSS, NAME_OK_CSS, NAME_ROW_CSS, nameLayout } from "../src/s
 import { nameEntryLabel } from "../src/ui/hud";
 import { reachableRecords } from "../src/net/records";
 import { MAX_DAY } from "../src/net/snapshot";
+import { LONG_RUN_MAX_DAY } from "../src/sim/longRun";
 
 const ghost = (day: number, wins: number, playerId: string, name?: string): DuskFoe => ({
   day, kind: "ghost", name: "GHOST · FURNACE · 0W 5♥", hero: "furnace", build: { hero: "furnace", items: [], routes: [], mods: [], beltCap: 0, hullBonus: 0 },
   record: { wins, lives: 5, runId: "r", playerId, createdAt: 0, ...(name === undefined ? {} : { name }) },
 });
+/** RUN-1 R2.4: the same ghost whose snapshot STATED its losses (DuskFoe.record.losses, copied where the stamp is made). */
+const told = (day: number, wins: number, losses: number, playerId: string, name?: string): DuskFoe => {
+  const g = ghost(day, wins, playerId, name);
+  return { ...g, record: { ...g.record!, losses } };
+};
 
 /** A playerId for each of the 256 tags (found by search). */
 function idsByTag(): Map<string, string> {
@@ -43,6 +49,23 @@ describe("the intro line", () => {
     const s = standInFoe(1234, 3);
     expect(foeTitle({ day: 3, kind: "standin", name: s.name, hero: s.hero, build: s.build, rival: s.id })).toBe(s.name);
     expect([ghostRecord(1, 0), ghostRecord(4, 2), ghostRecord(10, 9), ghostRecord(10, 0)]).toEqual(["0-0", "2-1", "9-0", "0-9"]);
+  });
+
+  // RUN-1 R2.4: a ghost whose snapshot STATES its losses (a long run's record does) shows them: a draw is no loss. The derived W-L
+  // above (day - 1 - wins) stays for a snapshot that states none (every 10-day ghost, an older snapshot).
+  it("a ghost that states its losses: NAME#TAG · W-L from the stated count (a draw is no loss); a stand-in captain is untouched", () => {
+    expect(foeTitle(told(10, 7, 1, "a", "ANNA"))).toBe("ANNA#2C · 7-1"); // 7 wins, 1 loss, 1 draw: the derived text counts the draw (7-2)
+    expect(foeTitle(told(10, 7, 0, "a", "ANNA"))).toBe("ANNA#2C · 7-0"); // a stated 0 is a count (the derived text: 7-2)
+    expect(foeTitle(told(10, 7, 2, "a", "ANNA"))).toBe("ANNA#2C · 7-2"); // no draw: the stated and the derived text agree
+    expect(`VS ${foeTitle(told(10, 7, 1, "a", "ANNA"))}`).toBe("VS ANNA#2C · 7-1");
+    expect(foeTitle(told(1, 0, 0, "p-1"))).toBe("WANDERER · 0-0");
+    expect(foeTitle(told(5, 1, 0, "p-1", "anna"))).toBe("WANDERER · 1-0"); // a name the rules refuse is never shown
+    expect(foeTitle(told(5, 1, 3, "p-1", WANDERER))).toBe("WANDERER · 1-3");
+    expect(foeTitle(told(17, 9, 6, "p-1"))).toBe("WANDERER · 9-6"); // a long run's deepest dusks: the derived text would read 9-7
+    expect(foeTitle(told(17, 4, 6, "p-1"))).toBe("WANDERER · 4-6"); // (and 4-12 on day 17 with 4 wins: a draw-heavy record)
+    const s = standInFoe(1234, 3);
+    const standin = { day: 3, kind: "standin" as const, name: s.name, hero: s.hero, build: s.build, rival: s.id }; // a variable, not a fresh literal: no excess-property error (tests/tsc-tests-baseline.json)
+    expect(foeTitle(standin)).toBe(s.name);
   });
 
   // the views: the desk (and a small laptop), landscape and portrait phones, the operator's 402x690 among them
@@ -76,6 +99,32 @@ describe("the intro line", () => {
     const phone = computeView(402, 690, 3, battleScale);
     expect(`${phone.W}x${phone.H}`).toMatch(/^\d+x\d+$/);
     expect(phone.W - w).toBeGreaterThanOrEqual(8);
+  });
+
+  // RUN-1 R2.4: the line a STATED record makes is no wider than the derived one above (the same `W-L` digits, a count a long run's
+  // hearts keep to one digit), so the banner fits it in every view as it fits that one
+  it("the widest STATED line fits the banner as the derived one does: every record a long run can state, ten W's, every tag", () => {
+    const W10 = "W".repeat(NAME_MAX);
+    let wid = "", widestTag = "";
+    for (const [, id] of idsByTag()) {
+      const line = `VS ${foeTitle(told(2, 0, 0, id, W10))}`;
+      if (textWidth(line, "3") > textWidth(widestTag, "3")) { widestTag = line; wid = id; }
+    }
+    let widest = "", n = 0, deepest = 0;
+    for (let day = 1; day <= LONG_RUN_MAX_DAY; day++) {
+      for (let losses = 0; losses < day; losses++) {
+        for (const r of reachableRecords(day, { losses })) {
+          const line = `VS ${foeTitle(told(day, r.wins, losses, wid, W10))}`;
+          n++;
+          deepest = Math.max(deepest, losses);
+          if (textWidth(line, "3") > textWidth(widest, "3")) widest = line;
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(200); // not an empty loop
+    expect(deepest).toBeLessThan(10); // the most losses a long run's hearts allow is one digit, so no stated line grows past `W-L`
+    expect(widest).toMatch(/^VS W{10}#[0-9A-F]{2} · \d-\d$/);
+    expect(textWidth(widest, "3")).toBe(84); // the width pinned above
   });
 
   it("the options card's NAME entry: NAME: ANNA (NAME with none); the widest fits the card's narrowest button", () => {

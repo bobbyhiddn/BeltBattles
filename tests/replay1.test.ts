@@ -71,6 +71,7 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { hullScaleRules } from "../src/sim/hullScale";
 import { withNpcDay } from "../src/sim/npcDay";
 import { RUN_DAYS } from "../src/sim/content";
+import { WIN_GOAL, withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; the 10-day run's last-day dusk is made with it off
 import { textWidth } from "../src/render/font";
 import { UI, type Rect } from "../src/ui/ui";
 import { isPhone, tapPx } from "../src/ui/tap";
@@ -140,18 +141,21 @@ const KINDS: Kind[] = ["offline", "online", "warlord"];
 /** A fight of `kind` on `day`, its screen made (the dusk picked and saved, as the game does). The online dusk's foe is a
  *  server ghost holding WARLORD'S DUE and carrying wins (day - 1: the snapshot's bound), so the record keeps both sides'
  *  wins; the run carries wins of its own. */
-function make(kind: Kind, day: number, view: [number, number, number] = [402, 690, 3], o: { lives?: number; seed?: number } = {}): { game: FakeGame; s: BattleScreen; run: Run } {
-  const wins = Math.floor((day - 1) / 2);
+function make(kind: Kind, day: number, view: [number, number, number] = [402, 690, 3], o: { lives?: number; seed?: number; wins?: number; spent?: boolean; tenDay?: boolean } = {}): { game: FakeGame; s: BattleScreen; run: Run } {
+  const wins = o.wins ?? Math.floor((day - 1) / 2);
   if (kind === "warlord") {
     const run = setupWarlord("hard", { hero: "furnace", day, seed: o.seed ?? 9, wins });
     const game = fakeGame(run, ...view);
     return { game, s: new BattleScreen(game, "warlord"), run };
   }
-  const run = setupRun({ hero: "furnace", day, seed: o.seed ?? 7, wins, ...(o.lives !== undefined ? { lives: o.lives } : {}) });
+  // BUMP-1D: a long run (LONG_RUN ships on) unless `tenDay`: the 10-day run, whose last day's dusk ends it; `spent`: LAST CHANCE taken already
+  const run = withLongRun(() => setupRun({ hero: "furnace", day, seed: o.seed ?? 7, wins, ...(o.lives !== undefined ? { lives: o.lives } : {}) }), !o.tenDay);
+  if (o.spent) run.lastChance = { day: 1, boon: "hull" };
   if (kind === "online") {
     setSession(quietSession());
     const build = { ...heroStartBuild("weaver", 77), runes: [{ id: "warlords_due" }] };
-    run.dusk = { day: run.day, kind: "ghost", name: "GHOST · WEAVER", hero: "weaver", build, source: "online", ghostId: "g-replay1", record: { wins: day - 1, lives: 3, runId: "r-ghost", playerId: "p-ghost", createdAt: 1 } };
+    // BUMP-1D: a ghost's wins are at most WIN_GOAL - 1 (a dusk BEFORE its 10th win: snapshot.ts maxWinsFor), so day - 1 up to day 10
+    run.dusk = { day: run.day, kind: "ghost", name: "GHOST · WEAVER", hero: "weaver", build, source: "online", ghostId: "g-replay1", record: { wins: Math.min(day - 1, WIN_GOAL - 1), lives: 3, runId: "r-ghost", playerId: "p-ghost", createdAt: 1 } };
   }
   const game = fakeGame(run, ...view);
   return { game, s: new BattleScreen(game), run };
@@ -263,11 +267,21 @@ describe("REPLAY-1 (a): the card's replay is the watched fight, bit for bit", ()
       return game.gone[game.gone.length - 1];
     };
     // the last day's dusk ends the run, won or lost: SEE THE RUN, then the summary
+    // BUMP-1D: that is the 10-day run's end (LONG_RUN ships on: a long run is never over by its day), so these runs are 10-day runs ...
     for (const kind of ["offline", "online"] as const) {
-      const m = make(kind, RUN_DAYS);
+      const m = make(kind, RUN_DAYS, [402, 690, 3], { tenDay: true });
       const watched = toCard(m.s);
       expect(m.run.over, `${kind}: the run ends`).toBeTruthy();
       expect(check(`${kind} day ${RUN_DAYS} (${m.run.over})`, m, watched, "SEE THE RUN")).toBeInstanceOf(SummaryScreen);
+    }
+    // ... and the long run's dusk that ends it: its 10th win (here from 9 wins in hand), or its last heart with LAST CHANCE spent (1 heart
+    // left): won or lost, never a draw's
+    for (const kind of ["offline", "online"] as const) {
+      const m = make(kind, 12, [402, 690, 3], { wins: 9, lives: 1, spent: true });
+      expect(m.run.longRun, `${kind}: a long run`).toBe(true);
+      const watched = toCard(m.s);
+      expect(m.run.over, `${kind}: the long run ends`).toBeTruthy();
+      expect(check(`${kind} long day 12 (${m.run.over})`, m, watched, "SEE THE RUN")).toBeInstanceOf(SummaryScreen);
     }
     // LAST CHANCE: for a few lives, the first seed whose dusk on LATER is lost and fires it (the stand-in, and so the fight,
     // follows the run's lives too)

@@ -4,6 +4,7 @@ import type { HeroId } from "../src/sim/content";
 import {
   decodeSnapshot, encodeSnapshot, ghostId, MAX_SNAPSHOT_BYTES, SnapshotError, type GhostSnapshot,
 } from "../src/net/snapshot";
+import { LONG_RUN_MAX_DAY } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): a long run's day bound
 import { snap } from "./netHelpers";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,7 +67,11 @@ describe("ghost snapshot format", () => {
       ["wrong format version", (o) => { o.v = 4; }], // RUNES-1: v 3 is current (snapshot v3), v 1 and v 2 still decode
       ["day as a string", (o) => { o.day = "3"; }],
       ["day 0", (o) => { o.day = 0; o.wins = 0; }],
-      ["day 11", (o) => { o.day = 11; }],
+      // BUMP-1D (LONG_RUN ships on): the day bound follows the record's rules (snapshot.ts maxDayFor): day 11 is a long run's dusk
+      // under this build's rules (bb-0.11.0; it decodes, below), still past the 10-day rules' bound under older ones (bb-0.10.0),
+      // and the long run's own bound is LONG_RUN_MAX_DAY. Was ["day 11", o.day = 11] on this build's rules
+      ["day 11 under the 10-day rules (bb-0.10.0)", (o) => { o.rules = "bb-0.10.0"; o.day = 11; }],
+      ["day past a long run's bound", (o) => { o.day = LONG_RUN_MAX_DAY + 1; }],
       ["fractional wins", (o) => { o.wins = 0.5; }],
       ["wins beyond day - 1", (o) => { o.wins = 3; }],
       ["no lives left", (o) => { o.lives = 0; }],
@@ -88,6 +93,8 @@ describe("ghost snapshot format", () => {
       mutate(o);
       expect(() => decodeSnapshot(JSON.stringify(o)), name).toThrow(SnapshotError);
     }
+    // BUMP-1D: the day-11 snapshot of this build's rules is a long run's, and decodes; the bound's own day (LONG_RUN_MAX_DAY) too
+    for (const day of [11, LONG_RUN_MAX_DAY]) expect(decodeSnapshot(JSON.stringify({ ...good, day })).day, `day ${day}`).toBe(day);
     expect(() => decodeSnapshot("not json")).toThrow(SnapshotError);
     expect(() => decodeSnapshot("[]")).toThrow(SnapshotError);
     expect(() => decodeSnapshot("null")).toThrow(SnapshotError);

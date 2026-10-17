@@ -52,6 +52,9 @@ export const SAVE_KEY_V3 = "beltbattles.run.v3";
 type Raw = Record<string, any>;
 
 const clampDay = (n: unknown): number => Math.max(1, Math.min(RUN_DAYS, Math.floor(Number(n) || 1)));
+// RUN-1 (REQ-BFG-059): a long run's day (Run.longRun) is never clamped from above: a whole day >= 1 (day 11 and later load as
+// saved). A 10-day run keeps clampDay.
+const longDay = (n: unknown): number => { const d = Math.floor(Number(n) || 1); return Number.isFinite(d) ? Math.max(1, d) : 1; };
 const STAGES = ["caravan", "fork", "event", "warlord", "refit", "battle"];
 
 function v3to4(r: Raw): void {
@@ -241,7 +244,8 @@ export function normalizeOnline(r: Raw): void {
     if (Array.isArray(r.seenGhosts)) r.seenGhosts = r.seenGhosts.filter((id: unknown) => typeof id === "string" && ID_PATTERN.test(id)).slice(-64);
     else delete r.seenGhosts;
   }
-  if (r.uploaded !== undefined && !(Number.isInteger(r.uploaded) && r.uploaded >= 1 && r.uploaded <= RUN_DAYS)) delete r.uploaded;
+  // RUN-1 (REQ-BFG-059): a long run uploads on any day (no RUN_DAYS bound)
+  if (r.uploaded !== undefined && !(Number.isInteger(r.uploaded) && r.uploaded >= 1 && (r.longRun === true || r.uploaded <= RUN_DAYS))) delete r.uploaded;
   const d = r.dusk as Raw | null | undefined;
   if (d && typeof d === "object") {
     if (d.source !== undefined && d.source !== "online" && d.source !== "offline") delete d.source;
@@ -288,6 +292,9 @@ export function migrateRun(raw: unknown): Run | null {
   // with nothing back (the dawn it belongs to is past), so a load never gives it twice. Save v7, no bump.
   if (r.refund === null) delete r.refund;
   else if (r.refund !== undefined && !(typeof r.refund === "object" && typeof r.refund.day === "number" && typeof r.refund.lives === "number")) r.refund = { day: 3, lives: 0 };
+  // RUN-1 (REQ-BFG-059): a long run's mark is `true` or absent (anything else is dropped: a 10-day run); read below by the
+  // day, the upload day and LAST CHANCE's day. A save without it (every switch-off run, 0.9.9 and 0.9.10) loads as before.
+  if (r.longRun !== undefined && r.longRun !== true) delete r.longRun;
   normalizeOnline(r);
   // 0.8.0 I1 M3 (DESIGN-wave3.md 4.2): the per-run draw's wares stay when well formed and are dropped otherwise; a run
   // without wares (every save from before 0.8.0) plays today's rule. Save v7, no bump.
@@ -299,7 +306,12 @@ export function migrateRun(raw: unknown): Run | null {
   // LC-1 (REQ-BFG-073): the run's LAST CHANCE ({ day } pending, { day, boon, id? } taken) and a history row's record of
   // it ({ lives, boon?, id? }) stay when well formed and are dropped otherwise, so no load trips over them; a save
   // without them (every save before LC-1, every switch-off run) loads exactly as before. Save v8, no bump.
-  if (r.lastChance !== undefined && !lastChanceShapeOk(r.lastChance)) delete r.lastChance;
+  if (r.lastChance !== undefined && !lastChanceShapeOk(r.lastChance, false, r.longRun === true ? Infinity : RUN_DAYS)) delete r.lastChance; // RUN-1: any day on a long run
+  // FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F2): a first run's flag is `true` and its first day-1 rig a part id; anything
+  // else is dropped (the run is then a normal run), so a reload keeps a first run and no load trips over either. Every
+  // other save has neither and loads exactly as before. Save v8, no bump.
+  if (r.firstRun !== undefined && r.firstRun !== true) delete r.firstRun;
+  if (r.firstRig !== undefined && typeof r.firstRig !== "string") delete r.firstRig;
   for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {
     if (h && typeof h === "object" && h.lastChance !== undefined && !(h.lastChance && typeof h.lastChance === "object" && typeof h.lastChance.lives === "number")) delete h.lastChance;
   }
@@ -308,7 +320,7 @@ export function migrateRun(raw: unknown): Run | null {
   for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {
     if (h && typeof h === "object" && h.race !== undefined && !readoutOk(h.race)) delete h.race;
   }
-  r.day = clampDay(r.day);
+  r.day = r.longRun === true ? longDay(r.day) : clampDay(r.day); // RUN-1: a long run's day is never clamped (day 11+ loads as saved)
   // RETUNE-1 (REQ-BFG-096): a hearts run's mark is `true` or absent (anything else is dropped: a lives run), and its
   // hearts clamp to HEARTS_START; a save without the mark (every switch-off run) clamps to START_LIVES exactly as before
   if (r.hearts !== undefined && r.hearts !== true) delete r.hearts;

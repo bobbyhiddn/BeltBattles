@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HEROES, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
-import { STAND_IN_POOL_HEROES, standInPick } from "../src/sim/standInPool";
+import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, standInPick } from "../src/sim/standInPool"; // BUMP-1D: + STAND_IN_POOL_DAYS
 import { STAND_IN_HEROES, fallbackGhost, offlineGhost, rivalHero } from "../src/net/fallback";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode)
 import { npcDayRules, roadDropValue } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
@@ -32,9 +32,11 @@ describe("fallback stand-ins", () => {
     }
   });
 
-  it("every fallback ghost for days 1-10 passes validateBuild, for every requesting hero", () => {
+  // BUMP-1D: title "days 1-10" -> "days 1-16" and the loop to every day the pool holds (STAND_IN_POOL_DAYS): the pool was regenerated for
+  // days 1-16 (8fc5e24) and a long run asks the fallback for a day-11..16 stand-in too
+  it("every fallback ghost for days 1-16 passes validateBuild, for every requesting hero", () => {
     for (const hero of Object.keys(HEROES) as HeroId[]) {
-      for (let day = 1; day <= 10; day++) {
+      for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) {
         for (const seed of [0, 1, 7, 99, 4242]) {
           const g = fallbackGhost({ rules: RULES_VERSION, day, wins: 0, lives: 3, playerId: "me", seen: [], hero, seed });
           expect(g.id).toBe(`offline-${g.snapshot.hero}-d${day}`);

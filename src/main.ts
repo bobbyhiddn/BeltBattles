@@ -53,6 +53,7 @@ import { npcDayRules, setNpcDay } from "./sim/npcDay"; // NPC-1 (REQ-BFG-077, RE
 import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad, warlordDeck, warlordDrop } from "./game/road"; // NPC-1 tooling
 import { choicesFor, pickChoice } from "./game/events"; // NPC-1 tooling
 import { hullScaleRules, setHullScale } from "./sim/hullScale"; // HULL-1a (REQ-BFG-079) tooling (shots): the switch, page-wide
+import { longRunRules, setLongRun } from "./sim/longRun"; // RUN-1 (REQ-BFG-059, REQ-BFG-116) tooling (shots): the switch, page-wide
 import { C } from "./render/palette"; // WIND-1 (REQ-BFG-093) tooling: bb.windInfo's colour
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
@@ -412,6 +413,21 @@ game.start();
     // as render/motion.ts:17): on a production page this only reports the switch, so no hook can turn it off there
     if (import.meta.env.DEV) setHullScale(on);
     return hullScaleRules();
+  },
+  /**
+   * RUN-1 (REQ-BFG-059, REQ-BFG-116) tooling, for the shots only: turns LONG_RUN on (or off) for this page (longRun.ts setLongRun,
+   * the switch's own setter; withLongRun is the scoped form the tests use). It changes nothing but the runs made after it:
+   * newRun marks each one (Run.longRun), won at 10 wins, lost at 0 hearts, no day limit, and the title's rules card reads
+   * the switch. Call it before bb.setupRun / bb.openEnd / bb.openDawn / bb.openFork / bb.openDusk / bb.open (which make the
+   * run), then set run.day, wins and losses on bb.game.run as the other shots do. A run made before keeps its own rule
+   * (its mark). Returns the switch.
+   * BUMP-1D (run 3; REPORT-RUN1 section 7 item 4): LONG_RUN ships ON now, so the setter is dev-only (import.meta.env.DEV) as
+   * bb.hullScale's and bb.openNpcDay's are: on a production page this only reports the switch, so no hook can turn the
+   * 10-wins run off there (was: not behind DEV because LONG_RUN shipped off and a shot is taken on the built page).
+   */
+  longRun(on = true): boolean {
+    if (import.meta.env.DEV) setLongRun(on);
+    return longRunRules();
   },
   /** 0.6.0b: the road fork at a day's dawn (matriarchBeatenOn for R3). */
   openFork(o: RunSpec & { matriarchBeatenOn?: number; bounty?: boolean; sabotage?: boolean } = {}, ghosts: GhostSpec[] = []): void {

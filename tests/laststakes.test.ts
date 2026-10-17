@@ -5,10 +5,13 @@ import { describe, expect, it } from "vitest";
 import { blockReason, choicesFor, EVENT_IDS, makeEvent, pickChoice } from "../src/game/events";
 import { newRun, type Run } from "../src/game/run";
 import { RUN_DAYS } from "../src/sim/content";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; this is the 10-day run's rule (a long run has no last day)
 import type { EventId } from "../src/game/eventDefs";
 
+/** BUMP-1D: a 10-day run (made with the long run off): NO WARLORD LEFT is its day-10 rule; a long run blocks nothing by its day
+ *  (tests/run1.content.test.ts: "NO WARLORD LEFT never blocks a long run"). */
 function atEvent(id: EventId, day: number, seed = 4242): Run {
-  const run = newRun("furnace", seed);
+  const run = withLongRun(() => newRun("furnace", seed), false);
   run.day = day;
   run.gold = 20;
   run.lives = 3;

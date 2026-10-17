@@ -39,8 +39,10 @@ const netOk = (s: unknown) => { try { net.checkSnapshot(s); return true; } catch
 /** FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): `build` as a day-1 upload: holding day 1's rune (an upload holds
  *  exactly `day` runes; a neutral one, tests/runeFill.ts), so in a v3 snapshot (build.runes travels only in v3).
  *  HULL-ON (the flip, HEARTS): at 0W HEARTS_START (10), the one record a run carries into dusk 1 under this build's rules
- *  (heartsFor(bb-0.10.0): the hearts record model); snap()'s 0W 5 lives is none, so POST refused the legal deck (422). */
-const upload = (build: Build): net.GhostSnapshot => ({ ...snap(withDawnRunes(build, 1)), v: net.SNAPSHOT_V3, lives: HEARTS_START });
+ *  (heartsFor(bb-0.10.0): the hearts record model); snap()'s 0W 5 lives is none, so POST refused the legal deck (422).
+ *  BUMP-1D (LONG_RUN ships on): and `losses: 0`, the dusks lost before day 1's: this build's rules (bb-0.11.0) are a long run's,
+ *  whose upload states them (server/app.ts lossesProblem: 422 "losses: ..." without it, ahead of the join's own error). */
+const upload = (build: Build): net.GhostSnapshot => ({ ...snap(withDawnRunes(build, 1)), v: net.SNAPSHOT_V3, lives: HEARTS_START, losses: 0 });
 
 describe("J12: validateBuild", () => {
   it("accepts a legal join: the joining belt claims no connector and is connected through the main belt", () => {

@@ -491,7 +491,9 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
       // 872 at step 1b) and the 3 sustain pieces' 27 join (the switch on): 885 -> 899
       // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable modules, 13 panels each (an offer, and at each
       // star a cargo panel and 3 placed ones): 899 + 39 = 938; GANTRY PRESS's and ASSEMBLY LINE's 7 each are reshaped
-      expect(all.length).toBe(938);
+      // BUMP-1D: the six plain stat rigs and the six more shaped rigs join the buyable modules, 13 panels each (an offer, and at each
+      // star a cargo panel and 3 placed ones): 938 + 12 x 13 = 1094
+      expect(all.length).toBe(1094);
       // the band at 390x844 holds every panel in its fullest form; at 430x739 every one in the band; the shortest views'
       // band can't hold the longest turret panels (a THUNDERER ★3's full text needs 144 px): they take the fallback
       // (grown at 390x660 and 390x664: 30 installed turrets with a core and gear and 8 ★2 rigs and factories, 38 of 885; at
@@ -539,7 +541,11 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // every view: c099-card3's fullest and in-the-band +39 each (390x660 and 390x664 [.., 887, 891] -> [.., 926, 930],
         // 402x690 [122, 898, 898] -> [122, 937, 937], 430x739 and 390x844 [141, 899, 899] -> [141, 938, 938]); the bands and
         // the number of grown panels (8, 8, 1, 0, 0) unchanged
-        "390x660": [104, 926, 930], "390x664": [106, 926, 930], "402x690": [122, 937, 937], "430x739": [141, 938, 938], "390x844": [141, 938, 938],
+        // BUMP-1D (PLAIN_RIGS and SHAPES2 on), measured: 1094 panels (the six plain stat rigs' and the six more shaped rigs' 156 in:
+        // 12 x 13), the 156 all in the band in their fullest form at every view (a stat row and no ability line): fullest and in
+        // the band +156 each (390x660 and 390x664 [.., 926, 930] -> [.., 1082, 1086], 402x690 [122, 937, 937] -> [122, 1093, 1093],
+        // 430x739 and 390x844 [141, 938, 938] -> [141, 1094, 1094]); the bands and the grown panels (8, 8, 1, 0, 0) unchanged
+        "390x660": [104, 1082, 1086], "390x664": [106, 1082, 1086], "402x690": [122, 1093, 1093], "430x739": [141, 1094, 1094], "390x844": [141, 1094, 1094],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

@@ -20,6 +20,9 @@ import {
 } from "../src/sim/deck";
 import { footOf, footOnDeck, footprintCells, footTurns } from "../src/sim/foot";
 import { SHAPES, SHAPES_IDS, setShapes, shapesRules, withShapes } from "../src/sim/shapes";
+import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): the SHAPES-1 world is measured with it set off
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: PLAIN_RIGS ships on too: the pre-0.9.9 decks of S6 are built without the six
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on: it moves the par decks (|long in their cache key)
 import { clearMigrationLog, migrateShapedFactories, migrationLog } from "../src/sim/beltside";
 import { effectAt, fusible, outputsAt, valueOf } from "../src/sim/stars";
 import { lastChanceParts } from "../src/sim/lastChance";
@@ -42,6 +45,9 @@ import { withHearts } from "../src/sim/hearts"; // MERGE-099F
 import { withPick } from "../src/net/pick"; // MERGE-099F
 /** MERGE-099F: HULL-ON's five switches off around `f` (tests/hull1b.ladders' allOff). */
 const offFive = <T>(f: () => T): T => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(f, false), false), false), false), false);
+/** BUMP-1D: the three switches bb-0.11.0 turned on (LONG_RUN, PLAIN_RIGS, SHAPES2) set off around `f`: the world before them,
+ *  for decks a save of 0.9.8 or earlier could hold (offFive's form; each puts its switch back even on a throw). */
+const oldWorld = <T>(f: () => T): T => withLongRun(() => withPlainRigs(() => withShapes2(f, false), false), false);
 
 afterEach(() => setShapes(SHAPES)); // SHAPES-1 flip: the shipped value (on); a test that needs SHAPES off sets it itself
 
@@ -97,9 +103,16 @@ describe("SHAPES-1 R4: merge, sell and price", () => {
   it("a star raises only their numbers; they merge like any rig and sell at sellValue", () => {
     withShapes(() => {
       for (const id of SHAPES_IDS) expect(fusible(id), id).toBe(true);
-      expect([1, 2, 3].map((s) => effectAt("nailstrip", s).gate)).toEqual([{ flat: 12 }, { flat: 25 }, { flat: 40 }]);
+      // BUMP-1D: SHAPES2 ships on (bb-0.11.0) and patches NAIL STRIP and SPIKE RAIL on their live defs (shapes2.ts SHAPES2_PATCHES):
+      // SHAPES-1's rows are measured with SHAPES2 set off (byte for byte), the shipped rows with it on
+      withShapes2(() => {
+        expect([1, 2, 3].map((s) => effectAt("nailstrip", s).gate)).toEqual([{ flat: 12 }, { flat: 25 }, { flat: 40 }]);
+        expect([1, 2, 3].map((s) => effectAt("embertrough", s).gate)).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
+        expect([1, 2, 3].map((s) => effectAt("spikerail", s).gate)).toEqual([{ flat: 10 }, { flat: 20 }, { flat: 35 }]);
+      }, false);
+      expect([1, 2, 3].map((s) => effectAt("nailstrip", s).gate)).toEqual([{ flat: 16 }, { flat: 33 }, { flat: 53 }]); // BUMP-1D: was 12/25/40
       expect([1, 2, 3].map((s) => effectAt("embertrough", s).gate)).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
-      expect([1, 2, 3].map((s) => effectAt("spikerail", s).gate)).toEqual([{ flat: 10 }, { flat: 20 }, { flat: 35 }]);
+      expect([1, 2, 3].map((s) => effectAt("spikerail", s).gate)).toEqual([{ flat: 8 }, { flat: 16 }, { flat: 28 }]); // BUMP-1D: was 10/20/35
       for (const s of [2, 3]) for (const id of SHAPES_IDS) {
         const a = effectAt(id, s), b = ITEMS[id];
         expect({ ...a, gate: undefined }, `${id} *${s}`).toEqual({ ...b, gate: undefined }); // nothing but the numbers
@@ -208,8 +221,10 @@ describe("SHAPES-1 S4: the rot rule and the rules gate", () => {
     });
   });
 
-  it("SHAPES_RULES is this build's rules until the bump; the three rigs travel only with the switch on and under rules that have them", () => {
-    expect(SHAPES_RULES).toBe(RULES_VERSION);
+  it("SHAPES_RULES is bb-0.10.0, this build's rules until the bump (RULES_VERSION is bb-0.11.0 since BUMP-1D); the three rigs travel only with the switch on and under rules that have them", () => {
+    // BUMP-1D: was expect(SHAPES_RULES).toBe(RULES_VERSION) (both bb-0.10.0). SHAPES_RULES is a literal (S6's: the first rules
+    // version with shaped rigs) and stays "bb-0.10.0"; RULES_VERSION is "bb-0.11.0", which is after it (the gate below passes)
+    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.11.0"]);
     const deck = { items: [{ uid: 1, def: "nailstrip", x: 0, y: 1 }] };
     withShapes(() => { // SHAPES-1 flip: the switch set off (it ships on)
       expect(shapesGateProblem(RULES_VERSION, deck)).toBe("shaped rigs (NAIL STRIP, EMBER TROUGH, SPIKE RAIL): not in this rules version yet");
@@ -244,13 +259,18 @@ describe("SHAPES-1 S6: the load migration on par decks", () => {
     // build screen, which the player re-lays); this test's strict "every belt connected" check is stricter than it. Whether
     // the migration should also drop such a freed belt is the PIECES lane's question after 0.9.9 (MERGE-099F REPORT). Was
     // built with SHAPES off alone (the five on since the merge)
-    withShapes(() => offFive(() => { // SHAPES-1 flip: the decks are built with SHAPES set off (it ships on), then migrated with it on
+    // BUMP-1D: and with the three switches bb-0.11.0 turned on set off too (LONG_RUN, PLAIN_RIGS, SHAPES2: each moves the par
+    // decks, their cache key holds |long, |pr and |s2): a save the migration meets was made before 0.9.9, where none existed. In
+    // the shipped world the par decks differ and foundry/5/5 fails this test's strict "every belt connected" line the same way
+    // foundry/10/5 did in MERGE-099F's world (a freed belt left disconnected: SHAPES-1's contract, see above), so the old decks
+    // are kept: this is the world the test samples (the decks players load), not the world of the shipped par bot
+    withShapes(() => oldWorld(() => offFive(() => { // SHAPES-1 flip: the decks are built with SHAPES set off (it ships on), then migrated with it on
       for (const h of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) for (const day of [5, 10]) {
         parField(h, day).forEach((b, i) => {
           if (b.items.some((p) => p.def === "gantry" || p.def === "assembly")) decks.push({ tag: `${h}/${day}/${i + 1}`, b: cloneBuild(b), day });
         });
       }
-    }), false);
+    })), false);
     const stat = { decks: decks.length, gantry: 0, assembly: 0, stayed: 0, moved: 0, cargoed: 0, beltsLost: 0, decksLosingBelt: 0, belts: 0 };
     const lines: string[] = [];
     withShapes(() => {
@@ -346,9 +366,11 @@ function fixtures(): { name: string; s: GhostSnapshot; on: boolean }[] {
   })!, false);
   const base = parDeck(hero, day, seed);
   base.items = base.items.filter((p) => ITEMS[p.def].kind !== "gate");
+  // BUMP-1D: under bb-0.11.0 (LONG_RUN) an upload states the dusks its run lost (records.ts lossesProblem; run1.server.test.ts's
+  // honest uploads carry it): this record is the flawless one (wins === day - 1: no loss, no draw), so `losses` is 0
   const snap = (name: string, build: Build): GhostSnapshot => ({
     v: SNAPSHOT_V3, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build, runId: `shapes1-${name}`,
-    playerId: "p-shapes1", createdAt: 1_790_000_000_000, seed: parRunSeed(hero, seed),
+    playerId: "p-shapes1", createdAt: 1_790_000_000_000, seed: parRunSeed(hero, seed), losses: day - 1 - rec.wins,
   });
   return withShapes(() => {
     const out: { name: string; s: GhostSnapshot; on: boolean }[] = [];
@@ -409,7 +431,7 @@ describe("SHAPES-1 S6, cap's RUN2 note Q4: the load notice for a reshaped factor
 
 describe("SHAPES-1 S1/S4 after the merge of c099-pre8 (cap's RUN2 note 1.3-1.4): shapes ride under bb-0.10.0", () => {
   it("SHAPES_RULES is S6's literal; a bb-0.9.7 record holding a shaped piece is refused, a bb-0.10.0 one is judged in shapes' world", () => {
-    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.10.0"]);
+    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.11.0"]); // BUMP-1D: was ["bb-0.10.0", "bb-0.10.0"]: RULES_VERSION moved, the literal stays
     const fx = fixtures();
     const rigs = fx.find((f) => f.name === "rigs")!.s, gantry = fx.find((f) => f.name === "gantry-rot1")!.s;
     withShapes(() => {
@@ -478,10 +500,17 @@ describe("SHAPES-1 S4: the server pins (the client check and POST /v1/ghosts, bo
 describe("SHAPES-1 S1: switch off, nothing moved", () => {
   it("SHAPES off: GANTRY PRESS and ASSEMBLY LINE 2x2 at 7 and 5 G; no rot on a factory; footprints of 0.9.9", () => {
     expect(shapesRules()).toBe(true); // SHAPES-1 flip: it ships on; the off world is set off below
-    withShapes(() => {
+    // BUMP-1D: SHAPES2 ships on (bb-0.11.0) and its six carry a foot on their own defs whatever SHAPES says: 0.9.9's footprints
+    // are measured with SHAPES2 set off (no def has a foot), and with it on the only defs with a foot are the six
+    withShapes2(() => withShapes(() => {
       expect(shapesRules()).toBe(false);
       expect([footOf(ITEMS.gantry), footOf(ITEMS.assembly), ITEMS.gantry.price, ITEMS.assembly.price]).toEqual(["2x2", "2x2", 7, 5]);
       expect(Object.values(ITEMS).filter((d) => d.foot !== undefined).map((d) => d.id)).toEqual([]);
+    }, false), false);
+    withShapes(() => {
+      expect(shapesRules()).toBe(false);
+      expect([footOf(ITEMS.gantry), footOf(ITEMS.assembly), ITEMS.gantry.price, ITEMS.assembly.price]).toEqual(["2x2", "2x2", 7, 5]);
+      expect(Object.values(ITEMS).filter((d) => d.foot !== undefined).map((d) => d.id).sort()).toEqual([...SHAPES2_IDS].sort());
     }, false);
   });
 });

@@ -1,7 +1,7 @@
 // RETUNE-1 (REQ-BFG-096): HEARTS, behind one switch. The operator: "start with 10 hearts". With HEARTS on:
 //  - a run starts with HEARTS_START (10) hearts (Run.lives holds them; a snapshot's `lives` stays "hearts going into the
 //    fight");
-//  - a lost dusk costs heartCost(day): 1 heart on days 1-3, 2 on days 4-6, 3 from day 7. A draw costs none, and a road
+//  - a lost dusk costs heartCost(day): 1 heart on days 1-3, 2 from day 4 (BUMP-1D: HEART_COSTS [1,2,2]; it was 2 on days 4-6 and 3 from day 7). A draw costs none, and a road
 //    (warlord) fight never costs hearts (no road rule moves lives);
 //  - LAST CHANCE fires once a run, at the first dusk loss that would leave LAST_CHANCE_AT (1) heart or fewer, on a day
 //    before the run's last day (`lastDay`: RUN_DAYS for the game; RUN-1 re-points it). It SETS the hearts to 1, so it
@@ -57,8 +57,8 @@ setHearts(HEARTS);
 export const HEARTS_START = 10;
 /** The first day of each cost band: days 1-3, 4-6 and 7 on. Day bands, not run-length bounds. */
 export const HEART_COST_FROM: readonly [number, number, number] = [1, 4, 7];
-/** The hearts a lost dusk costs in each band (the operator's 1/2/3). */
-export const HEART_COSTS: readonly [number, number, number] = [1, 2, 3];
+/** The hearts a lost dusk costs in each band (the operator's 1/2/3; 1/2/2 since BUMP-1D). */
+export const HEART_COSTS: readonly [number, number, number] = [1, 2, 2]; // BUMP-1D (RULING-BANDS1-R1 B1.1; BANDS-1 H1): days 7+ cost 2, not 3 (was [1, 2, 3])
 
 /** The hearts rule's numbers. The game reads HEARTS_RULE only; a bench may read another (15 start hearts, H3). */
 export interface HeartsRule {
@@ -67,7 +67,7 @@ export interface HeartsRule {
 }
 export const HEARTS_RULE: HeartsRule = { start: HEARTS_START, cost: HEART_COSTS };
 
-/** The hearts a lost dusk on `day` costs: 1 on days 1-3, 2 on days 4-6, 3 from day 7 (HEARTS_RULE). */
+/** The hearts a lost dusk on `day` costs: 1 on days 1-3, 2 from day 4 (HEARTS_RULE; before BUMP-1D 2 on days 4-6 and 3 from day 7). */
 export function heartCost(day: number, rule: HeartsRule = HEARTS_RULE): number {
   return day >= HEART_COST_FROM[2] ? rule.cost[2] : day >= HEART_COST_FROM[1] ? rule.cost[1] : rule.cost[0];
 }

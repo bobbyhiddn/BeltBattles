@@ -75,8 +75,12 @@ describe("S8 T1d: checkPool passes the run seed (RULING-S8-R1 item 2)", () => {
     // with a won drop is furnace day 3's variant 0 (furnace day 1's carries a road win with no drop). Was "furnace day 1 (run
     // seed 238345644), road day 1 (medium): drop tollbooth -> anvil" (the day-1 floor ghost) and "road: day 1: anvil is not in
     // GRIMHOLD's pool"
-    expect(f!.at).toBe("furnace day 3 (run seed 1174802828), road day 1 (medium): drop temper -> anvil");
-    expect(f!.line).toBe("road: day 1: anvil is not in EMBERLYN's pool");
+    // BUMP-1D (the seed pool regenerated, 5e93e1e: days 1-16, 192 ghosts, SOFT_TARGET 250's picks): the file's first such forgery is still furnace
+    // day 3's variant 0, but a different par-field run's deck (the pick moved with the softer target), so its run seed, its won drop and its
+    // road day 1's warlord moved. Was "furnace day 3 (run seed 1174802828), road day 1 (medium): drop temper -> anvil" and
+    // "road: day 1: anvil is not in EMBERLYN's pool"
+    expect(f!.at).toBe("furnace day 3 (run seed 2913324239), road day 1 (medium): drop scrapcannon -> anvil");
+    expect(f!.line).toBe("road: day 1: anvil is not in SOOTJAW's pool");
     expect(refusal(withoutSeed(f!.forged))).toBeNull(); // without the seed: only the seed-blind lines run, and they pass it
     expect(refusal(f!.forged)).toContain(f!.line); // with it (T1d): refused on its road line (before T1d: passed)
   });

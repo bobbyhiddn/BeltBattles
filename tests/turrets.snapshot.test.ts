@@ -10,6 +10,7 @@ import { migrateRun, newRun } from "../src/game/run";
 import { startingBuild } from "../src/sim/ai";
 import { RULES_VERSION } from "../src/sim/content";
 import { startingTurrets, turretSlots, type Build, type BuildTurret } from "../src/sim/deck";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the 10-day run's ghost, kept beside the long run's
 import { decodeStarred } from "../src/sim/standInPool";
 import { sampleGhosts } from "../tools/samplePool";
 import { SAMPLE_POOL_V21 } from "./fixtures/samplePool.v2.1";
@@ -17,7 +18,9 @@ import { POOL_LEGACY } from "./standInPool.helpers";
 
 // 0.7.0a: the 40 sample ghosts (variants 0 and 1), whose decks the v2.1 fixture freezes; the seed pool's floor ghosts
 // (variant 2, D5) came later and have no v2.1 deck
-const POOL = sampleGhosts();
+// BUMP-1D (LONG_RUN ships on): days 1-10 of them: the pool is the long run's now (days 1-16, 64 sample ghosts), and the v2.1 fixture freezes
+// the ten days it had (SAMPLE_POOL_V21[hero][variant][day - 1] is undefined past day 10: the suite failed to load, 0 tests). Was sampleGhosts()
+const POOL = sampleGhosts().filter((s) => s.day <= 10);
 /** Step 5 M5: the sample pool as pool v2.1 gave it: generateSamplePool's snapshots (records, ids, times) with the decks
  *  frozen in tests/fixtures/samplePool.v2.1.ts, so the old-snapshot test keeps testing turret-less snapshots whatever
  *  pool is committed (a caravan-bound pool's decks may carry Build.turrets). While v2.1 is committed it is POOL.
@@ -29,8 +32,10 @@ const POOL = sampleGhosts();
  *  SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): FURNACE and WEAVER's sample decks are
  *  par-field runs' dusk decks now (79 of the 80 picks), so a sample ghost carries its run's seed too, v3's `seed`, which the
  *  frozen v2.1 deck never had: the copy drops it as well. Was ({ road, ...s }) (furnace d1 v3 encoded its seed, which
- *  legacyText never writes). */
-const POOL_V21 = POOL.map(({ road: _road, seed: _seed, ...s }) => net.checkSnapshot({ ...s, build: decodeStarred(s.hero, SAMPLE_POOL_V21[s.hero as "furnace" | "weaver"][Number(s.playerId.slice(-1))][s.day - 1]) }));
+ *  legacyText never writes).
+ *  BUMP-1D (LONG_RUN ships on): and a sample ghost states its `losses` (v3's field under a long run's rules, bb-0.11.0), which the frozen
+ *  v2.1 deck never had either and legacyText never writes: the copy drops it as well. Was ({ road, seed, ...s }). */
+const POOL_V21 = POOL.map(({ road: _road, seed: _seed, losses: _losses, ...s }) => net.checkSnapshot({ ...s, build: decodeStarred(s.hero, SAMPLE_POOL_V21[s.hero as "furnace" | "weaver"][Number(s.playerId.slice(-1))][s.day - 1]) }));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 function netOk(s: unknown): boolean {
@@ -203,6 +208,19 @@ describe("turret slots in the save and in ghosts", () => {
     expect(g.build.turrets).toEqual(TURRETS);
     expect(net.decodeSnapshot(net.encodeSnapshot(g))).toEqual(g);
     const { seed: _seed, ...plain } = ghostOf(newRun("furnace", 9, "plain-ghost"), 5, "p-plain"); // RUNES-1: the v3 seed aside
-    expect(net.encodeSnapshot(plain)).toBe(legacyText(plain));
+    // BUMP-1D (LONG_RUN ships on; RULING-BUMP-R3 R3.4 (b)): newRun marks the run long, so ghostOf states its `losses` (RUN-1, D4: day.ts ghostOf
+    // adds `losses: run.losses` for a long run; 0 on a new run), v3's field right after the seed (aside here), i.e. the last key of this
+    // ghost, which legacyText (the pre-turret text) never writes; still no `turrets` key. Was
+    // expect(net.encodeSnapshot(plain)).toBe(legacyText(plain)): that line is the 10-day run's now (the next test, under withLongRun false)
+    expect(plain.losses).toBe(0);
+    expect(net.encodeSnapshot(plain)).toBe(legacyText(plain).replace(/"createdAt":5\}$/, `"createdAt":5,"losses":0}`));
+  });
+
+  it("BUMP-1D: a 10-day run's ghost (withLongRun false, the old world) states no losses and encodes exactly as the pre-turret text", () => {
+    withLongRun(() => {
+      const { seed: _seed, ...plain } = ghostOf(newRun("furnace", 9, "plain-ghost"), 5, "p-plain"); // RUNES-1: the v3 seed aside
+      expect("losses" in plain).toBe(false);
+      expect(net.encodeSnapshot(plain)).toBe(legacyText(plain));
+    }, false);
   });
 });

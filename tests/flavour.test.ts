@@ -3,11 +3,13 @@ import { ITEMS, buyableModules, classFactor } from "../src/sim/content"; // U2c 
 import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dormant keeps its flavour row
 import { effectAt } from "../src/sim/stars";
 import { startingTurrets } from "../src/sim/deck"; // U2c (U2b's faces): the WEAVER's class factor
-import { faceLines } from "../src/ui/faces"; // U2c (U2b's faces)
+import { faceLines, hasFace } from "../src/ui/faces"; // U2c (U2b's faces); BUMP-1D: hasFace
 import { newRun } from "../src/game/run";
 import { KEPT_FLAVOUR, flavour, flavourText } from "../src/screens/build/flavour";
 import { cargoPanel, itemPanel, rigPanel, type PanelText } from "../src/screens/build/inspector";
 import { abilityText, hasAbilityText } from "../src/ui/abilityText";
+import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the twelve plain stat rigs have a face and no ability text
+import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on)
 import { textWidth } from "../src/render/font";
 import { wrapText } from "../src/ui/richText";
 import { STARS, SUPPLIES, banned, numbers, sentencesOf, starsOf } from "./textRules";
@@ -32,15 +34,26 @@ const KEPT: Record<string, string[]> = {
 };
 /** Everything the catalogue sells: the buyable modules, then each supply. */
 const SOLD = [...buyableModules(), ...SUPPLIES];
+/** BUMP-1D (PLAIN_RIGS and SHAPES2 on): the twelve plain stat rigs the catalogue sells now. Each is a stat row (a face, faces.ts) and
+ *  no ability line: no ability text (abilityText.ts ENTRIES), and no KEPT_FLAVOUR row, since flavour() shows none for a face. */
+const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
 /** The landscape details column's text widths (layout.ts: LAND_MIN_W to the capped column) and the phone band's. */
 const WIDTHS: [number, "5" | "3"][] = [[102, "5"], [109, "5"], [116, "5"], [102, "3"], [109, "3"], [116, "3"], [151, "3"]];
 
 describe("0.6.2t2 F1: the kept-flavour table", () => {
   it("has a row for every module and supply the catalogue sells (each has ability text), and for nothing else", () => {
-    expect(SOLD.filter((d) => !hasAbilityText(d.id)).map((d) => d.id)).toEqual([]);
+    // BUMP-1D: every sold piece has ability text but the twelve plain stat rigs (PLAIN12), which have a face instead and show no
+    // flavour (was toEqual([]))
+    expect(SOLD.filter((d) => !hasAbilityText(d.id)).map((d) => d.id).sort()).toEqual([...PLAIN12].sort());
+    for (const id of PLAIN12) {
+      expect(hasFace(id), id).toBe(true);
+      expect(flavour(id), id).toEqual([]);
+      expect(Object.prototype.hasOwnProperty.call(KEPT_FLAVOUR, id), id).toBe(false);
+    }
     // FLIP-X2 (REVIEW-NUM3 answer 2): a dormant piece (SIFTER) is no longer sold but keeps its row: the captains' fixed plans
     // and old decks still hold one, and its panel must still draw no desc (flavour() falls back to the desc without a row)
-    expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual([...SOLD.map((d) => d.id), ...DORMANT_ITEMS].sort());
+    // BUMP-1D: and the twelve have no row (was [...SOLD.map((d) => d.id), ...DORMANT_ITEMS])
+    expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual([...SOLD.map((d) => d.id).filter((id) => !PLAIN12.includes(id)), ...DORMANT_ITEMS].sort());
     // 0.6.2rel2 (the 0.6.2 candidate): 23 rigs, 13 factories, 13 cores, 9 gear, 13 turrets and 2 supplies
     // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3 is live: +8 rigs, +2 factories, +2 cores, +3 gear
     // FLIP-X2: SIFTER dormant, 31 -> 30 rigs sold
@@ -48,7 +61,8 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     const byKind: Record<string, number> = {};
     for (const d of SOLD) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL (src/sim/shapes.ts) are sold with SHAPES on, 30 -> 33 rigs
-    expect(byKind).toEqual({ gate: 33, factory: 16, core: 15, mod: 14, turret: 13, supply: 2 });
+    // BUMP-1D: the six plain stat rigs and the six more shaped rigs are sold with PLAIN_RIGS and SHAPES2 on, 33 -> 45 rigs
+    expect(byKind).toEqual({ gate: 45, factory: 16, core: 15, mod: 14, turret: 13, supply: 2 });
   });
 
   it("0.6.2rel2: each turret's kept claim holds against the TurretDefs at every star (and FB-B's four keep nothing)", () => {
@@ -88,7 +102,9 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     // WORDS-1 (REQ-BFG-081): SABOT FOUNDRY's three stars keep none now: 16 (was 19)
     // SHAPES-1 flip: the three shaped plain rigs' 9 module-stars (3 rigs x 3 stars) join, none with flavour (their
     // KEPT_FLAVOUR rows are [], as TEMPER's): 266 -> 275
-    expect(counts).toEqual({ moduleStars: 275, withFlavour: 16, sentences: 16 });
+    // BUMP-1D: the twelve plain stat rigs' 36 module-stars (12 rigs x 3 stars) join, none with flavour (a face, no KEPT_FLAVOUR
+    // row: flavour() shows none): 275 -> 311
+    expect(counts).toEqual({ moduleStars: 311, withFlavour: 16, sentences: 16 });
   });
 
   it("a kept sentence is one whole sentence under T2's rules and quotes no number", () => {

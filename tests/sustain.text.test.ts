@@ -14,7 +14,9 @@ import { NAMES_KEPT } from "../src/ui/gameWords"; // CARD-3 (REQ-BFG-107)
 import { C } from "../src/render/palette";
 import { colourize, lineText, wrapRich } from "../src/ui/richText";
 import { captureFormats, FORMATTERS, fmtCount, fmtDmg, fmtSec, fmtSpeed } from "../src/ui/statFormat";
-import { FACE_IDS, NEXT_LINE_W, REMINDER, faceAt, faceLines, faceNext, factoryStats, hasFace } from "../src/ui/faces";
+import { FACE_IDS, NEXT_LINE_W, REMINDER, cardEffect, faceAt, faceLines, faceNext, factoryStats, hasFace } from "../src/ui/faces"; // BUMP-1D: cardEffect
+import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the twelve plain stat rigs have a face and no ability text
+import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on)
 import { abilityText, cardText, gist, hasAbilityText, hitText, nextStarText } from "../src/ui/abilityText";
 import { GLOSSARY_WRAP_W, glossaryEntry, glossaryText, keywordRow } from "../src/ui/glossary";
 import { shopChip } from "../src/ui/chips";
@@ -264,7 +266,19 @@ describe("SUS-B the coverage checks under withSustain (the day RUNES-2b flips th
     withSustain(() => {
       const mods = buyableModules().filter((d) => fusible(d.id));
       for (const id of SUSTAIN_IDS) expect(mods.some((d) => d.id === id), id).toBe(true);
+      // BUMP-1D (PLAIN_RIGS and SHAPES2 on): the twelve plain stat rigs are buyable now. Each has a face (a stat row at every star, no
+      // ability line) and no ability text; the desk card's effect line is that stat row (faces.ts cardEffect; cardText is "" for them,
+      // tests/plain1.faces.test.ts). So they are checked for the face and the card's effect line in place of the ability text
+      const plain12 = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+      for (const id of plain12) expect(mods.some((d) => d.id === id), id).toBe(true);
       for (const d of mods) {
+        if (plain12.includes(d.id)) {
+          expect(hasFace(d.id), d.id).toBe(true);
+          expect(hasAbilityText(d.id), d.id).toBe(false);
+          expect(cardEffect(d.id).length, `${d.id}: the card's effect line`).toBeGreaterThan(0);
+          for (const s of STARS) expect(faceLines(d.id, s)!.stats!.length, `${d.id} ★${s}: its stat row`).toBeGreaterThan(0);
+          continue;
+        }
         expect(hasAbilityText(d.id), d.id).toBe(true);
         expect(cardText(d.id).length, d.id).toBeGreaterThan(0);
         for (const s of STARS) expect(abilityText(d.id, s).sentences.length, `${d.id} ★${s}`).toBeGreaterThan(0);

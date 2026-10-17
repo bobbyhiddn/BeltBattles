@@ -74,17 +74,18 @@ describe("S8 T1a: the bundled-pool loader takes the seed step's rule (cause a480
     expect(found.length, "road-fed decks the loader refuses without their road log, in the sample").toBeGreaterThan(0);
   }, 300_000); // azbump.n3's sample: 20 s alone (32 caravan runs); room for a loaded suite
 
-  it("the seed pool's 60 race ghosts (v3, each with its par run's road log and run seed) load whole; the old strict check refused some", () => {
+  it("the seed pool's 96 race ghosts (v3, each with its par run's road log and run seed) load whole; the old strict check refused some", () => {
+    // BUMP-1D: raceGhosts() is the long world's (days 1-16, 2 race heroes x 3 variants x 16 = 96; was 60, days 1-10), each stating its losses
     const ghosts = raceGhosts();
-    expect(ghosts.length).toBe(60);
+    expect(ghosts.length).toBe(96);
     const load = loadGhostPool(JSON.parse(JSON.stringify(ghosts)));
     expect(load.rejected).toEqual([]);
-    expect(load.entries).toHaveLength(60);
-    expect(checkPool(ghosts).length).toBe(60);
+    expect(load.entries).toHaveLength(96);
+    expect(checkPool(ghosts).length).toBe(96);
     // the loader before S8 T1a: validateBuild in the strict mode, the shop's gold alone (its budget line refuses a deck its
     // road paid for); read here, so the move is named, not pinned
     const strictRefused = ghosts.filter((g) => !validateBuild(g.build, g.day).ok).length;
-    console.log(`S8 T1a: race ghosts the strict check refuses: ${strictRefused} of 60; the loader now: ${load.rejected.length}`);
+    console.log(`S8 T1a: race ghosts the strict check refuses: ${strictRefused} of 96; the loader now: ${load.rejected.length}`);
     expect(strictRefused).toBeGreaterThan(0);
-  }, 300_000); // azbump.n3's race test: 20 s alone (24 par runs)
+  }, 300_000); // azbump.n3's race test: 20 s alone (24 par runs); BUMP-1D: 96 ghosts over days 1-16, more par runs (the 12 field runs to day 16 per hero)
 });

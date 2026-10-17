@@ -112,11 +112,11 @@ describe("AZ-BUMP N3: a pool entry's road log (REVIEW-PARAZ N3)", () => {
     allOn();
     const deck = raceDeck(hero, 4, 0);
     expect(deck.road).toEqual(playerRoadLog(playerRun(hero, 4, deck.seed), 4));
-    // every race ghost (FOUNDRY and BASTION, 3 variants x 10 days) through tools/samplePool.ts seedGhost's checks, then the
+    // every race ghost (FOUNDRY and BASTION, 3 variants x 16 days) through tools/samplePool.ts seedGhost's checks, then the
     // seed step's
     const ghosts = raceGhosts();
-    expect(ghosts.length).toBe(60);
+    expect(ghosts.length).toBe(96); // BUMP-1D: was 60 (3 variants x 10 days x 2 heroes); the long run's pool is 16 days deep (poolDepth())
     for (const g of ghosts) expect([g.v, g.road?.length], `${g.hero} d${g.day}`).toEqual([SNAPSHOT_V3, g.day]);
-    expect(checkPool(ghosts).length).toBe(60);
+    expect(checkPool(ghosts).length).toBe(96); // BUMP-1D: was 60
   }, 120_000); // 20 s alone (24 par runs); room for a loaded suite
 });

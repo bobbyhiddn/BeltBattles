@@ -37,7 +37,10 @@ describe("BELTS D10: the upgrade levels in a snapshot, local and strict checks a
   // is a par-field run's dusk deck now, so it carries that run's seed, a v3 field too ("snapshot.seed: not allowed in a v2
   // snapshot"), and the v2 and v1 rows drop it as well (was { grade, road, ...ungraded }: v2 turret 2 refused on both sides,
   // [false, false] for [true, true])
-  const { grade: _grade, road: _road, seed: _seed, ...ungraded } = base as typeof base & { grade?: number; road?: unknown };
+  // BUMP-1D: the seed pool is the long run's now (bb-0.11.0, LONG_RUN on): every ghost states its `losses`, a v3 field again (live
+  // only under a long run's rules, src/net/snapshot.ts v3LiveFor; "snapshot.losses: not allowed in a v2 snapshot"), so the v2 and v1
+  // rows drop it as well (was { grade, road, seed, ...ungraded }: v2 turret 2 refused on both sides, [false, false] for [true, true])
+  const { grade: _grade, road: _road, seed: _seed, losses: _losses, ...ungraded } = base as typeof base & { grade?: number; road?: unknown };
   const withUp = (v: 1 | 2, upgrades: unknown) => ({ ...ungraded, v, build: { ...runeless, upgrades } });
   const cases: [string, unknown, boolean][] = [
     ["turret 2", { turret: 2 }, true], ["factory 4", { factory: UPGRADE_MAX }, true], ["both 3", { turret: 3, factory: 3 }, true],

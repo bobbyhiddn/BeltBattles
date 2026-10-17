@@ -60,7 +60,7 @@ const EXAMPLE_RIGS = "14 0/kiln64 temper43r1*2 grease33r1/1:544434241404/calibra
 describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
   it("(a) every code of the v1.1 pool (the fixture since the 0.6.1 flip), every hero and day, decodes via decodeStarred exactly as via decodeStandIn", () => {
     const codes = v11Codes();
-    expect(new Set(codes.map((c) => `${c.hero}/${c.day}`)).size).toBe(STAND_IN_POOL_HEROES.length * STAND_IN_POOL_DAYS);
+    expect(new Set(codes.map((c) => `${c.hero}/${c.day}`)).size).toBe(STAND_IN_POOL_HEROES.length * 10); // BUMP-1D: the v1.1 FIXTURE holds days 1-10 (was * STAND_IN_POOL_DAYS, 16 now)
     for (const { hero, day, code } of codes) {
       expect(code, `${hero} d${day}`).not.toContain("*"); // v1.1 holds no starred word
       const v1 = decodeStandIn(hero, code), s = decodeStarred(hero, code);
@@ -94,7 +94,7 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
         n++;
       }
     }
-    expect(n).toBe(240);
+    expect(n).toBe(120 + STAND_IN_POOL_HEROES.length * STAND_IN_POOL_DAYS * 6); // BUMP-1D: 120 fixture decks + the pool: 2 x 16 x 6 = 312 (was 240)
   });
 
   it("(c) 2- and 3-star items and modules round-trip: the harness example, every pool deck starred, every fusible gate, factory, turret core and mod", () => {

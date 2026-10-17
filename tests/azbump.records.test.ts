@@ -16,6 +16,8 @@ import { dropPool, npcDayRules, roadDropValue, setNpcDay, withNpcDay } from "../
 import { hullScaleRules, withHullScale } from "../src/sim/hullScale";
 import { ladderFixRules, withLadderFix } from "../src/sim/ladderFix";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: bb-0.9.7's world has SHAPES off
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and SHAPES2 off
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: and the 10-day run
 import { warlordOffer, type Difficulty } from "../src/sim/rivals";
 import { choicesFor, pickChoice } from "../src/game/events";
 import { finishDay, ghostOf } from "../src/game/day";
@@ -41,8 +43,13 @@ const stored = (s: GhostSnapshot, id = ghostId(s)): StoredRecord => ({
 });
 /** `fn` in bb-0.9.7's world: every switch off, each put back after. SHAPES-1 flip (step 8): SHAPES off too, as the
  *  validator judges a record before bb-0.10.0 (validate.ts inShapesWorld): with it on the par player bought shaped rigs, which
- *  bb-0.9.7 refuses (rulesGate.ts shapesGateProblem), and its budget edge read SHAPES' prices. */
-const old = <T>(fn: () => T): T => withNpcDay(() => withHullScale(() => withLadderFix(() => withShapes(fn, false), false), false), false);
+ *  bb-0.9.7 refuses (rulesGate.ts shapesGateProblem), and its budget edge read SHAPES' prices.
+ *  BUMP-1D (LONG_RUN and SHAPES2 ship on): and those two off as well, the worlds validate.ts judges a bb-0.9.7 record in (inRulesWorld
+ *  puts the long run to the record's rules; inShapes2World the six more shaped rigs): a bb-0.9.7 run is the 10-day run (the road
+ *  cap's event sequence has the day-10 swap), and refuses the six shaped rigs (shapes2GateProblem: "rules bb-0.9.7 predate
+ *  bb-0.11.0: shaped rigs (ELBOW GUARD, ...) need bb-0.11.0 or later"), which the par player would buy. PLAIN_RIGS has no rules
+ *  gate (the validator leaves it as it stands), so it is not turned off here. */
+const old = <T>(fn: () => T): T => withNpcDay(() => withHullScale(() => withLadderFix(() => withShapes(() => withShapes2(() => withLongRun(fn, false), false), false), false), false), false);
 /** `s` with `n` more plates of hull. */
 const plated = (s: GhostSnapshot, n: number): GhostSnapshot => ({ ...s, build: { ...s.build, hullBonus: s.build.hullBonus + n * PLATE } as Build });
 /** The most plates `ok` lets `s` take. */
@@ -87,9 +94,11 @@ function honest(hero: HeroId, seed: number, days: number, tier: Difficulty): Gho
 
 describe("AZ-BUMP S6: a stored record is judged by its own rules (validate.ts inRulesWorld)", () => {
   it("the rules gate picks the world: bb-0.10.0 and later as the switches stand, older or unreadable rules with all three off", () => {
-    expect([RULES_VERSION, NPC_DAY_RULES]).toEqual(["bb-0.10.0", "bb-0.10.0"]);
+    // BUMP-1D: the bump moves RULES_VERSION to bb-0.11.0; NPC_DAY_RULES is a literal since AZ-BUMP and stays (was ["bb-0.10.0", "bb-0.10.0"])
+    expect([RULES_VERSION, NPC_DAY_RULES]).toEqual(["bb-0.11.0", "bb-0.10.0"]);
     const seen = (rules: unknown) => inRulesWorld(rules, () => [npcDayRules(), hullScaleRules(), ladderFixRules()]);
     expect(seen(RULES_VERSION)).toEqual([true, true, true]);
+    expect(seen("bb-0.10.0")).toEqual([true, true, true]); // BUMP-1D: the rules the switches came on with, no longer this build's
     expect(seen("bb-0.10.1")).toEqual([true, true, true]);
     for (const r of [OLD, "bb-0.9.3", "bb-0.6.2", "nope", undefined]) expect(seen(r), String(r)).toEqual([false, false, false]);
     expect([npcDayRules(), hullScaleRules(), ladderFixRules()]).toEqual([true, true, true]); // each put back
@@ -140,8 +149,13 @@ describe("AZ-BUMP S6: a stored record is judged by its own rules (validate.ts in
     // HEARTS_START (10) hearts on bb-0.10.0's scale, START_LIVES (5) lives on bb-0.9.7's, whose decoder bound is 9
     // (rulesGate.ts livesCapFor), so a stamped 10 was refused first ("snapshot.lives: expected an integer in 1..9")
     expect(top.lives).toBe(HEARTS_START);
-    const older: StoredRecord = { ...rec, text: rec.text.replace(`"rules":"${RULES_VERSION}"`, `"rules":"${OLD}"`).replace(`"lives":${HEARTS_START},`, `"lives":${START_LIVES},`) };
+    // BUMP-1D (LONG_RUN ships on): and without the `losses` it carries (a long run's upload states the dusks lost, taken only under
+    // long-run rules; a bb-0.9.7 client sends none): the decoder's gate refuses that field first ("snapshot.losses: not in this
+    // rules version yet"), ahead of the road log under test. The honest run won every dusk, so its text holds "losses":0
+    expect(top.losses).toBe(0);
+    const older: StoredRecord = { ...rec, text: rec.text.replace(`"rules":"${RULES_VERSION}"`, `"rules":"${OLD}"`).replace(`"lives":${HEARTS_START},`, `"lives":${START_LIVES},`).replace(`,"losses":0`, "") };
     expect(older.text).not.toBe(rec.text);
+    expect(older.text).not.toContain(`"losses"`);
     expect(uploadProblems(older, OLD)).toEqual([`strict decode: snapshot.road: rules ${OLD} predate ${NPC_DAY_RULES}: the road log (snapshot.road) needs ${NPC_DAY_RULES} or later`]);
   }, 120_000);
 });

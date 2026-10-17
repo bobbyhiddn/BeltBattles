@@ -58,6 +58,8 @@ import { finishWarlord, leaveCaravan, pickPending, pickRoad, todaysWarlord, take
 import { onToTheRoad } from "../src/game/road"; // NPC-1 (REQ-BFG-077): the event after the fight
 import { npcDayRules, roadLog, type RoadEntry } from "../src/sim/npcDay"; // NPC-1
 import { finishDay, startDusk } from "../src/game/day";
+import { heartsDusk } from "../src/sim/hearts"; // BUMP-1D (HEARTS): the lossy driver (driveRun) never takes a loss the hearts model ends the run on
+import { lcLastDay } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN): LAST CHANCE can fire on any day of a long run
 import { brokenRoutes, fightBlock } from "../src/game/routeCheck";
 import { unfusedInRun, type GainAt } from "../src/game/fuse";
 import type { SideStats } from "../src/sim/battle";
@@ -528,13 +530,26 @@ function unblock(run: Run): void {
  *  the offer holds, drawn from the driver's stream). */
 export type LastChancePick = "hull" | "drawn";
 
+/**
+ * BUMP-1D (HEARTS, bb-0.10.0; LONG_RUN, bb-0.11.0): how often the driver loses a dusk. "rare" (the default, every caller's
+ * stream as before): 15% lost, 5% drawn, a loss never taken at 1 heart or fewer. It was made for 5 lives, where a run that lost
+ * four dusks was at LAST CHANCE; on 10 hearts that costing 1, 1, 1, 2, 2, ... (hearts.ts HEART_COSTS [1, 2, 2]) fires LAST CHANCE in
+ * 0.25% of the runs (6 in 2400: hull 4, part 2, rune 0), too few for a test that wants all three cards played. "often": a
+ * weak player's run, 45% lost and 5% drawn, a loss that would empty the hearts with no LAST CHANCE left to save the run
+ * (hearts.ts heartsDusk, as day.ts finishDay takes it) won instead, so every run still plays its ten dusks and LAST CHANCE fires
+ * in about a run in three (net-upload.driver.test.ts: 215 of its 600 "often" runs; taken: hull 36, part 44, rune 55, and 80
+ * fired at day 10's dusk, whose pick waits for day 11's dawn).
+ */
+export type DriverLosses = "rare" | "often";
+
 /** One seeded run of `hero`, all ten days (the driver keeps a life in hand, so every run reaches day 10). */
-export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed", card: LastChancePick = "hull"): DriverRun {
+export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed", card: LastChancePick = "hull", losses: DriverLosses = "rare", days: number = RUN_DAYS): DriverRun {
   OPS = {};
   const rng = new Rng(hashSeed("v070-driver", seed, hero, policy));
   const run = newRun(hero, hashSeed("v070-run", seed, hero), `drv-${seed}-${hero}`);
   const dusks: Dusk[] = [];
-  for (let day = 1; day <= RUN_DAYS && !run.over; day++) {
+  // BUMP-1D (LONG_RUN): `days` past RUN_DAYS drives a long run's days 11+ (the run ends at 10 wins or 0 hearts, never by the day)
+  for (let day = 1; day <= days && !run.over; day++) {
     // Z-BUMP (the flip): a pending LAST CHANCE comes before the dawn's rune, as the picker requires: a card its offer holds,
     // from the driver's stream (drawn only when one is pending)
     const lc = pendingLastChance(run);
@@ -553,16 +568,18 @@ export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed
     dusks.push({ seed, hero, day: run.day, build: cloneBuild(run.build), road, gold: run.gold, invariant: unfusedInRun(run), ...taken, ...log });
     startDusk(run, []);
     const r = rng.next();
-    const winner = run.lives <= 1 || r < 0.8 ? 0 : r < 0.95 ? 1 : -1;
+    // BUMP-1D: "often" loses 45% of the dusks (r in [0.5, 0.95)), but never one that ends the run (the hearts model's own step)
+    const lethal = losses === "often" && heartsDusk(run.lives, run.day, "loss", run.lastChance !== undefined, { lastDay: lcLastDay(run) }).hearts <= 0;
+    const winner = losses === "often" ? (lethal || r < 0.5 ? 0 : r < 0.95 ? 1 : -1) : run.lives <= 1 || r < 0.8 ? 0 : r < 0.95 ? 1 : -1;
     finishDay(run, winner, 20 + day, ZERO, ZERO);
   }
   return { seed, hero, dusks, run, ops: OPS };
 }
 
 /** `n` runs, heroes in turn (run i plays DRIVER_HEROES[i % 6] on seed seed0 + i). */
-export function driveRuns(n: number, seed0 = 1, heroes: readonly HeroId[] = DRIVER_HEROES, policy: RoadPolicy = "mixed", card: LastChancePick = "hull"): DriverRun[] {
+export function driveRuns(n: number, seed0 = 1, heroes: readonly HeroId[] = DRIVER_HEROES, policy: RoadPolicy = "mixed", card: LastChancePick = "hull", losses: DriverLosses = "rare", days: number = RUN_DAYS): DriverRun[] {
   const out: DriverRun[] = [];
-  for (let i = 0; i < n; i++) out.push(driveRun(seed0 + i, heroes[i % heroes.length], policy, card));
+  for (let i = 0; i < n; i++) out.push(driveRun(seed0 + i, heroes[i % heroes.length], policy, card, losses, days));
   return out;
 }
 

@@ -6,7 +6,8 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { RULES_VERSION, START_LIVES } from "../src/sim/content";
 import { HEARTS_START, heartsRun, setHearts, withHearts } from "../src/sim/hearts";
-import { HEARTS_RULES, heartsFor } from "../src/net/rulesGate";
+import { HEARTS_RULES, heartsFor, rulesAtLeast } from "../src/net/rulesGate";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; a run saved before the bump is a 10-day run
 import { ghostAllowed, saveRunGhost } from "../src/game/ghostGuard";
 import { GHOST_KEY, loadPool } from "../src/game/ghosts";
 import { ghostOf } from "../src/game/day";
@@ -68,8 +69,9 @@ async function until(cond: () => boolean, ms = 6000): Promise<void> {
 }
 
 /** A run started with the switch off: no mark, 5 lives (a save from before the bump). HULL-ON (the flip, HEARTS): started
- *  under withHearts(fn, false) (the switch ships on now), as heartsRunAt starts its run under withHearts. */
-const livesRun = (seed: number): Run => takeDawnRune(withHearts(() => newRun("weaver", seed), false));
+ *  under withHearts(fn, false) (the switch ships on now), as heartsRunAt starts its run under withHearts. BUMP-1D: and with the long
+ *  run off too (LONG_RUN ships on): a run saved before the bump has no long mark either, so its snapshot states no `losses`. */
+const livesRun = (seed: number): Run => takeDawnRune(withLongRun(() => withHearts(() => newRun("weaver", seed), false), false));
 /** A run started with the switch on: the mark, 10 hearts. */
 const heartsRunAt = (seed: number): Run => takeDawnRune(withHearts(() => newRun("weaver", seed)));
 
@@ -86,10 +88,12 @@ describe("RETUNE-1 run 2: the upload guard (ghostAllowed)", () => {
     }, false);
   });
 
-  it("HEARTS on: a run without the mark is refused under hearts rules (this build's, HEARTS_RULES), allowed under older rules; a hearts run always allowed", () => {
+  it("HEARTS on: a run without the mark is refused under hearts rules (HEARTS_RULES, and this build's after them), allowed under older rules; a hearts run always allowed", () => {
     setHearts(true);
-    expect(HEARTS_RULES).toBe(RULES_VERSION);
-    expect([heartsFor(RULES_VERSION), heartsFor(OLDER)]).toEqual([true, false]);
+    // BUMP-1D: HEARTS_RULES is the literal bb-0.10.0 (it equalled RULES_VERSION until the bump to bb-0.11.0), and this build's rules are after it
+    expect(HEARTS_RULES).toBe("bb-0.10.0");
+    expect(rulesAtLeast(RULES_VERSION, HEARTS_RULES)).toBe(true);
+    expect([heartsFor(RULES_VERSION), heartsFor(HEARTS_RULES), heartsFor(OLDER)]).toEqual([true, true, false]);
     expect(ghostAllowed({})).toBe(false);
     expect(ghostAllowed({ hearts: undefined }, RULES_VERSION)).toBe(false);
     expect(ghostAllowed({}, OLDER)).toBe(true);

@@ -84,9 +84,11 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
   /** A day-1 dusk of `me` (0W, 10 hearts), its own runId each time, with `name` (absent when undefined). FLIP-X2: its deck
    *  holds day 1's rune, so it travels as v3 (was the rune-less v2 deck, which the exact count now refuses).
    *  HULL-ON (the flip, HEARTS): 5 lives -> HEARTS_START (10): day 1's one reachable record under this build's rules is
-   *  0W 10 hearts (POST answered 422 "record: 0W 5 lives is no record a run carries into dusk 1"). */
+   *  0W 10 hearts (POST answered 422 "record: 0W 5 lives is no record a run carries into dusk 1").
+   *  BUMP-1D (LONG_RUN ships on): and `losses: 0`, the dusks lost before day 1's: this build's rules (bb-0.11.0) are a long run's,
+   *  whose upload states them (server/app.ts lossesProblem: 422 "losses: ..." after the name check, so a named dusk was refused). */
   const dusk = (name?: unknown): Record<string, unknown> => ({
-    v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: 1, wins: 0, lives: HEARTS_START, build: withDawnRunes(heroStartBuild("furnace"), 1),
+    v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: 1, wins: 0, lives: HEARTS_START, losses: 0, build: withDawnRunes(heroStartBuild("furnace"), 1),
     runId: `names-${k++}`, playerId: me.playerId, createdAt: T0, ...(name === undefined ? {} : { name }),
   });
   /** POST exactly this JSON, signed by `me`. */
@@ -142,7 +144,9 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
     // (this build's dusk holds a rune, which the decoder's rules gate refuses under bb-0.8.3 with a 400, before this check)
     // HULL-ON (the flip, HEARTS): and on its own rules' 5-lives scale (START_LIVES): dusk() now carries 10 hearts, which the
     // decoder's lives bound for bb-0.8.3 (1..9) refuses with a 400, before this check
-    const old = JSON.stringify({ ...s, v: SNAPSHOT_VERSION, build: heroStartBuild("furnace"), rules: "bb-0.8.3", lives: START_LIVES });
+    // BUMP-1D (LONG_RUN ships on): and without the `losses` this build's dusk states (a bb-0.8.3 client sends none, and the decoder
+    // refuses the field under rules without a long run, 400, before this check; JSON.stringify leaves `undefined` out)
+    const old = JSON.stringify({ ...s, v: SNAPSHOT_VERSION, build: heroStartBuild("furnace"), rules: "bb-0.8.3", lives: START_LIVES, losses: undefined });
     const r422 = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, old), body: old });
     expect([r422.status, ((await r422.json()) as { error: string }).error]).toEqual([422, `rules bb-0.8.3 not accepted: this server validates ${RULES_VERSION}`]);
   });
@@ -219,12 +223,18 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
       const foe = storedFoe(run)!;
       expect(foe).toMatchObject({ kind: "ghost", source: "online" });
       expect(foe.record!.name).toBeUndefined();
-      expect(foeTitle(foe)).toBe(`${WANDERER} · ${foe.record!.wins}-${2 - foe.record!.wins}`);
+      // BUMP-1D: the title reads the ghost's STATED losses (b4b8dd4: DuskFoe.record.losses, copied from a snapshot that states it; every
+      // seed ghost of the long run does), the old derived 2 - wins only where the record has none (was `${wins}-${2 - wins}`, which is
+      // wrong for a record holding draws)
+      expect(foeTitle(foe)).toBe(`${WANDERER} · ${foe.record!.wins}-${foe.record!.losses ?? 2 - foe.record!.wins}`);
       // no answer (or a fallback): the day's stand-in captain, by its own name
       const stand = onlineFoe(runAt("weaver", 5, 2, 1, 5), null);
       expect(stand.kind).toBe("standin");
       expect(foeTitle(stand)).toBe(standInFoe(5, 2).name);
-    });
+      // BUMP-1D (test only, time limit only, no assertion moves): 600 s, the GATE RULE's limit for a reader of the pool generators (tests/net-pool.test.ts
+      // carries the same). The first sampleGhosts() + floorGhosts() of the process now plays the long run's casual floor runs (16 days, FLOOR_PICKS): ~21 s
+      // alone, 29.2 s (a hair under the 30 s testTimeout of vite.config.ts) in the 12:59Z whole-suite run, over it under a heavier load
+    }, 600_000);
   });
 });
 
@@ -242,7 +252,10 @@ describe("ghosts:admin revalidate: an upload under this build's rules needs its 
     // runes under bb-0.6.1, which the rules gate refuses: runes need bb-0.8.7); no runes, so no rune hull/belt and no seed
     // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and no road log, v3 only and
     // gated by NPC_DAY's rules ("snapshot.road: not allowed in a v2 snapshot")
-    const { seed: _seed, road: _road, ...rest } = s;
+    // BUMP-1D: and no stated losses, a v3 field too (the seed pool is the long run's now, bb-0.11.0: every ghost states its losses; live only
+    // under a long run's rules, src/net/snapshot.ts v3LiveFor; "snapshot.losses: not allowed in a v2 snapshot" at ghostId), the older
+    // client's deck stated none (was { seed, road, ...rest })
+    const { seed: _seed, road: _road, losses: _losses, ...rest } = s;
     // SOFT-1: the seed pool softened (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): s's deck (furnace d1 variant 0) is a
     // par-field run's dusk deck now, which holds the starting turret (build.turrets), and bb-0.6.1 predates turret slots
     // (bb-0.6.2): the older client's deck held none, so the copy drops them too (was { runes, ...build }: "rules bb-0.6.1

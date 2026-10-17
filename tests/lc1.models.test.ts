@@ -17,6 +17,7 @@ import { heartsRules, setHearts, withHearts } from "../src/sim/hearts"; // HULL-
 import type { SideStats } from "../src/sim/battle";
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { LAST_CHANCE_LIVES } from "../src/sim/lastChance";
+import { setLongRun, withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; the 5-lives models and the pool before the flip are read in the 10-day world
 import { newRun, type Run } from "../src/game/run";
 import { finishDay, startDusk } from "../src/game/day";
 import { floorRecord, isReachable, reachableRecords } from "../src/net/records";
@@ -108,7 +109,9 @@ describe("LC-1: survival.ts's exact model follows LAST CHANCE", () => {
   // Z-BUMP (the flip): was "..., switch on and off; ..."; on is the game's run code now; off is the model without
   // lastChance (LifeRules' absent: the model before the flip) against a run whose LAST CHANCE is spent; the audit reads
   // LAST_CHANCE_LIVES off the run code (its off reading, undefined, is gone with the switch)
-  it("modelCompletes agrees with the run code on every loss pattern; without lastChance, with a run whose LAST CHANCE is spent; the audit reads the rule", () => withHearts(() => {
+  it("modelCompletes agrees with the run code on every loss pattern; without lastChance, with a run whose LAST CHANCE is spent; the audit reads the rule", () => withLongRun(() => withHearts(() => {
+    // BUMP-1D: and the 10-day world (withLongRun(fn, false)): survival.ts's model is the 10-day run's (a run that wins all 10 dusks "completes"; a long run
+    // that wins 10 is "won" and has no day-10 end), and its run code is read in the world it models
     // HULL-ON (the flip, HEARTS): the model (LifeRules) is the 5-lives model, and with HEARTS on lifeAudit throws ("the
     // model doesn't cover these rules"), so the body runs with HEARTS off: 5-lives runs, the world the model covers. LOOK
     const a = lifeAudit("furnace", 4242);
@@ -120,7 +123,7 @@ describe("LC-1: survival.ts's exact model follows LAST CHANCE", () => {
       expect(modelCompletes(r, lost), `${mask}`).toBe(runPattern("furnace", 4242, mask).complete);
       expect(modelCompletes(before, lost), `without lastChance ${mask}`).toBe(spentCompletes(mask));
     }
-  }, false), 120_000);
+  }, false), false), 120_000);
 });
 
 describe("LC-1: tooling.ts and server/seed.ts", () => {
@@ -154,6 +157,9 @@ async function preFlipPool(): Promise<GhostSnapshot[]> {
     // HULL-ON (the flip, HEARTS): the fresh graph's hearts.ts starts with the flip's HEARTS on, and the generator's labels
     // read it (samplePool.ts drawnLabel), so it follows this file's switch (off in the test below: a 5-lives pool)
     (await import("../src/sim/hearts")).setHearts(heartsRules());
+    // BUMP-1D: and the 10-day world: the pool before the flip is a 10-day pool (120 ghosts, days 1-10, the 10-day record model under OLD_RULES), but the
+    // fresh graph's longRun.ts starts with LONG_RUN on (it ships on), which would make a 192-ghost days 1-16 pool with the long model's `losses`
+    (await import("../src/sim/longRun")).setLongRun(false);
     // HULL-ON (the flip, PICK; cap's ruling 22e26ded338944ea Q4): the pool build runs with PICK off, through the fresh
     // graph's own pick.ts (samplePool.ts imports it, so the graph's load order is unchanged). The test reads no grade, and
     // no value a grade moves (labels, records and coverage: samplePool.ts adds the grade last, after the labels and the
@@ -177,6 +183,10 @@ describe("LC-1: the seed pool at the flip (read only; nothing is regenerated)", 
     // the hearts model: 74 "moved", not 6)
     setHearts(false);
     onTestFinished(() => setHearts(true)); // the shipped value (HULL-ON's flip)
+    // BUMP-1D: the 10-day world too (LONG_RUN ships on; the pool before the flip and the records it is read against are the 10-day run's: this graph's
+    // isReachable / uncoveredStates read this switch, preFlipPool's fresh graph its own)
+    setLongRun(false);
+    onTestFinished(() => setLongRun(true));
     const pool = await preFlipPool(); // the 120 seed ghosts before the flip
     const moved = pool.filter((g) => !isReachable(g.day, g.wins, g.lives));
     const gaps = uncoveredStates(pool);

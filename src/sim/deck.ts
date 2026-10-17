@@ -11,16 +11,21 @@ import {
 import { ladderFixRules, rideKeepOf } from "./ladderFix"; // LADDER_FIX (cap's oracle d306b1b196dbab38): the walk rides tick by tick; HULL-1b: OVERDRIVE's ride-keep
 import "./guard"; // RETUNE-1 (REQ-BFG-097): GUARD's content patch (guard.ts) loads with the deck rules, so GUARD = true takes hold everywhere
 import { freeJoinsRules } from "./freeJoins"; // JOINS-1 (REQ-BFG-091): FREE_JOINS drops RULE JOIN LIMIT and RULE JOIN PACE
+import "./plainRigs"; // PLAIN-1 (REQ-BFG-084): loads PLAIN_RIGS's switch, so its six defs are in ITEMS whenever it is on
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
 // SHAPES-1 (REQ-BFG-086 R1-R2): the footprint engine (foot.ts) and the SHAPES switch (shapes.ts, loaded with the sim)
 import { canonicalRot, footOf, footOffsets, footOnDeck, footprintCells } from "./foot";
 import { shapesRules } from "./shapes";
+import "./shapes2"; // SHAPES-2 (REQ-BFG-114): loads SHAPES2's switch, so its six defs are in ITEMS whenever it is on (after SHAPES' three)
 // re-exported, so the portable stand-in loader and beltside.ts keep importing only ./content and ./deck
 // (tests/standInPool.gen.test.ts)
 export { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "./foot";
 export { RESHAPED_IDS, shapesRules } from "./shapes";
+// SHAPES-2 (REQ-BFG-114): re-exported too, so faces.ts imports it from ../sim/deck (tests/faceText.test.ts: no string literal of faces.ts may hold a
+// digit, an import path included, and shapes2's name does)
+export { isShapes2Piece, shapes2Rules } from "./shapes2";
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];

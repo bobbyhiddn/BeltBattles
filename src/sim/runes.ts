@@ -20,6 +20,7 @@ import { HEROES, RARITIES, type HeroId, type Rarity } from "./content";
 import { sustainLive } from "./content"; // SUS-D (REQ-BFG-069): the sustain switch gates the sustain runes' offer
 import { SUSTAIN_FIRST_DAY } from "./content"; // BOTS-X (REQ-BFG-069): the day-3 hold (runeOffer, runeProblem)
 import { OPEN_RUNE_DEFS, bindOpenRuneDefs } from "./openRunes"; // OPEN-1 (REQ-BFG-109): the rewrites behind OPEN_RUNES
+import { FIRST_RUN_DAYS, FIRST_RUN_RUNES, firstRunGate, seededOrder } from "./firstRun"; // FIRSTDAY-1 (REQ-BFG-004): F3's rune offers
 
 /** SUS-D: "sec" is a whole number of seconds (TICK GUARD's timer; runeText.ts writes it with the SEC icon, as `8{SEC}`). */
 export type RuneUnit = "dmg" | "hull" | "plate" | "gold" | "belt" | "pct" | "count" | "sec";
@@ -434,6 +435,45 @@ export function runeOffer(seed: number, day: number, hero: HeroId, held: readonl
   return { day, tier, drawn, ids: cards.map((c) => c.id) };
 }
 
+// ---- FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F3): a first run's dawn offers (firstRun.ts) --------------------------------
+
+/** F3: the runes no first-run dawn shows before day 3: every VOLLEY, MERGED or STAMP rune (the word in its text: today
+ *  FINAL NAIL, EMBER SHOT, FIRST BLOOD, SCRAP HALO, SCRAP SAINT and FORGE WARD; tests/firstday1.rules.test.ts pins them). */
+export const firstRunBarred = (id: string): boolean => isRune(id) && /\b(VOLLEY|MERGED|STAMP)\b/.test(RUNES[id].text);
+
+/**
+ * F3: a first run's offer at the dawn of `day` (only days 1 and 2 differ from runeOffer; pure and deterministic, as
+ * runeOffer is, so the client, the server and a test agree):
+ * - dawn 1: the 3 plain stat runes (FIRST_RUN_RUNES), whatever the seed offered (the seed's tier draw is kept as `drawn`);
+ * - dawn 2: the seed's offer (runeOffer), each VOLLEY, MERGED or STAMP card replaced in its place by the next rune in a
+ *   seeded order (its own stream, "first-run-rune") of the allowed runes: the offer's tier, none barred, none held, none
+ *   already on the offer, and fitting the hero (FIX-10's runeFits; every common and rare theme but another hero's style),
+ *   then any allowed rune if no fitting one is left;
+ * - day 3 on: runeOffer.
+ */
+export function firstRunRuneOffer(seed: number, day: number, hero: HeroId, held: readonly string[]): RuneOffer {
+  const base = runeOffer(seed, day, hero, held);
+  if (day === 1) return { day, tier: "common", drawn: base.drawn, ids: FIRST_RUN_RUNES.filter((id) => isRune(id) && !held.includes(id)) };
+  if (day !== 2 || !base.ids.some(firstRunBarred)) return base;
+  const allowed = RUNE_LIST.filter((d) => !DORMANT_RUNES.has(d.id) && d.tier === base.tier && !firstRunBarred(d.id) && !held.includes(d.id) && !base.ids.includes(d.id));
+  const order = seededOrder(allowed, seed, "first-run-rune", day);
+  const queue = [...order.filter((d) => runeFits(d, hero)), ...order.filter((d) => !runeFits(d, hero))];
+  const ids: string[] = [];
+  for (const id of base.ids) {
+    if (!firstRunBarred(id)) ids.push(id);
+    else if (queue.length) ids.push(queue.shift()!.id);
+  }
+  return { day, tier: base.tier, drawn: base.drawn, ids };
+}
+
+/** The dawn offer a run sees: a first run's (F3) while the gate is live and the day is 1 or 2, else runeOffer. Every
+ *  dawn reader asks it: run.ts pendingRune, runeProblem (the client's checks and the server's).
+ *  PLAIN-1F (M1): it takes OPEN-1's offer rule `open` before the first-run flag. A first run's dawns 1-2 are F3's offer
+ *  whatever `open` says; every other dawn is runeOffer(..., open), exactly as c099 reads it. */
+export function dawnRuneOffer(seed: number, day: number, hero: HeroId, held: readonly string[], open = false, firstRun = false): RuneOffer {
+  return firstRun && day <= FIRST_RUN_DAYS && firstRunGate() ? firstRunRuneOffer(seed, day, hero, held) : runeOffer(seed, day, hero, held, open);
+}
+
 // ---- the check (src/net/validate.ts validateBuild, both modes; src/game/ghostSnapshot.ts isSnapshot) ------------------
 
 /** FLIP-X2 (REQ-BFG-058; cap's ruling 5d6d83ef57d1494c): how many runes a deck must hold on `day`. "exact": one a dawn,
@@ -456,7 +496,10 @@ export type RuneCount = "exact" | "atMost";
  * OPEN-1 (REQ-BFG-109): `open` is the offer rule of the record's own rules (rulesGate.ts openRunesFor(snapshot.rules));
  * each dawn's offer is re-derived under it (runeOffer's `open`). Closed (the default): as before.
  */
-export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number, count: RuneCount = "atMost", keepDormant = false, lcAt = -1, open = false): string | null {
+export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number, count: RuneCount = "atMost", keepDormant = false, lcAt = -1, open = false, firstRun = false): string | null {
+  // FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F4): `firstRun` (a snapshot's firstRun flag): with the seed, days 1-2's offers
+  // are re-derived by F3's rule (dawnRuneOffer) while the gate is live; false (every caller before FIRSTDAY-1, every
+  // switch-off deck) reads every line below as before. PLAIN-1F (M1): it is the 9th parameter, after OPEN-1's `open`.
   // LC-1 (REQ-BFG-073): `lcAt` (>= 0 only for a snapshot whose lastChance took a rune): the LAST CHANCE rune's index, right
   // after the dawn pick of its day (lastChance.ts lastChanceRuneAt). It is one more rune than the dawns; its own offer is
   // validate.ts's check (lastChance.ts lastChanceOffer), and each dawn rune after it was taken at the dawn of day i, not
@@ -485,7 +528,7 @@ export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: nu
     if (seed === undefined && isSustainRune(q.id) && dawn < SUSTAIN_FIRST_DAY) return `runes[${i}]: ${RUNES[q.id].name} is not offered before the dawn of day ${SUSTAIN_FIRST_DAY}`;
     if (held.includes(q.id)) return `runes[${i}]: ${RUNES[q.id].name} is held twice`;
     // LC-1: the LAST CHANCE rune's offer is validate.ts's (lastChance.ts lastChanceOffer), not a dawn's
-    if (seed !== undefined && i !== lcAt && !runeOffer(seed, dawn, hero, held, open).ids.includes(q.id)) {
+    if (seed !== undefined && i !== lcAt && !dawnRuneOffer(seed, dawn, hero, held, open, firstRun).ids.includes(q.id)) {
       return `runes[${i}]: ${RUNES[q.id].name} was not offered at the dawn of day ${dawn}`;
     }
     held.push(q.id);

@@ -23,6 +23,8 @@ import { FAKE_CREDS, startFake, tigrisFor } from "./netStores";
 // the store (bypassing POST) are found by revalidate; and the match route stops serving a deleted ghost.
 
 const POOL = generateSamplePool(); // the seed pool: 120 ghosts of RULES_VERSION (0.8.0 RC: the four heroes; was 60)
+// BUMP-1D: the seed pool is the long run's (bb-0.11.0): days 1-16, 4 heroes x 16 days x 3 variants = 192 ghosts (was days 1-10, 120)
+const POOL_N = 192, POOL_DAYS = 16;
 const OLD = "bb-0.6.1";
 const plain = POOL.filter((s) => !s.build.turrets && !s.build.routes.some((r) => r.join !== undefined)); // valid under bb-0.6.1 too
 // HULL-ON (the flip, PICK): with PICK on every seed-pool ghost carries the seed step's grade (snapshot.grade), which no
@@ -50,6 +52,9 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
   // S8 (the pools: P1 83c039d's tuples carry a road log, so FURNACE / WEAVER seed ghosts do too): and the road log, v3 only and
   // gated by NPC_DAY's rules, which a pre-rune client never sends ("snapshot.road: not allowed in a v2 snapshot")
   delete out.road;
+  // BUMP-1D: and the stated losses, v3 only and live only under a long run's rules (the seed pool is the long run's now, bb-0.11.0: every
+  // ghost states them; "snapshot.losses: not allowed in a v2 snapshot" at ghostId in populate), which a pre-rune client never sends
+  delete out.losses;
   out.lives = Math.min(s.lives, START_LIVES); // HULL-ON (the flip, HEARTS): an older rules string's 5-lives scale
   delete out.build.runes;
   return out;
@@ -71,6 +76,8 @@ describe("the planted ghosts are what the tests say they are", () => {
     expect(isReachable(UNREACH.day, UNREACH.wins, UNREACH.lives)).toBe(false);
     for (const s of HONEST) expect([validateUpload(s.build, s.day, s.rules).ok, isReachable(s.day, s.wins, s.lives)]).toEqual([true, true]);
     expect(plain.length).toBeGreaterThan(2);
+    expect(POOL).toHaveLength(POOL_N); // BUMP-1D: 192 (was 120)
+    expect(Math.max(...POOL.map((s) => s.day))).toBe(POOL_DAYS); // BUMP-1D: days 1-16 (was 1-10)
   });
 });
 
@@ -207,11 +214,11 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
     const r = await admin(h, "list", "--rules", RULES_VERSION);
     expect(r.code).toBe(0);
     const t = table(r.out);
-    for (let day = 1; day <= 10; day++) {
+    for (let day = 1; day <= POOL_DAYS; day++) { // BUMP-1D: days 1-16 (was 1-10)
       const ups = HONEST.filter((s) => s.day === day);
       expect(t[String(day)], `day ${day}`).toEqual([POOL.filter((s) => s.day === day).length, ups.length, new Set(ups.map((s) => s.playerId)).size]);
     }
-    expect(t.all).toEqual([120, 3, 2]); // 0.8.0 RC (oracle 96e0ebe434a93f2b): the four-hero seed pool (was 60)
+    expect(t.all).toEqual([POOL_N, 3, 2]); // 0.8.0 RC (oracle 96e0ebe434a93f2b): the four-hero seed pool (was 60); BUMP-1D: 192 (was 120)
     expect(h.state()).toEqual(before);
     // another rules version is listed on its own
     expect(table((await admin(h, "list", "--rules", OLD)).out).all).toEqual([1, 1, 1]);
@@ -236,7 +243,8 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
     expect(dry.planned.sort()).toEqual(Object.values(refs).sort());
     const why = (ref: string) => dry.out.find((l) => l.startsWith(`  delete ${ref}  `)) ?? "";
     expect(why(refs.over)).toMatch(/validateUpload: budget/);
-    expect(why(refs.unreach)).toMatch(/0W 3 lives is no record a run carries into dusk 3/);
+    // BUMP-1D: UNREACH is the day-3 pool ghost's copy, which states its losses (2 here), and the record message names them (records.ts) (was "0W 3 lives is no record ...")
+    expect(why(refs.unreach)).toMatch(/0W 3 lives and 2 losses is no record a run carries into dusk 3/);
     expect(why(refs.broken)).toMatch(/strict decode: snapshot\.wins/);
     expect(why(refs.badid)).toMatch(/record: id "gnotitsid000001" is not the snapshot's ghost id/);
     if (refs.badkey) expect(why(refs.badkey)).toMatch(/key: .* is not a ghost key/);
@@ -249,7 +257,7 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
     for (const s of strays) expect(h.state()[s]).toBe("hello");
     const again = await admin(h, "revalidate", "--rules", RULES_VERSION);
     expect(again.planned).toEqual([]);
-    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([120, 3, 2]); // a later list agrees (0.8.0 RC: was 60)
+    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([POOL_N, 3, 2]); // a later list agrees (0.8.0 RC: was 60; BUMP-1D: 192, was 120)
   });
 
   it("wipe-uploads deletes every upload of that rules version, never the seed pool without --pool, nothing of another version", async () => {
@@ -258,24 +266,24 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
     const r = await admin(h, "wipe-uploads", "--rules", RULES_VERSION, "--apply");
     expect(r.code).toBe(0);
     expect(r.planned).toHaveLength(HONEST.length + (h.name === "tigris" ? 5 : 4));
-    expect(r.out.join("\n")).toMatch(/the seed pool \(120\) stays: --pool would delete it too/); // 0.8.0 RC: was (60)
+    expect(r.out.join("\n")).toMatch(new RegExp(`the seed pool \\(${POOL_N}\\) stays: --pool would delete it too`)); // 0.8.0 RC: was (60); BUMP-1D: (192), was (120)
     expect(h.state()).toEqual(h.without(before, r.planned));
-    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([120, 0, 0]); // a later list agrees (0.8.0 RC: was 60)
+    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([POOL_N, 0, 0]); // a later list agrees (0.8.0 RC: was 60; BUMP-1D: 192, was 120)
     expect(table((await admin(h, "list", "--rules", OLD)).out).all).toEqual([1, 1, 1]); // another rules version: untouched
     const store = h.store(); // the seed pool still matches, every day
-    for (let day = 1; day <= 10; day++) expect((await store.bucket(RULES_VERSION, day, "pool")).length).toBe(POOL.filter((s) => s.day === day).length);
+    for (let day = 1; day <= POOL_DAYS; day++) expect((await store.bucket(RULES_VERSION, day, "pool")).length).toBe(POOL.filter((s) => s.day === day).length); // BUMP-1D: days 1-16 (was 1-10)
   });
 
   it("wipe-uploads --pool deletes the seed pool too (the next seed writes it back); still nothing of another version", async () => {
     const before = h.state();
     const r = await admin(h, "wipe-uploads", "--pool", "--rules", RULES_VERSION, "--apply");
     expect(r.code).toBe(0);
-    expect(r.planned).toHaveLength(120 + HONEST.length); // 0.8.0 RC: was 60
+    expect(r.planned).toHaveLength(POOL_N + HONEST.length); // 0.8.0 RC: was 60; BUMP-1D: 192, was 120
     expect(h.state()).toEqual(h.without(before, r.planned));
     expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([0, 0, 0]);
     expect(table((await admin(h, "list", "--rules", OLD)).out).all).toEqual([1, 1, 1]);
-    expect(await seedStore(h.store())).toMatchObject({ written: 120, removed: 0 });
-    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([120, 0, 0]); // 0.8.0 RC: was 60
+    expect(await seedStore(h.store())).toMatchObject({ written: POOL_N, removed: 0 }); // BUMP-1D: 192 (was 120)
+    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([POOL_N, 0, 0]); // 0.8.0 RC: was 60; BUMP-1D: 192, was 120
   });
 
   it("remove-player deletes every upload by that player and nothing else; a seed ghost's player id touches no pool ghost", async () => {

@@ -39,6 +39,7 @@ import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
 import { START_LIVES } from "../src/sim/content"; // HULL-ON (the flip, HEARTS): an older-rules snapshot's 5-lives scale
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): this build's uploads carry hearts
+import { MAX_RUN_DRAWS } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN): the draws an upload may carry
 
 const NEW: readonly HeroId[] = ["foundry", "bastion"];
 const OLD: readonly HeroId[] = ["furnace", "weaver"];
@@ -57,8 +58,12 @@ const refUp = (hero: HeroId, day: number): Build => withDawnRunes(heroRefBuild(h
 /** HULL-ON (the flip, HEARTS): `hero`'s upload of `day` under RULES_VERSION (refUp's deck) at 0W with every heart kept,
  *  HEARTS_START (10), a record the hearts model reaches at every dusk (a run of draws). Was snap's 0W 5 lives, which no
  *  hearts run carries into dusk 1 or 3 (POST: 422 "record: ..."). snap() keeps 5 lives for the older rules it writes and
- *  for the served ghosts below (a served ghost may hold no better record than the request's 5 lives). */
-const upNow = (hero: HeroId, day: number): GhostSnapshot => ({ ...snap(hero, day, RULES_VERSION, refUp(hero, day)), lives: HEARTS_START });
+ *  for the served ghosts below (a served ghost may hold no better record than the request's 5 lives).
+ *  BUMP-1D (LONG_RUN ships on): and it states its losses, 0 (a run of draws loses no dusk), as this build's rules require of an
+ *  upload (server/app.ts lossesProblem: 422 "losses: a long run's upload states the dusks the run lost ..." without it); a long
+ *  run's upload carries at most MAX_RUN_DRAWS (8) draws (snapshot.ts v3Fields), so from day 10 on the record keeps one win
+ *  (day 10 at 0W was 9 draws: 400 "snapshot.losses: 9 draws in 9 dusks is past 8"): wins = day - 1 - 8 when that is above 0. */
+const upNow = (hero: HeroId, day: number): GhostSnapshot => ({ ...snap(hero, day, RULES_VERSION, refUp(hero, day)), wins: Math.max(0, day - 1 - MAX_RUN_DRAWS), lives: HEARTS_START, losses: 0 });
 /** FLIP-X2: a new run that took day 1's dawn rune, as the picker takes it (the first card, as tooling.ts playOut). */
 function dawned(run: Run): Run {
   expect(takeRune(run, pendingRune(run)!.ids[0]).ok).toBe(true);
@@ -67,7 +72,7 @@ function dawned(run: Run): Run {
 
 describe("the table: heroes by rules version", () => {
   it("bb-0.6.2 and every earlier or unreadable version: FURNACE and WEAVER; HEROES_RULES (bb-0.8.0) and later: the four", () => {
-    expect(RULES_VERSION).toBe("bb-0.10.0") /* AZ-BUMP: the bump (was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // RUNES-1 bumped it (PACKS: bb-0.8.6, BELTS: bb-0.8.3) (0.8.0 RC: bb-0.6.2 -> bb-0.8.0, HEROES_RULES itself)
+    expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: the bump, was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // RUNES-1 bumped it (PACKS: bb-0.8.6, BELTS: bb-0.8.3) (0.8.0 RC: bb-0.6.2 -> bb-0.8.0, HEROES_RULES itself)
     expect(HEROES_RULES).toBe("bb-0.8.0"); // the first rules that carry the four: BELTS's bb-0.8.3, PACKS's bb-0.8.6 and RUNES-1's bb-0.8.7 need no new row
     expect(RULES_HEROES.map((r) => [r.from, [...r.heroes]])).toEqual([
       ["bb-0.0.0", ["furnace", "weaver"]], ["bb-0.8.0", ["furnace", "weaver", "foundry", "bastion"]],
@@ -278,9 +283,9 @@ describe("the server and the client, both ways", () => {
     error.mockRestore();
   });
 
-  it("the seed check refuses a FOUNDRY ghost under bb-0.6.2; the real seed pool (the four playable heroes, 120 ghosts since the RC) passes", () => {
+  it("the seed check refuses a FOUNDRY ghost under bb-0.6.2; the real seed pool (the four playable heroes, 192 ghosts since BUMP-1D, 120 from the RC) passes", () => {
     const pool = generateSamplePool();
-    expect(checkPool(pool)).toHaveLength(120); // 0.8.0 RC: FOUNDRY and BASTION joined FURNACE and WEAVER's 60 (oracle 96e0ebe434a93f2b)
+    expect(checkPool(pool)).toHaveLength(192); // 0.8.0 RC: FOUNDRY and BASTION joined FURNACE and WEAVER's 60 (oracle 96e0ebe434a93f2b). BUMP-1D: was 120 (days 1-10); 4 heroes x 16 days x 3 variants = 192
     expect(new Set(pool.map((p) => p.hero))).toEqual(new Set(["furnace", "weaver", "foundry", "bastion"]));
     // HULL-ON (the flip, HEARTS): the bad entry is on bb-0.6.2's 5-lives scale (START_LIVES): pool[0] (day 1, 0W) carries
     // 10 hearts under this build's rules, which the decoder's lives bound for bb-0.6.2 (1..9) refused before the hero gate

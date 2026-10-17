@@ -22,6 +22,7 @@ import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
 import { allCaptainRunes, captainRuneSeed, captainRunes, captainRunesText } from "../tools/genCaptainRunes";
 import { PROBE_RULES, PROBE_SEED, probeRunes } from "../server/ghostProbe";
 import { withShapes } from "../src/sim/shapes"; // MERGE-099F: the server-check records built with SHAPES off (parDeck)
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and with SHAPES2 off (parDeck)
 
 const HEROES4: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 /** A rules version before OPEN_RUNES_RULES (RULES_VERSION until BUMP-1D; it stays older after the bump). */
@@ -44,14 +45,19 @@ describe("OPEN-1: the switch and its rules row", () => {
     expect(openRunesRules()).toBe(true);
   });
 
-  it("openRunesFor(rules): the switch AND rules at or after OPEN_RUNES_RULES (RULES_VERSION until BUMP-1D writes it)", () => {
-    expect(OPEN_RUNES_RULES).toBe(RULES_VERSION);
+  it("openRunesFor(rules): the switch AND rules at or after OPEN_RUNES_RULES (the literal bb-0.10.0 since HULL-ON's flip; RULES_VERSION until then)", () => {
+    // BUMP-1D (the bump to bb-0.11.0): OPEN_RUNES_RULES is a literal since the flip, so it stays put while RULES_VERSION moves
+    // on: this build's rules are after it, not equal to it (was expect(OPEN_RUNES_RULES).toBe(RULES_VERSION))
+    expect(OPEN_RUNES_RULES).toBe("bb-0.10.0");
+    expect(RULES_VERSION).toBe("bb-0.11.0");
+    expect(OPEN_RUNES_RULES).not.toBe(RULES_VERSION);
     // HULL-ON (the flip, OPEN_RUNES): "false whatever the rules" is the switch-off half, so it sets the switch off itself
     withOpenRunes(() => {
       for (const r of [RULES_VERSION, OLD_RULES, "bb-99.0.0", "nonsense", undefined]) expect(openRunesFor(r), String(r)).toBe(false);
     }, false);
     withOpenRunes(() => {
       expect(openRunesFor(RULES_VERSION)).toBe(true);
+      expect(openRunesFor("bb-0.10.0")).toBe(true); // BUMP-1D: the rules the literal names are open
       expect(openRunesFor("bb-99.0.0")).toBe(true);
       expect(openRunesFor(OLD_RULES)).toBe(false);
       expect(openRunesFor("nonsense")).toBe(false);
@@ -145,8 +151,12 @@ describe("OPEN-1: LAST CHANCE's rune card, on and off", () => {
     expect(HEROES4.map((h) => lastChanceOffer(1, 8, h, []).rune?.id)).toEqual(["thread_storm", "widows_web", "scrap_saint", "scab_iron"]);
     for (const h of HEROES4) {
       // HULL-ON (HULL_SCALE, on since AZ-BUMP's flip def6e73): the PART card is ★2 (HULL-1d lastChancePartStars: partStars 2)
-      expect(lastChanceOffer(1, 8, h, [], true), h).toEqual({ day: 8, rune: { id: "scrap_saint", tier: "epic" }, part: "chamber", partStars: 2, hull: 500 });
-      expect(lastChanceOffer(1, 8, h, []).part, h).toBe("chamber");
+      // BUMP-1D: the part chamber -> hailgun. SHAPES2 ships on and its epic rig, PICKAXE, joins lastChanceParts() (the epic gates,
+      // turrets and gear of the buyable catalogue; PLAIN_RIGS' six are commons and rares), so the card's one even draw (rng.int of
+      // the list's length) lands on another entry; the seed-1 day-8 draw is the same for every hero and for open and closed rune
+      // offers (measured: HAILGUN)
+      expect(lastChanceOffer(1, 8, h, [], true), h).toEqual({ day: 8, rune: { id: "scrap_saint", tier: "epic" }, part: "hailgun", partStars: 2, hull: 500 });
+      expect(lastChanceOffer(1, 8, h, []).part, h).toBe("hailgun");
       expect(lastChanceOffer(1, 5, h, [], true).rune?.id, h).toBe("thread_storm");
     }
   });
@@ -185,9 +195,11 @@ describe("OPEN-1: LAST CHANCE's rune card, on and off", () => {
  *  (FOUNDRY seed 2's day-4 deck holds a shaped rig), so under OLD_RULES the shapes gate refuses the
  *  record before the rune check these tests read ("rules: rules bb-0.9.3 predate bb-0.10.0: shaped rigs ..."). The decks
  *  are built in the world OPEN-1's tests were written in, SHAPES off (the merged tree with SHAPES off is hullon-accepted's
- *  shipped world: BRIEF-MERGE-099F step 4); was built with SHAPES on (the merged world) only since the merge. */
+ *  shipped world: BRIEF-MERGE-099F step 4); was built with SHAPES on (the merged world) only since the merge.
+ *  BUMP-1D (SHAPES2 ships on): the same for the six more shaped rigs, which bb-0.9.3 refuses first (shapes2GateProblem: "rules
+ *  bb-0.9.3 predate bb-0.11.0: shaped rigs (ELBOW GUARD, ...) need bb-0.11.0 or later"): the decks are built with SHAPES2 off too. */
 function parDeck(hero: HeroId, seed: number, D: number, open: boolean): GhostSnapshot {
-  const build = withShapes(() => withOpenRunes(() => playerRun(hero, D, seed)[D - 1].build, open), false);
+  const build = withShapes2(() => withShapes(() => withOpenRunes(() => playerRun(hero, D, seed)[D - 1].build, open), false), false);
   return {
     v: SNAPSHOT_V3, rules: RULES_VERSION, hero, day: D, wins: D - 1, lives: 5, build, runId: `open1-${hero}-${seed}`,
     playerId: "p-open1", createdAt: 1_790_000_000_000, seed: parRunSeed(hero, seed),
