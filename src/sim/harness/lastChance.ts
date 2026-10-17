@@ -19,6 +19,8 @@ import { ITEMS, PACK_ITEM, RUN_DAYS, type HeroId } from "../content";
 import { cloneBuild, type Build } from "../deck";
 import { RUNES, runeGrants } from "../runes";
 import type { Boon, LastChanceOffer } from "../lastChance";
+import { enchantField, enchantRules } from "../enchant"; // ENCHANT-1 (REQ-BFG-085, E5c): the part's word
+import { lastChanceWord } from "../enchantSources";
 import { newRun, type Run } from "../../game/run";
 import { placeFreePart, rateOn } from "./player";
 
@@ -129,9 +131,12 @@ export function botLastChancePick(offer: LastChanceOffer, hero: HeroId, board: B
   let part = -Infinity, placed: boolean | undefined;
   if (offer.part) {
     const run = boardRun(board, hero, day, opts.run);
-    const r = placeFreePart(run, offer.part, new Rng(hashSeed("lastchance-place", hero, run.seed, day)), undefined, offer.partStars ?? 1); // HULL-1d: at its star
+    // ENCHANT-1 (REQ-BFG-085, E5c/E8): the card's part arrives with its seeded word (a rig or turret; gear arrives plain): the bot places it
+    // enchanted and rates the board WITH the word (placeFreePart's `worth`: the word's relative gain on the piece it ended on); off, as before
+    const lw = enchantRules() ? lastChanceWord(run.seed, day, offer.part) : null;
+    const r = placeFreePart(run, offer.part, new Rng(hashSeed("lastchance-place", hero, run.seed, day)), undefined, offer.partStars ?? 1, lw ? enchantField(lw) : undefined); // HULL-1d: at its star
     placed = r.placed;
-    part = rateOn(run.build, day);
+    part = rateOn(run.build, day) * (1 + (r.worth ?? 0));
   }
   let rune = -Infinity, factor: number | undefined;
   if (offer.rune) {

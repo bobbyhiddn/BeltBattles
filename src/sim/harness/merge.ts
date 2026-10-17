@@ -22,6 +22,8 @@ import type { InvItem, Run } from "../../game/run";
 
 export type { InvItem };
 import { FUSE_MAX, fusible, starsOf, valueOf } from "../stars";
+import { enchantRules, type WordChooser } from "../enchant"; // ENCHANT-1 (REQ-BFG-085, E4)
+import { chooser } from "./enchantBot"; // ENCHANT-1: the bots' word chooser for a merge
 
 /** A Run whose only live fields are `build`, `inventory`, `nextUid` and `fuseFx`. */
 function wrap(b: Build, nextUid: number, inventory: InvItem[] = []): Run {
@@ -50,10 +52,12 @@ export interface UidSeed { uid: number }
  * (swapped-out cores arrive, absorbed cargo copies leave). Advances `s.uid` by exactly the one uid
  * gainModule minted.
  */
-export function gainInto(s: UidSeed, b: Build, def: string, at: GainAt, cargo?: InvItem[]): Gain {
+export function gainInto(s: UidSeed, b: Build, def: string, at: GainAt, cargo?: InvItem[], choose?: WordChooser): Gain {
   const preview = mergePreview(wrap(b, s.uid, cargo ? cargo.map((i) => ({ ...i })) : []), def);
   const run = wrap(b, s.uid, cargo ? [...cargo] : []);
-  const gain = gainModule(run, def, preview && preview.where !== "cargo" ? undefined : at);
+  // ENCHANT-1 (REQ-BFG-085, E4): `choose`, the word a merge of two different words keeps (default with ENCHANT on: the bots' prior chooser; off: none, as before)
+  const pick = choose ?? (enchantRules() ? chooser : undefined);
+  const gain = gainModule(run, def, preview && preview.where !== "cargo" ? undefined : at, 1, pick ? { choose: pick } : undefined);
   s.uid = run.nextUid;
   if (cargo) cargo.splice(0, cargo.length, ...run.inventory);
   return gain;
@@ -90,9 +94,9 @@ export function unfusedWithCargo(b: Build, cargo: readonly InvItem[]): string[] 
 /** Part 2 (PAR~): a merged copy of `b` (not mutated), every same-def same-star pair fused with the game's own
  *  src/game/fuse.ts:fuseAll (lowest stars first, then uid; the §4.1 survivor rules; an absorbed gate cell stays
  *  belt, an absorbed factory drops its belts, an absorbed mod or core frees its spot). */
-export function fuseDeck(b: Build): { build: Build; steps: FuseStep[] } {
+export function fuseDeck(b: Build, choose?: WordChooser): { build: Build; steps: FuseStep[] } {
   const c = JSON.parse(JSON.stringify(b)) as Build;
   const run = wrap(c, 1 + Math.max(0, ...c.items.map((p) => p.uid), ...c.mods.map((m) => m.uid)));
-  const steps = fuseAll(run);
+  const steps = fuseAll(run, choose ?? (enchantRules() ? chooser : undefined)); // ENCHANT-1 (E4): the word a merge keeps (see gainInto)
   return { build: run.build, steps };
 }

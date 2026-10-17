@@ -100,6 +100,7 @@ import { shapesRules } from "../src/sim/shapes"; // MERGE-099F: the grade memo's
 // loaded by snapshot.ts above, so this line, last in the list, changes no module's load order)
 import { LONG_RUN_GEN_DAYS, WIN_GOAL, longRunRules } from "../src/sim/longRun";
 import { readFileSync } from "node:fs"; // RUN-1 T8: the scratch pick rows (BB_SOFT1_PICKS_FILE)
+import { enchantRules } from "../src/sim/enchant"; // ENCHANT-1 (REQ-BFG-085, E8): a GROWING counter makes a seed ghost a v3 snapshot (seedGhost)
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -267,12 +268,15 @@ export function statedLosses(day: number, rec: DuskRecord, lost: number): number
  *  player-mode check as ctx.road, as an upload's does; and the strict check's budget line is left to that check.
  *  RUN-1 T8: `losses` (long-run rules only, statedLosses; v3, after the run seed as an upload writes it): the dusks the ghost's run
  *  lost, so the record check holds it to exactly that count (isReachable's `losses`), as POST holds an honest long-run upload. */
-function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number, seed?: number, road?: RoadEntry[], losses?: number): GhostSnapshot {
+export function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number, seed?: number, road?: RoadEntry[], losses?: number): GhostSnapshot {
   const runes = (build.runes?.length ?? 0) > 0;
+  // ENCHANT-1 (REQ-BFG-085, E2/E8): GROWING's counter `grow` is a v3 field (snapshot.ts), so a deck that holds one travels as v3 (ENCHANT on only:
+  // off, no piece carries `ench` or `grow` and every snapshot is as before); `ench` and `enchDir` are v2 keys. Exported for tests/enchant1.bots.test.ts.
+  const grows = enchantRules() && [...build.items, ...(build.turrets ?? [])].some((p) => p.grow !== undefined);
   const snap = checkSnapshot({
     // v2: pool decks carry stars (the 0.6.1 flip) and rigs their `rot` (0.6.2 BELTSIDE, DESIGN-beltside D1)
     // AZ-BUMP (N3): a road log is v3 only (snapshot.ts roadField), written last
-    v: runes || road || losses !== undefined ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
+    v: runes || road || losses !== undefined || grows ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
     runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: at,
     ...(runes && seed !== undefined ? { seed } : {}),
     ...(losses !== undefined ? { losses } : {}),
