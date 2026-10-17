@@ -54,7 +54,7 @@ import { wilson, type Rate } from "../src/sim/harness/stats";
 
 export type Kind = "rig" | "factory" | "core" | "mod" | "turret";
 export const KINDS: readonly Kind[] = ["rig", "factory", "core", "mod", "turret"];
-const KIND_OF: Partial<Record<ItemKind, Kind>> = { gate: "rig", factory: "factory", core: "core", mod: "mod", turret: "turret" };
+const KIND_OF: Partial<Record<ItemKind, Kind>> = { gate: "rig", converter: "rig", factory: "factory", core: "core", mod: "mod", turret: "turret" }; // GATES-1 (REQ-BFG-052): a GATE (GATES on only) is reported with the rigs
 
 /** A buyable module's kind as the report names it (a rig is code kind "gate"). */
 export const kindOf = (def: string): Kind => {
