@@ -11,6 +11,7 @@ import { uploadRulesFor } from "./netHelpers";
 import { roadDropValue } from "../src/sim/npcDay"; // AZ-BUMP (the flip, NPC_DAY): the road log's drops in the allowance
 import { lastChancePartStars } from "../src/sim/lastChance"; // AZ-BUMP (the flip, HULL_SCALE): the PART card's star
 import { valueOf } from "../src/sim/stars";
+import { longRunRules } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): LAST CHANCE on day 10 too
 
 // v070-validate M3: the M1 driver as a test. Every dusk deck of every seeded run is an honest deck (the driver
 // only plays legal actions through the real game functions), so the player mode must refuse none of them; the
@@ -29,7 +30,13 @@ import { valueOf } from "../src/sim/stars";
 // later dawn's rune: 60 of the 24000 mixed decks were refused, each "rune: runes: N held on day D, one a dawn (D)".
 
 const RUNS = Number(process.env.V070_DRIVER_RUNS ?? 2400); // 400 per hero
+// BUMP-1D (HEARTS, LONG_RUN): the last quarter of the runs lose often (tests/uploadDriver.ts DriverLosses): on 10 hearts the driver's
+// 15% of lost dusks fires LAST CHANCE in 6 runs of 2400 (hull 4, part 2, rune 0), and the "every card" line below wants all three
+const LOSSY_RUNS = Math.round(RUNS / 4); // 600 of the 2400
 const PATH_RUNS = Number(process.env.V070_DRIVER_PATH_RUNS ?? 36);
+// BUMP-1D (LONG_RUN): the long run's twin below drives days 1-16 (the pools' depth, STAND_IN_POOL_DAYS)
+const LONG_DAYS = 16;
+const LONG_RUNS = Number(process.env.V070_DRIVER_LONG_RUNS ?? 480); // 80 per hero
 
 /** Z-BUMP (the flip): POST /v1/ghosts's own deck check of a dusk (server/app.ts): validateUpload with the snapshot's run seed
  *  (day.ts ghostOf's snapshot.seed) and its taken LAST CHANCE (snapshot.lastChance), under the rules that accept the deck's
@@ -53,19 +60,27 @@ interface Tally {
   // 062m (M5 recheck 5): the 0.6.2 mechanics on the dusk decks, and the player/strict cost parity
   bought: number; freeMerged: number; turretCost: number; joined: number; joins: number; parity: string[]; ops: Map<string, number>;
   // Z-BUMP: the runs that took each LAST CHANCE card, and any run whose LAST CHANCE was left pending (must stay empty)
-  lastChance: Map<string, number>; pending: string[];
+  // BUMP-1D (LONG_RUN ships on): pendingLast, the runs whose LAST CHANCE fired at the dusk of the driver's last day (RUN_DAYS):
+  // its pick comes at the next dawn, which the 10-dusk driver does not play (not a pick the driver left)
+  lastChance: Map<string, number>; pending: string[]; pendingLast: string[];
 }
 
-function tally(runs: DriverRun[]): Tally {
+/** BUMP-1D: `last`, the last day the runs were driven (RUN_DAYS; a long run's twin drives LONG_DAYS) */
+function tally(runs: DriverRun[], last = RUN_DAYS): Tally {
   const t: Tally = {
-    decks: 0, strict: 0, strictKinds: new Map(), player: [], extra: new Array(RUN_DAYS + 1).fill(-Infinity), room: new Array(RUN_DAYS + 1).fill(Infinity),
-    bought: 0, freeMerged: 0, turretCost: 0, joined: 0, joins: 0, parity: [], ops: new Map(), lastChance: new Map(), pending: [],
+    decks: 0, strict: 0, strictKinds: new Map(), player: [], extra: new Array(LONG_DAYS + 1).fill(-Infinity), room: new Array(LONG_DAYS + 1).fill(Infinity),
+    bought: 0, freeMerged: 0, turretCost: 0, joined: 0, joins: 0, parity: [], ops: new Map(), lastChance: new Map(), pending: [], pendingLast: [],
   };
   for (const r of runs) {
     for (const [op, n] of Object.entries(r.ops)) t.ops.set(op, (t.ops.get(op) ?? 0) + n);
     const lcRun = r.run.lastChance;
     if (lcRun?.boon) t.lastChance.set(lcRun.boon, (t.lastChance.get(lcRun.boon) ?? 0) + 1);
-    else if (lcRun) t.pending.push(`${r.hero} #${r.seed}: LAST CHANCE of day ${lcRun.day} pending`);
+    // BUMP-1D (LONG_RUN ships on, bb-0.11.0): a long run has LAST CHANCE on any day (hearts.ts lcLastDay: no last day), so a dusk
+    // lost on day 10 with the hearts short fires it, and its pick waits for day 11's dawn, which the driver (RUN_DAYS dusks) never
+    // reaches: 3 runs of the 2400 in the diagnostic ("metronome #1073 / furnace #2071 / foundry #2193: LAST CHANCE of day 10
+    // pending"). Those are the window's, listed apart; a LAST CHANCE of any earlier day is still taken before its dawn's rune (the
+    // pending list stays empty), and the 10-day run's (the switch off) can't fire on day 10 at all, so there it stays in pending too
+    else if (lcRun) (lcRun.day >= last && longRunRules() ? t.pendingLast : t.pending).push(`${r.hero} #${r.seed}: LAST CHANCE of day ${lcRun.day} pending`);
     for (const d of r.dusks) {
       t.decks++;
       const list = d.build.turrets ?? [];
@@ -114,11 +129,16 @@ function tally(runs: DriverRun[]): Tally {
 
 describe("v070 M3: the upload driver through both modes", () => {
   it(`player mode refuses none of ${RUNS} seeded runs x 10 dusks; strict still refuses today's`, () => {
-    const runs = driveRuns(RUNS, 1, DRIVER_HEROES, "mixed", "drawn"); // Z-BUMP: a pending LAST CHANCE taken, any of its cards
+    // Z-BUMP: a pending LAST CHANCE taken, any of its cards. BUMP-1D: RUNS - LOSSY_RUNS runs as before (seeds 1..1800, the same runs),
+    // then LOSSY_RUNS of a player who loses often (seeds 1801..2400; was driveRuns(RUNS, 1, DRIVER_HEROES, "mixed", "drawn"))
+    const runs = [
+      ...driveRuns(RUNS - LOSSY_RUNS, 1, DRIVER_HEROES, "mixed", "drawn"),
+      ...driveRuns(LOSSY_RUNS, 1 + RUNS - LOSSY_RUNS, DRIVER_HEROES, "mixed", "drawn", "often"),
+    ];
     const t = tally(runs);
     const heroes = new Set(runs.map((r) => r.hero));
     console.log(`v070 driver: ${runs.length} runs (${[...heroes].join(", ")}), ${t.decks} dusk decks; strict refused ${t.strict}, player refused ${t.player.length}\n`
-      + `  LAST CHANCE taken: ${[...t.lastChance].sort().map(([k, n]) => `${k} ${n}`).join(", ")}; left pending ${t.pending.length}\n`
+      + `  LAST CHANCE taken: ${[...t.lastChance].sort().map(([k, n]) => `${k} ${n}`).join(", ")}; left pending ${t.pending.length}; fired at day ${RUN_DAYS}'s dusk, its pick waiting for day ${RUN_DAYS + 1}'s dawn ${t.pendingLast.length}\n`
       + [...t.strictKinds].sort((a, b) => b[1] - a[1]).map(([k, n]) => `  strict ${n} x ${k}`).join("\n")
       + `\n  day: roadCap | most road value seen on a shop-grid deck (cost - maxGoldByDay) | least room left under the player ceiling\n`
       + Array.from({ length: RUN_DAYS }, (_, i) => `  d${i + 1}: ${roadCap(i + 1)} | ${t.extra[i + 1]} | ${t.room[i + 1]}`).join("\n")
@@ -144,6 +164,26 @@ describe("v070 M3: the upload driver through both modes", () => {
     expect(t.joined).toBeGreaterThan(t.decks / 50);
     for (const op of ["turret buy", "turret buy (merged)", "turret install", "turret swap in", "turret move", "turret swap slots", "turret store",
       "turret sell (installed)", "turret sell (cargo)", "join drawn", "join set"]) expect(t.ops.get(op) ?? 0, op).toBeGreaterThan(0);
+  }, 900_000);
+
+  // BUMP-1D (LONG_RUN ships on): the same honest fuzz past day 10. A run lasts until 10 wins or 0 hearts, so a player who loses
+  // often (DriverLosses "often") plays days 11-16 and beyond; each dusk deck is checked as POST /v1/ghosts checks it (postCheck:
+  // the run seed, the taken LAST CHANCE, the road log), under bb-0.11.0's budget: maxGoldByDay and roadCap past day 10, with the
+  // event bags (roadCap.ts bagsFor: the second bag opens on day 11). The player mode must refuse none of them
+  it(`the long run past day 10: player mode refuses none of ${LONG_RUNS} seeded runs x up to ${LONG_DAYS} dusks`, () => {
+    const runs = driveRuns(LONG_RUNS, 30000, DRIVER_HEROES, "mixed", "drawn", "often", LONG_DAYS);
+    const t = tally(runs, LONG_DAYS);
+    const past = runs.reduce((n, r) => n + r.dusks.filter((d) => d.day > RUN_DAYS).length, 0);
+    console.log(`v070 driver, long run: ${runs.length} runs, ${t.decks} dusk decks (${past} past day ${RUN_DAYS}); strict refused ${t.strict}, player refused ${t.player.length}\n`
+      + `  LAST CHANCE taken: ${[...t.lastChance].sort().map(([k, n]) => `${k} ${n}`).join(", ")}; left pending ${t.pending.length}; fired at day ${LONG_DAYS}'s dusk ${t.pendingLast.length}\n`
+      + `  day: roadCap | most road value seen on a shop-grid deck | least room left under the player ceiling\n`
+      + Array.from({ length: LONG_DAYS }, (_, i) => `  d${i + 1}: ${roadCap(i + 1)} | ${t.extra[i + 1]} | ${t.room[i + 1]}`).join("\n"));
+    expect(runs.every((r) => r.dusks.length >= RUN_DAYS)).toBe(true); // no run ended before day 10
+    expect(past).toBeGreaterThan(t.decks / 10); // the driver really plays days 11-16
+    expect(t.player.slice(0, 5)).toEqual([]);
+    expect(t.pending).toEqual([]);
+    for (let d = 1; d <= LONG_DAYS; d++) if (t.room[d] !== Infinity) expect(t.room[d], `day ${d}`).toBeGreaterThanOrEqual(0);
+    expect(t.parity.slice(0, 5)).toEqual([]);
   }, 900_000);
 
   it("each isolated road path of the M1 audit: the player mode refuses none", () => {

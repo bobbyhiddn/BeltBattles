@@ -8,6 +8,7 @@ import type { Build } from "../src/sim/deck";
 import { STAND_IN_POOL_HEROES, standInPool, type StandInEntry } from "../src/sim/standInPool";
 import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import { TURRETS_JOINS_RULES, parseRules, rulesAtLeast, rulesFeatures, rulesGateProblem, sustainFeatures } from "../src/net/rulesGate";
+import { shapes2Features, shapesFeatures } from "../src/net/rulesGate"; // BUMP-1D: the shapes rows are their own gates
 import { SNAPSHOT_V3, checkSnapshot, type GhostSnapshot } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import { floorRecord, isReachable } from "../src/net/records"; // Y7b2 (the pools): a record the deck's day can carry; BUMP-1D: and the losses that carry it
@@ -47,7 +48,12 @@ function poolDeck(turrets: boolean, joins: boolean): Deck {
   for (const hero of STAND_IN_POOL_HEROES) {
     for (let day = 1; day <= RUN_DAYS; day++) {
       for (const e of standInPool(hero, day)) {
-        if (hasTurrets(e.build) === turrets && hasJoin(e.build) === joins && !sustainFeatures({ ...e.build, runes: undefined }).length) return { hero, day, build: e.build, road: e.road };
+        // BUMP-1D: and no shaped rig (SHAPES-1's three, SHAPES-2's six), which validateUpload's own shapes gates refuse first under these
+        // older rules (shapesGateProblem, shapes2GateProblem: they gain no RULES_ROWS row, so rulesGateProblem below never sees them).
+        // The regenerated pool's first deck with turrets and joins (BOTH) holds one: "rules bb-0.6.2 predate bb-0.10.0: shaped rigs
+        // (NAIL STRIP, EMBER TROUGH, SPIKE RAIL) need bb-0.10.0 or later" came before the rune error the line pins
+        if (hasTurrets(e.build) === turrets && hasJoin(e.build) === joins && !sustainFeatures({ ...e.build, runes: undefined }).length
+          && !shapesFeatures(e.build).length && !shapes2Features(e.build).length) return { hero, day, build: e.build, road: e.road };
       }
     }
   }

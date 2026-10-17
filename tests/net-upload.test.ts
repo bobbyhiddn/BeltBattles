@@ -3,7 +3,7 @@ import { Rng, hashSeed } from "../src/core/rng";
 import { HEROES, ITEMS, OFFERS, POOL_RULES, REROLL_COST, RULES_VERSION, RUN_DAYS, buyableModules, type HeroId, type ItemDef, type Rarity } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { MATRIARCH_DAY, maxGoldByDay as rivalsGold, warlordPool, DIFFICULTIES } from "../src/sim/rivals";
-import { STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
+import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool"; // BUMP-1D: + STAND_IN_POOL_DAYS (16)
 import { loadGhostPool } from "../src/net/fallback";
 import { samplePoolJson } from "../tools/samplePool";
 import { randomBuild } from "../src/sim/harness/gen";
@@ -11,7 +11,7 @@ import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
 import { blockReason } from "../src/game/events";
 import { MATRIARCH_GOLD, ROAD_PICKS, rewardGold, warlordDeck, warlordDeckDay, warlordReward } from "../src/game/road";
-import { newRun, pendingRune, storePlaced, takeRune } from "../src/game/run";
+import { newRun, pendingRune, rollShop, storePlaced, takeRune } from "../src/game/run"; // BUMP-1D: + rollShop (the price test)
 import { gainModule } from "../src/game/fuse";
 import {
   HULL_FLOOR, MODELLED_DELTAS, MODELLED_EVENTS, MODELLED_PICKS, MODELLED_REWARD_FIELDS, RoadModelError,
@@ -24,6 +24,8 @@ import { withDawnRunes } from "./runeFill";
 import { npcDayRules, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): 0.9.7's road where a test means it; S8c: npcDayRules, the budget line is left to the player mode only while NPC_DAY is on
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): 0.9.7's gold beside it
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 (RUN5-SHAPES1 3): the ceiling before EMBER TROUGH's 5 G, SHAPES off
+import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SAW BAR and SPARK COMB (5 G commons) stand in ITEMS with SHAPES off alone
+import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: the world before the twelve (PLAIN_RIGS and SHAPES2) is all three switches off
 
 // v070-validate M3: the player mode (validateUpload) and its road ceiling (src/net/roadCap.ts).
 // FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes, so every deck these tests check in
@@ -39,6 +41,16 @@ const cats = (b: Build, day: number) => up(b, day).errors.map((e) => e.split(":"
 // +200 (was +20) and RIDE THROUGH -100 (was -10) are eventDefs.ts's values
 const PLATE = ITEMS.plating.supply!.hull!;
 const DOCK = 200, RIDE = -100; // NUM-1: x10 (were 20 and -10)
+
+/** BUMP-1D: the catalogue as it was before SHAPES-1's three rigs (NAIL STRIP, EMBER TROUGH, SPIKE RAIL) and the twelve of
+ *  PLAIN_RIGS and SHAPES2: the three switches off, which is the world these pins meant by "SHAPES off" (the pins that follow in
+ *  that world are the ones from before). SHAPES off alone is not it any more: SHAPES2's SAW BAR and SPARK COMB (5 G commons)
+ *  stay in ITEMS and SALVAGE's dearest free rig is 5 G with them, as with EMBER TROUGH. The switches go off last-in first-out
+ *  and come back in the reverse (the validator's own nesting, validate.ts inShapesWorld), so ITEMS keeps its order (PLAIN's
+ *  six, SHAPES-1's three, SHAPES2's six, after the base defs). Measured (BUMP-1D): a lone withShapes(.., false) puts the
+ *  three back behind the twelve, and the par player's decks of the same seeds come out different from then on in the same
+ *  worker (FOUNDRY, FURNACE, WEAVER and BASTION on three seeds: 12 of 12 decks differ; the nesting below: 0 of 12). */
+const catalogueOff = <T>(fn: () => T): T => withShapes2(() => withShapes(() => withPlainRigs(fn, false), false), false);
 
 /** The furnace starting deck plus `extra` rigs west of its belt (legal cells), plating and crates. */
 function deck(extra: string[] = [], plates = 0, crates = 0, hullExtra = 0): Build {
@@ -129,8 +141,11 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
     // salvagePool) and the ceiling prices it at the dearest one it can give; with SHAPES on that is EMBER TROUGH at 5 G, so
     // SALVAGE's 5 ties the trader's SWAP on day 1 and the plan names it first (the value stays 5). With SHAPES off: SWAP, as
     // before (at 4 G every pin here held: run 6's check on a throwaway export)
+    // BUMP-1D: the twelve new pieces keep it (SAW BAR and SPARK COMB are 5 G commons too; PICKAXE, 8 G, is epic): the value 5 and the
+    // plan's first name are the same on and off SHAPES2, the old world is all three switches off (catalogueOff; was withShapes(.., false))
     expect(explainRoadCap(1)).toEqual([{ day: 1, pick: "easy/medium (or a lost fight), then event wreck: SALVAGE", value: 5 }]);
-    withShapes(() => expect(explainRoadCap(1)).toEqual([{ day: 1, pick: "easy/medium (or a lost fight), then event trader: SWAP", value: 5 }]), false);
+    withShapes2(() => expect(explainRoadCap(1)).toEqual([{ day: 1, pick: "easy/medium (or a lost fight), then event wreck: SALVAGE", value: 5 }]), false);
+    catalogueOff(() => expect(explainRoadCap(1)).toEqual([{ day: 1, pick: "easy/medium (or a lost fight), then event trader: SWAP", value: 5 }]));
   });
 
   it("the best plan: one road stop a day, each event at most once, the Matriarch once from her day; it sums to roadCap", () => {
@@ -167,13 +182,18 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
     // SHAPES-1 (RUN5-SHAPES1 3, cap's ruling 1.1: EMBER TROUGH 4 -> 5 G): with SHAPES on SALVAGE's free common rig is worth
     // up to 5 G (EMBER TROUGH), so the ceiling loosens by 1-2 g on days 6-10: 80 93 102 114 123 -> 81 94 104 115 125, and
     // maxHonestSpend 143 170 194 222 248 -> 144 171 196 223 250 (measured, run 6). SHAPES off: the values before (below)
+    // BUMP-1D (PLAIN_RIGS and SHAPES2 on, the twelve in the catalogue, RASP 4 G): the ceiling does not move, the table below
+    // is the same 5 20 36 51 66 81 94 104 115 125 (the dearest free common rig SALVAGE can give is still 5 G: SAW BAR, SPARK
+    // COMB and EMBER TROUGH; the dearest SWAP, the SMUGGLER's parts and the discount's savings are no dearer). The old world
+    // is the catalogue before the twelve and the three: all three switches off (catalogueOff; was withShapes(.., false), which
+    // now keeps SHAPES2's 5 G commons and so measures the shipped values)
     const table = Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1));
     expect(table).toEqual([5, 20, 36, 51, 66, 81, 94, 104, 115, 125]);
     expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 37, 63, 89, 116, 144, 171, 196, 223, 250]);
-    withShapes(() => {
+    catalogueOff(() => {
       expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1))).toEqual([5, 20, 36, 51, 66, 80, 93, 102, 114, 123]);
       expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 37, 63, 89, 116, 143, 170, 194, 222, 248]);
-    }, false);
+    });
     for (let d = 2; d <= RUN_DAYS; d++) expect(roadCap(d)).toBeGreaterThanOrEqual(roadCap(d - 1));
     withNpcDay(() => withHullScale(() => {
       expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1))).toEqual([5, 17, 28, 44, 57, 73, 89, 108, 124, 147]);
@@ -214,7 +234,8 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
     // SHAPES-1 (RUN5-SHAPES1 3: EMBER TROUGH 5 G): SALVAGE's dearer rig counts as gold in roadCap's liquid plan on days 8 and
     // 10 (measured, run 6): 1 1 1 1 1 -> 1 1 2 1 2 on days 6-10; SHAPES off as before
     expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 0, 0, 1, 1, 2, 1, 2]);
-    withShapes(() => expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 1, 1]), false);
+    // BUMP-1D: the twelve leave it (0 0 0 0 0 1 1 2 1 2); the old world is catalogueOff (all three switches off; was withShapes(.., false))
+    catalogueOff(() => expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 1, 1]));
     withNpcDay(() => withHullScale(() => {
       expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 2, 1, 4, 4, 7, 7, 11]);
     }, false), false);
@@ -297,6 +318,34 @@ describe("adversarial decks (M3): each refused by the player mode with the right
     }
   });
 
+  // BUMP-1D (PLAIN_RIGS and SHAPES2 on: the catalogue grew by twelve pieces, RASP at 4 G): the budget line prices a piece by its
+  // catalogue price alone (stars.ts valueOf: price x 2^(stars - 1), buildCost's items term), with no term for its feet, its
+  // arrows or its rarity, and the shop charges that price: so no honest buyer of the twelve is over what the shop took from him
+  it("the budget line counts each of the twelve new pieces at what the shop charges: price x 2^(stars - 1), whatever its feet", () => {
+    const TWELVE = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+    expect(TWELVE).toHaveLength(12);
+    const offered = new Map<string, Set<number>>(TWELVE.map((id): [string, Set<number>] => [id, new Set<number>()]));
+    for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
+      for (let seed = 1; seed <= 40; seed++) {
+        for (let day = 1; day <= RUN_DAYS; day++) {
+          const run = newRun(hero, seed, `price-${hero}-${seed}`);
+          run.day = day;
+          rollShop(run);
+          for (const w of run.shop.wagons) for (const o of w.offers) offered.get(o.def)?.add(o.price);
+        }
+      }
+    }
+    const base = buildCost(deck()).items;
+    for (const id of TWELVE) {
+      expect([...offered.get(id)!], `${id}: every offer seen, at its catalogue price`).toEqual([ITEMS[id].price]);
+      for (const stars of [1, 2, 3]) {
+        const b = deck();
+        b.items.push({ uid: 20, def: id, x: 3, y: 4, rot: 1, ...(stars > 1 ? { stars } : {}) });
+        expect(buildCost(b).items - base, `${id} at ${stars} stars`).toBe(ITEMS[id].price * 2 ** (stars - 1));
+      }
+    }
+  });
+
   it("a hull one step off the reachable set is refused on supply", () => {
     // NUM-1: x10 (were 30, 5, -20 and 10), so each is still the same step off the reachable set
     expect(cats(deck([], 0, 0, 300), 5)).toEqual(["supply"]); // 300 = 250 + 50: no mix
@@ -362,10 +411,39 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
     expect(carry).toEqual(POOL_CARRIES);
   });
 
+  // BUMP-1D: the long run's stand-ins. The pool holds days 1-16 (STAND_IN_POOL_DAYS; RUN-1's days past RUN_DAYS): the test above
+  // reads days 1-10, this one days 11-16 (72 decks), with its two checks: every strict line but at most its one road-fed budget
+  // line, and the player mode with the deck's road log accepting each (the budget line included)
+  it("the long run's stand-ins, days 11-16 of the pool (72 decks), pass both modes the same way", () => {
+    let n = 0;
+    const carry = { turrets: 0, bought: 0, joined: 0, joins: 0, both: 0 };
+    for (const hero of STAND_IN_POOL_HEROES) {
+      for (let day = RUN_DAYS + 1; day <= STAND_IN_POOL_DAYS; day++) {
+        for (const e of standInPool(hero, day)) {
+          n++;
+          const strict = validateBuild(e.build, day).errors;
+          const budget = npcDayRules() ? strict.filter((x) => x.startsWith("budget: ")) : [];
+          expect(budget.length, `${hero} d${day}: at most its one budget line`).toBeLessThanOrEqual(1);
+          expect(strict.filter((x) => !budget.includes(x)), `${hero} d${day}: every other strict line`).toEqual([]);
+          expect(validateUpload(e.build, day, RULES_VERSION, { ...(e.road ? { road: e.road } : {}) }), `${hero} d${day}: the player mode with its road log`).toEqual({ ok: true, errors: [] });
+          const t = (e.build.turrets ?? []).length > 0, j = e.build.routes.filter((r) => r.join !== undefined).length;
+          carry.turrets += t ? 1 : 0;
+          carry.bought += (e.build.turrets ?? []).some((x) => !x.free) ? 1 : 0;
+          carry.joined += j ? 1 : 0;
+          carry.joins += j;
+          carry.both += t && j ? 1 : 0;
+        }
+      }
+    }
+    expect(n).toBe(72);
+    console.log(`BUMP-1D: the ${STAND_IN_POOL_RULES} stand-in pool, days 11-16: ${n} decks; ${carry.turrets} carry a turret list (${carry.bought} with a bought turret), ${carry.joined} a joined belt (${carry.joins} joins), ${carry.both} both`);
+    expect(carry).toEqual(POOL_CARRIES_LONG);
+  });
+
   it("the bundled ghost pool (tools/samplePool.ts): the strict loader takes every snapshot and the player mode accepts each", () => {
     const load = loadGhostPool(samplePoolJson());
     expect(load.rejected).toEqual([]);
-    expect(load.entries).toHaveLength(120); // 0.7.0a D5: 40 sample ghosts and 20 floor ghosts; 0.8.0 RC: 60 race ghosts (was 60)
+    expect(load.entries).toHaveLength(192); // 0.7.0a D5: 40 sample ghosts and 20 floor ghosts; 0.8.0 RC: 60 race ghosts (was 60). BUMP-1D: was 120 (days 1-10); days 1-16: 4 heroes x 16 days x 3 variants = 192
     let turrets = 0, joined = 0;
     for (const { snapshot: s } of load.entries) {
       expect(s.rules).toBe(RULES_VERSION);
@@ -526,7 +604,12 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // turrets 15, bought 9, joined 81, joins 122, both 8
 // S8c (the pools): the stand-in pool regenerated once with every switch on as shipped (P1 83c039d, NPC_DAY on; its
 // picks road-fed): was turrets 16, bought 9, joined 77, joins 121, both 7
-const POOL_CARRIES = { turrets: 72, bought: 31, joined: 81, joins: 185, both: 51 };
+// BUMP-1D: the stand-in pool regenerated for days 1-16 under bb-0.11.0 (8fc5e24: every switch on, the twelve new pieces in the
+// shop; 192 decks), the test's days 1-10 (RUN_DAYS) of it measured: turrets 74, bought 38, joined 78, joins 191, both 52 (was
+// turrets 72, bought 31, joined 81, joins 185, both 51); days 11-16 are the twin test's (POOL_CARRIES_LONG)
+const POOL_CARRIES = { turrets: 74, bought: 38, joined: 78, joins: 191, both: 52 };
+/** BUMP-1D: the same five counts over the pool's days 11-16 (72 decks; the long run's: new, measured once on the final pool) */
+const POOL_CARRIES_LONG = { turrets: 51, bought: 28, joined: 53, joins: 161, both: 37 };
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
 // 0.7.0a D5: the seed pool's 40 sample ghosts carry turret lists and joined belts; its 20 floor ghosts add theirs
 // (tests/seed.records.test.ts checks the split). 0.8.0 I1 M3 (oracle 64485b535a06683c): from the regrown pool, the sample
@@ -560,4 +643,5 @@ const POOL_CARRIES = { turrets: 72, bought: 31, joined: 81, joins: 185, both: 51
 // SOFT-1: the seed pool softened (REQ-BFG-092; 26769d1, tools/samplePool.ts SOFT1_PICKS): every hero's variant 0 and 1 decks
 // are the softer picks, 79 of 80 par-field runs' dusk decks (sample 22 and 23, floor 2 and 10 as before, race 19 and 30;
 // tests/seed.records.test.ts): was 51, 69
-const GHOST_POOL_CARRIES = [43, 63]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61
+// BUMP-1D (run 3): the seed pool regenerated for days 1-16 (192 ghosts; R3', server/seedPoolData.ts 0546f5afe4bab423): 108 carry a turret list, 106 a joined belt (was 43, 63 of 120)
+const GHOST_POOL_CARRIES = [108, 106]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61; BUMP-1D: was 43, 63

@@ -21,7 +21,7 @@ import {
   buyUpgrade, loadRun, newRun, nextUpgrade, reroll, rollShop, saveRun, sellInventory, upgradeShown, type Run,
 } from "../src/game/run";
 import { removeTurret } from "../src/sim/deck";
-import { playerRun } from "../src/sim/harness/player";
+import { playerRoadLog, playerRun } from "../src/sim/harness/player"; // BUMP-1D: + playerRoadLog (the par run's road log, as an upload carries it)
 import { decodeStarredRaw, encodeStarred } from "../src/sim/standInPool";
 import * as harnessCode from "../src/sim/harness/standinCode";
 import { RIVAL_IDS, rivalLoadout, standInBuild } from "../src/sim/rivals";
@@ -276,10 +276,18 @@ describe("D7': the bots buy the upgrades; the stand-in code and the captains car
 
   it("an honest run with upgrades passes the upload check on every day (validateUpload, the player mode and its budget)", () => {
     let withLevels = 0;
-    for (const hero of HEROES4) for (let seed = 1; seed <= 4; seed++) for (const d of playerRun(hero, 10, seed)) {
-      const v = validateUpload(d.build, d.day);
-      expect(v.errors, `${hero} seed ${seed} day ${d.day}`).toEqual([]);
-      if (d.build.upgrades) withLevels++;
+    for (const hero of HEROES4) for (let seed = 1; seed <= 4; seed++) {
+      const days = playerRun(hero, 10, seed);
+      for (const d of days) {
+        // BUMP-1D: the upload carries its road log, as POST /v1/ghosts gets it (snapshot.road): with NPC_DAY on the player mode
+        // counts a deck's road drops only through it (validate.ts roadDropValue; roadCap.ts never prices a drop). With the twelve
+        // new pieces in the shop the par runs changed: FURNACE seed 2's day-1 deck holds a SCRAPCANNON drop (6 G, merged into the
+        // free starting copy) beside the 8 G the shop sold it (a MORTAR 6 and a belt crate 2): 14 G against the ceiling's 8 + 5
+        // without the log (the red), 8 + 5 + 6 with it. Was validateUpload(d.build, d.day): no log
+        const v = validateUpload(d.build, d.day, RULES_VERSION, { road: playerRoadLog(days, d.day) });
+        expect(v.errors, `${hero} seed ${seed} day ${d.day}`).toEqual([]);
+        if (d.build.upgrades) withLevels++;
+      }
     }
     expect(withLevels).toBeGreaterThan(30); // most late decks carry a level
   });
