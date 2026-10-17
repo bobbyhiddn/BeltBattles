@@ -93,7 +93,7 @@ import { dmgShown } from "../../sim/hullScale"; // HULL-1d (REQ-BFG-079): the be
 import { mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
-  abilityText, cardText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergesWithText,
+  abilityText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergesWithText,
   newPerk, nextStarHeadline, nextStarText, percent, plural, seconds, shieldText, slagPulseExtra, type BeltKind, type TextOpts,
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
@@ -125,6 +125,7 @@ import { turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' ki
 import { shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
 import { shapeLines } from "../../ui/faces"; // PLAIN-1F (M4): a placed long rig's UP TO n HITS, said by its arrows line
 import { plainNotes } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (was isPlainRig's rig sentence)
+import { cardEffect } from "../../ui/faces"; // BUMP-1D P6: the offer panel's header-only one-line effect: cardText, else a plain rig's stat row (the twelve have no ability text)
 import { shapePic } from "../../ui/shapePic"; // SHAPES-1 (REQ-BFG-086.1): the panel face's shape picture
 
 /** SHAPES-1 (REQ-BFG-086.1, S8): a panel's header picture: a shaped piece's shape with its arrows (ui/shapePic.ts), in the
@@ -641,7 +642,7 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
   const d = ITEMS[o.def];
   const merging = !o.sold && shopBadge(run, o.def)?.kind === "merge";
   const opts = textOpts(run);
-  const one = cardText(d.id, opts);
+  const one = cardEffect(d.id, opts); // BUMP-1D P6: was cardText(d.id, opts); cardEffect is cardText byte for byte wherever cardText has a line, and a plain rig's stat row where it has none (the twelve of PLAIN_RIGS and SHAPES2, on since bb-0.11.0: the 360x640 strip drew no effect for them)
   // U2e step 4 (REQ-BFG-070): no MERGES INTO line on the face: the card's MERGE ★2 badge and BUY+MERGE say it merges, and
   // the ⓘ view's NEXT★ line what the merge gives (mergeBlock and mergeLine stay for tools; no panel draws them)
   const body: Block[] = [
