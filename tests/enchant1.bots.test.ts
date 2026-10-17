@@ -4,7 +4,7 @@
 // by its own seeded rule; LAST CHANCE's part keeps its word; GROWING grows in the harness's runs; every authored deck stays legal; the three
 // generators' codecs carry `~<code>`; and with ENCHANT off every bot is what it was. HOLDING (words held by day 4 and 10, by source) prints
 // with BB_HOLDING=1 (it plays 240 runs; it asserts nothing).
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Rng } from "../src/core/rng";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { cloneBuild, rigHits, turretList, type Build } from "../src/sim/deck";
@@ -34,6 +34,8 @@ import { validateBuild, validateUpload } from "../src/net/validate";
 import { decodeSnapshot, encodeSnapshot, SNAPSHOT_V3 } from "../src/net/snapshot";
 import { floorRecord } from "../src/net/records";
 import { seedGhost } from "../tools/samplePool";
+
+vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1 (run 3): these sweeps play many seeded runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
 afterEach(() => setEnchant(ENCHANT));
 const on = <T>(fn: () => T): T => withEnchant(fn, true);

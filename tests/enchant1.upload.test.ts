@@ -8,7 +8,7 @@
 // Off, or under rules without ENCHANT, every ench / enchDir / grow is refused as today, and a deck without a word is judged and costed
 // byte for byte as before. The PIN TEST at the end runs the same fixtures through the client's shape check (ghostSnapshot.ts isSnapshot),
 // the strict decoder (snapshot.ts checkSnapshot), the client's full check (validateUpload) and POST /v1/ghosts, in BOTH switch states.
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -32,6 +32,8 @@ import { isSnapshot } from "../src/game/ghostSnapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
+
+vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1 (run 3): these sweeps play many seeded runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
 afterEach(() => setEnchant(ENCHANT)); // the shipped value (off)
 const on = <T>(fn: () => T): T => withEnchant(fn, true);

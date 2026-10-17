@@ -2,13 +2,15 @@
 // with random LEGAL words on random pieces (a seeded stream; WIDE takes a free side, GROWING a counter), fight a second par deck. With
 // ENCHANT on every fight ends, every number it reports is finite, and the same fight played twice is the same fight (nothing rolls);
 // with it off a dressed deck fights tick for tick as the plain deck (the words are inert).
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { simulate } from "../src/sim/battle";
 import { cloneBuild, setTurretList, turretList, type Build } from "../src/sim/deck";
 import { ENCHANT, ENCHANT_IDS, enchantProblem, freeSides, setEnchant, withEnchant } from "../src/sim/enchant";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { playerBuild } from "../src/sim/harness/player";
 import { Rng } from "../src/core/rng";
+
+vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1 (run 3): these sweeps play many seeded runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
 afterEach(() => setEnchant(ENCHANT));
 

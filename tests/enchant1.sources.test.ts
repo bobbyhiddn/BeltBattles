@@ -1,7 +1,7 @@
 // ENCHANT-1 (REQ-BFG-085; BRIEF-ENCHANT1 E5; step 6 core): where the words come from. The ENCHANTER (days 3, 5, 7, 9 and every odd day
 // after; 2 different words a day at 4 G; a REROLL keeps it; every regular wagon is what it was), buying-is-applying with its refusals
 // and confirms, the warlord pick (two at most), LAST CHANCE's part arriving enchanted, and the bounds the server re-derives.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ITEMS } from "../src/sim/content";
 import { turretList } from "../src/sim/deck";
 import { ENCHANT, ENCHANT_IDS, freeSides, setEnchant, withEnchant } from "../src/sim/enchant";
@@ -13,6 +13,8 @@ import { ENCHANTER_SHUT, applyProblem, buyEnchant, enchantChoices, openWarlordPi
 import { REFIT_NO_SHOP, newRun, pendingLastChance, reroll, rollShop, takeLastChance, type Run } from "../src/game/run";
 import { finishWarlord, warlordFight } from "../src/game/road";
 import { lastChanceParts } from "../src/sim/lastChance";
+
+vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1 (run 3): these sweeps play many seeded runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
 afterEach(() => setEnchant(ENCHANT));
 const on = <T>(fn: () => T): T => withEnchant(fn, true);
