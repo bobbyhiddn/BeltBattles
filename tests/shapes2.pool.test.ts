@@ -1,17 +1,29 @@
 // SHAPES-2 (REQ-BFG-114 (4); BRIEF-SHAPES2 S4; step 5): the seed pool's generators with SHAPES2 on, in memory (nothing is written, no
 // --check, no seed write, no change to the committed pool or stand-in data):
-// - tools/samplePool.ts raceGhosts() (the par player's decks for FOUNDRY and BASTION, 60 snapshots; the generator behind
+// - tools/samplePool.ts raceGhosts() (the par player's decks for FOUNDRY and BASTION, 96 snapshots; the generator behind
 //   tools/genGhostPool.ts) with SHAPES2 and PLAIN_RIGS on: every snapshot passes seedGhost's strict and player-mode checks (it throws
 //   on one that doesn't), comes back the same from encodeSnapshot / decodeSnapshot (the file genGhostPool.ts writes), and some hold
 //   the six; with SHAPES2 off the player-mode check refuses such a file ("not in this rules version yet");
-// - generateSamplePool(), the whole pool, refuses to run in the new world: SOFT-1's stale-pick guard says the par field moved and asks
-//   for its re-pick (BB_SOFT1_RULE=1 npx vitest run tests/soft1.picks.test.ts): that is the one regeneration at the bump, pinned here;
+//   (BUMP-1D: was 60 snapshots = 2 heroes x 3 variants x 10 days; the long run's pool is 16 days deep, so 2 x 3 x 16 = 96; the
+//   10-day count is kept under withLongRun(fn, false) in the last test)
+// - generateSamplePool(), the whole pool: when SHAPES-2 came in, it refused to run in the new world (SOFT-1's stale-pick guard said the
+//   par field moved and asked for its re-pick, BB_SOFT1_RULE=1 npx vitest run tests/soft1.picks.test.ts: the one regeneration at the
+//   bump). BUMP-1D did that regeneration (SOFT1_PICKS: 128 picks, days 1-16, in the shipped world), so in the shipped world it now
+//   builds the pool (192 graded ghosts) with no complaint, and the guard is pinned where it still fires: in the bb-0.10.0 catalogue
+//   (SHAPES2 and PLAIN_RIGS off, the long run on), whose par field is not the one the table was read in (BUMP-1D: was: it threw in
+//   the new world);
 // - the retired variant-1 shopper's gate list (GATES, made once at load) is the same with SHAPES2 on at load as off, so the sample
 //   ghosts' records don't move (SHAPES-1 did the same for its three).
 import { afterEach, describe, expect, it, vi } from "vitest";
+// BUMP-1D: deck.ts first, then the rest: its import order (plainRigs, shapes, shapes2) is the ship's load order, and ITEMS' key order is
+// part of the seeded draws (tools/shapes2/offers.ts: "the 1D load order"). The file used to import shapes2 first, which put the six
+// SHAPES2 rigs into ITEMS before PLAIN_RIGS' six: another order than the ship's, other casual runs, and FLOOR_PICKS' hash (the floor
+// runs are read from it since FLOOR-1) came out stale ("FLOOR-1: stale: the pick 9003:6d010a7d for foundry no longer matches").
+import "../src/sim/deck";
 import { SHAPES2, SHAPES2_IDS, setShapes2, withShapes2 } from "../src/sim/shapes2";
 import { withPlainRigs } from "../src/sim/plainRigs";
-import { decodeSnapshot, encodeSnapshot } from "../src/net/snapshot";
+import { withLongRun } from "../src/sim/longRun";
+import { SNAPSHOT_V3, decodeSnapshot, encodeSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import { generateSamplePool, raceGhosts } from "../tools/samplePool";
 
@@ -20,7 +32,7 @@ const SIX = [...SHAPES2_IDS];
 const on = <T>(fn: () => T): T => withPlainRigs(() => withShapes2(fn));
 
 describe("SHAPES-2 S4: the seed pool's generators with the six on", () => {
-  it("raceGhosts(): 60 snapshots, every one validates and round-trips through the snapshot file; how many hold one of the six", () => {
+  it("raceGhosts(): 96 snapshots, every one validates and round-trips through the snapshot file; how many hold one of the six", () => { // BUMP-1D: was 60 (10 days)
     const pool = on(() => {
       const p = raceGhosts(); // throws if a ghost fails seedGhost's checks (validateBuild strict, validateUpload player mode with its road log)
       let held = 0;
@@ -35,7 +47,7 @@ describe("SHAPES-2 S4: the seed pool's generators with the six on", () => {
       expect(held).toBeGreaterThan(0);
       return p;
     });
-    expect(pool.length).toBe(60);
+    expect(pool.length).toBe(96); // BUMP-1D: was 60; the long run's depth is 16 days (poolDepth()): 2 race heroes x 3 variants x 16 days
   }, 900_000);
 
   it("a snapshot holding one of the six is accepted as a record with SHAPES2 on and refused (\"not in this rules version yet\") with it off", () => {
@@ -50,13 +62,18 @@ describe("SHAPES-2 S4: the seed pool's generators with the six on", () => {
     };
     const withOn = on(verdict);
     expect(withOn.errors, "SHAPES2 on").toEqual([]);
-    const off = verdict();
+    const off = withShapes2(verdict, false); // BUMP-1D: was verdict() (SHAPES2 shipped off); it ships on now, so the off leg sets it off itself
     expect(off.ok).toBe(false);
     expect(off.errors[0]).toMatch(/^rules: shaped rigs \(ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE\): not in this rules version yet$/);
   }, 900_000);
 
-  it("generateSamplePool() in the new world: SOFT-1's stale-pick guard asks for the re-pick (the one regeneration at the bump)", () => {
-    expect(() => on(() => generateSamplePool())).toThrow(/SOFT-1: stale: the pick .* no longer matches its deck/);
+  // BUMP-1D: was "generateSamplePool() in the new world: SOFT-1's stale-pick guard asks for the re-pick (the one regeneration at the bump)",
+  // expecting on(() => generateSamplePool()) to throw /SOFT-1: stale: the pick .* no longer matches its deck/. The bump did that
+  // regeneration (SOFT1_PICKS, FLOOR_PICKS, the pool), so the shipped world builds the pool: 192 ghosts, every one graded (v3).
+  it("generateSamplePool() in the shipped world: SOFT-1's picks were re-picked at the bump, so the whole pool builds (192 ghosts, every one graded)", () => {
+    const pool = on(() => generateSamplePool());
+    expect(pool.length).toBe(192); // 4 heroes x 16 days x 3 variants
+    expect(pool.every((s) => s.v === SNAPSHOT_V3 && typeof s.grade === "number")).toBe(true);
   }, 900_000);
 
   it("the retired shopper never draws one of the six: its gate list is the same with SHAPES2 on at load or off", async () => {
@@ -72,5 +89,18 @@ describe("SHAPES-2 S4: the seed pool's generators with the six on", () => {
     expect(off.length).toBeGreaterThan(20);
     for (const id of SIX) expect(onLoad, id).not.toContain(id);
     expect(onLoad).toEqual(off);
+  }, 900_000);
+
+  // BUMP-1D, the two below last: withPlainRigs(fn, false) puts its six back AFTER SHAPES2's in ITEMS (the load order is part of the seeded
+  // draws), which the tests above must not see.
+  it("raceGhosts() in the 10-day world (withLongRun false): 60 snapshots, as before the long run (BUMP-1D: the old count kept here)", () => {
+    const pool = withLongRun(() => on(() => raceGhosts()), false);
+    expect(pool.length).toBe(60); // 2 race heroes x 3 variants x 10 days
+    for (const s of pool) expect(JSON.stringify(decodeSnapshot(encodeSnapshot(s))), `${s.hero} day ${s.day} ${s.runId}`).toBe(JSON.stringify(s));
+  }, 900_000);
+
+  it("generateSamplePool() in the bb-0.10.0 catalogue (SHAPES2 and PLAIN_RIGS off, the long run on): SOFT-1's stale-pick guard still asks for the re-pick", () => {
+    // BUMP-1D: the old assertion of "the new world" (before the bump's re-pick), now in the world whose par field is not the one SOFT1_PICKS was read in
+    expect(() => withShapes2(() => withPlainRigs(() => generateSamplePool(), false), false)).toThrow(/SOFT-1: stale: the pick .* no longer matches its deck/);
   }, 900_000);
 });

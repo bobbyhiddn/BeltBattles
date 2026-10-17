@@ -377,7 +377,9 @@ function cardDraw(game: FakeGame, run: Run, kind: Kind, hit: number): { digest: 
 /** The card's drawing at replay1-accepted (482b616a9b65): cardDraw's digest per view and kind, made by this file's drawing
  *  test on a git-archive export of replay1-accepted (REPLAY1B_PINS=print: kit-replay1b/pins.sh, output-replay1b/logs). */
 const DRAW_PINS: Record<string, string> = {
-  "402x690@3 dusk": "537cc93f2777a454", "402x690@3 warlord": "90125b5a27c241db",
+  // BUMP-1D: the dusk card of the first view reads "453cc4992673a68c" (was "537cc93f2777a454" at replay1-accepted; REPLAY1B_PINS=print with the final pools,
+  // bb-0.11.0: the offline dusk's foe and hearts card moved); the other nineteen pins are unchanged
+  "402x690@3 dusk": "453cc4992673a68c", "402x690@3 warlord": "90125b5a27c241db",
   "390x844@3 dusk": "a9e4673a34f2d29c", "390x844@3 warlord": "deb11fdf6d15c600",
   "430x932@3 dusk": "b70c1e1846ca0070", "430x932@3 warlord": "d5c3a8adf2883978",
   "360x780@3 dusk": "1b833baef9910d3b", "360x780@3 warlord": "8732239750bb1762",
