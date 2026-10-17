@@ -153,6 +153,30 @@ if (CHECKS.includes("3")) {
   }
   out.check3 = { ...rows, pass };
 }
+// check 4 (G4, REPORT-SCALE1 section 4: each pair wins at most 50% against its named answer): the pair decks of the readers whose
+// answer is a deck this file builds -- KINDLING + 2 TEMPER against the SHIELD wall; CINDER MAIL + 2 TEMPER and IRON WALL + 2 PLATE
+// ROLLER against a POISON deck ("past SHIELD"); ROT GAUGE + VENOM DRIP and LEECH COIL + VENOM DRIP against the fast BURN deck
+// (and, for them, in the fights under 15 s). The pair is built on each hero's par bases (as the pairs bench builds it).
+if (CHECKS.includes("4")) {
+  const PAIRS4: { tag: string; parts: Part[]; foes: Build[]; foe: string }[] = [
+    { tag: "KINDLING + 2 TEMPER", parts: [["temper", 2], ["quench", 1]], foes: walls, foe: "SHIELD wall" },
+    { tag: "CINDER MAIL + 2 TEMPER", parts: [["temper", 2], ["cindermail", 1]], foes: poisonDecks.map((x) => x.d), foe: "POISON deck" },
+    { tag: "IRON WALL + 2 PLATE ROLLER", parts: [["plateroller", 2], ["shieldwall", 1]], foes: poisonDecks.map((x) => x.d), foe: "POISON deck" },
+    { tag: "ROT GAUGE + VENOM DRIP", parts: [["venom", 1], ["rotgauge", 1]], foes: burns, foe: "fast BURN deck" },
+    { tag: "LEECH COIL + VENOM DRIP", parts: [["venom", 1], ["leechcoil", 1]], foes: burns, foe: "fast BURN deck" },
+  ];
+  const rows: unknown[] = [];
+  for (const q of PAIRS4) {
+    const decks = bases.map((x) => ({ x, d: assemble(x.hero, x.b, q.parts, `G4|${q.tag}|${x.hero}|${x.i}`) })).filter((y): y is { x: typeof bases[number]; d: Build } => !!y.d);
+    const all: Battle1[] = [];
+    decks.forEach((y, yi) => q.foes.forEach((f, fi) => all.push(...duel(y.d, f, `c4|${q.tag}|${yi}|${fi}`))));
+    const u15 = all.filter((z) => z.t < 15);
+    const r = { pair: q.tag, answer: q.foe, decks: decks.length, battles: all.length, win: mean(all.map((z) => z.pts)), under15: u15.length, winUnder15: mean(u15.map((z) => z.pts)), median: median(all.map((z) => z.t)) };
+    rows.push(r);
+    log(`check 4 (G4) ${q.tag} vs ${q.foe}: ${(100 * r.win).toFixed(1)}% of ${r.battles} battles (${r.decks} decks; bar <= 50%); under 15 s ${(100 * r.winUnder15).toFixed(1)}% of ${r.under15}; median fight ${r.median.toFixed(1)} s`);
+  }
+  out.check4 = rows;
+}
 out.seconds = Math.round((Date.now() - t0) / 1000);
 writeFileSync(OUT, JSON.stringify(out, null, 1));
 log(`done in ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${OUT}`);

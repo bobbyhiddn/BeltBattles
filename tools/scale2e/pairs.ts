@@ -46,10 +46,11 @@ const sets: string[] = [];
 process.argv.forEach((a, i) => { if (a === "--set") sets.push(process.argv[i + 1]); });
 const log = (s: string): void => console.log(`pairs ${HERO} d${DAY} ★${STAR}: ${s}`);
 
-if (!scaleRules()) { console.error("pairs.ts: SCALE_RIGS is off in this build (set the constant true in the export)"); process.exit(3); }
+// --allow-off: the DRAKE bench (group "drake") reads both switch states, so it runs on an export with the constant as shipped (false)
+if (!scaleRules() && !process.argv.includes("--allow-off")) { console.error("pairs.ts: SCALE_RIGS is off in this build (set the constant true in the export, or pass --allow-off)"); process.exit(3); }
 
 /** The pair of each reader: its feeder copies (id x n, at the day's star) and what else the pair holds (a rune). */
-interface PairDef { reader: string; feeders: { id: string; n: number }[]; runes?: string[]; tag?: string; group?: string }
+interface PairDef { reader: string; feeders: { id: string; n: number }[]; runes?: string[]; tag?: string; group?: string; need?: string[] }
 const P = (reader: string, feeders: [string, number][] = [], extra: Partial<PairDef> = {}): PairDef => ({ reader, feeders: feeders.map(([id, n]) => ({ id, n })), ...extra });
 const PAIRS: PairDef[] = [
   P("quench", [["temper", 2]]), // KINDLING with 2 TEMPER
@@ -76,6 +77,15 @@ const PAIRS: PairDef[] = [
   P("venom", [["tesla", 1]], { tag: "venom+TESLA ARC", group: "sites" }),
   P("venom", [["lance", 1]], { tag: "venom+LODESTAR LANCE", group: "sites" }),
   P("venom", [], { runes: ["molten_vows"], tag: "venom+MOLTEN VOWS", group: "sites" }),
+  // REQ-BFG-110 / SCALE-2a F3 / REVIEW-SCALE1 F5 (DRAKE NOZZLE's guard): with the switch on DRAKE converts only the DMG from rigs'
+  // stat rows, never a FOR EACH rig's DMG (LONG HAUL, PINCER, COUNTERWEIGHT, LODESTONE); off it converts all of it. Each rig alone and
+  // with DRAKE on the same bases (the clean set excludes DRAKE and the rig in both rows); DRAKE alone. Run on both switch states
+  // (--allow-off on an export with the constant as shipped), compare DRAKE's lift given the rig between the states.
+  ...["longhaul", "pincer", "counterweight", "lodestone"].flatMap((x) => [
+    P(x, [], { tag: `${x} alone`, group: "drake", need: ["drake"] }),
+    P(x, [["drake", 1]], { tag: `${x}+DRAKE`, group: "drake" }),
+  ]),
+  P("drake", [], { tag: "drake alone", group: "drake", need: ["longhaul", "pincer", "counterweight", "lodestone"] }),
   // the CINDER MAIL stack (CM + 2 TEMPER, and with the rune and the rollers) places on few decks (1 of 4 on weaver d6): asked for by tag only
   P("shieldwall", [["cindermail", 1], ["temper", 2]], { tag: "shieldwall+CINDER MAIL+2 TEMPER", group: "cm" }),
   P("shieldwall", [["cindermail", 1], ["temper", 2], ["plateroller", 2]], { runes: ["rivet_hoard"], tag: "shieldwall+CINDER MAIL+2 TEMPER+2 PLATE ROLLER+RIVET HOARD", group: "cm" }),
@@ -172,7 +182,7 @@ const builtOf = new Map<PairDef, Built[]>();
 const temperOf = new Map<number, Build | null>(), whetOf = new Map<number, Build | null>();
 for (const p of PAIRS.filter(wanted)) {
   // a clean base: no copy of the reader, of any feeder REPORT-SCALE1 3.3 lists for it, or of the feeders this pair adds
-  const need = [p.reader, ...(READER_FEEDERS[p.reader] ?? []), ...p.feeders.map((f) => f.id)];
+  const need = [p.reader, ...(READER_FEEDERS[p.reader] ?? []), ...p.feeders.map((f) => f.id), ...(p.need ?? [])];
   const list: Built[] = [];
   for (let i = 0; i < bases.length && list.length < K; i++) {
     const base = bases[i];
