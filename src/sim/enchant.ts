@@ -87,12 +87,12 @@ export interface EnchantDef {
  *  PLATE steel #C6D0EA); E7 (run 3) moves any that sits too near a keyword's colour, and logs it. */
 export const ENCHANT_DEFS: Readonly<Record<EnchantId, EnchantDef>> = {
   fiery: { id: "fiery", name: "FIERY", code: "fi", color: "#FF9B2A", scales: true, kinds: ["rig", "factory", "turret"] },
-  rising: { id: "rising", name: "RISING", code: "ri", color: "#FFBF3F", scales: true, kinds: ["rig", "factory", "turret"] },
+  rising: { id: "rising", name: "RISING", code: "ri", color: "#C8962A", scales: true, kinds: ["rig", "factory", "turret"] },
   growing: { id: "growing", name: "GROWING", code: "gr", color: "#7DBE3C", scales: true, kinds: ["rig", "factory", "turret"] },
-  echoing: { id: "echoing", name: "ECHOING", code: "ec", color: "#B07CFF", scales: false, kinds: ["rig", "factory", "turret"] },
+  echoing: { id: "echoing", name: "ECHOING", code: "ec", color: "#9078FF", scales: false, kinds: ["rig", "factory", "turret"] },
   massive: { id: "massive", name: "MASSIVE", code: "ma", color: "#8A8F98", scales: false, kinds: ["factory", "turret"] },
-  swift: { id: "swift", name: "SWIFT", code: "sw", color: "#FFE14D", scales: false, kinds: ["factory", "turret"] },
-  wide: { id: "wide", name: "WIDE", code: "wi", color: "#2FC9B5", scales: false, kinds: ["rig", "factory", "turret"] },
+  swift: { id: "swift", name: "SWIFT", code: "sw", color: "#FFF59D", scales: false, kinds: ["factory", "turret"] },
+  wide: { id: "wide", name: "WIDE", code: "wi", color: "#1FA6B8", scales: false, kinds: ["rig", "factory", "turret"] },
   braced: { id: "braced", name: "BRACED", code: "br", color: "#C6D0EA", scales: true, kinds: ["rig", "factory", "turret"] },
 };
 
