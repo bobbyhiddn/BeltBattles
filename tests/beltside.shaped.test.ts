@@ -10,7 +10,6 @@
 // moves whole to a place that fits, or is stranded, (4) the four decks load as they are stored and are legal boards, (5) every
 // 1-cell gate is migrated exactly as before (the old step is copied below and compared on every deck the repo holds).
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
@@ -28,7 +27,7 @@ import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { decodeStarred, decodeStarredRaw, encodeStarred, standInPool, type StandInEntry } from "../src/sim/standInPool";
 import { STAND_IN_DATA as V11 } from "./fixtures/standInPoolData.v1.1";
 
-const here = (f: string) => fileURLToPath(new URL(f, import.meta.url));
+const here = (f: string) => decodeURIComponent(new URL(f, import.meta.url).pathname); // (no node:url import: the tests' type shims don't declare it, tests/tsc-tests-baseline.json)
 const J = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 /** Run `fn` with both shape switches on (they are on in this release; the explicit call keeps the file independent of that). */
 const shaped = <T>(fn: () => T): T => withShapes2(() => withShapes(fn, true), true);

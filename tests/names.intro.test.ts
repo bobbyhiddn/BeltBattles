@@ -64,7 +64,8 @@ describe("the intro line", () => {
     expect(foeTitle(told(17, 9, 6, "p-1"))).toBe("WANDERER · 9-6"); // a long run's deepest dusks: the derived text would read 9-7
     expect(foeTitle(told(17, 4, 6, "p-1"))).toBe("WANDERER · 4-6"); // (and 4-12 on day 17 with 4 wins: a draw-heavy record)
     const s = standInFoe(1234, 3);
-    expect(foeTitle({ day: 3, kind: "standin", name: s.name, hero: s.hero, build: s.build, rival: s.id })).toBe(s.name);
+    const standin = { day: 3, kind: "standin" as const, name: s.name, hero: s.hero, build: s.build, rival: s.id }; // a variable, not a fresh literal: no excess-property error (tests/tsc-tests-baseline.json)
+    expect(foeTitle(standin)).toBe(s.name);
   });
 
   // the views: the desk (and a small laptop), landscape and portrait phones, the operator's 402x690 among them
