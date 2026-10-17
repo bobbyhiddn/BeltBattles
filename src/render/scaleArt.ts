@@ -2,8 +2,10 @@
 // (sprites.ts SCALE_ART_FROM): CINDER MAIL, ROT GAUGE, LEECH COIL, CROWD PRESS, AEGIS SPIKE, GRUDGE ROD and TROPHY CHAIN.
 // The model is wave3Art.ts drawWave3Gate: sprites.ts drawGate asks here first and gets true for the seven ids, false for any
 // other, so every existing rig draws exactly as before. The seven ids are in ITEMS only with SCALE_RIGS on, so with it off
-// nothing asks for them. A rig's picture is one 12x12 drawing at frames 0-7, idle and active (the hit flash), drawn for screen
-// direction N and turned with the rig (sprites.ts orient12); its icon is its idle frame 0 (itemIcon's default branch).
+// nothing asks for them. A rig's picture is one 12x12 drawing at frames 0-7, idle and active (the hit flash), drawn upright, with
+// every working end to the north: the deck draws a rig's body as gateSprite gives it (machinery.ts), and only the arrow nozzles
+// turn with the rig's rotation (sprites.ts rigNozzle, orient12), so a spike drawn to the north points to the top of the screen on
+// the deck too. Its icon is its idle frame 0 (itemIcon's default branch).
 // The shop card shows that icon at twice its size, so the identity sits in the middle 8x8 and the outer ring may be covered by
 // the card's marks. Same helpers and palette as the rest of the render code; light from the top-left; no randomness; no
 // letters or digits. Each stat's colour is the game's own for its glyph (font.ts ICON_COLOUR): SHIELD (internal PLATE)
