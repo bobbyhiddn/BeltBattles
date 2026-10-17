@@ -1100,8 +1100,10 @@ export const CARRY_LINE = "EACH SLUG IT HITS CARRIES THE {*PLATE} TO YOUR GUN. Y
  *  NOTES line, when it works. Its stat is your ship's, never a slug's, so the rig sentence (GIVES ITS STATS TO EVERY SLUG)
  *  is not true of it and this line takes its place. Checked against src/sim: Battle.makeSide adds the working BALLASTs'
  *  % of the max hull to hull and max at the fight's start; a BALLAST works with at least one arrow on a belt tile (g.hits,
- *  the IDLE rule, read from the layout at the fight's start); else it is IDLE and gives nothing. */
-export const BALLAST_LINE = "WHILE AN ARROW POINTS AT A BELT TILE, IT RAISES YOUR SHIP'S MAX {HULL}. NO ARROW ON A BELT: IT IS IDLE.";
+ *  the IDLE rule, read from the layout at the fight's start); else it is IDLE and gives nothing.
+ *  SC-0912 (PACKET-SHOPCARD1 item 3): MAX HULL in words, not the {HULL} icon (the heart; SHOPCARD-1b's HEAL and REGEN notes say
+ *  HULL in words for the same reason, READ-9 fix 5); its stat row says it too (icons.ts statRow). */
+export const BALLAST_LINE = "WHILE AN ARROW POINTS AT A BELT TILE, IT RAISES YOUR SHIP'S MAX HULL. NO ARROW ON A BELT: IT IS IDLE.";
 
 /** PLAIN-1F (M3): a plain rig whose stats ride the slugs it hits, so the rig sentence and HIT are true of it: every plain
  *  rig (isPlainRig) but a carrier stat's (BALLAST's max hull, GateEffect.maxHullPct). With PLAIN_RIGS off it is isPlainRig

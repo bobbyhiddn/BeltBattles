@@ -705,7 +705,7 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
       rasp: ["{DMG} +8/+16/+28", "{BURN} +1/+2/+3"], // SHAPES-2 run 2: DMG 10/20/35 -> 8/16/28
       sparkgap: ["{STUN} +1/+2/+3"],
       scaleguard: ["{PLATE} +5/+12/+18", "{DMG} +10/+20/+35"], // SHAPES-2 run 2: PLATE 3/7/11 -> 5/12/18
-      ballast: ["MAX {HULL} +8%/+16%/+25%"],
+      ballast: ["MAX HULL +8%/+16%/+25%"], // SC-0912 (PACKET-SHOPCARD1 item 3): HULL in words, as the stat row says it (was "MAX {HULL} +8%/+16%/+25%", the heart)
       grindstone: ["{DMG} +25/+55/+90"],
       brandingiron: ["{DMG} +15/+30/+50", "{BURN} -/+1/+2"], // FIRSTDAY-1 F7: the BURN comes at ★2; the dash says "none yet"
     };
@@ -732,7 +732,10 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
         expect(iconTipItems(d.t, words, piece)).toEqual(d.t.notes!.map((b) => b.text));
       } else {
         expect(plainSlugRig(def)).toBe(true);
-        expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", colour: words[0].colour });
+        // SC-0912 (PACKET-SHOPCARD1 item 3): SHOPCARD-1b's F1 note in glossary.ts replaced the HIT note PLAIN-1F pinned here ("HIT: EACH
+        // SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", the old line: rasp ★1 was the first of the six to fail); the glossary's line
+        const HIT_NOTE = "HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.";
+        expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: HIT_NOTE, colour: words[0].colour });
         expect(d.t.notes![0].text, `${def} ★${s}`).toBe(RIG_SENTENCE);
         expect(iconTipItems(d.t, words, piece).slice(-1)[0]).toBe(words[0].text);
       }
@@ -743,7 +746,7 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
       expect(kw.includes("SHIELD"), `${def} ★${s} SHIELD`).toBe(def === "scaleguard");
     }
     expect(CARRY_LINE).toBe("EACH SLUG IT HITS CARRIES THE {*PLATE} TO YOUR GUN. YOUR SHIP GAINS IT AS THE SLUG LOADS.");
-    expect(BALLAST_LINE).toBe("WHILE AN ARROW POINTS AT A BELT TILE, IT RAISES YOUR SHIP'S MAX {HULL}. NO ARROW ON A BELT: IT IS IDLE.");
+    expect(BALLAST_LINE).toBe("WHILE AN ARROW POINTS AT A BELT TILE, IT RAISES YOUR SHIP'S MAX HULL. NO ARROW ON A BELT: IT IS IDLE."); // SC-0912 (PACKET-SHOPCARD1 item 3): MAX HULL in words (was MAX {HULL}, the heart)
   }));
 
   it("PLAIN-1F (M3): with PLAIN_RIGS off nothing moves: the NOTES lead of every plain rig is the rig sentence, HIT is isPlainRig's", () => {
