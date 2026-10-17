@@ -84,6 +84,7 @@ import { skinOf, type PanelId } from "../../render/styles"; // CUSTOM-2a (REQ-BF
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, upgrade, type Ctx } from "./actions";
 import { fusible, gradeOf, outputsAt, starsOf, starText, upgradeLevel } from "../../sim/stars";
+import { wideSlots } from "../../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): WIDE on a factory is +1 belt slot
 import { factoryNext, levelLine, turretSpeedRow, upgradeLabel } from "../../ui/upgradeText"; // bb-0.8.3 (REQ-BFG-043 D11)
 import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
 import { shopShut } from "../../game/run"; // AZ-PREP (REQ-BFG-077; REVIEW-NPC1 Q4): no SELL button in REFIT (NPC_DAY on)
@@ -758,7 +759,7 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   const up = sig ? upgradeLabel(level) : null;
   return {
     title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
-    sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${outputsAt(d.id, grade) || 1}`,
+    sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${(outputsAt(d.id, grade) || 1) + wideSlots(p)}`, // ENCHANT-1 (REQ-BFG-085): + WIDE's slot
     body,
     variants: tightForms(body),
     // SHAPES-1 (REQ-BFG-086 S2): a shaped factory that turns (2x3, I3) has ROTATE first, as a rig's panel does

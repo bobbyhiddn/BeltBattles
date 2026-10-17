@@ -20,6 +20,8 @@ import { longRunFor } from "./rulesGate"; // RUN-1 (REQ-BFG-059): the day bound 
 export { longRunFor };
 import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL, longRunRules } from "../sim/longRun"; // RUN-1: the long run's bounds
 import { firstRunGateProblem } from "./rulesGate"; // FIRSTDAY-1 (REQ-BFG-004): the first-run flag by the gate
+import { enchantWorld } from "./rulesGate"; // ENCHANT-1 (REQ-BFG-085): the enchantment keys by the switch and the rules
+import { ENCHANT_IDS, enchantRules, isEnchantId } from "../sim/enchant"; // ENCHANT-1
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -213,14 +215,14 @@ function rot(o: Obj, path: string, version: number): { rot?: number } {
 /** 0.6.2s TURRET SLOTS (S8): the optional `turrets` of a build: v2 only, at most MAX_TURRETS strict entries
  *  { slot, def, uid, stars?, free? }. `free` is exactly true when present (false is never written). The canonical
  *  copy keeps the key order slot, def, uid, stars, free. */
-function turrets(o: Obj, path: string, version: number): { turrets?: BuildTurret[] } {
+function turrets(o: Obj, path: string, version: number, rules?: unknown): { turrets?: BuildTurret[] } {
   if (!has(o, "turrets") || o.turrets === undefined) return {}; // an in-memory `turrets: undefined` is absent (JSON drops it)
   if (version < 2) throw new SnapshotError(`${path}.turrets: not allowed in a v${version} snapshot`);
   return {
     turrets: arr(o.turrets, `${path}.turrets`, MAX_TURRETS).map((tv, i): BuildTurret => {
       const at = `${path}.turrets[${i}]`;
-      const t = obj(tv, at, ["slot", "def", "uid"], ["stars", "free", V3_PIECE_FIELD]);
-      grow(t, at, version); // RUNES-1: refused while off
+      const t = obj(tv, at, ["slot", "def", "uid"], ["stars", "free", V3_PIECE_FIELD, ...(enchantKeysFor(rules) ? ["ench"] : [])]); // ENCHANT-1: `ench` under its rules world only
+      const gr = grow(t, at, version, rules, true); // RUNES-1: refused while off; ENCHANT-1: taken on a GROWING turret
       if (has(t, "free") && t.free !== true) throw new SnapshotError(`${at}.free: expected true (absent = false)`);
       return {
         slot: int(t.slot, `${at}.slot`, 0, MAX_SLOT),
@@ -228,6 +230,8 @@ function turrets(o: Obj, path: string, version: number): { turrets?: BuildTurret
         uid: int(t.uid, `${at}.uid`, 0, MAX_UID),
         ...stars(t, at, version),
         ...(t.free === true ? { free: true } : {}),
+        ...enchFields(t, at, version), // ENCHANT-1 (REQ-BFG-085): ench, then grow, after the other keys
+        ...gr,
       };
     }),
   };
@@ -264,9 +268,41 @@ function v3Gate(path: string, field: string, version: number): void {
   if (!V3_LIVE[field]) throw new SnapshotError(`${path}: not in this rules version yet`);
 }
 
-/** RUNES-1: a piece's `grow` (GROW-1's counter): refused while off (v3Gate throws when present). */
-function grow(o: Obj, path: string, version: number): void {
-  if (has(o, V3_PIECE_FIELD) && o[V3_PIECE_FIELD] !== undefined) v3Gate(`${path}.${V3_PIECE_FIELD}`, V3_PIECE_FIELD, version);
+/**
+ * ENCHANT-1 (REQ-BFG-085, E2): are the enchantment keys (`ench`, `enchDir` on an item, `ench` on a turret) and GROWING's `grow`
+ * taken? Under the snapshot's rules when the caller has them (rulesGate.ts enchantWorld: the switch on AND rules at or after
+ * ENCHANT_RULES); without rules (validateBuild's own shape check, a battle record's builds) by the switch alone, which
+ * validate.ts inEnchantWorld has put to the deck's own rules' answer. Off, every one is an unknown field, as today.
+ */
+export const enchantKeysFor = (rules?: unknown): boolean => (rules === undefined ? enchantRules() : enchantWorld(rules));
+/** ENCHANT-1: the most a GROWING counter may read in a shape check (a long run's deepest day; validate.ts holds the exact bound: day - 1). */
+export const MAX_GROW = LONG_RUN_MAX_DAY;
+
+/** RUNES-1: a piece's `grow` (GROW-1's counter): refused while off (v3Gate throws when present).
+ *  ENCHANT-1 (REQ-BFG-085): taken, 1..MAX_GROW, on an item or turret holding GROWING under ENCHANT's rules world, in a v3
+ *  snapshot (it is a v3 field); every other piece, and a mod, keeps the refusal. Returns the field for the canonical copy. */
+function grow(o: Obj, path: string, version: number, rules?: unknown, piece = false): { grow?: number } {
+  if (!has(o, V3_PIECE_FIELD) || o[V3_PIECE_FIELD] === undefined) return {};
+  if (piece && o.ench === "growing" && enchantKeysFor(rules)) {
+    if (version < SNAPSHOT_V3) throw new SnapshotError(`${path}.${V3_PIECE_FIELD}: not allowed in a v${version} snapshot`);
+    return { grow: int(o[V3_PIECE_FIELD], `${path}.${V3_PIECE_FIELD}`, 1, MAX_GROW) };
+  }
+  v3Gate(`${path}.${V3_PIECE_FIELD}`, V3_PIECE_FIELD, version);
+  return {};
+}
+
+/** ENCHANT-1 (REQ-BFG-085, E2): the optional `ench` (an ENCHANT_IDS id) and, on an item, `enchDir` (0..3, WIDE only) of a piece:
+ *  v2 and later, only where enchantKeysFor says so (obj() already refused the keys otherwise). Kept in the canonical order,
+ *  after the piece's other keys. Which kind of piece may carry which word is validate.ts's. */
+function enchFields(o: Obj, path: string, version: number): { ench?: string; enchDir?: number } {
+  const e = has(o, "ench") && o.ench !== undefined, d = has(o, "enchDir") && o.enchDir !== undefined;
+  if (!e && !d) return {};
+  if (version < 2) throw new SnapshotError(`${path}.ench: not allowed in a v${version} snapshot`);
+  if (!e) throw new SnapshotError(`${path}.enchDir: only with an enchantment`);
+  if (!isEnchantId(o.ench)) throw new SnapshotError(`${path}.ench: expected one of ${ENCHANT_IDS.join(", ")}`);
+  if (!d) return { ench: o.ench };
+  if (o.ench !== "wide") throw new SnapshotError(`${path}.enchDir: only with WIDE`);
+  return { ench: o.ench, enchDir: int(o.enchDir, `${path}.enchDir`, 0, 3) };
 }
 
 /** RUNES-1 (snapshot v3): the build's optional `runes`, v3 only: at most MAX_RUNES strict entries { id } in pick order
@@ -321,8 +357,9 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
   if (has(o, "gold") && o.gold !== undefined) v3Gate(`${path}.gold`, "gold", version); // RUNES-1: R1b-2/R1d's held gold, off
   if (!isHeroId(o.hero)) throw new SnapshotError(`${path}.hero: unknown hero`);
   const items = arr(o.items, `${path}.items`, MAX_ITEMS).map((it, i): Placed => {
-    const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"], ["stars", "rot", V3_PIECE_FIELD]);
-    grow(p, `${path}.items[${i}]`, version); // RUNES-1: refused while off
+    // ENCHANT-1 (REQ-BFG-085): `ench` and `enchDir` join the optional keys under ENCHANT's rules world only (else unknown fields)
+    const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"], ["stars", "rot", V3_PIECE_FIELD, ...(enchantKeysFor(rules) ? ["ench", "enchDir"] : [])]);
+    const gr = grow(p, `${path}.items[${i}]`, version, rules, true); // RUNES-1: refused while off; ENCHANT-1: taken on a GROWING piece
     return {
       uid: int(p.uid, `${path}.items[${i}].uid`, 0, MAX_UID),
       def: str(p.def, `${path}.items[${i}].def`, DEF_PATTERN),
@@ -330,6 +367,8 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
       y: int(p.y, `${path}.items[${i}].y`, 0, GRID - 1),
       ...stars(p, `${path}.items[${i}]`, version),
       ...rot(p, `${path}.items[${i}]`, version),
+      ...enchFields(p, `${path}.items[${i}]`, version), // ENCHANT-1 (REQ-BFG-085): ench, enchDir, then grow, after the other keys
+      ...gr,
     };
   });
   const routes = arr(o.routes, `${path}.routes`, MAX_ROUTES).map((rv, i): RouteDef => {
@@ -343,7 +382,7 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
   });
   const mods = arr(o.mods, `${path}.mods`, MAX_MODS).map((mv, i): ModPlacement => {
     const m = obj(mv, `${path}.mods[${i}]`, ["uid", "def", "turret"], ["stars", V3_PIECE_FIELD]);
-    grow(m, `${path}.mods[${i}]`, version); // RUNES-1: refused while off
+    grow(m, `${path}.mods[${i}]`, version); // RUNES-1: refused while off (gear takes no enchantment: GROW-1's own, ENCHANT-1 leaves it)
     return {
       uid: int(m.uid, `${path}.mods[${i}].uid`, 0, MAX_UID),
       def: str(m.def, `${path}.mods[${i}].def`, DEF_PATTERN),
@@ -361,7 +400,7 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
     // (warlordHull is negative on days 1-3) still decode; validateBuild rejects them.
     // NUM-1 (REQ-BFG-047): hull x10, so the bounds x10 (an honest day-10 deck can hold 50+ ARMOR PACKs, 12,500+ hull)
     hullBonus: int(o.hullBonus, `${path}.hullBonus`, -10000, 100000),
-    ...turrets(o, path, version),
+    ...turrets(o, path, version, rules), // ENCHANT-1: `rules` decides whether a turret may carry ench / grow
     ...upgrades(o, path, version), // bb-0.8.3 (REQ-BFG-043 D10)
     ...runes(o, path, version, rules), // RUNES-1 (snapshot v3): last, only when present
   };

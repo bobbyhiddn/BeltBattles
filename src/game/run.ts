@@ -20,6 +20,7 @@ import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from 
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold (dayPool)
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
+import { enchantField } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): a piece in cargo keeps its enchantment
 import { cellsOf, isIntakeCell, shapesRules } from "../sim/deck"; // SHAPES-1 S5b: the intake sweep
 import { canPlaceItem } from "../sim/deck"; // SHAPES-1 (R1, S2): rotateRig turns a long rig only where it fits
 import { isShaped } from "../sim/foot"; // SHAPES-1 S5b
@@ -43,6 +44,11 @@ export interface InvItem {
   def: string;
   stars?: number; // 0.6.1a: 2 or 3 after a merge; absent = 1 (never written as 1)
   free?: boolean; // 0.6.2s (REQ-BFG-031 S7): a turret holding its hull's free starting copy; absent = false
+  // ENCHANT-1 (REQ-BFG-085, E2): a rig, factory or turret keeps its enchantment in cargo (the word, WIDE's side on a rig, and
+  // GROWING's counter), so storing, placing, swapping and the REFIT carry them. Absent on every piece without a word.
+  ench?: string;
+  enchDir?: number;
+  grow?: number;
 }
 
 export interface Offer {
@@ -764,7 +770,7 @@ export function storePlaced(run: Run, uid: number): boolean {
   const d = ITEMS[p.def];
   if (Object.values(HEROES).some((h) => h.factory === d.id)) return false; // every hero's signature factory stays aboard
   removeItem(run.build, uid);
-  run.inventory.push({ uid, def: p.def, ...starField(starsOf(p)) }); // 0.6.1a: moving never fuses; stars ride along
+  run.inventory.push({ uid, def: p.def, ...starField(starsOf(p)), ...enchantField(p) }); // 0.6.1a: moving never fuses; stars ride along; ENCHANT-1: and the word
   return true;
 }
 
@@ -841,7 +847,7 @@ export function sellInventory(run: Run, uid: number): number {
 // hands back goes to cargo with its stars and free flag). Moving never merges.
 
 function backToCargo(run: Run, r: TurretOpResult): void {
-  for (const t of r.turrets) run.inventory.push({ uid: t.uid, def: t.def, ...starField(starsOf(t)), ...(t.free ? { free: true } : {}) });
+  for (const t of r.turrets) run.inventory.push({ uid: t.uid, def: t.def, ...starField(starsOf(t)), ...(t.free ? { free: true } : {}), ...enchantField(t) }); // ENCHANT-1: and the word
   for (const m of r.mods) run.inventory.push({ uid: m.uid, def: m.def, ...starField(starsOf(m)) });
 }
 

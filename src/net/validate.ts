@@ -27,6 +27,8 @@ import { shapesRules, withShapes } from "../sim/shapes"; // SHAPES-1 (S1): the s
 import { shapesGateProblem, shapesWorld } from "./rulesGate"; // SHAPES-1 (S1, S4): SHAPES_RULES' gate
 import { shapes2Rules, withShapes2 } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114 S1): the six more shaped rigs' switch
 import { shapes2GateProblem, shapes2World } from "./rulesGate"; // SHAPES-2 (S1): SHAPES2_RULES' gate
+import { enchantKindOf, enchantProblem, enchantRules, withEnchant, wideSlots } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): the switch, the legal kinds
+import { enchantGateProblem, enchantWorld } from "./rulesGate"; // ENCHANT-1: ENCHANT_RULES' gate
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D3, D4): the long run's world. A deck under a long run's rules (rulesGate.ts longRunFor) is
 // judged with the long-run switch on (the content past day 10, LAST CHANCE on any day, the day bound LONG_RUN_MAX_DAY); under
@@ -219,6 +221,10 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // (rulesGate.ts shapes2GateProblem); a deck under older rules is judged without them (inShapes2World)
   const s2Gate = shapes2GateProblem(rules, build);
   if (s2Gate) return { ok: false, errors: [`rules: ${s2Gate}`] };
+  // ENCHANT-1 (REQ-BFG-085, E1): and enchantments (ench, enchDir, grow) only with ENCHANT on and under rules that have them
+  // (rulesGate.ts enchantGateProblem); a deck under older rules is judged without them (inEnchantWorld)
+  const enGate = enchantGateProblem(rules, build);
+  if (enGate) return { ok: false, errors: [`rules: ${enGate}`] };
   // FIRSTDAY-1 (REQ-BFG-004, F4): a first-run flag travels only with the first-run gate on
   const frGate = ctx.firstRun ? firstRunGateProblem() : null;
   if (frGate) return { ok: false, errors: [`firstRun: ${frGate}`] };
@@ -230,7 +236,17 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // SHAPES-1 (REQ-BFG-086; cap's RUN2 note 1.2): the shapes world nests inside the rules world, so a record under rules
   // before bb-0.10.0 is judged with SHAPES off too; c099's merge keeps HULL-ON's call inside both (release lane)
   // PLAIN-1F (M1): FIRSTDAY-1's ctx.firstRun rides through to validateBuild's runeProblem in the ctx spread
-  return inRulesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested
+  return inRulesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => inEnchantWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules)))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested; ENCHANT-1: inEnchantWorld innermost
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085, E1): run `fn` in the ENCHANT world of `rules` (rulesGate.ts enchantWorld), inShapes2World's form: with
+ * ENCHANT on and rules before ENCHANT_RULES, with the switch off (the enchantment keys are unknown fields, and refused first by
+ * enchantGateProblem), the world the deck was made in; otherwise as the switch stands. The switch is put back after, even on a
+ * throw (withEnchant). With ENCHANT off (the pins) nothing is touched.
+ */
+export function inEnchantWorld<T>(rules: unknown, fn: () => T): T {
+  return enchantRules() && !enchantWorld(rules) ? withEnchant(fn, false) : fn();
 }
 
 /**
@@ -486,6 +502,24 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     else if (p.rot === 0 || p.rot >= turns) errors.push(`item: uid ${p.uid} ${d.name} has rot ${p.rot}; its ${footOf(d).toUpperCase()} footprint turns only to rot 1..${turns - 1} (absent = 0)`);
   }
 
+  // ENCHANT-1 (REQ-BFG-085, E6.1): each word sits on a kind it can go on (enchant.ts enchantProblem: MASSIVE and SWIFT never on a
+  // rig; WIDE never on a shaped, X or 4-arrow rig; nothing on gear, cores or supplies, or any kind added later); enchDir only with
+  // WIDE on a rig, on a side with no arrow, and WIDE on a rig needs one. checkBuildShape took the keys only under ENCHANT's rules
+  // world (an unknown field otherwise), so with ENCHANT off nothing below runs
+  for (const p of b.items) {
+    if (p.ench === undefined) continue;
+    const d = ITEMS[p.def], rigWide = p.ench === "wide" && enchantKindOf(d) === "rig";
+    const why = enchantProblem(d, p.ench, p);
+    if (why) errors.push(`item: uid ${p.uid} ${d.name} can't take ${p.ench.toUpperCase()}: ${why}`);
+    else if (rigWide && p.enchDir === undefined) errors.push(`item: uid ${p.uid} ${d.name} has WIDE but no side (enchDir)`);
+    else if (p.enchDir !== undefined && !rigWide) errors.push(`item: uid ${p.uid} ${d.name} has enchDir ${p.enchDir}; only WIDE on a rig has a side`);
+  }
+  for (const t of b.turrets ?? []) {
+    if (t.ench === undefined) continue;
+    const why = enchantProblem(ITEMS[t.def], t.ench);
+    if (why) errors.push(`turret: uid ${t.uid} ${ITEMS[t.def].name} can't take ${t.ench.toUpperCase()}: ${why}`);
+  }
+
   // purchasability and the signature factory
   let own = 0;
   for (const p of b.items) {
@@ -552,7 +586,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   for (const [uid, n] of perFactory) {
     const f = b.items.find((p) => p.uid === uid);
     // 0.6.1a: outputs at its stars. bb-0.8.3 (REQ-BFG-044 D10): the hero factory's at its FACTORY level (stars.ts gradeOf)
-    const outs = f ? outputsAt(f.def, gradeOf(b, f)) || 1 : 1;
+    const outs = f ? (outputsAt(f.def, gradeOf(b, f)) || 1) + wideSlots(f) : 1; // ENCHANT-1 (REQ-BFG-085): WIDE on a factory is +1 belt slot
     if (f && n > outs) errors.push(`route: ${ITEMS[f.def].name} uid ${uid} feeds ${n} routes but has ${outs} output(s)`);
   }
   if (belt > b.beltCap) errors.push(`route: ${belt} belt tiles exceed beltCap ${b.beltCap}`);

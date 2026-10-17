@@ -12,6 +12,7 @@ import {
 } from "../sim/deck";
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12, J14 (c)): belt joins, as validateBuild checks them
 import { gradeOf, outputsAt } from "../sim/stars";
+import { wideSlots } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): WIDE on a factory is +1 belt slot
 
 /** FIGHT's short reasons: a belt that doesn't end on a free turret connector, any other problem. */
 export const NOWHERE = "BELT GOES NOWHERE";
@@ -79,7 +80,7 @@ export function routeProblems(b: Build): RouteProblem[] {
   for (const [uid, list] of perFactory) {
     const p = itemByUid(b, uid);
     // 0.6.1a: outputs at its stars (= validate.ts); bb-0.8.3 (REQ-BFG-044 D10): the hero factory's at its FACTORY level
-    const outs = p && ITEMS[p.def] ? outputsAt(p.def, gradeOf(b, p)) || 1 : 1;
+    const outs = p && ITEMS[p.def] ? (outputsAt(p.def, gradeOf(b, p)) || 1) + wideSlots(p) : 1; // ENCHANT-1: + WIDE's slot
     if (p && list.length > outs) add(list[outs], `${ITEMS[p.def].name} uid ${uid} feeds ${list.length} routes but has ${outs} output(s)`);
   }
   // one deck-wide overflow, pinned on the route whose tiles first run past the cap

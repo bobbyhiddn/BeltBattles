@@ -16,6 +16,7 @@ import { bestRot } from "../../sim/beltside"; // 0.6.2 BELTSIDE: the preview's a
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 import { fitCore } from "../../game/run"; // 0.6.1b
 import { canFitGear, gearSlotsAt, turretSlots, type Build } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031)
+import { enchantField } from "../../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): a cargo piece keeps its enchantment on the deck
 import { dropTurret } from "./turretActions"; // 0.6.2s (REQ-BFG-031 S5)
 import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a successful action completes its first-run tip
 
@@ -471,7 +472,7 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
   } else if (src.from === "cargo") {
     const it = takeFromInventory(run, c.uid);
     if (!it) return false;
-    placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y, ...starField(starsOf(it)), ...rotField(c.def, rot) }); // moving never fuses
+    placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y, ...starField(starsOf(it)), ...rotField(c.def, rot), ...enchantField(it) }); // moving never fuses; ENCHANT-1: nor does it drop the word
   } else if (src.from === "deck") {
     // SHAPES-1 (S2): a shaped piece moves and turns at once (its new cells decide which of a factory's belts it keeps)
     const r = shaped ? moveItem(b, uid, cell.x, cell.y, rot) : moveItem(b, uid, cell.x, cell.y);

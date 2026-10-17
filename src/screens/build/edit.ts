@@ -29,6 +29,7 @@ import { JOIN_PACE_PCT } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { freeJoinsRules } from "../../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): no pace words with FREE_JOINS on
 import { ITEMS, UPGRADE_MAX } from "../../sim/content";
 import { FUSE_MAX, gradeOf, isSignatureFactory, outputsAt } from "../../sim/stars";
+import { wideSlots } from "../../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): WIDE on a factory is +1 belt slot
 import { C } from "../../render/palette";
 import { cellAt, footX, footY } from "../../render/frame";
 import { inside } from "../../ui/ui";
@@ -75,7 +76,7 @@ export function fullNotice(name: string, belts: number, grade: number, signature
 export function freeOutputs(b: Build, uid: number): number {
   const f = itemByUid(b, uid);
   if (!f || defOf(f).kind !== "factory") return 0;
-  return (outputsAt(f.def, gradeOf(b, f)) || 1) - routesOf(b, uid).length;
+  return (outputsAt(f.def, gradeOf(b, f)) || 1) + wideSlots(f) - routesOf(b, uid).length; // ENCHANT-1 (REQ-BFG-085): + WIDE's belt slot
 }
 
 /** shoptap (REQ-BFG-035): the fitted pieces of turret slot t that a touch tap on the selected turret steps through: its
@@ -492,7 +493,7 @@ export class Editor {
     const f = itemByUid(b, uid);
     if (!f) return;
     const d = defOf(f);
-    const outs = outputsAt(f.def, gradeOf(b, f)) || 1; // 0.6.1a: outputs at its stars (= routeCheck.ts, validate.ts)
+    const outs = (outputsAt(f.def, gradeOf(b, f)) || 1) + wideSlots(f); // 0.6.1a: outputs at its stars (= routeCheck.ts, validate.ts); ENCHANT-1: + WIDE's slot
     const mine = routesOf(b, uid);
     // bb-0.8.3 (REQ-BFG-044 D6): every slot in use: nothing is drawn, as 0.8.0's full GANTRY PRESS (no factory has one
     // slot now, so none moves its belt); the warning says so, and what opens one more (a star, or the hero's upgrade)
