@@ -252,7 +252,7 @@ afterAll(async () => {
     expect(pre.status).toBe(204);
     expect(pre.headers.get("access-control-allow-origin")).toBe(SHORE);
     expect(pre.headers.get("access-control-allow-headers")).toBe("content-type, x-bb-key, x-bb-sig");
-    expect(pre.headers.get("access-control-allow-methods")).toBe("GET, POST, OPTIONS");
+    expect(pre.headers.get("access-control-allow-methods")).toBe("GET, POST, PUT, OPTIONS"); // PROFILE-UP (REQ-BFG-074 clause 4): PUT /v1/profile
   });
 });
 
