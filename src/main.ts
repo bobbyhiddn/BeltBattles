@@ -416,15 +416,17 @@ game.start();
   },
   /**
    * RUN-1 (REQ-BFG-059, REQ-BFG-116) tooling, for the shots only: turns LONG_RUN on (or off) for this page (longRun.ts setLongRun,
-   * the switch's own setter; withLongRun is the scoped form the tests use). LONG_RUN ships off, so unlike bb.hullScale and
-   * bb.openNpcDay this is not behind import.meta.env.DEV: a shot is taken on the built page (npm run build), where the
-   * switch is off. It changes nothing but the runs made after it: newRun marks each one (Run.longRun), won at 10 wins, lost
-   * at 0 hearts, no day limit, and the title's rules card reads the switch. Call it before bb.setupRun / bb.openEnd /
-   * bb.openDawn / bb.openFork / bb.openDusk / bb.open (which make the run), then set run.day, wins and losses on bb.game.run
-   * as the other shots do. A run made before keeps its own rule (its mark). Returns the switch.
+   * the switch's own setter; withLongRun is the scoped form the tests use). It changes nothing but the runs made after it:
+   * newRun marks each one (Run.longRun), won at 10 wins, lost at 0 hearts, no day limit, and the title's rules card reads
+   * the switch. Call it before bb.setupRun / bb.openEnd / bb.openDawn / bb.openFork / bb.openDusk / bb.open (which make the
+   * run), then set run.day, wins and losses on bb.game.run as the other shots do. A run made before keeps its own rule
+   * (its mark). Returns the switch.
+   * BUMP-1D (run 3; REPORT-RUN1 section 7 item 4): LONG_RUN ships ON now, so the setter is dev-only (import.meta.env.DEV) as
+   * bb.hullScale's and bb.openNpcDay's are: on a production page this only reports the switch, so no hook can turn the
+   * 10-wins run off there (was: not behind DEV because LONG_RUN shipped off and a shot is taken on the built page).
    */
   longRun(on = true): boolean {
-    setLongRun(on);
+    if (import.meta.env.DEV) setLongRun(on);
     return longRunRules();
   },
   /** 0.6.0b: the road fork at a day's dawn (matriarchBeatenOn for R3). */
