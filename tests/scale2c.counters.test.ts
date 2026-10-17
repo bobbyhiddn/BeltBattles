@@ -126,8 +126,8 @@ describe("SCALE-2c C8: a reader's running bonus on the piece (switch on, your si
     withScaleRigs(() => {
       const bt = new Battle(withMod(furnaceBench(), 40, "spallcatcher", GUN, 2), barge(), SEED);
       bt.sides[0].hitsTaken = 12;
-      expect(rampBadges(bt, 0)).toEqual([{ kind: "gun", ref: GUN, bonus: 3 * 12, count: 12 }]); // SCALE-2e E4: SPALL CATCHER ★2 is 3 (was 7)
-      expect(rampText(36, 12, "gun", false)).toBe("+36 {DMG} ON ITS NEXT SHOT: 12 HITS ON YOU SO FAR.");
+      expect(rampBadges(bt, 0)).toEqual([{ kind: "gun", ref: GUN, bonus: 2 * 12, count: 12 }]); // SCALE-2e E4: SPALL CATCHER ★2 is 2 (run 2; E4 had 3, SCALE-2c 7)
+      expect(rampText(24, 12, "gun", false)).toBe("+24 {DMG} ON ITS NEXT SHOT: 12 HITS ON YOU SO FAR.");
       expect(rampBadges(new Battle(aimed(furnaceBench(), 30, "quench", 2), barge(), SEED), 0)).toEqual([]); // KINDLING: C1 shows its count
     });
   });

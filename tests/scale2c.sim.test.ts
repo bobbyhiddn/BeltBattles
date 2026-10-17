@@ -20,11 +20,11 @@ const TABLE: Record<string, { name: string; kind: ItemDef["kind"]; rarity: ItemD
   quench: { name: "KINDLING", kind: "gate", rarity: "rare", price: 4, merchant: "alchemist", count: "foeBurn", give: "dmg", each: [3, 5, 8] },
   pressure: { name: "PRESSURE BREECH", kind: "core", rarity: "common", price: 4, merchant: "gunsmith", each: [12, 14, 42] }, // SCALE-2e E4: ★2 was 26
   shieldwall: { name: "IRON WALL", kind: "gate", rarity: "legendary", price: 10, merchant: "ironmonger", count: "ownPlate", give: "dmg", per: 10, each: [3, 6, 17] }, // SCALE-2e E4: was 5 / 11 / 17
-  spallcatcher: { name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, merchant: "quartermaster", count: "hitsTaken", give: "dmg", each: [2, 3, 7] }, // SCALE-2e E4: was 3 / 7 / 11
+  spallcatcher: { name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, merchant: "quartermaster", count: "hitsTaken", give: "dmg", each: [1, 2, 7] }, // SCALE-2e E4: was 3 / 7 / 11; run 2: was 2 / 3 / 7
   keg: { name: "POWDER KEG", kind: "gate", rarity: "rare", price: 4, merchant: "scrapper", count: "ownHits", give: "dmg", each: [2, 5, 11] }, // SCALE-2e E4: was 3 / 7 / 11
   cindermail: { name: "CINDER MAIL", kind: "gate", rarity: "rare", price: 5, merchant: "ironmonger", count: "foeBurn", give: "plate", each: [2, 3, 5] },
   rotgauge: { name: "ROT GAUGE", kind: "gate", rarity: "rare", price: 5, merchant: "alchemist", count: "foePoison", give: "dmg", each: [3, 5, 8] },
-  leechcoil: { name: "LEECH COIL", kind: "gate", rarity: "rare", price: 5, merchant: "ironmonger", count: "foePoison", give: "heal", each: [4, 5, 6] },
+  leechcoil: { name: "LEECH COIL", kind: "gate", rarity: "rare", price: 5, merchant: "ironmonger", count: "foePoison", give: "heal", each: [3, 4, 6] }, // SCALE-2e run 2: was 4 / 5 / 6
   crowdpress: { name: "CROWD PRESS", kind: "gate", rarity: "common", price: 3, merchant: "tinker", count: "beltSlugs", give: "dmg", each: [3, 7, 11] },
   aegisspike: { name: "AEGIS SPIKE", kind: "gate", rarity: "rare", price: 5, merchant: "tinker", count: "ownShield", give: "dmg", each: [40, 88, 140] },
   grudgerod: { name: "GRUDGE ROD", kind: "gate", rarity: "common", price: 3, merchant: "scrapper", count: "heartsLost", give: "dmg", each: [6, 13, 21] },
@@ -388,7 +388,7 @@ describe("SCALE-2c: step 4 (DRAKE NOZZLE never converts a reader's DMG), and PLA
         for (const e of ev) if (e.type === "heal" && e.side === 0 && e.source === "reads") heals.push(e.amount);
       });
       expect(heals.length).toBeGreaterThan(3);
-      for (const h of heals) expect(h).toBe(Math.floor((4 * 5) / 2));
+      for (const h of heals) expect(h).toBe(Math.floor((TABLE.leechcoil.each[0] * 5) / 2)); // ★1 (aimed's stars default); SCALE-2e run 2: 3 x 5 / 2 (was 4)
       const full = new Battle(aimed(furnaceBench(), 30, "leechcoil", 2), barge(), SEED);
       let healed = 0;
       stepFor(full, 8, (b) => { foe(b).hull.poison = 5; }, (ev) => { for (const e of ev) if (e.type === "heal" && e.side === 0) healed++; });

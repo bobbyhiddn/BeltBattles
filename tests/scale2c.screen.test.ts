@@ -24,11 +24,11 @@ const LINE: Record<string, string> = {
   quench: "HIT: +3 {DMG} FOR EACH {*BURN} ON THE FOE.",
   pressure: "SHOT: +12 {DMG} FOR EACH {SLUG} WAITING.",
   shieldwall: "HIT: +3 {DMG} FOR EACH 10 {*PLATE} YOU HAVE.", // SCALE-2e E4: was +5
-  spallcatcher: "SHOT: +2 {DMG} FOR EACH HIT ON YOU.", // SCALE-2e E4: was +3
+  spallcatcher: "SHOT: +1 {DMG} FOR EACH HIT ON YOU.", // SCALE-2e E4: was +3; run 2: was +2
   keg: "HIT: +2 {DMG} FOR EACH OF ITS HITS.", // SCALE-2e E4: was +3
   cindermail: "HIT: +2 {*PLATE} FOR EACH {*BURN} ON FOE.", // the brief's less THE: {*PLATE} draws SHIELD, past 225 px with it
   rotgauge: "HIT: +3 {DMG} FOR EACH {*POISON} ON THE FOE.",
-  leechcoil: "HIT: {*HEAL} 4 TIMES THE FOE'S {*POISON}.",
+  leechcoil: "HIT: {*HEAL} 3 TIMES THE FOE'S {*POISON}.",
   crowdpress: "HIT: +3 {DMG} FOR EACH {SLUG} ON ITS BELT.",
   aegisspike: "HIT: +40 {DMG} FOR EACH {*SHIELD} YOU HAVE.",
   grudgerod: "HIT: +6 {DMG} FOR EACH HEART LOST.",
@@ -124,8 +124,8 @@ describe("SCALE-2c screen: the 12 faces with the switch on", () => {
 
   it("LEVELS / NEXT★ read the switch-on numbers (★2's and ★3's)", () => {
     const next: Record<string, [string, string]> = {
-      quench: ["+5", "+8"], pressure: ["+14", "+42"], shieldwall: ["+6", "+17"], spallcatcher: ["+3", "+7"], keg: ["+5", "+11"], // SCALE-2e E4: IRON WALL 3/6/17, SPALL CATCHER 2/3/7, POWDER KEG 2/5/11
-      cindermail: ["+3", "+5"], rotgauge: ["+5", "+8"], leechcoil: ["5", "6"], crowdpress: ["+7", "+11"], aegisspike: ["+88", "+140"],
+      quench: ["+5", "+8"], pressure: ["+14", "+42"], shieldwall: ["+6", "+17"], spallcatcher: ["+2", "+7"], keg: ["+5", "+11"], // SCALE-2e E4: IRON WALL 3/6/17, SPALL CATCHER 2/3/7, POWDER KEG 2/5/11
+      cindermail: ["+3", "+5"], rotgauge: ["+5", "+8"], leechcoil: ["4", "6"], crowdpress: ["+7", "+11"], aegisspike: ["+88", "+140"],
       grudgerod: ["+13", "+21"], trophychain: ["+12", "+28"], // SCALE-2e E4: TROPHY CHAIN 8/12/28
     };
     withScaleRigs(() => {
@@ -176,7 +176,7 @@ describe("SCALE-2c screen: the 12 faces with the switch on", () => {
       expect(cardText("quench")).toBe("3 DAMAGE FOR EACH FOE BURN.");
       expect(cardText("shieldwall")).toBe("3 DAMAGE FOR EACH 10 SHIELD."); // SCALE-2e E4: was 5
       expect(cardText("aegisspike")).toBe("40 DAMAGE FOR EACH WARD.");
-      expect(cardText("leechcoil")).toBe("HEALS 4 TIMES THE FOE'S POISON.");
+      expect(cardText("leechcoil")).toBe("HEALS 3 TIMES THE FOE'S POISON.");
     });
   });
 
@@ -200,7 +200,7 @@ describe("SCALE-2c screen: the 12 faces with the switch on", () => {
       expect(bad).toEqual([]);
       expect(phoneGist("quench")).toEqual(["PER FOE {BURN}", "{DMG}+3"]);
       expect(phoneGist("cindermail")).toEqual(["PER FOE {BURN}", "{PLATE}+2"]);
-      expect(phoneGist("leechcoil")).toEqual(["PER FOE {POISON}", "{HEAL}4"]);
+      expect(phoneGist("leechcoil")).toEqual(["PER FOE {POISON}", "{HEAL}3"]);
     });
   });
 

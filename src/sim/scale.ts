@@ -76,7 +76,9 @@ export const SCALE_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = 
   // SCALE-2e E4 (REQ-BFG-098 098.3): 3 / 7 / 11 -> 2 / 3 / 7. The reader's lift over the same deck was +12.8 / +18.6 / +15.8 points on
   // days 3 / 6 / 9 against TEMPER's +9.9 / +7.0 (G1 broken on days 3 and 6, the J5 captains' fall notwithstanding); at 2 / 3 / 7 it is
   // +9.3 / +10.2 / +13.1 (REPORT-SCALE2e section 6)
-  spallcatcher: (b) => ({ ...b, desc: [], ...readerMod("hitsTaken", "dmg", [2, 3, 7]) }),
+  // SCALE-2e run 2 (REQ-BFG-098 098.3; cap's answer 2): 2 / 3 / 7 -> 1 / 2 / 7. The larger day-6 read (pool 150, 158 decks) was +10.8 (SE 0.9)
+  // against TEMPER's +7.3 (over 10 and over TEMPER's: G1); the strict step 1 / 2 / 7 reads +7.5 (0.8) on the same decks
+  spallcatcher: (b) => ({ ...b, desc: [], ...readerMod("hitsTaken", "dmg", [1, 2, 7]) }),
   // POWDER KEG: +3 / +7 / +11 DMG for each of its own hits this fight, this one included; the 12 s fuse (kegTick) goes
   // SCALE-2e E4 (REQ-BFG-098 098.3): 3 / 7 / 11 -> 2 / 5 / 11. +12.8 points on day 6 against TEMPER's +6.9 broke G1; at 2 / 5 / 11 the
   // reader's lift is +6.2 / +9.8 / +9.8 on days 3 / 6 / 9
@@ -116,7 +118,9 @@ export const SCALE_ITEMS: Readonly<Record<string, ItemDef>> = {
   },
   leechcoil: {
     id: "leechcoil", name: "LEECH COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", desc: [], tags: ["SWARM", "PLATE"],
-    ...reader("foePoison", "heal", [4, 5, 6]), // HEAL 4 / 5 / 6 times the foe's POISON (heal(): BURN halves it)
+    // HEAL 3 / 4 / 6 times the foe's POISON (heal(): BURN halves it). SCALE-2e run 2 (REQ-BFG-098 098.3; cap's answer 2): was 4 / 5 / 6; the
+    // larger day-6 read (pool 150, 160 decks) was +10.3 (SE 0.8) against TEMPER's +6.4 (G1); 3 / 4 / 6 reads +8.7 (0.7) on the same decks
+    ...reader("foePoison", "heal", [3, 4, 6]),
   },
   crowdpress: {
     id: "crowdpress", name: "CROWD PRESS", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker", desc: [], tags: ["SWARM", "FORGE"],
