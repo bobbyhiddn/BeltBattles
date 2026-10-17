@@ -330,7 +330,19 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // 2431-2441 hullEffects takes the blast, x D(day), after plating, off the hit side's hull). It does not say the hit deals nothing:
     // rigs on the belt can add damage to the charge's own impact. One row, 225 px at every star and day (no digits left in it).
     // The brief's "ITS {DMG} LANDS ON THE FOE'S HULL 3 SEC AFTER A HIT." is 241 px (two rows)
-    return rules([{ text: `THE FOE'S HULL TAKES ITS {DMG} ${delay}{SEC} AFTER A HIT.` }], [["delay", `${delay}{SEC}`]]);
+    // SHOPCARD-1d (REQ-BFG-081; READ-11 fix list 2: 2 of 6 readers (round A Opus, round T Haiku) still leaned to "a second dose on top
+    // of the hit" or "again", and 2 of 3 tooltip readers asked whose ITS it was): name what lands, and say it is the stat row's DMG
+    // and that it comes later. The hit sticks a charge (battle.ts:2191 impact -> 2318-2350 roundImpact pushes {at: t + delay, blast}
+    // on the hit side for a hit on ANY target); 3 s later (2428-2441 hullEffects) the blast, the stat row's {DMG} (content.ts:532-539
+    // base 0 + round.blast; factoryStats adds the blast to the stat), takes the hit side's hull down, x D(day), after plating. IT is the
+    // charge the line has just named, so no bare ITS. The line does not say the hit itself deals nothing: deck.ts:585-588 shotFloor
+    // is 0 for a LIMPET charge, so its impact deals only what rigs (and runes) added to it (battle.ts:1919 payloadDamage with the
+    // slug's flat, 2133-2151 impact), and the foe's FRAY bonus. Two rows of the 225 px band (361 px; no digit but the delay, so the
+    // same at every star and day). Was "THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT." (225 px, one row). Forms tried (px):
+    // "THE {DMG} LANDS ON THE FOE'S HULL AS A BLAST, 3{SEC} AFTER A HIT." 304, "THE {DMG} IS A BLAST THAT HITS THE FOE'S HULL 3{SEC}
+    // AFTER A HIT." 307, "3{SEC} AFTER A HIT, A BLAST OF THE {DMG} LANDS ON THE FOE'S HULL." 304, "THE {DMG} IS A BLAST THAT LANDS ON THE
+    // FOE'S HULL 3{SEC} AFTER A HIT." 329, "THE {DMG} IS A BLAST, NOT A HIT: ..." 376 (reads as the hit being nothing)
+    return rules([{ text: `A HIT STICKS A CHARGE: ${delay}{SEC} LATER IT BLASTS THE FOE'S HULL FOR THE {DMG}.` }], [["delay", `${delay}{SEC}`]]);
   },
   // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
   // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
@@ -801,7 +813,18 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // rule; belts into two guns have no pair to make. Was the RULES text "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE,
     // THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER." and 3 more sentences (its 1 s, both arrows, +10, two guns)
     const t = fmtSec(gt(e).latch!.hold);
-    return rules([hit(`HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}.`)], [["hold", `UP TO ${t}{SEC}`]], [REMINDER.PAIR()]);
+    // SHOPCARD-1d (REQ-BFG-081; READ-11 fix list 1: Haiku opened no note in either run and put it "beside a belt", round A P, the answer
+    // the A bar turned on; the desk tooltip, which shows no notes, never said it either): the face now carries the condition, in the
+    // words of its HIT note (glossary.ts TAP_NOTES.twinlatch: "ONLY WHEN BOTH ITS ARROWS POINT AT BELTS"). battle.ts:757-759 builds a
+    // latch only for a TWIN LATCH with g.hits.length === 2 ("one arrow on a belt never holds"), g.hits being the arrows that land on a
+    // belt tile (deck.ts:373-398 rigHits); a latch also needs to be online, not stalled, frozen or wrecked (battle.ts:1360 latchWorks,
+    // as every rig does). One rule, two rows of the 225 px band (415 px; the hold sentence is 211 px and the new one 199 px, so the
+    // panel wraps between them); the hold and the PAIR stay. Was "HIT: HOLDS A {SLUG} UP TO 1{SEC} TO MAKE A {*PAIR}." (211 px, one
+    // row). Forms tried (px): as a block of its own "BOTH ITS ARROWS MUST POINT AT BELTS." 199 (two blocks, a gap between), "ONLY WHEN
+    // BOTH ITS ARROWS POINT AT BELTS." 227 (a row of its own and one word over), "HIT: WITH BOTH ARROWS ON BELTS, HOLDS A {SLUG} UP TO
+    // 1{SEC} TO MAKE A {*PAIR}." 360 (two rows), "HIT: IF BOTH ITS ARROWS POINT AT BELTS, HOLDS ..." 404 (two rows), "..., ONLY WHEN BOTH ITS
+    // ARROWS POINT AT BELTS." 444 (three rows)
+    return rules([hit(`HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}. BOTH ITS ARROWS MUST POINT AT BELTS.`)], [["hold", `UP TO ${t}{SEC}`]], [REMINDER.PAIR()]);
   },
   counterweight: (e) => {
     // DESIGN-Y row 41: Battle.applyHit: + each for each tile the slug has ridden on its journey, no cap (content.ts
