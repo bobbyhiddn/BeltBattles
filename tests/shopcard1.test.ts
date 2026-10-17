@@ -35,7 +35,7 @@ import {
 } from "../src/screens/build/shop";
 import { shapedPiece } from "../src/screens/build/shapeEdit";
 import { OWNED_NOTE, explainPanel, mergeLine, offerMergeNote, offerPanel, textOpts } from "../src/screens/build/inspector";
-import { GRID_CELL, HEAD_LEN, drawGrid, drawShapePlate, gridGeom, gridSpecOf, shapeGridSize, type GridSpec } from "../src/ui/shapePic";
+import { CARGO_FACE, GRID_CELL, GRID_CELL_MIN, HEAD_LEN, drawGrid, drawShapePlate, gridCell, gridGeom, gridSpecOf, shapeGridSize, type GridSpec } from "../src/ui/shapePic";
 import { lineText } from "../src/ui/richText";
 
 installRaster();
@@ -57,7 +57,7 @@ const inBox = (b: Box, x: number, y: number): boolean => x >= b.x && x < b.x + b
 const clear = (a: Box, b: Box): boolean => a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y;
 const shaped = (): string[] => buyableModules().filter((d) => shapedPiece(d.id)).map((d) => d.id);
 /** The grid's plate on a card (`o`: the zone map's grid corner): its ink box, 1 px round the grid. */
-const plateAt = (id: string, o: { x: number; y: number }, cell = GRID_CELL): Box => { const z = shapeGridSize(id, cell); return { x: o.x, y: o.y, w: z.w + 2, h: z.h + 2 }; };
+const plateAt = (id: string, o: { x: number; y: number }, cell = gridCell(id)): Box => { const z = shapeGridSize(id, cell); return { x: o.x, y: o.y, w: z.w + 2, h: z.h + 2 }; }; // SC-0912: the piece's own cell (gridCell: GRID_CELL, 4 for PICKAXE)
 
 function draw(id: string, w: number, h: number, s: Partial<CardState>, price = ITEMS[id].price): RasterCanvas {
   const c = fresh(w + 2 * OX, h + 2 * OY + 2);
@@ -140,7 +140,11 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
           expect(clear(pl, m), `${wn} ${id}: the grid's plate clear of the ${n}`).toBe(true);
         }
         // the plate reaches over the icon's corner only: it never overlaps the picture's centre (touching its edge is fine)
-        expect(pl.x + pl.w <= centre.x || pl.y + pl.h <= centre.y, `${wn} ${id}: the grid's plate off the picture's centre`).toBe(true);
+        if (id === "pickaxe" && wn === "phone") {
+          // SC-0912 (oracle 0ab73cb56a4abcbf): PICKAXE at 4 px, measured exception: on the phone card its 19 x 13 plate's right edge is at 21
+          // against the centre box's 20 (1 px over; at 5 px it was 24); the desk cards (70 and 69) keep the rule
+          expect([pl.x + pl.w, centre.x, pl.w, pl.h], `${wn} ${id}: the grid's plate over the picture's centre by 1 px (the measured exception)`).toEqual([21, 20, 19, 13]);
+        } else expect(pl.x + pl.w <= centre.x || pl.y + pl.h <= centre.y, `${wn} ${id}: the grid's plate off the picture's centre`).toBe(true);
       }
     }
   });
@@ -193,10 +197,17 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
     // SC-0912: eleven, not five: SHOPCARD-1's five and 0.9.11's SHAPES2 six (the six more shaped rigs, src/sim/shapes2.ts)
     expect(ids.sort()).toEqual(["assembly", "cinderhook", "elbowguard", "embertrough", "gantry", "jawcrusher", "nailstrip", "pickaxe", "sawbar", "sparkcomb", "spikerail"]);
     expect(GRID_CELL).toBe(5); // G2: 5 art px = 8.33 / 7.50 / 6.67 CSS px at 402x690 @3, 360x640 @2 and 844x390 @3 (REPORT section 6)
+    // SC-0912 (oracle 0ab73cb56a4abcbf): a piece's grid is drawn at gridCell(id) on every surface: GRID_CELL, or GRID_CELL_MIN (4, never less)
+    // where the grid at GRID_CELL is wider or taller than the cargo slot's 16 px face: PICKAXE alone (20 x 13 at 5 px, 17 x 11 at 4)
+    expect(GRID_CELL_MIN).toBe(4);
+    expect(CARGO_FACE).toBe(16);
+    expect(Object.fromEntries(ids.map((id) => [id, gridCell(id)]))).toEqual({
+      assembly: 5, cinderhook: 5, elbowguard: 5, embertrough: 5, gantry: 5, jawcrusher: 5, nailstrip: 5, pickaxe: 4, sawbar: 5, sparkcomb: 5, spikerail: 5,
+    });
     const rows: string[] = [];
     for (const id of ids) for (const [wn, w, h] of WIDTHS) {
-      const c = draw(id, w, h, {}), z = cardZones(w, h), d = ITEMS[id], rig = d.kind === "gate";
-      const spec = gridSpecOf(id), geom = gridGeom(spec, GRID_CELL), sz = shapeGridSize(id, GRID_CELL);
+      const c = draw(id, w, h, {}), z = cardZones(w, h), d = ITEMS[id], rig = d.kind === "gate", cell = gridCell(id);
+      const spec = gridSpecOf(id), geom = gridGeom(spec, cell), sz = shapeGridSize(id, cell);
       expect([geom.w, geom.h], id).toEqual([sz.w, sz.h]);
       expect(spec.cells, `${id}: the footprint at rot 0`).toEqual(footOffsets(d, 0));
       // the plate: ink round the grid's box
@@ -210,7 +221,7 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
         const k = spec.cells.findIndex(([x, y]) => spec.cells.some(([u, v]) => (u === x + 1 && v === y) || (u === x && v === y + 1)));
         expect(k, `${id}: two cells beside each other`).toBeGreaterThanOrEqual(0);
         const [cx, cy] = spec.cells[k], t = geom.tiles[k], across = spec.cells.some(([u, v]) => u === cx + 1 && v === cy);
-        expect(c.at(gx + t.x + (across ? GRID_CELL - 1 : 1), gy + t.y + (across ? 1 : GRID_CELL - 1)), `${id} ${wn}: a seam between two cells`).toBe(seam);
+        expect(c.at(gx + t.x + (across ? cell - 1 : 1), gy + t.y + (across ? 1 : cell - 1)), `${id} ${wn}: a seam between two cells`).toBe(seam);
       }
       // the arrowheads: lime, HEAD_LEN (3) px long, one per arrow, none on a factory
       expect(geom.heads.length, id).toBe(rig ? spec.arrows.length : 0);
@@ -222,7 +233,7 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
       for (const hd of geom.heads) {
         let lime = 0;
         for (let y = 0; y < hd.h; y++) for (let x = 0; x < hd.w; x++) if (c.at(gx + hd.x + x, gy + hd.y + y) === C.lime) lime++;
-        const t = GRID_CELL - 1;
+        const t = cell - 1;
         expect(lime, `${id} ${wn}: an arrowhead of ${HEAD_LEN} rows (${t % 2 ? 1 : 2} + ${t} + ${t} px)`).toBe((t % 2 ? 1 : 2) + 2 * t);
         expect(hd.dir === 0 || hd.dir === 2 ? hd.h : hd.w, `${id}: the head is ${HEAD_LEN} long`).toBe(HEAD_LEN);
       }
@@ -233,7 +244,11 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
         if (ic.at(i, j) === null) continue;
         for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { opaque++; if (inBox(plate, z.icon.x + 2 * i + a, z.icon.y + 2 * j + b)) hidden++; }
       }
-      expect(hidden / opaque, `${id} ${wn}: the plate hides at most 25% of the icon`).toBeLessThanOrEqual(0.25);
+      if (id === "pickaxe" && wn === "phone") {
+        // SC-0912 (oracle 0ab73cb56a4abcbf): PICKAXE at 4 px, measured exception: its plate hides 98 of the icon's 336 opaque px on the phone card
+        // (29.2%; 147 = 43.8% at 5 px); the desk cards (70 and 69) hide 0 and keep the rule, as does every other piece
+        expect([hidden, opaque], `${id} ${wn}: the plate hides 98/336 of the icon (the measured exception)`).toEqual([98, 336]);
+      } else expect(hidden / opaque, `${id} ${wn}: the plate hides at most 25% of the icon`).toBeLessThanOrEqual(0.25);
       rows.push(`${id} ${wn} ${w}x${h}: grid ${sz.w}x${sz.h} (plate ${plate.w}x${plate.h} at ${plate.x},${plate.y}), icon ${z.icon.x},${z.icon.y} ${CARD_ICON}x${CARD_ICON}, hides ${hidden}/${opaque} = ${((100 * hidden) / opaque).toFixed(1)}%`);
     }
     console.log(`SHOPCARD1 shaped pieces' cards, ${rows.length}:\n${rows.join("\n")}`);
@@ -439,14 +454,23 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
 
   it("the cargo slot: the grid in the slot's top-left corner inside its 16 px face, the star pips over it; a piece without one draws none", () => {
     for (const id of shaped()) {
-      const geom = gridGeom(gridSpecOf(id), GRID_CELL);
-      expect(geom.w, `${id}: the grid fits the 16 px face`).toBeLessThanOrEqual(16);
-      expect(geom.h, id).toBeLessThanOrEqual(16);
+      const geom = gridGeom(gridSpecOf(id), gridCell(id));
+      if (id === "pickaxe") {
+        // SC-0912 (oracle 0ab73cb56a4abcbf): PICKAXE at 4 px, measured exception: its grid is 17 x 11 where the face is 16 px. It is drawn where
+        // every grid sits (the face's top-left, slot x + 1, y + 1: the anchor does not move), so its 17th column falls on the slot's right frame
+        // column (x + 17), still inside the 18 px slot box: only the tips of the right arrowheads touch the frame (checked below)
+        expect([geom.w, geom.h], `${id}: the grid is 17 x 11 (the measured exception)`).toEqual([17, 11]);
+      } else {
+        expect(geom.w, `${id}: the grid fits the 16 px face`).toBeLessThanOrEqual(CARGO_FACE);
+        expect(geom.h, id).toBeLessThanOrEqual(CARGO_FACE);
+      }
       const c = fresh(24, 24);
       itemSlot(G(c), 2, 2, id, false, 0, 1);
       for (const t of geom.tiles) expect(c.at(2 + 1 + t.x + 1, 2 + 1 + t.y + 1), `${id}: a tile of the grid in the slot`).toBe(fillOf(id));
       const arrows = gridSpecOf(id).arrows.length;
       expect(limeIn(c, { x: 2, y: 2, w: 18, h: 18 }), `${id}: ${arrows} arrowheads`).toBeGreaterThanOrEqual(arrows * 7);
+      // SC-0912: every arrowhead px lies inside the slot's 18 x 18 box (x 2..19 and y 2..19 on this 24 x 24 canvas), PICKAXE's included
+      expect(limeIn(c, { x: 0, y: 0, w: 24, h: 24 }), `${id}: no arrowhead px outside the slot's 18 x 18 box`).toBe(limeIn(c, { x: 2, y: 2, w: 18, h: 18 }));
       // the pips (★3: three, a gold rim) stay over the grid
       const three = fresh(24, 24);
       itemSlot(G(three), 2, 2, id, false, 0, 3);
@@ -483,7 +507,7 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
       drawChoiceCard(G(c), r, { label: "TRADE", cost: [{ k: "gold", n: 3 }], gain: [{ k: "item", def: id }] }, 0, v);
       const sz = shapeGridSize(id), plate: Box = { x: r.x + r.w - 4 - (sz.w + 2), y: r.y + 15, w: sz.w + 2, h: sz.h + 2 };
       expect(c.at(plate.x, plate.y), `${id} ${wn}: plate corner`).toBe(C.ink);
-      const geom = gridGeom(gridSpecOf(id), GRID_CELL);
+      const geom = gridGeom(gridSpecOf(id), gridCell(id));
       for (const t of geom.tiles) expect(c.at(plate.x + 1 + t.x + 1, plate.y + 1 + t.y + 1), `${id} ${wn}: tile`).toBe(fillOf(id));
       expect(plate.y + plate.h, `${id} ${wn}: above the note line`).toBeLessThanOrEqual(r.y + r.h - 9);
       // the exchange line (its chips and the part's name) ends before the plate: nothing but the plate's own px inside it
@@ -503,7 +527,7 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
       const sz = shapeGridSize(id), plate: Box = { x: r.x + r.w - 4 - (sz.w + 2), y: r.y + 1, w: sz.w + 2, h: sz.h + 2 };
       expect(c.at(plate.x, plate.y), `${id}: the drop card's plate`).toBe(C.ink);
       expect(plate.y + plate.h, id).toBeLessThanOrEqual(r.y + 22);
-      for (const t of gridGeom(gridSpecOf(id), GRID_CELL).tiles) expect(c.at(plate.x + 1 + t.x + 1, plate.y + 1 + t.y + 1), `${id}: drop card tile`).toBe(fillOf(id));
+      for (const t of gridGeom(gridSpecOf(id), gridCell(id)).tiles) expect(c.at(plate.x + 1 + t.x + 1, plate.y + 1 + t.y + 1), `${id}: drop card tile`).toBe(fillOf(id));
       // a card too narrow for the words and the plate keeps its words and draws no plate
       const n = fresh(120, 30);
       drawDropCard(G(n), id, false, 3, 3, 110, 1);
@@ -513,7 +537,7 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
       // the icons' row: the grid over the first box's corner
       const row = fresh(60, 30);
       drawDropIcons(G(row), { chance: 0.5, lines: [{ def: id, cls: "rare", odds: 0.1 }] }, 3, 3, 50);
-      for (const t of gridGeom(gridSpecOf(id), GRID_CELL).tiles) expect(row.at(3 + t.x + 1, 3 + t.y + 1), `${id}: drop icon tile`).toBe(fillOf(id));
+      for (const t of gridGeom(gridSpecOf(id), gridCell(id)).tiles) expect(row.at(3 + t.x + 1, 3 + t.y + 1), `${id}: drop icon tile`).toBe(fillOf(id));
     }
   });
 
@@ -523,7 +547,7 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
       const c = fresh(160, 80);
       drawReveal(G(c), { x: 0, y: 0, w: 150, h: 72 }, foe([id]));
       const ix = 5, iy = 14 + 24 + 4; // the first deck icon's box (reveal.ts: x + 5, y + 14 + the 24 px portrait + 4)
-      for (const t of gridGeom(gridSpecOf(id), GRID_CELL).tiles) expect(c.at(ix + t.x + 1, iy + t.y + 1), `${id}: scout deck tile`).toBe(fillOf(id));
+      for (const t of gridGeom(gridSpecOf(id), gridCell(id)).tiles) expect(c.at(ix + t.x + 1, iy + t.y + 1), `${id}: scout deck tile`).toBe(fillOf(id));
     }
     const plain = fresh(160, 80);
     drawReveal(G(plain), { x: 0, y: 0, w: 150, h: 72 }, foe(["whetstone"]));
@@ -534,7 +558,7 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
     const id = "gantry", sz = shapeGridSize(id), c = fresh(140, 40);
     // a roomy row: drawn 3 px in from the right edge, at the top
     expect(drawGridRight(G(c), id, 4, 6, 120, 4 + 18 + 40, Infinity)).toBe(true);
-    const gx = 4 + 120 - 3 - sz.w, geom = gridGeom(gridSpecOf(id), GRID_CELL);
+    const gx = 4 + 120 - 3 - sz.w, geom = gridGeom(gridSpecOf(id), gridCell(id));
     for (const t of geom.tiles) expect(c.at(gx + t.x + 1, 6 + t.y + 1)).toBe(fillOf(id));
     // the words reach it: not drawn
     const w = fresh(140, 40);

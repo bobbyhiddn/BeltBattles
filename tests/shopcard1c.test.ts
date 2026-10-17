@@ -32,7 +32,7 @@ import { levelLines, levelText } from "../src/screens/build/levels";
 import { HELP, helpLine3, helpLines } from "../src/screens/title";
 import { helpCard } from "../src/screens/titleLayout";
 import { shapedPiece } from "../src/screens/build/shapeEdit";
-import { GRID_CELL, shapeGridSize } from "../src/ui/shapePic";
+import { shapeGridSize } from "../src/ui/shapePic"; // SC-0912: the piece's own cell (gridCell, 4 for PICKAXE) is shapeGridSize's default (was GRID_CELL)
 import { CARD_H, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W } from "../src/screens/build/layout";
 import { OWNED_MARK_H, OWNED_MARK_W, DIGIT_H, DIGIT_ROWS, DIGIT_W, MERGE_H, MERGE_W, SALE_H, SALE_STYLE, SALE_W, STAR_H, STAR_ROWS, STAR_W, TRI_H, TRI_W,
   cardPriceBox, cardZones, drawCard, drawMergeMark, drawSaleMark, offerFace, ownedMarkAt, priceColour, tooltipLines, type CardState } from "../src/screens/build/shop";
@@ -171,7 +171,7 @@ describe("SHOPCARD-1c G2 (READ-10 fix 2): the merge mark is a solid up triangle 
           expect(clear(m, z.sale), `${w}x${h} price ${price}: ${n} clear of the sale plate`).toBe(true);
         }
         for (const id of shaped) {
-          const sz = shapeGridSize(id, GRID_CELL), plate: Box = { x: z.grid.x, y: z.grid.y, w: sz.w + 2, h: sz.h + 2 };
+          const sz = shapeGridSize(id), plate: Box = { x: z.grid.x, y: z.grid.y, w: sz.w + 2, h: sz.h + 2 };
           expect(clear(plate, z.merge), `${w}x${h} ${id}: the grid's plate clear of the merge plate`).toBe(true);
           expect(clear(plate, owned), `${w}x${h} ${id}: the grid's plate clear of the owned marker`).toBe(true);
         }

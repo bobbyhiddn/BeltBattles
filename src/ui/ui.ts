@@ -230,6 +230,8 @@ export function itemSlot(g: G, x: number, y: number, def: string | null, selecte
     g.drawImage(itemIcon(def), x + 3, y + 3);
     // SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's cargo slot shows its grid (shapePic.ts, GRID_CELL a cell, its arrowheads) in
     // the slot's top-left corner over the icon; the 16 px face holds the biggest (SPIKE RAIL's 10x16); the star pips go over it
+    // SC-0912 (oracle 0ab73cb56a4abcbf): at the piece's own cell (shapePic.ts gridCell: 4 for PICKAXE, 17 x 11, whose 17th column falls on
+    // the slot's right frame column, inside the 18 px box); the anchor is the same for every piece
     if (hasGrid(def)) g.drawImage(shapeGrid(def), x + 1, y + 1);
     starPips(g, x + 1, y + 13, 16, stars);
   }

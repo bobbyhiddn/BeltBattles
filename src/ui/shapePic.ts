@@ -191,8 +191,31 @@ export function drawGrid(g: G, spec: GridSpec, x: number, y: number, cell: numbe
   return { w: geom.w, h: geom.h };
 }
 
-/** G1: the grid as a canvas (cached per piece and cell): its box is gridGeom's. Only for a shaped piece. */
-export function shapeGrid(defId: string, cell = GRID_CELL): HTMLCanvasElement {
+/** SC-0912 (cap's answer to the PICKAXE question, oracle 0ab73cb56a4abcbf): the smallest cell pitch a grid is ever drawn at. Never
+ *  below 4: the arrowheads (HEAD_LEN 3 px long, a 3 px tile) stay readable. */
+export const GRID_CELL_MIN = 4;
+/** The cargo slot's face (ui.ts itemSlot: 16 px inside its 18 px box), the biggest box GRID_CELL's grids fill: the widest and tallest of
+ *  the other ten shaped pieces are 16 px (GANTRY PRESS, ASSEMBLY LINE, SAW BAR wide; SPIKE RAIL tall). */
+export const CARGO_FACE = 16;
+const CELLS = new Map<string, number>();
+/** SC-0912: the cell pitch `defId`'s grid is drawn at, ONE size for the piece on every surface that draws it (the shop card on the
+ *  phone and the desk, the cargo slot, LAST CHANCE, the drops, the road-event cards, the scout deck, the warlord's pick buttons):
+ *  GRID_CELL, or GRID_CELL_MIN where the grid at GRID_CELL is wider or taller than the cargo slot's 16 px face. Today that is
+ *  SHAPES2's PICKAXE alone (a T of three cells with seven arrows: 20 x 13 at 5 px, 17 x 11 at 4); the other ten fit at 5. The way
+ *  picCell gives the panel picture 3 px a cell where 4 would not fit the header's box. Any other id (no ITEMS entry): GRID_CELL. */
+export function gridCell(defId: string): number {
+  let c = CELLS.get(defId);
+  if (c === undefined) {
+    if (!Object.prototype.hasOwnProperty.call(ITEMS, defId)) return GRID_CELL;
+    const geom = gridGeom(gridSpecOf(defId), GRID_CELL);
+    CELLS.set(defId, (c = geom.w > CARGO_FACE || geom.h > CARGO_FACE ? GRID_CELL_MIN : GRID_CELL));
+  }
+  return c;
+}
+
+/** G1: the grid as a canvas (cached per piece and cell): its box is gridGeom's. Only for a shaped piece. SC-0912: at the piece's own
+ *  cell (gridCell: GRID_CELL, or 4 for PICKAXE) unless a cell is given. */
+export function shapeGrid(defId: string, cell = gridCell(defId)): HTMLCanvasElement {
   const k = `grid:${defId}:${cell}`;
   let c = CACHE.get(k);
   if (!c) {
@@ -203,8 +226,8 @@ export function shapeGrid(defId: string, cell = GRID_CELL): HTMLCanvasElement {
   return c;
 }
 
-/** G1: the grid's box in px, without drawing (tests, layout). */
-export function shapeGridSize(defId: string, cell = GRID_CELL): { w: number; h: number } {
+/** G1: the grid's box in px, without drawing (tests, layout). SC-0912: at the piece's own cell (gridCell) unless a cell is given. */
+export function shapeGridSize(defId: string, cell = gridCell(defId)): { w: number; h: number } {
   const geom = gridGeom(gridSpecOf(defId), cell);
   return { w: geom.w, h: geom.h };
 }
@@ -227,8 +250,9 @@ export function drawGridRight(g: G, defId: string, x: number, y: number, w: numb
 }
 
 /** G3: the grid on an ink plate (a 1 px ink margin round its box: an arrowhead stays readable over an icon's corner) with the
- *  plate's top-left at (x, y). Returns the plate's rect. `alpha` dims it (a sold card). */
-export function drawShapePlate(g: G, defId: string, x: number, y: number, cell = GRID_CELL, alpha = 1): { x: number; y: number; w: number; h: number } {
+ *  plate's top-left at (x, y). Returns the plate's rect. `alpha` dims it (a sold card). SC-0912: at the piece's own cell (gridCell)
+ *  unless a cell is given (or `undefined`, as event/cards.ts passes it). */
+export function drawShapePlate(g: G, defId: string, x: number, y: number, cell = gridCell(defId), alpha = 1): { x: number; y: number; w: number; h: number } {
   const { w, h } = shapeGridSize(defId, cell);
   if (alpha < 1) g.globalAlpha = alpha;
   rect(g, x, y, w + 2, h + 2, C.ink);
