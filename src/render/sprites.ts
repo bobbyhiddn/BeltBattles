@@ -327,6 +327,139 @@ export function gateSil(id: string): Cv {
   return cached(`gateS:${id}`, () => silhouette(gateSprite(id, 0, false), C.white));
 }
 
+// ------------------------------------------------------------------ converters (GATES-1, BRIEF-GATES1 G4)
+
+/**
+ * GATES-1 (REQ-BFG-052; BRIEF-GATES1 G4): the three converters' board art (kind "converter": FUSER, SCATTER MILL, SMELTER; they
+ * exist only with GATES on). A converter stands ON a belt tile and covers it: a 12x12 housing (ink outline, a light rim top-left,
+ * a dark one bottom-right) round an 8x8 face for the machine. The face never turns with the belt (the light stays top-left); the
+ * arrowheads on the rim, which do turn, are gateChevron's. Its rarity is the rivets (steel for common, cyan for rare). Every slug
+ * it holds has a dark 4x4 bay in its face (a FUSER's two on the diagonal, meeting at its weld; the others' one in the middle),
+ * where machinery.ts drawConverters sets the slugs waiting inside (converterBays). `active`: it is converting (the weld glows,
+ * the stone turns, the metal boils), moving with `f`; idle holds still.
+ */
+function drawFuser(g: G, f: number, active: boolean): void {
+  bevel(g, 0, 0, 12, 12, C.bsteel3, C.bsteel4, C.bsteel1, C.ink);
+  for (const [x, y] of [[6, 2], [2, 6]]) bevel(g, x, y, 4, 4, C.bsteel3, C.bsteel4, C.bsteel2); // the two plates across from the bays
+  for (const x of [2, 6]) { rect(g, x, x, 4, 4, C.ink); rect(g, x + 1, x + 1, 2, 2, C.slate1); } // slug one's bay, slug two's
+  px(g, 9, 2, C.cyan); px(g, 2, 9, C.cyan);
+  if (!active) return;
+  rect(g, 5, 5, 2, 2, [C.fire5, C.white, C.fire4, C.white][f & 3]); // the weld between the bays, white hot
+  px(g, f & 1 ? 7 : 8, f & 1 ? 4 : 3, C.fire4); px(g, f & 1 ? 4 : 3, f & 1 ? 7 : 8, C.fire4);
+}
+
+/** The 20 pixels round the edge of an 8x8 disc, clockwise from its top (the millstone's furrows run along them). */
+const MILL_RING: readonly (readonly [number, number])[] = [
+  [4, 2], [5, 2], [6, 2], [7, 2], [8, 3], [9, 4], [9, 5], [9, 6], [9, 7], [8, 8],
+  [7, 9], [6, 9], [5, 9], [4, 9], [3, 8], [2, 7], [2, 6], [2, 5], [2, 4], [3, 3],
+];
+
+function drawMill(g: G, f: number, active: boolean): void {
+  bevel(g, 0, 0, 12, 12, C.steel1, C.steel3, C.steel0, C.ink);
+  for (const [x, y] of [[2, 2], [9, 2], [2, 9], [9, 9]]) px(g, x, y, C.steel3);
+  // a millstone: a tan disc with a dark furrow every fourth pixel round its edge, turning (a pixel a frame) while it works; its
+  // eye in the middle is the bay the slug waits in
+  disc(g, 6, 6, 3.9, C.stone4);
+  MILL_RING.forEach(([x, y], i) => { if (((i + (active ? f + 1 : 0)) & 3) === 0) px(g, x, y, C.stone1); }); // working starts a pixel on, so frame 0 differs from idle
+  disc(g, 6, 6, 2.9, C.stone3);
+  rect(g, 4, 4, 4, 4, C.ink); rect(g, 5, 5, 2, 2, C.slate1);
+}
+
+/** The 16 pixels of a crucible's molten metal that show round the slug standing in it (the ring just inside its rim). */
+const MELT_RING: readonly (readonly [number, number])[] = [
+  [4, 3], [5, 3], [6, 3], [7, 3], [8, 4], [8, 5], [8, 6], [8, 7],
+  [7, 8], [6, 8], [5, 8], [4, 8], [3, 7], [3, 6], [3, 5], [3, 4],
+];
+
+function drawSmelter(g: G, f: number, active: boolean): void {
+  bevel(g, 0, 0, 12, 12, C.steel1, C.steel3, C.steel0, C.ink);
+  for (const [x, y] of [[2, 2], [9, 2], [2, 9], [9, 9]]) px(g, x, y, C.cyan);
+  // the crucible seen from above: an iron rim (it catches the light top-left) round the molten metal, which is banked embers
+  // while it waits and boils while it works; the slug it takes in sinks into the middle
+  disc(g, 6, 6, 3.9, C.ink);
+  for (const [x, y] of [[4, 2], [5, 2], [3, 3], [2, 4], [2, 5]]) px(g, x, y, C.steel2);
+  disc(g, 6, 6, 3.2, active ? C.fire2 : C.fire0);
+  if (!active) {
+    MELT_RING.forEach(([x, y], i) => { if (i % 3 === 0) px(g, x, y, C.fire1); });
+    return;
+  }
+  const hot = [C.fire2, C.fire3, C.fire4, C.fire3];
+  MELT_RING.forEach(([x, y], i) => px(g, x, y, hot[(i + f) & 3]));
+  px(g, MELT_RING[(f * 2) & 15][0], MELT_RING[(f * 2) & 15][1], C.fire5);
+}
+
+/** FUSER's icon: two slugs at the bottom, their cyan channels running up into one white-hot slug. */
+function drawFuserIcon(g: G): void {
+  g.drawImage(fromRows([
+    "....kkkk....",
+    "...kWFFok...",
+    "...kFooOk...",
+    "....kkkk....",
+    "....kibk....",
+    "...kiccbk...",
+    "..kickkcbk..",
+    ".kick..kcbk.",
+    ".kk......kk.",
+    "kWsk....kWsk",
+    "ksdk....ksdk",
+    ".kk......kk.",
+  ], { k: C.ink, W: C.white, F: C.fire4, o: C.fire3, O: C.fire2, i: C.ice, c: C.cyan, b: C.blue, s: C.steel2, d: C.steel1 }), 0, 0);
+}
+
+/** SCATTER MILL's icon: a slug going into a cog at the bottom, three pellets flying off its top. */
+function drawMillIcon(g: G): void {
+  rect(g, 4, 9, 4, 3, C.ink); px(g, 5, 10, C.white); px(g, 6, 10, C.steel3); px(g, 5, 11, C.steel2); px(g, 6, 11, C.steel1);
+  disc(g, 6, 6, 3.9, C.ink); disc(g, 6, 6, 3.1, C.steel2);
+  for (const [x, y] of [[5, 2], [6, 2], [5, 9], [6, 9], [2, 5], [2, 6], [9, 5], [9, 6]]) px(g, x, y, C.steel3);
+  for (const [x, y] of [[4, 3], [5, 3], [3, 4], [3, 5]]) px(g, x, y, C.steel3);
+  for (const [x, y] of [[8, 8], [7, 8], [8, 7], [6, 8]]) px(g, x, y, C.steel1);
+  disc(g, 6, 6, 1.4, C.ink);
+  for (const [x, y] of [[1, 2], [5, 0], [9, 2]]) { px(g, x, y, C.white); px(g, x + 1, y, C.steel3); px(g, x, y + 1, C.steel2); px(g, x + 1, y + 1, C.steel1); }
+}
+
+/** SMELTER's icon: a pot of molten metal with a flame over it. */
+function drawSmelterIcon(g: G): void {
+  g.drawImage(fromRows([
+    ".....F......",
+    "....FoF.....",
+    "...FoFoF....",
+    "....FfF.....",
+    "..kkkkkkkk..",
+    ".kOOFFfFOOk.",
+    ".kkkkkkkkkk.",
+    ".kSsssssssk.",
+    "..kSsssssdk.",
+    "...kdddddk..",
+    "...kDkkDDk..",
+    "..kkk..kkk..",
+  ], { k: C.ink, f: C.fire5, F: C.fire4, o: C.fire3, O: C.fire2, S: C.steel3, s: C.steel2, d: C.steel1, D: C.steel0 }), 0, 0);
+}
+
+/** Where a converter's bays are on its tile (the top-left of each 4x4 bay): one in the middle, or two on the diagonal, which
+ *  meet at the weld. machinery.ts drawConverters sets the slugs waiting inside in them. */
+export function converterBays(slots: number): readonly (readonly [number, number])[] {
+  return slots >= 2 ? [[2, 2], [6, 6]] : [[4, 4]];
+}
+
+/**
+ * GATES-1: a converter's IN or OUT arrowhead on its belt tile, 12x12 in the tile's frame, in colour `col`, pointing along screen
+ * direction `d` (0 N, 1 E, 2 S, 3 W; the belt's way through the tile). OUT sits in the edge slugs leave by (the edge toward `d`),
+ * IN in the edge they come in by (the edge opposite `d`): a 6 px arrowhead across the housing's rim, its tip on the rim's outer
+ * row for OUT and on its inner row for IN, so the rim reads as a door with an arrow over it. A corner converter has them at right
+ * angles: IN by its own `d`, OUT by the other's. The housing never turns; these do the showing of which way the belt goes
+ * through it. (Drawn for N and turned, as rigTip is; nothing of it falls inside the 8x8 the machine's own art uses.)
+ */
+export function gateChevron(kind: "in" | "out", d: number, col: string): Cv {
+  return cached(`gchev:${kind}:${d}:${col}`, () => {
+    const [c, g] = makeCanvas(12, 12);
+    const out = kind === "out";
+    for (const x of [3, 8]) px(g, x, out ? 1 : 10, C.ink); // a notch of ink beside it, so it reads on the rim's light row
+    for (const x of [5, 6]) px(g, x, out ? 0 : 10, col);
+    for (let x = 4; x <= 7; x++) px(g, x, out ? 1 : 11, col);
+    return orient12(c, d);
+  });
+}
+
 // ------------------------------------------------------------------ rig arrows (0.6.2 BELTSIDE, V3)
 
 /** An arrow's look: 0 idle (dim stub, no belt in reach), 1 live (bright, works a belt tile), 2 flash (a hit
@@ -588,6 +721,10 @@ function drawGate(g: G, id: string, f: number, active: boolean): void {
       for (const y of [4, 8]) px(g, 5, y, C.brass4);
       break;
     }
+    // GATES-1 (REQ-BFG-052; BRIEF-GATES1 G4): the three converters, which stand on a belt tile (drawFuser, drawMill, drawSmelter)
+    case "fuser": drawFuser(g, f, active); break;
+    case "scattermill": drawMill(g, f, active); break;
+    case "smelter": drawSmelter(g, f, active); break;
     default: {
       if (drawWave3Gate(g, id, f, active)) break; // 0.8.0 A1: wave 3's eight rigs (wave3Art.ts)
       if (drawPlainGate(g, id, f, active)) break; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (plainArt.ts)
@@ -707,6 +844,11 @@ export function itemIcon(id: string): Cv {
         px(g, 4, 5, C.cyan); px(g, 7, 5, C.cyan);
         break;
       }
+      // GATES-1 (REQ-BFG-052; BRIEF-GATES1 G4): the three converters' own pictures (not their board art): what each does, the
+      // way a belt runs on a deck, in at the bottom and out at the top
+      case "fuser": drawFuserIcon(g); break;
+      case "scattermill": drawMillIcon(g); break;
+      case "smelter": drawSmelterIcon(g); break;
       default: {
         // 0.6.1c: the wave-1 factories (factoryArt.ts); 0.6.1b: turret cores (coreArt.ts)
         // 0.6.2s (REQ-BFG-031 S10): turret modules (turretIcon.ts)
