@@ -74,7 +74,7 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       // F3: the only text a shop card draws is the price's digits (none on a sold card)
       expect(rec.text.map((t) => t.s), what).toEqual(s.sold ? [] : [String(d.price)]);
       // F2: the icon doubled, pixel for pixel, outside the plates the grid and the marks draw on
-      const z = cardZones(w, h), ic = R(itemIcon(d.id)), dy = -lift(s);
+      const z = cardZones(w, h, d.price), ic = R(itemIcon(d.id)), dy = -lift(s); // SHOPCARD-1c (G3): the sale plate sits against the price
       const plates: Box[] = [
         ...(shapedPiece(d.id) ? [plateAt(d.id, z.grid)] : []), z.merge, z.sale,
       ];
@@ -122,12 +122,13 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       for (let price = 1; price <= 11; price++) { // the dearest piece costs 11 (two digits)
         const pb = cardPriceBox(w, h, price);
         expect(pb.x, `${wn} price ${price}: the coin's x is cardPriceX's`).toBe(cardPriceX(0, w, price, false, false));
-        for (const [n, m] of [["merge", z.merge], ["owned", owned], ["sale", z.sale]] as [string, Box][]) {
+        const zp = cardZones(w, h, price); // SHOPCARD-1c (G3): the sale plate sits against this price (cardZones' `price`)
+        for (const [n, m] of [["merge", z.merge], ["owned", owned], ["sale", zp.sale]] as [string, Box][]) {
           expect(clear(m, pb), `${wn} price ${price}: ${n} mark clear of the price`).toBe(true);
           expect(clear(m, centre), `${wn}: ${n} mark clear of the picture's centre`).toBe(true);
           expect(clear(m, z.gem), `${wn}: ${n} mark clear of the gem`).toBe(true);
         }
-        expect(clear(z.merge, z.sale), `${wn}: merge clear of sale`).toBe(true);
+        expect(clear(z.merge, zp.sale), `${wn}: merge clear of sale`).toBe(true);
         expect(clear(z.gem, pb), `${wn}: gem clear of the price`).toBe(true);
         // the picture is over the price row: its box ends before the price's outline begins
         expect(icon.y + icon.h, `${wn}: icon over the price`).toBeLessThanOrEqual(pb.y);
@@ -135,7 +136,7 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       // every shaped piece's plate (and every synthetic footprint's, below) clears the gem, the marks and the picture's centre
       for (const id of shaped()) {
         const pl = plateAt(id, z.grid);
-        for (const [n, m] of [["gem", z.gem], ["merge", z.merge], ["sale", z.sale], ["owned", owned], ["price", cardPriceBox(w, h, 11)]] as [string, Box][]) {
+        for (const [n, m] of [["gem", z.gem], ["merge", z.merge], ["sale", z.sale], ["sale (at 11)", cardZones(w, h, 11).sale], ["owned", owned], ["price", cardPriceBox(w, h, 11)]] as [string, Box][]) {
           expect(clear(pl, m), `${wn} ${id}: the grid's plate clear of the ${n}`).toBe(true);
         }
         // the plate reaches over the icon's corner only: it never overlaps the picture's centre (touching its edge is fine)
@@ -144,26 +145,25 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
     }
   });
 
-  it("the marks: a merge mark (an up arrow over ★n's stars, amber, ★3 flashing gold), the owned marker for a copy that won't merge and for MAX, the sale mark in the other corner; a sold card shows none and no price", () => {
+  it("the marks: a merge mark (a solid up triangle over a star and ★n's digit, amber, ★3 flashing gold), the owned marker for a copy that won't merge and for MAX, the sale mark against the price; a sold card shows none and no price", () => {
     for (const [wn, w, h] of WIDTHS) {
-      const z = cardZones(w, h);
+      const z = cardZones(w, h, 3); // SHOPCARD-1c (G3): the sale plate sits against the price (3)
       const px = (c: RasterCanvas, p: { x: number; y: number }, dx: number, dy: number) => c.at(OX + p.x + dx, OY + p.y + dy);
       for (const stars of [2, 3]) for (const t of [0, 0.3]) {
         const c = fresh(w + 8, h + 8);
         drawCard(G(c), { x: OX, y: OY, w, h }, ITEMS.whetstone, 3, "alchemist", { ...BASE, badge: { kind: "merge", toStars: stars } as ShopBadge }, t);
         const col = stars >= 3 && Math.floor(t * 4) % 2 ? C.yellow : C.amber;
-        // SHOPCARD-1b (REQ-BFG-115, F8 (b)): the stars are the font's 3x5 ★ (9 px each), not 2x1 pips; the arrow is on the plate's middle
-        // column; the three touching ★3 stars alternate their tone (the middle one in the other of amber and gold)
-        const alt = col === C.yellow ? C.amber : C.yellow;
-        let on = 0, other = 0;
+        // SHOPCARD-1c (REQ-BFG-115, G2): a solid up triangle (1+3+5+7 px), the game's own 5x6 star (14 px) and the target's digit (11 px),
+        // all in one tone (the flash turns the whole mark gold at ★3); the tip is on the plate's middle column, ink over it
+        let on = 0;
         for (let y = 0; y < MERGE_H; y++) for (let x = 0; x < MERGE_W; x++) {
           const p = px(c, z.merge, x, y);
-          if (p === col) on++; else if (stars >= 3 && p === alt) other++; else expect([C.ink, col], `${wn} ★${stars} t ${t}: ${x},${y}`).toContain(p);
+          if (p === col) on++; else expect(p, `${wn} ★${stars} t ${t}: ${x},${y}`).toBe(C.ink);
         }
-        expect(on, `${wn} ★${stars}: the arrow's 1+3+5+1 px and ${stars === 2 ? "2" : "the outer 2"} stars of 9`).toBe(10 + 18);
-        expect(other, `${wn} ★${stars}: the middle star's 9 px in the other tone at ★3, none at ★2`).toBe(stars >= 3 ? 9 : 0);
-        expect(px(c, z.merge, 5, 1), "the arrow's tip").toBe(col);
+        expect(on, `${wn} ★${stars}: the triangle's 16 px, the star's 14 and the digit's 11`).toBe(16 + 14 + 11);
+        expect(px(c, z.merge, 5, 1), "the triangle's tip").toBe(col);
         expect(px(c, z.merge, 5, 0), "ink over the tip").toBe(C.ink);
+        expect([px(c, z.merge, 2, 4), px(c, z.merge, 8, 4), px(c, z.merge, 5, 5)], "the triangle's foot is 7 px wide, then a clear row").toEqual([col, col, C.ink]);
       }
       for (const kind of ["wait", "max"] as const) {
         const c = fresh(w + 8, h + 8);
@@ -173,13 +173,13 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       }
       const c = fresh(w + 8, h + 8);
       drawCard(G(c), { x: OX, y: OY, w, h }, ITEMS.whetstone, 3, "alchemist", { ...BASE, sale: true }, 0);
-      // SHOPCARD-1b (F8 (a)): a 3-row stem (rows 1-3) over a 5-3-1 head (rows 4-6); no px beside the stem above the head (a plus has a bar there)
-      expect([px(c, z.sale, 3, 1), px(c, z.sale, 3, 3), px(c, z.sale, 1, 4), px(c, z.sale, 3, 6), px(c, z.sale, 3, 0), px(c, z.sale, 2, 2), px(c, z.sale, 4, 2)], `${wn} sale`)
-        .toEqual([C.lime, C.lime, C.lime, C.lime, C.ink, C.ink, C.ink]);
+      // SHOPCARD-1c (G3): a SOLID down triangle (7-5-3-1 px, rows 1-4, no stem: a stem read as a plus), 1 px of ink round it
+      expect([px(c, z.sale, 1, 1), px(c, z.sale, 7, 1), px(c, z.sale, 4, 4), px(c, z.sale, 0, 1), px(c, z.sale, 8, 1), px(c, z.sale, 3, 4), px(c, z.sale, 4, 5)], `${wn} sale`)
+        .toEqual([C.lime, C.lime, C.lime, C.ink, C.ink, C.ink, C.ink]);
       // a merge mark takes the sale's place in the badge's corner only; with both, the merge mark shows and the sale mark does not
       const both = fresh(w + 8, h + 8);
       drawCard(G(both), { x: OX, y: OY, w, h }, ITEMS.whetstone, 3, "alchemist", { ...BASE, sale: true, badge: { kind: "merge", toStars: 2 } as ShopBadge }, 0);
-      expect(px(both, z.sale, 3, 1), `${wn}: no sale mark with a merge mark`).not.toBe(C.lime);
+      expect(px(both, z.sale, 4, 2), `${wn}: no sale mark with a merge mark`).not.toBe(C.lime);
       // sold: no mark, no price, the icon dim (alpha), nothing at the price's place
       const sold = draw("whetstone", w, h, { sold: true, sale: true, badge: { kind: "merge", toStars: 2 } as ShopBadge });
       for (const m of [z.merge, z.sale]) for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) expect(px(sold, m, x, y), `${wn} sold`).not.toBe(C.ink);

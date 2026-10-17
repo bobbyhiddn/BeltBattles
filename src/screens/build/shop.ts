@@ -188,7 +188,7 @@ function cardFrame(g: G, x: number, y: number, w: number, h: number, stripe: str
 // SHOPCARD-1 (REQ-BFG-115, REQ-BFG-113; BRIEF-SHOPCARD1 F): every shop card, phone (46x42) and desk (up to 70x46), is ONE
 // face drawn by this one function: the piece's icon at x2 (24x24), its price, and only these wordless marks (each with a clear
 // px round it, none over the price, the picture's centre or another mark): the rarity gem and bar, the shape grid of a shaped
-// piece (top-left of the picture area), the merge mark or the owned marker (bottom-left), the sale mark (bottom-right). The only
+// piece (top-left of the picture area), the merge mark or the owned marker (bottom-left), the sale mark (right of the price, 1c). The only
 // text on it is the price's digits. The name, the stat chip, the gist rows, the effect lines and the family marks moved to the
 // tap panel (inspector.ts offerPanel) and the desk's hover tooltip (drawTooltip with offerFace).
 
@@ -206,11 +206,12 @@ export function iconX2(id: string): HTMLCanvasElement {
   return c;
 }
 
-/** F4: the merge mark's plate (an up arrow over the target's stars), the sale mark's plate (a down arrow), and the dim a
- *  sold card's picture and grid draw at. SHOPCARD-1b (REQ-BFG-115, F8): the merge plate is 11 x 12 (was 10 x 8: the pips became
- *  the font's 3x5 stars, 5 rows, so it rises 4 rows into the picture area's left margin; its right edge stays left of a two-digit
- *  price's box) and the sale plate 7 x 8 (was 7 x 6: a down arrow with a 3-row stem). */
-export const MERGE_W = 11, MERGE_H = 12, SALE_W = 7, SALE_H = 8, SOLD_ALPHA = 0.4;
+/** F4: the merge mark's plate (a solid up triangle over a star and the target's digit), the sale mark's plate (a solid down
+ *  triangle), and the dim a sold card's picture and grid draw at. SHOPCARD-1b (REQ-BFG-115, F8): the merge plate was 11 x 12 and
+ *  the sale plate 7 x 8. SHOPCARD-1c (REQ-BFG-115, G2, G3): the merge plate is 11 x 13 (a 4-row triangle, a gap row, the game's
+ *  own 5x6 star with its digit; its right edge still stays left of a two-digit price's box, its top below the tallest grid plate's
+ *  foot) and the sale plate 9 x 6 (a 4-row triangle 7 px wide, 1 px of ink round it), set against the price (cardZones' `price`). */
+export const MERGE_W = 11, MERGE_H = 13, SALE_W = 9, SALE_H = 6, SOLD_ALPHA = 0.4;
 
 export interface CardZones {
   /** The picture area: under the stripe and the bevel, above the price row. */
@@ -228,16 +229,22 @@ export interface CardZones {
 }
 
 /** The zone map of a card `w` x `h` px, in px from its top-left (REPORT section 4; pure, tests). The price row is the old
- *  card's: the coin at h - 11, the digits (7 rows, their outline one more) from h - 12; the rarity bar fills h - 3 and h - 2. */
-export function cardZones(w: number, h: number): CardZones {
+ *  card's: the coin at h - 11, the digits (7 rows, their outline one more) from h - 12; the rarity bar fills h - 3 and h - 2.
+ *  SHOPCARD-1c (REQ-BFG-115, G3): `price`, the offer's price, sets the sale plate against it: 1 clear px right of the price box
+ *  (cardPriceBox), on the digits' rows (so "7 ▼": the price is down). Without one, the plate takes the corner where a
+ *  two-digit price's box leaves it room on the phone (x w - 3 - SALE_W): the widest card's fixed place, as before. */
+export function cardZones(w: number, h: number, price?: number): CardZones {
   const picH = h - 13 - 5; // rows 5 .. h - 14 (24 on the phone's 42, 28 on the desk's 46)
+  const pb = price === undefined ? null : cardPriceBox(w, h, price);
   return {
     pic: { x: 2, y: 5, w: w - 4, h: picH },
     icon: { x: Math.floor((w - CARD_ICON) / 2), y: 5 + Math.floor((picH - CARD_ICON) / 2), w: CARD_ICON, h: CARD_ICON },
     gem: { x: w - 6, y: 6, w: 4, h: 4 },
     grid: { x: 2, y: 5 },
-    merge: { x: 2, y: h - 17, w: MERGE_W, h: MERGE_H }, // SHOPCARD-1b (F8): x 2..12, y h - 17 .. h - 6 (was x 3, y h - 13, 10 x 8)
-    sale: { x: w - 3 - SALE_W, y: h - 13, w: SALE_W, h: SALE_H }, // SHOPCARD-1b (F8): y h - 13 .. h - 6 (was y h - 11, 7 x 6)
+    // SHOPCARD-1c (G2): x 2..12, y h - 18 .. h - 6 (was y h - 17, 11 x 12): 13 rows, from the row after the tallest grid plate's foot (SPIKE RAIL's: y 23 on the phone)
+    merge: { x: 2, y: h - 18, w: MERGE_W, h: MERGE_H },
+    // SHOPCARD-1c (G3): 9 x 6, rows h - 11 .. h - 6 (was 7 x 8 at x w - 10, y h - 13): the triangle's 4 rows sit on the digits' rows
+    sale: { x: pb ? pb.x + pb.w + 1 : w - 3 - SALE_W, y: h - 11, w: SALE_W, h: SALE_H },
   };
 }
 
@@ -251,48 +258,53 @@ export function cardPriceBox(w: number, h: number, price: number): Rect {
 /** F4: the owned marker's corner: bottom-left, its 7 rows on the price digits' rows (cardZones' merge plate holds it). */
 export const ownedMarkAt = (h: number): { x: number; y: number } => ({ x: 3, y: h - 12 });
 
-/** SHOPCARD-1b (REQ-BFG-115, F8 (b)): the star the merge mark counts with, the game's own at this size: render/font.ts:239, the 3x5
- *  face's ★ ("#.#|.#.|###|.#.|#.#", the MERGE badge's and the cargo pips' star before the pips went wordless). tests/shopcard1b pins
- *  it equal to drawText("★", { font: "3" }). */
-export const STAR_ROWS: readonly string[] = ["#.#", ".#.", "###", ".#.", "#.#"];
-export const STAR_W = 3, STAR_H = 5;
-/** F8 (b): the merge mark's stars, n of them from (x, y) in `col`: `gap` px apart (the ★3 row of 9 px has none, so it fits left of a
- *  two-digit price's box). */
-function drawStars(g: G, x: number, y: number, n: number, gap: number, col: string): void {
-  for (let i = 0; i < n; i++) for (let r = 0; r < STAR_H; r++) for (let c = 0; c < STAR_W; c++) {
-    if (STAR_ROWS[r][c] === "#") rect(g, x + i * (STAR_W + gap) + c, y + r, 1, 1, col);
-  }
+/** SHOPCARD-1c (REQ-BFG-115, G2): the merge mark's star, a sprite of the game's own ★ at the 5x7 size (render/font.ts:147, "..#..|..#..|
+ *  #####|.###.|.#.#.|#...#", its 6 inked rows), not the 3x5 face's ★ that READ-9 and READ-10's readers took for "X-shaped blocks" and
+ *  "a checker". SHOPCARD-1b drew that 3x5 glyph (STAR_ROWS "#.#|.#.|###|.#.|#.#", two or three of them). tests/shopcard1c pins
+ *  these rows equal to drawText("★", { font: "5" }). */
+export const STAR_ROWS: readonly string[] = ["..#..", "..#..", "#####", ".###.", ".#.#.", "#...#"];
+export const STAR_W = 5, STAR_H = 6;
+/** G2: the target level's digit beside the star, the 3x5 face's own 2 and 3 (render/font.ts:204-205), drawn as pixels, not as text:
+ *  the only text a shop card draws stays the price's digits (SHOPCARD-1's rule, tests/shopcard1). tests/shopcard1c pins them. */
+export const DIGIT_ROWS: Readonly<Record<2 | 3, readonly string[]>> = { 2: ["###", "..#", "###", "#..", "###"], 3: ["###", "..#", "###", "..#", "###"] };
+export const DIGIT_W = 3, DIGIT_H = 5;
+/** G2: the triangles' size: 4 rows, 1, 3, 5 and 7 px wide, solid, no stem (a stem read as a plus to the weakest reader). */
+export const TRI_W = 7, TRI_H = 4;
+/** A bitmap's inked px ("#") from (x, y) in `col`. */
+function drawRows(g: G, x: number, y: number, rows: readonly string[], col: string): void {
+  for (let r = 0; r < rows.length; r++) for (let c = 0; c < rows[r].length; c++) if (rows[r][c] === "#") rect(g, x + c, y + r, 1, 1, col);
 }
 
-/** F4 (REQ-BFG-115): the merge mark, wordless: an up arrow over the target's stars (SHOPCARD-1b, F8 (b): ★2: two stars, ★3: three,
- *  the font's 3x5 ★ instead of the pips READ-9's readers took for a level only once in three), amber on an ink plate
- *  (MERGE_W x MERGE_H at (x, y)): the arrow in rows 1-4, the stars in rows 6-10, 1 px of ink round the art; the two stars stand 1 px
- *  apart (7 px) and the three touch (9 px, the most that clears a two-digit price, the middle one in the other tone); a ★3 chain
- *  flashes amber and yellow at 2 Hz as the badge did. */
+/** F4 (REQ-BFG-115): the merge mark, wordless. SHOPCARD-1c (G2; READ-10: 1 seat of 3 read the stemmed arrow over the font's 3x5
+ *  stars, as READ-9's pips): a solid up triangle with no stem ("goes up"), and under it the target's star, a real 5x6 sprite, with
+ *  the target level as a digit beside it: ★2 or ★3, as HOW TO PLAY writes it (title.ts helpLine3), amber on an ink plate
+ *  (MERGE_W x MERGE_H at (x, y), 1 px of ink round the art): the triangle in rows 1-4 (7 px wide at its foot, centred on column
+ *  5), the star in columns 1-5 and rows 6-11, the digit in columns 7-9 on the star's last 5 rows; a ★3 chain flashes amber and
+ *  yellow at 2 Hz as the badge did. One star and a digit fit where three stars (SHOPCARD-1b) could not stand apart. */
 export function drawMergeMark(g: G, x: number, y: number, toStars: number, t: number): void {
   const col = toStars >= 3 && Math.floor(t * 4) % 2 ? C.yellow : C.amber;
-  const mid = (MERGE_W - 1) / 2; // the plate's middle column, 5
+  const n = toStars >= 3 ? 3 : 2, mid = (MERGE_W - 1) / 2; // the plate's middle column, 5
   rect(g, x, y, MERGE_W, MERGE_H, C.ink);
-  rect(g, x + mid, y + 1, 1, 1, col); // the arrow's tip, its 3-wide, its 5-wide row and its stem
-  rect(g, x + mid - 1, y + 2, 3, 1, col);
-  rect(g, x + mid - 2, y + 3, 5, 1, col);
-  rect(g, x + mid, y + 4, 1, 1, col);
-  const n = toStars >= 3 ? 3 : 2, gap = n >= 3 ? 0 : 1, w = n * STAR_W + (n - 1) * gap;
-  const sx = x + Math.round((MERGE_W - w) / 2), alt = col === C.yellow ? C.amber : C.yellow;
-  // the three touching stars alternate their tone (the middle one in the other of amber and gold), so the eye counts three, not a chain
-  for (let i = 0; i < n; i++) drawStars(g, sx + i * (STAR_W + gap), y + 6, 1, 0, n >= 3 && i % 2 ? alt : col);
+  for (let r = 0; r < TRI_H; r++) rect(g, x + mid - r, y + 1 + r, 2 * r + 1, 1, col); // the up triangle: 1, 3, 5, 7 px
+  drawRows(g, x + 1, y + 6, STAR_ROWS, col);
+  drawRows(g, x + 7, y + 6 + STAR_H - DIGIT_H, DIGIT_ROWS[n], col);
 }
 
-/** F4: the sale mark, wordless: a lime down arrow on an ink plate (SALE_W x SALE_H at (x, y)): this offer is cheaper than its
- *  list price (a scout's deal). SHOPCARD-1b (REQ-BFG-115, F8 (a)): a 3-row stem and a 3-row head (was a 1 px stub over a 5-3-1
- *  head, which the weakest reader took for a green plus), 1 px of ink round it. */
+/** F4: the sale mark, wordless: this offer is cheaper than its list price (a scout's deal). SHOPCARD-1c (REQ-BFG-115, G3; READ-9
+ *  and READ-10: one seat of 3 read the stemmed arrow as "a bright green plus"): candidate A, a solid down triangle with no stem
+ *  (7, 5, 3 and 1 px wide, rows 1-4), lime on an ink plate (SALE_W x SALE_H at (x, y), 1 px of ink round it), set against the price
+ *  (cardZones' `price`): the price is down. */
 export function drawSaleMark(g: G, x: number, y: number): void {
   rect(g, x, y, SALE_W, SALE_H, C.ink);
-  rect(g, x + 3, y + 1, 1, 3, C.lime); // the stem, rows 1-3
-  rect(g, x + 1, y + 4, 5, 1, C.lime); // the head: 5, 3, 1 px wide, rows 4-6
-  rect(g, x + 2, y + 5, 3, 1, C.lime);
-  rect(g, x + 3, y + 6, 1, 1, C.lime);
+  for (let r = 0; r < TRI_H; r++) rect(g, x + 1 + r, y + 1 + r, TRI_W - 2 * r, 1, C.lime); // the down triangle: 7, 5, 3, 1 px
 }
+
+/** G3, candidate B (checked second: G4): the sale price drawn in lime. When the card is also too dear the price stays RED: "you
+ *  can't afford it" decides whether the card can be bought at all, so it outranks "it's cheaper"; the triangle stays lime either
+ *  way. Off: candidate A (the price in gold, as every affordable price). */
+export const SALE_STYLE: { priceLime: boolean } = { priceLime: false }; // a plain object, so tests and the picture scripts can check B; the game never sets it
+/** The colour a card draws its price in: red when too dear, else lime when on sale (candidate B), else gold. Pure (tests). */
+export const priceColour = (affordable: boolean, sale: boolean, lime: boolean = SALE_STYLE.priceLime): string => (!affordable ? C.red : sale && lime ? C.lime : C.yellow);
 
 export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: MerchantId, s: CardState, t: number): void {
   if (s.hidden) {
@@ -311,7 +323,7 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
     rect(g, r.x + r.w, r.y + 2, 1, r.h - 1, C.ink);
   }
   cardFrame(g, x, y, r.w, r.h, MERCHANT_COLOR[merchant], RARITY_COLOR[def.rarity], s.sold);
-  const z = cardZones(r.w, r.h);
+  const z = cardZones(r.w, r.h, price); // SHOPCARD-1c (G3): the sale mark sits against this price
   // rarity gem
   rect(g, x + z.gem.x, y + z.gem.y, 4, 4, C.ink);
   rect(g, x + z.gem.x + 1, y + z.gem.y + 1, 2, 2, s.sold ? C.slate1 : RARITY_COLOR[def.rarity]);
@@ -323,7 +335,7 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   if (shapedPiece(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, GRID_CELL, s.sold ? SOLD_ALPHA : 1);
   if (!s.sold) {
     // F4: the bottom-left corner holds the merge mark (MERGE ★2, ★3) or the owned marker (a copy that won't merge yet, or
-    // only ★3 copies: was the MAX word); the bottom-right corner the sale mark, where no merge mark is
+    // only ★3 copies: was the MAX word); the sale mark sits against the price (1c), where no merge mark is
     const b = s.badge;
     if (b?.kind === "merge") drawMergeMark(g, x + z.merge.x, y + z.merge.y, b.toStars, t);
     else if (b) drawOwnedMarker(g, x + ownedMarkAt(r.h).x, y + ownedMarkAt(r.h).y);
@@ -331,7 +343,7 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
     // the price stays at the bottom centre on both widths (a sold card shows none: it dims, and says no word)
     const px = cardPriceX(x, r.w, price, false, false);
     g.drawImage(coinIcon(), px, y + r.h - 11);
-    drawText(g, String(price), px + 7, y + r.h - 12, s.affordable ? C.yellow : C.red, { outline: C.ink });
+    drawText(g, String(price), px + 7, y + r.h - 12, priceColour(s.affordable, !!s.sale), { outline: C.ink }); // SHOPCARD-1c (G3): red wins over lime
   }
   if (s.shake > 0) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, Math.floor(t * 20) % 2 ? C.red : C.maroon);
   else if (s.selected) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, Math.floor(t * 6) % 2 ? C.white : C.yellow);

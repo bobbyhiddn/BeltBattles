@@ -9,6 +9,8 @@
 //   F6 LIMPET WORKS: the number is the blast's, 3 s after a hit
 //   F7 MANTLET (which tile) and GRAPNEL GUN (whose slug, and gone)
 //   F8 the sale mark (a down arrow with a stem) and the merge mark (the font's ★, two or three)
+// SHOPCARD-1c (REQ-BFG-081, REQ-BFG-115) supersedes F4 (STOKER, ASSEMBLY LINE), F6 (LIMPET WORKS), F7 (GRAPNEL GUN) and F8 (both marks):
+// those pins read the 1c words and pixels here, each with its comment; tests/shopcard1c.test.ts holds 1c's own, one group per fix.
 import { describe, expect, it } from "vitest";
 import { G, fresh, installRaster } from "./raster.helpers";
 import { ITEMS, buyableModules } from "../src/sim/content";
@@ -121,18 +123,18 @@ describe("SHOPCARD-1b F3 (READ-9 fix 3): whose SHIELD", () => {
 });
 
 describe("SHOPCARD-1b F4 (READ-9 fix 4): the faces carry their one missing clause", () => {
-  it("STOKER: FACTORIES IT HITS (deck.ts:432-447 stokeHits: an arrow counts only where it points at a factory's cell; battle.ts:808-818)", () => {
+  it("STOKER: FACTORIES ITS ARROWS POINT AT (deck.ts:432-447 stokeHits: an arrow counts only where it points at a factory's cell; battle.ts:808-818); SHOPCARD-1c G5: was FACTORIES IT HITS, one row", () => {
     for (const s of STARS) {
       const up = ["20%", "44%", "85%"][s - 1];
-      expect(rules("stoker", s), `★${s}`).toEqual([`FACTORIES IT HITS WORK UP TO ${up} FASTER.`]);
-      expect(rows(rules("stoker", s)[0])).toBe(1);
+      expect(rules("stoker", s), `★${s}`).toEqual([`FACTORIES ITS ARROWS POINT AT WORK UP TO ${up} FASTER.`]);
+      expect(rows(rules("stoker", s)[0])).toBe(2); // 1c: two rows of the band (289 px)
     }
   });
-  it("ASSEMBLY LINE: YOUR RIGS START n% SOONER / AT ONCE (battle.ts:714-736 and 979-981: each rig comes online at the fight's start at a delay x the line's factor)", () => {
+  it("ASSEMBLY LINE: YOUR RIGS START n% SOONER / AT ONCE (battle.ts:714-736 and 979-981: each rig comes online at the fight's start at a delay x the line's factor); SHOPCARD-1c G8: EACH FIGHT, START WORKING, two rows", () => {
     expect([1, 2, 3].map((s) => rules("assembly", s)[0])).toEqual([
-      "FEEDS A GUN: YOUR RIGS START 50% SOONER.", "FEEDS A GUN: YOUR RIGS START 75% SOONER.", "FEEDS A GUN: YOUR RIGS START AT ONCE.",
+      "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 50% SOONER.", "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 75% SOONER.", "FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING AT ONCE.",
     ]);
-    for (const s of STARS) expect(rows(rules("assembly", s)[0])).toBe(1);
+    for (const s of STARS) expect(rows(rules("assembly", s)[0])).toBe(2);
   });
   it("BRACE FRAME: STUN ON BELT TILES IT HITS (battle.ts:765-769 remembers a brace on belt tiles only; 2277-2296 braceCut)", () => {
     expect([1, 2, 3].map((s) => rules("braceframe", s)[0])).toEqual(["50%", "70%", "85%"].map((p) => `{*STUN} ON BELT TILES IT HITS: ${p} SHORTER.`));
@@ -167,15 +169,15 @@ describe("SHOPCARD-1b F5 (READ-9 fix 5): HULL in words, not the heart", () => {
 });
 
 describe("SHOPCARD-1b F6 (READ-9 fix 6): LIMPET WORKS' number is the blast's", () => {
-  it("THE FOE'S HULL TAKES <its DMG stat> 3 SEC AFTER A HIT, at every star on days 1, 5 and 10; its charge deals nothing on impact (content.ts limpet base 0)", () => {
+  it("THE FOE'S HULL TAKES ITS DMG 3 SEC AFTER A HIT, at every star on days 1, 5 and 10; its charge's own damage is 0 (content.ts limpet base 0); SHOPCARD-1c G7: no number in the line (was <its DMG stat>)", () => {
     expect(ITEMS.limpet.factory!.base).toBe(0);
     for (const s of STARS) for (const day of DAYS) {
       const dmg = (faceLines("limpet", s, { day })!.stats ?? "");
       const [line] = rules("limpet", s, day);
-      const n = /^THE FOE'S HULL TAKES (\d+) \{DMG\} 3\{SEC\} AFTER A HIT\.$/.exec(line)?.[1];
-      expect(n, `★${s} day ${day}: ${line}`).toBeDefined();
-      // the stat row's DMG is the same number (factoryStats: base 0 + the blast, x D(day))
-      expect(stripIcons(dmg).includes(n!), `★${s} day ${day}: the stat row ${stripIcons(dmg)} holds ${n}`).toBe(true);
+      expect(line, `★${s} day ${day}`).toBe("THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.");
+      // 1c: the only number the line holds is the delay; the blast is the stat row's DMG alone (factoryStats: base 0 + the blast, x D(day))
+      expect(stripIcons(line).replace(/3/, "").match(/\d/), `★${s} day ${day}: no second number`).toBeNull();
+      expect(stripIcons(dmg).length, `★${s} day ${day}: the stat row holds the DMG`).toBeGreaterThan(0);
       expect(rows(line), `★${s} day ${day}: ${line}`).toBe(1);
     }
   });
@@ -192,16 +194,16 @@ describe("SHOPCARD-1b F7 (READ-9 fix 7): MANTLET's tile and GRAPNEL GUN's slug",
       expect(/\bLAST \d+ TILE\b/.test(stripIcons(rules("mantlet", s)[0])), "no 'LAST 1 TILE' left to read as a stun's length").toBe(false);
     }
   });
-  it("GRAPNEL GUN: SHOT: A FOE BELT OR RIG LOSES n SLUG(S) (battle.ts:2355-2386 rip() splices the foe's slugs off its belts; nothing goes to the shooter)", () => {
+  it("GRAPNEL GUN: SHOT: A HIT ON A FOE BELT OR RIG RIPS n SLUG(S) (battle.ts:2355-2386 rip() splices the foe's slugs off its belts; nothing goes to the shooter); SHOPCARD-1c G6: only a hit, one verb, two rows (was LOSES, one row)", () => {
     for (const s of STARS) {
       const n = effectAt("grapnel", s).core!.rip!;
-      expect(rules("grapnel", s), `★${s}`).toEqual([`SHOT: A FOE BELT OR RIG LOSES ${n} SLUG${n === 1 ? "" : "S"}.`]);
-      expect(rows(rules("grapnel", s)[0]), `★${s}`).toBe(1);
+      expect(rules("grapnel", s), `★${s}`).toEqual([`SHOT: A HIT ON A FOE BELT OR RIG RIPS ${n} SLUG${n === 1 ? "" : "S"}.`]);
+      expect(rows(rules("grapnel", s)[0]), `★${s}`).toBe(2);
     }
   });
 });
 
-describe("SHOPCARD-1b F8 (READ-9 fix 8): the sale mark and the merge mark", () => {
+describe("SHOPCARD-1b F8 (READ-9 fix 8): the sale mark and the merge mark (SHOPCARD-1c G2, G3 redrew both: these pins read 1c's pixels)", () => {
   const ink = (c: ReturnType<typeof fresh>, x0: number, y0: number, w: number, h: number): string[] => {
     const out: string[] = [];
     for (let y = 0; y < h; y++) {
@@ -212,84 +214,76 @@ describe("SHOPCARD-1b F8 (READ-9 fix 8): the sale mark and the merge mark", () =
     return out;
   };
 
-  it("(a) the sale mark is a down arrow with a 3-row stem and a 5-3-1 head, lime on ink, and nothing beside the stem above the head (a plus has a bar there)", () => {
-    expect([SALE_W, SALE_H]).toEqual([7, 8]);
-    const c = fresh(9, 10);
+  it("(a) the sale mark is a SOLID down triangle (7-5-3-1 px, rows 1-4), no stem, lime on a 9 x 6 ink plate (1b's stemmed arrow read as a plus to Haiku again in READ-10)", () => {
+    expect([SALE_W, SALE_H]).toEqual([9, 6]);
+    const c = fresh(11, 8);
     drawSaleMark(G(c), 1, 1);
     expect(ink(c, 1, 1, SALE_W, SALE_H)).toEqual([
-      ".......",
-      "...L...",
-      "...L...",
-      "...L...",
-      ".LLLLL.",
-      "..LLL..",
-      "...L...",
-      ".......",
+      ".........",
+      ".LLLLLLL.",
+      "..LLLLL..",
+      "...LLL...",
+      "....L....",
+      ".........",
     ]);
   });
 
-  it("(b) the merge mark is an up arrow over the font's own 3x5 ★: two (7 px, 1 apart) for ★2, three (9 px, touching) for ★3, amber (★3 flashing gold), on an ink plate", () => {
-    expect([MERGE_W, MERGE_H, STAR_W, STAR_H]).toEqual([11, 12, 3, 5]);
-    // the star is render/font.ts:239's ★ at the 3x5 size: drawText("★", font 3) puts exactly its px
-    const f = fresh(5, 7);
-    drawText(G(f), "★", 1, 1, C.amber, { font: "3" });
+  it("(b) the merge mark is a SOLID up triangle over the game's own 5x6 star and its digit (2 or 3), amber, on an 11 x 13 ink plate; ★3 flashes gold at 2 Hz", () => {
+    expect([MERGE_W, MERGE_H, STAR_W, STAR_H]).toEqual([11, 13, 5, 6]);
+    // the star is render/font.ts:147's ★ at the 5x7 size: drawText("★", font 5) puts exactly its px
+    const f = fresh(8, 9);
+    drawText(G(f), "★", 1, 1, C.amber, { font: "5" });
     const glyph: string[] = [];
     for (let y = 0; y < STAR_H; y++) { let r = ""; for (let x = 0; x < STAR_W; x++) r += f.at(1 + x, 1 + y) === C.amber ? "#" : "."; glyph.push(r); }
     expect(glyph).toEqual([...STAR_ROWS]);
-    const c2 = fresh(13, 14);
+    const c2 = fresh(13, 15);
     drawMergeMark(G(c2), 1, 1, 2, 0);
     expect(ink(c2, 1, 1, MERGE_W, MERGE_H)).toEqual([
       "...........",
       ".....A.....",
       "....AAA....",
       "...AAAAA...",
-      ".....A.....",
+      "..AAAAAAA..",
       "...........",
-      "..A.A.A.A..",
-      "...A...A...",
-      "..AAA.AAA..",
-      "...A...A...",
-      "..A.A.A.A..",
+      "...A.......",
+      "...A...AAA.",
+      ".AAAAA...A.",
+      "..AAA..AAA.",
+      "..A.A..A...",
+      ".A...A.AAA.",
       "...........",
     ]);
-    const c3 = fresh(13, 14), c3b = fresh(13, 14);
+    const c3 = fresh(13, 15), c3b = fresh(13, 15);
     drawMergeMark(G(c3), 1, 1, 3, 0);
     drawMergeMark(G(c3b), 1, 1, 3, 0.3);
-    // the three touching stars alternate their tone: the outer two in the flash's colour, the middle one in the other of amber and gold
     expect(ink(c3, 1, 1, MERGE_W, MERGE_H).slice(6)).toEqual([
-      ".A.AY.YA.A.",
-      "..A..Y..A..",
-      ".AAAYYYAAA.",
-      "..A..Y..A..",
-      ".A.AY.YA.A.",
+      "...A.......",
+      "...A...AAA.",
+      ".AAAAA...A.",
+      "..AAA..AAA.",
+      "..A.A....A.",
+      ".A...A.AAA.",
       "...........",
     ]);
-    expect(ink(c3b, 1, 1, MERGE_W, MERGE_H).slice(1, 5).join("").includes("Y")).toBe(true); // the arrow flashes gold at t 0.3
-    expect(ink(c3b, 1, 1, MERGE_W, MERGE_H).slice(6)).toEqual([
-      ".Y.YA.AY.Y.",
-      "..Y..A..Y..",
-      ".YYYAAAYYY.",
-      "..Y..A..Y..",
-      ".Y.YA.AY.Y.",
-      "...........",
-    ]);
+    // at t 0.3 the whole mark is gold (the flash): the triangle, the star and the 3
+    expect(ink(c3b, 1, 1, MERGE_W, MERGE_H).join("").replace(/[.]/g, "")).toBe(ink(c3, 1, 1, MERGE_W, MERGE_H).join("").replace(/[.]/g, "").replace(/A/g, "Y"));
   });
 
   it("both marks keep SHOPCARD-1's rules: a clear px round each, none over the price, the picture's centre or each other, at every price, on every card width", () => {
     const clear = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }): boolean =>
       a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y;
     for (const [w, h] of [[CARD_W, CARD_H], [WIDE_CARD_MAX_W, WIDE_CARD_H], [69, WIDE_CARD_H]]) {
-      const z = cardZones(w, h), icon = z.icon, centre = { x: icon.x + 9, y: icon.y + 9, w: 6, h: 6 };
-      expect([z.merge.w, z.merge.h, z.sale.w, z.sale.h]).toEqual([MERGE_W, MERGE_H, SALE_W, SALE_H]);
+      const z0 = cardZones(w, h), icon = z0.icon, centre = { x: icon.x + 9, y: icon.y + 9, w: 6, h: 6 };
+      expect([z0.merge.w, z0.merge.h, z0.sale.w, z0.sale.h]).toEqual([MERGE_W, MERGE_H, SALE_W, SALE_H]);
       for (const price of buyableModules().map((d) => d.price)) {
-        const pb = cardPriceBox(w, h, price);
+        const z = cardZones(w, h, price), pb = cardPriceBox(w, h, price); // 1c: the sale plate sits against this price
         expect(clear(z.merge, pb), `${w}x${h} price ${price}: the merge plate clear of the price`).toBe(true);
         expect(clear(z.sale, pb), `${w}x${h} price ${price}: the sale plate clear of the price`).toBe(true);
       }
-      expect(clear(z.merge, centre) && clear(z.sale, centre), `${w}x${h}: clear of the picture's centre`).toBe(true);
-      expect(clear(z.merge, z.sale) && clear(z.merge, z.gem) && clear(z.sale, z.gem), `${w}x${h}: clear of each other and the gem`).toBe(true);
+      expect(clear(z0.merge, centre) && clear(z0.sale, centre), `${w}x${h}: clear of the picture's centre`).toBe(true);
+      expect(clear(z0.merge, z0.sale) && clear(z0.merge, z0.gem) && clear(z0.sale, z0.gem), `${w}x${h}: clear of each other and the gem`).toBe(true);
       // the plates stay inside the card's inner area (x 2 .. w - 3, y 5 .. h - 6)
-      for (const m of [z.merge, z.sale]) expect([m.x >= 2, m.x + m.w <= w - 2, m.y >= 5, m.y + m.h <= h - 5], `${w}x${h}`).toEqual([true, true, true, true]);
+      for (const m of [z0.merge, z0.sale]) expect([m.x >= 2, m.x + m.w <= w - 2, m.y >= 5, m.y + m.h <= h - 5], `${w}x${h}`).toEqual([true, true, true, true]);
     }
   });
 });
