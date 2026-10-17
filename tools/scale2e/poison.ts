@@ -73,7 +73,9 @@ const median = (xs: number[]): number => { const s = [...xs].sort((a, b) => a - 
 const t0 = Date.now();
 const fields = new Map<HeroId, Build[]>(HEROES.map((h) => [h, parField(h, DAY, Math.max(K + 6, KW + 4, M))]));
 log(`par fields built in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
-const POISONP: Part[] = [["venom", 2], ["rotgauge", 1], ["leechcoil", 1]];
+// SCALE-2e run 2 (REQ-BFG-108; cap's answer 5, the matched read): --pp id:n,id:n names the POISON deck's free parts (default: GENRE-2's four, 2 VENOM
+// DRIP + ROT GAUGE + LEECH COIL); "--pp venom:2,rotgauge:1" gives the POISON deck three free parts against the BURN deck's three (2 TEMPER + KINDLING)
+const POISONP: Part[] = arg("--pp", "venom:2,rotgauge:1,leechcoil:1").split(",").filter(Boolean).map((x) => { const [id, n] = x.split(":"); return [id, Number(n)] as Part; });
 const PURE = ["venom", "rotgauge", "leechcoil"];
 
 // bases that hold no POISON part; the decks
