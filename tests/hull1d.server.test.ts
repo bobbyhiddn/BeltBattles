@@ -640,13 +640,16 @@ describe("HULL-1d (g)2: through POST /v1/ghosts with every switch on", () => {
     // lives, dusk 7, day 6)
     const boon = await post({ ...won, lastChance: { day: D, boon: "hull" }, build: { ...won.build, hullBonus: won.build.hullBonus + LAST_CHANCE_HULL } }, "hull1d-boon");
     expect(boon.status).toBe(422);
-    expect(boon.text).toMatch(/record: 6W 10 lives is no record a run carries into dusk 7 after a LAST CHANCE on day 6/);
+    // BUMP-1D: the snapshots of a long run (this build's rules, LONG_RUN on) state their losses, so the line names them ("... 10 lives and 0
+    // losses is no record ..."; was "... 10 lives is no record ...")
+    expect(won.losses).toBe(0);
+    expect(boon.text).toMatch(new RegExp(`record: 6W 10 lives and ${won.losses} losses is no record a run carries into dusk 7 after a LAST CHANCE on day 6`));
     // a second LAST CHANCE's life: 3 hearts at dusk 9 after one on day 6 (HULL-ON (the flip, HEARTS): was 4 lives after
     // one on day 5; a hearts LAST CHANCE sets 1, PATCH UP lifts it to 2 at most)
     const nine = lcDusk("hull", 9).s;
     const second = await post({ ...nine, lives: 3 }, "hull1d-second");
     expect(second.status).toBe(422);
-    expect(second.text).toMatch(/record: 2W 3 lives is no record a run carries into dusk 9 after a LAST CHANCE on day 6/);
+    expect(second.text).toMatch(new RegExp(`record: 2W 3 lives and ${nine.losses} losses is no record a run carries into dusk 9 after a LAST CHANCE on day 6`)); // BUMP-1D: the stated losses
     // the field as a list of two: the decoder's 400
     const list = await post({ ...nine, lastChance: [nine.lastChance, nine.lastChance] } as unknown as GhostSnapshot, "hull1d-list");
     expect(list.status).toBe(400);

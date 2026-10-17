@@ -14,6 +14,8 @@ import { setHullScale } from "../src/sim/hullScale";
 import { setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
 import { SHAPES, setShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the bench's states with SHAPES off
+import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: the bench's boards, the plain rigs out
+import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: the bench's boards, the six more shaped rigs out
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the bench's boards, joins limited
 import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the bench's boards, weighted runes
 import { newRun, type Run } from "../src/game/run";
@@ -50,7 +52,11 @@ function place(hero: HeroId, seed: number, day: number, def: string, npcDay: boo
   // gear slot (the part placed with NPC_DAY off too), GUARD, OPEN_RUNES, HEARTS or PICK off alone the 9-piece one; FREE_JOINS
   // and OPEN_RUNES off give the bench's 8 (both cases green). So the board is built with both off; the placement plays the
   // shipped world
-  const board = withFreeJoins(() => withOpenRunes(() => playerRun(hero, 10, seed)[day - 1].build, false), false);
+  // BUMP-1D (PLAIN_RIGS and SHAPES2 on): the six plain rigs and the six more shaped rigs are in the catalogue now, so the par player's
+  // day-7 decks of these two seeds are other decks, on which no swap rates a gain. Proved one switch at a time: SHAPES2 off alone restores
+  // FOUNDRY 151's board (green), but FURNACE 58's needs PLAIN_RIGS off as well (each off alone: red). So the board is built with both
+  // off too, as the bench had it; the placement plays the shipped world
+  const board = withPlainRigs(() => withShapes2(() => withFreeJoins(() => withOpenRunes(() => playerRun(hero, 10, seed)[day - 1].build, false), false), false), false);
   setNpcDay(npcDay);
   const run = boardRun(board, hero, day);
   const r = placeFreePart(run, def, new Rng(hashSeed("lastchance-place", hero, run.seed, day)));

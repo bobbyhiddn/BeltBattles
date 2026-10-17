@@ -5,6 +5,8 @@
 // HULL-ON (the flip, HEARTS): these are LC-1's rule on a 5-life run (1 life left, 1 back, the day-3 refund), so every run
 // here starts with HEARTS off (newRun's mark: a run plays on the scale it started on, as a run saved before the flip
 // does); the hearts trigger (the first loss to 1 heart or fewer, which sets 1) is tests/retune1.hearts.test.ts's.
+// BUMP-1D: and with the long run off (LONG_RUN ships on): LC-1's rule is "only before RUN_DAYS" and a 10-day run's save drops a
+// day-10 card, as the runs saved before the bump do; LAST CHANCE on any day is the long run's (tests/run1.rule.test.ts).
 import { describe, expect, it } from "vitest";
 import type { SideStats } from "../src/sim/battle";
 import { HEROES, ITEMS, RUN_DAYS, START_LIVES, buyableModules, type HeroId } from "../src/sim/content";
@@ -21,7 +23,11 @@ import { migrateRun } from "../src/game/save";
 import { PATCH_UP_LIVES } from "../src/net/records";
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): LC-1's ★1 PART card, HULL_SCALE off
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): LC-1's runs start on 5 lives
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LC-1's runs are 10-day runs
 import { openRunesRules, withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the offer rule
+
+/** A fresh LC-1 run: 5 lives (HEARTS off) and the 10-day run (BUMP-1D: LONG_RUN off), both marks read by the run, as a run saved before the flips has none. */
+const lc1Run = (hero: HeroId, seed: number, id: string): Run => withLongRun(() => withHearts(() => newRun(hero, seed, id), false), false);
 
 const Z: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 type R = "W" | "L" | "D";
@@ -38,7 +44,7 @@ function dusk(run: Run, r: R, pick: Boon = "hull"): void {
 
 /** A run of `rs` dusks (it stops when the run ends). */
 function play(rs: string, hero: HeroId = "furnace", seed = 4242, pick: Boon = "hull"): Run {
-  const run = withHearts(() => newRun(hero, seed, `lc1-${hero}-${seed}`), false); // HULL-ON (the flip, HEARTS): a 5-life run
+  const run = lc1Run(hero, seed, `lc1-${hero}-${seed}`); // HULL-ON (the flip, HEARTS): a 5-life run; BUMP-1D: a 10-day run
   for (const r of rs) {
     if (run.over) break;
     dusk(run, r as R, pick);
@@ -52,7 +58,7 @@ const reload = (run: Run): Run => migrateRun(JSON.parse(JSON.stringify(run)))!;
  *  all the rule reads, so no hull is added). No loss fires it, so its dusks are the game's without LAST CHANCE: the twin a
  *  firing run is compared with, now that no switch turns the rule off (Z-BUMP). */
 function playSpent(rs: string, hero: HeroId = "furnace", seed = 4242): Run {
-  const run = withHearts(() => newRun(hero, seed, `lc1-${hero}-${seed}`), false); // HULL-ON (the flip, HEARTS): a 5-life run
+  const run = lc1Run(hero, seed, `lc1-${hero}-${seed}`); // HULL-ON (the flip, HEARTS): a 5-life run; BUMP-1D: a 10-day run
   run.lastChance = { day: 1, boon: "hull" };
   for (const r of rs) {
     if (run.over) break;
@@ -184,12 +190,15 @@ describe("LC-1: the offer", () => {
 
 describe("Z-PREP (REQ-BFG-073): the PART card draws rigs, turrets and gear only (cap's answer to LC-1 Q3)", () => {
   const SEVEN = ["chamber", "hailgun", "platebreaker", "railgun", "siegegun", "sorting", "splitter"];
+  // BUMP-1D: SHAPES2 ships on, and PICKAXE (src/sim/shapes2.ts: an epic gate, 8 G, QUARTERMASTER) is the one epic rig of its six: it joins
+  // the PART card by the kind rule below, so the catalogue is the SEVEN and PICKAXE (8 parts; the other five shaped rigs are not epic)
+  const PARTS = [...SEVEN, "pickaxe"].sort();
 
-  it("the catalogue is exactly the 7 epic rigs, turrets and gear at this tip; by kind, so the 9 left out are the factories and cores", () => {
+  it("the catalogue is exactly the 8 epic rigs, turrets and gear at this tip (the 7 and SHAPES-2's PICKAXE); by kind, so the 9 left out are the factories and cores", () => {
     const parts = lastChanceParts();
-    expect(parts.map((p) => p.id).sort()).toEqual(SEVEN);
+    expect(parts.map((p) => p.id).sort()).toEqual(PARTS);
     // PLAIN-1F (M6, M8): PLATE BREAKER's display name is SHIELD FUEL (the cold read's pick; its key platebreaker stays, above)
-    expect(parts.map((p) => p.name).sort()).toEqual(["EXT. CHAMBER", "HAIL GUN", "RAIL GUN", "SHIELD FUEL", "SIEGE GUN", "SORTING ARM", "SPLITTER"]);
+    expect(parts.map((p) => p.name).sort()).toEqual(["EXT. CHAMBER", "HAIL GUN", "PICKAXE", "RAIL GUN", "SHIELD FUEL", "SIEGE GUN", "SORTING ARM", "SPLITTER"]);
     expect(LAST_CHANCE_PART_KINDS).toEqual(["gate", "turret", "mod"]);
     for (const p of parts) expect([LAST_CHANCE_PART_KINDS.includes(p.kind), p.rarity, p.price > 0, !!p.merchant]).toEqual([true, "epic", true, true]);
     // the rule is the kind: every buyable epic part of those kinds is in, whatever its id (a later one joins by itself) ...
@@ -201,7 +210,7 @@ describe("Z-PREP (REQ-BFG-073): the PART card draws rigs, turrets and gear only 
     expect(out.map((d) => d.kind).sort()).toEqual(["core", "core", "core", "core", "factory", "factory", "factory", "factory", "factory"]);
   });
 
-  it("over many seeds, days and heroes no factory or core is ever offered, and the draw covers the 7", () => {
+  it("over many seeds, days and heroes no factory or core is ever offered, and the draw covers the 8", () => {
     const seen = new Map<string, number>();
     for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
       for (let day = 1; day < RUN_DAYS; day++) {
@@ -213,8 +222,8 @@ describe("Z-PREP (REQ-BFG-073): the PART card draws rigs, turrets and gear only 
         }
       }
     }
-    expect([...seen.keys()].sort()).toEqual(SEVEN);
-    for (const n of seen.values()) expect(n).toBeGreaterThan(5400 / 7 / 2); // an even draw: each part near 1/7 of 5,400
+    expect([...seen.keys()].sort()).toEqual(PARTS);
+    for (const n of seen.values()) expect(n).toBeGreaterThan(5400 / PARTS.length / 2); // an even draw: each part near 1/8 of 5,400 (BUMP-1D: was 1/7, the SEVEN)
   });
 
   it("still deterministic, and a PART pick still moves no other stream: the next dawn's shop and rune offer are the same seed's spent run's", () => {
@@ -236,7 +245,7 @@ describe("LC-1: the pick", () => {
   it("is pending until taken: the dawn rune waits, a fight is refused, and a pick is refused when none is pending", () => {
     const run = play("LLLLL");
     // play() took HULL only at the next dusk; re-create a pending one
-    const p = withHearts(() => newRun("furnace", 4242, "lc1-pending"), false); // HULL-ON (the flip, HEARTS): a 5-life run
+    const p = lc1Run("furnace", 4242, "lc1-pending"); // HULL-ON (the flip, HEARTS): a 5-life run; BUMP-1D: a 10-day run
     for (const r of "LLLLL") dusk(p, r as R);
     expect(lastChancePending(p)).toBe(true);
     expect(pendingRune(p)).toBeNull();

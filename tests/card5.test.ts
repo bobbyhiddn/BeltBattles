@@ -212,7 +212,8 @@ import { ICON, wrap } from "../src/render/font";
 import { REMINDER } from "../src/ui/faces";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../src/sim/deck";
 import { computeView, defaultScale } from "../src/core/io";
-import { HELP, HELP_HEARTS_2, HELP_KEYWORDS, helpLine3, helpLines } from "../src/screens/title";
+import { HELP, HELP_HEARTS_2, HELP_KEYWORDS, HELP_LONG_1, HELP_LONG_2, helpLine3, helpLines } from "../src/screens/title";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: the 10-day card is read with the long run off
 import { helpCard, titleScale } from "../src/screens/titleLayout";
 
 /** card5-base's card as the title drew it (helpLines: FREE_JOINS and HEARTS on, as shipped): before. */
@@ -239,7 +240,11 @@ describe("CARD-5 (H): HOW TO PLAY names the kinds and the keywords (REQ-BFG-111;
     expect(HELP[3]).toBe("4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, STUN, SPLIT, SPEED UP OR SLOW DOWN. MOST RIGS WORK ON EACH SLUG ON A TILE THEIR ARROWS POINT AT. LONGER CINDER ROUTES COOK HOTTER SLUGS.");
     expect(HELP_KEYWORDS).toBe(`6  ${ICON.BURN}BURN: HULL DAMAGE OVER TIME. ${ICON.STUN}STUN: STOPS THE PART IT HITS FOR A WHILE. ${ICON.PLATE}SHIELD: SOAKS HULL DAMAGE. ${ICON.SHIELD}WARD: BLOCKS ALL OF ONE HIT'S DAMAGE. ${ICON.PAIR}PAIR: SLUGS FROM TWO BELTS REACH ONE TURRET AT ONCE. ${ICON.FRAY}FRAY: LATER HULL HITS DEAL MORE.`);
     expect([HELP.length, helpLines().length, helpLines()[5]]).toEqual([6, 6, HELP_KEYWORDS]);
-    expect(helpLines().slice(0, 5).map((l, i) => (i === 2 || i === 3 ? "" : l))).toEqual(HELP_BEFORE.map((l, i) => (i === 2 || i === 3 ? "" : l))); // items 1, 2, 5 as before
+    // BUMP-1D: items 1, 2, 5 as before is the 10-day card (LONG_RUN ships on: its card says WIN 10 DUSK FIGHTS and ends item 2 with how the
+    // run ends: HELP_LONG_1 and HELP_LONG_2, tests/run1.screens.test.ts), so it is read with the long run off; HELP_HEARTS_2's cost words
+    // are built from the constants (title.ts heartCostWords: "1 ON DAYS 1-3 AND 2 FROM DAY 4")
+    expect(withLongRun(() => helpLines(), false).slice(0, 5).map((l, i) => (i === 2 || i === 3 ? "" : l))).toEqual(HELP_BEFORE.map((l, i) => (i === 2 || i === 3 ? "" : l))); // items 1, 2, 5 as before
+    expect(helpLines().slice(0, 5).map((l, i) => (i === 2 || i === 3 ? "" : l))).toEqual([HELP_LONG_1, HELP_LONG_2, "", "", HELP[4]]); // the long card: items 1 and 2 are its own, 5 as before
   });
 
   it("each clause true where the sim says it: item 6 is each keyword's own reminder cut short; MOST RIGS: more than half the buyable rigs work on each slug on a tile their arrows point at (a HIT: rule)", () => {

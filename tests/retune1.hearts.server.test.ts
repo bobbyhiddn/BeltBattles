@@ -6,18 +6,21 @@
 // put back off after each test. The server's data dir is under os.tmpdir() (run with TMPDIR set).
 // HULL-ON (the flip, HEARTS): HEARTS ships on, so the afterEach puts it back ON (the shipped value) and each switch-off
 // half sets it off itself (withHearts(fn, false)); the switch-on tests are plain tests.
+// BUMP-1D: LONG_RUN ships on (this build's rules, bb-0.11.0, are a long run's: an upload states its `losses`, LAST CHANCE has no last day,
+// a loss costs 1 on days 1-3 and 2 from day 4); the 10-day halves run the world off (withLongRun(fn, false), setLongRun(false)).
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { HEARTS_START, setHearts, withHearts } from "../src/sim/hearts";
+import { setLongRun, withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; the 10-day halves run it off
 import { openRunesRules } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the par player's card rule
 import { lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { runeFits, runeList } from "../src/sim/runes";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { checkSnapshot, decodeSnapshot, encodeSnapshot, MAX_LIVES, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
-import { HEARTS_RULES, heartsFor, livesCapFor } from "../src/net/rulesGate";
+import { HEARTS_RULES, heartsFor, livesCapFor, rulesAtLeast } from "../src/net/rulesGate";
 import { validateUpload } from "../src/net/validate";
 import { floorRecord, isReachable, reachableRecords } from "../src/net/records";
 import { isSnapshot } from "../src/game/ghostSnapshot";
@@ -29,7 +32,7 @@ import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 /** A rules version before HEARTS_RULES (it stays older after the bump; LAST CHANCE predates it too). */
 const OLD_RULES = "bb-0.9.1";
 const LC_DAY = 6; // a run that loses every dusk: 9 8 7 5 3, then 1 at dusk 6: LAST CHANCE (the earliest it can fire)
-afterEach(() => setHearts(true)); // the shipped value (HULL-ON's flip; was false): a switch-off half sets it off itself
+afterEach(() => { setHearts(true); setLongRun(true); }); // the shipped values (HULL-ON's flip; was false; BUMP-1D: LONG_RUN on): a switch-off half sets it off itself
 
 const recs = (day: number, opts = {}) => reachableRecords(day, opts).map((r) => `${r.wins}W${r.lives}`).join(" ");
 
@@ -51,8 +54,13 @@ const check = (s: GhostSnapshot) => validateUpload(s.build, s.day, s.rules, { se
 const record = (s: GhostSnapshot) => isReachable(s.day, s.wins, s.lives, { rules: s.rules, lastChance: s.lastChance?.day ?? null });
 
 describe("RETUNE-1 HEARTS: the rules gate and the bounds", () => {
-  it("heartsFor: the switch on AND rules at or after HEARTS_RULES (RULES_VERSION until BUMP-1D writes the literal)", () => {
-    expect(HEARTS_RULES).toBe(RULES_VERSION);
+  it("heartsFor: the switch on AND rules at or after HEARTS_RULES (the literal bb-0.10.0 since HULL-ON; this build's rules are after it)", () => {
+    // BUMP-1D: HEARTS_RULES is the literal "bb-0.10.0" (it equalled RULES_VERSION until the bump to bb-0.11.0; a literal is the first rules
+    // version that has the feature), and this build's rules are at or after it
+    expect(HEARTS_RULES).toBe("bb-0.10.0");
+    expect(rulesAtLeast(RULES_VERSION, HEARTS_RULES)).toBe(true);
+    expect(heartsFor(HEARTS_RULES)).toBe(true); // the first rules with hearts
+    expect(heartsFor("bb-0.9.7")).toBe(false); // the rules before them read 5 lives
     expect(heartsFor(RULES_VERSION)).toBe(true); // HULL-ON (the flip, HEARTS): false -> true, the switch ships on
     expect(withHearts(() => heartsFor(RULES_VERSION), false)).toBe(false); // off
     withHearts(() => {
@@ -175,7 +183,14 @@ describe("RETUNE-1 HEARTS: honest hearts uploads pass; forgeries are refused", (
       const two = { ...r, build: { ...r.build, runes: [...runes.slice(0, LC_DAY + 1), { id: spare.id }, ...runes.slice(LC_DAY + 1)] } };
       expect(check(two).errors).toEqual([`rune: runes: ${runes.length + 1} held on day ${LC_DAY + 1}, at most one a dawn and one LAST CHANCE`]);
       // on the last day: never (the decoder and validateUpload)
-      expect(check({ ...s, day: 10, lastChance: { day: 10, boon: "hull" } }).errors.join()).toContain("LAST CHANCE comes only before day 10");
+      // BUMP-1D: that is the 10-day run's rule (LONG_RUN ships on: a long run has no last day, so this build's rules ask only that the
+      // card come before the deck's own day), so the old words are asked of the 10-day world (the switch off: inRulesWorld)
+      withLongRun(() => {
+        expect(check({ ...s, day: 10, lastChance: { day: 10, boon: "hull" } }).errors.join()).toContain("LAST CHANCE comes only before day 10");
+        expect(() => checkSnapshot({ ...s, day: 10, lastChance: { day: 10, boon: "hull" } })).toThrow("snapshot.lastChance");
+      }, false);
+      // the long run: the deck's day is the bar (a card on day 10 is no card before a day-10 deck), by both
+      expect(check({ ...s, day: 10, lastChance: { day: 10, boon: "hull" } }).errors.join()).toContain("lastChance: day 10 is not before the deck's day 10");
       expect(() => checkSnapshot({ ...s, day: 10, lastChance: { day: 10, boon: "hull" } })).toThrow("snapshot.lastChance");
     });
   }, 300_000);
@@ -202,34 +217,57 @@ describe("RETUNE-1 HEARTS: POST /v1/ghosts", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("stores honest hearts uploads (with and without LAST CHANCE); refuses an unreachable record (422) and 11 hearts (400)", async () => {
+  /** The honest hearts uploads and their forgeries, in one of two worlds. BUMP-1D: this build's rules are a long run's (LONG_RUN ships
+   *  on), whose upload states its `losses` (every dusk of these runs was lost: day - 1) and whose record message names them; the
+   *  10-day world (LONG_RUN off) needs none and names none, as these tests were before the bump. Each world uploads its own seed. */
+  async function heartsPosts(long: boolean, seed: number): Promise<void> {
     setHearts(true);
+    setLongRun(long);
     const me = await testIdentity(0);
-    for (const s of [honest(null, "weaver", 7), honest("hull", "weaver", 7), honest("rune", "weaver", 7)]) {
-      const res = await submitGhost(base, ownedBy(s, me), me, 5000);
+    const up = (s: GhostSnapshot): GhostSnapshot => (long ? { ...s, losses: s.day - 1 } : s);
+    const had = app.store.size;
+    for (const s of [honest(null, "weaver", seed), honest("hull", "weaver", seed), honest("rune", "weaver", seed)]) {
+      const res = await submitGhost(base, ownedBy(up(s), me), me, 5000);
       expect(res, JSON.stringify(res)).toMatchObject({ ok: true });
     }
-    expect(app.store.size).toBe(3);
+    expect(app.store.size).toBe(had + 3);
     const post = async (s: GhostSnapshot) => {
       const body = JSON.stringify(ownedBy(s, me));
       const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
       return { status: r.status, body: JSON.stringify(await r.json()) };
     };
-    const lc = honest("hull", "weaver", 7);
-    const early = await post({ ...lc, runId: "rt1-forged", lastChance: { day: 3, boon: "hull" } });
+    const lc = honest("hull", "weaver", seed);
+    const early = await post(up({ ...lc, runId: "rt1-forged", lastChance: { day: 3, boon: "hull" } }));
     expect(early.status).toBe(422);
-    expect(early.body).toContain("record: 0W 1 lives is no record a run carries into dusk 7 after a LAST CHANCE on day 3");
-    const low = await post({ ...honest(null, "weaver", 7), runId: "rt1-low", lives: 2 });
+    expect(early.body).toContain(`record: 0W 1 lives${long ? " and 6 losses" : ""} is no record a run carries into dusk 7 after a LAST CHANCE on day 3`);
+    const low = await post(up({ ...honest(null, "weaver", seed), runId: "rt1-low", lives: 2 }));
     expect(low.status).toBe(422);
-    const over = await post({ ...honest(null, "weaver", 7), runId: "rt1-over", lives: 11 });
+    const over = await post(up({ ...honest(null, "weaver", seed), runId: "rt1-over", lives: 11 }));
     expect(over.status).toBe(400);
     expect(over.body).toContain("snapshot.lives");
-    expect(app.store.size).toBe(3);
+    expect(app.store.size).toBe(had + 3);
     // switch off: an honest hearts record (day 6, 0W, 6 hearts) is no 5-life record (422)
     setHearts(false);
-    const off = await post({ ...honest(null, "weaver", 7), runId: "rt1-off", lives: 6 });
+    const off = await post(up({ ...honest(null, "weaver", seed), runId: "rt1-off", lives: 6 }));
     expect(off.status).toBe(422);
-    expect(app.store.size).toBe(3);
+    expect(app.store.size).toBe(had + 3);
+  }
+
+  it("stores honest hearts uploads (with and without LAST CHANCE); refuses an unreachable record (422) and 11 hearts (400)", async () => {
+    // BUMP-1D: the long run (this build's rules): each upload states its `losses`; without them it is refused (422, the reason names the field)
+    const had = app.store.size;
+    await heartsPosts(true, 7);
+    setHearts(true);
+    const me = await testIdentity(0);
+    const body = JSON.stringify(ownedBy({ ...honest(null, "weaver", 7), runId: "rt1-bare" }, me));
+    const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
+    expect([r.status, ((await r.json()) as { error: string }).error]).toEqual([422, expect.stringMatching(/^losses: .*snapshot\.losses/)]);
+    expect(app.store.size).toBe(had + 3);
+  }, 600_000);
+
+  it("the 10-day run (LONG_RUN off): the same uploads need no `losses` and are stored, forgeries refused as before", async () => {
+    // BUMP-1D: the test as it was at bb-0.10.0 (no `losses`), run in the 10-day world explicitly; its own seed, three more records stored
+    await heartsPosts(false, 8);
   }, 600_000);
 
   it("decodeSnapshot round-trips an honest 10-heart snapshot under HEARTS", () => {

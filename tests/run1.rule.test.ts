@@ -1,6 +1,8 @@
 // RUN-1 T1 (REQ-BFG-059, REQ-BFG-116): LONG_RUN, the rule in the game (src/sim/longRun.ts; day.ts finishDay, run.ts newRun,
 // save.ts migrateRun). A long run is WON at its 10th dusk win and LOST at 0 hearts; nothing else ends it. The switch is set
-// through its setter and put back after each test (it ships off). A run plays on the rule it STARTED on (Run.longRun).
+// through its setter and put back after each test (BUMP-1D: it ships on, since bb-0.11.0; it shipped off). A run plays on the rule it
+// STARTED on (Run.longRun). BUMP-1D: a loss costs 1 on days 1-3 and 2 from day 4 (HEART_COSTS [1, 2, 2]; was [1, 2, 3]), so the scripts
+// that reached LAST CHANCE with the cost 3 are re-scripted to reach it with the cost 2.
 import { afterEach, describe, expect, it } from "vitest";
 import { RUN_DAYS } from "../src/sim/content";
 import {
@@ -12,12 +14,12 @@ import { finishDay, flawless, runWon } from "../src/game/day";
 import { newRun, type Run } from "../src/game/run";
 import { migrateRun } from "../src/game/save";
 import { lastChanceFires, lastChanceShapeOk } from "../src/sim/lastChance";
-import { LONG_RUN_RULES, longRunFor } from "../src/net/rulesGate";
+import { LONG_RUN_RULES, longRunFor, rulesAtLeast } from "../src/net/rulesGate";
 import { RULES_VERSION } from "../src/sim/content";
 import type { SideStats } from "../src/sim/battle";
 
 const S = {} as SideStats;
-afterEach(() => setLongRun(false)); // the shipped value
+afterEach(() => setLongRun(true)); // the shipped value (BUMP-1D: on; was false)
 
 type O = "W" | "L" | "D";
 /** A fresh hearts run, long with the switch on (newRun's mark), else the 10-day run. */
@@ -32,13 +34,23 @@ function play(run: Run, seq: string): Run {
 }
 
 describe("RUN-1: the switch, its mark and its rules literal", () => {
-  it("ships off; the setter and withLongRun put it back, even on a throw", () => {
-    expect(LONG_RUN).toBe(false);
+  it("ships on; the setter and withLongRun put it back, even on a throw", () => {
+    // BUMP-1D: LONG_RUN ships on (was off: LONG_RUN false, withLongRun(fn) on and back to off); the off forms are the 10-day run's
+    expect(LONG_RUN).toBe(true);
+    expect(longRunRules()).toBe(true);
+    expect(withLongRun(() => longRunRules(), false)).toBe(false);
+    expect(longRunRules()).toBe(true);
+    expect(withLongRun(() => longRunRules())).toBe(true);
+    expect(() => withLongRun(() => { throw new Error("x"); }, false)).toThrow("x");
+    expect(longRunRules()).toBe(true);
+    setLongRun(false);
     expect(longRunRules()).toBe(false);
     expect(withLongRun(() => longRunRules())).toBe(true);
     expect(longRunRules()).toBe(false);
     expect(() => withLongRun(() => { throw new Error("x"); })).toThrow("x");
     expect(longRunRules()).toBe(false);
+    setLongRun(true);
+    expect(longRunRules()).toBe(true);
   });
 
   it("newRun marks a run long only while the switch is on; off, the run is byte for byte as before", () => {
@@ -51,9 +63,17 @@ describe("RUN-1: the switch, its mark and its rules literal", () => {
     expect(JSON.stringify(rest)).toBe(JSON.stringify(off));
   });
 
-  it("LONG_RUN_RULES reads RULES_VERSION until the bump; longRunFor needs the switch AND the rules", () => {
-    expect(LONG_RUN_RULES).toBe(RULES_VERSION);
-    expect(longRunFor(RULES_VERSION)).toBe(false); // the switch off: every record reads the 10-day run
+  it("LONG_RUN_RULES is the literal bb-0.11.0 (it read RULES_VERSION until the bump); longRunFor needs the switch AND the rules", () => {
+    // BUMP-1D: the bump wrote the literal (the first rules version with the long run); this build's rules are at or after it
+    expect(LONG_RUN_RULES).toBe("bb-0.11.0");
+    expect(rulesAtLeast(RULES_VERSION, LONG_RUN_RULES)).toBe(true);
+    expect(longRunFor(RULES_VERSION)).toBe(true); // the switch ships on: this build's records read the long run
+    expect(longRunFor(LONG_RUN_RULES)).toBe(true);
+    expect(longRunFor("bb-0.10.0")).toBe(false); // the rules just before it keep the 10-day run
+    withLongRun(() => {
+      expect(longRunFor(RULES_VERSION)).toBe(false); // the switch off: every record reads the 10-day run
+      expect(longRunFor(LONG_RUN_RULES)).toBe(false);
+    }, false);
     withLongRun(() => {
       expect(longRunFor(RULES_VERSION)).toBe(true);
       expect(longRunFor("bb-0.9.7")).toBe(false); // older rules keep the 10-day run
@@ -120,17 +140,21 @@ describe("RUN-1: a long run ends only at 10 wins or 0 hearts", () => {
   });
 
   it("LAST CHANCE fires on day 12 (on a 10-day run it could only come before day 10)", () => {
-    // days 1-3 lost (7 hearts), days 4-10 won (7 wins), day 11 lost (cost 3: 4), day 12 lost (cost 3: 1): LAST CHANCE
-    const run = play(runOf(true), "LLL" + "WWWWWWW" + "LL");
+    // BUMP-1D: a loss from day 4 costs 2 (HEART_COSTS [1, 2, 2]; was 3 from day 7), so the script loses one more dusk on the way:
+    // days 1-3 lost (7 hearts), days 4-9 won (6 wins), day 10 lost (cost 2: 5), day 11 lost (3), day 12 lost (1): LAST CHANCE
+    // (was days 4-10 won, day 11 lost (cost 3: 4), day 12 lost (cost 3: 1))
+    const run = play(runOf(true), "LLL" + "WWWWWW" + "LLL");
     expect(run.over).toBeNull();
     expect(run.day).toBe(13);
     expect(run.lives).toBe(1);
     expect(run.lastChance).toEqual({ day: 12 });
     expect(run.history[11].lastChance).toEqual({ lives: 0 });
-    expect(run.history[11].heartsLost).toBe(3);
-    // a loss that would leave 0 is saved the same way, once a run
-    const deep = play(runOf(true), "LLL" + "WWWWWWW" + "LWL");
+    expect(run.history[11].heartsLost).toBe(2);
+    // a loss that would leave 0 is saved the same way, once a run (day 13: 2 hearts - 2 = 0: LAST CHANCE sets 1, it adds one)
+    // days 1-2 lost (8), days 3-8 won, days 9-11 lost (6, 4, 2), day 12 won, day 13 lost (0 -> 1)
+    const deep = play(runOf(true), "LL" + "WWWWWW" + "LLL" + "W" + "L");
     expect(deep.lastChance).toEqual({ day: 13 });
+    expect(deep.history[12].lastChance).toEqual({ lives: 1 });
     expect(deep.lives).toBe(1);
     const after = play(deep, "L");
     expect(after.over).toBe("lost");
@@ -140,29 +164,32 @@ describe("RUN-1: a long run ends only at 10 wins or 0 hearts", () => {
     expect(lastChanceFires(12, "loss", 1, false, Infinity)).toBe(true);
   });
 
-  it("a draw costs nothing and the day goes on; the hearts cost stays 3 past day 10", () => {
+  it("a draw costs nothing and the day goes on; the hearts cost stays 2 past day 10", () => {
+    // BUMP-1D: the cost from day 7 on is 2 (HEART_COSTS [1, 2, 2]); was 3 (HEARTS_START - 3, heartsLost 3)
     const run = play(runOf(true), "WWWWWWWWW" + "DDD" + "L");
     expect(run.over).toBeNull();
     expect(run.day).toBe(14);
-    expect(run.lives).toBe(HEARTS_START - 3);
-    expect(run.history[12].heartsLost).toBe(3);
+    expect(run.lives).toBe(HEARTS_START - 2);
+    expect(run.history[12].heartsLost).toBe(2);
   });
 });
 
 describe("RUN-1: saves (D8)", () => {
   it("a long run saves and loads on day 14 without clamping (its LAST CHANCE of day 12 kept)", () => {
-    const run = play(runOf(true), "LLL" + "WWWWWWW" + "LL" + "W"); // the dawn of day 14
+    // BUMP-1D: a loss from day 4 costs 2 (was 3 from day 7), so LAST CHANCE on day 12 takes six losses now (was five): 7 wins and 6 losses
+    // at the dawn of day 14 (was 8 and 5): days 1-3 lost, 4-9 won, 10-12 lost (LAST CHANCE on 12), 13 won
+    const run = play(runOf(true), "LLL" + "WWWWWW" + "LLL" + "W"); // the dawn of day 14
     expect(run.day).toBe(14);
     const back = migrateRun(JSON.parse(JSON.stringify(run)))!;
     expect(back.day).toBe(14);
     expect(back.longRun).toBe(true);
     expect(back.lastChance).toEqual({ day: 12 });
     expect(back.lives).toBe(1);
-    expect([back.wins, back.losses]).toEqual([8, 5]);
-    // and plays on: the next win is the 9th, the one after it the 10th (WON on day 15)
-    const done = play(back, "WW");
+    expect([back.wins, back.losses]).toEqual([7, 6]);
+    // and plays on: the next win is the 8th, the next the 9th, the one after it the 10th (WON on day 16; was the 9th and 10th, day 15)
+    const done = play(back, "WWW");
     expect(done.over).toBe("won");
-    expect(done.day).toBe(15);
+    expect(done.day).toBe(16);
     expect(lastChanceShapeOk({ day: 12 })).toBe(false); // the 10-day bound
     expect(lastChanceShapeOk({ day: 12 }, false, Infinity)).toBe(true);
   });

@@ -40,8 +40,11 @@ describe("RETUNE-1 T3: the seed pool's drawn labels", () => {
           }
         }
       }
-      // hand-checked: day 8, 2 wins, the 3 dusks before it lost (days 5, 6, 7: 2 + 2 + 3) -> 3 hearts
-      expect(drawnLabel(8, 2, 3)).toEqual({ wins: 2, lives: 3 });
+      // hand-checked: day 8, 2 wins, the 3 dusks before it lost (days 5, 6, 7: 2 + 2 + 2) -> 4 hearts
+      // (BUMP-1D: a loss from day 7 costs 2, HEART_COSTS [1, 2, 2]; was 2 + 2 + 3 -> 3 hearts)
+      expect(drawnLabel(8, 2, 3)).toEqual({ wins: 2, lives: 4 });
+      // and one that reaches the new third band's day: day 9, 1 win, the 4 dusks before it lost (days 5-8: 2 + 2 + 2 + 2) -> 2 hearts
+      expect(drawnLabel(9, 1, 4)).toEqual({ wins: 1, lives: 2 });
       // day 4, 0 wins, 3 lost (days 1-3) -> 7; none lost -> 10
       expect(drawnLabel(4, 0, 3)).toEqual({ wins: 0, lives: 7 });
       expect(drawnLabel(4, 0, 0)).toEqual({ wins: 0, lives: 10 });

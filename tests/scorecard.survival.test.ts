@@ -8,9 +8,13 @@
 // refund, LAST CHANCE setting 1 at 1 or fewer): with HEARTS on, lifeAudit throws "the model doesn't cover these rules".
 // So every check of the model against the run code reads the run code with HEARTS off (offHearts: its runs are 5-lives
 // runs), the world the model covers. LOOK (cap): the tool's survival model does not follow HEARTS (tools/ not edited).
+// BUMP-1D: nor the long run. LONG_RUN ships on, and a long run is never "complete" (it is won at 10 wins or lost at 0 hearts), while the
+// model's runs complete after day 10's dusk; so the run code is read with the long run off too (offHearts: the 10-day, 5-lives world the
+// model covers). The hearts costs (HEART_COSTS [1, 2, 3] -> [1, 2, 2]) do not reach this file: its runs are 5-lives runs.
 import { describe, expect, it } from "vitest";
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { withHearts } from "../src/sim/hearts";
+import { withLongRun } from "../src/sim/longRun";
 import { standInFoe } from "../src/game/ghosts";
 import {
   checkBag, constLoss, eventDayOdds, lifeAudit, lostOf, modelCompletes, modelTable, patternTable, roundsInto, runPattern,
@@ -23,8 +27,9 @@ const RULES: LifeRules = { startLives: 5, days: 10, lossLives: 1, refundDay: 3, 
 /** Z-BUMP (the flip): the game's rules now, as lifeAudit reads them off the run code: RULES and LAST CHANCE's 1 life. */
 const GAME: LifeRules = { ...RULES, lastChance: 1 };
 const choose = (n: number, k: number): number => (k < 0 || k > n ? 0 : k === 0 ? 1 : (choose(n - 1, k - 1) * n) / k);
-/** HULL-ON (the flip, HEARTS): a test body run with HEARTS off (its runs start as 5-lives runs), put back on after. */
-const offHearts = (fn: () => void) => (): void => withHearts(fn, false);
+/** HULL-ON (the flip, HEARTS): a test body run with HEARTS off (its runs start as 5-lives runs), put back on after. BUMP-1D: and with the
+ *  long run off (its runs are 10-day runs, which complete), put back on after. */
+const offHearts = (fn: () => void) => (): void => withHearts(() => withLongRun(fn, false), false);
 
 describe("--survival: the exact model on hand-computed cases", () => {
   it("2 days and 2 lives: only losing both ends the run; a day-1 refund saves even that", () => {

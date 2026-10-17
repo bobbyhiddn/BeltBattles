@@ -22,6 +22,7 @@ import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import type { Build } from "../src/sim/deck";
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the 5-life model's off check
+import { setLongRun, withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; the 10-day halves run it off
 import { openRunesRules, withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the offer rule
 
 // the LAST CHANCE day. HULL-ON (the flip, HEARTS): 5 -> 6, the record model of this build's rules is the hearts one
@@ -88,7 +89,7 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
   it("accepted under LAST_CHANCE_RULES (bb-0.9.7, a literal since Z-BUMP) and this build's later rules, refused under older rules", () => {
     const { s } = honest("hull");
     expect(LAST_CHANCE_RULES).toBe("bb-0.9.7"); // AZ-BUMP: the bump (was RULES_VERSION's value until it)
-    expect([RULES_VERSION, lastChanceGateProblem(RULES_VERSION)]).toEqual(["bb-0.10.0", null]); // AZ-BUMP: this build's rules have LAST CHANCE
+    expect([RULES_VERSION, lastChanceGateProblem(RULES_VERSION)]).toEqual(["bb-0.11.0", null]); // AZ-BUMP: this build's rules have LAST CHANCE; BUMP-1D: bb-0.11.0 (was bb-0.10.0)
     expect(checkSnapshot(s).lastChance).toEqual({ day: D, boon: "hull" });
     expect(isSnapshot(s)).toBe(true);
     // written last, after the seed; a snapshot without one encodes as before
@@ -106,9 +107,17 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
     // a second LAST CHANCE: a run has one
     expect(bad([s.lastChance, s.lastChance])).toThrow("snapshot.lastChance: a run has one LAST CHANCE, not a list of 2");
     // on day 10 or later, or not before the snapshot's own day (HULL-ON (the flip, HEARTS): the snapshot's day 6 -> 7)
-    expect(bad({ day: 10, boon: "hull" })).toThrow("snapshot.lastChance.day: 10: LAST CHANCE comes only before day 10");
+    // BUMP-1D: the day-10 and 1..10 lines are the 10-day run's (LONG_RUN ships on, and this build's rules are a long run's, which has no
+    // last day: its card may come on any day 1..25 before the snapshot's own), so they are asked of the 10-day world (the switch off)
+    withLongRun(() => {
+      expect(bad({ day: 10, boon: "hull" })).toThrow("snapshot.lastChance.day: 10: LAST CHANCE comes only before day 10");
+      expect(bad({ day: 7, boon: "hull" })).toThrow("snapshot.lastChance.day: 7 is not before the snapshot's day 7");
+      expect(bad({ day: 11, boon: "hull" })).toThrow("snapshot.lastChance.day: expected an integer in 1..10");
+    }, false);
+    expect(bad({ day: 10, boon: "hull" })).toThrow("snapshot.lastChance.day: 10 is not before the snapshot's day 7");
     expect(bad({ day: 7, boon: "hull" })).toThrow("snapshot.lastChance.day: 7 is not before the snapshot's day 7");
-    expect(bad({ day: 11, boon: "hull" })).toThrow("snapshot.lastChance.day: expected an integer in 1..10");
+    expect(bad({ day: 11, boon: "hull" })).toThrow("snapshot.lastChance.day: 11 is not before the snapshot's day 7");
+    expect(bad({ day: 26, boon: "hull" })).toThrow("snapshot.lastChance.day: expected an integer in 1..25");
     expect(bad({ day: 5, boon: "gold" })).toThrow("snapshot.lastChance.boon: expected one of rune, part, hull");
     expect(bad({ day: 5, boon: "hull", id: "x" })).toThrow("snapshot.lastChance.id: a hull boon names no id");
     expect(bad({ day: 5, boon: "rune" })).toThrow("snapshot.lastChance.id: missing (a rune boon names its rune)");
@@ -211,7 +220,10 @@ describe("LC-1: forgeries are refused, each with its own error line", () => {
 
   it("a LAST CHANCE on day 10 or not before the deck's day, through validateUpload too (a caller without the decoder)", () => {
     const { s } = honest("hull");
-    expect(check({ ...s, lastChance: { day: 10, boon: "hull" } }).errors).toEqual(["lastChance: day 10: LAST CHANCE comes only before day 10"]);
+    // BUMP-1D: the day-10 line is the 10-day run's (the switch off: validateUpload judges the deck in the record's own world); this build's
+    // rules are a long run's, whose card has no last day, so day 10 for a day-7 deck is refused as any day not before the deck's own
+    withLongRun(() => expect(check({ ...s, lastChance: { day: 10, boon: "hull" } }).errors).toEqual(["lastChance: day 10: LAST CHANCE comes only before day 10"]), false);
+    expect(check({ ...s, lastChance: { day: 10, boon: "hull" } }).errors).toEqual(["lastChance: day 10 is not before the deck's day 7"]);
     expect(check({ ...s, lastChance: { day: 7, boon: "hull" } }).errors).toEqual(["lastChance: day 7 is not before the deck's day 7"]); // HULL-ON (HEARTS): 6 -> 7
     // Z-BUMP (the flip): was "switch off: not in this rules version yet"; under rules before LAST_CHANCE_RULES validateUpload
     // refuses the field with the rules gate's words
@@ -233,31 +245,57 @@ describe("LC-1: an honest LAST CHANCE run uploads through the server, each card"
     rmSync(dir, { recursive: true, force: true });
   });
 
+  /** The honest uploads of each card, a forged record and the field under older rules, in one of two worlds. BUMP-1D: this build's rules are
+   *  a long run's (LONG_RUN ships on), whose upload states its `losses` (every dusk of these runs was lost: D = 6) and whose record line
+   *  names them; the 10-day world (LONG_RUN off) needs none and names none, as this test was at bb-0.10.0. Each world uploads its own seed. */
+  async function lcPosts(long: boolean, seed: number): Promise<void> {
+    setLongRun(long);
+    try {
+      const me = await testIdentity(0);
+      const up = (x: GhostSnapshot): GhostSnapshot => (long ? { ...x, losses: D } : x);
+      const had = app.store.size;
+      for (const boon of ["rune", "part", "hull"] as Boon[]) {
+        const { s } = honest(boon, "weaver", seed);
+        const res = await submitGhost(base, ownedBy(up(s), me), me, 5000);
+        expect(res, `${boon}: ${JSON.stringify(res)}`).toMatchObject({ ok: true });
+      }
+      expect(app.store.size).toBe(had + 3);
+      // a forged record: a LAST CHANCE on day 3 (no loss to 1 life there): 422 with the record line
+      const { s } = honest("hull", "weaver", seed);
+      const body = JSON.stringify(ownedBy(up({ ...s, runId: "lc1-forged", lastChance: { day: 3, boon: "hull" } }), me));
+      const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
+      expect(r.status).toBe(422);
+      // HULL-ON (the flip, HEARTS): 0W 2 lives at dusk 6 -> 0W 1 (hearts) at dusk 7; BUMP-1D: and the long run's line names its 6 losses
+      expect(((await r.json()) as { error: string }).error).toBe(`record: 0W 1 lives${long ? ` and ${D} losses` : ""} is no record a run carries into dusk 7 after a LAST CHANCE on day 3`);
+      // Z-BUMP (the flip): was "the switch off: the field is refused by the decoder (400)"; under rules before
+      // LAST_CHANCE_RULES the decoder refuses it (400, before POST's own rules check), with the rules gate's words (and no `losses`:
+      // the 10-day rules before the long run's keep that field reserved)
+      const old = JSON.stringify(ownedBy({ ...s, rules: OLD_RULES, runId: "lc1-old" }, me));
+      const q = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, old), body: old });
+      expect(q.status).toBe(400);
+      expect(JSON.stringify(await q.json())).toContain(`snapshot.lastChance: ${OLD_GATE}`);
+      expect(app.store.size).toBe(had + 3);
+    } finally {
+      setLongRun(true);
+    }
+  }
+
   // Z-BUMP (the flip): title's end was "and the field with the switch off"
   it(`POST /v1/ghosts stores the rune, part and hull runs; refuses a forged record and the field under older rules (${OLD_RULES})`, async () => {
+    // BUMP-1D: the long run (this build's rules): each upload states its `losses`; without them it is refused (422, the reason names the field)
+    await lcPosts(true, 7);
     const me = await testIdentity(0);
-    for (const boon of ["rune", "part", "hull"] as Boon[]) {
-      const { s } = honest(boon, "weaver", 7);
-      const res = await submitGhost(base, ownedBy(s, me), me, 5000);
-      expect(res, `${boon}: ${JSON.stringify(res)}`).toMatchObject({ ok: true });
-    }
-    expect(app.store.size).toBe(3);
-    // a forged record: a LAST CHANCE on day 3 (no loss to 1 life there): 422 with the record line
     const { s } = honest("hull", "weaver", 7);
-    const body = JSON.stringify(ownedBy({ ...s, runId: "lc1-forged", lastChance: { day: 3, boon: "hull" } }, me));
-    const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
-    expect(r.status).toBe(422);
-    // HULL-ON (the flip, HEARTS): 0W 2 lives at dusk 6 -> 0W 1 (hearts) at dusk 7
-    expect(((await r.json()) as { error: string }).error).toBe("record: 0W 1 lives is no record a run carries into dusk 7 after a LAST CHANCE on day 3");
-    // Z-BUMP (the flip): was "the switch off: the field is refused by the decoder (400)"; under rules before
-    // LAST_CHANCE_RULES the decoder refuses it (400, before POST's own rules check), with the rules gate's words
-    const old = JSON.stringify(ownedBy({ ...s, rules: OLD_RULES, runId: "lc1-old" }, me));
-    const q = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, old), body: old });
-    expect(q.status).toBe(400);
-    expect(JSON.stringify(await q.json())).toContain(`snapshot.lastChance: ${OLD_GATE}`);
-    expect(app.store.size).toBe(3);
+    const bare = JSON.stringify(ownedBy({ ...s, runId: "lc1-bare" }, me));
+    const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, bare), body: bare });
+    expect([r.status, ((await r.json()) as { error: string }).error]).toEqual([422, expect.stringMatching(/^losses: .*snapshot\.losses/)]);
   }, 120_000); // AZ-BUMP (the flip): four par runs (weaver s7, each card) and their uploads, longer with the NPC day; a host
   // timeout under the 1.5-CPU quota, not the rule (timed out at vitest's 30 s default)
+
+  it(`the 10-day run (LONG_RUN off): the same POSTs need no \`losses\` and are stored as before; the field under older rules (${OLD_RULES}) is refused`, async () => {
+    // BUMP-1D: the test as it was at bb-0.10.0, run in the 10-day world explicitly; its own seed (three more records stored)
+    await lcPosts(false, 8);
+  }, 120_000);
 
   it("decodeSnapshot round-trips an honest LAST CHANCE snapshot (the served form keeps it)", () => {
     const { s } = honest("part", "bastion", 9);

@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
 import { GRADE_K, GRADE_SEEDS, lossesOf, matchPick, medianGrade, PICK, PICK_RULE, pickRules, pickShare, setPick, withPick } from "../src/net/pick";
-import { pickFor, pickGateProblem, PICK_RULES } from "../src/net/rulesGate";
+import { pickFor, pickGateProblem, PICK_RULES, rulesAtLeast } from "../src/net/rulesGate";
 import { eligible, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { checkSnapshot, decodeSnapshot, encodeSnapshot, ghostId, GRADE_MAX, SNAPSHOT_V3, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
 import { isSnapshot } from "../src/game/ghostSnapshot";
@@ -47,13 +47,18 @@ describe("RETUNE-1 PICK: the switch, the gate and the numbers", () => {
     // HULL-ON (the flip, PICK): PICK ships on (was false), so the default reads on; the off gate is read with the switch off
     expect(PICK).toBe(true);
     expect(pickRules()).toBe(true);
-    expect(PICK_RULES).toBe(RULES_VERSION);
+    // BUMP-1D: PICK_RULES is the literal "bb-0.10.0" (HULL-ON's; it equalled RULES_VERSION until the bump to bb-0.11.0), and this build's
+    // rules are at or after it
+    expect(PICK_RULES).toBe("bb-0.10.0");
+    expect(rulesAtLeast(RULES_VERSION, PICK_RULES)).toBe(true);
     withPick(() => {
       expect(pickFor(RULES_VERSION)).toBe(false);
       expect(pickGateProblem(RULES_VERSION)).toBe("not in this rules version yet");
     }, false);
     withPick(() => {
       expect(pickFor(RULES_VERSION)).toBe(true);
+      expect(pickFor(PICK_RULES)).toBe(true); // the first rules with the graded pick
+      expect(pickGateProblem(PICK_RULES)).toBeNull();
       expect(pickFor("bb-0.9.1")).toBe(false);
       expect(pickFor("nonsense")).toBe(false);
       expect(pickGateProblem(RULES_VERSION)).toBeNull();

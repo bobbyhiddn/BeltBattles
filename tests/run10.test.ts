@@ -9,14 +9,16 @@ import type { GhostSnapshot } from "../src/game/ghosts";
 import { RULES_VERSION } from "../src/sim/content";
 import { startingBuild } from "../src/sim/ai";
 import { HEARTS_START, withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a run starts with 10 hearts
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; this file's runs are the 10-day run (a run plays on the rule it started on)
 
 const STATS = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 0, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const W = 0 as const, L = 1 as const, D = -1 as const;
 
-/** Play a list of dusk results (0 win, 1 loss, -1 draw) through the day loop. */
+/** Play a list of dusk results (0 win, 1 loss, -1 draw) through the day loop. BUMP-1D: a 10-day run, started with the long run off (the
+ *  shipped long run is never "complete": tests/run1.rule.test.ts plays it). */
 function play(results: (0 | 1 | -1)[], seed = 42): Run {
-  const run = newRun("furnace", seed, "test-run");
+  const run = withLongRun(() => newRun("furnace", seed, "test-run"), false);
   for (const r of results) {
     if (run.over) break;
     startDusk(run, []);
@@ -25,20 +27,26 @@ function play(results: (0 | 1 | -1)[], seed = 42): Run {
   return run;
 }
 
+/** BUMP-1D: a 10-day run (started with the long run off); the shipped run is a long run (tests/run1.rule.test.ts). */
+const tenDay = (hero: Parameters<typeof newRun>[0], seed: number, runId?: string): Run => withLongRun(() => newRun(hero, seed, runId), false);
+
 describe("the 10-day run", () => {
   it("starts on day 1 with START_LIVES = 5 lives, and a run is RUN_DAYS = 10 days", () => {
     expect(RUN_DAYS).toBe(10);
     expect(START_LIVES).toBe(5);
-    const run = newRun("weaver", 7);
+    const run = tenDay("weaver", 7);
     // HULL-ON (the flip, HEARTS): 5 -> 10: a run starts with HEARTS_START hearts (Run.lives holds them); off, START_LIVES
     expect([run.day, run.lives, run.wins, run.losses, run.over, run.dusk]).toEqual([1, HEARTS_START, 0, 0, null, null]);
     expect(HEARTS_START).toBe(10);
-    expect(withHearts(() => newRun("weaver", 7), false).lives).toBe(START_LIVES);
+    expect(withHearts(() => tenDay("weaver", 7), false).lives).toBe(START_LIVES);
     expect(run.version).toBe(8); // 0.6.1a: save v7 (RUN_VERSION = 7, module stars); 0.6.0b's v6 added the road fork fields; NUM-1: v8 (hull x10)
+    // BUMP-1D: the 10-day run has no long mark; the shipped run (LONG_RUN on) has it and is otherwise the same run
+    expect(run.longRun).toBeUndefined();
+    expect(newRun("weaver", 7).longRun).toBe(true);
   });
 
   it("a dusk loss costs 1 life, a draw costs none and scores no win; income is indexed by day", () => {
-    const run = newRun("furnace", 3, "a");
+    const run = tenDay("furnace", 3, "a");
     const g0 = run.gold;
     startDusk(run, []);
     const r1 = finishDay(run, L, 30, STATS, STATS);
@@ -67,8 +75,8 @@ describe("the 10-day run", () => {
     const bumpy = play([L, W, L, W, D, L, W, W, L, W]);
     expect(bumpy.over).toBe("complete");
     // 0.6.2: day 1's loss refunded at day 3's dawn. HULL-ON (the flip, HEARTS): 2 -> 3: 10 hearts, the losses on days 1, 3,
-    // 6 and 9 cost 1 + 1 + 2 + 3 (heartCost by day), and no refund
-    expect([bumpy.wins, bumpy.losses, bumpy.lives]).toEqual([5, 4, 3]);
+    // 6 and 9 cost 1 + 1 + 2 + 3 (heartCost by day), and no refund. BUMP-1D: 3 -> 4: the day-9 loss costs 2 (HEART_COSTS [1, 2, 2])
+    expect([bumpy.wins, bumpy.losses, bumpy.lives]).toEqual([5, 4, 4]);
     expect(flawless(bumpy)).toBe(false);
     expect(bumpy.history.map((h) => h.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     const draws = play(Array(10).fill(D));
@@ -88,6 +96,8 @@ describe("the 10-day run", () => {
     // HULL-ON (the flip, HEARTS): the same two runs end the same way on 10 hearts (1/2/3 a loss by day): `lost` is at 9 8 8
     // 6 4 2, its day-7 loss (2 - 3) fires LAST CHANCE (sets 1) and day 8's ends it; `late` is at 9 7 5 2, its day-9 loss
     // fires LAST CHANCE and day 10's ends it. So LAST CHANCE's day moves: 6 -> 7 and 8 -> 9
+    // BUMP-1D (HEART_COSTS [1, 2, 2]): a loss from day 4 costs 2, so `lost`'s day-7 loss is 2 - 2 (0: LAST CHANCE sets 1, the same day) and
+    // `late` is at 9 7 5 3, its day-9 loss (3 - 2 = 1) fires LAST CHANCE (stays on 1) and day 10's ends it: the same days
     expect(lost.lastChance).toEqual({ day: 7 }); // its LAST CHANCE fired at dusk 7 (sets 1 heart); 0 hearts still ends it
     const late = play([W, W, L, W, L, L, W, L, L, L]);
     expect(late.over).toBe("lost");

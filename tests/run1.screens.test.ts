@@ -23,7 +23,7 @@ import { barRun } from "../src/screens/build/chrome";
 import { forkHead } from "../src/screens/fork/fork";
 import { fightHead } from "../src/screens/battle";
 import { replayHead } from "../src/screens/replay";
-import { HELP, HELP_HEARTS_2, HELP_KEYWORDS, HELP_LONG_1, HELP_LONG_2, continueSub, helpLine3, helpLines } from "../src/screens/title";
+import { HELP, HELP_HEARTS_2, HELP_KEYWORDS, HELP_LONG_1, HELP_LONG_2, continueSub, heartCostWords, helpLine3, helpLines } from "../src/screens/title";
 import { SummaryScreen, endTitle, foldRows, foldText, footLine, lostLine, summaryLayout, wonLine, type HistoryRow } from "../src/screens/summary";
 import { LONG_ROAD_FROM, dayText, onLongRoad } from "../src/screens/runDay";
 import { duskStakes } from "../src/ui/stakes";
@@ -33,7 +33,9 @@ import type { SideStats } from "../src/sim/battle";
 
 const ROOT = join(new URL("..", import.meta.url).pathname);
 const S = {} as SideStats;
-afterEach(() => setLongRun(false)); // the shipped value
+// BUMP-1D: LONG_RUN ships on. Each test starts in the 10-day world (the beforeEach at the end of the file puts the switch off, as it did
+// when the switch shipped off) and a long half turns it on itself (withLongRun / runOf(true)); afterEach puts the shipped value back.
+afterEach(() => setLongRun(true)); // the shipped value (BUMP-1D: on; was false)
 
 /** A fresh hearts run, long with the switch on (newRun's mark), else the 10-day run. */
 const runOf = (long: boolean, seed = 11): Run => withHearts(() => withLongRun(() => newRun("furnace", seed, `run1s-${seed}`), long));
@@ -129,9 +131,12 @@ describe("RUN-1 T4: the fork, the banners and the replay", () => {
 });
 
 describe("RUN-1 T4: the title's rules card and continue card", () => {
-  // the live card (HEARTS on, FREE_JOINS on, as shipped): copied from run1-base
+  // the 10-day card (HEARTS on, FREE_JOINS on): copied from run1-base. BUMP-1D (RULING-BANDS1-R1 B1.5): its hearts words are the new
+  // costs' (HEART_COSTS [1, 2, 2], title.ts heartCostWords merges equal neighbouring bands): "1 ON DAYS 1-3 AND 2 FROM DAY 4", where
+  // run1-base's read "1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7" (LIVE_2_OLD, still what the builder says for the costs [1, 2, 3])
   const LIVE_1 = "1  SURVIVE 10 DAYS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.";
-  const LIVE_2 = "2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).";
+  const LIVE_2 = "2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3 AND 2 FROM DAY 4, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).";
+  const LIVE_2_OLD = "2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).";
 
   it("switch off: the card is the live card, word for word (HELP's line 1, the hearts rule's line 2)", () => {
     expect(longRunRules()).toBe(false);
@@ -142,6 +147,9 @@ describe("RUN-1 T4: the title's rules card and continue card", () => {
     expect(lines).toEqual([HELP[0], HELP_HEARTS_2, helpLine3(), HELP[3], HELP[4], HELP_KEYWORDS]);
     expect(HELP[0]).toBe(LIVE_1);
     expect(HELP_HEARTS_2).toBe(LIVE_2);
+    // the old costs' words, as the same builder reads them from [1, 2, 3] (HEART_COSTS before bb-0.11.0)
+    expect(`2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${heartCostWords([1, 2, 3], [1, 4, 7])}, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`).toBe(LIVE_2_OLD);
+    expect(heartCostWords()).toBe("1 ON DAYS 1-3 AND 2 FROM DAY 4");
   });
 
   it("switch off with HEARTS off too: HELP itself, as RETUNE-1 pinned", () => {
@@ -152,7 +160,8 @@ describe("RUN-1 T4: the title's rules card and continue card", () => {
     const lines = withLongRun(() => helpLines());
     expect(lines.length).toBe(6);
     expect(lines[0]).toBe("1  WIN 10 DUSK FIGHTS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.");
-    expect(lines[1]).toBe("2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7, A DRAW NONE. THE RUN IS WON AT 10 WINS AND LOST WHEN YOUR HEARTS RUN OUT. THERE IS NO DAY LIMIT. 10-0 IS FLAWLESS.");
+    // BUMP-1D: the hearts words are the new costs' ("1 ON DAYS 1-3 AND 2 FROM DAY 4"; was "1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7")
+    expect(lines[1]).toBe("2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3 AND 2 FROM DAY 4, A DRAW NONE. THE RUN IS WON AT 10 WINS AND LOST WHEN YOUR HEARTS RUN OUT. THERE IS NO DAY LIMIT. 10-0 IS FLAWLESS.");
     expect(lines[0]).toBe(HELP_LONG_1);
     expect(lines[1]).toBe(HELP_LONG_2);
     expect(lines.slice(2)).toEqual([helpLine3(), HELP[3], HELP[4], HELP_KEYWORDS]);
@@ -161,12 +170,13 @@ describe("RUN-1 T4: the title's rules card and continue card", () => {
 
   it("the long card keeps the hearts rule's words (up to A DRAW NONE.) and never says 10 days or 5 lives", () => {
     const rule = HELP_HEARTS_2.slice(0, HELP_HEARTS_2.indexOf("A DRAW NONE.") + "A DRAW NONE.".length);
-    expect(rule).toBe("2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7, A DRAW NONE.");
+    // BUMP-1D: the new costs' words (HEART_COSTS [1, 2, 2]); was "1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7" and heartCost 1, 2, 3, 3
+    expect(rule).toBe("2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3 AND 2 FROM DAY 4, A DRAW NONE.");
     expect(HELP_LONG_2.startsWith(rule)).toBe(true);
     expect(HELP_LONG_2).toContain(`${HEARTS_START} HEARTS`);
     expect(HELP_LONG_2).toContain(`WON AT ${WIN_GOAL} WINS`);
     expect(HELP_LONG_2).toContain("LOST WHEN YOUR HEARTS RUN OUT");
-    expect([heartCost(1), heartCost(4), heartCost(7), heartCost(12)]).toEqual([1, 2, 3, 3]);
+    expect([heartCost(1), heartCost(4), heartCost(7), heartCost(12)]).toEqual([1, 2, 2, 2]);
     for (const ln of [HELP_LONG_1, HELP_LONG_2]) {
       expect(ln).not.toMatch(/10 DAYS|SURVIVE|LIVES|\bLIFE\b|ENDLESS|RANK|CHAMPION/);
     }
@@ -415,15 +425,16 @@ describe("RUN-1 T4: the run history from day 11 on", () => {
 describe("RUN-1 T4: the stakes line says LAST CHANCE on day 10 and later (stakes.ts)", () => {
   const hearts = (day: number, lives: number, long: boolean, used = false) => ({ hearts: true as const, lives, day, lastChance: used ? { day: 2 } : undefined, ...(long ? { longRun: true as const } : {}) });
 
+  // BUMP-1D: a loss from day 7 costs 2 (HEART_COSTS [1, 2, 2]; was 3): the cost is 2 on every day below, and 3 hearts still leave 1
   it("a 10-day hearts run is as live: LAST CHANCE saves only before day 10", () => {
-    expect(duskStakes(hearts(9, 3, false))).toEqual({ cost: 3, saves: true });
-    expect(duskStakes(hearts(10, 3, false))).toEqual({ cost: 3, saves: false });
+    expect(duskStakes(hearts(9, 3, false))).toEqual({ cost: 2, saves: true });
+    expect(duskStakes(hearts(10, 3, false))).toEqual({ cost: 2, saves: false });
   });
 
   it("a long run: it still would on day 10, 11, 12 and later (the rule day.ts takes), once a run", () => {
-    for (const d of [9, 10, 11, 12, 17]) expect(duskStakes(hearts(d, 3, true)), `day ${d}`).toEqual({ cost: 3, saves: true });
-    expect(duskStakes(hearts(12, 3, true, true))).toEqual({ cost: 3, saves: false }); // spent
-    expect(duskStakes(hearts(12, 8, true))).toEqual({ cost: 3, saves: false }); // a loss leaves 5
+    for (const d of [9, 10, 11, 12, 17]) expect(duskStakes(hearts(d, 3, true)), `day ${d}`).toEqual({ cost: 2, saves: true });
+    expect(duskStakes(hearts(12, 3, true, true))).toEqual({ cost: 2, saves: false }); // spent
+    expect(duskStakes(hearts(12, 8, true))).toEqual({ cost: 2, saves: false }); // a loss leaves 6 (was 5)
   });
 
   it("no hearts mark: nothing is drawn, as before", () => {

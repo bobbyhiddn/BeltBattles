@@ -12,6 +12,7 @@ import { RIVALS, standInBuild, standInGhost } from "../src/sim/rivals";
 import { HEROES, RULES_VERSION, RUN_DAYS } from "../src/sim/content";
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): a run's 10 hearts (was START_LIVES, 5)
 import { beltUsed } from "../src/sim/deck";
+import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; the 10-day halves start their runs with it off
 import { Battle, simulate, type SideStats } from "../src/sim/battle";
 
 const STATS = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 0, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
@@ -89,7 +90,9 @@ describe("pickGhost", () => {
   // seeded hero's honest warlord deck under a warlord name. 0.6.2 TUNE-C: its deck is the captain's
   // named build standInBuild(id, day) (from 0.6.0d until TUNE-C the pool pick standInPick(hero, day, seed))
   it("no match: the day's stand-in captain (standInFoe: its named standInBuild deck, its name)", () => {
-    const run = newRun("furnace", 555, "me");
+    // BUMP-1D: a day-5 ghost is no match for a day-6 dusk of the 10-day run (the exact day only), so this run is a 10-day run (LONG_RUN
+    // ships on: a long run widens to the nearest EARLIER day and would fight that ghost, as the twin below shows)
+    const run = withLongRun(() => newRun("furnace", 555, "me"), false);
     run.day = 6;
     const f = chooseFoe(run, [snap({ day: 5 })]);
     const s = standInFoe(555, 6);
@@ -105,6 +108,14 @@ describe("pickGhost", () => {
     // seeded: both heroes show up, mirror matches included (0.8.0 N1, oracle 94b9559fbb7da299 (5): FOUNDRY's and BASTION's
     // captains stand in too, so all four)
     expect(heroes.size).toBe(4);
+    // BUMP-1D: the long run (the shipped one) fights the day-5 ghost (D6: the nearest earlier day), and stands in only when no ghost of
+    // its day or an earlier one is left: a LATER day's ghost is no match (tests/run1.net.test.ts)
+    const long = withLongRun(() => newRun("furnace", 555, "me"), true);
+    long.day = 6;
+    expect(chooseFoe(long, [snap({ day: 5 })]).kind).toBe("ghost");
+    const later = chooseFoe(long, [snap({ day: 7 })]);
+    expect([later.kind, later.rival, later.name]).toEqual(["standin", id, RIVALS[id].name]);
+    expect(later.build).toEqual(f.build);
   });
 
   it("a ghost's build is fought exactly as submitted", () => {
@@ -137,7 +148,8 @@ describe("soft-lock sweep: 300 seeded 10-day runs against a filling pool", () =>
     for (let n = 0; n < 300; n++) {
       const seed = 101 + n * 104729;
       const rng = new Rng(hashSeed(seed, "softlock"));
-      const run = newRun(n % 2 ? "weaver" : "furnace", seed, `run-${n}`);
+      // BUMP-1D: the 10-day run (LONG_RUN ships on: a long run ends at 10 wins or 0 hearts, and plays past day 10)
+      const run = withLongRun(() => newRun(n % 2 ? "weaver" : "furnace", seed, `run-${n}`), false);
       for (let guard = 0; guard < 20 && !run.over; guard++) {
         if (rng.chance(0.2)) reroll(run);
         run.shop.wagons.forEach((w, wi) => w.offers.forEach((o, si) => {

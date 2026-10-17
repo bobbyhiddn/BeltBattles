@@ -8,7 +8,7 @@
 //    the exact day (fallback.ts); the client's pool pick (ghosts.ts) mirrors it;
 //  - roadCap: the event mask resets at each bag boundary, so an honest day-11+ deck that took a repeated event is accepted
 //    (hull and belt mixes may take an event once per bag).
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startingBuild } from "../src/sim/ai";
 import { RULES_VERSION } from "../src/sim/content";
 import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL, setLongRun, withLongRun } from "../src/sim/longRun";
@@ -26,7 +26,11 @@ import { bagsFor, explainRoadCap, playerFits, roadCapFor, roadMixes, roadMixesFo
 import { eventSequence } from "../src/game/events";
 import { entry, snap } from "./netHelpers";
 
-afterEach(() => setLongRun(false)); // the shipped value
+// BUMP-1D: LONG_RUN ships ON (bb-0.11.0). The "switch off" halves below are the 10-day world, so each test starts in it on purpose (the
+// beforeEach puts the switch off, as it stood when the switch shipped off) and the long halves turn it on with long(); afterEach puts
+// the shipped value back.
+beforeEach(() => setLongRun(false));
+afterEach(() => setLongRun(true)); // the shipped value (BUMP-1D: on; was false)
 const long = <T>(fn: () => T): T => withLongRun(fn);
 const v3 = (o: Partial<GhostSnapshot> = {}): GhostSnapshot => snap({ v: SNAPSHOT_V3, ...o });
 const throwsOn = (fn: () => unknown, re: RegExp) => expect(fn).toThrow(re);

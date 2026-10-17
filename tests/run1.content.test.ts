@@ -4,8 +4,9 @@
 // slot from day 8 until beaten, warlordHull and rampPlates unclamped), the hull and damage curves, the stand-in generator and
 // the par and reference builds to day 16 (LONG_RUN_GEN_DAYS), and a written rule for a day past the deepest generated day.
 // With the switch OFF the 10-day world is exactly as live: its clamps stay (the first block pins them). The switch is set
-// through its setter and put back after each test (it ships off).
-import { afterEach, describe, expect, it } from "vitest";
+// through its setter and put back after each test. BUMP-1D: it ships ON (bb-0.11.0), so each test starts in the 10-day world on purpose
+// (the beforeEach below puts the switch off, as it stood when the switch shipped off) and a long half turns it on itself (withLongRun).
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BAG_IDS, blockReason, eventFor, eventSequence } from "../src/game/events";
 import { WARLORD_EVENT_IDS, type Choice } from "../src/game/eventDefs";
 import { forkFor } from "../src/game/road";
@@ -29,7 +30,8 @@ import { boughtCost } from "../src/sim/harness/standins";
 import { unfusedPairs } from "../src/net/validate";
 import { legalityProblems } from "./rivals.legality";
 
-afterEach(() => setLongRun(false)); // the shipped value
+beforeEach(() => setLongRun(false)); // BUMP-1D: the 10-day world is each test's start (LONG_RUN ships on)
+afterEach(() => setLongRun(true)); // the shipped value (BUMP-1D: on; was false)
 
 const upTo = (a: number, b: number): number[] => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 const PLATE = ITEMS.plating.supply!.hull!;
