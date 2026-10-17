@@ -56,6 +56,63 @@ export async function touchDrag(page, a, b, steps = 12) {
   await sleep(120);
 }
 
+/** STAGE-0911 (cap's answer c0c858bbc969958c): a finger's carry of a SHAPED piece (the editor marks it `touch`: src/screens/
+ *  build/edit.ts) stands above the finger, "half the ghost's height on screen plus 1.5 cells" (src/screens/build/actions.ts
+ *  fingerLift, read by carryTarget), so its drop point is that far above where the finger lifts. The mouse's drop point is the
+ *  plan's tile (dragPlan); a finger must end that far BELOW it, or the piece lands up to three cells above its plan, and off the
+ *  deck (dropAnchor: null, the drop refused with no word) where the plan's cell is in the top rows. This returns that lift in CSS
+ *  px for each of a piece's four turns ([rot 0, 1, 2, 3]), or null. It asks the game's own tooling, bb.carryShape(def, x, y, rot,
+ *  touch) (src/main.ts: it sets the finger's point for a ghost over a deck cell; its touch and mouse points differ by exactly the
+ *  lift), then undoes what that tool leaves (the scratch cargo part in run.inventory and run.nextUid, the carry it sets). Call it
+ *  before the finger goes down: the tool borrows the editor's carry. */
+async function fingerLifts(page, def) {
+  return page.evaluate((d) => {
+    const run = window.bb.game.run, s = window.bb.game.screen;
+    if (typeof window.bb.carryShape !== "function" || !run || !s.ed || s.ed.busy) return null;
+    const n = run.inventory.length, uid = run.nextUid, k = window.bb.toClient(1, 0).x - window.bb.toClient(0, 0).x, out = [];
+    try {
+      for (let rot = 0; rot < 4; rot++) {
+        window.bb.carryShape(d, 0, 0, rot, false);
+        const y0 = s.ed.py;
+        window.bb.carryShape(d, 0, 0, rot, true);
+        out.push((s.ed.py - y0) * k);
+      }
+    } finally {
+      s.ed.cancel();
+      run.inventory.length = n;
+      run.nextUid = uid;
+    }
+    return out.every((v) => Number.isFinite(v)) ? out : null;
+  }, def);
+}
+
+/** placePlanned's finger: touchDrag from the card `a` to the plan's tile `b`; when the piece is a shaped one (its carry is `touch`)
+ *  on to the lift below `b`, at the lift of the turn the editor aims it to (fingerLifts; the editor aims again as the finger moves,
+ *  so the turn is read again, at most 3 times), so the piece's drop point is the plan's tile, where the mouse drops it. A 1-cell
+ *  piece has no lift: the finger ends on `b`, as before. The 5 s check that the deck grew stays placePlanned's. */
+async function touchDragPiece(page, a, b, def, steps = 12) {
+  const lifts = await fingerLifts(page, def);
+  const cdp = await page.context().newCDPSession(page);
+  const tp = (p) => [{ x: p.x, y: p.y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+  const move = (p) => cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: tp(p) });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(a) });
+  for (let i = 1; i <= steps; i++) await move({ x: a.x + ((b.x - a.x) * i) / steps, y: a.y + ((b.y - a.y) * i) / steps });
+  let end = b;
+  for (let i = 0; lifts && i < 3; i++) {
+    await sleep(60);
+    const rot = await page.evaluate(() => { const c = window.bb.game.screen.ed.carry; return c && c.touch ? c.rot ?? 0 : -1; });
+    if (rot < 0) break; // no carry, or a 1-cell piece (no `touch` mark): no lift
+    const want = { x: b.x, y: b.y + lifts[rot % 4] };
+    if (Math.abs(want.y - end.y) < 0.5) break;
+    end = want;
+    await move(end);
+  }
+  await sleep(150);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+  await sleep(120);
+}
+
 /** PACKS M2 (REQ-BFG-063): a fresh device meets the name screen at the title's first tap (NEW RUN, CONTINUE...). Type a
  *  name into its input and tap OK, as a player does; the tapped button then goes on. False when the screen is not up. */
 export async function passName(page, touch, name = "TESTER") {
@@ -151,7 +208,7 @@ export async function placePlanned(page, touch, reserve = 0) {
   };
   const n0 = await page.evaluate(count);
   if (touch) {
-    await touchDrag(page, plan.a, plan.b);
+    await touchDragPiece(page, plan.a, plan.b, plan.def); // STAGE-0911: a shaped piece's finger ends its lift below the plan's tile
   } else {
     await page.mouse.move(plan.a.x, plan.a.y);
     await page.mouse.down();
