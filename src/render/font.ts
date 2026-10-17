@@ -188,7 +188,12 @@ const F5: GlyphMap = {
   // SCALE-2b (REQ-BFG-108): POISON's drop, an outline (a solid drop sits 3 px from BURN's flame); drawn only while
   // SCALE_RIGS is on
   [ICON.POISON]: "..#..|..#..|.#.#.|#...#|#...#|#...#|.###.", // a drop
-  [ICON.CRACK]: "#.#..|.#.#.|..#..|.##..|...#.|..#.#|.#...", // SCALE-2c (REQ-BFG-100, C7): a crack, the hits on your hull
+  // HITMARK-1E (REQ-BFG-100, C7; BRIEF-HITMARK1E): the hits-on-you chip's mark, an arrow driving into a wall: a hit landed on your
+  // ship. The icon keeps SCALE-2c's name CRACK and U+E013 (counters.ts HITS_CHIP draws it, red). SCALE-2c's lone jagged line read as
+  // FRAY to all four round-M readers (REPORT-SCALE2f 5). It is not FRAY's pair of Vs, BURN's flame, POISON's drop, STUN's bolt or
+  // the HULL heart, and no burst (BURST's mark is a red plus; the burst-like mark is CRIT-1's U+E00E): 9 px or more from every other
+  // 5x7 glyph, FRAY's 15
+  [ICON.CRACK]: "....#|.#..#|..#.#|#####|..#.#|.#..#|....#", // a hit landing: an arrow into a wall
 };
 
 // 3x5
@@ -281,7 +286,7 @@ const F3: GlyphMap = {
   [ICON.HEAL]: "...|.#.|###|.#.|###", // a cross on a bar
   [ICON.REGEN]: ".#.|###|.#.|...|#.#", // a cross with two tick dots
   [ICON.POISON]: ".#.|.#.|###|###|.#.", // SCALE-2b (REQ-BFG-108): a drop, its point up (SCALE_RIGS on only)
-  [ICON.CRACK]: "#.#|.#.|.##|..#|.#.", // SCALE-2c (REQ-BFG-100, C7): a crack (SCALE_RIGS on only)
+  [ICON.CRACK]: "#.#|.##|..#|.##|#.#", // HITMARK-1E (REQ-BFG-100, C7): the 5x7 mark's twin, an arrowhead's point on a wall (SCALE_RIGS on only)
 };
 
 /** U1: an icon's own colour, where it has one. RATE is KEYWORD_COLOUR's FASTER (richText.ts), GOLD the shop's price colour
