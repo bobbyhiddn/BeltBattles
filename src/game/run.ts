@@ -109,10 +109,12 @@ export interface DuskFoe {
   hero: HeroId;
   build: Build; // fought exactly as stored
   rival?: RivalId; // a stand-in's captain (portrait, STAND-IN tag)
-  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number; name?: string; ghostDay?: number }; // a pool ghost's stamp (PACKS M2: its player name, when it has one)
+  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number; name?: string; ghostDay?: number; losses?: number }; // a pool ghost's stamp (PACKS M2: its player name, when it has one)
   // RUN-1 (R1.5, T4b): `ghostDay`, the ghost's OWN day, only when it differs from this dusk's day (D6: a long run's thin day widens to the
   // nearest earlier day, so a day-12 dusk can meet a day-10 ghost): foeTitle reads the ghost's W-L from it. Absent: the ghost fought on
   // this dusk's day (every 10-day run, and every exact-day pick), so a save and a record are byte for byte as before.
+  // RUN-1 (R2.4): `losses`, the dusks the ghost lost before its dusk, only when its snapshot STATES them (a long run's record does; a draw is
+  // no loss): foeTitle prints W-L from it. Absent: the snapshot stated none (every 10-day ghost), the L is derived as before.
   // 0.7.0a (online play only; absent offline), save v7, no bump: where tonight's foe came from, shown in small text on
   // the NEXT BATTLE card and under the enemy plate: "online" a ghost from the ghost server, "offline" 0.6.2's stand-in
   // after the fetch fell back (an error, a timeout, a 404 or an unusable answer)
