@@ -40,6 +40,8 @@ import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-
 import { dayMulTenths, dayScaled, scaleTenths, windShareBp, windShareDamage } from "./hullScale";
 import { dmgDayScale, dmgMulTenths } from "./hullScale"; // HULL-1c (REQ-BFG-079; cap b6be918372b006f3): D(d), the damage day term
 import { sustDayScale, sustMulTenths, sustUnit } from "./hullScale"; // HULL-1d (REQ-BFG-079; REVIEW-HULL1C Q5): S(d), the sustain day term
+import { enchantRules } from "./enchant"; // ENCHANT-1 (REQ-BFG-085): the switch (a word on a piece counts only while it is on)
+import { bracedSwallow, echoCopy, enchantFactory, enchantGates, enchantTurrets, rigEchoes, rigHitFx, rigRank, shotFx, slugMadeFx, type EnchantState } from "./enchantFx"; // ENCHANT-1: the eight effects
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -164,6 +166,7 @@ export interface GateState {
   latch?: LatchState; // E4 TWIN LATCH, when both its arrows hit belts: the payload each arrow holds and since when
   // Y3 (release Y; DESIGN-Y row 28): a SURGE VALVE's last pulse (its pulsePhase cycle)
   surged?: number;
+  ench?: EnchantState; // ENCHANT-1 (REQ-BFG-085): the rig's word at this fight's start (set only on a piece holding one, ENCHANT on)
 }
 
 /** 0.8.0 P1 (E4): a TWIN LATCH whose two arrows hit belts. Arrow i is the latch's hits[i]. */
@@ -247,6 +250,7 @@ export interface FactoryState {
   plateTimer?: number;
   // SUS-A (REQ-BFG-069), MEND PRESS: seconds to its next HEAL (ARMOR PRESS's timer: set only with a belt that reaches a turret)
   healTimer?: number;
+  ench?: EnchantState; // ENCHANT-1 (REQ-BFG-085): the factory's word at this fight's start (its def already carries MASSIVE's or SWIFT's rate)
 }
 
 export interface TurretState {
@@ -303,6 +307,7 @@ export interface TurretState {
   // SUS-A (REQ-BFG-069), from its gear (absent without it). A STUN, freeze or disruption on the turret pauses both.
   bell?: { every: number; amount: number; timer: number }; // WARD BELL: + amount SHIELD when `timer` runs out (it then adds `every`)
   regen?: number; // MENDING LOOM: REGEN on your hull at each whole second (Battle.sustainTick)
+  ench?: EnchantState; // ENCHANT-1 (REQ-BFG-085): the turret's word at this fight's start (its def.speed already carries MASSIVE's or SWIFT's rate)
 }
 
 export interface HullState {
@@ -449,6 +454,8 @@ export type SimEvent =
   | { type: "pair"; side: Side; turret: number } // E2: two loads paired in a pair-reading turret (a FOUNDRY fusion too)
   | { type: "hold" | "release"; side: Side; gate: number; route: number } // E4: a TWIN LATCH holds or lets go a payload
   | { type: "brace"; side: Side; gate: number; saved: number } // BRACE FRAME: seconds it took off an enemy STUN (NUM-3: every STUN)
+  // ENCHANT-1 (REQ-BFG-085, E3): a BRACED part swallowed an enemy STUN (it did nothing); `left`: how many it still swallows this fight
+  | { type: "braced"; side: Side; kind: TargetKind; ref: number; left: number }
   // HULL-1a (REQ-BFG-079): with the day's hull (HULL_SCALE on, a day given) each side loses its own share, so `dmgs` holds
   // each side's amount and `dmg` side 0's; absent otherwise (both sides take `dmg`, as in 0.9.7)
   | { type: "wind"; dmg: number; dmgs?: [number, number] }
@@ -719,6 +726,7 @@ export class Battle {
       gates.push(g);
       gateByUid.set(p.uid, g);
     }
+    if (enchantRules()) enchantGates(gates, b.items, starsOf); // ENCHANT-1 (REQ-BFG-085): each rig holding a word gets its state
     // 0.6.2 BELTSIDE: every arrow landing on a belt tile, per route and tile in R7 order (deck.ts rigHits).
     // Commissioning keeps the old rule per route, counting rigs (not arrows) in order of their first hit
     // there: the k-th rig on a route comes online at COMMISSION_BASE + COMMISSION_STEP x k, and a rig on
@@ -812,6 +820,7 @@ export class Battle {
         // JOINS-1 (REQ-BFG-091): joinedPace() is JOIN_PACE with FREE_JOINS off (exactly as before), 1 with it on
         pace: routes.some((r) => r.factory === p.uid && r.join) ? joinedPace() : 1,
       }));
+    if (enchantRules()) for (const f of factories) { const p = b.items.find((q) => q.uid === f.uid); if (p?.ench !== undefined) enchantFactory(f, p, gradeOf(b, p)); } // ENCHANT-1 (REQ-BFG-085): its word, and MASSIVE's or SWIFT's rate
     // 0.8.0 P1, ARMOR PRESS: "IT NEEDS A BELT TO A TURRET TO WORK": its plating timer runs only with such a belt
     for (const f of factories) {
       const pl = f.def.factory?.plate;
@@ -852,6 +861,7 @@ export class Battle {
     // slot order, its index the slot index; an empty slot fights with nothing and is no target. With the starting
     // layout that is exactly the hero's turrets 0..n-1, so every older deck fights as before.
     const turrets: TurretState[] = installedTurrets(b).map((s) => makeTurret(b, s.slot, s.td));
+    if (enchantRules()) enchantTurrets(turrets, installedTurrets(b), starsOf); // ENCHANT-1 (REQ-BFG-085): each turret holding a word (its td.speed carries the rate)
     const bySlot = (slot: number) => turrets.find((tu) => tu.index === slot);
     // 0.6.1p: guard flags. OVERDRIVE ★2/★3 flags its own tile and every tile downstream (static: wave 2's hooks
     // decide whether the gate must be online); a MANTLET turret's shield (★2 FULL GUARD, was FULL PLATE: 1 tile, 0.6.2 FB-B; ★3 BULWARK
@@ -1121,6 +1131,7 @@ export class Battle {
       // 0.6.1c DOUBLE STAMP / SHOT TOWER: the batch's waiting slugs leave the mouth as AMMO_SPACING frees, round-robin
       // like any stamp. A factory without a batch never has one waiting (pending stays 0).
       if (f.pending > 0 && this.stamp(s, f)) f.pending--;
+      if (f.ench?.echo && this.stampEcho(s, f, f.ench.echo)) f.ench.echo = undefined; // ENCHANT-1 (REQ-BFG-085): ECHOING's extra slug leaves the mouth as room frees
       f.timer -= dt * pace; // RULE JOIN PACE: a joined factory's cycle takes 1 / pace as long (0.8.0 P1: and a stoked one's)
       if (f.timer > 0) continue;
       if (s.race && raceProduce(this, s, f, dt)) continue; // races: the CRUCIBLE's pour (a ★3 MIMIC's on FOUNDRY); SUMP
@@ -1170,6 +1181,7 @@ export class Battle {
           if (pr.shockTime !== undefined) p.shockTime = pr.shockTime;
           if (pr.jump) p.jump = pr.jump;
         }
+        this.made(f, p); // ENCHANT-1 (REQ-BFG-085): a word on the factory changes the slug it just made
         r.ammo.push({ p, s: 0, processed: -1, blocked: false });
         f.rr = (f.rr + k + 1) % n;
         f.flash = 0.18;
@@ -1473,7 +1485,37 @@ export class Battle {
     const spec = f.def.factory!;
     const p: Payload = { id: this.nextId++, ammo: spec.ammo, ride: 0, mult: 1, flat: 0, burn: 0, shock: false, prior: 0, factory: f.uid, copy: false };
     if (spec.base !== undefined) p.base = spec.base;
+    this.made(f, p); // ENCHANT-1 (REQ-BFG-085)
     return p;
+  }
+
+  /**
+   * ENCHANT-1 (REQ-BFG-085, E3): factory `f` has made slug `p` (stamp, mouldSlug, and the race factories' own paths through
+   * SimCtx.made): a word on the factory changes it (enchantFx.ts slugMadeFx), and ECHOING's every 3rd slug owes a copy with a new
+   * id, which leaves the mouth as room frees (stampEcho). A factory without a word does nothing here.
+   */
+  made(f: FactoryState, p: Payload): void {
+    if (f.ench && slugMadeFx(f.ench, p)) f.ench.echo = echoCopy(p, this.nextId++);
+  }
+
+  /** ENCHANT-1: ECHOING's extra slug `p` onto the next of the factory's routes with AMMO_SPACING room, as stamp places one (round-robin
+   *  from f.rr); false while no route has room (it waits in the mouth). It is already changed, so it does not pass `made` again. */
+  private stampEcho(s: SideState, f: FactoryState, p: Payload): boolean {
+    const n = f.routes.length;
+    for (let k = 0; k < n; k++) {
+      const r = s.routes[f.routes[(f.rr + k) % n]];
+      const back = r.ammo[r.ammo.length - 1];
+      if (back && back.s < AMMO_SPACING) continue;
+      r.ammo.push({ p, s: 0, processed: -1, blocked: false });
+      f.rr = (f.rr + k + 1) % n;
+      f.flash = 0.18;
+      f.produced++;
+      f.stalled = false;
+      s.stats.produced++;
+      this.events.push({ type: "produce", side: s.side, factory: f.uid });
+      return true;
+    }
+    return false;
   }
 
   /** ARMOR PRESS: its plating timer runs `step` seconds (the stamping pace); each time it ends, `amount` plating (E1). */
@@ -1719,7 +1761,8 @@ export class Battle {
       booster.booster.cooldown = booster.booster.def.gate!.overclockCooldown!;
       p.boosters = p.boosters!.filter((uid) => uid !== booster.booster.uid);
     }
-    const doubled = !!booster || g.hotUntil !== undefined && this.t < g.hotUntil;
+    const rank = g.ench ? rigRank(g.ench, p) : 0; // ENCHANT-1 (REQ-BFG-085): this slug's rank among the slugs this rig has hit (RISING, ECHOING)
+    const doubled = !!booster || g.hotUntil !== undefined && this.t < g.hotUntil || (!!g.ench && rigEchoes(g.ench, rank)); // ENCHANT-1: ECHOING: every 3rd slug gets the rig's stats twice
     const e = doubled ? overclocked(g.def.gate!) : g.def.gate!;
     const copies: BeltAmmo[] = [];
     if (e.flat) p.flat += e.flat;
@@ -1742,6 +1785,7 @@ export class Battle {
     // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap)
     if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
     if (e.burn) p.burn += e.burn;
+    if (g.ench) rigHitFx(g.ench, p, rank); // ENCHANT-1 (REQ-BFG-085): FIERY's BURN, RISING's and GROWING's DMG on this hit
     // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP (its only source), on poison's old path: two add up, and a doubled
     // hit (overclocked) adds twice
     if (e.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + e.burnPlus;
@@ -1959,6 +2003,8 @@ export class Battle {
       ? raceCurveDamage(ammo, s, tu, p)
       : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
+    const efx = tu.ench ? shotFx(tu.ench, dmg, shotFloor(p.ammo)) : undefined; // ENCHANT-1 (REQ-BFG-085): the turret's word on this shot (DMG, BURN, ECHOING)
+    if (efx) dmg = efx.dmg;
     // NUM-1 (REQ-BFG-047): payloadDamage made the slug's damage whole at fire (its HEAT and split share rounded once); each
     // % below rounds half up once, where it applies (pct)
     if (p.paired && tu.pairBonus) dmg = pct(dmg, 100 * (1 + tu.pairBonus)); // 0.8.0 P1: TWIN TRIGGER on a paired load (E2), before the RAM
@@ -1986,6 +2032,7 @@ export class Battle {
     };
     if (fin) proj.finisher = true; // 0.6.1p
     if (open && s.rune?.volleyBurn) proj.runeBurn = s.rune.volleyBurn; // RUNES-2a: EMBER SHOT
+    if (efx?.burn) proj.burn = p.burn + efx.burn; // ENCHANT-1 (REQ-BFG-085): FIERY: the shot lands [BURN]+1 x stars more
     this.telegraph(proj);
     this.projectiles.push(proj);
     tu.recoil = 1;
@@ -1994,6 +2041,17 @@ export class Battle {
     if (s.stats.firstShot < 0) s.stats.firstShot = this.t;
     this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg, proj: proj.id });
     if (p.paired && s.rune?.pairTwice) this.echo(s, proj); // RUNES-2a: MOLTEN VOWS
+    if (efx?.echo) this.enchantEcho(s, proj); // ENCHANT-1: ECHOING: every 3rd shot hits twice
+  }
+
+  /** ENCHANT-1 (REQ-BFG-085, E3): ECHOING's every 3rd shot hits twice: a copy of the projectile 0.08 s behind it, at its one target and
+   *  aim point (no new draw, so nothing rolls), counted and announced as MOLTEN VOWS' echo is. */
+  private enchantEcho(s: SideState, proj: Projectile): void {
+    const copy: Projectile = { ...proj, id: this.nextId++, flight: proj.flight + 0.08 };
+    this.projectiles.push(copy);
+    s.stats.shots++;
+    s.stats.payloadSum += copy.dmg;
+    this.events.push({ type: "fire", side: s.side, turret: copy.turret, heavy: copy.heavy, dmg: copy.dmg, proj: copy.id, ...(copy.core ? { core: copy.core } : {}) });
   }
 
   /** RUNES-1 (REQ-BFG-058): the flat damage side s's runes add to one shot of turret tu (before the debuffs, like the
@@ -2035,7 +2093,10 @@ export class Battle {
       ? Math.max(10, raceCurveDamage(ammo, s, tu, p) - conv.used) // NUM-1: the least shot x10 (curveDamage's floor)
       : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat - conv.used + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
+    const efx = tu.ench ? shotFx(tu.ench, dmg, shotFloor(p.ammo)) : undefined; // ENCHANT-1 (REQ-BFG-085): the turret's word on this shot (DMG, BURN, ECHOING)
+    if (efx) dmg = efx.dmg;
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
+    if (efx) burn += efx.burn; // ENCHANT-1: FIERY: the shot's BURN (a SCATTER choke splits it between the pellets as it does the payload's)
     // NUM-1 (REQ-BFG-047): the core's numbers are whole at install (cores.ts scaleCore); every % or rate here rounds half
     // up once (ANVIL's plating %, HULLBREAKER, CAPACITOR's idle seconds, COMPOUND)
     if (routine === "pressure") dmg += pressureBonus(c, queued);
@@ -2107,6 +2168,7 @@ export class Battle {
       s.stats.payloadSum += pd;
       this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg: pd, proj: proj.id, core: routine });
       if (paired && s.rune?.pairTwice) this.echo(s, proj); // RUNES-2a: MOLTEN VOWS, each pellet
+      if (efx?.echo) this.enchantEcho(s, proj); // ENCHANT-1 (REQ-BFG-085): ECHOING: every 3rd shot hits twice (each pellet)
     }
     tu.recoil = 1;
     if (s.stats.firstShot < 0) s.stats.firstShot = this.t;
@@ -2299,6 +2361,13 @@ export class Battle {
       return false;
     }
     if (t.kind === "turret" && tu!.immune.includes(cause)) return false;
+    // ENCHANT-1 (REQ-BFG-085, E3): BRACED: the part this STUN lands on swallows it (the first 2 x stars each fight) and the battle says
+    // so; a STUN on any other part is never blocked. Like TOLLBOOTH, a swallowed STUN is not accepted (an enemy SCRAPPER doesn't count it)
+    const braced = g?.ench ?? f?.ench ?? tu?.ench;
+    if (stun && braced && bracedSwallow(braced)) {
+      this.events.push({ type: "braced", side: s.side, kind: t.kind, ref: t.ref, left: braced.braced });
+      return false;
+    }
     if (t.kind === "belt") {
       if (this.skirted(s, r, t.cell, cause)) return false;
       if (cause === "drag" && this.routeGuardActive(r!, t.cell, GUARD_SLOW)) return false;

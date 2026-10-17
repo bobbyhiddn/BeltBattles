@@ -16,6 +16,7 @@ export interface SimCtx {
   t: number;
   events: SimEvent[];
   newId(): number;
+  made?(f: FactoryState, p: Payload): void; // ENCHANT-1 (REQ-BFG-085): Battle.made, called on a slug a factory makes by this module's own path
 }
 
 export interface FoundryState {
@@ -113,11 +114,15 @@ export function pourAll(ctx: SimCtx, s: SideState, f: FactoryState, dt: number, 
 export function crucibleProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: number): boolean {
   const spec = f.def.factory!;
   if (spec.ammo !== "blank" || !spec.pour || (f.def.id !== "crucible" && f.def.id !== "mimic")) return false;
-  pourAll(ctx, s, f, dt, (): Payload => ({
-    id: ctx.newId(), ammo: "blank", ride: 0, mult: 1, flat: 0, burn: 0, shock: false,
-    prior: 0, factory: f.uid, copy: false,
-    ...(spec.base !== undefined ? { base: spec.base } : {}), // bb-0.8.3 (REQ-BFG-042 D2): a ★2-3 CRUCIBLE's level
-  }), spec.pour);
+  pourAll(ctx, s, f, dt, (): Payload => {
+    const p: Payload = {
+      id: ctx.newId(), ammo: "blank", ride: 0, mult: 1, flat: 0, burn: 0, shock: false,
+      prior: 0, factory: f.uid, copy: false,
+      ...(spec.base !== undefined ? { base: spec.base } : {}), // bb-0.8.3 (REQ-BFG-042 D2): a ★2-3 CRUCIBLE's level
+    };
+    ctx.made?.(f, p); // ENCHANT-1 (REQ-BFG-085): a word on the CRUCIBLE changes each blank it pours
+    return p;
+  }, spec.pour);
   return true;
 }
 
