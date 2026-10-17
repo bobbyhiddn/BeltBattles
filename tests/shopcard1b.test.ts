@@ -169,16 +169,17 @@ describe("SHOPCARD-1b F5 (READ-9 fix 5): HULL in words, not the heart", () => {
 });
 
 describe("SHOPCARD-1b F6 (READ-9 fix 6): LIMPET WORKS' number is the blast's", () => {
-  it("THE FOE'S HULL TAKES ITS DMG 3 SEC AFTER A HIT, at every star on days 1, 5 and 10; its charge's own damage is 0 (content.ts limpet base 0); SHOPCARD-1c G7: no number in the line (was <its DMG stat>)", () => {
+  it("THE DMG LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 SEC AFTER A HIT, at every star on days 1, 5 and 10; its charge's own damage is 0 (content.ts limpet base 0); SHOPCARD-1c G7: no number in the line (was <its DMG stat>); SHOPCARD-1d H2: ITS DMG became THE DMG LANDS ONCE, AS A BLAST", () => {
     expect(ITEMS.limpet.factory!.base).toBe(0);
     for (const s of STARS) for (const day of DAYS) {
       const dmg = (faceLines("limpet", s, { day })!.stats ?? "");
       const [line] = rules("limpet", s, day);
-      expect(line, `★${s} day ${day}`).toBe("THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.");
+      // SHOPCARD-1d (H2; READ-11 fix list 2): the DMG lands once, as a blast (was "THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.", 1c)
+      expect(line, `★${s} day ${day}`).toBe("THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT.");
       // 1c: the only number the line holds is the delay; the blast is the stat row's DMG alone (factoryStats: base 0 + the blast, x D(day))
       expect(stripIcons(line).replace(/3/, "").match(/\d/), `★${s} day ${day}: no second number`).toBeNull();
       expect(stripIcons(dmg).length, `★${s} day ${day}: the stat row holds the DMG`).toBeGreaterThan(0);
-      expect(rows(line), `★${s} day ${day}: ${line}`).toBe(1);
+      expect(rows(line), `★${s} day ${day}: ${line}`).toBe(2); // 1d: two rows (335 px; was one row, 1c's 225 px)
     }
   });
 });

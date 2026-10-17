@@ -357,9 +357,11 @@ describe("Y3 row 30: TWIN LATCH holds a slug up to 1/2/3 s to make a PAIR; no fl
     }
   });
 
-  it("face: HIT: HOLDS A SLUG UP TO 1/2/3 SEC TO MAKE A PAIR, one line; ladder UP TO 1/2/3 SEC", () => {
-    expect(lines("twinlatch")).toEqual([1, 2, 3].map((t) => [`HIT: HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}.`]));
-    oneLine("twinlatch");
+  it("face: HIT: HOLDS A SLUG UP TO 1/2/3 SEC TO MAKE A PAIR. BOTH ITS ARROWS MUST POINT AT BELTS., two rows; ladder UP TO 1/2/3 SEC", () => {
+    // SHOPCARD-1d (H1; READ-11 fix list 1): the face says its condition, in the words of its HIT note (glossary.ts TAP_NOTES.twinlatch);
+    // one rule, two rows of the 225 px band (415 px: the hold sentence is 211 px, the new one 199 px). Was one line (211 px)
+    expect(lines("twinlatch")).toEqual([1, 2, 3].map((t) => [`HIT: HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}. BOTH ITS ARROWS MUST POINT AT BELTS.`]));
+    oneLine("twinlatch", 2);
     expect(levels("twinlatch", 1)).toEqual(["UP TO [1]/2/3{SEC}", next(2, "UP TO 2{SEC}")]);
     expect(hasFace("twinlatch")).toBe(true);
   });

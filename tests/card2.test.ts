@@ -437,7 +437,7 @@ describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new w
       assembly: [["FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 50% SOONER."], ["FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING 75% SOONER."], ["FEEDS A GUN: EACH FIGHT, YOUR RIGS START WORKING AT ONCE."]], // SHOPCARD-1b (REQ-BFG-081): START (was WORK); SHOPCARD-1c (G8): when and what (EACH FIGHT, START WORKING), two rows
       sabot: [["A RIG IT HITS STOPS FOR THE WHOLE FIGHT.", "ANY OTHER PART IT HITS: STUN 4."]],
       scrapper: [["EACH STUN YOU LAND: 1 EXTRA .", "ITS  DEAL 30 MORE  THAN PLAIN."]], // CARD-5 (REQ-BFG-081, L): + its scrap damage, by design
-      limpet: [["THE FOE'S HULL TAKES ITS  3 AFTER A HIT."]], // SHOPCARD-1b (REQ-BFG-081): the blast's number on the line; SHOPCARD-1c (G7): ITS DMG, no number
+      limpet: [["THE  LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 AFTER A HIT."]], // SHOPCARD-1b (REQ-BFG-081): the blast's number on the line; SHOPCARD-1c (G7): ITS DMG, no number; SHOPCARD-1d (H2): the DMG lands once, as a blast, two rows (335 px)
       gatling: [["FIRES EACH LOAD AS IT COMES.", "SPINS UP TO 67% FASTER."]],
       pincer: [["HIT: +20  FOR EACH OTHER RIG ON THE TILE."], ["HIT: +44  FOR EACH OTHER RIG ON THE TILE."], ["HIT: +70  FOR EACH OTHER RIG ON THE TILE."]], // SHOPCARD-1b (REQ-BFG-081)
       spotter: [["SHOTS AIMED AT NO PART AIM AGAIN ONCE."], ["SHOTS AIMED AT NO PART AIM AGAIN TWICE."], ["SHOTS AIMED AT NO PART AIM AGAIN 3 TIMES."]],
@@ -449,7 +449,7 @@ describe("CARD-2 (k3): the piece one-offs (g) and DRAKE NOZZLE's note (h): new w
       const got = fl.rules.map((r) => stripIconsOf(r.text));
       expect(got, `${id} ★${i + 1}`).toEqual(lines);
       for (const r of fl.rules) {
-        expect(textWidth(r.text, "5"), `${id} ★${i + 1}: ${r.text}`).toBeLessThanOrEqual(id === "assembly" ? 2 * 225 : 225); // SHOPCARD-1c (G8): ASSEMBLY LINE takes two rows of the band (328 px, ★3 310)
+        expect(textWidth(r.text, "5"), `${id} ★${i + 1}: ${r.text}`).toBeLessThanOrEqual(id === "assembly" || id === "limpet" ? 2 * 225 : 225); // SHOPCARD-1c (G8): ASSEMBLY LINE takes two rows of the band (328 px, ★3 310); SHOPCARD-1d (H2): so does LIMPET WORKS (335 px)
         rows.push(`${id} ★${i + 1}: "${stripIconsOf(r.text)}" ${textWidth(r.text, "5")} px`);
       }
     });

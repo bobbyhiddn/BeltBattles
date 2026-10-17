@@ -324,7 +324,11 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
     // measured on the merged tree (run 6, after b81b420): card3's words moved the widths that pass: W 186-249 now at or under
     // the pin (W 186: 90th 60 = the pin, 93.18% fit), and from W 250 the 90th is 48 over the pin 45 (88.59% at W 250, 89.87%
     // at W 258-340). SHAPES off, every width holds (above)
-    expect(moved).toEqual({ 250: "831 of 938, 90th 48", 258: "843 of 938, 90th 48", 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48" });
+    // SHOPCARD-1d (REQ-BFG-081), measured per panel against shopcard1c-accepted (zoom1's own `needs`, a probe copy of this file at both trees): TWIN
+    // LATCH's face now takes a second row at W 250 and 258 ("... BOTH ITS ARROWS MUST POINT AT BELTS."), so its 3 placed panels at each of 3 stars
+    // need 48 px, not 41 (over the pin 45), and its offer and cargo panels 39, not 33-34: 9 panels leave the fit at W 250 (831 -> 822) and at
+    // W 258 (843 -> 834); W 315 and 340 are as they were. LIMPET WORKS' panels need 39 px at both widths, before and after
+    expect(moved).toEqual({ 250: "822 of 938, 90th 48", 258: "834 of 938, 90th 48", 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48" });
   }, 900_000); // SHAPES-1 (RUN5 1.2): two sweeps now (SHAPES off and on), 17 widths x the panels each; was 300 s
 
   it("on the zoomed phones every panel shows its full description: in the band, or grown up over the shop (never over the carrier)", () => {

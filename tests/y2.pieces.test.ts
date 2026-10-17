@@ -264,8 +264,8 @@ describe("Y2 row 13: LIMPET WORKS' DMG is its blast; its stall becomes blast dam
 
   it("face: RATE 13, DMG 100, BELT 2; ITS SLUG BLAST THE HULL 3 SEC AFTER THEY HIT; ladder DMG 100/230/360", () => {
     // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: THE HULL, THEY): the foe's hull, after a hit (was "... THE HULL 3{SEC} AFTER THEY HIT.")
-    expect(lines("limpet")).toEqual([100, 230, 360].map(() => ["THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT."])); // SHOPCARD-1b (REQ-BFG-081): the blast's number (was ITS {SLUG} BLAST THE FOE'S HULL 3{SEC} AFTER A HIT.); SHOPCARD-1c (G7): ITS {DMG}, the number only on the stat row (was THE FOE'S HULL TAKES ${b} {DMG} 3{SEC} AFTER A HIT.)
-    oneLine("limpet");
+    expect(lines("limpet")).toEqual([100, 230, 360].map(() => ["THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT."])); // SHOPCARD-1b (REQ-BFG-081): the blast's number (was ITS {SLUG} BLAST THE FOE'S HULL 3{SEC} AFTER A HIT.); SHOPCARD-1c (G7): ITS {DMG}, the number only on the stat row (was THE FOE'S HULL TAKES ${b} {DMG} 3{SEC} AFTER A HIT.); SHOPCARD-1d (H2): the DMG lands once, as a blast (was THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.)
+    oneLine("limpet", 2); // SHOPCARD-1d (H2): two rows of the 225 px band (335 px; was one row, 225 px)
     expect(faceAt("limpet", 1)!.stats).toEqual([["RATE", "13"], ["DMG", "100"], ["BELT", "2"]]);
     expect(levels("limpet", 2)).toEqual(["{DMG} 100/[230]/360", "{BELT} 2/[3]/4", `NEXT ★3: ${statRow([["DMG", "360"], ["BELT", "4"]])}`]);
   });

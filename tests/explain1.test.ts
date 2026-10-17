@@ -617,7 +617,12 @@ describe("EXPLAIN-1 (e): the band", () => {
     console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES on): ${on.join(" | ")}`);
     // measured on the merged tree (run 6, after b81b420), tips done the same as zoom1's tips new: W 186-249 at or under the
     // pin; from W 250 the 90th is 48 over the pin 45 (88.59% fit at W 250, 89.87% at W 258-340)
-    expect(moved).toEqual({ 250: "831 of 938, 90th 48", 258: "843 of 938, 90th 48", 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48" });
+    // SHOPCARD-1d (REQ-BFG-081): the same two widths and the same count as tests/zoom1.test.ts, whose per-panel probe (zoom1's own `needs`, at
+    // shopcard1c-accepted and at the tip) names the panels: TWIN
+    // LATCH's face now takes a second row at W 250 and 258 ("... BOTH ITS ARROWS MUST POINT AT BELTS."), so its 3 placed panels at each of 3 stars
+    // need 48 px, not 41 (over the pin 45), and its offer and cargo panels 39, not 33-34: 9 panels leave the fit at W 250 (831 -> 822) and at
+    // W 258 (843 -> 834); W 315 and 340 are as they were. LIMPET WORKS' panels need 39 px at both widths, before and after
+    expect(moved).toEqual({ 250: "822 of 938, 90th 48", 258: "834 of 938, 90th 48", 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48" });
   }, 900_000);
 });
 

@@ -517,7 +517,12 @@ describe("U2f: the taller ⓘ view", () => {
     // SHOPCARD-1c (REQ-BFG-081), measured as above: QUENCH TANK's SLUG definition adds a page to its 3 desk views (4 / 4 / 3 -> 5 / 5 / 4),
     // and GRAPNEL GUN's longer two-row line ("SHOT: A HIT ON A FOE BELT OR RIG RIPS 1 SLUG.") widens the desk column so its 4 desk views
     // (cargo ★1/★2, twice) page one less (3 -> 2): desk [3, 56, 113, 81, 65, 7] -> [3, 60, 108, 80, 67, 7]
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 60, 108, 80, 67, 7]);
+    // SHOPCARD-1d (REQ-BFG-081), measured per panel against shopcard1c-accepted's list (tmp/pages-tip.txt, tmp/zz-kw-pages.test.ts, the
+    // same 325 panels): LIMPET WORKS' longer line ("THE DMG LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 SEC AFTER A HIT.", 335 px) and TWIN
+    // LATCH's ("... BOTH ITS ARROWS MUST POINT AT BELTS.", 415 px) widen the desk column, so their cargo ★1 and ★2 desk views page one less:
+    // limpet 3 -> 2 (x2), twinlatch 5 -> 4 (x2); the op views are unchanged (op [8, 183, 97, 37] stands): desk
+    // [3, 60, 108, 80, 67, 7] -> [3, 62, 106, 82, 65, 7]
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 62, 106, 82, 65, 7]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {

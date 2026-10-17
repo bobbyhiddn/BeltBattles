@@ -968,7 +968,12 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // (tmp/cd6x8236bfd = shopcard1b-accepted, ids by tmp/zz-ap-ids.test.ts): its line now says when ("FEEDS A GUN: EACH FIGHT, YOUR RIGS
     // START WORKING 50% SOONER."), a second row on this test's fixed phone band; the face keeps its lines (kept), the hint gives way
     // first, as ever. STOKER's and GRAPNEL GUN's second rows take no phone panel's hint (the desk count below is unchanged: 2021 / 62)
-    expect(hints).toBe(1037);
+    // SHOPCARD-1d (REQ-BFG-081), measured: 1031 (was 1037). The 6 panels that give the optional hint way are TWIN LATCH's placed ones,
+    // "rig twinlatch ★1-★3 1hit spare0/1", diffed against 1c's list (tmp/ids-tip.txt = shopcard1c-accepted, ids by tmp/zz-ap-ids.test.ts):
+    // its face now says both arrows must point at belts ("HIT: HOLDS A SLUG UP TO 1 SEC TO MAKE A PAIR. BOTH ITS ARROWS MUST POINT AT
+    // BELTS.", 415 px), a second row on this test's fixed phone band; the face keeps its lines (kept), the hint gives way first, as ever.
+    // LIMPET WORKS' second row ("THE DMG LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 SEC AFTER A HIT.", 335 px) takes no phone panel's hint
+    expect(hints).toBe(1031);
   });
 });
 

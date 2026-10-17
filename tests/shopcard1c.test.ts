@@ -256,20 +256,24 @@ describe("SHOPCARD-1c G6 (READ-10 fix 6): GRAPNEL GUN rips only on a hit, with o
 });
 
 describe("SHOPCARD-1c G7 (READ-10 fix 7): LIMPET WORKS says ITS DMG, with no second number", () => {
-  it("THE FOE'S HULL TAKES ITS DMG 3 SEC AFTER A HIT., one row at every star on days 1, 5 and 10; the stat row's DMG is the blast (content.ts:532-539 base 0 + blast; battle.ts:2350, 2431-2441)", () => {
+  it("THE FOE'S HULL TAKES ITS DMG 3 SEC AFTER A HIT., one row at every star on days 1, 5 and 10; the stat row's DMG is the blast (content.ts:532-539 base 0 + blast; battle.ts:2350, 2431-2441); SHOPCARD-1d H2 changed the line to THE DMG LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 SEC AFTER A HIT. (two rows): 1c's words and row pin retire", () => {
     expect(ITEMS.limpet.factory!.base).toBe(0);
     for (const s of STARS) for (const day of DAYS) {
       const [line] = rules("limpet", s, day);
-      expect(line, `★${s} day ${day}`).toBe("THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.");
+      // SHOPCARD-1d (H2; READ-11 fix list 2: 2 of 6 readers still read ITS DMG as a second dose or "again"): the DMG lands once, as a blast
+      // (was "THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.", one row, 225 px); two rows now (335 px, no digit but the delay)
+      expect(line, `★${s} day ${day}`).toBe("THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT.");
       expect(stripIcons(icons(line)).replace(/3/, "").match(/\d/), `★${s} day ${day}: the delay is the only number`).toBeNull();
-      expect(rows(line), `★${s} day ${day}`).toBe(1);
-      expect(textWidth(icons(line), "5"), `★${s} day ${day}`).toBeLessThanOrEqual(BAND);
+      expect(rows(line), `★${s} day ${day}`).toBe(2);
+      expect(textWidth(icons(line), "5"), `★${s} day ${day}`).toBeLessThanOrEqual(2 * BAND);
       // the blast is the one DMG a reader sees: the stat row's (day 1: 100 / 230 / 360)
       expect(faceLines("limpet", s, { day })!.stats, `★${s} day ${day}`).toBeDefined();
     }
     expect(faceAt("limpet", 1, { day: undefined })!.stats).toEqual([["RATE", "13"], ["DMG", "100"], ["BELT", "2"]]);
-    // READ-9's round A miss stays fixed: no "SLUG BLAST" (an impact hit plus a second blast)
-    expect(rules("limpet", 1)[0]).not.toMatch(/SLUG|BLAST/);
+    // READ-9's round A miss stays fixed: no "SLUG BLAST" (an impact hit plus a second blast); SHOPCARD-1d: BLAST is the line's own word now
+    // (the DMG IS the blast), but no SLUG on it
+    expect(rules("limpet", 1)[0]).not.toMatch(/SLUG/);
+    expect(rules("limpet", 1)[0]).not.toMatch(/SLUG BLAST/);
   });
 });
 
@@ -293,8 +297,8 @@ describe("SHOPCARD-1c G9 (READ-10 fix 9): TWIN LATCH's own HIT note says when it
     expect(rows(note, BAND)).toBe(2);
     expect(glossaryText("HIT", { def: "riveter", stars: 1 })).toBe(glossaryEntry("HIT")!.def);
     expect(glossaryText("HIT", { def: "longhaul", stars: 1 })).toBe("HIT: WHEN IT HITS A SLUG, EVERY EARLIER HIT ON THAT SLUG COUNTS, SPEED RIGS TOO.");
-    // a note only: the face line is as it was
-    expect(rules("twinlatch", 1)[0]).toBe("HIT: HOLDS A {SLUG} UP TO 1{SEC} TO MAKE A {*PAIR}.");
+    // a note only in 1c: the face line was as it was; SHOPCARD-1d (H1) adds the condition to the face too (the note's words), one rule, two rows
+    expect(rules("twinlatch", 1)[0]).toBe("HIT: HOLDS A {SLUG} UP TO 1{SEC} TO MAKE A {*PAIR}. BOTH ITS ARROWS MUST POINT AT BELTS.");
   });
 });
 
