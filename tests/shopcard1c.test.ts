@@ -244,14 +244,16 @@ describe("SHOPCARD-1c G6 (READ-10 fix 6): GRAPNEL GUN rips only on a hit, with o
   it("SHOT: A HIT ON A FOE BELT OR RIG RIPS n SLUG(S). at every star: two rows; the ladder and the SHOT note use RIPS too (battle.ts:2190 impact -> 2355-2386 rip(); the shot's damage lands first, 2142-2151)", () => {
     for (const s of STARS) {
       const n = effectAt("grapnel", s).core!.rip!;
-      const line = `SHOT: A HIT ON A FOE BELT OR RIG RIPS ${n} SLUG${n === 1 ? "" : "S"}.`;
+      const line = `SHOT: A HIT ON A FOE BELT OR RIG DESTROYS ${n} SLUG${n === 1 ? "" : "S"} NEAR IT.`;
       expect(rules("grapnel", s), `★${s}`).toEqual([line]);
       expect(rows(line), `★${s}`).toBe(2);
       expect(levelLines("grapnel", s)!.map((l) => levelText(l)).some((l) => l.startsWith("RIPS ")), `★${s}: the ⓘ ladder says RIPS`).toBe(true);
       expect(/LOSES|TAKES/.test(line), "one verb: no LOSES, no TAKES").toBe(false);
     }
     expect(glossaryText("SHOT", { def: "grapnel", stars: 1 })).toBe("SHOT: IT RIPS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT.");
-    expect(faceLines("grapnel", 1, { k: 1 })!.rules.map((r) => r.text.includes("RIPS"))).toEqual([true]);
+    // SHOPCARD-1f (F5; READ-13 fix list 5: 10 of 12 readers asked whether the slug is destroyed or taken): the face says DESTROYS now (battle.ts:2377 splices it off the foe's belt, nothing
+    // goes to the shooter); the ⓘ ladder (RIPS 1/2/3) and the SHOT note above keep RIPS
+    expect(faceLines("grapnel", 1, { k: 1 })!.rules.map((r) => r.text.includes("DESTROYS"))).toEqual([true]);
   });
 });
 
@@ -262,7 +264,7 @@ describe("SHOPCARD-1c G7 (READ-10 fix 7): LIMPET WORKS says ITS DMG, with no sec
       const [line] = rules("limpet", s, day);
       // SHOPCARD-1d (H2; READ-11 fix list 2: 2 of 6 readers still read ITS DMG as a second dose or "again"): the DMG lands once, as a blast
       // (was "THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.", one row, 225 px); two rows now (335 px, no digit but the delay)
-      expect(line, `★${s} day ${day}`).toBe("THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT.");
+      expect(line, `★${s} day ${day}`).toBe("THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER ITS SLUG HITS ANYTHING.");
       expect(stripIcons(icons(line)).replace(/3/, "").match(/\d/), `★${s} day ${day}: the delay is the only number`).toBeNull();
       expect(rows(line), `★${s} day ${day}`).toBe(2);
       expect(textWidth(icons(line), "5"), `★${s} day ${day}`).toBeLessThanOrEqual(2 * BAND);
@@ -272,15 +274,16 @@ describe("SHOPCARD-1c G7 (READ-10 fix 7): LIMPET WORKS says ITS DMG, with no sec
     expect(faceAt("limpet", 1, { day: undefined })!.stats).toEqual([["RATE", "13"], ["DMG", "100"], ["BELT", "2"]]);
     // READ-9's round A miss stays fixed: no "SLUG BLAST" (an impact hit plus a second blast); SHOPCARD-1d: BLAST is the line's own word now
     // (the DMG IS the blast), but no SLUG on it
-    expect(rules("limpet", 1)[0]).not.toMatch(/SLUG/);
+    // SHOPCARD-1f (F3; READ-13 fix list 3: 12 of 12 answers asked which hit): the line says AFTER ITS SLUG HITS ANYTHING now, so SLUG is on it (the word, never "SLUG BLAST")
+    expect(rules("limpet", 1)[0]).toMatch(/AFTER ITS SLUG HITS ANYTHING\.$/);
     expect(rules("limpet", 1)[0]).not.toMatch(/SLUG BLAST/);
   });
 });
 
 describe("SHOPCARD-1c G8 (READ-10 fix 8): ASSEMBLY LINE says when and what", () => {
-  it("FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING n% SOONER. (★3: AT ONCE.), two rows at every star on days 1, 5 and 10 (battle.ts:714-736 commissionAt at each fight's start, 979-981 online at t >= commissionAt)", () => {
+  it("WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING n% SOONER. (★3: AT ONCE.), two rows at every star on days 1, 5 and 10 (battle.ts:714-736 commissionAt at each fight's start, 979-981 online at t >= commissionAt)", () => {
     expect([1, 2, 3].map((s) => rules("assembly", s)[0])).toEqual([
-      "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER.", "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 75% SOONER.", "FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING AT ONCE.", // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
+      "WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER.", "WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 75% SOONER.", "WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING AT ONCE.", // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     ]);
     for (const s of STARS) for (const day of DAYS) expect(rows(rules("assembly", s, day)[0]), `★${s} day ${day}`).toBe(2);
     expect(effectAt("assembly", 1).factory!.commission).toBe(0.5);
@@ -303,10 +306,10 @@ describe("SHOPCARD-1c G9 (READ-10 fix 9): TWIN LATCH's own HIT note says when it
 });
 
 describe("SHOPCARD-1c G10 (READ-10 fix 10, optional): QUENCH TANK says whose BURN", () => {
-  it("HIT: TURNS EACH BURN ON A SLUG INTO +n DMG., one row at every star on days 1, 5 and 10 (battle.ts applyHit: the BURN the slug carries turns into damage on that slug)", () => {
+  it("HIT: USES UP EACH BURN ON A SLUG FOR +n DMG., one row at every star on days 1, 5 and 10 (battle.ts applyHit: the BURN the slug carries turns into damage on that slug)", () => {
     for (const s of STARS) for (const day of DAYS) {
       const [line] = rules("quench", s, day);
-      expect(line, `★${s} day ${day}`).toMatch(/^HIT: TURNS EACH \{\*BURN\} ON A \{SLUG\} INTO \+\d+ \{DMG\}\.$/);
+      expect(line, `★${s} day ${day}`).toMatch(/^HIT: USES UP EACH \{\*BURN\} ON A \{SLUG\} FOR \+\d+ \{DMG\}\.$/);
       expect(rows(line), `★${s} day ${day}: ${line}`).toBe(1);
     }
   });

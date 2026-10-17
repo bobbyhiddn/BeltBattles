@@ -85,9 +85,12 @@ describe("SHOPCARD-1d H2 (READ-11 fix 2): LIMPET WORKS says its DMG lands once, 
   it("'THE DMG LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 SEC AFTER A HIT.' at every star on days 1, 5 and 10: no bare ITS, no SLUG, the delay the only number, two rows (335 px)", () => {
     for (const s of STARS) for (const day of DAYS) {
       const [line] = rules("limpet", s, day);
-      expect(line, `★${s} day ${day}`).toBe("THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT.");
-      expect(/\bITS\b/.test(stripIcons(icons(line))), `★${s} day ${day}: no bare ITS`).toBe(false);
-      expect(/SLUG/.test(line), `★${s} day ${day}: no SLUG (READ-9's impact hit plus a second blast)`).toBe(false);
+      expect(line, `★${s} day ${day}`).toBe("THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER ITS SLUG HITS ANYTHING.");
+      // SHOPCARD-1f (F3; READ-13 fix list 3: 12 of 12 answers asked which hit): the line now names the hit, `AFTER ITS SLUG HITS ANYTHING`, so 1d's "no bare ITS, no SLUG" pins
+      // retire: the ITS is the slug's (no bare ITS: nothing else it could be) and the SLUG is a word, not the icon whose note read as an impact hit plus a second blast (the
+      // DMG still lands once, as a blast: tests/shopcard1f.test.ts F3)
+      expect(/\bITS SLUG HITS ANYTHING\b/.test(stripIcons(icons(line))), `★${s} day ${day}: the hit is its slug's, on anything`).toBe(true);
+      expect(/\{SLUG\}/.test(line), `★${s} day ${day}: the word SLUG, not the {SLUG} icon (no extra tap target)`).toBe(false);
       expect(stripIcons(icons(line)).replace(/3/, "").match(/\d/), `★${s} day ${day}: the delay is the only number`).toBeNull();
       expect(rowsOf(line).length, `★${s} day ${day}`).toBe(2);
       expect(textWidth(icons(line), "5"), `★${s} day ${day}`).toBeLessThanOrEqual(2 * BAND);

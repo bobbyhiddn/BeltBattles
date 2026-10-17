@@ -530,7 +530,11 @@ describe("U2f: the taller ⓘ view", () => {
     // SHOPCARD-1e (E1), measured as above: the {BELT} definition (two rows at the op band's 225 px, three or four in the desk column) lists in every
     // factory's ⓘ view: 47 desk views (the 15 factories' cargo views at ★1-★3, MIMIC FORGE's two more) take one page more (16 from 5 to 6, 14
     // from 4 to 5, 12 from 3 to 4, 3 from 2 to 3, 2 from 6 to 7): desk [3, 62, 106, 82, 65, 7] -> [3, 59, 97, 80, 63, 21, 2]
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 59, 97, 80, 63, 21, 2]);
+    // SHOPCARD-1f (REQ-BFG-081), measured as above (the same 325 panels): ASSEMBLY LINE's ⓘ NOTES no longer hold the size note (F2: a 3-cell factory gets none), and the
+    // longer face lines of LIMPET WORKS (`... AFTER ITS SLUG HITS ANYTHING.`, 433 px), ASSEMBLY LINE (`WHILE IT FEEDS A GUN: ...`, 400 px) and GRAPNEL GUN (`... DESTROYS n SLUG(S)
+    // NEAR IT.`, 307-313 px) widen the desk column (and QUENCH TANK's `USES UP` line is 4 px longer), so 4 desk views page one less and 2 one more:
+    // desk [3, 59, 97, 80, 63, 21, 2] -> [3, 59, 98, 81, 61, 21, 2] (the op views are unchanged: op [8, 176, 86, 55] stands)
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([3, 59, 98, 81, 61, 21, 2]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {

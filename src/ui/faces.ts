@@ -347,14 +347,19 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // THE FOE'S HULL 3{SEC} AFTER A HIT." 331, "ALL OF THE {DMG} LANDS AS ONE BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT." 354, "THE {DMG} LANDS
     // ONLY AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT." 332
     // SHOPCARD-1f (REQ-BFG-081; READ-13 fix list 3: 12 of 12 readers, rounds A and T, asked which hit the line means, and one T answer
-    // left it in its DOES: "after a hit (I cannot tell which hit)"): the hit is its own slug's. A charge is pushed only when a shot that
-    // carries one of ITS slugs' round hits (battle.ts:2191 impact: `if (pr.payload.harass) this.roundImpact(def, hit, ...)`, the harass
-    // round being the LIMPET WORKS slug's payload) on a part or the hull of the other side; 2350 queues { at: t + round.delay, blast } on
-    // that side, and 2428-2444 hullEffects takes the blast off its hull when `at` comes. A foe's own hit, a rig's hit on a slug or a hit by
-    // any other factory's slug queues nothing. So AFTER ONE OF ITS SLUGS HITS (425 px, two rows: 220 / 200; the same at every star and
-    // day: the only digit is the delay, 3 at every star). Other forms measured (px): "... AFTER ITS SLUG HITS." 381, "... AFTER ITS SLUG
-    // HITS THE FOE." 425, "... AFTER A SHOT WITH ITS SLUG HITS." 447 (second row 222 of 225), "... AFTER ITS SLUG HITS ANYTHING." 433,
-    // "... AFTER ONE OF ITS SLUGS HITS THE FOE." 469 (three rows), "... AFTER EACH HIT BY ITS SLUGS." 425 (was "... AFTER A HIT.", 335)
+    // left it in its DOES: "after a hit (I cannot tell which hit)"): the hit is its own slug's, on anything. A charge is pushed only when
+    // a shot that carries one of ITS slugs' round lands (battle.ts:2191 impact: `if (pr.payload.harass) this.roundImpact(def, hit, ...)`,
+    // the harass round being the LIMPET WORKS slug's payload), on a part or on the hull of the other side (impact runs for every shot that
+    // lands; a WARD stops only that hit's damage, 2146, and a FLAK SCREEN can down only a shot that carries a stall, 2100-2108, which a
+    // LIMPET charge does not); 2350 queues { at: t + round.delay, blast } on that side, and 2428-2444 hullEffects takes the blast off its
+    // hull when `at` comes. A foe's own hit, a rig's hit on a slug (applyHit never calls roundImpact) or another factory's slug queues
+    // nothing. Two rows (433 px: 220 / 208), the same at every star and day: the only digit is the delay, 3 at every star.
+    // H3 (three fresh readers, rounds A and T, six LIMPET WORKS answers; mcheck/RESULTS.md): form 1 `... AFTER ONE OF ITS SLUGS HITS.` (425 px)
+    // left `hits what? any part of the foe?` and `once per slug, or once per fight?` in 5 of 6 (grader's count; all six DOES right); form 2 (this
+    // one) left `does a WARD, a part or my own part count as anything?` in 4 of 6 (all six DOES right): the bar, at most 1 of 6, was missed by
+    // both and the better form is kept. Other forms measured (px): "... AFTER ITS SLUG HITS." 381, "... AFTER ITS SLUG HITS THE FOE." 425, "... AFTER A SHOT
+    // WITH ITS SLUG HITS." 447 (second row 222 of 225), "... AFTER ONE OF ITS SLUGS HITS THE FOE." 469 and "... AFTER ITS SLUG HITS ANY PART OR THE HULL." 497
+    // (three rows), "... AFTER EACH HIT BY ITS SLUGS." 425 (was "... AFTER A HIT.", 335)
     return rules([{ text: `THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, ${delay}{SEC} AFTER ITS SLUG HITS ANYTHING.` }], [["delay", `${delay}{SEC}`]]);
   },
   // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
@@ -841,11 +846,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // removed or kept)"): it is used up. battle.ts:1729-1734 applyHit: `spent = Math.min(p.burn, e.quench.stacks ?? Infinity)`, `p.flat +=
     // flat + spent * perBurn`, `p.burn -= spent`: the spent BURN leaves the slug (1733). content.ts:682-687 gives QUENCH TANK no `stacks`
     // at any star (flat 0, perBurn 30 / 50 / 70), so EVERY stack is spent and none is left over; at a star with `stacks` the rest would
-    // stay on the slug (the line would need an UP TO), and none has it. SWAPS EACH BURN FOR +n DMG says an exchange: the burn goes, the
-    // damage comes (207 px, 213 at 3 digits: one row at every star on days 1, 5 and 10). Forms measured (px, 2 digits): "HIT: USES UP EACH
-    // {*BURN} ON A {SLUG} FOR +72 {DMG}." 217 (223 at 3 digits), "... SPENDS EACH ... FOR" 213, "... TRADES EACH ... FOR" 213, "... TURNS EACH ...
-    // INTO +72 {DMG}, USING IT UP." 282 (two rows), "... TURNS EACH ... INTO +72 {DMG}, AND THE {*BURN} IS GONE." 338, "... EACH {*BURN}
-    // ON A {SLUG} IS USED UP FOR +72 {DMG}." 233 (two rows) (was "... TURNS EACH ... INTO +72 {DMG}.", 213)
+    // stay on the slug (the line would need an UP TO), and none has it. USES UP EACH BURN ... FOR +n DMG says the burn goes and the damage
+    // comes (217 px, 223 at 3 digits: one row at every star on days 1, 5 and 10). H3 (mcheck/RESULTS.md): form 1 `HIT: SWAPS EACH {*BURN}
+    // ON A {SLUG} FOR +72 {DMG}.` (207 px) left `whether the burn is lost for good` in 1 of 6 (T Sonnet); this form left none in A and one T
+    // Opus question about the foe's burn damage that already takes the burn as used up (the grader counted it, the rule's text does not: 0 of
+    // 6 by the rule, 1 of 6 by the grader). Other forms measured (px, 2 digits): "... SPENDS EACH ... FOR" 213, "... TRADES EACH ... FOR" 213,
+    // "... TURNS EACH ... INTO +72 {DMG}, USING IT UP." 282 (two rows), "... TURNS EACH ... INTO +72 {DMG}, AND THE {*BURN} IS GONE." 338,
+    // "... EACH {*BURN} ON A {SLUG} IS USED UP FOR +72 {DMG}." 233 (two rows) (was "... TURNS EACH ... INTO +72 {DMG}.", 213)
     return rules([hit(`USES UP EACH {*BURN} ON A {SLUG} FOR +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
   },
   twinlatch: (e) => {

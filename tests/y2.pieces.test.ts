@@ -264,7 +264,7 @@ describe("Y2 row 13: LIMPET WORKS' DMG is its blast; its stall becomes blast dam
 
   it("face: RATE 13, DMG 100, BELT 2; ITS SLUG BLAST THE HULL 3 SEC AFTER THEY HIT; ladder DMG 100/230/360", () => {
     // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: THE HULL, THEY): the foe's hull, after a hit (was "... THE HULL 3{SEC} AFTER THEY HIT.")
-    expect(lines("limpet")).toEqual([100, 230, 360].map(() => ["THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER A HIT."])); // SHOPCARD-1b (REQ-BFG-081): the blast's number (was ITS {SLUG} BLAST THE FOE'S HULL 3{SEC} AFTER A HIT.); SHOPCARD-1c (G7): ITS {DMG}, the number only on the stat row (was THE FOE'S HULL TAKES ${b} {DMG} 3{SEC} AFTER A HIT.); SHOPCARD-1d (H2): the DMG lands once, as a blast (was THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.)
+    expect(lines("limpet")).toEqual([100, 230, 360].map(() => ["THE {DMG} LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3{SEC} AFTER ITS SLUG HITS ANYTHING."])); // SHOPCARD-1b (REQ-BFG-081): the blast's number (was ITS {SLUG} BLAST THE FOE'S HULL 3{SEC} AFTER A HIT.); SHOPCARD-1c (G7): ITS {DMG}, the number only on the stat row (was THE FOE'S HULL TAKES ${b} {DMG} 3{SEC} AFTER A HIT.); SHOPCARD-1d (H2): the DMG lands once, as a blast (was THE FOE'S HULL TAKES ITS {DMG} 3{SEC} AFTER A HIT.)
     oneLine("limpet", 2); // SHOPCARD-1d (H2): two rows of the 225 px band (335 px; was one row, 225 px)
     expect(faceAt("limpet", 1)!.stats).toEqual([["RATE", "13"], ["DMG", "100"], ["BELT", "2"]]);
     expect(levels("limpet", 2)).toEqual(["{DMG} 100/[230]/360", "{BELT} 2/[3]/4", `NEXT ★3: ${statRow([["DMG", "360"], ["BELT", "4"]])}`]);
@@ -495,7 +495,7 @@ describe("Y2 row 19: GRAPNEL GUN ★3 drops SALVAGE, and a hit keg is no longer 
   it("face: RIPS 1/2/3 SLUG(S), no SALVAGE LINE clause at ★3; ladder RIPS 1/2/3; the tap drops the keg", () => {
     // TXT-096 (REVIEW-TXT095 Q2): a hit on a rig rips too (tests/txt096.faces.test.ts pins it to battle.ts rip); was
     // "SHOT: RIPS 1 SLUG OFF AN ENEMY BELT." (2, 3 SLUGS)
-    expect(lines("grapnel")).toEqual([["SHOT: A HIT ON A FOE BELT OR RIG RIPS 1 SLUG."], ["SHOT: A HIT ON A FOE BELT OR RIG RIPS 2 SLUGS."], ["SHOT: A HIT ON A FOE BELT OR RIG RIPS 3 SLUGS."]]); // SHOPCARD-1b (REQ-BFG-081): whose slug, and gone (was ON A BELT OR RIG, RIPS n SLUG(S)); SHOPCARD-1c (G6): only a hit rips, one verb (was A FOE BELT OR RIG LOSES n SLUG(S))
+    expect(lines("grapnel")).toEqual([["SHOT: A HIT ON A FOE BELT OR RIG DESTROYS 1 SLUG NEAR IT."], ["SHOT: A HIT ON A FOE BELT OR RIG DESTROYS 2 SLUGS NEAR IT."], ["SHOT: A HIT ON A FOE BELT OR RIG DESTROYS 3 SLUGS NEAR IT."]]); // SHOPCARD-1b (REQ-BFG-081): whose slug, and gone (was ON A BELT OR RIG, RIPS n SLUG(S)); SHOPCARD-1c (G6): only a hit rips, one verb (was A FOE BELT OR RIG LOSES n SLUG(S))
     oneLine("grapnel", 2); // SHOPCARD-1c (G6): two rows of the band (239 / 245 px; was one row)
     expect(levels("grapnel", 1)).toEqual(["RIPS [1]/2/3", "NEXT ★2: RIPS 2"]); // Y7b2 (the words): was ["RIPS [1]/2/3", "★3 SALVAGE LINE", "NEXT ★2: RIPS 2"]
     expect(glossaryText("SHOT", { def: "grapnel", stars: 1 })).toBe("SHOT: IT RIPS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT.");

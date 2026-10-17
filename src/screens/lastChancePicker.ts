@@ -424,10 +424,12 @@ export class LastChancePicker {
         // SHOPCARD-1f (F7): the open card's room under its effect lines holds its longest keyword definition (lcRoomRows), blank rows after the details' own
         const rows = lcRoomRows(def, r.w, open, t.info, s.run.day), pad = rows - lineCount(t.info);
         drawBody(g, { ...r, y: r.y + base - HEAD }, [], pad > 0 ? padInfo(t.info, pad) : t.info, hint, L.gap, runeBarBand(open ? tap : 0));
-        // CARD-2 (K2; K1): the shown keyword's definition, in the details' room (its lines' place: drawBody's y + 1). SHOPCARD-1f (F7): that room is the
-        // card's own (was, with the details closed, over the effect lines' foot, growing up and hiding them): whole, and the card keeps its size
+        // CARD-2 (K2; K1): the shown keyword's definition, in the details' room. SHOPCARD-1f (F7): that room is the card's own (was, with the details closed,
+        // over the effect lines' foot, growing up and hiding them): whole, and the card keeps its size. Its first row is the effect text's foot (r.y + base, as
+        // the picker's room: its box is 1 px above and 1 below the room's rows), so the box's foot is the TAP AGAIN band's top + 1 and the bar's target
+        // (runeBarTarget: from the box's foot) is the note-free one; was drawBody's y + 1, one px lower
         const k = open && this.word ? runeKeywordOf(def, this.word) : null;
-        if (k) this.wordBox = drawRuneWordNote(g, r, r.y + base + 1, rows, runeWordLines(def, k, r.w - 10, s.run.day)); // FIX-099G: the card's day's note (cap, oracle f65b53f23c6b70c1)
+        if (k) this.wordBox = drawRuneWordNote(g, r, r.y + base, rows, runeWordLines(def, k, r.w - 10, s.run.day)); // FIX-099G: the card's day's note (cap, oracle f65b53f23c6b70c1)
         // CARD-4 (REQ-BFG-081, P1): the open RUNE card's body takes nothing; its bar's target alone takes it (never under
         // the word's box)
         if (open) take = runeBarTarget(r, LC_TAKE, tap, this.wordBox);

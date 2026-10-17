@@ -136,11 +136,11 @@ describe("SHOPCARD-1e E1 (READ-12 fix 5): a factory's {BELT} stat icon has a tap
 // ------------------------------------------------------------------------------------------------------------------ E2
 describe("SHOPCARD-1e E2 (READ-12 fix 1): ASSEMBLY LINE says ALL your rigs", () => {
   it("'FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING n% SOONER.' (★3: AT ONCE.) at every star on days 1, 5 and 10: two rows of the 225 px band, 350 / 350 / 332 px", () => {
-    const px = [350, 350, 332];
+    const px = [400, 400, 382]; // SHOPCARD-1f (F4; READ-13 fix list 4): WHILE IT FEEDS A GUN: + 50 px (was 350 / 350 / 332), still two rows
     for (const s of STARS) for (const day of DAYS) {
       const [line] = faceAt("assembly", s, { k: 1, hero: "furnace", day })!.rules.map((r) => r.text);
       const soon = startIn(effectAt("assembly", s).factory!.commission!);
-      expect(line, `★${s} day ${day}`).toBe(`FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${soon}.`);
+      expect(line, `★${s} day ${day}`).toBe(`WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${soon}.`);
       expect(soon, `★${s}`).toBe(["50% SOONER", "75% SOONER", "AT ONCE"][s - 1]);
       expect(rowsOf(line).length, `★${s} day ${day}`).toBe(2);
       expect(textWidth(icons(line), "5"), `★${s} day ${day}`).toBe(px[s - 1]);

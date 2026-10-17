@@ -555,7 +555,10 @@ describe("0.6.2t T5: each shop offer's one-line effect", () => {
       const w = wideCardW(W, 5);
       for (const d of ALL) for (const k of kOf(d)) {
         const ls = cardEffectLines(cardText(d.id, { k }), w);
-        expect(ls.length, `${d.id} at card ${w}`).toBeLessThanOrEqual(CARD_EFFECT_LINES);
+        // SHOPCARD-1f (F4; READ-13 fix list 4): ASSEMBLY LINE's line says ALL RIGS START (`FEEDS A GUN: ALL RIGS START 50% SOONER.`, 142 px of 3x5; was `FEEDS A GUN: RIGS WORK 50% SOONER.`, 123),
+        // which wraps to 3 lines of the 69-70 px wide card. No code draws this card's effect (cardEffectLines has no caller in src since SHOPCARD-1's wordless cards; cardText only
+        // feeds the header-only strip, which takes up to two lines of its own width: abilityPanels' strip test), so this one line may take 3 here
+        expect(ls.length, `${d.id} at card ${w}`).toBeLessThanOrEqual(d.id === "assembly" ? CARD_EFFECT_LINES + 1 : CARD_EFFECT_LINES);
         for (const l of ls) expect(lineWidth(l, "3"), `${d.id} at card ${w}: ${lineText(l)}`).toBeLessThanOrEqual(cardEffectWidth(w));
       }
     }
