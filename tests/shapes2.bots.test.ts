@@ -15,7 +15,7 @@ import { ITEMS, type HeroId } from "../src/sim/content";
 import { cellsOf, cloneBuild, isIntakeCell, key as K, type Build, type Placed } from "../src/sim/deck";
 import { footOnDeck, footprintCells, isShaped } from "../src/sim/foot";
 import { SHAPES2, SHAPES2_IDS, setShapes2, withShapes2 } from "../src/sim/shapes2";
-import { setPlainRigs, withPlainRigs } from "../src/sim/plainRigs";
+import { PLAIN_RIGS, setPlainRigs, withPlainRigs } from "../src/sim/plainRigs";
 import { shapedSpot, hitsIfPlaced } from "../src/sim/beltside";
 import { fitsSomewhere, playerRun } from "../src/sim/harness/player";
 import { casualRun } from "../src/sim/harness/casual";
@@ -31,6 +31,8 @@ import { checkBuildShape } from "../src/net/snapshot";
 
 afterEach(() => setShapes2(SHAPES2));
 const on = <T>(fn: () => T): T => withPlainRigs(() => withShapes2(fn));
+/** BUMP-1D: both ship on, so the world these tests compared the shipped one with (SHAPES2 and PLAIN_RIGS off) is run explicitly. */
+const offW = <T>(fn: () => T): T => withShapes2(() => withPlainRigs(fn, false), false);
 const SIX = [...SHAPES2_IDS];
 
 /** A bare deck: belts as given (factory uid 1, a KILN at (8,8)), items as given. */
@@ -171,18 +173,19 @@ describe("SHAPES-2 S4: captains and warlords with SHAPES2 on", () => {
   it("every captain (days 1-10) and warlord deck is the one it was, passes the legality replay, and holds none of the six; where one would suit", () => {
     const suit: string[] = [];
     const sixIn = (b: Build) => b.items.filter((p) => SIX.includes(p.def));
+    // BUMP-1D: both switches ship on, so "off" (the deck as it was, and its legality replay) is read in the off world, explicitly
     for (const id of RIVAL_IDS) for (let day = 1; day <= 10; day++) {
-      const off = rivalBuild(id, day);
+      const off = offW(() => rivalBuild(id, day));
       const onB = on(() => rivalBuild(id, day));
       expect(JSON.stringify(onB), `captain ${id} day ${day} is hand-authored: it does not move`).toBe(JSON.stringify(off));
       expect(sixIn(onB)).toEqual([]);
-      expect(on(() => legalityProblems(onB)), `captain ${id} day ${day}`).toEqual(legalityProblems(off));
+      expect(on(() => legalityProblems(onB)), `captain ${id} day ${day}`).toEqual(offW(() => legalityProblems(off)));
     }
     for (const h of PLAYABLE_HEROES as HeroId[]) for (let day = 1; day <= 10; day++) {
-      const off = warlordBuild(h, day);
+      const off = offW(() => warlordBuild(h, day));
       const onB = on(() => warlordBuild(h, day));
       expect(JSON.stringify(onB), `warlord ${h} day ${day}`).toBe(JSON.stringify(off));
-      expect(on(() => legalityProblems(onB)), `warlord ${h} day ${day}`).toEqual(legalityProblems(off));
+      expect(on(() => legalityProblems(onB)), `warlord ${h} day ${day}`).toEqual(offW(() => legalityProblems(off)));
     }
     // where a shaped rig would suit one (a later pass): a captain deck day 6 and 10 whose belts leave a corner or a run for a six piece
     on(() => {
@@ -226,7 +229,7 @@ describe("SHAPES-2 S4: a dry stand-in sample with SHAPES2 and PLAIN_RIGS on (in 
       expect(picks).toBeGreaterThan(0);
     } finally {
       setShapes2(SHAPES2);
-      setPlainRigs(false);
+      setPlainRigs(PLAIN_RIGS); // BUMP-1D: the shipped value (on; it was put back off while PLAIN_RIGS shipped off)
     }
   }, 900_000);
 
@@ -257,8 +260,9 @@ describe("SHAPES-2 S4: a dry stand-in sample with SHAPES2 and PLAIN_RIGS on (in 
       console.log(`S4 CODES: ${roundTrips} decks round-tripped through the stand-in code, the six seen: ${[...sixSeen].join(", ")}`);
       expect(sixSeen.size).toBeGreaterThanOrEqual(4);
     });
-    // with SHAPES2 off the code names an unknown piece
+    // with SHAPES2 off the code names an unknown piece (BUMP-1D: SHAPES2 ships on, so the off world is explicit; shipped, the code decodes)
     const code = on(() => encodeStarred(parWith("furnace", 1)));
-    expect(() => decodeStarred("furnace", code)).toThrow();
+    withShapes2(() => expect(() => decodeStarred("furnace", code)).toThrow(), false);
+    expect(() => decodeStarred("furnace", code)).not.toThrow();
   }, 600_000);
 });

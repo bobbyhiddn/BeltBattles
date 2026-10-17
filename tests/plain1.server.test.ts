@@ -16,7 +16,7 @@ import { HEROES, ITEMS, RULES_VERSION } from "../src/sim/content";
 import { Battle } from "../src/sim/battle";
 import { canPlaceItem, rigHits, rotField, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
-import { PLAIN_RIG_IDS, setPlainRigs } from "../src/sim/plainRigs";
+import { PLAIN_RIGS, PLAIN_RIG_IDS, setPlainRigs } from "../src/sim/plainRigs";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import { createGhostServer, type GhostServer } from "../server/app";
@@ -25,7 +25,7 @@ import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { barge, SEED } from "./wave3.helpers";
 import { HEARTS_START } from "../src/sim/hearts"; // PLAIN-1F (M1): HEARTS (c099): day 1's record on hearts
 
-afterEach(() => setPlainRigs(false));
+afterEach(() => setPlainRigs(PLAIN_RIGS)); // the shipped value (BUMP-1D: on; it was false)
 
 /** FURNACE's start deck with `def` on the first free cell beside its belt (its arrow turned onto the belt when one fits),
  *  then its day-1 rune. Built with the switch on (placement reads the def). */
@@ -47,6 +47,9 @@ const snap = (build: Build, runId: string): GhostSnapshot => ({
   // lives (as tests/net-upload.server.test.ts re-pinned it at HULL-ON)
   v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: 1, wins: 0, lives: HEARTS_START, build, runId, playerId: "p", createdAt: 1_760_000_000_000,
   name: "TESTER", seed: PROBE_SEED,
+  // BUMP-1D (RUN-1, rules bb-0.11.0): a long run's upload states the dusks it lost (the server answers 422 "losses: ..." without it):
+  // day 1 has had no dusk, so none (day - 1 = wins + losses + draws = 0)
+  losses: 0,
 });
 const client = (b: Build) => validateUpload(b, 1, RULES_VERSION, { seed: PROBE_SEED });
 

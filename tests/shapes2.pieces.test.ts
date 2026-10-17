@@ -1,6 +1,7 @@
 // SHAPES-2 (REQ-BFG-114, REQ-BFG-084; BRIEF-SHAPES2 S1, S2; step 2): the six more shaped plain stat rigs and their switch.
-// - the switch: SHAPES2 ships off; off, nothing sees ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER or PICKAXE; on,
-//   they join ITEMS after every other def; withShapes2 puts it back; it works with PLAIN_RIGS off and on;
+// - the switch: SHAPES2 ships ON since bb-0.11.0 (BUMP-1D; it shipped off before: the off world is run explicitly, withShapes2(fn,
+//   false)); off, nothing sees ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER or PICKAXE; on, they join ITEMS after every
+//   other def; withShapes2 puts it back; it works with PLAIN_RIGS off and on (1D ships both: the PLAIN_RIGS-off world is explicit too);
 // - the defs: rarity, price, foot, merchant, the stat rows of a star (a star raises only the numbers), no ability line;
 // - cells and arrows of each rig at every rot (pictures), and the hits on fixtures: ELBOW GUARD at a belt's corner, SAW BAR
 //   along a straight run, SPARK COMB along a belt, CINDER HOOK round a bend, JAW CRUSHER between two belts two cells apart,
@@ -15,7 +16,7 @@ import { footBox, footOf, footOnDeck, footprintCells } from "../src/sim/foot";
 import { hitsIfPlaced } from "../src/sim/beltside";
 import { SHAPES2, SHAPES2_DEFS, SHAPES2_IDS, SHAPES2_PATCHES, isShapes2Piece, setShapes2, shapes2Rules, withShapes2 } from "../src/sim/shapes2";
 import { SHAPES_IDS, shapesRules, withShapes } from "../src/sim/shapes";
-import { withPlainRigs, PLAIN_RIG_IDS } from "../src/sim/plainRigs";
+import { withPlainRigs, PLAIN_RIG_IDS, PLAIN_RIGS, plainRigsRules } from "../src/sim/plainRigs";
 import { effectAt, fusible, valueOf } from "../src/sim/stars";
 import { lastChanceParts } from "../src/sim/lastChance";
 import { DRAW, drawWares } from "../src/game/wares";
@@ -23,55 +24,97 @@ import { SHAPES2_RULES, SHAPES_RULES, shapes2Features, shapes2GateProblem, shape
 import { inShapes2World, inShapesWorld, validateBuild, validateUpload } from "../src/net/validate";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 
-afterEach(() => setShapes2(SHAPES2)); // the shipped value (off); a test that needs it on sets it itself
+afterEach(() => setShapes2(SHAPES2)); // the shipped value (on since BUMP-1D); a test that needs it off sets it itself (withShapes2(fn, false))
 
 const SIX = ["elbowguard", "sawbar", "sparkcomb", "cinderhook", "jawcrusher", "pickaxe"];
 const ids = (l: { id: string }[]) => l.map((d) => d.id);
 
 describe("SHAPES-2 S1: the switch", () => {
-  it("ships off: nothing sees the six; the ids are the brief's, in order", () => {
-    expect(SHAPES2).toBe(false);
-    expect(shapes2Rules()).toBe(false);
+  // BUMP-1D: was "ships off: nothing sees the six" (SHAPES2 false). The release turns it on (with PLAIN_RIGS and LONG_RUN, bb-0.11.0),
+  // so the shipped world has the six and the old assertions run in the off world, explicitly (withShapes2(fn, false)).
+  it("ships on (BUMP-1D): the six are in the game; the ids are the brief's, in order; with the switch off nothing sees them", () => {
+    expect(SHAPES2).toBe(true); // BUMP-1D: was false
+    expect(shapes2Rules()).toBe(true); // BUMP-1D: was false
     expect(SHAPES2_IDS).toEqual(SIX);
     for (const id of SIX) {
-      expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(false);
-      expect(isShapes2Piece(id), id).toBe(true); // the predicate does not read the switch
+      expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true); // BUMP-1D: was false
+      expect(isShapes2Piece(id), id).toBe(true);
     }
+    expect(ids(buyableModules())).toContain("pickaxe"); // BUMP-1D: was not.toContain
+    // the old world (what this test measured as shipped): the switch off
+    withShapes2(() => {
+      expect(shapes2Rules()).toBe(false);
+      for (const id of SIX) {
+        expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(false);
+        expect(isShapes2Piece(id), id).toBe(true); // the predicate does not read the switch
+      }
+      expect(ids(buyableModules())).not.toContain("pickaxe");
+    }, false);
     expect(isShapes2Piece("nailstrip")).toBe(false);
     expect(isShapes2Piece("rasp")).toBe(false);
-    expect(ids(buyableModules())).not.toContain("pickaxe");
   });
 
   it("on: the six join ITEMS after every other def; off again: ITEMS as before; withShapes2 puts the switch back even on a throw", () => {
-    const keys0 = Object.keys(ITEMS);
+    // BUMP-1D: the six are in ITEMS at load (the switch ships on), so "ITEMS as before" is the switch-off world, measured explicitly
+    const keysOn = Object.keys(ITEMS);
+    const keys0 = withShapes2(() => Object.keys(ITEMS), false);
+    expect(keysOn.length).toBe(keys0.length + 6); // BUMP-1D: the six are the whole difference
+    expect(keysOn.filter((id) => !SIX.includes(id))).toEqual(keys0); // every other def, in the order it had
     withShapes2(() => {
-      expect(shapes2Rules()).toBe(true);
-      expect(Object.keys(ITEMS)).toEqual([...keys0, ...SIX]);
-      for (const id of SIX) expect(ITEMS[id], id).toBe(SHAPES2_DEFS[id]);
-    });
-    expect(shapes2Rules()).toBe(false);
-    expect(Object.keys(ITEMS)).toEqual(keys0);
-    expect(() => withShapes2(() => { throw new Error("x"); })).toThrow("x");
-    expect(shapes2Rules()).toBe(false);
-    expect(Object.keys(ITEMS)).toEqual(keys0);
-    setShapes2(false); // the state it has: nothing happens
-    expect(Object.keys(ITEMS)).toEqual(keys0);
-    // on inside, off again inside that
-    withShapes2(() => withShapes2(() => expect(Object.keys(ITEMS)).toEqual(keys0), false));
+      expect(shapes2Rules()).toBe(false);
+      expect(Object.keys(ITEMS)).toEqual(keys0);
+      withShapes2(() => {
+        expect(shapes2Rules()).toBe(true);
+        expect(Object.keys(ITEMS)).toEqual([...keys0, ...SIX]);
+        for (const id of SIX) expect(ITEMS[id], id).toBe(SHAPES2_DEFS[id]);
+      });
+      expect(shapes2Rules()).toBe(false);
+      expect(Object.keys(ITEMS)).toEqual(keys0);
+      expect(() => withShapes2(() => { throw new Error("x"); })).toThrow("x");
+      expect(shapes2Rules()).toBe(false);
+      expect(Object.keys(ITEMS)).toEqual(keys0);
+      setShapes2(false); // the state it has: nothing happens
+      expect(Object.keys(ITEMS)).toEqual(keys0);
+      // on inside, off again inside that
+      withShapes2(() => withShapes2(() => expect(Object.keys(ITEMS)).toEqual(keys0), false));
+    }, false);
+    // BUMP-1D: the shipped state (on) comes back after the off world, and after a throw out of it, the six after every other def
+    expect(shapes2Rules()).toBe(true);
+    expect(Object.keys(ITEMS)).toEqual([...keys0, ...SIX]);
+    expect(() => withShapes2(() => { throw new Error("x"); }, false)).toThrow("x");
+    expect(shapes2Rules()).toBe(true);
+    expect(Object.keys(ITEMS)).toEqual([...keys0, ...SIX]);
   });
 
   it("works with PLAIN_RIGS off and with both on (1D ships both): the 15 pieces are all there, in either order", () => {
-    withShapes2(() => {
-      for (const id of SIX) expect(ITEMS[id].name).toBeTruthy();
-      for (const id of PLAIN_RIG_IDS) expect(Object.prototype.hasOwnProperty.call(ITEMS, id)).toBe(false);
-      withPlainRigs(() => {
-        for (const id of [...SIX, ...PLAIN_RIG_IDS]) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
+    // BUMP-1D: both ship on; each world this test measured is made explicit. bothOff: the world before 1D, to turn them on in an order
+    const bothOff = <T>(fn: () => T): T => withShapes2(() => withPlainRigs(fn, false), false);
+    expect(PLAIN_RIGS).toBe(true); // BUMP-1D: 1D ships both
+    expect(plainRigsRules()).toBe(true);
+    for (const id of [...SIX, ...PLAIN_RIG_IDS]) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true); // the shipped world
+    // the six on, the plain rigs off
+    withPlainRigs(() => {
+      withShapes2(() => {
+        for (const id of SIX) expect(ITEMS[id].name).toBeTruthy();
+        for (const id of PLAIN_RIG_IDS) expect(Object.prototype.hasOwnProperty.call(ITEMS, id)).toBe(false);
+        withPlainRigs(() => {
+          for (const id of [...SIX, ...PLAIN_RIG_IDS]) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
+        });
       });
-    });
-    withPlainRigs(() => withShapes2(() => {
+    }, false);
+    // both on, in either order: the plain rigs first (the order this test pinned), then the six after them; and the six first
+    bothOff(() => withPlainRigs(() => withShapes2(() => {
       for (const id of [...SIX, ...PLAIN_RIG_IDS]) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
       expect(Object.keys(ITEMS).slice(-12)).toEqual([...PLAIN_RIG_IDS, ...SIX]);
-    }));
+    })));
+    bothOff(() => withShapes2(() => withPlainRigs(() => {
+      for (const id of [...SIX, ...PLAIN_RIG_IDS]) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
+      expect(Object.keys(ITEMS).slice(-12)).toEqual([...SIX, ...PLAIN_RIG_IDS]);
+    })));
+    // and the world before 1D has neither
+    bothOff(() => {
+      for (const id of [...SIX, ...PLAIN_RIG_IDS]) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(false);
+    });
   });
 });
 
@@ -112,7 +155,8 @@ describe("SHAPES-2 S1: the defs (BRIEF-SHAPES2's table)", () => {
         }
       }
       const row3 = (id: string) => [1, 2, 3].map((s) => effectAt(id, s).gate);
-      expect(row3("elbowguard")).toEqual([{ slugPlate: 8 }, { slugPlate: 16 }, { slugPlate: 28 }]); // step 6 (S6c): 2/4/7 was the brief's starting value
+      // step 6 (S6c): SHIELD 8/16/28 (2/4/7 was the brief's starting value); BUMP-1D P3 (T3): a DMG row 6/12/21 beside it (SCALE GUARD's form; was SHIELD alone)
+      expect(row3("elbowguard")).toEqual([{ slugPlate: 8, flat: 6 }, { slugPlate: 16, flat: 12 }, { slugPlate: 28, flat: 21 }]);
       expect(row3("sawbar")).toEqual([{ flat: 9 }, { flat: 18 }, { flat: 31 }]); // run 2 (S6c, then S6b's day-3 guard): 8/16/28 was the brief's starting value
       expect(row3("sparkcomb")).toEqual([{ stun: 1 }, { stun: 2 }, { stun: 3 }]);
       // run 2 (S6b): BRANDING IRON's form, the BURN comes with the first merge (the brief's starting BURN 1/2/3 was over the guard)
@@ -131,27 +175,39 @@ describe("SHAPES-2 run 2 (S6b, PLAIN-1F's section 10 call): NAIL STRIP's buff an
   const SPIKE_CUT = [{ flat: 8 }, { flat: 16 }, { flat: 28 }];
 
   it("off: SHAPES-1's 12/25/40 and 10/20/35 byte for byte (the live pieces); on: NAIL STRIP 16/33/53, SPIKE RAIL 8/16/28; off again: as they were", () => {
-    const before = [JSON.stringify(ITEMS.nailstrip), JSON.stringify(ITEMS.spikerail)];
-    expect(row("nailstrip")).toEqual(LIVE);
-    expect(row("spikerail")).toEqual(SPIKE_LIVE);
+    // BUMP-1D: SHAPES2 ships on, so the shipped pieces read the patched numbers; SHAPES-1's own numbers are the off world's, run explicitly
+    expect(row("nailstrip")).toEqual(BUFFED); // BUMP-1D: was LIVE (the switch shipped off)
+    expect(row("spikerail")).toEqual(SPIKE_CUT); // BUMP-1D: was SPIKE_LIVE
+    const patched = [JSON.stringify(ITEMS.nailstrip), JSON.stringify(ITEMS.spikerail)];
     withShapes2(() => {
-      expect(row("nailstrip")).toEqual(BUFFED);
-      expect(row("spikerail")).toEqual(SPIKE_CUT);
-      // nothing but the numbers: price, rarity, foot, merchant, tags and the empty ability line are SHAPES-1's
-      const d = ITEMS.nailstrip, s = ITEMS.spikerail;
-      expect([d.rarity, d.price, footOf(d), d.merchant, d.desc, d.tags]).toEqual(["common", 4, "I2", "alchemist", [], ["FORGE"]]);
-      expect([s.rarity, s.price, footOf(s), s.merchant, s.desc, s.tags]).toEqual(["rare", 6, "I3", "tinker", [], ["FORGE", "BURST"]]);
-      expect(SHAPES2_PATCHES.nailstrip.gate).toEqual({ flat: 16 });
-      expect(SHAPES2_PATCHES.spikerail.gate).toEqual({ flat: 8 });
-    });
-    expect(row("nailstrip")).toEqual(LIVE);
-    expect(row("spikerail")).toEqual(SPIKE_LIVE);
-    expect([JSON.stringify(ITEMS.nailstrip), JSON.stringify(ITEMS.spikerail)]).toEqual(before);
+      const before = [JSON.stringify(ITEMS.nailstrip), JSON.stringify(ITEMS.spikerail)];
+      expect(row("nailstrip")).toEqual(LIVE);
+      expect(row("spikerail")).toEqual(SPIKE_LIVE);
+      withShapes2(() => {
+        expect(row("nailstrip")).toEqual(BUFFED);
+        expect(row("spikerail")).toEqual(SPIKE_CUT);
+        // nothing but the numbers: price, rarity, foot, merchant, tags and the empty ability line are SHAPES-1's
+        const d = ITEMS.nailstrip, s = ITEMS.spikerail;
+        expect([d.rarity, d.price, footOf(d), d.merchant, d.desc, d.tags]).toEqual(["common", 4, "I2", "alchemist", [], ["FORGE"]]);
+        expect([s.rarity, s.price, footOf(s), s.merchant, s.desc, s.tags]).toEqual(["rare", 6, "I3", "tinker", [], ["FORGE", "BURST"]]);
+        expect(SHAPES2_PATCHES.nailstrip.gate).toEqual({ flat: 16 });
+        expect(SHAPES2_PATCHES.spikerail.gate).toEqual({ flat: 8 });
+        expect([JSON.stringify(ITEMS.nailstrip), JSON.stringify(ITEMS.spikerail)]).toEqual(patched);
+      });
+      expect(row("nailstrip")).toEqual(LIVE);
+      expect(row("spikerail")).toEqual(SPIKE_LIVE);
+      expect([JSON.stringify(ITEMS.nailstrip), JSON.stringify(ITEMS.spikerail)]).toEqual(before);
+    }, false);
+    // the shipped state (on) comes back with the patched numbers, byte for byte
+    expect(row("nailstrip")).toEqual(BUFFED);
+    expect(row("spikerail")).toEqual(SPIKE_CUT);
+    expect([JSON.stringify(ITEMS.nailstrip), JSON.stringify(ITEMS.spikerail)]).toEqual(patched);
   });
 
   it("only those two move: EMBER TROUGH and every older piece keep their numbers with SHAPES2 on", () => {
-    const keys = Object.keys(ITEMS).filter((id) => id !== "nailstrip" && id !== "spikerail");
-    const was = keys.map((id) => JSON.stringify(ITEMS[id]));
+    // BUMP-1D: SHAPES2 ships on, so the older pieces' numbers are read in the off world (the pieces as they were) and compared with the on world's
+    const keys = withShapes2(() => Object.keys(ITEMS).filter((id) => id !== "nailstrip" && id !== "spikerail"), false);
+    const was = withShapes2(() => keys.map((id) => JSON.stringify(ITEMS[id])), false);
     withShapes2(() => {
       expect(row("embertrough")).toEqual([{ burn: 1 }, { burn: 2 }, { burn: 3 }]);
       expect(Object.keys(SHAPES2_PATCHES)).toEqual(["nailstrip", "spikerail"]);
@@ -165,14 +221,23 @@ describe("SHAPES-2 run 2 (S6b, PLAIN-1F's section 10 call): NAIL STRIP's buff an
       expect(shapesRules()).toBe(true);
       expect(row("nailstrip")).toEqual(BUFFED);
     });
-    expect(row("nailstrip")).toEqual(LIVE);
+    // BUMP-1D: SHAPES2 ships on, so after the toggle the patch stands; the off world (LIVE numbers) is explicit
+    expect(row("nailstrip")).toEqual(BUFFED);
+    withShapes2(() => expect(row("nailstrip")).toEqual(LIVE), false);
     // and the validator's order (SHAPES2 off before SHAPES goes off, back in the reverse order) keeps both
     inShapesWorld("bb-0.9.7", () => expect(Object.prototype.hasOwnProperty.call(ITEMS, "nailstrip")).toBe(false));
+    expect(row("nailstrip")).toEqual(BUFFED); // BUMP-1D: the shipped state (on) comes back with its patch
     withShapes2(() => inShapesWorld("bb-0.9.7", () => {
       expect(Object.prototype.hasOwnProperty.call(ITEMS, "nailstrip")).toBe(false);
     }));
     withShapes2(() => expect(row("nailstrip")).toEqual(BUFFED));
-    expect(row("nailstrip")).toEqual(LIVE);
+    expect(row("nailstrip")).toEqual(BUFFED);
+    // the same round trip from the off world: both come back off, and the patch is not applied
+    withShapes2(() => {
+      inShapesWorld("bb-0.9.7", () => expect(Object.prototype.hasOwnProperty.call(ITEMS, "nailstrip")).toBe(false));
+      expect(row("nailstrip")).toEqual(LIVE);
+    }, false);
+    expect(row("nailstrip")).toEqual(BUFFED);
   });
 });
 
@@ -393,33 +458,45 @@ describe("SHAPES-2 S2: the hits on fixtures (rule set B, R2)", () => {
 
 describe("SHAPES-2 S3: the pools, in both switch states", () => {
   it("off: no pool, merchant or LAST CHANCE card sees the six; on: each is in its rarity's catalogue and its merchant's stock", () => {
-    const off = ids(buyableModules());
-    const lcOff = ids(lastChanceParts());
-    const byMerchant = (m: MerchantId) => ids(itemsSoldBy(m));
-    const stockOff = Object.fromEntries((["ironmonger", "tinker", "alchemist", "gunsmith", "scrapper", "quartermaster", "arcane"] as MerchantId[]).map((m) => [m, byMerchant(m)]));
-    for (const id of SIX) expect(off, id).not.toContain(id);
+    // BUMP-1D: SHAPES2 ships on; the off world (what this test measured as shipped) is run explicitly, the shipped one checked after it
     withShapes2(() => {
-      const on = buyableModules();
-      expect(ids(on)).toEqual([...off, ...SIX]);
-      expect(on.filter((d) => SIX.includes(d.id)).map((d) => [d.id, d.rarity, d.kind])).toEqual([
-        ["elbowguard", "common", "gate"], ["sawbar", "common", "gate"], ["sparkcomb", "common", "gate"],
-        ["cinderhook", "rare", "gate"], ["jawcrusher", "rare", "gate"], ["pickaxe", "epic", "gate"],
-      ]);
-      for (const id of SIX) expect(byMerchant(ITEMS[id].merchant!), id).toContain(id);
-      // every merchant's stock grows by exactly its own rigs
-      for (const [m, list] of Object.entries(stockOff)) {
-        const mine = SIX.filter((id) => ITEMS[id].merchant === m);
-        expect(byMerchant(m as MerchantId), m).toEqual([...list, ...mine]);
-      }
-      // PICKAXE is an epic rig: LAST CHANCE draws an epic part evenly from the catalogue, so it joins that list (and nothing else does)
-      expect(ids(lastChanceParts())).toEqual([...lcOff, "pickaxe"]);
-    });
-    expect(ids(buyableModules())).toEqual(off);
-    expect(ids(lastChanceParts())).toEqual(lcOff);
+      const off = ids(buyableModules());
+      const lcOff = ids(lastChanceParts());
+      const byMerchant = (m: MerchantId) => ids(itemsSoldBy(m));
+      const stockOff = Object.fromEntries((["ironmonger", "tinker", "alchemist", "gunsmith", "scrapper", "quartermaster", "arcane"] as MerchantId[]).map((m) => [m, byMerchant(m)]));
+      for (const id of SIX) expect(off, id).not.toContain(id);
+      withShapes2(() => {
+        const on = buyableModules();
+        expect(ids(on)).toEqual([...off, ...SIX]);
+        expect(on.filter((d) => SIX.includes(d.id)).map((d) => [d.id, d.rarity, d.kind])).toEqual([
+          ["elbowguard", "common", "gate"], ["sawbar", "common", "gate"], ["sparkcomb", "common", "gate"],
+          ["cinderhook", "rare", "gate"], ["jawcrusher", "rare", "gate"], ["pickaxe", "epic", "gate"],
+        ]);
+        for (const id of SIX) expect(byMerchant(ITEMS[id].merchant!), id).toContain(id);
+        // every merchant's stock grows by exactly its own rigs
+        for (const [m, list] of Object.entries(stockOff)) {
+          const mine = SIX.filter((id) => ITEMS[id].merchant === m);
+          expect(byMerchant(m as MerchantId), m).toEqual([...list, ...mine]);
+        }
+        // PICKAXE is an epic rig: LAST CHANCE draws an epic part evenly from the catalogue, so it joins that list (and nothing else does)
+        expect(ids(lastChanceParts())).toEqual([...lcOff, "pickaxe"]);
+      });
+      expect(ids(buyableModules())).toEqual(off);
+      expect(ids(lastChanceParts())).toEqual(lcOff);
+    }, false);
+    // BUMP-1D: the shipped world has the six in every pool
+    for (const id of SIX) {
+      expect(ids(buyableModules()), id).toContain(id);
+      expect(ids(itemsSoldBy(ITEMS[id].merchant!)), id).toContain(id);
+    }
+    expect(ids(lastChanceParts())).toContain("pickaxe");
   });
 
   it("with SHAPES2 on the catalogue grows by six (and by twelve with PLAIN_RIGS on too); the per-run draw stays DRAW.active (REQ-BFG-022)", () => {
-    const n0 = buyableModules().length;
+    // BUMP-1D: both ship on, so the catalogue before the twelve (n0) is measured with both off, explicitly. Measured at BUMP-1D (bb-0.11.0):
+    // 91 buyable parts before the twelve, 97 with the six shaped rigs, 103 with both (the shipped catalogue)
+    const n0 = withShapes2(() => withPlainRigs(() => buyableModules().length, false), false);
+    expect(n0).toBe(91);
     const sizes = (runs: number) => {
       let total = 0, min = 99, max = 0;
       for (let s = 1; s <= runs; s++) {
@@ -428,15 +505,18 @@ describe("SHAPES-2 S3: the pools, in both switch states", () => {
       }
       return { mean: total / runs, min, max };
     };
-    const off = sizes(120);
-    const on = withShapes2(() => {
+    const off = withShapes2(() => withPlainRigs(() => sizes(120), false), false);
+    const on = withPlainRigs(() => withShapes2(() => {
       expect(buyableModules().length).toBe(n0 + 6);
       return sizes(120);
-    });
+    }), false);
     const both = withPlainRigs(() => withShapes2(() => {
       expect(buyableModules().length).toBe(n0 + 12);
       return sizes(120);
     }));
+    // BUMP-1D: and the shipped catalogue is n0 + 12 = 103 buyable parts (both ship on)
+    expect(buyableModules().length).toBe(n0 + 12);
+    expect(buyableModules().length).toBe(103);
     console.log(`SHAPES-2 POOL draw off ${JSON.stringify(off)} on ${JSON.stringify(on)} both ${JSON.stringify(both)} (catalogue ${n0})`);
     for (const s of [off, on, both]) {
       expect(s.mean).toBeGreaterThanOrEqual(DRAW.active);
@@ -481,25 +561,37 @@ describe("SHAPES-2 S1: SHAPES2_RULES and the validator's verdicts", () => {
   const deckWith = (def: string) => ({ items: [{ uid: 1, def, x: 0, y: 1 }] });
 
   it("SHAPES2_RULES is today's rules written as a literal (BUMP-1D writes 1D's); SHAPES_RULES's form", () => {
-    expect(SHAPES2_RULES).toBe("bb-0.10.0");
+    // BUMP-1D: SHAPES2_RULES is 1D's bb-0.11.0 (was bb-0.10.0 = RULES_VERSION = SHAPES_RULES); SHAPES_RULES stays SHAPES-1's literal
+    expect(SHAPES2_RULES).toBe("bb-0.11.0");
     expect(SHAPES2_RULES).toBe(RULES_VERSION);
-    expect(SHAPES2_RULES).toBe(SHAPES_RULES);
+    expect(SHAPES_RULES).toBe("bb-0.10.0");
+    expect(SHAPES2_RULES).not.toBe(SHAPES_RULES);
   });
 
   it("the six travel only with SHAPES2 on and under rules that have them (shapes2GateProblem, shapes2World)", () => {
     const d = deckWith("pickaxe");
-    expect(shapes2Features(d)).toEqual(["shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE)"]);
+    const SIX_WORDS = "shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE)";
+    expect(shapes2Features(d)).toEqual([SIX_WORDS]);
     expect(shapes2Features(deckWith("nailstrip"))).toEqual([]); // SHAPES-1's three are SHAPES_RULES' business
     expect(shapes2Features({ items: [] })).toEqual([]);
     expect(shapes2Features(null)).toEqual([]);
-    expect(shapes2GateProblem(RULES_VERSION, d)).toBe("shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE): not in this rules version yet");
-    expect(shapes2GateProblem(RULES_VERSION, { items: [] })).toBeNull();
+    // BUMP-1D: SHAPES2 ships on; the switch-off verdicts (what this test measured as shipped) run in the off world, explicitly
+    withShapes2(() => {
+      expect(shapes2GateProblem(RULES_VERSION, d)).toBe(`${SIX_WORDS}: not in this rules version yet`);
+      expect(shapes2GateProblem(RULES_VERSION, { items: [] })).toBeNull();
+    }, false);
+    // BUMP-1D: the shipped world takes the six under this build's rules and refuses them under the ones before (bb-0.10.0 is the new edge)
+    expect(shapes2GateProblem(RULES_VERSION, d)).toBeNull();
+    expect(shapes2GateProblem("bb-0.10.0", d)).toBe(`rules bb-0.10.0 predate ${SHAPES2_RULES}: ${SIX_WORDS} need ${SHAPES2_RULES} or later`);
+    expect([shapes2World(RULES_VERSION), shapes2World("bb-0.10.0")]).toEqual([true, false]);
     withShapes2(() => {
       expect(shapes2GateProblem(RULES_VERSION, d)).toBeNull();
       expect(shapes2GateProblem("bb-0.9.7", d)).toBe(`rules bb-0.9.7 predate ${SHAPES2_RULES}: shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE) need ${SHAPES2_RULES} or later`);
+      expect(shapes2GateProblem("bb-0.10.0", d)).toBe(`rules bb-0.10.0 predate ${SHAPES2_RULES}: ${SIX_WORDS} need ${SHAPES2_RULES} or later`);
       expect(shapes2GateProblem("nonsense", d)).toContain("is not a bb-MAJOR.MINOR.PATCH version");
-      expect([shapes2World(RULES_VERSION), shapes2World("bb-0.9.7"), shapes2World("nonsense")]).toEqual([true, false, false]);
+      expect([shapes2World(RULES_VERSION), shapes2World("bb-0.10.0"), shapes2World("bb-0.9.7"), shapes2World("nonsense")]).toEqual([true, false, false, false]);
       expect(inShapes2World("bb-0.9.7", () => shapes2Rules())).toBe(false);
+      expect(inShapes2World("bb-0.10.0", () => shapes2Rules())).toBe(false); // BUMP-1D: a bb-0.10.0 record is judged without the six
       expect(inShapes2World(RULES_VERSION, () => shapes2Rules())).toBe(true);
       expect(shapes2Rules()).toBe(true);
       // inShapesWorld: a record from before SHAPES_RULES is judged in 0.9.9's world, SHAPES and SHAPES2 both off (and back on after)
@@ -515,17 +607,23 @@ describe("SHAPES-2 S1: SHAPES2_RULES and the validator's verdicts", () => {
     const start = withShapes2(() => heroStartBuild("furnace", 1)); // the hero's starting deck: a kiln at 4,6 and its belt
     const mk = (def: string, x: number, y: number, rot = 0): Build => ({ ...start, items: [...start.items, { uid: 900, def, x, y, ...(rot ? { rot } : {}) }] });
     const holding = mk("pickaxe", 0, 1);
-    // off: refused first by the rules gate, whatever the rules
-    for (const rules of [RULES_VERSION, "bb-0.9.7"]) {
-      const off = validateUpload(holding, 3, rules);
-      expect(off.ok).toBe(false);
-      expect(off.errors[0]).toBe("rules: shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE): not in this rules version yet");
-    }
+    // off: refused first by the rules gate, whatever the rules (BUMP-1D: SHAPES2 ships on, so the off world is explicit)
+    withShapes2(() => {
+      for (const rules of [RULES_VERSION, "bb-0.10.0", "bb-0.9.7"]) {
+        const off = validateUpload(holding, 3, rules);
+        expect(off.ok).toBe(false);
+        expect(off.errors[0]).toBe("rules: shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE): not in this rules version yet");
+      }
+    }, false);
     withShapes2(() => {
       // on, under older rules: refused with both versions named
       const old = validateUpload(holding, 3, "bb-0.9.7");
       expect(old.ok).toBe(false);
       expect(old.errors[0]).toBe(`rules: rules bb-0.9.7 predate ${SHAPES2_RULES}: shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE) need ${SHAPES2_RULES} or later`);
+      // BUMP-1D: and under the last release's rules (bb-0.10.0), which had no six
+      const prev = validateUpload(holding, 3, "bb-0.10.0");
+      expect(prev.ok).toBe(false);
+      expect(prev.errors[0]).toBe(`rules: rules bb-0.10.0 predate ${SHAPES2_RULES}: shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE) need ${SHAPES2_RULES} or later`);
       // on, under this build's rules: the gate says nothing (the deck stops at the rune check, a later rule: none held on day 3)
       const ok = validateUpload(holding, 3, RULES_VERSION);
       expect(ok.errors.some((e) => e.startsWith("rules:"))).toBe(false);

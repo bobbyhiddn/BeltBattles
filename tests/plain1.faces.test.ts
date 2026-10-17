@@ -34,7 +34,7 @@ const plain = (s: string): string => [...s].map((ch) => (ch.charCodeAt(0) >= ICO
 
 describe("P4: the interim faces", () => {
   it("off, none has a face; on, each draws its stat row as the table reads it and no ability line", () => {
-    for (const id of PLAIN_RIG_IDS) expect(hasFace(id), id).toBe(false);
+    withPlainRigs(() => { for (const id of PLAIN_RIG_IDS) expect(hasFace(id), id).toBe(false); }, false); // BUMP-1D: PLAIN_RIGS ships on, so the off world is explicit
     const want: Record<string, string[]> = {
       rasp: ["[DMG]+8 [BURN]+1", "[DMG]+16 [BURN]+2", "[DMG]+28 [BURN]+3"], // SHAPES-2 run 2: DMG 10/20/35 -> 8/16/28
       sparkgap: ["[STUN]+1", "[STUN]+2", "[STUN]+3"],
@@ -104,7 +104,8 @@ describe("PLAIN-1F (M3): the final faces", () => {
       expect(plain(cardEffect("ballast"))).toBe("MAX ♥+8%");
     });
     // every buyable piece with or without the six: cardEffect is its cardText where it has one (WHETSTONE's "ADDS 20 DAMAGE.")
-    for (const d of buyableModules()) if (cardText(d.id)) expect(cardEffect(d.id), d.id).toBe(cardText(d.id));
+    // BUMP-1D: PLAIN_RIGS ships on, so "without the six" is the off world, explicit (the loop ran there as shipped)
+    for (const six of [false, true]) withPlainRigs(() => { for (const d of buyableModules()) if (cardText(d.id)) expect(cardEffect(d.id), d.id).toBe(cardText(d.id)); }, six);
     expect(cardEffect("whetstone")).toBe("ADDS 20 DAMAGE.");
     console.log(`PLAIN1F desk cards: ${out.join("; ")}`);
   });
@@ -135,12 +136,15 @@ describe("PLAIN-1F (M3): the final faces", () => {
 
   it("the SHIELD family's line names MAX ♥ while BALLAST is in it (PLAIN_RIGS on); off, the line is the base's", () => {
     const base = "SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
-    expect(familyNote("PLATE")).toBe(base);
+    const withBallast = "SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX {HULL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
+    // BUMP-1D: PLAIN_RIGS ships on, so the off world (the base's line) is explicit and the shipped line is the one with MAX ♥
+    withPlainRigs(() => expect(familyNote("PLATE")).toBe(base), false);
+    expect(familyNote("PLATE")).toBe(withBallast);
     on(() => {
       expect(familiesOf("ballast")).toEqual(["PLATE"]); // the tag stays (tools/luckReport.ts and tools/wave3.ts read tags)
-      expect(familyNote("PLATE")).toBe("SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX {HULL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.");
+      expect(familyNote("PLATE")).toBe(withBallast);
     });
-    expect(familyNote("PLATE")).toBe(base);
+    withPlainRigs(() => expect(familyNote("PLATE")).toBe(base), false);
   });
 });
 

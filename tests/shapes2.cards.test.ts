@@ -35,6 +35,8 @@ const NAME_OF = new Map<string, string>(Object.entries(ICON).map(([k, v]) => [v 
 const plain = (s: string): string => [...s].map((ch) => (ch.charCodeAt(0) >= ICON_BASE && NAME_OF.has(ch) ? `[${NAME_OF.get(ch)}]` : ch)).join("");
 const texts = (bs: { text: string }[]) => bs.map((b) => b.text);
 const on = <T>(fn: () => T): T => withPlainRigs(() => withShapes2(fn)); // 1D ships both
+/** BUMP-1D: both ship on, so the world these tests measured as shipped (SHAPES2 and PLAIN_RIGS off) is run explicitly. */
+const off = <T>(fn: () => T): T => withShapes2(() => withPlainRigs(fn, false), false);
 
 function furnace(items: Run["build"]["items"] = [], cargo: string[] = []): Run {
   const run = newRun("furnace", 5, "shapes2c");
@@ -44,7 +46,7 @@ function furnace(items: Run["build"]["items"] = [], cargo: string[] = []): Run {
 }
 
 const WANT: Record<string, { rows: string[]; hits: number; kind: string }> = {
-  elbowguard: { rows: ["[PLATE]+8", "[PLATE]+16", "[PLATE]+28"], hits: 2, kind: "COMMON RIG · 3 CELLS" }, // step 6: SHIELD 8/16/28 (was 2/4/7)
+  elbowguard: { rows: ["[PLATE]+8 [DMG]+6", "[PLATE]+16 [DMG]+12", "[PLATE]+28 [DMG]+21"], hits: 2, kind: "COMMON RIG · 3 CELLS" }, // step 6: SHIELD 8/16/28 (was 2/4/7); BUMP-1D P3 (T3): and a DMG row 6/12/21 beside it (was the SHIELD alone)
   sawbar: { rows: ["[DMG]+9", "[DMG]+18", "[DMG]+31"], hits: 3, kind: "COMMON RIG · 3 CELLS" }, // run 2 (S6c, S6b): 8/16/28 was the brief's starting value
   sparkcomb: { rows: ["[STUN]+1", "[STUN]+2", "[STUN]+3"], hits: 2, kind: "COMMON RIG · 2 CELLS" },
   cinderhook: { rows: ["[DMG]+10", "[DMG]+20 [BURN]+1", "[DMG]+35 [BURN]+2"], hits: 4, kind: "RARE RIG · 3 CELLS" }, // run 2 (S6b): the BURN from ★2 (BRANDING IRON's form); [BURN]+1/+2/+3 was the brief's
@@ -54,15 +56,18 @@ const WANT: Record<string, { rows: string[]; hits: number; kind: string }> = {
 
 describe("SHAPES-2 S5: the six faces", () => {
   it("off, none has a face, a line, a note or a type line; on, each draws its stat row as the table reads it and no ability line", () => {
-    for (const id of SHAPES2_IDS) {
-      expect(hasFace(id), id).toBe(false);
-      expect(isPlainRig(id), id).toBe(false);
-      expect(shapeLines(id), id).toEqual([]);
-      expect(shapeNotes(id), id).toEqual([]);
-      expect(shapeWord(id), id).toBeNull();
-      expect(plainNotes(id), id).toEqual([]);
-      expect(faceAt(id, 1), id).toBeNull();
-    }
+    // BUMP-1D: SHAPES2 and PLAIN_RIGS ship on, so the off half runs in the off world, explicitly (it ran with the shipped state)
+    off(() => {
+      for (const id of SHAPES2_IDS) {
+        expect(hasFace(id), id).toBe(false);
+        expect(isPlainRig(id), id).toBe(false);
+        expect(shapeLines(id), id).toEqual([]);
+        expect(shapeNotes(id), id).toEqual([]);
+        expect(shapeWord(id), id).toBeNull();
+        expect(plainNotes(id), id).toEqual([]);
+        expect(faceAt(id, 1), id).toBeNull();
+      }
+    });
     on(() => {
       for (const id of SHAPES2_IDS) {
         expect(hasFace(id) && isPlainRig(id), id).toBe(true);
@@ -119,7 +124,7 @@ describe("SHAPES-2 S5: the six faces", () => {
   });
 
   it("with SHAPES2 on every shaped rig reads one rule (SHAPE_RULE_ANY); with it off SHAPES-1's SHAPE_RULE stands, byte for byte", () => {
-    expect(shapeNotes("nailstrip")).toEqual([SHAPE_RULE]);
+    off(() => expect(shapeNotes("nailstrip")).toEqual([SHAPE_RULE])); // BUMP-1D: SHAPES2 ships on, so the off world is explicit
     expect(SHAPE_RULE).toBe("A LONG RIG'S ARROWS SHINE FROM EVERY OUTSIDE EDGE OF ITS CELLS.");
     on(() => {
       expect(shapeNotes("nailstrip")).toEqual([SHAPE_RULE_ANY]);
@@ -167,7 +172,7 @@ describe("SHAPES-2 S5: fit, spacing and words", () => {
       for (const id of SHAPES2_IDS) strings.push(kindLine(ITEMS[id]), ...[1, 2, 3].flatMap((s) => shapeLines(id, s).map((r) => r.text)));
       for (const t of strings) expect(/\b(PLATE|PLATES|PLATED|PLATING|SHIELD)\b/.test(t.replace(/\{\*?[A-Z]+\}/g, "")), `"${t}"`).toBe(false);
       // ELBOW GUARD's face says its SHIELD through the icon, and its reminder is the shared one (written with the {*PLATE} token)
-      expect(plain(faceLines("elbowguard", 1)!.stats!)).toBe("[PLATE]+8");
+      expect(plain(faceLines("elbowguard", 1)!.stats!)).toBe("[PLATE]+8 [DMG]+6"); // BUMP-1D P3 (T3): the DMG row beside it (was "[PLATE]+8")
       expect(REMINDER.PLATE()).toContain("{*PLATE}");
       expect(faceLines("elbowguard", 1)!.reminders).toHaveLength(1);
     });

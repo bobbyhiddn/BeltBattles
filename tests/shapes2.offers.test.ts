@@ -49,15 +49,21 @@ describe("SHAPES-2 S3: the lever (the per-run draw keeps shaped rigs in stock)",
   });
 
   it("off: the draw is exactly what it was, whatever the lever says", () => {
+    // BUMP-1D: SHAPES2 and PLAIN_RIGS ship on, so the off worlds this test measured are run explicitly: SHAPES2 off with PLAIN_RIGS
+    // off (the world before 1D), and SHAPES2 off with PLAIN_RIGS on (1D's plain rigs without the six)
     const draws = (k: number) => {
       SHAPES2_ODDS.minStock = k;
       return Array.from({ length: 150 }, (_, i) => JSON.stringify(drawWares(i + 1)));
     };
-    const base = draws(0);
-    expect(draws(9)).toEqual(base);
-    expect(draws(7)).toEqual(base);
-    // and the shipped world (PLAIN_RIGS on, SHAPES2 off) the same
-    withPlainRigs(() => expect(draws(9)).toEqual(draws(0)));
+    withShapes2(() => {
+      withPlainRigs(() => {
+        const base = draws(0);
+        expect(draws(9)).toEqual(base);
+        expect(draws(7)).toEqual(base);
+      }, false);
+      // and with PLAIN_RIGS on (SHAPES2 off) the same
+      withPlainRigs(() => expect(draws(9)).toEqual(draws(0)));
+    }, false);
   });
 
   it("on: every run holds at least 7 shaped rigs, the draw keeps its size and each merchant's and rarity's share", () => {
@@ -110,7 +116,7 @@ describe("SHAPES-2 S3: the lever (the per-run draw keeps shaped rigs in stock)",
         }
         return { min, max, day1 };
       });
-      const r = plain ? withPlainRigs(run) : run();
+      const r = withPlainRigs(run, plain); // BUMP-1D: PLAIN_RIGS ships on, so the "off" iteration sets it off explicitly (it ran with the shipped state)
       expect(r.min, `plain ${plain}`).toBeGreaterThanOrEqual(55);
       expect(r.min).toBeGreaterThanOrEqual(DRAW.active);
       expect(r.max).toBeLessThanOrEqual(70);
@@ -132,12 +138,14 @@ describe("SHAPES-2 S3: the bar (REQ-BFG-114 (2)) on the game's own rollShop", ()
           expect(ge5, `${hero} share with 5+`).toBeGreaterThanOrEqual(0.75);
         }
       });
-      if (plain) withPlainRigs(go); else go();
+      withPlainRigs(go, plain); // BUMP-1D: PLAIN_RIGS ships on, so the "off" iteration sets it off explicitly (it ran with the shipped state)
     }, 60_000);
   }
 
-  it("off (the shipped world), a run sees about two: the case this lever is for", () => {
-    const totals = Array.from({ length: 100 }, (_, i) => shapedCount(shops("furnace", i + 1)));
+  // BUMP-1D: was "off (the shipped world)": SHAPES2 ships on now, so the world where it is off (and PLAIN_RIGS with it, as this was
+  // measured) is run explicitly
+  it("off (the world before 1D), a run sees about two: the case this lever is for", () => {
+    const totals = withShapes2(() => withPlainRigs(() => Array.from({ length: 100 }, (_, i) => shapedCount(shops("furnace", i + 1))), false), false);
     expect(pct(totals, 0.5)).toBeLessThanOrEqual(3);
     expect(totals.filter((t) => t >= 5).length / 100).toBeLessThan(0.25);
   });

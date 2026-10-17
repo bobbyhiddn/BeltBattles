@@ -1,4 +1,5 @@
-// PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 step 2, cap's rulings P1-P3): the six plain stat rigs behind PLAIN_RIGS (off).
+// PLAIN-1 (REQ-BFG-084; BRIEF-PLAIN1 step 2, cap's rulings P1-P3): the six plain stat rigs behind PLAIN_RIGS (ON since bb-0.11.0:
+// BUMP-1D turned it on with SHAPES2 and LONG_RUN; the off world is run explicitly, withPlainRigs(fn, false)).
 // Off: nothing sees them, and the pools and offers are the base's (a digest measured at plain1-base 8e90083). On: the
 // shared pool with the commons in day 1's; merging and selling as any rig; one hit per arrow on a belt tile; SPARK GAP's
 // STUN seconds; BALLAST's max hull (and its IDLE case); SCALE GUARD's slug PLATE reaching the ship at the gun.
@@ -14,16 +15,20 @@ import { newRun } from "../src/game/run";
 import { gainModule } from "../src/game/fuse";
 import { overclocked } from "../src/sim/overclock";
 import { PLAIN_DEFS, PLAIN_RIGS, PLAIN_RIG_IDS, isPlainRig, plainRigsRules, setPlainRigs, withPlainRigs } from "../src/sim/plainRigs";
+import { withShapes2 } from "../src/sim/shapes2";
 import { K, SEED, barge, furnaceBench, item, withItem } from "./wave3.helpers";
 import { pastTilePlain, poolDigest } from "./plain1.helpers";
 
 /** poolDigest() at plain1-base 8e90083 (tests/plain1.helpers.ts run on a git-archive export of the base, 2026-10-10) was
  *  c238f90eb95f479c. PLAIN-1F (M1): re-pinned by cause, the base moved to c099 (SHAPES-1's catalogue and every other
  *  c099 change to the catalogue, the pools and the first shops): poolDigest() at plain1f-base fe799f6 (c099-cntday2), the
- *  same helper run on a git-archive export of it, 2026-10-13. */
+ *  same helper run on a git-archive export of it, 2026-10-13. BUMP-1D: the digest of that world, which has neither PLAIN_RIGS'
+ *  six nor SHAPES2's: read here with both off (`off` below), since the release ships both on. */
 const BASE_POOL_DIGEST = "8fa1ab05b542bcd7";
 
 const on = <T>(fn: () => T): T => withPlainRigs(fn);
+/** BUMP-1D: both switches ship on; the world these tests measured as shipped (and the digest's world) has PLAIN_RIGS and SHAPES2 off. */
+const off = <T>(fn: () => T): T => withShapes2(() => withPlainRigs(fn, false), false);
 /** FURNACE's bench with one more belt-side item. */
 const bench = (...more: ReturnType<typeof item>[]): Build => more.reduce((b, p) => withItem(b, p), furnaceBench());
 // PLAIN-1F (M1): `wins` is Battle's readonly [number, number] (it was already at plain1-base); undefined reads as the 0
@@ -31,33 +36,53 @@ const bench = (...more: ReturnType<typeof item>[]): Build => more.reduce((b, p) 
 const maxHull = (b: Build, day?: number): number => new Battle(b, barge(), SEED, undefined, day).sides[0].hull.max;
 
 describe("PLAIN_RIGS off (P1): nothing sees the six", () => {
-  it("the switch is declared off, as the base declares NPC_DAY, HULL_SCALE and LADDER_FIX", () => {
-    expect(PLAIN_RIGS).toBe(false);
-    expect(plainRigsRules()).toBe(false);
+  // BUMP-1D: was "the switch is declared off, as the base declares NPC_DAY, HULL_SCALE and LADDER_FIX": it is declared ON now,
+  // as those three are since the hull release; the off world is run explicitly
+  it("the switch is declared ON since BUMP-1D (bb-0.11.0), as the base declares NPC_DAY, HULL_SCALE and LADDER_FIX", () => {
+    expect(PLAIN_RIGS).toBe(true); // BUMP-1D: was false
+    expect(plainRigsRules()).toBe(true); // BUMP-1D: was false
     expect(PLAIN_RIG_IDS).toEqual(["rasp", "sparkgap", "scaleguard", "ballast", "grindstone", "brandingiron"]);
     for (const id of PLAIN_RIG_IDS) {
-      expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true); // BUMP-1D: was false
       expect(isPlainRig(id)).toBe(true);
     }
-    expect(buyableModules().some((d) => isPlainRig(d.id))).toBe(false);
+    expect(buyableModules().some((d) => isPlainRig(d.id))).toBe(true); // BUMP-1D: was false
+    // the old world, explicitly (PLAIN_RIGS off): nothing sees the six
+    withPlainRigs(() => {
+      expect(plainRigsRules()).toBe(false);
+      for (const id of PLAIN_RIG_IDS) {
+        expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(false);
+        expect(isPlainRig(id)).toBe(true);
+      }
+      expect(buyableModules().some((d) => isPlainRig(d.id))).toBe(false);
+    }, false);
   });
 
   it("the catalogue, the pool, every merchant's stock, the per-run draw and the first caravans equal the base's", () => {
-    expect(poolDigest()).toBe(BASE_POOL_DIGEST);
+    // BUMP-1D: with PLAIN_RIGS and SHAPES2 off (the base's world, which had neither); the shipped world's digest is another
+    expect(off(() => poolDigest())).toBe(BASE_POOL_DIGEST);
+    expect(poolDigest()).not.toBe(BASE_POOL_DIGEST);
   });
 
   it("a switch put back after a throw (withPlainRigs) leaves the catalogue as it was", () => {
-    expect(() => withPlainRigs(() => { throw new Error("x"); })).toThrow("x");
-    expect(plainRigsRules()).toBe(false);
-    expect(PLAIN_RIG_IDS.some((id) => id in ITEMS)).toBe(false);
-    expect(poolDigest()).toBe(BASE_POOL_DIGEST);
+    // BUMP-1D: the shipped state is on, so the throw comes out of the other state (off), and the old direction (out of on, from off) is kept
+    expect(() => withPlainRigs(() => { throw new Error("x"); }, false)).toThrow("x");
+    expect(plainRigsRules()).toBe(true);
+    expect(PLAIN_RIG_IDS.every((id) => id in ITEMS)).toBe(true);
+    off(() => {
+      expect(() => withPlainRigs(() => { throw new Error("x"); })).toThrow("x");
+      expect(plainRigsRules()).toBe(false);
+      expect(PLAIN_RIG_IDS.some((id) => id in ITEMS)).toBe(false);
+      expect(poolDigest()).toBe(BASE_POOL_DIGEST);
+    });
+    expect(plainRigsRules()).toBe(true);
   });
 });
 
 describe("PLAIN_RIGS on (P1): the six join the shared pool like any rig of their rarity", () => {
   it("the defs: one cell, rigs, the table's rarity, price and arrows", () => on(() => {
     const want: Record<string, [string, number, number]> = {
-      rasp: ["common", 3, 1], sparkgap: ["common", 3, 1], scaleguard: ["common", 3, 1], ballast: ["common", 3, 1],
+      rasp: ["common", 4, 1], sparkgap: ["common", 3, 1], scaleguard: ["common", 3, 1], ballast: ["common", 3, 1], // BUMP-1D P3 (T4): RASP 3 -> 4 G
       grindstone: ["rare", 5, 2], brandingiron: ["rare", 5, 2],
     };
     for (const id of PLAIN_RIG_IDS) {
@@ -68,37 +93,47 @@ describe("PLAIN_RIGS on (P1): the six join the shared pool like any rig of their
     expect(rigArrows("grindstone")).toEqual([1, 3]); // II: left and right
     expect(rigArrows("brandingiron")).toEqual([0, 1]); // L: forward and right
     expect(rigArrows("rasp")).toEqual([0]); // I: forward
-    // after every base def: the catalogue's order is the base's, then the six
-    expect(Object.keys(ITEMS).slice(-6)).toEqual([...PLAIN_RIG_IDS]);
+    // after every base def: the catalogue's order is the base's, then the six (BUMP-1D: the base is the world with the switch off, SHAPES2 too)
+    const base = off(() => Object.keys(ITEMS));
+    off(() => on(() => expect(Object.keys(ITEMS)).toEqual([...base, ...PLAIN_RIG_IDS])));
   }));
 
   it("the pool holds the base's buyable parts plus the six, and every merchant still stocks its base parts", () => {
-    const base = buyableModules().map((d) => d.id);
-    const withSix = on(() => buyableModules().map((d) => d.id));
+    // BUMP-1D: the base's buyable parts are the world with PLAIN_RIGS and SHAPES2 off (the release ships both on)
+    const base = off(() => buyableModules().map((d) => d.id));
+    const withSix = off(() => on(() => buyableModules().map((d) => d.id)));
     expect(withSix).toEqual([...base, ...PLAIN_RIG_IDS]);
+    for (const id of PLAIN_RIG_IDS) expect(buyableModules().map((d) => d.id), id).toContain(id); // and the shipped pool has them
   });
 
   it("day 1's pool: every one of the six opens on day 1, and day 1's caravan offers the plain commons", () => on(() => {
-    for (const id of PLAIN_RIG_IDS) expect(seatDay(id), id).toBe(1);
-    const commons = PLAIN_RIG_IDS.filter((id) => ITEMS[id].rarity === "common");
-    let drawn = 0, offered = 0;
-    for (let s = 1; s <= 200; s++) {
-      const w = drawWares(s);
-      if (commons.some((id) => w[id] === 1)) drawn++;
-      const run = newRun("furnace", s);
-      if (run.shop.wagons.some((wg) => wg.offers.some((o) => commons.includes(o.def)))) offered++;
-    }
-    expect(drawn).toBeGreaterThan(150); // most runs draw at least one of the four for day 1
-    expect(offered).toBeGreaterThan(20); // and day 1's first caravan offers one in a good share of runs
+    // BUMP-1D: with SHAPES2 on (as shipped) and off (the world this was measured in, which had no SHAPES2)
+    for (const six of [true, false]) withShapes2(() => {
+      for (const id of PLAIN_RIG_IDS) expect(seatDay(id), id).toBe(1);
+      const commons = PLAIN_RIG_IDS.filter((id) => ITEMS[id].rarity === "common");
+      let drawn = 0, offered = 0;
+      for (let s = 1; s <= 200; s++) {
+        const w = drawWares(s);
+        if (commons.some((id) => w[id] === 1)) drawn++;
+        const run = newRun("furnace", s);
+        if (run.shop.wagons.some((wg) => wg.offers.some((o) => commons.includes(o.def)))) offered++;
+      }
+      expect(drawn, `SHAPES2 ${six}`).toBeGreaterThan(150); // most runs draw at least one of the four for day 1
+      expect(offered, `SHAPES2 ${six}`).toBeGreaterThan(20); // and day 1's first caravan offers one in a good share of runs
+    }, six);
   }));
 
   it("the switch goes off again: the six leave ITEMS and the pool is the base's", () => {
-    setPlainRigs(true);
-    setPlainRigs(true); // the state it has: nothing
-    expect(PLAIN_RIG_IDS.every((id) => id in ITEMS)).toBe(true);
-    setPlainRigs(false);
-    expect(PLAIN_RIG_IDS.some((id) => id in ITEMS)).toBe(false);
-    expect(poolDigest()).toBe(BASE_POOL_DIGEST);
+    // BUMP-1D: the base's pool has SHAPES2 off too, and the switch ships on: `off` sets both off and puts them back, even on a throw
+    off(() => {
+      setPlainRigs(true);
+      setPlainRigs(true); // the state it has: nothing
+      expect(PLAIN_RIG_IDS.every((id) => id in ITEMS)).toBe(true);
+      setPlainRigs(false);
+      expect(PLAIN_RIG_IDS.some((id) => id in ITEMS)).toBe(false);
+      expect(poolDigest()).toBe(BASE_POOL_DIGEST);
+    });
+    expect(plainRigsRules()).toBe(PLAIN_RIGS); // the shipped value (on) is back
   });
 });
 
@@ -137,7 +172,7 @@ describe("merging and selling (P1, REQ-BFG-084.3): a star raises only the number
   }));
 
   it("they sell at today's sellValue (half the price x 2^(stars - 1), at least 1)", () => on(() => {
-    expect([1, 2, 3].map((s) => sellValue("rasp", s))).toEqual([1, 3, 6]);
+    expect([1, 2, 3].map((s) => sellValue("rasp", s))).toEqual([2, 4, 8]); // BUMP-1D P3 (T4): RASP costs 4 G (was 3: [1, 3, 6])
     expect([1, 2, 3].map((s) => sellValue("grindstone", s))).toEqual([2, 5, 10]);
   }));
 });

@@ -11,16 +11,16 @@ import { canPlaceItem, cloneBuild, isIntakeCell, type Build } from "../src/sim/d
 import { footprintCells } from "../src/sim/foot";
 import { SHAPES2, SHAPES2_IDS, setShapes2, withShapes2 } from "../src/sim/shapes2";
 import { withShapes } from "../src/sim/shapes";
-import { withPlainRigs, setPlainRigs } from "../src/sim/plainRigs";
+import { withPlainRigs, setPlainRigs, PLAIN_RIGS } from "../src/sim/plainRigs";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { validateUpload } from "../src/net/validate";
-import { SHAPES2_RULES } from "../src/net/rulesGate";
+import { SHAPES2_RULES, longRunFor } from "../src/net/rulesGate";
 import { reachableRecords } from "../src/net/records";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
-afterEach(() => { setShapes2(SHAPES2); setPlainRigs(false); });
+afterEach(() => { setShapes2(SHAPES2); setPlainRigs(PLAIN_RIGS); }); // the shipped values (BUMP-1D: both on; the PLAIN_RIGS one was false)
 
 /** The first spot (row order, rot as listed) where `def` fits on `b`, not on an intake cell, or null. */
 function spotFor(b: Build, def: string, rots = [0, 1, 2, 3]): { x: number; y: number; rot: number } | null {
@@ -43,10 +43,17 @@ function fixtures(): { name: string; s: GhostSnapshot; ok: boolean }[] {
     const strip = (b: Build): Build => { const nb = cloneBuild(b); nb.items = nb.items.filter((p) => ITEMS[p.def].kind !== "gate"); return nb; };
     const seed = 1;
     const base = strip(playerRun(hero, day, seed)[day - 1].build);
-    const snap = (name: string, build: Build, o: { rules?: string; day?: number; wins?: number; lives?: number; seed?: number } = {}): GhostSnapshot => ({
-      v: SNAPSHOT_V3, rules: o.rules ?? RULES_VERSION, hero, day: o.day ?? day, wins: o.wins ?? rec.wins, lives: o.lives ?? rec.lives, build, runId: `shapes2-${name}`,
-      playerId: "p-shapes2", createdAt: 1_790_000_000_000, seed: o.seed ?? parRunSeed(hero, seed),
-    });
+    const snap = (name: string, build: Build, o: { rules?: string; day?: number; wins?: number; lives?: number; seed?: number } = {}): GhostSnapshot => {
+      const rules = o.rules ?? RULES_VERSION, d = o.day ?? day, wins = o.wins ?? rec.wins;
+      return {
+        v: SNAPSHOT_V3, rules, hero, day: d, wins, lives: o.lives ?? rec.lives, build, runId: `shapes2-${name}`,
+        playerId: "p-shapes2", createdAt: 1_790_000_000_000, seed: o.seed ?? parRunSeed(hero, seed),
+        // BUMP-1D (RUN-1, rules bb-0.11.0): a long run's upload states the dusks it lost (the server answers 422 without `losses`:
+        // day - 1 = wins + losses + draws). These records have no loss and no draw (wins = day - 1), so none; a record under older
+        // rules has no such field (the decoder refuses it there)
+        ...(longRunFor(rules) ? { losses: d - 1 - wins } : {}),
+      };
+    };
     const add = (b: Build, defs: string[], uid0: number): Build => {
       const nb = cloneBuild(b);
       defs.forEach((def, i) => {
@@ -127,7 +134,7 @@ describe("SHAPES-2 S4: the client check and POST /v1/ghosts agree on the six, in
       }
     }
     setShapes2(SHAPES2);
-    setPlainRigs(false);
+    setPlainRigs(PLAIN_RIGS); // BUMP-1D: the shipped value (on; it was put back off while PLAIN_RIGS shipped off)
     for (const r of rows) console.log(`S4 PIN ${r}`);
     // the six off: the first error of every refused fixture is the gate's (a record naming a piece this version doesn't have)
     expect(rows.filter((r) => r.startsWith("off") && r.includes("elbow-saw-comb"))[0]).toContain("rules: shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE): not in this rules version yet");
