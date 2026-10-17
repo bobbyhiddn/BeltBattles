@@ -137,8 +137,12 @@ const workTicks = (spec: ConverterSpec): number => Math.max(1, Math.round(spec.s
  * One tick of side `s`'s converters, after every belt has moved (end of Battle.transport), in route and tile order. A
  * stunned or frozen converter does nothing at all. Otherwise: (1) put the next output on the belt if AMMO_SPACING is free;
  * (2) run the timer, and when it ends convert the buffer (a `convert` event) and try the output again; (3) take the slug at
- * the upstream edge into the buffer if there is room and it isn't working; (4) when the buffer is full and the last output
- * has gone, start the timer (it runs from the next tick, so a conversion takes exactly `secs`).
+ * the upstream edge into the buffer if there is room and it isn't working; (4) when the buffer is full and fewer than `out`
+ * outputs are still waiting for room, start the timer (it runs from the next tick, so a conversion takes exactly `secs`).
+ * The pellets of one conversion leave the mouth one by one (AMMO_SPACING = 14 ticks apart) WHILE the next slug is converted,
+ * the way a factory's DOUBLE STAMP batch leaves while its next cycle runs (battle.ts `pending`): the face says 1 SEC a
+ * conversion, and a machine that waited for its last pellet to leave would take 1.5 s (3 out) to 1.7 s (4 out). With out = 1
+ * (FUSER, SMELTER) this is the old rule: the next conversion starts once the one output has gone.
  */
 export function convertTick(ctx: ConvCtx, s: SideState, _dt: number): void {
   for (const c of s.converters!) {
@@ -150,7 +154,7 @@ export function convertTick(ctx: ConvCtx, s: SideState, _dt: number): void {
       emit(r, c);
     }
     if (c.left === 0) intake(r, c);
-    if (c.left === 0 && c.buf.length >= c.spec.in && c.out.length === 0) c.left = workTicks(c.spec);
+    if (c.left === 0 && c.buf.length >= c.spec.in && c.out.length < c.spec.out) c.left = workTicks(c.spec);
   }
 }
 

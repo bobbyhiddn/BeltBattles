@@ -4,7 +4,7 @@
 // BUMP-1E's scaling flip". The load order is the ship's (PLAIN_RIGS, SHAPES, SHAPES2, then GATES: ITEMS' order is part of the
 // seeded draws). Pure harness reads.
 import { ITEMS, type ItemDef } from "../../src/sim/content";
-import { cloneBuild, kx, ky, removeItem, routeInfo, type Build } from "../../src/sim/deck";
+import { cloneBuild, hero, key, kx, ky, removeItem, routeInfo, type Build } from "../../src/sim/deck";
 import { setShapes } from "../../src/sim/shapes";
 import { setShapes2 } from "../../src/sim/shapes2";
 import { setPlainRigs } from "../../src/sim/plainRigs";
@@ -60,8 +60,26 @@ export function withGate(b: Build, def: string, stars: number, at: { x: number; 
   return c;
 }
 
-/** The BEST spot (the par player's rule: splitPreview.ts suggestSplit) or null when no belt has a legal tile. */
-export const bestSpot = (b: Build, def: string): { x: number; y: number } | null => suggestSplit(b, def);
+/** The kind of the gun ("heavy", "light", "medium", "adaptable") the belt through cell `at` feeds; undefined when it feeds none. */
+export function gunKindAt(b: Build, at: { x: number; y: number }): string | undefined {
+  const k = key(at.x, at.y), i = b.routes.findIndex((r) => r.cells.includes(k));
+  return i < 0 ? undefined : hero(b).turrets[routeInfo(b, i).turret]?.kind;
+}
+
+/** --strict on (default): the PAR PLAYER'S RULE (BRIEF-GATES1 G6: "par never places a gate where it does nothing"): a FUSER only on a
+ *  belt into a HEAVY gun (r1d variant J), a SCATTER MILL only on a belt into a LIGHT gun (it needs room to fire), a SMELTER on any
+ *  belt. --strict off: wherever the preview suggests (a fallback to any belt), which shows what a careless buyer gets. */
+export const STRICT = arg("--strict", "on") !== "off";
+
+/** The BEST spot (splitPreview.ts suggestSplit; under STRICT only where the gate suits the gun) or null when no belt suits. */
+export function bestSpot(b: Build, def: string): { x: number; y: number } | null {
+  const at = suggestSplit(b, def);
+  if (!at || !STRICT) return at;
+  const how = ITEMS[def]?.converter?.how, kind = gunKindAt(b, at);
+  if (how === "fuse" && kind !== "heavy") return null;
+  if (how === "pellet" && kind !== "light") return null;
+  return at;
+}
 
 /** A CARELESS spot: the legal tile nearest the middle of the longest connected belt (what a player who drops it anywhere gets). */
 export function midSpot(b: Build, def: string): { x: number; y: number } | null {

@@ -23,7 +23,7 @@ import { parField } from "../../src/sim/harness/par";
 import { HEROES, applySets, arg, bestSpot, ci, mean, setWorld, stripGates, withGate } from "./world";
 
 const DAY = Number(arg("--day", "6")), K = Number(arg("--k", "24")), SECS = Number(arg("--secs", "30")), SEEDS = Number(arg("--seeds", "3"));
-const HS = arg("--heroes", HEROES.join(",")).split(",").filter(Boolean) as (typeof HEROES)[number][];
+const HS = arg("--hero", arg("--heroes", HEROES.join(","))).split(",").filter(Boolean) as (typeof HEROES)[number][];
 const IDS = arg("--gates", GATES_IDS.join(",")).split(",").filter(Boolean);
 const OUT = arg("--out", "worth.json");
 const label = setWorld(true);

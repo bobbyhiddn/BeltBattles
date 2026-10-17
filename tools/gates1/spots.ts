@@ -15,7 +15,7 @@ import { ITEMS } from "../../src/sim/content";
 import type { Build } from "../../src/sim/deck";
 import { parField } from "../../src/sim/harness/par";
 import { playJob, type Job } from "../../src/sim/harness/tournament";
-import { HEROES, applySets, arg, bestSpot, ci, mean, midSpot, setWorld, star, stripGates, withGate, type Hero } from "./world";
+import { HEROES, STRICT, applySets, arg, bestSpot, ci, mean, midSpot, setWorld, star, stripGates, withGate, type Hero } from "./world";
 
 const HERO = arg("--hero", "furnace") as Hero;
 const DAYS = arg("--days", "3,6,10").split(",").map(Number);
@@ -59,11 +59,12 @@ for (const day of DAYS) {
       careless.push(mean(play(withGate(b, id, stars, ms), i, `mid-${id}`)) - w);
     });
     const none = fits.map((i) => mean(base(i)));
-    const row = { hero: HERO, day, id, stars, decks: fits.length, of: K, none: 100 * mean(none), best: ci(best), careless: ci(careless), diff: ci(best.map((x, j) => x - careless[j])) };
+    const row = { hero: HERO, day, id, stars, strict: STRICT, decks: fits.length, of: K, none: 100 * mean(none), best: ci(best), careless: ci(careless), diff: ci(best.map((x, j) => x - careless[j])) };
     rows.push(row);
     const f = (x: { m: number; ci: number }) => `${x.m >= 0 ? "+" : ""}${x.m.toFixed(1)} (±${x.ci.toFixed(1)})`;
-    console.log(`spots ${HERO} d${day} ★${stars} ${id.padEnd(11)} fits ${fits.length}/${K} | none ${row.none.toFixed(1)}% | best ${f(row.best)} | careless ${f(row.careless)} | best - careless ${f(row.diff)} | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+    if (!fits.length) { console.log(`spots ${HERO} d${day} ★${stars} ${id.padEnd(11)} fits 0/${K}: no deck has a belt it suits (strict ${STRICT ? "on" : "off"}) | ${((Date.now() - t0) / 1000).toFixed(0)} s`); continue; }
+    console.log(`spots ${HERO} d${day} ★${stars} ${id.padEnd(11)} fits ${fits.length}/${K} | none ${row.none.toFixed(1)}% | best ${f(row.best)} | careless ${f(row.careless)} | best - careless ${f(row.diff)} | strict ${STRICT ? "on" : "off"} | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   }
 }
-writeFileSync(OUT, JSON.stringify({ hero: HERO, label, sets, days: DAYS, k: K, m: M, seeds: SEEDS, rows, seconds: Math.round((Date.now() - t0) / 1000) }, null, 1));
+writeFileSync(OUT, JSON.stringify({ hero: HERO, label, sets, strict: STRICT, days: DAYS, k: K, m: M, seeds: SEEDS, rows, seconds: Math.round((Date.now() - t0) / 1000) }, null, 1));
 console.log(`spots ${HERO}: done in ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${OUT}`);

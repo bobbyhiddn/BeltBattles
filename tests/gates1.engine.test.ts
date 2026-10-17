@@ -192,6 +192,30 @@ describe("GATES-1 G2: the SCATTER MILL", () => {
     });
   });
 
+  it("converts every second while the pellets of the one before are still leaving (its cycle is 1 s, not 1.5 s)", () => {
+    withGates(() => {
+      for (const [stars, pellets] of [[1, 3], [3, 4]] as const) {
+        const { bt, r, c } = world(bench([["scattermill", 2, stars]]));
+        put(r, slug(100, { flat: 10 }), 2 * AMMO_SPACING); // three slugs, AMMO_SPACING apart: the 2nd and 3rd wait at the upstream edge
+        put(r, slug(101, { flat: 10 }), AMMO_SPACING);
+        put(r, slug(102, { flat: 10 }), 0);
+        const at: number[] = [];
+        let maxOut = 0;
+        for (let i = 0; i < 400 && at.length < 3; i++) {
+          const ev = step(bt, 1);
+          maxOut = Math.max(maxOut, c!.out.length);
+          if (converts(ev).length) at.push(bt.ticks);
+        }
+        expect(at.length, `stars ${stars}`).toBe(3);
+        // the second and third conversions follow the one before by exactly 60 ticks (the old rule waited for the last pellet: +28 or +42)
+        expect(at[1] - at[0], `stars ${stars}`).toBe(THREE_TICKS);
+        expect(at[2] - at[1], `stars ${stars}`).toBe(THREE_TICKS);
+        // and the waiting outputs stay bounded: at most out - 1 left over plus one conversion's worth
+        expect(maxOut, `stars ${stars}`).toBeLessThanOrEqual(2 * pellets - 1);
+      }
+    });
+  });
+
   it("★2: 3 pellets at 60%; ★3: 4 pellets at 50%", () => {
     withGates(() => {
       for (const [stars, n, share] of [[2, 3, 0.6], [3, 4, 0.5]] as const) {
@@ -514,6 +538,7 @@ describe("GATES-1 G2: invariants over whole battles with the KILN feeding", () =
         // (FUSER 2 -> 1, SCATTER MILL 1 -> 3 / 4)
         const delta = def === "fuser" ? -c!.done : def === "scattermill" ? c!.done * (c!.spec.out - 1) : 0;
         expect(produced + delta).toBe(r.ammo.length + c!.buf.length + c!.out.length + loads);
+        expect(c!.out.length, "the waiting outputs stay bounded").toBeLessThanOrEqual(2 * c!.spec.out - 1);
       });
     });
   }
