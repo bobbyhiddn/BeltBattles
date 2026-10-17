@@ -288,6 +288,15 @@ async function main() {
     const runBefore = await page.evaluate(() => { window.bb.endRun(); return null; });
     void runBefore;
     await settle(page, "summary");
+    // STAGE-0911 (REVIEW-PROFILEUP's notes for 1D's STAGE: "asynccheck's B and M1 rows gain PUT /v1/profile"; scripts only): PROFILE-UP's
+    // client PUTs the profile once when a run's end is folded (styleFolds.ts profileChanged("end", runId); src/game/online.ts:258-272);
+    // bb.endRun() ends the run and shows the summary, so the page makes one PUT /v1/profile and the open-uploads server answers 200
+    // (server/app.ts, the profile route). The page's own request list and the server's log both show it.
+    let putLines = [];
+    for (let i = 0; i < 100 && !(putLines = gs.log().split("\n").filter((l) => / PUT \/v1\/profile /.test(l))).length; i++) await sleep(100);
+    const putReqs = requests.filter((u) => u.startsWith("PUT ") && u.includes(`${gs.base}/v1/profile`));
+    log(`[${at()}] online: profile upload (PROFILE-UP): server log ${putLines.join(" | ")}; page requests ${putReqs.map((u) => u.replace(gs.base, "")).join(", ")}`);
+    check(putReqs.length === 1 && putLines.length === 1 && / PUT \/v1\/profile 200 /.test(putLines[0]), "online: the run's end PUTs the profile once and the server answers 200 (PROFILE-UP: PUT /v1/profile)");
     await page.waitForFunction(() => window.bb.regions().some((q) => q.id.startsWith("replay")), null, { timeout: 5000 });
     await page.screenshot({ path: join(OUT, "online-4-summary.png") });
     shots.push("online-4-summary.png");
@@ -370,7 +379,10 @@ async function main() {
     check(searching === "FINDING A GHOST..." && foe.last?.source === "fallback" && /timeout/.test(foe.last?.error ?? "")
       && foe.dusk?.kind === "standin" && foe.dusk?.source === "offline" && foe.dusk?.name === foe.standin && foe.note === "OFFLINE STAND-IN",
       "slow server: the fetch times out and the dusk fights 0.6.2's own stand-in (standInFoe), labelled OFFLINE STAND-IN");
-    check(tBattle < 12, `slow server: the game never waited past the fetch deadline (the battle began ${tBattle.toFixed(1)}s after the dawn, with the road in between)`);
+    // STAGE-0911 (ruling 18; STAGE-0910 finding): a wall-clock row. The fetch deadline is 4 s; the road and the dawn in between are real
+    // time, which a loaded host stretches (0.9.10's read: 12.1-14.0 s at load 12-19, 9.6 s at load 0.8, on 0.9.9's page and on T's alike),
+    // so the limit is 20 s (was 12): the row still fails a game that waits for the 9 s the server holds the answer back and then some
+    check(tBattle < 20, `slow server: the game never waited past the fetch deadline (the battle began ${tBattle.toFixed(1)}s after the dawn, with the road in between; limit 20 s)`);
     check(errors.length === 0, `slow server: 0 console errors (${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""})`);
     result.slow = { searching, waited, tBattle, foe, errors };
     await ctx.close();
@@ -491,6 +503,7 @@ async function main() {
     log(`## M1. phone polish (0.7.0 R1): the enemy plate's source line and the summary's REPLAY target [${TAG} build: ${DIST}]`);
     const gs = await ghostServer(site.origin);
     result.m1 = [];
+    let m1Puts = 0; // STAGE-0911: the PUT /v1/profile 200 lines the server should hold after each view's run end (one device, one PUT, a view each)
     for (const [name, view, touch, place] of M1_VIEWS) {
       const url = `${site.origin}/index.html?server=${encodeURIComponent(gs.base)}`;
       const { ctx, page, errors } = await openPage(browser, view, url);
@@ -543,6 +556,11 @@ async function main() {
       await page.waitForFunction(() => window.bb.regions().some((r) => r.id === "next"), null, { timeout: 5000 });
       await page.evaluate(() => window.bb.endRun());
       await settle(page, "summary");
+      // STAGE-0911 (PROFILE-UP; REVIEW-PROFILEUP's notes): this view's run end PUTs the profile once; the server answers 200
+      m1Puts++;
+      let got = 0;
+      for (let i = 0; i < 100 && got < m1Puts; i++) { got = gs.log().split("\n").filter((l) => / PUT \/v1\/profile 200 /.test(l)).length; if (got < m1Puts) await sleep(100); }
+      check(got === m1Puts, `M1 ${name} ${vp}: the run's end PUTs the profile and the server answers 200 (PUT /v1/profile 200: ${got} in the server's log so far, ${m1Puts} wanted)`);
       await page.waitForFunction(() => window.bb.regions().some((q) => /^replay\d+$/.test(q.id)), null, { timeout: 5000 });
       const sum = `${TAG}-m1-${name}-summary.png`;
       await page.screenshot({ path: join(OUT, sum) });
