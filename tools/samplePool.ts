@@ -150,7 +150,7 @@ export function sampleEntry(hero: HeroId, day: number, v: number, seed: number):
  * serves a FOE on such a day, but a day-10 stand-in deck is no GHOST of day 11 (it holds 10 runes, a day-11 ghost 11: validate.ts
  * runeProblem). Days 1-10: exactly softPicked ?? sampleEntry, as before.
  */
-function sampleDeckOf(hero: HeroId, day: number, v: number, botRunes?: boolean): SoftDeck {
+export function sampleDeckOf(hero: HeroId, day: number, v: number, botRunes?: boolean): SoftDeck {
   const picked = softPicked(hero, day, botRunes)?.[v];
   if (picked) return picked;
   if (day > STAND_IN_POOL_DAYS) return raceDeck(hero, day, v, botRunes);
