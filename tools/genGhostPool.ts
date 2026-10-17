@@ -18,12 +18,18 @@
 // committed; tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 writes them). Without the flag and the variable, a long-run day past
 // the table takes the decks as before SOFT-1. With the switch off (no --long-run) nothing here changes: the output is byte for
 // byte the committed server/seedPoolData.ts (output-run1/T8-proof.md).
+// GATES-1 (REQ-BFG-052, G6): --gates makes the pool with GATES on (src/sim/gates.ts setGates(true)): the par player buys and places
+// FUSER, SCATTER MILL and SMELTER, and the ghosts' codes and snapshots carry them. A DRY run: it needs --out (a scratch file), NEVER
+// writes server/seedPoolData.ts (like --long-run: the bundled file only when --bundle names another path, and
+// tools/samplePool.ts seedPoolModuleText refuses in that world anyway: SOFT-1's picks were read without gates), and the release's bump
+// regenerates the real pool once.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { encodeSnapshot } from "../src/net/snapshot";
 import { SEED_POOL_MODULE, generateSamplePool, samplePoolJson, seedPoolModuleText } from "./samplePool";
 import { setLongRun } from "../src/sim/longRun"; // RUN-1 T8: --long-run (last in the list: already loaded above)
+import { setGates } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052, G6): --gates (already loaded above: samplePool.ts)
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -33,6 +39,12 @@ function flag(name: string): string | undefined {
 // RUN-1 T8: the long run's pool (scratch): the switch before anything is generated, the pick rows named before the first pick
 const longRunPool = process.argv.includes("--long-run");
 if (longRunPool) setLongRun(true);
+// GATES-1 (REQ-BFG-052, G6): the pool with the three gates on (scratch; see the header)
+const gatesPool = process.argv.includes("--gates");
+if (gatesPool) {
+  if (flag("out") === undefined) throw new Error("--gates: a dry run, name the scratch file with --out (it never writes the committed pool)");
+  setGates(true);
+}
 const picksFile = flag("soft1-picks");
 if (picksFile !== undefined) process.env.BB_SOFT1_PICKS_FILE = picksFile.split(",").map((p) => resolve(p)).join(",");
 
@@ -47,11 +59,12 @@ writeFileSync(out, samplePoolJson(pool));
 console.log(`wrote ${pool.length} ghost snapshots (${new Set(pool.map((s) => s.day)).size} days, heroes ${[...new Set(pool.map((s) => s.hero))].join("+")}) to ${out}`);
 
 // S8 T1b: the bundled pool file (the seed command's; see the header)
-const bundle = flag("bundle") ?? (botRunes === undefined && !longRunPool ? SEED_POOL_MODULE : "none"); // RUN-1 T8: a long-run pool only to a named path
+const bundle = flag("bundle") ?? (botRunes === undefined && !longRunPool && !gatesPool ? SEED_POOL_MODULE : "none"); // RUN-1 T8: a long-run pool only to a named path; GATES-1: so is a gates pool
 if (bundle !== "none") {
   const path = resolve(bundle);
   // RUN-1 T8: the long run's pool is never the committed file (the release bump writes that one, from its own world)
   if (longRunPool && path === resolve(SEED_POOL_MODULE)) throw new Error(`--long-run never writes ${SEED_POOL_MODULE}: name a scratch path with --bundle`);
+  if (gatesPool && path === resolve(SEED_POOL_MODULE)) throw new Error(`--gates never writes ${SEED_POOL_MODULE}: name a scratch path with --bundle`); // GATES-1 (REQ-BFG-052, G6)
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, seedPoolModuleText(pool));
   console.log(`wrote the bundled pool file ${path}: ${pool.length} ghosts, ${pool.filter((s) => typeof s.grade === "number").length} with a grade`);

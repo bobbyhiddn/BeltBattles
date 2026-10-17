@@ -96,6 +96,7 @@ import { openRunesRules } from "../src/sim/openRunes";
 import { freeJoinsRules } from "../src/sim/freeJoins";
 import { BOT_RUNES } from "../src/sim/runes";
 import { shapesRules } from "../src/sim/shapes"; // MERGE-099F: the grade memo's world reads SHAPES too (already loaded above)
+import { gatesRules } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052, G6): and GATES (already loaded above: player.ts)
 // RUN-1 T8 (REQ-BFG-059, REQ-BFG-116): the generator's depth and the draws' bounds follow the long run (src/sim/longRun.ts, already
 // loaded by snapshot.ts above, so this line, last in the list, changes no module's load order)
 import { LONG_RUN_GEN_DAYS, WIN_GOAL, longRunRules } from "../src/sim/longRun";
@@ -879,7 +880,8 @@ function gradeMemoKey(pool: readonly GhostSnapshot[], k: number, seeds: number):
 /** The grade memo's world (gradeMemoKey's, unchanged): every switch the grades read. SOFT-1 C2: softDecks' memo reads it too. */
 function worldKey(): string {
   return [BOT_RUNES, sustainLive(), wave3Live(), hullScaleRules(), ladderFixRules(), npcDayRules(), guardRules(),
-    openRunesRules(), freeJoinsRules(), heartsRules(), pickRules(), shapesRules()].map((on) => (on ? "1" : "0")).join("");
+    openRunesRules(), freeJoinsRules(), heartsRules(), pickRules(), shapesRules()].map((on) => (on ? "1" : "0")).join("")
+    + (gatesRules() ? "g" : ""); // GATES-1 (REQ-BFG-052, G6): the three gates move every par field the grades and the picks read: another world; off, the key as before
 }
 
 /** HULL-ON (cap's ruling 9c114aab5ba18dfe): the memo's hook for tests/hullon.grademem.test.ts: its size; clear it first

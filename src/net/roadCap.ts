@@ -44,6 +44,7 @@ import { shapesRules } from "../sim/shapes"; // SHAPES-1 (REQ-BFG-086 S1): the c
 import { longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D6): a long run's events repeat once per bag
 import { plainRigsRules } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the memos hold one switch state (plainMemo)
 import { shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114): the six more shaped rigs change the catalogue too (plainMemo)
+import { gatesRules } from "../sim/gates"; // GATES-1 (REQ-BFG-052, G6): the three gates change the catalogue too (plainMemo)
 
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D6): THE EVENT BAGS. A run's events come in shuffled bags of every event once (events.ts
 // eventSequence; BAG_IDS: 10), so days 1-10 are bag 1, days 11-20 bag 2, and so on. The 10-day run never leaves bag 1, and
@@ -64,11 +65,13 @@ export function bagsFor(days: number): number {
  *  switch never moved (the game, the server) this never resets anything. */
 let memoPlain = plainRigsRules();
 let memoShapes2 = shapes2Rules(); // SHAPES-2 (REQ-BFG-114): SHAPES2 adds six rigs to the catalogue, so it keys the memos the same way
+let memoGates = gatesRules(); // GATES-1 (REQ-BFG-052, G6): GATES adds three gates to the catalogue (and to every shop), so it keys them too
 function plainMemo(): void {
-  if (plainRigsRules() === memoPlain && shapes2Rules() === memoShapes2) return;
+  if (plainRigsRules() === memoPlain && shapes2Rules() === memoShapes2 && gatesRules() === memoGates) return;
   resetRoadCapMemo();
   memoPlain = plainRigsRules();
   memoShapes2 = shapes2Rules();
+  memoGates = gatesRules();
 }
 
 // ------------------------------------------------------------------ D4: the reviewed model

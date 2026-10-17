@@ -72,6 +72,8 @@ import { stokeSpots } from "../beltside"; // 0.8.0 P1 (E3): STOKER's place besid
 import { shapedSpot } from "../beltside"; // SHAPES-1 (REQ-BFG-086 S7.1): the shaped-rig solver
 import { shapesRules } from "../shapes"; // SHAPES-1 (S1): the par-run cache key
 import { shapes2Rules } from "../shapes2"; // SHAPES-2 (REQ-BFG-114): the par-run cache key (the six in the shop move every par run)
+import { gatesRules } from "../gates"; // GATES-1 (REQ-BFG-052, G6): the par-run cache key (the three in the shop move every par run)
+import { gateFits, gateSpot, gateWorth, readFlow } from "./gateBots"; // GATES-1 (REQ-BFG-052, G6): the bots' gates (value table, placement rule)
 import type { SideStats } from "../battle";
 import { FUSE_MAX, fusible, gradeOf, starsOf, valueOf } from "../stars";
 import { beltPolicy, botSlots, reachCols, upgradePolicy } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7, REQ-BFG-043 D7')
@@ -250,7 +252,7 @@ export interface PlayerRoad {
   declined?: string; // a capped run's (maxStars below FUSE_MAX) seeded drop it declined: it would merge above the cap
 }
 
-type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret" | "upgrade";
+type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret" | "upgrade" | "converter"; // GATES-1 (REQ-BFG-052, G6): "converter", a gate on a belt tile
 
 /** A new factory's belt: its cells, and the belt tile it joins (absent: it ends on a free intake). */
 interface Line { cells: number[]; join?: number }
@@ -562,6 +564,8 @@ const beltFree = (b: Build): number => b.beltCap - b.routes.reduce((s, r) => s +
  */
 export function fitsSomewhere(b: Build, def: string, rng: Rng = new Rng(1)): boolean {
   const d = ITEMS[def];
+  // GATES-1 (REQ-BFG-052, G6): a gate fits where a legal belt tile exists (split.ts splitProblem); the other kinds' rules stand as below
+  if (d?.kind === "converter") return gateFits(b, def);
   if (!d || !isShaped(d)) return true;
   if (d.kind === "gate") {
     const claims = connectorClaims(b), occ = occupancy(b);
@@ -1139,6 +1143,7 @@ function growBelt(b: Build, day: number, rng: Rng, base: number, keep = syncKeep
 
 const kindOf = (def: string): Kind => {
   const k = ITEMS[def].kind;
+  if (k === "converter") return "converter"; // GATES-1 (REQ-BFG-052, G6): not a rig, not gear, not a crate
   return k === "gate" ? "rig" : k === "mod" ? "gear" : k === "core" ? "core" : k === "factory" ? "factory" : k === "turret" ? "turret" : ITEMS[def].supply?.hull ? "plating" : "crate";
 };
 
@@ -1165,6 +1170,9 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
   // CAND-A: the factories on offer, for a turret judged with the factory that would feed it (pairCand)
   const factories = run.shop.wagons.flatMap((w) => w.offers.filter((o) => !o.sold && ITEMS[o.def].kind === "factory").map((o) => ({ def: o.def, price: o.price })));
   const sus = sustainLive(); // BOTS-X (SUS-C): the bots' sustain rules (SUSTAIN-1 4.8), only while the switch is on
+  // GATES-1 (REQ-BFG-052, G6): the rating's belt flow, read once and only for a gate on offer (gateBots.ts reads it for its rule and its worth)
+  let flow: RateOut | undefined;
+  const gflow = (): RateOut => (flow ??= readFlow(b, day));
   run.shop.wagons.forEach((w, wi) => w.offers.forEach((o, si) => {
     if (o.sold || o.price > run.gold) return;
     const d = ITEMS[o.def];
@@ -1189,7 +1197,17 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
       else if (pv && pv.where !== "cargo") {
         const after = afterGain(run, o.def, { x: 0, y: 0 });
         // 0.8.0 B1 M1: a merge that would lose a synced gun is no candidate (FOUNDRY's sync guard)
-        c = keep && !keep(after) ? null : { def: o.def, kind: kindOf(o.def), merge: true, rel: relOf(after, base, day) };
+        // GATES-1 (REQ-BFG-052, G6): the rating is blind to a gate, so a merged gate adds what the table says its star adds
+        c = keep && !keep(after) ? null : { def: o.def, kind: kindOf(o.def), merge: true, rel: d.kind === "converter" ? relOf(after, base, day) + gateWorth(after, gflow()) - gateWorth(b, gflow()) : relOf(after, base, day) };
+      } else if (d.kind === "converter") {
+        // GATES-1 (REQ-BFG-052, G6): a gate stands ON a belt tile, where the bots' rule puts it (gateBots.ts gateSpot: none where it does
+        // nothing); its worth is the table's (gateWorth), added to the rating's own change (a rig whose arrow it idles loses its hit)
+        const sp = fitsSomewhere(b, o.def) ? gateSpot(b, o.def, gflow()) : null;
+        if (sp) {
+          const after = cloneBuild(b);
+          after.items.push({ uid: run.nextUid, def: o.def, x: sp.x, y: sp.y, ...(pv && pv.toStars > 1 ? { stars: pv.toStars } : {}) }); // a cargo twin merges into it
+          if (!keep || keep(after)) c = { def: o.def, kind: "converter", merge: false, at: { x: sp.x, y: sp.y }, rel: relOf(after, base, day) + gateWorth(after, gflow()) - gateWorth(b, gflow()) };
+        }
       } else if (d.kind === "gate") {
         let best: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
         // BOTS-X (rule 5): RIVETER only on the belt with the most payloads a second (its HIT heals scale with traffic)
@@ -1750,9 +1768,10 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // it is in the key as well ("|long"); off, the key exactly as before
   // PLAIN-1 (REQ-BFG-084): PLAIN_RIGS moves the par decks (the six in the shop), so "|pr" is appended last; PLAIN-1F (M1):
   // off, the key is c099's byte for byte. SHAPES-2 (REQ-BFG-114): SHAPES2 moves them too ("|s2", after "|pr")
+  // GATES-1 (REQ-BFG-052, G6): GATES moves them (the three in the shop; the par player buys and places them), "|gates" last
   const asked =Number.isFinite(days) ? Math.floor(days) : PLAYER_DAYS;
   const depth = asked <= PLAYER_DAYS ? PLAYER_DAYS : Math.max(PLAYER_DAYS_LONG, asked);
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2" (last; off: the key as before)
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}${gatesRules() ? "|gates" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2"; GATES-1 (REQ-BFG-052, G6): "|gates" (last; off: the key as before)
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);

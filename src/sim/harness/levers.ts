@@ -612,7 +612,8 @@ function pressLine(s: Shopper, carried: Placed[]): boolean {
 export function mergeableDefs(s: Shopper): string[] {
   const b = s.b, left = s.left();
   // 0.6.1c: with factories on a factory copy is a candidate too, but only one that merges at once (below)
-  const present = fusibleCopies(b).filter((c) => c.kind !== "factory" || s.factoriesOn);
+  // GATES-1 (REQ-BFG-052, G6): a gate (kind "converter") is no copy this lever can buy: it would be placed as a rig or as gear (a random build holds none; the par player buys and places them: player.ts)
+  const present = fusibleCopies(b).filter((c) => (c.kind !== "factory" || s.factoriesOn) && c.kind !== "converter");
   if (!present.length) return [];
   const oneStar = new Set(present.filter((c) => c.stars === 1).map((c) => c.def));
   let tiles: boolean | undefined, dry: boolean | undefined; // a belt tile with a free side; one on a non-slag route (lazy)
