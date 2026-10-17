@@ -38,7 +38,7 @@ export const PLAIN_RIGS: boolean = true;
 /** The six plain stat rigs (BRIEF-PLAIN1's table; the numbers are the bench's starting values). */
 export const PLAIN_DEFS: Readonly<Record<string, ItemDef>> = {
   rasp: {
-    id: "rasp", name: "RASP", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist", shape: "I",
+    id: "rasp", name: "RASP", kind: "gate", rarity: "common", price: 4, size: 1, merchant: "alchemist", shape: "I", // BUMP-1D P3 (T4): 3 -> 4 G: it is TEMPER's burn plus 8 DMG, so at the same 3 G it could only equal or beat TEMPER
     desc: [], tags: ["FORGE"],
     // SHAPES-2 run 2 (BRIEF-SHAPES2 S6b, PLAIN-1F's REPORT section 10 call, "re-read RASP's day 3 and trim only if over"): the DMG
     // 10/20/35 -> 8/16/28 (the BURN stays, 1 is its floor). At k 64 (O/bench/presence-k64b.md) a deck holding it was +20.3 points
@@ -58,6 +58,11 @@ export const PLAIN_DEFS: Readonly<Record<string, ItemDef>> = {
     // SHAPES-2 run 2 (BRIEF-SHAPES2 S6b, PLAIN-1F's REPORT section 10 call, cap's: SCALE GUARD toward 75-100% of PLATE ROLLER's
     // lift on days 6 and 10): the PLATE 3/7/11 -> 5/12/18 (the DMG stays). At 3/7/11 it lifted a deck +3.7 (d6) / +0.8 (d10)
     // points against PLATE ROLLER's +5.1 / +3.4; at 5 (O/bench/presence-sweepA.md) +5.5 / +2.0 against +3.9 / +3.2
+    // BUMP-1D P3 (T2; RULING-BANDS1-R1 B1.6): day 10 read 49% of PLATE ROLLER's lift (+2.0 against +4.1, k 64, 4 heroes pooled;
+    // the band is 75-100%). Tried: the PLATE of the two merged stars 12/18 -> 18/27 read +8.2 / +6.0 / +2.5 on days 3 / 6 / 10 (74% /
+    // 107% / 55% of PLATE ROLLER's same-run lift): day 10 +0.5, inside one standard error, because a holder deck holds about 1.1
+    // copies (nearly all at 1 star), so the merged stars hardly show; day 6 went over the band. Put back to 12/18; the lever is the
+    // first star's numbers (BUMP-1E)
     gate: { slugPlate: 5, flat: 10 },
     levels: { 2: { gate: { slugPlate: 12, flat: 20 } }, 3: { gate: { slugPlate: 18, flat: 35 } } },
   },

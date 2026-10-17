@@ -44,8 +44,10 @@ export const SHAPES2_DEFS: Readonly<Record<string, ItemDef>> = {
     // -0.9 d10; k 32 par decks a hero, O/bench/presence-both32.md) and still +1.7 / +2.2 / +1.2 inserted, against SCALE GUARD's +3.7 and
     // PLATE ROLLER's +5.1 on day 6; at 9 (O/bench/presence-sweepB.md) it reads +2.5 / +2.7 on days 6 and 10 (inserted +3.7 / +3.7) beside
     // PLATE ROLLER's +3.9 / +3.2. One arrow forward, from two cells of the L: at a belt's corner it hits 2 tiles
-    gate: { slugPlate: 8 },
-    levels: { 2: { gate: { slugPlate: 16 } }, 3: { gate: { slugPlate: 28 } } },
+    // BUMP-1D P3 (T3; RULING-BANDS1-R1 B1.6): weak by lift (+5.6 / +2.6 / +2.0 against PLATE ROLLER's +11.0 / +5.5 / +4.1, k 64, 4
+    // heroes pooled; the band is 75-100%): SCALE GUARD's form, a DMG row beside the SHIELD, at 0.6 of SCALE GUARD's 10/20/35
+    gate: { slugPlate: 8, flat: 6 },
+    levels: { 2: { gate: { slugPlate: 16, flat: 12 } }, 3: { gate: { slugPlate: 28, flat: 21 } } },
   },
   sawbar: {
     id: "sawbar", name: "SAW BAR", kind: "gate", rarity: "common", price: 5, size: 1, foot: "I3", merchant: "gunsmith",
