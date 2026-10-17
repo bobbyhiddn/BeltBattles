@@ -5,7 +5,7 @@ import { hashSeed } from "../src/core/rng";
 import type { Build } from "../src/sim/deck";
 import type { HeroId } from "../src/sim/content";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
-import { standInPool } from "../src/sim/standInPool";
+import { standInPool, STAND_IN_POOL_DAYS } from "../src/sim/standInPool"; // BUMP-1D: + STAND_IN_POOL_DAYS (16: the pool holds days 1-16, was 10)
 import { fullPurseBuild, spendFloor } from "../src/sim/harness/gen";
 import { heroStartBuild } from "../src/sim/harness/heroes";
 import { encodeStarred } from "../src/sim/harness/standinCode";
@@ -26,10 +26,11 @@ describe("dry pool v2 against the shipped pool v1.1 (F3)", () => {
     const seen: { field: Build[]; jobs: Job[] }[] = [];
     const rec: Runner = async (field, jobs) => { seen.push({ field, jobs }); return jobs.map(() => 1); };
     const rows = await versus(o, a, b, rec);
-    expect(rows.map((r) => r.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    // BUMP-1D: versus() plays every day of the pool by default (o.days ?? STAND_IN_POOL_DAYS), 16 now (was 10: [1..10] and 10 asks each)
+    expect(rows.map((r) => r.day)).toEqual(Array.from({ length: STAND_IN_POOL_DAYS }, (_, k) => k + 1));
     expect(rows.every((r) => r.rate === 0.5 && r.battles === 6 * 2)).toBe(true);
-    expect(asked.filter((x) => x.startsWith("A"))).toHaveLength(10);
-    expect(asked.filter((x) => x.startsWith("B"))).toHaveLength(10);
+    expect(asked.filter((x) => x.startsWith("A"))).toHaveLength(STAND_IN_POOL_DAYS);
+    expect(asked.filter((x) => x.startsWith("B"))).toHaveLength(STAND_IN_POOL_DAYS);
     for (const { field, jobs } of seen) {
       expect(jobs).toHaveLength(6);
       const pairs = new Set(jobs.map((j) => `${field[j.a].hullBonus}-${field[j.b].hullBonus}`));
@@ -39,23 +40,26 @@ describe("dry pool v2 against the shipped pool v1.1 (F3)", () => {
 
   it("dryVersus: the four v2 rows play the dry picks against the shipped v1.1 picks (same hero and cross hero); the reference row is v1.1 vs v1.1", async () => {
     const o = { ...STANDIN_DEFAULTS, seeds: 1 };
-    const days = (["furnace", "weaver"] as HeroId[]).flatMap((hero) => Array.from({ length: 10 }, (_, k) => ({
+    // BUMP-1D: N = STAND_IN_POOL_DAYS (16; was 10): dryVersus plays every day of the pool by default (o.days ?? STAND_IN_POOL_DAYS), the shipped
+    // v1.1 pool holds days 1-16 now, so the dry picks, the rows, the recorded runs (N per table, 6 tables) and the day loops below are N long
+    const N = STAND_IN_POOL_DAYS;
+    const days = (["furnace", "weaver"] as HeroId[]).flatMap((hero) => Array.from({ length: N }, (_, k) => ({
       hero, day: k + 1, picks: [{ build: deck(hero, 500 + k) }, { build: deck(hero, 600 + k) }],
     }))) as unknown as HeroDay[];
     const seen: { field: Build[]; jobs: Job[] }[] = [];
     const rec: Runner = async (field, jobs) => { seen.push({ field, jobs }); return jobs.map(() => 0); };
     const { v2v2, tables } = await dryVersus(o, days, rec);
-    expect(v2v2).toHaveLength(10);
+    expect(v2v2).toHaveLength(N);
     expect(tables.map((t) => `${t.a} ${t.aPool} vs ${t.b} ${t.bPool}`)).toEqual([
       "furnace v2 vs furnace v1.1", "weaver v2 vs weaver v1.1", "furnace v2 vs weaver v1.1", "weaver v2 vs furnace v1.1", "furnace v1.1 vs weaver v1.1",
     ]);
     const key = (b: Build) => JSON.stringify(b);
     const v2Of = (h: HeroId, d: number) => new Set(days.find((x) => x.hero === h && x.day === d)!.picks.map((p) => key(p.build)));
     const v11Of = (h: HeroId, d: number) => new Set(standInPool(h, d).map((e) => key(e.build)));
-    expect(seen).toHaveLength(10 * 6);
+    expect(seen).toHaveLength(N * 6); // BUMP-1D: was 10 * 6
     tables.forEach((t, ti) => {
-      for (let d = 1; d <= 10; d++) {
-        const { field, jobs } = seen[10 * (ti + 1) + d - 1];
+      for (let d = 1; d <= N; d++) { // BUMP-1D: was d <= 10
+        const { field, jobs } = seen[N * (ti + 1) + d - 1]; // BUMP-1D: was seen[10 * (ti + 1) + d - 1]
         const A = t.aPool === "v2" ? v2Of(t.a, d) : v11Of(t.a, d), B = v11Of(t.b, d);
         // PACKS run 2 (oracle 2427be6ec928a286, ruling R3): versus() plays every pick, duplicates included, which is the
         // weight standInPickIndex gives them in the game. bb-0.8.6's WEAVER d1 holds two identical picks (77.8 and 78.4),
@@ -70,7 +74,7 @@ describe("dry pool v2 against the shipped pool v1.1 (F3)", () => {
       }
     });
     // v2 vs v2: both sides are dry picks
-    for (let d = 1; d <= 10; d++) {
+    for (let d = 1; d <= N; d++) { // BUMP-1D: was d <= 10
       const { field, jobs } = seen[d - 1];
       for (const j of jobs) {
         expect(v2Of("furnace", d).has(key(field[j.a]))).toBe(true);
@@ -112,7 +116,11 @@ describe("no 3-star stand-ins (F8, decision D4)", () => {
   });
 
   it("the tiny stars-on dry pool: no candidate or pick above 2 stars, the cap is reported, and a written 3-star pick is caught", async () => {
-    const tiny = { ...STANDIN_DEFAULTS, pop: 6, gauntlet: 2, seeds: 1, elites: 2, refSeeds: 2, per: 2, grow: [8], stars: "on" as const };
+    // BUMP-1D: days: 10 (the generator's `days` option): genStandIns plays every day of the pool by default now (STAND_IN_POOL_DAYS 16, was 10), which
+    // is 16/10 of the work the 120 s CPU budget was set for (tests/harness.v2.test.ts's twin of this tiny run measured 171 to 202 s of CPU for the
+    // 16 days under load); this test keeps its 10 days and its budget as they were, so days 11-16 are not exercised here (the stand-in pool's own
+    // tests read all 16)
+    const tiny = { ...STANDIN_DEFAULTS, pop: 6, gauntlet: 2, seeds: 1, elites: 2, refSeeds: 2, per: 2, grow: [8], stars: "on" as const, days: 10 };
     const cpu0 = process.cpuUsage();
     const res = await genStandIns(tiny, localRunner);
     expect(cpuMsSince(cpu0)).toBeLessThan(HARNESS_CPU_BUDGET_MS);

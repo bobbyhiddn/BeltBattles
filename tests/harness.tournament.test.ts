@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
-import { HARNESS_HEROES, heroRefBuild } from "../src/sim/harness/heroes";
+import { ITEMS } from "../src/sim/content"; // BUMP-1D: the shaped-rig bound test below
+import { rigArrowCells, rigArrows } from "../src/sim/deck"; // BUMP-1D: SHAPES-1's per-cell arrows (the hits bound)
+import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "../src/sim/harness/heroes";
 import { balanceMarkdown } from "../src/sim/harness/report";
+import { rigValues } from "../src/sim/harness/rigs"; // BUMP-1D: the shaped-rig bound test below
 import { bandFlag, wilson } from "../src/sim/harness/stats";
 import { DEFAULT_OPTS, playJob, runTournament, type Runner, type TourneyOpts } from "../src/sim/harness/tournament";
 import { cpuMsSince, HARNESS_CPU_BUDGET_MS, HARNESS_HANG_TIMEOUT_MS } from "./harnessTiming";
@@ -55,8 +58,13 @@ describe("harness tournament", () => {
     const rigs = Object.values(res.days[0].rigs);
     expect(rigs.reduce((n, v) => n + v.n, 0)).toBeGreaterThan(0);
     for (const v of rigs) {
-      expect(v.hits).toBeGreaterThanOrEqual(v.n); // no idle rig in a harness build
-      expect(v.hits).toBeLessThanOrEqual(v.n * v.arrows);
+      expect(v.hits, v.def).toBeGreaterThanOrEqual(v.n); // no idle rig in a harness build
+      // BUMP-1D: was `v.hits <= v.n * v.arrows` (one per arrow at most). SHAPES-1's rule (deck.ts rigArrowCells / rigHits, live
+      // since 0.9.9): each arrow shines from EVERY outside edge of a shaped rig's cells that faces its way, so a 2-cell NAIL
+      // STRIP with one arrow, lying along two belt tiles, lands 2 hits (this tiny run's population holds one: n 1, arrows 1,
+      // hits 2); the bound is the shape's most hits (rigArrowCells at rot 0: faces.ts shapeMaxHits; NAIL STRIP and EMBER
+      // TROUGH 2, SPIKE RAIL 6). For a one-cell rig that is its arrow count, exactly the old bound.
+      expect(v.hits, v.def).toBeLessThanOrEqual(v.n * rigArrowCells(v.def, 0, 0, 0).length);
     }
     const md = balanceMarkdown(res, { runtimeMs: 1, workers: 1, command: "test", perDayMs: {} });
     expect(md).toContain("## Day 1");
@@ -65,6 +73,28 @@ describe("harness tournament", () => {
     expect(md).toContain("## Lever traits");
     expect(md).toContain("## Rig arrows (H1: value per arrow that hits)");
   }, HARNESS_HANG_TIMEOUT_MS);
+
+  // BUMP-1D: the bound above is the shape's, so the shaped rigs must reach it: rigValues counts one hit per arrow per outside
+  // edge (SHAPES-1 R2), not one per arrow. FURNACE's start deck has its belt up the column x 4 (y 5 to 0; the KILN at (4, 6)): a NAIL
+  // STRIP (I2, one arrow) turned to rot 1 at (3, 2) stands on (3, 2) and (3, 3) with its arrow to the east, so it lands 2 hits with 1 arrow
+  it("rigValues counts a shaped rig's hits per outside edge: a NAIL STRIP along a belt lands 2 hits with one arrow, the shape's most", () => {
+    const along = heroStartBuild("furnace", 1);
+    along.items.push({ uid: 90, def: "nailstrip", x: 3, y: 2, rot: 1 });
+    const v = rigValues([along]).nailstrip;
+    expect(ITEMS.nailstrip.foot).toBe("I2");
+    expect(rigArrows("nailstrip")).toHaveLength(1);
+    expect([v.n, v.arrows, v.hits]).toEqual([1, 1, 2]);
+    expect(rigArrowCells("nailstrip", 0, 0, 0)).toHaveLength(2); // the shape's most hits (faces.ts shapeMaxHits)
+    expect(v.hits).toBeGreaterThan(v.n * v.arrows); // what the old per-arrow bound refused
+    expect(v.hits).toBeLessThanOrEqual(v.n * rigArrowCells("nailstrip", 0, 0, 0).length);
+    // a one-cell rig keeps the old bound: its arrows are its most hits
+    const plain = heroStartBuild("furnace", 1);
+    plain.items.push({ uid: 91, def: "whetstone", x: 3, y: 3, rot: 1 }); // its one arrow to the east, onto the belt tile (4, 3)
+    const w = rigValues([plain]).whetstone;
+    expect([w.n, w.arrows, w.hits]).toEqual([1, 1, 1]);
+    expect(rigArrowCells("whetstone", 0, 0, 0)).toHaveLength(w.arrows);
+    expect(w.hits).toBeLessThanOrEqual(w.n * w.arrows);
+  });
 
   it("results do not depend on the order jobs are played in (any worker split)", async () => {
     const cpu0 = process.cpuUsage();

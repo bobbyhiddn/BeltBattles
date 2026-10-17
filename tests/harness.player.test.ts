@@ -169,7 +169,10 @@ describe("par field (par.ts): the par of a hero and day is K par-player decks", 
   });
 
   it("genStandIns with the par field: vsRef is the mean over every member of a hero's field", async () => {
-    const tiny = { ...STANDIN_DEFAULTS, pop: 4, gauntlet: 1, seeds: 1, elites: 1, refSeeds: 1, per: 2, grow: [], stars: "on" as const, par: "field" as const };
+    // BUMP-1D: days: 10 (the generator's `days` option): genStandIns makes every day of the pool by default now (STAND_IN_POOL_DAYS 16, was 10), but
+    // `members` below maps the par field of days 1-10 only (the loop's PLAYER_DAYS), so on days 11-16 every battle scored 0 and vsRef read 0, not
+    // 0.5 (the red); this test keeps its 10 days, so days 11-16 are not exercised here
+    const tiny = { ...STANDIN_DEFAULTS, pop: 4, gauntlet: 1, seeds: 1, elites: 1, refSeeds: 1, per: 2, grow: [], stars: "on" as const, par: "field" as const, days: 10 };
     const members = new Map<string, number>();
     for (let day = 1; day <= 10; day++) for (const h of ["furnace", "weaver"] as const) parField(h, day).forEach((b, m) => members.set(JSON.stringify(b), m));
     // a member of even index loses every battle to the candidate, an odd one wins every battle; anything else scores 0

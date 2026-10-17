@@ -59,7 +59,10 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // S8c (the pools: the stand-in pool regenerated ONCE under bb-0.10.0 with every switch on as shipped and the bots placing
 // shapes, P1 83c039d; BRIEF-S8 S8c, RULING-S8-R5 section 3 item 2), so POOL_DIGEST is that pool's reads, taken on s8 (was
 // 9728ce453a2ce0a0... on zbump 2c4ba76)
-const POOL_DIGEST = "12ab3c0afe42a0354db940622a3f91716dfa23dc304ab496158e909cc0338f5d";
+// BUMP-1D (the pools): the stand-in pool regenerated ONCE for the 10-wins release (bb-0.11.0: LONG_RUN, the twelve pieces, hearts [1,2,2]; days 1-16,
+// 192 decks = 2 heroes x 16 days x 6, so poolReads() below reads 16 days a hero), so POOL_DIGEST is that pool's reads, taken on bump (the
+// run-3 tip, 605f220) (was 12ab3c0afe42a035... on s8). V11_DIGEST (the v1.1 fixture) is unchanged
+const POOL_DIGEST = "0429c5ab7ac2209a0218c8e3d704000cbe862f0ab51eb9a227b2bfd040e95f09";
 const V11_DIGEST = "89b371a4b0720d4686dc934273c9033448b239bc5dc8f99d68b1fddd3abe15a2";
 /** Rune-less codes the encoders wrote on bx e1e1004 (see "a rune-less deck encodes byte for byte as on bx"). */
 const RICH_CODE = "18 0 u23/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1";
@@ -134,7 +137,7 @@ describe("BOTS-X the stand-in codecs carry Build.runes (RUNES-2a 3 step 2)", () 
     expect(JSON.stringify(pool)).toContain('"runes"');
     expect(JSON.stringify(v11)).not.toContain('"runes"');
     const codes = storedCodes();
-    expect(codes).toHaveLength(120);
+    expect(codes).toHaveLength(192); // BUMP-1D: 2 heroes x 16 days x 6 decks (was 120: 10 days)
     for (const { hero, day, code } of codes) {
       const raw = loader.decodeStarredRaw(hero, code), h = harness.decodeStarred(hero, code);
       // FLIP-X2: each stored deck holds exactly its day's runes, as the last key, in both codecs (was: no runes key)
@@ -197,7 +200,7 @@ describe("BOTS-X the stand-in codecs carry Build.runes (RUNES-2a 3 step 2)", () 
       expect(JSON.stringify(loader.decodeStarred(hero, c)), `${hero} d${day}`).toBe(JSON.stringify(loader.decodeStarred(hero, stored)).replace(/}$/, `,"runes":${JSON.stringify(three)}}`));
       n++;
     }
-    expect(n).toBe(120);
+    expect(n).toBe(192); // BUMP-1D: 2 heroes x 16 days x 6 decks (the regenerated stand-in pool holds days 1-16); was 120
     // the v1 codec: the same word (it writes no levels, as before)
     const v1 = loader.encodeStandIn({ ...heroStartBuild("furnace", 1), runes });
     expect(v1).toBe(withWord(START_FURNACE_V1, "r:iron_hide,coin_purse"));
