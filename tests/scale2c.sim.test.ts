@@ -18,7 +18,7 @@ import { SEED, barge, furnaceBench, item, withItem, withMod } from "./wave3.help
 /** BRIEF-SCALE2c section 2: each piece's name, kind, rarity, price, merchant and its reader line at ★1 / ★2 / ★3. */
 const TABLE: Record<string, { name: string; kind: ItemDef["kind"]; rarity: ItemDef["rarity"]; price: number; merchant: string; count?: ReadSpec["count"]; give?: ReadSpec["give"]; per?: number; each: [number, number, number] }> = {
   quench: { name: "KINDLING", kind: "gate", rarity: "rare", price: 4, merchant: "alchemist", count: "foeBurn", give: "dmg", each: [3, 5, 8] },
-  pressure: { name: "PRESSURE BREECH", kind: "core", rarity: "common", price: 4, merchant: "gunsmith", each: [12, 14, 42] }, // SCALE-2e E4: ★2 was 26
+  pressure: { name: "PRESSURE BREECH", kind: "core", rarity: "common", price: 4, merchant: "gunsmith", each: [8, 13, 42] }, // SCALE-2e E4: ★2 was 26; run 2: 12 / 14 / 42 -> 8 / 13 / 42
   shieldwall: { name: "IRON WALL", kind: "gate", rarity: "legendary", price: 10, merchant: "ironmonger", count: "ownPlate", give: "dmg", per: 10, each: [3, 6, 17] }, // SCALE-2e E4: was 5 / 11 / 17
   spallcatcher: { name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, merchant: "quartermaster", count: "hitsTaken", give: "dmg", each: [1, 2, 7] }, // SCALE-2e E4: was 3 / 7 / 11; run 2: was 2 / 3 / 7
   keg: { name: "POWDER KEG", kind: "gate", rarity: "rare", price: 4, merchant: "scrapper", count: "ownHits", give: "dmg", each: [2, 5, 11] }, // SCALE-2e E4: was 3 / 7 / 11

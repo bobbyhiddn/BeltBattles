@@ -22,7 +22,7 @@ import { SCALE_ART_FROM } from "../src/render/sprites";
 /** BRIEF-SCALE2c section 2's face lines at ★1 (day 1, k 1), in markup. */
 const LINE: Record<string, string> = {
   quench: "HIT: +3 {DMG} FOR EACH {*BURN} ON THE FOE.",
-  pressure: "SHOT: +12 {DMG} FOR EACH {SLUG} WAITING.",
+  pressure: "SHOT: +8 {DMG} FOR EACH {SLUG} WAITING.", // SCALE-2e run 2: ★1 was +12
   shieldwall: "HIT: +3 {DMG} FOR EACH 10 {*PLATE} YOU HAVE.", // SCALE-2e E4: was +5
   spallcatcher: "SHOT: +1 {DMG} FOR EACH HIT ON YOU.", // SCALE-2e E4: was +3; run 2: was +2
   keg: "HIT: +2 {DMG} FOR EACH OF ITS HITS.", // SCALE-2e E4: was +3
@@ -124,7 +124,7 @@ describe("SCALE-2c screen: the 12 faces with the switch on", () => {
 
   it("LEVELS / NEXT★ read the switch-on numbers (★2's and ★3's)", () => {
     const next: Record<string, [string, string]> = {
-      quench: ["+5", "+8"], pressure: ["+14", "+42"], shieldwall: ["+6", "+17"], spallcatcher: ["+2", "+7"], keg: ["+5", "+11"], // SCALE-2e E4: IRON WALL 3/6/17, SPALL CATCHER 2/3/7, POWDER KEG 2/5/11
+      quench: ["+5", "+8"], pressure: ["+13", "+42"], shieldwall: ["+6", "+17"], spallcatcher: ["+2", "+7"], keg: ["+5", "+11"], // SCALE-2e E4: IRON WALL 3/6/17, SPALL CATCHER 2/3/7, POWDER KEG 2/5/11
       cindermail: ["+3", "+5"], rotgauge: ["+5", "+8"], leechcoil: ["4", "6"], crowdpress: ["+7", "+11"], aegisspike: ["+88", "+140"],
       grudgerod: ["+13", "+21"], trophychain: ["+12", "+28"], // SCALE-2e E4: TROPHY CHAIN 8/12/28
     };

@@ -58,11 +58,14 @@ export const SCALE_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = 
   // NEVER JAMS (noJam) stays: the brief names only MAX 5 as going (REPORT Findings)
   // SCALE-2e E4 (REQ-BFG-098 098.3): ★2's perQueued 26 -> 14 ("today's numbers" 12 / 26 / 42 -> 12 / 14 / 42). The pairs bench (pool 150, 41 decks with
   // SPLITTER) read the reader's lift +17.2 (SE 2.1) on day 6 against TEMPER's +6.5 (G1); see REPORT-SCALE2e section 6
+  // SCALE-2e run 2, second step (REQ-BFG-098 098.3; G1 and G2): 12 / 14 / 42 -> 8 / 13 / 42. The larger reads at 12 / 14 / 42 (pool 150) were
+  // +12.3 (SE 1.9) on day 3 against TEMPER's +9.5, +10.7 (1.4) on day 6 against +6.5 and +11.0 (2.1) on day 9: over the G1 line on both days
+  // and strongest on day 3 (G2: "a reader strongest on day 3 has its 1-star cut"); the same decks read +9.4 (1.6) at ★1 8 and +9.8 (1.3) at ★2 13
   pressure: (b) => {
     const { maxCount: _cap, ...core } = b.core!;
     void _cap;
     const lv2 = b.levels![2]!;
-    return { ...b, desc: [], core, levels: { ...b.levels, 2: { ...lv2, core: { ...lv2.core, perQueued: 14 } } } };
+    return { ...b, desc: [], core: { ...core, perQueued: 8 }, levels: { ...b.levels, 2: { ...lv2, core: { ...lv2.core, perQueued: 13 } } } };
   },
   // IRON WALL: +5 / +11 / +17 DMG for each whole 10 PLATE you have (day-1 units: Battle.readCount ownPlate); its own
   // plating and the 120 step go
