@@ -6,6 +6,7 @@ import type { Skin } from "../../render/styles"; // CUSTOM-2a
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
 import { buyPack } from "../../game/run"; // bb-0.8.6 (REQ-BFG-051 P5)
+import { releaseStranded } from "../../game/run"; // GATES-1 (REQ-BFG-057): a gate whose belt is gone goes back to cargo
 import { fightRefusal } from "../../game/run"; // RUNES-2a (REQ-BFG-058): no fight while a rune pick is pending
 import type { PackId } from "../../sim/content";
 import { duskFoe, refundNotice, storedFoe } from "../../game/day";
@@ -350,6 +351,9 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   touched(): void {
+    // GATES-1 (REQ-BFG-057): a belt that goes (rerouted, deleted, gone with its factory) strands the gates on it: back to cargo
+    const gone = releaseStranded(this.run);
+    if (gone.length) this.game.toast(`${gone.join(" AND ")} BACK IN CARGO: ITS BELT IS GONE`, C.yellow);
     this.model = cruiserModel(this.run.build);
     this.view.model = this.model;
     saveRun(this.run);

@@ -29,6 +29,7 @@ export { RESHAPED_IDS, shapesRules } from "./shapes";
 // digit, an import path included, and shapes2's name does)
 export { isShapes2Piece, shapes2Rules } from "./shapes2";
 export { gatesRules, isGatesPiece } from "./gates"; // GATES-1 (REQ-BFG-052): re-exported, as SHAPES2's are
+export { isConverterItem } from "./split"; // GATES-1 (REQ-BFG-057): beltside.ts imports only ./content and ./deck
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];

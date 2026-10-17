@@ -76,7 +76,7 @@ const moveOn = (label = "MOVE ON"): Choice => ({ ...MOVE_ON, label });
 /** A part a caravan sells and that merges: a merchant stocks it and stars.ts `fusible` holds (never a
  *  supply, price-0 signature or dormant prototype). A new race module joins on merchant assignment.
  *  0.6.2s (REQ-BFG-031 step 5): turrets ride only in the caravan in 0.6.2 (never a road part, like tradeGood). */
-const roadPart = (d: ItemDef): boolean => fusible(d.id) && d.kind !== "turret";
+const roadPart = (d: ItemDef): boolean => fusible(d.id) && d.kind !== "turret" && d.kind !== "converter"; // GATES-1 (REQ-BFG-052): a GATE comes from the shop, never a road event (out of scope)
 
 /** The ids of every road part that passes `test`, in catalogue order. */
 const roadParts = (test: (d: ItemDef) => boolean): string[] => buyableModules().filter((d) => roadPart(d) && test(d)).map((d) => d.id);

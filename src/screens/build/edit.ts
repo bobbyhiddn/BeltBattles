@@ -430,7 +430,8 @@ export class Editor {
     const b = run.build;
     // SHAPES-1 (REQ-BFG-086 S3): a shaped piece a finger or pen lifts is a touch carry (its ghost above the finger, the snap,
     // the floating ROTATE button); every other carry is exactly as before
-    const touch = (def: string) => (direct(kind) && shapedPiece(def) ? { touch: true } : {});
+    // GATES-1 (REQ-BFG-057): and a gate (kind "converter"): its ghost stands above the finger and its drop snaps to a belt tile
+    const touch = (def: string) => (direct(kind) && (shapedPiece(def) || ITEMS[def]?.kind === "converter") ? { touch: true } : {});
     switch (src.from) {
       case "offer": {
         const o = run.shop.wagons[src.wagon]?.offers[src.slot];

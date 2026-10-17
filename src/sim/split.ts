@@ -63,3 +63,39 @@ export function splitProblem(b: Pick<Build, "items" | "routes">, defId: string, 
   }
   return null;
 }
+
+/**
+ * TOUCH (BRIEF-GATES1 G3): a deck cell is under 44 CSS px on a phone, so a finger's drop of a gate snaps to the nearest legal
+ * belt tile within 1 cell (the 3x3 block round the cell it landed on: a catch area of about 60 CSS px at the phone's 20 px
+ * cells). The cell itself first, then its four neighbours, then the diagonals (nearest first; ties up, left, right, down), as
+ * shapeEdit.ts snapAnchor does for a shaped piece. null: no legal tile in reach. `ignoreUid`: the piece being moved.
+ */
+export function snapSplit(b: Pick<Build, "items" | "routes">, defId: string, x: number, y: number, ignoreUid = -1): { x: number; y: number } | null {
+  const order: [number, number][] = [[0, 0]];
+  const near: [number, number][] = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) near.push([dx, dy]);
+  near.sort((a, c) => Math.abs(a[0]) + Math.abs(a[1]) - (Math.abs(c[0]) + Math.abs(c[1])) || a[1] - c[1] || a[0] - c[0]);
+  order.push(...near);
+  for (const [dx, dy] of order) {
+    const cx = x + dx, cy = y + dy;
+    if (cx < 0 || cy < 0 || cx >= GRID || cy >= GRID) continue;
+    if (splitProblem(b, defId, cellKey(cx, cy), ignoreUid) === null) return { x: cx, y: cy };
+  }
+  return null;
+}
+
+/**
+ * The converters of `b` that no longer stand on a legal belt tile (the belt under them was rerouted, deleted, or went with its
+ * factory), in item order, found one at a time so two neighbours release only one. The editor puts them back in cargo
+ * (run.ts releaseStranded); the sim treats one that is left as inert, and the validator refuses it (DROP IT ON A BELT).
+ */
+export function strandedConverters(b: Pick<Build, "items" | "routes">): Placed[] {
+  const gone: Placed[] = [];
+  let items = b.items;
+  for (;;) {
+    const bad = items.find((p) => isConverterItem(p) && splitProblem({ items, routes: b.routes }, p.def, cellKey(p.x, p.y), p.uid) !== null);
+    if (!bad) return gone;
+    gone.push(bad);
+    items = items.filter((p) => p !== bad);
+  }
+}

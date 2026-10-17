@@ -132,7 +132,7 @@ export function topParts(b: Build, n: number): string[] {
   for (const p of b.items) if (!SIGNATURE.has(p.def)) see(p.def, valueOf(p.def, starsOf(p)));
   for (const m of b.mods) see(m.def, valueOf(m.def, starsOf(m)));
   return [...best.keys()]
-    .filter((d) => ITEMS[d] && ITEMS[d].kind !== "supply" && !SIGNATURE.has(d))
+    .filter((d) => ITEMS[d] && ITEMS[d].kind !== "supply" && ITEMS[d].kind !== "converter" && !SIGNATURE.has(d)) // GATES-1 (REQ-BFG-052): a beaten deck's GATE is no reward (out of scope)
     .sort((a, c) => best.get(c)! - best.get(a)! || (a < c ? -1 : a > c ? 1 : 0))
     .slice(0, n);
 }
