@@ -144,7 +144,7 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
     }
   });
 
-  it("the marks: a merge mark (an up arrow over ★n's pips, amber, ★3 flashing gold), the owned marker for a copy that won't merge and for MAX, the sale mark in the other corner; a sold card shows none and no price", () => {
+  it("the marks: a merge mark (an up arrow over ★n's stars, amber, ★3 flashing gold), the owned marker for a copy that won't merge and for MAX, the sale mark in the other corner; a sold card shows none and no price", () => {
     for (const [wn, w, h] of WIDTHS) {
       const z = cardZones(w, h);
       const px = (c: RasterCanvas, p: { x: number; y: number }, dx: number, dy: number) => c.at(OX + p.x + dx, OY + p.y + dy);
@@ -154,9 +154,10 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
         const col = stars >= 3 && Math.floor(t * 4) % 2 ? C.yellow : C.amber;
         let on = 0;
         for (let y = 0; y < MERGE_H; y++) for (let x = 0; x < MERGE_W; x++) { const p = px(c, z.merge, x, y); if (p === col) on++; else expect([C.ink, col], `${wn} ★${stars} t ${t}: ${x},${y}`).toContain(p); }
-        expect(on, `${wn} ★${stars}: the arrow's 1+3+5+1 px and ${stars} pips of 2`).toBe(10 + 2 * stars);
-        expect(px(c, z.merge, 4, 1), "the arrow's tip").toBe(col);
-        expect(px(c, z.merge, 4, 0), "ink over the tip").toBe(C.ink);
+        // SHOPCARD-1b (REQ-BFG-115, F8 (b)): the stars are the font's 3x5 ★ (9 px each), not 2x1 pips; the arrow is on the plate's middle column
+        expect(on, `${wn} ★${stars}: the arrow's 1+3+5+1 px and ${stars} stars of 9`).toBe(10 + 9 * stars);
+        expect(px(c, z.merge, 5, 1), "the arrow's tip").toBe(col);
+        expect(px(c, z.merge, 5, 0), "ink over the tip").toBe(C.ink);
       }
       for (const kind of ["wait", "max"] as const) {
         const c = fresh(w + 8, h + 8);
@@ -166,7 +167,9 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       }
       const c = fresh(w + 8, h + 8);
       drawCard(G(c), { x: OX, y: OY, w, h }, ITEMS.whetstone, 3, "alchemist", { ...BASE, sale: true }, 0);
-      expect([px(c, z.sale, 3, 1), px(c, z.sale, 1, 2), px(c, z.sale, 3, 4), px(c, z.sale, 3, 0)], `${wn} sale`).toEqual([C.lime, C.lime, C.lime, C.ink]);
+      // SHOPCARD-1b (F8 (a)): a 3-row stem (rows 1-3) over a 5-3-1 head (rows 4-6); no px beside the stem above the head (a plus has a bar there)
+      expect([px(c, z.sale, 3, 1), px(c, z.sale, 3, 3), px(c, z.sale, 1, 4), px(c, z.sale, 3, 6), px(c, z.sale, 3, 0), px(c, z.sale, 2, 2), px(c, z.sale, 4, 2)], `${wn} sale`)
+        .toEqual([C.lime, C.lime, C.lime, C.lime, C.ink, C.ink, C.ink]);
       // a merge mark takes the sale's place in the badge's corner only; with both, the merge mark shows and the sale mark does not
       const both = fresh(w + 8, h + 8);
       drawCard(G(both), { x: OX, y: OY, w, h }, ITEMS.whetstone, 3, "alchemist", { ...BASE, sale: true, badge: { kind: "merge", toStars: 2 } as ShopBadge }, 0);
