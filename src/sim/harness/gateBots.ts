@@ -12,7 +12,7 @@
 //  - SCATTER MILL: WEAVER's light guns with spare room (3 hits = 3 FRAY stacks); the others medium;
 //  - SMELTER: by the BURN on the deck (burnSources): a deck with no BURN source is worth a quarter, one with two the table's value.
 // A star multiplies it by what the star adds to the gate's number (FUSER +50 / +75 / +100, SCATTER MILL 150 / 180 / 200 % of a slug
-// over the slug, SMELTER +3 / +5 / +8 BURN). The numbers are the bots' starting values; the bench (tools/gates1) and the presence guard
+// over the slug, SMELTER +2 / +5 / +8 BURN). The numbers are the bots' starting values; the bench (tools/gates1) and the presence guard
 // set the shipped ones.
 //
 // THE RULE (gateSpot; r1d variant J, splitPreview.ts suggestSplit's tiles, and the places a gate would do nothing left out):
@@ -22,7 +22,8 @@
 //  - SCATTER MILL: the middle of the longest belt into a LIGHT gun, leaving at least 3 tiles after it for the pellets to fly, and only
 //    where the gun has room to fire them (its fire rate, less what its belts bring, is at least the 2 more loads a slug becomes);
 //  - SMELTER: the belt with the most BURN rigs hitting it, on the first legal tile after the last of them, else the middle;
-//  - never on a belt that feeds nothing (not connected), a belt of fewer than 3 tiles (a gate needs belt on both sides: 4 for a FUSER,
+//  - never on a belt that brings more than the gate takes (GATE_INTAKE x 1.1 a second: a belt that backs up behind it loses shots),
+//    never on a belt that feeds nothing (not connected), a belt of fewer than 3 tiles (a gate needs belt on both sides: 4 for a FUSER,
 //    5 for a SCATTER MILL), a tile right next to another gate, an illegal tile (split.ts splitProblem); a tile that rig arrows aim at
 //    only when every tile in reach has one (those arrows would idle);
 //  - a gate rides with its belt: when the par player redraws a belt (shopper.ts moveRoute) it lifts the gates standing on it and puts
@@ -46,7 +47,7 @@ export type GateId = "fuser" | "scattermill" | "smelter";
 export const GATE_VALUE: Readonly<Record<GateId, Readonly<Record<HeroId, number>>>> = {
   fuser: { furnace: 0.12, bastion: 0.1, foundry: 0.035, weaver: -0.2, metronome: 0.05, siphon: 0.05 },
   scattermill: { furnace: 0.04, bastion: 0.04, foundry: 0.05, weaver: 0.1, metronome: 0.04, siphon: 0.07 },
-  smelter: { furnace: 0.09, bastion: 0.09, foundry: 0.09, weaver: 0.09, metronome: 0.09, siphon: 0.09 },
+  smelter: { furnace: 0.06, bastion: 0.06, foundry: 0.06, weaver: 0.06, metronome: 0.06, siphon: 0.06 }, // ★1 +2 BURN (the table was 0.09 at +3)
 };
 
 /** How much of the table's value a gate keeps by the class of the gun its belt feeds. */
@@ -57,11 +58,11 @@ export const GATE_CLASS_FIT: Readonly<Record<GateId, Readonly<Record<TurretKind,
 };
 
 /** What ★2 and ★3 multiply the ★1 value by (what the star adds to the gate's number: FUSER +50 / +75 / +100 %, SCATTER MILL 150 / 180 /
- *  200 % of a slug, SMELTER +3 / +5 / +8 BURN). The harness reads no star value from the defs itself (tests/harness.mods.test.ts). */
+ *  200 % of a slug, SMELTER +2 / +5 / +8 BURN). The harness reads no star value from the defs itself (tests/harness.mods.test.ts). */
 export const GATE_STAR_FACTOR: Readonly<Record<GateId, readonly [number, number, number]>> = {
   fuser: [1, 1.5, 2],
   scattermill: [1, 1.6, 2],
-  smelter: [1, 1.67, 2.67],
+  smelter: [1, 2.5, 4], // +2 / +5 / +8 BURN
 };
 
 /** A SMELTER keeps this share of its value with 0, 1, 2 and 3 or more BURN sources on the deck. */
@@ -71,6 +72,12 @@ export const SMELTER_BURN_FIT: readonly [number, number, number, number] = [0.25
  *  only connected belt (a thin sole supply would only be delayed by the wait). */
 export const FUSER_FLOW = 0.3;
 export const FUSER_SOLE_FLOW = 0.6;
+
+/** What each gate takes in a second (`in` slugs a `secs` second conversion: FUSER 2, SCATTER MILL 1, SMELTER 1). A belt that brings
+ *  more than this backs up behind the gate and the gun fires less (the bench: SMELTERs on a WEAVER's 1.4 a second belts read -15 points
+ *  on day 6), so par puts no gate on a belt that brings more than GATE_SLACK x its intake. */
+export const GATE_INTAKE: Readonly<Record<GateId, number>> = { fuser: 2, scattermill: 1, smelter: 1 };
+export const GATE_SLACK = 1.1;
 
 /** The fewest tiles a belt needs for each gate: belt on both sides of it (3), and a FUSER near the end with a belt to pair on (4), a
  *  SCATTER MILL with at least 3 tiles after it for its pellets (5). */
@@ -220,6 +227,7 @@ export function gateSpot(b: Build, defId: string, ro: RateOut | undefined, o: Ga
     const n = x.r.cells.length, gun = h.turrets[x.info.turret], arrival = ro?.arrival?.get(x.ri) ?? 0, on = standing.get(x.ri) ?? [];
     if (n < MIN_TILES[id] || on.includes(id)) continue;
     if (!o.relaxed) {
+      if (arrival > GATE_SLACK * GATE_INTAKE[id]) continue; // the belt would back up behind it
       if (synced.has(x.ri)) continue;
       if (id === "fuser" && (on.includes("scattermill") || arrival < (sole ? FUSER_SOLE_FLOW : FUSER_FLOW))) continue;
       if (id === "scattermill" && (on.includes("fuser") || (brought.get(x.info.turret) ?? 0) + 2 * arrival > Math.max(0.1, gun.speed / 30))) continue;

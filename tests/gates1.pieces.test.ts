@@ -102,12 +102,12 @@ describe("GATES-1 G1: the defs", () => {
     });
   });
 
-  it("the numbers at ★1 / ★2 / ★3 (the brief's starting values): FUSER +50 / 75 / 100 %; SCATTER MILL 3 at 50 / 3 at 60 / 4 at 50 %; SMELTER +3 / 5 / 8 BURN", () => {
+  it("the numbers at ★1 / ★2 / ★3 (the brief's starting values): FUSER +50 / 75 / 100 %; SCATTER MILL 3 at 50 / 3 at 60 / 4 at 50 %; SMELTER +2 / 5 / 8 BURN (★1 cut from +3 by the presence guard)", () => {
     on(() => {
       const at = (id: string, s: number) => effectAt(id, s).converter!;
       expect([1, 2, 3].map((s) => [at("fuser", s).in, at("fuser", s).out, at("fuser", s).bonus])).toEqual([[2, 1, 50], [2, 1, 75], [2, 1, 100]]);
       expect([1, 2, 3].map((s) => [at("scattermill", s).in, at("scattermill", s).out, at("scattermill", s).share])).toEqual([[1, 3, 50], [1, 3, 60], [1, 4, 50]]);
-      expect([1, 2, 3].map((s) => [at("smelter", s).in, at("smelter", s).out, at("smelter", s).burn])).toEqual([[1, 1, 3], [1, 1, 5], [1, 1, 8]]);
+      expect([1, 2, 3].map((s) => [at("smelter", s).in, at("smelter", s).out, at("smelter", s).burn])).toEqual([[1, 1, 2], [1, 1, 5], [1, 1, 8]]);
       expect(["fuser", "scattermill", "smelter"].map((id) => at(id, 1).how)).toEqual(["fuse", "pellet", "smelt"]);
       // R2's rule: every gate gives at least +50% of a slug in its best use (the bench, run 3, measures it; the numbers here are the floor)
       expect(at("fuser", 1).bonus).toBeGreaterThanOrEqual(50);

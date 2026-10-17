@@ -3,7 +3,7 @@
 // - a FUSER takes 2 slugs in, works exactly 1 s (60 ticks) and puts 1 out that deals both +50% (★2 +75%, ★3 +100%); it waits for
 //   its partner with no timeout; a slug still in a buffer at the end of a battle is never fired;
 // - a SCATTER MILL puts 3 pellets out (★2 at 60%, ★3 four at 50%), one at a time once AMMO_SPACING is free;
-// - a SMELTER gives the slug +3 BURN (★2 +5, ★3 +8);
+// - a SMELTER gives the slug +2 BURN (★2 +5, ★3 +8);
 // - a STUN pauses a gate (the whole machine), and the gate is a Target with a factory's weight; the belt tile it stands on is
 //   no belt target;
 // - a belt that joins at a gate's tile feeds the gate's buffer;
@@ -237,9 +237,9 @@ describe("GATES-1 G2: the SCATTER MILL", () => {
 });
 
 describe("GATES-1 G2: the SMELTER", () => {
-  it("the slug gains +3 BURN (★2 +5, ★3 +8) after 1 s, and is the same slug", () => {
+  it("the slug gains +2 BURN (★2 +5, ★3 +8) after 1 s, and is the same slug", () => {
     withGates(() => {
-      for (const [stars, burn] of [[1, 3], [2, 5], [3, 8]] as const) {
+      for (const [stars, burn] of [[1, 2], [2, 5], [3, 8]] as const) {
         const { bt, r, c } = world(bench([["smelter", 2, stars]]));
         put(r, slug(100, { burn: 1 }));
         let conv: { tick: number; e: SimEvent }[] = [];

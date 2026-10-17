@@ -19,7 +19,7 @@ import type { RateOut } from "../src/sim/deckRating";
 import { GATES, setGates, withGates } from "../src/sim/gates";
 import { beltTile, isConverterItem, splitProblem, strandedConverters } from "../src/sim/split";
 import {
-  FUSER_FLOW, FUSER_SOLE_FLOW, GATE_STAR_FACTOR, GATE_VALUE, SMELTER_BURN_FIT, burnSources, gateFits, gateSpot, gateValue, gateWorth, parGateSpot,
+  FUSER_FLOW, FUSER_SOLE_FLOW, GATE_INTAKE, GATE_SLACK, GATE_STAR_FACTOR, GATE_VALUE, SMELTER_BURN_FIT, burnSources, gateFits, gateSpot, gateValue, gateWorth, parGateSpot,
 } from "../src/sim/harness/gateBots";
 import { Shopper } from "../src/sim/harness/shopper";
 import { fitsSomewhere, playerRun } from "../src/sim/harness/player";
@@ -145,6 +145,20 @@ describe("GATES-1 G6: where par puts a gate (gateSpot)", () => {
       expect(spotTile(b, "fuser", flow(FUSER_SOLE_FLOW - 0.1))).toBeNull();
       expect(spotTile(b, "fuser", flow(FUSER_SOLE_FLOW))).toBe(4);
       expect(spotTile(b, "smelter", flow(0.1))).toBe(2);
+    });
+  });
+
+  it("never on a belt that brings more than the gate takes in a second (the belt would back up behind it): a SMELTER or SCATTER MILL 1, a FUSER 2, with a tenth of slack", () => {
+    withGates(() => {
+      expect(GATE_INTAKE).toEqual({ fuser: 2, scattermill: 1, smelter: 1 });
+      const b = weaver();
+      expect(spotTile(b, "smelter", flow(GATE_SLACK * GATE_INTAKE.smelter)), "right at the limit").not.toBeNull();
+      expect(spotTile(b, "smelter", flow(GATE_SLACK * GATE_INTAKE.smelter + 0.05)), "past it").toBeNull();
+      expect(spotTile(b, "smelter", flow(1.4)), "a WEAVER's loom belt brings 1.4 a second").toBeNull();
+      expect(spotTile(furnace(), "fuser", flow(GATE_SLACK * GATE_INTAKE.fuser))).toBe(4);
+      expect(spotTile(furnace(), "fuser", flow(GATE_SLACK * GATE_INTAKE.fuser + 0.05))).toBeNull();
+      // a gate put back on a redrawn belt (reseat: relaxed) is never refused for flow
+      expect(gateSpot(b, "smelter", flow(1.4), { relaxed: true, only: 0 })).not.toBeNull();
     });
   });
 

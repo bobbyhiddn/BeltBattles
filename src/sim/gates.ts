@@ -8,7 +8,7 @@
 // takes slugs in and puts slugs out, and spends 1 whole second a conversion (the cost of its power):
 //  - FUSER        (rare,   6 G, tinker):    2 slugs in, 1 out that deals both, + 50% / 75% / 100% (the fused slug rides on as two);
 //  - SCATTER MILL (common, 4 G, tinker):    1 slug in, 3 pellets out, each at 50% / 60% of its DMG (4 pellets at 50% at ★3);
-//  - SMELTER      (rare,   5 G, alchemist): 1 in, 1 out, the slug gains +3 / +5 / +8 BURN.
+//  - SMELTER      (rare,   5 G, alchemist): 1 in, 1 out, the slug gains +2 / +5 / +8 BURN (★1 cut from the brief's +3 by the presence guard, G7).
 // The numbers are the brief's starting values; the bench (tools/gates1) and the presence guard set the shipped ones. They
 // merge like any module and sell at sellValue (stars.ts fusible; content.ts sellValue). What a conversion does is
 // src/sim/convert.ts (the engine, one function per payload rule); where a gate may stand, and drop-to-split, is G3's.
@@ -50,7 +50,7 @@ export const GATES_DEFS: Readonly<Record<string, ItemDef>> = {
     id: "smelter", name: "SMELTER", kind: "converter", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
     desc: [], tags: ["FORGE"],
     // 1 in, 1 out: the slug gains BURN, the field a burn rig's hit adds (convert.ts smeltPayload)
-    converter: { how: "smelt", in: 1, out: 1, secs: 1, burn: 3 },
+    converter: { how: "smelt", in: 1, out: 1, secs: 1, burn: 2 }, // ★1 +2: the brief's +3 read +12 to +37 points on day 3 (presence bench, O/bench/presence-k96-*), over the guard of 10
     levels: { 2: { converter: { burn: 5 } }, 3: { converter: { burn: 8 } } },
   },
 };

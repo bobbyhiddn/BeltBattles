@@ -1,5 +1,5 @@
 // GATES-1 (REQ-BFG-052, REQ-BFG-089, REQ-BFG-087; BRIEF-GATES1 G4; step 5): the three gates' faces, panels and NOTES.
-// - the face: a stat row (`{SLUG}2>1 {DMG}+50% 1{SEC}`; `{SLUG}1>3 1{SEC}`; `{BURN}+3 1{SEC}`) and the gate's own line, always on
+// - the face: a stat row (`{SLUG}2>1 {DMG}+50% 1{SEC}`; `{SLUG}1>3 1{SEC}`; `{BURN}+2 1{SEC}`) and the gate's own line, always on
 //   it, at every star; SMELTER's BURN reminder; NEXT★ and the ⓘ ladder read the same numbers;
 // - the type line (`RARE GATE`, `COMMON GATE`) on the offer, cargo and placed panels; the place hint says where a gate goes;
 // - the default rules text sits behind the hover or tap, in NOTES (`A GATE: DROP IT ON A BELT. THE BELT SPLITS AROUND IT.`,
@@ -39,13 +39,13 @@ describe("GATES-1 G4: the face", () => {
         statRow([["SLUG", "2>1"], ["DMG", "+50%"], ["SEC", "1"]]), statRow([["SLUG", "2>1"], ["DMG", "+75%"], ["SEC", "1"]]), statRow([["SLUG", "2>1"], ["DMG", "+100%"], ["SEC", "1"]]),
       ]);
       expect(rows("scattermill")).toEqual([1, 2, 3].map((s) => statRow([["SLUG", s === 3 ? "1>4" : "1>3"], ["SEC", "1"]])));
-      expect(rows("smelter")).toEqual([3, 5, 8].map((n) => statRow([["BURN", `+${n}`], ["SEC", "1"]])));
+      expect(rows("smelter")).toEqual([2, 5, 8].map((n) => statRow([["BURN", `+${n}`], ["SEC", "1"]])));
       const line = (id: string, s: number) => faceLines(id, s)!.rules.map((r) => r.text);
       expect([1, 2, 3].map((s) => line("fuser", s))).toEqual([50, 75, 100].map((n) => [icons(`2 SLUGS IN, 1 OUT: IT DEALS BOTH, +${n}%.`)]));
       expect([1, 2, 3].map((s) => line("scattermill", s))).toEqual([
         [icons("1 SLUG IN, 3 OUT, EACH AT HALF {DMG}.")], [icons("1 SLUG IN, 3 OUT, EACH AT 60% {DMG}.")], [icons("1 SLUG IN, 4 OUT, EACH AT HALF {DMG}.")],
       ]);
-      expect([1, 2, 3].map((s) => line("smelter", s))).toEqual([3, 5, 8].map((n) => [icons(`THE {SLUG} GAINS +${n} {*BURN}.`)]));
+      expect([1, 2, 3].map((s) => line("smelter", s))).toEqual([2, 5, 8].map((n) => [icons(`THE {SLUG} GAINS +${n} {*BURN}.`)]));
       // the stat row is the data function's; a row holds at most three pairs
       for (const id of GATES_IDS) expect(converterStats(id).length).toBeLessThanOrEqual(3);
       expect(converterStats("scattermill", 1)).toEqual([["SLUG", "1>3"], ["SEC", "1"]]);
@@ -129,7 +129,7 @@ describe("GATES-1 G4: NOTES, the type line and the panels", () => {
       }
       // the SMELTER: its own line, and a BURN reminder that is a KEYWORD, not a NOTE
       const s = explainPanel(gatePanel(run([{ uid: 31, def: "smelter", x: 4, y: 3 }]), 31)!, "smelter");
-      expect(s.body.map((b) => b.text)).toContain(icons("THE {SLUG} GAINS +3 {*BURN}."));
+      expect(s.body.map((b) => b.text)).toContain(icons("THE {SLUG} GAINS +2 {*BURN}."));
       expect(s.notes!.map((b) => b.text)).toEqual(expect.arrayContaining([GATE_RULE, gateWait(1)]));
       expect(s.notes!.map((b) => b.text)).not.toContain(FUSER_ORDER);
     });

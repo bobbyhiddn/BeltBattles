@@ -1114,7 +1114,7 @@ const PLAIN_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
 const cvs = (e: ItemDef) => e.converter!;
 
 /** A gate's stat row (PIECES-1 6.3; the mock ref/pieces1/cards-phone.png card 5): slugs in and out `{SLUG}2>1`, what it adds
- *  `{DMG}+50%` (FUSER) or `{BURN}+3` (SMELTER, in place of the slugs), and the time it costs `1{SEC}`. */
+ *  `{DMG}+50%` (FUSER) or `{BURN}+2` (SMELTER, in place of the slugs), and the time it costs `1{SEC}`. */
 export function converterStats(def: string, stars = 1): Stat[] {
   const c = effectAt(def, stars).converter;
   if (!c) throw new Error(`converterStats: ${def} is not a gate`);
@@ -1127,7 +1127,7 @@ export function converterStats(def: string, stars = 1): Stat[] {
 /**
  * The gates' own lines, always on the face (REQ-BFG-089: a per-piece ability stays visible; PIECES-1 6.3's plainer words):
  * FUSER `2 SLUGS IN, 1 OUT: IT DEALS BOTH, +50%.`, SCATTER MILL `1 SLUG IN, 3 OUT, EACH AT HALF {DMG}.` (the share's whole % when
- * it isn't half: ★2), SMELTER `THE {SLUG} GAINS +3 {*BURN}.` with BURN's reminder. The numbers are the stat row's too, keyed so
+ * it isn't half: ★2), SMELTER `THE {SLUG} GAINS +2 {*BURN}.` with BURN's reminder. The numbers are the stat row's too, keyed so
  * two stars' faces diff (NEXT★, the ⓘ ladder). The general rule (A GATE: ...) is gateNotes, behind the hover or tap.
  */
 const CONVERTER_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
@@ -1141,7 +1141,7 @@ const CONVERTER_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   ),
   smelter: (e) => {
     const n = fmtCount(cvs(e).burn!);
-    return rules([{ text: `THE {SLUG} GAINS +${n} {*BURN}.` }], [], [REMINDER.BURN()]); // its number is the stat row's {BURN}+3 too
+    return rules([{ text: `THE {SLUG} GAINS +${n} {*BURN}.` }], [], [REMINDER.BURN()]); // its number is the stat row's {BURN}+2 too
   },
 };
 
