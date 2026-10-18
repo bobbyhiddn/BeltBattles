@@ -26,7 +26,7 @@ const STARS = Number(arg("--stars", "0")); // 0: any, 1: only ★1 pieces, 23: o
 const K = Number(arg("--k", "24")), OPP = Number(arg("--opp", "6"));
 const OUT = arg("--out", `words-d${DAY}.json`);
 const ALL: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
-const HEROES = arg("--heroes", ALL.join(",")).split(",").filter(Boolean) as HeroId[];
+const HEROES = (process.argv.includes("--hero") ? arg("--hero", "furnace") : arg("--heroes", ALL.join(","))).split(",").filter(Boolean) as HeroId[]; // --hero: one hero (K/e1bench.sh PERHERO=1 runs four processes)
 const WORDS = arg("--words", ENCHANT_IDS.join(",")).split(",").filter(Boolean) as EnchantId[];
 
 // the plain fields first, with ENCHANT off (no word anywhere), for every hero (opponents come from the other heroes' fields)
