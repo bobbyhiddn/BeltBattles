@@ -600,10 +600,10 @@ export const FLOOR_PICKS: Readonly<Record<string, string>> = {
   // furnace 9011 4.7% (the first seed, 9001, scored 79.7%), weaver 9007 16.7% (9001: 32.8%), foundry 9008 25.7% (9001: 26.7%), bastion 9007 11.6%
   // (9001: 93.6%); all 16 seeds qualified for every hero. Was (BUMP-1D, variant A on bb-0.11.0): furnace 9005:9a646ea2, weaver 9013:fc5b64b7, foundry
   // 9003:6d010a7d, bastion 9004:9f86e774
-  furnace: "9011:512dd99f",
-  weaver: "9007:da9cff51",
-  foundry: "9008:f45ce8df",
-  bastion: "9007:cd458e17",
+  furnace: "9013:f7f16e38",
+  weaver: "9004:a50edf98",
+  foundry: "9004:b51fc4bf",
+  bastion: "9006:8512648e",
 };
 
 /** FLOOR-1: a casual run's identity in FLOOR_PICKS: 8 hex digits of the hash of every day's deck code (star-aware), days 1..poolDepth(). */
