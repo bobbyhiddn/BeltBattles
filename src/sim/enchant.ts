@@ -64,14 +64,17 @@ export type EnchantKind = "rig" | "factory" | "turret";
 export const ENCHANT_KINDS: Readonly<Record<string, EnchantKind>> = { gate: "rig", factory: "factory", turret: "turret" };
 
 /** The numbers the eight words are built from (the brief's starting values; the bench (tools/enchant1) sets the shipped ones).
+ *  RUN 3's E9a read (day 5, ★1, par-field k 96, 12 opponents a deck, win points gained over the plain deck, mean of 4 heroes) at the brief's
+ *  starting values: FIERY 12.9, RISING 20.3, GROWING 5.5, ECHOING 14.8, MASSIVE -2.4, SWIFT 1.9, WIDE 2.0, BRACED 1.0 (target +3 to +8).
+ *  CUTS made from it (each logged in REPORT with its bench line): risingStep 5 -> 2, echoEvery 3 -> 5; RAISE (under 3): bracedStuns 2 -> 3.
  *  ★1 x1, ★2 x2, ★3 x3 multiplies burn, risingStep, growingStep and bracedStuns; a count (echoEvery) and the words (HALF, TWICE,
  *  +1 ARROW, +1 SLOT) do not scale. */
 export const ENCHANT_NUM: { burn: number; risingStep: number; growingStep: number; echoEvery: number; bracedStuns: number } = {
   burn: 1, // FIERY: [BURN]+1 on the hit, the slug or the shot
-  risingStep: 5, // RISING: the nth slug or shot gets +5 DMG x n
+  risingStep: 2, // RISING: the nth slug or shot gets +2 DMG x n (the brief's start: 5; cut in run 3: E9a read 20.3 points at 5)
   growingStep: 5, // GROWING: +5 DMG x the piece's `grow` (the dusk fights it has been through)
-  echoEvery: 3, // ECHOING: every 3rd slug it hits, 3rd time it works, 3rd shot
-  bracedStuns: 2, // BRACED: the first 2 STUNs on it each fight do nothing
+  echoEvery: 5, // ECHOING: every 5th slug it hits, 5th time it works, 5th shot (the brief's start: 3; cut in run 3: E9a read 14.8 points at 3)
+  bracedStuns: 3, // BRACED: the first 3 STUNs on it each fight do nothing (the brief's start: 2; raised in run 3: E9a read 1.0 point at 2)
 };
 
 export interface EnchantDef {

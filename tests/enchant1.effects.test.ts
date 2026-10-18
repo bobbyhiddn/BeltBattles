@@ -97,13 +97,13 @@ describe("ENCHANT-1 E3: the rig's words (WHETSTONE at (3,3) hitting tile (4,3)),
       w.forEach((s, i) => expect(s.flat - b[i].flat, `slug ${i}`).toBe(b[i].flat > 0 ? ENCHANT_NUM.growingStep * 3 * stars : 0));
       z.forEach((s, i) => expect(s.flat, `grow 0, slug ${i}`).toBe(b[i].flat)); // a fresh GROWING piece adds nothing yet
     });
-    it(`★${stars} ECHOING: every 3rd slug the rig hits gets the rig's stats twice, no roll`, () => {
+    it(`★${stars} ECHOING: every Nth slug (ENCHANT_NUM.echoEvery) the rig hits gets the rig's stats twice, no roll`, () => {
       const b = base(), w = on(() => slugs(rigDeck(stars, { ench: "echoing" }), 2));
       let rank = 0;
       w.forEach((s, i) => {
         const hitNow = b[i].flat > 0;
         if (hitNow) rank++;
-        expect(s.flat - b[i].flat, `slug ${i} rank ${rank}`).toBe(hitNow && rank % 3 === 0 ? b[i].flat : 0);
+        expect(s.flat - b[i].flat, `slug ${i} rank ${rank}`).toBe(hitNow && rank % ENCHANT_NUM.echoEvery === 0 ? b[i].flat : 0);
       });
       expect(w.map((s) => s.flat)).toEqual(on(() => slugs(rigDeck(stars, { ench: "echoing" }), 2)).map((s) => s.flat)); // deterministic
     });
@@ -129,7 +129,7 @@ describe("ENCHANT-1 E3: the factory's words (the KILN, the signature factory, an
     const base = first(kilnDeck());
     expect(base.every((s) => s.flat === 0 && s.burn === 0)).toBe(true);
     expect(first(kilnDeck({ ench: "fiery" })).map((s) => s.burn)).toEqual(base.map(() => ENCHANT_NUM.burn));
-    expect(first(kilnDeck({ ench: "rising" })).map((s) => s.flat)).toEqual(base.map((_, i) => 5 * (i + 1)));
+    expect(first(kilnDeck({ ench: "rising" })).map((s) => s.flat)).toEqual(base.map((_, i) => ENCHANT_NUM.risingStep * (i + 1)));
     expect(first(kilnDeck({ ench: "growing", grow: 2 })).map((s) => s.flat)).toEqual(base.map(() => 10));
   });
   it("★3 (a STAMP PRESS at ★3): numbers x 3", () => {
@@ -141,7 +141,7 @@ describe("ENCHANT-1 E3: the factory's words (the KILN, the signature factory, an
     const base = get({});
     expect(base.length).toBeGreaterThan(4);
     expect(get({ ench: "fiery" }).map((s) => s.burn)).toEqual(base.map(() => 3));
-    expect(get({ ench: "rising" }).map((s) => s.flat)).toEqual(base.map((_, i) => 15 * (i + 1)));
+    expect(get({ ench: "rising" }).map((s) => s.flat)).toEqual(base.map((_, i) => ENCHANT_NUM.risingStep * 3 * (i + 1)));
     expect(get({ ench: "growing", grow: 2 }).map((s) => s.flat)).toEqual(base.map(() => 30));
   });
   it("ECHOING: every 3rd slug it makes is followed by a copy with a new id, spaced as a stamp spaces slugs", () => {
@@ -202,7 +202,7 @@ describe("ENCHANT-1 E3: the turret's words (the free SCRAP CANNON)", () => {
       const b = on(() => shots(turretDeck({}, stars))), w = on(() => shots(turretDeck({ ench: "rising" }, stars)));
       const k = Math.min(b.dmg.length, w.dmg.length, 8);
       expect(k).toBeGreaterThan(4);
-      for (let i = 0; i < k; i++) expect(w.dmg[i] - b.dmg[i], `★${stars} shot ${i + 1}`).toBe(5 * (i + 1) * stars);
+      for (let i = 0; i < k; i++) expect(w.dmg[i] - b.dmg[i], `★${stars} shot ${i + 1}`).toBe(ENCHANT_NUM.risingStep * (i + 1) * stars);
       // a second fight with the same deck starts at 0 again: the first shot is the same +5 x stars
       const again = on(() => shots(turretDeck({ ench: "rising" }, stars)));
       expect(again.dmg).toEqual(w.dmg);
@@ -219,8 +219,8 @@ describe("ENCHANT-1 E3: the turret's words (the free SCRAP CANNON)", () => {
     const b = on(() => shots(turretDeck())), w = on(() => shots(turretDeck({ ench: "echoing" })));
     // the word changes no timing: the real shots are the same; each 3rd earns one more fire event
     const real = b.fires;
-    expect(w.fires).toBe(real + Math.floor(real / 3));
-    expect(w.burn.length).toBe(b.burn.length + Math.floor(b.burn.length / 3) + (w.burn.length - (b.burn.length + Math.floor(b.burn.length / 3))));
+    expect(w.fires).toBe(real + Math.floor(real / ENCHANT_NUM.echoEvery));
+    expect(w.burn.length).toBeGreaterThanOrEqual(b.burn.length);
   });
   it("MASSIVE and SWIFT: the rate halves (rounding down) or doubles, and each shot deals 2x or half (never under the least a shot deals)", () => {
     const b = on(() => shots(turretDeck())), m = on(() => shots(turretDeck({ ench: "massive" }))), s = on(() => shots(turretDeck({ ench: "swift" })));
@@ -250,16 +250,16 @@ describe("ENCHANT-1 E3: BRACED swallows the first 2 x stars STUNs on its piece e
     { name: "a turret", build: (st) => turretDeck({ ench: "braced" }, st), pick: (s) => s.targets.find((t) => t.kind === "turret")!, part: (s) => s.turrets[0] },
   ];
   for (const k of kinds) for (const stars of [1, 2, 3]) {
-    it(`${k.name} at ★${stars}: ${2 * stars} STUNs do nothing, the next one lands`, () => {
+    it(`${k.name} at ★${stars}: ${ENCHANT_NUM.bracedStuns * stars} STUNs do nothing, the next one lands`, () => {
       const bt = on(() => new Battle(k.build(stars), barge(), SEED));
       const side = bt.sides[0], stun = stunner(bt), t = k.pick(side), part = k.part(side);
       const left: number[] = [];
-      for (let i = 0; i < 2 * stars; i++) {
+      for (let i = 0; i < ENCHANT_NUM.bracedStuns * stars; i++) {
         expect(stun(side, t, 2, "shock"), `STUN ${i + 1}`).toBe(false);
         expect(part.disrupted, `STUN ${i + 1}`).toBe(0);
         for (const e of bt.drainEvents()) if (e.type === "braced") { expect(e.kind).toBe(t.kind); expect(e.ref).toBe(t.ref); left.push(e.left); }
       }
-      expect(left).toEqual(Array.from({ length: 2 * stars }, (_, i) => 2 * stars - 1 - i)); // the log counts down
+      expect(left).toEqual(Array.from({ length: ENCHANT_NUM.bracedStuns * stars }, (_, i) => ENCHANT_NUM.bracedStuns * stars - 1 - i)); // the log counts down
       expect(stun(side, t, 2, "shock"), "the next STUN").toBe(true);
       expect(part.disrupted).toBeGreaterThan(0);
     });
@@ -343,11 +343,11 @@ describe("ENCHANT-1 E3: payload math in one place (every key of Payload has a ru
     const bare = (): Payload => ({ id: 1, ammo: "cinder", ride: 0, mult: 1, flat: 0, burn: 0, shock: false, prior: 0, factory: 1, copy: false });
     on(() => {
       const st = makeEnchantState({ ench: "echoing" }, 2)!;
-      const flags = [1, 2, 3, 4, 5, 6].map(() => slugMadeFx(st, bare()));
-      expect(flags).toEqual([false, false, true, false, false, true]);
+      const E = ENCHANT_NUM.echoEvery, flags = Array.from({ length: 2 * E }, () => slugMadeFx(st, bare()));
+      expect(flags).toEqual(Array.from({ length: 2 * E }, (_, i) => (i + 1) % E === 0));
       const r = makeEnchantState({ ench: "rising" }, 2)!, p = bare();
       slugMadeFx(r, p); slugMadeFx(r, p);
-      expect(p.flat).toBe(10 + 20); // 5 x 1 x 2, then 5 x 2 x 2
+      expect(p.flat).toBe(ENCHANT_NUM.risingStep * 1 * 2 + ENCHANT_NUM.risingStep * 2 * 2); // step x 1 x 2, then step x 2 x 2
     });
     expect(makeEnchantState({ ench: "fiery" }, 1)).toBeUndefined(); // off: no state
   });

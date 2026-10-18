@@ -10,7 +10,7 @@ import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { cloneBuild, rigHits, turretList, type Build } from "../src/sim/deck";
 import { placeRigAt } from "../src/sim/beltside";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
-import { ENCHANT, ENCHANT_IDS, enchantProblem, mergeWord, setEnchant, withEnchant } from "../src/sim/enchant";
+import { ENCHANT, ENCHANT_IDS, ENCHANT_NUM, enchantProblem, mergeWord, setEnchant, withEnchant } from "../src/sim/enchant";
 import { lastChanceWord, maxEnchantsByDay } from "../src/sim/enchantSources";
 import { lastChanceOffer } from "../src/sim/lastChance";
 import { RIVAL_IDS, rivalBuild } from "../src/sim/rivals";
@@ -162,7 +162,7 @@ describe("ENCHANT-1 E8: the valuation reproduces the rules of thumb", () => {
       const b = withRigs("furnace", 4);
       const e = top(b, "echoing")!;
       expect(e.target.kind).toBe("turret");
-      expect(e.value).toBeCloseTo(1 / 3, 6);
+      expect(e.value).toBeCloseTo(1 / ENCHANT_NUM.echoEvery, 6);
       const br = top(b, "braced")!;
       expect(br.value).toBeGreaterThan(0);
       expect(br.value).toBeLessThan(0.1);

@@ -38,6 +38,9 @@ const snap = (build: Build, o: Partial<GhostSnapshot> = {}): GhostSnapshot => ({
 });
 const refuses = (s: unknown): string | null => { try { checkSnapshot(s); return null; } catch (e) { return (e as Error).message; } };
 
+/** ECHOING's count word (the bench sets ENCHANT_NUM.echoEvery: 3 THIRD, 5 FIFTH ...). */
+const ORD = ["", "FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH", "SIXTH", "SEVENTH"][ENCHANT_NUM.echoEvery] ?? `${ENCHANT_NUM.echoEvery}TH`;
+
 describe("ENCHANT-1 E1: the eight words and the switch", () => {
   it("ENCHANT ships off, and the eight ids, two-letter codes and legal kinds are the brief's", () => {
     expect(ENCHANT).toBe(false);
@@ -76,18 +79,18 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
       expect(line).not.toMatch(/\d\.\d|\bPCT\b|%/);
       expect(line!.length).toBeLessThanOrEqual(60);
     }
-    expect(enchantLine("rising", "rig")).toBe("EACH SLUG IT HITS: +5 DMG MORE THAN THE LAST.");
-    expect(enchantLine("rising", "factory")).toBe("EACH SLUG IT MAKES: +5 DMG MORE THAN THE LAST.");
-    expect(enchantLine("rising", "turret")).toBe("EACH SHOT: +5 DMG MORE THAN THE LAST.");
+    expect(enchantLine("rising", "rig")).toBe(`EACH SLUG IT HITS: +${ENCHANT_NUM.risingStep} DMG MORE THAN THE LAST.`);
+    expect(enchantLine("rising", "factory")).toBe(`EACH SLUG IT MAKES: +${ENCHANT_NUM.risingStep} DMG MORE THAN THE LAST.`);
+    expect(enchantLine("rising", "turret")).toBe(`EACH SHOT: +${ENCHANT_NUM.risingStep} DMG MORE THAN THE LAST.`);
     expect(enchantLine("growing", "rig")).toBe("AFTER EACH DUSK FIGHT: ITS HIT +5 DMG, ALL RUN.");
-    expect(enchantLine("echoing", "rig")).toBe("EVERY THIRD SLUG IT HITS GETS ITS STATS TWICE.");
-    expect(enchantLine("echoing", "factory")).toBe("EVERY THIRD TIME IT WORKS: 1 MORE SLUG.");
-    expect(enchantLine("echoing", "turret")).toBe("EVERY THIRD SHOT HITS TWICE.");
+    expect(enchantLine("echoing", "rig")).toBe(`EVERY ${ORD} SLUG IT HITS GETS ITS STATS TWICE.`);
+    expect(enchantLine("echoing", "factory")).toBe(`EVERY ${ORD} TIME IT WORKS: 1 MORE SLUG.`);
+    expect(enchantLine("echoing", "turret")).toBe(`EVERY ${ORD} SHOT HITS TWICE.`);
     expect(enchantLine("massive", "factory")).toBe("WORKS HALF AS OFTEN. ITS SLUGS DEAL 2x DMG.");
     expect(enchantLine("swift", "turret")).toBe("FIRES TWICE AS OFTEN. HALF DMG A SHOT.");
-    expect(enchantLine("braced", "rig")).toBe("THE FIRST 2 [STUN]STUNS ON IT EACH FIGHT DO NOTHING.");
+    expect(enchantLine("braced", "rig")).toBe(`THE FIRST ${ENCHANT_NUM.bracedStuns} [STUN]STUNS ON IT EACH FIGHT DO NOTHING.`);
     expect(enchantLine("massive", "rig")).toBeNull();
-    expect(ENCHANT_NUM).toEqual({ burn: 1, risingStep: 5, growingStep: 5, echoEvery: 3, bracedStuns: 2 });
+    expect(ENCHANT_NUM).toEqual({ burn: 1, risingStep: 2, growingStep: 5, echoEvery: 5, bracedStuns: 3 }); // the SHIPPED numbers: the brief's starts were 1, 5, 5, 3, 2; run 3's E9a read cut RISING and ECHOING and raised BRACED (REPORT 10)
   });
 
   it("enchantProblem: each word on each kind (the allow-list), with the player's reasons", () => {
