@@ -289,9 +289,12 @@ export class SummaryScreen implements Screen {
     return true;
   }
 
-  /** ENDLESS-1: END RUN: the offer is declined and the card shows NEW RUN / TITLE, as a won run's always did. */
+  /** ENDLESS-1: END RUN: the offer is declined and the card shows NEW RUN / TITLE, as a won run's always did. The saved won run (kept
+   *  while the offer was open: save.ts saveRun) goes, as every finished run's does. */
   endRun(): void {
-    if (this.offered) this.declined = true;
+    if (!this.offered) return;
+    this.declined = true;
+    saveRun(null);
   }
 
   enter(): void {
@@ -301,7 +304,7 @@ export class SummaryScreen implements Screen {
     const profile = loadProfile();
     this.newStyles = runUnlockNames(profile, this.run.runId);
     this.best = { best: profile.bestEndless, newBest: profile.bestEndlessRun !== "" && profile.bestEndlessRun === this.run.runId }; // ENDLESS-1
-    saveRun(null);
+    saveRun(this.offered ? this.run : null); // ENDLESS-1: the won run stays saved while its offer is open (a reload reopens this card); else as ever
     this.game.audio.music(null);
     this.game.audio.play(this.complete ? "win" : "lose");
   }

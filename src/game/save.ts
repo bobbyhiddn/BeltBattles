@@ -33,7 +33,7 @@ import { readoutOk } from "./raceReadout"; // 0.8.0 H1 M3
 import { waresOk } from "./wares"; // 0.8.0 I1 M3
 import { lastChanceShapeOk } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { HEARTS_START } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a hearts run's clamp
-import { ENDLESS_LIVES, endlessRunShapeOk } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): an endless run's hearts clamp; its state's shape
+import { ENDLESS_LIVES, endlessOffered, endlessRunShapeOk } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): an endless run's hearts clamp; its state's shape; the won run kept while its offer is open
 import type { Run } from "./run";
 
 export const SAVE_KEY = "beltbattles.run.v7";
@@ -354,7 +354,11 @@ export function migrateRun(raw: unknown): Run | null {
 export function saveRun(run: Run | null): void {
   try {
     for (const k of [SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5, SAVE_KEY_V6]) localStorage.removeItem(k);
-    if (!run || run.over) localStorage.removeItem(SAVE_KEY);
+    // ENDLESS-1 (REQ-BFG-059, 3.2): a finished run is dropped, as ever, EXCEPT a won run that carries the endless mark and has not chosen
+    // yet (endless.ts endlessOffered: its RUN WON card is up, offering CONTINUE ENDLESS or END RUN): it is kept, so a reload on that
+    // screen (a phone's browser drops a backgrounded page) still offers it (title.ts continueRun opens the card again). END RUN, NEW
+    // RUN and CONTINUE ENDLESS replace it. No run without the mark is ever kept finished: ENDLESS off, the slot is as it always was.
+    if (!run || (run.over && !endlessOffered(run))) localStorage.removeItem(SAVE_KEY);
     else localStorage.setItem(SAVE_KEY, JSON.stringify(run));
   } catch {
     /* storage unavailable */

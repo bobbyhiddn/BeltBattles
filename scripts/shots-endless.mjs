@@ -72,6 +72,7 @@ for (const v of ["op690", "desk", "small"]) {
     [`yourrunes-picker-50`, v, PLAYED(C, "build", 90, `bb.holdRunes(bb.runeIds().slice(0, 50)); ${STEP(20)}`)],
     [`yourrunes-picker-63`, v, PLAYED(C, "build", 90, `bb.holdRunes(bb.runeIds().slice(0, 63)); ${STEP(20)}`)], // the deepest dawn (day 64) holds 63
     [`title-continue-endless`, v, PLAYED(C, "title", 120)],
+    [`title-continue-won`, v, PLAYED(B, "title", 120)], // a won run whose RUN WON offer was open when the page closed (it stays saved)
   );
 }
 

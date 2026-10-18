@@ -7,15 +7,16 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { computeView } from "../src/core/io";
 import { finishDay, startEndless } from "../src/game/day";
-import { SAVE_KEY, newRun, type Run } from "../src/game/run";
+import { SAVE_KEY, loadRun, newRun, saveRun, type Run } from "../src/game/run";
 import { loadProfile, PROFILE_KEY } from "../src/game/profile";
 import { UI } from "../src/ui/ui";
 import {
   OFFER_GAP, OFFER_LINES_H, SummaryScreen, foldRows, foldText, offerExtra, offerRects, summaryButtonH, summaryLayout, type HistoryRow, type SummaryView,
 } from "../src/screens/summary";
 import { duskStakes } from "../src/ui/stakes";
+import { TitleScreen, continueSub } from "../src/screens/title";
 import { heartCost, withHearts } from "../src/sim/hearts";
-import { ENDLESS_LIVES, withEndless } from "../src/sim/endless";
+import { ENDLESS_LIVES, endlessOffered, withEndless } from "../src/sim/endless";
 import { withLongRun } from "../src/sim/longRun";
 import { C } from "../src/render/palette";
 import { TAP_CSS, isPhone } from "../src/ui/tap";
@@ -441,5 +442,85 @@ describe("ENDLESS-1 3.5: the NEXT BATTLE line in endless (stakes.ts)", () => {
     startEndless(ended);
     ended.endlessRun = { ...ended.endlessRun!, end: "hearts" };
     expect(duskStakes({ ...ended, day: 14, lives: 10 })?.cost, "an ended endless is not playing it").toBe(heartCost(14));
+  });
+});
+
+describe("ENDLESS-1 3.2: a reload on the RUN WON screen keeps the offer (a marked, won, undecided run stays saved)", () => {
+  it("saveRun keeps a marked won run that has not chosen; it comes back offered. Every other finished run is dropped, as ever", () => {
+    saveRun(won13(true));
+    expect(store.has(SAVE_KEY)).toBe(true);
+    const back = loadRun()!;
+    expect(back.over).toBe("won");
+    expect(back.endless).toBe(true);
+    expect(back.endlessRun).toBeUndefined();
+    expect(endlessOffered(back)).toBe(true);
+    expect([back.wins, back.day]).toEqual([10, 13]);
+    // dropped: an unmarked won run (ENDLESS off), a lost run, a 10-day run's complete, a run whose endless ended, and null
+    const lost = withHearts(() => withLongRun(() => withEndless(() => newRun("furnace", 5, "lost-run"))));
+    play(lost, "L".repeat(40));
+    const ten = withHearts(() => withLongRun(() => newRun("furnace", 6, "ten-run"), false));
+    play(ten, "WWWWWWWWWW");
+    for (const [name, run] of [["unmarked won", won13(false)], ["lost", lost], ["10-day complete", ten], ["endless over", over13()]] as [string, Run][]) {
+      expect(run.over, name).not.toBeNull();
+      saveRun(won13(true));
+      saveRun(run);
+      expect(store.has(SAVE_KEY), name).toBe(false);
+    }
+    saveRun(won13(true));
+    saveRun(null);
+    expect(store.has(SAVE_KEY)).toBe(false);
+    // a run in progress is saved as ever (and a run in endless: the state comes back)
+    const going = won13(true);
+    startEndless(going);
+    saveRun(going);
+    expect(loadRun()!.endlessRun).toEqual({ victoryDay: 13, wins: 0, losses: 0, draws: 0 });
+  });
+
+  it("the RUN WON card keeps the run saved while the offer is open; END RUN clears it; CONTINUE ENDLESS saves the run in endless; an unmarked run's card saves nothing", () => {
+    const a = drawn(won13(true));
+    expect(store.has(SAVE_KEY), "the card is up: the won run is saved").toBe(true);
+    a.screen.endRun();
+    expect(store.has(SAVE_KEY), "END RUN: gone").toBe(false);
+    const b = drawn(won13(true));
+    expect(store.has(SAVE_KEY)).toBe(true);
+    b.screen.continueEndless();
+    const saved = loadRun()!;
+    expect(saved.over).toBeNull();
+    expect(saved.endlessRun?.victoryDay).toBe(13);
+    expect(saved.lives).toBe(ENDLESS_LIVES);
+    store.clear();
+    drawn(won13(false));
+    expect(store.has(SAVE_KEY), "an unmarked run's RUN WON saves nothing (as before)").toBe(false);
+    store.clear();
+    drawn(over13());
+    expect(store.has(SAVE_KEY), "ENDLESS OVER saves nothing").toBe(false);
+  });
+
+  it("the title: CONTINUE reads RUN WON · DAY 13 · FURNACE and opens the RUN WON card again with its offer; a run in endless still continues into the build", () => {
+    const title = (): { s: TitleScreen; went: Screen[] } => {
+      const fake = fakeGame(won13(true));
+      (fake.game as unknown as { openName(): void }).openName = () => undefined;
+      return { s: new TitleScreen(fake.game), went: fake.went };
+    };
+    saveRun(won13(true));
+    expect(continueSub(loadRun()!)).toBe("RUN WON · DAY 13 · FURNACE");
+    const a = title();
+    a.s["continueRun"]();
+    expect(a.went).toHaveLength(1);
+    expect(a.went[0]).toBeInstanceOf(SummaryScreen);
+    expect((a.went[0] as SummaryScreen).offered).toBe(true);
+    // a run in endless continues as it did (run 1): the line says ENDLESS, and CONTINUE goes to the build screen
+    const going = won13(true);
+    startEndless(going);
+    saveRun(going);
+    expect(continueSub(loadRun()!)).toBe("ENDLESS 0 · DAY 14 · FURNACE");
+    const b = title();
+    b.s["continueRun"]();
+    expect(b.went).toHaveLength(1);
+    expect(b.went[0]).not.toBeInstanceOf(SummaryScreen);
+    expect(b.went[0].constructor.name).toBe("BuildScreen");
+    // the line of every other save is as before
+    expect(continueSub({ day: 13, wins: 10, losses: 3, hero: "furnace", longRun: true })).toBe("WINS 10/10 · DAY 13 · FURNACE · 10-3");
+    expect(continueSub({ day: 4, wins: 2, losses: 1, hero: "weaver" })).toBe("DAY 4/10 · WEAVER · 2-1");
   });
 });

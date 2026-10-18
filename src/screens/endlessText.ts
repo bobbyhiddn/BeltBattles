@@ -25,6 +25,10 @@ export function endlessBar(run: { day: number; endlessRun: Pick<EndlessRun, "win
 export const endlessContinueSub = (save: { day: number; hero: HeroId; endlessRun: Pick<EndlessRun, "wins"> }): string =>
   `${endlessScore(save.endlessRun)} · DAY ${save.day} · ${HEROES[save.hero].name}`;
 
+/** The title's CONTINUE line for a won run whose RUN WON offer was open when the page closed (save.ts saveRun keeps it): "RUN WON · DAY 13
+ *  · FURNACE"; CONTINUE then opens the card again (title.ts continueRun). */
+export const wonContinueSub = (save: { day: number; hero: HeroId }): string => `RUN WON · DAY ${save.day} · ${HEROES[save.hero].name}`;
+
 /** The summary's foot line for an endless run ("7 HEARTS LEFT" is the caller's livesLeft): " · ENDLESS 7" where a run says " · WINS 3/10". */
 export const endlessFootTail = (e: Pick<EndlessRun, "wins">): string => ` · ${endlessScore(e)}`;
 

@@ -1,6 +1,7 @@
 // ENDLESS-1 3.2 (REQ-BFG-059): THE SAVES. A save mid-endless resumes in endless (the mark, the endless state and the 3-heart clamp
 // survive saveRun / loadRun); a save without the mark loads as before; malformed endless fields are dropped, not trusted. A run that
-// is over (the won run before the choice, an ended endless) is not kept, as every finished run never was.
+// is over (an ended endless, a lost run, an unmarked won run) is not kept, as every finished run never was; the ONE exception (run 2,
+// 3.2): a won run that carries the mark and has not chosen yet is kept while its RUN WON offer is open, so a reload offers it again.
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { finishDay, startEndless } from "../src/game/day";
 import { newRun, pendingRune, takeRune, type Run } from "../src/game/run";
@@ -47,13 +48,18 @@ describe("ENDLESS-1 3.2: saves", () => {
     expect(back.lives).toBe(ENDLESS_LIVES - 1);
   });
 
-  it("the won run before its choice, and an ended endless, are not kept (a finished run never was)", () => {
+  it("the won run before its choice IS kept while its offer is open (run 2: a reload offers it again); an ended endless, and a won run without the mark, are not kept (a finished run never was)", () => {
     const run = wonRun();
     saveRun(run);
-    expect(store.has(SAVE_KEY)).toBe(false);
+    expect(store.has(SAVE_KEY)).toBe(true); // marked, won, undecided: the RUN WON offer survives a reload
+    const back = reload()!;
+    expect([back.over, back.endless, back.endlessRun]).toEqual(["won", true, undefined]);
+    saveRun(wonRun(false));
+    expect(store.has(SAVE_KEY)).toBe(false); // the unmarked run's slot is as it always was
     startEndless(run);
     for (let i = 0; i < 3; i++) finishDay(run, 1, 20, NOSTATS, NOSTATS);
     expect(run.over).toBe("won");
+    saveRun(wonRun());
     saveRun(run);
     expect(store.has(SAVE_KEY)).toBe(false);
   });
