@@ -29,6 +29,8 @@
 //         It writes <name>-mouse.json (what it saw, timings aside), so a run on 69fe689's build can be compared with it.
 //  319    the run summary offline with a 20-row history (each day a warlord and a dusk) on the phones and the desk: the card
 //         on the screen, NEW RUN and TITLE at least 44 CSS px tall on a phone (the desktop's as before).
+//         ENDLESS-1 (REQ-BFG-059, run 2): + the same card with CONTINUE ENDLESS and END RUN (bb.endless() turns the switch on), by real
+//         taps: the offer, END RUN's NEW RUN / TITLE card, a reload that keeps the offer, CONTINUE ENDLESS, and ENDLESS OVER's card.
 // shoptap2 (the operator's iPhone: "tapping an item doesn't open its description"): a phone's browser never gives the page
 //         its whole screen, and the portrait panel band shrank with it (40 px on Safari's 390x664, 8 px on 390x700), so a
 //         tap selected and showed no description, or no panel. The touch section now runs on what an iPhone's browser
@@ -1282,6 +1284,115 @@ async function summarySection(browsers, origin) {
     check(errors.length === 0, `319 ${vname}: 0 console errors (${errors.length})`);
     await ctx.close();
     loadLine(`319 ${vname}: end`);
+  }
+  await endlessSummarySection(browsers, origin);
+}
+
+/**
+ * ENDLESS-1 (REQ-BFG-059, 3.5; run 2): the same summary card with the endless buttons, on the same four views, by real taps (touch) or
+ * clicks (the desk). ENDLESS ships off, so the page turns it on with bb.endless() before the run is made (the run then carries the
+ * endless mark): the 20-row RUN WON card (every day a warlord and a dusk) offers CONTINUE ENDLESS and END RUN, and NOT NEW RUN and
+ * TITLE; each is at least 44 CSS px tall (a phone; the desk's 21 px) and wide, the card on the screen. A tap on END RUN leaves the card
+ * as every won run's: NEW RUN and TITLE, as big as ever, no offer, the saved run gone. The offer survives a reload: with the run kept
+ * saved, the title's CONTINUE ("RUN WON · DAY 10 · FURNACE") opens the card again. A tap on CONTINUE ENDLESS opens the build screen at
+ * the next dawn in endless (3 hearts, the run saved in endless). ENDLESS OVER's card (the run lost 3 hearts of endless) has NEW RUN and
+ * TITLE as big, and no offer.
+ */
+async function endlessSummarySection(browsers, origin) {
+  log("");
+  log("## ENDLESS-1 (REQ-BFG-059, 3.5): the RUN WON offer on the 20-row card: CONTINUE ENDLESS and END RUN (real taps), END RUN's card, a reload, ENDLESS OVER");
+  const centre = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+  const spec = { hero: "furnace", seed: 12345, results: "WWWWWWWWWW", roads: "EEEEEEEEEE" };
+  for (const vname of ["phone", "phone-land", "small", "desk"]) {
+    loadLine(`endless ${vname}: start`);
+    const touch = !!VIEW[vname].hasTouch, vp = VIEW[vname].viewport, V = `endless summary ${vname}`;
+    const hit = async (page, r) => { const p = centre(r); if (touch) await page.touchscreen.tap(p.x, p.y); else await page.mouse.click(p.x, p.y); };
+    const read = (page) => page.evaluate(() => {
+      const v = window.bb.game.view, k = v.scale / v.dpr, s = window.bb.game.screen;
+      const reg = (id) => window.bb.regions().filter((q) => q.id === id).pop() ?? null;
+      return {
+        k, W: v.W, H: v.H, screen: window.bb.screen(), offered: !!s.offered, endlessCard: !!s.endlessCard, rows: typeof s.fights === "function" ? s.fights().length : 0,
+        go: reg("endless"), end: reg("endrun"), again: reg("again"), title: reg("title"), cont: reg("cont"),
+        saved: Object.keys(localStorage).filter((q) => q.startsWith("beltbattles.run.")), run: window.bb.game.run ? { over: window.bb.game.run.over, lives: window.bb.game.run.lives, endless: !!window.bb.game.run.endlessRun } : null,
+      };
+    });
+    const big = (r, k) => (touch ? r.h >= TAP_CSS && r.w >= TAP_CSS : Math.abs(r.h - 21 * k) < 0.01);
+    const sized = (r, k) => `${r.w.toFixed(1)}x${r.h.toFixed(1)} CSS px`;
+
+    // 1. the offer
+    {
+      const { ctx, page, errors } = await openPage(browsers, origin, vname);
+      await page.evaluate((o) => { window.bb.endless(true); window.bb.openEnd(o); }, spec);
+      await settle(page, "summary");
+      await sleep(300);
+      const m = await read(page);
+      const bottom = m.end ? m.end.y + m.end.h + 6 * m.k : Infinity;
+      await page.screenshot({ path: join(OUT, `${TAG}-endless-${vname}-offer.png`) });
+      shots.push(`${TAG}-endless-${vname}-offer.png`);
+      check(m.offered && m.rows === 20 && !!m.go && !!m.end && !m.again && !m.title, `${V}: RUN WON of a marked run offers CONTINUE ENDLESS and END RUN (${m.rows} rows) and no NEW RUN or TITLE`);
+      check(m.go && m.end && big(m.go, m.k) && big(m.end, m.k), `${V}: CONTINUE ENDLESS ${m.go ? sized(m.go) : "none"} and END RUN ${m.end ? sized(m.end) : "none"} are ${touch ? "at least 44 CSS px tall and wide" : "the desk's 21 px tall"}`);
+      check(bottom <= vp.height, `${V}: the card with the offer ends on the screen (${bottom.toFixed(1)} <= ${vp.height} CSS px)`);
+      check(m.go && m.end && m.go.y + m.go.h <= m.end.y, `${V}: CONTINUE ENDLESS is above END RUN, clear of it`);
+      check(m.saved.length === 1, `${V}: the won run is kept saved while the offer is open (${m.saved.join(", ") || "no save"})`);
+      // END RUN
+      await hit(page, m.end);
+      await sleep(300);
+      const e = await read(page);
+      const ebottom = e.again ? e.again.y + e.again.h + 6 * e.k : Infinity;
+      await page.screenshot({ path: join(OUT, `${TAG}-endless-${vname}-endrun.png`) });
+      shots.push(`${TAG}-endless-${vname}-endrun.png`);
+      check(!e.offered && !!e.again && !!e.title && !e.go && !e.end && e.screen === "summary", `${V}: a tap on END RUN leaves the card with NEW RUN and TITLE (as a won run's always was) and no offer`);
+      check(e.again && e.title && big(e.again, e.k) && big(e.title, e.k) && ebottom <= vp.height, `${V}: NEW RUN ${e.again ? sized(e.again) : "none"} and TITLE ${e.title ? sized(e.title) : "none"} are as big as ever, the card ends on the screen (${ebottom.toFixed(1)} <= ${vp.height})`);
+      check(e.saved.length === 0, `${V}: END RUN clears the saved run (${e.saved.join(", ") || "no save"})`);
+      check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+      await ctx.close();
+    }
+
+    // 2. a reload with the offer open: the title's CONTINUE reads RUN WON and opens the card again; then CONTINUE ENDLESS by a tap
+    {
+      const { ctx, page, errors } = await openPage(browsers, origin, vname, { name: "ENDLESS" });
+      await page.evaluate((o) => { window.bb.endless(true); window.bb.openEnd(o); }, spec);
+      await settle(page, "summary");
+      await sleep(200);
+      await page.reload();
+      await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
+      await settle(page, "title");
+      await sleep(300);
+      let m = await read(page);
+      check(m.saved.length === 1 && !!m.cont, `${V}: after a reload on the offer, the run is still saved and the title offers CONTINUE`);
+      await hit(page, m.cont);
+      await settle(page, "summary");
+      await sleep(300);
+      m = await read(page);
+      check(m.screen === "summary" && m.offered && !!m.go && !!m.end, `${V}: CONTINUE opens the RUN WON card again with its offer`);
+      await hit(page, m.go);
+      await settle(page, "build", 15000);
+      const b = await read(page);
+      await page.screenshot({ path: join(OUT, `${TAG}-endless-${vname}-build.png`) });
+      shots.push(`${TAG}-endless-${vname}-build.png`);
+      check(b.screen === "build" && b.run && b.run.endless && b.run.over === null && b.run.lives === 3, `${V}: a tap on CONTINUE ENDLESS opens the build screen at the next dawn, in endless, with 3 hearts (${JSON.stringify(b.run)})`);
+      check(b.saved.length === 1, `${V}: the run in endless is saved`);
+      check(errors.length === 0, `${V}: 0 console errors, reload and CONTINUE ENDLESS (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+      await ctx.close();
+    }
+
+    // 3. ENDLESS OVER
+    {
+      const { ctx, page, errors } = await openPage(browsers, origin, vname);
+      await page.evaluate((o) => { window.bb.endless(true); window.bb.openPlayed({ ...o, endless: "WWLLL" }, "summary"); }, spec);
+      await settle(page, "summary");
+      await sleep(300);
+      const m = await read(page);
+      const bottom = m.again ? m.again.y + m.again.h + 6 * m.k : Infinity;
+      await page.screenshot({ path: join(OUT, `${TAG}-endless-${vname}-over.png`) });
+      shots.push(`${TAG}-endless-${vname}-over.png`);
+      check(m.endlessCard && !m.offered && !!m.again && !!m.title && !m.go && !m.end, `${V}: ENDLESS OVER (2 endless wins, 3 hearts lost) has NEW RUN and TITLE and no offer`);
+      check(m.again && m.title && big(m.again, m.k) && big(m.title, m.k) && bottom <= vp.height, `${V}: its NEW RUN ${m.again ? sized(m.again) : "none"} and TITLE ${m.title ? sized(m.title) : "none"} are as big as ever, the card ends on the screen (${bottom.toFixed(1)} <= ${vp.height})`);
+      check(m.saved.length === 0, `${V}: nothing is kept saved after ENDLESS OVER`);
+      check(errors.length === 0, `${V}: 0 console errors, ENDLESS OVER (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+      await ctx.close();
+    }
+    loadLine(`endless ${vname}: end`);
   }
 }
 
