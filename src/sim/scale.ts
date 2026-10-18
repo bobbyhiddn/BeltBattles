@@ -28,8 +28,9 @@ import { livesCap, startLives } from "./hearts"; // SCALE-2c M0 (REQ-BFG-098): t
 // content.ts and stars.ts: no cycle
 import "./ladderFix";
 
-/** THE switch (REQ-BFG-098, REQ-BFG-110): off in this rules version (bb-0.10.0); BUMP-1E turns it on. */
-export const SCALE_RIGS: boolean = false;
+/** THE switch (REQ-BFG-098, REQ-BFG-110): on from bb-0.12.0 (BUMP-1E turned it on; SCALE_RULES in rulesGate.ts is the first rules
+ *  version with the twelve; older records keep the base's pieces whatever the switch). Was off in bb-0.10.0 and bb-0.11.0. */
+export const SCALE_RIGS: boolean = true;
 
 let scOn = false;
 
