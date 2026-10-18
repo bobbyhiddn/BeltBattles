@@ -14,6 +14,8 @@ import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUN
 import { startingBuild, warlordBuild } from "../sim/ai";
 import { HEROES, type HeroId } from "../sim/content";
 import { WIN_GOAL, longRun, longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): the rules card and the continue card of a long run
+import { inEndless, type EndlessRun } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): an endless save's continue card
+import { endlessContinueSub } from "./endlessText";
 import { dayText } from "./runDay";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE and RULE JOIN LIMIT in the rules card
 import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): neither rule in the card with FREE_JOINS on
@@ -113,8 +115,10 @@ export const HELP_LONG_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COST
 
 /** RUN-1 (REQ-BFG-059, D7): the CONTINUE button's second line for a saved run: "DAY 3/10 · FURNACE · 3-8" for a 10-day run, exactly as
  *  before; "WINS 3/10 · DAY 12 · FURNACE · 3-8" for a long run's save (its mark, Run.longRun; never "/N" on the day). */
-export const continueSub = (save: { day: number; wins: number; losses: number; hero: HeroId; longRun?: boolean }): string =>
-  longRun(save)
+export const continueSub = (save: { day: number; wins: number; losses: number; hero: HeroId; longRun?: boolean; endlessRun?: EndlessRun }): string =>
+  inEndless(save) // ENDLESS-1 (REQ-BFG-059, 3.5): an endless save reads "ENDLESS 4 · DAY 15 · FURNACE" (screens/endlessText.ts), never a "/10"
+    ? endlessContinueSub({ day: save.day, hero: save.hero, endlessRun: save.endlessRun! })
+    : longRun(save)
     ? `WINS ${save.wins}/${WIN_GOAL} · ${dayText(save.day, true)} · ${HEROES[save.hero].name} · ${save.wins}-${save.losses}`
     : `${dayText(save.day, false)} · ${HEROES[save.hero].name} · ${save.wins}-${save.losses}`;
 // The HOW TO PLAY lines (RETUNE-1's helpLines: HELP, with line 2 the hearts rule while HEARTS is on; off, HELP itself) are

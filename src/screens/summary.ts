@@ -12,6 +12,7 @@ import { flawless, record } from "../game/day";
 import type { EventId } from "../game/eventDefs";
 import { HEROES, RUN_DAYS } from "../sim/content";
 import { WIN_GOAL, longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): the run's own mark picks the end card's words
+import { endlessFootTail } from "./endlessText"; // ENDLESS-1 (REQ-BFG-059, 3.5): a run that played endless says ENDLESS n in the foot line
 import { onLongRoad } from "./runDay"; // RUN-1: a long run's days past 10 are marked in the history
 import { Fx } from "../render/fx";
 import { C } from "../render/palette";
@@ -151,8 +152,10 @@ export function wonLine(run: Pick<Run, "hero" | "wins" | "losses" | "day" | "his
 
 /** The history's foot line: "7 HEARTS LEFT · WINS 3/10" (RETUNE-1 run 2: HEARTS on a hearts run, else LIVES). RUN-1 (D2): the 10 is the
  *  goal, WIN_GOAL on a long run (it was RUN_DAYS, also 10): the text is the same either way. */
-export const footLine = (run: Pick<Run, "hearts" | "lives" | "wins" | "longRun">): string =>
-  `${livesLeft(run)} · WINS ${run.wins}/${longRun(run) ? WIN_GOAL : RUN_DAYS}`;
+export const footLine = (run: Pick<Run, "hearts" | "lives" | "wins" | "longRun" | "endlessRun">): string =>
+  run.endlessRun // ENDLESS-1 (REQ-BFG-059, 3.5): a run that played endless reads "0 HEARTS LEFT · ENDLESS 7", never "WINS 10/10" (screens/endlessText.ts)
+    ? `${livesLeft(run)}${endlessFootTail(run.endlessRun)}`
+    : `${livesLeft(run)} · WINS ${run.wins}/${longRun(run) ? WIN_GOAL : RUN_DAYS}`;
 
 /** A lost run's second line: "ON DAY 12 · FURNACE · W-L 6-6" (its day and record; either rule's, unchanged by RUN-1). */
 export const lostLine = (run: Pick<Run, "hero" | "wins" | "losses" | "day">): string => `ON DAY ${run.day} · ${HEROES[run.hero].name} · W-L ${record(run)}`;
