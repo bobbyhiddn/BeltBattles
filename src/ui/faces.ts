@@ -1147,17 +1147,20 @@ const CONVERTER_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
 
 /** GATES-1 (REQ-BFG-089, REQ-BFG-087; PIECES-1 6.3): the gate rule, default rules text behind the hover or tap (EXPLAIN-1's NOTES lead). */
 export const GATE_RULE = "A GATE: DROP IT ON A BELT. THE BELT SPLITS AROUND IT.";
+/** GATES-1b (BRIEF-GATES1B B4; the cold read's readers all asked what the outlined tiles are while a gate is carried): the carried gate
+ *  outlines the tiles after it, in its rarity colour (cues.ts drawSplitGhost). NOTES only: behind the hover or tap (REQ-BFG-089). */
+export const GATE_OUTLINE = "THE OUTLINED TILES ARE THE BELT AFTER THE GATE.";
 /** GATES-1: what a conversion costs, in the gate's seconds. */
 export const gateWait = (secs: number): string => `EACH SLUG WAITS ${fmtSec(secs)} SEC INSIDE IT.`;
 /** GATES-1: the FUSER's placement puzzle (the fused slug rides on as two: convert.ts fusePayload). */
 export const FUSER_ORDER = "RIGS BEFORE IT COUNT TWICE. RIGS AFTER IT COUNT ONCE.";
 
-/** GATES-1: a gate's NOTES sentences (the gate rule, the wait, and for the FUSER its order); [] for every other piece and with
- *  GATES off (no gate exists). */
+/** GATES-1: a gate's NOTES sentences (the gate rule, GATES-1b's outlined tiles, the wait, and for the FUSER its order); [] for every
+ *  other piece and with GATES off (no gate exists). */
 export function gateNotes(def: string): string[] {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   if (!d || d.kind !== "converter" || !d.converter) return [];
-  return [GATE_RULE, gateWait(d.converter.secs), ...(d.converter.how === "fuse" ? [FUSER_ORDER] : [])];
+  return [GATE_RULE, GATE_OUTLINE, gateWait(d.converter.secs), ...(d.converter.how === "fuse" ? [FUSER_ORDER] : [])];
 }
 
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */

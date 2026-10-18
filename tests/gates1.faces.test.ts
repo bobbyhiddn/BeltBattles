@@ -14,7 +14,7 @@ import { key as K, type Placed } from "../src/sim/deck";
 import { GATES, GATES_IDS, setGates, withGates } from "../src/sim/gates";
 import { icons, textWidth, wrap } from "../src/render/font";
 import { statRow } from "../src/ui/icons";
-import { GATE_RULE, FUSER_ORDER, REMINDER, converterStats, faceAt, faceDiff, faceLines, faceNext, gateNotes, gateWait, hasFace } from "../src/ui/faces";
+import { GATE_OUTLINE, GATE_RULE, FUSER_ORDER, REMINDER, converterStats, faceAt, faceDiff, faceLines, faceNext, gateNotes, gateWait, hasFace } from "../src/ui/faces";
 import { TIPS } from "../src/ui/tips";
 import { describe as kindLine, panelKind } from "../src/screens/build/shop";
 import { GATE_DRAG, GATE_MOVE, GATE_TAP, cargoPanel, explainPanel, gatePanel, itemPanel, offerPanel, rigPanel } from "../src/screens/build/inspector";
@@ -100,9 +100,12 @@ describe("GATES-1 G4: NOTES, the type line and the panels", () => {
       expect(GATE_RULE).toBe("A GATE: DROP IT ON A BELT. THE BELT SPLITS AROUND IT.");
       expect(gateWait(1)).toBe("EACH SLUG WAITS 1 SEC INSIDE IT.");
       expect(FUSER_ORDER).toBe("RIGS BEFORE IT COUNT TWICE. RIGS AFTER IT COUNT ONCE.");
-      expect(gateNotes("fuser")).toEqual([GATE_RULE, gateWait(1), FUSER_ORDER]);
-      expect(gateNotes("scattermill")).toEqual([GATE_RULE, gateWait(1)]);
-      expect(gateNotes("smelter")).toEqual([GATE_RULE, gateWait(1)]);
+      // GATES-1b B4: one more sentence in the three gates' NOTES, for the outlined tiles of the carried gate (the rarity colour is the
+      // gate's: cyan for the rare two, steel for the SCATTER MILL, so it says OUTLINED, not blue)
+      expect(GATE_OUTLINE).toBe("THE OUTLINED TILES ARE THE BELT AFTER THE GATE.");
+      expect(gateNotes("fuser")).toEqual([GATE_RULE, GATE_OUTLINE, gateWait(1), FUSER_ORDER]);
+      expect(gateNotes("scattermill")).toEqual([GATE_RULE, GATE_OUTLINE, gateWait(1)]);
+      expect(gateNotes("smelter")).toEqual([GATE_RULE, GATE_OUTLINE, gateWait(1)]);
       expect(gateNotes("whetstone")).toEqual([]);
     });
   });
@@ -123,14 +126,14 @@ describe("GATES-1 G4: NOTES, the type line and the panels", () => {
       const t = explainPanel(raw, "fuser");
       const drawn = t.body.map((b) => b.text);
       expect(drawn).toContain(icons("2 SLUGS IN, 1 OUT: IT DEALS BOTH, +50%.")); // always visible
-      for (const n of [GATE_RULE, gateWait(1), FUSER_ORDER]) {
+      for (const n of [GATE_RULE, GATE_OUTLINE, gateWait(1), FUSER_ORDER]) {
         expect(drawn, n).not.toContain(n);
         expect(t.notes!.map((b) => b.text), n).toContain(n);
       }
       // the SMELTER: its own line, and a BURN reminder that is a KEYWORD, not a NOTE
       const s = explainPanel(gatePanel(run([{ uid: 31, def: "smelter", x: 4, y: 3 }]), 31)!, "smelter");
       expect(s.body.map((b) => b.text)).toContain(icons("THE {SLUG} GAINS +2 {*BURN}."));
-      expect(s.notes!.map((b) => b.text)).toEqual(expect.arrayContaining([GATE_RULE, gateWait(1)]));
+      expect(s.notes!.map((b) => b.text)).toEqual(expect.arrayContaining([GATE_RULE, GATE_OUTLINE, gateWait(1)]));
       expect(s.notes!.map((b) => b.text)).not.toContain(FUSER_ORDER);
     });
   });
