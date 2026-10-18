@@ -344,7 +344,7 @@ function rideMerge(a: Payload, b: Payload): { mult: number; flat: number; both: 
 /**
  * FUSER (BRIEF-GATES1 G2): two slugs in, one out. The fused slug carries both (FUSE_RULES: every number adds, flags OR, a
  * new id), and then its DMG share, `mult` and `flat` (the fields SPLITTER shares), is x(100 + spec.bonus)% (x1.5, ★2 x1.75,
- * ★3 x2). It rides on as two (rideMerge), so rigs before a FUSER count twice and rigs after it count once. `a` is the first
+ * ★3 x2.5). It rides on as two (rideMerge), so rigs before a FUSER count twice and rigs after it count once. `a` is the first
  * slug in, `b` the second; both are consumed.
  */
 export function fusePayload(a: Payload, b: Payload, spec: Pick<ConverterSpec, "bonus">, id: number): Payload {

@@ -6,7 +6,7 @@
 // pieces of kind "converter" (player-facing family GATE, type line RARE GATE; not kind "gate": beltside.ts
 // migrateInlineGates moves every kind "gate" off a belt tile at every load). Each is 1x1, stands on one tile of a belt,
 // takes slugs in and puts slugs out, and spends 1 whole second a conversion (the cost of its power):
-//  - FUSER        (rare,   6 G, tinker):    2 slugs in, 1 out that deals both, + 50% / 75% / 100% (the fused slug rides on as two);
+//  - FUSER        (rare,   6 G, tinker):    2 slugs in, 1 out that deals both, + 50% / 75% / 150% (the fused slug rides on as two; ★3 raised from the brief's +100% by the day-10 read, G7 a);
 //  - SCATTER MILL (common, 4 G, tinker):    1 slug in, 3 pellets out, each at 50% / 60% of its DMG (4 pellets at 50% at ★3);
 //  - SMELTER      (rare,   5 G, alchemist): 1 in, 1 out, the slug gains +2 / +5 / +8 BURN (★1 cut from the brief's +3 by the presence guard, G7).
 // The numbers are the brief's starting values; the bench (tools/gates1) and the presence guard set the shipped ones. They
@@ -35,9 +35,9 @@ export const GATES_DEFS: Readonly<Record<string, ItemDef>> = {
   fuser: {
     id: "fuser", name: "FUSER", kind: "converter", rarity: "rare", price: 6, size: 1, merchant: "tinker",
     desc: [], tags: ["FORGE", "BURST"],
-    // 2 slugs in, 1 out: it carries both slugs' DMG and rides on as two (convert.ts fusePayload), x1.5 / 1.75 / 2 of that
+    // 2 slugs in, 1 out: it carries both slugs' DMG and rides on as two (convert.ts fusePayload), x1.5 / 1.75 / 2.5 of that
     converter: { how: "fuse", in: 2, out: 1, secs: 1, bonus: 50 },
-    levels: { 2: { converter: { bonus: 75 } }, 3: { converter: { bonus: 100 } } },
+    levels: { 2: { converter: { bonus: 75 } }, 3: { converter: { bonus: 150 } } }, // ★3 +150%: at +100% the FUSER read -2.1 (±2.7) on BASTION on day 10 at its best spot (k 96, O/bench/spots-fuser-d10-k96-*), under the 0 the brief asks
   },
   scattermill: {
     id: "scattermill", name: "SCATTER MILL", kind: "converter", rarity: "common", price: 4, size: 1, merchant: "tinker", // G5 lever (a): the TINKER rides most caravans and sells few commons (bench O/bench/offers-lever-*)

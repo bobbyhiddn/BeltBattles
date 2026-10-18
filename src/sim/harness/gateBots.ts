@@ -11,7 +11,7 @@
 //    no harmless fill and no fill of last resort), and a heavy gun's belt is worth more than a medium or a light gun's;
 //  - SCATTER MILL: WEAVER's light guns with spare room (3 hits = 3 FRAY stacks); the others medium;
 //  - SMELTER: by the BURN on the deck (burnSources): a deck with no BURN source is worth a quarter, one with two the table's value.
-// A star multiplies it by what the star adds to the gate's number (FUSER +50 / +75 / +100, SCATTER MILL 150 / 180 / 200 % of a slug
+// A star multiplies it by what the star adds to the gate's number (FUSER +50 / +75 / +150, SCATTER MILL 150 / 180 / 200 % of a slug
 // over the slug, SMELTER +2 / +5 / +8 BURN). The numbers are the bots' starting values; the bench (tools/gates1) and the presence guard
 // set the shipped ones.
 //
@@ -57,10 +57,10 @@ export const GATE_CLASS_FIT: Readonly<Record<GateId, Readonly<Record<TurretKind,
   smelter: { heavy: 1, adaptable: 1, medium: 1, light: 1 },
 };
 
-/** What ★2 and ★3 multiply the ★1 value by (what the star adds to the gate's number: FUSER +50 / +75 / +100 %, SCATTER MILL 150 / 180 /
+/** What ★2 and ★3 multiply the ★1 value by (what the star adds to the gate's number: FUSER +50 / +75 / +150 %, SCATTER MILL 150 / 180 /
  *  200 % of a slug, SMELTER +2 / +5 / +8 BURN). The harness reads no star value from the defs itself (tests/harness.mods.test.ts). */
 export const GATE_STAR_FACTOR: Readonly<Record<GateId, readonly [number, number, number]>> = {
-  fuser: [1, 1.5, 2],
+  fuser: [1, 1.5, 3], // +50 / +75 / +150 %
   scattermill: [1, 1.6, 2],
   smelter: [1, 2.5, 4], // +2 / +5 / +8 BURN
 };

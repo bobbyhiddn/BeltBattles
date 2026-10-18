@@ -36,12 +36,12 @@ describe("GATES-1 G4: the face", () => {
     on(() => {
       const rows = (id: string) => [1, 2, 3].map((s) => faceLines(id, s)!.stats);
       expect(rows("fuser")).toEqual([
-        statRow([["SLUG", "2>1"], ["DMG", "+50%"], ["SEC", "1"]]), statRow([["SLUG", "2>1"], ["DMG", "+75%"], ["SEC", "1"]]), statRow([["SLUG", "2>1"], ["DMG", "+100%"], ["SEC", "1"]]),
+        statRow([["SLUG", "2>1"], ["DMG", "+50%"], ["SEC", "1"]]), statRow([["SLUG", "2>1"], ["DMG", "+75%"], ["SEC", "1"]]), statRow([["SLUG", "2>1"], ["DMG", "+150%"], ["SEC", "1"]]),
       ]);
       expect(rows("scattermill")).toEqual([1, 2, 3].map((s) => statRow([["SLUG", s === 3 ? "1>4" : "1>3"], ["SEC", "1"]])));
       expect(rows("smelter")).toEqual([2, 5, 8].map((n) => statRow([["BURN", `+${n}`], ["SEC", "1"]])));
       const line = (id: string, s: number) => faceLines(id, s)!.rules.map((r) => r.text);
-      expect([1, 2, 3].map((s) => line("fuser", s))).toEqual([50, 75, 100].map((n) => [icons(`2 SLUGS IN, 1 OUT: IT DEALS BOTH, +${n}%.`)]));
+      expect([1, 2, 3].map((s) => line("fuser", s))).toEqual([50, 75, 150].map((n) => [icons(`2 SLUGS IN, 1 OUT: IT DEALS BOTH, +${n}%.`)]));
       expect([1, 2, 3].map((s) => line("scattermill", s))).toEqual([
         [icons("1 SLUG IN, 3 OUT, EACH AT HALF {DMG}.")], [icons("1 SLUG IN, 3 OUT, EACH AT 60% {DMG}.")], [icons("1 SLUG IN, 4 OUT, EACH AT HALF {DMG}.")],
       ]);
@@ -61,11 +61,11 @@ describe("GATES-1 G4: the face", () => {
     });
   });
 
-  it("NEXT★ and the ⓘ ladder read the same numbers: FUSER +75%, then +100%; SCATTER MILL 60%, then 4 pellets at HALF; SMELTER +5, then +8", () => {
+  it("NEXT★ and the ⓘ ladder read the same numbers: FUSER +75%, then +150%; SCATTER MILL 60%, then 4 pellets at HALF; SMELTER +5, then +8", () => {
     on(() => {
       expect(faceNext("fuser", 1)!.text).toBe(`NEXT ★2: ${faceDiff("fuser", 1, 2)}`);
       expect(faceDiff("fuser", 1, 2)).toBe(statRow([["DMG", "+75%"]])); // the stat row's number once, not the rule's again
-      expect(faceDiff("fuser", 2, 3)).toBe(statRow([["DMG", "+100%"]]));
+      expect(faceDiff("fuser", 2, 3)).toBe(statRow([["DMG", "+150%"]]));
       expect(faceDiff("smelter", 1, 2)).toBe(statRow([["BURN", "+5"]]));
       expect(faceDiff("smelter", 2, 3)).toBe(statRow([["BURN", "+8"]]));
       expect(faceDiff("scattermill", 1, 2)).toBe("60%"); // the share, the rule's own number

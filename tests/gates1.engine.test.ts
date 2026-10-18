@@ -1,6 +1,6 @@
 // GATES-1 (REQ-BFG-052; BRIEF-GATES1 G2; step 3): the converter engine (src/sim/convert.ts, called from battle.ts's hooks marked
 // GATES-1) on fixtures:
-// - a FUSER takes 2 slugs in, works exactly 1 s (60 ticks) and puts 1 out that deals both +50% (★2 +75%, ★3 +100%); it waits for
+// - a FUSER takes 2 slugs in, works exactly 1 s (60 ticks) and puts 1 out that deals both +50% (★2 +75%, ★3 +150%); it waits for
 //   its partner with no timeout; a slug still in a buffer at the end of a battle is never fired;
 // - a SCATTER MILL puts 3 pellets out (★2 at 60%, ★3 four at 50%), one at a time once AMMO_SPACING is free;
 // - a SMELTER gives the slug +2 BURN (★2 +5, ★3 +8);
@@ -101,9 +101,9 @@ describe("GATES-1 G2: the FUSER", () => {
     });
   });
 
-  it("★2 is +75% and ★3 +100% of both", () => {
+  it("★2 is +75% and ★3 +150% of both", () => {
     withGates(() => {
-      for (const [stars, total] of [[1, 114], [2, 133], [3, 152]] as const) { // (76) x 1.5 / 1.75 / 2
+      for (const [stars, total] of [[1, 114], [2, 133], [3, 190]] as const) { // (76) x 1.5 / 1.75 / 2.5
         const { bt, r, c } = world(bench([["fuser", 2, stars]]));
         put(r, slug(100, { flat: 10 }));
         let conv: { tick: number; e: SimEvent }[] = [];
@@ -114,7 +114,7 @@ describe("GATES-1 G2: the FUSER", () => {
         expect(conv.length, `stars ${stars}`).toBe(1);
         const p = r.ammo[0].p;
         expect(Math.round(30 * p.mult + p.flat), `stars ${stars}`).toBe(total);
-        expect(c!.spec.bonus).toBe([50, 75, 100][stars - 1]);
+        expect(c!.spec.bonus).toBe([50, 75, 150][stars - 1]);
       }
     });
   });
