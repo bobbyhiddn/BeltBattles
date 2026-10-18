@@ -865,6 +865,8 @@ export class BuildScreen implements Screen, EditHost {
    *  at most one every 0.15 s, so a trackpad's swipe can't spin it. With nothing carried, or SHAPES off, the wheel does
    *  nothing here, as before. */
   wheel(dy: number, mode = 0): boolean {
+    // ENDLESS-1 (REQ-BFG-059, 3.5): over the paged YOUR RUNES list (an endless run's ~50 runes) the wheel turns its page
+    if (this.runeBar.list && !this.foeView.open && !this.modalUp() && this.runeBar.wheel(dy, this.t)) return true;
     if (!shapesRules() || !this.ed.carry || dy === 0 || this.foeView.open || this.modalUp()) {
       this.wheelS.sum = 0;
       return false;
@@ -876,6 +878,7 @@ export class BuildScreen implements Screen, EditHost {
   key(k: string): void {
     if (this.foeView.open) return this.foeView.key(k); // SCOUT-1c: Escape closes the face, then the view; no FIGHT under it
     if (this.modalUp()) return; // RUNES-1: the rune picker can't be skipped (no FIGHT, reroll or Escape under it); LC-1: nor LAST CHANCE
+    if (this.runeBar.key(k)) return; // ENDLESS-1: the arrows and PageUp / PageDown turn the paged YOUR RUNES list's page
     if (k === "Escape") {
       if (this.menu) this.menu = false;
       else if (this.ed.busy) this.ed.cancel();

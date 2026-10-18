@@ -14,7 +14,9 @@ import { panel, type Rect } from "../ui/ui";
 import { drawRich } from "../ui/richText";
 import { pendingRune, takeRune, type Run } from "../game/run";
 import { RUNES, isRune, type RuneDef } from "../sim/runes";
+import { endlessMarked } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): only an endless-marked run gets the compact tray
 import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH, runeChipW } from "../ui/runeBar";
+import { drawRuneChipSmall, RUNE_SMALL_H, RUNE_SMALL_W } from "../ui/runeBar"; // ENDLESS-1 (REQ-BFG-059, 3.5): the compact tray's chips
 import { runeChipIcon, runeTapOf } from "../ui/runeBar"; // EXPLAIN-1 (REQ-BFG-089, E3): the chip as the card's icon
 import { runeHintBand, runeSightWord, runeWordBoxOn, runeWordLayer, sawRuneNote } from "../ui/runeBar"; // CARD-2 (REQ-BFG-081, K2; K1)
 import { TAKE_CLOCK, runeBarTarget, runeCardTextW, runeNoteBox, runeNoteY, takeGuardPassed } from "../ui/runeBar"; // CARD-4 (REQ-BFG-081, P): only the bar takes, never too soon
@@ -55,14 +57,20 @@ export interface PickLayout {
   trayChips: Rect[];
   /** The lowest row anything is drawn on (exclusive). */
   bottom: number;
+  /** ENDLESS-1 (REQ-BFG-059, 3.5; RULING-RUN1-R1): the tray is COMPACT (RUNE_SMALL_W x RUNE_SMALL_H chips, "YOUR RUNES n" on a row of its
+   *  own above them) because the runes held did not fit the screen as full chips. Absent otherwise (every tray as before). */
+  compact?: boolean;
 }
+
+/** ENDLESS-1: a compact tray's rows: the label's row, then RUNE_SMALL_H + 1 a row. */
+const SMALL_PITCH_X = RUNE_SMALL_W + 1, SMALL_PITCH_Y = RUNE_SMALL_H + 1, SMALL_HEAD = 12;
 
 /** The picker on a screen W x H: `ids` the cards, `open` the opened one (-1 none), `held` the runes held. Pure (tests).
  *  FLIP-X2 (REVIEW-FLIPX1 answer 3): `heldIds`, the held runes' ids in pick order, sizes each tray chip from its keyword
  *  word (runeChipW: SHIELD's 26, every other word's 22); absent, every chip is 22 wide and the tray is exactly as before.
  *  CARD-4 (P1): `tap`, a finger's target in art px (runeTapOf; 0 for a mouse): the opened card's bar band holds it.
  *  HULL-1a (REQ-BFG-079): `day`, the dawn's day (a HULL rune's amount: the day's number with HULL_SCALE on). */
-export function pickLayout(W: number, H: number, ids: readonly string[], open: number, held: number, heldIds?: readonly string[], tap = 0, day?: number): PickLayout {
+export function pickLayout(W: number, H: number, ids: readonly string[], open: number, held: number, heldIds?: readonly string[], tap = 0, day?: number, compactOk = false): PickLayout {
   const cardW = Math.min(W - 8, 300), x = Math.round(W / 2 - cardW / 2);
   const hs = ids.map((id, i) => runeCardH(RUNES[id], cardW, i === open ? { reminder: true, hint: PICK_TAKE, tap, day } : { day }));
   // the tray: "YOUR RUNES n" then the chips in rows (display only: RUNE_CHIP_MIN, not a finger's size)
@@ -79,8 +87,30 @@ export function pickLayout(W: number, H: number, ids: readonly string[], open: n
   }
   const rows = held ? at[held - 1][1] + 1 : 0;
   const trayH = held ? rows * pitch + 5 : 0;
-  const total = 33 + hs.reduce((s, h) => s + h, 0) + GAP * Math.max(0, ids.length - 1) + (held ? 9 + trayH : 0);
-  const top = Math.max(4, Math.min(40, Math.floor((H - total) / 3)));
+  const body = 33 + hs.reduce((s, h) => s + h, 0) + GAP * Math.max(0, ids.length - 1);
+  const total = body + (held ? 9 + trayH : 0);
+  let top = Math.max(4, Math.min(40, Math.floor((H - total) / 3)));
+  // ENDLESS-1 (REQ-BFG-059, 3.5; RULING-RUN1-R1): an endless run holds about 50 runes, and the full chips' tray (22 px chips, 3 or 4 a
+  // row on a phone) would run off the screen. When the tray as it was does not fit, it is laid out COMPACT: small chips, the label on
+  // a row of its own, as many to a row as the card holds. Whenever it fits, every number above is exactly as before; and `compactOk`
+  // (the caller's: the run carries the endless mark, sim/endless.ts endlessMarked) is false for every run without it, so a run of
+  // today's rules (ENDLESS off) draws the tray it always drew, fit or not.
+  if (compactOk && held && top + total > H - 4) {
+    const left = x + 5, perRow = Math.max(1, Math.floor((x + cardW - 4 - left + 1) / SMALL_PITCH_X));
+    const smallRows = Math.ceil(held / perRow), smallH = SMALL_HEAD + smallRows * SMALL_PITCH_Y + 3;
+    top = Math.max(4, Math.min(40, Math.floor((H - (body + 9 + smallH)) / 3)));
+    const cards: Rect[] = [];
+    let y = top + 33;
+    hs.forEach((h, i) => {
+      cards.push({ x, y, w: cardW, h });
+      y += h + (i < hs.length - 1 ? GAP : 0);
+    });
+    const tray: Rect = { x, y: y + 9, w: cardW, h: smallH };
+    const trayChips: Rect[] = Array.from({ length: held }, (_, i) => ({
+      x: left + (i % perRow) * SMALL_PITCH_X, y: tray.y + SMALL_HEAD + Math.floor(i / perRow) * SMALL_PITCH_Y, w: RUNE_SMALL_W, h: RUNE_SMALL_H,
+    }));
+    return { top, cardW, cards, tray, trayChips, bottom: tray.y + tray.h, compact: true };
+  }
   const cards: Rect[] = [];
   let y = top + 33;
   hs.forEach((h, i) => {
@@ -197,7 +227,7 @@ export class RunePicker {
     const { W, H, ui } = s.game;
     const held = (s.run.build.runes ?? []).map((q) => q.id).filter(isRune);
     const tap = runeTapOf(s); // CARD-4 (P1): the bar's band holds a finger's target on touch
-    const L = pickLayout(W, H, o.ids, this.open, held.length, held, tap, o.day); // FLIP-X2: the tray's chips sized from their words
+    const L = pickLayout(W, H, o.ids, this.open, held.length, held, tap, o.day, endlessMarked(s.run)); // FLIP-X2: the tray's chips sized from their words; ENDLESS-1: compact on an endless-marked run when it must
     g.globalAlpha = 0.86;
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;
@@ -247,8 +277,14 @@ export class RunePicker {
     });
     if (L.tray) {
       panel(g, L.tray, "inset");
-      drawText(g, `${TRAY_LABEL} ${held.length}`, L.tray.x + 5, L.tray.y + 3 + Math.floor((RUNE_CHIP_MIN - 5) / 2), C.slate4, { font: "3" });
-      held.forEach((id, i) => drawRuneChip(g, L.trayChips[i], RUNES[id]));
+      if (L.compact) {
+        // ENDLESS-1: the compact tray (an endless run's ~50 runes): the label on its own row, the small chips under it
+        drawText(g, `${TRAY_LABEL} ${held.length}`, L.tray.x + 5, L.tray.y + 4, C.slate4, { font: "3" });
+        held.forEach((id, i) => drawRuneChipSmall(g, L.trayChips[i], RUNES[id]));
+      } else {
+        drawText(g, `${TRAY_LABEL} ${held.length}`, L.tray.x + 5, L.tray.y + 3 + Math.floor((RUNE_CHIP_MIN - 5) / 2), C.slate4, { font: "3" });
+        held.forEach((id, i) => drawRuneChip(g, L.trayChips[i], RUNES[id]));
+      }
     }
   }
 
@@ -267,7 +303,7 @@ export class RunePicker {
     const o = this.offer(s);
     if (!o) return null;
     const held = (s.run.build.runes ?? []).map((q) => q.id).filter(isRune), tap = runeTapOf(s);
-    const layout = pickLayout(s.game.W, s.game.H, o.ids, this.open, held.length, held, tap, o.day); // HULL-1a: the dawn's day
+    const layout = pickLayout(s.game.W, s.game.H, o.ids, this.open, held.length, held, tap, o.day, endlessMarked(s.run)); // HULL-1a: the dawn's day
     const card = this.open >= 0 ? layout.cards[this.open] : null;
     const bar = card ? runeBarTarget(card, PICK_TAKE, tap, this.boxOn(card, RUNES[o.ids[this.open]], o.day)) : null; // MERGE-099E
     return { day: o.day, tier: o.tier, ids: [...o.ids], open: this.open, layout, bar };
