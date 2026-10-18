@@ -57,6 +57,9 @@ import { gearSlotsOf } from "../sim/deck";
 import { rigArrowCells } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 R2): a long rig's most hits
 import { shapesRules } from "../sim/shapes"; // SHAPES-1: the shaped pieces' faces, lines and notes (SHAPES on only)
 import { isShapes2Piece, shapes2Rules } from "../sim/deck"; // SHAPES-2 (REQ-BFG-114; deck.ts re-exports shapes2.ts: faceText.test.ts reads import paths as string literals, and a digit is not allowed in them): the six more shaped plain rigs: the same stat-row face path as PLAIN-1's six
+import { scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): VENOM DRIP's plain POISON face (SCALE_RIGS on only)
+import { POISON_DPS } from "../sim/content"; // SCALE-2b: POISON's hull damage a second (its reminder)
+import type { ReadCount } from "../sim/content"; // SCALE-2c (REQ-BFG-098): the reader faces' words, by count
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 import { isPlainRig as isPlainSix } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (PLAIN-1F M1: renamed here; faces.ts's own isPlainRig is the face test, and it holds them while they are in ITEMS)
@@ -271,6 +274,13 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   SHIELD: () => `{*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE, THEN BREAKS. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
   HEAL: () => "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL.",
   REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC.",
+  // SCALE-2b (REQ-BFG-108; REPORT-SCALE1 section 2, the design's keyword text in CARD-3's words, BURN's form): battle.ts
+  // hullEffects, POISON_DPS (3) a POISON at each whole second x D(d) (dmgNow, as BURN's tick), no decay until the fight
+  // ends; stacks add (impact); straight to hp, never absorb() ({*PLATE}: the soak layer, SHIELD to the player). Read only
+  // while SCALE_RIGS is on (KEYWORDS holds POISON then: VENOM DRIP's face, its glossary row, the status row's chip). The
+  // design's UNTIL THE FIGHT ENDS is UNTIL THE END: the whole text must fit the glossary's 2 lines of 5x7 at 225 px, and
+  // with FIGHT ENDS it takes 3 (SHIELD. alone on the third; measured, REPORT-SCALE2b Findings)
+  POISON: () => `EACH {*POISON}: ${fmtDmg(dmgNow(POISON_DPS))} HULL DAMAGE A SEC UNTIL THE END. THEY ADD UP AND GO PAST {*PLATE}.`,
 };
 
 // ------------------------------------------------------------------------------------------------------ the faces
@@ -445,7 +455,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // every star) and its SHOT tap says it (glossary.ts TAP_NOTES pressure); it fits the line in the faces' own load icon
     // (EXT. CHAMBER's, HOPPER's {SLUG}) with a cap that names its unit (U2b F3), 210 px of the 225 px band (", UP TO 5." and
     // "..., MAX 5 {SLUG}." after LOAD are 228; a bare "MAX 5." is T2's ban). Was "SHOT: +12 {DMG} FOR EACH LOAD WAITING."
-    const per = fmtDmg(dmgNow(c(e, x).perQueued!)), max = fmtCount(c(e, x).maxCount!);
+    // SCALE-2c (REQ-BFG-098; BRIEF-SCALE2c section 2): with SCALE_RIGS on its def has no maxCount (MAX 5 dropped: scale.ts
+    // SCALE_DEFS), so the line has no cap: REPORT-SCALE1 3.1's face line, the same key (its ⓘ ladder and NEXT★ as before)
+    const per = fmtDmg(dmgNow(c(e, x).perQueued!));
+    if (c(e, x).maxCount === undefined) return rules([shot(`+${per} {DMG} FOR EACH {SLUG} WAITING.`)], [["per", `+${per} {DMG}`]]);
+    const max = fmtCount(c(e, x).maxCount!);
     return rules([shot(`+${per} {DMG} FOR EACH {SLUG} WAITING, MAX ${max} {SLUG}.`)], [["per", `+${per} {DMG}`]]);
   },
   gatling: (e, x) => {
@@ -735,6 +749,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([hit(`+${n} {*BURN} FOR EACH ${fmtSec(br.per)}{SEC} RIDDEN.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);
   },
   quench: (e) => {
+    if (gt(e).reads) return readerFace(e); // SCALE-2c (REQ-BFG-098): KINDLING, SCALE_RIGS on (scale.ts SCALE_DEFS)
     // DESIGN-Y row 23: Battle.applyHit: every BURN stack on the slug turns into perBurn damage (no floor, no stack cap). Was
     // the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH." with
     // "ANY MORE BURN STAYS ON THE PAYLOAD." and BURN's definition
@@ -756,6 +771,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([hit(`+${d} {DMG} FOR EACH TILE RIDDEN.`)], [["each", `+${d} {DMG} EACH`]]);
   },
   shieldwall: (e) => {
+    if (gt(e).reads) return readerFace(e); // SCALE-2c (REQ-BFG-098): IRON WALL's reader line, SCALE_RIGS on
     // Y7b1 (release Y; ruling Y7A-R3d): its STAR_DIFF row is deleted, so with the switch on it reads its base def, 0.9.2's
     // rule: Battle.applyHit: addPlate(plate) for each slug it hits, then + plated.flat while your hull holds plated.min PLATE
     // or more (120+, as FURNACE's "8+ TILE BELTS"), both parts on one line (208 px at ★3), each on its own ⓘ ladder. Was
@@ -766,6 +782,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
       [REMINDER.PLATE()]);
   },
   keg: (e) => {
+    if (gt(e).reads) return readerFace(e); // SCALE-2c (REQ-BFG-098): POWDER KEG's reader line (its own hits), SCALE_RIGS on
     // DESIGN-Y row 46: Battle.kegTick: its fuse runs from the battle's start (a STUN or a wreck pauses it); each keg.fuse s it
     // blasts + flat onto every slug on its belts (beltPulse, SURGE VALVE's walk) and re-arms; its BURN and ★3 WIDE BLAST's
     // reach are gone (content.ts STAR_DIFF). Was the RULES text "ADDS 60 DAMAGE AND 1 BURN TO EVERY PAYLOAD ON ITS BELTS WHEN
@@ -779,6 +796,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
   },
   venom: (e) => {
+    // SCALE-2b (REQ-BFG-108; READ-3 E10, PLAIN-1's plain face): with SCALE_RIGS on its def holds POISON (sim/scale.ts
+    // SCALE_DEFS): a plain stat rig, POISON +1/+2/+3 a slug it hits (Battle.applyHit), landing at impact. EMBER TROUGH's
+    // form: the rule keeps LEVELS, NEXT★ and the chip; PLAIN_RIGS' path draws it as a stat row (plainRigStats); its
+    // reminder is POISON's (the NOTES, after the rig sentence)
+    if (gt(e).poison !== undefined) {
+      const n = fmtCount(gt(e).poison!);
+      return rules([hit(`+${n} {*POISON}.`)], [["poison", `+${n} {*POISON}`]], [REMINDER.POISON()]);
+    }
     // DESIGN-Y row 48: Battle.applyHit gives each slug it hits burnPlus seconds; Battle.impact: each BURN stack of that slug's
     // hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %). It adds no BURN of its own. Was the RULES text "ADDS 2 POISON TO
     // EACH PAYLOAD IT HITS." with POISON's two sentences (its pool, its clock)
@@ -819,6 +844,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `FIRES ${up} FASTER.` }], [["rate", `${up} FASTER`]]);
   },
   spallcatcher: (e) => {
+    if (md(e).reads) return readerFace(e); // SCALE-2c (REQ-BFG-098): SPALL CATCHER's reader line (hits taken, at the SHOT)
     // DESIGN-Y row 47: Battle.spallCharge: + add for every `every` damage your ship takes (a PLATE soak counted once, not
     // twice), on this turret's next shot, no cap. Today's line; its cap's number (NEXT★'s MAX) and its caveat go
     const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(dmgNow(sp.add)); // HULL-1d: add x D(d); every counts landed damage
@@ -965,6 +991,8 @@ export const PLAIN_RIGS: readonly string[] = ["whetstone", "temper", "barbed"];
 export function plainRigStats(def: string, stars = 1, day?: number): Stat[] | null {
   if (shapesRules() && SHAPED_PLAIN_RIGS.includes(def)) return shapedPlainStats(def, stars, day); // SHAPES-1 (REQ-BFG-084)
   if ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)) return sixStats(def, stars, day); // PLAIN-1 (PLAIN_RIGS on); SHAPES-2 (SHAPES2 on): the six more's rows read the same way (slugPlate, flat, burn, stun)
+  // SCALE-2b (REQ-BFG-108): VENOM DRIP with SCALE_RIGS on, its POISON count (unscaled, as BURN's and FRAY's)
+  if (scaleRules() && SCALE_PLAIN_RIGS.includes(def)) return [["POISON", `+${fmtCount(effectAt(def, stars).gate!.poison!)}`]];
   if (!PLAIN_RIGS.includes(def)) return null;
   const g = effectAt(def, stars).gate!;
   if (def === "whetstone") return [["DMG", `+${fmtDmg(shownOn(day, () => dmgNow(g.flat!)))}`]];
@@ -1117,7 +1145,8 @@ export const FACE_IDS: readonly string[] = [
 export function hasFace(def: string): boolean {
   // PLAIN-1 (REQ-BFG-084): a plain stat rig of the six has its face while it is in ITEMS (PLAIN_RIGS on)
   return FACE_IDS.includes(def) || (shapesRules() && Object.prototype.hasOwnProperty.call(SHAPE_FACES, def))
-    || ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)); // SHAPES-2: the six more while in ITEMS (SHAPES2 on)
+    || ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)) // SHAPES-2: the six more while in ITEMS (SHAPES2 on)
+    || (scaleRules() && Object.prototype.hasOwnProperty.call(SCALE_FACES, def)); // SCALE-2c: the seven new readers, switch on
 }
 
 // ------------------------------------------------- SHAPES-1 (REQ-BFG-086, REQ-BFG-084, REQ-BFG-089): the shaped pieces
@@ -1152,8 +1181,13 @@ export const SHAPED_PLAIN_RIGS: readonly string[] = ["nailstrip", "embertrough",
  *  while they are in ITEMS (PLAIN_RIGS on; src/sim/plainRigs.ts isPlainRig, imported here as isPlainSix). */
 export function isPlainRig(def: string): boolean {
   return PLAIN_RIGS.includes(def) || (shapesRules() && SHAPED_PLAIN_RIGS.includes(def))
-    || ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)); // SHAPES-2 (REQ-BFG-114): and the six more (SHAPES2 on)
+    || ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)) // SHAPES-2 (REQ-BFG-114): and the six more (SHAPES2 on)
+    || (scaleRules() && SCALE_PLAIN_RIGS.includes(def)); // SCALE-2b (REQ-BFG-108): VENOM DRIP's POISON row, switch on
 }
+
+/** SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): the rigs that are plain stat rigs only while SCALE_RIGS is on: VENOM
+ *  DRIP, a POISON stat row (sim/scale.ts SCALE_DEFS). Off, it keeps its Y6 face (ITS BURN LASTS +3s), exactly. */
+export const SCALE_PLAIN_RIGS: readonly string[] = ["venom"];
 
 /** SHAPES-1: a shaped plain rig's stat row at `stars`: NAIL STRIP's and SPIKE RAIL's DMG on `day` (WHETSTONE's rule),
  *  EMBER TROUGH's BURN count (TEMPER's). */
@@ -1216,6 +1250,102 @@ export function shapeWord(def: string): string | null {
   return n === b.w * b.h && b.w > 1 && b.h > 1 ? `${fmtCount(b.h)}X${fmtCount(b.w)}` : `${fmtCount(n)} CELLS`;
 }
 
+// ------------------------------------------- SCALE-2c (REQ-BFG-098, REQ-BFG-089, REQ-BFG-087, REQ-BFG-107): the readers
+
+/** SCALE-2c (BRIEF-SCALE2c section 2's face lines; REPORT-SCALE1 3.1): what a reader line counts, in the face's words, the
+ *  words after FOR EACH (IRON WALL's per, its day's PLATE, before its count). New text holds no plain PLATE or SHIELD: the
+ *  tokens {*PLATE} (draws SHIELD, the soak layer) and {*SHIELD} (draws WARD) say them (REQ-BFG-107). */
+const READ_WORDS: Readonly<Record<ReadCount, (per: string) => string>> = {
+  foeBurn: () => "{*BURN} ON THE FOE",
+  foePoison: () => "{*POISON} ON THE FOE",
+  beltSlugs: () => "{SLUG} ON ITS BELT",
+  ownPlate: (per) => `${per} {*PLATE} YOU HAVE`,
+  ownShield: () => "{*SHIELD} YOU HAVE",
+  hitsTaken: () => "HIT ON YOU",
+  ownHits: () => "OF ITS HITS",
+  heartsLost: () => "HEART LOST",
+  wins: () => "WIN",
+  waiting: () => "{SLUG} WAITING",
+};
+
+/**
+ * SCALE-2c (REQ-BFG-098, REQ-BFG-089): a reader piece's face, from its own `reads` line at its star (a rig's gate.reads at
+ * its HIT, a gun part's mod.reads at its SHOT: Battle.applyHit / Battle.fire): one ability line in REPORT-SCALE1 3.1's
+ * words, `+n {DMG}` (x D(d): dmgNow) or `+n {*PLATE}` (x S(d): sustNow, as addPlate) FOR EACH what it counts, or LEECH
+ * COIL's `{*HEAL} n TIMES THE FOE'S {*POISON}` (x S(d), as heal()); its number keyed "each" (the ⓘ LEVELS ladder, NEXT★
+ * and the chip read it); a reminder for each keyword the line draws, in the line's order. The 3.2 hover line is NOTES only
+ * (scaleNotes).
+ */
+function readerFace(e: ItemDef): Rules {
+  const atShot = e.kind === "mod";
+  const r = (atShot ? md(e) : gt(e)).reads!;
+  const label = atShot ? shot : hit;
+  let text: string, num: string;
+  if (r.give === "heal") {
+    const n = fmtDmg(sustNow(r.each));
+    text = `{*HEAL} ${n} TIMES THE FOE'S ${READ_WORDS[r.count]("").replace(" ON THE FOE", "")}.`;
+    num = `{*HEAL} ${n} TIMES`;
+  } else {
+    num = r.give === "plate" ? `+${fmtDmg(sustNow(r.each))} {*PLATE}` : `+${fmtDmg(dmgNow(r.each))} {DMG}`;
+    // CINDER MAIL: {*PLATE} draws SHIELD, a letter longer than the design's PLATE, so the brief's "... ON THE FOE." is
+    // 227-233 px against the 225 band at every star; "ON FOE." (203-209 px) is the least cut (REPORT Findings)
+    const what = READ_WORDS[r.count](r.per ? fmtDmg(sustNow(r.per)) : "");
+    text = `${num} FOR EACH ${r.give === "plate" ? what.replace(" ON THE FOE", " ON FOE") : what}.`;
+  }
+  const kws: KeywordName[] = [];
+  for (const m of text.matchAll(/\{\*([A-Z]+)\}/g)) if (!kws.includes(m[1] as KeywordName)) kws.push(m[1] as KeywordName);
+  // the ladder's words: "+3/+5/+8 {DMG} EACH", LEECH COIL's "{HEAL} 4/5/6 TIMES" (TIMES says it: no EACH after it)
+  return rules([label(text)], [["each", r.give === "heal" ? num : `${num} EACH`]], kws.map((k) => REMINDER[k]()));
+}
+
+/** SCALE-2c (REQ-BFG-098): the seven new scaling rigs' faces (scale.ts SCALE_ITEMS), apart from FACES so FACE_IDS (the
+ *  tests' and tools' list) stays M0's; hasFace sees them only with SCALE_RIGS on (SHAPE_FACES' form). The five reworks
+ *  keep their FACES entries, each reading its own def (a `reads` line or no maxCount: the switch-on def). */
+const SCALE_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
+  cindermail: (e) => readerFace(e),
+  rotgauge: (e) => readerFace(e),
+  leechcoil: (e) => readerFace(e),
+  crowdpress: (e) => readerFace(e),
+  aegisspike: (e) => readerFace(e),
+  grudgerod: (e) => readerFace(e),
+  trophychain: (e) => readerFace(e),
+};
+
+/**
+ * SCALE-2c (REQ-BFG-089; BRIEF-SCALE2c section 3; REPORT-SCALE1 3.2's hover column): each scaling piece's one edge-case
+ * line, default rules text behind the hover or tap (the ⓘ NOTES, inspector.ts explainPanel, as shapeNotes), never on the
+ * face. Its HIT or SHOT reminder and each keyword's reminder come from the face's words (the ⓘ KEYWORDS). No digit here:
+ * IRON WALL's example reads PLATE_CAP and its own per.
+ */
+const SCALE_NOTES: Readonly<Record<string, (e: ItemDef) => string>> = {
+  quench: () => "IT COUNTS THE {*BURN} ON THE FOE'S HULL AT THE HIT. THE SLUG KEEPS THE {DMG}.",
+  pressure: () => "IT COUNTS THE {SLUG} IN ITS CHAMBER AND BACKED UP AT ITS INTAKES WHEN IT FIRES. IT NEVER JAMS.",
+  shieldwall: (e) => {
+    // SCALE-2e E6 (REQ-BFG-089; SCALE-2f carry-over 2, REPORT-SCALE2f 9.2 b): the example in the face's own units. The face says
+    // FOR EACH <per> SHIELD with the day's per (sustNow: 10 on day 1, 28 on day 5), so the example is 3 x per - 1: it reads 2 TIMES
+    // (day 1: `29 SHIELD IS 2 TIMES`, day 5: `83 SHIELD IS 2 TIMES`), not day 1's `239 SHIELD IS 23 TIMES` against a bigger per
+    const per = Number(fmtDmg(sustNow(e.gate!.reads!.per ?? 1)));
+    return `IT COUNTS YOUR {*PLATE} AT THE HIT, ROUNDED DOWN: ${fmtDmg(3 * per - 1)} {*PLATE} IS ${fmtCount(2)} TIMES.`;
+  },
+  spallcatcher: () => "IT COUNTS EVERY ENEMY HIT ON YOUR SHIP THIS FIGHT, BLOCKED OR NOT, WHEN IT FIRES.",
+  keg: () => "IT COUNTS ITS OWN HITS THIS FIGHT, THIS ONE TOO. THE COUNT SHOWS ON IT.",
+  cindermail: () => "IT COUNTS THE {*BURN} ON THE FOE'S HULL AT THE HIT.",
+  rotgauge: () => "IT COUNTS THE {*POISON} ON THE FOE'S HULL AT THE HIT. THE SLUG KEEPS THE {DMG}.",
+  leechcoil: () => "IT COUNTS THE {*POISON} ON THE FOE'S HULL AT THE HIT.",
+  crowdpress: () => "IT COUNTS THE {SLUG} ON THE BELT IT HITS AT THE HIT, THE HIT ONE TOO. WAITING AT THE GUN COUNTS.",
+  aegisspike: () => "IT COUNTS YOUR {*SHIELD} AT THE HIT.",
+  grudgerod: () => "IT COUNTS THE HEARTS YOU HAVE LOST THIS RUN, AS THE RUN BAR SHOWS THEM.",
+  trophychain: () => "IT COUNTS YOUR WINS THIS RUN, AS THE RUN BAR SHOWS THEM.",
+};
+
+/** SCALE-2c: a scaling piece's NOTES sentences in glyphs, as drawn (icons(); [] for every other piece and with SCALE_RIGS
+ *  off). `markup`: in markup instead (tests, tools). */
+export function scaleNotes(def: string, markup = false): string[] {
+  if (!scaleRules() || !Object.prototype.hasOwnProperty.call(SCALE_NOTES, def) || !Object.prototype.hasOwnProperty.call(ITEMS, def)) return [];
+  const t = SCALE_NOTES[def](ITEMS[def]);
+  return [markup ? t : icons(t)];
+}
+
 /** A piece's face at `stars` as data (o: the turret class factor k for a core, the run's hero for MIMIC FORGE). Y7b2 (the
  *  flip): the interim perk clauses (U2b F6) are gone, every one with the star switch's rules (R4, the STAR batch), so a face
  *  has no clause; the interim caveats keep their one table (INNER COLUMN ONLY is the one row left). */
@@ -1229,7 +1359,7 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
 
 function faceOn(def: string, stars: number, o: TextOpts): Face {
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero, day: o.day }; // HULL-1a: the day
-  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? SHAPE_FACES[def] ?? PLAIN_FACES[def])(e, x); // SHAPES-1: SHAPE_FACES; PLAIN-1: the six's
+  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? SHAPE_FACES[def] ?? PLAIN_FACES[def] ?? SCALE_FACES[def])(e, x); // SHAPES-1: SHAPE_FACES; PLAIN-1: the six's; SCALE-2c: SCALE_FACES (BUMP-1E: both sides' tables)
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
     : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)
     : supplyStats(def); // U2b: the rig, gear and supply kinds' data functions

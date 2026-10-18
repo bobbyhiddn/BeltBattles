@@ -52,6 +52,8 @@ import { PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100, REQ-BFG-0
 import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
 import { openReplay } from "../game/replays"; // REPLAY-1 (REQ-BFG-112): the result card's REPLAY
 import { ReplayScreen } from "./replay"; // REPLAY-1
+import { heartsLost } from "../sim/scale"; // SCALE-2a (REQ-BFG-098): hearts lost, passed into the Battle as wins are
+import { recordTag, runRecord } from "../game/counters"; // SCALE-2c (REQ-BFG-100, C9): your plate's run record
 import type { Rect } from "../ui/ui";
 
 /** 0.7.0 (R1 M1): the enemy plate's source line as BattleScreen draws it (see placeSource). */
@@ -132,6 +134,8 @@ export class BattleScreen implements Screen {
   readonly plateRows: [PlateInfo | null, PlateInfo | null] = [null, null];
   /** COUNT-1 (REQ-BFG-100; display only): the status rows, the guns' and belts' counts and their panels. */
   readonly counters = new BattleCounters();
+  /** SCALE-2c (REQ-BFG-100, C9): your plate's name: your hero's, with your run record after it where C9 shows. */
+  private plateName = "";
 
   constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
@@ -155,14 +159,19 @@ export class BattleScreen implements Screen {
     // RUNES-2a (REQ-BFG-058): the wins each side carries in, for WARLORD'S DUE: the run's own, a ghost's from its snapshot
     // (DuskFoe.record), 0 for a stand-in or a warlord; the record keeps them only when a side holds it (replay.ts)
     const wins: [number, number] = [run.wins, w ? 0 : this.foe.record?.wins ?? 0];
+    // SCALE-2a (REQ-BFG-098): hearts lost, passed in as wins are: the run's own, a ghost's from its snapshot's lives against
+    // the same start (scale.ts heartsLost); 0 for a stand-in or a warlord. Read only with SCALE_RIGS on (GRUDGE ROD)
+    const lost: [number, number] = [heartsLost(run.lives, run), w || !this.foe.record ? 0 : heartsLost(this.foe.record.lives, run)];
     // 0.7.0a: the dusk's battle record (both decks as they fight, the seed) for the summary's REPLAY; online only
     // HULL-1a (REQ-BFG-079): the dusk and a warlord fight are on the run's day (the record keeps it with HULL_SCALE on)
-    this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed, wins, run.day) : null;
+    this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed, wins, run.day, lost) : null;
     // REPLAY-1: every kind, display only. REPLAY-1b (REQ-BFG-112; REVIEW-REPLAY1 ruling 1): a card restored from a save (a
     // warlord that already has its result: CONTINUE, or any way in that builds this screen then) offers no REPLAY: run.build
     // is the deck after finishWarlord gave the win's drop and merged it, so a record made now could differ from the fight
     // that was watched. A fight played on this screen keeps its record, cloned here at its start, as before.
-    this.cardRecord = w?.result ? null : cardRecordFor(run.build, this.foe.build, this.seed, wins, run.day);
+    // BUMP-1E: the card's record carries `lost` as the dusk's does (battleRecordFor keeps it only with SCALE_RIGS on and a
+    // piece that reads hearts lost), so a REPLAY of a GRUDGE ROD fight is exact; switch off: the same record as before.
+    this.cardRecord = w?.result ? null : cardRecordFor(run.build, this.foe.build, this.seed, wins, run.day, lost);
     this.note = w ? null : foeNote(run, this.foe);
     this.wact = {
       take: [0, 1].map((i) => () => this.take(i)),
@@ -170,7 +179,12 @@ export class BattleScreen implements Screen {
       fight: () => this.toDusk(),
       road: () => this.toRoad(), // NPC-1 (REQ-BFG-077): ON TO THE ROAD (NPC_DAY on)
     };
-    this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins, run.day);
+    this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins, run.day, lost);
+    // SCALE-2c (REQ-BFG-100, C9): your run record (wins, hearts left of the run's start, hearts lost), fixed for the fight,
+    // while a GRUDGE ROD or TROPHY CHAIN is aboard with the switch on (game/counters.ts runRecord; null otherwise): your
+    // plate writes it after your name as the ghost's plate writes its own, and your plate's tap says it
+    this.counters.record = runRecord(this.arena.b, 0, run);
+    this.plateName = this.counters.record ? `${HEROES[run.hero].name} · ${recordTag(this.counters.record)}` : HEROES[run.hero].name;
     this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): the player's board and plate; the foe's stay the defaults
     this.arena.off = [60, 260];
     // FIELD-1 (REQ-BFG-075): the setting this battle's seed picks (its replay plays the same seed: the same setting)
@@ -703,7 +717,7 @@ export class BattleScreen implements Screen {
     const src = this.src, p1 = this.plateR[1];
     this.plateRows[1] = drawPlate(g, this.game, this.arena, p1, 1, src?.place === "plate" ? src.name : this.foeName, this.hpText[1], src?.place === "plate" ? src.tag : undefined);
     if (src?.place === "above") drawText(g, src.text, p1.x + 3, p1.y - (NOTE_ROW - 1), C.slate4, { font: "3", outline: C.ink });
-    this.plateRows[0] = drawPlate(g, this.game, this.arena, this.plateR[0], 0, HEROES[this.game.run!.hero].name, this.hpText[0]);
+    this.plateRows[0] = drawPlate(g, this.game, this.arena, this.plateR[0], 0, this.plateName, this.hpText[0]); // SCALE-2c: + C9
     // COUNT-1 (REQ-BFG-100): each plate's status row (C1 the foe's, C2 yours) on its hull side, and its tap target
     this.counters.drawRows(g, this.game, this.arena, L, this.plateR, this.plateRows, [L.bar], live);
     const sec = clockSec(b.t); // WIND-2 (REQ-BFG-093): whole ticks, then whole seconds (was Math.floor(b.t): 1:08 at 69 s)

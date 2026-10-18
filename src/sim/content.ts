@@ -81,6 +81,10 @@ export const BURN_TIME = 3.0; // a Burn stack's seconds where its source sets no
 /** NUM-1 (REQ-BFG-047, N1 2.1): the damage a Burn stack deals each second (x10 of 1), once a second (Battle.hullEffects):
  *  BURN_DPS x BURN_TIME a stack, the same total as before, in whole ticks. */
 export const BURN_DPS = 10;
+/** SCALE-2b (REQ-BFG-108; ref/scale1/REPORT-SCALE1.md section 2): the hull damage one POISON deals at each whole second of
+ *  the fight (Battle.hullEffects: the hull takes POISON_DPS x its POISON as one number, then D(day)). Read only while
+ *  SCALE_RIGS is on (scale.ts): with it off no hull ever holds POISON. SCALE-2e benches the 3; no tuning here. */
+export const POISON_DPS = 3;
 export const FRAY_BONUS = 2; // extra damage per Fray stack on every later hit
 export const FRAY_MAX = 15;
 export const WIND_WARN = 20; // dark wind warning (s)
@@ -133,6 +137,39 @@ export const SHAPE_ARROWS: Record<RigShape, readonly number[]> = {
 export const RARITY_SHAPE: Record<Rarity, RigShape> = { common: "I", rare: "II", epic: "T", legendary: "X" };
 export const RARITY_ARROWS: Record<Rarity, number> = { common: 1, rare: 2, epic: 3, legendary: 4 };
 
+/**
+ * SCALE-2a (REQ-BFG-098, REQ-BFG-110; REPORT-SCALE1 3.2 is the authority for each count's moment): the counts a scaling
+ * piece reads. A rig reads at its HIT (Battle.applyHit), a gun part at its gun's SHOT (Battle.fire):
+ *  - foeBurn: the BURN stacks on the foe's hull (scale.ts burnStacks: the sum of dps) (CINDER MAIL, KINDLING);
+ *  - beltSlugs: the slugs on the belt it hits, the hit one and those backed up at the gun included, so never below 1
+ *    (CROWD PRESS; a rig's count: a gun part reads 0);
+ *  - ownPlate: your PLATE (the sim's plate, the soak layer), in day-1 units as ANVIL BREECH reads it (IRON WALL; with
+ *    `per: 10`, whole tens rounded down: 239 is 23);
+ *  - ownShield: your SHIELD pips (the sim's shield, the one-hit block), at most 3 (AEGIS SPIKE);
+ *  - hitsTaken: every enemy impact on your ship this fight, blocked or not (SPALL CATCHER at the shot, SCAR TISSUE at the hit);
+ *  - ownHits: this rig's hits this fight, this one included (POWDER KEG; a rig's count: a gun part reads 0);
+ *  - heartsLost: the hearts lost this run (GRUDGE ROD); wins: the wins this run (TROPHY CHAIN);
+ *  - waiting: what PRESSURE BREECH's perQueued reads, waiting + chamber + store, this load included (a gun part's count,
+ *    at the shot only: a rig reads 0);
+ *  - foePoison: reserved for SCALE-2b (no POISON field yet: reads 0).
+ */
+export type ReadCount = "foeBurn" | "beltSlugs" | "ownPlate" | "ownShield" | "hitsTaken" | "ownHits" | "heartsLost" | "wins" |
+  "waiting" | "foePoison";
+
+/** SCALE-2a (REQ-BFG-098): a scaling piece's one data-only reader line, on a rig (GateEffect.reads, read at its HIT) or a
+ *  gun part (ModSpec.reads, read at its gun's SHOT): `each` for every one counted (every `per` counted, rounded down, when
+ *  set), given as `give`: "dmg" joins the slug's FOR EACH DMG (step 4 of REQ-BFG-110's order: the slug keeps it, DRAKE
+ *  NOZZLE never converts it), "plate" goes on your hull at once (Battle.addPlate, PLATE_CAP 240, as PLATE ROLLER's does),
+ *  "heal" heals your hull at once (Battle.heal, so BURN's halving applies). A star raises `each` through `levels`, like
+ *  every gate field; an OVERCLOCKER doubles it. Read only while SCALE_RIGS is on (scale.ts); no shipped def holds one in
+ *  SCALE-2a (SCALE-2c writes the 12 pieces as content). */
+export interface ReadSpec {
+  count: ReadCount;
+  each: number;
+  per?: number;
+  give: "dmg" | "plate" | "heal";
+}
+
 export interface GateEffect {
   burn?: number; // Burn stacks added
   shock?: boolean; // impact disrupts struck machinery
@@ -160,6 +197,11 @@ export interface GateEffect {
   // BURN_TIME + burnPlus, then SLOW EMBERS' %); it rides the payload (two add up, an OVERCLOCKER doubles it, copies keep
   // it, a COMPOUND shell adds both loads')
   burnPlus?: number;
+  // SCALE-2b (REQ-BFG-108): POISON added to each payload it hits (VENOM DRIP's def while SCALE_RIGS is on: scale.ts
+  // SCALE_DEFS); it rides the payload (two add up, an OVERCLOCKER doubles it, copies keep it, a fuse and a COMPOUND shell
+  // add both, a SCATTER shot splits it as BURN) and lands on the foe's hull at impact (Battle.impact). Read only with the
+  // switch on (Battle.applyHit)
+  poison?: number;
   overclockCooldown?: number;
   // POWDER KEG. Y5 (release Y; DESIGN-Y row 46): every `fuse` s from the battle's start it blasts + flat onto its belts
   // (battle.ts kegTick); `burn` and `wide` (0.9.2's one blast, its BURN and ★3 WIDE BLAST) are held by no def since the flip
@@ -193,6 +235,7 @@ export interface GateEffect {
   slugPlate?: number; // SCALE GUARD: + this much PLATE carried by each payload it hits (Payload.plate), given to your hull at
   // the gun by the bulwark rule (races/bastion.ts plateFor)
   maxHullPct?: number; // BALLAST: + this whole % of your max hull while it works (Battle.makeSide; a carrier stat, no hit)
+  reads?: ReadSpec; // SCALE-2a (REQ-BFG-098): a scaling rig's reader line, read at its HIT (SCALE_RIGS on only)
 }
 
 /**
@@ -278,6 +321,7 @@ export interface ModSpec {
   // SUS-A (REQ-BFG-069; absent on every older mod):
   shield?: { every: number; amount: number }; // WARD BELL: + `amount` SHIELD every `every` s (TurretState.bell), the first at t = every
   regen?: number; // MENDING LOOM: REGEN, this much hull healed at each whole second (Battle.sustainTick; Battle.heal)
+  reads?: ReadSpec; // SCALE-2a (REQ-BFG-098): a scaling gun part's reader line, read at its gun's SHOT (SCALE_RIGS on only)
 }
 
 /** 0.6.1b: how a turret fires (ARSENAL.md §2). "identity" is today's firing: every hero's signature core. */

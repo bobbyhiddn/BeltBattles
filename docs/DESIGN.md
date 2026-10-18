@@ -230,6 +230,21 @@ hero brings warlords of its own at Easy, Medium and Hard, built like today's cap
 - **Caps kept as data, not rules.** EXT. CHAMBER fires at most what its gun's chamber holds (Battle.chambers): that is
   the chamber's own size, not a cap on the piece, and its ★2/★3 faces say UP TO (ruling Y7A-R2).
 
+### The scaling release ("1E"): one order of operations for every bonus (REQ-BFG-110)
+
+Built by SCALE-2a behind SCALE_RIGS (src/sim/scale.ts; off until BUMP-1E). Every bonus to a slug or a shot applies in one
+fixed order, and nothing doubles retroactively:
+1. the slug's own stats (its factory's DMG, BURN, STUN);
+2. flat adds from stat rows, in belt order (WHETSTONE, TEMPER, PINCER's and QUENCH TANK's own flat...): `Payload.flat`;
+3. conversions that read rig damage (DRAKE NOZZLE) see step 2 only;
+4. FOR EACH adds, each reading its count at its own hit, and the slug keeps the result (LODESTONE, LONG HAUL, PINCER's
+   each, COUNTERWEIGHT, QUENCH TANK's BURN, and every `reads` piece): `Payload.each`, a second accumulator;
+5. % and TIMES multipliers, once, at the shot (TWIN TRIGGER, FINISHER RAM, HULLBREAKER, the % runes), on the total.
+
+**The one loop guard:** DRAKE NOZZLE never turns FOR EACH DMG into BURN, so no FOR EACH bonus can feed the count it reads
+(a KINDLING before a DRAKE can't compound). A split is a copy: it scales both accumulators. Every other reader of the flat
+bonus reads the sum (scale.ts `flatOf`). With the switch off, FOR EACH adds join `Payload.flat` as before.
+
 ## 1.0 release
 
 - **Performance on a mid-range phone** (Pixel 6a / iPhone 11 class):

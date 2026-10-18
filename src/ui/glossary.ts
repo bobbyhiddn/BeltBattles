@@ -40,6 +40,7 @@ import { REMINDER, faceAt, hasFace } from "./faces";
 import { fmtCount, fmtPct, fmtSec } from "./statFormat"; // WORDS-1: fmtDmg left with the MARKS row
 import { fmtDmg } from "./statFormat"; // FIX-099G (REQ-BFG-079): FRAY's and BURN's word notes, as faces.ts REMINDER prints them
 import { shownOn } from "./dayShown"; // HULL-1d (REQ-BFG-079): the rows' numbers on the tapped piece's day
+import { onSetScaleRigs, scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): POISON's row, SCALE_RIGS on only
 import { dmgNow } from "./dayShown"; // FIX-099G (REQ-BFG-079): FRAY's and BURN's word notes on the card's day
 
 /** One glossary row (see the file comment). */
@@ -119,6 +120,10 @@ function rowsNow(): GlossaryRow[] {
       def: withExtra(REMINDER.HEAL(), healExtra), scope: "text",
     },
     { word: "REGEN", aliases: [], colour: kwColour("REGEN"), kw: "REGEN", extra: regenExtra, def: withExtra(REMINDER.REGEN(), regenExtra), scope: "text" },
+    // SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): POISON, a face keyword's row in BURN's form, its reminder its whole
+    // definition (faces.ts REMINDER.POISON, the design's text: no extra sentence), so POISON is a hover and tap target
+    // wherever a line writes it; only while SCALE_RIGS is on (off, the table is exactly the base's)
+    ...(scaleRules() ? [{ word: "POISON", aliases: ["POISONS", "POISONED"], colour: kwColour("POISON"), kw: "POISON" as const, def: REMINDER.POISON(), scope: "text" as const }] : []),
     // --------------------------------------------------------------------- the rune keywords that have no row above
     // U2d F4: was "RIDE: A CINDER SLUG'S OWN {*HEAT}, FOR EACH SEC IT RIDES. A HEAT JACKET'S IS APART." (cap: unclear)
     { word: "RIDE", aliases: [], colour: C.wood4, def: "RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.", scope: "rune" },
@@ -282,9 +287,20 @@ export const RUNE_NOTE: Readonly<Record<string, string>> = {
 };
 
 /** Every form (word and aliases) with its row, longest first (so a two-word form wins over its first word). */
-const FORMS: readonly [string, GlossaryRow][] = GLOSSARY
+const formsOf = (rows: readonly GlossaryRow[]): [string, GlossaryRow][] => rows
   .flatMap((r): [string, GlossaryRow][] => [r.word, ...r.aliases].map((w) => [w, r]))
   .sort((a, b) => b[0].length - a[0].length);
+const FORMS: readonly [string, GlossaryRow][] = formsOf(GLOSSARY);
+
+/** SCALE-2b (REQ-BFG-108): POISON's row (rowsNow) is in the table only while SCALE_RIGS is on: at each flip the table
+ *  (GLOSSARY, day 1's) and its forms are rebuilt in place, so off they are exactly the base's. The switch's hook
+ *  (sim/scale.ts onSetScaleRigs). */
+onSetScaleRigs((on) => {
+  const rows = GLOSSARY as GlossaryRow[];
+  if (on === rows.some((r) => r.kw === "POISON")) return;
+  rows.splice(0, rows.length, ...glossaryRows());
+  (FORMS as [string, GlossaryRow][]).splice(0, FORMS.length, ...formsOf(rows));
+});
 
 /** The row for a word or an alias (case-blind), else undefined. */
 export function glossaryEntry(word: string): GlossaryRow | undefined {
@@ -335,7 +351,12 @@ const core = (e: ItemDef, x: { k: number }) => scaleCore(e.core!, x.k);
 export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // cores.ts pressure: + perQueued for each queued load, at most maxCount of them; it never jams (noJam)
   // U2d F5: as the turret panel's note (was "SHOT: AT MOST 5 LOADS WAITING COUNT, AND IT NEVER JAMS.")
-  pressure: { word: "SHOT", text: (e, x) => `SHOT: IT COUNTS UP TO ${fmtCount(core(e, x).maxCount!)} WAITING LOADS, AND IT NEVER JAMS.` },
+  // SCALE-2c (REQ-BFG-098): with SCALE_RIGS on its def has no maxCount (MAX 5 dropped: scale.ts SCALE_DEFS): no cap to say
+  pressure: {
+    word: "SHOT",
+    text: (e, x) => core(e, x).maxCount === undefined ? "SHOT: IT COUNTS EVERY WAITING LOAD, AND IT NEVER JAMS."
+      : `SHOT: IT COUNTS UP TO ${fmtCount(core(e, x).maxCount!)} WAITING LOADS, AND IT NEVER JAMS.`,
+  },
   // cores.ts compound: a lone load fires on its own after `hold` s; a shell carries both loads' burn and shock
   compound: { word: "SHOT", text: (e, x) => `SHOT: A LONE LOAD FIRES ALONE AFTER ${fmtSec(core(e, x).hold!)}{SEC}. A SHELL KEEPS BOTH LOADS' {*BURN} AND {*STUN}.` },
   // battle.ts applyHit: one count for every payload its arrows hit, on every belt they reach; the copies at full strength
@@ -366,9 +387,11 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   },
   // WORDS-1 (REQ-BFG-081; READ-1 6.1: POWDER KEG's ITS BELTS read as the tiles by it): battle.ts:1146 its blast reaches every
   // slug on the belts its arrows hit, wherever it is, as SURGE VALVE's pulse does (the same note's words)
+  // SCALE-2c (REQ-BFG-098): with SCALE_RIGS on POWDER KEG has no fuse and its face no EVERY (a HIT: reader line), so this
+  // note never matches a word there; "" keeps a sweep over the notes from reading a fuse it doesn't have
   keg: {
     word: "EVERY",
-    text: (e) => `EVERY ${fmtSec(e.gate!.keg!.fuse)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.`,
+    text: (e) => (e.gate?.keg ? `EVERY ${fmtSec(e.gate.keg.fuse)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.` : ""),
   },
   // battle.ts rip: a hit on an enemy belt tile or rig rips the nearest payloads within reach. Y2 (release Y; DESIGN-Y row
   // 19): a hit POWDER KEG is no longer disarmed, so the tap doesn't say it

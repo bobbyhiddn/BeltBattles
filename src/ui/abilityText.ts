@@ -96,6 +96,8 @@ import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion"; // 0.8.0 H1: B
 import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the ARMOR PACK's hull on the day's hull
 import { dmgNow, shownOn, sustNow } from "./dayShown"; // HULL-1d (REQ-BFG-079): damage x D(d), sustain x S(d), on the text's day
 import { scaleCore } from "../sim/cores";
+import { scaleRules } from "../sim/scale"; // SCALE-2c (REQ-BFG-098): the 12 readers' entries, SCALE_RIGS on only
+import type { ReadCount } from "../sim/content"; // SCALE-2c: the readers' words, by count
 import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
 
@@ -583,8 +585,15 @@ const ENTRIES: Record<string, Entry> = {
     // Y6 (release Y; DESIGN-Y section 4.1): it gives each payload it hits burnPlus seconds (Battle.impact): each BURN stack
     // of that payload's hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %); it adds no BURN, so alone it deals nothing; no
     // POISON (retired). The card is the gist
-    text: (e) => [`EACH BURN ON THE PAYLOADS IT HITS LASTS ${seconds(g(e).burnPlus!)} LONGER.`, "IT ADDS NO BURN OF ITS OWN.", S.burn],
-    gist: (e) => `BURN LASTS ${seconds(g(e).burnPlus!)} LONGER`,
+    // SCALE-2f (REQ-BFG-089, REQ-BFG-108; the cold read's fix round): with SCALE_RIGS on the def holds `poison` and no
+    // burnPlus (sim/scale.ts SCALE_DEFS.venom), and the desk card read "BURN LASTS undefined SECONDS" (two of three
+    // readers then gave it a BURN effect it lacks). So the words follow the def: TEMPER's form, ADDS n POISON. With the
+    // switch off the def has no `poison`, and every word is the Y6 one, exactly.
+    text: (e) =>
+      g(e).poison
+        ? [`ADDS ${g(e).poison} POISON TO EACH PAYLOAD IT HITS.`]
+        : [`EACH BURN ON THE PAYLOADS IT HITS LASTS ${seconds(g(e).burnPlus!)} LONGER.`, "IT ADDS NO BURN OF ITS OWN.", S.burn],
+    gist: (e) => (g(e).poison ? `ADDS ${g(e).poison} POISON` : `BURN LASTS ${seconds(g(e).burnPlus!)} LONGER`),
   },
   overclocker: {
     // Battle.makeSide: each OVERCLOCKER boosts the first later boostable rig on its belt (overclock.ts boostable);
@@ -1432,10 +1441,84 @@ const TURRET: Entry = {
 };
 for (const d of Object.values(ITEMS)) if (d.kind === "turret") ENTRIES[d.id] = TURRET;
 
+// ------------------------------------------------------------- SCALE-2c (REQ-BFG-098, REQ-BFG-089): the 12 readers
+
+/** SCALE-2c: what a reader line counts, in the card's and the gist's plain words (CARD-3's: SHIELD the soak layer, WARD the
+ *  block; this file's strings are plain text, no markup, as every entry here), short enough for the wide desk card's two
+ *  effect lines at every landscape width and day (FOE BURN, not BURN ON THE FOE: tests/scale2c.screen.test.ts). */
+const READ_WHAT: Readonly<Record<ReadCount, (per: string) => string>> = {
+  foeBurn: () => "FOE BURN",
+  foePoison: () => "FOE POISON",
+  beltSlugs: () => "SLUG ON ITS BELT",
+  ownPlate: (per) => `${per} SHIELD`,
+  ownShield: () => SW.shield,
+  hitsTaken: () => "HIT ON YOU",
+  ownHits: () => "OF ITS HITS",
+  heartsLost: () => "HEART LOST",
+  wins: () => "WIN",
+  waiting: () => "LOAD WAITING",
+};
+/** SCALE-2c: when and what it counts (REPORT-SCALE1 3.2's hover column, in the sentences' words). */
+const READ_WHEN: Readonly<Record<ReadCount, string>> = {
+  foeBurn: "IT COUNTS THE BURN ON THE ENEMY HULL AT THE HIT.",
+  foePoison: "IT COUNTS THE POISON ON THE ENEMY HULL AT THE HIT.",
+  beltSlugs: "IT COUNTS THE SLUGS ON THE BELT IT HITS AT THE HIT, THE HIT ONE AND THOSE WAITING AT THE GUN TOO.",
+  ownPlate: "IT COUNTS YOUR SHIELD AT THE HIT, ROUNDED DOWN.",
+  ownShield: `IT COUNTS YOUR ${SW.shield}S AT THE HIT.`,
+  hitsTaken: "IT COUNTS EVERY ENEMY HIT ON YOUR SHIP THIS FIGHT, BLOCKED OR NOT, WHEN ITS TURRET FIRES.",
+  ownHits: "IT COUNTS ITS OWN HITS THIS FIGHT, THIS ONE TOO.",
+  heartsLost: "IT COUNTS THE HEARTS YOU HAVE LOST THIS RUN.",
+  wins: "IT COUNTS YOUR WINS THIS RUN.",
+  waiting: "IT COUNTS THE LOADS WAITING AT ITS TURRET WHEN IT FIRES.",
+};
+/** SCALE-2c: a reader's line (a rig's gate.reads, a gun part's mod.reads). */
+const rd = (e: ItemDef) => (e.kind === "mod" ? m(e) : g(e)).reads!;
+/** SCALE-2c: the reader's effect as a clause: its amount (DMG x D(d), SHIELD and HEAL x S(d)) for each what it counts. */
+function readClause(e: ItemDef): string {
+  const r = rd(e);
+  if (r.give === "heal") return `${SW.heals} ${sust(r.each)} TIMES THE FOE'S POISON`;
+  return `${r.give === "plate" ? `${sust(r.each)} SHIELD` : damage(r.each)} FOR EACH ${READ_WHAT[r.count](r.per ? String(sustN(r.per)) : "")}`;
+}
+/** SCALE-2c: a reader piece's entry: its sentence (where the amount goes), REPORT-SCALE1 3.2's count note; the gist and the
+ *  shop card's line are the clause (each fits the wide desk card's two lines: tests/scale2c.screen.test.ts). */
+const READER: Entry = {
+  text: (e) => {
+    const r = rd(e), atShot = e.kind === "mod";
+    const opening = r.give === "plate" ? `EACH PAYLOAD IT HITS ROLLS ${readClause(e).replace(" FOR EACH", " ONTO YOUR HULL FOR EACH")}.`
+      : r.give === "heal" ? `EACH PAYLOAD IT HITS ${SW.heals} YOUR HULL BY ${sust(r.each)} TIMES THE POISON ON THE FOE.`
+      : `${atShot ? "EACH SHOT OF ITS TURRET" : "EACH PAYLOAD IT HITS"} GAINS ${readClause(e)}.`;
+    return [opening, READ_WHEN[r.count]];
+  },
+  gist: (e) => readClause(e),
+};
+
+/** SCALE-2c (REQ-BFG-098): the switch-on entries, read for these ids only while SCALE_RIGS is on (entryOf); off, ENTRIES'
+ *  own as at M0, and the seven new ids have none (they aren't in ITEMS). PRESSURE BREECH keeps its own words without the
+ *  cap (MAX 5 dropped). */
+const SCALE_ENTRIES: Readonly<Record<string, Entry>> = {
+  quench: READER, shieldwall: READER, spallcatcher: READER, keg: READER,
+  cindermail: READER, rotgauge: READER, leechcoil: READER, crowdpress: READER, aegisspike: READER, grudgerod: READER, trophychain: READER,
+  pressure: {
+    ...ENTRIES.pressure,
+    text: (e, x) => [
+      `SHOTS DEAL ${moreDamage(c(e, x).perQueued!)} FOR EACH PAYLOAD WAITING.`,
+      "WAITING MEANS IN THE CHAMBER OR BACKED UP AT ITS INTAKES.",
+      "THE TURRET NEVER JAMS.",
+    ],
+  },
+};
+
+/** SCALE-2c: def's entry: with SCALE_RIGS on a scaling piece's (SCALE_ENTRIES), else ENTRIES' (undefined: none). */
+function entryOf(def: string): Entry | undefined {
+  if (scaleRules() && Object.prototype.hasOwnProperty.call(SCALE_ENTRIES, def)) return SCALE_ENTRIES[def];
+  return Object.prototype.hasOwnProperty.call(ENTRIES, def) ? ENTRIES[def] : undefined;
+}
+
 /** The modules with ability text: every buyable module (0.6.2rel: the turrets too) and both supplies. A hero's signature
- *  factory (never sold) has none: its panel shows its catalogue desc (flavour.ts). */
+ *  factory (never sold) has none: its panel shows its catalogue desc (flavour.ts). SCALE-2c: with SCALE_RIGS on, the seven
+ *  new readers too (entryOf). */
 export function hasAbilityText(def: string): boolean {
-  return Object.prototype.hasOwnProperty.call(ENTRIES, def);
+  return entryOf(def) !== undefined;
 }
 
 function ctxOf(stars: number, o: TextOpts = {}): X {
@@ -1449,7 +1532,7 @@ export function livePerk(def: string, stars: number): string | undefined {
 
 /** A module's ability text at `stars` (see the file comment); { sentences: [] } for a def without an entry. */
 export function abilityText(def: string, stars = 1, o: TextOpts = {}): AbilityText {
-  const en = hasAbilityText(def) ? ENTRIES[def] : undefined;
+  const en = entryOf(def); // SCALE-2c: SCALE_ENTRIES with the switch on
   if (!en) return { sentences: [] };
   const x = ctxOf(stars, o), e = effectAt(def, stars);
   const sentences = shownOn(o.day, () => en.text(e, x)); // HULL-1d (REQ-BFG-079): its numbers on the text's day
@@ -1462,14 +1545,14 @@ export function abilityText(def: string, stars = 1, o: TextOpts = {}): AbilityTe
 /** The star's effect as a short clause without a full stop ("ADDS 4 BURN"); "" for a def without text. HULL-1d: its
  *  numbers on o.day (the next-star and MERGES WITH lines read it through starGist). */
 export function gist(def: string, stars = 1, o: TextOpts = {}): string {
-  const en = hasAbilityText(def) ? ENTRIES[def] : undefined;
+  const en = entryOf(def); // SCALE-2c: SCALE_ENTRIES with the switch on
   return en ? shownOn(o.day, () => en.gist(effectAt(def, stars), ctxOf(stars, o))) : "";
 }
 
 /** The shop card's one-line effect at 1 star, a whole sentence ("ADDS 2 BURN."); "" for a def without text. HULL-1d: its
  *  numbers on o.day. */
 export function cardText(def: string, o: TextOpts = {}): string {
-  const en = hasAbilityText(def) ? ENTRIES[def] : undefined;
+  const en = entryOf(def); // SCALE-2c: SCALE_ENTRIES with the switch on
   if (!en) return "";
   return `${shownOn(o.day, () => (en.card ?? en.gist)(effectAt(def, 1), ctxOf(1, o)))}.`;
 }

@@ -9,6 +9,7 @@
 import { ICON, ICON_COLOUR, KEYWORDS, type KeywordName } from "../render/font";
 import { colourize, type Span } from "./richText";
 import { gameWords } from "./gameWords"; // CARD-3 (REQ-BFG-107)
+import { onSetScaleRigs } from "../sim/scale"; // SCALE-2c (REQ-BFG-108): COLOUR_OF follows the live keywords
 
 /** Each keyword's word forms in captain text: the keyword, and the plural or past forms the lines use. */
 export const CAPTAIN_FORMS: Readonly<Record<KeywordName, readonly string[]>> = {
@@ -22,11 +23,20 @@ export const CAPTAIN_FORMS: Readonly<Record<KeywordName, readonly string[]>> = {
   SHIELD: ["WARD", "WARDS"], // CARD-3: the block's
   HEAL: ["HEAL", "HEALS"],
   REGEN: ["REGEN"],
+  // SCALE-2b (REQ-BFG-108): POISON's forms (KEYWORDS holds POISON only while SCALE_RIGS is on; no captain line names it).
+  // SCALE-2c: COLOUR_OF below follows the live list (was read once, at load, from the shipped 9)
+  POISON: ["POISON", "POISONED"],
 };
 
-const COLOUR_OF: ReadonlyMap<string, string> = new Map(
+/** SCALE-2c (REQ-BFG-108; REVIEW-SCALE2b section 3, a carried item): built from the live KEYWORDS and ICON_COLOUR (font.ts:
+ *  POISON joins both while SCALE_RIGS is on) and rebuilt at each flip by the switch's hook (registered after font.ts's,
+ *  which this file imports, so the lists are already the switch's), so a captain line naming POISON takes its venom with the
+ *  switch on; off, the shipped 9's map, as before (it was built once, at load, from the shipped 9). */
+const colourOf = (): ReadonlyMap<string, string> => new Map(
   KEYWORDS.flatMap((k) => CAPTAIN_FORMS[k].map((w): [string, string] => [w, ICON_COLOUR[ICON[k]]])),
 );
+let COLOUR_OF: ReadonlyMap<string, string> = colourOf();
+onSetScaleRigs(() => { COLOUR_OF = colourOf(); });
 
 /** The keyword colour of one word of a captain's line ("PLATED," is PLATE's), else undefined. */
 export function captainKeywordColour(word: string): string | undefined {

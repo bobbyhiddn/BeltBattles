@@ -110,6 +110,10 @@ export { EQ, FIGHT_T, NOMINAL, ROUND_EQ, SATURATED, rateDeck, type DeckRating } 
 import { FIGHT_T, RATING_CURVE, fightTime, rateDeck } from "../deckRating";
 import { sustainKeyword, type RateOut, type SustainKw } from "../deckRating"; // BOTS-X (SUS-C, REQ-BFG-069): the bots' sustain
 import { sustainLive } from "../content"; // BOTS-X: the sustain switch (SUSTAIN_LIVE, or a withSustain call)
+// SCALE-2d (REQ-BFG-098 098.6, REQ-BFG-106; BRIEF-SCALE2d D2): the bots' feeder+reader rule, the run's hearts lost in its
+// fights and the cache key, all SCALE_RIGS on only (off: every run exactly as before)
+import { heartsLost, scaleRules } from "../scale";
+import { READER_FEEDERS, hasFeeder, needsFeeder } from "../scaleRating";
 
 // ---------------------------------------------------------------- the policy
 
@@ -288,6 +292,7 @@ interface Cand {
   // FIX-ABE E (cap's ruling 207816b18a9fbfdb): TUNE-M's mark, its def is in pol.forbid: judged, weighed and counted as
   // spendable change as usual, refused only at the moment it would be taken (pickOffer, fillPick, the packs)
   forbid?: boolean;
+  pair?: string; // SCALE-2d (REQ-BFG-098 098.6): a feeder valued as the pair with this reader on offer (readerRule)
 }
 
 /** TUNE-M (T1): the defs pol.forbid names (none for both policies). */
@@ -1268,7 +1273,87 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
   out.push(...upgradeCands(run, base, banned));
   out.push(...packCands(run, base, banned)); // bb-0.8.6 (REQ-BFG-051 P6)
   if (sus) sustainRule(b, out); // BOTS-X (SUS-C): rules 2-4 and 6, only while the switch is on
+  if (scaleRules()) readerRule(run, out, base, pol); // SCALE-2d (REQ-BFG-098 098.6): SCALE_RIGS on only
   return out;
+}
+
+/**
+ * SCALE-2d (REQ-BFG-098 098.6; BRIEF-SCALE2d D2): the bots' feeder+reader rule, SCALE_RIGS on only (candidates). A reader
+ * that wants a feeder (scaleRating.ts READER_FEEDERS) is bought only when the deck holds one of its feeders, or the same
+ * visit buys one first (shopDay judges the offers again after every buy): otherwise its candidates are `banned` (judged
+ * with the same draws, never taken). A free part (price 0: a road drop, LAST CHANCE's PART) is no buy, so it is placed as
+ * before. A feeder on offer beside an affordable reader the deck can't feed yet is valued as the pair: its gain is the
+ * larger of its own and the pair's gain for the feeder's share of the pair's gold (the pick weighs gain for the gold, so
+ * the pair's gain per gold becomes the feeder's), the reader placed at its best spot after the feeder (readerBest; a fixed
+ * stream, so the policy's draws are untouched here).
+ */
+function readerRule(run: Run, out: Cand[], base: number, pol: PolicyKnobs): void {
+  const b = run.build, day = run.day;
+  const unfed = new Map<string, number>(); // reader -> its cheapest affordable price on offer
+  for (const w of run.shop.wagons) for (const o of w.offers) {
+    if (o.sold || o.price <= 0 || o.price > run.gold || !ITEMS[o.def] || !needsFeeder(o.def) || hasFeeder(b, o.def)) continue;
+    unfed.set(o.def, Math.min(unfed.get(o.def) ?? Infinity, o.price));
+  }
+  if (!unfed.size) return;
+  for (const c of out) if (c.price > 0 && c.wagon >= 0 && unfed.has(c.def)) c.banned = true;
+  for (const c of out) {
+    if (c.banned || c.merge || c.price <= 0 || c.wagon < 0 || c.turret || c.swap !== undefined || c.grown) continue;
+    for (const [r, rp] of unfed) {
+      if (!READER_FEEDERS[r].includes(c.def) || c.price + rp > run.gold) continue;
+      const after = afterCand(run, c);
+      const rel = after ? readerBest(after, r, run.nextUid + 1, base, day, pol) : null;
+      if (rel === null) continue;
+      const share = (rel * c.price) / (c.price + rp);
+      if (share > c.rel) { c.rel = share; c.pair = r; }
+    }
+  }
+}
+
+/** SCALE-2d: the deck after candidate `c` (a rig at its spot, gear or a core on its turret, a factory with its belts), as
+ *  buy() lays it, for readerRule's pair; null for anything else. */
+function afterCand(run: Run, c: Cand): Build | null {
+  const after = cloneBuild(run.build), d = ITEMS[c.def], at = c.at;
+  if (!at) return null;
+  if (d.kind === "gate" && "x" in at) { placeRigAt(after, run.nextUid, c.def, { x: at.x, y: at.y, rot: at.rot ?? 0 }); return after; }
+  if ((d.kind === "mod" || d.kind === "core") && "turret" in at) { after.mods.push({ uid: run.nextUid, def: c.def, turret: at.turret }); return after; }
+  if (d.kind === "factory" && "x" in at && c.routes) {
+    after.items.push({ uid: run.nextUid, def: c.def, x: at.x, y: at.y, ...rotField(c.def, at.rot ?? 0) });
+    for (const l of c.routes) commitRoute(after, run.nextUid, l.cells, -1, l.join);
+    return after;
+  }
+  return null;
+}
+
+/** SCALE-2d: the best gain (relOf against `base`) of reader `def` placed on `after` (a rig at its best H2 spot, gear or a
+ *  core on the best free hardpoint), or null when it fits nowhere. */
+function readerBest(after: Build, def: string, uid: number, base: number, day: number, pol: PolicyKnobs): number | null {
+  const d = ITEMS[def];
+  let best: number | null = null;
+  const take = (b2: Build): void => { const r = relOf(b2, base, day); if (best === null || r > best) best = r; };
+  if (d.kind === "gate") {
+    const s = new Shopper(after, maxGoldByDay(day), day, new Rng(hashSeed("scale2d-pair", def, day)), "on", FUSE_MAX, "on", "on");
+    s.uid = uid;
+    for (const sp of !isShaped(d) || fitsSomewhere(after, def) ? rigSpots(s, def, undefined, pol.aim, pol.aimTop) : []) {
+      const b2 = cloneBuild(after);
+      placeRigAt(b2, uid, def, sp);
+      take(b2);
+    }
+  } else if (d.kind === "mod" || d.kind === "core") {
+    for (const v of installedTurrets(after)) {
+      if (d.kind === "mod" ? !canFitGear(after, v.slot, def).ok : !!coreFor(after, v.slot)) continue;
+      const b2 = cloneBuild(after);
+      b2.mods.push({ uid, def, turret: v.slot });
+      take(b2);
+    }
+  }
+  return best;
+}
+
+/** SCALE-2d (REQ-BFG-098, REQ-BFG-106; BRIEF-SCALE2d D2): the hearts each side has lost coming into a run's fight, as the
+ *  live battle screen passes them since SCALE-2a (screens/battle.ts heartsLost(run.lives, run)): the run's own, and 0 for
+ *  a warlord (no run). Only while SCALE_RIGS is on; off undefined, so the fight is called exactly as before. */
+export function runLost(run: { lives: number; hearts?: boolean }): readonly [number, number] | undefined {
+  return scaleRules() ? [heartsLost(run.lives, run), 0] : undefined;
 }
 
 /**
@@ -1752,7 +1837,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // off, the key is c099's byte for byte. SHAPES-2 (REQ-BFG-114): SHAPES2 moves them too ("|s2", after "|pr")
   const asked =Number.isFinite(days) ? Math.floor(days) : PLAYER_DAYS;
   const depth = asked <= PLAYER_DAYS ? PLAYER_DAYS : Math.max(PLAYER_DAYS_LONG, asked);
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2" (last; off: the key as before)
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}${scaleRules() ? "|sc" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2"; SCALE-2d: "|sc" (last: SCALE_RIGS on moves every par run: the catalogue, the reworks, the rating; off: the key as before) (BUMP-1E: both sides' parts)
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
@@ -1836,7 +1921,9 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
   const pick = pickRoad(run, PAR_ROAD_TIER);
   const w = todaysWarlord(run);
   if (!pick.ok || !w) throw new Error(`par player: no ${PAR_ROAD_TIER} warlord on day ${run.day} (${pick.reason ?? "no fight stored"})`);
-  const bt = simulate(run.build, w.build, warlordSeed(run), undefined, [run.wins, 0], run.day);
+  // SCALE-2d (REQ-BFG-098, REQ-BFG-106; D2): with SCALE_RIGS on, the run's hearts lost too (runLost), so a GRUDGE ROD reads
+  // the run's real number (its TROPHY CHAIN reads run.wins, passed already); off, the call is exactly as before
+  const bt = simulate(run.build, w.build, warlordSeed(run), undefined, [run.wins, 0], run.day, runLost(run));
   const winner = (bt.winner ?? -1) as 0 | 1 | -1;
   // AZ-BUMP (the flip; cap's ruling on run 4's Q5a): TUNE-M's forbid knob (pol.forbid) declines a forbidden drop as it
   // refuses a forbidden buy, the same way a capped run declines a drop above its cap. Harness only; par and every policy

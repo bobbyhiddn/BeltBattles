@@ -15,6 +15,7 @@
 
 import { C } from "./palette";
 import { makeCanvas, type G } from "./pixel";
+import { onSetScaleRigs } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): POISON joins KEYWORDS while SCALE_RIGS is on
 
 type GlyphMap = Record<string, string>;
 
@@ -24,7 +25,7 @@ const pua = (n: number): string => String.fromCharCode(ICON_BASE + n);
 /** U1 (MEMO C2): the 16 icons. DMG U+E000 .. PAIR U+E00D are private-use code points, one UTF-16 unit each; HULL and STAR
  *  are today's ♥ and ★, so "{HULL}" and "{STAR}" work in the markup. SUS-B (REQ-BFG-069): + SHIELD, HEAL and REGEN at
  *  U+E010 .. U+E012, 19 icons (17 private-use). */
-export const ICON = {
+const SHIPPED_ICONS = {
   DMG: pua(0), // damage
   SEC: pua(1), // seconds: a unit after its number, "1.25" then SEC (a small s)
   RATE: pua(2), // faster: folds WORKS FASTER, FIRE RATE and SPEED
@@ -46,11 +47,26 @@ export const ICON = {
   HULL: "♥",
   STAR: "★",
 } as const;
+/** The icons by name: the 19 shipped (SHIPPED_ICONS, ICON's enumerable keys) and SCALE-2b's POISON (below). */
+export const ICON = SHIPPED_ICONS as typeof SHIPPED_ICONS & { readonly POISON: string; readonly CRACK: string };
+// SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): POISON's drop at pua(15), U+E00F (free; pua(14) is claimed in comments).
+// It is ICON.POISON by name everywhere, so "{*POISON}" and the status row's chip draw it; but it is not enumerable: ICON's
+// keys stay the 19 shipped names (tests/icons.test.ts pins them), and nothing that lists the icons meets it. Nothing draws
+// it with SCALE_RIGS off (no text holds "{POISON}" then, and no hull holds POISON).
+Object.defineProperty(ICON, "POISON", { value: pua(15), enumerable: false, writable: false, configurable: false });
+// SCALE-2c (REQ-BFG-100, C7; BRIEF-SCALE2c section 4): the hits-taken chip's crack at pua(19), U+E013, the next free slot
+// (pua(14) is claimed in comments; 15 is POISON's, 16-18 SUS-B's), not enumerable as POISON's: ICON's keys stay the 19
+// shipped names, and nothing draws it with SCALE_RIGS off (the chip shows only with a hits-taken reader aboard, switch on)
+Object.defineProperty(ICON, "CRACK", { value: pua(19), enumerable: false, writable: false, configurable: false });
 export type IconName = keyof typeof ICON;
 /** U1 (MEMO C1): the keywords. "{*NAME}" draws one as its icon then its word, both in the keyword's colour. SUS-B
- *  (REQ-BFG-069; cap's answer 1 to SUSTAIN-1: a budget of 12): + SHIELD, HEAL and REGEN, 9 in all. */
-export const KEYWORDS = ["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"] as const;
-export type KeywordName = (typeof KEYWORDS)[number];
+ *  (REQ-BFG-069; cap's answer 1 to SUSTAIN-1: a budget of 12): + SHIELD, HEAL and REGEN, 9 in all. SCALE-2b
+ *  (REQ-BFG-108): + POISON while SCALE_RIGS is on (the 10th; KEYWORD_NAMES holds it, KEYWORDS gains it at the flip). */
+const KEYWORD_NAMES = ["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN", "POISON"] as const;
+export type KeywordName = (typeof KEYWORD_NAMES)[number];
+/** The face keywords now, in order: the 9 shipped, then POISON while SCALE_RIGS is on (SCALE-2b: one live list that the
+ *  switch's hook below grows and shrinks, so every reader iterates the world it is in and the off world is the base's). */
+export const KEYWORDS: readonly KeywordName[] = KEYWORD_NAMES.slice(0, 9);
 /**
  * CARD-3 (REQ-BFG-107; the operator, 2026-10-11: "shielding in the genre normally works like plate"): THE PLAYER'S WORDS.
  * KEYWORDS above are INTERNAL names: the markup tokens ("{*PLATE}", "{*SHIELD}"), the REMINDER and glossary keys, the
@@ -68,7 +84,7 @@ export type KeywordName = (typeof KEYWORDS)[number];
  */
 export const PLAYER_WORD: Readonly<Record<KeywordName, string>> = {
   BURN: "BURN", STUN: "STUN", HEAT: "HEAT", FRAY: "FRAY", PLATE: "SHIELD", PAIR: "PAIR", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN",
-};
+} as Record<KeywordName, string>; // SCALE-2b (REQ-BFG-108): + POISON: "POISON" while SCALE_RIGS is on (the hook below)
 /** CARD-3 (REQ-BFG-107): the internal keyword a player word names ("SHIELD" -> PLATE, "WARD" -> SHIELD), else undefined. */
 export const keywordOfWord = (word: string): KeywordName | undefined =>
   KEYWORDS.find((k) => PLAYER_WORD[k] === word);
@@ -169,6 +185,16 @@ const F5: GlyphMap = {
   [ICON.SHIELD]: "..#..|.#.#.|#...#|#.#.#|#...#|.#.#.|..#..", // a ward diamond with a core
   [ICON.HEAL]: ".###.|.#.#.|##.##|#...#|##.##|.#.#.|.###.", // an outlined cross
   [ICON.REGEN]: "..#..|.###.|..#..|.....|..#..|.###.|..#..", // two stacked small crosses: again and again
+  // SCALE-2b (REQ-BFG-108): POISON's drop, an outline (a solid drop sits 3 px from BURN's flame); drawn only while
+  // SCALE_RIGS is on
+  [ICON.POISON]: "..#..|..#..|.#.#.|#...#|#...#|#...#|.###.", // a drop
+  // HITMARK-1E (REQ-BFG-100, C7; BRIEF-HITMARK1E): the hits-on-you chip's mark, an arrow with a solid head driving into a wall: a hit
+  // landed on your ship. The icon keeps SCALE-2c's name CRACK and U+E013 (counters.ts HITS_CHIP draws it, red). SCALE-2c's lone jagged
+  // line read as FRAY to all four round-M readers (REPORT-SCALE2f 5). It is not FRAY's pair of Vs, BURN's flame, POISON's drop,
+  // STUN's bolt or the HULL heart, and no burst (BURST's mark is a red plus; the burst-like mark is CRIT-1's U+E00E): 11 px or more
+  // from every other 5x7 glyph, FRAY's 17. The first pick had a head of single pixels (...#.|..#.#|#####|..#.#|...); the cold
+  // read's readers saw the mark at about 25 px, so the head is solid
+  [ICON.CRACK]: "....#|.#..#|.##.#|#####|.##.#|.#..#|....#", // a hit landing: an arrow into a wall
 };
 
 // 3x5
@@ -260,6 +286,8 @@ const F3: GlyphMap = {
   [ICON.SHIELD]: "...|.#.|#.#|#.#|.#.", // a ward diamond
   [ICON.HEAL]: "...|.#.|###|.#.|###", // a cross on a bar
   [ICON.REGEN]: ".#.|###|.#.|...|#.#", // a cross with two tick dots
+  [ICON.POISON]: ".#.|.#.|###|###|.#.", // SCALE-2b (REQ-BFG-108): a drop, its point up (SCALE_RIGS on only)
+  [ICON.CRACK]: "#.#|.##|..#|.##|#.#", // HITMARK-1E (REQ-BFG-100, C7): the 5x7 mark's twin, an arrowhead's point on a wall (SCALE_RIGS on only)
 };
 
 /** U1: an icon's own colour, where it has one. RATE is KEYWORD_COLOUR's FASTER (richText.ts), GOLD the shop's price colour
@@ -281,10 +309,34 @@ export const ICON_COLOUR: Readonly<Record<string, string>> = {
   [ICON.HEAL]: C.green,
   [ICON.REGEN]: C.verd3,
 };
+// SCALE-2b (REQ-BFG-108): ICON_COLOUR[ICON.POISON] is the venom yellow-green (palette.ts C.venom), clear of your HP bar's
+// lime, HEAL's green and BURN's fire3, set while SCALE_RIGS is on (the hook below; off, the table is the base's)
 
-/** The private-use icons (HULL ♥ and STAR ★ are ordinary text: "★2" stays a star mark, as today). */
-const ICON_CHARS: ReadonlySet<string> = new Set(Object.values(ICON).filter((ch) => ch.charCodeAt(0) >= ICON_BASE));
-const KEYWORD_SET: ReadonlySet<string> = new Set(KEYWORDS);
+/** The private-use icons (HULL ♥ and STAR ★ are ordinary text: "★2" stays a star mark, as today). SCALE-2b: + POISON's
+ *  drop (ICON.POISON is not enumerable), so a line holding it measures and strips it as an icon. */
+const ICON_CHARS: ReadonlySet<string> = new Set([...Object.values(ICON), ICON.POISON, ICON.CRACK].filter((ch) => ch.charCodeAt(0) >= ICON_BASE)); // SCALE-2c: + CRACK
+/** The keywords "{*NAME}" draws (KEYWORDS now: SCALE-2b's hook keeps it in step). */
+const KEYWORD_SET = new Set<string>(KEYWORDS);
+
+// SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): POISON joins the keywords while SCALE_RIGS is on (the 10th of the
+// budget's 12), after REGEN; off, KEYWORDS is the shipped 9, exactly. The switch's hook (sim/scale.ts onSetScaleRigs).
+// So do POISON's player word (PLAYER_WORD) and its colour (ICON_COLOUR): tests/card3.test.ts (r) and icons.test.ts pin
+// both tables, as shipped.
+onSetScaleRigs((on) => {
+  const list = KEYWORDS as KeywordName[], words = PLAYER_WORD as Record<string, string>, colours = ICON_COLOUR as Record<string, string>;
+  const at = list.indexOf("POISON");
+  if (on && at < 0) list.push("POISON");
+  if (!on && at >= 0) list.splice(at, 1);
+  if (on) {
+    KEYWORD_SET.add("POISON");
+    words.POISON = "POISON";
+    colours[ICON.POISON] = C.venom;
+  } else {
+    KEYWORD_SET.delete("POISON");
+    delete words.POISON;
+    delete colours[ICON.POISON];
+  }
+});
 
 /** U1: whether `ch` (one UTF-16 unit) is a private-use icon glyph (DMG .. PAIR). */
 export const isIcon = (ch: string): boolean => ICON_CHARS.has(ch);

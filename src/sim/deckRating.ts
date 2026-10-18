@@ -16,6 +16,7 @@ import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
   walkRoute, type Build, type RigHit,
 } from "./deck";
+import type { RouteWalk } from "./deck"; // SCALE-2d (REQ-BFG-098): rateDeck keeps each belt's walk while SCALE_RIGS is on
 import { platedDeck, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's plating and stokers
 import { FURNACE_LONG_BELT, SHARED_HEADROOM, gearStats } from "./battle";
 import { resolveCore } from "./cores";
@@ -24,6 +25,11 @@ import type { CoreSpec } from "./content"; // Y4
 import { doubles } from "./overclock"; // Y3 (release Y): the OVERCLOCKER's price (chargeGains)
 import { effectAt, gradeOf, starsOf, valueOf } from "./stars";
 import { hullScaleRules } from "./hullScale"; // PAR-AZ (REQ-BFG-079): the tables measured with every switch on (fightTime, foeOn)
+// SCALE-2d (REQ-BFG-098 098.6, REQ-BFG-108, REQ-BFG-106, REQ-BFG-110; BRIEF-SCALE2d D1): with SCALE_RIGS on the rating prices
+// each scaling piece's `reads` line, PRESSURE BREECH's uncapped perQueued and VENOM DRIP's POISON (scaleRating.ts); off,
+// none of it runs and every rating is byte for byte the base's
+import { scaleRules } from "./scale";
+import { READ_DAY_DEFAULT, poisonGain, readCtx, readValue, readerCount, type ReadCtx } from "./scaleRating";
 
 /** Seconds in a typical dusk fight (the desk run's fights last 17-29 s): damage is weighed by how much of it lands. */
 export const FIGHT_T = 25;
@@ -328,12 +334,31 @@ interface Feed {
 /** Per payload, the rig effects the walk leaves out (EQ), and the hull a RIVETER repairs per passing payload.
  *  `fight`: the fight's length; `time`: the route's first payload's ride to its turret (walkRoute's estimate). Y6: `burn`,
  *  the BURN stacks its slugs carry (walkRoute's estimate), read only by a VENOM DRIP (burnPlusGain). */
-function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time: number, burn = 0): { eq: number; repair: number; heal: number } {
+// SCALE-2d (REQ-BFG-098, REQ-BFG-108; BRIEF-SCALE2d D1): `ctx` is set only while SCALE_RIGS is on (rateDeck). Then a rig's
+// `reads` line is priced at the day's typical count (scaleRating.ts readerCount): DMG as EQ on each payload it hits, PLATE
+// as repair (PLATE ROLLER's rule, and into `plate`, the deck's PLATE a payload, which IRON WALL's count reads), HEAL as
+// RIVETER's; an IRON WALL-type line (it reads your PLATE) waits in `wall` (each per one counted) until rateDeck knows the
+// deck's PLATE; VENOM DRIP's POISON is priced by poisonGain. Off (no ctx): exactly as before
+function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time: number, burn = 0, ctx?: ReadCtx): { eq: number; repair: number; heal: number; plate: number; wall: { def: string; k: number }[] } {
   let eq = 0, repair = 0, heal = 0; // BOTS-X: `heal`, RIVETER's part of `repair` (read only with the switch on)
+  let plate = 0;
+  const wall: { def: string; k: number }[] = [];
   for (const tile of hits[ri] ?? []) {
     for (const h of tile) {
       const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate;
       if (!e) continue;
+      if (ctx) {
+        if (e.poison) eq += poisonGain(e.poison, fight, time);
+        if (e.plate) plate += e.plate;
+        const r = e.reads;
+        if (r && r.count === "ownPlate" && r.give === "dmg") wall.push({ def: h.def, k: readValue(r, 1) });
+        else if (r) {
+          const v = readValue(r, readerCount(b, h.def, r.count, ctx));
+          if (r.give === "dmg") eq += v;
+          else if (r.give === "plate") { repair += v; plate += v; }
+          else { repair += v; heal += v; }
+        }
+      }
       // Y6 (release Y; DESIGN-Y 4.1): VENOM DRIP holds burnPlus in place of its poison (STAR_EQ's note)
       if (e.burnPlus) eq += burnPlusGain(e.burnPlus, burn);
       if (e.fray) eq += EQ.fray * e.fray;
@@ -367,7 +392,7 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       if (e.brace) eq += ((EQ.toll * (1 - e.brace.mul)) / 0.25) * braceShare(h.def);
     }
   }
-  return { eq, repair, heal };
+  return { eq, repair, heal, plate, wall };
 }
 
 /** PLAIN-1 (REQ-BFG-084, P3/P5): the max hull a deck's working BALLASTs add to the rating's hull (the hero's hull +
@@ -501,6 +526,23 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     stoke.set(sh.factory, (stoke.get(sh.factory) ?? 0) + (g ? effectAt(g.def, starsOf(g)).gate?.stoke ?? 0 : 0));
   }
   let plating = 0; // 0.8.0 P1: ARMOR PRESS plating a second, rated as repair
+  // SCALE-2d (REQ-BFG-098; BRIEF-SCALE2d D1): with SCALE_RIGS on, the counts' context (scaleRating.ts readCtx: the day, does
+  // the deck carry BURN, its VENOM DRIPs' POISON, its WARD BELLs' SHIELD a second), from each connected belt's walk, kept
+  // for the loop below. Off: no ctx, no walks kept; the loop walks each belt as before
+  const walks = new Map<number, RouteWalk>();
+  let ctx: ReadCtx | undefined;
+  const platePer: number[] = [], walls: { ri: number; def: string; k: number }[] = [];
+  if (scaleRules()) {
+    let burnAny = b.mods.some((m) => ITEMS[m.def]?.kind === "core" && effectAt(m.def, starsOf(m)).core?.routine === "drake");
+    b.routes.forEach((_, ri) => {
+      const info = routeInfo(b, ri, claims, occ, hits);
+      if (!info.connected || info.turret < 0) return;
+      const w = walkRoute(b, ri, hits);
+      walks.set(ri, w);
+      if (w.estimate.burn > 0) burnAny = true;
+    });
+    ctx = readCtx(b, day ?? READ_DAY_DEFAULT, burnAny);
+  }
   b.routes.forEach((r, ri) => {
     const info = routeInfo(b, ri, claims, occ, hits);
     if (!info.connected || info.turret < 0) return;
@@ -508,13 +550,14 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, gradeOf(b, f)).factory : undefined; // bb-0.8.3: grade
     if (!f || !spec) return;
     const interval = secPer(factorySpeed(f.def, spec, b.hero)); // NUM-2: 30 / its whole speed (MIMIC: x its rate %)
-    const walk = walkRoute(b, ri, hits), est = walk.estimate;
+    const walk = walks.get(ri) ?? walkRoute(b, ri, hits), est = walk.estimate;
     // 0.8.0 B1 M2 (G1's F1): on a deck that plates its hull the walk counts PLATE BREAKER's big number, which battles pay
     // only on BREAKER_SHARE of its blows: the rating reads floor + BREAKER_SHARE x (big - floor)
     const low = walk.timeline.some((row) => row.hits.some((th) => th.breaker)) && platedDeck(b)
       ? walkRoute(b, ri, hits, { unplated: true }).estimate : undefined;
     const dmg = low ? low.dmg + breakerShare * (est.dmg - low.dmg) : est.dmg;
-    const x = hitExtras(b, hits, ri, fight, est.time, est.burn); // Y6: est.burn, read only by a VENOM DRIP
+    const x = hitExtras(b, hits, ri, fight, est.time, est.burn, ctx); // Y6: est.burn, read only by a VENOM DRIP; SCALE-2d: ctx
+    if (ctx) { platePer[ri] = x.plate; for (const w of x.wall) walls.push({ ri, ...w }); } // SCALE-2d: IRON WALL's count, below
     // 0.8.0 P1: a TWIN MOULD casts onto each of its belts at once (each belt a slug a cast, as a CRUCIBLE pours); a stoked
     // factory works x (1 + stoke); an ARMOR PRESS with a belt to a turret plates every `every` s (counted once).
     // bb-0.8.3 (REQ-BFG-042 D4): beltShare, the pour size included
@@ -562,6 +605,15 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       f.arrival = Math.max(0, Math.min(f.arrival, room));
       flow += f.arrival;
     }
+  }
+  // SCALE-2d (REQ-BFG-098; BRIEF-SCALE2d D1): with SCALE_RIGS on, the deck's PLATE gained in a fight (each belt's PLATE a
+  // payload x its payloads a second, plus ARMOR PRESS's plating a second, x the fight) sets the PLATE an IRON WALL counts
+  // (scaleRating.ts readerCount "ownPlate"); its DMG then joins its belt's payloads, as every rig's EQ does
+  if (ctx) {
+    let rate = plating;
+    for (const [ri, f] of byRoute) rate += f.arrival * (platePer[ri] ?? 0);
+    ctx.plateFight = rate * fight;
+    for (const w of walls) { const f = byRoute.get(w.ri); if (f) f.eq += w.k * readerCount(b, w.def, "ownPlate", ctx); }
   }
   let repair = 0;
   b.routes.forEach((_, ri) => { const f = byRoute.get(ri); if (f) repair += f.arrival * (extras[ri] ?? 0); });
@@ -626,6 +678,11 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     // weighed as the belts' damage is (computed: no NOMINAL below)
     const drake = core.routine === "drake";
     if (drake) eq += fs.reduce((s, f, i) => s + flows[i] * drakeGain(core.spec, f.flat ?? 0) * left(f), 0) / inflow;
+    // SCALE-2d (REQ-BFG-098; BRIEF-SCALE2d D1): with SCALE_RIGS on PRESSURE BREECH's perQueued is uncapped (no maxCount), so
+    // it is computed, as ANVIL's flat: its class-scaled perQueued (resolveCore) x the slugs it typically reads at a shot
+    // (scaleRating.ts readerCount "waiting", fed by SPLITTER or SHOT TOWER), on each load; no NOMINAL below. Off: NOMINAL
+    const pressure = !!ctx && core.routine === "pressure" && core.spec.maxCount === undefined;
+    if (pressure) eq += (core.spec.perQueued ?? 0) * readerCount(b, core.def, "waiting", ctx!);
     // Y5 (release Y; DESIGN-Y row 42): a CAPACITOR BANK charges past its old 5 s cap (capacitorTail), on top of its NOMINAL
     // credit below
     if (core.routine === "capacitor") {
@@ -635,12 +692,18 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     let mult = 1 + (g.finisher ? g.finisher / (td.window + g.window) : 0);
     // 0.8.0 P1: ANVIL and STEAM BREECH are computed above, so they take no NOMINAL credit; TWIN TRIGGER pays its pair
     // bonus on the turret's share of paired loads (pairShare; its shorter load time is in `start`)
-    if (core.bought && core.routine !== "anvil" && core.routine !== "steam" && !drake) mult *= 1 + NOMINAL * valueOf(core.def, core.stars);
+    if (core.bought && core.routine !== "anvil" && core.routine !== "steam" && !drake && !pressure) mult *= 1 + NOMINAL * valueOf(core.def, core.stars);
     if (g.pairBonus) mult *= 1 + g.pairBonus * pairShare(b, fs);
     for (const m of b.mods) {
       if (m.turret !== t || ITEMS[m.def]?.kind !== "mod") continue;
       const md = effectAt(m.def, starsOf(m)).mod ?? {};
       if (foe && (md.shield || md.regen)) continue; // BOTS-X: WARD BELL and MENDING LOOM are valued as effective hull (below)
+      // SCALE-2d (REQ-BFG-098; BRIEF-SCALE2d D1): with SCALE_RIGS on a gun part's `reads` line (SPALL CATCHER: hits taken, at
+      // its gun's shot) is computed at the day's typical count on each load, so it takes no NOMINAL credit
+      if (ctx && md.reads) {
+        if (md.reads.give === "dmg") eq += readValue(md.reads, readerCount(b, m.def, md.reads.count, ctx));
+        continue;
+      }
       // TUNE-M T3b (a rating bug): HOPPER's window and window time are modeled above (`start`: the loading window before
       // the first shot; the finisher's split; ★3's noJam in firedShare), so it takes no NOMINAL credit on top. It took
       // +12% / +24% / +48% of the turret's damage at ★1/★2/★3 (0.03 x 4/8/16 g), while its battle lift is negative

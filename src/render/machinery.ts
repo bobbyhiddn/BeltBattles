@@ -25,6 +25,7 @@ import { skinOf, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook; 
 import { cellsOf, type Placed, type RigArrow } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S8)
 import type { ItemDef } from "../sim/content";
 import { isShaped } from "../sim/foot"; // SHAPES-1: a rig of 2+ cells, a factory not 2x2 (none with SHAPES off)
+import { flatOf } from "../sim/scale"; // SCALE-2a (REQ-BFG-110): the flat bonus's sum (stat rows + FOR EACH)
 import { pieceRect, screenMask, shapedFactorySil, shapedFactorySprite, shapedRigBody, shapedRigSil } from "./shapeArt"; // SHAPES-1
 
 /** 0.6.1d2: two cosmetic, build-screen-only cues threaded through CruiserView without touching
@@ -286,7 +287,7 @@ function drawAmmo(g: G, v: CruiserView): void {
       const lx = pt.x - pt.uy * off, ly = pt.y + pt.ux * off; // perpendicular to the travel
       const x = Math.round(sx(f, lx, ly)) - 3, y = Math.round(sy(f, lx, ly)) - 3;
       const ad = AMMO[a.p.ammo];
-      const tier = heatTier(payloadDamage(a.p.base ?? ad.base, ad.rideScale, a.p.ride, a.p.mult, a.p.flat + (a.p.heatBonus ?? 0)));
+      const tier = heatTier(payloadDamage(a.p.base ?? ad.base, ad.rideScale, a.p.ride, a.p.mult, flatOf(a.p) + (a.p.heatBonus ?? 0))); // SCALE-2a: the sum
       // beltside-062c: BELTSIDE's V2 payload with 0.6.1c's preset tint. payloadSprite hands every kind but thread
       // and plain to ammoSprite, so shot, slag and HOT SWAP's ember and spark slugs draw as 0.6.1c draws them; the
       // halo keeps the ammo's colour (a tinted slug is plain ammo, so a spark never gets a fire ring)
