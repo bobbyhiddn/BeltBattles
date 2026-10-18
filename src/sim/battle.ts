@@ -1365,6 +1365,7 @@ export class Battle {
       if (!a || a.s < r.L - 1e-6) continue;
       const j = r.join!;
       const m = s.routes[j.route];
+      if (m.conv && convAt(m, j.tile)) continue; // GATES-1 (REQ-BFG-052; GATES-1b B1): a gate on the join tile takes this belt's slug itself, in turn with the main belt (convert.ts intake)
       let k = 0, gap = true;
       for (let i = 0; i < m.ammo.length; i++) {
         const d = m.ammo[i].s - j.enter;

@@ -17,9 +17,15 @@
 //    every later tile's hits act on the output;
 //  - a STUN (Battle.disrupt) stalls the whole machine: no timer, no intake, no output while it lasts; the converter is a
 //    Target like a factory (weight 3), and the belt tile it stands on is no belt target;
-//  - a belt that JOINS at the converter's tile feeds its buffer: the joiner's slug enters at the tile's upstream edge when
-//    that point is free (Battle.joins, the main belt having right of way), and is taken like a slug of the main belt.
-//    Order of entry: by arrival, a tie going to the main belt, then the joiners in the sim's order (lowest last cell first).
+//  - a belt that JOINS at the converter's tile feeds its buffer, and the converter takes from its own (main) belt and from the
+//    joining belt(s) IN TURN (GATES-1b B1; cap's ruling on GATES-1 question 5; `intake`): when it is ready for a slug and slugs
+//    wait on both belts it takes from the belt it did not take from last (with more joiners: the next belt in the sim's order,
+//    the main belt, then the joiners lowest last cell first); when only one belt has a slug ready it takes that one at once and
+//    never waits for the other. A joiner's slug goes straight from its belt's end into the buffer (Battle.joins leaves a join
+//    on a converter's tile to this file), so it can't slip into the gap the converter just opened on the main belt, which is
+//    what let an `in` 1 converter give every free place to the joining belt and starve the main belt. A FUSER therefore takes one
+//    slug of each belt when both are backed up, and two of one belt when only that belt has a slug ready. A join tile with no
+//    converter keeps Battle.joins's rule.
 //
 // THE PAYLOAD RULES are one function each (fusePayload, pelletPayload, smeltPayload), each driven by a table typed
 // Record<keyof Payload, ...>: a field added to Payload later (BUMP-1E's POISON, for one) is a TYPE ERROR in the table and a
@@ -55,6 +61,12 @@ export interface ConverterState {
   y: number;
   inEdge: number; // tile x CELL: where the slugs stop and are taken (px along the route)
   outEdge: number; // (tile + 1) x CELL: where the output goes back on the belt
+  /** GATES-1b B1: the joining belts that end on this converter's tile (RouteState.join.tile = its tile), in the sim's join order
+   *  (lowest last cell first); [] for a converter on no join tile, which is every converter but those. See `intake`. */
+  feeders: RouteState[];
+  /** GATES-1b B1: whose turn it is when slugs wait on several belts: 0 = this converter's own (main) belt, i >= 1 = feeders[i - 1].
+   *  Moves on past the belt a slug was taken from (so with one joiner the belts alternate). Always 0 when there are no feeders. */
+  turn: number;
   buf: Payload[]; // slugs taken in (at most spec.in)
   out: Payload[]; // converted, waiting for AMMO_SPACING at the downstream edge (front first)
   left: number; // ticks of work left while it works (0: not working)
@@ -65,7 +77,8 @@ export interface ConverterState {
   done: number; // conversions finished
 }
 
-/** Does route `r` have a converter on tile `ci`? (makeSide: that tile is no belt target.) */
+/** Does route `r` have a converter on tile `ci`? (makeSide: that tile is no belt target. Battle.joins: a belt that joins at such a
+ *  tile is that converter's to feed, in turn with the main belt (`intake`), so joins leaves it alone.) */
 export function convAt(r: Pick<RouteState, "conv">, ci: number): boolean {
   return !!r.conv?.some((c) => c.tile === ci);
 }
@@ -84,9 +97,12 @@ export function makeConverters(b: Build, routes: RouteState[]): ConverterState[]
     const ri = routes.findIndex((r) => r.cells.includes(k));
     if (ri < 0) continue;
     const tile = routes[ri].cells.indexOf(k);
+    // GATES-1b B1: the belts that join on this very tile, in Battle.joins's order (lowest last cell key first)
+    const feeders = routes.filter((q) => q.join && q.join.route === ri && q.join.tile === tile)
+      .sort((a, c) => a.cells[a.cells.length - 1] - c.cells[c.cells.length - 1]);
     out.push({
       uid: p.uid, def: d, spec: d.converter, route: ri, tile, x: kx(k), y: ky(k), inEdge: tile * CELL, outEdge: (tile + 1) * CELL,
-      buf: [], out: [], left: 0, disrupted: 0, frozen: 0, flash: 0, done: 0,
+      feeders, turn: 0, buf: [], out: [], left: 0, disrupted: 0, frozen: 0, flash: 0, done: 0,
     });
   }
   out.sort((a, c) => a.route - c.route || a.tile - c.tile);
@@ -137,8 +153,9 @@ const workTicks = (spec: ConverterSpec): number => Math.max(1, Math.round(spec.s
  * One tick of side `s`'s converters, after every belt has moved (end of Battle.transport), in route and tile order. A
  * stunned or frozen converter does nothing at all. Otherwise: (1) put the next output on the belt if AMMO_SPACING is free;
  * (2) run the timer, and when it ends convert the buffer (a `convert` event) and try the output again; (3) take the slug at
- * the upstream edge into the buffer if there is room and it isn't working; (4) when the buffer is full and fewer than `out`
- * outputs are still waiting for room, start the timer (it runs from the next tick, so a conversion takes exactly `secs`).
+ * the upstream edge into the buffer if there is room and it isn't working (on a join tile: from the main belt or the joining
+ * belt, in turn: `intake`); (4) when the buffer is full and fewer than `out` outputs are still waiting for room, start the
+ * timer (it runs from the next tick, so a conversion takes exactly `secs`).
  * The pellets of one conversion leave the mouth one by one (AMMO_SPACING = 14 ticks apart) WHILE the next slug is converted,
  * the way a factory's DOUBLE STAMP batch leaves while its next cycle runs (battle.ts `pending`): the face says 1 SEC a
  * conversion, and a machine that waited for its last pellet to leave would take 1.5 s (3 out) to 1.7 s (4 out). With out = 1
@@ -171,15 +188,42 @@ function emit(r: RouteState, c: ConverterState): void {
   r.ammo.splice(k, 0, { p, s: c.outEdge, processed: c.tile, blocked: false });
 }
 
-/** Take the slug waiting at the upstream edge (the front-most one in the tile's reach) into the buffer, if there is room. */
-function intake(r: RouteState, c: ConverterState): void {
-  if (c.buf.length >= c.spec.in) return;
+/** The index in `r.ammo` of the slug waiting at the converter's upstream edge (the front-most one in the tile's reach), or -1
+ *  when none is there yet (or a latch holds it). */
+function edgeSlug(r: RouteState, c: ConverterState): number {
   for (let k = 0; k < r.ammo.length; k++) {
     const a = r.ammo[k];
     if (a.s >= c.outEdge - EDGE) continue; // ahead of the tile
-    if (a.s < c.inEdge - EDGE || a.hold) return; // not at the edge yet (or held by a latch)
-    c.buf.push(a.p);
-    r.ammo.splice(k, 1);
+    return a.s < c.inEdge - EDGE || a.hold ? -1 : k; // not at the edge yet (or held by a latch)
+  }
+  return -1;
+}
+
+/**
+ * Take one slug into the buffer, if there is room. The slug waiting at the upstream edge (the front-most one in the tile's
+ * reach) of the converter's own belt, or, on a join tile (GATES-1b B1), the slug waiting at the end of a joining belt: the
+ * belts take a turn (`turn`: the one after the belt a slug was last taken from, scanning on to the next that has a slug ready).
+ * With no joiner this is the one belt, as before. A joiner's slug is handed over as Battle.joins would have put it on the main
+ * belt: its journey offset grows by the tiles it rode on its own belt past the join.
+ */
+function intake(r: RouteState, c: ConverterState): void {
+  if (c.buf.length >= c.spec.in) return;
+  const n = 1 + c.feeders.length;
+  for (let i = 0; i < n; i++) {
+    const from = (c.turn + i) % n;
+    if (from === 0) {
+      const k = edgeSlug(r, c);
+      if (k < 0) continue;
+      c.buf.push(r.ammo[k].p);
+      r.ammo.splice(k, 1);
+    } else {
+      const f = c.feeders[from - 1], a = f.ammo[0];
+      if (!a || a.hold || a.s < f.L - 1e-6) continue; // nothing at the joining belt's end
+      f.ammo.shift();
+      a.p.journeyOffset = (a.p.journeyOffset ?? 0) + f.cells.length - f.join!.tile;
+      c.buf.push(a.p);
+    }
+    c.turn = (from + 1) % n;
     return;
   }
 }
