@@ -10,6 +10,7 @@
 import { RULES_VERSION } from "../src/sim/content";
 import { createGhostServer, type GhostServer } from "./app";
 import { ConfigError, openStore, readConfig, type Config } from "./config";
+import { warmRoadCap } from "./warm"; // BUMP-1E P6: roadCap's warm-up at the boot
 
 const log = (line: string) => console.log(line);
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -41,7 +42,11 @@ function serve(): void {
     fail(e, 2); // e.g. BB_GHOST_STATIC without an index.html
   }
   app.listen(cfg.port, cfg.host).then(
-    (p) => log(`ghost server (rules ${RULES_VERSION}, store ${app.store.kind}, uploads ${cfg.uploads}) listening on http://${cfg.host}:${p}; CORS origins: ${cfg.origins.join(" ")}; rate ${cfg.rate}/min per ${cfg.trustProxy === "fly" ? "client IP (Fly-Client-IP)" : "socket IP"}`),
+    (p) => {
+      log(`ghost server (rules ${RULES_VERSION}, store ${app.store.kind}, uploads ${cfg.uploads}) listening on http://${cfg.host}:${p}; CORS origins: ${cfg.origins.join(" ")}; rate ${cfg.rate}/min per ${cfg.trustProxy === "fly" ? "client IP (Fly-Client-IP)" : "socket IP"}`);
+      // BUMP-1E P6: roadCap's warm-up, after the port is open (a cache fill, day by day, the event loop yielded between days; server/warm.ts)
+      if (cfg.uploads === "open") warmRoadCap(log).catch((e: unknown) => log(`road model warm-up failed (the first deep upload builds it instead): ${message(e)}`));
+    },
     (e: unknown) => fail(`cannot listen on ${cfg.host}:${cfg.port}: ${message(e)}`, 1),
   );
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
