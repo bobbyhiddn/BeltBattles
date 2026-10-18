@@ -219,6 +219,26 @@ describe("ENDLESS-1 3.5: the RUN WON offer (a marked, won run)", () => {
     }
   });
 
+  it("the offer clears the REPLAY strip (a phone with stored dusks) and the NEW STYLE lines above it, on every view", () => {
+    for (const [name, w, h, dpr] of VIEWS) {
+      const v = computeView(w, h, dpr) as SummaryView, bh = summaryButtonH(v);
+      for (const rows of [4, 12, 20]) {
+        for (const replays of [0, 1, 5, 10, 20]) {
+          for (const notes of [0, 1, 2]) {
+            const L = summaryLayout(v, rows, replays, notes, true), o = offerRects(L.card, bh);
+            const ctx = `${name}: ${rows} rows, ${replays} replays, ${notes} notes`;
+            if (L.strip) for (const r of L.strip) expect(r.y + r.h, `${ctx}: the strip ends above CONTINUE ENDLESS`).toBeLessThanOrEqual(o.go.y);
+            // the NEW STYLE lines sit under the history's foot line: y + 58 + rows * rowH + 12 (summary.ts draw), two at most, NOTE_H apart
+            const ny = L.card.y + 58 + Math.max(1, rows) * L.rowH + 12;
+            if (!L.strip) expect(ny + notes * 8 - 3, `${ctx}: the notes end above CONTINUE ENDLESS`).toBeLessThanOrEqual(o.go.y);
+            expect(o.go.y, ctx).toBeGreaterThanOrEqual(L.card.y + 48 + 8);
+            expect(o.end.y + o.end.h, ctx).toBeLessThan(L.card.y + L.card.h);
+          }
+        }
+      }
+    }
+  });
+
   it("CONTINUE ENDLESS: the same run goes on into endless (3 fresh hearts, the next dawn), is saved, and the build screen opens", () => {
     const run = won13(true);
     run.lives = 4; // the run had 4 hearts left: endless starts with ENDLESS_LIVES whatever it had

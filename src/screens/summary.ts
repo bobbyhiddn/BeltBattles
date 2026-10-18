@@ -283,7 +283,7 @@ export class SummaryScreen implements Screen {
    *  hearts, the next dawn), the run is saved and the build screen opens at the dawn. False, and nothing happens, when the card does
    *  not offer it (or startEndless refuses). */
   continueEndless(): boolean {
-    if (!this.offered || !startEndless(this.run)) return false;
+    if (!this.offered || this.game.transitioning || !startEndless(this.run)) return false; // (never mid-wipe: game.go would drop the build screen after the run had changed)
     saveRun(this.run);
     this.game.go(new BuildScreen(this.game));
     return true;
