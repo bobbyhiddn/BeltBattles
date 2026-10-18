@@ -273,8 +273,8 @@ export function enchantRate(id: string | undefined, rate: number): number {
   return rate;
 }
 
-/** The DMG share a word gives a slug or a shot: MASSIVE x2, SWIFT x1/2, every other word x1 (the damage per second stays
- *  equal on paper: the interval doubles or halves with it). */
+/** The DMG share a word gives a slug or a shot: MASSIVE ENCHANT_NUM.massiveShare x (3 shipped; the brief's 2x kept the damage per
+ *  second equal on paper with the interval doubling), SWIFT x1/2, every other word x1. */
 export function enchantShare(id: string | undefined): number {
   return id === "massive" ? ENCHANT_NUM.massiveShare : id === "swift" ? 0.5 : 1;
 }

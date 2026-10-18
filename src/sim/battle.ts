@@ -1491,11 +1491,12 @@ export class Battle {
 
   /**
    * ENCHANT-1 (REQ-BFG-085, E3): factory `f` has made slug `p` (stamp, mouldSlug, and the race factories' own paths through
-   * SimCtx.made): a word on the factory changes it (enchantFx.ts slugMadeFx), and ECHOING's every 3rd slug owes a copy with a new
-   * id, which leaves the mouth as room frees (stampEcho). A factory without a word does nothing here.
+   * SimCtx.made): a word on the factory changes it (enchantFx.ts slugMadeFx), and ECHOING's every echoEvery-th WORK owes a copy with a
+   * new id (a batch's waiting slugs, `pending` above 0, and a pour's later slugs on the same tick are one work), which leaves the
+   * mouth as room frees (stampEcho). A factory without a word does nothing here.
    */
   made(f: FactoryState, p: Payload): void {
-    if (f.ench && slugMadeFx(f.ench, p)) f.ench.echo = echoCopy(p, this.nextId++);
+    if (f.ench && slugMadeFx(f.ench, p, this.t, f.pending > 0)) f.ench.echo = echoCopy(p, this.nextId++);
   }
 
   /** ENCHANT-1: ECHOING's extra slug `p` onto the next of the factory's routes with AMMO_SPACING room, as stamp places one (round-robin

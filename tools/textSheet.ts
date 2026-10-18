@@ -34,6 +34,7 @@ import { ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, enchantProblem, enchantRules,
 import { ENCHANT_NOTES, enchantedTitle, wordFace, wordOn } from "../src/ui/enchantFaces"; // ENCHANT-1 (E7): the word cards, the notes, the pieces' words
 import { colourize, lineWidth, wrapRich } from "../src/ui/richText"; // ENCHANT-1 (E7): the fit measures
 import { rigShape } from "../src/sim/content"; // ENCHANT-1: the refusal reasons' example pieces
+import { EXTRA_BELT_LEFT, KEPT_WIDE } from "../src/game/fuse"; // ENCHANT-1 (run 5): WIDE's extra belt, the refusal and the merge toast
 
 const NAME_OF = new Map<string, string>(Object.entries(ICON).map(([k, v]) => [v as string, k]));
 /** Markup or glyphs as plain text: each private-use icon as [NAME]. */
@@ -189,6 +190,7 @@ function enchantSection(out: string[]): void {
     const why = d ? enchantProblem(d, word) : null;
     out.push(`- ${what}${d ? ` (${d.name})` : ""}: ${why ? `\`${why}\` (${fits(what, why, true)})` : "no refusal (not in this sheet's catalogue)"}`);
   }
+  for (const [what, why] of [["a factory using WIDE's extra belt takes no other word (run 5)", EXTRA_BELT_LEFT], ["a merge keeps WIDE (run 5; a toast)", KEPT_WIDE]] as const) out.push(`- ${what}: \`${why}\` (${fits(what, why, true)})`);
   out.push("", `### Overflows (every new text above, phone and desk): ${overflows.length}`, "");
   for (const x of overflows) out.push(`- ${x}`);
   // every piece a word can go on, every legal word, ★1 and ★3: the title as inspector.ts fitTitle draws it (5x7, else 3x5, else the name is cut

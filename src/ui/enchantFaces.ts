@@ -9,7 +9,7 @@
 //   - the NAME: the word first, in its colour, then the piece's name in its rarity colour (nameSpans): `FIERY` WHETSTONE;
 //   - a STAT word (FIERY) adds its stat at the END of the piece's stat row, in its colour; a LINE word (RISING, GROWING, ECHOING, MASSIVE,
 //     SWIFT, WIDE, BRACED) adds ONE line under the piece's own line, always visible, in its colour (pieceLine / wordLine at THIS piece's
-//     stars: RISING's +5, GROWING's +5, FIERY's BURN and BRACED's stuns multiply by the stars);
+//     stars: RISING's and GROWING's steps, FIERY's BURN and BRACED's stuns multiply by the stars);
 //   - a number the word CHANGES is shown changed, in its colour: MASSIVE's and SWIFT's rate and DMG, GROWING's DMG with the grown amount,
 //     WIDE's belt or gear slots (the rows are faces.ts's, with the word's numbers; the changed pairs are found by comparing the two rows).
 // Everything here is plain data: the switch (enchantRules) is asked by liveWord, so with it off no function here finds a word.
@@ -133,8 +133,8 @@ export function nameSpans(id: EnchantId, title: string, rarity: string): Span[] 
 
 /**
  * The damage of a factory's slug under the word `w` (E3): the die's `base` and the flat DMG it carries (a SCRAPPER's), as payloadDamage
- * makes it at no ride: MASSIVE x2 and SWIFT x1/2 share the slug (mult and flat, rounded half up once; SWIFT never under `floor`, the
- * least a slug deals); GROWING's +5 x grow x stars is added flat. Every other word, and no word: base + flat. RISING's DMG ramps with
+ * makes it at no ride: MASSIVE (massiveShare x) and SWIFT x1/2 share the slug (mult and flat, rounded half up once; SWIFT never under
+ * `floor`, the least a slug deals); GROWING's growingStep x grow x stars is added flat. Every other word, and no word: base + flat. RISING's DMG ramps with
  * each slug (no one figure), ECHOING and BRACED change none.
  */
 export function slugDmg(w: Pick<WordOn, "id" | "stars" | "grow"> | undefined, base: number, flat = 0, floor = 0): number {

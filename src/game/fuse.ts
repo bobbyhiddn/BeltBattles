@@ -8,7 +8,7 @@
 import { ITEMS } from "../sim/content";
 import { coreFor, removeItem, removeTurret, rotField, routesOf, setTurretList, setTurretWord, turretList } from "../sim/deck";
 import { enchantField, enchantRules, mergeWord, sameEnchant, type EnchantFields, type WordChooser } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085, E4)
-import { FUSE_MAX, fusible, starField, starsOf } from "../sim/stars";
+import { FUSE_MAX, fusible, gradeOf, outputsAt, starField, starsOf } from "../sim/stars";
 import type { InvItem, Run } from "./run";
 
 // 0.6.2s (REQ-BFG-031 S6, S7): turrets merge like every buyable module. An installed turret is a copy "slot"
@@ -79,14 +79,34 @@ export function setPieceWord(run: Run, uid: number, fields: EnchantFields): void
   Object.assign(o, enchantField(fields));
 }
 
+/** Why a factory cannot lose WIDE now (the short player reason), shown by APPLY and the merge pick. */
+export const EXTRA_BELT_LEFT = "TAKE ITS EXTRA BELT OFF FIRST";
+/** The toast a merge shows when the survivor keeps WIDE because its extra belt is in use. */
+export const KEPT_WIDE = "KEPT WIDE: ITS EXTRA BELT IS IN USE";
+
+/**
+ * ENCHANT-1 (run 5; the code reviewers' finding): does the deck factory `uid` hold WIDE and feed more belts than its own outputs, so the
+ * belt slot WIDE gives it is in use? Losing WIDE then would leave the factory with more belts than outputs and block FIGHT (routeCheck.ts,
+ * validate.ts). A turret that loses WIDE sends its extra gear to cargo (setTurretWord); a belt has no cargo, so the word stays until the
+ * belt is taken off: APPLY refuses a replace (applyProblem) and a merge keeps WIDE (mergeWords, pickMergedWord).
+ */
+export function extraBeltInUse(run: Run, uid: number): boolean {
+  if (!enchantRules()) return false;
+  const p = run.build.items.find((q) => q.uid === uid);
+  if (!p || p.ench !== "wide" || ITEMS[p.def]?.kind !== "factory") return false;
+  return routesOf(run.build, uid).length > (outputsAt(p.def, gradeOf(run.build, p)) || 1);
+}
+
 /**
  * ENCHANT-1 (E4): the merge pick. When a merge joined two DIFFERENT words, the survivor already keeps one (the bots' valued choice, else
  * its own) and `run.enchMerge` names the survivor, the word kept and the one lost. `takeLost` swaps them: the build screen asks the
- * player (`FIERY OR RISING?`) and calls this; keeping the word is the default. False when no pick is open.
+ * player (`FIERY OR RISING?`) and calls this; keeping the word is the default. False when no pick is open, or (run 5) when taking the
+ * other word would take WIDE off a factory whose extra belt is in use (the pick stays open: lay that belt off, then pick).
  */
 export function pickMergedWord(run: Run, takeLost: boolean): boolean {
   const m = run.enchMerge;
   if (!m) return false;
+  if (takeLost && extraBeltInUse(run, m.uid)) return false; // the pick stays open; the screen says EXTRA_BELT_LEFT
   delete run.enchMerge;
   const now = find(run, m.uid); // the piece may have been sold or changed since: then there is nothing to pick
   if (!now || !sameEnchant(now.word, m.kept)) return false;
@@ -179,7 +199,13 @@ function chain(run: Run, uid: number, arrivingFirst: boolean, choose?: WordChoos
 /** ENCHANT-1 (REQ-BFG-085, E4): copy `lose` merged into `keep` (now at `stars`): `keep` holds one word. One word: it is kept (it moves
  *  onto the survivor). Two different words: the chooser's, else the survivor's own, and the pick stays open (`run.enchMerge`; true). */
 function mergeWords(run: Run, keep: Copy, lose: Copy, stars: number, choose?: WordChooser): boolean {
-  const { kept, lost } = mergeWord(keep.word, lose.word, choose && ((a, b) => choose({ def: keep.def, stars, a, b })));
+  let { kept, lost } = mergeWord(keep.word, lose.word, choose && ((a, b) => choose({ def: keep.def, stars, a, b })));
+  // ENCHANT-1 (run 5): a factory using WIDE's extra belt keeps WIDE (the survivor's own word); the other word is lost without a pick
+  if (lost && keep.where === "deck" && keep.word?.ench === "wide" && extraBeltInUse(run, keep.uid)) {
+    kept = keep.word;
+    lost = undefined;
+    run.fuseFx = [...(run.fuseFx ?? []), KEPT_WIDE];
+  }
   if (!sameEnchant(keep.word, kept) || (kept.grow ?? 0) !== (keep.word?.grow ?? 0)) setPieceWord(run, keep.uid, kept);
   if (!lost) return false;
   run.enchMerge = { uid: keep.uid, kept, lost };

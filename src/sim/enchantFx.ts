@@ -3,21 +3,24 @@
 // ECHOING counts, so a fight with words is as deterministic as one without.
 //
 // THE NUMBERS (E3): ★1 x1, ★2 x2, ★3 x3 for FIERY's BURN, RISING's and GROWING's DMG and BRACED's stuns (a signature factory's grade
-// counts as its stars); counts and words (EVERY 3RD, +1 ARROW, HALF, TWICE, 2x) do not scale.
-//  - FIERY    a rig's hit, a factory's slug or a turret's shot carries [BURN]+1 x stars.
+// counts as its stars); counts and words (EVERY FIFTH, +1 ARROW, HALF, TWICE, MASSIVE's share) do not scale. The SHIPPED values are in
+// enchant.ts ENCHANT_NUM (the brief's starting numbers are in the comments there); nothing below hard-codes one.
+//  - FIERY    a rig's hit, a factory's slug or a turret's shot carries [BURN] + ENCHANT_NUM.burn x stars.
 //  - RISING   a counter on the piece, 0 at each fight's start: the nth slug the rig hits (its rank among the slugs it has hit), the nth
-//             slug the factory makes or the nth shot the turret fires gets +5 x n x stars DMG.
-//  - GROWING  +5 x grow x stars DMG on its hit, slugs or shots; `grow` (Placed.grow) is the dusk fights the piece has been through
-//             (enchant.ts growPieces adds 1 after each dusk fight; warlord fights don't count).
-//  - ECHOING  a counter, no roll: every 3rd slug a rig hits gets the rig's own stats applied twice (the OVERCLOCKER's doubling,
-//             overclock.ts); every 3rd slug a factory makes is followed by a copy of it with a new id, placed with the same
-//             spacing a stamp keeps; every 3rd shot a turret fires hits twice (a copy of the projectile 0.08 s behind, MOLTEN VOWS' echo).
+//             slug the factory makes or the nth shot the turret fires gets + risingStep x n x stars DMG.
+//  - GROWING  + growingStep x grow x stars DMG on its hit, slugs or shots; `grow` (Placed.grow) is the dusk fights the piece has been
+//             through (enchant.ts growPieces adds 1 after each dusk fight; warlord fights don't count).
+//  - ECHOING  a counter, no roll: every echoEvery-th slug a rig hits gets the rig's own stats applied twice (the OVERCLOCKER's doubling,
+//             overclock.ts); every echoEvery-th TIME A FACTORY WORKS (a work: a stamp, a trigger's stamp, a whole batch, a whole pour;
+//             run 5 counted slugs, which differs for DOUBLE STAMP, SHOT TOWER, TWIN MOULD and the pour factories) it puts out 1 more
+//             slug: a copy of that work's first slug with a new id, placed with the same spacing a stamp keeps; every echoEvery-th
+//             shot a turret fires hits twice (a copy of the projectile 0.08 s behind, MOLTEN VOWS' echo).
 //  - MASSIVE  a factory works, a turret fires, half as often (enchant.ts enchantRate: the rate halves rounding down, deck.ts resolveSlots
-//             and Battle.makeSide patch the def), and its slug or shot deals 2x: the SPLITTER's share (mult, flat, plate; rounded
-//             half up once). SWIFT: twice as often, half the DMG share (a shot never below the least a shot deals).
+//             and Battle.makeSide patch the def), and its slug or shot deals massiveShare x: the SPLITTER's share (mult, flat, plate;
+//             rounded half up once). SWIFT: twice as often, half the DMG share (a shot never below the least a shot deals).
 //  - WIDE     static: a rig's added arrow (deck.ts wideDir), a factory's belt slot (enchant.ts wideSlots), a turret's gear slot.
-//  - BRACED   the first 2 x stars STUNs that land on the piece each fight do nothing (Battle.acceptHarassment asks bracedSwallow);
-//             a STUN on any other piece is never blocked, and the battle says so (the `braced` event).
+//  - BRACED   the first bracedStuns x stars STUNs that land on the piece each fight do nothing (Battle.acceptHarassment asks
+//             bracedSwallow); a STUN on any other piece is never blocked, and the battle says so (the `braced` event).
 //
 // PAYLOAD MATH IN ONE PLACE: every change a word makes to a Payload is made by a function below, and PAYLOAD_RULES names, for EVERY key
 // of Payload (battle.ts:68), what a word does with it. A field added later (BUMP-1E's POISON, GATES-1's fused payload) is a type error here
@@ -31,8 +34,8 @@ import { pct } from "./pct";
 
 /** What a word does with one key of Payload. `kept`: untouched, copied as is. `deep`: untouched, but an echoed copy gets its own
  *  copy of the object or array (as SPLITTER's copies do). `id`: a copy takes a new id. `burn`: FIERY adds to it. `share`: the key is
- *  part of the slug's DMG share, scaled by MASSIVE (x2) and SWIFT (x1/2) as SPLITTER scales it (mult, flat and plate, rounded half up
- *  once); RISING and GROWING add to `flat`, after the share. */
+ *  part of the slug's DMG share, scaled by MASSIVE (massiveShare x) and SWIFT (x1/2) as SPLITTER scales it (mult, flat and plate,
+ *  rounded half up once); RISING and GROWING add to `flat`, after the share. */
 export type PayloadRule = "kept" | "deep" | "id" | "burn" | "share";
 
 export const PAYLOAD_RULES: { readonly [K in keyof Payload]-?: PayloadRule } = {
@@ -80,6 +83,8 @@ export interface EnchantState {
   stars: number; // 1..3: the numbers multiply by it
   grow: number; // GROWING: the dusk fights the piece has been through (Placed.grow, absent = 0)
   n: number; // RISING's and ECHOING's count: slugs a rig has hit (distinct), slugs a factory has made, shots a turret has fired
+  works?: number; // ECHOING on a factory: the times it has worked this fight (run 5: a work is a stamp, a batch or a pour, not a slug)
+  workT?: number; // the battle time of the last work counted (a pour makes all its slugs on one tick)
   seen?: WeakMap<Payload, number>; // a rig counts each slug once: the slug's rank among those it has hit
   braced: number; // BRACED: the STUNs it still swallows this fight
   echo?: Payload; // a factory: the copy ECHOING owes, waiting in the mouth for room
@@ -153,7 +158,7 @@ export function rigRank(st: EnchantState, p: Payload): number {
   return r;
 }
 
-/** ECHOING on a rig: is the slug of this rank one the rig hits twice (every 3rd)? */
+/** ECHOING on a rig: is the slug of this rank one the rig hits twice (every echoEvery-th)? */
 export const rigEchoes = (st: EnchantState, rank: number): boolean => st.id === "echoing" && rank % ENCHANT_NUM.echoEvery === 0;
 
 /** A rig holding a word has hit slug `p` (one arrow; `rank` from rigRank): FIERY adds its BURN, RISING and GROWING their DMG. The rig's
@@ -166,15 +171,26 @@ export function rigHitFx(st: EnchantState, p: Payload, rank: number): void {
 
 /**
  * A factory holding a word has made slug `p` (Battle.made: stamp, TWIN MOULD, and the race factories' own paths): the count goes up,
- * and FIERY, RISING, GROWING, MASSIVE or SWIFT change the slug. Returns true when ECHOING owes a copy (every 3rd slug).
+ * and FIERY, RISING, GROWING, MASSIVE or SWIFT change the slug. Returns true when ECHOING owes a copy.
+ *
+ * ECHOING counts WORKS, not slugs (E3: "every 3rd time a factory works it puts out 1 more slug"; reviewers' finding, run 5): `t` is the
+ * battle time and `waiting` is true for a batch's waiting slug (DOUBLE STAMP, SHOT TOWER: Battle.produce stamps them as room frees,
+ * with `pending` above 0), so a batch is one work; the slugs of one pour (TWIN MOULD, CRUCIBLE) are made on one tick, so a pour is one
+ * work. A factory that makes one slug a work (the KILN and most) counts exactly as before. The copy is of the work's first slug.
  */
-export function slugMadeFx(st: EnchantState, p: Payload): boolean {
+export function slugMadeFx(st: EnchantState, p: Payload, t = Number.NaN, waiting = false): boolean {
   st.n++;
+  let work = false;
+  if (st.id === "echoing" && !waiting && st.workT !== t) { // a new work (NaN, the default, never equals itself: a call with no time is one slug, one work)
+    st.workT = t;
+    st.works = (st.works ?? 0) + 1;
+    work = true;
+  }
   if (st.id === "fiery") p.burn += ENCHANT_NUM.burn * st.stars;
   else if (st.id === "rising") p.flat += ENCHANT_NUM.risingStep * st.n * st.stars;
   else if (st.id === "growing") p.flat += ENCHANT_NUM.growingStep * st.grow * st.stars;
   else if (st.id === "massive" || st.id === "swift") scaleShare(p, enchantShare(st.id));
-  else if (st.id === "echoing") return st.n % ENCHANT_NUM.echoEvery === 0;
+  else if (st.id === "echoing") return work && (st.works ?? 0) % ENCHANT_NUM.echoEvery === 0;
   return false;
 }
 

@@ -17,7 +17,7 @@ import {
 import { ENCHANTER_PRICE, WARLORD_PICK_FROM, enchanterWords, warlordPickWords } from "../sim/enchantSources";
 import { npcDayRules } from "../sim/npcDay";
 import { starsOf } from "../sim/stars";
-import { setPieceWord } from "./fuse";
+import { EXTRA_BELT_LEFT, extraBeltInUse, setPieceWord } from "./fuse";
 import type { InvItem, Run } from "./run";
 
 /** What a buy says in REFIT with NPC_DAY on: run.ts REFIT_NO_SHOP, word for word (a test holds them equal; run.ts imports this file). */
@@ -75,8 +75,12 @@ export function applyProblem(run: Run, t: EnchantTarget, word: string, dir?: num
   if (!isEnchantId(word)) return "NOT AN ENCHANTMENT";
   const p = pieceAt(run, t);
   if (!p) return "NOT A PART";
-  return enchantProblem(p.def, word, dir !== undefined ? { enchDir: dir } : undefined);
+  return enchantProblem(p.def, word, dir !== undefined ? { enchDir: dir } : undefined) ?? wideBeltProblem(run, t, p.ench, word);
 }
+
+/** ENCHANT-1 (run 5; fuse.ts extraBeltInUse): another word cannot replace WIDE on a deck factory whose extra belt is in use. */
+const wideBeltProblem = (run: Run, t: EnchantTarget, held: string | undefined, word: string): string | null =>
+  t.kind === "item" && held === "wide" && word !== "wide" && extraBeltInUse(run, t.uid) ? EXTRA_BELT_LEFT : null;
 
 /** WIDE on a rig: the sides (0-3 at rotation 0) the added arrow can take; [] for any other piece or word. */
 export function wideSides(run: Run, t: EnchantTarget): number[] {
@@ -102,7 +106,7 @@ export interface EnchantChoice {
 export function enchantChoices(run: Run, word: string): EnchantChoice[] {
   const out: EnchantChoice[] = [];
   const add = (target: EnchantTarget, def: string, stars: number, held?: string): void => {
-    const reason = enchantProblem(def, word);
+    const reason = enchantProblem(def, word) ?? wideBeltProblem(run, target, held, word); // run 5: a factory using WIDE's belt keeps it
     out.push({ target, def, stars, ...(held !== undefined ? { held } : {}), reason, sides: word === "wide" && reason === null ? wideSides(run, target) : [] });
   };
   for (const p of [...run.build.items].sort((x, y) => x.uid - y.uid)) add({ kind: "item", uid: p.uid }, p.def, starsOf(p), p.ench);

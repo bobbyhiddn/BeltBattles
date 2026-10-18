@@ -21,7 +21,7 @@ import {
   buyEnchant, enchantChoices, pendingEnchantPick, pieceAt, sellWarning, skipWarlordWord, takeWarlordWord,
   type ApplyOpts, type ApplyResult, type EnchantTarget,
 } from "../../game/enchanter";
-import { pickMergedWord } from "../../game/fuse";
+import { EXTRA_BELT_LEFT, pickMergedWord } from "../../game/fuse";
 import type { Run } from "../../game/run";
 import { enchantIcon } from "../../render/enchantArt";
 import { icons } from "../../render/font";
@@ -309,7 +309,10 @@ export function mergePrompt(run: Run): { uid: number; kept: EnchantId; lost: Enc
 /** The merge pick answered: `takeLost` the second word (the lost one) replaces the kept; the first leaves the survivor as it is. */
 export function answerMerge(ctx: Ctx, takeLost: boolean): void {
   if (!mergePrompt(ctx.run)) return;
-  pickMergedWord(ctx.run, takeLost);
+  if (!pickMergedWord(ctx.run, takeLost) && ctx.run.enchMerge) { // run 5: WIDE's extra belt is in use, so the pick stays open (fuse.ts extraBeltInUse)
+    ctx.game.toast(EXTRA_BELT_LEFT, C.red);
+    return;
+  }
   ctx.game.audio.play("click");
   ctx.touched();
 }
