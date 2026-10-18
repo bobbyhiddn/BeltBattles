@@ -62,11 +62,14 @@ export const SCALE_DEFS: Readonly<Record<string, (base: ItemDef) => ItemDef>> = 
   // SCALE-2e run 2, second step (REQ-BFG-098 098.3; G1 and G2): 12 / 14 / 42 -> 8 / 13 / 42. The larger reads at 12 / 14 / 42 (pool 150) were
   // +12.3 (SE 1.9) on day 3 against TEMPER's +9.5, +10.7 (1.4) on day 6 against +6.5 and +11.0 (2.1) on day 9: over the G1 line on both days
   // and strongest on day 3 (G2: "a reader strongest on day 3 has its 1-star cut"); the same decks read +9.4 (1.6) at ★1 8 and +9.8 (1.3) at ★2 13
+  // BUMP-1E C4 (carry-over 2: "a lower 1-star"): ★1 8 -> 5. In the merged world (PLAIN_RIGS, SHAPES2, LONG_RUN, the flip) the day-3 pairs bench
+  // (tools/scale2e/pairs.ts, pool 150, 103 decks with SPLITTER) read the reader's lift +11.6 (SE 1.4) at ★1 8 against TEMPER's +9.4: G1 broken
+  // (over 10 and over TEMPER's + 1.5); the candidates on the same decks: ★1 6 +10.0 (1.3), 5 +9.1 (1.2), 4 +7.8 (1.1)
   pressure: (b) => {
     const { maxCount: _cap, ...core } = b.core!;
     void _cap;
     const lv2 = b.levels![2]!;
-    return { ...b, desc: [], core: { ...core, perQueued: 8 }, levels: { ...b.levels, 2: { ...lv2, core: { ...lv2.core, perQueued: 13 } } } };
+    return { ...b, desc: [], core: { ...core, perQueued: 5 }, levels: { ...b.levels, 2: { ...lv2, core: { ...lv2.core, perQueued: 13 } } } };
   },
   // IRON WALL: +5 / +11 / +17 DMG for each whole 10 PLATE you have (day-1 units: Battle.readCount ownPlate); its own
   // plating and the 120 step go
