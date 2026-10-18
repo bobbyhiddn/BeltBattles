@@ -59,7 +59,7 @@ import { openRunesRules } from "../openRunes"; // OPEN-1 (REQ-BFG-109): the bots
 import { plainRigsRules } from "../plainRigs"; // PLAIN-1 (REQ-BFG-084): the cache key (the six in the shop move every par run)
 import { npcDayRules } from "../npcDay"; // HULL-1d (REQ-BFG-073): the REFIT swap of LAST CHANCE's part (refitSwap)
 import { freeJoinsRules } from "../freeJoins"; // JOINS-1 (REQ-BFG-091): no join limit with FREE_JOINS on; the cache key
-import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
+import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, sellValue, type HeroId } from "../content";
 import {
   DX, DY, arrowCell, canFitGear, canSellTurret, cloneBuild, commitRoute, connectorClaims, coreFor, deadEndsAt, footprint,
   gearOn, inGrid, installedTurrets, isTurretDef, itemByUid, joinCount, joinersOf, key, kx, ky, newJoinProblem, occupancy, opposite,
@@ -2077,8 +2077,19 @@ function refitSwap(run: Run, def: string, rng: Rng, stars = 1): { rel: number; s
   return best;
 }
 
+/** BUMP-1E C2 (S8 item 7; REQ-BFG-073): what a LAST CHANCE part is worth at the least, in hull: its sale (content.ts sellValue at its
+ *  star) spent on ARMOR PACKs, "the least a gold can buy" (harness/lastChance.ts goldBy10 prices the gold runes the same way). A part the
+ *  bots can place nowhere (45% of the par boards of days 3-8 at K 24) sat in cargo, rated no gain, and so was the weakest card by
+ *  construction (c5 20%, par 7% on 1D's F1); a part is never worth less than selling it. One reader: the pick (botLastChancePick) and
+ *  the modeled run's card (lastChanceCard) both take this number, so the bots get what they priced. */
+export function partSaleHull(def: string, stars: number): number {
+  const armor = ITEMS[PACK_ITEM.armor];
+  return Math.floor(sellValue(def, stars) * ((armor.supply?.hull ?? 0) / Math.max(1, armor.price)));
+}
+
 /** LC-1: the par run's LAST CHANCE card at the dawn after `day` (playerRun's opts.lastChance): the game's takeLastChance
- *  for the rune and the hull; the part placed by placeFreePart (on its own stream), recorded as the game records it. */
+ *  for the rune and the hull; the part placed by placeFreePart (on its own stream), recorded as the game records it.
+ *  BUMP-1E C2: a part that finds no spot is sold at once into ARMOR PACKs (partSaleHull), the value the pick gave it. */
 function lastChanceCard(run: Run, day: number, boon: Boon, pol: PolicyKnobs, hull?: number): void {
   run.lastChance = { day };
   if (boon === "hull" && hull !== undefined) { // the bench's sweep: another HULL amount
@@ -2092,7 +2103,8 @@ function lastChanceCard(run: Run, day: number, boon: Boon, pol: PolicyKnobs, hul
   }
   const lo = lastChanceOffer(run.seed, day, run.hero, (run.build.runes ?? []).map((q) => q.id), openRunesRules()), id = lo.part; // OPEN-1: the switch
   if (!id) throw new Error(`par player: no LAST CHANCE part on day ${day}`);
-  placeFreePart(run, id, new Rng(hashSeed("lastchance-place", run.hero, run.seed, day)), pol, lo.partStars ?? 1); // HULL-1d: at its star
+  const put = placeFreePart(run, id, new Rng(hashSeed("lastchance-place", run.hero, run.seed, day)), pol, lo.partStars ?? 1); // HULL-1d: at its star
+  if (!put.placed) run.build.hullBonus += partSaleHull(id, lo.partStars ?? 1); // BUMP-1E C2: sold into ARMOR PACKs, as the pick rated it
   run.lastChance = { day, boon, id };
 }
 

@@ -20,7 +20,7 @@ import { cloneBuild, type Build } from "../deck";
 import { RUNES, runeGrants } from "../runes";
 import type { Boon, LastChanceOffer } from "../lastChance";
 import { newRun, type Run } from "../../game/run";
-import { placeFreePart, rateOn } from "./player";
+import { partSaleHull, placeFreePart, rateOn } from "./player";
 import { scaleRules } from "../scale"; // SCALE-2e E1 (REQ-BFG-098): the mirror's hearts lost, SCALE_RIGS on only
 import { carryCount, runCounts } from "../scaleRating";
 
@@ -138,6 +138,11 @@ export function botLastChancePick(offer: LastChanceOffer, hero: HeroId, board: B
     const r = placeFreePart(run, offer.part, new Rng(hashSeed("lastchance-place", hero, run.seed, day)), undefined, offer.partStars ?? 1); // HULL-1d: at its star
     placed = r.placed;
     part = rateOn(run.build, day);
+    // BUMP-1E C2 (S8 item 7): a part is never worth less than its sale spent on ARMOR PACKs (player.ts partSaleHull); a part that finds
+    // no spot (cargo, the board unchanged) rated "no gain" and so lost to every other card by construction
+    const sold = cloneBuild(board);
+    sold.hullBonus += partSaleHull(offer.part, offer.partStars ?? 1);
+    part = Math.max(part, rateOn(sold, day));
   }
   let rune = -Infinity, factor: number | undefined;
   if (offer.rune) {
