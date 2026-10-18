@@ -3,8 +3,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../src/sim/deck"; // load order: the ITEMS key order is part of the seeded draws
 import { newRun, saveRun, SAVE_KEY, loadRun, type Run } from "../src/game/run";
-import { SAVE_ASIDE_LINE, loadRunGuarded, saveProblem, unknownInSave } from "../src/game/saveGuard";
+import { SAVE_ASIDE_LINE, asideBox, loadRunGuarded, saveProblem, unknownInSave } from "../src/game/saveGuard";
 import type { HeroId } from "../src/sim/content";
+import { computeView, defaultScale } from "../src/core/io";
+import { titleLayout, titleScale } from "../src/screens/titleLayout";
 
 class Mem {
   private m = new Map<string, string>();
@@ -61,6 +63,23 @@ describe("the save guard (BUMP-1E E.2)", () => {
     const ok = loadRunGuarded();
     expect(ok?.hero).toBe("weaver");
     expect(saveProblem()).toBeNull();
+  });
+
+  it("the set-aside line fits on the title: under the logo band, above the command panel, inside the screen, on every view the title is tested on", () => {
+    const VIEWS: Record<string, [number, number, number]> = { phone: [390, 844, 3], safari: [390, 660, 3], land: [844, 390, 3], desk: [1440, 900, 1], desk2: [1440, 900, 2], small: [360, 640, 2] };
+    for (const [name, [cssW, cssH, dpr]] of Object.entries(VIEWS)) {
+      const v = computeView(cssW, cssH, dpr, (pw, ph, p) => titleScale(pw, ph, p, dpr));
+      const pw = Math.floor(cssW * dpr), ph = Math.floor(cssH * dpr);
+      const k = defaultScale(pw, ph, v.portrait) / v.scale;
+      const L = titleLayout(v.W, v.H, v.portrait, false, k);
+      const box = asideBox(v.W, L.ly + 42, L.panel.y);
+      expect(box.lines.length, name).toBeGreaterThan(0);
+      expect(box.lines.length, name).toBeLessThanOrEqual(3);
+      expect(box.y0, name).toBeGreaterThanOrEqual(L.ly + 42); // under the logo band
+      expect(box.y0 - 2 + box.boxH, `${name}: the strip ends above the panel (panel y ${L.panel.y})`).toBeLessThanOrEqual(L.panel.y);
+      expect(box.y0 + box.boxH, name).toBeLessThanOrEqual(v.H);
+      expect(box.lines.join(" "), name).toBe(SAVE_ASIDE_LINE);
+    }
   });
 
   it("no save, a save that is not JSON and a run with no problem leave no message", () => {

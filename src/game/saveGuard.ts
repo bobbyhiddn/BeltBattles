@@ -7,6 +7,7 @@
 // (title.ts and customize.ts call it; save.ts, which is in the closure, is not edited).
 import { HEROES, ITEMS } from "../sim/content";
 import { isRune } from "../sim/runes";
+import { wrap } from "../render/font";
 import { loadRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5, SAVE_KEY_V6, type Run } from "./run";
 
 const has = (o: object, k: unknown): boolean => typeof k === "string" && Object.prototype.hasOwnProperty.call(o, k);
@@ -39,6 +40,14 @@ export function unknownInSave(run: unknown): string[] {
 
 /** The line the title shows while a saved run is set aside. */
 export const SAVE_ASIDE_LINE = "THE SAVED RUN NEEDS A NEWER VERSION OF THE GAME. START A NEW RUN.";
+
+/** Where the title draws it: wrapped to the screen's width in the 3x5 face, 7 px a line, on a strip `boxH` tall starting at `y0 - 2`, as low as
+ *  `panelY - boxH - 6` (just above the command panel: the portrait panel sits at the bottom edge) but never above `top` (under the logo band). */
+export function asideBox(W: number, top: number, panelY: number): { lines: string[]; y0: number; boxH: number; lh: number } {
+  const lines = wrap(SAVE_ASIDE_LINE, W - 16, "3");
+  const lh = 7, boxH = lines.length * lh + 4;
+  return { lines, y0: Math.max(top, panelY - boxH - 6), boxH, lh };
+}
 
 let aside: string | null = null;
 

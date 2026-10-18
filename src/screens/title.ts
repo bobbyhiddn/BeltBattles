@@ -9,7 +9,7 @@ import { CustomizeScreen } from "./customize"; // CUSTOM-2a (REQ-BFG-072): the s
 import { loadProfile, unseen } from "../game/profile"; // CUSTOM-2a: the CUSTOMIZE button's NEW dot
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
-import { loadRunGuarded as loadRun, saveProblem } from "../game/saveGuard"; // BUMP-1E P6 E.2: a save naming a part, rune or hero this build does not know is no CONTINUE (loadRun, guarded)
+import { asideBox, loadRunGuarded as loadRun, saveProblem } from "../game/saveGuard"; // BUMP-1E P6 E.2: a save naming a part, rune or hero this build does not know is no CONTINUE (loadRun, guarded)
 import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUND in the rules card
 import { startingBuild, warlordBuild } from "../sim/ai";
 import { HEROES, type HeroId } from "../sim/content";
@@ -254,9 +254,16 @@ export class TitleScreen implements Screen {
     if (this.newStyle) newDot(g, b.customize);
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
-    // BUMP-1E P6 E.2: the saved run was set aside (it names something this build does not know): one plain line under the panel
+    // BUMP-1E P6 E.2: the saved run was set aside (it names something this build does not know): one plain line, just above the panel (the
+    // portrait panel sits at the bottom edge, so there is no room under it), on a dark strip like the logo band's
     const aside = saveProblem();
-    if (aside && !save) para(g, [aside], 8, L.panel.y + L.panel.h + 6, W - 16, C.yellow, "3", 2);
+    if (aside && !save) {
+      const { lines, y0, boxH, lh } = asideBox(W, ly + 42, L.panel.y);
+      g.globalAlpha = 0.7;
+      rect(g, 0, y0 - 2, W, boxH, C.ink);
+      g.globalAlpha = 1;
+      lines.forEach((ln, i) => drawText(g, ln, W / 2, y0 + i * lh, C.yellow, { font: "3", align: "center", outline: C.ink }));
+    }
     if (this.help) this.drawHelp(g);
     if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k);
   }
