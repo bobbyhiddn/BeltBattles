@@ -78,7 +78,8 @@ describe("SCALE-2d D5: the gate by rules", () => {
   });
 
   it("on: SCALE_RULES is this build's rules; older or unreadable rules refuse the new ids, naming them", () => {
-    expect(SCALE_RULES).toBe(RULES_VERSION);
+    expect(SCALE_RULES).toBe("bb-0.12.0"); // BUMP-1E: was toBe(RULES_VERSION): SCALE_RULES is a literal from the flip on (a later bump leaves it)
+    expect(RULES_VERSION).toBe(SCALE_RULES); // this build's rules are the first that have the twelve
     const f = fixtures().find((x) => x.id === "grudgerod")!;
     withScaleRigs(() => {
       expect(scaleFeatures(f.build)).toEqual(["scaling rigs (GRUDGE ROD)"]);

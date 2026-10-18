@@ -44,7 +44,13 @@ import type { FootId } from "./foot"; // SHAPES-1 (REQ-BFG-086): ItemDef.foot (a
 // (SHAPES2) are in the shops; a lost dusk costs 1 heart on days 1-3 and 2 from day 4 on (HEART_COSTS [1, 2, 2]) and the seed
 // ghosts are a little softer (SOFT_TARGET 250); every pool regenerated once with them. The rules string is cap's call; the
 // release lane picks the label at staging. Ghosts and records made under bb-0.10.0 don't mix.
-export const RULES_VERSION = "bb-0.11.0";
+// bb-0.12.0 (the scaling release, job BUMP-1E; REQ-BFG-098, REQ-BFG-108, REQ-BFG-110, REQ-BFG-073): SCALE_RIGS is on: POISON is a
+// keyword again and VENOM DRIP applies it, every bonus follows one order of operations (no FOR EACH loop), the twelve scaling
+// pieces are in the shops (KINDLING, PRESSURE BREECH, IRON WALL, SPALL CATCHER and POWDER KEG reworked; CINDER MAIL, ROT GAUGE,
+// LEECH COIL, CROWD PRESS, AEGIS SPIKE, GRUDGE ROD and TROPHY CHAIN new), the badges C7-C9 and the +n pop show, the content
+// the flip flagged is retuned, and every pool is regenerated once with them. The rules string is cap's call; the release lane
+// picks the label at staging. Ghosts and records made under bb-0.11.0 don't mix (they keep the base's pieces: SCALE_RULES).
+export const RULES_VERSION = "bb-0.12.0";
 /**
  * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
  * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player

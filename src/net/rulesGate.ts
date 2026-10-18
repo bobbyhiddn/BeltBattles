@@ -418,13 +418,13 @@ export function longRunFor(rules: unknown): boolean {
 // above), at the end of the file (a small merge surface). The seven new scaling rigs travel only with SCALE_RIGS on and under
 // rules that have them; with the switch off they are not in ITEMS, so validateBuild refuses each as an unknown item, as at
 // the base (this gate says nothing then: off, every verdict and its words are the base's).
-import { RULES_VERSION, START_LIVES } from "../sim/content"; // SCALE-2d: SCALE_RULES reads it until BUMP-1E; old records' start lives
+import { START_LIVES } from "../sim/content"; // SCALE-2d: old records' start lives (BUMP-1E: SCALE_RULES is a literal now, so RULES_VERSION is not read here)
 import { SCALE_ITEMS, isScalePiece, scaleRules } from "../sim/scale"; // SCALE-2d: the switch and the seven new ids
 
-/** SCALE-2d: the first rules version with the 12 scaling pieces. It reads RULES_VERSION until the bump that turns
- *  SCALE_RIGS on (BUMP-1E) writes that version here as a literal (RETUNE-1's rows' form, as HULL-ON wrote HEARTS_RULES), so
- *  from then on a record under older rules keeps the base's pieces whatever the switch. */
-export const SCALE_RULES: string = RULES_VERSION;
+/** SCALE-2d: the first rules version with the 12 scaling pieces. It read RULES_VERSION until the bump that turned
+ *  SCALE_RIGS on; BUMP-1E wrote that version here as a literal (RETUNE-1's rows' form, as HULL-ON wrote HEARTS_RULES), so
+ *  from now on a record under older rules keeps the base's pieces whatever the switch. */
+export const SCALE_RULES: string = "bb-0.12.0"; // BUMP-1E wrote 1E's RULES_VERSION here (it read RULES_VERSION: bb-0.11.0 in the 0.9.11 world)
 
 /** SCALE-2d: the new scaling rigs a build carries, by name (items whose def is one of scale.ts SCALE_IDS). Reads a raw
  *  (undecoded) build safely, like shapesFeatures. */

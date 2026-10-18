@@ -62,7 +62,7 @@
 // always has it, and it refuses an <id-file> that already holds an id (that earlier probe's player is not cleaned up yet).
 // It prints one line per check (PASS or FAIL, name, expected, got), then the player id, then a summary with the number of
 // decks the server stored for this player. Exit 0 only if every check matched; 1 if a check failed or got no answer; 2
-// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is PROBE_RULES (bb-0.11.0; BUMP-1D: was bb-0.10.0). There is no secret
+// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is PROBE_RULES (bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was bb-0.10.0). There is no secret
 // to print: the key is non-extractable, and neither the public key nor a signature is printed. No network but the base
 // URL. Its expectations are written out here, not read from the code under test (the rules gate, the record model).
 
@@ -87,7 +87,7 @@ import { longRunFor } from "../src/net/rulesGate";
 /** The rules this probe's expectations are written for: the hull release's (bb-0.10.0, AZ-BUMP's bump, with the NPC day's
  *  two rows; release Z's bb-0.9.7 with LAST CHANCE's two rows, release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's
  *  bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6, BELTS's bb-0.8.3 and 0.8.0's bb-0.8.0 before, the same heroes). */
-export const PROBE_RULES = "bb-0.11.0"; // BUMP-1D (REQ-BFG-059, REQ-BFG-116): the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+export const PROBE_RULES = "bb-0.12.0"; // BUMP-1E (REQ-BFG-098): the scaling release (was bb-0.11.0); BUMP-1D (REQ-BFG-059, REQ-BFG-116): the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
 /** FLIP-X2 (cap's ruling 5d6d83ef57d1494c): under bb-0.9.0 an upload holds exactly one rune a dawn (validateUpload's
  *  player mode). The probe's honest decks take theirs as the bots do (runes.ts botTakeRune at each dawn on this run seed:
  *  the grants on the build, every pick in its dawn's offer), and the snapshot carries the seed (v3), so the server
