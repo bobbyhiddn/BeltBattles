@@ -3849,13 +3849,29 @@ tab keeps its page until it reloads; its matches and uploads use the same rules,
 unchanged, so the image route is safe for the server. Before v23: v22 = 0.9.10 (section 30's rollback, which loses every
 player's 0.9.11 run in progress; going back past v23 is a separate decision).
 
-**The checks of this STAGE** (the logs are in the STAGE report, O/STAGE-REPORT.md; none of the checks changes a file). At
-r0912-cards (ef923bb1d67c, the merge): tsc and typecheck:server 0 errors, typecheck:tests PASS at 164 (the baseline file
-untouched), fp and all 41 parBench lines IDENTICAL, the six new tests/shopcard1*.test.ts with card3, card4 and
-keywords.tap: 9 files, 178 tests passed. At 9a145b8 (the label): the label tests (8 passed) and the three builds. The page
-smoke (pages099c.sh off and on at 9a145b8): **4 of 4 runs offline and 4 of 4 online**, 0 console errors, 0 NOT HONEST, the
-title reading 0.9.12; runnercopies all SAME. The gate, the seed and probe rehearsals, the suite and the browser block at the
-release record are in the STAGE report.
+**The checks of this STAGE** (the logs are in the STAGE report, O/STAGE-REPORT.md; none of the checks changes a file).
+At r0912-cards (ef923bb1d67c, the merge): tsc and typecheck:server 0 errors, typecheck:tests PASS at 164 (the baseline
+file untouched), fp and all 41 parBench lines IDENTICAL, the six new tests/shopcard1*.test.ts with card3, card4 and
+keywords.tap: 9 files, 178 tests passed. At 9a145b8 (the label): the label tests (8 passed) and the three builds; the
+page smoke (pages099c.sh off and on): **4 of 4 runs offline and 4 of 4 online**, 0 console errors, 0 NOT HONEST, the
+title reading 0.9.12, runnercopies all SAME. At the release record bbdf742de012: the gate (tsc 0, typecheck:server 0,
+typecheck:tests PASS at 164, **the smoke 45 of 45**, luckcaps **IDENTICAL**, `regenerated 7412 bytes`), fp and parBench
+IDENTICAL again, seedcheck.sh 14 of 14 and probecheck.sh 17 of 17 (every `expect:` yes), the seed rehearsal above (a-d:
+v23 192/0/0, T 0/192/0 twice, the rollback 0/192/0), server/dist against v23's (**all nine files identical**), the
+seed's cost (4 s and a peak RSS of 168,164 kB with the seed pinned to one core, a loaded host; 0.9.11's quiet-host
+reading: 3 s and 185,436 kB), and the whole suite **ALL GREEN: 438 files, 5,168 tests passed, 7 opt-in skipped**. The
+browser block at the release record: touchcheck noprof 2,215 of 2,215 (no key differs from 0.9.11's log) and mixed 2,107
+of 2,107, run in parts (the build-screen sections read 1,152 of 1,153 under a host load of about 30: the one FAIL was
+the known wk-phone-land belt-X flake, and its clean re-run, alone, passed 88 of 88; the other ten sections read 955 of
+955), card3check 13 of 13, stylecheck 180 of 180, explaincheck 35 of 35, surge 4 of 4, asynccheck 62 of 62, rcruns
+offline 32 of 32 and online 44 of 44, mirror PASS, runeshots 103, motiontap 123 of 123, the c1 and p1 stills 0 failed,
+the field, scout and LAST CHANCE stills, 311 shots, and a samepixels account against live-0911's frames (130 of the 311
+differ, every one in a class of the brief's ruling 23, and every frame of the battle, playback, hero, dusk, run and
+summary groups is identical). Report-only: the text sheet at the record commit against r0912-base's (every changed line
+is one of the card lane's player-note changes) and motionperf (read on a shared host, so not like for like with
+0.9.11's). The stand-in check, the mutants, the Tigris rehearsal, capsearch and the rollback probe are carried from
+0.9.11 (their inputs are unchanged: `git diff --name-only r0912-base <tip> -- src/sim tools server src/net src/game` is
+empty).
 
 ## Troubleshooting
 
