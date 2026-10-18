@@ -71,15 +71,18 @@ function clientCheck(body: string): { ok: boolean; why: string } {
 }
 
 describe("SCALE-2d D5: the gate by rules", () => {
-  it("ships off; off, the gate says nothing and a new id is an unknown item (the base's words)", () => {
-    expect(scaleRules()).toBe(false);
+  it("ships on (BUMP-1E; was off); off, the gate says nothing and a new id is an unknown item (the base's words)", () => {
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
     const fx = fixtures();
-    for (const f of fx) {
-      expect(scaleGateProblem(RULES_VERSION, f.build)).toBeNull();
-      const v = validateUpload(f.build, DAY, RULES_VERSION, { seed: parRunSeed(HERO, SEED) });
-      expect(v.ok).toBe(false);
-      expect(v.errors.some((e) => e.includes(`is unknown item "${f.id}"`)), JSON.stringify(v.errors)).toBe(true);
-    }
+    // BUMP-1E: the off half asks for the 0.9.11 world outright (the switch ships on); was bare
+    withScaleRigs(() => {
+      for (const f of fx) {
+        expect(scaleGateProblem(RULES_VERSION, f.build)).toBeNull();
+        const v = validateUpload(f.build, DAY, RULES_VERSION, { seed: parRunSeed(HERO, SEED) });
+        expect(v.ok).toBe(false);
+        expect(v.errors.some((e) => e.includes(`is unknown item "${f.id}"`)), JSON.stringify(v.errors)).toBe(true);
+      }
+    }, false);
   });
 
   it("on: SCALE_RULES is this build's rules; older or unreadable rules refuse the new ids, naming them", () => {
@@ -98,11 +101,12 @@ describe("SCALE-2d D5: the gate by rules", () => {
       // a deck without a new id has nothing to gate, whatever the rules
       expect(scaleGateProblem("bb-0.9.7", baseDeck())).toBeNull();
     });
-    expect(scaleWorld(RULES_VERSION)).toBe(false); // off
+    expect(scaleWorld(RULES_VERSION)).toBe(true); // BUMP-1E: the switch ships on, so it is back on (was toBe(false) // off)
+    withScaleRigs(() => expect(scaleWorld(RULES_VERSION)).toBe(false), false); // off
   });
 
   it("the honest-spend ceiling holds with the new prices: roadCap and maxHonestSpend are the same off and on, days 1-10", () => {
-    const off = [...Array(10).keys()].map((i) => [roadCap(i + 1), maxHonestSpend(i + 1)]);
+    const off = withScaleRigs(() => [...Array(10).keys()].map((i) => [roadCap(i + 1), maxHonestSpend(i + 1)]), false); // BUMP-1E: the switch ships on; off is asked for (was bare)
     const on = withScaleRigs(() => [...Array(10).keys()].map((i) => [roadCap(i + 1), maxHonestSpend(i + 1)]));
     expect(on).toEqual(off);
     withScaleRigs(() => {
@@ -142,7 +146,7 @@ describe("SCALE-2d D5: the hearts and wins bounds", () => {
     });
     // off: `lost` is passed over and the wins keep their old bound (0..9), as at the base
     const rec = withScaleRigs(() => battleRecordFor(f.build, foe, 7, [2, 1], DAY, [3, 2]));
-    expect(() => checkRecord({ ...rec, lost: [9, 2], wins: [6, 1] })).not.toThrow();
+    withScaleRigs(() => expect(() => checkRecord({ ...rec, lost: [9, 2], wins: [6, 1] })).not.toThrow(), false); // BUMP-1E: the switch ships on; the off check asks for it (was bare)
   });
 });
 
@@ -150,13 +154,15 @@ describe("SCALE-2d D5: the pin (the client check and POST /v1/ghosts, both switc
   let dir: string;
   let app: GhostServer;
   let base: string;
+  let wasOn = scaleRules(); // BUMP-1E: the switch ships on; this file puts it back as it found it (was setScaleRigs(false) at the end)
   beforeAll(async () => {
+    wasOn = scaleRules();
     dir = mkdtempSync(join(tmpdir(), "bb-scale2d-"));
     app = createGhostServer({ dataDir: dir, origins: ["http://127.0.0.1:7778"], rateLimit: { windowMs: 60_000, max: 1000 }, log: () => {}, matchSalt: () => 0 });
     base = `http://127.0.0.1:${await app.listen(0)}`;
   });
   afterAll(async () => {
-    setScaleRigs(false);
+    setScaleRigs(wasOn); // BUMP-1E: was setScaleRigs(false)
     await app.close();
     rmSync(dir, { recursive: true, force: true });
   });
@@ -191,7 +197,7 @@ describe("SCALE-2d D5: the pin (the client check and POST /v1/ghosts, both switc
         }
       }
     }
-    setScaleRigs(false);
+    setScaleRigs(wasOn); // BUMP-1E: was setScaleRigs(false)
     for (const r of rows) console.log(`S2D PIN ${r}`);
   }, 180_000);
 });

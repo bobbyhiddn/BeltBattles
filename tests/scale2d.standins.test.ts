@@ -29,18 +29,19 @@ function withId(id: string, uid: number): Build {
  *  at its first await: the generation below would run with the switch OFF (the first draft of this sample did). So the
  *  switch stays on here until the body's promise settles, then goes back, even on a throw. */
 async function onWhile<T>(fn: () => Promise<T>): Promise<T> {
+  const was = scaleRules(); // BUMP-1E: the switch ships on, so the previous state is put back (was setScaleRigs(false))
   setScaleRigs(true);
   try {
     return await fn();
   } finally {
-    setScaleRigs(false);
+    setScaleRigs(was);
   }
 }
 const strip = (b: Build): unknown => JSON.parse(JSON.stringify({ ...b, items: b.items.map(({ uid: _u, ...p }) => p), mods: b.mods.map(({ uid: _u, ...m }) => m) }));
 
 describe("SCALE-2d D4: deck codes", () => {
-  it("ships off; with the switch on both codecs write and read each new id (★2 too); off it is a bad item", () => {
-    expect(scaleRules()).toBe(false);
+  it("ships on (BUMP-1E; was off); with the switch on both codecs write and read each new id (★2 too); off it is a bad item", () => {
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
     const codes = withScaleRigs(() => SCALE_IDS.map((id, i) => {
       const b = withId(id, 50 + i);
       const code = encodeStarred(b);
@@ -51,10 +52,13 @@ describe("SCALE-2d D4: deck codes", () => {
       expect(encodeStarred(decodeStarred("furnace", code))).toBe(code);
       return code;
     }));
-    for (const [i, code] of codes.entries()) {
-      expect(() => decodeStarred("furnace", code), SCALE_IDS[i]).toThrow(/bad item/);
-      expect(() => decodeStarredRaw("furnace", code), SCALE_IDS[i]).toThrow(/bad item/);
-    }
+    // BUMP-1E: off is asked for outright (the switch ships on); was bare
+    withScaleRigs(() => {
+      for (const [i, code] of codes.entries()) {
+        expect(() => decodeStarred("furnace", code), SCALE_IDS[i]).toThrow(/bad item/);
+        expect(() => decodeStarredRaw("furnace", code), SCALE_IDS[i]).toThrow(/bad item/);
+      }
+    }, false);
   });
 
   it("the shipped pool decodes the same off and on, and every code reads back to itself (byte for byte)", () => {
