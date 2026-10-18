@@ -665,8 +665,8 @@ fly deploy --ha=false --remote-only && fly status -a beltbattles
   97,604 kB; the STAGE report has the one-core number at the tip, kit0911/seedtime.sh). Expect a `seed: rules
   bb-0.11.0, 192 pool ghosts on tigris (...)` line with `192 written, 0 unchanged, 0 removed` at 0.9.11's launch (the
   first bb-0.11.0 seed: the live store held bb-0.10.0's 120 and nothing under bb-0.11.0), and `0 written, 192
-  unchanged, 0 removed` on every later start of the same image, **0.9.12's launch included** (the live store already
-  holds the 192 and 0.9.12 carries the same pool: section 31). (0.9.9's launch wrote `120 written, 0 unchanged, 0
+  unchanged, 0 removed` on every later start of the same image and **at 0.9.12's launch** (a new image carrying the same
+  pool; the live store already holds the 192: section 31). (0.9.9's launch wrote `120 written, 0 unchanged, 0
   removed` under bb-0.10.0, 0.9.9.1's `78 written, 42 unchanged, 78 removed`, 0.9.10's `0 written, 120 unchanged, 0
   removed`, 0.9.11's `192 written, 0 unchanged, 0 removed`.) The seed touches only `ghosts/bb-0.11.0/dNN/pool/`: bb-0.10.0's 120 pool ghosts and every upload under it,
   and the bb-0.9.7, bb-0.9.3, bb-0.9.1, bb-0.9.0, bb-0.8.7, bb-0.8.6, bb-0.8.3 and bb-0.8.0 ghosts and uploads (and
@@ -3763,7 +3763,7 @@ branch r0912; write `refs/heads/r0912` or a tag; r0912-base = live-0911 = 654101
 no file under src/sim, src/net, src/core, src/game, server or tools differs from live-0911 (`git diff --name-only
 r0912-base <this commit> -- src/sim src/net src/core src/game server tools` lists nothing). It is SHOPCARD-1, the card
 lane 3fe3ed56's ride (REQ-BFG-115, -113 and -081; tag sc0912b-accepted 97e2cc5753d0: SHOPCARD-1 to 1f, SC-0912 and
-SC-0912b), merged here as r0912-cards ef923bb1d67c. It is display only: every shop card shows just the piece's icon, its
+SC-0912b), merged here as r0912-cards ef923bb1d67c. It is display only: every unsold shop card shows just the piece's icon, its
 price and simple marks (rarity, owned, a merge mark, a sale mark); a shaped piece shows its grid on its shop card and in
 its cargo slot; the tap panel's and the desk tooltip's words are plainer; the buy button says `SALE: BUY nG` on a sale
 and `MERGE ★n: nG` on a merge; HOW TO PLAY gets a merge clause and a shape sentence (docs/CHANGELOG.md's 0.9.12 entry, each
@@ -3773,13 +3773,14 @@ claim checked in the code). The label moves 0.9.11 -> 0.9.12 (src/version.ts:2, 
 **What ships.** Branch r0912 at its tip (tag stage-0912; the launch text names its 12 hex): r0912-base (live-0911); the
 --no-ff merge r0912-cards ef923bb1d67c of sc0912b-accepted (63 files against r0912-base, +3,383 -343: src 21, tests 42, six
 of them new; nothing else); 70e3481 (scripts only: rcruns.mjs's version check follows the label); the label and CHANGELOG
-commit 9a145b83e041; and the release record (deploy/GAME_BUILD.txt and this runbook).
+commit 9a145b83e041; the release record bbdf742de012 (deploy/GAME_BUILD.txt and this runbook); and the closing docs commit
+(deploy/RUNBOOK.md only: this section's checks and the seed's measured cost, and the corrections of the STAGE's fact check).
 - **The page** is BeltBattles-0.9.12-9a145b83e041-online.html, 1,015,682 bytes, sha256 `9911a69fc4d826ca…` (GAME_BUILD.txt
   holds the whole hash), built at 9a145b8 and staged from ../output-stage0912/pages/. It is 718 bytes larger than 0.9.11's
   page (1,014,964). Shore gets the offline page of the same commit: BeltBattles-0.9.12-9a145b83e041.html, 1,015,671 bytes,
   sha256 `be5f369618cf538f…` (= ../output-stage0912/shore/index.html).
 - **The server does not change.** server/dist built at this commit is 9 files, 1,431,852 bytes, and **all nine are
-  byte-identical to v23's** (W/ref/v23-dist, W36's server/dist at the 0.9.11 launch: ghost-server.mjs, ghost-admin.mjs,
+  byte-identical to v23's** (W/ref/v23-dist, the beltbattles-r0911 clone's server/dist at the 0.9.11 launch: ghost-server.mjs, ghost-admin.mjs,
   gen-ghost-pool.mjs, ghost-probe.mjs and the config, heroBuilds, identity, seed and validate chunks, same hash names;
   kit0912/srvdiff.sh, O/logs/srvdiff-<commit>.txt). Not even the label reaches the server bundle. fly.toml, the
   Dockerfile, .dockerignore and deploy/stage.mjs have no change since r0912-base. Uploads stay open.
@@ -3802,13 +3803,14 @@ pool ghosts (days 1-16, 12 a day; LIVE-0911: 192 written at v23's launch), and t
 (server/seedPoolData.ts is 391,992 bytes, sha16 0546f5afe4bab423, byte for byte r0912-base's): `seed: rules bb-0.11.0, 192
 pool ghosts on tigris (...)` with **`0 written, 192 unchanged, 0 removed`**, as on every later start of the same image.
 bb-0.10.0's 120 pool ghosts and every upload are not touched (the Tigris seed lists and writes only
-`ghosts/bb-0.11.0/dNN/pool/`, section 30). Rehearsed on this commit's real CLI and v23's, on a scratch JSON-lines store
+`ghosts/bb-0.11.0/dNN/pool/`, section 30). Rehearsed on the built tip's real CLI and v23's, on a scratch JSON-lines store
 (kit0912/seed0912.sh, O/logs/seed0912-<commit>.log): v23's seed on a fresh store `192 written, 0 unchanged, 0 removed`;
 this commit's seed over it **`0 written, 192 unchanged, 0 removed`**; again the same; and **the rollback**, v23's seed over
 that store, **`0 written, 192 unchanged, 0 removed`**, with pool.jsonl byte-identical after each step and `ghost-admin list
---rules bb-0.11.0` reading `all 192 0 0` after each. The seed plays no battle. Its cost is 0.9.11's, because the bundle is
-byte for byte the same: 3 s and a peak RSS of 185,436 kB with the seed pinned to one core (kit0911/seedtime.sh), on a
-256 MB VM (fly.toml's [[vm]]).
+--rules bb-0.11.0` reading `all 192 0 0` after the fresh seed, the launch seed and the rollback. The seed plays no battle.
+Its cost, measured at the release record with the seed pinned to one core (kit0912/seedtime.sh, a loaded host): 4 s and a
+peak RSS of 168,164 kB (0.9.11 read 3 s and 185,436 kB on a quiet host; the bundle is the same), on a 256 MB VM (fly.toml's
+[[vm]]).
 
 **The launch call is the Prime's** (CMD-0912, from CMD-0911's text; run once, under its own operator approval, L4).
 Fly serves 0.9.11's page now (v23), so the guards are: refuse unless Fly serves the 0.9.11 page, byte for byte
@@ -3816,18 +3818,20 @@ Fly serves 0.9.11's page now (v23), so the guards are: refuse unless Fly serves 
 the two releases apart; the page's bytes do). The live checks are section 5's, with this page: health `"rules":"bb-0.11.0"`
 and `"uploads":"open"`, `content-length: 1015682`, `live page = the staged 0.9.12 online page (cmp)`, days 1-16 for a new
 player at 0 wins and 10 hearts (sixteen `-> 200`), day 3 at 1 win and 9 hearts (a v3 bb-0.11.0 snapshot), an unsigned POST
-`-> 401`, and `list --rules bb-0.11.0`: sixteen day rows of 12, then `all 192 0 0`. In `fly logs -a beltbattles --no-tail`:
-the `seed:` line above. The page's own label (V0.9.12 on the title) is what tells the two pages apart in a browser.
+`-> 401`, and `list --rules bb-0.11.0`: sixteen day rows of 12, then `all 192 0 0` (or `all 192 N P`, if N uploads by P players
+under bb-0.11.0 came in since v23's launch). In `fly logs -a beltbattles --no-tail`: the `seed:` line above. The page's own label (V0.9.12 on the title) is what tells the two pages apart in a browser.
 
 **The probe block** is section 30's, unchanged (the server and the rules are 0.9.11's; the probe-id file is
 ../output-stage0912/probe-id.txt, which must not exist yet): `node server/dist/ghost-probe.mjs https://beltbattles.fly.dev
 ../output-stage0912/probe-id.txt` prints **18 lines**, ending **`probe: 15 of 15 checks as expected; the server stored 7
 deck(s) for this player (expected 7); the player id is in ../output-stage0912/probe-id.txt`** (with `--profile` after the id
 file, two PUTs more and `17 of 17`); revalidate's dry run `plan: delete 0 record(s) of bb-0.11.0; keep 192 seed-pool
-ghost(s) and 7 upload(s)`; `remove-player <id> --rules bb-0.11.0 --apply` prints **`APPLIED: deleted 7 of 7 record(s).`**;
-then `fly apps restart beltbattles`, health again, and `list --rules bb-0.11.0` reads `all 192 0 0`. Rehearsed locally on
-the built commit (kit0912/probecheck.sh, O/logs/probecheck-<commit>.txt). The hand clean-up is section 30's, with
-probe-id.txt at ../output-stage0912/.
+ghost(s) and 7 upload(s)` (the probe's 7, plus any real player's upload since v23's launch); `remove-player <id> --rules
+bb-0.11.0 --apply` prints **`APPLIED: deleted 7 of 7 record(s).`**; then `fly apps restart beltbattles`, health again, and
+`list --rules bb-0.11.0` reads `all 192 0 0` (or `all 192 N P`). Rehearsed locally on the built commit
+(kit0912/probecheck.sh, O/logs/probecheck-<commit>.txt). **The hand clean-up** is section 30's block run from this clone:
+its `cd` names /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r0912/BeltBattles-r0912 and both
+`../output-stage0911/probe-id.txt` become `../output-stage0912/probe-id.txt`.
 
 **Rollback to v23** (its own L4 every time, after telling the operator; never part of the launch call). Check that the
 releases-before file lists v23 first; if not, stop and ask the Prime. If a probe's decks are on the store, run the clean-up
