@@ -1372,6 +1372,58 @@ async function endlessSummarySection(browsers, origin) {
       shots.push(`${TAG}-endless-${vname}-build.png`);
       check(b.screen === "build" && b.run && b.run.endless && b.run.over === null && b.run.lives === 3, `${V}: a tap on CONTINUE ENDLESS opens the build screen at the next dawn, in endless, with 3 hearts (${JSON.stringify(b.run)})`);
       check(b.saved.length === 1, `${V}: the run in endless is saved`);
+      // YOUR RUNES at 50 runes (the build screen this run is on), by real taps: the "+k" chip opens the list; its foot pages it (each
+      // button a finger's size on a phone, on the screen); a tap on the next button turns the page, on the previous one turns it back
+      // (the first page's previous button is dead); a tap on the panel itself closes the list, as it always did
+      await page.evaluate(() => {
+        const g = window.bb.game, s = g.screen;
+        window.bb.holdRunes(window.bb.runeIds().slice(0, 50));
+        delete g.run.runeDay;
+        s.select({ kind: "none" });
+        s.menu = false;
+        for (let i = 0; i < 3; i++) g.step(1 / 60);
+      });
+      await sleep(250);
+      const runes = (pg) => page.evaluate(() => {
+        const g = window.bb.game, s = g.screen, k = g.view.scale / g.view.dpr;
+        const reg = (id) => window.bb.regions().filter((q) => q.id === id).pop() ?? null;
+        return { k, list: !!s.runeBar.list, pages: s.runeBar.pages, page: s.runeBar.page, more: reg("rune-more"), next: reg("rune-pg-next"), prev: reg("rune-pg-prev"), panel: reg("rune-readout") };
+      });
+      let rr = await runes();
+      check(!!rr.more, `${V}: with 50 runes held the rune bar shows its "+k" chip (${rr.more ? sized(rr.more) : "none"})`);
+      if (rr.more) {
+        await hit(page, rr.more);
+        await sleep(250);
+        rr = await runes();
+        const pbottom = rr.panel ? rr.panel.y + rr.panel.h : Infinity;
+        check(rr.list && rr.pages > 1 && rr.page === 0 && !!rr.next && !!rr.prev, `${V}: a tap on "+k" opens YOUR RUNES, paged (${rr.pages} pages, on page ${rr.page + 1})`);
+        check(rr.next && rr.prev && (touch ? rr.next.h >= TAP_CSS && rr.next.w >= TAP_CSS && rr.prev.h >= TAP_CSS && rr.prev.w >= TAP_CSS : true) && pbottom <= vp.height, `${V}: the page buttons ${rr.next ? sized(rr.next) : "none"} and ${rr.prev ? sized(rr.prev) : "none"} are ${touch ? "a finger's size" : "the desk's"}, the panel ends on the screen (${pbottom.toFixed(1)} <= ${vp.height} CSS px)`);
+        await page.screenshot({ path: join(OUT, `${TAG}-endless-${vname}-runes.png`) });
+        shots.push(`${TAG}-endless-${vname}-runes.png`);
+        const pages = rr.pages;
+        await hit(page, rr.prev); // dead on the first page
+        await sleep(150);
+        let q = await runes();
+        check(q.list && q.page === 0, `${V}: the first page's previous button does nothing (page ${q.page + 1})`);
+        await hit(page, rr.next);
+        await sleep(150);
+        q = await runes();
+        check(q.list && q.page === 1, `${V}: a tap on ">" turns to page 2 of ${pages} (page ${q.page + 1})`);
+        for (let i = 2; i < pages; i++) { await hit(page, q.next); await sleep(120); q = await runes(); }
+        check(q.list && q.page === pages - 1, `${V}: and on to the last page (${q.page + 1} of ${pages}); its ">" is dead`);
+        await hit(page, q.next);
+        await sleep(120);
+        q = await runes();
+        check(q.list && q.page === pages - 1, `${V}: a tap on the last page's ">" stays on it (page ${q.page + 1})`);
+        await hit(page, q.prev);
+        await sleep(150);
+        q = await runes();
+        check(q.list && q.page === pages - 2, `${V}: a tap on "<" turns back (page ${q.page + 1})`);
+        await hit(page, { x: q.panel.x + 8, y: q.panel.y + 8, w: 4, h: 4 });
+        await sleep(200);
+        q = await runes();
+        check(!q.list, `${V}: a tap on the panel closes the list`);
+      }
       check(errors.length === 0, `${V}: 0 console errors, reload and CONTINUE ENDLESS (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
       await ctx.close();
     }
