@@ -7,6 +7,7 @@
 import { HEROES, type HeroId } from "../sim/content";
 import { ENDLESS_LIVES, endlessOver, inEndless, type EndlessRun } from "../sim/endless";
 import { C } from "../render/palette";
+import { textWidth } from "../render/font"; // a measure only (no drawing): wrapAtDots
 
 /** The HUD colour of an endless run: the palette's plum, in its lighter step (plum5) because plum4, the BOSS tag's plum, reads only
  *  3.51:1 on the bar's ink and navy (palette.ts); plum5 reads 6.3:1. */
@@ -52,8 +53,44 @@ export const ENDLESS_END_WORDS: Readonly<Record<NonNullable<EndlessRun["end"]>, 
   lastDay: "THE LAST DAY",
 };
 
-/** The personal best's line: "BEST 9" (never lowered: the profile keeps the max; run 2 stores it). */
+/** The personal best's line: "BEST 9" (never lowered: the profile keeps the max, game/profile.ts foldEndless). */
 export const bestLine = (best: number): string => `BEST ${best}`;
+
+/** The same line for the run that set the best: "NEW BEST 9" (profile.ts bestEndlessRun is this run). */
+export const newBestLine = (best: number): string => `NEW BEST ${best}`;
+
+/** The ENDLESS OVER card's lines under its title, in order: the score (endlessOverLine), why endless ended, and the personal best
+ *  ("BEST 9", or "NEW BEST 9" when this run set it and it is above 0). `end` absent (a run whose endless has not ended) says no
+ *  reason. Pure; the card places them (screens/summary.ts), wrapping the first at its " · " where the card is narrower than it. */
+export function endlessOverLines(
+  run: { hero: HeroId; endlessRun: Pick<EndlessRun, "wins" | "victoryDay" | "end"> },
+  best: { best: number; newBest: boolean },
+): { score: string; why: string | null; best: string } {
+  const end = run.endlessRun.end;
+  return {
+    score: endlessOverLine(run),
+    why: end ? ENDLESS_END_WORDS[end] : null,
+    best: best.newBest && best.best > 0 ? newBestLine(best.best) : bestLine(best.best),
+  };
+}
+
+/** `text` in lines no wider than `maxW` (the 3x5 face's textWidth), broken only at " · " (the score line's own seams), each seam's dot
+ *  dropped at the break: "7 ENDLESS WINS · FURNACE · WON ON DAY 13" in 100 px is "7 ENDLESS WINS · FURNACE" / "WON ON DAY 13". A
+ *  piece wider than `maxW` on its own stays whole (the caller's fit trims it). One line when the whole text fits. */
+export function wrapAtDots(text: string, maxW: number, width: (s: string) => number = (s) => textWidth(s, "3")): string[] {
+  if (width(text) <= maxW) return [text];
+  const parts = text.split(" · "), out: string[] = [];
+  let cur = "";
+  for (const p of parts) {
+    const next = cur ? `${cur} · ${p}` : p;
+    if (cur && width(next) > maxW) {
+      out.push(cur);
+      cur = p;
+    } else cur = next;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
 
 /** Is this run's summary an ENDLESS OVER card (endless played and ended)? Re-exported for the screens' one test. */
 export const isEndlessOverCard = (run: { endlessRun?: EndlessRun }): boolean => endlessOver(run);

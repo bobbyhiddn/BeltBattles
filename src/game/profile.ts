@@ -55,7 +55,16 @@ export interface Profile {
   /** The unlocks the latest run earned (the summary's NEW STYLE line). */
   runNew: { runId: string; ids: string[] } | null;
   updatedAt: number;
+  /** ENDLESS-1 (REQ-BFG-059, 3.5): the personal best, the most endless wins any one endless run reached ("BEST 9" on the ENDLESS OVER
+   *  card). Never lowered (foldEndless keeps the max). It stays on the device with `seen`, `folded` and `runNew`: the wire form
+   *  (net/profileWire.ts) has exactly the 8 counters and does not carry it, so the profile route and its tests are untouched. */
+  bestEndless: number;
+  /** The run that set `bestEndless` ("" with none): that run's ENDLESS OVER card says NEW BEST. A run that only ties it does not take it. */
+  bestEndlessRun: string;
 }
+
+/** A data-safety ceiling for a stored personal best (the game ends an endless at 30; the profile is display only). */
+export const BEST_ENDLESS_MAX = 999;
 
 type Store = Pick<Storage, "getItem" | "setItem">;
 
@@ -75,6 +84,7 @@ export function emptyProfile(): Profile {
     v: PROFILE_V,
     counters: { runs: 0, runsFinished: 0, flawless: 0, duskWins: 0, bestDay: 0, warlordWins: 0, matriarchWins: 0, mostBelts: 0 },
     heroesWon: [], heroesFinished: [], unlocked: [], chosen: { ...DEFAULT_SKIN }, seen: [], folded: [], runNew: null, updatedAt: 0,
+    bestEndless: 0, bestEndlessRun: "",
   };
 }
 
@@ -107,6 +117,9 @@ export function migrateProfile(raw: unknown): Profile | null {
   const rn = isObj(raw.runNew) ? raw.runNew : null;
   p.runNew = rn && typeof rn.runId === "string" ? { runId: rn.runId, ids: strings(rn.ids) } : null;
   p.updatedAt = count(raw.updatedAt);
+  // ENDLESS-1: a profile from before endless has neither (0 and none); a malformed one reads as none
+  p.bestEndless = Math.min(count(raw.bestEndless), BEST_ENDLESS_MAX);
+  p.bestEndlessRun = p.bestEndless > 0 && typeof raw.bestEndlessRun === "string" ? raw.bestEndlessRun : "";
   return p;
 }
 
@@ -307,6 +320,9 @@ export interface RunFacts {
   flawless: boolean;
   /** Belts on the deck (run.build.routes.length). */
   belts: number;
+  /** ENDLESS-1 (REQ-BFG-059, 3.5): the endless wins of a run that took CONTINUE ENDLESS (so far, or in all once it is over); absent on a
+   *  run that did not. The caller passes it (styleFolds.ts runFacts): this module reads no sim value. */
+  endlessWins?: number;
 }
 
 function fold(p: Profile, key: string, runId: string, apply: () => void): string[] {
@@ -356,6 +372,21 @@ export function foldEnd(p: Profile, r: RunFacts): string[] {
     p.counters.bestDay = Math.max(p.counters.bestDay, r.day);
     p.counters.mostBelts = Math.max(p.counters.mostBelts, r.belts);
   });
+}
+
+/** ENDLESS-1 (REQ-BFG-059, 3.5): the personal best. A run that played endless keeps the profile's best at the most endless wins any one
+ *  endless run reached: a run that beats it takes it (and its id, for NEW BEST), one that ties or falls short changes nothing, so the
+ *  best is never lowered. It is a max, so any number of calls with the same run (each endless dusk, the run's end, the summary) change
+ *  nothing more. Unlocks nothing (no counter reads it), so it returns no ids. */
+export function foldEndless(p: Profile, r: Pick<RunFacts, "runId" | "endlessWins">): string[] {
+  const w = r.endlessWins;
+  if (w === undefined || !Number.isFinite(w)) return [];
+  const wins = Math.min(Math.max(0, Math.floor(w)), BEST_ENDLESS_MAX);
+  if (wins > p.bestEndless) {
+    p.bestEndless = wins;
+    p.bestEndlessRun = r.runId;
+  }
+  return [];
 }
 
 /** Load, fold, save: the screens' one call. Returns the ids the fold unlocked. Never throws. */
