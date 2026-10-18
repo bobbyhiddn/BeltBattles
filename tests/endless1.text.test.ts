@@ -87,6 +87,6 @@ describe("ENDLESS-1 3.5: the three '/10' places say ENDLESS n in endless, and re
       endlessOverLine({ hero: run.hero, endlessRun: run.endlessRun! }), ...ENDLESS_OFFER_LINES,
     ].join(" | ");
     expect(said).not.toMatch(/\/10|\/N/);
-    expect(wonLine({ ...run, endlessRun: undefined }).length).toBeGreaterThan(0); // (the RUN WON line is the run's own and stays)
+    expect(wonLine(run).length).toBeGreaterThan(0); // (the RUN WON line is the run's own and stays)
   });
 });
