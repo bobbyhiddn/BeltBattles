@@ -129,8 +129,9 @@ function wordStatBlocks(wr: WordRows, w: WordOn, turret: boolean, onlyHued = fal
   return out;
 }
 
-/** ENCHANT-1 (E7): the one line a LINE word says under the piece's own line, at the piece's stars, in the word's colour and always shown
- *  (kept: it is this piece's own ability); [] for a stat word (FIERY: its stat is in the row), for a plain piece and for no word. */
+/** ENCHANT-1 (E7): the one line a word says under the piece's own line, at the piece's stars, in the word's colour and always shown
+ *  (kept: it is this piece's own ability); [] for a plain piece and for no word. ENCHANT-1b (N2): FIERY has its line too (`ITS HIT: {BURN}+1.`),
+ *  beside its stat in the row. */
 export function wordLineBlocks(w: WordOn | undefined): Block[] {
   const text = w ? pieceLine(w.id, w.kind, w.stars) : null;
   return w && text ? [{ role: "ability", text: icons(text), keep: true, colour: wordColour(w.id) }] : [];

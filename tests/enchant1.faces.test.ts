@@ -199,58 +199,59 @@ describe("ENCHANT-1 E7: THE ROWS: a stat word at the end of the stat row, a line
   const rowText = (bs: Block[]): string[] => bs.filter((b) => b.role === "ability" && !b.note).map((b) => b.text);
   const o = { hero: "furnace" as const };
 
-  it("FIERY on a rig: [DMG]+20 [BURN]+n at the end of WHETSTONE's row, n = ENCHANT_NUM.burn x stars, its number in FIERY's colour; on TEMPER the BURN joins its own BURN", () => {
+  it("FIERY on a rig: [DMG]+20 [BURN]+n at the end of WHETSTONE's row, n = ENCHANT_NUM.burn x stars, its number in FIERY's colour, then its own line `ITS HIT: [BURN]+n.` (ENCHANT-1b N2); on TEMPER the BURN joins its own BURN", () => {
     on(() => {
       for (const stars of [1, 2, 3]) {
         const w = wordOn({ ench: "fiery" }, "whetstone", stars)!, plain = plainRigStats("whetstone", stars)!;
         const bs = faceBlocks("whetstone", stars, o, w)!, burn = ENCHANT_NUM.burn * stars;
-        expect(bs).toHaveLength(1);
+        expect(bs).toHaveLength(2); // the stat row, then FIERY's own line (N2: a piece's own abilities are always visible, REQ-BFG-089)
         expect(bs[0].text, `★${stars}`).toBe(statRow([...plain, ["BURN", `+${fmtCount(burn)}`]]));
         expect(bs[0].hue, `★${stars}`).toEqual({ colour: wc("fiery"), nums: [plain.length] });
         expect(bs[0].keep).toBe(true);
+        expect(pieceLine("fiery", "rig", stars), `★${stars}`).toBe(`ITS HIT: {BURN}+${burn}.`);
+        expect(bs[1], `★${stars}: FIERY's line`).toMatchObject({ role: "ability", text: icons(`ITS HIT: {BURN}+${burn}.`), colour: wc("fiery"), keep: true });
         const t = wordOn({ ench: "fiery" }, "temper", stars)!, tp = plainRigStats("temper", stars)!;
         const tb = faceBlocks("temper", stars, o, t)!;
         expect(tb[0].text, `TEMPER ★${stars}`).toBe(statRow([["BURN", `+${fmtCount(effectAt("temper", stars).gate!.burn! + burn)}`]]));
         expect(tb[0].hue).toEqual({ colour: wc("fiery"), nums: [0] });
+        expect(tb[tb.length - 1], `TEMPER ★${stars}: FIERY's line`).toMatchObject({ colour: wc("fiery"), text: icons(`ITS HIT: {BURN}+${burn}.`) });
         expect(tp).toHaveLength(1);
       }
     });
   });
 
-  it("FIERY on a factory: its second row `{BURN}+n` after what its slugs carry (KILN's HEAT), tied to the first; on a turret: the row's last pair, icon and number", () => {
+  it("FIERY on a factory: its second row `{BURN}+n` after what its slugs carry (KILN's HEAT), tied to the first, then its line `ITS SLUGS: [BURN]+n.`; on a turret: the row's last pair, icon and number, then `ITS SHOTS: [BURN]+n.` (ENCHANT-1b N2)", () => {
     on(() => {
       for (const stars of [1, 3]) {
+        const burn = ENCHANT_NUM.burn * stars;
         const w = wordOn({ ench: "fiery" }, "press", stars)!, bs = faceBlocks("press", stars, o, w)!;
         const rows = bs.filter((b) => !b.note);
         expect(rows[0].text).toBe(statRow(factoryStats("press", stars, "furnace")));
         expect(rows[0].hue).toBeUndefined();
-        expect(rows[1].text).toBe(statRow([["BURN", `+${fmtCount(ENCHANT_NUM.burn * stars)}`]]));
+        expect(rows[1].text).toBe(statRow([["BURN", `+${fmtCount(burn)}`]]));
         expect(rows[1].tie).toBe(true);
         expect(rows[1].hue).toEqual({ colour: wc("fiery"), nums: [0] });
-        expect(rows).toHaveLength(2); // a stat word adds no line
+        expect(rows).toHaveLength(3); // the stat rows, then FIERY's own line (N2)
+        expect(rows[2], `press ★${stars}: FIERY's line`).toMatchObject({ role: "ability", text: icons(`ITS SLUGS: {BURN}+${burn}.`), colour: wc("fiery"), keep: true });
         const k = wordOn({ ench: "fiery" }, "kiln", 1)!, kb = faceBlocks("kiln", 1, o, k)!.filter((b) => !b.note);
         expect(kb[1].text, "KILN's slugs carry HEAT; FIERY's BURN ends that row").toMatch(/\+1$/);
         expect(kb[1].hue!.nums).toEqual([1]);
-        const t = wordOn({ ench: "fiery" }, "scrapcannon", stars)!, tb = faceBlocks("scrapcannon", stars, o, t)!.filter((b) => b.pairs);
-        expect(tb[0].text).toBe(turretRow([...turretStats("scrapcannon", stars), ["BURN", `+${fmtCount(ENCHANT_NUM.burn * stars)}`]]));
+        const t = wordOn({ ench: "fiery" }, "scrapcannon", stars)!, all = faceBlocks("scrapcannon", stars, o, t)!, tb = all.filter((b) => b.pairs);
+        expect(tb[0].text).toBe(turretRow([...turretStats("scrapcannon", stars), ["BURN", `+${fmtCount(burn)}`]]));
         expect(tb[0].hue).toEqual({ colour: wc("fiery"), nums: [3] });
+        expect(all[all.length - 1], `scrapcannon ★${stars}: FIERY's line`).toMatchObject({ role: "ability", text: icons(`ITS SHOTS: {BURN}+${burn}.`), colour: wc("fiery"), keep: true });
       }
     });
   });
 
-  it("every line word adds ONE kept line, in its colour, after the piece's own lines, at this piece's stars; a stat word and a plain piece add none", () => {
+  it("every word adds ONE kept line, in its colour, after the piece's own lines, at this piece's stars (ENCHANT-1b N2: FIERY too, beside its stat in the row); a plain piece adds none", () => {
     on(() => {
       let n = 0;
       for (const kind of KINDS) for (const id of WORDS(kind)) for (const stars of starsOn(PIECE[kind])) {
         const def = PIECE[kind], w = wordOn({ ench: id, grow: 2 }, def, stars)!;
         const plain = faceBlocks(def, stars, o)!, enchanted = faceBlocks(def, stars, o, w)!;
         const line = pieceLine(id, kind, stars);
-        const extra = enchanted.filter((b) => b.colour === wc(id));
-        if (id === "fiery") {
-          expect(line, "FIERY is a stat").toBeNull();
-          expect(extra, "FIERY adds no line").toEqual([]);
-          continue;
-        }
+        const extra = enchanted.filter((b) => b.colour === wc(id) && b.role === "ability" && b.text === icons(line!));
         expect(line, `${id} on ${kind}`).toBe(wordLine(id, kind, stars));
         expect(extra, `${id} on ${kind} ★${stars}: one line`).toHaveLength(1);
         expect(extra[0], `${id} on ${kind}`).toMatchObject({ role: "ability", text: icons(line!), colour: wc(id), keep: true });
