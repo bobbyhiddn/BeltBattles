@@ -138,10 +138,34 @@ export function gateValue(heroId: HeroId, def: string, stars: number, gun: { kin
 }
 
 /**
+ * GATES-1b B5: the slugs a second a gate on tile `tile` of belt `ri` must pass: the belt's own flow (the rating's `arrival` of the route)
+ * plus every belt that JOINS it at or before that tile, and those belts' own joiners (a joiner's `arrival` is the rating's, already capped
+ * by the room on its main belt). A gate takes `in` slugs a `secs` second whatever feeds it, so this, not the belt's own flow, is what
+ * backs the belt up behind it: the presence bench at k 96 (O/bench/b5inflow-*) read the SMELTER's par holders on days 6 and 10 by it:
+ * inflow up to 0.6 +4.1 points (14 decks), 0.6-1.1 0.0 (19), 1.1-1.6 -6.1 (15), over 1.6 -24.6 (17); the 26 holders whose own belt was
+ * within the limit but whose inflow was not averaged -16.4. gateSpot read only the belt's own flow.
+ */
+export function gateInflow(b: Pick<Build, "routes">, ro: RateOut, ri: number, tile: number, depth = 0): number {
+  let sum = ro.arrival?.get(ri) ?? 0;
+  if (depth > 6) return sum;
+  b.routes.forEach((r, qi) => {
+    if (qi === ri || r.join === undefined) return;
+    const t = b.routes[ri].cells.indexOf(r.join);
+    if (t >= 0 && t <= tile) sum += gateInflow(b, ro, qi, r.cells.length, depth + 1);
+  });
+  return sum;
+}
+
+/** GATES-1b B5: is a SMELTER on tile `tile` of belt `ri` fed more than it takes (GATE_SLACK x GATE_INTAKE a second, counting the joiners)? */
+const smelterOverfed = (b: Build, ro: RateOut, ri: number, tile: number): boolean => gateInflow(b, ro, ri, tile) > GATE_SLACK * GATE_INTAKE.smelter;
+
+/**
  * The worth of every gate on `b`, summed: each one by its hero's table, the class of the gun its belt feeds, the belt's flow (`ro`, the
  * rating's read-out of `b`; the route indices of a deck with one gate more are the same) and the deck's BURN. A gate off a belt, or on a
  * belt that feeds nothing, is worth nothing. The par player adds the difference between a deck with a gate and without it to the rating's
- * own (candidates in player.ts).
+ * own (candidates in player.ts). GATES-1b B5: a SMELTER fed more than it takes (gateInflow: the belt's own flow and its joiners') is a
+ * harm, its worth turned into a minus: it holds its factories' belts back (the bench: -16 points on average), so a deck whose joiners
+ * overfeed it rates lower, and one that would overfeed it by a purchase is not bought.
  */
 export function gateWorth(b: Build, ro: RateOut): number {
   const gates = b.items.filter((p) => converterHow(p.def) !== undefined && isConverterItem(p));
@@ -154,7 +178,8 @@ export function gateWorth(b: Build, ro: RateOut): number {
     const info = routeInfo(b, at[0], claims, undefined, []);
     const gun = info.connected && info.turret >= 0 ? h.turrets[info.turret] : undefined;
     if (!gun) continue;
-    sum += gateValue(b.hero, p.def, starsOf(p), gun, ro.arrival?.get(at[0]) ?? 0, sources);
+    const v = gateValue(b.hero, p.def, starsOf(p), gun, ro.arrival?.get(at[0]) ?? 0, sources);
+    sum += converterHow(p.def) === "smelter" && smelterOverfed(b, ro, at[0], at[1]) ? -Math.abs(v) : v; // GATES-1b B5
   }
   return sum;
 }
@@ -239,7 +264,9 @@ export function gateSpot(b: Build, defId: string, ro: RateOut | undefined, o: Ga
   belts.sort((p, q) => CLASS_RANK[id][p.kind] - CLASS_RANK[id][q.kind] || (id === "smelter" ? q.burn - p.burn : 0) || q.n - p.n || (id === "fuser" ? q.arrival - p.arrival : 0) || p.ri - q.ri);
   for (const belt of belts) {
     const cells = b.routes[belt.ri].cells;
-    const legal = tileOrder(id, belt.n, belt.lastBurn).filter((t) => splitProblem(b, defId, cells[t]) === null);
+    // GATES-1b B5: a SMELTER also not on a tile its belt's joiners (at or before it) overfeed: the belt's own flow was all the rule read
+    const legal = tileOrder(id, belt.n, belt.lastBurn).filter((t) => splitProblem(b, defId, cells[t]) === null
+      && (o.relaxed || !ro || id !== "smelter" || !smelterOverfed(b, ro, belt.ri, t)));
     // the first of the three nearest the preferred tile that no rig arrow aims at (an arrow at a gate idles), else the preferred one
     const quiet = legal.slice(0, 3).find((t) => !(hits[belt.ri]?.[t]?.length));
     const t = quiet ?? legal[0];
