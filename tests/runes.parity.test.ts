@@ -132,7 +132,7 @@ describe("release X parity: the record and its decks", () => {
   it("was written on flipx2 under this build's rules, the rules its pools were generated under (POOL_RULES; nothing carried)", () => {
     const F = JSON.parse(readFileSync(X_PATH, "utf8")) as Fixture;
     expect(F.rules).toBe(RULES_VERSION);
-    expect(RULES_VERSION).toBe("bb-0.11.0"); // BUMP-1D: the 10-wins release (was bb-0.10.0; the fixture re-written under it). AZ-BUMP: the bump (was bb-0.9.7; the fixture is re-written under it at S8's regeneration). Z-BUMP: the bump and the fixture re-written under it (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+    expect(RULES_VERSION).toBe("bb-0.12.0"); // BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the 10-wins release (was bb-0.10.0; the fixture re-written under it). AZ-BUMP: the bump (was bb-0.9.7; the fixture is re-written under it at S8's regeneration). Z-BUMP: the bump and the fixture re-written under it (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
     expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(F.rules);
     expect([Object.keys(F.decks).length, F.battles.length]).toEqual([F.decksCount, F.battlesCount]);

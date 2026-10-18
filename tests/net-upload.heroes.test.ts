@@ -72,7 +72,7 @@ function dawned(run: Run): Run {
 
 describe("the table: heroes by rules version", () => {
   it("bb-0.6.2 and every earlier or unreadable version: FURNACE and WEAVER; HEROES_RULES (bb-0.8.0) and later: the four", () => {
-    expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: the bump, was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // RUNES-1 bumped it (PACKS: bb-0.8.6, BELTS: bb-0.8.3) (0.8.0 RC: bb-0.6.2 -> bb-0.8.0, HEROES_RULES itself)
+    expect(RULES_VERSION).toBe("bb-0.12.0") /* BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: the bump, was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // RUNES-1 bumped it (PACKS: bb-0.8.6, BELTS: bb-0.8.3) (0.8.0 RC: bb-0.6.2 -> bb-0.8.0, HEROES_RULES itself)
     expect(HEROES_RULES).toBe("bb-0.8.0"); // the first rules that carry the four: BELTS's bb-0.8.3, PACKS's bb-0.8.6 and RUNES-1's bb-0.8.7 need no new row
     expect(RULES_HEROES.map((r) => [r.from, [...r.heroes]])).toEqual([
       ["bb-0.0.0", ["furnace", "weaver"]], ["bb-0.8.0", ["furnace", "weaver", "foundry", "bastion"]],
