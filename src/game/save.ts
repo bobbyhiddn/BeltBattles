@@ -33,6 +33,7 @@ import { readoutOk } from "./raceReadout"; // 0.8.0 H1 M3
 import { waresOk } from "./wares"; // 0.8.0 I1 M3
 import { lastChanceShapeOk } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { HEARTS_START } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a hearts run's clamp
+import { ENDLESS_LIVES, endlessOffered, endlessRunShapeOk } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): an endless run's hearts clamp; its state's shape; the won run kept while its offer is open
 import type { Run } from "./run";
 
 export const SAVE_KEY = "beltbattles.run.v7";
@@ -324,7 +325,14 @@ export function migrateRun(raw: unknown): Run | null {
   // RETUNE-1 (REQ-BFG-096): a hearts run's mark is `true` or absent (anything else is dropped: a lives run), and its
   // hearts clamp to HEARTS_START; a save without the mark (every switch-off run) clamps to START_LIVES exactly as before
   if (r.hearts !== undefined && r.hearts !== true) delete r.hearts;
-  r.lives = Math.max(0, Math.min(r.hearts === true ? HEARTS_START : START_LIVES, Number(r.lives) || 0));
+  // ENDLESS-1 (REQ-BFG-059): the endless mark is `true` or absent (anything else is dropped: a run that ends at its win), and the
+  // endless state stays when well formed (endless.ts endlessRunShapeOk) and is dropped otherwise. A save mid-endless (the state, no
+  // `end`) resumes in endless with its hearts clamped to ENDLESS_LIVES; a save without either (every switch-off run, every run saved
+  // before the release) loads exactly as before
+  if (r.endless !== undefined && r.endless !== true) delete r.endless;
+  if (r.endlessRun !== undefined && !endlessRunShapeOk(r.endlessRun)) delete r.endlessRun;
+  const cap = r.endlessRun !== undefined && r.endlessRun.end === undefined ? ENDLESS_LIVES : r.hearts === true ? HEARTS_START : START_LIVES;
+  r.lives = Math.max(0, Math.min(cap, Number(r.lives) || 0));
   if (typeof r.runId !== "string") r.runId = `s-${((Number(r.seed) || 0) >>> 0).toString(36)}`;
   if (!STAGES.includes(r.stage)) r.stage = "caravan";
   if (r.stage === "warlord" && !(r.warlord && r.warlord.day === r.day)) r.stage = "fork";
@@ -346,7 +354,11 @@ export function migrateRun(raw: unknown): Run | null {
 export function saveRun(run: Run | null): void {
   try {
     for (const k of [SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5, SAVE_KEY_V6]) localStorage.removeItem(k);
-    if (!run || run.over) localStorage.removeItem(SAVE_KEY);
+    // ENDLESS-1 (REQ-BFG-059, 3.2): a finished run is dropped, as ever, EXCEPT a won run that carries the endless mark and has not chosen
+    // yet (endless.ts endlessOffered: its RUN WON card is up, offering CONTINUE ENDLESS or END RUN): it is kept, so a reload on that
+    // screen (a phone's browser drops a backgrounded page) still offers it (title.ts continueRun opens the card again). END RUN, NEW
+    // RUN and CONTINUE ENDLESS replace it. No run without the mark is ever kept finished: ENDLESS off, the slot is as it always was.
+    if (!run || (run.over && !endlessOffered(run))) localStorage.removeItem(SAVE_KEY);
     else localStorage.setItem(SAVE_KEY, JSON.stringify(run));
   } catch {
     /* storage unavailable */

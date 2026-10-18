@@ -26,6 +26,8 @@ import { START_LIVES } from "../../sim/content"; // RETUNE-1 run 2 (REQ-BFG-096)
 import { livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: a hearts run's 10
 import { WIN_GOAL, longRun } from "../../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): a long run's bar reads WINS n/10 and DAY n
 import { dayText, onLongRoad } from "../runDay"; // RUN-1: the day's words, "DAY 3/10" or a long run's "DAY 12"
+import { inEndless } from "../../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): an endless run's bar
+import { endlessBar } from "../endlessText";
 import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
 import { drawDetails, hasDetails, textOpts } from "./inspector";
@@ -52,7 +54,9 @@ export const barStage = (run: Pick<Run, "stage">): "REFIT" | "DAWN" => (shopShut
 /** RUN-1 (REQ-BFG-059, REQ-BFG-116; D7): the bar's run progress after the stage word, as [text, colour] pieces. A 10-day run
  *  (no mark; every switch-off run and an old save): " · DAY 3/10" exactly as before. A long run: " · WINS 3/10" (the goal
  *  carries the /10) then " · DAY 12" (never "/N"; amber from day 11, the long road). */
-export function barRun(run: Pick<Run, "day" | "wins" | "longRun">): [string, string][] {
+export function barRun(run: Pick<Run, "day" | "wins" | "longRun" | "endlessRun">): [string, string][] {
+  // ENDLESS-1 (REQ-BFG-059, 3.5): an endless run's bar reads " · ENDLESS 4 · DAY 15" in plum, never a "/10" (screens/endlessText.ts)
+  if (inEndless(run)) return endlessBar({ day: run.day, endlessRun: run.endlessRun! });
   const long = longRun(run);
   if (!long) return [[` · ${dayText(run.day, false)}`, C.bone]];
   return [[` · WINS ${run.wins}/${WIN_GOAL}`, C.bone], [` · ${dayText(run.day, true)}`, onLongRoad(run.day, true) ? C.amber : C.bone]];

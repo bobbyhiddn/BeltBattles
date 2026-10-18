@@ -1,7 +1,7 @@
 // Tooling helpers behind window.bb (shots, metrics, scripted runs). The game never calls these.
 
 import { newRun, pendingLastChance, pendingRune, rollShop, takeLastChance, takeRune, type Run } from "./game/run"; // Z-BUMP: LAST CHANCE's pick
-import { finishDay, startDusk } from "./game/day";
+import { finishDay, startDusk, startEndless } from "./game/day";
 import { GHOST_KEY, loadPool, saveGhost, type GhostSnapshot } from "./game/ghosts";
 import { beginRoad, choicesFor, pickChoice } from "./game/events";
 import { warlordName } from "./sim/ai";
@@ -223,11 +223,11 @@ const ZERO = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 1, jams:
  *  (per day: "V"/"v" the event, taking its first open choice; "E"/"M"/"H" a warlord of that tier
  *  won, "e"/"m"/"h" lost; default the event), then dusk against the pool (or a stand-in) with the
  *  scripted result W / L / D. */
-export function playOut(o: RunSpec & { results: string; roads?: string }): Run {
+export function playOut(o: RunSpec & { results: string; roads?: string; endless?: string }): Run {
   const run = newRun(o.hero ?? "furnace", o.seed ?? 12345);
   let i = 0;
-  for (const ch of o.results) {
-    if (run.over) break;
+  /** One day: the pending LAST CHANCE and rune picks taken, the road, the dusk, then the scripted result. */
+  const day = (ch: string): void => {
     // Z-BUMP (REQ-BFG-073, the flip): a pending LAST CHANCE comes first, as the picker requires (the dawn rune waits and a
     // fight is refused while it is pending): this skips the picker, so it takes the HULL card (main.ts openLastChance's
     // card for a LAST CHANCE that isn't the shot's own); before the flip none ever fired
@@ -252,6 +252,18 @@ export function playOut(o: RunSpec & { results: string; roads?: string }): Run {
     } else if (beginRoad(run)) pickChoice(run, Math.max(0, choicesFor(run).findIndex((c) => !c.blocked)));
     startDusk(run, loadPool());
     finishDay(run, ch === "W" ? 0 : ch === "L" ? 1 : -1, 20 + run.day * 3.1, ZERO, ZERO);
+  };
+  for (const ch of o.results) {
+    if (run.over) break;
+    day(ch);
+  }
+  // ENDLESS-1 (REQ-BFG-059, 3.5) tooling: a run that carries the endless mark (bb.endless() before it was made) and was won goes on into
+  // endless (day.ts startEndless, as CONTINUE ENDLESS does) and plays `endless`'s results the same way, until they run out or endless ends
+  if (o.endless !== undefined && startEndless(run)) {
+    for (const ch of o.endless) {
+      if (run.over) break;
+      day(ch);
+    }
   }
   return run;
 }

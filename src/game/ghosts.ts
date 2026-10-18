@@ -14,6 +14,7 @@ import { RIVALS, standInBuild, standInGhost, type RivalId } from "../sim/rivals"
 import { STAND_IN_POOL_HEROES } from "../sim/standInPool";
 import { migrateSnapshot, playerId, type GhostSnapshot } from "./ghostSnapshot";
 import { longRunFor } from "../net/rulesGate"; // RUN-1 (REQ-BFG-059, D6): the long run's widening follows its rules
+import { endlessMatchDays } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): the days an endless query reads
 
 export type { GhostSnapshot } from "./ghostSnapshot";
 
@@ -77,6 +78,11 @@ export interface GhostQuery {
    *  (rulesGate.ts longRunFor(q.rules): the switch on AND rules at or after LONG_RUN_RULES). A caller that knows its run's own
    *  mark passes it (sim/longRun.ts longRun(run)), so a 10-day run saved before the bump keeps its exact-day pick. */
   long?: boolean;
+  /** ENDLESS-1 (REQ-BFG-059): an endless dusk's query. `wins` and `lives` are then the player's ENDLESS wins and hearts going in. It
+   *  reads ONLY endless ghosts (snapshot mode "endless"), nearest endless wins first (then nearest hearts; no D1: endless is a
+   *  score attack among run winners), widening to the nearest earlier day within ENDLESS_WIDEN_DAYS (never before the first
+   *  endless day, WIN_GOAL + 1). A run's query (no `endless`) never reads one. */
+  endless?: true;
 }
 
 /**
@@ -90,6 +96,14 @@ export interface GhostQuery {
  * the pick it always was.
  */
 export function pickGhost(pool: readonly GhostSnapshot[], q: GhostQuery): GhostSnapshot | null {
+  // ENDLESS-1: an endless dusk reads its own days (endlessMatchDays: its day, then the nearest earlier ones within the window)
+  if (q.endless) {
+    for (const day of endlessMatchDays(q.day)) {
+      const g = pickGhostOn(pool, q, day);
+      if (g) return g;
+    }
+    return null;
+  }
   const widen = q.long ?? longRunFor(q.rules);
   for (let day = q.day; day >= 1; day--) {
     const g = pickGhostOn(pool, q, day);
@@ -102,9 +116,11 @@ export function pickGhost(pool: readonly GhostSnapshot[], q: GhostQuery): GhostS
 function pickGhostOn(pool: readonly GhostSnapshot[], q: GhostQuery, day: number): GhostSnapshot | null {
   let best: GhostSnapshot[] = [];
   let bw = Infinity, bl = Infinity;
+  const endless = q.endless === true;
   for (const g of pool) {
     if (g.rules !== q.rules || g.day !== day || g.runId === q.runId) continue;
-    const dw = Math.abs(g.wins - q.wins), dl = Math.abs(g.lives - q.lives);
+    if ((g.mode === "endless") !== endless) continue; // ENDLESS-1: an endless query reads only endless ghosts; a run's never reads one
+    const dw = Math.abs((endless ? g.endlessWins ?? 0 : g.wins) - q.wins), dl = Math.abs(g.lives - q.lives);
     if (dw < bw || (dw === bw && dl < bl)) {
       best = [g];
       bw = dw;

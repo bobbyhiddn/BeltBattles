@@ -10,7 +10,7 @@ import { ghostDayOk, noBetterRecord } from "./matchmaking";
 import { longRunFor } from "./rulesGate"; // RUN-1: the long run's widened day
 import { checkSnapshot, encodeSnapshot, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateUpload } from "./validate";
-import { isReachable } from "./records"; // SCALE-2d (REQ-BFG-098, D5): a served ghost's record, with SCALE_RIGS on
+import { endlessRecordProblem, isReachable } from "./records"; // SCALE-2d (REQ-BFG-098, D5): a served ghost's record, with SCALE_RIGS on; BUMP-1E (R3.3 a): an endless ghost's record, as the server judges it
 import { scaleRules } from "../sim/scale"; // SCALE-2d
 
 export type GhostRequest = FallbackRequest;
@@ -32,6 +32,7 @@ export function matchUrl(baseUrl: string, req: GhostRequest): string {
     player: req.playerId, seen: req.seen.join(","),
   });
   if (req.runs !== undefined) q.set("runs", String(req.runs)); // 0.7.0a D2: finished runs on this device
+  if (req.endless) q.set("mode", "endless"); // ENDLESS-1 (REQ-BFG-059): an endless dusk's request (wins and lives are the endless ones): endless ghosts only
   return endpoint(baseUrl, `/v1/ghosts/match?${q.toString()}`);
 }
 
@@ -71,13 +72,24 @@ function problem(body: unknown, req: GhostRequest): string | PoolEntry {
   if (!ghostDayOk(s.day, req)) return longRunFor(req.rules) ? `ghost day ${s.day} is past ${req.day}` : `ghost day ${s.day} is not ${req.day}`;
   if (s.playerId === req.playerId) return "server returned our own ghost";
   if (req.seen.includes(id)) return "server returned a ghost already fought this run";
+  // ENDLESS-1 (REQ-BFG-059): an endless request takes only an endless ghost and a run's never one (no D1 in endless: nearest endless wins)
+  if ((s.mode === "endless") !== (req.endless === true)) return req.endless ? "server returned a run's ghost to an endless request" : "server returned an endless ghost to a run's request";
   // 0.7.0a D1 on the client too: never fight a ghost with a better record (a server without D1 falls back here)
-  if (!noBetterRecord(s, req)) return `server returned a ghost with a better record (${s.wins}W ${s.lives} lives)`;
+  if (!req.endless && !noBetterRecord(s, req)) return `server returned a ghost with a better record (${s.wins}W ${s.lives} lives)`;
   // SCALE-2d (REQ-BFG-098, REQ-BFG-106; BRIEF-SCALE2d D5): with SCALE_RIGS on a ghost's wins and lives reach the fight (TROPHY
   // CHAIN, GRUDGE ROD), so its record must be one a run carries into this dusk: the server's own check at upload (records.ts
-  // isReachable), again here. Off: as before
-  if (scaleRules() && !isReachable(s.day, s.wins, s.lives, { lastChance: s.lastChance?.day ?? null, rules: s.rules })) {
+  // isReachable), again here. Off: as before. BUMP-1E (RULING-BUMP1E-R3 R3.3 a, merging ENDLESS-1): a RUN's ghost only: an endless
+  // ghost's wins stay at 10 past the victory day (its endless counts are endlessWins and endlessLives), so isReachable would refuse
+  // every endless ghost
+  if (scaleRules() && !req.endless && !isReachable(s.day, s.wins, s.lives, { lastChance: s.lastChance?.day ?? null, rules: s.rules })) {
     return `server returned a ghost whose record (${s.wins}W ${s.lives} lives) no run carries into dusk ${s.day}`;
+  }
+  // BUMP-1E (R3.3 a): and an endless ghost under SCALE_RIGS is re-checked the way the server judges it at upload (records.ts
+  // endlessRecordProblem, which takes only what the snapshot holds): the run was won on its victory day, and the endless dusks
+  // since lead to its endless wins and hearts. Off: as ENDLESS-1 built it (the decoder's bounds alone)
+  if (scaleRules() && req.endless) {
+    const why = endlessRecordProblem({ rules: s.rules, day: s.day, victoryDay: s.victoryDay ?? 0, endlessWins: s.endlessWins ?? 0, endlessLives: s.endlessLives ?? 0, ...(s.losses !== undefined ? { losses: s.losses } : {}), ...(s.lastChance ? { lastChance: s.lastChance } : {}) });
+    if (why) return `server returned an endless ghost whose record no endless leads to (${why})`;
   }
   // never simulate an unvalidated foreign deck; a served ghost is a player's deck: the player mode (0.7.0)
   const v = validateUpload(s.build, s.day, undefined, { ...(s.lastChance ? { lastChance: s.lastChance } : {}), ...(s.road ? { road: s.road } : {}) }); // LC-1: its LAST CHANCE (no seed: served ghosts carry none); NPC-1: its road log

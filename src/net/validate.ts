@@ -35,6 +35,8 @@ import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 // older rules, or with the switch off, as the 10-day run. inRulesWorld below puts the module switch to the record's answer.
 import { LONG_RUN_MAX_DAY, longRunRules, withLongRun } from "../sim/longRun";
 import { longRunFor } from "./rulesGate";
+import { ENDLESS_LAST_DAY, endlessRules, withEndless } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): the endless world's day bound
+import { endlessFor } from "./rulesGate"; // ENDLESS-1: the record's own answer to endless
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, lastChanceGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules; Z-BUMP: LAST CHANCE by the rules
@@ -74,7 +76,13 @@ import { withLadderFix } from "../sim/ladderFix";
 export function inRulesWorld<T>(rules: unknown, fn: () => T): T {
   const world = (): T => (rulesAtLeast(rules, NPC_DAY_RULES) ? fn() : withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false));
   const long = longRunFor(rules);
-  return long === longRunRules() ? world() : withLongRun(world, long);
+  const inLong = (): T => (long === longRunRules() ? world() : withLongRun(world, long));
+  // ENDLESS-1 (REQ-BFG-059): and the endless one: the module switch (sim/endless.ts endlessRules, read by the day bounds that have no
+  // snapshot to ask: validateBuild's day, snapshot.ts maxRunes) is put to this record's answer, endlessFor(rules): on for a record
+  // under rules with endless, off for an older one. With the switch off the answer is always off, equal to the switch, and nothing
+  // is touched: the check is exactly as before. A RUN's snapshot never reaches a day past maxDayFor (the decoder refuses it first)
+  const endless = endlessFor(rules);
+  return endless === endlessRules() ? inLong() : withEndless(inLong, endless);
 }
 
 /** RUNES-1: what a deck's check knows beside the deck: its snapshot's run `seed` (absent on a served ghost, FIX-6, and
@@ -395,7 +403,8 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   // RUN-1 (REQ-BFG-059, D4): the day bound follows the world: LONG_RUN_MAX_DAY on a long run (the switch inRulesWorld set to
   // the record's rules: validateUpload; a strict content check of the long run's own tables reads the switch), else MAX_DAY.
   // It refuses an upload or a check, never a run
-  const maxDay = longRunRules() ? LONG_RUN_MAX_DAY : MAX_DAY;
+  // ENDLESS-1: and an endless dusk (the world's endless switch, rules with endless) runs to ENDLESS_LAST_DAY
+  const maxDay = endlessRules() ? ENDLESS_LAST_DAY : longRunRules() ? LONG_RUN_MAX_DAY : MAX_DAY;
   if (!Number.isInteger(day) || day < 1 || day > maxDay) return { ok: false, errors: [`shape: day ${day} is not in 1..${maxDay}`] };
   // RUNES-1 (REQ-BFG-058): the runes, by runes.ts runeProblem: catalogue ids, no repeats and, with the uploader's seed,
   // each in its dawn's re-derived offer. FLIP-X2 (cap's ruling 5d6d83ef57d1494c): the count comes from the mode, so no

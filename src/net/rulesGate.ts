@@ -462,3 +462,23 @@ export function scaleWorld(rules: unknown): boolean {
 export function heartsLostCapFor(rules: unknown, cap: number): number {
   return Math.min(livesCapFor(rules, cap), heartsFor(rules) ? HEARTS_START : START_LIVES) - 1;
 }
+
+// ---- ENDLESS-1 (REQ-BFG-059, its second step): endless after a won run, on its own lines (a small merge surface, like the long
+// run's row above). Not a RULES_ROWS row: it refuses no build feature; it says which run a snapshot, a record or a match
+// request belongs to (a run, or an endless after a won run), so the snapshot's endless fields (snapshot.ts), the record model
+// (records.ts), the day bounds (snapshot.ts endlessMaxDay), the storage (server/tigrisStore.ts) and the match request read it by
+// its own rules.
+import { RULES_VERSION } from "../sim/content"; // ENDLESS-1: ENDLESS_RULES reads it until the release bump writes the literal
+import { endlessRules } from "../sim/endless"; // ENDLESS-1: the ENDLESS switch (src/sim/endless.ts)
+
+/** ENDLESS-1: the first rules version with endless after a won run: ENDLESS' row. It READS RULES_VERSION until the release bump that
+ *  turns ENDLESS on writes that version here as a literal (as LONG_RUN_RULES did before BUMP-1D wrote "bb-0.11.0"); from then on
+ *  every older record keeps the run that ends at its win, whatever the switch. */
+export const ENDLESS_RULES: string = RULES_VERSION;
+
+/** Does endless hold for a record, snapshot or match request under `rules`? The switch on AND `rules` a readable version at or
+ *  after ENDLESS_RULES. False with the switch off, whatever the rules (every record then reads the run that ends at its win,
+ *  as today). A record or a request asks this, never the switch alone. */
+export function endlessFor(rules: unknown): boolean {
+  return endlessRules() && rulesAtLeast(rules, ENDLESS_RULES);
+}

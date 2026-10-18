@@ -14,7 +14,7 @@ import type { G } from "../render/pixel";
 import { frame, rect } from "../render/pixel";
 import { C } from "../render/palette";
 import { drawText, textWidth } from "../render/font";
-import { panel, type Rect } from "./ui";
+import { button, panel, type Rect } from "./ui"; // ENDLESS-1: + button (the paged YOUR RUNES list's foot)
 import { inside, tapRect, type UI } from "./ui"; // EXPLAIN-1 (REQ-BFG-089, E3): the chip's target
 import { tapPx, TAP_CSS } from "./tap";
 import { isPhone } from "./tap"; // EXPLAIN-1 (E3): a phone's chip target is a finger's
@@ -24,6 +24,7 @@ import { drawIconTip, helpCursor, iconTipRect } from "../screens/build/keywords"
 import type { View } from "../core/io";
 import { drawRich, wrapRich, type RichLine } from "./richText";
 import { RUNES, isRune, type RuneDef, type RuneHeld } from "../sim/runes";
+import { endlessMarked } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): only an endless-marked run gets the paged YOUR RUNES list
 import {
   RUNE_KEYWORD_COLOUR, KEYWORD_WORD, runeInitials, runeKeyword, runeReminderSpans, runeSentenceSpans, runeTaken, tierColour,
 } from "./runeText";
@@ -135,6 +136,18 @@ export function drawRuneChip(g: G, r: Rect, def: RuneDef, sel = false): void {
     drawText(g, KEYWORD_WORD[k], cx, top + 8, RUNE_KEYWORD_COLOUR[k], { font: "3", align: "center" });
   } else drawText(g, ini, cx, r.y + Math.floor((r.h - 3 - 7) / 2), C.bone, { align: "center" });
   if (sel) frame(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, C.yellow);
+}
+
+/** ENDLESS-1 (REQ-BFG-059, 3.5): a COMPACT rune chip for the picker's tray when an endless run's ~50 runes would not fit it at
+ *  RUNE_CHIP_MIN: RUNE_SMALL_W x RUNE_SMALL_H, the same item-slot frame and tier-coloured bottom edge, the initials alone in the 3x5
+ *  face (the keyword word the full chip carries gives way). Display only, like the tray's chips. */
+export const RUNE_SMALL_W = 14;
+export const RUNE_SMALL_H = 11;
+export function drawRuneChipSmall(g: G, r: Rect, def: RuneDef): void {
+  rect(g, r.x, r.y, r.w, r.h, C.ink);
+  rect(g, r.x + 1, r.y + 1, r.w - 2, r.h - 2, C.slate0);
+  rect(g, r.x + 1, r.y + r.h - 3, r.w - 2, 2, tierColour(def.tier));
+  drawText(g, runeInitials(def), r.x + r.w / 2, r.y + 2, C.bone, { font: "3", align: "center" });
 }
 
 /** The "+k" chip: the count of runes the row can't show; a tap opens the full list. */
@@ -549,12 +562,47 @@ export const readoutW = (W: number): number => Math.min(W - 8, 300);
 /** The full list ("+k"): a row per rune (its name and day, then its effect line). Its height. Pure (tests). */
 export const runeListH = (n: number): number => 16 + n * 19 + 2;
 
+/** ENDLESS-1 (REQ-BFG-059, 3.5; RULING-RUN1-R1: YOUR RUNES running off a phone past about 21 runes, deferred to ENDLESS): the list's
+ *  rows are RUNE_ROW_H apart and its title takes RUNE_LIST_HEAD; an endless run holds about 50 runes, 19 px each, so a list taller
+ *  than the room under the bar is shown a PAGE of rows at a time, with a foot of two buttons (< and >) and "PAGE 2/5". */
+export const RUNE_ROW_H = 19;
+export const RUNE_LIST_HEAD = 16;
+/** The paged list's foot, at least this tall (art px); on a phone a finger's square (runeTapOf) when that is taller. */
+export const RUNE_LIST_FOOT_MIN = 14;
+
+export interface RuneListLayout {
+  /** The panel's height: runeListH(n) when the whole list fits, else a page's rows plus the foot (the same on every page). */
+  h: number;
+  /** The rows a page holds (n when the list is not paged). */
+  per: number;
+  /** 1 when the whole list fits. */
+  pages: number;
+  /** The foot's height; 0 when the list is not paged. */
+  foot: number;
+}
+
+/** The YOUR RUNES list for `n` runes in `avail` px of height (the screen under the bar, less a margin) with a `foot`-tall page foot
+ *  when it must be paged. Whole when runeListH(n) fits (exactly as before ENDLESS-1); else the fewest pages that fit, as even as they
+ *  can be (50 runes where 16 rows fit: 4 pages of 13, 13, 13 and 11, not 16, 16, 16 and 2, so no page is nearly empty and the panel
+ *  is no taller than its fullest page). Pure (tests/endless1.runes.test.ts). */
+export function runeListLayout(n: number, avail: number, foot = RUNE_LIST_FOOT_MIN): RuneListLayout {
+  const whole = runeListH(n);
+  if (n <= 0 || whole <= avail) return { h: whole, per: Math.max(1, n), pages: 1, foot: 0 };
+  const most = Math.max(1, Math.floor((avail - RUNE_LIST_HEAD - foot - 2) / RUNE_ROW_H));
+  const per = Math.ceil(n / Math.ceil(n / most));
+  return { h: RUNE_LIST_HEAD + per * RUNE_ROW_H + foot + 2, per, pages: Math.ceil(n / per), foot };
+}
+
 // ---- the bar on the build screen ---------------------------------------------------------------------------------------
 
 /** The bar's state on one build screen: the chip whose read-out is open (-1 none), or the full list. */
 export class RuneBar {
   open = -1;
   list = false;
+  /** ENDLESS-1 (REQ-BFG-059, 3.5): the full list's page (0-based) when it is paged (runeListLayout), and the pages it has now (1: whole). */
+  page = 0;
+  pages = 1;
+  private wheelAt = -1;
   /** EXPLAIN-1 (REQ-BFG-089, E3): the open read-out's hidden line is shown (its chip was tapped). */
   note = false;
   /** CARD-2 (REQ-BFG-081, K2; K1): the keyword whose definition the open read-out's room shows (a word's tap, or its first
@@ -607,7 +655,7 @@ export class RuneBar {
       // (never in a refit: the build screen between a fight's rounds)
       this.word = this.open >= 0 && defs[this.open] && s.run.stage === "caravan" ? runeSightWord(defs[this.open]) : null;
     } }));
-    if (B.more) ui.add({ id: "rune-more", r: B.more, onTap: () => { this.open = -1; this.list = !this.list; } });
+    if (B.more) ui.add({ id: "rune-more", r: B.more, onTap: () => { this.open = -1; this.list = !this.list; this.page = 0; } });
     const W = s.game.W, w = readoutW(W), x = Math.round(W / 2 - w / 2), y = B.bar.y + B.bar.h + 2;
     if (this.open >= 0 && defs[this.open]) {
       const def = defs[this.open];
@@ -630,18 +678,59 @@ export class RuneBar {
         this.word = this.word === wd ? null : wd;
       }, { W: s.game.W, H: s.game.H }, s.game.canvas, undefined, undefined, undefined, s.run.day); // MERGE-099E: no `take` (CARD-4 P4: the read-out keeps its targets), then the day
     } else if (this.list) {
-      const r = { x, y, w, h: runeListH(defs.length) };
+      // ENDLESS-1: the whole list when it fits under the bar (exactly as before), else a page of rows and a foot (runeListLayout)
+      // (only a run that carries the endless mark pages: any other run's list is the whole list, as it always was)
+      const LL = runeListLayout(defs.length, endlessMarked(s.run) ? s.game.H - 4 - y : Infinity, Math.max(RUNE_LIST_FOOT_MIN, runeTapOf(s)));
+      this.pages = LL.pages;
+      this.page = Math.max(0, Math.min(LL.pages - 1, this.page));
+      const r = { x, y, w, h: LL.h };
       panel(g, r, "dark");
       drawText(g, `YOUR RUNES ${defs.length}`, r.x + 5, r.y + 5, C.slate4, { font: "3" });
-      defs.forEach((d, i) => {
-        const ry = r.y + 16 + i * 19;
+      const from = this.page * LL.per;
+      defs.slice(from, from + LL.per).forEach((d, j) => {
+        const i = from + j, ry = r.y + RUNE_LIST_HEAD + j * RUNE_ROW_H;
         drawText(g, d.name, r.x + 5, ry, tierColour(d.tier));
         drawText(g, `DAY ${i + 1}`, r.x + r.w - 5, ry + 1, C.slate4, { font: "3", align: "right" });
         const line = runeTextLines(d, runeCardTextW(r.w), s.run.day)[0] ?? []; // Y-FURN: a two-line rune's first sentence, whole
         drawRich(g, line, r.x + 5, ry + 9, "5");
       });
       ui.add({ id: "rune-readout", r, onTap: () => { this.list = false; } });
+      if (LL.pages > 1) this.drawFoot(g, s, r, LL); // after the panel's region: the last region wins
+    } else this.pages = 1;
+  }
+
+  /** ENDLESS-1: the paged list's foot: "<" and ">" (a finger's square on a phone), "PAGE 2/5" between them. */
+  private drawFoot(g: G, s: BuildScreen, r: Rect, LL: RuneListLayout): void {
+    const ui = s.game.ui, fy = r.y + r.h - LL.foot - 2, bw = Math.max(26, LL.foot);
+    const prev = { x: r.x + 4, y: fy, w: bw, h: LL.foot }, next = { x: r.x + r.w - 4 - bw, y: fy, w: bw, h: LL.foot };
+    button(ui, g, "rune-pg-prev", prev, "<", { disabled: this.page <= 0, onTap: () => this.turn(-1) });
+    button(ui, g, "rune-pg-next", next, ">", { disabled: this.page >= LL.pages - 1, onTap: () => this.turn(1) });
+    drawText(g, `PAGE ${this.page + 1}/${LL.pages}`, r.x + r.w / 2, fy + Math.floor((LL.foot - 5) / 2), C.slate4, { font: "3", align: "center" });
+  }
+
+  /** ENDLESS-1: turn the paged list's page by `d` (-1 back, 1 on), kept inside the pages it has. */
+  turn(d: number): void {
+    this.page = Math.max(0, Math.min(this.pages - 1, this.page + d));
+  }
+
+  /** ENDLESS-1: the paged list's keys (BuildScreen.key): the arrows and PageUp / PageDown turn the page. True when used. */
+  key(k: string): boolean {
+    if (!this.list || this.pages < 2) return false;
+    if (k === "ArrowRight" || k === "ArrowDown" || k === "PageDown") this.turn(1);
+    else if (k === "ArrowLeft" || k === "ArrowUp" || k === "PageUp") this.turn(-1);
+    else return false;
+    return true;
+  }
+
+  /** ENDLESS-1: the mouse wheel over the paged list (BuildScreen.wheel): one page a notch, at most one every 0.2 s of the screen's clock
+   *  `t`, so a trackpad's swipe cannot spin through them. True (and used) while the paged list is up. */
+  wheel(dy: number, t: number): boolean {
+    if (!this.list || this.pages < 2 || dy === 0) return false;
+    if (this.wheelAt < 0 || t - this.wheelAt >= 0.2) {
+      this.turn(dy > 0 ? 1 : -1);
+      this.wheelAt = t;
     }
+    return true;
   }
 
   /** Every press (BuildScreen.pressed): one on anything but the bar and its read-out closes the read-out. EXPLAIN-1 (E3):
