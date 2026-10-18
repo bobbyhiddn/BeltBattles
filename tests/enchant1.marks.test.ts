@@ -3,7 +3,9 @@
 //    battle world's views, the scouted foe's view: all draw through machinery.ts drawMachinery and cruiser.ts drawTurrets), on every facing,
 //    for a rig, a shaped rig, a factory, a shaped factory and a turret; on the cards that print no name (the cargo slot, the carried tile,
 //    the LAST CHANCE PART card); never on a plain piece, never on the shop's cards, and with the switch off every frame is as it was;
-//  - GROWING's counter: a number badge on a piece holding GROWING above 0, the number being its `grow`;
+//  - GROWING's counter: a number badge on a piece holding GROWING above 0, the number being its `grow`; ENCHANT-1b (N5): the badge is the
+//    battle's count box at its own size (9 px tall, the numeral's width + 4), a white numeral with an ink outline on ink, its 1 px frame in
+//    GROWING's green (it was a 5 x 7 green badge with an ink numeral: a small green glyph at phone size);
 //  - the battle's line for a swallowed STUN (the `braced` event): the word first in its colour; the game keeps no text log, so it is the
 //    word's ring and pop over the part;
 //  - ENCHANT-1b (N1): MASSIVE goes on a TURRET only and SWIFT on a FACTORY only. A piece is marked with the words its kind takes (WORDS(kind));
@@ -24,7 +26,11 @@ import { lastChanceWord } from "../src/sim/enchantSources";
 import { boxRect, footX, footY, frameForHull, localRect, type DeckFrame } from "../src/render/frame";
 import { RARITY_COLOR } from "../src/render/palette";
 import { C } from "../src/render/palette";
-import { glyphRows, textWidth } from "../src/render/font";
+import { drawText, glyphRows, textWidth } from "../src/render/font";
+import { rect } from "../src/render/pixel";
+import { levelMarks } from "../src/render/levelMark";
+import { BOX_H, boxW } from "../src/game/counters";
+import { BattleCounters } from "../src/screens/battleCounters";
 import { drawMachinery } from "../src/render/machinery";
 import { cruiserModel, drawTurrets, turretPivotX, turretPivotY, type CruiserView } from "../src/render/cruiser";
 import { DEFAULT_SKIN } from "../src/render/styles";
@@ -87,6 +93,13 @@ const hasColour = (c: RasterCanvas, x: number, y: number, w: number, h: number, 
   return false;
 };
 const turretDef = (b: Build, slot: number) => heroOf(b).turrets[slot];
+type Box = { x: number; y: number; w: number; h: number };
+/** Two screen boxes share a pixel. */
+const meets = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+/** A turret-local box (u across, v along the bow axis, forward = -v: w along u, h along v) on screen for pivot (px, py), written out as
+ *  cruiser.ts trect maps it: the oracle for where the gun's own marks sit, on every facing. */
+const turretLocal = (f: DeckFrame, px: number, py: number, u: number, v: number, w: number, h: number): Box =>
+  f.facing === 0 ? { x: px + u, y: py + v, w, h } : f.facing === 2 ? { x: px + u, y: py - v - h, w, h } : f.facing === 1 ? { x: px - v - h, y: py + u, w: h, h: w } : { x: px + v, y: py + u, w: h, h: w };
 
 // ---------------------------------------------------------------------------------------------------------- the board
 
@@ -140,26 +153,26 @@ describe("ENCHANT-1 E7: the spark: the top-right corner of the piece, in its wor
 
   it("it covers neither a rig's arrows (the nozzles' zones), nor its star pips, nor a factory's chute mouth, spark or counter", () => {
     const rig: Placed = { uid: 10, def: "whetstone", x: 3, y: 3, stars: 3 };
-    for (const [name, f] of FRAMES) {
-      const base = draw(deck([rig]), f), c = on(() => draw(deck([withWord(rig, "growing", 5)]), f));
+    for (const [name, f] of FRAMES) for (const gr of [5, 55]) { // ENCHANT-1b (N5): the 9 px badge with one digit (7 wide) and with two (11 wide)
+      const base = draw(deck([rig]), f), c = on(() => draw(deck([withWord(rig, "growing", gr)]), f));
       const cx = Math.round(footX(f, rig.x, rig.y)), cy = Math.round(footY(f, rig.x, rig.y));
       const zones: [number, number, number, number][] = [ // the 4-wide spouts on the middle of each side (3 deep), the ★3 pips' row, and the arrowhead past the right edge
         [cx + 4, cy, 4, 3], [cx + 4, cy + 9, 4, 3], [cx, cy + 4, 3, 4], [cx + 9, cy + 4, 3, 4], [cx + 2, cy + 10, 8, 1], [cx + 12, cy + 3, 3, 6],
       ];
-      for (const [x, y, w, h] of zones) for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) expect(c.at(x + i, y + j), `${name}: (${x + i}, ${y + j})`).toBe(base.at(x + i, y + j));
+      for (const [x, y, w, h] of zones) for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) expect(c.at(x + i, y + j), `${name} grow ${gr}: (${x + i}, ${y + j})`).toBe(base.at(x + i, y + j));
     }
     // a press with a belt leaving through each of its top-right and bottom-right neighbours: the chute's mouth line is never changed
     const press: Placed = { uid: 11, def: "press", x: 5, y: 4 };
     const belts: [string, number][] = [["above its right column", K(6, 3)], ["right of its top row", K(7, 4)], ["below its right column", K(6, 6)], ["right of its bottom row", K(7, 5)]];
-    for (const [what, cell] of belts) for (const [name, f] of FRAMES) {
+    for (const [what, cell] of belts) for (const [name, f] of FRAMES) for (const gr of [4, 44]) {
       const b: Build = { ...deck([press]), routes: [{ factory: 11, cells: [cell] }] };
-      const bw: Build = { ...b, items: b.items.map((p) => (p.uid === 11 ? withWord(p, "growing", 4) : p)) };
+      const bw: Build = { ...b, items: b.items.map((p) => (p.uid === 11 ? withWord(p, "growing", gr) : p)) };
       const base = draw(b, f), c = on(() => draw(bw, f));
       const d0 = adjacentToFactory(b, 11, cell), lx = (cell % 10) * 12, ly = Math.floor(cell / 10) * 12, o = { x: 0, y: 0, w: 0, h: 0 };
       const ch = d0 === 0 ? localRect(f, lx + 2, ly + 9, 8, 5, o) : d0 === 2 ? localRect(f, lx + 2, ly - 2, 8, 5, o) : d0 === 1 ? localRect(f, lx - 2, ly + 2, 5, 8, o) : localRect(f, lx + 9, ly + 2, 5, 8, o);
       const mouth = ch.w > ch.h ? { x: ch.x + 2, y: ch.y + 2, w: ch.w - 4, h: 1 } : { x: ch.x + 2, y: ch.y + 2, w: 1, h: ch.h - 4 };
       expect(d0, `${what}: the belt's side`).toBeGreaterThanOrEqual(0);
-      for (let j = 0; j < mouth.h; j++) for (let i = 0; i < mouth.w; i++) expect(c.at(mouth.x + i, mouth.y + j), `${what} ${name}: the mouth (${i}, ${j})`).toBe(base.at(mouth.x + i, mouth.y + j));
+      for (let j = 0; j < mouth.h; j++) for (let i = 0; i < mouth.w; i++) expect(c.at(mouth.x + i, mouth.y + j), `${what} ${name} grow ${gr}: the mouth (${i}, ${j})`).toBe(base.at(mouth.x + i, mouth.y + j));
     }
   });
 
@@ -232,29 +245,57 @@ describe("ENCHANT-1 E7: the spark: the top-right corner of the piece, in its wor
 });
 
 describe("ENCHANT-1 E7 (REQ-BFG-050): GROWING's counter", () => {
-  it("the badge: a 1 px ink frame, the word's colour, the number in the 3x5 face (one digit 5 x 7, two digits 9 x 7), at most two digits", () => {
+  it("the badge (ENCHANT-1b N5): a 1 px frame in the word's colour round an ink box, the number in the 3x5 face in white 2 px in and 2 px down (one digit 7 x 9, two digits 11 x 9), nothing outside the box, at most two digits", () => {
     const col = ENCHANT_DEFS.growing.color;
     for (const n of [1, 4, 9, 12, 37, 99]) {
       const c = fresh(30, 20);
       drawGrowCounter(G(c), 3, 4, n, col);
       const { w, h } = counterSize(n), t = String(n);
-      expect([w, h], `${n}`).toEqual([textWidth(t, "3") + 2, COUNTER_H]);
-      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-        const edge = i === 0 || j === 0 || i === w - 1 || j === h - 1, got = c.at(3 + i, 4 + j);
-        if (edge) { expect(got, `${n} frame (${i}, ${j})`).toBe(C.ink); continue; }
-        let lit = false, x = 0; // the number's pixels are ink on this light fill, the rest the word's colour
+      expect([w, h], `${n}`).toEqual([textWidth(t, "3") + 4, COUNTER_H]);
+      for (let j = 0; j < 20; j++) for (let i = 0; i < 30; i++) {
+        const bi = i - 3, bj = j - 4, got = c.at(i, j);
+        if (bi < 0 || bj < 0 || bi >= w || bj >= h) { expect(got, `${n} outside the box (${i}, ${j})`).toBeNull(); continue; }
+        const edge = bi === 0 || bj === 0 || bi === w - 1 || bj === h - 1;
+        if (edge) { expect(got, `${n} frame (${bi}, ${bj})`).toBe(col); continue; }
+        let lit = false, x = 0; // the number's pixels are white; the rest inside (the number's 1 px ink outline too) is ink
         for (const ch of t) {
           const rows = glyphRows(ch, "3")!, gw = rows[0].length;
-          if (i - 1 >= x && i - 1 < x + gw && rows[j - 1]?.[i - 1 - x] === "#") lit = true;
+          if (bi - 2 >= x && bi - 2 < x + gw && rows[bj - 2]?.[bi - 2 - x] === "#") lit = true;
           x += gw + 1;
         }
-        expect(got, `${n} (${i}, ${j})`).toBe(lit ? C.ink : col);
+        expect(got, `${n} (${bi}, ${bj})`).toBe(lit ? C.white : C.ink);
       }
     }
     const a = fresh(30, 20), b = fresh(30, 20); // three digits are never printed: 150 shows 99
     drawGrowCounter(G(a), 3, 4, 150, col);
     drawGrowCounter(G(b), 3, 4, 99, col);
     expect(sig(a)).toBe(sig(b));
+  });
+
+  it("ENCHANT-1b N5: the badge is the battle's count box at its own size (BOX_H tall, boxW wide), its numeral the battle's: white with a 1 px ink outline on ink", () => {
+    const col = ENCHANT_DEFS.growing.color;
+    const battle = new BattleCounters() as unknown as { boxImage(icon: string, text: string, col: string): RasterCanvas };
+    expect(COUNTER_H, "the battle's BOX_H").toBe(BOX_H);
+    for (const n of [1, 3, 8, 10, 27, 99]) {
+      const t = String(n), { w, h } = counterSize(n);
+      expect([w, h], `${n}: boxW(numeral) x BOX_H`).toEqual([boxW(textWidth(t, "3")), BOX_H]);
+      // the battle's own count box for the same numeral in white (screens/battleCounters.ts boxImage, a belt's count): the same size,
+      // and the badge's white pixels are exactly the box's white pixels (its numeral, 2 px in and 2 px down)
+      const box = battle.boxImage("", t, C.white);
+      expect([box.width, box.height], `${n}: the battle's box`).toEqual([w, h]);
+      const c = fresh(w, h), ref = fresh(w, h);
+      drawGrowCounter(G(c), 0, 0, n, col);
+      rect(G(ref), 0, 0, w, h, C.ink); // badgeImage's drawing: the numeral as the battle draws it, in white with an ink outline, over ink
+      drawText(G(ref), t, 2, 2, C.white, { font: "3", outline: C.ink });
+      let white = 0;
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        const inside = i > 0 && j > 0 && i < w - 1 && j < h - 1;
+        expect(c.at(i, j), `${n} (${i}, ${j})`).toBe(inside ? ref.at(i, j) : col);
+        expect(c.at(i, j) === C.white, `${n} (${i}, ${j}): white where the battle's box is white`).toBe(box.at(i, j) === C.white);
+        if (c.at(i, j) === C.white) white++;
+      }
+      expect(white, `${n}: a white numeral`).toBeGreaterThan(0);
+    }
   });
 
   const rig: Placed = { uid: 10, def: "whetstone", x: 3, y: 3 };
@@ -277,21 +318,32 @@ describe("ENCHANT-1 E7 (REQ-BFG-050): GROWING's counter", () => {
     expect(on(() => wordMark({ ench: "growing", grow: 4 }, "whetstone"))).toEqual({ id: "growing", color: ENCHANT_DEFS.growing.color, grow: 4 });
   });
 
-  it("on a turret holding GROWING: the number right under the spark, forward-right of the gun, on every facing; the two never overlap", () => {
+  it("on a turret holding GROWING: the number right behind the spark, forward-right of the gun, on every facing; it never covers the spark, its plate, a chamber or store pip or the TURRET SPEED plate", () => {
     const guns = ["scrapcannon", ...Object.values(ITEMS).filter((d) => d.kind === "turret").map((d) => d.id)];
+    let naiveHits = 0; // how often a badge simply centred on the spark would have met the pips (so the check below is not vacuous)
     for (const hero of ["furnace", "weaver", "foundry", "bastion"] as const) for (const def of guns) for (const [name, f] of FRAMES) for (const g of [3, 11]) {
       const b = deck([], [{ slot: 0, def, uid: 90, free: true, ench: "growing", grow: g }], hero), at = `${hero} ${def} ${name} ${g}`;
       const c = on(() => draw(b, f)), td = turretDef(b, 0);
-      const px = Math.round(turretPivotX(f, td.col0, td.width)), py = Math.round(turretPivotY(f, td.col0, td.width));
-      const m = turretMarkAt(f, px, py, pipColumn(td.kind, heroOf(b).faction), g, td.kind), { w, h } = counterSize(g);
+      const px = Math.round(turretPivotX(f, td.col0, td.width)), py = Math.round(turretPivotY(f, td.col0, td.width)), pu = pipColumn(td.kind, heroOf(b).faction);
+      const m = turretMarkAt(f, px, py, pu, g, td.kind), { w, h } = counterSize(g), bd = { x: m.counter.x, y: m.counter.y, w, h };
       const iso = fresh(40, 20);
       drawGrowCounter(G(iso), 4, 4, g, ENCHANT_DEFS.growing.color);
       for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) expect(c.at(m.counter.x + i, m.counter.y + j), `${at}: the badge (${i}, ${j})`).toBe(iso.at(4 + i, 4 + j));
-      // the badge is the spark's neighbour: it may meet the plate's rim (ink on ink), never the spark itself
+      // the badge is the spark's neighbour: it never meets the spark itself, nor (ENCHANT-1b N5: its frame is no longer ink) the spark's plate, the plus of ink round it
       const apart = m.counter.y + h <= m.spark.y || m.spark.y + 3 <= m.counter.y || m.counter.x + w <= m.spark.x || m.spark.x + 3 <= m.counter.x;
       expect(apart, `${at}: spark and badge apart`).toBe(true);
+      expect(meets(bd, { x: m.spark.x, y: m.spark.y - 1, w: 3, h: 5 }) || meets(bd, { x: m.spark.x - 1, y: m.spark.y, w: 5, h: 3 }), `${at}: the spark's plate is whole`).toBe(false);
       expect(hasColour(c, m.spark.x, m.spark.y, 3, 3, ENCHANT_DEFS.growing.color), `${at}: the spark is still there`).toBe(true);
+      // the chamber pips and the hopper's store pips (turret-local u = pip column .. +8, from v = -4 down: the zone is generous) are not covered
+      expect(meets(bd, turretLocal(f, px, py, pu, -4, 9, 24)), `${at}: off the chamber and store pips`).toBe(false);
+      // nor is the TURRET SPEED plate of a free starting turret at level 2 (levelMark.ts: the numeral on ink at the head of the pip column)
+      const plates = levelMarks({ ...b, upgrades: { turret: 2 } }, f).filter((q) => q.track === "turret");
+      expect(plates.length, `${at}: the level plate exists`).toBe(1);
+      expect(meets(bd, plates[0]), `${at}: off the TURRET SPEED plate`).toBe(false);
+      const naive = f.facing === 0 || f.facing === 2 ? { ...bd, x: m.spark.x + 1 - Math.floor(w / 2) } : { ...bd, y: m.spark.y + 1 - Math.floor(h / 2) };
+      if (meets(naive, turretLocal(f, px, py, pu, -4, 9, 24))) naiveHits++;
     }
+    expect(naiveHits, "centred on the spark with no care, the badge would meet the pips in some cases").toBeGreaterThan(0);
   });
 });
 
@@ -469,7 +521,9 @@ describe("ENCHANT-1 E7: the battle world and the scouted foe draw the same marks
     const live = on(render), off = render();
     const m = pieceMarkAt(f, rig), col = ENCHANT_DEFS.growing.color;
     expect(hasColour(live, m.spark.x, m.spark.y, 3, 3, col), "the rig's spark in the battle world").toBe(true);
-    expect(hasColour(live, m.counter.x + 1, m.counter.y + 1, 3, 5, col), "its counter").toBe(true);
+    expect(live.at(m.counter.x, m.counter.y), "its counter's frame, in the word's colour").toBe(col); // ENCHANT-1b (N5): the frame is the word's colour, the number inside white on ink
+    expect(hasColour(live, m.counter.x + 2, m.counter.y + 2, 3, 5, C.white), "its counter's numeral").toBe(true);
+    expect(off.at(m.counter.x, m.counter.y), "the switch off: no counter").not.toBe(col);
     const td = turretDef(b, 0), px = Math.round(turretPivotX(f, td.col0, td.width)), py = Math.round(turretPivotY(f, td.col0, td.width));
     const t = turretMarkAt(f, px, py, pipColumn(td.kind, heroOf(b).faction), 0, td.kind);
     expect(hasColour(live, t.spark.x, t.spark.y, 3, 3, ENCHANT_DEFS.braced.color), "the turret's spark").toBe(true);

@@ -12,15 +12,19 @@
 //     of a rig's arrows (the 4-wide nozzle sits on the middle of a side: cols 4-7), of a factory's chute (it straddles the edge of the first
 //     belt cell, 8 wide from 2 px in), of the star pips (the bottom), of the FACTORY level mark (the bottom-left) and of the stall `!`.
 //     A shaped piece (an L, a T, a line, a 2x3 factory) takes the top-right cell of its footprint's top row, so the mark is always on the piece.
-//   - GROWING's COUNTER: a 5x7 badge (a 1 px ink frame round a 3x5 numeral, SCALE-2c's badge form scaled to the 12 px cell) hanging off the
-//     bottom-right corner of its bottom-right cell, its top-left at (cell + 10, cell + 9): again clear of every nozzle (they end at row 7 on
+//   - GROWING's COUNTER (ENCHANT-1b N5): the battle's count box (9 px tall, the numeral's width + 4: game/counters.ts BOX_H and boxW), ink
+//     inside, the numeral in white with a 1 px ink outline, its 1 px frame in GROWING's green; 7 x 9 for one digit, 11 x 9 for two. It hangs
+//     off the bottom-right corner of its bottom-right cell, its top-left at (cell + 10, cell + 9): clear of every nozzle (they end at row 7 on
 //     the right side and at col 7 on the bottom side), of the star pips (the third ends at col 9) and of the arrowhead a rig's right arrow
-//     drives into the next tile (rows 3-8). It grows to the right for a second digit.
+//     drives into the next tile (rows 3-8): the box only grows down and to the right of that corner, so none of those zones is reached. It
+//     grows to the right for a second digit.
 //   - a turret: turret-local, like its chamber pips, gear boxes and level plate (it turns with the hull): the SPARK ahead of the head of the
 //     pip column, forward-right of the barrel, 3x3 at (pip column - 5, -14) (the TURRET SPEED level plate sits at u = pip column.., so the
-//     two never meet; sparkColumn moves it out for the adaptable gun's heavy art); the COUNTER right behind it along the gun's axis (rows
-//     v -11..-5, clear of the first chamber pip at -4): the one place with no spot clear of the gun's art for a 5x7 badge, so it sits over
-//     the base's shoulder.
+//     two never meet; sparkColumn moves it out for the adaptable gun's heavy art); the COUNTER right behind the spark's plate along the
+//     gun's axis (its first row the one after the plate's last, v -10), centred on the spark across the axis but never nearer the pips than
+//     the column before the first chamber pip (it stops at u = pip column - 1, and at - 2 with the bow sideways, which keeps the level plate
+//     clear too). No spot beside the gun is clear of its art for a box this size (nor was one for the old 5x7 badge), so it lies over the
+//     base's shoulder and a stretch of the barrel's rear; it never covers the spark, its plate, a chamber or store pip or the level plate.
 // Everything here asks the switch (enchant.ts liveWord/enchantRules): off, no function draws a pixel, so every frame is as before.
 
 import { CELL, ITEMS, type ItemDef } from "../sim/content";
@@ -37,8 +41,9 @@ import type { CruiserView } from "./cruiser";
 
 /** The spark's size (art px): enchantArt.ts drawEnchantSpark's. */
 export const SPARK_SIZE = 3;
-/** GROWING's counter badge: 7 px tall (a 1 px ink frame round the 3x5 numeral); one digit 5 wide, two digits 9. */
-export const COUNTER_H = 7;
+/** GROWING's counter badge: 9 px tall, the battle's count boxes' height (game/counters.ts BOX_H); one digit 7 wide, two digits 11 (boxW: the
+ *  numeral's width + 4). */
+export const COUNTER_H = 9;
 /** The most the counter prints (two digits). */
 export const COUNTER_MAX = 99;
 /** On a rig or factory the badge's top-left sits this far in from the right edge and this far up from the bottom edge of the bottom-right
@@ -113,33 +118,25 @@ export function drawBoardSpark(g: G, x: number, y: number, colour: string): void
 
 const counterText = (n: number): string => String(Math.min(COUNTER_MAX, Math.max(0, Math.floor(n))));
 
-/** The counter badge's size for `n`: 5 x 7 for one digit, 9 x 7 for two. */
+/** The counter badge's size for `n`: 7 x 9 for one digit, 11 x 9 for two (the battle's count box: boxW(numeral) x BOX_H). */
 export function counterSize(n: number): { w: number; h: number } {
-  return { w: textWidth(counterText(n), "3") + 2, h: COUNTER_H };
-}
-
-/** The relative luminance of a #rrggbb colour (0 black .. 1 white): picks the numeral's colour on the badge. */
-function luminance(hex: string): number {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return 0;
-  const n = parseInt(m[1], 16);
-  const lin = (v: number): number => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
-  return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return { w: textWidth(counterText(n), "3") + 4, h: COUNTER_H };
 }
 
 /**
- * GROWING's counter (REQ-BFG-050), SCALE-2c's badge form scaled to the board's 12 px cell: a 1 px ink frame, the word's colour as the
- * fill and the number in the 3x5 face (ink on a light fill, white on a dark one), its top-left at (x, y); `n` the dusk fights the piece has
- * been through (two digits at most). SCALE-2c's own badge (game/counters.ts rampBadges, battleCounters.ts badgeImage) is 9 px tall in
- * the HUD layer: here the same look at a size the board's cell holds.
+ * GROWING's counter (REQ-BFG-050; ENCHANT-1b N5): the battle's count box (screens/battleCounters.ts boxImage and badgeImage: game/counters.ts
+ * BOX_H 9 tall, boxW wide) at its own size: ink inside, the number in the 3x5 face in white with a 1 px ink outline, 2 px in and 2 px down;
+ * the 1 px frame is `colour`, the word's green, so the box still ties to the word. Its top-left at (x, y); `n` the dusk fights the piece has
+ * been through (two digits at most). It was a 5 x 7 badge with the word's green as the fill and an ink numeral on it: a small green glyph at
+ * phone size. White on ink is the contrast every other count on the board has.
  */
 export function drawGrowCounter(g: G, x: number, y: number, n: number, colour: string): void {
-  const t = counterText(n), w = textWidth(t, "3") + 2;
+  const t = counterText(n), { w } = counterSize(n);
   x = Math.round(x);
   y = Math.round(y);
-  rect(g, x, y, w, COUNTER_H, C.ink);
-  rect(g, x + 1, y + 1, w - 2, COUNTER_H - 2, colour);
-  drawText(g, t, x + 1, y + 1, luminance(colour) > 0.35 ? C.ink : C.white, { font: "3" });
+  rect(g, x, y, w, COUNTER_H, colour);
+  rect(g, x + 1, y + 1, w - 2, COUNTER_H - 2, C.ink);
+  drawText(g, t, x + 2, y + 2, C.white, { font: "3", outline: C.ink });
 }
 
 // ------------------------------------------------------------------------------------------------------------ the board
@@ -202,13 +199,16 @@ export const TURRET_SPARK_V = -14;
 export const sparkColumn = (kind: string, pu: number): number => (kind === "adaptable" ? Math.max(pu - 5, 7) : pu - 5);
 
 /** Where a turret's marks go: the spark's top-left and the counter's top-left (screen px) for the gun of `kind` at pivot (px, py) with pip
- *  column `pu`. The counter's badge is screen-upright (5 x 7, 9 x 7 for two digits) and sits behind the spark along the gun's axis, on the
- *  pivot's side of it, its far edge on the rim of the spark's plate (ink on ink there): with the bow up its rows run from the plate's last
- *  row down to v = -5, clear of the first chamber pip (v -4); a second digit grows it sideways. */
+ *  column `pu`. The counter's badge is screen-upright (7 x 9, 11 x 9 for two digits) and sits behind the spark along the gun's axis, on the
+ *  pivot's side of it, its first row the one after the last row of the spark's plate (so the plate stays whole: with the bow up the plate's
+ *  last row is v = -11 and the badge's rows run from v = -10 down to -2). Across the axis it is centred on the spark, moved toward the barrel
+ *  only as far as it takes to stay off the chamber pips' column (u = pip column on): its pip-side edge ends at u = pip column - 1, or at
+ *  pip column - 2 with the bow sideways, where the TURRET SPEED level plate (u = pip column - 1 on, v -14..-10) would otherwise be touched. */
 export function turretMarkAt(f: DeckFrame, px: number, py: number, pu: number, n = 1, kind = "light"): { spark: Pt; counter: Pt } {
   const spark = turretRect(f, px, py, sparkColumn(kind, pu), TURRET_SPARK_V, SPARK_SIZE, SPARK_SIZE);
-  const { w, h } = counterSize(n), cx = spark.x + 1 - Math.floor(w / 2), cy = spark.y + 1 - Math.floor(h / 2);
-  const counter = f.facing === 0 ? { x: cx, y: spark.y + 3 } : f.facing === 2 ? { x: cx, y: spark.y - h } : f.facing === 1 ? { x: spark.x - w, y: cy } : { x: spark.x + 3, y: cy };
+  const { w, h } = counterSize(n);
+  const cx = Math.min(spark.x + 1 - Math.floor(w / 2), px + pu - 1 - (w - 1)), cy = Math.min(spark.y + 1 - Math.floor(h / 2), py + pu - 2 - (h - 1));
+  const counter = f.facing === 0 ? { x: cx, y: spark.y + SPARK_SIZE + 1 } : f.facing === 2 ? { x: cx, y: spark.y - h - 1 } : f.facing === 1 ? { x: spark.x - w - 1, y: cy } : { x: spark.x + SPARK_SIZE + 1, y: cy };
   return { spark, counter };
 }
 
