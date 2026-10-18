@@ -303,10 +303,10 @@ export function drawPick(g: G, s: BuildScreen): void {
   panel(g, lay.r, "dark");
   ui.add({ id: "refitbanner", r: lay.r, block: true });
   const tall = lay.r.h >= 70;
-  if (tall) drawText(g, "PICK A WORD", lay.head.x, lay.head.y, C.yellow, { font: "3", align: "center" });
+  if (tall) drawText(g, "PICK ONE FREE ENCHANTMENT", lay.head.x, lay.head.y, C.yellow, { font: "3", align: "center" }); // run 5, E10's fix round: was PICK A WORD
   else {
-    drawText(g, "PICK", lay.head.x, lay.head.y, C.yellow, { font: "3" });
-    drawText(g, "A WORD", lay.head.x, lay.head.y + 7, C.yellow, { font: "3" });
+    drawText(g, "PICK ONE FREE", lay.head.x, lay.head.y, C.yellow, { font: "3" });
+    drawText(g, "ENCHANTMENT", lay.head.x, lay.head.y + 7, C.yellow, { font: "3" });
   }
   for (const c of v.cards) {
     drawWordCard(g, c.rect, c.id, { price: null, sold: false, affordable: true, selected: isSel(s, true, c.i), hover: ui.hover === `enchpick${c.i}`, t: s.t });

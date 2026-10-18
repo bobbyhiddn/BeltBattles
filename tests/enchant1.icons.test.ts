@@ -272,7 +272,7 @@ function keywordColours(): [string, string][] {
 }
 
 /** The two words the brief colours as a keyword: FIERY is BURN's orange, BRACED is PLATE's steel (PIECES-1 4.2; BRIEF "The eight words"). */
-const TWINS: Partial<Record<EnchantId, string>> = { fiery: C.fire3, braced: C.plate3 };
+const TWINS: Partial<Record<EnchantId, string>> = { fiery: C.fire3 }; // run 5: BRACED left PLATE's steel for an ice blue (the cold read), so it keeps the same distance rule as every other word
 const DELTA_E_MIN = 20; // THRESHOLDS.state / .yours: "clearly another colour" (a just-noticeable difference is about 2.3)
 const RGB_MIN = 40; // about 9% of the colour cube's diagonal (441): every word's nearest keyword colour is farther than this (table in the report)
 
@@ -280,8 +280,9 @@ describe("ENCHANT-1 E7: the word colours", () => {
   it("the defs hold 8 well-formed colours, and the two twins are exactly their keyword's colour", () => {
     for (const id of ENCHANT_IDS) expect(ENCHANT_DEFS[id].color, id).toMatch(/^#[0-9A-F]{6}$/);
     expect(ENCHANT_DEFS.fiery.color).toBe(C.fire3); // BURN orange, as [BURN]+1 on the stat row
-    expect(ENCHANT_DEFS.braced.color).toBe(C.plate3); // PLATE steel #C6D0EA, the brief's
+    expect(ENCHANT_DEFS.braced.color).toBe("#6CC0F0"); // run 5 (E10's fix round): an ice blue, not PLATE's steel #C6D0EA (the brief's), which 4 of 6 cold readers took for the part's name
     expect(C.plate3).toBe("#C6D0EA");
+    expect(separation(ENCHANT_DEFS.braced.color, C.plate3)).toBeGreaterThanOrEqual(20); // a clearly different shade from PLATE's own steel
   });
 
   it("each word reads on every panel style: the contrast the keyword colours keep (keywordMin, at least 3:1) and WCAG AA 4.5:1 for text", () => {

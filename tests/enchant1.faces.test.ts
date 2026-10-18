@@ -260,7 +260,7 @@ describe("ENCHANT-1 E7: THE ROWS: a stat word at the end of the stat row, a line
     on(() => {
       for (const kind of KINDS) for (const stars of [1, 2, 3]) {
         expect(wordLine("rising", kind, stars), `RISING ${kind} ★${stars}`).toContain(`+${ENCHANT_NUM.risingStep * stars} {DMG} MORE THAN THE LAST`);
-        expect(wordLine("growing", kind, stars), `GROWING ${kind} ★${stars}`).toContain(`+${ENCHANT_NUM.growingStep * stars} {DMG}, ALL RUN`);
+        expect(wordLine("growing", kind, stars), `GROWING ${kind} ★${stars}`).toContain(`+${ENCHANT_NUM.growingStep * stars} {DMG}, FOR THE RUN`);
         expect(wordLine("braced", kind, stars), `BRACED ${kind} ★${stars}`).toContain(`THE FIRST ${ENCHANT_NUM.bracedStuns * stars} {STUN}STUNS`);
         expect(wordLine("fiery", kind, stars), `FIERY ${kind} ★${stars}`).toContain(`{BURN}+${ENCHANT_NUM.burn * stars}.`);
       }
@@ -441,7 +441,7 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
     });
   });
 
-  it("enchantNotes(word): the two lines for one of the eight words with the switch on; [] for no word, a stray id, and every word with the switch off", () => {
+  it("enchantNotes(word): the three lines for one of the eight words with the switch on; [] for no word, a stray id, and every word with the switch off", () => {
     on(() => {
       for (const id of ENCHANT_IDS) expect(enchantNotes(id)).toEqual([...ENCHANT_NOTES]);
       expect(enchantNotes(undefined)).toEqual([]);
@@ -451,6 +451,7 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
     expect(ENCHANT_NOTES).toEqual([
       "ENCHANTED: ONE EXTRA EFFECT ON THIS PART, SHOWN IN ITS COLOUR. IT STAYS WHEN YOU MOVE THE PART AND IS LOST IF YOU SELL IT.",
       "A PART HOLDS ONE: A NEW ONE REPLACES IT.",
+      "A MERGE KEEPS ONE: IF BOTH PARTS HAVE ONE, YOU PICK.",
     ]);
   });
 

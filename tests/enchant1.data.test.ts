@@ -82,7 +82,7 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
     expect(enchantLine("rising", "rig")).toBe(`EACH SLUG IT HITS: +${ENCHANT_NUM.risingStep} DMG MORE THAN THE LAST.`);
     expect(enchantLine("rising", "factory")).toBe(`EACH SLUG IT MAKES: +${ENCHANT_NUM.risingStep} DMG MORE THAN THE LAST.`);
     expect(enchantLine("rising", "turret")).toBe(`EACH SHOT: +${ENCHANT_NUM.risingStep} DMG MORE THAN THE LAST.`);
-    expect(enchantLine("growing", "rig")).toBe("AFTER EACH DUSK FIGHT: ITS HIT +5 DMG, ALL RUN.");
+    expect(enchantLine("growing", "rig")).toBe("AFTER EACH DUSK FIGHT: ITS HIT +5 DMG, FOR THE RUN."); // run 5, E10's fix round: was ALL RUN (a reader hedged on it twice)
     expect(enchantLine("echoing", "rig")).toBe(`EVERY ${ORD} SLUG IT HITS GETS ITS STATS TWICE.`);
     expect(enchantLine("echoing", "factory")).toBe(`EVERY ${ORD} TIME IT WORKS: 1 MORE SLUG.`);
     expect(enchantLine("echoing", "turret")).toBe(`EVERY ${ORD} SHOT HITS TWICE.`);

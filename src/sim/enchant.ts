@@ -88,7 +88,9 @@ export interface EnchantDef {
 }
 
 /** The eight words. Colours are PIECES-1 4.2's starting values (BURN orange, amber, moss green, violet, iron grey, yellow, teal,
- *  PLATE steel #C6D0EA); E7 (run 3) moves any that sits too near a keyword's colour, and logs it. */
+ *  PLATE steel #C6D0EA); E7 (run 3) moves any that sits too near a keyword's colour, and logs it. Run 5 (E10's fix round): BRACED's
+ *  PLATE steel read as the part's own cream name (4 of 6 cold readers could not see it as a colour), so it is an ice blue, #6CC0F0
+ *  (delta E 23 from the nearest keyword colour, PAIR's; rgb 54 from SHIELD's; 45 from the cream name; contrast 8.6 on the darkest panel). */
 export const ENCHANT_DEFS: Readonly<Record<EnchantId, EnchantDef>> = {
   fiery: { id: "fiery", name: "FIERY", code: "fi", color: "#FF9B2A", scales: true, kinds: ["rig", "factory", "turret"] },
   rising: { id: "rising", name: "RISING", code: "ri", color: "#C8962A", scales: true, kinds: ["rig", "factory", "turret"] },
@@ -97,7 +99,7 @@ export const ENCHANT_DEFS: Readonly<Record<EnchantId, EnchantDef>> = {
   massive: { id: "massive", name: "MASSIVE", code: "ma", color: "#8A8F98", scales: false, kinds: ["factory", "turret"] },
   swift: { id: "swift", name: "SWIFT", code: "sw", color: "#FFF59D", scales: false, kinds: ["factory", "turret"] },
   wide: { id: "wide", name: "WIDE", code: "wi", color: "#1FA6B8", scales: false, kinds: ["rig", "factory", "turret"] },
-  braced: { id: "braced", name: "BRACED", code: "br", color: "#C6D0EA", scales: true, kinds: ["rig", "factory", "turret"] },
+  braced: { id: "braced", name: "BRACED", code: "br", color: "#6CC0F0", scales: true, kinds: ["rig", "factory", "turret"] },
 };
 
 const has = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
@@ -292,7 +294,7 @@ export function enchantLine(id: EnchantId, kind: EnchantKind): string | null {
   switch (id) {
     case "fiery": return `${its}: [BURN]+${n.burn}.`;
     case "rising": return `EACH ${what}: +${n.risingStep} DMG MORE THAN THE LAST.`;
-    case "growing": return `AFTER EACH DUSK FIGHT: ${its} +${n.growingStep} DMG, ALL RUN.`;
+    case "growing": return `AFTER EACH DUSK FIGHT: ${its} +${n.growingStep} DMG, FOR THE RUN.`;
     case "echoing":
       return kind === "rig" ? `EVERY ${ord(n.echoEvery)} SLUG IT HITS GETS ITS STATS TWICE.`
         : kind === "factory" ? `EVERY ${ord(n.echoEvery)} TIME IT WORKS: 1 MORE SLUG.` : `EVERY ${ord(n.echoEvery)} SHOT HITS TWICE.`;

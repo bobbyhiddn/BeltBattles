@@ -25,6 +25,7 @@ import type { Span } from "./richText";
 export const ENCHANT_NOTES: readonly string[] = [
   "ENCHANTED: ONE EXTRA EFFECT ON THIS PART, SHOWN IN ITS COLOUR. IT STAYS WHEN YOU MOVE THE PART AND IS LOST IF YOU SELL IT.",
   "A PART HOLDS ONE: A NEW ONE REPLACES IT.", // TEXT-STYLE bans PER (a rate word): the brief's `ONE PER PART` is reworded (run 3)
+  "A MERGE KEEPS ONE: IF BOTH PARTS HAVE ONE, YOU PICK.", // run 5, E10's fix round: no reader could tell from a face what a merge does
 ];
 
 /** A line as the panel draws it: enchant.ts writes an icon as [NAME] (the brief's form); the panels' markup is {NAME}, and the word DMG is
