@@ -27,6 +27,7 @@
 //     that has no such route answers 404 and nothing changes. Upload only: the answer is not merged back. No new storage key.
 
 import { RULES_VERSION } from "../sim/content";
+import { inEndless } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): an endless dusk's match request
 import { fetchGhost, submitGhost, type FetchedGhost, type GhostRequest, type SubmitResult } from "../net/ghostClient";
 import { indexedDbKeyStore, loadIdentity, type Identity } from "../net/identity";
 import { putProfile, type PutProfileResult } from "../net/profileClient";
@@ -197,8 +198,10 @@ export class Online implements Session {
   /** The match request for the run's current dusk (step 3). */
   request(run: Run): GhostRequest {
     return {
-      rules: RULES_VERSION, day: run.day, wins: run.wins, lives: Math.max(1, run.lives), playerId: this.identity!.playerId,
+      // ENDLESS-1 (REQ-BFG-059): an endless dusk's request carries the ENDLESS wins and hearts and asks for endless ghosts only
+      rules: RULES_VERSION, day: run.day, wins: inEndless(run) ? run.endlessRun!.wins : run.wins, lives: Math.max(1, run.lives), playerId: this.identity!.playerId,
       seen: [...(run.seenGhosts ?? [])], hero: run.hero, seed: battleSeed(run), runs: this.runs(),
+      ...(inEndless(run) ? { endless: true as const } : {}),
     };
   }
 

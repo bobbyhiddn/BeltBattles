@@ -20,7 +20,11 @@ import { hashSeed } from "../core/rng";
 // first module to import the gate, and a test that mocks ../src/net/rulesGate (tests/ghost-probe.misbehave.test.ts: heroGateProblem
 // wrapped over importOriginal) reached the decoder. An import of ./rulesGate here, ahead of snapshot.ts, makes the decoder bind to
 // the real gate (rulesGate.ts -> pick.ts -> snapshot.ts is a cycle: the module that loads first gets the mock, the rest the real gate).
-import { longRunFor, type PoolEntry } from "./snapshot";
+// ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.3): an endless request reads only endless ghosts, on the days endless.ts endlessMatchDays
+// names; a run request never reads one. endlessFor comes THROUGH snapshot.ts too (T3d above): the decoder stays the first module to
+// import the gate.
+import { endlessFor, longRunFor, type PoolEntry } from "./snapshot";
+import { endlessMatchDays } from "../sim/endless";
 
 /** D2: a player's first NEW_PLAYER_RUNS runs match only seed ghosts. */
 export const NEW_PLAYER_RUNS = 3;
@@ -34,7 +38,16 @@ export interface MatchRequest {
   seen: readonly string[]; // ghost ids already fought this run (never repeat within a run)
   /** 0.7.0a D2: the requester's finished runs (won or lost) on its device. Absent counts as 0: a new player. */
   runs?: number;
+  /** ENDLESS-1 (REQ-BFG-059): an endless dusk's request (true only; absent on every run's). `wins` and `lives` are then the player's
+   *  ENDLESS wins and hearts going into the fight (day: the day, past 25 up to ENDLESS_LAST_DAY). It reads ONLY endless ghosts
+   *  (snapshot mode "endless"), nearest endless wins first then nearest hearts (no D1: endless is a score attack among run
+   *  winners), on endless.ts endlessMatchDays; a request without it never reads one. Honoured only under rules with endless
+   *  (rulesGate.ts endlessFor); under any other rules the server refuses the request. */
+  endless?: true;
 }
+
+/** ENDLESS-1: the wins a ghost carries for a request's record: its endless wins for an endless request, else its run wins. */
+const winsFor = (s: { wins: number; endlessWins?: number }, endless: boolean): number => (endless ? s.endlessWins ?? 0 : s.wins);
 
 export interface IntRng {
   int(n: number): number;
@@ -55,9 +68,10 @@ export function isNewPlayer(req: { runs?: number }): boolean {
  *  and (D1) no better record than its own. (The exact day only; the long run's widening is eligibleWide's.) */
 export function eligible(pool: readonly PoolEntry[], req: MatchRequest): PoolEntry[] {
   const seen = new Set(req.seen);
+  const endless = req.endless === true; // ENDLESS-1: an endless request reads only endless ghosts, a run's never one; no D1 in endless
   return pool.filter((e) =>
     e.snapshot.rules === req.rules && e.snapshot.day === req.day &&
-    e.snapshot.playerId !== req.playerId && !seen.has(e.id) && noBetterRecord(e.snapshot, req));
+    e.snapshot.playerId !== req.playerId && !seen.has(e.id) && (e.snapshot.mode === "endless") === endless && (endless || noBetterRecord(e.snapshot, req)));
 }
 
 /**
@@ -65,15 +79,18 @@ export function eligible(pool: readonly PoolEntry[], req: MatchRequest): PoolEnt
  * every EARLIER day down to 1, never a later one. The 10-day rules: its own day only (as before). A thin day is one with no
  * eligible ghost: the first day in this list that has one is the day the pick is made on.
  */
-export function matchDays(req: Pick<MatchRequest, "rules" | "day">): number[] {
+export function matchDays(req: Pick<MatchRequest, "rules" | "day"> & { endless?: true }): number[] {
+  if (req.endless && endlessFor(req.rules)) return endlessMatchDays(req.day); // ENDLESS-1: its own day, then the nearest earlier ones within the window
   if (!longRunFor(req.rules)) return [req.day];
   const top = Math.max(1, Math.floor(req.day));
   return Array.from({ length: top }, (_, i) => top - i);
 }
 
 /** RUN-1 (D6): does a served ghost of day `ghostDay` fit a request? Its own day; and under a long run's rules any day up to it
- *  (the widening), never a later one. The client's check of a server answer (ghostClient.ts) and the server's tests ask it. */
-export function ghostDayOk(ghostDay: number, req: Pick<MatchRequest, "rules" | "day">): boolean {
+ *  (the widening), never a later one. The client's check of a server answer (ghostClient.ts) and the server's tests ask it.
+ *  ENDLESS-1: an endless request takes exactly the days endlessMatchDays names. */
+export function ghostDayOk(ghostDay: number, req: Pick<MatchRequest, "rules" | "day"> & { endless?: true }): boolean {
+  if (req.endless && endlessFor(req.rules)) return Number.isInteger(ghostDay) && endlessMatchDays(req.day).includes(ghostDay);
   return longRunFor(req.rules) ? Number.isInteger(ghostDay) && ghostDay >= 1 && ghostDay <= req.day : ghostDay === req.day;
 }
 
@@ -84,9 +101,10 @@ export function matchDay(pool: readonly PoolEntry[], req: MatchRequest): number 
   if (days.length === 1) return req.day;
   const seen = new Set(req.seen);
   const has = new Set<number>();
+  const endless = req.endless === true;
   for (const e of pool) {
     const s = e.snapshot;
-    if (s.rules === req.rules && s.day <= req.day && s.playerId !== req.playerId && !seen.has(e.id) && noBetterRecord(s, req)) has.add(s.day);
+    if (s.rules === req.rules && s.day <= req.day && s.playerId !== req.playerId && !seen.has(e.id) && (s.mode === "endless") === endless && (endless || noBetterRecord(s, req))) has.add(s.day);
   }
   return days.find((d) => has.has(d)) ?? req.day;
 }
@@ -109,8 +127,9 @@ export function eligibleWide(pool: readonly PoolEntry[], req: MatchRequest): Poo
 export function pickGhost(pool: readonly PoolEntry[], req: MatchRequest, rng: IntRng): PoolEntry | null {
   let best: PoolEntry[] = [];
   let bw = Infinity, bl = Infinity;
+  const endless = req.endless === true; // ENDLESS-1: nearest ENDLESS wins first
   for (const e of eligibleWide(pool, req)) {
-    const dw = Math.abs(e.snapshot.wins - req.wins);
+    const dw = Math.abs(winsFor(e.snapshot, endless) - req.wins);
     const dl = Math.abs(e.snapshot.lives - req.lives);
     if (dw < bw || (dw === bw && dl < bl)) {
       best = [e];
@@ -127,5 +146,7 @@ export function pickGhost(pool: readonly PoolEntry[], req: MatchRequest, rng: In
 
 /** Stable seed for a request; the server mixes in a coarse time bucket for variety. */
 export function matchSeed(req: MatchRequest, salt: number | string = 0): number {
-  return hashSeed("match", req.rules, req.day, req.wins, req.lives, req.playerId, [...req.seen].sort().join(","), salt);
+  // ENDLESS-1: an endless request hashes apart from a run's (a run's seed is exactly as before)
+  return req.endless ? hashSeed("match", req.rules, req.day, req.wins, req.lives, req.playerId, [...req.seen].sort().join(","), salt, "endless")
+    : hashSeed("match", req.rules, req.day, req.wins, req.lives, req.playerId, [...req.seen].sort().join(","), salt);
 }

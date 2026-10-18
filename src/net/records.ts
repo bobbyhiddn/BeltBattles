@@ -41,6 +41,7 @@ import { heartsFor } from "./rulesGate";
 import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL } from "../sim/longRun";
 import { longRunFor } from "./rulesGate";
 import { BAG_IDS } from "../game/eventDefs";
+import { ENDLESS_LIVES, ENDLESS_MAX_DRAWS, ENDLESS_WIN_CAP } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): the endless model's numbers
 
 /** The DOCK's PATCH UP: the one road choice that moves lives (tests check it against the event definitions). */
 export const PATCH_UP_LIVES = 1;
@@ -242,6 +243,93 @@ function longStates(day: number, m: { hearts: boolean; lcOn: boolean; draws: boo
   }
   // a LAST CHANCE on a given day must have fired by now; a null one, never (pruned above)
   return typeof m.lcAt === "number" ? states.filter((s) => s.used) : states;
+}
+
+// ---- ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.4): the endless model -------------------------------------------------------------
+// An endless snapshot (snapshot.ts: mode "endless") is a dusk after a WON run. Its record has two phases, each held by a model:
+//  - the RUN, up to its victoryDay: the long run's model (longRunRecords) has a state with WIN_GOAL - 1 wins going into the
+//    victoryDay's dusk (that dusk is the 10th win), with the snapshot's `losses` and its LAST CHANCE (which can only be from
+//    before the victory day: endlessProblem);
+//  - the ENDLESS, from victoryDay + 1 on: endless.ts's own steps, one per dusk (endlessDusk): ENDLESS_LIVES hearts, a win adds an
+//    endless win (the ENDLESS_WIN_CAP-th ends endless, so no snapshot carries it), a loss costs ONE heart (the last ends it), a draw
+//    costs nothing and an upload carries at most ENDLESS_MAX_DRAWS of them, no LAST CHANCE and no early-loss refund, and PATCH UP
+//    (the DOCK) +1 heart once per event bag, never above ENDLESS_LIVES. The endless losses and draws are not in the snapshot (RULING E1:
+//    no new field): they are what is left of the dusks fought, day - 1 - victoryDay - endlessWins, so a record is one if SOME
+//    path of those dusks leads to (endlessWins, endlessLives).
+// The bag boundaries are the long run's (BAG_DAYS: the dawn after day 10, 20, 30, ... opens a new bag), and the DOCK is taken
+// as available in the bag the victory day closed (an honest run that used it already is a looser model's accepted record: data
+// safety, never a rule).
+
+interface EndlessState {
+  w: number; // endless wins
+  l: number; // hearts going into the dusk
+  dr: number; // endless draws so far
+  dock: boolean; // PATCH UP already bought in this bag
+}
+
+/** The endless model's states going into the dusk of day `day` (`day` > `victoryDay`), for a run won on `victoryDay`; `[]` for a day
+ *  the model has no state on. `through` walks every dusk from victoryDay + 1 and hands each day's states to `each` (the last-day
+ *  derivation reads them all). No day limit of its own (endless.ts ENDLESS_LAST_DAY is DERIVED from this walk). */
+function endlessWalk(victoryDay: number, until: number, each: (day: number, states: readonly EndlessState[]) => void, opts: { patchUp?: boolean; draws?: boolean } = {}): void {
+  const patchUp = opts.patchUp ?? true, draws = opts.draws ?? true;
+  let states: EndlessState[] = [{ w: 0, l: ENDLESS_LIVES, dr: 0, dock: false }];
+  for (let d = victoryDay + 1; d <= until && states.length; d++) {
+    each(d, states); // going into the dusk of day d
+    const next = new Map<string, EndlessState>();
+    const add = (s: EndlessState) => next.set(`${s.w}|${s.l}|${s.dr}|${s.dock ? 1 : 0}`, s);
+    const newBag = d % BAG_DAYS === 0; // the dawn of day d + 1 opens a new event bag: the DOCK is on the road again
+    for (const s of states) {
+      const outs: EndlessState[] = [];
+      if (s.w + 1 < ENDLESS_WIN_CAP) outs.push({ ...s, w: s.w + 1 }); // a win; the ENDLESS_WIN_CAP-th ends endless, so it is no dusk's record
+      if (draws && s.dr < ENDLESS_MAX_DRAWS) outs.push({ ...s, dr: s.dr + 1 }); // a draw costs nothing
+      if (s.l - 1 >= 1) outs.push({ ...s, l: s.l - 1 }); // a loss costs one heart on every day; the last one ends endless
+      for (const o of outs) {
+        const base = { ...o, dock: newBag ? false : o.dock };
+        add(base);
+        // the road of day d + 1: PATCH UP, once an event bag, never above ENDLESS_LIVES
+        if (patchUp && !base.dock && base.l + PATCH_UP_LIVES <= ENDLESS_LIVES) add({ ...base, l: base.l + PATCH_UP_LIVES, dock: true });
+      }
+    }
+    states = [...next.values()];
+  }
+}
+
+/** Every (endless wins, hearts) a won run can carry into the endless dusk of day `day`, for a run won on `victoryDay`; sorted by wins,
+ *  then hearts. */
+export function endlessRecords(victoryDay: number, day: number, opts: { patchUp?: boolean; draws?: boolean } = {}): DuskRecord[] {
+  if (!Number.isInteger(victoryDay) || !Number.isInteger(day) || victoryDay < WIN_GOAL || victoryDay > LONG_RUN_MAX_DAY || day <= victoryDay) return [];
+  const seen = new Map<string, DuskRecord>();
+  endlessWalk(victoryDay, day, (d, states) => {
+    if (d !== day) return;
+    for (const s of states) seen.set(`${s.w}|${s.l}`, { wins: s.w, lives: s.l });
+  }, opts);
+  return [...seen.values()].sort((a, b) => a.wins - b.wins || a.lives - b.lives);
+}
+
+/** The deepest dusk day any endless record can name: the longest walk of the endless model over every victory day a run can have
+ *  (WIN_GOAL..LONG_RUN_MAX_DAY). This is where ENDLESS_LAST_DAY comes from (tests/endless1.records.test.ts pins it): cap's count
+ *  without PATCH UP is LONG_RUN_MAX_DAY + (ENDLESS_WIN_CAP - 1) wins + (ENDLESS_LIVES - 1) losses + 1 + ENDLESS_MAX_DRAWS = 59. */
+export function endlessLastDay(opts: { patchUp?: boolean } = {}): number {
+  let last = 0;
+  for (let vd = WIN_GOAL; vd <= LONG_RUN_MAX_DAY; vd++) endlessWalk(vd, Infinity, (d) => { last = Math.max(last, d); }, opts);
+  return last;
+}
+
+/**
+ * Why an endless snapshot's record can't stand, or null (the POST route, ghosts:admin revalidate). `s` is a decoded endless snapshot
+ * (snapshot.ts endlessProblem holds the shape and the cross-field bounds). The run was WON on its victoryDay: the long run's model
+ * has a state with WIN_GOAL - 1 wins going into that day's dusk, with the snapshot's `losses` and its LAST CHANCE (its day, or none);
+ * and the endless dusks fought since (day - 1 - victoryDay) lead to (endlessWins, endlessLives) in the endless model.
+ */
+export function endlessRecordProblem(s: { rules: string; day: number; victoryDay: number; endlessWins: number; endlessLives: number; losses?: number; lastChance?: { day: number } }): string | null {
+  const run = reachableRecords(s.victoryDay, { rules: s.rules, lastChance: s.lastChance?.day ?? null, ...(s.losses !== undefined ? { losses: s.losses } : {}) });
+  if (!run.some((r) => r.wins === WIN_GOAL - 1)) {
+    return `record: no run wins its ${WIN_GOAL}th on day ${s.victoryDay}${s.losses !== undefined ? ` with ${s.losses} losses` : ""}${s.lastChance ? ` after a LAST CHANCE on day ${s.lastChance.day}` : ""}`;
+  }
+  if (!endlessRecords(s.victoryDay, s.day).some((r) => r.wins === s.endlessWins && r.lives === s.endlessLives)) {
+    return `record: ${s.endlessWins} endless wins and ${s.endlessLives} hearts is no record a run won on day ${s.victoryDay} carries into endless dusk ${s.day}`;
+  }
+  return null;
 }
 
 /** Can a player carry (wins, lives) into day `day`'s dusk? (Z-BUMP: `rules`, the record's rules, as reachableRecords.)

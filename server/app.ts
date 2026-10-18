@@ -42,9 +42,10 @@ import { isNewPlayer, matchDays, matchSeed, type MatchRequest } from "../src/net
 import { matchPick } from "../src/net/pick"; // RETUNE-1 T5 (REQ-BFG-092): the one pick, shared with the client's fallback
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, maxDayFor, type GhostSnapshot } from "../src/net/snapshot";
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
-import { isReachable, lossesProblem } from "../src/net/records";
+import { endlessRecordProblem, isReachable, lossesProblem } from "../src/net/records"; // ENDLESS-1: an endless snapshot's record
 import { validateUpload } from "../src/net/validate";
-import { livesCapFor } from "../src/net/rulesGate"; // RETUNE-1 (REQ-BFG-096): the match route's lives bound
+import { endlessFor, livesCapFor } from "../src/net/rulesGate"; // RETUNE-1 (REQ-BFG-096): the match route's lives bound; ENDLESS-1: and endless' rules
+import { ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_WIN_CAP } from "../src/sim/endless"; // ENDLESS-1: an endless match request's bounds
 import { putProfile } from "./profileRoute"; // PROFILE-UP (REQ-BFG-074 clause 4)
 import { profileStoreFor, type ProfileStore } from "./profileStore";
 import { sha256Hex } from "./sigv4";
@@ -221,15 +222,23 @@ export function parseMatchQuery(q: URLSearchParams): MatchRequest {
   if (seen.length > MAX_SEEN || seen.some((s) => !ID_PATTERN.test(s))) {
     throw new HttpError(400, `seen: expected up to ${MAX_SEEN} comma-separated ghost ids`);
   }
+  // ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.3, 3.4): `mode=endless` is an endless dusk's request: it reads only endless ghosts, and
+  // takes the endless bounds (the day to ENDLESS_LAST_DAY, the endless wins to ENDLESS_WIN_CAP - 1, the hearts to ENDLESS_LIVES);
+  // under rules without endless the server refuses it (400), as it refuses the snapshot's endless fields. Any other mode is a 400.
+  const mode = q.get("mode");
+  if (mode !== null && mode !== "endless") throw new HttpError(400, 'mode: expected "endless" (a run\'s request carries none)');
+  const endless = mode === "endless";
+  if (endless && !endlessFor(rules)) throw new HttpError(400, "mode: endless is not in this rules version yet");
   return {
     // RUN-1 (REQ-BFG-059, D4): the day bound follows the request's rules (snapshot.ts maxDayFor: LONG_RUN_MAX_DAY, 25, under a
     // long run's rules, else 10); data safety only, a refusal of the request, never of a run. The wins bound is as before:
     // a long run's wins into a dusk never pass 9
-    rules, day: intParam(q, "day", 1, maxDayFor(rules)), wins: intParam(q, "wins", 0, MAX_DAY),
+    rules, day: intParam(q, "day", 1, endless ? ENDLESS_LAST_DAY : maxDayFor(rules)), wins: intParam(q, "wins", 0, endless ? ENDLESS_WIN_CAP - 1 : MAX_DAY),
     // RETUNE-1 (REQ-BFG-096): the bound follows the request's rules (rulesGate.ts livesCapFor: 10 with hearts, else 9)
-    lives: intParam(q, "lives", 0, livesCapFor(rules, MAX_LIVES)), playerId: player, seen,
+    lives: intParam(q, "lives", 0, endless ? ENDLESS_LIVES : livesCapFor(rules, MAX_LIVES)), playerId: player, seen,
     // 0.7.0a D2: the client's finished runs; absent counts as 0 (a new player: seed pool only)
     runs: q.has("runs") ? intParam(q, "runs", 0, MAX_RUNS) : 0,
+    ...(endless ? { endless: true as const } : {}),
   };
 }
 
@@ -363,7 +372,13 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         // carries one (v3, taken only under those rules), must match: day - 1 = wins + losses + draws. POST takes RULES_VERSION
         // only, so `rules` is this build's, as before
         const lcDay = { lastChance: snap.lastChance?.day ?? null, rules: snap.rules, ...(snap.losses !== undefined ? { losses: snap.losses } : {}) };
-        if (!isReachable(snap.day, snap.wins, snap.lives, lcDay)) {
+        // ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.4): an ENDLESS snapshot (the decoder took its fields under rules with endless only,
+        // bounded its day, wins, hearts and LAST CHANCE: 400 otherwise) is judged on the endless model (records.ts endlessRecordProblem):
+        // the run was won on its victoryDay, and the endless dusks since lead to its endless wins and hearts: 422 otherwise
+        if (snap.mode === "endless") {
+          const why = endlessRecordProblem({ rules: snap.rules, day: snap.day, victoryDay: snap.victoryDay!, endlessWins: snap.endlessWins!, endlessLives: snap.endlessLives!, ...(snap.losses !== undefined ? { losses: snap.losses } : {}), ...(snap.lastChance ? { lastChance: snap.lastChance } : {}) });
+          if (why) throw new HttpError(422, why);
+        } else if (!isReachable(snap.day, snap.wins, snap.lives, lcDay)) {
           const after = snap.lastChance ? ` after a LAST CHANCE on day ${snap.lastChance.day}` : "";
           const lost = snap.losses !== undefined ? ` and ${snap.losses} losses` : "";
           throw new HttpError(422, `record: ${snap.wins}W ${snap.lives} lives${lost} is no record a run carries into dusk ${snap.day}${after}`);

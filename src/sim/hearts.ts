@@ -23,6 +23,7 @@
 
 import { RUN_DAYS, START_LIVES } from "./content";
 import { LAST_CHANCE_AT } from "./lastChance";
+import { ENDLESS_LIVES } from "./endless"; // ENDLESS-1 (REQ-BFG-059): an endless run's hearts cap (PATCH UP up to 3)
 
 /** THE switch (REQ-BFG-096): on, from HULL-ON's flip (bb-0.10.0). Its setter, withHearts and the off path stay this
  *  release, for older records (rulesGate.ts heartsFor) and the tests that measure the off world. */
@@ -98,7 +99,8 @@ export const startLives = (): number => (heartsRules() ? HEARTS_START : START_LI
 
 /** The most lives (hearts) `run` may hold: HEARTS_START on a hearts run, else START_LIVES (PATCH UP's cap, the save's
  *  clamp). */
-export const livesCap = (run: { hearts?: boolean }): number => (heartsRun(run) ? HEARTS_START : START_LIVES);
+export const livesCap = (run: { hearts?: boolean; endlessRun?: { end?: unknown } }): number =>
+  run.endlessRun !== undefined && run.endlessRun.end === undefined ? ENDLESS_LIVES : heartsRun(run) ? HEARTS_START : START_LIVES; // ENDLESS-1: an endless run plays on ENDLESS_LIVES (3) hearts
 
 /** The hearts a run holds after losing the dusks of days `firstDay` .. `firstDay + losses - 1` (a tooling ghost's
  *  label: its losses first, then its wins), on HEARTS_RULE, LAST CHANCE included. Never below 1 (a snapshot's floor). */

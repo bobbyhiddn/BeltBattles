@@ -116,7 +116,7 @@ export const gradeOf = (e: PoolEntry, median: number): number => e.snapshot.grad
  * day widens to the nearest earlier day with one: matchmaking.ts matchDay); the 10-day rules: the request's own day, as before.
  */
 export function matchPick(pool: readonly PoolEntry[], req: MatchRequest, rng: IntRng, rule: Readonly<PickRule> = PICK_RULE): PoolEntry | null {
-  if (!pickFor(req.rules)) return pickGhost(pool, req, rng);
+  if (req.endless || !pickFor(req.rules)) return pickGhost(pool, req, rng); // ENDLESS-1: an endless request is nearest endless wins; the grade is a run's (no endless ghost carries one)
   const { share, strong } = pickShare(req, rule);
   if (share >= 1) return pickGhost(pool, req, rng);
   const ok = eligibleWide(pool, req);

@@ -16,12 +16,17 @@ import { heartsDusk, heartsRun } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096)
 import { lcLastDay, longRun, longRunEnd } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a long run's end and LAST CHANCE
 import { LAST_CHANCE_AT } from "../sim/lastChance"; // RETUNE-1 run 2: the dusk card's LAST CHANCE line on a hearts run
 import { firstRunGate } from "../sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004, F4): the snapshot's first-run flag
+import { ENDLESS_LIVES, endlessDusk, endlessOffered, inEndless } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): the endless dusk step and state
+import { endlessFor } from "../net/rulesGate"; // ENDLESS-1: an endless snapshot travels only under rules that have endless
+import { godFoe } from "../sim/godStandIn"; // ENDLESS-1: the GOD stand-in, an endless dusk's last foe
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 /** How a pool ghost is named on the NEXT BATTLE card and the enemy plate: its hero, and the wins
- *  and lives it carried into that dusk (a v1 snapshot has no loss count). */
-export function ghostName(g: Pick<GhostSnapshot, "hero" | "wins" | "lives">): string {
+ *  and lives it carried into that dusk (a v1 snapshot has no loss count). ENDLESS-1: an endless ghost carries its endless wins
+ *  instead (its run's WIN_GOAL wins are no news): "GHOST · FURNACE · ENDLESS 4 2♥". */
+export function ghostName(g: Pick<GhostSnapshot, "hero" | "wins" | "lives"> & { mode?: string; endlessWins?: number }): string {
+  if (g.mode === "endless" && g.endlessWins !== undefined) return `GHOST · ${HEROES[g.hero].name} · ENDLESS ${g.endlessWins} ${g.lives}♥`;
   return `GHOST · ${HEROES[g.hero].name} · ${g.wins}W ${g.lives}♥`;
 }
 
@@ -33,20 +38,37 @@ const widened = (g: Pick<GhostSnapshot, "day">, day: number): { ghostDay?: numbe
 /** RUN-1 (R2.4): the ghost's STATED losses, when its snapshot states them (snapshot.ts v3: a long run's record does); nothing when it states
  *  none (every 10-day ghost, an older snapshot), so such a record is exactly as before. foeTitle prints W-L from it. */
 const stated = (g: Pick<GhostSnapshot, "losses">): { losses?: number } => (typeof g.losses === "number" ? { losses: g.losses } : {});
+/** ENDLESS-1 (REQ-BFG-059): an endless ghost's stamp, the endless wins it carried into that dusk (nothing for a run ghost, so every
+ *  run record is exactly as before). */
+const endlessStamp = (g: Pick<GhostSnapshot, "mode" | "endlessWins">): { endlessWins?: number } =>
+  g.mode === "endless" && typeof g.endlessWins === "number" ? { endlessWins: g.endlessWins } : {};
+
+/** ENDLESS-1 (BRIEF-ENDLESS1 3.3): an endless dusk's foe when no endless ghost is near: THE GOD STAND-IN (sim/godStandIn.ts), the
+ *  stand-in pool's strongest deck of the day with the hull the player's endless wins earn it. PvE: kind "standin", flagged `god`. */
+export function endlessGodFoe(run: Run): DuskFoe {
+  const f = godFoe(run.day, run.endlessRun?.wins ?? 0);
+  return { day: run.day, kind: "standin", name: f.name, hero: f.hero, build: f.build, god: true };
+}
 
 /** Choose today's dusk opponent from the pool, or else the day's stand-in captain with its named
  *  build (ghosts.ts standInFoe: standInBuild since 0.6.2 TUNE-C; the stand-in pool's standInPick
- *  from 0.6.0d). Pure: the caller stores it in run.dusk, so the deck never re-rolls. */
+ *  from 0.6.0d). Pure: the caller stores it in run.dusk, so the deck never re-rolls.
+ *  ENDLESS-1 (REQ-BFG-059): an endless dusk (sim/endless.ts inEndless) reads only endless ghosts of the pool (nearest endless wins
+ *  first, then the nearest earlier day's), then the GOD stand-in. A run's dusk never reads an endless ghost. */
 export function chooseFoe(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
   // RUN-1 (REQ-BFG-059, D6): the run's own mark decides the widening (a thin day widens to the nearest earlier day on a long run;
   // a 10-day run saved before the bump keeps its exact-day pick)
-  const g = pickGhost(pool, { rules: RULES_VERSION, day: run.day, runId: run.runId, wins: run.wins, lives: run.lives, seed: run.seed, long: longRun(run) });
+  const endless = inEndless(run);
+  const g = endless
+    ? pickGhost(pool, { rules: RULES_VERSION, day: run.day, runId: run.runId, wins: run.endlessRun!.wins, lives: run.lives, seed: run.seed, endless: true })
+    : pickGhost(pool, { rules: RULES_VERSION, day: run.day, runId: run.runId, wins: run.wins, lives: run.lives, seed: run.seed, long: longRun(run) });
   if (g) {
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
-      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g), ...widened(g, run.day), ...stated(g) },
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g), ...widened(g, run.day), ...stated(g), ...endlessStamp(g) },
     };
   }
+  if (endless) return endlessGodFoe(run);
   const s = standInFoe(run.seed, run.day);
   return { day: run.day, kind: "standin", name: s.name, hero: s.hero, build: s.build, rival: s.id };
 }
@@ -70,10 +92,12 @@ export function onlineFoe(run: Run, fetched: FetchedGhost | null): DuskFoe {
     const g = fetched.snapshot;
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
-      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g), ...widened(g, run.day), ...stated(g) },
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g), ...widened(g, run.day), ...stated(g), ...endlessStamp(g) },
       source: "online", ghostId: fetched.id,
     };
   }
+  // ENDLESS-1: an endless dusk with no endless ghost from the server meets the GOD stand-in, not a captain
+  if (inEndless(run)) return { ...endlessGodFoe(run), source: "offline" };
   const s = standInFoe(run.seed, run.day);
   return { day: run.day, kind: "standin", name: s.name, hero: s.hero, build: s.build, rival: s.id, source: "offline" };
 }
@@ -113,6 +137,11 @@ export function ghostOf(run: Run, createdAt = Date.now(), player = playerId(), n
     // RUN-1 (REQ-BFG-059, D4): a long run's snapshot states its losses (snapshot.ts: R1e's `losses`, taken under long-run rules only),
     // so the record check can tell a loss from a draw; a 10-day run's snapshot is exactly as before
     ...(longRun(run) ? { losses: run.losses } : {}),
+    // ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.4): an endless dusk's snapshot states its mode, the endless wins and hearts going into
+    // the fight and the victory day (snapshot v3, taken only under rules with endless: rulesGate.ts endlessFor), after `losses` (the
+    // run's own, unchanged), in V3_SNAPSHOT_FIELDS order; `wins` is the run's WIN_GOAL, `lives` the endless hearts. A run's
+    // snapshot, and every endless snapshot under rules without it, is exactly as before
+    ...(inEndless(run) && endlessFor(RULES_VERSION) ? { mode: "endless" as const, endlessWins: run.endlessRun!.wins, endlessLives: Math.max(1, run.lives), victoryDay: run.endlessRun!.victoryDay } : {}),
     // LC-1 (REQ-BFG-073): a taken LAST CHANCE, after the seed (the server re-derives its offer and finds its rune); a run
     // without one (every switch-off run) snapshots exactly as before
     ...(run.lastChance?.boon ? { lastChance: { day: run.lastChance.day, boon: run.lastChance.boon, ...(run.lastChance.id !== undefined ? { id: run.lastChance.id } : {}) } } : {}),
@@ -139,6 +168,7 @@ export function foeTitle(foe: Pick<DuskFoe, "kind" | "name" | "day" | "record">)
   const r = foe.record;
   if (foe.kind !== "ghost" || !r) return foe.name;
   const who = r.name !== undefined && nameProblem(r.name) === null ? displayName(r.name, r.playerId) : WANDERER;
+  if (r.endlessWins !== undefined) return `${who} · ENDLESS ${r.endlessWins}`; // ENDLESS-1: an endless ghost shows its score, not its run's record
   // RUN-1 (R1.5, T4b): a widened ghost's W-L is read at ITS day (the dusks before it that it did not win), not at this dusk's
   // RUN-1 (R2.4): a ghost whose snapshot STATED its losses (the stamp's `losses`) shows them (a draw is no loss); without them, as before
   const wl = typeof r.losses === "number" ? `${r.wins}-${r.losses}` : ghostRecord(r.ghostDay ?? foe.day, r.wins);
@@ -193,6 +223,9 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
   const foe = storedFoe(run);
   const res: DayResult = { day: run.day, outcome, income, time, foe: foe?.name ?? "?", ghost: foe?.kind === "ghost", player, enemy };
   run.history.push(res);
+  // ENDLESS-1 (REQ-BFG-059): an endless dusk takes its own step (sim/endless.ts endlessDusk): the run's wins and losses stay the
+  // run's, an endless win is counted apart, a loss costs ONE heart on every day, no LAST CHANCE and no refund
+  if (inEndless(run)) return finishEndlessDay(run, res, outcome, income);
   if (outcome === "win") run.wins++;
   // RETUNE-1 (REQ-BFG-096): a hearts run (hearts.ts heartsRun: started with HEARTS on) takes the hearts step instead: a
   // loss costs heartCost(day), LAST CHANCE at the first loss leaving 1 heart or fewer sets the hearts to 1, no refund
@@ -223,6 +256,43 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
       if (back > 0) res.refund = back;
     }
   }
+  return res;
+}
+
+/**
+ * ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.2): CONTINUE ENDLESS, taken on the RUN WON screen of a run that carries the endless mark
+ * (Run.endless: newRun set it while ENDLESS was on). The run is already won and recorded (its 10th win ended it: history, profile
+ * and style folds ran then, exactly as today); nothing here changes or costs any of it. It keeps the same run and build (hero,
+ * deck, cargo, gold, runes, upgrades), sets the endless state (victoryDay = the day of the 10th win, endless wins, losses and
+ * draws 0) and the hearts to ENDLESS_LIVES whatever the run had left, clears `over` and goes to the next dawn (every day still has
+ * its dawn rune, shop, upgrades, merges and road). Returns false (and changes nothing) when the run is not offered endless. The
+ * caller saves the run.
+ */
+export function startEndless(run: Run): boolean {
+  if (!endlessOffered(run)) return false;
+  run.endlessRun = { victoryDay: run.day, wins: 0, losses: 0, draws: 0 };
+  run.over = null;
+  run.lives = ENDLESS_LIVES;
+  run.dusk = null;
+  nextDawn(run);
+  return true;
+}
+
+/** ENDLESS-1: an endless dusk after its history row: the step (endless.ts endlessDusk), the income, then endless ends (every
+ *  reader of run.over sees a WON run again, with EndlessRun.end saying why) or the next dawn comes, with no early-loss refund. */
+function finishEndlessDay(run: Run, res: DayResult, outcome: DayResult["outcome"], income: number): DayResult {
+  const e = run.endlessRun!;
+  const step = endlessDusk(run.lives, e.wins, run.day, outcome);
+  if (outcome === "win") e.wins = step.wins;
+  else if (outcome === "loss") e.losses++;
+  else e.draws++;
+  if (step.cost > 0) res.heartsLost = step.cost;
+  run.lives = step.hearts;
+  run.gold += income;
+  if (step.end) {
+    e.end = step.end;
+    run.over = "won";
+  } else nextDawn(run);
   return res;
 }
 

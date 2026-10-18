@@ -30,6 +30,7 @@ export function matchUrl(baseUrl: string, req: GhostRequest): string {
     player: req.playerId, seen: req.seen.join(","),
   });
   if (req.runs !== undefined) q.set("runs", String(req.runs)); // 0.7.0a D2: finished runs on this device
+  if (req.endless) q.set("mode", "endless"); // ENDLESS-1 (REQ-BFG-059): an endless dusk's request (wins and lives are the endless ones): endless ghosts only
   return endpoint(baseUrl, `/v1/ghosts/match?${q.toString()}`);
 }
 
@@ -69,8 +70,10 @@ function problem(body: unknown, req: GhostRequest): string | PoolEntry {
   if (!ghostDayOk(s.day, req)) return longRunFor(req.rules) ? `ghost day ${s.day} is past ${req.day}` : `ghost day ${s.day} is not ${req.day}`;
   if (s.playerId === req.playerId) return "server returned our own ghost";
   if (req.seen.includes(id)) return "server returned a ghost already fought this run";
+  // ENDLESS-1 (REQ-BFG-059): an endless request takes only an endless ghost and a run's never one (no D1 in endless: nearest endless wins)
+  if ((s.mode === "endless") !== (req.endless === true)) return req.endless ? "server returned a run's ghost to an endless request" : "server returned an endless ghost to a run's request";
   // 0.7.0a D1 on the client too: never fight a ghost with a better record (a server without D1 falls back here)
-  if (!noBetterRecord(s, req)) return `server returned a ghost with a better record (${s.wins}W ${s.lives} lives)`;
+  if (!req.endless && !noBetterRecord(s, req)) return `server returned a ghost with a better record (${s.wins}W ${s.lives} lives)`;
   // never simulate an unvalidated foreign deck; a served ghost is a player's deck: the player mode (0.7.0)
   const v = validateUpload(s.build, s.day, undefined, { ...(s.lastChance ? { lastChance: s.lastChance } : {}), ...(s.road ? { road: s.road } : {}) }); // LC-1: its LAST CHANCE (no seed: served ghosts carry none); NPC-1: its road log
   if (!v.ok) return `ghost deck invalid: ${v.errors[0]}`;
