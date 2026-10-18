@@ -123,14 +123,27 @@ export function carryCount(v: number, seed: number): number {
 
 /** SCALE-2d: SHIELD at a hit for each SHIELD a second your WARD BELLs ring (COUNTS.md 4's bell deck: every 4 s 0.28-0.31,
  *  every 2.5 s 0.49-0.60, every 2 s 0.59-0.65 at a hit: about 1.2 x the rate), at most SHIELD_CAP. */
-export const SHIELD_PER_RATE = 1.2;
+export const SHIELD_PER_RATE = 3.6; // BUMP-1E C1: was 1.2 (see the note below)
 /** SCALE-2d: PLATE at a hit for each PLATE gained in a fight (COUNTS.md 4's PLATE deck: 296 -> 26, 745 -> 75, 1,287 -> 98,
  *  the alt run's 393 -> 38 and 913 -> 71: about 0.09), at most PLATE_CAP. */
-export const PLATE_AT_HIT = 0.09;
+export const PLATE_AT_HIT = 0.9; // BUMP-1E C1: was 0.09 (see the note below)
 /** SCALE-2d: the foe's POISON at a hit for each POISON a VENOM DRIP hit lands: COUNTS.md 6, ~13 hull rel. at another rig's
  *  hit for a ★1 (+1) rig, x0.64 because the sim's POISON rides the slug and lands at impact (COUNTS.md 6: 0.25-0.3 x N x T
  *  stack-seconds instead of 0.43 applied at the hit). */
-export const POISON_AT_HIT = 13 * 0.64;
+export const POISON_AT_HIT = 13 * 0.64 * 2; // BUMP-1E C1: was 13 * 0.64 (see the note below)
+/* BUMP-1E C1 (THE BOTS BUY THE READERS; SCALE-2e carry-over 8; the anchors of the three counts the deck itself feeds, turned): the
+ * par bots held IRON WALL on 0 of 48 par decks every day and LEECH COIL and AEGIS SPIKE on 1 of 48 from day 6, with the feeder
+ * aboard (the pool, the bench's par policy and the stand-in field are built from these decks, so a reader the bots never buy
+ * never meets a player). Read with kit-1e/shares.sh at K 96 (384 par decks a day, 4 heroes x seeds 1-96, days 6-10, decks that
+ * hold a feeder: reader held / feeder aboard): IRON WALL 20 of 685 (3%), LEECH COIL 28 of 499 (6%), AEGIS SPIKE 11 of 238 (5%),
+ * ROT GAUGE 51 of 499 (10%). The rating's gain per gold (placeFreePart's rel on fed days-6 / 9 decks): IRON WALL .008 / .034
+ * against TEMPER's .075 / .099 (it costs 10 G and its count read 10x too little for the decks that plate), AEGIS SPIKE .012 / .015.
+ * The three anchors, scaled until each reads: PLATE_AT_HIT x10, SHIELD_PER_RATE x3, POISON_AT_HIT x2 (ROT GAUGE and LEECH COIL
+ * share it). After, same tool: IRON WALL 42 of 682 (6%), LEECH COIL 35 of 500 (7%), AEGIS SPIKE 29 of 236 (12%), ROT GAUGE 69 of 500
+ * (14%); the par runs' road wins a run 7.88 (was 7.90: no hero got stronger). The rating is not the whole limit: on the days-6-10
+ * shopping steps of decks that hold a feeder the shop OFFERS LEECH COIL 1.2% of the time, IRON WALL 1.6%, ROT GAUGE 3.7%, AEGIS SPIKE
+ * 5.4%, and the par policy (noise, whims) takes an offer that is the step's best only some of the time (LEECH COIL picked 1 of 7 offers
+ * at rel/G 1.00 of the step's best). More than this is the shop's stock, not an anchor. */
 /** SCALE-2d: the day a rating without one reads (rateDeck with no `day`: the build screen's estimate, stokeKeep). */
 export const READ_DAY_DEFAULT = 6;
 
