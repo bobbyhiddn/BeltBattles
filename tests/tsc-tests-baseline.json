@@ -1,7 +1,7 @@
 {
   "about": "TSC-369 (backlog #369, REQ-BFG-040): the type errors that `tsc -p tsconfig.tests.json` reports. `npm run typecheck:tests` fails when the total grows. Lower it with `npm run typecheck:tests -- --write`; never raise it by hand.",
   "typescript": "5.9.3",
-  "total": 164,
+  "total": 163,
   "byCode": {
     "TS2305": 2,
     "TS2307": 13,
@@ -9,7 +9,7 @@
     "TS2339": 18,
     "TS2345": 84,
     "TS2353": 5,
-    "TS2367": 2,
+    "TS2367": 1,
     "TS2532": 1,
     "TS2556": 1,
     "TS2591": 19,
@@ -58,7 +58,6 @@
     "tests/net-server.test.ts": 1,
     "tests/net-signed-uploads.test.ts": 2,
     "tests/net-upload.joinlimit.test.ts": 2,
-    "tests/numbers.battle.test.ts": 1,
     "tests/numbers.scale.test.ts": 3,
     "tests/numbers.speed.test.ts": 1,
     "tests/open1.offers.test.ts": 3,
