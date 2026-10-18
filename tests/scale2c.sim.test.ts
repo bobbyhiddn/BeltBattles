@@ -1,6 +1,6 @@
 // SCALE-2c (REQ-BFG-098, REQ-BFG-106, REQ-BFG-108, REQ-BFG-110; BRIEF-SCALE2c sections 2 and 6, M1): the 12 scaling pieces
 // behind SCALE_RIGS (src/sim/scale.ts SCALE_DEFS and SCALE_ITEMS). Switch on through withScaleRigs; the shipped switch stays
-// off. Each reader's count and number at ★1-★3 in a fight (the count held fixed before each tick), step 4 (DRAKE NOZZLE never
+// off (BUMP-1E: it ships ON from bb-0.12.0, so the "off" halves below ask for the 0.9.11 world with withScaleRigs(fn, false)). Each reader's count and number at ★1-★3 in a fight (the count held fixed before each tick), step 4 (DRAKE NOZZLE never
 // converts their DMG), LEECH COIL's HEAL through heal(), CINDER MAIL's PLATE to the cap; off, the 5 reworks are the very
 // defs (and fight) they were at M0 and the 7 new ids are absent.
 import { describe, expect, it } from "vitest";
@@ -33,9 +33,10 @@ const TABLE: Record<string, { name: string; kind: ItemDef["kind"]; rarity: ItemD
 const REWORKS = ["quench", "pressure", "shieldwall", "spallcatcher", "keg"];
 const NEW_IDS = ["cindermail", "rotgauge", "leechcoil", "crowdpress", "aegisspike", "grudgerod", "trophychain"];
 
-// the switch is off at this file's load: the base defs, and ITEMS' key order
-const BASE: Record<string, ItemDef> = Object.fromEntries(REWORKS.map((id) => [id, ITEMS[id]]));
-const KEYS0 = Object.keys(ITEMS);
+// BUMP-1E: the switch ships ON (was off at this file's load), so the base defs (the 0.9.11 world's) and ITEMS' key order are read with it
+// OFF, synchronously (withScaleRigs(fn, false)); was `Object.fromEntries(REWORKS.map(...))` and `Object.keys(ITEMS)` read bare
+const BASE: Record<string, ItemDef> = withScaleRigs(() => Object.fromEntries(REWORKS.map((id) => [id, ITEMS[id]])), false);
+const KEYS0 = withScaleRigs(() => Object.keys(ITEMS), false);
 
 // ---------------------------------------------------------------------------------------------- helpers
 
@@ -96,32 +97,39 @@ const reworkDeck = (): Build =>
 
 // ---------------------------------------------------------------------------------------------- the switch off
 
+// BUMP-1E: the switch ships ON (SCALE_RIGS = true, bb-0.12.0), so "off" is the 0.9.11 world, asked for outright: withScaleRigs(fn, false), synchronously only
 describe("SCALE-2c: with the switch off, everything is as at M0", () => {
-  it("ships off; the 5 reworks are the very base defs, before and after a round trip; the 7 new ids are absent", () => {
-    expect(SCALE_RIGS).toBe(false);
-    expect(scaleRules()).toBe(false);
+  it("ships on (BUMP-1E; was off); with it off, the 5 reworks are the very base defs, before and after a round trip; the 7 new ids are absent", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: was toBe(false)
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
     expect(REWORKS.every((id) => id in SCALE_DEFS)).toBe(true);
     expect([...SCALE_IDS]).toEqual(NEW_IDS);
     expect([...SCALE_PIECES]).toEqual([...REWORKS, ...NEW_IDS]);
     expect(BASE.quench.name).toBe("QUENCH TANK");
     expect(BASE.quench.gate?.quench).toBeDefined();
     expect(BASE.pressure.core?.maxCount).toBe(5);
-    withScaleRigs(() => expect(ITEMS.quench.name).toBe("KINDLING"));
-    for (const id of REWORKS) expect(ITEMS[id]).toBe(BASE[id]);
-    for (const id of NEW_IDS) {
-      expect(isScalePiece(id)).toBe(true);
-      expect(Object.prototype.hasOwnProperty.call(ITEMS, id)).toBe(false);
-      expect(buyableModules().some((d) => d.id === id)).toBe(false);
-    }
-    expect(Object.keys(ITEMS)).toEqual(KEYS0); // the same keys in the same order
-    expect(isScalePiece("riveter")).toBe(false); // cap's F4: RIVETER stays as it is
+    expect(ITEMS.quench.name).toBe("KINDLING"); // BUMP-1E: bare now (was withScaleRigs(() => ...))
+    withScaleRigs(() => {
+      expect(scaleRules()).toBe(false);
+      for (const id of REWORKS) expect(ITEMS[id]).toBe(BASE[id]);
+      for (const id of NEW_IDS) {
+        expect(isScalePiece(id)).toBe(true);
+        expect(Object.prototype.hasOwnProperty.call(ITEMS, id)).toBe(false);
+        expect(buyableModules().some((d) => d.id === id)).toBe(false);
+      }
+      expect(Object.keys(ITEMS)).toEqual(KEYS0); // the same keys in the same order
+      expect(isScalePiece("riveter")).toBe(false); // cap's F4: RIVETER stays as it is
+    }, false); // BUMP-1E: the off half, was bare
+    expect(Object.keys(ITEMS)).toEqual([...KEYS0, ...NEW_IDS]); // and the switch is back on: the seven last, in SCALE_IDS order
   });
 
   it("the 5 reworks fight exactly as before a switch round trip (the same events, the same end)", () => {
-    const before = digest(reworkDeck());
-    withScaleRigs(() => digest(reworkDeck())); // a fight with the switch on in between
-    expect(digest(reworkDeck())).toBe(before);
-    expect(before).toContain("\"type\":\"fire\"");
+    withScaleRigs(() => {
+      const before = digest(reworkDeck());
+      withScaleRigs(() => digest(reworkDeck())); // a fight with the switch on in between
+      expect(digest(reworkDeck())).toBe(before);
+      expect(before).toContain("\"type\":\"fire\"");
+    }, false); // BUMP-1E: the round trip starts from the off world (was bare: the switch shipped off)
   });
 });
 
@@ -182,7 +190,7 @@ describe("SCALE-2c: the 12 defs with the switch on", () => {
   });
 
   it("PRESSURE BREECH: its own perQueued term, uncapped (MAX 5 dropped); off, 5 at most", () => {
-    const off = effectAt("pressure", 1).core!;
+    const off = withScaleRigs(() => effectAt("pressure", 1).core!, false); // BUMP-1E: the switch ships on; the off core is read with it off (was bare)
     expect(pressureBonus(off, 9)).toBe(12 * 5);
     withScaleRigs(() => {
       for (const s of [1, 2, 3]) expect(pressureBonus(effectAt("pressure", s).core!, 9)).toBe(TABLE.pressure.each[s - 1] * 9);
@@ -196,8 +204,11 @@ describe("SCALE-2c: the 12 defs with the switch on", () => {
       withWave3(() => { expect(ITEMS.shieldwall).toBe(wall); expect(ITEMS.spallcatcher).toBe(spall); }, true);
       expect([ITEMS.shieldwall, ITEMS.spallcatcher]).toEqual([wall, spall]);
     });
-    expect(ITEMS.shieldwall).toBe(BASE.shieldwall);
-    expect(ITEMS.spallcatcher).toBe(BASE.spallcatcher);
+    // BUMP-1E: the switch ships on, so "back to the base defs" is read with it off (was bare)
+    withScaleRigs(() => {
+      expect(ITEMS.shieldwall).toBe(BASE.shieldwall);
+      expect(ITEMS.spallcatcher).toBe(BASE.spallcatcher);
+    }, false);
   });
 });
 
