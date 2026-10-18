@@ -59,7 +59,7 @@ export const warlordPicksByDay = (day: number): number => (day >= WARLORD_PICK_F
 /**
  * LAST CHANCE's PART card word (E5c): the word its part arrives with, or null (gear and anything that cannot take a word arrives
  * plain; the card catalogue is rigs, turrets and gear). One draw from hashSeed(seed, "ench", day, "lastchance") among the words legal on
- * that piece (enchant.ts enchantProblem: MASSIVE and SWIFT never on a rig), and for WIDE on a rig a second draw from the same stream
+ * that piece (enchant.ts enchantProblem: MASSIVE only on a turret, SWIFT only on a factory, ENCHANT-1b N1), and for WIDE on a rig a second draw from the same stream
  * picks one of its free sides. `day` is the day LAST CHANCE fired on (LastChance.day).
  */
 export function lastChanceWord(seed: number, day: number, def: string): { ench: EnchantId; enchDir?: number } | null {

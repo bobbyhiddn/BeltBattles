@@ -7,12 +7,13 @@
 // THE MODEL (the static twin of the battle, as the rating is). rateDeck answers for the deck as it stands (offense per turret, the
 // payloads a second per belt); deck.ts walkRoute gives each belt's damage per payload and what each rig adds to it. A word changes one
 // of five things, and each is valued by recomputing the one turret term it touches: offense_t = thr(arrival, cap) x eq x ... :
-//   * the value of each payload on the belts the piece touches (FIERY, RISING, GROWING, ECHOING on a rig, MASSIVE and SWIFT on a factory
+//   * the value of each payload on the belts the piece touches (FIERY, RISING, GROWING, ECHOING on a rig, SWIFT on a factory
 //     for the slug's own share) => eq changes by (the flow-weighted change) / (the flow-weighted eq);
-//   * the arrival (ECHOING on a factory: 1 more slug every echoEvery-th WORK, run 5; MASSIVE: half the slugs; SWIFT: twice as many) => the gun's throughput
-//     min(arrival, cap) x firedShare(arrival / cap) is recomputed with the gun's own cap, which is what makes MASSIVE good on a gun that
-//     queues (the slugs it drops were never fired) and SWIFT good on a gun with spare rate;
-//   * the gun's cap and its shot (MASSIVE and SWIFT on a turret: half or twice the rate, massiveShare x or half the DMG a shot);
+//   * the arrival (ECHOING on a factory: 1 more slug every echoEvery-th WORK, run 5; SWIFT on a factory: twice as many) => the gun's throughput
+//     min(arrival, cap) x firedShare(arrival / cap) is recomputed with the gun's own cap, which is what makes SWIFT good on a factory whose
+//     gun has spare rate;
+//   * the gun's cap and its shot (MASSIVE on a turret: half the rate, massiveShare x the DMG a shot; it queues less: the slugs it drops were
+//     never fired). ENCHANT-1b (N1): MASSIVE is a turret's word and SWIFT a factory's, so neither is valued on the other kind;
 //   * ECHOING on a turret: 1 shot in echoEvery hits twice (the turret's offense x (1 + 1 / echoEvery));
 //   * the deck itself (WIDE: a rig's arrow, a factory's belt slot, a turret's gear slot): the deck is rated again with the word on it
 //     (a rig: its best free side; a factory: the best belt the bots would lay into the new slot; a turret: the best gear waiting in cargo).
@@ -281,7 +282,7 @@ export function wordGain(m: WordModel, p: WordPiece, word: EnchantId, grow0 = 0,
     const k = (r: Route): number => {
       if (!mine.has(r) || p.kind !== "factory") return 1;
       if (word === "echoing") return 1 + 1 / (N.echoEvery * perWork);
-      return word === "massive" ? 0.5 : word === "swift" ? 2 : 1;
+      return word === "swift" ? 2 : 1; // ENCHANT-1b (N1): a factory's word (MASSIVE is a turret's)
     };
     const dv = (r: Route): number => {
       const h = mine.get(r);
@@ -291,15 +292,13 @@ export function wordGain(m: WordModel, p: WordPiece, word: EnchantId, grow0 = 0,
         case "rising": return h * N.risingStep * S * (np + 1) / 2;
         case "growing": return h * N.growingStep * S * growEstimate(m.day, grow0);
         case "echoing": return p.kind === "rig" ? (r.gain.get(p.uid) ?? 0) / N.echoEvery : 0; // every echoEvery-th slug it hits gets its stats twice
-        case "massive": return p.kind === "factory" ? (N.massiveShare - 1) * r.own : 0; // the slug's own share x massiveShare (run 4: this read `r.own`, the old 2x, after run 3 moved the number to 3: the valuation now follows ENCHANT_NUM)
         case "swift": return p.kind === "factory" ? -Math.min(r.own / 2, Math.max(0, r.v - 10)) : 0; // half the share (a slug never under 10)
-        default: return 0;
+        default: return 0; // MASSIVE is a turret's word (ENCHANT-1b N1): its whole value is the gun's cap and shot, below. (Run 4 had a factory case here, (massiveShare - 1) x r.own.)
       }
     };
     if (p.kind === "turret") {
       if (word === "echoing") eqScale = 1 + 1 / N.echoEvery; // 1 shot in echoEvery hits twice
       else if (word === "massive") { capScale = 0.5; eqScale = ENCHANT_NUM.massiveShare; } // fires half as often, massiveShare x DMG a shot
-      else if (word === "swift") { capScale = 2; eqScale = Math.max(0.5, 10 / T.eq); } // twice as often, half the DMG (never under the least a shot deals)
     }
     const A2 = T.routes.reduce((s, r) => s + r.a * k(r), 0);
     const W2 = T.routes.reduce((s, r) => s + r.a * k(r) * (r.v + dv(r)) * r.left, 0);
@@ -424,8 +423,8 @@ export function rankWords(s: WordState, word: string, x: WordExtras = {}): WordS
  */
 export const WORD_PRIOR: Readonly<Record<EnchantKind, Readonly<Record<EnchantId, number>>>> = {
   rig: { fiery: 0.03, rising: 0.025, growing: 0.035, echoing: 0.015, massive: 0, swift: 0, wide: 0.02, braced: 0.005 },
-  factory: { fiery: 0.035, rising: 0.03, growing: 0.04, echoing: 0.03, massive: 0.02, swift: 0.02, wide: 0.015, braced: 0.006 },
-  turret: { fiery: 0.035, rising: 0.03, growing: 0.04, echoing: 0.03, massive: 0.02, swift: 0.02, wide: 0.01, braced: 0.008 },
+  factory: { fiery: 0.035, rising: 0.03, growing: 0.04, echoing: 0.03, massive: 0, swift: 0.02, wide: 0.015, braced: 0.006 }, // ENCHANT-1b (N1): MASSIVE is a turret's word
+  turret: { fiery: 0.035, rising: 0.03, growing: 0.04, echoing: 0.03, massive: 0.02, swift: 0, wide: 0.01, braced: 0.008 }, // ENCHANT-1b (N1): SWIFT is a factory's word
 };
 
 /** The prior worth of the word `f` holds on piece kind `def` at `stars` (GROWING's counter adds to it: each growth is worth a step). */

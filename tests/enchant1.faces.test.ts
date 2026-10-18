@@ -3,11 +3,13 @@
 //     (a placed rig and factory, a cargo piece, an installed turret, the battle's inspect face);
 //   - the ROWS: a stat word (FIERY) adds its stat at the end of the stat row in its colour; a line word adds ONE line under the piece's own line,
 //     in its colour, always shown, at THIS piece's stars (RISING's and GROWING's step, FIERY's BURN and BRACED's stuns x the stars);
-//   - the numbers a word CHANGES are shown changed in its colour and agree with the battle: MASSIVE's and SWIFT's rate and DMG, GROWING's DMG
-//     with the grown amount, WIDE's belt and gear slots;
+//   - the numbers a word CHANGES are shown changed in its colour and agree with the battle: MASSIVE's turret rate, SWIFT's factory rate and DMG,
+//     GROWING's DMG with the grown amount, WIDE's belt and gear slots;
 //   - the NOTES (ENCHANT_NOTES) behind the hover or the tap; the word card's own face (wordFace); the panel text form ({BURN}, {DMG});
 //   - every enchanted panel fits its box on the phone (402x690 @3) and the desk (1280x800), the ⓘ view pages stay few;
-//   - with the switch OFF every panel, note and title is the plain piece's, deep-equal, though the piece carries a stray `ench`.
+//   - with the switch OFF every panel, note and title is the plain piece's, deep-equal, though the piece carries a stray `ench`;
+//   - ENCHANT-1b (N1): MASSIVE goes on a TURRET only and SWIFT on a FACTORY only. A test shows a word only on the kinds it goes on (WORDS(kind));
+//     on any other kind enchantProblem refuses it (`ONLY ON A TURRET` / `ONLY ON A FACTORY`), wordLine writes nothing and the panels read none.
 import { afterEach, describe, expect, it } from "vitest";
 import { installRaster, fresh, G as gOf } from "./raster.helpers";
 import { newRun, type Run } from "../src/game/run";
@@ -175,13 +177,18 @@ describe("ENCHANT-1 E7: THE NAME: the word first in its colour, the name in its 
 
   it("the title steps down to the 3x5 face and is cut with a dot only as fitHead cuts: the word is kept whole in its colour", () => {
     on(() => {
-      const [t] = panelOf("factory", "cargo", "massive", 3);
-      const a = fresh(120, 12);
-      fitTitle(gOf(a), { ...t, title: enchantedTitle("massive", "DRAG CHAIN FOUNDRY ★★★") }, 2, 2, 101);
-      const colours = new Set<string>();
-      for (let x = 0; x < 120; x++) for (let y = 0; y < 12; y++) { const p = a.at(x, y); if (p) colours.add(p); }
-      expect(colours.has(wc("massive"))).toBe(true);
-      expect(a.oob, "nothing painted off the canvas").toBe(0);
+      // the longest factory name at ★3 with every word a factory takes (ENCHANT-1b N1: MASSIVE, the 7-letter word this test used, is a turret's now)
+      for (const id of WORDS("factory")) {
+        const [t] = panelOf("factory", "cargo", id, 3), title = enchantedTitle(id, "DRAG CHAIN FOUNDRY ★★★");
+        expect(t.ench, `${id}: the panel holds the word`).toBe(id);
+        expect(textWidth(title), `${id}: too long for the 5x7 face in 101 px, so it steps down`).toBeGreaterThan(101);
+        const a = fresh(120, 12);
+        fitTitle(gOf(a), { ...t, title }, 2, 2, 101);
+        const colours = new Set<string>();
+        for (let x = 0; x < 120; x++) for (let y = 0; y < 12; y++) { const p = a.at(x, y); if (p) colours.add(p); }
+        expect(colours.has(wc(id)), `${id}: the word in its colour`).toBe(true);
+        expect(a.oob, `${id}: nothing painted off the canvas`).toBe(0);
+      }
     });
   });
 });
@@ -306,10 +313,12 @@ describe("ENCHANT-1 E7: A NUMBER THE WORD CHANGES is shown changed, in the word'
     return payloadDamage(fs.base ?? ammo.base, 0, 0, p.mult, p.flat, shotFloor(fs.ammo)) + (fs.round?.kind === "limpet" ? fs.round.blast : 0);
   };
 
-  it("MASSIVE and SWIFT on every factory at every star: the row's RATE is enchantRate of the plain RATE and its DMG the battle's slug damage (slugMadeFx, payloadDamage); both in the word's colour", () => {
+  it("SWIFT on every factory at every star: the row's RATE is enchantRate of the plain RATE and its DMG the battle's slug damage (slugMadeFx, payloadDamage); both in the word's colour; MASSIVE on a factory is refused (ONLY ON A TURRET) and no panel reads it", () => {
     on(() => {
       let n = 0;
-      for (const d of FACTORIES) for (const stars of fusible(d.id) ? [1, 2, 3] : [1]) for (const id of ["massive", "swift"] as const) {
+      // ENCHANT-1b (N1): SWIFT is a factory's word and MASSIVE a turret's (the installed turret's test below reads the battle for it)
+      for (const d of FACTORIES) for (const stars of fusible(d.id) ? [1, 2, 3] : [1]) {
+        const id = "swift" as const;
         const w = wordOn({ ench: id }, d, stars)!, plain = factoryStats(d.id, stars, "furnace"), row = factoryStats(d.id, stars, "furnace", w);
         const tag = `${id} on ${d.id} ★${stars}`;
         const speed = effectAt(d.id, stars).factory!.speed;
@@ -318,15 +327,19 @@ describe("ENCHANT-1 E7: A NUMBER THE WORD CHANGES is shown changed, in the word'
         expect(row.length, tag).toBe(plain.length);
         const rows = wordRows(d.id, stars, {}, w);
         expect(rows.hue[0], tag).toEqual(row[1][1] === plain[1][1] ? [0] : [0, 1]); // LIMPET WORKS' DMG is its charge's blast: the word does not move it
+        // the other word that used to change a factory's row is refused here with its exact reason, and the panels read no word from it
+        expect(enchantProblem(d, "massive"), `massive on ${d.id}`).toBe("ONLY ON A TURRET");
+        expect(wordOn({ ench: "massive" }, d, stars), `massive on ${d.id} ★${stars}: no word`).toBeUndefined();
         n++;
       }
-      expect(n).toBeGreaterThan(30);
+      expect(n).toBeGreaterThan(15);
     });
   });
 
   it("the KILN on the bench: the panel's RATE and DMG are what a fight makes (the factory's rate on its battle def, the first slug's payload)", () => {
     on(() => {
-      for (const id of ["massive", "swift", "growing"] as const) {
+      // the KILN is a factory: SWIFT changes its rate and slug (ENCHANT-1b N1: MASSIVE is a turret's word and is read from the battle in the turret's test)
+      for (const id of ["swift", "growing"] as const) {
         const b = furnaceBench();
         const deck: Build = { ...b, items: b.items.map((p) => (p.uid === 1 ? { ...p, ench: id, ...(id === "growing" ? { grow: 2 } : {}) } : p)) };
         const bt = new Battle(deck, barge(), SEED);
@@ -342,9 +355,11 @@ describe("ENCHANT-1 E7: A NUMBER THE WORD CHANGES is shown changed, in the word'
     });
   });
 
-  it("an installed turret's RATE is the battle's (MASSIVE halves, SWIFT doubles, rounded as enchantRate: down, at least 1) and in the word's colour; the cargo copy's row agrees", () => {
+  it("an installed turret's RATE is the battle's (MASSIVE halves, rounded as enchantRate: down, at least 1) and in the word's colour; the cargo copy's row agrees; SWIFT on a turret is refused (ONLY ON A FACTORY) and the panel reads no word", () => {
     on(() => {
-      for (const id of ["massive", "swift"] as const) for (const stars of [1, 3]) {
+      // ENCHANT-1b (N1): MASSIVE is a turret's word. SWIFT, which doubled a turret's rate here, is a factory's now (its rate is read in the factory's test above)
+      for (const stars of [1, 3]) {
+        const id = "massive" as const;
         const run = runWith([], [], [{ slot: 0, def: "scrapcannon", uid: 90, ...(stars > 1 ? { stars } : {}), ench: id }]);
         const bt = new Battle(run.build, barge(), SEED), speed = bt.sides[0].turrets[0].speed;
         const t = turretPanel(run, 0)!, row = t.body.find((b) => b.pairs)!;
@@ -355,6 +370,16 @@ describe("ENCHANT-1 E7: A NUMBER THE WORD CHANGES is shown changed, in the word'
         const cargo = turretStats("scrapcannon", stars, wordOn({ ench: id }, "scrapcannon", stars)!);
         expect(cargo[0]).toEqual(["RATE", fmtCount(enchantRate(id, plain))]);
       }
+      // SWIFT on a turret is refused with its exact reason. A build that holds it anyway is a SIM-ONLY FIXTURE (deck.ts, the sim, is unchanged and would
+      // still double the rate; the validators refuse such a build): the panels read no word from it, so no word is in the title and no colour on the row
+      const run = runWith([], [], [{ slot: 0, def: "scrapcannon", uid: 90, ench: "swift" }]);
+      const t = turretPanel(run, 0)!, plain = turretPanel(runWith([], [], [{ slot: 0, def: "scrapcannon", uid: 90 }]), 0)!;
+      expect(enchantProblem("scrapcannon", "swift")).toBe("ONLY ON A FACTORY");
+      expect(wordOn({ ench: "swift" }, "scrapcannon", 1)).toBeUndefined();
+      expect(t.ench, "no word on the panel").toBeUndefined();
+      expect(t.title).toBe(plain.title);
+      expect(t.body.find((b) => b.pairs)!.hue, "no colour on the row").toBeUndefined();
+      expect(t.body.some((b) => b.colour === wc("swift")), "no line in SWIFT's colour").toBe(false);
     });
   });
 
@@ -411,6 +436,7 @@ describe("ENCHANT-1 E7: A NUMBER THE WORD CHANGES is shown changed, in the word'
   });
 
   it("slugDmg is payloadDamage's rule: MASSIVE xENCHANT_NUM.massiveShare and SWIFT x1/2 of the die and its flat, rounded half up once, never under the floor; every other word and no word: base + flat", () => {
+    // slugDmg is the pure rule: since ENCHANT-1b (N1) the factory's row asks it for SWIFT (MASSIVE is a turret's word), and the rule for both stays whole
     expect(slugDmg(undefined, 30, 4)).toBe(34);
     expect(slugDmg({ id: "massive", stars: 1, grow: 0 }, 30, 4)).toBe(34 * ENCHANT_NUM.massiveShare);
     expect(slugDmg({ id: "swift", stars: 1, grow: 0 }, 75)).toBe(38);
@@ -419,6 +445,36 @@ describe("ENCHANT-1 E7: A NUMBER THE WORD CHANGES is shown changed, in the word'
     expect(slugDmg({ id: "swift", stars: 1, grow: 0 }, 0, 0, 0)).toBe(0);
     expect(slugDmg({ id: "growing", stars: 2, grow: 3 }, 30)).toBe(30 + ENCHANT_NUM.growingStep * 3 * 2);
     for (const id of ["fiery", "rising", "echoing", "wide", "braced"] as const) expect(slugDmg({ id, stars: 3, grow: 0 }, 30, 4), id).toBe(34);
+  });
+
+  it("ENCHANT-1b N1: MASSIVE is a turret's word and SWIFT a factory's: on any other piece enchantProblem refuses them with the exact reason, wordLine writes nothing and no panel shows the word", () => {
+    on(() => {
+      const ONLY: [EnchantId, EnchantKind, string][] = [["massive", "turret", "ONLY ON A TURRET"], ["swift", "factory", "ONLY ON A FACTORY"]];
+      let shown = 0, refused = 0;
+      for (const [id, home, why] of ONLY) {
+        expect(ENCHANT_DEFS[id].kinds, `${id} goes on one kind`).toEqual([home]);
+        for (const d of Object.values(ITEMS)) {
+          const kind = enchantKindOf(d);
+          if (!kind) continue;
+          expect(enchantProblem(d, id), `${id} on ${d.id}`).toBe(kind === home ? null : why);
+          expect(wordOn({ ench: id }, d, 1) !== undefined, `${id} on ${d.id}: the panels read it only on a ${home}`).toBe(kind === home);
+          expect(wordLine(id, kind, 1) !== null, `${id} on ${kind}: a line only on a ${home}`).toBe(kind === home);
+        }
+        for (const [kind, how] of SHOWS) {
+          const [t] = panelOf(kind, how, id), [plain] = panelOf(kind, how, null), tag = `${id} on ${kind} ${how}`;
+          if (kind === home) { expect(t.ench, tag).toBe(id); shown++; continue; }
+          expect(t.ench, `${tag}: the panel reads no word`).toBeUndefined();
+          expect(t.title, tag).toBe(plain.title);
+          expect(titleSpans(t), tag).toEqual([{ t: plain.title, c: plain.color }]);
+          expect(texts(explainPanel(t, PIECE[kind]).notes ?? []).some((x) => ENCHANT_NOTES.includes(x)), `${tag}: no NOTES line`).toBe(false);
+          // a SIM-ONLY FIXTURE: an installed turret's row is deck.ts's own numbers, and the sim (unchanged) still doubles a SWIFT turret's rate, so only the word is
+          // checked there; every other panel is the plain piece's, deep-equal
+          if (how !== "installed") expect(t, tag).toEqual(plain);
+          refused++;
+        }
+      }
+      expect([shown, refused], "MASSIVE: 2 turret panels shown, 4 refused; SWIFT: 2 factory panels shown, 4 refused").toEqual([4, 8]);
+    });
   });
 });
 
@@ -468,28 +524,34 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
     });
   });
 
-  it("the word card's face (wordFace): its name and colour, a row for each kind (NOT ON A RIG for MASSIVE and SWIFT), the NOTES; each line is the panels' markup at star 1", () => {
+  it("the word card's face (wordFace): its name and colour, a row for each kind the word goes on (no `NOT ON` row; a word with one kind says ONLY ON A ...), the NOTES; each line is the panels' markup at star 1", () => {
     for (const id of ENCHANT_IDS) {
-      const f = wordFace(id);
+      const f = wordFace(id), goes = KINDS.filter((k) => ENCHANT_DEFS[id].kinds.includes(k));
       expect(f.name).toBe(ENCHANT_DEFS[id].name);
       expect(f.color).toBe(ENCHANT_DEFS[id].color);
       expect(f.notes).toEqual(ENCHANT_NOTES);
-      expect(f.lines.map((l) => l.kind)).toEqual(["rig", "factory", "turret"]);
+      expect(f.lines.map((l) => l.kind), `${id}: a row for each kind it goes on, in the order rig, factory, turret, and for no other`).toEqual(goes);
       for (const l of f.lines) {
-        if (ENCHANT_DEFS[id].kinds.includes(l.kind)) {
-          expect(l.legal).toBe(true);
-          expect(l.label).toBe(`ON A ${l.kind.toUpperCase()}`);
-          expect(l.text, `${id} ${l.kind}`).toBe(wordLine(id, l.kind, 1));
-          expect(l.text).not.toMatch(/[[\]]/);
-          expect(l.text).not.toMatch(/(?<!\{)\bDMG\b(?!\})/);
-        } else {
-          expect(l).toEqual({ kind: l.kind, legal: false, label: `NOT ON A ${l.kind.toUpperCase()}`, text: "" });
-        }
+        expect(l.legal, `${id} ${l.kind}`).toBe(true);
+        expect(l.label, `${id} ${l.kind}`).toBe(`${goes.length === 1 ? "ONLY " : ""}ON A ${l.kind.toUpperCase()}`);
+        expect(l.label, `${id} ${l.kind}: no NOT ON row any more`).not.toMatch(/^NOT ON/);
+        expect(l.text, `${id} ${l.kind}`).toBe(wordLine(id, l.kind, 1));
+        expect(l.text).not.toMatch(/[[\]]/);
+        expect(l.text).not.toMatch(/(?<!\{)\bDMG\b(?!\})/);
       }
     }
-    expect(wordFace("massive").lines[0].label).toBe("NOT ON A RIG");
-    expect(wordFace("swift").lines[0].label).toBe("NOT ON A RIG");
+    expect(wordFace("massive").lines).toHaveLength(1);
+    expect(wordFace("swift").lines).toHaveLength(1);
     expect(wordFace("wide").lines.map((l) => l.text)).toEqual(["+1 ARROW", "+1 {BELT} SLOT", "+1 {GEAR} SLOT"]);
+  });
+
+  it("ENCHANT-1b N1: the card of a word with ONE kind has ONE row: MASSIVE `ONLY ON A TURRET`, SWIFT `ONLY ON A FACTORY`; the other six words keep ON A RIG, ON A FACTORY, ON A TURRET", () => {
+    expect(wordFace("massive").lines).toEqual([{ kind: "turret", legal: true, label: "ONLY ON A TURRET", text: panelText(`FIRES HALF AS OFTEN. ${ENCHANT_NUM.massiveShare}x DMG A SHOT.`) }]);
+    expect(wordFace("swift").lines).toEqual([{ kind: "factory", legal: true, label: "ONLY ON A FACTORY", text: panelText("WORKS TWICE AS OFTEN. ITS SLUGS DEAL HALF DMG.") }]);
+    const six = ENCHANT_IDS.filter((id) => id !== "massive" && id !== "swift");
+    expect(six).toHaveLength(6);
+    for (const id of six) expect(wordFace(id).lines.map((l) => l.label), id).toEqual(["ON A RIG", "ON A FACTORY", "ON A TURRET"]);
+    for (const id of ENCHANT_IDS) expect(wordFace(id).lines.filter((l) => !l.legal || l.text === "" || /^NOT ON/.test(l.label)), `${id}: no refused row`).toEqual([]);
   });
 
   it("a word card's panel text, as the APPLY screen builds it from wordFace (apply.ts wordSpec: the label in brass, the line in the panels' markup, the NOTES behind the ⓘ), fits the phone band and the desk column whole", () => {
@@ -603,7 +665,9 @@ describe("ENCHANT-1 E7: every enchanted panel fits its box on the phone (402x690
         }
       }
       expect(cut.filter((c) => c.startsWith("phone"))).toEqual([]);
-      expect(cut.length).toBe(15);
+      // 13 = the 7 words a factory takes on DRAG CHAIN FOUNDRY + 6 on FROSTBITE FOUNDRY (WIDE is short enough to fit there); it was 15 before ENCHANT-1b (N1),
+      // when MASSIVE was a factory's word too and was cut on both
+      expect(cut.length).toBe(13);
       for (const c of cut) expect(c, c).toMatch(/^desk 1280x800: \S+ (DRAG CHAIN|FROSTBITE) FOUNDRY ★★★$/);
     });
   });
@@ -634,7 +698,9 @@ describe("ENCHANT-1 E7: every enchanted panel fits its box on the phone (402x690
   it("drawDetails draws an enchanted piece's panel on both views without painting off the canvas: the word's colour is on the title, and the line's colour in the body", () => {
     on(() => {
       for (const [view, f, touch] of VIEWS) for (const [kind, how] of SHOWS) {
-        const id: EnchantId = kind === "rig" ? "echoing" : "massive", [t, run, sel] = panelOf(kind, how, id);
+        // a word each kind takes (ENCHANT-1b N1: MASSIVE is a turret's, SWIFT a factory's)
+        const id: EnchantId = kind === "rig" ? "echoing" : kind === "factory" ? "swift" : "massive", [t, run, sel] = panelOf(kind, how, id);
+        expect(t.ench, `${view} ${kind} ${how}: the panel holds ${id}`).toBe(id);
         const p = panelCtx(run, sel, f, touch), ui = (p.ctx.game as unknown as { ui: UI }).ui;
         ui.pointer.kind = touch ? "touch" : "mouse";
         Object.assign(ui.pointer, { x: -1, y: -1, down: false });

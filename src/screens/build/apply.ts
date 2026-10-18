@@ -10,7 +10,7 @@
 // WHAT A TAP DOES in APPLY (applyDown/applyUp): the press is read by the build screen's OWN hit-testing (edit.ts Editor.pickAt: the
 // cell, the turret mount, the cargo slot), then, for a finger, by the nearest piece within half a finger's width (ui/tap.ts tapPx):
 // never a tighter test than the other taps use. A part that takes the word applies it (buyEnchant: the gold goes only on success; a
-// pick's takeWarlordWord: free); a part that refuses says why (NOT ON A RIG, NO FREE SIDE, NOT ON GEAR, NOT ON A CORE, ALREADY
+// pick's takeWarlordWord: free); a part that refuses says why (ONLY ON A TURRET, NO FREE SIDE, NOT ON GEAR, NOT ON A CORE, ALREADY
 // FIERY); a part that holds another word asks REPLACES FIERY first; WIDE on a rig with several free sides asks which; a tap
 // outside any part leaves APPLY with the gold untouched.
 
@@ -343,7 +343,7 @@ export function sideWord(s: { run: Run; L: { frame: Parameters<typeof sdir>[0] }
 
 /**
  * The tap panel of a word card (E5a, E7 "The word's own card"): the word in its colour, `ON A RIG: ...`, `ON A FACTORY: ...`, `ON A
- * TURRET: ...` (`NOT ON A RIG` for MASSIVE and SWIFT), the NOTES behind the ⓘ, and the APPLY button (`NEED nG` and dim when the gold
+ * TURRET: ...` (MASSIVE: `ONLY ON A TURRET`, SWIFT: `ONLY ON A FACTORY`, one row and no NOT ON rows), the NOTES behind the ⓘ, and the APPLY button (`NEED nG` and dim when the gold
  * is short). While APPLY is open the panel says what to do (or why a tapped part refused, or REPLACES FIERY, or WIDE's sides) and its
  * buttons are CANCEL (and the sides, or REPLACE).
  */

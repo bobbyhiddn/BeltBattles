@@ -4,12 +4,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ITEMS } from "../src/sim/content";
 import { turretList } from "../src/sim/deck";
-import { ENCHANT, ENCHANT_IDS, freeSides, setEnchant, withEnchant } from "../src/sim/enchant";
+import { ENCHANT, ENCHANT_IDS, enchantKindOf, enchantProblem, freeSides, setEnchant, withEnchant } from "../src/sim/enchant";
 import {
   ENCHANTER_PRICE, enchanterDay, enchanterDaysUpTo, enchanterWords, freeEnchantsByDay, lastChanceWord, maxEnchantsByDay, possibleWords,
   warlordPickWords, warlordPicksByDay,
 } from "../src/sim/enchantSources";
-import { ENCHANTER_SHUT, applyProblem, buyEnchant, enchantChoices, openWarlordPick, pendingEnchantPick, rollEnchanter, skipWarlordWord, takeWarlordWord } from "../src/game/enchanter";
+import {
+  ENCHANTER_SHUT, applyProblem, buyEnchant, enchantChoices, openWarlordPick, pendingEnchantPick, pieceAt, rollEnchanter, skipWarlordWord, takeWarlordWord,
+  type EnchantTarget,
+} from "../src/game/enchanter";
 import { REFIT_NO_SHOP, newRun, pendingLastChance, reroll, rollShop, takeLastChance, type Run } from "../src/game/run";
 import { finishWarlord, warlordFight } from "../src/game/road";
 import { lastChanceParts } from "../src/sim/lastChance";
@@ -87,6 +90,20 @@ describe("ENCHANT-1 E5a: the ENCHANTER's days and words (pure)", () => {
         if (w!.ench === "wide" && d.kind === "gate") expect(freeSides(d)).toContain(w!.enchDir);
         else expect(w!.enchDir).toBeUndefined();
         if (d.kind === "gate") expect(["massive", "swift"]).not.toContain(w!.ench);
+        if (d.kind === "turret") expect(w!.ench, `${d.id} seed ${seed}: SWIFT is a factory's`).not.toBe("swift"); // ENCHANT-1b (N1)
+        expect(enchantProblem(d, w!.ench, { enchDir: w!.enchDir }), `${d.id} seed ${seed}: legal on the piece`).toBeNull();
+      }
+    }
+    // ENCHANT-1b (N1): MASSIVE is a turret's word and SWIFT a factory's, for any piece the function is asked about (the catalogue's parts are
+    // rigs and turrets, but the rule is the one table): never MASSIVE on a rig or a factory, never SWIFT on a rig or a turret
+    for (const d of Object.values(ITEMS)) {
+      const kind = enchantKindOf(d);
+      if (!kind) continue;
+      for (let seed = 1; seed <= 40; seed++) {
+        const w = lastChanceWord(seed, 4, d.id);
+        if (!w) continue;
+        if (kind !== "turret") expect(w.ench, `${d.id} (${kind}) seed ${seed}`).not.toBe("massive");
+        if (kind !== "factory") expect(w.ench, `${d.id} (${kind}) seed ${seed}`).not.toBe("swift");
       }
     }
     expect(lastChanceWord(1, 4, "no-such-part")).toBeNull();
@@ -149,16 +166,24 @@ describe("ENCHANT-1 E5a: buying is applying", () => {
       expect(run.gold).toBe(g - 4);
     });
   });
-  it("a refused piece says why and changes nothing (no gold, no sale): NOT ON A RIG, NO FREE SIDE, NOT ON GEAR, NOT ON A CORE", () => {
+  it("a refused piece says why and changes nothing (no gold, no sale): ONLY ON A TURRET, ONLY ON A FACTORY, NO FREE SIDE, NOT ON GEAR, NOT ON A CORE", () => {
     on(() => {
       const run = dayRun(5);
-      offers(run, "massive", "wide", "fiery");
+      offers(run, "massive", "wide", "fiery", "swift");
       rigAt(run, 200);
       rigAt(run, 201, "overdrive"); // an X rig: four arrows
       run.inventory.push({ uid: 202, def: Object.values(ITEMS).find((d) => d.kind === "mod")!.id });
       run.inventory.push({ uid: 203, def: Object.values(ITEMS).find((d) => d.kind === "core")!.id });
       const g = run.gold;
-      expect(buyEnchant(run, 0, { kind: "item", uid: 200 }).reason).toBe("NOT ON A RIG");
+      // ENCHANT-1b (N1): MASSIVE goes on a turret only and SWIFT on a factory only; the other kinds say which (they were NOT ON A RIG, and
+      // MASSIVE on a factory and SWIFT on a turret were legal)
+      const factory = run.build.items.find((p) => ITEMS[p.def].kind === "factory")!;
+      const gun = turretList(run.build)[0];
+      expect(buyEnchant(run, 0, { kind: "item", uid: 200 }).reason).toBe("ONLY ON A TURRET"); // MASSIVE on a rig
+      expect(buyEnchant(run, 0, { kind: "item", uid: factory.uid }).reason).toBe("ONLY ON A TURRET"); // MASSIVE on a factory
+      expect(buyEnchant(run, 3, { kind: "item", uid: 200 }).reason).toBe("ONLY ON A FACTORY"); // SWIFT on a rig
+      expect(buyEnchant(run, 3, { kind: "turret", slot: gun.slot }).reason).toBe("ONLY ON A FACTORY"); // SWIFT on a turret
+      expect(buyEnchant(run, 3, { kind: "cargo", uid: 202 }).reason).toBe("NOT ON GEAR"); // gear keeps its own reason for either word
       expect(buyEnchant(run, 1, { kind: "item", uid: 201 }).reason).toBe("NO FREE SIDE");
       expect(buyEnchant(run, 2, { kind: "cargo", uid: 202 }).reason).toBe("NOT ON GEAR");
       expect(buyEnchant(run, 2, { kind: "cargo", uid: 203 }).reason).toBe("NOT ON A CORE");
@@ -168,6 +193,48 @@ describe("ENCHANT-1 E5a: buying is applying", () => {
       expect(run.shop.enchanter!.offers.some((o) => o.sold)).toBe(false);
       run.gold = 3;
       expect(buyEnchant(run, 2, { kind: "item", uid: 200 }).reason).toBe("NEED 1 MORE GOLD");
+    });
+  });
+  it("ENCHANT-1b (N1): MASSIVE is bought onto a turret and SWIFT onto a factory, on the deck or in cargo (the 4 G goes, the offer is sold); onto any other kind each is refused and no gold goes", () => {
+    on(() => {
+      const turretDef = Object.values(ITEMS).find((d) => d.kind === "turret")!.id;
+      // a fresh run for each purchase: the pieces a word can be bought onto, by kind (a rig, the hero's factory and a mounted turret on the
+      // deck, then a rig, a factory and a turret in cargo)
+      const fresh = (): { run: Run; parts: [string, string, EnchantTarget][] } => {
+        const run = dayRun(5);
+        offers(run, "massive", "swift");
+        rigAt(run, 200);
+        run.inventory.push({ uid: 210, def: "press" }, { uid: 211, def: turretDef }, { uid: 212, def: "whetstone" });
+        const factory = run.build.items.find((p) => ITEMS[p.def].kind === "factory")!;
+        return { run, parts: [
+          ["deck rig", "rig", { kind: "item", uid: 200 }], ["deck factory", "factory", { kind: "item", uid: factory.uid }],
+          ["mounted turret", "turret", { kind: "turret", slot: turretList(run.build)[0].slot }],
+          ["cargo rig", "rig", { kind: "cargo", uid: 212 }], ["cargo factory", "factory", { kind: "cargo", uid: 210 }], ["cargo turret", "turret", { kind: "cargo", uid: 211 }],
+        ] };
+      };
+      let taken = 0;
+      const n = fresh().parts.length;
+      for (const [slot, word, kind, why] of [[0, "massive", "turret", "ONLY ON A TURRET"], [1, "swift", "factory", "ONLY ON A FACTORY"]] as const) {
+        for (let i = 0; i < n; i++) {
+          const { run, parts } = fresh();
+          const [name, partKind, target] = parts[i];
+          const gold = run.gold;
+          const res = buyEnchant(run, slot, target);
+          if (partKind === kind) {
+            expect(res, `${word} onto the ${name}`).toEqual({ ok: true });
+            expect(run.gold, `${word} onto the ${name}: the 4 G goes`).toBe(gold - 4);
+            expect(run.shop.enchanter!.offers[slot].sold, `${word} onto the ${name}: sold`).toBe(true);
+            expect(pieceAt(run, target)!.ench, `${word} onto the ${name}: the word is on the piece`).toBe(word);
+            taken++;
+          } else {
+            expect(res, `${word} onto the ${name}`).toEqual({ ok: false, reason: why });
+            expect(run.gold, `${word} onto the ${name}: no gold`).toBe(gold);
+            expect(run.shop.enchanter!.offers.some((o) => o.sold), `${word} onto the ${name}: no sale`).toBe(false);
+            expect(pieceAt(run, target)!.ench, `${word} onto the ${name}: the piece is as it was`).toBeUndefined();
+          }
+        }
+      }
+      expect(taken, "MASSIVE onto the mounted turret and the cargo turret, SWIFT onto the deck factory and the cargo factory").toBe(4);
     });
   });
   it("a word already on the piece asks first (REPLACES), then replaces it: the old counter goes, the gold is taken once; the same word is refused", () => {
@@ -228,9 +295,22 @@ describe("ENCHANT-1 E5a: buying is applying", () => {
       run.inventory.push({ uid: 202, def: "whetstone" });
       const c = enchantChoices(run, "massive");
       const byTarget = (k: string, id: number | string) => c.find((x) => JSON.stringify(x.target) === JSON.stringify(k === "item" ? { kind: "item", uid: id } : k === "turret" ? { kind: "turret", slot: id } : { kind: "cargo", uid: id }))!;
-      expect(byTarget("item", 200).reason).toBe("NOT ON A RIG");
-      expect(byTarget("cargo", 202).reason).toBe("NOT ON A RIG");
+      expect(byTarget("item", 200).reason).toBe("ONLY ON A TURRET"); // ENCHANT-1b (N1): it was NOT ON A RIG
+      expect(byTarget("cargo", 202).reason).toBe("ONLY ON A TURRET");
       expect(c.some((x) => x.target.kind === "turret" && x.reason === null)).toBe(true);
+      // ENCHANT-1b (N1): MASSIVE glows on turrets only and SWIFT on factories only, wherever the piece is (the deck, a mount, the cargo); every
+      // other rig, factory or turret says ONLY ON A TURRET / ONLY ON A FACTORY, and the gear and cores keep their own reasons
+      run.inventory.push({ uid: 203, def: "press" }, { uid: 204, def: Object.values(ITEMS).find((d) => d.kind === "turret")!.id });
+      const order = enchantChoices(run, "massive").map((x) => x.target);
+      for (const [word, kind, why] of [["massive", "turret", "ONLY ON A TURRET"], ["swift", "factory", "ONLY ON A FACTORY"]] as const) {
+        const rows = enchantChoices(run, word);
+        expect(rows.map((x) => x.target), `${word}: the same pieces in the same order`).toEqual(order);
+        const parts = rows.filter((x) => enchantKindOf(ITEMS[x.def]) !== undefined);
+        expect(new Set(parts.map((x) => `${x.target.kind} ${enchantKindOf(ITEMS[x.def])}`)), `${word}: a rig, a factory and a turret on the deck or a mount, and in cargo`)
+          .toEqual(new Set(["item rig", "item factory", "turret turret", "cargo rig", "cargo factory", "cargo turret"]));
+        for (const x of parts) expect(x.reason, `${word} on ${x.def} (${x.target.kind})`).toBe(enchantKindOf(ITEMS[x.def]) === kind ? null : why);
+        for (const x of rows.filter((q) => enchantKindOf(ITEMS[q.def]) === undefined)) expect(x.reason, `${word} on ${x.def}`).toMatch(/^NOT ON /);
+      }
       const w = enchantChoices(run, "wide");
       expect(w.find((x) => x.target.kind === "item" && x.target.uid === 200)).toMatchObject({ reason: null, sides: [1, 2, 3] });
       expect(JSON.stringify(enchantChoices(run, "wide"))).toBe(JSON.stringify(w));
@@ -311,13 +391,16 @@ describe("ENCHANT-1 E5b: the warlord pick", () => {
       run.inventory.push({ uid: 202, def: Object.values(ITEMS).find((d) => d.kind === "mod")!.id });
       expect(takeWarlordWord(run, 0, { kind: "cargo", uid: 202 }).reason).toBe("NOT ON GEAR");
       expect(run.enchPick).toBeDefined();
-      // a word that can't go on a rig is tried on the turret instead
-      const target = applyProblem(run, { kind: "item", uid: 200 }, b) === null ? { kind: "item" as const, uid: 200 } : { kind: "turret" as const, slot: turretList(run.build)[0].slot };
+      // a word that can't go on a rig is tried on the turret, then on the hero's factory (ENCHANT-1b N1: MASSIVE goes on a turret only, SWIFT on a factory only)
+      const factory = run.build.items.find((p) => ITEMS[p.def].kind === "factory")!;
+      const target = [{ kind: "item" as const, uid: 200 }, { kind: "turret" as const, slot: turretList(run.build)[0].slot }, { kind: "item" as const, uid: factory.uid }]
+        .find((t) => applyProblem(run, t, b) === null)!;
+      expect(target, `a part that takes ${b}`).toBeDefined();
       const r = takeWarlordWord(run, 1, target, { dir: 2, replace: true });
       expect(r.ok).toBe(true);
       expect(run.enchPick).toBeUndefined();
       expect(run.gold).toBe(g);
-      const held = target.kind === "item" ? run.build.items.find((p) => p.uid === 200)!.ench : turretList(run.build)[0].ench;
+      const held = target.kind === "item" ? run.build.items.find((p) => p.uid === target.uid)!.ench : turretList(run.build)[0].ench;
       expect(held).toBe(b);
       expect(a).not.toBe(b);
     });

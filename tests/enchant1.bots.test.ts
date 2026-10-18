@@ -23,9 +23,10 @@ import { botLastChancePick } from "../src/sim/harness/lastChance";
 import { Shopper } from "../src/sim/harness/shopper";
 import { parRunSeed, playerRoadLog, playerRun, rateOn, type PlayerDay } from "../src/sim/harness/player";
 import {
-  CASUAL_WORD_RATE, WORD_PRIOR, bestWordFor, botWarlordPick, casualWarlordPick, chooser, chooserFor, modelOf, rankWords, stunsPerFight, wordCount,
+  CASUAL_WORD_RATE, WORD_PRIOR, bestWordFor, botWarlordPick, casualWarlordPick, chooser, chooserFor, modelOf, piecesOf, rankWords, stunsPerFight, wordCount,
   wordValue, wordsHeld,
 } from "../src/sim/harness/enchantBot";
+import { RATING_CURVE, firedShare } from "../src/sim/deckRating";
 import { newRun, type Run } from "../src/game/run";
 import { gainModule } from "../src/game/fuse";
 import { finishDay } from "../src/game/day";
@@ -60,6 +61,8 @@ const top = (b: Build, word: string, day = 5) => bestWordFor({ build: b, day }, 
 const isItem = (t: { kind: string } | undefined, uid: number): boolean => !!t && t.kind === "item" && (t as unknown as { uid: number }).uid === uid;
 
 // ---------------------------------------------------------------- the valuation: PIECES-1 4.8's rules of thumb
+// (ENCHANT-1b, N1: MASSIVE is a turret's word and SWIFT a factory's, so the rules of thumb read: MASSIVE on a turret whose gun queues; SWIFT on a
+// factory whose belt carries 2 or more stat rigs and whose gun has spare rate. A word is never valued, or offered, on the kind it does not go on.)
 
 describe("ENCHANT-1 E8: the valuation reproduces the rules of thumb", () => {
   it("FIERY, RISING and GROWING go on the piece with the most slugs or shots: a LOOM's three belts beat each gun's one", () => {
@@ -87,41 +90,84 @@ describe("ENCHANT-1 E8: the valuation reproduces the rules of thumb", () => {
     });
   });
 
-  it("MASSIVE goes on a factory whose gun queues, and is worth more the deeper the queue", () => {
+  it("MASSIVE goes on a turret whose belts bring more slugs than it can fire, and is worth more the deeper the queue", () => {
     on(() => {
-      const worth = (lvl: number): { kiln: number; gun: number } => {
+      // ENCHANT-1b (N1): MASSIVE is a turret's word (the factory branch is gone). The valuation halves the gun's rate and gives each shot
+      // massiveShare x the DMG; a gun fed past its rate jams (firedShare falls with the load), so the half rate loses the less, the deeper the queue.
+      const worth = (lvl: number): { gun: number; load: number; rule: number } => {
         const b = heroStartBuild("furnace", 1);
         b.upgrades = { factory: lvl, turret: 1 }; // a faster KILN into the same SCRAP CANNON: the arrival passes the gun's rate
-        const r = rankWords({ build: b, day: 5 }, "massive");
-        return { kiln: r.find((s) => isItem(s.target, 1))?.value ?? 0, gun: r.find((s) => s.target.kind === "turret")?.value ?? 0 };
+        const t = modelOf(b, 5).turrets.get(0)!;
+        const fired = (cap: number): number => Math.min(t.A, cap) * firedShare(t.A / cap, t.noJam, RATING_CURVE); // what the gun fires a second at that rate
+        return {
+          gun: rankWords({ build: b, day: 5 }, "massive").find((s) => s.target.kind === "turret")?.value ?? 0,
+          load: t.A / t.cap,
+          rule: (ENCHANT_NUM.massiveShare * fired(t.cap / 2)) / fired(t.cap) - 1, // the one gun is the whole offense: half the rate, massiveShare x a shot
+        };
       };
-      const l1 = worth(1), l3 = worth(3);
-      expect(l3.kiln).toBeGreaterThan(0.3); // the gun queues: half the slugs, massiveShare x the DMG, nothing fired is lost
-      expect(l3.kiln).toBeGreaterThan(2 * l1.kiln); // the deeper queue is worth more (run 4: with no queue it is still a gain at 3x, half the slugs at three times the share: it read "almost nothing" only while the valuation priced the old 2x)
-      expect(l3.gun).toBeLessThan(l3.kiln); // on the gun the half rate loses fire it needed: the factory is still the better place (at 2x the gun's value was below 0; at 3x it is a gain, smaller than the kiln's)
+      const l2 = worth(2), l3 = worth(3), l4 = worth(4);
+      expect(l3.load).toBeGreaterThan(1); // the belts bring more slugs than the gun can fire ...
+      expect(l4.load).toBeGreaterThan(l3.load); // ... and at level 4 more still
+      expect(l4.gun).toBeGreaterThan(l3.gun); // the deeper queue is worth more
+      expect(l3.gun).toBeGreaterThan(l2.gun); // and a gun just at its rate (load 1) gains less than one that queues
+      for (const l of [l2, l3, l4]) expect(l.gun).toBeCloseTo(l.rule, 9);
       const b = heroStartBuild("furnace", 1);
       b.upgrades = { factory: 3, turret: 1 };
-      expect(isItem(top(b, "massive")!.target, 1)).toBe(true);
+      expect(rankWords({ build: b, day: 5 }, "massive").map((s) => s.target)).toEqual([{ kind: "turret", slot: 0 }]); // the one place MASSIVE can go on this deck: the gun
+      if (ENCHANT_NUM.massiveShare >= 3) { // at the shipped 3x the double shot more than pays for the half rate on a gun that queues (at 2x it does not here: only the order above holds)
+        expect(l3.gun).toBeGreaterThan(0.1);
+        expect(top(b, "massive")!.target).toEqual({ kind: "turret", slot: 0 }); // so the bots would put it there
+      }
     });
   });
 
-  it("MASSIVE's value on a factory follows ENCHANT_NUM.massiveShare (run 4: the valuation priced the old 2x after the number moved to 3)", () => {
+  it("MASSIVE's value on a turret follows ENCHANT_NUM.massiveShare (run 4: the valuation priced the old 2x after the number moved to 3)", () => {
     on(() => {
-      const b = heroStartBuild("furnace", 1);
-      const kiln = (): number => rankWords({ build: b, day: 5 }, "massive").find((s) => isItem(s.target, 1))?.value ?? 0;
-      const was = ENCHANT_NUM.massiveShare;
-      try {
-        ENCHANT_NUM.massiveShare = 2;
-        const two = kiln();
-        ENCHANT_NUM.massiveShare = 4;
-        const four = kiln();
-        ENCHANT_NUM.massiveShare = 3;
-        const three = kiln();
-        expect(three).toBeGreaterThan(two);
-        expect(four).toBeGreaterThan(three);
-      } finally {
-        ENCHANT_NUM.massiveShare = was;
+      for (const factory of [1, 3]) { // the plain start deck, and a gun that queues
+        const b = heroStartBuild("furnace", 1);
+        b.upgrades = { factory, turret: 1 };
+        const gun = (): number => rankWords({ build: b, day: 5 }, "massive").find((s) => s.target.kind === "turret")?.value ?? 0;
+        const was = ENCHANT_NUM.massiveShare;
+        try {
+          ENCHANT_NUM.massiveShare = 2;
+          const two = gun();
+          ENCHANT_NUM.massiveShare = 4;
+          const four = gun();
+          ENCHANT_NUM.massiveShare = 3;
+          const three = gun();
+          expect(three, `factory level ${factory}`).toBeGreaterThan(two);
+          expect(four, `factory level ${factory}`).toBeGreaterThan(three);
+          // the one gun is the whole offense, so its gain is massiveShare x (what it fires at half the rate / what it fires) - 1: 1 + value goes with the share
+          expect((1 + three) / (1 + two), `factory level ${factory}`).toBeCloseTo(3 / 2, 9);
+          expect((1 + four) / (1 + three), `factory level ${factory}`).toBeCloseTo(4 / 3, 9);
+        } finally {
+          ENCHANT_NUM.massiveShare = was;
+        }
       }
+    });
+  });
+
+  it("ENCHANT-1b (N1): MASSIVE is offered turrets only and SWIFT factories only: rankWords and bestWordFor never list a rig or the other kind, and value it at nothing", () => {
+    on(() => {
+      let listed = 0;
+      for (const hero of HEROES4) {
+        for (const [b, day] of [[heroStartBuild(hero, 1), 5], [withRigs(hero, 3), 5], [withRigs(hero, 4, 8, 3), 8]] as const) { // the start deck, rigs added, a later deck with a faster factory
+          for (const [word, home] of [["massive", "turret"], ["swift", "factory"]] as const) {
+            const at = `${hero} day ${day} ${word}`;
+            const rank = rankWords({ build: b, day }, word);
+            expect(rank.length, at).toBeGreaterThan(0);
+            for (const s of rank) {
+              expect(ITEMS[s.def].kind, `${at} -> ${s.def}`).toBe(home);
+              listed++;
+            }
+            const best = bestWordFor({ build: b, day }, word);
+            if (best) expect(ITEMS[best.def].kind, `${at} best -> ${best.def}`).toBe(home);
+            // a piece of any other kind is worth nothing for it, listed or not
+            for (const p of piecesOf(b)) if (p.kind !== home) expect(wordValue(b, day, p.target, word), `${at} on a ${p.kind}`).toBe(0);
+          }
+        }
+      }
+      expect(listed).toBeGreaterThan(20);
     });
   });
 
@@ -272,7 +318,11 @@ describe("ENCHANT-1 E8: a merge keeps the higher-valued word", () => {
     expect(mergeWord({ ench: "growing", grow: 1 }, { ench: "growing", grow: 6 }, chooser as never).kept).toEqual({ ench: "growing", grow: 6 }); // the same word: mergeWord keeps the higher counter itself, the chooser is not asked
     expect(chooser({ def: "scrapcannon", stars: 3, a: r, b: { ench: "growing", grow: 4 } })).toEqual({ ench: "growing", grow: 4 });
     for (const kind of Object.keys(WORD_PRIOR) as (keyof typeof WORD_PRIOR)[]) for (const w of ENCHANT_IDS) expect(WORD_PRIOR[kind][w]).toBeGreaterThanOrEqual(0);
-    expect(WORD_PRIOR.rig.massive).toBe(0); // the words a rig cannot take are worth nothing there
+    // the words a kind cannot take are worth nothing there (ENCHANT-1b N1: MASSIVE on a rig or a factory, SWIFT on a rig or a turret) ...
+    expect([WORD_PRIOR.rig.massive, WORD_PRIOR.factory.massive, WORD_PRIOR.rig.swift, WORD_PRIOR.turret.swift]).toEqual([0, 0, 0, 0]);
+    // ... and the kind each does go on is worth something
+    expect(WORD_PRIOR.turret.massive).toBeGreaterThan(0);
+    expect(WORD_PRIOR.factory.swift).toBeGreaterThan(0);
   });
 
   it("the deck-aware chooser keeps the word that does more where the survivor stands, whichever copy held it", () => {
@@ -448,6 +498,23 @@ describe("ENCHANT-1 E8: the casual player, the warlord pick and LAST CHANCE", ()
       expect(JSON.stringify(c1.build)).toBe(JSON.stringify(c2.build));
       expect(wordCount(c1.build)).toBe(1);
       expect(c1.enchPick).toBeUndefined();
+    });
+  });
+
+  it("ENCHANT-1b (N1): the casual pick puts MASSIVE on a turret and SWIFT on a factory, whichever way its coin falls, and never on the other kind", () => {
+    on(() => {
+      const seen = new Set<string>();
+      for (let seed = 1; seed <= 16; seed++) {
+        const run = newRun("furnace", 5);
+        run.day = 5;
+        run.enchPick = { day: 5, no: 1, words: ["massive", "swift"] };
+        expect(casualWarlordPick(run, new Rng(seed)), `seed ${seed}`).toBe(true); // a legal piece always stands (the gun for MASSIVE, the KILN for SWIFT): the pick is never lost to an illegal one
+        const held = wordsHeld(run.build);
+        expect(held, `seed ${seed}`).toHaveLength(1);
+        expect(enchantProblem(held[0].def, held[0].word), `seed ${seed}`).toBeNull();
+        seen.add(`${held[0].word}@${held[0].def}`);
+      }
+      expect([...seen].sort()).toEqual(["massive@scrapcannon", "swift@kiln"]);
     });
   });
 

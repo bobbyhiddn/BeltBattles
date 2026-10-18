@@ -1,6 +1,7 @@
 // ENCHANT-1 (REQ-BFG-085 (4); BRIEF-ENCHANT1 E6; run 2, step 5): THE SERVER'S UPLOAD CHECK for enchantments, rule by rule, each with forged
 // fixtures that it refuses and legal fixtures that it accepts (src/net/enchantCheck.ts, the hooks in src/net/validate.ts):
 //   E6.1 each word is one of the eight and sits on a kind it can go on; enchDir only with WIDE on a rig, on a side with no arrow
+//        (ENCHANT-1b N1: MASSIVE goes on a turret only, SWIFT on a factory only; the others are refused `ONLY ON A TURRET` / `ONLY ON A FACTORY`)
 //   E6.2 the count is at most maxEnchantsByDay(day, LAST CHANCE took the part)
 //   E6.3 each held word was on offer (re-derived from the run seed: possibleWords), and each offer is used once (the slots)
 //   E6.4 gold: every word past the free sources' bound costs ENCHANTER_PRICE in buildCost, so the day's budget covers it
@@ -56,15 +57,16 @@ function deck(over: Record<number, { ench: string; enchDir?: number; grow?: numb
 const KILN = heroStartBuild("furnace").items.find((p) => p.def === ITEMS.kiln.id)!.uid; // the signature factory
 /** The hand deck with its starting turret listed (uid 90) and extra fields on it. */
 const withTurret = (b: Build, f: Record<string, unknown> = {}): Build => ({ ...b, turrets: [{ slot: 0, def: "scrapcannon", uid: 90, free: true, ...f }] }) as Build;
-/** Six distinct legal pieces of the hand deck and a word that fits each: n of them hold their word. */
+/** Six distinct legal pieces of the hand deck and a word that fits each: n of them hold their word. ENCHANT-1b (N1): the signature factory
+ *  holds SWIFT (a factory's word) and the turret MASSIVE (a turret's); they were MASSIVE and SWIFT the other way round. */
 const SIX: { uid: number; ench: string; enchDir?: number }[] = [
-  { uid: 10, ench: "fiery" }, { uid: 11, ench: "rising" }, { uid: 12, ench: "wide", enchDir: 0 }, { uid: 13, ench: "echoing" }, { uid: KILN, ench: "massive" }, { uid: 90, ench: "swift" },
+  { uid: 10, ench: "fiery" }, { uid: 11, ench: "rising" }, { uid: 12, ench: "wide", enchDir: 0 }, { uid: 13, ench: "echoing" }, { uid: KILN, ench: "swift" }, { uid: 90, ench: "massive" },
 ];
 function handWords(n: number): Build {
   const items: Record<number, { ench: string; enchDir?: number }> = {};
   for (const w of SIX.slice(0, n).filter((x) => x.uid !== 90)) items[w.uid] = { ench: w.ench, ...(w.enchDir !== undefined ? { enchDir: w.enchDir } : {}) };
   const b = deck(items);
-  return SIX.slice(0, n).some((x) => x.uid === 90) ? withTurret(b, { ench: "swift" }) : withTurret(b);
+  return SIX.slice(0, n).some((x) => x.uid === 90) ? withTurret(b, { ench: SIX.find((x) => x.uid === 90)!.ench }) : withTurret(b);
 }
 /** The player mode on a deck holding its day's neutral runes (no seed: the offers are not re-derived), ENCHANT on. */
 const up = (b: Build, day: number, ctx: ValidateContext = {}) => on(() => validateUpload(withDawnRunes(b, day), day, RULES_VERSION, ctx));
@@ -146,14 +148,18 @@ describe("ENCHANT-1 E6.1: each word is one of the eight and sits on a kind it ca
     expect(v.ok, names(v)).toBe(true);
   });
 
-  it("forged words are refused with the player's reason: MASSIVE and SWIFT on a rig, WIDE on an X, a shaped and a taken-side rig, no side, a stray side", () => {
+  it("forged words are refused with the player's reason: MASSIVE on a rig or a factory, SWIFT on a rig or a turret, WIDE on an X, a shaped and a taken-side rig, no side, a stray side", () => {
     const refuse = (name: string, b: Build, re: RegExp, day = 5) => {
       const v = up(b, day);
       expect(v.ok, `${name} must be refused`).toBe(false);
       expect(names(v), name).toMatch(re);
     };
-    refuse("rig-massive", deck({ 10: { ench: "massive" } }), /can't take MASSIVE: NOT ON A RIG/);
-    refuse("rig-swift", deck({ 10: { ench: "swift" } }), /can't take SWIFT: NOT ON A RIG/);
+    refuse("rig-massive", deck({ 10: { ench: "massive" } }), /can't take MASSIVE: ONLY ON A TURRET/);
+    refuse("rig-swift", deck({ 10: { ench: "swift" } }), /can't take SWIFT: ONLY ON A FACTORY/);
+    // ENCHANT-1b (N1): MASSIVE is a turret's word and SWIFT a factory's, so the E6.1 check refuses the other kind of part with the kind that takes it
+    refuse("factory-massive", deck({ 11: { ench: "massive" } }), /STAMP PRESS can't take MASSIVE: ONLY ON A TURRET/);
+    refuse("signature-factory-massive", deck({ [KILN]: { ench: "massive" } }), /KILN can't take MASSIVE: ONLY ON A TURRET/);
+    refuse("turret-swift", withTurret(deck(), { ench: "swift" }), /turret: uid 90 SCRAP CANNON can't take SWIFT: ONLY ON A FACTORY/);
     refuse("wide-x-rig", deck({ 13: { ench: "wide", enchDir: 1 } }), /can't take WIDE: NO FREE SIDE/);
     refuse("wide-taken-side", deck({ 12: { ench: "wide", enchDir: 1 } }), /can't take WIDE: NO FREE SIDE/);
     refuse("wide-no-side", deck({ 10: { ench: "wide" } }), /has WIDE but no side/);
@@ -165,6 +171,36 @@ describe("ENCHANT-1 E6.1: each word is one of the eight and sits on a kind it ca
     const notTurret = withTurret(deck(), {}) as Build;
     notTurret.turrets = [{ slot: 0, def: "calibrate", uid: 90, ench: "fiery" }];
     refuse("word-in-the-turret-list-on-gear", notTurret, /is not a turret/);
+  });
+
+  it("ENCHANT-1b (N1): on every hero's par deck, MASSIVE is taken by a turret and refused on each rig and factory, SWIFT is taken by a factory and refused on each rig and turret, each with its reason", () => {
+    let taken = 0, refused = 0;
+    for (const hero of HEROS) {
+      for (const day of [5, 10]) {
+        const b = par(hero, 3, day);
+        const parts: { to: Target; kind: string }[] = [
+          ...b.items.filter((p) => ITEMS[p.def].kind === "gate" || ITEMS[p.def].kind === "factory").map((p) => ({ to: { item: p.uid }, kind: ITEMS[p.def].kind === "gate" ? "rig" : "factory" })),
+          ...turretList(b).map((_, k) => ({ to: { turret: k }, kind: "turret" })),
+        ];
+        for (const [word, home, reason] of [["massive", "turret", "ONLY ON A TURRET"], ["swift", "factory", "ONLY ON A FACTORY"]] as const) {
+          for (const { to, kind } of parts) {
+            const v = on(() => validateUpload(put(b, to, { ench: word }), day, RULES_VERSION, {}));
+            const says = v.errors.filter((e) => /can't take/.test(e)); // the piece check's lines (the deck may have other things to say, a count or a rune)
+            const at = `${hero} day ${day}: ${word} on a ${kind}`;
+            if (kind === home) {
+              expect(says, at).toEqual([]);
+              taken++;
+            } else {
+              expect(says, at).toHaveLength(1);
+              expect(says[0], at).toMatch(new RegExp(`can't take ${word.toUpperCase()}: ${reason}$`));
+              refused++;
+            }
+          }
+        }
+      }
+    }
+    expect(taken).toBeGreaterThan(8);
+    expect(refused).toBeGreaterThan(8);
   });
 
   it("the decoder refuses what no piece check could read: an unknown word, a word on gear, a stray enchDir, enchDir out of range", () => {
@@ -340,12 +376,19 @@ describe("ENCHANT-1 E6.3: each held word was on offer (re-derived from the run s
       hero: "furnace", routes: [], mods: [], beltCap: 14, hullBonus: 0,
       items: items.map((p, i) => ({ uid: i + 1, def: "whetstone", x: 0, y: 0, ...p })),
     });
-    let checked = 0, wides = 0;
+    let checked = 0, wides = 0, massives = 0;
     on(() => {
       for (let seed = 1; seed <= 40; seed++) {
         for (const d of [...rigs, ...turrets]) {
           const lcDay = 1, day = 2; // days 1-2 have no other source: LAST CHANCE's word is the only word this deck can hold
           const w = lastChanceWord(seed, lcDay, d.id)!;
+          // ENCHANT-1b (N1): the part's word is one that part can take: MASSIVE only ever on a turret, SWIFT never (a LAST CHANCE part is a rig or a turret)
+          expect(enchantProblem(d, w.ench, w.enchDir !== undefined ? { enchDir: w.enchDir } : undefined), `seed ${seed} ${d.id}: ${w.ench} must be legal on it`).toBeNull();
+          expect(w.ench, `seed ${seed} ${d.id}`).not.toBe("swift");
+          if (w.ench === "massive") {
+            expect(d.kind, `seed ${seed} ${d.id}: MASSIVE`).toBe("turret");
+            massives++;
+          }
           const lc: TakenLastChance = { day: lcDay, boon: "part", id: d.id };
           const piece = (def: string, f: Partial<Placed>): Build => fakeOf([{ def, ...f }]);
           const hold = d.kind === "gate" ? piece(d.id, { ench: w.ench, ...(w.enchDir !== undefined ? { enchDir: w.enchDir } : {}) }) : ({ ...fakeOf([]), turrets: [{ slot: 0, def: d.id, uid: 1, ench: w.ench }] } as Build);
@@ -376,6 +419,7 @@ describe("ENCHANT-1 E6.3: each held word was on offer (re-derived from the run s
     });
     expect(checked).toBeGreaterThan(100);
     expect(wides).toBeGreaterThan(0);
+    expect(massives).toBeGreaterThan(0); // a turret part does draw MASSIVE now and then
     // the SIDE: every epic LAST CHANCE rig has one free side, so the seeded side cannot be told from the other there; the check reads
     // the part's id as given, so a rig with two free sides (LONG HAUL, II) shows it: the seeded side passes, the other free side is refused
     let sided = 0;
@@ -558,7 +602,7 @@ describe("ENCHANT-1 E6: off, or under rules without ENCHANT, every ench, enchDir
   const fixtures = (): [string, Build][] => [
     ["rig word", deck({ 10: { ench: "fiery" } })],
     ["rig WIDE with its side", deck({ 12: { ench: "wide", enchDir: 0 } })],
-    ["factory word", deck({ 11: { ench: "massive" } })],
+    ["factory word", deck({ 11: { ench: "swift" } })], // ENCHANT-1b (N1): SWIFT is a factory's word (the gate speaks first whatever the word, but the fixture is a legal deck)
     ["GROWING with its counter", deck({ 10: { ench: "growing", grow: 2 } })],
     ["turret word", withTurret(deck(), { ench: "braced" })],
     ["a stray enchDir", deck({ 10: { ench: "fiery", enchDir: 1 } })],
@@ -622,13 +666,16 @@ function pinFixtures(): { name: string; s: GhostSnapshot; ok: boolean; why?: Reg
   // legal, offered, counted, paid for
   add("honest-1", one(legalTwo[0]), true);
   add("honest-wide", one("wide"), offered.includes("wide"));
-  add("honest-factory-massive", one("massive"), offered.includes("massive"));
+  add("honest-turret-massive", one("massive"), offered.includes("massive")); // ENCHANT-1b (N1): MASSIVE rides on a turret (targets gives it the first turret)
+  add("honest-factory-swift", one("swift"), offered.includes("swift")); // and SWIFT on a factory (the first one)
   add("honest-growing-9", one("growing", { grow: 9 }), offered.includes("growing"));
   add("honest-4-words", assign(base, honestWords(rs, day, 2)).build, true);
   // forged
   add("never-offered", one(never[0] ?? "braced"), never.length === 0, /did not offer/);
   add("grow-past-the-bound", one("growing", { grow: 10 }), false, /has grow 10, but only 9 dusk fights came before day 10/);
-  add("rig-massive", put(base, { item: base.items.find((p) => ITEMS[p.def].kind === "gate")!.uid }, { ench: "massive" }), false, /NOT ON A RIG/);
+  add("rig-massive", put(base, { item: base.items.find((p) => ITEMS[p.def].kind === "gate")!.uid }, { ench: "massive" }), false, /ONLY ON A TURRET/);
+  add("factory-massive", put(base, { item: base.items.find((p) => ITEMS[p.def].kind === "factory")!.uid }, { ench: "massive" }), false, /can't take MASSIVE: ONLY ON A TURRET/); // ENCHANT-1b (N1)
+  add("turret-swift", put(base, { turret: 0 }, { ench: "swift" }), false, /turret: uid \d+ .* can't take SWIFT: ONLY ON A FACTORY/);
   const eleven = assign(base, Array.from({ length: 12 }, () => legalTwo[0]));
   add("over-the-count", eleven.build, false, new RegExp(`${eleven.placed} enchanted parts, but day 10 allows at most 10`));
   add("grow-on-fiery", one("fiery", { grow: 1 }), false);

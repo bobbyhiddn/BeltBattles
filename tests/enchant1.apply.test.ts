@@ -3,7 +3,8 @@
 //   - the ENCHANTER's wagon: two word cards (icon and price), inside the screen, clear of every other target, a finger's size on the phone;
 //     the regular cards' rectangles are the layout's own with the wagon there or not, and the switch off (or no wagon today) draws the
 //     very same frame;
-//   - a tap on a word card selects it (its tap panel: the word, ON A RIG / ON A FACTORY / ON A TURRET, the NOTES, APPLY or NEED nG); a second tap opens APPLY;
+//   - a tap on a word card selects it (its tap panel: the word, a row for each kind it goes on (ON A RIG / ON A FACTORY / ON A TURRET; MASSIVE
+//     `ONLY ON A TURRET` and SWIFT `ONLY ON A FACTORY`, ENCHANT-1b N1), the NOTES, APPLY or NEED nG); a second tap opens APPLY;
 //   - APPLY: a legal part takes the word and the gold (4 G) goes only then; a refused part says why and nothing changes; a part that holds a word
 //     asks REPLACES FIERY first (CANCEL changes nothing); WIDE on a rig asks for a side; a tap outside any part leaves APPLY;
 //   - the warlord pick: its strip (two cards, no price, NO THANKS), a free apply, NO THANKS losing the word;
@@ -28,7 +29,7 @@ import { enchantChoices, openWarlordPick, pendingEnchantPick } from "../src/game
 import { setPieceWord } from "../src/game/fuse";
 import { itemByUid, occupancy, turretSlots } from "../src/sim/deck";
 import { ITEMS } from "../src/sim/content";
-import { replacesText, sellAskText } from "../src/sim/enchant";
+import { enchantKindOf, replacesText, sellAskText } from "../src/sim/enchant";
 import { wordFace } from "../src/ui/enchantFaces";
 import type { Game } from "../src/game/game";
 
@@ -313,26 +314,37 @@ describe("ENCHANT-1 step 7: the ENCHANTER's wagon on the build screen", () => {
 
 describe("ENCHANT-1 step 7: a word card's tap panel", () => {
   it("a tap selects the card: the word in its colour, one line for each kind, the NOTES on demand, APPLY", () => {
+    // ENCHANT-1b (N1): one line for each kind THE WORD GOES ON. MASSIVE goes on a turret only and SWIFT on a factory only, so their card has
+    // ONE row (`ONLY ON A TURRET` / `ONLY ON A FACTORY`) and no `NOT ON ...` row; FIERY, which goes on all three kinds, has a row for each
+    const cards: [EnchantId, string[]][] = [
+      ["massive", ["ONLY ON A TURRET"]], ["swift", ["ONLY ON A FACTORY"]], ["fiery", ["ON A RIG", "ON A FACTORY", "ON A TURRET"]],
+    ];
     for (const view of ["desk", "phone"] as const) on(() => {
-      const r = rig(dayRun(["massive", "fiery"]), view);
-      frame(r);
-      tap(r, ...centre(card(r, 0)), view === "phone" ? "touch" : "mouse");
-      expect(r.screen.sel).toEqual({ kind: "word", pick: false, i: 0 });
-      frame(r);
-      const info = r.screen.panelInfo()!;
-      expect(info.title).toBe("MASSIVE");
-      expect(info.labels).toEqual(["APPLY"]);
-      const f = wordFace("massive");
-      expect(info.lines.join(" | ")).toContain("NOT ON A RIG");
-      expect(info.lines.join(" ")).toContain("ON A FACTORY");
-      expect(info.lines.join(" ")).toContain("ON A TURRET");
-      expect(f.lines[0].legal).toBe(false);
-      expect(info.notes.join(" ")).toContain("ENCHANTED");
-      expect(info.notes.length).toBe(f.notes.length);
+      for (const [id, rows] of cards) {
+        const r = rig(dayRun([id, "wide"]), view);
+        frame(r);
+        tap(r, ...centre(card(r, 0)), view === "phone" ? "touch" : "mouse");
+        expect(r.screen.sel, `${view} ${id}`).toEqual({ kind: "word", pick: false, i: 0 });
+        frame(r);
+        const info = r.screen.panelInfo()!;
+        expect(info.title, `${view} ${id}`).toBe(ENCHANT_DEFS[id].name);
+        expect(info.labels, `${view} ${id}`).toEqual(["APPLY"]);
+        const f = wordFace(id);
+        expect(f.lines.map((l) => l.label), `${view} ${id}: a row for each kind it goes on`).toEqual(rows);
+        expect(f.lines.every((l) => l.legal), `${view} ${id}: every row is a kind it goes on`).toBe(true);
+        const text = info.lines.join(" | ");
+        for (const l of f.lines) expect(text, `${view} ${id}: ${l.label}`).toContain(l.label);
+        expect(text, `${view} ${id}: no NOT ON row`).not.toContain("NOT ON");
+        for (const k of ["rig", "factory", "turret"] as const) {
+          if (!(ENCHANT_DEFS[id].kinds as readonly string[]).includes(k)) expect(text, `${view} ${id}: no row for a ${k}`).not.toContain(`ON A ${k.toUpperCase()}`);
+        }
+        expect(info.notes.join(" "), `${view} ${id}`).toContain("ENCHANTED");
+        expect(info.notes.length, `${view} ${id}`).toBe(f.notes.length);
+      }
     });
   });
 
-  it("all eight words: the panel prints each kind's line (no `[...]` markup left: the icons are drawn), NOT ON A RIG where it is true, the NOTES, and a name in the word's colour", () => {
+  it("all eight words: the panel prints each kind's line it goes on (no `[...]` markup left: the icons are drawn), ONLY ON A TURRET / ONLY ON A FACTORY for the two with one kind and never a NOT ON row, the NOTES, and a name in the word's colour", () => {
     for (const view of ["desk", "phone"] as const) on(() => {
       for (const [a, b] of [["fiery", "rising"], ["growing", "echoing"], ["massive", "swift"], ["wide", "braced"]] as const) {
         const r = rig(dayRun([a, b]), view);
@@ -344,6 +356,12 @@ describe("ENCHANT-1 step 7: a word card's tap panel", () => {
           const text = info.lines.join(" ");
           expect(text, `${view} ${id}: no markup`).not.toMatch(/[\[\]]/);
           for (const l of f.lines) expect(text, `${view} ${id}: ${l.label}`).toContain(l.label);
+          // ENCHANT-1b (N1): a row for each kind the word goes on and no other; a word with one kind says ONLY ON A ...; there is no NOT ON row
+          const kinds = ENCHANT_DEFS[id].kinds as readonly string[];
+          expect(f.lines.map((l) => l.kind), `${view} ${id}: the kinds it goes on`).toEqual(["rig", "factory", "turret"].filter((k) => kinds.includes(k)));
+          expect(f.lines.every((l) => l.label.startsWith("ONLY ")), `${view} ${id}: ONLY ON A ... for a word with one kind`).toBe(kinds.length === 1);
+          expect(text.includes("ONLY ON"), `${view} ${id}: the panel says ONLY ON for a word with one kind`).toBe(kinds.length === 1);
+          expect(text, `${view} ${id}: no NOT ON row`).not.toContain("NOT ON");
           expect(info.notes.length, `${view} ${id}: NOTES`).toBe(f.notes.length);
           expect(f.color).toBe(ENCHANT_DEFS[id].color);
         }
@@ -385,7 +403,14 @@ describe("ENCHANT-1 step 7: APPLY", () => {
       expect(st.line).toBe("TAP A GLOWING PART");
       const rows = enchantChoices(r.run, "massive");
       expect(rows.some((c) => c.reason === null)).toBe(true);
-      expect(rows.find((c) => c.target.kind === "item" && c.target.uid === 900)!.reason).toBe("NOT ON A RIG");
+      expect(rows.find((c) => c.target.kind === "item" && c.target.uid === 900)!.reason).toBe("ONLY ON A TURRET");
+      // ENCHANT-1b (N1): MASSIVE glows on a turret only (a rig and a factory say ONLY ON A TURRET); SWIFT on a factory only (a rig and a
+      // turret say ONLY ON A FACTORY). The deck holds all three kinds, so neither check is vacuous.
+      for (const [word, kind, why] of [["massive", "turret", "ONLY ON A TURRET"], ["swift", "factory", "ONLY ON A FACTORY"]] as const) {
+        const parts = enchantChoices(r.run, word).filter((c) => enchantKindOf(ITEMS[c.def]) !== undefined);
+        expect(new Set(parts.map((c) => enchantKindOf(ITEMS[c.def]))), `${word}: the deck holds a rig, a factory and a turret`).toEqual(new Set(["rig", "factory", "turret"]));
+        for (const c of parts) expect(c.reason, `${word} on ${c.def} (${c.target.kind})`).toBe(enchantKindOf(ITEMS[c.def]) === kind ? null : why);
+      }
       expect(labels(r)).toEqual(["CANCEL"]);
       // the glow draws (the same frame without APPLY has fewer ops)
       const withGlow = sig(frame(r)).length;
@@ -465,16 +490,55 @@ describe("ENCHANT-1 step 7: APPLY", () => {
       open(r, 0);
       const before = JSON.stringify([run.gold, run.build, run.inventory, run.shop]);
       tap(r, ...itemAt(r, 900));
-      expect(r.game.errors.at(-1)).toBe("NOT ON A RIG");
-      expect(applyState(r.screen)?.line).toBe("NOT ON A RIG");
-      expect(panelLines(r).join(" ")).toContain("NOT ON A RIG");
+      expect(r.game.errors.at(-1)).toBe("ONLY ON A TURRET"); // ENCHANT-1b (N1): MASSIVE goes on a turret only (it was NOT ON A RIG)
+      expect(applyState(r.screen)?.line).toBe("ONLY ON A TURRET");
+      expect(panelLines(r).join(" ")).toContain("ONLY ON A TURRET");
+      expect(panelLines(r)[0], "the reason is the panel's first line (the word's own row, `ONLY ON A TURRET: ...`, is under it)").toBe("ONLY ON A TURRET");
       frame(r);
       // gear in cargo: NOT ON GEAR
       const gi = run.inventory.findIndex((i) => i.uid === 902);
       tap(r, ...centre(r.screen.slotRect(gi)));
       expect(r.game.errors.at(-1)).toBe("NOT ON GEAR");
+      expect(panelLines(r)[0]).toBe("NOT ON GEAR");
       expect(JSON.stringify([run.gold, run.build, run.inventory, run.shop])).toBe(before);
       expect(applyState(r.screen)).not.toBeNull(); // still open: a refused tap leaves APPLY open to try another part
+    });
+  });
+
+  it("ENCHANT-1b (N1): MASSIVE goes on a turret only and SWIFT on a factory only: a tap on any other part says ONLY ON A TURRET / ONLY ON A FACTORY and changes nothing; the right part takes the word and the 4 G", () => {
+    for (const [word, kind, why] of [["massive", "turret", "ONLY ON A TURRET"], ["swift", "factory", "ONLY ON A FACTORY"]] as const) on(() => {
+      const run = dayRun([word, "fiery"]);
+      const fact = run.build.items.find((p) => ITEMS[p.def].kind === "factory")!;
+      const slot = turretSlots(run.build).findIndex((s) => !!s.turret);
+      expect(slot, "an installed turret").toBeGreaterThanOrEqual(0);
+      const r = rig(run, "desk");
+      open(r, 0);
+      // a placed rig, the deck's factory, an installed turret and a rig in cargo: the screen point of each
+      const at: Record<string, [number, number]> = {
+        rig: itemAt(r, 900), factory: itemAt(r, fact.uid), turret: centre(r.screen.turretRect(slot)),
+        cargo: centre(r.screen.slotRect(run.inventory.findIndex((i) => i.uid === 901))),
+      };
+      const before = JSON.stringify([run.gold, run.build, run.inventory, run.shop]);
+      for (const [name, p] of Object.entries(at)) {
+        if (name === kind) continue;
+        const shown = r.game.errors.length;
+        tap(r, ...p);
+        expect(r.game.errors.length, `${word} on the ${name}: a toast`).toBe(shown + 1);
+        expect(r.game.errors.at(-1), `${word} on the ${name}`).toBe(why);
+        expect(applyState(r.screen)?.line, `${word} on the ${name}: the panel's line`).toBe(why);
+        expect(panelLines(r)[0], `${word} on the ${name}: the panel's first line`).toBe(why);
+        expect(JSON.stringify([run.gold, run.build, run.inventory, run.shop]), `${word} on the ${name}: nothing changed`).toBe(before);
+        expect(applyState(r.screen), `${word} on the ${name}: APPLY stays open to try another part`).not.toBeNull();
+        frame(r);
+      }
+      const held = (): string | undefined => (kind === "turret" ? turretSlots(run.build)[slot].turret!.ench : itemByUid(run.build, fact.uid)!.ench);
+      expect(held()).toBeUndefined();
+      const gold = run.gold;
+      tap(r, ...at[kind]);
+      expect(held(), `${word} on the ${kind}`).toBe(word);
+      expect(run.gold, `${word} on the ${kind}: the 4 G goes`).toBe(gold - 4);
+      expect(run.shop.enchanter!.offers[0].sold).toBe(true);
+      expect(applyState(r.screen)).toBeNull();
     });
   });
 
@@ -713,11 +777,13 @@ describe("ENCHANT-1 step 7: the warlord pick (REFIT's strip)", () => {
       const saved = JSON.parse(JSON.stringify(run)) as Run;
       expect(pendingEnchantPick(saved)?.words).toEqual(pendingEnchantPick(run)!.words);
       const gold = run.gold;
-      // pick the part it can go on: a factory takes every word
+      // pick the part it can go on: a factory takes every word but MASSIVE, which is a turret's (ENCHANT-1b N1)
       const fact = run.build.items.find((p) => ITEMS[p.def].kind === "factory")!;
+      const slot = turretSlots(run.build).findIndex((s) => !!s.turret);
       const c = r.screen.tileCentre(fact.x, fact.y);
-      tap(r, Math.round(c.x), Math.round(c.y));
-      expect(itemByUid(run.build, fact.uid)!.ench).toBe(word);
+      tap(r, ...(word === "massive" ? centre(r.screen.turretRect(slot)) : ([Math.round(c.x), Math.round(c.y)] as [number, number])));
+      const held = word === "massive" ? turretSlots(run.build)[slot].turret!.ench : itemByUid(run.build, fact.uid)!.ench;
+      expect(held).toBe(word);
       expect(run.gold).toBe(gold);
       expect(pendingEnchantPick(run)).toBeNull();
       expect(pickView(r.screen)).toBeNull();
@@ -887,8 +953,8 @@ describe("ENCHANT-1 step 7: the sell confirm", () => {
       press(r, "sellpart");
       expect(itemByUid(run.build, 900)).toBeUndefined();
       expect(run.gold).toBeGreaterThan(gold);
-      // an installed turret: a bought copy in slot 2 (the starting copy at one star can't be sold)
-      run.build.turrets = [{ slot: 0, def: "scrapcannon", uid: 90, free: true }, { slot: 1, def: "bombard", uid: 700, ench: "swift" }];
+      // an installed turret: a bought copy in slot 2 (the starting copy at one star can't be sold); MASSIVE is a turret's word (SWIFT is a factory's: ENCHANT-1b N1)
+      run.build.turrets = [{ slot: 0, def: "scrapcannon", uid: 90, free: true }, { slot: 1, def: "bombard", uid: 700, ench: "massive" }];
       r.screen.select({ kind: "turret", index: 1 });
       r.game.ui.pointer.kind = "mouse";
       frame(r);
@@ -898,7 +964,7 @@ describe("ENCHANT-1 step 7: the sell confirm", () => {
       expect(turretSlots(run.build)[1].turret).toBeTruthy(); // not sold
       expect(run.gold).toBe(g2);
       frame(r);
-      expect(labels(r).find((l) => l.startsWith("SELL"))).toBe(sellAskText("swift"));
+      expect(labels(r).find((l) => l.startsWith("SELL"))).toBe(sellAskText("massive"));
       press(r, "turretsell");
       expect(turretSlots(run.build)[1].turret).toBeUndefined(); // sold on the second press
       expect(run.gold).toBeGreaterThan(g2);

@@ -90,14 +90,17 @@ export interface EnchantDef {
 /** The eight words. Colours are PIECES-1 4.2's starting values (BURN orange, amber, moss green, violet, iron grey, yellow, teal,
  *  PLATE steel #C6D0EA); E7 (run 3) moves any that sits too near a keyword's colour, and logs it. Run 5 (E10's fix round): BRACED's
  *  PLATE steel read as the part's own cream name (4 of 6 cold readers could not see it as a colour), so it is an ice blue, #6CC0F0
- *  (delta E 23 from the nearest keyword colour, PAIR's; rgb 54 from SHIELD's; 45 from the cream name; contrast 8.6 on the darkest panel). */
+ *  (delta E 23 from the nearest keyword colour, PAIR's; rgb 54 from SHIELD's; 45 from the cream name; contrast 8.6 on the darkest panel).
+ *  ENCHANT-1b (N1; cap's ruling on QUESTION 4): MASSIVE goes on a TURRET only and SWIFT on a FACTORY only. Each was a trap on the other
+ *  kind (MASSIVE on a late factory -8.0 at day 10: a rig downstream adds its flat to every slug, and half as many slugs carry half the
+ *  flats; SWIFT on a turret -3.6 at day 5) and strong on its own (MASSIVE on a turret +8.9 at day 5, SWIFT on a factory +5.4). */
 export const ENCHANT_DEFS: Readonly<Record<EnchantId, EnchantDef>> = {
   fiery: { id: "fiery", name: "FIERY", code: "fi", color: "#FF9B2A", scales: true, kinds: ["rig", "factory", "turret"] },
   rising: { id: "rising", name: "RISING", code: "ri", color: "#C8962A", scales: true, kinds: ["rig", "factory", "turret"] },
   growing: { id: "growing", name: "GROWING", code: "gr", color: "#7DBE3C", scales: true, kinds: ["rig", "factory", "turret"] },
   echoing: { id: "echoing", name: "ECHOING", code: "ec", color: "#9078FF", scales: false, kinds: ["rig", "factory", "turret"] },
-  massive: { id: "massive", name: "MASSIVE", code: "ma", color: "#8A8F98", scales: false, kinds: ["factory", "turret"] },
-  swift: { id: "swift", name: "SWIFT", code: "sw", color: "#FFF59D", scales: false, kinds: ["factory", "turret"] },
+  massive: { id: "massive", name: "MASSIVE", code: "ma", color: "#8A8F98", scales: false, kinds: ["turret"] }, // ENCHANT-1b (N1): turrets only
+  swift: { id: "swift", name: "SWIFT", code: "sw", color: "#FFF59D", scales: false, kinds: ["factory"] }, // ENCHANT-1b (N1): factories only
   wide: { id: "wide", name: "WIDE", code: "wi", color: "#1FA6B8", scales: false, kinds: ["rig", "factory", "turret"] },
   braced: { id: "braced", name: "BRACED", code: "br", color: "#6CC0F0", scales: true, kinds: ["rig", "factory", "turret"] },
 };
@@ -153,11 +156,14 @@ function kindReason(d: ItemDef): string {
   return "NOT ON THIS PART";
 }
 
+const KIND_NAME: Readonly<Record<EnchantKind, string>> = { rig: "RIG", factory: "FACTORY", turret: "TURRET" };
+
 /**
  * E1: why `word` cannot go on a piece of `def`, as a short player reason, or null when it can. `piece` is the piece being
  * enchanted (WIDE on a rig reads `enchDir`, the side its arrow takes at rotation 0: it must be a free one). Reasons:
- * NOT ON GEAR / NOT ON A CORE / NOT ON A SUPPLY / NOT ON THIS PART (a kind off the allow-list), NOT ON A RIG (MASSIVE and SWIFT
- * on a rig), NO FREE SIDE (WIDE on a shaped rig, an X rig, a rig with 4 arrows, or onto a side that carries an arrow already).
+ * NOT ON GEAR / NOT ON A CORE / NOT ON A SUPPLY / NOT ON THIS PART (a kind off the allow-list), ONLY ON A TURRET (MASSIVE on a rig or a
+ * factory) / ONLY ON A FACTORY (SWIFT on a rig or a turret) (ENCHANT-1b N1: a word with one kind says which), NO FREE SIDE (WIDE on a
+ * shaped rig, an X rig, a rig with 4 arrows, or onto a side that carries an arrow already).
  * It says nothing of the switch (the callers ask enchantRules()) or of a word already on the piece (REPLACES, E4).
  */
 export function enchantProblem(def: ItemDef | string | undefined, word: string, piece?: { enchDir?: number }): string | null {
@@ -166,7 +172,8 @@ export function enchantProblem(def: ItemDef | string | undefined, word: string, 
   if (!isEnchantId(word)) return "NOT AN ENCHANTMENT";
   const kind = enchantKindOf(d);
   if (!kind) return kindReason(d);
-  if (!ENCHANT_DEFS[word].kinds.includes(kind)) return kind === "rig" ? "NOT ON A RIG" : "NOT ON THIS PART";
+  const kinds = ENCHANT_DEFS[word].kinds;
+  if (!kinds.includes(kind)) return kinds.length === 1 ? `ONLY ON A ${KIND_NAME[kinds[0]]}` : kind === "rig" ? "NOT ON A RIG" : "NOT ON THIS PART"; // ENCHANT-1b (N1)
   if (word === "wide" && kind === "rig") {
     const free = freeSides(d);
     if (!free.length) return "NO FREE SIDE";
@@ -283,8 +290,8 @@ export function enchantShare(id: string | undefined): number {
 
 /**
  * The one line a word says on a kind of piece (the tap panel's `ON A RIG: ...`, E7), built from ENCHANT_NUM so a bench change
- * moves the text with the number. null where the word cannot go (MASSIVE and SWIFT on a rig). Whole numbers, core words; none
- * starts with YOUR, START or AT DAWN (the rune openers, PIECES-1 4.6).
+ * moves the text with the number. null where the word cannot go (ENCHANT-1b N1: MASSIVE on a rig or a factory, SWIFT on a rig or a
+ * turret). Whole numbers, core words; none starts with YOUR, START or AT DAWN (the rune openers, PIECES-1 4.6).
  */
 export function enchantLine(id: EnchantId, kind: EnchantKind): string | null {
   if (!ENCHANT_DEFS[id].kinds.includes(kind)) return null;
@@ -298,8 +305,8 @@ export function enchantLine(id: EnchantId, kind: EnchantKind): string | null {
     case "echoing":
       return kind === "rig" ? `EVERY ${ord(n.echoEvery)} SLUG IT HITS GETS ITS STATS TWICE.`
         : kind === "factory" ? `EVERY ${ord(n.echoEvery)} TIME IT WORKS: 1 MORE SLUG.` : `EVERY ${ord(n.echoEvery)} SHOT HITS TWICE.`;
-    case "massive": return kind === "factory" ? `WORKS HALF AS OFTEN. ITS SLUGS DEAL ${n.massiveShare}x DMG.` : `FIRES HALF AS OFTEN. ${n.massiveShare}x DMG A SHOT.`;
-    case "swift": return kind === "factory" ? "WORKS TWICE AS OFTEN. ITS SLUGS DEAL HALF DMG." : "FIRES TWICE AS OFTEN. HALF DMG A SHOT.";
+    case "massive": return `FIRES HALF AS OFTEN. ${n.massiveShare}x DMG A SHOT.`; // ENCHANT-1b (N1): a turret's line only (the kind guard above)
+    case "swift": return "WORKS TWICE AS OFTEN. ITS SLUGS DEAL HALF DMG."; // ENCHANT-1b (N1): a factory's line only
     case "wide": return kind === "rig" ? "+1 ARROW" : kind === "factory" ? "+1 [BELT] SLOT" : "+1 [GEAR] SLOT";
     case "braced": return `THE FIRST ${n.bracedStuns} [STUN]STUNS ON IT EACH FIGHT DO NOTHING.`;
   }

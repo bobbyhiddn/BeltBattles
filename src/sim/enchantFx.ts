@@ -128,8 +128,9 @@ export function enchantTurrets(turrets: TurretState[], slots: readonly { turret:
 
 // ---------------------------------------------------------------------------------------------------------------- the payload
 
-/** MASSIVE (k = 2) and SWIFT (k = 1/2): the slug's DMG share scales like SPLITTER's (battle.ts applyHit): mult, flat and plate,
- *  each rounded half up once. BURN, the stuns and the rest stay. */
+/** A factory's slug under a rate word: SWIFT (k = 1/2) scales the slug's DMG share like SPLITTER's (battle.ts applyHit): mult, flat and plate,
+ *  each rounded half up once (MASSIVE, k = ENCHANT_NUM.massiveShare, is a turret's word since ENCHANT-1b: shotFx scales its shot; the
+ *  function takes any k so a test can still measure the rule). BURN, the stuns and the rest stay. */
 export function scaleShare(p: Payload, k: number): void {
   if (k === 1) return;
   p.mult *= k;
@@ -215,7 +216,7 @@ export function shotFx(st: EnchantState, dmg: number, floor: number): ShotFx {
   return { dmg, burn, echo };
 }
 
-/** BRACED: does the part swallow a STUN landing on it now? The first 2 x stars each fight do; the count goes down by 1 each time. */
+/** BRACED: does the part swallow a STUN landing on it now? The first ENCHANT_NUM.bracedStuns x stars each fight do; the count goes down by 1 each time. */
 export function bracedSwallow(st: EnchantState | undefined): boolean {
   if (!st || st.id !== "braced" || st.braced <= 0) return false;
   st.braced--;

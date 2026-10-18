@@ -1,5 +1,5 @@
 // ENCHANT-1 (REQ-BFG-085; BRIEF-ENCHANT1 E7): the words' TEXT, pure (no canvas, no screen): what a word's own card says in its tap panel
-// (its name in its colour, one line for each kind of piece it can go on, `NOT ON A RIG` for MASSIVE and SWIFT) and the NOTES every
+// (its name in its colour, one line for each kind of piece it can go on: MASSIVE `ONLY ON A TURRET`, SWIFT `ONLY ON A FACTORY`) and the NOTES every
 // enchanted piece and every word card hides behind the hover or the tap. The build screen's panels (inspector.ts), the APPLY mode and
 // the cold-read export all print from here, so one string lives in one place. Every line is built from enchant.ts enchantLine, which is
 // built from ENCHANT_NUM, so a bench change to a number moves the text with it.
@@ -34,12 +34,14 @@ export function panelText(text: string): string {
   return text.replace(/\[([A-Z]+)\]/g, "{$1}").replace(/(?<!\{)\bDMG\b(?!\})/g, "{DMG}");
 }
 
-/** One row of a word's own card: the kind it is about, whether the word can go there, the label (`ON A RIG`) and the line it says. */
+/** One row of a word's own card: the kind it is about and the line it says there. ENCHANT-1b (N1): only the kinds the word goes on have a
+ *  row, so `legal` is always true (kept for the callers that read it); a word with ONE kind (MASSIVE: a turret, SWIFT: a factory) says
+ *  `ONLY ON A TURRET:` and has no `NOT ON ...` rows. */
 export interface WordFaceLine {
   kind: EnchantKind;
   legal: boolean;
-  label: string; // `ON A RIG` (legal) or `NOT ON A RIG` (the word cannot go on this kind)
-  text: string; // the effect line in the panels' markup ({BURN}, {DMG}: pass it through icons()); "" when it cannot go there
+  label: string; // `ON A RIG`, or `ONLY ON A TURRET` for a word with one kind
+  text: string; // the effect line in the panels' markup ({BURN}, {DMG}: pass it through icons())
 }
 
 /** A word's own card face: its name and colour, then a row for each kind (rig, factory, turret), then the NOTES. */
@@ -53,16 +55,17 @@ export interface WordFace {
 
 const KIND_WORD: Record<EnchantKind, string> = { rig: "RIG", factory: "FACTORY", turret: "TURRET" };
 
-/** The tap panel's content for the word `id`: `ON A RIG: ...`, `ON A FACTORY: ...`, `ON A TURRET: ...`, and `NOT ON A RIG` for MASSIVE
- *  and SWIFT; then ENCHANT_NOTES. Each line is at star 1 (a word's own card is about no piece), in the panels' markup (panelText). */
+/** The tap panel's content for the word `id`: `ON A RIG: ...`, `ON A FACTORY: ...`, `ON A TURRET: ...` for each kind it goes on, then
+ *  ENCHANT_NOTES. ENCHANT-1b (N1): MASSIVE has ONE line, `ONLY ON A TURRET: ...`, and SWIFT `ONLY ON A FACTORY: ...`: no `NOT ON ...`
+ *  rows. Each line is at star 1 (a word's own card is about no piece), in the panels' markup (panelText). */
 export function wordFace(id: EnchantId): WordFace {
   const d = ENCHANT_DEFS[id];
-  const lines = (["rig", "factory", "turret"] as const).map((kind): WordFaceLine => {
+  const only = d.kinds.length === 1;
+  const lines: WordFaceLine[] = [];
+  for (const kind of ["rig", "factory", "turret"] as const) {
     const text = wordLine(id, kind, 1);
-    return text === null
-      ? { kind, legal: false, label: `NOT ON A ${KIND_WORD[kind]}`, text: "" }
-      : { kind, legal: true, label: `ON A ${KIND_WORD[kind]}`, text };
-  });
+    if (text !== null) lines.push({ kind, legal: true, label: `${only ? "ONLY " : ""}ON A ${KIND_WORD[kind]}`, text });
+  }
   return { id, name: d.name, color: d.color, lines, notes: ENCHANT_NOTES };
 }
 

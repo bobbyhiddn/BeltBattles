@@ -2497,7 +2497,7 @@ async function replaySection(browsers, origin) {
  * and FIERY) and a deck of far-apart rigs (one holding RISING) and a FIERY piece in cargo.
  *  - the wagon's two cards are drawn, inside the screen, clear of the shop's other targets, each at least 44 x 44 CSS px on a phone;
  *    a tap selects a card (its tap panel: the word, APPLY at least 44 CSS px tall on a phone), a second tap opens APPLY (CANCEL);
- *  - a refusal: MASSIVE on a rig says NOT ON A RIG (a toast and the panel's line), the gold, the build and the offer unchanged;
+ *  - a refusal: MASSIVE on a rig says ONLY ON A TURRET (a toast and the panel's line; ENCHANT-1b N1: it was NOT ON A RIG), the gold, the build and the offer unchanged;
  *  - a legal tap: FIERY on a rig puts the word on it and takes 4 G, only then; on a phone the rig's own box is smaller than a finger,
  *    so the part's target is measured: the 44 x 44 CSS px square round its centre (its four corners, edges and centre) lands on it
  *    (the build screen's own hit test and the nearest part within half a finger);
@@ -2582,7 +2582,7 @@ async function applyView(browsers, origin, vname) {
     await applyTap(page, cdp, centre(cards[0].css));
     let l = await look(page);
     check(l.sel.kind === "word" && l.panel && l.panel.title === "MASSIVE" && l.panel.labels.includes("APPLY"), `${V}: a tap on the first card selects it: its panel is MASSIVE's, with APPLY (${l.panel ? `"${l.panel.title}", ${l.panel.labels.join("/")}` : "no panel"})`);
-    check(l.panel && l.panel.lines.some((t) => t.includes("NOT ON A RIG")) && l.panel.notes.length > 0, `${V}: MASSIVE's panel says NOT ON A RIG and keeps its NOTES behind the (i)`);
+    check(l.panel && l.panel.lines.some((t) => t.includes("ONLY ON A TURRET")) && l.panel.notes.length > 0, `${V}: MASSIVE's panel says ONLY ON A TURRET and keeps its NOTES behind the (i)`);
     const ap = await regionDrawn(page, "apply");
     check(!!ap && big(ap), `${V}: the APPLY button's target is ${phone ? "at least 44 x 44 CSS px" : "drawn"} (${ap ? sz(ap) : "missing"})`);
     // a second tap on the selected card opens APPLY
@@ -2601,7 +2601,7 @@ async function applyView(browsers, origin, vname) {
     await applyTap(page, cdp, await cell(page, 7, 3));
     info = await applyInfo(page);
     const toasts = await toastsSince(page, t0);
-    check(toasts.includes("NOT ON A RIG") && !!info && info.line === "NOT ON A RIG", `${V}: a tap on a rig with MASSIVE says NOT ON A RIG (toast: ${toasts.join(" | ") || "none"}; panel line: ${info ? info.line : "APPLY closed"})`);
+    check(toasts.includes("ONLY ON A TURRET") && !!info && info.line === "ONLY ON A TURRET", `${V}: a tap on a rig with MASSIVE says ONLY ON A TURRET (toast: ${toasts.join(" | ") || "none"}; panel line: ${info ? info.line : "APPLY closed"})`);
     check(await runState(page) === before, `${V}: the refusal changed nothing (the gold, the build, cargo and the wagon as they were)`);
     await shot(page, `${vname}-apply-refused.png`);
     // CANCEL leaves APPLY with the gold untouched

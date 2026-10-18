@@ -516,8 +516,8 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     else if (p.rot === 0 || p.rot >= turns) errors.push(`item: uid ${p.uid} ${d.name} has rot ${p.rot}; its ${footOf(d).toUpperCase()} footprint turns only to rot 1..${turns - 1} (absent = 0)`);
   }
 
-  // ENCHANT-1 (REQ-BFG-085, E6.1): each word sits on a kind it can go on (enchant.ts enchantProblem: MASSIVE and SWIFT never on a
-  // rig; WIDE never on a shaped, X or 4-arrow rig; nothing on gear, cores or supplies, or any kind added later); enchDir only with
+  // ENCHANT-1 (REQ-BFG-085, E6.1): each word sits on a kind it can go on (enchant.ts enchantProblem: MASSIVE only on a turret and SWIFT only on a factory (ENCHANT-1b N1: never on a
+  // rig); WIDE never on a shaped, X or 4-arrow rig; nothing on gear, cores or supplies, or any kind added later); enchDir only with
   // WIDE on a rig, on a side with no arrow, and WIDE on a rig needs one. checkBuildShape took the keys only under ENCHANT's rules
   // world (an unknown field otherwise), so with ENCHANT off nothing below runs
   for (const p of b.items) {

@@ -5,7 +5,9 @@
 //    the LAST CHANCE PART card); never on a plain piece, never on the shop's cards, and with the switch off every frame is as it was;
 //  - GROWING's counter: a number badge on a piece holding GROWING above 0, the number being its `grow`;
 //  - the battle's line for a swallowed STUN (the `braced` event): the word first in its colour; the game keeps no text log, so it is the
-//    word's ring and pop over the part.
+//    word's ring and pop over the part;
+//  - ENCHANT-1b (N1): MASSIVE goes on a TURRET only and SWIFT on a FACTORY only. A piece is marked with the words its kind takes (WORDS(kind));
+//    a word on any other kind (a forged build the validators refuse) draws no mark, as the panels read none.
 import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { G, diffPx, fresh, installRaster, sig, type RasterCanvas } from "./raster.helpers";
@@ -17,7 +19,7 @@ import { BRACED_TAIL, bracedLine, bracedLineText } from "../src/game/enchantReac
 import { newRun, pendingLastChance } from "../src/game/run";
 import { adjacentToFactory, cellsOf, hero as heroOf, key as K, setTurretList, type Build, type BuildTurret, type Placed } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
-import { ENCHANT, ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, setEnchant, withEnchant, type EnchantId } from "../src/sim/enchant";
+import { ENCHANT, ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, setEnchant, withEnchant, type EnchantId, type EnchantKind } from "../src/sim/enchant";
 import { lastChanceWord } from "../src/sim/enchantSources";
 import { boxRect, footX, footY, frameForHull, localRect, type DeckFrame } from "../src/render/frame";
 import { RARITY_COLOR } from "../src/render/palette";
@@ -42,6 +44,8 @@ import type { Run } from "../src/game/run";
 installRaster();
 afterEach(() => setEnchant(ENCHANT));
 const on = <T>(fn: () => T): T => withEnchant(fn, true);
+/** The words that go on a kind of piece (ENCHANT-1b N1: MASSIVE goes on a turret only, SWIFT on a factory only; the marks ignore a word on any other kind). */
+const WORDS = (kind: EnchantKind): EnchantId[] => ENCHANT_IDS.filter((id) => ENCHANT_DEFS[id].kinds.includes(kind));
 
 /** The build screen's two facings, portrait (bow north) and landscape (bow east), and a battle's foe's two (bow south, bow west). */
 const FRAMES: [string, DeckFrame][] = [
@@ -89,7 +93,7 @@ const turretDef = (b: Build, slot: number) => heroOf(b).turrets[slot];
 describe("ENCHANT-1 E7: the board's marks: off, every frame is as it was", () => {
   const words: Placed[] = [
     withWord({ uid: 10, def: "whetstone", x: 3, y: 3 }, "fiery"),
-    withWord({ uid: 11, def: "press", x: 6, y: 5 }, "massive"),
+    withWord({ uid: 11, def: "press", x: 6, y: 5 }, "braced"), // ENCHANT-1b (N1): MASSIVE was here; it goes on a turret only, so this deck's words are all legal ones
     withWord({ uid: 12, def: "temper", x: 1, y: 3 }, "growing", 6),
     withWord({ uid: 13, def: "pickaxe", x: 4, y: 0 }, "echoing"),
     withWord({ uid: 14, def: "gantry", x: 8, y: 5 }, "swift"),
@@ -115,8 +119,8 @@ describe("ENCHANT-1 E7: the board's marks: off, every frame is as it was", () =>
 
 describe("ENCHANT-1 E7: the spark: the top-right corner of the piece, in its word's colour, covering nothing else", () => {
   const kinds: { name: string; piece: Placed; words: readonly EnchantId[] }[] = [
-    { name: "a rig", piece: { uid: 10, def: "whetstone", x: 3, y: 3 }, words: ENCHANT_IDS.filter((id) => ENCHANT_DEFS[id].kinds.includes("rig")) },
-    { name: "a factory", piece: { uid: 11, def: "press", x: 6, y: 4 }, words: ENCHANT_IDS },
+    { name: "a rig", piece: { uid: 10, def: "whetstone", x: 3, y: 3 }, words: WORDS("rig") },
+    { name: "a factory", piece: { uid: 11, def: "press", x: 6, y: 4 }, words: WORDS("factory") }, // every word but MASSIVE (a turret's word, ENCHANT-1b N1)
   ];
   for (const k of kinds) it(`${k.name}: each word's spark sits on its top-right corner on every facing`, () => {
     for (const [name, f] of FRAMES) for (const id of k.words) {
@@ -196,6 +200,23 @@ describe("ENCHANT-1 E7: the spark: the top-right corner of the piece, in its wor
       expect([u, v], at).toEqual([sparkColumn(td.kind, pu) + 1.5, -12.5]);
       expect(u + 2.5 <= pu || td.kind === "adaptable", `${at}: the plate ends before the pip column`).toBe(true);
       expect(hasColour(c, Math.min(...xs), Math.min(...ys), 5, 5, ENCHANT_DEFS.fiery.color), at).toBe(true);
+    }
+  });
+
+  it("ENCHANT-1b N1: MASSIVE marks a turret only and SWIFT a factory only: on any other kind the word draws nothing, on a turret MASSIVE's spark is in its colour, on every facing", () => {
+    const rig: Placed = { uid: 10, def: "whetstone", x: 3, y: 3 }, press: Placed = { uid: 11, def: "press", x: 6, y: 4 };
+    const gun = (ench?: string): BuildTurret[] => [{ slot: 0, def: "scrapcannon", uid: 700, ...(ench ? { ench } : {}) }];
+    const live = (b: Build, f: DeckFrame): string => sig(on(() => draw(b, f)));
+    for (const [name, f] of FRAMES) {
+      // a stray word on a kind it does not go on is the forged build the validators refuse (a SIM-ONLY FIXTURE here): with the switch on the picture is the plain piece's
+      for (const [id, piece] of [["massive", rig], ["massive", press], ["swift", rig]] as const) {
+        expect(live(deck([withWord(piece, id)]), f), `${id} on ${piece.def} ${name}`).toBe(live(deck([piece]), f));
+      }
+      expect(live(deck([], gun("swift")), f), `swift on a turret ${name}`).toBe(live(deck([], gun()), f));
+      // MASSIVE on a turret: the spark and its plate (the 21 px of the turret test above), in MASSIVE's colour
+      const base = on(() => draw(deck([], gun()), f)), c = on(() => draw(deck([], gun("massive")), f)), diff = diffPx(c, base);
+      expect(diff.length, `massive on a turret ${name}: the spark and its plate`).toBe(21);
+      expect(hasColour(c, Math.min(...diff.map((d) => d[0])), Math.min(...diff.map((d) => d[1])), 5, 5, ENCHANT_DEFS.massive.color), `massive on a turret ${name}: in its colour`).toBe(true);
     }
   });
 
@@ -294,13 +315,19 @@ describe("ENCHANT-1 E7: the cards that print no name: the spark at the top-right
     expect(chrome).toMatch(/hidden \? undefined : markColour/); // a piece lifted out of its slot shows none
   });
 
-  it("markColour: the word's colour while the switch is on, for a rig, a factory and a turret; none for gear, a plain piece or the switch off", () => {
+  it("markColour: the word's colour while the switch is on, for a rig, a factory and a turret that the word goes on; none for the other kinds, gear, a plain piece or the switch off", () => {
     on(() => {
-      for (const id of ENCHANT_IDS) {
-        expect(markColour({ ench: id }, "press"), id).toBe(ENCHANT_DEFS[id].color);
-        expect(markColour({ ench: id }, "scrapcannon"), id).toBe(ENCHANT_DEFS[id].color);
-        expect(markColour({ ench: id }, "whetstone"), id).toBe(ENCHANT_DEFS[id].kinds.includes("rig") ? ENCHANT_DEFS[id].color : undefined);
+      const PIECES: [string, EnchantKind][] = [["whetstone", "rig"], ["press", "factory"], ["scrapcannon", "turret"]];
+      for (const id of ENCHANT_IDS) for (const [def, kind] of PIECES) {
+        expect(markColour({ ench: id }, def), `${id} on ${def}`).toBe(ENCHANT_DEFS[id].kinds.includes(kind) ? ENCHANT_DEFS[id].color : undefined);
       }
+      // ENCHANT-1b (N1): MASSIVE marks a turret only and SWIFT a factory only (the exact cases, so the table above is not read in a circle)
+      expect(markColour({ ench: "massive" }, "scrapcannon"), "massive on a turret").toBe(ENCHANT_DEFS.massive.color);
+      expect(markColour({ ench: "massive" }, "press"), "massive on a factory").toBeUndefined();
+      expect(markColour({ ench: "massive" }, "whetstone"), "massive on a rig").toBeUndefined();
+      expect(markColour({ ench: "swift" }, "press"), "swift on a factory").toBe(ENCHANT_DEFS.swift.color);
+      expect(markColour({ ench: "swift" }, "scrapcannon"), "swift on a turret").toBeUndefined();
+      expect(markColour({ ench: "swift" }, "whetstone"), "swift on a rig").toBeUndefined();
       expect(markColour({}, "whetstone")).toBeUndefined();
       expect(markColour({ ench: "nonsense" }, "whetstone")).toBeUndefined();
       const gear = Object.values(ITEMS).find((d) => d.kind === "mod")!;

@@ -138,7 +138,7 @@ const WORD_PIECES: [EnchantKind, string][] = [["rig", "whetstone"], ["factory", 
 
 /**
  * ENCHANT-1 (E7; run 3): the eight words as a player reads them, with the switch on. For each word: its own card's tap panel (its name in its
- * colour, its line for each kind, NOT ON A RIG), the NOTES, the REPLACES and SELL? strings; then one enchanted piece of each kind it can go on, at
+ * colour, its line for each kind it goes on: MASSIVE ONLY ON A TURRET, SWIFT ONLY ON A FACTORY), the NOTES, the REPLACES and SELL? strings; then one enchanted piece of each kind it can go on, at
  * the stars where its numbers move (★1 and ★3; GROWING with and without a grown counter), as the panel draws it (faceBlocks.ts: the stat rows with
  * the word's numbers, the word's line), each text with its rows on the phone and desk and any OVERFLOW; then the refusal reasons. The summary
  * lists every overflow (none expected: the new rows fit both views).
@@ -183,6 +183,7 @@ function enchantSection(out: string[]): void {
   const first = (pred: (d: ItemDef) => boolean): ItemDef | undefined => Object.values(ITEMS).find(pred);
   const cases: [string, ItemDef | undefined, string][] = [
     ["MASSIVE on a rig", ITEMS.whetstone, "massive"], ["SWIFT on a rig", ITEMS.whetstone, "swift"],
+    ["MASSIVE on a factory", ITEMS.press, "massive"], ["SWIFT on a turret", ITEMS.scrapcannon, "swift"], // ENCHANT-1b (N1): each word has one kind
     ["WIDE on an X rig", first((d) => d.kind === "gate" && rigShape(d) === "X"), "wide"],
     ["a word on gear", first((d) => d.kind === "mod"), "fiery"], ["a word on a core", first((d) => d.kind === "core"), "fiery"], ["a word on a supply", first((d) => d.kind === "supply"), "fiery"],
   ];

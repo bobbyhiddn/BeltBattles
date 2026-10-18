@@ -69,7 +69,7 @@ export function pieceAt(run: Run, t: EnchantTarget): TargetPiece | undefined {
   return o && { uid: o.uid, def: o.def, stars: starsOf(o), ...(o.ench !== undefined ? { ench: o.ench } : {}), ...(o.enchDir !== undefined ? { enchDir: o.enchDir } : {}), ...(o.grow !== undefined ? { grow: o.grow } : {}) };
 }
 
-/** Why `word` cannot go on the piece at `t` (enchant.ts enchantProblem: NOT ON A RIG, NO FREE SIDE, NOT ON GEAR ...), or null when it can. */
+/** Why `word` cannot go on the piece at `t` (enchant.ts enchantProblem: ONLY ON A TURRET, NO FREE SIDE, NOT ON GEAR ...), or null when it can. */
 export function applyProblem(run: Run, t: EnchantTarget, word: string, dir?: number): string | null {
   if (!enchantRules()) return "NO ENCHANTMENTS";
   if (!isEnchantId(word)) return "NOT AN ENCHANTMENT";
@@ -101,7 +101,7 @@ export interface EnchantChoice {
 /**
  * Every piece APPLY can show for `word`, in a fixed order (deck rigs and factories by uid, installed turrets by slot, fitted core and
  * gear by uid, then cargo by uid): the ones that take it have `reason: null` (they glow), the others say why (`NOT ON GEAR`,
- * `NOT ON A CORE`, `NOT ON A RIG`, `NO FREE SIDE`). `sides` lists WIDE's free sides on a rig.
+ * `NOT ON A CORE`, `ONLY ON A FACTORY`, `NO FREE SIDE`). `sides` lists WIDE's free sides on a rig.
  */
 export function enchantChoices(run: Run, word: string): EnchantChoice[] {
   const out: EnchantChoice[] = [];
@@ -167,7 +167,7 @@ export function applyWord(run: Run, t: EnchantTarget, word: string, opts: ApplyO
 
 /**
  * E5a, BUYING IS APPLYING: the ENCHANTER's offer `slot` goes on the piece at `t`, and only then does the gold go. Nothing changes (gold,
- * the offer, the piece) when it refuses: no gold, a sold offer, a refused piece (`NOT ON A RIG`, `NO FREE SIDE`, `NOT ON GEAR`), a
+ * the offer, the piece) when it refuses: no gold, a sold offer, a refused piece (`ONLY ON A TURRET`, `NO FREE SIDE`, `NOT ON GEAR`), a
  * word already on the piece without `opts.replace` (`REPLACES FIERY`: the confirm), WIDE on a rig without a side when it has more than
  * one free (`needSide`). Refused in REFIT with NPC_DAY on, like every buy. There is no enchantment item in cargo.
  */

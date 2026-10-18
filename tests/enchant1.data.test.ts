@@ -1,6 +1,8 @@
 // ENCHANT-1 (REQ-BFG-085; BRIEF-ENCHANT1 E1, E2; step 2): the switch, the rules gate, the legal kinds, the data (Placed.ench / enchDir,
 // BuildTurret.ench, cargo, GROWING's `grow`), the snapshot (the strict decoder and the client's check, in both switch states and under
 // older rules), the stand-in word `~<code>` (both codecs) and the validators. ENCHANT ships off: every switch-off pin is untouched.
+// ENCHANT-1b (N1): MASSIVE goes on a TURRET only and SWIFT on a FACTORY only (the other six keep rig, factory and turret): the other kinds
+// refuse them with `ONLY ON A TURRET` / `ONLY ON A FACTORY`, and enchantLine is null there.
 import { afterEach, describe, expect, it } from "vitest";
 // deck.ts first (the ship's load order: ITEMS' key order is part of the seeded draws)
 import { cloneBuild, arrowsOf, rigHits, setTurretList, turretSlots, installedTurrets, type Build, type Placed } from "../src/sim/deck";
@@ -41,6 +43,20 @@ const refuses = (s: unknown): string | null => { try { checkSnapshot(s); return 
 /** ECHOING's count word (the bench sets ENCHANT_NUM.echoEvery: 3 THIRD, 5 FIFTH ...). */
 const ORD = ["", "FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH", "SIXTH", "SEVENTH"][ENCHANT_NUM.echoEvery] ?? `${ENCHANT_NUM.echoEvery}TH`;
 
+type Kind = "rig" | "factory" | "turret";
+const KINDS: readonly Kind[] = ["rig", "factory", "turret"];
+/** ENCHANT-1b (N1), written out (not read from ENCHANT_DEFS, so a drift in the defs is caught): the kinds each word goes on. */
+const GOES_ON: Readonly<Record<string, readonly Kind[]>> = {
+  fiery: KINDS, rising: KINDS, growing: KINDS, echoing: KINDS, massive: ["turret"], swift: ["factory"], wide: KINDS, braced: KINDS,
+};
+/** The player's reason on a kind the word does not go on: a word with ONE kind says which (the other six have no such kind). */
+const ONLY_ON: Readonly<Record<string, string>> = { massive: "ONLY ON A TURRET", swift: "ONLY ON A FACTORY" };
+/** What enchantProblem says of `word` on a part of `kind` (WIDE's side aside): null where the word goes, else the reason. */
+const wantProblem = (word: string, kind: Kind): string | null => (GOES_ON[word].includes(kind) ? null : ONLY_ON[word]);
+/** The hand deck with its starting SCRAP CANNON listed (uid 90) and extra fields on it (a word on a turret needs the list). */
+const withTurret = (b: Build, f: Record<string, unknown> = {}): Build => ({ ...b, turrets: [{ slot: 0, def: "scrapcannon", uid: 90, free: true, ...f }] }) as Build;
+const KILN = heroStartBuild("furnace").items.find((p) => p.def === ITEMS.kiln.id)!.uid; // the signature factory
+
 describe("ENCHANT-1 E1: the eight words and the switch", () => {
   it("ENCHANT ships off, and the eight ids, two-letter codes and legal kinds are the brief's", () => {
     expect(ENCHANT).toBe(false);
@@ -57,6 +73,8 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
     expect(isEnchantId("keen")).toBe(false); // KEEN waits for CRIT, SPARKING for STUN RECOVERY: not at launch
     expect(isEnchantId("sparking")).toBe(false);
     expect(ENCHANT_KINDS).toEqual({ gate: "rig", factory: "factory", turret: "turret" });
+    // ENCHANT-1b (N1): the legal kinds of each word: MASSIVE a turret only, SWIFT a factory only, the other six all three
+    expect(Object.fromEntries(ENCHANT_IDS.map((id) => [id, [...ENCHANT_DEFS[id].kinds]]))).toEqual(GOES_ON);
   });
 
   it("setEnchant / withEnchant: the switch comes back, even on a throw", () => {
@@ -71,9 +89,10 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
   });
 
   it("every line is one stat or one short line in core words, whole numbers, and none starts with YOUR, START or AT DAWN", () => {
-    for (const id of ENCHANT_IDS) for (const kind of ["rig", "factory", "turret"] as const) {
+    // ENCHANT-1b (N1): a line is said only on a kind the word goes on (MASSIVE: a turret, SWIFT: a factory); on the others it is null
+    for (const id of ENCHANT_IDS) for (const kind of KINDS) {
       const line = enchantLine(id, kind);
-      if (!ENCHANT_DEFS[id].kinds.includes(kind)) { expect(line, `${id} on a ${kind}`).toBeNull(); continue; }
+      if (!GOES_ON[id].includes(kind)) { expect(line, `${id} on a ${kind}`).toBeNull(); continue; }
       expect(line, `${id} on a ${kind}`).toBeTruthy();
       expect(line).not.toMatch(/^(YOUR|START|AT DAWN)\b/);
       expect(line).not.toMatch(/\d\.\d|\bPCT\b|%/);
@@ -86,23 +105,42 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
     expect(enchantLine("echoing", "rig")).toBe(`EVERY ${ORD} SLUG IT HITS GETS ITS STATS TWICE.`);
     expect(enchantLine("echoing", "factory")).toBe(`EVERY ${ORD} TIME IT WORKS: 1 MORE SLUG.`);
     expect(enchantLine("echoing", "turret")).toBe(`EVERY ${ORD} SHOT HITS TWICE.`);
-    expect(enchantLine("massive", "factory")).toBe(`WORKS HALF AS OFTEN. ITS SLUGS DEAL ${ENCHANT_NUM.massiveShare}x DMG.`);
-    expect(enchantLine("swift", "turret")).toBe("FIRES TWICE AS OFTEN. HALF DMG A SHOT.");
+    expect(enchantLine("massive", "turret")).toBe(`FIRES HALF AS OFTEN. ${ENCHANT_NUM.massiveShare}x DMG A SHOT.`);
+    expect(enchantLine("swift", "factory")).toBe("WORKS TWICE AS OFTEN. ITS SLUGS DEAL HALF DMG.");
     expect(enchantLine("braced", "rig")).toBe(`THE FIRST ${ENCHANT_NUM.bracedStuns} [STUN]STUNS ON IT EACH FIGHT DO NOTHING.`);
-    expect(enchantLine("massive", "rig")).toBeNull();
+    for (const [id, kind] of [["massive", "rig"], ["massive", "factory"], ["swift", "rig"], ["swift", "turret"]] as const) expect(enchantLine(id, kind), `${id} on a ${kind}`).toBeNull(); // the kinds they were dropped from
     expect(ENCHANT_NUM).toEqual({ burn: 1, risingStep: 1, growingStep: 5, echoEvery: 5, bracedStuns: 3, massiveShare: 3 }); // the SHIPPED numbers: the brief's starts were 1, 5, 5, 3, 2 and MASSIVE 2x; run 3's E9a read cut RISING (5 -> 2 -> 1) and ECHOING and raised BRACED and MASSIVE (REPORT 10)
   });
 
   it("enchantProblem: each word on each kind (the allow-list), with the player's reasons", () => {
     const core = Object.values(ITEMS).find((d) => d.kind === "core")!;
     const rig = ITEMS.whetstone, shaped = ITEMS.nailstrip, x = ITEMS.overdrive, factory = ITEMS.press, sig = ITEMS.kiln, turret = ITEMS.scrapcannon;
+    // ENCHANT-1b (N1): MASSIVE goes on a turret only (a rig or a factory says ONLY ON A TURRET), SWIFT on a factory only (a rig or a turret
+    // says ONLY ON A FACTORY); the other six go on all three
     for (const w of ENCHANT_IDS) {
-      for (const d of [factory, sig, turret]) expect(enchantProblem(d, w), `${w} on ${d.id}`).toBeNull();
-      expect(enchantProblem(rig, w), `${w} on a rig`).toBe(w === "massive" || w === "swift" ? "NOT ON A RIG" : null);
+      for (const d of [factory, sig]) expect(enchantProblem(d, w), `${w} on ${d.id}`).toBe(wantProblem(w, "factory"));
+      expect(enchantProblem(turret, w), `${w} on ${turret.id}`).toBe(wantProblem(w, "turret"));
+      expect(enchantProblem(rig, w), `${w} on a rig`).toBe(wantProblem(w, "rig"));
       expect(enchantProblem(ITEMS.calibrate, w), `${w} on gear`).toBe("NOT ON GEAR");
       expect(enchantProblem(core, w), `${w} on a core`).toBe("NOT ON A CORE");
       expect(enchantProblem(ITEMS.beltcrate, w), `${w} on a supply`).toBe("NOT ON A SUPPLY");
     }
+    // a rig of any shape says the same (the kind is judged first, whatever its sides)
+    expect([ITEMS.whetstone, ITEMS.longhaul, ITEMS.splitter, x, shaped].map((d) => enchantProblem(d, "massive"))).toEqual(Array(5).fill("ONLY ON A TURRET"));
+    expect([ITEMS.whetstone, ITEMS.longhaul, ITEMS.splitter, x, shaped].map((d) => enchantProblem(d, "swift"))).toEqual(Array(5).fill("ONLY ON A FACTORY"));
+    // every factory and turret of the catalogue answers every word by its kind alone, and every rig answers MASSIVE and SWIFT by its kind alone
+    // (the other words on a rig also ask the rig itself: WIDE for a free side, below)
+    let judged = 0;
+    for (const d of Object.values(ITEMS)) {
+      const kind = ENCHANT_KINDS[d.kind];
+      if (!kind) continue;
+      for (const w of ENCHANT_IDS) {
+        if (kind === "rig" && w !== "massive" && w !== "swift") continue;
+        expect(enchantProblem(d, w), `${w} on ${d.id} (a ${kind})`).toBe(wantProblem(w, kind));
+        judged++;
+      }
+    }
+    expect(judged).toBeGreaterThan(100);
     // WIDE on a rig: a shaped rig, an X rig and an arrow's own side say NO FREE SIDE
     expect(enchantProblem(shaped, "wide")).toBe("NO FREE SIDE");
     expect(enchantProblem(x, "wide")).toBe("NO FREE SIDE");
@@ -159,7 +197,7 @@ describe("ENCHANT-1 E2: the snapshot, both checks, both switch states", () => {
   const fixtures = (): { name: string; s: GhostSnapshot; ok: boolean }[] => [
     { name: "rig fiery", s: snap(deck({ ench: { 10: { ench: "fiery" } } })), ok: true },
     { name: "rig wide side 2", s: snap(deck({ ench: { 10: { ench: "wide", enchDir: 2 } } })), ok: true },
-    { name: "factory massive", s: snap(deck({ ench: { 11: { ench: "massive" } } })), ok: true },
+    { name: "factory swift", s: snap(deck({ ench: { 11: { ench: "swift" } } })), ok: true }, // ENCHANT-1b (N1): was MASSIVE (now a turret's word; the shape checks judge no kind, the validators do)
     { name: "rig growing 2", s: snap(deck({ ench: { 10: { ench: "growing", grow: 2 } } })), ok: true },
     { name: "growing on a piece without it", s: snap(deck({ ench: { 10: { ench: "fiery", grow: 2 } } })), ok: false },
     { name: "grow with no word", s: snap({ ...deck(), items: deck().items.map((p) => (p.uid === 10 ? { ...p, grow: 1 } : p)) }), ok: false },
@@ -258,9 +296,11 @@ describe("ENCHANT-1 E2: the stand-in word", () => {
   });
 
   it("round trip: every word on a rig, a factory and a turret, both codecs, equal to the build", () => {
+    let trips = 0;
     for (const id of ENCHANT_IDS) {
       for (const [kind, uid] of [["rig", 10], ["factory", 11], ["turret", 0]] as const) {
-        if (!ENCHANT_DEFS[id].kinds.includes(kind === "rig" ? "rig" : kind)) continue;
+        if (!GOES_ON[id].includes(kind)) continue; // ENCHANT-1b (N1): MASSIVE rides on a turret only, SWIFT on a factory only
+        trips++;
         const b = deck();
         const extra = id === "wide" && kind === "rig" ? { enchDir: 3 } : id === "growing" ? { grow: 5 } : {};
         if (kind === "turret") setTurretList(b, [{ slot: 0, def: "scrapcannon", uid: 90, free: true, ench: id, ...extra }]);
@@ -277,6 +317,7 @@ describe("ENCHANT-1 E2: the stand-in word", () => {
         expect(encodeH(decodeH("furnace", code))).toBe(code);
       }
     }
+    expect(trips).toBe(20); // 8 words x 3 kinds, less MASSIVE on a rig and a factory and SWIFT on a rig and a turret (ENCHANT-1b, N1)
   });
 
   it("a word without `~` decodes exactly as before; a deck without a word encodes byte for byte as before", () => {
@@ -303,6 +344,36 @@ describe("ENCHANT-1 E2: the stand-in word", () => {
     expect(() => decodeStarredRaw("furnace", "14 0/kiln64/1:544434241404//scrapcannon0~wi1!")).toThrow(/bad enchantment/);
     expect(() => encodeStarred({ ...deck(), items: deck().items.map((p) => (p.uid === 10 ? { ...p, ench: "keen" } : p)) })).toThrow(/not one of the eight/);
     expect(() => encodeStandIn(withWords())).toThrow(/v1 code carries no/);
+  });
+
+  it("ENCHANT-1b (N1): a forged `~ma` on a rig or a factory and `~sw` on a rig or a turret read back as written (the codecs judge no kind); the validators refuse each with its reason, and the legal pair passes", () => {
+    const strict = (b: Build) => on(() => validateBuild(b, 5, "strict"));
+    const road = (name: string, b: Build, word: string): Build => {
+      const code = encodeStarred(b);
+      expect(code, name).toContain(word);
+      expect(encodeH(b), name).toBe(code); // the harness codec writes the same word
+      const back = decodeStarred("furnace", code);
+      expect(decodeH("furnace", code), name).toEqual(decodeStarredRaw("furnace", code));
+      expect(encodeStarred(back), name).toBe(code); // nothing was dropped or mended on the way
+      return back;
+    };
+    for (const [name, b, word, why] of [
+      ["~ma on a rig", deck({ ench: { 10: { ench: "massive" } } }), "whetstone51~ma", /WHETSTONE can't take MASSIVE: ONLY ON A TURRET/],
+      ["~ma on a factory", deck({ ench: { 11: { ench: "massive" } } }), "press77~ma", /STAMP PRESS can't take MASSIVE: ONLY ON A TURRET/],
+      ["~sw on a rig", deck({ ench: { 10: { ench: "swift" } } }), "whetstone51~sw", /WHETSTONE can't take SWIFT: ONLY ON A FACTORY/],
+      ["~sw on a turret", withTurret(deck(), { ench: "swift" }), "scrapcannon0~sw!", /turret: uid \d+ SCRAP CANNON can't take SWIFT: ONLY ON A FACTORY/],
+    ] as const) {
+      const v = strict(road(name, b, word));
+      expect(v.ok, name).toBe(false);
+      expect(v.errors.join(" | "), name).toMatch(why);
+    }
+    for (const [name, b, word] of [
+      ["~sw on a factory", deck({ ench: { 11: { ench: "swift" } } }), "press77~sw"],
+      ["~ma on a turret", withTurret(deck(), { ench: "massive" }), "scrapcannon0~ma!"],
+    ] as const) {
+      const v = strict(road(name, b, word));
+      expect(v.ok, `${name}: ${JSON.stringify(v.errors)}`).toBe(true);
+    }
   });
 
   it("WIDE on a rig without a side and GROWING at 0 read back as written (the validators judge them)", () => {
@@ -391,14 +462,18 @@ describe("ENCHANT-1 E2/E3: WIDE's arrow turns with the rig; gear slots; belt slo
 });
 
 describe("ENCHANT-1 E1/E6.1: the validators, both switch states", () => {
-  it("validateBuild: a legal word passes; MASSIVE on a rig, WIDE on an X rig, a taken side, a missing side and a stray enchDir are refused", () => {
+  it("validateBuild: a legal word passes; MASSIVE on a rig or a factory, SWIFT on a rig or a turret, WIDE on an X rig, a taken side, a missing side and a stray enchDir are refused", () => {
     const check = (build: Build) => on(() => validateBuild(build, 5, "strict"));
     expect(check(deck()).ok, JSON.stringify(check(deck()).errors)).toBe(true);
     const ok = (b: Build) => { const v = check(b); expect(v.ok, JSON.stringify(v.errors)).toBe(true); };
-    ok(deck({ ench: { 10: { ench: "fiery" }, 11: { ench: "massive" }, 12: { ench: "wide", enchDir: 0 } } }));
+    ok(deck({ ench: { 10: { ench: "fiery" }, 11: { ench: "swift" }, 12: { ench: "wide", enchDir: 0 } } })); // ENCHANT-1b (N1): SWIFT on the STAMP PRESS (a factory)
+    ok(withTurret(deck({ ench: { 10: { ench: "fiery" } } }), { ench: "massive" })); // and MASSIVE on the SCRAP CANNON (a turret)
     const bad = (b: Build, re: RegExp) => { const v = check(b); expect(v.ok).toBe(false); expect(v.errors.join(" | ")).toMatch(re); };
-    bad(deck({ ench: { 10: { ench: "massive" } } }), /can't take MASSIVE: NOT ON A RIG/);
-    bad(deck({ ench: { 10: { ench: "swift" } } }), /can't take SWIFT: NOT ON A RIG/);
+    bad(deck({ ench: { 10: { ench: "massive" } } }), /can't take MASSIVE: ONLY ON A TURRET/); // a rig
+    bad(deck({ ench: { 10: { ench: "swift" } } }), /can't take SWIFT: ONLY ON A FACTORY/);
+    bad(deck({ ench: { 11: { ench: "massive" } } }), /STAMP PRESS can't take MASSIVE: ONLY ON A TURRET/); // ENCHANT-1b (N1): a factory
+    bad(deck({ ench: { [KILN]: { ench: "massive" } } }), /KILN can't take MASSIVE: ONLY ON A TURRET/); // and a signature factory
+    bad(withTurret(deck(), { ench: "swift" }), /turret: uid 90 SCRAP CANNON can't take SWIFT: ONLY ON A FACTORY/); // a turret
     bad(deck({ ench: { 13: { ench: "wide", enchDir: 1 } } }), /can't take WIDE: NO FREE SIDE/);
     bad(deck({ ench: { 12: { ench: "wide", enchDir: 1 } } }), /can't take WIDE: NO FREE SIDE/);
     bad(deck({ ench: { 10: { ench: "wide" } } }), /has WIDE but no side/);
@@ -418,8 +493,17 @@ describe("ENCHANT-1 E1/E6.1: the validators, both switch states", () => {
       const old = validateUpload(b, 5, "bb-0.10.0", {});
       expect(old.ok).toBe(false);
       expect(old.errors[0]).toMatch(/^rules: rules bb-0\.10\.0 predate bb-0\.11\.0: enchantments/);
-      const bad = validateUpload(withDawnRunes(deck({ ench: { 10: { ench: "massive" } } }), 5), 5, RULES_VERSION, {});
-      expect(bad.errors.join(" | ")).toMatch(/NOT ON A RIG/);
+      const judge = (build: Build) => validateUpload(withDawnRunes(build, 5), 5, RULES_VERSION, {});
+      const bad = judge(deck({ ench: { 10: { ench: "massive" } } }));
+      expect(bad.errors.join(" | ")).toMatch(/can't take MASSIVE: ONLY ON A TURRET/);
+      // ENCHANT-1b (N1): the same on a factory (MASSIVE) and on a turret (SWIFT), and the pair that is legal passes
+      expect(judge(deck({ ench: { 11: { ench: "massive" } } })).errors.join(" | ")).toMatch(/STAMP PRESS can't take MASSIVE: ONLY ON A TURRET/);
+      expect(judge(withTurret(deck(), { ench: "swift" })).errors.join(" | ")).toMatch(/turret: uid 90 SCRAP CANNON can't take SWIFT: ONLY ON A FACTORY/);
+      expect(judge(deck({ ench: { 10: { ench: "swift" } } })).errors.join(" | ")).toMatch(/can't take SWIFT: ONLY ON A FACTORY/);
+      for (const legal of [deck({ ench: { 11: { ench: "swift" } } }), withTurret(deck(), { ench: "massive" })]) {
+        const v = judge(legal);
+        expect(v.ok, v.errors.join(" | ")).toBe(true);
+      }
     });
   });
 
