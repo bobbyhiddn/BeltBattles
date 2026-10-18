@@ -33,6 +33,7 @@ import { readoutOk } from "./raceReadout"; // 0.8.0 H1 M3
 import { waresOk } from "./wares"; // 0.8.0 I1 M3
 import { lastChanceShapeOk } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
 import { HEARTS_START } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a hearts run's clamp
+import { ENDLESS_LIVES, endlessRunShapeOk } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): an endless run's hearts clamp; its state's shape
 import type { Run } from "./run";
 
 export const SAVE_KEY = "beltbattles.run.v7";
@@ -324,7 +325,14 @@ export function migrateRun(raw: unknown): Run | null {
   // RETUNE-1 (REQ-BFG-096): a hearts run's mark is `true` or absent (anything else is dropped: a lives run), and its
   // hearts clamp to HEARTS_START; a save without the mark (every switch-off run) clamps to START_LIVES exactly as before
   if (r.hearts !== undefined && r.hearts !== true) delete r.hearts;
-  r.lives = Math.max(0, Math.min(r.hearts === true ? HEARTS_START : START_LIVES, Number(r.lives) || 0));
+  // ENDLESS-1 (REQ-BFG-059): the endless mark is `true` or absent (anything else is dropped: a run that ends at its win), and the
+  // endless state stays when well formed (endless.ts endlessRunShapeOk) and is dropped otherwise. A save mid-endless (the state, no
+  // `end`) resumes in endless with its hearts clamped to ENDLESS_LIVES; a save without either (every switch-off run, every run saved
+  // before the release) loads exactly as before
+  if (r.endless !== undefined && r.endless !== true) delete r.endless;
+  if (r.endlessRun !== undefined && !endlessRunShapeOk(r.endlessRun)) delete r.endlessRun;
+  const cap = r.endlessRun !== undefined && r.endlessRun.end === undefined ? ENDLESS_LIVES : r.hearts === true ? HEARTS_START : START_LIVES;
+  r.lives = Math.max(0, Math.min(cap, Number(r.lives) || 0));
   if (typeof r.runId !== "string") r.runId = `s-${((Number(r.seed) || 0) >>> 0).toString(36)}`;
   if (!STAGES.includes(r.stage)) r.stage = "caravan";
   if (r.stage === "warlord" && !(r.warlord && r.warlord.day === r.day)) r.stage = "fork";

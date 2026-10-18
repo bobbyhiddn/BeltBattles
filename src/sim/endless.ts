@@ -87,6 +87,18 @@ export interface EndlessRun {
 
 export type EndlessEnd = "hearts" | "cap" | "lastDay";
 
+/** Is `v` a well-formed EndlessRun (a save's endless state)? Exactly the five keys, whole numbers, `end` one of the three words or
+ *  absent. A save's endless state that is not is dropped on load (save.ts migrateRun), so no load trips over it. The victory day has
+ *  no upper bound here: a run past LONG_RUN_MAX_DAY keeps playing (the checks refuse its upload, never the run). */
+export function endlessRunShapeOk(v: unknown): v is EndlessRun {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const e = v as Record<string, unknown>;
+  const whole = (x: unknown, lo: number, hi: number): boolean => typeof x === "number" && Number.isInteger(x) && x >= lo && x <= hi;
+  return Object.keys(e).every((k) => k === "victoryDay" || k === "wins" || k === "losses" || k === "draws" || k === "end")
+    && whole(e.victoryDay, WIN_GOAL, 99_999) && whole(e.wins, 0, ENDLESS_WIN_CAP) && whole(e.losses, 0, 99_999) && whole(e.draws, 0, 99_999)
+    && (e.end === undefined || e.end === "hearts" || e.end === "cap" || e.end === "lastDay");
+}
+
 /** Is `run` offered endless once it is won? It carries the mark newRun sets while ENDLESS is on, never the switch alone. */
 export const endlessMarked = (run: { endless?: boolean }): boolean => run.endless === true;
 
