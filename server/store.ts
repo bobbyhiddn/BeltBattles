@@ -181,9 +181,11 @@ export class JsonlStore implements GhostStore {
       } catch {
         e = null;
       }
-      if (e && e.snapshot.rules !== rules) {
+      if (!e) {
+        keep.push(line); // BUMP-1E E.3 (REVIEW-STAGE0911): a line this build cannot decode is another build's (a newer format a rollback build does not know) or junk: kept, never dropped
+      } else if (e.snapshot.rules !== rules) {
         keep.push(line); // another rules version's pool: not this seed's business
-      } else if (e && want.get(e.id) === line && !have.has(e.id)) {
+      } else if (want.get(e.id) === line && !have.has(e.id)) {
         keep.push(line);
         have.add(e.id);
         unchanged++;
