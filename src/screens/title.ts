@@ -9,7 +9,7 @@ import { CustomizeScreen } from "./customize"; // CUSTOM-2a (REQ-BFG-072): the s
 import { loadProfile, unseen } from "../game/profile"; // CUSTOM-2a: the CUSTOMIZE button's NEW dot
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
-import { loadRun } from "../game/run";
+import { loadRunGuarded as loadRun, saveProblem } from "../game/saveGuard"; // BUMP-1E P6 E.2: a save naming a part, rune or hero this build does not know is no CONTINUE (loadRun, guarded)
 import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUND in the rules card
 import { startingBuild, warlordBuild } from "../sim/ai";
 import { HEROES, type HeroId } from "../sim/content";
@@ -254,6 +254,9 @@ export class TitleScreen implements Screen {
     if (this.newStyle) newDot(g, b.customize);
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
+    // BUMP-1E P6 E.2: the saved run was set aside (it names something this build does not know): one plain line under the panel
+    const aside = saveProblem();
+    if (aside && !save) para(g, [aside], 8, L.panel.y + L.panel.h + 6, W - 16, C.yellow, "3", 2);
     if (this.help) this.drawHelp(g);
     if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k);
   }
