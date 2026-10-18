@@ -259,7 +259,13 @@ export function saveProfile(p: Profile, s?: Store | null, now = Date.now()): boo
   if (!st) return false;
   try {
     p.updatedAt = now;
-    st.setItem(PROFILE_KEY, JSON.stringify(p));
+    // ENDLESS-1: the personal best is written only once there is one (it is a lifetime best, 0 and none for every player who never plays
+    // endless), so a profile that never saw endless is stored byte for byte as it always was
+    if (p.bestEndless > 0) st.setItem(PROFILE_KEY, JSON.stringify(p));
+    else {
+      const { bestEndless: _b, bestEndlessRun: _r, ...stored } = p;
+      st.setItem(PROFILE_KEY, JSON.stringify(stored));
+    }
     return true;
   } catch {
     return false;

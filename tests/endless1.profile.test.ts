@@ -83,6 +83,22 @@ describe("ENDLESS-1 3.5: the personal best in the profile", () => {
     expect(Object.keys(toWire(b)).sort()).toEqual(["chosen", "counters", "heroesFinished", "heroesWon", "unlocked", "updatedAt", "v"]);
   });
 
+  it("a profile that never saw endless is stored byte for byte as it always was (the best is written only once there is one)", () => {
+    const p = emptyProfile();
+    p.counters.runs = 3;
+    expect(saveProfile(p, undefined, 1_700_000_000_000)).toBe(true);
+    const text = store.get(PROFILE_KEY)!;
+    expect(text).not.toMatch(/endless/i);
+    const { bestEndless: _b, bestEndlessRun: _r, ...old } = p;
+    expect(text).toBe(JSON.stringify(old)); // the key order, spaces and fields of the base's profile
+    expect(Object.keys(JSON.parse(text))).toEqual(["v", "counters", "heroesWon", "heroesFinished", "unlocked", "chosen", "seen", "folded", "runNew", "updatedAt"]);
+    expect(loadProfile().bestEndless).toBe(0); // and it reads back as none
+    p.bestEndless = 2;
+    p.bestEndlessRun = "r";
+    saveProfile(p);
+    expect(JSON.parse(store.get(PROFILE_KEY)!)).toMatchObject({ bestEndless: 2, bestEndlessRun: "r" });
+  });
+
   it("a newer profile (v2) keeps its best on read and is never written back (profile.ts's rule for every field)", () => {
     store.set(PROFILE_KEY, JSON.stringify({ v: 2, bestEndless: 11, bestEndlessRun: "z" }));
     const p = loadProfile();
