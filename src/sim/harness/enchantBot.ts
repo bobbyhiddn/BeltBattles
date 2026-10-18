@@ -12,7 +12,7 @@
 //   * the arrival (ECHOING on a factory: 1 more slug in 3; MASSIVE: half the slugs; SWIFT: twice as many) => the gun's throughput
 //     min(arrival, cap) x firedShare(arrival / cap) is recomputed with the gun's own cap, which is what makes MASSIVE good on a gun that
 //     queues (the slugs it drops were never fired) and SWIFT good on a gun with spare rate;
-//   * the gun's cap and its shot (MASSIVE and SWIFT on a turret: half or twice the rate, 2x or half the DMG a shot);
+//   * the gun's cap and its shot (MASSIVE and SWIFT on a turret: half or twice the rate, massiveShare x or half the DMG a shot);
 //   * ECHOING on a turret: 1 shot in 3 hits twice (the turret's offense x 4/3);
 //   * the deck itself (WIDE: a rig's arrow, a factory's belt slot, a turret's gear slot): the deck is rated again with the word on it
 //     (a rig: its best free side; a factory: the best belt the bots would lay into the new slot; a turret: the best gear waiting in cargo).
@@ -23,8 +23,9 @@
 //     payload; a turret: its shots), n, and is worth the step x stars x (n + 1) / 2 per payload (the mean rank), a rig's per arrow hit.
 //   * GROWING is worth the step x stars x the mean `grow` over the dusks the piece will see before the run's tenth day
 //     ((10 - day) / 2, at least 1 / 2, plus the counter it holds): a word bought on day 3 meets 8 dusks and averages 3.5 growths.
-//   * BRACED is worth the STUN time it saves: STUNS_PER_FIGHT stuns land on a deck a fight, spread over its machines, each idles a part
-//     for DISRUPT_TIME s; the word swallows the first 2 x stars of them, and what a stun idles is the part's share of the offense.
+//   * BRACED is worth the STUN time it saves: stunsPerFight(day) stuns land on a deck a fight (a named guess; run 4 measured it, see below),
+//     spread over its machines, each idles a part for DISRUPT_TIME s; the word swallows the first bracedStuns x stars of them, and what a stun
+//     idles is the part's share of the offense.
 //   * A held word is netted out: a new word's gain is measured on the piece WITHOUT its old word, less what the old word is worth there,
 //     so the bots replace a word only for a higher-valued one.
 // Pieces in cargo are worth 0 (they do no damage until they are placed). This file reads no star value itself (tests/harness.mods.test.ts).
@@ -48,7 +49,13 @@ import type { Run } from "../../game/run";
 // ---------------------------------------------------------------- the knobs of the estimates
 
 /** BRACED's estimate: the STUNs a foe lands on a deck in one fight, at dusk of `day` (1 + 0.4 a day: 1.4 on day 1, 3 on day 5, 5 on day 10),
- *  spread evenly over the deck's machines. A guess in the direction the par field's decks go (more stun sources on later days). */
+ *  spread evenly over the deck's machines. A guess in the direction the par field's decks go (more stun sources on later days).
+ *  RUN 4 MEASURED what lands (tools/enchant1/stuns.ts: the four heroes' par fields, k 96, 12 opponents a deck from the other heroes' fields,
+ *  both sides, 2,304 battles a hero and day; O/bench/stuns-st1-*.json; mean of the four heroes, on a rig, factory or turret): 2.6 on day 3,
+ *  4.4 on day 5, 6.6 on day 7, 8.6 on day 10, a line at 0.86 a day (belt tiles take about as many again and hold no word). The guess is KEPT:
+ *  this static rating charges a stun's whole DISRUPT_TIME as lost fire (it ignores the backlog a gun with spare rate fires after the stun), and
+ *  with the measured count it values BRACED at 0.085 of the deck on the furnace start deck against the battle's 1.1 win points (E9a, day 5,
+ *  ★1); the low count and the dear stun roughly cancel. Changing it changes what par buys (REPORT 10, finding BRACED). */
 export const stunsPerFight = (day: number): number => 1 + 0.4 * Math.max(0, Math.floor(day));
 /** GROWING's horizon: the run's tenth day (a word meets the dusks from today to it). */
 export const GROW_HORIZON = RUN_DAYS;
@@ -273,7 +280,7 @@ export function wordGain(m: WordModel, p: WordPiece, word: EnchantId, grow0 = 0,
         case "rising": return h * N.risingStep * S * (np + 1) / 2;
         case "growing": return h * N.growingStep * S * growEstimate(m.day, grow0);
         case "echoing": return p.kind === "rig" ? (r.gain.get(p.uid) ?? 0) / N.echoEvery : 0; // every 3rd slug it hits gets its stats twice
-        case "massive": return p.kind === "factory" ? r.own : 0; // the slug's own share x2
+        case "massive": return p.kind === "factory" ? (N.massiveShare - 1) * r.own : 0; // the slug's own share x massiveShare (run 4: this read `r.own`, the old 2x, after run 3 moved the number to 3: the valuation now follows ENCHANT_NUM)
         case "swift": return p.kind === "factory" ? -Math.min(r.own / 2, Math.max(0, r.v - 10)) : 0; // half the share (a slug never under 10)
         default: return 0;
       }

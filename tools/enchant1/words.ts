@@ -9,6 +9,9 @@
 // STOP AND ASK. Under 3: raise it once; still under: report it.
 // Usage: node <built>/words.js --day 5 --stars 1 --k 96 --opp 6 --out words-d5.json [--words fiery,rising] [--heroes furnace,weaver]
 //        node <built>/words.js --day 10 --stars 23 ...      (stars 1 = only ★1 pieces, 23 = only ★2-★3 pieces, 0 = any piece)
+// Run 4 added two columns to every word's row: `parBuys` (the decks where the bots' value is above PolicyKnobs.minRel, i.e. where par WOULD
+// buy the word: the fair read of a conditional word) and `byKind` (the same read split by the kind of piece chosen: item = rig or factory,
+// turret). The guard in E9a is still the all-decks read (the brief's "par's best legal piece in par-field decks").
 // Pure harness reads; writes only --out. Label every read: "ENCHANT on, with SHAPES2, PLAIN_RIGS and LONG_RUN as bump-accepted ships them,
 // before BUMP-1E's scaling flip". K/e1bench.sh builds and runs it (one process; `PERHERO=1` runs one process a hero with --heroes).
 import { writeFileSync } from "node:fs";
@@ -18,7 +21,10 @@ import type { HeroId } from "../../src/sim/content";
 import { cloneBuild, setTurretList, turretList, type Build } from "../../src/sim/deck";
 import { ENCHANT_IDS, setEnchant, type EnchantId } from "../../src/sim/enchant";
 import { parField } from "../../src/sim/harness/par";
+import { PLAYER_POLICY } from "../../src/sim/harness/player";
 import { piecesOf, rankWords, type WordSpot } from "../../src/sim/harness/enchantBot";
+
+const MINREL = PLAYER_POLICY.typical.minRel; // par buys a word whose value (a share of the deck's rating) is above this (player.ts pickOffer)
 
 const arg = (k: string, d: string): string => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : d; };
 const DAY = Number(arg("--day", "5"));
@@ -89,8 +95,9 @@ for (const hero of HEROES) {
   const baseTotal = base.reduce((a, b) => a + b, 0), battles = mine.length * OPP * 2;
   const per: Record<string, unknown> = {};
   for (const word of WORDS) {
-    let dPts = 0, used = 0, botValue = 0;
+    let dPts = 0, used = 0, botValue = 0, nBuy = 0, dBuy = 0; // run 4: nBuy/dBuy = the decks where par WOULD buy it (the bots' value above PolicyKnobs.minRel, player.ts relOf's currency)
     const kinds: Record<string, number> = {}, defs: Record<string, number> = {};
+    const byKind: Record<string, { decks: number; d: number }> = {};
     mine.forEach((d, i) => {
       const sp = spotFor(d, word);
       if (!sp) return;
@@ -98,10 +105,20 @@ for (const hero of HEROES) {
       botValue += sp.spot.value;
       kinds[sp.spot.target.kind] = (kinds[sp.spot.target.kind] ?? 0) + 1;
       defs[sp.spot.def] = (defs[sp.spot.def] ?? 0) + 1;
-      dPts += points(dress(d, word, sp.spot), hero, i, seedsOf, oppField) - base[i];
+      const dd = points(dress(d, word, sp.spot), hero, i, seedsOf, oppField) - base[i];
+      dPts += dd;
+      const bk = (byKind[sp.spot.target.kind] ??= { decks: 0, d: 0 });
+      bk.decks++;
+      bk.d += dd;
+      if (sp.spot.value > MINREL) { nBuy++; dBuy += dd; }
     });
-    per[word] = { decks: used, of: mine.length, deltaPoints: used ? (100 * dPts) / (used * OPP * 2) : null, meanBotValue: used ? botValue / used : null, kinds, topDefs: Object.entries(defs).sort((x, y) => y[1] - x[1]).slice(0, 3) };
-    console.log(`words d${DAY} ${hero.padEnd(7)} ${word.padEnd(8)} decks ${String(used).padStart(3)}/${mine.length} delta ${used ? ((100 * dPts) / (used * OPP * 2)).toFixed(1).padStart(6) : "   n/a"} pts (bot value ${used ? (botValue / used).toFixed(3) : "n/a"}) ${JSON.stringify(kinds)} | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+    const pts = (d: number, n: number): number | null => (n ? (100 * d) / (n * OPP * 2) : null);
+    per[word] = {
+      decks: used, of: mine.length, deltaPoints: pts(dPts, used), meanBotValue: used ? botValue / used : null, kinds, topDefs: Object.entries(defs).sort((x, y) => y[1] - x[1]).slice(0, 3),
+      parBuys: { decks: nBuy, deltaPoints: pts(dBuy, nBuy) }, byKind: Object.fromEntries(Object.entries(byKind).map(([k, v]) => [k, { decks: v.decks, deltaPoints: pts(v.d, v.decks) }])),
+    };
+    const f1 = (x: number | null): string => (x === null ? "   n/a" : x.toFixed(1).padStart(6));
+    console.log(`words d${DAY} ${hero.padEnd(7)} ${word.padEnd(8)} decks ${String(used).padStart(3)}/${mine.length} delta ${f1(pts(dPts, used))} pts (bot value ${used ? (botValue / used).toFixed(3) : "n/a"}) ${JSON.stringify(kinds)} | par would buy ${String(nBuy).padStart(3)} delta ${f1(pts(dBuy, nBuy))} | by kind ${Object.entries(byKind).map(([k, v]) => `${k} ${v.decks}:${f1(pts(v.d, v.decks)).trim()}`).join(" ")} | ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   }
   rows.push({ hero, plainWinRate: baseTotal / battles, battles, per });
 }

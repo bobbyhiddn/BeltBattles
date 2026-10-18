@@ -96,13 +96,38 @@ describe("ENCHANT-1 E8: the valuation reproduces the rules of thumb", () => {
         return { kiln: r.find((s) => isItem(s.target, 1))?.value ?? 0, gun: r.find((s) => s.target.kind === "turret")?.value ?? 0 };
       };
       const l1 = worth(1), l3 = worth(3);
-      expect(l3.kiln).toBeGreaterThan(0.3); // the gun queues: half the slugs, twice the DMG, nothing fired is lost
-      expect(l3.kiln).toBeGreaterThan(5 * Math.max(0.01, l1.kiln)); // with no queue it is worth almost nothing
+      expect(l3.kiln).toBeGreaterThan(0.3); // the gun queues: half the slugs, massiveShare x the DMG, nothing fired is lost
+      expect(l3.kiln).toBeGreaterThan(2 * l1.kiln); // the deeper queue is worth more (run 4: with no queue it is still a gain at 3x, half the slugs at three times the share: it read "almost nothing" only while the valuation priced the old 2x)
       expect(l3.gun).toBeLessThan(l3.kiln); // on the gun the half rate loses fire it needed: the factory is still the better place (at 2x the gun's value was below 0; at 3x it is a gain, smaller than the kiln's)
       const b = heroStartBuild("furnace", 1);
       b.upgrades = { factory: 3, turret: 1 };
       expect(isItem(top(b, "massive")!.target, 1)).toBe(true);
     });
+  });
+
+  it("MASSIVE's value on a factory follows ENCHANT_NUM.massiveShare (run 4: the valuation priced the old 2x after the number moved to 3)", () => {
+    on(() => {
+      const b = heroStartBuild("furnace", 1);
+      const kiln = (): number => rankWords({ build: b, day: 5 }, "massive").find((s) => isItem(s.target, 1))?.value ?? 0;
+      const was = ENCHANT_NUM.massiveShare;
+      try {
+        ENCHANT_NUM.massiveShare = 2;
+        const two = kiln();
+        ENCHANT_NUM.massiveShare = 4;
+        const four = kiln();
+        ENCHANT_NUM.massiveShare = 3;
+        const three = kiln();
+        expect(three).toBeGreaterThan(two);
+        expect(four).toBeGreaterThan(three);
+      } finally {
+        ENCHANT_NUM.massiveShare = was;
+      }
+    });
+  });
+
+  it("BRACED's stun estimate is run 3's named guess (1 + 0.4 a day), kept on purpose: run 4 measured 0.86 a day landing on a rig, factory or turret (tools/enchant1/stuns.ts) and the static rating overvalues a stun, so the guess is the less wrong pair", () => {
+    expect(stunsPerFight(5)).toBeCloseTo(3, 6);
+    expect(stunsPerFight(10)).toBeCloseTo(5, 6);
   });
 
   it("SWIFT goes on a factory whose belt carries two or more stat rigs and whose gun has spare rate", () => {
