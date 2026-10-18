@@ -9,7 +9,7 @@ import { replayAt } from "../src/game/replays";
 import { newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
 import { livesCap } from "../src/sim/hearts";
-import { ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_WIN_CAP, endlessOffered, endlessOver, inEndless, withEndless } from "../src/sim/endless";
+import { ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_WIN_CAP, endlessDusk, endlessOffered, endlessOver, inEndless, withEndless } from "../src/sim/endless";
 import { WIN_GOAL, withLongRun } from "../src/sim/longRun";
 
 const NOSTATS = {} as SideStats;
@@ -252,6 +252,37 @@ describe("ENDLESS-1 3.2: PATCH UP heals up to 3 (events.ts through livesCap)", (
     expect(livesCap(run)).toBe(10);
     expect(patchUp(run).ok).toBe(true);
     expect(run.lives).toBe(7);
+  });
+});
+
+describe("ENDLESS-1 3.2: the bench's ledger and the game's finishDay take the same endless step", () => {
+  it("200 seeded outcome sequences: endless wins, losses, draws, the end and the last day agree (endlessDusk is the one step)", () => {
+    let seed = 12345;
+    const next = (): number => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    for (let n = 0; n < 200; n++) {
+      const pWin = 0.25 + 0.7 * next(), pLoss = (1 - pWin) * (0.55 + 0.4 * next()); // the rest are draws
+      const outcomes: Winner[] = Array.from({ length: 80 }, () => { const r = next(); return r < pWin ? WIN : r < pWin + pLoss ? LOSS : DRAW; });
+      // the game
+      const run = wonRun();
+      startEndless(run);
+      const victoryDay = run.endlessRun!.victoryDay;
+      let i = 0;
+      while (!run.over) fight(run, outcomes[i++]);
+      // the ledger (endlessBench.ts phase B's loop)
+      let hearts = ENDLESS_LIVES, ew = 0, el = 0, ed = 0, day = victoryDay + 1, end: string | null = null;
+      for (let j = 0; end === null; j++, day++) {
+        const o = outcomes[j] === WIN ? "win" : outcomes[j] === LOSS ? "loss" : "draw";
+        const s = endlessDusk(hearts, ew, day, o);
+        hearts = s.hearts; ew = s.wins;
+        if (o === "loss") el++; else if (o === "draw") ed++;
+        end = s.end;
+        if (end !== null) break;
+      }
+      expect(run.endlessRun, `sequence ${n}`).toMatchObject({ wins: ew, losses: el, draws: ed, end });
+      expect(run.day, `sequence ${n}`).toBe(day);
+      expect(run.lives, `sequence ${n}`).toBe(hearts);
+      expect(run.over).toBe("won");
+    }
   });
 });
 
