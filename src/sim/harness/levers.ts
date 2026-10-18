@@ -335,11 +335,15 @@ export function routesOutOfOrder(b: Build): number[] {
  *  shows one piece per cell while sortRoute's swap has the two rigs half-moved. */
 function fitsTurned(b: Build, p: Placed, rot: number): boolean {
   const d = ITEMS[p.def];
-  if (!d || footOf(d) === "1") return true;
-  if (!footOnDeck(d, p.x, p.y, rot)) return false;
+  if (!d) return true;
+  const shaped = footOf(d) !== "1";
+  if (shaped && !footOnDeck(d, p.x, p.y, rot)) return false;
   const taken = new Set<number>();
   for (const q of b.items) if (q.uid !== p.uid) for (const k of cellsOf(q)) taken.add(k);
   for (const r of b.routes) for (const k of r.cells) taken.add(k);
+  // BUMP-1D: a 1-cell rig swapped onto a shaped rig's anchor lands on a cell that rig may not hold (the anchor is the top-left of the
+  // turned footprint's box: an L3 or T4 at some turns leaves it empty, so another piece may stand there): never on another piece or a belt
+  if (!shaped) return !taken.has(p.y * GRID + p.x);
   return footprintCells(d, p.x, p.y, rot).every((k) => !taken.has(k) && !intakeCell(b, k));
 }
 
