@@ -20,11 +20,12 @@ import { ENCHANT, ENCHANT_IDS, enchantProblem, freeSides, setEnchant, withEnchan
 import {
   ENCHANTER_PRICE, enchanterWords, freeEnchantsByDay, lastChanceWord, maxEnchantsByDay, possibleWords, warlordPickWords,
 } from "../src/sim/enchantSources";
-import { lastChanceOffer, lastChanceParts, type TakenLastChance } from "../src/sim/lastChance";
+import { lastChanceOffer, lastChanceParts, lastChancePartStars, type TakenLastChance } from "../src/sim/lastChance";
+import { valueOf } from "../src/sim/stars";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload, type ValidateContext } from "../src/net/validate";
-import { enchantFreeWords, enchantGold, enchantProblems } from "../src/net/enchantCheck";
+import { enchantFreeWords, enchantGold, enchantProblems, firstGrowingDay, lcPartCarriesWord } from "../src/net/enchantCheck";
 import { maxHonestSpend } from "../src/net/roadCap";
 import { ENCHANT_RULES, longRunFor } from "../src/net/rulesGate";
 import { reachableRecords } from "../src/net/records";
@@ -339,16 +340,20 @@ describe("ENCHANT-1 E6.3: each held word was on offer (re-derived from the run s
       for (let seed = 1; seed <= 8; seed++) {
         const s = parRunSeed(hero, seed);
         for (const day of [5, 6, 8, 10]) {
-          // the slots that can give a word: each ENCHANTER offer of it, and a pick slot when some pick day offers it (pick 1 from day 5, pick 2 from day 8)
+          // the slots that can give a word: each ENCHANTER offer of it, and the warlord picks. ENCHANT-1b (N4a): the two picks fall on DIFFERENT days and
+          // each takes ONE word of that day's pair, so both can give `w` only from two different days that offer it (pick 1 from day 5, pick 2 from day 8)
           const slots = (w: string): number => {
             let n = 0;
-            const picks1 = new Set<string>(), picks2 = new Set<string>();
+            const offerDays1: number[] = [], offerDays2: number[] = [];
             for (let d = 1; d <= day; d++) {
               n += enchanterWords(s, d).filter((x) => x === w).length;
-              if (d >= 5) warlordPickWords(s, d).forEach((x) => picks1.add(x));
-              if (d >= 8) warlordPickWords(s, d).forEach((x) => picks2.add(x));
+              if (warlordPickWords(s, d).some((x) => x === w)) {
+                if (d >= 5) offerDays1.push(d);
+                if (d >= 8) offerDays2.push(d);
+              }
             }
-            return n + (picks1.has(w) ? 1 : 0) + (picks2.has(w) ? 1 : 0);
+            const both = offerDays1.some((a) => offerDays2.some((b) => a !== b));
+            return n + (both ? 2 : offerDays1.length ? 1 : 0);
           };
           for (const w of ["fiery", "rising", "growing", "echoing", "braced"]) {
             const k = slots(w);
@@ -646,6 +651,213 @@ describe("ENCHANT-1 E6: off, or under rules without ENCHANT, every ench, enchDir
   });
 });
 
+// ================================================================================================================== ENCHANT-1b N4: two tightenings and GROWING's seeded bound
+
+/**
+ * An independent oracle for N4(a), written the plain way (no matching, no slots): can the seed's sources give exactly these words by `day`? Each
+ * ENCHANTER offer gives its one word once; the two warlord picks fall on DIFFERENT days (pick 1 from day 5, pick 2 from day 8) and each takes ONE
+ * word of that day's pair, or none. LAST CHANCE is left out (the decks below took none).
+ */
+function sourcesCanGive(seed: number, day: number, words: string[], picks = true): boolean {
+  const offers = new Map<string, number>();
+  for (let d = 1; d <= day; d++) for (const w of enchanterWords(seed, d)) offers.set(w, (offers.get(w) ?? 0) + 1);
+  const days = (from: number): (number | undefined)[] => {
+    const o: (number | undefined)[] = [undefined];
+    if (picks) for (let d = from; d <= day; d++) o.push(d);
+    return o;
+  };
+  for (const d1 of days(5)) {
+    for (const d2 of days(8)) {
+      if (d1 !== undefined && d1 === d2) continue;
+      for (const w1 of d1 === undefined ? [undefined] : warlordPickWords(seed, d1)) {
+        for (const w2 of d2 === undefined ? [undefined] : warlordPickWords(seed, d2)) {
+          const need = new Map<string, number>();
+          for (const w of words) need.set(w, (need.get(w) ?? 0) + 1);
+          for (const w of [w1, w2]) if (w !== undefined && (need.get(w) ?? 0) > 0) need.set(w, need.get(w)! - 1);
+          if ([...need].every(([w, n]) => n <= (offers.get(w) ?? 0))) return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+describe("ENCHANT-1b N4(a): the two warlord picks each take ONE word of ONE pick day's pair, and the two picks come from DIFFERENT days", () => {
+  const UNIVERSAL = ["fiery", "rising", "growing", "echoing", "braced"]; // legal on every kind, so any piece can hold them
+
+  it("against an independent oracle: a deck of words the sources can give passes, one they cannot is refused (4 heroes x 6 seeds x days 5, 8, 9, 10)", () => {
+    let cases = 0, refused = 0, accepted = 0, viaPicks = 0;
+    for (const hero of HEROS) {
+      for (let seed = 1; seed <= 6; seed++) {
+        const s = parRunSeed(hero, seed);
+        for (const day of [5, 8, 9, 10]) {
+          const p5 = warlordPickWords(s, 5), p8 = warlordPickWords(s, 8);
+          const sets: string[][] = [
+            [p8[0], p8[1]], [p5[0], p5[1]], [p5[0], p8[0]], [p5[1], p8[1]], [p5[0], p8[1]], [p5[1], p8[0]], // both words of one day's pair; one word of each of two days
+            [p8[0], p8[0]], [p8[1], p8[1]], [p5[0], p5[0]], [p5[1], p5[1]], // two copies of a word one day's pair offers
+          ];
+          for (const words of sets) {
+            // only words the seed offered by this day (a never-offered word is E6.3's other refusal), legal on every piece, within the count
+            if (words.some((w) => !UNIVERSAL.includes(w) || !possibleWords(s, day).has(w as never)) || words.length > maxEnchantsByDay(day, false)) continue;
+            const { build, placed } = assign(par(hero, seed, day), words);
+            if (placed < words.length) continue;
+            const v = upSeed(build, day, s);
+            const want = sourcesCanGive(s, day, words);
+            expect(enchErrors(v).length === 0, `${hero} seed ${seed} day ${day}: ${words.join("+")}: the oracle says ${want ? "yes" : "no"}; the check says ${enchErrors(v).join(" | ") || "nothing"}`).toBe(want);
+            if (!want) expect(enchErrors(v).join(" | ")).toMatch(/but the seed's offers of it by day \d+ are used up by other parts/);
+            cases++;
+            if (want) accepted++; else refused++;
+            if (want && !sourcesCanGive(s, day, words, false)) viaPicks++; // passes only because a pick gave a word
+          }
+        }
+      }
+    }
+    expect(cases, "cases").toBeGreaterThan(150);
+    expect(refused, "refused cases").toBeGreaterThan(15);
+    expect(accepted, "accepted cases").toBeGreaterThan(15);
+    expect(viaPicks, "accepted cases that need a pick").toBeGreaterThan(10);
+  });
+
+  it("named: both words of ONE day's pair are refused, one word from each of TWO different pick days is accepted, and two copies of a word offered once are refused", () => {
+    const found: Record<string, string> = {};
+    for (const hero of HEROS) {
+      for (let seed = 1; seed <= 1500 && Object.keys(found).length < 3; seed++) { // the seeds are scanned with the cheap oracle; a par run is made only for a seed that fits
+        const s = parRunSeed(hero, seed), day = 8;
+        const p5 = warlordPickWords(s, 5), p8 = warlordPickWords(s, 8);
+        const only = (words: string[]): boolean => words.every((w) => UNIVERSAL.includes(w)) && !sourcesCanGive(s, day, words, false); // no ENCHANTER offer gives them: the picks must
+        const tryDeck = (key: string, words: string[], ok: boolean): void => {
+          if (found[key] || !only(words) || sourcesCanGive(s, day, words) !== ok) return;
+          const { build, placed } = assign(par(hero, seed, day), words);
+          if (placed < words.length) return;
+          const v = upSeed(build, day, s);
+          expect(enchErrors(v).length === 0, `${key}: ${hero} seed ${seed}: ${words.join("+")}: ${enchErrors(v).join(" | ")}`).toBe(ok);
+          if (!ok) expect(enchErrors(v).join(" | ")).toMatch(/but the seed's offers of it by day 8 are used up by other parts/);
+          found[key] = `${hero} seed ${seed}: ${words.join("+")}`;
+        };
+        tryDeck("both words of day 8's pair", [p8[0], p8[1]], false);
+        tryDeck("one word of day 5's pair and one of day 8's", [p5[0], p8[0]], true);
+        tryDeck("two copies of a word offered once", [p8[0], p8[0]], false);
+      }
+    }
+    expect(Object.keys(found).sort(), JSON.stringify(found)).toEqual(["both words of day 8's pair", "one word of day 5's pair and one of day 8's", "two copies of a word offered once"]);
+  });
+});
+
+describe("ENCHANT-1b N4(c): a LAST CHANCE part that cannot carry a word (gear) adds no free word", () => {
+  const gear = lastChanceParts().find((d) => d.kind === "mod");
+  const gearLc = (day = 2): TakenLastChance => ({ day, boon: "part", id: gear!.id });
+
+  it("lcPartCarriesWord: a rig or turret part does; gear, a rune, a hull card, an unknown id and no record do not", () => {
+    expect(gear, "the PART card's catalogue has a gear part").toBeDefined();
+    const rig = lastChanceParts().find((d) => d.kind === "gate"), turret = lastChanceParts().find((d) => d.kind === "turret");
+    expect(rig && turret, "and a rig and a turret").toBeTruthy();
+    expect(lcPartCarriesWord({ day: 2, boon: "part", id: rig!.id })).toBe(true);
+    expect(lcPartCarriesWord({ day: 2, boon: "part", id: turret!.id })).toBe(true);
+    expect(lcPartCarriesWord(gearLc())).toBe(false);
+    expect(lcPartCarriesWord({ day: 2, boon: "rune", id: "x" })).toBe(false);
+    expect(lcPartCarriesWord({ day: 2, boon: "hull" })).toBe(false);
+    expect(lcPartCarriesWord({ day: 2, boon: "part", id: "no-such-part" })).toBe(false);
+    expect(lcPartCarriesWord(undefined)).toBe(false);
+  });
+
+  it("the free count: a gear part adds none (as no part), a rig part one; the count bound says the same", () => {
+    for (const day of [3, 5, 8, 10]) {
+      expect(enchantFreeWords(day, gearLc()), `day ${day} gear`).toBe(freeEnchantsByDay(day, false));
+      expect(enchantFreeWords(day, lcPart()), `day ${day} rig part`).toBe(freeEnchantsByDay(day, true));
+    }
+    const day = 5, most = maxEnchantsByDay(day, false), six = handWords(most + 1);
+    expect(most + 1, "the hand deck can hold one past the bound").toBeLessThanOrEqual(6);
+    const rig = up(six, day, { lastChance: lcPart(3) });
+    expect(enchErrors(rig), "a rig part: one word more is allowed").toEqual([]);
+    const withGear = up(six, day, { lastChance: gearLc(3) });
+    expect(withGear.ok).toBe(false);
+    expect(names(withGear)).toMatch(new RegExp(`${most + 1} enchanted parts, but day ${day} allows at most ${most}$`)); // no "with LAST CHANCE's part": it brought no word
+  });
+
+  it("a gear part plus a word past the free count pays the ENCHANTER's 4 G: in the player mode the budget line has room for the 4 G and not for a word more (and a rig part's word is free)", () => {
+    const day = 5, words = handWords(freeEnchantsByDay(day, true)); // a pick and the part's word: both free with a rig part; with gear one of them is bought
+    expect(on(() => buildCost(words, enchantFreeWords(day, lcPart(3))).enchants)).toBeUndefined();
+    expect(on(() => buildCost(words, enchantFreeWords(day, gearLc(3))).enchants)).toBe(ENCHANTER_PRICE);
+    // a LAST CHANCE part's price is free gold once (validate.ts: freeGold), so each part has its own line
+    const line = (lc: TakenLastChance, paid: number): number => maxHonestSpend(day) + valueOf(lc.id!, lastChancePartStars()) - buildCost(words).total - paid;
+    const gearL = gearLc(3), rigL = lcPart(3);
+    const gGap = line(gearL, ENCHANTER_PRICE); // supplies the line leaves once the one bought word is paid
+    expect(gGap).toBeGreaterThanOrEqual(8);
+    const atLine = up(supplied(words, ...mix(gGap)), day, { lastChance: gearL });
+    expect(atLine.ok, `gear, supplies at the line with the bought word's 4 G in it: ${names(atLine)}`).toBe(true);
+    // the old rule counted both words free, so it would have let 4 G of supplies more through: the new one refuses them and names the gold
+    const over = up(supplied(words, ...mix(gGap + ENCHANTER_PRICE)), day, { lastChance: gearL });
+    expect(over.ok, "gear, 4 G over").toBe(false);
+    expect(over.errors.map((e) => e.split(":")[0])).toEqual(["budget"]);
+    expect(names(over)).toMatch(/that includes 4 gold for 1 enchantment past the 1 free: 4 each at the ENCHANTER/);
+    // a rig part's word IS free: the same two words cost nothing, so the supplies up to its own line pass and one G more does not
+    const rGap = line(rigL, 0);
+    const rigAt = up(supplied(words, ...mix(rGap)), day, { lastChance: rigL });
+    expect(rigAt.ok, `rig part at its line: ${names(rigAt)}`).toBe(true);
+    const rigOver = up(supplied(words, ...mix(rGap + 1)), day, { lastChance: rigL });
+    expect(rigOver.ok, "rig part, 1 G over").toBe(false);
+    expect(names(rigOver)).not.toMatch(/enchantment/);
+  });
+});
+
+describe("ENCHANT-1b N4(d): with the seed, GROWING's counter is at most the dusk fights since the first day GROWING could have reached the deck", () => {
+  it("firstGrowingDay agrees with the set test: GROWING is possible by `day` exactly when some source offered it (300 seeds x days 1-12)", () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      for (let day = 1; day <= 12; day++) {
+        const f = firstGrowingDay(seed, day);
+        expect(f !== undefined, `seed ${seed} day ${day}`).toBe(possibleWords(seed, day).has("growing"));
+        if (f !== undefined) expect(f >= 3 && f <= day, `seed ${seed} day ${day}: ${f}`).toBe(true); // the first source is the ENCHANTER's day 3
+      }
+    }
+  });
+
+  it("day - first passes, one more is refused naming the day (a rig, a factory and a turret); without the seed only the brief's day - 1 bound is read", () => {
+    let checked = 0;
+    for (const hero of HEROS) {
+      for (let seed = 1; seed <= 12 && checked < 12; seed++) {
+        const s = parRunSeed(hero, seed), day = 10, first = firstGrowingDay(s, day);
+        if (first === undefined || first <= 3) continue; // a later first day makes the bound visibly tighter than day - 1
+        const b = par(hero, seed, day);
+        const t = targets(b, "growing")[0];
+        const at = (g: number): Build => put(b, t.to, { ench: "growing", grow: g });
+        const ok = upSeed(at(day - first), day, s);
+        expect(enchErrors(ok), `${hero} seed ${seed}: first ${first}, grow ${day - first}`).toEqual([]);
+        const bad = upSeed(at(day - first + 1), day, s);
+        expect(bad.ok, `${hero} seed ${seed}: first ${first}, grow ${day - first + 1}`).toBe(false);
+        expect(enchErrors(bad).join(" | ")).toMatch(new RegExp(`has grow ${day - first + 1}, but this run's seed first offered GROWING on day ${first}, so only ${day - first} dusk fights? came after it by day ${day}`));
+        // no seed: the offers are not re-derived, so the day - 1 bound is the only one
+        expect(enchErrors(on(() => validateUpload(at(day - 1), day, RULES_VERSION, {}))), "no seed: day - 1 passes").toEqual([]);
+        checked++;
+      }
+    }
+    expect(checked, "(hero, seed) fixtures with a later first day").toBeGreaterThan(3);
+  });
+
+  it("every honest deck the bots' runs make still passes: par's real runs (ENCHANT on, the game's caravan), every day of 4 heroes x 6 seeds, no enchant error (the counters grow after each dusk)", () => {
+    let decks = 0, growing = 0, counters = 0, words = 0;
+    on(() => {
+      for (const hero of HEROS) {
+        for (let seed = 1; seed <= 6; seed++) {
+          const s = parRunSeed(hero, seed), days = playerRun(hero, 10, seed);
+          days.forEach((d, i) => {
+            const day = i + 1, v = upSeed(d.build, day, s);
+            expect(enchErrors(v), `${hero} seed ${seed} day ${day}`).toEqual([]);
+            decks++;
+            for (const p of [...d.build.items, ...turretList(d.build)]) {
+              if (p.ench !== undefined) words++;
+              if (p.ench === "growing") { growing++; if ((p.grow ?? 0) > 0) counters++; }
+            }
+          });
+        }
+      }
+    });
+    expect(decks).toBe(240);
+    expect(words, "the bots' runs hold words").toBeGreaterThan(300);
+    expect(growing, "some hold GROWING").toBeGreaterThan(10);
+    expect(counters, "and some of those have grown").toBeGreaterThan(3);
+  });
+});
+
 // ================================================================================================================== the pin test
 
 /** The fixtures every judge sees: a day-10 WEAVER par deck (made with ENCHANT off: no words) with words put on its pieces. `ok` is the
@@ -668,11 +880,14 @@ function pinFixtures(): { name: string; s: GhostSnapshot; ok: boolean; why?: Reg
   add("honest-wide", one("wide"), offered.includes("wide"));
   add("honest-turret-massive", one("massive"), offered.includes("massive")); // ENCHANT-1b (N1): MASSIVE rides on a turret (targets gives it the first turret)
   add("honest-factory-swift", one("swift"), offered.includes("swift")); // and SWIFT on a factory (the first one)
-  add("honest-growing-9", one("growing", { grow: 9 }), offered.includes("growing"));
+  // ENCHANT-1b (N4d): with the seed GROWING's counter is at most the dusk fights since the first day it could have reached the deck (day - first)
+  const gFirst = firstGrowingDay(rs, day);
+  add("honest-growing-since-first", one("growing", { grow: gFirst === undefined ? 9 : day - gFirst }), offered.includes("growing"));
   add("honest-4-words", assign(base, honestWords(rs, day, 2)).build, true);
   // forged
   add("never-offered", one(never[0] ?? "braced"), never.length === 0, /did not offer/);
   add("grow-past-the-bound", one("growing", { grow: 10 }), false, /has grow 10, but only 9 dusk fights came before day 10/);
+  add("grow-before-it-was-offered", one("growing", { grow: gFirst === undefined ? 9 : day - gFirst + 1 }), false, gFirst === undefined ? /did not offer/ : /but this run's seed first offered GROWING on day \d+, so only \d+ dusk fights? came after it by day 10/); // N4d
   add("rig-massive", put(base, { item: base.items.find((p) => ITEMS[p.def].kind === "gate")!.uid }, { ench: "massive" }), false, /ONLY ON A TURRET/);
   add("factory-massive", put(base, { item: base.items.find((p) => ITEMS[p.def].kind === "factory")!.uid }, { ench: "massive" }), false, /can't take MASSIVE: ONLY ON A TURRET/); // ENCHANT-1b (N1)
   add("turret-swift", put(base, { turret: 0 }, { ench: "swift" }), false, /turret: uid \d+ .* can't take SWIFT: ONLY ON A FACTORY/);

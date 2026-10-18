@@ -10,22 +10,28 @@
 //        lastChanceProblem re-derive theirs (only with the seed: a served ghost, a stand-in and a pool deck carry none). Then the
 //        offers are also counted (below): a word is taken once per offer.
 //  E6.4  the gold: every word past the free sources' bound (freeEnchantsByDay: the warlord picks the day allows and LAST CHANCE's
-//        part) was bought at the ENCHANTER for ENCHANTER_PRICE, so it joins buildCost (validate.ts) and the day's budget covers it.
+//        part, when that part can carry a word: ENCHANT-1b N4(c), gear arrives plain) was bought at the ENCHANTER for ENCHANTER_PRICE,
+//        so it joins buildCost (validate.ts) and the day's budget covers it.
 //  E6.5  GROWING's counter `grow` is at most day - 1 (the dusk fights fought before this snapshot) and sits only on a piece that
 //        holds GROWING (the strict decoder refuses it elsewhere; this is the same rule for a caller that skipped the decoder).
+//        ENCHANT-1b N4(d): with the seed it is at most the dusk fights since the first day GROWING could have reached the deck.
 //
 // THE OFFERS ARE COUNTED (E6.3, the part past the brief's set test): the set test alone would let a deck hold three FIERY when the seed
 // offered FIERY once. Every way a word reaches the deck is a SLOT that gives at most one word to one piece: each of the ENCHANTER's two
-// offers on each ENCHANTER day (bought once), the run's two warlord picks (one word of any pick day from day 5, and from day 8), and
-// LAST CHANCE's part (its seeded word, on that very part, WIDE on a rig on its seeded side). The held words must fit the slots, one
-// piece to one slot (a bipartite match, so a word a merge, a sale or a replace lost leaves its slot unused and costs nothing). The
-// day a pick fell on is not known to the server, so a pick's slot takes the words of every pick day it could have fallen on.
+// offers on each ENCHANTER day (bought once), the run's two warlord picks, and LAST CHANCE's part (its seeded word, on that very part,
+// WIDE on a rig on its seeded side). The held words must fit the slots, one piece to one slot (a bipartite match, so a word a merge, a
+// sale or a replace lost leaves its slot unused and costs nothing).
+// ENCHANT-1b N4(a), THE TWO WARLORD PICKS: each takes ONE word of ONE pick day's pair (hashSeed(seed, "ench", day, "warlord")), and the two
+// picks come from DIFFERENT days (pick 1 from day WARLORD_PICK_FROM[0] = 5 on, pick 2 from day WARLORD_PICK_FROM[1] = 8 on; one warlord
+// fight a day). The server does not know which days they fell on, so the match is tried for each choice of the two days (the same pair
+// of word sets is tried once): a deck passes when SOME choice of days fits every held word. So both words of one day's pair, or two copies
+// of a word offered once, no longer pass; one word each from two different pick days does.
 
 import { ITEMS } from "../sim/content";
 import type { Build } from "../sim/deck";
-import { ENCHANT_DEFS, enchantRules, isEnchantId, type EnchantId } from "../sim/enchant";
+import { ENCHANT_DEFS, enchantKindOf, enchantRules, isEnchantId, type EnchantId } from "../sim/enchant";
 import {
-  ENCHANTER_PRICE, WARLORD_PICK_FROM, enchanterWords, freeEnchantsByDay, lastChanceWord, maxEnchantsByDay, possibleWords, warlordPickWords,
+  ENCHANTER_FIRST_DAY, ENCHANTER_PRICE, WARLORD_PICK_FROM, enchanterWords, freeEnchantsByDay, lastChanceWord, maxEnchantsByDay, possibleWords, warlordPickWords,
 } from "../sim/enchantSources";
 import type { TakenLastChance } from "../sim/lastChance";
 
@@ -51,8 +57,18 @@ const wordOf = (id: string): string => (isEnchantId(id) ? ENCHANT_DEFS[id].name 
 /** How many pieces of the deck hold a word (rigs, factories, turrets; gear and cores cannot). */
 export const enchantCount = (b: Build): number => pieces(b).filter((p) => p.ench !== undefined).length;
 
-/** E6.4: the words the free sources can have given (the warlord picks the day allows, plus LAST CHANCE's part) for a deck on `day`. */
-export const enchantFreeWords = (day: number, lc?: TakenLastChance): number => freeEnchantsByDay(day, lc?.boon === "part");
+/**
+ * ENCHANT-1b N4(c): did the deck's LAST CHANCE part come with a word? A rig, factory or turret part does (enchantSources.ts lastChanceWord
+ * draws one); GEAR arrives plain, so it adds no free word. A part boon with no id, or an id that is no item, is no part at all (lastChanceProblem
+ * refuses it), so it adds none either.
+ */
+export function lcPartCarriesWord(lc: TakenLastChance | undefined): boolean {
+  if (lc?.boon !== "part" || typeof lc.id !== "string") return false;
+  return enchantKindOf(Object.prototype.hasOwnProperty.call(ITEMS, lc.id) ? ITEMS[lc.id] : undefined) !== undefined;
+}
+
+/** E6.4: the words the free sources can have given (the warlord picks the day allows, plus LAST CHANCE's part when it can carry a word) for a deck on `day`. */
+export const enchantFreeWords = (day: number, lc?: TakenLastChance): number => freeEnchantsByDay(day, lcPartCarriesWord(lc));
 
 /** E6.4: how many held words were BOUGHT, at the least: every word past the `free` ones. 0 while the rules world has no ENCHANT. */
 export const enchantPaidWords = (b: Build, free: number): number => (enchantRules() ? Math.max(0, enchantCount(b) - Math.max(0, free)) : 0);
@@ -78,20 +94,35 @@ interface Slot {
   dir?: number;
 }
 
-/** Every slot a deck on `day` could have filled, from the seed (the ENCHANTER's offers, the two warlord picks, LAST CHANCE's part). */
-function slotsFor(seed: number, day: number, lc?: TakenLastChance): Slot[] {
+/** The slots that do not depend on a pick day: each ENCHANTER offer on each ENCHANTER day up to `day`, and LAST CHANCE's part (ENCHANT-1b N4(a): the
+ *  two warlord picks are chosen on top of these, pickSlots). */
+function baseSlots(seed: number, day: number, lc?: TakenLastChance): Slot[] {
   const slots: Slot[] = [];
-  const pick1 = new Set<EnchantId>(), pick2 = new Set<EnchantId>();
-  for (let d = 1; d <= day; d++) {
-    for (const w of enchanterWords(seed, d)) slots.push({ words: new Set([w]) });
-    if (d >= WARLORD_PICK_FROM[0]) for (const w of warlordPickWords(seed, d)) pick1.add(w);
-    if (d >= WARLORD_PICK_FROM[1]) for (const w of warlordPickWords(seed, d)) pick2.add(w);
-  }
-  if (pick1.size) slots.push({ words: pick1 });
-  if (pick2.size) slots.push({ words: pick2 });
+  for (let d = 1; d <= day; d++) for (const w of enchanterWords(seed, d)) slots.push({ words: new Set([w]) });
   if (lc?.boon === "part" && lc.id !== undefined) {
     const w = lastChanceWord(seed, lc.day, lc.id);
     if (w) slots.push({ words: new Set([w.ench]), def: lc.id, ...(w.enchDir !== undefined ? { dir: w.enchDir } : {}) });
+  }
+  return slots;
+}
+
+/** ENCHANT-1b N4(a): the days a warlord pick could have fallen on, for pick 1 (day 5 on) and pick 2 (day 8 on), up to `day`. */
+const pickDays = (which: 0 | 1, day: number): number[] => {
+  const out: number[] = [];
+  for (let d = WARLORD_PICK_FROM[which]; d <= day; d++) out.push(d);
+  return out;
+};
+
+/** A warlord pick's slot for one pick day: ONE word of that day's pair. */
+const pickSlot = (seed: number, d: number): Slot => ({ words: new Set(warlordPickWords(seed, d)) });
+
+/** The slots with the two picks as the LOOSE bound has them (a necessary condition, the ENCHANT-1 rule): each pick takes a word of any day it could have fallen on. */
+function looseSlots(seed: number, day: number, lc?: TakenLastChance): Slot[] {
+  const slots = baseSlots(seed, day, lc);
+  for (const which of [0, 1] as const) {
+    const words = new Set<EnchantId>();
+    for (const d of pickDays(which, day)) for (const w of warlordPickWords(seed, d)) words.add(w);
+    if (words.size) slots.push({ words });
   }
   return slots;
 }
@@ -118,6 +149,50 @@ function unmatched(held: Held[], slots: Slot[]): Held[] {
 }
 
 /**
+ * ENCHANT-1b N4(a): the held pieces left over once they are matched to the ENCHANTER's offers, LAST CHANCE's part and the two warlord picks, [] when
+ * they all fit. First the loose bound (each pick may take a word of any pick day: the ENCHANT-1 rule, a necessary condition, cheap); if even that
+ * leaves some over, those are the answer. Then the exact rule: the two picks fall on DIFFERENT days, each takes ONE word of that day's pair, so every
+ * choice of (pick 1's day, pick 2's day) is tried (the same two word sets are tried once) and the deck passes when one of them fits all. When none
+ * does, the leftover of the closest choice (the fewest pieces over) is named.
+ */
+function unmatchedWords(held: Held[], seed: number, day: number, lc?: TakenLastChance): Held[] {
+  const loose = unmatched(held, looseSlots(seed, day, lc));
+  if (loose.length) return loose;
+  const base = baseSlots(seed, day, lc);
+  const d1s = pickDays(0, day), d2s = pickDays(1, day);
+  if (!d1s.length) return unmatched(held, base); // before day 5 no pick exists
+  const key = (d: number | undefined): string => (d === undefined ? "-" : [...warlordPickWords(seed, d)].sort().join("+"));
+  const tried = new Set<string>();
+  let best: Held[] | null = null;
+  for (const d1 of d1s) {
+    for (const d2 of d2s.length ? d2s : [undefined]) {
+      if (d1 === d2) continue; // the two picks come from different days
+      const k = `${key(d1)}|${key(d2)}`;
+      if (tried.has(k)) continue;
+      tried.add(k);
+      const left = unmatched(held, [...base, pickSlot(seed, d1), ...(d2 === undefined ? [] : [pickSlot(seed, d2)])]);
+      if (!left.length) return [];
+      if (!best || left.length < best.length) best = left;
+    }
+  }
+  return best ?? loose;
+}
+
+/**
+ * ENCHANT-1b N4(d): the first day GROWING could have reached a deck on `day`, re-derived from the seed: the earliest of an ENCHANTER day whose offers hold
+ * it (bought at that dawn, so that day's dusk fight is its first), a warlord pick day (day 5 on) whose pair holds it (taken before that day's dusk),
+ * and the day after LAST CHANCE fired when its part comes with GROWING. undefined when the seed offered it by no source (E6.3 refuses the word).
+ */
+export function firstGrowingDay(seed: number, day: number, lc?: TakenLastChance): number | undefined {
+  let first: number | undefined;
+  const at = (d: number): void => { if (first === undefined || d < first) first = d; };
+  for (let d = ENCHANTER_FIRST_DAY; d <= day; d += 2) if (enchanterWords(seed, d).includes("growing")) at(d);
+  for (let d = WARLORD_PICK_FROM[0]; d <= day; d++) if (warlordPickWords(seed, d).includes("growing")) at(d);
+  if (lc?.boon === "part" && lc.id !== undefined && lastChanceWord(seed, lc.day, lc.id)?.ench === "growing") at(lc.day + 1);
+  return first;
+}
+
+/**
  * E6.2, E6.3, E6.5: why the deck's words and counters can't stand, as short lines (each starts `enchant:`), or [] when they can. The
  * piece check (E6.1) and the gold (E6.4, buildCost) are validate.ts's. `day` is the deck's own day; `ctx.lastChance` the snapshot's taken
  * LAST CHANCE; `ctx.seed` the run seed (without it the offers are not re-derived). Does nothing while the rules world has no ENCHANT.
@@ -132,12 +207,18 @@ export function enchantProblems(b: Build, day: number, ctx: EnchantContext = {})
     if (p.ench !== "growing") out.push(`enchant: uid ${p.uid} ${nameOf(p)} has a grow counter but holds no GROWING`);
     else if (!Number.isInteger(p.grow) || p.grow < 0 || p.grow > day - 1) {
       out.push(`enchant: uid ${p.uid} ${nameOf(p)} has grow ${p.grow}, but only ${Math.max(0, day - 1)} dusk fight${day - 1 === 1 ? "" : "s"} came before day ${day}`);
+    } else if (ctx.seed !== undefined) {
+      // ENCHANT-1b N4(d): with the seed, the dusk fights since the first day GROWING could have reached the deck (a seed that offered it by no source: E6.3 below refuses the word)
+      const first = firstGrowingDay(ctx.seed, day, ctx.lastChance);
+      if (first !== undefined && p.grow > day - first) {
+        out.push(`enchant: uid ${p.uid} ${nameOf(p)} has grow ${p.grow}, but this run's seed first offered GROWING on day ${first}, so only ${Math.max(0, day - first)} dusk fight${day - first === 1 ? "" : "s"} came after it by day ${day}`);
+      }
     }
   }
   const held = all.filter((p) => p.ench !== undefined);
   if (!held.length) return out;
-  // E6.2: the count
-  const lc = ctx.lastChance, tookPart = lc?.boon === "part";
+  // E6.2: the count (ENCHANT-1b N4(c): LAST CHANCE's part counts only when it can carry a word; gear arrives plain)
+  const lc = ctx.lastChance, tookPart = lcPartCarriesWord(lc);
   const most = maxEnchantsByDay(day, tookPart);
   if (held.length > most) out.push(`enchant: ${held.length} enchanted part${held.length === 1 ? "" : "s"}, but day ${day} allows at most ${most}${tookPart ? " with LAST CHANCE's part" : ""}`);
   // E6.3: each held word was on offer (needs the seed), then the offers are used once each
@@ -147,7 +228,7 @@ export function enchantProblems(b: Build, day: number, ctx: EnchantContext = {})
   const never = held.filter((p) => !isEnchantId(p.ench) || !offered.has(p.ench));
   for (const p of never) out.push(`enchant: uid ${p.uid} ${nameOf(p)} holds ${wordOf(p.ench!)}, which this run's seed did not offer by day ${day}`);
   if (never.length) return out;
-  for (const p of unmatched(held, slotsFor(ctx.seed, day, lc))) {
+  for (const p of unmatchedWords(held, ctx.seed, day, lc)) { // ENCHANT-1b N4(a): the two warlord picks take one word of one day's pair each, from different days
     out.push(`enchant: uid ${p.uid} ${nameOf(p)} holds ${wordOf(p.ench!)}, but the seed's offers of it by day ${day} are used up by other parts`);
   }
   return out;
