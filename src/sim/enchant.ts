@@ -66,15 +66,16 @@ export const ENCHANT_KINDS: Readonly<Record<string, EnchantKind>> = { gate: "rig
 /** The numbers the eight words are built from (the brief's starting values; the bench (tools/enchant1) sets the shipped ones).
  *  RUN 3's E9a read (day 5, ★1, par-field k 96, 12 opponents a deck, win points gained over the plain deck, mean of 4 heroes) at the brief's
  *  starting values: FIERY 12.9, RISING 20.3, GROWING 5.5, ECHOING 14.8, MASSIVE -2.4, SWIFT 1.9, WIDE 2.0, BRACED 1.0 (target +3 to +8).
- *  CUTS made from it (each logged in REPORT with its bench line): risingStep 5 -> 2, echoEvery 3 -> 5; RAISE (under 3): bracedStuns 2 -> 3.
+ *  CUTS made from it (each logged in REPORT with its bench line): risingStep 5 -> 2 -> 1 (cap's ruling), echoEvery 3 -> 5; RAISES (under 3): bracedStuns 2 -> 3, massiveShare 2 -> 3.
  *  ★1 x1, ★2 x2, ★3 x3 multiplies burn, risingStep, growingStep and bracedStuns; a count (echoEvery) and the words (HALF, TWICE,
  *  +1 ARROW, +1 SLOT) do not scale. */
-export const ENCHANT_NUM: { burn: number; risingStep: number; growingStep: number; echoEvery: number; bracedStuns: number } = {
+export const ENCHANT_NUM: { burn: number; risingStep: number; growingStep: number; echoEvery: number; bracedStuns: number; massiveShare: number } = {
   burn: 1, // FIERY: [BURN]+1 on the hit, the slug or the shot
-  risingStep: 2, // RISING: the nth slug or shot gets +2 DMG x n (the brief's start: 5; cut in run 3: E9a read 20.3 points at 5)
+  risingStep: 1, // RISING: the nth slug or shot gets +1 DMG x n (the brief's start: 5; cut in run 3: E9a read 20.3 at 5 and 10.9 at 2; cap's ruling 92ad6c30dc50caed: step 1)
   growingStep: 5, // GROWING: +5 DMG x the piece's `grow` (the dusk fights it has been through)
   echoEvery: 5, // ECHOING: every 5th slug it hits, 5th time it works, 5th shot (the brief's start: 3; cut in run 3: E9a read 14.8 points at 3)
   bracedStuns: 3, // BRACED: the first 3 STUNs on it each fight do nothing (the brief's start: 2; raised in run 3: E9a read 1.0 point at 2)
+  massiveShare: 3, // MASSIVE: its slugs / shots deal 3x DMG at half the rate (the brief's start: 2x, equal DPS on paper; raised in run 3: E9a read -2.4 (day 5) and -9.1 (day 10) at 2x; cap's ruling 92ad6c30dc50caed lets the equal-on-paper rule give way)
 };
 
 export interface EnchantDef {
@@ -275,7 +276,7 @@ export function enchantRate(id: string | undefined, rate: number): number {
 /** The DMG share a word gives a slug or a shot: MASSIVE x2, SWIFT x1/2, every other word x1 (the damage per second stays
  *  equal on paper: the interval doubles or halves with it). */
 export function enchantShare(id: string | undefined): number {
-  return id === "massive" ? 2 : id === "swift" ? 0.5 : 1;
+  return id === "massive" ? ENCHANT_NUM.massiveShare : id === "swift" ? 0.5 : 1;
 }
 
 /**
@@ -295,7 +296,7 @@ export function enchantLine(id: EnchantId, kind: EnchantKind): string | null {
     case "echoing":
       return kind === "rig" ? `EVERY ${ord(n.echoEvery)} SLUG IT HITS GETS ITS STATS TWICE.`
         : kind === "factory" ? `EVERY ${ord(n.echoEvery)} TIME IT WORKS: 1 MORE SLUG.` : `EVERY ${ord(n.echoEvery)} SHOT HITS TWICE.`;
-    case "massive": return kind === "factory" ? "WORKS HALF AS OFTEN. ITS SLUGS DEAL 2x DMG." : "FIRES HALF AS OFTEN. 2x DMG A SHOT.";
+    case "massive": return kind === "factory" ? `WORKS HALF AS OFTEN. ITS SLUGS DEAL ${n.massiveShare}x DMG.` : `FIRES HALF AS OFTEN. ${n.massiveShare}x DMG A SHOT.`;
     case "swift": return kind === "factory" ? "WORKS TWICE AS OFTEN. ITS SLUGS DEAL HALF DMG." : "FIRES TWICE AS OFTEN. HALF DMG A SHOT.";
     case "wide": return kind === "rig" ? "+1 ARROW" : kind === "factory" ? "+1 [BELT] SLOT" : "+1 [GEAR] SLOT";
     case "braced": return `THE FIRST ${n.bracedStuns} [STUN]STUNS ON IT EACH FIGHT DO NOTHING.`;

@@ -98,7 +98,7 @@ describe("ENCHANT-1 E8: the valuation reproduces the rules of thumb", () => {
       const l1 = worth(1), l3 = worth(3);
       expect(l3.kiln).toBeGreaterThan(0.3); // the gun queues: half the slugs, twice the DMG, nothing fired is lost
       expect(l3.kiln).toBeGreaterThan(5 * Math.max(0.01, l1.kiln)); // with no queue it is worth almost nothing
-      expect(l3.gun).toBeLessThan(0); // on the gun the half rate loses fire it needed
+      expect(l3.gun).toBeLessThan(l3.kiln); // on the gun the half rate loses fire it needed: the factory is still the better place (at 2x the gun's value was below 0; at 3x it is a gain, smaller than the kiln's)
       const b = heroStartBuild("furnace", 1);
       b.upgrades = { factory: 3, turret: 1 };
       expect(isItem(top(b, "massive")!.target, 1)).toBe(true);

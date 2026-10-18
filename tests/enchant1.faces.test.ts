@@ -410,9 +410,9 @@ describe("ENCHANT-1 E7: A NUMBER THE WORD CHANGES is shown changed, in the word'
     });
   });
 
-  it("slugDmg is payloadDamage's rule: MASSIVE x2 and SWIFT x1/2 of the die and its flat, rounded half up once, never under the floor; every other word and no word: base + flat", () => {
+  it("slugDmg is payloadDamage's rule: MASSIVE xENCHANT_NUM.massiveShare and SWIFT x1/2 of the die and its flat, rounded half up once, never under the floor; every other word and no word: base + flat", () => {
     expect(slugDmg(undefined, 30, 4)).toBe(34);
-    expect(slugDmg({ id: "massive", stars: 1, grow: 0 }, 30, 4)).toBe(68);
+    expect(slugDmg({ id: "massive", stars: 1, grow: 0 }, 30, 4)).toBe(34 * ENCHANT_NUM.massiveShare);
     expect(slugDmg({ id: "swift", stars: 1, grow: 0 }, 75)).toBe(38);
     expect(slugDmg({ id: "swift", stars: 1, grow: 0 }, 15, 0, 10)).toBe(10); // the floor a slug deals (deck.ts shotFloor): 15 / 2 is 8, so 10
     expect(slugDmg({ id: "swift", stars: 1, grow: 0 }, 15)).toBe(8); // with no floor given: rounded half up, as payloadDamage rounds before its max

@@ -86,11 +86,11 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
     expect(enchantLine("echoing", "rig")).toBe(`EVERY ${ORD} SLUG IT HITS GETS ITS STATS TWICE.`);
     expect(enchantLine("echoing", "factory")).toBe(`EVERY ${ORD} TIME IT WORKS: 1 MORE SLUG.`);
     expect(enchantLine("echoing", "turret")).toBe(`EVERY ${ORD} SHOT HITS TWICE.`);
-    expect(enchantLine("massive", "factory")).toBe("WORKS HALF AS OFTEN. ITS SLUGS DEAL 2x DMG.");
+    expect(enchantLine("massive", "factory")).toBe(`WORKS HALF AS OFTEN. ITS SLUGS DEAL ${ENCHANT_NUM.massiveShare}x DMG.`);
     expect(enchantLine("swift", "turret")).toBe("FIRES TWICE AS OFTEN. HALF DMG A SHOT.");
     expect(enchantLine("braced", "rig")).toBe(`THE FIRST ${ENCHANT_NUM.bracedStuns} [STUN]STUNS ON IT EACH FIGHT DO NOTHING.`);
     expect(enchantLine("massive", "rig")).toBeNull();
-    expect(ENCHANT_NUM).toEqual({ burn: 1, risingStep: 2, growingStep: 5, echoEvery: 5, bracedStuns: 3 }); // the SHIPPED numbers: the brief's starts were 1, 5, 5, 3, 2; run 3's E9a read cut RISING and ECHOING and raised BRACED (REPORT 10)
+    expect(ENCHANT_NUM).toEqual({ burn: 1, risingStep: 1, growingStep: 5, echoEvery: 5, bracedStuns: 3, massiveShare: 3 }); // the SHIPPED numbers: the brief's starts were 1, 5, 5, 3, 2 and MASSIVE 2x; run 3's E9a read cut RISING (5 -> 2 -> 1) and ECHOING and raised BRACED and MASSIVE (REPORT 10)
   });
 
   it("enchantProblem: each word on each kind (the allow-list), with the player's reasons", () => {
@@ -124,7 +124,7 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
     expect([35, 36, 1, 2, 17].map((r) => enchantRate("massive", r))).toEqual([17, 18, 1, 1, 8]);
     expect([35, 1].map((r) => enchantRate("swift", r))).toEqual([70, 2]);
     expect(enchantRate("fiery", 35)).toBe(35);
-    expect(enchantShare("massive")).toBe(2);
+    expect(enchantShare("massive")).toBe(ENCHANT_NUM.massiveShare);
     expect(enchantShare("swift")).toBe(0.5);
     expect(enchantShare("echoing")).toBe(1);
     expect(on(() => wideSlots({ ench: "wide" }))).toBe(1);

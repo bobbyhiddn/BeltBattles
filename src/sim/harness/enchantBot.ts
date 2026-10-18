@@ -280,7 +280,7 @@ export function wordGain(m: WordModel, p: WordPiece, word: EnchantId, grow0 = 0,
     };
     if (p.kind === "turret") {
       if (word === "echoing") eqScale = 1 + 1 / N.echoEvery; // 1 shot in 3 hits twice
-      else if (word === "massive") { capScale = 0.5; eqScale = 2; } // fires half as often, 2x DMG a shot
+      else if (word === "massive") { capScale = 0.5; eqScale = ENCHANT_NUM.massiveShare; } // fires half as often, massiveShare x DMG a shot
       else if (word === "swift") { capScale = 2; eqScale = Math.max(0.5, 10 / T.eq); } // twice as often, half the DMG (never under the least a shot deals)
     }
     const A2 = T.routes.reduce((s, r) => s + r.a * k(r), 0);

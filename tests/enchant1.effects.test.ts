@@ -175,7 +175,7 @@ describe("ENCHANT-1 E3: the factory's words (the KILN, the signature factory, an
       expect(massive.def.factory!.speed).toBe(Math.max(1, Math.floor(s / 2)));
       expect(swift.def.factory!.speed).toBe(s * 2);
       expect(base.ench).toBeUndefined();
-      expect(first(kilnDeck({ ench: "massive" })).every((x) => x.mult === 2)).toBe(true);
+      expect(first(kilnDeck({ ench: "massive" })).every((x) => x.mult === ENCHANT_NUM.massiveShare)).toBe(true);
       expect(first(kilnDeck({ ench: "swift" })).every((x) => x.mult === 0.5)).toBe(true);
       expect(first(kilnDeck()).every((x) => x.mult === 1)).toBe(true);
     });
@@ -229,7 +229,7 @@ describe("ENCHANT-1 E3: the turret's words (the free SCRAP CANNON)", () => {
     expect(m.interval).toBeCloseTo(30 / m.speed, 9);
     expect(s.interval).toBeCloseTo(30 / s.speed, 9);
     for (let i = 0; i < 3; i++) {
-      expect(m.dmg[i], `MASSIVE shot ${i + 1}`).toBe(b.dmg[i] * 2);
+      expect(m.dmg[i], `MASSIVE shot ${i + 1}`).toBe(b.dmg[i] * ENCHANT_NUM.massiveShare);
       expect(s.dmg[i], `SWIFT shot ${i + 1}`).toBe(Math.max(10, Math.round(b.dmg[i] / 2)));
     }
     expect(m.fires).toBeLessThan(b.fires);
