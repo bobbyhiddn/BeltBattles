@@ -1,6 +1,7 @@
 // GATES-1 (REQ-BFG-057; BRIEF-GATES1 G3; step 4): placement and drop-to-split, without a browser (scripts/touchcheck.mjs, the
 // drop-to-split section, drives the real page).
-// - the preview: `SPLITS IT: 2 TILES IN, 3 OUT`, `1 ARROW IDLES` when rig arrows aim at the tile, the refusal reasons;
+// - the preview: `SPLITS IT: 2 TILES IN, 3 TILES OUT` (GATES-1b B2; `1 TILE` when a count is 1), `1 ARROW IDLES` when rig arrows
+//   aim at the tile, the refusal reasons;
 // - the carried gate's target (actions.ts carryTarget): a mouse drops on the tile under it; a finger's ghost stands above the
 //   finger and the drop snaps to the nearest legal belt tile within 1 cell (a catch of about 60 CSS px on a phone);
 // - the drop itself (a card, cargo, a placed gate moved to another belt tile) and sell / remove: the belt is whole again;
@@ -69,9 +70,20 @@ describe("GATES-1 G3: the preview (previewSplit, splitTag)", () => {
       const p = previewSplit(run.build, "fuser", K(4, 3)); // tile 2 of 6
       expect(p).toMatchObject({ ok: true, route: 0, tile: 2, tilesIn: 2, tilesOut: 3, idles: 0 });
       expect(p.outCells).toEqual([K(4, 2), K(4, 1), K(4, 0)]);
-      expect(splitTag(p)).toBe("SPLITS IT: 2 TILES IN, 3 OUT");
-      expect(splitTag(previewSplit(run.build, "fuser", K(4, 4)))).toBe("SPLITS IT: 1 TILE IN, 4 OUT");
-      expect(splitTag(previewSplit(run.build, "fuser", K(4, 1)))).toBe("SPLITS IT: 4 TILES IN, 1 OUT");
+      expect(splitTag(p)).toBe("SPLITS IT: 2 TILES IN, 3 TILES OUT"); // GATES-1b B2: OUT says TILES too (was `3 OUT`)
+      expect(splitTag(previewSplit(run.build, "fuser", K(4, 4)))).toBe("SPLITS IT: 1 TILE IN, 4 TILES OUT");
+      expect(splitTag(previewSplit(run.build, "fuser", K(4, 1)))).toBe("SPLITS IT: 4 TILES IN, 1 TILE OUT"); // `1 TILE` when a count is 1
+    });
+  });
+
+  it("GATES-1b B2: each count says TILE when it is 1 and TILES otherwise (a belt of 3 tiles, the middle one: 1 and 1)", () => {
+    withGates(() => {
+      const run = furnace();
+      run.build.routes[0].cells = [K(4, 5), K(4, 4), K(4, 3)]; // three tiles: the gate on the middle one has one on each side
+      expect(splitTag(previewSplit(run.build, "fuser", K(4, 4)))).toBe("SPLITS IT: 1 TILE IN, 1 TILE OUT");
+      run.build.routes[0].cells = [K(4, 5), K(4, 4), K(4, 3), K(4, 2)];
+      expect(splitTag(previewSplit(run.build, "fuser", K(4, 4)))).toBe("SPLITS IT: 1 TILE IN, 2 TILES OUT");
+      expect(splitTag(previewSplit(run.build, "fuser", K(4, 3)))).toBe("SPLITS IT: 2 TILES IN, 1 TILE OUT");
     });
   });
 
@@ -80,7 +92,7 @@ describe("GATES-1 G3: the preview (previewSplit, splitTag)", () => {
       const east = rotField("whetstone", rotFacing("whetstone", 1));
       const one = furnace([{ uid: 7, def: "whetstone", x: 3, y: 3, ...east }]);
       expect(previewSplit(one.build, "fuser", K(4, 3)).idles).toBe(1);
-      expect(splitTag(previewSplit(one.build, "fuser", K(4, 3)))).toBe("SPLITS IT: 2 TILES IN, 3 OUT · 1 ARROW IDLES");
+      expect(splitTag(previewSplit(one.build, "fuser", K(4, 3)))).toBe("SPLITS IT: 2 TILES IN, 3 TILES OUT · 1 ARROW IDLES");
       expect(previewSplit(one.build, "fuser", K(4, 2)).idles).toBe(0);
       // a second belt one tile east of the rig, so a LONG HAUL's two arrows both land on belt tiles beside it
       const two = furnace([{ uid: 7, def: "press", x: 6, y: 6 }, { uid: 8, def: "longhaul", x: 5, y: 3 }]);

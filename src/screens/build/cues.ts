@@ -157,7 +157,7 @@ function ghostSprite(defId: string, t: number): HTMLCanvasElement {
 /**
  * GATES-1 (REQ-BFG-057; BRIEF-GATES1 G3; the mock ref/r1d/mock/r1d-2-drop-to-split-op.png): the drop-to-split preview, in the
  * carrier's space. A gate carried over belt tile (x, y): its art on the tile (80%, a white frame), the tiles after it outlined
- * 1 px in its rarity colour (its own output path), and a tag over it, `SPLITS IT: 2 TILES IN, 3 OUT`, with `1 ARROW IDLES` under
+ * 1 px in its rarity colour (its own output path), and a tag over it, `SPLITS IT: 2 TILES IN, 3 TILES OUT`, with `1 ARROW IDLES` under
  * it when rig arrows aim at the tile. A refused tile has a red frame (blinking) and the reason, the way a refused join is marked.
  * The tag is kept on the hull. Returns the preview.
  */

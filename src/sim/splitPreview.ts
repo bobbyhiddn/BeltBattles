@@ -1,6 +1,6 @@
 // GATES-1 (REQ-BFG-057; BRIEF-GATES1 G3): THE DROP-TO-SPLIT PREVIEW. While a gate (FUSER, SCATTER MILL, SMELTER; gates.ts) is
 // carried over a belt tile, the editor shows what the drop would do before it happens: the gate's art on the tile, the tiles
-// after it outlined, and a tag `SPLITS IT: 2 TILES IN, 3 OUT` (the tiles before it are its input, the tiles after it its own
+// after it outlined, and a tag `SPLITS IT: 2 TILES IN, 3 TILES OUT` (the tiles before it are its input, the tiles after it its own
 // output path to the original destination), with `1 ARROW IDLES` when rig arrows aim at the tile (DESIGN-beltside R5: they
 // idle; PIECES-1 6.2). A refused tile shows the reason (split.ts splitProblem: DROP IT ON A BELT, NEEDS BELT ON BOTH SIDES) the
 // way a refused join is marked. This file is the data; cues.ts draws it. It lives beside split.ts, not in it, because it reads
@@ -10,7 +10,7 @@
 
 import { ITEMS } from "./content";
 import { hero, kx, ky, rigHits, routeInfo, type Build } from "./deck";
-import { SPLIT_OFF_BELT, beltTile, splitProblem } from "./split";
+import { SPLIT_NO_BELT, SPLIT_OFF_BELT, beltTile, splitProblem } from "./split";
 
 /** What a drop of a gate on belt tile k would do. */
 export interface SplitPreview {
@@ -36,12 +36,34 @@ export function previewSplit(b: Build, defId: string, k: number, ignoreUid = -1)
   };
 }
 
-/** The tag over the carried gate: `SPLITS IT: 2 TILES IN, 3 OUT`, and with arrows aimed at the tile `· 1 ARROW IDLES`; a
- *  refused tile shows its reason alone. Words: docs/TEXT-STYLE.md (capitals, a few words, `·` between two notes). */
+/** `1 TILE`, `2 TILES`: a count of tiles, singular for one (GATES-1b B2). */
+const tiles = (n: number): string => `${n} TILE${n === 1 ? "" : "S"}`;
+
+/** The tag over the carried gate: `SPLITS IT: 2 TILES IN, 3 TILES OUT` (`1 TILE` when a count is 1; GATES-1b B2: the cold read's
+ *  readers took `3 OUT` for three outputs), and with arrows aimed at the tile `· 1 ARROW IDLES`; a refused tile shows its
+ *  reason alone. Words: docs/TEXT-STYLE.md (capitals, a few words, `·` between two notes). The longest real case, two 2-digit
+ *  counts, is 133 px wide in the tag's font and fits the narrowest hull box (140 px, a turned hull): tests/gates1.tag.test.ts. */
 export function splitTag(p: SplitPreview): string {
   if (!p.ok) return p.reason ?? "";
-  const tiles = `SPLITS IT: ${p.tilesIn} TILE${p.tilesIn === 1 ? "" : "S"} IN, ${p.tilesOut} OUT`;
-  return p.idles ? `${tiles} · ${p.idles} ARROW${p.idles > 1 ? "S IDLE" : " IDLES"}` : tiles;
+  const line = `SPLITS IT: ${tiles(p.tilesIn)} IN, ${tiles(p.tilesOut)} OUT`;
+  return p.idles ? `${line} · ${p.idles} ARROW${p.idles > 1 ? "S IDLE" : " IDLES"}` : line;
+}
+
+/** The tag in its real cases as the text sheet lists it (tools/textSheet.ts --gates; GATES-1b B2): markdown lines. */
+export function splitSheetLines(): string[] {
+  const ok = (tilesIn: number, tilesOut: number, idles = 0): SplitPreview => ({ ok: true, route: 0, tile: tilesIn, tilesIn, tilesOut, outCells: [], idles });
+  const row = (what: string, text: string): string => `- ${what}: \`${text}\``;
+  return [
+    "", "## Drop-to-split tag (GATES-1b: the words over a carried gate, src/sim/splitPreview.ts splitTag)", "",
+    row("2 tiles before the gate, 3 after", splitTag(ok(2, 3))),
+    row("1 tile on each side", splitTag(ok(1, 1))),
+    row("the longest real case: two counts of 2 digits", splitTag(ok(14, 15))),
+    row("rig arrows aim at the tile (second line)", splitTag(ok(2, 3, 1)).split(" · ")[1]),
+    row("two rig arrows aim at it (second line)", splitTag(ok(2, 3, 2)).split(" · ")[1]),
+    row("a refused tile, off every belt", SPLIT_OFF_BELT),
+    row("a refused tile, a belt's end or beside another gate", SPLIT_NO_BELT),
+    "",
+  ];
 }
 
 /**

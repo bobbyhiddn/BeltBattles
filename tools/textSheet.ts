@@ -31,6 +31,7 @@ import { setShapes } from "../src/sim/shapes"; // SHAPES-1: BB_SHAPES=1
 import { plainRigsRules, setPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): --plain-rigs
 import { setShapes2, shapes2Rules } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): --shapes2
 import { setGates } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): --gates
+import { splitSheetLines } from "../src/sim/splitPreview"; // GATES-1b (REQ-BFG-057 B2): --gates also lists the drop-to-split tag
 
 const NAME_OF = new Map<string, string>(Object.entries(ICON).map(([k, v]) => [v as string, k]));
 /** Markup or glyphs as plain text: each private-use icon as [NAME]. */
@@ -116,7 +117,7 @@ if ((process.argv[1] ?? "").endsWith("textSheet.js")) {
   if (process.argv.includes("--plain-rigs")) setPlainRigs(true); // PLAIN-1 (REQ-BFG-084): the six in ITEMS
   if (process.argv.includes("--shapes2")) setShapes2(true); // SHAPES-2 (REQ-BFG-114): the six more in ITEMS (after PLAIN-1's, when both are on)
   if (process.argv.includes("--gates")) setGates(true); // GATES-1 (REQ-BFG-052): the three gates in ITEMS (after every other def)
-  const text = sheet();
+  const text = sheet() + (process.argv.includes("--gates") ? splitSheetLines().join("\n") : ""); // GATES-1b B2: the tag's words, only with --gates
   writeFileSync(path, text);
   console.log(`text sheet: ${text.split("\n").length} lines -> ${path}`);
 }
