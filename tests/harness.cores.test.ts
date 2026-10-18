@@ -21,6 +21,7 @@ import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the pins' switch-off check
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: the pins' switch-off check (the six plain rigs join the shared pool)
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: the pins' switch-off check (six more shaped rigs, NAIL STRIP and SPIKE RAIL patched)
+import { withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the pins' switch-off check (the seven scaling rigs join the shared pool; SCALE_RIGS ships on)
 
 const hash32 = (s: string): number => {
   let h = 0x811c9dc5;
@@ -168,12 +169,18 @@ describe("harness cores (0.6.1b): legality", () => {
     // again: 898715018 -> 3663963154 and 3415494316 -> 2068234838 (measured, the first run of this file on the bump branch). With
     // both switches off (oldWorld below) both read their old values again, so no other harness path moved (hearts, the long run
     // and the new stand-in pool touch neither build)
-    expect(a).toBe(3663963154); // BUMP-1D: was 898715018
+    // BUMP-1E (SCALE_RIGS on since bb-0.12.0): the shared pool (buyableModules()) gains the seven scaling rigs (CINDER MAIL, ROT GAUGE, LEECH COIL,
+    // CROWD PRESS, AEGIS SPIKE, GRUDGE ROD, TROPHY CHAIN; 103 -> 110 buyable) and the five reworks (KINDLING, PRESSURE BREECH, IRON WALL, SPALL
+    // CATCHER, POWDER KEG) read their new defs, so the builds buy differently again: 3663963154 -> 1897913483 and 2068234838 -> 2516197445
+    // (measured, the first run of this file in the bb-0.12.0 world, the log line above). With SCALE_RIGS off as well (oldWorld below) both read
+    // BUMP-1D's values again, so no other harness path moved
+    expect(a).toBe(1897913483); // BUMP-1E: was 3663963154 (BUMP-1D: was 898715018)
     // AZ-BUMP (the flip, HULL_SCALE): the full purses 2353056724 -> 3958019260, read from the log line above in run 5's group
     // check M1b (the work tree, every switch on)
-    expect(b).toBe(2068234838); // BUMP-1D: the twelve new pieces; was 3415494316 (SHAPES-1 (RUN5 3): EMBER TROUGH 5 G; was 710977181 (the flip))
+    expect(b).toBe(2516197445); // BUMP-1E: the seven scaling rigs; was 2068234838. BUMP-1D: the twelve new pieces; was 3415494316 (SHAPES-1 (RUN5 3): EMBER TROUGH 5 G; was 710977181 (the flip))
     // BUMP-1D: the older worlds' checks run with PLAIN_RIGS and SHAPES2 off (their pool is the one these pins were drawn on)
-    const oldWorld = <T>(fn: () => T): T => withPlainRigs(() => withShapes2(fn, false), false);
+    // BUMP-1E: and with SCALE_RIGS off too (it ships on from bb-0.12.0: the seven scaling rigs are in the shared pool otherwise)
+    const oldWorld = <T>(fn: () => T): T => withScaleRigs(() => withPlainRigs(() => withShapes2(fn, false), false), false);
     expect(oldWorld(pins)).toEqual([898715018, 3415494316]); // BUMP-1D: the switch-off check of the twelve pieces (bb-0.10.0's pool): the old pins
     expect(oldWorld(() => withShapes(pins, false))).toEqual([4035130089, 3958019260]); // SHAPES-1 flip: the switch-off check (BUMP-1D: in the old world)
     expect(oldWorld(() => withShapes(() => withHullScale(pins, false), false))).toEqual([299861875, 2353056724]); // SHAPES-1 flip: AZ-BUMP's check, SHAPES off (BUMP-1D: in the old world)
