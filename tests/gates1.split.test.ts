@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { newRun, releaseStranded, sellInventory, storePlaced, type Run } from "../src/game/run";
 import { ITEMS } from "../src/sim/content";
-import { canPlaceItem, key as K, removeRoute, rotField, type Placed } from "../src/sim/deck";
+import { canExtend, canJoin, canPlaceItem, commitRoute, joinProblem, key as K, removeRoute, rotField, routeWellFormed, type Placed } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
 import { GATES, setGates, withGates } from "../src/sim/gates";
 import { SPLIT_NO_BELT, SPLIT_OFF_BELT, snapSplit, strandedConverters } from "../src/sim/split";
@@ -142,12 +142,14 @@ describe("GATES-1 G3: where a carried gate lands (carryTarget) and the finger's 
     });
   });
 
-  it("the catch: the 3x3 block round the cell, about 60 CSS px across on the phone (cells 20 CSS px)", () => {
+  it("the catch: the 3x3 block round the cell: three cells across, 60 CSS px at 20 px cells (the brief's figure), 72 at the phone's 24", () => {
     withGates(() => {
       const run = furnace();
-      const cellCss = 12 * PHONE_K;
+      const cellCss = 12 * PHONE_K; // a cell before the build carrier's zoom (ZOOM-1: 1.2x on the phone)
       expect(cellCss).toBeCloseTo(20, 6);
       expect(3 * cellCss).toBeGreaterThanOrEqual(60 - 1e-9);
+      // scripts/touchcheck.mjs gatesplit measures it on the real page: 24 CSS px cells, a catch of 72 (over a finger's 44)
+      expect(3 * cellCss * 1.2).toBeCloseTo(72, 6);
       // every cell within 1 of a legal belt tile snaps to it; none two cells away does
       const snapped = [];
       for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) if (snapSplit(run.build, "fuser", x, y)) snapped.push(`${x},${y}`);
@@ -218,13 +220,45 @@ describe("GATES-1 G3: the drop, and sell or remove rejoin the belt", () => {
     });
   });
 
-  it("a bought-and-merged pair still obeys the tile rules: a second gate next to the first is refused", () => {
+  it("a second gate next to a placed one is refused (NEEDS BELT ON BOTH SIDES); one tile further along is fine", () => {
     withGates(() => {
       const run = furnace([{ uid: 30, def: "smelter", x: 4, y: 3 }], ["fuser"]);
       expect(canPlaceItem(run.build, "fuser", 4, 2).reason).toBe(SPLIT_NO_BELT);
       expect(canPlaceItem(run.build, "fuser", 4, 4).reason).toBe(SPLIT_NO_BELT);
       expect(canPlaceItem(run.build, "fuser", 4, 1)).toEqual({ ok: true });
-      void drop;
+    });
+  });
+});
+
+describe("GATES-1 G2/G3: a belt drawn into a gate's tile joins it (review finding 2: either order gives the same deck)", () => {
+  // a STAMP PRESS at (6,6) with a belt (6,5), (6,4), (6,3), (5,3) that steps into (4,3), where a FUSER stands on the KILN's belt
+  const PRESS = { uid: 7, def: "press", x: 6, y: 6 } as const;
+  const PENDING = [K(6, 5), K(6, 4), K(6, 3), K(5, 3)];
+
+  it("the editor meets BELTS CAN'T CROSS at a gate on another belt, so canJoin may join it there", () => {
+    withGates(() => {
+      const run = furnace([{ uid: 30, def: "fuser", x: 4, y: 3 }, { ...PRESS }]);
+      const b = run.build;
+      expect(canExtend(b, 7, PENDING, K(4, 3), -1)).toEqual({ ok: false, reason: "BELTS CAN'T CROSS" });
+      expect(canJoin(b, 7, PENDING, K(4, 3), -1)).toMatchObject({ ok: true, route: 0, tile: 2 });
+      commitRoute(b, 7, PENDING, -1, K(4, 3));
+      expect(b.routes[1]).toMatchObject({ factory: 7, join: K(4, 3) });
+      expect(joinProblem(b, 1)).toBeNull();
+      expect(routeWellFormed(b, b.routes[0])).toBe(true); // the KILN's belt still runs through its gate
+      // the same deck the other way round: the join first, the gate dropped on the join tile afterwards
+      const other = furnace([{ ...PRESS }], ["fuser"]);
+      commitRoute(other.build, 7, PENDING, -1, K(4, 3));
+      expect(canPlaceItem(other.build, "fuser", 4, 3)).toEqual({ ok: true });
+    });
+  });
+
+  it("anything else on a belt stays in the way: a rig, and a belt redrawn through its OWN gate's tile", () => {
+    withGates(() => {
+      const run = furnace([{ uid: 30, def: "fuser", x: 4, y: 3 }, { ...PRESS }, { uid: 31, def: "temper", x: 5, y: 3 }]);
+      const b = run.build;
+      expect(canExtend(b, 7, [K(6, 5), K(6, 4), K(6, 3)], K(5, 3), -1)).toEqual({ ok: false, reason: "MACHINE IN THE WAY" }); // the TEMPER's cell
+      // the KILN's own belt, redrawn: it may not step onto its own gate's tile (it is replacing route 0)
+      expect(canExtend(b, 1, [K(4, 5), K(4, 4)], K(4, 3), 0)).toEqual({ ok: false, reason: "MACHINE IN THE WAY" });
     });
   });
 });

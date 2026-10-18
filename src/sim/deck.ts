@@ -1109,7 +1109,11 @@ export function canExtend(b: Build, factoryUid: number, pending: number[], k: nu
   }
   const occ = occupancy(b);
   const o = occ[k];
-  if (o.item >= 0) return { ok: false, reason: "MACHINE IN THE WAY" }; // B3: every machine blocks a belt (R1)
+  // GATES-1 (REQ-BFG-057): a gate (converter) standing on ANOTHER belt's tile is part of that belt, not a machine in the way: a
+  // belt drawn into it meets BELTS CAN'T CROSS below, so the editor may join it there (canJoin), as it may join the belt's other
+  // tiles ("either order gives the same deck"). A belt redrawn through its own gate's tile is still refused as before.
+  const gateOnBelt = o.item >= 0 && o.route >= 0 && o.route !== replacing && isConverterItem(itemByUid(b, o.item) ?? { def: "" });
+  if (o.item >= 0 && !gateOnBelt) return { ok: false, reason: "MACHINE IN THE WAY" }; // B3: every machine blocks a belt (R1)
   if (o.route >= 0 && o.route !== replacing) return { ok: false, reason: "BELTS CAN'T CROSS" };
   const used = beltUsed(b, replacing) + pending.length + 1;
   if (used > b.beltCap) return { ok: false, reason: "OUT OF BELT" };

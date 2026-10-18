@@ -343,6 +343,7 @@ export class BuildScreen implements Screen, EditHost {
         completeNotice("rename107");
       }
     }
+    this.releaseGates(); // GATES-1 (REQ-BFG-057): a gate stranded while this screen was away (a merge outside it took a factory and its belts)
     saveRun(this.run);
   }
 
@@ -350,10 +351,15 @@ export class BuildScreen implements Screen, EditHost {
     this.sel = s;
   }
 
-  touched(): void {
-    // GATES-1 (REQ-BFG-057): a belt that goes (rerouted, deleted, gone with its factory) strands the gates on it: back to cargo
+  /** GATES-1 (REQ-BFG-057): a belt that goes (rerouted, deleted, gone with its factory) strands the gates on it: back to cargo,
+   *  with a toast naming them (one gate: ITS BELT; several: THEIR BELTS). A deck without gates: nothing. */
+  private releaseGates(): void {
     const gone = releaseStranded(this.run);
-    if (gone.length) this.game.toast(`${gone.join(" AND ")} BACK IN CARGO: ITS BELT IS GONE`, C.yellow);
+    if (gone.length) this.game.toast(`${gone.join(" AND ")} BACK IN CARGO: ${gone.length > 1 ? "THEIR BELTS ARE" : "ITS BELT IS"} GONE`, C.yellow);
+  }
+
+  touched(): void {
+    this.releaseGates();
     this.model = cruiserModel(this.run.build);
     this.view.model = this.model;
     saveRun(this.run);

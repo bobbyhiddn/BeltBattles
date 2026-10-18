@@ -66,8 +66,8 @@ export function splitProblem(b: Pick<Build, "items" | "routes">, defId: string, 
 
 /**
  * TOUCH (BRIEF-GATES1 G3): a deck cell is under 44 CSS px on a phone, so a finger's drop of a gate snaps to the nearest legal
- * belt tile within 1 cell (the 3x3 block round the cell it landed on: a catch area of about 60 CSS px at the phone's 20 px
- * cells). The cell itself first, then its four neighbours, then the diagonals (nearest first; ties up, left, right, down), as
+ * belt tile within 1 cell (the 3x3 block round the cell it landed on: a catch area of three cells across: 60 CSS px at 20 px
+ * cells, 72 at the phone's measured 24, ZOOM-1's carrier zoom; scripts/touchcheck.mjs gatesplit). The cell itself first, then its four neighbours, then the diagonals (nearest first; ties up, left, right, down), as
  * shapeEdit.ts snapAnchor does for a shaped piece. null: no legal tile in reach. `ignoreUid`: the piece being moved.
  */
 export function snapSplit(b: Pick<Build, "items" | "routes">, defId: string, x: number, y: number, ignoreUid = -1): { x: number; y: number } | null {
