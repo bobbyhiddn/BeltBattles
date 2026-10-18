@@ -6,6 +6,8 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS, buyableModules, classFactor, type ItemDef } from "../src/sim/content";
 import { SCALE_IDS, SCALE_PIECES, scaleRules, withScaleRigs } from "../src/sim/scale";
+import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // 0.9.11 world (PLAIN_RIGS and SHAPES2 on): twelve plain stat rigs are sold, each a face and no KEPT_FLAVOUR row
+import { SHAPES2_IDS } from "../src/sim/shapes2";
 import { MAX_DAY } from "../src/net/snapshot";
 import { glyphRows, icons, textWidth } from "../src/render/font";
 import { FACE_IDS, NEXT_LINE_W, faceAt, faceLines, faceNext, hasFace, scaleNotes } from "../src/ui/faces";
@@ -242,7 +244,11 @@ describe("SCALE-2c screen: the 12 faces with the switch on", () => {
       for (const id of SCALE_IDS) expect([KEPT_FLAVOUR[id], flavour(id)]).toEqual([[], []]);
       for (const id of REWORKS) expect(flavour(id)).toEqual([]);
       const sold = buyableModules().map((d) => d.id);
-      for (const id of sold) expect(Object.prototype.hasOwnProperty.call(KEPT_FLAVOUR, id), id).toBe(true);
+      // BUMP-1E P1b (the scale tests move into the 0.9.11 world; was `.toBe(true)` for every sold module): PLAIN_RIGS and SHAPES2 are on
+      // (BUMP-1D), so the twelve plain stat rigs are sold too, each a stat-row face with no ability line, and keep no KEPT_FLAVOUR row
+      // (flavour() shows none for a face; tests/flavour.test.ts PLAIN12): the twelve have none, every other sold module has one
+      const PLAIN12 = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+      for (const id of sold) expect(Object.prototype.hasOwnProperty.call(KEPT_FLAVOUR, id), id).toBe(!PLAIN12.includes(id));
     });
     expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual(FLAVOUR_KEYS0);
   });

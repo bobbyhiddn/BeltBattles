@@ -40,6 +40,11 @@ function spot(b: Build, def: string): { x: number; y: number } {
 const snap = (name: string, build: Build, rec: { wins: number; lives: number } = REC): GhostSnapshot => ({
   v: SNAPSHOT_V3, rules: RULES_VERSION, hero: HERO, day: DAY, wins: rec.wins, lives: rec.lives, build, runId: `scale2d-${name}`,
   playerId: "p-scale2d", createdAt: 1_790_000_000_000, seed: parRunSeed(HERO, SEED),
+  // BUMP-1E P1b (the scale tests move into the 0.9.11 world; was no `losses` field): since BUMP-1D (RUN-1; rules bb-0.11.0) a long run's
+  // upload states the dusks it lost, or the server answers 422 "losses: ..."
+  // (server/app.ts lossesProblem; day - 1 = wins + losses + draws). REC and the forgeries below hold no draw, so losses = day - 1 - wins
+  // (3 for REC); the wins-past-day forgery is refused at the decoder's wins bound before `losses` is read
+  losses: Math.max(0, DAY - 1 - rec.wins),
 });
 /** One deck per new id (switch on: canPlaceItem needs the def). */
 function fixtures(): { id: string; build: Build }[] {
