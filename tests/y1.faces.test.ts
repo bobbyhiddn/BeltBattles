@@ -68,8 +68,8 @@ describe("Y1: faces only, rules unchanged", () => {
     for (const hero of ["furnace", "weaver", "bastion"] as HeroId[]) for (const s of STARS) {
       expect((faceAt("mimic", s, { hero })!.stats2 ?? []).some(([ic]) => ic === "SLUG"), `${hero} ★${s}`).toBe(false);
     }
-    // WORDS-1 (REQ-BFG-081; READ-1 6.1: STAMPS): "MAKES YOUR HERO'S SLUGS TOO." (was "STAMPS YOUR HERO'S SLUGS.")
-    expect(STARS.map((s) => line("mimic", s, { hero: "foundry" }))).toEqual(STARS.map(() => "MAKES YOUR HERO'S SLUGS TOO."));
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1: STAMPS): "MAKES YOUR HERO'S SLUGS." (was "STAMPS YOUR HERO'S SLUGS.")
+    expect(STARS.map((s) => line("mimic", s, { hero: "foundry" }))).toEqual(STARS.map(() => "MAKES YOUR HERO'S SLUGS."));
     expect(STARS.map((s) => faceAt("twinmould", s)!.stats2!.find(([ic]) => ic === "SLUG")?.[1])).toEqual(STARS.map((s) => fmtCount(pour("twinmould", s))));
     expect(ladders("twinmould", 1)).toContain(`{SLUG} ${ladder(STARS.map((s) => fmtCount(pour("twinmould", s))))}`);
     expect(STARS.map((s) => line("twinmould", s))).toEqual(STARS.map(() => "CASTS ITS  ONTO SEPARATE BELTS AT ONCE."));

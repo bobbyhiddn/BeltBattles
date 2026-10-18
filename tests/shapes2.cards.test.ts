@@ -89,7 +89,8 @@ describe("SHAPES-2 S5: the six faces", () => {
         expect(shapeMaxHits(id), id).toBe(WANT[id].hits);
         for (const s of [1, 2, 3]) {
           const fb = faceBlocks(id, s, {})!;
-          expect(texts(fb), `${id} ★${s}`).toEqual([statRow(plainRigStats(id, s)!), `UP TO ${WANT[id].hits} HITS`]);
+          // SC-0912 (SHOPCARD-1b, REQ-BFG-081, merged onto 0.9.11): the shaped rigs' own line says it per slug, "HITS EACH SLUG UP TO n TIMES." (was UP TO n HITS)
+          expect(texts(fb), `${id} ★${s}`).toEqual([statRow(plainRigStats(id, s)!), `HITS EACH SLUG UP TO ${WANT[id].hits} TIMES.`]);
           expect(fb.every((b) => b.keep), `${id}: a piece's own lines are always visible (REQ-BFG-089)`).toBe(true);
           expect(fb.some((b) => b.text.includes("HIT:") || b.brass)).toBe(false);
         }
@@ -107,7 +108,7 @@ describe("SHAPES-2 S5: the six faces", () => {
         expect(notes, id).toEqual(expect.arrayContaining([RIG_SENTENCE, SHAPE_RULE_ANY]));
         expect(notes, `${id}: SHAPES-1's LONG wording is not the one with SHAPES2 on`).not.toContain(SHAPE_RULE);
         expect(notes.includes(CARRY_LINE), `${id} carries SHIELD to the gun`).toBe(id === "elbowguard");
-        expect(texts(panel.body), id).toContain(`UP TO ${WANT[id].hits} HITS`);
+        expect(texts(panel.body), id).toContain(`HITS EACH SLUG UP TO ${WANT[id].hits} TIMES.`); // SC-0912 (SHOPCARD-1b): was UP TO n HITS
         expect(texts(panel.body).some((t) => t === RIG_SENTENCE || t === SHAPE_RULE_ANY || t === CARRY_LINE), `${id}: default rules text stays behind the ⓘ`).toBe(false);
         expect(plainNotes(id)).toEqual(id === "elbowguard" ? [RIG_SENTENCE, CARRY_LINE] : [RIG_SENTENCE]);
         expect(rigSentenceRig({ def: id, stars: 1, o: {} }), `${id}: HIT leads its KEYWORDS`).toBe(true);

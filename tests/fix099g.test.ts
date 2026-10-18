@@ -32,7 +32,7 @@ import { RUNE_WORD_NOTE, glossaryRows, runeWordNote } from "../src/ui/glossary";
 import { KEYWORD_WORD, runeKeywords, type RuneKeyword } from "../src/ui/runeText";
 import { lineText, type RichLine } from "../src/ui/richText";
 import {
-  drawRuneCard, drawRuneWordNote, runeBarTarget, runeCardH, runeCardTextW, runeHintBand, runeNoteLines, runeNoteY, runeRowFits,
+  drawRuneCard, drawRuneWordNote, runeBarTarget, runeCardH, runeCardTextW, runeHintBand, runeNoteLines, runeNoteRows, runeNoteY, runeRowFits,
   runeRowH, runeTapOf, runeWordBoxOn, runeWordLines, runeWordTargets, runeWordText, shiftLayout,
 } from "../src/ui/runeBar";
 import { PICK_TAKE } from "../src/screens/runePicker";
@@ -181,7 +181,7 @@ describe("FIX-099G: FRAY's and BURN's rune word notes on the card's day (REQ-BFG
           expect(runeBarTarget(card, PICK_TAKE, tap, box).y, at).toBe(Math.max(runeHintBand(card, tap).y + 1, box.y + box.h));
           // drawRuneCard with the word open draws exactly these lines in exactly this box: the same pixels as the card with
           // its room clear and then this box with these lines; and not day 1's lines
-          const cw = card.x + card.w + 4, ch = card.y + card.h + 4, room = runeNoteLines(def, tw).length, y = runeNoteY(card, def, 10);
+          const cw = card.x + card.w + 4, ch = card.y + card.h + 4, room = runeNoteRows(def, tw, 10), y = runeNoteY(card, def, 10); // SHOPCARD-1f (F7): the room holds the card's longest definition (runeNoteRows), as drawRuneCard draws it (was runeNoteLines(def, tw).length)
           const a = fresh(cw, ch), b = fresh(cw, ch), c = fresh(cw, ch);
           drawRuneCard(gOf(a), card, def, { sub: "FIX-099G", reminder: true, word, day: 10 });
           drawRuneCard(gOf(b), card, def, { sub: "FIX-099G", reminder: true, word: null, day: 10 });

@@ -13,6 +13,7 @@ import { drawText, textWidth } from "../../render/font";
 import { beltIcon, coinIcon, heartIcon, itemIcon } from "../../render/sprites";
 import { rerollIcon, shieldIcon, skullIcon, tagIcon } from "../../render/eventArt";
 import { drawBadge } from "../build/shop";
+import { drawShapePlate, hasGrid, shapeGridSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the choice card
 import type { Rect } from "../../ui/ui";
 
 // bb-0.8.6 (REQ-BFG-051 P1): plating's short name is the pack's, ARMOR PACK (was ARMOR PLATE), so every surface says it
@@ -124,7 +125,13 @@ export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView)
     const bw = Math.min(50, r.w - 24);
     drawBadge(g, x + r.w - bw - 4, y + 6, bw, v.badge, v.t);
   }
-  exchange(g, x + 5, y + 25, r.w - 10, c, dim, v.day);
+  // SHOPCARD-1 (REQ-BFG-113, G4): a choice that pays or gives a shaped part shows its grid on an ink plate at the card's right end,
+  // 15 px under its top (clear of the badge and the odds above; the note line at the foot is under it), and the exchange line keeps
+  // clear of it (its chips and names stop short of the plate: chip() drops what doesn't fit)
+  const shaped = [...c.gain, ...c.cost].find((d): d is Extract<Delta, { k: "item" }> => d.k === "item" && hasGrid(d.def));
+  const plateW = shaped ? shapeGridSize(shaped.def).w + 2 : 0;
+  exchange(g, x + 5, y + 25, r.w - 10 - (plateW ? plateW + 4 : 0), c, dim, v.day);
+  if (shaped) drawShapePlate(g, shaped.def, x + r.w - 4 - plateW, y + 15, undefined, dim ? 0.5 : 1);
   const note = cardNote(c);
   if (note) drawText(g, note, x + 5, y + r.h - 9, c.blocked ? C.red : C.slate4, { font: "3" });
   if (v.state === "chosen") {

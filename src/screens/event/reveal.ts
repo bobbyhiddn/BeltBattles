@@ -9,6 +9,7 @@ import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText } from "../../render/font";
 import { itemIcon } from "../../render/sprites";
+import { hasGrid, shapeGrid } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its deck icon
 import { panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
 
@@ -55,6 +56,7 @@ export function drawReveal(g: G, r: Rect, foe: DuskFoe): void {
     rect(g, ix, iy, 14, 14, C.ink);
     rect(g, ix + 1, iy + 1, 12, 12, C.slate0);
     g.drawImage(ic, ix + 7 - Math.floor(ic.width / 2), iy + 7 - Math.floor(ic.height / 2));
+    if (hasGrid(p.def)) g.drawImage(shapeGrid(p.def), ix, iy); // SHOPCARD-1 (G4): over the icon's corner, inside the 17 px row pitch
     if (p.n > 1) drawText(g, `x${p.n}`, ix + 15, iy + 8, C.white, { font: "3" });
     ix += p.n > 1 ? 26 : 17;
   }

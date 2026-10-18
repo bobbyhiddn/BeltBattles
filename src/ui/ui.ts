@@ -5,6 +5,7 @@ import { C, RARITY_COLOR } from "../render/palette";
 import { bevel, frame, rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap, type FontId } from "../render/font";
 import { itemIcon } from "../render/sprites";
+import { hasGrid, shapeGrid } from "./shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid in its cargo slot
 import { ITEMS } from "../sim/content";
 import type { PointerKind } from "../core/io"; // shoptap (D1)
 import { panelSkin, type PanelId } from "../render/styles"; // CUSTOM-1 (REQ-BFG-072) hook: stats panel styles
@@ -167,11 +168,12 @@ export function button(ui: UI, g: G, id: string, r: Rect, label: string, o: Butt
   if (o.sub) {
     // centre the label + sub block in the bevel's fill (rows y+2 .. y+h-4)
     const top = r.y + 2 + dy + Math.max(0, Math.floor((r.h - 5 - (fh + 8)) / 2));
-    drawText(g, label, r.x + r.w / 2, top, text, { font, align: "center" });
+    drawText(g, label, r.x + r.w / 2, top, text, { font, align: "center", star5: true });
     drawText(g, o.sub, r.x + r.w / 2, top + fh + 3, o.subColor ?? text, { font: "3", align: "center" });
   } else {
     const blinkOff = o.blink && Math.floor(performance.now() / 300) % 2 === 0;
-    if (!blinkOff) drawText(g, label, r.x + r.w / 2, r.y + Math.floor((r.h - 1 - fh) / 2) + dy, text, { font, align: "center" });
+    // SHOPCARD-1f (F1): a label's ★ is drawn as a real star (font.ts TextOpts.star5; the 3x5 glyph reads as an asterisk), the label's width unchanged
+    if (!blinkOff) drawText(g, label, r.x + r.w / 2, r.y + Math.floor((r.h - 1 - fh) / 2) + dy, text, { font, align: "center", star5: true });
   }
   ui.add({ id, r: o.hit ?? r, onTap: o.disabled ? o.onBlocked : o.onTap, block: true });
 }
@@ -227,6 +229,11 @@ export function itemSlot(g: G, x: number, y: number, def: string | null, selecte
     const d = ITEMS[def];
     rect(g, x + 1, y + 16, 16, 1, RARITY_COLOR[d.rarity]);
     g.drawImage(itemIcon(def), x + 3, y + 3);
+    // SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's cargo slot shows its grid (shapePic.ts, GRID_CELL a cell, its arrowheads) in
+    // the slot's top-left corner over the icon; the 16 px face holds the biggest (SPIKE RAIL's 10x16); the star pips go over it
+    // SC-0912 (oracle 0ab73cb56a4abcbf): at the piece's own cell (shapePic.ts gridCell: 4 for PICKAXE, 17 x 11, whose 17th column falls on
+    // the slot's right frame column, inside the 18 px box); the anchor is the same for every piece
+    if (hasGrid(def)) g.drawImage(shapeGrid(def), x + 1, y + 1);
     starPips(g, x + 1, y + 13, 16, stars);
   }
   if (stars >= 3) frame(g, x, y, 18, 18, C.brass3);

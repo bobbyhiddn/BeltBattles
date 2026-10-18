@@ -32,7 +32,7 @@ import { FAMILY, familiesOf } from "../src/ui/families";
 import { UI } from "../src/ui/ui";
 import { abilityText, cardText } from "../src/ui/abilityText";
 import { banned } from "./textRules";
-import { cardEffect, faceLines } from "../src/ui/faces"; // U2b (REQ-BFG-046): STOKER's face; BUMP-1D: cardEffect, the wide card's effect line
+import { faceLines } from "../src/ui/faces"; // U2b (REQ-BFG-046): STOKER's face (SC-0912: BUMP-1D's cardEffect import dropped with the retired wide-card test)
 import { SEED, barge, item, run as fight, withItem, withMod } from "./wave3.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the off checks beside STOKER ★3's re-pins
 
@@ -49,7 +49,7 @@ const OPENING = /^EACH FACTORY ITS ARROWS POINT AT WORKS UP TO \d+% FASTER\.$/; 
 /** U2b (REQ-BFG-046): STOKER's face opens with its rule, the N% line in the face's words (faceLines, the registry's numbers).
  *  Y7b2 (the flip): release Y's face says the cap in its one line, "ITS FACTORIES WORK UP TO 20% FASTER." (Y7b1 Y7A-R1;
  *  was /^ITS FACTORIES WORK \d+% FASTER\.$/) */
-const FACE_OPENING = /^ITS FACTORIES WORK UP TO \d+% FASTER\.$/;
+const FACE_OPENING = /^FACTORIES ITS ARROWS POINT AT WORK UP TO \d+% FASTER\.$/; // SHOPCARD-1b (REQ-BFG-081): which factories (was /^ITS FACTORIES WORK UP TO .../); SHOPCARD-1c (G5): no HIT, the factories its arrows point at (was /^FACTORIES IT HITS WORK UP TO .../)
 // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): the capped line reads "THE KILN'S GUN IS FULL: IT WORKS ..." (was ", SO IT WORKS ..."), the same meaning
 const CAPPED = /^THE .+'S GUN IS FULL: /;
 
@@ -477,33 +477,11 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
 
 // ------------------------------------------------------------------------------------- tag polish (VERIFIED-I1 call 7)
 
-describe("the desk's wide card: a clear row between the effect's second line and the family marks (VERIFIED-I1 call 7)", () => {
-  it("every module, sold or with a merge badge: the row over the marks is the bare face, the effect's lines end above it, the icon keeps its clear row", () => {
-    const base: CardState = { sold: false, affordable: true, selected: false, hover: false, pulse: false, hidden: false, shake: 0, badge: null };
-    const OX = 3, OY = 4, W = WIDE_CARD_MAX_W, H = WIDE_CARD_H;
-    let cards = 0;
-    for (const d of buyableModules()) for (const s of [{}, { sold: true }, { badge: { kind: "merge", toStars: 2 } as CardState["badge"] }]) {
-      const c = fresh(OX + W + 4, OY + H + 4);
-      // BUMP-1D (PLAIN_RIGS and SHAPES2 on): the wide card's effect line is faces.ts cardEffect (cardText, else a plain rig's stat row),
-      // as the game draws it (chrome.ts drawCaravan); the twelve plain stat rigs have no cardText (was `effect: cardText(d.id)`)
-      drawCard(G(c), { x: OX, y: OY, w: W, h: H }, ITEMS[d.id], d.price, d.merchant!, { ...base, effect: cardEffect(d.id), ...s }, 0);
-      const face = "sold" in s ? C.night : C.slate0, what = `${d.id} ${JSON.stringify(s)}`;
-      const row = (y: number) => Array.from({ length: W - 4 }, (_, i) => c.at(OX + 2 + i, OY + y));
-      // the clear rows: under the icon and the name (over the effect), and between the effect and the marks
-      expect(row(CARD_EFFECT_Y - 1).filter((p) => p !== face), `${what}: the row over the effect`).toEqual([]);
-      expect(row(CARD_MARK_Y - 1).filter((p) => p !== face), `${what}: the row over the marks`).toEqual([]);
-      // the effect's two lines are drawn on their rows (5 rows each, a row apart), and the marks on theirs
-      const ink = (y0: number, n: number) => Array.from({ length: n }, (_, j) => row(y0 + j)).flat().filter((p) => p !== face).length;
-      expect(ink(CARD_EFFECT_Y, 5), what).toBeGreaterThan(0);
-      if (cardText(d.id).length > 20) expect(ink(CARD_EFFECT_Y + 6, 5), what).toBeGreaterThan(0);
-      expect(CARD_EFFECT_Y + 6 + 5, "the effect's second line ends two rows over the marks").toBe(CARD_MARK_Y - 1);
-      const marks = Array.from({ length: 3 }, (_, v) => Array.from({ length: 4 * familiesOf(d.id).length - 1 }, (_, i) => c.at(OX + CARD_MARK_X + i, OY + CARD_MARK_Y + v))).flat();
-      expect(marks.filter((p) => p !== face).length, what).toBeGreaterThan(0);
-      cards++;
-    }
-    expect(cards).toBe(buyableModules().length * 3);
-  });
-});
+// SHOPCARD-1 (REQ-BFG-115): retired: "the desk's wide card: a clear row between the effect's second line and the family marks
+// (VERIFIED-I1 call 7)" pinned the wide face's effect lines and family marks, which the card no longer draws (the one face is
+// its icon and price; tests/shopcard1.test.ts pins it at both widths, every state, with no text but the price's digits).
+// SC-0912: BUMP-1D's edit of this test (its `effect: cardEffect(d.id)`, the wide card's effect line for the twelve plain stat rigs)
+// went with it, and so did BUMP-1D's `cardEffect` import above (nothing here draws a shop card now).
 
 describe("DRAG CHAIN FOUNDRY at 3 stars on the phone shows its families (VERIFIED-I1 call 7)", () => {
   const PHONE = BANDS[0][1];

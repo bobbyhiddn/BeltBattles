@@ -248,11 +248,35 @@ export function runeNoteLines(def: RuneDef, tw: number, base: string = C.slate4)
   return [...wrapRich(runeReminderSpans(def, base), tw, "3"), ...(src ? wrapRich([{ t: src, c: base }], tw, "3") : [])];
 }
 
+/**
+ * SHOPCARD-1f (REQ-BFG-081; F7, REVIEW-FIX099G open item 1, open since 0.9.9): the rows of a rune card's note room: the chip's line(s)
+ * (runeNoteLines), or, where one of the card's keywords has a definition longer than that at this card width, as many as that needs.
+ * CARD-2's K2 box grew UP over the effect lines when a definition needed more rows than the room had: on a phone's 233 px card LOOSE
+ * THREAD's two-line FRAY note (the chip's line is one row) hid its one-line effect, `START: THE FOE HAS 2 FRAY.`, all but a sliver of
+ * its top row, while the note showed. With the room sized for the card's longest definition the box never grows, and sits clear below
+ * the effect lines. Only a card whose definition is longer than its chip's line changes size: at 233 px LOOSE THREAD, TANGLE WIRE,
+ * THREAD STORM (their FRAY note) and TOLL ROAD (its RIG note), one row (7 px) taller; at the desk's 300 px none (parts/f7-rows.txt).
+ * `day`: the day the card is read on (FRAY's and BURN's numbers, runeWordLines). Pure (the pickers' and the read-out's card heights,
+ * drawRuneCard, runeWordBoxOn, tests).
+ */
+export function runeNoteRows(def: RuneDef, tw: number, day?: number): number {
+  return Math.max(runeNoteLines(def, tw).length, runeWordRows(def, tw, day));
+}
+
+/** SHOPCARD-1f (F7): the rows of the longest definition any keyword of rune `def` shows at text width `tw` (0 for a card with no
+ *  keyword). LAST CHANCE's RUNE card has no reminder room of its own (its details are optional), so it reserves this many. Pure. */
+export function runeWordRows(def: RuneDef, tw: number, day?: number): number {
+  let n = 0;
+  for (const k of runeKeywords(def)) n = Math.max(n, runeWordLines(def, k, tw, day).length);
+  return n;
+}
+
 /** A rune card's height at width `w` (R1b-2's mock: a 31 px head, 9 px per effect line, 7 per reminder line, the hint
- *  bar 13, 4 at the foot). Pure (tests). CARD-4 (P1): the hint's band runeBarBand(o.tap) (13 on the desk). */
+ *  bar 13, 4 at the foot). Pure (tests). CARD-4 (P1): the hint's band runeBarBand(o.tap) (13 on the desk). SHOPCARD-1f (F7): the
+ *  reminder's room holds the card's longest definition (runeNoteRows). */
 export function runeCardH(def: RuneDef, w: number, o: Omit<RuneCardOpts, "sub">): number {
   let h = CARD_TEXT_Y + runeTextLines(def, runeCardTextW(w), o.day).length * 9;
-  if (o.reminder) h += 1 + runeNoteLines(def, runeCardTextW(w)).length * 7; // CARD-4 run 3 (I): with the source line
+  if (o.reminder) h += 1 + runeNoteRows(def, runeCardTextW(w), o.day) * 7; // CARD-4 run 3 (I): with the source line; SHOPCARD-1f (F7): the longest definition
   if (o.hint) h += runeBarBand(o.tap);
   return h + 4;
 }
@@ -280,10 +304,11 @@ export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void
     // EXPLAIN-1 (REQ-BFG-089, E1d): the reminder's room stays, clear; its line draws only while the chip has it open (E3)
     const ls = runeNoteLines(def, tw, C.bone); // CARD-4 run 3 (I): the reminder, then the source line
     // CARD-2 (K2): a keyword's definition (its tap, or K1's first sight) takes the room in place of the chip's line
-    const k = o.word ? runeKeywordOf(def, o.word) : null;
-    if (k) drawRuneWordNote(g, r, y, ls.length, runeWordLines(def, k, tw, o.day)); // FIX-099G: the card's day's note
+    // SHOPCARD-1f (F7): the room holds the card's longest definition (runeNoteRows), so a definition never grows up over the effect lines
+    const k = o.word ? runeKeywordOf(def, o.word) : null, rows = runeNoteRows(def, tw, o.day);
+    if (k) drawRuneWordNote(g, r, y, rows, runeWordLines(def, k, tw, o.day)); // FIX-099G: the card's day's note
     else if (o.noteOpen) drawRuneNote(g, r, y, ls);
-    y += 1 + ls.length * 7;
+    y += 1 + rows * 7;
   }
   if (o.hint) {
     // CARD-4 (P1): centred in its band (y + 1 in the desk's 13 px band, as before; runeBarRect, on a card runeCardH tall)
@@ -409,7 +434,7 @@ export function runeWordBoxOn(r: Rect, def: RuneDef, word: string | null, day?: 
   const k = word ? runeKeywordOf(def, word) : null;
   if (!k) return null;
   const tw = runeCardTextW(r.w);
-  return runeWordBox(r, runeNoteY(r, def, day), runeNoteLines(def, tw).length, runeWordLines(def, k, tw, day).length); // CARD-4 run 3 (I); FIX-099G: the day's lines
+  return runeWordBox(r, runeNoteY(r, def, day), runeNoteRows(def, tw, day), runeWordLines(def, k, tw, day).length); // CARD-4 run 3 (I); FIX-099G: the day's lines; SHOPCARD-1f (F7): the room holds the longest definition
 }
 
 /** CARD-2 (K2): one keyword on a rune card's effect lines: its keyword and word, what a tap shows, its colour, its glyphs

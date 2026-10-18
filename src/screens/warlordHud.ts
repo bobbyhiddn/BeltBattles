@@ -9,7 +9,8 @@ import { shopBadge, type WarlordFight } from "../game/run";
 import { START_LIVES } from "../sim/content";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
-import { drawText } from "../render/font";
+import { drawText, textWidth } from "../render/font";
+import { drawGridRight } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its pick button
 import { itemIcon } from "../render/sprites";
 import { blockedButton, button, panel, type Rect } from "../ui/ui";
 import { fmtClock } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock, whole elapsed seconds
@@ -133,6 +134,7 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
       // 0.6.1d2: the same MERGE/wait/MAX badge as the shop card, bottom-right so it never
       // crosses the name text (which isn't wrapped or truncated here).
       const badge = shopBadge(run, d);
+      drawGridRight(g, d, bx, by + 2, bw, bx + 18 + textWidth(itemName(d), "3") + 3, badge ? by + 12 : Infinity); // SHOPCARD-1 (G4): clear of the name and the badge
       if (badge) {
         const bw2 = Math.max(20, Math.min(34, bw - 6));
         drawBadge(g, bx + bw - bw2 - 2, by + 12, bw2, badge, pt);

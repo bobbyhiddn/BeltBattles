@@ -203,7 +203,7 @@ describe("F7 (the Prime's call): portrait action buttons (portraitButtons, pure 
     const cases: [string, string, string[], "top" | "row"][] = [
       ["HEAVY TURRET 1", "FED FROM COLUMN 5+6", ["REMOVE CORE", "REMOVE GEAR"], "row"], // review-061's F7 scenario
       // 0.6.2 BELTSIDE merge: the sub lines read RIG, as the player sees them (wording only; same row/top outcome)
-      ["TEMPER", "COMMON RIG · GUNSMITH", ["BUY+MERGE 3G"], "row"],
+      ["TEMPER", "COMMON RIG · GUNSMITH", ["MERGE ★2: 3G"], "top"], // SHOPCARD-1e (E4): the label names the star (was ["BUY+MERGE 3G"], "row"); 43 px against 46, so the button is 3 px narrower and fits the top row beside the title, where BUY+MERGE's went to the row under the sub line
       ["TEMPER", "COMMON RIG · IN CARGO", ["SELL +2G"], "top"], // sized to its label, it fits beside the texts
       ["BELT ROUTE", "FEEDS TURRET 1", ["REMOVE BELT"], "top"], // fits at the old 64 px width
     ];
@@ -608,7 +608,8 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
         // U2e step 4 (REQ-BFG-070): the MERGES WITH / MERGES INTO line is gone from the face (it showed whole here); the
         // button says the purchase merges, the card's MERGE badge names the star, and the ⓘ view's NEXT★ what it gives
         expect(t.body.some((b) => b.role === "merges"), `${def} ${owned}: no MERGES line`).toBe(false);
-        expect(t.labels[0], `${def} ${owned}`).toMatch(/^BUY\+MERGE \d+G$/);
+        // SHOPCARD-1e (E4; READ-12 round S): the button names the star the buy makes (was /^BUY\+MERGE \d+G$/): [1] owned: ★2, [2, 1]: ★3
+        expect(t.labels[0], `${def} ${owned}`).toBe(`MERGE ★${owned.length + 1}: ${ITEMS[def].price}G`);
         expect(mergeLine(run, def), `${def} ${owned}`).toMatch(/^MERGES (INTO|WITH)/); // the merge is still there to say
       }
     }

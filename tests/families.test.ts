@@ -14,7 +14,7 @@ import { rotFacing, stokeSpots } from "../src/sim/beltside";
 import { fusible } from "../src/sim/stars";
 import { newRun, type Run } from "../src/game/run";
 import { FAMILY, FAMILY_ORDER, drawFamilyMark, drawFamilyMarks, familiesOf, familiesText, familySpans, familyWord } from "../src/ui/families"; // CARD-3: familyWord
-import { CARD_MARK_X, CARD_MARK_Y, drawCard, drawTooltip, type CardState } from "../src/screens/build/shop";
+import { CARD_MARK_X, CARD_MARK_Y, cardPriceBox, drawCard, drawTooltip, type CardState } from "../src/screens/build/shop";
 import { CARD_H, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W, buildLayout, type Sel } from "../src/screens/build/layout";
 import {
   cargoPanel, detailsPlan, drawDetails, drawFamHead, itemPanel, offerPanel, planPanel, rigPanel, selFamilies, turretPanel, visibleLines,
@@ -129,21 +129,16 @@ function card(id: string, wide: boolean, s: Partial<CardState> = {}): RasterCanv
 }
 
 describe("the shop card shows the module's family marks (REQ-BFG-023 acceptance 2: its card shows its tags)", () => {
-  it("in a row at the bottom left of either face, in their colours (grey when sold), with nothing else drawn on or between them", () => {
-    for (const d of MODULES) for (const wide of [false, true]) for (const s of [{}, { sold: true }, { badge: { kind: "merge", toStars: 2 } as CardState["badge"] }]) {
+  // SHOPCARD-1 (REQ-BFG-115): retired as a drawing test: the card draws no family marks (F3); the tap panel's header and the desk's
+  // hover tooltip name them (below). The row where they were is the card's bare face now (the price and the merge mark apart).
+  it("the card draws no family marks: the row where they were is the bare face on either width, sold or not (SHOPCARD-1)", () => {
+    for (const d of MODULES) for (const wide of [false, true]) for (const s of [{}, { sold: true }]) {
       const c = card(d.id, wide, s);
-      const f = familiesOf(d.id), sold = "sold" in s;
-      const face = sold ? C.night : C.slate0;
-      const what = `${d.id} ${wide ? "wide" : "narrow"} ${JSON.stringify(s)}`;
-      // the row's own three lines, from 1 px left of the first mark to 1 px right of the last
+      const f = familiesOf(d.id), sold = "sold" in s, face = sold ? C.night : C.slate0;
+      const w = wide ? WIDE_CARD_MAX_W : CARD_W, h = wide ? WIDE_CARD_H : CARD_H, pb = cardPriceBox(w, h, d.price);
       for (let i = CARD_MARK_X - 1; i <= CARD_MARK_X + 4 * f.length - 1; i++) for (let v = 0; v < 3; v++) {
-        const k = i - CARD_MARK_X, m = Math.floor(k / 4), u = k - 4 * m;
-        const lit = k >= 0 && m < f.length && u < 3 && FAMILY[f[m]].mark[v][u] === "x";
-        expect(c.at(OX + i, OY + CARD_MARK_Y + v), `${what} (${i},${CARD_MARK_Y + v})`).toBe(lit ? (sold ? C.slate1 : FAMILY[f[m]].colour) : face);
-      }
-      // the narrow face also keeps a free line above and below the row (the name ends above it, the price is to its right)
-      if (!wide) for (const v of [-1, 3]) for (let i = CARD_MARK_X - 1; i <= CARD_MARK_X + 4 * f.length - 1; i++) {
-        expect(c.at(OX + i, OY + CARD_MARK_Y + v), `${what} (${i},${CARD_MARK_Y + v})`).toBe(face);
+        if (i >= pb.x - 1) continue; // the price's coin, where it reaches that far
+        expect(c.at(OX + i, OY + CARD_MARK_Y + v), `${d.id} ${wide ? "wide" : "narrow"} ${JSON.stringify(s)} (${i},${CARD_MARK_Y + v})`).toBe(face);
       }
     }
   });

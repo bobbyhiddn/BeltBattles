@@ -449,10 +449,10 @@ describe("0.6.2t T4: the panels' layout", () => {
     // ended with "★3 TWIN SIGNET", then the rule)
     expect(text[0]).toBe(faceLines("mimic", 3, { hero: "furnace" })!.stats);
     expect(text.filter((l) => l.includes("TWIN SIGNET"))).toEqual([]);
-    // WORDS-1 (REQ-BFG-081; READ-1 6.1: STAMPS in plain words): "MAKES YOUR HERO'S SLUGS TOO." (was "STAMPS YOUR HERO'S
-    // SLUGS."); the desk column wraps it, its last line ends "TOO." (was "SLUGS.")
-    expect(text.join(" ")).toContain("MAKES YOUR HERO'S SLUGS TOO.");
-    const p = text.findIndex((l) => l.endsWith("TOO."));
+    // WORDS-1 (REQ-BFG-081; READ-1 6.1: STAMPS in plain words): "MAKES YOUR HERO'S SLUGS." (was "STAMPS YOUR HERO'S
+    // SLUGS."); the desk column wraps it, its last line ends "SLUGS." (SHOPCARD-1b: TOO went; was "TOO.")
+    expect(text.join(" ")).toContain("MAKES YOUR HERO'S SLUGS.");
+    const p = text.findIndex((l) => l.endsWith("SLUGS."));
     expect([p > 0, text[p + 1]]).toEqual([true, "--"]);
   });
 
@@ -895,7 +895,11 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // missing are c099-card3's 61 name for name (the test's F4 log line, diffed against ref/c099card3/logs/suite-957b034.log)
     // BUMP-1D (PLAIN_RIGS and SHAPES2 on), measured: 2309 (was 2021): the six plain stat rigs' and the six more shaped rigs' 288
     // desk panels join (12 x 24), each with its hint and each showing it; the 61 missing are the same count
-    expect([withHint, missing.length]).toEqual([2309, 61]);
+    // SHOPCARD-1b (REQ-BFG-081), measured: 62 missing (was 61), the one added is "turret mantlet ★1" (diffed against the base export,
+    // tmp/sc1x-final = shopcard1-accepted): MANTLET's face line now says which tile ("ITS GUN AND LAST BELT TILE IGNORE STUN.",
+    // was "STUN CAN'T STOP ITS GUN OR LAST 1 TILE."), a row longer in the 118 px desk column, so its turret panel's kept blocks
+    // leave no room for the optional hint (of the allowed kinds; the hint gives way whole, and its tip and NOTES keep it)
+    expect([withHint, missing.length]).toEqual([2309, 62]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -967,7 +971,33 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // BREAKER's 91, and the same 2 panels keep the hint
     // BUMP-1D (PLAIN_RIGS and SHAPES2 on), measured: 1249 (was 1075): the twelve plain stat rigs' phone panels that keep the hint
     // join, 174 more; no other count moves
-    expect(hints).toBe(1249);
+    // SHOPCARD-1b (REQ-BFG-081), measured: 1047 (was 1055). The 8 panels that give the optional hint way are the placed rigs
+    // "rig braceframe ★1-★3 1hit spare0/1" (6) and "rig pincer ★3 1hit spare0/1" (2), diffed against the base export
+    // (tmp/sc1x-final = shopcard1-accepted): BRACE FRAME's line now says BELT TILES ("STUN ON BELT TILES IT HITS: 50% SHORTER.", 223 px,
+    // was 217) and PINCER's ON THE TILE (225 px at ★3, was 221), a row longer on this test's narrow phone band; the face keeps its
+    // lines (kept), the hint gives way first, as ever
+    // SHOPCARD-1c (REQ-BFG-081), measured: 1037 (was 1047). The 10 panels that give the optional hint way are ASSEMBLY LINE's:
+    // "placed assembly ★1-★3 spare0/1" (6) and "cargo assembly ★2/★3 furnace spare0/1" (4), diffed against the base export
+    // (tmp/cd6x8236bfd = shopcard1b-accepted, ids by tmp/zz-ap-ids.test.ts): its line now says when ("FEEDS A GUN: EACH FIGHT, YOUR RIGS
+    // START WORKING 50% SOONER."), a second row on this test's fixed phone band; the face keeps its lines (kept), the hint gives way
+    // first, as ever. STOKER's and GRAPNEL GUN's second rows take no phone panel's hint (the desk count below is unchanged: 2021 / 62)
+    // SHOPCARD-1d (REQ-BFG-081), measured: 1031 (was 1037). The 6 panels that give the optional hint way are TWIN LATCH's placed ones,
+    // "rig twinlatch ★1-★3 1hit spare0/1", diffed against 1c's list (tmp/ids-tip.txt = shopcard1c-accepted, ids by tmp/zz-ap-ids.test.ts):
+    // its face now says both arrows must point at belts ("HIT: HOLDS A SLUG UP TO 1 SEC TO MAKE A PAIR. BOTH ITS ARROWS MUST POINT AT
+    // BELTS.", 415 px), a second row on this test's fixed phone band; the face keeps its lines (kept), the hint gives way first, as ever.
+    // LIMPET WORKS' second row ("THE DMG LANDS ONCE, AS A BLAST ON THE FOE'S HULL, 3 SEC AFTER A HIT.", 335 px) takes no phone panel's hint
+    // SHOPCARD-1e (REQ-BFG-081; E4), measured: 1035 (was 1031), per panel against 1d's list (output-shopcard1d/parts/ids-1d.txt, ids by
+    // tmp/zz-ap-ids.test.ts). A merge offer's buy label is MERGE ★n: nG (inspector.ts offerLabel; 43 px at one digit, was BUY+MERGE nG, 46), so its
+    // button is 3 px narrower and fits the phone band's top row beside the title where it did not: the 4 panels that keep the optional hint now
+    // are COIL's and PLATE BREAKER's merge offers ("offer coil held[1]", "held[2,1]", "offer platebreaker held[1]", "held[2,1]"). The ASSEMBLY
+    // LINE line (ALL YOUR RIGS, 350 px, two rows as before) and the {BELT} note (a tap, no panel row) take no phone panel's hint. (A first
+    // form, MERGE TO ★n: nG at 54 px, 8 px wider than BUY+MERGE, moved 18 merge offers' buttons to the second row: 1013.) The desk count above is unchanged
+    // SC-0912 (SHOPCARD-1e merged onto 0.9.11, r0911-bump), measured on the merged tree: 1229 of 2337 panels (was 1249 on 0.9.11, BUMP-1D's
+    // pin; 1035 on shopcard1e-accepted; PACKET-SHOPCARD1 item 3 measured 1053 on 1e + PLAIN-1F alone). SHOPCARD-1b-1e take 20 from 0.9.11's
+    // 1249 (the same -20 as on their own tree, 1055 -> 1035: the placed BRACE FRAME, PINCER, ASSEMBLY LINE and TWIN LATCH panels give the
+    // optional hint way, the merge offers of COIL and PLATE BREAKER (now SHIELD FUEL) keep it); the twelve new rigs' panels add no further
+    // move on top (not traced panel by panel). The desk count above is unchanged by the merge: 2309 / 62 (BUMP-1D's 2309 with 1b's 62nd missing)
+    expect(hints).toBe(1229);
   });
 });
 

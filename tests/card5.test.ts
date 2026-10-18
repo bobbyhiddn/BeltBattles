@@ -187,22 +187,21 @@ describe("CARD-5 (G): the phone shop card's gists (REQ-BFG-111)", () => {
     expect(phoneGist("overclocker", { day: 1 }, 3)![1]).toBe("RIG x2");
   });
 
-  it("every gist card keeps its 46x42 size: row A and row B drawn inside it, no art, nothing outside (day 5)", () => {
+  // SHOPCARD-1 (REQ-BFG-115): retired as a drawing test (the gist rows A and B are not drawn on the card any more: the tap
+  // panel keeps them); every gist's piece still draws a card of its size, the same with or without its gist, inside it.
+  it("every gist's piece draws a 46x42 card, nothing outside it, the same with or without its gist (SHOPCARD-1: the card is its icon and price, day 5)", () => {
     expect([CARD_W, CARD_H]).toEqual([46, 42]);
     const st = { sold: false, affordable: true, selected: false, hover: false, pulse: false, hidden: false, shake: 0 };
     for (const id of Object.keys(PHONE_GISTS)) {
       const d = ITEMS[id], gst = phoneGist(id, optsFor(id, 5))!;
-      const c = fresh(60, 60), r = { x: 5, y: 5, w: CARD_W, h: CARD_H };
+      const r = { x: 5, y: 5, w: CARD_W, h: CARD_H };
+      const c = fresh(60, 60), plain = fresh(60, 60);
       drawCard(gOf(c), r, d, d.price, d.merchant ?? "ironmonger", { ...st, gist: gst }, 0);
-      let outside = 0, rowA = 0, rowB = 0;
-      for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) {
-        const px = c.at(x, y);
-        if (px === null) continue;
-        if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) outside++;
-        if (y >= r.y + CARD_GIST_Y && y < r.y + CARD_GIST_Y + 5 && x > r.x + 2 && x < r.x + r.w - 3 && px !== C.slate0) rowA++;
-        if (y >= r.y + CARD_CHIP_Y && y < r.y + CARD_CHIP_Y + 5 && x > r.x + 2 && x < cardPriceX(r.x, r.w, d.price, false, true) && px !== C.slate0) rowB++;
-      }
-      expect([outside, rowA > 0, rowB > 0], id).toEqual([0, true, true]);
+      drawCard(gOf(plain), r, d, d.price, d.merchant ?? "ironmonger", st, 0);
+      expect(c.px.join(), id).toBe(plain.px.join());
+      let outside = 0;
+      for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) if (c.at(x, y) !== null && (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h)) outside++;
+      expect(outside, id).toBe(0);
     }
   });
 });
@@ -234,10 +233,10 @@ const SCREENS: Readonly<Record<string, [number, number, number]>> = {
 
 describe("CARD-5 (H): HOW TO PLAY names the kinds and the keywords (REQ-BFG-111; REQ-BFG-089 holds: rules text on demand)", () => {
   it("items 3, 4 and 6 as drafted, with the two clauses and WARD's HIT'S DAMAGE; both FREE_JOINS forms keep their join clauses", () => {
-    const three = "3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
+    const three = "3  AT DAWN, BUY FROM THE CARAVAN: FACTORIES MAKE SLUGS FOR THE TURRET THEIR BELT REACHES, RIGS CHANGE THEM ON THE BELT, TURRETS FIRE THEM, CORES AND GEAR FIT A TURRET. TAP A CARD TO READ IT (ON A DESK, POINT AT IT). BUY A COPY OF A PIECE YOU OWN TO MERGE THEM INTO ★2 (TWO ★2 MERGE INTO ★3). DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM";
     expect(helpLine3(true)).toBe(`${three}.`);
     expect(helpLine3(false)).toBe(`${three} (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
-    expect(HELP[3]).toBe("4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, STUN, SPLIT, SPEED UP OR SLOW DOWN. MOST RIGS WORK ON EACH SLUG ON A TILE THEIR ARROWS POINT AT. LONGER CINDER ROUTES COOK HOTTER SLUGS.");
+    expect(HELP[3]).toBe("4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, STUN, SPLIT, SPEED UP OR SLOW DOWN. A SHAPE ON A CARD IS THE CELLS THAT PIECE FILLS, WITH A RIG'S ARROWS IN GREEN. MOST RIGS WORK ON EACH SLUG ON A TILE THEIR ARROWS POINT AT. LONGER CINDER ROUTES COOK HOTTER SLUGS."); // SHOPCARD-1 (H): item 3 says how to read a card (TAP A CARD TO READ IT), item 4 what a card's shape is
     expect(HELP_KEYWORDS).toBe(`6  ${ICON.BURN}BURN: HULL DAMAGE OVER TIME. ${ICON.STUN}STUN: STOPS THE PART IT HITS FOR A WHILE. ${ICON.PLATE}SHIELD: SOAKS HULL DAMAGE. ${ICON.SHIELD}WARD: BLOCKS ALL OF ONE HIT'S DAMAGE. ${ICON.PAIR}PAIR: SLUGS FROM TWO BELTS REACH ONE TURRET AT ONCE. ${ICON.FRAY}FRAY: LATER HULL HITS DEAL MORE.`);
     expect([HELP.length, helpLines().length, helpLines()[5]]).toEqual([6, 6, HELP_KEYWORDS]);
     // BUMP-1D: items 1, 2, 5 as before is the 10-day card (LONG_RUN ships on: its card says WIN 10 DUSK FIGHTS and ends item 2 with how the

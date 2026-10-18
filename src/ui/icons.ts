@@ -20,6 +20,9 @@ export function statRow(stats: readonly Stat[]): string {
   if (stats.length > STAT_ROW_MAX) throw new Error(`statRow: ${stats.length} pairs; a stat row holds at most ${STAT_ROW_MAX} (MEMO C2)`);
   return stats.map((st) => {
     const [name, v] = st, pre = st.length > 2 ? `${st[2]} ` : ""; // PLAIN-1: BALLAST's MAX (absent on every other stat)
+    // SC-0912 (PACKET-SHOPCARD1 item 3; SHOPCARD-1b, READ-9 fix 5: the {HULL} icon draws the heart, which readers took for lives, so
+    // HEAL's and REGEN's notes say HULL in words): the HULL stat reads as the word, "MAX HULL +8%" (was "MAX ♥+8%")
+    if (name === "HULL") return `${pre}HULL ${v}`;
     return name === "SEC" ? `${pre}${v}${ICON.SEC}` : `${pre}${ICON[name]}${v}`;
   }).join(" ");
 }

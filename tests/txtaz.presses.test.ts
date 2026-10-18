@@ -64,7 +64,7 @@ describe("TXT-AZ item 2: the presses' FEEDS A GUN (REQ-BFG-070)", () => {
       for (const feed of ["short", "none"] as const) expect(gives("armorpress", s, feed), `★${s} ${feed}`).toEqual({ timer: undefined, presses: 0, heals: 0, plate: 0 });
       // the face says the condition first, in ASSEMBLY LINE's words, then its timer and plating from the sim's numbers
       const label = `EVERY ${fmtSec(p.every)}{SEC}:`;
-      expect(rule("armorpress", s), `★${s}`).toEqual({ text: `FEEDS A GUN: ${label} +${fmtDmg(p.amount)} {*PLATE}.`, label });
+      expect(rule("armorpress", s), `★${s}`).toEqual({ text: `FEEDS A GUN: ${label} HULL: +${fmtDmg(p.amount)} {*PLATE}.`, label });
     }
   });
 
@@ -75,7 +75,7 @@ describe("TXT-AZ item 2: the presses' FEEDS A GUN (REQ-BFG-070)", () => {
       expect([fed.timer, fed.presses, fed.heals], `★${s} fed`).toEqual([h.every, Math.floor(10 / h.every), Math.floor(10 / h.every)]);
       for (const feed of ["short", "none"] as const) expect(gives("mendpress", s, feed), `★${s} ${feed}`).toEqual({ timer: undefined, presses: 0, heals: 0, plate: 0 });
       const label = `EVERY ${fmtSec(h.every)}{SEC}:`;
-      expect(rule("mendpress", s), `★${s}`).toEqual({ text: `FEEDS A GUN: ${label} {*HEAL} ${fmtDmg(h.amount)}.`, label });
+      expect(rule("mendpress", s), `★${s}`).toEqual({ text: `FEEDS A GUN: ${label} HULL: {*HEAL} ${fmtDmg(h.amount)}.`, label });
     }
   });
 
@@ -84,7 +84,9 @@ describe("TXT-AZ item 2: the presses' FEEDS A GUN (REQ-BFG-070)", () => {
     for (const def of ["armorpress", "mendpress"]) for (const s of STARS) {
       const r = rule(def, s);
       expect(r.text.startsWith("FEEDS A GUN: "), `${def} ★${s}`).toBe(true);
-      expect(rule("assembly", s).text.startsWith("FEEDS A GUN: "), `assembly ★${s}`).toBe(true);
+      // SHOPCARD-1f (F4; READ-13 fix list 4: 9 of 12 readers asked whether a belt that reaches a turret is enough): ASSEMBLY LINE's condition is `WHILE IT FEEDS A GUN:` now
+      // (battle.ts:2574-2587 assemblyLines counts it only while a belt of it reaches a turret); the presses keep `FEEDS A GUN:` first (not in 1f's list)
+      expect(rule("assembly", s).text.startsWith("WHILE IT FEEDS A GUN: "), `assembly ★${s}`).toBe(true);
       const w = textWidth(icons(r.text));
       if (w > widest) { widest = w; at = `${def} ★${s}`; }
       expect(w, `${def} ★${s}: ${r.text}`).toBeLessThanOrEqual(NEXT_LINE_W);
