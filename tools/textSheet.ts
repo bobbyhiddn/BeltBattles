@@ -184,6 +184,7 @@ function enchantSection(out: string[]): void {
   const cases: [string, ItemDef | undefined, string][] = [
     ["MASSIVE on a rig", ITEMS.whetstone, "massive"], ["SWIFT on a rig", ITEMS.whetstone, "swift"],
     ["MASSIVE on a factory", ITEMS.press, "massive"], ["SWIFT on a turret", ITEMS.scrapcannon, "swift"], // ENCHANT-1b (N1): each word has one kind
+    ["FIERY on a rig that hits no slug", ITEMS.stoker, "fiery"], // ENCHANT-1b (N3): IT HITS NO SLUGS (also RISING, GROWING and ECHOING)
     ["WIDE on an X rig", first((d) => d.kind === "gate" && rigShape(d) === "X"), "wide"],
     ["a word on gear", first((d) => d.kind === "mod"), "fiery"], ["a word on a core", first((d) => d.kind === "core"), "fiery"], ["a word on a supply", first((d) => d.kind === "supply"), "fiery"],
   ];

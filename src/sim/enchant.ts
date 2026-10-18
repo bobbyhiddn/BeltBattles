@@ -159,11 +159,30 @@ function kindReason(d: ItemDef): string {
 const KIND_NAME: Readonly<Record<EnchantKind, string>> = { rig: "RIG", factory: "FACTORY", turret: "TURRET" };
 
 /**
+ * ENCHANT-1b (N3; cap's ruling on QUESTION 1): the words that act on the slugs a rig's arrows HIT: FIERY's BURN, RISING's and GROWING's
+ * DMG are added on the rig's hit (enchantFx.ts rigHitFx, called from Battle.applyHit) and ECHOING doubles the rig's stats on every
+ * fifth slug it hits. They do nothing on a rig whose arrows never hit a slug. WIDE and BRACED do not depend on a hit.
+ */
+export const SLUG_WORDS: readonly EnchantId[] = ["fiery", "rising", "growing", "echoing"];
+
+/**
+ * N3: do this rig def's arrows ever hit a slug? An arrow hits when it points at a belt tile (deck.ts rigHits). The one kind of def that
+ * never does is a rig whose effect works FACTORIES and does nothing to belts (`gate.stoke`: the STOKER; rigHits skips it: "its arrows do
+ * nothing to belts; they work factories"). The rule reads what the def does, not a list of names, so a rig added later with such an
+ * effect is covered; tests/enchant1.b.test.ts checks it against rigHits on a real deck for EVERY rig def and names each one that
+ * hits nothing. Anything that is not a rig answers true (the question is only asked of rigs).
+ */
+export function rigHitsSlugs(d: ItemDef | undefined): boolean {
+  return !(d && d.kind === "gate" && d.gate?.stoke);
+}
+
+/**
  * E1: why `word` cannot go on a piece of `def`, as a short player reason, or null when it can. `piece` is the piece being
  * enchanted (WIDE on a rig reads `enchDir`, the side its arrow takes at rotation 0: it must be a free one). Reasons:
  * NOT ON GEAR / NOT ON A CORE / NOT ON A SUPPLY / NOT ON THIS PART (a kind off the allow-list), ONLY ON A TURRET (MASSIVE on a rig or a
- * factory) / ONLY ON A FACTORY (SWIFT on a rig or a turret) (ENCHANT-1b N1: a word with one kind says which), NO FREE SIDE (WIDE on a
- * shaped rig, an X rig, a rig with 4 arrows, or onto a side that carries an arrow already).
+ * factory) / ONLY ON A FACTORY (SWIFT on a rig or a turret) (ENCHANT-1b N1: a word with one kind says which), IT HITS NO SLUGS (N3: FIERY,
+ * RISING, GROWING or ECHOING on a rig whose arrows hit no slug), NO FREE SIDE (WIDE on a shaped rig, an X rig, a rig with 4 arrows, or onto
+ * a side that carries an arrow already).
  * It says nothing of the switch (the callers ask enchantRules()) or of a word already on the piece (REPLACES, E4).
  */
 export function enchantProblem(def: ItemDef | string | undefined, word: string, piece?: { enchDir?: number }): string | null {
@@ -174,6 +193,7 @@ export function enchantProblem(def: ItemDef | string | undefined, word: string, 
   if (!kind) return kindReason(d);
   const kinds = ENCHANT_DEFS[word].kinds;
   if (!kinds.includes(kind)) return kinds.length === 1 ? `ONLY ON A ${KIND_NAME[kinds[0]]}` : kind === "rig" ? "NOT ON A RIG" : "NOT ON THIS PART"; // ENCHANT-1b (N1)
+  if (kind === "rig" && SLUG_WORDS.includes(word) && !rigHitsSlugs(d)) return "IT HITS NO SLUGS"; // ENCHANT-1b (N3)
   if (word === "wide" && kind === "rig") {
     const free = freeSides(d);
     if (!free.length) return "NO FREE SIDE";
