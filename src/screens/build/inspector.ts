@@ -839,7 +839,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const b = run.build;
   if (!b.routes[index]) return null;
   const info = routeInfo(b, index);
-  const w = walkRoute(b, index);
+  const w = walkRoute(b, index, undefined, { gates: true }); // GATES-1b (REQ-BFG-052 B3): DMG, BURN, TIME and COPIES through a gate on the belt
   const belt = beltKind(w);
   const est = w.estimate;
   // 0b.4: the walk counts SURGE VALVE's pulse damage on a SLAG belt, where the sim never pays it
@@ -852,7 +852,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   // B1's m2/platemean: a plated hull holds no plating at 53-63% of its shots). On a deck that plates its hull the walk
   // counts the big number, so DMG shows both: the floor's total, then the big number's ("DMG 9.1-12.1")
   const breakers = w.timeline.some((row) => row.hits.some((h) => h.breaker));
-  const low = breakers && platedDeck(b) ? walkRoute(b, index, undefined, { unplated: true }) : null;
+  const low = breakers && platedDeck(b) ? walkRoute(b, index, undefined, { unplated: true, gates: true }) : null; // GATES-1b B3: gates too
   const floorDmg = low ? fmtDmg(dmgShown(low.estimate.dmg - slagPulseExtra(low.timeline, belt), run.day)) : big; // HULL-1d: x D(d)
   const dmg = floorDmg !== big ? `${floorDmg}-${big}` : big;
   const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);

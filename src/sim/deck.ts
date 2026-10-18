@@ -21,6 +21,9 @@ import { shapesRules } from "./shapes";
 import "./shapes2"; // SHAPES-2 (REQ-BFG-114): loads SHAPES2's switch, so its six defs are in ITEMS whenever it is on (after SHAPES' three)
 import { gatesRules } from "./gates"; // GATES-1 (REQ-BFG-052): loads GATES's switch, so its three converters are in ITEMS whenever it is on (after SHAPES2's six)
 import { isConverterItem, splitProblem } from "./split"; // GATES-1 (REQ-BFG-057): where a converter may stand (a leaf: no cycle)
+// GATES-1b (REQ-BFG-052 B3): the belt panel's walk through a gate. convert.ts imports this file too: a cycle that is safe, each side
+// reads the other only inside a function (never at load), the way battle.ts and this file already meet
+import { convertCells, convertTicks, convertWalk } from "./convert";
 // re-exported, so the portable stand-in loader and beltside.ts keep importing only ./content and ./deck
 // (tests/standInPool.gen.test.ts)
 export { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "./foot";
@@ -712,7 +715,13 @@ export interface RouteWalk {
  */
 /** 0.8.0 B1 M2 (G1's F1): `unplated` walks the belt as a deck that never plates its hull would (every PLATE BREAKER at its
  *  floor), for the build screen's second DMG number. */
-export interface WalkOpts { unplated?: boolean }
+export interface WalkOpts {
+  unplated?: boolean;
+  /** GATES-1b (REQ-BFG-052 B3): walk THROUGH the gates standing on the belt (convert.ts convertWalk): the belt panel's DMG, BURN,
+   *  TIME and COPIES. Off (the default) the walk is blind to a converter, as the bots' rating and estimates read it (G6's table
+   *  prices a gate); a deck with no converter (GATES off) walks the same either way. */
+  gates?: boolean;
+}
 
 export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpts = {}): RouteWalk {
   const info = routeInfo(b, index, undefined, undefined, hits);
@@ -722,6 +731,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   const fs = f ? effectAt(f.def, gradeOf(b, f)).factory : undefined; // 0.6.1p: at its stars (STAMP PRESS dies); bb-0.8.3: grade
   const ammo = fs ? AMMO[f?.def === "mimic" ? HEROES[b.hero].ammo : fs.ammo] : AMMO.plain;
   const base = fs?.base ?? ammo.base;
+  const gates = o.gates ? convertCells(b) : undefined; // GATES-1b (REQ-BFG-052 B3): the gates on the belt, when the panel asks (undefined: blind, as before)
+  let idle = 0; // GATES-1b B3: ticks the slug waits inside gates (no ride, no HEAT: it isn't on the belt)
   const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
   const timeline: TimelineRow[] = [];
   // 0.6.1c SLAG: rides at its fixed speed whatever the speed gates (Battle.transport). beltside-062c (DESIGN §12
@@ -766,10 +777,10 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   // the ride at 1x + (1 - keep) x the real ride, as Battle.transport), and the one before the last centre crossed
   let keep = 0, keepBefore = 0;
   const ticksOn = new Map<number, number>(); // ticked: the ticks the slug sits on each belt (Y3: SURGE's pulses)
-  const move = (ri: number, to: number, tol: number): void => {
+  const move = (ri: number, to: number, tol: number, clamp?: number): void => { // GATES-1b B3: `clamp` stops a move at a gate's edge (default: the leg's end)
     while (pos < to - tol) {
       const v = BELT_SPEED * (pos > past ? speed : before);
-      const ns = Math.min(pos + v * TICK, end);
+      const ns = Math.min(pos + v * TICK, clamp ?? end);
       if (!(ns > pos)) break; // no way on (a 0 speed; never on a walked belt)
       const k = pos > past ? keep : keepBefore;
       const r = k > 0 ? k * ((ns - pos) / BELT_SPEED) + (1 - k) * ((ns - pos) / v) : (ns - pos) / v;
@@ -780,9 +791,15 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       pos = ns;
     }
   };
+  // GATES-1b (REQ-BFG-052 B3): the slug through a gate (convert.ts convertWalk: the engine's own payload rules)
+  const through = (spec: Parameters<typeof convertWalk>[1]): void => {
+    ({ ride, mult, flat, burn, shock, prior, heat, heatBonus, copies } = convertWalk(
+      { ammo: (f?.def === "mimic" ? HEROES[b.hero].ammo : fs?.ammo) ?? "plain", base, ride, mult, flat, burn, shock, prior, heat, heatBonus, copies }, spec));
+  };
   for (let i = 0; i < n; i++) {
     const { route: ri, tile } = path[i];
     const cells = b.routes[ri].cells;
+    const gate = gates?.get(cells[tile]); // GATES-1b B3: a gate stands on this tile (only when the panel asks)
     if (i > 0 && path[i - 1].route !== ri) { // 0.6.2j: the join tile of main belt ri
       joins.push({ route: ri, tile, cell: cells[tile], row: timeline.length });
       if (fixed === undefined && !locked) { // J4, J15: from here on the main belt's speed state (slag keeps `fixed`)
@@ -799,7 +816,19 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         // its end: a joining belt's at its join tile's side (CELL x tiles); the chain's last belt's, as routeLength
         end = path[n - 1].route === ri ? (cells.length - 1) * CELL + CELL / 2 + (info.connected ? CELL : 0) : CELL * cells.length;
       }
+      if (gate) { // GATES-1b B3: it stops at the gate's upstream edge, waits inside (no ride, no HEAT), and comes out at the downstream edge
+        move(ri, tile * CELL, 0, tile * CELL);
+        through(gate);
+        idle += convertTicks(gate);
+        pos = (tile + 1) * CELL; // the gate's own tile isn't ridden; a gate has no hits (arrows aimed at it idle)
+        if (i === n - 1 || path[i + 1].route !== ri) move(ri, end, 1e-6); // (a gate is never a leg's last tile: the editor refuses it)
+        continue;
+      }
       move(ri, tile * CELL + CELL / 2, 0); // Battle.transport: a tile's hits apply once a move reaches its centre
+    } else if (gate) { // GATES-1b B3 (the continuous walk): no half cells; the slug waits `secs` inside the gate
+      through(gate);
+      time += gate.secs;
+      continue;
     } else {
       const inHalf = CELL / 2 / (BELT_SPEED * speed);
       time += inHalf;
@@ -940,7 +969,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     timeOn.set(ri, (timeOn.get(ri) ?? 0) + outT);
   }
   if (ticked) { // LADDER_FIX: the stamp's tick to the load's; the seconds on each belt, whole ticks
-    time = Math.max(0, moves - 1) * TICK;
+    time = (Math.max(0, moves - 1) + idle) * TICK; // GATES-1b B3: + the ticks waited inside gates (0 without)
     for (const [ri, k] of ticksOn) timeOn.set(ri, k * TICK);
   }
   // Y3 (DESIGN-Y row 28): each SURGE VALVE with an arrow on a belt the slug rides (any tile, before or after the slug's own

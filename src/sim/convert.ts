@@ -34,7 +34,7 @@
 //
 // Not here: where a gate may stand (split.ts), the faces and the board art (G4).
 
-import { AMMO, AMMO_SPACING, CELL, DISRUPT_TIME, TICK, type ConverterSpec, type ItemDef } from "./content";
+import { AMMO, AMMO_SPACING, CELL, DISRUPT_TIME, ITEMS, TICK, type ConverterSpec, type ItemDef } from "./content";
 import { key, kx, ky, payloadDamage, type Build } from "./deck";
 import { pct, roundHalfUp } from "./pct";
 import { effectAt, starsOf } from "./stars";
@@ -448,6 +448,64 @@ export function pelletPayload(p: Payload, spec: Pick<ConverterSpec, "out" | "sha
 export function smeltPayload(p: Payload, spec: Pick<ConverterSpec, "burn">): Payload {
   p.burn += spec.burn ?? 0;
   return p;
+}
+
+// ------------------------------------------------------------------------------------ the belt panel through a gate (B3)
+
+/**
+ * GATES-1b B3 (BRIEF-GATES1B; review risk 7): the belt panel's DMG, BURN, TIME and COPIES through a gate on the belt. The panel's
+ * walk (deck.ts walkRoute, opted in by the panel with WalkOpts.gates: the bots' rating and the par player's estimates keep
+ * the gate-blind walk, because G6's table already prices a gate and a gate-aware rating would count it twice) carries ONE slug,
+ * as a `WalkSlug`; at a gate's tile it stops at the upstream edge, waits `convertTicks` inside the machine (no ride, no HEAT, no
+ * SURGE pulse: it isn't on the belt), and comes out at the downstream edge: the tile itself isn't ridden. What it becomes is the
+ * engine's own: convertWalk hands the slug to fusePayload, pelletPayload or smeltPayload, so a rule added there reaches the panel
+ * with no second copy. A FUSER's slug is the one that completes a pair (its partner already waits in the buffer: both stand
+ * alike at the edge, the same ride, the same hits), so the panel's TIME is that slug's: it doesn't include how long the first
+ * of the pair waited for it (that depends on the factory's rate).
+ */
+export interface WalkSlug {
+  ammo: Payload["ammo"];
+  base: number; // the walk's base DMG (the factory's, or the ammo's)
+  ride: number;
+  mult: number;
+  flat: number; // before HEAT's bonus (heatBonus is counted apart, as Payload.flat)
+  burn: number;
+  shock: boolean;
+  prior: number;
+  heat: number; // HEAT a second ridden (0: none)
+  heatBonus: number; // what the HEAT has added so far
+  copies: number; // slugs reaching the gun for one slug the factory stamps (a FUSER's pair is 1/2, a SCATTER MILL's pellets 3)
+}
+
+/** The converters standing on `b`'s cells (cell key -> its spec at its stars). Empty without converters: every deck with GATES off. */
+export function convertCells(b: Pick<Build, "items">): Map<number, ConverterSpec> {
+  const out = new Map<number, ConverterSpec>();
+  for (const p of b.items) {
+    if (!Object.prototype.hasOwnProperty.call(ITEMS, p.def)) continue;
+    const d = effectAt(p.def, starsOf(p));
+    if (d.kind === "converter" && d.converter) out.set(key(p.x, p.y), d.converter);
+  }
+  return out;
+}
+
+/** The ticks a slug waits inside a converter (the engine's own: `secs` whole seconds). */
+export const convertTicks = workTicks;
+
+/**
+ * THE ONE FUNCTION: the walk's slug after a converter (see WalkSlug). The slug is made a Payload and put through the engine's rule
+ * for the converter's idea, fusePayload (two alike slugs: one that carries both, +bonus%), pelletPayload (the first of its pellets:
+ * they are alike) or smeltPayload (+BURN); what the rule leaves is read back. `copies` follows the converter's `in` and `out`.
+ */
+export function convertWalk(s: WalkSlug, spec: ConverterSpec): WalkSlug {
+  const p: Payload = { id: 1, ammo: s.ammo, base: s.base, ride: s.ride, mult: s.mult, flat: s.flat, burn: s.burn, shock: s.shock, prior: s.prior, factory: 0, copy: false };
+  if (s.heat) { p.heat = s.heat; p.heatBonus = s.heatBonus; }
+  const made = spec.how === "fuse" ? fusePayload(p, { ...p, id: 2 }, spec, 3)
+    : spec.how === "pellet" ? pelletPayload(p, spec, (() => { let n = 3; return () => ++n; })())[0]
+    : smeltPayload(p, spec);
+  return {
+    ammo: s.ammo, base: made.base ?? s.base, ride: made.ride, mult: made.mult, flat: made.flat, burn: made.burn, shock: made.shock, prior: made.prior,
+    heat: made.heat ?? 0, heatBonus: made.heatBonus ?? 0, copies: (s.copies * spec.out) / spec.in,
+  };
 }
 
 /** Re-exported for the tests: the belt position type a converter reads. */
