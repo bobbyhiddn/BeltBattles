@@ -31,7 +31,7 @@ export interface EndlessPlayed {
 
 /** One honest run of `hero` (run `i`): `runOutcomes` its dusks until it is won (a missing entry is a win), then endless on
  *  `endlessOutcomes` (a missing entry is a win) until endless ends or `until` is the day. */
-export function playEndless(hero: HeroId, i: number, player: string, opts: { runOutcomes?: readonly Winner[]; endlessOutcomes?: readonly Winner[]; until?: number } = {}): EndlessPlayed {
+export function playEndless(hero: HeroId, i: number, player: string, opts: { runOutcomes?: readonly Winner[]; endlessOutcomes?: readonly Winner[]; until?: number; buys?: number } = {}): EndlessPlayed {
   return withEndless(() => withLongRun(() => {
     const rng = new Rng(hashSeed("endless1-honest", hero, i));
     const run = newRun(hero, hashSeed("endless1-run", hero, i), `e1-${hero}-${i}`);
@@ -47,7 +47,7 @@ export function playEndless(hero: HeroId, i: number, player: string, opts: { run
       if (lc) takeLastChance(run, rng.pick(BOONS.filter((b) => offeredId(lc, b) !== null)));
       const offer = pendingRune(run);
       if (offer) takeRune(run, offer.ids[0]);
-      for (let t = rng.int(4); t > 0; t--) {
+      for (let t = opts.buys !== undefined ? (rng.int(4), opts.buys) : rng.int(4); t > 0; t--) { // `buys`: a lean deck (the road's hull and belt only), cheap to check at the deep days
         const open = run.shop.wagons.flatMap((w, wi) => w.offers.map((o, si) => ({ o, wi, si }))).filter(({ o }) => !o.sold && o.price <= run.gold);
         if (!open.length) break;
         const { wi, si } = rng.pick(open);
