@@ -363,12 +363,18 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     upgrades: [
       // FINAL-MEASURE (the Prime's ladder fix, oracle e2d655e0): the quench tank comes on day 2 (was 1), so on day 1 the
       // Medium slot stays 0.05 easier than Hard (rivals.difficulty), whose decks sit at the day-1 good-luck cap
-      G(2, "quench", 3, 0), G(2, "temper", 3, 1, 1), G(3, "heatjacket", 2, 5, 1), M(3, "scatter", 0), P(3),
+      G(2, "quench", 3, 0), G(2, "temper", 3, 1, 1), G(3, "heatjacket", 2, 5, 1), P(3),
+      // BUMP-1E C3 (the captains' ladder; SCALE-2e carry-over 1): the SCATTER CHOKE on day 5 (was 3). With SCALE_RIGS on KINDLING reads his
+      // TEMPER's BURN and spends none, where the old QUENCH TANK left it never ticking (one day-3 fight, the same decks and seed: burn damage
+      // dealt 0 off, 816 on; QUENCH TANK's def kept with the switch on, the fight is the off-world one), so his four-piece BURN deck reads 60-76%
+      // on days 3-6 and the Medium slot passed the Hard slot on day 3 (K 24: M 19.5, H 15.6). Read on SOOTJAW alone at K 48 (warlord rows): day 3
+      // 63.7 -> 17.3, day 4 76.8 -> 56.0, day 5 68.2 -> 67.1, day 6 71.9 -> 71.1. Not the swap SCALE-2e named (KINDLING for a rare 4 G gate: 53 on
+      // day 3 with BARBED SPOOL, 50 with the cell empty: the BURN deck is what is strong, whatever stands in that cell)
       G(4, "bellows", 5, 2),
       // bb-0.8.3 (job BELTS run 4): no SPIKE GUN (was day 9): the regenerated caps' ordinary FURNACE turret cap is 0 on
       // every day
       // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/3/3/4/6/7 on days 3-10 (the FURNACE par field's 1/1/2/3/4/5/6/7)
-      G(5, "whetstone", 5, 1, 3), P(5), G(6, "counterweight", 4, 3, 1), G2(6, "heatjacket", 2, 5), P(6),
+      M(5, "scatter", 0), G(5, "whetstone", 5, 1, 3), P(5), G(6, "counterweight", 4, 3, 1), G2(6, "heatjacket", 2, 5), P(6),
       // Y7b2 (the regenerated caps, bb-0.9.3): at ordinary luck the long haul 7 -> 8 (FURNACE ordinary rare+ d7, cap 5 -> 4:
       // stand-in and warlord 5 > 4; the part that arrives on day 7, non-synergy); soon() keeps day 7 at good luck; right after
       // P(6), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
