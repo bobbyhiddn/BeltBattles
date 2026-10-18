@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { SideStats } from "../src/sim/battle";
 import { finishDay, flawless, runWon, startEndless } from "../src/game/day";
+import { replayAt } from "../src/game/replays";
 import { newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
 import { livesCap } from "../src/sim/hearts";
@@ -183,6 +184,27 @@ describe("ENDLESS-1 3.2: an endless dusk (finishDay)", () => {
     expect(run.day).toBe(ENDLESS_LAST_DAY);
     expect(run.endlessRun!.draws).toBe(ENDLESS_LAST_DAY - run.endlessRun!.victoryDay);
     expect(run.lives).toBe(ENDLESS_LIVES);
+  });
+});
+
+describe("ENDLESS-1 3.2: the history row of an endless dusk, and the replay's wins carried in", () => {
+  it("an endless dusk's DayResult says so; a run dusk's never does", () => {
+    const run = wonRun();
+    expect(run.history.every((h) => h.endless === undefined)).toBe(true);
+    startEndless(run);
+    const a = fight(run, WIN), b = fight(run, LOSS);
+    expect([a.endless, b.endless]).toEqual([true, true]);
+    expect(run.history.slice(0, WIN_GOAL).every((h) => h.endless === undefined)).toBe(true);
+  });
+
+  it("replayAt: the wins carried into any dusk are the run's own (endless wins are not WARLORD'S DUE's), so an endless dusk's record replays", () => {
+    const run = wonRun();
+    startEndless(run);
+    for (let i = 0; i < 4; i++) fight(run, WIN);
+    expect(run.history).toHaveLength(WIN_GOAL + 4);
+    expect(replayAt(run.history, WIN_GOAL - 1).wins).toBe(WIN_GOAL - 1); // the victory dusk: 9 carried in
+    for (let i = WIN_GOAL; i < run.history.length; i++) expect(replayAt(run.history, i).wins, `row ${i}`).toBe(WIN_GOAL); // every endless dusk: the run's 10
+    expect(run.history.filter((h) => h.outcome === "win" && !h.endless)).toHaveLength(WIN_GOAL);
   });
 });
 

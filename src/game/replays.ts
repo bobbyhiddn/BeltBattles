@@ -24,8 +24,10 @@ export interface ReplayAt {
 }
 
 /** The run's record at history[i]'s dusk (ReplayAt). */
-export function replayAt(history: readonly Pick<DayResult, "day" | "outcome" | "ghost">[], i: number): ReplayAt {
-  return { day: history[i].day, wins: history.slice(0, i).filter((d) => d.outcome === "win").length, ghost: history[i].ghost };
+export function replayAt(history: readonly Pick<DayResult, "day" | "outcome" | "ghost" | "endless">[], i: number): ReplayAt {
+  // ENDLESS-1: an endless dusk's win is not the run's (its wins stay WIN_GOAL, endless wins count apart), so the wins the player
+  // carried into any dusk are the run's own dusk wins before it
+  return { day: history[i].day, wins: history.slice(0, i).filter((d) => d.outcome === "win" && !d.endless).length, ghost: history[i].ghost };
 }
 
 /** A fresh, unstepped Battle for a stored dusk record, or why it can't be replayed. Never throws. RUNES-087F: with `at`,

@@ -89,6 +89,9 @@ export interface DayResult {
   // RETUNE-1 (REQ-BFG-096): on a hearts run, the hearts this dusk's loss cost (heartCost: 1/2/3); absent on a lives run
   // and on a win or a draw, so every switch-off result is saved as before
   heartsLost?: number;
+  // ENDLESS-1 (REQ-BFG-059): this dusk was an ENDLESS dusk (day.ts finishEndlessDay): the run's wins stay WIN_GOAL, so replays.ts
+  // replayAt counts the player's wins carried in (WARLORD'S DUE) from the run's own dusks only. Absent on every run dusk.
+  endless?: true;
 }
 
 /** Where the day stands (0.6.0b): dawn caravan, the road fork, the road event or the warlord

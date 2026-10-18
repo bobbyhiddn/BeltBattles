@@ -282,6 +282,7 @@ export function startEndless(run: Run): boolean {
  *  reader of run.over sees a WON run again, with EndlessRun.end saying why) or the next dawn comes, with no early-loss refund. */
 function finishEndlessDay(run: Run, res: DayResult, outcome: DayResult["outcome"], income: number): DayResult {
   const e = run.endlessRun!;
+  res.endless = true; // the history row says so (replays.ts replayAt: the run's wins stay WIN_GOAL)
   const step = endlessDusk(run.lives, e.wins, run.day, outcome);
   if (outcome === "win") e.wins = step.wins;
   else if (outcome === "loss") e.losses++;
