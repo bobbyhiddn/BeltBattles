@@ -27,7 +27,7 @@
 //     that has no such route answers 404 and nothing changes. Upload only: the answer is not merged back. No new storage key.
 
 import { RULES_VERSION } from "../sim/content";
-import { inEndless } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): an endless dusk's match request
+import { ENDLESS_ONLINE_LAST_DAY, inEndless } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): an endless dusk's match request
 import { fetchGhost, submitGhost, type FetchedGhost, type GhostRequest, type SubmitResult } from "../net/ghostClient";
 import { indexedDbKeyStore, loadIdentity, type Identity } from "../net/identity";
 import { putProfile, type PutProfileResult } from "../net/profileClient";
@@ -137,6 +137,9 @@ export function defaultDeps(): OnlineDeps {
 
 const keyOf = (run: Run) => `${run.runId}|${run.day}`;
 
+/** ENDLESS-1: is tonight an endless dusk past the last day an endless takes part online (endless.ts ENDLESS_ONLINE_LAST_DAY)? */
+const offlineEndless = (run: Run): boolean => inEndless(run) && run.day > ENDLESS_ONLINE_LAST_DAY;
+
 /** One page load's online session (only when a server URL is set). */
 export class Online implements Session {
   /** undefined while loading; null: no identity, so the game plays offline (step 1). */
@@ -208,6 +211,12 @@ export class Online implements Session {
   /** Every frame (game.ts): store a finished fetch's answer in the run, or start tonight's fetch (step 2). */
   tick(run: Run | null): void {
     if (!run || run.over || !this.active || storedFoe(run)) return;
+    // ENDLESS-1: an endless dusk past ENDLESS_ONLINE_LAST_DAY asks nobody: the GOD fights, stored at once (no request, nothing to wait for)
+    if (offlineEndless(run)) {
+      storeOnlineFoe(run, null);
+      this.deps.save(run);
+      return;
+    }
     const key = keyOf(run);
     if (this.result?.key === key) {
       storeOnlineFoe(run, this.result.ghost);
@@ -237,6 +246,7 @@ export class Online implements Session {
   /** Step 3, at dusk: upload tonight's deck once per dusk, if the player mode accepts it. Fire and forget. */
   submitDusk(run: Run): void {
     if (!this.identity || run.uploaded === run.day) return;
+    if (offlineEndless(run)) return; // ENDLESS-1: past ENDLESS_ONLINE_LAST_DAY an endless dusk uploads nothing (the deck check is too slow there)
     run.uploaded = run.day;
     const snap = ghostOf(run, this.deps.now(), this.identity.playerId);
     if (!ghostAllowed(run, snap.rules)) { // RETUNE-1 run 2 (REQ-BFG-096): no hearts mark under hearts rules (ghostGuard.ts)

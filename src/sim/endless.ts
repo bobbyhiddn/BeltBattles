@@ -20,7 +20,7 @@
 // every honest endless can be uploaded: ENDLESS_LAST_DAY is DERIVED from the record model (records.ts endlessLastDay; pinned by
 // tests/endless1.records.test.ts), as RUN-1 pinned LONG_RUN_DEEPEST_DAY. Pure and dependency-light (no DOM), like longRun.ts.
 
-import { WIN_GOAL } from "./longRun";
+import { LONG_RUN_MAX_DAY, WIN_GOAL } from "./longRun";
 
 /** THE switch (REQ-BFG-059, ENDLESS-1): off. The release bump that ships endless turns it on and writes rulesGate.ts ENDLESS_RULES. */
 export const ENDLESS: boolean = false;
@@ -145,6 +145,14 @@ export function endlessMatchDays(day: number): number[] {
   for (let d = top; d >= Math.max(ENDLESS_FIRST_DAY, top - ENDLESS_WIDEN_DAYS); d--) out.push(d);
   return out.length ? out : [top];
 }
+
+/** The last day an endless dusk takes part ONLINE: asks the ghost server for a foe and uploads its deck (game/online.ts). Past it the
+ *  foe is the GOD stand-in and nothing goes up. Set to LONG_RUN_MAX_DAY (25), the day RUN-1's upload checks were sized for, because
+ *  the player-mode deck check (validate.ts, the road cap's search over the event bags) grows steeply past it: measured cold on a
+ *  loaded host, a lean deck takes 5 s at day 25, 13 s at 33 and 38 s at 41 (REPORT section 12, finding 1), and the client runs it
+ *  before each upload and on each served ghost, the server on each POST. The server, the stores and ghosts:admin take endless
+ *  records to ENDLESS_LAST_DAY as built (tests/endless1.server.test.ts); raise this to ENDLESS_LAST_DAY to let deep dusks upload. */
+export const ENDLESS_ONLINE_LAST_DAY = LONG_RUN_MAX_DAY;
 
 /** THE ONE TUNABLE NUMBER (BRIEF-ENDLESS1 section 4): the hull the GOD stand-in gains for each endless win the player has, in
  *  Build.hullBonus units (a day-1 number, as plating is: the day's M(d) scales it in battle); a plating is 250 (content.ts).
