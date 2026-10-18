@@ -33,11 +33,12 @@ export function burnStacks(s: Pick<SideState, "hull">): number {
  *  predicate for predicate so the view never calls into the sim: its working rigs (a wrecked rig is no STUN), factories
  *  and turrets with a `disrupted` or `frozen` timer above 0, plus its belt tiles with one. tests/count1.test.ts holds the
  *  two equal at every LODESTONE hit of a real fight. */
-export function stunnedParts(s: Pick<SideState, "gates" | "factories" | "turrets" | "routes">): number {
+export function stunnedParts(s: Pick<SideState, "gates" | "factories" | "turrets" | "routes" | "converters">): number {
   let n = 0;
   for (const g of s.gates) if (!g.wrecked && (g.disrupted > 0 || g.frozen > 0)) n++;
   for (const f of s.factories) if (f.disrupted > 0 || f.frozen > 0) n++;
   for (const tu of s.turrets) if (tu.disrupted > 0 || tu.frozen > 0) n++;
+  for (const c of s.converters ?? []) if (c.disrupted > 0 || c.frozen > 0) n++; // GATES-1 (REQ-BFG-052): a stalled gate, as LODESTONE counts it
   for (const r of s.routes) for (const t of r.cellDisrupt) if (t > 0) n++;
   return n;
 }

@@ -1776,7 +1776,8 @@ export class Battle {
       // Y2 (DESIGN-Y row 15, LODESTONE): +each for each enemy part a STUN holds now: its rigs, factories, turrets and belt
       // tiles; a wrecked rig is no STUN; no cap (its floor is gone from its data)
       const foe = this.sides[s.side === 0 ? 1 : 0];
-      const stunned = [...foe.gates.filter((g) => !g.wrecked), ...foe.factories, ...foe.turrets].filter((m) => m.disrupted > 0 || m.frozen > 0).length +
+      // GATES-1 (REQ-BFG-052): a gate (converter) a STUN holds is a stalled part like a factory (its tile is no belt target)
+      const stunned = [...foe.gates.filter((g) => !g.wrecked), ...foe.factories, ...foe.turrets, ...(foe.converters ?? [])].filter((m) => m.disrupted > 0 || m.frozen > 0).length +
         foe.routes.reduce((n, r) => n + r.cellDisrupt.filter((t) => t > 0).length, 0);
       p.flat += stunned * e.perStalled.each;
     }

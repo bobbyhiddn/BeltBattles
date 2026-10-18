@@ -21,7 +21,8 @@ import { rotFacing } from "../src/sim/beltside";
 import { FUSE_RULES, PELLET_RULES, SMELT_RULES, fusePayload, pelletPayload, smeltPayload } from "../src/sim/convert";
 import { pct } from "../src/sim/pct";
 import { GATES, setGates, withGates } from "../src/sim/gates";
-import { barge } from "./arsenal.bench";
+import { stunnedParts } from "../src/game/counters";
+import { barge, bench as lodestoneBench } from "./arsenal.bench";
 
 afterEach(() => setGates(GATES));
 
@@ -314,6 +315,29 @@ describe("GATES-1 G2: STUN, targets and idle arrows", () => {
       step(bt, 60); // the STUN ends
       expect(c!.disrupted).toBe(0);
       expect(c!.done + c!.buf.length + c!.out.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("a stunned gate is a stalled part: LODESTONE counts it and the STUN counter does (review finding 3)", () => {
+    withGates(() => {
+      // an attacker with a LODESTONE working belt tile (4,3) (arsenal.bench's bench) against a foe with a FUSER on its belt
+      const bt = new Battle(lodestoneBench([["lodestone", 4, 3, 1]]), bench([["fuser", 2]]), 7);
+      const s = bt.sides[0], foe = bt.sides[1];
+      const a: BeltAmmo = { p: slug(91, { ride: 3 }), s: 30, processed: 2, blocked: false };
+      s.gates[0].online = true;
+      s.factories[0].timer = 1000;
+      const hit = s.routes[0].gateAt[2][0];
+      // nothing stalled: +0
+      (bt as unknown as { applyHit(s: SideState, a: BeltAmmo, h: unknown): void }).applyHit(s, a, hit);
+      expect(a.p.flat).toBe(0);
+      expect(stunnedParts(foe)).toBe(0);
+      // the foe's gate STUNned: one stalled part, +each (★1 LODESTONE: 10)
+      expect(disrupt(bt, foe, foe.targets.find((t) => t.kind === "converter")!, 2)).toBe(true);
+      expect(foe.converters![0].disrupted).toBeGreaterThan(0);
+      expect(stunnedParts(foe)).toBe(1);
+      const b: BeltAmmo = { p: slug(92, { ride: 3 }), s: 30, processed: 2, blocked: false };
+      (bt as unknown as { applyHit(s: SideState, a: BeltAmmo, h: unknown): void }).applyHit(s, b, hit);
+      expect(b.p.flat).toBe(ITEMS.lodestone.gate!.perStalled!.each);
     });
   });
 
