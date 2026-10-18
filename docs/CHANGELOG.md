@@ -3,6 +3,25 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.12: shop cards show a piece's icon and price
+
+- Shop cards now show only a piece's icon and price, with small marks: rarity, an owned marker, a merge mark (an up
+  triangle over a star and the level you'd reach) and a sale mark (a down triangle by the price). A shaped piece shows
+  its shape, with a rig's green arrows, on its shop card and in its cargo slot. Tap a card (on a desk, point at it) to
+  read it; the desk tooltip shows the whole face. The buy button says SALE on a sale; on a merge it names the star the
+  merge makes instead, drawn as a real star. HOW TO PLAY now says how merging works and what a card's shape shows. The
+  tap panel's words are plainer too: what a rig's HIT is, that a shield or a heal goes to the hull, what a factory's
+  belt number counts, and what MIMIC FORGE, LIMPET WORKS, STOKER, ASSEMBLY LINE, BRACE FRAME, MANTLET, GRAPNEL GUN,
+  QUENCH TANK and TWIN LATCH do. ASSEMBLY LINE says it only works while it feeds a gun, LIMPET WORKS says its blast
+  comes after its own slug hits anything, GRAPNEL GUN says its hit destroys a slug near it, and QUENCH TANK says it
+  uses up the burn. A factory's size note shows only on a factory big enough to get an extra belt, and says so with
+  the belt icon. LOOSE THREAD's open FRAY note no longer covers its own line, on the dawn pick, the rune bar and LAST
+  CHANCE. BALLAST and the SHIELD family's tap text say MAX HULL in words instead of a heart. On a desk, the hover box
+  no longer shows the details panel's text around it.
+
+The battle rules stay bb-0.11.0, so 0.9.11 and 0.9.12 players still meet each other's ghosts, and runs saved in 0.9.11
+carry on.
+
 ## 0.9.11: a run is won at 10 wins
 
 New battle rules: bb-0.11.0. Ghosts and uploads from 0.9.10 and older no longer meet this release's players. The stand-in

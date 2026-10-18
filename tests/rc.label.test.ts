@@ -56,6 +56,8 @@
 // here, and the release lane picks the release's label at staging.
 // 0.9.11 is 0.9.10 with BUMP-1D's rules release (above): a run is won at 10 wins, the twelve new rigs, the 192-ghost pool and
 // the profile upload. The rules are bb-0.11.0 (src/sim/content.ts:47) and the label moves to 0.9.11 (STAGE-0911, branch r0911).
+// 0.9.12 is 0.9.11 with SHOPCARD-1's shop cards (REQ-BFG-115, 113, 081): a client release, display only, so the rules stay
+// bb-0.11.0 (src/sim/content.ts:47) and the label moves to 0.9.12 (STAGE-0912, branch r0912).
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version";
@@ -63,10 +65,10 @@ import { RULES_VERSION } from "../src/sim/content";
 
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
-describe("the 0.9.11 label", () => {
-  it("is 0.9.11 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are BUMP-1D's bb-0.11.0 (AZ-BUMP's were bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
+describe("the 0.9.12 label", () => {
+  it("is 0.9.12 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are BUMP-1D's bb-0.11.0 (AZ-BUMP's were bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
-    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.11", "0.9.11", "0.9.11", "0.9.11"]);
+    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.12", "0.9.12", "0.9.12", "0.9.12"]);
     expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
   });
 });
