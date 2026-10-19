@@ -297,7 +297,7 @@ describe("ENCHANT-1c C3: pick 2's day is the Matriarch's day", () => {
   });
 
   it("the source has no second literal: enchantSources.ts takes the day from rivals.ts (the import makes no cycle: rivals.ts reaches nothing of enchantSources.ts)", () => {
-    const src = readFileSync(new URL("../src/sim/enchantSources.ts", import.meta.url), "utf8");
+    const src = readFileSync("src/sim/enchantSources.ts", "utf8");
     expect(src).toMatch(/import \{ MATRIARCH_DAY \} from "\.\/rivals";/);
     expect(src).toMatch(/export const WARLORD_PICK_FROM: readonly \[number, number\] = \[5, MATRIARCH_DAY\];/);
     expect(src).not.toMatch(/WARLORD_PICK_FROM[^\n]*=\s*\[\s*5\s*,\s*8\s*\]/);
