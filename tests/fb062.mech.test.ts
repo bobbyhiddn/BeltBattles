@@ -22,6 +22,7 @@ import {
   type Build, type Placed,
 } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (QUENCH TANK is KINDLING); the 0.9.11 conversion is read with it off
 import { validateBuild } from "../src/net/validate";
 import { gatlingClash } from "../src/screens/build/inspector";
 import { barge, busy, run, SEED } from "./arsenal.bench";
@@ -288,23 +289,31 @@ describe("3. QUENCH and SURGE on a joined payload: the join tile's hits and ever
 
   // Y7b2 (the flip): was "... (+flat, then up to its stacks of Burn), never before"
   it("QUENCH: a joined payload takes it from the join tile on (+flat, then each of its Burn), never before", () => {
-    for (const s of STARS) {
-      const q = effectAt("quench", s).gate!.quench!;
-      // Y7b2 (the flip): every Burn is spent, no stack cap (was Math.min(burn, q.stacks)); q.flat is 0 (no floor)
-      const burn = effectAt("temper", 3).gate!.burn!, spent = burn; // TEMPER ★3's Burn, all of it
-      for (const [where, [x, y]] of Object.entries(SPOT)) {
-        const b = chain([temper(), rig(11, "quench", x, y, 3, s)]);
-        const got = loaded(b);
-        const press = got.get(2)!, kiln = got.get(1)!;
-        expect(press.length, `★${s} ${where}`).toBeGreaterThan(5);
-        const want = where === "before" ? { flat: 0, burn } : { flat: q.flat + spent * q.perBurn, burn: burn - spent };
-        for (const p of press) expect(p, `★${s} ${where}: a joined payload`).toEqual(want);
-        for (const p of kiln) expect(p, `★${s} ${where}: the main belt's own`).toEqual({ flat: q.flat, burn: 0 });
-        // the joining belt's walk (the inspector's readout, the par player's rating) says the same
-        const est = walkRoute(b, 1).estimate;
-        expect(est.burn, `★${s} ${where}: walk Burn`).toBe(want.burn);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where QUENCH TANK is KINDLING (SCALE_DEFS.quench: +3 / +5 / +8 DMG for each
+    // BURN on the foe at the hit, no BURN spent, no `quench` field; tests/scale2c.sim pins the new effect). This test is the 0.9.11 QUENCH
+    // TANK's conversion (gate.quench: every BURN riding the slug is spent for flat damage, from the join tile on), so it reads that world
+    // with the switch off (withScaleRigs(fn, false), synchronously: each Battle is made inside); no number moved
+    expect(SCALE_RIGS).toBe(true);
+    expect(effectAt("quench", 1).gate?.quench).toBeUndefined(); // BUMP-1E: shipped, no conversion field (it is a reads line)
+    withScaleRigs(() => {
+      for (const s of STARS) {
+        const q = effectAt("quench", s).gate!.quench!;
+        // Y7b2 (the flip): every Burn is spent, no stack cap (was Math.min(burn, q.stacks)); q.flat is 0 (no floor)
+        const burn = effectAt("temper", 3).gate!.burn!, spent = burn; // TEMPER ★3's Burn, all of it
+        for (const [where, [x, y]] of Object.entries(SPOT)) {
+          const b = chain([temper(), rig(11, "quench", x, y, 3, s)]);
+          const got = loaded(b);
+          const press = got.get(2)!, kiln = got.get(1)!;
+          expect(press.length, `★${s} ${where}`).toBeGreaterThan(5);
+          const want = where === "before" ? { flat: 0, burn } : { flat: q.flat + spent * q.perBurn, burn: burn - spent };
+          for (const p of press) expect(p, `★${s} ${where}: a joined payload`).toEqual(want);
+          for (const p of kiln) expect(p, `★${s} ${where}: the main belt's own`).toEqual({ flat: q.flat, burn: 0 });
+          // the joining belt's walk (the inspector's readout, the par player's rating) says the same
+          const est = walkRoute(b, 1).estimate;
+          expect(est.burn, `★${s} ${where}: walk Burn`).toBe(want.burn);
+        }
       }
-    }
+    }, false);
   });
 
   it("SURGE: a joined payload rides the main belt's pulse from the join on (J4), a valve before the join tile included", () => {

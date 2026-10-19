@@ -25,6 +25,7 @@ import { encodeStarred } from "../src/sim/harness/standinCode";
 import { withLegacyStock } from "./catalogueLegacy";
 import { withBeltPolicy } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D7)
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the pins' switch-off check
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on; the pins' 0.9.11 world is read with the switch off
 
 const hash32 = (s: string): number => {
   let h = 0x811c9dc5;
@@ -206,11 +207,19 @@ describe("harness factories (0.6.1c): legality", () => {
     // run, vp-H1: this file green with only HULL_SCALE off), so no other harness path moved; that check stays here
     const [a, b] = pins();
     console.log(`AZ-BUMP-PIN harness.factories, every switch on: random builds ${a}, full purses ${b}`);
-    expect(a).toBe(2409389084);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), and with them SCALE-2d's random-builder rule (harness/shopper.ts fedOnly):
+    // a reader that wants a feeder (scaleRating.ts READER_FEEDERS) is bought only when the deck it starts from holds one. PRESSURE BREECH is
+    // in the legacy core stock (catalogueLegacy.ts) and wants a SPLITTER or a SHOT TOWER, so the core list the draws run over loses it unless
+    // the deck holds one, and the RNG draws move: 26 of the 90 random builds and 42 of the 180 full purses differ. A probe with only
+    // READER_FEEDERS.pressure emptied hashed both to the old pins again, so nothing else moved: read with the scaling switch off, both
+    // pins hold their old values exactly (the first assertion)
+    expect(SCALE_RIGS).toBe(true);
+    expect(withScaleRigs(pins, false)).toEqual([2409389084, 602242560]);
+    expect(a).toBe(3341930756); // BUMP-1E: was 2409389084
     // AZ-BUMP (the flip, HULL_SCALE): the full purses 3585233270 -> 602242560, read from the log line above in run 5's group
     // check M1b (the work tree, every switch on)
-    expect(b).toBe(602242560);
-    expect(withHullScale(pins, false)).toEqual([3615626450, 3585233270]);
+    expect(b).toBe(182511406); // BUMP-1E: was 602242560 (see above)
+    expect(withScaleRigs(() => withHullScale(pins, false), false)).toEqual([3615626450, 3585233270]); // BUMP-1E: the scaling switch off as well (was withHullScale(pins, false))
   }, 240_000);
 });
 

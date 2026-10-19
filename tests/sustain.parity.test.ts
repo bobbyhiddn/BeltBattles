@@ -27,6 +27,11 @@
 // pairs, placements and seeds, and the other 144 are kept byte for byte: tests/fixtures/hullon-wardstone.json
 // (B/kit-hullon/probes/zz-hullon-ward.test.ts, a one-run scratch generator in BAL-2's generator's form; was
 // y7b2-wardstone.json, rules bb-0.9.3; its rules field now bb-0.10.0). The checks are unchanged.
+// BUMP-1E (the scaling rules ship on, bb-0.12.0; SCALE_RIGS): the record is a switch-off world, and with the scaling rules on the same 72
+// battles move as at the AZ-BUMP flip, FOUNDRY's day-6 ref deck's: it holds a VENOM DRIP (now POISON, no burnPlus) and a QUENCH TANK (now
+// KINDLING, a reader), the only deck of the 8 holding one of the six pieces the rules change (SCALE_DEF_IDS). So the replay is read with the
+// scaling switch off as well (withScaleRigs(fn, false), the outermost of the nest, synchronously), as LADDER_FIX and HULL_SCALE were put
+// off; the second test pins the shipped world: that deck is the only one, and the other 216 battles replay as recorded with the switch on.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { Battle } from "../src/sim/battle";
@@ -34,6 +39,7 @@ import { SUSTAIN_IDS } from "../src/sim/content";
 import { cloneBuild, type Build } from "../src/sim/deck";
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the record's switch-off world
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip): the record's switch-off world
+import { SCALE_DEF_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on; the record's switch-off world
 
 interface Row { a: number; b: number; ward: [boolean, boolean]; seed: number; winner: number | null; ticks: number; t: number; sides: unknown[] }
 const fx = JSON.parse(readFileSync(new URL("./fixtures/hullon-wardstone.json", import.meta.url), "utf8")) as // HULL-ON, FREE_JOINS_HULL (was y7b2-wardstone.json; Y7b2: was bal2-wardstone.json; BAL-2: was num3-wardstone.json)
@@ -47,7 +53,8 @@ describe("SUS-A parity: WARD STONE as SHIELD battles as recorded (num2's blockHi
     expect(fx.rows.filter((r) => r.ward[0] || r.ward[1]).length).toBe(288);
   });
 
-  it("every battle: the same winner, ticks, time, hulls, plating, hits stopped and stats", () => withLadderFix(() => withHullScale(() => {
+  // BUMP-1E: was `() => withLadderFix(() => withHullScale(() => {`; the scaling switch is the outermost call (off first, back last)
+  it("every battle: the same winner, ticks, time, hulls, plating, hits stopped and stats", () => withScaleRigs(() => withLadderFix(() => withHullScale(() => {
     // AZ-BUMP (the flip, LADDER_FIX): the record is bb-0.9.3's, the switch-off world, replayed bit for bit (not re-recorded:
     // its point is WARD STONE's SHIELD and the engine's other paths unchanged). The flip moved exactly the 72 battles of
     // FOUNDRY's day-6 ref deck (6 foes x 2 orders x 3 placements x 2 seeds), the one deck holding a QUENCH TANK, whose ★1
@@ -68,5 +75,29 @@ describe("SUS-A parity: WARD STONE as SHIELD battles as recorded (num2's blockHi
     }
     expect(bad).toEqual([]);
     expect(stopped).toBeGreaterThan(288 * 3); // the stones did stop hits: at least 3 a battle on average
-  }, false), false));
+  }, false), false), false)); // BUMP-1E: + the scaling switch off (was `}, false), false));`)
+
+  // BUMP-1E: the shipped world, the scaling rules on. The record's other two switches stay off (LADDER_FIX, HULL_SCALE: its world); the
+  // decks holding none of the six changed pieces fight as recorded, so only FOUNDRY's day-6 ref deck's 72 battles are not replayed here
+  it("shipped (the scaling rules on): FOUNDRY's day-6 ref deck is the one deck holding a changed piece; the other 216 battles replay as recorded", () => {
+    expect(SCALE_RIGS).toBe(true);
+    const changes = (b: Build): boolean => [...b.items, ...b.mods].some((p) => SCALE_DEF_IDS.includes(p.def));
+    expect(fx.decks.filter((d) => changes(d.build)).map((d) => `${d.hero}/${d.kind}`)).toEqual(["foundry/ref6"]);
+    expect(fx.decks.find((d) => d.hero === "foundry" && d.kind === "ref6")!.build.items.map((p) => p.def).filter((def) => ["venom", "quench"].includes(def)).sort()).toEqual(["quench", "venom"]);
+    const rows = fx.rows.filter((r) => !changes(fx.decks[r.a].build) && !changes(fx.decks[r.b].build));
+    expect(rows.length).toBe(288 - 72);
+    withLadderFix(() => withHullScale(() => {
+      const bad: string[] = [];
+      for (const r of rows) {
+        const a = fx.decks[r.a].build, b = fx.decks[r.b].build;
+        const bt = new Battle(r.ward[0] ? ward(a) : a, r.ward[1] ? ward(b) : b, r.seed);
+        while (!bt.over && bt.ticks < 60 * 200) { bt.step(); bt.events.length = 0; }
+        const now = { winner: bt.winner, ticks: bt.ticks, t: bt.t,
+          sides: bt.sides.map((s) => ({ hp: s.hull.hp, max: s.hull.max, plate: s.plate.plate, gained: s.plate.gained, blocked: s.blocked ?? 0, stats: s.stats })) };
+        const want = { winner: r.winner, ticks: r.ticks, t: r.t, sides: r.sides };
+        if (JSON.stringify(now) !== JSON.stringify(want)) bad.push(`${fx.decks[r.a].hero}/${fx.decks[r.a].kind} v ${fx.decks[r.b].hero}/${fx.decks[r.b].kind} ward ${r.ward} seed ${r.seed}`);
+      }
+      expect(bad).toEqual([]);
+    }, false), false);
+  });
 });

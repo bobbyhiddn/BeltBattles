@@ -9,7 +9,17 @@
 //    the dim-0 rule from the readers table;
 //  - no counter above y 0 or below the screen on any view; every group's target a finger's size;
 //  - the words: by key (REQ-BFG-107), and no new string names the soak layer or the block.
-import { describe, expect, it } from "vitest";
+// BUMP-1E (the scaling rules ship on, bb-0.12.0; SCALE_RIGS): this file is COUNT-1's, the battle view's counters on a fight picked in the
+// switch-off world, so it is read with the scaling switch off, file-wide (beforeEach setScaleRigs(false), afterEach back to SCALE_RIGS);
+// SCALE-2c's hits chip, the one chip the shipped row adds, is asserted in the status row's first test and the on-world counters are
+// tests/scale2c.counters'. THE ITEMS KEY-ORDER HAZARD: `fight()` below turns SHAPES2, SHAPES and PLAIN_RIGS off and back around the par
+// decks, and with the scaling switch left on (a) the par decks are drawn in a catalogue that holds the seven new rigs and the five
+// reworks as they ship (the par player buys them: WEAVER's par deck 3 held a GRUDGE ROD and a LEECH COIL, QUENCH TANK, VENOM DRIP and
+// PRESSURE BREECH as shipped, and the foe's FURNACE par deck 1 held no LODESTONE: 'LODESTONE hits compared: 0'), and (b) the seven stay
+// BEHIND the twelve in ITEMS for the rest of the worker (each swap back appends), moving every later seeded draw. The scaling switch is
+// the OUTERMOST call of the nest now (off first, back last), which is also the world the fight was picked in (the catalogue before the
+// twelve and the seven).
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Battle, turretAt, type Side, type SimEvent } from "../src/sim/battle";
@@ -30,6 +40,7 @@ import { tapPx } from "../src/ui/tap";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 x c099-card3 (RUN6 1.2): the fight is built with SHAPES off
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: ... and PLAIN_RIGS off
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: ... and SHAPES2 off
+import { SCALE_RIGS, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: ... and the scaling rules off (the switch ships on)
 import { withGuard } from "../src/sim/guard"; // MERGE-099F: the fight is built with HULL-ON's five off too
 import { withOpenRunes } from "../src/sim/openRunes"; // MERGE-099F
 import { withFreeJoins } from "../src/sim/freeJoins"; // MERGE-099F
@@ -61,7 +72,9 @@ const deck = (hero: HeroId, day: number, i: number): Build => structuredClone(pa
  *  stepped as shipped and inside the off world (kit-099f/zz-099f-probe3.test.ts (C)). Was built with SHAPES off alone
  *  (c099's world, the five absent). */
 const fight = (): Battle =>
-  withShapes2(() => withShapes(() => withPlainRigs(() => offFive(() => new Battle(deck("weaver", 10, 2), deck("furnace", 10, 0), 3)), false), false), false);
+  // BUMP-1E: the scaling switch is the outermost call of the nest (it goes off first and comes back last: the ITEMS key-order hazard);
+  // was `withShapes2(() => withShapes(() => withPlainRigs(() => offFive(() => new Battle(...)), false), false), false)`
+  withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => offFive(() => new Battle(deck("weaver", 10, 2), deck("furnace", 10, 0), 3)), false), false), false), false);
 // BUMP-1D (PLAIN_RIGS and SHAPES2 on; tests only): the par player buys the twelve plain stat rigs now, so those par decks change
 // again (the three fixture guards below fail: no LODESTONE hit, no jam that a shot ends, no LODESTONE on the foe's side). The
 // fight is kept in the world it was picked in, as it was for SHAPES and the five: its decks and the Battle are built with
@@ -69,6 +82,11 @@ const fight = (): Battle =>
 // order (the plain rigs, the three, the six more: each swap back appends).
 
 type Priv = { applyHit: (...a: unknown[]) => unknown; fire: (...a: unknown[]) => unknown };
+
+// BUMP-1E: this file reads the switch-off world (the header): the scaling switch is off for each test and back to what ships after it. The
+// file loads with it ON, so what a describe body makes at load (the status row's `fight()`) builds inside its own nest (above)
+beforeEach(() => setScaleRigs(false));
+afterEach(() => setScaleRigs(SCALE_RIGS));
 
 describe("COUNT-1: each counter's value against the sim's own state, on a real fight", () => {
   it("BURN's chip counts stacks (the sum of each entry's dps), and differs from the entries at some tick", () => {
@@ -182,6 +200,11 @@ describe("COUNT-1: the status row", () => {
   const b = fight();
 
   it("chips in order BURN, POISON (reserved: no chip), FRAY n/15, STUN; FRAY_MAX imported", () => {
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where SCALE-2c's hits chip (C7) joins the row (counters.ts HITS_CHIP, order
+    // 50: after STUN, with a hits-taken reader aboard) while the switch is on, so the shipped list is COUNT-1's four and "hits". The four are
+    // this file's own world (the switch off, as the beforeEach leaves it): the row as COUNT-1 wrote it
+    expect(SCALE_RIGS).toBe(true);
+    expect(withScaleRigs(() => STATUS_CHIPS.map((c) => c.key), true)).toEqual(["burn", "poison", "fray", "stun", "hits"]); // BUMP-1E: shipped (was the four, read bare: the switch shipped off)
     expect(STATUS_CHIPS.map((c) => c.key)).toEqual(["burn", "poison", "fray", "stun"]);
     expect(STATUS_CHIPS.find((c) => c.key === "poison")!.value(b, 0)).toBeNull();
     expect(STATUS_CHIPS.find((c) => c.key === "fray")!.text(9)).toEqual({ num: "9", tail: `/${FRAY_MAX}` });

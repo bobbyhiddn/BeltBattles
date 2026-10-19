@@ -10,6 +10,7 @@ import {
   type FontId, type IconName,
 } from "../src/render/font";
 import { PLAYER_WORD } from "../src/render/font"; // CARD-3 (REQ-BFG-107)
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (POISON is the 10th keyword); the 0.9.11 world's 9 read with it off
 import { KEYWORD_COLOUR, NUMBER_COLOUR, PERK_COLOUR, colourize, lineText, wrapRich, wrapText, type Span } from "../src/ui/richText";
 import { STAT_ROW_MAX, statRow } from "../src/ui/icons";
 import { G, fresh, installRaster } from "./raster.helpers";
@@ -65,7 +66,13 @@ describe("U1 icons: the set", () => {
     });
     expect(PUA.length).toBe(17);
     expect([ICON.HULL, ICON.STAR]).toEqual(["♥", "★"]);
-    expect(KEYWORDS).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where POISON is the 10th keyword (SCALE-2b: font.ts's hook appends it to the
+    // live KEYWORDS while the switch is on; its drop, ICON.POISON, is not enumerable, so NAMES and PUA above stay the 19 and the 17). The 9
+    // the 0.9.11 world lists are read with the switch off (withScaleRigs(fn, false), synchronously); shipped, KEYWORDS is those and POISON
+    const NINE = ["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"];
+    expect(SCALE_RIGS).toBe(true);
+    withScaleRigs(() => expect(KEYWORDS).toEqual(NINE), false);
+    expect(KEYWORDS).toEqual([...NINE, "POISON"]); // BUMP-1E: was NINE (the 9, no POISON)
   });
 
   it("SUS-B: SHIELD, HEAL and REGEN as drawn (SUSTAIN-1 4.4), with the two 3x5 steps the thresholds need; PLATE's glyph unchanged", () => {
@@ -220,11 +227,17 @@ describe("U1 icons: colour", () => {
   });
 
   it("ICON_COLOUR: the brief's colours; DMG, SEC, SLUG, BELT, GEAR, UP, ♥ and ★ have none", () => {
-    expect(ICON_COLOUR).toEqual({
+    const BASE = {
       [ICON.RATE]: KEYWORD_COLOUR.faster, [ICON.GOLD]: C.yellow, [ICON.BURN]: KEYWORD_COLOUR.burn, [ICON.STUN]: C.cyan,
       [ICON.HEAT]: C.amber, [ICON.FRAY]: C.plum4, [ICON.PLATE]: C.plate3, [ICON.PAIR]: C.blue,
       [ICON.SHIELD]: C.rune3, [ICON.HEAL]: C.green, [ICON.REGEN]: C.verd3, // SUS-B (SUSTAIN-1 4.4)
-    });
+    };
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where POISON's drop has its venom (SCALE-2b: font.ts's hook sets
+    // ICON_COLOUR[ICON.POISON] = C.venom while the switch is on). The table of the 0.9.11 world (the 11 above) is read with the switch
+    // off (withScaleRigs(fn, false), synchronously); shipped, it is those and POISON's
+    expect(SCALE_RIGS).toBe(true);
+    withScaleRigs(() => expect(ICON_COLOUR).toEqual(BASE), false);
+    expect(ICON_COLOUR).toEqual({ ...BASE, [ICON.POISON]: C.venom }); // BUMP-1E: was BASE (the 11, no POISON)
   });
 
   it("drawText draws each icon's bitmap in its own colour, or the text's; TextOpts.mono draws every icon in the text's", () => {
