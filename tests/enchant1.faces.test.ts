@@ -532,7 +532,7 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
     });
   });
 
-  it("enchantNotes(word): the three lines for one of the eight words with the switch on; [] for no word, a stray id, and every word with the switch off", () => {
+  it("enchantNotes(word): the four lines for one of the eight words with the switch on (ENCHANT-1c C4: the fourth says what a merge does when only one part holds a word); [] for no word, a stray id, and every word with the switch off", () => {
     on(() => {
       for (const id of ENCHANT_IDS) expect(enchantNotes(id)).toEqual([...ENCHANT_NOTES]);
       expect(enchantNotes(undefined)).toEqual([]);
@@ -543,6 +543,7 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
       "ENCHANTED: ONE EXTRA EFFECT ON THIS PART, SHOWN IN ITS COLOUR. IT STAYS WHEN YOU MOVE THE PART AND IS LOST IF YOU SELL IT.",
       "A PART HOLDS ONE: A NEW ONE REPLACES IT.",
       "A MERGE KEEPS ONE: IF BOTH PARTS HAVE ONE, YOU PICK.",
+      "IF ONLY ONE PART HAS ONE, A MERGE KEEPS IT.",
     ]);
   });
 

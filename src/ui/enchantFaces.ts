@@ -27,6 +27,9 @@ export const ENCHANT_NOTES: readonly string[] = [
   "ENCHANTED: ONE EXTRA EFFECT ON THIS PART, SHOWN IN ITS COLOUR. IT STAYS WHEN YOU MOVE THE PART AND IS LOST IF YOU SELL IT.",
   "A PART HOLDS ONE: A NEW ONE REPLACES IT.", // TEXT-STYLE bans PER (a rate word): the brief's `ONE PER PART` is reworded (run 3)
   "A MERGE KEEPS ONE: IF BOTH PARTS HAVE ONE, YOU PICK.", // run 5, E10's fix round: no reader could tell from a face what a merge does
+  // ENCHANT-1c (C4): 4 of 6 readers (ENCHANT-1b round 1) asked what a merge does when only ONE of the two parts holds a word. The code keeps it: fuse.ts:186
+  // calls mergeWords (:201) when either copy has a word, and enchant.ts mergeWord (:288) returns the one copy's word as it is (`fa.ench === undefined` -> fb, `fb.ench === undefined` -> fa)
+  "IF ONLY ONE PART HAS ONE, A MERGE KEEPS IT.",
 ];
 
 /** A line as the panel draws it: enchant.ts writes an icon as [NAME] (the brief's form); the panels' markup is {NAME}, and the word DMG is

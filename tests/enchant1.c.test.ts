@@ -24,7 +24,10 @@ import { rankWords } from "../src/sim/harness/enchantBot";
 import { decodeStarredRaw, encodeStarred } from "../src/sim/standInPool";
 import { validateBuild } from "../src/net/validate";
 import { buyEnchant, enchantChoices, openWarlordPick } from "../src/game/enchanter";
+import { gainModule } from "../src/game/fuse";
 import { newRun } from "../src/game/run";
+import { ENCHANT_NOTES } from "../src/ui/enchantFaces";
+import { banned } from "./textRules";
 import { barge, bench } from "./arsenal.bench";
 
 afterEach(() => setEnchant(ENCHANT));
@@ -298,5 +301,35 @@ describe("ENCHANT-1c C3: pick 2's day is the Matriarch's day", () => {
     expect(src).toMatch(/import \{ MATRIARCH_DAY \} from "\.\/rivals";/);
     expect(src).toMatch(/export const WARLORD_PICK_FROM: readonly \[number, number\] = \[5, MATRIARCH_DAY\];/);
     expect(src).not.toMatch(/WARLORD_PICK_FROM[^\n]*=\s*\[\s*5\s*,\s*8\s*\]/);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------------------ C4: the merge note
+
+describe("ENCHANT-1c C4: the hidden NOTES say what a merge does when only ONE part holds a word", () => {
+  const NOTE = "IF ONLY ONE PART HAS ONE, A MERGE KEEPS IT.";
+
+  it("the note is the fourth NOTES line (behind the hover or the tap, REQ-BFG-089), in the house words", () => {
+    expect(ENCHANT_NOTES).toHaveLength(4);
+    expect(ENCHANT_NOTES[3]).toBe(NOTE);
+    expect(banned(NOTE)).toEqual([]);
+    expect(NOTE).not.toMatch(/\d/);
+  });
+
+  it("and the code does exactly that, both ways round (the same fixtures as tests/enchant1.merge.test.ts): the word of the survivor, or of the absorbed copy, is the merged part's", () => {
+    on(() => {
+      const mk = () => { const run = newRun("furnace", 5); run.day = 3; run.gold = 50; return run; };
+      const alone = mk(); // only the survivor has a word
+      alone.build.items.push({ uid: 200, def: "whetstone", x: 1, y: 5, ench: "fiery" });
+      gainModule(alone, "whetstone");
+      expect(alone.build.items.find((p) => p.uid === 200)).toMatchObject({ stars: 2, ench: "fiery" });
+      expect(alone.enchMerge, "no pick: there was only one").toBeUndefined();
+      const absorbed = mk(); // only the absorbed copy has a word
+      absorbed.build.items.push({ uid: 200, def: "whetstone", x: 1, y: 5 });
+      absorbed.inventory.push({ uid: 201, def: "whetstone", stars: 2, ench: "rising" });
+      gainModule(absorbed, "whetstone");
+      expect(absorbed.build.items.find((p) => p.uid === 200)).toMatchObject({ stars: 3, ench: "rising" });
+      expect(absorbed.enchMerge).toBeUndefined();
+    });
   });
 });
