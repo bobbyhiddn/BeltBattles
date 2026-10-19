@@ -76,5 +76,21 @@ export function shrineChoices(run: Run, ev: EventState): Choice[] {
 /** The name of a shrine word as a card prints it (a forged id falls back to its own letters). */
 export const shrineWordName = (word: string): string => (ENCHANT_DEFS as Record<string, { name: string }>)[word]?.name ?? word.toUpperCase();
 
-/** Is the shrine in this rules world's bag? (the same switch as eventDefs.ts bagIds). */
-export const shrineInBag = (): boolean => enchantRules();
+/** The T5 toggle (module state, default on; BRIEF-ENCHANT2 T5's state C keeps the shrine out of the bag, and ENCHANT-1's own tests run without it, in state B):
+ *  with ENCHANT on and the toggle off the bag is the OFF world's ten events. The game and the server never flip it. */
+let shrineOn = true;
+export function setShrine(on: boolean): void {
+  shrineOn = on;
+}
+export function withShrine<T>(fn: () => T, on = true): T {
+  const was = shrineOn;
+  setShrine(on);
+  try {
+    return fn();
+  } finally {
+    setShrine(was);
+  }
+}
+
+/** Is the shrine in this rules world's bag? (eventDefs.ts bagIds / eventIds: ENCHANT on, and the T5 toggle). */
+export const shrineInBag = (): boolean => enchantRules() && shrineOn;

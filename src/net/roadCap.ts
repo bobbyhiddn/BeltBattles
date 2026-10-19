@@ -44,6 +44,7 @@ import { shapesRules } from "../sim/shapes"; // SHAPES-1 (REQ-BFG-086 S1): the c
 import { longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D6): a long run's events repeat once per bag
 import { plainRigsRules } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the memos hold one switch state (plainMemo)
 import { shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114): the six more shaped rigs change the catalogue too (plainMemo)
+import { shrineInBag } from "../game/shrine";
 import { enchantRules } from "../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE is on the road only with ENCHANT on (plainMemo keys the memos on it)
 
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D6): THE EVENT BAGS. A run's events come in shuffled bags of every event once (events.ts
@@ -66,13 +67,13 @@ export function bagsFor(days: number): number {
  *  switch never moved (the game, the server) this never resets anything. */
 let memoPlain = plainRigsRules();
 let memoShapes2 = shapes2Rules(); // SHAPES-2 (REQ-BFG-114): SHAPES2 adds six rigs to the catalogue, so it keys the memos the same way
-let memoEnchant = enchantRules(); // ENCHANT-2 (REQ-BFG-085, T3): ENCHANT adds the ASH SHRINE to the road (eventIds), so it keys the memos the same way
+let memoEnchant = shrineInBag(); // ENCHANT-2 (REQ-BFG-085, T3): ENCHANT adds the ASH SHRINE to the road (eventIds), so it keys the memos the same way
 function plainMemo(): void {
-  if (plainRigsRules() === memoPlain && shapes2Rules() === memoShapes2 && enchantRules() === memoEnchant) return;
+  if (plainRigsRules() === memoPlain && shapes2Rules() === memoShapes2 && shrineInBag() === memoEnchant) return;
   resetRoadCapMemo();
   memoPlain = plainRigsRules();
   memoShapes2 = shapes2Rules();
-  memoEnchant = enchantRules();
+  memoEnchant = shrineInBag();
 }
 
 // ------------------------------------------------------------------ D4: the reviewed model

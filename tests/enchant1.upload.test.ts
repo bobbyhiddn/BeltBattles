@@ -22,6 +22,7 @@ import {
 } from "../src/sim/enchantSources";
 import { lastChanceOffer, lastChanceParts, lastChancePartStars, type TakenLastChance } from "../src/sim/lastChance";
 import { setNpcWords, withNpcWords } from "../src/sim/npcWords"; // ENCHANT-2: state B for this file's ENCHANT-on helper
+import { setShrine, withShrine } from "../src/game/shrine"; // ENCHANT-2: state B keeps the ASH SHRINE out of the bag too
 import { valueOf } from "../src/sim/stars";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
@@ -38,11 +39,11 @@ import { withDawnRunes } from "./runeFill";
 
 vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1 (run 3): these sweeps play many seeded runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
-afterEach(() => { setEnchant(ENCHANT); setNpcWords(true); }); // the shipped values (ENCHANT off; the rivals' words in, ENCHANT-2)
+afterEach(() => { setEnchant(ENCHANT); setNpcWords(true); setShrine(true); }); // the shipped values (ENCHANT off; the rivals' words in, ENCHANT-2)
 // ENCHANT-2 (REQ-BFG-085): this file pins ENCHANT-1's rules, the PLAYER's sources alone (the ENCHANTER, the warlord picks, LAST CHANCE): it runs in state B,
-// with the rivals' words and the drops that keep them out (npcWords.ts withNpcWords(false): its drop slots and bound are 0). The drop slots, their pairs and
-// their bound are tests/enchant2.server.test.ts's.
-const on = <T>(fn: () => T): T => withEnchant(() => withNpcWords(fn, false), true);
+// with the rivals' words and the drops that keep them out (npcWords.ts withNpcWords(false): its drop slots and bound are 0) and the ASH SHRINE out of the bag
+// (shrine.ts withShrine(false)). The drop slots and the shrine's are tests/enchant2.server.test.ts's and tests/enchant2.shrine.server.test.ts's.
+const on = <T>(fn: () => T): T => withEnchant(() => withNpcWords(() => withShrine(fn, false), false), true);
 const off = <T>(fn: () => T): T => withEnchant(fn, false);
 
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -939,6 +940,7 @@ describe("ENCHANT-1 E6 PIN: the client's shape check, the strict decoder, the cl
 
   it("each fixture: shape (client = decoder), the full check, and the server's status agree; the verdict is the listed one with ENCHANT on, a refusal with it off", async () => {
     setNpcWords(false); // ENCHANT-2: state B, ENCHANT-1's world (async, so no withNpcWords: the afterEach puts it back)
+    setShrine(false);
     const fx = pinFixtures();
     const me = await testIdentity(0);
     const rows: string[] = [];

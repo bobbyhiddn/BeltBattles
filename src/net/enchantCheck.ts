@@ -31,10 +31,14 @@ import { ITEMS } from "../sim/content";
 import type { Build } from "../sim/deck";
 import { ENCHANT_DEFS, enchantKindOf, enchantRules, isEnchantId, type EnchantId } from "../sim/enchant";
 import {
-  ENCHANTER_FIRST_DAY, ENCHANTER_PRICE, WARLORD_PICK_FROM, enchanterWords, freeEnchantsByDay, lastChanceWord, maxEnchantsByDay, possibleWords, warlordPickWords,
+  ENCHANTER_FIRST_DAY, ENCHANTER_PRICE, WARLORD_PICK_FROM, enchanterWords, freeEnchantsByDay, lastChanceWord, maxEnchantsByDay, possibleWords, shrineWords, warlordPickWords,
 } from "../sim/enchantSources";
 import type { TakenLastChance } from "../sim/lastChance";
 import { npcDropPairs, npcDropWords, npcDropsByDay, npcPairKey } from "../sim/npcWords"; // ENCHANT-2 (REQ-BFG-085, T2): a warlord's drop keeps its rival's word
+import { eventSequence } from "../game/events"; // ENCHANT-2 (T3): the ASH SHRINE's days, re-derived from the seed
+import { bagIds } from "../game/eventDefs"; // ENCHANT-2 (T3): the bag's size in the rules world
+import { shrineInBag } from "../game/shrine"; // ENCHANT-2 (T3): is the shrine in this rules world's bag (ENCHANT on and the T5 toggle)
+import { longRunRules } from "../sim/longRun"; // ENCHANT-2 (T3): the record's bags (a long run has no day-10 swap)
 
 /** What the check reads beside the deck: the snapshot's run seed (absent on a served ghost, a stand-in and a pool deck) and its taken LAST CHANCE. */
 export interface EnchantContext {
@@ -73,11 +77,28 @@ export function lcPartCarriesWord(lc: TakenLastChance | undefined): boolean {
  * held (one warlord fight a day, so one drop a day from day 5: npcWords.ts npcDropsByDay; "bound 1 until D1's receipts", PIECES-1 4.7.3).
  * enchantSources.ts freeEnchantsByDay and maxEnchantsByDay take it as their `extra`.
  */
-export const enchantExtraWords = (day: number): number => npcDropsByDay(day);
+export const enchantExtraWords = (day: number, seed?: number): number => npcDropsByDay(day) + shrineBound(day, seed);
+
+/**
+ * ENCHANT-2 (REQ-BFG-085, T3): the days on or before `day` on which the ASH SHRINE stands on the road of the run seeded `seed`, in the record's rules world:
+ * game/events.ts eventSequence puts it in each bag of the world's bag (11 events with ENCHANT on) once, so the day is `i + 1` wherever the sequence says "shrine".
+ * [] with ENCHANT off (no shrine in the bag), and for a day outside 1..`day`.
+ */
+export function shrineDays(seed: number, day: number): number[] {
+  if (!shrineInBag() || !Number.isInteger(day) || day < 1) return [];
+  return eventSequence(seed, day, longRunRules()).flatMap((id, i) => (id === "shrine" ? [i + 1] : []));
+}
+
+/** ENCHANT-2 (T3): how many shrine words a deck on `day` can hold: one for each bag whose shrine day is on or before `day`, exact with the run seed; without it
+ *  (a served ghost, a stand-in, a pool deck) at most one for each bag the day has opened (ceil(day / the bag's size)). 0 with ENCHANT off. */
+export function shrineBound(day: number, seed?: number): number {
+  if (!shrineInBag() || !Number.isInteger(day) || day < 1) return 0;
+  return seed !== undefined ? shrineDays(seed, day).length : Math.ceil(day / bagIds().length);
+}
 
 /** E6.4: the words the free sources can have given (the warlord picks the day allows, plus LAST CHANCE's part when it can carry a word, plus ENCHANT-2's
- *  drops: enchantExtraWords) for a deck on `day`. */
-export const enchantFreeWords = (day: number, lc?: TakenLastChance): number => freeEnchantsByDay(day, lcPartCarriesWord(lc), enchantExtraWords(day));
+ *  drops and shrine visits: enchantExtraWords) for a deck on `day`. */
+export const enchantFreeWords = (day: number, lc?: TakenLastChance, seed?: number): number => freeEnchantsByDay(day, lcPartCarriesWord(lc), enchantExtraWords(day, seed));
 
 /** E6.4: how many held words were BOUGHT, at the least: every word past the `free` ones. 0 while the rules world has no ENCHANT. */
 export const enchantPaidWords = (b: Build, free: number): number => (enchantRules() ? Math.max(0, enchantCount(b) - Math.max(0, free)) : 0);
@@ -116,6 +137,8 @@ function baseSlots(seed: number, day: number, lc?: TakenLastChance): Slot[] {
   }
   const pairs = npcDropPairs(day), words = npcDropWords(day); // ENCHANT-2 (T2): a drop's word is one a rival holds on a day from 5 up to `day`, on the piece it sits on
   for (let i = 0; i < npcDropsByDay(day); i++) slots.push({ words, pairs });
+  // ENCHANT-2 (T3): one slot for each shrine visit the seed's road had by `day`: ONE of that day's two words (card 1 gives A, card 2 gives B), on any part
+  for (const d of shrineDays(seed, day)) slots.push({ words: new Set(shrineWords(seed, d)) });
   return slots;
 }
 
@@ -202,6 +225,7 @@ export function firstGrowingDay(seed: number, day: number, lc?: TakenLastChance)
   const at = (d: number): void => { if (first === undefined || d < first) first = d; };
   for (let d = ENCHANTER_FIRST_DAY; d <= day; d += 2) if (enchanterWords(seed, d).includes("growing")) at(d);
   for (let d = WARLORD_PICK_FROM[0]; d <= day; d++) if (warlordPickWords(seed, d).includes("growing")) at(d);
+  for (const d of shrineDays(seed, day)) if (shrineWords(seed, d).includes("growing")) at(d); // ENCHANT-2 (T3): a shrine word applies before that day's dusk, as a pick's does
   if (lc?.boon === "part" && lc.id !== undefined && lastChanceWord(seed, lc.day, lc.id)?.ench === "growing") at(lc.day + 1);
   return first;
 }
@@ -233,13 +257,14 @@ export function enchantProblems(b: Build, day: number, ctx: EnchantContext = {})
   if (!held.length) return out;
   // E6.2: the count (ENCHANT-1b N4(c): LAST CHANCE's part counts only when it can carry a word; gear arrives plain)
   const lc = ctx.lastChance, tookPart = lcPartCarriesWord(lc);
-  const most = maxEnchantsByDay(day, tookPart, enchantExtraWords(day)); // ENCHANT-2 (T2): + the warlord drops
+  const most = maxEnchantsByDay(day, tookPart, enchantExtraWords(day, ctx.seed)); // ENCHANT-2 (T2, T3): + the warlord drops and the shrine visits
   if (held.length > most) out.push(`enchant: ${held.length} enchanted part${held.length === 1 ? "" : "s"}, but day ${day} allows at most ${most}${tookPart ? " with LAST CHANCE's part" : ""}`);
   // E6.3: each held word was on offer (needs the seed), then the offers are used once each
   if (ctx.seed === undefined) return out;
   const part = tookPart && lc!.id !== undefined ? { day: lc!.day, part: lc!.id } : null;
   const offered = possibleWords(ctx.seed, day, part);
   for (const w of npcDropWords(day)) offered.add(w); // ENCHANT-2 (T2): and the words some rival holds by `day` (a drop keeps its rival's word)
+  for (const d of shrineDays(ctx.seed, day)) for (const w of shrineWords(ctx.seed, d)) offered.add(w); // ENCHANT-2 (T3): and both words of each shrine visit by `day`
   const never = held.filter((p) => !isEnchantId(p.ench) || !offered.has(p.ench));
   for (const p of never) out.push(`enchant: uid ${p.uid} ${nameOf(p)} holds ${wordOf(p.ench!)}, which this run's seed did not offer by day ${day}`);
   if (never.length) return out;

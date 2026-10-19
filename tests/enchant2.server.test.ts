@@ -14,9 +14,11 @@ import { RULES_VERSION } from "../src/sim/content";
 import { parRunSeed, playerRoadLog, playerRun } from "../src/sim/harness/player";
 import { validateUpload } from "../src/net/validate";
 import { RIVAL_IDS } from "../src/sim/rivals";
+import { setShrine, withShrine } from "../src/game/shrine";
 
-afterEach(() => setEnchant(ENCHANT)); // the shipped value (off)
-const on = <T>(fn: () => T): T => withEnchant(fn, true);
+afterEach(() => { setEnchant(ENCHANT); setShrine(true); }); // the shipped values (ENCHANT off; the shrine in the bag when it is on)
+// state C: the rivals' words and their drops, the ASH SHRINE out of the bag (tests/enchant2.shrine.server.test.ts is state D)
+const on = <T>(fn: () => T): T => withEnchant(() => withShrine(fn, false), true);
 const off = <T>(fn: () => T): T => withEnchant(fn, false);
 
 /** FURNACE's start deck plus the named pieces (raw: the check reads the word fields, not the layout). */

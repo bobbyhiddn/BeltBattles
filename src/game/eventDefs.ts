@@ -8,7 +8,7 @@ import { enchantRules } from "../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): t
 import { fusible, starField, starsOf, valueOf } from "../sim/stars";
 import { mergePreview } from "./fuse";
 import type { Run } from "./run";
-import { SHRINE_ID, shrineChoices } from "./shrine"; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE's cards (a new file)
+import { SHRINE_ID, shrineChoices, shrineInBag } from "./shrine"; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE's cards (a new file)
 import { unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: road grants draw from the run's unlocked wares
 
 /**
@@ -351,7 +351,7 @@ export const WARLORD_EVENT_IDS: EventId[] = ["herald", "sappers"];
 export const BAG_IDS: EventId[] = [...EVENT_IDS];
 
 /** ENCHANT-2 (REQ-BFG-085, T3): the events of the rules world: EVENT_IDS, plus the ASH SHRINE while ENCHANT is on (the same array with it off). */
-export const eventIds = (): EventId[] => (enchantRules() ? [...EVENT_IDS, SHRINE_ID] : EVENT_IDS);
+export const eventIds = (): EventId[] => (shrineInBag() ? [...EVENT_IDS, SHRINE_ID] : EVENT_IDS);
 /** ENCHANT-2 (REQ-BFG-085, T3): the bag of the rules world: BAG_IDS, plus the ASH SHRINE while ENCHANT is on, so each bag holds 11 events and
  *  the shrine comes once a bag. With ENCHANT off it is BAG_IDS itself, so every bag and eventSequence is byte for byte what it was. */
-export const bagIds = (): EventId[] => (enchantRules() ? [...BAG_IDS, SHRINE_ID] : BAG_IDS);
+export const bagIds = (): EventId[] => (shrineInBag() ? [...BAG_IDS, SHRINE_ID] : BAG_IDS);

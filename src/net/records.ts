@@ -40,7 +40,7 @@ import { heartsFor } from "./rulesGate";
 // dock again in days 11-20, 21-30), not once a run. Bags are exact for the events (events.ts eventSequence).
 import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL } from "../sim/longRun";
 import { longRunFor } from "./rulesGate";
-import { BAG_IDS } from "../game/eventDefs";
+import { BAG_IDS, bagIds } from "../game/eventDefs"; // ENCHANT-2 (REQ-BFG-085, T3): + bagIds, the rules world's bag (11 events with ENCHANT on)
 
 /** The DOCK's PATCH UP: the one road choice that moves lives (tests check it against the event definitions). */
 export const PATCH_UP_LIVES = 1;
@@ -208,7 +208,7 @@ function longStates(day: number, m: { hearts: boolean; lcOn: boolean; draws: boo
   for (let d = 1; d < day; d++) {
     const next = new Map<string, LongState>();
     const add = (s: LongState) => next.set(`${s.w}|${s.l}|${s.dr}|${s.early ? 1 : 0}|${s.dock ? 1 : 0}|${s.used ? 1 : 0}`, s);
-    const newBag = d % BAG_DAYS === 0; // the dawn of day d + 1 opens a new event bag: the DOCK is on the road again
+    const newBag = d % bagIds().length === 0; // the dawn of day d + 1 opens a new event bag: the DOCK is on the road again (ENCHANT-2: the rules world's bag, BAG_DAYS with ENCHANT off)
     for (const s of states) {
       const outs: LongState[] = [];
       if (s.w + 1 < WIN_GOAL) outs.push({ ...s, w: s.w + 1 }); // a win; the 10th ends the run (WON), so it is no dusk's record
