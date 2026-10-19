@@ -82,6 +82,27 @@ describe("the key's closure is the real import graph", () => {
   });
 });
 
+describe("every test reaches the builders through the twins", () => {
+  // The release lane merges branches that add test files (ENCHANT, GATES): a test that imports a builder from tools/samplePool itself
+  // would build the 192-ghost pool for itself again. It fails here until it imports the twin from ./helpers/poolCache (same names).
+  const BUILDERS = ["generateSamplePool", "sampleGhosts", "floorGhosts", "raceGhosts"];
+  /** The ONLY direct readers, each with why: lc1.models builds a pool in a fresh module graph under vi.doMock of src/net/records, which the key cannot see. */
+  const DIRECT: ReadonlyArray<readonly [string, string]> = [["tests/lc1.models.test.ts", "generateSamplePool"]];
+  it("no test file imports generateSamplePool, sampleGhosts, floorGhosts or raceGhosts from tools/samplePool except the listed ones", () => {
+    const found: string[][] = [];
+    for (const f of readdirSync(join(ROOT, "tests")).filter((n) => n.endsWith(".ts") && !n.endsWith(".d.ts")).sort()) {
+      const text = readFileSync(join(ROOT, "tests", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
+      const named = [
+        ...[...text.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*["']\.\.\/tools\/samplePool["']/g)].map((m) => m[1]),
+        ...[...text.matchAll(/const\s*\{([^}]*)\}\s*=\s*await\s+import\(\s*["']\.\.\/tools\/samplePool["']\s*\)/g)].map((m) => m[1]),
+        ...[...text.matchAll(/import\s+\*\s+as\s+\w+\s+from\s*["']\.\.\/tools\/samplePool["']/g)].map(() => BUILDERS.join(",")),
+      ].flatMap((list) => list.split(",").map((s) => s.trim().split(/\s+as\s+/)[0])).filter((n) => BUILDERS.includes(n));
+      for (const n of new Set(named)) found.push([`tests/${f}`, n]);
+    }
+    expect(found).toEqual(DIRECT.map(([f, n]) => [f, n]));
+  });
+});
+
 describe("the key moves with everything the builders read", () => {
   it("is stable: the same world, the same key", () => {
     expect(key().key).toBe(key().key);
