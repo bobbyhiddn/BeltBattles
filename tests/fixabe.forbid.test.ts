@@ -12,6 +12,7 @@ import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip)
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip)
 import { withPick } from "../src/net/pick"; // HULL-ON (the flip)
 import { withShapes } from "../src/sim/shapes"; // MERGE-099F (BRIEF-MERGE-099F 1h): seed 3's world, SHAPES off as well as the five
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on; seed 3's world is the one before them, the OUTERMOST switch of its nest
 
 const holds = (b: Build, def: string): boolean => b.items.some((p) => p.def === def) || b.mods.some((m) => m.def === def);
 const CASES: [("furnace" | "weaver"), string][] = [["furnace", "temper"], ["weaver", "temper"], ["weaver", "dragchain"], ["furnace", "flak"]];
@@ -53,10 +54,16 @@ describe("FIX-ABE E: a forbidden part is refused only when it would be taken", (
   // seed 12 is the first whose run never does, its 10 decks identical with the knob; both checks exact. Seed 3 keeps its
   // check in the world it was chosen in: SHAPES off as well as the five
   it("FURNACE, TEMPER forbidden, seed 3: the run without the knob never takes TEMPER, so all 10 decks are identical (seed 6 drifted on day 9)", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the scaling rules ship on, so seed 12 is read in that world and seed 3 below in the world it was chosen in
     const { first, drift } = alignment("furnace", "temper", 12);
     expect(first).toBe(PLAYER_DAYS);
     expect(drift).toBe(PLAYER_DAYS);
-    const was = withShapes(() => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(() => alignment("furnace", "temper", 3), false), false), false), false), false), false); // MERGE-099F: SHAPES off too
+    // BUMP-1E: seed 3's world is the one before the scaling rules too: the catalogue without the seven new rigs and the five reworks as they were. With
+    // the scaling rules on (they ship on) seed 3's run without the knob takes TEMPER on day 8 (first 8, drift 8; the nest below without the scaling switch
+    // read [8, 8] at eb6f751, was [10, 10]), so the scaling switch is the OUTERMOST call of the nest (off first, back last). Back last also keeps the
+    // seven ids the last keys of ITEMS once withShapes has put its three back (ITEMS' key order is part of every seeded draw: the two tests after this one
+    // then read the shipped order, not one with SHAPES' ids behind the seven)
+    const was = withScaleRigs(() => withShapes(() => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(() => alignment("furnace", "temper", 3), false), false), false), false), false), false), false); // MERGE-099F: SHAPES off too
     expect([was.first, was.drift]).toEqual([PLAYER_DAYS, PLAYER_DAYS]);
   }, 120_000);
 

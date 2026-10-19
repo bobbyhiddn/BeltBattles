@@ -10,6 +10,7 @@ import { installRaster } from "./raster.helpers";
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { HEARTS_START, heartCost, heartsLastChanceFires, setHearts, withHearts } from "../src/sim/hearts";
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on; the 10-day card and run are read with it off
+import { ENDLESS, withEndless } from "../src/sim/endless"; // BUMP-1E: ENDLESS ships on and adds one sentence to the long card's line 2; the card without it is read with endless off
 import { LAST_CHANCE_AT } from "../src/sim/lastChance";
 import { duskFoe, finishDay, lastChanceCardLine, REFUND_TEXT, refundCardLine, refundNotice } from "../src/game/day";
 import { newRun, type Run } from "../src/game/run";
@@ -20,7 +21,7 @@ import {
 } from "../src/ui/stakes";
 import { drawHearts, lossLine } from "../src/screens/battleHud";
 import { LC_LINE, LC_LINE_HEARTS, LC_STOP, LC_STOP_HEARTS, lcLayout, lcLine, lcStop } from "../src/screens/lastChancePicker";
-import { HELP, HELP_HEARTS_2, HELP_LONG_1, HELP_LONG_2, heartCostWords, helpLines } from "../src/screens/title";
+import { HELP, HELP_ENDLESS, HELP_HEARTS_2, HELP_LONG_1, HELP_LONG_2, heartCostWords, helpLines } from "../src/screens/title";
 import { outcomeText } from "../src/screens/event/event";
 import { drawRunBar, newAnchors } from "../src/ui/runbar";
 import { drawFoe } from "../src/screens/build/inspector";
@@ -177,12 +178,22 @@ describe("RETUNE-1 run 2 stakes: a hearts run's words", () => {
     expect(lines.join(" ")).not.toMatch(/\bLIFE\b|\bLIVES\b|REFUND/);
     expect(HELP_HEARTS_2.length).toBeLessThanOrEqual(HELP[1].length);
     // the long card (the shipped one): line 1 the long card's, line 2 the same hearts words, then how the run ends; nothing about lives or a refund
-    const long = helpLines();
+    // BUMP-1E: ENDLESS ships on (src/sim/endless.ts) and adds one sentence, HELP_ENDLESS, to the end of line 2 (title.ts helpLines; the only line
+    // that moves: tests/bump1e.endlesshelp.test.ts), so the card as these lines pinned it is read with endless off (as tests/run1.screens.test.ts
+    // reads it) and the shipped card, endless on, beside it
+    const long = withEndless(() => helpLines(), false); // BUMP-1E: was helpLines()
     expect(long[0]).toBe(HELP_LONG_1);
     expect(long[1]).toBe(HELP_LONG_2);
     expect(HELP_LONG_2.startsWith(HELP_HEARTS_2.slice(0, HELP_HEARTS_2.indexOf("A DRAW NONE.") + "A DRAW NONE.".length))).toBe(true);
     expect(long.filter((_, i) => i > 1)).toEqual(HELP.filter((_, i) => i > 1));
     expect(long.join(" ")).not.toMatch(/\bLIFE\b|\bLIVES\b|REFUND/);
+    // BUMP-1E: the shipped card (endless on): line 1 as above, line 2 HELP_LONG_2 and then the endless sentence, no other line differs, still no lives or refund
+    expect(ENDLESS).toBe(true);
+    const longOn = helpLines();
+    expect(longOn[0]).toBe(HELP_LONG_1);
+    expect(longOn[1]).toBe(`${HELP_LONG_2} ${HELP_ENDLESS}`); // BUMP-1E: was toBe(HELP_LONG_2)
+    expect(longOn.filter((_, i) => i !== 1)).toEqual(long.filter((_, i) => i !== 1));
+    expect(longOn.join(" ")).not.toMatch(/\bLIFE\b|\bLIVES\b|REFUND/);
   });
 });
 

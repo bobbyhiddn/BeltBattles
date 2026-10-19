@@ -17,6 +17,7 @@ import { TICK } from "../src/sim/content"; // AZ-BUMP (the flip, LADDER_FIX): th
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): SLAG POT's walk with the switch off
 import { effectAt, outputsAt, starsOf } from "../src/sim/stars";
 import { overclocked } from "../src/sim/overclock";
+import { SCALE_RIGS, flatOf } from "../src/sim/scale"; // BUMP-1E: the switch ships on; a payload's whole flat bonus (the stat rows' flat plus the FOR EACH each)
 import { routeProblems } from "../src/game/routeCheck";
 import { gainModule } from "../src/game/fuse";
 import { newRun } from "../src/game/run";
@@ -141,7 +142,11 @@ describe("0.6.1p: the six pending perks, each applied", () => {
     const past = bt.sides[0].routes[0].ammo.filter((a) => a.processed >= 8);
     expect(past.length).toBeGreaterThan(0);
     // NUM-1: 8 WHETSTONES at ★1's flat (x10: was the literal 8 * 2). Y7b2 (the flip): LONG HAUL ★2 x 8 (was x 6, priorCap)
-    for (const a of past) expect(a.p.flat).toBe(8 * effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 2).gate!.perPriorGate! * 8);
+    // BUMP-1E: with the scaling rules on (SCALE_RIGS, bb-0.12.0) LONG HAUL's FOR EACH damage rides p.each (battle.ts forEach, REQ-BFG-110
+    // step 4) and the WHETSTONES' stat rows stay in p.flat (160 + 160), so the slug's whole flat bonus is flatOf(p), the same number the
+    // shot reads and the same total as before (was a.p.flat; with the switch off `each` is never set and flatOf(p) is p.flat)
+    for (const a of past) expect(flatOf(a.p)).toBe(8 * effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 2).gate!.perPriorGate! * 8);
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (the reason the sum is read through flatOf)
   });
 
   // NUM-3 (N1 2.2): whole-second STUNs: DISRUPT_TIME 2 at ★1, shockTime 2 / 3 at ★2 / ★3 (was 1.6, 1.8 and 2.8 s). The

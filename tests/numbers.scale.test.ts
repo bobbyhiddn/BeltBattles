@@ -5,7 +5,13 @@
 // on a new base without re-running the script fails here.
 // NUM-2 (REQ-BFG-047): the "same" values NUM-2 converted (intervals -> speed, multipliers -> rate %) left their base on
 // purpose: they are handed off, row for row, to NUM-2's record tests/fixtures/num2-base-intervals.json and its checkers.
-import { describe, expect, it } from "vitest";
+// BUMP-1E (bb-0.12.0): the scaling rules ship on (SCALE_RIGS), and they rework five pieces (KINDLING, PRESSURE BREECH, IRON WALL, SPALL
+// CATCHER, POWDER KEG: src/sim/scale.ts SCALE_DEFS), turn VENOM DRIP into POISON again and add seven rigs (SCALE_ITEMS) after NUM-1's record.
+// The record describes the 0.9.11 catalogue (the old QUENCH TANK, PRESSURE BREECH, POWDER KEG and VENOM DRIP rows live in it), so the three
+// catalogue tests read that world: a beforeEach puts the switch off and an afterEach puts the shipped value back (the switch is the OUTERMOST
+// state of every nest below, so the seven new ids stay the last keys of ITEMS). The last describe reads the shipped world: the readers'
+// 27 numeric fields are N1-native (SCALE_ADDED, classified as SHAPES_ADDED's were) and the record's rows move only for the four reworks it holds.
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { AMMO, FRAY_BONUS, HEROES, ITEMS, WAVE3_IDS, WAVE3_ITEMS } from "../src/sim/content"; // FLIP-X2: withSustain no longer read
 import { PENDULUM, RACE_AMMO, RACE_HEROES, RACE_ITEMS } from "../src/sim/races/data";
@@ -24,6 +30,7 @@ import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on): the s
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): RETUNE-1's rows, off and on
 import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): THE LONG ROAD's rewrite, off and on
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON run 6 (FREE_JOINS_HULL): WEAVER's hull, off and on
+import { SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E (SCALE_RIGS on): the record is the switch-off world's; the shipped world has its own describe
 
 interface Row { file: string; id: string; rule: "x10" | "same"; base: number; now: number; rounded?: boolean }
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/num1-base-values.json", import.meta.url), "utf8")) as
@@ -396,6 +403,26 @@ const SUSTAIN_N1: Record<string, number> = {
   "ITEMS.mendingloom.mod.regen": 10, "ITEMS.mendingloom.levels.2.mod.regen": 15, "ITEMS.mendingloom.levels.3.mod.regen": 20,
 };
 const sustainNative = new Map(Object.entries(SUSTAIN_N1));
+// BUMP-1E (bb-0.12.0, SCALE_RIGS on; src/sim/scale.ts): the scaling rules' reader lines (GateEffect.reads, `each` at the three stars: POWDER KEG
+// and KINDLING, the two reworks the walk reaches, and the seven new rigs) were born on the N1 scale after NUM-1's script ran, as the shaped and
+// plain rigs were: 27 whole damage (or PLATE or HEAL) fields with no fixture row and no x10, so they are N1-native, classified here and checked
+// live in the shipped-world describe below. With the switch off none exists (the five reworks' old effects are the record's rows instead; the
+// seven new ids are gone). IRON WALL's and SPALL CATCHER's readers sit on wave-3 ids, which the ITEMS scan skips (the record holds wave 3 under
+// WAVE3_ITEMS and P1_WAVE3_ITEMS, which the switch leaves as written)
+const SCALE_ADDED: Record<string, number> = {
+  "ITEMS.keg.gate.reads.each": 2, "ITEMS.keg.levels.2.gate.reads.each": 5, "ITEMS.keg.levels.3.gate.reads.each": 11,
+  "ITEMS.quench.gate.reads.each": 3, "ITEMS.quench.levels.2.gate.reads.each": 5, "ITEMS.quench.levels.3.gate.reads.each": 8,
+  "ITEMS.cindermail.gate.reads.each": 2, "ITEMS.cindermail.levels.2.gate.reads.each": 3, "ITEMS.cindermail.levels.3.gate.reads.each": 5,
+  "ITEMS.rotgauge.gate.reads.each": 3, "ITEMS.rotgauge.levels.2.gate.reads.each": 5, "ITEMS.rotgauge.levels.3.gate.reads.each": 8,
+  "ITEMS.leechcoil.gate.reads.each": 3, "ITEMS.leechcoil.levels.2.gate.reads.each": 4, "ITEMS.leechcoil.levels.3.gate.reads.each": 6,
+  "ITEMS.crowdpress.gate.reads.each": 3, "ITEMS.crowdpress.levels.2.gate.reads.each": 7, "ITEMS.crowdpress.levels.3.gate.reads.each": 11,
+  "ITEMS.aegisspike.gate.reads.each": 40, "ITEMS.aegisspike.levels.2.gate.reads.each": 88, "ITEMS.aegisspike.levels.3.gate.reads.each": 140,
+  "ITEMS.grudgerod.gate.reads.each": 6, "ITEMS.grudgerod.levels.2.gate.reads.each": 13, "ITEMS.grudgerod.levels.3.gate.reads.each": 21,
+  "ITEMS.trophychain.gate.reads.each": 8, "ITEMS.trophychain.levels.2.gate.reads.each": 12, "ITEMS.trophychain.levels.3.gate.reads.each": 28,
+};
+/** BUMP-1E: the four pieces outside wave 3 that SCALE_DEFS changes (VENOM DRIP, KINDLING (id quench), PRESSURE BREECH, POWDER KEG): the only fixture
+ *  rows that read differently with the scaling rules on. IRON WALL and SPALL CATCHER (wave 3) are read from WAVE3_ITEMS, which the switch leaves alone. */
+const SCALE_REWORKED_ITEMS = ["venom", "quench", "pressure", "keg"];
 
 const TABLES: Record<string, unknown> = {
   FRAY_BONUS, ITEMS, WAVE3_ITEMS, AMMO, HEROES, RACE_ITEMS, RACE_AMMO, RACE_HEROES, PENDULUM, PLATE_PER_SLUG, PLATE_CAP, ECHO_CAP,
@@ -437,7 +464,32 @@ function numericLeaves(prefix: string, v: unknown, out: string[] = []): string[]
   return out;
 }
 
+/** The walk of "every numeric field of the scaled tables is in the fixture": every numeric leaf of the live tables, as fixture ids (a read of
+ *  the world the switch holds now; BUMP-1E: lifted out of that test to read both worlds). */
+function scanIds(): string[] {
+  const race = new Set(Object.keys(RACE_ITEMS)), w3 = new Set(WAVE3_IDS);
+  const ids: string[] = [];
+  for (const [id, d] of Object.entries(ITEMS)) if (!race.has(id) && !w3.has(id)) numericLeaves(`ITEMS.${id}`, d, ids);
+  for (const [id, d] of Object.entries(WAVE3_ITEMS)) numericLeaves(`WAVE3_ITEMS.${id}`, d, ids);
+  for (const [id, d] of Object.entries(P1_WAVE3_ITEMS)) numericLeaves(`P1_WAVE3_ITEMS.${id}`, d, ids);
+  for (const [id, d] of Object.entries(RACE_ITEMS)) numericLeaves(`RACE_ITEMS.${id}`, d, ids);
+  for (const [k, d] of Object.entries(AMMO)) if (!(k in RACE_AMMO)) numericLeaves(`AMMO.${k}`, d, ids);
+  for (const [k, d] of Object.entries(RACE_AMMO)) numericLeaves(`RACE_AMMO.${k}`, d, ids);
+  for (const [k, d] of Object.entries(HEROES)) if (!(k in RACE_HEROES)) numericLeaves(`HEROES.${k}`, { ...d, slots: undefined }, ids);
+  for (const [k, d] of Object.entries(RACE_HEROES)) numericLeaves(`RACE_HEROES.${k}`, d, ids);
+  numericLeaves("PENDULUM", PENDULUM, ids);
+  numericLeaves("ECHO_CAP", ECHO_CAP, ids);
+  for (const d of RUNE_LIST) ids.push(`RUNE_LIST.${d.id}.amount.n`);
+  for (const d of SUSTAIN_RUNES) ids.push(`SUSTAIN_RUNES.${d.id}.amount.n`); // FLIP-X1 (F-d): the 8, N1-native
+  return ids;
+}
+
 describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
+  // BUMP-1E: the record and its classification maps describe the 0.9.11 catalogue (SCALE_RIGS off), so every test of this describe reads that
+  // world; the shipped value goes back after each (the describe below reads it). The switch is the outermost state of every nest in here
+  beforeEach(() => setScaleRigs(false));
+  afterEach(() => setScaleRigs(SCALE_RIGS));
+
   it("the fixture is the script's record: x10 rows are 10x the base, whole; same rows are the base", () => {
     expect(fixture.sentinel.FRAY_BONUS).toBe(0.2);
     expect(rows.length).toBeGreaterThan(800);
@@ -596,20 +648,7 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
   });
 
   it("every numeric field of the scaled tables is in the fixture (a new piece needs the script re-run)", () => {
-    const race = new Set(Object.keys(RACE_ITEMS)), w3 = new Set(WAVE3_IDS);
-    const ids: string[] = [];
-    for (const [id, d] of Object.entries(ITEMS)) if (!race.has(id) && !w3.has(id)) numericLeaves(`ITEMS.${id}`, d, ids);
-    for (const [id, d] of Object.entries(WAVE3_ITEMS)) numericLeaves(`WAVE3_ITEMS.${id}`, d, ids);
-    for (const [id, d] of Object.entries(P1_WAVE3_ITEMS)) numericLeaves(`P1_WAVE3_ITEMS.${id}`, d, ids);
-    for (const [id, d] of Object.entries(RACE_ITEMS)) numericLeaves(`RACE_ITEMS.${id}`, d, ids);
-    for (const [k, d] of Object.entries(AMMO)) if (!(k in RACE_AMMO)) numericLeaves(`AMMO.${k}`, d, ids);
-    for (const [k, d] of Object.entries(RACE_AMMO)) numericLeaves(`RACE_AMMO.${k}`, d, ids);
-    for (const [k, d] of Object.entries(HEROES)) if (!(k in RACE_HEROES)) numericLeaves(`HEROES.${k}`, { ...d, slots: undefined }, ids);
-    for (const [k, d] of Object.entries(RACE_HEROES)) numericLeaves(`RACE_HEROES.${k}`, d, ids);
-    numericLeaves("PENDULUM", PENDULUM, ids);
-    numericLeaves("ECHO_CAP", ECHO_CAP, ids);
-    for (const d of RUNE_LIST) ids.push(`RUNE_LIST.${d.id}.amount.n`);
-    for (const d of SUSTAIN_RUNES) ids.push(`SUSTAIN_RUNES.${d.id}.amount.n`); // FLIP-X1 (F-d): the 8, N1-native
+    const ids = scanIds(); // BUMP-1E: lifted out into scanIds (the same walk), so the shipped-world describe reads it too
     // a field that names another scaled value follows it (the script skips it): the pendulum slug's base is the curve's floor
     const derived: Record<string, string> = { "RACE_AMMO.pendulum.base": "PENDULUM.floor" };
     // a numeric field missing from the fixture is fine only when its rule is "same" (a helper-built or computed value the
@@ -740,5 +779,34 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
       green_thread: "hull 10", searing: "count 5", shatter_shot: "pct 14",
     });
     for (const d of SUSTAIN_RUNES) expect(Number.isInteger(d.amount.n), d.id).toBe(true);
+  });
+});
+
+// BUMP-1E (bb-0.12.0): the shipped world, the scaling rules on. The describe above reads the 0.9.11 catalogue the record describes (switch off); here
+// the switch holds its shipped value (no hook), and the same walk and rows are read in both worlds
+describe("NUM-1 scripted x10, BUMP-1E: the shipped world (the scaling rules on)", () => {
+  it("ships on; the readers' 27 numeric fields are N1-native (no fixture row, whole, gone with the switch off); the record's rows move only for the four reworks the walk reaches", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(scaleRules()).toBe(true);
+    // two-sided, as SHAPES_ADDED's: the walk meets the 27 fields SCALE_ADDED names with the switch on and none with it off, none is a fixture
+    // row, each is live at its value and whole (the N1 scale)
+    expect(Object.keys(SCALE_ADDED).length).toBe(27);
+    const on = scanIds(), off = withScaleRigs(scanIds, false);
+    expect(on.filter((id) => id in SCALE_ADDED).sort()).toEqual(Object.keys(SCALE_ADDED).sort());
+    expect(off.filter((id) => id in SCALE_ADDED)).toEqual([]);
+    for (const [id, v] of Object.entries(SCALE_ADDED)) expect([byId.has(id), live(id), Number.isInteger(v)], id).toEqual([false, v, true]);
+    expect(withScaleRigs(() => Object.keys(SCALE_ADDED).map((id) => live(id)), false)).toEqual(Object.keys(SCALE_ADDED).map(() => undefined));
+    // every fixture row read in both worlds: only the rows of VENOM DRIP, KINDLING (quench), PRESSURE BREECH and POWDER KEG differ (IRON WALL
+    // and SPALL CATCHER are wave 3: the record holds them under WAVE3_ITEMS, which the switch leaves as written); the other rows read the
+    // same with the switch on as with it off, so the recorded (0.9.11) values hold for every other piece
+    const read = (): unknown[] => rows.map((r) => live(susaNew(r.id)));
+    const wasRows = withScaleRigs(read, false), nowRows = read();
+    const differ = rows.filter((_, i) => wasRows[i] !== nowRows[i]).map((r) => r.id);
+    for (const id of differ) expect(SCALE_REWORKED_ITEMS.some((p) => id.startsWith(`ITEMS.${p}.`)), id).toBe(true);
+    // measured, 18 of the record's rows: VENOM DRIP's 3 (gate.poison: POISON 1 / 2 / 3 now, gone in the record's world), KINDLING's 6 (quench.flat and
+    // quench.perBurn at three stars: gone), PRESSURE BREECH's 3 (perQueued at ★1 and ★2 re-numbered, maxCount gone), POWDER KEG's 6 (keg.fuse and keg.flat
+    // at three stars: gone), in SCALE_REWORKED_ITEMS' order
+    expect(SCALE_REWORKED_ITEMS.map((p) => differ.filter((id) => id.startsWith(`ITEMS.${p}.`)).length)).toEqual([3, 6, 3, 6]);
+    expect(differ.length).toBe(18);
   });
 });

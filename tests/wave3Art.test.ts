@@ -36,6 +36,7 @@ import { P1_WAVE3_IDS, P1_WAVE3_ITEMS } from "../tools/wave3Defs"; // 0.8.0 I1: 
 import type { ItemDef } from "../src/sim/content"; // AZ-BUMP (the flip, LADDER_FIX): A1's copy as a def, for LADDER_DEFS
 import { LADDER_DEFS, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): STOKER's fixed def
 import { GUARD_DEFS, withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's guarded def
+import { SCALE_DEFS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E (SCALE_RIGS on): IRON WALL's and SPALL CATCHER's entries are the scaling rules' defs; the 0.9.11 entries are read with the switch off
 
 // ------------------------------------------------------------------------------------------------- a software raster
 
@@ -200,6 +201,14 @@ describe("wave 3's 15 modules: P1's ids, drawn at the game's entry points (P1's 
       for (const id of ids) expect(ITEMS[id].kind, id).toBe(kind);
     }
     expect(WAVE3_RIGS.map((id) => ITEMS[id].shape)).toEqual(["I", "I", "I", "L", "II", "II", "T", "X"]);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0) and rework two of the 15 (src/sim/scale.ts SCALE_DEFS: IRON WALL, `shieldwall`, and
+    // SPALL CATCHER, `spallcatcher`, become readers: no plating step, no charge). The "equal to A1's copy with the flip's numbers" check below is the
+    // 0.9.11 world's, so it is read with the switch off (withScaleRigs(fn, false), synchronously: OFF holds the entries then); with it on the two are
+    // SCALE_DEFS' defs built from those entries and the other 13 are the same entries as with it off
+    expect(SCALE_RIGS).toBe(true);
+    const REWORKED = WAVE3_ART_IDS.filter((id) => Object.prototype.hasOwnProperty.call(SCALE_DEFS, id));
+    expect([...REWORKED]).toEqual(["shieldwall", "spallcatcher"]);
+    const OFF = withScaleRigs(() => Object.fromEntries(WAVE3_ART_IDS.map((id) => [id, ITEMS[id]])), false) as Record<string, ItemDef>;
     for (const id of WAVE3_ART_IDS) {
       expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true); // 0.8.0 I1: flipped (the real defs)
       // AZ-BUMP (the flip, LADDER_FIX): with the star-ladder pass on, STOKER's entry is its fixed def, a new object built from
@@ -210,7 +219,14 @@ describe("wave 3's 15 modules: P1's ids, drawn at the game's entry points (P1's 
       // 5 / 11 / 17 -> 15 / 33 / 51, nothing else), built from the def as merged, so it is compared with that guarded def of
       // A1's copy; off, PLATE ROLLER is A1's copy itself (after the loop)
       const fixed = Object.prototype.hasOwnProperty.call(LADDER_DEFS, id) ? LADDER_DEFS[id](merged) : merged;
-      expect(ITEMS[id], id).toEqual(Object.prototype.hasOwnProperty.call(GUARD_DEFS, id) ? GUARD_DEFS[id](fixed) : fixed); // Y7b2 (the flip): was P1_WAVE3_ITEMS[id]
+      const want = Object.prototype.hasOwnProperty.call(GUARD_DEFS, id) ? GUARD_DEFS[id](fixed) : fixed; // Y7b2 (the flip): was P1_WAVE3_ITEMS[id]
+      expect(OFF[id], id).toEqual(want); // BUMP-1E: was ITEMS[id], read as shipped (with the switch off it is the same entry: the 0.9.11 world)
+      // BUMP-1E: the shipped entry (the switch on): SCALE_DEFS' def of the two reworked, which hold a reader line (`reads`) and no old effect; every other as it was
+      if (REWORKED.includes(id)) {
+        expect(ITEMS[id], id).toEqual(SCALE_DEFS[id](OFF[id]));
+        expect(ITEMS[id], id).not.toEqual(want);
+        expect(ITEMS[id].gate?.reads ?? ITEMS[id].mod?.reads, id).toBeDefined();
+      } else expect(ITEMS[id], id).toEqual(want);
       expect(isWave3Art(id), id).toBe(true);
     }
     expect(withLadderFix(() => ITEMS.stoker, false)).toEqual(P1_WAVE3_ITEMS.stoker);
