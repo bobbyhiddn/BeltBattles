@@ -529,7 +529,12 @@ export function glossaryText(word: string, piece?: { def: string; stars: number;
   // built now: its numbers go through the formatters now. HULL-1d: on the piece's day (piece.o.day, the run's)
   const row = glossaryRows(o?.day).find((r) => r.word === found.word)!;
   if (row.kw && piece && hasFace(piece.def)) {
-    const own = faceAt(piece.def, piece.stars, o ?? {})?.reminders.find((r) => r.includes(`{*${row.kw}}`));
+    // BUMP-1E P6 (the re-pin of tests/glossary.test.ts 'every text a tap can show fits 2 lines'): a face's reminder DEFINES a keyword when
+    // the keyword is in its head (before the colon: "{*PLATE}: SOAKS ...", "EACH {*POISON}: ..."), not when its body merely names it.
+    // Was r.includes(`{*KW}`): VENOM DRIP's POISON reminder ("... GO PAST {*PLATE}.") was taken for SHIELD's own, so a tap on SHIELD
+    // showed POISON's whole reminder and then SHIELD's extra sentence: 549 px, 3 lines at the 225 px band (the limit is 2).
+    const defines = (r: string): boolean => { const i = r.indexOf(":"); return (i < 0 ? r : r.slice(0, i)).includes(`{*${row.kw}}`); };
+    const own = faceAt(piece.def, piece.stars, o ?? {})?.reminders.find(defines);
     if (own) return row.extra ? `${own} ${row.extra}` : own;
   }
   return row.def;
