@@ -7,7 +7,8 @@
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, RUN_DAYS, START_LIVES } from "../sim/content";
 import { beltUsed, removeItem } from "../sim/deck";
-import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "./eventDefs";
+import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, bagIds, eventIds, type Choice, type Delta, type EventId, type EventState } from "./eventDefs"; // ENCHANT-2 (T3): + bagIds, eventIds
+import { openShrineWord } from "./enchanter"; // ENCHANT-2 (REQ-BFG-085, T3): the shrine's gain opens APPLY
 import { queueFuseAnim, type Run } from "./run";
 import { chooseFoe, storedFoe } from "./day";
 import { loadPool } from "./ghosts";
@@ -46,7 +47,7 @@ export function eventSequence(seed: number, n: number, long = false): EventId[] 
   // bags follow one another as drawn (each bag every event once, never the same event two days running)
   const want = long ? n : Math.max(n, RUN_DAYS); // day 10 is always drawn: the swap can reach back to any day
   for (let bag = 0; out.length < want; bag++) {
-    const ids = new Rng(hashSeed(seed, "event-bag", bag)).shuffle([...BAG_IDS]);
+    const ids = new Rng(hashSeed(seed, "event-bag", bag)).shuffle([...bagIds()]); // ENCHANT-2 (T3): the rules world's bag (BAG_IDS with ENCHANT off; + the ASH SHRINE with it on)
     if (ids[0] === out[out.length - 1]) [ids[0], ids[1]] = [ids[1], ids[0]];
     const before = out.length;
     out.push(...ids);
@@ -131,6 +132,8 @@ export function choicesFor(run: Run, ev: EventState | null = run.event): Choice[
   const chosen = got ? list[ev.picked] : undefined;
   if (chosen && got) chosen.gain = chosen.gain.map((d) => (d.k === "item" ? { ...d, def: got } : d));
   for (const c of list) if (!c.blocked) c.blocked = blockReason(run, c);
+  // ENCHANT-2 (REQ-BFG-085, T3): the resolved shrine card (it names the part it took: shrine.ts, ev.gave) is not dimmed for the hull or the cargo it spent
+  if (ev.id === "shrine" && ev.picked >= 0 && list[ev.picked]) delete list[ev.picked].blocked;
   return list;
 }
 
@@ -161,6 +164,7 @@ function receive(run: Run, d: Delta, c: Choice): void {
     // 0.6.0b (decision 5): these act only on warlord fights (road.ts), never on a dusk ghost
     case "bounty": run.bounty = { day: run.day, stake: c.cost.reduce((s, q) => s + (q.k === "gold" ? q.n : 0), 0), pay: d.n }; break;
     case "sabotage": run.sabotage = { day: run.day }; break;
+    case "ench": openShrineWord(run, d.word); break; // ENCHANT-2 (REQ-BFG-085, T3): a free word for a part of your choice (APPLY, as a warlord pick opens it)
     // SCOUT: tonight's dusk foe is picked now and stored, so dusk fights exactly the deck shown. 0.7.0a online: the
     // ghost the session fetched (or, if it hasn't answered yet, 0.6.2's stand-in: never wait); offline as 0.6.2
     case "reveal": if (!storedFoe(run)) { if (onlineMode()) online()!.settle(run); else run.dusk = chooseFoe(run, loadPool()); } break;
@@ -186,6 +190,10 @@ export function pickChoice(run: Run, i: number): PickResult {
   const c = choicesFor(run, ev)[i];
   if (!c) return { ok: false, reason: "NO SUCH CHOICE" };
   if (c.blocked) return { ok: false, reason: c.blocked };
+  if (ev.id === "shrine") { // ENCHANT-2 (REQ-BFG-085, T3): the card keeps the name of the part it takes, after the cargo is gone
+    const gave = c.cost.find((d): d is Extract<Delta, { k: "item" }> => d.k === "item");
+    if (gave) ev.gave = gave.def;
+  }
   for (const d of c.cost) pay(run, d);
   const won = c.odds === undefined || ev.roll < c.odds;
   if (won) for (const d of c.gain) receive(run, d, c);
@@ -199,4 +207,4 @@ export function pickChoice(run: Run, i: number): PickResult {
   return { ok: true, choice: c, won, deckItem };
 }
 
-export { BAG_IDS, EVENTS, EVENT_IDS };
+export { BAG_IDS, EVENTS, EVENT_IDS, bagIds, eventIds }; // ENCHANT-2 (T3): + bagIds, eventIds (the rules world's lists)

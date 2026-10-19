@@ -31,6 +31,7 @@ import { BuildScreen } from "../build/build";
 import { TitleScreen } from "../title";
 import { npcDayRules } from "../../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT before every dusk
 import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): a hull gain on the day's hull
+import { ENCHANT_DEFS, isEnchantId } from "../../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the shrine's word in its own colour
 
 const AUTO = 1.9; // seconds after a pick before rolling on to the battle (no REFIT decision)
 /** NPC-1 (REQ-BFG-077; NPC_DAY on): the event's one way on, REFIT before dusk. */
@@ -50,6 +51,8 @@ export class EventScreen implements Screen {
   won = true;
   outcome: [string, string] = ["", C.bone];
   deckItem: string | undefined;
+  /** ENCHANT-2 (REQ-BFG-085, T3): the word the ASH SHRINE's chosen card gave (it waits in REFIT as a free pick; this offers REFIT even with NPC_DAY off). */
+  word: string | undefined;
   /** SCOUT's SPY: tonight's dusk deck is shown over the scene (then REFIT / FIGHT NOW). */
   reveal = false;
   private shake = { i: -1, t: 0 };
@@ -84,6 +87,7 @@ export class EventScreen implements Screen {
       if (c) this.outcome = outcomeText(c, this.won, this.run.day, heartsRun(this.run)); // HULL-1a: the day's hull (RETUNE-1 run 2: HEART)
       this.deckItem = ev.item;
       this.reveal = !!ev.reveal;
+      this.word = wordOf(c); // ENCHANT-2 (T3)
     }
     this.L = this.layout();
   }
@@ -129,6 +133,7 @@ export class EventScreen implements Screen {
     this.pt = 0;
     this.won = !!res.won;
     this.deckItem = res.deckItem;
+    this.word = this.won ? wordOf(c) : undefined; // ENCHANT-2 (T3)
     this.reveal = !!this.run.event?.reveal;
     this.outcome = outcomeText(c, this.won, this.run.day, heartsRun(this.run)); // HULL-1a: the day's hull (RETUNE-1 run 2: HEART)
     const r = this.L.cards[i];
@@ -152,7 +157,7 @@ export class EventScreen implements Screen {
 
   refit(): void {
     // NPC-1 (REQ-BFG-077): with NPC_DAY on, REFIT comes before every dusk (0.9.7: only after a deck part or SCOUT's spy)
-    if (this.phase !== "result" || !(npcDayRules() || this.deckItem || this.reveal)) return;
+    if (this.phase !== "result" || !(npcDayRules() || this.deckItem || this.reveal || this.word)) return; // ENCHANT-2 (T3): + a shrine word waits in REFIT
     this.run.stage = "refit";
     this.go(new BuildScreen(this.game));
   }
@@ -183,7 +188,7 @@ export class EventScreen implements Screen {
     }
     this.ufx.update(dt);
     // NPC-1: with NPC_DAY on nothing rolls on by itself (REFIT is the one button)
-    if (this.phase === "result" && !npcDayRules() && !this.deckItem && !this.reveal && this.pt >= AUTO) this.fight();
+    if (this.phase === "result" && !npcDayRules() && !this.deckItem && !this.reveal && !this.word && this.pt >= AUTO) this.fight(); // ENCHANT-2 (T3): + !this.word
   }
 
   draw(g: G): void {
@@ -288,7 +293,7 @@ export class EventScreen implements Screen {
     const stack = L.portrait || r.w < 240;
     const bh = 19;
     const spied = this.reveal ? storedFoe(this.run) : null;
-    const sub = this.deckItem ? `${itemName(this.deckItem)} IS IN CARGO` : spied ? `DUSK: ${spied.name}` : "";
+    const sub = this.deckItem ? `${itemName(this.deckItem)} IS IN CARGO` : spied ? `DUSK: ${spied.name}` : this.word ? "PICK ITS PART IN REFIT" : ""; // ENCHANT-2 (T3): the shrine's word
     const blockH = 7 + (sub ? 10 : 0) + 6 + bh; // stacked: text, sub line, buttons
     const top = r.y + Math.max(4, Math.floor((r.h - blockH) / 2));
     const by = stack ? top + blockH - bh : r.y + Math.floor((r.h - bh) / 2);
@@ -299,7 +304,7 @@ export class EventScreen implements Screen {
       if (sub) drawText(g, sub, stack ? r.x + r.w / 2 : r.x + 8, ty + 11, C.slate4, { font: "3", align: stack ? "center" : "left" });
       const bw = stack ? r.w - 12 : 96;
       button(ui, g, "refit", { x: stack ? r.x + 6 : r.x + r.w - bw - 8, y: by, w: bw, h: bh }, REFIT_LABEL, { primary: true, onTap: this.onRefit });
-    } else if (this.deckItem || this.reveal) {
+    } else if (this.deckItem || this.reveal || this.word) { // ENCHANT-2 (T3): + a shrine word
       drawText(g, sub, stack ? r.x + r.w / 2 : r.x + 8, ty + 11, C.slate4, { font: "3", align: stack ? "center" : "left" });
       const bw = stack ? Math.floor((r.w - 16) / 2) : 68;
       const x0 = stack ? r.x + 6 : r.x + r.w - 2 * bw - 12;
@@ -332,6 +337,12 @@ function slide(a: Rect, b: Rect, k: number, out: Rect): Rect {
   return out;
 }
 
+/** ENCHANT-2 (REQ-BFG-085, T3): the word a choice gives (the ASH SHRINE's cards), or undefined. */
+function wordOf(c: Choice | undefined): string | undefined {
+  const d = c?.gain.find((q) => q.k === "ench");
+  return d && d.k === "ench" ? d.word : undefined;
+}
+
 function gainItem(c: Choice | undefined): string | undefined {
   const d = c?.gain.find((q) => q.k === "item");
   return d && d.k === "item" ? d.def : undefined;
@@ -347,6 +358,7 @@ export function outcomeText(c: Choice, won: boolean, day?: number, hearts = fals
   if (!d) return ["YOU MOVE ON", C.bone];
   switch (d.k) {
     case "item": return [`GOT ${itemName(d.def)}`, C.lime]; // the outcome panel adds "<PART> IS IN CARGO"
+    case "ench": return [`GOT ${isEnchantId(d.word) ? ENCHANT_DEFS[d.word].name : d.word.toUpperCase()}`, isEnchantId(d.word) ? ENCHANT_DEFS[d.word].color : C.lime]; // ENCHANT-2 (T3): in the word's colour; the panel adds "PICK ITS PART IN REFIT"
     case "gold": return [`+${d.n} GOLD`, C.yellow];
     case "hull": return [`+${hullShown(d.n, day)} MAX HULL`, C.lime];
     case "lives": return [`+${d.n} ${hearts ? heartsWord(d.n) : "LIFE"}`, C.lime]; // RETUNE-1 run 2: `hearts`, a hearts run's PATCH UP
@@ -364,6 +376,6 @@ function sfxFor(c: Choice, won: boolean): Sfx {
   if (c.odds !== undefined) return won ? "win" : "lose";
   const d = c.gain[0];
   if (!d) return "whoosh";
-  return d.k === "item" ? "pickup" : d.k === "gold" || d.k === "discount" || d.k === "reroll" ? "coin" : d.k === "bounty" ? "horn"
+  return d.k === "item" || d.k === "ench" ? "pickup" : d.k === "gold" || d.k === "discount" || d.k === "reroll" ? "coin" : d.k === "bounty" ? "horn"
     : d.k === "sabotage" ? "stamp" : d.k === "reveal" ? "whoosh" : "repair";
 }
