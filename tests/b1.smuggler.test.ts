@@ -16,6 +16,7 @@ import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 (oracle f08800ccfebab0ab): the old-rules world's tripwire
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D (bb-0.11.0): SHAPES2 ships on; the worlds before it are measured with it off
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: and PLAIN_RIGS off (the twelve new pieces are those two switches')
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: and the scaling rules off (the seven new rigs; the switch ships on in bb-0.12.0)
 
 const KINDS: SmugglerKind[] = ["BURN", "SHOCK"];
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
@@ -26,8 +27,11 @@ const TABLE_SEEDS = Array.from({ length: 2000 }, (_, i) => hashSeed("i1-smuggler
 const SEEDS = TABLE_SEEDS.slice(0, 240);
 
 /** BUMP-1D: the worlds before the twelve new pieces (PLAIN_RIGS and SHAPES2 add them: 103 buyable modules since bb-0.11.0).
- *  world(fn, true): bb-0.10.0's (SHAPES on; PLAIN_RIGS and SHAPES2 off); world(fn, false): the world before SHAPES (all three off). */
-const world = <T>(fn: () => T, shapes: boolean): T => withPlainRigs(() => withShapes2(() => withShapes(fn, shapes), false), false);
+ *  world(fn, true): bb-0.10.0's (SHAPES on; PLAIN_RIGS and SHAPES2 off); world(fn, false): the world before SHAPES (all three off).
+ *  BUMP-1E: and before the seven scaling rigs (SCALE_RIGS ships on in bb-0.12.0: 110 buyable modules): the scaling switch is the OUTERMOST of the nest
+ *  (off first, back last). The seven are the last keys of ITEMS while it is on, so a nest that turned the three below off and back with it left on would
+ *  put them behind the plain rigs, the shaped rigs and the six for the rest of the worker, and every seeded draw after it would differ (the key-order hazard). */
+const world = <T>(fn: () => T, shapes: boolean): T => withScaleRigs(() => withPlainRigs(() => withShapes2(() => withShapes(fn, shapes), false), false), false);
 
 const has = (w: Wares, id: string): boolean => Object.prototype.hasOwnProperty.call(w, id);
 /** The kind's wares unlocked on `day`, and the kind's wares the run drew at all. */
@@ -153,8 +157,17 @@ describe("the SMUGGLER's contraband rule (0.8.0 B1 M4, REQ-BFG-033)", () => {
     // 28, so 112; BURN is never blocked in these 120. Still exact, so the next pool or tier change is a stop-and-ask again, not a
     // re-pin. A SHOCK source (a ware that guarantees every run a SHOCK ware) is a LATER DESIGN CALL for the pieces lane, which cap
     // will tell: nothing in this test or the game was changed to make one, and this pin only follows the draw as it is.
-    expect(blocked).toBe(112);
+    // BUMP-1E (the scaling rules ship on in bb-0.12.0; the brief's (a)(ii): a count that grew with the seven new rigs): 280 (was 112). The same cause as BUMP-1D's, a
+    // bigger catalogue: the seven rigs of SCALE_IDS join the buyable modules (110), and a run's ware draw (DRAW.active) covers a smaller share of them. Of these 120
+    // seeds 8 draw no SHOCK ware now, TABLE_SEEDS[7], [37], [61], [63], [68], [70], [93] and [103] (was 4: [7], [20], [63] and [114]), and 2 draw no BURN ware, [115] and
+    // [119] (was none), each blocked on 7 days x 4 picks = 28, so 10 x 28 = 280. The bb-0.11.0 world (the scaling switch off, everything else as shipped) reads
+    // BUMP-1D's 112 exactly (the next line), so the seven are the cause and nothing else moved it. Still exact, and still a stop-and-ask for any later pool or tier
+    // change; the 4% share bound of the 2,000-run test below is the line this world crosses (see there)
+    expect(SCALE_RIGS).toBe(true);
+    expect(blocked).toBe(280); // BUMP-1E: was 112
+    expect(withScaleRigs(blockedOf120, false)).toBe(112); // BUMP-1E: the bb-0.11.0 world keeps BUMP-1D's count
     // BUMP-1D: the bb-0.10.0 world (SHAPES on; PLAIN_RIGS and SHAPES2 off) keeps SHAPES-1's count, the one seed of the 120
+    // BUMP-1E: (world() reads it with the scaling rules off too, the outermost switch of its nest)
     expect(world(blockedOf120, true)).toBe(28);
     // a run that drew no SHOCK ware: SHOCK is blocked on every day, BURN is not
     // BUMP-1D: TABLE_SEEDS[7] is itself one of the four above now (the filter below takes out nothing from its wares); the
@@ -299,13 +312,25 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
     // days 1-10, BURN 29, 29, 29, 29, 29, 9, 9, 1, 1, 1 and SHOCK 335, 335, 137, 137, 137, 91, 91, 60, 60, 60: from day 8, the
     // last restock, no unlocked ware means none drawn, the [noneB, noneS] pinned below. A SHOCK source (a ware that guarantees
     // every run a SHOCK ware) is a later design call for the pieces lane, which cap will tell; it is not made here
-    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([29, 335]);
+    // BUMP-1E (the scaling rules ship on in bb-0.12.0; the brief's (a)(ii): a count that grew with the seven new rigs): BURN with no unlocked ware on day 1 131
+    // (6.55%), SHOCK 471 (23.55%) (was [29, 335]). The same cause as BUMP-1D's, a bigger catalogue (the seven rigs of SCALE_IDS: 110 buyable modules; the
+    // bb-0.11.0 world, the scaling switch off, reads [29, 335] exactly, below). Measured on days 1-10, BURN 131, 131, 131, 131, 131, 61, 61, 22, 22, 22 and SHOCK
+    // 471, 471, 206, 206, 206, 136, 136, 104, 104, 104: from day 8, the last restock, no unlocked ware means none drawn, the [noneB, noneS] pinned below
+    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([131, 471]); // BUMP-1E: was [29, 335]
+    expect(SCALE_RIGS).toBe(true);
+    const day1 = (ws: Wares[]): number[] => [ws.filter((x) => !openOf(x, "BURN", 1).length).length, ws.filter((x) => !openOf(x, "SHOCK", 1).length).length];
+    expect(withScaleRigs(() => day1(TABLE_SEEDS.map((s) => drawWares(s))), false)).toEqual([29, 335]); // BUMP-1E: the bb-0.11.0 world keeps BUMP-1D's pair
     // about 2% expected (VERIFIED-I1's call 4): a run drew none of an effect's three rigs. REDO-X (cap's ruling
     // 9bbe787110a51646): I1's ~2% has been 0 since 74e14a1 (FIX-ABE's stand-ins: ALCHEMIST's rare tier always holds at least
     // 4 of COIL, VENOM, BELLOWS, QUENCH TANK and STATIC BRUSH). A tripwire: if a later pool or tier change makes a no-BURN or
     // no-SHOCK run possible again this goes red on purpose, and that is a stop-and-ask, not a re-pin (was noneS + noneB > 0:
     // [25, 38] of these 2,000 before 74e14a1)
-    expect(noneS / n).toBeLessThan(0.04);
+    // BUMP-1E (cap's ruling, oracle b648372ad6c78cb6, run 7): the SHOCK share bound 0.04 -> 0.06, because the shipped world reads 104 of 2,000 = 5.20% (BUMP-1D read 3.00%). This tripwire's
+    // stop-and-ask was the brief's C8 (SHOCK WARE) and it was run in P3: 480 c5 runs without a SHOCK ware by day 3 played with a floor, P(10 wins) 24.6% -> 22.9% (-1.7 +-1.4), no hero
+    // loses 10 points, so no SHOCK floor ships in bb-0.12.0 (the floor's code is kept outside the repo, output-bump1e/shockfloor-c8-wares.diff and shockfloor-c8.test.ts). The bound
+    // for the bb-0.11.0 world (the scaling switch off, 3.00%) stays 0.04 (asserted below); the exact pair is pinned below; the BURN bound stays 0.04 (1.10%).
+    // Was: expect(noneS / n).toBeLessThan(0.04)
+    expect(noneS / n).toBeLessThan(0.06); // BUMP-1E: was 0.04
     expect(noneB / n).toBeLessThan(0.04);
     // SHAPES-1 (cap's ruling, oracle f08800ccfebab0ab): SHAPES' NAIL STRIP and EMBER TROUGH grow the ALCHEMIST's stock 9 -> 11,
     // so its rare tier's quota can fall to 3, and 7 of these 2,000 seeds draw no SHOCK ware; BURN is never empty (EMBER
@@ -315,10 +340,17 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
     // run in 2,000), so [1, 60] (was [0, 7]). Still under the 4% bounds above (3.00%; none loosened). Exact, so the next pool
     // or tier change is a stop-and-ask again, not a re-pin. A SHOCK source (a ware that guarantees every run a SHOCK ware) is a
     // later design call for the pieces lane, which cap will tell; nothing here makes one
-    expect([noneB, noneS]).toEqual([1, 60]);
+    // BUMP-1E (the brief's (a)(ii); the same cause): 22 of the 2,000 runs (1.10%) draw no BURN ware and 104 (5.20%) draw no SHOCK ware, so [22, 104] (was [1, 60]).
+    // The bb-0.11.0 world (the scaling switch off) reads [1, 60] exactly (below). The SHOCK share bound above went from 0.04 to 0.06 by cap's ruling (oracle b648372ad6c78cb6; C8's numbers
+    // there): about 1 run in 19 now sees no SHOCK ware on offer at all (live 0.9.12: 3.00%). The SHOCK source stays a later design call for the pieces lane, for the next rules release
+    expect([noneB, noneS]).toEqual([22, 104]); // BUMP-1E: was [1, 60]
     // BUMP-1D: and the bb-0.10.0 world (SHAPES on; PLAIN_RIGS and SHAPES2 off) keeps SHAPES-1's numbers exactly: day 1 [26, 165]
     // (BURN, SHOCK with no unlocked ware) and [noneB, noneS] [0, 7]
     const none = (ws: Wares[]): number[] => [ws.filter((x) => !drawnOf(x, "BURN").length).length, ws.filter((x) => !drawnOf(x, "SHOCK").length).length];
+    const wasPair = withScaleRigs(() => none(TABLE_SEEDS.map((s) => drawWares(s))), false);
+    expect(wasPair).toEqual([1, 60]); // BUMP-1E: the bb-0.11.0 world keeps BUMP-1D's pair
+    expect(wasPair[0] / n).toBeLessThan(0.04); // BUMP-1E: and its 4% bounds (the shipped world's SHOCK bound is 0.06 above)
+    expect(wasPair[1] / n).toBeLessThan(0.04);
     const was10 = world(() => {
       const ws = TABLE_SEEDS.map((s) => drawWares(s));
       return { day1: [ws.filter((x) => !openOf(x, "BURN", 1).length).length, ws.filter((x) => !openOf(x, "SHOCK", 1).length).length], none: none(ws) };
