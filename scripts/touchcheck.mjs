@@ -1268,6 +1268,11 @@ async function summarySection(browsers, origin) {
     await page.evaluate(() => window.bb.openEnd({ hero: "furnace", seed: 12345, results: "WWWWWWWWWW", roads: "EEEEEEEEEE" }));
     await settle(page, "summary");
     await sleep(300);
+    // BUMP-1E P6 (RULING-BUMP1E-R3 R3.5; ENDLESS ships on): a won run's RUN WON card offers CONTINUE ENDLESS and END RUN first (the next section
+    // measures that card); END RUN leaves the card as every won run's always was, NEW RUN and TITLE, which is what this section measures
+    await page.evaluate(() => { const r = window.bb.game.ui.regions.filter((q) => q.id === "endrun").pop(); if (r) r.onTap(); });
+    await settle(page, "summary");
+    await sleep(300);
     const m = await page.evaluate(() => {
       const v = window.bb.game.view, k = v.scale / v.dpr, s = window.bb.game.screen;
       const reg = (id) => window.bb.regions().find((q) => q.id === id) ?? null;
