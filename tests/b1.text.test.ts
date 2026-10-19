@@ -35,8 +35,17 @@ import { banned } from "./textRules";
 import { faceLines } from "../src/ui/faces"; // U2b (REQ-BFG-046): STOKER's face (SC-0912: BUMP-1D's cardEffect import dropped with the retired wide-card test)
 import { SEED, barge, item, run as fight, withItem, withMod } from "./wave3.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the off checks beside STOKER ★3's re-pins
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the ladder-off checks below read bb-0.9.7's world, where it is off too
 
 installRaster();
+
+/** BUMP-1E: bb-0.9.7's ladder-off world, asked for outright (fn is synchronous). The scaling switch ships ON (bb-0.12.0), and with it on
+ *  withLadderFix(fn, false) alone swaps QUENCH TANK's def (ladderFix.ts LADDER_DEFS.quench) to the base def for fn and, on the way back, to
+ *  the ladder-fixed QUENCH TANK, over the KINDLING that scale.ts put in ITEMS.quench: every later offer, cargo or placed panel of QUENCH
+ *  then reads a def without its reader line (TypeError, reading 'give', in abilityText.ts readClause: the red this file had after the flip
+ *  in "every module's cargo, placed and offer panel ..."). bb-0.9.7 had both switches off, so the older world is both off, the scaling
+ *  switch outermost: it is put back last, and writes KINDLING back. Every ladder-off check below reads STOKER, never a scaling piece. */
+const ladderOff = <T>(fn: () => T): T => withScaleRigs(() => withLadderFix(fn, false), false);
 
 /** The 390x844 phone's band, the 1920x1080 desk's column, the 1366x768 laptop's column (tests/abilityPanels.test.ts). */
 const BANDS = [
@@ -157,7 +166,8 @@ describe("STOKER's capped line takes the opening sentence's place (0.8.0 B1 M4, 
     expect(factoriesOf(kiln3)).toEqual([1]);
     expect(stokeKeep(kiln3).get(1)).toBeCloseTo(0.75 / 0.85, 9);
     expect(stokeCapBlocks(runOf({ id: "8-tile Kiln ★3", b: kiln3, stars: 3 }, 0), [1]).map((b) => b.text)).toEqual(["THE KILN'S GUN IS FULL: IT WORKS ONLY 75% FASTER."]);
-    expect(withLadderFix(() => stokeKeep(kiln3).get(1) ?? 1, false)).toBe(1);
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on; the off checks of this file read bb-0.9.7's world (ladderOff)
+    expect(ladderOff(() => stokeKeep(kiln3).get(1) ?? 1)).toBe(1); // BUMP-1E: was withLadderFix(..., false)
   });
 
   it("capped: the opening block keeps its place and its keep, its text the capped line; the N% sentence is gone", () => {
@@ -293,7 +303,7 @@ describe("STOKER's capped line takes the opening sentence's place (0.8.0 B1 M4, 
     }
     // AZ-BUMP (the flip, LADDER_FIX): with LADDER_FIX off the loose STAMP PRESS beside the ★3 Kiln works 70% faster, as before
     const loose3 = TWO.find((c) => c.id === "6-tile Kiln and a loose STAMP PRESS ★3")!;
-    expect(withLadderFix(() => rigPanel(runOf(loose3, 0), STOKER)!.body.filter((b) => b.rank === 1 && !b.keep).map((b) => b.text), false))
+    expect(ladderOff(() => rigPanel(runOf(loose3, 0), STOKER)!.body.filter((b) => b.rank === 1 && !b.keep).map((b) => b.text))) // BUMP-1E: was withLadderFix(..., false)
       .toEqual(["THE STAMP PRESS WORKS 70% FASTER."]);
   });
 });
@@ -370,7 +380,7 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
     expect(fasterThan(off.plates, 3)).toBeCloseTo(0, 6);
     // MERGE-099D (BRIEF-MERGE-099D 1d/1f): c099's LADDER_FIX-off pin in CARD-3's words (inspector.ts stokeCapBlocks: ITS
     // SHIELD COMES; was ONLY ITS PLATING WORKS)
-    expect(withLadderFix(() => capLine(sharedPress(3)), false)).toBe("THE ARMOR PRESS'S GUN IS FULL: ONLY ITS SHIELD COMES 70% FASTER.");
+    expect(ladderOff(() => capLine(sharedPress(3)))).toBe("THE ARMOR PRESS'S GUN IS FULL: ONLY ITS SHIELD COMES 70% FASTER."); // BUMP-1E: was withLadderFix(..., false)
   });
 
   // NUM-4 (REQ-BFG-047): retitled, the title quoted the line before NUM-2 (was "room for part of the stoke: \"SO IT STAMPS
@@ -436,7 +446,7 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
     }
     // AZ-BUMP (the flip, LADDER_FIX): with LADDER_FIX off, ★3's two lines read 70% as before. MERGE-099D (1d/1f): in
     // CARD-3's words, ITS SHIELD COMES (was BUT PLATES)
-    expect(withLadderFix(() => [capLine(lonePress(3, 1)), capLine(lonePress(3, 2))], false)).toEqual([
+    expect(ladderOff(() => [capLine(lonePress(3, 1)), capLine(lonePress(3, 2))])).toEqual([ // BUMP-1E: was withLadderFix(..., false)
       "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 58% FASTER, BUT ITS SHIELD COMES 70% FASTER.",
       "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT ITS SHIELD COMES 70% FASTER.",
     ]);
