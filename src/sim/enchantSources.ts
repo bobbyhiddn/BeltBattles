@@ -16,6 +16,7 @@
 import { Rng, hashSeed } from "../core/rng";
 import { ITEMS } from "./content";
 import { ENCHANT_IDS, enchantKindOf, enchantProblem, freeSides, type EnchantId } from "./enchant";
+import { MATRIARCH_DAY } from "./rivals"; // ENCHANT-1c (C3): pick 2's day is the Iron Matriarch's, one literal (rivals.ts reaches nothing of this file: no import cycle)
 
 /** The ENCHANTER's price for each word (E5a): flat, no discount or sale applies. */
 export const ENCHANTER_PRICE = 4;
@@ -23,9 +24,11 @@ export const ENCHANTER_PRICE = 4;
 export const ENCHANTER_OFFERS = 2;
 /** The first ENCHANTER day: days 3, 5, 7, 9 and every odd day after. */
 export const ENCHANTER_FIRST_DAY = 3;
-/** The days the two warlord picks open from (E5b): pick 1 from day 5 (a Hard win over any captain but the Matriarch), pick 2 from day 8
- *  (the Iron Matriarch holds the Hard slot from rivals.ts MATRIARCH_DAY). */
-export const WARLORD_PICK_FROM: readonly [number, number] = [5, 8];
+/** The days the two warlord picks open from (E5b): pick 1 from day 5 (a Hard win over any captain but the Matriarch), pick 2 from the day the Iron
+ *  Matriarch holds the Hard slot, rivals.ts MATRIARCH_DAY (8 today). ENCHANT-1c (C3): the second day IS that constant, not a second literal 8:
+ *  the client opens pick 2 on her win (game/enchanter.ts openWarlordPick) and the server's check counts its days from here (net/enchantCheck.ts), so
+ *  if her day ever moved the two would still agree and the server would not refuse honest pick-2 words. */
+export const WARLORD_PICK_FROM: readonly [number, number] = [5, MATRIARCH_DAY];
 
 /** Does the ENCHANTER ride in the caravan of `day` (days 3, 5, 7, 9 and every odd day after)? */
 export const enchanterDay = (day: number): boolean => Number.isInteger(day) && day >= ENCHANTER_FIRST_DAY && day % 2 === 1;
