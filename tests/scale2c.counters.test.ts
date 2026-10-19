@@ -2,6 +2,8 @@
 // piece) and C9 (your run record on your plate), and the readers rule that lights the foe's BURN and POISON chips (KINDLING,
 // CINDER MAIL, ROT GAUGE, LEECH COIL). Switch on through withScaleRigs; off, the row's list, every row and every plate are
 // as at M0 (COUNT-1's four chips, no badge, no record).
+// BUMP-1E: the switch ships ON (SCALE_RIGS = true, bb-0.12.0), so the "off" halves below are the 0.9.11 world, asked for outright with
+// withScaleRigs(fn, false) (synchronously only); the "on" halves read the same world bare or under withScaleRigs(fn).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { UI } from "../src/ui/ui";
 import { viewWithSub } from "../src/game/viewGrid";
@@ -18,7 +20,7 @@ import { Arena as ArenaReal } from "../src/game/arena";
 import { POISON_POP_DY, react } from "../src/game/arenaReact";
 import { captainKeywordColour } from "../src/ui/captainText";
 import { Battle } from "../src/sim/battle";
-import { withScaleRigs, scaleRules } from "../src/sim/scale";
+import { SCALE_RIGS, withScaleRigs, scaleRules } from "../src/sim/scale";
 import { HEARTS_START } from "../src/sim/hearts";
 import { START_LIVES } from "../src/sim/content";
 import { ICON, glyphRows } from "../src/render/font";
@@ -45,18 +47,25 @@ const KEYS0 = ["burn", "poison", "fray", "stun"];
 const step = (bt: Battle, secs: number): Battle => { while (bt.t < secs && !bt.over) { bt.step(); bt.drainEvents(); } return bt; };
 
 describe("SCALE-2c counters: with the switch off, everything is as at M0", () => {
-  it("the row's list is COUNT-1's four; a SPALL CATCHER, a POWDER KEG or a GRUDGE ROD deck shows no hits chip, badge or record", () => {
-    expect(scaleRules()).toBe(false);
-    expect(STATUS_CHIPS.map((c) => c.key)).toEqual(KEYS0);
-    const bt = new Battle(aimed(withMod(furnaceBench(), 40, "spallcatcher", GUN), 30, "keg", 2), barge(), SEED);
-    step(bt, 6);
-    expect(shownChips(bt, 0).map((c) => c.chip.key)).not.toContain("hits");
-    expect([hitsShown(bt, 0), rampBadges(bt, 0), runRecord(bt, 0, { wins: 4, lives: 6, hearts: true })]).toEqual([null, [], null]);
-    expect(readCount(bt, 1, "burn")).toBe(false);
-    // a round trip leaves the list as it was
-    withScaleRigs(() => expect(STATUS_CHIPS.map((c) => c.key)).toEqual([...KEYS0, "hits"]));
-    expect(STATUS_CHIPS.map((c) => c.key)).toEqual(KEYS0);
-    expect(Object.keys(ICON)).not.toContain("CRACK"); // not enumerable, as POISON's drop
+  it("ships on (BUMP-1E; was off); with it off the row's list is COUNT-1's four; a SPALL CATCHER, a POWDER KEG or a GRUDGE ROD deck shows no hits chip, badge or record", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (was `expect(scaleRules()).toBe(false)`)
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
+    expect(STATUS_CHIPS.map((c) => c.key)).toEqual([...KEYS0, "hits"]); // BUMP-1E: as shipped the row has the hits chip (was KEYS0)
+    // BUMP-1E: the off half, was bare (the switch shipped off)
+    withScaleRigs(() => {
+      expect(scaleRules()).toBe(false);
+      expect(STATUS_CHIPS.map((c) => c.key)).toEqual(KEYS0);
+      const bt = new Battle(aimed(withMod(furnaceBench(), 40, "spallcatcher", GUN), 30, "keg", 2), barge(), SEED);
+      step(bt, 6);
+      expect(shownChips(bt, 0).map((c) => c.chip.key)).not.toContain("hits");
+      expect([hitsShown(bt, 0), rampBadges(bt, 0), runRecord(bt, 0, { wins: 4, lives: 6, hearts: true })]).toEqual([null, [], null]);
+      expect(readCount(bt, 1, "burn")).toBe(false);
+      // a round trip leaves the list as it was
+      withScaleRigs(() => expect(STATUS_CHIPS.map((c) => c.key)).toEqual([...KEYS0, "hits"]));
+      expect(STATUS_CHIPS.map((c) => c.key)).toEqual(KEYS0);
+      expect(Object.keys(ICON)).not.toContain("CRACK"); // not enumerable, as POISON's drop
+    }, false);
+    expect(STATUS_CHIPS.map((c) => c.key)).toEqual([...KEYS0, "hits"]); // and the switch is back on
   });
 });
 
@@ -170,9 +179,12 @@ describe("SCALE-2c C7 and C8 drawn; C9 on the battle screen (switch on)", () => 
       return [first, bc.last.tabs[0]!.chips.map((c) => `${c.key}:${c.text}:${c.dim}`)];
     });
     expect(on).toEqual([["hits:0:true"], ["hits:14:false"]]);
-    const bc = new BattleCounters();
-    bc.drawRows(fakeCanvas().getContext(), game, stubArena(new Battle(deck, barge(), SEED)), LAYOUT, PLATES, [null, null], [], true);
-    expect(bc.last.tabs[0]).toBeNull(); // off: no chip at all, so no tab
+    // BUMP-1E: the switch ships on, so the off half asks for the 0.9.11 world outright (was bare)
+    withScaleRigs(() => {
+      const bc = new BattleCounters();
+      bc.drawRows(fakeCanvas().getContext(), game, stubArena(new Battle(deck, barge(), SEED)), LAYOUT, PLATES, [null, null], [], true);
+      expect(bc.last.tabs[0]).toBeNull(); // off: no chip at all, so no tab
+    }, false);
   });
 
   it("C8: POWDER KEG's badge on its tile's lower right (its centre +2, +1), white on red; its tap; off, none", () => {
@@ -190,9 +202,12 @@ describe("SCALE-2c C7 and C8 drawn; C9 on the battle screen (switch on)", () => 
       const pv = bc as unknown as Priv, grp = pv.groups.find((q) => q.id === "cnt:piece0:30")!;
       expect(pv.entries(grp, stubArena(b), [null, null]).map((e) => e.body)).toEqual(["+2 {DMG} ON ITS NEXT HIT: 0 HITS SO FAR."]);
     });
-    const bc = new BattleCounters();
-    bc.drawBoard(fakeCanvas().getContext(), game, stubArena(new Battle(deck, barge(), SEED)), stubMotion, [], [], true);
-    expect(bc.last.badges).toEqual([]);
+    // BUMP-1E: the switch ships on, so the off half asks for the 0.9.11 world outright (was bare)
+    withScaleRigs(() => {
+      const bc = new BattleCounters();
+      bc.drawBoard(fakeCanvas().getContext(), game, stubArena(new Battle(deck, barge(), SEED)), stubMotion, [], [], true);
+      expect(bc.last.badges).toEqual([]);
+    }, false);
   });
 
   it("C9: the battle screen writes `· 4W 6♥` after your hero's name with a GRUDGE ROD aboard; your plate's tap says it; off, as before", () => {
@@ -211,7 +226,8 @@ describe("SCALE-2c C7 and C8 drawn; C9 on the battle screen (switch on)", () => 
       expect((s.counters as unknown as Priv).entries(grp, s.arena, [null, null]).map((e) => e.body)).toContain(`WINS 4. HEARTS LEFT 6 OF ${HEARTS_START} (${HEARTS_START - 6} LOST).`);
     });
     // off: no GRUDGE ROD or TROPHY CHAIN exists (the ids are in ITEMS only with the switch on): a POWDER KEG deck's plate
-    expect([make("keg").counters.record, name(make("keg"))]).toEqual([null, "FURNACE"]);
+    // BUMP-1E: the switch ships on, so the off line asks for the 0.9.11 world outright (was bare)
+    expect(withScaleRigs(() => [make("keg").counters.record, name(make("keg"))], false)).toEqual([null, "FURNACE"]);
     expect(withScaleRigs(() => [make("keg").counters.record, name(make("keg"))])).toEqual([null, "FURNACE"]); // no reader: none
   });
 });
@@ -235,9 +251,11 @@ describe("SCALE-2c: the two carried items (REVIEW-SCALE2b section 3)", () => {
   });
 
   it("captainText: a captain line's POISON takes its venom while the switch is on; off, the shipped 9's map (no colour)", () => {
-    expect(captainKeywordColour("POISON")).toBeUndefined();
+    // BUMP-1E: the switch ships on, so bare is the on world (venom) and the shipped 9's map (no colour) is read with it off
+    expect(captainKeywordColour("POISON")).toBe(C.venom); // BUMP-1E: was toBeUndefined() (the switch shipped off)
+    expect(withScaleRigs(() => captainKeywordColour("POISON"), false)).toBeUndefined(); // off: the 9's map, no colour (BUMP-1E: was bare)
     expect(withScaleRigs(() => captainKeywordColour("POISON,"))).toBe(C.venom);
-    expect(captainKeywordColour("POISON")).toBeUndefined();
+    expect(captainKeywordColour("POISON")).toBe(C.venom); // BUMP-1E: the round trip leaves the shipped world (was toBeUndefined())
     expect(captainKeywordColour("BURNS")).toBe(C.fire3);
   });
 });

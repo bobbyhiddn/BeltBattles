@@ -3,6 +3,8 @@
 // counts by day (src/sim/scaleRating.ts), WITH a feeder when the deck holds one and the par count without; the route walk
 // keeps FOR EACH DMG out of the flat DRAKE NOZZLE converts (SCALE-2a F3). Off, every rating is M0's (scale2c-accepted
 // 0f2ba8d), pinned in tests/fixtures/scale2d-rating-off.json for every par, warlord and rival deck on days 1-10.
+// BUMP-1E: the switch ships ON (SCALE_RIGS = true, bb-0.12.0), so "off" below is the 0.9.11 world, asked for outright with
+// withScaleRigs(fn, false) (synchronously only); the "on" reads are the shipped world, bare or under withScaleRigs(fn).
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { RATING_CURVE, drakeGain, fightTime, rateDeck } from "../src/sim/deckRating";
@@ -10,7 +12,7 @@ import { rigArrowCells, walkRoute, type Build, type Placed } from "../src/sim/de
 import { honestReference, RIVAL_IDS, rivalBuild } from "../src/sim/rivals";
 import { warlordBuild } from "../src/sim/ai";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
-import { SCALE_PIECES, scaleRules, withScaleRigs } from "../src/sim/scale";
+import { SCALE_PIECES, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale";
 import { READER_FEEDERS, hasFeeder, needsFeeder, onCurve, readCtx, readerCount, READ_FED, READ_PAR } from "../src/sim/scaleRating";
 import { ITEMS } from "../src/sim/content";
 import { effectAt } from "../src/sim/stars";
@@ -58,8 +60,9 @@ function lifts(id: string, day = DAY, stars = 1): { fed: number; unfed: number }
 }
 
 describe("SCALE-2d D1: the rating with SCALE_RIGS on", () => {
-  it("ships off", () => {
-    expect(scaleRules()).toBe(false);
+  it("ships on (BUMP-1E; was off)", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (bb-0.12.0)
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
   });
 
   it("each of the 12 and VENOM DRIP rates above 0 with its feeder (★1, day 6)", () => {
@@ -138,7 +141,7 @@ describe("SCALE-2d D1: the rating with SCALE_RIGS on", () => {
     expect(effectAt("whetstone", 1).gate).toEqual({ flat: 20 });
     let b = furnaceBench();
     b = { ...b, items: [...b.items, rigAt(40, "whetstone", 3, 4), rigAt(41, "whetstone", 3, 3), rigAt(42, "longhaul", 3, 1)] };
-    const off = walkRoute(b, 0).estimate;
+    const off = withScaleRigs(() => walkRoute(b, 0).estimate, false); // BUMP-1E: the switch ships on, so the off walk is read with it off (was bare)
     const on = withScaleRigs(() => walkRoute(b, 0).estimate);
     expect(off.each).toBeUndefined();
     expect(on.each ?? 0).toBeGreaterThan(0);
@@ -174,9 +177,42 @@ describe("SCALE-2d D1: the rating with SCALE_RIGS on", () => {
       }
       return out;
     };
-    expect(rate()).toEqual(pins);
-    withScaleRigs(() => rate());
-    expect(rate()).toEqual(pins);
+    // BUMP-1E: the switch ships on, so the off ratings are read with it off (was `rate()` bare). The par, warlord and rival decks are fixed
+    // layouts and plans (ai.ts warlordBuild, rivals.ts honestReference and rivalBuild over rivalBuilds.ts PLANS: no stand-in pool and no par
+    // run in them), so the seven new ids in the committed pool do not reach them and the off world reads M0's pins, but for two keys.
+    // BUMP-1E C3 (211c498, the captains' ladder; in every world, the captains' decks are not switch-aware): SOOTJAW's SCATTER CHOKE comes on
+    // day 5 (was 3), so his day-3 and day-4 decks are other decks and rate lower with the switch off too (offense only; the defense and every
+    // day-5-and-later pin are as they were). The fixture keeps M0's two arrays; the two new ones are pinned here, and the next test proves the move
+    // is the choke alone (the new deck with the old plan's choke put back rates M0's pin).
+    const MOVED: Record<string, number[]> = {
+      "rival/sootjaw/3": [88.08237751004019, 2300, 112.37572266666669, 2300], // BUMP-1E C3: was [98.65226281124501, 2300, 125.8608093866667, 2300]
+      "rival/sootjaw/4": [168.96471165644175, 2660, 212.126208, 2660], // BUMP-1E C3: was [189.24047705521477, 2660, 237.58135296, 2660]
+    };
+    const want = { ...pins, ...MOVED };
+    expect(Object.keys(want).length).toBe(Object.keys(pins).length); // the two keys are the fixture's own: nothing is added or dropped
+    const rateOff = (): Record<string, number[]> => withScaleRigs(rate, false);
+    expect(rateOff()).toEqual(want);
+    withScaleRigs(() => rate()); // the switch on in between
+    expect(rateOff()).toEqual(want);
+  });
+
+  it("BUMP-1E C3: SOOTJAW's day-3 and day-4 off pins moved with his SCATTER CHOKE's day (3 -> 5), and only with it: put back, the deck rates M0's pins", () => {
+    const pins = JSON.parse(readFileSync("tests/fixtures/scale2d-rating-off.json", "utf8")) as Record<string, number[]>;
+    const rated = (b: Build, d: number): number[] => {
+      const r = rateDeck(b, RATING_CURVE, fightTime(d), undefined, undefined, d), q = rateDeck(b);
+      return [r.offense, r.defense, q.offense, q.defense];
+    };
+    withScaleRigs(() => {
+      for (const d of [3, 4]) {
+        const now = rivalBuild("sootjaw", d);
+        expect(now.mods.some((m) => m.def === "scatter"), `sootjaw d${d} holds no SCATTER CHOKE now (the plan buys it on day 5)`).toBe(false);
+        // the old plan's M(3, "scatter", 0) sat at index 3 of his upgrades: uid 9000 + 10 + 3 (rivalBuilds.ts assemble), on turret 0
+        const back: Build = { ...now, mods: [...now.mods, { uid: 9013, def: "scatter", turret: 0 }] };
+        expect(rated(back, d), `sootjaw d${d} with the choke put back`).toEqual(pins[`rival/sootjaw/${d}`]);
+        expect(rated(now, d)[0], `sootjaw d${d} without it rates lower (offense)`).toBeLessThan(pins[`rival/sootjaw/${d}`][0]);
+      }
+      expect(rivalBuild("sootjaw", 5).mods.some((m) => m.def === "scatter")).toBe(true); // from day 5 he holds it, as the pins say
+    }, false);
   });
 
   it("the D1 table (REPORT section 2): each reader's count and ★1 value a hit by day, fed and not (TABLE_OUT)", () => {

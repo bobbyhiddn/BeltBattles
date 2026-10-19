@@ -3,9 +3,11 @@
 // tokens), its fit (one line of 5x7 at 225 px at every star and day; the desk shop card's two effect lines; the phone
 // gist's 39 px row A), LEVELS / NEXT★ on the switch-on numbers, the NOTES line (3.2's hover), the flavour rows and the
 // art (ART-1E: each new id's own, no longer a stand-in's); off, every face, line, gist, note and list is as at M0.
+// BUMP-1E: the switch ships ON (SCALE_RIGS = true, bb-0.12.0), so the "off" world (the 0.9.11 one) is asked for outright with
+// withScaleRigs(fn, false) (synchronously only), here at this file's load and in the off test; the "on" tests read the shipped world.
 import { describe, expect, it } from "vitest";
 import { ITEMS, buyableModules, classFactor, type ItemDef } from "../src/sim/content";
-import { SCALE_IDS, SCALE_PIECES, scaleRules, withScaleRigs } from "../src/sim/scale";
+import { SCALE_IDS, SCALE_PIECES, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale";
 import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // 0.9.11 world (PLAIN_RIGS and SHAPES2 on): twelve plain stat rigs are sold, each a face and no KEPT_FLAVOUR row
 import { SHAPES2_IDS } from "../src/sim/shapes2";
 import { MAX_DAY } from "../src/net/snapshot";
@@ -57,7 +59,7 @@ const pixels = (c: unknown): string => (c as Raster).px.map((p) => p ?? "-").joi
 /** BRIEF-SCALE2c section 2's face lines at ★1 (day 1, k 1), in markup. */
 const LINE: Record<string, string> = {
   quench: "HIT: +3 {DMG} FOR EACH {*BURN} ON THE FOE.",
-  pressure: "SHOT: +8 {DMG} FOR EACH {SLUG} WAITING.", // SCALE-2e run 2: ★1 was +12
+  pressure: "SHOT: +5 {DMG} FOR EACH {SLUG} WAITING.", // BUMP-1E C4 (src/sim/scale.ts: ★1 8 -> 5, "a lower 1-star"): was +8. SCALE-2e run 2: ★1 was +12
   shieldwall: "HIT: +3 {DMG} FOR EACH 10 {*PLATE} YOU HAVE.", // SCALE-2e E4: was +5
   spallcatcher: "SHOT: +1 {DMG} FOR EACH HIT ON YOU.", // SCALE-2e E4: was +3; run 2: was +2
   keg: "HIT: +2 {DMG} FOR EACH OF ITS HITS.", // SCALE-2e E4: was +3
@@ -90,7 +92,7 @@ const roomOf = (price: number): number => cardPriceX(0, CARD_W, price, false, tr
 /** No plain PLATE word, and no SHIELD written out, outside the markup tokens (REQ-BFG-107). */
 const bareWords = (markup: string): boolean => /\b(PLATE|PLATES|PLATED|PLATING|SHIELD|SHIELDS)\b/.test(markup.replace(/\{\*?[A-Z]+\}/g, " "));
 
-// the switch-off world, captured at this file's load (the switch is off): every text the 12 make
+// the switch-off world, captured at this file's load (BUMP-1E: the switch ships on, so under withScaleRigs(fn, false); was bare): every text the 12 make
 function offTexts(): string {
   const out: string[] = [];
   for (const id of SCALE_PIECES) {
@@ -104,23 +106,29 @@ function offTexts(): string {
   }
   return out.join("\n");
 }
-const OFF0 = offTexts();
-const FACE_IDS0 = [...FACE_IDS];
-const FLAVOUR_KEYS0 = Object.keys(KEPT_FLAVOUR).sort();
+const OFF0 = withScaleRigs(() => offTexts(), false); // BUMP-1E: was `offTexts()` read bare (the switch was off at load)
+const FACE_IDS0 = withScaleRigs(() => [...FACE_IDS], false); // BUMP-1E: was `[...FACE_IDS]` read bare
+const FLAVOUR_KEYS0 = withScaleRigs(() => Object.keys(KEPT_FLAVOUR).sort(), false); // BUMP-1E: was `Object.keys(KEPT_FLAVOUR).sort()` read bare
 
 describe("SCALE-2c screen: with the switch off, every face, line, gist, note and list is as at M0", () => {
-  it("the 5 reworks' texts are the same before and after a switch round trip; the 7 new ids have none", () => {
-    expect(scaleRules()).toBe(false);
-    withScaleRigs(() => offTexts());
-    expect(offTexts()).toBe(OFF0);
-    expect(OFF0).toContain("QUENCH TANK".length ? "TURNS EACH" : "");
-    for (const id of SCALE_IDS) {
-      expect([hasFace(id), hasAbilityText(id), phoneGist(id), scaleNotes(id)]).toEqual([false, false, null, []]);
-      expect(Object.prototype.hasOwnProperty.call(KEPT_FLAVOUR, id)).toBe(false);
-    }
-    expect([...FACE_IDS]).toEqual(FACE_IDS0);
-    expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual(FLAVOUR_KEYS0);
-    for (const id of REWORKS) expect(Object.prototype.hasOwnProperty.call(SCALE_GISTS, id) && PHONE_GISTS[id] !== undefined).toBe(true);
+  it("ships on (BUMP-1E; was off); with it off the 5 reworks' texts are the same before and after a switch round trip; the 7 new ids have none", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (was `expect(scaleRules()).toBe(false)`)
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
+    // BUMP-1E: the off half, was bare (the switch shipped off)
+    withScaleRigs(() => {
+      expect(scaleRules()).toBe(false);
+      withScaleRigs(() => offTexts());
+      expect(offTexts()).toBe(OFF0);
+      expect(OFF0).toContain("QUENCH TANK".length ? "TURNS EACH" : "");
+      for (const id of SCALE_IDS) {
+        expect([hasFace(id), hasAbilityText(id), phoneGist(id), scaleNotes(id)]).toEqual([false, false, null, []]);
+        expect(Object.prototype.hasOwnProperty.call(KEPT_FLAVOUR, id)).toBe(false);
+      }
+      expect([...FACE_IDS]).toEqual(FACE_IDS0);
+      expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual(FLAVOUR_KEYS0);
+      for (const id of REWORKS) expect(Object.prototype.hasOwnProperty.call(SCALE_GISTS, id) && PHONE_GISTS[id] !== undefined).toBe(true);
+    }, false);
+    expect(offTexts()).not.toBe(OFF0); // BUMP-1E: and as shipped the twelve's texts are the on world's, not the 0.9.11 ones
   });
 });
 
@@ -250,7 +258,8 @@ describe("SCALE-2c screen: the 12 faces with the switch on", () => {
       const PLAIN12 = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
       for (const id of sold) expect(Object.prototype.hasOwnProperty.call(KEPT_FLAVOUR, id), id).toBe(!PLAIN12.includes(id));
     });
-    expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual(FLAVOUR_KEYS0);
+    // BUMP-1E: the switch ships on, so after the round trip the shipped world is back: KEPT_FLAVOUR holds the 7 new ids' rows too (was FLAVOUR_KEYS0, the off world's keys)
+    expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual([...FLAVOUR_KEYS0, ...SCALE_IDS].sort());
   });
 
   it("own art: each new id draws its own picture, no longer its former stand-in's (SCALE-2c's artFrom map, kept here); the new ids are the seven", () => {

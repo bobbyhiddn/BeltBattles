@@ -3,11 +3,13 @@
 // bought only when the deck holds one of its feeders or the same visit bought one first; the run's fights carry its hearts
 // lost (runLost), as the live battle screen does. The measure (TABLE_OUT): the share of par decks on days 3, 6, 9 and 10
 // that hold each of the 12 and how many of those hold a feeder, and the par runs' mean wins off and on.
+// BUMP-1E: the switch ships ON (SCALE_RIGS = true, bb-0.12.0), so every "off" below is the 0.9.11 world, asked for outright with
+// withScaleRigs(fn, false) (synchronously only); the "on" reads are the shipped world, bare or under withScaleRigs(fn).
 import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
-import { SCALE_PIECES, heartsLost, scaleRules, withScaleRigs } from "../src/sim/scale";
+import { SCALE_PIECES, SCALE_RIGS, heartsLost, scaleRules, withScaleRigs } from "../src/sim/scale";
 import { hasFeeder, needsFeeder } from "../src/sim/scaleRating";
 import { playerRun, runLost, type PlayerDay } from "../src/sim/harness/player";
 import { parSeeds } from "../src/sim/harness/par";
@@ -25,10 +27,12 @@ const runs = (): Map<string, PlayerDay[]> => {
 };
 
 describe("SCALE-2d D2: the bots and feeder+reader pairs", () => {
-  it("ships off; runLost: undefined off (the fight called as before), the run's hearts lost on", () => {
-    expect(scaleRules()).toBe(false);
+  it("ships on (BUMP-1E; was off); runLost: undefined off (the fight called as before), the run's hearts lost on", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (was `expect(scaleRules()).toBe(false)`)
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
     const run = { lives: 7, hearts: true };
-    expect(runLost(run)).toBeUndefined();
+    expect(runLost(run)).toEqual([heartsLost(7, run), 0]); // BUMP-1E: as shipped the fight carries the run's hearts lost (was toBeUndefined())
+    withScaleRigs(() => expect(runLost(run)).toBeUndefined(), false); // BUMP-1E: the off read, asked for outright (was bare)
     withScaleRigs(() => expect(runLost(run)).toEqual([heartsLost(7, run), 0]));
     expect(heartsLost(7, run)).toBe(3);
   });
@@ -36,17 +40,21 @@ describe("SCALE-2d D2: the bots and feeder+reader pairs", () => {
   it("the random builder (Shopper): with the switch on it lists no reader its deck can't feed; off, every list as before", () => {
     const b = heroStartBuild("furnace");
     const ids = (s: Shopper): string[] => [...s.gates, ...s.mods, ...s.cores].map((d) => d.id);
-    const off = ids(new Shopper(b, maxGoldByDay(6), 6, new Rng(1), "on", 3, "on", "on"));
-    withScaleRigs(() => {
-      const on = ids(new Shopper(b, maxGoldByDay(6), 6, new Rng(1), "on", 3, "on", "on"));
+    const list = (): string[] => ids(new Shopper(b, maxGoldByDay(6), 6, new Rng(1), "on", 3, "on", "on"));
+    const off = withScaleRigs(list, false); // BUMP-1E: the switch ships on, so the off list is read with it off (was `ids(new Shopper(...))` bare)
+    const onList = withScaleRigs(() => {
+      const on = list();
       for (const id of on) if (needsFeeder(id)) expect(hasFeeder(b, id), id).toBe(true);
       expect(on).toEqual(expect.arrayContaining(["grudgerod", "trophychain"].filter((id) => ITEMS[id].merchant && off.length >= 0 && on.includes(id))));
+      return on;
     });
-    expect(ids(new Shopper(b, maxGoldByDay(6), 6, new Rng(1), "on", 3, "on", "on"))).toEqual(off);
+    expect(onList).not.toEqual(off); // BUMP-1E: the two worlds' lists differ (the seven new ids are listed only on), so the round trip below is not vacuous
+    expect(list()).toEqual(onList); // BUMP-1E: as shipped the list is the on list (was `.toEqual(off)`: the shipped world was the off one)
+    expect(withScaleRigs(list, false)).toEqual(off); // BUMP-1E: and a switch round trip leaves the off list as it was
   });
 
   it("the par player with the switch on: every reader bought at a price comes with a feeder (bought before it or held); the measure", () => {
-    const offRuns = runs();
+    const offRuns = withScaleRigs(() => runs(), false); // BUMP-1E: the switch ships on, so the off runs ask for the 0.9.11 world outright (was `runs()` bare)
     const onRuns = withScaleRigs(() => runs());
     // the rule, per buy: a reader that wants a feeder, bought at a price on day d, is held at d's dusk with a feeder
     let readerBuys = 0;

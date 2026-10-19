@@ -5,13 +5,15 @@
 // counts any paint that falls outside its canvas. The seven ids are in ITEMS only with SCALE_RIGS on, so the world they are read
 // in is withScaleRigs(fn), synchronously only (never withScaleRigs(async ...): SCALE-2e F6). The pixels themselves are shown on
 // the sheet (scripts/art1e/sheet.ts) and in Chromium on the shop cards and the tap panel (the REPORT's stills).
+// BUMP-1E: the switch ships ON (bb-0.12.0), so the seven are in ITEMS as shipped; the "absent with it off" half asks for the 0.9.11 world
+// with withScaleRigs(fn, false) (synchronously only).
 import { describe, expect, it } from "vitest";
 import { C } from "../src/render/palette";
 import * as sprites from "../src/render/sprites";
 import { gateSprite, itemIcon } from "../src/render/sprites";
 import { SCALE_ART_IDS, drawScaleGate } from "../src/render/scaleArt";
 import { ITEMS } from "../src/sim/content";
-import { SCALE_IDS, withScaleRigs } from "../src/sim/scale";
+import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale";
 
 // ------------------------------------------------------------------------------------------------- a software raster
 
@@ -175,10 +177,15 @@ const MAX_IOU = 0.85;
 // ======================================================================================================= the seven rigs
 
 describe("ART-1E: the seven new scaling rigs' own art (REQ-BFG-098)", () => {
-  it("the seven ids are the SCALE_IDS in order: gates in ITEMS with SCALE_RIGS on, absent with it off", () => {
+  it("the seven ids are the SCALE_IDS in order: gates in ITEMS with SCALE_RIGS on (it ships on, BUMP-1E), absent with it off", () => {
     expect([...SCALE_ART_IDS]).toEqual([...SCALE_IDS]);
     expect(SCALE_ART_IDS).toHaveLength(7);
-    for (const id of SCALE_ART_IDS) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), `${id} with the switch off`).toBe(false);
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (bb-0.12.0; was off, and the next line was read bare)
+    // BUMP-1E: the switch ships ON, so "with the switch off" is the 0.9.11 world, asked for outright (withScaleRigs(fn, false), synchronously)
+    withScaleRigs(() => {
+      for (const id of SCALE_ART_IDS) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), `${id} with the switch off`).toBe(false);
+    }, false);
+    for (const id of SCALE_ART_IDS) expect(ITEMS[id]?.kind, `${id} as shipped`).toBe("gate"); // BUMP-1E: and as shipped the seven are in ITEMS, bare
     withScaleRigs(() => {
       for (const id of SCALE_ART_IDS) expect(ITEMS[id]?.kind, id).toBe("gate");
     });

@@ -3,10 +3,12 @@
 // run model's counts for that day: scaleRating.ts runCounts) into the whole numbers one battle passes to simulate(), a
 // fraction by a seeded carry. Off, a Job passes nothing: playJob, jobDetail and jobStats are the base's calls. LAST CHANCE's
 // mirror (harness/lastChance.ts losses) gets the same hearts lost, on only. Switch on via withScaleRigs (sync bodies only).
+// BUMP-1E: the switch ships ON (SCALE_RIGS = true, bb-0.12.0), so the "off" tests below are the 0.9.11 world, asked for outright with
+// withScaleRigs(fn, false) (synchronously only); the "on" tests read the shipped world under withScaleRigs(fn).
 import { describe, expect, it } from "vitest";
 import { simulate } from "../src/sim/battle";
 import { Battle } from "../src/sim/battle";
-import { scaleRules, withScaleRigs } from "../src/sim/scale";
+import { SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale";
 import { READ_PAR, carryCount, onCurve, runCounts } from "../src/sim/scaleRating";
 import { jobCounts, jobDetail, jobStats, playJob, type Job } from "../src/sim/harness/tournament";
 import { losses } from "../src/sim/harness/lastChance";
@@ -25,32 +27,42 @@ function aimed(b: Build, uid: number, def: string, y: number, stars = 1): Build 
 const SEEDS = [11, 12, 13, 14];
 
 describe("SCALE-2e E1: the bench duels' counts, switch off", () => {
-  it("ships off: a Job passes no counts, set or not, and playJob is the base's call", () => {
-    expect(scaleRules()).toBe(false);
-    const field = [furnaceBench(), barge()];
-    for (const j of [{ a: 0, b: 1, seeds: SEEDS, day: 6 }, { a: 0, b: 1, seeds: SEEDS, day: 9, wins: [3, 3], lost: [5, 5] } as Job]) {
-      for (const s of SEEDS) {
-        expect(jobCounts(j, s)).toEqual({});
-        expect(jobCounts(j, s, true)).toEqual({});
+  it("ships on (BUMP-1E; was off); with it off a Job passes no counts, set or not, and playJob is the base's call", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (was `expect(scaleRules()).toBe(false)`)
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
+    // BUMP-1E: the off half, was bare (the switch shipped off)
+    withScaleRigs(() => {
+      expect(scaleRules()).toBe(false);
+      const field = [furnaceBench(), barge()];
+      for (const j of [{ a: 0, b: 1, seeds: SEEDS, day: 6 }, { a: 0, b: 1, seeds: SEEDS, day: 9, wins: [3, 3], lost: [5, 5] } as Job]) {
+        for (const s of SEEDS) {
+          expect(jobCounts(j, s)).toEqual({});
+          expect(jobCounts(j, s, true)).toEqual({});
+        }
+        // the base's playJob, written out: simulate(a, b, seed, undefined, undefined, day) from both sides
+        let pts = 0;
+        for (const s of j.seeds) {
+          const x = simulate(field[j.a], field[j.b], s, undefined, undefined, j.day).winner;
+          const y = simulate(field[j.b], field[j.a], s, undefined, undefined, j.day).winner;
+          pts += (x === 0 ? 1 : x === -1 ? 0.5 : 0) + (y === 1 ? 1 : y === -1 ? 0.5 : 0);
+        }
+        expect(playJob(field, j)).toBe(pts);
+        expect(jobStats(field, j).pts).toBe(pts);
+        expect(jobDetail(field, j).split(";").length).toBe(2 * j.seeds.length);
       }
-      // the base's playJob, written out: simulate(a, b, seed, undefined, undefined, day) from both sides
-      let pts = 0;
-      for (const s of j.seeds) {
-        const x = simulate(field[j.a], field[j.b], s, undefined, undefined, j.day).winner;
-        const y = simulate(field[j.b], field[j.a], s, undefined, undefined, j.day).winner;
-        pts += (x === 0 ? 1 : x === -1 ? 0.5 : 0) + (y === 1 ? 1 : y === -1 ? 0.5 : 0);
-      }
-      expect(playJob(field, j)).toBe(pts);
-      expect(jobStats(field, j).pts).toBe(pts);
-      expect(jobDetail(field, j).split(";").length).toBe(2 * j.seeds.length);
-    }
+    }, false);
+    // BUMP-1E: and as shipped (on) a Job with a day carries the run model's counts (the off half above passes {})
+    expect(jobCounts({ a: 0, b: 1, seeds: SEEDS, day: 6 }, SEEDS[0])).not.toEqual({});
   });
 
   it("LAST CHANCE's mirror passes no hearts lost off: the fight is the base's", () => {
-    const a = furnaceBench(), b = barge();
-    const base = simulate(a, b, SEED, undefined, [0, 0], 6);
-    const lo = losses(a, b, SEED, 0, 6);
-    expect(lo).toEqual([0, 1].map((i) => Math.max(0, base.sides[i].hull.max - base.sides[i].hull.hp - base.sides[i].stats.windTaken)));
+    // BUMP-1E: the switch ships on, so the off fight asks for the 0.9.11 world outright (was bare)
+    withScaleRigs(() => {
+      const a = furnaceBench(), b = barge();
+      const base = simulate(a, b, SEED, undefined, [0, 0], 6);
+      const lo = losses(a, b, SEED, 0, 6);
+      expect(lo).toEqual([0, 1].map((i) => Math.max(0, base.sides[i].hull.max - base.sides[i].hull.hp - base.sides[i].stats.windTaken)));
+    }, false);
   });
 });
 
