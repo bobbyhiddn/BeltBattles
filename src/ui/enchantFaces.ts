@@ -22,6 +22,7 @@ import {
   ENCHANT_DEFS, ENCHANT_NUM, enchantKindOf, enchantLine, enchantShare, enchantStars, liveWord, type EnchantId, type EnchantKind,
 } from "../sim/enchant";
 import { pct, roundHalfUp } from "../sim/pct";
+import { dmgShown } from "../sim/hullScale"; // ENCHANT-2 (REQ-BFG-085; T6 fix round): RISING's and GROWING's amounts on a part panel's day (wordLine)
 import type { Span } from "./richText";
 
 /** ENCHANT-2 (REQ-BFG-085; T4b): NOTES line 1 is two sentences, kept apart so a PART's panel can put a third between them (partNotes below). */
@@ -110,16 +111,22 @@ export function wordFace(id: EnchantId): WordFace {
 
 /** The word's line on a kind of piece at `stars`, in the panels' markup: enchantLine's text with the numbers that scale with the stars
  *  at THIS piece's stars (RISING's and GROWING's step, FIERY's BURN and BRACED's stuns: the generic line prints star 1's). null where the
- *  word cannot go. A signature factory passes its grade as its stars. */
-export function wordLine(id: EnchantId, kind: EnchantKind, stars = 1): string | null {
+ *  word cannot go. A signature factory passes its grade as its stars.
+ *  ENCHANT-2 (REQ-BFG-085; T6 fix round, cap's ruling 2d9c4479a18adbf5 on E2-05): `day`, the day a PART's panel is read on (its run's). RISING's and GROWING's
+ *  amounts are DAMAGE, and a damage amount a player reads shows what lands on that day (HULL-1d: battle.ts impact takes D(day) on the whole hit, the flat the
+ *  word adds included), as the panel's stat row and its LEVELS already do: the step x stars x D(day), rounded down (hullScale.ts dmgShown). On day 6 GROWING at
+ *  one star says +10 (was +5, so a reader's 40 + 3 x 5 did not meet the row's 70), on day 8 RISING says +2. D is never under 1.0, so no line says +0. A word's own
+ *  CARD (the ENCHANTER's offer, a warlord pick, the shrine's ?, APPLY, LAST CHANCE's detail) is about no piece and gives no day: day 1's numbers, +5 and +1. */
+export function wordLine(id: EnchantId, kind: EnchantKind, stars = 1, day?: number): string | null {
   const raw = enchantLine(id, kind);
   if (raw === null) return null;
   const s = enchantStars(stars), n = ENCHANT_NUM;
+  const dmg = (step: number): number => dmgShown(step * s, day); // the step x stars on `day` (no day: itself)
   let line = raw;
-  if (s > 1) {
+  if (id === "rising") line = raw.replace(`+${n.risingStep} DMG`, `+${dmg(n.risingStep)} DMG`);
+  else if (id === "growing") line = raw.replace(`+${n.growingStep} DMG`, `+${dmg(n.growingStep)} DMG`);
+  else if (s > 1) {
     if (id === "fiery") line = raw.replace(`ADDS +${n.burn} `, `ADDS +${n.burn * s} `); // ENCHANT-2 (T4c): `ADDS +1 [BURN] TO EACH HIT.` (was `ITS HIT: [BURN]+1.`)
-    else if (id === "rising") line = raw.replace(`+${n.risingStep} DMG`, `+${n.risingStep * s} DMG`);
-    else if (id === "growing") line = raw.replace(`+${n.growingStep} DMG`, `+${n.growingStep * s} DMG`);
     else if (id === "braced") line = raw.replace(`THE FIRST ${n.bracedStuns} `, `THE FIRST ${n.bracedStuns * s} `);
   }
   return panelText(line);
@@ -130,9 +137,9 @@ export function wordLine(id: EnchantId, kind: EnchantKind, stars = 1): string | 
  *  ruling on 1b's QUESTION 4): this line is where FIERY's number shows, ONCE; the orange stat that N2 kept in the row is gone. ENCHANT-1c's words-only fix
  *  round: FIERY's line on a piece reads `ADDS +1 {BURN} TO EACH HIT, ON TOP OF ITS OWN STATS.` (fieryPieceLine below): the word card's line (wordLine) and
  *  `, ON TOP OF ITS OWN STATS`. */
-export function pieceLine(id: EnchantId, kind: EnchantKind, stars = 1): string | null {
+export function pieceLine(id: EnchantId, kind: EnchantKind, stars = 1, day?: number): string | null {
   if (id === "fiery") return fieryPieceLine(kind, stars);
-  return wordLine(id, kind, stars);
+  return wordLine(id, kind, stars, day); // ENCHANT-2 (T6 fix round): RISING's and GROWING's damage amounts on the panel's day (wordLine)
 }
 
 /**

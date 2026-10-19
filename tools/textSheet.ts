@@ -210,7 +210,7 @@ function enchantSection(out: string[]): void {
       const d = ITEMS[h.def], kind = enchantKindOf(d)!, title = enchantedTitle(h.word, `${d.name}${h.stars > 1 ? ` ${"★".repeat(h.stars)}` : ""}`);
       const tw = [textWidth(title), textWidth(title, "3")];
       const titleFit = (["phone", "desk"] as const).map((v) => (tw[0] <= TITLE_W[v] ? "5x7" : tw[1] <= TITLE_W[v] ? "3x5" : "CUT")).join("/");
-      const line = pieceLine(h.word, kind, h.grade)!;
+      const line = pieceLine(h.word, kind, h.grade, 12)!; // ENCHANT-2 (T6 fix round): the line on the foe's day, 12: RISING's amount is the day's (enchantFaces.ts wordLine)
       out.push(`  - ${title} (${kind}; title ${tw[0]} px in 5x7, ${tw[1]} in 3x5; phone/desk: ${titleFit}): \`${plain(line)}\` (${fits(`${RIVALS[id].name}: ${title}`, line)})`);
     }
   }
