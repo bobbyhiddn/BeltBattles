@@ -2,13 +2,13 @@
 // Each face line that changed says a real sim rule its sentence said and its face had dropped; each test here reads that
 // rule from the sim side (a sim run, a chamber hook, the rip, the copies), never from the text, so a change to the rule
 // turns it red:
-//   ASSEMBLY LINE    "FEEDS A GUN: YOUR RIGS START 50% SOONER." (★3 "AT ONCE"): battle.ts assemblyLines / makeSide
+//   ASSEMBLY LINE    "WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING 50% SOONER." (★3 "AT ONCE"; SHOPCARD-1c, G8: was "... YOUR RIGS START 50% SOONER."): battle.ts assemblyLines / makeSide
 //   HULLBREAKER      "SHOT: HITS ONLY THE HULL, FOR +30% {DMG}.": Battle.fireCore aims it at hullTarget()
 //   GATLING SPOOL    "FIRES AT ONCE, SPINS UP TO 67% FASTER.": cores.ts gatlingReady against the default ready
 //   GRAPNEL GUN      "SHOT: ON A BELT OR RIG, RIPS 1 SLUG.": Battle.rip on a belt tile or a rig
 //   PRESSURE BREECH  "SHOT: +12 {DMG} FOR EACH {SLUG} WAITING, MAX 5 {SLUG}.": cores.ts pressureBonus's cap
 //   SORTING ARM      "HIT: OF EVERY 3 {SLUG}, ONE BECOMES 2, FULL {DMG}.": Battle.applyHit's copy against a SPLITTER's
-// Every changed line stays one line of 5x7 inside the op band (225 px) at every star and class factor.
+// Every changed line stays one line of 5x7 inside the op band (225 px) at every star and class factor, but SHOPCARD-1c (G6, G8): GRAPNEL GUN's and ASSEMBLY LINE's take two rows (every line within 2 x 225 px).
 import { describe, expect, it } from "vitest";
 import { assemblyLines, Battle, makeTurret, type Payload, type SideState, type TileHit, type TurretState } from "../src/sim/battle";
 import { CELL, COMMISSION_BASE, ITEMS, classFactor } from "../src/sim/content";
@@ -62,7 +62,7 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
       expect(pressRigAt(asm(s, false)), `★${s} cut`).toBeCloseTo(COMMISSION_BASE, 9);
       // the face says the condition and the sim's factor, in its sentence's words
       // CARD-2 (REQ-BFG-081, K3 g; READ-3 6: START, run or fight): WORK (was "FEEDS A GUN: YOUR RIGS START ...")
-      expect(rule("assembly", s), `★${s}`).toBe(`FEEDS A GUN: YOUR RIGS WORK ${startIn(assemblyLines(asm(s)).factor)}.`);
+      expect(rule("assembly", s), `★${s}`).toBe(`WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${startIn(assemblyLines(asm(s)).factor)}.`); // SHOPCARD-1c (G8): when and what (was FEEDS A GUN: YOUR RIGS START ...) // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     }
   });
 
@@ -72,9 +72,9 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
     expect(working.map((g) => g.commissionAt)).toEqual([0, 0, 0]);
     bt.step();
     expect(working.map((g) => g.online)).toEqual([true, true, true]);
-    expect(rule("assembly", 3)).toBe("FEEDS A GUN: YOUR RIGS WORK AT ONCE."); // CARD-2 (K3 g): WORK (was START)
+    expect(rule("assembly", 3)).toBe("WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING AT ONCE."); // CARD-2 (K3 g): WORK (was START); SHOPCARD-1c (G8): EACH FIGHT, START WORKING // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
     // ★1 and ★2 come online later (their % is the sim's: 1 - commissionAt / its time without one)
-    for (const s of [1, 2]) expect(rule("assembly", s)).toBe(`FEEDS A GUN: YOUR RIGS WORK ${fmtPct(1 - pressRigAt(asm(s)) / pressRigAt(asm(s, false)))} SOONER.`);
+    for (const s of [1, 2]) expect(rule("assembly", s)).toBe(`WHILE IT FEEDS A GUN: EACH FIGHT, ALL YOUR RIGS START WORKING ${fmtPct(1 - pressRigAt(asm(s)) / pressRigAt(asm(s, false)))} SOONER.`); // SHOPCARD-1e (E2; READ-12 fix 1): ALL YOUR RIGS (was YOUR RIGS): 3 of 5 answers below R hedged all or some rigs; battle.ts:714-736 scales every rig's commissionAt
   });
 
   // --------------------------------------------------------------------------------------------------- HULLBREAKER
@@ -144,7 +144,7 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
     expect(["gate", "belt", "factory", "turret"].map(ripFrom)).toEqual([1, 1, 0, 0]);
     for (const s of STARS) for (const k of KS) {
       const n = core("grapnel", s, k).rip!;
-      expect(rule("grapnel", s, k), `★${s} k${k}`).toBe(`SHOT: ON A BELT OR RIG, RIPS ${fmtCount(n)} SLUG${n === 1 ? "" : "S"}.`);
+      expect(rule("grapnel", s, k), `★${s} k${k}`).toBe(`SHOT: A HIT ON A FOE BELT OR RIG DESTROYS ${fmtCount(n)} SLUG${n === 1 ? "" : "S"} NEAR IT.`); // SHOPCARD-1c (G6): only a hit rips (was A FOE BELT OR RIG LOSES n SLUG(S))
     }
   });
 
@@ -195,7 +195,8 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
     for (const def of ["assembly", "hullbreaker", "gatling", "grapnel", "pressure", "sorting"]) for (const s of STARS) for (const k of KS) for (const line of rules(def, s, k)) {
       const w = textWidth(icons(line));
       if (w > widest) { widest = w; at = `${def} ★${s} k${k}`; }
-      expect(w, `${def} ★${s} k${k}: ${line}`).toBeLessThanOrEqual(NEXT_LINE_W);
+      // SHOPCARD-1c (G6, G8): two rows of the band for these two (GRAPNEL GUN 239-245 px, ASSEMBLY LINE 310-328); the rest one
+      expect(w, `${def} ★${s} k${k}: ${line}`).toBeLessThanOrEqual(def === "assembly" || def === "grapnel" ? 2 * NEXT_LINE_W : NEXT_LINE_W);
     }
     expect(NEXT_LINE_W).toBe(225);
     console.log(`TXT-096 faces: the widest changed line ${widest} px of ${NEXT_LINE_W} (${at})`);

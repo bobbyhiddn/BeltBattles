@@ -32,7 +32,7 @@ describe("PLAIN-1F (M4): a placed long rig's panel", () => {
     for (const def of SHAPED_PLAIN_RIGS) for (const s of [1, 2, 3]) for (const [x, y, rot] of PLACES) {
       const rp = rigPanel(furnace([rig(def, x, y, rot, s)]), 10)!, n = shapeMaxHits(def), upTo = shapeLines(def, s)[0].text;
       const tag = `${def} ★${s} @${x},${y}`;
-      expect(upTo, tag).toBe(`UP TO ${n} HITS`);
+      expect(upTo, tag).toBe(`HITS EACH SLUG UP TO ${n} TIMES.`); // SC-0912 (SHOPCARD-1b, REQ-BFG-081, merged onto 0.9.11): per slug, was `UP TO ${n} HITS`
       const texts = [rp.body, ...(rp.variants ?? []).map((v) => v.body)].flat().map((b) => b.text);
       expect(texts.includes(upTo), `${tag}: no UP TO n HITS`).toBe(false);
       expect(rp.body.some((b) => b.text === statRow(plainRigStats(def, s)!)), `${tag}: its stat row`).toBe(true);

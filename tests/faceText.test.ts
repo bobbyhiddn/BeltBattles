@@ -398,7 +398,7 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
     // STUN." at every star)
     for (const s of STARS) {
       expect(STUN_CAUSES.every((c) => effectAt("mantlet", s).mod!.immune!.includes(c)), `★${s}`).toBe(true);
-      expect(stripIcons(faceLines("mantlet", s)!.rules[0].text), `★${s}`).toBe(`STUN CAN'T STOP ITS GUN OR LAST ${s === 1 ? "1 TILE" : `${s} TILES`}.`);
+      expect(stripIcons(faceLines("mantlet", s)!.rules[0].text), `★${s}`).toBe(s === 1 ? "ITS GUN AND LAST BELT TILE IGNORE STUN." : `ITS GUN, LAST ${s} BELT TILES IGNORE STUN.`); // SHOPCARD-1b (REQ-BFG-081): which tile (was STUN CAN'T STOP ITS GUN OR LAST 1 TILE)
     }
     // the clauses at the stars that have them, written from the sim. Y1 (STAR-D row 2): FROSTBITE's HOARFROST is a number on
     // its line at every star, so it has no clause (was frostbite: [2, 3] here, and the clause "★2 HOARFROST: STUN HITS 2

@@ -744,7 +744,11 @@ const ENTRIES: Record<string, Entry> = {
     // CARD-3 (REQ-BFG-081, D3): the face's words (faces.ts: "FEEDS A GUN: YOUR RIGS WORK 50% SOONER."; CARD-2 K3 g). battle.ts
     // assemblyLines: one whose belt reaches a turret sets the side's factor, and every rig's commissionAt is multiplied by it
     // (content.ts commission 0.5 at ★1). Was "RIGS START 50% SOONER"
-    card: (e) => `FEEDS A GUN: RIGS WORK ${startIn(f(e).commission!)}`,
+    // SHOPCARD-1f (REQ-BFG-081; READ-13 fix list 4: SHOPCARD-1e's face says ALL YOUR RIGS (hedges 3 of 12 -> 0) but this 360x640 strip line
+    // still said `FEEDS A GUN: RIGS WORK 50% SOONER`): ALL RIGS START ..., as the face does: battle.ts:714-736 makeSide scales every rig's
+    // commissionAt by the best running line's factor, with no test of which belt (2574-2587 assemblyLines); ★3's factor is 0, AT ONCE.
+    // START, not WORK (the face's word; READ-9 round T: "WORK 50% SOONER" read as earlier along the belt). 142 px of 3x5 (★3 130 px)
+    card: (e) => `FEEDS A GUN: ALL RIGS START ${startIn(f(e).commission!)}`,
   },
   gantry: {
     text: (e, x) => [
@@ -916,7 +920,8 @@ const ENTRIES: Record<string, Entry> = {
       const more = pour ? `, POURS ${pour} AT ONCE` : "";
       return Math.abs(mul - 1) < 1e-9 ? `AS OFTEN AS YOUR HERO'S FACTORY${more}` : `${rateText(mul)}${more}`;
     },
-    card: () => "MAKES YOUR HERO'S SLUGS TOO", // WORDS-1 (REQ-BFG-081): STAMPS and AMMO in plain words, as its face (was "STAMPS YOUR HERO'S AMMO")
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 2): no TOO, as its face (it makes only the hero's slugs: battle.ts:929-938)
+    card: () => "MAKES YOUR HERO'S SLUGS", // WORDS-1 (REQ-BFG-081): STAMPS and AMMO in plain words, as its face (was "STAMPS YOUR HERO'S AMMO")
   },
   limpet: {
     // Battle.roundImpact / hullEffects: the charge sticks where it lands and blasts the enemy hull `delay` seconds

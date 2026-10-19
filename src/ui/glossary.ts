@@ -176,7 +176,11 @@ function rowsNow(): GlossaryRow[] {
       scope: "text",
     },
     // ------------------------------------------------------------------------- the trigger labels (T1 2.3), brass
-    { word: "HIT", aliases: [], colour: C.brass3, def: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", scope: "label" },
+    // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 1: the weakest reader read HIT: as "a slug hits the rig" on 7 cards, and quoted the old
+    // note back and still did): the rig is the one that hits. battle.ts:1295-1301 a slug that crosses a belt tile's centre takes
+    // the hit of every rig arrow pointing at that tile, one hit an arrow (applyTile 1661-1669, applyHit 1685); a stunned, frozen,
+    // wrecked or not-yet-online rig hits nothing (1665), so "each time this rig hits" carries the old "while it works"
+    { word: "HIT", aliases: [], colour: C.brass3, def: "HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.", scope: "label" },
     { word: "SHOT", aliases: [], colour: C.brass3, def: "SHOT: EACH SHOT THIS TURRET FIRES.", scope: "label" },
     { word: "LOAD", aliases: [], colour: C.brass3, def: "LOAD: A SLUG ENTERS THIS TURRET'S CHAMBER.", scope: "label" },
     { word: "EVERY", aliases: [], colour: C.brass3, def: "EVERY: A TIMER, AGAIN AND AGAIN FOR THE WHOLE FIGHT.", scope: "label" },
@@ -362,7 +366,18 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // battle.ts applyHit: one count for every payload its arrows hit, on every belt they reach; the copies at full strength
   sorting: { word: "HIT", text: () => "HIT: ONE COUNT FOR THE SLUGS IT HITS ON EVERY BELT ITS ARROWS REACH." },
   // battle.ts applyHit: perPriorGate x every rig hit before it on the payload, speed rigs too
-  longhaul: { word: "HIT", text: () => "HIT: EVERY RIG HIT BEFORE IT COUNTS, SPEED RIGS TOO." },
+  // SHOPCARD-1b (REQ-BFG-081; READ-9 fix 1: LONG HAUL is one of the four rigs whose HIT: was read as "a slug hits the rig", and its
+  // own note replaces the HIT row's, so it says when HIT fires itself): p.prior counts every hit the slug has taken (battle.ts:1778
+  // p.prior++ for each applyHit, speed rigs' too) and LONG HAUL adds perPriorGate x it (1718). Was "HIT: EVERY RIG HIT BEFORE IT
+  // COUNTS, SPEED RIGS TOO."
+  longhaul: { word: "HIT", text: () => "HIT: WHEN IT HITS A SLUG, EVERY EARLIER HIT ON THAT SLUG COUNTS, SPEED RIGS TOO." },
+  // SHOPCARD-1c (REQ-BFG-081; READ-10 8.1, its second Opus grader: 3 of 3 TWIN LATCH answers missed the one condition no panel or note
+  // printed, so they went R -> P): battle.ts:757-764 makeSide builds a latch only from a TWIN LATCH whose two arrows both hit belts
+  // (`g.hits.length === 2`; "one arrow on a belt never holds"), 1378-1389 tryHold has each arrow hold the slug that crosses its tile's
+  // centre, and 1399-1420 latchTick lets it go within `hold` s. Its own note, as LONG HAUL's, replaces the HIT row's for this piece
+  // (glossaryText: a piece's tap note first), so it says what HIT does here and the condition, in the HIT row's words (ARROWS POINT AT).
+  // 2 rows of 5x7 at GLOSSARY_WRAP_W. Was the HIT row's "HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT."
+  twinlatch: { word: "HIT", text: () => "HIT: IT HOLDS A SLUG IT HITS, BUT ONLY WHEN BOTH ITS ARROWS POINT AT BELTS." },
   // battle.ts split: each copy keeps the payload's burn and shock. Y6 (release Y; DESIGN-Y 4.1; folded at the flip, Y7b2):
   // POISON is retired, so it names the two a copy keeps (Battle.applyHit's spread: its BURN, with VENOM's seconds, and its
   // STUN); was "... {*BURN}, POISON AND {*STUN}."
@@ -445,19 +460,35 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
  * and a belt carries). {GEAR} is a turret's gear slots (deck.ts gearSlotsOf: one piece of gear a slot; a core has its own
  * place, cores.ts resolveCore).
  */
-export type StatIcon = "RATE" | "SLUG" | "GEAR";
-export const STAT_ICONS: readonly StatIcon[] = ["RATE", "SLUG", "GEAR"];
+export type StatIcon = "RATE" | "SLUG" | "GEAR" | "BELT";
+export const STAT_ICONS: readonly StatIcon[] = ["RATE", "SLUG", "GEAR", "BELT"];
 export const SLUG_NOTES = {
   gun: "{SLUG}: THE LOADS ITS CHAMBER HOLDS. A LOAD IS ONE SLUG FROM A BELT.",
   load: "{SLUG}: A SLUG ITS TURRET TAKES IN, ONE LOAD.",
   slug: "{SLUG}: A SLUG, WHAT A FACTORY MAKES AND A BELT CARRIES TO A GUN.",
 } as const;
 export const GEAR_NOTE = "{GEAR}: ITS GEAR SLOTS. EACH HOLDS ONE PIECE OF TURRET GEAR.";
+/**
+ * SHOPCARD-1e (REQ-BFG-081; READ-12 fix 5, E1): the factory stat row's {BELT}n had no tap note: all 12 LIMPET WORKS readers of
+ * READ-12's rounds A and T listed `[BELT]2` as unclear ("what does the 2 count?", "belt tiles? number of belts?"), and the
+ * ⓘ KEYWORDS page listed RATE and left BELT undefined (A haiku 2: "belt tiles? number of belts?"). The number is stars.ts
+ * outputsAt (BELT_SLOTS by grade, plus the spec's lead, plus foot.ts footSlots): the belts the factory can feed (validate.ts
+ * lets you lay no more routes from it). So the note says how many belts, and that they are not belt tiles (the build screen's
+ * "BELT 6/14 TILES" is tiles; the word BELT's rune-only note, "BELT: YOUR BELT TILES, SHARED BY ALL YOUR BELTS.", scope "rune"
+ * above, is about tiles too and stays as it is). Not "IN TURN" (the brief's example): battle.ts stamp (1123-1149) puts one
+ * slug on its next belt in turn (`f.rr`, round-robin), but a pour factory puts slugs on several belts on one tick (battle.ts
+ * 1104-1106 pourAll, TWIN MOULD; races/foundry.ts the CRUCIBLE: "POURS ONTO ALL ITS BELTS AT ONCE."), so "in turn" is true of
+ * GANTRY PRESS's own face line ("FEEDS 4 BELTS IN TURN.", faces.ts shapeLines) and false of those, and a note on every
+ * factory's {BELT} says only the count. The note is the stat icon's, on a factory's stat row (and GANTRY PRESS's BIGGER: +1
+ * {BELT}), as {SLUG}'s and {GEAR}'s are theirs. Its icon leads it, like theirs.
+ */
+export const BELT_NOTE = "{BELT}: HOW MANY BELTS IT CAN FEED, NOT BELT TILES.";
 
 /** What a tap on stat icon `k` shows on a line (`gunRow`: the line is a turret's stat row) of piece kind `kind`. */
 export function statIconNote(k: StatIcon, kind: string | undefined, gunRow: boolean): string {
   if (k === "RATE") return glossaryRows().find((r) => r.word === "RATE")!.def;
   if (k === "GEAR") return GEAR_NOTE;
+  if (k === "BELT") return BELT_NOTE; // SHOPCARD-1e (E1)
   return gunRow || kind === "turret" ? SLUG_NOTES.gun : kind === "core" || kind === "mod" ? SLUG_NOTES.load : SLUG_NOTES.slug;
 }
 

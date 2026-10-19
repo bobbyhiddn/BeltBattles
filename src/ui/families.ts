@@ -75,9 +75,12 @@ export const FAMILY: Readonly<Record<ModuleTag, Family>> = {
     // PLAIN-1F (REQ-BFG-084, M3; cap's call on run 2's F6): with PLAIN_RIGS on BALLAST joins the family (plainRigs.ts tags
     // PLATE; kept, since tools/luckReport.ts and tools/wave3.ts read the tags), so the line names what it gives too: MAX
     // {HULL}, its stat row's words. Off: the line as before, byte for byte
+    // SC-0912b (cap's answer to SC-0912's question 1; REQ-BFG-081): MAX HULL in words, not the heart (MAX {HULL}), as BALLAST's stat row, ladder and
+    // line say it since SC-0912 (e951668) and for READ-9's reason (HEAL and REGEN are words, a heart is a picture a reader has to name). The off branch is
+    // untouched. LAST CHANCE's hull option and the IRON SKIN / SPARE HULL runes still draw MAX {HULL}: a later pass
     get glossary(): string {
       return plainRigsRules()
-        ? "A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX {HULL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE."
+        ? "A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX HULL, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE."
         : "A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
     },
   },

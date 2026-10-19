@@ -183,7 +183,9 @@ describe("U2c the shop chip on the op view's card", () => {
     expect(fits.length).toBeGreaterThan(30);
   });
 
-  it("the card draws the chip in the marks' place and the price in the right corner; a piece without a chip draws today's card", () => {
+  // SHOPCARD-1 (REQ-BFG-115): retired as a drawing test: the card no longer draws U2c's chip (the face's stat row moved to
+  // the tap panel and the hover tooltip; shopChip and shopChipGlyphs stay as data). A chip handed to drawCard changes nothing.
+  it("a chip handed to drawCard is not drawn: the card is the same with or without it, its price at the bottom centre (SHOPCARD-1)", () => {
     const draw = (def: string, chip?: string) => {
       const c = fresh(60, 50);
       drawCard(G(c), { x: 2, y: 2, w: CARD_W, h: CARD_H }, ITEMS[def], ITEMS[def].price, ITEMS[def].merchant!, {
@@ -192,13 +194,8 @@ describe("U2c the shop chip on the op view's card", () => {
       return c;
     };
     const chip = shopChipGlyphs("hotswap")!;
-    const withChip = draw("hotswap", chip), without = draw("hotswap");
-    // the chip's white number in the marks' row ("+2" after the BURN icon); without a chip, the marks (coloured) and no white
-    const cw = textWidth(chip, "3");
-    const white = (c: ReturnType<typeof fresh>) => { let n = 0; for (let yy = 2 + CARD_CHIP_Y; yy < 2 + CARD_CHIP_Y + 5; yy++) for (let xx = 2 + CARD_MARK_X; xx < 2 + CARD_MARK_X + cw; xx++) if (c.at(xx, yy) === C.white) n++; return n; };
     expect(icons("{BURN}", "alone")).toBe(ICON.BURN);
     expect(chip.startsWith(ICON.BURN)).toBe(true);
-    expect(white(withChip)).toBeGreaterThan(0);
-    expect(white(without)).toBe(0);
+    expect(draw("hotswap", chip).px.join()).toBe(draw("hotswap").px.join());
   });
 });

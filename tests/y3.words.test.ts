@@ -97,7 +97,7 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(["pincer", "twingauge", "bellows", "surge", "assembly"].map((d) => cardText(d))).toEqual([
       // WORDS-1 (REQ-BFG-081): TWIN GAUGE's card in plain words (was "DAMAGE ON A MATCHED BELT.")
       // CARD-3 (REQ-BFG-081, D3): PINCER's and ASSEMBLY LINE's desk lines say their faces' words
-      "DAMAGE FOR OTHER RIGS HITTING IT.", "DAMAGE IF ANOTHER BELT IS AS LONG.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "FEEDS A GUN: RIGS WORK 50% SOONER."]);
+      "DAMAGE FOR OTHER RIGS HITTING IT.", "DAMAGE IF ANOTHER BELT IS AS LONG.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "FEEDS A GUN: ALL RIGS START 50% SOONER."]);
     expect(["quench", "brake", "twinlatch", "platebreaker", "surge"].map((d) => gist(d, 2))).toEqual([
       "50 DAMAGE FOR EACH BURN", "40% SPEED", "HOLDS UP TO 2 SECONDS", "88 DAMAGE FOR 10 SHIELD", "20 DAMAGE EVERY 3 SECONDS"]);
   });

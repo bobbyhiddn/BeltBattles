@@ -22,6 +22,7 @@ import { drawStakes, duskStakes, livesOf, stakesWidth, STAKES_SAVES, STAKES_SAVE
 import { heartsRun, livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: the hero card's HEARTS
 import { HEROES, ITEMS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import type { ModuleTag } from "../../sim/content"; // 0.8.0 I1 M4: the families in the header
+import type { ItemDef } from "../../sim/content"; // SHOPCARD-1e (E3, E4): offerLabel
 import { drawFamilyMark, familiesOf, familySpans, familyWord } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import {
@@ -636,6 +637,42 @@ function mergeBlock(run: Run, def: string): Block | null {
   return { role: "merges", text: mergesWithText(def, to, textOpts(run)), keep: true, ...(perk ? { perk: `★${to} ${perk}` } : {}) };
 }
 
+/** SHOPCARD-1 (REQ-BFG-115, F5): what the shop card said in words about owning a copy, now that its merge mark and owned marker
+ *  (shop.ts drawMergeMark, drawOwnedMarker) are wordless: a sentence for the panel's NOTES and the desk's hover tooltip. An offer
+ *  that merges on purchase says into which star (mergeLine: "MERGES INTO ★2: +2 BURN.", faces.ts faceMerge); an offer of a piece
+ *  the run holds (not a starting copy) that a new copy won't merge with, the owned marker's cases (run.ts shopBadge "wait" and
+ *  "max": mergePreview is null, so gainModule makes no merge), says so. null: no copy held, or the offer is sold. */
+export const OWNED_NOTE = "YOU OWN ONE ALREADY: A NEW COPY WON'T MERGE WITH IT.";
+export function offerMergeNote(run: Run, def: string): string | null {
+  const b = shopBadge(run, def);
+  return b?.kind === "merge" ? mergeLine(run, def) : b ? OWNED_NOTE : null;
+}
+
+/**
+ * SHOPCARD-1e (REQ-BFG-081, REQ-BFG-115; READ-12 round S, E3 and E4): a shop offer's buy button, in words.
+ * - E3, a sale: the panel read `BUY 6G` (GANTRY PRESS, list 7) or `BUY 2G` (WHETSTONE, list 3), and all six round S readers read a
+ *   plain buy (N 6 of 6). A cut price now says so: `SALE: BUY 6G`. The game's rule: run.ts:454 priceOf = max(1, list - run.shop.discount)
+ *   (a scout's deal), and chrome.ts:148 draws the card's sale mark when `o.price < ITEMS[o.def].price`: the same test here.
+ * - E4, a merge: the ★2 and ★3 panels of a piece were the same picture (`BUY+MERGE 7G` either way), so a reader learnt the star only
+ *   from the notes, and Haiku led with ★2 on both ★3 offers. The label names the star the buy makes (run.ts shopBadge toStars, the
+ *   card's MERGE ★n mark): `MERGE ★3: 7G`. 3x5 face, button = text + 4 px, and the least button is 64 px (the 360x640 strip's
+ *   one button; inspector.ts topRowButtons, portraitButtons' even width), so a label holds at most 60 px at every price: the game's
+ *   dearest offer is 13G (THUNDERER), and `BUY+MERGE ★3 13G` (61 px) is 1 px too wide, `MERGE TO ★3: 13G` is 58 (but 54 at 1
+ *   digit, 8 px wider than the old `BUY+MERGE 7G`: its button no longer fits the phone band's top row beside nine pieces' long
+ *   titles, so it moved 18 merge-offer panels' buttons to the second row; REPORT section 2). `MERGE ★3: 7G` is 43 px (47 at 2
+ *   digits), narrower than the old label (46 and 50): no button moves down (four panels' move up).
+ * - A merge that is also on sale: the MERGE label wins, and the cut price is still the price shown. Same precedence as the card
+ *   (shop.ts:338-342: the merge mark, else the owned marker, else the sale mark), and no label says both within 60 px at a
+ *   one-digit price and a two-digit one alike (`SALE: MERGE ★3 6G` is 62 px, `SALE MERGE ★3 6G` 60 and 64 at 10G).
+ * - A supply (BUY+USE) on sale: `SALE: BUY+USE 6G` (59 px). Supplies never merge (they are not fusible).
+ * `toStars`: the star the buy makes when it merges, else null. Pure (offerPanel, the tests).
+ */
+export function offerLabel(d: Pick<ItemDef, "kind" | "price">, price: number, toStars: number | null): string {
+  const sale = price < d.price ? "SALE: " : "";
+  if (d.kind === "supply") return `${sale}BUY+USE ${price}G`;
+  return toStars !== null ? `MERGE ★${toStars}: ${price}G` : `${sale}BUY ${price}G`;
+}
+
 /** A shop offer's panel, the phone's tap preview (T5): the module's 1-star ability text, the MERGES WITH line when it
  *  merges on purchase, the hint and the flavour; on the header-only 360x640 strip, its one-line effect. shoptap (D2):
  *  `touch`, the drag hint (a touch tap never places). */
@@ -643,7 +680,7 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
   const o = run.shop.wagons[wagon]?.offers[slot];
   if (!o) return null;
   const d = ITEMS[o.def];
-  const merging = !o.sold && shopBadge(run, o.def)?.kind === "merge";
+  const badge = o.sold ? null : shopBadge(run, o.def); // SHOPCARD-1e: the label names the merge's star (was `merging`)
   const opts = textOpts(run);
   const one = cardEffect(d.id, opts); // BUMP-1D P6: was cardText(d.id, opts); cardEffect is cardText byte for byte wherever cardText has a line, and a plain rig's stat row where it has none (the twelve of PLAIN_RIGS and SHAPES2, on since bb-0.11.0: the 360x640 strip drew no effect for them)
   // U2e step 4 (REQ-BFG-070): no MERGES INTO line on the face: the card's MERGE ★2 badge and BUY+MERGE say it merges, and
@@ -653,7 +690,9 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
     ...flavourBlocks(d.id, 1, opts.k ?? 1),
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),
   ];
+  const own = o.sold ? null : offerMergeNote(run, o.def); // SHOPCARD-1 (F5): the card's merge mark and owned marker, in words, in NOTES
   return {
+    ...(own ? { notes: [{ role: "note", text: own } as Block] } : {}),
     // WORDS-1 (REQ-BFG-081; READ-1 6.2: merchant names drew 40 "not understood" flags): no merchant's name on the panel (the
     // desk's wagon tags keep them), and a core's or gear's kind in plain words (shop.ts panelKind). Was `${describe(d)} ·
     // ${merchant}`, subShort describe(d)
@@ -662,7 +701,7 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
     headerOnly: one ? { texts: [one], colour: C.bone } : undefined,
     body,
     variants: tightForms(body),
-    labels: [o.sold ? "SOLD" : d.kind === "supply" ? `BUY+USE ${o.price}G` : merging ? `BUY+MERGE ${o.price}G` : `BUY ${o.price}G`],
+    labels: [o.sold ? "SOLD" : offerLabel(d, o.price, badge?.kind === "merge" ? badge.toStars : null)], // SHOPCARD-1e (E3, E4)
   };
 }
 

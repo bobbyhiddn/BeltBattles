@@ -39,7 +39,7 @@ describe("P4: the interim faces", () => {
       rasp: ["[DMG]+8 [BURN]+1", "[DMG]+16 [BURN]+2", "[DMG]+28 [BURN]+3"], // SHAPES-2 run 2: DMG 10/20/35 -> 8/16/28
       sparkgap: ["[STUN]+1", "[STUN]+2", "[STUN]+3"],
       scaleguard: ["[PLATE]+5 [DMG]+10", "[PLATE]+12 [DMG]+20", "[PLATE]+18 [DMG]+35"], // SHAPES-2 run 2: PLATE 3/7/11 -> 5/12/18
-      ballast: ["MAX ♥+8%", "MAX ♥+16%", "MAX ♥+25%"],
+      ballast: ["MAX HULL +8%", "MAX HULL +16%", "MAX HULL +25%"], // SC-0912 (PACKET-SHOPCARD1 item 3): HULL in words where the heart was (was "MAX ♥+8%" ...)
       grindstone: ["[DMG]+25", "[DMG]+55", "[DMG]+90"],
       brandingiron: ["[DMG]+15", "[DMG]+30 [BURN]+1", "[DMG]+50 [BURN]+2"], // FIRSTDAY-1 F7: the burn comes with the first merge
     };
@@ -101,7 +101,7 @@ describe("PLAIN-1F (M3): the final faces", () => {
         }
         out.push(`${id} "${plain(cardEffect(id))}" ${most} line(s), ${textWidth(cardEffect(id), "3")} px`);
       }
-      expect(plain(cardEffect("ballast"))).toBe("MAX ♥+8%");
+      expect(plain(cardEffect("ballast"))).toBe("MAX HULL +8%"); // SC-0912 (PACKET-SHOPCARD1 item 3): was "MAX ♥+8%"
     });
     // every buyable piece with or without the six: cardEffect is its cardText where it has one (WHETSTONE's "ADDS 20 DAMAGE.")
     // BUMP-1D: PLAIN_RIGS ships on, so "without the six" is the off world, explicit (the loop ran there as shipped)
@@ -110,12 +110,14 @@ describe("PLAIN-1F (M3): the final faces", () => {
     console.log(`PLAIN1F desk cards: ${out.join("; ")}`);
   });
 
-  it("BALLAST reads MAX ♥ on its stat row, ladder, NEXT★ and desk card; its chip keeps ♥+8% (MAX doesn't fit the chip room)", () => on(() => {
-    expect([1, 2, 3].map((s) => plain(faceLines("ballast", s)!.stats!))).toEqual(["MAX ♥+8%", "MAX ♥+16%", "MAX ♥+25%"]);
+  // SC-0912 (PACKET-SHOPCARD1 item 3): BALLAST says MAX HULL in words on its stat row, ladder, NEXT★ and desk card (was MAX ♥: the heart
+  // read as lives, READ-9 fix 5; SHOPCARD-1b's HEAL and REGEN notes say HULL in words); its chip (data: the card no longer draws it) keeps ♥+8%
+  it("BALLAST reads MAX HULL on its stat row, ladder, NEXT★ and desk card; its chip keeps ♥+8% (MAX doesn't fit the chip room)", () => on(() => {
+    expect([1, 2, 3].map((s) => plain(faceLines("ballast", s)!.stats!))).toEqual(["MAX HULL +8%", "MAX HULL +16%", "MAX HULL +25%"]);
     expect([1, 2, 3].map((s) => levelLines("ballast", s)!.filter((l) => l.kind === "ladder").map((l) => plain(icons(levelText(l)))))).toEqual([
-      ["MAX ♥ [+8%]/+16%/+25%"], ["MAX ♥ +8%/[+16%]/+25%"], ["MAX ♥ +8%/+16%/[+25%]"],
+      ["MAX HULL [+8%]/+16%/+25%"], ["MAX HULL +8%/[+16%]/+25%"], ["MAX HULL +8%/+16%/[+25%]"],
     ]);
-    expect(plain(faceNext("ballast", 1)!.text)).toBe("NEXT ★2: MAX ♥+16%");
+    expect(plain(faceNext("ballast", 1)!.text)).toBe("NEXT ★2: MAX HULL +16%");
     const chip = shopChipGlyphs("ballast")!, room = cardPriceX(0, CARD_W, ITEMS.ballast.price, false, true) - CARD_MARK_X - 2;
     expect(plain(chip)).toBe("♥+8%");
     expect(textWidth(`MAX ${chip}`, "3"), "MAX ♥+8% would not fit the phone card's chip room").toBeGreaterThan(room);
@@ -134,10 +136,12 @@ describe("PLAIN-1F (M3): the final faces", () => {
     expect(levelLines("brandingiron", 1)!.filter((l) => l.kind === "ladder").map((l) => plain(icons(levelText(l))))).toEqual(["[DMG] [+15]/+30/+50", "[BURN] [-]/+1/+2"]);
   }));
 
-  it("the SHIELD family's line names MAX ♥ while BALLAST is in it (PLAIN_RIGS on); off, the line is the base's", () => {
+  it("the SHIELD family's line names MAX HULL (in words) while BALLAST is in it (PLAIN_RIGS on); off, the line is the base's", () => {
     const base = "SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
-    const withBallast = "SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX {HULL}, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
-    // BUMP-1D: PLAIN_RIGS ships on, so the off world (the base's line) is explicit and the shipped line is the one with MAX ♥
+    // SC-0912b (cap's answer to SC-0912's question 1; REQ-BFG-081): MAX HULL in words, was "... {*HEAL}, MAX {HULL}, GUARDS, ..." (the heart), as BALLAST's own
+    // stat row, ladder and line say it since SC-0912 (READ-9's reason: HEAL and REGEN are words). The off line (base) is byte for byte as before
+    const withBallast = "SHIELD: A HULL THAT OUTLASTS THE FIGHT: {*PLATE}, {*SHIELD}, {*HEAL}, MAX HULL, GUARDS, AND WHAT TURNS {*PLATE} INTO DAMAGE.";
+    // BUMP-1D: PLAIN_RIGS ships on, so the off world (the base's line) is explicit and the shipped line is the one with MAX HULL (SC-0912b; was MAX ♥)
     withPlainRigs(() => expect(familyNote("PLATE")).toBe(base), false);
     expect(familyNote("PLATE")).toBe(withBallast);
     on(() => {

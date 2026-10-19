@@ -615,6 +615,10 @@ describe("EXPLAIN-1 (e): the band", () => {
     rows.push(...on);
     console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES on, as shipped): ${rows.join(" | ")}`);
     expect(all.length).toBe(1094); // BUMP-1D: was 938 (PLAIN_RIGS' six and SHAPES2's six: 12 x 13 more panels)
+    // SC-0912 (PACKET-SHOPCARD1 item 3): SHOPCARD-1b-1d's `moved` pin here ({250: "822 of 938, 90th 48", 258: "834 of 938, 90th 48",
+    // 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48"}: measured before PLAIN-1F, when the band was over its pin from W 250) is
+    // dropped, as PLAIN-1F's side drops it: PLAIN-1F's hits-on-one-line is back to 90% at every width, so on this merged tree
+    // (SHOPCARD-1's plainer words, BUMP-1D's 1094 panels) the 90th is at or under the pin at every width and `moved` stays {}
     expect(moved).toEqual({});
   }, 900_000);
 });
@@ -648,8 +652,8 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
       const f = framed(402, 690, 3, 1), c = { run, sel: { kind: "cargo", uid: 900 } as Sel };
       const { d } = placed(c, f), piece = panelPiece(run, d.show)!;
       const words = explainWords(d.t, piece);
-      expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", colour: words[0].colour });
-      expect(glossaryText("HIT", piece)).toBe("HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.");
+      expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: "HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.", colour: words[0].colour }); // SHOPCARD-1b (REQ-BFG-081)
+      expect(glossaryText("HIT", piece)).toBe("HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.");
       expect(d.t.notes![0].text, `${def} ★${s}`).toBe(RIG_SENTENCE);
       // the icon's hover: NOTES, then HIT's definition
       expect(iconTipItems(d.t, words, piece).slice(-1)[0]).toBe(words[0].text);
@@ -686,7 +690,7 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
     expect(shapedRows()).toEqual([
       "DMG +16/DMG +33/DMG +53", "BURN +1/BURN +2/BURN +3", "DMG +8/DMG +16/DMG +28",
     ]);
-    expect(SHAPED_PLAIN_RIGS.map((d) => shapeLines(d, 1).map((r) => r.text))).toEqual([["UP TO 2 HITS"], ["UP TO 2 HITS"], ["UP TO 6 HITS"]]);
+    expect(SHAPED_PLAIN_RIGS.map((d) => shapeLines(d, 1).map((r) => r.text))).toEqual([["HITS EACH SLUG UP TO 2 TIMES."], ["HITS EACH SLUG UP TO 2 TIMES."], ["HITS EACH SLUG UP TO 6 TIMES."]]); // SHOPCARD-1b (REQ-BFG-081): per slug (was UP TO 2 / 6 HITS)
     for (const def of ["heatjacket", "plateroller", "riveter"]) expect(faceLines(def, 1)!.rules[0].text.startsWith("HIT:"), def).toBe(true);
     expect(rigs.length).toBeGreaterThan(20);
   });
@@ -701,7 +705,7 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
       rasp: ["{DMG} +8/+16/+28", "{BURN} +1/+2/+3"], // SHAPES-2 run 2: DMG 10/20/35 -> 8/16/28
       sparkgap: ["{STUN} +1/+2/+3"],
       scaleguard: ["{PLATE} +5/+12/+18", "{DMG} +10/+20/+35"], // SHAPES-2 run 2: PLATE 3/7/11 -> 5/12/18
-      ballast: ["MAX {HULL} +8%/+16%/+25%"],
+      ballast: ["MAX HULL +8%/+16%/+25%"], // SC-0912 (PACKET-SHOPCARD1 item 3): HULL in words, as the stat row says it (was "MAX {HULL} +8%/+16%/+25%", the heart)
       grindstone: ["{DMG} +25/+55/+90"],
       brandingiron: ["{DMG} +15/+30/+50", "{BURN} -/+1/+2"], // FIRSTDAY-1 F7: the BURN comes at ★2; the dash says "none yet"
     };
@@ -728,7 +732,10 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
         expect(iconTipItems(d.t, words, piece)).toEqual(d.t.notes!.map((b) => b.text));
       } else {
         expect(plainSlugRig(def)).toBe(true);
-        expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", colour: words[0].colour });
+        // SC-0912 (PACKET-SHOPCARD1 item 3): SHOPCARD-1b's F1 note in glossary.ts replaced the HIT note PLAIN-1F pinned here ("HIT: EACH
+        // SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", the old line: rasp ★1 was the first of the six to fail); the glossary's line
+        const HIT_NOTE = "HIT: EACH TIME THIS RIG HITS A SLUG ON A TILE ITS ARROWS POINT AT.";
+        expect(words[0], `${def} ★${s}`).toEqual({ word: "HIT", text: HIT_NOTE, colour: words[0].colour });
         expect(d.t.notes![0].text, `${def} ★${s}`).toBe(RIG_SENTENCE);
         expect(iconTipItems(d.t, words, piece).slice(-1)[0]).toBe(words[0].text);
       }
@@ -739,7 +746,7 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
       expect(kw.includes("SHIELD"), `${def} ★${s} SHIELD`).toBe(def === "scaleguard");
     }
     expect(CARRY_LINE).toBe("EACH SLUG IT HITS CARRIES THE {*PLATE} TO YOUR GUN. YOUR SHIP GAINS IT AS THE SLUG LOADS.");
-    expect(BALLAST_LINE).toBe("WHILE AN ARROW POINTS AT A BELT TILE, IT RAISES YOUR SHIP'S MAX {HULL}. NO ARROW ON A BELT: IT IS IDLE.");
+    expect(BALLAST_LINE).toBe("WHILE AN ARROW POINTS AT A BELT TILE, IT RAISES YOUR SHIP'S MAX HULL. NO ARROW ON A BELT: IT IS IDLE."); // SC-0912 (PACKET-SHOPCARD1 item 3): MAX HULL in words (was MAX {HULL}, the heart)
   }));
 
   it("PLAIN-1F (M3): with PLAIN_RIGS off nothing moves: the NOTES lead of every plain rig is the rig sentence, HIT is isPlainRig's", () => {

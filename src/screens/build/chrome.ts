@@ -29,16 +29,15 @@ import { dayText, onLongRoad } from "../runDay"; // RUN-1: the day's words, "DAY
 import { inEndless } from "../../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): an endless run's bar
 import { endlessBar } from "../endlessText";
 import type { BuildScreen } from "./build";
-import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerTooltip } from "./shop"; // TXT-095: offerTooltip
-import { drawDetails, hasDetails, textOpts } from "./inspector";
+import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerFace } from "./shop"; // SHOPCARD-1: offerFace (was TXT-095's offerTooltip)
+import { drawDetails, hasDetails, offerMergeNote, textOpts } from "./inspector";
+import { keywordCursorOff } from "./keywords"; // SHOPCARD-1e (E5): the column is not drawn while a hover tooltip shows
 import { drawFoeCard } from "./foeView"; // SCOUT-1c (REQ-BFG-082): the NEXT BATTLE card opens a scouted foe
-import { abilityText } from "../../ui/abilityText"; // 0.6.2t (T5): the tooltip's (PLAIN-1F M3: the card's one-line effect is faces.ts cardEffect)
-import { cardEffect } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3, F5): the wide card's effect: cardText, else a plain six's stat row
+import { abilityText } from "../../ui/abilityText"; // 0.6.2t (T5): the pack tooltip's fallback sentence (SHOPCARD-1: no longer the card's effect line; SC-0912: PLAIN-1F's cardEffect import dropped, a shop card carries no effect line)
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 import { drawBeltX } from "./beltx"; // shoptap (D3)
 import { deleteRoute } from "./actions"; // shoptap (D3): the X removes the belt as REMOVE BELT does
 import { faceLines } from "../../ui/faces"; // U2c group 0 fix 3: the packs' faces in their tooltips
-import { phoneGist, shopChipGlyphs } from "../../ui/chips"; // U2c (C4): the shop cards' stat chips
 
 /** bb-0.8.6 (PACKS P5; U2c group 0 fix 3): a pack slot's tooltip text: the pack's face ("+4 BELT TILES FOR THE RUN.",
  *  "+250 {HULL} FOR THE RUN."), else its first sentence. AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q3): on the run's day
@@ -163,9 +162,11 @@ function drawShop(g: G, s: BuildScreen): void {
       sold: o.sold, affordable: run.gold >= o.price, selected: sel && !carry, hover: !!s.hover && s.hover.wagon === wagon && s.hover.slot === slot,
       pulse: !s.boughtOnce && s.sel.kind === "none", hidden: !!carry && carry.src.from === "offer" && carry.src.wagon === wagon && carry.src.slot === slot, shake,
       badge: o.sold ? null : shopBadge(run, o.def), // 0.6.1d: live, never stored on the offer
-      effect: cardEffect(o.def, textOpts(run)), // 0.6.2t (T5): drawn on a wide (landscape) card; PLAIN-1F (M3, F5): cardText, else a plain six's stat row
-      chip: shopChipGlyphs(o.def, textOpts(run)) ?? undefined, // U2c (C4): the stat chip
-      gist: phoneGist(o.def, textOpts(run)) ?? undefined, // CARD-3 (REQ-BFG-081, A): the phone card's gist (the narrow face)
+      // SHOPCARD-1 (REQ-BFG-115): the card is the icon and the price and wordless marks, so the effect, the stat chip and the
+      // gist rows that fed the old faces are no longer built here every frame; its sale mark: a scout's deal (run.shop.discount)
+      // made this offer cheaper than its list price (run.ts priceOf)
+      // SC-0912: PLAIN-1F's `effect: cardEffect(...)` (M3, F5) is dropped with the others; the sale mark is kept
+      sale: !o.sold && o.price < ITEMS[o.def].price,
     }, t);
   }
   const rr = { ...L.reroll, x: L.reroll.x + s.caravan.dx(list.length, L.W) };
@@ -254,6 +255,15 @@ function drawFight(g: G, s: BuildScreen, cue: boolean): void {
   }
 }
 
+/** SHOPCARD-1e (E5): the offer whose hover tooltip shows this frame, with its card's index in L.cards: a mouse over a card, no
+ *  piece carried, the caravan parked (the conditions the tooltip had inline); null when none shows. */
+export function tooltipOffer(s: BuildScreen): { idx: number; o: Run["shop"]["wagons"][number]["offers"][number] } | null {
+  if (!s.hover || s.ed.carry || !s.caravan.ready) return null;
+  const idx = s.offers().findIndex((q) => q.wagon === s.hover!.wagon && q.slot === s.hover!.slot);
+  const o = s.run.shop.wagons[s.hover.wagon]?.offers[s.hover.slot];
+  return idx >= 0 && o && s.L.cards[idx] ? { idx, o } : null;
+}
+
 export function drawBuildChrome(g: G, s: BuildScreen): void {
   const L = s.L;
   const ui = s.game.ui;
@@ -268,9 +278,17 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   const c = s.ed.carry;
   const held = c ? null : s.ed.selectedCarry();
   if (held && !s.ed.busy) inCarrier(g, L, () => drawSuggestion(g, L, s.run.build, held.def, s.t)); // ZOOM-1: at the carrier's zoom
+  // SHOPCARD-1e (REQ-BFG-115; E5, cap's SHOPCARD-1d review): on the desk the hover tooltip (drawn last, below) is a box under its
+  // card, and the details column under the shop row shows the same hovered face in larger type: the box covered part of the
+  // column and the column's last rows peeked out below and beside it (LIMPET WORKS' "HULL, 3s AFTER A HIT.", TWIN LATCH's "ROWS
+  // MUST ... LTS."). While the tooltip shows, the column is not drawn: the box says everything the column would (offerFace is the
+  // panel's own face), and no word of the column shows around or under it. A hover shows its panel without buttons (inspector.ts
+  // baseSpec: `hovering ? []`), so no button or target of the column goes; the column is back the moment the mouse leaves the card.
+  const tip = tooltipOffer(s);
   if (!L.portrait) {
     if (L.foe) drawFoeCard(g, s, L.foe); // SCOUT-1c (REQ-BFG-082): drawFoe, and a revealed foe's tap target
-    drawDetails(g, s, s.sel, s.hover, L.info, s.foe, s.note());
+    if (tip) keywordCursorOff(s.game?.canvas); // drawDetails resets the desk's help cursor each frame; the column is not drawn now
+    else drawDetails(g, s, s.sel, s.hover, L.info, s.foe, s.note());
   } else if (hasDetails(s, s.sel, s.hover) || !L.foe) {
     // a selection or hover uses the whole band. shoptap2 (REQ-BFG-034, -035): after a finger's tap, where the band is
     // shorter than a panel needs (a phone browser's toolbars take part of the screen), the panel grows (BuildScreen.panelArea);
@@ -300,13 +318,14 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   }
   if (cue) drawFightCue(g, L.fight, L.portrait, s.t);
   // mouse hover tooltip under the card
-  if (s.hover && !c && s.caravan.ready) {
-    const idx = s.offers().findIndex((q) => q.wagon === s.hover!.wagon && q.slot === s.hover!.slot);
-    const o = s.run.shop.wagons[s.hover.wagon]?.offers[s.hover.slot];
+  if (tip) {
+    const { idx, o } = tip;
     // 0.6.2t (T5): the offer's opening sentence, as its panel and card read it. TXT-095 (REQ-BFG-070, REQ-BFG-046): faces
     // first, as the pack tooltip below: the face's first rule line (with the run's TextOpts), else that sentence
     // (shop.ts offerTooltip; was that opening sentence alone)
-    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerTooltip(o.def, textOpts(s.run)));
+    // SHOPCARD-1 (REQ-BFG-115, F5): the card shows only its icon and price, so the tooltip shows its whole face (offerFace: every
+    // line the panel's face draws), kept on screen (L.H); a click still selects the card and opens its panel (BuildScreen.up)
+    drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, [...offerFace(o.def, textOpts(s.run)), ...(o.sold ? [] : [offerMergeNote(s.run, o.def)].filter((n): n is string => !!n))], L.H);
   }
   // bb-0.8.6 (REQ-BFG-051, PACKS P5): a mouse over a pack slot: its name and one-line text, as an offer's tooltip reads
   const ph = s.refit || c ? -1 : PACK_IDS.findIndex((id) => ui.hover === `pack-${id}`);

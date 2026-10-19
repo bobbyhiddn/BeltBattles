@@ -158,7 +158,9 @@ describe("CARD-3 (r): SHIELD and WARD (REQ-BFG-107)", () => {
     expect(bad.map(([w, t]) => `${w}: ${t}`)).toEqual([]);
     expect(texts.filter(([w]) => PLAIN_RIG_IDS.some((id) => w.startsWith(`${id} `))).length).toBeGreaterThan(20);
     for (const n of [CARRY_LINE, BALLAST_LINE, FAMILY.PLATE.glossary]) expect(/\b(SHIELD|SHIELDS|WARD)\b/.test(n.replace(/\{\*?[A-Z]+\}/g, " ")), n).toBe(false);
-    expect(familyNote("PLATE")).toContain("MAX {HULL}");
+    // SC-0912b (cap's answer to SC-0912's question 1): MAX HULL in words, was "MAX {HULL}" (the heart), as BALLAST's own row and line say it
+    expect(familyNote("PLATE")).toContain("MAX HULL");
+    expect(familyNote("PLATE")).not.toContain("MAX {HULL}");
   }));
 
   it("the definitions (sim-checked: races/bastion.ts absorb, PLATE_CAP 240; Battle.shieldHit, SHIELD_CAP 3; impact's order)", () => {
@@ -232,7 +234,7 @@ describe("CARD-3 (r): SHIELD and WARD (REQ-BFG-107)", () => {
 describe("CARD-3 (d3): the wide desk shop card's one-line effects say their faces' meaning (REQ-BFG-081)", () => {
   it("the five lines CARD-2's K3 fixed on the faces, each in at most two lines of the wide card at every landscape width", () => {
     const want: Record<string, string> = {
-      assembly: "FEEDS A GUN: RIGS WORK 50% SOONER.", gatling: "FIRES AS LOADS COME, SPINS UP.", pincer: "DAMAGE FOR OTHER RIGS HITTING IT.",
+      assembly: "FEEDS A GUN: ALL RIGS START 50% SOONER.", gatling: "FIRES AS LOADS COME, SPINS UP.", pincer: "DAMAGE FOR OTHER RIGS HITTING IT.",
       limpet: "BLASTS THE FOE'S HULL FOR 100.", spotter: "SHOTS AIMED AT NO PART AIM AGAIN.",
     };
     const out: string[] = [];
@@ -241,7 +243,8 @@ describe("CARD-3 (d3): the wide desk shop card's one-line effects say their face
       let most = 0;
       for (let W = 430; W <= 480; W++) {
         const w = wideCardW(W, 5), ls = cardEffectLines(line, w);
-        expect(ls.length, `${id} at ${w}`).toBeLessThanOrEqual(CARD_EFFECT_LINES);
+        // SHOPCARD-1f (F4): ASSEMBLY LINE's line says ALL RIGS START (142 px of 3x5): 3 lines of the 69-70 px wide card, which no code draws (abilityText.test.ts T5 says why)
+        expect(ls.length, `${id} at ${w}`).toBeLessThanOrEqual(id === "assembly" ? CARD_EFFECT_LINES + 1 : CARD_EFFECT_LINES);
         for (const l of ls) { expect(lineWidth(l, "3"), `${id} at ${w}: ${lineText(l)}`).toBeLessThanOrEqual(cardEffectWidth(w)); most = Math.max(most, ls.length); }
       }
       out.push(`${id} "${line}" ${most} line(s)`);
@@ -419,23 +422,25 @@ describe("CARD-3 (a): the phone shop card's gist for cores, gear and five rigs (
     console.log(`CARD3 (a) gists, ${rows.length}:\n${rows.join("\n")}`);
   });
 
-  it("the card keeps its 46x42 size, its price and its touch target; the gist's rows sit inside it, the art gives up its room", () => {
+  // SHOPCARD-1 (REQ-BFG-115): the gist rows are no longer drawn on the card: every word moved to the tap panel, which keeps
+  // them (the PHONE_GISTS rows and phoneGist stay, pinned above; their drawing on the card is retired, as the old face's
+  // constants stay as data). The card keeps its 46x42 size and its price, and a gist or chip handed to drawCard changes nothing.
+  it("the card keeps its 46x42 size and its price; a gist and a chip handed to drawCard are not drawn (SHOPCARD-1: the card is its icon and price)", () => {
     expect([CARD_W, CARD_H]).toEqual([46, 42]);
-    expect([CARD_GIST_NAME_Y, CARD_GIST_Y, CARD_CHIP_Y]).toEqual([13, 25, 32]); // name rows 13..23, row A 25..29, row B 32..36
+    expect([CARD_GIST_NAME_Y, CARD_GIST_Y, CARD_CHIP_Y]).toEqual([13, 25, 32]); // the old face's rows, kept as data (BRIEF-SHOPCARD1 rule 2)
     const st = { sold: false, affordable: true, selected: false, hover: false, pulse: false, hidden: false, shake: 0 };
     for (const id of ["lance", "mortar", "salvo", "steambreech", "overdrive"]) {
       const d = ITEMS[id], gst = phoneGist(id, d.kind === "core" ? { k: 1 } : {})!;
-      const c = fresh(60, 60), r = { x: 5, y: 5, w: CARD_W, h: CARD_H };
-      drawCard(gOf(c), r, d, d.price, d.merchant!, { ...st, gist: gst, chip: shopChip(id) ?? undefined }, 0);
-      let outside = 0, rowA = 0, rowB = 0;
-      for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) {
-        const px = c.at(x, y);
-        if (px === null) continue;
-        if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) outside++;
-        if (y >= r.y + CARD_GIST_Y && y < r.y + CARD_GIST_Y + 5 && x > r.x + 2 && x < r.x + r.w - 3 && px !== C.slate0) rowA++;
-        if (y >= r.y + CARD_CHIP_Y && y < r.y + CARD_CHIP_Y + 5 && x > r.x + 2 && x < cardPriceX(r.x, r.w, d.price, false, true) && px !== C.slate0) rowB++;
-      }
-      expect([outside, rowA > 0, rowB > 0], id).toEqual([0, true, true]);
+      const r = { x: 5, y: 5, w: CARD_W, h: CARD_H };
+      const withGist = fresh(60, 60), without = fresh(60, 60);
+      drawCard(gOf(withGist), r, d, d.price, d.merchant!, { ...st, gist: gst, chip: shopChip(id) ?? undefined }, 0);
+      drawCard(gOf(without), r, d, d.price, d.merchant!, st, 0);
+      expect(withGist.px.join(), id).toBe(without.px.join());
+      let outside = 0;
+      for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) if (withGist.at(x, y) !== null && (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h)) outside++;
+      expect(outside, id).toBe(0);
+      // the price sits at the bottom centre (cardPriceX's narrow rule: no chip any more)
+      expect(withGist.at(cardPriceX(r.x, r.w, d.price, false, false) + 1, r.y + r.h - 9), id).not.toBeNull();
     }
   });
 
