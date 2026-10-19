@@ -4,10 +4,18 @@
 // the keg's blasts), against the same scene with the switch off where the base differs; its face (one ability line at
 // every star, inside the 225 px band of font.ts textWidth, no caveat and no star clause, its perk's name never on the face:
 // ruling R-1); and its ⓘ LEVELS ladder, every line inside the band.
-import { describe, expect, it } from "vitest";
+// BUMP-1E (the scaling rules ship on: SCALE_RIGS, rules bb-0.12.0; this file was written when they shipped off, 0.9.11): IRON WALL
+// (row 45), POWDER KEG (row 46) and SPALL CATCHER (row 47) are reworked into readers there (src/sim/scale.ts SCALE_DEFS: +n DMG for
+// each 10 PLATE you have, for each of its hits, for each hit on you; no plating, no fuse, no charge), so those three rows pin the
+// 0.9.11 piece and are read with the switch off (oldWorld: beforeEach/afterEach, the shipped value put back; a Battle reads the
+// switch when it is made, a face or a text when it is asked). The shipped readers' numbers are pinned in tests/scale2c.sim.test.ts.
+// COUNTERWEIGHT (row 41) is not reworked, but with the switch on every FOR EACH add rides the slug's own `each` accumulator
+// (battle.ts forEach, REQ-BFG-110 step 4), so its hook reads the slug's whole flat bonus, flatOf(p), the same number as before.
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Battle, type GateState, type SideState, type TurretState } from "../src/sim/battle";
 import { CELL } from "../src/sim/content";
 import { type Build } from "../src/sim/deck";
+import { SCALE_RIGS, flatOf, scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on
 import { effectAt, starText } from "../src/sim/stars";
 import { faceAt, hasFace } from "../src/ui/faces";
 import { gearIdle, gist } from "../src/ui/abilityText";
@@ -17,6 +25,32 @@ import { SEED, barge, furnaceBench, withMod } from "./wave3.helpers";
 
 /** The turrets' private SPALL CATCHER hook (Battle.spallCharge: damage side s takes, its hull's part and plating's). */
 type SpallProbe = { spallCharge(s: SideState, hull: number, plate: number): void };
+
+/** BUMP-1E: call first inside a describe whose tests pin the 0.9.11 world: each of its tests runs with the scaling switch off
+ *  (the base defs; the seven new ids absent) and the shipped value is put back after it, so no later test sees the old world. */
+function oldWorld(): void {
+  beforeEach(() => setScaleRigs(false));
+  afterEach(() => setScaleRigs(SCALE_RIGS));
+}
+
+describe("BUMP-1E: the scaling rules ship on; rows 45-47 pin the 0.9.11 pieces they rework (read with the switch off)", () => {
+  it("SCALE_RIGS ships on, and the shipped IRON WALL, POWDER KEG and SPALL CATCHER are readers with none of the effect rows 45-47 pin", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: was false (0.9.11)
+    expect(scaleRules()).toBe(true);
+    const reads = (count: string) => ({ reads: expect.objectContaining({ count, give: "dmg" }) });
+    for (const s of STARS) {
+      expect(effectAt("shieldwall", s).gate, `IRON WALL ★${s}`).toEqual(reads("ownPlate")); // no plate, no plated (row 45)
+      expect(effectAt("keg", s).gate, `POWDER KEG ★${s}`).toEqual(reads("ownHits")); // no keg { fuse, flat } (row 46)
+      expect(effectAt("spallcatcher", s).mod, `SPALL CATCHER ★${s}`).toEqual(reads("hitsTaken")); // no spall { every, add } (row 47)
+    }
+  });
+
+  // rows 45-47 check their faces' fit (one line in the band, no clause, no caveat, no perk name on the face, the ⓘ ladder in the band)
+  // on the 0.9.11 faces; the shipped faces get the same check, so moving those rows to the old world drops none of it
+  it("the shipped IRON WALL, POWDER KEG and SPALL CATCHER faces are one reader line at every star, inside the band (the checks of rows 45-47)", () => {
+    for (const id of ["shieldwall", "keg", "spallcatcher"]) oneLine(id);
+  });
+});
 
 // -------------------------------------------------------------------------------------------- row 41: COUNTERWEIGHT
 // Y7b1 (ruling Y7A-R5, then its guard's fallback): on, perTile.each 5/11/18 -> 3/7/11 (EACH; off keeps 5/11/18 with its cap:
@@ -38,7 +72,10 @@ describe("Y5 row 41: COUNTERWEIGHT: +3/+7/+11 for each tile ridden (Y7A-R5, its 
       let tile = -1;
       const pOn = hitOnce(b, (p, h) => { p.journeyOffset = 20; tile = h.tile; });
       expect(tile + 20, `★${s} tiles`).toBeGreaterThan(12);
-      expect(pOn.flat, `★${s}`).toBe((tile + 20) * EACH[s - 1]);
+      // BUMP-1E: was pOn.flat. With the scaling rules on (SCALE_RIGS, bb-0.12.0) a FOR EACH add rides the slug's `each` and p.flat stays
+      // the stat rows' alone (0 here), so the DMG this hit adds is the sum the shot reads, flatOf(p): the same number as before
+      expect(flatOf(pOn), `★${s}`).toBe((tile + 20) * EACH[s - 1]);
+      expect([pOn.flat, pOn.each], `★${s} split`).toEqual([0, (tile + 20) * EACH[s - 1]]); // BUMP-1E: where it rides now (REQ-BFG-110 step 4)
     }
   });
 
@@ -47,7 +84,7 @@ describe("Y5 row 41: COUNTERWEIGHT: +3/+7/+11 for each tile ridden (Y7A-R5, its 
     const b = rigBench([["counterweight", 4, 3, 1]]);
     let tile = -1;
     const pOn = hitOnce(b, (p, h) => { tile = h.tile; });
-    expect(pOn.flat).toBe(tile * 3);
+    expect(flatOf(pOn)).toBe(tile * 3); // BUMP-1E: was pOn.flat (the FOR EACH add rides `each` now: see the first hook test)
   });
 
   it("face: one line, HIT: +3 {DMG} FOR EACH TILE RIDDEN.; ladder +3/+7/+11 {DMG} EACH (Y7A-R5's fallback; was +5/+11/+18)", () => {
@@ -173,7 +210,11 @@ describe("Y5 row 44: FINISHER RAM: the chamber's last slug +40%/+88%/+140%; no s
 // own plating 10/22/35 a slug, then +30/+66/+105 at 120 PLATE or more). Was "Y5 row 45: IRON WALL: +30/+66/+105 at 120 PLATE
 // or more; its own plating goes", with on no plate, a bare hull's hit [0, 0], 110 PLATE [0, 110], 0 plating gained in 15 s
 // and the face "HIT: +30 {DMG} AT 120 {*PLATE} OR MORE." (181 px; ladder {DMG} +30/+66/+105)
+// BUMP-1E: this is the 0.9.11 IRON WALL (the base def). With the scaling rules on it is a reader (+3 / +6 / +17 DMG for each 10 PLATE you
+// have; its own plating and the 120 step are gone), so every test here runs with the switch off (oldWorld); the shipped def is the
+// first describe's check and tests/scale2c.sim.test.ts's
 describe("Y5 row 45: IRON WALL: Y7b1 (Y7A-R3d): +10/+22/+35 PLATE a slug, +30/+66/+105 at 120 PLATE or more, on as off", () => {
+  oldWorld();
   const FLAT = [30, 66, 105];
   /** IRON WALL's hit on a slug with `plate` PLATE on side 0's hull: the slug's flat, and the hull's PLATE after. */
   const wallHit = (stars: number, plate: number): [number, number] => {
@@ -220,7 +261,11 @@ describe("Y5 row 45: IRON WALL: Y7b1 (Y7A-R3d): +10/+22/+35 PLATE a slug, +30/+6
 });
 
 // --------------------------------------------------------------------------------------------- row 46: POWDER KEG
+// BUMP-1E: this is the 0.9.11 POWDER KEG (the base def: the fuse, the blast). With the scaling rules on it is a reader (+2 / +5 / +11 DMG for
+// each of its own hits; no fuse, no blast: its def holds no `keg`), so every test here runs with the switch off (oldWorld), the
+// wreck test too: on, it would pass for want of any blast at all. The shipped def: the first describe's check, tests/scale2c.sim.test.ts
 describe("Y5 row 46: POWDER KEG: every 12/10/8 s from the start, +60/+130/+210 to the slugs on its belts; no BURN", () => {
+  oldWorld();
   const FUSE = [12, 10, 8], FLAT = [60, 130, 210];
   const TICK = 1 / 60;
   type Blast = { t: number; gains: number[]; burns: number[] };
@@ -308,7 +353,11 @@ describe("Y5 row 46: POWDER KEG: every 12/10/8 s from the start, +60/+130/+210 t
 });
 
 // ------------------------------------------------------------------------------------------- row 47: SPALL CATCHER
+// BUMP-1E: this is the 0.9.11 SPALL CATCHER (the base def: the charge, every 40 DMG taken). With the scaling rules on it is a reader (+1 / +2 / +7
+// DMG for each hit on your ship; its def holds no `spall`, so a Battle keeps no spall list and spallCharge has nothing to charge: it
+// throws), so every test here runs with the switch off (oldWorld). The shipped def: the first describe's check, tests/scale2c.sim.test.ts
 describe("Y5 row 47: SPALL CATCHER: a PLATE soak counts once, and no cap", () => {
+  oldWorld();
   /** A SPALL CATCHER at `stars` on side 0's gun; the damage (its hull's part, plating's part) handed to its hook; the turret
    *  after. */
   function charged(stars: number, hull: number, plate: number): TurretState {

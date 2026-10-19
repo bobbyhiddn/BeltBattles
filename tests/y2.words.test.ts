@@ -13,6 +13,7 @@ import { abilityText, cardText, hitText } from "../src/ui/abilityText";
 import { faceAt, Y2_PIECES } from "../src/ui/faces";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { KEYWORDS } from "../src/render/font";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (POISON is a glossary row again)
 import { bench } from "./arsenal.bench";
 
 const STARS = [1, 2, 3] as const;
@@ -21,15 +22,32 @@ const RETIRED = ["HARASSMENT", "ONLINE", "POISON"];
 
 describe("Y2 words: HARASSMENT retires with the switch on; PART is a plain glossary word", () => {
   it("on, no HARASSMENT row, entry or tap (off: the row and its tap as before)", () => {
-    // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
-    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
-    for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where POISON is a glossary row again (SCALE-2b: VENOM DRIP's POISON, a
+    // keyword; its row joins the table while the switch is on). The checks below hold the 0.9.11 world's POISON retired, so they are
+    // read with the switch off (withScaleRigs(fn, false), synchronously); the shipped world's are the second half (HARASSMENT and
+    // ONLINE stay retired in both)
+    withScaleRigs(() => {
+      // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
+      expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
+      for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
+      expect(glossaryRows().map((r) => r.word)).not.toContain("HARASSMENT");
+      expect(glossaryEntry("HARASSMENT")).toBeUndefined();
+      expect(glossaryWordsIn("ANY HARASSMENT LANDS.").map((r) => r.word)).toEqual([]);
+      expect(glossaryText("HARASSMENT")).toBeUndefined();
+      // on, every other row stays, in order (Y5: but ONLINE, which Y5 retires; Y6: and POISON, which Y6 retires)
+      expect(glossaryRows().map((r) => r.word)).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE" && w !== "POISON")); // Y6 (BRIEF-Y6): was .filter((w) => w !== "HARASSMENT" && w !== "ONLINE"); Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
+    }, false);
+    // BUMP-1E: the shipped world: POISON is a glossary row (a keyword); no HARASSMENT or ONLINE row, entry or tap
+    expect(SCALE_RIGS).toBe(true);
+    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual(["POISON"]); // BUMP-1E: was []
+    for (const w of ["HARASSMENT", "ONLINE"]) expect(glossaryEntry(w), w).toBeUndefined();
+    expect(glossaryEntry("POISON")?.kw).toBe("POISON"); // BUMP-1E: was toBeUndefined()
     expect(glossaryRows().map((r) => r.word)).not.toContain("HARASSMENT");
     expect(glossaryEntry("HARASSMENT")).toBeUndefined();
     expect(glossaryWordsIn("ANY HARASSMENT LANDS.").map((r) => r.word)).toEqual([]);
     expect(glossaryText("HARASSMENT")).toBeUndefined();
-    // on, every other row stays, in order (Y5: but ONLINE, which Y5 retires; Y6: and POISON, which Y6 retires)
-    expect(glossaryRows().map((r) => r.word)).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE" && w !== "POISON")); // Y6 (BRIEF-Y6): was .filter((w) => w !== "HARASSMENT" && w !== "ONLINE"); Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
+    // every other row stays, in order, POISON's among them (Y5: but ONLINE, which Y5 retires)
+    expect(glossaryRows().map((r) => r.word)).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE")); // BUMP-1E: was ... && w !== "POISON"
   });
 
   it("PART (TOLLBOOTH's tap) is a glossary row with no colour of its own and no token, and no new keyword joins", () => {

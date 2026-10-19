@@ -25,6 +25,7 @@ import { levelLines, levelText } from "../src/screens/build/levels";
 import { fusible, effectAt } from "../src/sim/stars";
 import { ICON, KEYWORDS, icons, textWidth } from "../src/render/font"; // CARD-3: ICON
 import type { TimelineHit } from "../src/sim/deck";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (POISON is a keyword again; POWDER KEG, IRON WALL and SPALL CATCHER are readers)
 import { STARS, rigBench } from "./y3.helpers";
 
 const ONLINE = /\bONLINE\b/;
@@ -47,15 +48,32 @@ function pieceTexts(def: string, s: number): string[] {
 // ---------------------------------------------------------------------------------------------- the words
 describe("Y5 words: ONLINE retires; QUICK LATCH says START; no new keyword", () => {
   it("RETIRED is HARASSMENT and ONLINE (Y6: and POISON); on, no ONLINE row, entry, alias or tap (off: the row and its aliases as before)", () => {
-    // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
-    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
-    for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where POISON is a keyword again (SCALE-2b: VENOM DRIP's POISON; its
+    // glossary row and its KEYWORDS entry, the 10th, join while the switch is on). The checks below hold the 0.9.11 world's POISON
+    // retired and the keywords the 9, so they are read with the switch off (withScaleRigs(fn, false), synchronously); the shipped
+    // world's are the second half (ONLINE and HARASSMENT stay retired in both)
+    withScaleRigs(() => {
+      // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
+      expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
+      for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
+      expect(glossaryRows().map((r) => r.word)).not.toContain("ONLINE");
+      for (const w of ["ONLINE", "COME ONLINE", "COMES ONLINE"]) expect(glossaryEntry(w), w).toBeUndefined();
+      expect(glossaryWordsIn("YOUR RIGS COME ONLINE SOONER.")).toEqual([]);
+      expect(glossaryText("ONLINE")).toBeUndefined();
+      // no keyword joins: the 9, as before
+      expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]);
+    }, false);
+    // BUMP-1E: the shipped world: POISON is a glossary row and a keyword (the 10th, after REGEN); no ONLINE row, entry, alias or tap
+    expect(SCALE_RIGS).toBe(true);
+    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual(["POISON"]); // BUMP-1E: was []
+    for (const w of ["HARASSMENT", "ONLINE"]) expect(glossaryEntry(w), w).toBeUndefined();
+    expect(glossaryEntry("POISON")?.kw).toBe("POISON"); // BUMP-1E: was toBeUndefined()
     expect(glossaryRows().map((r) => r.word)).not.toContain("ONLINE");
     for (const w of ["ONLINE", "COME ONLINE", "COMES ONLINE"]) expect(glossaryEntry(w), w).toBeUndefined();
     expect(glossaryWordsIn("YOUR RIGS COME ONLINE SOONER.")).toEqual([]);
     expect(glossaryText("ONLINE")).toBeUndefined();
-    // no keyword joins: the 9, as before
-    expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]);
+    // no keyword but POISON joins: the 9, then POISON
+    expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN", "POISON"]); // BUMP-1E: was the 9
   });
 
   it("the sweep: on, no text names ONLINE (every piece's face, ⓘ, kept sentences, gist, card and timeline rows at ★1-★3; every rune line as drawn and its reminder; the tap notes; the family lines; the glossary's rows)", () => {
@@ -106,30 +124,42 @@ describe("Y5 words: the 7's kept sentences, gists, cards and timeline rows say t
 
   it("on, no text of the 7 names a rule that left (faces, ⓘ lines, kept sentences, gists, cards, timeline rows)", () => {
     for (const def of Y5_PIECES) for (const s of STARS) for (const t of pieceTexts(def, s)) expect(t, `${def} ★${s}: ${t}`).not.toMatch(GONE[def]);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where IRON WALL, POWDER KEG and SPALL CATCHER are readers, so the sweep
+    // above reads their shipped texts; the same sweep over the 0.9.11 pieces (the switch off, synchronously) keeps what it swept before
+    expect(SCALE_RIGS).toBe(true);
+    withScaleRigs(() => {
+      for (const def of Y5_PIECES) for (const s of STARS) for (const t of pieceTexts(def, s)) expect(t, `${def} ★${s}: ${t} (0.9.11)`).not.toMatch(GONE[def]);
+    }, false);
   });
 
   it("on, the exact new sentences, gists and cards (off: as before)", () => {
     expect(abilityText("counterweight", 3).sentences).toEqual(["ADDS 11 DAMAGE FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN."]); // Y7b1 (Y7A-R5, its fallback 3/7/11): was ADDS 18
     expect(gist("counterweight", 3)).toBe("11 DAMAGE FOR EACH TILE"); // Y7b1 (Y7A-R5, its fallback): was 18
     expect(abilityText("capacitor", 1, { k: 1 }).sentences).toEqual(["CHARGES ITS NEXT SHOT 20 DAMAGE FOR EACH SECOND ITS CHAMBER SITS EMPTY."]);
-    expect(abilityText("spallcatcher", 1).sentences).toEqual([
-      "EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 10 DAMAGE TO THIS TURRET'S NEXT SHOT.",
-      "DAMAGE YOUR SHIELD SOAKS COUNTS TOO; THE DARK WIND DOESN'T COUNT.",
-    ]);
-    expect(gist("spallcatcher", 2)).toBe("22 DAMAGE FOR EVERY 40");
-    // Y7b1 (Y7A-R3d): was ["WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH PAYLOAD IT HITS GAINS 30 DAMAGE."] and
-    // ["66 DAMAGE AT 120 PLATING", "HITS HARDER WHILE PLATED."]: on, the base's texts (PLATE's sentence without POISON)
-    // TXT-096 (REVIEW-TXT095 Q2): one opening with both parts, as its face (were "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH
-    // PAYLOAD IT HITS." and "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
-    expect(abilityText("shieldwall", 1).sentences.slice(0, 1)).toEqual([
-      "ROLLS 10 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 SHIELD OR MORE, EACH GAINS 30 DAMAGE."]);
-    expect([gist("shieldwall", 2), cardText("shieldwall")]).toEqual(["22 SHIELD A PAYLOAD, 66 DAMAGE AT 120 SHIELD", "ADDS SHIELD, HITS HARDER."]); // CARD-3 (REQ-BFG-107)
-    expect(abilityText("keg", 1).sentences).toEqual([
-      "EVERY 12 SECONDS IT BLOWS UP, ADDING 60 DAMAGE TO EVERY PAYLOAD ON ITS BELTS.",
-      "ITS FUSE RUNS FROM THE START OF THE BATTLE; A STUN PAUSES IT.",
-    ]);
-    expect([gist("keg", 3), cardText("keg")]).toEqual(["210 DAMAGE EVERY 8 SECONDS", "BLOWS UP EVERY 12 SECONDS."]);
-    expect(hitText({ def: "keg", stars: 2 } as TimelineHit, "free")).toBe("POWDER KEG +130 DAMAGE EVERY 10 SEC");
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where SPALL CATCHER, IRON WALL and POWDER KEG are readers (scale.ts
+    // SCALE_DEFS: their texts say the reader line; tests/abilityText.test.ts and tests/scale2c.screen.test.ts pin those). Their Y5
+    // sentences, gists, cards and rows are the 0.9.11 pieces', read with the switch off (withScaleRigs(fn, false), synchronously)
+    expect(SCALE_RIGS).toBe(true);
+    withScaleRigs(() => {
+      expect(abilityText("spallcatcher", 1).sentences).toEqual([
+        "EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 10 DAMAGE TO THIS TURRET'S NEXT SHOT.",
+        "DAMAGE YOUR SHIELD SOAKS COUNTS TOO; THE DARK WIND DOESN'T COUNT.",
+      ]);
+      expect(gist("spallcatcher", 2)).toBe("22 DAMAGE FOR EVERY 40");
+      // Y7b1 (Y7A-R3d): was ["WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH PAYLOAD IT HITS GAINS 30 DAMAGE."] and
+      // ["66 DAMAGE AT 120 PLATING", "HITS HARDER WHILE PLATED."]: on, the base's texts (PLATE's sentence without POISON)
+      // TXT-096 (REVIEW-TXT095 Q2): one opening with both parts, as its face (were "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH
+      // PAYLOAD IT HITS." and "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
+      expect(abilityText("shieldwall", 1).sentences.slice(0, 1)).toEqual([
+        "ROLLS 10 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 SHIELD OR MORE, EACH GAINS 30 DAMAGE."]);
+      expect([gist("shieldwall", 2), cardText("shieldwall")]).toEqual(["22 SHIELD A PAYLOAD, 66 DAMAGE AT 120 SHIELD", "ADDS SHIELD, HITS HARDER."]); // CARD-3 (REQ-BFG-107)
+      expect(abilityText("keg", 1).sentences).toEqual([
+        "EVERY 12 SECONDS IT BLOWS UP, ADDING 60 DAMAGE TO EVERY PAYLOAD ON ITS BELTS.",
+        "ITS FUSE RUNS FROM THE START OF THE BATTLE; A STUN PAUSES IT.",
+      ]);
+      expect([gist("keg", 3), cardText("keg")]).toEqual(["210 DAMAGE EVERY 8 SECONDS", "BLOWS UP EVERY 12 SECONDS."]);
+      expect(hitText({ def: "keg", stars: 2 } as TimelineHit, "free")).toBe("POWDER KEG +130 DAMAGE EVERY 10 SEC");
+    }, false);
   });
 
   it("the faces' keywords are the existing ones (no new keyword); IRON WALL's taps SHIELD (CARD-3: PLATE's player word)", () => {
@@ -154,10 +184,16 @@ describe("Y5 rating: each new rule priced behind the switch", () => {
     // a belt longer than the fuse: two blasts reach its slugs
     expect(kegGain({ fuse: 12, flat: 60 }, 30, 15)).toBeCloseTo((60 * (15 + 6)) / 15, 12);
     // a keg deck rates its repeating pulse (on) above none once the fight outlasts a fuse; in a 10 s fight, as none
-    const b = rigBench([["keg", 4, 3, 1]]), none = rigBench([]);
-    const onAt = (x: Build, fight: number) => rateDeck(x, undefined, fight).offense;
-    for (const fight of [20, 30]) expect(onAt(b, fight), `fight ${fight}`).toBeGreaterThan(onAt(none, fight));
-    expect(onAt(b, 10)).toBe(onAt(none, 10));
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where the keg is a reader (+2 / +5 / +11 DMG for each of its own hits: no
+    // fuse, so no pulse, and the rating prices the reader from its first hit: a keg deck rates above none even in a 10 s fight; the reader's
+    // rating is pinned in tests/scale2d.rating.test.ts). The pulse's rating is the 0.9.11 keg's: read with the switch off
+    expect(SCALE_RIGS).toBe(true);
+    withScaleRigs(() => {
+      const b = rigBench([["keg", 4, 3, 1]]), none = rigBench([]);
+      const onAt = (x: Build, fight: number) => rateDeck(x, undefined, fight).offense;
+      for (const fight of [20, 30]) expect(onAt(b, fight), `fight ${fight}`).toBeGreaterThan(onAt(none, fight));
+      expect(onAt(b, 10)).toBe(onAt(none, 10));
+    }, false);
   });
 
   it("CAPACITOR BANK: capacitorTail, the charge past the old 5 s cap on top of its NOMINAL credit; a fed gun rates as off", () => {
@@ -171,10 +207,16 @@ describe("Y5 rating: each new rule priced behind the switch", () => {
   // Y7b1 (ruling Y7A-R3d): was "IRON WALL: no plating (no repair), and its bonus only on a deck that plates its hull (off:
   // plating and the bonus)", with on wall = bare and both's defense = roller's; on, it reads its base def, so it rates as off
   it("IRON WALL: on, its plating (repair) and its bonus, rated as off (Y7A-R3d)", () => {
-    const bare = rigBench([]), wall = rigBench([["shieldwall", 4, 3, 1]]);
-    expect(rate(wall).value).toBeGreaterThan(rate(bare).value);
-    const roller = rigBench([["plateroller", 4, 1, 1]]), both = rigBench([["plateroller", 4, 1, 1], ["shieldwall", 4, 3, 1]]);
-    expect(rate(both).defense).toBeGreaterThan(rate(roller).defense); // it rolls its own plating again
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where IRON WALL is a reader (+3 / +6 / +17 DMG for each 10 PLATE you have;
+    // no plating of its own, so it adds no defense: its rating is pinned in tests/scale2d.rating.test.ts). Its plating's rating is the
+    // 0.9.11 piece's: read with the switch off (withScaleRigs(fn, false), synchronously)
+    expect(SCALE_RIGS).toBe(true);
+    withScaleRigs(() => {
+      const bare = rigBench([]), wall = rigBench([["shieldwall", 4, 3, 1]]);
+      expect(rate(wall).value).toBeGreaterThan(rate(bare).value);
+      const roller = rigBench([["plateroller", 4, 1, 1]]), both = rigBench([["plateroller", 4, 1, 1], ["shieldwall", 4, 3, 1]]);
+      expect(rate(both).defense).toBeGreaterThan(rate(roller).defense); // it rolls its own plating again
+    }, false);
   });
 
   it("SPALL CATCHER: on a deck that plates its hull its credit counts spallPlated of it; elsewhere as off", () => {
