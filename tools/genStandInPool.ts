@@ -65,6 +65,7 @@ import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix"; // HULL-1d:
 import { longRunRules, setLongRun } from "../src/sim/longRun"; // RUN-1 (REQ-BFG-059): --long-run
 import { scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E (REQ-BFG-098): the scaling world held on for the whole run
 import { gatesRules, setGates } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052, G6): --gates
+import { enchantRules, setEnchant } from "../src/sim/enchant"; // BUMP-1F P2 (REQ-BFG-085): the words held on for the whole run
 
 const DATA = "src/sim/standInPoolData.ts";
 
@@ -103,19 +104,27 @@ function switchesOn(): string[] {
 // withScaleRigs(async ...) (its finally runs at the first await, so the rest of the run would play with the switch put back). SCALE_RIGS
 // is true in the code now, so this changes nothing in the shipped world (setScaleRigs(true) on a switch already on does nothing); it makes
 // the run independent of the constant and of any caller that left the switch off. Every battle carries the run's counts (tournament.ts jobCounts).
+// BUMP-1F P2: and GATES and ENCHANT the same way (both true in the code since BUMP-1F's flip, so these calls change nothing in the shipped world; the
+// order here keeps ITEMS' as the ship loads it: SCALE's seven, then GATES' three, and ENCHANT adds no def).
 if (!isMainThread) {
   setScaleRigs(true);
+  setGates(true);
+  setEnchant(true);
   serveJobs();
 } else {
   void (async () => {
-    const wasScale = scaleRules();
+    const wasScale = scaleRules(), wasGates = gatesRules(), wasEnchant = enchantRules();
     setScaleRigs(true);
+    setGates(true);
+    setEnchant(true);
     try {
       await main();
     } catch (e) {
       console.error(e);
       process.exit(1);
     } finally {
+      setEnchant(wasEnchant);
+      setGates(wasGates);
       setScaleRigs(wasScale);
     }
   })();
@@ -196,7 +205,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--gates") && !dry && !process.argv.includes("--versus")) throw new Error("--gates turns on a switch this rules version keeps off: it runs with --dry (written under --out only) or --versus, never into src and never with --check");
   const on = switchesOn();
   if (on.length) console.log(`switches: ${on.join(", ")} on in the main thread${process.argv.includes("--all-on") ? " (--all-on), and in every worker thread (STANDINS_SWITCHES)" : ""}`);
-  console.log(`scaling world: SCALE_RIGS ${scaleRules() ? "on, held for the whole run (every worker thread sets it too)" : "OFF (unexpected: the generator sets it before main())"}`); // BUMP-1E P2e
+  console.log(`scaling world: SCALE_RIGS ${scaleRules() ? "on, held for the whole run (every worker thread sets it too)" : "OFF (unexpected: the generator sets it before main())"}; GATES ${gatesRules() ? "on" : "OFF (unexpected)"}; ENCHANT ${enchantRules() ? "on" : "OFF (unexpected)"}`); // BUMP-1E P2e; BUMP-1F P2: and the two switches of bb-0.13.0
   const nw = num("workers", Math.max(1, Math.min(availableParallelism() - 1, 23)));
   const pool = workerRunner(nw, import.meta.url);
   const t0 = performance.now();

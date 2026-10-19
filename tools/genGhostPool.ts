@@ -31,6 +31,7 @@ import { SEED_POOL_MODULE, generateSamplePool, samplePoolJson, seedPoolModuleTex
 import { setLongRun } from "../src/sim/longRun"; // RUN-1 T8: --long-run (last in the list: already loaded above)
 import { scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E P2e (REQ-BFG-098): the scaling world held on while the pool is dealt
 import { gatesRules, setGates } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052, G6): --gates (already loaded above: samplePool.ts); BUMP-1F: its switch is put back in the finally below
+import { enchantRules, setEnchant } from "../src/sim/enchant"; // BUMP-1F P2 (REQ-BFG-085): the words held on while the pool is dealt
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -42,9 +43,14 @@ function flag(name: string): string | undefined {
 // same way). SCALE_RIGS is true in the code now, so setScaleRigs(true) does nothing there; it makes the pool independent of the constant.
 // BUMP-1F (PACKET-BUMP-0130 section 4): GATES-1's --gates (its setGates and its two guards) sits inside this try/finally beside
 // --long-run, and the finally puts GATES back too.
+// BUMP-1F P2: GATES and ENCHANT are true in the code now (the flip), so --gates and these calls change nothing there; the pool is dealt with
+// both on whatever a caller left them at.
 const wasScale = scaleRules();
 const wasGates = gatesRules();
+const wasEnchant = enchantRules();
 setScaleRigs(true);
+setGates(true);
+setEnchant(true);
 try {
   // RUN-1 T8: the long run's pool (scratch): the switch before anything is generated, the pick rows named before the first pick
   const longRunPool = process.argv.includes("--long-run");
@@ -86,6 +92,7 @@ try {
     console.log(`wrote one snapshot (${pool[0].hero} day ${pool[0].day}) to ${resolve(one)}`);
   }
 } finally {
+  setEnchant(wasEnchant);
   setGates(wasGates);
   setScaleRigs(wasScale);
 }
