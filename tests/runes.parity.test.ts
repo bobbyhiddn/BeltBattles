@@ -120,7 +120,12 @@ if (process.env.BB_RUNES_PARITY_WRITE) {
       // BUMP-1D (run 3): re-written at 605f220 under bb-0.11.0, the 10-wins release's pools (the seed pool's days 1-10 of its 16, the dusk
       // stand-ins of days 1-10); the battle plan (kinds, pairs, seeds) as Z-BUMP left them. Was "CATCHUP-098 (REQ-BFG-024): the parity record
       // re-written at 13ec8db under bb-0.9.7 after the captains' plan moves (the named stand-ins' dusk decks); the seed pool and the battle plan..."
-      about: "BUMP-1D (run 3): the parity record re-written at 605f220 under bb-0.11.0, the 10-wins release's pools (the seed pool's days 1-10 of its 16 and the dusk stand-ins of days 1-10); the battle plan (kinds, pairs, seeds) as Z-BUMP left them",
+      // BUMP-1E (run 5): re-written under bb-0.12.0, the scaling release's pools (R1 the stand-in pool 19ae423, R2 the SOFT-1 and FLOOR picks 2875b03, R3 the seed pool 04fab9a; SCALE_RIGS and
+      // ENDLESS on); the battle plan (kinds, pairs, seeds) as BUMP-1D left it. Why every row had to be re-recorded: of the old record's 360 battles 110 involve no deck holding QUENCH
+      // TANK, PRESSURE BREECH, IRON WALL, SPALL CATCHER, POWDER KEG or VENOM DRIP (the six the flip changed) and ALL 110 replayed exactly as recorded in the new sim; of the 250 that do, 247 moved
+      // (the pieces' effects changed: readers, POISON), and the decks themselves are the old pools' (the pools were regenerated). Was "BUMP-1D (run 3): the parity record re-written at 605f220
+      // under bb-0.11.0, the 10-wins release's pools (the seed pool's days 1-10 of its 16 and the dusk stand-ins of days 1-10); the battle plan (kinds, pairs, seeds) as Z-BUMP left them"
+      about: "BUMP-1E (run 5): the parity record re-written under bb-0.12.0, the scaling release's pools (the seed pool's days 1-10 of its 16 and the dusk stand-ins of days 1-10); the battle plan (kinds, pairs, seeds) as BUMP-1D left it",
       base: process.env.BB_RUNES_PARITY_WRITE, rules: RULES_VERSION, salt: old.salt, standInRun: old.standInRun,
       decksCount: Object.keys(decks).length, battlesCount: battles.length, decks, battles,
     };
