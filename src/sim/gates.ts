@@ -25,6 +25,7 @@
 
 import { ITEMS, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
+import { ITEM_RANK, addRanked, registerRanked } from "./itemsKeep"; // BUMP-1F P2 (F1): the canonical order of the ids a switch adds
 
 /** THE switch (REQ-BFG-052): on since BUMP-1F (rules bb-0.13.0, src/net/rulesGate.ts GATES_RULES); it was off until the release's bump. */
 export const GATES: boolean = true; // BUMP-1F: was false
@@ -57,6 +58,7 @@ export const GATES_DEFS: Readonly<Record<string, ItemDef>> = {
 
 /** The three ids, in the order they join ITEMS. */
 export const GATES_IDS: readonly string[] = Object.keys(GATES_DEFS);
+registerRanked(ITEM_RANK.gates, GATES_IDS); // BUMP-1F P2 (F1)
 
 /**
  * THE OFFER LEVER (BRIEF-GATES1 G5; REQ-BFG-052: the operator must actually meet gates in a run). The bar, on every hero: the
@@ -88,10 +90,8 @@ export function isGatesPiece(id: string): boolean {
 export function setGates(on: boolean): void {
   if (on === gatesOn) return;
   const items = ITEMS as Record<string, ItemDef>;
-  for (const id of GATES_IDS) {
-    if (on) items[id] = GATES_DEFS[id];
-    else delete items[id];
-  }
+  if (on) addRanked(ITEM_RANK.gates, GATES_DEFS, GATES_IDS); // BUMP-1F P2 (F1): at its rank (the last ids of ITEMS), whatever module loaded first
+  else for (const id of GATES_IDS) delete items[id];
   clearStarCache();
   gatesOn = on;
 }

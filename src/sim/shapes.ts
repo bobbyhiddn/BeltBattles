@@ -25,6 +25,7 @@
 
 import { ITEMS, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
+import { ITEM_RANK, addRanked, registerRanked } from "./itemsKeep"; // BUMP-1F P2 (F1): the canonical order of the ids a switch adds
 import { DMG_MUL_TENTHS } from "./hullScale"; // FIT-099 (RULING-FIT-R1): D on days 3-5 behind SHAPES (hullScale.ts imports nothing: no cycle)
 
 /** THE switch (REQ-BFG-086): ON since SHAPES-1's flip (BRIEF-SHAPES1 S1 and step 8, as AZ-BUMP's def6e73 flipped NPC_DAY,
@@ -61,6 +62,7 @@ export const SHAPES_ITEMS: Readonly<Record<string, ItemDef>> = {
 
 /** R4: the three rigs' ids, in the order they join ITEMS. */
 export const SHAPES_IDS: readonly string[] = Object.keys(SHAPES_ITEMS);
+registerRanked(ITEM_RANK.shapes, SHAPES_IDS); // BUMP-1F P2 (F1)
 
 /** Is `id` one of the three shaped rigs (whatever the switch)? */
 export function isShapesPiece(id: string): boolean {
@@ -149,10 +151,8 @@ export function shapesRules(): boolean {
 export function setShapes(on: boolean): void {
   if (on === shOn) return;
   const items = ITEMS as Record<string, ItemDef>;
-  for (const id of SHAPES_IDS) {
-    if (on) items[id] = SHAPES_ITEMS[id];
-    else delete items[id];
-  }
+  if (on) addRanked(ITEM_RANK.shapes, SHAPES_ITEMS, SHAPES_IDS); // BUMP-1F P2 (F1): at its rank, not at the end
+  else for (const id of SHAPES_IDS) delete items[id];
   for (const id of RESHAPED_IDS) {
     if (!BASE.has(id)) BASE.set(id, items[id]);
     if (!SHAPED.has(id)) SHAPED.set(id, SHAPE_DEFS[id](BASE.get(id)!));

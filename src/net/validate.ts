@@ -36,6 +36,7 @@ import { gatesGateProblem, gatesWorld } from "./rulesGate"; // GATES-1 (G1): GAT
 import { enchantKindOf, enchantProblem, enchantRules, withEnchant, wideSlots } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): the switch, the legal kinds
 import { enchantGateProblem, enchantWorld } from "./rulesGate"; // ENCHANT-1: ENCHANT_RULES' gate
 import { enchantBudgetNote, enchantFreeWords, enchantGold, enchantProblems } from "./enchantCheck"; // ENCHANT-1 (REQ-BFG-085, E6.2-E6.5): the count, the offers, the gold, GROWING's counter
+import { keepItems } from "../sim/itemsKeep"; // BUMP-1F P2 (F1 and Q5): a world leaves ITEMS as it found it, whatever the order of the nest
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D3, D4): the long run's world. A deck under a long run's rules (rulesGate.ts longRunFor) is
 // judged with the long-run switch on (the content past day 10, LAST CHANCE on any day, the day bound LONG_RUN_MAX_DAY); under
@@ -81,7 +82,9 @@ import { withLadderFix } from "../sim/ladderFix";
  * and nothing is touched: the check is exactly as before.
  */
 export function inRulesWorld<T>(rules: unknown, fn: () => T): T {
-  const world = (): T => (rulesAtLeast(rules, NPC_DAY_RULES) ? fn() : withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false));
+  // BUMP-1F P2 (F1, Q5): the old world's switches (LADDER_FIX swaps defs in ITEMS) come back in whatever order the nest leaves them, so ITEMS is put
+  // back whole (keepItems): QUENCH TANK never overwrites KINDLING and no key moves
+  const world = (): T => (rulesAtLeast(rules, NPC_DAY_RULES) ? fn() : keepItems(() => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false)));
   const long = longRunFor(rules);
   const inLong = (): T => (long === longRunRules() ? world() : withLongRun(world, long));
   // ENDLESS-1 (REQ-BFG-059): and the endless one: the module switch (sim/endless.ts endlessRules, read by the day bounds that have no
@@ -271,7 +274,7 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
  *  SCALE_RIGS on and rules before SCALE_RULES, with the switch off (the base's pieces), the world the deck was made in;
  *  otherwise as the switch stands (off: fn itself). The switch is put back after, even on a throw (withScaleRigs). */
 export function inScaleWorld<T>(rules: unknown, fn: () => T): T {
-  return scaleRules() && !scaleWorld(rules) ? withScaleRigs(fn, false) : fn();
+  return scaleRules() && !scaleWorld(rules) ? keepItems(() => withScaleRigs(fn, false)) : fn(); // BUMP-1F P2 (F1): and ITEMS comes back as it was
 }
 
 /**
@@ -294,7 +297,7 @@ export function inShapesWorld<T>(rules: unknown, fn: () => T): T {
   // SHAPES-2 (REQ-BFG-114 S1): SHAPES2 needs SHAPES (its six are shaped rigs), so the world before SHAPES_RULES has the six
   // off too (withShapes2 outside, so the switches come back in the reverse of their order and ITEMS keeps its order); with
   // SHAPES2 off (the pins) withShapes2 does nothing
-  return shapesRules() && !shapesWorld(rules) ? withShapes2(() => withShapes(fn, false), false) : fn();
+  return shapesRules() && !shapesWorld(rules) ? keepItems(() => withShapes2(() => withShapes(fn, false), false)) : fn(); // BUMP-1F P2 (F1): ITEMS comes back as it was
 }
 
 /**
@@ -304,7 +307,7 @@ export function inShapesWorld<T>(rules: unknown, fn: () => T): T {
  * on a throw (withShapes2).
  */
 export function inShapes2World<T>(rules: unknown, fn: () => T): T {
-  return shapes2Rules() && !shapes2World(rules) ? withShapes2(fn, false) : fn();
+  return shapes2Rules() && !shapes2World(rules) ? keepItems(() => withShapes2(fn, false)) : fn(); // BUMP-1F P2 (F1): ITEMS comes back as it was
 }
 
 /**
@@ -314,7 +317,7 @@ export function inShapes2World<T>(rules: unknown, fn: () => T): T {
  * a throw (withGates). With GATES off (the pins) it does nothing.
  */
 export function inGatesWorld<T>(rules: unknown, fn: () => T): T {
-  return gatesRules() && !gatesWorld(rules) ? withGates(fn, false) : fn();
+  return gatesRules() && !gatesWorld(rules) ? keepItems(() => withGates(fn, false)) : fn(); // BUMP-1F P2 (F1): ITEMS comes back as it was
 }
 
 export interface Validation {
