@@ -18,6 +18,7 @@ import type { Build } from "../../src/sim/deck";
 import { setEnchant } from "../../src/sim/enchant";
 import { parField } from "../../src/sim/harness/par";
 import { setNpcWords } from "../../src/sim/npcWords";
+import { setShrine } from "../../src/game/shrine";
 import { RIVAL_IDS, RIVALS, rivalBuild, rivalDays, standInBuild, type RivalId } from "../../src/sim/rivals";
 
 const arg = (k: string, d: string): string => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : d; };
@@ -33,10 +34,8 @@ if (STATE === "A") setEnchant(false);
 else {
   setEnchant(true);
   setNpcWords(STATE !== "B"); // B: the rivals' words (and the drops that keep them) out
+  setShrine(STATE === "D"); // B and C keep the ASH SHRINE out of the bag (the test-only toggle, src/game/shrine.ts); D has it in
 }
-// D: the shrine in the bag. The toggle is src/game/shrine.ts's (set by the merge of T3); C keeps it out. See SHRINE below.
-const SHRINE_HOOK = (globalThis as { __shrineToggle?: (on: boolean) => void }).__shrineToggle;
-void SHRINE_HOOK;
 
 const words = (b: Build): number => b.items.filter((p) => p.ench !== undefined).length + (b.turrets ?? []).filter((t) => t.ench !== undefined).length;
 
