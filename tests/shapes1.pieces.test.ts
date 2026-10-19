@@ -10,7 +10,7 @@
 //   intake cell, a deck made with SHAPES on never moves, and the counts (moved, belts lost, cargoed) are printed;
 // - the server pins (S4): the same fixtures through the client check (validateUpload) and POST /v1/ghosts, both states.
 // The server's data dir is under os.tmpdir() (run with TMPDIR set).
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,6 +22,7 @@ import { footOf, footOnDeck, footprintCells, footTurns } from "../src/sim/foot";
 import { SHAPES, SHAPES_IDS, setShapes, shapesRules, withShapes } from "../src/sim/shapes";
 import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): the SHAPES-1 world is measured with it set off
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: PLAIN_RIGS ships on too: the pre-0.9.9 decks of S6 are built without the six
+import { SCALE_RIGS, scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E: and the scaling rules (bb-0.12.0): this file's world is the one before the seven
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on: it moves the par decks (|long in their cache key)
 import { clearMigrationLog, migrateShapedFactories, migrationLog } from "../src/sim/beltside";
 import { effectAt, fusible, outputsAt, valueOf } from "../src/sim/stars";
@@ -49,7 +50,17 @@ const offFive = <T>(f: () => T): T => withGuard(() => withOpenRunes(() => withFr
  *  for decks a save of 0.9.8 or earlier could hold (offFive's form; each puts its switch back even on a throw). */
 const oldWorld = <T>(f: () => T): T => withLongRun(() => withPlainRigs(() => withShapes2(f, false), false), false);
 
-afterEach(() => setShapes(SHAPES)); // SHAPES-1 flip: the shipped value (on); a test that needs SHAPES off sets it itself
+// BUMP-1E: this file is SHAPES-1's world, written before the scaling rules (the switch ships on in bb-0.12.0), so every test runs with them off, as its pins were
+// measured (the old decks of S6, the par deck of S4's fixtures and the first error of its record check, all par decks that shop the seven new rigs now: with them on
+// foundry/10/11's migrated deck failed the strict "every belt connected" line and the fixture's first rune error moved). Scaling off is the OUTERMOST of every nest
+// here (off first in beforeEach, back last in afterEach): the seven are the last keys of ITEMS while it is on, so turning SHAPES off and back with it left on puts
+// the three behind them, and a par deck (cached by its switches, not by ITEMS' key order) then depends on which tests ran before it: the fixture's pin gave one error
+// in the whole file and another alone. The shipped value is put back after every test, and one test asserts that it ships on
+beforeEach(() => setScaleRigs(false));
+afterEach(() => {
+  setShapes(SHAPES); // SHAPES-1 flip: the shipped value (on); a test that needs SHAPES off sets it itself
+  setScaleRigs(SCALE_RIGS); // BUMP-1E: the shipped value (on), last
+});
 
 const ids = (l: { id: string }[]) => l.map((d) => d.id);
 
@@ -512,5 +523,13 @@ describe("SHAPES-1 S1: switch off, nothing moved", () => {
       expect([footOf(ITEMS.gantry), footOf(ITEMS.assembly), ITEMS.gantry.price, ITEMS.assembly.price]).toEqual(["2x2", "2x2", 7, 5]);
       expect(Object.values(ITEMS).filter((d) => d.foot !== undefined).map((d) => d.id).sort()).toEqual([...SHAPES2_IDS].sort());
     }, false);
+  });
+});
+
+describe("BUMP-1E: the scaling rules and this file's world", () => {
+  it("the scaling rules ship on (SCALE_RIGS true); every test above ran with them off, the world SHAPES-1's pins were measured in (no CINDER MAIL in ITEMS)", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(scaleRules()).toBe(false); // beforeEach: this file's world
+    expect(ITEMS.cindermail).toBeUndefined();
   });
 });

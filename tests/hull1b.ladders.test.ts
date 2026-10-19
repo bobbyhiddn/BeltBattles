@@ -5,7 +5,7 @@
 // AZ-BUMP (the flip, LADDER_FIX): the switch ships on now; each off half below sets it off itself (they read the default).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { AMMO, BURN_DPS, BURN_TIME, HEROES, ITEMS, TICK } from "../src/sim/content";
 import { payloadDamage, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
@@ -26,12 +26,25 @@ import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip)
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip)
 import { withPick } from "../src/net/pick"; // HULL-ON (the flip)
 import { effectAt } from "../src/sim/stars";
+import { SCALE_IDS, SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on; the ladder pass's pins are read with them off (oldWorld below)
 import { barge, bench, SEED } from "./arsenal.bench";
 import { K, item, withItem, withMod } from "./wave3.helpers";
 
 const log = (s: string) => { if (process.env.BB_TABLES) console.log(s); };
 
+// BUMP-1E (the scaling rules ship on: SCALE_RIGS, bb-0.12.0; this file was written when they shipped off, 0.9.11): the HULL-1b pins are bb-0.9.7's star-ladder pass on the BASE pieces,
+// QUENCH TANK's ★1 30 -> 40 a BURN among them (a piece the scaling rules rework into KINDLING: a reader of the foe's BURN, no `quench`), so each describe that toggles the ladder switch runs
+// with the scaling switch OFF (oldWorld: beforeEach/afterEach, the shipped value put back; the Battles here are made inside each test). THE LADDER TOGGLE HAZARD: ladderFix.ts swaps
+// ITEMS.quench to its fixed or base def whatever the scaling switch says, so setLadderFix(false) then (true) with the scaling rules ON leaves the ladder-fixed QUENCH TANK where KINDLING stands
+// (measured: ITEMS.quench QUENCH TANK ★1 40 a BURN, scaleRules() true, until the scaling switch is flipped off and on again), and every seeded draw after it, the par player's buys among them,
+// reads that half-world. With the scaling switch off first and back last, its own swap back writes KINDLING last: the same rule as the ITEMS key-order hazard (the seven ids are the last keys in ITEMS)
+function oldWorld(): void {
+  beforeEach(() => setScaleRigs(false));
+  afterEach(() => setScaleRigs(SCALE_RIGS));
+}
+
 describe("HULL-1b the switch (REQ-BFG-070)", () => {
+  oldWorld();
   it("LADDER_FIX is off in this rules version; withLadderFix puts it back even on a throw; off, every fixed def is content.ts's own object", () => {
     // AZ-BUMP (the flip, LADDER_FIX): ships on (was toBe(false) twice: "off in this rules version")
     expect(LADDER_FIX).toBe(true);
@@ -105,6 +118,7 @@ function dealt(p: Payload): number {
 }
 
 describe("HULL-1b QUENCH TANK (backlog #370; tests/fb062.quench): ★1 pays more than the BURN it spends", () => {
+  oldWorld(); // BUMP-1E: QUENCH TANK's old effect (the BURN it spends): the 0.9.11 piece, the shipped one is KINDLING
   it("on: no QUENCH < ★1 < ★2 < ★3 at every Burn count, and each spent BURN is worth at least its own damage", () => {
     const rows = (on: boolean) => withLadderFix(() => [1, 2, 3, 4, 5, 6, 7, 8, 10].map((k) => ({ k, none: dealt(payload(k)), d: [1, 2, 3].map((s) => dealt(quenched(s, payload(k)))) })), on);
     const off = rows(false), on = rows(true);
@@ -191,6 +205,7 @@ function starDmg(at: (s: number) => Build, vs: () => Build, seeds: readonly numb
 }
 
 describe("HULL-1b OVERDRIVE (backlog #370; tests/arsenal.decks; cap's oracle 37b12cb17a536589): the ride-keep ladder", () => {
+  oldWorld(); // BUMP-1E: the ladder toggles below run with the scaling rules off (see oldWorld)
   it("on: the bench rises ★1 < ★2 < ★3; on five decks no step falls more than 3% (the arsenal.decks measure, 20 seeds)", () => {
     for (const d of OD_DECKS) {
       const off = withLadderFix(() => starDmg(d.at, d.foe, OD_SEEDS), false);
@@ -253,6 +268,7 @@ function firstLoad(b: Build, uid: number): { time: number; dmg: number; flat: nu
 }
 
 describe("HULL-1b P13 (cap's oracle d306b1b196dbab38): the walk agrees with the battle, tick for tick", () => {
+  oldWorld(); // BUMP-1E: the ladder toggles below run with the scaling rules off (see oldWorld)
   it("on: BRAKE SHOE ★1-★3 (the tripwire's bench), GREASE and a bare belt: the walk's damage at load and stamp-to-chamber time are the battle's", () => {
     const decks: [string, Build][] = [
       ...[1, 2, 3].map((s): [string, Build] => [`BRAKE ★${s}`, bench([["brake", 4, 3, s]])]),
@@ -299,7 +315,10 @@ describe("HULL-1b the par player's six runs (tests/harness.player's buy floor: n
     // BUMP-1D (PLAIN_RIGS and SHAPES2 on): the off half sets the twelve plain stat rigs off as well (the par player buys them
     // now; the all-off world is bb-0.9.7's, which has none), the nesting putting the switches back in ITEMS order (plain rigs,
     // the three, the six more: each swap back appends). The on half is the shipped game, every switch on
-    const off = withShapes2(() => withShapes(() => withPlainRigs(() => allOff(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false)), false), false), false), on = withLadderFix(buys);
+    // BUMP-1E (the scaling rules ship on): bb-0.9.7's six have none of the seven scaling rigs and none of the five reworks either, and the seven are the LAST keys in ITEMS, so the scaling switch is the
+    // OUTERMOST call of the nest (off first, back last: the ITEMS key-order hazard; without it the off half read 11 / 13 / 15 / 14 / 14 / 11, the catalogue with the seven in it and the three toggles inside
+    // leaving SHAPES-1's three and the twelve BEHIND them), which also puts KINDLING back over the ladder toggle's QUENCH TANK (see oldWorld). The on half is the shipped game: every switch on, the scaling rules too
+    const off = withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => allOff(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false)), false), false), false), false), on = withLadderFix(buys);
     log(`BUYS FURNACE s1-s3, WEAVER s1-s3: off ${off.join(" / ")}; on ${on.join(" / ")}`);
     expect(off).toEqual([12, 15, 13, 14, 10, 16]); // bb-0.9.7's, as tests/harness.player pins them
     for (const n of on) expect(n).toBeGreaterThan(0);
@@ -308,7 +327,11 @@ describe("HULL-1b the par player's six runs (tests/harness.player's buy floor: n
     // BUMP-1D (the flip: PLAIN_RIGS, SHAPES2, LONG_RUN, the rules bump), measured: the on half is the shipped game, so the par
     // player buys the twelve plain stat rigs and the catalogue's draw has 103 modules: 13 / 14 / 15 / 20 / 15 / 15 (was 15 / 14 /
     // 17 / 14 / 16 / 17); the off half above is bb-0.9.7's six, unchanged
-    expect(on).toEqual([13, 14, 15, 20, 15, 15]);
+    // BUMP-1E (the flip: the scaling rules, ENDLESS, the regenerated catalogue draw): the shipped game's par player buys the seven scaling rigs now and the catalogue's draw has 110
+    // modules (was 103): 12 / 15 / 15 / 16 / 17 / 17 (was 13 / 14 / 15 / 20 / 15 / 15); the off half above is bb-0.9.7's six, read with the scaling switch off, unchanged
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped game has the scaling rules on (was false)
+    expect(scaleRules()).toBe(true);
+    expect(on).toEqual([12, 15, 15, 16, 17, 17]); // BUMP-1E: was [13, 14, 15, 20, 15, 15]
     // AZ-BUMP (the flip): 300 s, the on half's six runs fight a warlord every day; a host timeout under the 1.5-CPU quota
     // (30 s hit in run 5's group check), not the rule
   }, 300_000);
@@ -364,6 +387,7 @@ function capRows(r: (typeof ROWS)[number]): { dmg: number; jams: number }[] {
 }
 
 describe("HULL-1b STOKER (backlog #356; tests/wave3.decks STOKER_ROWS): the shared gun with room rises at every star", () => {
+  oldWorld(); // BUMP-1E: the ladder toggles below run with the scaling rules off (see oldWorld)
   it("on: the tripwire row rises none < ★1 < ★2 < ★3; every row keeps none <= ★1 <= ★2 <= ★3 and no more jams than none", () => {
     for (const r of ROWS) {
       const off = withLadderFix(() => capRows(r), false), on = withLadderFix(() => capRows(r));
@@ -394,5 +418,18 @@ describe("HULL-1b STOKER (backlog #356; tests/wave3.decks STOKER_ROWS): the shar
     const off = withLadderFix(lifted, false), on = withLadderFix(lifted);
     log(`STOKER ${r.id}, KO-lifted | off ${off.map((x) => x.toFixed(1)).join(" / ")} | on ${on.map((x) => x.toFixed(1)).join(" / ")}`);
     for (const x of [off, on]) for (let s = 1; s <= 3; s++) expect(x[s], `★${s}`).toBeGreaterThan(x[s - 1]);
+  });
+});
+
+// ------------------------------------------------------------------ BUMP-1E: the world this file leaves
+describe("BUMP-1E: the scaling rules ship on, and every ladder toggle above leaves the shipped world", () => {
+  it("SCALE_RIGS and LADDER_FIX are on, ITEMS.quench is KINDLING (not the ladder-fixed QUENCH TANK a toggle with the scaling rules on would leave) and the seven ids are the last keys in ITEMS", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: was false (0.9.11)
+    expect(scaleRules()).toBe(true);
+    expect(ladderFixRules()).toBe(true);
+    expect(ITEMS.quench.name).toBe("KINDLING");
+    expect(ITEMS.quench.gate?.reads).toBeDefined();
+    expect(ITEMS.quench.gate?.quench).toBeUndefined();
+    expect(Object.keys(ITEMS).slice(-SCALE_IDS.length)).toEqual([...SCALE_IDS]);
   });
 });
