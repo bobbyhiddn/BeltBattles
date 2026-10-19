@@ -53,6 +53,7 @@ describe("the bots at the ASH SHRINE", () => {
       // determinism: the same arguments give the same visits
       expect(visits(playerRun("weaver", DAYS, 3))).toEqual(visits(playerRun("weaver", DAYS, 3)));
       expect(visitsN).toBeGreaterThan(5);
+      expect(tally.par[0] + tally.c5[0], "no bot takes the hull card (BOTS_TAKE_HULL)").toBe(0);
       console.log(`SHRINE-BOTS days ${days} visits ${visitsN} placed ${placed} tally[hull,part,move on] ${JSON.stringify(tally)}`);
     });
   }, 240_000);

@@ -24,6 +24,15 @@ import { longRun } from "../longRun";
 import { valueOf } from "../stars";
 import { CASUAL_WORD_RATE, botWarlordPick, bestWordFor, casualWarlordPick, type WordExtras } from "./enchantBot";
 
+/**
+ * Do the bots take card 1 (word A for SHRINE_HULL max hull)? NO. Every deck the harness builds feeds the pools: the seed ghosts (tools/samplePool.ts seedGhost)
+ * and the stand-in pool are held to the strict shop rules, whole plating (validate.ts: `hullBonus ... is not a whole number of +250 plating`), and a deck that
+ * paid 100 hull is off that grid for good (the dry sample found 31 of 96 par decks refused for it). A human's upload is judged in the player mode, whose road
+ * mix explains the hull (roadCap.ts), so card 1 stays the human's choice; par weighs card 2 (a cargo part) against MOVE ON, the casual player's coin has two cards.
+ * Named so the pools' hull rule can be relaxed in one place if cap rules otherwise (REPORT, question).
+ */
+export const BOTS_TAKE_HULL = false;
+
 /** The rating a gold is worth to a bot weighing a cargo part (a share of the deck's rating per gold): PolicyKnobs.minRel's order, 0.4%. */
 export const SHRINE_GOLD_REL = 0.004;
 
@@ -61,7 +70,7 @@ export function botShrine(run: Run, opts: { casual: boolean; rate: (b: Build, da
   let card: 0 | 1 | 2 = 2, gain = 0, cost = 0;
   if (opts.casual) {
     const rng = new Rng(hashSeed("casual-shrine", run.hero, run.seed, run.day));
-    const open = ([0, 1] as const).filter((i) => !cards[i].blocked);
+    const open = ([0, 1] as const).filter((i) => !cards[i].blocked && (BOTS_TAKE_HULL || i !== 0)); // ENCHANT-2: card 1 (hull) is the human's, BOTS_TAKE_HULL
     if (open.length && rng.next() < CASUAL_WORD_RATE) card = open[rng.int(open.length)];
   } else {
     const best = (i: 0 | 1): { net: number; gain: number; cost: number } | null => {
@@ -74,7 +83,7 @@ export function botShrine(run: Run, opts: { casual: boolean; rate: (b: Build, da
         : hullLoss(run.build, run.day, opts.rate);
       return { net: g - price, gain: g, cost: price };
     };
-    const a = best(0), b = best(1);
+    const a = BOTS_TAKE_HULL ? best(0) : null, b = best(1); // ENCHANT-2: par weighs the part card alone, BOTS_TAKE_HULL
     const pick = a && (!b || a.net >= b.net) ? { i: 0 as const, ...a } : b ? { i: 1 as const, ...b } : null;
     if (pick && pick.net > opts.minRel) ({ i: card, gain, cost } = pick);
   }
