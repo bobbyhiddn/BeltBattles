@@ -17,6 +17,7 @@ import { C } from "../src/render/palette";
 import { KEYWORD_COLOUR, colourize } from "../src/ui/richText";
 import { REMINDER, RIG_SENTENCE, faceAt, isPlainRig, plainRigStats } from "../src/ui/faces";
 import { GLOSSARY, GLOSSARY_WRAP_W, glossaryEntry, glossaryText, glossaryWordsIn, keywordRow } from "../src/ui/glossary";
+import { hitText } from "../src/ui/abilityText"; // BUMP-1E P6: the belt timeline's VENOM DRIP row
 import { FIRST_SIGHT_IDS, FIRST_SIGHT_WORDS, kwSight } from "../src/ui/tips";
 import { isSightWord } from "../src/ui/firstSight";
 import { shopChip } from "../src/ui/chips";
@@ -237,6 +238,17 @@ describe("SCALE-2b screen: VENOM DRIP's plain face", () => {
       expect(blocks.map((b) => b.text)).toEqual([statRow([["POISON", "+1"]])]);
       expect(blocks[0].text).toBe(`${ICON.POISON}+1`);
       expect(shopChip("venom")).toBe("{POISON}+1");
+    });
+  });
+
+  // BUMP-1E P6: the belt timeline's row for VENOM DRIP (abilityText.ts hitRow) was its bare name with the scaling rules (no burnPlus, no
+  // POISON branch; found by a re-pin helper): now "<NAME> +<n> POISON" in the BURN and FRAY rows' form; off, today's "+n SEC TO EACH BURN"
+  it("the belt row: on, VENOM DRIP +n POISON at each star; off, +n SEC TO EACH BURN as before", () => {
+    on(() => {
+      expect([1, 2, 3].map((s) => hitText({ def: "venom", stars: s } as never, "free"))).toEqual(["VENOM DRIP +1 POISON", "VENOM DRIP +2 POISON", "VENOM DRIP +3 POISON"]);
+    });
+    off(() => {
+      expect(hitText({ def: "venom", stars: 2 } as never, "free")).toBe("VENOM DRIP +6 SEC TO EACH BURN");
     });
   });
 

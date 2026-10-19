@@ -1634,6 +1634,9 @@ function hitRow(h: TimelineHit, belt: BeltKind): string {
   // Y6 (DESIGN-Y 4.1): VENOM DRIP lengthens the slug's BURN (Battle.impact), no POISON. Y7b2 (the words): in the other
   // rows' form, "<NAME> +<amount> <what>", no colon (was "VENOM DRIP: ITS BURN LASTS +3 SEC")
   if (e.burnPlus) return `${name} +${fmtSec(e.burnPlus)} SEC TO EACH BURN`;
+  // BUMP-1E P6 (SCALE-2b: with the scaling rules VENOM DRIP puts POISON on the hull and has no burnPlus; the row was its bare name): the
+  // belt row in the BURN and FRAY rows' form, "<NAME> +<n> POISON" (the face says HIT: +n POISON, the gist ADDS n POISON)
+  if (e.poison) return `${name} +${e.poison} POISON`;
   if (e.speed !== undefined) {
     if (belt === "locked") return `${name} +${damage(h.flat ?? 0)} (LOCKED)`;
     if (belt === "slag") {
