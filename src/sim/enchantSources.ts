@@ -38,7 +38,7 @@ export const enchanterDaysUpTo = (day: number): number => (Number.isInteger(day)
 
 /** Two DIFFERENT words from the stream hashSeed(seed, "ench", day, stream): the first draw takes one of the eight, the second one of
  *  the seven left. Pure: the same (seed, day, stream) is the same pair everywhere. */
-function twoWords(seed: number, day: number, stream: "enchanter" | "warlord"): [EnchantId, EnchantId] {
+function twoWords(seed: number, day: number, stream: "enchanter" | "warlord" | "shrine"): [EnchantId, EnchantId] { // ENCHANT-2 (REQ-BFG-085, T3): + "shrine"
   const rng = new Rng(hashSeed(seed, "ench", day, stream));
   const pool: EnchantId[] = [...ENCHANT_IDS];
   const a = pool.splice(rng.int(pool.length), 1)[0];
@@ -54,6 +54,13 @@ export function enchanterWords(seed: number, day: number): EnchantId[] {
 /** The two words of a warlord pick won on `day` (E5b): the player takes one, or none (NO THANKS). */
 export function warlordPickWords(seed: number, day: number): [EnchantId, EnchantId] {
   return twoWords(seed, day, "warlord");
+}
+
+/** ENCHANT-2 (REQ-BFG-085, T3): the two words of the ASH SHRINE on `day` (word A, then word B: two DIFFERENT words from its own stream
+ *  hashSeed(seed, "ench", day, "shrine")). The shrine event (src/game/shrine.ts) offers word A for max hull and word B for a cargo part;
+ *  the server (net/enchantCheck.ts) re-derives the same pair for each bag whose shrine day is on or before the record's day. */
+export function shrineWords(seed: number, day: number): [EnchantId, EnchantId] {
+  return twoWords(seed, day, "shrine");
 }
 
 /** How many warlord picks a deck on `day` can have had: none before day 5, one from day 5, two from day 8. */
