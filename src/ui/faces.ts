@@ -62,7 +62,7 @@ import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37)
 import { isPlainRig as isPlainSix } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (PLAIN-1F M1: renamed here; faces.ts's own isPlainRig is the face test, and it holds them while they are in ITEMS)
 import { shotFloor } from "../sim/deck"; // ENCHANT-1 (REQ-BFG-085): the least a slug deals, for a MASSIVE or SWIFT factory's DMG
 import { enchantRate, enchantRules, isEnchantId } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): the word's rate, the switch
-import { ENCHANT_NOTES, fieryBurn, grownDmg, slugDmg, type WordOn } from "./enchantFaces"; // ENCHANT-1 (REQ-BFG-085): the NOTES, the word's numbers
+import { ENCHANT_NOTES, grownDmg, slugDmg, type WordOn } from "./enchantFaces"; // ENCHANT-1 (REQ-BFG-085): the NOTES, the word's numbers
 
 /**
  * The engine's numbers a reminder needs that no spec carries (as abilityText.ts SIM): each quoted from its source.
@@ -168,7 +168,7 @@ export function factoryStats(def: string, stars = 1, hero?: HeroId, w?: WordOn):
  * damage and belts). PLATE always lands on your hull, so ARMOR PRESS's and WARDWORKS' plating stays an ability. Null for
  * a piece whose payloads carry nothing of their own.
  */
-export function carryStats(def: string, stars = 1, hero?: HeroId, w?: WordOn): Stat[] | null {
+export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null {
   const fs = effectAt(def, stars).factory;
   if (!fs) return null;
   // Battle.factoryDef: MIMIC FORGE stamps the hero's ammo (factoryStats), so its slugs carry what the hero's carry
@@ -194,8 +194,6 @@ export function carryStats(def: string, stars = 1, hero?: HeroId, w?: WordOn): S
   const ammo = AMMO[h ? h.ammo : fs.ammo];
   if (ammo?.rideScale) out.push(["HEAT", fmtDmg(dmgNow(ammo.rideScale))]);
   if (ammo?.fray) out.push(["FRAY", fmtCount(ammo.fray)]);
-  // ENCHANT-1 (REQ-BFG-085; E7): FIERY's BURN rides each of the factory's slugs (Battle.made): its stat, last in the row, signed as a rig's
-  if (w?.id === "fiery") out.push(["BURN", `+${fmtCount(fieryBurn(w.stars))}`]);
   return out.length ? out : null;
 }
 
@@ -1192,19 +1190,19 @@ export function enchantNotes(word: string | undefined): string[] {
 const withPair = (row: readonly Stat[], pair: Stat): Stat[] =>
   row.some(([k]) => k === pair[0]) ? row.map((st) => (st[0] === pair[0] ? pair : st)) : [...row, pair];
 
-/** ENCHANT-1: a rig's stat row with its word: FIERY's BURN joins the row's BURN (TEMPER's) or ends the row; GROWING's grown DMG joins the
- *  row's DMG (WHETSTONE's) or ends the row, once it has grown (a hit's DMG is the rig's flat plus +5 x the dusk fights x the stars). */
+/** ENCHANT-1: a rig's stat row with its word: GROWING's grown DMG joins the row's DMG (WHETSTONE's) or ends the row, once it has grown (a hit's
+ *  DMG is the rig's flat plus +5 x the dusk fights x the stars). ENCHANT-1c (C1): FIERY adds nothing here: its [BURN]+n shows once, in its line
+ *  (enchantFaces.ts pieceLine), so a rig with its own BURN (TEMPER's) keeps that number in its row as it is. */
 function rigWordRow(def: string, stars: number, w: WordOn, plain: Stat[]): Stat[] {
   const g = effectAt(def, stars).gate, has = (k: string): boolean => plain.some(([n]) => n === k);
   let row = plain;
-  if (w.id === "fiery") row = withPair(row, ["BURN", `+${fmtCount((has("BURN") ? g?.burn ?? 0 : 0) + fieryBurn(w.stars))}`]);
   if (w.id === "growing" && w.grow > 0) row = withPair(row, ["DMG", `+${fmtDmg(dmgNow((has("DMG") ? g?.flat ?? 0 : 0) + grownDmg(w)))}`]);
   return row;
 }
 
-/** ENCHANT-1: a turret's stat row with its word's added stat at the end: FIERY's BURN, and GROWING's grown DMG once it has grown. */
+/** ENCHANT-1: a turret's stat row with its word's added stat at the end: GROWING's grown DMG, once it has grown (ENCHANT-1c C1: FIERY adds none,
+ *  its [BURN]+n is in its line). */
 function turretWordRow(row: Stat[], w: WordOn): Stat[] {
-  if (w.id === "fiery") return [...row, ["BURN", `+${fmtCount(fieryBurn(w.stars))}`]];
   if (w.id === "growing" && w.grow > 0) return [...row, ["DMG", `+${fmtDmg(dmgNow(grownDmg(w)))}`]];
   return row;
 }
@@ -1226,10 +1224,10 @@ export interface WordRows {
 }
 
 /**
- * ENCHANT-1 (REQ-BFG-085; E7): the stat rows of a piece holding the word `w`, at `stars` on `o`'s day and hero. A STAT word adds its stat
- * at the END of the piece's row (FIERY: `{BURN}+1`, in a factory its second row, the payloads' own); a number the word CHANGES is shown
- * changed: MASSIVE's and SWIFT's RATE and a factory's DMG (the battle's: factoryStats, turretStats), GROWING's DMG with the grown amount,
- * WIDE's {BELT} or {GEAR} slots. A row the plain piece has not (a rule rig has no stat row) is made of the word's own pairs alone.
+ * ENCHANT-1 (REQ-BFG-085; E7): the stat rows of a piece holding the word `w`, at `stars` on `o`'s day and hero. A number the word CHANGES is
+ * shown changed: MASSIVE's and SWIFT's RATE and a factory's DMG (the battle's: factoryStats, turretStats), GROWING's DMG with the grown
+ * amount, WIDE's {BELT} or {GEAR} slots. ENCHANT-1c (C1): no word adds a stat of its own to a row any more (FIERY's [BURN]+n is in its line
+ * only). A row the plain piece has not (a rule rig has no stat row) is made of the word's own pairs alone.
  */
 export function wordRows(def: string, stars: number, o: TextOpts, w: WordOn): WordRows {
   return shownOn(o.day, () => {
@@ -1239,7 +1237,7 @@ export function wordRows(def: string, stars: number, o: TextOpts, w: WordOn): Wo
       word = [turretWordRow(turretStats(def, stars, w), w)];
     } else if (w.kind === "factory") {
       plain = [factoryStats(def, stars, o.hero), carryStats(def, stars, o.hero) ?? []];
-      word = [factoryStats(def, stars, o.hero, w), carryStats(def, stars, o.hero, w) ?? []];
+      word = [factoryStats(def, stars, o.hero, w), carryStats(def, stars, o.hero) ?? []];
     } else {
       const p = plainRigStats(def, stars, o.day) ?? [];
       plain = [p];

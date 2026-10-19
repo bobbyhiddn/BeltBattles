@@ -7,9 +7,10 @@
 // THE PANEL FACE of an enchanted piece (run 3, E7) is built from the helpers below, read by faces.ts (the stat pairs), faceBlocks.ts (the
 // blocks) and inspector.ts (the title and the NOTES):
 //   - the NAME: the word first, in its colour, then the piece's name in its rarity colour (nameSpans): `FIERY` WHETSTONE;
-//   - a STAT word (FIERY) adds its stat at the END of the piece's stat row, in its colour; EVERY word (ENCHANT-1b N2: FIERY too: `ITS HIT:
-//     [BURN]+1.`, `ITS SLUGS:` on a factory, `ITS SHOTS:` on a turret) adds ONE line under the piece's own line, always visible, in its
-//     colour (pieceLine / wordLine at THIS piece's stars: RISING's and GROWING's steps, FIERY's BURN and BRACED's stuns multiply by the stars);
+//   - EVERY word adds ONE line under the piece's own line, always visible, in its colour (pieceLine / wordLine at THIS piece's stars: RISING's and
+//     GROWING's steps, FIERY's BURN and BRACED's stuns multiply by the stars). ENCHANT-1c (C1): FIERY is a line word like the other seven
+//     (`ITS HIT: [BURN]+1.`, `ITS SLUGS:` on a factory, `ITS SHOTS:` on a turret), and its number shows ONCE, there: no word adds a stat of its
+//     own to the stat row, so the row holds the piece's own numbers (a piece with its own BURN keeps it there, unchanged and not coloured);
 //   - a number the word CHANGES is shown changed, in its colour: MASSIVE's and SWIFT's rate and DMG, GROWING's DMG with the grown amount,
 //     WIDE's belt or gear slots (the rows are faces.ts's, with the word's numbers; the changed pairs are found by comparing the two rows).
 // Everything here is plain data: the switch (enchantRules) is asked by liveWord, so with it off no function here finds a word.
@@ -88,7 +89,8 @@ export function wordLine(id: EnchantId, kind: EnchantKind, stars = 1): string | 
 
 /** The one line a word says under an enchanted piece's own line, at `stars`; null for a kind the word cannot go on. ENCHANT-1b (N2; cap's ruling
  *  on QUESTION 5(b)(i), which changes E7's: a piece's own abilities are always visible, REQ-BFG-089): FIERY has its line too, `ITS HIT:
- *  {BURN}+1.` (`ITS SLUGS:` on a factory, `ITS SHOTS:` on a turret), in its colour, and keeps its orange stat in the row. */
+ *  {BURN}+1.` (`ITS SLUGS:` on a factory, `ITS SHOTS:` on a turret), in its colour. ENCHANT-1c (C1; cap's ruling on 1b's QUESTION 4): this line is
+ *  where FIERY's number shows, ONCE; the orange stat that N2 kept in the row is gone. */
 export function pieceLine(id: EnchantId, kind: EnchantKind, stars = 1): string | null {
   return wordLine(id, kind, stars);
 }
@@ -151,9 +153,6 @@ export function slugDmg(w: Pick<WordOn, "id" | "stars" | "grow"> | undefined, ba
   if (w.id === "growing") return base + flat + ENCHANT_NUM.growingStep * w.grow * w.stars;
   return base + flat;
 }
-
-/** What FIERY adds to a hit, a slug or a shot at `stars`: ENCHANT_NUM.burn x stars (E3). */
-export const fieryBurn = (stars: number): number => ENCHANT_NUM.burn * enchantStars(stars);
 
 /** What GROWING has added so far to a hit, a slug or a shot: its step x the dusk fights x the stars (0 before the first dusk fight). */
 export const grownDmg = (w: Pick<WordOn, "stars" | "grow">): number => ENCHANT_NUM.growingStep * w.grow * w.stars;

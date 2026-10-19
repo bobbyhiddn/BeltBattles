@@ -33,9 +33,9 @@ export const PAIR_GAP = "  ";
  *  {SLUG}HOLDS 2  {GEAR}GEAR SLOTS 1" in glyphs, two spaces between pairs. Inspector role "ability" with `pairs` (layBlock
  *  draws it as it is, never splitting a pair: one line where it fits, else one pair a line, as the desk column needs). */
 export function turretRow(stats: readonly Stat[]): string {
-  // ENCHANT-1 (REQ-BFG-085, E7): a word's own stat (FIERY's {BURN}+n, GROWING's {DMG}+n) joins the row as its icon and number, no label word:
-  // the labelled row (`RATE 55  HOLDS 2  GEAR SLOTS 1`, 181 px at most) plus a labelled fourth pair would pass the op view's 225 px
-  return stats.map(([k, v]) => `${ICON[k as keyof typeof ICON]}${TURRET_LABELS[k as keyof typeof TURRET_LABELS] ?? (k === "BURN" || k === "DMG" ? "" : k)} ${v}`).join(PAIR_GAP);
+  // ENCHANT-1 (REQ-BFG-085, E7): a word's own stat (GROWING's {DMG}+n) joins the row as its icon and number, no label word: the labelled row
+  // (`RATE 55  HOLDS 2  GEAR SLOTS 1`, 181 px at most) plus a labelled fourth pair would pass the op view's 225 px. (ENCHANT-1c C1: FIERY adds no stat here.)
+  return stats.map(([k, v]) => `${ICON[k as keyof typeof ICON]}${TURRET_LABELS[k as keyof typeof TURRET_LABELS] ?? (k === "DMG" ? "" : k)} ${v}`).join(PAIR_GAP);
 }
 
 /** The reminder's rank among a panel's optional blocks: after an ability's later sentences (2) and a turret's notes'
@@ -96,7 +96,7 @@ export function faceBlocks(def: string, stars: number, o: TextOpts, w?: WordOn):
   for (const r of fl.rules) out.push({ role: "ability", text: r.text, keep: true, ...(r.label ? { brass: r.label } : {}) });
   out.push(...own); // SHAPES-1: a shaped factory's own lines after its rule lines
   if (perk && out.length) out[out.length - 1] = { ...out[out.length - 1], perk };
-  out.push(...wline); // ENCHANT-1: the word's line, under the piece's own line(s); [] for a stat word and for a plain piece
+  out.push(...wline); // ENCHANT-1: the word's line, under the piece's own line(s); [] for a plain piece
   // U2b F6: the perk clause, its label "★2 SPARK JUMP:" in brass, kept (a face never says less than the sim)
   if (fl.clause) out.push({ role: "ability", text: fl.clause.text, keep: true, brass: fl.clause.label });
   // U2b F5: the interim caveats, kept, in 3x5 and the reminder's colour (the "caveat" role)
@@ -130,8 +130,8 @@ function wordStatBlocks(wr: WordRows, w: WordOn, turret: boolean, onlyHued = fal
 }
 
 /** ENCHANT-1 (E7): the one line a word says under the piece's own line, at the piece's stars, in the word's colour and always shown
- *  (kept: it is this piece's own ability); [] for a plain piece and for no word. ENCHANT-1b (N2): FIERY has its line too (`ITS HIT: {BURN}+1.`),
- *  beside its stat in the row. */
+ *  (kept: it is this piece's own ability); [] for a plain piece and for no word. ENCHANT-1b (N2): FIERY has its line too (`ITS HIT: {BURN}+1.`);
+ *  ENCHANT-1c (C1): that line is where its number shows, once (the row no longer repeats it). */
 export function wordLineBlocks(w: WordOn | undefined): Block[] {
   const text = w ? pieceLine(w.id, w.kind, w.stars) : null;
   return w && text ? [{ role: "ability", text: icons(text), keep: true, colour: wordColour(w.id) }] : [];
