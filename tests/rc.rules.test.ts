@@ -16,12 +16,13 @@
 // RULES_VERSION is at or after. tests/belts.rules.test.ts turns bb-0.8.0's uploads and sessions away the same way.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { RULES_VERSION, RUN_DAYS, START_LIVES, type HeroId } from "../src/sim/content";
+import { withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling switch is the outermost of the old-rules validation below (honest)
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): records on each rules' scale
 import { heartsFor } from "../src/net/rulesGate"; // HULL-ON (the flip, HEARTS): which scale a record's rules read
 import type { Build } from "../src/sim/deck";
 import { simulate, type SideStats } from "../src/sim/battle";
 import { heroRefBuild, PLAYABLE_HEROES } from "../src/sim/heroBuilds";
-import { HEROES_RULES, heroesFor, rulesAtLeast, sustainFeatures } from "../src/net/rulesGate"; // FLIP-X2: sustainFeatures
+import { HEROES_RULES, SCALE_RULES, heroesFor, rulesAtLeast, sustainFeatures } from "../src/net/rulesGate"; // FLIP-X2: sustainFeatures; BUMP-1E: SCALE_RULES (honest)
 import { ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { withDawnRunes } from "./runeFill"; // FLIP-X2: an upload holds its day's runes
 import { validateUpload } from "../src/net/validate";
@@ -62,6 +63,15 @@ const ungraded = (s: GhostSnapshot): GhostSnapshot => {
   const { grade: _grade, ...u } = s;
   return u;
 };
+
+/** BUMP-1E: is the deck honest under `rules` (validateUpload's ok)? Under rules before SCALE_RULES validateUpload judges it with the scaling switch off, and under rules before
+ *  bb-0.11.0 (the older neighbour, bb-0.10.0) with SHAPES2 off too, nested as validate.ts has them (inShapes2World outside inScaleWorld): the scaling switch comes back FIRST, so the seven
+ *  scaling ids are re-added to ITEMS BEFORE SHAPES2's six and ITEMS' key order, which is part of every seeded draw (the par player's decks), has changed for the rest of the worker:
+ *  the seed-pool test below then fails 'SOFT-1: stale: the pick f9:2fb07b77 for furnace day 1 no longer matches its deck' (found at eb6f751, tests/soft1.picks.test.ts in a fresh
+ *  process resolves every pick). The scaling switch is the OUTERMOST of the nest here (off first, back last: tests/net-upload.test.ts's catalogueOff form), the world the call meant.
+ *  Rules at or after SCALE_RULES (bb-0.12.1) are judged as the switch stands, on, where nothing is switched. */
+const honest = (deck: Build, day: number, rules: string): boolean =>
+  (rulesAtLeast(rules, SCALE_RULES) ? validateUpload(deck, day, rules) : withScaleRigs(() => validateUpload(deck, day, rules), false)).ok;
 
 function mem(): Storage & { keys(): string[] } {
   const m = new Map<string, string>();
@@ -208,7 +218,7 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
     for (const rules of ["bb-0.11.0", "bb-0.12.1", "bb-0.10.0"]) { // BUMP-1E: was ["bb-0.10.0", "bb-0.11.1"] (E.1 adds the third). BUMP-1D: was ["bb-0.9.7", "bb-0.10.1"]; AZ-BUMP: was ["bb-0.9.6", "bb-0.9.8"]; Z-BUMP: was ["bb-0.9.2", "bb-0.9.4"]; Y7b2: was ["bb-0.9.0", "bb-0.9.2"]
       for (const hero of PLAYABLE_HEROES) {
         const deck = withDawnRunes(heroRefBuild(hero, day), day);
-        expect(validateUpload(deck, day, rules).ok, `${hero} ${rules}: honest under its own rules`).toBe(true); // only the rules string is off
+        expect(honest(deck, day, rules), `${hero} ${rules}: honest under its own rules`).toBe(true); // only the rules string is off. BUMP-1E: was validateUpload(deck, day, rules).ok (honest: the scaling switch outermost for the rules before bb-0.12.0, so ITEMS keeps its order)
         const r = await post({ ...snapOf(hero, day, rules, deck), v: SNAPSHOT_V3 });
         expect(r.status, `${hero} d${day} ${rules}`).toBe(422);
         expect(r.body.error).toBe(`rules ${rules} not accepted: this server validates bb-0.12.0`); // BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1

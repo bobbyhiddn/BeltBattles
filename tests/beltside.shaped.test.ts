@@ -9,6 +9,8 @@
 // moveShaped). This file pins that: (1) the geometry, (2) a corner on a belt alone moves nothing, (3) a footprint on a belt
 // moves whole to a place that fits, or is stranded, (4) the four decks load as they are stored and are legal boards, (5) every
 // 1-cell gate is migrated exactly as before (the old step is copied below and compared on every deck the repo holds).
+// BUMP-1E: the stand-in pool was regenerated under bb-0.12.0 (R1, 19ae423), and a regenerated pool re-measures (4): the old step now displaces
+// TWO of its 192 decks (furnace day 5 #1 and day 15 #2, each with an ELBOW GUARD at rot 3), where the committed pool's had four.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
@@ -414,20 +416,22 @@ describe("BUMP-1D R2.3 Q2 (b): a shaped rig with a cell on a belt moves as a who
 
 // ---------------------------------------------------------------- 4. (c) the four decks
 
-describe("BUMP-1D R2.3 Q2 (c): the four stored stand-in decks the anchor test displaced load as they are stored, on a legal board", () => {
-  // standInPool("furnace", day)[i]: day 5 #5 and day 13 #0 hold the ELBOW GUARD (uid 4, anchor (4,3), rot 3, cells 35 44 45) beside a
-  // belt whose tile 34 is a corner; the old step moved it to (4,4) rot 0, whose cell 54 is a TOLLBOOTH's (uid 7): an illegal board.
-  // Day 6 #3 and day 10 #4 hold it (uid 3, anchor (7,6), rot 3, cells 68 77 78) with the corner on tile 67; the old step moved it to
-  // (7,7) rot 0 (cells 77 87 88): no overlap, but not the deck that was scored.
-  // These four describe the committed pool (8fc5e24, bb-0.11.0); a regenerated pool re-measures them (the sweeps above and the
-  // all-192 test below hold for any pool).
-  const FOUR: { day: number; i: number; uid: number; stored: { x: number; y: number; cells: number[] }; old: { to: number; cells: number[]; clash: boolean } }[] = [
-    { day: 5, i: 5, uid: 4, stored: { x: 4, y: 3, cells: [35, 44, 45] }, old: { to: 44, cells: [44, 54, 55], clash: true } },
-    { day: 13, i: 0, uid: 4, stored: { x: 4, y: 3, cells: [35, 44, 45] }, old: { to: 44, cells: [44, 54, 55], clash: true } },
-    { day: 6, i: 3, uid: 3, stored: { x: 7, y: 6, cells: [68, 77, 78] }, old: { to: 77, cells: [77, 87, 88], clash: false } },
-    { day: 10, i: 4, uid: 3, stored: { x: 7, y: 6, cells: [68, 77, 78] }, old: { to: 77, cells: [77, 87, 88], clash: false } },
+describe("BUMP-1D R2.3 Q2 (c): the stored stand-in decks the anchor test displaced load as they are stored, on a legal board", () => { // BUMP-1E: was "the four stored stand-in decks" (the regenerated pool holds two)
+  // BUMP-1E: the stand-in pool was regenerated under bb-0.12.0 (R1, 19ae423, the regenerated pools) and a regenerated pool re-measures these decks: the old step displaces TWO of
+  // its 192 (was four of the committed pool, 8fc5e24, bb-0.11.0), both on furnace and both an ELBOW GUARD at rot 3. standInPool("furnace", day)[i]: day 5 #1 holds it (uid 5, anchor
+  // (4,3), rot 3, cells 35 44 45) beside a belt whose tile 34 is a corner; the old step moved it to (4,4) rot 0 (cells 44 54 55), whose cell 54 is a TOLLBOOTH's (uid 7): an illegal
+  // board. Day 15 #2 holds it (uid 3, anchor (8,1), rot 3, cells 19 28 29) with the corner on tile 18; the old step moved it to (8,2) rot 0 (cells 28 38 39), whose cell 38 is a
+  // TEMPER's (uid 6): an illegal board too.
+  // BUMP-1D's four, in the committed pool (8fc5e24): day 5 #5 and day 13 #0 (ELBOW GUARD uid 4, anchor (4,3), rot 3, cells 35 44 45; the old step to (4,4) rot 0, whose cell 54 is a
+  // TOLLBOOTH's (uid 7): an illegal board) and day 6 #3 and day 10 #4 (uid 3, anchor (7,6), rot 3, cells 68 77 78, the corner on tile 67; the old step to (7,7) rot 0, cells 77 87 88:
+  // no overlap, but not the deck that was scored). The sweeps above and the all-192 test below hold for any pool.
+  const DISPLACED: { day: number; i: number; uid: number; stored: { x: number; y: number; cells: number[] }; old: { to: number; cells: number[]; clash: boolean } }[] = [
+    { day: 5, i: 1, uid: 5, stored: { x: 4, y: 3, cells: [35, 44, 45] }, old: { to: 44, cells: [44, 54, 55], clash: true } },
+    { day: 15, i: 2, uid: 3, stored: { x: 8, y: 1, cells: [19, 28, 29] }, old: { to: 28, cells: [28, 38, 39], clash: true } },
+    // BUMP-1E: were { day: 5, i: 5, uid: 4, stored: { x: 4, y: 3, cells: [35, 44, 45] }, old: { to: 44, cells: [44, 54, 55], clash: true } }, { day: 13, i: 0, (the same) },
+    // { day: 6, i: 3, uid: 3, stored: { x: 7, y: 6, cells: [68, 77, 78] }, old: { to: 77, cells: [77, 87, 88], clash: false } } and { day: 10, i: 4, (the same) } (the regenerated pools, R1)
   ];
-  for (const c of FOUR) {
+  for (const c of DISPLACED) {
     it(`furnace day ${c.day} #${c.i}: the ELBOW GUARD stays at (${c.stored.x},${c.stored.y}) rot 3, moved: [], no overlap, a legal board`, () => {
       shaped(() => {
         const hero: HeroId = "furnace", code = STAND_IN_DATA.pools[hero]![c.day - 1][1][c.i][3];
@@ -495,7 +499,7 @@ describe("BUMP-1D R2.3 Q2: a 1-cell gate is migrated exactly as before (the old 
     return out;
   };
 
-  it("every pre-BELTSIDE preset, golden-060 and pool v1.1 deck (gates ON belt tiles) and the 192 current pool decks migrate to the same deck and the same Migration; only the four displaced pool decks differ", () => {
+  it("every pre-BELTSIDE preset, golden-060 and pool v1.1 deck (gates ON belt tiles) and the 192 current pool decks migrate to the same deck and the same Migration; only the two displaced pool decks differ", () => { // BUMP-1E: was "the four displaced pool decks"
     shaped(() => {
       const decks = corpus(), differs: string[] = [];
       let inlineDecks = 0, moved = 0, stranded = 0;
@@ -510,9 +514,12 @@ describe("BUMP-1D R2.3 Q2: a 1-cell gate is migrated exactly as before (the old 
         moved += now.moved.length;
         stranded += now.stranded.length;
       }
-      expect(differs).toEqual(["pool furnace d5 #5", "pool furnace d6 #3", "pool furnace d10 #4", "pool furnace d13 #0"]);
-      // measured on this corpus (the same on the old step): 872 decks agree, 616 of them hold gates to migrate. The fixtures are frozen;
-      // the last 192 decks are the committed pool's (8fc5e24), whose four displaced decks are the ones listed above
+      // BUMP-1E: was ["pool furnace d5 #5", "pool furnace d6 #3", "pool furnace d10 #4", "pool furnace d13 #0"]: the stand-in pool was regenerated under bb-0.12.0 (R1, 19ae423, the regenerated pools) and the
+      // two decks the old step displaces are now furnace day 5 #1 and day 15 #2 (listed in (c) above)
+      expect(differs).toEqual(["pool furnace d5 #1", "pool furnace d15 #2"]);
+      // measured on this corpus (the same on the old step): 874 decks agree (BUMP-1E: was 872, the four became two), 616 of them hold gates to migrate. The fixtures are frozen;
+      // the last 192 decks are the regenerated pool's (R1, 19ae423; the committed pool's, 8fc5e24, had four displaced decks), whose two displaced decks are the ones listed above.
+      // BUMP-1E: the counts below did not move: a pool deck is a legal board (it migrates nothing, the all-192 test above), so they are the frozen fixtures' alone
       expect([decks.length, inlineDecks, moved, stranded]).toEqual([876, 616, 2523, 147]);
     });
   });

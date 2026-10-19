@@ -12,6 +12,7 @@ import { rotFacing } from "../src/sim/beltside";
 import { effectAt } from "../src/sim/stars";
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: the base's rigs with the six plain ones off
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and the six more shaped ones off
+import { SCALE_IDS, SCALE_RIGS, flatOf, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the seven scaling rigs (SCALE_IDS), the switch, the slug's whole flat bonus
 import { hitLabel } from "../src/screens/build/inspector";
 import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2t: the glossary (it replaced levelLine's shorthand)
 import { migrateRun, newRun, type Run } from "../src/game/run";
@@ -64,9 +65,15 @@ describe("P1: stars resolve first; shape is kept at every star (R10)", () => {
     // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23)
     // BUMP-1D (PLAIN_RIGS and SHAPES2 ship on): + the six plain stat rigs (RASP, SPARK GAP, SCALE GUARD, BALLAST, GRINDSTONE,
     // BRANDING IRON) and the six more shaped rigs (ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE): 46 (was 34)
-    expect(rigs).toHaveLength(46);
+    // BUMP-1E (SCALE_RIGS ships on, bb-0.12.0): + the seven scaling rigs (CINDER MAIL, ROT GAUGE, LEECH COIL, CROWD PRESS, AEGIS SPIKE,
+    // GRUDGE ROD, TROPHY CHAIN: SCALE_IDS, each a gate): 53 (was 46)
+    expect(SCALE_RIGS).toBe(true);
+    expect(rigs).toHaveLength(53); // BUMP-1E: was 46
+    expect(rigs.filter((d) => SCALE_IDS.includes(d.id))).toHaveLength(SCALE_IDS.length); // all seven are rigs; 46 + 7 = 53
     // the base's 34 are the catalogue with both switches off, as before
-    const base = withPlainRigs(() => withShapes2(() => Object.values(ITEMS).filter((d) => d.kind === "gate"), false), false);
+    // BUMP-1E: and with the scaling switch off too: the seven are in ITEMS while it is on (read as it was, the 0.9.11 world). It is the outermost of the
+    // nest (off first, back last), so the seven stay the last keys of ITEMS: the order of every seeded draw (BUMP-1E, the ITEMS key-order hazard)
+    const base = withScaleRigs(() => withPlainRigs(() => withShapes2(() => Object.values(ITEMS).filter((d) => d.kind === "gate"), false), false), false);
     expect(base).toHaveLength(34); // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL, the three shaped rigs (was 31)
     for (const d of rigs) {
       for (const s of [1, 2, 3]) {
@@ -206,7 +213,9 @@ describe("P3: LONG HAUL counts prior HITS (no priorCap)", () => {
     expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT.");
     // the battle agrees: every payload past tile 8 carries 8 x 20 (the WHETSTONES; NUM-1: was 8 x 2) + LONG HAUL ★2 x 6,
     // whole (NUM-1: was toBeCloseTo(..., 9)). Y7b2 (the flip): LONG HAUL ★2 x 8 (was x 6)
-    for (const p of family(snake(2), 8)) expect(p.flat).toBe(8 * 20 + perHit(2) * 8);
+    // BUMP-1E: with the scaling rules on (bb-0.12.0) the WHETSTONES' 8 x 20 is the slug's `flat` (stat rows) and LONG HAUL's 8 x perHit(2) its `each` (FOR EACH,
+    // battle.ts forEach, REQ-BFG-110 step 4), so the sum the shot reads is flatOf(p): the same 320 (was p.flat: 160 on and 320 off)
+    for (const p of family(snake(2), 8)) expect(flatOf(p)).toBe(8 * 20 + perHit(2) * 8); // BUMP-1E: was p.flat
   });
 
   it("a hit counts even from the same tile's tier 1 (R7), and each arrow of one rig counts once (R8)", () => {
