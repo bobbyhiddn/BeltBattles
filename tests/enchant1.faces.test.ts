@@ -304,7 +304,7 @@ describe("ENCHANT-1 E7: THE ROWS: the piece's own numbers, then every word's one
         expect(wordLine("rising", kind, stars), `RISING ${kind} ★${stars}`).toContain(`+${ENCHANT_NUM.risingStep * stars} {DMG} MORE THAN THE LAST`);
         expect(wordLine("growing", kind, stars), `GROWING ${kind} ★${stars}`).toContain(`+${ENCHANT_NUM.growingStep * stars} {DMG}, FOR THE RUN`);
         expect(wordLine("braced", kind, stars), `BRACED ${kind} ★${stars}`).toContain(`THE FIRST ${ENCHANT_NUM.bracedStuns * stars} {STUN}STUNS`);
-        expect(wordLine("fiery", kind, stars), `FIERY ${kind} ★${stars}`).toContain(`{BURN}+${ENCHANT_NUM.burn * stars}.`);
+        expect(wordLine("fiery", kind, stars), `FIERY ${kind} ★${stars}`).toContain(`ADDS +${ENCHANT_NUM.burn * stars} {BURN} `); // ENCHANT-2 (T4c): the card says what the panel says
       }
       expect(wordLine("rising", "rig", 1)).toBe(panelText("EACH SLUG IT HITS: +5 DMG MORE THAN THE LAST.".replace("+5", `+${ENCHANT_NUM.risingStep}`)));
       for (const id of ["echoing", "massive", "swift", "wide"] as const) for (const kind of KINDS) {
@@ -320,18 +320,18 @@ describe("ENCHANT-1 E7: THE ROWS: the piece's own numbers, then every word's one
     });
   });
 
-  it("FIERY's PIECE line says ADDS (ADDS +n [BURN] TO EACH HIT / TO ITS SLUGS / TO EACH SHOT) at every star, and the word's OWN card keeps `ITS HIT: [BURN]+n.` on its three rows (the brief's ruling: the word's card does not change)", () => {
+  it("FIERY's PIECE line says ADDS (ADDS +n [BURN] TO EACH HIT / TO ITS SLUGS / TO EACH SHOT, ON TOP OF ITS OWN STATS) at every star, and ENCHANT-2 T4c: the word's OWN card says the same words without the clause (a card shows no part's stats) on its three rows", () => {
     on(() => {
       for (const stars of [1, 2, 3]) {
         const n = ENCHANT_NUM.burn * stars;
         expect(pieceLine("fiery", "rig", stars)).toBe(`ADDS +${n} {BURN} TO EACH HIT, ON TOP OF ITS OWN STATS.`);
         expect(pieceLine("fiery", "factory", stars)).toBe(`ADDS +${n} {BURN} TO ITS SLUGS, ON TOP OF ITS OWN STATS.`);
         expect(pieceLine("fiery", "turret", stars)).toBe(`ADDS +${n} {BURN} TO EACH SHOT, ON TOP OF ITS OWN STATS.`);
-        expect(wordLine("fiery", "rig", stars)).toBe(`ITS HIT: {BURN}+${n}.`);
-        expect(wordLine("fiery", "factory", stars)).toBe(`ITS SLUGS: {BURN}+${n}.`);
-        expect(wordLine("fiery", "turret", stars)).toBe(`ITS SHOTS: {BURN}+${n}.`);
+        expect(wordLine("fiery", "rig", stars)).toBe(`ADDS +${n} {BURN} TO EACH HIT.`);
+        expect(wordLine("fiery", "factory", stars)).toBe(`ADDS +${n} {BURN} TO ITS SLUGS.`);
+        expect(wordLine("fiery", "turret", stars)).toBe(`ADDS +${n} {BURN} TO EACH SHOT.`);
       }
-      expect(wordFace("fiery").lines.map((l) => `${l.label}: ${l.text}`)).toEqual(["ON A RIG: ITS HIT: {BURN}+1.", "ON A FACTORY: ITS SLUGS: {BURN}+1.", "ON A TURRET: ITS SHOTS: {BURN}+1."]);
+      expect(wordFace("fiery").lines.map((l) => `${l.label}: ${l.text}`)).toEqual(["ON A RIG: ADDS +1 {BURN} TO EACH HIT.", "ON A FACTORY: ADDS +1 {BURN} TO ITS SLUGS.", "ON A TURRET: ADDS +1 {BURN} TO EACH SHOT."]);
       // docs/TEXT-STYLE.md's lint (tests/textRules.ts) on the piece's line
       for (const kind of KINDS) for (const stars of [1, 2, 3]) expect(banned(pieceLine("fiery", kind, stars)!), `${kind} ★${stars}`).toEqual([]);
     });
@@ -852,7 +852,7 @@ describe("ENCHANT-1 E7: the faces read the sim's numbers, never their own", () =
       ENCHANT_NUM.bracedStuns = 3;
       expect(wordLine("braced", "turret", 3)).toContain("THE FIRST 9 ");
       ENCHANT_NUM.burn = 2;
-      expect(wordLine("fiery", "factory", 3)).toContain("{BURN}+6.");
+      expect(wordLine("fiery", "factory", 3)).toContain("ADDS +6 {BURN} TO ITS SLUGS."); // ENCHANT-2 (T4c): was `{BURN}+6.`
     } finally {
       Object.assign(ENCHANT_NUM, was);
     }

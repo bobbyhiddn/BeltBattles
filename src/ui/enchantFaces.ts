@@ -11,7 +11,8 @@
 //     GROWING's steps, FIERY's BURN and BRACED's stuns multiply by the stars). ENCHANT-1c (C1): FIERY is a line word like the other seven, and its
 //     number shows ONCE, in its line: no word adds a stat of its own to the stat row, so the row holds the piece's own numbers (a piece with its own
 //     BURN keeps it there, unchanged and not coloured). On a PIECE FIERY's line reads `ADDS +1 [BURN] TO EACH HIT, ON TOP OF ITS OWN STATS.` (`TO ITS SLUGS` on a factory, `TO EACH
-//     SHOT` on a turret: pieceLine, the words-only fix after round 1 of the strict re-read); the word's OWN card keeps `ITS HIT: [BURN]+1.` (wordLine);
+//     SHOT` on a turret: pieceLine, the words-only fix after round 1 of the strict re-read); ENCHANT-2 (T4c): the word's OWN card and LAST CHANCE's detail say the same
+//     words without `, ON TOP OF ITS OWN STATS` (a card shows no part's stats): `ADDS +1 [BURN] TO EACH HIT.` (wordLine, was `ITS HIT: [BURN]+1.`);
 //   - a number the word CHANGES is shown changed, in its colour: MASSIVE's and SWIFT's rate and DMG, GROWING's DMG with the grown amount,
 //     WIDE's belt or gear slots (the rows are faces.ts's, with the word's numbers; the changed pairs are found by comparing the two rows).
 // Everything here is plain data: the switch (enchantRules) is asked by liveWord, so with it off no function here finds a word.
@@ -116,7 +117,7 @@ export function wordLine(id: EnchantId, kind: EnchantKind, stars = 1): string | 
   const s = enchantStars(stars), n = ENCHANT_NUM;
   let line = raw;
   if (s > 1) {
-    if (id === "fiery") line = raw.replace(`[BURN]+${n.burn}`, `[BURN]+${n.burn * s}`);
+    if (id === "fiery") line = raw.replace(`ADDS +${n.burn} `, `ADDS +${n.burn * s} `); // ENCHANT-2 (T4c): `ADDS +1 [BURN] TO EACH HIT.` (was `ITS HIT: [BURN]+1.`)
     else if (id === "rising") line = raw.replace(`+${n.risingStep} DMG`, `+${n.risingStep * s} DMG`);
     else if (id === "growing") line = raw.replace(`+${n.growingStep} DMG`, `+${n.growingStep * s} DMG`);
     else if (id === "braced") line = raw.replace(`THE FIRST ${n.bracedStuns} `, `THE FIRST ${n.bracedStuns * s} `);
@@ -127,7 +128,8 @@ export function wordLine(id: EnchantId, kind: EnchantKind, stars = 1): string | 
 /** The one line a word says under an enchanted piece's own line, at `stars`; null for a kind the word cannot go on. ENCHANT-1b (N2; cap's ruling
  *  on QUESTION 5(b)(i), which changes E7's: a piece's own abilities are always visible, REQ-BFG-089): FIERY has its line too, in its colour. ENCHANT-1c (C1; cap's
  *  ruling on 1b's QUESTION 4): this line is where FIERY's number shows, ONCE; the orange stat that N2 kept in the row is gone. ENCHANT-1c's words-only fix
- *  round: FIERY's line on a piece reads `ADDS +1 {BURN} TO EACH HIT, ON TOP OF ITS OWN STATS.` (fieryPieceLine below), not the word card's `ITS HIT: {BURN}+1.`. */
+ *  round: FIERY's line on a piece reads `ADDS +1 {BURN} TO EACH HIT, ON TOP OF ITS OWN STATS.` (fieryPieceLine below): the word card's line (wordLine) and
+ *  `, ON TOP OF ITS OWN STATS`. */
 export function pieceLine(id: EnchantId, kind: EnchantKind, stars = 1): string | null {
   if (id === "fiery") return fieryPieceLine(kind, stars);
   return wordLine(id, kind, stars);
@@ -139,12 +141,12 @@ export function pieceLine(id: EnchantId, kind: EnchantKind, stars = 1): string |
  * on a factory, `TO EACH SHOT` on a turret). Round 1 (O/read-c1/grades1): on a piece with its own BURN (the EMBER TROUGH: its row `{BURN}+1`) readers asked whether the line
  * `ITS HIT: {BURN}+1.` ADDS to the row's number or only repeats it, and whether it counts once for each hit or once for a slug. Round 2 (`ADDS +1 {BURN} TO EACH HIT.`): both
  * doubts went; one was left: whether the row's own `{BURN}+1` already includes FIERY's. `ON TOP OF ITS OWN STATS` answers it (round 3, on a copy: E-01 6 of 6, E-01b 6 of 6).
- * The word's OWN card (wordFace, enchantLine: `ON A RIG: ITS HIT: [BURN]+1.`) and LAST CHANCE's details are unchanged, as the brief ruled.
+ * ENCHANT-2 (T4c, 1c's QUESTION 3): the word's OWN card and LAST CHANCE's detail take the part's words, `ADDS +1 {BURN} TO EACH HIT.` (wordLine): the same line with
+ * `, ON TOP OF ITS OWN STATS` left off, because a card shows no part's stats. So the piece's line IS the card's line plus that clause, derived from it.
  */
-const FIERY_ADDS: Readonly<Record<EnchantKind, string>> = { rig: "TO EACH HIT", factory: "TO ITS SLUGS", turret: "TO EACH SHOT" };
 function fieryPieceLine(kind: EnchantKind, stars: number): string | null {
-  if (enchantLine("fiery", kind) === null) return null;
-  return panelText(`ADDS +${ENCHANT_NUM.burn * enchantStars(stars)} [BURN] ${FIERY_ADDS[kind]}, ON TOP OF ITS OWN STATS.`);
+  const card = wordLine("fiery", kind, stars);
+  return card === null ? null : card.replace(/\.$/, ", ON TOP OF ITS OWN STATS.");
 }
 
 // ------------------------------------------------------------------------------------------------------------ the piece's word

@@ -158,7 +158,7 @@ export function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build
   return w ? [w, ...items] : items;
 }
 
-/** ENCHANT-1 (REQ-BFG-085, E5c, E7): the details' first item for a PART that arrives enchanted: `ENCHANTED: FIERY. ITS HIT: {BURN}+1.`,
+/** ENCHANT-1 (REQ-BFG-085, E5c, E7): the details' first item for a PART that arrives enchanted: `ENCHANTED: FIERY. ADDS +1 {BURN} TO EACH HIT.` (ENCHANT-2, T4c: was `ITS HIT: {BURN}+1.`),
  *  the word in its colour and its line for this kind of piece at the card's star (enchantFaces.ts wordLine, the panels' own text). Null
  *  for a piece that takes no word. */
 export function lcWordItem(def: string, id: EnchantId, tw: number, stars = 1): RichLine[] | null {
