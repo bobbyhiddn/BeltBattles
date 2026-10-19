@@ -62,7 +62,10 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // BUMP-1D (the pools): the stand-in pool regenerated ONCE for the 10-wins release (bb-0.11.0: LONG_RUN, the twelve pieces, hearts [1,2,2]; days 1-16,
 // 192 decks = 2 heroes x 16 days x 6, so poolReads() below reads 16 days a hero), so POOL_DIGEST is that pool's reads, taken on bump (the
 // run-3 tip, 605f220) (was 12ab3c0afe42a035... on s8). V11_DIGEST (the v1.1 fixture) is unchanged
-const POOL_DIGEST = "0429c5ab7ac2209a0218c8e3d704000cbe862f0ab51eb9a227b2bfd040e95f09";
+// BUMP-1E (the pools, R1 19ae423): the stand-in pool regenerated ONCE under bb-0.12.0 (every switch on, the seven scaling rigs in the shop; days 1-16, the same 192
+// decks' shape, src/sim/standInPoolData.ts rules bb-0.12.0), so POOL_DIGEST is that pool's reads, taken on bump1e (was
+// 0429c5ab7ac2209a0218c8e3d704000cbe862f0ab51eb9a227b2bfd040e95f09 on bump 605f220). V11_DIGEST (the v1.1 fixture) is unchanged: it holds exactly
+const POOL_DIGEST = "0d62d25f8a62aa147393045ef7781a4492b6a5f0c6aad90a8a895b73091eb36d";
 const V11_DIGEST = "89b371a4b0720d4686dc934273c9033448b239bc5dc8f99d68b1fddd3abe15a2";
 /** Rune-less codes the encoders wrote on bx e1e1004 (see "a rune-less deck encodes byte for byte as on bx"). */
 const RICH_CODE = "18 0 u23/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1";

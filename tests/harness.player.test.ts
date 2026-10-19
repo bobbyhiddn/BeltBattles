@@ -26,6 +26,7 @@ import { npcDayRules, withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the fli
 import { withHullScale } from "../src/sim/hullScale";
 import { withLadderFix } from "../src/sim/ladderFix";
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the buy floor's tripwire and the off world, SHAPES off
+import { SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules: off in the off world and for the keg's old fuse, outermost of every nest
 import { withFactoryPlan } from "../src/sim/harness/player"; // SHAPES-1 flip fix: the pair candidate's deck
 import { heroStartBuild } from "../src/sim/harness/heroes";
 import { cellsOf } from "../src/sim/deck";
@@ -37,7 +38,13 @@ const HEROES = ["furnace", "weaver"] as const;
 
 /** AZ-BUMP (the flip): `fn` in bb-0.9.7's world, every switch off (NPC_DAY, HULL_SCALE and LADDER_FIX ship on), each put
  *  back after it, even on a throw. */
-const offWorld = <T>(fn: () => T): T => withShapes(() => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false), false);
+// BUMP-1E: every switch off includes the scaling rules now (the switch ships on in bb-0.12.0), and it is the OUTERMOST of the nest (off first, back last): the seven
+// new rigs are the last keys of ITEMS while it is on, so turning SHAPES off and back with it left on would put the shaped rigs behind them for the rest of the worker,
+// and every seeded draw after it (every par deck, cached by its switches and not by ITEMS' key order) would differ (the ITEMS key-order hazard)
+const offWorld = <T>(fn: () => T): T => withScaleRigs(() => withShapes(() => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false), false), false);
+/** BUMP-1E: `fn` with SHAPES off and every other switch as shipped, the scaling rules ON: the scaling switch goes off first (outermost), SHAPES off, the scaling
+ *  rules on again for `fn`, then back in the reverse order, so the seven new rigs are the last keys of ITEMS again when it returns (the key-order hazard above). */
+const shapesOff = <T>(fn: () => T): T => withScaleRigs(() => withShapes(() => withScaleRigs(fn, true), false), false);
 // SHAPES-1 flip: SHAPES ships on too (cd59be0), so the off world has it off as well (with it on, the 0.9.7 par deck that the
 // fightTime test reads is built with the shaped pieces in the caravan and holds a sustain piece: rateOn 1089071.40 vs
 // rateDeck 1087524.21 on weaver s1 d10)
@@ -59,7 +66,7 @@ describe("par player (playerBuild): a real run through the caravan", () => {
   // SHAPES-1 flip: the tripwire stays at its old point with SHAPES off (as AZ-BUMP's flip kept it with its switches off):
   // with SHAPES on the par player buys the shaped pieces (4 G and 6 G rigs, a 2x3 GANTRY, an I3 ASSEMBLY LINE at 4 G),
   // fewer and dearer, and FURNACE s2 makes 9 buys, under the floor; the integrity checks themselves hold either way
-  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => withShapes(() => {
+  it("buys only what the caravan offers, unsold, at the offered price, and rerolls at the real cost", () => shapesOff(() => { // BUMP-1E: shapesOff (SHAPES off, the scaling rules on as shipped, the seven kept the last keys of ITEMS)
     const boughtAll: string[] = [];
     for (const hero of HEROES) {
       for (const seed of [1, 2, 3]) {
@@ -92,7 +99,7 @@ describe("par player (playerBuild): a real run through the caravan", () => {
       }
     }
     console.log(`AZBUMP-S7 the par player's caravan buys, every switch on but SHAPES: ${boughtAll.join(", ")}`);
-  }, false));
+  }));
 
   it("every day's deck is legal (validateBuild, no unfused pair) and the gold adds up to maxGoldByDay", () => {
     for (const hero of HEROES) {
@@ -431,7 +438,13 @@ describe("CAND-A: the rating weighs damage over the day's fight, each belt from 
 
   // AZ-BUMP (the flip, HULL_SCALE): day 10's fight is 9.5 s only on the 0.9.7 table (18.2 s with HULL_SCALE on, past the
   // keg's 12 s fuse: 95975 vs 87668), so this runs with HULL_SCALE off
-  it("a POWDER KEG counts only when it blows before the fight is over, and then only for the payloads on its belt", () => withHullScale(() => {
+  // BUMP-1E (the brief's (e): the five reworks' old tests): this is the 0.9.11 POWDER KEG's fuse (a 12 s fuse), and the keg of
+  // bb-0.12.0 is a reader (src/sim/scale.ts SCALE_DEFS: +2 / +5 / +11 DMG for each of its own hits this fight, no fuse; its new effect is pinned in
+  // tests/scale2c.sim and scale2d.*), so with the scaling rules on (the switch ships on) day 10's fight is not "nothing": the whole-suite run at eb6f751 read
+  // 74776.04 with the keg against 64950.01 without it. The old fuse runs under the off switch, outermost of the nest (withScaleRigs(fn, false))
+  it("a POWDER KEG counts only when it blows before the fight is over, and then only for the payloads on its belt", () => withScaleRigs(() => withHullScale(() => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped switch is on; the keg below is the 0.9.11 world's
+    expect(scaleRules()).toBe(false);
     const base = JOIN_LAYOUTS.F0(5);
     const keg = cloneBuild(base); // west of the KILN belt's first tile, facing east onto it
     keg.items.push({ uid: 40, def: "keg", x: 3, y: 5, rot: rotFacing("keg", 1) });
@@ -448,7 +461,7 @@ describe("CAND-A: the rating weighs damage over the day's fight, each belt from 
     // belt fires", expect(v(keg, 60) / v(base, 60)).toBeLessThan(v(keg, FIGHT_T) / v(base, FIGHT_T)). POWDER KEG's one blast
     // is gone: it blasts at every multiple of its fuse (deckRating.ts kegGain; battle.ts kegTick), so a longer fight holds
     // more blasts (x1.098 at 60 s, x1.082 at FIGHT_T 25 s). The checks above read kegGain's first blast, a live rule
-  }, false));
+  }, false), false));
 
   // AZ-BUMP (the flip, HULL_SCALE): the later line loses on day 10's 9.5 s fight of the 0.9.7 table; at HULL_SCALE's 18.2 s it
   // draws level (303854 vs 303530), so this runs with HULL_SCALE off

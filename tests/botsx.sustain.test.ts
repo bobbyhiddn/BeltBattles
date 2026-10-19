@@ -24,6 +24,8 @@ import { RATING_CURVE, SUSTAIN_FOE, SUSTAIN_FOE_HS, fightTime, foeOn, rateDeck, 
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): SUSTAIN_FOE, the switch-off table, with HULL_SCALE off
 import { boughtCost } from "../src/sim/harness/standins"; // AZ-BUMP (the flip): a deck with runes valued as bought
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): WARD BELL's base cadence beside the shipped one
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the sustain-off equality is read in the world before the scaling rules
+import { READ_DAY_DEFAULT } from "../src/sim/scaleRating"; // BUMP-1E: the day a rating reads for its readers when it is given none
 import {
   HERO_SUSTAIN, SHIELD_MAX, SUSTAIN_LEAN, SUSTAIN_MAX, busiestRoute, playerBuild, playerRun, quietTurret, secondSource, sustainPieces,
   sustainRule, type PlayerOffer,
@@ -184,9 +186,31 @@ describe("BOTS-X step 2: the bots' sustain value (deckRating.ts, SUSTAIN-1 4.8 r
     });
     // off: the day changes nothing (every par rating, so every par run, as before). FLIP-X2 (REQ-BFG-069): the switch is on
     // by default, so off is withSustain(fn, false) (was the default)
-    withSustain(() => {
-      for (const b of [base, withGear("wardbell"), withGear("mendingloom"), playerBuild("foundry", 7, 2), playerBuild("furnace", 9, 3)]) {
+    // BUMP-1E: that is the sustain switch's off, read in the world before the scaling rules (the switch ships on in bb-0.12.0): with them on a rating reads the day
+    // a second way, through the reader rigs' counts (SCALE-2d: scaleRating.ts readCtx(b, day ?? READ_DAY_DEFAULT, ...), so day 5 is not "no day" (which reads
+    // day 6) for a deck that holds a reader, and the whole-suite run at eb6f751 read offense 258.22 with day 5 against 263.39 without one). So the old equality runs
+    // under withScaleRigs(fn, false) (the sustain-off ratings are exactly as before there), and the shipped world's own statement is pinned beside it
+    // (the decks are built in the world they are rated in: a par deck of the shipped world holds the new rigs, e.g. GRUDGE ROD on this BASTION day 5, which the old world cannot rate)
+    expect(SCALE_RIGS).toBe(true);
+    const decksOf = (b0: Build): Build[] => {
+      const t0 = installedTurrets(b0)[0].slot;
+      const gear = (def: string): Build => ({ ...cloneBuild(b0), mods: [...b0.mods, { uid: 9999, def, turret: t0 }] });
+      return [b0, gear("wardbell"), gear("mendingloom"), playerBuild("foundry", 7, 2), playerBuild("furnace", 9, 3)];
+    };
+    withScaleRigs(() => withSustain(() => {
+      for (const b of decksOf(playerBuild("bastion", 5, 1))) {
         expect(rateDeck(b, RATING_CURVE, fightTime(5), undefined, undefined, 5)).toEqual(rateDeck(b, RATING_CURVE, fightTime(5)));
+        const o: RateOut = { stokeKeep: new Map() };
+        rateDeck(b, RATING_CURVE, fightTime(5), o, undefined, 5);
+        expect(o.sustain).toBeUndefined();
+      }
+    }, false), false);
+    // BUMP-1E: the shipped world (the scaling rules on), the sustain switch off: no sustain value from a day (o.sustain undefined), and the day reaches the rating
+    // only as the readers' day: the default day of a rating with no day is READ_DAY_DEFAULT (6), so a day of 6 changes nothing for any deck
+    expect(READ_DAY_DEFAULT).toBe(6);
+    withSustain(() => {
+      for (const b of decksOf(base)) {
+        expect(rateDeck(b, RATING_CURVE, fightTime(5), undefined, undefined, READ_DAY_DEFAULT)).toEqual(rateDeck(b, RATING_CURVE, fightTime(5)));
         const o: RateOut = { stokeKeep: new Map() };
         rateDeck(b, RATING_CURVE, fightTime(5), o, undefined, 5);
         expect(o.sustain).toBeUndefined();
