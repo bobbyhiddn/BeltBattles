@@ -81,7 +81,9 @@ async function parVsPar(hero: HeroId, day: number): Promise<{ vsPar: number; sam
   // FLIP-X2 step 4.5: the pool is regenerated in native N1 units (BUNDLED_POOL_HULL_SCALE deleted), so the code as stored
   const raw = poolRaw(hero, day, parIndex), code = encodeStarred(raw);
   const stored = entries[parIndex][4], build = standInPar(hero, day);
-  const pts = refs.map((ref, r) => playJob([build, ref], { a: 0, b: 1, seeds: Array.from({ length: o.refSeeds }, (_, k) => hashSeed("standin-ref", o.seed, hero, day, r, k)) }));
+  // BUMP-1E: + `day` on the Job, as every job of the generator carries it (standins.ts: "HULL-1a: the day"): the day's hull (HULL_SCALE) and, with the scaling rules on, the par
+  // run model's counts for the day (tournament.ts jobCounts), which a TROPHY CHAIN or a GRUDGE ROD in the par reads. Without it the pairings were another world's (see S8_PAR_EXCEPTIONS)
+  const pts = refs.map((ref, r) => playJob([build, ref], { a: 0, b: 1, seeds: Array.from({ length: o.refSeeds }, (_, k) => hashSeed("standin-ref", o.seed, hero, day, r, k)), day }));
   const vsRef: Partial<Record<HeroId, number>> = {};
   o.heroes.forEach((h, hi) => {
     let sum = 0, m = 0;
@@ -124,13 +126,19 @@ const PAR_TOLERANCE = 0;
 // again (furnace d2 exactly), so each exception is re-measured and pinned exactly as S8c did. Measured (this build, the new pool):
 // old (stored, re-simulated) -> new: weaver d4 (0.5733, 0.6583) -> (0.5758, 0.6167); furnace d7 (0.5433, 0.5692) -> (0.5558, 0.6333);
 // weaver d9 (0.555, 0.6067) -> (0.5167, 0.4792: now under the 0.5 floor, a re-simulation the pool's stored 0.5167 doesn't reproduce).
-const S8_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {
-  "weaver|4": { stored: 0.5758, resim: 0.6167 }, // +0.0409 (BUMP-1D: was stored 0.5733, resim 0.6583)
-  "furnace|7": { stored: 0.5558, resim: 0.6333 }, // +0.0775 (BUMP-1D: was stored 0.5433, resim 0.5692)
-  "weaver|9": { stored: 0.5167, resim: 0.4792 }, // -0.0375 (BUMP-1D: was stored 0.555, resim 0.6067)
-};
+// BUMP-1E (the regenerated pool, R1 19ae423, bb-0.12.0): the exceptions are GONE. The three of BUMP-1D (below: weaver d4 stored 0.5758 / re-simulated 0.6167, furnace d7
+// 0.5558 / 0.6333, weaver d9 0.5167 / 0.4792) and S8c's before them were this test's own world, not the pool's: parVsPar played its pairings without the Job's `day`, which every
+// job of the generator carries (standins.ts: `day` on each Job, "HULL-1a: the day"): the day's hull with HULL_SCALE on and, with the scaling rules on, the par run model's counts for the
+// day (tournament.ts jobCounts: the wins and hearts lost that a TROPHY CHAIN and a GRUDGE ROD read). Played with the day, as the generator plays them, all four pars of the spread
+// re-simulate EXACTLY on the regenerated pool (measured: furnace d2 0.5183, weaver d4 0.5842, furnace d7 0.55, weaver d9 0.5783, each equal to its stored vsPar, difference 0; the same
+// pars played without the day read 0.52, 0.4542, 0.5383 and 0.3833): the committed pool is what the generator makes, and the check is as strict as it was meant to be (PAR_TOLERANCE 0).
+const S8_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {}; // BUMP-1E: was weaver|4, furnace|7 and weaver|9 (see above)
+/** BUMP-1E (the regenerated pool, bb-0.12.0): the stored picks whose deck holds MORE than their gold spent and their road's drops (the run books a NEGATIVE sale loss: player.ts parNpcDay),
+ *  hero|day|position -> the gain in gold: spent + drops + gain = cost exactly. One pick of 192, the loose run of seed 1003 (furnace #3); replayed in "the one sale-gain pick" below. */
+const SALE_GAIN: Record<string, number> = { "furnace|4|2": 6 };
+
 /** The rules version the exceptions were measured under (the tripwire: red at the next bump). BUMP-1D: was "bb-0.10.0". */
-const S8_EXCEPTIONS_RULES = "bb-0.11.0";
+const S8_EXCEPTIONS_RULES = "bb-0.12.0"; // BUMP-1E: no exception is listed now; a later one is measured under this version (was "bb-0.11.0")
 
 /** Step 5 M5: test 2 for a caravan pool: the spread's pars re-simulated exactly, and every par at least parFloor and
  *  inside the header's --par-band, unless its hero/day is listed short. */
@@ -171,7 +179,7 @@ describe("stand-in pool", () => {
     expect(STAND_IN_POOL_DAYS).toBe(16);
     expect(DAYS).toHaveLength(16);
     for (const hero of STAND_IN_POOL_HEROES) expect(STAND_IN_DATA.pools[hero]!, hero).toHaveLength(16);
-    expect(STAND_IN_DATA.rules).toBe("bb-0.11.0");
+    expect(STAND_IN_DATA.rules).toBe("bb-0.12.0"); // BUMP-1E (the regenerated pool, R1 19ae423: header 'RULES_VERSION bb-0.12.0'): was "bb-0.11.0"
     expect(STAND_IN_POOL_RULES).toBe(POOL_RULES);
     expect(STAND_IN_DATA.band).toEqual([40, 60]);
     expect(STAND_IN_DATA.parFloor).toBe(0.5);
@@ -223,7 +231,12 @@ describe("stand-in pool", () => {
           // of its 11), so with NPC_DAY on its gold spent and its road log's drops, at the value the upload budget counts them
           // (npcDay.ts roadDropValue), cover the deck; off (no road log), exactly as before. Was: e.spent >= e.cost.
           const drops = npcDayRules() ? roadDropValue(e.road) : 0;
-          expect(e.spent + drops, `${hero} d${day} #${i}: gold spent (+ its road's drops) covers the deck`).toBeGreaterThanOrEqual(e.cost);
+          // BUMP-1E (the regenerated pool, R1 19ae423): ONE stored pick holds 6 more than its gold spent and its road's drops cover (furnace d4 #2: cost 71, spent 48, drops 17): its
+          // run (the loose run of seed 1003, candidate #3) books a negative sale loss, -6 from day 4 on (player.ts parNpcDay; replayed and pinned in the test below). Pinned EXACTLY
+          // (spent + drops + the gain = cost), every other pick keeps the line as it was. Was: spent + drops >= cost for all 192, no exception.
+          const saleGain = SALE_GAIN[`${hero}|${day}|${i}`] ?? 0;
+          if (saleGain) expect(e.spent + drops + saleGain, `${hero} d${day} #${i}: its sale gain makes it exact`).toBe(e.cost);
+          expect(e.spent + drops + saleGain, `${hero} d${day} #${i}: gold spent (+ its road's drops) covers the deck`).toBeGreaterThanOrEqual(e.cost);
           // FLIP-X2: the caravan run took a rune each dawn, and its gold spent includes the gold its runes paid (COIN PURSE,
           // FAT PURSE, RUNE TITHE ...), so the bound is the day's gold plus its runes' dawn gold (was maxGoldByDay(day);
           // furnace d5 #0 spent 54 of 50 + its runes' gold)
@@ -242,6 +255,16 @@ describe("stand-in pool", () => {
       }
     }
   });
+
+  // BUMP-1E: the replay of SALE_GAIN's one pick: furnace d4 #2 is candidate #3's day-4 deck, the loose run of seed 1003, and that run's meta books the gain (a sale loss of -6) to the gold
+  it("the one sale-gain pick: furnace d4 #2 is the loose run of seed 1003 (candidate #3 at day 4), whose meta books a sale loss of -6 (spent 48 + drops 17 + 6 = its cost 71)", () => {
+    const e = standInPool("furnace", 4)[2], d = caravanCandidate("furnace", 4, STAND_IN_DATA.seed, 3, STANDIN_MAX_STARS);
+    expect(caravanCand(3, d).code).toBe(encodeStarred(poolRaw("furnace", 4, 2))); // the stored pick IS this run's day-4 deck
+    expect([d.meta.policy, d.meta.seed]).toEqual(["loose", 1003]);
+    expect([e.cost, e.spent, roadDropValue(e.road)]).toEqual([71, 48, 17]);
+    expect([d.value, d.meta.spent, d.meta.soldLoss]).toEqual([71, 48, -6]);
+    expect(SALE_GAIN).toEqual({ "furnace|4|2": -d.meta.soldLoss });
+  }, 120_000);
 
   it("entries are sorted by pct and lie inside their window, which starts at 40 or above and is 20 points wide unless widened", () => {
     for (const hero of STAND_IN_POOL_HEROES) {

@@ -11,6 +11,7 @@ import { raceFactoryArt } from "./raceArt"; // 0.8.0 H1: CRUCIBLE and WARDWORKS
 import { drawWave3Gate, drawWave3Icon, wave3FactoryArt } from "./wave3Art"; // 0.8.0 A1: wave 3's 15 modules
 import { drawPlainGate } from "./plainArt"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs
 import { drawShapes2Gate } from "./shapes2Art"; // SHAPES-2 (REQ-BFG-114): the six more shaped rigs' icons
+import { drawScaleGate } from "./scaleArt"; // ART-1E (REQ-BFG-098): the seven new scaling rigs' own art
 import { beltStyle, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook: belt styles
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
@@ -371,6 +372,7 @@ export function rigTip(d: number, st: ArrowState): Cv {
 }
 
 function drawGate(g: G, id: string, f: number, active: boolean): void {
+  if (drawScaleGate(g, id, f, active)) return; // ART-1E
   switch (id) {
     case "venom": {
       bevel(g, 1, 1, 10, 10, C.green, C.lime, C.oil0, C.ink);

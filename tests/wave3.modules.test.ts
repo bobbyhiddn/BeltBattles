@@ -18,9 +18,12 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { K, SEED, barge, furnaceBench, item, latchDeck, pastTile, run, twoPress, withItem, withMod } from "./wave3.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): STOKER ★3's off check
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's off check
+import { SCALE_RIGS, flatOf, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; a slug's whole flat bonus; the 0.9.11 world
 
 type Metric = number | number[];
-interface Row { id: string; headline: string; band?: [number, number]; at: (stars: number) => Metric }
+// BUMP-1E: `off` marks a row of a piece the scaling rules changed (IRON WALL, SPALL CATCHER: SCALE_DEFS): its headline is the
+// 0.9.11 piece's, so the row is read with the switch off (withScaleRigs(fn, false), synchronously); the shipped pieces are readers
+interface Row { id: string; headline: string; band?: [number, number]; at: (stars: number) => Metric; off?: boolean }
 
 /** a < b: a scalar strictly; a tuple when no part falls and at least one part rises. */
 function rises(a: Metric, b: Metric): boolean {
@@ -30,8 +33,8 @@ function rises(a: Metric, b: Metric): boolean {
 }
 
 function checkRow(r: Row): number[] | number[][] {
-  const m = [1, 2, 3].map((s) => r.at(s));
-  if (process.env.BB_TABLES) console.log(`BENCH ${r.id} | ${r.headline} | ${m.map((v) => (typeof v === "number" ? +v.toFixed(3) : v.map((x) => +x.toFixed(3)).join("/"))).join(" | ")}`);
+  const m = [1, 2, 3].map((s) => (r.off ? withScaleRigs(() => r.at(s), false) : r.at(s))); // BUMP-1E: was `r.at(s)` for every row
+  if (process.env.BB_TABLES) console.log(`BENCH ${r.id} | ${r.headline}${r.off ? " (0.9.11, scaling switch off)" : ""} | ${m.map((v) => (typeof v === "number" ? +v.toFixed(3) : v.map((x) => +x.toFixed(3)).join("/"))).join(" | ")}`);
   expect(rises(m[0], m[1]) && rises(m[1], m[2]), `${r.id}: ${JSON.stringify(m)}`).toBe(true);
   if (r.band) {
     const [m1, m2, m3] = m as number[];
@@ -72,6 +75,22 @@ function plates(b: Build, secs = 12, pre?: (bt: Battle) => void): { amount: numb
   return out;
 }
 
+/** BUMP-1E: wave3.helpers' pastTile, with each payload's whole flat bonus, flatOf(p) = flat + each (its `flat` alone is the stat
+ *  rows' DMG; with the scaling rules on a FOR EACH add, PINCER's, rides `each`, battle.ts forEach); off, `each` is never set. */
+function pastTileDmg(b: Build, route: number, tile: number, secs = 10, from = 4): number[] {
+  const seen = new Set<number>();
+  const out: number[] = [];
+  run(b, secs, barge(), SEED, (_ev, bt) => {
+    if (bt.t <= from) return;
+    for (const a of bt.sides[0].routes[route].ammo) {
+      if (a.processed < tile || seen.has(a.p.id)) continue;
+      seen.add(a.p.id);
+      out.push(flatOf(a.p));
+    }
+  });
+  return out;
+}
+
 /** Steps a fresh battle `ticks` ticks (rigs commission at 1.2 s). */
 function stepped(b: Build, ticks = 90): Battle {
   const bt = new Battle(b, barge(), SEED);
@@ -92,7 +111,9 @@ export const ROWS: Row[] = [
     at: (s) => walkRoute(withItem(heroStartBuild("foundry", 1), item(60, "twingauge", 1, 3, 1, s)), 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 60)!.flat! },
   { id: "pincer", headline: "Damage with one other rig on its tile (battle)", band: BAND,
     // less the WHETSTONE's own flat (NUM-1: 20, was 2)
-    at: (s) => mean(pastTile(withItem(withItem(furnaceBench(), item(30, "pincer", 3, 3, 1, s)), item(31, "whetstone", 5, 3, 3)), 0, 3).map((x) => x.flat)) - ITEMS.whetstone.gate!.flat! },
+    // BUMP-1E: the whole flat bonus, pastTileDmg (was pastTile(...).map((x) => x.flat)): with the scaling rules on PINCER's FOR EACH
+    // DMG rides the slug's `each`, not `flat` (REQ-BFG-110 step 4), so `flat` alone read 0 here ([0,0,0]); the sum is the same 20 / 44 / 70
+    at: (s) => mean(pastTileDmg(withItem(withItem(furnaceBench(), item(30, "pincer", 3, 3, 1, s)), item(31, "whetstone", 5, 3, 3)), 0, 3)) - ITEMS.whetstone.gate!.flat! },
   { id: "braceframe", headline: "Share of an enemy stall it takes off its tile (bare; plated)",
     at: (s) => braceCut(s) },
   // Y7b2 (the flip): was "Damage on each payload it lets go" (its flat, 0 at every star now: no damage); the live rule's
@@ -105,7 +126,9 @@ export const ROWS: Row[] = [
     at: (s) => PRESS_EVERY / mean(stampGaps(withItem(pressBench(), item(30, "stoker", 6, 6, 0, s)))) - 1 }, // NUM-2: 30 / 21 (was 1.4)
   { id: "platebreaker", headline: "Damage a payload gains for 1 plating (20 plating on the hull)", band: BAND,
     at: (s) => flatsPast(onTile3("platebreaker", s), 3, 20)[0] },
-  { id: "shieldwall", headline: "Plating per payload it hits", band: BAND,
+  // BUMP-1E: IRON WALL (the id shieldwall) is a reader in the shipped world (+3 / +6 / +17 DMG for each whole 10 PLATE you have, no plating of
+  // its own: SCALE_DEFS), so the plating it rolled per payload is the 0.9.11 piece's: `off`, read with the scaling switch off
+  { id: "shieldwall", headline: "Plating per payload it hits", band: BAND, off: true,
     at: (s) => plates(onTile3("shieldwall", s), 6)[0].amount },
   { id: "twinmould", headline: "Output damage a second (slugs a cast x damage / interval)",
     at: (s) => mouldDps(s) },
@@ -117,7 +140,9 @@ export const ROWS: Row[] = [
     at: (s) => steamRate(s, true) - 1 },
   { id: "twintrigger", headline: "Share more damage a paired load deals", band: BAND,
     at: (s) => pairedShare(s) },
-  { id: "spallcatcher", headline: "Charge from 8 damage taken on bare hull", band: BAND,
+  // BUMP-1E: SPALL CATCHER is a reader in the shipped world (+1 / +2 / +7 DMG at its gun's shot for each enemy hit on your ship, no charge:
+  // SCALE_DEFS), so the charge from damage taken is the 0.9.11 piece's: `off`, read with the scaling switch off
+  { id: "spallcatcher", headline: "Charge from 8 damage taken on bare hull", band: BAND, off: true,
     at: (s) => spall(s, 8, 0) },
   { id: "seamwelder", headline: "Plating for each pair this turret takes", band: BAND,
     at: (s) => Math.max(...plates(seamDeck(s), 12).map((p) => p.amount)) },
@@ -373,21 +398,31 @@ describe("wave 3's named rules", () => {
     }
   });
 
+  // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where IRON WALL (the id shieldwall) is a reader (+3 / +6 / +17 DMG for
+  // each whole 10 PLATE you have; its own plating and the 120 step are gone: scale.ts SCALE_DEFS), so this rule, the 0.9.11 piece's
+  // plating and 12-plating bonus, is read with the switch off, synchronously (withScaleRigs(fn, false)); the shipped reader's numbers
+  // are pinned in tests/scale2c.sim.test.ts
   it("SHIELD WALL: 1 / 2.2 / 3.5 plating a payload, and 3 / 6.6 / 10.5 damage on it while the hull holds 12 plating", () => {
-    // NUM-1: x10 (was 1 / 2.2 / 3.5 and 3 / 6.6 / 10.5)
-    for (const [s, plate, dmg] of [[1, 10, 30], [2, 22, 66], [3, 35, 105]] as const) {
-      expect(plates(onTile3("shieldwall", s), 6)[0].amount).toBe(plate);
-      const below = pastTile(onTile3("shieldwall", s), 0, 3, 4, 1).map((x) => x.flat); // 0 plating at first: no bonus
-      expect(below[0]).toBe(0);
-      const flats: number[] = [];
-      const seen = new Set<number>();
-      run(onTile3("shieldwall", s), 10, barge(), SEED, (_ev, bt) => {
-        if (bt.ticks === 1) bt.addPlate(bt.sides[0], 120); // NUM-1: its threshold, 120 plating (x10 of 12)
-        for (const a of bt.sides[0].routes[0].ammo) if (a.processed >= 3 && !seen.has(a.p.id)) { seen.add(a.p.id); flats.push(a.p.flat); }
-      });
-      expect(flats.length).toBeGreaterThan(3);
-      for (const f of flats) expect(f).toBe(dmg);
-    }
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on
+    const shipped = ITEMS.shieldwall.gate!; // BUMP-1E: as shipped the def is a reader: no plating of its own, no 120 step
+    expect([shipped.plate, shipped.plated, shipped.reads?.count]).toEqual([undefined, undefined, "ownPlate"]);
+    withScaleRigs(() => {
+      expect([ITEMS.shieldwall.gate!.plate, ITEMS.shieldwall.gate!.reads]).toEqual([10, undefined]); // the 0.9.11 piece: ★1 plates 10 a payload
+      // NUM-1: x10 (was 1 / 2.2 / 3.5 and 3 / 6.6 / 10.5)
+      for (const [s, plate, dmg] of [[1, 10, 30], [2, 22, 66], [3, 35, 105]] as const) {
+        expect(plates(onTile3("shieldwall", s), 6)[0].amount).toBe(plate);
+        const below = pastTile(onTile3("shieldwall", s), 0, 3, 4, 1).map((x) => x.flat); // 0 plating at first: no bonus
+        expect(below[0]).toBe(0);
+        const flats: number[] = [];
+        const seen = new Set<number>();
+        run(onTile3("shieldwall", s), 10, barge(), SEED, (_ev, bt) => {
+          if (bt.ticks === 1) bt.addPlate(bt.sides[0], 120); // NUM-1: its threshold, 120 plating (x10 of 12)
+          for (const a of bt.sides[0].routes[0].ammo) if (a.processed >= 3 && !seen.has(a.p.id)) { seen.add(a.p.id); flats.push(a.p.flat); }
+        });
+        expect(flats.length).toBeGreaterThan(3);
+        for (const f of flats) expect(f).toBe(dmg);
+      }
+    }, false);
   });
 
   it("TWIN MOULD: one plain slug onto each belt on the same tick; 3 / 5 / 6 damage every 1.8 / 1.6 / 1.4 s; ★3 THIRD SPRUE casts 3", () => {
@@ -493,30 +528,39 @@ describe("wave 3's named rules", () => {
 
   // Y7b2 (the flip; DESIGN-Y row 47, battle.ts spallCharge): the cap goes and a PLATE soak counts once. Was "SPALL
   // CATCHER: 1 / 2.2 / 3.5 damage for every 4 taken, up to 8 / 17.6 / 28; plating soaked counts twice; ..."
+  // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where SPALL CATCHER is a reader (+1 / +2 / +7 DMG at its gun's shot for each
+  // enemy hit on your ship; no charge: scale.ts SCALE_DEFS), so this rule, the 0.9.11 piece's charge, is read with the switch off,
+  // synchronously (withScaleRigs(fn, false)); the shipped reader's numbers are pinned in tests/scale2c.sim.test.ts
   it("SPALL CATCHER: 1 / 2.2 / 3.5 damage for every 4 taken, no cap; plating soaked counts once; the next shot spends it", () => {
-    // NUM-1: x10 (was 1 / 2.2 / 3.5 for every 4, up to 8 / 17.6 / 28); the damage taken x10 too (80, was 8; 4000, was
-    // 400), so each charge is whole and exact
-    for (const [s, add] of [[1, 10], [2, 22], [3, 35]] as const) {
-      expect(spall(s, 80, 0)).toBe(add * 2);
-      expect(spall(s, 80, 80)).toBe(add * 2); // all 80 soaked: once (Y7b2, the flip: was add * 4, twice)
-      expect(spall(s, 4000, 0)).toBe(add * 100); // Y7b2 (the flip): 4000 / 40 x add, no cap (was max: 80 / 176 / 280)
-      // the next shot carries it, and the charge is gone
-      const bt = new Battle(withMod(furnaceBench(), 50, "spallcatcher", 0, s), barge(), SEED);
-      priv(bt).impact(shot(1, 80));
-      const fired: number[] = [];
-      while (!fired.length && bt.t < 10) { bt.step(); for (const e of bt.drainEvents()) if (e.type === "fire" && e.side === 0) fired.push(e.dmg); }
-      const plainShot = new Battle(furnaceBench(), barge(), SEED);
-      const base: number[] = [];
-      while (!base.length && plainShot.t < 10) { plainShot.step(); for (const e of plainShot.drainEvents()) if (e.type === "fire" && e.side === 0) base.push(e.dmg); }
-      expect(fired[0] - base[0]).toBe(add * 2);
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on
+    const shipped = ITEMS.spallcatcher.mod!; // BUMP-1E: as shipped the def is a reader: it stores no charge
+    expect([shipped.spall, shipped.reads?.count]).toEqual([undefined, "hitsTaken"]);
+    withScaleRigs(() => {
+      expect([ITEMS.spallcatcher.mod!.spall !== undefined, ITEMS.spallcatcher.mod!.reads]).toEqual([true, undefined]); // the 0.9.11 piece: a charge
+      // NUM-1: x10 (was 1 / 2.2 / 3.5 for every 4, up to 8 / 17.6 / 28); the damage taken x10 too (80, was 8; 4000, was
+      // 400), so each charge is whole and exact
+      for (const [s, add] of [[1, 10], [2, 22], [3, 35]] as const) {
+        expect(spall(s, 80, 0)).toBe(add * 2);
+        expect(spall(s, 80, 80)).toBe(add * 2); // all 80 soaked: once (Y7b2, the flip: was add * 4, twice)
+        expect(spall(s, 4000, 0)).toBe(add * 100); // Y7b2 (the flip): 4000 / 40 x add, no cap (was max: 80 / 176 / 280)
+        // the next shot carries it, and the charge is gone
+        const bt = new Battle(withMod(furnaceBench(), 50, "spallcatcher", 0, s), barge(), SEED);
+        priv(bt).impact(shot(1, 80));
+        const fired: number[] = [];
+        while (!fired.length && bt.t < 10) { bt.step(); for (const e of bt.drainEvents()) if (e.type === "fire" && e.side === 0) fired.push(e.dmg); }
+        const plainShot = new Battle(furnaceBench(), barge(), SEED);
+        const base: number[] = [];
+        while (!base.length && plainShot.t < 10) { plainShot.step(); for (const e of plainShot.drainEvents()) if (e.type === "fire" && e.side === 0) base.push(e.dmg); }
+        expect(fired[0] - base[0]).toBe(add * 2);
+        expect(bt.sides[0].turrets[0].spallCharge).toBe(0);
+      }
+      // the dark wind doesn't count
+      const bt = new Battle(withMod(furnaceBench(), 50, "spallcatcher", 0, 1), barge(), SEED);
+      bt.t = 30;
+      for (let i = 0; i < 60; i++) bt.step();
+      expect(bt.sides[0].stats.windTaken).toBeGreaterThan(1);
       expect(bt.sides[0].turrets[0].spallCharge).toBe(0);
-    }
-    // the dark wind doesn't count
-    const bt = new Battle(withMod(furnaceBench(), 50, "spallcatcher", 0, 1), barge(), SEED);
-    bt.t = 30;
-    for (let i = 0; i < 60; i++) bt.step();
-    expect(bt.sides[0].stats.windTaken).toBeGreaterThan(1);
-    expect(bt.sides[0].turrets[0].spallCharge).toBe(0);
+    }, false);
   });
 
   // Y7b2 (the flip; DESIGN-Y row 35): a lone load's plating goes (lone 0: no plate event). Was "SEAM WELDER: each pair

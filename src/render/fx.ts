@@ -51,6 +51,7 @@ export interface Popup {
   big: boolean;
   side: number; // MOTION-1
   wind: boolean; // WIND-1: a dark wind number (Fx.windPop)
+  reader: boolean; // SCALE-2a (REQ-BFG-100, C11): a reader's `+n` (Fx.readerPop): the first to give its slot up
 }
 
 /** WIND-1 (REQ-BFG-093): the longest a dark wind number lives (s, effect time): a big hit's. */
@@ -106,7 +107,7 @@ export class Fx {
   readonly parts = new Particles(1400);
   private anims = pool<Anim>(128, () => ({ kind: 0, x: 0, y: 0, t: 0, fps: 0, frames: 0, size: 0, cool: false, dir: 0, heavy: false, delay: 0, color: C.white, side: -1 }));
   private na = 0;
-  private pops = pool<Popup>(48, () => ({ x: 0, y: 0, text: "", color: C.white, t: 0, max: 1, big: false, side: -1, wind: false }));
+  private pops = pool<Popup>(48, () => ({ x: 0, y: 0, text: "", color: C.white, t: 0, max: 1, big: false, side: -1, wind: false, reader: false }));
   private np = 0;
   private decals = pool<Decal>(40, () => ({ x: 0, y: 0, r: 0, v: 0, t: 0, max: 1, side: -1 }));
   private nd = 0;
@@ -429,12 +430,53 @@ export class Fx {
   /** HULL-1d (REQ-BFG-079; REVIEW-HULL1C note B): `stack` (arenaReact passes it on the day's hull, Battle.scaled), a pop moves
    *  up above any pop that landed in the same tick on the same board where it would cover it (stackedY); off, as before. */
   popup(x: number, y: number, text: string, color: string, big = false, stack = false): void {
-    if (this.np >= this.pops.length) return;
+    // SCALE-2a (REQ-BFG-100, C11): a full pool gives this number the oldest reader pop's slot, if any (as before: none, no number)
+    const k = this.np < this.pops.length ? -1 : this.oldestReader();
+    if (this.np >= this.pops.length && k < 0) return;
     if (stack) y = this.stackedY(x, y, text, big);
-    const p = this.pops[this.np++];
+    const p = k < 0 ? this.pops[this.np++] : this.pops[k];
     p.x = x; p.y = y; p.text = text; p.color = color; p.t = 0; p.max = big ? 1.15 : 0.85; p.big = big;
     p.side = this.anchorSide;
     p.wind = false; // WIND-1
+    p.reader = false; // SCALE-2a
+  }
+
+  /**
+   * SCALE-2a (REQ-BFG-100, C11; REPORT-COUNT1 section 3): a reader's add, `+n` (game/arenaReact.ts readerPop: n >= ADD_MIN),
+   * in the numbers' style at (x, y) (rest-screen px, as popup's), drawn by drawPops. THE YIELD RULE: it takes a free slot,
+   * else the oldest reader pop's, else it is dropped (false), so it never costs a damage or wind number; popup() and
+   * windPop() take a reader pop's slot first when the pool is full. PAIR pops yield to it as to any number (yieldPairs).
+   */
+  readerPop(x: number, y: number, text: string, color: string, big = false): boolean {
+    let p: Popup;
+    if (this.np < this.pops.length) p = this.pops[this.np++];
+    else {
+      const k = this.oldestReader();
+      if (k < 0) return false;
+      p = this.pops[k];
+    }
+    p.x = x; p.y = y; p.text = text; p.color = color; p.t = 0; p.max = big ? 1.15 : 0.85; p.big = big;
+    p.side = this.anchorSide;
+    p.wind = false;
+    p.reader = true;
+    return true;
+  }
+
+  /** SCALE-2a (C11): the live reader pop that has lived longest (its slot is the first to go), or -1 for none. */
+  private oldestReader(): number {
+    let k = -1;
+    for (let i = 0; i < this.np; i++) {
+      const q = this.pops[i];
+      if (q.reader && (k < 0 || q.t > this.pops[k].t)) k = i;
+    }
+    return k;
+  }
+
+  /** SCALE-2a (C11): the live reader pops (tooling, the pool probe). */
+  get readerCount(): number {
+    let n = 0;
+    for (let i = 0; i < this.np; i++) if (this.pops[i].reader) n++;
+    return n;
   }
 
   /**
@@ -446,6 +488,7 @@ export class Fx {
   windPop(x: number, y: number, text: string, color: string, max = WIND_POP_MAX): void {
     let p: Popup;
     if (this.np < this.pops.length) p = this.pops[this.np++];
+    else if (this.oldestReader() >= 0) p = this.pops[this.oldestReader()]; // SCALE-2a (C11): a reader pop's slot first
     else {
       let k = -1;
       for (let i = 0; i < this.np; i++) {
@@ -458,6 +501,7 @@ export class Fx {
     p.x = x; p.y = y; p.text = text; p.color = color; p.t = 0; p.max = Math.min(WIND_POP_MAX, max); p.big = true;
     p.side = this.anchorSide;
     p.wind = true;
+    p.reader = false; // SCALE-2a
   }
 
   /** WIND-1 (REQ-BFG-093): the live numbers (read only; the first `popCount`), for the wind's numbers' own pass. */

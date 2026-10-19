@@ -59,6 +59,7 @@ import { npcDayRules, setNpcDay } from "../src/sim/npcDay"; // HULL-1d (REQ-BFG-
 import { hullScaleRules, setHullScale } from "../src/sim/hullScale"; // HULL-1d: --all-on
 import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix"; // HULL-1d: --all-on
 import { longRunRules, setLongRun } from "../src/sim/longRun"; // RUN-1 (REQ-BFG-059): --long-run
+import { scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E (REQ-BFG-098): the scaling world held on for the whole run
 
 const DATA = "src/sim/standInPoolData.ts";
 
@@ -91,12 +92,27 @@ function switchesOn(): string[] {
   return [npcDayRules() ? "NPC_DAY" : "", hullScaleRules() ? "HULL_SCALE" : "", ladderFixRules() ? "LADDER_FIX" : "", longRunRules() ? "LONG_RUN" : ""].filter(Boolean);
 }
 
-if (!isMainThread) serveJobs();
-else {
-  main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+// BUMP-1E P2e (SCALE-2d F6; SCALE-2e carry-over 9): the pool is dealt, scored and gauntleted with the scaling world on for the WHOLE
+// async run: setScaleRigs(true) held inside try/finally in the main thread, and in every worker thread for its whole life, never
+// withScaleRigs(async ...) (its finally runs at the first await, so the rest of the run would play with the switch put back). SCALE_RIGS
+// is true in the code now, so this changes nothing in the shipped world (setScaleRigs(true) on a switch already on does nothing); it makes
+// the run independent of the constant and of any caller that left the switch off. Every battle carries the run's counts (tournament.ts jobCounts).
+if (!isMainThread) {
+  setScaleRigs(true);
+  serveJobs();
+} else {
+  void (async () => {
+    const wasScale = scaleRules();
+    setScaleRigs(true);
+    try {
+      await main();
+    } catch (e) {
+      console.error(e);
+      process.exit(1);
+    } finally {
+      setScaleRigs(wasScale);
+    }
+  })();
 }
 
 async function main(): Promise<void> {
@@ -172,6 +188,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--all-on") && !dry && !process.argv.includes("--versus")) throw new Error("--all-on turns on switches this rules version keeps off: it runs with --dry (written under --out only) or --versus, never into src and never with --check");
   const on = switchesOn();
   if (on.length) console.log(`switches: ${on.join(", ")} on in the main thread${process.argv.includes("--all-on") ? " (--all-on), and in every worker thread (STANDINS_SWITCHES)" : ""}`);
+  console.log(`scaling world: SCALE_RIGS ${scaleRules() ? "on, held for the whole run (every worker thread sets it too)" : "OFF (unexpected: the generator sets it before main())"}`); // BUMP-1E P2e
   const nw = num("workers", Math.max(1, Math.min(availableParallelism() - 1, 23)));
   const pool = workerRunner(nw, import.meta.url);
   const t0 = performance.now();

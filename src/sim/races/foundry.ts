@@ -7,6 +7,7 @@ import { payloadDamage } from "../deck";
 import type { FactoryState, Payload, SideState, SimEvent, TurretState } from "../battle";
 import { RACE_AMMO } from "./data";
 import { pct } from "../pct"; // NUM-1 (REQ-BFG-047)
+import { flatOf } from "../scale"; // SCALE-2a (REQ-BFG-110): the flat bonus's sum (stat rows + FOR EACH)
 
 export const SYNC_WINDOW = 0.25; // s: max gap between the two loads (15 ticks)
 export const FUSE_MULT = 1.15; // alloy slug = FUSE_MULT x (blank A + blank B)
@@ -37,7 +38,7 @@ export function inSync(gap: number, sameRoute: boolean): boolean {
  *  CRUCIBLE's blank carries its level's base (Payload.base), as a bought factory's slug does. */
 export function blankDamage(p: Payload): number {
   const a = RACE_AMMO.blank;
-  return payloadDamage(p.base ?? a.base, a.rideScale, p.ride, p.mult, p.flat);
+  return payloadDamage(p.base ?? a.base, a.rideScale, p.ride, p.mult, flatOf(p)); // SCALE-2a: the sum (flatOf)
 }
 
 /** Merge blank `b` into blank `a` (in place): `a` becomes an alloy slug. */
@@ -45,6 +46,12 @@ export function fuse(a: Payload, b: Payload): void {
   const dmg = pct(blankDamage(a) + blankDamage(b), 100 * FUSE_MULT); // NUM-1: the fuse's 115%, rounded half up once
   a.ammo = "alloy";
   a.flat = dmg;
+  // SCALE-2a (REQ-BFG-110): set only while SCALE_RIGS is on: the blanks' FOR EACH DMG stays FOR EACH on the alloy (x the
+  // fuse's 115%, out of its whole damage), so DRAKE NOZZLE still converts none of it
+  if (a.each || b.each) {
+    a.each = Math.min(dmg, pct((a.each ?? 0) + (b.each ?? 0), 100 * FUSE_MULT));
+    a.flat = dmg - a.each;
+  }
   a.mult = 1;
   a.ride = Math.max(a.ride, b.ride);
   a.burn += b.burn;
@@ -52,6 +59,8 @@ export function fuse(a: Payload, b: Payload): void {
   // two VENOMs on one slug sum), so every VENOM that hit either blank counts, whichever fuses first. Was: `a` kept its own
   // and `b`'s was dropped, so belt B's VENOM counted only when belt A's blank fused second
   if (b.burnPlus) a.burnPlus = (a.burnPlus ?? 0) + b.burnPlus;
+  // SCALE-2b (REQ-BFG-108): both blanks' POISON add up on the alloy, as their BURN (set only while SCALE_RIGS is on)
+  if (b.poison) a.poison = (a.poison ?? 0) + b.poison;
   a.shock = a.shock || b.shock;
   a.prior = Math.max(a.prior, b.prior);
   a.copy = a.copy || b.copy;
@@ -124,7 +133,7 @@ export function crucibleProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: 
 /** Damage an alloy slug will fire for (its whole damage is in flat; see RACE_AMMO.alloy). */
 export function alloyDamage(p: Payload): number {
   const a = RACE_AMMO.alloy;
-  return payloadDamage(a.base, a.rideScale, p.ride, p.mult, p.flat);
+  return payloadDamage(a.base, a.rideScale, p.ride, p.mult, flatOf(p)); // SCALE-2a: the sum (flatOf)
 }
 
 /** Intake: fuse an arriving blank with a synced partner already in this chamber. Returns the

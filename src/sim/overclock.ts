@@ -3,6 +3,7 @@
 // during the first seconds), so it is inert unless a 3-star Assembly Line is on the deck. Pure: no RNG, no state.
 
 import type { GateEffect } from "./content";
+import { scaleRules } from "./scale"; // SCALE-2a (REQ-BFG-098): a `reads` line doubles only while SCALE_RIGS is on
 
 /** Y3 (release Y; DESIGN-Y row 29): does doubling `e` change any of its numbers (the bots' deck rating: a charge spent on a
  *  rig with nothing to double is worth nothing)? A TWIN LATCH (flat 0) or a speed rig: no; a damage rig: yes. */
@@ -25,7 +26,11 @@ export function boostable(e: GateEffect): boolean {
       e.plate || e.gauge || e.pincer || e.latch || e.breaker ||
       // PLAIN-1 (REQ-BFG-084): SPARK GAP's STUN seconds and SCALE GUARD's slug PLATE are numbers a hit gives, so they
       // double as flat does (BALLAST's max hull is no hit: it stays unboostable)
-      e.stun || e.slugPlate);
+      e.stun || e.slugPlate ||
+      // SCALE-2a (REQ-BFG-098): a scaling rig's reader line, only while SCALE_RIGS is on (off, `reads` is ignored)
+      (!!e.reads && scaleRules()) ||
+      // SCALE-2b (REQ-BFG-108): VENOM DRIP's POISON (its switch-on def), only while SCALE_RIGS is on, as `reads`
+      (!!e.poison && scaleRules()));
 }
 
 const cache = new WeakMap<GateEffect, GateEffect>();
@@ -62,6 +67,8 @@ export function overclocked(e: GateEffect): GateEffect {
   if (e.breaker) o.breaker = { flat: e.breaker.flat * 2, floor: e.breaker.floor * 2 };
   if (e.stun) o.stun = e.stun * 2; // PLAIN-1 (REQ-BFG-084): SPARK GAP
   if (e.slugPlate) o.slugPlate = e.slugPlate * 2; // PLAIN-1: SCALE GUARD
+  if (e.reads) o.reads = { ...e.reads, each: e.reads.each * 2 }; // SCALE-2a: twice its `each` (read only with SCALE_RIGS on)
+  if (e.poison) o.poison = e.poison * 2; // SCALE-2b (REQ-BFG-108): VENOM DRIP's POISON doubles, as its burnPlus did (switch on only)
   cache.set(e, o);
   return o;
 }

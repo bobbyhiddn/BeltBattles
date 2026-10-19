@@ -14,6 +14,7 @@ import { setHullScale } from "../src/sim/hullScale";
 import { setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
 import { SHAPES, setShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the bench's states with SHAPES off
+import { SCALE_RIGS, scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E: and with the scaling rules off (the seven new rigs out of the shop)
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: the bench's boards, the plain rigs out
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: the bench's boards, the six more shaped rigs out
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the bench's boards, joins limited
@@ -23,12 +24,21 @@ import { newRun, type Run } from "../src/game/run";
 // SHAPES-1 flip (step 8): the two states are HULL-1c's bench's, found with SHAPES off (their point is the REFIT swap, not a
 // shape); with SHAPES on the par player buys shaped pieces, so seed 151's and seed 58's day-7 boards are other decks, where
 // no swap rates a gain. So each test runs with SHAPES off, put back after
-beforeEach(() => setShapes(false));
+// BUMP-1E: and with the scaling rules off (the switch ships on in bb-0.12.0): the par player shops the seven new rigs now (CINDER MAIL, ROT GAUGE, LEECH COIL,
+// CROWD PRESS, AEGIS SPIKE, GRUDGE ROD, TROPHY CHAIN), so FOUNDRY 151's day-7 board is another deck, on which no swap rates a gain (placed false in the whole-suite
+// run at eb6f751; FURNACE 58's test held there). The bench's states are the world before the seven, as before the twelve (BUMP-1D, below): the scaling switch is the OUTERMOST
+// of every nest (off first in beforeEach, back last in afterEach: the seven are the last keys of ITEMS while it is on, so turning SHAPES off and back with the
+// scaling switch left on would put them behind the shaped rigs for the rest of the worker, and every seeded draw after it differs)
+beforeEach(() => {
+  setScaleRigs(false); // BUMP-1E: first
+  setShapes(false);
+});
 afterEach(() => { // the shipped values (AZ-BUMP's flip; were false); place() sets every switch itself
   setNpcDay(true);
   setHullScale(true);
   setLadderFix(true);
   setShapes(SHAPES); // SHAPES-1 flip: the shipped value
+  setScaleRigs(SCALE_RIGS); // BUMP-1E: the shipped value (on), last
 });
 
 /** A run around `board` on `day` (harness/lastChance.ts boardRun's form: cargo empty, uids after the board's). */
@@ -86,4 +96,10 @@ describe("HULL-1d: the bots' REFIT swap of LAST CHANCE's part (NPC_DAY on only)"
       expect(on.run.gold).toBe(0);
     });
   }
+
+  it("BUMP-1E: the scaling rules ship on (bb-0.12.0); the bench's states above are read with them off, in the world before the seven new rigs", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(scaleRules()).toBe(false); // beforeEach: this file's world
+    expect(ITEMS.cindermail).toBeUndefined();
+  });
 });

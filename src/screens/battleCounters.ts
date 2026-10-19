@@ -28,7 +28,9 @@ import {
   BELT_BACK, BELT_COUNTS, BOX_H, GUN_COLOUR, JamMemory, STATUS_H, beltShows, boxW, canJam, gunBoxAt, gunState, keepOnScreen,
   overlap, readCount, shownChips, slugsWaiting, statusTab, tabBelow, type BeltCounts, type CountKey, type GunState, type ShownChip,
 } from "../game/counters";
+import { rampBadges, type RampBadge, type RunRecord } from "../game/counters"; // SCALE-2c (REQ-BFG-100): C8, C9
 import { JAM_TAG, beltText, keywordEntry, pairEntry, sentenceEntry, waitingText, type CounterEntry } from "../ui/counterText";
+import { rampText, recordText } from "../ui/counterText"; // SCALE-2c (REQ-BFG-100): C8's and C9's taps
 import { textDay } from "../ui/fightDay"; // CNT-DAY (REQ-BFG-100, REQ-BFG-079): the panels' reminders on the fight's day
 import { GLOW_A, type PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100): an intake's cue on its belt's box
 import { PAIR_COLOUR } from "../render/fx";
@@ -46,7 +48,7 @@ export const BELT_STEP = 5, BELT_TRIES = 3;
  *  it was, its count now 0, for about 1.5 s, so a finger's panel doesn't vanish under it; then it closes. */
 export const OPEN_GRACE = 90;
 
-type GroupKind = "plate" | "gun" | "belt";
+type GroupKind = "plate" | "gun" | "belt" | "piece"; // SCALE-2c: "piece", a C8 badge (ref: the rig's uid, or 1000 + the gun's slot)
 interface Group { id: string; kind: GroupKind; side: Side; ref: number; anchor: Rect; target: Rect }
 
 /** Tooling (bb.counters): what the counters drew this frame (logical px). */
@@ -54,6 +56,8 @@ export interface CountersDrawn {
   tabs: [TabDrawn | null, TabDrawn | null];
   guns: { side: Side; slot: number; r: Rect; n: number; text: string; state: GunState }[];
   belts: { side: Side; route: number; r: Rect; n: number }[];
+  /** SCALE-2c (C8): the reader badges drawn (a rig's uid or a gun's slot, its bonus) */
+  badges: { kind: "rig" | "gun"; ref: number; r: Rect; text: string }[];
   targets: { id: string; r: Rect }[];
   panel: { id: string; r: Rect; heads: string[]; lines: string[] } | null;
   /** board boxes not drawn this frame: they would have covered a plate, a status row, the bar or a wind number */
@@ -72,7 +76,10 @@ export class BattleCounters {
   mode: BeltCounts = BELT_COUNTS;
   /** The group a tap opened (null: none); a hover shows its group's panel without opening it. */
   open: string | null = null;
-  readonly last: CountersDrawn = { tabs: [null, null], guns: [], belts: [], targets: [], panel: null, skipped: 0 };
+  readonly last: CountersDrawn = { tabs: [null, null], guns: [], belts: [], badges: [], targets: [], panel: null, skipped: 0 };
+  /** SCALE-2c (REQ-BFG-100, C9): your run's record, set by the battle screen for the fight (game/counters.ts runRecord: null
+   *  unless a GRUDGE ROD or TROPHY CHAIN is aboard with the switch on); your plate's tap shows it. */
+  record: RunRecord | null = null;
   private readonly groups: Group[] = [];
   /** The open group as last drawn, and the frames since (OPEN_GRACE). */
   private kept: { grp: Group; frames: number } | null = null;
@@ -139,6 +146,7 @@ export class BattleCounters {
     const d = this.last;
     d.guns.length = 0;
     d.belts.length = 0;
+    d.badges.length = 0;
     d.skipped = 0;
     if (!live || a.b.over) return;
     const { W, H } = game, tp = tapPx(game.view);
@@ -199,6 +207,35 @@ export class BattleCounters {
         this.addGroup(game, `${CNT_REGION}belt${side}:${r.index}`, "belt", side, r.index, box, squareAt(box, tp, W, H), avoid);
       }
     }
+    // SCALE-2c (REQ-BFG-100, C8; REPORT-SCALE1 1.2, counter-layout.md 6): a reader's running bonus, on the piece itself, your
+    // side only, with the switch on (game/counters.ts rampBadges): a red badge at a rig's tile's lower right (its centre +2,
+    // +1), or under its gun's C6 box (a gun part, SPALL CATCHER); the bonus its next hit or shot gives
+    if (!a.show[0]) return;
+    const s0 = a.b.sides[0], slots0 = this.slotsOf(a, 0), f0 = a.drawn[0], deck0 = deckOnScreen(a, m, 0);
+    for (const bd of rampBadges(a.b, 0)) {
+      const text = `+${fmtCount(bd.bonus)}`, w = boxW(textWidth(text, "3"));
+      let ax: number, ay: number, bx: number, by: number;
+      if (bd.kind === "rig") {
+        const g0 = s0.gates.find((q) => q.uid === bd.ref);
+        if (!g0) continue;
+        [ax, ay] = m.tileCentre(a, 0, g0.x, g0.y);
+        bx = ax + 2;
+        by = ay + 1;
+      } else {
+        const sl = slots0[bd.ref];
+        if (!sl) continue;
+        [ax, ay] = m.localToScreen(a, 0, (sl.col0 + sl.width / 2) * CELL, TURRET_LY);
+        const gun = gunBoxAt(ax, ay, w, BOX_H, fwdX(f0), fwdY(f0), deck0);
+        bx = gun.x;
+        by = gun.y + BOX_H + 1;
+      }
+      const box = keepOnScreen(ax, ay, bx, by, w, BOX_H, W, H);
+      if (!box || this.covers(box, keep, m) || d.guns.some((q) => overlap(box, q.r))) { d.skipped++; continue; }
+      g.drawImage(this.badgeImage(text), box.x, box.y);
+      d.badges.push({ kind: bd.kind, ref: bd.ref, r: box, text });
+      const ref = bd.kind === "rig" ? bd.ref : 1000 + bd.ref;
+      this.addGroup(game, `${CNT_REGION}piece0:${ref}`, "piece", 0, ref, box, squareAt(box, tp, W, H), avoid);
+    }
   }
 
   private covers(box: Rect, keep: readonly Rect[], m: ArenaMotion): boolean {
@@ -229,7 +266,7 @@ export class BattleCounters {
         d.tabs[side] = { side, r: { x: tab.x, y: tab.y, w: tab.w, h: tab.h }, below, chips: shown.map((c, i) => ({ key: c.chip.key, text: texts[i].num + texts[i].tail, dim: c.dim, x: tab.chips[i].x })) };
       }
       const row = rows[side];
-      if (!live || (!tab && !row?.plate && !row?.shield)) continue;
+      if (!live || (!tab && !row?.plate && !row?.shield && !(side === 0 && this.record))) continue; // SCALE-2c: C9 taps too
       const base = tab ? union(r, tab) : { ...r };
       this.addGroup(game, `${CNT_REGION}plate${side}`, "plate", side, side, base, plateTarget(base, below, tp, game.H), avoid);
     }
@@ -261,6 +298,12 @@ export class BattleCounters {
   private entries(grp: Group, a: Arena, rows: readonly (PlateInfo | null)[]): CounterEntry[] {
     const s = a.b.sides[grp.side], day = textDay(a.b);
     if (grp.kind === "belt") return [sentenceEntry(beltText(s.routes[grp.ref]?.ammo.length ?? 0))];
+    if (grp.kind === "piece") { // SCALE-2c (C8): the badge's bonus and its count, from the state now
+      const bd: RampBadge | undefined = rampBadges(a.b, grp.side).find((q) => (q.kind === "rig" ? q.ref : 1000 + q.ref) === grp.ref);
+      if (!bd) return [];
+      const own = bd.kind === "rig" && !!s.gates.find((q) => q.uid === bd.ref && q.def.gate?.reads?.count === "ownHits");
+      return [sentenceEntry(rampText(bd.bonus, bd.count, bd.kind, own))];
+    }
     if (grp.kind === "gun") {
       const tu = s.turrets.find((q) => q.index === grp.ref);
       if (!tu) return [];
@@ -272,7 +315,7 @@ export class BattleCounters {
     }
     const out: CounterEntry[] = [];
     for (const c of shownChips(a.b, grp.side, undefined, (b, sd, k) => this.readsCount(a, sd, k))) {
-      if (!c.chip.reminder) continue;
+      if (!c.chip.reminder) { if (c.chip.sentence) out.push(sentenceEntry(c.chip.sentence(c.n))); continue; } // SCALE-2c: C7's own words
       const t = c.chip.text(c.n), e = keywordEntry(c.chip.reminder, t.num + t.tail, day);
       if (e) out.push(e);
     }
@@ -280,6 +323,7 @@ export class BattleCounters {
     // C3 and C4 by their internal keys (REQ-BFG-107: the glossary's words for them, whatever they are)
     if (row?.plate) { const e = keywordEntry("PLATE", row.plate, day); if (e) out.push(e); }
     if (row?.shield) { const e = keywordEntry("SHIELD", row.shield, day); if (e) out.push(e); }
+    if (grp.side === 0 && this.record) out.push(sentenceEntry(recordText(this.record))); // SCALE-2c (C9): your run record
     return out;
   }
 
@@ -356,6 +400,21 @@ export class BattleCounters {
     if (icon) tx += drawText(cg, icon, tx, 2, col, { font: "3", mono: true, outline: C.ink }) + 1; // drawText returns the width
     drawText(cg, text, tx, 2, col, { font: "3", outline: C.ink });
     edge(cg, w);
+    img = this.put(key, c);
+    return img;
+  }
+
+  /** SCALE-2c (REQ-BFG-100, C8): a reader's badge: 1 px ink frame, red #EF5B4E fill (R1b-2's RAMP badge), its `+n` in the
+   *  3x5 face in white with a 1 px ink outline, 2 px in and 2 px down; C5's box size. Cached by its text. */
+  private badgeImage(text: string): HTMLCanvasElement {
+    const key = `r${text}`;
+    let img = this.cache.get(key);
+    if (img) return img;
+    const w = boxW(textWidth(text, "3"));
+    const [c, cg] = makeCanvas(w, BOX_H);
+    rect(cg, 0, 0, w, BOX_H, C.ink);
+    rect(cg, 1, 1, w - 2, BOX_H - 2, C.red);
+    drawText(cg, text, 2, 2, C.white, { font: "3", outline: C.ink });
     img = this.put(key, c);
     return img;
   }

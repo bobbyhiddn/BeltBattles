@@ -10,6 +10,7 @@ import { cargoPanel, itemPanel, rigPanel, type PanelText } from "../src/screens/
 import { abilityText, hasAbilityText } from "../src/ui/abilityText";
 import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the twelve plain stat rigs have a face and no ability text
 import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on)
+import { SCALE_IDS, SCALE_RIGS } from "../src/sim/scale"; // BUMP-1E (SCALE_RIGS on): the seven scaling rigs the catalogue sells now
 import { textWidth } from "../src/render/font";
 import { wrapText } from "../src/ui/richText";
 import { STARS, SUPPLIES, banned, numbers, sentencesOf, starsOf } from "./textRules";
@@ -62,7 +63,12 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     for (const d of SOLD) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL (src/sim/shapes.ts) are sold with SHAPES on, 30 -> 33 rigs
     // BUMP-1D: the six plain stat rigs and the six more shaped rigs are sold with PLAIN_RIGS and SHAPES2 on, 33 -> 45 rigs
-    expect(byKind).toEqual({ gate: 45, factory: 16, core: 15, mod: 14, turret: 13, supply: 2 });
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), so the seven new rigs (SCALE_IDS, src/sim/scale.ts) are sold: 45 -> 52 rigs. Each
+    // has ability text and a KEPT_FLAVOUR row (the two checks above hold for them as for any rig), so the rigs' count is the only one that moves
+    expect(SCALE_RIGS).toBe(true);
+    expect(SCALE_IDS.length).toBe(7);
+    for (const id of SCALE_IDS) expect(SOLD.some((d) => d.id === id && d.kind === "gate"), id).toBe(true);
+    expect(byKind).toEqual({ gate: 52 /* BUMP-1E: was 45 */, factory: 16, core: 15, mod: 14, turret: 13, supply: 2 });
   });
 
   it("0.6.2rel2: each turret's kept claim holds against the TurretDefs at every star (and FB-B's four keep nothing)", () => {
@@ -104,7 +110,10 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     // KEPT_FLAVOUR rows are [], as TEMPER's): 266 -> 275
     // BUMP-1D: the twelve plain stat rigs' 36 module-stars (12 rigs x 3 stars) join, none with flavour (a face, no KEPT_FLAVOUR
     // row: flavour() shows none): 275 -> 311
-    expect(counts).toEqual({ moduleStars: 311, withFlavour: 16, sentences: 16 });
+    // BUMP-1E: the seven scaling rigs' 21 module-stars (7 rigs x 3 stars) join, none with flavour (each keeps no sentence: the loop above
+    // pins flavour() at [] for them at every star and class factor), so only the module-stars move: 311 -> 332; withFlavour and sentences stay 16
+    expect(counts).toEqual({ moduleStars: 332 /* BUMP-1E: was 311 */, withFlavour: 16, sentences: 16 });
+    expect(counts.moduleStars - 311).toBe(SCALE_IDS.length * 3); // BUMP-1E: the whole +21 is the seven new rigs' three stars each
   });
 
   it("a kept sentence is one whole sentence under T2's rules and quotes no number", () => {

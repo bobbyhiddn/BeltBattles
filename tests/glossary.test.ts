@@ -6,6 +6,7 @@ import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): the
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { effectAt, fusible } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the 0.9.11 world (no POISON row, PRESSURE's cap) is read with it off
 import { C } from "../src/render/palette";
 import { ICON, ICON_COLOUR, KEYWORDS, PLAYER_WORD, icons, stripIcons, textWidth } from "../src/render/font";
 import { PLATE_CAP } from "../src/sim/races/bastion"; // CARD-3 (REQ-BFG-107): SHIELD's MAX
@@ -110,7 +111,13 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
     // NUM-3 (R1's STUN fold): FREEZE has no row (it is STUN's, in STUN's colour); POISON and SPEED keep their battle colours
     // Y7b2 (the flip): the POISON row left with POISON (STAR_RETIRED's rows left the table; KEYWORD_COLOUR.poison is gone),
     // so it has none either (was glossaryEntry("POISON")!.colour, KEYWORD_COLOUR.poison)
-    expect([glossaryEntry("FREEZE"), glossaryEntry("POISON"), glossaryEntry("SPEED")!.colour]).toEqual([undefined, undefined, KEYWORD_COLOUR.faster]);
+    // BUMP-1E: the switch ships ON (SCALE-2b, rules bb-0.12.0), so POISON is a face keyword again and its row is in the table, in its
+    // icon's colour (the venom lime, KEYWORD_COLOUR.poison): was [undefined, undefined, KEYWORD_COLOUR.faster]; with the switch off
+    // (the 0.9.11 world, read synchronously) there is no row, as this test pinned it
+    expect(SCALE_RIGS).toBe(true);
+    expect([glossaryEntry("FREEZE"), glossaryEntry("POISON")!.colour, glossaryEntry("SPEED")!.colour]).toEqual([undefined, ICON_COLOUR[ICON.POISON], KEYWORD_COLOUR.faster]);
+    expect(ICON_COLOUR[ICON.POISON]).toBe((KEYWORD_COLOUR as Record<string, string>).poison); // richText.ts adds `poison` to KEYWORD_COLOUR with the switch on
+    expect(withScaleRigs(() => [glossaryEntry("FREEZE"), glossaryEntry("POISON"), glossaryEntry("SPEED")!.colour], false)).toEqual([undefined, undefined, KEYWORD_COLOUR.faster]);
     expect(keywordRow("STUN").colour).toBe(ICON_COLOUR[ICON.STUN]);
   });
 
@@ -216,6 +223,24 @@ describe("U2c the glossary: numbers, digits and fit", () => {
     }
     console.log(`U2c glossary fit: ${n} texts, each 2 lines or fewer at ${GLOSSARY_WRAP_W} px (the longest ${widest} px unwrapped)`);
   });
+
+  // BUMP-1E P6 (the real display fault the flip showed in the test above: a tap on SHIELD in VENOM DRIP's panel read 549 px, 3 lines): a
+  // face's reminder is a keyword's OWN note only when the keyword is in its head (before the colon), not when its body names it
+  it("a tap on SHIELD in a rig's panel shows SHIELD's own reminder only when the face defines it: VENOM DRIP's POISON reminder ('... GO PAST SHIELD') is not SHIELD's", () => {
+    withScaleRigs(() => {
+      const f = faceAt("venom", 1, {});
+      const poison = f!.reminders.find((r) => r.includes("{*POISON}"));
+      expect(poison, "VENOM DRIP's face carries POISON's reminder").toBeDefined();
+      expect(poison!.includes("{*PLATE}"), "and that reminder names SHIELD ({*PLATE}) in its body").toBe(true);
+      const shield = glossaryText("SHIELD", { def: "venom", stars: 1 })!;
+      expect(shield).toBe(glossaryText("SHIELD")); // the row's own text: the face defines no SHIELD note
+      expect(shield).not.toContain("POISON");
+      expect(glossaryText("POISON", { def: "venom", stars: 1 })).toBe(poison); // its own keyword still takes the face's reminder
+    });
+    // and where a face does define the keyword in its head (SHIELD GENERATOR's WARD, a SHIELD's own reminder) the face's note still wins
+    const own = faceAt("plating", 1, {})?.reminders.find((r) => r.split(":")[0].includes("{*PLATE}"));
+    if (own) expect(glossaryText("SHIELD", { def: "plating", stars: 1 })!.startsWith(own)).toBe(true);
+  });
 });
 
 describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND text row", () => {
@@ -288,7 +313,14 @@ describe("U2c U2b's ledger: every NEEDED: U2c row now has a home", () => {
     const k = 1;
     // PRESSURE BREECH: the cap of 5 waiting loads (its tap note; the turret panel's CHAMBER row: tests/turretPanel.u2c)
     // U2d F5: the note reads forwards, as the turret panel's (was "AT MOST 5 LOADS WAITING COUNT, AND IT NEVER JAMS.")
-    expect(stripIcons(icons(glossaryText("SHOT", { def: "pressure", stars: 1, o: { k } })!))).toBe(`SHOT: IT COUNTS UP TO ${fmtCount(scaleCore(ITEMS.pressure.core!, k).maxCount!)} WAITING LOADS, AND IT NEVER JAMS.`);
+    // BUMP-1E: the switch ships ON, and PRESSURE BREECH's MAX 5 is gone (scale.ts SCALE_DEFS.pressure drops maxCount: its own perQueued
+    // term, uncapped), so its note says EVERY WAITING LOAD (glossary.ts TAP_NOTES.pressure's no-cap form); the cap's note is the 0.9.11
+    // world's, read with the switch off (synchronously), and was this test's pin
+    expect(SCALE_RIGS).toBe(true);
+    expect(scaleCore(ITEMS.pressure.core!, k).maxCount).toBeUndefined();
+    expect(stripIcons(icons(glossaryText("SHOT", { def: "pressure", stars: 1, o: { k } })!))).toBe("SHOT: IT COUNTS EVERY WAITING LOAD, AND IT NEVER JAMS.");
+    expect(withScaleRigs(() => stripIcons(icons(glossaryText("SHOT", { def: "pressure", stars: 1, o: { k } })!)), false))
+      .toBe(`SHOT: IT COUNTS UP TO ${fmtCount(withScaleRigs(() => scaleCore(ITEMS.pressure.core!, k).maxCount!, false))} WAITING LOADS, AND IT NEVER JAMS.`);
     // COMPOUND BREECH: the lone load's hold
     expect(stripIcons(icons(glossaryText("SHOT", { def: "compound", stars: 1, o: { k } })!))).toContain(`A LONE LOAD FIRES ALONE AFTER ${fmtSec(ITEMS.compound.core!.hold!)}`);
     // SORTING ARM: one count across every belt its arrows reach
@@ -318,9 +350,15 @@ describe("U2c U2b's ledger: every NEEDED: U2c row now has a home", () => {
       const fl = faceLines(def, s, { k: 1 })!;
       return stripIcons([...fl.rules.map((r) => `${r.label ?? ""} ${r.text}`)].join(" ")).replace(/\d+(?:\.\d+)?/g, "");
     };
+    // BUMP-1E: the switch ships ON, and POWDER KEG (reworked: the 12 s fuse goes, a HIT: reader line comes) has no EVERY label on its
+    // face, so its note (TAP_NOTES.keg, whose text is "" without a fuse) sits on no word there: it is the one note not on its face now
+    // (was: every note, keg's too). With the switch off (the 0.9.11 world, read synchronously) keg's fuse EVERY is on its face as before
     for (const [def, n] of Object.entries(TAP_NOTES)) for (const s of def === "chamber" ? [2, 3] : [1]) {
-      expect(new RegExp(`\\b${n.word}\\b`).test(said(def, s)), `${def} ★${s}: ${n.word}`).toBe(true);
+      expect(new RegExp(`\\b${n.word}\\b`).test(said(def, s)), `${def} ★${s}: ${n.word}`).toBe(def !== "keg");
     }
+    expect(TAP_NOTES.keg.text(ITEMS.keg, { stars: 1, k: 1 })).toBe("");
+    expect(withScaleRigs(() => new RegExp(`\\b${TAP_NOTES.keg.word}\\b`).test(said("keg", 1)), false)).toBe(true);
+    expect(withScaleRigs(() => TAP_NOTES.keg.text(ITEMS.keg, { stars: 1, k: 1 }), false)).toMatch(/^EVERY \d+\{SEC\}: EACH SLUG ON ITS BELTS/);
     expect([TAP_NOTES.chamber?.word, /\bUP TO\b/.test(said("chamber", 1))]).toEqual(["UP TO", false]);
   });
 });

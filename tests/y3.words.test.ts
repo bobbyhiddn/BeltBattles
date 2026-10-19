@@ -24,6 +24,7 @@ import { colourize, wrapRich } from "../src/ui/richText";
 import { STARS, rigBench } from "./y3.helpers";
 import { item, withItem } from "./wave3.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's QUENCH ★1 beside the shipped one
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (POISON is a keyword again; `quench` is KINDLING)
 
 /** The words a switch-on text of the 13 may never say: each names a floor, cap, caveat, clause or rule that left. */
 const GONE = /UP TO \d+ BURN|UP TO \d+ HITS|MAX \d+ RIGS|MAX \d+ \{?FRAY|HOLD \d+ FRAY|ELSE|NEVER OUTRUN|CAN'T DOUBLE|THAT CAN BE DOUBLED|SIFTER|SURGE \d|TIMES AS FAST|PULSES ITS BELTS|SPEEDS UP|LETS GO GAINS|TWICE AS HARD|ONLINE|TO EACH PAYLOAD IT HITS, (OR|AND)|UP TO \d+ OF ITS BURN|ANY MORE BURN STAYS|NO PLATING TO TAKE|RAZOR WIRE:|HOT SHOE:|HOT START:|FOR \d+\{SEC\}, \+/;
@@ -32,14 +33,29 @@ const RETIRED = ["HARASSMENT", "ONLINE", "POISON"];
 
 describe("Y3 words: no new keyword; ONLINE stays (KEG, QUICK LATCH; Y5: it retires); MATCHED is a row", () => {
   it("on, the glossary is Y2's: only HARASSMENT retires (Y5: and ONLINE; Y6: and POISON); MATCHED stays, and no keyword joins", () => {
-    // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
-    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
-    for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
-    expect(glossaryRows().map((r) => r.word)).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE" && w !== "POISON")); // Y6 (BRIEF-Y6): was .filter((w) => w !== "HARASSMENT" && w !== "ONLINE"); Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
-    expect(glossaryEntry("ONLINE")).toBeUndefined(); // Y5 (ruling 882ecc77): was ?.word).toBe("ONLINE")
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where POISON is a keyword again (SCALE-2b: VENOM DRIP's POISON; its
+    // glossary row and its KEYWORDS entry, the 10th, join while the switch is on). The checks below hold the 0.9.11 world's POISON
+    // retired and the keywords the 9, so they are read with the switch off (withScaleRigs(fn, false), synchronously); the shipped
+    // world's is the second half
+    withScaleRigs(() => {
+      // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
+      expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
+      for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
+      expect(glossaryRows().map((r) => r.word)).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE" && w !== "POISON")); // Y6 (BRIEF-Y6): was .filter((w) => w !== "HARASSMENT" && w !== "ONLINE"); Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
+      expect(glossaryEntry("ONLINE")).toBeUndefined(); // Y5 (ruling 882ecc77): was ?.word).toBe("ONLINE")
+      expect(glossaryEntry("MATCHED BELT")?.word).toBe("MATCHED");
+      expect(glossaryRows().filter((r) => r.kw).map((r) => r.word)).toEqual(GLOSSARY.filter((r) => r.kw).map((r) => r.word));
+      expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]); // the 9, as before
+    }, false);
+    // BUMP-1E: the shipped world: HARASSMENT and ONLINE stay retired; POISON is a glossary row and a keyword (the 10th, after REGEN)
+    expect(SCALE_RIGS).toBe(true);
+    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual(["POISON"]); // BUMP-1E: was []
+    for (const w of ["HARASSMENT", "ONLINE"]) expect(glossaryEntry(w), w).toBeUndefined();
+    expect(glossaryEntry("POISON")?.kw).toBe("POISON"); // BUMP-1E: was toBeUndefined()
+    expect(glossaryRows().map((r) => r.word)).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE"));
     expect(glossaryEntry("MATCHED BELT")?.word).toBe("MATCHED");
     expect(glossaryRows().filter((r) => r.kw).map((r) => r.word)).toEqual(GLOSSARY.filter((r) => r.kw).map((r) => r.word));
-    expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]); // the 9, as before
+    expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN", "POISON"]); // BUMP-1E: the 9 and POISON
   });
 
   it("why ONLINE stayed (Y5: it retires): with the switch on neither POWDER KEG's kept sentence nor the QUICK LATCH rune's line names it (Y5; the rune's def text still does); none of the 13's texts do", () => {
@@ -76,8 +92,12 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(abilityText("twingauge", 2).sentences[0]).toBe("ADDS 66 DAMAGE TO EACH PAYLOAD IT HITS ON A MATCHED BELT.");
     expect(abilityText("bellows", 3).sentences[0]).toBe("ADDS 3 BURN FOR EACH 2 SECONDS THE PAYLOAD HAS RIDDEN.");
     // AZ-BUMP (the flip, LADDER_FIX): 30 -> 40, the star-ladder pass's QUENCH ★1 (40 a BURN); off, 30
-    expect(abilityText("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 40 DAMAGE.");
-    expect(withLadderFix(() => abilityText("quench", 1).sentences[0], false)).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
+    // BUMP-1E: QUENCH TANK's sentence is the scaling rules' switch-off world's (the shipped `quench` is KINDLING, below)
+    withScaleRigs(() => {
+      expect(abilityText("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 40 DAMAGE.");
+      expect(withLadderFix(() => abilityText("quench", 1).sentences[0], false)).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
+    }, false);
+    expect(abilityText("quench", 1).sentences[0]).toBe("EACH PAYLOAD IT HITS GAINS 3 DAMAGE FOR EACH FOE BURN."); // BUMP-1E: KINDLING's (was "TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 40 DAMAGE.")
     expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT.");
     expect(abilityText("barbed", 3).sentences[0]).toBe("ADDS 3 FRAY TO EACH PAYLOAD IT HITS.");
     expect(abilityText("platebreaker", 1).sentences).toEqual(["EACH PAYLOAD IT HITS TAKES 10 SHIELD FROM YOUR HULL AND GAINS 40 DAMAGE.", "WITH LESS SHIELD THAN THAT, IT ADDS NOTHING."]);
@@ -99,7 +119,9 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
       // CARD-3 (REQ-BFG-081, D3): PINCER's and ASSEMBLY LINE's desk lines say their faces' words
       "DAMAGE FOR OTHER RIGS HITTING IT.", "DAMAGE IF ANOTHER BELT IS AS LONG.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "FEEDS A GUN: ALL RIGS START 50% SOONER."]);
     expect(["quench", "brake", "twinlatch", "platebreaker", "surge"].map((d) => gist(d, 2))).toEqual([
-      "50 DAMAGE FOR EACH BURN", "40% SPEED", "HOLDS UP TO 2 SECONDS", "88 DAMAGE FOR 10 SHIELD", "20 DAMAGE EVERY 3 SECONDS"]);
+      "5 DAMAGE FOR EACH FOE BURN", // BUMP-1E: KINDLING's (the shipped `quench`, ★2 +5 a BURN on the foe); was "50 DAMAGE FOR EACH BURN", QUENCH TANK's
+      "40% SPEED", "HOLDS UP TO 2 SECONDS", "88 DAMAGE FOR 10 SHIELD", "20 DAMAGE EVERY 3 SECONDS"]);
+    expect(withScaleRigs(() => gist("quench", 2), false)).toBe("50 DAMAGE FOR EACH BURN"); // BUMP-1E: QUENCH TANK's, the switch-off world's
   });
 
   it("on, the belt timeline says the new rules (hitText)", () => {

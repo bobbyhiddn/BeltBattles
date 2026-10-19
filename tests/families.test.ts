@@ -9,6 +9,7 @@ import { G, R, fresh, installRaster, type RasterCanvas } from "./raster.helpers"
 import { C } from "../src/render/palette";
 import { textWidth } from "../src/render/font";
 import { ITEMS, buyableModules, type ModuleTag } from "../src/sim/content";
+import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the 0.9.11 count is read with it off
 import { key as K, rotField, setTurretList, type Placed } from "../src/sim/deck";
 import { rotFacing, stokeSpots } from "../src/sim/beltside";
 import { fusible } from "../src/sim/stars";
@@ -65,7 +66,12 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL (src/sim/shapes.ts SHAPES_ITEMS) join the buyable modules with
     // SHAPES on: 88 + 3 = 91
     // BUMP-1D: the six plain stat rigs (PLAIN_RIGS) and the six more shaped rigs (SHAPES2) join them, both on: 91 + 12 = 103
-    expect(MODULES.length).toBe(103);
+    // BUMP-1E: the switch ships on and the seven scaling rigs (SCALE_IDS: CINDER MAIL, ROT GAUGE, LEECH COIL, CROWD PRESS, AEGIS
+    // SPIKE, GRUDGE ROD, TROPHY CHAIN; src/sim/scale.ts SCALE_ITEMS) join them: 103 + 7 = 110 (the 0.9.11 world, read with the switch off, is 103)
+    expect(SCALE_RIGS).toBe(true);
+    expect(SCALE_IDS).toHaveLength(7);
+    expect(withScaleRigs(() => buyableModules().length, false)).toBe(103);
+    expect(MODULES.length).toBe(110); // BUMP-1E: was 103
     const counts = [0, 0, 0, 0];
     for (const d of MODULES) {
       const f = familiesOf(d.id);
@@ -82,7 +88,10 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
     // BUMP-1D: eight of the twelve have 1 family (RASP, BRANDING IRON, SAW BAR, CINDER HOOK FORGE; SPARK GAP, SPARK COMB
     // HARASS; BALLAST, ELBOW GUARD PLATE) and four have 2 (SCALE GUARD PLATE and FORGE; GRINDSTONE, JAW CRUSHER, PICKAXE
     // FORGE and BURST): [0, 35, 52, 4] -> [0, 43, 56, 4]
-    expect(counts).toEqual([0, 43, 56, 4]);
+    // BUMP-1E: the seven scaling rigs' tags (scale.ts SCALE_ITEMS, each its nearest piece's): GRUDGE ROD FORGE (1 family); CINDER MAIL
+    // FORGE and PLATE, ROT GAUGE SWARM and FORGE, LEECH COIL SWARM and PLATE, CROWD PRESS SWARM and FORGE, AEGIS SPIKE PLATE and FORGE,
+    // TROPHY CHAIN FORGE and BURST (2 families each): [0, 43, 56, 4] -> [0, 44, 62, 4]; the five reworks keep their tags
+    expect(counts).toEqual([0, 44, 62, 4]); // BUMP-1E: was [0, 43, 56, 4]
     for (const d of Object.values(ITEMS)) for (const t of d.tags ?? []) expect(V2, `${d.id}: ${t}`).toContain(t);
     for (const id of ["zz-none", "constructor", "toString", "__proto__", "hasOwnProperty", ""]) {
       expect(familiesOf(id), id).toEqual([]);

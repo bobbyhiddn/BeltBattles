@@ -31,6 +31,7 @@ import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { validateBuild } from "../src/net/validate";
 import { outputsAt } from "../src/sim/stars"; // bb-0.8.3 (REQ-BFG-042): belt slots by stars
 import { LONG_RUN, WIN_GOAL, longRun, withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN on): the 10-day world and the long run side by side
+import { endlessOffered } from "../src/sim/endless"; // BUMP-1E P6: ENDLESS ships on: a won run's RUN WON offer keeps its save
 import { readFileSync } from "node:fs";
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -191,7 +192,10 @@ function play(hero: HeroId, seed: number, scripted: boolean): Played {
     out.dusks++;
   }
   saveRun(run); // a finished run clears the save
-  expect(loadRun()).toBe(null);
+  // BUMP-1E P6 (R3.5): ENDLESS ships on, so a WON run (newRun marks it) is the one finished run whose save is KEPT while its RUN WON offer is open (save.ts saveRun: a
+  // reload offers CONTINUE ENDLESS or END RUN again; tests/endless1.save.test.ts pins it); every other finished run, a lost one included, clears it as ever (was expect(loadRun()).toBe(null))
+  if (endlessOffered(run)) expect(loadRun(), `${hero} #${seed}: the won run's offer is kept`).not.toBe(null);
+  else expect(loadRun()).toBe(null);
   out.run = run;
   return out;
 }

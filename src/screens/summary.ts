@@ -8,10 +8,15 @@
 import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { saveRun, type Run } from "../game/run";
-import { flawless, record } from "../game/day";
+import { flawless, record, startEndless } from "../game/day";
 import type { EventId } from "../game/eventDefs";
 import { HEROES, RUN_DAYS } from "../sim/content";
 import { WIN_GOAL, longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): the run's own mark picks the end card's words
+import { endlessOffered, endlessOver } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): the RUN WON offer and the ENDLESS OVER card
+import {
+  CONTINUE_ENDLESS, END_RUN, ENDLESS_COLOR, ENDLESS_OFFER_LINES, ENDLESS_OVER_TITLE, endlessFootTail, endlessOverLines, wrapAtDots,
+} from "./endlessText"; // ENDLESS-1 (REQ-BFG-059, 3.5): a run that played endless says ENDLESS n in the foot line; the offer's and the card's words
+import { BuildScreen } from "./build/build"; // ENDLESS-1: CONTINUE ENDLESS goes back to the dawn
 import { onLongRoad } from "./runDay"; // RUN-1: a long run's days past 10 are marked in the history
 import { Fx } from "../render/fx";
 import { C } from "../render/palette";
@@ -23,7 +28,7 @@ import { drawMachinery } from "../render/machinery";
 import { SeaBackdrop } from "../render/backdrop"; // MOTION-2 (REQ-BFG-071): the day's sea behind the summary
 import { seaForDay, stillSeaSeed } from "../render/motion";
 import { dimStillPlate, drawStillCarrier } from "../render/ship"; // MOTION-2: the player's ship, held still
-import { button, panel } from "../ui/ui";
+import { button, panel, type Rect } from "../ui/ui";
 import { TIER_COLOR, TIER_LABEL, nameColor } from "../ui/captain";
 import type { BattleRecord } from "../sim/battle";
 import { openReplay, replayAt } from "../game/replays";
@@ -93,7 +98,25 @@ export function summaryButtonH(v: SummaryView): number {
  *  REPLAY strip does the card grow by them (the strip moves down). */
 export const NOTE_H = 8;
 
-export function summaryLayout(v: SummaryView, fights: number, replays: number, notes = 0): SummaryLayout {
+/** ENDLESS-1 (REQ-BFG-059, 3.5): the RUN WON offer under the history: CONTINUE ENDLESS, ENDLESS_OFFER_LINES (three lines, NOTE_H
+ *  apart) and END RUN, which takes NEW RUN / TITLE's slot at the card's foot. OFFER_GAP clear px above and below the three lines. */
+export const OFFER_GAP = 3;
+export const OFFER_LINES_H = ENDLESS_OFFER_LINES.length * NOTE_H;
+/** The room the offer adds to the card's height (the card of an unmarked run, and of a declined offer, gets none): the CONTINUE
+ *  ENDLESS button, the gap, the lines and the gap (END RUN is in the slot NEW RUN / TITLE already had). */
+export const offerExtra = (v: SummaryView): number => summaryButtonH(v) + 2 * OFFER_GAP + OFFER_LINES_H;
+
+/** Where the offer's pieces sit on `card`: CONTINUE ENDLESS (full width, primary), the first of the three lines (their x is the card's
+ *  centre), END RUN (full width, in NEW RUN / TITLE's slot). `bh` is summaryButtonH. Pure (tests/endless1.screens.test.ts). */
+export function offerRects(card: { x: number; y: number; w: number; h: number }, bh: number): { go: Rect; linesY: number; end: Rect } {
+  const endY = card.y + card.h - bh - 6;
+  const goY = endY - OFFER_GAP - OFFER_LINES_H - OFFER_GAP - bh;
+  return { go: { x: card.x + 10, y: goY, w: card.w - 20, h: bh }, linesY: goY + bh + OFFER_GAP, end: { x: card.x + 10, y: endY, w: card.w - 20, h: bh } };
+}
+
+/** `offer` (ENDLESS-1): the card carries the RUN WON offer, so it grows by offerExtra (the history's rows shrink first, as for the
+ *  other extras); false, every size is exactly as before. */
+export function summaryLayout(v: SummaryView, fights: number, replays: number, notes = 0, offer = false): SummaryLayout {
   const { W, H, portrait } = v;
   const rows = Math.max(1, fights);
   const w = Math.min(W - 12, 252);
@@ -111,7 +134,7 @@ export function summaryLayout(v: SummaryView, fights: number, replays: number, n
   // CUSTOM-2a (REQ-BFG-072): + the NEW STYLE lines where a REPLAY strip takes the room under the lives line (no strip:
   // they fit in the card's own gap, and the card is exactly as before)
   const notesH = grid ? notes * NOTE_H : 0;
-  const extra = (grid ? grid.S - 8 : 0) + summaryButtonH(v) - 21 + notesH;
+  const extra = (grid ? grid.S - 8 : 0) + summaryButtonH(v) - 21 + notesH + (offer ? offerExtra(v) : 0);
   const rowH = Math.max(6, Math.min(ROW, Math.floor((H - 8 - 110 - extra) / rows)));
   const h = 64 + rows * rowH + 12 + 38 + extra;
   const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.64 - w / 2);
@@ -151,8 +174,10 @@ export function wonLine(run: Pick<Run, "hero" | "wins" | "losses" | "day" | "his
 
 /** The history's foot line: "7 HEARTS LEFT · WINS 3/10" (RETUNE-1 run 2: HEARTS on a hearts run, else LIVES). RUN-1 (D2): the 10 is the
  *  goal, WIN_GOAL on a long run (it was RUN_DAYS, also 10): the text is the same either way. */
-export const footLine = (run: Pick<Run, "hearts" | "lives" | "wins" | "longRun">): string =>
-  `${livesLeft(run)} · WINS ${run.wins}/${longRun(run) ? WIN_GOAL : RUN_DAYS}`;
+export const footLine = (run: Pick<Run, "hearts" | "lives" | "wins" | "longRun" | "endlessRun">): string =>
+  run.endlessRun // ENDLESS-1 (REQ-BFG-059, 3.5): a run that played endless reads "0 HEARTS LEFT · ENDLESS 7", never "WINS 10/10" (screens/endlessText.ts)
+    ? `${livesLeft(run)}${endlessFootTail(run.endlessRun)}`
+    : `${livesLeft(run)} · WINS ${run.wins}/${longRun(run) ? WIN_GOAL : RUN_DAYS}`;
 
 /** A lost run's second line: "ON DAY 12 · FURNACE · W-L 6-6" (its day and record; either rule's, unchanged by RUN-1). */
 export const lostLine = (run: Pick<Run, "hero" | "wins" | "losses" | "day">): string => `ON DAY ${run.day} · ${HEROES[run.hero].name} · W-L ${record(run)}`;
@@ -168,7 +193,10 @@ interface RowReplay {
 export interface HistoryRow {
   day: number; stop: string; stopColor: string; foe: string; foeColor: string; outcome: "win" | "loss" | "draw"; time: number;
   at?: number; replay?: RowReplay; lc?: string;
-  fold?: { from: number; to: number; w: number; l: number; d: number };
+  /** ENDLESS-1 (REQ-BFG-059, 3.5): a dusk (or its day's warlord) fought in endless (DayResult.endless): its day number is drawn in the
+   *  endless colour, and a fold counts its wins apart (`e`). */
+  endless?: boolean;
+  fold?: { from: number; to: number; w: number; l: number; d: number; e?: number };
 }
 
 /** RUN-1 (REQ-BFG-059, D7): `rows` as the card draws them when only `keep` rows fit: the same rows when they all fit, else the
@@ -188,17 +216,20 @@ export function foldRows(rows: HistoryRow[], keep: number): HistoryRow[] {
   let n = whole(rows.length - k + 1);
   if (rows[n - 1].day === rows[0].day) n = whole(n + 1); // one day: take a second
   const first = rows.slice(0, n), dusks = first.filter((r) => r.at !== undefined);
-  const count = (o: HistoryRow["outcome"]): number => dusks.filter((r) => r.outcome === o).length;
+  // ENDLESS-1: the run's own dusks keep W / L / D; the endless wins are counted apart (the run's record plus its endless wins)
+  const count = (o: HistoryRow["outcome"]): number => dusks.filter((r) => r.outcome === o && !r.endless).length;
+  const endlessWins = dusks.filter((r) => r.outcome === "win" && r.endless).length;
   const row: HistoryRow = {
     day: first[n - 1].day, stop: "", stopColor: C.slate4, foe: "", foeColor: C.slate4, outcome: "draw", time: 0,
-    fold: { from: first[0].day, to: first[n - 1].day, w: count("win"), l: count("loss"), d: count("draw") },
+    fold: { from: first[0].day, to: first[n - 1].day, w: count("win"), l: count("loss"), d: count("draw"), ...(endlessWins ? { e: endlessWins } : {}) },
   };
   return [row, ...rows.slice(n)];
 }
 
-/** The words of a folded row: "DAYS 1-8 · 6 W · 2 L" (a draw count only when there was one). */
+/** The words of a folded row: "DAYS 1-8 · 6 W · 2 L" (a draw count only when there was one). ENDLESS-1: + " · ENDLESS 4" when
+ *  the folded days held endless wins (the run's W and L are its own dusks only). */
 export const foldText = (f: NonNullable<HistoryRow["fold"]>): string =>
-  `DAYS ${f.from}-${f.to} · ${f.w} W · ${f.l} L${f.d ? ` · ${f.d} D` : ""}`;
+  `DAYS ${f.from}-${f.to} · ${f.w} W · ${f.l} L${f.d ? ` · ${f.d} D` : ""}${f.e ? ` · ENDLESS ${f.e}` : ""}`;
 
 export class SummaryScreen implements Screen {
   private run: Run;
@@ -212,6 +243,11 @@ export class SummaryScreen implements Screen {
   newStyles: string[] = [];
   /** 0.7.0a M4: per history index, the stored dusk record's replay (online runs only: offline dusks store none). */
   private readonly replays = new Map<number, RowReplay>();
+  /** ENDLESS-1 (REQ-BFG-059, 3.5): END RUN was tapped on this card: the offer is gone and the card is the RUN WON of an unmarked run
+   *  (NEW RUN / TITLE), as END RUN leads "as today". Per screen: back from a REPLAY the card is as it was left. */
+  private declined = false;
+  /** ENDLESS-1: the personal best as the profile holds it on entering (the ENDLESS OVER card's BEST n), and whether this run set it. */
+  best = { best: 0, newBest: false };
 
   constructor(private game: Game) {
     this.run = game.run!;
@@ -232,12 +268,43 @@ export class SummaryScreen implements Screen {
     return this.run.over === "complete" || this.run.over === "won"; // RUN-1 (REQ-BFG-059): a long run's WON
   }
 
+  /** ENDLESS-1 (REQ-BFG-059, 3.5): does this card offer CONTINUE ENDLESS / END RUN? A run that carries the endless mark, is won and has
+   *  not taken endless (sim/endless.ts endlessOffered), until END RUN is tapped. Never for an unmarked run: its RUN WON is as it was. */
+  get offered(): boolean {
+    return !this.declined && endlessOffered(this.run);
+  }
+
+  /** ENDLESS-1: is this the ENDLESS OVER card (the run played endless and it ended)? */
+  get endlessCard(): boolean {
+    return endlessOver(this.run);
+  }
+
+  /** ENDLESS-1: CONTINUE ENDLESS (the offer's primary button, and Enter): the same run and build go on (day.ts startEndless: 3 fresh
+   *  hearts, the next dawn), the run is saved and the build screen opens at the dawn. False, and nothing happens, when the card does
+   *  not offer it (or startEndless refuses). */
+  continueEndless(): boolean {
+    if (!this.offered || this.game.transitioning || !startEndless(this.run)) return false; // (never mid-wipe: game.go would drop the build screen after the run had changed)
+    saveRun(this.run);
+    this.game.go(new BuildScreen(this.game));
+    return true;
+  }
+
+  /** ENDLESS-1: END RUN: the offer is declined and the card shows NEW RUN / TITLE, as a won run's always did. The saved won run (kept
+   *  while the offer was open: save.ts saveRun) goes, as every finished run's does. */
+  endRun(): void {
+    if (!this.offered) return;
+    this.declined = true;
+    saveRun(null);
+  }
+
   enter(): void {
     if (this.entered) return this.game.audio.music(null); // back from a replay: nothing to save or announce again
     this.entered = true;
     foldRunEnd(this.run); // CUSTOM-2a (REQ-BFG-072): once per run (the battle may have folded it already)
-    this.newStyles = runUnlockNames(loadProfile(), this.run.runId);
-    saveRun(null);
+    const profile = loadProfile();
+    this.newStyles = runUnlockNames(profile, this.run.runId);
+    this.best = { best: profile.bestEndless, newBest: profile.bestEndlessRun !== "" && profile.bestEndlessRun === this.run.runId }; // ENDLESS-1
+    saveRun(this.offered ? this.run : null); // ENDLESS-1: the won run stays saved while its offer is open (a reload reopens this card); else as ever
     this.game.audio.music(null);
     this.game.audio.play(this.complete ? "win" : "lose");
   }
@@ -267,14 +334,14 @@ export class SummaryScreen implements Screen {
     const out: HistoryRow[] = [];
     run.history.forEach((d, at) => {
       for (const w of run.warlords.filter((q) => q.day === d.day)) {
-        out.push({ day: w.day, stop: TIER_LABEL[w.tier], stopColor: TIER_COLOR[w.tier], foe: w.name, foeColor: nameColor(w.id), outcome: w.outcome, time: w.time });
+        out.push({ day: w.day, stop: TIER_LABEL[w.tier], stopColor: TIER_COLOR[w.tier], foe: w.name, foeColor: nameColor(w.id), outcome: w.outcome, time: w.time, ...(d.endless ? { endless: true } : {}) });
       }
       const ev = run.events.find((e) => e.day === d.day);
       const warlordDay = run.warlords.some((q) => q.day === d.day);
       const stop = warlordDay ? "DUSK" : ev ? STOP_LABEL[ev.id] : "DUSK";
       // LC-1 (REQ-BFG-073): the dusk that fired LAST CHANCE: STOP says the life came back, and the row ends with the card taken
       const lc = d.lastChance ? lastChanceTag(d.lastChance) : undefined;
-      out.push({ day: d.day, stop: lc ? lcStop(run) : stop, stopColor: lc ? C.lime : warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time, at, replay: this.replays.get(at), ...(lc ? { lc } : {}) });
+      out.push({ day: d.day, stop: lc ? lcStop(run) : stop, stopColor: lc ? C.lime : warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time, at, replay: this.replays.get(at), ...(lc ? { lc } : {}), ...(d.endless ? { endless: true } : {}) });
     });
     return out;
   }
@@ -285,17 +352,17 @@ export class SummaryScreen implements Screen {
   rows(): HistoryRow[] {
     const all = this.fights();
     if (!longRun(this.run)) return all;
-    const v = this.game.view, replays = this.replays.size, notes = this.noteLines().length;
+    const v = this.game.view, replays = this.replays.size, notes = this.noteLines().length, offer = this.offered;
     let keep = all.length;
     for (; keep > 2; keep--) {
-      const L = summaryLayout(v, keep, replays, notes);
+      const L = summaryLayout(v, keep, replays, notes, offer); // ENDLESS-1: the offer's room is part of the card
       if (L.card.y + L.card.h <= v.H - 4) break;
     }
     return foldRows(all, keep);
   }
 
   private layout(): SummaryLayout {
-    return summaryLayout(this.game.view, this.rows().length, this.replays.size, this.noteLines().length);
+    return summaryLayout(this.game.view, this.rows().length, this.replays.size, this.noteLines().length, this.offered);
   }
 
   update(dt: number): void {
@@ -330,8 +397,10 @@ export class SummaryScreen implements Screen {
     const { x, y, w, h } = card;
     const cx = x + w / 2;
     panel(g, card, "raised");
-    drawText(g, endTitle(won, longRun(run)), cx, y + 6, won ? C.lime : C.red, { align: "center", scale: 2, outline: C.ink }); // RUN-1: RUN WON on a long run
-    if (won) {
+    const over = this.endlessCard; // ENDLESS-1 (REQ-BFG-059, 3.5): the run played endless and it ended: ENDLESS OVER, in the endless colour
+    drawText(g, over ? ENDLESS_OVER_TITLE : endTitle(won, longRun(run)), cx, y + 6, over ? ENDLESS_COLOR : won ? C.lime : C.red, { align: "center", scale: 2, outline: C.ink }); // RUN-1: RUN WON on a long run
+    if (won && over) this.drawEndlessHead(g, cx, y, w);
+    else if (won) {
       drawText(g, wonLine(run), cx, y + 23, C.bone, { font: "3", align: "center" }); // RUN-1: "FURNACE WON 10 OF 13 DUSKS, ON DAY 13" on a long run
       if (flawless(run)) {
         const fw = textWidth("FLAWLESS") + 8;
@@ -348,6 +417,15 @@ export class SummaryScreen implements Screen {
     this.noteLines().forEach((ln, i) => drawText(g, ln, cx, ny + i * NOTE_H, C.yellow, { font: "3", align: "center" }));
     if (strip) this.drawStrip(g, strip);
     const bh = summaryButtonH(this.game.view); // shoptap (D5): 21 px, and on a phone at least 44 CSS px
+    if (this.offered) {
+      // ENDLESS-1 (REQ-BFG-059, 3.5): the RUN WON of a marked run: CONTINUE ENDLESS (primary) with its three rules lines, and END RUN,
+      // which leads to the NEW RUN / TITLE card below as ever
+      const o = offerRects(card, bh);
+      button(ui, g, "endless", o.go, CONTINUE_ENDLESS, { primary: true, onTap: () => { this.continueEndless(); } });
+      ENDLESS_OFFER_LINES.forEach((ln, i) => drawText(g, ln, cx, o.linesY + i * NOTE_H, ENDLESS_COLOR, { font: "3", align: "center" }));
+      button(ui, g, "endrun", o.end, END_RUN, { onTap: () => this.endRun() });
+      return;
+    }
     const by = y + h - bh - 6;
     button(ui, g, "again", { x: x + 10, y: by, w: w / 2 - 14, h: bh }, "NEW RUN", {
       primary: true, onTap: () => { this.game.run = null; this.game.go(new HeroScreen(this.game)); },
@@ -355,6 +433,37 @@ export class SummaryScreen implements Screen {
     button(ui, g, "title", { x: x + w / 2 + 4, y: by, w: w / 2 - 14, h: bh }, "TITLE", {
       onTap: () => { this.game.run = null; this.game.go(new TitleScreen(this.game)); },
     });
+  }
+
+  /** ENDLESS-1 (REQ-BFG-059, 3.5): the ENDLESS OVER card's lines under its title (screens/endlessText.ts endlessOverLines): the score
+   *  ("7 ENDLESS WINS · FURNACE · WON ON DAY 13", broken at its dots on a card narrower than it), then why endless ended and the
+   *  personal best ("OUT OF HEARTS · BEST 9", or "NEW BEST 9"), centred. The history table starts at y + 48 whatever the lines. */
+  private drawEndlessHead(g: G, cx: number, y: number, w: number): void {
+    const run = this.run;
+    const t = endlessOverLines({ hero: run.hero, endlessRun: run.endlessRun! }, this.best);
+    const room = w - 8;
+    type Seg = { t: string; c: string };
+    const width = (ln: Seg[]): number => ln.reduce((s, q) => s + textWidth(q.t, "3"), 0);
+    const lines: Seg[][] = wrapAtDots(t.score, room).map((ln) => [{ t: fit(ln, room), c: C.bone }]);
+    const tail: Seg[] = t.why
+      ? [{ t: t.why, c: C.slate4 }, { t: " · ", c: C.slate4 }, { t: t.best, c: C.yellow }]
+      : [{ t: t.best, c: C.yellow }];
+    if (width(tail) <= room) lines.push(tail);
+    else {
+      if (t.why) lines.push([{ t: fit(t.why, room), c: C.slate4 }]);
+      lines.push([{ t: t.best, c: C.yellow }]);
+    }
+    // two lines on the desk as the won card's (y + 23, y + 33); three on a narrow card (y + 21, 29, 37); never into the table at y + 48
+    const pitch = lines.length <= 2 ? 10 : lines.length === 3 ? 8 : 6;
+    let ly = y + (lines.length <= 2 ? 23 : 21);
+    for (const ln of lines) {
+      let lx = Math.round(cx - width(ln) / 2);
+      for (const s of ln) {
+        drawText(g, s.t, lx, ly, s.c, { font: "3" });
+        lx += textWidth(s.t, "3");
+      }
+      ly += pitch;
+    }
   }
 
   /** 0.7.0 (R1 M1): the phone's REPLAY strip, one button per stored dusk in history order (summaryLayout `strip`): REPLAY
@@ -396,7 +505,7 @@ export class SummaryScreen implements Screen {
         ry += rh;
         continue;
       }
-      drawText(g, String(f.day), cDay + 8, ry, onLongRoad(f.day, longRun(run)) ? C.amber : C.slate4, { font: "3", align: "right" }); // RUN-1: day 11+ of a long run, amber
+      drawText(g, String(f.day), cDay + 8, ry, f.endless ? ENDLESS_COLOR : onLongRoad(f.day, longRun(run)) ? C.amber : C.slate4, { font: "3", align: "right" }); // RUN-1: day 11+ of a long run, amber; ENDLESS-1: an endless day, plum
       drawText(g, fit(f.stop, stopW), cStop, ry, f.stopColor, { font: "3" });
       if (f.lc) {
         // LC-1: the card taken, in lime at the column's end; the foe's name gives way
@@ -423,6 +532,12 @@ export class SummaryScreen implements Screen {
   }
 
   key(k: string): void {
+    if (this.offered) {
+      // ENDLESS-1: Enter and Space take the card's primary button (CONTINUE ENDLESS); Escape is END RUN
+      if (k === "Enter" || k === " ") this.continueEndless();
+      else if (k === "Escape") this.endRun();
+      return;
+    }
     if (k === "Enter" || k === " ") {
       this.game.run = null;
       this.game.go(new HeroScreen(this.game));

@@ -15,6 +15,7 @@ import { DRAG_MULT, dragSpans } from "../src/sim/races/siphon";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { cruiserModel } from "../src/render/cruiser";
 import { joinedPace, withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the joined factory's pace
+import { SCALE_RIGS, flatOf, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; a payload's whole flat bonus (flat + each); the 0.9.11 world with it off
 
 const rig = (uid: number, def: string, x: number, y: number, rot = 0): Placed => ({ uid, def, x, y, ...rotField(def, rot) });
 // a foe that never fires (no belts) and never falls
@@ -45,7 +46,7 @@ const quiet = (uid: number) => (s: SideState) => { s.factories.find((f) => f.uid
 // JOIN PACE, as shipped), JOIN_PACE with it off, so the two decks still stamp in step (J15 checks the off world too)
 const paced = (uid: number) => (s: SideState) => { s.factories.find((f) => f.uid === uid)!.pace = joinedPace(); };
 
-interface Load { tick: number; id: number; factory: number; ride: number; prior: number; flat: number; burn: number; heat: number; ammo: string }
+interface Load { tick: number; id: number; factory: number; ride: number; prior: number; flat: number; each: number; burn: number; heat: number; ammo: string } // BUMP-1E: flat is flatOf(p), each its FOR EACH part
 interface Run { bt: Battle; loads: Load[]; seenOn: Map<number, number> }
 /** Step a battle; note every payload of side 0 the first tick it is in a chamber (or already fired). */
 function run(b: Build, ticks: number, setup?: (s: SideState, bt: Battle) => void, each?: (bt: Battle, s: SideState) => void, foe = FOE): Run {
@@ -58,7 +59,10 @@ function run(b: Build, ticks: number, setup?: (s: SideState, bt: Battle) => void
   const note = (p: Payload) => {
     if (seen.has(p.id)) return;
     seen.add(p.id);
-    loads.push({ tick: bt.ticks, id: p.id, factory: p.factory, ride: p.ride, prior: p.prior, flat: p.flat, burn: p.burn, heat: p.heatBonus ?? 0, ammo: p.ammo });
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where a FOR EACH DMG (COUNTERWEIGHT, LONG HAUL) rides the payload's own `each` accumulator
+    // (battle.ts forEach, REQ-BFG-110 step 4) and p.flat stays the stat rows' alone; the DMG the payload carries is the sum the shot reads, flatOf(p)
+    // (off, `each` is never set: the same number), so `flat` here is flatOf(p) (was p.flat) and `each` is the FOR EACH part
+    loads.push({ tick: bt.ticks, id: p.id, factory: p.factory, ride: p.ride, prior: p.prior, flat: flatOf(p), each: p.each ?? 0, burn: p.burn, heat: p.heatBonus ?? 0, ammo: p.ammo });
   };
   for (let i = 0; i < ticks && !bt.over; i++) {
     bt.step();
@@ -383,9 +387,29 @@ describe("J14 (a): the payload's own journey", () => {
     const l = a[5];
     expect(l.prior).toBe(6); // TEMPER, HEAT JACKET, then the join tile's WHETSTONE, COUNTERWEIGHT, WHETSTONE, LONG HAUL
     // NUM-1: x10 and whole, so exact (was toBeCloseTo(2 + 2.5 + 2 + LONG HAUL x 5, 9)): 2 WHETSTONEs, COUNTERWEIGHT: 5 tiles ridden; LONG HAUL: 5 earlier hits
+    // BUMP-1E: `flat` is flatOf(p) (see note above): the same whole number as before. With the scaling rules on (shipped) the FOR EACH part (COUNTERWEIGHT
+    // 5 tiles x 3, LONG HAUL 5 hits x 10 = 65) rides p.each and the 2 WHETSTONEs' stat rows (40) p.flat; the 0.9.11 world is read below with the switch off
+    expect(SCALE_RIGS).toBe(true);
     expect(l.flat).toBe(2 * effectAt("whetstone", 1).gate!.flat! + 5 * effectAt("counterweight", 1).gate!.perTile!.each + effectAt("longhaul", 1).gate!.perPriorGate! * 5);
+    expect(l.each).toBe(5 * effectAt("counterweight", 1).gate!.perTile!.each + effectAt("longhaul", 1).gate!.perPriorGate! * 5);
     expect(l.burn).toBe(effectAt("temper", 1).gate!.burn);
     expect(l.heat).toBeGreaterThan(0);
+  });
+
+  // BUMP-1E: the same journey in the 0.9.11 world, read with the scaling rules off (synchronously): nothing rides p.each, p.flat carries the whole number
+  it("the same journey with the scaling rules off: COUNTERWEIGHT's and LONG HAUL's DMG ride p.flat (each never set), the same whole number", () => {
+    withScaleRigs(() => {
+      const joined = deck(rigs);
+      const a = run(joined, 60 * 25, quiet(1)).loads.filter((l) => l.factory === 2);
+      const c = run(single(joined), 60 * 25, paced(2)).loads.filter((l) => l.factory === 2);
+      expect(a.length).toBeGreaterThan(8);
+      expect(a.slice(3, 9).map(pick)).toEqual(c.slice(3, 9).map(pick));
+      const l = a[5];
+      expect(l.prior).toBe(6);
+      expect(l.each).toBe(0);
+      expect(l.flat).toBe(2 * effectAt("whetstone", 1).gate!.flat! + 5 * effectAt("counterweight", 1).gate!.perTile!.each + effectAt("longhaul", 1).gate!.perPriorGate! * 5);
+      expect(l.burn).toBe(effectAt("temper", 1).gate!.burn);
+    }, false);
   });
 
   it("by design (J4), a speed rig on the main belt before the join speeds the joined payload; the continuous belt misses it", () => {

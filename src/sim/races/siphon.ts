@@ -8,6 +8,7 @@ import type { FactoryState, Payload, RouteState, SideState, Target } from "../ba
 import { FUSE_MULT, type SimCtx } from "./foundry";
 import { RACE_AMMO } from "./data";
 import { pct } from "../pct"; // NUM-1 (REQ-BFG-047)
+import { flatOf } from "../scale"; // SCALE-2a (REQ-BFG-110): the flat bonus's sum (stat rows + FOR EACH)
 
 export const DRAG_MULT = 0.25; // a dragged segment runs at x0.25 of its speed state
 export const DRAG_TIME = 3.0; // s; a re-hit refreshes it, never stacks
@@ -147,6 +148,10 @@ export interface EchoMemory {
   burn: number;
   shock: boolean;
   fray: number;
+  // SCALE-2b (REQ-BFG-110; REPORT-SCALE2a F2, cap's call in REVIEW-SCALE2a): the struck slug's FOR EACH DMG (Payload.each,
+  // set only while SCALE_RIGS is on), kept apart from its stat DMG (`flat`) so the ECHO leech hands it on as FOR EACH DMG
+  // and a SIPHON deck's DRAKE NOZZLE never converts it. Absent when the slug held none (always, with the switch off)
+  each?: number;
 }
 
 export interface EchoState {
@@ -162,24 +167,36 @@ export function newEchoState(): EchoState {
 /** The flat damage a payload gained from processing. An alloy slug keeps its fused base in flat. */
 export function addedFlat(p: Payload): number {
   const fused = p.ammo === "alloy" ? pct(2 * RACE_AMMO.blank.base, 100 * FUSE_MULT) : 0; // NUM-1: as foundry.ts fuse rounds it
-  return Math.max(0, p.flat - fused);
+  return Math.max(0, flatOf(p) - fused); // SCALE-2a: the sum (flatOf)
 }
 
-/** Echo memory of payload `p` (overwrites the last one; never consumed). */
+/** Echo memory of payload `p` (overwrites the last one; never consumed). POISON is not echoed (SCALE-2b, 1E: BURN, SHOCK
+ *  and FRAY only). SCALE-2b (REQ-BFG-110, F2): a slug holding FOR EACH DMG (`each`, SCALE_RIGS on) is remembered in two
+ *  parts under the one ECHO_CAP.flat: its stat DMG first (`flat`: the added flat less an alloy's fused base), then its FOR
+ *  EACH DMG filling the rest of the cap (`each`). A slug without it (every slug, with the switch off) is remembered as
+ *  before: `flat` the whole added flat, no `each`. */
 export function echoOf(p: Payload, carriesFray: boolean): EchoMemory {
-  return {
+  const mem: EchoMemory = {
     flat: Math.min(ECHO_CAP.flat, addedFlat(p)),
     burn: Math.min(ECHO_CAP.burn, p.burn),
     shock: p.shock,
     fray: AMMO[p.ammo].fray > 0 || carriesFray ? ECHO_CAP.fray : 0,
   };
+  if (p.each) {
+    mem.flat = Math.min(ECHO_CAP.flat, addedFlat({ ...p, each: undefined })); // the stat part first
+    mem.each = Math.min(ECHO_CAP.flat - mem.flat, p.each); // the FOR EACH part fills the rest of the cap
+  }
+  return mem;
 }
 
-/** An ECHO leech loading into the chamber copies the memory: flat x its split mult, full statuses. */
+/** An ECHO leech loading into the chamber copies the memory: flat x its split mult, full statuses. SCALE-2b (F2): the
+ *  memory's FOR EACH part goes to the leech's FOR EACH accumulator (`p.each`, x its split share), its stat part to `p.flat`,
+ *  so DRAKE NOZZLE converts the stat part only. */
 export function echoOnLoad(st: EchoState, p: Payload): void {
   if (p.ammo !== "leechEcho" || !st.mem) return;
   const m = st.mem;
   p.flat += pct(m.flat, 100 * p.mult); // NUM-1: x its split share, rounded half up once
+  if (m.each) p.each = (p.each ?? 0) + pct(m.each, 100 * p.mult); // SCALE-2b (F2): set only while SCALE_RIGS is on
   p.burn += m.burn;
   p.shock = p.shock || m.shock;
   if (m.fray > 0) st.fray.add(p);

@@ -16,6 +16,7 @@ import { newRun, type Run } from "../src/game/run";
 import { buyableModules, ITEMS } from "../src/sim/content";
 import { key as K, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
 import { fusible } from "../src/sim/stars";
+import { SCALE_IDS, SCALE_RIGS } from "../src/sim/scale"; // BUMP-1E: the seven new rigs' panels join the sweep
 import { RUNE_LIST } from "../src/sim/runes";
 import { UI, type Rect } from "../src/ui/ui";
 import { TAP_CSS } from "../src/ui/tap";
@@ -184,7 +185,11 @@ describe("SPACE-1: clear space between the descriptions on cards and panels (REQ
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable modules, 13 panels each (an offer, and at each
     // star a cargo panel and 3 placed ones): 899 + 39 = 938; GANTRY PRESS's and ASSEMBLY LINE's 7 each are reshaped, not added
     // BUMP-1D: the six plain stat rigs and the six more shaped rigs join the buyable modules, 13 panels each: 938 + 12 x 13 = 1094
-    expect(all.length).toBe(1094);
+    // BUMP-1E: the scaling rules ship on (bb-0.12.0) and the seven new rigs (SCALE_IDS: CINDER MAIL, ROT GAUGE, LEECH COIL, CROWD PRESS, AEGIS SPIKE, GRUDGE ROD,
+    // TROPHY CHAIN) join the buyable modules, 13 panels each: 1094 + 7 x 13 = 1185 (the five reworks are the same ids, so nothing else grew)
+    expect(SCALE_RIGS).toBe(true);
+    expect(all.length).toBe(1094 + SCALE_IDS.length * 13); // BUMP-1E: was 1094 (1185)
+    expect(all.length).toBe(1185);
     expect([GAP["5"], GAP["3"], GAP_MIN["5"], GAP_MIN["3"]]).toEqual([5, 4, 3, 2]);
     expect(GAP_MIN["5"]).toBe(Math.ceil(GAP["5"] / 2));
     expect(GAP_MIN["3"]).toBe(Math.ceil(GAP["3"] / 2));
@@ -207,7 +212,7 @@ describe("SPACE-1: clear space between the descriptions on cards and panels (REQ
     }
     console.log(`SPACE-1 (a) phoneBand90's widths: ${n} plans, ${diffs.length} differ`);
     expect(diffs.slice(0, 10)).toEqual([]);
-    expect(n).toBeGreaterThan(1094 * WIDTHS.length * 2); // BUMP-1D: the sweep's 1094 panels (was 899, a stale count: the sweep held 938)
+    expect(n).toBeGreaterThan(1185 * WIDTHS.length * 2); // BUMP-1E: the sweep's 1185 panels (was 1094, the seven new rigs' 91); BUMP-1D: the sweep's 1094 panels (was 899, a stale count: the sweep held 938)
   }, 600_000);
 
   it("(a) content first on the pinned views, with a rune and without: the band (or column) and the panel's real place (D4), the gaps off and on", () => {

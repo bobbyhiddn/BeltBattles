@@ -11,6 +11,7 @@ import {
 } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
 import { pct, roundHalfUp } from "../src/sim/pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline's one rounding
+import { flatOf } from "../src/sim/scale"; // BUMP-1E: a slug's whole flat bonus (the stat rows' flat plus the FOR EACH each)
 
 // Deck-local directions: 0 forward (toward the enemy, -y), 1 = +x, 2 back (+y), 3 = -x.
 const RIGS = Object.values(ITEMS).filter((d) => d.kind === "gate");
@@ -180,7 +181,10 @@ describe("R5, R8: hits", () => {
     // LONG HAUL: 3 prior hits. NUM-1: the slug's damage rounds half up once, so exact (was toBeCloseTo of the unrounded sum)
     expect(e.dmg).toBe(roundHalfUp(ammo.base + ammo.rideScale * e.ride + effectAt("longhaul", 1).gate!.perPriorGate! * 3));
     const p = payloadPast(b, 8);
-    expect([p.prior, p.flat]).toEqual([4, effectAt("longhaul", 1).gate!.perPriorGate! * 3]);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where LONG HAUL's FOR EACH add (its perPriorGate a prior hit) rides the slug's own `each`
+    // accumulator (battle.ts forEach, REQ-BFG-110 step 4) and p.flat stays the stat rows' alone (0 here), so the DMG the hits add is the sum the shot reads,
+    // flatOf(p): the same number as before (was p.flat; off, `each` is never set)
+    expect([p.prior, flatOf(p)]).toEqual([4, effectAt("longhaul", 1).gate!.perPriorGate! * 3]); // BUMP-1E: was [p.prior, p.flat]
   });
 });
 
@@ -192,7 +196,9 @@ describe("R7: several hits on one tile", () => {
     const plain = estimateRoute(furnace(), 0);
     // NUM-1: the WHETSTONE's flat x10 (was 2); whole numbers, so the estimate's difference is exact (was toBeCloseTo)
     expect(estimateRoute(b, 0).dmg - plain.dmg).toBe(effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
-    expect(payloadPast(b, 2).flat).toBe(effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
+    // BUMP-1E: the WHETSTONE's flat is a stat row (p.flat) and LONG HAUL's prior-hit add a FOR EACH (p.each) while the scaling rules ship on, so the sum is
+    // flatOf(p) (was payloadPast(b, 2).flat: the same number off)
+    expect(flatOf(payloadPast(b, 2))).toBe(effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 1).gate!.perPriorGate! * 1); // BUMP-1E: was .flat
   });
 
   it("a SPLITTER scales the flat bonus gained earlier on its own tile", () => {

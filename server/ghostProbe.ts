@@ -46,6 +46,12 @@
 //                       most wins a run ghost carries: a dusk before the 10th win), with its seed and `losses` 0   -> 201 and its ghost id
 //   longrun-nolosses    the same deck and record without `losses`, which RUN-1's upload check refuses              -> 422, lossesProblem's error
 // Under rules before LONG_RUN_RULES (or with the switch off) the plan would be exactly the thirteen rows above, without `losses`.
+// BUMP-1E (REQ-BFG-098; the scaling release's bump to bb-0.12.0): one more row, under PROBE_RULES with the twelve scaling pieces (the rules
+// gate scaleWorld: PROBE_RULES at or after SCALE_RULES, with SCALE_RIGS on as the build ships):
+//   scale-signed        FURNACE's day-1 deck of the first row plus one GRUDGE ROD (one of the seven new ids) on cell 5,3 beside its belt,
+//                       dusk 1 at no win and the start's lives, `losses` 0                                           -> 201 and its ghost id
+// A server of an older build refuses the id as an unknown item, so the 201 proves the live server is the build with the twelve.
+// Under rules before SCALE_RULES (or with the switch off) the plan would be exactly the fifteen rows above.
 // PROFILE-UP (REQ-BFG-074 clause 4, backlog #371): `--profile` (opt-in; anywhere among the arguments) adds two PUT /v1/profile rows
 // after the POSTs, from the same fresh identity, and nothing else changes without the flag:
 //   profile-signed      a minimal profile (1 run, 1 dusk win, best day 2, FURNACE won; no unlocks), signed in the profile
@@ -54,15 +60,15 @@
 // The profile rows store one record, profiles/<probe player id>.json on Tigris (<data>/profiles/<id>.json on jsonl), which
 // ghost-admin's remove-player does not know: delete that object by hand after a --profile probe. The deck count below counts
 // decks only.
-// Exactly seven decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
-// FURNACE's LAST CHANCE deck, WEAVER's NPC-day deck and FURNACE's day-12 deck (BUMP-1D; six under rules without the long run,
-// five without the NPC day, four without LAST CHANCE).
+// Exactly eight decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
+// FURNACE's LAST CHANCE deck, WEAVER's NPC-day deck, FURNACE's day-12 deck (BUMP-1D) and FURNACE's GRUDGE ROD deck (BUMP-1E; seven
+// under rules without the scaling pieces, six without the long run, five without the NPC day, four without LAST CHANCE).
 // Built by `npm run build:server` beside ghost-admin.mjs:  node server/dist/ghost-probe.mjs <base-url> <id-file>
 // It writes the probe's player id to <id-file> before the first POST, so the clean-up (ghost-admin.mjs remove-player)
 // always has it, and it refuses an <id-file> that already holds an id (that earlier probe's player is not cleaned up yet).
 // It prints one line per check (PASS or FAIL, name, expected, got), then the player id, then a summary with the number of
 // decks the server stored for this player. Exit 0 only if every check matched; 1 if a check failed or got no answer; 2
-// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is PROBE_RULES (bb-0.11.0; BUMP-1D: was bb-0.10.0). There is no secret
+// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is PROBE_RULES (bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was bb-0.10.0). There is no secret
 // to print: the key is non-extractable, and neither the public key nor a signature is printed. No network but the base
 // URL. Its expectations are written out here, not read from the code under test (the rules gate, the record model).
 
@@ -83,11 +89,13 @@ import { HEARTS_START, heartsDusk, heartsLastChanceFires } from "../src/sim/hear
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 // BUMP-1D (RUN-1; REQ-BFG-059, REQ-BFG-116): the long run's rows and every row's `losses`, through the rules gate
 import { longRunFor } from "../src/net/rulesGate";
+// BUMP-1E (REQ-BFG-098): the scaling release's row: a deck holding one of the seven new pieces, under rules that have them
+import { scaleWorld } from "../src/net/rulesGate";
 
 /** The rules this probe's expectations are written for: the hull release's (bb-0.10.0, AZ-BUMP's bump, with the NPC day's
  *  two rows; release Z's bb-0.9.7 with LAST CHANCE's two rows, release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's
  *  bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6, BELTS's bb-0.8.3 and 0.8.0's bb-0.8.0 before, the same heroes). */
-export const PROBE_RULES = "bb-0.11.0"; // BUMP-1D (REQ-BFG-059, REQ-BFG-116): the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+export const PROBE_RULES = "bb-0.12.0"; // BUMP-1E (REQ-BFG-098): the scaling release (was bb-0.11.0); BUMP-1D (REQ-BFG-059, REQ-BFG-116): the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
 /** FLIP-X2 (cap's ruling 5d6d83ef57d1494c): under bb-0.9.0 an upload holds exactly one rune a dawn (validateUpload's
  *  player mode). The probe's honest decks take theirs as the bots do (runes.ts botTakeRune at each dawn on this run seed:
  *  the grants on the build, every pick in its dawn's offer), and the snapshot carries the seed (v3), so the server
@@ -184,10 +192,22 @@ export const LONG_DUSK = { day: 12, wins: 9, lives: 5 } as const;
 /** RUN-1's answer to an upload under a long run's rules that does not state `losses` (records.ts lossesProblem, POST step 6,
  *  after the record check), written out. */
 export const LOSSES_ERROR = "losses: a long run's upload states the dusks the run lost (snapshot.losses is missing; day - 1 = wins + losses + draws needs it)";
+/** BUMP-1E (REQ-BFG-098; the scaling release, bb-0.12.0): the scale row's hero, dusk, piece and cell, written out. The honest day-1
+ *  FURNACE deck of the first row (its start deck and its day-1 rune, no dusk fought) plus ONE of the seven new pieces, GRUDGE ROD (a
+ *  common rig, 3 G, one cell), beside FURNACE's belt (the belt runs up column 4; cell 5,3 is free). A server of an older build refuses
+ *  the deck as an unknown item (validateBuild: `is unknown item "grudgerod"`); the build with the twelve stores it. So a 201 here
+ *  proves the live server knows the new ids (a coordinated client + server deploy: SCALE-2d). */
+export const SCALE_HERO: HeroId = "furnace";
+export const SCALE_DUSK = { day: 1, wins: 0, lives: 5 } as const;
+export const SCALE_PIECE = "grudgerod";
+export const SCALE_CELL = { x: 5, y: 3 } as const;
+/** BUMP-1E: does the probe's rules version have the twelve scaling pieces (the rules gate: PROBE_RULES at or after SCALE_RULES, with
+ *  the switch on, as the build ships)? Under older rules, or with the switch off, the new ids are unknown items: no scale row. */
+export const probeHasScale = (): boolean => scaleWorld(PROBE_RULES);
 /** The decks the probe stores when every check passes: PROBE_STORED, the honest LAST CHANCE deck under rules with it, the
- *  honest NPC-day deck under rules with the NPC day (AZ-BUMP), and the honest day-12 deck under rules with the long run
- *  (BUMP-1D). */
-export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0) + (probeHasLongRun() ? 1 : 0);
+ *  honest NPC-day deck under rules with the NPC day (AZ-BUMP), the honest day-12 deck under rules with the long run
+ *  (BUMP-1D), and the GRUDGE ROD deck under rules with the scaling pieces (BUMP-1E). */
+export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0) + (probeHasLongRun() ? 1 : 0) + (probeHasScale() ? 1 : 0);
 export const PROBE_TIMEOUT_MS = 15_000;
 export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file> [--profile]   (base url: http(s)://host[:port], no path; an id file that holds no id yet; --profile also PUTs a profile)"; // PROFILE-UP: the opt-in flag
 /** The server's answer to a POST without the signing headers (identity.ts uploadHeaderError). */
@@ -333,8 +353,18 @@ function longRunDusk(playerId: string, states: boolean, runId: string, now: numb
   return dusk(playerId, LONG_HERO, probeDusk({ ...LONG_DUSK, ...(states ? { losses: 0 } : {}) }), build, runId, now);
 }
 
+/** BUMP-1E (REQ-BFG-098): FURNACE's honest day-1 deck (probeRunes of its start deck: the kiln and the day-1 rune) plus one GRUDGE ROD
+ *  at SCALE_CELL, uploaded at SCALE_DUSK with its `losses` (0: `stated`). Only under rules with the scaling pieces (the decoder's
+ *  strict shape check needs the def in ITEMS; validateUpload refuses the id under older rules or with the switch off). */
+function scaleDusk(playerId: string, runId: string, now: number): GhostSnapshot {
+  const build = probeRunes(heroStartBuild(SCALE_HERO), SCALE_DUSK.day);
+  build.items.push({ uid: Math.max(0, ...build.items.map((p) => p.uid)) + 1, def: SCALE_PIECE, x: SCALE_CELL.x, y: SCALE_CELL.y });
+  return dusk(playerId, SCALE_HERO, probeDusk({ ...SCALE_DUSK, losses: stated(0) }), build, runId, now);
+}
+
 /** The nine POSTs, in order, for `playerId` at time `now` (eleven with LAST CHANCE; thirteen with the NPC day too, as
- *  bb-0.10.0 has both; fifteen with the long run, as bb-0.11.0 has, BUMP-1D). Pure: no key, no network. */
+ *  bb-0.10.0 has both; fifteen with the long run, as bb-0.11.0 has, BUMP-1D; sixteen with the scaling pieces, as bb-0.12.0 has,
+ *  BUMP-1E). Pure: no key, no network. */
 export function probePlan(playerId: string, now: number): PlannedPost[] {
   const run = `probe-${now}`;
   const plan: PlannedPost[] = [];
@@ -407,6 +437,13 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
     plan.push({ name: "longrun-signed", snapshot: lr, text: encodeSnapshot(lr), signed: true, expected: `201 {"id":"${lrid}"}`, pass: (a) => a.status === 201 && a.id === lrid });
     const bare = longRunDusk(playerId, false, `${run}-longrun-nolosses`, now);
     plan.push({ name: "longrun-nolosses", snapshot: bare, text: encodeSnapshot(bare), signed: true, expected: `422 ${LOSSES_ERROR}`, pass: (a) => a.status === 422 && a.error === LOSSES_ERROR });
+  }
+  // 16. BUMP-1E (REQ-BFG-098; SCALE-2d): the scaling release's row, under rules with the twelve (the rules gate scaleWorld): the
+  // honest day-1 FURNACE deck plus one GRUDGE ROD, signed, 201. A server of an older build answers 422 (unknown item "grudgerod").
+  if (probeHasScale()) {
+    const sc = scaleDusk(playerId, `${run}-scale`, now);
+    const scid = ghostId(sc);
+    plan.push({ name: "scale-signed", snapshot: sc, text: encodeSnapshot(sc), signed: true, expected: `201 {"id":"${scid}"}`, pass: (a) => a.status === 201 && a.id === scid });
   }
   return plan;
 }

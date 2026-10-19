@@ -413,3 +413,72 @@ export const LONG_RUN_RULES: string = "bb-0.11.0";
 export function longRunFor(rules: unknown): boolean {
   return longRunRules() && rulesAtLeast(rules, LONG_RUN_RULES);
 }
+
+// ---- SCALE-2d (REQ-BFG-098 098.6, REQ-BFG-106; BRIEF-SCALE2d D5): the scaling release's gate, SHAPES-1's form (shapesGate
+// above), at the end of the file (a small merge surface). The seven new scaling rigs travel only with SCALE_RIGS on and under
+// rules that have them; with the switch off they are not in ITEMS, so validateBuild refuses each as an unknown item, as at
+// the base (this gate says nothing then: off, every verdict and its words are the base's).
+import { START_LIVES } from "../sim/content"; // SCALE-2d: old records' start lives (BUMP-1E: SCALE_RULES is a literal now, so RULES_VERSION is not read here)
+import { SCALE_ITEMS, isScalePiece, scaleRules } from "../sim/scale"; // SCALE-2d: the switch and the seven new ids
+
+/** SCALE-2d: the first rules version with the 12 scaling pieces. It read RULES_VERSION until the bump that turned
+ *  SCALE_RIGS on; BUMP-1E wrote that version here as a literal (RETUNE-1's rows' form, as HULL-ON wrote HEARTS_RULES), so
+ *  from now on a record under older rules keeps the base's pieces whatever the switch. */
+export const SCALE_RULES: string = "bb-0.12.0"; // BUMP-1E wrote 1E's RULES_VERSION here (it read RULES_VERSION: bb-0.11.0 in the 0.9.11 world)
+
+/** SCALE-2d: the new scaling rigs a build carries, by name (items whose def is one of scale.ts SCALE_IDS). Reads a raw
+ *  (undecoded) build safely, like shapesFeatures. */
+export function scaleFeatures(build: unknown): string[] {
+  if (typeof build !== "object" || build === null) return [];
+  const items = (build as { items?: unknown }).items;
+  if (!Array.isArray(items)) return [];
+  const names = new Set<string>();
+  for (const p of items) {
+    const d = typeof p === "object" && p !== null ? (p as Record<string, unknown>).def : undefined;
+    if (typeof d === "string" && isScalePiece(d)) names.add(SCALE_ITEMS[d].name);
+  }
+  return names.size ? [`scaling rigs (${[...names].join(", ")})`] : [];
+}
+
+/** SCALE-2d: why a build under `rules` can't carry the new scaling rigs, or null: none held; the switch off (null: they are
+ *  unknown items then, validateBuild's own words, as at the base); or rules before SCALE_RULES (the reason names both). */
+export function scaleGateProblem(rules: unknown, build: unknown): string | null {
+  if (!scaleRules()) return null;
+  const f = scaleFeatures(build);
+  if (!f.length || rulesAtLeast(rules, SCALE_RULES)) return null;
+  const what = `${f.join(" and ")} need ${SCALE_RULES} or later`;
+  return parseRules(rules) ? `rules ${String(rules)} predate ${SCALE_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+}
+
+/** SCALE-2d: does a deck under `rules` play the scaling pieces? The switch on and rules at or after SCALE_RULES; otherwise
+ *  it is judged with the switch off (validate.ts inScaleWorld). */
+export function scaleWorld(rules: unknown): boolean {
+  return scaleRules() && rulesAtLeast(rules, SCALE_RULES);
+}
+
+/** SCALE-2d (REQ-BFG-106: GRUDGE ROD reads it): the most hearts lost a count under `rules` may carry into a fight: the run's
+ *  start hearts less one (a run at 0 is over), HEARTS_START under rules with hearts, START_LIVES under older ones, and never
+ *  past what livesCapFor(rules, cap) lets a snapshot state (cap: the contract's MAX_LIVES, 9). */
+export function heartsLostCapFor(rules: unknown, cap: number): number {
+  return Math.min(livesCapFor(rules, cap), heartsFor(rules) ? HEARTS_START : START_LIVES) - 1;
+}
+
+// ---- ENDLESS-1 (REQ-BFG-059, its second step): endless after a won run, on its own lines (a small merge surface, like the long
+// run's row above). Not a RULES_ROWS row: it refuses no build feature; it says which run a snapshot, a record or a match
+// request belongs to (a run, or an endless after a won run), so the snapshot's endless fields (snapshot.ts), the record model
+// (records.ts), the day bounds (snapshot.ts endlessMaxDay), the storage (server/tigrisStore.ts) and the match request read it by
+// its own rules.
+import { endlessRules } from "../sim/endless"; // ENDLESS-1: the ENDLESS switch (src/sim/endless.ts)
+
+/** ENDLESS-1: the first rules version with endless after a won run: ENDLESS' row. It READ RULES_VERSION until the release bump that
+ *  turned ENDLESS on wrote that version here as a literal (as LONG_RUN_RULES did before BUMP-1D wrote "bb-0.11.0", and SCALE_RULES
+ *  before it): BUMP-1E (RULING-BUMP1E-R3 R3.5) wrote "bb-0.12.0" (it read RULES_VERSION, bb-0.12.0 there; RULES_VERSION is no
+ *  longer imported here); from now on every older record keeps the run that ends at its win, whatever the switch. */
+export const ENDLESS_RULES: string = "bb-0.12.0";
+
+/** Does endless hold for a record, snapshot or match request under `rules`? The switch on AND `rules` a readable version at or
+ *  after ENDLESS_RULES. False with the switch off, whatever the rules (every record then reads the run that ends at its win,
+ *  as today). A record or a request asks this, never the switch alone. */
+export function endlessFor(rules: unknown): boolean {
+  return endlessRules() && rulesAtLeast(rules, ENDLESS_RULES);
+}

@@ -21,6 +21,7 @@
 import { drawText, keywordColour, stripIcons, textWidth, type FontId } from "../render/font";
 import type { G } from "../render/pixel";
 import { C } from "../render/palette";
+import { onSetScaleRigs } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): POISON's colour words, SCALE_RIGS on only
 
 /** A run of text in one colour. `whole`: never split across lines (a perk name). */
 export interface Span {
@@ -54,6 +55,20 @@ const WORD_KEYWORDS: Record<string, string> = {
   SHOCK: KEYWORD_COLOUR.shock, SHOCKED: KEYWORD_COLOUR.shock, SHOCKS: KEYWORD_COLOUR.shock,
   FASTER: KEYWORD_COLOUR.faster, SLOWER: KEYWORD_COLOUR.slower,
 };
+// SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 3): POISON's battle colour, wired where BURN's is: KEYWORD_COLOUR.poison and
+// its word forms here (the "{*POISON}" keyword itself takes ICON_COLOUR's venom through font.ts keywordColour), only while
+// SCALE_RIGS is on; off, both tables are exactly the base's (Y7b2 dropped `poison` with POISON: tests/abilityText.test.ts
+// and flipx2.text.test.ts pin them). The switch's hook (sim/scale.ts onSetScaleRigs).
+const POISON_FORMS = ["POISON", "POISONS", "POISONED"];
+onSetScaleRigs((on) => {
+  const kc = KEYWORD_COLOUR as Record<string, string>;
+  if (on) kc.poison = C.venom;
+  else delete kc.poison;
+  for (const w of POISON_FORMS) {
+    if (on) WORD_KEYWORDS[w] = C.venom;
+    else delete WORD_KEYWORDS[w];
+  }
+});
 /** Speed phrases, longest first: "HALF SPEED" is slower; "TWICE AS FAST" and "3 TIMES AS FAST" are faster (the number
  *  keeps its own colour). */
 const PHRASES: [string[], string][] = [

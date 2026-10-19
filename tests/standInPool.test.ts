@@ -34,7 +34,7 @@ describe("the stand-in pool v1.1 (the reference field and the async fallback)", 
     // BUMP-1D: was toBe(RUN_DAYS) (10): the pool is regenerated to days 1-16 (STAND_IN_GEN_DAYS), the long run's generator depth
     expect(STAND_IN_POOL_DAYS).toBe(STAND_IN_GEN_DAYS);
     expect(STAND_IN_POOL_DAYS).toBe(16);
-    expect(STAND_IN_DATA.rules).toBe("bb-0.11.0");
+    expect(STAND_IN_DATA.rules).toBe("bb-0.12.0"); // BUMP-1E: the bump (was bb-0.11.0).
     for (const hero of STAND_IN_POOL_HEROES) expect(STAND_IN_DATA.pools[hero]!, hero).toHaveLength(STAND_IN_POOL_DAYS);
   });
 

@@ -1,6 +1,7 @@
 // beltside-062c (ref/BRIEF-beltside-merge-061c.md, "New tests"): how 0.6.1c's factories and road items meet rigs
 // (ref/DESIGN-beltside.md §12, P7-P10; P11 is in tests/inspectorLines.test.ts), and MERGE-061's day-1 shop probe.
 // Every expected number is written out from the catalogue (content.ts), never recomputed with the code under test.
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { Battle } from "../src/sim/battle";
@@ -26,6 +27,7 @@ import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADD
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the 062b history check runs with shapes off (in062b)
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and with the six more shaped rigs off (in062b)
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: and with the six plain stat rigs off (in062b)
+import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: and with the seven scaling rigs and the five reworks off (in062b)
 
 const J = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const st = (s: number) => (s > 1 ? { stars: s } : {});
@@ -367,11 +369,15 @@ function refuse062b(say: (msg: string) => void = console.warn): boolean {
 // BUMP-1D (PLAIN_RIGS and SHAPES2 ship on): and with both off (withPlainRigs, withShapes2 false): the six plain stat rigs and the six
 // more shaped rigs are no part of 0.6.2b's catalogue either (the commons among them would join SALVAGE's and the SMUGGLER's pools:
 // 96 of the 108 draws moved with them on, where the capture pins 24, the trader's)
+// BUMP-1E (SCALE_RIGS ships on): and with the scaling switch off (withScaleRigs(fn, false)): the seven scaling rigs (CROWD PRESS and GRUDGE ROD are commons: they join
+// SALVAGE) and the five reworks (QUENCH TANK is KINDLING) are no part of 0.6.2b's catalogue either (measured: 35 of the 36 wreck draws moved with the switch on, where
+// the capture pins none; the trader's 24 are the history it pins). The scaling switch is the OUTERMOST of the nest (it goes off first and comes back last), so the
+// seven stay the last keys of ITEMS: ITEMS' key order is part of every seeded draw (the key-order hazard; tests/net-upload.test.ts catalogueOff's form)
 function in062b<T>(fn: () => T): T {
   const dormant = DORMANT_ITEMS as Set<string>, was = [...dormant];
   dormant.delete("sifter");
   try {
-    return withPlainRigs(() => withShapes2(() => withShapes(() => withSustain(() => withWave3(fn, false), false), false), false), false);
+    return withScaleRigs(() => withPlainRigs(() => withShapes2(() => withShapes(() => withSustain(() => withWave3(fn, false), false), false), false), false), false);
   } finally {
     dormant.clear();
     for (const id of was) dormant.add(id);
@@ -430,7 +436,12 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
   // 0.8.0 I1 M3: the live road draws (wave 3 in the pools, the per-run draw in every run), regenerated once with
   // BB_WRITE_ROAD_DRAWS_080=1 npx vitest run tests/beltside.merge061c.test.ts (its own switch; BB_WRITE_ROAD_DRAWS no
   // longer writes 062b, arsenal-062b's snapshot that the history check above compares against: 0.8.0 T1)
+  // BUMP-1E (SCALE_RIGS ships on, bb-0.12.0): the regenerated fixture is the 0.9.11 world's (bb-0.11.0's, the scaling rules off): with the scaling switch off the live draws equal it
+  // exactly (0 of the 108 choices, the 3 salvage rows, the smuggler row and the 91 swaps differ), so this test reads that world under withScaleRigs(fn, false) (synchronous) and the
+  // shipped world, where the draws move, has its own pins in the next test. The fixture file is as it was
   it("0.8.0: the live road draws (wave 3's commons in SALVAGE, the per-run draw) are the regenerated fixture's", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (the fixture is the world before it)
+    withScaleRigs(() => { // BUMP-1E: was bare
     const live = roadDraws();
     const path = new URL("./fixtures/beltside-062c/roadDraws-080.json", import.meta.url);
     if (process.env.BB_WRITE_ROAD_DRAWS_080) writeFileSync(path, JSON.stringify({ source: "v080-wave3", ...live }, null, 2) + "\n");
@@ -462,6 +473,41 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     ]);
     // the per-run draw moved the event draws themselves (the run's wares), not only the pools
     expect(roadDraws(true).choices).not.toEqual(live.choices);
+    }, false); // BUMP-1E: the 0.9.11 world (the scaling switch off, back on after)
+  });
+
+  // BUMP-1E (SCALE_RIGS ships on, bb-0.12.0): the shipped world's live draws against the 0.9.11 fixture: 95 of the 108 choices move (wreck 35, smuggler 36, trader 24), the 3 salvage rows,
+  // the smuggler row and all 98 swaps (98 goods now, was 91: the seven scaling rigs are goods too). The cause is the pools: CROWD PRESS and GRUDGE ROD (the commons among the seven)
+  // join SALVAGE after the older ones (the seven are the last keys of ITEMS), QUENCH TANK is KINDLING, which burns nothing, so it leaves the SMUGGLER's BURN pool, and the SHOCK pool is
+  // the same three. The whole set is pinned by its digest (the first 16 hex of the sha-256 of the draws as JSON), not by a second fixture. The file's world is the one after the 062b
+  // check's nest (PLAIN_RIGS outermost: its six are behind SHAPES-1's three and SHAPES2's six, where a fresh process has them first), as the fixture's was written; the seven are last either way
+  it("BUMP-1E: the live road draws with the scaling rules on (as shipped): the seven rigs join the pools, KINDLING leaves the BURN wares, 95 of the 108 choices move", () => {
+    expect(SCALE_RIGS).toBe(true);
+    in062b(() => undefined); // the file's world: the 062b nest leaves ITEMS in the same order whichever test ran before it, so this test reads the same draws when it runs alone
+    // (a string path: the tests' node shims do not take a URL, tests/tsc-tests-baseline.json)
+    const old = JSON.parse(readFileSync(decodeURIComponent(new URL("./fixtures/beltside-062c/roadDraws-080.json", import.meta.url).pathname), "utf8")) as RoadDraws & { source: string };
+    const live = roadDraws();
+    expect(Object.keys(live.choices)).toHaveLength(108);
+    const moved = Object.keys(live.choices).filter((k) => live.choices[k] !== old.choices[k]);
+    expect([moved.length, ...(["wreck", "smuggler", "trader"] as const).map((e) => moved.filter((k) => k.startsWith(`${e}|`)).length)]).toEqual([95, 35, 36, 24]);
+    expect(Object.keys(live.salvage).filter((k) => live.salvage[k] !== old.salvage[k])).toHaveLength(3);
+    expect(live.smuggler).not.toBe(old.smuggler);
+    // the swaps: the seven are goods too (98, was 91: exactly SCALE_IDS are new, none is gone), and every row moves with the pool of what a good may become
+    expect(Object.keys(live.swap)).toHaveLength(98);
+    expect(Object.keys(live.swap).filter((d) => !(d in old.swap)).sort()).toEqual([...SCALE_IDS].sort());
+    expect(Object.keys(old.swap).filter((d) => !(d in live.swap))).toEqual([]);
+    expect(Object.keys(live.swap).filter((d) => live.swap[d] !== old.swap[d])).toHaveLength(98);
+    // the pools: + CROWD PRESS and GRUDGE ROD in SALVAGE after the older ones (was the 17 before them); QUENCH TANK (KINDLING) leaves the BURN wares (was [..., "bellows", "quench", "embertrough", ...])
+    expect(salvagePool()).toEqual([
+      "temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer", "nailstrip", "embertrough",
+      "elbowguard", "sawbar", "sparkcomb", "rasp", "sparkgap", "scaleguard", "ballast", "crowdpress", "grudgerod",
+    ]);
+    expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([
+      ["temper", "bellows", "embertrough", "rasp"], ["coil", "staticbrush", "lodestone"],
+    ]);
+    // the per-run draw still moves the event draws themselves, and the whole set is the digest's
+    expect(roadDraws(true).choices).not.toEqual(live.choices);
+    expect(createHash("sha256").update(JSON.stringify(live)).digest("hex").slice(0, 16)).toBe("a20ec4386fd52951");
   });
 
   it("the cards say RIG: the wreck and the smuggler name rigs, and nothing on the three events says GATE", () => {

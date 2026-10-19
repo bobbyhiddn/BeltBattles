@@ -17,6 +17,7 @@ import { decodeSnapshot, encodeSnapshot, ghostId, MAX_LIVES, type GhostSnapshot,
 import { isReachable, reachableRecords } from "../src/net/records"; // HULL-ON (HEARTS): reachableRecords, the POST rows' count
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS; ruling 22e26ded338944ea Q3): the records' lives scale
 import { longRunRules, setLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on; RULING-BUMP-R3 R3.4 b): the D2 test's 10-day half (inWorld below)
+import { SCALE_RIGS } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the client's record check (SCALE-2d D5) is live in the D1 client test
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
@@ -115,10 +116,15 @@ describe("D2: isNewPlayer", () => {
 describe("D1 on the client: a served ghost with a better record is never fought", () => {
   it("fetchGhost falls back when a server (one without D1) answers with a better record", async () => {
     const seed = generateSamplePool().find((s) => s.day === 4)!;
-    const ahead: GhostSnapshot = { ...seed, wins: 3, lives: 5, playerId: "someone" };
+    // BUMP-1E: SCALE_RIGS ships on, and with it the client takes a served ghost only if its record is one a run carries into the dusk (SCALE-2d D5,
+    // ghostClient.ts problem: isReachable). The ghost's record is the hearts model's now: three wins and no loss reach dusk 4 with HEARTS_START hearts,
+    // where 3W 5 lives (the 5-lives scale) is no record any run carries there, so the equal-record request below fell back on that line, not on D1
+    // (was lives: 5 here and in the request, the expected error and the equal request below)
+    const ahead: GhostSnapshot = { ...seed, wins: 3, lives: HEARTS_START, playerId: "someone" };
+    let served: GhostSnapshot = ahead; // BUMP-1E: what the stub answers (ahead, then the old fixture's unreachable record)
     const srv = createServer((_q, s) => {
       s.setHeader("content-type", "application/json");
-      s.end(JSON.stringify({ id: ghostId(ahead), snapshot: ahead }));
+      s.end(JSON.stringify({ id: ghostId(served), snapshot: served }));
     });
     await new Promise<void>((r) => srv.listen(0, "127.0.0.1", () => r()));
     const a = srv.address();
@@ -127,8 +133,14 @@ describe("D1 on the client: a served ghost with a better record is never fought"
       const req: GhostRequest = { rules: RULES_VERSION, day: 4, wins: 2, lives: 5, playerId: "me", seen: [], hero: "weaver", seed: 4, runs: 3 };
       const f = await fetchGhost(url, req, 2000);
       expect(f.source).toBe("fallback");
-      expect(f.error).toBe("server returned a ghost with a better record (3W 5 lives)");
-      expect(await fetchGhost(url, { ...req, wins: 3, lives: 5 }, 2000)).toMatchObject({ source: "server", id: ghostId(ahead) });
+      expect(f.error).toBe(`server returned a ghost with a better record (3W ${HEARTS_START} lives)`); // BUMP-1E: was (3W 5 lives)
+      expect(await fetchGhost(url, { ...req, wins: 3, lives: HEARTS_START }, 2000)).toMatchObject({ source: "server", id: ghostId(ahead) }); // BUMP-1E: was wins 3, lives 5
+      // BUMP-1E: the old fixture's record, equal to the request's and not better, is refused all the same: the shipped client's record check (the switch ships on)
+      expect(SCALE_RIGS).toBe(true);
+      served = { ...ahead, lives: 5 };
+      const odd = await fetchGhost(url, { ...req, wins: 3, lives: 5 }, 2000);
+      expect(odd.source).toBe("fallback");
+      expect(odd.error).toBe("server returned a ghost whose record (3W 5 lives) no run carries into dusk 4");
     } finally {
       srv.closeAllConnections();
       await new Promise<void>((r) => srv.close(() => r()));

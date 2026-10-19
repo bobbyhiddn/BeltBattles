@@ -356,24 +356,32 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
     const plain = await post(snapOf(d, { rules: "bb-0.6.1", hero: "furnace", build: furnaceDeck() }));
     expect(plain.status).toBe(422);
     expect(plain.body.error).toBe(`rules bb-0.6.1 not accepted: this server validates ${RULES_VERSION}`);
-    expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.12.0") /* BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
   });
 
   it("fetchGhost fights a served ghost with turrets and joins; it falls back on an illegal one and on other rules", async () => {
     const d = HONEST_HERE[0];
     const [what, bad] = turretCases(d.build)[0];
+    // BUMP-1E: SCALE_RIGS ships on, and with it the client takes a served ghost only if its record is one a run carries into its dusk (SCALE-2d D5, ghostClient.ts
+    // problem: isReachable, checked before the deck): the stub's 0W 3 lives is no record any run carries into dusk 4 (the floor there is 0W 7, floorRecord), so
+    // every answer fell back on 'server returned a ghost whose record (0W 3 lives) no run carries into dusk 4' and never reached the checks under test.
+    // The served ghosts and the requests carry the record the POST half above uploads for the same deck (the floor's lives, or 3, and the losses that carry it:
+    // a ghost of this build states them): the same two lines as there. Was lives 3 (no losses) in the stub's ghosts and in the request
+    const lives = Math.max(3, floorRecord(d.day).lives);
+    const record = { lives, losses: lossesOf(d.day, 0, lives) };
     // the stub server answers by the request's wins: 0 the honest ghost, 1 an illegal turret, 2 another rules version
-    // (v070-rel: the older bb-0.6.1, now that RULES_VERSION is bb-0.6.2)
+    // (v070-rel: the older bb-0.6.1, now that RULES_VERSION is bb-0.6.2). BUMP-1E: the older-rules ghost keeps its own 5-lives record (lives 3, no losses: a bb-0.6.1
+    // ghost states neither a long run's losses nor hearts), refused first by the decoder's rules gate as before
     const srv = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
       const u = q.url ?? "";
-      const ghost = u.includes("wins=1") ? snapOf(d, { build: bad }) : u.includes("wins=2") ? snapOf(d, { rules: "bb-0.6.1" }) : snapOf(d);
+      const ghost = u.includes("wins=1") ? snapOf(d, { build: bad, ...record }) : u.includes("wins=2") ? snapOf(d, { rules: "bb-0.6.1" }) : snapOf(d, record);
       s.end(JSON.stringify({ id: "g062m", snapshot: ghost }));
     });
     await new Promise<void>((r) => srv.listen(0, "127.0.0.1", () => r()));
     const a = srv.address();
     const url = `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}`;
-    const req = (wins: number): GhostRequest => ({ rules: RULES_VERSION, day: d.day, wins, lives: 3, playerId: "me", seen: [], hero: "furnace", seed: 7 });
+    const req = (wins: number): GhostRequest => ({ rules: RULES_VERSION, day: d.day, wins, lives, playerId: "me", seen: [], hero: "furnace", seed: 7 });
     try {
       const ok = await fetchGhost(url, req(0), 2000);
       expect(ok).toMatchObject({ source: "server", id: "g062m" });

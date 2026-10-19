@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { ITEMS, rigShape } from "../src/sim/content";
 import { walkRoute, type Build } from "../src/sim/deck";
 import { overclocked } from "../src/sim/overclock";
+import { flatOf } from "../src/sim/scale"; // BUMP-1E: a slug's whole flat bonus (the stat rows' flat plus the FOR EACH each)
 import { effectAt } from "../src/sim/stars";
 import { abilityText, cardText, gist, hitText, nextStarText } from "../src/ui/abilityText"; // 0.6.2rel3: REQ-BFG-032's glossary
 import { wrap } from "../src/render/font";
@@ -42,7 +43,10 @@ describe("TUNE LONGHAUL: +1 / +2 / +3.5 damage per earlier hit (was +2 / +4 / +7
       // every payload past the LONG HAUL's tile carries the ★1 WHETSTONE's +20 (NUM-1: x10, was +2) and one earlier hit's worth
       const past = run(haul(s), 8).sides[0].routes[0].ammo.filter((a) => a.processed >= 2);
       expect(past.length, `★${s}`).toBeGreaterThan(0);
-      expect([...new Set(past.map((a) => a.p.flat))], `★${s} battle`).toEqual([effectAt("whetstone", 1).gate!.flat! + PER_HIT[i]]);
+      // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where a FOR EACH add (LONG HAUL's EACH earlier rig hit) rides the slug's
+      // own `each` accumulator (battle.ts forEach, REQ-BFG-110 step 4) and p.flat stays the stat rows' alone (the WHETSTONE's 20), so the
+      // slug's flat bonus is read through flatOf(p), the sum the shot reads: the same number; was `a.p.flat`
+      expect([...new Set(past.map((a) => flatOf(a.p)))], `★${s} battle`).toEqual([effectAt("whetstone", 1).gate!.flat! + PER_HIT[i]]); // BUMP-1E: was a.p.flat
     }
   });
 

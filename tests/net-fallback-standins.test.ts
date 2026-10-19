@@ -100,7 +100,11 @@ describe("fallback stand-ins", () => {
       expect(validateUpload(g.snapshot.build, 1, g.snapshot.rules, { ...(road ? { road } : {}) }).errors, `${hero}: the player mode with its road log`).toEqual([]);
       return [boughtCost(g.snapshot.build), npcDayRules() ? roadDropValue(road) : 0];
     });
-    expect(days1).toEqual([[11, 3], [11, 3]]); // S8c (the pools): the deck as bought, its drops: was 8 (and no drops) for both
+    // BUMP-1E: the stand-in pool regenerated under bb-0.12.0 (R1: every switch on, the seven scaling rigs in the shop; src/sim/standInPoolData.ts). Day 1, seed 3: a FURNACE
+    // requester's stand-in is still the WEAVER pick (loom, embertrough, sparkgap, plateroller: 11 as bought, its road's plateroller drop worth 3), and a WEAVER requester's is
+    // now the FURNACE pick of kiln, whetstone and temper (8 as bought, a road with no drop), where it held a deck of 11 with 3 of drops. The shop's part is the full
+    // purse, 8 of 8, in both (11 - 3, 8 - 0: the loop below); the strict and player-mode checks above pass for both
+    expect(days1).toEqual([[11, 3], [8, 0]]); // BUMP-1E: was [[11, 3], [11, 3]]. S8c (the pools): the deck as bought, its drops: was 8 (and no drops) for both
     for (const [value, drops] of days1) expect(value - drops, "the shop's part, the full purse").toBe(8);
   });
 

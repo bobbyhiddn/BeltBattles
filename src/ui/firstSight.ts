@@ -10,7 +10,27 @@
 //   LAST CHANCE). A face drawn anywhere else (a fight's VIEW BATTLEFIELD, the foe's carrier, a hero screen) never asks.
 
 import { completeSight, FIRST_SIGHT_WORDS, kwSight, RIG_SIGHT, sightDone } from "./tips";
+import { FIRST_SIGHT_IDS, type SightId } from "./tips"; // SCALE-2c M0 follow-up: POISON's first-sight hook below
+import { onSetScaleRigs } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): POISON's first sight, SCALE_RIGS on only (moved here by SCALE-2c)
 import { glossaryEntry } from "./glossary";
+
+/**
+ * SCALE-2b (REQ-BFG-108): POISON's first-sight note, "kw:POISON", after REGEN's, in tips.ts FIRST_SIGHT_WORDS and
+ * FIRST_SIGHT_IDS only while SCALE_RIGS is on (the switch's hook; tips.ts's comment says why). SCALE-2c M0 follow-up
+ * (REQ-BFG-107): moved here from tips.ts, unchanged, so tips.ts imports nothing (live-099's tests/card4.test.ts (n)); this
+ * file is the lists' one reader in src (isSightWord), and the hook runs at once with the switch's state when it registers.
+ */
+onSetScaleRigs((on) => {
+  const words = FIRST_SIGHT_WORDS as string[], ids = FIRST_SIGHT_IDS as SightId[], at = words.indexOf("POISON");
+  if (on === at >= 0) return;
+  if (on) {
+    words.splice(words.indexOf("REGEN") + 1, 0, "POISON");
+    ids.splice(ids.indexOf(kwSight("REGEN")) + 1, 0, kwSight("POISON"));
+  } else {
+    words.splice(at, 1);
+    ids.splice(ids.indexOf(kwSight("POISON")), 1);
+  }
+});
 
 /** The note a word belongs to: its glossary row's word (an alias reads as its row: STUNS is STUN's), else the word. */
 export const sightKey = (word: string): string => glossaryEntry(word)?.word ?? word;

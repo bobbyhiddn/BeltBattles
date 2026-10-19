@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { setHullScale } from "../src/sim/hullScale";
-import { setLadderFix } from "../src/sim/ladderFix";
+import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix";
 import { setNpcDay } from "../src/sim/npcDay";
 import { setShapes } from "../src/sim/shapes";
 import { encodeStarred } from "../src/sim/standInPool";
@@ -25,7 +25,8 @@ import {
   CASUAL_FLOOR_SEED, CASUAL_FLOOR_TRIES, FLOOR_PICKS, FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, SAMPLE_VARIANTS, floorGhosts, floorHash, generateSamplePool,
   raceDeck, raceGhosts, sampleGhosts, softPicked, type RaceDeck, // BUMP-1D: + FLOOR_PICKS, floorHash and the shipped pool's parts
 } from "../tools/samplePool";
-import { ITEMS, type HeroId } from "../src/sim/content"; // BUMP-1D: ITEMS (bb0100 puts its key order back)
+import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content"; // BUMP-1D: ITEMS (bb0100 puts its key order back); BUMP-1E: RULES_VERSION (the string the old pools' digests put back)
+import { SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (the bb-0.10.0 and bb-0.11.0 worlds are read with them off)
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip): the five switches, through their own with..()
 import { LONG_RUN_GEN_DAYS, withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN, PLAIN_RIGS and SHAPES2 ship on; the bb-0.10.0 world is read with them off
 import { withPlainRigs } from "../src/sim/plainRigs";
@@ -40,9 +41,29 @@ const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 // S8 (RULING-S8-R4 item 3; the cause: the pools): allOff keeps SHAPES ON. The one stand-in pool (S8's P1 83c039d) holds
 // SHAPES-1's shaped pieces, which a SHAPES-off world can't decode (standInPool.ts: `stand-in code: bad item ...`), so this
 // test's off world is the other eight switches off and SHAPES on (was setShapes(false) since SHAPES-1's flip step 8)
-const allOff = (): void => { setNpcDay(false); setHullScale(false); setLadderFix(false); setShapes(true); };
-const allOn = (): void => { setNpcDay(true); setHullScale(true); setLadderFix(true); setShapes(true); };
+// BUMP-1E (the scaling rules ship on: SCALE_RIGS, bb-0.12.0): ladderFix.ts swaps ITEMS.quench to its fixed or base def WHATEVER the scaling switch says (it knows nothing of scale.ts), so a
+// LADDER_FIX flip with the scaling rules on leaves the old QUENCH TANK where KINDLING stands (measured: setLadderFix(false) then (true) with the switch on: ITEMS.quench is QUENCH TANK
+// ★1 40 a BURN, scaleRules() true, until the scaling switch is flipped off and on again), and every deck the par player builds after it, the SOFT-1 and FLOOR picks' included, reads that
+// half-world ('SOFT-1: stale: the pick f2:891a3488 for furnace day 7 no longer matches its deck'). So a flip of the switches below is made with the scaling switch OFF, and the scaling
+// switch comes back last, writing KINDLING (the seven ids are the last keys in ITEMS, the same rule as the ITEMS key-order hazard)
+const scalingLast = (flip: () => void): void => {
+  const was = scaleRules();
+  setScaleRigs(false);
+  try { flip(); } finally { setScaleRigs(was); }
+};
+const allOff = (): void => scalingLast(() => { setNpcDay(false); setHullScale(false); setLadderFix(false); setShapes(true); });
+const allOn = (): void => scalingLast(() => { setNpcDay(true); setHullScale(true); setLadderFix(true); setShapes(true); });
 afterEach(allOff);
+/** BUMP-1E: `fn` in the world before the scaling rules (bb-0.11.0's and bb-0.10.0's catalogue: none of the seven, the five reworks as they were): the scaling switch OFF, the OUTERMOST call of any nest
+ *  (off first, back last), SYNCHRONOUS only. scale.ts's swap off writes QUENCH TANK as it held it when it first swapped, the ladder-FIXED def (★1 40 a BURN), so with LADDER_FIX off (the off worlds of
+ *  this file) the BASE def (★1 30) is written back by flipping the ladder switch to the other state and back, inside the call. Measured: without it the NPC_DAY-off pool of the shipped long run
+ *  (below) reads b3b7d344b87c..., with it 3a5f3e16491c... = BUMP-1D's pin exactly: QUENCH TANK's ★1 reaches the par player's decks */
+const scalingOff = <T>(fn: () => T): T => withScaleRigs(() => {
+  const lf = ladderFixRules();
+  setLadderFix(!lf);
+  setLadderFix(lf);
+  return fn();
+}, false);
 
 /** sha256 of JSON.stringify(generateSamplePool()) with every switch off at 283cfaf, the hull release's work tip before P2
  *  (LOSS-1 run 2, 05:17-05:20Z 2026-10-11: the same at 283cfaf and at P2's tip). The stand-in pool's regeneration (AZ-BUMP
@@ -67,18 +88,25 @@ afterEach(allOff);
 // digest above is the bb-0.10.0 world's, so it is read there (the 10-day run, PLAIN_RIGS and SHAPES2 off, the rules string put back to bb-0.10.0 as AZ-BUMP
 // S7L did for bb-0.9.7) under the name POOL_OFF_SHA256_BB0100; the shipped world's NPC_DAY-off pool (the long run, days 1-16, 96 race ghosts) has its own,
 // POOL_OFF_SHA256, measured at the tip it landed on (BUMP-1D run 3; the stand-in pool and the picks are not in it: it is raceGhosts() alone)
+// BUMP-1E (the bump to bb-0.12.0: the scaling rules ship on, the seven scaling rigs and the five reworks, every ghost says rules bb-0.12.0): the shipped world's digest above moved, so the old one is
+// read where it was measured, in the bb-0.11.0 world (the scaling rules off, the rules string put back to bb-0.11.0) under the name POOL_OFF_SHA256_BB0110, and holds exactly there (the test
+// after the shipped one: it is the proof that the scaling world and the rules string alone moved it); the shipped bb-0.12.0 world's NPC_DAY-off pool has its own, POOL_OFF_SHA256 below,
+// measured at the tip it landed on (BUMP-1E run 5; raceGhosts() alone: the stand-in pool and the picks are not in it)
 const POOL_OFF_SHA256_BB0100 = "e9accebca818eed8c3455328e1b52731a3cad4b2505272d6a526dd992494afca";
-const POOL_OFF_SHA256 = "3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6";
+const POOL_OFF_SHA256_BB0110 = "3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6"; // BUMP-1E: BUMP-1D's POOL_OFF_SHA256, read in the bb-0.11.0 world
+const POOL_OFF_SHA256 = "2bc4a2fdd1b148a9cab75e606934f42e4a1d958c35d8f1c86bbdbb9143cf560a"; // BUMP-1E: was 3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6 (the bb-0.11.0 world)
 /** BUMP-1D: `fn` in the bb-0.10.0 world: the 10-day run, without PLAIN_RIGS and SHAPES2 (each put back after it, even on a throw). */
 // Turning PLAIN_RIGS and SHAPES2 off and on again re-inserts their twelve pieces at the end of ITEMS (plainRigs.ts setPlainRigs, shapes2.ts setShapes2), in the
 // other order when SHAPES2 comes back first, and the shop's picks walk the catalogue in key order: a pool built after the toggle differs from one built before it
 // in the same process (found by this file: the shipped-world digest and the CHOSEN floor test's SOFT-1 picks went stale after the bb-0.10.0 test). So the
 // catalogue's key order is put back exactly as it was.
+// BUMP-1E (the scaling rules ship on): the bb-0.10.0 world has none of the seven scaling rigs and none of the five reworks, so the scaling switch is the OUTERMOST call of the nest
+// (off first, back last: the seven are the last keys in ITEMS, and its swap back writes KINDLING over any ladder flip's QUENCH TANK: see scalingLast)
 const bb0100 = <T>(fn: () => T): T => {
   const items = ITEMS as Record<string, (typeof ITEMS)[string]>;
   const order = Object.keys(items);
   try {
-    return withLongRun(() => withPlainRigs(() => withShapes2(fn, false), false), false);
+    return scalingOff(() => withLongRun(() => withPlainRigs(() => withShapes2(fn, false), false), false));
   } finally {
     const all = { ...items };
     for (const id of order) { delete items[id]; items[id] = all[id]; }
@@ -137,7 +165,8 @@ describe("LOSS-1 P2: the seed pool's floor ghosts carry the casual player's deck
     }
     expect(race.filter((s) => s.road !== undefined).map((s) => `${s.hero} d${s.day} ${s.playerId}`), "no ghost carries a road log").toEqual([]);
     // the digest goes last, so kit-s8/p2pin.sh's measure still prints it
-    expect(sha(JSON.stringify(race).replaceAll('"rules":"bb-0.11.0"', '"rules":"bb-0.10.0"'))).toBe(POOL_OFF_SHA256_BB0100);
+    // BUMP-1E: every ghost says this build's rules now (bb-0.12.0; was bb-0.11.0): put back to bb-0.10.0 the same way (was replaceAll('"rules":"bb-0.11.0"', ...))
+    expect(sha(JSON.stringify(race).replaceAll(`"rules":"${RULES_VERSION}"`, '"rules":"bb-0.10.0"'))).toBe(POOL_OFF_SHA256_BB0100);
   }, 900_000); // 68 s under LOSS-1's 1.5-CPU quota (the whole off pool, before RULING-S8-R6)
 
   it("NPC_DAY off in the shipped world (LONG_RUN, PLAIN_RIGS and SHAPES2 on; HULL_SCALE and LADDER_FIX off too): the race heroes' 96 over days 1-16, every floor deck from the par field, no road log, each stating its losses, and raceGhosts() is byte for byte the pinned off pool", () => {
@@ -155,7 +184,21 @@ describe("LOSS-1 P2: the seed pool's floor ghosts carry the casual player's deck
     }
     expect(race.filter((s) => s.road !== undefined).map((s) => `${s.hero} d${s.day} ${s.playerId}`), "no ghost carries a road log").toEqual([]);
     expect(race.filter((s) => s.losses === undefined).map((s) => `${s.hero} d${s.day} ${s.playerId}`), "every ghost states its losses").toEqual([]);
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped world has the scaling rules on (was false: the bb-0.11.0 world)
+    expect(scaleRules()).toBe(true);
+    // BUMP-1E: the shipped world's pool: the seven scaling rigs are in the catalogue the par player draws its shop from, the five reworks are reworked (KINDLING over QUENCH TANK) and every ghost
+    // says bb-0.12.0 (the regenerated catalogue draw; was 3a5f3e16...)
     expect(sha(JSON.stringify(race))).toBe(POOL_OFF_SHA256);
+  }, 900_000);
+
+  it("the same NPC_DAY-off pool in the bb-0.11.0 world (the scaling rules off, the rules string put back to bb-0.11.0): byte for byte the pin it was at bb-0.11.0", () => {
+    // BUMP-1E: the proof for the test above. Only the world moved its digest: with the scaling switch off (SYNCHRONOUS call; it comes back on after) and each ghost's rules string put back,
+    // raceGhosts() of the shipped long run (LONG_RUN, PLAIN_RIGS and SHAPES2 on; NPC_DAY, HULL_SCALE and LADDER_FIX off) is BUMP-1D's pin exactly
+    allOff();
+    const race = scalingOff(() => raceGhosts());
+    expect(race).toHaveLength(RACE_SEED_HEROES.length * RACE_VARIANTS * LONG_RUN_GEN_DAYS); // 96
+    expect(sha(JSON.stringify(race).replaceAll(`"rules":"${RULES_VERSION}"`, '"rules":"bb-0.11.0"'))).toBe(POOL_OFF_SHA256_BB0110);
+    expect(scaleRules()).toBe(true); // and the switch is back
   }, 900_000);
 
   it("NPC_DAY on, the bb-0.10.0 10-day pool (LONG_RUN off): every floor ghost is its hero's casual deck of its day from one casual run (the first qualifying seed), with its road log, floorRecord(day) and its old labels; distinct from variants 0 and 1; the pool passes checkPool", () => withLongRun(() => {

@@ -344,12 +344,16 @@ export const SOFT1_WORLD = "111111111111";
 
 /** SOFT-1: the rule's 128 picks (BUMP-1D: days 1-16, SOFT_TARGET 250; 80 picks, days 1-10, before) in SOFT1_WORLD, per hero, day 1-16: [variant 0, variant 1], each "s<i>" (the i-th entry of
  *  standInPool(hero, day)) or "f<seed>" (the par field's run of that field seed), ":" the hash of its deck's code (softHash).
- *  Read off the rule's pool by kit-soft1/s1-picks.ts (B/output-soft1/pool/C2bw/picks.json). */
+ *  Read off the rule's pool by kit-soft1/s1-picks.ts (B/output-soft1/pool/C2bw/picks.json).
+ *  BUMP-1E run 4 (R2): all 128 picks re-read on bb-0.12.0's content and stand-in pool (R1: src/sim/standInPoolData.ts, sha16 a1bda91718fec4fe): FURNACE
+ *  and WEAVER by tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 on the committed module (kit-1e/r2all.sh: 12 processes, six day ranges a hero,
+ *  4-6 minutes each); FOUNDRY and BASTION are the rows read in the dry world of the frozen content (they read no stand-in pool: foundry day 16 and
+ *  bastion day 10 re-read on the final module gave the same pair, kit-1e/r2cmpdry.mjs). */
 export const SOFT1_PICKS: Readonly<Record<string, readonly (readonly [string, string])[]>> = {
-  furnace: [["f12:e5579bac", "f9:2fb07b77"], ["f12:5ab7fcde", "f6:16f91b42"], ["f3:67bc91f5", "f12:f708965b"], ["f5:7d3be3fa", "f6:7abe762d"], ["f1:728ff2a9", "f12:a57cd337"], ["f5:4a9a1da3", "f1:a41a6887"], ["f1:3159871d", "f9:0561ca2a"], ["f5:e752579c", "f1:3e96860e"], ["f5:d9bacfc9", "f9:f5690cd7"], ["f1:d518b1cb", "f5:be052598"], ["f5:2994238b", "f8:07a745ed"], ["f5:dd678ed3", "f1:39ba63ba"], ["f4:50c2c679", "f5:c188a2b6"], ["f3:868052cb", "f5:81eff905"], ["f4:e363546d", "f5:e3dad8e5"], ["f5:589f39e8", "f7:ddec4c49"]],
-  weaver: [["f4:6dff316d", "f1:32eb8f55"], ["f4:f0e8d01c", "f9:a4226784"], ["f4:ca053388", "f7:50d4ff17"], ["f9:82c0dc49", "f11:226ba9d6"], ["f7:f5b39a6f", "f3:e6a495de"], ["f6:88314fda", "f7:510232fa"], ["f3:cc77cd50", "f6:1f4e64ff"], ["f11:bd28012c", "f3:187ffb93"], ["f11:74b57cc5", "f10:832e2b49"], ["f10:20649dd9", "f3:cda6c92c"], ["f3:935d56fc", "f7:320c8cd8"], ["f10:d9be3e1d", "f11:d3d5ba45"], ["f7:98f0541b", "f11:cf336c17"], ["f7:aac55ae9", "f11:1065685c"], ["f3:0848a2bd", "f7:7620682c"], ["f3:eda4c4ad", "f7:734b6194"]],
-  foundry: [["f10:76156a2a", "f11:1c69eec0"], ["f6:3c622f02", "f10:38724452"], ["f6:c4c00d79", "f7:08abeddb"], ["f4:45de60c6", "f9:1af59456"], ["f6:04d46af6", "f3:29a3252c"], ["f4:20080b2a", "f7:24b3ce32"], ["f11:71350ee4", "f4:f8219fa6"], ["f9:e558fee2", "f6:7c37704e"], ["f4:fda13c6b", "f6:6790ab28"], ["f5:da6c702c", "f7:3766cb6a"], ["f5:e29d2423", "f7:500890bf"], ["f7:f063f8b8", "f8:28b0a085"], ["f7:53c732ce", "f2:55e63724"], ["f7:0bbac778", "f11:2c3cb279"], ["f7:e4bd7bdb", "f4:deb77ced"], ["f2:80cba3c3", "f10:c1fe3351"]],
-  bastion: [["f12:06e0f599", "f4:5622b153"], ["f5:d35c74ee", "f10:83b7c7dd"], ["f12:854fe35a", "f4:d28ae986"], ["f7:8ea05f5a", "f6:0f45287b"], ["f7:103e984f", "f4:60b8b82a"], ["f6:3d558fdb", "f7:c4eccdfb"], ["f9:6f26b365", "f12:600842d5"], ["f6:3fb0a2e1", "f11:86446a10"], ["f7:63626781", "f4:5959422f"], ["f4:7d107d03", "f7:2604c2b4"], ["f12:c9f514e1", "f4:0326e91f"], ["f6:b9b01704", "f4:14db8dff"], ["f7:b0dfe85e", "f11:083d5d69"], ["f6:a9f8c2a1", "f4:b795ba32"], ["f6:eab37646", "f4:98aab3e3"], ["f6:a11a617c", "f2:2a3987da"]],
+  furnace: [["f9:2fb07b77", "f4:0158e8f0"], ["f1:34898db0", "f7:ba82a8f7"], ["f12:a07abd4a", "f3:217e657f"], ["f5:8a91b171", "f2:fcdd6d37"], ["f1:57f84a13", "f2:d5df4903"], ["f3:a7feb367", "f12:97e0fad7"], ["f2:891a3488", "f3:89890c08"], ["f2:9e78e7bf", "f6:2588b265"], ["f2:496c55fb", "f8:70ba7e88"], ["f2:64eae314", "f8:fa1e3066"], ["f2:dc43752b", "f4:1ce664c7"], ["f11:28ae28d6", "f2:2ebe07c2"], ["f6:91b5d745", "f7:58df7b02"], ["f2:7e375619", "f6:d4eafb62"], ["f2:db4701e6", "f6:31264caa"], ["f4:3eb1c920", "f6:620c5072"]],
+  weaver: [["f1:7c1a1232", "f7:3f2e2191"], ["f6:ba55c96e", "f4:2a2da484"], ["f3:1866f478", "f12:ba07e646"], ["f9:5e772872", "f10:fd7d1c09"], ["f3:c1f66307", "f9:f92f2243"], ["f3:8a13e5c6", "f9:0473576f"], ["f9:39771c2c", "f7:24df75e4"], ["f9:29a9bbab", "f12:172720e4"], ["f12:6ed2201d", "f10:1fd66073"], ["f12:483ed1fc", "f10:0d7928ae"], ["f10:6cfd2168", "f11:4f053df2"], ["f10:c680ea4e", "f9:8d60d5ec"], ["f10:e406b29e", "f11:d93149ce"], ["f10:74e2fd3e", "f11:1c7d8e48"], ["f10:37eeb9ea", "f11:a119817a"], ["f10:abdef0d5", "f11:508eadb6"]],
+  foundry: [["f3:c5680d21", "f5:6803a5cf"], ["f10:2e772028", "f3:af13f612"], ["f9:173ca50d", "f3:bf5d0a25"], ["f9:c64c0f6e", "f8:7ab69f44"], ["f9:eef12735", "f8:98078e59"], ["f9:e7768b13", "f3:1f021857"], ["f3:daa4996d", "f11:82ec146a"], ["f11:f26602a2", "f8:86866649"], ["f9:eb69ba29", "f3:dc9b1080"], ["f3:419eee1c", "f4:f31bf040"], ["f3:92446dc1", "f11:a8c0be0e"], ["f11:95534aa6", "f4:bd49ffdf"], ["f9:87c3c17b", "f3:1136526c"], ["f3:eb0b3898", "f4:49c630ed"], ["f4:f20f143e", "f9:eb4080a6"], ["f9:728615e5", "f3:ef3ad30c"]],
+  bastion: [["f1:93febc57", "f2:3c7755ff"], ["f2:c334ca3b", "f6:09291a63"], ["f10:367a899d", "f12:e7883cf9"], ["f1:6564d632", "f9:4c51d63e"], ["f3:5f612dbe", "f10:aff58beb"], ["f3:ba112195", "f1:4e95c4d4"], ["f5:525407c2", "f1:76bb727e"], ["f4:8b5bcb72", "f3:03ac7b22"], ["f3:73b7034d", "f2:4a19fd58"], ["f3:45d3f424", "f2:e93569a7"], ["f3:10034b24", "f2:459d9321"], ["f3:84129009", "f7:6318fbba"], ["f7:2f74feea", "f1:4165ccbd"], ["f1:e1bf9f6c", "f8:91a77c12"], ["f2:46901358", "f1:458cfab2"], ["f1:445d402b", "f9:02c0405a"]],
 };
 
 /** SOFT-1: a deck code's hash in SOFT1_PICKS (8 hex digits). */
@@ -590,10 +594,16 @@ export const FLOOR_PICKS: Readonly<Record<string, string>> = {
   // BUMP-1D run 3, variant A (the WEAKEST qualifying run: lowest mean win rate against the casual reference field, k 12; kit-run1/floorjoin.mjs
   // over output-bump/floor/rows-A-*.json): furnace 9005 16.8% (the first seed, 9001, scored 62.5%), weaver 9013 8.7% (9001: 45.4%), foundry 9003 10.7%
   // (9001: 62.5%), bastion 9004 15.0% (9001: 57.3%); all 16 seeds qualified for every hero.
-  furnace: "9005:9a646ea2",
-  weaver: "9013:fc5b64b7",
-  foundry: "9003:6d010a7d",
-  bastion: "9004:9f86e774",
+  // BUMP-1E run 4 (RULING-BUMP-R2 R2.1's method again, on bb-0.12.0's content; variant A, the WEAKEST qualifying run: lowest mean win rate against the casual
+  // reference field, k 12; kit-1e/floorjoin.mjs floor1 over output-bump1e/floor/rows-floor1-*.json, read in the dry world of the frozen content: the rule
+  // reads no stand-in pool for its scores, and casualFloorRun re-checks the qualifying flag against the shipped pool's variants 0 and 1 at generation):
+  // furnace 9011 4.7% (the first seed, 9001, scored 79.7%), weaver 9007 16.7% (9001: 32.8%), foundry 9008 25.7% (9001: 26.7%), bastion 9007 11.6%
+  // (9001: 93.6%); all 16 seeds qualified for every hero. Was (BUMP-1D, variant A on bb-0.11.0): furnace 9005:9a646ea2, weaver 9013:fc5b64b7, foundry
+  // 9003:6d010a7d, bastion 9004:9f86e774
+  furnace: "9011:512dd99f",
+  weaver: "9007:da9cff51",
+  foundry: "9008:f45ce8df",
+  bastion: "9007:cd458e17",
 };
 
 /** FLOOR-1: a casual run's identity in FLOOR_PICKS: 8 hex digits of the hash of every day's deck code (star-aware), days 1..poolDepth(). */

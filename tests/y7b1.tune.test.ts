@@ -26,6 +26,7 @@ import { STARS, levels, lines, next, oneLine } from "./y3.helpers";
 import { K, barge, furnaceBench, item, withItem, withMod } from "./wave3.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): the off checks beside its re-pins
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON run 6 (FREE_JOINS_HULL): the measured foe's hull
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on: IRON WALL and VENOM DRIP are reworked there
 
 const SEEDS = [1, 2, 3, 4, 5]; // wave3.decks' capRows: both sides +3000 hull, 120 s
 
@@ -101,20 +102,35 @@ describe("Y7b1 Y7A-R1: STOKER's cap holds with the switch on, at every star (no 
 
 // ------------------------------------------------------------- Y7A-R3c / R3d: ANVIL BREECH and IRON WALL read their base defs
 describe("Y7b1 Y7A-R3c / R3d: ANVIL BREECH and IRON WALL read their base defs with the switch on", () => {
+  // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where IRON WALL is a reader (SCALE_DEFS shieldwall: +3 / +6 / +17 DMG for
+  // each whole 10 PLATE you have; its own plating and the 120 step go), so its 0.9.2 base def is read with the switch off
+  // (withScaleRigs(fn, false), synchronously); ANVIL BREECH is not reworked and reads as before
   it("data: on, each def is the base's own object (no STAR_DIFF row), its numbers 0.9.2's at every star", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped world
     for (const s of STARS) {
       expect(effectAt("anvil", s).core, `anvil ★${s}`).toEqual({ routine: "anvil", anvilFlat: [25, 55, 88][s - 1], perPlate: [1, 2.2, 3.5][s - 1] });
-      expect(effectAt("shieldwall", s).gate, `shieldwall ★${s}`).toEqual({ plate: [10, 22, 35][s - 1], plated: { min: 120, flat: [30, 66, 105][s - 1] } });
+      withScaleRigs(() => {
+        expect(effectAt("shieldwall", s).gate, `shieldwall ★${s}`).toEqual({ plate: [10, 22, 35][s - 1], plated: { min: 120, flat: [30, 66, 105][s - 1] } });
+      }, false);
+      // BUMP-1E: the shipped IRON WALL's reader line; was the plate and plated def above
+      expect(effectAt("shieldwall", s).gate, `shieldwall ★${s} (shipped)`).toEqual({ reads: { count: "ownPlate", each: [3, 6, 17][s - 1], give: "dmg", per: 10 } });
     }
   });
 
   it("faces: on, each states both parts on one line inside the band; ANVIL's is 0.9.2's own face; ladders per part", () => {
     expect(lines("anvil")).toEqual([[25, 100], [55, 220], [88, 350]].map(([d, p]) => [`SHOT: +${d} {DMG}, +${p}% OF YOUR {*PLATE}.`]));
-    expect(lines("shieldwall")).toEqual([[10, 30], [22, 66], [35, 105]].map(([p, d]) => [`HIT: +${p} {*PLATE}, +${d} {DMG} AT 120+ {*PLATE}.`]));
     oneLine("anvil");
-    oneLine("shieldwall");
     expect(levels("anvil", 1)).toEqual(["{DMG} [+25]/+55/+88", "[+100%]/+220%/+350% OF {PLATE}", next(2, "+55 {DMG}, +220% OF {PLATE}")]);
-    expect(levels("shieldwall", 3)).toEqual(["{PLATE} +10/+22/[+35]", "{DMG} +30/+66/[+105]"]);
+    // BUMP-1E: IRON WALL's 0.9.2 face (both parts, one line) is read with the switch off
+    withScaleRigs(() => {
+      expect(lines("shieldwall")).toEqual([[10, 30], [22, 66], [35, 105]].map(([p, d]) => [`HIT: +${p} {*PLATE}, +${d} {DMG} AT 120+ {*PLATE}.`]));
+      oneLine("shieldwall");
+      expect(levels("shieldwall", 3)).toEqual(["{PLATE} +10/+22/[+35]", "{DMG} +30/+66/[+105]"]);
+    }, false);
+    // BUMP-1E: the shipped IRON WALL's one reader line, in the band at every star; was the two-part line above
+    expect(lines("shieldwall")).toEqual([3, 6, 17].map((d) => [`HIT: +${d} {DMG} FOR EACH 10 {*PLATE} YOU HAVE.`]));
+    oneLine("shieldwall");
+    expect(levels("shieldwall", 3)).toEqual(["+3/+6/[+17] {DMG} EACH"]);
   });
 });
 
@@ -140,11 +156,21 @@ describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read thei
   // the guard (BRIEF-Y7B1 B1): at 2 / 3 / 5 s VENOM's uptake on read 9.0% (43 of 480 deck-days), under 12.0% (a third of
   // Y7a's off 36.0%), so it is back at Y6's 3 / 6 / 9 s (the 2 / 3 / 5 commit's re-pins reverted with it)
   it("VENOM DRIP (Y7A-R5, its uptake guard): burnPlus back at 3 / 6 / 9 s on; its face, ⓘ ladder, sentences and timeline say them; off, 0.9.2's poison 2 / 4 / 7", () => {
-    expect(STARS.map((s) => effectAt("venom", s).gate)).toEqual([3, 6, 9].map((burnPlus) => ({ burnPlus })));
-    expect(lines("venom")).toEqual([3, 6, 9].map((n) => [`HIT: ITS {*BURN} LASTS +${n}{SEC}.`]));
-    expect(levels("venom", 1)).toEqual(["[+3]/+6/+9{SEC}", next(2, "+6{SEC}")]);
-    expect(abilityText("venom", 3).sentences[0]).toBe("EACH BURN ON THE PAYLOADS IT HITS LASTS 9 SECONDS LONGER.");
-    expect(hitText({ def: "venom", stars: 2 } as TimelineHit, "free")).toBe("VENOM DRIP +6 SEC TO EACH BURN"); // Y7b2 (the words): was "VENOM DRIP: ITS BURN LASTS +6 SEC"
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where VENOM DRIP is POISON's source (SCALE_DEFS venom: POISON +1 / +2 /
+    // +3 by star, no burnPlus; SLOW EMBERS still lengthens BURN). Y6's burnPlus rows below are the 0.9.11 world's, read with the switch
+    // off (withScaleRigs(fn, false), synchronously); the shipped world's follow them
+    withScaleRigs(() => {
+      expect(STARS.map((s) => effectAt("venom", s).gate)).toEqual([3, 6, 9].map((burnPlus) => ({ burnPlus })));
+      expect(lines("venom")).toEqual([3, 6, 9].map((n) => [`HIT: ITS {*BURN} LASTS +${n}{SEC}.`]));
+      expect(levels("venom", 1)).toEqual(["[+3]/+6/+9{SEC}", next(2, "+6{SEC}")]);
+      expect(abilityText("venom", 3).sentences[0]).toBe("EACH BURN ON THE PAYLOADS IT HITS LASTS 9 SECONDS LONGER.");
+      expect(hitText({ def: "venom", stars: 2 } as TimelineHit, "free")).toBe("VENOM DRIP +6 SEC TO EACH BURN"); // Y7b2 (the words): was "VENOM DRIP: ITS BURN LASTS +6 SEC"
+    }, false);
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped world
+    expect(STARS.map((s) => effectAt("venom", s).gate)).toEqual([1, 2, 3].map((poison) => ({ poison }))); // BUMP-1E: was [3, 6, 9].map((burnPlus) => ({ burnPlus }))
+    expect(lines("venom")).toEqual([1, 2, 3].map((n) => [`HIT: +${n} {*POISON}.`])); // BUMP-1E: was HIT: ITS {*BURN} LASTS +${n}{SEC}.
+    expect(levels("venom", 1)).toEqual(["{POISON} [+1]/+2/+3", next(2, "+2 {*POISON}")]); // BUMP-1E: was ["[+3]/+6/+9{SEC}", next(2, "+6{SEC}")]
+    expect(abilityText("venom", 3).sentences[0]).toBe("ADDS 3 POISON TO EACH PAYLOAD IT HITS."); // BUMP-1E: was "EACH BURN ON THE PAYLOADS IT HITS LASTS 9 SECONDS LONGER."
   });
 });
 

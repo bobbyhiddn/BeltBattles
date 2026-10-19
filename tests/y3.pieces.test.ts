@@ -4,8 +4,10 @@
 // walk (deck.ts walkRoute: the inspector's numbers and the bots' rating) where its numbers change; its face (one ability
 // line at every star, inside the 225 px band of font.ts textWidth, no caveat and no star clause, its perk's name never on
 // the face: ruling R-1); and its ⓘ LEVELS ladder, every line inside the band.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Battle, type Payload, type SideState } from "../src/sim/battle";
+import { ITEMS } from "../src/sim/content"; // BUMP-1E: QUENCH TANK's id is KINDLING in the shipped world
+import { SCALE_RIGS, flatOf, setScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; a payload's whole flat bonus (flat + each)
 import { walkRoute, type Build } from "../src/sim/deck";
 import { effectAt, starField } from "../src/sim/stars";
 import { heroStartBuild } from "../src/sim/heroBuilds";
@@ -42,20 +44,23 @@ describe("Y3 row 20: PINCER: +20 for each other rig on its tile; no floor, no ma
     }
   });
 
+  // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where PINCER's FOR EACH DMG rides the payload's own `each`
+  // accumulator (battle.ts forEach, REQ-BFG-110 step 4) and p.flat stays the stat rows' alone; the DMG a hit adds is the sum the
+  // shot reads, flatOf(p), the number these rows pinned on p.flat (off, `each` is never set: the same number)
   it("hook: on, a lone PINCER adds 0 (off 10) and one other working rig on its tile +20/+44/+70 (off +30/+66/+105); a STUNned one doesn't count", () => {
     for (const s of STARS) {
       const lone = rigBench([["pincer", 4, 3, s]]);
-      expect(hitOnce(lone).flat, `lone ★${s}`).toBe(0);
+      expect(flatOf(hitOnce(lone)), `lone ★${s}`).toBe(0); // BUMP-1E: was hitOnce(lone).flat
       const pair = east(rigBench([["pincer", 4, 3, s]]), "whetstone", 4, 3);
-      expect(hitOnce(pair).flat, `crossfire ★${s}`).toBe([20, 44, 70][s - 1]);
+      expect(flatOf(hitOnce(pair)), `crossfire ★${s}`).toBe([20, 44, 70][s - 1]); // BUMP-1E: was hitOnce(pair).flat
     }
     const pair = east(rigBench([["pincer", 4, 3, 1]]), "whetstone", 4, 3);
-    expect(hitOnce(pair, (_p, _h, side) => { side.gates[1].disrupted = 2; }).flat).toBe(0);
+    expect(flatOf(hitOnce(pair, (_p, _h, side) => { side.gates[1].disrupted = 2; }))).toBe(0); // BUMP-1E: was .flat
   });
 
   it("battle: on, the first slug past a PINCER and a WHETSTONE on one tile carries 20 + 20 (off 20 + 30)", () => {
     const b = east(rigBench([["pincer", 4, 3, 1]]), "whetstone", 4, 3);
-    expect(slugPast(b, 2).flat).toBe(40);
+    expect(flatOf(slugPast(b, 2))).toBe(40); // BUMP-1E: was slugPast(b, 2).flat; the WHETSTONE's 20 is a stat row (flat), PINCER's 20 a FOR EACH add (each)
   });
 
   it("walk: on, a lone PINCER counts 0 (off 10)", () => {
@@ -122,7 +127,13 @@ describe("Y3 row 22: BELLOWS: +1/+2/+3 BURN for each whole 2 s ridden, no cap", 
 });
 
 // ------------------------------------------------------------------------------------------- row 23: QUENCH TANK
+// BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where the id `quench` is KINDLING (+3/+5/+8 DMG for each BURN on the foe,
+// no BURN used up: SCALE_DEFS), so the three rows below, QUENCH TANK's, read the 0.9.11 world with the switch off (setScaleRigs(false) in
+// a beforeEach, the shipped value put back after each); KINDLING's own rows follow them, in the shipped world
 describe("Y3 row 23: QUENCH TANK turns each BURN into +30/+50/+70; no floor, no stack cap", () => {
+  beforeEach(() => setScaleRigs(false)); // BUMP-1E: QUENCH TANK is the switch-off piece
+  afterEach(() => setScaleRigs(SCALE_RIGS));
+
   it("hook: on, 7 BURN turn into 210/350/490 and none stays (off: the floor + 4/5/6 stacks, 3/2/1 BURN left); no BURN, 0 (off 10/20/30)", () => {
     const at = (s: number, burn: number) => {
       const p = hitOnce(rigBench([["quench", 4, 3, s]]), (q) => { q.burn = burn; });
@@ -153,6 +164,27 @@ describe("Y3 row 23: QUENCH TANK turns each BURN into +30/+50/+70; no floor, no 
   });
 });
 
+// BUMP-1E: the shipped world's `quench` (SCALE_DEFS, scale.ts): KINDLING, +3 / +5 / +8 DMG for each BURN on the FOE'S hull at the hit
+// (a FOR EACH add, p.each), so a slug's own BURN is never used up; the rows above are QUENCH TANK's, with the switch off
+describe("Y3 row 23, BUMP-1E: with the scaling rules on (as shipped) the id quench is KINDLING", () => {
+  it("ships on; QUENCH TANK's spend is gone: a slug's 7 BURN stay, and with none on the foe's hull the hit adds nothing", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(ITEMS.quench.name).toBe("KINDLING");
+    const at = (s: number) => {
+      const p = hitOnce(rigBench([["quench", 4, 3, s]]), (q) => { q.burn = 7; });
+      return [flatOf(p), p.burn];
+    };
+    expect(STARS.map((s) => at(s))).toEqual([[0, 7], [0, 7], [0, 7]]);
+  });
+
+  it("face: HIT: +3/+5/+8 DMG FOR EACH BURN ON THE FOE, one line; ladder DMG +3/+5/+8", () => {
+    expect(lines("quench")).toEqual([3, 5, 8].map((d) => [`HIT: +${d} {DMG} FOR EACH {*BURN} ON THE FOE.`]));
+    oneLine("quench");
+    expect(levels("quench", 1)).toEqual(["[+3]/+5/+8 {DMG} EACH", next(2, "+5 {DMG} EACH")]);
+    expect(hasFace("quench")).toBe(true);
+  });
+});
+
 /** REAL BATTLE: `b` against the barge for `secs` seconds (rigs come online as they do in play). */
 function runFor(b: Build, secs: number): Battle {
   const bt = new Battle(b, barge(), 8);
@@ -163,7 +195,8 @@ function runFor(b: Build, secs: number): Battle {
 // --------------------------------------------------------------------------------------------- row 24: LONG HAUL
 describe("Y3 row 24: LONG HAUL counts every earlier hit (no MAX 6 at ★2/★3)", () => {
   it("hook: on, 8 earlier hits pay 80/160/280 (off ★2/★3 count 6: 120/210)", () => {
-    const at = (s: number) => hitOnce(rigBench([["longhaul", 4, 3, s]]), (p) => { p.prior = 8; }).flat;
+    // BUMP-1E: LONG HAUL's FOR EACH DMG rides p.each with the scaling rules on (see PINCER above): the sum, flatOf (was `.flat`)
+    const at = (s: number) => flatOf(hitOnce(rigBench([["longhaul", 4, 3, s]]), (p) => { p.prior = 8; }));
     expect(STARS.map((s) => at(s))).toEqual([80, 160, 280]);
   });
 

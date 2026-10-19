@@ -127,6 +127,7 @@ import { shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shap
 import { shapeLines } from "../../ui/faces"; // PLAIN-1F (M4): a placed long rig's UP TO n HITS, said by its arrows line
 import { plainNotes } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (was isPlainRig's rig sentence)
 import { cardEffect } from "../../ui/faces"; // BUMP-1D P6: the offer panel's header-only one-line effect: cardText, else a plain rig's stat row (the twelve have no ability text)
+import { scaleNotes } from "../../ui/faces"; // SCALE-2c (REQ-BFG-089): the 12 readers' NOTES line, SCALE_RIGS on only
 import { shapePic } from "../../ui/shapePic"; // SHAPES-1 (REQ-BFG-086.1): the panel face's shape picture
 
 /** SHAPES-1 (REQ-BFG-086.1, S8): a panel's header picture: a shaped piece's shape with its arrows (ui/shapePic.ts), in the
@@ -323,7 +324,9 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
   };
   // SHAPES-1 (REQ-BFG-089, S8): a shaped plain rig leads with the rig sentence too (isPlainRig), then a shaped piece's
   // shape or size rule (faces.ts shapeNotes): default rules text, behind the hover or tap
-  const shaped: Block[] = def ? shapeNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : [];
+  // SCALE-2c (REQ-BFG-089; BRIEF-SCALE2c section 3): a scaling piece's count line (faces.ts scaleNotes, REPORT-SCALE1 3.2's
+  // hover line) joins them, behind the hover or tap; [] for every other piece and with SCALE_RIGS off
+  const shaped: Block[] = def ? [...shapeNotes(def), ...scaleNotes(def)].map((text) => ({ role: "ability", text, note: "rig" } as Block)) : [];
   // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead is faces.ts plainNotes: the rig sentence (as before for every
   // plain rig with PLAIN_RIGS off), SCALE GUARD's carry line after it, BALLAST's own line in its place
   const extra: Block[] = [...(def ? plainNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []), ...shaped, ...(t.notes ?? [])];

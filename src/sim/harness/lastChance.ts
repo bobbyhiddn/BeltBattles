@@ -20,7 +20,9 @@ import { cloneBuild, type Build } from "../deck";
 import { RUNES, runeGrants } from "../runes";
 import type { Boon, LastChanceOffer } from "../lastChance";
 import { newRun, type Run } from "../../game/run";
-import { placeFreePart, rateOn } from "./player";
+import { partSaleHull, placeFreePart, rateOn } from "./player";
+import { scaleRules } from "../scale"; // SCALE-2e E1 (REQ-BFG-098): the mirror's hearts lost, SCALE_RIGS on only
+import { carryCount, runCounts } from "../scaleRating";
 
 /** The seeds of the rune's mirror fights (a pair each: with and without the rune). */
 export const MIRROR_SEEDS = 3;
@@ -66,9 +68,13 @@ function boardRun(board: Build, hero: HeroId, day: number, from?: Run): Run {
 const ARMOR = ITEMS[PACK_ITEM.armor];
 const hullPerGold = (): number => (ARMOR.supply?.hull ?? 0) / Math.max(1, ARMOR.price);
 
-/** Each side's hull lost to the other in one fight (the wind taken out). */
-function losses(a: Build, b: Build, seed: number, wins: number, day?: number): [number, number] {
-  const bt = simulate(a, b, seed, undefined, [wins, wins], day); // HULL-1a (REQ-BFG-079): the day
+/** Each side's hull lost to the other in one fight (the wind taken out). SCALE-2e E1 (REQ-BFG-098): with SCALE_RIGS on, the
+ *  mirror carries the run's hearts lost too (`lost`, else the par run model's for the day: scaleRating.ts runCounts, whole
+ *  by a seeded carry), so a GRUDGE ROD on the board reads a count in it; off, no `lost` is passed (the call as before). */
+export function losses(a: Build, b: Build, seed: number, wins: number, day?: number, lost?: number): [number, number] {
+  const hl = scaleRules() ? (lost ?? (day !== undefined ? runCounts(day).lost : undefined)) : undefined;
+  const lc = hl === undefined ? undefined : carryCount(hl, seed);
+  const bt = simulate(a, b, seed, undefined, [wins, wins], day, lc === undefined ? undefined : [lc, lc]); // HULL-1a (REQ-BFG-079): the day
   return [0, 1].map((i) => {
     const s = bt.sides[i];
     return Math.max(0, s.hull.max - s.hull.hp - s.stats.windTaken);
@@ -132,6 +138,11 @@ export function botLastChancePick(offer: LastChanceOffer, hero: HeroId, board: B
     const r = placeFreePart(run, offer.part, new Rng(hashSeed("lastchance-place", hero, run.seed, day)), undefined, offer.partStars ?? 1); // HULL-1d: at its star
     placed = r.placed;
     part = rateOn(run.build, day);
+    // BUMP-1E C2 (S8 item 7): a part is never worth less than its sale spent on ARMOR PACKs (player.ts partSaleHull); a part that finds
+    // no spot (cargo, the board unchanged) rated "no gain" and so lost to every other card by construction
+    const sold = cloneBuild(board);
+    sold.hullBonus += partSaleHull(offer.part, offer.partStars ?? 1);
+    part = Math.max(part, rateOn(sold, day));
   }
   let rune = -Infinity, factor: number | undefined;
   if (offer.rune) {

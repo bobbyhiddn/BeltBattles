@@ -21,6 +21,7 @@ import { newRun, type Run } from "../src/game/run";
 import { ITEMS, buyableModules } from "../src/sim/content";
 import { effectAt, outputsAt } from "../src/sim/stars";
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footCount, footSlots } from "../src/sim/foot";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; QUENCH TANK's spend line and spend are read with it off
 import { Battle, type Payload, type SideState, type Target } from "../src/sim/battle";
 import type { HarassRound } from "../src/sim/harassment";
 import { barge, bench } from "./arsenal.bench";
@@ -391,7 +392,10 @@ describe("SHOPCARD-1f F5 (READ-13: 10 of 12 readers asked whether GRAPNEL GUN's 
 describe("SHOPCARD-1f F6 (READ-13: the one answer below R was a desk Haiku on `INTO (is the burn removed or kept)`; H3 round 1's `SWAPS` left `whether the burn is lost for good` in 1 of 6): the burn is used up", () => {
   const QUENCH = (d: string): string => `HIT: USES UP EACH {*BURN} ON A {SLUG} FOR +${d} {DMG}.`;
 
-  it("`HIT: USES UP EACH {*BURN} ON A {SLUG} FOR +n {DMG}.` at every star on days 1, 5 and 10: one row of the 225 px band (at most 223 px, 3 digits)", () => {
+  // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0) and QUENCH TANK is reworked into KINDLING (HIT: +n DMG FOR EACH BURN ON THE FOE: it spends no BURN), so F6's
+  // two tests, the spend line and the spend, are the 0.9.11 world's, read with the switch off (withScaleRigs(fn, false), synchronous: the Battle too,
+  // which reads the switch once when it is made); KINDLING's own line, row and fit are the third
+  it("`HIT: USES UP EACH {*BURN} ON A {SLUG} FOR +n {DMG}.` at every star on days 1, 5 and 10: one row of the 225 px band (at most 223 px, 3 digits)", () => withScaleRigs(() => {
     let widest = 0;
     for (const s of STARS) for (const day of DAYS) {
       const line = ruleOf("quench", s, day);
@@ -403,9 +407,9 @@ describe("SHOPCARD-1f F6 (READ-13: the one answer below R was a desk Haiku on `I
     expect(wOf(QUENCH("72"))).toBe(217);
     expect(wOf(QUENCH("126"))).toBe(223);
     expect(laysOutWhole("quench", (s, day) => ruleOf("quench", s, day))).toBe(VIEWS.length * 3 * STARS.length);
-  });
+  }, false));
 
-  it("the truth (battle.ts:1729-1734 applyHit): QUENCH TANK has no stack cap at any star, so every Burn on the slug is spent into perBurn damage each and none is left (`p.burn -= spent`)", () => {
+  it("the truth (battle.ts:1729-1734 applyHit): QUENCH TANK has no stack cap at any star, so every Burn on the slug is spent into perBurn damage each and none is left (`p.burn -= spent`)", () => withScaleRigs(() => {
     for (const s of STARS) {
       expect(effectAt("quench", s).gate!.quench!.stacks, `★${s}: no stacks cap`).toBeUndefined();
       const bt = new Battle(bench([["quench", 4, 3, s]]), barge(), 7), side = bt.sides[0];
@@ -416,6 +420,21 @@ describe("SHOPCARD-1f F6 (READ-13: the one answer below R was a desk Haiku on `I
       expect(a.p.burn, `★${s}: the spent Burn leaves the slug`).toBe(0);
       expect(a.p.flat, `★${s}: 10 stacks became 10 x perBurn`).toBe(10 * effectAt("quench", s).gate!.quench!.perBurn);
     }
+  }, false));
+
+  it("BUMP-1E: with the switch on (it ships on) the piece is KINDLING: `HIT: +n {DMG} FOR EACH {*BURN} ON THE FOE.` at every star on days 1, 5 and 10, one row of the 225 px band, laid out whole", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(ITEMS.quench.name).toBe("KINDLING");
+    expect(effectAt("quench", 1).gate!.quench).toBeUndefined(); // no spend: the old effect is gone (it reads the BURN on the foe, scale.ts SCALE_DEFS)
+    let widest = 0;
+    for (const s of STARS) for (const day of DAYS) {
+      const line = ruleOf("quench", s, day);
+      expect(line, `★${s} day ${day}`).toMatch(/^HIT: \+\d+ \{DMG\} FOR EACH \{\*BURN\} ON THE FOE\.$/);
+      expect(rowsOf(line).length, `★${s} day ${day}: ${line}`).toBe(1);
+      widest = Math.max(widest, wOf(line));
+    }
+    expect(widest).toBeLessThanOrEqual(225);
+    expect(laysOutWhole("quench", (s, day) => ruleOf("quench", s, day))).toBe(VIEWS.length * 3 * STARS.length);
   });
 });
 

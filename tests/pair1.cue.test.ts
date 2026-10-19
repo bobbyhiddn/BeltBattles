@@ -202,7 +202,12 @@ describe("PAIR-CUE: timing, the glyph, the glow and the phase", () => {
           const m = s.pairs?.get(q);
           if (m && !q.paired && a.b.t - m.at <= SYNC_WINDOW + 1e-6 && !w.shown.some((c) => c.side === side && c.routes.includes(m.route))) due++;
         }
-        expect(reduced.length).toBe(due);
+        // BUMP-1E: was `expect(reduced.length).toBe(due)`. The view draws no cue once the battle is over (pairCue.ts drawBoard: `a.b.over`), so
+        // on the last frame there are no glows whatever the chamber holds. With the scaling rules on BRASSWICK's day-8 deck (it holds a
+        // PRESSURE BREECH and a VENOM DRIP, two of the five reworks) fights 810 ticks (was 799), and the fight ends on a frame where an
+        // unpaired load is still inside its window (age 0.017 s): the recount (`due`) counted it, the view rightly drew nothing. Both are
+        // pinned: while the fight is on the glows are exactly the recount, and once it is over there are none
+        expect(reduced.length).toBe(a.b.over ? 0 : due);
         // motion on: the same glows, pulsing with the arena's clock (Reduce Motion: none)
         if (reduced.length) {
           const clock = a.clock;

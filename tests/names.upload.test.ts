@@ -29,6 +29,7 @@ import { withDawnRunes } from "./runeFill";
 import { runeGrants } from "../src/sim/runes";
 import { START_LIVES } from "../src/sim/content"; // HULL-ON (the flip, HEARTS): an older-rules upload's 5-lives scale
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): this build's uploads carry hearts
+import { withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling switch, outermost around an older-rules check (the ITEMS key-order hazard)
 
 const T0 = 1_790_000_000_000;
 const rot13 = (s: string) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(((c.charCodeAt(0) - 65 + 13) % 26) + 65));
@@ -265,7 +266,13 @@ describe("ghosts:admin revalidate: an upload under this build's rules needs its 
     // HULL-ON (the flip, HEARTS): on its own rules' 5-lives scale: s (day 1, 0W) is the shipped pool's, 10 hearts, which the
     // decoder's lives bound for bb-0.6.1 (1..9) refuses; the same record under bb-0.6.1 is 0W START_LIVES (5)
     const old: GhostSnapshot = { ...rest, v: SNAPSHOT_VERSION, rules: "bb-0.6.1", lives: START_LIVES, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
-    expect(uploadProblems(rec(old), "bb-0.6.1").some((p) => p.startsWith("name:"))).toBe(false);
+    // BUMP-1E (THE ITEMS KEY-ORDER HAZARD): an older-rules check runs in the older rules' world (validate.ts validateUpload: inShapesWorld puts SHAPES-1's three and
+    // SHAPES-2's six off, and inScaleWorld, nested INSIDE it, takes the seven scaling ids off and back on, then the nine come back), so ITEMS ended
+    // [.., seven scaling ids, nine shaped ids] instead of [.., nine, seven] (the seven are the last keys while SCALE_RIGS is on, scale.ts), and every seeded draw
+    // after it in this worker differed: the last test's generateSamplePool() threw 'SOFT-1: stale: the pick f3:c5680d21 for foundry day 1 no longer matches
+    // its deck' (a fresh process resolves every pick, tests/soft1.picks.test.ts). The scaling switch is the OUTERMOST call, off first and back last, as
+    // tests/net-upload.test.ts's catalogueOff reads: the same world (bb-0.6.1 predates SCALE_RULES, so inScaleWorld would have turned it off) and ITEMS keeps its order
+    expect(withScaleRigs(() => uploadProblems(rec(old), "bb-0.6.1"), false).some((p) => p.startsWith("name:"))).toBe(false);
   });
 });
 

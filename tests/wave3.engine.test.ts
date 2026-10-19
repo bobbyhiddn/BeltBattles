@@ -11,6 +11,7 @@ import { stokeSpots, stokesIfPlaced, hitsIfPlaced } from "../src/sim/beltside";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars"; // NUM-1 (REQ-BFG-047): the rigs' numbers read from the data (x10)
 import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): 30 / speed
+import { flatOf } from "../src/sim/scale"; // BUMP-1E: a slug's whole flat bonus (the stat rows' flat plus the FOR EACH each)
 import { K, SEED, barge, events, furnaceBench, item, latchDeck, pastTile, run, twoPress, withItem, withMod } from "./wave3.helpers";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's STOKER ★3 beside the shipped one
 
@@ -399,8 +400,11 @@ describe("E5: crossfire (PINCER)", () => {
       expect([th(alone).flat, th(alone).others]).toEqual([flat, 0]);
       expect([th(both).flat, th(both).others]).toEqual([flat + each, 1]);
       // the battle: a kiln slug past the tile once both are online carries both rigs' damage
+      // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where PINCER's EACH other rig rides the slug's own `each` accumulator
+      // (battle.ts forEach, REQ-BFG-110 step 4) and p.flat holds the stat rows' alone (the WHETSTONE's 20; PINCER's own flat is 0), so the
+      // slug's flat bonus is read through flatOf(p), the sum the shot reads: the same flat + each + whetFlat (at ★1 0 + 20 + 20 = 40; p.flat alone reads 20)
       const flats: number[] = [];
-      run(both, 8, barge(), SEED, (ev, bt) => { for (const e of ev) if (e.type === "load" && e.side === 0 && bt.t > 4) flats.push(bt.sides[0].turrets[0].stack.at(-1)!.flat); });
+      run(both, 8, barge(), SEED, (ev, bt) => { for (const e of ev) if (e.type === "load" && e.side === 0 && bt.t > 4) flats.push(flatOf(bt.sides[0].turrets[0].stack.at(-1)!)); }); // BUMP-1E: was stack.at(-1)!.flat
       expect(flats.length).toBeGreaterThan(1);
       for (const f of flats) expect(f).toBe(flat + each + whetFlat); // NUM-1: whole (was toBeCloseTo(flat + each + 2, 9))
     }

@@ -16,7 +16,7 @@
 // Writes: HEAD (already stored? then 200, same id), then PUT; the ghost is indexed only after the
 // PUT succeeded, so 201 always means durable.
 
-import { maxDayFor, type GhostSnapshot, type PoolEntry, checkSnapshot, ghostId } from "../src/net/snapshot"; // RUN-1 (D4, D6): the day buckets follow the rules' deepest day
+import { endlessMaxDay, maxDayFor, type GhostSnapshot, type PoolEntry, checkSnapshot, ghostId } from "../src/net/snapshot"; // RUN-1 (D4, D6): the day buckets follow the rules' deepest day; ENDLESS-1: and an endless record's
 import { S3Client } from "./s3";
 import { decodeRecord, encodeRecord, poolRecord, StorageError, type AddResult, type BucketScope, type GhostStore, type SeedCounts } from "./store";
 
@@ -164,7 +164,9 @@ export class TigrisStore implements GhostStore {
   async bucket(rules: string, day: number, scope: BucketScope = "all"): Promise<readonly PoolEntry[]> {
     // nothing can be stored there. RUN-1 (REQ-BFG-059, D4, D6): the buckets of a long run's rules run to LONG_RUN_MAX_DAY (data
     // safety: a thin late day widens to earlier ones, and a record is refused past it); the 10-day rules keep MAX_DAY
-    if (!storableRules(rules) || !Number.isInteger(day) || day < 1 || day > maxDayFor(rules)) return [];
+    // ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.4, storage choice (A)): the same buckets and keys (dDD covers 99), the day bound for
+    // endless records only raised to ENDLESS_LAST_DAY under rules with endless (snapshot.ts endlessMaxDay); a run record keeps maxDayFor
+    if (!storableRules(rules) || !Number.isInteger(day) || day < 1 || day > endlessMaxDay(rules)) return [];
     const b = this.slot(rules, day);
     const now = this.now();
     if (b.listedAt === 0 || now - b.listedAt >= this.ttlMs) {

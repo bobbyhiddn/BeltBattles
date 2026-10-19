@@ -64,7 +64,7 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
   // the hero gate's threshold: FOUNDRY travels from bb-0.8.0 on (rulesGate.ts HEROES_RULES), under BELTS's rules too
   if (deck === "foundry" && !rulesAtLeast(rules, "bb-0.8.0")) return { status: 400, error: /^snapshot\.hero: rules .* accept only FURNACE, WEAVER, not FOUNDRY$/ };
   // BUMP-1D: the server names this build's rules, bb-0.11.0 (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
-  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.11\\.0$`) };
+  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.12\\.0$`) }; // BUMP-1E: the bump (was bb-0.11.0).
 }
 
 /** FLIP-X2: the pool decks now hold their day's runes (v3, with a run seed), and rules before bb-0.8.7 (or unreadable)
@@ -91,7 +91,7 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
 
 describe("H2 M1b: the near-miss rules strings (pure)", () => {
   it("are all different from RULES_VERSION, and the three decks are honest bb-0.8.3 seed decks with a reachable record", () => {
-    expect(RULES_VERSION).toBe("bb-0.11.0") /* BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.12.0") /* BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     for (const r of NEAR) expect(r).not.toBe(RULES_VERSION);
     expect(new Set(NEAR).size).toBe(NEAR.length);
     for (const s of Object.values(DECKS)) expect([s.rules, isReachable(s.day, s.wins, s.lives)]).toEqual([RULES_VERSION, true]);
@@ -116,7 +116,11 @@ describe("H2 M1b: the near-miss rules strings (pure)", () => {
     // expected() reads the deck's join (its belt-joins branch for unreadable rules, live again; the statuses are the same). Was joinsOf toBe(0)
     expect(softPicked("foundry", DECKS.foundry.day)![0].build).toEqual(DECKS.foundry.build);
     const joinsOf = (b: GhostSnapshot["build"]) => b.routes.filter((r) => r.join !== undefined).length;
-    expect(joinsOf(DECKS.foundry.build)).toBe(1); // BUMP-1D: was toBe(0) (the 10-day table's pick "f8" held no join)
+    // BUMP-1E (R2, 2875b03: SOFT1_PICKS re-read on the regenerated stand-in pool, the pools R1-R3 under bb-0.12.0): the FOUNDRY deck is the day-1 variant 0 pick
+    // "f3:c5680d21" now (the par field's run 3; was "f10:76156a2a"), whose day-1 deck holds no join; a different pick, a legal deck all the
+    // same (the generator passes every ghost through checkSnapshot and the strict checks, tools/samplePool.ts seedGhost). expected() reads the deck's join, so the near
+    // misses' unreadable-rules branch for this deck answers the hero gate's (400 FOUNDRY not accepted) again, and every status below is unchanged
+    expect(joinsOf(DECKS.foundry.build)).toBe(0); // BUMP-1E: was toBe(1) (the regenerated pools, R2); BUMP-1D: was toBe(0) (the 10-day table's pick "f8" held no join), then 1
     expect(withFreeJoins(() => joinsOf(raceDeck("foundry", DECKS.foundry.day, 0).build), false)).toBe(0);
     // BUMP-1D run 4 (RULING-BUMP-R3 R3.4 (b)): why DECKS.turretsJoin is bounded at day 10, as a check (new): a furnace deck with both features of the pool's days
     // 11-16 (the one the pick took before the bound) is refused by the decoder under a near miss's older rules (the 10-day run: maxDayFor = MAX_DAY) at the day

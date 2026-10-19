@@ -14,6 +14,7 @@ import { resolve } from "node:path";
 import { LUCK_HEROES, LUCK_Q, LUCK_SEEDS, MEASURES, luckCapsTable, type LuckCapsTable, type LuckMeasures } from "../src/sim/harness/luck";
 import { maxGoldByDay } from "../src/sim/rivals";
 import { flag } from "./workers";
+import { scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E P2e (REQ-BFG-098): the scaling world held on while the caps are read
 
 export const DATA = "src/sim/harness/luckCapsData.ts";
 
@@ -81,4 +82,13 @@ function main(): void {
   }
 }
 
-main();
+// BUMP-1E P2e (SCALE-2d F6; SCALE-2e carry-over 9): the caps are read from the par player's runs with the scaling world on: setScaleRigs(true)
+// held inside try/finally for the whole run (never withScaleRigs(async ...)). SCALE_RIGS is true in the code now, so this does nothing
+// there; it makes the table independent of the constant.
+const wasScale = scaleRules();
+setScaleRigs(true);
+try {
+  main();
+} finally {
+  setScaleRigs(wasScale);
+}

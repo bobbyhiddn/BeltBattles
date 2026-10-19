@@ -21,6 +21,7 @@ import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): v070-rc's switch-off world
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip): v070-rc's switch-off world
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): v070-rc's join pace
+import { SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: v070-rc's pieces (QUENCH TANK, VENOM DRIP) are the switch-off world
 
 const FIXTURE = fileURLToPath(new URL("./fixtures/wave3-guard/v070rc.json", import.meta.url));
 const WRITE = !!process.env.BB_WAVE3_GUARD_WRITE;
@@ -146,7 +147,21 @@ describe("wave-3 guards: decks without a wave-3 part replay v070-rc's battles bi
   // HULL-ON (the flip, FREE_JOINS): the "join pace" deck's STAMP PRESS belt joins the Kiln belt, and with FREE_JOINS on a
   // factory with a joining belt runs at its normal rate (no JOIN_PACE 0.7), so that row moved (produced 27 -> 29, stalled
   // 0.15 -> 2.3 s, its time and hulls); v070-rc paced it, so the battles play with FREE_JOINS off too (no other deck joins)
-  const got = withFreeJoins(() => withLadderFix(() => withHullScale(() => record(), false), false), false);
+  // BUMP-1E (the flip, SCALE_RIGS on in bb-0.12.0): v070-rc has none of the scaling rules, and ten guard rows hold a piece the switch
+  // changes: VENOM DRIP (POISON +1/+2/+3, no burnPlus) in the day-4 ref decks of FURNACE v SIPHON, FOUNDRY v WEAVER, BASTION v FOUNDRY and
+  // SIPHON v METRONOME and in "E1 poison and limpets on bastion" (21 'poison' events on the first of them, seed 3, where v070-rc has
+  // none), and, in five of the six day-9 ref decks (all but WEAVER v FURNACE's), also QUENCH TANK (KINDLING: DMG for each foe BURN, no
+  // BURN spent) and, in three of them, POWDER KEG (a reader, no 12 s fuse). So the record is read in the switch-off world too:
+  // withScaleRigs(fn, false), synchronous, and the OUTERMOST call of the nest. The seven new ids are the last keys in ITEMS, so the
+  // scaling switch goes off first and comes back last (no key is left behind them); and withLadderFix(.., false) puts QUENCH TANK's base
+  // def in ITEMS, which must not happen while the switch is on (it would leave the switch on with the old def). No number of v070-rc's
+  // moved: all 26 decks (x 2 seeds) replay bit for bit again (the 10 red rows are green).
+  // Was: withFreeJoins(() => withLadderFix(() => withHullScale(() => record(), false), false), false)
+  const got = withScaleRigs(() => withFreeJoins(() => withLadderFix(() => withHullScale(() => record(), false), false), false), false);
+  it("BUMP-1E: the scaling rules ship on in bb-0.12.0 (the record above is the switch-off world; the switch is back on after it)", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(scaleRules()).toBe(true); // the withScaleRigs call above put the switch back
+  });
   it("the fixture is v070-rc's and covers every guard deck; each guard rig works the tile it was put beside", () => {
     expect(want.source).toBe("v070-rc");
     expect(want.seeds).toEqual(SEEDS);

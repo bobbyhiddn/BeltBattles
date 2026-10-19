@@ -24,41 +24,51 @@ import { dirname, resolve } from "node:path";
 import { encodeSnapshot } from "../src/net/snapshot";
 import { SEED_POOL_MODULE, generateSamplePool, samplePoolJson, seedPoolModuleText } from "./samplePool";
 import { setLongRun } from "../src/sim/longRun"; // RUN-1 T8: --long-run (last in the list: already loaded above)
+import { scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E P2e (REQ-BFG-098): the scaling world held on while the pool is dealt
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-// RUN-1 T8: the long run's pool (scratch): the switch before anything is generated, the pick rows named before the first pick
-const longRunPool = process.argv.includes("--long-run");
-if (longRunPool) setLongRun(true);
-const picksFile = flag("soft1-picks");
-if (picksFile !== undefined) process.env.BB_SOFT1_PICKS_FILE = picksFile.split(",").map((p) => resolve(p)).join(",");
+// BUMP-1E P2e (SCALE-2d F6; SCALE-2e carry-over 9): the pool is dealt with the scaling world on for the whole run: setScaleRigs(true)
+// held inside try/finally, never withScaleRigs(async ...) (this tool is synchronous today, but every pool generator holds the switch the
+// same way). SCALE_RIGS is true in the code now, so setScaleRigs(true) does nothing there; it makes the pool independent of the constant.
+const wasScale = scaleRules();
+setScaleRigs(true);
+try {
+  // RUN-1 T8: the long run's pool (scratch): the switch before anything is generated, the pick rows named before the first pick
+  const longRunPool = process.argv.includes("--long-run");
+  if (longRunPool) setLongRun(true);
+  const picksFile = flag("soft1-picks");
+  if (picksFile !== undefined) process.env.BB_SOFT1_PICKS_FILE = picksFile.split(",").map((p) => resolve(p)).join(",");
 
-const out = resolve(flag("out") ?? "server/dist/ghost-pool.sample.json");
-// RUNES-2a (REQ-BFG-058): --bot-runes on|off, the race decks' par player takes a rune at each dawn; absent: runes.ts
-// BOT_RUNES (off), so the pool is generated exactly as before
-const botRunes = flag("bot-runes");
-if (botRunes !== undefined && botRunes !== "on" && botRunes !== "off") throw new Error(`--bot-runes must be "on" or "off", got ${botRunes}`);
-const pool = generateSamplePool(botRunes === undefined ? {} : { botRunes: botRunes === "on" });
-mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, samplePoolJson(pool));
-console.log(`wrote ${pool.length} ghost snapshots (${new Set(pool.map((s) => s.day)).size} days, heroes ${[...new Set(pool.map((s) => s.hero))].join("+")}) to ${out}`);
+  const out = resolve(flag("out") ?? "server/dist/ghost-pool.sample.json");
+  // RUNES-2a (REQ-BFG-058): --bot-runes on|off, the race decks' par player takes a rune at each dawn; absent: runes.ts
+  // BOT_RUNES (off), so the pool is generated exactly as before
+  const botRunes = flag("bot-runes");
+  if (botRunes !== undefined && botRunes !== "on" && botRunes !== "off") throw new Error(`--bot-runes must be "on" or "off", got ${botRunes}`);
+  const pool = generateSamplePool(botRunes === undefined ? {} : { botRunes: botRunes === "on" });
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, samplePoolJson(pool));
+  console.log(`wrote ${pool.length} ghost snapshots (${new Set(pool.map((s) => s.day)).size} days, heroes ${[...new Set(pool.map((s) => s.hero))].join("+")}) to ${out}`);
 
-// S8 T1b: the bundled pool file (the seed command's; see the header)
-const bundle = flag("bundle") ?? (botRunes === undefined && !longRunPool ? SEED_POOL_MODULE : "none"); // RUN-1 T8: a long-run pool only to a named path
-if (bundle !== "none") {
-  const path = resolve(bundle);
-  // RUN-1 T8: the long run's pool is never the committed file (the release bump writes that one, from its own world)
-  if (longRunPool && path === resolve(SEED_POOL_MODULE)) throw new Error(`--long-run never writes ${SEED_POOL_MODULE}: name a scratch path with --bundle`);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, seedPoolModuleText(pool));
-  console.log(`wrote the bundled pool file ${path}: ${pool.length} ghosts, ${pool.filter((s) => typeof s.grade === "number").length} with a grade`);
-}
+  // S8 T1b: the bundled pool file (the seed command's; see the header)
+  const bundle = flag("bundle") ?? (botRunes === undefined && !longRunPool ? SEED_POOL_MODULE : "none"); // RUN-1 T8: a long-run pool only to a named path
+  if (bundle !== "none") {
+    const path = resolve(bundle);
+    // RUN-1 T8: the long run's pool is never the committed file (the release bump writes that one, from its own world)
+    if (longRunPool && path === resolve(SEED_POOL_MODULE)) throw new Error(`--long-run never writes ${SEED_POOL_MODULE}: name a scratch path with --bundle`);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, seedPoolModuleText(pool));
+    console.log(`wrote the bundled pool file ${path}: ${pool.length} ghosts, ${pool.filter((s) => typeof s.grade === "number").length} with a grade`);
+  }
 
-const one = flag("one");
-if (one) {
-  writeFileSync(resolve(one), encodeSnapshot(pool[0]));
-  console.log(`wrote one snapshot (${pool[0].hero} day ${pool[0].day}) to ${resolve(one)}`);
+  const one = flag("one");
+  if (one) {
+    writeFileSync(resolve(one), encodeSnapshot(pool[0]));
+    console.log(`wrote one snapshot (${pool[0].hero} day ${pool[0].day}) to ${resolve(one)}`);
+  }
+} finally {
+  setScaleRigs(wasScale);
 }

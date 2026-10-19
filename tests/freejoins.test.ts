@@ -104,7 +104,7 @@ describe("JOINS-1: the switch", () => {
     expect(FREE_JOINS_RULES).toBe("bb-0.10.0");
     // BUMP-1D (the bump to bb-0.11.0): FREE_JOINS_RULES is a literal since the flip, so it stays put while RULES_VERSION moves
     // on: this build's rules (bb-0.11.0) are after it, not equal to it (was expect(FREE_JOINS_RULES).toBe(RULES_VERSION))
-    expect(RULES_VERSION).toBe("bb-0.11.0");
+    expect(RULES_VERSION).toBe("bb-0.12.0"); // BUMP-1E: the bump (was bb-0.11.0).
     expect(FREE_JOINS_RULES).not.toBe(RULES_VERSION);
     expect(rulesAtLeast(RULES_VERSION, FREE_JOINS_RULES)).toBe(true);
     expect(FREE_JOINS_RULES).toBe(NPC_DAY_RULES);

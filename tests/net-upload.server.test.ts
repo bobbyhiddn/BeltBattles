@@ -113,9 +113,17 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
   });
 
   it("fetchGhost fights a served player ghost with a road hull; it still falls back on one the player mode refuses", async () => {
+    // BUMP-1E (SCALE_RIGS ships on, bb-0.12.0): the client re-checks a served ghost's record (ghostClient.ts problem; SCALE-2d D5: a ghost's wins and lives reach the fight), and the
+    // hearts scale holds: a run starts with HEARTS_START (10) hearts and a dusk lost costs one. The 1W 3 lives and the 0W 3 lives these two ghosts and their requests carried (snap()'s
+    // lives, from before the check) are no record a run carries into dusk 3 or 4 ('server returned a ghost whose record (1W 3 lives) no run carries into dusk 3': the fallback, not the
+    // served ghost). Each now holds a record a run does carry (records.ts isReachable), the request the same record (never a better one): 1W with 9 hearts into dusk 3 (a win and a
+    // dusk lost; 10 if the other was a draw) and the day-4 floor, 0W with 7 (three dusks lost). The hulls, the decks and every other assertion are as they were
+    const ride3 = HEARTS_START - 1, lost4 = floorRecord(4).lives;
+    expect(isReachable(3, 1, ride3, { lastChance: null, rules: RULES_VERSION })).toBe(true);
+    expect([floorRecord(4).wins, lost4, isReachable(4, 0, lost4, { lastChance: null, rules: RULES_VERSION })]).toEqual([0, 7, true]);
     // FLIP-X2: served ghosts hold their day's runes, v3 (upSnap; were snap's rune-less v1 decks)
-    const ride = upSnap({ day: 3, wins: 1, build: { ...snap().build, hullBonus: RIDE_THROUGH } }); // NUM-1: -100 (was -10)
-    const off = upSnap({ day: 4, wins: 0, build: { ...snap().build, hullBonus: 300 } }); // NUM-1: x10 (was 30)
+    const ride = upSnap({ day: 3, wins: 1, lives: ride3, build: { ...snap().build, hullBonus: RIDE_THROUGH } }); // NUM-1: -100 (was -10). BUMP-1E: lives 9 (was snap's 3)
+    const off = upSnap({ day: 4, wins: 0, lives: lost4, build: { ...snap().build, hullBonus: 300 } }); // NUM-1: x10 (was 30). BUMP-1E: lives 7 (was snap's 3)
     const srv = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
       s.end(JSON.stringify(q.url?.includes("day=3") ? { id: "gride", snapshot: ride } : { id: "goff", snapshot: off }));
@@ -125,9 +133,9 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
     const url = `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}`;
     try {
       expect(validateBuild(ride.build, 3).ok).toBe(false); // strict: -100 is not whole plating
-      const g = await fetchGhost(url, req({ day: 3, wins: 1 }), 2000);
+      const g = await fetchGhost(url, req({ day: 3, wins: 1, lives: ride3 }), 2000); // BUMP-1E: lives 9 (was req's 3)
       expect(g).toMatchObject({ source: "server", id: "gride" });
-      const f = await fetchGhost(url, req({ day: 4 }), 2000);
+      const f = await fetchGhost(url, req({ day: 4, lives: lost4 }), 2000); // BUMP-1E: lives 7 (was req's 3)
       expect(f.source).toBe("fallback");
       expect(f.error).toMatch(/ghost deck invalid: supply: hullBonus 300 is not a hull a player can reach by day 4/); // NUM-1: x10 (was 30)
     } finally {

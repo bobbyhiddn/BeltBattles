@@ -9,6 +9,7 @@ import { C } from "../src/render/palette";
 import { glyphRows, icons, textWidth } from "../src/render/font";
 import { faceAt, type Face } from "../src/ui/faces";
 import { PHONE_GISTS, phoneGist } from "../src/ui/chips";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; CARD-5's rows are the 0.9.11 world's, read with it off
 import { CARD_CHIP_Y, CARD_GIST_Y, CARD_MARK_X, cardPriceX, drawCard } from "../src/screens/build/shop";
 import { CARD_H, CARD_W } from "../src/screens/build/layout";
 import { installRaster, fresh, G as gOf } from "./raster.helpers";
@@ -47,6 +48,16 @@ const ROWS: Readonly<Record<string, readonly [string, string]>> = {
   mendingloom: ["YOUR HULL", "{HEAL}28/{SEC}"], chamber: ["FIRES 2{SLUG}", "A SHOT"], spotter: ["AIMS AGAIN", "AIM+1"],
   hopper: ["GUN HOLDS", "{SLUG}+1"], spallcatcher: ["HURT→SHOT", "{DMG}+18"], ram: ["LAST LOAD", "{DMG}+40%"],
 };
+/** BUMP-1E: the six rows that differ with SCALE_RIGS on (it ships on from bb-0.12.0: chips.ts phoneGist reads SCALE_GISTS before PHONE_GISTS for
+ *  the five reworks, and VENOM DRIP's row reads the switch), as built: id -> [row A, row B] at ★1 on day 5. Their faces changed with the flip
+ *  (KINDLING, PRESSURE BREECH uncapped, IRON WALL, SPALL CATCHER and POWDER KEG are readers; VENOM DRIP is a POISON stat rig), so these are the
+ *  shipped world's rows; ROWS above is CARD-5's table, the 0.9.11 world's, read with the switch off. Was in ROWS: venom ["EXTENDS {BURN}", "+3{SEC}"],
+ *  quench ["SPENDS {BURN}", "{DMG}+72"], pressure ["PER {SLUG} HELD", "{DMG}+21"], shieldwall ["PER SLUG", "{PLATE}+28"],
+ *  keg ["EVERY 12{SEC}", "{DMG}+108"], spallcatcher ["HURT→SHOT", "{DMG}+18"] */
+const ROWS_ON: Readonly<Record<string, readonly [string, string]>> = {
+  venom: ["TO SLUGS", "{POISON}+1"], quench: ["PER FOE {BURN}", "{DMG}+5"], pressure: ["PER {SLUG} HELD", "{DMG}+9"],
+  shieldwall: ["YOUR {PLATE}", "{DMG}+5"], spallcatcher: ["HITS TAKEN", "{DMG}+1"], keg: ["ITS HITS", "{DMG}+3"],
+};
 /** The 37 pieces with a new entry (every factory, 19 rigs, the 3 inner-column turrets), the 15 changed, the 5 kept. */
 const NEW = ["frostbite", "shottower", "press", "doublestamp", "slagpot", "assembly", "armorpress", "mendpress", "hotswap", "sabot",
   "scrapper", "dragchain", "limpet", "gantry", "twinmould", "venom", "bellows", "quench", "staticbrush", "pincer", "lodestone",
@@ -79,6 +90,13 @@ const SRC: Readonly<Record<string, { a?: readonly Src[]; b?: readonly Src[] }>> 
   salvo: { b: [["num", "flat"]] }, mendingloom: { b: [["num", "regen"]] }, chamber: { a: [["num", "shot"]] },
   spotter: { b: [["num", "rerolls"]] }, hopper: { b: [["num", "window"]] }, spallcatcher: { b: [["num", "add"]] }, ram: { b: [["num", "more"]] },
 };
+/** BUMP-1E: the face-numbers column of the six ROWS_ON pieces with SCALE_RIGS on: a reader's number is its rule's `each` (IRON WALL's per 10, its
+ *  day's, is in the rule and in no row), PRESSURE BREECH's stays `per`, VENOM DRIP's POISON count is `poison`; POWDER KEG's EVERY is gone (no
+ *  fuse), so its row A holds no digit. Where SRC names one of them, SRC is the switch-off world's. */
+const SRC_ON: Readonly<Record<string, { a?: readonly Src[]; b?: readonly Src[] }>> = {
+  venom: { b: [["num", "poison"]] }, quench: { b: [["num", "each"]] }, pressure: { b: [["num", "per"]] }, shieldwall: { b: [["num", "each"]] },
+  spallcatcher: { b: [["num", "each"]] }, keg: { b: [["num", "each"]] },
+};
 const NUM = /[+-]?\d+(?:\.\d+)?%?/;
 const digits = (s: string): string[] => s.match(/\d+(?:\.\d+)?/g) ?? [];
 /** A source's number on face `f`, as the face prints it ("" where the face has none). */
@@ -99,13 +117,28 @@ describe("CARD-5 (G): the phone shop card's gists (REQ-BFG-111)", () => {
   it("every GISTS-CARD5 row is built, keyed by piece id: 37 new entries, 15 changed, 5 kept (day 5, ★1)", () => {
     expect([NEW.length, CHANGED.length, KEPT.length, Object.keys(ROWS).length]).toEqual([37, 15, 5, 57]);
     expect(new Set([...NEW, ...CHANGED, ...KEPT]).size).toBe(57);
+    // BUMP-1E: CARD-5's 57 rows are the 0.9.11 world's (SCALE_RIGS off), so they are read with the switch off (withScaleRigs(fn, false), synchronous)
+    withScaleRigs(() => {
+      for (const id of [...NEW, ...CHANGED, ...KEPT]) {
+        expect(ITEMS[id], id).toBeDefined();
+        expect(Object.prototype.hasOwnProperty.call(PHONE_GISTS, id), id).toBe(true);
+        expect(phoneGist(id, optsFor(id, 5)), `${id} (${ITEMS[id].name})`).toEqual(ROWS[id]);
+      }
+      expect(Object.keys(PHONE_GISTS).length).toBe(33 + NEW.length); // card5-base's 33 entries and the 37 new ones
+      // every factory READ-5 read has one now; MIMIC FORGE (no cadence of its own: its hero's) is not on the work list
+      expect(buyableModules().filter((m) => m.kind === "factory" && !phoneGist(m.id)).map((m) => m.id)).toEqual(["mimic"]);
+    }, false);
+    // BUMP-1E: and as shipped (SCALE_RIGS on, bb-0.12.0): the same 57 pieces as built now. The five reworks' rows are SCALE_GISTS' and VENOM DRIP's
+    // POISON row is its own (ROWS_ON: the flip changed those six pieces' faces); the other 51 rows are CARD-5's, as they were. PHONE_GISTS still holds
+    // all 70 of CARD-5's entries (the switch-off rows)
+    expect(SCALE_RIGS).toBe(true);
+    expect(Object.keys(ROWS_ON).sort()).toEqual(["keg", "pressure", "quench", "shieldwall", "spallcatcher", "venom"]);
     for (const id of [...NEW, ...CHANGED, ...KEPT]) {
       expect(ITEMS[id], id).toBeDefined();
       expect(Object.prototype.hasOwnProperty.call(PHONE_GISTS, id), id).toBe(true);
-      expect(phoneGist(id, optsFor(id, 5)), `${id} (${ITEMS[id].name})`).toEqual(ROWS[id]);
+      expect(phoneGist(id, optsFor(id, 5)), `${id} (${ITEMS[id].name})`).toEqual(ROWS_ON[id] ?? ROWS[id]);
     }
-    expect(Object.keys(PHONE_GISTS).length).toBe(33 + NEW.length); // card5-base's 33 entries and the 37 new ones
-    // every factory READ-5 read has one now; MIMIC FORGE (no cadence of its own: its hero's) is not on the work list
+    expect(Object.keys(PHONE_GISTS).length).toBe(33 + NEW.length);
     expect(buyableModules().filter((m) => m.kind === "factory" && !phoneGist(m.id)).map((m) => m.id)).toEqual(["mimic"]);
   });
 
@@ -129,10 +162,11 @@ describe("CARD-5 (G): the phone shop card's gists (REQ-BFG-111)", () => {
     expect(n).toBeGreaterThan(71 * 30);
   });
 
-  it("every digit in a row is its face's number (GISTS-CARD5's face-numbers column), so it follows the star and the day", () => {
+  /** The digits sweep (below) in the world it is called in; `srcOf` is that world's face-numbers column. Returns the numbers that scale. */
+  const sweepDigits = (srcOf: (id: string) => { a?: readonly Src[]; b?: readonly Src[] }): string[] => {
     const scaled: string[] = [];
     for (const id of Object.keys(ROWS)) {
-      const src = SRC[id] ?? {};
+      const src = srcOf(id);
       const seen = new Map<string, string>(); // a source's number -> the row's digits, across stars and days
       for (const s of [1, 2, 3]) for (const day of DAYS) {
         const o = optsFor(id, day), f = faceAt(id, s, o)!, g = phoneGist(id, o, s)!;
@@ -155,11 +189,23 @@ describe("CARD-5 (G): the phone shop card's gists (REQ-BFG-111)", () => {
         if (nums.size > 1) scaled.push(`${id} ${key}: ${[...nums].join(", ")}`);
       }
     }
+    return scaled;
+  };
+
+  it("every digit in a row is its face's number (GISTS-CARD5's face-numbers column), so it follows the star and the day", () => {
+    // BUMP-1E: swept in both worlds: CARD-5's column (SRC) with the switch off, the 0.9.11 world; and as shipped (SCALE_RIGS on), where the six
+    // ROWS_ON pieces take SRC_ON's column (a reader's `each`, VENOM DRIP's `poison`; POWDER KEG's row A has no digit any more) and the rest SRC's
+    const off = withScaleRigs(() => sweepDigits((id) => SRC[id] ?? {}), false);
+    const scaled = sweepDigits((id) => SRC_ON[id] ?? SRC[id] ?? {});
     // the day grows the sustain and damage numbers (ARMOR PRESS's SHIELD: +30 on day 1, +84 on day 5), the star the rest
     expect(phoneGist("armorpress", { day: 1 })).toEqual(["EVERY 3{SEC}", "{PLATE}+30"]);
-    expect(phoneGist("keg", { day: 1 }, 3)![0]).not.toBe(phoneGist("keg", { day: 1 }, 1)![0]);
+    // BUMP-1E: POWDER KEG's row A was its fuse (EVERY 12{SEC}, EVERY n at ★2-3: the switch off, read so); on, row A is ITS HITS at every star and
+    // its row B, the number, follows the star (+2 / +5 / +11 on day 1)
+    withScaleRigs(() => expect(phoneGist("keg", { day: 1 }, 3)![0]).not.toBe(phoneGist("keg", { day: 1 }, 1)![0]), false);
+    expect([1, 2, 3].map((s) => phoneGist("keg", { day: 1 }, s))).toEqual([["ITS HITS", "{DMG}+2"], ["ITS HITS", "{DMG}+5"], ["ITS HITS", "{DMG}+11"]]);
+    expect(off.length).toBeGreaterThan(20);
     expect(scaled.length).toBeGreaterThan(20);
-    console.log(`CARD5 (G) numbers that scale with the star or the day, ${scaled.length}:\n${scaled.join("\n")}`);
+    console.log(`CARD5 (G) numbers that scale with the star or the day, ${scaled.length} (${off.length} with the switch off):\n${scaled.join("\n")}`);
   });
 
   // overclock.ts overclocked(): every amount doubles (each its own literal * 2; no named constant to import); a copy rule
@@ -211,7 +257,8 @@ import { ICON, wrap } from "../src/render/font";
 import { REMINDER } from "../src/ui/faces";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../src/sim/deck";
 import { computeView, defaultScale } from "../src/core/io";
-import { HELP, HELP_HEARTS_2, HELP_KEYWORDS, HELP_LONG_1, HELP_LONG_2, helpLine3, helpLines } from "../src/screens/title";
+import { HELP, HELP_ENDLESS, HELP_HEARTS_2, HELP_KEYWORDS, HELP_LONG_1, HELP_LONG_2, helpLine3, helpLines } from "../src/screens/title";
+import { withEndless } from "../src/sim/endless"; // BUMP-1E P6: ENDLESS ships on: the card before its sentence is read with endless off
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: the 10-day card is read with the long run off
 import { helpCard, titleScale } from "../src/screens/titleLayout";
 
@@ -243,7 +290,9 @@ describe("CARD-5 (H): HOW TO PLAY names the kinds and the keywords (REQ-BFG-111;
     // run ends: HELP_LONG_1 and HELP_LONG_2, tests/run1.screens.test.ts), so it is read with the long run off; HELP_HEARTS_2's cost words
     // are built from the constants (title.ts heartCostWords: "1 ON DAYS 1-3 AND 2 FROM DAY 4")
     expect(withLongRun(() => helpLines(), false).slice(0, 5).map((l, i) => (i === 2 || i === 3 ? "" : l))).toEqual(HELP_BEFORE.map((l, i) => (i === 2 || i === 3 ? "" : l))); // items 1, 2, 5 as before
-    expect(helpLines().slice(0, 5).map((l, i) => (i === 2 || i === 3 ? "" : l))).toEqual([HELP_LONG_1, HELP_LONG_2, "", "", HELP[4]]); // the long card: items 1 and 2 are its own, 5 as before
+    // BUMP-1E P6 (R3.5): ENDLESS ships on, so line 2 ends with HELP_ENDLESS (tests/bump1e.endlesshelp.test.ts); the long card without it is read with endless off (was helpLines() bare)
+    expect(withEndless(() => helpLines(), false).slice(0, 5).map((l, i) => (i === 2 || i === 3 ? "" : l))).toEqual([HELP_LONG_1, HELP_LONG_2, "", "", HELP[4]]); // the long card: items 1 and 2 are its own, 5 as before
+    expect(helpLines().slice(0, 5).map((l, i) => (i === 2 || i === 3 ? "" : l))).toEqual([HELP_LONG_1, `${HELP_LONG_2} ${HELP_ENDLESS}`, "", "", HELP[4]]); // and with endless on: item 2 + one sentence
   });
 
   it("each clause true where the sim says it: item 6 is each keyword's own reminder cut short; MOST RIGS: more than half the buyable rigs work on each slug on a tile their arrows point at (a HIT: rule)", () => {

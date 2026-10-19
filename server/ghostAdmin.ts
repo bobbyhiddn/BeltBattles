@@ -25,7 +25,7 @@
 import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
-import { isReachable } from "../src/net/records";
+import { endlessRecordProblem, isReachable } from "../src/net/records"; // ENDLESS-1: an endless snapshot's record
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { parseRules, rulesGateProblem } from "../src/net/rulesGate";
 import { decodeSnapshot, ghostId, ID_PATTERN, type GhostSnapshot } from "../src/net/snapshot";
@@ -264,8 +264,15 @@ export function uploadProblems(r: StoredRecord, rules: string): string[] {
   if (!v.ok) out.push(`validateUpload: ${v.errors.join("; ")}`);
   // RUN-1 (R1.2, T3c): and its `losses` when it states them (a long run's upload; v3, taken under those rules only), as POST checks
   // it: an honest long-run record is kept, one whose losses contradict its hearts is found. Without `losses`: as before
-  const reachable = isReachable(s.day, s.wins, s.lives, { rules: s.rules, lastChance: lc?.day ?? null, ...(s.losses !== undefined ? { losses: s.losses } : {}) });
-  if (!reachable) out.push(`record: ${s.wins}W ${s.lives} lives${s.losses !== undefined ? ` and ${s.losses} losses` : ""} is no record a run carries into dusk ${s.day}${lc ? ` after a LAST CHANCE on day ${lc.day}` : ""}`);
+  // ENDLESS-1 (REQ-BFG-059): an endless snapshot (stored on its own day, up to ENDLESS_LAST_DAY, in the same bucket keys) is judged on the
+  // endless model, as POST /v1/ghosts judges it (records.ts endlessRecordProblem); a run's record is read as before
+  if (s.mode === "endless") {
+    const why = endlessRecordProblem({ rules: s.rules, day: s.day, victoryDay: s.victoryDay ?? 0, endlessWins: s.endlessWins ?? 0, endlessLives: s.endlessLives ?? 0, ...(s.losses !== undefined ? { losses: s.losses } : {}), ...(lc ? { lastChance: lc } : {}) });
+    if (why) out.push(why);
+  } else {
+    const reachable = isReachable(s.day, s.wins, s.lives, { rules: s.rules, lastChance: lc?.day ?? null, ...(s.losses !== undefined ? { losses: s.losses } : {}) });
+    if (!reachable) out.push(`record: ${s.wins}W ${s.lives} lives${s.losses !== undefined ? ` and ${s.losses} losses` : ""} is no record a run carries into dusk ${s.day}${lc ? ` after a LAST CHANCE on day ${lc.day}` : ""}`);
+  }
   // PACKS M2 (REQ-BFG-063): POST /v1/ghosts takes an upload under RULES_VERSION only with its player's name (a bad name
   // is already the strict decode's refusal above); uploads stored under older rules never carried one
   const named = s.rules === RULES_VERSION ? nameProblem(s.name) : null;

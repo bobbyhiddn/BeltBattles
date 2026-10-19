@@ -23,6 +23,7 @@ import { fmtPct } from "../src/ui/statFormat";
 import { EVENTS, type EventState } from "../src/game/eventDefs";
 import { cardNote } from "../src/screens/event/cards";
 import type { Run } from "../src/game/run";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (POISON is a keyword again)
 import { BAND, STARS } from "./y3.helpers";
 import { furnaceBench, twoPress, withMod } from "./wave3.helpers";
 import { rigBench } from "./y3.helpers";
@@ -34,11 +35,24 @@ const RETIRED = ["HARASSMENT", "ONLINE", "POISON"];
 describe("Y4 words: no new keyword; BONUS DAMAGE stays; Y7b2: LOAD TIME retires", () => { // Y7b2 (the words): was "...; LOAD TIME and BONUS DAMAGE stay"
   // Y7b2 (the words): was "on, ...; LOAD TIME and BONUS DAMAGE stay; the 9 keywords"
   it("on, the glossary is Y3's: only HARASSMENT retires (Y5: and ONLINE; Y6: and POISON); BONUS DAMAGE stays; Y7b2: LOAD TIME's row is gone; the 9 keywords", () => {
-    // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
-    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
-    for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
-    expect([glossaryEntry("LOAD TIME")?.word, glossaryEntry("BONUS DAMAGE")?.word]).toEqual([undefined, "BONUS DAMAGE"]); // Y7b2 (the words): was ["LOAD TIME", "BONUS DAMAGE"]
-    expect(KEYWORDS).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where POISON is a keyword again (SCALE-2b: VENOM DRIP's POISON; its
+    // glossary row and its KEYWORDS entry, the 10th, join while the switch is on). The checks below hold the 0.9.11 world's POISON
+    // retired and the keywords the 9, so they are read with the switch off (withScaleRigs(fn, false), synchronously); the shipped
+    // world's are the second half (HARASSMENT, ONLINE and LOAD TIME stay retired in both)
+    withScaleRigs(() => {
+      // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
+      expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
+      for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
+      expect([glossaryEntry("LOAD TIME")?.word, glossaryEntry("BONUS DAMAGE")?.word]).toEqual([undefined, "BONUS DAMAGE"]); // Y7b2 (the words): was ["LOAD TIME", "BONUS DAMAGE"]
+      expect(KEYWORDS).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]);
+    }, false);
+    // BUMP-1E: the shipped world: POISON is a glossary row and a keyword (the 10th, after REGEN); the other rows stay retired
+    expect(SCALE_RIGS).toBe(true);
+    expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual(["POISON"]); // BUMP-1E: was []
+    for (const w of ["HARASSMENT", "ONLINE"]) expect(glossaryEntry(w), w).toBeUndefined();
+    expect(glossaryEntry("POISON")?.kw).toBe("POISON"); // BUMP-1E: was toBeUndefined()
+    expect([glossaryEntry("LOAD TIME")?.word, glossaryEntry("BONUS DAMAGE")?.word]).toEqual([undefined, "BONUS DAMAGE"]);
+    expect(KEYWORDS).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN", "POISON"]); // BUMP-1E: the 9 and POISON
   });
 
   // Y7b2 (the words): was "why LOAD TIME stays: SALVO RACK's kept sentence and the TEMPO family's line still name it with the switch on"

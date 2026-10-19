@@ -10,6 +10,7 @@ import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { ITEMS } from "../src/sim/content";
 import { walkRoute } from "../src/sim/deck";
 import { overclocked } from "../src/sim/overclock";
+import { flatOf } from "../src/sim/scale"; // BUMP-1E: a slug's whole flat bonus (the stat rows' flat plus the FOR EACH each)
 import { effectAt } from "../src/sim/stars";
 import { abilityText, cardText, gist, hitText, nextStarText } from "../src/ui/abilityText"; // 0.6.2rel3: REQ-BFG-032's glossary
 import { wrap } from "../src/render/font";
@@ -51,13 +52,16 @@ describe("TUNE-M T2: LODESTONE's floor", () => {
 
   // Y7b2 (the flip): was "with stalled machines it adds the floor plus the per-stalled bonus, up to its max"
   it("with stalled machines it adds the per-stalled bonus for each, no floor, no cap", () => {
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where a FOR EACH add (LODESTONE's EACH a STUN) rides the slug's own
+    // `each` accumulator (battle.ts forEach, REQ-BFG-110 step 4) and p.flat stays the stat rows' alone (0, or the 50 the payload
+    // carried in), so what the hit adds is read through flatOf(p), the sum the shot reads: the same numbers; was `.flat`
     for (const [i, s] of STARS.entries()) {
       // NUM-1: every amount is whole now, so each is exact (was toBeCloseTo(.., 9))
       // Y7b2 (the flip): no FLOOR[i] in any of these, and no Math.min(MAX[i], ...) (no cap; 4 stalls stay under it anyway)
-      expect(lodestoned(s, 1).flat, `★${s}, 1 stalled`).toBe(EACH[i]);
-      for (const n of [2, 3, 4]) expect(lodestoned(s, n).flat, `★${s}, ${n} stalled`).toBe(n * EACH[i]);
+      expect(flatOf(lodestoned(s, 1)), `★${s}, 1 stalled`).toBe(EACH[i]); // BUMP-1E: was lodestoned(s, 1).flat
+      for (const n of [2, 3, 4]) expect(flatOf(lodestoned(s, n)), `★${s}, ${n} stalled`).toBe(n * EACH[i]); // BUMP-1E: was lodestoned(s, n).flat
       // on top of what the payload already carries (NUM-1: x10, was 5)
-      expect(lodestoned(s, 1, payload(50)).flat).toBe(50 + EACH[i]);
+      expect(flatOf(lodestoned(s, 1, payload(50)))).toBe(50 + EACH[i]); // BUMP-1E: was lodestoned(s, 1, payload(50)).flat
     }
   });
 

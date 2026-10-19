@@ -20,10 +20,13 @@ const spent = (s: Shopper): number => buildCost(s.b).total + cargoValue(s.cargo)
 const SCAN_SEEDS = Number(process.env.BUDGET_SCAN_SEEDS ?? 60);
 
 describe("harness budget (fix pass): deck + cargo within the day's gold", () => {
-  it("regression (verify11): siphon day 7, seed v11-on #6, stars on + cores on stays within the day's gold after every lever (4dce097: a drop took deck 49 + cargo 10 to deck 69 + cargo 10 = 79 > 77)", () => {
+  // BUMP-1E (SCALE_RIGS on since bb-0.12.0): seed #6 no longer reaches the scenario (the shared pool gained the seven scaling rigs, so the
+  // shopper buys differently: its cargo is empty at the end, cargoValue 0). Seed #66 is the first of ("v11-on", "siphon", 7, k) that does: 6 G of
+  // cargo on board, one drop tried with it, and the deck + cargo exactly at the day's 77 G (measured, a 400-seed scan). Was seed #6.
+  it("regression (verify11): siphon day 7, seed v11-on #66, stars on + cores on stays within the day's gold after every lever (4dce097: a drop took deck 49 + cargo 10 to deck 69 + cargo 10 = 79 > 77; BUMP-1E: was seed #6)", () => {
     const over: string[] = [];
     let cargoAtDrop = 0;
-    const r = shopBuild("siphon", 7, new Rng(hashSeed("v11-on", "siphon", 7, 6)), "on", FUSE_MAX, "on", (s, l, ok) => {
+    const r = shopBuild("siphon", 7, new Rng(hashSeed("v11-on", "siphon", 7, 66)), "on", FUSE_MAX, "on", (s, l, ok) => {
       if (l === "drop" && s.cargo.length) cargoAtDrop++;
       if (spent(s) > maxGoldByDay(7)) over.push(`after ${l} (${ok}): deck ${buildCost(s.b).total} + cargo ${cargoValue(s.cargo)} > ${maxGoldByDay(7)}`);
     });

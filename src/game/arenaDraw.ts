@@ -11,6 +11,7 @@ import { hullX, hullY, sx, sy, type DeckFrame } from "../render/frame";
 import { muzzleX, muzzleY, type CruiserView } from "../render/cruiser";
 import { flameCone, heatTier, pelletSprite, shadowDisc, shellSprite, trailColors, volleySprite } from "../render/ammo";
 import type { Side } from "../sim/battle";
+import { flatOf } from "../sim/scale"; // SCALE-2a (REQ-BFG-110): the flat bonus's sum (stat rows + FOR EACH)
 import type { Arena } from "./arena";
 
 /** Crack polylines in hull-local space: start point + unit steps (dx,dy pairs). */
@@ -67,7 +68,7 @@ export function drawShells(g: G, a: Arena, map?: ShotMap): void {
     const arc = pr.heavy || pr.core === "mortar" ? 8 + dist * 0.09 : 0;
     const k = Math.min(1, pr.t / pr.flight);
     const ad = AMMO[pr.payload.ammo];
-    const tier = pr.payload.ammo === "cinder" ? heatTier(payloadDamage(pr.payload.base ?? ad.base, ad.rideScale, pr.payload.ride, pr.payload.mult, pr.payload.flat + (pr.payload.heatBonus ?? 0))) : 0;
+    const tier = pr.payload.ammo === "cinder" ? heatTier(payloadDamage(pr.payload.base ?? ad.base, ad.rideScale, pr.payload.ride, pr.payload.mult, flatOf(pr.payload) + (pr.payload.heatBonus ?? 0))) : 0; // SCALE-2a: the sum
     if (pr.payload.harass) {
       const c = Math.floor(a.clock * 6) % 2 ? C.red : C.fire4;
       for (const [vx, vy] of [[-5, -5], [4, -5], [-5, 4], [4, 4]]) rect(g, Math.round(x1 + vx), Math.round(y1 + vy), 2, 2, c);

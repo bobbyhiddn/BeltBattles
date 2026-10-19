@@ -5,6 +5,7 @@ import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dorman
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2 (REQ-BFG-047): MIMIC's speed, rounded half up once
 import { estimateRoute, type Build } from "../src/sim/deck";
 import { resolveCore } from "../src/sim/cores";
+import { SCALE_IDS, SCALE_RIGS } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the seven new rigs
 import { effectAt, outputsAt, valueOf } from "../src/sim/stars";
 import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2t: the glossary
 import { buyOffer, newRun, rollShop } from "../src/game/run";
@@ -66,7 +67,12 @@ describe("wave-2 stock and live star data", () => {
     // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH (alchemist) and SPIKE RAIL (tinker), the three shaped rigs, 31 -> 34 (was
     // [31, 16, 15, 14]); GANTRY PRESS and ASSEMBLY LINE are reshaped, not added
     // BUMP-1D: + the six plain stat rigs (PLAIN_RIGS) and the six more shaped rigs (SHAPES2), all with a merchant, 34 -> 46
-    expect(counts).toEqual([46, 16, 15, 14]);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), so ITEMS holds the seven new rigs (CINDER MAIL, ROT GAUGE, LEECH
+    // COIL, CROWD PRESS, AEGIS SPIKE, GRUDGE ROD, TROPHY CHAIN: scale.ts SCALE_ITEMS), every one a gate with a merchant: 46 -> 53 (was
+    // [46, 16, 15, 14]); the reworks keep their kinds and merchants, so the factories, cores and mods are as before
+    expect(SCALE_RIGS).toBe(true);
+    expect(SCALE_IDS.every((id) => ITEMS[id]?.kind === "gate" && !!ITEMS[id].merchant), "the seven new ids are merchant gates").toBe(true);
+    expect(counts).toEqual([46 + SCALE_IDS.length, 16, 15, 14]); // BUMP-1E: was [46, 16, 15, 14]
     for (const id of WAVE) {
       const d = ITEMS[id];
       expect([d.merchant, d.rarity, d.price], id).toEqual(WAVE_STOCK[id]);

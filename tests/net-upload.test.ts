@@ -26,6 +26,7 @@ import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): 0.9
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 (RUN5-SHAPES1 3): the ceiling before EMBER TROUGH's 5 G, SHAPES off
 import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SAW BAR and SPARK COMB (5 G commons) stand in ITEMS with SHAPES off alone
 import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: the world before the twelve (PLAIN_RIGS and SHAPES2) is all three switches off
+import { withScaleRigs } from "../src/sim/scale"; // BUMP-1E: and the scaling switch, added last, goes off first (catalogueOff)
 
 // v070-validate M3: the player mode (validateUpload) and its road ceiling (src/net/roadCap.ts).
 // FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes, so every deck these tests check in
@@ -50,7 +51,11 @@ const DOCK = 200, RIDE = -100; // NUM-1: x10 (were 20 and -10)
  *  six, SHAPES-1's three, SHAPES2's six, after the base defs). Measured (BUMP-1D): a lone withShapes(.., false) puts the
  *  three back behind the twelve, and the par player's decks of the same seeds come out different from then on in the same
  *  worker (FOUNDRY, FURNACE, WEAVER and BASTION on three seeds: 12 of 12 decks differ; the nesting below: 0 of 12). */
-const catalogueOff = <T>(fn: () => T): T => withShapes2(() => withShapes(() => withPlainRigs(fn, false), false), false);
+// BUMP-1E: SCALE_RIGS ships on and its seven ids are the LAST defs in ITEMS (scale.ts: after SHAPES2's six), so by the rule above the scaling switch is the
+// outermost: it goes off first and comes back last. Without it every catalogueOff left SHAPES-1's three and the twelve behind the seven, and the par player's
+// decks of the same seeds came out different from then on in the worker (the bundled ghost pool test: 'SOFT-1: stale: the pick f3:c5680d21 for foundry day 1').
+// It is also the world these pins meant: the catalogue before the twelve and the seven (was withShapes2(() => withShapes(() => withPlainRigs(fn, false), false), false))
+const catalogueOff = <T>(fn: () => T): T => withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(fn, false), false), false), false);
 
 /** The furnace starting deck plus `extra` rigs west of its belt (legal cells), plating and crates. */
 function deck(extra: string[] = [], plates = 0, crates = 0, hullExtra = 0): Build {
@@ -607,9 +612,12 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // BUMP-1D: the stand-in pool regenerated for days 1-16 under bb-0.11.0 (8fc5e24: every switch on, the twelve new pieces in the
 // shop; 192 decks), the test's days 1-10 (RUN_DAYS) of it measured: turrets 74, bought 38, joined 78, joins 191, both 52 (was
 // turrets 72, bought 31, joined 81, joins 185, both 51); days 11-16 are the twin test's (POOL_CARRIES_LONG)
-const POOL_CARRIES = { turrets: 74, bought: 38, joined: 78, joins: 191, both: 52 };
-/** BUMP-1D: the same five counts over the pool's days 11-16 (72 decks; the long run's: new, measured once on the final pool) */
-const POOL_CARRIES_LONG = { turrets: 51, bought: 28, joined: 53, joins: 161, both: 37 };
+// BUMP-1E: the stand-in pool regenerated under bb-0.12.0 (R1, 19ae423: every switch on, the seven scaling rigs in the shop; 192 decks):
+// the same days 1-10 now measure turrets 62, bought 29, joined 82, joins 184, both 37 (was turrets 74, bought 38, joined 78, joins 191, both 52)
+const POOL_CARRIES = { turrets: 62, bought: 29, joined: 82, joins: 184, both: 37 };
+/** BUMP-1D: the same five counts over the pool's days 11-16 (72 decks; the long run's: new, measured once on the final pool). BUMP-1E: turrets 55, bought 26,
+ *  joined 52, joins 144, both 41 on the bb-0.12.0 pool (was turrets 51, bought 28, joined 53, joins 161, both 37) */
+const POOL_CARRIES_LONG = { turrets: 55, bought: 26, joined: 52, joins: 144, both: 41 };
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
 // 0.7.0a D5: the seed pool's 40 sample ghosts carry turret lists and joined belts; its 20 floor ghosts add theirs
 // (tests/seed.records.test.ts checks the split). 0.8.0 I1 M3 (oracle 64485b535a06683c): from the regrown pool, the sample
@@ -644,4 +652,4 @@ const POOL_CARRIES_LONG = { turrets: 51, bought: 28, joined: 53, joins: 161, bot
 // are the softer picks, 79 of 80 par-field runs' dusk decks (sample 22 and 23, floor 2 and 10 as before, race 19 and 30;
 // tests/seed.records.test.ts): was 51, 69
 // BUMP-1D (run 3): the seed pool regenerated for days 1-16 (192 ghosts; R3', server/seedPoolData.ts 0546f5afe4bab423): 108 carry a turret list, 106 a joined belt (was 43, 63 of 120)
-const GHOST_POOL_CARRIES = [108, 106]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61; BUMP-1D: was 43, 63
+const GHOST_POOL_CARRIES = [114, 110]; // BUMP-1E: the seed pool regenerated under bb-0.12.0 (R3, 04fab9a: 192 ghosts) carries a turret list on 114 and a joined belt on 110 (was 108, 106). bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61; BUMP-1D: was 43, 63

@@ -51,8 +51,11 @@ function deckDigest(): string {
  *  S8 run 3 (re-pinned by cause, test only): "S8 lane 2: CAPTAIN_RUNES regenerated with every switch on (NPC_DAY moved
  *  SOOTJAW d10 last_stand -> scrap_saint and RATCHET d7 scrap_biter -> iron_skin); one table for every world; RULING-S8-R3"
  *  (item 2: the all-off world's warlord runes move with the one table; a9dfbcb, rivalBuild = captainRunesOn(...,
- *  CAPTAIN_RUNES[id], day)). Was "3b4f48c519581dc8" (green at acdae00); the same new digest at a9dfbcb and at s8's tip. */
-const BASE_DIGEST_OFF = "2892e67f4593a421";
+ *  CAPTAIN_RUNES[id], day)). Was "3b4f48c519581dc8" (green at acdae00); the same new digest at a9dfbcb and at s8's tip.
+ *  BUMP-1E C3: SOOTJAW's SCATTER CHOKE moves from day 3 to day 5 (src/sim/rivalBuilds.ts), in every world: the all-off digest is no longer
+ *  parAZ-accepted's but this one. Was "2892e67f4593a421" (green through 0.9.11). Nothing else in any captain's deck changed (the test
+ *  passes with this one line of the plan put back). */
+const BASE_DIGEST_OFF = "6e9406039a0e06d9";
 
 /** tests/captains.luck.test.ts's firstOfferDay: the first day the caravan can offer `d`. */
 function firstOfferDay(d: ItemDef): number {

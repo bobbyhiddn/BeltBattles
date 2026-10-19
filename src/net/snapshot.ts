@@ -15,10 +15,11 @@ import { npcDayGateProblem } from "./rulesGate"; // NPC-1 (REQ-BFG-077): the roa
 import { ROAD_OUTCOMES, type RoadEntry } from "../sim/npcDay"; // NPC-1
 import { livesCapFor } from "./rulesGate"; // RETUNE-1 (REQ-BFG-096): the lives bound follows the rules (hearts: 10)
 import { pickGateProblem } from "./rulesGate"; // RETUNE-1 T5 (REQ-BFG-092): a seed ghost's grade by the switch and the rules
-import { longRunFor } from "./rulesGate"; // RUN-1 (REQ-BFG-059): the day bound and the record's `losses` follow the long run's rules
-/** T3d (R1.6): matchmaking.ts takes longRunFor through here (see its import): the decoder stays the first module to import the gate. */
-export { longRunFor };
+import { endlessFor, longRunFor } from "./rulesGate"; // RUN-1 (REQ-BFG-059): the day bound and the record's `losses` follow the long run's rules; ENDLESS-1: and the endless fields follow endless' rules
+/** T3d (R1.6): matchmaking.ts takes longRunFor (and ENDLESS-1's endlessFor) through here (see its import): the decoder stays the first module to import the gate. */
+export { longRunFor, endlessFor };
 import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL, longRunRules } from "../sim/longRun"; // RUN-1: the long run's bounds
+import { ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_WIN_CAP, endlessRules } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): the endless bounds
 import { firstRunGateProblem } from "./rulesGate"; // FIRSTDAY-1 (REQ-BFG-004): the first-run flag by the gate
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
@@ -72,7 +73,8 @@ export const MAX_RUNES = 10; // RUNES-1: one a dawn (= MAX_DAY; runes.ts runePro
  *  RUN-1 (REQ-BFG-059, D4): `rules`, the record's rules, when the caller has them: a long run's bound is one rune a dawn up to
  *  its deepest day (maxDayFor), and one more; without `rules` it follows the switch (a deck check with no snapshot).
  *  With the switch off, 11, exactly as before. */
-export const maxRunes = (rules?: unknown): number => (rules === undefined ? (longRunRules() ? LONG_RUN_MAX_DAY : MAX_DAY) : maxDayFor(rules)) + 1;
+export const maxRunes = (rules?: unknown, top?: number): number =>
+  (top ?? (rules === undefined ? (endlessRules() ? ENDLESS_LAST_DAY : longRunRules() ? LONG_RUN_MAX_DAY : MAX_DAY) : maxDayFor(rules))) + 1; // ENDLESS-1: `top`, an endless snapshot's day bound; no rules: the world's (validate.ts inRulesWorld puts the endless switch to the record's rules)
 export const MAX_STARS = 3; // = stars.ts FUSE_MAX
 export const MAX_ROT = 3; // 0.6.2: a rig's rotation in quarter turns
 export const MAX_SNAPSHOT_BYTES = 16 * 1024; // encoded UTF-8 size cap (client, server, pool)
@@ -104,7 +106,67 @@ export function maxWinsFor(rules: unknown, day: number): number {
  * needs it (records.ts: day - 1 = wins + losses + draws). Every other field: V3_LIVE's answer.
  */
 export function v3LiveFor(field: string, rules: unknown): boolean {
-  return field === "losses" ? longRunFor(rules) : !!V3_LIVE[field];
+  if (field === "losses") return longRunFor(rules);
+  // ENDLESS-1 (REQ-BFG-059, RULING E1: no new field): R1e's four endless fields are reserved in V3_LIVE (false) and TAKEN under
+  // rules with endless only (rulesGate.ts endlessFor: the switch on AND rules at or after ENDLESS_RULES), where an endless
+  // snapshot carries them (endlessProblem holds the bounds); under every other rules version they stay refused
+  if ((ENDLESS_FIELDS as readonly string[]).includes(field)) return endlessFor(rules);
+  return !!V3_LIVE[field];
+}
+
+/** ENDLESS-1: the snapshot-level fields an endless dusk's snapshot carries (V3_SNAPSHOT_FIELDS' R1e group): mode, then the endless
+ *  wins and hearts going into the fight, then the victory day. */
+export const ENDLESS_FIELDS = ["mode", "endlessWins", "endlessLives", "victoryDay"] as const;
+
+/** ENDLESS-1: the deepest day a snapshot, a record or a match request under `rules` may state: ENDLESS_LAST_DAY under rules with
+ *  endless (rulesGate.ts endlessFor), else maxDayFor(rules). It is the bound of an ENDLESS snapshot only: a run snapshot (and a
+ *  run's match request) keeps maxDayFor(rules), exactly as before. Data safety, never a rule of play except that endless itself
+ *  ends after this day. */
+export function endlessMaxDay(rules: unknown): number {
+  return endlessFor(rules) ? ENDLESS_LAST_DAY : maxDayFor(rules);
+}
+
+const isIntVal = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
+
+/**
+ * ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.4): why a snapshot's endless fields can't stand, or null. ONE check for both the strict
+ * decoder (below) and the client's isSnapshot (src/game/ghostSnapshot.ts), so the two stay equal. Takes the snapshot's own fields
+ * (any of them may be missing or not numbers: the callers hand it a raw value).
+ *  - no endless field present: a run's snapshot, null (the run's own bounds, maxDayFor and maxWinsFor, are the caller's and stay
+ *    exactly as they are);
+ *  - any present: only under rules with endless (endlessFor), as mode "endless" with all of endlessWins, endlessLives and victoryDay;
+ *  - the run is WON: wins = WIN_GOAL, and victoryDay in WIN_GOAL..LONG_RUN_MAX_DAY (the latest day a run's WIN_GOAL-th win can come,
+ *    which maxDayFor bounds a run snapshot's day by); the snapshot's day is after it and at most ENDLESS_LAST_DAY;
+ *  - endlessWins 0..ENDLESS_WIN_CAP - 1 into a dusk (the cap-th win ends it) and no more than the endless dusks fought
+ *    (day - 1 - victoryDay); endlessLives 1..ENDLESS_LIVES, and `lives` (hearts going into the fight) equal to it;
+ *  - the run's own `losses`, when stated, within the victory day: 0..victoryDay - WIN_GOAL, the rest of those dusks draws at most
+ *    MAX_RUN_DRAWS (a run's draw bound);
+ *  - LAST CHANCE never fires in endless: a taken one must be from before the victory day.
+ * What the decoder cannot hold (endless losses and draws, which the snapshot doesn't state: RULING E1) is records.ts
+ * endlessReachable's, from day, victoryDay, endlessWins and endlessLives alone.
+ */
+export function endlessProblem(s: { rules?: unknown; day?: unknown; wins?: unknown; lives?: unknown; losses?: unknown; mode?: unknown; endlessWins?: unknown; endlessLives?: unknown; victoryDay?: unknown; lastChance?: unknown }): string | null {
+  if (s.mode === undefined && s.endlessWins === undefined && s.endlessLives === undefined && s.victoryDay === undefined) return null;
+  if (!endlessFor(s.rules)) return "endless: not in this rules version yet";
+  if (s.mode !== "endless") return `mode: expected "endless" (a run's snapshot carries none)`;
+  if (!isIntVal(s.endlessWins) || !isIntVal(s.endlessLives) || !isIntVal(s.victoryDay)) return "endless: an endless snapshot states endlessWins, endlessLives and victoryDay";
+  if (!isIntVal(s.day) || !isIntVal(s.wins) || !isIntVal(s.lives)) return "endless: day, wins and lives must be integers";
+  if (s.wins !== WIN_GOAL) return `wins: an endless snapshot's run is won, so ${WIN_GOAL} wins (not ${s.wins})`;
+  if (s.victoryDay < WIN_GOAL || s.victoryDay > LONG_RUN_MAX_DAY) return `victoryDay: ${s.victoryDay} is not in ${WIN_GOAL}..${LONG_RUN_MAX_DAY}`;
+  if (s.day <= s.victoryDay) return `day: ${s.day} is not after the victory day ${s.victoryDay}`;
+  if (s.day > ENDLESS_LAST_DAY) return `day: ${s.day} is past the last endless day ${ENDLESS_LAST_DAY}`;
+  if (s.endlessWins < 0 || s.endlessWins > ENDLESS_WIN_CAP - 1) return `endlessWins: ${s.endlessWins} is not in 0..${ENDLESS_WIN_CAP - 1}`;
+  if (s.endlessWins > s.day - 1 - s.victoryDay) return `endlessWins: ${s.endlessWins} wins in ${s.day - 1 - s.victoryDay} endless dusks`;
+  if (s.endlessLives < 1 || s.endlessLives > ENDLESS_LIVES) return `endlessLives: ${s.endlessLives} is not in 1..${ENDLESS_LIVES}`;
+  if (s.lives !== s.endlessLives) return `lives: ${s.lives} is not the endlessLives ${s.endlessLives} (an endless snapshot's hearts are its endless hearts)`;
+  if (s.losses !== undefined) {
+    if (!isIntVal(s.losses) || s.losses < 0 || s.losses > s.victoryDay - WIN_GOAL) return `losses: ${String(s.losses)} run losses in the ${s.victoryDay - WIN_GOAL} dusks the victory day leaves`;
+    const draws = s.victoryDay - WIN_GOAL - s.losses;
+    if (draws > MAX_RUN_DRAWS) return `losses: ${draws} run draws in ${s.victoryDay - 1} dusks is past ${MAX_RUN_DRAWS}`;
+  }
+  const lc = s.lastChance as { day?: unknown } | undefined;
+  if (lc !== undefined && (!isIntVal(lc.day) || lc.day >= s.victoryDay)) return `lastChance: LAST CHANCE never fires in endless (day ${String(lc.day)} is not before the victory day ${s.victoryDay})`;
+  return null;
 }
 export const MAX_LIVES = 9; // generous cap: 0.4.1 starts with 3 lives, the 10-day run with 5
 export const MAX_ITEMS = 64;
@@ -271,11 +333,11 @@ function grow(o: Obj, path: string, version: number): void {
 
 /** RUNES-1 (snapshot v3): the build's optional `runes`, v3 only: at most MAX_RUNES strict entries { id } in pick order
  *  (GROW-1's counter `n` refused while off); kept as given, last. Which ids are legal is runes.ts runeProblem's. */
-function runes(o: Obj, path: string, version: number, rules?: unknown): { runes?: { id: string }[] } {
+function runes(o: Obj, path: string, version: number, rules?: unknown, top?: number): { runes?: { id: string }[] } {
   if (!has(o, "runes") || o.runes === undefined) return {};
   v3Gate(`${path}.runes`, "runes", version);
   return {
-    runes: arr(o.runes, `${path}.runes`, maxRunes(rules)).map((rv, i) => { // LC-1: maxRunes (MAX_RUNES while the switch is off); RUN-1: by the record's rules
+    runes: arr(o.runes, `${path}.runes`, maxRunes(rules, top)).map((rv, i) => { // LC-1: maxRunes (MAX_RUNES while the switch is off); RUN-1: by the record's rules; ENDLESS-1: `top`, an endless snapshot's day bound
       const at = `${path}.runes[${i}]`;
       const e = obj(rv, at, ["id"], [V3_RUNE_COUNTER]);
       if (has(e, V3_RUNE_COUNTER) && e[V3_RUNE_COUNTER] !== undefined) v3Gate(`${at}.${V3_RUNE_COUNTER}`, V3_RUNE_COUNTER, version);
@@ -314,7 +376,7 @@ export function isHeroId(v: unknown): v is HeroId {
  * (see turrets()); the copy has the key only when the input has it, last. RUN-1: `rules`, the snapshot's (or record's) rules
  * when the caller has them, bound the runes list by that run's deepest day (maxRunes); absent: by the switch.
  */
-export function checkBuildShape(v: unknown, path = "build", version: number = SNAPSHOT_V3, rules?: unknown): Build {
+export function checkBuildShape(v: unknown, path = "build", version: number = SNAPSHOT_V3, rules?: unknown, top?: number): Build {
   // RUNES-1: the default is the newest version (a build outside a snapshot: validateBuild, a battle record's builds), so
   // a build with runes is shape-legal there; checkSnapshot passes its own snapshot's version
   const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"], ["turrets", "upgrades", ...V3_BUILD_FIELDS]);
@@ -363,7 +425,7 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
     hullBonus: int(o.hullBonus, `${path}.hullBonus`, -10000, 100000),
     ...turrets(o, path, version),
     ...upgrades(o, path, version), // bb-0.8.3 (REQ-BFG-043 D10)
-    ...runes(o, path, version, rules), // RUNES-1 (snapshot v3): last, only when present
+    ...runes(o, path, version, rules, top), // RUNES-1 (snapshot v3): last, only when present
   };
 }
 
@@ -373,18 +435,33 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
  *  before this one, an integer 0..day - 1 - wins (0 is allowed: an exact record), and the dusks left over are its draws
  *  (day - 1 - wins - losses), at most MAX_RUN_DRAWS (anti-forgery; records.ts holds the model). Absent: a snapshot as before
  *  (every old v3 snapshot stays valid; its draws are unknown and the record check allows any it can reach). */
-function v3Fields(o: Obj, version: number, rules: string, day: number, wins: number): { seed?: number; losses?: number } {
-  const out: { seed?: number; losses?: number } = {};
+function v3Fields(o: Obj, version: number, rules: string, day: number, wins: number, endlessSnap = false): { seed?: number; losses?: number; mode?: "endless"; endlessWins?: number; endlessLives?: number; victoryDay?: number } {
+  const out: { seed?: number; losses?: number; mode?: "endless"; endlessWins?: number; endlessLives?: number; victoryDay?: number } = {};
   for (const k of V3_SNAPSHOT_FIELDS) {
     if (!has(o, k) || o[k] === undefined) continue;
-    if (!v3LiveFor(k, rules)) v3Gate(`snapshot.${k}`, k, version); // RUN-1: `losses` under a long run's rules is live
+    if (!v3LiveFor(k, rules)) v3Gate(`snapshot.${k}`, k, version); // RUN-1: `losses` under a long run's rules is live; ENDLESS-1: and the endless group under rules with endless
     else if (version < SNAPSHOT_V3) throw new SnapshotError(`snapshot.${k}: not allowed in a v${version} snapshot`);
     if (k === "seed") out.seed = int(o.seed, "snapshot.seed", 1, MAX_SEED);
     if (k === "losses") {
+      if (endlessSnap) {
+        // ENDLESS-1: an endless snapshot's `losses` are the RUN's (the dusks it lost before its victory day); endlessProblem bounds
+        // them by the victory day, which this loop has not read yet
+        out.losses = int(o.losses, "snapshot.losses", 0, LONG_RUN_MAX_DAY - WIN_GOAL);
+        continue;
+      }
       out.losses = int(o.losses, "snapshot.losses", 0, day - 1 - wins);
       const draws = day - 1 - wins - out.losses;
       if (draws > MAX_RUN_DRAWS) throw new SnapshotError(`snapshot.losses: ${draws} draws in ${day - 1} dusks is past ${MAX_RUN_DRAWS}`);
     }
+    // ENDLESS-1 (RULING E1: the reserved fields, no new one): taken only under rules with endless (v3LiveFor); the ranges here, the
+    // fields' consistency with the rest of the snapshot in endlessProblem
+    if (k === "mode") {
+      if (o.mode !== "endless") throw new SnapshotError(`snapshot.mode: expected "endless" (a run's snapshot carries none)`);
+      out.mode = "endless";
+    }
+    if (k === "endlessWins") out.endlessWins = int(o.endlessWins, "snapshot.endlessWins", 0, ENDLESS_WIN_CAP - 1);
+    if (k === "endlessLives") out.endlessLives = int(o.endlessLives, "snapshot.endlessLives", 1, ENDLESS_LIVES);
+    if (k === "victoryDay") out.victoryDay = int(o.victoryDay, "snapshot.victoryDay", WIN_GOAL, LONG_RUN_MAX_DAY);
   }
   return out;
 }
@@ -448,13 +525,13 @@ export const ROAD_FIELD = "road";
  * outcome and a part id. Whether the entries can stand (their days, the warlords, the seeded drops) is validate.ts's
  * roadProblem (the endpoint's 422). RUN-1 (D4): under a long run's rules the entries and their days follow maxDayFor(rules).
  */
-function roadField(o: Obj, version: number, rules: string): { road?: RoadEntry[] } {
+function roadField(o: Obj, version: number, rules: string, dayTop = maxDayFor(rules)): { road?: RoadEntry[] } {
   if (!has(o, ROAD_FIELD) || o[ROAD_FIELD] === undefined) return {};
   const at = `snapshot.${ROAD_FIELD}`;
   if (version < SNAPSHOT_V3) throw new SnapshotError(`${at}: not allowed in a v${version} snapshot`);
   const gate = npcDayGateProblem(rules);
   if (gate) throw new SnapshotError(`${at}: ${gate}`);
-  const top = maxDayFor(rules);
+  const top = dayTop; // ENDLESS-1: an endless snapshot's log runs to its day (ENDLESS_LAST_DAY at most); a run's: maxDayFor(rules), as before
   return {
     road: arr(o[ROAD_FIELD], at, top).map((rv, i) => {
       const p = `${at}[${i}]`;
@@ -519,10 +596,14 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
   if (!isHeroId(o.hero)) throw new SnapshotError("snapshot.hero: unknown hero");
   // RUN-1 (REQ-BFG-059, D4): under a long run's rules the day is 1..maxDayFor(rules) (25) and a run ghost's wins 0..min(day - 1,
   // WIN_GOAL - 1) (a dusk BEFORE its 10th win); the 10-day rules: 1..MAX_DAY and 0..day - 1, as before
-  const day = int(o.day, "snapshot.day", 1, maxDayFor(rules));
-  const wins = int(o.wins, "snapshot.wins", 0, maxWinsFor(rules, day));
+  // ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.4): an ENDLESS snapshot (rules with endless, `mode` present) is a dusk after a WON run:
+  // its day is 1..ENDLESS_LAST_DAY and its wins exactly WIN_GOAL; every other bound of a run snapshot stays exactly as it is
+  const endlessSnap = has(o, "mode") && o.mode !== undefined && endlessFor(rules);
+  const dayTop = endlessSnap ? ENDLESS_LAST_DAY : maxDayFor(rules);
+  const day = int(o.day, "snapshot.day", 1, dayTop);
+  const wins = endlessSnap ? int(o.wins, "snapshot.wins", WIN_GOAL, WIN_GOAL) : int(o.wins, "snapshot.wins", 0, maxWinsFor(rules, day));
   const lives = int(o.lives, "snapshot.lives", 1, livesCapFor(rules, MAX_LIVES)); // RETUNE-1: 10 under rules with hearts
-  const build = checkBuildShape(o.build, "snapshot.build", ver, rules);
+  const build = checkBuildShape(o.build, "snapshot.build", ver, rules, endlessSnap ? ENDLESS_LAST_DAY : undefined);
   if (build.hero !== o.hero) throw new SnapshotError("snapshot.build.hero: must equal snapshot.hero");
   const gate = rulesGateProblem(rules, build); // 0.7.0 (v070-rel M2): before any exact RULES_VERSION check of a caller
   if (gate) throw new SnapshotError(`snapshot.rules: ${gate}`);
@@ -530,18 +611,22 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
   // FURNACE and WEAVER, so no 0.7.0 client is ever served a FOUNDRY or BASTION ghost
   const heroGate = heroGateProblem(rules, o.hero);
   if (heroGate) throw new SnapshotError(`snapshot.hero: ${heroGate}`);
-  return {
+  const snap: GhostSnapshot = {
     v: ver, rules, hero: o.hero, day, wins, lives, build,
     runId: str(o.runId, "snapshot.runId", ID_PATTERN),
     playerId: str(o.playerId, "snapshot.playerId", ID_PATTERN),
     createdAt: int(o.createdAt, "snapshot.createdAt", 0, Number.MAX_SAFE_INTEGER),
     ...nameField(o), // PACKS M2 (REQ-BFG-063): last, only when present
-    ...v3Fields(o, ver, rules, day, wins), // RUNES-1 (snapshot v3): after the name, only when present; RUN-1: `losses` under a long run's rules
+    ...v3Fields(o, ver, rules, day, wins, endlessSnap), // RUNES-1 (snapshot v3): after the name, only when present; RUN-1: `losses` under a long run's rules; ENDLESS-1: the endless group under rules with endless
     ...lastChanceField(o, ver, rules, day), // LC-1 (REQ-BFG-073): last of all, only when present (and the switch on)
-    ...roadField(o, ver, rules), // NPC-1 (REQ-BFG-077, REQ-BFG-078): after it, only when present (and NPC_DAY on)
+    ...roadField(o, ver, rules, dayTop), // NPC-1 (REQ-BFG-077, REQ-BFG-078): after it, only when present (and NPC_DAY on)
     ...gradeField(o, ver, rules), // RETUNE-1 T5 (REQ-BFG-092): last, only when present (and PICK on)
     ...firstRunField(o, ver), // FIRSTDAY-1 (REQ-BFG-004): last of all, only when present (and the first-run gate on)
   };
+  // ENDLESS-1: the endless fields' bounds against the rest of the snapshot (a run's snapshot has none: null, nothing changes)
+  const endlessWhy = endlessProblem(snap);
+  if (endlessWhy) throw new SnapshotError(`snapshot.${endlessWhy}`);
+  return snap;
 }
 
 export function utf8Bytes(text: string): number {

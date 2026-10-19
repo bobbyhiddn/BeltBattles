@@ -32,6 +32,7 @@ import { roundHalfUp } from "../src/sim/pct"; // NUM-2: MIMIC's speed rounds hal
 // Y7b2 (the flip): `pct as simPct` (NUM-4: GRAPNEL's salvage as the sim rounds it) left with that salvage, its one reader
 import { PEAK_SHIFT } from "../src/sim/races/data"; // NUM-4: METRONOME's peak shift, a hidden timer no sentence quotes
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): bb-0.9.7's sentences beside the shipped ones
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on (the seven scaling rigs, the five reworks); the 0.9.11 sentences are read with it off
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's base sentence beside the shipped one
 import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the six plain stat rigs have a face and no ability text
 import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on): nor have the six more shaped rigs
@@ -53,7 +54,10 @@ describe("the glossary's engine numbers (SIM) are the sim's", () => {
     // pr.payload.poison)`, `def.hull.poison.t = ${SIM.poisonTime};`, `damage = po.stacks * ${SIM.poisonTick};` and
     // `damage = roundHalfUp(po.stacks * ${SIM.poisonTick} * po.acc);`)
     for (const gone of ["poisonMax", "poisonTime", "poisonTick", "scrapQueue"]) expect(SIM, gone).not.toHaveProperty(gone);
-    expect(battle).not.toMatch(/hull\.poison/);
+    // SCALE-2b (REQ-BFG-108; BRIEF-SCALE2b section 2): POISON comes back behind SCALE_RIGS as a count on the hull
+    // (HullState.poison, a number: battle.ts impact and hullEffects), so the guard is on the old pool's own fields
+    // (was /hull\.poison/): the Y7b2 pool (stacks, a timer, a capped tick) stays gone
+    expect(battle).not.toMatch(/hull\.poison\.(stacks|t|acc)\b/);
     // NUM-3 (R1's STUN fold): SABOT's 5 / 4 / 3 s stalls and bare-hull +60, DRAG CHAIN's factory +0.8 s and turret +0.5 s
     // delays, SNAG's x0.8 and CHILL's x0.75 left the sim and SIM (sabotBelt, sabotFactory, sabotTurret, sabotHull,
     // chainFactory, chainTurret, snag, chill). Their checks become: a sabot, frost or chain round STUNs for its own data's
@@ -102,6 +106,13 @@ const imul = (rate: number | undefined): number => 1 / rateMul(rate);
 /** AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE ★2/★3's ride-keep, the star-ladder pass's fixed def's rideKeep (0.5 / 1; 0 at
  *  ★1, and with the switch off, where no def holds one). */
 const rideKeep = (e: ItemDef): number => (g(e) as { rideKeep?: number }).rideKeep ?? 0;
+/** BUMP-1E: bb-0.9.7's ladder-off world, asked for outright (fn synchronous). The scaling switch ships ON, and then withLadderFix(fn, false) alone
+ *  swaps QUENCH TANK's def (ladderFix.ts LADDER_DEFS.quench) to the base def for fn and, on the way back, to the ladder-fixed QUENCH TANK over the
+ *  KINDLING scale.ts put in ITEMS.quench: every later QUENCH text reads a def with no reader line (TypeError, reading 'give', abilityText.ts
+ *  readClause). bb-0.9.7 had both switches off, so the older world is both off, the scaling switch outermost (put back last: KINDLING again). */
+const ladderOff = <T>(fn: () => T): T => withScaleRigs(() => withLadderFix(fn, false), false);
+/** BUMP-1E (SCALE_RIGS on): a reader piece's `reads` line (a rig's gate.reads at its HIT, a gun part's mod.reads at its SHOT; scale.ts). */
+const reads = (e: ItemDef) => (e.kind === "mod" ? m(e) : g(e)).reads!;
 
 /**
  * The audit: the numbers a module's ability text quotes at a star, every sentence in reading order (digits, and ONE to
@@ -145,18 +156,24 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   heatjacket: (e) => [g(e).heat!, 2], // TWO JACKETS ADD UP.
   // Y7b2 (the flip): each BURN lasts burnPlus seconds longer, then BURN's own sentence (POISON left: was [g(e).poison!,
   // SIM.poisonTick, SIM.poisonMax, SIM.poisonTime])
-  venom: (e) => [g(e).burnPlus!, ...BURN],
+  // BUMP-1E: the switch ships ON, and VENOM DRIP is POISON's source (scale.ts SCALE_DEFS.venom: POISON +1 / +2 / +3, no burnPlus; SLOW EMBERS
+  // still lengthens BURN), so its one sentence quotes the count alone, "ADDS n POISON TO EACH PAYLOAD IT HITS." (was [g(e).burnPlus!, ...BURN])
+  venom: (e) => [g(e).poison!],
   // WORDS-1 (REQ-BFG-081): its opening says HITS TWICE (2: the doubled hit, overclock.ts doubles), then its rest (was [rest])
   overclocker: (e) => [2, g(e).overclockCooldown!],
   // Y7b2 (the flip): EVERY fuse SECONDS ... flat DAMAGE, no BURN (was [g(e).keg!.flat, g(e).keg!.burn, g(e).keg!.fuse, ...BURN])
-  keg: (e) => [g(e).keg!.fuse, g(e).keg!.flat],
+  // BUMP-1E: the 12 s fuse goes (scale.ts SCALE_DEFS.keg): +2 / +5 / +11 DAMAGE for each of its own hits, and READ_WHEN's "THIS ONE TOO" (the
+  // word ONE reads as 1) (was [g(e).keg!.fuse, g(e).keg!.flat])
+  keg: (e) => [reads(e).each, 1],
   // NUM-3 step 2: burnPerRide { burn, per, max } (BURN for each `per` s ridden; was 1 BURN every `seconds`)
   // Y7b2 (the flip): no cap (was [g(e).burnPerRide!.burn, g(e).burnPerRide!.per, g(e).burnPerRide!.max, ...BURN])
   bellows: (e) => [g(e).burnPerRide!.burn, g(e).burnPerRide!.per, ...BURN],
   // 0.6.2 FB-B: + flat on every payload, then up to `stacks` of its Burn at perBurn more each (the rest stays Burn)
   // Y7b2 (the flip): every BURN turns into perBurn DAMAGE, no flat and no stack cap (was [g(e).quench!.flat,
   // g(e).quench!.stacks, g(e).quench!.perBurn, ...BURN])
-  quench: (e) => [g(e).quench!.perBurn, ...BURN],
+  // BUMP-1E: QUENCH TANK is KINDLING (scale.ts SCALE_DEFS.quench: +3 / +5 / +8 DAMAGE for each BURN on the foe at the hit; the spend goes),
+  // so its sentences quote the amount alone, no BURN's seconds (was [g(e).quench!.perBurn, ...BURN])
+  quench: (e) => [reads(e).each],
   staticbrush: (e) => [g(e).staticTime!],
   // Y7b2 (the flip): no floor and no cap, the bonus for each STUN alone (was [g(e).flat!, g(e).perStalled!.each,
   // g(e).perStalled!.max], 0.6.2rel3's floor first)
@@ -208,7 +225,9 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
     // SECONDS; checked after the loop below)
     return [pct(1 - c.windowTime! / WINDOW_TIME), ...(c.fireRate ? [rateNum(imul(c.fireRate))] : [])]; // NUM-2: fireRate +18 / +43 (was intervalMul)
   },
-  pressure: (e, k) => [r1(scaleCore(e.core!, k).perQueued!), scaleCore(e.core!, k).maxCount!],
+  // BUMP-1E: MAX 5 is gone (scale.ts SCALE_DEFS.pressure drops maxCount: its own perQueued term, uncapped), so only the per-load number is
+  // quoted (was [r1(scaleCore(e.core!, k).perQueued!), scaleCore(e.core!, k).maxCount!])
+  pressure: (e, k) => [r1(scaleCore(e.core!, k).perQueued!)],
   gatling: (e, k) => {
     const c = scaleCore(e.core!, k);
     // NUM-2: top +67 / +150 / +245 and start -17, whole rate % (was floor 0.6 / 0.4 / 0.29 and start 1.2, interval x).
@@ -275,7 +294,9 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   // TAKES 10 PLATING (NUM-1: battle.ts spends 10; was 1). Y7b2 (the flip): no floor, WITH LESS PLATING ... IT ADDS NOTHING
   // (was [10, g(e).breaker!.flat, g(e).breaker!.floor])
   platebreaker: (e) => [10, g(e).breaker!.flat],
-  shieldwall: (e) => [g(e).plate!, g(e).plated!.min, g(e).plated!.flat, PLATE_CAP],
+  // BUMP-1E: IRON WALL is a reader (scale.ts SCALE_DEFS.shieldwall: +3 / +6 / +17 DAMAGE for each whole 10 SHIELD; its own plating and the
+  // 120 step go): the amount and the per (was [g(e).plate!, g(e).plated!.min, g(e).plated!.flat, PLATE_CAP])
+  shieldwall: (e) => [reads(e).each, reads(e).per!],
   // CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS ... THE NEXT TWO IN TURN ... INTO ONE TURRET
   // (bb-0.8.3, REQ-BFG-042 D3: the pour size, FactorySpec.pour, where 0.8.0 quoted its outputs)
   twinmould: (e) => [f(e).pour!, base(e), 1, f(e).pour!, spd(e), f(e).pour!, 1], // NUM-4: spd(e) (was sec(e); NUM-2: was f(e).interval)
@@ -292,7 +313,9 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   twintrigger: (e) => [pct(m(e).pairBonus!), 2, 1], // A PAIR IS TWO LOADS ... ONE TURRET
   // Y7b2 (the flip): no cap and PLATING's soak counts once (was [m(e).spall!.every, m(e).spall!.add, m(e).spall!.max, 2],
   // ... COUNTS TWICE)
-  spallcatcher: (e) => [m(e).spall!.every, m(e).spall!.add],
+  // BUMP-1E: the charge (every 40 DAMAGE taken) goes (scale.ts SCALE_DEFS.spallcatcher): +1 / +2 / +7 DAMAGE for each hit on you (was
+  // [m(e).spall!.every, m(e).spall!.add])
+  spallcatcher: (e) => [reads(e).each],
   // NUM-4: S.pair's AT ONCE (was SYNC_WINDOW). Y7b2 (the flip): a lone load rolls none, so no lone clause (was
   // [m(e).seam!.pair, m(e).seam!.lone, 2, 1, PLATE_CAP])
   seamwelder: (e) => [m(e).seam!.pair, 2, 1, PLATE_CAP],
@@ -301,6 +324,17 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   wardbell: (e) => [m(e).shield!.amount, m(e).shield!.every, SHIELD_CAP, 1], // GAINS ONE ... UP TO 3; BLOCKS ONE HIT'S DAMAGE
   mendpress: (e) => [f(e).heal!.amount, f(e).heal!.every, base(e), spd(e)], // HEAL n EVERY 3 SECONDS; its plain slug AT RATE n
   mendingloom: (e) => [m(e).regen!],
+  // BUMP-1E (SCALE_RIGS ships on): the seven new scaling rigs (scale.ts SCALE_ITEMS, readers in the form of the reworks above): two sentences,
+  // "EACH PAYLOAD IT HITS GAINS / ROLLS / HEALS n ... FOR EACH <what it counts>." and what it counts (abilityText.ts READER, READ_WHEN). The
+  // numbers: the amount each star (CINDER MAIL 2 / 3 / 5 SHIELD, ROT GAUGE 3 / 5 / 8, LEECH COIL 3 / 4 / 6 TIMES, CROWD PRESS 3 / 7 / 11, AEGIS SPIKE
+  // 40 / 88 / 140, GRUDGE ROD 6 / 13 / 21, TROPHY CHAIN 8 / 12 / 28), and CROWD PRESS's "THE HIT ONE" (the word ONE reads as 1)
+  cindermail: (e) => [reads(e).each],
+  rotgauge: (e) => [reads(e).each],
+  leechcoil: (e) => [reads(e).each],
+  crowdpress: (e) => [reads(e).each, 1],
+  aegisspike: (e) => [reads(e).each],
+  grudgerod: (e) => [reads(e).each],
+  trophychain: (e) => [reads(e).each],
   // supplies
   beltcrate: (e) => [e.supply!.belt!],
   plating: (e) => [e.supply!.hull!],
@@ -340,14 +374,18 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     // 12 buyable modules without it, 33 + 12 = 45 rigs are sold (was MODULES, all of which had it)
     const by = (kind: string) => TEXTED.filter((d) => d.kind === kind).length;
     expect(MODULES.filter((d) => !hasAbilityText(d.id)).map((d) => d.id).sort()).toEqual([...PLAIN12].sort());
-    expect(MODULES.filter((d) => d.kind === "gate")).toHaveLength(45);
+    // BUMP-1E: the switch ships on and the seven scaling rigs (SCALE_IDS: all kind "gate", each with ability text: abilityText.ts SCALE_ENTRIES)
+    // join the buyable rigs: 45 + 7 = 52 sold, 33 + 7 = 40 with ability text below (the 0.9.11 world, read with the switch off, sells 45)
+    expect(SCALE_RIGS).toBe(true);
+    expect(withScaleRigs(() => buyableModules().filter((d) => d.kind === "gate").length, false)).toBe(45);
+    expect(MODULES.filter((d) => d.kind === "gate")).toHaveLength(52); // BUMP-1E: was 45
     for (const id of PLAIN12) expect(hasFace(id), id).toBe(true);
     // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER dormant leaves the buyable rigs, 31 -> 30
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): MEND PRESS joins the factories (15 -> 16), WARD BELL and MENDING LOOM the
     // mods (12 -> 14)
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable rigs (30 -> 33); the factories stay 16
     // (GANTRY PRESS and ASSEMBLY LINE are reshaped, not added)
-    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([33, 16, 15, 14, 13, 2]);
+    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([40, 16, 15, 14, 13, 2]); // BUMP-1E: the seven scaling rigs join the rigs (was [33, 16, 15, 14, 13, 2])
     for (const d of ALL) expect(hasAbilityText(d.id), d.id).toBe(true);
     // FLIP-X2 (REVIEW-NUM3 answer 2): the dormant SIFTER keeps its NUMBERS row (captains' plans and old decks hold it) but
     // leaves the buyable modules: 86 -> 85 modules, (86 + 15) * 3 + 2 -> (85 + 15) * 3 + 2 cases
@@ -356,7 +394,8 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     // (85 + 15) * 3 + 2)
     // SHAPES-1 flip: + the three shaped plain rigs, 88 -> 91 modules, (91 + 15) * 3 + 2 cases (was (88 + 15) * 3 + 2)
     // BUMP-1D: unchanged, the twelve plain stat rigs (103 modules sold, 91 with ability text) are not in ALL
-    expect(CASES).toHaveLength((91 + 15) * 3 + 2); // 91 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
+    // BUMP-1E: + the seven scaling rigs, 91 -> 98 modules with ability text, (98 + 15) * 3 + 2 cases (was (91 + 15) * 3 + 2)
+    expect(CASES).toHaveLength((98 + 15) * 3 + 2); // 98 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55); BUMP-1E: was 91
   });
 
   it("the numbers every sentence quotes are that star's values (effectAt; a core's x k)", () => {
@@ -365,7 +404,8 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     }
     // AZ-BUMP (the flip, LADDER_FIX): off, OVERDRIVE ★2/★3 quote their speed and locked damage alone, bb-0.9.7's [4, 50] and
     // [5, 110] (on, [4, 50, 50] and [5, 100, 110] in the loop above)
-    expect(withLadderFix(() => [2, 3].map((s) => numbers(abilityText("overdrive", s).sentences.join(" "))), false)).toEqual([[4, 50], [5, 110]]);
+    // BUMP-1E: ladderOff (the ladder pass and the scaling switch off, as in bb-0.9.7), so QUENCH is KINDLING again after it
+    expect(ladderOff(() => [2, 3].map((s) => numbers(abilityText("overdrive", s).sentences.join(" "))))).toEqual([[4, 50], [5, 110]]);
     // NUM-4 (REQ-BFG-047; N1 2.2): the hidden timers the rows above no longer quote (was each in seconds, MORTAR's x2.2):
     // none is a whole second, so the sentences say them in words (SOON AFTER, AT ONCE, LONGER, SHORTER, EARLIER, LATER) and
     // the three shared sentences that carried them quote none of them (S.pair keeps its TWO LOADS and ONE TURRET); the sim
@@ -431,8 +471,13 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     // NUM-1: x10 (was 1 and 3; 4 Burn is a count). Y7b2 (the flip): QUENCH has no floor and no stack cap (was "ADDS 10
     // DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH.")
     // AZ-BUMP (the flip, LADDER_FIX): 30 -> 40, the star-ladder pass's QUENCH ★1 (40 a BURN); off, 30
-    expect(at("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 40 DAMAGE.");
-    expect(withLadderFix(() => at("quench", 1).sentences[0], false)).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
+    // BUMP-1E: the switch ships ON, so QUENCH TANK is KINDLING (scale.ts SCALE_DEFS.quench: +3 / +5 / +8 DAMAGE for each BURN on the foe, the
+    // spend goes), a reader's sentence (was "TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 40 DAMAGE."); that 40 is the 0.9.11 world's (the
+    // ladder pass on), read with the scaling switch off, and the 30 bb-0.9.7's (both off: ladderOff), each synchronously
+    expect(SCALE_RIGS).toBe(true);
+    expect(at("quench", 1).sentences[0]).toBe("EACH PAYLOAD IT HITS GAINS 3 DAMAGE FOR EACH FOE BURN.");
+    expect(withScaleRigs(() => at("quench", 1).sentences[0], false)).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 40 DAMAGE.");
+    expect(ladderOff(() => at("quench", 1).sentences[0])).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
     // NUM-1: x10 (was 1). Y7b2 (the flip): SURGE VALVE's damage pulse alone (was "PULSES ITS BELTS 3 TIMES AS FAST FOR 1
     // SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE.")
     expect(at("surge", 1).sentences[0]).toBe("EVERY 3 SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 10 DAMAGE.");
@@ -599,8 +644,18 @@ describe("0.6.2t T4: numbers and keywords in their battle colours, the same ever
     expect(colourOf("ROUNDS THAT FREEZE 2", "FREEZE")).toBe(KEYWORD_COLOUR.freeze);
     // Y7b2 (the flip): KEYWORD_COLOUR.poison left with POISON (a deleted symbol), so POISON draws in the text's own colour,
     // as FROST does since FLIP-X2 (was expect(colourOf("ADDS 2 POISON TO", "POISON")).toBe(KEYWORD_COLOUR.poison))
-    expect(Object.keys(KEYWORD_COLOUR)).not.toContain("poison");
-    expect(colourize("POISON", C.bone)).toEqual([{ t: "POISON", c: C.bone }]);
+    // BUMP-1E: the switch ships ON (SCALE-2b: richText.ts onSetScaleRigs), so POISON is a keyword again: KEYWORD_COLOUR.poison is the venom lime
+    // (palette C.venom) and POISON, POISONS and POISONED draw in it (was not.toContain("poison") and the text's own colour); with the switch
+    // off (the 0.9.11 world, read synchronously) both stand as Y7b2 pinned them
+    expect(SCALE_RIGS).toBe(true);
+    expect(Object.keys(KEYWORD_COLOUR)).toContain("poison");
+    expect((KEYWORD_COLOUR as Record<string, string>).poison).toBe(C.venom);
+    expect(colourOf("ADDS 2 POISON TO", "POISON")).toBe(C.venom);
+    expect(colourize("POISON", C.bone)).toEqual([{ t: "POISON", c: C.venom }]);
+    withScaleRigs(() => {
+      expect(Object.keys(KEYWORD_COLOUR)).not.toContain("poison");
+      expect(colourize("POISON", C.bone)).toEqual([{ t: "POISON", c: C.bone }]);
+    }, false);
     expect(colourOf("MAKES IT 60% FASTER.", "FASTER")).toBe(KEYWORD_COLOUR.faster);
     expect(colourOf("MAKES IT 40% SLOWER.", "SLOWER")).toBe(KEYWORD_COLOUR.slower);
     // a speed phrase takes the speed colour word by word (the spaces between are blank either way)
@@ -652,7 +707,10 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // each word is explained where a module's text uses it: PLATING by its plating sources and readers, PAIR by its pair
     // readers, MATCHED by TWIN GAUGE, WORKS FASTER by STOKER
     const uses = (sentence: string) => W3.filter((d) => abilityText(d.id, 1).sentences.includes(sentence)).map((d) => d.id).sort();
-    expect(uses(S.plating)).toEqual(["anvil", "armorpress", "plateroller", "seamwelder", "shieldwall"]);
+    // BUMP-1E: IRON WALL (shieldwall) is a reader now (scale.ts SCALE_DEFS.shieldwall: GAINS n DAMAGE FOR EACH 10 SHIELD; its own plating goes), so
+    // its text has no plating sentence: the four left (was [..., "shieldwall"]); with the switch off it uses S.plating as before
+    expect(uses(S.plating)).toEqual(["anvil", "armorpress", "plateroller", "seamwelder"]);
+    expect(withScaleRigs(() => uses(S.plating), false)).toEqual(["anvil", "armorpress", "plateroller", "seamwelder", "shieldwall"]);
     expect(uses(S.pair)).toEqual(["seamwelder", "twintrigger"]);
     expect(uses(S.matched)).toEqual(["twingauge"]);
     expect(uses(S.worksFaster)).toEqual(["stoker"]);
@@ -698,7 +756,10 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // Y7b2 (the flip): ★2 holds 2 seconds (hold 1/2/3), no flat (was "NEXT STAR: ADDS 22 DAMAGE.")
     expect(nextStarText("twinlatch", 1)).toBe("NEXT STAR: HOLDS UP TO 2 SECONDS.");
     // was 2.2, 4, 17.6. Y7b2 (the flip): SPALL CATCHER's cap left (was "NEXT STAR: 22 DAMAGE FOR EVERY 40, UP TO 176.")
-    expect(nextStarText("spallcatcher", 1)).toBe("NEXT STAR: 22 DAMAGE FOR EVERY 40.");
+    // BUMP-1E: SPALL CATCHER is a reader (scale.ts SCALE_DEFS.spallcatcher: +1 / +2 / +7 DAMAGE for each hit on you; the 40-damage charge goes)
+    // (was "NEXT STAR: 22 DAMAGE FOR EVERY 40."); the charge's line is the 0.9.11 world's, read with the switch off
+    expect(nextStarText("spallcatcher", 1)).toBe("NEXT STAR: 2 DAMAGE FOR EACH HIT ON YOU.");
+    expect(withScaleRigs(() => nextStarText("spallcatcher", 1), false)).toBe("NEXT STAR: 22 DAMAGE FOR EVERY 40.");
     // TXT-096 (REVIEW-TXT095 Q2): its face's UP TO (was "EACH FACTORY ITS ARROWS POINT AT WORKS 20% FASTER.")
     expect(at("stoker").slice(0, 2)).toEqual(["EACH FACTORY ITS ARROWS POINT AT WORKS UP TO 20% FASTER.", "IT NEVER MAKES A FACTORY OUTRUN ITS GUN."]);
     // NUM-1: was 1 PLATING, 14, 3.5. The battle spends 10 plating (battle.ts: `if (s.plate.plate >= 10) { // NUM-1: 10
@@ -707,7 +768,10 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 10 SHIELD FROM YOUR HULL AND GAINS 140 DAMAGE.", "WITH LESS SHIELD THAN THAT, IT ADDS NOTHING."]);
     // TXT-096 (REVIEW-TXT095 Q2): one opening with both parts (was its [1], "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF
     // THOSE PAYLOADS ALSO GAINS 30 DAMAGE.")
-    expect(at("shieldwall")[0]).toBe("ROLLS 10 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 SHIELD OR MORE, EACH GAINS 30 DAMAGE."); // was 12, 3
+    // BUMP-1E: IRON WALL is a reader (scale.ts SCALE_DEFS.shieldwall: 3 / 6 / 17 DAMAGE for each whole 10 SHIELD; its plating and the 120 step go);
+    // the old opening is the 0.9.11 world's, read with the switch off
+    expect(at("shieldwall")[0]).toBe("EACH PAYLOAD IT HITS GAINS 3 DAMAGE FOR EACH 10 SHIELD.");
+    expect(withScaleRigs(() => at("shieldwall")[0], false)).toBe("ROLLS 10 SHIELD ONTO YOUR HULL FOR EACH PAYLOAD IT HITS, AND WHILE YOUR HULL HOLDS 120 SHIELD OR MORE, EACH GAINS 30 DAMAGE."); // was 12, 3
     // bb-0.8.3 (REQ-BFG-042 D3): the pour, not its belts: TWO (★3 THIRD SPRUE: THREE) at once, the next ones in turn
     // NUM-2 (REQ-BFG-047): the casts every 30 / speed s: ★1 speed 17, 30 / 17 = 1.76 (was 1.8); ★3 speed 21, 1.43 (was 1.4)
     // NUM-4 (REQ-BFG-047): the casts AT RATE n, n its SPEED (★1 17, ★3 21; was EVERY 1.76 / 1.43 SECONDS)
@@ -744,7 +808,9 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(at("twintrigger", 3)).toEqual(["PAIRED LOADS IN THIS TURRET DEAL 95% MORE DAMAGE.", S.pair]);
     expect([effectAt("twintrigger", 3).mod!.windowTime, LOAD_FLOOR]).toEqual([undefined, 0.3]);
     // NUM-1: was 4, 2.2, 17.6. Y7b2 (the flip): no cap (was "..., UP TO 176 DAMAGE.")
-    expect(at("spallcatcher", 2)[0]).toBe("EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 22 DAMAGE TO THIS TURRET'S NEXT SHOT.");
+    // BUMP-1E: SPALL CATCHER is a reader (★2: 2 DAMAGE for each hit on you); the charge's sentence is the 0.9.11 world's, read with the switch off
+    expect(at("spallcatcher", 2)[0]).toBe("EACH SHOT OF ITS TURRET GAINS 2 DAMAGE FOR EACH HIT ON YOU.");
+    expect(withScaleRigs(() => at("spallcatcher", 2)[0], false)).toBe("EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 22 DAMAGE TO THIS TURRET'S NEXT SHOT.");
     // NUM-1: was 1, 0.2. Y7b2 (the flip): a lone load rolls none (was "..., AND ANY OTHER LOAD ROLLS 2.")
     expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 10 SHIELD ONTO YOUR HULL.");
     // the next-star lines DESIGN 3.3 gives
@@ -760,7 +826,10 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // NUM-1: was 8.8, 1 PLATING, 2.2; the battle spends 10 plating, the text still says 1 (a text bug, as above). Y7b2 (the
     // flip): no floor (was "NEXT STAR: 88 DAMAGE FOR 10 PLATING, 22 WITHOUT.")
     expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 88 DAMAGE FOR 10 SHIELD.");
-    expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 22 SHIELD A PAYLOAD, 66 DAMAGE AT 120 SHIELD."); // NUM-1: was 2.2, 6.6, 12
+    // BUMP-1E: IRON WALL's reader line, ★2 6 DAMAGE for each 10 SHIELD (was "NEXT STAR: 22 SHIELD A PAYLOAD, 66 DAMAGE AT 120 SHIELD.", the
+    // 0.9.11 world's, read with the switch off)
+    expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 6 DAMAGE FOR EACH 10 SHIELD.");
+    expect(withScaleRigs(() => nextStarText("shieldwall", 1), false)).toBe("NEXT STAR: 22 SHIELD A PAYLOAD, 66 DAMAGE AT 120 SHIELD."); // NUM-1: was 2.2, 6.6, 12
     // NUM-2 (REQ-BFG-047): ★2 TWIN MOULD speed 19, 30 / 19 = 1.58 (was 1.6); ★2 ARMOR PRESS speed 21, 1.43 (was 1.4)
     // NUM-4 (REQ-BFG-047): AT RATE 19 and AT RATE 21, the ★2 SPEEDs (was EVERY 1.58 / 1.43 SECONDS)
     expect(nextStarText("twinmould", 1)).toBe(`NEXT STAR: 50 DAMAGE EACH, AT RATE ${spdAt("twinmould", 2)}, 3 BELTS.`); // bb-0.8.3 (M4); NUM-1: was 5
@@ -845,9 +914,11 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
       // NUM-4 (REVIEW-NUM3 F2): one word for one stop, STUNS (was "SHORTER STALLS ON ITS TILES.")
       // CARD-2 (REQ-BFG-081, K3 g; READ-2 7.3 item 4): TWIN LATCH's desk line says what it does (was "LETS TWO BELTS GO TOGETHER.")
       braceframe: "SHORTER STUNS ON TILES IT HITS.", twinlatch: "HOLDS A SLUG TO PAIR TWO BELTS.", stoker: "MAKES FACTORIES WORK FASTER.",
-      platebreaker: "TURNS SHIELD INTO DAMAGE.", shieldwall: "ADDS SHIELD, HITS HARDER.", twinmould: "CASTS TWO SLUGS AT ONCE.", // CARD-3 (REQ-BFG-107): the words
+      // BUMP-1E: IRON WALL's and SPALL CATCHER's cards are the readers' (SCALE_ENTRIES: the clause; was shieldwall "ADDS SHIELD, HITS HARDER." and
+      // spallcatcher "HITS YOU TAKE CHARGE ITS SHOT.")
+      platebreaker: "TURNS SHIELD INTO DAMAGE.", shieldwall: "3 DAMAGE FOR EACH 10 SHIELD.", twinmould: "CASTS TWO SLUGS AT ONCE.", // CARD-3 (REQ-BFG-107): the words
       armorpress: "SHIELDS YOUR HULL EVERY 3 SECONDS.", anvil: "MORE DAMAGE THE MORE SHIELD.", steambreech: "FIRES FASTER WHILE SHIELDED.",
-      twintrigger: "PAIRS HIT 30% HARDER.", spallcatcher: "HITS YOU TAKE CHARGE ITS SHOT.", seamwelder: "PAIRS SHIELD YOUR HULL.",
+      twintrigger: "PAIRS HIT 30% HARDER.", spallcatcher: "1 DAMAGE FOR EACH HIT ON YOU.", seamwelder: "PAIRS SHIELD YOUR HULL.",
     });
     for (const d of W3) for (const k of kOf(d)) {
       const card = cardText(d.id, { k }), id = `${d.id} k${k}: ${card}`;

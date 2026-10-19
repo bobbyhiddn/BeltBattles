@@ -24,6 +24,7 @@ function oldSaveRun(hero: Parameters<typeof newRun>[0], seed: number, runId?: st
   return run;
 }
 import { ITEMS, RARITIES, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
+import { SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on; the 0.9.11 BURN pool is read under the off switch
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { fusible } from "../src/sim/stars";
 import { hitsOfRig, key, startingTurrets, type ModPlacement, type Placed } from "../src/sim/deck";
@@ -82,8 +83,15 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
     // BUMP-1D: + RASP (PLAIN_RIGS on: gate { burn: 1 } from ★1), before EMBER TROUGH (the six plain rigs come before the three shaped
     // ones in the catalogue); BRANDING IRON and CINDER HOOK burn from ★2 only (their ★1 gate has no burn), so not those
     // (was ["temper", "bellows", "quench", "embertrough"])
-    expect(smugglerPool("BURN")).toEqual(["temper", "bellows", "quench", "rasp", "embertrough"]);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0) and QUENCH TANK is KINDLING there (scale.ts SCALE_DEFS: a reader of the foe's BURN,
+    // gate { reads }, no gate.quench), so the BURN predicate (eventDefs.ts SMUGGLER_EFFECT: burn, burnPerRide or quench) no longer takes 'quench': the pool is
+    // the four gates whose effect burns (was ["temper", "bellows", "quench", "rasp", "embertrough"]); the 0.9.11 pool is read under the off switch below
+    expect(SCALE_RIGS).toBe(true);
+    expect(scaleRules()).toBe(true);
+    expect(smugglerPool("BURN")).toEqual(["temper", "bellows", "rasp", "embertrough"]); // BUMP-1E: was [..., "quench", ...]
+    expect(withScaleRigs(() => smugglerPool("BURN"), false)).toEqual(["temper", "bellows", "quench", "rasp", "embertrough"]); // BUMP-1E: 0.9.11's pool, the switch off
     expect(smugglerPool("SHOCK")).toEqual(["coil", "staticbrush", "lodestone"]);
+    expect(withScaleRigs(() => smugglerPool("SHOCK"), false)).toEqual(["coil", "staticbrush", "lodestone"]); // BUMP-1E: no SHOCK rig is reworked or new
     for (const seed of SEEDS.slice(0, 50)) for (const day of DAYS) {
       const [burn, shock] = choicesFor(atEvent("smuggler", seed, day, [], true)); // 0.8.0 I1 M3: old save
       expect([burn.label, burn.cost]).toEqual(["BURN", [{ k: "gold", n: 2 }]]);

@@ -49,7 +49,7 @@ describe("OPEN-1: the switch and its rules row", () => {
     // BUMP-1D (the bump to bb-0.11.0): OPEN_RUNES_RULES is a literal since the flip, so it stays put while RULES_VERSION moves
     // on: this build's rules are after it, not equal to it (was expect(OPEN_RUNES_RULES).toBe(RULES_VERSION))
     expect(OPEN_RUNES_RULES).toBe("bb-0.10.0");
-    expect(RULES_VERSION).toBe("bb-0.11.0");
+    expect(RULES_VERSION).toBe("bb-0.12.0"); // BUMP-1E: the bump (was bb-0.11.0).
     expect(OPEN_RUNES_RULES).not.toBe(RULES_VERSION);
     // HULL-ON (the flip, OPEN_RUNES): "false whatever the rules" is the switch-off half, so it sets the switch off itself
     withOpenRunes(() => {

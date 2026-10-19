@@ -15,7 +15,7 @@
 // tabs share the row the three had; on a phone each tab's target is still at least a finger tall.
 
 import type { Game, Screen } from "../game/game";
-import { loadRun } from "../game/run";
+import { loadRunGuarded as loadRun } from "../game/saveGuard"; // BUMP-1E P6 E.2: a save this build cannot read shows the first hero's deck, not a crash
 import { online } from "../game/session"; // PROFILE-UP (REQ-BFG-074 clause 4): a worn style uploads, online only
 import {
   chosenSkin, counterValue, isOpen, loadProfile, markSeen, saveProfile, unseen, wear, type Profile,

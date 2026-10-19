@@ -21,11 +21,13 @@ import { INERT, reasonOf } from "./deadOffers.inert";
  *  like)"): re-keyed to bb-0.10.0 (was bb-0.9.7) with the hull release's bump, as Z-BUMP S5 and Y7b2 step 7 did; the open
  *  rows are the same NUM-1 / NUM-2 provisional rows (the INERT table, tests/deadOffers.inert.ts), still unclassified.
  *  BUMP-1D P6 (typecheck:tests: the old literal made this comparison a type error against RULES_VERSION "bb-0.11.0"): re-keyed
- *  to bb-0.11.0 (was bb-0.10.0) with the 10-wins release's bump, as AZ-BUMP S7 did; the open rows are the same provisional rows. */
-const OPEN_RULES = "bb-0.11.0";
+ *  to bb-0.11.0 (was bb-0.10.0) with the 10-wins release's bump, as AZ-BUMP S7 did; the open rows are the same provisional rows.
+ *  BUMP-1E P2b (typecheck:tests: the old literal is a type error against RULES_VERSION "bb-0.12.0"): re-keyed to bb-0.12.0 (was
+ *  bb-0.11.0) with the scaling release's bump, as BUMP-1D P6 did; the open rows are the same provisional rows. */
+const OPEN_RULES = "bb-0.12.0";
 
 describe("REQ-BFG-021: the dead-offer audit's open reasons (num1Open, num2Open) end at the next rules version", () => {
-  it("no num1Open or num2Open reason remains once RULES_VERSION differs from bb-0.11.0 (BUMP-1D: re-keyed, was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)", () => {
+  it("no num1Open or num2Open reason remains once RULES_VERSION differs from bb-0.12.0 (BUMP-1E: re-keyed, was bb-0.11.0; BUMP-1D: was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)", () => {
     const open: string[] = [];
     for (const [hero, mods] of Object.entries(INERT) as [HeroId, Record<string, number[]>][]) {
       for (const [id, days] of Object.entries(mods)) for (const day of days) {

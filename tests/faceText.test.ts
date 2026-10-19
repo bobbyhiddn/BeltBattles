@@ -38,6 +38,7 @@ import { NEXT_LINE_W, type FaceLines } from "../src/ui/faces"; // U2d F1
 import { GLOSSARY_WRAP_W } from "../src/ui/glossary"; // U2d F1
 import { banned } from "./textRules"; // U2d step 1
 import { STUN_CAUSES } from "../src/sim/content"; // NUM-3 (R1's STUN fold): MANTLET's immunity
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; SPALL CATCHER's 0.9.11 NEXT★ is read with it off
 import { SIM } from "../src/ui/abilityText"; // NUM-3: SCRAPPER's queue cap
 import { FURNACE_LONG_BELT } from "../src/sim/battle"; // Y1: FURNACE's hero face, its long-belt rate %
 
@@ -556,7 +557,13 @@ describe("U2d F1 (cap's answer to U2c question 1): NEXT★ shows every number th
     // Y7b2 (the flip): SPALL CATCHER's cap, SALVAGE LINE and SPOTTER's factory weight left, so their NEXT★ lines are the
     // numbers left: the damage, the rips and the aims (were toContain(`MAX ${fmtDmg(spall.max)} `), toContain(" EACH") and
     // toContain(`FACTORIES ${fmtCount(factoryWeight)} TIMES`))
-    expect(stripIcons(faceNext("spallcatcher", 1)!.text)).toBe(`NEXT ★2: +${fmtDmg(effectAt("spallcatcher", 2).mod!.spall!.add)} `);
+    // BUMP-1E: SPALL CATCHER is a reader (scale.ts SCALE_DEFS: the charge's `spall` is gone, its `reads` line comes), so its NEXT★ is
+    // the keyed number of readerFace, +n {DMG} EACH (x D(d)), from `reads.each` (was `+${fmtDmg(...mod!.spall!.add)} `)
+    expect(SCALE_RIGS).toBe(true);
+    expect(stripIcons(faceNext("spallcatcher", 1)!.text)).toBe(`NEXT ★2: +${fmtDmg(effectAt("spallcatcher", 2).mod!.reads!.each)}  EACH`);
+    // the 0.9.11 world, asked for with the switch off (synchronously): the charge's +n {DMG}, as this test pinned it
+    const [offText, offAdd] = withScaleRigs(() => [stripIcons(faceNext("spallcatcher", 1)!.text), effectAt("spallcatcher", 2).mod!.spall!.add] as const, false);
+    expect(offText).toBe(`NEXT ★2: +${fmtDmg(offAdd)} `);
     expect(stripIcons(faceNext("spotter", 1)!.text)).toBe(`NEXT ★2: ${fmtCount(effectAt("spotter", 2).mod!.rerolls!)} MORE AIMS`);
     expect(stripIcons(faceNext("grapnel", 2, { k: 1 })!.text)).toBe(`NEXT ★3: RIPS ${fmtCount(effectAt("grapnel", 3).core!.rip!)}`);
     expect(faceAt("armorpress", 1)!.nums.find(([key]) => key === "every")![1]).toBe(`EVERY ${fmtSec(effectAt("armorpress", 1).factory!.plate!.every)}{SEC}`);

@@ -8,6 +8,7 @@ import { withSustain } from "../src/sim/content"; // FLIP-X2: D1's catalogue has
 import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: ... and no shaped rig (inD1 below)
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: ... and no plain rig (inD1 below)
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: ... and none of the six more shaped rigs (inD1 below)
+import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: ... and none of the seven scaling rigs (inD1 below)
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { newRun, rollShop, type Run } from "../src/game/run";
 import { Rng } from "../src/core/rng";
@@ -33,7 +34,14 @@ const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome"
 // the six more shaped ones; no row in D1's maps, and D1's counts are without them), so D1's world also has both switches off for
 // the call (withPlainRigs(fn, false), withShapes2(fn, false)); the live catalogue is pinned with every switch on below. The nesting
 // puts the switches back in ITEMS order (the plain rigs, then the three shaped rigs, then the six more: each swap back appends)
-const inD1 = <T>(fn: () => T): T => withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(fn, false), false), false), false);
+// BUMP-1E (the flip, SCALE_RIGS on in bb-0.12.0): D1's catalogues hold none of the seven scaling rigs either (CINDER MAIL, ROT GAUGE, LEECH COIL,
+// CROWD PRESS, AEGIS SPIKE, GRUDGE ROD, TROPHY CHAIN: no row in D1's maps, and D1's counts are without them: 71 became 78 and 100 became 107; the
+// second pin failed with its variant still installed, so the 9 tests after it threw 'a variant is already installed'), so D1's world has the
+// scaling switch off for the call (withScaleRigs(fn, false)). It is the OUTERMOST call of the nest, by the same rule: the seven are the last keys in
+// ITEMS (scale.ts: after SHAPES2's six), so the scaling switch goes off first and comes back last, and no key is left behind them (a nest with it
+// left on would put SHAPES-1's three and the twelve behind the seven, and every seeded draw after it in the worker, the par player's decks, would
+// differ). Was: withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(fn, false), false), false), false)
+const inD1 = <T>(fn: () => T): T => withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(fn, false), false), false), false), false);
 
 describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
   // 0.8.0 I1 M2 (REPORT-P1 section 13, "D1's 71-module counts"): wave 3 is live, so v070-rc's catalogue is the `today`
@@ -57,10 +65,26 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
     // buyableModules() 88 -> 91, rig 31 -> 34 (GANTRY PRESS and ASSEMBLY LINE are reshaped, not added)
     // BUMP-1D: + the six plain stat rigs (PLAIN_RIGS) and the six more shaped rigs (SHAPES2), twelve rigs: 92 -> 104 counted,
     // 79 -> 91 without turrets, buyableModules() 91 -> 103, rig 34 -> 46 (the other kinds as before)
-    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([104, 91, 13, false]); // FLIP-X2: SIFTER dormant (was true); BUMP-1D: was [92, 79, 13, false]
-    expect(buyableModules().length).toBe(103); // FLIP-X2: 89 counted less the dormant SIFTER (was 85); SHAPES-1 flip: was 88; BUMP-1D: was 91
-    expect(live.byKind).toEqual({ rig: 46, factory: 16, core: 15, mod: 14, turret: 13 }); // FLIP-X2: factory 15 -> 16, mod 12 -> 14; SHAPES-1 flip: rig 31 -> 34; BUMP-1D: rig 34 -> 46
+    // BUMP-1E (the flip, SCALE_RIGS on in bb-0.12.0): + the seven scaling rigs (scale.ts SCALE_ITEMS: CINDER MAIL, ROT GAUGE, LEECH COIL, CROWD PRESS,
+    // AEGIS SPIKE, GRUDGE ROD, TROPHY CHAIN; each a one-cell rig with a merchant and a price, so counted and stocked): 104 -> 111 counted, 91 -> 98
+    // without turrets, buyableModules() 103 -> 110, rig 46 -> 53 (the other kinds as before). D1's world (inD1) holds none of the seven: its counts
+    // above (71, 58, 86) are D1's still
+    expect(SCALE_RIGS).toBe(true);
+    expect(counted().filter((id) => SCALE_IDS.includes(id))).toEqual([...SCALE_IDS]); // the live catalogue holds all seven, the last ones in ITEMS
+    expect(inD1(() => counted().filter((id) => SCALE_IDS.includes(id)))).toEqual([]); // and D1's holds none
+    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([111, 98, 13, false]); // FLIP-X2: SIFTER dormant (was true); BUMP-1D: was [92, 79, 13, false]; BUMP-1E: was [104, 91, 13, false]
+    expect(buyableModules().length).toBe(110); // FLIP-X2: 89 counted less the dormant SIFTER (was 85); SHAPES-1 flip: was 88; BUMP-1D: was 91; BUMP-1E: was 103
+    expect(live.byKind).toEqual({ rig: 53, factory: 16, core: 15, mod: 14, turret: 13 }); // FLIP-X2: factory 15 -> 16, mod 12 -> 14; SHAPES-1 flip: rig 31 -> 34; BUMP-1D: rig 34 -> 46; BUMP-1E: rig 46 -> 53
     expect(inD1(() => catalogueCount()).total).toBe(86); // FLIP-X2: D1's wave-3 catalogue, the switch off
+  });
+
+  // BUMP-1E: the nest's rule, pinned. The seven scaling ids are the last keys in ITEMS, so inD1 runs the scaling switch as its outermost call (off first,
+  // back last) and leaves every key where it found it; a nest with the scaling switch still on would leave SHAPES-1's three and the twelve behind the seven
+  it("inD1 puts ITEMS back in its key order (the seven scaling rigs stay the last keys), and D1's world has none of them", () => {
+    const order = Object.keys(ITEMS);
+    expect(order.slice(-SCALE_IDS.length)).toEqual([...SCALE_IDS]);
+    expect(inD1(() => Object.keys(ITEMS).filter((id) => SCALE_IDS.includes(id)))).toEqual([]);
+    expect(Object.keys(ITEMS)).toEqual(order);
   });
 
   // FLIP-X2: in D1's world (the counts are D1's variants'; with the switch on each reads 3 more: 103, 102, 89)

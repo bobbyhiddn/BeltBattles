@@ -74,6 +74,7 @@ interface Harness {
   pool(rules?: string): Map<string, string>; // stored pool records for rules: id -> bytes
   plantPool(e: PoolEntry, body?: string): void; // write a pool record behind the seed's back
   plantJunk(): void; // something unreadable where the pool lives
+  keepsUnreadable: boolean; // BUMP-1E E.3: the JSONL store keeps a pool line it cannot decode (it was dropped before); the Tigris store removes junk objects
   players(): string; // every player record, raw, for "untouched" checks
   writes(): number; // write operations so far
 }
@@ -112,6 +113,7 @@ function tigrisHarness(): Harness {
     plantJunk() {
       fake.putObject(bucket, `ghosts/${RULES_VERSION}/d03/pool/junk.txt`, "not a ghost");
     },
+    keepsUnreadable: false,
     players() {
       return fake.keys(bucket).filter((k) => k.includes("/player/")).map((k) => `${k}=${fake.getObject(bucket, k)}`).join("\n");
     },
@@ -153,6 +155,7 @@ function jsonlHarness(): Harness {
       appendFileSync(poolFile, "not a ghost\n");
       last = read(poolFile);
     },
+    keepsUnreadable: true,
     players: () => read(join(dir, "ghosts.jsonl")),
     writes() {
       const now = read(poolFile);
@@ -201,9 +204,15 @@ describe.each([
     h.plantPool(BUNDLE[7], encodeRecord(BUNDLE[7].id, 1, BUNDLE[7].snapshot)); // same ghost, different bytes
     h.plantPool(entry(OLD_RULES));
     const r = await seedStore(h.store());
-    expect(r).toMatchObject({ written: 1, unchanged: N - 1, removed: 2 });
-    expect(h.pool()).toEqual(bundleRecords());
-    expect([...h.pool("bb-0.3.0").keys()]).toEqual([ghostId(OLD_RULES)]);
+    // BUMP-1E E.3: was removed: 2 and the pool exactly the bundle on both stores; the JSONL store now keeps the junk line it cannot decode
+    expect(r).toMatchObject({ written: 1, unchanged: N - 1, removed: h.keepsUnreadable ? 1 : 2 });
+    const want = bundleRecords();
+    if (h.keepsUnreadable) want.set("unreadable:not a ghost", "not a ghost");
+    expect(h.pool()).toEqual(want);
+    // BUMP-1E E.3 (6d156fa left this line as it was: its test edit was unrun, "until the pool test files run again"): the JSONL harness's pool(rules) lists a line it
+    // cannot decode under every rules (it cannot tell whose it is), so the junk line the store now keeps is in bb-0.3.0's list too, beside the one old-rules entry
+    // (was [ghostId(OLD_RULES)] on both stores); the Tigris store removed its junk object, so its list is the one entry
+    expect([...h.pool("bb-0.3.0").keys()]).toEqual(h.keepsUnreadable ? ["unreadable:not a ghost", ghostId(OLD_RULES)] : [ghostId(OLD_RULES)]);
   });
 
   it("never touches player uploads", async () => {

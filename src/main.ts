@@ -3,7 +3,7 @@
 
 import "./ui/firstRun"; // CARD-4 (REQ-BFG-107, N): FIRST, before any module that reads or writes the store (firstRun.ts)
 import { Game } from "./game/game";
-import { newRun } from "./game/run";
+import { newRun, saveRun } from "./game/run"; // ENDLESS-1 tooling: + saveRun (bb.openPlayed's title)
 import { gainModule } from "./game/fuse";
 import { beginRoad, makeEvent } from "./game/events";
 import type { EventId } from "./game/eventDefs";
@@ -39,7 +39,7 @@ import { ReplayScreen } from "./screens/replay";
 import { CustomizeScreen } from "./screens/customize"; // CUSTOM-2a (REQ-BFG-072) tooling
 import { chosenSkin, loadProfile, unseen } from "./game/profile"; // CUSTOM-2a (REQ-BFG-072) tooling (read only)
 import { currentName } from "./game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063) tooling
-import { runeGrants } from "./sim/runes"; // RUNES-1 (REQ-BFG-058) tooling
+import { RUNES, runeGrants } from "./sim/runes"; // RUNES-1 (REQ-BFG-058) tooling; ENDLESS-1: + RUNES (bb.runeIds)
 import { setTipsForTests, tipsDone } from "./ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5) tooling: bb.tips
 import { MOTION, MOTION_KNOBS, isSceneId } from "./render/motion"; // MOTION-1 (REQ-BFG-071) tooling
 import { forceScene, forcedScene } from "./render/scenery"; // FIELD-1 (REQ-BFG-075) tooling: bb.scene
@@ -54,6 +54,7 @@ import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad, warlordDeck, warlor
 import { choicesFor, pickChoice } from "./game/events"; // NPC-1 tooling
 import { hullScaleRules, setHullScale } from "./sim/hullScale"; // HULL-1a (REQ-BFG-079) tooling (shots): the switch, page-wide
 import { longRunRules, setLongRun } from "./sim/longRun"; // RUN-1 (REQ-BFG-059, REQ-BFG-116) tooling (shots): the switch, page-wide
+import { endlessRules, setEndless } from "./sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5) tooling (shots): the switch, page-wide
 import { C } from "./render/palette"; // WIND-1 (REQ-BFG-093) tooling: bb.windInfo's colour
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
@@ -293,12 +294,14 @@ game.start();
     game.go(new ReplayScreen(game, new TitleScreen(game), r.battle, { day: run.day, foe: foe.name }));
     return true;
   },
-  openEnd(o: RunSpec & { results: string; roads?: string }, ghosts: GhostSpec[] = []): void {
+  openEnd(o: RunSpec & { results: string; roads?: string; endless?: string }, ghosts: GhostSpec[] = []): void {
     clearPool();
     addGhosts(ghosts);
     game.run = playOut(o);
     game.go(new SummaryScreen(game));
   },
+  /** ENDLESS-1 (REQ-BFG-059, 3.5) tooling (read only): the rune catalogue's ids in its order, for bb.holdRunes (a run holding ~50 runes). */
+  runeIds: (): string[] => Object.keys(RUNES),
   /** LC-1 (REQ-BFG-073) tooling (shots; scripts never call it in a default game): (Z-BUMP: LAST CHANCE is the game's rule;
    *  the page-wide switch it turned on is gone) plays a run of `hero` through the game's own day loop (startDusk with no
    *  ghost pool, finishDay with the scripted `results`; each dawn's rune is the first card, a LAST CHANCE before the last
@@ -428,6 +431,41 @@ game.start();
   longRun(on = true): boolean {
     if (import.meta.env.DEV) setLongRun(on);
     return longRunRules();
+  },
+  /**
+   * ENDLESS-1 (REQ-BFG-059, 3.5) tooling, for the shots and the checks only: turns ENDLESS on (or off) for this page (endless.ts
+   * setEndless; withEndless is the scoped form the tests use). It changes nothing but the runs made after it: newRun marks each one
+   * (Run.endless), so the RUN WON of a marked run offers CONTINUE ENDLESS. Call it before bb.openEnd / bb.openPlayed / bb.open, which
+   * make the run. ENDLESS shipped OFF, so the setter was NOT dev-only (a shot is taken on the built page, as RUN-1's bb.longRun was
+   * before BUMP-1D).
+   * BUMP-1E (RULING-BUMP1E-R3 R3.5; ENDLESS-1 finding 10): ENDLESS ships ON now, so the setter is dev-only (import.meta.env.DEV) as
+   * bb.longRun's is: on a production page this only reports the switch, so no hook can turn endless off there. Returns the switch.
+   */
+  endless(on = true): boolean {
+    if (import.meta.env.DEV) setEndless(on);
+    return endlessRules();
+  },
+  /**
+   * ENDLESS-1 tooling: a run played out by tooling.ts playOut (`results` to its 10th win; `endless`: more results, played in endless
+   * after CONTINUE ENDLESS) shown on `screen`: the build screen at its dawn, the dusk battle, the run's summary (RUN WON / ENDLESS
+   * OVER), the dusk replayed against its foe (ReplayScreen, BACK to the title), or the title with the run saved (its CONTINUE line).
+   * Call bb.endless() first so the run is marked. False when the replay is refused.
+   */
+  openPlayed(o: RunSpec & { results: string; roads?: string; endless?: string }, screen: "build" | "battle" | "summary" | "replay" | "title" = "build"): boolean {
+    clearPool();
+    const run = (game.run = playOut(o));
+    if (screen === "summary") game.go(new SummaryScreen(game));
+    else if (screen === "battle") game.go(new BattleScreen(game));
+    else if (screen === "title") {
+      saveRun(run);
+      game.go(new TitleScreen(game));
+    } else if (screen === "replay") {
+      const foe = standInFoe(run.seed, run.day);
+      const r = openReplay(battleRecordFor(run.build, foe.build, battleSeed(run), undefined, run.day));
+      if (!r.ok) return false;
+      game.go(new ReplayScreen(game, new TitleScreen(game), r.battle, { day: run.day, foe: foe.name }));
+    } else game.go(new BuildScreen(game));
+    return true;
   },
   /** 0.6.0b: the road fork at a day's dawn (matriarchBeatenOn for R3). */
   openFork(o: RunSpec & { matriarchBeatenOn?: number; bounty?: boolean; sabotage?: boolean } = {}, ghosts: GhostSpec[] = []): void {

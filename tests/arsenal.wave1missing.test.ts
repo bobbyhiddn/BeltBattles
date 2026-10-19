@@ -6,6 +6,7 @@ import { effectAt } from "../src/sim/stars";
 import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2t: the glossary
 import { barge, bench } from "./arsenal.bench";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): QUENCH ★1's off checks
+import { SCALE_RIGS, flatOf, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; a slug's whole flat bonus; the 0.9.11 world's three pieces read with it off
 
 const IDS = ["venom", "overclocker", "keg", "bellows", "quench", "staticbrush", "lodestone", "barbed", "counterweight"];
 const payload = (): Payload => ({ id: 91, ammo: "plain", ride: 3, mult: 1, flat: 0, burn: 0,
@@ -43,19 +44,31 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
         expect(abilityText(id, stars).sentences.length, `${id} ★${stars}`).toBeGreaterThan(0);
       }
     }
-    // Y7b2 (the flip): POISON is gone (gate.poison deleted, was [2, 4, 7]); VENOM DRIP's live star number is burnPlus 3 / 6 / 9 s
-    expect([1, 2, 3].map((s) => effectAt("venom", s).gate?.burnPlus)).toEqual([3, 6, 9]);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where three of the nine are other pieces: VENOM DRIP puts POISON on the hull
+    // (gate.poison 1 / 2 / 3, no burnPlus), POWDER KEG is a reader (+n DMG for each of its own hits: no fuse, no `keg` field) and QUENCH TANK is
+    // KINDLING (+n DMG for each BURN on the foe: no `quench` field); SCALE_DEFS in src/sim/scale.ts, their numbers in tests/scale2c.sim. Their
+    // 0.9.11 star values are read with the switch off (withScaleRigs(fn, false), synchronously); shipped, none carries the old field
+    expect(SCALE_RIGS).toBe(true);
+    for (const s of [1, 2, 3]) {
+      expect(effectAt("venom", s).gate?.burnPlus, `venom ★${s}`).toBeUndefined();
+      expect(effectAt("keg", s).gate?.keg, `keg ★${s}`).toBeUndefined();
+      expect(effectAt("quench", s).gate?.quench, `quench ★${s}`).toBeUndefined();
+    }
+    withScaleRigs(() => {
+      // Y7b2 (the flip): POISON is gone (gate.poison deleted, was [2, 4, 7]); VENOM DRIP's live star number is burnPlus 3 / 6 / 9 s
+      expect([1, 2, 3].map((s) => effectAt("venom", s).gate?.burnPlus)).toEqual([3, 6, 9]);
+      expect([1, 2, 3].map((s) => effectAt("keg", s).gate?.keg?.flat)).toEqual([6, 13, 21].map((v) => 10 * v)); // NUM-1: x10 (was 6 / 13 / 21)
+      // 0.6.2 FB-B (tests/fb062.quench.test.ts): +3/+5/+7 per Burn stack, up to 4/5/6 stacks, +1/+2/+3 on every payload
+      // (was +2/+4/+6 per stack, capped at +12/+26/+42 damage)
+      // AZ-BUMP (the flip, LADDER_FIX): ★1 30 -> 40, the star-ladder pass (★1 pays more than the BURN it spends, 30); with
+      // LADDER_FIX off 30, as before
+      expect([1, 2, 3].map((s) => effectAt("quench", s).gate?.quench?.perBurn)).toEqual([40, 50, 70]); // NUM-1: x10 (was 3 / 5 / 7)
+      expect(withLadderFix(() => effectAt("quench", 1).gate?.quench?.perBurn, false)).toBe(30);
+    }, false);
     // NUM-3 (N1 2.2): the rest 4 / 2 / 1 s, whole (was 4 / 1.8 / 1.15)
     expect([1, 2, 3].map((s) => effectAt("overclocker", s).gate?.overclockCooldown)).toEqual([4, 2, 1]);
-    expect([1, 2, 3].map((s) => effectAt("keg", s).gate?.keg?.flat)).toEqual([6, 13, 21].map((v) => 10 * v)); // NUM-1: x10 (was 6 / 13 / 21)
     // Y7b2 (the flip): BELLOWS's cap is gone (burnPerRide.max deleted, was [4, 9, 14]); +1 / +2 / +3 BURN for each whole 2 s ridden
     expect([1, 2, 3].map((s) => effectAt("bellows", s).gate?.burnPerRide?.burn)).toEqual([1, 2, 3]);
-    // 0.6.2 FB-B (tests/fb062.quench.test.ts): +3/+5/+7 per Burn stack, up to 4/5/6 stacks, +1/+2/+3 on every payload
-    // (was +2/+4/+6 per stack, capped at +12/+26/+42 damage)
-    // AZ-BUMP (the flip, LADDER_FIX): ★1 30 -> 40, the star-ladder pass (★1 pays more than the BURN it spends, 30); with
-    // LADDER_FIX off 30, as before
-    expect([1, 2, 3].map((s) => effectAt("quench", s).gate?.quench?.perBurn)).toEqual([40, 50, 70]); // NUM-1: x10 (was 3 / 5 / 7)
-    expect(withLadderFix(() => effectAt("quench", 1).gate?.quench?.perBurn, false)).toBe(30);
     // NUM-3 (N1 2.2): STUN 1 / 2 / 3 s, whole (was 0.6 / 1.3 / 2.1)
     expect([1, 2, 3].map((s) => effectAt("staticbrush", s).gate?.staticTime)).toEqual([1, 2, 3]);
     expect([1, 2, 3].map((s) => effectAt("lodestone", s).gate?.perStalled?.each)).toEqual([10, 22, 35]); // NUM-1: x10 (was 1 / 2.2 / 3.5)
@@ -89,20 +102,27 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
   // Y7b2 (the flip): Y5's POWDER KEG re-arms (every 12 / 10 / 8 s) and its BURN is gone, so the checks that its blast adds
   // `stars` BURN and leaves it consumed are deleted. Was "Keg detonates once over its route, while Sabot fizzles the fuse"
   it("Keg blasts its route when the fuse runs out, while Sabot fizzles the fuse", () => {
-    for (const stars of [1, 2, 3]) {
-      const { bt, s, a } = setup("keg", stars);
-      const g = s.gates[0];
-      s.routes[0].ammo.push(a); g.fuse = 0.01;
-      bt.step();
-      expect(a.p.flat).toBe(10 * [6, 13, 21][stars - 1]); // NUM-1: x10 (was 6 / 13 / 21)
-      expect(bt.events.filter((e) => e.type === "keg")).toHaveLength(1);
-      bt.step();
-      expect(bt.events.filter((e) => e.type === "keg")).toHaveLength(1);
-      const other = setup("keg", stars);
-      const target = other.s.targets.find((t) => t.kind === "gate" && t.ref === other.s.gates[0].uid)!;
-      (other.bt as any).roundImpact(other.s, target, { kind: "sabot" }, 1);
-      expect(other.s.gates[0].wrecked).toBe(true);
-    }
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where POWDER KEG is a reader (+n DMG for each of its own hits, SCALE_DEFS.keg:
+    // no fuse, no blast; tests/scale2c.sim pins it). This test is the 0.9.11 POWDER KEG's fuse (gate.keg: the blast when the fuse runs
+    // out, a SABOT round wrecking the rig), so it reads that world with the switch off (withScaleRigs(fn, false), synchronously: each
+    // Battle is made inside); no number moved
+    expect(SCALE_RIGS).toBe(true);
+    withScaleRigs(() => {
+      for (const stars of [1, 2, 3]) {
+        const { bt, s, a } = setup("keg", stars);
+        const g = s.gates[0];
+        s.routes[0].ammo.push(a); g.fuse = 0.01;
+        bt.step();
+        expect(a.p.flat).toBe(10 * [6, 13, 21][stars - 1]); // NUM-1: x10 (was 6 / 13 / 21)
+        expect(bt.events.filter((e) => e.type === "keg")).toHaveLength(1);
+        bt.step();
+        expect(bt.events.filter((e) => e.type === "keg")).toHaveLength(1);
+        const other = setup("keg", stars);
+        const target = other.s.targets.find((t) => t.kind === "gate" && t.ref === other.s.gates[0].uid)!;
+        (other.bt as any).roundImpact(other.s, target, { kind: "sabot" }, 1);
+        expect(other.s.gates[0].wrecked).toBe(true);
+      }
+    }, false);
   });
 
   // Y7b2 (the flip): Y3's BELLOWS (+1 / +2 / +3 BURN for each whole 2 s ridden, no cap) and QUENCH (no floor, no stack cap:
@@ -117,14 +137,19 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
       const bpr = effectAt("bellows", stars).gate!.burnPerRide!;
       expect(bpr.per).toBe(2); // Y7b2 (the flip): was 10
       expect(bellows.a.p.burn).toBe([5, 10, 15][stars - 1]); // Y7b2 (the flip): was Math.min(bpr.max, bpr.burn), 4 / 9 / 14
-      const quench = process("quench", stars, 3, 10);
-      // NUM-1: flat and perBurn x10 (was 1 + 4 * 3, 2 + 5 * 5, 3 + 6 * 7)
-      // Y7b2 (the flip): no floor and no stack cap, so all 10 BURN turn into 10 x perBurn (was 10 x [1 + 4 * 3, 2 + 5 * 5, 3 + 6 * 7])
-      // AZ-BUMP (the flip, LADDER_FIX): ★1 300 -> 400, 10 x ★1's 40 a BURN (was 30); with LADDER_FIX off 300, as before
-      expect(quench.a.p.flat).toBe([400, 500, 700][stars - 1]); // was 12 / 26 / 42 (all 10 spent)
-      if (stars === 1) expect(withLadderFix(() => process("quench", 1, 3, 10).a.p.flat, false)).toBe(300);
-      expect(quench.a.p.burn).toBe(0); // Y7b2 (the flip): all 10 spent (was [6, 5, 4]: 4 / 5 / 6 spent)
-      expect(estimateRoute(bench([["temper", 4, 4, 1], ["quench", 4, 3, stars]]), 0).burn).toBe(0);
+      // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where QUENCH TANK is KINDLING (SCALE_DEFS.quench: +n DMG for each BURN on
+      // the foe at the hit, no BURN spent; tests/scale2c.sim pins it). The conversion below is the 0.9.11 QUENCH TANK's, so it reads that
+      // world with the switch off (withScaleRigs(fn, false), synchronously: each Battle is made inside); no number moved
+      withScaleRigs(() => {
+        const quench = process("quench", stars, 3, 10);
+        // NUM-1: flat and perBurn x10 (was 1 + 4 * 3, 2 + 5 * 5, 3 + 6 * 7)
+        // Y7b2 (the flip): no floor and no stack cap, so all 10 BURN turn into 10 x perBurn (was 10 x [1 + 4 * 3, 2 + 5 * 5, 3 + 6 * 7])
+        // AZ-BUMP (the flip, LADDER_FIX): ★1 300 -> 400, 10 x ★1's 40 a BURN (was 30); with LADDER_FIX off 300, as before
+        expect(quench.a.p.flat).toBe([400, 500, 700][stars - 1]); // was 12 / 26 / 42 (all 10 spent)
+        if (stars === 1) expect(withLadderFix(() => process("quench", 1, 3, 10).a.p.flat, false)).toBe(300);
+        expect(quench.a.p.burn).toBe(0); // Y7b2 (the flip): all 10 spent (was [6, 5, 4]: 4 / 5 / 6 spent)
+        expect(estimateRoute(bench([["temper", 4, 4, 1], ["quench", 4, 3, stars]]), 0).burn).toBe(0);
+      }, false);
     }
   });
 
@@ -145,7 +170,10 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
       // 0.6.2 TUNE-M T2 (tests/tune062.lodestone.test.ts): its floor +1/+2/+3, then 2 stalled x 1/2.2/3.5 (was 2 / 4.4 / 7)
       // NUM-1: x10, all whole: floor +10/+20/+30, then 2 stalled x 10/22/35 (was toBeCloseTo 3 / 6.4 / 10)
       // Y7b2 (the flip): LODESTONE's floor is gone (Y2), so 2 stunned x 10 / 22 / 35 (was [10 + 2 * 10, 20 + 2 * 22, 30 + 2 * 35])
-      expect(lodestone.a.p.flat).toBe([2 * 10, 2 * 22, 2 * 35][stars - 1]);
+      // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where a FOR EACH add (LODESTONE's EACH STUN) rides the slug's own `each`
+      // accumulator (battle.ts forEach, REQ-BFG-110 step 4) and p.flat stays the stat rows' alone (0 here), so the slug's flat bonus is read
+      // through flatOf(p), the sum the shot reads: the same 20 / 44 / 70
+      expect(flatOf(lodestone.a.p)).toBe([2 * 10, 2 * 22, 2 * 35][stars - 1]); // BUMP-1E: was lodestone.a.p.flat
       const barbed = process("barbed", stars);
       strike(barbed.bt, barbed.a.p);
       expect(barbed.bt.sides[1].hull.fray).toBe(stars);
@@ -163,7 +191,9 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
       a.processed = 20;
       (bt as any).applyHit(s, a, hit);
       // NUM-1: x10 (was 6 / 13 / 21: the cap, 20 tiles x 5/11/18 is more). Y7b2 (the flip): 20 tiles x 3 / 7 / 11 (was 10 x [6, 13, 21])
-      expect(a.p.flat).toBe(20 * [3, 7, 11][stars - 1]);
+      // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where COUNTERWEIGHT's FOR EACH prior tile rides the slug's own `each`
+      // accumulator (battle.ts forEach, REQ-BFG-110 step 4), p.flat stays 0, so the flat bonus is flatOf(p): the same 60 / 140 / 220
+      expect(flatOf(a.p)).toBe(20 * [3, 7, 11][stars - 1]); // BUMP-1E: was a.p.flat
       expect(estimateRoute(bench([["counterweight", 4, 3, stars]]), 0).dmg).toBeGreaterThan(10 * 3); // NUM-1: x10 (was 3)
     }
   });

@@ -14,8 +14,10 @@ import { MAX_SEED, SNAPSHOT_V3, V3_LIVE, V3_PIECE_FIELD, V3_RUNE_COUNTER, V3_SNA
 import { LAST_CHANCE_FIELD, maxRunes } from "../net/snapshot"; // LC-1 (REQ-BFG-073): the decoder's LAST CHANCE key and rune bound
 // RUN-1 (REQ-BFG-059, D4): ONE source for the day and win bounds and the `losses` field: the strict decoder's (snapshot.ts)
 import { MAX_DAY, maxDayFor, maxWinsFor, v3LiveFor } from "../net/snapshot";
-import { longRunFor } from "../net/rulesGate"; // RUN-1: a long run's LAST CHANCE has no last day
-import { MAX_RUN_DRAWS } from "../sim/longRun"; // RUN-1: the draws an upload may carry
+import { endlessProblem } from "../net/snapshot"; // ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.4): the ONE check of an endless snapshot's fields, shared with the strict decoder
+import { endlessFor, longRunFor } from "../net/rulesGate"; // RUN-1: a long run's LAST CHANCE has no last day; ENDLESS-1: the endless day bound follows the snapshot's rules
+import { MAX_RUN_DRAWS, WIN_GOAL } from "../sim/longRun"; // RUN-1: the draws an upload may carry; ENDLESS-1: an endless snapshot's run is won
+import { ENDLESS_LAST_DAY } from "../sim/endless"; // ENDLESS-1: the last endless day bounds an endless snapshot's day and its runes
 import { lastChanceGateProblem } from "../net/rulesGate"; // LC-1: the decoder's gate (the switch, then the rules)
 import { lastChanceRuneAt, lastChanceShapeOk, type LastChance, type TakenLastChance } from "../sim/lastChance"; // LC-1
 import { ROAD_FIELD } from "../net/snapshot"; // NPC-1 (REQ-BFG-077, REQ-BFG-078): the decoder's road key
@@ -167,11 +169,11 @@ const growOk = (list: unknown[], v: number): boolean =>
 /** RUNES-1 (snapshot v3): the build's `runes`: absent, or (v3) a list of at most MAX_RUNES strict entries { id } (id
  *  DEF_PATTERN; the counter `n` refused while off), exactly as src/net/snapshot.ts checkBuildShape takes it; and the
  *  build's `gold` refused while off. Which ids are legal is runeProblem's (isSnapshot). */
-function runesOk(q: object, v: number, rules?: unknown): boolean {
+function runesOk(q: object, v: number, rules?: unknown, top?: number): boolean {
   if ((q as Raw).gold !== undefined && !v3Ok("gold", v)) return false;
   const list = (q as Raw).runes;
   if (list === undefined) return true;
-  if (!v3Ok("runes", v) || !Array.isArray(list) || list.length > maxRunes(rules)) return false; // LC-1: maxRunes (MAX_RUNES while off); RUN-1: by the snapshot's rules
+  if (!v3Ok("runes", v) || !Array.isArray(list) || list.length > maxRunes(rules, top)) return false; // LC-1: maxRunes (MAX_RUNES while off); RUN-1: by the snapshot's rules; ENDLESS-1: `top`, an endless snapshot's day bound
   return list.every((e) => {
     if (!e || typeof e !== "object" || Array.isArray(e)) return false;
     const keys = Object.keys(e).filter((k) => (e as Raw)[k] !== undefined);
@@ -181,12 +183,12 @@ function runesOk(q: object, v: number, rules?: unknown): boolean {
   });
 }
 
-function buildOk(b: unknown, v = SNAPSHOT_VERSION, rules?: unknown): b is Build {
+function buildOk(b: unknown, v = SNAPSHOT_VERSION, rules?: unknown, top?: number): b is Build {
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
     && Array.isArray(q.mods) && inRange(q.beltCap, 0, MAX_BELT_CAP) && inRange(q.hullBonus, HULL_BONUS_MIN, HULL_BONUS_MAX)
     && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v) && joinOk(q.routes, v)
-    && upgradesOk(q, v) && runesOk(q, v, rules) && growOk(q.items, v) && growOk(q.mods, v); // RUNES-1: runes, gold, grow; RUN-1: runes by the rules
+    && upgradesOk(q, v) && runesOk(q, v, rules, top) && growOk(q.items, v) && growOk(q.mods, v); // RUNES-1: runes, gold, grow; RUN-1: runes by the rules; ENDLESS-1: and an endless snapshot's day bound
 }
 
 /** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */
@@ -209,8 +211,13 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   // RUN-1 (REQ-BFG-059, D8): `losses` is live under a long run's rules only (snapshot.ts v3LiveFor), as the strict decoder takes it
   for (const k of V3_SNAPSHOT_FIELDS) if (q[k] !== undefined && !(q.v >= SNAPSHOT_V3 && v3LiveFor(k, q.rules))) return false;
   if (q.seed !== undefined && !inRange(q.seed, 1, MAX_SEED)) return false;
+  // ENDLESS-1 (REQ-BFG-059, BRIEF-ENDLESS1 3.4): an ENDLESS snapshot (rules with endless, `mode` present) is a dusk after a WON run: the
+  // strict decoder's day bound ENDLESS_LAST_DAY and wins exactly WIN_GOAL, its `losses` the run's (endlessProblem holds them) and
+  // the fields' consistency (the ONE check, snapshot.ts endlessProblem); every run snapshot is judged as before
+  const endlessSnap = q.mode !== undefined && endlessFor(q.rules);
+  if (endlessProblem(q) !== null) return false;
   // RUN-1 (D4): the dusks lost before this one, 0..day - 1 - wins, and the rest are draws, at most MAX_RUN_DRAWS
-  if (q.losses !== undefined && !(inRange(q.losses, 0, q.day - 1 - q.wins) && q.day - 1 - q.wins - q.losses <= MAX_RUN_DRAWS)) return false;
+  if (!endlessSnap && q.losses !== undefined && !(inRange(q.losses, 0, q.day - 1 - q.wins) && q.day - 1 - q.wins - q.losses <= MAX_RUN_DRAWS)) return false;
   // LC-1 (REQ-BFG-073): a LAST CHANCE as src/net/snapshot.ts lastChanceField takes it: v3, the switch and rules gate, a
   // taken card, a day before RUN_DAYS and before the snapshot's own; its rune then sits at index `day` (runeProblem's lcAt)
   // RUN-1 (D3): under a long run's rules there is no day before which it must come (any day, before the snapshot's own)
@@ -224,8 +231,9 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   if (q[FIRST_RUN_FIELD] !== undefined && !(q.v >= SNAPSHOT_V3 && q[FIRST_RUN_FIELD] === true && firstRunGateProblem() === null)) return false;
   // RUN-1 (D4): the day and the wins by the snapshot's own rules (snapshot.ts maxDayFor, maxWinsFor): a long run's day is
   // 1..25 and its wins 0..min(day - 1, 9); the 10-day rules: 1..MAX_DAY and 0..day - 1, as before
-  return (q.v === 1 || q.v === 2 || q.v === 3) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, maxDayFor(q.rules))
-    && inRange(q.wins, 0, maxWinsFor(q.rules, q.day)) && inRange(q.lives, 1, livesCapFor(q.rules, MAX_LIVES)) && buildOk(q.build, q.v, q.rules) && q.build.hero === q.hero
+  // ENDLESS-1: and an endless snapshot's day is 1..ENDLESS_LAST_DAY, its wins exactly WIN_GOAL, its runes up to that day
+  return (q.v === 1 || q.v === 2 || q.v === 3) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, endlessSnap ? ENDLESS_LAST_DAY : maxDayFor(q.rules))
+    && (endlessSnap ? inRange(q.wins, WIN_GOAL, WIN_GOAL) : inRange(q.wins, 0, maxWinsFor(q.rules, q.day))) && inRange(q.lives, 1, livesCapFor(q.rules, MAX_LIVES)) && buildOk(q.build, q.v, q.rules, endlessSnap ? ENDLESS_LAST_DAY : undefined) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
     && ID_PATTERN.test(q.playerId) && inRange(q.createdAt, 0, Number.MAX_SAFE_INTEGER)
     // RUNES-2a (RUNES-1 Q4): the rules gate, as src/net/snapshot.ts checkSnapshot asks it (its rows: turrets and joins

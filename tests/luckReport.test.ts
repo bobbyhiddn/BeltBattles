@@ -11,6 +11,7 @@ import { turretList } from "../src/sim/deck";
 import { plainRigsRules, setPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: the what-if test's world before the twelve rigs
 import { setShapes2, shapes2Rules } from "../src/sim/shapes2"; // BUMP-1D: ... (an async call: the setters, not withShapes2)
 import { setShapes, shapesRules } from "../src/sim/shapes"; // BUMP-1D: ... and the three shaped rigs, out and back to keep ITEMS' order
+import { SCALE_RIGS, scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E: ... and the seven scaling rigs, off first and back last (the outermost: they are ITEMS' last keys)
 import {
   chaserRun, familyTable, luckReport, offerable, ownedDefs, renderMarkdown, runJob, typicalOwned, withPatch, type ChaserOut,
   type ChaserStep,
@@ -140,7 +141,14 @@ describe("luck report: the TYPICAL buyer and the whole report", () => {
     // runs at all. So the report runs with both switches off for its (awaited) call, and puts them back after, even on a throw
     // (each swap back appends to ITEMS, so the three shaped rigs go out and come back between the two to keep ITEMS' order: the
     // plain rigs, the three, the six more; JSON.stringify(ITEMS) below is that order's)
+    // BUMP-1E: and the seven scaling rigs (src/sim/scale.ts; the switch ships on in bb-0.12.0): CINDER MAIL, LEECH COIL and AEGIS SPIKE are PLATE too (13 members
+    // with wave 3 off), so this world is the one before the seven as well: the scaling switch is the OUTERMOST of the nest (off first, back last). The seven are
+    // the last keys of ITEMS while the switch is on, so a nest that turned the three switches below off and back with the scaling switch left on would put them
+    // BEFORE the plain rigs, the three and the six for the rest of the worker (the ITEMS key-order hazard: every seeded draw after it differs)
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the scaling rules ship on; the report below runs with the switch off
+    const scaled = scaleRules();
     const plain = plainRigsRules(), shaped = shapesRules(), s2 = shapes2Rules();
+    setScaleRigs(false);
     setShapes2(false);
     setPlainRigs(false);
     let r: Awaited<ReturnType<typeof luckReport>>;
@@ -151,6 +159,7 @@ describe("luck report: the TYPICAL buyer and the whole report", () => {
       setPlainRigs(plain);
       setShapes(shaped);
       setShapes2(s2);
+      setScaleRigs(scaled); // BUMP-1E: back last, so the seven are the last keys of ITEMS again
     }
     expect(r.whatif?.rows.map((w) => w.tag)).toEqual(["PLATE"]);
     // was 2: VENOM DRIP rare to epic, and the ARCANE DEALER as merchant. FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): PLATE
@@ -172,17 +181,22 @@ describe("luck report: the TYPICAL buyer and the whole report", () => {
     // TOLLBOOTH, RIVETER, FLAK SCREEN, MANTLET, WARD BELL, MEND PRESS, MENDING LOOM (SIFTER dormant; the sustain switch on): 7
     // (was 5)
     // BUMP-1D: + SCALE GUARD, BALLAST and ELBOW GUARD (PLATE, PLAIN_RIGS and SHAPES2 on): 10 (was 7)
-    expect(off[0].missing.length).toBe(10);
+    // BUMP-1E: + CINDER MAIL, LEECH COIL and AEGIS SPIKE (PLATE too: scale.ts SCALE_ITEMS' tags; SCALE_RIGS ships on): 13 (was 10)
+    expect(off[0].missing.length).toBe(13); // BUMP-1E: was 10
     expect(JSON.stringify(off)).toBe(JSON.stringify(withWave3(() => runJob(job), false)));
     expect(wave3Live()).toBe(true); // put back after the job
     // BUMP-1D: the families are sorted by members, most first, and PLATE is no longer last in both tables (live FORGE 33, BURST 29,
     // SWARM 25, TEMPO 23, HARASS 20, PLATE 19, TWIN 18; wave 3 off ..., TWIN 13, PLATE 10): its index is 5 live and 6 with wave 3
     // off (was 6 in both), so the live job names its own table's index (job.family was the wave-3-off table's, `plate`)
+    // BUMP-1E: the seven scaling rigs' tags add FORGE +6, BURST +1, SWARM +3 and PLATE +3: live FORGE 39, BURST 30, SWARM 28, TEMPO 23, PLATE 22, HARASS 20,
+    // TWIN 18; wave 3 off FORGE 35, BURST 28, SWARM 24, HARASS 19, TEMPO 19, TWIN 13, PLATE 13 (a tie with TWIN, still last): PLATE's index is 4 live (was 5) and
+    // 6 with wave 3 off, so the live job still needs its own table's index
     const live = runJob({ ...job, family: familyTable().families.findIndex((f) => f.tag === "PLATE") }) as ChaserOut[];
     expect(live[0].missing.length).toBe(familyTable().families.find((f) => f.tag === "PLATE")!.members.length);
     // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): live PLATE is 16, SIFTER out and the 3 sustain pieces in (was 14)
     // BUMP-1D: and the same three: live PLATE is 19 (was 16)
-    expect(live[0].missing.length).toBe(19);
+    // BUMP-1E: and CINDER MAIL, LEECH COIL and AEGIS SPIKE: live PLATE is 22 (was 19)
+    expect(live[0].missing.length).toBe(22); // BUMP-1E: was 19
   });
 
   it("the same seeds give the same output", async () => {

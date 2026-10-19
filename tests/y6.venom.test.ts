@@ -8,10 +8,17 @@
 //   applies; ASH KINDLE's start stacks come from no hit and get none; a slug with burnPlus and no BURN adds nothing.
 // - The battle: no poison event and the hull's pool stays 0 (the tick is inert with no source); VENOM alone deals nothing.
 // - The caches: overclock.ts's WeakMap and stars.ts effectAt hand each switch state its own effect (on, off, on again).
-import { describe, expect, it } from "vitest";
+// BUMP-1E (the flip; rules bb-0.12.0): the scaling rules ship on (SCALE_RIGS), and with them VENOM DRIP puts POISON on the hull
+// (POISON 1/2/3, 3 hull damage a second until the fight ends) and has no burnPlus (scale.ts SCALE_DEFS venom; tests/scale2b.sim
+// and y3.pieces pin the shipped def). Every test below is about the 0.9.11 world's VENOM DRIP (burnPlus +3/+6/+9 s, no POISON:
+// "on" in the titles is Y6's star switch, on for good since Y7b2), so the file reads that world under the scaling rules' off
+// switch (setScaleRigs(false) before each test, the shipped value put back after it) and asserts the switch ships on (the first
+// test). No module-level ITEMS read here: nothing to take under withScaleRigs(fn, false) at load.
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Battle, type Payload, type SideState } from "../src/sim/battle";
 import { BURN_DPS, BURN_TIME, CELL, ITEMS } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
+import { SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; this file reads it off
 import { effectAt } from "../src/sim/stars";
 import { boostable, doubles, overclocked } from "../src/sim/overclock";
 import { STARS, lines, levels, next, oneLine, payload, probe, px } from "./y3.helpers";
@@ -76,6 +83,22 @@ function fight(b: Build, secs = 20) {
   }
   return { poison, stacks, clock, burnDealt: bt.sides[0].stats.burnDealt, hp: foe.hull.hp, over: bt.over };
 }
+
+// BUMP-1E: every test of this file reads the 0.9.11 VENOM DRIP, the scaling rules' switch-off piece: the switch is off while a test
+// runs, on again after it
+beforeEach(() => setScaleRigs(false));
+afterEach(() => setScaleRigs(SCALE_RIGS));
+
+describe("BUMP-1E: the scaling rules ship on; the burnPlus VENOM DRIP is the switch-off piece", () => {
+  it("SCALE_RIGS ships true and the shipped VENOM DRIP puts POISON on the hull with no burnPlus; the other tests of this file read the burnPlus def under the off switch", () => {
+    expect(SCALE_RIGS).toBe(true);
+    // the shipped world (read under the switch on, put back off after): POISON 1/2/3 and no burnPlus (SCALE_DEFS venom)
+    expect(withScaleRigs(() => STARS.map((s) => effectAt("venom", s).gate), true)).toEqual([{ poison: 1 }, { poison: 2 }, { poison: 3 }]);
+    // and the world this file runs in (the beforeEach above): the switch off, the burnPlus ladder
+    expect(scaleRules()).toBe(false);
+    expect(STARS.map((s) => effectAt("venom", s).gate?.burnPlus)).toEqual([...PLUS]);
+  });
+});
 
 describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POISON leaves the switch-on game", () => {
   it("data: on, burnPlus 3/6/9 and no poison (off: poison 2/4/7, no burnPlus); on, no def holds poison at any star", () => {

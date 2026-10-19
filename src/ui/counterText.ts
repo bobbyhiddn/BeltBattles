@@ -63,3 +63,15 @@ export const sentenceEntry = (body: string): CounterEntry => ({ icon: "", word: 
 export function pairEntry(day?: number): CounterEntry | null {
   return keywordEntry("PAIR", "", day);
 }
+
+/** SCALE-2c (REQ-BFG-100, C8; BRIEF-SCALE2c section 4): a reader's running bonus badge's tap: the bonus its next hit (a rig)
+ *  or its gun's next shot (a gun part) gives, then the count so far: "+39 {DMG} ON ITS NEXT HIT: 12 HITS SO FAR.". */
+export function rampText(bonus: number, count: number, kind: "rig" | "gun", own: boolean): string {
+  const what = own ? `${fmtCount(count)} HIT${count === 1 ? "" : "S"} SO FAR` : `${fmtCount(count)} HIT${count === 1 ? "" : "S"} ON YOU SO FAR`;
+  return `+${fmtCount(bonus)} {DMG} ON ITS NEXT ${kind === "gun" ? "SHOT" : "HIT"}: ${what}.`;
+}
+
+/** SCALE-2c (REQ-BFG-100, C9): your plate's run record's tap: "WINS 4. HEARTS LEFT 6 OF 10 (4 LOST).". */
+export function recordText(r: { wins: number; left: number; of: number; lost: number }): string {
+  return `WINS ${fmtCount(r.wins)}. HEARTS LEFT ${fmtCount(r.left)} OF ${fmtCount(r.of)} (${fmtCount(r.lost)} LOST).`;
+}

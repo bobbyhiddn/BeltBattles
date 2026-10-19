@@ -29,6 +29,7 @@ import { resolveCore } from "../src/sim/cores"; // U2c step 4
 import { glossaryEntry, glossaryText } from "../src/ui/glossary"; // U2c step 4: COMPOUND BREECH's hold, its tap text
 import { MODULES, STARS, SUPPLIES, banned, numbers, repeats, sentencesOf, starsOf } from "./textRules";
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the join pace words with the switch off
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; PRESSURE BREECH's 0.9.11 note (its cap) is read with it off
 
 // 0.6.2t (REQ-BFG-032): the panels. T6's phone fit for every buyable module at every star (rigs, factories, cores,
 // gear and supplies; placed, in cargo, on offer and fitted), with KNOWN_PHONE_CUTS empty and the flavour whole or absent
@@ -320,7 +321,12 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
     // PANELS 1980 -> 2049: their 69 (the 42, 18 in cargo, 9 on offer)
     // BUMP-1D (PLAIN_RIGS and SHAPES2 on), measured: 744 (was 564): the six plain stat rigs' and the six more shaped rigs' rig
     // cases join, 180 (12 x 15); every case fits, as before (cut 0); PANELS.length is the sweep's own count
-    expect([counts.rig, counts.cases]).toEqual([744, PANELS.length]);
+    // BUMP-1E (SCALE_RIGS ships on), measured: 864 (was 744): the seven scaling rigs' rig cases join, 120 (3 stars x 2 spares a layout:
+    // the four rare II rigs CINDER MAIL, ROT GAUGE, LEECH COIL and AEGIS SPIKE have 3 layouts, 18 each = 72; the two common I rigs CROWD
+    // PRESS and GRUDGE ROD 2 layouts, 12 each = 24; the epic T rig TROPHY CHAIN 4 layouts, 24); every case fits, as before (cut 0).
+    // PANELS 2337 -> 2520: their 183 (the 120, 42 in cargo, 21 on offer); the same sweep with the switch off reads 744 of 2337, as before
+    expect(SCALE_RIGS).toBe(true);
+    expect([counts.rig, counts.cases]).toEqual([864, PANELS.length]); // BUMP-1E: was 744
     expect(counts.flavourWhole + counts.flavourAbsent).toBe(counts.cases);
     console.log(`T6 phone fit: ${JSON.stringify(counts)}`);
   });
@@ -899,7 +905,11 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // tmp/sc1x-final = shopcard1-accepted): MANTLET's face line now says which tile ("ITS GUN AND LAST BELT TILE IGNORE STUN.",
     // was "STUN CAN'T STOP ITS GUN OR LAST 1 TILE."), a row longer in the 118 px desk column, so its turret panel's kept blocks
     // leave no room for the optional hint (of the allowed kinds; the hint gives way whole, and its tip and NOTES keep it)
-    expect([withHint, missing.length]).toEqual([2309, 62]);
+    // BUMP-1E (SCALE_RIGS ships on), measured: 2492 with a hint, 60 missing (was 2309 and 62), diffed per panel against the same sweep with
+    // the switch off (which reads 2309 / 62 as before): the seven scaling rigs' 183 desk panels join (120 rig, 42 cargo, 21 offer), each
+    // with its hint and each showing it; "turret pressure ★2" and "turret pressure ★3" leave the missing list (PRESSURE BREECH's MAX 5 is
+    // gone, so its turret panel is a line shorter and the optional hint fits beside the kept blocks); no other panel moves
+    expect([withHint, missing.length]).toEqual([2492, 60]); // BUMP-1E: was [2309, 62]
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -997,7 +1007,11 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // 1249 (the same -20 as on their own tree, 1055 -> 1035: the placed BRACE FRAME, PINCER, ASSEMBLY LINE and TWIN LATCH panels give the
     // optional hint way, the merge offers of COIL and PLATE BREAKER (now SHIELD FUEL) keep it); the twelve new rigs' panels add no further
     // move on top (not traced panel by panel). The desk count above is unchanged by the merge: 2309 / 62 (BUMP-1D's 2309 with 1b's 62nd missing)
-    expect(hints).toBe(1229);
+    // BUMP-1E (SCALE_RIGS ships on), measured: 1342 of 2520 panels (was 1229 of 2337), +113, traced panel by panel against the same sweep
+    // with the switch off (which reads 1229 as before): 109 of the seven scaling rigs' 183 panels keep the hint on the 69 px band, and 4
+    // panels of the reworked KINDLING (QUENCH TANK's id: "rig quench ★1 2hit spare0/1" and "rig quench ★1 idle spare0/1": its sentence
+    // is shorter than the old one) now have room for it; no panel gives the hint way
+    expect(hints).toBe(1342); // BUMP-1E: was 1229
   });
 });
 
@@ -1052,7 +1066,14 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     expect(face(null, 1, [["hopper", 2]])).toEqual([row(S, 5), undefined]);
     // PRESSURE BREECH never jams and counts at most 5 loads waiting (U2b's ledger: its cap in the turret's stat rows)
     // U2d F5: the note reads forwards (was `NEVER JAMS. MAX 5 {SLUG} WAITING COUNT.`)
-    expect(face("pressure", 2)).toEqual([row(S, 3), icons(`NEVER JAMS. COUNTS UP TO ${fmtCount(ITEMS.pressure.core!.maxCount!)} WAITING {SLUG}.`)]);
+    // BUMP-1E: the switch ships ON and PRESSURE BREECH's MAX 5 is gone (scale.ts SCALE_DEFS.pressure drops maxCount: its own perQueued
+    // term, uncapped), so its note is NEVER JAMS. alone; the cap's note (was this test's pin) is the 0.9.11 world's, read with the
+    // switch off (synchronously)
+    expect(SCALE_RIGS).toBe(true);
+    expect(ITEMS.pressure.core!.maxCount).toBeUndefined();
+    expect(face("pressure", 2)).toEqual([row(S, 3), icons("NEVER JAMS.")]);
+    const cap0911 = withScaleRigs(() => ITEMS.pressure.core!.maxCount!, false);
+    expect(withScaleRigs(() => face("pressure", 2), false)).toEqual([row(S, 3), icons(`NEVER JAMS. COUNTS UP TO ${fmtCount(cap0911)} WAITING {SLUG}.`)]);
     // NUM-4: SALVO RACK's longer volley reload is its own rule line (glossary SHOT: "ITS NEXT RELOAD TAKES 60% LONGER"), not
     // the row's: the row is the turret's SPEED, 30 (was row(1.6, 3), the interval x its reload, which no whole SPEED is)
     // Y1 (STAR-D rule 7's cue, with SALVO's face "SHOT: FIRES THE CHAMBER AT +20 {DMG} EACH."): the row's RATE is its volley
@@ -1341,7 +1362,9 @@ function expectedFace(run: Run, i = 0): { stats: string; note?: string } {
   const note = [
     ...(tu.noJam || (tc.bought && tc.spec.noJam) ? ["NEVER JAMS."] : []),
     ...(tu.storeMax ? [`STORES +${fmtCount(tu.storeMax)} {SLUG} WHILE IT FIRES.`] : []),
-    ...(tc.bought && tc.routine === "pressure" ? [`COUNTS UP TO ${fmtCount(tc.spec.maxCount!)} WAITING {SLUG}.`] : []), // U2d F5 (was MAX n {SLUG} WAITING COUNT.)
+    // U2d F5 (was MAX n {SLUG} WAITING COUNT.). BUMP-1E: with the switch on PRESSURE BREECH has no cap (SCALE_DEFS.pressure drops maxCount),
+    // so no COUNTS UP TO part; it is said only where the core holds one (the 0.9.11 world, read with the switch off)
+    ...(tc.bought && tc.routine === "pressure" && tc.spec.maxCount !== undefined ? [`COUNTS UP TO ${fmtCount(tc.spec.maxCount)} WAITING {SLUG}.`] : []),
   ].join(" ");
   return { stats: statRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(sl.gearSlots)]]), note: note ? icons(note) : undefined };
 }

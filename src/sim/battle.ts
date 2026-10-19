@@ -10,6 +10,7 @@ import {
   SPEED_K, rateMul, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type AmmoKind, type CoreRoutine, type FactorySpec, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
 } from "./content";
+import type { ReadCount, ReadSpec } from "./content"; // SCALE-2a (REQ-BFG-098): the reader field
 import { drakeConvert, pressureBonus, resolveCore, ROUTINES, spinInterval, steamInterval, type TurretCore } from "./cores"; // 0.6.1b
 import { salvoReload } from "./cores"; // Y4 (release Y; BRIEF-Y4 S1): SALVO RACK's volley reload, one helper with the turret row
 import {
@@ -33,6 +34,7 @@ import { overclocked } from "./overclock";
 import { debuffedDamage, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): BURN per stack each second
+import { POISON_DPS } from "./content"; // SCALE-2b (REQ-BFG-108): POISON's hull damage a stack each second
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047, N1 2.1): the integer damage pipeline's one rounding
 import { SHIELD_CAP } from "./content"; // SUS-A (REQ-BFG-069): SHIELD's MAX
 import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-046): harassment is a STUN
@@ -40,11 +42,12 @@ import { STUN_CAUSES } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-
 import { dayMulTenths, dayScaled, scaleTenths, windShareBp, windShareDamage } from "./hullScale";
 import { dmgDayScale, dmgMulTenths } from "./hullScale"; // HULL-1c (REQ-BFG-079; cap b6be918372b006f3): D(d), the damage day term
 import { sustDayScale, sustMulTenths, sustUnit } from "./hullScale"; // HULL-1d (REQ-BFG-079; REVIEW-HULL1C Q5): S(d), the sustain day term
+import { burnStacks, flatOf, scaleRules } from "./scale"; // SCALE-2a (REQ-BFG-110, REQ-BFG-098): the scaling hooks' switch; the flat bonus's sum
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
 /** SUS-A (REQ-BFG-069): what a heal came from (the `heal` event's `source`). */
-export type HealSource = "riveter" | "mendpress" | "regen" | "rune"; // SUS-D: "rune" (TWIN SALVE, SCRAP MEDIC, LEECH VOW)
+export type HealSource = "riveter" | "mendpress" | "regen" | "rune" | "reads"; // SUS-D: "rune" (TWIN SALVE, SCRAP MEDIC, LEECH VOW); SCALE-2a: "reads" (a `reads` heal: its rig in `gate`)
 
 /** SUS-A: one side's sustain counters (made at its first SHIELD gain or heal; nothing in play reads them: the bench, the HUD). */
 export interface HealCounts {
@@ -71,6 +74,10 @@ export interface Payload {
   ride: number; // eligible ride time (moving on belts)
   mult: number; // split multiplier
   flat: number; // flat damage
+  // SCALE-2a (REQ-BFG-110): the FOR EACH DMG (step 4 of the order: a count read at a rig's hit), kept apart from `flat`
+  // (the slug's own and the stat rows' DMG, step 2) so DRAKE NOZZLE converts `flat` only. Set only while SCALE_RIGS is on
+  // (Battle.scaleRigs); every other reader of the flat bonus reads both (scale.ts flatOf). Copies keep it; a split scales it.
+  each?: number;
   burn: number;
   shock: boolean;
   prior: number; // gates visited
@@ -94,6 +101,10 @@ export interface Payload {
   // Y6 (release Y; DESIGN-Y section 4.1): the seconds VENOM DRIPs add to each BURN stack of this payload's hit
   // (Battle.impact); copies keep it (the spread), a COMPOUND shell adds both loads'
   burnPlus?: number;
+  // SCALE-2b (REQ-BFG-108): the POISON this slug lands on the foe's hull at impact (Battle.impact, beside its BURN). Set only
+  // while SCALE_RIGS is on (VENOM DRIP's switch-on def, Battle.applyHit); copies keep it, a fuse and a COMPOUND shell add
+  // both, an OVERCLOCKER doubles the rig's, a SCATTER shot splits it as BURN (Projectile.poison). Absent: none
+  poison?: number;
   fray?: number;
   frayCap?: number;
   staticTime?: number;
@@ -164,6 +175,10 @@ export interface GateState {
   latch?: LatchState; // E4 TWIN LATCH, when both its arrows hit belts: the payload each arrow holds and since when
   // Y3 (release Y; DESIGN-Y row 28): a SURGE VALVE's last pulse (its pulsePhase cycle)
   surged?: number;
+  // SCALE-2a (REQ-BFG-098): this rig's hits this fight, one per `process` event it causes (one arrow, one hit; a shaped rig
+  // is one piece, one count), this hit included when it reads (ReadCount "ownHits": POWDER KEG). Kept only while
+  // SCALE_RIGS is on; a GateState lives one battle, so it starts at 0 each fight
+  ownHits?: number;
 }
 
 /** 0.8.0 P1 (E4): a TWIN LATCH whose two arrows hit belts. Arrow i is the latch's hits[i]. */
@@ -303,6 +318,7 @@ export interface TurretState {
   // SUS-A (REQ-BFG-069), from its gear (absent without it). A STUN, freeze or disruption on the turret pauses both.
   bell?: { every: number; amount: number; timer: number }; // WARD BELL: + amount SHIELD when `timer` runs out (it then adds `every`)
   regen?: number; // MENDING LOOM: REGEN on your hull at each whole second (Battle.sustainTick)
+  reads?: ReadSpec[]; // SCALE-2a (REQ-BFG-098): its gun parts' reader lines, read at each shot (SCALE_RIGS on only; absent without one)
 }
 
 export interface HullState {
@@ -315,6 +331,10 @@ export interface HullState {
   burnShown: number;
   windShown: number;
   flash: number; // render
+  // SCALE-2b (REQ-BFG-108): the POISON on this hull: it adds up as poisoned slugs land (Battle.impact), never decays and
+  // ends with the fight (a new Battle's hull starts without it); at each whole second the hull takes POISON_DPS x it
+  // (Battle.hullEffects). Set only while SCALE_RIGS is on; absent: 0 (the pinned fp writes a hull's hp only)
+  poison?: number;
 }
 
 export type TargetKind = "hull" | "belt" | "gate" | "factory" | "turret";
@@ -390,6 +410,12 @@ export interface SideState {
   // SUS-D (REQ-BFG-069), set only on a side whose runes need them:
   guardTimer?: number; // TICK GUARD: seconds to its next SHIELD (carries its remainder)
   halfHealed?: boolean; // SCRAP MEDIC: its HEAL has come
+  // SCALE-2a (REQ-BFG-098), kept only while SCALE_RIGS is on, and off SideStats (the pinned fp reads every SideStats key):
+  hitsTaken?: number; // every enemy impact on this ship this fight, any target, blocked or not (SPALL CATCHER, SCAR TISSUE)
+  heartsLost?: number; // the hearts this side had lost coming into the fight (Battle's `lost`; GRUDGE ROD)
+  // SCALE-2b (REQ-BFG-108), kept only while SCALE_RIGS is on and off SideStats (as above): the hull damage this side's
+  // POISON dealt the foe this fight (its ticks, after D(day)); SideStats.damage takes it too, as it takes BURN's
+  poisonDealt?: number;
 }
 
 export interface Projectile {
@@ -409,6 +435,7 @@ export interface Projectile {
   share?: number; // SCATTER pellet: its share of the payload, which also scales the Fray bonus
   burn?: number; // Burn stacks it lands, instead of payload.burn (SCATTER splits them, DRAKE adds)
   burnTime?: number; // their duration, instead of BURN_TIME (DRAKE)
+  poison?: number; // SCALE-2b (REQ-BFG-108): the POISON it lands, instead of payload.poison (a SCATTER pellet's split, as `burn`; a COMPOUND shell's both loads'); absent without POISON
   noFray?: boolean; // SCATTER: only the first pellet applies the ammo's Fray stacks
   finisher?: boolean; // 0.6.1p: a FINISHER RAM finisher (render: a 1 px red trail); absent otherwise
   runeBurn?: number; // RUNES-2a: EMBER SHOT's BURN stacks on this volley-opening shot; absent otherwise
@@ -419,16 +446,28 @@ export interface Projectile {
   lance?: { columns: number; share: number; col: number };
 }
 
+/** SCALE-2a (REQ-BFG-100, C11; REPORT-COUNT1 section 3): what a count-driven term gave on one hit or shot (after an
+ *  OVERCLOCKER's doubling): DMG to the slug, PLATE or HEAL to your hull. Display data: the battle view pops `+n`. */
+export interface ReadAdd {
+  amount: number;
+  kind: "dmg" | "plate" | "heal";
+}
+
 export type SimEvent =
   | { type: "produce"; side: Side; factory: number }
-  | { type: "process"; side: Side; gate: number; def: string; dir: Dir; route: number; tile: number } // 0.6.2: the arrow and the tile it hit
+  // 0.6.2: the arrow and the tile it hit. SCALE-2a (REQ-BFG-100, C11): `add`, set only when a count-driven term gave
+  // something on this hit (perStalled, perPriorGate, pincer.each, perTile, quench.perBurn, a `reads` line), whether
+  // SCALE_RIGS is on or off
+  | { type: "process"; side: Side; gate: number; def: string; dir: Dir; route: number; tile: number; add?: ReadAdd }
   | { type: "commission"; side: Side; gate: number }
   | { type: "load"; side: Side; turret: number }
   | { type: "fuse"; side: Side; turret: number; dmg: number } // races: two alloy blanks fused (FOUNDRY)
   // 0.8.0 H1 M3 (display only: the CLANK): a bulwark slug that loaded plated the hull by `amount` (BASTION; races/index.ts
   // raceLoaded, after the `load` event). Only a bulwark slug plates, so Furnace and Weaver never emit one.
   | { type: "plate"; side: Side; turret: number; amount: number }
-  | { type: "fire"; side: Side; turret: number; heavy: boolean; dmg: number; proj: number; core?: CoreRoutine } // 0.6.1b: core set by a bought core
+  // 0.6.1b: core set by a bought core. SCALE-2a (REQ-BFG-100, C11): `add`, set only when a gun part's count term gave
+  // something on this shot (PRESSURE BREECH's perQueued, a `reads` line), whether SCALE_RIGS is on or off
+  | { type: "fire"; side: Side; turret: number; heavy: boolean; dmg: number; proj: number; core?: CoreRoutine; add?: ReadAdd }
   | { type: "impact"; side: Side; x: number; y: number; dmg: number; heavy: boolean; kind: TargetKind; shock: boolean; burn: number; big: boolean }
   | { type: "jam"; side: Side; turret: number }
   | { type: "disrupt"; side: Side; kind: TargetKind; ref: number; cell: number }
@@ -443,6 +482,9 @@ export type SimEvent =
   | { type: "arc" | "lance" | "splash"; side: Side; x: number; y: number }
   | { type: "wreck" | "rip" | "limpet"; side: Side; kind: TargetKind; ref: number; cell: number; payload?: number }
   | { type: "burn"; side: Side; dmg: number }
+  // SCALE-2b (REQ-BFG-108): a POISON tick on side `side`'s hull (whole, after D(day)), once a second; emitted only while
+  // SCALE_RIGS is on (no hull holds POISON otherwise)
+  | { type: "poison"; side: Side; dmg: number }
   | { type: "keg"; side: Side; gate: number }
   // 0.8.0 P1, wave 3: fired only by wave-3 parts (a race hero fires what it fired before)
   | { type: "plate"; side: Side; amount: number; plate: number } // E1: plating added (+) or spent (-); `plate`: the pool after
@@ -460,6 +502,7 @@ export interface BattleRecord {
   seed: number;
   builds: [Build, Build];
   wins?: [number, number]; // RUNES-2a: the wins each side carried in, only when a side holds WARLORD'S DUE (Battle)
+  lost?: [number, number]; // SCALE-2a (REQ-BFG-098): the hearts each side had lost, only when a side reads them (SCALE_RIGS on)
   // HULL-1a (REQ-BFG-079): the day the fight was on, kept only when it played the day's hull (HULL_SCALE on and a day
   // given); a record without it plays at M = 1 (replay.ts)
   day?: number;
@@ -519,14 +562,18 @@ export class Battle {
    *  sustMulTenths), else 10 (S = 1: every heal and PLATE amount exactly as before). */
   readonly sustTenths: number;
   private windBp = 0; // HULL-1a: the wind's share blown since its last whole tick, in basis-point ticks (scaled only)
+  /** SCALE-2a (REQ-BFG-110, REQ-BFG-098): are the scaling hooks on in this fight (SCALE_RIGS, or withScaleRigs, where it
+   *  was made)? Read once, here: the FOR EACH accumulator, the counts and `reads`. Off: every hook is inert. */
+  readonly scaleRigs: boolean = scaleRules();
 
   /** RUNES-2a: `wins`, the wins each side carried into the fight (the run's own, a ghost's snapshot `wins`; 0 for a
    *  stand-in or a warlord), read only by a side holding WARLORD'S DUE; the record keeps them only then (replay.ts), so a
    *  replay is exact and every other battle and record is as before.
    *  HULL-1a (REQ-BFG-079): `day`, the day the fight is on (the run's for the dusk, a warlord and the arena; a replay's
    *  record's). With HULL_SCALE on it sets M(day) on both hulls and the wind's share, and the record keeps it; with the
-   *  switch off, or no day, the fight and its record are 0.9.7's (M = 1). */
-  constructor(player: Build, enemy: Build, seed: number, wins?: readonly [number, number], day?: number) {
+   *  switch off, or no day, the fight and its record are 0.9.7's (M = 1).
+   *  SCALE-2a (REQ-BFG-098): `lost`, each side's hearts lost coming in (as `wins`; read only with SCALE_RIGS on). */
+  constructor(player: Build, enemy: Build, seed: number, wins?: readonly [number, number], day?: number, lost?: readonly [number, number]) {
     this.scaled = dayScaled(day);
     this.mulTenths = this.scaled ? dayMulTenths(day) : 10;
     this.dmgTenths = this.scaled ? dmgMulTenths(day) : 10; // HULL-1c: D(day) on the day's hull only
@@ -535,8 +582,15 @@ export class Battle {
     this.record = { rules: RULES_VERSION, seed, builds: [cloneBuild(player), cloneBuild(enemy)] };
     this.sides = [this.makeSide(0, cloneBuild(player)), this.makeSide(1, cloneBuild(enemy))];
     let reads = false;
-    for (const s of this.sides) if (s.rune?.winDmgPct) { s.wins = Math.max(0, Math.floor(wins?.[s.side] ?? 0)); reads = true; }
+    // SCALE-2a (REQ-BFG-098): with SCALE_RIGS on, a `reads` wins piece (TROPHY CHAIN) reads them as WARLORD'S DUE does
+    for (const s of this.sides) if (s.rune?.winDmgPct || this.scaleRigs && this.sideReads(s, "wins")) { s.wins = Math.max(0, Math.floor(wins?.[s.side] ?? 0)); reads = true; }
     if (reads && wins) this.record.wins = [Math.max(0, Math.floor(wins[0])), Math.max(0, Math.floor(wins[1]))];
+    // SCALE-2a (REQ-BFG-098): `lost`, the hearts each side had lost coming in, passed in the way `wins` is (the run's own,
+    // a ghost's from its snapshot's lives: scale.ts heartsLost; nothing from a stand-in, a warlord, the bots, the harness
+    // or the tools: 0), kept on each side only while SCALE_RIGS is on (GRUDGE ROD's count), whole and never below 0
+    if (this.scaleRigs) for (const s of this.sides) s.heartsLost = Math.max(0, Math.floor(lost?.[s.side] ?? 0));
+    // ... and the record keeps them only when a side reads them (a `reads` heartsLost piece), as `wins` (replay.ts)
+    if (this.scaleRigs && lost && this.sides.some((s) => this.sideReads(s, "heartsLost"))) this.record.lost = [this.sides[0].heartsLost!, this.sides[1].heartsLost!];
     if (this.scaled) this.record.day = day; // HULL-1a: only a fight on the day's hull keeps its day
     raceLink(this.sides); // races: a side facing SIPHON gets Drag state
     // RUNES-1 (REQ-BFG-058): battle-start runes (no RNG; nothing happens on a side without runes)
@@ -1521,7 +1575,7 @@ export class Battle {
     s.hull.hp += add;
     c.healed += add;
     this.events.push({ type: "heal", side: s.side, amount: add, source,
-      ...(from === undefined ? {} : source === "riveter" ? { gate: from } : { factory: from }) });
+      ...(from === undefined ? {} : source === "riveter" || source === "reads" ? { gate: from } : { factory: from }) });
     return add;
   }
 
@@ -1703,6 +1757,53 @@ export class Battle {
     }
   }
 
+  /** SCALE-2a (REQ-BFG-098; content.ts ReadCount, REPORT-SCALE1 3.2): what `count` reads for side s now: at a rig's hit
+   *  (`at.g` the rig, `at.route` the belt it hits) or at a gun's shot (`at.queued`, PRESSURE BREECH's sum). */
+  private readCount(s: SideState, count: ReadCount, at: { g?: GateState; route?: number; queued?: number }): number {
+    switch (count) {
+      case "foeBurn": return burnStacks(this.sides[s.side === 0 ? 1 : 0].hull);
+      // the hit slug is on the belt (and those backed up at its gun), so never below 1; a gun part has no belt: 0
+      case "beltSlugs": return at.route === undefined ? 0 : Math.max(1, s.routes[at.route].ammo.length);
+      // in day-1 units, as ANVIL BREECH reads the pool (fireCore): its DMG takes D at impact, not S as well
+      case "ownPlate": return this.sustTenths === 10 ? s.plate.plate : Math.floor((s.plate.plate * 10) / this.sustTenths);
+      case "ownShield": return s.shield ?? 0;
+      case "hitsTaken": return s.hitsTaken ?? 0;
+      case "ownHits": return at.g?.ownHits ?? 0;
+      case "heartsLost": return s.heartsLost ?? 0;
+      case "wins": return s.wins ?? 0;
+      case "waiting": return at.queued ?? 0;
+      // SCALE-2b (REQ-BFG-108): the POISON on the foe's hull at this hit or shot (HullState.poison; 0 until one lands)
+      case "foePoison": return this.sides[s.side === 0 ? 1 : 0].hull.poison ?? 0;
+    }
+  }
+
+  /** SCALE-2a (REQ-BFG-098): a `reads` line gives `each` for every one counted (every `per`, rounded down): DMG to the
+   *  slug's FOR EACH accumulator, PLATE onto side s's hull (addPlate: PLATE_CAP), HEAL to its hull (heal(): BURN halves
+   *  it). Returns what it actually gave (C11's `add`), or undefined when nothing. Called only while SCALE_RIGS is on. */
+  private giveRead(s: SideState, r: ReadSpec, count: number, p: Payload, gate?: number): { amount: number; kind: "dmg" | "plate" | "heal" } | undefined {
+    const amount = r.each * (r.per ? Math.floor(count / r.per) : count);
+    if (!(amount > 0)) return undefined;
+    if (r.give === "dmg") {
+      this.forEach(p, amount);
+      return { amount, kind: "dmg" };
+    }
+    const got = r.give === "plate" ? this.addPlate(s, amount) : this.heal(s, amount, "reads", gate);
+    return got > 0 ? { amount: got, kind: r.give } : undefined;
+  }
+
+  /** SCALE-2a (REQ-BFG-098): does side s hold a piece whose `reads` counts `count` (a rig, or a gun part)? */
+  private sideReads(s: SideState, count: ReadCount): boolean {
+    return s.gates.some((g) => g.def.gate?.reads?.count === count) || s.turrets.some((tu) => !!tu.reads?.some((r) => r.count === count));
+  }
+
+  /** SCALE-2a (REQ-BFG-110, the order of operations): a FOR EACH add (step 4: a count read at this hit; the slug keeps it)
+   *  goes to the payload's second accumulator while SCALE_RIGS is on, so DRAKE NOZZLE (step 3) never converts it; off, it
+   *  adds to `flat` exactly as before. */
+  private forEach(p: Payload, n: number): void {
+    if (this.scaleRigs) p.each = (p.each ?? 0) + n;
+    else p.flat += n;
+  }
+
   /**
    * One rig arrow processes payload `a` (0.6.1p's applyGate body, unchanged); returns the copies a SPLITTER hit
    * makes (copies - 1 of them: 1 at every star since 0.6.1f, 2 while HOT START overclocks it), else [].
@@ -1712,6 +1813,7 @@ export class Battle {
     // 0.6.1c ASSEMBLY LINE ★3 HOT START: while it lasts the gate's effect applies twice (overclock.ts, ARSENAL.md §3.4).
     // beltside-062c (DESIGN §12 P7): hotUntil is the rig's, so every arrow of the rig is overclocked, on any belt
     const p = a.p;
+    if (this.scaleRigs) g.ownHits = (g.ownHits ?? 0) + 1; // SCALE-2a (REQ-BFG-098): this hit counts, before anything reads it
     if (g.def.gate?.overclockCooldown) (p.boosters ??= []).push(g.uid);
     const booster = g.boostedBy.find(({ booster, route }) => route === h.route && p.boosters?.includes(booster.uid) && booster.online &&
       !booster.wrecked && booster.disrupted <= 0 && booster.frozen <= 0 && booster.cooldown <= 0);
@@ -1722,12 +1824,18 @@ export class Battle {
     const doubled = !!booster || g.hotUntil !== undefined && this.t < g.hotUntil;
     const e = doubled ? overclocked(g.def.gate!) : g.def.gate!;
     const copies: BeltAmmo[] = [];
+    let addDmg = 0; // SCALE-2a (REQ-BFG-100, C11): the DMG this hit's count-driven terms give (the process event's `add`)
     if (e.flat) p.flat += e.flat;
     if (s.race?.speedLock && e.lockedFlat) p.flat += e.lockedFlat;
     // 0.8.0 P1, wave 3 (R7 tier 1, additive; each field exists only on its wave-3 rig):
     if (e.gauge) p.flat += h.matched ? e.gauge.matched : e.gauge.flat; // E6 TWIN GAUGE: more on a matched belt
-    // E5 PINCER. Y3 (release Y; DESIGN-Y row 20): its def has no `max` (and flat 0), so every other working rig counts
-    if (e.pincer) p.flat += e.pincer.flat + e.pincer.each * Math.min(e.pincer.max ?? Infinity, this.crossfire(s, h));
+    // E5 PINCER. Y3 (release Y; DESIGN-Y row 20): its def has no `max` (and flat 0), so every other working rig counts.
+    // SCALE-2a (REQ-BFG-110): its `flat` is a stat row (step 2), its `each` a FOR EACH add (step 4: this.forEach)
+    if (e.pincer) {
+      const each = e.pincer.each * Math.min(e.pincer.max ?? Infinity, this.crossfire(s, h));
+      if (this.scaleRigs) { p.flat += e.pincer.flat; this.forEach(p, each); } else p.flat += e.pincer.flat + each;
+      addDmg += each;
+    }
     if (e.latch) p.flat += e.latch.flat; // TWIN LATCH: each payload it hits (its hold is E4, after the tile's hits)
     if (e.plate) this.addPlate(s, e.plate); // PLATE ROLLER, SHIELD WALL: plating for each payload it hits (E1)
     // HULL-1d: SHIELD WALL's 12+ and PLATE BREAKER's 1 plating are pool units, on the pool's S (sustUnit; S = 1: as before)
@@ -1739,12 +1847,19 @@ export class Battle {
         p.flat += e.breaker.flat;
       } else p.flat += e.breaker.floor;
     }
-    // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap)
-    if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
+    // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap). SCALE-2a: a FOR EACH add (step 4)
+    if (e.perPriorGate) {
+      const n = e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
+      this.forEach(p, n);
+      addDmg += n;
+    }
     if (e.burn) p.burn += e.burn;
     // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP (its only source), on poison's old path: two add up, and a doubled
     // hit (overclocked) adds twice
     if (e.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + e.burnPlus;
+    // SCALE-2b (REQ-BFG-108): VENOM DRIP's POISON (its switch-on def, scale.ts SCALE_DEFS), on the payload: two add up, and a
+    // doubled hit (overclocked) adds twice; it lands at impact. Ignored with SCALE_RIGS off (no shipped def holds it then)
+    if (this.scaleRigs && e.poison) p.poison = (p.poison ?? 0) + e.poison;
     if (e.burnPerRide) {
       const original = g.def.gate!.burnPerRide!;
       // Y3 (release Y; DESIGN-Y row 22): + burn for each whole `per` s ridden (1/2/3 for each 2 s), no cap
@@ -1754,7 +1869,10 @@ export class Battle {
     if (e.quench) { // 0.6.2 FB-B: + flat on every payload; up to `stacks` Burn stacks at perBurn each, the rest stays Burn
       // Y3 (DESIGN-Y row 23): its def has no `stacks` (and flat 0), so every BURN stack turns
       const spent = Math.min(p.burn, e.quench.stacks ?? Infinity);
-      p.flat += e.quench.flat + spent * e.quench.perBurn;
+      // SCALE-2a (REQ-BFG-110): its `flat` is a stat row (step 2), its perBurn part a FOR EACH add (step 4)
+      const each = spent * e.quench.perBurn;
+      if (this.scaleRigs) { p.flat += e.quench.flat; this.forEach(p, each); } else p.flat += e.quench.flat + each;
+      addDmg += each;
       p.burn -= spent;
     }
     if (e.staticTime) { p.static = true; p.staticTime = Math.max(p.staticTime ?? 0, e.staticTime); }
@@ -1764,12 +1882,22 @@ export class Battle {
       const foe = this.sides[s.side === 0 ? 1 : 0];
       const stunned = [...foe.gates.filter((g) => !g.wrecked), ...foe.factories, ...foe.turrets].filter((m) => m.disrupted > 0 || m.frozen > 0).length +
         foe.routes.reduce((n, r) => n + r.cellDisrupt.filter((t) => t > 0).length, 0);
-      p.flat += stunned * e.perStalled.each;
+      const n = stunned * e.perStalled.each;
+      this.forEach(p, n); // SCALE-2a (REQ-BFG-110): a FOR EACH add (step 4)
+      addDmg += n;
     }
     if (e.fray) { p.fray = (p.fray ?? 0) + e.fray; p.frayCap = Math.max(p.frayCap ?? 0, e.frayCap ?? 0); }
     // 0.6.2j (J14 (a)): COUNTERWEIGHT counts the tiles ridden on the payload's own journey. Y5 (release Y; DESIGN-Y row 41):
-    // its def has no `max`, so every tile counts
-    if (e.perTile) p.flat += Math.min(e.perTile.max ?? Infinity, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each);
+    // its def has no `max`, so every tile counts. SCALE-2a (REQ-BFG-110): a FOR EACH add (step 4)
+    if (e.perTile) {
+      const n = Math.min(e.perTile.max ?? Infinity, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each);
+      this.forEach(p, n);
+      addDmg += n;
+    }
+    // SCALE-2a (REQ-BFG-098): a scaling rig's reader line, its count read at this hit (step 4: before a split, which scales
+    // it); ignored with SCALE_RIGS off
+    const read = this.scaleRigs && e.reads ? this.giveRead(s, e.reads, this.readCount(s, e.reads.count, { g, route: h.route }), p, g.uid) : undefined;
+    if (read?.kind === "dmg") addDmg += read.amount;
     if (e.shock) {
       p.shock = true;
       // 0.6.1p: GALVANIC COIL ★2/★3: the longest stall and jump passed wins (a 1-star coil sets neither)
@@ -1805,6 +1933,7 @@ export class Battle {
       p.mult *= e.split.mult; // a share: payloadDamage rounds the slug's damage once, at fire
       p.flat = pct(p.flat, 100 * e.split.mult); // NUM-1: the flat bonus so far x the split's %, rounded half up once
       if (p.plate) p.plate = pct(p.plate, 100 * e.split.mult); // PLAIN-1 (P2): the slug's PLATE so far, as its flat
+      if (p.each) p.each = pct(p.each, 100 * e.split.mult); // SCALE-2a (REQ-BFG-110): a split is a copy: both accumulators
       p.copy = true;
       for (let c = 1; c < e.split.copies; c++) { // generic: copies - 1 new ones (an overclocked split makes one more)
         const cp: Payload = { ...p, id: this.nextId++, ...(p.debuffs ? { debuffs: { ...p.debuffs } } : {}),
@@ -1816,7 +1945,10 @@ export class Battle {
     for (const c of copies) c.p.prior = p.prior;
     g.flash = 0.22;
     g.arrowFlash[h.dir] = 0.22;
-    this.events.push({ type: "process", side: s.side, gate: g.uid, def: g.def.id, dir: h.dir, route: h.route, tile: h.tile });
+    // SCALE-2a (REQ-BFG-100, C11): the count-driven DMG this hit gave (a `reads` PLATE or HEAL line's only when no DMG came);
+    // no `add` at 0. Display data, set with SCALE_RIGS on or off (the pinned fp tallies event types only)
+    const add: ReadAdd | undefined = addDmg > 0 ? { amount: addDmg, kind: "dmg" } : read?.kind !== "dmg" ? read : undefined;
+    this.events.push({ type: "process", side: s.side, gate: g.uid, def: g.def.id, dir: h.dir, route: h.route, tile: h.tile, ...(add ? { add } : {}) });
     return copies; // beltside-062 B3
   }
 
@@ -1952,12 +2084,16 @@ export class Battle {
   }
 
   private fire(s: SideState, tu: TurretState, p: Payload, k: number, queued: number, fin = false): void {
-    if (tu.core.bought) return this.fireCore(s, tu, p, k, queued, fin); // 0.6.1b; the identity shot below is unchanged
+    // SCALE-2a (REQ-BFG-098): the gun parts' reader lines, each count read at this shot; their DMG joins the slug's FOR EACH
+    // DMG before its damage is made (step 4: DRAKE NOZZLE never converts it; step 5's % applies once, to the total).
+    // Ignored with SCALE_RIGS off
+    const read = this.scaleRigs && tu.reads ? this.shotReads(s, tu, p, queued) : undefined;
+    if (tu.core.bought) return this.fireCore(s, tu, p, k, queued, fin, read); // 0.6.1b; the identity shot below is unchanged
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
     let dmg = ammo.rideCurve // races: PENDULUM curve
       ? raceCurveDamage(ammo, s, tu, p)
-      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, flatOf(p) + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor; SCALE-2a: the sum (flatOf)
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     // NUM-1 (REQ-BFG-047): payloadDamage made the slug's damage whole at fire (its HEAT and split share rounded once); each
     // % below rounds half up once, where it applies (pct)
@@ -1992,8 +2128,20 @@ export class Battle {
     s.stats.shots++;
     s.stats.payloadSum += dmg;
     if (s.stats.firstShot < 0) s.stats.firstShot = this.t;
-    this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg, proj: proj.id });
+    this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg, proj: proj.id, ...(read ? { add: read } : {}) }); // SCALE-2a: C11's `add`
     if (p.paired && s.rune?.pairTwice) this.echo(s, proj); // RUNES-2a: MOLTEN VOWS
+  }
+
+  /** SCALE-2a (REQ-BFG-098): turret tu's gun parts' reader lines at this shot, in fitting order; what they gave together
+   *  (DMG summed; a PLATE or HEAL line's only when no DMG was given), or undefined. */
+  private shotReads(s: SideState, tu: TurretState, p: Payload, queued: number): { amount: number; kind: "dmg" | "plate" | "heal" } | undefined {
+    let dmg = 0, other: { amount: number; kind: "dmg" | "plate" | "heal" } | undefined;
+    for (const r of tu.reads!) {
+      const got = this.giveRead(s, r, this.readCount(s, r.count, { queued }), p);
+      if (got?.kind === "dmg") dmg += got.amount;
+      else if (got && !other) other = got;
+    }
+    return dmg > 0 ? { amount: dmg, kind: "dmg" } : other;
   }
 
   /** RUNES-1 (REQ-BFG-058): the flat damage side s's runes add to one shot of turret tu (before the debuffs, like the
@@ -2025,20 +2173,25 @@ export class Battle {
    * - DRAKE: the flat bonus becomes Burn (1 stack per flatPerBurn), + addBurn, lasting burnTime; flight x flightMul.
    * ROTARY and GATLING fire like the identity shot (their hooks are in the chamber).
    */
-  private fireCore(s: SideState, tu: TurretState, p: Payload, k: number, queued: number, fin = false): void {
+  private fireCore(s: SideState, tu: TurretState, p: Payload, k: number, queued: number, fin = false, read?: ReadAdd): void {
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
     const c = tu.core.spec, routine = tu.core.routine;
     if (routine === "grapnel") p.rip = { count: c.rip ?? 1, reach: c.reach ?? 1 };
+    // SCALE-2a (REQ-BFG-110, the guard): DRAKE NOZZLE converts the stat rows' DMG only (step 3 sees step 2: p.flat); the FOR
+    // EACH DMG (step 4: p.each, set only while SCALE_RIGS is on) stays DMG on the shot. Off, p.each is never set: as before
     const conv = routine === "drake" ? drakeConvert(c, p.flat) : { stacks: 0, used: 0 };
     let dmg = ammo.rideCurve
       ? Math.max(10, raceCurveDamage(ammo, s, tu, p) - conv.used) // NUM-1: the least shot x10 (curveDamage's floor)
-      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat - conv.used + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, flatOf(p) - conv.used + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
+    let poison = p.poison ?? 0; // SCALE-2b (REQ-BFG-108): the shot's POISON, as `burn` (0 with SCALE_RIGS off)
     // NUM-1 (REQ-BFG-047): the core's numbers are whole at install (cores.ts scaleCore); every % or rate here rounds half
     // up once (ANVIL's plating %, HULLBREAKER, CAPACITOR's idle seconds, COMPOUND)
-    if (routine === "pressure") dmg += pressureBonus(c, queued);
+    // SCALE-2a (REQ-BFG-100, C11): PRESSURE BREECH's perQueued is a count-driven term: the fire event's `add`
+    const queuedAdd = routine === "pressure" ? pressureBonus(c, queued) : 0;
+    if (routine === "pressure") dmg += queuedAdd;
     else if (routine === "salvo") dmg += c.volleyFlat ?? 0;
     // HULL-1d: with S above 1 ANVIL reads its pool back in day-1 units (pool x 10 / S, rounded down): its damage takes D at
     // impact, not S as well
@@ -2047,11 +2200,12 @@ export class Battle {
     else if (routine === "capacitor") { dmg += roundHalfUp((c.perSecond ?? 0) * tu.charge); tu.charge = 0; }
     else if (routine === "compound" && p.compound) {
       const q = p.compound, qa = AMMO[q.ammo];
-      const qd = qa.rideCurve ? raceCurveDamage(qa, s, tu, q) : payloadDamage(q.base ?? qa.base, qa.rideScale, this.rideOf(s, q), q.mult, q.flat + (q.heatBonus ?? 0), shotFloor(q.ammo)); // Y2: shotFloor
+      const qd = qa.rideCurve ? raceCurveDamage(qa, s, tu, q) : payloadDamage(q.base ?? qa.base, qa.rideScale, this.rideOf(s, q), q.mult, flatOf(q) + (q.heatBonus ?? 0), shotFloor(q.ammo)); // Y2: shotFloor; SCALE-2a: the sum
       dmg = pct(debuffedDamage(dmg, p.debuffs) + debuffedDamage(qd, q.debuffs), 100 * (c.mult ?? 1));
       p.burn += q.burn;
       burn += q.burn;
       if (q.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + q.burnPlus; // Y6 (DESIGN-Y 4.1): the shell keeps both loads'
+      if (q.poison) { p.poison = (p.poison ?? 0) + q.poison; poison += q.poison; } // SCALE-2b (REQ-BFG-108): both loads' POISON, as BURN
       p.shock ||= q.shock;
       p.static ||= q.static;
       p.staticTime = Math.max(p.staticTime ?? 0, q.staticTime ?? 0) || undefined;
@@ -2078,6 +2232,10 @@ export class Battle {
     }
     if (routine !== "compound" || !p.compound) dmg = debuffedDamage(dmg, p.debuffs);
     const heavy = tu.def.kind === "heavy";
+    // SCALE-2a (REQ-BFG-100, C11): this shot's count-driven add (perQueued plus the gun parts' `reads` DMG; a PLATE or HEAL
+    // line's only when no DMG came), on the first pellet's fire event only; none at 0
+    const addDmg = queuedAdd + (read?.kind === "dmg" ? read.amount : 0);
+    const add: ReadAdd | undefined = addDmg > 0 ? { amount: addDmg, kind: "dmg" } : read?.kind !== "dmg" ? read : undefined;
     for (let j = 0; j < pellets; j++) {
       const target = routine === "hullbreaker" ? hullTarget() : this.pickTarget(foe, !!p.harass, tu);
       let tx = target.x, ty = target.y;
@@ -2094,6 +2252,7 @@ export class Battle {
         id: this.nextId++, from: s.side, turret: tu.index, payload: p, dmg: pd, t: 0, flight, target, tx, ty, heavy,
         core: routine, burn: pellets > 1 ? Math.ceil(burn / pellets) : burn,
         ...(burnTime !== undefined ? { burnTime } : {}),
+        ...(poison > 0 ? { poison: pellets > 1 ? Math.ceil(poison / pellets) : poison } : {}), // SCALE-2b: split as BURN (SCATTER)
         ...(pellets > 1 ? { share, noFray: j > 0 } : {}),
         ...(fin ? { finisher: true } : {}), // 0.6.1p
         ...(j === 0 && open && s.rune?.volleyBurn ? { runeBurn: s.rune.volleyBurn } : {}), // RUNES-2a: EMBER SHOT, its first pellet
@@ -2105,7 +2264,7 @@ export class Battle {
       this.projectiles.push(proj);
       s.stats.shots++;
       s.stats.payloadSum += pd;
-      this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg: pd, proj: proj.id, core: routine });
+      this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg: pd, proj: proj.id, core: routine, ...(j === 0 && add ? { add } : {}) });
       if (paired && s.rune?.pairTwice) this.echo(s, proj); // RUNES-2a: MOLTEN VOWS, each pellet
     }
     tu.recoil = 1;
@@ -2174,6 +2333,9 @@ export class Battle {
   private impact(pr: Projectile): void {
     const atk = this.sides[pr.from];
     const def = this.sides[pr.from === 0 ? 1 : 0];
+    // SCALE-2a (REQ-BFG-098): every enemy impact on def's ship counts (each `impact` event: a splash, arc or lance part too),
+    // any target, before a SHIELD can stop it (a block counts)
+    if (this.scaleRigs) def.hitsTaken = (def.hitsTaken ?? 0) + 1;
     const ammo = AMMO[pr.payload.ammo];
     const hit = pr.lance ? hullTarget() : pr.target;
     // 0.6.1b: a SCATTER pellet's Fray bonus x its share, so Fray isn't multiplied (absent on identity shots)
@@ -2215,6 +2377,11 @@ export class Battle {
         burn += more;
       }
     }
+    // SCALE-2b (REQ-BFG-108; REPORT-SCALE1 section 2): POISON lands at the moment the hit's BURN lands, on a hull hit or a
+    // part hit (a splash, arc or lance part too, as BURN), and a SHIELD (WARD) that blocked this hit's damage above doesn't
+    // stop it. It adds up on the hull, no cap and no decay (HullState.poison); 0 lands nothing. Only while SCALE_RIGS is on
+    const poison = pr.poison ?? pr.payload.poison ?? 0;
+    if (poison > 0 && this.scaleRigs) def.hull.poison = (def.hull.poison ?? 0) + poison;
     if (atk.rune && (atk.rune.hitHeal || atk.rune.pairHeal)) this.runeHeal(atk, pr); // SUS-D: LEECH VOW, TWIN SALVE
     let shocked = false;
     if (pr.payload.shock && hit.kind !== "hull") {
@@ -2514,6 +2681,22 @@ export class Battle {
           this.events.push({ type: "burn", side: s.side, dmg: shown });
         }
       }
+      // SCALE-2b (REQ-BFG-108; REPORT-SCALE1 section 2): POISON's tick, in BURN's once-a-second pass: at each whole second
+      // of the fight (every TICKS_PER_SEC ticks on the integer tick count, REGEN's clock) the hull takes POISON_DPS x its
+      // POISON as one number, with D(day) as BURN's tick (no % and no TIMES: PYRE HEART and ASH CLOAK stay BURN's). Past the
+      // soak layer, the way the dark wind goes: straight to hp, never through absorb(), so it never takes the plate; and,
+      // as the wind, it charges no SPALL CATCHER. A tick isn't a hit, so a SHIELD (WARD) never blocks it. SideStats.damage
+      // takes it as BURN's; the POISON-dealt tally lives off SideStats (SideState.poisonDealt). One `poison` event a tick
+      if (s.hull.poison && this.scaleRigs && this.ticks % TICKS_PER_SEC === 0) {
+        let tick = s.hull.poison * POISON_DPS;
+        if (this.dmgTenths !== 10) tick = dmgDayScale(tick, this.dmgTenths, s); // HULL-1c (REQ-BFG-079): D(day), as BURN's tick
+        if (tick > 0) {
+          s.hull.hp -= tick;
+          foe.stats.damage += tick;
+          foe.poisonDealt = (foe.poisonDealt ?? 0) + tick;
+          this.events.push({ type: "poison", side: s.side, dmg: tick });
+        }
+      }
     }
     if (!this.windWarned && this.t >= WIND_WARN) {
       this.windWarned = true;
@@ -2743,6 +2926,7 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     // SUS-A (REQ-BFG-069): WARD BELL (its first SHIELD at t = every) and MENDING LOOM (absent without them)
     ...(g.shield ? { bell: { every: g.shield.every, amount: g.shield.amount, timer: g.shield.every } } : {}),
     ...(g.regen ? { regen: g.regen } : {}),
+    ...(g.reads ? { reads: g.reads } : {}), // SCALE-2a (REQ-BFG-098): read at each shot, SCALE_RIGS on only (Battle.fire)
   };
 }
 
@@ -2790,6 +2974,7 @@ export interface GearStats {
   // SUS-A (REQ-BFG-069; absent without them):
   shield?: { every: number; amount: number }; // WARD BELL
   regen?: number; // MENDING LOOM
+  reads?: ReadSpec[]; // SCALE-2a (REQ-BFG-098): each gun part's reader line, in fitting order (absent without one)
 }
 
 export function gearStats(b: Build, i: number): GearStats {
@@ -2819,13 +3004,14 @@ export function gearStats(b: Build, i: number): GearStats {
     if (md?.spall) out.spall = md.spall; // SPALL CATCHER
     if (md?.shield) out.shield = md.shield; // SUS-A: WARD BELL (a turret holds one copy of a def)
     if (md?.regen) out.regen = md.regen; // SUS-A: MENDING LOOM
+    if (md?.reads) (out.reads ??= []).push(md.reads); // SCALE-2a (REQ-BFG-098): a scaling gun part's reader line
   }
   return out;
 }
 
 /** Headless run to completion (tests / balance). HULL-1a (REQ-BFG-079): `day`, the day the fight is on (Battle's). */
-export function simulate(player: Build, enemy: Build, seed: number, maxTicks = 60 * 200, wins?: readonly [number, number], day?: number): Battle {
-  const b = new Battle(player, enemy, seed, wins, day); // RUNES-2a: `wins` for WARLORD'S DUE (Battle's constructor); HULL-1a: `day`
+export function simulate(player: Build, enemy: Build, seed: number, maxTicks = 60 * 200, wins?: readonly [number, number], day?: number, lost?: readonly [number, number]): Battle {
+  const b = new Battle(player, enemy, seed, wins, day, lost); // RUNES-2a: `wins` for WARLORD'S DUE (Battle's constructor); HULL-1a: `day`; SCALE-2a: `lost`
   while (!b.over && b.ticks < maxTicks) {
     b.step();
     b.events.length = 0;

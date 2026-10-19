@@ -52,30 +52,46 @@ type Pinned = readonly [id: RivalId, day: number, measure: keyof LuckMeasures, c
 // under their caps: d10 rare of nettle, mothqueen, lacewing, emberlyn, silkshade and highspire (WEAVER's d10 rare cap 8 -> 9) and
 // lacewing d7 rare (WEAVER's d7 rare cap 5 -> 6); longtooth d8 value and lockjaw d8 value (FURNACE's d8 value cap 124 -> 130);
 // highspire d1 value (WEAVER's d1 value cap 8 -> 9); highspire d2 and thistlemail d2 value (WEAVER's d2 value cap 22 -> 24).
+// BUMP-1E (the scaling release, bb-0.12.0; RULING-BUMP1E-R2 R2.4): THE CEILING LISTS, RE-KEYED to the table `npm run luckcaps` writes at
+// bb-0.12.0 (luckCapsData.ts regenerated: the par player now buys the seven new rigs too; fingerprints furnace 0b23dc4e -> c8b37a88, weaver
+// 883c7bee -> ece71b36, foundry 4dd85c9f -> 757b201f, bastion 6d397e0a -> 1555829e). NO CAPTAIN WAS RETUNED IN BUMP-1E (the plans are
+// BUMP-1D's; a re-plan after the freeze would change numbers the generators read). Read so, the same decks are over on 34 captain-days (31
+// stand-in dusk decks, 3 Hard warlord decks; was 30 = 23 + 7); the dry export of the frozen content read the same (REPORT section 5). Each
+// change below carries a "BUMP-1E: was ..." trail. DUSK: NEW (10): nettle d10, mothqueen d10, lacewing d7 and d10, emberlyn d10, silkshade d10,
+// highspire d1, d2 and d10 (rare 9 > 8 / 6 > 5; value 9 > 8 / 23 > 21) and thistlemail d2 (value 23 > 21); RE-KEYED to the new cap (3): mothqueen
+// d2 value 24 -> 21 and d3 value 38 -> 37, thistlemail d1 value 9 -> 8 (WEAVER's d1-d3 caps fell back); REMOVED (2), back under their caps:
+// nettle d6 and thistlemail d6 value (WEAVER's d6 value cap 86 -> 88).
 const DUSK_OVERS: readonly Pinned[] = [
   ["sootjaw", 6, "rare", 4, 5], // BUMP-1D: new
-  ["nettle", 5, "rare", 3, 4], ["nettle", 6, "rare", 4, 5], ["nettle", 6, "value", 86, 88], // BUMP-1D: d6 value new; d10 rare (8, 9) removed
+  ["nettle", 5, "rare", 3, 4], ["nettle", 6, "rare", 4, 5], // BUMP-1D: d6 value new; d10 rare (8, 9) removed. BUMP-1E: d6 value (86, 88) removed (back under its cap); d10 rare (8, 9) is over again
+  ["nettle", 10, "rare", 8, 9], // BUMP-1E: new
   ["grubnose", 6, "rare", 4, 5], // BUMP-1D: new
-  ["mothqueen", 2, "value", 24, 26], ["mothqueen", 3, "value", 38, 40], // BUMP-1D: was ["mothqueen", 2, "value", 22, 26], ["mothqueen", 3, "value", 37, 40]
-  ["mothqueen", 5, "rare", 3, 4], // BUMP-1D: d10 rare (8, 9) removed
+  ["mothqueen", 2, "value", 21, 26], ["mothqueen", 3, "value", 37, 40], // BUMP-1E: was ["mothqueen", 2, "value", 24, 26], ["mothqueen", 3, "value", 38, 40]. BUMP-1D: was ["mothqueen", 2, "value", 22, 26], ["mothqueen", 3, "value", 37, 40]
+  ["mothqueen", 5, "rare", 3, 4], ["mothqueen", 10, "rare", 8, 9], // BUMP-1D: d10 rare (8, 9) removed. BUMP-1E: d10 rare (8, 9) is over again
   ["sparkfang", 6, "rare", 4, 5], // BUMP-1D: new
   ["lacewing", 5, "rare", 3, 4], ["lacewing", 6, "rare", 4, 5], ["lacewing", 8, "value", 126, 128], // BUMP-1D: d8 value new; d7 rare (5, 6), d10 rare (8, 9) removed
-  ["emberlyn", 5, "rare", 3, 4], // BUMP-1D: d10 rare (8, 9) removed; silkshade d10 rare (8, 9) removed
+  ["lacewing", 7, "rare", 5, 6], ["lacewing", 10, "rare", 8, 9], // BUMP-1E: new (over again)
+  ["emberlyn", 5, "rare", 3, 4], ["emberlyn", 10, "rare", 8, 9], // BUMP-1D: d10 rare (8, 9) removed; silkshade d10 rare (8, 9) removed. BUMP-1E: emberlyn d10 rare (8, 9) is over again
+  ["silkshade", 10, "rare", 8, 9], // BUMP-1E: new (over again)
   ["longtooth", 6, "rare", 4, 5], // BUMP-1D: new; d8 value (124, 129) removed
   ["highspire", 5, "rare", 3, 4], ["highspire", 6, "rare", 4, 5], ["highspire", 6, "value", 86, 89], // BUMP-1D: d6 value new
   ["highspire", 7, "value", 106, 109], // BUMP-1D: was ["highspire", 7, "value", 108, 109]
   ["highspire", 8, "value", 126, 128], // BUMP-1D: new; d1 value (8, 9), d2 value (22, 23), d10 rare (8, 9) removed
+  ["highspire", 1, "value", 8, 9], ["highspire", 2, "value", 21, 23], ["highspire", 10, "rare", 8, 9], // BUMP-1E: d1 value (8, 9), d2 value (22, 23) and d10 rare (8, 9) are over again (the caps fell back)
   ["brasswick", 7, "value", 106, 108], ["brasswick", 8, "value", 125, 128], // BUMP-1D: was ["brasswick", 7, "value", 105, 108], ["brasswick", 8, "value", 124, 128]
   // BUMP-1D: lockjaw d8 value (124, 125) removed
-  ["thistlemail", 1, "value", 9, 10], ["thistlemail", 6, "value", 86, 87], // BUMP-1D: d1 value was ["thistlemail", 1, "value", 8, 10]; d6 value new; d2 value (22, 23) removed
+  ["thistlemail", 1, "value", 8, 10], ["thistlemail", 2, "value", 21, 23], // BUMP-1E: d1 value was ["thistlemail", 1, "value", 9, 10] (BUMP-1D: was ["thistlemail", 1, "value", 8, 10]); d2 value (22, 23) is over again; d6 value (86, 87) removed (back under its cap)
 ];
 // BUMP-1D: the 7 warlord entries, against S8's 5. UNCHANGED (4): mothqueen d10 rare, bulwark d9 rare, highspire d10 rare, voss d4 star2.
 // NEW (3): silkshade d4 star2 3 > 2 and d6 star2 4 > 3, highspire d6 star2 4 > 3 (WEAVER's good star2 cap was 3 on d4 and 4 on d6).
 // REMOVED (1): voss d9 star2 (4, 5), back under its cap (FOUNDRY's good d9 star2 cap 4 -> 5).
+// BUMP-1E (RULING-BUMP1E-R2 R2.4): the 3 warlord entries, against BUMP-1D's 7. UNCHANGED (2): bulwark d9 rare, voss d4 star2. NEW (1): bulwark d8
+// star2 5 > 4 (FOUNDRY's good d8 star2 cap is 4). REMOVED (5), back under their caps: mothqueen d10 rare and highspire d10 rare (WEAVER's good d10
+// rare cap 11 -> 12), silkshade d4 star2, silkshade d6 star2 and highspire d6 star2 (WEAVER's good star2 caps 2 -> 3 on d4, 3 -> 4 on d6).
 const WARLORD_OVERS: readonly Pinned[] = [
-  ["mothqueen", 10, "rare", 11, 12], ["bulwark", 9, "rare", 9, 10], ["highspire", 10, "rare", 11, 12],
+  ["bulwark", 9, "rare", 9, 10],
   ["voss", 4, "star2", 2, 3], // BUMP-1D: d9 star2 (4, 5) removed
-  ["silkshade", 4, "star2", 2, 3], ["silkshade", 6, "star2", 3, 4], ["highspire", 6, "star2", 3, 4], // BUMP-1D: new
+  ["bulwark", 8, "star2", 4, 5], // BUMP-1E: new
 ];
 // BUMP-1D (RULING-BUMP-R2 R2.3 Q4): the day-1 good values over the table bound below (`has both tiers`): [hero, day, bound, measured
 // good value]. Was: no entry (every hero-day's good value at or under maxGoldByDay + maxDawnGold + ROAD(day, dusk)). The checks fail

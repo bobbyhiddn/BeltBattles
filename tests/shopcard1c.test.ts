@@ -22,6 +22,7 @@ import type { Ctx } from "../src/screens/build/actions";
 import { newRun } from "../src/game/run";
 import { gainModule, mergePreview } from "../src/game/fuse";
 import { ITEMS, buyableModules } from "../src/sim/content";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; QUENCH TANK's spend line is read with it off
 import { effectAt } from "../src/sim/stars";
 import { C } from "../src/render/palette";
 import { ICON, drawText, icons, stripIcons, textWidth, wrap } from "../src/render/font";
@@ -306,10 +307,23 @@ describe("SHOPCARD-1c G9 (READ-10 fix 9): TWIN LATCH's own HIT note says when it
 });
 
 describe("SHOPCARD-1c G10 (READ-10 fix 10, optional): QUENCH TANK says whose BURN", () => {
-  it("HIT: USES UP EACH BURN ON A SLUG FOR +n DMG., one row at every star on days 1, 5 and 10 (battle.ts applyHit: the BURN the slug carries turns into damage on that slug)", () => {
+  // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0) and QUENCH TANK is reworked into KINDLING (+n DMG FOR EACH BURN ON THE FOE: it spends no BURN), so G10's
+  // words, the spend rule's, are the 0.9.11 world's, read with the switch off (withScaleRigs(fn, false), synchronous); the new face answers the same
+  // question, whose BURN, with THE FOE (the next test)
+  it("HIT: USES UP EACH BURN ON A SLUG FOR +n DMG., one row at every star on days 1, 5 and 10 (battle.ts applyHit: the BURN the slug carries turns into damage on that slug)", () => withScaleRigs(() => {
     for (const s of STARS) for (const day of DAYS) {
       const [line] = rules("quench", s, day);
       expect(line, `★${s} day ${day}`).toMatch(/^HIT: USES UP EACH \{\*BURN\} ON A \{SLUG\} FOR \+\d+ \{DMG\}\.$/);
+      expect(rows(line), `★${s} day ${day}: ${line}`).toBe(1);
+    }
+  }, false));
+
+  it("BUMP-1E: with the switch on (it ships on) the piece is KINDLING and its line says whose BURN: HIT: +n DMG FOR EACH BURN ON THE FOE., one row at every star on days 1, 5 and 10", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(ITEMS.quench.name).toBe("KINDLING");
+    for (const s of STARS) for (const day of DAYS) {
+      const [line] = rules("quench", s, day);
+      expect(line, `★${s} day ${day}`).toMatch(/^HIT: \+\d+ \{DMG\} FOR EACH \{\*BURN\} ON THE FOE\.$/);
       expect(rows(line), `★${s} day ${day}: ${line}`).toBe(1);
     }
   });

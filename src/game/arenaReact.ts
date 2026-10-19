@@ -3,7 +3,7 @@
 // on big hits; a KO burst with slow-mo when a hull breaks. Read-only on the simulation.
 
 import { settings } from "../core/settings";
-import type { Side, SimEvent, TargetKind } from "../sim/battle";
+import type { ReadAdd, Side, SimEvent, TargetKind } from "../sim/battle";
 import { CELL } from "../sim/content";
 import { DX, DY, kx, ky, rotOf } from "../sim/deck";
 import type { ItemDef } from "../sim/content";
@@ -18,6 +18,9 @@ import { RELEASE_TIME, SHRUG_TIME } from "../render/wave3Moments"; // 0.8.0 I1 M
 import type { Arena } from "./arena";
 import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): HEAL's and SHIELD's colours, one source
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: a heal's float prints as the faces print HEAL
+import { ADD_BIG, ADD_MIN } from "./counters"; // SCALE-2a (REQ-BFG-100, C11): COUNT-1's lines for a reader's pop
+import { turretSlots } from "../sim/deck"; // SCALE-2a (C11): a gun part's pop sits at its gun's pivot, where C6 sits
+import { TURRET_LY } from "../render/frame"; // SCALE-2a (C11): the turret pivot's row (C6's anchor)
 
 const HOT = [C.fire5, C.fire4, C.fire3, C.white] as const;
 const COLD = [C.white, C.ice, C.cyan] as const;
@@ -118,6 +121,50 @@ export function healPoint(a: Arena, e: Extract<SimEvent, { type: "heal" }>): [nu
   return [hullCx(a, e.side), hullCy(a, e.side) - 10];
 }
 
+// ---------------------------------------------------------------------------------------------- C11, a reader's add
+
+/** SCALE-2a (REQ-BFG-100, C11; REPORT-COUNT1 section 3): the pop for an add of `n` (the sim's `add` on a process or fire
+ *  event): none below ADD_MIN (10); `+n` through fmtDmg in its effect's colour (DMG bone, PLATE plate3, HEAL green: the
+ *  palette's C.bone, PLATE_COLOUR, HEAL_COLOUR), with the numbers' ink outline (drawPops); the big style (scale 2) from
+ *  ADD_BIG (140), the game's big-hit line, in yellow for DMG (PLATE and HEAL keep their colour, as a soaked big hit's
+ *  number keeps plating's). */
+export function readerStyle(add: ReadAdd): { text: string; color: string; big: boolean } | null {
+  if (!(add.amount >= ADD_MIN)) return null;
+  const big = add.amount >= ADD_BIG;
+  const color = add.kind === "plate" ? PLATE_COLOUR : add.kind === "heal" ? HEAL_COLOUR : big ? C.yellow : C.bone;
+  return { text: `+${fmtDmg(add.amount)}`, color, big };
+}
+
+/** SCALE-2a (C11; the motion lane's anchor rule): a rig's pop point, the centre of the belt tile its hit worked (the
+ *  process event's route and tile), in the board's rest frame (rest-screen px, as every pop's). It is the point
+ *  ArenaMotion.tileCentre(side, kx, ky) maps through the board's live transform and the camera, and the pool draws the pop
+ *  through that same transform, so on screen it sits on tileCentre and rides with the board. Never the piece's own cell
+ *  (gs.x, gs.y) and never pieceMid: a 2-3 cell shaped rig works the tile it hit. Null for a tile the build doesn't hold. */
+export function readerTilePoint(a: Arena, side: Side, route: number, tile: number): [number, number] | null {
+  const tk = a.b.sides[side].build.routes[route]?.cells[tile];
+  if (tk === undefined) return null;
+  const fr = a.drawn[side], lx = (kx(tk) + 0.5) * CELL, ly = (ky(tk) + 0.5) * CELL;
+  return [sx(fr, lx, ly), sy(fr, lx, ly)];
+}
+
+/** SCALE-2a (C11): a gun part's pop point, at its gun where C6 sits: the turret's pivot (its slot's middle column at
+ *  TURRET_LY, the deck-local point battleCounters.ts drawBoard puts through localToScreen), in the board's rest frame. */
+export function readerGunPoint(a: Arena, side: Side, turret: number): [number, number] | null {
+  const sl = turretSlots(a.b.sides[side].build)[turret];
+  if (!sl) return null;
+  const fr = a.drawn[side], lx = (sl.col0 + sl.width / 2) * CELL;
+  return [sx(fr, lx, TURRET_LY), sy(fr, lx, TURRET_LY)];
+}
+
+/** SCALE-2a (C11): pop a reader's add at `at` on `side`'s board (Fx.readerPop and its yield rule); false when it shows
+ *  nothing (below ADD_MIN, no point, or a full pool of numbers). Display only. */
+export function readerPop(a: Arena, side: Side, add: ReadAdd, at: [number, number] | null): boolean {
+  const st = readerStyle(add);
+  if (!st || !at) return false;
+  a.fx.anchor = side; // MOTION-1: it rides with its board
+  return a.fx.readerPop(at[0], at[1], st.text, st.color, st.big);
+}
+
 function hullCx(a: Arena, side: Side): number {
   const b = hullBox(a.drawn[side]);
   return b.x + b.w / 2;
@@ -182,6 +229,9 @@ export function anchorOf(e: SimEvent): number {
 }
 
 /** `prev`: the event before `e` in the same step (null for the step's first): PLATE BREAKER's blow reads it. */
+/** SCALE-2c (REQ-BFG-108): the POISON tick number's band, below the hull's centre (BURN's tick number: the centre +-20). */
+export const POISON_POP_DY = 32;
+
 export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void {
   const fx = a.fx;
   fx.anchor = anchorOf(e); // MOTION-1: the board these effects ride with
@@ -211,6 +261,8 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       const lx = tk !== undefined ? (kx(tk) + 0.5 - DX[e.dir] * 0.4) * CELL : (gs.x + 0.5 + DX[e.dir] * 0.6) * CELL;
       const ly = tk !== undefined ? (ky(tk) + 0.5 - DY[e.dir] * 0.4) * CELL : (gs.y + 0.5 + DY[e.dir] * 0.6) * CELL;
       const x = sx(fr, lx, ly), y = sy(fr, lx, ly);
+      // SCALE-2a (REQ-BFG-100, C11): a count-driven add pops +n at the tile this hit worked (readerTilePoint)
+      if (e.add) readerPop(a, e.side, e.add, readerTilePoint(a, e.side, e.route, e.tile));
       if (e.def === "temper") {
         fx.embers(x, y, 3);
         if (e.side === 0) snd?.play("sizzle");
@@ -268,6 +320,8 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
         const w = a.sfx[e.side].w3.anvilAge;
         if (e.turret >= 0 && e.turret < w.length) w[e.turret] = 0;
       }
+      // SCALE-2a (REQ-BFG-100, C11): a gun part's count-driven add (PRESSURE BREECH's, a `reads` part's) pops at its gun
+      if (e.add) readerPop(a, e.side, e.add, readerGunPoint(a, e.side, e.turret));
       return;
     }
     // 0.8.0 I1 M4 (A1's battle moments, REPORT-A1 5.2): P1's wave-3 events set the display timers the art reads
@@ -402,6 +456,12 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
     case "harass": return;
     case "burn":
       fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.fire3, false, a.b.scaled); // NUM-4; HULL-1d: stacked on the day's hull
+      return;
+    case "poison": // SCALE-2b (REQ-BFG-108): the tick's number on the hull in venom, as BURN's (a random spot, the day's stack, silent)
+      // SCALE-2c (REQ-BFG-108; REVIEW-SCALE2b section 3, a carried item): its own band under BURN's, so a same-second BURN tick's
+      // number never lands on it: BURN's spot is the hull's centre +-20 px down, this one 28-36 px down (both rise together,
+      // a 5x7 number apart); the same two draws, the same width
+      fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + POISON_POP_DY + (fx.rnd() - 0.5) * 8, fmtDmg(e.dmg), C.venom, false, a.b.scaled);
       return;
     case "wind":
       // WIND-1 (REQ-BFG-093): both hulls, every tick: one helper per side, each hull's number from windDmg (NUM-4: fmtDmg)

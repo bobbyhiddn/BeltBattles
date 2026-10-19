@@ -17,7 +17,8 @@ import { BURN_TIME, CELL } from "../src/sim/content";
 import { cloneBuild, type Build } from "../src/sim/deck";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { RUNES } from "../src/sim/runes";
-import { starField } from "../src/sim/stars";
+import { SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on; the 0.9.11 VENOM DRIP, SPALL CATCHER and IRON WALL are read under the off switch
+import { effectAt, starField } from "../src/sim/stars";
 import { RUNE_TEXT, runeLine, runeReminder, runeSentenceSpans, runeTextOf } from "../src/ui/runeText";
 import { BAND, payload, probe, px, rigBench } from "./y3.helpers";
 import { barge, bench } from "./arsenal.bench";
@@ -48,17 +49,41 @@ function rigHit(bt: Battle, side: 0 | 1 = 0, uid?: number): Payload {
 const end = (x: Battle) => [x.winner, x.ticks, x.sides[0].hull.hp, x.sides[1].hull.hp];
 const finish = (bt: Battle): Battle => { while (!bt.over && bt.ticks < 60 * 200) { bt.step(); bt.events.length = 0; } return bt; };
 
+// BUMP-1E (the scaling rules ship on: SCALE_RIGS, bb-0.12.0; this file was written when they shipped off, 0.9.11): three of the pieces these runes meet are reworked
+// there (src/sim/scale.ts SCALE_DEFS): VENOM DRIP is POISON's source (poison 1/2/3, no burnPlus), SPALL CATCHER a reader (+n DMG for each hit on your ship; no
+// charge, no `spall` list) and IRON WALL a reader (+n DMG for each 10 PLATE; no plating, no 120 step). The tests that pin one of their OLD effects (the VENOM
+// burnPlus, SPALL's charge, IRON WALL's plating) are tests of the 0.9.11 world: each runs under the off switch (a Battle reads the switch when it is made, so
+// the whole body, the Battle included, is inside the call; SYNCHRONOUS only). No old number moved. The shipped pieces' numbers are pinned in tests/scale2c.sim
+const old = <T>(fn: () => T): T => withScaleRigs(fn, false);
+
+describe("BUMP-1E: the scaling rules ship on; the VENOM, SPALL CATCHER and IRON WALL tests below pin the 0.9.11 pieces (read with the switch off)", () => {
+  it("SCALE_RIGS ships on, and the shipped VENOM DRIP, SPALL CATCHER and IRON WALL are not the pieces those tests meet", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: was false (0.9.11)
+    expect(scaleRules()).toBe(true);
+    expect(effectAt("venom", 3).gate?.poison).toBe(3); // POISON +1 / +2 / +3, and no burnPlus (the test of SEARING's no-HEAL rule reads burnPlus 3 at ★1: off)
+    expect(effectAt("venom", 1).gate?.burnPlus).toBeUndefined();
+    expect(effectAt("shieldwall", 1).gate).toEqual({ reads: expect.objectContaining({ count: "ownPlate", give: "dmg" }) }); // no plating, no 120 step
+    expect(effectAt("spallcatcher", 1).mod).toEqual({ reads: expect.objectContaining({ count: "hitsTaken", give: "dmg" }) }); // no `spall` charge
+    // and the 0.9.11 pieces are what the switch off gives
+    expect(old(() => effectAt("venom", 1).gate?.burnPlus)).toBe(3);
+    expect(old(() => effectAt("shieldwall", 1).gate?.plate)).toBeDefined();
+    expect(old(() => effectAt("spallcatcher", 1).mod?.spall)).toBeDefined();
+  });
+});
+
 // ------------------------------------------------------------------------------------------------------- SEARING
 describe("Y-INT: SEARING (searBurn 5) under the star switch", () => {
-  it("its start BURN comes from no hit: no VENOM burnPlus, as ASH KINDLE's (Y6); SLOW EMBERS' % still applies", () => {
+  // BUMP-1E: run under the off switch: on, VENOM DRIP has no burnPlus, so this was green for want of any VENOM burnPlus to leave out of SEARING's start BURN
+  it("its start BURN comes from no hit: no VENOM burnPlus, as ASH KINDLE's (Y6); SLOW EMBERS' % still applies", () => old(() => {
     const start = (b: Build) => new Battle(b, barge(), 8).sides[1].hull.burns.map((x) => [x.dps, x.t]);
     const venomBelt = () => bench([["venom", 4, 3, 3]]); // a VENOM ★3 (burnPlus 9 on) on the SEARING side's belt
     expect(start(W(venomBelt(), "searing"))).toEqual([[n("searing"), BURN_TIME]]);
     expect(start(W(venomBelt(), "searing", "slow_embers"))).toEqual([[n("searing"), BURN_TIME * 1.75]]);
     expect(n("searing")).toBe(5);
-  });
+  }));
 
-  it("its no-HEAL rule holds while any of your BURN is on the foe: a VENOM-lengthened stack (BURN_TIME + burnPlus, Y6) too", () => {
+  // BUMP-1E: run under the off switch (the VENOM burnPlus is the 0.9.11 piece's: the shipped VENOM DRIP puts POISON on, no burnPlus: p.burnPlus is undefined)
+  it("its no-HEAL rule holds while any of your BURN is on the foe: a VENOM-lengthened stack (BURN_TIME + burnPlus, Y6) too", () => old(() => {
     const bt = new Battle(W(bench([["venom", 4, 3, 1]]), "searing"), barge(), 8), foe = bt.sides[1];
     foe.hull.burns = [];
     const p = rigHit(bt); // the VENOM ★1's hit: burnPlus 3
@@ -71,9 +96,10 @@ describe("Y-INT: SEARING (searBurn 5) under the star switch", () => {
     expect(foe.heals!.burnLost).toBe(40);
     foe.hull.burns = []; // the stack gone: it heals again
     expect(bt.heal(foe, 40, "rune")).toBe(40);
-  });
+  }));
 
-  it("its BURN's ticks charge a foe's SPALL CATCHER by Y5's rule: a PLATE soak counts once (off: twice)", () => {
+  // BUMP-1E: run under the off switch (the 0.9.11 SPALL CATCHER charges every 40 DMG taken; the shipped one is a reader with no charge: spallCharge stays undefined)
+  it("its BURN's ticks charge a foe's SPALL CATCHER by Y5's rule: a PLATE soak counts once (off: twice)", () => old(() => {
     const charge = () => {
       const bt = new Battle(W(barge(), "searing"), withMod(furnaceBench(), 60, "spallcatcher", 0, 1), SEED), foe = bt.sides[1];
       foe.plate.plate = 1000; // the plating soaks the whole tick
@@ -82,7 +108,7 @@ describe("Y-INT: SEARING (searBurn 5) under the star switch", () => {
     };
     // 5 BURN x 10 a second = 50 soaked: on, 10 x 50 / 40 = 12.5; off, 10 x (2 x 50) / 40 = 25
     expect(charge()).toEqual([true, 50, 12.5]);
-  });
+  }));
 });
 
 // -------------------------------------------------------------------------------------------------- SHATTER SHOT
@@ -101,7 +127,8 @@ describe("Y-INT: SHATTER SHOT (shatterPct 14) under the star switch", () => {
     }
   });
 
-  it("its broken SHIELD meets Y5's SPALL CATCHER: on, the hit lands on PLATE, then HULL, and charges the foe's SPALL, PLATE's soak once (off twice); a stopped hit charges nothing", () => {
+  // BUMP-1E: run under the off switch (the 0.9.11 SPALL CATCHER's charge; the shipped reader has none)
+  it("its broken SHIELD meets Y5's SPALL CATCHER: on, the hit lands on PLATE, then HULL, and charges the foe's SPALL, PLATE's soak once (off twice); a stopped hit charges nothing", () => old(() => {
     const hit = (rune: boolean) => {
       const bt = new Battle(rune ? W(barge(), "shatter_shot") : barge(), withMod(furnaceBench(), 60, "spallcatcher", 0, 1), SEED), foe = bt.sides[1];
       bt.gainShield(foe, 1);
@@ -114,12 +141,13 @@ describe("Y-INT: SHATTER SHOT (shatterPct 14) under the star switch", () => {
     expect(hit(true)).toEqual([0, 0, 0, 40, 17.5]);
     // without the rune the SHIELD stops it whole: no PLATE, HULL or SPALL charge, on and off
     expect(hit(false)).toEqual([0, 1, 30, 0, 0]);
-  });
+  }));
 
   // Y7b1 (ruling Y7A-R3d): IRON WALL reads its base def on too, so its own +10 lifts the PLATE back first and it pays, as
   // off. Was "on, the hit eats the foe's PLATE below 120, so its IRON WALL stops paying and rolls no PLATE back (off: its +10
   // first, so it pays)", with on [0, 110, 0, 110] (the rune) and [0, 130, 30, 130] (no rune)
-  it("its broken SHIELD meets IRON WALL: the hit eats the foe's PLATE below 120, but its own +10 first lifts it back, so it pays, on as off (Y7A-R3d)", () => {
+  // BUMP-1E: run under the off switch (the 0.9.11 IRON WALL's own plating and its 120 step; the shipped reader plates nothing and has no step: [0, 110, 0, 110])
+  it("its broken SHIELD meets IRON WALL: the hit eats the foe's PLATE below 120, but its own +10 first lifts it back, so it pays, on as off (Y7A-R3d)", () => old(() => {
     const after = (rune: boolean) => {
       const bt = new Battle(rigBench([["shieldwall", 4, 3, 1]]), rune ? W(barge(), "shatter_shot") : barge(), 8), wall = bt.sides[0];
       bt.gainShield(wall, 1);
@@ -130,7 +158,7 @@ describe("Y-INT: SHATTER SHOT (shatterPct 14) under the star switch", () => {
     };
     expect(after(true)).toEqual([0, 110, 30, 120]); // on: its own plating (+10) first lifts 110 to 120, so it pays (Y7b1, Y7A-R3d: was [0, 110, 0, 110])
     expect(after(false)).toEqual([0, 130, 30, 140]); // on, no rune: the SHIELD stops it, 130 PLATE, +10, +30 (Y7b1, Y7A-R3d: was [0, 130, 30, 130])
-  });
+  }));
 });
 
 // ----------------------------------------------------------------------------------------- COAL CHUTE, HEAT SINK

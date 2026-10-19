@@ -16,6 +16,7 @@ import {
   type DragState, type EchoState,
 } from "./siphon";
 import { isRaceHero } from "./data";
+import { flatOf } from "../scale"; // SCALE-2a (REQ-BFG-110): the flat bonus's sum (stat rows + FOR EACH)
 
 export type { SimCtx } from "./foundry";
 export { isRaceHero, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceHeroId } from "./data";
@@ -100,7 +101,7 @@ export function raceBeltSpeed(ctx: SimCtx, s: SideState, route: number, ci: numb
 export function raceCurveDamage(ammo: AmmoDef, s: SideState, tu: TurretState, p: Payload): number {
   const shift = s.race ? s.race.shift[tu.index] ?? 0 : pendulumShift(s.build, tu.index);
   // 0.6.2: HEAT JACKET's downstream ride heat is flat damage on the pendulum curve too (payloadDamage adds it elsewhere)
-  return curveDamage(ammo, p.ride, p.mult, p.flat + (p.heatBonus ?? 0), shift);
+  return curveDamage(ammo, p.ride, p.mult, flatOf(p) + (p.heatBonus ?? 0), shift); // SCALE-2a: the sum (flatOf)
 }
 
 /** After an impact: SIPHON's echo memory, a copied Fray stack, and Drag. */

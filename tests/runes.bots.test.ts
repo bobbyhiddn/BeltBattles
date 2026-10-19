@@ -10,7 +10,7 @@ import { ITEMS, type HeroId } from "../src/sim/content";
 import { cloneBuild, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { playerRoadLog, playerRun } from "../src/sim/harness/player"; // AZ-BUMP: + the par run's road log
-import { caravanCandidate } from "../src/sim/harness/caravan";
+import { caravanCandidate, CARAVAN_POLICY, type CaravanDeck } from "../src/sim/harness/caravan"; // BUMP-1E: + CARAVAN_POLICY, CaravanDeck (the candidate's cargo)
 import { rivalBuild, RIVALS } from "../src/sim/rivals";
 import {
   BOT_RUNES, RUNE_LIST, RUNES, boardThemeCount, botRuneList, botRunePick, botTakeRune, runeOffer, runeProblem, type RuneTheme,
@@ -19,6 +19,7 @@ import { validateBuild } from "../src/net/validate";
 import { newRun, pendingRune, takeRune } from "../src/game/run";
 import { captainRuneSeed, captainRunes, captainRunesText } from "../tools/genCaptainRunes";
 import { openRunesRules } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the bots' and the game's offer rule
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on; the 0.9.11 candidates are read under withScaleRigs(fn, false)
 
 /** A hand-made board: no items, routes or gear; the hero's starting turrets (Build.turrets absent). */
 const board = (hero: HeroId, extra: Partial<Build> = {}): Build => ({ hero, items: [], routes: [], mods: [], beltCap: 0, hullBonus: 0, ...extra });
@@ -173,7 +174,13 @@ describe("RUNES-2a the par player behind the switch", () => {
 });
 
 describe("RUNES-2a the caravan stand-ins inherit the par player's switch", () => {
+  /** BUMP-1E: the worth of the parts a candidate's run holds in cargo at the dusk of day 6 (player.ts PlayerDay: boughtCost(build) +
+   *  rerollGold + gold + soldLoss + cargo = budget; caravan.ts: "cargoGold stays the gold's worth in cargo"). The candidate's own par
+   *  run, as caravanDeck asks for it (the same cache entry). */
+  const cargoWorth = (c: CaravanDeck, botRunes: boolean): number => playerRun("weaver", 10, c.meta.seed, { ...CARAVAN_POLICY[c.meta.policy], maxStars: 2, botRunes })[5].cargo ?? 0;
+
   it("a caravan candidate holds a rune a dawn with botRunes on, none off, and its gold adds up either way", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the scaling rules ship on, so these candidates are the bb-0.12.0 world's; the 0.9.11 world's are read under the off switch below
     for (let idx = 0; idx < 4; idx++) { // the policy mix: typical, typical, sharp, loose
       // FLIP-X2 (REQ-BFG-058): BOT_RUNES is on, so the switch-off candidate is an explicit false (was the default) and the
       // default is the botRunes-on candidate
@@ -183,8 +190,23 @@ describe("RUNES-2a the caravan stand-ins inherit the par player's switch", () =>
       expect(on.build.runes).toHaveLength(6);
       // HULL-ON (the flip, OPEN_RUNES): the candidate's par run takes its dawn runes on the switch's offers (was closed)
       expect(runeProblem(on.build.runes, 6, "weaver", runSeed("weaver", on.meta.seed), "atMost", false, -1, openRunesRules())).toBeNull();
-      expect(on.meta.cargoGold).toBe(off.meta.cargoGold); // the dawn-gold runes' gold is in the day's gold (runeGrants)
+      // BUMP-1E: was expect(on.meta.cargoGold).toBe(off.meta.cargoGold). The two runs of a candidate are not the same run (the runes change
+      // every day after the first dawn), so equal cargo was never promised: in the 0.9.11 world candidate 0's two runs each ended day 6 with
+      // 6 g in cargo, in the bb-0.12.0 world its botRunes run wins its day-6 road fight and the MANTLET it drops finds no place (road.placed
+      // false: 4 g in cargo) while the off run lost that fight and holds nothing (cargoGold 4 on, 0 off; candidates 1-3 hold none in either
+      // run). The day's gold still adds up (the dawn-gold runes' gold is in it, runeGrants) exactly when cargoGold is the worth of the
+      // run's own cargo, so that is what each run is held to
+      expect(on.meta.cargoGold, `candidate ${idx}, botRunes on`).toBe(cargoWorth(on, true));
+      expect(off.meta.cargoGold, `candidate ${idx}, botRunes off`).toBe(cargoWorth(off, false));
     }
+    // BUMP-1E: the 0.9.11 world (the scaling rules off) keeps the old pin: there both runs of a candidate end day 6 with the same cargo (6 g on candidate 0, none on the others)
+    withScaleRigs(() => {
+      for (let idx = 0; idx < 4; idx++) {
+        const off = caravanCandidate("weaver", 6, 1, idx, 2, false), on = caravanCandidate("weaver", 6, 1, idx, 2, true);
+        expect(on.meta.cargoGold, `candidate ${idx}, scaling off`).toBe(off.meta.cargoGold); // the dawn-gold runes' gold is in the day's gold (runeGrants)
+        expect(on.meta.cargoGold, `candidate ${idx}, scaling off`).toBe(cargoWorth(on, true));
+      }
+    }, false);
     // AZ-BUMP (the flip): 600 s, a host timeout under the 1.5-CPU quota (the GATE RULE; 30 s hit in run 5's group check:
     // the candidates' runs fight a warlord every day), not the rule
   }, 600_000);

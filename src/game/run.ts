@@ -29,6 +29,7 @@ import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type La
 import { npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT has no shop
 import { HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 (REQ-BFG-096): a new run's hearts
 import { longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a new run's long-run mark
+import { endlessRules, type EndlessRun } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): a new run's endless mark; the endless state
 import { openRunesRules } from "../sim/openRunes"; // OPEN-1 (REQ-BFG-109): the dawn offer's and LAST CHANCE card's rule
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
@@ -88,6 +89,9 @@ export interface DayResult {
   // RETUNE-1 (REQ-BFG-096): on a hearts run, the hearts this dusk's loss cost (heartCost: 1/2/3); absent on a lives run
   // and on a win or a draw, so every switch-off result is saved as before
   heartsLost?: number;
+  // ENDLESS-1 (REQ-BFG-059): this dusk was an ENDLESS dusk (day.ts finishEndlessDay): the run's wins stay WIN_GOAL, so replays.ts
+  // replayAt counts the player's wins carried in (WARLORD'S DUE) from the run's own dusks only. Absent on every run dusk.
+  endless?: true;
 }
 
 /** Where the day stands (0.6.0b): dawn caravan, the road fork, the road event or the warlord
@@ -109,7 +113,10 @@ export interface DuskFoe {
   hero: HeroId;
   build: Build; // fought exactly as stored
   rival?: RivalId; // a stand-in's captain (portrait, STAND-IN tag)
-  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number; name?: string; ghostDay?: number; losses?: number }; // a pool ghost's stamp (PACKS M2: its player name, when it has one)
+  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number; name?: string; ghostDay?: number; losses?: number; endlessWins?: number }; // a pool ghost's stamp (PACKS M2: its player name, when it has one; ENDLESS-1: an endless ghost's endless wins)
+  // ENDLESS-1 (REQ-BFG-059): the GOD stand-in (sim/godStandIn.ts), an endless dusk's foe when no endless ghost is near: a stand-in
+  // without a captain (no `rival`), PvE only. Absent on every other foe, so a run's save is as before. Save v8, no bump.
+  god?: true;
   // RUN-1 (R1.5, T4b): `ghostDay`, the ghost's OWN day, only when it differs from this dusk's day (D6: a long run's thin day widens to the
   // nearest earlier day, so a day-12 dusk can meet a day-10 ghost): foeTitle reads the ghost's W-L from it. Absent: the ghost fought on
   // this dusk's day (every 10-day run, and every exact-day pick), so a save and a record are byte for byte as before.
@@ -186,6 +193,15 @@ export interface Run {
   // a run saved before the bump that turns LONG_RUN on, which finishes on its own rule). Save v8, no bump (a new optional
   // field, as hearts).
   longRun?: true;
+  // ENDLESS-1 (REQ-BFG-059, its second step; src/sim/endless.ts): the run is OFFERED endless once it is won, set by newRun while
+  // ENDLESS is on; true only. Absent: the run ends at its win, as before (every switch-off run, and a run saved before the release
+  // that turns ENDLESS on, which plays on its own rules). Save v8, no bump (a new optional field, as longRun).
+  endless?: true;
+  // ENDLESS-1: the run's endless state once CONTINUE ENDLESS is taken (day.ts startEndless): the victory day, the endless wins,
+  // losses and draws, and why it ended (`end`) once it did. Absent until then, so a won run and every switch-off run are as
+  // before. While it plays `over` is null and `lives` hold the endless hearts (ENDLESS_LIVES); when it ends `over` is "won" again.
+  // Save v8, no bump (a new optional field).
+  endlessRun?: EndlessRun;
   // FIRSTDAY-1 (REQ-BFG-004; BRIEF-FIRSTDAY1 F2-F3; src/sim/firstRun.ts): a new player's first run (set by newRun only with
   // the gate live and the hero screen's profile read: profile.ts isNewPlayer), so its days 1-2 offers are gated and its
   // snapshots carry the flag; and the first rig it bought on day 1 (dawn 2 offers a copy). Both absent on every other run,
@@ -219,6 +235,8 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed), first
     ...(heartsRules() ? { lives: HEARTS_START, hearts: true as const } : {}),
     // RUN-1 (REQ-BFG-059): with LONG_RUN on, the run's long-run mark, after the hearts; off: exactly as before
     ...(longRunRules() ? { longRun: true as const } : {}),
+    // ENDLESS-1: with ENDLESS on, the run's endless mark (a won run is then offered CONTINUE ENDLESS), after the long-run mark; off: exactly as before
+    ...(endlessRules() ? { endless: true as const } : {}),
     // PLAIN-1F (M1): FIRSTDAY-1's flag after RETUNE-1's hearts (and RUN-1's long-run mark), so it stays the save's last key
     // (only on a first run)
     ...(firstRun && firstRunGate() ? { firstRun: true as const } : {}), // FIRSTDAY-1: last, only on a first run

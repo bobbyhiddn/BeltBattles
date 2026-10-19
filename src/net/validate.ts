@@ -27,12 +27,16 @@ import { shapesRules, withShapes } from "../sim/shapes"; // SHAPES-1 (S1): the s
 import { shapesGateProblem, shapesWorld } from "./rulesGate"; // SHAPES-1 (S1, S4): SHAPES_RULES' gate
 import { shapes2Rules, withShapes2 } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114 S1): the six more shaped rigs' switch
 import { shapes2GateProblem, shapes2World } from "./rulesGate"; // SHAPES-2 (S1): SHAPES2_RULES' gate
+import { scaleGateProblem, scaleWorld } from "./rulesGate"; // SCALE-2d (REQ-BFG-098 098.6, D5): SCALE_RULES' gate
+import { scaleRules, withScaleRigs } from "../sim/scale"; // SCALE-2d: the scaling world of a deck's rules (inScaleWorld)
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D3, D4): the long run's world. A deck under a long run's rules (rulesGate.ts longRunFor) is
 // judged with the long-run switch on (the content past day 10, LAST CHANCE on any day, the day bound LONG_RUN_MAX_DAY); under
 // older rules, or with the switch off, as the 10-day run. inRulesWorld below puts the module switch to the record's answer.
 import { LONG_RUN_MAX_DAY, longRunRules, withLongRun } from "../sim/longRun";
 import { longRunFor } from "./rulesGate";
+import { ENDLESS_LAST_DAY, endlessRules, withEndless } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): the endless world's day bound
+import { endlessFor } from "./rulesGate"; // ENDLESS-1: the record's own answer to endless
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, lastChanceGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules; Z-BUMP: LAST CHANCE by the rules
@@ -72,7 +76,13 @@ import { withLadderFix } from "../sim/ladderFix";
 export function inRulesWorld<T>(rules: unknown, fn: () => T): T {
   const world = (): T => (rulesAtLeast(rules, NPC_DAY_RULES) ? fn() : withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false));
   const long = longRunFor(rules);
-  return long === longRunRules() ? world() : withLongRun(world, long);
+  const inLong = (): T => (long === longRunRules() ? world() : withLongRun(world, long));
+  // ENDLESS-1 (REQ-BFG-059): and the endless one: the module switch (sim/endless.ts endlessRules, read by the day bounds that have no
+  // snapshot to ask: validateBuild's day, snapshot.ts maxRunes) is put to this record's answer, endlessFor(rules): on for a record
+  // under rules with endless, off for an older one. With the switch off the answer is always off, equal to the switch, and nothing
+  // is touched: the check is exactly as before. A RUN's snapshot never reaches a day past maxDayFor (the decoder refuses it first)
+  const endless = endlessFor(rules);
+  return endless === endlessRules() ? inLong() : withEndless(inLong, endless);
 }
 
 /** RUNES-1: what a deck's check knows beside the deck: its snapshot's run `seed` (absent on a served ghost, FIX-6, and
@@ -222,6 +232,11 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // FIRSTDAY-1 (REQ-BFG-004, F4): a first-run flag travels only with the first-run gate on
   const frGate = ctx.firstRun ? firstRunGateProblem() : null;
   if (frGate) return { ok: false, errors: [`firstRun: ${frGate}`] };
+  // SCALE-2d (REQ-BFG-098 098.6; BRIEF-SCALE2d D5): the seven new scaling rigs travel only with SCALE_RIGS on and under rules
+  // that have them (rulesGate.ts scaleGateProblem; with the switch off they are unknown items, validateBuild's words, as at
+  // the base); a deck under older rules is judged with the switch off (inScaleWorld, nested in the shapes world)
+  const scGate = scaleGateProblem(rules, build);
+  if (scGate) return { ok: false, errors: [`rules: ${scGate}`] };
   // AZ-BUMP (S6, the stored records): the budget, the road and the events by the deck's own rules (inRulesWorld): under
   // rules before bb-0.10.0 with the hull release's three switches off; under this build's as they stand
   // OPEN-1 (REQ-BFG-109): the deck's runes are re-derived on the offers of its own rules (openRunesFor: the switch AND
@@ -230,7 +245,14 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // SHAPES-1 (REQ-BFG-086; cap's RUN2 note 1.2): the shapes world nests inside the rules world, so a record under rules
   // before bb-0.10.0 is judged with SHAPES off too; c099's merge keeps HULL-ON's call inside both (release lane)
   // PLAIN-1F (M1): FIRSTDAY-1's ctx.firstRun rides through to validateBuild's runeProblem in the ctx spread
-  return inRulesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested
+  return inRulesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => inScaleWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules)))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested; SHAPES-2: inShapes2World; SCALE-2d: inScaleWorld inside them (BUMP-1E: both sides' worlds)
+}
+
+/** SCALE-2d (REQ-BFG-098; BRIEF-SCALE2d D5): run `fn` in the scaling world of `rules` (rulesGate.ts scaleWorld): with
+ *  SCALE_RIGS on and rules before SCALE_RULES, with the switch off (the base's pieces), the world the deck was made in;
+ *  otherwise as the switch stands (off: fn itself). The switch is put back after, even on a throw (withScaleRigs). */
+export function inScaleWorld<T>(rules: unknown, fn: () => T): T {
+  return scaleRules() && !scaleWorld(rules) ? withScaleRigs(fn, false) : fn();
 }
 
 /**
@@ -381,7 +403,8 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   // RUN-1 (REQ-BFG-059, D4): the day bound follows the world: LONG_RUN_MAX_DAY on a long run (the switch inRulesWorld set to
   // the record's rules: validateUpload; a strict content check of the long run's own tables reads the switch), else MAX_DAY.
   // It refuses an upload or a check, never a run
-  const maxDay = longRunRules() ? LONG_RUN_MAX_DAY : MAX_DAY;
+  // ENDLESS-1: and an endless dusk (the world's endless switch, rules with endless) runs to ENDLESS_LAST_DAY
+  const maxDay = endlessRules() ? ENDLESS_LAST_DAY : longRunRules() ? LONG_RUN_MAX_DAY : MAX_DAY;
   if (!Number.isInteger(day) || day < 1 || day > maxDay) return { ok: false, errors: [`shape: day ${day} is not in 1..${maxDay}`] };
   // RUNES-1 (REQ-BFG-058): the runes, by runes.ts runeProblem: catalogue ids, no repeats and, with the uploader's seed,
   // each in its dawn's re-derived offer. FLIP-X2 (cap's ruling 5d6d83ef57d1494c): the count comes from the mode, so no
