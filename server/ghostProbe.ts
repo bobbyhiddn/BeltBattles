@@ -61,7 +61,8 @@
 // ghost-admin's remove-player does not know: delete that object by hand after a --profile probe. The deck count below counts
 // decks only.
 // Exactly eight decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
-// FURNACE's LAST CHANCE deck, WEAVER's NPC-day deck, FURNACE's day-12 deck (BUMP-1D) and FURNACE's GRUDGE ROD deck (BUMP-1E; seven
+// FURNACE's LAST CHANCE deck, WEAVER's NPC-day deck, FURNACE's day-12 deck (BUMP-1D), FURNACE's GRUDGE ROD deck (BUMP-1E) and FURNACE's FUSER-and-word deck (BUMP-1F; nine
+// decks in all, eight under rules without the gates and the words, seven
 // under rules without the scaling pieces, six without the long run, five without the NPC day, four without LAST CHANCE).
 // Built by `npm run build:server` beside ghost-admin.mjs:  node server/dist/ghost-probe.mjs <base-url> <id-file>
 // It writes the probe's player id to <id-file> before the first POST, so the clean-up (ghost-admin.mjs remove-player)
@@ -91,6 +92,13 @@ import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { longRunFor } from "../src/net/rulesGate";
 // BUMP-1E (REQ-BFG-098): the scaling release's row: a deck holding one of the seven new pieces, under rules that have them
 import { scaleWorld } from "../src/net/rulesGate";
+// BUMP-1F (REQ-BFG-052, REQ-BFG-085): the gates-and-words row: a deck holding a FUSER and a rig with one word, under rules that have both
+import { enchantWorld, gatesWorld } from "../src/net/rulesGate";
+import { splitProblem } from "../src/sim/split";
+import { bestSpot, placeRigAt } from "../src/sim/beltside";
+import { kx, ky } from "../src/sim/deck";
+import { enchanterWords } from "../src/sim/enchantSources";
+import { enchantProblem } from "../src/sim/enchant";
 
 /** The rules this probe's expectations are written for: the hull release's (bb-0.10.0, AZ-BUMP's bump, with the NPC day's
  *  two rows; release Z's bb-0.9.7 with LAST CHANCE's two rows, release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's
@@ -204,10 +212,22 @@ export const SCALE_CELL = { x: 5, y: 3 } as const;
 /** BUMP-1E: does the probe's rules version have the twelve scaling pieces (the rules gate: PROBE_RULES at or after SCALE_RULES, with
  *  the switch on, as the build ships)? Under older rules, or with the switch off, the new ids are unknown items: no scale row. */
 export const probeHasScale = (): boolean => scaleWorld(PROBE_RULES);
+/** BUMP-1F (REQ-BFG-052, REQ-BFG-085): the gates-and-words row. FURNACE's honest day-3 deck (dusk 3 after a win and a draw, the day of the ENCHANTER's
+ *  first wagon) plus a FUSER on a belt tile and a WHETSTONE beside the belt holding ONE word, one of the two the ENCHANTER offers on day 3 on the probe's
+ *  run seed (PROBE_SEED: the server re-derives the offers), signed: 201 under bb-0.13.0. It proves the live server knows the gate ids and the word
+ *  codes; a server of an older build answers 422 (unknown item "fuser"). */
+export const GATES_HERO: HeroId = "furnace";
+export const GATES_DUSK = HERO_DUSK;
+export const GATES_PIECE = "fuser";
+export const GATES_RIG = "whetstone";
+/** Does the probe's rules version have the three gates and the eight words (the rules gate: PROBE_RULES at or after GATES_RULES and ENCHANT_RULES, with
+ *  both switches on, as the build ships)? Under older rules, or with a switch off, the ids and the fields are refused: no gates row. */
+export const probeHasGates = (): boolean => gatesWorld(PROBE_RULES) && enchantWorld(PROBE_RULES);
 /** The decks the probe stores when every check passes: PROBE_STORED, the honest LAST CHANCE deck under rules with it, the
  *  honest NPC-day deck under rules with the NPC day (AZ-BUMP), the honest day-12 deck under rules with the long run
- *  (BUMP-1D), and the GRUDGE ROD deck under rules with the scaling pieces (BUMP-1E). */
-export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0) + (probeHasLongRun() ? 1 : 0) + (probeHasScale() ? 1 : 0);
+ *  (BUMP-1D), the GRUDGE ROD deck under rules with the scaling pieces (BUMP-1E), and the FUSER-and-word deck under rules with the gates and the
+ *  words (BUMP-1F). */
+export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0) + (probeHasLongRun() ? 1 : 0) + (probeHasScale() ? 1 : 0) + (probeHasGates() ? 1 : 0);
 export const PROBE_TIMEOUT_MS = 15_000;
 export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file> [--profile]   (base url: http(s)://host[:port], no path; an id file that holds no id yet; --profile also PUTs a profile)"; // PROFILE-UP: the opt-in flag
 /** The server's answer to a POST without the signing headers (identity.ts uploadHeaderError). */
@@ -362,6 +382,26 @@ function scaleDusk(playerId: string, runId: string, now: number): GhostSnapshot 
   return dusk(playerId, SCALE_HERO, probeDusk({ ...SCALE_DUSK, losses: stated(0) }), build, runId, now);
 }
 
+/** BUMP-1F (REQ-BFG-052, REQ-BFG-085): FURNACE's honest day-3 deck (probeRunes of its start deck: the kiln and three dawn runes) plus a FUSER on the first belt tile
+ *  of its belt that splitProblem allows, and a WHETSTONE at the best spot beside the belt holding the first word of the day-3 ENCHANTER offer that goes on a
+ *  rig (WIDE needs a side, so it is left out), uploaded at GATES_DUSK with its `losses` (0: `stated`). The word is bought (4 G), the FUSER (6 G) and the rig
+ *  fit the day's gold. Only under rules with the gates and the words. */
+function gatesDusk(playerId: string, runId: string, now: number): GhostSnapshot {
+  const build = probeRunes(heroStartBuild(GATES_HERO), GATES_DUSK.day);
+  const cells = build.routes[0].cells;
+  const t = cells.findIndex((c) => splitProblem(build as never, GATES_PIECE, c) === null);
+  if (t < 0) throw new Error("ghost-probe: no belt tile takes the FUSER");
+  const word = enchanterWords(PROBE_SEED, GATES_DUSK.day).find((w) => w !== "wide" && enchantProblem(GATES_RIG, w) === null);
+  if (!word) throw new Error("ghost-probe: the day-3 ENCHANTER offers no word a rig takes");
+  let uid = Math.max(0, ...build.items.map((p) => p.uid)) + 1;
+  build.items.push({ uid: uid++, def: GATES_PIECE, x: kx(cells[t]), y: ky(cells[t]) });
+  const spot = bestSpot(build as never, GATES_RIG);
+  if (!spot) throw new Error("ghost-probe: no spot beside the belt takes the rig");
+  const rig = placeRigAt(build as never, uid++, GATES_RIG, spot);
+  rig.ench = word;
+  return dusk(playerId, GATES_HERO, probeDusk({ ...GATES_DUSK, losses: stated(0) }), build, runId, now);
+}
+
 /** The nine POSTs, in order, for `playerId` at time `now` (eleven with LAST CHANCE; thirteen with the NPC day too, as
  *  bb-0.10.0 has both; fifteen with the long run, as bb-0.11.0 has, BUMP-1D; sixteen with the scaling pieces, as bb-0.12.0 has,
  *  BUMP-1E). Pure: no key, no network. */
@@ -444,6 +484,13 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
     const sc = scaleDusk(playerId, `${run}-scale`, now);
     const scid = ghostId(sc);
     plan.push({ name: "scale-signed", snapshot: sc, text: encodeSnapshot(sc), signed: true, expected: `201 {"id":"${scid}"}`, pass: (a) => a.status === 201 && a.id === scid });
+  }
+  // 17. BUMP-1F (REQ-BFG-052, REQ-BFG-085): the gates-and-words row, under rules with both (the rules gate gatesWorld and enchantWorld): the honest day-3
+  // FURNACE deck plus a FUSER on its belt and a WHETSTONE holding one ENCHANTER word, signed, 201. A server of an older build answers 422.
+  if (probeHasGates()) {
+    const gt = gatesDusk(playerId, `${run}-gates`, now);
+    const gtid = ghostId(gt);
+    plan.push({ name: "gates-signed", snapshot: gt, text: encodeSnapshot(gt), signed: true, expected: `201 {"id":"${gtid}"}`, pass: (a) => a.status === 201 && a.id === gtid });
   }
   return plan;
 }
