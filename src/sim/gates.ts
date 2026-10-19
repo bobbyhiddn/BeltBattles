@@ -26,8 +26,8 @@
 import { ITEMS, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
 
-/** THE switch (REQ-BFG-052): off until the release's bump turns it on with its rules. */
-export const GATES: boolean = false;
+/** THE switch (REQ-BFG-052): on since BUMP-1F (rules bb-0.13.0, src/net/rulesGate.ts GATES_RULES); it was off until the release's bump. */
+export const GATES: boolean = true; // BUMP-1F: was false
 
 /** The three gates (BRIEF-GATES1's table; the numbers are the bench's starting values). No `shape`: a converter has no
  *  arrows. No desc: the faces build the gate's own line from these numbers (faces.ts, G4). */

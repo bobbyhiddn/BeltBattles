@@ -24,8 +24,8 @@ import { footOf } from "./foot";
 import { doubles } from "./overclock"; // ENCHANT-1c (C2): does the sim's doubling change a rig's numbers (ECHOING's NOTHING TO DOUBLE)
 import { effectAt } from "./stars"; // ENCHANT-1c (C2): the rig's effect at each star
 
-/** THE switch (REQ-BFG-085): off until the release's bump turns it on (writing ENCHANT_RULES, src/net/rulesGate.ts). */
-export const ENCHANT: boolean = false;
+/** THE switch (REQ-BFG-085): on since BUMP-1F (rules bb-0.13.0, src/net/rulesGate.ts ENCHANT_RULES); it was off until the release's bump. */
+export const ENCHANT: boolean = true; // BUMP-1F: was false
 
 let enchantOn = false;
 
