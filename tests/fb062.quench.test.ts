@@ -8,10 +8,17 @@
 // Y7b2 (the flip; release Y, DESIGN-Y row 23, ruling Y7A-R3a): the floor and the 4/5/6-stack cap are gone: every Burn on
 // the payload turns into +30/+50/+70 (a Burn payoff). The floor's and the cap's asserts are deleted (switch-off only); the
 // per-Burn pay is re-pinned.
-import { describe, expect, it } from "vitest";
+// BUMP-1E (the flip; rules bb-0.12.0): the scaling rules ship on (SCALE_RIGS), and with them the id `quench` is KINDLING
+// (scale.ts SCALE_DEFS: +3/+5/+8 DMG for each BURN on the foe at the hit, no BURN spent), not QUENCH TANK. Every test below is
+// about QUENCH TANK's own conversion (the 0.9.11 world), so the file reads that world under the off switch (setScaleRigs(false)
+// before each test, the shipped value put back after it) and asserts the switch ships on (the first test). KINDLING's own pins
+// are tests/scale2c.sim, scale2d.* and tests/y3.pieces' KINDLING rows. No module-level ITEMS read here: nothing to take under
+// withScaleRigs(fn, false) at load.
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { spotForTile } from "../src/sim/beltside";
 import { BURN_DPS, BURN_TIME, ITEMS, TICK, type HeroId } from "../src/sim/content";
+import { SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; this file reads it off
 // AZ-BUMP S7: RULES_VERSION is gone with QUENCH ★1's tripwire key (the fixed ladder is a plain regression test)
 import { cloneBuild, rigHits, walkRoute, type Build } from "../src/sim/deck";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
@@ -68,6 +75,20 @@ function dealt(p: Payload): number {
   expect(hull.burns).toEqual([]); // every Burn stack has run its course
   return hp0 - hull.hp;
 }
+
+// BUMP-1E: every test of this file reads QUENCH TANK, the switch-off piece: the switch is off while a test runs, on again after it
+beforeEach(() => setScaleRigs(false));
+afterEach(() => setScaleRigs(SCALE_RIGS));
+
+describe("BUMP-1E: the scaling rules ship on; QUENCH TANK is the switch-off piece", () => {
+  it("SCALE_RIGS ships true and the shipped id quench is KINDLING; the other tests of this file read QUENCH TANK under the off switch", () => {
+    expect(SCALE_RIGS).toBe(true);
+    // the shipped world (read under the switch on, put back off after): KINDLING, a reader line and no QUENCH TANK conversion
+    expect(withScaleRigs(() => [ITEMS.quench.name, ITEMS.quench.gate?.quench, ITEMS.quench.gate?.reads?.count], true)).toEqual(["KINDLING", undefined, "foeBurn"]);
+    // and the world this file runs in (the beforeEach above): the switch off, QUENCH TANK
+    expect([scaleRules(), ITEMS.quench.name]).toEqual([false, "QUENCH TANK"]);
+  });
+});
 
 describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at its own worth", () => {
   // Y7b2 (the flip): was "the rule at 1/2/3 stars: +flat on every payload; up to 4/5/6 Burn spent at +3/+5/+7 each; the

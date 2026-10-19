@@ -5,9 +5,16 @@
 // deck without it. Each pair names its evidence; none is inert. BB_TABLES=1 prints the table (REPORT.md).
 // Y7b2 (the flip; DESIGN-Y: no floors): a payoff piece that lost its floor gets its engine in both decks (MODULES), as
 // tests/sharedPool.effects.test.ts's decks() gives it; only the audited piece differs.
+// BUMP-1E (the flip; rules bb-0.12.0): the scaling rules ship on (SCALE_RIGS) and rework two of the 15: IRON WALL (a reader now: +n
+// DMG for each whole 10 PLATE you have, no plating of its own) and SPALL CATCHER (a reader now: +n DMG for each enemy hit on your
+// ship this fight, no charge); scale.ts SCALE_DEFS. Their rows below audit the OLD effects ("it rolls plating onto the hull",
+// "hits the ship takes charge its next shot"), so those two modules (`off: true` in MODULES) are read under the scaling rules' off
+// switch (withScaleRigs(fn, false), synchronously); the other 13 modules are pieces the flip does not touch and stay on, as does
+// the fire-rate record. The shipped readers are pinned in tests/scale2c.sim (a fight each, at every star).
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { HEROES as HERO_DEFS, ITEMS, withWave3, type HeroId } from "../src/sim/content";
+import { SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the 2 reworked modules' rows read it off
 import { validateBuild } from "../src/net/validate";
 import { cloneBuild, hullSlots, installTurret, rigHits, routeInfo, turretList, type Build } from "../src/sim/deck";
 import { bestSpot, spotForTile, stokeSpots } from "../src/sim/beltside";
@@ -223,7 +230,9 @@ const plates: Check = {
   show: (w) => `+${w.plate.toFixed(1)} plating`,
 };
 
-const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
+/** BUMP-1E: `off`: the module is one of the scaling rules' five reworks (IRON WALL, SPALL CATCHER here), and its check audits the
+ *  0.9.11 effect, so its row runs with the scaling rules' switch off. */
+const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check; off?: true }[] = [
   { id: "plateroller", pair: (h) => rig(h, "plateroller"), check: plates },
   // Y7b2 (the flip; DESIGN-Y: no floors): TWIN GAUGE needs a matched belt to act (another belt of as many tiles into its
   // gun): twinBelts; was audited on the bare deck (it had a floor: +10 off a matched belt)
@@ -270,7 +279,7 @@ const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
     id: "platebreaker", pair: (h) => rigOnTiles(h, "platebreaker", (b) => later(b, rigAt(b, "plateroller", ENGINE, [1, 2, 0]))),
     check: { ...hitsHarder, show: (w, o) => `${hitsHarder.show(w, o)}; ${w.spent.toFixed(0)} plating spent` },
   },
-  { id: "shieldwall", pair: (h) => rig(h, "shieldwall"), check: plates },
+  { id: "shieldwall", pair: (h) => rig(h, "shieldwall"), check: plates, off: true }, // BUMP-1E: IRON WALL's plating is the switch-off piece's
   {
     id: "twinmould", pair: (h) => placed(h, "twinmould"),
     check: {
@@ -312,6 +321,7 @@ const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
       ok: (w, o) => w.spallMax > 0 && meanDmg(w) > meanDmg(o),
       show: (w, o) => `charge up to ${w.spallMax.toFixed(1)}; mean shot ${meanDmg(o).toFixed(2)} -> ${meanDmg(w).toFixed(2)}`,
     },
+    off: true, // BUMP-1E: SPALL CATCHER's charge is the switch-off piece's (spallCharge: the shipped reader keeps none)
   },
   // Y7b2 (the flip; DESIGN-Y: no floors): SEAM WELDER needs PAIRs to act (two loads by two intakes at once): twinBelts fed
   // by a factory that pours both at once (FOUNDRY's CRUCIBLE, else a TWIN MOULD); was audited on the bare deck (it had a
@@ -322,25 +332,77 @@ const MODULES: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
 const TABLE: string[] = [];
 
 describe("wave 3, no dead offers: each module does something for each of the six heroes", () => {
+  // BUMP-1E: the scaling rules ship on; the rows of the two reworked modules (`off`) are read with the switch off, the rest as they were
+  it("BUMP-1E: the scaling rules ship on; IRON WALL and SPALL CATCHER are the reworked modules, audited as the 0.9.11 pieces", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(MODULES.filter((m) => m.off).map((m) => m.id)).toEqual(["shieldwall", "spallcatcher"]);
+    // shipped: readers (no plating, no charge); the switch off: the 0.9.11 pieces the rows below audit
+    expect(withScaleRigs(() => [ITEMS.shieldwall.gate?.reads?.count, ITEMS.spallcatcher.mod?.reads?.count], true)).toEqual(["ownPlate", "hitsTaken"]);
+    expect(withScaleRigs(() => [ITEMS.shieldwall.gate?.reads, ITEMS.spallcatcher.mod?.reads], false)).toEqual([undefined, undefined]);
+    // the 13 other modules are not in SCALE_DEFS: the very same defs with the switch off
+    for (const m of MODULES) if (!m.off) expect(withScaleRigs(() => ITEMS[m.id], false), m.id).toBe(ITEMS[m.id]);
+  });
   for (const m of MODULES) for (const hero of HEROES) {
     it(`${m.id} x ${hero}: ${m.check.what}`, () => {
-      const p = m.pair(hero);
-      // every deck is one a player could own on day 10 (with wave 3 in the game), the test's + 5000 hull aside
-      withWave3(() => {
-        for (const [what, b] of [["with", p.deck], ["without", p.base], ["foe", p.foe]] as [string, Build][]) {
-          expect(validateBuild({ ...b, hullBonus: 0 }, 10).errors, `${m.id} x ${hero}: ${what}`).toEqual([]);
-        }
-      });
-      const w = tally(p.deck, p.foe, p.turret), o = tally(p.base, p.foe, p.turret);
-      const line = `| ${m.id} | ${hero} | ${m.check.show(w, o)} |`;
-      TABLE.push(line);
-      expect(m.check.ok(w, o, p), line).toBe(true);
+      const audit = () => {
+        const p = m.pair(hero);
+        // every deck is one a player could own on day 10 (with wave 3 in the game), the test's + 5000 hull aside
+        withWave3(() => {
+          for (const [what, b] of [["with", p.deck], ["without", p.base], ["foe", p.foe]] as [string, Build][]) {
+            expect(validateBuild({ ...b, hullBonus: 0 }, 10).errors, `${m.id} x ${hero}: ${what}`).toEqual([]);
+          }
+        });
+        const w = tally(p.deck, p.foe, p.turret), o = tally(p.base, p.foe, p.turret);
+        const line = `| ${m.id} | ${hero} | ${m.check.show(w, o)} |`;
+        TABLE.push(line);
+        expect(m.check.ok(w, o, p), line).toBe(true);
+      };
+      if (m.off) {
+        expect(scaleRules(), `${m.id} x ${hero}: the shipped switch is on`).toBe(true); // BUMP-1E: read with it off here, put back on after
+        withScaleRigs(audit, false);
+      } else audit();
     });
   }
   it("the table (BB_TABLES=1 prints it)", () => {
     expect(TABLE.length).toBe(15 * 6);
     if (process.env.BB_TABLES) console.log(["| module | hero | evidence |", "|---|---|---|", ...TABLE].join("\n"));
   });
+});
+
+// BUMP-1E: the audit above reads IRON WALL and SPALL CATCHER as the 0.9.11 pieces (plating, charge). This is the same audit of them as
+// the scaling rules ship them (the switch on, as it is): readers, so IRON WALL, like the file's other payoff pieces, gets its engine in
+// both decks (a PLATE ROLLER ahead of it on the first belt, as PLATE BREAKER's row does: bare it reads no PLATE on 5 of the 6 start
+// decks), and SPALL CATCHER the shooter that gives it hits to count (as its row above). Evidence that each does something, with no old
+// number ported: the shipped numbers are tests/scale2c.sim's. Not in the table above (15 x 6).
+const READERS: { id: string; pair: (hero: HeroId) => Pair; check: Check }[] = [
+  {
+    id: "shieldwall", pair: (h) => rigOnTiles(h, "shieldwall", (b) => later(b, rigAt(b, "plateroller", ENGINE, [1, 2, 0]))),
+    check: { ...hitsHarder, what: "a reader: its hits add damage for the PLATE a PLATE ROLLER rolled: it hits payloads, and the mean shot deals more than without it" },
+  },
+  {
+    id: "spallcatcher", pair: (h) => fitted(h, "spallcatcher", shooter()),
+    check: {
+      what: "a reader: each hit the ship takes adds damage to its shots, so the mean shot deals more than without it",
+      ok: (w, o) => meanDmg(w) > meanDmg(o),
+      show: (w, o) => `mean shot ${meanDmg(o).toFixed(2)} -> ${meanDmg(w).toFixed(2)}`,
+    },
+  },
+];
+
+describe("BUMP-1E: wave 3, no dead offers: IRON WALL and SPALL CATCHER as the scaling rules ship them", () => {
+  for (const m of READERS) for (const hero of HEROES) {
+    it(`${m.id} x ${hero}: ${m.check.what}`, () => {
+      expect(scaleRules(), "the shipped switch is on").toBe(true);
+      const p = m.pair(hero);
+      withWave3(() => {
+        for (const [what, b] of [["with", p.deck], ["without", p.base], ["foe", p.foe]] as [string, Build][]) {
+          expect(validateBuild({ ...b, hullBonus: 0 }, 10).errors, `${m.id} x ${hero}: ${what}`).toEqual([]);
+        }
+      });
+      const w = tally(p.deck, p.foe, p.turret), o = tally(p.base, p.foe, p.turret);
+      expect(m.check.ok(w, o, p), `| ${m.id} | ${hero} | ${m.check.show(w, o)} |`).toBe(true);
+    });
+  }
 });
 
 /**

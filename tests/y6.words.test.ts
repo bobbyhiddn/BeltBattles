@@ -11,8 +11,16 @@
 //   (STAR_TAP_NOTES) and the FORGE family line (families.ts) drop it. Off, every text the base's byte for byte.
 // - The rating (deckRating.ts, behind the switch): EQ.poison's term becomes burnPlusGain, its seconds x BURN_DPS x the BURN
 //   stacks the belt's slugs carry (the walk's estimate.burn); with no BURN, VENOM rates as nothing.
-import { describe, expect, it } from "vitest";
+// BUMP-1E (the flip; rules bb-0.12.0): the scaling rules ship on (SCALE_RIGS), and with them POISON is a keyword again (SCALE-2b:
+// VENOM DRIP puts it on the hull; its glossary row and its KEYWORDS entry, the 10th, join while the switch is on) and VENOM DRIP
+// has no burnPlus, IRON WALL no plating (the reader pieces; scale.ts SCALE_DEFS). Every test below is about the 0.9.11 world, where
+// POISON retired and VENOM says BURN's seconds, so the file reads that world under the scaling rules' off switch (setScaleRigs(false)
+// before each test, the shipped value put back after it) and asserts the switch ships on (the first test). The shipped world's POISON
+// words are tests/y3.words, scale2b.* and tests/glossary's. No module-level ITEMS read here: nothing to take under
+// withScaleRigs(fn, false) at load.
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BURN_DPS, ITEMS } from "../src/sim/content";
+import { SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; this file reads it off
 import type { Build, TimelineHit } from "../src/sim/deck";
 import { burnPlusGain, chargeGains, rateDeck, type RateOut } from "../src/sim/deckRating";
 import { rigHits } from "../src/sim/deck";
@@ -72,6 +80,22 @@ function sweep(): { hits: string[]; n: number } {
   for (const r of glossaryRows()) for (const t of [r.def, r.extra ?? ""]) look(`row ${r.word}`, t);
   return { hits, n };
 }
+
+// BUMP-1E: every test of this file reads the 0.9.11 world's words and rating, the scaling rules' switch-off world: the switch is off
+// while a test runs, on again after it
+beforeEach(() => setScaleRigs(false));
+afterEach(() => setScaleRigs(SCALE_RIGS));
+
+describe("BUMP-1E: the scaling rules ship on; POISON retired is the switch-off world", () => {
+  it("SCALE_RIGS ships true and POISON is a keyword and a glossary row as shipped; the other tests of this file read the world where it retired, under the off switch", () => {
+    expect(SCALE_RIGS).toBe(true);
+    // the shipped world (read under the switch on, put back off after): POISON is the 10th keyword and has a glossary row
+    expect(withScaleRigs(() => [[...KEYWORDS].includes("POISON"), glossaryEntry("POISON")?.kw], true)).toEqual([true, "POISON"]);
+    // and the world this file runs in (the beforeEach above): the switch off, POISON retired
+    expect(scaleRules()).toBe(false);
+    expect([[...KEYWORDS].includes("POISON"), glossaryEntry("POISON")]).toEqual([false, undefined]);
+  });
+});
 
 // ---------------------------------------------------------------------------------------------- the words
 describe("Y6 words: POISON retires; no new keyword", () => {

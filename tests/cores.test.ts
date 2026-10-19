@@ -2,6 +2,12 @@
 // 1-3 stars on a heavy turret (FURNACE), a medium one (a stand-in TurretDef, speed 40: 30 / 40 = 0.75 s; NUM-2, was
 // fireInterval 0.75) and a light one (WEAVER). A bench side keeps its factory but has no belts, so only the loads a test puts in the
 // chamber fire; the foe is a passive barge (no belts, +2000 hull). Plain slugs deal 3 (NUM-1: 30, AMMO.plain.base).
+// BUMP-1E (the flip; rules bb-0.12.0): the scaling rules ship on (SCALE_RIGS) and rework ONE of the seven cores: PRESSURE BREECH
+// (scale.ts SCALE_DEFS pressure: no MAX 5, its own uncapped perQueued term, ★1 5 / ★2 13 / ★3 42 a load queued; NEVER JAMS stays).
+// The six other cores are the same defs in both worlds, so this file stays on; what it pins of PRESSURE BREECH is the 0.9.11 core
+// (perQueued 12 / 26 / 42, at most 5), read under the off switch (withScaleRigs(fn, false), synchronously: the 'k scales' test's
+// perQueued line and the three PRESSURE BREECH class tests). The shipped PRESSURE BREECH is pinned in tests/scale2c.sim (its
+// table, the uncapped pressureBonus, the shot's add).
 import { describe, expect, it } from "vitest";
 import { Battle, makeTurret, type Payload, type Projectile, type TurretState } from "../src/sim/battle";
 import { startingBuild } from "../src/sim/ai";
@@ -9,6 +15,7 @@ import { AMMO, HEROES, ITEMS, SIGNATURE_CORES, WINDOW_TIME, classFactor, type He
 import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED, 30 / speed; a whole rate %
 import type { Build } from "../src/sim/deck";
 import { CORE_ABSOLUTE, ROUTINES, pressureBonus, resolveCore } from "../src/sim/cores";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the 0.9.11 PRESSURE BREECH is read with it off
 import { effectAt } from "../src/sim/stars";
 
 const CORES = ["scatter", "rotary", "pressure", "gatling", "hullbreaker", "drake", "salvo"];
@@ -62,6 +69,15 @@ const PLAIN = AMMO.plain.base; // 30
 const half = (x: number) => Math.floor(x + 0.5 + 1e-9);
 const scaled = (v: number, k: number) => half((v * half(100 * k)) / 100);
 
+describe("BUMP-1E: the scaling rules ship on and rework PRESSURE BREECH, the one core they touch", () => {
+  it("SCALE_RIGS ships true; the shipped PRESSURE BREECH has no MAX 5 (off: 5); the six other cores are the same defs with the switch off", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(STARS.map((s) => effectAt("pressure", s).core?.maxCount)).toEqual([undefined, undefined, undefined]);
+    expect(withScaleRigs(() => STARS.map((s) => effectAt("pressure", s).core?.maxCount), false)).toEqual([5, 5, 5]);
+    for (const id of CORES) if (id !== "pressure") expect(withScaleRigs(() => ITEMS[id], false), id).toBe(ITEMS[id]);
+  });
+});
+
 describe("the core resolver and the class factor", () => {
   it("classFactor = clamp(30 / speed, 0.4, 1.2): heavy 1, medium 0.75, light 30 / 55 (its whole class % 55)", () => {
     expect(classFactor(HEROES.furnace.turrets[0])).toBe(1);
@@ -112,7 +128,9 @@ describe("the core resolver and the class factor", () => {
     }
     const pq = (td: TurretDef) => resolveCore({ hero: "furnace", items: [], routes: [], mods: [{ uid: 1, def: "pressure", turret: 0 }], beltCap: 0, hullBonus: 0 }, 0, td).spec.perQueued!;
     // NUM-1: x10 (was 1.2 / 0.9 / 0.66); 12 x 55% = 6.6 rounds half up to 7 at install
-    expect([pq(HEROES.furnace.turrets[0]), pq(MEDIUM), pq(HEROES.weaver.turrets[0])]).toEqual([12, 9, 7]);
+    // BUMP-1E: ★1's 12 is the 0.9.11 PRESSURE BREECH's (the shipped ★1 is 5: SCALE_DEFS pressure, C4; the loop above reads the
+    // shipped numbers at every star), so this line reads the core with the scaling rules' switch off
+    expect(withScaleRigs(() => [pq(HEROES.furnace.turrets[0]), pq(MEDIUM), pq(HEROES.weaver.turrets[0])], false)).toEqual([12, 9, 7]);
   });
 });
 
@@ -181,7 +199,10 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
       }
     });
 
-    it(`PRESSURE BREECH, ${c.name}: + perQueued x k per load queued (this one included), at most 5, never jams`, () => {
+    // BUMP-1E: the 0.9.11 PRESSURE BREECH (12 / 26 / 42 a load queued, at most 5): the scaling rules rework it (no MAX 5, ★1 5, ★2 13;
+    // scale.ts SCALE_DEFS pressure), so the body reads it under the off switch (synchronously; the Battle is made inside); the
+    // shipped one is tests/scale2c.sim's (its uncapped pressureBonus and shot add)
+    it(`PRESSURE BREECH, ${c.name}: + perQueued x k per load queued (this one included), at most 5, never jams`, () => withScaleRigs(() => {
       for (const s of STARS) {
         const lv = effectAt("pressure", s).core!;
         const { bt, tu } = bench(c, "pressure", s);
@@ -195,7 +216,7 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         shots.forEach(({ pr }, i) => expect(pr.dmg).toBe(PLAIN + pq * (n - i)));
         expect(pressureBonus(tu.core.spec, 9)).toBe(pq * 5); // maxCount 5
       }
-    });
+    }, false));
 
     it(`GATLING SPOOL, ${c.name}: -17% at first, each quick shot a step faster up to the top, a long gap halves the spin`, () => {
       for (const s of STARS) {
